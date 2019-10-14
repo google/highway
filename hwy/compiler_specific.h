@@ -12,51 +12,67 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HIGHWAY_COMPILER_SPECIFIC_H_
-#define HIGHWAY_COMPILER_SPECIFIC_H_
+#ifndef HWY_COMPILER_SPECIFIC_H_
+#define HWY_COMPILER_SPECIFIC_H_
 
 // Compiler-specific includes and definitions.
 
-// SIMD_COMPILER expands to one of the following:
-#define SIMD_COMPILER_CLANG 1
-#define SIMD_COMPILER_GCC 2
-#define SIMD_COMPILER_MSVC 3
-
 #ifdef _MSC_VER
-#define SIMD_COMPILER SIMD_COMPILER_MSVC
-#elif defined(__clang__)
-#define SIMD_COMPILER SIMD_COMPILER_CLANG
-#elif defined(__GNUC__)
-#define SIMD_COMPILER SIMD_COMPILER_GCC
+#define HWY_COMPILER_MSVC _MSC_VER
 #else
+#define HWY_COMPILER_MSVC 0
+#endif
+
+#ifdef __GNUC__
+#define HWY_COMPILER_GCC (__GNUC__ * 100 + __GNUC_MINOR__)
+#else
+#define HWY_COMPILER_GCC 0
+#endif
+
+// Clang can masquerade as MSVC/GCC, in which case both are set.
+#ifdef __clang__
+#define HWY_COMPILER_CLANG (__clang_major__ * 100 + __clang_minor__)
+#else
+#define HWY_COMPILER_CLANG 0
+#endif
+
+#if !HWY_COMPILER_MSVC && !HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
 #error "Unsupported compiler"
 #endif
 
-#if SIMD_COMPILER == SIMD_COMPILER_MSVC
+#if HWY_COMPILER_MSVC
 #include <intrin.h>
 
-#define SIMD_RESTRICT __restrict
-#define SIMD_INLINE __forceinline
-#define SIMD_NOINLINE __declspec(noinline)
-#define SIMD_LIKELY(expr) expr
-#define SIMD_TRAP __debugbreak
-#define SIMD_TARGET_ATTR(feature_str)
-#define SIMD_DIAGNOSTICS(tokens) __pragma(warning(tokens))
-#define SIMD_DIAGNOSTICS_OFF(msc, gcc) SIMD_DIAGNOSTICS(msc)
+#define HWY_RESTRICT __restrict
+#define HWY_INLINE __forceinline
+#define HWY_NOINLINE __declspec(noinline)
+#define HWY_LIKELY(expr) expr
+#define HWY_TRAP __debugbreak
+#define HWY_TARGET_ATTR(feature_str)
+#define HWY_DIAGNOSTICS(tokens) __pragma(warning(tokens))
+#define HWY_DIAGNOSTICS_OFF(msc, gcc) HWY_DIAGNOSTICS(msc)
 
 #else
 
-#define SIMD_RESTRICT __restrict__
-#define SIMD_INLINE \
+#define HWY_RESTRICT __restrict__
+#define HWY_INLINE \
   inline __attribute__((always_inline)) __attribute__((flatten))
-#define SIMD_NOINLINE inline __attribute__((noinline))
-#define SIMD_LIKELY(expr) __builtin_expect(!!(expr), 1)
-#define SIMD_TRAP __builtin_trap
-#define SIMD_TARGET_ATTR(feature_str) __attribute__((target(feature_str)))
-#define SIMD_PRAGMA(tokens) _Pragma(#tokens)
-#define SIMD_DIAGNOSTICS(tokens) SIMD_PRAGMA(GCC diagnostic tokens)
-#define SIMD_DIAGNOSTICS_OFF(msc, gcc) SIMD_DIAGNOSTICS(gcc)
+#define HWY_NOINLINE inline __attribute__((noinline))
+#define HWY_LIKELY(expr) __builtin_expect(!!(expr), 1)
+#define HWY_TRAP __builtin_trap
+#define HWY_TARGET_ATTR(feature_str) __attribute__((target(feature_str)))
+#define HWY_PRAGMA(tokens) _Pragma(#tokens)
+#define HWY_DIAGNOSTICS(tokens) HWY_PRAGMA(GCC diagnostic tokens)
+#define HWY_DIAGNOSTICS_OFF(msc, gcc) HWY_DIAGNOSTICS(gcc)
 
 #endif
 
-#endif  // HIGHWAY_COMPILER_SPECIFIC_H_
+// Add to #if conditions to prevent IDE from graying out code.
+#if (defined __CDT_PARSER__) || (defined __INTELLISENSE__) || \
+    (defined Q_CREATOR_RUN)
+#define HWY_IDE 1
+#else
+#define HWY_IDE 0
+#endif
+
+#endif  // HWY_COMPILER_SPECIFIC_H_

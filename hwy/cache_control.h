@@ -12,32 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HIGHWAY_CACHE_CONTROL_H_
-#define HIGHWAY_CACHE_CONTROL_H_
+#ifndef HWY_CACHE_CONTROL_H_
+#define HWY_CACHE_CONTROL_H_
 
 #include <stdint.h>
 #include <string.h>  // memcpy
 
-#include "third_party/highway/highway/arch.h"
-#include "third_party/highway/highway/compiler_specific.h"
+#include "hwy/arch.h"
+#include "hwy/compiler_specific.h"
 
-#if SIMD_ARCH == SIMD_ARCH_X86
+#if HWY_ARCH == HWY_ARCH_X86
 #include <emmintrin.h>
 #endif
 
-namespace jxl {
+namespace hwy {
 
-SIMD_INLINE void stream(const uint32_t t, uint32_t* SIMD_RESTRICT aligned) {
-#if SIMD_ARCH == SIMD_ARCH_X86
+HWY_INLINE void Stream(const uint32_t t, uint32_t* HWY_RESTRICT aligned) {
+#if HWY_ARCH == HWY_ARCH_X86
   _mm_stream_si32(reinterpret_cast<int*>(aligned), t);
 #else
   memcpy(aligned, &t, sizeof(t));
 #endif
 }
 
-SIMD_INLINE void stream(const uint64_t t, uint64_t* SIMD_RESTRICT aligned) {
-#if SIMD_ARCH == SIMD_ARCH_X86
+HWY_INLINE void Stream(const uint64_t t, uint64_t* HWY_RESTRICT aligned) {
+#if defined(__x86_64__) || defined(_M_X64)
+  // NOLINTNEXTLINE(google-runtime-int)
   _mm_stream_si64(reinterpret_cast<long long*>(aligned), t);
+#elif HWY_ARCH == HWY_ARCH_X86  // i386 case
+  _mm_stream_si32(reinterpret_cast<int*>(aligned), static_cast<uint32_t>(t));
+  _mm_stream_si32(reinterpret_cast<int*>(aligned) + 1, t >> 32u);
 #else
   memcpy(aligned, &t, sizeof(t));
 #endif
@@ -46,36 +50,40 @@ SIMD_INLINE void stream(const uint64_t t, uint64_t* SIMD_RESTRICT aligned) {
 // Delays subsequent loads until prior loads are visible. On Intel CPUs, also
 // serves as a full fence (waits for all prior instructions to complete).
 // No effect on non-x86.
-SIMD_INLINE void load_fence() {
-#if SIMD_ARCH == SIMD_ARCH_X86
+HWY_INLINE void LoadFence() {
+#if HWY_ARCH == HWY_ARCH_X86
   _mm_lfence();
 #endif
 }
 
 // Ensures previous weakly-ordered stores are visible. No effect on non-x86.
-SIMD_INLINE void store_fence() {
-#if SIMD_ARCH == SIMD_ARCH_X86
+HWY_INLINE void StoreFence() {
+#if HWY_ARCH == HWY_ARCH_X86
   _mm_sfence();
 #endif
 }
 
 // Begins loading the cache line containing "p".
 template <typename T>
-SIMD_INLINE void prefetch(const T* p) {
-#if SIMD_ARCH == SIMD_ARCH_X86
+HWY_INLINE void Prefetch(const T* p) {
+#if HWY_ARCH == HWY_ARCH_X86
   _mm_prefetch(p, _MM_HINT_T0);
-#elif SIMD_ARCH == SIMD_ARCH_ARM
+#elif HWY_ARCH == HWY_ARCH_ARM
   __pld(p);
+#else
+  (void)p;
 #endif
 }
 
 // Invalidates and flushes the cache line containing "p". No effect on non-x86.
-SIMD_INLINE void flush_cacheline(const void* p) {
-#if SIMD_ARCH == SIMD_ARCH_X86
+HWY_INLINE void FlushCacheline(const void* p) {
+#if HWY_ARCH == HWY_ARCH_X86
   _mm_clflush(p);
+#else
+  (void)p;
 #endif
 }
 
-}  // namespace jxl
+}  // namespace hwy
 
-#endif  // HIGHWAY_CACHE_CONTROL_H_
+#endif  // HWY_CACHE_CONTROL_H_

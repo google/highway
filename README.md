@@ -8,6 +8,8 @@ efficiency across platforms, and immediate usability with current compilers.
 
 Implemented for scalar/SSE4/AVX2/AVX-512/ARMv8 targets, each with unit tests.
 
+Tested on GCC 8.3.0 and Clang 6.0.1.
+
 A [quick-reference page](quick_reference.md) briefly lists all operations
 and their parameters.
 
@@ -45,8 +47,9 @@ and their parameters.
 *   Masking is not yet widely supported on current CPUs. It is difficult to
     define an interface that provides access to all platform features while
     retaining performance portability. The P0214R5 proposal lacks support for
-    AVX-512/ARM SVE zeromasks. We suggest standardizing masked operations only
-    after the community has gained more experience with them.
+    AVX-512/ARM SVE zeromasks. We suggest limiting usage of masks to the
+    IfThen[Zero]Else[Zero] functions until the community has gained more
+    experience with them.
 
 *   "Width-agnostic" SIMD is more future-proof than user-specified fixed sizes.
     For example, valarray-like code can iterate over a 1D array with a
@@ -60,7 +63,7 @@ and their parameters.
 
 *   The API and its implementation should be usable and efficient with commonly
     used compilers. Some of our open-source users cannot upgrade, so we need to
-    support ~4 year old compilers. For example, we write `shift_left<3>(v)`
+    support ~4 year old compilers. For example, we write `ShiftLeft<3>(v)`
     instead of `v << 3` because MSVC 2017 (ARM64) does not propagate the literal
     (https://godbolt.org/g/rKx5Ga). However, we do require function-specific
     target attributes, supported by GCC 4.9 / Clang 3.9 / MSVC 2015.
@@ -94,8 +97,8 @@ and their parameters.
 
 ## Differences versus [P0214R5 proposal](https://goo.gl/zKW4SA)
 
-1.  Adding widely used and portable operations such as `andnot`, `average`,
-    bit-shift by immediates and `if_then_else`.
+1.  Adding widely used and portable operations such as `AndNot`, `AverageRound`,
+    bit-shift by immediates and `IfThenElse`.
 
 1.  Designing the API to avoid or minimize overhead on AVX2/AVX-512 caused by
     crossing 128-bit 'block' boundaries.
@@ -127,7 +130,7 @@ and their parameters.
     By contrast, P0214R5 requires a wrapper. We avoid this by using only the
     member operators provided by the PPC vectors; all other functions and
     typedefs are non-members. 2019-04 update: Clang power64le does not have
-    this issue, so we simplified get_part(d, v) to get_lane(v).
+    this issue, so we simplified get_part(d, v) to GetLane(v).
 
 *   Omitting inefficient or non-performance-portable operations such as `hmax`,
     `operator[]`, and unsupported integer comparisons. Applications can often
@@ -152,8 +155,9 @@ then intrinsics, later Intel's `F32vec4` wrapper, followed by three generations
 of custom vector classes. The first used macros to generate the classes, which
 reduces duplication but also readability. The second used templates instead.
 The third (used in highwayhash and PIK) added support for AVX2 and runtime
-dispatch. The current design enables code generation for multiple platforms
-and/or instruction sets from the same source, and improves runtime dispatch.
+dispatch. The current design (used in JPEG XL) enables code generation for
+multiple platforms and/or instruction sets from the same source, and improves
+runtime dispatch.
 
 ## Other related work
 
@@ -175,7 +179,7 @@ and/or instruction sets from the same source, and improves runtime dispatch.
     automatic FLOPS counting, and "if/else branches" using lambda functions.
     It supports IBM Power8, but only provides float and double types.
 
-### Overloaded function API
+## Overloaded function API
 
 Most C++ vector APIs rely on class templates. However, two PPC compilers
 including GCC 6.3 generate inefficient code for classes with a SIMD vector
@@ -185,13 +189,13 @@ vector types on PPC. These provide overloaded arithmetic operators but do not
 allow member functions/typedefs such as `size()` or `value_type`. We instead
 rely on overloaded functions.
 
-Because full vectors and parts are synonyms on PPC, we need an additional tag
-argument for disambiguation. Any function template with multiple return types
-uses a descriptor argument to specify the return type. For example, the return
-type of `setzero(Desc<T, N>)` is `VT<Desc<T, N>>`. For brevity,
+Because vectors of various lengths are the same type on PPC, we need an
+additional tag argument for disambiguation. Any function template with multiple
+return types uses a descriptor argument to specify the return type. For example,
+the return type of `Zero(Desc<T, N>)` is `VT<Desc<T, N>>`. For brevity,
 `Desc` is abbreviated to `D` for template arguments and `d` in lvalues.
 
-It may seem preferable to write `setzero<D>()` rather than `setzero(D())`, but
+It may seem preferable to write `Zero<D>()` rather than `Zero(D())`, but
 there are technical difficulties. We prefer generic implementations where
 possible rather than overloading for every single `T`. Because C++ does not
 allow partial specialization of function templates, we need multiple overloads:
@@ -201,54 +205,80 @@ appropriate overload? Unfortunately, the compiler mechanism for avoiding
 dangerous per-file `-mavx2` requires per-function annotations, and these
 attributes are not generic. Thus, a wrapper into which SIMD functions are
 inlined cannot be a function, because it would also need a target-specific
-attribute. A macro `SETZERO(D)` could work, but this is hardly more clear than a
+attribute. A macro `ZERO(D)` could work, but this is hardly more clear than a
 normal function with arguments. Note that descriptors occur often, so user code
-can define a `const SIMD_FULL(float) d;` and then write `setzero(d)`.
+can define a `const HWY_FULL(float) d;` and then write `Zero(d)`.
+
+## Masks
+
+AVX-512 introduced a major change to the SIMD interface: special mask registers
+(one bit per lane) that serve as predicates. It would be expensive to force
+AVX-512 implementations to conform to the prior model of full vectors with lanes
+set to all one or all zero bits. We instead provide a Mask type that emulates
+a subset of this functionality on other platforms at zero cost.
+
+Masks are returned by comparisons and `TestBit`; they serve as the input to
+`IfThen*`. We provide conversions between masks and vector lanes. For clarity
+and safety, we use FF..FF as the definition of true. To also benefit from
+x86 instructions that only require the sign bit of floating-point inputs to be
+set, we provide a special `ZeroIfNegative` function.
 
 ## Use cases and HOWTO
 
 Whenever possible, use full-width descriptors for maximum performance
-portability: `SIMD_FULL(float)`. When necessary, applications may also rely on
+portability: `HWY_FULL(float)`. When necessary, applications may also rely on
 128-bit vectors: `Desc<float, 4>`. There is also the option of a vector of up
-to N lanes: `SIMD_CAPPED(float, N)` (the length is always a power of two).
+to N lanes: `HWY_CAPPED(float, N)` (the length is always a power of two).
 
 *   Single instruction set per platform: use normal C++ functions with
-    `SIMD_ATTR` annotation and `#include "static_targets.h"`.
+    `HWY_ATTR` annotation and `#include "static_targets.h"`. Note that this
+    can co-exist with runtime dispatch in the same translation unit.
 
-*   Runtime dispatch (see example code in `runtime_dispatch.h`): move
-    target-specific code into a separate *_target.cc file, which includes
-    `in_target.h`. Specialize an `operator()<SIMD_TARGET>` in this file; any
-    internal implementation must reside in `namespace SIMD_NAMESPACE` to avoid
-    ODR violations. All functions must still be prefixed with `SIMD_ATTR`.
-    Include the file for each target via `foreach_target.h`. To call,
-    `#include "runtime_dispatch"` and choose the 'best' available target for
-    the current CPU via `Dispatch(TargetBitfield.Best(), ...)`.
+*   Runtime dispatch means calling the best available implementation:
 
-*   Mixing static and runtime dispatch: `static_targets.h` and
-    `runtime_dispatch.h` may be included into the same translation unit.
-    `static_targets.h` may also be included *before* (typically in headers that
-    unconditionally use SIMD) `in_target.h`.
+```c++
+  #include "jxl/hwy/runtime_dispatch.h"
+  Dispatch(TargetBitfield().Best(), Module()/*, args*/);
+```
 
-## Demos
+The module is declared in a header as a non-const member function:
+```c++
+  struct Module {
+    HWY_DECLARE(void, (args))
+  };
+```
 
-`bin/simd_test` prints a bitfield of instruction sets that were
-tested, e.g. `6` for SSE4=`4` and AVX2=`2`. The demo compiles the same source
-file once per enabled instruction set.
+The module.cc is automatically compiled multiple times, once per target CPU:
+```c++
+  #ifndef HWY_TARGET_INCLUDE
+  #define HWY_TARGET_INCLUDE "path/module.cc"
+  #include "path/module.h"
+  #endif  // end of non-SIMD code
+
+  #include "jxl/hwy/foreach_target.h"
+
+  namespace HWY_NAMESPACE { namespace {
+    HWY_ATTR void Implementation() {}
+  }}
+  HWY_ATTR void Module::HWY_FUNC(/*args*/) {
+    HWY_NAMESPACE::Implementation();
+  }
+```
 
 ## Example source code
 
 ```c++
-void FloorLog2(const uint8_t* SIMD_RESTRICT values,
-               uint8_t* SIMD_RESTRICT log2) {
+void FloorLog2(const uint8_t* HWY_RESTRICT values,
+               uint8_t* HWY_RESTRICT log2) {
   // Descriptors for all required data types:
-  const SIMD_FULL(int32_t) d32;
-  const SIMD_FULL(float) df;
-  const SIMD_CAPPED(uint8_t, d32.N) d8;
+  const HWY_FULL(int32_t) d32;
+  const HWY_FULL(float) df;
+  const HWY_CAPPED(uint8_t, d32.N) d8;
 
-  const auto u8 = load(d8, values);
-  const auto bits = bit_cast(d32, convert_to(df, convert_to(d32, u8)));
-  const auto exponent = shift_right<23>(bits) - set1(d32, 127);
-  store(convert_to(d8, exponent), d8, log2);
+  const auto u8 = Load(d8, values);
+  const auto bits = BitCast(d32, ConvertTo(df, ConvertTo(d32, u8)));
+  const auto exponent = ShiftRight<23>(bits) - Set(d32, 127);
+  Store(ConvertTo(d8, exponent), d8, log2);
 }
 ```
 
@@ -275,37 +305,37 @@ This generates the following SSE4 and AVX2 code, as shown by IACA:
 ```
 
 ```c++
-void Copy(const uint8_t* SIMD_RESTRICT from, const size_t size,
-          uint8_t* SIMD_RESTRICT to) {
+void Copy(const uint8_t* HWY_RESTRICT from, const size_t size,
+          uint8_t* HWY_RESTRICT to) {
   // Width-agnostic (library-specified N)
-  const SIMD_FULL(uint8_t) d;
+  const HWY_FULL(uint8_t) d;
   const Scalar<uint8_t> ds;
   size_t i = 0;
   for (; i + d.N <= size; i += d.N) {
-    const auto bytes = load(d, from + i);
-    store(bytes, d, to + i);
+    const auto bytes = Load(d, from + i);
+    Store(bytes, d, to + i);
   }
 
   for (; i < size; ++i) {
     // (Same loop body as above, could factor into a shared template)
-    const auto bytes = load(ds, from + i);
-    store(bytes, ds, to + i);
+    const auto bytes = Load(ds, from + i);
+    Store(bytes, ds, to + i);
   }
 }
 ```
 
 ```c++
-void MulAdd(const T* SIMD_RESTRICT mul_array, const T* SIMD_RESTRICT add_array,
-            const size_t size, T* SIMD_RESTRICT x_array) {
+void MulAdd(const T* HWY_RESTRICT mul_array, const T* HWY_RESTRICT add_array,
+            const size_t size, T* HWY_RESTRICT x_array) {
   // Type-agnostic (caller-specified lane type) and width-agnostic (uses
   // best available instruction set).
-  const SIMD_FULL(T) d;
+  const HWY_FULL(T) d;
   for (size_t i = 0; i < size; i += d.N) {
-    const auto mul = load(d, mul_array + i);
-    const auto add = load(d, add_array + i);
-    auto x = load(d, x_array + i);
-    x = mul_add(mul, x, add);
-    store(x, d, x_array + i);
+    const auto mul = Load(d, mul_array + i);
+    const auto add = Load(d, add_array + i);
+    auto x = Load(d, x_array + i);
+    x = MulAdd(mul, x, add);
+    Store(x, d, x_array + i);
   }
 }
 ```

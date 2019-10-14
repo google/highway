@@ -12,23 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HIGHWAY_TARGETS_H_
-#define HIGHWAY_TARGETS_H_
+#ifndef HWY_TARGETS_H_
+#define HWY_TARGETS_H_
 
-// Unconditionally defines target types for specializing and calling functors
-// (no harm defining them if they are not used).
+// Unique bit value for each target. Used in static/runtime_targets.h.
+#define HWY_NONE 0
+#define HWY_PPC8 1  // v2.07 or 3
+#define HWY_AVX2 2
+#define HWY_SSE4 4
+#define HWY_ARM8 8
+#define HWY_AVX512 16
 
-namespace jxl {
-
-// SIMD_TARGET expands to one of these. Using structs instead of target_bits.h
-// values makes it easier to infer the target from a mangled name.
-struct NONE {};
-struct SSE4 {};
-struct AVX2 {};
-struct AVX512 {};
-struct PPC8 {};
-struct ARM8 {};
-
-}  // namespace jxl
-
-#endif  // HIGHWAY_TARGETS_H_
+#endif  // HWY_TARGETS_H_

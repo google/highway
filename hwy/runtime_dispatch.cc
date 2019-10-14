@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "highway/runtime_dispatch.h"
+#include "hwy/runtime_dispatch.h"
 
 #include <stdint.h>
 
 #include <atomic>
 
-#if SIMD_ARCH == SIMD_ARCH_X86
+#if HWY_ARCH == HWY_ARCH_X86
 #include <xmmintrin.h>
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -27,7 +27,7 @@
 #endif
 #endif
 
-namespace jxl {
+namespace hwy {
 
 namespace {
 
@@ -35,12 +35,12 @@ bool IsBitSet(const uint32_t reg, const int index) {
   return (reg & (1U << index)) != 0;
 }
 
-#if SIMD_ARCH == SIMD_ARCH_X86
+#if HWY_ARCH == HWY_ARCH_X86
 
 // Calls CPUID instruction with eax=level and ecx=count and returns the result
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
 void Cpuid(const uint32_t level, const uint32_t count,
-           uint32_t* SIMD_RESTRICT abcd) {
+           uint32_t* HWY_RESTRICT abcd) {
 #ifdef _MSC_VER
   int regs[4];
   __cpuidex(regs, level, count);
@@ -72,12 +72,12 @@ uint32_t ReadXCR0() {
 #endif
 }
 
-#endif  // SIMD_ARCH_X86
+#endif  // HWY_ARCH_X86
 
 // Not function-local => no compiler-generated locking.
 std::atomic<int> supported_{-1};  // Not yet initialized
 
-#if SIMD_ARCH == SIMD_ARCH_X86
+#if HWY_ARCH == HWY_ARCH_X86
 // Bits indicating which instruction set extensions are supported.
 constexpr uint32_t kSSE = 1 << 0;
 constexpr uint32_t kSSE2 = 1 << 1;
@@ -107,13 +107,13 @@ constexpr uint32_t kGroupAVX512 = kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW;
 TargetBitfield::TargetBitfield() {
   bits_ = supported_.load(std::memory_order_acquire);
   // Already initialized?
-  if (SIMD_LIKELY(bits_ != -1)) {
+  if (HWY_LIKELY(bits_ != -1)) {
     return;
   }
 
-  bits_ = SIMD_NONE;
+  bits_ = HWY_NONE;
 
-#if SIMD_ARCH == SIMD_ARCH_X86
+#if HWY_ARCH == HWY_ARCH_X86
   uint32_t flags = 0;
   uint32_t abcd[4];
 
@@ -169,23 +169,23 @@ TargetBitfield::TargetBitfield() {
 
   // Set target bit(s) if all their group's flags are all set.
   if ((flags & kGroupAVX512) == kGroupAVX512) {
-    bits_ |= SIMD_AVX512;
+    bits_ |= HWY_AVX512;
   }
   if ((flags & kGroupAVX2) == kGroupAVX2) {
-    bits_ |= SIMD_AVX2;
+    bits_ |= HWY_AVX2;
   }
   if ((flags & kGroupSSE4) == kGroupSSE4) {
-    bits_ |= SIMD_SSE4;
+    bits_ |= HWY_SSE4;
   }
-#elif SIMD_ARCH == SIMD_ARCH_ARM
-  bits_ |= SIMD_ARM8;
+#elif HWY_ARCH == HWY_ARCH_ARM
+  bits_ |= HWY_ARM8;
 #endif
 
   // Don't report targets that aren't enabled, otherwise foreach-target loops
   // will not terminate.
-  bits_ &= SIMD_RUNTIME_TARGETS;
+  bits_ &= HWY_RUNTIME_TARGETS;
 
   supported_.store(bits_, std::memory_order_release);
 }
 
-}  // namespace jxl
+}  // namespace hwy

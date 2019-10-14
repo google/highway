@@ -12,38 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HIGHWAY_ARCH_H_
-#define HIGHWAY_ARCH_H_
+#ifndef HWY_ARCH_H_
+#define HWY_ARCH_H_
 
-// Sets SIMD_ARCH to one of the following based on predefined macros:
+// Sets HWY_ARCH to one of the following based on predefined macros:
 
 #include <stddef.h>
 
-#define SIMD_ARCH_X86 8
-#define SIMD_ARCH_PPC 9
-#define SIMD_ARCH_ARM 0xA
-#define SIMD_ARCH_SCALAR 0xB
+#define HWY_ARCH_X86 8
+#define HWY_ARCH_PPC 9
+#define HWY_ARCH_ARM 0xA
+#define HWY_ARCH_SCALAR 0xB
 
-#if defined(__x86_64__) || defined(_M_X64)
-#define SIMD_ARCH SIMD_ARCH_X86
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_X64)
+#define HWY_ARCH HWY_ARCH_X86
 
 #elif defined(__powerpc64__) || defined(_M_PPC)
-#define SIMD_ARCH SIMD_ARCH_PPC
+#define HWY_ARCH HWY_ARCH_PPC
 
 #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
-#define SIMD_ARCH SIMD_ARCH_ARM
+#define HWY_ARCH HWY_ARCH_ARM
 
 #elif defined(__EMSCRIPTEN__)
-#define SIMD_ARCH SIMD_ARCH_SCALAR
+#define HWY_ARCH HWY_ARCH_SCALAR
 
 #else
 #error "Unsupported platform"
 #endif
 
-#if SIMD_ARCH == SIMD_ARCH_X86
+#if HWY_ARCH == HWY_ARCH_X86
 static constexpr size_t kMaxVectorSize = 64;  // AVX512
 #else
 static constexpr size_t kMaxVectorSize = 16;
 #endif
 
-#endif  // HIGHWAY_ARCH_H_
+#endif  // HWY_ARCH_H_

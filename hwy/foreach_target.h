@@ -12,58 +12,225 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// No include guard - requires textual inclusion.
+#ifndef HWY_FOREACH_TARGET_H_
+#define HWY_FOREACH_TARGET_H_
 
-// Includes a specified file for each target in SIMD_RUNTIME_TARGETS. This
-// generates an instantiation of Module::operator()<SIMD_TARGET> which may be
-// called by runtime_dispatch.h. NOTE: before including this, #include the
-// header whose filename is SIMD_TARGET_INCLUDE so build systems are aware of
-// the dependency.
+// Includes a specified file for each target in HWY_RUNTIME_TARGETS. This
+// generates a definition of Module::HWY_FUNC, called by runtime_dispatch.h.
 
-#ifndef SIMD_TARGET_INCLUDE
-#error "Must set SIMD_TARGET_INCLUDE to name of include file"
-#endif
-#ifndef SIMD_TARGET_SKIP
-#error "Must set SIMD_TARGET_SKIP"
+#ifndef HWY_TARGET_INCLUDE
+#error "Must set HWY_TARGET_INCLUDE before including foreach_target.h"
 #endif
 
-#ifndef SIMD_RUNTIME_TARGETS
-#error "Must include in_target.h first"
-// Avoid undefined-identifier warnings in IDE:
-#define SIMD_RUNTIME_TARGETS 0
-#include "third_party/highway/highway/target_bits.h"
+#include "hwy/runtime_targets.h"
+// After runtime_targets:
+#include "hwy/include_headers.h"
+
+//-----------------------------------------------------------------------------
+// SSE4
+#if HWY_RUNTIME_TARGETS & HWY_SSE4
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_SSE4
+
+#undef HWY_FUNC
+#define HWY_FUNC F_SSE4
+
+#undef HWY_ATTR
+#define HWY_ATTR HWY_ATTR_SSE4
+
+#undef HWY_BITS
+#define HWY_BITS 128
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(16)
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 0
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 0
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 0
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 1
+
+#include HWY_TARGET_INCLUDE
 #endif
 
-#if SIMD_RUNTIME_TARGETS & SIMD_AVX512
-#undef SIMD_TARGET
-#define SIMD_TARGET AVX512
-#include SIMD_TARGET_INCLUDE
+//-----------------------------------------------------------------------------
+// AVX2
+#if HWY_RUNTIME_TARGETS & HWY_AVX2
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_AVX2
+
+#undef HWY_FUNC
+#define HWY_FUNC F_AVX2
+
+#undef HWY_ATTR
+#define HWY_ATTR HWY_ATTR_AVX2
+
+#undef HWY_BITS
+#define HWY_BITS 256
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(32)
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 1
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 1
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 1
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 1
+
+#include HWY_TARGET_INCLUDE
 #endif
 
-#if SIMD_RUNTIME_TARGETS & SIMD_AVX2
-#undef SIMD_TARGET
-#define SIMD_TARGET AVX2
-#include SIMD_TARGET_INCLUDE
+//-----------------------------------------------------------------------------
+// AVX-512
+#if HWY_RUNTIME_TARGETS & HWY_AVX512
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_AVX512
+
+#undef HWY_FUNC
+#define HWY_FUNC F_AVX512
+
+#undef HWY_ATTR
+#define HWY_ATTR HWY_ATTR_AVX512
+
+#undef HWY_BITS
+#define HWY_BITS 512
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(64)
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 1
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 1
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 1
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 1
+
+#include HWY_TARGET_INCLUDE
 #endif
 
-#if SIMD_RUNTIME_TARGETS & SIMD_SSE4
-#undef SIMD_TARGET
-#define SIMD_TARGET SSE4
-#include SIMD_TARGET_INCLUDE
+//-----------------------------------------------------------------------------
+// PPC8
+#if HWY_RUNTIME_TARGETS & HWY_PPC8
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_PPC8
+
+#undef HWY_FUNC
+#define HWY_FUNC F_PPC8
+
+#undef HWY_ATTR
+#define HWY_ATTR
+
+#undef HWY_BITS
+#define HWY_BITS 128
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(16)
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 1
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 0
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 1
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 1
+
+#include HWY_TARGET_INCLUDE
 #endif
 
-#if SIMD_RUNTIME_TARGETS & SIMD_PPC8
-#undef SIMD_TARGET
-#define SIMD_TARGET PPC8
-#include SIMD_TARGET_INCLUDE
+//-----------------------------------------------------------------------------
+// ARM8
+#if HWY_RUNTIME_TARGETS & HWY_ARM8
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_ARM8
+
+#undef HWY_FUNC
+#define HWY_FUNC F_ARM8
+
+#undef HWY_ATTR
+#define HWY_ATTR HWY_ATTR_ARM8
+
+#undef HWY_BITS
+#define HWY_BITS 128
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(16)
+
+#undef HWY_HAS_CMP64
+#undef HWY_HAS_DOUBLE
+#ifdef __arm__
+#define HWY_HAS_CMP64 0
+#define HWY_HAS_DOUBLE 0
+#else
+#define HWY_HAS_CMP64 1
+#define HWY_HAS_DOUBLE 1
 #endif
 
-#if SIMD_RUNTIME_TARGETS & SIMD_ARM8
-#undef SIMD_TARGET
-#define SIMD_TARGET ARM8
-#include SIMD_TARGET_INCLUDE
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 0
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 1
+
+#include HWY_TARGET_INCLUDE
 #endif
 
-// NOTE: no SIMD_TARGET=NONE -- see in_target.h.
+//-----------------------------------------------------------------------------
+// NONE
 
-#undef SIMD_TARGET_INCLUDE  // ensures next user sets it
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_NONE
+
+#undef HWY_FUNC
+#define HWY_FUNC F_NONE
+
+#undef HWY_ATTR
+#define HWY_ATTR
+
+#undef HWY_BITS
+#define HWY_BITS 0
+
+#undef HWY_ALIGN
+#define HWY_ALIGN
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 1
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 1
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 1
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 1
+
+// This is followed by the implementation part of the original CC file, so no
+// need to include again. NONE must be last because it is unconditional.
+
+#endif  // #ifndef HWY_FOREACH_TARGET_H_

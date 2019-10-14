@@ -12,48 +12,102 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HIGHWAY_STATIC_TARGETS_H_
-#define HIGHWAY_STATIC_TARGETS_H_
+#ifndef HWY_STATIC_TARGETS_H_
+#define HWY_STATIC_TARGETS_H_
 
-// Defines SIMD_STATIC_TARGETS and the best available SIMD_TARGET.
+// Defines HWY_STATIC_TARGETS and chooses the best available.
 
-#if defined(SIMD_NAMESPACE) || defined(SIMD_TARGET)
-#error "Include static_targets.h before in_target.h"
-#endif
+#include "hwy/arch.h"
+#include "hwy/targets.h"
 
-#include "third_party/highway/highway/arch.h"
-#include "third_party/highway/highway/target_bits.h"
+#ifndef HWY_STATIC_TARGETS
 
-// Any targets in SIMD_STATIC_TARGETS are eligible for use without runtime
+// Any targets in HWY_STATIC_TARGETS are eligible for use without runtime
 // dispatch, so they must be supported by both the compiler and CPU.
-#if SIMD_ARCH == SIMD_ARCH_X86
-#define SIMD_STATIC_TARGETS (SIMD_SSE4 | SIMD_AVX2 /*| SIMD_AVX512*/)
-#elif SIMD_ARCH == SIMD_ARCH_PPC
-#define SIMD_STATIC_TARGETS SIMD_PPC8
-#elif SIMD_ARCH == SIMD_ARCH_ARM
-#define SIMD_STATIC_TARGETS SIMD_ARM8
-#elif SIMD_ARCH == SIMD_ARCH_SCALAR
-#define SIMD_STATIC_TARGETS SIMD_NONE
+#if HWY_ARCH == HWY_ARCH_X86
+#define HWY_STATIC_TARGETS (HWY_SSE4 | HWY_AVX2 /*| HWY_AVX512 */)
+#elif HWY_ARCH == HWY_ARCH_PPC
+#define HWY_STATIC_TARGETS HWY_PPC8
+#elif HWY_ARCH == HWY_ARCH_ARM
+#define HWY_STATIC_TARGETS HWY_ARM8
+#elif HWY_ARCH == HWY_ARCH_SCALAR
+#define HWY_STATIC_TARGETS HWY_NONE
 #else
 #error "Unsupported platform"
 #endif
 
-// After SIMD_STATIC_TARGETS
-#include "third_party/highway/highway/simd.h"
+#endif  // HWY_STATIC_TARGETS
 
-// SIMD_TARGET determines the value of SIMD_ATTR.
-#if SIMD_STATIC_TARGETS & SIMD_AVX512
-#define SIMD_TARGET AVX512
-#elif SIMD_STATIC_TARGETS & SIMD_AVX2
-#define SIMD_TARGET AVX2
-#elif SIMD_STATIC_TARGETS & SIMD_SSE4
-#define SIMD_TARGET SSE4
-#elif SIMD_STATIC_TARGETS & SIMD_PPC8
-#define SIMD_TARGET PPC8
-#elif SIMD_STATIC_TARGETS & SIMD_ARM8
-#define SIMD_TARGET ARM8
-#else
-#define SIMD_TARGET NONE
+// After HWY_STATIC_TARGETS:
+#include "hwy/include_headers.h"
+
+// It is permissible to include static_targets.h BEFORE foreach_target.h,
+// but not the reverse because that would override the intended runtime target.
+#ifdef HWY_NAMESPACE
+#error "Do not include static_targets.h after foreach_target.h"
 #endif
 
-#endif  // HIGHWAY_STATIC_TARGETS_H_
+// Choose best available:
+
+//-----------------------------------------------------------------------------
+#if HWY_STATIC_TARGETS & HWY_AVX512
+#define HWY_BITS 512
+#define HWY_ALIGN alignas(64)
+#define HWY_HAS_CMP64 1
+#define HWY_HAS_GATHER 1
+#define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_DOUBLE 1
+#define HWY_ATTR HWY_ATTR_AVX512
+//-----------------------------------------------------------------------------
+#elif HWY_STATIC_TARGETS & HWY_AVX2
+#define HWY_BITS 256
+#define HWY_ALIGN alignas(32)
+#define HWY_HAS_CMP64 1
+#define HWY_HAS_GATHER 1
+#define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_DOUBLE 1
+#define HWY_ATTR HWY_ATTR_AVX2
+//-----------------------------------------------------------------------------
+#elif HWY_STATIC_TARGETS & HWY_SSE4
+#define HWY_BITS 128
+#define HWY_ALIGN alignas(16)
+#define HWY_HAS_CMP64 0
+#define HWY_HAS_GATHER 0
+#define HWY_HAS_VARIABLE_SHIFT 0
+#define HWY_HAS_DOUBLE 1
+#define HWY_ATTR HWY_ATTR_SSE4
+//-----------------------------------------------------------------------------
+#elif HWY_STATIC_TARGETS & HWY_PPC8
+#define HWY_BITS 128
+#define HWY_ALIGN alignas(16)
+#define HWY_HAS_CMP64 1
+#define HWY_HAS_GATHER 0
+#define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_DOUBLE 1
+#define HWY_ATTR
+//-----------------------------------------------------------------------------
+#elif HWY_STATIC_TARGETS & HWY_ARM8
+#define HWY_BITS 128
+#define HWY_ALIGN alignas(16)
+#ifdef __arm__
+#define HWY_HAS_CMP64 0
+#define HWY_HAS_DOUBLE 0
+#else
+#define HWY_HAS_CMP64 1
+#define HWY_HAS_DOUBLE 1
+#endif
+#define HWY_HAS_GATHER 0
+#define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_ATTR HWY_ATTR_ARM8
+//-----------------------------------------------------------------------------
+#else  // NONE
+#define HWY_BITS 0
+#define HWY_ALIGN
+#define HWY_HAS_CMP64 0
+#define HWY_HAS_GATHER 1
+#define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_DOUBLE 1
+#define HWY_ATTR
+#endif
+
+#endif  // HWY_STATIC_TARGETS_H_
