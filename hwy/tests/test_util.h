@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_TEST_UTIL_H_
-#define HWY_TEST_UTIL_H_
+#ifndef HWY_TESTS_TEST_UTIL_H_
+#define HWY_TESTS_TEST_UTIL_H_
 
 // SIMD-independent helper functions for use by *_test.cc.
 
@@ -189,4 +189,4 @@ inline bool StringsEqual(const char* s1, const char* s2) {
 }  // namespace
 }  // namespace hwy
 
-#endif  // HWY_TEST_UTIL_H_
+#endif  // HWY_TESTS_TEST_UTIL_H_
