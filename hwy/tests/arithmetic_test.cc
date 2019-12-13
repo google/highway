@@ -364,7 +364,9 @@ HWY_NOINLINE HWY_ATTR void TestShifts() {
   // No u8.
   TestUnsignedShifts(du16);
   TestUnsignedShifts(du32);
+#if HWY_HAS_DOUBLE
   TestUnsignedShifts(du64);
+#endif
   // No i8.
   TestSignedShifts(di16);
   TestSignedShifts(di32);
@@ -861,11 +863,15 @@ HWY_NOINLINE HWY_ATTR void TestHorzSumT(D d) {
 HWY_NOINLINE HWY_ATTR void TestHorzSum() {
   // No u16.
   TestHorzSumT(du32);
+#if HWY_HAS_DOUBLE
   TestHorzSumT(du64);
+#endif
 
   // No i8/i16.
   TestHorzSumT(di32);
+#if HWY_HAS_DOUBLE
   TestHorzSumT(di64);
+#endif
 
   HWY_FOREACH_F(TestHorzSumT);
 }

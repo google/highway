@@ -177,6 +177,8 @@ TargetBitfield::TargetBitfield() {
   if ((flags & kGroupSSE4) == kGroupSSE4) {
     bits_ |= HWY_SSE4;
   }
+#elif HWY_ARCH == HWY_ARCH_WASM
+  bits_ |= HWY_WASM;
 #elif HWY_ARCH == HWY_ARCH_ARM
   bits_ |= HWY_ARM8;
 #endif

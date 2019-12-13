@@ -30,6 +30,8 @@
 #define HWY_STATIC_TARGETS HWY_PPC8
 #elif HWY_ARCH == HWY_ARCH_ARM
 #define HWY_STATIC_TARGETS HWY_ARM8
+#elif HWY_ARCH == HWY_ARCH_WASM
+#define HWY_STATIC_TARGETS HWY_WASM
 #elif HWY_ARCH == HWY_ARCH_SCALAR
 #define HWY_STATIC_TARGETS HWY_NONE
 #else
@@ -85,6 +87,15 @@
 #define HWY_HAS_VARIABLE_SHIFT 1
 #define HWY_HAS_DOUBLE 1
 #define HWY_ATTR
+//-----------------------------------------------------------------------------
+#elif HWY_STATIC_TARGETS & HWY_WASM
+#define HWY_BITS 128
+#define HWY_ALIGN alignas(16)
+#define HWY_HAS_CMP64 0
+#define HWY_HAS_GATHER 0
+#define HWY_HAS_VARIABLE_SHIFT 0
+#define HWY_HAS_DOUBLE 0
+#define HWY_ATTR HWY_ATTR_WASM
 //-----------------------------------------------------------------------------
 #elif HWY_STATIC_TARGETS & HWY_ARM8
 #define HWY_BITS 128

@@ -33,11 +33,15 @@ constexpr HWY_FULL(uint32_t) du32;
 
 #if HWY_BITS != 0 || HWY_IDE
 constexpr HWY_FULL(uint16_t) du16;
+#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(uint64_t) du64;
+#endif
 constexpr HWY_FULL(int8_t) di8;
 constexpr HWY_FULL(int16_t) di16;
 constexpr HWY_FULL(int32_t) di32;
+#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(int64_t) di64;
+#endif
 constexpr HWY_FULL(float) df;
 #endif
 
@@ -63,11 +67,15 @@ HWY_NOINLINE HWY_ATTR void TestCastFrom(D /*d*/) {
   TestCastFromTo<FromT, uint8_t>();
   TestCastFromTo<FromT, uint16_t>();
   TestCastFromTo<FromT, uint32_t>();
+#if HWY_HAS_DOUBLE
   TestCastFromTo<FromT, uint64_t>();
+#endif
   TestCastFromTo<FromT, int8_t>();
   TestCastFromTo<FromT, int16_t>();
   TestCastFromTo<FromT, int32_t>();
+#if HWY_HAS_DOUBLE
   TestCastFromTo<FromT, int64_t>();
+#endif
   TestCastFromTo<FromT, float>();
 #if HWY_HAS_DOUBLE
   TestCastFromTo<FromT, double>();
@@ -97,10 +105,12 @@ HWY_NOINLINE HWY_ATTR void TestCast() {
   TestCastFromTo<float, uint32_t>();
   TestCastFromTo<float, int32_t>();
 
+#if HWY_HAS_DOUBLE
   TestCastFromTo<uint64_t, uint64_t>();
   TestCastFromTo<int64_t, int64_t>();
   TestCastFromTo<uint64_t, int64_t>();
   TestCastFromTo<int64_t, uint64_t>();
+#endif
 #if HWY_HAS_DOUBLE
   TestCastFromTo<uint64_t, double>();
   TestCastFromTo<int64_t, double>();
@@ -202,8 +212,10 @@ HWY_NOINLINE HWY_ATTR void TestConvert() {
   TestPromoteT<int8_t, int16_t>();
   TestPromoteT<int8_t, int32_t>();
   TestPromoteT<int16_t, int32_t>();
+#if HWY_HAS_DOUBLE
   TestPromoteT<uint32_t, uint64_t>();
   TestPromoteT<int32_t, int64_t>();
+#endif
 
   // Demote
   TestDemoteT<int16_t, int8_t>();

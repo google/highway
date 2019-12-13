@@ -31,11 +31,15 @@ namespace {
 constexpr HWY_FULL(uint8_t) du8;
 constexpr HWY_FULL(uint16_t) du16;
 constexpr HWY_FULL(uint32_t) du32;
+#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(uint64_t) du64;
+#endif
 constexpr HWY_FULL(int8_t) di8;
 constexpr HWY_FULL(int16_t) di16;
 constexpr HWY_FULL(int32_t) di32;
+#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(int64_t) di64;
+#endif
 constexpr HWY_FULL(float) df;
 #if HWY_HAS_DOUBLE
 constexpr HWY_FULL(double) dd;
@@ -142,10 +146,14 @@ HWY_NOINLINE HWY_ATTR void TestBroadcast() {
   // No u8.
   TestBroadcastT(du16);
   TestBroadcastT(du32);
+#if HWY_HAS_DOUBLE
   TestBroadcastT(du64);
+#endif
   // No i8.
   TestBroadcastT(di16);
+#if HWY_HAS_DOUBLE
   TestBroadcastT(di64);
+#endif
   HWY_FOREACH_F(TestBroadcastT);
 }
 
@@ -286,11 +294,15 @@ HWY_NOINLINE HWY_ATTR void TestZipT() {
 HWY_NOINLINE HWY_ATTR void TestZip() {
   TestZipT<uint8_t, uint16_t>();
   TestZipT<uint16_t, uint32_t>();
+#if HWY_HAS_DOUBLE
   TestZipT<uint32_t, uint64_t>();
+#endif
   // No 64-bit nor float.
   TestZipT<int8_t, int16_t>();
   TestZipT<int16_t, int32_t>();
+#if HWY_HAS_DOUBLE
   TestZipT<int32_t, int64_t>();
+#endif
 }
 
 template <class D>
@@ -414,18 +426,22 @@ HWY_NOINLINE HWY_ATTR void TestSpecialShuffle32(D d) {
   VERIFY_LANES_32(d, Shuffle0123(v), 0, 1, 2, 3);
 }
 
+#if HWY_HAS_DOUBLE
 template <class D>
 HWY_NOINLINE HWY_ATTR void TestSpecialShuffle64(D d) {
   const auto v = Iota(d, 0);
   VERIFY_LANES_64(d, Shuffle01(v), 0, 1);
 }
+#endif
 
 #endif
 
 HWY_NOINLINE HWY_ATTR void TestSpecialShuffles() {
 #if HWY_BITS != 0 || HWY_IDE
   TestSpecialShuffle32(di32);
+#if HWY_HAS_DOUBLE
   TestSpecialShuffle64(di64);
+#endif
   // Can't use HWY_FOREACH_F, function depends on lane type
   TestSpecialShuffle32(df);
 #if HWY_HAS_DOUBLE

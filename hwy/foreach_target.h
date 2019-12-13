@@ -201,6 +201,40 @@
 #endif
 
 //-----------------------------------------------------------------------------
+// WASM
+#if HWY_RUNTIME_TARGETS & HWY_WASM
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_WASM
+
+#undef HWY_FUNC
+#define HWY_FUNC F_WASM
+
+#undef HWY_ATTR
+#define HWY_ATTR HWY_ATTR_WASM
+
+#undef HWY_BITS
+#define HWY_BITS 128
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(16)
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 0
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 0
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 0
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 0
+
+#include HWY_TARGET_INCLUDE
+#endif
+
+//-----------------------------------------------------------------------------
 // NONE
 
 #undef HWY_NAMESPACE
