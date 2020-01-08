@@ -25,11 +25,18 @@
 // Any targets in HWY_STATIC_TARGETS are eligible for use without runtime
 // dispatch, so they must be supported by both the compiler and CPU.
 #if HWY_ARCH == HWY_ARCH_X86
-#define HWY_STATIC_TARGETS (HWY_SSE4 | HWY_AVX2 /*| HWY_AVX512 */)
+#if defined(HWY_DISABLE_AVX2)
+// Clang6 encounters backend errors when compiling AVX2.
+#define HWY_STATIC_TARGETS (HWY_SSE4)
+#else
+#define HWY_STATIC_TARGETS (HWY_SSE4 | HWY_AVX2)
+#endif
 #elif HWY_ARCH == HWY_ARCH_PPC
 #define HWY_STATIC_TARGETS HWY_PPC8
 #elif HWY_ARCH == HWY_ARCH_ARM
 #define HWY_STATIC_TARGETS HWY_ARM8
+#elif HWY_ARCH == HWY_ARCH_WASM
+#define HWY_STATIC_TARGETS HWY_WASM
 #elif HWY_ARCH == HWY_ARCH_SCALAR
 #define HWY_STATIC_TARGETS HWY_NONE
 #else
@@ -56,6 +63,7 @@
 #define HWY_HAS_CMP64 1
 #define HWY_HAS_GATHER 1
 #define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_INT64 1
 #define HWY_HAS_DOUBLE 1
 #define HWY_ATTR HWY_ATTR_AVX512
 //-----------------------------------------------------------------------------
@@ -65,6 +73,7 @@
 #define HWY_HAS_CMP64 1
 #define HWY_HAS_GATHER 1
 #define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_INT64 1
 #define HWY_HAS_DOUBLE 1
 #define HWY_ATTR HWY_ATTR_AVX2
 //-----------------------------------------------------------------------------
@@ -74,6 +83,7 @@
 #define HWY_HAS_CMP64 0
 #define HWY_HAS_GATHER 0
 #define HWY_HAS_VARIABLE_SHIFT 0
+#define HWY_HAS_INT64 1
 #define HWY_HAS_DOUBLE 1
 #define HWY_ATTR HWY_ATTR_SSE4
 //-----------------------------------------------------------------------------
@@ -83,8 +93,19 @@
 #define HWY_HAS_CMP64 1
 #define HWY_HAS_GATHER 0
 #define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_INT64 1
 #define HWY_HAS_DOUBLE 1
 #define HWY_ATTR
+//-----------------------------------------------------------------------------
+#elif HWY_STATIC_TARGETS & HWY_WASM
+#define HWY_BITS 128
+#define HWY_ALIGN alignas(16)
+#define HWY_HAS_CMP64 0
+#define HWY_HAS_GATHER 0
+#define HWY_HAS_VARIABLE_SHIFT 0
+#define HWY_HAS_INT64 0
+#define HWY_HAS_DOUBLE 0
+#define HWY_ATTR HWY_ATTR_WASM
 //-----------------------------------------------------------------------------
 #elif HWY_STATIC_TARGETS & HWY_ARM8
 #define HWY_BITS 128
@@ -96,6 +117,7 @@
 #define HWY_HAS_CMP64 1
 #define HWY_HAS_DOUBLE 1
 #endif
+#define HWY_HAS_INT64 1
 #define HWY_HAS_GATHER 0
 #define HWY_HAS_VARIABLE_SHIFT 1
 #define HWY_ATTR HWY_ATTR_ARM8
@@ -106,6 +128,7 @@
 #define HWY_HAS_CMP64 0
 #define HWY_HAS_GATHER 1
 #define HWY_HAS_VARIABLE_SHIFT 1
+#define HWY_HAS_INT64 1
 #define HWY_HAS_DOUBLE 1
 #define HWY_ATTR
 #endif

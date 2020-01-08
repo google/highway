@@ -52,24 +52,38 @@ HWY_INLINE void Stream(const uint64_t t, uint64_t* HWY_RESTRICT aligned) {
 // No effect on non-x86.
 HWY_INLINE void LoadFence() {
 #if HWY_ARCH == HWY_ARCH_X86
+#ifdef __SSE2__
   _mm_lfence();
+#elif HWY_COMPILER_MSVC
+  MemoryBarrier();
+#else
+  __sync_synchronize();
+#endif
 #endif
 }
 
 // Ensures previous weakly-ordered stores are visible. No effect on non-x86.
 HWY_INLINE void StoreFence() {
 #if HWY_ARCH == HWY_ARCH_X86
+#ifdef __SSE2__
   _mm_sfence();
+#elif HWY_COMPILER_MSVC
+  MemoryBarrier();
+#else
+  __sync_synchronize();
+#endif
 #endif
 }
 
 // Begins loading the cache line containing "p".
 template <typename T>
 HWY_INLINE void Prefetch(const T* p) {
-#if HWY_ARCH == HWY_ARCH_X86
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+  // Hint=0 (NTA) behavior differs, but skipping outer caches is probably not
+  // desirable, so use the default 3 (keep in caches).
+  __builtin_prefetch(p, /*write=*/0, /*hint=*/3);
+#elif HWY_ARCH == HWY_ARCH_X86
   _mm_prefetch(p, _MM_HINT_T0);
-#elif HWY_ARCH == HWY_ARCH_ARM
-  __pld(p);
 #else
   (void)p;
 #endif

@@ -15,6 +15,8 @@
 #ifndef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"
 
+#include <random>
+
 #include "hwy/tests/test_util.h"
 struct LogicalTest {
   HWY_DECLARE(void, ())
@@ -37,9 +39,7 @@ constexpr HWY_FULL(int16_t) di16;
 constexpr HWY_FULL(int32_t) di32;
 constexpr HWY_FULL(int64_t) di64;
 constexpr HWY_FULL(float) df;
-#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(double) dd;
-#endif
 
 template <class D>
 HWY_NOINLINE HWY_ATTR void TestLogicalT(D d) {
@@ -141,6 +141,81 @@ HWY_NOINLINE HWY_ATTR void TestTestBit(D d) {
 }
 
 template <class D>
+HWY_NOINLINE HWY_ATTR void TestAllTrueFalse(D d) {
+  using T = typename D::T;
+  const auto zero = Zero(d);
+  const T max = LimitsMax<T>();
+  const T min_nonzero = LimitsMin<T>() + 1;
+
+  auto v = zero;
+  HWY_ALIGN T lanes[d.N] = {};  // Initialized for clang-analyzer.
+  Store(v, d, lanes);
+  HWY_ASSERT_EQ(true, ext::AllTrue(v == zero));
+  HWY_ASSERT_EQ(false, ext::AllFalse(v == zero));
+
+  // Set each lane to nonzero and back to zero
+  for (size_t i = 0; i < d.N; ++i) {
+    lanes[i] = max;
+    v = Load(d, lanes);
+    HWY_ASSERT_EQ(false, ext::AllTrue(v == zero));
+#if HWY_BITS != 0
+    HWY_ASSERT_EQ(false, ext::AllFalse(v == zero));
+#endif
+
+    lanes[i] = min_nonzero;
+    v = Load(d, lanes);
+    HWY_ASSERT_EQ(false, ext::AllTrue(v == zero));
+#if HWY_BITS != 0
+    HWY_ASSERT_EQ(false, ext::AllFalse(v == zero));
+#endif
+
+    // Reset to all zero
+    lanes[i] = T(0);
+    v = Load(d, lanes);
+    HWY_ASSERT_EQ(true, ext::AllTrue(v == zero));
+    HWY_ASSERT_EQ(false, ext::AllFalse(v == zero));
+  }
+}
+
+template <class D>
+HWY_NOINLINE HWY_ATTR void TestBitsFromMask(D d, const uint64_t bits) {
+  using T = typename D::T;
+
+  // Generate a mask matching the given bits
+  HWY_ALIGN T mask_lanes[d.N];
+  memset(mask_lanes, 0xFF, sizeof(mask_lanes));
+  for (size_t i = 0; i < d.N; ++i) {
+    if ((bits & (1ull << i)) == 0) mask_lanes[i] = 0;
+  }
+  const auto mask = MaskFromVec(Load(d, mask_lanes));
+
+  const uint64_t actual_bits = ext::BitsFromMask(mask);
+
+  // Clear bits that cannot be returned for this D.
+  constexpr size_t shift = 64 - d.N;  // 0..63 - avoids UB for d.N == 64.
+  static_assert(shift < 64, "d.N out of range");  // Silences clang-tidy.
+  // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
+  const uint64_t expected_bits = (bits << shift) >> shift;
+
+  HWY_ASSERT_EQ(expected_bits, actual_bits);
+}
+
+template <class D>
+HWY_NOINLINE HWY_ATTR void TestBitsFromMask(D d) {
+  // Fixed patterns: all off/on/odd/even.
+  TestBitsFromMask(d, 0);
+  TestBitsFromMask(d, ~0ull);
+  TestBitsFromMask(d, 0x5555555555555555ull);
+  TestBitsFromMask(d, 0xAAAAAAAAAAAAAAAAull);
+
+  // Random mask patterns.
+  std::mt19937_64 rng;
+  for (size_t i = 0; i < 100; ++i) {
+    TestBitsFromMask(d, rng());
+  }
+}
+
+template <class D>
 HWY_NOINLINE HWY_ATTR void TestCountTrue(D d) {
   using T = typename D::T;
 
@@ -151,8 +226,8 @@ HWY_NOINLINE HWY_ATTR void TestCountTrue(D d) {
   std::fill(lanes, lanes + d.N, T(1));
 
   for (size_t code = 0; code < (1ull << max_lanes); ++code) {
-    // Number of zeros written (to also verify PopCount).
-    uint64_t expected = 0;
+    // Number of zeros written = number of mask lanes that are true.
+    size_t expected = 0;
     for (size_t i = 0; i < max_lanes; ++i) {
       lanes[i] = T(1);
       if (code & (1ull << i)) {
@@ -161,18 +236,24 @@ HWY_NOINLINE HWY_ATTR void TestCountTrue(D d) {
       }
     }
 
-    const uint64_t actual = ext::CountTrue(Load(d, lanes) == Zero(d));
-    HWY_ASSERT_EQ(expected, actual);
+    const auto mask = Load(d, lanes) == Zero(d);
+    const size_t actual = ext::CountTrue(mask);
+    HWY_ASSERT_VEC_EQ(d, Set(d, expected), Set(d, actual));
   }
 }
 
 HWY_NOINLINE HWY_ATTR void TestLogical() {
+  (void)dd;
+  (void)di64;
+  (void)du64;
+
   HWY_FOREACH_UIF(TestLogicalT);
   HWY_FOREACH_UIF(TestIfThenElse);
 
-  HWY_FOREACH_U(TestTestBit);
-  HWY_FOREACH_I(TestTestBit);
+  HWY_FOREACH_UI(TestTestBit);
 
+  HWY_FOREACH_UIF(TestAllTrueFalse);
+  HWY_FOREACH_UIF(TestBitsFromMask);
   HWY_FOREACH_UIF(TestCountTrue);
 }
 

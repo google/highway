@@ -23,8 +23,12 @@
 #define HWY_ARCH_PPC 9
 #define HWY_ARCH_ARM 0xA
 #define HWY_ARCH_SCALAR 0xB
+#define HWY_ARCH_WASM 0xC
 
-#if defined(__i386__) || defined(__x86_64__) || defined(_M_X64)
+#if defined(__wasm_simd128__)
+#define HWY_ARCH HWY_ARCH_WASM
+
+#elif defined(__i386__) || defined(__x86_64__) || defined(_M_X64)
 #define HWY_ARCH HWY_ARCH_X86
 
 #elif defined(__powerpc64__) || defined(_M_PPC)

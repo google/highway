@@ -75,4 +75,11 @@
 #define HWY_IDE 0
 #endif
 
+// Clang 3.9 generates VINSERTF128 instead of the desired VBROADCASTF128,
+// which would free up port5. However, inline assembly isn't supported on
+// MSVC, results in incorrect output on GCC 8.3, and raises "invalid output size
+// for constraint" errors on Clang (https://gcc.godbolt.org/z/-Jt_-F), hence we
+// disable it.
+#define HWY_LOADDUP_ASM 0
+
 #endif  // HWY_COMPILER_SPECIFIC_H_

@@ -38,9 +38,7 @@ constexpr HWY_FULL(int16_t) di16;
 constexpr HWY_FULL(int32_t) di32;
 constexpr HWY_FULL(int64_t) di64;
 constexpr HWY_FULL(float) df;
-#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(double) dd;
-#endif
 
 template <class D>
 HWY_NOINLINE HWY_ATTR void TestLoadStore(D d) {
@@ -220,10 +218,20 @@ HWY_NOINLINE HWY_ATTR void TestGather() {
 }
 
 HWY_NOINLINE HWY_ATTR void TestMemory() {
+  (void)dd;
+  (void)di64;
+  (void)du64;
+
   HWY_FOREACH_UIF(TestLoadStore);
   HWY_FOREACH_UIF(TestLoadDup128);
   TestStream();
   TestGather();
+  // Test that these functions compile.
+  LoadFence();
+  StoreFence();
+  int test = 0;
+  Prefetch(&test);
+  FlushCacheline(&test);
 }
 
 }  // namespace

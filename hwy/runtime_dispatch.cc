@@ -93,7 +93,16 @@ constexpr uint32_t kFMA = 1u << 8;
 constexpr uint32_t kLZCNT = 1u << 9;
 constexpr uint32_t kBMI = 1u << 10;
 constexpr uint32_t kBMI2 = 1u << 11;
+
+// We normally assume BMI/BMI2 are available if AVX2 is. This allows us to
+// use BZHI and (compiler-generated) MULX. However, VirtualBox lacks BMI/BMI2
+// [https://www.virtualbox.org/ticket/15471]. Thus we provide the option of
+// avoiding using and requiring BMI so AVX2 can still be used.
+#ifdef HWY_DISABLE_BMI2
+constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kFMA | kLZCNT;
+#else
 constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kFMA | kLZCNT | kBMI | kBMI2;
+#endif
 
 constexpr uint32_t kAVX512F = 1u << 12;
 constexpr uint32_t kAVX512VL = 1u << 13;
@@ -177,6 +186,8 @@ TargetBitfield::TargetBitfield() {
   if ((flags & kGroupSSE4) == kGroupSSE4) {
     bits_ |= HWY_SSE4;
   }
+#elif HWY_ARCH == HWY_ARCH_WASM
+  bits_ |= HWY_WASM;
 #elif HWY_ARCH == HWY_ARCH_ARM
   bits_ |= HWY_ARM8;
 #endif

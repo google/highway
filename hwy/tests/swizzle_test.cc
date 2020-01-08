@@ -37,9 +37,7 @@ constexpr HWY_FULL(int16_t) di16;
 constexpr HWY_FULL(int32_t) di32;
 constexpr HWY_FULL(int64_t) di64;
 constexpr HWY_FULL(float) df;
-#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(double) dd;
-#endif
 
 template <class D>
 HWY_NOINLINE HWY_ATTR void TestShiftBytesT(D d) {
@@ -142,10 +140,14 @@ HWY_NOINLINE HWY_ATTR void TestBroadcast() {
   // No u8.
   TestBroadcastT(du16);
   TestBroadcastT(du32);
+#if HWY_HAS_INT64
   TestBroadcastT(du64);
+#endif
   // No i8.
   TestBroadcastT(di16);
+#if HWY_HAS_INT64
   TestBroadcastT(di64);
+#endif
   HWY_FOREACH_F(TestBroadcastT);
 }
 
@@ -286,11 +288,15 @@ HWY_NOINLINE HWY_ATTR void TestZipT() {
 HWY_NOINLINE HWY_ATTR void TestZip() {
   TestZipT<uint8_t, uint16_t>();
   TestZipT<uint16_t, uint32_t>();
+#if HWY_HAS_INT64
   TestZipT<uint32_t, uint64_t>();
+#endif
   // No 64-bit nor float.
   TestZipT<int8_t, int16_t>();
   TestZipT<int16_t, int32_t>();
+#if HWY_HAS_INT64
   TestZipT<int32_t, int64_t>();
+#endif
 }
 
 template <class D>
@@ -408,24 +414,29 @@ HWY_NOINLINE HWY_ATTR void VerifyLanes64(D d, V v, const int i1, const int i0,
 template <class D>
 HWY_NOINLINE HWY_ATTR void TestSpecialShuffle32(D d) {
   const auto v = Iota(d, 0);
+  VERIFY_LANES_32(d, Shuffle2301(v), 2, 3, 0, 1);
   VERIFY_LANES_32(d, Shuffle1032(v), 1, 0, 3, 2);
   VERIFY_LANES_32(d, Shuffle0321(v), 0, 3, 2, 1);
   VERIFY_LANES_32(d, Shuffle2103(v), 2, 1, 0, 3);
   VERIFY_LANES_32(d, Shuffle0123(v), 0, 1, 2, 3);
 }
 
+#if HWY_HAS_INT64
 template <class D>
 HWY_NOINLINE HWY_ATTR void TestSpecialShuffle64(D d) {
   const auto v = Iota(d, 0);
   VERIFY_LANES_64(d, Shuffle01(v), 0, 1);
 }
+#endif
 
 #endif
 
 HWY_NOINLINE HWY_ATTR void TestSpecialShuffles() {
 #if HWY_BITS != 0 || HWY_IDE
   TestSpecialShuffle32(di32);
+#if HWY_HAS_INT64
   TestSpecialShuffle64(di64);
+#endif
   // Can't use HWY_FOREACH_F, function depends on lane type
   TestSpecialShuffle32(df);
 #if HWY_HAS_DOUBLE
@@ -515,64 +526,11 @@ HWY_NOINLINE HWY_ATTR void TestOddEven(D d) {
 #endif
 }
 
-template <unsigned idx_ref>
-HWY_NOINLINE HWY_ATTR void TestMPSAD_T() {
-#if HWY_BITS != 0 || HWY_IDE
-  const HWY_CAPPED(uint8_t, 16) d8;
-  const HWY_CAPPED(uint16_t, 8) d16;
-
-  HWY_ALIGN const uint8_t window[16] = {2,   1,   3, 0, 100, 200, 102, 99,
-                                        255, 254, 0, 1, 8,   8,   128, 128};
-  HWY_ALIGN const uint8_t all_ref[16] = {1, 3, 5,  5,  2,  10, 10, 14,
-                                         9, 9, 13, 17, 18, 16, 14, 0};
-  // Sum of absolute distance at indices w and r ((0..3, relative to idx_ref).
-  const auto S = [window, all_ref](size_t w, size_t r) {
-    return std::abs(window[w] - all_ref[idx_ref * 4 + r]);
-  };
-
-  uint16_t expected_sad[8];
-  for (size_t i = 0; i < 8; ++i) {
-    int sad_sum = 0;
-    for (size_t q = 0; q < 4; ++q) {
-      sad_sum += S(i + q, q);
-    }
-    expected_sad[i] = static_cast<uint16_t>(sad_sum);
-  }
-
-  const auto sad = ext::mpsadbw<idx_ref>(Load(d8, window), Load(d8, all_ref));
-  HWY_ASSERT_VEC_EQ(d16, expected_sad, sad);
-
-// AVX2 mpsadbw2 = two mpsadbw; test both halves independently
-#if HWY_BITS == 256 || HWY_IDE
-  const HWY_CAPPED(uint8_t, d8.N * 2) d8x2;
-  const HWY_CAPPED(uint16_t, d16.N * 2) d16x2;
-  const auto window_x2 = LoadDup128(d8x2, window);
-  const auto ref_x2 = LoadDup128(d8x2, all_ref);
-  const auto sad_lo = ext::mpsadbw2<3 - idx_ref, idx_ref>(window_x2, ref_x2);
-  HWY_ALIGN uint16_t sad2[d16x2.N];
-  Store(sad_lo, d16x2, sad2);
-  for (size_t i = 0; i < d16.N; ++i) {
-    HWY_ASSERT_EQ(expected_sad[i], sad2[i]);
-  }
-
-  const auto sad_hi = ext::mpsadbw2<idx_ref, 3 - idx_ref>(window_x2, ref_x2);
-  Store(sad_hi, d16x2, sad2);
-  for (size_t i = 0; i < d16.N; ++i) {
-    HWY_ASSERT_EQ(expected_sad[i], sad2[i + d16.N]);
-  }
-#endif
-#endif
-}
-
-HWY_NOINLINE HWY_ATTR void TestMPSAD() {
-  // For each idx_ref (= index of 32-bit lane)
-  TestMPSAD_T<0>();
-  TestMPSAD_T<1>();
-  TestMPSAD_T<2>();
-  TestMPSAD_T<3>();
-}
-
 HWY_NOINLINE HWY_ATTR void TestSwizzle() {
+  (void)dd;
+  (void)di64;
+  (void)du64;
+
   HWY_FOREACH_UI(TestShiftBytesT);
   TestBroadcast();
   HWY_FOREACH_UIF(TestInterleave);
@@ -586,7 +544,6 @@ HWY_NOINLINE HWY_ATTR void TestSwizzle() {
   HWY_FOREACH_UIF(TestConcatLoHi);
   HWY_FOREACH_UIF(TestConcatHiLo);
   HWY_FOREACH_UIF(TestOddEven);
-  TestMPSAD();
 }
 
 }  // namespace

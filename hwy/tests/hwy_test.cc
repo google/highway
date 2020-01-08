@@ -37,9 +37,7 @@ constexpr HWY_FULL(int16_t) di16;
 constexpr HWY_FULL(int32_t) di32;
 constexpr HWY_FULL(int64_t) di64;
 constexpr HWY_FULL(float) df;
-#if HWY_HAS_DOUBLE
 constexpr HWY_FULL(double) dd;
-#endif
 
 namespace examples {
 
@@ -426,6 +424,10 @@ HWY_NOINLINE HWY_ATTR void TestQuarter() {
 }
 
 HWY_NOINLINE HWY_ATTR void TestBasic() {
+  (void)dd;
+  (void)di64;
+  (void)du64;
+
   TestLimits();
   TestToString();
   TestType();

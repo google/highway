@@ -28,7 +28,7 @@
 
 // Caller wants to use gtest.
 #ifdef HWY_USE_GTEST
-#include "testing/base/public/gunit.h"
+#include "gtest/gtest.h"
 #else
 // The tests are gtest-compatible and we only need to define this. Note that
 // cmake scans for a TEST() marker in the source code. This macro is followed by

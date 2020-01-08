@@ -18,18 +18,19 @@
 // Subset of type_traits / numeric_limits for faster compilation.
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace hwy {
 
 template <bool Condition, class T>
-struct enable_if {};
+struct EnableIfT {};
 template <class T>
-struct enable_if<true, T> {
+struct EnableIfT<true, T> {
   using type = T;
 };
 
 template <bool Condition, class T = void>
-using enable_if_t = typename enable_if<Condition, T>::type;
+using EnableIf = typename EnableIfT<Condition, T>::type;
 
 template <typename T>
 constexpr bool IsFloat() {
@@ -43,9 +44,9 @@ constexpr bool IsSigned() {
 
 // Insert into template/function arguments to enable this overload only for
 // <= 128-bit vectors (excluding NONE).
-#define HWY_IF128(T, N) enable_if_t<N != 0 && (N * sizeof(T) <= 16)>* = nullptr
+#define HWY_IF128(T, N) EnableIf<N != 0 && (N * sizeof(T) <= 16)>* = nullptr
 
-#define HWY_IF_FLOAT(T) enable_if_t<IsFloat<T>()>* = nullptr
+#define HWY_IF_FLOAT(T) EnableIf<IsFloat<T>()>* = nullptr
 
 // Largest/smallest representable integer values.
 template <typename T>
@@ -61,6 +62,29 @@ constexpr T LimitsMin() {
 // Empty struct used as a size tag type.
 template <size_t N>
 struct SizeTag {};
+
+// The unsigned integer type whose size is kSize bytes.
+template <size_t kSize>
+struct MakeUnsignedT;
+template <>
+struct MakeUnsignedT<1> {
+  using type = uint8_t;
+};
+template <>
+struct MakeUnsignedT<2> {
+  using type = uint16_t;
+};
+template <>
+struct MakeUnsignedT<4> {
+  using type = uint32_t;
+};
+template <>
+struct MakeUnsignedT<8> {
+  using type = uint64_t;
+};
+
+template <typename T>
+using MakeUnsigned = typename MakeUnsignedT<sizeof(T)>::type;
 
 }  // namespace hwy
 

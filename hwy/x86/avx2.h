@@ -28,7 +28,11 @@
 #include "hwy/shared.h"
 #include "hwy/x86/sse4.h"
 
+#ifdef HWY_DISABLE_BMI2  // See runtime_dispatch.cc
 #define HWY_ATTR_AVX2 HWY_TARGET_ATTR("avx,avx2,fma")
+#else
+#define HWY_ATTR_AVX2 HWY_TARGET_ATTR("bmi,bmi2,avx,avx2,fma")
+#endif
 
 namespace hwy {
 
@@ -812,6 +816,16 @@ HWY_ATTR_AVX2 HWY_INLINE Vec256<float> ApproximateReciprocal(
   return Vec256<float>{_mm256_rcp_ps(v.raw)};
 }
 
+namespace ext {
+// Absolute value of difference.
+HWY_ATTR_AVX2 HWY_INLINE Vec256<float> AbsDiff(const Vec256<float> a,
+                                               const Vec256<float> b) {
+  const auto mask =
+      BitCast(Full256<float>(), Set(Full256<uint32_t>(), 0x7FFFFFFFu));
+  return mask & (a - b);
+}
+}  // namespace ext
+
 // ------------------------------ Floating-point multiply-add variants
 
 // Returns mul * x + add
@@ -1111,13 +1125,6 @@ HWY_ATTR_AVX2 HWY_INLINE Vec256<double> LoadU(Full256<double> /* tag */,
                                               const double* HWY_RESTRICT p) {
   return Vec256<double>{_mm256_loadu_pd(p)};
 }
-
-// Clang 3.9 generates VINSERTF128 instead of the desired VBROADCASTF128,
-// which would free up port5. However, inline assembly isn't supported on
-// MSVC, results in incorrect output on GCC 8.3, and raises "invalid output size
-// for constraint" errors on Clang (https://gcc.godbolt.org/z/-Jt_-F), hence we
-// disable it.
-#define HWY_LOADDUP_ASM 0
 
 // Loads 128 bit and duplicates into both 128-bit halves. This avoids the
 // 3-cycle cost of moving data between 128-bit halves and avoids port 5.
@@ -1439,6 +1446,18 @@ HWY_ATTR_AVX2 HWY_INLINE Vec256<double> Broadcast(const Vec256<double> v) {
 // right (the previous least-significant lane is now most-significant =>
 // 47650321). These could also be implemented via CombineShiftRightBytes but
 // the shuffle_abcd notation is more convenient.
+
+// Swap 32-bit halves in 64-bit halves.
+HWY_ATTR_AVX2 HWY_INLINE Vec256<uint32_t> Shuffle2301(
+    const Vec256<uint32_t> v) {
+  return Vec256<uint32_t>{_mm256_shuffle_epi32(v.raw, 0xB1)};
+}
+HWY_ATTR_AVX2 HWY_INLINE Vec256<int32_t> Shuffle2301(const Vec256<int32_t> v) {
+  return Vec256<int32_t>{_mm256_shuffle_epi32(v.raw, 0xB1)};
+}
+HWY_ATTR_AVX2 HWY_INLINE Vec256<float> Shuffle2301(const Vec256<float> v) {
+  return Vec256<float>{_mm256_shuffle_ps(v.raw, v.raw, 0xB1)};
+}
 
 // Swap 64-bit halves
 HWY_ATTR_AVX2 HWY_INLINE Vec256<uint32_t> Shuffle1032(
@@ -1972,62 +1991,66 @@ HWY_ATTR_AVX2 HWY_INLINE Vec256<int32_t> NearestInt(const Vec256<float> v) {
 // functions to this namespace in multiple places.
 namespace ext {
 
-// ------------------------------ movemask
+// ------------------------------ Mask
 
-// Returns a bit array of the most significant bit of each byte in "v", i.e.
-// sum_i=0..31 of (v[i] >> 7) << i; v[0] is the least-significant byte of "v".
-// This is useful for testing/branching based on comparison results.
-HWY_ATTR_AVX2 HWY_INLINE uint64_t movemask(const Vec256<uint8_t> v) {
+namespace impl {
+
+template <typename T>
+HWY_ATTR_AVX2 HWY_INLINE uint64_t BitsFromMask(SizeTag<1> /*tag*/,
+                                               const Mask256<T> mask) {
+  const Full256<uint8_t> d;
+  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
   // Prevent sign-extension of 32-bit masks because the intrinsic returns int.
-  return static_cast<uint32_t>(_mm256_movemask_epi8(v.raw));
+  return static_cast<uint32_t>(_mm256_movemask_epi8(sign_bits));
 }
-
-// Returns the most significant bit of each float/double lane (see above).
-HWY_ATTR_AVX2 HWY_INLINE uint64_t movemask(const Vec256<float> v) {
-  return static_cast<unsigned>(_mm256_movemask_ps(v.raw));
-}
-HWY_ATTR_AVX2 HWY_INLINE uint64_t movemask(const Vec256<double> v) {
-  return static_cast<unsigned>(_mm256_movemask_pd(v.raw));
-}
-
-// ------------------------------ mask
 
 template <typename T>
-HWY_ATTR_AVX2 HWY_INLINE bool AllFalse(const Mask256<T> v) {
+HWY_ATTR_AVX2 HWY_INLINE uint64_t BitsFromMask(SizeTag<2> /*tag*/,
+                                               const Mask256<T> mask) {
+  const uint64_t sign_bits8 = BitsFromMask(SizeTag<1>(), mask);
+  // Skip the bits from the lower byte of each u16 (better not to use the
+  // same packs_epi16 as sse4.h, because that requires an extra swizzle here).
+  return _pext_u64(sign_bits8, 0xAAAAAAAAull);
+}
+
+template <typename T>
+HWY_ATTR_AVX2 HWY_INLINE uint64_t BitsFromMask(SizeTag<4> /*tag*/,
+                                               const Mask256<T> mask) {
+  const Full256<float> d;
+  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
+  return static_cast<unsigned>(_mm256_movemask_ps(sign_bits));
+}
+
+template <typename T>
+HWY_ATTR_AVX2 HWY_INLINE uint64_t BitsFromMask(SizeTag<8> /*tag*/,
+                                               const Mask256<T> mask) {
+  const Full256<double> d;
+  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
+  return static_cast<unsigned>(_mm256_movemask_pd(sign_bits));
+}
+
+}  // namespace impl
+
+template <typename T>
+HWY_ATTR_AVX2 HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
+  return impl::BitsFromMask(SizeTag<sizeof(T)>(), mask);
+}
+
+template <typename T>
+HWY_ATTR_AVX2 HWY_INLINE bool AllFalse(const Mask256<T> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
-  const auto bytes = BitCast(Full256<uint8_t>(), VecFromMask(v));
-  return movemask(bytes) == 0;
-}
-HWY_ATTR_AVX2 HWY_INLINE bool AllFalse(const Mask256<float> v) {
-  return movemask(VecFromMask(v)) == 0;
-}
-HWY_ATTR_AVX2 HWY_INLINE bool AllFalse(const Mask256<double> v) {
-  return movemask(VecFromMask(v)) == 0;
+  return BitsFromMask(mask) == 0;
 }
 
 template <typename T>
-HWY_ATTR_AVX2 HWY_INLINE bool AllTrue(const Mask256<T> v) {
-  const auto bytes = BitCast(Full256<uint8_t>(), VecFromMask(v));
-  return movemask(bytes) == 0xFFFFFFFFu;
-}
-HWY_ATTR_AVX2 HWY_INLINE bool AllTrue(const Mask256<float> v) {
-  return movemask(VecFromMask(v)) == 0xFF;
-}
-HWY_ATTR_AVX2 HWY_INLINE bool AllTrue(const Mask256<double> v) {
-  return movemask(VecFromMask(v)) == 0xF;
+HWY_ATTR_AVX2 HWY_INLINE bool AllTrue(const Mask256<T> mask) {
+  constexpr uint64_t kAllBits = (1ull << Full256<T>::N) - 1;
+  return BitsFromMask(mask) == kAllBits;
 }
 
 template <typename T>
-HWY_ATTR_AVX2 HWY_INLINE size_t CountTrue(const Mask256<T> v) {
-  // Integer vectors: only have movemask for u8, so divide by number of bytes.
-  const auto bytes = BitCast(Full256<uint8_t>(), VecFromMask(v));
-  return PopCount(movemask(bytes)) / sizeof(T);
-}
-HWY_ATTR_AVX2 HWY_INLINE size_t CountTrue(const Mask256<float> v) {
-  return PopCount(movemask(VecFromMask(v)));
-}
-HWY_ATTR_AVX2 HWY_INLINE size_t CountTrue(const Mask256<double> v) {
-  return PopCount(movemask(VecFromMask(v)));
+HWY_ATTR_AVX2 HWY_INLINE size_t CountTrue(const Mask256<T> mask) {
+  return PopCount(BitsFromMask(mask));
 }
 
 // ------------------------------ Horizontal sum (reduction)
@@ -2035,17 +2058,6 @@ HWY_ATTR_AVX2 HWY_INLINE size_t CountTrue(const Mask256<double> v) {
 // Returns 64-bit sums of 8-byte groups.
 HWY_ATTR_AVX2 HWY_INLINE Vec256<uint64_t> SumsOfU8x8(const Vec256<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
-}
-
-// Returns N sums of differences of byte quadruplets, starting from byte offset
-// i = [0, N) in window (11 consecutive bytes) and idx_ref * 4 in ref.
-// This version computes two independent SAD with separate idx_ref.
-template <int idx_ref1, int idx_ref0>
-HWY_ATTR_AVX2 HWY_INLINE Vec256<uint16_t> mpsadbw2(const Vec256<uint8_t> window,
-                                                   const Vec256<uint8_t> ref) {
-  static_assert(idx_ref0 < 4 && idx_ref1 < 4, "a_offset must be 0");
-  return Vec256<uint16_t>{
-      _mm256_mpsadbw_epu8(window.raw, ref.raw, (idx_ref1 << 3) + idx_ref0)};
 }
 
 // Returns sum{lane[i]} in each lane. "v3210" is a replicated 128-bit block.

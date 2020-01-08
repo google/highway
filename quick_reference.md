@@ -112,6 +112,10 @@ unsigned/signed/floating-point types.
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
     `1.0 / a[i]`.
 
+*   `V`: `f32` \
+    <code>V **ext::AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each
+    lane.
+
 #### Multiply
 
 *   `V`: `ui16/32` \
@@ -235,6 +239,9 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>bool **ext::AllFalse**(M m)</code>: returns whether all `m[i]` are
     false.
 
+*   <code>uint64_t **ext::BitsFromMask**(M m)</code>: returns `sum{1 << i}`
+    for all indices `i` where `m[i]` is true.
+
 *   <code>size_t **ext::CountTrue**(M m)</code>: returns how many of `m[i]` are
     true [0, N].
 
@@ -355,8 +362,8 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 
 ### Swizzle
 
-*   <code>T **GetLane**(V)</code>: returns an unspecified lane within `V`. This
-    is useful for extracting `ext::SumOfLanes` results.
+*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful
+    for extracting `ext::SumOfLanes` results.
 
 *   <code>V2 **GetHalf**(Upper/Lower, V)</code>: returns upper or lower half of
     the vector `V`. When a specific half is needed, `V2 UpperHalf(V)` and
@@ -409,6 +416,10 @@ their operands into independently processed 128-bit *blocks*:
 *   `V`: `ui`; `VI`: `ui` \
     <code>V **TableLookupBytes**(V bytes, VI from)</code>: returns *blocks* with
     `bytes[from[i]]`, or zero if bit 7 of byte `from[i]` is set.
+
+*   `V`: `uif32` \
+    <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves
+    swapped inside 64-bit halves.
 
 *   `V`: `uif32` \
     <code>V **Shuffle1032**(V)</code>: returns *blocks* with 64-bit halves
@@ -466,10 +477,6 @@ more expensive on AVX2/AVX-512 than within-block operations.
 
 **Note**: the following are only available for full vectors (`N > 1`):
 
-*   `V`: `u8`, `f` \
-    <code>uint64_t **ext::movemask**(V a)</code>: returns sum of
-    `upper_bit(a[i]) << i`.
-
 *   `V`: `u8`; `Ret`: `u64` \
     <code>Ret **ext::SumsOfU8x8**(V)</code>: returns the sums of 8 consecutive
     bytes in each 64-bit lane.
@@ -478,14 +485,9 @@ more expensive on AVX2/AVX-512 than within-block operations.
     <code>V **ext::SumOfLanes**(V v)</code>: returns the sum of all lanes in
     each lane; to obtain the result, use `GetLane(horz_sum_result)`.
 
-*   `V`: `u8`; `Ret`: `u16` \
-    <code>Ret **ext::mpsadbw**&lt;r&gt;(V a, V b)</code>: returns sums[i=0..7],
-    sums[i] = sum of 4 consecutive SAD whose first operand (a) is shifted right
-    by i bytes, and second operand (b) is shifted right by r*4 bytes.
-
 ## Advanced macros
 
-Let `Target` denote an instruction set: `NONE/SSE4/AVX2/AVX512/PPC8/ARM8`.
+Let `Target` denote an instruction set: `NONE/SSE4/AVX2/AVX512/PPC8/ARM8/WASM`.
 
 *   `HWY_Target=##` are powers of two uniquely identifying `Target`.
 *   `HWY_STATIC_TARGETS=##`, defined within `static_targets.h`, indicates which
@@ -500,6 +502,7 @@ Let `Target` denote an instruction set: `NONE/SSE4/AVX2/AVX512/PPC8/ARM8`.
 *   `HWY_HAS_GATHER`: whether the current target supports gather().
 *   `HWY_HAS_VARIABLE_SHIFT`: whether the current target supports variable
     shifts, i.e. per-lane shift amounts (v1 << v2).
+*   `HWY_HAS_INT64`: whether the current target supports 64-bit integers.
 *   `HWY_HAS_CMP64`: whether the current target supports 64-bit signed
     comparisons.
 *   `HWY_HAS_DOUBLE`: whether the current target supports double-precision

@@ -63,11 +63,15 @@ HWY_NOINLINE HWY_ATTR void TestCastFrom(D /*d*/) {
   TestCastFromTo<FromT, uint8_t>();
   TestCastFromTo<FromT, uint16_t>();
   TestCastFromTo<FromT, uint32_t>();
+#if HWY_HAS_INT64
   TestCastFromTo<FromT, uint64_t>();
+#endif
   TestCastFromTo<FromT, int8_t>();
   TestCastFromTo<FromT, int16_t>();
   TestCastFromTo<FromT, int32_t>();
+#if HWY_HAS_INT64
   TestCastFromTo<FromT, int64_t>();
+#endif
   TestCastFromTo<FromT, float>();
 #if HWY_HAS_DOUBLE
   TestCastFromTo<FromT, double>();
@@ -97,10 +101,12 @@ HWY_NOINLINE HWY_ATTR void TestCast() {
   TestCastFromTo<float, uint32_t>();
   TestCastFromTo<float, int32_t>();
 
+#if HWY_HAS_INT64
   TestCastFromTo<uint64_t, uint64_t>();
   TestCastFromTo<int64_t, int64_t>();
   TestCastFromTo<uint64_t, int64_t>();
   TestCastFromTo<int64_t, uint64_t>();
+#endif
 #if HWY_HAS_DOUBLE
   TestCastFromTo<uint64_t, double>();
   TestCastFromTo<int64_t, double>();
@@ -181,6 +187,11 @@ HWY_NOINLINE HWY_ATTR void TestDupPromoteT() {
 }
 
 HWY_NOINLINE HWY_ATTR void TestConvert() {
+#if HWY_BITS != 0 || HWY_IDE
+  (void)di64;
+  (void)du64;
+#endif
+
   TestCast();
 
   HWY_ALIGN uint8_t lanes8[du8.N];
@@ -202,8 +213,10 @@ HWY_NOINLINE HWY_ATTR void TestConvert() {
   TestPromoteT<int8_t, int16_t>();
   TestPromoteT<int8_t, int32_t>();
   TestPromoteT<int16_t, int32_t>();
+#if HWY_HAS_INT64
   TestPromoteT<uint32_t, uint64_t>();
   TestPromoteT<int32_t, int64_t>();
+#endif
 
   // Demote
   TestDemoteT<int16_t, int8_t>();

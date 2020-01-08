@@ -88,8 +88,8 @@ and their parameters.
 
 *   Access to platform-specific intrinsics is necessary for acceptance in
     performance-critical projects. We provide conversions to and from intrinsics
-    to allow utilizing specialized platform-specific functionality such as
-    `MPSADBW`, and simplify incremental porting of existing code.
+    to allow utilizing specialized platform-specific functionality, and simplify
+    incremental porting of existing code.
 
 *   The core API should be compact and easy to learn. We provide only the few
     dozen operations which are necessary and sufficient for most of the 150+

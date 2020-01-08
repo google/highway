@@ -61,11 +61,13 @@ class TargetBitfield {
 
   // The best target available on all supported CPUs.
   static constexpr Target Baseline() {
-#if HWY_ARCH == HWY_ARCH_X86
+#if HWY_RUNTIME_TARGETS & HWY_WASM
+    return Target::kWASM;
+#elif HWY_RUNTIME_TARGETS & HWY_SSE4
     return Target::kSSE4;
-#elif HWY_ARCH == HWY_ARCH_ARM8
+#elif HWY_RUNTIME_TARGETS & HWY_ARM8
     return Target::kARM8;
-#elif HWY_ARCH == HWY_ARCH_PPC
+#elif HWY_RUNTIME_TARGETS & HWY_PPC8
     return Target::kPPC;
 #else
     return Target::kNONE;
@@ -74,6 +76,9 @@ class TargetBitfield {
 
   // Returns 'best' (widest/most recent) target amongst those supported.
   Target Best() const {
+#if HWY_RUNTIME_TARGETS & HWY_WASM
+    if (bits_ & HWY_WASM) return Target::kWASM;
+#endif
 #if HWY_RUNTIME_TARGETS & HWY_AVX512
     if (bits_ & HWY_AVX512) return Target::kAVX512;
 #endif

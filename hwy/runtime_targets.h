@@ -32,7 +32,9 @@
 
 #if HWY_ARCH == HWY_ARCH_X86
 
-#if (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700) || \
+#if defined(HWY_DISABLE_AVX2)
+#define HWY_RUNTIME_TARGETS HWY_SSE4
+#elif (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700) || \
     defined(HWY_DISABLE_AVX512)
 // Clang6 encounters backend errors when compiling AVX-512.
 #define HWY_RUNTIME_TARGETS (HWY_SSE4 | HWY_AVX2)
@@ -40,6 +42,8 @@
 #define HWY_RUNTIME_TARGETS (HWY_SSE4 | HWY_AVX2 | HWY_AVX512)
 #endif
 
+#elif HWY_ARCH == HWY_ARCH_WASM
+#define HWY_RUNTIME_TARGETS HWY_WASM
 #elif HWY_ARCH == HWY_ARCH_PPC
 #define HWY_RUNTIME_TARGETS HWY_PPC8
 #elif HWY_ARCH == HWY_ARCH_ARM
@@ -87,8 +91,15 @@
 #define HWY_FOR_AVX512
 #endif
 
+#if HWY_RUNTIME_TARGETS & HWY_WASM
+#define HWY_FOR_WASM HWY_X(WASM)
+#else
+#define HWY_FOR_WASM
+#endif
+
 #define HWY_FOREACH_TARGET \
   HWY_FOR_NONE             \
+  HWY_FOR_WASM             \
   HWY_FOR_ARM8             \
   HWY_FOR_PPC8             \
   HWY_FOR_SSE4             \
@@ -100,6 +111,12 @@
 // This is easier for users than using via HWY_FOREACH_TARGET.
 
 #define HWY_DECLARE_NONE(ret, args) ret F_NONE args;
+
+#if HWY_RUNTIME_TARGETS & HWY_WASM
+#define HWY_DECLARE_WASM(ret, args) ret F_WASM args;
+#else
+#define HWY_DECLARE_WASM(ret, args)
+#endif
 
 #if HWY_RUNTIME_TARGETS & HWY_ARM8
 #define HWY_DECLARE_ARM8(ret, args) ret F_ARM8 args;
@@ -133,6 +150,7 @@
 
 #define HWY_DECLARE(ret, args) \
   HWY_DECLARE_NONE(ret, args)  \
+  HWY_DECLARE_WASM(ret, args)  \
   HWY_DECLARE_ARM8(ret, args)  \
   HWY_DECLARE_PPC8(ret, args)  \
   HWY_DECLARE_SSE4(ret, args)  \

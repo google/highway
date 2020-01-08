@@ -54,6 +54,9 @@
 #undef HWY_HAS_VARIABLE_SHIFT
 #define HWY_HAS_VARIABLE_SHIFT 0
 
+#undef HWY_HAS_INT64
+#define HWY_HAS_INT64 1
+
 #undef HWY_HAS_DOUBLE
 #define HWY_HAS_DOUBLE 1
 
@@ -87,6 +90,9 @@
 
 #undef HWY_HAS_VARIABLE_SHIFT
 #define HWY_HAS_VARIABLE_SHIFT 1
+
+#undef HWY_HAS_INT64
+#define HWY_HAS_INT64 1
 
 #undef HWY_HAS_DOUBLE
 #define HWY_HAS_DOUBLE 1
@@ -122,6 +128,9 @@
 #undef HWY_HAS_VARIABLE_SHIFT
 #define HWY_HAS_VARIABLE_SHIFT 1
 
+#undef HWY_HAS_INT64
+#define HWY_HAS_INT64 1
+
 #undef HWY_HAS_DOUBLE
 #define HWY_HAS_DOUBLE 1
 
@@ -156,6 +165,9 @@
 #undef HWY_HAS_VARIABLE_SHIFT
 #define HWY_HAS_VARIABLE_SHIFT 1
 
+#undef HWY_HAS_INT64
+#define HWY_HAS_INT64 1
+
 #undef HWY_HAS_DOUBLE
 #define HWY_HAS_DOUBLE 1
 
@@ -183,12 +195,15 @@
 
 #undef HWY_HAS_CMP64
 #undef HWY_HAS_DOUBLE
+#undef HWY_HAS_INT64
 #ifdef __arm__
 #define HWY_HAS_CMP64 0
 #define HWY_HAS_DOUBLE 0
+#define HWY_HAS_INT64 0
 #else
 #define HWY_HAS_CMP64 1
 #define HWY_HAS_DOUBLE 1
+#define HWY_HAS_INT64 1
 #endif
 
 #undef HWY_HAS_GATHER
@@ -196,6 +211,43 @@
 
 #undef HWY_HAS_VARIABLE_SHIFT
 #define HWY_HAS_VARIABLE_SHIFT 1
+
+#include HWY_TARGET_INCLUDE
+#endif
+
+//-----------------------------------------------------------------------------
+// WASM
+#if HWY_RUNTIME_TARGETS & HWY_WASM
+
+#undef HWY_NAMESPACE
+#define HWY_NAMESPACE N_WASM
+
+#undef HWY_FUNC
+#define HWY_FUNC F_WASM
+
+#undef HWY_ATTR
+#define HWY_ATTR HWY_ATTR_WASM
+
+#undef HWY_BITS
+#define HWY_BITS 128
+
+#undef HWY_ALIGN
+#define HWY_ALIGN alignas(16)
+
+#undef HWY_HAS_CMP64
+#define HWY_HAS_CMP64 0
+
+#undef HWY_HAS_GATHER
+#define HWY_HAS_GATHER 0
+
+#undef HWY_HAS_VARIABLE_SHIFT
+#define HWY_HAS_VARIABLE_SHIFT 0
+
+#undef HWY_HAS_INT64
+#define HWY_HAS_INT64 0
+
+#undef HWY_HAS_DOUBLE
+#define HWY_HAS_DOUBLE 0
 
 #include HWY_TARGET_INCLUDE
 #endif
@@ -226,6 +278,9 @@
 
 #undef HWY_HAS_VARIABLE_SHIFT
 #define HWY_HAS_VARIABLE_SHIFT 1
+
+#undef HWY_HAS_INT64
+#define HWY_HAS_INT64 1
 
 #undef HWY_HAS_DOUBLE
 #define HWY_HAS_DOUBLE 1

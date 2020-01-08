@@ -22,6 +22,17 @@ if(HWY_USE_GTEST)
   find_package(GTest)
 endif()
 
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles(
+   "int main() {
+      #if !defined(__EMSCRIPTEN__)
+      static_assert(false, \"__EMSCRIPTEN__ is not defined\");
+      #endif
+      return 0;
+    }"
+  HWY_EMSCRIPTEN
+)
+
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
@@ -46,6 +57,7 @@ set(HWY_SOURCES
   hwy/x86/avx2.h
   hwy/x86/avx512.h
   hwy/x86/sse4.h
+  hwy/wasm.h
 )
 
 set(HWY_FLAGS
@@ -120,9 +132,18 @@ if(HWY_USE_GTEST)
   list(APPEND HWY_FLAGS -DHWY_USE_GTEST)
 endif()
 
+if(HWY_EMSCRIPTEN)
+  list(APPEND HWY_FLAGS -s SIMD=1)
+endif()
+
 add_library(hwy STATIC ${HWY_SOURCES})
+
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+if(HWY_EMSCRIPTEN)
+  target_link_libraries(hwy PUBLIC "-s SIMD=1")
+endif()
 
 # -------------------------------------------------------- Tests
 
@@ -144,6 +165,7 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   get_filename_component(TESTNAME ${TESTFILE} NAME_WE)
   add_executable(${TESTNAME} ${TESTFILE})
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS})
+
   target_link_libraries(${TESTNAME} hwy)
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")

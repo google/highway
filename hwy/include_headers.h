@@ -36,6 +36,10 @@
 
 #endif  // #ifndef HWY_INCLUDE_HEADERS_H_
 
+#if (HWY_RUNTIME_TARGETS | HWY_STATIC_TARGETS) & HWY_WASM
+#include "hwy/wasm.h"
+#endif
+
 #if (HWY_RUNTIME_TARGETS | HWY_STATIC_TARGETS) & HWY_ARM8
 #include "hwy/arm64_neon.h"
 #endif

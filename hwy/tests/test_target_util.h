@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Empty include guard to avoid Copybara warning
+#ifndef HWY_TESTS_TEST_TARGET_UTIL_H
+#define HWY_TESTS_TEST_TARGET_UTIL_H
+#endif
+
 #include <stddef.h>
 
 // Tests already include test_util (for TEST()). Including it "again" makes its
@@ -87,6 +92,8 @@ HWY_ATTR void AssertVecEqual(D d, const typename D::T (&expected)[D::N],
   AssertVecEqual(d, expected, actual, __FILE__, __LINE__)
 
 // Type lists: call func for Unsigned/Signed lane types.
+#if HWY_HAS_INT64
+
 #define HWY_FOREACH_U(func) \
   func(du8);                \
   func(du16);               \
@@ -98,6 +105,20 @@ HWY_ATTR void AssertVecEqual(D d, const typename D::T (&expected)[D::N],
   func(di16);               \
   func(di32);               \
   func(di64);
+
+#else
+
+#define HWY_FOREACH_U(func) \
+  func(du8);                \
+  func(du16);               \
+  func(du32);
+
+#define HWY_FOREACH_I(func) \
+  func(di8);                \
+  func(di16);               \
+  func(di32);
+
+#endif
 
 #define HWY_FOREACH_UI(func) \
   HWY_FOREACH_U(func);       \

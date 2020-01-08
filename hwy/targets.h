@@ -22,5 +22,6 @@
 #define HWY_SSE4 4
 #define HWY_ARM8 8
 #define HWY_AVX512 16
+#define HWY_WASM 32
 
 #endif  // HWY_TARGETS_H_
