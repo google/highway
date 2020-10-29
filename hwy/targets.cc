@@ -12,13 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "hwy/runtime_dispatch.h"
+#include "hwy/targets.h"
 
+#include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <atomic>
+#include <limits>
 
-#if HWY_ARCH == HWY_ARCH_X86
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+#include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
+#endif                                        // defined(*_SANITIZER)
+
+#if HWY_ARCH_X86
 #include <xmmintrin.h>
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -35,7 +43,7 @@ bool IsBitSet(const uint32_t reg, const int index) {
   return (reg & (1U << index)) != 0;
 }
 
-#if HWY_ARCH == HWY_ARCH_X86
+#if HWY_ARCH_X86
 
 // Calls CPUID instruction with eax=level and ecx=count and returns the result
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
@@ -48,7 +56,10 @@ void Cpuid(const uint32_t level, const uint32_t count,
     abcd[i] = regs[i];
   }
 #else
-  uint32_t a, b, c, d;
+  uint32_t a;
+  uint32_t b;
+  uint32_t c;
+  uint32_t d;
   __cpuid_count(level, count, a, b, c, d);
   abcd[0] = a;
   abcd[1] = b;
@@ -75,9 +86,16 @@ uint32_t ReadXCR0() {
 #endif  // HWY_ARCH_X86
 
 // Not function-local => no compiler-generated locking.
-std::atomic<int> supported_{-1};  // Not yet initialized
+std::atomic<uint32_t> supported_{0};  // Not yet initialized
 
-#if HWY_ARCH == HWY_ARCH_X86
+// When running tests, this value can be set to the mocked supported targets
+// mask. Only written to from a single thread before the test starts.
+uint32_t supported_targets_for_test_ = 0;
+
+// Mask of targets disabled at runtime with DisableTargets.
+uint32_t supported_mask_{std::numeric_limits<uint32_t>::max()};
+
+#if HWY_ARCH_X86
 // Bits indicating which instruction set extensions are supported.
 constexpr uint32_t kSSE = 1 << 0;
 constexpr uint32_t kSSE2 = 1 << 1;
@@ -94,12 +112,12 @@ constexpr uint32_t kLZCNT = 1u << 9;
 constexpr uint32_t kBMI = 1u << 10;
 constexpr uint32_t kBMI2 = 1u << 11;
 
-// We normally assume BMI/BMI2 are available if AVX2 is. This allows us to
-// use BZHI and (compiler-generated) MULX. However, VirtualBox lacks BMI/BMI2
+// We normally assume BMI/BMI2/FMA are available if AVX2 is. This allows us to
+// use BZHI and (compiler-generated) MULX. However, VirtualBox lacks them
 // [https://www.virtualbox.org/ticket/15471]. Thus we provide the option of
-// avoiding using and requiring BMI so AVX2 can still be used.
-#ifdef HWY_DISABLE_BMI2
-constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kFMA | kLZCNT;
+// avoiding using and requiring these so AVX2 can still be used.
+#ifdef HWY_DISABLE_BMI2_FMA
+constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kLZCNT;
 #else
 constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kFMA | kLZCNT | kBMI | kBMI2;
 #endif
@@ -108,21 +126,73 @@ constexpr uint32_t kAVX512F = 1u << 12;
 constexpr uint32_t kAVX512VL = 1u << 13;
 constexpr uint32_t kAVX512DQ = 1u << 14;
 constexpr uint32_t kAVX512BW = 1u << 15;
-constexpr uint32_t kGroupAVX512 = kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW;
+constexpr uint32_t kGroupAVX3 = kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW;
 #endif
 
 }  // namespace
 
-TargetBitfield::TargetBitfield() {
-  bits_ = supported_.load(std::memory_order_acquire);
+HWY_NORETURN void HWY_FORMAT(3, 4)
+    Abort(const char* file, int line, const char* format, ...) {
+  char buf[2000];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+  // If compiled with any sanitizer print a stack trace. This call doesn't crash
+  // the program, instead the trap below will crash it also allowing gdb to
+  // break there.
+  __sanitizer_print_stack_trace();
+#endif  // defined(*_SANITIZER)
+
+#if HWY_COMPILER_MSVC
+  __debugbreak();
+#else
+  __builtin_trap();
+#endif
+}
+
+void DisableTargets(uint32_t disabled_targets) {
+  supported_mask_ = ~(disabled_targets & ~HWY_ENABLED_BASELINE);
+  // We can call Update() here to initialize the mask but that will trigger a
+  // call to SupportedTargets() which we use in tests to tell whether any of the
+  // highway dynamic dispatch functions were used.
+  chosen_target.DeInit();
+}
+
+void SetSupportedTargetsForTest(uint32_t targets) {
+  // Reset the cached supported_ value to 0 to force a re-evaluation in the
+  // next call to SupportedTargets() which will use the mocked value set here
+  // if not zero.
+  supported_.store(0, std::memory_order_release);
+  supported_targets_for_test_ = targets;
+  chosen_target.DeInit();
+}
+
+bool SupportedTargetsCalledForTest() {
+  return supported_.load(std::memory_order_acquire) != 0;
+}
+
+uint32_t SupportedTargets() {
+  uint32_t bits = supported_.load(std::memory_order_acquire);
   // Already initialized?
-  if (HWY_LIKELY(bits_ != -1)) {
-    return;
+  if (HWY_LIKELY(bits != 0)) {
+    return bits & supported_mask_;
   }
 
-  bits_ = HWY_NONE;
+  // When running tests, this allows to mock the current supported targets.
+  if (HWY_UNLIKELY(supported_targets_for_test_ != 0)) {
+    // Store the value to signal that this was used.
+    supported_.store(supported_targets_for_test_, std::memory_order_release);
+    return supported_targets_for_test_ & supported_mask_;
+  }
 
-#if HWY_ARCH == HWY_ARCH_X86
+  bits = HWY_SCALAR;
+
+#if HWY_ARCH_X86
   uint32_t flags = 0;
   uint32_t abcd[4];
 
@@ -172,31 +242,45 @@ TargetBitfield::TargetBitfield() {
     }
     // ZMM + opmask
     if ((xcr0 & 0x70) != 0x70) {
-      flags &= ~kGroupAVX512;
+      flags &= ~kGroupAVX3;
     }
   }
 
   // Set target bit(s) if all their group's flags are all set.
-  if ((flags & kGroupAVX512) == kGroupAVX512) {
-    bits_ |= HWY_AVX512;
+  if ((flags & kGroupAVX3) == kGroupAVX3) {
+    bits |= HWY_AVX3;
   }
   if ((flags & kGroupAVX2) == kGroupAVX2) {
-    bits_ |= HWY_AVX2;
+    bits |= HWY_AVX2;
   }
   if ((flags & kGroupSSE4) == kGroupSSE4) {
-    bits_ |= HWY_SSE4;
+    bits |= HWY_SSE4;
   }
-#elif HWY_ARCH == HWY_ARCH_WASM
-  bits_ |= HWY_WASM;
-#elif HWY_ARCH == HWY_ARCH_ARM
-  bits_ |= HWY_ARM8;
-#endif
+#else
+  // TODO(janwas): detect for other platforms
+  bits = HWY_ENABLED_BASELINE;
+#endif  // HWY_ARCH_X86
 
-  // Don't report targets that aren't enabled, otherwise foreach-target loops
-  // will not terminate.
-  bits_ &= HWY_RUNTIME_TARGETS;
+  if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
+    fprintf(stderr, "WARNING: CPU supports %ux but software requires %x\n",
+            bits, HWY_ENABLED_BASELINE);
+  }
 
-  supported_.store(bits_, std::memory_order_release);
+  supported_.store(bits, std::memory_order_release);
+  return bits & supported_mask_;
+}
+
+// Declared in targets.h
+ChosenTarget chosen_target;
+
+void ChosenTarget::Update() {
+  // The supported variable contains the current CPU supported targets shifted
+  // to the location expected by the ChosenTarget mask. We enabled SCALAR
+  // regardless of whether it was compiled since it is also used as the
+  // fallback mechanism to the baseline target.
+  uint32_t supported = HWY_CHOSEN_TARGET_SHIFT(hwy::SupportedTargets()) |
+                       HWY_CHOSEN_TARGET_MASK_SCALAR;
+  mask_.store(supported);
 }
 
 }  // namespace hwy

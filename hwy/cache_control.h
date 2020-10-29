@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,83 +15,66 @@
 #ifndef HWY_CACHE_CONTROL_H_
 #define HWY_CACHE_CONTROL_H_
 
+#include <stddef.h>
 #include <stdint.h>
-#include <string.h>  // memcpy
 
-#include "hwy/arch.h"
-#include "hwy/compiler_specific.h"
+#include "hwy/base.h"
 
-#if HWY_ARCH == HWY_ARCH_X86
-#include <emmintrin.h>
+#ifndef __SSE2__
+#undef HWY_DISABLE_CACHE_CONTROL
+#define HWY_DISABLE_CACHE_CONTROL
+#endif
+
+// intrin.h is sufficient on MSVC and already included by base.h.
+#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL) && !HWY_COMPILER_MSVC
+#include <emmintrin.h>  // SSE2
 #endif
 
 namespace hwy {
 
-HWY_INLINE void Stream(const uint32_t t, uint32_t* HWY_RESTRICT aligned) {
-#if HWY_ARCH == HWY_ARCH_X86
-  _mm_stream_si32(reinterpret_cast<int*>(aligned), t);
-#else
-  memcpy(aligned, &t, sizeof(t));
-#endif
-}
+// Even if N*sizeof(T) is smaller, Stream may write a multiple of this size.
+#define HWY_STREAM_MULTIPLE 16
 
-HWY_INLINE void Stream(const uint64_t t, uint64_t* HWY_RESTRICT aligned) {
-#if defined(__x86_64__) || defined(_M_X64)
-  // NOLINTNEXTLINE(google-runtime-int)
-  _mm_stream_si64(reinterpret_cast<long long*>(aligned), t);
-#elif HWY_ARCH == HWY_ARCH_X86  // i386 case
-  _mm_stream_si32(reinterpret_cast<int*>(aligned), static_cast<uint32_t>(t));
-  _mm_stream_si32(reinterpret_cast<int*>(aligned) + 1, t >> 32u);
+// The following functions may also require an attribute.
+#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL) && !HWY_COMPILER_MSVC
+#define HWY_ATTR_CACHE __attribute__((target("sse2")))
 #else
-  memcpy(aligned, &t, sizeof(t));
+#define HWY_ATTR_CACHE
 #endif
-}
 
 // Delays subsequent loads until prior loads are visible. On Intel CPUs, also
 // serves as a full fence (waits for all prior instructions to complete).
 // No effect on non-x86.
-HWY_INLINE void LoadFence() {
-#if HWY_ARCH == HWY_ARCH_X86
-#ifdef __SSE2__
+HWY_INLINE HWY_ATTR_CACHE void LoadFence() {
+#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
   _mm_lfence();
-#elif HWY_COMPILER_MSVC
-  MemoryBarrier();
-#else
-  __sync_synchronize();
-#endif
 #endif
 }
 
 // Ensures previous weakly-ordered stores are visible. No effect on non-x86.
-HWY_INLINE void StoreFence() {
-#if HWY_ARCH == HWY_ARCH_X86
-#ifdef __SSE2__
+HWY_INLINE HWY_ATTR_CACHE void StoreFence() {
+#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
   _mm_sfence();
-#elif HWY_COMPILER_MSVC
-  MemoryBarrier();
-#else
-  __sync_synchronize();
-#endif
 #endif
 }
 
 // Begins loading the cache line containing "p".
 template <typename T>
-HWY_INLINE void Prefetch(const T* p) {
-#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+HWY_INLINE HWY_ATTR_CACHE void Prefetch(const T* p) {
+#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
+  _mm_prefetch(reinterpret_cast<const char*>(p), _MM_HINT_T0);
+#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANG
   // Hint=0 (NTA) behavior differs, but skipping outer caches is probably not
   // desirable, so use the default 3 (keep in caches).
   __builtin_prefetch(p, /*write=*/0, /*hint=*/3);
-#elif HWY_ARCH == HWY_ARCH_X86
-  _mm_prefetch(p, _MM_HINT_T0);
 #else
   (void)p;
 #endif
 }
 
 // Invalidates and flushes the cache line containing "p". No effect on non-x86.
-HWY_INLINE void FlushCacheline(const void* p) {
-#if HWY_ARCH == HWY_ARCH_X86
+HWY_INLINE HWY_ATTR_CACHE void FlushCacheline(const void* p) {
+#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
   _mm_clflush(p);
 #else
   (void)p;

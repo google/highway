@@ -23,11 +23,10 @@
 namespace hwy {
 namespace {
 
-uint64_t Div(const void*, FuncInput in) {
+FuncOutput Div(const void*, FuncInput in) {
   // Here we're measuring the throughput because benchmark invocations are
-  // independent.
-  const int64_t d1 = 0xFFFFFFFFFFll / int64_t(in);  // IDIV
-  return d1;
+  // independent. Any dividend will do; the divisor is nonzero.
+  return 0xFFFFF / in;
 }
 
 template <size_t N>
@@ -45,7 +44,7 @@ void MeasureDiv(const FuncInput (&inputs)[N]) {
 std::mt19937 rng;
 
 // A function whose runtime depends on rng.
-uint64_t Random(const void* /*arg*/, FuncInput in) {
+FuncOutput Random(const void* /*arg*/, FuncInput in) {
   const size_t r = rng() & 0xF;
   uint32_t ret = in;
   for (size_t i = 0; i < r; ++i) {
@@ -73,7 +72,7 @@ void EnsureLongMeasurementFails(const FuncInput (&inputs)[N]) {
   Result results[N];
 
   const size_t num_results = Measure(
-      [](const void*, const FuncInput input) {
+      [](const void*, const FuncInput input) -> FuncOutput {
         // Loop until the sleep succeeds (not interrupted by signal). We assume
         // >= 512 MHz, so 2 seconds will exceed the 1 << 30 tick safety limit.
         while (sleep(2) != 0) {

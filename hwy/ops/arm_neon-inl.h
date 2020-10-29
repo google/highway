@@ -12,24 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_ARM64_NEON_H_
-#define HWY_ARM64_NEON_H_
-
 // 128-bit ARM64 NEON vectors and operations.
+// External include guard in highway.h - see comment there.
 
 #include <arm_neon.h>
-#include <stddef.h>
 
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
-#include <stdio.h>
-#endif
+#include "hwy/ops/shared-inl.h"
 
-#include "hwy/shared.h"
-
-#define HWY_ATTR_ARM8 HWY_TARGET_ATTR("crypto")
-
-#define HWY_CONCAT_IMPL(a, b) a##b
-#define HWY_CONCAT(a, b) HWY_CONCAT_IMPL(a, b)
+HWY_BEFORE_NAMESPACE();
+namespace hwy {
+namespace HWY_NAMESPACE {
 
 // Macros used to define single and double function calls for multiple types
 // for full and half vectors. These macros are undefined at the end of the file.
@@ -90,14 +82,16 @@
   HWY_NEON_DEF_FUNCTION(uint8_t, 16, name, prefix##q, infix, u8, args) \
   HWY_NEON_DEF_FUNCTION(uint8_t, 8, name, prefix, infix, u8, args)     \
   HWY_NEON_DEF_FUNCTION(uint8_t, 4, name, prefix, infix, u8, args)     \
-  HWY_NEON_DEF_FUNCTION(uint8_t, 2, name, prefix, infix, u8, args)
+  HWY_NEON_DEF_FUNCTION(uint8_t, 2, name, prefix, infix, u8, args)     \
+  HWY_NEON_DEF_FUNCTION(uint8_t, 1, name, prefix, infix, u8, args)
 
 // int8_t
 #define HWY_NEON_DEF_FUNCTION_INT_8(name, prefix, infix, args)        \
   HWY_NEON_DEF_FUNCTION(int8_t, 16, name, prefix##q, infix, s8, args) \
   HWY_NEON_DEF_FUNCTION(int8_t, 8, name, prefix, infix, s8, args)     \
   HWY_NEON_DEF_FUNCTION(int8_t, 4, name, prefix, infix, s8, args)     \
-  HWY_NEON_DEF_FUNCTION(int8_t, 2, name, prefix, infix, s8, args)
+  HWY_NEON_DEF_FUNCTION(int8_t, 2, name, prefix, infix, s8, args)     \
+  HWY_NEON_DEF_FUNCTION(int8_t, 1, name, prefix, infix, s8, args)
 
 // uint16_t
 #define HWY_NEON_DEF_FUNCTION_UINT_16(name, prefix, infix, args)        \
@@ -242,8 +236,6 @@
 #define vzip2q_u32(x, y) vzipq_u32(x, y).val[1]
 #define vzip2q_f32(x, y) vzipq_f32(x, y).val[1]
 #endif
-
-namespace hwy {
 
 template <typename T, size_t N>
 struct Raw128;
@@ -411,8 +403,19 @@ struct Raw128<int16_t, 1> {
   using type = int16x4_t;
 };
 
+// 8 (same as 64)
+template <>
+struct Raw128<uint8_t, 1> {
+  using type = uint8x8_t;
+};
+
+template <>
+struct Raw128<int8_t, 1> {
+  using type = int8x8_t;
+};
+
 template <typename T>
-using Full128 = Desc<T, 16 / sizeof(T)>;
+using Full128 = Simd<T, 16 / sizeof(T)>;
 
 template <typename T, size_t N = 16 / sizeof(T)>
 class Vec128 {
@@ -497,123 +500,104 @@ HWY_NEON_DEF_FUNCTION_UINT_64(cast_to_u8, vreinterpret, _u8_, HWY_CAST_TO_U8)
 // cast_u8_to
 
 template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> cast_u8_to(Desc<uint8_t, N> /* tag */,
+HWY_INLINE Vec128<uint8_t, N> cast_u8_to(Simd<uint8_t, N> /* tag */,
                                          Vec128<uint8_t, N> v) {
   return v;
 }
 
-// 64-bit full/part:
+// 64-bit or less:
 
-// Differentiate between <= 64 bit and (64, 128] (for q suffix on NEON)
-#define HWY_IF64(T, N) EnableIf<N != 0 && (N * sizeof(T) <= 8)>* = nullptr
-
-// .. 8-bit
-template <size_t N, HWY_IF64(int8_t, N)>
-HWY_INLINE Vec128<int8_t, N> cast_u8_to(Desc<int8_t, N> /* tag */,
+template <size_t N, HWY_IF_LE64(int8_t, N)>
+HWY_INLINE Vec128<int8_t, N> cast_u8_to(Simd<int8_t, N> /* tag */,
                                         Vec128<uint8_t, N> v) {
   return Vec128<int8_t, N>(vreinterpret_s8_u8(v.raw));
 }
-// .. 16-bit
-template <size_t N, HWY_IF64(uint16_t, N)>
-HWY_INLINE Vec128<uint16_t, N> cast_u8_to(Desc<uint16_t, N> /* tag */,
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> cast_u8_to(Simd<uint16_t, N> /* tag */,
                                           Vec128<uint8_t, N * 2> v) {
   return Vec128<uint16_t, N>(vreinterpret_u16_u8(v.raw));
 }
-template <size_t N, HWY_IF64(int16_t, N)>
-HWY_INLINE Vec128<int16_t, N> cast_u8_to(Desc<int16_t, N> /* tag */,
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> cast_u8_to(Simd<int16_t, N> /* tag */,
                                          Vec128<uint8_t, N * 2> v) {
   return Vec128<int16_t, N>(vreinterpret_s16_u8(v.raw));
 }
-// .. 32-bit
-template <size_t N, HWY_IF64(uint32_t, N)>
-HWY_INLINE Vec128<uint32_t, N> cast_u8_to(Desc<uint32_t, N> /* tag */,
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint32_t, N> cast_u8_to(Simd<uint32_t, N> /* tag */,
                                           Vec128<uint8_t, N * 4> v) {
   return Vec128<uint32_t, N>(vreinterpret_u32_u8(v.raw));
 }
-template <size_t N, HWY_IF64(int32_t, N)>
-HWY_INLINE Vec128<int32_t, N> cast_u8_to(Desc<int32_t, N> /* tag */,
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int32_t, N> cast_u8_to(Simd<int32_t, N> /* tag */,
                                          Vec128<uint8_t, N * 4> v) {
   return Vec128<int32_t, N>(vreinterpret_s32_u8(v.raw));
 }
-template <size_t N, HWY_IF64(float, N)>
-HWY_INLINE Vec128<float, N> cast_u8_to(Desc<float, N> /* tag */,
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<float, N> cast_u8_to(Simd<float, N> /* tag */,
                                        Vec128<uint8_t, N * 4> v) {
   return Vec128<float, N>(vreinterpret_f32_u8(v.raw));
 }
-// .. 64-bit
-HWY_INLINE Vec128<uint64_t, 1> cast_u8_to(Desc<uint64_t, 1> /* tag */,
+HWY_INLINE Vec128<uint64_t, 1> cast_u8_to(Simd<uint64_t, 1> /* tag */,
                                           Vec128<uint8_t, 1 * 8> v) {
   return Vec128<uint64_t, 1>(vreinterpret_u64_u8(v.raw));
 }
-HWY_INLINE Vec128<int64_t, 1> cast_u8_to(Desc<int64_t, 1> /* tag */,
+HWY_INLINE Vec128<int64_t, 1> cast_u8_to(Simd<int64_t, 1> /* tag */,
                                          Vec128<uint8_t, 1 * 8> v) {
   return Vec128<int64_t, 1>(vreinterpret_s64_u8(v.raw));
 }
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double, 1> cast_u8_to(Desc<double, 1> /* tag */,
+HWY_INLINE Vec128<double, 1> cast_u8_to(Simd<double, 1> /* tag */,
                                         Vec128<uint8_t, 1 * 8> v) {
   return Vec128<double, 1>(vreinterpret_f64_u8(v.raw));
 }
 #endif
 
-// 128-bit full/part:
+// 128-bit full:
 
-#define HWY_IF128_Q(T, N) EnableIf<(N * sizeof(T) > 8)>* = nullptr
-
-// .. 8-bit
-template <size_t N, HWY_IF128_Q(int8_t, N)>
-HWY_INLINE Vec128<int8_t, N> cast_u8_to(Desc<int8_t, N> /* tag */,
-                                        Vec128<uint8_t, N> v) {
-  return Vec128<int8_t, N>(vreinterpretq_s8_u8(v.raw));
+HWY_INLINE Vec128<int8_t> cast_u8_to(Full128<int8_t> /* tag */,
+                                     Vec128<uint8_t> v) {
+  return Vec128<int8_t>(vreinterpretq_s8_u8(v.raw));
 }
-// .. 16-bit
-template <size_t N, HWY_IF128_Q(uint16_t, N)>
-HWY_INLINE Vec128<uint16_t, N> cast_u8_to(Desc<uint16_t, N> /* tag */,
-                                          Vec128<uint8_t, N * 2> v) {
-  return Vec128<uint16_t, N>(vreinterpretq_u16_u8(v.raw));
+HWY_INLINE Vec128<uint16_t> cast_u8_to(Full128<uint16_t> /* tag */,
+                                       Vec128<uint8_t> v) {
+  return Vec128<uint16_t>(vreinterpretq_u16_u8(v.raw));
 }
-template <size_t N, HWY_IF128_Q(int16_t, N)>
-HWY_INLINE Vec128<int16_t, N> cast_u8_to(Desc<int16_t, N> /* tag */,
-                                         Vec128<uint8_t, N * 2> v) {
-  return Vec128<int16_t, N>(vreinterpretq_s16_u8(v.raw));
+HWY_INLINE Vec128<int16_t> cast_u8_to(Full128<int16_t> /* tag */,
+                                      Vec128<uint8_t> v) {
+  return Vec128<int16_t>(vreinterpretq_s16_u8(v.raw));
 }
-// .. 32-bit
-template <size_t N, HWY_IF128_Q(uint32_t, N)>
-HWY_INLINE Vec128<uint32_t, N> cast_u8_to(Desc<uint32_t, N> /* tag */,
-                                          Vec128<uint8_t, N * 4> v) {
-  return Vec128<uint32_t, N>(vreinterpretq_u32_u8(v.raw));
+HWY_INLINE Vec128<uint32_t> cast_u8_to(Full128<uint32_t> /* tag */,
+                                       Vec128<uint8_t> v) {
+  return Vec128<uint32_t>(vreinterpretq_u32_u8(v.raw));
 }
-template <size_t N, HWY_IF128_Q(int32_t, N)>
-HWY_INLINE Vec128<int32_t, N> cast_u8_to(Desc<int32_t, N> /* tag */,
-                                         Vec128<uint8_t, N * 4> v) {
-  return Vec128<int32_t, N>(vreinterpretq_s32_u8(v.raw));
+HWY_INLINE Vec128<int32_t> cast_u8_to(Full128<int32_t> /* tag */,
+                                      Vec128<uint8_t> v) {
+  return Vec128<int32_t>(vreinterpretq_s32_u8(v.raw));
 }
-template <size_t N, HWY_IF128_Q(float, N)>
-HWY_INLINE Vec128<float, N> cast_u8_to(Desc<float, N> /* tag */,
-                                       Vec128<uint8_t, N * 4> v) {
-  return Vec128<float, N>(vreinterpretq_f32_u8(v.raw));
+HWY_INLINE Vec128<float> cast_u8_to(Full128<float> /* tag */,
+                                    Vec128<uint8_t> v) {
+  return Vec128<float>(vreinterpretq_f32_u8(v.raw));
 }
-// .. 64-bit
-HWY_INLINE Vec128<uint64_t, 2> cast_u8_to(Desc<uint64_t, 2> /* tag */,
-                                          Vec128<uint8_t, 2 * 8> v) {
-  return Vec128<uint64_t, 2>(vreinterpretq_u64_u8(v.raw));
+HWY_INLINE Vec128<uint64_t> cast_u8_to(Full128<uint64_t> /* tag */,
+                                       Vec128<uint8_t> v) {
+  return Vec128<uint64_t>(vreinterpretq_u64_u8(v.raw));
 }
-HWY_INLINE Vec128<int64_t, 2> cast_u8_to(Desc<int64_t, 2> /* tag */,
-                                         Vec128<uint8_t, 2 * 8> v) {
-  return Vec128<int64_t, 2>(vreinterpretq_s64_u8(v.raw));
+HWY_INLINE Vec128<int64_t> cast_u8_to(Full128<int64_t> /* tag */,
+                                      Vec128<uint8_t> v) {
+  return Vec128<int64_t>(vreinterpretq_s64_u8(v.raw));
 }
 
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double, 2> cast_u8_to(Desc<double, 2> /* tag */,
-                                        Vec128<uint8_t, 2 * 8> v) {
-  return Vec128<double, 2>(vreinterpretq_f64_u8(v.raw));
+HWY_INLINE Vec128<double> cast_u8_to(Full128<double> /* tag */,
+                                     Vec128<uint8_t> v) {
+  return Vec128<double>(vreinterpretq_f64_u8(v.raw));
 }
 #endif
 
 // BitCast
 template <typename T, size_t N, typename FromT>
 HWY_INLINE Vec128<T, N> BitCast(
-    Desc<T, N> d, Vec128<FromT, N * sizeof(T) / sizeof(FromT)> v) {
+    Simd<T, N> d, Vec128<FromT, N * sizeof(T) / sizeof(FromT)> v) {
   const auto u8 = cast_to_u8(v);
   return cast_u8_to(d, u8);
 }
@@ -624,7 +608,7 @@ HWY_INLINE Vec128<T, N> BitCast(
 #define HWY_NEON_BUILD_TPL_HWY_SET1
 #define HWY_NEON_BUILD_RET_HWY_SET1(type, size) Vec128<type, size>
 #define HWY_NEON_BUILD_PARAM_HWY_SET1(type, size) \
-  Desc<type, size> /* tag */, const type t
+  Simd<type, size> /* tag */, const type t
 #define HWY_NEON_BUILD_ARG_HWY_SET1 t
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(Set, vdup, _n_, HWY_SET1)
@@ -636,24 +620,13 @@ HWY_NEON_DEF_FUNCTION_ALL_TYPES(Set, vdup, _n_, HWY_SET1)
 
 // Returns an all-zero vector.
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Zero(Desc<T, N> d) {
+HWY_INLINE Vec128<T, N> Zero(Simd<T, N> d) {
   return Set(d, 0);
-}
-
-// Returns a vector with lane i=[0, N) set to "first" + i. Unique per-lane
-// values are required to detect lane-crossing bugs.
-template <typename T, size_t N, typename T2>
-HWY_INLINE Vec128<T, N> Iota(Desc<T, N> d, const T2 first) {
-  alignas(16) T lanes[N];
-  for (size_t i = 0; i < N; ++i) {
-    lanes[i] = first + i;
-  }
-  return Load(d, lanes);
 }
 
 // Returns a vector with uninitialized elements.
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Undefined(Desc<T, N> /*d*/) {
+HWY_INLINE Vec128<T, N> Undefined(Simd<T, N> /*d*/) {
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
   typename Raw128<T, N>::type a;
@@ -696,18 +669,45 @@ HWY_NEON_DEF_FUNCTION_UINT_16(AverageRound, vrhadd, _, 2)
 // ------------------------------ Absolute value
 
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
-template <size_t N>
+HWY_INLINE Vec128<int8_t> Abs(const Vec128<int8_t> v) {
+  return Vec128<int8_t>(vabsq_s8(v.raw));
+}
+HWY_INLINE Vec128<int16_t> Abs(const Vec128<int16_t> v) {
+  return Vec128<int16_t>(vabsq_s16(v.raw));
+}
+HWY_INLINE Vec128<int32_t> Abs(const Vec128<int32_t> v) {
+  return Vec128<int32_t>(vabsq_s32(v.raw));
+}
+HWY_INLINE Vec128<float> Abs(const Vec128<float> v) {
+  return Vec128<float>{vabsq_f32(v.raw)};
+}
+
+template <size_t N, HWY_IF_LE64(int8_t, N)>
 HWY_INLINE Vec128<int8_t, N> Abs(const Vec128<int8_t, N> v) {
-  return Vec128<int8_t, N>(vabsq_s8(v.raw));
+  return Vec128<int8_t, N>(vabs_s8(v.raw));
 }
-template <size_t N>
+template <size_t N, HWY_IF_LE64(int16_t, N)>
 HWY_INLINE Vec128<int16_t, N> Abs(const Vec128<int16_t, N> v) {
-  return Vec128<int16_t, N>(vabsq_s16(v.raw));
+  return Vec128<int16_t, N>(vabs_s16(v.raw));
 }
-template <size_t N>
+template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
-  return Vec128<int32_t, N>(vabsq_s32(v.raw));
+  return Vec128<int32_t, N>(vabs_s32(v.raw));
 }
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<float, N> Abs(const Vec128<float, N> v) {
+  return Vec128<float, N>{vabs_f32(v.raw)};
+}
+
+#if defined(__aarch64__)
+HWY_INLINE Vec128<double> Abs(const Vec128<double> v) {
+  return Vec128<double>{vabsq_f64(v.raw)};
+}
+
+HWY_INLINE Vec128<double, 1> Abs(const Vec128<double, 1> v) {
+  return Vec128<double, 1>{vabs_f64(v.raw)};
+}
+#endif
 
 // ------------------------------ Shift lanes by constant #bits
 
@@ -730,51 +730,84 @@ HWY_NEON_DEF_FUNCTION_INT_8_16_32(ShiftRight, vshr, _n_, HWY_SHIFT)
 // ------------------------------ Shift lanes by independent variable #bits
 
 // Unsigned (no u8,u16)
-template <size_t N>
+HWY_INLINE Vec128<uint32_t> operator<<(const Vec128<uint32_t> v,
+                                       const Vec128<uint32_t> bits) {
+  return Vec128<uint32_t>(vshlq_u32(v.raw, bits.raw));
+}
+HWY_INLINE Vec128<uint32_t> operator>>(const Vec128<uint32_t> v,
+                                       const Vec128<uint32_t> bits) {
+  return Vec128<uint32_t>(
+      vshlq_u32(v.raw, vnegq_s32(vreinterpretq_s32_u32(bits.raw))));
+}
+HWY_INLINE Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
+                                       const Vec128<uint64_t> bits) {
+  return Vec128<uint64_t>(vshlq_u64(v.raw, bits.raw));
+}
+HWY_INLINE Vec128<uint64_t> operator>>(const Vec128<uint64_t> v,
+                                       const Vec128<uint64_t> bits) {
+#if defined(__aarch64__)
+  const int64x2_t neg_bits = vnegq_s64(vreinterpretq_s64_u64(bits.raw));
+#else
+  // A32 doesn't have vnegq_s64().
+  const int64x2_t neg_bits =
+      vsubq_s64(Set(Full128<int64_t>(), 0).raw, bits.raw);
+#endif
+  return Vec128<uint64_t>(vshlq_u64(v.raw, neg_bits));
+}
+
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint32_t, N> operator<<(const Vec128<uint32_t, N> v,
                                           const Vec128<uint32_t, N> bits) {
-  return Vec128<uint32_t, N>(vshlq_u32(v.raw, bits.raw));
+  return Vec128<uint32_t, N>(vshl_u32(v.raw, bits.raw));
 }
-template <size_t N>
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> v,
                                           const Vec128<uint32_t, N> bits) {
   return Vec128<uint32_t, N>(
-      vshlq_u32(v.raw, vnegq_s32(vreinterpretq_s32_u32(bits.raw))));
+      vshl_u32(v.raw, vneg_s32(vreinterpret_s32_u32(bits.raw))));
 }
-template <size_t N>
-HWY_INLINE Vec128<uint64_t, N> operator<<(const Vec128<uint64_t, N> v,
-                                          const Vec128<uint64_t, N> bits) {
-  return Vec128<uint64_t, N>(vshlq_u64(v.raw, bits.raw));
+HWY_INLINE Vec128<uint64_t, 1> operator<<(const Vec128<uint64_t, 1> v,
+                                          const Vec128<uint64_t, 1> bits) {
+  return Vec128<uint64_t, 1>(vshl_u64(v.raw, bits.raw));
 }
-template <size_t N>
-HWY_INLINE Vec128<uint64_t, N> operator>>(const Vec128<uint64_t, N> v,
-                                          const Vec128<uint64_t, N> bits) {
-#if !defined(__aarch64__)
-  // A32 doesn't have vnegq_s64().
-  return Vec128<uint64_t, N>(
-      vshlq_u64(v.raw, vsubq_s64(Set(Desc<int64_t, N>(), 0).raw,
-                                 vreinterpretq_s64_u64(bits.raw))));
+HWY_INLINE Vec128<uint64_t, 1> operator>>(const Vec128<uint64_t, 1> v,
+                                          const Vec128<uint64_t, 1> bits) {
+#if defined(__aarch64__)
+  const int64x1_t neg_bits = vneg_s64(vreinterpret_s64_u64(bits.raw));
 #else
-  return Vec128<uint64_t, N>(
-      vshlq_u64(v.raw, vnegq_s64(vreinterpretq_s64_u64(bits.raw))));
+  // A32 doesn't have vneg_s64().
+  const int64x1_t neg_bits = vsub_s64(Set(Simd<int64_t, 1>(), 0).raw, bits.raw);
 #endif
+  return Vec128<uint64_t, 1>(vshl_u64(v.raw, neg_bits));
 }
 
 // Signed (no i8,i16)
-template <size_t N>
+HWY_INLINE Vec128<int32_t> operator<<(const Vec128<int32_t> v,
+                                      const Vec128<int32_t> bits) {
+  return Vec128<int32_t>(vshlq_s32(v.raw, bits.raw));
+}
+HWY_INLINE Vec128<int32_t> operator>>(const Vec128<int32_t> v,
+                                      const Vec128<int32_t> bits) {
+  return Vec128<int32_t>(vshlq_s32(v.raw, vnegq_s32(bits.raw)));
+}
+HWY_INLINE Vec128<int64_t> operator<<(const Vec128<int64_t> v,
+                                      const Vec128<int64_t> bits) {
+  return Vec128<int64_t>(vshlq_s64(v.raw, bits.raw));
+}
+
+template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int32_t, N> operator<<(const Vec128<int32_t, N> v,
                                          const Vec128<int32_t, N> bits) {
-  return Vec128<int32_t, N>(vshlq_s32(v.raw, bits.raw));
+  return Vec128<int32_t, N>(vshl_s32(v.raw, bits.raw));
 }
-template <size_t N>
+template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int32_t, N> operator>>(const Vec128<int32_t, N> v,
                                          const Vec128<int32_t, N> bits) {
-  return Vec128<int32_t, N>(vshlq_s32(v.raw, vnegq_s32(bits.raw)));
+  return Vec128<int32_t, N>(vshl_s32(v.raw, vneg_s32(bits.raw)));
 }
-template <size_t N>
-HWY_INLINE Vec128<int64_t, N> operator<<(const Vec128<int64_t, N> v,
-                                         const Vec128<int64_t, N> bits) {
-  return Vec128<int64_t, N>(vshlq_s64(v.raw, bits.raw));
+HWY_INLINE Vec128<int64_t, 1> operator<<(const Vec128<int64_t, 1> v,
+                                         const Vec128<int64_t, 1> bits) {
+  return Vec128<int64_t, 1>(vshl_s64(v.raw, bits.raw));
 }
 
 // ------------------------------ Minimum
@@ -799,69 +832,86 @@ HWY_NEON_DEF_FUNCTION_INT_8_16_32(Max, vmax, _, 2)
 // Float
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
 
-// ------------------------------ Clamping
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Clamp(const Vec128<T, N> v, const Vec128<T, N> lo,
-                              const Vec128<T, N> hi) {
-  return Min(Max(lo, v), hi);
-}
 // ------------------------------ Integer multiplication
 
 // Unsigned
-template <size_t N>
+HWY_INLINE Vec128<uint16_t> operator*(const Vec128<uint16_t> a,
+                                      const Vec128<uint16_t> b) {
+  return Vec128<uint16_t>(vmulq_u16(a.raw, b.raw));
+}
+HWY_INLINE Vec128<uint32_t> operator*(const Vec128<uint32_t> a,
+                                      const Vec128<uint32_t> b) {
+  return Vec128<uint32_t>(vmulq_u32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
 HWY_INLINE Vec128<uint16_t, N> operator*(const Vec128<uint16_t, N> a,
                                          const Vec128<uint16_t, N> b) {
-  return Vec128<uint16_t, N>(vmulq_u16(a.raw, b.raw));
+  return Vec128<uint16_t, N>(vmul_u16(a.raw, b.raw));
 }
-template <size_t N>
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint32_t, N> operator*(const Vec128<uint32_t, N> a,
                                          const Vec128<uint32_t, N> b) {
-  return Vec128<uint32_t, N>(vmulq_u32(a.raw, b.raw));
+  return Vec128<uint32_t, N>(vmul_u32(a.raw, b.raw));
 }
 
 // Signed
-template <size_t N>
+HWY_INLINE Vec128<int16_t> operator*(const Vec128<int16_t> a,
+                                     const Vec128<int16_t> b) {
+  return Vec128<int16_t>(vmulq_s16(a.raw, b.raw));
+}
+HWY_INLINE Vec128<int32_t> operator*(const Vec128<int32_t> a,
+                                     const Vec128<int32_t> b) {
+  return Vec128<int32_t>(vmulq_s32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
 HWY_INLINE Vec128<int16_t, N> operator*(const Vec128<int16_t, N> a,
                                         const Vec128<int16_t, N> b) {
-  return Vec128<int16_t, N>(vmulq_s16(a.raw, b.raw));
+  return Vec128<int16_t, N>(vmul_s16(a.raw, b.raw));
 }
-template <size_t N>
+template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int32_t, N> operator*(const Vec128<int32_t, N> a,
                                         const Vec128<int32_t, N> b) {
-  return Vec128<int32_t, N>(vmulq_s32(a.raw, b.raw));
+  return Vec128<int32_t, N>(vmul_s32(a.raw, b.raw));
 }
 
-// "Extensions": useful but not quite performance-portable operations. We add
-// functions to this namespace in multiple places.
-namespace ext {
-
 // Returns the upper 16 bits of a * b in each lane.
-template <size_t N>
-HWY_INLINE Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
-                                      const Vec128<int16_t, N> b) {
+HWY_INLINE Vec128<int16_t> MulHigh(const Vec128<int16_t> a,
+                                   const Vec128<int16_t> b) {
   int32x4_t rlo = vmull_s16(vget_low_s16(a.raw), vget_low_s16(b.raw));
 #if defined(__aarch64__)
   int32x4_t rhi = vmull_high_s16(a.raw, b.raw);
 #else
   int32x4_t rhi = vmull_s16(vget_high_s16(a.raw), vget_high_s16(b.raw));
 #endif
-  return Vec128<int16_t, N>(
+  return Vec128<int16_t>(
       vuzp2q_s16(vreinterpretq_s16_s32(rlo), vreinterpretq_s16_s32(rhi)));
 }
-template <size_t N>
-HWY_INLINE Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
-                                       const Vec128<uint16_t, N> b) {
+HWY_INLINE Vec128<uint16_t> MulHigh(const Vec128<uint16_t> a,
+                                    const Vec128<uint16_t> b) {
   int32x4_t rlo = vmull_u16(vget_low_u16(a.raw), vget_low_u16(b.raw));
 #if defined(__aarch64__)
   int32x4_t rhi = vmull_high_u16(a.raw, b.raw);
 #else
   int32x4_t rhi = vmull_u16(vget_high_u16(a.raw), vget_high_u16(b.raw));
 #endif
-  return Vec128<uint16_t, N>(
+  return Vec128<uint16_t>(
       vuzp2q_u16(vreinterpretq_u16_u32(rlo), vreinterpretq_u16_u32(rhi)));
 }
 
-}  // namespace ext
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
+                                      const Vec128<int16_t, N> b) {
+  int16x8_t hi_lo = vreinterpretq_s16_s32(vmull_s16(a.raw, b.raw));
+  return Vec128<int16_t, N>(vget_low_s16(vuzp2q_s16(hi_lo, hi_lo)));
+}
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
+                                       const Vec128<uint16_t, N> b) {
+  uint16x8_t hi_lo = vreinterpretq_u16_u32(vmull_u16(a.raw, b.raw));
+  return Vec128<uint16_t, N>(vget_low_u16(vuzp2q_u16(hi_lo, hi_lo)));
+}
 
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into
 // even and the upper half into its odd neighbor lane.
@@ -880,6 +930,23 @@ HWY_INLINE Vec128<uint64_t> MulEven(const Vec128<uint32_t> a,
       vmull_u32(vget_low_u32(a_packed), vget_low_u32(b_packed)));
 }
 
+template <size_t N>
+HWY_INLINE Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
+                                                const Vec128<int32_t, N> b) {
+  int32x2_t a_packed = vuzp1_s32(a.raw, a.raw);
+  int32x2_t b_packed = vuzp1_s32(b.raw, b.raw);
+  return Vec128<int64_t, (N + 1) / 2>(
+      vget_low_s64(vmull_s32(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_INLINE Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
+                                                 const Vec128<uint32_t, N> b) {
+  uint32x2_t a_packed = vuzp1_u32(a.raw, a.raw);
+  uint32x2_t b_packed = vuzp1_u32(b.raw, b.raw);
+  return Vec128<uint64_t, (N + 1) / 2>(
+      vget_low_u64(vmull_u32(a_packed, b_packed)));
+}
+
 // ------------------------------ Floating-point negate
 
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Neg, vneg, _, 1)
@@ -889,8 +956,8 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Neg, vneg, _, 1)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)
 
 // Approximate reciprocal
-HWY_INLINE Vec128<float, 4> ApproximateReciprocal(const Vec128<float, 4> v) {
-  return Vec128<float, 4>(vrecpeq_f32(v.raw));
+HWY_INLINE Vec128<float> ApproximateReciprocal(const Vec128<float> v) {
+  return Vec128<float>(vrecpeq_f32(v.raw));
 }
 template <size_t N>
 HWY_INLINE Vec128<float, N> ApproximateReciprocal(const Vec128<float, N> v) {
@@ -906,7 +973,7 @@ HWY_INLINE Vec128<float, N> operator/(const Vec128<float, N> a,
                                       const Vec128<float, N> b) {
   auto x = ApproximateReciprocal(b);
   // Newton-Raphson on 1/x - b
-  const auto two = Set(Desc<float, N>(), 2);
+  const auto two = Set(Simd<float, N>(), 2);
   x = x * (two - b * x);
   x = x * (two - b * x);
   x = x * (two - b * x);
@@ -914,42 +981,39 @@ HWY_INLINE Vec128<float, N> operator/(const Vec128<float, N> a,
 }
 #endif
 
-namespace ext {
 // Absolute value of difference.
-template <size_t N, HWY_IF64(int8_t, N)>
-HWY_INLINE Vec128<float, N> AbsDiff(const Vec128<float, 2> a,
-                                    const Vec128<float, 2> b) {
+HWY_INLINE Vec128<float> AbsDiff(const Vec128<float> a, const Vec128<float> b) {
+  return Vec128<float>(vabdq_f32(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<float, N> AbsDiff(const Vec128<float, N> a,
+                                    const Vec128<float, N> b) {
   return Vec128<float, N>(vabd_f32(a.raw, b.raw));
 }
-HWY_INLINE Vec128<float, 4> AbsDiff(const Vec128<float, 4> a,
-                                    const Vec128<float, 4> b) {
-  return Vec128<float, 4>(vabdq_f32(a.raw, b.raw));
-}
-}  // namespace ext
 
 // ------------------------------ Floating-point multiply-add variants
 
 // Returns add + mul * x
 #if defined(__aarch64__)
-HWY_INLINE Vec128<float, 4> MulAdd(const Vec128<float, 4> mul,
-                                   const Vec128<float, 4> x,
-                                   const Vec128<float, 4> add) {
-  return Vec128<float, 4>(vfmaq_f32(add.raw, mul.raw, x.raw));
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<float, N> MulAdd(const Vec128<float, N> mul,
+                                   const Vec128<float, N> x,
+                                   const Vec128<float, N> add) {
+  return Vec128<float, N>(vfma_f32(add.raw, mul.raw, x.raw));
 }
-HWY_INLINE Vec128<float, 2> MulAdd(const Vec128<float, 2> mul,
-                                   const Vec128<float, 2> x,
-                                   const Vec128<float, 2> add) {
-  return Vec128<float, 2>(vfma_f32(add.raw, mul.raw, x.raw));
-}
-HWY_INLINE Vec128<double, 2> MulAdd(const Vec128<double, 2> mul,
-                                    const Vec128<double, 2> x,
-                                    const Vec128<double, 2> add) {
-  return Vec128<double, 2>(vfmaq_f64(add.raw, mul.raw, x.raw));
+HWY_INLINE Vec128<float> MulAdd(const Vec128<float> mul, const Vec128<float> x,
+                                const Vec128<float> add) {
+  return Vec128<float>(vfmaq_f32(add.raw, mul.raw, x.raw));
 }
 HWY_INLINE Vec128<double, 1> MulAdd(const Vec128<double, 1> mul,
                                     const Vec128<double, 1> x,
                                     const Vec128<double, 1> add) {
   return Vec128<double, 1>(vfma_f64(add.raw, mul.raw, x.raw));
+}
+HWY_INLINE Vec128<double> MulAdd(const Vec128<double> mul,
+                                 const Vec128<double> x,
+                                 const Vec128<double> add) {
+  return Vec128<double>(vfmaq_f64(add.raw, mul.raw, x.raw));
 }
 #else
 // Emulate FMA for floats.
@@ -963,17 +1027,27 @@ HWY_INLINE Vec128<float, N> MulAdd(const Vec128<float, N> mul,
 
 // Returns add - mul * x
 #if defined(__aarch64__)
-template <size_t N>
+template <size_t N, HWY_IF_LE64(float, N)>
 HWY_INLINE Vec128<float, N> NegMulAdd(const Vec128<float, N> mul,
                                       const Vec128<float, N> x,
                                       const Vec128<float, N> add) {
-  return Vec128<float, N>(vfmsq_f32(add.raw, mul.raw, x.raw));
+  return Vec128<float, N>(vfms_f32(add.raw, mul.raw, x.raw));
 }
-template <size_t N>
-HWY_INLINE Vec128<double, N> NegMulAdd(const Vec128<double, N> mul,
-                                       const Vec128<double, N> x,
-                                       const Vec128<double, N> add) {
-  return Vec128<double, N>(vfmsq_f64(add.raw, mul.raw, x.raw));
+HWY_INLINE Vec128<float> NegMulAdd(const Vec128<float> mul,
+                                   const Vec128<float> x,
+                                   const Vec128<float> add) {
+  return Vec128<float>(vfmsq_f32(add.raw, mul.raw, x.raw));
+}
+
+HWY_INLINE Vec128<double, 1> NegMulAdd(const Vec128<double, 1> mul,
+                                       const Vec128<double, 1> x,
+                                       const Vec128<double, 1> add) {
+  return Vec128<double, 1>(vfms_f64(add.raw, mul.raw, x.raw));
+}
+HWY_INLINE Vec128<double> NegMulAdd(const Vec128<double> mul,
+                                    const Vec128<double> x,
+                                    const Vec128<double> add) {
+  return Vec128<double>(vfmsq_f64(add.raw, mul.raw, x.raw));
 }
 #else
 // Emulate FMA for floats.
@@ -985,21 +1059,18 @@ HWY_INLINE Vec128<float, N> NegMulAdd(const Vec128<float, N> mul,
 }
 #endif
 
-// Slightly more expensive (extra negate)
-namespace ext {
-
 // Returns mul * x - sub
 template <size_t N>
 HWY_INLINE Vec128<float, N> MulSub(const Vec128<float, N> mul,
                                    const Vec128<float, N> x,
                                    const Vec128<float, N> sub) {
-  return Neg(NegMulAdd(mul, x, sub));
+  return MulAdd(mul, x, Neg(sub));
 }
 template <size_t N>
 HWY_INLINE Vec128<double, N> MulSub(const Vec128<double, N> mul,
                                     const Vec128<double, N> x,
                                     const Vec128<double, N> sub) {
-  return Neg(NegMulAdd(mul, x, sub));
+  return MulAdd(mul, x, Neg(sub));
 }
 
 // Returns -mul * x - sub
@@ -1016,15 +1087,16 @@ HWY_INLINE Vec128<double, N> NegMulSub(const Vec128<double, N> mul,
   return Neg(MulAdd(mul, x, sub));
 }
 
-}  // namespace ext
-
 // ------------------------------ Floating-point square root
 
 // Approximate reciprocal square root
+HWY_INLINE Vec128<float> ApproximateReciprocalSqrt(const Vec128<float> v) {
+  return Vec128<float>(vrsqrteq_f32(v.raw));
+}
 template <size_t N>
 HWY_INLINE Vec128<float, N> ApproximateReciprocalSqrt(
     const Vec128<float, N> v) {
-  return Vec128<float, N>(vrsqrteq_f32(v.raw));
+  return Vec128<float, N>(vrsqrte_f32(v.raw));
 }
 
 // Full precision square root
@@ -1037,14 +1109,14 @@ HWY_INLINE Vec128<float, N> Sqrt(const Vec128<float, N> v) {
   auto b = v;
   auto Y = ApproximateReciprocalSqrt(v);
   auto x = v * Y;
-  const auto half = Set(Desc<float, N>(), 0.5);
-  const auto oneandhalf = Set(Desc<float, N>(), 1.5);
+  const auto half = Set(Simd<float, N>(), 0.5);
+  const auto oneandhalf = Set(Simd<float, N>(), 1.5);
   for (size_t i = 0; i < 3; i++) {
     b = b * Y * Y;
     Y = oneandhalf - half * b;
     x = x * Y;
   }
-  return IfThenZeroElse(v == Zero(Desc<float, N>()), x);
+  return IfThenZeroElse(v == Zero(Simd<float, N>()), x);
 }
 #endif
 
@@ -1066,9 +1138,9 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Floor, vrndm, _, 1)
 
 template <size_t N>
 HWY_INLINE Vec128<float, N> Trunc(const Vec128<float, N> v) {
-  const Desc<uint32_t, N> du;
-  const Desc<int32_t, N> di;
-  const Desc<float, N> df;
+  const Simd<uint32_t, N> du;
+  const Simd<int32_t, N> di;
+  const Simd<float, N> df;
   const auto v_bits = BitCast(du, v);
   const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
   const auto bits_to_remove =
@@ -1082,8 +1154,8 @@ HWY_INLINE Vec128<float, N> Trunc(const Vec128<float, N> v) {
 // aarch64. In particular, does not break ties to even.
 template <size_t N>
 HWY_INLINE Vec128<float, N> Round(const Vec128<float, N> v) {
-  const Desc<uint32_t, N> du;
-  const Desc<float, N> df;
+  const Simd<uint32_t, N> du;
+  const Simd<float, N> df;
   const auto sign_mask = BitCast(df, Set(du, 0x80000000u));
   // move 0.5f away from 0 and call truncate.
   return Trunc(v + ((v & sign_mask) | Set(df, 0.5f)));
@@ -1091,9 +1163,9 @@ HWY_INLINE Vec128<float, N> Round(const Vec128<float, N> v) {
 
 template <size_t N>
 HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
-  const Desc<uint32_t, N> du;
-  const Desc<int32_t, N> di;
-  const Desc<float, N> df;
+  const Simd<uint32_t, N> du;
+  const Simd<int32_t, N> di;
+  const Simd<float, N> df;
   const auto sign_mask = Set(du, 0x80000000u);
   const auto v_bits = BitCast(du, v);
   const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
@@ -1115,7 +1187,7 @@ HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
 
 template <size_t N>
 HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
-  const Desc<float, N> df;
+  const Simd<float, N> df;
   const auto zero = Zero(df);
   return zero - Ceil(zero - v);
 }
@@ -1137,32 +1209,9 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator==, vceq, _, HWY_COMPARE)
 #if defined(__aarch64__)
 HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator==, vceq, _, HWY_COMPARE);
 #else
-// No 64-bit comparisons on armv7: emulate them.
+// No 64-bit comparisons on armv7: emulate them below, after Shuffle2301.
 HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator==, vceq, _, HWY_COMPARE)
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator==, vceq, _, HWY_COMPARE)
-
-HWY_INLINE Mask128<int64_t, 2> operator==(const Vec128<int64_t, 2> a,
-                                          const Vec128<int64_t, 2> b) {
-  const Full128<int32_t> d;
-  const Full128<int64_t> d64;
-  auto a32 = BitCast(d, a);
-  auto b32 = BitCast(d, b);
-  auto cmp = a32 == b32;
-  auto cmp_and = Vec128<int32_t, 4>(vandq_u32(cmp.raw, vrev64q_u32(cmp.raw)));
-  return Mask128<int64_t, 2>(BitCast(d64, cmp_and).raw);
-}
-
-HWY_INLINE Mask128<uint64_t, 2> operator==(const Vec128<uint64_t, 2> a,
-                                           const Vec128<uint64_t, 2> b) {
-  const Full128<uint32_t> d;
-  const Full128<uint64_t> d64;
-  auto a32 = BitCast(d, a);
-  auto b32 = BitCast(d, b);
-  auto cmp = a32 == b32;
-  auto cmp_and = Vec128<uint32_t, 4>(vandq_u32(cmp.raw, vrev64q_u32(cmp.raw)));
-  return Mask128<uint64_t, 2>(BitCast(d64, cmp_and).raw);
-}
-
 #endif
 
 // ------------------------------ Strict inequality
@@ -1197,20 +1246,20 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator>=, vcge, _, HWY_COMPARE)
 // ================================================== LOGICAL
 
 // ------------------------------ Bitwise AND
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator&, vand, _, 2)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(And, vand, _, 2)
 // These operator& rely on the special cases for uint32_t and uint64_t just
 // defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
 template <size_t N>
-HWY_INLINE Vec128<float, N> operator&(const Vec128<float, N> a,
-                                      const Vec128<float, N> b) {
-  const Full128<uint32_t> d;
-  return BitCast(Full128<float>(), BitCast(d, a) & BitCast(d, b));
+HWY_INLINE Vec128<float, N> And(const Vec128<float, N> a,
+                                const Vec128<float, N> b) {
+  const Simd<uint32_t, N> d;
+  return BitCast(Simd<float, N>(), BitCast(d, a) & BitCast(d, b));
 }
 template <size_t N>
-HWY_INLINE Vec128<double, N> operator&(const Vec128<double, N> a,
-                                       const Vec128<double, N> b) {
-  const Full128<uint64_t> d;
-  return BitCast(Full128<double>(), BitCast(d, a) & BitCast(d, b));
+HWY_INLINE Vec128<double, N> And(const Vec128<double, N> a,
+                                 const Vec128<double, N> b) {
+  const Simd<uint64_t, N> d;
+  return BitCast(Simd<double, N>(), BitCast(d, a) & BitCast(d, b));
 }
 
 // ------------------------------ Bitwise AND-NOT
@@ -1233,66 +1282,83 @@ HWY_INLINE Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
 template <size_t N>
 HWY_INLINE Vec128<float, N> AndNot(const Vec128<float, N> not_mask,
                                    const Vec128<float, N> mask) {
-  const Desc<uint32_t, N> du;
+  const Simd<uint32_t, N> du;
   Vec128<uint32_t, N> ret =
       internal::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
-  return BitCast(Desc<float, N>(), ret);
+  return BitCast(Simd<float, N>(), ret);
 }
 
 #if defined(__aarch64__)
 template <size_t N>
 HWY_INLINE Vec128<double, N> AndNot(const Vec128<double, N> not_mask,
                                     const Vec128<double, N> mask) {
-  const Desc<uint64_t, N> du;
+  const Simd<uint64_t, N> du;
   Vec128<uint64_t, N> ret =
       internal::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
-  return BitCast(Desc<double, N>(), ret);
+  return BitCast(Simd<double, N>(), ret);
 }
 #endif
 
 // ------------------------------ Bitwise OR
 
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator|, vorr, _, 2)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(Or, vorr, _, 2)
 
 // These operator| rely on the special cases for uint32_t and uint64_t just
 // defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
 template <size_t N>
-HWY_INLINE Vec128<float, N> operator|(const Vec128<float, N> a,
-                                      const Vec128<float, N> b) {
-  const Desc<uint32_t, N> d;
-  return BitCast(Full128<float>(), BitCast(d, a) | BitCast(d, b));
+HWY_INLINE Vec128<float, N> Or(const Vec128<float, N> a,
+                               const Vec128<float, N> b) {
+  const Simd<uint32_t, N> d;
+  return BitCast(Simd<float, N>(), BitCast(d, a) | BitCast(d, b));
 }
 template <size_t N>
-HWY_INLINE Vec128<double, N> operator|(const Vec128<double, N> a,
-                                       const Vec128<double, N> b) {
-  const Desc<uint64_t, N> d;
-  return BitCast(Full128<double>(), BitCast(d, a) | BitCast(d, b));
+HWY_INLINE Vec128<double, N> Or(const Vec128<double, N> a,
+                                const Vec128<double, N> b) {
+  const Simd<uint64_t, N> d;
+  return BitCast(Simd<double, N>(), BitCast(d, a) | BitCast(d, b));
 }
 
 // ------------------------------ Bitwise XOR
 
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator^, veor, _, 2)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(Xor, veor, _, 2)
 
 // These operator| rely on the special cases for uint32_t and uint64_t just
 // defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
 template <size_t N>
-HWY_INLINE Vec128<float, N> operator^(const Vec128<float, N> a,
-                                      const Vec128<float, N> b) {
-  const Desc<uint32_t, N> d;
-  return BitCast(Full128<float>(), BitCast(d, a) ^ BitCast(d, b));
+HWY_INLINE Vec128<float, N> Xor(const Vec128<float, N> a,
+                                const Vec128<float, N> b) {
+  const Simd<uint32_t, N> d;
+  return BitCast(Simd<float, N>(), BitCast(d, a) ^ BitCast(d, b));
 }
 template <size_t N>
-HWY_INLINE Vec128<double, N> operator^(const Vec128<double, N> a,
-                                       const Vec128<double, N> b) {
-  const Desc<uint64_t, N> d;
-  return BitCast(Full128<double>(), BitCast(d, a) ^ BitCast(d, b));
+HWY_INLINE Vec128<double, N> Xor(const Vec128<double, N> a,
+                                 const Vec128<double, N> b) {
+  const Simd<uint64_t, N> d;
+  return BitCast(Simd<double, N>(), BitCast(d, a) ^ BitCast(d, b));
+}
+
+// ------------------------------ Operator overloads (internal-only if float)
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> operator&(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return And(a, b);
+}
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> operator|(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return Or(a, b);
+}
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return Xor(a, b);
 }
 
 // ------------------------------ Make mask
 
 template <typename T, size_t N>
 HWY_INLINE Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
-  static_assert(!IsFloat<T>(), "Only integer vectors supported");
+  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
   return (v & bit) == bit;
 }
 
@@ -1339,7 +1405,7 @@ HWY_INLINE Vec128<T, N> IfThenZeroElse(const Mask128<T, N> mask,
 
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
-  const auto zero = Zero(Desc<T, N>());
+  const auto zero = Zero(Simd<T, N>());
   return Max(zero, v);
 }
 
@@ -1390,58 +1456,47 @@ HWY_INLINE Vec128<double> LoadU(Full128<double> /* tag */,
 }
 #endif
 
-template <typename T>
-HWY_INLINE Vec128<T> Load(Full128<T> d, const T* HWY_RESTRICT p) {
-  return LoadU(d, p);
-}
-
-// 128-bit SIMD => nothing to duplicate, same as an unaligned load.
-template <typename T>
-HWY_INLINE Vec128<T> LoadDup128(Full128<T> d, const T* const HWY_RESTRICT p) {
-  return LoadU(d, p);
-}
-
 // ------------------------------ Load 64
 
-HWY_INLINE Vec128<uint8_t, 8> Load(Desc<uint8_t, 8> /* tag */,
-                                   const uint8_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint8_t, 8> LoadU(Simd<uint8_t, 8> /* tag */,
+                                    const uint8_t* HWY_RESTRICT p) {
   return Vec128<uint8_t, 8>(vld1_u8(p));
 }
-HWY_INLINE Vec128<uint16_t, 4> Load(Desc<uint16_t, 4> /* tag */,
-                                    const uint16_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint16_t, 4> LoadU(Simd<uint16_t, 4> /* tag */,
+                                     const uint16_t* HWY_RESTRICT p) {
   return Vec128<uint16_t, 4>(vld1_u16(p));
 }
-HWY_INLINE Vec128<uint32_t, 2> Load(Desc<uint32_t, 2> /* tag */,
-                                    const uint32_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint32_t, 2> LoadU(Simd<uint32_t, 2> /* tag */,
+                                     const uint32_t* HWY_RESTRICT p) {
   return Vec128<uint32_t, 2>(vld1_u32(p));
 }
-HWY_INLINE Vec128<uint64_t, 1> Load(Desc<uint64_t, 1> /* tag */,
-                                    const uint64_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint64_t, 1> LoadU(Simd<uint64_t, 1> /* tag */,
+                                     const uint64_t* HWY_RESTRICT p) {
   return Vec128<uint64_t, 1>(vld1_u64(p));
 }
-HWY_INLINE Vec128<int8_t, 8> Load(Desc<int8_t, 8> /* tag */,
-                                  const int8_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int8_t, 8> LoadU(Simd<int8_t, 8> /* tag */,
+                                   const int8_t* HWY_RESTRICT p) {
   return Vec128<int8_t, 8>(vld1_s8(p));
 }
-HWY_INLINE Vec128<int16_t, 4> Load(Desc<int16_t, 4> /* tag */,
-                                   const int16_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int16_t, 4> LoadU(Simd<int16_t, 4> /* tag */,
+                                    const int16_t* HWY_RESTRICT p) {
   return Vec128<int16_t, 4>(vld1_s16(p));
 }
-HWY_INLINE Vec128<int32_t, 2> Load(Desc<int32_t, 2> /* tag */,
-                                   const int32_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int32_t, 2> LoadU(Simd<int32_t, 2> /* tag */,
+                                    const int32_t* HWY_RESTRICT p) {
   return Vec128<int32_t, 2>(vld1_s32(p));
 }
-HWY_INLINE Vec128<int64_t, 1> Load(Desc<int64_t, 1> /* tag */,
-                                   const int64_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int64_t, 1> LoadU(Simd<int64_t, 1> /* tag */,
+                                    const int64_t* HWY_RESTRICT p) {
   return Vec128<int64_t, 1>(vld1_s64(p));
 }
-HWY_INLINE Vec128<float, 2> Load(Desc<float, 2> /* tag */,
-                                 const float* HWY_RESTRICT p) {
+HWY_INLINE Vec128<float, 2> LoadU(Simd<float, 2> /* tag */,
+                                  const float* HWY_RESTRICT p) {
   return Vec128<float, 2>(vld1_f32(p));
 }
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double, 1> Load(Desc<double, 1> /* tag */,
-                                  const double* HWY_RESTRICT p) {
+HWY_INLINE Vec128<double, 1> LoadU(Simd<double, 1> /* tag */,
+                                   const double* HWY_RESTRICT p) {
   return Vec128<double, 1>(vld1_f64(p));
 }
 #endif
@@ -1453,47 +1508,104 @@ HWY_INLINE Vec128<double, 1> Load(Desc<double, 1> /* tag */,
 // we don't actually care what is in it, and we don't want
 // to introduce extra overhead by initializing it to something.
 
-HWY_INLINE Vec128<uint8_t, 4> Load(Desc<uint8_t, 4> d,
-                                   const uint8_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint8_t, 4> LoadU(Simd<uint8_t, 4> d,
+                                    const uint8_t* HWY_RESTRICT p) {
   uint32x2_t a = Undefined(d).raw;
   uint32x2_t b = vld1_lane_u32(reinterpret_cast<const uint32_t*>(p), a, 0);
   return Vec128<uint8_t, 4>(vreinterpret_u8_u32(b));
 }
-HWY_INLINE Vec128<uint16_t, 2> Load(Desc<uint16_t, 2> d,
-                                    const uint16_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint16_t, 2> LoadU(Simd<uint16_t, 2> d,
+                                     const uint16_t* HWY_RESTRICT p) {
   uint32x2_t a = Undefined(d).raw;
   uint32x2_t b = vld1_lane_u32(reinterpret_cast<const uint32_t*>(p), a, 0);
   return Vec128<uint16_t, 2>(vreinterpret_u16_u32(b));
 }
-HWY_INLINE Vec128<uint32_t, 1> Load(Desc<uint32_t, 1> d,
-                                    const uint32_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<uint32_t, 1> LoadU(Simd<uint32_t, 1> d,
+                                     const uint32_t* HWY_RESTRICT p) {
   uint32x2_t a = Undefined(d).raw;
   uint32x2_t b = vld1_lane_u32(p, a, 0);
   return Vec128<uint32_t, 1>(b);
 }
-HWY_INLINE Vec128<int8_t, 4> Load(Desc<int8_t, 4> d,
-                                  const int8_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int8_t, 4> LoadU(Simd<int8_t, 4> d,
+                                   const int8_t* HWY_RESTRICT p) {
   int32x2_t a = Undefined(d).raw;
   int32x2_t b = vld1_lane_s32(reinterpret_cast<const int32_t*>(p), a, 0);
   return Vec128<int8_t, 4>(vreinterpret_s8_s32(b));
 }
-HWY_INLINE Vec128<int16_t, 2> Load(Desc<int16_t, 2> d,
-                                   const int16_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int16_t, 2> LoadU(Simd<int16_t, 2> d,
+                                    const int16_t* HWY_RESTRICT p) {
   int32x2_t a = Undefined(d).raw;
   int32x2_t b = vld1_lane_s32(reinterpret_cast<const int32_t*>(p), a, 0);
   return Vec128<int16_t, 2>(vreinterpret_s16_s32(b));
 }
-HWY_INLINE Vec128<int32_t, 1> Load(Desc<int32_t, 1> d,
-                                   const int32_t* HWY_RESTRICT p) {
+HWY_INLINE Vec128<int32_t, 1> LoadU(Simd<int32_t, 1> d,
+                                    const int32_t* HWY_RESTRICT p) {
   int32x2_t a = Undefined(d).raw;
   int32x2_t b = vld1_lane_s32(p, a, 0);
   return Vec128<int32_t, 1>(b);
 }
-HWY_INLINE Vec128<float, 1> Load(Desc<float, 1> d,
-                                 const float* HWY_RESTRICT p) {
+HWY_INLINE Vec128<float, 1> LoadU(Simd<float, 1> d,
+                                  const float* HWY_RESTRICT p) {
   float32x2_t a = Undefined(d).raw;
   float32x2_t b = vld1_lane_f32(p, a, 0);
   return Vec128<float, 1>(b);
+}
+
+// ------------------------------ Load 16
+
+HWY_INLINE Vec128<uint8_t, 2> LoadU(Simd<uint8_t, 2> d,
+                                    const uint8_t* HWY_RESTRICT p) {
+  uint16x4_t a = Undefined(d).raw;
+  uint16x4_t b = vld1_lane_u16(reinterpret_cast<const uint16_t*>(p), a, 0);
+  return Vec128<uint8_t, 2>(vreinterpret_u8_u16(b));
+}
+HWY_INLINE Vec128<uint16_t, 1> LoadU(Simd<uint16_t, 1> d,
+                                     const uint16_t* HWY_RESTRICT p) {
+  uint16x4_t a = Undefined(d).raw;
+  uint16x4_t b = vld1_lane_u16(p, a, 0);
+  return Vec128<uint16_t, 1>(b);
+}
+
+HWY_INLINE Vec128<int8_t, 2> LoadU(Simd<int8_t, 2> d,
+                                   const int8_t* HWY_RESTRICT p) {
+  int16x4_t a = Undefined(d).raw;
+  int16x4_t b = vld1_lane_s16(reinterpret_cast<const int16_t*>(p), a, 0);
+  return Vec128<int8_t, 2>(vreinterpret_s8_s16(b));
+}
+HWY_INLINE Vec128<int16_t, 1> LoadU(Simd<int16_t, 1> d,
+                                    const int16_t* HWY_RESTRICT p) {
+  int16x4_t a = Undefined(d).raw;
+  int16x4_t b = vld1_lane_s16(p, a, 0);
+  return Vec128<int16_t, 1>(b);
+}
+
+// ------------------------------ Load 8
+
+HWY_INLINE Vec128<uint8_t, 1> LoadU(Simd<uint8_t, 1> d,
+                                    const uint8_t* HWY_RESTRICT p) {
+  uint8x8_t a = Undefined(d).raw;
+  uint8x8_t b = vld1_lane_u8(p, a, 0);
+  return Vec128<uint8_t, 1>(b);
+}
+
+HWY_INLINE Vec128<int8_t, 1> LoadU(Simd<int8_t, 1> d,
+                                   const int8_t* HWY_RESTRICT p) {
+  int8x8_t a = Undefined(d).raw;
+  int8x8_t b = vld1_lane_s8(p, a, 0);
+  return Vec128<int8_t, 1>(b);
+}
+
+// On ARM, Load is the same as LoadU.
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Load(Simd<T, N> d, const T* HWY_RESTRICT p) {
+  return LoadU(d, p);
+}
+
+// 128-bit SIMD => nothing to duplicate, same as an unaligned load.
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Vec128<T, N> LoadDup128(Simd<T, N> d,
+                                   const T* const HWY_RESTRICT p) {
+  return LoadU(d, p);
 }
 
 // ------------------------------ Store 128
@@ -1541,97 +1653,130 @@ HWY_INLINE void StoreU(const Vec128<double> v, Full128<double> /* tag */,
 }
 #endif
 
-template <typename T, size_t N>
-HWY_INLINE void Store(Vec128<T, N> v, Desc<T, N> d, T* HWY_RESTRICT p) {
-  StoreU(v, d, p);
-}
-
 // ------------------------------ Store 64
 
-HWY_INLINE void Store(const Vec128<uint8_t, 8> v, Desc<uint8_t, 8>,
-                      uint8_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint8_t, 8> v, Simd<uint8_t, 8> /* tag */,
+                       uint8_t* HWY_RESTRICT p) {
   vst1_u8(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<uint16_t, 4> v, Desc<uint16_t, 4>,
-                      uint16_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint16_t, 4> v, Simd<uint16_t, 4> /* tag */,
+                       uint16_t* HWY_RESTRICT p) {
   vst1_u16(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<uint32_t, 2> v, Desc<uint32_t, 2>,
-                      uint32_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint32_t, 2> v, Simd<uint32_t, 2> /* tag */,
+                       uint32_t* HWY_RESTRICT p) {
   vst1_u32(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<uint64_t, 1> v, Desc<uint64_t, 1>,
-                      uint64_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint64_t, 1> v, Simd<uint64_t, 1> /* tag */,
+                       uint64_t* HWY_RESTRICT p) {
   vst1_u64(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<int8_t, 8> v, Desc<int8_t, 8>,
-                      int8_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int8_t, 8> v, Simd<int8_t, 8> /* tag */,
+                       int8_t* HWY_RESTRICT p) {
   vst1_s8(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<int16_t, 4> v, Desc<int16_t, 4>,
-                      int16_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int16_t, 4> v, Simd<int16_t, 4> /* tag */,
+                       int16_t* HWY_RESTRICT p) {
   vst1_s16(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<int32_t, 2> v, Desc<int32_t, 2>,
-                      int32_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int32_t, 2> v, Simd<int32_t, 2> /* tag */,
+                       int32_t* HWY_RESTRICT p) {
   vst1_s32(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<int64_t, 1> v, Desc<int64_t, 1>,
-                      int64_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int64_t, 1> v, Simd<int64_t, 1> /* tag */,
+                       int64_t* HWY_RESTRICT p) {
   vst1_s64(p, v.raw);
 }
-HWY_INLINE void Store(const Vec128<float, 2> v, Desc<float, 2>,
-                      float* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<float, 2> v, Simd<float, 2> /* tag */,
+                       float* HWY_RESTRICT p) {
   vst1_f32(p, v.raw);
 }
 #if defined(__aarch64__)
-HWY_INLINE void Store(const Vec128<double, 1> v, Desc<double, 1>,
-                      double* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<double, 1> v, Simd<double, 1> /* tag */,
+                       double* HWY_RESTRICT p) {
   vst1_f64(p, v.raw);
 }
 #endif
 
 // ------------------------------ Store 32
 
-HWY_INLINE void Store(const Vec128<uint8_t, 4> v, Desc<uint8_t, 4>,
-                      uint8_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint8_t, 4> v, Simd<uint8_t, 4>,
+                       uint8_t* HWY_RESTRICT p) {
   uint32x2_t a = vreinterpret_u32_u8(v.raw);
   vst1_lane_u32(p, a, 0);
 }
-HWY_INLINE void Store(const Vec128<uint16_t, 2> v, Desc<uint16_t, 2>,
-                      uint16_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint16_t, 2> v, Simd<uint16_t, 2>,
+                       uint16_t* HWY_RESTRICT p) {
   uint32x2_t a = vreinterpret_u32_u16(v.raw);
   vst1_lane_u32(p, a, 0);
 }
-HWY_INLINE void Store(const Vec128<uint32_t, 1> v, Desc<uint32_t, 1>,
-                      uint32_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<uint32_t, 1> v, Simd<uint32_t, 1>,
+                       uint32_t* HWY_RESTRICT p) {
   vst1_lane_u32(p, v.raw, 0);
 }
-HWY_INLINE void Store(const Vec128<int8_t, 4> v, Desc<int8_t, 4>,
-                      int8_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int8_t, 4> v, Simd<int8_t, 4>,
+                       int8_t* HWY_RESTRICT p) {
   int32x2_t a = vreinterpret_s32_s8(v.raw);
   vst1_lane_s32(p, a, 0);
 }
-HWY_INLINE void Store(const Vec128<int16_t, 2> v, Desc<int16_t, 2>,
-                      int16_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int16_t, 2> v, Simd<int16_t, 2>,
+                       int16_t* HWY_RESTRICT p) {
   int32x2_t a = vreinterpret_s32_s16(v.raw);
   vst1_lane_s32(p, a, 0);
 }
-HWY_INLINE void Store(const Vec128<int32_t, 1> v, Desc<int32_t, 1>,
-                      int32_t* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<int32_t, 1> v, Simd<int32_t, 1>,
+                       int32_t* HWY_RESTRICT p) {
   vst1_lane_s32(p, v.raw, 0);
 }
-HWY_INLINE void Store(const Vec128<float, 1> v, Desc<float, 1>,
-                      float* HWY_RESTRICT p) {
+HWY_INLINE void StoreU(const Vec128<float, 1> v, Simd<float, 1>,
+                       float* HWY_RESTRICT p) {
   vst1_lane_f32(p, v.raw, 0);
+}
+
+// ------------------------------ Store 16
+
+HWY_INLINE void StoreU(const Vec128<uint8_t, 2> v, Simd<uint8_t, 2>,
+                       uint8_t* HWY_RESTRICT p) {
+  uint16x4_t a = vreinterpret_u16_u8(v.raw);
+  vst1_lane_u16(p, a, 0);
+}
+HWY_INLINE void StoreU(const Vec128<uint16_t, 1> v, Simd<uint16_t, 1>,
+                       uint16_t* HWY_RESTRICT p) {
+  vst1_lane_u16(p, v.raw, 0);
+}
+HWY_INLINE void StoreU(const Vec128<int8_t, 2> v, Simd<int8_t, 2>,
+                       int8_t* HWY_RESTRICT p) {
+  int16x4_t a = vreinterpret_s16_s8(v.raw);
+  vst1_lane_s16(p, a, 0);
+}
+HWY_INLINE void StoreU(const Vec128<int16_t, 1> v, Simd<int16_t, 1>,
+                       int16_t* HWY_RESTRICT p) {
+  vst1_lane_s16(p, v.raw, 0);
+}
+
+// ------------------------------ Store 8
+
+HWY_INLINE void StoreU(const Vec128<uint8_t, 1> v, Simd<uint8_t, 1>,
+                       uint8_t* HWY_RESTRICT p) {
+  vst1_lane_u8(p, v.raw, 0);
+}
+HWY_INLINE void StoreU(const Vec128<int8_t, 1> v, Simd<int8_t, 1>,
+                       int8_t* HWY_RESTRICT p) {
+  vst1_lane_s8(p, v.raw, 0);
+}
+
+// On ARM, Store is the same as StoreU.
+template <typename T, size_t N>
+HWY_INLINE void Store(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT p) {
+  StoreU(v, d, p);
 }
 
 // ------------------------------ Non-temporal stores
 
 // Same as aligned stores on non-x86.
 
-template <typename T>
-HWY_INLINE void Stream(const Vec128<T> v, Full128<T> d,
+template <typename T, size_t N>
+HWY_INLINE void Stream(const Vec128<T, N> v, Simd<T, N> d,
                        T* HWY_RESTRICT aligned) {
   Store(v, d, aligned);
 }
@@ -1640,36 +1785,77 @@ HWY_INLINE void Stream(const Vec128<T> v, Full128<T> d,
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
-// Unsigned: zero-extend.
-HWY_INLINE Vec128<uint16_t> ConvertTo(Full128<uint16_t> /* tag */,
+// Unsigned: zero-extend to full vector.
+HWY_INLINE Vec128<uint16_t> PromoteTo(Full128<uint16_t> /* tag */,
                                       const Vec128<uint8_t, 8> v) {
   return Vec128<uint16_t>(vmovl_u8(v.raw));
 }
-HWY_INLINE Vec128<uint32_t> ConvertTo(Full128<uint32_t> /* tag */,
+HWY_INLINE Vec128<uint32_t> PromoteTo(Full128<uint32_t> /* tag */,
                                       const Vec128<uint8_t, 4> v) {
   uint16x8_t a = vmovl_u8(v.raw);
   return Vec128<uint32_t>(vmovl_u16(vget_low_u16(a)));
 }
-HWY_INLINE Vec128<uint32_t> ConvertTo(Full128<uint32_t> /* tag */,
+HWY_INLINE Vec128<uint32_t> PromoteTo(Full128<uint32_t> /* tag */,
                                       const Vec128<uint16_t, 4> v) {
   return Vec128<uint32_t>(vmovl_u16(v.raw));
 }
-HWY_INLINE Vec128<uint64_t> ConvertTo(Full128<uint64_t> /* tag */,
+HWY_INLINE Vec128<uint64_t> PromoteTo(Full128<uint64_t> /* tag */,
                                       const Vec128<uint32_t, 2> v) {
   return Vec128<uint64_t>(vmovl_u32(v.raw));
 }
-HWY_INLINE Vec128<int16_t> ConvertTo(Full128<int16_t> /* tag */,
+HWY_INLINE Vec128<int16_t> PromoteTo(Full128<int16_t> /* tag */,
                                      const Vec128<uint8_t, 8> v) {
   return Vec128<int16_t>(vmovl_u8(v.raw));
 }
-HWY_INLINE Vec128<int32_t> ConvertTo(Full128<int32_t> /* tag */,
+HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> /* tag */,
                                      const Vec128<uint8_t, 4> v) {
   uint16x8_t a = vmovl_u8(v.raw);
   return Vec128<int32_t>(vreinterpretq_s32_u16(vmovl_u16(vget_low_u16(a))));
 }
-HWY_INLINE Vec128<int32_t> ConvertTo(Full128<int32_t> /* tag */,
+HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> /* tag */,
                                      const Vec128<uint16_t, 4> v) {
   return Vec128<int32_t>(vmovl_u16(v.raw));
+}
+
+// Unsigned: zero-extend to half vector.
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> PromoteTo(Simd<uint16_t, N> /* tag */,
+                                         const Vec128<uint8_t, N> v) {
+  return Vec128<uint16_t, N>(vget_low_u16(vmovl_u8(v.raw)));
+}
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint32_t, N> PromoteTo(Simd<uint32_t, N> /* tag */,
+                                         const Vec128<uint8_t, N> v) {
+  uint16x8_t a = vmovl_u8(v.raw);
+  return Vec128<uint32_t, N>(vget_low_u32(vmovl_u16(vget_low_u16(a))));
+}
+template <size_t N>
+HWY_INLINE Vec128<uint32_t, N> PromoteTo(Simd<uint32_t, N> /* tag */,
+                                         const Vec128<uint16_t, N> v) {
+  return Vec128<uint32_t, N>(vget_low_u32(vmovl_u16(v.raw)));
+}
+template <size_t N, HWY_IF_LE64(uint64_t, N)>
+HWY_INLINE Vec128<uint64_t, N> PromoteTo(Simd<uint64_t, N> /* tag */,
+                                         const Vec128<uint32_t, N> v) {
+  return Vec128<uint64_t, N>(vget_low_u64(vmovl_u32(v.raw)));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> PromoteTo(Simd<int16_t, N> /* tag */,
+                                        const Vec128<uint8_t, N> v) {
+  return Vec128<int16_t, N>(vget_low_s16(vmovl_u8(v.raw)));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
+                                        const Vec128<uint8_t, N> v) {
+  uint16x8_t a = vmovl_u8(v.raw);
+  uint32x4_t b = vmovl_u16(vget_low_u16(a));
+  return Vec128<int32_t, N>(vget_low_s32(vreinterpretq_s32_u32(b)));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
+                                        const Vec128<uint16_t, N> v) {
+  uint32x4_t a = vmovl_u16(v.raw);
+  return Vec128<int32_t, N>(vget_low_s32(vreinterpretq_s32_u32(a)));
 }
 
 HWY_INLINE Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
@@ -1677,63 +1863,136 @@ HWY_INLINE Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
       vmovl_u16(vget_low_u16(vmovl_u8(vget_low_u8(v.raw)))));
 }
 
-// Signed: replicate sign bit.
-HWY_INLINE Vec128<int16_t> ConvertTo(Full128<int16_t> /* tag */,
+// Signed: replicate sign bit to full vector.
+HWY_INLINE Vec128<int16_t> PromoteTo(Full128<int16_t> /* tag */,
                                      const Vec128<int8_t, 8> v) {
   return Vec128<int16_t>(vmovl_s8(v.raw));
 }
-HWY_INLINE Vec128<int32_t> ConvertTo(Full128<int32_t> /* tag */,
+HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> /* tag */,
                                      const Vec128<int8_t, 4> v) {
   int16x8_t a = vmovl_s8(v.raw);
   return Vec128<int32_t>(vmovl_s16(vget_low_s16(a)));
 }
-HWY_INLINE Vec128<int32_t> ConvertTo(Full128<int32_t> /* tag */,
+HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> /* tag */,
                                      const Vec128<int16_t, 4> v) {
   return Vec128<int32_t>(vmovl_s16(v.raw));
 }
-HWY_INLINE Vec128<int64_t> ConvertTo(Full128<int64_t> /* tag */,
+HWY_INLINE Vec128<int64_t> PromoteTo(Full128<int64_t> /* tag */,
                                      const Vec128<int32_t, 2> v) {
   return Vec128<int64_t>(vmovl_s32(v.raw));
 }
 
+// Signed: replicate sign bit to half vector.
+template <size_t N>
+HWY_INLINE Vec128<int16_t, N> PromoteTo(Simd<int16_t, N> /* tag */,
+                                        const Vec128<int8_t, N> v) {
+  return Vec128<int16_t, N>(vget_low_s16(vmovl_s8(v.raw)));
+}
+template <size_t N>
+HWY_INLINE Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
+                                        const Vec128<int8_t, N> v) {
+  int16x8_t a = vmovl_s8(v.raw);
+  int32x4_t b = vmovl_s16(vget_low_s16(a));
+  return Vec128<int32_t, N>(vget_low_s32(b));
+}
+template <size_t N>
+HWY_INLINE Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
+                                        const Vec128<int16_t, N> v) {
+  return Vec128<int32_t, N>(vget_low_s32(vmovl_s16(v.raw)));
+}
+template <size_t N>
+HWY_INLINE Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
+                                        const Vec128<int32_t, N> v) {
+  return Vec128<int64_t, N>(vget_low_s64(vmovl_s32(v.raw)));
+}
+
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double> ConvertTo(Full128<double> /* tag */,
+HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
                                     const Vec128<float, 2> v) {
-  // vcvt_high_f64_f32 takes a float32x4_t even it only uses 2 of the values.
-  const float32x4_t w = vcombine_f32(v.raw, v.raw);
-  return Vec128<double>(vcvt_high_f64_f32(w));
+  return Vec128<double>(vcvt_f64_f32(v.raw));
+}
+
+HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
+                                       const Vec128<float, 1> v) {
+  return Vec128<double, 1>(vget_low_f64(vcvt_f64_f32(v.raw)));
 }
 #endif
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
-template <size_t N>
-HWY_INLINE Vec128<uint16_t, N> ConvertTo(Desc<uint16_t, N> /* tag */,
-                                         const Vec128<int32_t> v) {
-  return Vec128<uint16_t, N>(vqmovun_s32(v.raw));
-}
-template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> ConvertTo(Desc<uint8_t, N> /* tag */,
-                                        const Vec128<uint16_t> v) {
-  return Vec128<uint8_t, N>(vqmovn_u16(v.raw));
-}
-
-template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> ConvertTo(Desc<uint8_t, N> /* tag */,
-                                        const Vec128<int16_t> v) {
-  return Vec128<uint8_t, N>(vqmovun_s16(v.raw));
-}
-
-template <size_t N>
-HWY_INLINE Vec128<int16_t, N> ConvertTo(Desc<int16_t, N> /* tag */,
+// From full vector to half or quarter
+HWY_INLINE Vec128<uint16_t, 4> DemoteTo(Simd<uint16_t, 4> /* tag */,
                                         const Vec128<int32_t> v) {
-  return Vec128<int16_t, N>(vqmovn_s32(v.raw));
+  return Vec128<uint16_t, 4>(vqmovun_s32(v.raw));
 }
-template <size_t N>
-HWY_INLINE Vec128<int8_t, N> ConvertTo(Desc<int8_t, N> /* tag */,
+HWY_INLINE Vec128<int16_t, 4> DemoteTo(Simd<int16_t, 4> /* tag */,
+                                       const Vec128<int32_t> v) {
+  return Vec128<int16_t, 4>(vqmovn_s32(v.raw));
+}
+HWY_INLINE Vec128<uint8_t, 4> DemoteTo(Simd<uint8_t, 4> /* tag */,
+                                       const Vec128<int32_t> v) {
+  const uint16x4_t a = vqmovun_s32(v.raw);
+  return Vec128<uint8_t, 4>(vqmovn_u16(vcombine_u16(a, a)));
+}
+HWY_INLINE Vec128<uint8_t, 8> DemoteTo(Simd<uint8_t, 8> /* tag */,
                                        const Vec128<int16_t> v) {
-  return Vec128<int8_t, N>(vqmovn_s16(v.raw));
+  return Vec128<uint8_t, 8>(vqmovun_s16(v.raw));
 }
+HWY_INLINE Vec128<int8_t, 4> DemoteTo(Simd<int8_t, 4> /* tag */,
+                                      const Vec128<int32_t> v) {
+  const int16x4_t a = vqmovn_s32(v.raw);
+  return Vec128<int8_t, 4>(vqmovn_s16(vcombine_s16(a, a)));
+}
+HWY_INLINE Vec128<int8_t, 8> DemoteTo(Simd<int8_t, 8> /* tag */,
+                                      const Vec128<int16_t> v) {
+  return Vec128<int8_t, 8>(vqmovn_s16(v.raw));
+}
+
+// From half vector to partial half
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<uint16_t, N> DemoteTo(Simd<uint16_t, N> /* tag */,
+                                        const Vec128<int32_t, N> v) {
+  return Vec128<uint16_t, N>(vqmovun_s32(vcombine_s32(v.raw, v.raw)));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int16_t, N> DemoteTo(Simd<int16_t, N> /* tag */,
+                                       const Vec128<int32_t, N> v) {
+  return Vec128<int16_t, N>(vqmovn_s32(vcombine_s32(v.raw, v.raw)));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<uint8_t, N> DemoteTo(Simd<uint8_t, N> /* tag */,
+                                       const Vec128<int32_t, N> v) {
+  const uint16x4_t a = vqmovun_s32(vcombine_s32(v.raw, v.raw));
+  return Vec128<uint8_t, N>(vqmovn_u16(vcombine_u16(a, a)));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<uint8_t, N> DemoteTo(Simd<uint8_t, N> /* tag */,
+                                       const Vec128<int16_t, N> v) {
+  return Vec128<uint8_t, N>(vqmovun_s16(vcombine_s16(v.raw, v.raw)));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
+                                      const Vec128<int32_t, N> v) {
+  const int16x4_t a = vqmovn_s32(vcombine_s32(v.raw, v.raw));
+  return Vec128<int8_t, N>(vqmovn_s16(vcombine_s16(a, a)));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
+                                      const Vec128<int16_t, N> v) {
+  return Vec128<int8_t, N>(vqmovn_s16(vcombine_s16(v.raw, v.raw)));
+}
+
+#if defined(__aarch64__)
+HWY_INLINE Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
+                                     const Vec128<double> v) {
+  return Vec128<float, 2>(vcvt_f32_f64(v.raw));
+}
+HWY_INLINE Vec128<float, 1> DemoteTo(Simd<float, 1> /* tag */,
+                                     const Vec128<double, 1> v) {
+  return Vec128<float, 1>(vcvt_f32_f64(vcombine_f64(v.raw, v.raw)));
+}
+
+#endif
 
 HWY_INLINE Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
   const uint8x16_t org_v = cast_to_u8(v).raw;
@@ -1741,25 +2000,25 @@ HWY_INLINE Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
   return Vec128<uint8_t, 4>(vget_low_u8(vuzp1q_u8(w, w)));
 }
 
-// In the following ConvertTo functions, |b| is purposely undefined.
+// In the following DemoteTo functions, |b| is purposely undefined.
 // The value a needs to be extended to 128 bits so that vqmovn can be
 // used and |b| is undefined so that no extra overhead is introduced.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 
 template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> ConvertTo(Desc<uint8_t, N> /* tag */,
-                                        const Vec128<int32_t> v) {
-  Vec128<uint16_t, N> a = ConvertTo(Desc<uint16_t, N>(), v);
+HWY_INLINE Vec128<uint8_t, N> DemoteTo(Simd<uint8_t, N> /* tag */,
+                                       const Vec128<int32_t> v) {
+  Vec128<uint16_t, N> a = DemoteTo(Simd<uint16_t, N>(), v);
   Vec128<uint16_t, N> b;
   uint16x8_t c = vcombine_u16(a.raw, b.raw);
   return Vec128<uint8_t, N>(vqmovn_u16(c));
 }
 
 template <size_t N>
-HWY_INLINE Vec128<int8_t, N> ConvertTo(Desc<int8_t, N> /* tag */,
-                                       const Vec128<int32_t> v) {
-  Vec128<int16_t, N> a = ConvertTo(Desc<int16_t, N>(), v);
+HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
+                                      const Vec128<int32_t> v) {
+  Vec128<int16_t, N> a = DemoteTo(Simd<int16_t, N>(), v);
   Vec128<int16_t, N> b;
   uint16x8_t c = vcombine_s16(a.raw, b.raw);
   return Vec128<int8_t, N>(vqmovn_s16(c));
@@ -1767,29 +2026,63 @@ HWY_INLINE Vec128<int8_t, N> ConvertTo(Desc<int8_t, N> /* tag */,
 
 HWY_DIAGNOSTICS(pop)
 
-// ------------------------------ Convert i32 <=> f32
+// ------------------------------ Convert integer <=> floating-point
 
-template <size_t N>
-HWY_INLINE Vec128<float, N> ConvertTo(Desc<float, N> /* tag */,
-                                      const Vec128<int32_t, N> v) {
-  return Vec128<float, N>(vcvtq_f32_s32(v.raw));
+HWY_INLINE Vec128<float> ConvertTo(Full128<float> /* tag */,
+                                   const Vec128<int32_t> v) {
+  return Vec128<float>(vcvtq_f32_s32(v.raw));
 }
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<float, N> ConvertTo(Simd<float, N> /* tag */,
+                                      const Vec128<int32_t, N> v) {
+  return Vec128<float, N>(vcvt_f32_s32(v.raw));
+}
+
 // Truncates (rounds toward zero).
-template <size_t N>
-HWY_INLINE Vec128<int32_t, N> ConvertTo(Desc<int32_t, N> /* tag */,
+HWY_INLINE Vec128<int32_t> ConvertTo(Full128<int32_t> /* tag */,
+                                     const Vec128<float> v) {
+  return Vec128<int32_t>(vcvtq_s32_f32(v.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<int32_t, N> ConvertTo(Simd<int32_t, N> /* tag */,
                                         const Vec128<float, N> v) {
-  return Vec128<int32_t, N>(vcvtq_s32_f32(v.raw));
+  return Vec128<int32_t, N>(vcvt_s32_f32(v.raw));
 }
 
 #if defined(__aarch64__)
-template <size_t N>
-HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
-  return Vec128<int32_t, N>(vcvtnq_s32_f32(v.raw));
+
+HWY_INLINE Vec128<double> ConvertTo(Full128<double> /* tag */,
+                                    const Vec128<int64_t> v) {
+  return Vec128<double>(vcvtq_f64_s64(v.raw));
 }
+HWY_INLINE Vec128<double, 1> ConvertTo(Simd<double, 1> /* tag */,
+                                       const Vec128<int64_t, 1> v) {
+  return Vec128<double, 1>(vcvt_f64_s64(v.raw));
+}
+
+// Truncates (rounds toward zero).
+HWY_INLINE Vec128<int64_t> ConvertTo(Full128<int64_t> /* tag */,
+                                     const Vec128<double> v) {
+  return Vec128<int64_t>(vcvtq_s64_f64(v.raw));
+}
+HWY_INLINE Vec128<int64_t, 1> ConvertTo(Simd<int64_t, 1> /* tag */,
+                                        const Vec128<double, 1> v) {
+  return Vec128<int64_t, 1>(vcvt_s64_f64(v.raw));
+}
+
+HWY_INLINE Vec128<int32_t> NearestInt(const Vec128<float> v) {
+  return Vec128<int32_t>(vcvtnq_s32_f32(v.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>(vcvtn_s32_f32(v.raw));
+}
+
 #else
+
 template <size_t N>
 HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
-  return ConvertTo(Desc<int32_t, N>(), Round(v));
+  return ConvertTo(Simd<int32_t, N>(), Round(v));
 }
 #endif
 
@@ -1845,7 +2138,6 @@ HWY_INLINE int32_t GetLane(const Vec128<int32_t, N> v) {
   return vget_lane_s32(v.raw, 0);
 }
 
-#if defined(__aarch64__)
 HWY_INLINE uint64_t GetLane(const Vec128<uint64_t, 2> v) {
   return vget_lane_u64(vget_low_u64(v.raw), 0);
 }
@@ -1858,7 +2150,6 @@ HWY_INLINE int64_t GetLane(const Vec128<int64_t, 2> v) {
 HWY_INLINE int64_t GetLane(const Vec128<int64_t, 1> v) {
   return vget_lane_s64(v.raw, 0);
 }
-#endif
 
 HWY_INLINE float GetLane(const Vec128<float, 4> v) {
   return vget_lane_f32(vget_low_f32(v.raw), 0);
@@ -1881,44 +2172,37 @@ HWY_INLINE double GetLane(const Vec128<double, 1> v) {
 // ------------------------------ Extract half
 
 // <= 64 bit: just return different type
-template <typename T, size_t N, HWY_IF64(uint8_t, N)>
+template <typename T, size_t N, HWY_IF_LE64(uint8_t, N)>
 HWY_INLINE Vec128<T, N / 2> LowerHalf(const Vec128<T, N> v) {
   return Vec128<T, N / 2>(v.raw);
 }
 
-template <size_t N, HWY_IF128_Q(uint8_t, N)>
-HWY_INLINE Vec128<uint8_t, N / 2> LowerHalf(const Vec128<uint8_t, N> v) {
-  return Vec128<uint8_t, N / 2>(vget_low_u8(v.raw));
+HWY_INLINE Vec128<uint8_t, 8> LowerHalf(const Vec128<uint8_t> v) {
+  return Vec128<uint8_t, 8>(vget_low_u8(v.raw));
 }
-template <size_t N, HWY_IF128_Q(uint16_t, N)>
-HWY_INLINE Vec128<uint16_t, N / 2> LowerHalf(const Vec128<uint16_t, N> v) {
-  return Vec128<uint16_t, N / 2>(vget_low_u16(v.raw));
+HWY_INLINE Vec128<uint16_t, 4> LowerHalf(const Vec128<uint16_t> v) {
+  return Vec128<uint16_t, 4>(vget_low_u16(v.raw));
 }
-template <size_t N, HWY_IF128_Q(uint32_t, N)>
-HWY_INLINE Vec128<uint32_t, N / 2> LowerHalf(const Vec128<uint32_t, N> v) {
-  return Vec128<uint32_t, N / 2>(vget_low_u32(v.raw));
+HWY_INLINE Vec128<uint32_t, 2> LowerHalf(const Vec128<uint32_t> v) {
+  return Vec128<uint32_t, 2>(vget_low_u32(v.raw));
 }
 HWY_INLINE Vec128<uint64_t, 1> LowerHalf(const Vec128<uint64_t> v) {
   return Vec128<uint64_t, 1>(vget_low_u64(v.raw));
 }
-template <size_t N, HWY_IF128_Q(int8_t, N)>
-HWY_INLINE Vec128<int8_t, N / 2> LowerHalf(const Vec128<int8_t, N> v) {
-  return Vec128<int8_t, N / 2>(vget_low_s8(v.raw));
+HWY_INLINE Vec128<int8_t, 8> LowerHalf(const Vec128<int8_t> v) {
+  return Vec128<int8_t, 8>(vget_low_s8(v.raw));
 }
-template <size_t N, HWY_IF128_Q(int16_t, N)>
-HWY_INLINE Vec128<int16_t, N / 2> LowerHalf(const Vec128<int16_t, N> v) {
-  return Vec128<int16_t, N / 2>(vget_low_s16(v.raw));
+HWY_INLINE Vec128<int16_t, 4> LowerHalf(const Vec128<int16_t> v) {
+  return Vec128<int16_t, 4>(vget_low_s16(v.raw));
 }
-template <size_t N, HWY_IF128_Q(int32_t, N)>
-HWY_INLINE Vec128<int32_t, N / 2> LowerHalf(const Vec128<int32_t, N> v) {
-  return Vec128<int32_t, N / 2>(vget_low_s32(v.raw));
+HWY_INLINE Vec128<int32_t, 2> LowerHalf(const Vec128<int32_t> v) {
+  return Vec128<int32_t, 2>(vget_low_s32(v.raw));
 }
 HWY_INLINE Vec128<int64_t, 1> LowerHalf(const Vec128<int64_t> v) {
   return Vec128<int64_t, 1>(vget_low_s64(v.raw));
 }
-template <size_t N, HWY_IF128_Q(float, N)>
-HWY_INLINE Vec128<float, N / 2> LowerHalf(const Vec128<float, N> v) {
-  return Vec128<float, N / 2>(vget_low_f32(v.raw));
+HWY_INLINE Vec128<float, 2> LowerHalf(const Vec128<float> v) {
+  return Vec128<float, 2>(vget_low_f32(v.raw));
 }
 #if defined(__aarch64__)
 HWY_INLINE Vec128<double, 1> LowerHalf(const Vec128<double> v) {
@@ -1959,15 +2243,6 @@ HWY_INLINE Vec128<double, 1> UpperHalf(const Vec128<double> v) {
 }
 #endif
 
-template <typename T>
-HWY_INLINE Vec128<T, 8 / sizeof(T)> GetHalf(Lower /* tag */, Vec128<T> v) {
-  return LowerHalf(v);
-}
-template <typename T>
-HWY_INLINE Vec128<T, 8 / sizeof(T)> GetHalf(Upper /* tag */, Vec128<T> v) {
-  return UpperHalf(v);
-}
-
 // ------------------------------ Extract from 2x 128-bit at constant offset
 
 // Extracts 128 bits from <hi, lo> by skipping the least-significant kBytes.
@@ -1983,26 +2258,66 @@ HWY_INLINE Vec128<T> CombineShiftRightBytes(const Vec128<T> hi,
 
 // ------------------------------ Shift vector by constant #bytes
 
+namespace impl {
+
+// Need to partially specialize because CombineShiftRightBytes<16> and <0> are
+// compile errors.
+template <int kBytes>
+struct ShiftLeftBytesT {
+  template <class T, size_t N>
+  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
+    return CombineShiftRightBytes<16 - kBytes>(v, Zero(Full128<T>()));
+  }
+};
+template <>
+struct ShiftLeftBytesT<0> {
+  template <class T, size_t N>
+  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
+    return v;
+  }
+};
+
+template <int kBytes>
+struct ShiftRightBytesT {
+  template <class T, size_t N>
+  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
+    return CombineShiftRightBytes<kBytes>(Zero(Full128<T>()), v);
+  }
+};
+template <>
+struct ShiftRightBytesT<0> {
+  template <class T, size_t N>
+  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
+    return v;
+  }
+};
+
+}  // namespace impl
+
 // 0x01..0F, kBytes = 1 => 0x02..0F00
 template <int kBytes, typename T, size_t N>
 HWY_INLINE Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
-  return CombineShiftRightBytes<16 - kBytes>(v, Zero(Full128<T>()));
+  return impl::ShiftLeftBytesT<kBytes>()(v);
 }
 
-template <int kLanes, typename T>
-HWY_INLINE Vec128<T> ShiftLeftLanes(const Vec128<T> v) {
-  return ShiftLeftBytes<kLanes * sizeof(T)>(v);
+template <int kLanes, typename T, size_t N>
+HWY_INLINE Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
+  const Simd<uint8_t, N * sizeof(T)> d8;
+  const Simd<T, N> d;
+  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
 // 0x01..0F, kBytes = 1 => 0x0001..0E
 template <int kBytes, typename T, size_t N>
 HWY_INLINE Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
-  return CombineShiftRightBytes<kBytes>(Zero(Full128<T>()), v);
+  return impl::ShiftRightBytesT<kBytes>()(v);
 }
 
-template <int kLanes, typename T>
-HWY_INLINE Vec128<T> ShiftRightLanes(const Vec128<T> v) {
-  return ShiftRightBytes<kLanes * sizeof(T)>(v);
+template <int kLanes, typename T, size_t N>
+HWY_INLINE Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
+  const Simd<uint8_t, N * sizeof(T)> d8;
+  const Simd<T, N> d;
+  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
 // ------------------------------ Broadcast/splat any lane
@@ -2014,21 +2329,27 @@ HWY_INLINE Vec128<uint16_t> Broadcast(const Vec128<uint16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<uint16_t>(vdupq_laneq_u16(v.raw, kLane));
 }
-template <int kLane, size_t N>
-HWY_INLINE Vec128<uint16_t> Broadcast(const Vec128<uint16_t, N> v) {
+template <int kLane, size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> Broadcast(const Vec128<uint16_t, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<uint16_t>(vdupq_laneq_u16(vcombine_u16(v.raw, v.raw), kLane));
+  return Vec128<uint16_t, N>(vdup_lane_u16(v.raw, kLane));
 }
 template <int kLane>
 HWY_INLINE Vec128<uint32_t> Broadcast(const Vec128<uint32_t> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
   return Vec128<uint32_t>(vdupq_laneq_u32(v.raw, kLane));
 }
+template <int kLane, size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint32_t, N> Broadcast(const Vec128<uint32_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<uint32_t, N>(vdup_lane_u32(v.raw, kLane));
+}
 template <int kLane>
 HWY_INLINE Vec128<uint64_t> Broadcast(const Vec128<uint64_t> v) {
   static_assert(0 <= kLane && kLane < 2, "Invalid lane");
   return Vec128<uint64_t>(vdupq_laneq_u64(v.raw, kLane));
 }
+// Vec128<uint64_t, 1> is defined below.
 
 // Signed
 template <int kLane>
@@ -2036,21 +2357,27 @@ HWY_INLINE Vec128<int16_t> Broadcast(const Vec128<int16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<int16_t>(vdupq_laneq_s16(v.raw, kLane));
 }
-template <int kLane, size_t N>
-HWY_INLINE Vec128<int16_t> Broadcast(const Vec128<int16_t, N> v) {
+template <int kLane, size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> Broadcast(const Vec128<int16_t, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<int16_t>(vdupq_laneq_s16(vcombine_s16(v.raw, v.raw), kLane));
+  return Vec128<int16_t, N>(vdup_lane_s16(v.raw, kLane));
 }
 template <int kLane>
 HWY_INLINE Vec128<int32_t> Broadcast(const Vec128<int32_t> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
   return Vec128<int32_t>(vdupq_laneq_s32(v.raw, kLane));
 }
+template <int kLane, size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int32_t, N> Broadcast(const Vec128<int32_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<int32_t, N>(vdup_lane_s32(v.raw, kLane));
+}
 template <int kLane>
 HWY_INLINE Vec128<int64_t> Broadcast(const Vec128<int64_t> v) {
   static_assert(0 <= kLane && kLane < 2, "Invalid lane");
   return Vec128<int64_t>(vdupq_laneq_s64(v.raw, kLane));
 }
+// Vec128<int64_t, 1> is defined below.
 
 // Float
 template <int kLane>
@@ -2058,11 +2385,22 @@ HWY_INLINE Vec128<float> Broadcast(const Vec128<float> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
   return Vec128<float>(vdupq_laneq_f32(v.raw, kLane));
 }
+template <int kLane, size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<float, N> Broadcast(const Vec128<float, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<float, N>(vdup_lane_f32(v.raw, kLane));
+}
 template <int kLane>
 HWY_INLINE Vec128<double> Broadcast(const Vec128<double> v) {
   static_assert(0 <= kLane && kLane < 2, "Invalid lane");
   return Vec128<double>(vdupq_laneq_f64(v.raw, kLane));
 }
+template <int kLane>
+HWY_INLINE Vec128<double, 1> Broadcast(const Vec128<double, 1> v) {
+  static_assert(0 <= kLane && kLane < 1, "Invalid lane");
+  return v;
+}
+
 #else
 // No vdupq_laneq_* on armv7: use vgetq_lane_* + vdupq_n_*.
 
@@ -2072,22 +2410,27 @@ HWY_INLINE Vec128<uint16_t> Broadcast(const Vec128<uint16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<uint16_t>(vdupq_n_u16(vgetq_lane_u16(v.raw, kLane)));
 }
-template <int kLane, size_t N>
-HWY_INLINE Vec128<uint16_t> Broadcast(const Vec128<uint16_t, N> v) {
+template <int kLane, size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> Broadcast(const Vec128<uint16_t, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<uint16_t>(
-      vdupq_n_u16(vgetq_lane_u16(vcombine_u16(v.raw, v.raw), kLane)));
+  return Vec128<uint16_t, N>(vdup_lane_u16(v.raw, kLane));
 }
 template <int kLane>
 HWY_INLINE Vec128<uint32_t> Broadcast(const Vec128<uint32_t> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
   return Vec128<uint32_t>(vdupq_n_u32(vgetq_lane_u32(v.raw, kLane)));
 }
+template <int kLane, size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint32_t, N> Broadcast(const Vec128<uint32_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<uint32_t, N>(vdup_lane_u32(v.raw, kLane));
+}
 template <int kLane>
 HWY_INLINE Vec128<uint64_t> Broadcast(const Vec128<uint64_t> v) {
   static_assert(0 <= kLane && kLane < 2, "Invalid lane");
   return Vec128<uint64_t>(vdupq_n_u64(vgetq_lane_u64(v.raw, kLane)));
 }
+// Vec128<uint64_t, 1> is defined below.
 
 // Signed
 template <int kLane>
@@ -2095,22 +2438,27 @@ HWY_INLINE Vec128<int16_t> Broadcast(const Vec128<int16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<int16_t>(vdupq_n_s16(vgetq_lane_s16(v.raw, kLane)));
 }
-template <int kLane, size_t N>
-HWY_INLINE Vec128<int16_t> Broadcast(const Vec128<int16_t, N> v) {
+template <int kLane, size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> Broadcast(const Vec128<int16_t, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<int16_t>(
-      vdupq_n_s16(vgetq_lane_s16(vcombine_s16(v.raw, v.raw), kLane)));
+  return Vec128<int16_t, N>(vdup_lane_s16(v.raw, kLane));
 }
 template <int kLane>
 HWY_INLINE Vec128<int32_t> Broadcast(const Vec128<int32_t> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
   return Vec128<int32_t>(vdupq_n_s32(vgetq_lane_s32(v.raw, kLane)));
 }
+template <int kLane, size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int32_t, N> Broadcast(const Vec128<int32_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<int32_t, N>(vdup_lane_s32(v.raw, kLane));
+}
 template <int kLane>
 HWY_INLINE Vec128<int64_t> Broadcast(const Vec128<int64_t> v) {
   static_assert(0 <= kLane && kLane < 2, "Invalid lane");
   return Vec128<int64_t>(vdupq_n_s64(vgetq_lane_s64(v.raw, kLane)));
 }
+// Vec128<int64_t, 1> is defined below.
 
 // Float
 template <int kLane>
@@ -2118,7 +2466,24 @@ HWY_INLINE Vec128<float> Broadcast(const Vec128<float> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
   return Vec128<float>(vdupq_n_f32(vgetq_lane_f32(v.raw, kLane)));
 }
+template <int kLane, size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<float, N> Broadcast(const Vec128<float, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<float, N>(vdup_lane_f32(v.raw, kLane));
+}
+
 #endif
+
+template <int kLane>
+HWY_INLINE Vec128<uint64_t, 1> Broadcast(const Vec128<uint64_t, 1> v) {
+  static_assert(0 <= kLane && kLane < 1, "Invalid lane");
+  return v;
+}
+template <int kLane>
+HWY_INLINE Vec128<int64_t, 1> Broadcast(const Vec128<int64_t, 1> v) {
+  static_assert(0 <= kLane && kLane < 1, "Invalid lane");
+  return v;
+}
 
 // ------------------------------ Shuffle bytes with variable indices
 
@@ -2152,11 +2517,23 @@ HWY_INLINE Vec128<T> TableLookupBytes(const Vec128<T> bytes,
 // CombineShiftRightBytes but the shuffle_abcd notation is more convenient.
 
 // Swap 32-bit halves in 64-bits
-template <typename T>
-HWY_INLINE Vec128<T> Shuffle2301(const Vec128<T> v) {
-  static constexpr uint8_t bytes[16] = {4,  5,  6,  7,  0, 1, 2,  3,
-                                        12, 13, 14, 15, 8, 9, 10, 11};
-  return TableLookupBytes(v, Load(Full128<uint8_t>(), bytes));
+HWY_INLINE Vec128<uint32_t, 2> Shuffle2301(const Vec128<uint32_t, 2> v) {
+  return Vec128<uint32_t, 2>(vrev64_u32(v.raw));
+}
+HWY_INLINE Vec128<int32_t, 2> Shuffle2301(const Vec128<int32_t, 2> v) {
+  return Vec128<int32_t, 2>(vrev64_s32(v.raw));
+}
+HWY_INLINE Vec128<float, 2> Shuffle2301(const Vec128<float, 2> v) {
+  return Vec128<float, 2>(vrev64_f32(v.raw));
+}
+HWY_INLINE Vec128<uint32_t> Shuffle2301(const Vec128<uint32_t> v) {
+  return Vec128<uint32_t>(vrev64q_u32(v.raw));
+}
+HWY_INLINE Vec128<int32_t> Shuffle2301(const Vec128<int32_t> v) {
+  return Vec128<int32_t>(vrev64q_s32(v.raw));
+}
+HWY_INLINE Vec128<float> Shuffle2301(const Vec128<float> v) {
+  return Vec128<float>(vrev64q_f32(v.raw));
 }
 
 // Swap 64-bit halves
@@ -2203,22 +2580,17 @@ struct Permute128 {
 };
 
 template <typename T>
-HWY_INLINE Permute128<T> SetTableIndices(const Full128<T> d,
-                                         const int32_t* idx) {
+HWY_INLINE Permute128<T> SetTableIndices(const Full128<T>, const int32_t* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
-  for (size_t i = 0; i < d.N; ++i) {
-    if (idx[i] >= static_cast<int32_t>(d.N)) {
-      printf("SetTableIndices [%zu] = %d >= %zu\n", i, idx[i], d.N);
-      HWY_TRAP();
-    }
+  const size_t N = 16 / sizeof(T);
+  for (size_t i = 0; i < N; ++i) {
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
   }
-#else
-  (void)d;
 #endif
 
   const Full128<uint8_t> d8;
-  alignas(16) uint8_t control[d8.N];
-  for (size_t idx_byte = 0; idx_byte < d8.N; ++idx_byte) {
+  alignas(16) uint8_t control[16];
+  for (size_t idx_byte = 0; idx_byte < 16; ++idx_byte) {
     const size_t idx_lane = idx_byte / sizeof(T);
     const size_t mod = idx_byte % sizeof(T);
     control[idx_byte] = idx[idx_lane] * sizeof(T) + mod;
@@ -2246,77 +2618,77 @@ HWY_INLINE Vec128<float> TableLookupLanes(const Vec128<float> v,
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides
 // the least-significant lane) and "b". To concatenate two half-width integers
-// into one, use ZipLo/hi instead (also works with scalar).
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveLo, vzip1, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveLo, vzip1, _, 2)
+// into one, use ZipLower/Upper instead (also works with scalar).
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveLower, vzip1, _, 2)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveLower, vzip1, _, 2)
 
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveHi, vzip2, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveHi, vzip2, _, 2)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveUpper, vzip2, _, 2)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveUpper, vzip2, _, 2)
 
 #if defined(__aarch64__)
 // For 64 bit types, we only have the "q" version of the function defined as
 // interleaving 64-wide registers with 64-wide types in them makes no sense.
-HWY_INLINE Vec128<uint64_t> InterleaveLo(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
+HWY_INLINE Vec128<uint64_t> InterleaveLower(const Vec128<uint64_t> a,
+                                            const Vec128<uint64_t> b) {
   return Vec128<uint64_t>(vzip1q_u64(a.raw, b.raw));
 }
-HWY_INLINE Vec128<int64_t> InterleaveLo(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
+HWY_INLINE Vec128<int64_t> InterleaveLower(const Vec128<int64_t> a,
+                                           const Vec128<int64_t> b) {
   return Vec128<int64_t>(vzip1q_s64(a.raw, b.raw));
 }
 
-HWY_INLINE Vec128<uint64_t> InterleaveHi(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
+HWY_INLINE Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
+                                            const Vec128<uint64_t> b) {
   return Vec128<uint64_t>(vzip2q_u64(a.raw, b.raw));
 }
-HWY_INLINE Vec128<int64_t> InterleaveHi(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
+HWY_INLINE Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
+                                           const Vec128<int64_t> b) {
   return Vec128<int64_t>(vzip2q_s64(a.raw, b.raw));
 }
 #else
 // ARMv7 emulation.
-HWY_INLINE Vec128<uint64_t> InterleaveLo(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
+HWY_INLINE Vec128<uint64_t> InterleaveLower(const Vec128<uint64_t> a,
+                                            const Vec128<uint64_t> b) {
   auto flip = CombineShiftRightBytes<8>(a, a);
   return CombineShiftRightBytes<8>(b, flip);
 }
-HWY_INLINE Vec128<int64_t> InterleaveLo(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
+HWY_INLINE Vec128<int64_t> InterleaveLower(const Vec128<int64_t> a,
+                                           const Vec128<int64_t> b) {
   auto flip = CombineShiftRightBytes<8>(a, a);
   return CombineShiftRightBytes<8>(b, flip);
 }
 
-HWY_INLINE Vec128<uint64_t> InterleaveHi(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
+HWY_INLINE Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
+                                            const Vec128<uint64_t> b) {
   auto flip = CombineShiftRightBytes<8>(b, b);
   return CombineShiftRightBytes<8>(flip, a);
 }
-HWY_INLINE Vec128<int64_t> InterleaveHi(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
+HWY_INLINE Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
+                                           const Vec128<int64_t> b) {
   auto flip = CombineShiftRightBytes<8>(b, b);
   return CombineShiftRightBytes<8>(flip, a);
 }
 #endif
 
 // Floats
-HWY_INLINE Vec128<float> InterleaveLo(const Vec128<float> a,
-                                      const Vec128<float> b) {
+HWY_INLINE Vec128<float> InterleaveLower(const Vec128<float> a,
+                                         const Vec128<float> b) {
   return Vec128<float>(vzip1q_f32(a.raw, b.raw));
 }
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double> InterleaveLo(const Vec128<double> a,
-                                       const Vec128<double> b) {
+HWY_INLINE Vec128<double> InterleaveLower(const Vec128<double> a,
+                                          const Vec128<double> b) {
   return Vec128<double>(vzip1q_f64(a.raw, b.raw));
 }
 #endif
 
-HWY_INLINE Vec128<float> InterleaveHi(const Vec128<float> a,
-                                      const Vec128<float> b) {
+HWY_INLINE Vec128<float> InterleaveUpper(const Vec128<float> a,
+                                         const Vec128<float> b) {
   return Vec128<float>(vzip2q_f32(a.raw, b.raw));
 }
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double> InterleaveHi(const Vec128<double> a,
-                                       const Vec128<double> b) {
+HWY_INLINE Vec128<double> InterleaveUpper(const Vec128<double> a,
+                                          const Vec128<double> b) {
   return Vec128<double>(vzip2q_s64(a.raw, b.raw));
 }
 #endif
@@ -2326,85 +2698,151 @@ HWY_INLINE Vec128<double> InterleaveHi(const Vec128<double> a,
 // Same as interleave_*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
 
-HWY_INLINE Vec128<uint16_t> ZipLo(const Vec128<uint8_t> a,
-                                  const Vec128<uint8_t> b) {
+// Full vectors
+HWY_INLINE Vec128<uint16_t> ZipLower(const Vec128<uint8_t> a,
+                                     const Vec128<uint8_t> b) {
   return Vec128<uint16_t>(vzip1q_u8(a.raw, b.raw));
 }
-HWY_INLINE Vec128<uint32_t> ZipLo(const Vec128<uint16_t> a,
-                                  const Vec128<uint16_t> b) {
+HWY_INLINE Vec128<uint32_t> ZipLower(const Vec128<uint16_t> a,
+                                     const Vec128<uint16_t> b) {
   return Vec128<uint32_t>(vzip1q_u16(a.raw, b.raw));
 }
-HWY_INLINE Vec128<uint64_t> ZipLo(const Vec128<uint32_t> a,
-                                  const Vec128<uint32_t> b) {
+HWY_INLINE Vec128<uint64_t> ZipLower(const Vec128<uint32_t> a,
+                                     const Vec128<uint32_t> b) {
   return Vec128<uint64_t>(vzip1q_u32(a.raw, b.raw));
 }
 
-HWY_INLINE Vec128<int16_t> ZipLo(const Vec128<int8_t> a,
-                                 const Vec128<int8_t> b) {
+HWY_INLINE Vec128<int16_t> ZipLower(const Vec128<int8_t> a,
+                                    const Vec128<int8_t> b) {
   return Vec128<int16_t>(vzip1q_s8(a.raw, b.raw));
 }
-HWY_INLINE Vec128<int32_t> ZipLo(const Vec128<int16_t> a,
-                                 const Vec128<int16_t> b) {
+HWY_INLINE Vec128<int32_t> ZipLower(const Vec128<int16_t> a,
+                                    const Vec128<int16_t> b) {
   return Vec128<int32_t>(vzip1q_s16(a.raw, b.raw));
 }
-HWY_INLINE Vec128<int64_t> ZipLo(const Vec128<int32_t> a,
-                                 const Vec128<int32_t> b) {
+HWY_INLINE Vec128<int64_t> ZipLower(const Vec128<int32_t> a,
+                                    const Vec128<int32_t> b) {
   return Vec128<int64_t>(vzip1q_s32(a.raw, b.raw));
 }
 
-HWY_INLINE Vec128<uint16_t> ZipHi(const Vec128<uint8_t> a,
-                                  const Vec128<uint8_t> b) {
+HWY_INLINE Vec128<uint16_t> ZipUpper(const Vec128<uint8_t> a,
+                                     const Vec128<uint8_t> b) {
   return Vec128<uint16_t>(vzip2q_u8(a.raw, b.raw));
 }
-HWY_INLINE Vec128<uint32_t> ZipHi(const Vec128<uint16_t> a,
-                                  const Vec128<uint16_t> b) {
+HWY_INLINE Vec128<uint32_t> ZipUpper(const Vec128<uint16_t> a,
+                                     const Vec128<uint16_t> b) {
   return Vec128<uint32_t>(vzip2q_u16(a.raw, b.raw));
 }
-HWY_INLINE Vec128<uint64_t> ZipHi(const Vec128<uint32_t> a,
-                                  const Vec128<uint32_t> b) {
+HWY_INLINE Vec128<uint64_t> ZipUpper(const Vec128<uint32_t> a,
+                                     const Vec128<uint32_t> b) {
   return Vec128<uint64_t>(vzip2q_u32(a.raw, b.raw));
 }
 
-HWY_INLINE Vec128<int16_t> ZipHi(const Vec128<int8_t> a,
-                                 const Vec128<int8_t> b) {
+HWY_INLINE Vec128<int16_t> ZipUpper(const Vec128<int8_t> a,
+                                    const Vec128<int8_t> b) {
   return Vec128<int16_t>(vzip2q_s8(a.raw, b.raw));
 }
-HWY_INLINE Vec128<int32_t> ZipHi(const Vec128<int16_t> a,
-                                 const Vec128<int16_t> b) {
+HWY_INLINE Vec128<int32_t> ZipUpper(const Vec128<int16_t> a,
+                                    const Vec128<int16_t> b) {
   return Vec128<int32_t>(vzip2q_s16(a.raw, b.raw));
 }
-HWY_INLINE Vec128<int64_t> ZipHi(const Vec128<int32_t> a,
-                                 const Vec128<int32_t> b) {
+HWY_INLINE Vec128<int64_t> ZipUpper(const Vec128<int32_t> a,
+                                    const Vec128<int32_t> b) {
   return Vec128<int64_t>(vzip2q_s32(a.raw, b.raw));
+}
+
+// Half vectors or less
+template <size_t N, HWY_IF_LE64(uint8_t, N)>
+HWY_INLINE Vec128<uint16_t, (N + 1) / 2> ZipLower(const Vec128<uint8_t, N> a,
+                                                  const Vec128<uint8_t, N> b) {
+  return Vec128<uint16_t, (N + 1) / 2>(vzip1_u8(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint32_t, (N + 1) / 2> ZipLower(const Vec128<uint16_t, N> a,
+                                                  const Vec128<uint16_t, N> b) {
+  return Vec128<uint32_t, (N + 1) / 2>(vzip1_u16(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint64_t, (N + 1) / 2> ZipLower(const Vec128<uint32_t, N> a,
+                                                  const Vec128<uint32_t, N> b) {
+  return Vec128<uint64_t, (N + 1) / 2>(vzip1_u32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_LE64(int8_t, N)>
+HWY_INLINE Vec128<int16_t, (N + 1) / 2> ZipLower(const Vec128<int8_t, N> a,
+                                                 const Vec128<int8_t, N> b) {
+  return Vec128<int16_t, (N + 1) / 2>(vzip1_s8(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int32_t, (N + 1) / 2> ZipLower(const Vec128<int16_t, N> a,
+                                                 const Vec128<int16_t, N> b) {
+  return Vec128<int32_t, (N + 1) / 2>(vzip1_s16(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int64_t, (N + 1) / 2> ZipLower(const Vec128<int32_t, N> a,
+                                                 const Vec128<int32_t, N> b) {
+  return Vec128<int64_t, (N + 1) / 2>(vzip1_s32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_LE64(uint8_t, N)>
+HWY_INLINE Vec128<uint16_t, N / 2> ZipUpper(const Vec128<uint8_t, N> a,
+                                            const Vec128<uint8_t, N> b) {
+  return Vec128<uint16_t, N / 2>(vzip2_u8(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint32_t, N / 2> ZipUpper(const Vec128<uint16_t, N> a,
+                                            const Vec128<uint16_t, N> b) {
+  return Vec128<uint32_t, N / 2>(vzip2_u16(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint64_t, N / 2> ZipUpper(const Vec128<uint32_t, N> a,
+                                            const Vec128<uint32_t, N> b) {
+  return Vec128<uint64_t, N / 2>(vzip2_u32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_LE64(int8_t, N)>
+HWY_INLINE Vec128<int16_t, N / 2> ZipUpper(const Vec128<int8_t, N> a,
+                                           const Vec128<int8_t, N> b) {
+  return Vec128<int16_t, N / 2>(vzip2_s8(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int32_t, N / 2> ZipUpper(const Vec128<int16_t, N> a,
+                                           const Vec128<int16_t, N> b) {
+  return Vec128<int32_t, N / 2>(vzip2_s16(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int64_t, N / 2> ZipUpper(const Vec128<int32_t, N> a,
+                                           const Vec128<int32_t, N> b) {
+  return Vec128<int64_t, N / 2>(vzip2_s32(a.raw, b.raw));
 }
 
 // ------------------------------ Blocks
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>
-HWY_INLINE Vec128<T> ConcatLoLo(const Vec128<T> hi, const Vec128<T> lo) {
+HWY_INLINE Vec128<T> ConcatLowerLower(const Vec128<T> hi, const Vec128<T> lo) {
   const Full128<uint64_t> d64;
   return BitCast(Full128<T>(),
-                 InterleaveLo(BitCast(d64, lo), BitCast(d64, hi)));
+                 InterleaveLower(BitCast(d64, lo), BitCast(d64, hi)));
 }
 
 // hiH,hiL loH,loL |-> hiH,loH (= upper halves)
 template <typename T>
-HWY_INLINE Vec128<T> ConcatHiHi(const Vec128<T> hi, const Vec128<T> lo) {
+HWY_INLINE Vec128<T> ConcatUpperUpper(const Vec128<T> hi, const Vec128<T> lo) {
   const Full128<uint64_t> d64;
   return BitCast(Full128<T>(),
-                 InterleaveHi(BitCast(d64, lo), BitCast(d64, hi)));
+                 InterleaveUpper(BitCast(d64, lo), BitCast(d64, hi)));
 }
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves)
 template <typename T>
-HWY_INLINE Vec128<T> ConcatLoHi(const Vec128<T> hi, const Vec128<T> lo) {
+HWY_INLINE Vec128<T> ConcatLowerUpper(const Vec128<T> hi, const Vec128<T> lo) {
   return CombineShiftRightBytes<8>(hi, lo);
 }
 
 // hiH,hiL loH,loL |-> hiH,loL (= outer halves)
 template <typename T>
-HWY_INLINE Vec128<T> ConcatHiLo(const Vec128<T> hi, const Vec128<T> lo) {
+HWY_INLINE Vec128<T> ConcatUpperLower(const Vec128<T> hi, const Vec128<T> lo) {
   // TODO(janwas): more efficient implementation?
   alignas(16) const uint8_t kBytes[16] = {
       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -2432,9 +2870,53 @@ HWY_INLINE Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
 
 // ================================================== MISC
 
-// "Extensions": useful but not quite performance-portable operations. We add
-// functions to this namespace in multiple places.
-namespace ext {
+// ------------------------------ Gather (requires GetLane)
+
+template <typename T, size_t N, typename Offset>
+HWY_API Vec128<T, N> GatherOffset(const Simd<T, N> d,
+                                  const T* HWY_RESTRICT base,
+                                  const Vec128<Offset, N> offset) {
+  static_assert(N == 1, "NEON does not support full gather");
+  static_assert(sizeof(T) == sizeof(Offset), "T must match Offset");
+  const uintptr_t address = reinterpret_cast<uintptr_t>(base) + GetLane(offset);
+  T val;
+  CopyBytes<sizeof(T)>(reinterpret_cast<const T*>(address), &val);
+  return Set(d, val);
+}
+
+template <typename T, size_t N, typename Index>
+HWY_API Vec128<T, N> GatherIndex(const Simd<T, N> d, const T* HWY_RESTRICT base,
+                                 const Vec128<Index, N> index) {
+  static_assert(N == 1, "NEON does not support full gather");
+  static_assert(sizeof(T) == sizeof(Index), "T must match Index");
+  return Set(d, base[GetLane(index)]);
+}
+
+// ------------------------------ ARMv7 int64 equality (requires Shuffle2301)
+
+#if !defined(__aarch64__)
+
+template <size_t N>
+HWY_INLINE Mask128<int64_t, N> operator==(const Vec128<int64_t, N> a,
+                                          const Vec128<int64_t, N> b) {
+  const Simd<int32_t, N * 2> d32;
+  const Simd<int64_t, N> d64;
+  const auto cmp32 = VecFromMask(BitCast(d32, a) == BitCast(d32, b));
+  const auto cmp64 = cmp32 & Shuffle2301(cmp32);
+  return MaskFromVec(BitCast(d64, cmp64));
+}
+
+template <size_t N>
+HWY_INLINE Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
+                                           const Vec128<uint64_t, N> b) {
+  const Simd<uint32_t, N * 2> d32;
+  const Simd<uint64_t, N> d64;
+  const auto cmp32 = VecFromMask(BitCast(d32, a) == BitCast(d32, b));
+  const auto cmp64 = cmp32 & Shuffle2301(cmp32);
+  return MaskFromVec(BitCast(d64, cmp64));
+}
+
+#endif
 
 // ------------------------------ Horizontal sum (reduction)
 
@@ -2443,6 +2925,12 @@ HWY_INLINE Vec128<uint64_t> SumsOfU8x8(const Vec128<uint8_t> v) {
   uint16x8_t a = vpaddlq_u8(v.raw);
   uint32x4_t b = vpaddlq_u16(a);
   return Vec128<uint64_t>(vpaddlq_u32(b));
+}
+
+HWY_INLINE Vec128<uint64_t, 1> SumsOfU8x8(const Vec128<uint8_t, 8> v) {
+  uint16x4_t a = vpaddl_u8(v.raw);
+  uint32x2_t b = vpaddl_u16(a);
+  return Vec128<uint64_t, 1>(vpaddl_u32(b));
 }
 
 #if defined(__aarch64__)
@@ -2493,7 +2981,52 @@ HWY_INLINE Vec128<int64_t> SumOfLanes(const Vec128<int64_t> v) {
 }
 #endif
 
-// ------------------------------ mask
+namespace detail {
+
+// For u32/i32/f32.
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T, N> v3210) {
+  const Vec128<T> v1032 = Shuffle1032(v3210);
+  const Vec128<T> v31_20_31_20 = Min(v3210, v1032);
+  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
+  return Min(v20_31_20_31, v31_20_31_20);
+}
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T, N> v3210) {
+  const Vec128<T> v1032 = Shuffle1032(v3210);
+  const Vec128<T> v31_20_31_20 = Max(v3210, v1032);
+  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
+  return Max(v20_31_20_31, v31_20_31_20);
+}
+
+// For u64/i64[/f64].
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec128<T, N> v10) {
+  const Vec128<T> v01 = Shuffle01(v10);
+  return Min(v10, v01);
+}
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec128<T, N> v10) {
+  const Vec128<T> v01 = Shuffle01(v10);
+  return Max(v10, v01);
+}
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
+  return detail::MinOfLanes(hwy::SizeTag<sizeof(T)>(), v);
+}
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
+  return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+// ------------------------------ Mask
 
 template <typename T>
 HWY_INLINE bool AllFalse(const Mask128<T> v) {
@@ -2510,7 +3043,8 @@ HWY_INLINE bool AllTrue(const Mask128<T> v) {
 namespace impl {
 
 template <typename T>
-HWY_INLINE uint64_t BitsFromMask(SizeTag<1> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask128<T> mask) {
   constexpr uint8x16_t kCollapseMask = {
       1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80,
   };
@@ -2533,7 +3067,8 @@ HWY_INLINE uint64_t BitsFromMask(SizeTag<1> /*tag*/, const Mask128<T> mask) {
 }
 
 template <typename T>
-HWY_INLINE uint64_t BitsFromMask(SizeTag<2> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                                 const Mask128<T> mask) {
   constexpr uint16x8_t kCollapseMask = {1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80};
   const Full128<uint16_t> du;
   const uint16x8_t values = BitCast(du, VecFromMask(mask)).raw & kCollapseMask;
@@ -2547,7 +3082,8 @@ HWY_INLINE uint64_t BitsFromMask(SizeTag<2> /*tag*/, const Mask128<T> mask) {
 }
 
 template <typename T>
-HWY_INLINE uint64_t BitsFromMask(SizeTag<4> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
+                                 const Mask128<T> mask) {
   constexpr uint32x4_t kCollapseMask = {1, 2, 4, 8};
   const Full128<uint32_t> du;
   const uint32x4_t values = BitCast(du, VecFromMask(mask)).raw & kCollapseMask;
@@ -2559,15 +3095,17 @@ HWY_INLINE uint64_t BitsFromMask(SizeTag<4> /*tag*/, const Mask128<T> mask) {
 #endif
 }
 
-#if defined(__aarch64__)
 template <typename T>
-HWY_INLINE uint64_t BitsFromMask(SizeTag<8> /*tag*/, const Mask128<T> v) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
   constexpr uint64x2_t kCollapseMask = {1, 2};
   const Full128<uint64_t> du;
   const uint64x2_t values = BitCast(du, VecFromMask(v)).raw & kCollapseMask;
+#if defined(__aarch64__)
   return vaddvq_u64(values);
-}
+#else
+  return values[0] + values[1];
 #endif
+}
 
 // Returns number of lanes whose mask is set.
 //
@@ -2576,7 +3114,7 @@ HWY_INLINE uint64_t BitsFromMask(SizeTag<8> /*tag*/, const Mask128<T> v) {
 // changes each lane to 1 (if mask set) or 0.
 
 template <typename T>
-HWY_INLINE size_t CountTrue(SizeTag<1> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
   const Full128<int8_t> di;
   const int8x16_t ones = vnegq_s8(BitCast(di, VecFromMask(mask)).raw);
 
@@ -2590,7 +3128,7 @@ HWY_INLINE size_t CountTrue(SizeTag<1> /*tag*/, const Mask128<T> mask) {
 #endif
 }
 template <typename T>
-HWY_INLINE size_t CountTrue(SizeTag<2> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
   const Full128<int16_t> di;
   const int16x8_t ones = vnegq_s16(BitCast(di, VecFromMask(mask)).raw);
 
@@ -2604,7 +3142,7 @@ HWY_INLINE size_t CountTrue(SizeTag<2> /*tag*/, const Mask128<T> mask) {
 }
 
 template <typename T>
-HWY_INLINE size_t CountTrue(SizeTag<4> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
   const Full128<int32_t> di;
   const int32x4_t ones = vnegq_s32(BitCast(di, VecFromMask(mask)).raw);
 
@@ -2616,30 +3154,30 @@ HWY_INLINE size_t CountTrue(SizeTag<4> /*tag*/, const Mask128<T> mask) {
 #endif
 }
 
-#if defined(__aarch64__)
 template <typename T>
-HWY_INLINE size_t CountTrue(SizeTag<8> /*tag*/, const Mask128<T> mask) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
+#if defined(__aarch64__)
   const Full128<int64_t> di;
   const int64x2_t ones = vnegq_s64(BitCast(di, VecFromMask(mask)).raw);
   return vaddvq_s64(ones);
-}
+#else
+  const Full128<int64_t> di;
+  const int64x2_t ones = vshrq_n_u64(BitCast(di, VecFromMask(mask)).raw, 63);
+  return ones[0] + ones[1];
 #endif
+}
 
 }  // namespace impl
 
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(const Mask128<T> mask) {
-  return impl::BitsFromMask(SizeTag<sizeof(T)>(), mask);
+  return impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 template <typename T>
 HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
-  return impl::CountTrue(SizeTag<sizeof(T)>(), mask);
+  return impl::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
 }
-
-}  // namespace ext
-
-}  // namespace hwy
 
 #if !defined(__aarch64__)
 #undef vuzp1_s8
@@ -2729,7 +3267,7 @@ HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
 #undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
 
-#undef HWY_CONCAT_IMPL
-#undef HWY_CONCAT
-
-#endif  // HWY_ARM64_NEON_H_
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
+}  // namespace hwy
+HWY_AFTER_NAMESPACE();

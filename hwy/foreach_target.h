@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,277 +15,118 @@
 #ifndef HWY_FOREACH_TARGET_H_
 #define HWY_FOREACH_TARGET_H_
 
-// Includes a specified file for each target in HWY_RUNTIME_TARGETS. This
-// generates a definition of Module::HWY_FUNC, called by runtime_dispatch.h.
+// Re-includes the translation unit zero or more times to compile for any
+// targets except HWY_STATIC_TARGET. Defines unique HWY_TARGET each time so that
+// highway.h defines the corresponding macro/namespace.
 
-#ifndef HWY_TARGET_INCLUDE
-#error "Must set HWY_TARGET_INCLUDE before including foreach_target.h"
+#ifdef HWY_HIGHWAY_H_
+#error "Must include foreach_target.h before highway.h."
 #endif
 
-#include "hwy/runtime_targets.h"
-// After runtime_targets:
-#include "hwy/include_headers.h"
+#include "hwy/targets.h"
 
-//-----------------------------------------------------------------------------
-// SSE4
-#if HWY_RUNTIME_TARGETS & HWY_SSE4
+// Avoid warnings on #include HWY_TARGET_INCLUDE by hiding them from the IDE;
+// also skip if only 1 target defined (no re-inclusion will be necessary).
+#if !HWY_IDE && (HWY_TARGETS != HWY_STATIC_TARGET)
 
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_SSE4
+#if !defined(HWY_TARGET_INCLUDE)
+#error ">1 target enabled => define HWY_TARGET_INCLUDE before foreach_target.h"
+#endif
 
-#undef HWY_FUNC
-#define HWY_FUNC F_SSE4
+// *_inl.h may include other headers, which requires include guards to prevent
+// repeated inclusion. The guards must be reset after compiling each target, so
+// the header is again visible. This is done by flipping HWY_TARGET_TOGGLE,
+// defining it if undefined and vice versa. This macro is initially undefined
+// so that IDEs don't gray out the contents of each header.
+#ifdef HWY_TARGET_TOGGLE
+#error "This macro must not be defined outside foreach_target.h"
+#endif
 
-#undef HWY_ATTR
-#define HWY_ATTR HWY_ATTR_SSE4
-
-#undef HWY_BITS
-#define HWY_BITS 128
-
-#undef HWY_ALIGN
-#define HWY_ALIGN alignas(16)
-
-#undef HWY_HAS_CMP64
-#define HWY_HAS_CMP64 0
-
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 0
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 0
-
-#undef HWY_HAS_INT64
-#define HWY_HAS_INT64 1
-
-#undef HWY_HAS_DOUBLE
-#define HWY_HAS_DOUBLE 1
-
+#if (HWY_TARGETS & HWY_SCALAR) && (HWY_STATIC_TARGET != HWY_SCALAR)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_SCALAR
 #include HWY_TARGET_INCLUDE
-#endif
-
-//-----------------------------------------------------------------------------
-// AVX2
-#if HWY_RUNTIME_TARGETS & HWY_AVX2
-
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_AVX2
-
-#undef HWY_FUNC
-#define HWY_FUNC F_AVX2
-
-#undef HWY_ATTR
-#define HWY_ATTR HWY_ATTR_AVX2
-
-#undef HWY_BITS
-#define HWY_BITS 256
-
-#undef HWY_ALIGN
-#define HWY_ALIGN alignas(32)
-
-#undef HWY_HAS_CMP64
-#define HWY_HAS_CMP64 1
-
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 1
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 1
-
-#undef HWY_HAS_INT64
-#define HWY_HAS_INT64 1
-
-#undef HWY_HAS_DOUBLE
-#define HWY_HAS_DOUBLE 1
-
-#include HWY_TARGET_INCLUDE
-#endif
-
-//-----------------------------------------------------------------------------
-// AVX-512
-#if HWY_RUNTIME_TARGETS & HWY_AVX512
-
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_AVX512
-
-#undef HWY_FUNC
-#define HWY_FUNC F_AVX512
-
-#undef HWY_ATTR
-#define HWY_ATTR HWY_ATTR_AVX512
-
-#undef HWY_BITS
-#define HWY_BITS 512
-
-#undef HWY_ALIGN
-#define HWY_ALIGN alignas(64)
-
-#undef HWY_HAS_CMP64
-#define HWY_HAS_CMP64 1
-
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 1
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 1
-
-#undef HWY_HAS_INT64
-#define HWY_HAS_INT64 1
-
-#undef HWY_HAS_DOUBLE
-#define HWY_HAS_DOUBLE 1
-
-#include HWY_TARGET_INCLUDE
-#endif
-
-//-----------------------------------------------------------------------------
-// PPC8
-#if HWY_RUNTIME_TARGETS & HWY_PPC8
-
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_PPC8
-
-#undef HWY_FUNC
-#define HWY_FUNC F_PPC8
-
-#undef HWY_ATTR
-#define HWY_ATTR
-
-#undef HWY_BITS
-#define HWY_BITS 128
-
-#undef HWY_ALIGN
-#define HWY_ALIGN alignas(16)
-
-#undef HWY_HAS_CMP64
-#define HWY_HAS_CMP64 1
-
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 0
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 1
-
-#undef HWY_HAS_INT64
-#define HWY_HAS_INT64 1
-
-#undef HWY_HAS_DOUBLE
-#define HWY_HAS_DOUBLE 1
-
-#include HWY_TARGET_INCLUDE
-#endif
-
-//-----------------------------------------------------------------------------
-// ARM8
-#if HWY_RUNTIME_TARGETS & HWY_ARM8
-
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_ARM8
-
-#undef HWY_FUNC
-#define HWY_FUNC F_ARM8
-
-#undef HWY_ATTR
-#define HWY_ATTR HWY_ATTR_ARM8
-
-#undef HWY_BITS
-#define HWY_BITS 128
-
-#undef HWY_ALIGN
-#define HWY_ALIGN alignas(16)
-
-#undef HWY_HAS_CMP64
-#undef HWY_HAS_DOUBLE
-#undef HWY_HAS_INT64
-#ifdef __arm__
-#define HWY_HAS_CMP64 0
-#define HWY_HAS_DOUBLE 0
-#define HWY_HAS_INT64 0
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
 #else
-#define HWY_HAS_CMP64 1
-#define HWY_HAS_DOUBLE 1
-#define HWY_HAS_INT64 1
+#define HWY_TARGET_TOGGLE
+#endif
 #endif
 
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 0
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 1
-
+#if (HWY_TARGETS & HWY_NEON) && (HWY_STATIC_TARGET != HWY_NEON)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_NEON
 #include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
 #endif
 
-//-----------------------------------------------------------------------------
-// WASM
-#if HWY_RUNTIME_TARGETS & HWY_WASM
-
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_WASM
-
-#undef HWY_FUNC
-#define HWY_FUNC F_WASM
-
-#undef HWY_ATTR
-#define HWY_ATTR HWY_ATTR_WASM
-
-#undef HWY_BITS
-#define HWY_BITS 128
-
-#undef HWY_ALIGN
-#define HWY_ALIGN alignas(16)
-
-#undef HWY_HAS_CMP64
-#define HWY_HAS_CMP64 0
-
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 0
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 0
-
-#undef HWY_HAS_INT64
-#define HWY_HAS_INT64 0
-
-#undef HWY_HAS_DOUBLE
-#define HWY_HAS_DOUBLE 0
-
+#if (HWY_TARGETS & HWY_SSE4) && (HWY_STATIC_TARGET != HWY_SSE4)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_SSE4
 #include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
 #endif
 
-//-----------------------------------------------------------------------------
-// NONE
+#if (HWY_TARGETS & HWY_AVX2) && (HWY_STATIC_TARGET != HWY_AVX2)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_AVX2
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
 
-#undef HWY_NAMESPACE
-#define HWY_NAMESPACE N_NONE
+#if (HWY_TARGETS & HWY_AVX3) && (HWY_STATIC_TARGET != HWY_AVX3)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_AVX3
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
 
-#undef HWY_FUNC
-#define HWY_FUNC F_NONE
+#if (HWY_TARGETS & HWY_WASM) && (HWY_STATIC_TARGET != HWY_WASM)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_WASM
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
 
-#undef HWY_ATTR
-#define HWY_ATTR
+#if (HWY_TARGETS & HWY_PPC8) && (HWY_STATIC_TARGET != HWY_PPC8)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_PPC8
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
 
-#undef HWY_BITS
-#define HWY_BITS 0
+#endif  // !HWY_IDE && (HWY_TARGETS != HWY_STATIC_TARGET)
 
-#undef HWY_ALIGN
-#define HWY_ALIGN
+// If we re-include once per enabled target, the translation unit's
+// implementation would have to be skipped via #if to avoid redefining symbols.
+// We instead skip the re-include for HWY_STATIC_TARGET, and generate its
+// implementation when resuming compilation of the translation unit. Reverting
+// to the initial value of HWY_TARGET also causes HWY_ONCE to expand to 1.
+#undef HWY_TARGET
+#define HWY_TARGET HWY_STATIC_TARGET
 
-#undef HWY_HAS_CMP64
-#define HWY_HAS_CMP64 1
-
-#undef HWY_HAS_GATHER
-#define HWY_HAS_GATHER 1
-
-#undef HWY_HAS_VARIABLE_SHIFT
-#define HWY_HAS_VARIABLE_SHIFT 1
-
-#undef HWY_HAS_INT64
-#define HWY_HAS_INT64 1
-
-#undef HWY_HAS_DOUBLE
-#define HWY_HAS_DOUBLE 1
-
-// This is followed by the implementation part of the original CC file, so no
-// need to include again. NONE must be last because it is unconditional.
-
-#endif  // #ifndef HWY_FOREACH_TARGET_H_
+#endif  // HWY_FOREACH_TARGET_H_

@@ -12,43 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/benchmark.cc"
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/examples/benchmark.cc"
+#include "hwy/foreach_target.h"
+// ^ must come before highway.h and any *-inl.h.
 
-// First time this file is included: include headers as usual.
 #include <stddef.h>
 #include <stdio.h>
 
 #include <cmath>
 #include <memory>
-#include <new>
 #include <numeric>  // iota
 
+#include "hwy/aligned_allocator.h"
+#include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"
-#include "hwy/runtime_dispatch.h"
-
-struct RunBenchmarks {
-  // Benchmark relies on this being one, AND the compiler not knowing it.
-  HWY_DECLARE(void, (int unpredictable1))
-};
-
-int main(int argc, char** /*argv*/) {
-  // No buffering (helps if running remotely)
-  setvbuf(stdin, nullptr, _IONBF, 0);
-
-  const hwy::TargetBitfield targets;  // supported by this CPU
-  // No need to return the bitfield of targets - benchmark already prints each.
-  // != 999 is an expression that evaluates to 1, but unknown to the compiler.
-  (void)targets.Foreach(RunBenchmarks(), argc != 999);
-}
-
-#endif  // HWY_TARGET_INCLUDE
-// Generates RunBenchmarks implementations for all targets.
-#include "hwy/foreach_target.h"
-
+HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-namespace {
+
+// These templates are not found via ADL.
+#if HWY_TARGET != HWY_SCALAR
+using hwy::HWY_NAMESPACE::CombineShiftRightBytes;
+#endif
 
 class TwoArray {
  public:
@@ -57,42 +43,24 @@ class TwoArray {
   static size_t NumItems() { return 3456; }
 
   explicit TwoArray(const size_t num_items)
-      : a_(new (std::align_val_t(kMaxVectorSize)) float[num_items * 2]),
-        b_(a_.get() + num_items) {
+      : a_(AllocateAligned<float>(num_items * 2)), b_(a_.get() + num_items) {
     const float init = num_items / NumItems();  // 1, but compiler doesn't know
     std::iota(a_.get(), a_.get() + num_items, init);
     std::iota(b_, b_ + num_items, init);
   }
 
  protected:
-  std::unique_ptr<float[]> a_;
+  AlignedFreeUniquePtr<float[]> a_;
   float* b_;
 };
 
-// Calls operator() of the given closure (lambda function).
-template <class Closure>
-static FuncOutput CallClosure(const Closure* f, const FuncInput input) {
-  return (*f)(input);
-}
-
-// Same as Measure, except "closure" is typically a lambda function of
-// FuncInput -> FuncOutput with a capture list.
-template <class Closure>
-static inline size_t MeasureClosure(const Closure& closure,
-                                    const FuncInput* inputs,
-                                    const size_t num_inputs, Result* results,
-                                    const Params& p = Params()) {
-  return Measure(reinterpret_cast<Func>(&CallClosure<Closure>),
-                 reinterpret_cast<const uint8_t*>(&closure), inputs, num_inputs,
-                 results, p);
-}
-
-// Measures durations, verifies results, prints timings.
+// Measures durations, verifies results, prints timings. `unpredictable1`
+// must have value 1 (unknown to the compiler to prevent elision).
 template <class Benchmark>
 void RunBenchmark(const char* caption, const int unpredictable1) {
   printf("%10s: ", caption);
   const size_t kNumInputs = 1;
-  const uint64_t inputs[kNumInputs] = {Benchmark::NumItems() * unpredictable1};
+  const FuncInput inputs[kNumInputs] = {Benchmark::NumItems() * unpredictable1};
   Result results[kNumInputs];
 
   const size_t num_items = Benchmark::NumItems() * unpredictable1;
@@ -103,7 +71,7 @@ void RunBenchmark(const char* caption, const int unpredictable1) {
   p.max_evals = 7;
   p.target_rel_mad = 0.002;
   const size_t num_results = MeasureClosure(
-      [&benchmark](const uint64_t input) { return benchmark(input); }, inputs,
+      [&benchmark](const FuncInput input) { return benchmark(input); }, inputs,
       kNumInputs, results, p);
   if (num_results != kNumInputs) {
     fprintf(stderr, "MeasureClosure failed.\n");
@@ -118,17 +86,17 @@ void RunBenchmark(const char* caption, const int unpredictable1) {
   }
 }
 
-HWY_ATTR void Intro() {
+void Intro() {
   HWY_ALIGN const float in[16] = {1, 2, 3, 4, 5, 6};
   HWY_ALIGN float out[16];
   HWY_FULL(float) d;  // largest possible vector
-  for (size_t i = 0; i < 16; i += d.N) {
+  for (size_t i = 0; i < 16; i += Lanes(d)) {
     const auto vec = Load(d, in + i);  // aligned!
     auto result = vec * vec;
     result += result;  // can update if not const
     Store(result, d, out + i);
   }
-  printf("F(x)->2*x^2, F(%.0f) = %.1f\n", in[2], out[2]);
+  printf("\nF(x)->2*x^2, F(%.0f) = %.1f\n", in[2], out[2]);
 }
 
 // BEGINNER: dot product
@@ -137,8 +105,9 @@ class BenchmarkDot : public TwoArray {
  public:
   explicit BenchmarkDot(size_t num_items) : TwoArray(num_items), dot_{-1.0f} {}
 
-  HWY_ATTR uint64_t operator()(const size_t num_items) {
+  FuncOutput operator()(const size_t num_items) {
     HWY_FULL(float) d;
+    const size_t N = Lanes(d);
     using V = decltype(Zero(d));
     constexpr int unroll = 8;
     // Compiler doesn't make independent sum* accumulators, so unroll manually.
@@ -151,10 +120,10 @@ class BenchmarkDot : public TwoArray {
     }
     const float* const HWY_RESTRICT pa = &a_[0];
     const float* const HWY_RESTRICT pb = b_;
-    for (size_t i = 0; i < num_items; i += unroll * d.N) {
+    for (size_t i = 0; i < num_items; i += unroll * N) {
       for (int j = 0; j < unroll; ++j) {
-        const auto a = Load(d, pa + i + j * d.N);
-        const auto b = Load(d, pb + i + j * d.N);
+        const auto a = Load(d, pa + i + j * N);
+        const auto b = Load(d, pb + i + j * N);
         sum[j] = MulAdd(a, b, sum[j]);
       }
     }
@@ -165,7 +134,7 @@ class BenchmarkDot : public TwoArray {
         sum[i] += sum[i + power];
       }
     }
-    return dot_ = GetLane(ext::SumOfLanes(sum[0]));
+    return dot_ = GetLane(SumOfLanes(sum[0]));
   }
   void Verify(size_t num_items) {
     if (dot_ == -1.0f) {
@@ -192,42 +161,44 @@ class BenchmarkDot : public TwoArray {
 struct BenchmarkDelta : public TwoArray {
   explicit BenchmarkDelta(size_t num_items) : TwoArray(num_items) {}
 
-  HWY_ATTR uint64_t operator()(const size_t num_items) const {
-#if HWY_BITS == 0
+  FuncOutput operator()(const size_t num_items) const {
+#if HWY_TARGET == HWY_SCALAR
     b_[0] = a_[0];
     for (size_t i = 1; i < num_items; ++i) {
       b_[i] = a_[i] - a_[i - 1];
     }
-#elif HWY_BITS == 128
-    // Slightly better than unaligned loads
-    const HWY_CAPPED(float, 4) df;
-    const HWY_CAPPED(int32_t, 4) di;
-    size_t i;
-    b_[0] = a_[0];
-    for (i = 1; i < df.N; ++i) {
-      b_[i] = a_[i] - a_[i - 1];
-    }
-    auto prev = Load(df, &a_[0]);
-    for (; i < num_items; i += df.N) {
-      const auto a = Load(df, &a_[i]);
-      constexpr int kBytes = (df.N - 1) * sizeof(float);
-      const auto shifted = BitCast(df, CombineShiftRightBytes<kBytes>(
-                                           BitCast(di, a), BitCast(di, prev)));
-      prev = a;
-      Store(a - shifted, df, &b_[i]);
-    }
-#else
+#elif HWY_CAP_GE256
     // Larger vectors are split into 128-bit blocks, easiest to use the
     // unaligned load support to shift between them.
     const HWY_FULL(float) df;
+    const size_t N = Lanes(df);
     size_t i;
     b_[0] = a_[0];
-    for (i = 1; i < df.N; ++i) {
+    for (i = 1; i < N; ++i) {
       b_[i] = a_[i] - a_[i - 1];
     }
-    for (; i < num_items; i += df.N) {
+    for (; i < num_items; i += N) {
       const auto a = Load(df, &a_[i]);
       const auto shifted = LoadU(df, &a_[i - 1]);
+      Store(a - shifted, df, &b_[i]);
+    }
+#else  // 128-bit
+    // Slightly better than unaligned loads
+    const HWY_CAPPED(float, 4) df;
+    const HWY_CAPPED(int32_t, 4) di;
+    const size_t N = Lanes(df);
+    size_t i;
+    b_[0] = a_[0];
+    for (i = 1; i < N; ++i) {
+      b_[i] = a_[i] - a_[i - 1];
+    }
+    auto prev = Load(df, &a_[0]);
+    for (; i < num_items; i += Lanes(df)) {
+      const auto a = Load(df, &a_[i]);
+      constexpr int kBytes = (MaxLanes(df) - 1) * sizeof(float);
+      const auto shifted = BitCast(df, CombineShiftRightBytes<kBytes>(
+                                           BitCast(di, a), BitCast(di, prev)));
+      prev = a;
       Store(a - shifted, df, &b_[i]);
     }
 #endif
@@ -247,15 +218,27 @@ struct BenchmarkDelta : public TwoArray {
 
 void RunBenchmarks(int unpredictable1) {
   Intro();
-  printf("------------------------ %d-bit vectors\n", HWY_BITS);
+  printf("------------------------ %s\n", TargetName(HWY_TARGET));
   RunBenchmark<BenchmarkDot>("dot", unpredictable1);
   RunBenchmark<BenchmarkDelta>("delta", unpredictable1);
 }
 
-}  // namespace
+// NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
+HWY_AFTER_NAMESPACE();
 
-void RunBenchmarks::HWY_FUNC(int unpredictable1) {
-  hwy::HWY_NAMESPACE::RunBenchmarks(unpredictable1);
+#if HWY_ONCE
+namespace hwy {
+HWY_EXPORT(RunBenchmarks);
+}  // namespace hwy
+
+int main(int argc, char** /*argv*/) {
+  for (uint32_t target : hwy::SupportedAndGeneratedTargets()) {
+    hwy::SetSupportedTargetsForTest(target);
+    HWY_DYNAMIC_DISPATCH(hwy::RunBenchmarks)(argc != 999);
+  }
+  hwy::SetSupportedTargetsForTest(0);  // Reset the mask afterwards.
+  return 0;
 }
+#endif  // HWY_ONCE

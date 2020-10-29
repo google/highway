@@ -12,220 +12,247 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "tests/memory_test.cc"
-
 #include "hwy/cache_control.h"
-#include "hwy/tests/test_util.h"
-struct MemoryTest {
-  HWY_DECLARE(void, ())
-};
-TEST(HwyMemoryTest, Run) { hwy::RunTests<MemoryTest>(); }
 
-#endif  // HWY_TARGET_INCLUDE
-#include "hwy/tests/test_target_util.h"
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "tests/memory_test.cc"
+#include "hwy/foreach_target.h"
+// ^ must come before highway.h and any *-inl.h.
 
+#include "hwy/highway.h"
+#include "hwy/tests/test_util-inl.h"
+HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-namespace {
 
-constexpr HWY_FULL(uint8_t) du8;
-constexpr HWY_FULL(uint16_t) du16;
-constexpr HWY_FULL(uint32_t) du32;
-constexpr HWY_FULL(uint64_t) du64;
-constexpr HWY_FULL(int8_t) di8;
-constexpr HWY_FULL(int16_t) di16;
-constexpr HWY_FULL(int32_t) di32;
-constexpr HWY_FULL(int64_t) di64;
-constexpr HWY_FULL(float) df;
-constexpr HWY_FULL(double) dd;
+struct TestLoadStore {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const auto hi = Iota(d, 1 + N);
+    const auto lo = Iota(d, 1);
+    HWY_ALIGN T lanes[2 * MaxLanes(d)];
+    Store(hi, d, lanes + N);
+    Store(lo, d, lanes);
 
-template <class D>
-HWY_NOINLINE HWY_ATTR void TestLoadStore(D d) {
-  using T = typename D::T;
-  const auto hi = Iota(d, 1 + d.N);
-  const auto lo = Iota(d, 1);
-  HWY_ALIGN T lanes[2 * d.N];
-  Store(hi, d, lanes + d.N);
-  Store(lo, d, lanes);
+    // Aligned load
+    const auto lo2 = Load(d, lanes);
+    HWY_ASSERT_VEC_EQ(d, lo2, lo);
 
-  // Aligned load
-  const auto lo2 = Load(d, lanes);
-  HWY_ASSERT_VEC_EQ(d, lo2, lo);
+    // Aligned store
+    HWY_ALIGN T lanes2[2 * MaxLanes(d)];
+    Store(lo2, d, lanes2);
+    Store(hi, d, lanes2 + N);
+    for (size_t i = 0; i < 2 * N; ++i) {
+      HWY_ASSERT_EQ(lanes[i], lanes2[i]);
+    }
 
-  // Aligned store
-  HWY_ALIGN T lanes2[2 * d.N];
-  Store(lo2, d, lanes2);
-  Store(hi, d, lanes2 + d.N);
-  for (size_t i = 0; i < 2 * d.N; ++i) {
-    HWY_ASSERT_EQ(lanes[i], lanes2[i]);
-  }
+    // Unaligned load
+    const auto vu = LoadU(d, lanes + 1);
+    HWY_ALIGN T lanes3[MaxLanes(d)];
+    Store(vu, d, lanes3);
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT_EQ(T(i + 2), lanes3[i]);
+    }
 
-  // Unaligned load
-  const auto vu = LoadU(d, lanes + 1);
-  HWY_ALIGN T lanes3[d.N];
-  Store(vu, d, lanes3);
-  for (size_t i = 0; i < d.N; ++i) {
-    HWY_ASSERT_EQ(T(i + 2), lanes3[i]);
+    // Unaligned store
+    StoreU(lo2, d, lanes2 + N / 2);
+    size_t i = 0;
+    for (; i < N / 2; ++i) {
+      HWY_ASSERT_EQ(lanes[i], lanes2[i]);
+    }
+    for (; i < 3 * N / 2; ++i) {
+      HWY_ASSERT_EQ(T(i - N / 2 + 1), lanes2[i]);
+    }
+    // Subsequent values remain unchanged.
+    for (; i < 2 * N; ++i) {
+      HWY_ASSERT_EQ(T(i + 1), lanes2[i]);
+    }
   }
+};
 
-  // Unaligned store
-  StoreU(lo2, d, lanes2 + d.N / 2);
-  size_t i = 0;
-  for (; i < d.N / 2; ++i) {
-    HWY_ASSERT_EQ(lanes[i], lanes2[i]);
-  }
-  for (; i < 3 * d.N / 2; ++i) {
-    HWY_ASSERT_EQ(T(i - d.N / 2 + 1), lanes2[i]);
-  }
-  // Subsequent values remain unchanged.
-  for (; i < 2 * d.N; ++i) {
-    HWY_ASSERT_EQ(T(i + 1), lanes2[i]);
-  }
-}
-
-template <class D>
-HWY_NOINLINE HWY_ATTR void TestLoadDup128(D d) {
-#if HWY_BITS != 0 || HWY_IDE
-  using T = typename D::T;
-  constexpr size_t N128 = 16 / sizeof(T);
-  alignas(16) T lanes[N128];
-  for (size_t i = 0; i < N128; ++i) {
-    lanes[i] = static_cast<T>(1 + i);
-  }
-  const auto v = LoadDup128(d, lanes);
-  HWY_ALIGN T out[d.N];
-  Store(v, d, out);
-  for (size_t i = 0; i < d.N; ++i) {
-    HWY_ASSERT_EQ(T(i % N128 + 1), out[i]);
-  }
+struct TestLoadDup128 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Scalar does not define LoadDup128.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+    constexpr size_t N128 = 16 / sizeof(T);
+    alignas(16) T lanes[N128];
+    for (size_t i = 0; i < N128; ++i) {
+      lanes[i] = static_cast<T>(1 + i);
+    }
+    const auto v = LoadDup128(d, lanes);
+    HWY_ALIGN T out[MaxLanes(d)];
+    Store(v, d, out);
+    for (size_t i = 0; i < Lanes(d); ++i) {
+      HWY_ASSERT_EQ(T(i % N128 + 1), out[i]);
+    }
 #else
-  (void)d;
+    (void)d;
 #endif
-}
-
-template <class D>
-HWY_NOINLINE HWY_ATTR void TestStreamT(D d) {
-  using T = typename D::T;
-  const auto v = Iota(d, 0);
-  HWY_ALIGN T out[d.N];
-  Stream(v, d, out);
-  StoreFence();
-  for (size_t i = 0; i < d.N; ++i) {
-    HWY_ASSERT_EQ(T(i), out[i]);
   }
-}
+};
 
-#if HWY_HAS_GATHER || HWY_IDE
+struct TestStreamT {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v = Iota(d, T(1));
+    constexpr size_t kAffectedBytes =
+        (MaxLanes(d) * sizeof(T) + HWY_STREAM_MULTIPLE - 1) &
+        ~size_t(HWY_STREAM_MULTIPLE - 1);
+    constexpr size_t kAffectedLanes = kAffectedBytes / sizeof(T);
+    HWY_ALIGN T out[2 * kAffectedLanes] = {0};
+    Stream(v, d, out);
+    StoreFence();
+    const auto actual = Load(d, out);
+    HWY_ASSERT_VEC_EQ(d, v, actual);
+    // Ensure Stream didn't modify more memory than expected
+    for (size_t i = kAffectedLanes; i < 2 * kAffectedLanes; ++i) {
+      HWY_ASSERT_EQ(T(0), out[i]);
+    }
+  }
+};
 
 // kShift must be log2(sizeof(T)).
-template <typename Offset, int kShift, class D>
-HWY_NOINLINE HWY_ATTR void TestGatherT(D d) {
-  using T = typename D::T;
-  static_assert(sizeof(T) == (1 << kShift), "Incorrect kShift");
+struct TestGatherT {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using Offset = MakeSigned<T>;
 
-  // Base points to middle; |max_offset| + sizeof(T) <= kNumBytes / 2.
-  constexpr size_t kNumBytes = kMaxVectorSize * 2;
-  uint8_t bytes[kNumBytes];
-  for (size_t i = 0; i < kNumBytes; ++i) {
-    bytes[i] = i + 1;
+    // Base points to middle; |max_offset| + sizeof(T) <= kNumBytes / 2.
+    constexpr size_t kNumBytes = kMaxVectorSize * 2;
+    uint8_t bytes[kNumBytes];
+    for (size_t i = 0; i < kNumBytes; ++i) {
+      bytes[i] = static_cast<uint8_t>(i + 1);
+    }
+    const uint8_t* middle = bytes + kNumBytes / 2;
+
+    constexpr size_t kN = MaxLanes(d);
+    const size_t N = Lanes(d);
+
+    // Offsets: combinations of aligned, repeated, negative.
+    HWY_ALIGN Offset offset_lanes[HWY_MAX(kN, 16)] = {
+        2, 12, 4, 4, -16, -16, -21, -20, 8, 8, 8, -13, -13, -20, 20, 3};
+
+    HWY_ALIGN T expected[kN];
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT(std::abs(offset_lanes[i]) < Offset(kMaxVectorSize));
+      CopyBytes<sizeof(T)>(middle + offset_lanes[i], &expected[i]);
+    }
+
+    const Simd<Offset, kN> d_offset;
+    const auto offsets = Load(d_offset, offset_lanes);
+    auto actual = GatherOffset(d, reinterpret_cast<const T*>(middle), offsets);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
+
+    // Indices
+    HWY_ALIGN const Offset index_lanes[HWY_MAX(kN, 16)] = {
+        1, -2, 0, 1, 3, -2, -1, 2, 4, -3, 5, -5, 0, 2, -4, 0};
+    for (size_t i = 0; i < N; ++i) {
+      CopyBytes<sizeof(T)>(
+          middle + index_lanes[i] * static_cast<Offset>(sizeof(T)),
+          &expected[i]);
+    }
+    const auto indices = Load(d_offset, index_lanes);
+    actual = GatherIndex(d, reinterpret_cast<const T*>(middle), indices);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
-  const uint8_t* middle = bytes + kNumBytes / 2;
+};
 
-  // Offsets: combinations of aligned, repeated, negative.
-  HWY_ALIGN Offset offset_lanes[HWY_MAX(d.N, 16)] = {
-      2, 12, 4, 4, -16, -16, -21, -20, 8, 8, 8, -13, -13, -20, 20, 3};
+template <int kShift>
+struct TestGatherF {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using Offset = MakeSigned<T>;
+    static_assert(sizeof(T) == (1 << kShift), "Incorrect kShift");
 
-  HWY_ALIGN T expected[d.N];
-  for (size_t i = 0; i < d.N; ++i) {
-    CopyBytes<sizeof(T)>(middle + offset_lanes[i], &expected[i]);
+    constexpr size_t kN = MaxLanes(d);
+    const size_t N = Lanes(d);
+
+    constexpr size_t kNumValues = 16;
+    // Base points to middle; |max_index| < kNumValues / 2.
+    HWY_ALIGN const T values[HWY_MAX(kN, kNumValues)] = {
+        T(100.0), T(110.0), T(111.0), T(128.0), T(1024.0), T(-1.0),
+        T(-2.0),  T(-3.0),  T(0.25),  T(0.5),   T(0.75),   T(1.25),
+        T(1.5),   T(1.75),  T(-0.25), T(-0.5)};
+    const T* middle = values + kNumValues / 2;
+
+    // Indices: combinations of aligned, repeated, negative.
+    HWY_ALIGN const Offset index_lanes[HWY_MAX(kN, 16)] = {1, -6, 0,  1,
+                                                           3, -6, -1, 7};
+    HWY_ALIGN T expected[MaxLanes(d)];
+    for (size_t i = 0; i < N; ++i) {
+      CopyBytes<sizeof(T)>(middle + index_lanes[i], &expected[i]);
+    }
+
+    const Simd<Offset, kN> d_offset;
+    const auto indices = Load(d_offset, index_lanes);
+    auto actual = GatherIndex(d, middle, indices);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
+
+    // Offsets: same as index * sizeof(T).
+    const auto offsets = ShiftLeft<kShift>(indices);
+    actual = GatherOffset(d, middle, offsets);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
+};
 
-  const auto offsets = Load(HWY_FULL(Offset)(), offset_lanes);
-  auto actual =
-      ext::GatherOffset(d, reinterpret_cast<const T*>(middle), offsets);
-  HWY_ASSERT_VEC_EQ(d, expected, actual);
+HWY_NOINLINE void TestGather() {
+  // No u8,u16,i8,i16.
+  const ForPartialVectors<TestGatherT, 1, 1, HWY_GATHER_LANES(uint32_t)> test32;
+  test32(uint32_t());
+  test32(int32_t());
 
-  // Indices
-  HWY_ALIGN const Offset index_lanes[HWY_MAX(d.N, 16)] = {
-      1, -2, 0, 1, 3, -2, -1, 2, 4, -3, 5, -5, 0, 2, -4, 0};
-  for (size_t i = 0; i < d.N; ++i) {
-    CopyBytes<sizeof(T)>(
-        middle + index_lanes[i] * static_cast<Offset>(sizeof(T)), &expected[i]);
-  }
-  const auto indices = Load(HWY_FULL(Offset)(), index_lanes);
-  actual = ext::GatherIndex(d, reinterpret_cast<const T*>(middle), indices);
-  HWY_ASSERT_VEC_EQ(d, expected, actual);
-}
-
-template <typename Offset, int kShift, class D>
-HWY_NOINLINE HWY_ATTR void TestFloatGatherT(D d) {
-  using T = typename D::T;
-  static_assert(sizeof(T) == (1 << kShift), "Incorrect kShift");
-
-  constexpr size_t kNumValues = 16;
-  // Base points to middle; |max_index| < kNumValues / 2.
-  HWY_ALIGN const T values[HWY_MAX(d.N, kNumValues)] = {
-      T(100.0), T(110.0), T(111.0), T(128.0), T(1024.0), T(-1.0),
-      T(-2.0),  T(-3.0),  T(0.25),  T(0.5),   T(0.75),   T(1.25),
-      T(1.5),   T(1.75),  T(-0.25), T(-0.5)};
-  const T* middle = values + kNumValues / 2;
-
-  // Indices: combinations of aligned, repeated, negative.
-  HWY_ALIGN const Offset index_lanes[HWY_MAX(d.N, 16)] = {1, -6, 0,  1,
-                                                          3, -6, -1, 7};
-  HWY_ALIGN T expected[d.N];
-  for (size_t i = 0; i < d.N; ++i) {
-    CopyBytes<sizeof(T)>(middle + index_lanes[i], &expected[i]);
-  }
-  const auto indices = Load(HWY_FULL(Offset)(), index_lanes);
-  auto actual = ext::GatherIndex(d, middle, indices);
-  HWY_ASSERT_VEC_EQ(d, expected, actual);
-
-  // Offsets: same as index * sizeof(T).
-  const auto offsets = hwy::ShiftLeft<kShift>(indices);
-  actual = ext::GatherOffset(d, middle, offsets);
-  HWY_ASSERT_VEC_EQ(d, expected, actual);
-}
-
+#if HWY_CAP_INTEGER64
+  const ForPartialVectors<TestGatherT, 1, 1, HWY_GATHER_LANES(uint64_t)> test64;
+  test64(uint64_t());
+  test64(int64_t());
 #endif
 
-HWY_NOINLINE HWY_ATTR void TestStream() {
+  ForPartialVectors<TestGatherF<2>, 1, 1, HWY_GATHER_LANES(float)>()(float());
+
+#if HWY_CAP_FLOAT64
+  ForPartialVectors<TestGatherF<3>, 1, 1, HWY_GATHER_LANES(double)>()(double());
+#endif
+}
+
+HWY_NOINLINE void TestStream() {
+  const ForPartialVectors<TestStreamT> test;
   // No u8,u16.
-  TestStreamT(du32);
-  TestStreamT(du64);
+  test(uint32_t());
+  test(uint64_t());
   // No i8,i16.
-  TestStreamT(di32);
-  TestStreamT(di64);
-  HWY_FOREACH_F(TestStreamT);
+  test(int32_t());
+  test(int64_t());
+  ForFloatTypes(ForPartialVectors<TestStreamT>());
 }
 
-HWY_NOINLINE HWY_ATTR void TestGather() {
-#if HWY_HAS_GATHER || HWY_IDE
-  // No u8,u16.
-  TestGatherT<int32_t, 2>(du32);
-  TestGatherT<int64_t, 3>(du64);
-  // No i8,i16.
-  TestGatherT<int32_t, 2>(di32);
-  TestGatherT<int64_t, 3>(di64);
-
-  // Can't use HWY_FOREACH because kShift depends on type.
-  TestFloatGatherT<int32_t, 2>(df);
-#if HWY_HAS_DOUBLE
-  TestFloatGatherT<int64_t, 3>(dd);
-#endif
-#endif
+HWY_NOINLINE void TestAllLoadStore() {
+  ForAllTypes(ForPartialVectors<TestLoadStore>());
 }
 
-HWY_NOINLINE HWY_ATTR void TestMemory() {
-  (void)dd;
-  (void)di64;
-  (void)du64;
+HWY_NOINLINE void TestAllLoadDup128() {
+  ForAllTypes(ForGE128Vectors<TestLoadDup128>());
+}
 
-  HWY_FOREACH_UIF(TestLoadStore);
-  HWY_FOREACH_UIF(TestLoadDup128);
-  TestStream();
-  TestGather();
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
+}  // namespace hwy
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+namespace hwy {
+
+class HwyMemoryTest : public hwy::TestWithParamTarget {};
+
+HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMemoryTest);
+
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestGather);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestStream);
+
+TEST(HwyMemoryTest, TestCompile) {
   // Test that these functions compile.
   LoadFence();
   StoreFence();
@@ -234,10 +261,5 @@ HWY_NOINLINE HWY_ATTR void TestMemory() {
   FlushCacheline(&test);
 }
 
-}  // namespace
-// NOLINTNEXTLINE(google-readability-namespace-comments)
-}  // namespace HWY_NAMESPACE
 }  // namespace hwy
-
-// Instantiate for the current target.
-void MemoryTest::HWY_FUNC() { hwy::HWY_NAMESPACE::TestMemory(); }
+#endif

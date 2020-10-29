@@ -159,6 +159,24 @@ size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
                const size_t num_inputs, Result* results,
                const Params& p = Params());
 
+// Calls operator() of the given closure (lambda function).
+template <class Closure>
+static FuncOutput CallClosure(const Closure* f, const FuncInput input) {
+  return (*f)(input);
+}
+
+// Same as Measure, except "closure" is typically a lambda function of
+// FuncInput -> FuncOutput with a capture list.
+template <class Closure>
+static inline size_t MeasureClosure(const Closure& closure,
+                                    const FuncInput* inputs,
+                                    const size_t num_inputs, Result* results,
+                                    const Params& p = Params()) {
+  return Measure(reinterpret_cast<Func>(&CallClosure<Closure>),
+                 reinterpret_cast<const uint8_t*>(&closure), inputs, num_inputs,
+                 results, p);
+}
+
 }  // namespace hwy
 
 #endif  // HWY_NANOBENCHMARK_H_

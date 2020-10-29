@@ -12,14 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.10)
+
+# Set PIE flags for POSITION_INDEPENDENT_CODE targets, added in 3.14.
+if(POLICY CMP0083)
+  cmake_policy(SET CMP0083 NEW)
+endif()
+
+project(hwy VERSION 0.1)
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
-option(HWY_USE_GTEST "Links tests with GoogleTest")
-if(HWY_USE_GTEST)
-  find_package(GTest)
+# Enabled PIE binaries by default if supported.
+include(CheckPIESupported OPTIONAL RESULT_VARIABLE CHECK_PIE_SUPPORTED)
+if(CHECK_PIE_SUPPORTED)
+  check_pie_supported(LANGUAGES CXX)
+  if(CMAKE_CXX_LINK_PIE_SUPPORTED)
+    set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+  endif()
+endif()
+
+include(GNUInstallDirs)
+
+if (NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
 include(CheckCXXSourceCompiles)
@@ -33,31 +51,25 @@ check_cxx_source_compiles(
   HWY_EMSCRIPTEN
 )
 
-if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif()
-
 set(HWY_SOURCES
-  hwy/arch.h
-  hwy/arm64_neon.h
-  hwy/cache_control.h
-  hwy/compiler_specific.h
-  hwy/foreach_target.h
-  hwy/include_headers.h
-  hwy/runtime_dispatch.cc
-  hwy/runtime_dispatch.h
-  hwy/runtime_targets.h
-  hwy/scalar.h
-  hwy/shared.h
-  hwy/static_targets.h
-  hwy/targets.h
-  hwy/tests/test_target_util.h
-  hwy/tests/test_util.h
-  hwy/type_traits.h
-  hwy/x86/avx2.h
-  hwy/x86/avx512.h
-  hwy/x86/sse4.h
-  hwy/wasm.h
+    hwy/aligned_allocator.cc
+    hwy/aligned_allocator.h
+    hwy/base.h
+    hwy/cache_control.h
+    hwy/foreach_target.h
+    hwy/highway.h
+    hwy/nanobenchmark.cc
+    hwy/nanobenchmark.h
+    hwy/ops/arm_neon-inl.h
+    hwy/ops/scalar-inl.h
+    hwy/ops/shared-inl.h
+    hwy/ops/wasm_128-inl.h
+    hwy/ops/x86_128-inl.h
+    hwy/ops/x86_256-inl.h
+    hwy/ops/x86_512-inl.h
+    hwy/targets.cc
+    hwy/targets.h
+    hwy/tests/test_util-inl.h
 )
 
 set(HWY_FLAGS
@@ -99,7 +111,7 @@ if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     -fno-vectorize
 
     # Use color in messages
-    -Xclang -fdiagnostics-show-option -fcolor-diagnostics
+    -fdiagnostics-show-option -fcolor-diagnostics
   )
 endif()
 
@@ -128,28 +140,94 @@ else()
   )
 endif()
 
-if(HWY_USE_GTEST)
-  list(APPEND HWY_FLAGS -DHWY_USE_GTEST)
-endif()
-
-if(HWY_EMSCRIPTEN)
-  list(APPEND HWY_FLAGS -s SIMD=1)
-endif()
-
 add_library(hwy STATIC ${HWY_SOURCES})
-
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
+set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
-if(HWY_EMSCRIPTEN)
-  target_link_libraries(hwy PUBLIC "-s SIMD=1")
-endif()
+# -------------------------------------------------------- install library
+install(TARGETS hwy
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+# Install all the headers keeping the relative path to the current directory
+# when installing them.
+foreach (source ${HWY_SOURCES})
+  if ("${source}" MATCHES "\.h$")
+    get_filename_component(dirname "${source}" DIRECTORY)
+    install(FILES "${source}"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${dirname}")
+  endif()
+endforeach()
+
+# Add a pkg-config file for libhwy and the test library.
+set(HWY_LIBRARY_VERSION "${CMAKE_PROJECT_VERSION}")
+foreach (pc libhwy.pc libhwy-test.pc)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${pc}.in" "${pc}" @ONLY)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${pc}"
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+endforeach()
+
+# -------------------------------------------------------- hwy_list_targets
+# Generate a tool to print the compiled-in targets as defined by the current
+# flags. This tool will print to stderr at build time, after building hwy.
+add_executable(hwy_list_targets hwy/tests/list_targets.cc)
+target_compile_options(hwy_list_targets PRIVATE ${HWY_FLAGS})
+target_include_directories(hwy_list_targets PRIVATE
+  $<TARGET_PROPERTY:hwy,INCLUDE_DIRECTORIES>)
+# TARGET_FILE always returns the path to executable
+# Naked target also not always could be run (due to the lack of '.\' prefix)
+# Thus effective command to run should contain the full path
+# and emulator prefix (if any).
+add_custom_command(TARGET hwy POST_BUILD
+    COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:hwy_list_targets> || (exit 0))
+
+# -------------------------------------------------------- Examples
+
+# Avoids mismatch between GTest's static CRT and our dynamic.
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+add_executable(skeleton hwy/examples/skeleton_main.cc)
+target_sources(skeleton PRIVATE
+    hwy/examples/skeleton-inl.h
+    hwy/examples/skeleton.cc
+    hwy/examples/skeleton.h
+    hwy/examples/skeleton_shared.h)
+# Try adding either -DHWY_COMPILE_ONLY_SCALAR or -DHWY_COMPILE_ONLY_STATIC to
+# observe the difference in targets printed.
+target_compile_options(skeleton PRIVATE ${HWY_FLAGS})
+target_link_libraries(skeleton hwy)
+set_target_properties(skeleton
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Similar: shared headers but without the runtime dispatch in skeleton.cc/h
+add_executable(skeleton_static hwy/examples/skeleton_static_main.cc)
+target_sources(skeleton_static PRIVATE
+    hwy/examples/skeleton-inl.h
+    hwy/examples/skeleton_shared.h)
+target_compile_options(skeleton_static PRIVATE ${HWY_FLAGS})
+target_link_libraries(skeleton_static hwy)
+set_target_properties(skeleton_static
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Programming exercise with integrated benchmark
+add_executable(hwy_benchmark hwy/examples/benchmark.cc)
+target_sources(hwy_benchmark PRIVATE
+    hwy/nanobenchmark.cc
+    hwy/nanobenchmark.h)
+target_compile_options(hwy_benchmark PRIVATE ${HWY_FLAGS})
+target_link_libraries(hwy_benchmark hwy)
+set_target_properties(hwy_benchmark
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
 # -------------------------------------------------------- Tests
 
-enable_testing()
+include(CTest)
+
+if(BUILD_TESTING)
+
+find_package(GTest REQUIRED)
 
 set(HWY_TEST_FILES
+  hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc
@@ -157,6 +235,8 @@ set(HWY_TEST_FILES
   hwy/tests/logical_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/swizzle_test.cc
+  hwy/aligned_allocator_test.cc
+  hwy/targets_test.cc
 )
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
@@ -166,17 +246,22 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   add_executable(${TESTNAME} ${TESTFILE})
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS})
 
-  target_link_libraries(${TESTNAME} hwy)
+  target_link_libraries(${TESTNAME} hwy GTest::GTest GTest::Main)
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
 
-  if(HWY_USE_GTEST)
-    target_link_libraries(${TESTNAME} gtest gtest_main)
+  if (HWY_EMSCRIPTEN)
+    set_target_properties(${TESTNAME} PROPERTIES LINK_FLAGS "-s SINGLE_FILE=1")
   endif()
 
-  # gtest_discover_tests requires CMake 3.10 and compiling with gtest.
-  # gtest_add_tests runs cmake every time a test file changes and requires
-  # find_package(GTest) or include(GoogleTest). We know there is only a
-  # single test case (due to runtime dispatch), so add manually.
-  add_test(NAME ${TESTNAME} COMMAND ${TESTNAME})
+  if(${CMAKE_VERSION} VERSION_LESS "3.10.3")
+    gtest_discover_tests(${TESTNAME} TIMEOUT 60)
+  else ()
+    gtest_discover_tests(${TESTNAME} DISCOVERY_TIMEOUT 60)
+  endif ()
 endforeach ()
+
+# The skeleton test uses the skeleton library code.
+target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
+
+endif() # BUILD_TESTING
