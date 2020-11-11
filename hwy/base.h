@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_BASE_H_
-#define HWY_BASE_H_
+#ifndef HIGHWAY_HWY_BASE_H_
+#define HIGHWAY_HWY_BASE_H_
 
 // For SIMD module implementations and their callers, target-independent.
 
@@ -315,4 +315,4 @@ Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
 
 }  // namespace hwy
 
-#endif  // HWY_BASE_H_
+#endif  // HIGHWAY_HWY_BASE_H_

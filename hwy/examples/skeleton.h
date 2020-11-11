@@ -15,8 +15,8 @@
 // Demo interface to target-specific code in skeleton.cc
 
 // Normal header with include guard and namespace.
-#ifndef HWY_EXAMPLES_SKELETON_H_
-#define HWY_EXAMPLES_SKELETON_H_
+#ifndef HIGHWAY_HWY_EXAMPLES_SKELETON_H_
+#define HIGHWAY_HWY_EXAMPLES_SKELETON_H_
 
 // Tiny subset of Highway API: essentials for declaring an interface, without
 // any implementation details.
@@ -30,4 +30,4 @@ void Skeleton(const float* HWY_RESTRICT in1, const float* HWY_RESTRICT in2,
 
 }  // namespace skeleton
 
-#endif  // HWY_EXAMPLES_SKELETON_H_
+#endif  // HIGHWAY_HWY_EXAMPLES_SKELETON_H_

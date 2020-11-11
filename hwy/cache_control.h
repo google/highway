@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_CACHE_CONTROL_H_
-#define HWY_CACHE_CONTROL_H_
+#ifndef HIGHWAY_HWY_CACHE_CONTROL_H_
+#define HIGHWAY_HWY_CACHE_CONTROL_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -83,4 +83,4 @@ HWY_INLINE HWY_ATTR_CACHE void FlushCacheline(const void* p) {
 
 }  // namespace hwy
 
-#endif  // HWY_CACHE_CONTROL_H_
+#endif  // HIGHWAY_HWY_CACHE_CONTROL_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_EXAMPLES_SKELETON_SHARED_H_
-#define HWY_EXAMPLES_SKELETON_SHARED_H_
+#ifndef HIGHWAY_HWY_EXAMPLES_SKELETON_SHARED_H_
+#define HIGHWAY_HWY_EXAMPLES_SKELETON_SHARED_H_
 
 // Definitions shared between SIMD implementation and normal code. Such a
 // header is optional and can be omitted if the SIMD implementation is
@@ -25,4 +25,4 @@ constexpr float kMultiplier = 1.5f;
 
 }  // namespace skeleton
 
-#endif  // HWY_EXAMPLES_SKELETON_SHARED_H_
+#endif  // HIGHWAY_HWY_EXAMPLES_SKELETON_SHARED_H_

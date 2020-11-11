@@ -19,11 +19,11 @@
 // calling through function pointers.
 
 // Include guard (still compiled once per target)
-#if defined(HWY_EXAMPLES_SKELETON_INL_H_) == defined(HWY_TARGET_TOGGLE)
-#ifdef HWY_EXAMPLES_SKELETON_INL_H_
-#undef HWY_EXAMPLES_SKELETON_INL_H_
+#if defined(HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#ifdef HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_
+#undef HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_
 #else
-#define HWY_EXAMPLES_SKELETON_INL_H_
+#define HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_
 #endif
 
 // It is fine to #include normal or *-inl headers.

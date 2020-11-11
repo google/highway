@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_TARGETS_H_
-#define HWY_TARGETS_H_
+#ifndef HIGHWAY_HWY_TARGETS_H_
+#define HIGHWAY_HWY_TARGETS_H_
 
 #include <vector>
 
@@ -457,4 +457,4 @@ extern ChosenTarget chosen_target;
 
 }  // namespace hwy
 
-#endif  // HWY_TARGETS_H_
+#endif  // HIGHWAY_HWY_TARGETS_H_

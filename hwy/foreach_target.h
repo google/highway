@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_FOREACH_TARGET_H_
-#define HWY_FOREACH_TARGET_H_
+#ifndef HIGHWAY_HWY_FOREACH_TARGET_H_
+#define HIGHWAY_HWY_FOREACH_TARGET_H_
 
 // Re-includes the translation unit zero or more times to compile for any
 // targets except HWY_STATIC_TARGET. Defines unique HWY_TARGET each time so that
@@ -158,4 +158,4 @@
 #endif
 #endif
 
-#endif  // HWY_FOREACH_TARGET_H_
+#endif  // HIGHWAY_HWY_FOREACH_TARGET_H_

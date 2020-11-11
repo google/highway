@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_ALIGNED_ALLOCATOR_H_
-#define HWY_ALIGNED_ALLOCATOR_H_
+#ifndef HIGHWAY_HWY_ALIGNED_ALLOCATOR_H_
+#define HIGHWAY_HWY_ALIGNED_ALLOCATOR_H_
 
 // Memory allocator with support for alignment and offsets.
 
@@ -176,4 +176,4 @@ AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items) {
 }
 
 }  // namespace hwy
-#endif  // HWY_ALIGNED_ALLOCATOR_H_
+#endif  // HIGHWAY_HWY_ALIGNED_ALLOCATOR_H_

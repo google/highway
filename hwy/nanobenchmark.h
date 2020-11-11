@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef HWY_NANOBENCHMARK_H_
-#define HWY_NANOBENCHMARK_H_
+#ifndef HIGHWAY_HWY_NANOBENCHMARK_H_
+#define HIGHWAY_HWY_NANOBENCHMARK_H_
 
 // Benchmarks functions of a single integer argument with realistic branch
 // prediction hit rates. Uses a robust estimator to summarize the measurements.
@@ -179,4 +179,4 @@ static inline size_t MeasureClosure(const Closure& closure,
 
 }  // namespace hwy
 
-#endif  // HWY_NANOBENCHMARK_H_
+#endif  // HIGHWAY_HWY_NANOBENCHMARK_H_

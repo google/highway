@@ -1,0 +1,9 @@
+Another C++ library for portable SIMD exists: third_party/dimsum.
+It follows a different design philosophy, see the discussion in
+http://go/simd-api-comments.
+
+To the best of our knowledge, Dimsum has not been under active development since
+2018-07.
+
+third_party/highway is under continuous development since 2017 (originally in
+third_party pik/simd).

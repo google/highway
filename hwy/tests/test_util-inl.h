@@ -263,11 +263,11 @@ inline bool StringsEqual(const char* s1, const char* s2) {
 #endif  // HWY_TESTS_TEST_UTIL_H_
 
 // Per-target include guard
-#if defined(HWY_TESTS_TEST_UTIL_INL_H_) == defined(HWY_TARGET_TOGGLE)
-#ifdef HWY_TESTS_TEST_UTIL_INL_H_
-#undef HWY_TESTS_TEST_UTIL_INL_H_
+#if defined(HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#ifdef HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
+#undef HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
 #else
-#define HWY_TESTS_TEST_UTIL_INL_H_
+#define HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
 #endif
 
 HWY_BEFORE_NAMESPACE();
