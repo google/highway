@@ -62,6 +62,7 @@ set(HWY_SOURCES
     hwy/nanobenchmark.h
     hwy/ops/arm_neon-inl.h
     hwy/ops/scalar-inl.h
+    hwy/ops/set_macros-inl.h
     hwy/ops/shared-inl.h
     hwy/ops/wasm_128-inl.h
     hwy/ops/x86_128-inl.h
