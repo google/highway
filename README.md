@@ -45,7 +45,7 @@ by another baseline target
 
 You can use the `skeleton` examples inside examples/ as a starting point.
 
-A [quick-reference page](quick_reference.md) briefly lists all operations
+A [quick-reference page](g3doc/quick_reference.md) briefly lists all operations
 and their parameters, and the [instruction_matrix][instmtx] indicates the
 number of instructions per operation.
 
@@ -62,7 +62,7 @@ additionally either prefixed with `HWY_ATTR`, or residing between
 
 *   For static dispatch, `HWY_TARGET` will be the best available target among
     `HWY_BASELINE_TARGETS`, i.e. those allowed for use by the compiler (see
-    [quick-reference](quick_reference.md)). Functions inside `HWY_NAMESPACE`
+    [quick-reference](g3doc/quick_reference.md)). Functions inside `HWY_NAMESPACE`
     can be called using `HWY_STATIC_DISPATCH(func)(args)` within the same module
     they are defined in. You can call the function from other modules by
     wrapping it in a regular function and declaring the regular function in a
@@ -72,7 +72,7 @@ additionally either prefixed with `HWY_ATTR`, or residing between
     `HWY_EXPORT` macro that is used by `HWY_DYNAMIC_DISPATCH(func)(args)` to
     call the best function pointer for the current CPU supported targets. A
     module is automatically compiled for each target in `HWY_TARGETS` (see
-    [quick-reference](quick_reference.md)) if `HWY_TARGET_INCLUDE` is defined
+    [quick-reference](g3doc/quick_reference.md)) if `HWY_TARGET_INCLUDE` is defined
     and foreach_target.h is included.
 
 ## Design philosophy
