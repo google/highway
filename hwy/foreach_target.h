@@ -19,19 +19,7 @@
 // targets except HWY_STATIC_TARGET. Defines unique HWY_TARGET each time so that
 // highway.h defines the corresponding macro/namespace.
 
-#ifdef HWY_HIGHWAY_H_
-#error "Must include foreach_target.h before highway.h."
-#endif
-
 #include "hwy/targets.h"
-
-// Avoid warnings on #include HWY_TARGET_INCLUDE by hiding them from the IDE;
-// also skip if only 1 target defined (no re-inclusion will be necessary).
-#if !HWY_IDE && (HWY_TARGETS != HWY_STATIC_TARGET)
-
-#if !defined(HWY_TARGET_INCLUDE)
-#error ">1 target enabled => define HWY_TARGET_INCLUDE before foreach_target.h"
-#endif
 
 // *_inl.h may include other headers, which requires include guards to prevent
 // repeated inclusion. The guards must be reset after compiling each target, so
@@ -40,6 +28,28 @@
 // so that IDEs don't gray out the contents of each header.
 #ifdef HWY_TARGET_TOGGLE
 #error "This macro must not be defined outside foreach_target.h"
+#endif
+
+#ifdef HWY_HIGHWAY_INCLUDED  // highway.h include guard
+// Trigger fixup at the bottom of this header.
+#define HWY_ALREADY_INCLUDED
+
+// The next highway.h must re-include set_macros-inl.h because the first
+// highway.h chose the static target instead of what we will set below.
+#undef HWY_SET_MACROS_PER_TARGET
+#endif
+
+// Disable HWY_EXPORT in user code until we have generated all targets. Note
+// that a subsequent highway.h will not override this definition.
+#undef HWY_ONCE
+#define HWY_ONCE (0 || HWY_IDE)
+
+// Avoid warnings on #include HWY_TARGET_INCLUDE by hiding them from the IDE;
+// also skip if only 1 target defined (no re-inclusion will be necessary).
+#if !HWY_IDE && (HWY_TARGETS != HWY_STATIC_TARGET)
+
+#if !defined(HWY_TARGET_INCLUDE)
+#error ">1 target enabled => define HWY_TARGET_INCLUDE before foreach_target.h"
 #endif
 
 #if (HWY_TARGETS & HWY_SCALAR) && (HWY_STATIC_TARGET != HWY_SCALAR)
@@ -121,12 +131,31 @@
 
 #endif  // !HWY_IDE && (HWY_TARGETS != HWY_STATIC_TARGET)
 
+// Now that all but the static target have been generated, re-enable HWY_EXPORT.
+#undef HWY_ONCE
+#define HWY_ONCE 1
+
 // If we re-include once per enabled target, the translation unit's
 // implementation would have to be skipped via #if to avoid redefining symbols.
 // We instead skip the re-include for HWY_STATIC_TARGET, and generate its
-// implementation when resuming compilation of the translation unit. Reverting
-// to the initial value of HWY_TARGET also causes HWY_ONCE to expand to 1.
+// implementation when resuming compilation of the translation unit.
 #undef HWY_TARGET
 #define HWY_TARGET HWY_STATIC_TARGET
+
+#ifdef HWY_ALREADY_INCLUDED
+// Revert the previous toggle to prevent redefinitions for the static target.
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+
+// Force re-inclusion of set_macros-inl.h now that HWY_TARGET is restored.
+#ifdef HWY_SET_MACROS_PER_TARGET
+#undef HWY_SET_MACROS_PER_TARGET
+#else
+#define HWY_SET_MACROS_PER_TARGET
+#endif
+#endif
 
 #endif  // HWY_FOREACH_TARGET_H_

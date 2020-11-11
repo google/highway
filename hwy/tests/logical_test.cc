@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
+#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"
 #include "hwy/foreach_target.h"
@@ -63,6 +65,10 @@ struct TestLogicalT {
   }
 };
 
+HWY_NOINLINE void TestAllLogicalT() {
+  ForIntegerTypes(ForPartialVectors<TestLogicalT>());
+}
+
 struct TestLogicalFloat {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -102,6 +108,10 @@ struct TestLogicalFloat {
     HWY_ASSERT_VEC_EQ(d, v0, v);
   }
 };
+
+HWY_NOINLINE void TestAllLogicalFloat() {
+  ForFloatTypes(ForPartialVectors<TestLogicalFloat>());
+}
 
 // Vec <-> Mask, IfThen*
 struct TestIfThenElse {
@@ -144,6 +154,10 @@ struct TestIfThenElse {
   }
 };
 
+HWY_NOINLINE void TestAllIfThenElse() {
+  ForAllTypes(ForPartialVectors<TestIfThenElse>());
+}
+
 struct TestTestBit {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -169,6 +183,10 @@ struct TestTestBit {
     }
   }
 };
+
+HWY_NOINLINE void TestAllTestBit() {
+  ForIntegerTypes(ForFullVectors<TestTestBit>());
+}
 
 struct TestAllTrueFalse {
   template <class T, class D>
@@ -212,6 +230,10 @@ struct TestAllTrueFalse {
   }
 };
 
+HWY_NOINLINE void TestAllAllTrueFalse() {
+  ForAllTypes(ForFullVectors<TestAllTrueFalse>());
+}
+
 class TestBitsFromMask {
  public:
   template <class T, class D>
@@ -253,6 +275,10 @@ class TestBitsFromMask {
   }
 };
 
+HWY_NOINLINE void TestAllBitsFromMask() {
+  ForAllTypes(ForFullVectors<TestBitsFromMask>());
+}
+
 struct TestCountTrue {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -281,28 +307,6 @@ struct TestCountTrue {
   }
 };
 
-HWY_NOINLINE void TestAllLogicalT() {
-  ForIntegerTypes(ForPartialVectors<TestLogicalT>());
-}
-
-HWY_NOINLINE void TestAllLogicalFloat() {
-  ForFloatTypes(ForPartialVectors<TestLogicalFloat>());
-}
-
-HWY_NOINLINE void TestAllIfThenElse() {
-  ForAllTypes(ForPartialVectors<TestIfThenElse>());
-}
-
-// These only make sense for full vectors.
-HWY_NOINLINE void TestAllTestBit() {
-  ForIntegerTypes(ForFullVectors<TestTestBit>());
-}
-HWY_NOINLINE void TestAllAllTrueFalse() {
-  ForAllTypes(ForFullVectors<TestAllTrueFalse>());
-}
-HWY_NOINLINE void TestAllBitsFromMask() {
-  ForAllTypes(ForFullVectors<TestBitsFromMask>());
-}
 HWY_NOINLINE void TestAllCountTrue() {
   ForAllTypes(ForFullVectors<TestCountTrue>());
 }

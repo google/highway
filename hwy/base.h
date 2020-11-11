@@ -24,7 +24,7 @@
 
 // Add to #if conditions to prevent IDE from graying out code.
 #if (defined __CDT_PARSER__) || (defined __INTELLISENSE__) || \
-    (defined Q_CREATOR_RUN)
+    (defined Q_CREATOR_RUN) || (defined(__CLANGD__))
 #define HWY_IDE 1
 #else
 #define HWY_IDE 0
@@ -220,15 +220,21 @@
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
 
-// Only for "debug" builds (test_util-inl has always-on HWY_ASSERT for tests)
+#define HWY_ABORT(format, ...) \
+  ::hwy::Abort(__FILE__, __LINE__, format, ##__VA_ARGS__)
+
+// Always enabled.
+#define HWY_ASSERT(condition)             \
+  do {                                    \
+    if (!(condition)) {                   \
+      HWY_ABORT("Assert %s", #condition); \
+    }                                     \
+  } while (0)
+
+// Only for "debug" builds
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER) || \
     defined(MEMORY_SANITIZER) || defined(THREAD_SANITIZER)
-#define HWY_DASSERT(condition)                                         \
-  do {                                                                 \
-    if (!(condition)) {                                                \
-      ::hwy::Abort(__FILE__, __LINE__, "Debug Assert %s", #condition); \
-    }                                                                  \
-  } while (0)
+#define HWY_DASSERT(condition) HWY_ASSERT(condition)
 #else
 #define HWY_DASSERT(condition) \
   do {                         \
@@ -238,6 +244,9 @@
 //------------------------------------------------------------------------------
 
 namespace hwy {
+
+// See also HWY_ALIGNMENT - aligned_allocator aligns to the larger of that and
+// the vector size, whose upper bound is specified here.
 
 #if HWY_ARCH_X86
 static constexpr size_t kMaxVectorSize = 64;  // AVX-512
@@ -281,6 +290,16 @@ struct EnableIfT<true, T> {
 
 template <bool Condition, class T = void>
 using EnableIf = typename EnableIfT<Condition, T>::type;
+
+template <typename T1, typename T2>
+constexpr inline T1 DivCeil(T1 a, T2 b) {
+  return (a + b - 1) / b;
+}
+
+// Works for any `align`; if a power of two, compiler emits ADD+AND.
+constexpr inline size_t RoundUpTo(size_t what, size_t align) {
+  return DivCeil(what, align) * align;
+}
 
 // Undefined results for x == 0.
 static HWY_INLINE HWY_MAYBE_UNUSED size_t

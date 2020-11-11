@@ -1931,6 +1931,10 @@ HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<float> v) {
   return Vec512<double>{_mm512_cvtps_pd(v.raw)};
 }
 
+HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<int32_t> v) {
+  return Vec512<double>{_mm512_cvtepi32_pd(v.raw)};
+}
+
 // Unsigned: zero-extend.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then Zip* would be faster.
@@ -2025,9 +2029,8 @@ HWY_API Vec128<uint8_t, 16> DemoteTo(Full128<uint8_t> /* tag */,
   const Vec512<uint16_t> u16{_mm512_packus_epi32(v.raw, v.raw)};
   const Vec512<uint8_t> u8{_mm512_packus_epi16(u16.raw, u16.raw)};
 
-  alignas(64) static constexpr uint32_t kLanes[16] = {0, 4, 8, 12, 0, 4, 8, 12,
-                                                      0, 4, 8, 12, 0, 4, 8, 12};
-  const auto idx32 = Load(Full512<uint32_t>(), kLanes);
+  alignas(16) static constexpr uint32_t kLanes[4] = {0, 4, 8, 12};
+  const auto idx32 = LoadDup128(Full512<uint32_t>(), kLanes);
   const Vec512<uint8_t> fixed{_mm512_permutexvar_epi32(idx32.raw, u8.raw)};
   return LowerHalf(LowerHalf(fixed));
 }
@@ -2048,9 +2051,9 @@ HWY_API Vec128<int8_t, 16> DemoteTo(Full128<int8_t> /* tag */,
   const Vec512<int16_t> i16{_mm512_packs_epi32(v.raw, v.raw)};
   const Vec512<int8_t> i8{_mm512_packs_epi16(i16.raw, i16.raw)};
 
-  alignas(64) static constexpr uint32_t kLanes[16] = {0, 4, 8, 12, 0, 4, 8, 12,
+  alignas(16) static constexpr uint32_t kLanes[16] = {0, 4, 8, 12, 0, 4, 8, 12,
                                                       0, 4, 8, 12, 0, 4, 8, 12};
-  const auto idx32 = Load(Full512<uint32_t>(), kLanes);
+  const auto idx32 = LoadDup128(Full512<uint32_t>(), kLanes);
   const Vec512<int8_t> fixed{_mm512_permutexvar_epi32(idx32.raw, i8.raw)};
   return LowerHalf(LowerHalf(fixed));
 }
@@ -2071,19 +2074,23 @@ HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,
   return Vec256<float>{_mm512_cvtpd_ps(v.raw)};
 }
 
+HWY_API Vec256<int32_t> DemoteTo(Full256<int32_t> /* tag */,
+                                 const Vec512<double> v) {
+  return Vec256<int32_t>{_mm512_cvttpd_epi32(v.raw)};
+}
+
 // For already range-limited input [0, 255].
 HWY_API Vec128<uint8_t, 16> U8FromU32(const Vec512<uint32_t> v) {
   const Full512<uint32_t> d32;
   // In each 128 bit block, gather the lower byte of 4 uint32_t lanes into the
   // lowest 4 bytes.
-  alignas(64) static constexpr uint32_t k8From32[4] = {0x0C080400u, ~0u, ~0u,
+  alignas(16) static constexpr uint32_t k8From32[4] = {0x0C080400u, ~0u, ~0u,
                                                        ~0u};
   const auto quads = TableLookupBytes(v, LoadDup128(d32, k8From32));
   // Gather the lowest 4 bytes of 4 128-bit blocks.
-  alignas(64) static constexpr uint32_t kIndex32[16] = {
-      0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12};
+  alignas(16) static constexpr uint32_t kIndex32[4] = {0, 4, 8, 12};
   const Vec512<uint8_t> bytes{
-      _mm512_permutexvar_epi32(Load(d32, kIndex32).raw, quads.raw)};
+      _mm512_permutexvar_epi32(LoadDup128(d32, kIndex32).raw, quads.raw)};
   return LowerHalf(LowerHalf(bytes));
 }
 

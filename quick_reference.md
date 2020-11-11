@@ -12,22 +12,24 @@ not require any setup nor per-call overhead.
 
 Dynamic dispatch means generating implementations for multiple targets and
 choosing the best available at runtime. Uses the same source code as static,
-plus `#define HWY_TARGET_INCLUDE` and `#include "third_party/highway/hwy/foreach_target.h"`.
+plus `#define HWY_TARGET_INCLUDE` and `#include
+"third_party/highway/hwy/foreach_target.h"`.
 
 ## Headers
 
 The public headers are:
 
-*   hwy/base.h: used internally, and potentially also useful for applications
-    that want to use its compiler/platform-dependent functionality, typically
-   `HWY_ALIGN_MAX` and/or `kMaxVectorSize`.
+*   hwy/highway.h: main header, included from source AND/OR header files that
+    use vector types. Note that including in headers may increase compile time,
+    but allows declaring functions implemented out of line.
+
+*   hwy/base.h: included from headers that only need compiler/platform-dependent
+    definitions (e.g. `HWY_ALIGN_MAX` and/or `kMaxVectorSize`) without the full
+    highway.h.
 
 *   hwy/foreach_target.h: re-includes the translation unit (specified by
-    `HWY_TARGET_INCLUDE`) once per enabled target to generate code from the
-    same source code. Only needed if dynamic dispatch is desired.
-
-*   hwy/highway.h: main header, included from all translation units that
-    implement SIMD functionality inside `HWY_NAMESPACE`.
+    `HWY_TARGET_INCLUDE`) once per enabled target to generate code from the same
+    source code. highway.h must still be included, either before or after.
 
 *   hwy/aligned_allocator.h: defines functions for allocating memory with
     alignment suitable for `Load`/`Store`.
@@ -236,8 +238,8 @@ bits. ARM requires the count be less than the lane size.
     compile-time constant count.
 
 *   `V`: `u16/32/64`, `i16/32` \
-    <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >>` a compile-time
-    constant count. Inserts zero or sign bit(s) depending on `V`.
+    <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >>` a
+    compile-time constant count. Inserts zero or sign bit(s) depending on `V`.
 
 **Note**: Vectors must be `HWY_CAPPED(T, HWY_VARIABLE_SHIFT_LANES(T))`:
 
@@ -356,13 +358,13 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 
 #### Load
 
-*   <code>VT&lt;D&gt; **Load**(D, const T* aligned)</code>: returns
+*   <code>Vec&lt;D&gt; **Load**(D, const T* aligned)</code>: returns
     `aligned[i]`.
-*   <code>VT&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
+*   <code>Vec&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
 
-*   <code>VT&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one
-    128-bit block loaded from `p` and broadcasted into all 128-bit block\[s\].
-    This enables a specialized `U32FromU8` that avoids a 3-cycle overhead on
+*   <code>Vec&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one 128-bit
+    block loaded from `p` and broadcasted into all 128-bit block\[s\]. This
+    enables a specialized `U32FromU8` that avoids a 3-cycle overhead on
     AVX2/AVX-512. This may be faster than broadcasting single values, and is
     more convenient than preparing constants for the maximum vector length.
 
@@ -371,28 +373,28 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 **Note**: Vectors must be `HWY_CAPPED(T, HWY_GATHER_LANES(T))`:
 
 *   `V`,`VI`: (`uif32,i32`), (`uif64,i64`) \
-    <code>VT&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>.
+    <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>.
     Returns elements of base selected by signed/possibly repeated *byte*
     `offsets[i]`.
 
 *   `V`,`VI`: (`uif32,i32`), (`uif64,i64`) \
-    <code>VT&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>.
+    <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>.
     Returns vector of `base[indices[i]]`. Indices are signed and need not be
     unique.
 
 #### Store
 
-*   <code>void **Store**(VT&lt;D&gt; a, D, T* aligned)</code>: copies `a[i]`
-    into `aligned[i]`, which must be naturally aligned. Writes exactly
-    N * sizeof(T) bytes.
-*   <code>void **StoreU**(VT&lt;D&gt; a, D, T* p)</code>: as Store, but
-    without the alignment requirement.
+*   <code>void **Store**(Vec&lt;D&gt; a, D, T* aligned)</code>: copies `a[i]`
+    into `aligned[i]`, which must be naturally aligned. Writes exactly N *
+    sizeof(T) bytes.
+*   <code>void **StoreU**(Vec&lt;D&gt; a, D, T* p)</code>: as Store, but without
+    the alignment requirement.
 
 ### Cache control
 
 All functions except Stream are defined in cache_control.h.
 
-*   <code>void **Stream**(VT&lt;D&gt; a, D, const T* aligned)</code>: copies
+*   <code>void **Stream**(Vec&lt;D&gt; a, D, const T* aligned)</code>: copies
     `a[i]` into `aligned[i]` with non-temporal hint on x86 (for good
     performance, call for all consecutive vectors within the same cache line).
     (Over)writes a multiple of HWY_STREAM_MULTIPLE bytes.
@@ -411,33 +413,41 @@ All functions except Stream are defined in cache_control.h.
 
 ### Type conversion
 
-*   <code>VT&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
+*   <code>Vec&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
     reinterpreted as type `Vec<D>`.
 
 *   `V`,`D`: (`u8,i16`), (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`),
     (`i16,i32`), (`f32,f64`) \
-    <code>VT&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
-    zero- or sign-extended to the wider `D::T` type.
+    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
+    or sign-extended to the wider `D::T` type.
+
+*   `V`,`D`: `i32,f64` \
+    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
+    converted to 64-bit floating point.
 
 *   `V`,`D`: (`u8,u32`) \
-    <code>VT&lt;D&gt; **U32FromU8**(V)</code>: special-case `u8` to `u32` conversion
-    when all blocks of `V` are identical, e.g. from `LoadDup128`.
+    <code>Vec&lt;D&gt; **U32FromU8**(V)</code>: special-case `u8` to `u32`
+    conversion when all blocks of `V` are identical, e.g. from `LoadDup128`.
 
 *   `V`,`D`: (`u32,u8`) \
-    <code>VT&lt;D&gt; **U8FromU32**(V)</code>: special-case `u32` to `u8` conversion
-    when all lanes of `V` are already clamped to `[0, 256)`.
+    <code>Vec&lt;D&gt; **U8FromU32**(V)</code>: special-case `u32` to `u8`
+    conversion when all lanes of `V` are already clamped to `[0, 256)`.
 
 *   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i32,i16`), (`i16,u8`), (`i32,u8`),
     (`i32,u16`), (`f64,f32`) \
-    <code>VT&lt;D&gt; **DemoteTo**(D, V a)</code>: returns `a[i]` after packing
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: returns `a[i]` after packing
     with signed/unsigned saturation, i.e. a vector with narrower type `D::T`.
 
+*   `V`,`D`: `f64,i32` \
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: rounds floating point
+    towards zero and converts the value to 32-bit integers.
+
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
-    <code>VT&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
+    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
     same-sized floating point.
 
 *   `V`,`D`: (`f32`,`i32`), (`f64`,`i64`) \
-    <code>VT&lt;D&gt; **ConvertTo**(D, V)</code>: rounds floating point towards
+    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: rounds floating point towards
     zero and converts the value to same-sized integer.
 
 *   `V`: `f32`; `Ret`: `i32` \
@@ -468,17 +478,17 @@ their operands into independently processed 128-bit *blocks*.
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
 
 *   `Ret`: double-width `u/i`; `V`: `u8/16/32`, `i8/16/32` \
-    <code>Ret **ZipLower**(V a, V b)</code>: returns the same bits as InterleaveLower,
-    except that `Ret` is a vector with double-width lanes (required in order to
-    use this operation with `scalar`).
+    <code>Ret **ZipLower**(V a, V b)</code>: returns the same bits as
+    `InterleaveLower`, except that `Ret` is a vector with double-width lanes
+    (required in order to use this operation with scalars).
 
 **Note**: the following are only available for full vectors (`N` > 1), and split
 their operands into independently processed 128-bit *blocks*:
 
 *   `Ret`: double-width u/i; `V`: `u8/16/32`, `i8/16/32` \
-    <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as InterleaveUpper,
-    except that `Ret` is a vector with double-width lanes (required in order to
-    use this operation with `scalar`).
+    <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
+    `InterleaveUpper`, except that `Ret` is a vector with double-width lanes
+    (required in order to use this operation with scalars).
 
 *   `V`: `ui` \
     <code>V **ShiftLeftBytes**&lt;int&gt;(V)</code>: returns the result of
@@ -529,30 +539,30 @@ their operands into independently processed 128-bit *blocks*:
     <code>V **Shuffle0123**(V)</code>: returns *blocks* with lanes in reverse
     order.
 
-*   <code>V **InterleaveLower**(V a, V b)</code>: returns *blocks* with alternating
-    lanes from the lower halves of `a` and `b` (`a[0]` in the least-significant
-    lane).
+*   <code>V **InterleaveLower**(V a, V b)</code>: returns *blocks* with
+    alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
+    least-significant lane).
 
-*   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with alternating
-    lanes from the upper halves of `a` and `b` (`a[N/2]` in the
+*   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with
+    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
     least-significant lane).
 
 **Note**: the following operations cross block boundaries, which is typically
 more expensive on AVX2/AVX-512 than within-block operations.
 
-*   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation of the
-    lower halves of `hi` and `lo` without splitting into blocks.
+*   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation
+    of the lower halves of `hi` and `lo` without splitting into blocks.
 
-*   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation of the
-    upper halves of `hi` and `lo` without splitting into blocks.
+*   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation
+    of the upper halves of `hi` and `lo` without splitting into blocks.
 
-*   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of the
-    concatenation of `hi` and `lo` without splitting into blocks. Useful for
+*   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of
+    the concatenation of `hi` and `lo` without splitting into blocks. Useful for
     swapping the two blocks in 256-bit vectors.
 
-*   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters of the
-    concatenation of `hi` and `lo` without splitting into blocks. Unlike the
-    other variants, this does not incur a block-crossing penalty on AVX2.
+*   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters
+    of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
+    the other variants, this does not incur a block-crossing penalty on AVX2.
 
 *   `V`: `uif32` \
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of

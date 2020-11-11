@@ -1821,6 +1821,11 @@ HWY_API Vec256<double> PromoteTo(Full256<double> /* tag */,
   return Vec256<double>{_mm256_cvtps_pd(v.raw)};
 }
 
+HWY_API Vec256<double> PromoteTo(Full256<double> /* tag */,
+                                 const Vec128<int32_t, 4> v) {
+  return Vec256<double>{_mm256_cvtepi32_pd(v.raw)};
+}
+
 // Unsigned: zero-extend.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then Zip* would be faster.
@@ -1937,6 +1942,11 @@ HWY_API Vec128<int8_t> DemoteTo(Full128<int8_t> /* tag */,
 HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,
                                const Vec256<double> v) {
   return Vec128<float>{_mm256_cvtpd_ps(v.raw)};
+}
+
+HWY_API Vec128<int32_t> DemoteTo(Full128<int32_t> /* tag */,
+                                 const Vec256<double> v) {
+  return Vec128<int32_t>{_mm256_cvttpd_epi32(v.raw)};
 }
 
 // For already range-limited input [0, 255].

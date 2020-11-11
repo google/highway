@@ -27,9 +27,9 @@
 namespace hwy {
 namespace {
 
-constexpr size_t kAlignment = kMaxVectorSize;
+constexpr size_t kAlignment = HWY_MAX(HWY_ALIGNMENT, kMaxVectorSize);
 // On x86, aliasing can only occur at multiples of 2K, but that's too wasteful
-// if this is used for single-vector allocations. 64..256 is more reasonable.
+// if this is used for single-vector allocations. 256 is more reasonable.
 constexpr size_t kAlias = kAlignment * 4;
 
 #pragma pack(push, 1)
@@ -51,7 +51,8 @@ size_t NextAlignedOffset() {
 
 }  // namespace
 
-void* AllocateAlignedBytes(const size_t payload_size, AllocPtr alloc_ptr) {
+void* AllocateAlignedBytes(const size_t payload_size, AllocPtr alloc_ptr,
+                           void* opaque_ptr) {
   if (payload_size >= std::numeric_limits<size_t>::max() / 2) {
     HWY_DASSERT(false && "payload_size too large");
     return nullptr;
@@ -75,7 +76,7 @@ void* AllocateAlignedBytes(const size_t payload_size, AllocPtr alloc_ptr) {
   if (alloc_ptr == nullptr) {
     allocated = malloc(allocated_size);
   } else {
-    allocated = (*alloc_ptr)(allocated_size);
+    allocated = (*alloc_ptr)(opaque_ptr, allocated_size);
   }
   if (allocated == nullptr) return nullptr;
   // Always round up even if already aligned - we already asked for kAlias
@@ -96,7 +97,8 @@ void* AllocateAlignedBytes(const size_t payload_size, AllocPtr alloc_ptr) {
   return HWY_ASSUME_ALIGNED(reinterpret_cast<void*>(payload), kMaxVectorSize);
 }
 
-void FreeAlignedBytes(const void* aligned_pointer, FreePtr free_ptr) {
+void FreeAlignedBytes(const void* aligned_pointer, FreePtr free_ptr,
+                      void* opaque_ptr) {
   if (aligned_pointer == nullptr) return;
 
   const uintptr_t payload = reinterpret_cast<uintptr_t>(aligned_pointer);
@@ -107,12 +109,13 @@ void FreeAlignedBytes(const void* aligned_pointer, FreePtr free_ptr) {
   if (free_ptr == nullptr) {
     free(header->allocated);
   } else {
-    (*free_ptr)(header->allocated);
+    (*free_ptr)(opaque_ptr, header->allocated);
   }
 }
 
 // static
 void AlignedDeleter::DeleteAlignedArray(void* aligned_pointer, FreePtr free_ptr,
+                                        void* opaque_ptr,
                                         ArrayDeleter deleter) {
   if (aligned_pointer == nullptr) return;
 
@@ -128,7 +131,7 @@ void AlignedDeleter::DeleteAlignedArray(void* aligned_pointer, FreePtr free_ptr,
   if (free_ptr == nullptr) {
     free(header->allocated);
   } else {
-    (*free_ptr)(header->allocated);
+    (*free_ptr)(opaque_ptr, header->allocated);
   }
 }
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
+#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/arithmetic_test.cc"
 #include "hwy/foreach_target.h"
@@ -49,6 +51,10 @@ struct TestPlusMinus {
     HWY_ASSERT_VEC_EQ(d, v2, sum);
   }
 };
+
+HWY_NOINLINE void TestAllPlusMinus() {
+  ForAllTypes(ForPartialVectors<TestPlusMinus>());
+}
 
 struct TestUnsignedSaturatingArithmetic {
   template <typename T, class D>
@@ -94,7 +100,7 @@ struct TestSignedSaturatingArithmetic {
   }
 };
 
-HWY_NOINLINE void TestSaturatingArithmetic() {
+HWY_NOINLINE void TestAllSaturatingArithmetic() {
   const ForPartialVectors<TestUnsignedSaturatingArithmetic> test_unsigned;
   test_unsigned(uint8_t());
   test_unsigned(uint16_t());
@@ -104,9 +110,11 @@ HWY_NOINLINE void TestSaturatingArithmetic() {
   test_signed(int16_t());
 }
 
-struct TestAverageT {
+struct TestAverage {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+// Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v0 = Zero(d);
     const auto v1 = Set(d, T(1));
     const auto v2 = Set(d, T(2));
@@ -116,16 +124,19 @@ struct TestAverageT {
     HWY_ASSERT_VEC_EQ(d, v1, AverageRound(v1, v1));
     HWY_ASSERT_VEC_EQ(d, v2, AverageRound(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, AverageRound(v2, v2));
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-HWY_NOINLINE void TestAverage() {
-  const ForPartialVectors<TestAverageT> test;
+HWY_NOINLINE void TestAllAverage() {
+  const ForPartialVectors<TestAverage> test;
   test(uint8_t());
   test(uint16_t());
 }
 
-struct TestAbsT {
+struct TestAbs {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
@@ -142,7 +153,7 @@ struct TestAbsT {
   }
 };
 
-struct TestFloatAbsT {
+struct TestFloatAbs {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
@@ -159,13 +170,13 @@ struct TestFloatAbsT {
   }
 };
 
-HWY_NOINLINE void TestAbs() {
-  const ForPartialVectors<TestAbsT> test;
+HWY_NOINLINE void TestAllAbs() {
+  const ForPartialVectors<TestAbs> test;
   test(int8_t());
   test(int16_t());
   test(int32_t());
 
-  const ForPartialVectors<TestFloatAbsT> test_float;
+  const ForPartialVectors<TestFloatAbs> test_float;
   test_float(float());
 #if HWY_CAP_FLOAT64
   test_float(double());
@@ -175,6 +186,8 @@ HWY_NOINLINE void TestAbs() {
 struct TestUnsignedShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+// Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     constexpr int kSign = (sizeof(T) * 8) - 1;
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
@@ -213,12 +226,18 @@ struct TestUnsignedShifts {
 #if HWY_VARIABLE_SHIFT_LANES == 1 || HWY_IDE
     HWY_ASSERT_VEC_EQ(d, expected, ShiftLeftSame(vi, kSign));
 #endif
+
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
 struct TestSignedShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+// Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TU = MakeUnsigned<T>;
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
@@ -272,12 +291,18 @@ struct TestSignedShifts {
 #if HWY_VARIABLE_SHIFT_LANES == 1 || HWY_IDE
     HWY_ASSERT_VEC_EQ(d, expected, ShiftLeftSame(vn, 1));
 #endif
+
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
 struct TestUnsignedVarShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+// Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     constexpr int kSign = (sizeof(T) * 8) - 1;
     const auto v0 = Zero(d);
     const auto v1 = Set(d, 1);
@@ -311,12 +336,17 @@ struct TestUnsignedVarShifts {
       expected[i] = T(1) << i;
     }
     HWY_ASSERT_VEC_EQ(d, expected, v1 << vi);
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
 struct TestSignedVarLeftShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v1 = Set(d, 1);
     const auto vi = Iota(d, 0);
 
@@ -342,12 +372,17 @@ struct TestSignedVarLeftShifts {
       expected[i] = T(1) << i;
     }
     HWY_ASSERT_VEC_EQ(d, expected, v1 << vi);
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
 struct TestSignedVarRightShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
     const auto vmax = Set(d, LimitsMax<T>());
@@ -380,10 +415,13 @@ struct TestSignedVarRightShifts {
       expected[i] = LimitsMax<T>() >> i;
     }
     HWY_ASSERT_VEC_EQ(d, expected, vmax >> vi);
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-HWY_NOINLINE void TestShifts() {
+HWY_NOINLINE void TestAllShifts() {
   const ForPartialVectors<TestUnsignedShifts> test_unsigned;
   // No u8.
   test_unsigned(uint16_t());
@@ -456,6 +494,8 @@ struct TestSignedMinMax {
 struct TestFloatMinMax {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v1 = Iota(d, 1);
     const auto v2 = Iota(d, 2);
     const auto v_neg = Iota(d, -T(Lanes(d)));
@@ -463,10 +503,13 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v_neg, Min(v1, v_neg));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-HWY_NOINLINE void TestMinMax() {
+HWY_NOINLINE void TestAllMinMax() {
   const ForPartialVectors<TestUnsignedMinMax> test_unsigned;
   test_unsigned(uint8_t());
   test_unsigned(uint16_t());
@@ -547,7 +590,7 @@ struct TestSignedMul {
   }
 };
 
-HWY_NOINLINE void TestMul() {
+HWY_NOINLINE void TestAllMul() {
   const ForPartialVectors<TestUnsignedMul> test_unsigned;
   // No u8.
   test_unsigned(uint16_t());
@@ -562,9 +605,11 @@ HWY_NOINLINE void TestMul() {
 }
 
 template <typename Wide>
-struct TestMulHighT {
+struct TestMulHigh {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     HWY_ALIGN T in_lanes[MaxLanes(d)] = {};  // Initialized for static analysis.
     const size_t N = Lanes(d);
 
@@ -599,16 +644,19 @@ struct TestMulHighT {
     }
     HWY_ASSERT_VEC_EQ(d, expected_lanes, MulHigh(v, vni));
     HWY_ASSERT_VEC_EQ(d, expected_lanes, MulHigh(vni, v));
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-HWY_NOINLINE void TestMulHigh() {
-  ForPartialVectors<TestMulHighT<int32_t>>()(int16_t());
-  ForPartialVectors<TestMulHighT<uint32_t>>()(uint16_t());
+HWY_NOINLINE void TestAllMulHigh() {
+  ForPartialVectors<TestMulHigh<int32_t>>()(int16_t());
+  ForPartialVectors<TestMulHigh<uint32_t>>()(uint16_t());
 }
 
 template <typename Wide>
-struct TestMulEvenT {
+struct TestMulEven {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     if (Lanes(d) == 1) return;
@@ -631,9 +679,9 @@ struct TestMulEvenT {
   }
 };
 
-HWY_NOINLINE void TestMulEven() {
-  ForPartialVectors<TestMulEvenT<int64_t>>()(int32_t());
-  ForPartialVectors<TestMulEvenT<uint64_t>>()(uint32_t());
+HWY_NOINLINE void TestAllMulEven() {
+  ForPartialVectors<TestMulEven<int64_t>>()(int32_t());
+  ForPartialVectors<TestMulEven<uint64_t>>()(uint32_t());
 }
 
 struct TestMulAdd {
@@ -698,6 +746,10 @@ struct TestMulAdd {
   }
 };
 
+HWY_NOINLINE void TestAllMulAdd() {
+  ForFloatTypes(ForPartialVectors<TestMulAdd>());
+}
+
 struct TestSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -706,9 +758,15 @@ struct TestSquareRoot {
   }
 };
 
+HWY_NOINLINE void TestAllSquareRoot() {
+  ForFloatTypes(ForPartialVectors<TestSquareRoot>());
+}
+
 struct TestReciprocalSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v = Set(d, 123.0f);
     HWY_ALIGN float lanes[MaxLanes(d)];
     Store(ApproximateReciprocalSqrt(v), d, lanes);
@@ -717,12 +775,21 @@ struct TestReciprocalSquareRoot {
       if (err < 0.0f) err = -err;
       HWY_ASSERT(err < 1E-4f);
     }
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
+
+HWY_NOINLINE void TestAllReciprocalSquareRoot() {
+  ForPartialVectors<TestReciprocalSquareRoot>()(float());
+}
 
 struct TestRound {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     // Numbers close to 0
     {
       const auto v = Set(d, T(0.4));
@@ -820,13 +887,22 @@ struct TestRound {
       HWY_ASSERT_VEC_EQ(d, v2, Round(v));
       HWY_ASSERT_VEC_EQ(d, v2, Trunc(v));
     }
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-struct TestSumsOfU8T {
+HWY_NOINLINE void TestAllRound() {
+  ForFloatTypes(ForPartialVectors<TestRound>());
+}
+
+struct TestSumsOfU8 {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
+    // Avoid "Do not know how to split the result of this operator"
+#if (!defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3) && \
+    HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
     const HWY_CAPPED(uint8_t, MaxLanes(d) * sizeof(uint64_t)) du8;
     HWY_ALIGN uint8_t in_bytes[MaxLanes(du8)];
     uint64_t sums[MaxLanes(d)] = {0};
@@ -843,13 +919,13 @@ struct TestSumsOfU8T {
   }
 };
 
-HWY_NOINLINE void TestSumsOfU8() {
+HWY_NOINLINE void TestAllSumsOfU8() {
 #if HWY_CAP_INTEGER64
-  ForPartialVectors<TestSumsOfU8T>()(uint64_t());
+  ForPartialVectors<TestSumsOfU8>()(uint64_t());
 #endif
 }
 
-struct TestSumOfLanesT {
+struct TestSumOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     HWY_ALIGN T in_lanes[MaxLanes(d)];
@@ -864,9 +940,27 @@ struct TestSumOfLanesT {
   }
 };
 
-struct TestMinOfLanesT {
+HWY_NOINLINE void TestAllSumOfLanes() {
+  // Only full vectors because lanes in partial vectors are undefined.
+  const ForFullVectors<TestSumOfLanes> sum;
+
+  // No u8/u16/i8/i16.
+  sum(uint32_t());
+  sum(int32_t());
+
+#if HWY_CAP_INTEGER64
+  sum(uint64_t());
+  sum(int64_t());
+#endif
+
+  ForFloatTypes(sum);
+}
+
+struct TestMinOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     HWY_ALIGN T in_lanes[MaxLanes(d)];
     T min = LimitsMax<T>();
     for (size_t i = 0; i < Lanes(d); ++i) {
@@ -876,12 +970,17 @@ struct TestMinOfLanesT {
     const auto v = Load(d, in_lanes);
     const auto expected = Set(d, min);
     HWY_ASSERT_VEC_EQ(d, expected, MinOfLanes(v));
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-struct TestMaxOfLanesT {
+struct TestMaxOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     HWY_ALIGN T in_lanes[MaxLanes(d)];
     T max = LimitsMin<T>();
     for (size_t i = 0; i < Lanes(d); ++i) {
@@ -891,50 +990,35 @@ struct TestMaxOfLanesT {
     const auto v = Load(d, in_lanes);
     const auto expected = Set(d, max);
     HWY_ASSERT_VEC_EQ(d, expected, MaxOfLanes(v));
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
-HWY_NOINLINE void TestReductions() {
+HWY_NOINLINE void TestAllMinMaxOfLanes() {
   // Only full vectors because lanes in partial vectors are undefined.
-  const ForFullVectors<TestSumOfLanesT> sum;
-  const ForFullVectors<TestMinOfLanesT> min;
-  const ForFullVectors<TestMaxOfLanesT> max;
+  const ForFullVectors<TestMinOfLanes> min;
+  const ForFullVectors<TestMaxOfLanes> max;
 
-  // No u8/u16.
-  sum(uint32_t());
+  // No u8/u16/i8/i16.
   min(uint32_t());
   max(uint32_t());
-#if HWY_CAP_INTEGER64
-  sum(uint64_t());
-#if HWY_MINMAX64_LANES > 1
-  min(uint64_t());
-  max(uint64_t());
-#endif
-#endif
-
-  // No i8/i16.
-  sum(int32_t());
   min(int32_t());
   max(int32_t());
-#if HWY_CAP_INTEGER64
-  sum(int64_t());
-#if HWY_MINMAX64_LANES > 1
+
+#if HWY_CAP_INTEGER64 && HWY_MINMAX64_LANES > 1
+  min(uint64_t());
+  max(uint64_t());
   min(int64_t());
   max(int64_t());
 #endif
-#endif
 
-  sum(float());
-  min(float());
-  max(float());
-#if HWY_CAP_FLOAT64
-  sum(double());
-  min(double());
-  max(double());
-#endif
+  ForFloatTypes(min);
+  ForFloatTypes(max);
 }
 
-struct TestAbsDiffT {
+struct TestAbsDiff {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = MaxLanes(d);
@@ -954,28 +1038,8 @@ struct TestAbsDiffT {
   }
 };
 
-HWY_NOINLINE void TestAllPlusMinus() {
-  ForAllTypes(ForPartialVectors<TestPlusMinus>());
-}
-
-HWY_NOINLINE void TestAllMulAdd() {
-  ForFloatTypes(ForPartialVectors<TestMulAdd>());
-}
-
-HWY_NOINLINE void TestAllSquareRoot() {
-  ForFloatTypes(ForPartialVectors<TestSquareRoot>());
-}
-
-HWY_NOINLINE void TestAllReciprocalSquareRoot() {
-  ForPartialVectors<TestReciprocalSquareRoot>()(float());
-}
-
-HWY_NOINLINE void TestAllRound() {
-  ForFloatTypes(ForPartialVectors<TestRound>());
-}
-
 HWY_NOINLINE void TestAllAbsDiff() {
-  ForPartialVectors<TestAbsDiffT>()(float());
+  ForPartialVectors<TestAbsDiff>()(float());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -991,19 +1055,20 @@ class HwyArithmeticTest : public hwy::TestWithParamTarget {};
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyArithmeticTest);
 
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestSaturatingArithmetic);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestShifts);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestMinMax);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAverage);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAbs);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestMul);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestMulHigh);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestMulEven);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatingArithmetic);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllShifts);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMul);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulHigh);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulAdd);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReciprocalSquareRoot);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestSumsOfU8);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestReductions);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumsOfU8);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumOfLanes);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRound);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbsDiff);
 

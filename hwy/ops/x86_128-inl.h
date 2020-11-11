@@ -1637,6 +1637,14 @@ HWY_API Vec128<double, N> GatherIndex(Simd<double, N> /* tag */,
 
 // Gets the single value stored in a vector/part.
 template <size_t N>
+HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw) & 0xFF;
+}
+template <size_t N>
+HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw) & 0xFF;
+}
+template <size_t N>
 HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
   return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
 }
@@ -2245,6 +2253,12 @@ HWY_API Vec128<double, N> PromoteTo(Simd<double, N> /* tag */,
   return Vec128<double, N>{_mm_cvtps_pd(v.raw)};
 }
 
+template <size_t N>
+HWY_API Vec128<double, N> PromoteTo(Simd<double, N> /* tag */,
+                                    const Vec128<int32_t, N> v) {
+  return Vec128<double, N>{_mm_cvtepi32_pd(v.raw)};
+}
+
 HWY_API Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
   return Vec128<uint32_t>{_mm_cvtepu8_epi32(v.raw)};
 }
@@ -2293,6 +2307,12 @@ template <size_t N>
 HWY_INLINE Vec128<float, N> DemoteTo(Simd<float, N> /* tag */,
                                      const Vec128<double, N> v) {
   return Vec128<float, N>{_mm_cvtpd_ps(v.raw)};
+}
+
+template <size_t N>
+HWY_INLINE Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> /* tag */,
+                                       const Vec128<double, N> v) {
+  return Vec128<int32_t, N>{_mm_cvttpd_epi32(v.raw)};
 }
 
 // For already range-limited input [0, 255].

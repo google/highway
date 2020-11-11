@@ -1057,6 +1057,14 @@ HWY_API Vec128<T, N> GatherIndex(const Simd<T, N> d, const T* HWY_RESTRICT base,
 
 // Gets the single value stored in a vector/part.
 template <size_t N>
+HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
+  return wasm_i8x16_extract_lane(v.raw, 0);
+}
+template <size_t N>
+HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
+  return wasm_i8x16_extract_lane(v.raw, 0);
+}
+template <size_t N>
 HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
   return wasm_i16x8_extract_lane(v.raw, 0);
 }
@@ -1756,6 +1764,18 @@ HWY_API Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
   return Vec128<int32_t, N>{wasm_i32x4_widen_low_i16x8(v.raw)};
 }
 
+template <size_t N>
+HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
+                                    const Vec128<int32_t, N> v) {
+  // TODO(janwas): use https://github.com/WebAssembly/simd/pull/383
+  alignas(16) int32_t lanes[4];
+  Store(v, Simd<int32_t, N>(), lanes);
+  alignas(16) double lanes64[2];
+  lanes64[0] = lanes[0];
+  lanes64[1] = N >= 2 ? lanes[1] : 0.0;
+  return Load(df, lanes64);
+}
+
 HWY_API Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
   return Vec128<uint32_t>{
       wasm_i32x4_widen_low_u16x8(wasm_i16x8_widen_low_u8x16(v.raw))};
@@ -1800,6 +1820,17 @@ template <size_t N>
 HWY_API Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
                                    const Vec128<int16_t, N> v) {
   return Vec128<int8_t, N>{wasm_i8x16_narrow_i16x8(v.raw, v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> di,
+                                    const Vec128<double, N> v) {
+  // TODO(janwas): use https://github.com/WebAssembly/simd/pull/383
+  alignas(16) double lanes64[2];
+  Store(v, Simd<double, N>(), lanes64);
+  alignas(16) int32_t lanes[4] = {static_cast<int32_t>(lanes64[0])};
+  if (N >= 2) lanes[1] = static_cast<int32_t>(lanes64[1]);
+  return Load(di, lanes);
 }
 
 // For already range-limited input [0, 255].

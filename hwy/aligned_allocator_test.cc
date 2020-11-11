@@ -43,6 +43,36 @@ class SampleObject {
   char data_[N - sizeof(int*)];
 };
 
+class FakeAllocator {
+ public:
+  // static AllocPtr and FreePtr member to be used with the alligned
+  // allocator. These functions calls the private non-static members.
+  static void* StaticAlloc(void* opaque, size_t bytes) {
+    return reinterpret_cast<FakeAllocator*>(opaque)->Alloc(bytes);
+  }
+  static void StaticFree(void* opaque, void* memory) {
+    return reinterpret_cast<FakeAllocator*>(opaque)->Free(memory);
+  }
+
+  // Returns the number of pending allocations to be freed.
+  size_t PendingAllocs() { return allocs_.size(); }
+
+ private:
+  void* Alloc(size_t bytes) {
+    void* ret = malloc(bytes);
+    allocs_.insert(ret);
+    return ret;
+  }
+  void Free(void* memory) {
+    if (!memory) return;
+    EXPECT_NE(allocs_.end(), allocs_.find(memory));
+    free(memory);
+    allocs_.erase(memory);
+  }
+
+  std::set<void*> allocs_;
+};
+
 }  // namespace
 
 namespace hwy {
@@ -51,12 +81,14 @@ class AlignedAllocatorTest : public testing::Test {};
 
 TEST(AlignedAllocatorTest, FreeNullptr) {
   // Calling free with a nullptr is always ok.
-  FreeAlignedBytes(nullptr, nullptr);
+  FreeAlignedBytes(/*aligned_pointer=*/nullptr, /*free_ptr=*/nullptr,
+                   /*opaque_ptr=*/nullptr);
 }
 
 TEST(AlignedAllocatorTest, AllocDefaultPointers) {
   const size_t kSize = 7777;
-  void* ptr = AllocateAlignedBytes(kSize, nullptr);
+  void* ptr = AllocateAlignedBytes(kSize, /*alloc_ptr=*/nullptr,
+                                   /*opaque_ptr=*/nullptr);
   ASSERT_NE(nullptr, ptr);
   // Make sure the pointer is actually aligned.
   EXPECT_EQ(0, reinterpret_cast<uintptr_t>(ptr) % kMaxVectorSize);
@@ -68,17 +100,32 @@ TEST(AlignedAllocatorTest, AllocDefaultPointers) {
     if (i) ret += p[i] * p[i - 1];
   }
   EXPECT_NE(0, ret);
-  FreeAlignedBytes(ptr, nullptr);
+  FreeAlignedBytes(ptr, /*free_ptr=*/nullptr, /*opaque_ptr=*/nullptr);
 }
 
 TEST(AlignedAllocatorTest, EmptyAlignedUniquePtr) {
-  AlignedUniquePtr<SampleObject<32>> ptr(nullptr, AlignedDeleter(nullptr));
-  AlignedUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedDeleter(nullptr));
+  AlignedUniquePtr<SampleObject<32>> ptr(nullptr, AlignedDeleter());
+  AlignedUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedDeleter());
 }
 
 TEST(AlignedAllocatorTest, EmptyAlignedFreeUniquePtr) {
-  AlignedFreeUniquePtr<SampleObject<32>> ptr(nullptr, AlignedFreer(nullptr));
-  AlignedFreeUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedFreer(nullptr));
+  AlignedFreeUniquePtr<SampleObject<32>> ptr(nullptr, AlignedFreer());
+  AlignedFreeUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedFreer());
+}
+
+TEST(AlignedAllocatorTest, CustomAlloc) {
+  FakeAllocator fake_alloc;
+
+  const size_t kSize = 7777;
+  void* ptr =
+      AllocateAlignedBytes(kSize, &FakeAllocator::StaticAlloc, &fake_alloc);
+  ASSERT_NE(nullptr, ptr);
+  // We should have only requested one alloc from the allocator.
+  EXPECT_EQ(1u, fake_alloc.PendingAllocs());
+  // Make sure the pointer is actually aligned.
+  EXPECT_EQ(0, reinterpret_cast<uintptr_t>(ptr) % kMaxVectorSize);
+  FreeAlignedBytes(ptr, &FakeAllocator::StaticFree, &fake_alloc);
+  EXPECT_EQ(0u, fake_alloc.PendingAllocs());
 }
 
 TEST(AlignedAllocatorTest, MakeUniqueAlignedDefaultConstructor) {
@@ -155,6 +202,27 @@ TEST(AlignedAllocatorTest, AllocateAlignedObjectWithoutDestructor) {
   // Destroying the unique_ptr shouldn't have called the destructor of the
   // SampleObject<24>.
   EXPECT_EQ(0, counter);
+}
+
+TEST(AlignedAllocatorTest, MakeUniqueAlignedArrayWithCustomAlloc) {
+  FakeAllocator fake_alloc;
+  int counter = 0;
+  {
+    // Creates the array of objects and initializes them with the explicit
+    // constructor.
+    auto arr = MakeUniqueAlignedArrayWithAlloc<SampleObject<24>>(
+        7, FakeAllocator::StaticAlloc, FakeAllocator::StaticFree, &fake_alloc,
+        &counter);
+    // An array shold still only call a single allocation.
+    EXPECT_EQ(1u, fake_alloc.PendingAllocs());
+    EXPECT_EQ(7, counter);
+    for (size_t i = 0; i < 7; i++) {
+      // Custom constructor sets the data_[0] to 'b'.
+      EXPECT_EQ('b', arr[i].data_[0]) << "Where i = " << i;
+    }
+  }
+  EXPECT_EQ(0, counter);
+  EXPECT_EQ(0u, fake_alloc.PendingAllocs());
 }
 
 }  // namespace hwy

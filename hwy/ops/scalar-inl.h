@@ -681,6 +681,9 @@ HWY_INLINE Vec1<T> GatherIndex(Sisd<T> d, const T* HWY_RESTRICT base,
 
 // ================================================== CONVERT
 
+// ConvertTo and DemoteTo with floating-point input and integer output truncate
+// (rounding toward zero).
+
 template <typename FromT, typename ToT>
 HWY_INLINE Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) > sizeof(FromT), "Not promoting");
@@ -693,7 +696,6 @@ HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
-// For integer to floating point, this truncates (rounds toward zero).
 template <typename FromT, typename ToT>
 HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   return Vec1<ToT>(static_cast<ToT>(from.raw));

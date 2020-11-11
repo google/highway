@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstddef>
+#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
+#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/swizzle_test.cc"
 #include "hwy/foreach_target.h"
@@ -23,7 +26,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-struct TestLowerHalfT {
+struct TestLowerHalf {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     constexpr size_t N2 = (MaxLanes(d) + 1) / 2;
@@ -43,7 +46,7 @@ struct TestLowerHalfT {
   }
 };
 
-struct TestLowerQuarterT {
+struct TestLowerQuarter {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     constexpr size_t N4 = (MaxLanes(d) + 3) / 4;
@@ -64,14 +67,13 @@ struct TestLowerQuarterT {
   }
 };
 
-HWY_NOINLINE void TestLowerHalf() {
-  ForAllTypes(
-      ForPartialVectors<TestLowerHalfT, /*kDivLanes=*/1, /*kMinLanes=*/2>());
-  ForAllTypes(
-      ForPartialVectors<TestLowerQuarterT, /*kDivLanes=*/1, /*kMinLanes=*/4>());
+HWY_NOINLINE void TestAllLowerHalf() {
+  constexpr size_t kDiv = 1;
+  ForAllTypes(ForPartialVectors<TestLowerHalf, kDiv, /*kMinLanes=*/2>());
+  ForAllTypes(ForPartialVectors<TestLowerQuarter, kDiv, /*kMinLanes=*/4>());
 }
 
-struct TestUpperHalfT {
+struct TestUpperHalf {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Scalar does not define UpperHalf.
@@ -97,11 +99,11 @@ struct TestUpperHalfT {
   }
 };
 
-HWY_NOINLINE void TestUpperHalf() {
-  ForAllTypes(ForGE128Vectors<TestUpperHalfT>());
+HWY_NOINLINE void TestAllUpperHalf() {
+  ForAllTypes(ForGE128Vectors<TestUpperHalf>());
 }
 
-struct TestZeroExtendVectorT {
+struct TestZeroExtendVector {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_CAP_GE256
@@ -131,11 +133,11 @@ struct TestZeroExtendVectorT {
   }
 };
 
-HWY_NOINLINE void TestZeroExtendVector() {
-  ForAllTypes(ForExtendableVectors<TestZeroExtendVectorT>());
+HWY_NOINLINE void TestAllZeroExtendVector() {
+  ForAllTypes(ForExtendableVectors<TestZeroExtendVector>());
 }
 
-struct TestCombineT {
+struct TestCombine {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_CAP_GE256
@@ -156,11 +158,11 @@ struct TestCombineT {
   }
 };
 
-HWY_NOINLINE void TestCombine() {
-  ForAllTypes(ForExtendableVectors<TestCombineT>());
+HWY_NOINLINE void TestAllCombine() {
+  ForAllTypes(ForExtendableVectors<TestCombine>());
 }
 
-struct TestShiftBytesT {
+struct TestShiftBytes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Scalar does not define Shift*Bytes.
@@ -212,11 +214,11 @@ struct TestShiftBytesT {
   }
 };
 
-HWY_NOINLINE void TestShiftBytes() {
-  ForIntegerTypes(ForGE128Vectors<TestShiftBytesT>());
+HWY_NOINLINE void TestAllShiftBytes() {
+  ForIntegerTypes(ForGE128Vectors<TestShiftBytes>());
 }
 
-struct TestShiftLanesT {
+struct TestShiftLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Scalar does not define Shift*Lanes.
@@ -255,8 +257,8 @@ struct TestShiftLanesT {
   }
 };
 
-HWY_NOINLINE void TestShiftLanes() {
-  ForAllTypes(ForGE128Vectors<TestShiftLanesT>());
+HWY_NOINLINE void TestAllShiftLanes() {
+  ForAllTypes(ForGE128Vectors<TestShiftLanes>());
 }
 
 template <typename D, int kLane>
@@ -290,15 +292,15 @@ struct TestBroadcastR<D, -1> {
   void operator()() const {}
 };
 
-struct TestBroadcastT {
+struct TestBroadcast {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     TestBroadcastR<D, HWY_MIN(MaxLanes(d), 16 / sizeof(T)) - 1>()();
   }
 };
 
-HWY_NOINLINE void TestBroadcast() {
-  const ForPartialVectors<TestBroadcastT> test;
+HWY_NOINLINE void TestAllBroadcast() {
+  const ForPartialVectors<TestBroadcast> test;
   // No u8.
   test(uint16_t());
   test(uint32_t());
@@ -316,10 +318,52 @@ HWY_NOINLINE void TestBroadcast() {
   ForFloatTypes(test);
 }
 
-struct TestPermuteT {
+struct TestTableLookupBytes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_CAP_GE256
+    // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
+    RandomState rng{1234};
+    const Simd<uint8_t, MaxLanes(d) * sizeof(T)> du8;
+    HWY_ALIGN uint8_t in_bytes[MaxLanes(du8)];
+    for (uint8_t& in_byte : in_bytes) {
+      in_byte = Random32(&rng) & 0xFF;
+    }
+    const auto in = BitCast(d, Load(du8, in_bytes));
+    HWY_ALIGN const uint8_t index_bytes[kTestMaxVectorSize] = {
+        // Same index as source, multiple outputs from same input,
+        // unused input (9), ascending/descending and nonconsecutive neighbors.
+        0,  2,  1, 2, 15, 12, 13, 14, 6,  7,  8,  5,  4,  3,  10, 11,
+        11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
+        4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
+    const auto indices = Load(du8, index_bytes);
+    HWY_ALIGN T out_lanes[MaxLanes(d)];
+    Store(TableLookupBytes(in, indices), d, out_lanes);
+    const uint8_t* out_bytes = reinterpret_cast<const uint8_t*>(out_lanes);
+
+    for (size_t block = 0; block + 16 <= Lanes(du8); block += 16) {
+      for (size_t i = 0; i < 16; ++i) {
+        const uint8_t index = index_bytes[block + i];
+        const uint8_t expected = in_bytes[(block + index) % MaxLanes(du8)];
+        HWY_ASSERT_EQ(expected, out_bytes[block + i]);
+      }
+    }
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllTableLookupBytes() {
+  // Not supported by HWY_SCALAR (its vector size is always less than 16 bytes)
+  ForIntegerTypes(ForGE128Vectors<TestTableLookupBytes>());
+}
+struct TestTableLookupLanes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Avoid "Do not know how to split the result of this operator"
+#if (!defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3) && \
+    HWY_CAP_GE256
     {
       const int32_t N = Lanes(d);
       // Too many permutations to test exhaustively; choose one with repeated
@@ -337,9 +381,7 @@ struct TestPermuteT {
       const auto actual = TableLookupLanes(v, opaque);
       HWY_ASSERT_VEC_EQ(d, expected_lanes, actual);
     }
-#elif HWY_TARGET == HWY_SCALAR
-    (void)d;
-#else  // 128-bit
+#elif !HWY_CAP_GE256 && HWY_TARGET != HWY_SCALAR  // 128-bit
     // Test all possible permutations.
     HWY_ALIGN int32_t idx[MaxLanes(d)];
     const auto v = Iota(d, 1);
@@ -366,18 +408,20 @@ struct TestPermuteT {
         }
       }
     }
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
 #endif
   }
 };
 
-HWY_NOINLINE void TestPermute() {
-  const ForFullVectors<TestPermuteT> test;
+HWY_NOINLINE void TestAllTableLookupLanes() {
+  const ForFullVectors<TestTableLookupLanes> test;
   test(uint32_t());
   test(int32_t());
   test(float());
 }
 
-struct TestInterleaveT {
+struct TestInterleave {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     constexpr size_t kN = MaxLanes(d);
@@ -405,9 +449,9 @@ struct TestInterleaveT {
   }
 };
 
-HWY_NOINLINE void TestInterleave() {
+HWY_NOINLINE void TestAllInterleave() {
   // Not supported by HWY_SCALAR: Interleave(f32, f32) would return f32x2.
-  ForAllTypes(ForGE128Vectors<TestInterleaveT>());
+  ForAllTypes(ForGE128Vectors<TestInterleave>());
 }
 
 template <typename T>
@@ -421,7 +465,7 @@ struct MakeWideUnsigned {
 };
 
 template <template <class> class MakeWide>
-struct TestZipLowerT {
+struct TestZipLower {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     using WideT = typename MakeWide<T>::type;
@@ -455,7 +499,7 @@ struct TestZipLowerT {
 };
 
 template <template <class> class MakeWide>
-struct TestZipUpperT {
+struct TestZipUpper {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     using WideT = typename MakeWide<T>::type;
@@ -489,29 +533,29 @@ struct TestZipUpperT {
   }
 };
 
-HWY_NOINLINE void TestZip() {
-  const ForPartialVectors<TestZipLowerT<MakeWideUnsigned>, 2> lower_unsigned;
+HWY_NOINLINE void TestAllZip() {
+  const ForPartialVectors<TestZipLower<MakeWideUnsigned>, 2> lower_unsigned;
   lower_unsigned(uint8_t());
   lower_unsigned(uint16_t());
 #if HWY_CAP_INTEGER64
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForPartialVectors<TestZipLowerT<MakeWideSigned>, 2> lower_signed;
+  const ForPartialVectors<TestZipLower<MakeWideSigned>, 2> lower_signed;
   lower_signed(int8_t());
   lower_signed(int16_t());
 #if HWY_CAP_INTEGER64
   lower_signed(int32_t());  // generates i64
 #endif
 
-  const ForGE128Vectors<TestZipUpperT<MakeWideUnsigned>> upper_unsigned;
+  const ForGE128Vectors<TestZipUpper<MakeWideUnsigned>> upper_unsigned;
   upper_unsigned(uint8_t());
   upper_unsigned(uint16_t());
 #if HWY_CAP_INTEGER64
   upper_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForGE128Vectors<TestZipUpperT<MakeWideSigned>> upper_signed;
+  const ForGE128Vectors<TestZipUpper<MakeWideSigned>> upper_signed;
   upper_signed(int8_t());
   upper_signed(int16_t());
 #if HWY_CAP_INTEGER64
@@ -519,42 +563,6 @@ HWY_NOINLINE void TestZip() {
 #endif
 
   // No float - concatenating f32 does not result in a f64
-}
-
-struct TestShuffleT {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    RandomState rng{1234};
-    const Simd<uint8_t, MaxLanes(d) * sizeof(T)> du8;
-    HWY_ALIGN uint8_t in_bytes[MaxLanes(du8)];
-    for (uint8_t& in_byte : in_bytes) {
-      in_byte = Random32(&rng) & 0xFF;
-    }
-    const auto in = BitCast(d, Load(du8, in_bytes));
-    HWY_ALIGN const uint8_t index_bytes[kTestMaxVectorSize] = {
-        // Same index as source, multiple outputs from same input,
-        // unused input (9), ascending/descending and nonconsecutive neighbors.
-        0,  2,  1, 2, 15, 12, 13, 14, 6,  7,  8,  5,  4,  3,  10, 11,
-        11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
-        4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
-    const auto indices = Load(du8, index_bytes);
-    HWY_ALIGN T out_lanes[MaxLanes(d)];
-    Store(TableLookupBytes(in, indices), d, out_lanes);
-    const uint8_t* out_bytes = reinterpret_cast<const uint8_t*>(out_lanes);
-
-    for (size_t block = 0; block + 16 <= Lanes(du8); block += 16) {
-      for (size_t i = 0; i < 16; ++i) {
-        const uint8_t index = index_bytes[block + i];
-        const uint8_t expected = in_bytes[(block + index) % MaxLanes(du8)];
-        HWY_ASSERT_EQ(expected, out_bytes[block + i]);
-      }
-    }
-  }
-};
-
-HWY_NOINLINE void TestShuffle() {
-  // Not supported by HWY_SCALAR (its vector size is always less than 16 bytes)
-  ForIntegerTypes(ForGE128Vectors<TestShuffleT>());
 }
 
 class TestSpecialShuffle32 {
@@ -618,7 +626,7 @@ class TestSpecialShuffle64 {
   }
 };
 
-HWY_NOINLINE void TestSpecialShuffles() {
+HWY_NOINLINE void TestAllSpecialShuffles() {
   const ForGE128Vectors<TestSpecialShuffle32> test32;
   test32(uint32_t());
   test32(int32_t());
@@ -678,18 +686,18 @@ struct TestCombineShiftRightR<0> {
   void operator()(T /*unused*/, D /*unused*/) {}
 };
 
-struct TestCombineShiftRightT {
+struct TestCombineShiftRight {
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
     TestCombineShiftRightR<15>()(t, d);
   }
 };
 
-HWY_NOINLINE void TestCombineShiftRight() {
-  ForIntegerTypes(ForGE128Vectors<TestCombineShiftRightT>());
+HWY_NOINLINE void TestAllCombineShiftRight() {
+  ForIntegerTypes(ForGE128Vectors<TestCombineShiftRight>());
 }
 
-struct TestConcatHalvesT {
+struct TestConcatHalves {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Construct inputs such that interleaved halves == iota.
@@ -719,11 +727,11 @@ struct TestConcatHalvesT {
   }
 };
 
-HWY_NOINLINE void TestConcatHalves() {
-  ForAllTypes(ForGE128Vectors<TestConcatHalvesT>());
+HWY_NOINLINE void TestAllConcatHalves() {
+  ForAllTypes(ForGE128Vectors<TestConcatHalves>());
 }
 
-struct TestConcatLowerUpperT {
+struct TestConcatLowerUpper {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -734,11 +742,11 @@ struct TestConcatLowerUpperT {
   }
 };
 
-HWY_NOINLINE void TestConcatLowerUpper() {
-  ForAllTypes(ForGE128Vectors<TestConcatLowerUpperT>());
+HWY_NOINLINE void TestAllConcatLowerUpper() {
+  ForAllTypes(ForGE128Vectors<TestConcatLowerUpper>());
 }
 
-struct TestConcatUpperLowerT {
+struct TestConcatUpperLower {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -756,11 +764,11 @@ struct TestConcatUpperLowerT {
   }
 };
 
-HWY_NOINLINE void TestConcatUpperLower() {
-  ForAllTypes(ForGE128Vectors<TestConcatUpperLowerT>());
+HWY_NOINLINE void TestAllConcatUpperLower() {
+  ForAllTypes(ForGE128Vectors<TestConcatUpperLower>());
 }
 
-struct TestOddEvenT {
+struct TestOddEven {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -774,8 +782,8 @@ struct TestOddEvenT {
   }
 };
 
-HWY_NOINLINE void TestOddEven() {
-  ForAllTypes(ForGE128Vectors<TestOddEvenT>());
+HWY_NOINLINE void TestAllOddEven() {
+  ForAllTypes(ForGE128Vectors<TestOddEven>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -790,23 +798,23 @@ class HwySwizzleTest : public hwy::TestWithParamTarget {};
 
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwySwizzleTest);
 
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestLowerHalf);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestUpperHalf);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestZeroExtendVector);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestCombine);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestShiftBytes);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestShiftLanes);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestBroadcast);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestPermute);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestInterleave);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestZip);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestShuffle);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestSpecialShuffles);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestCombineShiftRight);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestConcatHalves);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestConcatLowerUpper);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestConcatUpperLower);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestOddEven);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllLowerHalf);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllUpperHalf);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllZeroExtendVector);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCombine);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftBytes);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftLanes);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllBroadcast);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupBytes);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllInterleave);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllZip);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSpecialShuffles);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCombineShiftRight);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatHalves);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatLowerUpper);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatUpperLower);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
 
 }  // namespace hwy
 #endif

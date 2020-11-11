@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
+#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/hwy_test.cc"
 #include "hwy/foreach_target.h"
@@ -22,6 +24,9 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+
+// Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
 
 template <class DF>
 HWY_NOINLINE void FloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
@@ -55,12 +60,20 @@ struct TestFloorLog2 {
     }
     int sum = 0;
     for (size_t i = 0; i < kBytes; ++i) {
-      HWY_ASSERT_EQ(expected[i], out[i]);
+      EXPECT_EQ(expected[i], out[i]);
       sum += out[i];
     }
     PreventElision(sum);
   }
 };
+
+#endif  // HWY_DISABLE_BROKEN_AVX3_TESTS
+
+HWY_NOINLINE void TestAllFloorLog2() {
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
+  ForPartialVectors<TestFloorLog2>()(float());
+#endif
+}
 
 template <class D, typename T>
 HWY_NOINLINE void MulAddLoop(const D d, const T* HWY_RESTRICT mul_array,
@@ -99,13 +112,8 @@ struct TestSumMulAdd {
   }
 };
 
-HWY_NOINLINE void TestExamples() {
-  ForPartialVectors<TestFloorLog2>()(float());
-
-  ForPartialVectors<TestSumMulAdd>()(float());
-#if HWY_CAP_FLOAT64
-  ForPartialVectors<TestSumMulAdd>()(double());
-#endif
+HWY_NOINLINE void TestAllSumMulAdd() {
+  ForFloatTypes(ForPartialVectors<TestSumMulAdd>());
 }
 
 // util.h
@@ -218,6 +226,10 @@ struct TestName {
   }
 };
 
+HWY_NOINLINE void TestAllNameBasic() {
+  ForAllTypes(ForPartialVectors<TestName>());
+}
+
 struct TestSet {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -247,6 +259,8 @@ struct TestSet {
   }
 };
 
+HWY_NOINLINE void TestAllSet() { ForAllTypes(ForPartialVectors<TestSet>()); }
+
 struct TestCopyAndAssign {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -262,14 +276,20 @@ struct TestCopyAndAssign {
   }
 };
 
-HWY_NOINLINE void TestAllSet() { ForAllTypes(ForPartialVectors<TestSet>()); }
-
-HWY_NOINLINE void TestAllNameBasic() {
-  ForAllTypes(ForPartialVectors<TestName>());
-}
-
 HWY_NOINLINE void TestAllCopyAndAssign() {
   ForAllTypes(ForPartialVectors<TestCopyAndAssign>());
+}
+
+struct TestGetLane {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    HWY_ASSERT_EQ(T(0), GetLane(Zero(d)));
+    HWY_ASSERT_EQ(T(1), GetLane(Set(d, 1)));
+  }
+};
+
+HWY_NOINLINE void TestAllGetLane() {
+  ForAllTypes(ForPartialVectors<TestGetLane>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -284,6 +304,8 @@ class HwyHwyTest : public hwy::TestWithParamTarget {};
 
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyHwyTest);
 
+HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllFloorLog2);
+HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSumMulAdd);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestLimits);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestToString);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestType);
@@ -291,7 +313,7 @@ HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestOverflow);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSet);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllNameBasic);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllCopyAndAssign);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestExamples);
+HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllGetLane);
 
 }  // namespace hwy
 #endif

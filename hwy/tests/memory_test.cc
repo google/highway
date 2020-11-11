@@ -14,6 +14,8 @@
 
 #include "hwy/cache_control.h"
 
+#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
+#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/memory_test.cc"
 #include "hwy/foreach_target.h"
@@ -71,6 +73,10 @@ struct TestLoadStore {
   }
 };
 
+HWY_NOINLINE void TestAllLoadStore() {
+  ForAllTypes(ForPartialVectors<TestLoadStore>());
+}
+
 struct TestLoadDup128 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -93,6 +99,10 @@ struct TestLoadDup128 {
   }
 };
 
+HWY_NOINLINE void TestAllLoadDup128() {
+  ForAllTypes(ForGE128Vectors<TestLoadDup128>());
+}
+
 struct TestStreamT {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -113,10 +123,23 @@ struct TestStreamT {
   }
 };
 
+HWY_NOINLINE void TestStream() {
+  const ForPartialVectors<TestStreamT> test;
+  // No u8,u16.
+  test(uint32_t());
+  test(uint64_t());
+  // No i8,i16.
+  test(int32_t());
+  test(int64_t());
+  ForFloatTypes(ForPartialVectors<TestStreamT>());
+}
+
 // kShift must be log2(sizeof(T)).
 struct TestGatherT {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+   // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using Offset = MakeSigned<T>;
 
     // Base points to middle; |max_offset| + sizeof(T) <= kNumBytes / 2.
@@ -156,6 +179,10 @@ struct TestGatherT {
     const auto indices = Load(d_offset, index_lanes);
     actual = GatherIndex(d, reinterpret_cast<const T*>(middle), indices);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
+
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
@@ -163,6 +190,8 @@ template <int kShift>
 struct TestGatherF {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+   // Avoid "Do not know how to split the result of this operator"
+#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using Offset = MakeSigned<T>;
     static_assert(sizeof(T) == (1 << kShift), "Incorrect kShift");
 
@@ -194,6 +223,10 @@ struct TestGatherF {
     const auto offsets = ShiftLeft<kShift>(indices);
     actual = GatherOffset(d, middle, offsets);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
+
+#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
+    (void)d;
+#endif
   }
 };
 
@@ -216,25 +249,6 @@ HWY_NOINLINE void TestGather() {
 #endif
 }
 
-HWY_NOINLINE void TestStream() {
-  const ForPartialVectors<TestStreamT> test;
-  // No u8,u16.
-  test(uint32_t());
-  test(uint64_t());
-  // No i8,i16.
-  test(int32_t());
-  test(int64_t());
-  ForFloatTypes(ForPartialVectors<TestStreamT>());
-}
-
-HWY_NOINLINE void TestAllLoadStore() {
-  ForAllTypes(ForPartialVectors<TestLoadStore>());
-}
-
-HWY_NOINLINE void TestAllLoadDup128() {
-  ForAllTypes(ForGE128Vectors<TestLoadDup128>());
-}
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -249,8 +263,8 @@ HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMemoryTest);
 
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestGather);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestStream);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestGather);
 
 TEST(HwyMemoryTest, TestCompile) {
   // Test that these functions compile.

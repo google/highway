@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// NOTE: this header also has a per-target section after this include guard.
-#ifndef HWY_HIGHWAY_H_
-#define HWY_HIGHWAY_H_
+// This include guard is checked by foreach_target, so avoid the usual _H_
+// suffix to prevent copybara from renaming it. NOTE: ops/*-inl.h are included
+// after/outside this include guard.
+#ifndef HWY_HIGHWAY_INCLUDED
+#define HWY_HIGHWAY_INCLUDED
 
-// Definitions for use by SIMD module implementations (*.cc or *-inl.h); their
-// callers typically only need base.h/targets.h.
+// Main header required before using vector types.
 
 #include "hwy/targets.h"
 
@@ -42,9 +43,12 @@ namespace hwy {
 // Export user functions for static/dynamic dispatch
 
 // Evaluates to 0 inside a translation unit if it is generating anything but the
-// static target (the last one if multiple targets are enabled). Prevents
-// redefinitions of HWY_EXPORT and non-SIMD code outside begin/end_target.
-#define HWY_ONCE ((HWY_TARGET == HWY_STATIC_TARGET) || HWY_IDE)
+// static target (the last one if multiple targets are enabled). Used to prevent
+// redefinitions of HWY_EXPORT. Unless foreach_target.h is included, we only
+// compile once anyway, so this is 1 unless it is or has been included.
+#ifndef HWY_ONCE
+#define HWY_ONCE 1
+#endif
 
 // HWY_STATIC_DISPATCH(FUNC_NAME) is the namespace-qualified FUNC_NAME for
 // HWY_STATIC_TARGET (the only defined namespace unless HWY_TARGET_INCLUDE is
@@ -205,7 +209,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 
 }  // namespace hwy
 
-#endif  // HWY_HIGHWAY_H_
+#endif  // HWY_HIGHWAY_INCLUDED
 
 //------------------------------------------------------------------------------
 
@@ -238,8 +242,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #pragma message("HWY_TARGET does not match any known target")
 #endif  // HWY_TARGET
 
-// Commonly used functions/types that depend on the ops already having been
-// defined. These could be moved into a separate *-inl.h.
+// Commonly used functions/types that must come after ops are defined.
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {

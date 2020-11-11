@@ -1916,6 +1916,19 @@ HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
                                        const Vec128<float, 1> v) {
   return Vec128<double, 1>(vget_low_f64(vcvt_f64_f32(v.raw)));
 }
+
+HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
+                                    const Vec128<int32_t, 2> v) {
+  const int64x2_t i64 = vmovl_s32(v.raw);
+  return Vec128<double>(vcvtq_f64_s64(i64));
+}
+
+HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
+                                       const Vec128<int32_t, 1> v) {
+  const int64x1_t i64 = vget_low_s64(vmovl_s32(v.raw));
+  return Vec128<double, 1>(vcvt_f64_s64(i64));
+}
+
 #endif
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
@@ -1990,6 +2003,19 @@ HWY_INLINE Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
 HWY_INLINE Vec128<float, 1> DemoteTo(Simd<float, 1> /* tag */,
                                      const Vec128<double, 1> v) {
   return Vec128<float, 1>(vcvt_f32_f64(vcombine_f64(v.raw, v.raw)));
+}
+
+HWY_INLINE Vec128<int32_t, 2> DemoteTo(Simd<int32_t, 2> /* tag */,
+                                       const Vec128<double> v) {
+  const int64x2_t i64 = vcvtq_s64_f64(v.raw);
+  return Vec128<int32_t, 2>(vqmovn_s64(i64));
+}
+HWY_INLINE Vec128<int32_t, 1> DemoteTo(Simd<int32_t, 1> /* tag */,
+                                       const Vec128<double, 1> v) {
+  const int64x1_t i64 = vcvt_s64_f64(v.raw);
+  // There is no i64x1 -> i32x1 narrow, so expand to int64x2_t first.
+  const int64x2_t i64x2 = vcombine_s64(i64, i64);
+  return Vec128<int32_t, 1>(vqmovn_s64(i64x2));
 }
 
 #endif

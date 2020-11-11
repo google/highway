@@ -326,15 +326,7 @@ void AssertVecEqual(D d, const typename D::T (&expected)[MaxLanes(D())],
   AssertVecEqual(d, LoadU(d, expected), actual, filename, line);
 }
 
-#ifndef HWY_ASSERT
-
-// Always enabled.
-#define HWY_ASSERT(condition)                                    \
-  do {                                                           \
-    if (!(condition)) {                                          \
-      ::hwy::Abort(__FILE__, __LINE__, "Assert %s", #condition); \
-    }                                                            \
-  } while (0)
+#ifndef HWY_ASSERT_EQ
 
 #define HWY_ASSERT_EQ(expected, actual) \
   AssertEqual(expected, actual, hwy::TypeName(expected, 1), __FILE__, __LINE__)
