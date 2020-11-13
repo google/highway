@@ -277,7 +277,7 @@ Vec<D> Iota(const D d, const T2 first) {
   using T = typename D::T;
   HWY_ALIGN T lanes[MaxLanes(d)];
   for (size_t i = 0; i < Lanes(d); ++i) {
-    lanes[i] = first + static_cast<T2>(i);
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
   }
   return Load(d, lanes);
 }

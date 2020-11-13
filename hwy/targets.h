@@ -443,7 +443,7 @@ struct ChosenTarget {
   // of HWY_CHOSEN_TARGET_MASK_TARGETS defined in the translation unit that
   // calls it, which may be different from others. This allows to only consider
   // those targets that were actually compiled in this module.
-  uint32_t HWY_INLINE GetIndex() const {
+  size_t HWY_INLINE GetIndex() const {
     return hwy::Num0BitsBelowLS1Bit_Nonzero32(mask_.load() &
                                               HWY_CHOSEN_TARGET_MASK_TARGETS);
   }

@@ -157,7 +157,7 @@
   _Pragma("GCC push_options") _Pragma(HWY_STR(GCC target(targets_str)))
 #define HWY_POP_ATTRIBUTES _Pragma("GCC pop_options")
 #else
-#define HWY_PUSH_ATTRIBUTES
+#define HWY_PUSH_ATTRIBUTES(targets_str)
 #define HWY_POP_ATTRIBUTES
 #endif
 

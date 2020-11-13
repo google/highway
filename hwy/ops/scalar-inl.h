@@ -98,7 +98,7 @@ HWY_INLINE Vec1<T> Zero(Sisd<T> /* tag */) {
 
 template <typename T, typename T2>
 HWY_INLINE Vec1<T> Set(Sisd<T> /* tag */, const T2 t) {
-  return Vec1<T>(t);
+  return Vec1<T>(static_cast<T>(t));
 }
 
 template <typename T>
@@ -491,7 +491,7 @@ HWY_INLINE Vec1<float> Round(const Vec1<float> v) {
   const float bias = v.raw < 0.0f ? -0.5f : 0.5f;
   const int32_t rounded = static_cast<int32_t>(v.raw + bias);
   if (rounded == 0) return Vec1<float>(v.raw < 0.0f ? -0.0f : 0.0f);
-  return Vec1<float>(rounded);
+  return Vec1<float>(static_cast<float>(rounded));
 }
 HWY_INLINE Vec1<double> Round(const Vec1<double> v) {
   const double bias = v.raw < 0.0 ? -0.5 : 0.5;
@@ -503,12 +503,12 @@ HWY_INLINE Vec1<double> Round(const Vec1<double> v) {
 HWY_INLINE Vec1<float> Trunc(const Vec1<float> v) {
   const int32_t truncated = static_cast<int32_t>(v.raw);
   if (truncated == 0) return Vec1<float>(v.raw < 0.0f ? -0.0f : 0.0f);
-  return Vec1<float>(truncated);
+  return Vec1<float>(static_cast<float>(truncated));
 }
 HWY_INLINE Vec1<double> Trunc(const Vec1<double> v) {
   const int64_t truncated = static_cast<int64_t>(v.raw);
   if (truncated == 0) return Vec1<double>(v.raw < 0.0 ? -0.0 : 0.0);
-  return Vec1<double>(truncated);
+  return Vec1<double>(static_cast<double>(truncated));
 }
 
 template <typename Float, typename Bits, int kMantissaBits, int kExponentBits,

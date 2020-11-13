@@ -73,72 +73,76 @@ set(HWY_SOURCES
     hwy/tests/test_util-inl.h
 )
 
-set(HWY_FLAGS
-  # Avoid changing binaries based on the current time and date.
-  -Wno-builtin-macro-redefined
-  -D__DATE__="redacted"
-  -D__TIMESTAMP__="redacted"
-  -D__TIME__="redacted"
-
-  # Optimizations
-  -fmerge-all-constants
-
-  # Warnings
-  -Wall
-  -Wextra
-  -Wformat-security
-  -Wno-unused-function
-  -Wnon-virtual-dtor
-  -Woverloaded-virtual
-  -Wvla
-)
-
-if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-  list(APPEND HWY_FLAGS
-    -Wc++2a-extensions
-    -Wfloat-overflow-conversion
-    -Wfloat-zero-conversion
-    -Wfor-loop-analysis
-    -Wgnu-redeclared-enum
-    -Winfinite-recursion
-    -Wself-assign
-    -Wstring-conversion
-    -Wtautological-overlap-compare
-    -Wthread-safety-analysis
-    -Wundefined-func-template
-
-    -fno-cxx-exceptions
-    -fno-slp-vectorize
-    -fno-vectorize
-
-    # Use color in messages
-    -fdiagnostics-show-option -fcolor-diagnostics
-  )
-endif()
-
-if (WIN32)
-  list(APPEND HWY_FLAGS
-    -Wno-c++98-compat-pedantic
-    -Wno-cast-align
-    -Wno-double-promotion
-    -Wno-float-equal
-    -Wno-format-nonliteral
-    -Wno-global-constructors
-    -Wno-language-extension-token
-    -Wno-missing-prototypes
-    -Wno-shadow
-    -Wno-shadow-field-in-constructor
-    -Wno-sign-conversion
-    -Wno-unused-member-function
-    -Wno-unused-template
-    -Wno-used-but-marked-unused
-    -Wno-zero-as-null-pointer-constant
-  )
+if (MSVC)
+  # TODO(janwas): add flags
 else()
-  list(APPEND HWY_FLAGS
-    -fmath-errno
-    -fno-exceptions
+  set(HWY_FLAGS
+    # Avoid changing binaries based on the current time and date.
+    -Wno-builtin-macro-redefined
+    -D__DATE__="redacted"
+    -D__TIMESTAMP__="redacted"
+    -D__TIME__="redacted"
+
+    # Optimizations
+    -fmerge-all-constants
+
+    # Warnings
+    -Wall
+    -Wextra
+    -Wformat-security
+    -Wno-unused-function
+    -Wnon-virtual-dtor
+    -Woverloaded-virtual
+    -Wvla
   )
+
+  if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    list(APPEND HWY_FLAGS
+      -Wc++2a-extensions
+      -Wfloat-overflow-conversion
+      -Wfloat-zero-conversion
+      -Wfor-loop-analysis
+      -Wgnu-redeclared-enum
+      -Winfinite-recursion
+      -Wself-assign
+      -Wstring-conversion
+      -Wtautological-overlap-compare
+      -Wthread-safety-analysis
+      -Wundefined-func-template
+
+      -fno-cxx-exceptions
+      -fno-slp-vectorize
+      -fno-vectorize
+
+      # Use color in messages
+      -fdiagnostics-show-option -fcolor-diagnostics
+    )
+  endif()
+
+  if (WIN32)
+    list(APPEND HWY_FLAGS
+      -Wno-c++98-compat-pedantic
+      -Wno-cast-align
+      -Wno-double-promotion
+      -Wno-float-equal
+      -Wno-format-nonliteral
+      -Wno-global-constructors
+      -Wno-language-extension-token
+      -Wno-missing-prototypes
+      -Wno-shadow
+      -Wno-shadow-field-in-constructor
+      -Wno-sign-conversion
+      -Wno-unused-member-function
+      -Wno-unused-template
+      -Wno-used-but-marked-unused
+      -Wno-zero-as-null-pointer-constant
+    )
+  else()
+    list(APPEND HWY_FLAGS
+      -fmath-errno
+      -fno-exceptions
+    )
+  endif()
 endif()
 
 add_library(hwy STATIC ${HWY_SOURCES})
@@ -224,8 +228,43 @@ set_target_properties(hwy_benchmark
 include(CTest)
 
 if(BUILD_TESTING)
+enable_testing()
+include(GoogleTest)
 
-find_package(GTest REQUIRED)
+# Download and unpack googletest at configure time
+# (if you already have it installed, you can replace this block with
+# find_package(GTest REQUIRED) and change the gtest gtest_main below to
+# GTest::GTest GTest::Main.)
+configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
+execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+  RESULT_VARIABLE result
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
+if(result)
+  message(FATAL_ERROR "CMake step for googletest failed: ${result}")
+endif()
+execute_process(COMMAND ${CMAKE_COMMAND} --build .
+  RESULT_VARIABLE result
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
+if(result)
+  message(FATAL_ERROR "Build step for googletest failed: ${result}")
+endif()
+
+# Prevent overriding the parent project's compiler/linker
+# settings on Windows
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+# Add googletest directly to our build. This defines
+# the gtest and gtest_main targets.
+add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
+                 ${CMAKE_CURRENT_BINARY_DIR}/googletest-build
+                 EXCLUDE_FROM_ALL)
+
+# The gtest/gtest_main targets carry header search path
+# dependencies automatically when using CMake 2.8.11 or
+# later. Otherwise we have to add them here ourselves.
+if (CMAKE_VERSION VERSION_LESS 2.8.11)
+  include_directories("${gtest_SOURCE_DIR}/include")
+endif()
 
 set(HWY_TEST_FILES
   hwy/examples/skeleton_test.cc
@@ -247,7 +286,7 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   add_executable(${TESTNAME} ${TESTFILE})
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS})
 
-  target_link_libraries(${TESTNAME} hwy GTest::GTest GTest::Main)
+  target_link_libraries(${TESTNAME} hwy gtest gtest_main)
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
 
