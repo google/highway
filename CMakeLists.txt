@@ -231,10 +231,11 @@ if(BUILD_TESTING)
 enable_testing()
 include(GoogleTest)
 
+set(HWY_SYSTEM_GTEST OFF CACHE BOOL "Use pre-installed googletest?")
+if(HWY_SYSTEM_GTEST)
+find_package(GTest REQUIRED)
+else()
 # Download and unpack googletest at configure time
-# (if you already have it installed, you can replace this block with
-# find_package(GTest REQUIRED) and change the gtest gtest_main below to
-# GTest::GTest GTest::Main.)
 configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
   RESULT_VARIABLE result
@@ -265,6 +266,7 @@ add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
 if (CMAKE_VERSION VERSION_LESS 2.8.11)
   include_directories("${gtest_SOURCE_DIR}/include")
 endif()
+endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
   hwy/examples/skeleton_test.cc
@@ -286,7 +288,11 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   add_executable(${TESTNAME} ${TESTFILE})
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS})
 
-  target_link_libraries(${TESTNAME} hwy gtest gtest_main)
+  if(HWY_SYSTEM_GTEST)
+    target_link_libraries(${TESTNAME} hwy GTest::GTest GTest::Main
+  else()
+    target_link_libraries(${TESTNAME} hwy gtest gtest_main)
+  endif()
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
 

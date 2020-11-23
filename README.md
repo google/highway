@@ -20,12 +20,20 @@ Tested on GCC 10.2.0 and Clang 9.0.1.
 
 ## Installation
 
-This project uses cmake to generate and build and
-[googletest](https://github.com/google/googletest) for running unit tests. In a
-Debian-based system you can install them with the following command:
+This project uses cmake to generate and build. In a Debian-based system you can
+install it via:
 
 ```bash
-sudo apt install cmake libgtest-dev
+sudo apt install cmake
+```
+
+Highway's unit tests use [googletest](https://github.com/google/googletest).
+By default, Highway's CMake downloads this dependency at configuration time.
+You can disable this by setting the `HWY_SYSTEM_GTEST` CMake variable to ON and
+installing gtest separately:
+
+```bash
+sudo apt install libgtest-dev
 ```
 
 To build and test the library the standard cmake workflow can be used:
@@ -39,7 +47,7 @@ make -j && make test
 To test on all the attainable targets for your platform, use
 `cmake .. -DCMAKE_CXX_FLAGS="-DHWY_COMPILE_ALL_ATTAINABLE"`. Otherwise, the
 default configuration skips baseline targets (e.g. scalar) that are superseded
-by another baseline target
+by another baseline target.
 
 ## Quick start
 
