@@ -56,6 +56,7 @@ set(HWY_SOURCES
     hwy/aligned_allocator.h
     hwy/base.h
     hwy/cache_control.h
+    hwy/contrib/math/math-inl.h
     hwy/foreach_target.h
     hwy/highway.h
     hwy/nanobenchmark.cc
@@ -269,6 +270,7 @@ endif()
 endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
+  hwy/contrib/math/math_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/compare_test.cc

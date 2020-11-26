@@ -270,6 +270,10 @@ using I64xN = Vec<HWY_FULL(int64_t)>;
 using F32xN = Vec<HWY_FULL(float)>;
 using F64xN = Vec<HWY_FULL(double)>;
 
+// The inner lane type of a vector type, e.g. float for Simd<float, 4>.
+template <class V>
+using LaneType = decltype(GetLane(V()));
+
 // Returns a vector with lane i=[0, N) set to "first" + i. Unique per-lane
 // values are required to detect lane-crossing bugs.
 template <class D, typename T2>
