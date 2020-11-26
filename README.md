@@ -275,9 +275,11 @@ set, we provide a special `ZeroIfNegative` function.
 
 ## Additional resources
 
+*   [Highway introduction (slides)][intro]
 *   [Overview of instructions per operation on different architectures][instmtx]
 
-[instmtx]: instruction_matrix.pdf
+[intro]: g3doc/highway_intro.pdf
+[instmtx]: g3doc/instruction_matrix.pdf
 
 This is not an officially supported Google product.
 Contact: janwas@google.com
