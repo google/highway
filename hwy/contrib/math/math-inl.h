@@ -25,10 +25,6 @@
 
 #include "hwy/highway.h"
 
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/math/math-inl.h"
-#include "hwy/foreach_target.h"
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {

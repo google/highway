@@ -221,6 +221,8 @@
 // 1) For older compilers: disable all SIMD (could also set HWY_DISABLED_TARGETS
 // to ~HWY_SCALAR, but this is more explicit).
 #if defined(HWY_COMPILE_ONLY_SCALAR)
+#undef HWY_STATIC_TARGET
+#define HWY_STATIC_TARGET HWY_SCALAR  // override baseline
 #define HWY_TARGETS HWY_SCALAR
 
 // 2) For forcing static dispatch without code changes (removing HWY_EXPORT)

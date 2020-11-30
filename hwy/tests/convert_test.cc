@@ -13,8 +13,6 @@
 // limitations under the License.
 
 #include <cstdint>
-#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
-#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/convert_test.cc"
 #include "hwy/foreach_target.h"

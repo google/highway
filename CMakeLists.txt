@@ -52,6 +52,8 @@ check_cxx_source_compiles(
 )
 
 set(HWY_SOURCES
+    contrib/image/image.cc
+    contrib/image/image.h
     hwy/aligned_allocator.cc
     hwy/aligned_allocator.h
     hwy/base.h
@@ -270,6 +272,7 @@ endif()
 endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
+  contrib/image/image_test.cc
   hwy/contrib/math/math_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc

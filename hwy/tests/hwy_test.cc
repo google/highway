@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#undef HWY_DISABLED_TARGETS  // Override build setting, we want to test all
-#define HWY_DISABLED_TARGETS 0
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/hwy_test.cc"
 #include "hwy/foreach_target.h"
