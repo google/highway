@@ -15,7 +15,6 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/examples/benchmark.cc"
 #include "hwy/foreach_target.h"
-// ^ must come before highway.h and any *-inl.h.
 
 #include <stddef.h>
 #include <stdio.h>

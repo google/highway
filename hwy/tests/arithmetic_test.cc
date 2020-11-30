@@ -15,7 +15,6 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/arithmetic_test.cc"
 #include "hwy/foreach_target.h"
-// ^ must come before highway.h and any *-inl.h.
 
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"

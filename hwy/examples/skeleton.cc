@@ -24,7 +24,6 @@
 #define HWY_TARGET_INCLUDE "hwy/examples/skeleton.cc"
 // Re-include this file once per enabled target to generate code for it.
 #include "hwy/foreach_target.h"
-// ^ must come before highway.h and any *-inl.h.
 
 #include "hwy/examples/skeleton_shared.h"
 #include "hwy/highway.h"

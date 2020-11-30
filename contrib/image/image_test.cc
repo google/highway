@@ -21,7 +21,6 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "contrib/image/image_test.cc"
 #include "hwy/foreach_target.h"
-// ^ must come before highway.h and any *-inl.h.
 
 #include <stdint.h>
 #include <stdio.h>
