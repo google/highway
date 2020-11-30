@@ -17,6 +17,8 @@
 #include <stddef.h>
 
 #include <new>
+#include <random>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "hwy/base.h"
@@ -223,6 +225,26 @@ TEST(AlignedAllocatorTest, MakeUniqueAlignedArrayWithCustomAlloc) {
   }
   EXPECT_EQ(0, counter);
   EXPECT_EQ(0u, fake_alloc.PendingAllocs());
+}
+
+TEST(AlignedAllocatorTest, DefaultInit) {
+  // The test is whether this compiles. Default-init is useful for output params
+  // and per-thread storage.
+  std::vector<AlignedUniquePtr<int[]>> ptrs;
+  std::vector<AlignedFreeUniquePtr<double[]>> free_ptrs;
+  ptrs.resize(128);
+  free_ptrs.resize(128);
+  // The following is to prevent elision of the pointers.
+  std::random_device rd;
+  std::uniform_int_distribution<size_t> dist(0, 127);
+  ptrs[dist(rd)] = MakeUniqueAlignedArray<int>(123);
+  free_ptrs[dist(rd)] = AllocateAligned<double>(456);
+  // "Use" pointer without resorting to printf. 0 == 0. Can't shift by 64.
+  const auto addr1 = reinterpret_cast<uintptr_t>(ptrs[dist(rd)].get());
+  const auto addr2 = reinterpret_cast<uintptr_t>(free_ptrs[dist(rd)].get());
+  constexpr size_t kBits = sizeof(uintptr_t) * 8;
+  EXPECT_EQ((addr1 >> (kBits - 1)) >> (kBits - 1),
+            (addr2 >> (kBits - 1)) >> (kBits - 1));
 }
 
 }  // namespace hwy
