@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cmath>
+#include <cstring>  // memcpy
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE

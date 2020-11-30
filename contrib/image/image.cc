@@ -128,6 +128,9 @@ void ImageBase::InitializePadding(const size_t sizeof_t, Padding padding) {
     memset(row + valid_size, 0, initialize_size - valid_size);
 #endif  // clang6
   }
+#else
+  (void)sizeof_t;
+  (void)padding;
 #endif  // MEMORY_SANITIZER
 }
 
