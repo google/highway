@@ -36,6 +36,8 @@ bin/%: hwy/tests/%.cc $(OBJS)
 
 bin/%: contrib/image/%.cc $(OBJS)
 	mkdir -p bin && $(CXX) $(CXXFLAGS) $< $(OBJS) -o $@ -lgtest -lgtest_main -lpthread
+bin/%: contrib/math/%.cc $(OBJS)
+	mkdir -p bin && $(CXX) $(CXXFLAGS) $< $(OBJS) -o $@ -lgtest -lgtest_main -lpthread
 
 .PHONY: test
 test: $(TESTS) $(ROOT_TESTS)

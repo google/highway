@@ -15,12 +15,12 @@
 // TODO(rhettstucki): Make compatible with SVE vector types.
 
 // Include guard (still compiled once per target)
-#if defined(HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_) == \
+#if defined(HIGHWAY_CONTRIB_MATH_MATH_INL_H_) == \
     defined(HWY_TARGET_TOGGLE)
-#ifdef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
-#undef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
+#ifdef HIGHWAY_CONTRIB_MATH_MATH_INL_H_
+#undef HIGHWAY_CONTRIB_MATH_MATH_INL_H_
 #else
-#define HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
+#define HIGHWAY_CONTRIB_MATH_MATH_INL_H_
 #endif
 
 #include "hwy/highway.h"
@@ -346,4 +346,4 @@ HWY_NOINLINE F64xN Exp(F64xN x) { return impl::Exp(x); }  // NOLINT
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
-#endif  // HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
+#endif  // HIGHWAY_CONTRIB_MATH_MATH_INL_H_

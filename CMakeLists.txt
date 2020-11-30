@@ -54,11 +54,11 @@ check_cxx_source_compiles(
 set(HWY_SOURCES
     contrib/image/image.cc
     contrib/image/image.h
+    contrib/math/math-inl.h
     hwy/aligned_allocator.cc
     hwy/aligned_allocator.h
     hwy/base.h
     hwy/cache_control.h
-    hwy/contrib/math/math-inl.h
     hwy/foreach_target.h
     hwy/highway.h
     hwy/nanobenchmark.cc
@@ -273,7 +273,7 @@ endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
   contrib/image/image_test.cc
-  hwy/contrib/math/math_test.cc
+  contrib/math/math_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/compare_test.cc

@@ -16,10 +16,10 @@
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"
+#define HWY_TARGET_INCLUDE "contrib/math/math_test.cc"
 #include "hwy/foreach_target.h"
 
-#include "hwy/contrib/math/math-inl.h"
+#include "contrib/math/math-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
 
