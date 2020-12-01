@@ -35,7 +35,10 @@ namespace HWY_NAMESPACE {
 //   Max Error: ULP = 1
 // Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
 HWY_NOINLINE F32xN Exp(F32xN x);
+
+#if HWY_CAP_FLOAT64
 HWY_NOINLINE F64xN Exp(F64xN x);
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
@@ -43,16 +46,16 @@ HWY_NOINLINE F64xN Exp(F64xN x);
 namespace impl {
 
 // Half Types
-using I32xH = Vec<Simd<int32_t, (sizeof(F64xN) / sizeof(double))>>;
+using I32xH = Vec<Simd<int32_t, HWY_LANES(double)>>;
 
 template <class V>
 struct TagTypeFor {
   using Lane = LaneType<V>;
-  using Type = Simd<Lane, sizeof(V) / sizeof(Lane)>;
+  using Type = Simd<Lane, HWY_LANES(Lane)>;
 };
 template <>
 struct TagTypeFor<I32xH> {
-  using Type = Simd<int32_t, sizeof(I64xN) / sizeof(int64_t)>;
+  using Type = Simd<int32_t, HWY_LANES(int64_t)>;
 };
 
 template <class V>
@@ -65,6 +68,8 @@ template <class Out, class In>
 HWY_INLINE Out ConvertToAny(In x) {
   return ConvertTo(Tag<Out>(), x);
 }
+
+#if HWY_CAP_FLOAT64
 template <>
 HWY_INLINE I32xH ConvertToAny<I32xH, F64xN>(F64xN x) {
   return DemoteTo(Tag<I32xH>(), x);
@@ -73,6 +78,7 @@ template <>
 HWY_INLINE F64xN ConvertToAny<F64xN, I32xH>(I32xH x) {
   return PromoteTo(Tag<F64xN>(), x);
 }
+#endif
 template <>
 HWY_INLINE I64xN ConvertToAny<I64xN, I32xH>(I32xH x) {
   return PromoteTo(Tag<I64xN>(), x);
@@ -253,7 +259,7 @@ HWY_INLINE HWY_MAYBE_UNUSED F32xN ExpPoly(F32xN x) {
 
   return MulAdd(Estrin(x, k0, k1, k2, k3, k4, k5), (x * x), x);
 }
-
+#if HWY_CAP_FLOAT64
 HWY_INLINE HWY_MAYBE_UNUSED F64xN ExpPoly(F64xN x) {
   const F64xN k0 = Make<F64xN>(+0.5);
   const F64xN k1 = Make<F64xN>(+0.166666666666666851703837);
@@ -270,26 +276,31 @@ HWY_INLINE HWY_MAYBE_UNUSED F64xN ExpPoly(F64xN x) {
   return MulAdd(Estrin(x, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9, k10), (x * x),
                 x);
 }
+#endif
 
 // Computes 2^x, where x is an integer.
 HWY_INLINE HWY_MAYBE_UNUSED F32xN F32_Pow2I(I32xN x) {
   const I32xN kOffset = Make<I32xN>(0x7F);
   return BitCast(Tag<F32xN>(), ShiftLeft<23>(x + kOffset));
 }
+#if HWY_CAP_FLOAT64
 HWY_INLINE HWY_MAYBE_UNUSED F64xN F64_Pow2I(I32xH x) {
   const I32xH kOffset = Make<I32xH>(0x3FF);
   return BitCast(Tag<F64xN>(), ShiftLeft<52>(ConvertToAny<I64xN>(x + kOffset)));
 }
+#endif
 
 // Sets the exponent of 'x' to 2^e.
 HWY_INLINE HWY_MAYBE_UNUSED F32xN LoadExpShortRange(F32xN x, I32xN e) {
   const I32xN y = ShiftRight<1>(e);
   return (x * F32_Pow2I(y) * F32_Pow2I(e - y));
 }
+#if HWY_CAP_FLOAT64
 HWY_INLINE HWY_MAYBE_UNUSED F64xN LoadExpShortRange(F64xN x, I32xH e) {
   const I32xH y = ShiftRight<1>(e);
   return (x * F64_Pow2I(y) * F64_Pow2I(e - y));
 }
+#endif
 
 HWY_INLINE HWY_MAYBE_UNUSED F32xN ExpReduce(F32xN x, I32xN q) {
   // kLn2Part0f + kLn2Part1f ~= -ln(2)
@@ -302,6 +313,7 @@ HWY_INLINE HWY_MAYBE_UNUSED F32xN ExpReduce(F32xN x, I32xN q) {
   x = MulAdd(qf, kLn2Part1f, x);
   return x;
 }
+#if HWY_CAP_FLOAT64
 HWY_INLINE HWY_MAYBE_UNUSED F64xN ExpReduce(F64xN x, I32xH q) {
   // kLn2Part0d + kLn2Part1d ~= -ln(2)
   const F64xN kLn2Part0d = Make<F64xN>(-0.6931471805596629565116018);
@@ -313,6 +325,7 @@ HWY_INLINE HWY_MAYBE_UNUSED F64xN ExpReduce(F64xN x, I32xH q) {
   x = MulAdd(qf, kLn2Part1d, x);
   return x;
 }
+#endif
 
 template <class V>
 HWY_INLINE V Exp(V x) {
@@ -339,7 +352,9 @@ HWY_INLINE V Exp(V x) {
 }  // namespace impl
 
 HWY_NOINLINE F32xN Exp(F32xN x) { return impl::Exp(x); }  // NOLINT
+#if HWY_CAP_FLOAT64
 HWY_NOINLINE F64xN Exp(F64xN x) { return impl::Exp(x); }  // NOLINT
+#endif
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
