@@ -235,13 +235,13 @@ TEST(AlignedAllocatorTest, DefaultInit) {
   ptrs.resize(128);
   free_ptrs.resize(128);
   // The following is to prevent elision of the pointers.
-  std::random_device rd;
+  std::mt19937 rng(129);  // Emscripten lacks random_device.
   std::uniform_int_distribution<size_t> dist(0, 127);
-  ptrs[dist(rd)] = MakeUniqueAlignedArray<int>(123);
-  free_ptrs[dist(rd)] = AllocateAligned<double>(456);
+  ptrs[dist(rng)] = MakeUniqueAlignedArray<int>(123);
+  free_ptrs[dist(rng)] = AllocateAligned<double>(456);
   // "Use" pointer without resorting to printf. 0 == 0. Can't shift by 64.
-  const auto addr1 = reinterpret_cast<uintptr_t>(ptrs[dist(rd)].get());
-  const auto addr2 = reinterpret_cast<uintptr_t>(free_ptrs[dist(rd)].get());
+  const auto addr1 = reinterpret_cast<uintptr_t>(ptrs[dist(rng)].get());
+  const auto addr2 = reinterpret_cast<uintptr_t>(free_ptrs[dist(rng)].get());
   constexpr size_t kBits = sizeof(uintptr_t) * 8;
   EXPECT_EQ((addr1 >> (kBits - 1)) >> (kBits - 1),
             (addr2 >> (kBits - 1)) >> (kBits - 1));
