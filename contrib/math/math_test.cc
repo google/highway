@@ -64,7 +64,7 @@ struct TestExp {
     uint64_t max_ulp = 0;
     for (int i = 0; i < kValueCount; ++i) {
       const T value = kTestValues[i];
-      const auto actual = GetLane(Exp(Set(d, value)));
+      const auto actual = GetLane(Exp(d, Set(d, value)));
       const auto expected = std::exp(value);
       const auto ulp = ComputeUlpDelta(actual, expected);
       max_ulp = std::max<uint64_t>(max_ulp, ulp);
@@ -75,7 +75,7 @@ struct TestExp {
   }
 };
 
-HWY_NOINLINE void TestAllExp() { ForFloatTypes(ForFullVectors<TestExp>()); }
+HWY_NOINLINE void TestAllExp() { ForFloatTypes(ForPartialVectors<TestExp>()); }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
