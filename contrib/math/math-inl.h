@@ -79,10 +79,12 @@ HWY_INLINE F64xN ConvertToAny<F64xN, I32xH>(I32xH x) {
   return PromoteTo(Tag<F64xN>(), x);
 }
 #endif
+#if HWY_CAP_INTEGER64
 template <>
 HWY_INLINE I64xN ConvertToAny<I64xN, I32xH>(I32xH x) {
   return PromoteTo(Tag<I64xN>(), x);
 }
+#endif
 
 // Make
 template <class V>
@@ -283,7 +285,7 @@ HWY_INLINE HWY_MAYBE_UNUSED F32xN F32_Pow2I(I32xN x) {
   const I32xN kOffset = Make<I32xN>(0x7F);
   return BitCast(Tag<F32xN>(), ShiftLeft<23>(x + kOffset));
 }
-#if HWY_CAP_FLOAT64
+#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
 HWY_INLINE HWY_MAYBE_UNUSED F64xN F64_Pow2I(I32xH x) {
   const I32xH kOffset = Make<I32xH>(0x3FF);
   return BitCast(Tag<F64xN>(), ShiftLeft<52>(ConvertToAny<I64xN>(x + kOffset)));
