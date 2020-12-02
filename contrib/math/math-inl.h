@@ -27,6 +27,28 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+/**
+ * Highway SIMD version of std::exp(x).
+ *
+ * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ *        Max Error: ULP = 1
+ *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
+ * @return e^x
+ */
+template <class D, class V>
+HWY_NOINLINE V Exp(const D d, V x);
+
+/**
+ * Highway SIMD version of std::expm1(x).
+ *
+ * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
+ * @return e^x - 1
+ */
+template <class D, class V>
+HWY_NOINLINE V Expm1(const D d, V x);
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,31 +326,55 @@ struct ExpImpl<double> {
 
 }  // namespace impl
 
-// Computes e^x for each lane. Highway version of std::exp(x).
-//
-// Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
-//   Max Error: ULP = 1
-// Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
 template <class D, class V>
 HWY_NOINLINE V Exp(const D d, V x) {
+  using LaneType = LaneType<V>;
+
   // clang-format off
-  const V kLowerBound  = Set(d, -104.0);
   const V kHalf        = Set(d, +0.5);
+  const V kLowerBound  = Set(d, (sizeof(LaneType) == 4 ? -104.0 : -1000.0));
   const V kNegZero     = Set(d, -0.0);
   const V kOne         = Set(d, +1.0);
   const V kOneOverLog2 = Set(d, +1.442695040888963407359924681);
   // clang-format on
 
-  impl::ExpImpl<LaneType<V>> t;
+  impl::ExpImpl<LaneType> impl;
 
   // q = static_cast<int32>((x / log(2)) + ((x < 0) ? -0.5 : +0.5))
   const auto q =
-      t.ToInt32(d, MulAdd(x, kOneOverLog2, Or(kHalf, And(x, kNegZero))));
+      impl.ToInt32(d, MulAdd(x, kOneOverLog2, Or(kHalf, And(x, kNegZero))));
 
   // Reduce, approximate, and then reconstruct.
-  const V y =
-      t.LoadExpShortRange(d, (t.ExpPoly(d, t.ExpReduce(d, x, q)) + kOne), q);
+  const V y = impl.LoadExpShortRange(
+      d, (impl.ExpPoly(d, impl.ExpReduce(d, x, q)) + kOne), q);
   return IfThenElseZero(x >= kLowerBound, y);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Expm1(const D d, V x) {
+  using LaneType = LaneType<V>;
+
+  // clang-format off
+  const V kHalf        = Set(d, +0.5);
+  const V kLowerBound  = Set(d, (sizeof(LaneType) == 4 ? -104.0 : -1000.0));
+  const V kLn2Over2    = Set(d, +0.346573590279972654708616);
+  const V kNegOne      = Set(d, -1.0);
+  const V kNegZero     = Set(d, -0.0);
+  const V kOne         = Set(d, +1.0);
+  const V kOneOverLog2 = Set(d, +1.442695040888963407359924681);
+  // clang-format on
+
+  impl::ExpImpl<LaneType> impl;
+
+  // q = static_cast<int32>((x / log(2)) + ((x < 0) ? -0.5 : +0.5))
+  const auto q =
+      impl.ToInt32(d, MulAdd(x, kOneOverLog2, Or(kHalf, And(x, kNegZero))));
+
+  // Reduce, approximate, and then reconstruct.
+  const V y = impl.ExpPoly(d, impl.ExpReduce(d, x, q));
+  const V z = IfThenElse(Abs(x) < kLn2Over2, y,
+                         impl.LoadExpShortRange(d, (y + kOne), q) - kOne);
+  return IfThenElse(x < kLowerBound, kNegOne, z);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

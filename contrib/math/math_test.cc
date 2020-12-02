@@ -48,6 +48,7 @@ inline int64_t ComputeUlpDelta(double x, double y) {
   return std::abs(BitCast<int64_t>(ux - uy));
 }
 
+// TODO(rhettstucki): Collapse this pattern of test into a single function.
 struct TestExp {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -74,8 +75,37 @@ struct TestExp {
               << ", Max Error(ULP): " << max_ulp << std::endl;
   }
 };
+struct TestExpm1 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    constexpr bool kIsF32 = (sizeof(T) == 4);
+    constexpr T kMin = (kIsF32 ? -FLT_MAX : -DBL_MAX);
+    constexpr T kMax = (kIsF32 ? +104.0 : +706.0);
 
-HWY_NOINLINE void TestAllExp() { ForFloatTypes(ForPartialVectors<TestExp>()); }
+    // clang-format off
+    constexpr int kValueCount = 13;
+    const T kTestValues[kValueCount] {
+      kMin, -1e20, -1e10, -1000, -100, -10, -1, 0, 0.123456, +1, +10, +100, kMax
+    };  // clang-format on
+
+    uint64_t max_ulp = 0;
+    for (int i = 0; i < kValueCount; ++i) {
+      const T value = kTestValues[i];
+      const auto actual = GetLane(Expm1(d, Set(d, value)));
+      const auto expected = std::expm1(value);
+      const auto ulp = ComputeUlpDelta(actual, expected);
+      max_ulp = std::max<uint64_t>(max_ulp, ulp);
+      ASSERT_LE(ulp, 4) << "expected: " << expected << " actual: " << actual;
+    }
+    std::cout << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
+              << ", Max Error(ULP): " << max_ulp << std::endl;
+  }
+};
+
+// clang-format off
+HWY_NOINLINE void TestAllExp  () { ForFloatTypes(ForPartialVectors<TestExp  >()); }  // NOLINT
+HWY_NOINLINE void TestAllExpm1() { ForFloatTypes(ForPartialVectors<TestExpm1>()); }  // NOLINT
+// clang-format on
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -89,6 +119,7 @@ class HwyMathTest : public hwy::TestWithParamTarget {};
 
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
 
 }  // namespace hwy
 #endif
