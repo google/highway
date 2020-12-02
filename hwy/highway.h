@@ -247,32 +247,32 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// Returns the closest value to v within [lo, hi].
+// The lane type of a vector type, e.g. float for Vec<Simd<float, 4>>.
 template <class V>
-HWY_API V Clamp(const V v, const V lo, const V hi) {
-  return Min(Max(lo, v), hi);
-}
+using LaneType = decltype(GetLane(V()));
 
-// Corresponding vector type, e.g. Vec128<float> for Simd<float, 4>,
+// Descriptor for the same number of lanes as D, but with the LaneType T.
+template <class T, class D>
+using Rebind = typename D::template Rebind<T>;
+
+// Corresponding vector type, e.g. Vec128<float> for Simd<float, 4>. Useful as
+// the return type of functions that do not take a vector argument, or as an
+// argument type if the function only has a template argument for D.
 template <class D>
 using Vec = decltype(Zero(D()));
 
+// Full vector types. These may be used instead of `auto` for improved clarity,
+// at the cost of reduced generality (cannot express half vectors etc.).
 using U8xN = Vec<HWY_FULL(uint8_t)>;
 using U16xN = Vec<HWY_FULL(uint16_t)>;
 using U32xN = Vec<HWY_FULL(uint32_t)>;
 using U64xN = Vec<HWY_FULL(uint64_t)>;
-
 using I8xN = Vec<HWY_FULL(int8_t)>;
 using I16xN = Vec<HWY_FULL(int16_t)>;
 using I32xN = Vec<HWY_FULL(int32_t)>;
 using I64xN = Vec<HWY_FULL(int64_t)>;
-
 using F32xN = Vec<HWY_FULL(float)>;
 using F64xN = Vec<HWY_FULL(double)>;
-
-// The inner lane type of a vector type, e.g. float for Simd<float, 4>.
-template <class V>
-using LaneType = decltype(GetLane(V()));
 
 // Returns a vector with lane i=[0, N) set to "first" + i. Unique per-lane
 // values are required to detect lane-crossing bugs.
@@ -284,6 +284,12 @@ Vec<D> Iota(const D d, const T2 first) {
     lanes[i] = static_cast<T>(first + static_cast<T2>(i));
   }
   return Load(d, lanes);
+}
+
+// Returns the closest value to v within [lo, hi].
+template <class V>
+HWY_API V Clamp(const V v, const V lo, const V hi) {
+  return Min(Max(lo, v), hi);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

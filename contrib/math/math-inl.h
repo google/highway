@@ -198,9 +198,8 @@ template <>
 struct ExpImpl<float> {
   // Rounds float toward zero and returns as int32_t.
   template <class D, class V>
-  HWY_INLINE auto ToInt32(D d, V x) -> Vec<Simd<int32_t, MaxLanes(d)>> {
-    const Simd<int32_t, MaxLanes(d)> di32;
-    return ConvertTo(di32, x);
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D d, V x) {
+    return ConvertTo(Rebind<int32_t, D>(), x);
   }
 
   template <class D, class V>
@@ -249,9 +248,8 @@ template <>
 struct ExpImpl<double> {
   // Rounds double toward zero and returns as int32_t.
   template <class D, class V>
-  HWY_INLINE auto ToInt32(D d, V x) -> Vec<Simd<int32_t, MaxLanes(d)>> {
-    const Simd<int32_t, MaxLanes(d)> di32;
-    return DemoteTo(di32, x);
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D d, V x) {
+    return DemoteTo(Rebind<int32_t, D>(), x);
   }
 
   template <class D, class V>

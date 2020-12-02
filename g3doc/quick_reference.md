@@ -55,8 +55,8 @@ HWY_AFTER_NAMESPACE();
 ## Preprocessor macros
 
 *   `HWY_ALIGN`: Ensures an array is aligned and suitable for Load()/Store()
-    functions. Example: `HWY_ALIGN T lanes[MaxLanes(d)];` Note the caveat on
-    `MaxLanes` below.
+    functions. Example: `HWY_ALIGN float lanes[4];` Note that arrays are mainly
+    useful for 128-bit SIMD, or `LoadDup128`; otherwise, use dynamic allocation.
 
 *   `HWY_ALIGN_MAX`: As `HWY_ALIGN`, but aligns to an upper bound suitable for
     all targets on this platform. Use this for caller of SIMD modules, e.g. for
@@ -84,19 +84,20 @@ There are three possibilities for the template parameter `N`:
 1.  Equal to the hardware vector width. This is the most common case, e.g. when
     using `HWY_FULL(T)` on a target with compile-time constant vectors.
 
-2.  Less than the hardware vector width. This is the result of a compile-time
+1.  Less than the hardware vector width. This is the result of a compile-time
     decision by the user, i.e. using `HWY_CAPPED(T, N)` to limit the number of
     lanes, even when the hardware vector width could be greater.
 
-3.  Greater or equal to the hardware vector width, e.g. when the hardware vector
-    width is not known at compile-time.
+1.  Greater or equal to the hardware vector width, e.g. when the hardware vector
+    width is not known at compile-time. User code should not rely on `N`
+    actually being an upper bound, because variable vectors can be large!
 
 In all cases, `Lanes(d)` returns the actual number of lanes, i.e. the amount by
-which to advance loop counters (at most `N`). The constexpr `MaxLanes(d)`
-returns an upper bound, typically used as a template argument to another
-descriptor. Using it as an array size is discouraged because the bound may be
-loose in case 3, leading to excessive stack usage. Where possible, prefer
-aligned dynamic allocation of `Lanes(d)` elements via aligned_allocator.h.
+which to advance loop counters. `MaxLanes(d)` returns the `N` from `Simd<T, N>`,
+which is NOT necessarily the actual vector size (see above) and some compilers
+are not able to interpret it as constexpr. Instead of `MaxLanes`, prefer to use
+alternatives, e.g. `Rebind` or `aligned_allocator.h` for dynamic allocation of
+`Lanes(d)` elements.
 
 Note that case 3 does not imply the API will use more than one native vector.
 Highway is designed to map a user-specified vector to a single

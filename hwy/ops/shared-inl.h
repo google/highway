@@ -122,17 +122,24 @@ namespace HWY_NAMESPACE {
 // latter are useful if >128 bit vectors are unnecessary or undesirable.
 //
 // Users should not use the N of a Simd<> but instead query the actual number of
-// lanes via Lanes(). MaxLanes() is provided for template arguments and array
-// dimensions, but this is discouraged because an upper bound might not exist.
+// lanes via Lanes().
 template <typename Lane, size_t N>
 struct Simd {
   constexpr Simd() = default;
   using T = Lane;
   static_assert((N & (N - 1)) == 0 && N != 0, "N must be a power of two");
+
+  // Descriptor for another lane type, but same number of lanes. Useful for
+  // generic functions that need to initialize vectors of the type that
+  // PromoteTo/DemoteTo would return.
+  template <typename NewLane>
+  using Rebind = Simd<NewLane, N>;
 };
 
-// Compile-time-constant upper bound (even for variable-length vectors), useful
-// for array dimensions.
+// Compile-time-constant, (typically but not guaranteed) an upper bound on the
+// number of lanes.
+// Prefer instead using Lanes() and dynamic allocation, or Rebind, or
+// `#if HWY_CAP_GE*`.
 template <typename T, size_t N>
 HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(Simd<T, N>) {
   return N;
