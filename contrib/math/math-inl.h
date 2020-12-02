@@ -198,7 +198,7 @@ template <>
 struct ExpImpl<float> {
   // Rounds float toward zero and returns as int32_t.
   template <class D, class V>
-  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D d, V x) {
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
     return ConvertTo(Rebind<int32_t, D>(), x);
   }
 
@@ -248,7 +248,7 @@ template <>
 struct ExpImpl<double> {
   // Rounds double toward zero and returns as int32_t.
   template <class D, class V>
-  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D d, V x) {
+  HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
     return DemoteTo(Rebind<int32_t, D>(), x);
   }
 
