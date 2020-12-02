@@ -273,7 +273,7 @@ endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
   contrib/image/image_test.cc
-  contrib/math/math_test.cc
+  # contrib/math/math_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/compare_test.cc
