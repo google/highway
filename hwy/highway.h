@@ -292,6 +292,14 @@ HWY_API V Clamp(const V v, const V lo, const V hi) {
   return Min(Max(lo, v), hi);
 }
 
+// Returns lanes with the most significant bit set and all other bits zero.
+template <class D>
+HWY_API Vec<D> SignBit(D d) {
+  using Unsigned = MakeUnsigned<typename D::T>;
+  const Unsigned bit = Unsigned(1) << (sizeof(Unsigned) * 8 - 1);
+  return BitCast(d, Set(Rebind<Unsigned, D>(), bit));
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

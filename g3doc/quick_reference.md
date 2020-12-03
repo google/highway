@@ -142,6 +142,8 @@ possibly with the specified size in bits of `T`.
 *   <code>V **Iota**(D, T)</code>: returns N-lane vector where the lane with
     index `i` has the given value of type `T` plus `i`. The least significant
     lane has index 0. (include test_util-inl.h)
+*   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
+    to a value whose representation has only the most-significant bit set.
 
 ### Arithmetic
 
@@ -283,16 +285,18 @@ bits. ARM requires the count be less than the lane size.
 
 These operate on individual bits within each lane.
 
-*   <code>V **operator&**(V a, V b)</code>: returns `a[i] & b[i]`.
+*   `V`: `ui` \
+    <code>V **operator&**(V a, V b)</code>: returns `a[i] & b[i]`.
 
-*   <code>V **operator|**(V a, V b)</code>: returns `a[i] | b[i]`.
+*   `V`: `ui` \
+    <code>V **operator|**(V a, V b)</code>: returns `a[i] | b[i]`.
 
-*   <code>V **operator^**(V a, V b)</code>: returns `a[i] ^ b[i]`.
+*   `V`: `ui` \
+    <code>V **operator^**(V a, V b)</code>: returns `a[i] ^ b[i]`.
 
-*   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
+For floating-point types, builtin operators are not always available, so
+non-operator functions (also available for integers) must be used:
 
-For floating-point types, builtin operators are not always available, so we
-provide non-operator functions:
 *   <code>V **And**(V a, V b)</code>: returns `a[i] & b[i]`.
 
 *   <code>V **Or**(V a, V b)</code>: returns `a[i] | b[i]`.

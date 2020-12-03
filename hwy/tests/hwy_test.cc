@@ -223,9 +223,7 @@ struct TestName {
   }
 };
 
-HWY_NOINLINE void TestAllNameBasic() {
-  ForAllTypes(ForPartialVectors<TestName>());
-}
+HWY_NOINLINE void TestAllName() { ForAllTypes(ForPartialVectors<TestName>()); }
 
 struct TestSet {
   template <class T, class D>
@@ -243,20 +241,54 @@ struct TestSet {
     }
     HWY_ASSERT_VEC_EQ(d, expected, v2);
 
-    // iota
+    // Iota
     const auto vi = Iota(d, T(5));
     for (size_t i = 0; i < N; ++i) {
       expected[i] = 5 + i;
     }
     HWY_ASSERT_VEC_EQ(d, expected, vi);
 
-    // undefined
+    // Undefined
     const auto vu = Undefined(d);
     Store(vu, d, expected);
   }
 };
 
 HWY_NOINLINE void TestAllSet() { ForAllTypes(ForPartialVectors<TestSet>()); }
+
+struct TestSignBitInteger {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto all = VecFromMask(v0 == v0);
+    const auto vs = SignBit(d);
+    const auto other = vs - Set(d, 1);
+
+    // Shifting left by one => overflow, equal zero
+    HWY_ASSERT_VEC_EQ(d, v0, vs + vs);
+    // Verify the lower bits are zero (only +/- and logical ops are available
+    // for all types)
+    HWY_ASSERT_VEC_EQ(d, all, vs + other);
+  }
+};
+
+struct TestSignBitFloat {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vs = SignBit(d);
+    const auto vp = Set(d, 2.25);
+    const auto vn = Set(d, -2.25);
+    HWY_ASSERT_VEC_EQ(d, Or(vp, vs), vn);
+    HWY_ASSERT_VEC_EQ(d, AndNot(vs, vn), vp);
+    HWY_ASSERT_VEC_EQ(d, v0, vs);
+  }
+};
+
+HWY_NOINLINE void TestAllSignBit() {
+  ForIntegerTypes(ForPartialVectors<TestSignBitInteger>());
+  ForFloatTypes(ForPartialVectors<TestSignBitFloat>());
+}
 
 struct TestCopyAndAssign {
   template <class T, class D>
@@ -308,7 +340,8 @@ HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestToString);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestType);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestOverflow);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSet);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllNameBasic);
+HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSignBit);
+HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllName);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllGetLane);
 
