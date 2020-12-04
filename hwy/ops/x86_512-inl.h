@@ -2235,99 +2235,66 @@ HWY_API Vec512<uint64_t> SumsOfU8x8(const Vec512<uint8_t> v) {
   return Vec512<uint64_t>{_mm512_sad_epu8(v.raw, _mm512_setzero_si512())};
 }
 
-namespace detail {
-
-// Returns sum{lane[i]} in each lane. "v3210" is a replicated 128-bit block.
-// Same logic as SSE4, but with Vec512 arguments.
-template <typename T>
-HWY_API Vec512<T> SumOfLanes(hwy::SizeTag<4> /* tag */, const Vec512<T> v3210) {
-  const auto v1032 = Shuffle1032(v3210);
-  const auto v31_20_31_20 = v3210 + v1032;
-  const auto v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return v20_31_20_31 + v31_20_31_20;
+// Returns the sum in each lane.
+HWY_API Vec512<int32_t> SumOfLanes(const Vec512<int32_t> v) {
+  return Set(Full512<int32_t>(), _mm512_reduce_add_epi32(v.raw));
 }
-template <typename T>
-HWY_API Vec512<T> MinOfLanes(hwy::SizeTag<4> /* tag */, const Vec512<T> v3210) {
-  const auto v1032 = Shuffle1032(v3210);
-  const auto v31_20_31_20 = Min(v3210, v1032);
-  const auto v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return Min(v20_31_20_31, v31_20_31_20);
+HWY_API Vec512<int64_t> SumOfLanes(const Vec512<int64_t> v) {
+  return Set(Full512<int64_t>(), _mm512_reduce_add_epi64(v.raw));
 }
-template <typename T>
-HWY_API Vec512<T> MaxOfLanes(hwy::SizeTag<4> /* tag */, const Vec512<T> v3210) {
-  const auto v1032 = Shuffle1032(v3210);
-  const auto v31_20_31_20 = Max(v3210, v1032);
-  const auto v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return Max(v20_31_20_31, v31_20_31_20);
+HWY_API Vec512<uint32_t> SumOfLanes(const Vec512<uint32_t> v) {
+  return BitCast(Full512<uint32_t>(),
+                 SumOfLanes(BitCast(Full512<int32_t>(), v)));
+}
+HWY_API Vec512<uint64_t> SumOfLanes(const Vec512<uint64_t> v) {
+  return BitCast(Full512<uint64_t>(),
+                 SumOfLanes(BitCast(Full512<int64_t>(), v)));
+}
+HWY_API Vec512<float> SumOfLanes(const Vec512<float> v) {
+  return Set(Full512<float>(), _mm512_reduce_add_ps(v.raw));
+}
+HWY_API Vec512<double> SumOfLanes(const Vec512<double> v) {
+  return Set(Full512<double>(), _mm512_reduce_add_pd(v.raw));
 }
 
-template <typename T>
-HWY_API Vec512<T> SumOfLanes(hwy::SizeTag<8> /* tag */, const Vec512<T> v10) {
-  const auto v01 = Shuffle01(v10);
-  return v10 + v01;
+// Returns the minimum in each lane.
+HWY_API Vec512<int32_t> MinOfLanes(const Vec512<int32_t> v) {
+  return Set(Full512<int32_t>(), _mm512_reduce_min_epi32(v.raw));
 }
-template <typename T>
-HWY_API Vec512<T> MinOfLanes(hwy::SizeTag<8> /* tag */, const Vec512<T> v10) {
-  const auto v01 = Shuffle01(v10);
-  return Min(v10, v01);
+HWY_API Vec512<int64_t> MinOfLanes(const Vec512<int64_t> v) {
+  return Set(Full512<int64_t>(), _mm512_reduce_min_epi64(v.raw));
 }
-template <typename T>
-HWY_API Vec512<T> MaxOfLanes(hwy::SizeTag<8> /* tag */, const Vec512<T> v10) {
-  const auto v01 = Shuffle01(v10);
-  return Max(v10, v01);
+HWY_API Vec512<uint32_t> MinOfLanes(const Vec512<uint32_t> v) {
+  return Set(Full512<uint32_t>(), _mm512_reduce_min_epu32(v.raw));
 }
-
-}  // namespace detail
-
-// Swaps adjacent 128-bit blocks.
-HWY_API __m512i Blocks2301(__m512i v) {
-  return _mm512_shuffle_i32x4(v, v, _MM_SHUFFLE(2, 3, 0, 1));
+HWY_API Vec512<uint64_t> MinOfLanes(const Vec512<uint64_t> v) {
+  return Set(Full512<uint64_t>(), _mm512_reduce_min_epu64(v.raw));
 }
-HWY_API __m512 Blocks2301(__m512 v) {
-  return _mm512_shuffle_f32x4(v, v, _MM_SHUFFLE(2, 3, 0, 1));
+HWY_API Vec512<float> MinOfLanes(const Vec512<float> v) {
+  return Set(Full512<float>(), _mm512_reduce_min_ps(v.raw));
 }
-HWY_API __m512d Blocks2301(__m512d v) {
-  return _mm512_shuffle_f64x2(v, v, _MM_SHUFFLE(2, 3, 0, 1));
+HWY_API Vec512<double> MinOfLanes(const Vec512<double> v) {
+  return Set(Full512<double>(), _mm512_reduce_min_pd(v.raw));
 }
 
-// Swaps upper/lower pairs of 128-bit blocks.
-HWY_API __m512i Blocks1032(__m512i v) {
-  return _mm512_shuffle_i32x4(v, v, _MM_SHUFFLE(1, 0, 3, 2));
+// Returns the maximum in each lane.
+HWY_API Vec512<int32_t> MaxOfLanes(const Vec512<int32_t> v) {
+  return Set(Full512<int32_t>(), _mm512_reduce_max_epi32(v.raw));
 }
-HWY_API __m512 Blocks1032(__m512 v) {
-  return _mm512_shuffle_f32x4(v, v, _MM_SHUFFLE(1, 0, 3, 2));
+HWY_API Vec512<int64_t> MaxOfLanes(const Vec512<int64_t> v) {
+  return Set(Full512<int64_t>(), _mm512_reduce_max_epi64(v.raw));
 }
-HWY_API __m512d Blocks1032(__m512d v) {
-  return _mm512_shuffle_f64x2(v, v, _MM_SHUFFLE(1, 0, 3, 2));
+HWY_API Vec512<uint32_t> MaxOfLanes(const Vec512<uint32_t> v) {
+  return Set(Full512<uint32_t>(), _mm512_reduce_max_epu32(v.raw));
 }
-
-// Supported for {uif}32x8, {uif}64x4. Returns the sum in each lane.
-template <typename T>
-HWY_API Vec512<T> SumOfLanes(const Vec512<T> v3210) {
-  // Sum of all 128-bit blocks in each 128-bit block.
-  const Vec512<T> v2301{Blocks2301(v3210.raw)};
-  const Vec512<T> v32_32_10_10 = v2301 + v3210;
-  const Vec512<T> v10_10_32_32{Blocks1032(v32_32_10_10.raw)};
-  return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(),
-                            v32_32_10_10 + v10_10_32_32);
+HWY_API Vec512<uint64_t> MaxOfLanes(const Vec512<uint64_t> v) {
+  return Set(Full512<uint64_t>(), _mm512_reduce_max_epu64(v.raw));
 }
-template <typename T>
-HWY_API Vec512<T> MinOfLanes(const Vec512<T> v3210) {
-  // Min of all 128-bit blocks in each 128-bit block.
-  const Vec512<T> v2301{Blocks2301(v3210.raw)};
-  const Vec512<T> v32_32_10_10 = Min(v2301, v3210);
-  const Vec512<T> v10_10_32_32{Blocks1032(v32_32_10_10.raw)};
-  return detail::MinOfLanes(hwy::SizeTag<sizeof(T)>(),
-                            Min(v32_32_10_10, v10_10_32_32));
+HWY_API Vec512<float> MaxOfLanes(const Vec512<float> v) {
+  return Set(Full512<float>(), _mm512_reduce_max_ps(v.raw));
 }
-template <typename T>
-HWY_API Vec512<T> MaxOfLanes(const Vec512<T> v3210) {
-  // Max of all 128-bit blocks in each 128-bit block.
-  const Vec512<T> v2301{Blocks2301(v3210.raw)};
-  const Vec512<T> v32_32_10_10 = Max(v2301, v3210);
-  const Vec512<T> v10_10_32_32{Blocks1032(v32_32_10_10.raw)};
-  return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(),
-                            Max(v32_32_10_10, v10_10_32_32));
+HWY_API Vec512<double> MaxOfLanes(const Vec512<double> v) {
+  return Set(Full512<double>(), _mm512_reduce_max_pd(v.raw));
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
