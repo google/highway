@@ -50,8 +50,8 @@ inline uint64_t ComputeUlpDelta(double x, double y) {
 }
 
 template <class T, class D>
-void TestMath(T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>), D d, T min, T max,
-              uint64_t max_error_ulp) {
+void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
+              D d, T min, T max, uint64_t max_error_ulp) {
   constexpr bool kIsF32 = (sizeof(T) == 4);
   using UintT = MakeUnsigned<T>;
 
@@ -83,13 +83,16 @@ void TestMath(T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>), D d, T min, T max,
       const auto ulp = ComputeUlpDelta(actual, expected);
       max_ulp = std::max<uint64_t>(max_ulp, ulp);
       ASSERT_LE(ulp, max_error_ulp)
-          << "value: " << value << " expected: " << expected
-          << " actual: " << actual;
+          << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d) << ">("
+          << value << ") expected: " << expected << " actual: " << actual;
     }
   }
   std::cout << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
             << ", Max ULP: " << max_ulp << std::endl;
 }
+
+#define MAKE_STR(s) STR(s)
+#define STR(s) #s
 
 #define DEFINE_MATH_TEST(NAME, F32x1, F32xN, F32_MIN, F32_MAX, F32_ERROR, \
                          F64x1, F64xN, F64_MIN, F64_MAX, F64_ERROR)       \
@@ -97,9 +100,11 @@ void TestMath(T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>), D d, T min, T max,
     template <class T, class D>                                           \
     HWY_NOINLINE void operator()(T, D d) {                                \
       if (sizeof(T) == 4) {                                               \
-        TestMath<T, D>(F32x1, F32xN, d, F32_MIN, F32_MAX, F32_ERROR);     \
+        TestMath<T, D>(MAKE_STR(NAME), F32x1, F32xN, d, F32_MIN, F32_MAX, \
+                       F32_ERROR);                                        \
       } else {                                                            \
-        TestMath<T, D>(F64x1, F64xN, d, F64_MIN, F64_MAX, F64_ERROR);     \
+        TestMath<T, D>(MAKE_STR(NAME), F64x1, F64xN, d, F64_MIN, F64_MAX, \
+                       F64_ERROR);                                        \
       }                                                                   \
     }                                                                     \
   };                                                                      \
@@ -117,6 +122,9 @@ DEFINE_MATH_TEST(Expm1,
 DEFINE_MATH_TEST(Sinh,
   std::sinh,  Sinh,  -88.7228f, +88.7228f, 4,
   std::sinh,  Sinh,  -709.0,    +709.0,    4)
+DEFINE_MATH_TEST(Tanh,
+  std::tanh,  Tanh,  -FLT_MAX,  +FLT_MAX,  4,
+  std::tanh,  Tanh,  -DBL_MAX,  +DBL_MAX,  4)
 // clang-format on
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -133,6 +141,7 @@ HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 
 }  // namespace hwy
 #endif

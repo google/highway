@@ -60,6 +60,17 @@ HWY_NOINLINE V Expm1(const D d, V x);
 template <class D, class V>
 HWY_NOINLINE V Sinh(const D d, V x);
 
+/**
+ * Highway SIMD version of std::tanh(x).
+ *
+ * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ *        Max Error: ULP = 4
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return hyperbolic tangent of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Tanh(const D d, V x);
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,6 +409,19 @@ HWY_NOINLINE V Sinh(const D d, V x) {
   const V abs_x = Xor(x, sign);
   const V y = Expm1(d, abs_x);
   const V z = ((y + kTwo) / (y + kOne) * (y * kHalf));
+  return Xor(z, sign);  // Reapply the sign bit
+}
+
+template <class D, class V>
+HWY_NOINLINE V Tanh(const D d, V x) {
+  const V kLimit = Set(d, 18.714973875);
+  const V kOne = Set(d, +1.0);
+  const V kTwo = Set(d, +2.0);
+
+  const V sign = And(SignBit(d), x);  // Extract the sign bit
+  const V abs_x = Xor(x, sign);
+  const V y = Expm1(d, abs_x * kTwo);
+  const V z = IfThenElse((abs_x > kLimit), kOne, (y / (y + kTwo)));
   return Xor(z, sign);  // Reapply the sign bit
 }
 
