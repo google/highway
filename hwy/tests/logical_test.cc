@@ -119,29 +119,30 @@ struct TestIfThenElse {
     T yes;
     memset(&yes, 0xFF, sizeof(yes));
 
-    constexpr size_t kN = MaxLanes(d);
-    HWY_ALIGN T in1[kN] = {};         // Initialized for clang-analyzer.
-    HWY_ALIGN T in2[kN] = {};         // Initialized for clang-analyzer.
-    HWY_ALIGN T mask_lanes[kN] = {};  // Initialized for clang-analyzer.
     const size_t N = Lanes(d);
+    auto in1 = AllocateAligned<T>(N);
+    auto in2 = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
       in1[i] = static_cast<T>(Random32(&rng));
       in2[i] = static_cast<T>(Random32(&rng));
       mask_lanes[i] = (Random32(&rng) & 1024) ? no : yes;
     }
 
-    const auto vec = Load(d, mask_lanes);
+    const auto vec = Load(d, mask_lanes.get());
     const auto mask = MaskFromVec(vec);
     // Separate lvalue works around clang-7 asan bug (unaligned spill).
     const auto vec2 = VecFromMask(mask);
     HWY_ASSERT_VEC_EQ(d, vec, vec2);
 
-    HWY_ALIGN T out_lanes1[kN];
-    HWY_ALIGN T out_lanes2[kN];
-    HWY_ALIGN T out_lanes3[kN];
-    Store(IfThenElse(mask, Load(d, in1), Load(d, in2)), d, out_lanes1);
-    Store(IfThenElseZero(mask, Load(d, in1)), d, out_lanes2);
-    Store(IfThenZeroElse(mask, Load(d, in2)), d, out_lanes3);
+    auto out_lanes1 = AllocateAligned<T>(N);
+    auto out_lanes2 = AllocateAligned<T>(N);
+    auto out_lanes3 = AllocateAligned<T>(N);
+    const auto v1 = Load(d, in1.get());
+    const auto v2 = Load(d, in2.get());
+    Store(IfThenElse(mask, v1, v2), d, out_lanes1.get());
+    Store(IfThenElseZero(mask, v1), d, out_lanes2.get());
+    Store(IfThenZeroElse(mask, v2), d, out_lanes3.get());
     for (size_t i = 0; i < N; ++i) {
       // Cannot reliably compare against yes (NaN).
       HWY_ASSERT_EQ((mask_lanes[i] == no) ? in2[i] : in1[i], out_lanes1[i]);
@@ -193,8 +194,11 @@ struct TestAllTrueFalse {
     const T min_nonzero = LimitsMin<T>() + 1;
 
     auto v = zero;
-    HWY_ALIGN T lanes[MaxLanes(d)] = {};  // Initialized for clang-analyzer.
-    Store(v, d, lanes);
+
+    const size_t N = Lanes(d);
+    auto lanes = AllocateAligned<T>(N);
+    std::fill(lanes.get(), lanes.get() + N, 0);  // for clang-analyzer.
+    Store(v, d, lanes.get());
     HWY_ASSERT(AllTrue(v == zero));
     HWY_ASSERT(!AllFalse(v == zero));
 
@@ -207,20 +211,20 @@ struct TestAllTrueFalse {
 #endif
 
     // Set each lane to nonzero and back to zero
-    for (size_t i = 0; i < Lanes(d); ++i) {
+    for (size_t i = 0; i < N; ++i) {
       lanes[i] = max;
-      v = Load(d, lanes);
+      v = Load(d, lanes.get());
       HWY_ASSERT(!AllTrue(v == zero));
       HWY_ASSERT(expected_all_false ^ AllFalse(v == zero));
 
       lanes[i] = min_nonzero;
-      v = Load(d, lanes);
+      v = Load(d, lanes.get());
       HWY_ASSERT(!AllTrue(v == zero));
       HWY_ASSERT(expected_all_false ^ AllFalse(v == zero));
 
       // Reset to all zero
       lanes[i] = T(0);
-      v = Load(d, lanes);
+      v = Load(d, lanes.get());
       HWY_ASSERT(AllTrue(v == zero));
       HWY_ASSERT(!AllFalse(v == zero));
     }
@@ -251,22 +255,21 @@ class TestBitsFromMask {
  private:
   template <typename T, class D>
   HWY_NOINLINE void Bits(T /*unused*/, D d, uint64_t bits) {
-    constexpr size_t kN = MaxLanes(d);
     // Generate a mask matching the given bits
-    HWY_ALIGN T mask_lanes[kN];
-    memset(mask_lanes, 0xFF, sizeof(mask_lanes));
-    for (size_t i = 0; i < Lanes(d); ++i) {
+    const size_t N = Lanes(d);
+    auto mask_lanes = AllocateAligned<T>(N);
+    memset(mask_lanes.get(), 0xFF, N * sizeof(T));
+    for (size_t i = 0; i < N; ++i) {
       if ((bits & (1ull << i)) == 0) mask_lanes[i] = 0;
     }
-    const auto mask = MaskFromVec(Load(d, mask_lanes));
+    const auto mask = MaskFromVec(Load(d, mask_lanes.get()));
 
     const uint64_t actual_bits = BitsFromMask(mask);
 
     // Clear bits that cannot be returned for this D.
-    constexpr size_t kShift = 64 - kN;  // 0..63 - avoids UB for N == 64.
-    static_assert(kShift < 64, "N out of range");  // Silences clang-tidy.
-    // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
-    const uint64_t expected_bits = (bits << kShift) >> kShift;
+    const size_t shift = 64 - N;  // 0..63 - avoids UB for N == 64.
+    HWY_ASSERT(shift < 64);
+    const uint64_t expected_bits = (bits << shift) >> shift;
 
     HWY_ASSERT_EQ(expected_bits, actual_bits);
   }
@@ -283,8 +286,8 @@ struct TestCountTrue {
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = std::min(N, size_t(10));
 
-    HWY_ALIGN T lanes[MaxLanes(d)];
-    std::fill(lanes, lanes + N, T(1));
+    auto lanes = AllocateAligned<T>(N);
+    std::fill(lanes.get(), lanes.get() + N, T(1));
 
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {
       // Number of zeros written = number of mask lanes that are true.
@@ -297,7 +300,7 @@ struct TestCountTrue {
         }
       }
 
-      const auto mask = Load(d, lanes) == Zero(d);
+      const auto mask = Load(d, lanes.get()) == Zero(d);
       const size_t actual = CountTrue(mask);
       HWY_ASSERT_EQ(expected, actual);
     }

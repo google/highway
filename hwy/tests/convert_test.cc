@@ -34,11 +34,12 @@ struct TestBitCast {
     const auto vt = BitCast(dto, vf);
     static_assert(sizeof(vf) == sizeof(vt), "Cast must return same size");
     // Must return the same bits
-    HWY_ALIGN T from_lanes[MaxLanes(d)];
-    HWY_ALIGN ToT to_lanes[MaxLanes(dto)];
-    Store(vf, d, from_lanes);
-    Store(vt, dto, to_lanes);
-    HWY_ASSERT(BytesEqual(from_lanes, to_lanes, Lanes(d) * sizeof(T)));
+    auto from_lanes = AllocateAligned<T>(Lanes(d));
+    auto to_lanes = AllocateAligned<ToT>(Lanes(dto));
+    Store(vf, d, from_lanes.get());
+    Store(vt, dto, to_lanes.get());
+    HWY_ASSERT(
+        BytesEqual(from_lanes.get(), to_lanes.get(), Lanes(d) * sizeof(T)));
   }
 };
 
@@ -135,7 +136,7 @@ struct TestPromoteTo {
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
-    const Simd<ToT, MaxLanes(from_d)> to_d;
+    const Rebind<ToT, D> to_d;
 
     const auto from_p1 = Iota(from_d, 1);
     const auto from_n1 = Set(from_d, T(-1));
@@ -198,7 +199,7 @@ struct TestDemoteTo {
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
-    const Simd<ToT, MaxLanes(from_d)> to_d;
+    const Rebind<ToT, D> to_d;
 
     const auto from = Iota(from_d, 1);
     const auto from_n1 = Set(from_d, T(ToT(-1)));
@@ -248,13 +249,14 @@ struct TestConvertU8 {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const Simd<uint8_t, MaxLanes(du32) * sizeof(uint32_t)> du8;
-    HWY_ALIGN uint8_t lanes8[MaxLanes(du8)];
-    Store(Iota(du8, 0), du8, lanes8);
-    HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0), U32FromU8(LoadDup128(du8, lanes8)));
-    Store(Iota(du8, 0x7F), du8, lanes8);
+    auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
+    Store(Iota(du8, 0), du8, lanes8.get());
+    HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0),
+                      U32FromU8(LoadDup128(du8, lanes8.get())));
+    Store(Iota(du8, 0x7F), du8, lanes8.get());
     HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0x7F),
-                      U32FromU8(LoadDup128(du8, lanes8)));
-    const HWY_CAPPED(uint8_t, MaxLanes(du32)) p8;
+                      U32FromU8(LoadDup128(du8, lanes8.get())));
+    const Rebind<uint8_t, D> p8;
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0), U8FromU32(Iota(du32, 0)));
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0x7F), U8FromU32(Iota(du32, 0x7F)));
 

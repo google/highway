@@ -29,8 +29,8 @@ template <class DF>
 HWY_NOINLINE void FloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
                             uint8_t* HWY_RESTRICT log2) {
   // Descriptors for all required data types:
-  const Simd<int32_t, MaxLanes(df)> d32;
-  const Simd<uint8_t, MaxLanes(df)> d8;
+  const Rebind<int32_t, DF> d32;
+  const Rebind<uint8_t, DF> d8;
 
   const auto u8 = Load(d8, values);
   const auto bits = BitCast(d32, ConvertTo(df, PromoteTo(d32, u8)));

@@ -250,7 +250,7 @@ struct ExpImpl<float> {
   // Computes 2^x, where x is an integer.
   template <class D, class VI32>
   HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
-    const Simd<int32_t, MaxLanes(d)> di32;
+    const Rebind<int32_t, D> di32;
     const VI32 kOffset = Set(di32, 0x7F);
     return BitCast(d, ShiftLeft<23>(x + kOffset));
   }
@@ -306,8 +306,8 @@ struct ExpImpl<double> {
   // Computes 2^x, where x is an integer.
   template <class D, class VI32>
   HWY_INLINE Vec<D> Pow2I(D d, VI32 x) {
-    const Simd<int32_t, MaxLanes(d)> di32;
-    const Simd<int64_t, MaxLanes(d)> di64;
+    const Rebind<int32_t, D> di32;
+    const Rebind<int64_t, D> di64;
     const VI32 kOffset = Set(di32, 0x3FF);
     return BitCast(d, ShiftLeft<52>(PromoteTo(di64, x + kOffset)));
   }

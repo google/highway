@@ -26,6 +26,7 @@
 #include <utility>  // std::forward
 
 #include "gtest/gtest.h"
+#include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
 
 namespace hwy {
@@ -309,11 +310,12 @@ template <class D, class V>
 void AssertVecEqual(D d, const V expected, const V actual, const char* filename,
                     const int line) {
   using T = typename D::T;
-  HWY_ALIGN T expected_lanes[MaxLanes(d)];
-  HWY_ALIGN T actual_lanes[MaxLanes(d)];
-  Store(expected, d, expected_lanes);
-  Store(actual, d, actual_lanes);
-  for (size_t i = 0; i < Lanes(d); ++i) {
+  const size_t N = Lanes(d);
+  auto expected_lanes = AllocateAligned<T>(N);
+  auto actual_lanes = AllocateAligned<T>(N);
+  Store(expected, d, expected_lanes.get());
+  Store(actual, d, actual_lanes.get());
+  for (size_t i = 0; i < N; ++i) {
     AssertEqual(expected_lanes[i], actual_lanes[i],
                 hwy::TypeName(expected_lanes[i], Lanes(d)), filename, line, i);
   }
@@ -321,8 +323,8 @@ void AssertVecEqual(D d, const V expected, const V actual, const char* filename,
 
 // Compare expected lanes to vector.
 template <class D, class V>
-void AssertVecEqual(D d, const typename D::T (&expected)[MaxLanes(D())],
-                    V actual, const char* filename, int line) {
+void AssertVecEqual(D d, const typename D::T* expected, V actual,
+                    const char* filename, int line) {
   AssertVecEqual(d, LoadU(d, expected), actual, filename, line);
 }
 
