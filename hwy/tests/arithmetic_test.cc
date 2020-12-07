@@ -900,17 +900,17 @@ struct TestSumsOfU8 {
     // Avoid "Do not know how to split the result of this operator"
 #if (!defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3) && \
     HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
-    const HWY_CAPPED(uint8_t, MaxLanes(d) * sizeof(uint64_t)) du8;
-    HWY_ALIGN uint8_t in_bytes[MaxLanes(du8)];
     const size_t N = Lanes(d);
+    auto in_bytes = AllocateAligned<uint8_t>(N * sizeof(uint64_t));
     auto sums = AllocateAligned<T>(N);
     std::fill(sums.get(), sums.get() + N, 0);
-    for (size_t i = 0; i < Lanes(du8); ++i) {
-      const size_t group = i / 8;
+    for (size_t i = 0; i < N * sizeof(uint64_t); ++i) {
+      const size_t group = i / sizeof(uint64_t);
       in_bytes[i] = static_cast<uint8_t>(2 * i + 1);
       sums[group] += in_bytes[i];
     }
-    const auto v = Load(du8, in_bytes);
+    const HWY_CAPPED(uint8_t, MaxLanes(d) * sizeof(uint64_t)) du8;
+    const auto v = Load(du8, in_bytes.get());
     HWY_ASSERT_VEC_EQ(d, sums.get(), SumsOfU8x8(v));
 #else
     (void)d;

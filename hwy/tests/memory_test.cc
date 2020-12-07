@@ -30,32 +30,32 @@ struct TestLoadStore {
     const size_t N = Lanes(d);
     const auto hi = Iota(d, 1 + N);
     const auto lo = Iota(d, 1);
-    HWY_ALIGN T lanes[2 * MaxLanes(d)];
-    Store(hi, d, lanes + N);
-    Store(lo, d, lanes);
+    auto lanes = AllocateAligned<T>(2 * N);
+    Store(hi, d, &lanes[N]);
+    Store(lo, d, &lanes[0]);
 
     // Aligned load
-    const auto lo2 = Load(d, lanes);
+    const auto lo2 = Load(d, &lanes[0]);
     HWY_ASSERT_VEC_EQ(d, lo2, lo);
 
     // Aligned store
-    HWY_ALIGN T lanes2[2 * MaxLanes(d)];
-    Store(lo2, d, lanes2);
-    Store(hi, d, lanes2 + N);
+    auto lanes2 = AllocateAligned<T>(2 * N);
+    Store(lo2, d, &lanes2[0]);
+    Store(hi, d, &lanes2[N]);
     for (size_t i = 0; i < 2 * N; ++i) {
       HWY_ASSERT_EQ(lanes[i], lanes2[i]);
     }
 
     // Unaligned load
-    const auto vu = LoadU(d, lanes + 1);
-    HWY_ALIGN T lanes3[MaxLanes(d)];
-    Store(vu, d, lanes3);
+    const auto vu = LoadU(d, &lanes[1]);
+    auto lanes3 = AllocateAligned<T>(N);
+    Store(vu, d, lanes3.get());
     for (size_t i = 0; i < N; ++i) {
       HWY_ASSERT_EQ(T(i + 2), lanes3[i]);
     }
 
     // Unaligned store
-    StoreU(lo2, d, lanes2 + N / 2);
+    StoreU(lo2, d, &lanes2[N / 2]);
     size_t i = 0;
     for (; i < N / 2; ++i) {
       HWY_ASSERT_EQ(lanes[i], lanes2[i]);
@@ -85,9 +85,10 @@ struct TestLoadDup128 {
       lanes[i] = static_cast<T>(1 + i);
     }
     const auto v = LoadDup128(d, lanes);
-    HWY_ALIGN T out[MaxLanes(d)];
-    Store(v, d, out);
-    for (size_t i = 0; i < Lanes(d); ++i) {
+    const size_t N = Lanes(d);
+    auto out = AllocateAligned<T>(N);
+    Store(v, d, out.get());
+    for (size_t i = 0; i < N; ++i) {
       HWY_ASSERT_EQ(T(i % N128 + 1), out[i]);
     }
 #else
@@ -104,17 +105,19 @@ struct TestStreamT {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v = Iota(d, T(1));
-    constexpr size_t kAffectedBytes =
-        (MaxLanes(d) * sizeof(T) + HWY_STREAM_MULTIPLE - 1) &
+    const size_t affected_bytes =
+        (Lanes(d) * sizeof(T) + HWY_STREAM_MULTIPLE - 1) &
         ~size_t(HWY_STREAM_MULTIPLE - 1);
-    constexpr size_t kAffectedLanes = kAffectedBytes / sizeof(T);
-    HWY_ALIGN T out[2 * kAffectedLanes] = {0};
-    Stream(v, d, out);
+    const size_t affected_lanes = affected_bytes / sizeof(T);
+    auto out = AllocateAligned<T>(2 * affected_lanes);
+    std::fill(out.get(), out.get() + 2 * affected_lanes, 0);
+
+    Stream(v, d, out.get());
     StoreFence();
-    const auto actual = Load(d, out);
+    const auto actual = Load(d, out.get());
     HWY_ASSERT_VEC_EQ(d, v, actual);
     // Ensure Stream didn't modify more memory than expected
-    for (size_t i = kAffectedLanes; i < 2 * kAffectedLanes; ++i) {
+    for (size_t i = affected_lanes; i < 2 * affected_lanes; ++i) {
       HWY_ASSERT_EQ(T(0), out[i]);
     }
   }
@@ -147,35 +150,43 @@ struct TestGatherT {
     }
     const uint8_t* middle = bytes + kNumBytes / 2;
 
-    constexpr size_t kN = MaxLanes(d);
     const size_t N = Lanes(d);
-
+    // Need upper bound so we can initialize array constants.
+    constexpr size_t kNumValues = 16;
     // Offsets: combinations of aligned, repeated, negative.
-    HWY_ALIGN Offset offset_lanes[HWY_MAX(kN, 16)] = {
+    HWY_ALIGN Offset offset_lanes[kNumValues] = {
         2, 12, 4, 4, -16, -16, -21, -20, 8, 8, 8, -13, -13, -20, 20, 3};
 
-    HWY_ALIGN T expected[kN];
+    auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
+      if (i >= kNumValues) {
+        expected[i] = 0;
+        continue;
+      }
       HWY_ASSERT(std::abs(offset_lanes[i]) < Offset(kMaxVectorSize));
       CopyBytes<sizeof(T)>(middle + offset_lanes[i], &expected[i]);
     }
 
-    const Simd<Offset, kN> d_offset;
+    const Rebind<Offset, D> d_offset;
     const auto offsets = Load(d_offset, offset_lanes);
     auto actual = GatherOffset(d, reinterpret_cast<const T*>(middle), offsets);
-    HWY_ASSERT_VEC_EQ(d, expected, actual);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
 
     // Indices
-    HWY_ALIGN const Offset index_lanes[HWY_MAX(kN, 16)] = {
+    HWY_ALIGN const Offset index_lanes[kNumValues] = {
         1, -2, 0, 1, 3, -2, -1, 2, 4, -3, 5, -5, 0, 2, -4, 0};
     for (size_t i = 0; i < N; ++i) {
+      if (i >= kNumValues) {
+        expected[i] = 0;
+        continue;
+      }
       CopyBytes<sizeof(T)>(
           middle + index_lanes[i] * static_cast<Offset>(sizeof(T)),
           &expected[i]);
     }
     const auto indices = Load(d_offset, index_lanes);
     actual = GatherIndex(d, reinterpret_cast<const T*>(middle), indices);
-    HWY_ASSERT_VEC_EQ(d, expected, actual);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
 
 #else  // HWY_DISABLE_BROKEN_AVX3_TESTS
     (void)d;
@@ -192,34 +203,33 @@ struct TestGatherF {
     using Offset = MakeSigned<T>;
     static_assert(sizeof(T) == (1 << kShift), "Incorrect kShift");
 
-    constexpr size_t kN = MaxLanes(d);
     const size_t N = Lanes(d);
 
     constexpr size_t kNumValues = 16;
     // Base points to middle; |max_index| < kNumValues / 2.
-    HWY_ALIGN const T values[HWY_MAX(kN, kNumValues)] = {
+    HWY_ALIGN const T values[kNumValues] = {
         T(100.0), T(110.0), T(111.0), T(128.0), T(1024.0), T(-1.0),
         T(-2.0),  T(-3.0),  T(0.25),  T(0.5),   T(0.75),   T(1.25),
         T(1.5),   T(1.75),  T(-0.25), T(-0.5)};
     const T* middle = values + kNumValues / 2;
 
     // Indices: combinations of aligned, repeated, negative.
-    HWY_ALIGN const Offset index_lanes[HWY_MAX(kN, 16)] = {1, -6, 0,  1,
-                                                           3, -6, -1, 7};
-    HWY_ALIGN T expected[MaxLanes(d)];
+    HWY_ALIGN const Offset index_lanes[kNumValues] = {1, -6, 0,  1,
+                                                      3, -6, -1, 7};
+    auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
       CopyBytes<sizeof(T)>(middle + index_lanes[i], &expected[i]);
     }
 
-    const Simd<Offset, kN> d_offset;
+    const Rebind<Offset, D> d_offset;
     const auto indices = Load(d_offset, index_lanes);
     auto actual = GatherIndex(d, middle, indices);
-    HWY_ASSERT_VEC_EQ(d, expected, actual);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
 
     // Offsets: same as index * sizeof(T).
     const auto offsets = ShiftLeft<kShift>(indices);
     actual = GatherOffset(d, middle, offsets);
-    HWY_ASSERT_VEC_EQ(d, expected, actual);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
 
 #else  // HWY_DISABLE_BROKEN_AVX3_TESTS
     (void)d;

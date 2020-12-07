@@ -276,7 +276,7 @@ struct TestIntFromFloat {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TI = MakeSigned<T>;
-    const Simd<TI, MaxLanes(df)> di;
+    const Rebind<TI, DF> di;
     // Integer positive
     HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), ConvertTo(di, Iota(df, T(4.0))));
 
@@ -308,7 +308,7 @@ struct TestFloatFromInt {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TF = MakeFloat<T>;
-    const Simd<TF, MaxLanes(di)> df;
+    const Rebind<TF, DI> df;
 
     // Integer positive
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(di, T(4))));
@@ -340,7 +340,7 @@ struct TestI32F64 {
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TI = int32_t;
     using TF = double;
-    const Simd<TI, MaxLanes(df)> di;
+    const Rebind<TI, DF> di;
     // Integer positive
     HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), DemoteTo(di, Iota(df, T(4.0))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, T(4))));
@@ -390,7 +390,7 @@ struct TestNearestInt {
   HWY_NOINLINE void operator()(T /*unused*/, const D di) {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
-    const Simd<float, MaxLanes(di)> df;
+    const Rebind<float, D> df;
 
     // Integer positive
     HWY_ASSERT_VEC_EQ(di, Iota(di, 4), NearestInt(Iota(df, 4.0f)));

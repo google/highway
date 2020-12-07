@@ -41,22 +41,19 @@ HWY_NOINLINE void FloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
 struct TestFloorLog2 {
   template <class T, class DF>
   HWY_NOINLINE void operator()(T /*unused*/, DF df) {
-    const size_t kBytes = 32;
-    static_assert(kBytes % MaxLanes(df) == 0, "Must be divisible");
+    const size_t N = Lanes(df);
+    auto in = AllocateAligned<uint8_t>(N);
+    auto expected = AllocateAligned<uint8_t>(N);
 
-    HWY_ALIGN uint8_t in[kBytes];
-    uint8_t expected[kBytes];
     RandomState rng{1234};
-    for (size_t i = 0; i < kBytes; ++i) {
+    for (size_t i = 0; i < N; ++i) {
       expected[i] = Random32(&rng) & 7;
       in[i] = static_cast<uint8_t>(1u << expected[i]);
     }
-    HWY_ALIGN uint8_t out[32];
-    for (size_t i = 0; i < kBytes; i += Lanes(df)) {
-      FloorLog2(df, in + i, out + i);
-    }
+    auto out = AllocateAligned<uint8_t>(N);
+    FloorLog2(df, in.get(), out.get());
     int sum = 0;
-    for (size_t i = 0; i < kBytes; ++i) {
+    for (size_t i = 0; i < N; ++i) {
       EXPECT_EQ(expected[i], out[i]);
       sum += out[i];
     }
@@ -230,27 +227,28 @@ struct TestSet {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Zero
     const auto v0 = Zero(d);
-    HWY_ALIGN T expected[MaxLanes(d)] = {};  // zero-initialized.
-    HWY_ASSERT_VEC_EQ(d, expected, v0);
     const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    std::fill(expected.get(), expected.get() + N, 0);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), v0);
 
     // Set
     const auto v2 = Set(d, T(2));
     for (size_t i = 0; i < N; ++i) {
       expected[i] = 2;
     }
-    HWY_ASSERT_VEC_EQ(d, expected, v2);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), v2);
 
     // Iota
     const auto vi = Iota(d, T(5));
     for (size_t i = 0; i < N; ++i) {
       expected[i] = 5 + i;
     }
-    HWY_ASSERT_VEC_EQ(d, expected, vi);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), vi);
 
     // Undefined
     const auto vu = Undefined(d);
-    Store(vu, d, expected);
+    Store(vu, d, expected.get());
   }
 };
 

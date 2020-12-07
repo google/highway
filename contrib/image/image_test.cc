@@ -101,9 +101,10 @@ struct TestUnalignedT {
         }
 
         // Ensure padding was zero
-        HWY_ALIGN T lanes[MaxLanes(d)];
-        Store(accum, d, lanes);
-        for (size_t i = 0; i < Lanes(d); ++i) {
+        const size_t N = Lanes(d);
+        auto lanes = AllocateAligned<T>(N);
+        Store(accum, d, lanes.get());
+        for (size_t i = 0; i < N; ++i) {
           ASSERT_LT(lanes[i], 16)
               << xsize << "x" << ysize << " vec size:" << HWY_LANES(uint8_t);
         }

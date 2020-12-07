@@ -1512,7 +1512,7 @@ HWY_API permute_wasm<T> SetTableIndices(Full128<T>, const int32_t* idx) {
 #endif
 
   const Full128<uint8_t> d8;
-  alignas(16) uint8_t control[16];  // = MaxLanes <= Lanes()
+  alignas(16) uint8_t control[16];  // = Lanes()
   for (size_t idx_byte = 0; idx_byte < 16; ++idx_byte) {
     const size_t idx_lane = idx_byte / sizeof(T);
     const size_t mod = idx_byte % sizeof(T);
