@@ -91,19 +91,16 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
             << ", Max ULP: " << max_ulp << std::endl;
 }
 
-#define MAKE_STR(s) STR(s)
-#define STR(s) #s
-
 #define DEFINE_MATH_TEST(NAME, F32x1, F32xN, F32_MIN, F32_MAX, F32_ERROR, \
                          F64x1, F64xN, F64_MIN, F64_MAX, F64_ERROR)       \
   struct Test##NAME {                                                     \
     template <class T, class D>                                           \
     HWY_NOINLINE void operator()(T, D d) {                                \
       if (sizeof(T) == 4) {                                               \
-        TestMath<T, D>(MAKE_STR(NAME), F32x1, F32xN, d, F32_MIN, F32_MAX, \
+        TestMath<T, D>(HWY_STR(NAME), F32x1, F32xN, d, F32_MIN, F32_MAX,  \
                        F32_ERROR);                                        \
       } else {                                                            \
-        TestMath<T, D>(MAKE_STR(NAME), F64x1, F64xN, d, F64_MIN, F64_MAX, \
+        TestMath<T, D>(HWY_STR(NAME), F64x1, F64xN, d, F64_MIN, F64_MAX,  \
                        F64_ERROR);                                        \
       }                                                                   \
     }                                                                     \
