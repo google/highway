@@ -30,7 +30,7 @@ namespace HWY_NAMESPACE {
 /**
  * Highway SIMD version of std::exp(x).
  *
- * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ * Valid Lane Types: float32, float64
  *        Max Error: ULP = 1
  *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
  * @return e^x
@@ -41,7 +41,7 @@ HWY_NOINLINE V Exp(const D d, V x);
 /**
  * Highway SIMD version of std::expm1(x).
  *
- * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ * Valid Lane Types: float32, float64
  *        Max Error: ULP = 4
  *      Valid Range: float32[-FLT_MAX, +104], float64[-DBL_MAX, +706]
  * @return e^x - 1
@@ -50,9 +50,53 @@ template <class D, class V>
 HWY_NOINLINE V Expm1(const D d, V x);
 
 /**
+ * Highway SIMD version of std::log(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 4
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return natural logarithm of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Log(const D d, V x);
+
+/**
+ * Highway SIMD version of std::log10(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return base 10 logarithm of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Log10(const D d, V x);
+
+/**
+ * Highway SIMD version of std::log1p(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32[0, +FLT_MAX], float64[0, +DBL_MAX]
+ * @return log(1 + x)
+ */
+template <class D, class V>
+HWY_NOINLINE V Log1p(const D d, V x);
+
+/**
+ * Highway SIMD version of std::log2(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: float32(0, +FLT_MAX], float64(0, +DBL_MAX]
+ * @return base 2 logarithm of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Log2(const D d, V x);
+
+/**
  * Highway SIMD version of std::sinh(x).
  *
- * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ * Valid Lane Types: float32, float64
  *        Max Error: ULP = 4
  *      Valid Range: float32[-88.7228, +88.7228], float64[-709, +709]
  * @return hyperbolic sine of 'x'
@@ -63,7 +107,7 @@ HWY_NOINLINE V Sinh(const D d, V x);
 /**
  * Highway SIMD version of std::tanh(x).
  *
- * Valid Lane Types: float32, float64 (if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64)
+ * Valid Lane Types: float32, float64
  *        Max Error: ULP = 4
  *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
  * @return hyperbolic tangent of 'x'
@@ -236,7 +280,9 @@ HWY_INLINE HWY_MAYBE_UNUSED T Estrin(T x, T c0, T c1, T c2, T c3, T c4, T c5,
 }
 
 template <typename FloatOrDouble>
-struct ExpImpl {};  // primary
+struct ExpImpl {};
+template <typename FloatOrDouble>
+struct LogImpl {};
 
 template <>
 struct ExpImpl<float> {
@@ -284,6 +330,29 @@ struct ExpImpl<float> {
     x = MulAdd(qf, kLn2Part0f, x);
     x = MulAdd(qf, kLn2Part1f, x);
     return x;
+  }
+};
+
+template <>
+struct LogImpl<float> {
+  template <class D, class V>
+  HWY_INLINE Vec<Rebind<int32_t, D>> Log2p1NoSubnormal(D d, V x) {
+    const Rebind<int32_t, D> di32;
+    const Rebind<uint32_t, D> du32;
+    return BitCast(di32, ShiftRight<23>(BitCast(du32, x))) - Set(di32, 0x7F);
+  }
+
+  // Approximates Log(x) over the range [sqrt(2) / 2, sqrt(2)].
+  template <class D, class V>
+  HWY_INLINE V LogPoly(D d, V x) {
+    const V k0 = Set(d, 0.66666662693f);
+    const V k1 = Set(d, 0.40000972152f);
+    const V k2 = Set(d, 0.28498786688f);
+    const V k3 = Set(d, 0.24279078841f);
+
+    const V x2 = (x * x);
+    const V x4 = (x2 * x2);
+    return MulAdd(MulAdd(k2, x4, k0), x2, (MulAdd(k3, x4, k1) * x4));
   }
 };
 
@@ -344,7 +413,95 @@ struct ExpImpl<double> {
   }
 };
 
+template <>
+struct LogImpl<double> {
+  template <class D, class V>
+  HWY_INLINE Vec<Rebind<int64_t, D>> Log2p1NoSubnormal(D d, V x) {
+    const Rebind<int64_t, D> di64;
+    const Rebind<uint64_t, D> du64;
+    return BitCast(di64, ShiftRight<52>(BitCast(du64, x))) - Set(di64, 0x3FF);
+  }
+
+  // Approximates Log(x) over the range [sqrt(2) / 2, sqrt(2)].
+  template <class D, class V>
+  HWY_INLINE V LogPoly(D d, V x) {
+    const V k0 = Set(d, 0.6666666666666735130);
+    const V k1 = Set(d, 0.3999999999940941908);
+    const V k2 = Set(d, 0.2857142874366239149);
+    const V k3 = Set(d, 0.2222219843214978396);
+    const V k4 = Set(d, 0.1818357216161805012);
+    const V k5 = Set(d, 0.1531383769920937332);
+    const V k6 = Set(d, 0.1479819860511658591);
+
+    const V x2 = (x * x);
+    const V x4 = (x2 * x2);
+    return MulAdd(MulAdd(MulAdd(MulAdd(k6, x4, k4), x4, k2), x4, k0), x2,
+                  (MulAdd(MulAdd(k5, x4, k3), x4, k1) * x4));
+  }
+};
+
 #endif
+
+template <class D, class V, bool kAllowSubnormals = true>
+HWY_INLINE V Log(const D d, V x) {
+  // http://git.musl-libc.org/cgit/musl/tree/src/math/log.c for more info.
+  using LaneType = LaneType<V>;
+  impl::LogImpl<LaneType> impl;
+
+  // clang-format off
+  constexpr bool kIsF32 = (sizeof(LaneType) == 4);
+
+  // Float Constants
+  const V kLn2Hi     = Set(d, (kIsF32 ? 0.69313812256f   :
+                                        0.693147180369123816490   ));
+  const V kLn2Lo     = Set(d, (kIsF32 ? 9.0580006145e-6f :
+                                        1.90821492927058770002e-10));
+  const V kOne       = Set(d, +1.0);
+  const V kMinNormal = Set(d, (kIsF32 ? 1.175494351e-38f :
+                                        2.2250738585072014e-308   ));
+  const V kScale     = Set(d, (kIsF32 ? 3.355443200e+7f  :
+                                        1.8014398509481984e+16    ));
+
+  // Integer Constants
+  const Rebind<MakeSigned<LaneType>, D> di;
+  using VI = decltype(Zero(di));
+  const VI kLowerBits = Set(di, (kIsF32 ? 0x00000000L : 0xFFFFFFFFLL));
+  const VI kMagic     = Set(di, (kIsF32 ? 0x3F3504F3L : 0x3FE6A09E00000000LL));
+  const VI kExpMask   = Set(di, (kIsF32 ? 0x3F800000L : 0x3FF0000000000000LL));
+  const VI kExpScale  = Set(di, (kIsF32 ? -25         : -54));
+  const VI kManMask   = Set(di, (kIsF32 ? 0x7FFFFFL   : 0xFFFFF00000000LL));
+  // clang-format on
+
+  // Scale up 'x' so that it is no longer denormalized.
+  VI exp_bits;
+  V exp;
+  if (kAllowSubnormals == true) {
+    const auto is_denormal = (x < kMinNormal);
+    x = IfThenElse(is_denormal, (x * kScale), x);
+
+    // Compute the new exponent.
+    exp_bits = (BitCast(di, x) + (kExpMask - kMagic));
+    const VI exp_scale =
+        BitCast(di, IfThenElseZero(is_denormal, BitCast(d, kExpScale)));
+    exp = ConvertTo(
+        d, exp_scale + impl.Log2p1NoSubnormal(d, BitCast(d, exp_bits)));
+  } else {
+    // Compute the new exponent.
+    exp_bits = (BitCast(di, x) + (kExpMask - kMagic));
+    exp = ConvertTo(d, impl.Log2p1NoSubnormal(d, BitCast(d, exp_bits)));
+  }
+
+  // Renormalize.
+  const V y = Or(And(x, BitCast(d, kLowerBits)),
+                 BitCast(d, ((exp_bits & kManMask) + kMagic)));
+
+  // Approximate and reconstruct.
+  const V ym1 = (y - kOne);
+  const V z = (ym1 / (y + kOne));
+
+  return MulSub(exp, kLn2Hi,
+                (MulSub(z, (ym1 - impl.LogPoly(d, z)), (exp * kLn2Lo)) - ym1));
+}
 
 }  // namespace impl
 
@@ -397,6 +554,31 @@ HWY_NOINLINE V Expm1(const D d, V x) {
   const V z = IfThenElse(Abs(x) < kLn2Over2, y,
                          impl.LoadExpShortRange(d, (y + kOne), q) - kOne);
   return IfThenElse(x < kLowerBound, kNegOne, z);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Log(const D d, V x) {
+  return impl::Log<D, V, /*kAllowSubnormals=*/true>(d, x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Log10(const D d, V x) {
+  return Log(d, x) * Set(d, 0.4342944819032518276511);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Log1p(const D d, V x) {
+  const V kOne = Set(d, +1.0);
+
+  const V y = (x + kOne);
+  return IfThenElse(
+      (y == kOne), x,
+      (impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y) * (x / (y - kOne))));
+}
+
+template <class D, class V>
+HWY_NOINLINE V Log2(const D d, V x) {
+  return Log(d, x) * Set(d, 1.44269504088896340735992);
 }
 
 template <class D, class V>

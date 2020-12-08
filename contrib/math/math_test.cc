@@ -80,6 +80,14 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
       const T value = BitCast<T>(std::min(value_bits, stop));
       const T actual = GetLane(fxN(d, Set(d, value)));
       const T expected = fx1(value);
+
+      // Skip small inputs and outputs on armv7, it flushes subnormals to zero.
+#if (HWY_TARGET == HWY_NEON) && !defined(__aarch64__)
+      if ((std::abs(value) < 1e-37f) || (std::abs(expected) < 1e-37f)) {
+        continue;
+      }
+#endif
+
       const auto ulp = ComputeUlpDelta(actual, expected);
       max_ulp = std::max<uint64_t>(max_ulp, ulp);
       ASSERT_LE(ulp, max_error_ulp)
@@ -109,44 +117,32 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
     ForFloatTypes(ForPartialVectors<Test##NAME>());                       \
   }
 
-// TODO(rhettstucki): NEON gets unlimited error until we can figure out why
-// std::math (our reference) is different. Note that the errors are actually
-// very small, just different, so it is safe to use.
-#if (HWY_TARGET == HWY_NEON)
-
 // clang-format off
 DEFINE_MATH_TEST(Exp,
-  std::exp,   Exp,   -FLT_MAX,  +104.0f,   ~0,
-  std::exp,   Exp,   -DBL_MAX,  +104.0f,   ~0)
+  std::exp,   Exp,   -FLT_MAX, +104.0f,  1,
+  std::exp,   Exp,   -DBL_MAX, +104.0f,  1)
 DEFINE_MATH_TEST(Expm1,
-  std::expm1, Expm1, -FLT_MAX,  +104.0f,   ~0,
-  std::expm1, Expm1, -DBL_MAX,  +104.0f,   ~0)
+  std::expm1, Expm1, -FLT_MAX, +104.0f,  4,
+  std::expm1, Expm1, -DBL_MAX, +104.0f,  4)
+DEFINE_MATH_TEST(Log,
+  std::log,   Log,   +FLT_MIN, +FLT_MAX, 1,
+  std::log,   Log,   +DBL_MIN, +DBL_MAX, 1)
+DEFINE_MATH_TEST(Log10,
+  std::log10, Log10, +FLT_MIN, +FLT_MAX, 2,
+  std::log10, Log10, +DBL_MIN, +DBL_MAX, 2)
+DEFINE_MATH_TEST(Log1p,
+  std::log1p, Log1p, +0.0f,    +1e37,    3,  // NEON is 3 instead of 2
+  std::log1p, Log1p, +0.0,     +DBL_MAX, 2)
+DEFINE_MATH_TEST(Log2,
+  std::log2,  Log2,  +FLT_MIN, +FLT_MAX, 2,
+  std::log2,  Log2,  +DBL_MIN, +DBL_MAX, 2)
 DEFINE_MATH_TEST(Sinh,
-  std::sinh,  Sinh,  -88.7228f, +88.7228f, ~0,
-  std::sinh,  Sinh,  -709.0,    +709.0,    ~0)
+  std::sinh,  Sinh,  -80.0f,   +80.0f,   4,
+  std::sinh,  Sinh,  -709.0,   +709.0,   4)
 DEFINE_MATH_TEST(Tanh,
-  std::tanh,  Tanh,  -FLT_MAX,  +FLT_MAX,  ~0,
-  std::tanh,  Tanh,  -DBL_MAX,  +DBL_MAX,  ~0)
+  std::tanh,  Tanh,  -FLT_MAX, +FLT_MAX, 4,
+  std::tanh,  Tanh,  -DBL_MAX, +DBL_MAX, 4)
 // clang-format on
-
-#else
-
-// clang-format off
-DEFINE_MATH_TEST(Exp,
-  std::exp,   Exp,   -FLT_MAX,  +104.0f,   1,
-  std::exp,   Exp,   -DBL_MAX,  +104.0f,   1)
-DEFINE_MATH_TEST(Expm1,
-  std::expm1, Expm1, -FLT_MAX,  +104.0f,   4,
-  std::expm1, Expm1, -DBL_MAX,  +104.0f,   4)
-DEFINE_MATH_TEST(Sinh,
-  std::sinh,  Sinh,  -88.7228f, +88.7228f, 4,
-  std::sinh,  Sinh,  -709.0,    +709.0,    4)
-DEFINE_MATH_TEST(Tanh,
-  std::tanh,  Tanh,  -FLT_MAX,  +FLT_MAX,  4,
-  std::tanh,  Tanh,  -DBL_MAX,  +DBL_MAX,  4)
-// clang-format on
-
-#endif
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -161,6 +157,10 @@ class HwyMathTest : public hwy::TestWithParamTarget {};
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 
