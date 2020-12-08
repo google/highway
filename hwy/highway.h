@@ -274,18 +274,6 @@ using I64xN = Vec<HWY_FULL(int64_t)>;
 using F32xN = Vec<HWY_FULL(float)>;
 using F64xN = Vec<HWY_FULL(double)>;
 
-// Returns a vector with lane i=[0, N) set to "first" + i. Unique per-lane
-// values are required to detect lane-crossing bugs.
-template <class D, typename T2>
-Vec<D> Iota(const D d, const T2 first) {
-  using T = typename D::T;
-  HWY_ALIGN T lanes[MaxLanes(d)];
-  for (size_t i = 0; i < Lanes(d); ++i) {
-    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
-  }
-  return Load(d, lanes);
-}
-
 // Returns the closest value to v within [lo, hi].
 template <class V>
 HWY_API V Clamp(const V v, const V lo, const V hi) {

@@ -106,6 +106,11 @@ HWY_INLINE Vec1<T> Undefined(Sisd<T> /* tag */) {
   return Vec1<T>(0);
 }
 
+template <typename T, typename T2>
+Vec1<T> Iota(const Sisd<T> /* tag */, const T2 first) {
+  return Vec1<T>(static_cast<T>(first));
+}
+
 // ================================================== SHIFTS
 
 // ------------------------------ Shift lanes by constant #bits

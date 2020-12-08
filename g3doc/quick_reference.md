@@ -141,7 +141,7 @@ possibly with the specified size in bits of `T`.
     for use as an output parameter.
 *   <code>V **Iota**(D, T)</code>: returns N-lane vector where the lane with
     index `i` has the given value of type `T` plus `i`. The least significant
-    lane has index 0. (include test_util-inl.h)
+    lane has index 0. This is useful in tests for detecting lane-crossing bugs.
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
 

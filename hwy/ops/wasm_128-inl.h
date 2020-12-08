@@ -1868,6 +1868,16 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 
 // ================================================== MISC
 
+// Returns a vector with lane i=[0, N) set to "first" + i.
+template <typename T, size_t N, typename T2>
+Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
+  HWY_ALIGN T lanes[16 / sizeof(T)];
+  for (size_t i = 0; i < 16 / sizeof(T); ++i) {
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+  }
+  return Load(d, lanes);
+}
+
 // ------------------------------ Mask
 
 template <typename T>

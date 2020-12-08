@@ -2896,6 +2896,16 @@ HWY_INLINE Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
 
 // ================================================== MISC
 
+// Returns a vector with lane i=[0, N) set to "first" + i.
+template <typename T, size_t N, typename T2>
+Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
+  HWY_ALIGN T lanes[16 / sizeof(T)];
+  for (size_t i = 0; i < 16 / sizeof(T); ++i) {
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+  }
+  return Load(d, lanes);
+}
+
 // ------------------------------ Gather (requires GetLane)
 
 template <typename T, size_t N, typename Offset>

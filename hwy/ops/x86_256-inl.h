@@ -2012,6 +2012,16 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
 
 // ================================================== MISC
 
+// Returns a vector with lane i=[0, N) set to "first" + i.
+template <typename T, typename T2>
+Vec256<T> Iota(const Full256<T> d, const T2 first) {
+  HWY_ALIGN T lanes[32 / sizeof(T)];
+  for (size_t i = 0; i < 32 / sizeof(T); ++i) {
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+  }
+  return Load(d, lanes);
+}
+
 // ------------------------------ Mask
 
 namespace detail {

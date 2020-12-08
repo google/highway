@@ -2122,6 +2122,16 @@ HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
 
 // ================================================== MISC
 
+// Returns a vector with lane i=[0, N) set to "first" + i.
+template <typename T, typename T2>
+Vec512<T> Iota(const Full512<T> d, const T2 first) {
+  HWY_ALIGN T lanes[64 / sizeof(T)];
+  for (size_t i = 0; i < 64 / sizeof(T); ++i) {
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+  }
+  return Load(d, lanes);
+}
+
 // ------------------------------ Mask
 
 // For Clang and GCC, KORTEST wasn't added until recently.
