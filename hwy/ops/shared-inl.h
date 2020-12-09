@@ -129,11 +129,25 @@ struct Simd {
   using T = Lane;
   static_assert((N & (N - 1)) == 0 && N != 0, "N must be a power of two");
 
-  // Descriptor for another lane type, but same number of lanes. Useful for
-  // generic functions that need to initialize vectors of the type that
-  // PromoteTo/DemoteTo would return.
+  // Widening/narrowing ops change the number of lanes and/or their type.
+  // To initialize such vectors, we need the corresponding descriptor types:
+
+  // PromoteTo/DemoteTo with another lane type, but same number of lanes.
   template <typename NewLane>
   using Rebind = Simd<NewLane, N>;
+
+  // MulEven with another lane type, but same total size.
+  // Round up to correctly handle scalars with N=1.
+  template <typename NewLane>
+  using Repartition =
+      Simd<NewLane, (N * sizeof(Lane) + sizeof(NewLane) - 1) / sizeof(NewLane)>;
+
+  // LowerHalf with the same lane type, but half the lanes.
+  // Round up to correctly handle scalars with N=1.
+  using Half = Simd<T, (N + 1) / 2>;
+
+  // Combine with the same lane type, but twice the lanes.
+  using Twice = Simd<T, 2 * N>;
 };
 
 // Compile-time-constant, (typically but not guaranteed) an upper bound on the

@@ -29,18 +29,19 @@ namespace HWY_NAMESPACE {
 struct TestLowerHalf {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    constexpr size_t N2 = (MaxLanes(d) + 1) / 2;
-    const Simd<T, N2> d2;
+    const Half<D> d2;
 
-    HWY_ALIGN T lanes[MaxLanes(d)] = {0};
+    const size_t N = Lanes(d);
+    auto lanes = AllocateAligned<T>(N);
+    std::fill(lanes.get(), lanes.get() + N, 0);
     const auto v = Iota(d, 1);
-    Store(LowerHalf(v), d2, lanes);
+    Store(LowerHalf(v), d2, lanes.get());
     size_t i = 0;
-    for (; i < N2; ++i) {
+    for (; i < Lanes(d2); ++i) {
       HWY_ASSERT_EQ(T(1 + i), lanes[i]);
     }
     // Other half remains unchanged
-    for (; i < Lanes(d); ++i) {
+    for (; i < N; ++i) {
       HWY_ASSERT_EQ(T(0), lanes[i]);
     }
   }
@@ -49,8 +50,7 @@ struct TestLowerHalf {
 struct TestLowerQuarter {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    constexpr size_t N4 = (MaxLanes(d) + 3) / 4;
-    const HWY_CAPPED(T, N4) d4;
+    const Half<Half<D>> d4;
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
@@ -59,7 +59,7 @@ struct TestLowerQuarter {
     const auto lo = LowerHalf(LowerHalf(v));
     Store(lo, d4, lanes.get());
     size_t i = 0;
-    for (; i < N4; ++i) {
+    for (; i < Lanes(d4); ++i) {
       HWY_ASSERT_EQ(T(i + 1), lanes[i]);
     }
     // Upper 3/4 remain unchanged
@@ -80,8 +80,7 @@ struct TestUpperHalf {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Scalar does not define UpperHalf.
 #if HWY_TARGET != HWY_SCALAR
-    constexpr size_t N2 = (MaxLanes(d) + 1) / 2;
-    const Simd<T, N2> d2;
+    const Half<D> d2;
 
     const auto v = Iota(d, 1);
     const size_t N = Lanes(d);
@@ -90,11 +89,11 @@ struct TestUpperHalf {
 
     Store(UpperHalf(v), d2, lanes.get());
     size_t i = 0;
-    for (; i < N2; ++i) {
-      HWY_ASSERT_EQ(T(N2 + 1 + i), lanes[i]);
+    for (; i < Lanes(d2); ++i) {
+      HWY_ASSERT_EQ(T(Lanes(d2) + 1 + i), lanes[i]);
     }
     // Other half remains unchanged
-    for (; i < Lanes(d); ++i) {
+    for (; i < N; ++i) {
       HWY_ASSERT_EQ(T(0), lanes[i]);
     }
 #else
@@ -111,16 +110,16 @@ struct TestZeroExtendVector {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_CAP_GE256
-    constexpr size_t N2 = MaxLanes(d) * 2;
-    const Simd<T, N2> d2;
+    const Twice<D> d2;
 
     const auto v = Iota(d, 1);
-    HWY_ALIGN T lanes[N2];
-    Store(v, d, lanes);
-    Store(v, d, lanes + N2 / 2);
+    const size_t N2 = Lanes(d2);
+    auto lanes = AllocateAligned<T>(N2);
+    Store(v, d, &lanes[0]);
+    Store(v, d, &lanes[N2 / 2]);
 
     const auto ext = ZeroExtendVector(v);
-    Store(ext, d2, lanes);
+    Store(ext, d2, lanes.get());
 
     size_t i = 0;
     // Lower half is unchanged
@@ -145,14 +144,14 @@ struct TestCombine {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_CAP_GE256
-    constexpr size_t N2 = MaxLanes(d) * 2;
-    const Simd<T, N2> d2;
+    const Twice<D> d2;
+    const size_t N2 = Lanes(d2);
+    auto lanes = AllocateAligned<T>(N2);
 
     const auto lo = Iota(d, 1);
     const auto hi = Iota(d, N2 / 2 + 1);
-    HWY_ALIGN T lanes[N2];
     const auto combined = Combine(hi, lo);
-    Store(combined, d2, lanes);
+    Store(combined, d2, lanes.get());
 
     const auto expected = Iota(d2, 1);
     HWY_ASSERT_VEC_EQ(d2, expected, combined);
@@ -171,7 +170,7 @@ struct TestShiftBytes {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Scalar does not define Shift*Bytes.
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
-    const Simd<uint8_t, MaxLanes(d) * sizeof(T)> du8;
+    const Repartition<uint8_t, D> du8;
     const size_t N8 = Lanes(du8);
 
     // Zero remains zero
@@ -333,7 +332,7 @@ struct TestTableLookupBytes {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     RandomState rng{1234};
-    const Simd<uint8_t, MaxLanes(d) * sizeof(T)> du8;
+    const Repartition<uint8_t, D> du8;
     const size_t N = Lanes(d);
     const size_t N8 = Lanes(du8);
     auto in_bytes = AllocateAligned<uint8_t>(N8);
@@ -483,7 +482,7 @@ struct TestZipLower {
     using WideT = typename MakeWide<T>::type;
     static_assert(sizeof(T) * 2 == sizeof(WideT), "Must be double-width");
     static_assert(IsSigned<T>() == IsSigned<WideT>(), "Must have same sign");
-    const Simd<WideT, (MaxLanes(d) + 1) / 2> dw;
+    const Repartition<WideT, D> dw;
     const size_t N = Lanes(d);
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
@@ -528,7 +527,7 @@ struct TestZipUpper {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    const Simd<WideT, (MaxLanes(d) + 1) / 2> dw;
+    const Repartition<WideT, D> dw;
     auto hi_lanes = AllocateAligned<WideT>(Lanes(dw));
     Store(ZipUpper(even, odd), dw, hi_lanes.get());
 
@@ -664,7 +663,7 @@ struct TestCombineShiftRightR {
   HWY_NOINLINE void operator()(T t, D d) {
 // Scalar does not define CombineShiftRightBytes.
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
-    const Simd<uint8_t, MaxLanes(d) * sizeof(T)> d8;
+    const Repartition<uint8_t, D> d8;
     const size_t N8 = Lanes(d8);
     const auto lo = BitCast(d, Iota(d8, 1));
     const auto hi = BitCast(d, Iota(d8, 1 + N8));

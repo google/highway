@@ -32,7 +32,7 @@ template <typename ToT>
 struct TestBitCast {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Simd<ToT, MaxLanes(d) * sizeof(T) / sizeof(ToT)> dto;
+    const Repartition<ToT, D> dto;
     const auto vf = Iota(d, 1);
     const auto vt = BitCast(dto, vf);
     static_assert(sizeof(vf) == sizeof(vt), "Cast must return same size");
@@ -251,7 +251,7 @@ struct TestConvertU8 {
   HWY_NOINLINE void operator()(T /*unused*/, const D du32) {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
-    const Simd<uint8_t, MaxLanes(du32) * sizeof(uint32_t)> du8;
+    const Repartition<uint8_t, D> du8;
     auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
     Store(Iota(du8, 0), du8, lanes8.get());
     HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0),

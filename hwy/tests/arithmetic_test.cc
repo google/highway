@@ -659,13 +659,14 @@ struct TestMulEven {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     if (Lanes(d) == 1) return;
-    const HWY_CAPPED(Wide, (MaxLanes(d) + 1) / 2) d2;
+    static_assert(sizeof(Wide) == 2 * sizeof(T), "Expected double-width type");
+    const Repartition<Wide, D> d2;
     const auto v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d2, Zero(d2), MulEven(v0, v0));
 
     // scalar has N=1 and we write to "lane 1" below, though it isn't used by
     // the actual MulEven.
-    HWY_ALIGN T in_lanes[HWY_MAX(MaxLanes(d), 2)];
+    auto in_lanes = AllocateAligned<T>(HWY_MAX(Lanes(d), 2));
     auto expected = AllocateAligned<Wide>(Lanes(d2));
     for (size_t i = 0; i < Lanes(d); i += 2) {
       in_lanes[i + 0] = LimitsMax<T>() >> i;
@@ -673,7 +674,7 @@ struct TestMulEven {
       expected[i / 2] = Wide(in_lanes[i + 0]) * in_lanes[i + 0];
     }
 
-    const auto v = Load(d, in_lanes);
+    const auto v = Load(d, in_lanes.get());
     HWY_ASSERT_VEC_EQ(d2, expected.get(), MulEven(v, v));
   }
 };
@@ -912,7 +913,7 @@ struct TestSumsOfU8 {
       in_bytes[i] = static_cast<uint8_t>(2 * i + 1);
       sums[group] += in_bytes[i];
     }
-    const HWY_CAPPED(uint8_t, MaxLanes(d) * sizeof(uint64_t)) du8;
+    const Repartition<uint8_t, D> du8;
     const auto v = Load(du8, in_bytes.get());
     HWY_ASSERT_VEC_EQ(d, sums.get(), SumsOfU8x8(v));
 #else
