@@ -28,6 +28,17 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 /**
+ * Highway SIMD version of std::atanh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: (-1, +1)
+ * @return hyperbolic arc tangent of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Atanh(const D d, V x);
+
+/**
  * Highway SIMD version of std::exp(x).
  *
  * Valid Lane Types: float32, float64
@@ -504,6 +515,16 @@ HWY_INLINE V Log(const D d, V x) {
 }
 
 }  // namespace impl
+
+template <class D, class V>
+HWY_NOINLINE V Atanh(const D d, V x) {
+  const V kHalf = Set(d, +0.5);
+  const V kOne = Set(d, +1.0);
+
+  const V sign = And(SignBit(d), x);  // Extract the sign bit
+  const V abs_x = Xor(x, sign);
+  return Log1p(d, ((abs_x + abs_x) / (kOne - abs_x))) * Xor(kHalf, sign);
+}
 
 template <class D, class V>
 HWY_NOINLINE V Exp(const D d, V x) {

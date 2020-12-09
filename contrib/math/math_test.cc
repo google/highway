@@ -117,31 +117,38 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
     ForFloatTypes(ForPartialVectors<Test##NAME>());                       \
   }
 
+// Floating point values closest to but less than 1.0
+const float kNearOneF = BitCast<float>(0x3F7FFFFF);
+const double kNearOneD = BitCast<double>(0x3FEFFFFFFFFFFFFFULL);
+
 // clang-format off
+DEFINE_MATH_TEST(Atanh,
+  std::atanh, Atanh, -kNearOneF, +kNearOneF,  4,  // NEON is 4 instead of 3
+  std::atanh, Atanh, -kNearOneD, +kNearOneD,  3)
 DEFINE_MATH_TEST(Exp,
-  std::exp,   Exp,   -FLT_MAX, +104.0f,  1,
-  std::exp,   Exp,   -DBL_MAX, +104.0f,  1)
+  std::exp,   Exp,   -FLT_MAX,   +104.0f,     1,
+  std::exp,   Exp,   -DBL_MAX,   +104.0f,     1)
 DEFINE_MATH_TEST(Expm1,
-  std::expm1, Expm1, -FLT_MAX, +104.0f,  4,
-  std::expm1, Expm1, -DBL_MAX, +104.0f,  4)
+  std::expm1, Expm1, -FLT_MAX,   +104.0f,     4,
+  std::expm1, Expm1, -DBL_MAX,   +104.0f,     4)
 DEFINE_MATH_TEST(Log,
-  std::log,   Log,   +FLT_MIN, +FLT_MAX, 1,
-  std::log,   Log,   +DBL_MIN, +DBL_MAX, 1)
+  std::log,   Log,   +FLT_MIN,   +FLT_MAX,    1,
+  std::log,   Log,   +DBL_MIN,   +DBL_MAX,    1)
 DEFINE_MATH_TEST(Log10,
-  std::log10, Log10, +FLT_MIN, +FLT_MAX, 2,
-  std::log10, Log10, +DBL_MIN, +DBL_MAX, 2)
+  std::log10, Log10, +FLT_MIN,   +FLT_MAX,    2,
+  std::log10, Log10, +DBL_MIN,   +DBL_MAX,    2)
 DEFINE_MATH_TEST(Log1p,
-  std::log1p, Log1p, +0.0f,    +1e37,    3,  // NEON is 3 instead of 2
-  std::log1p, Log1p, +0.0,     +DBL_MAX, 2)
+  std::log1p, Log1p, +0.0f,      +1e37,       3,  // NEON is 3 instead of 2
+  std::log1p, Log1p, +0.0,       +DBL_MAX,    2)
 DEFINE_MATH_TEST(Log2,
-  std::log2,  Log2,  +FLT_MIN, +FLT_MAX, 2,
-  std::log2,  Log2,  +DBL_MIN, +DBL_MAX, 2)
+  std::log2,  Log2,  +FLT_MIN,   +FLT_MAX,    2,
+  std::log2,  Log2,  +DBL_MIN,   +DBL_MAX,    2)
 DEFINE_MATH_TEST(Sinh,
-  std::sinh,  Sinh,  -80.0f,   +80.0f,   4,
-  std::sinh,  Sinh,  -709.0,   +709.0,   4)
+  std::sinh,  Sinh,  -80.0f,     +80.0f,      4,
+  std::sinh,  Sinh,  -709.0,     +709.0,      4)
 DEFINE_MATH_TEST(Tanh,
-  std::tanh,  Tanh,  -FLT_MAX, +FLT_MAX, 4,
-  std::tanh,  Tanh,  -DBL_MAX, +DBL_MAX, 4)
+  std::tanh,  Tanh,  -FLT_MAX,   +FLT_MAX,    4,
+  std::tanh,  Tanh,  -DBL_MAX,   +DBL_MAX,    4)
 // clang-format on
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -155,6 +162,7 @@ namespace hwy {
 class HwyMathTest : public hwy::TestWithParamTarget {};
 
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMathTest);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtanh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
