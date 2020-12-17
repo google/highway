@@ -28,6 +28,28 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 /**
+ * Highway SIMD version of std::acosh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: float32[1, +FLT_MAX], float64[1, +DBL_MAX]
+ * @return hyperbolic arc cosine of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Acosh(const D d, V x);
+
+/**
+ * Highway SIMD version of std::asinh(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return hyperbolic arc sine of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Asinh(const D d, V x);
+
+/**
  * Highway SIMD version of std::atanh(x).
  *
  * Valid Lane Types: float32, float64
@@ -515,6 +537,58 @@ HWY_INLINE V Log(const D d, V x) {
 }
 
 }  // namespace impl
+
+template <class D, class V>
+HWY_NOINLINE V Acosh(const D d, V x) {
+  const V kLarge = Set(d, 268435456.0);
+  const V kLog2 = Set(d, 0.693147180559945286227);
+  const V kOne = Set(d, +1.0);
+  const V kTwo = Set(d, +2.0);
+
+  const auto is_x_large = (x > kLarge);
+  const auto is_x_gt_2 = (x > kTwo);
+
+  const V x_minus_1 = (x - kOne);
+  const V y0 = MulSub(kTwo, x, (kOne / (Sqrt(MulSub(x, x, kOne)) + x)));
+  const V y1 =
+      (Sqrt(MulAdd(x_minus_1, kTwo, (x_minus_1 * x_minus_1))) + x_minus_1);
+  const V y2 =
+      IfThenElse(is_x_gt_2, IfThenElse(is_x_large, x, y0), (y1 + kOne));
+  const V z = impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y2);
+
+  return IfThenElse(is_x_gt_2, z,
+                    IfThenElse(y2 == kOne, y1, (z * y1 / (y2 - kOne)))) +
+         IfThenElseZero(is_x_large, kLog2);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Asinh(const D d, V x) {
+  const V kSmall = Set(d, 1.0 / 268435456.0);
+  const V kLarge = Set(d, 268435456.0);
+  const V kLog2 = Set(d, 0.693147180559945286227);
+  const V kOne = Set(d, +1.0);
+  const V kTwo = Set(d, +2.0);
+
+  const V sign_x = And(SignBit(d), x);  // Extract the sign bit
+  const V abs_x = Xor(x, sign_x);
+
+  const auto is_x_large = (abs_x > kLarge);
+  const auto is_x_lt_2 = (abs_x < kTwo);
+
+  const V x2 = (x * x);
+  const V sqrt_x2_plus_1 = Sqrt(x2 + kOne);
+
+  const V y0 = MulAdd(abs_x, kTwo, (kOne / (sqrt_x2_plus_1 + abs_x)));
+  const V y1 = ((x2 / (sqrt_x2_plus_1 + kOne)) + abs_x);
+  const V y2 =
+      IfThenElse(is_x_lt_2, (y1 + kOne), IfThenElse(is_x_large, abs_x, y0));
+  const V z = impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y2);
+
+  const V y = IfThenElse((abs_x < kSmall), x,
+                         IfThenElse(y2 == kOne, y1, (z * y1 / (y2 - kOne))));
+  return Or((IfThenElse(is_x_lt_2, y, z) + IfThenElseZero(is_x_large, kLog2)),
+            sign_x);
+}
 
 template <class D, class V>
 HWY_NOINLINE V Atanh(const D d, V x) {
