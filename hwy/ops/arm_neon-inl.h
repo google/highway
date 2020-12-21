@@ -732,7 +732,7 @@ HWY_NEON_DEF_FUNCTION_INT_8_16_32(ShiftRight, vshr, _n_, HWY_SHIFT)
 // Unsigned (no u8,u16)
 HWY_INLINE Vec128<uint32_t> operator<<(const Vec128<uint32_t> v,
                                        const Vec128<uint32_t> bits) {
-  return Vec128<uint32_t>(vshlq_u32(v.raw, bits.raw));
+  return Vec128<uint32_t>(vshlq_u32(v.raw, vreinterpretq_s32_u32(bits.raw)));
 }
 HWY_INLINE Vec128<uint32_t> operator>>(const Vec128<uint32_t> v,
                                        const Vec128<uint32_t> bits) {
@@ -741,7 +741,7 @@ HWY_INLINE Vec128<uint32_t> operator>>(const Vec128<uint32_t> v,
 }
 HWY_INLINE Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
                                        const Vec128<uint64_t> bits) {
-  return Vec128<uint64_t>(vshlq_u64(v.raw, bits.raw));
+  return Vec128<uint64_t>(vshlq_u64(v.raw, vreinterpretq_s64_u64(bits.raw)));
 }
 HWY_INLINE Vec128<uint64_t> operator>>(const Vec128<uint64_t> v,
                                        const Vec128<uint64_t> bits) {
@@ -758,7 +758,7 @@ HWY_INLINE Vec128<uint64_t> operator>>(const Vec128<uint64_t> v,
 template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint32_t, N> operator<<(const Vec128<uint32_t, N> v,
                                           const Vec128<uint32_t, N> bits) {
-  return Vec128<uint32_t, N>(vshl_u32(v.raw, bits.raw));
+  return Vec128<uint32_t, N>(vshl_u32(v.raw, vreinterpret_s32_u32(bits.raw)));
 }
 template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> v,
@@ -768,7 +768,7 @@ HWY_INLINE Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> v,
 }
 HWY_INLINE Vec128<uint64_t, 1> operator<<(const Vec128<uint64_t, 1> v,
                                           const Vec128<uint64_t, 1> bits) {
-  return Vec128<uint64_t, 1>(vshl_u64(v.raw, bits.raw));
+  return Vec128<uint64_t, 1>(vshl_u64(v.raw, vreinterpret_s64_u64(bits.raw)));
 }
 HWY_INLINE Vec128<uint64_t, 1> operator>>(const Vec128<uint64_t, 1> v,
                                           const Vec128<uint64_t, 1> bits) {
@@ -890,11 +890,11 @@ HWY_INLINE Vec128<int16_t> MulHigh(const Vec128<int16_t> a,
 }
 HWY_INLINE Vec128<uint16_t> MulHigh(const Vec128<uint16_t> a,
                                     const Vec128<uint16_t> b) {
-  int32x4_t rlo = vmull_u16(vget_low_u16(a.raw), vget_low_u16(b.raw));
+  uint32x4_t rlo = vmull_u16(vget_low_u16(a.raw), vget_low_u16(b.raw));
 #if defined(__aarch64__)
-  int32x4_t rhi = vmull_high_u16(a.raw, b.raw);
+  uint32x4_t rhi = vmull_high_u16(a.raw, b.raw);
 #else
-  int32x4_t rhi = vmull_u16(vget_high_u16(a.raw), vget_high_u16(b.raw));
+  uint32x4_t rhi = vmull_u16(vget_high_u16(a.raw), vget_high_u16(b.raw));
 #endif
   return Vec128<uint16_t>(
       vuzp2q_u16(vreinterpretq_u16_u32(rlo), vreinterpretq_u16_u32(rhi)));
