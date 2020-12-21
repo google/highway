@@ -149,13 +149,13 @@
 // automatic annotation via pragmas.
 #if HWY_COMPILER_CLANG
 #define HWY_PUSH_ATTRIBUTES(targets_str)                                     \
-  _Pragma(HWY_STR(clang attribute push(__attribute__((target(targets_str))), \
-                                       apply_to = function)))
-#define HWY_POP_ATTRIBUTES _Pragma("clang attribute pop")
+  HWY_PRAGMA(clang attribute push(__attribute__((target(targets_str))), \
+                                       apply_to = function))
+#define HWY_POP_ATTRIBUTES HWY_PRAGMA(clang attribute pop)
 #elif HWY_COMPILER_GCC
 #define HWY_PUSH_ATTRIBUTES(targets_str) \
-  _Pragma("GCC push_options") _Pragma(HWY_STR(GCC target(targets_str)))
-#define HWY_POP_ATTRIBUTES _Pragma("GCC pop_options")
+  HWY_PRAGMA(GCC push_options) HWY_PRAGMA(GCC target targets_str)
+#define HWY_POP_ATTRIBUTES HWY_PRAGMA(GCC pop_options)
 #else
 #define HWY_PUSH_ATTRIBUTES(targets_str)
 #define HWY_POP_ATTRIBUTES

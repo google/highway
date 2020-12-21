@@ -160,7 +160,7 @@
 
 #define HWY_NAMESPACE N_NEON
 
-#define HWY_TARGET_STR "crypto"
+// HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
 
 //-----------------------------------------------------------------------------
 // WASM
