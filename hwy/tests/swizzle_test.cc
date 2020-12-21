@@ -658,7 +658,7 @@ HWY_NOINLINE void TestAllSpecialShuffles() {
 }
 
 template <int kBytes>
-struct TestCombineShiftRightR {
+struct TestCombineShiftRightBytesR {
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
 // Scalar does not define CombineShiftRightBytes.
@@ -686,7 +686,44 @@ struct TestCombineShiftRightR {
       HWY_ASSERT_EQ(expected, bytes[i]);
     }
 
-    TestCombineShiftRightR<kBytes - 1>()(t, d);
+    TestCombineShiftRightBytesR<kBytes - 1>()(t, d);
+#else
+    (void)t;
+    (void)d;
+#endif  // #if HWY_TARGET != HWY_SCALAR
+  }
+};
+
+template <int kLanes>
+struct TestCombineShiftRightLanesR {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+// Scalar does not define CombineShiftRightBytes (needed for *Lanes).
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+    const Repartition<uint8_t, D> d8;
+    const size_t N8 = Lanes(d8);
+    const auto lo = BitCast(d, Iota(d8, 1));
+    const auto hi = BitCast(d, Iota(d8, 1 + N8));
+
+    auto lanes = AllocateAligned<T>(Lanes(d));
+
+    Store(CombineShiftRightLanes<kLanes>(hi, lo), d, lanes.get());
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(lanes.get());
+
+    const size_t kBlockSize = 16;
+    for (size_t i = 0; i < N8; ++i) {
+      const size_t block = i / kBlockSize;
+      const size_t lane = i % kBlockSize;
+      const size_t first_lo = block * kBlockSize;
+      const size_t idx = lane + kLanes * sizeof(T);
+      const size_t offset = (idx < kBlockSize) ? 0 : N8 - kBlockSize;
+      const bool at_end = idx >= 2 * kBlockSize;
+      const uint8_t expected =
+          at_end ? 0 : static_cast<uint8_t>(first_lo + idx + 1 + offset);
+      HWY_ASSERT_EQ(expected, bytes[i]);
+    }
+
+    TestCombineShiftRightBytesR<kLanes - 1>()(t, d);
 #else
     (void)t;
     (void)d;
@@ -695,7 +732,13 @@ struct TestCombineShiftRightR {
 };
 
 template <>
-struct TestCombineShiftRightR<0> {
+struct TestCombineShiftRightBytesR<0> {
+  template <class T, class D>
+  void operator()(T /*unused*/, D /*unused*/) {}
+};
+
+template <>
+struct TestCombineShiftRightLanesR<0> {
   template <class T, class D>
   void operator()(T /*unused*/, D /*unused*/) {}
 };
@@ -703,12 +746,13 @@ struct TestCombineShiftRightR<0> {
 struct TestCombineShiftRight {
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
-    TestCombineShiftRightR<15>()(t, d);
+    TestCombineShiftRightBytesR<15>()(t, d);
+    TestCombineShiftRightLanesR<16 / sizeof(T) - 1>()(t, d);
   }
 };
 
 HWY_NOINLINE void TestAllCombineShiftRight() {
-  ForIntegerTypes(ForGE128Vectors<TestCombineShiftRight>());
+  ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());
 }
 
 struct TestConcatHalves {

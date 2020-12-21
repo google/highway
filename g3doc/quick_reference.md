@@ -511,10 +511,15 @@ their operands into independently processed 128-bit *blocks*:
     <code>V **ShiftRightLanes**&lt;int&gt;(V)</code>: returns the result of
     shifting independent *blocks* right by `int` lanes.
 
-*   `V`: `ui` \
-    <code>V **CombineShiftRightBytes**&lt;int&gt;(V hi, V lo)</code>: returns
-    the result of shifting two concatenated *blocks* `hi[i] || lo[i]` right by
-    `int` bytes \[1, 15\].
+*   `V`: \
+    <code>V **CombineShiftRightBytes**&lt;int&gt;(V hi, V lo)</code>: returns a
+    vector of *blocks* each the result of shifting two concatenated *blocks*
+    `hi[i] || lo[i]` right by `int` bytes \[1, 16).
+
+*   `V`: \
+    <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
+    vector of *blocks* each the result of shifting two concatenated *blocks*
+    `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)).
 
 *   `V`: `ui`; `VI`: `ui` \
     <code>V **TableLookupBytes**(V bytes, VI from)</code>: returns *blocks* with

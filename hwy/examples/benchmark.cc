@@ -184,7 +184,6 @@ struct BenchmarkDelta : public TwoArray {
 #else  // 128-bit
     // Slightly better than unaligned loads
     const HWY_CAPPED(float, 4) df;
-    const HWY_CAPPED(int32_t, 4) di;
     const size_t N = Lanes(df);
     size_t i;
     b_[0] = a_[0];
@@ -194,9 +193,7 @@ struct BenchmarkDelta : public TwoArray {
     auto prev = Load(df, &a_[0]);
     for (; i < num_items; i += Lanes(df)) {
       const auto a = Load(df, &a_[i]);
-      constexpr int kBytes = (MaxLanes(df) - 1) * sizeof(float);
-      const auto shifted = BitCast(df, CombineShiftRightBytes<kBytes>(
-                                           BitCast(di, a), BitCast(di, prev)));
+      const auto shifted = CombineShiftRightLanes<3>(a, prev);
       prev = a;
       Store(a - shifted, df, &b_[i]);
     }
