@@ -776,20 +776,9 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
 
 // ------------------------------ Floating-point negate
 
-template <size_t N>
-HWY_API Vec128<float, N> Neg(const Vec128<float, N> v) {
-  const Simd<float, N> df;
-  const Simd<uint32_t, N> du;
-  const auto sign = BitCast(df, Set(du, 0x80000000u));
-  return v ^ sign;
-}
-
-template <size_t N>
-HWY_API Vec128<double, N> Neg(const Vec128<double, N> v) {
-  const Simd<double, N> df;
-  const Simd<uint64_t, N> du;
-  const auto sign = BitCast(df, Set(du, 0x8000000000000000ull));
-  return v ^ sign;
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
+  return Xor(v, SignBit(Simd<T, N>()));
 }
 
 // ------------------------------ Floating-point mul / div

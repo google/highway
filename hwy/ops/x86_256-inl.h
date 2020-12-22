@@ -767,18 +767,9 @@ HWY_API Vec256<uint64_t> MulEven(const Vec256<uint32_t> a,
 
 // ------------------------------ Floating-point negate
 
-HWY_API Vec256<float> Neg(const Vec256<float> v) {
-  const Full256<float> df;
-  const Full256<uint32_t> du;
-  const auto sign = BitCast(df, Set(du, 0x80000000u));
-  return v ^ sign;
-}
-
-HWY_API Vec256<double> Neg(const Vec256<double> v) {
-  const Full256<double> df;
-  const Full256<uint64_t> du;
-  const auto sign = BitCast(df, Set(du, 0x8000000000000000ull));
-  return v ^ sign;
+template <typename T>
+HWY_API Vec256<T> Neg(const Vec256<T> v) {
+  return Xor(v, SignBit(Full256<T>()));
 }
 
 // ------------------------------ Floating-point mul / div

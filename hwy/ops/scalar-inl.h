@@ -385,18 +385,9 @@ HWY_INLINE Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
 
 // ------------------------------ Floating-point negate
 
-HWY_INLINE Vec1<float> Neg(const Vec1<float> v) {
-  const Sisd<float> df;
-  const Sisd<uint32_t> du;
-  const auto sign = BitCast(df, Set(du, 0x80000000u));
-  return Xor(v, sign);
-}
-
-HWY_INLINE Vec1<double> Neg(const Vec1<double> v) {
-  const Sisd<double> df;
-  const Sisd<uint64_t> du;
-  const auto sign = BitCast(df, Set(du, 0x8000000000000000ull));
-  return Xor(v, sign);
+template<typename T>
+HWY_INLINE Vec1<T> Neg(const Vec1<T> v) {
+  return Xor(v, SignBit(Sisd<T>()));
 }
 
 // ------------------------------ mul/div

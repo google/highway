@@ -305,7 +305,10 @@ non-operator functions (also available for integers) must be used:
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
-Special function for floating-point types:
+Special functions for floating-point types:
+
+*   `V`: `f` \
+    <code>V **Neg**(V a)</code>: returns the `-a[i]`.
 
 *   `V`: `f` \
     <code>V **CopySign**(V a, V b)</code>: returns the number with the magnitude

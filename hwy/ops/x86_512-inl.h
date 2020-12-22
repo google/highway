@@ -853,18 +853,9 @@ HWY_API Vec512<uint64_t> MulEven(const Vec512<uint32_t> a,
 
 // ------------------------------ Floating-point negate
 
-HWY_API Vec512<float> Neg(const Vec512<float> v) {
-  const Full512<float> df;
-  const Full512<uint32_t> du;
-  const auto sign = BitCast(df, Set(du, 0x80000000u));
-  return v ^ sign;
-}
-
-HWY_API Vec512<double> Neg(const Vec512<double> v) {
-  const Full512<double> df;
-  const Full512<uint64_t> du;
-  const auto sign = BitCast(df, Set(du, 0x8000000000000000ull));
-  return v ^ sign;
+template <typename T>
+HWY_API Vec512<T> Neg(const Vec512<T> v) {
+  return Xor(v, SignBit(Full512<T>()));
 }
 
 // ------------------------------ Floating-point mul / div
