@@ -305,6 +305,12 @@ non-operator functions (also available for integers) must be used:
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
+Special function for floating-point types:
+
+*   `V`: `f` \
+    <code>V **CopySign**(V a, V b)</code>: returns the number with the magnitude
+    of `a` and sign of `b`.
+
 ### Masks
 
 Let `M` denote a mask capable of storing true/false for each lane.

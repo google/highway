@@ -26,7 +26,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-struct TestLogicalT {
+struct TestLogicalInteger {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
@@ -66,8 +66,8 @@ struct TestLogicalT {
   }
 };
 
-HWY_NOINLINE void TestAllLogicalT() {
-  ForIntegerTypes(ForPartialVectors<TestLogicalT>());
+HWY_NOINLINE void TestAllLogicalInteger() {
+  ForIntegerTypes(ForPartialVectors<TestLogicalInteger>());
 }
 
 struct TestLogicalFloat {
@@ -112,6 +112,38 @@ struct TestLogicalFloat {
 
 HWY_NOINLINE void TestAllLogicalFloat() {
   ForFloatTypes(ForPartialVectors<TestLogicalFloat>());
+}
+
+struct TestCopySign {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vp = Iota(d, 1);
+    auto vn = Iota(d, -128);
+    // Ensure all lanes are negative even if there are many lanes.
+    vn = IfThenElse(vn < v0, vn, Neg(vn));
+
+    // Zero remains zero regardless of sign
+    HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, vp));
+    HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, vn));
+
+    // Positive input, positive sign => unchanged
+    HWY_ASSERT_VEC_EQ(d, vp, CopySign(vp, vp));
+
+    // Positive input, negative sign => negated
+    HWY_ASSERT_VEC_EQ(d, Neg(vp), CopySign(vp, vn));
+
+    // Negative input, negative sign => unchanged
+    HWY_ASSERT_VEC_EQ(d, vn, CopySign(vn, vn));
+
+    // Negative input, positive sign => negated
+    HWY_ASSERT_VEC_EQ(d, Neg(vn), CopySign(vn, vp));
+  }
+};
+
+HWY_NOINLINE void TestAllCopySign() {
+  ForFloatTypes(ForPartialVectors<TestCopySign>());
 }
 
 // Vec <-> Mask, IfThen*
@@ -327,8 +359,9 @@ class HwyLogicalTest : public hwy::TestWithParamTarget {};
 
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyLogicalTest);
 
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalT);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);

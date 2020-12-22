@@ -281,6 +281,35 @@ HWY_API Vec256<T> operator^(const Vec256<T> a, const Vec256<T> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ CopySign
+
+template <typename T>
+HWY_API Vec256<T> CopySign(const Vec256<T> magn, const Vec256<T> sign) {
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+
+  const Full256<T> d;
+  const auto msb = SignBit(d);
+
+#if HWY_TARGET == HWY_AVX3
+  const Rebind<MakeUnsigned<T>, decltype(d)> du;
+  // Truth table for msb, magn, sign | bitwise msb ? sign : mag
+  //                  0    0     0   |  0
+  //                  0    0     1   |  0
+  //                  0    1     0   |  1
+  //                  0    1     1   |  1
+  //                  1    0     0   |  0
+  //                  1    0     1   |  1
+  //                  1    1     0   |  0
+  //                  1    1     1   |  1
+  // The lane size does not matter because we are not using predication.
+  const __m256i out = _mm256_ternarylogic_epi32(
+      BitCast(du, msb).raw, BitCast(du, magn).raw, BitCast(du, sign).raw, 0xAC);
+  return BitCast(d, decltype(Zero(du)){out});
+#else
+  return Or(AndNot(msb, magn), And(msb, sign));
+#endif
+}
+
 // ------------------------------ Mask
 
 // Mask and Vec are the same (true = FF..FF).

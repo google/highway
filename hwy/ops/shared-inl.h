@@ -150,6 +150,22 @@ struct Simd {
   using Twice = Simd<T, 2 * N>;
 };
 
+// Descriptor for the same number of lanes as D, but with the LaneType T.
+template <class T, class D>
+using Rebind = typename D::template Rebind<T>;
+
+// Descriptor for the same total size as D, but with the LaneType T.
+template <class T, class D>
+using Repartition = typename D::template Repartition<T>;
+
+// Descriptor for the same lane type as D, but half the lanes.
+template <class D>
+using Half = typename D::Half;
+
+// Descriptor for the same lane type as D, but twice the lanes.
+template <class D>
+using Twice = typename D::Twice;
+
 // Compile-time-constant, (typically but not guaranteed) an upper bound on the
 // number of lanes.
 // Prefer instead using Lanes() and dynamic allocation, or Rebind, or

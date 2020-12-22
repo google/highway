@@ -251,22 +251,6 @@ namespace HWY_NAMESPACE {
 template <class V>
 using LaneType = decltype(GetLane(V()));
 
-// Descriptor for the same number of lanes as D, but with the LaneType T.
-template <class T, class D>
-using Rebind = typename D::template Rebind<T>;
-
-// Descriptor for the same total size as D, but with the LaneType T.
-template <class T, class D>
-using Repartition = typename D::template Repartition<T>;
-
-// Descriptor for the same lane type as D, but half the lanes.
-template <class D>
-using Half = typename D::Half;
-
-// Descriptor for the same lane type as D, but twice the lanes.
-template <class D>
-using Twice = typename D::Twice;
-
 // Corresponding vector type, e.g. Vec128<float> for Simd<float, 4>. Useful as
 // the return type of functions that do not take a vector argument, or as an
 // argument type if the function only has a template argument for D.

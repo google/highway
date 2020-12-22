@@ -297,6 +297,31 @@ HWY_API Vec512<T> operator^(const Vec512<T> a, const Vec512<T> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ CopySign
+
+template <typename T>
+HWY_API Vec512<T> CopySign(const Vec512<T> magn, const Vec512<T> sign) {
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+
+  const Full512<T> d;
+  const auto msb = SignBit(d);
+
+  const Rebind<MakeUnsigned<T>, decltype(d)> du;
+  // Truth table for msb, magn, sign | bitwise msb ? sign : mag
+  //                  0    0     0   |  0
+  //                  0    0     1   |  0
+  //                  0    1     0   |  1
+  //                  0    1     1   |  1
+  //                  1    0     0   |  0
+  //                  1    0     1   |  1
+  //                  1    1     0   |  0
+  //                  1    1     1   |  1
+  // The lane size does not matter because we are not using predication.
+  const __m512i out = _mm512_ternarylogic_epi32(
+      BitCast(du, msb).raw, BitCast(du, magn).raw, BitCast(du, sign).raw, 0xAC);
+  return BitCast(d, decltype(Zero(du)){out});
+}
+
 // ------------------------------ Select/blend
 
 // Returns mask ? b : a.

@@ -214,6 +214,15 @@ HWY_INLINE Vec1<double> Xor(const Vec1<double> a, const Vec1<double> b) {
   return BitwiseOp<int64_t>()(a, b, [](int64_t i, int64_t j) { return i ^ j; });
 }
 
+// ------------------------------ CopySign
+
+template <typename T>
+HWY_API Vec1<T> CopySign(const Vec1<T> magn, const Vec1<T> sign) {
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  const auto msb = SignBit(Sisd<T>());
+  return Or(AndNot(msb, magn), And(msb, sign));
+}
+
 // ------------------------------ Mask
 
 // v must be 0 or FF..FF.
