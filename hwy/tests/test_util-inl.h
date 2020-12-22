@@ -81,7 +81,7 @@ std::string TestParamTargetName(const testing::TestParamInfo<uint32_t>& info) {
   HWY_GTEST_INSTANTIATE_TEST_SUITE_P(                           \
       suite##Group, suite,                                      \
       testing::ValuesIn(::hwy::SupportedAndGeneratedTargets()), \
-      ::hwy::TestParamTargetName);
+      ::hwy::TestParamTargetName)
 
 // Helper class similar to TestWithParamTarget to run parametric tests that
 // depend on the target and another parametric test. If you need to use multiple
@@ -137,7 +137,7 @@ std::string TestParamTargetNameAndT(
       ::testing::Combine(                                           \
           testing::ValuesIn(::hwy::SupportedAndGeneratedTargets()), \
           generator),                                               \
-      ::hwy::TestParamTargetNameAndT<suite::HwyParamType>);
+      ::hwy::TestParamTargetNameAndT<suite::HwyParamType>)
 
 // Helper macro to export a function and define a test that tests it. This is
 // equivalent to do a HWY_EXPORT of a void(void) function and run it in a test:
