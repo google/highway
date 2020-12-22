@@ -311,6 +311,10 @@ Special function for floating-point types:
     <code>V **CopySign**(V a, V b)</code>: returns the number with the magnitude
     of `a` and sign of `b`.
 
+*   `V`: `f` \
+    <code>V **CopySignToAbs**(V a, V b)</code>: as above, but potentially
+    slightly more efficient; requires the first argument to be non-negative.
+
 ### Masks
 
 Let `M` denote a mask capable of storing true/false for each lane.

@@ -127,12 +127,17 @@ struct TestCopySign {
     HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, v0));
     HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, vp));
     HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, vn));
+    HWY_ASSERT_VEC_EQ(d, v0, CopySignToAbs(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, CopySignToAbs(v0, vp));
+    HWY_ASSERT_VEC_EQ(d, v0, CopySignToAbs(v0, vn));
 
     // Positive input, positive sign => unchanged
     HWY_ASSERT_VEC_EQ(d, vp, CopySign(vp, vp));
+    HWY_ASSERT_VEC_EQ(d, vp, CopySignToAbs(vp, vp));
 
     // Positive input, negative sign => negated
     HWY_ASSERT_VEC_EQ(d, Neg(vp), CopySign(vp, vn));
+    HWY_ASSERT_VEC_EQ(d, Neg(vp), CopySignToAbs(vp, vn));
 
     // Negative input, negative sign => unchanged
     HWY_ASSERT_VEC_EQ(d, vn, CopySign(vn, vn));

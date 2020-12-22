@@ -322,6 +322,12 @@ HWY_API Vec512<T> CopySign(const Vec512<T> magn, const Vec512<T> sign) {
   return BitCast(d, decltype(Zero(du)){out});
 }
 
+template <typename T>
+HWY_API Vec512<T> CopySignToAbs(const Vec512<T> abs, const Vec512<T> sign) {
+  // AVX3 can also handle abs < 0, so no extra action needed.
+  return CopySign(abs, sign);
+}
+
 // ------------------------------ Select/blend
 
 // Returns mask ? b : a.

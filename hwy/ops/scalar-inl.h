@@ -223,6 +223,12 @@ HWY_API Vec1<T> CopySign(const Vec1<T> magn, const Vec1<T> sign) {
   return Or(AndNot(msb, magn), And(msb, sign));
 }
 
+template <typename T>
+HWY_API Vec1<T> CopySignToAbs(const Vec1<T> abs, const Vec1<T> sign) {
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  return Or(abs, And(SignBit(Sisd<T>()), sign));
+}
+
 // ------------------------------ Mask
 
 // v must be 0 or FF..FF.

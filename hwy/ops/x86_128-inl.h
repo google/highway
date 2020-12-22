@@ -1298,6 +1298,16 @@ HWY_API Vec128<T, N> CopySign(const Vec128<T, N> magn,
 #endif
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs, const Vec128<T, N> sign) {
+#if HWY_TARGET == HWY_AVX3
+  // AVX3 can also handle abs < 0, so no extra action needed.
+  return CopySign(abs, sign);
+#else
+  return Or(abs, And(SignBit(Simd<T, N>()), sign));
+#endif
+}
+
 // ------------------------------ Mask
 
 // Mask and Vec are the same (true = FF..FF).

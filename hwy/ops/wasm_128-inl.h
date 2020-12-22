@@ -937,6 +937,13 @@ HWY_API Vec128<T, N> CopySign(const Vec128<T, N> magn,
   return Or(AndNot(msb, magn), And(msb, sign));
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
+                                   const Vec128<T, N> sign) {
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+  return Or(abs, And(SignBit(Simd<T, N>()), sign));
+}
+
 // ------------------------------ Mask
 
 // Mask and Vec are the same (true = FF..FF).
