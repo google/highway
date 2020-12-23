@@ -950,6 +950,23 @@ HWY_INLINE Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
 // ------------------------------ Floating-point negate
 
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Neg, vneg, _, 1)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(Neg, vneg, _, 1)
+
+HWY_INLINE Vec128<int64_t, 1> Neg(const Vec128<int64_t, 1> v) {
+#if defined(__aarch64__)
+  return Vec128<int64_t, 1>(vneg_s64(v.raw));
+#else
+  return Zero(Simd<int64_t, 1>()) - v;
+#endif
+}
+
+HWY_INLINE Vec128<int64_t> Neg(const Vec128<int64_t> v) {
+#if defined(__aarch64__)
+  return Vec128<int64_t>(vnegq_s64(v.raw));
+#else
+  return Zero(Full128<int64_t>()) - v;
+#endif
+}
 
 // ------------------------------ Floating-point mul / div
 

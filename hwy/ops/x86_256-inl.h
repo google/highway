@@ -765,11 +765,16 @@ HWY_API Vec256<uint64_t> MulEven(const Vec256<uint32_t> a,
   return Vec256<uint64_t>{_mm256_mul_epu32(a.raw, b.raw)};
 }
 
-// ------------------------------ Floating-point negate
+// ------------------------------ Negate
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec256<T> Neg(const Vec256<T> v) {
   return Xor(v, SignBit(Full256<T>()));
+}
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec256<T> Neg(const Vec256<T> v) {
+  return Zero(Full256<T>()) - v;
 }
 
 // ------------------------------ Floating-point mul / div

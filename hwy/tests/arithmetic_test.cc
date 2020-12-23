@@ -1050,6 +1050,23 @@ HWY_NOINLINE void TestAllAbsDiff() {
   ForPartialVectors<TestAbsDiff>()(float());
 }
 
+struct TestNeg {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vn = Set(d, T(-3));
+    const auto vp = Set(d, T(3));
+    HWY_ASSERT_VEC_EQ(d, v0, Neg(v0));
+    HWY_ASSERT_VEC_EQ(d, vp, Neg(vn));
+    HWY_ASSERT_VEC_EQ(d, vn, Neg(vp));
+  }
+};
+
+HWY_NOINLINE void TestAllNeg() {
+  ForSignedTypes(ForPartialVectors<TestNeg>());
+  ForFloatTypes(ForPartialVectors<TestNeg>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -1079,6 +1096,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRound);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbsDiff);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 
 }  // namespace hwy
 #endif

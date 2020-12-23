@@ -774,11 +774,16 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
   return Vec128<uint64_t, (N + 1) / 2>{_mm_mul_epu32(a.raw, b.raw)};
 }
 
-// ------------------------------ Floating-point negate
+// ------------------------------ Negate
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
   return Xor(v, SignBit(Simd<T, N>()));
+}
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
+  return Zero(Simd<T, N>()) - v;
 }
 
 // ------------------------------ Floating-point mul / div

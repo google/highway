@@ -151,18 +151,19 @@ possibly with the specified size in bits of `T`.
 *   <code>V **operator-**(V a, V b)</code>: returns `a[i] - b[i]` (mod 2^bits).
 
 *   `V`: `ui8/16` \
-    <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated
-    to the minimum/maximum representable value.
+    <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to
+    the minimum/maximum representable value.
+
 *   `V`: `ui8/16` \
-    <code>V **SaturatedSub**(V a, V b)</code> returns `a[i] - b[i]` saturated
-    to the minimum/maximum representable value.
+    <code>V **SaturatedSub**(V a, V b)</code> returns `a[i] - b[i]` saturated to
+    the minimum/maximum representable value.
 
 *   `V`: `u8/16` \
     <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) / 2`.
 
 *   `V`: `i8/16/32`, `f` \
-    <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`;
-    for integers, `LimitsMin()` maps to `LimitsMax() + 1`.
+    <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
+    integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
 *   `V`: `ui8/16/32`, `f` \
     <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
@@ -190,8 +191,10 @@ possibly with the specified size in bits of `T`.
     `1.0 / a[i]`.
 
 *   `V`: `f32` \
-    <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each
-    lane.
+    <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
+
+*   `V`: `if` \
+    <code>V **Neg**(V a)</code>: returns `-a[i]`.
 
 #### Multiply
 
@@ -306,9 +309,6 @@ non-operator functions (also available for integers) must be used:
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
 Special functions for floating-point types:
-
-*   `V`: `f` \
-    <code>V **Neg**(V a)</code>: returns the `-a[i]`.
 
 *   `V`: `f` \
     <code>V **CopySign**(V a, V b)</code>: returns the number with the magnitude

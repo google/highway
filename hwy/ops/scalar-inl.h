@@ -385,9 +385,14 @@ HWY_INLINE Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
 
 // ------------------------------ Floating-point negate
 
-template<typename T>
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_INLINE Vec1<T> Neg(const Vec1<T> v) {
   return Xor(v, SignBit(Sisd<T>()));
+}
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_INLINE Vec1<T> Neg(const Vec1<T> v) {
+  return Zero(Sisd<T>()) - v;
 }
 
 // ------------------------------ mul/div
