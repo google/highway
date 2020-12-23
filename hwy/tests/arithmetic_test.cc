@@ -750,6 +750,53 @@ HWY_NOINLINE void TestAllMulAdd() {
   ForFloatTypes(ForPartialVectors<TestMulAdd>());
 }
 
+struct TestDiv {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v = Iota(d, T(-2));
+    const auto v1 = Set(d, T(1));
+
+    // Unchanged after division by 1.
+    HWY_ASSERT_VEC_EQ(d, v, v / v1);
+
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = (T(i) - 2) / T(2);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), v / Set(d, T(2)));
+  }
+};
+
+HWY_NOINLINE void TestAllDiv() { ForFloatTypes(ForPartialVectors<TestDiv>()); }
+
+struct TestApproximateReciprocal {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v = Iota(d, T(-2));
+    const auto nonzero = IfThenElse(v == Zero(d), Set(d, T(1)), v);
+    const size_t N = Lanes(d);
+    auto input = AllocateAligned<T>(N);
+    Store(nonzero, d, input.get());
+
+    auto actual = AllocateAligned<T>(N);
+    Store(ApproximateReciprocal(nonzero), d, actual.get());
+
+    double max_l1 = 0.0;
+    for (size_t i = 0; i < N; ++i) {
+      max_l1 = std::max<double>(max_l1, std::abs((1.0 / input[i]) - actual[i]));
+    }
+    const double max_rel = max_l1 / std::abs(1.0 / input[N - 1]);
+    printf("max err %f\n", max_rel);
+
+    HWY_ASSERT(max_rel < 0.002);
+  }
+};
+
+HWY_NOINLINE void TestAllApproximateReciprocal() {
+  ForPartialVectors<TestApproximateReciprocal>()(float());
+}
+
 struct TestSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -1089,6 +1136,8 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMul);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulHigh);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulAdd);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllDiv);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllApproximateReciprocal);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReciprocalSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumsOfU8);

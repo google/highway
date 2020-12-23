@@ -151,7 +151,7 @@ HWY_NOINLINE void TestAllCopySign() {
   ForFloatTypes(ForPartialVectors<TestCopySign>());
 }
 
-// Vec <-> Mask, IfThen*
+// Tests MaskFromVec, VecFromMask, IfThen*
 struct TestIfThenElse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -195,6 +195,28 @@ struct TestIfThenElse {
 
 HWY_NOINLINE void TestAllIfThenElse() {
   ForAllTypes(ForPartialVectors<TestIfThenElse>());
+}
+
+struct TestZeroIfNegative {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vp = Iota(d, 1);
+    auto vn = Iota(d, -128);
+    // Ensure all lanes are negative even if there are many lanes.
+    vn = IfThenElse(vn < v0, vn, Neg(vn));
+
+    // Zero and positive remain unchanged
+    HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(v0));
+    HWY_ASSERT_VEC_EQ(d, vp, ZeroIfNegative(vp));
+
+    // Negative are all replaced with zero
+    HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(vn));
+  }
+};
+
+HWY_NOINLINE void TestAllZeroIfNegative() {
+  ForFloatTypes(ForPartialVectors<TestZeroIfNegative>());
 }
 
 struct TestTestBit {
@@ -368,6 +390,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBitsFromMask);

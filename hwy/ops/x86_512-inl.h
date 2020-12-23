@@ -459,8 +459,8 @@ HWY_INLINE Vec512<double> IfThenZeroElse(const Mask512<double> mask,
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec512<T> ZeroIfNegative(const Vec512<T> v) {
-  const auto zero = Zero(Full512<T>());
-  return IfThenElse(MaskFromVec(v), zero, v);
+  // AVX3 MaskFromVec only looks at the MSB
+  return IfThenZeroElse(MaskFromVec(v), v);
 }
 
 // ================================================== ARITHMETIC
