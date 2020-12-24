@@ -106,14 +106,16 @@ class Mask512 {
   Raw raw;
 };
 
-// ------------------------------ Cast
+// ------------------------------ BitCast
+
+namespace detail {
 
 HWY_API __m512i BitCastToInteger(__m512i v) { return v; }
 HWY_API __m512i BitCastToInteger(__m512 v) { return _mm512_castps_si512(v); }
 HWY_API __m512i BitCastToInteger(__m512d v) { return _mm512_castpd_si512(v); }
 
 template <typename T>
-HWY_API Vec512<uint8_t> cast_to_u8(Vec512<T> v) {
+HWY_API Vec512<uint8_t> BitCastToByte(Vec512<T> v) {
   return Vec512<uint8_t>{BitCastToInteger(v.raw)};
 }
 
@@ -132,13 +134,15 @@ struct BitCastFromInteger512<double> {
 };
 
 template <typename T>
-HWY_API Vec512<T> cast_u8_to(Full512<T> /* tag */, Vec512<uint8_t> v) {
+HWY_API Vec512<T> BitCastFromByte(Full512<T> /* tag */, Vec512<uint8_t> v) {
   return Vec512<T>{BitCastFromInteger512<T>()(v.raw)};
 }
 
+}  // namespace detail
+
 template <typename T, typename FromT>
 HWY_API Vec512<T> BitCast(Full512<T> d, Vec512<FromT> v) {
-  return cast_u8_to(d, cast_to_u8(v));
+  return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
 // ------------------------------ Set

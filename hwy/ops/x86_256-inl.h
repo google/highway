@@ -87,15 +87,16 @@ class Mask256 {
   Raw raw;
 };
 
-// ------------------------------ Cast
+// ------------------------------ BitCast
+
+namespace detail {
 
 HWY_API __m256i BitCastToInteger(__m256i v) { return v; }
 HWY_API __m256i BitCastToInteger(__m256 v) { return _mm256_castps_si256(v); }
 HWY_API __m256i BitCastToInteger(__m256d v) { return _mm256_castpd_si256(v); }
 
-// cast_to_u8
 template <typename T>
-HWY_API Vec256<uint8_t> cast_to_u8(Vec256<T> v) {
+HWY_API Vec256<uint8_t> BitCastToByte(Vec256<T> v) {
   return Vec256<uint8_t>{BitCastToInteger(v.raw)};
 }
 
@@ -113,16 +114,16 @@ struct BitCastFromInteger256<double> {
   HWY_INLINE __m256d operator()(__m256i v) { return _mm256_castsi256_pd(v); }
 };
 
-// cast_u8_to
 template <typename T>
-HWY_API Vec256<T> cast_u8_to(Full256<T> /* tag */, Vec256<uint8_t> v) {
+HWY_API Vec256<T> BitCastFromByte(Full256<T> /* tag */, Vec256<uint8_t> v) {
   return Vec256<T>{BitCastFromInteger256<T>()(v.raw)};
 }
 
-// BitCast
+}  // namespace detail
+
 template <typename T, typename FromT>
 HWY_API Vec256<T> BitCast(Full256<T> d, Vec256<FromT> v) {
-  return cast_u8_to(d, cast_to_u8(v));
+  return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
 // ------------------------------ Set

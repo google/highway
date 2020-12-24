@@ -83,14 +83,16 @@ class Mask128 {
   Raw raw;
 };
 
-// ------------------------------ Cast
+// ------------------------------ BitCast
+
+namespace detail {
 
 HWY_API __m128i BitCastToInteger(__m128i v) { return v; }
 HWY_API __m128i BitCastToInteger(__m128 v) { return _mm_castps_si128(v); }
 HWY_API __m128i BitCastToInteger(__m128d v) { return _mm_castpd_si128(v); }
 
 template <typename T, size_t N>
-HWY_API Vec128<uint8_t, N * sizeof(T)> cast_to_u8(Vec128<T, N> v) {
+HWY_API Vec128<uint8_t, N * sizeof(T)> BitCastToByte(Vec128<T, N> v) {
   return Vec128<uint8_t, N * sizeof(T)>{BitCastToInteger(v.raw)};
 }
 
@@ -109,15 +111,17 @@ struct BitCastFromInteger128<double> {
 };
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> cast_u8_to(Simd<T, N> /* tag */,
+HWY_API Vec128<T, N> BitCastFromByte(Simd<T, N> /* tag */,
                                 Vec128<uint8_t, N * sizeof(T)> v) {
   return Vec128<T, N>{BitCastFromInteger128<T>()(v.raw)};
 }
 
+}  // namespace detail
+
 template <typename T, size_t N, typename FromT>
 HWY_API Vec128<T, N> BitCast(Simd<T, N> d,
                              Vec128<FromT, N * sizeof(T) / sizeof(FromT)> v) {
-  return cast_u8_to(d, cast_to_u8(v));
+  return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
 // ------------------------------ Set

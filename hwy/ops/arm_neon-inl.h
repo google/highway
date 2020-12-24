@@ -468,9 +468,9 @@ class Mask128 {
   Raw raw;
 };
 
-// ------------------------------ Cast
+// ------------------------------ BitCast
 
-// cast_to_u8
+namespace detail {
 
 // Converts from Vec128<T, N> to Vec128<uint8_t, N * sizeof(T)> using the
 // vreinterpret*_u8_*() set of functions.
@@ -482,124 +482,123 @@ class Mask128 {
 
 // Special case of u8 to u8 since vreinterpret*_u8_u8 is obviously not defined.
 template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> cast_to_u8(Vec128<uint8_t, N> v) {
+HWY_INLINE Vec128<uint8_t, N> BitCastToByte(Vec128<uint8_t, N> v) {
   return v;
 }
 
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(cast_to_u8, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_INTS(cast_to_u8, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_UINT_16(cast_to_u8, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_UINT_32(cast_to_u8, vreinterpret, _u8_, HWY_CAST_TO_U8)
-HWY_NEON_DEF_FUNCTION_UINT_64(cast_to_u8, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(BitCastToByte, vreinterpret, _u8_,
+                                 HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_INTS(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_UINT_16(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_UINT_32(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
+HWY_NEON_DEF_FUNCTION_UINT_64(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 
 #undef HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
 #undef HWY_NEON_BUILD_RET_HWY_CAST_TO_U8
 #undef HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8
 #undef HWY_NEON_BUILD_ARG_HWY_CAST_TO_U8
 
-// cast_u8_to
-
 template <size_t N>
-HWY_INLINE Vec128<uint8_t, N> cast_u8_to(Simd<uint8_t, N> /* tag */,
-                                         Vec128<uint8_t, N> v) {
+HWY_INLINE Vec128<uint8_t, N> BitCastFromByte(Simd<uint8_t, N> /* tag */,
+                                              Vec128<uint8_t, N> v) {
   return v;
 }
 
 // 64-bit or less:
 
 template <size_t N, HWY_IF_LE64(int8_t, N)>
-HWY_INLINE Vec128<int8_t, N> cast_u8_to(Simd<int8_t, N> /* tag */,
-                                        Vec128<uint8_t, N> v) {
+HWY_INLINE Vec128<int8_t, N> BitCastFromByte(Simd<int8_t, N> /* tag */,
+                                             Vec128<uint8_t, N> v) {
   return Vec128<int8_t, N>(vreinterpret_s8_u8(v.raw));
 }
 template <size_t N, HWY_IF_LE64(uint16_t, N)>
-HWY_INLINE Vec128<uint16_t, N> cast_u8_to(Simd<uint16_t, N> /* tag */,
-                                          Vec128<uint8_t, N * 2> v) {
+HWY_INLINE Vec128<uint16_t, N> BitCastFromByte(Simd<uint16_t, N> /* tag */,
+                                               Vec128<uint8_t, N * 2> v) {
   return Vec128<uint16_t, N>(vreinterpret_u16_u8(v.raw));
 }
 template <size_t N, HWY_IF_LE64(int16_t, N)>
-HWY_INLINE Vec128<int16_t, N> cast_u8_to(Simd<int16_t, N> /* tag */,
-                                         Vec128<uint8_t, N * 2> v) {
+HWY_INLINE Vec128<int16_t, N> BitCastFromByte(Simd<int16_t, N> /* tag */,
+                                              Vec128<uint8_t, N * 2> v) {
   return Vec128<int16_t, N>(vreinterpret_s16_u8(v.raw));
 }
 template <size_t N, HWY_IF_LE64(uint32_t, N)>
-HWY_INLINE Vec128<uint32_t, N> cast_u8_to(Simd<uint32_t, N> /* tag */,
-                                          Vec128<uint8_t, N * 4> v) {
+HWY_INLINE Vec128<uint32_t, N> BitCastFromByte(Simd<uint32_t, N> /* tag */,
+                                               Vec128<uint8_t, N * 4> v) {
   return Vec128<uint32_t, N>(vreinterpret_u32_u8(v.raw));
 }
 template <size_t N, HWY_IF_LE64(int32_t, N)>
-HWY_INLINE Vec128<int32_t, N> cast_u8_to(Simd<int32_t, N> /* tag */,
-                                         Vec128<uint8_t, N * 4> v) {
+HWY_INLINE Vec128<int32_t, N> BitCastFromByte(Simd<int32_t, N> /* tag */,
+                                              Vec128<uint8_t, N * 4> v) {
   return Vec128<int32_t, N>(vreinterpret_s32_u8(v.raw));
 }
 template <size_t N, HWY_IF_LE64(float, N)>
-HWY_INLINE Vec128<float, N> cast_u8_to(Simd<float, N> /* tag */,
-                                       Vec128<uint8_t, N * 4> v) {
+HWY_INLINE Vec128<float, N> BitCastFromByte(Simd<float, N> /* tag */,
+                                            Vec128<uint8_t, N * 4> v) {
   return Vec128<float, N>(vreinterpret_f32_u8(v.raw));
 }
-HWY_INLINE Vec128<uint64_t, 1> cast_u8_to(Simd<uint64_t, 1> /* tag */,
-                                          Vec128<uint8_t, 1 * 8> v) {
+HWY_INLINE Vec128<uint64_t, 1> BitCastFromByte(Simd<uint64_t, 1> /* tag */,
+                                               Vec128<uint8_t, 1 * 8> v) {
   return Vec128<uint64_t, 1>(vreinterpret_u64_u8(v.raw));
 }
-HWY_INLINE Vec128<int64_t, 1> cast_u8_to(Simd<int64_t, 1> /* tag */,
-                                         Vec128<uint8_t, 1 * 8> v) {
+HWY_INLINE Vec128<int64_t, 1> BitCastFromByte(Simd<int64_t, 1> /* tag */,
+                                              Vec128<uint8_t, 1 * 8> v) {
   return Vec128<int64_t, 1>(vreinterpret_s64_u8(v.raw));
 }
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double, 1> cast_u8_to(Simd<double, 1> /* tag */,
-                                        Vec128<uint8_t, 1 * 8> v) {
+HWY_INLINE Vec128<double, 1> BitCastFromByte(Simd<double, 1> /* tag */,
+                                             Vec128<uint8_t, 1 * 8> v) {
   return Vec128<double, 1>(vreinterpret_f64_u8(v.raw));
 }
 #endif
 
 // 128-bit full:
 
-HWY_INLINE Vec128<int8_t> cast_u8_to(Full128<int8_t> /* tag */,
-                                     Vec128<uint8_t> v) {
+HWY_INLINE Vec128<int8_t> BitCastFromByte(Full128<int8_t> /* tag */,
+                                          Vec128<uint8_t> v) {
   return Vec128<int8_t>(vreinterpretq_s8_u8(v.raw));
 }
-HWY_INLINE Vec128<uint16_t> cast_u8_to(Full128<uint16_t> /* tag */,
-                                       Vec128<uint8_t> v) {
+HWY_INLINE Vec128<uint16_t> BitCastFromByte(Full128<uint16_t> /* tag */,
+                                            Vec128<uint8_t> v) {
   return Vec128<uint16_t>(vreinterpretq_u16_u8(v.raw));
 }
-HWY_INLINE Vec128<int16_t> cast_u8_to(Full128<int16_t> /* tag */,
-                                      Vec128<uint8_t> v) {
+HWY_INLINE Vec128<int16_t> BitCastFromByte(Full128<int16_t> /* tag */,
+                                           Vec128<uint8_t> v) {
   return Vec128<int16_t>(vreinterpretq_s16_u8(v.raw));
 }
-HWY_INLINE Vec128<uint32_t> cast_u8_to(Full128<uint32_t> /* tag */,
-                                       Vec128<uint8_t> v) {
+HWY_INLINE Vec128<uint32_t> BitCastFromByte(Full128<uint32_t> /* tag */,
+                                            Vec128<uint8_t> v) {
   return Vec128<uint32_t>(vreinterpretq_u32_u8(v.raw));
 }
-HWY_INLINE Vec128<int32_t> cast_u8_to(Full128<int32_t> /* tag */,
-                                      Vec128<uint8_t> v) {
+HWY_INLINE Vec128<int32_t> BitCastFromByte(Full128<int32_t> /* tag */,
+                                           Vec128<uint8_t> v) {
   return Vec128<int32_t>(vreinterpretq_s32_u8(v.raw));
 }
-HWY_INLINE Vec128<float> cast_u8_to(Full128<float> /* tag */,
-                                    Vec128<uint8_t> v) {
+HWY_INLINE Vec128<float> BitCastFromByte(Full128<float> /* tag */,
+                                         Vec128<uint8_t> v) {
   return Vec128<float>(vreinterpretq_f32_u8(v.raw));
 }
-HWY_INLINE Vec128<uint64_t> cast_u8_to(Full128<uint64_t> /* tag */,
-                                       Vec128<uint8_t> v) {
+HWY_INLINE Vec128<uint64_t> BitCastFromByte(Full128<uint64_t> /* tag */,
+                                            Vec128<uint8_t> v) {
   return Vec128<uint64_t>(vreinterpretq_u64_u8(v.raw));
 }
-HWY_INLINE Vec128<int64_t> cast_u8_to(Full128<int64_t> /* tag */,
-                                      Vec128<uint8_t> v) {
+HWY_INLINE Vec128<int64_t> BitCastFromByte(Full128<int64_t> /* tag */,
+                                           Vec128<uint8_t> v) {
   return Vec128<int64_t>(vreinterpretq_s64_u8(v.raw));
 }
 
 #if defined(__aarch64__)
-HWY_INLINE Vec128<double> cast_u8_to(Full128<double> /* tag */,
-                                     Vec128<uint8_t> v) {
+HWY_INLINE Vec128<double> BitCastFromByte(Full128<double> /* tag */,
+                                          Vec128<uint8_t> v) {
   return Vec128<double>(vreinterpretq_f64_u8(v.raw));
 }
 #endif
 
-// BitCast
+}  // namespace detail
+
 template <typename T, size_t N, typename FromT>
 HWY_INLINE Vec128<T, N> BitCast(
     Simd<T, N> d, Vec128<FromT, N * sizeof(T) / sizeof(FromT)> v) {
-  const auto u8 = cast_to_u8(v);
-  return cast_u8_to(d, u8);
+  return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
 // ------------------------------ Set
@@ -2055,7 +2054,7 @@ HWY_INLINE Vec128<int32_t, 1> DemoteTo(Simd<int32_t, 1> /* tag */,
 #endif
 
 HWY_INLINE Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
-  const uint8x16_t org_v = cast_to_u8(v).raw;
+  const uint8x16_t org_v = detail::BitCastToByte(v).raw;
   const uint8x16_t w = vuzp1q_u8(org_v, org_v);
   return Vec128<uint8_t, 4>(vget_low_u8(vuzp1q_u8(w, w)));
 }

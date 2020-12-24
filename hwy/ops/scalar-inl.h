@@ -79,7 +79,7 @@ class Mask1 {
   Raw bits;
 };
 
-// ------------------------------ Cast
+// ------------------------------ BitCast
 
 template <typename T, typename FromT>
 HWY_INLINE Vec1<T> BitCast(Sisd<T> /* tag */, Vec1<FromT> v) {
