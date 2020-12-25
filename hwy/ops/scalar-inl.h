@@ -711,10 +711,11 @@ HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
   // Prevent ubsan errors when converting float to integers
   if (IsFloat<FromT>() && !IsFloat<ToT>()) {
-    if (std::isinf(from.raw) || std::fabs(static_cast<double>(from.raw)) >
-                                    static_cast<double>(LimitsMax<ToT>())) {
-      return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
-                                              : LimitsMax<ToT>());
+    const float f = static_cast<float>(from.raw);
+    if (std::isinf(f) || std::fabs(static_cast<double>(from.raw)) >
+                             static_cast<double>(LimitsMax<ToT>())) {
+      return Vec1<ToT>(std::signbit(f) ? LimitsMin<ToT>()
+                                       : LimitsMax<ToT>());
     }
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
@@ -724,10 +725,11 @@ template <typename FromT, typename ToT>
 HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   // Prevent ubsan errors when converting float to integers
   if (IsFloat<FromT>() && !IsFloat<ToT>()) {
-    if (std::isinf(from.raw) || std::fabs(static_cast<double>(from.raw)) >
-                                    static_cast<double>(LimitsMax<ToT>())) {
-      return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
-                                              : LimitsMax<ToT>());
+    const float f = static_cast<float>(from.raw);
+    if (std::isinf(f) || std::fabs(static_cast<double>(from.raw)) >
+                             static_cast<double>(LimitsMax<ToT>())) {
+      return Vec1<ToT>(std::signbit(f) ? LimitsMin<ToT>()
+                                       : LimitsMax<ToT>());
     }
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
