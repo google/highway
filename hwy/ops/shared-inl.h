@@ -205,6 +205,8 @@ HWY_API size_t PopCount(uint64_t x) {
   return static_cast<size_t>(__builtin_popcountll(x));
 #elif HWY_COMPILER_MSVC && _WIN64
   return _mm_popcnt_u64(x);
+#elif HWY_COMPILER_MSVC
+  return _mm_popcnt_u32(uint32_t(x)) + _mm_popcnt_u32(uint32_t(x>>32));
 #else
   x -=  ((x >> 1) & 0x55555555U);
   x  = (((x >> 2) & 0x33333333U) + (x & 0x33333333U));
