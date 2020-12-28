@@ -260,7 +260,7 @@ struct TestAllTrueFalse {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, 0);  // for clang-analyzer.
+    std::fill(lanes.get(), lanes.get() + N, T(0));  // for clang-analyzer.
     Store(v, d, lanes.get());
     HWY_ASSERT(AllTrue(v == zero));
     HWY_ASSERT(!AllFalse(v == zero));

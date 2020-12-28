@@ -41,7 +41,7 @@ struct TestAlignedT {
   template <typename T>
   void operator()(T /*unused*/) const {
     std::mt19937 rng(129);
-    std::uniform_int_distribution<T> dist(0, 16);
+    std::uniform_int_distribution<int> dist(0, 16);
     const HWY_FULL(T) d;
 
     for (size_t ysize = 1; ysize < 4; ++ysize) {
@@ -72,7 +72,7 @@ struct TestUnalignedT {
   template <typename T>
   void operator()(T /*unused*/) const {
     std::mt19937 rng(129);
-    std::uniform_int_distribution<T> dist(0, 3);
+    std::uniform_int_distribution<int> dist(0, 3);
     const HWY_FULL(T) d;
 
     for (size_t ysize = 1; ysize < 4; ++ysize) {

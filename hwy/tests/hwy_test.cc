@@ -97,9 +97,9 @@ struct TestSumMulAdd {
     HWY_ALIGN T x[kSize];
     HWY_ALIGN T add[kSize];
     for (size_t i = 0; i < kSize; ++i) {
-      mul[i] = Random32(&rng) & 0xF;
-      x[i] = Random32(&rng) & 0xFF;
-      add[i] = Random32(&rng) & 0xFF;
+      mul[i] = static_cast<T>(Random32(&rng) & 0xF);
+      x[i] = static_cast<T>(Random32(&rng) & 0xFF);
+      add[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
     MulAddLoop(d, mul, add, kSize, x);
     double sum = 0.0;

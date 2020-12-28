@@ -98,7 +98,7 @@ TEST(AlignedAllocatorTest, AllocDefaultPointers) {
   size_t ret = 0;
   for (size_t i = 0; i < kSize; i++) {
     // Performs a computation using p[] to prevent it being optimized away.
-    p[i] = i;
+    p[i] = static_cast<char>(i & 0x7F);
     if (i) ret += p[i] * p[i - 1];
   }
   EXPECT_NE(0, ret);
@@ -188,7 +188,7 @@ TEST(AlignedAllocatorTest, AllocMultipleInt) {
   size_t ret = 0;
   for (size_t i = 0; i < kSize; i++) {
     // Performs a computation using ptr[] to prevent it being optimized away.
-    ptr[i] = i;
+    ptr[i] = static_cast<uint32_t>(i);
     if (i) ret += ptr[i] * ptr[i - 1];
   }
   EXPECT_NE(0, ret);
