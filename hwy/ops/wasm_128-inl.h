@@ -170,14 +170,8 @@ HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 
 // Returns a vector with uninitialized elements.
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API Vec128<T, N> Undefined(Simd<T, N> /* tag */) {
-  __v128_u raw;
-  return Vec128<T, N>{raw};
-}
-template <size_t N, HWY_IF_LE128(float, N)>
-HWY_API Vec128<float, N> Undefined(Simd<float, N> /* tag */) {
-  __f32x4 raw;
-  return Vec128<float, N>{raw};
+HWY_API Vec128<T, N> Undefined(Simd<T, N> d) {
+  return Zero(d);
 }
 
 HWY_DIAGNOSTICS(pop)

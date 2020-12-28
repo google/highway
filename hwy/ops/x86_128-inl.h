@@ -188,30 +188,17 @@ HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 // Returns a vector with uninitialized elements.
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_API Vec128<T, N> Undefined(Simd<T, N> /* tag */) {
-#ifdef __clang__
+  // Available on Clang 6.0, GCC 6.2, ICC 16.03, MSVC 19.14. All but ICC
+  // generate an XOR instruction.
   return Vec128<T, N>{_mm_undefined_si128()};
-#else
-  __m128i raw;
-  return Vec128<T, N>{raw};
-#endif
 }
 template <size_t N, HWY_IF_LE128(float, N)>
 HWY_API Vec128<float, N> Undefined(Simd<float, N> /* tag */) {
-#ifdef __clang__
   return Vec128<float, N>{_mm_undefined_ps()};
-#else
-  __m128 raw;
-  return Vec128<float, N>{raw};
-#endif
 }
 template <size_t N, HWY_IF_LE128(double, N)>
 HWY_API Vec128<double, N> Undefined(Simd<double, N> /* tag */) {
-#ifdef __clang__
   return Vec128<double, N>{_mm_undefined_pd()};
-#else
-  __m128d raw;
-  return Vec128<double, N>{raw};
-#endif
 }
 
 HWY_DIAGNOSTICS(pop)

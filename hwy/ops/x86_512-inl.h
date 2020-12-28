@@ -198,28 +198,15 @@ HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 // Returns a vector with uninitialized elements.
 template <typename T>
 HWY_API Vec512<T> Undefined(Full512<T> /* tag */) {
-#ifdef __clang__
+  // Available on Clang 6.0, GCC 6.2, ICC 16.03, MSVC 19.14. All but ICC
+  // generate an XOR instruction.
   return Vec512<T>{_mm512_undefined_epi32()};
-#else
-  __m512i raw;
-  return Vec512<T>{raw};
-#endif
 }
 HWY_API Vec512<float> Undefined(Full512<float> /* tag */) {
-#ifdef __clang__
   return Vec512<float>{_mm512_undefined_ps()};
-#else
-  __m512 raw;
-  return Vec512<float>{raw};
-#endif
 }
 HWY_API Vec512<double> Undefined(Full512<double> /* tag */) {
-#ifdef __clang__
   return Vec512<double>{_mm512_undefined_pd()};
-#else
-  __m512d raw;
-  return Vec512<double>{raw};
-#endif
 }
 
 HWY_DIAGNOSTICS(pop)

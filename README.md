@@ -16,7 +16,9 @@ applying the same operation to 'lanes'.
 
 Supported targets: scalar, SSE4, AVX2, AVX-512, NEON (ARMv7 and v8), WASM SIMD.
 
-Tested on GCC 10.2.0 and Clang 9.0.1.
+Continuous integration tests use a recent version of Clang (9.0.1 should
+suffice). Also periodically tested on GCC 10.2.0 and less often on MSVC 2019
+(MSVC 2017 update 7, i.e. v19.14, should also suffice).
 
 ## Installation
 

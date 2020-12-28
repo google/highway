@@ -102,8 +102,8 @@ HWY_INLINE Vec1<T> Set(Sisd<T> /* tag */, const T2 t) {
 }
 
 template <typename T>
-HWY_INLINE Vec1<T> Undefined(Sisd<T> /* tag */) {
-  return Vec1<T>(0);
+HWY_INLINE Vec1<T> Undefined(Sisd<T> d) {
+  return Zero(d);
 }
 
 template <typename T, typename T2>
