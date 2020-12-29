@@ -200,13 +200,22 @@ HWY_API void CopyBytes(const From* from, To* to) {
 #endif
 }
 
-HWY_API size_t PopCount(const uint64_t x) {
+HWY_API size_t PopCount(uint64_t x) {
 #if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
   return static_cast<size_t>(__builtin_popcountll(x));
-#elif HWY_COMPILER_MSVC
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
   return _mm_popcnt_u64(x);
+#elif HWY_COMPILER_MSVC
+  return _mm_popcnt_u32(uint32_t(x)) + _mm_popcnt_u32(uint32_t(x>>32));
 #else
-#error "not supported"
+  x -=  ((x >> 1) & 0x55555555U);
+  x  = (((x >> 2) & 0x33333333U) + (x & 0x33333333U));
+  x  = (((x >> 4) + x) & 0x0F0F0F0FU);
+  x +=   (x >> 8);
+  x +=   (x >> 16);
+  x +=   (x >> 32);
+  x  = x & 0x0000007FU;
+  return (unsigned int)x;
 #endif
 }
 
