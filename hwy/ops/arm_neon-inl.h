@@ -2546,16 +2546,16 @@ HWY_INLINE Vec128<int64_t, 1> Broadcast(const Vec128<int64_t, 1> v) {
 
 // ------------------------------ Shuffle bytes with variable indices
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes:
-// either valid indices in [0, 16) or >= 0x80 to zero the i-th output byte.
-template <typename T, typename TI>
-HWY_INLINE Vec128<T> TableLookupBytes(const Vec128<T> bytes,
-                                      const Vec128<TI> from) {
-  const Full128<uint8_t> d8;
+// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
+// lane indices in [0, 16).
+template <typename T>
+HWY_API Vec128<T> TableLookupBytes(const Vec128<T> bytes,
+                                   const Vec128<T> from) {
+  const Full128<T> d;
+  const Repartition<uint8_t, decltype(d)> d8;
 #if defined(__aarch64__)
-  return BitCast(Full128<T>(),
-                 Vec128<uint8_t>(vqtbl1q_u8(BitCast(d8, bytes).raw,
-                                            BitCast(d8, from).raw)));
+  return BitCast(d, Vec128<uint8_t>(vqtbl1q_u8(BitCast(d8, bytes).raw,
+                                               BitCast(d8, from).raw)));
 #else
   uint8x16_t table0 = BitCast(d8, bytes).raw;
   uint8x8x2_t table;
@@ -2564,8 +2564,18 @@ HWY_INLINE Vec128<T> TableLookupBytes(const Vec128<T> bytes,
   uint8x16_t idx = BitCast(d8, from).raw;
   uint8x8_t low = vtbl2_u8(table, vget_low_u8(idx));
   uint8x8_t hi = vtbl2_u8(table, vget_high_u8(idx));
-  return BitCast(Full128<T>(), Vec128<uint8_t>(vcombine_u8(low, hi)));
+  return BitCast(d, Vec128<uint8_t>(vcombine_u8(low, hi)));
 #endif
+}
+
+template <typename T, size_t N, typename TI, HWY_IF_LE64(T, N)>
+HWY_INLINE Vec128<T, N> TableLookupBytes(
+    const Vec128<T, N> bytes,
+    const Vec128<TI, N * sizeof(T) / sizeof(TI)> from) {
+  const Simd<T, N> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, decltype(Zero(d8))(vtbl1_u8(BitCast(d8, bytes).raw,
+                                                BitCast(d8, from).raw)));
 }
 
 // ------------------------------ Hard-coded shuffles
@@ -2627,19 +2637,21 @@ HWY_INLINE Vec128<T> Shuffle0123(const Vec128<T> v) {
   // high/low parts) instead of the extra memory and load.
   static constexpr uint8_t bytes[16] = {12, 13, 14, 15, 8, 9, 10, 11,
                                         4,  5,  6,  7,  0, 1, 2,  3};
-  return TableLookupBytes(v, Load(Full128<uint8_t>(), bytes));
+  const Full128<uint8_t> d8;
+  const Full128<T> d;
+  return TableLookupBytes(v, BitCast(d, Load(d8, bytes)));
 }
 
-// ------------------------------ Permute (runtime variable)
+// ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
-struct Permute128 {
+struct Indices128 {
   uint8x16_t raw;
 };
 
 template <typename T>
-HWY_INLINE Permute128<T> SetTableIndices(const Full128<T>, const int32_t* idx) {
+HWY_INLINE Indices128<T> SetTableIndices(const Full128<T>, const int32_t* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
   const size_t N = 16 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
@@ -2654,23 +2666,23 @@ HWY_INLINE Permute128<T> SetTableIndices(const Full128<T>, const int32_t* idx) {
     const size_t mod = idx_byte % sizeof(T);
     control[idx_byte] = idx[idx_lane] * sizeof(T) + mod;
   }
-  return Permute128<T>{Load(d8, control).raw};
+  return Indices128<T>{Load(d8, control).raw};
 }
 
 HWY_INLINE Vec128<uint32_t> TableLookupLanes(const Vec128<uint32_t> v,
-                                             const Permute128<uint32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>(idx.raw));
+                                             const Indices128<uint32_t> idx) {
+  return TableLookupBytes(v, Vec128<uint32_t>(idx.raw));
 }
 HWY_INLINE Vec128<int32_t> TableLookupLanes(const Vec128<int32_t> v,
-                                            const Permute128<int32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>(idx.raw));
+                                            const Indices128<int32_t> idx) {
+  return TableLookupBytes(v, Vec128<int32_t>(idx.raw));
 }
 HWY_INLINE Vec128<float> TableLookupLanes(const Vec128<float> v,
-                                          const Permute128<float> idx) {
+                                          const Indices128<float> idx) {
   const Full128<int32_t> di;
   const Full128<float> df;
   return BitCast(df,
-                 TableLookupBytes(BitCast(di, v), Vec128<uint8_t>(idx.raw)));
+                 TableLookupBytes(BitCast(di, v), Vec128<int32_t>(idx.raw)));
 }
 
 // ------------------------------ Interleave lanes
@@ -2987,7 +2999,7 @@ HWY_INLINE Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
 
 #endif
 
-// ------------------------------ Horizontal sum (reduction)
+// ------------------------------ Reductions
 
 // Returns 64-bit sums of 8-byte groups.
 HWY_INLINE Vec128<uint64_t> SumsOfU8x8(const Vec128<uint8_t> v) {
@@ -3114,66 +3126,141 @@ namespace impl {
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                                  const Mask128<T> mask) {
-  constexpr uint8x16_t kCollapseMask = {
+  alignas(16) constexpr uint8_t kSliceLanes[16] = {
       1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80,
   };
   const Full128<uint8_t> du;
-  const uint8x16_t values = BitCast(du, VecFromMask(mask)).raw & kCollapseMask;
+  const Vec128<uint8_t> values =
+      BitCast(du, VecFromMask(mask)) & Load(du, kSliceLanes);
 
 #if defined(__aarch64__)
   // Can't vaddv - we need two separate bytes (16 bits).
-  const uint8x8_t x2 = vget_low_u8(vpaddq_u8(values, values));
+  const uint8x8_t x2 = vget_low_u8(vpaddq_u8(values.raw, values.raw));
   const uint8x8_t x4 = vpadd_u8(x2, x2);
   const uint8x8_t x8 = vpadd_u8(x4, x4);
   return vreinterpret_u16_u8(x8)[0];
 #else
   // Don't have vpaddq, so keep doubling lane size.
-  const uint16x8_t x2 = vpaddlq_u8(values);
+  const uint16x8_t x2 = vpaddlq_u8(values.raw);
   const uint32x4_t x4 = vpaddlq_u16(x2);
   const uint64x2_t x8 = vpaddlq_u32(x4);
   return (uint64_t(x8[1]) << 8) | x8[0];
 #endif
 }
 
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask128<T, N> mask) {
+  // Upper lanes of partial loads are undefined. OnlyActive will fix this if
+  // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
+  alignas(8) constexpr uint8_t kSliceLanes[8] = {1,    2,    4,    8,
+                                                 0x10, 0x20, 0x40, 0x80};
+  const Simd<uint8_t, N> du;
+  const Vec128<uint8_t, N> slice(Load(Simd<uint8_t, 8>(), kSliceLanes).raw);
+  const Vec128<uint8_t, N> values = BitCast(du, VecFromMask(mask)) & slice;
+
+#if defined(__aarch64__)
+  return vaddv_u8(values.raw);
+#else
+  const uint16x4_t x2 = vpaddl_u8(values.raw);
+  const uint32x2_t x4 = vpaddl_u16(x2);
+  const uint64x1_t x8 = vpaddl_u32(x4);
+  return vget_lane_u64(x8, 0);
+#endif
+}
+
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
                                  const Mask128<T> mask) {
-  constexpr uint16x8_t kCollapseMask = {1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80};
+  alignas(16) constexpr uint16_t kSliceLanes[8] = {1,    2,    4,    8,
+                                                   0x10, 0x20, 0x40, 0x80};
   const Full128<uint16_t> du;
-  const uint16x8_t values = BitCast(du, VecFromMask(mask)).raw & kCollapseMask;
+  const Vec128<uint16_t> values =
+      BitCast(du, VecFromMask(mask)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
-  return vaddvq_u16(values);
+  return vaddvq_u16(values.raw);
 #else
-  const uint32x4_t x2 = vpaddlq_u16(values);
+  const uint32x4_t x2 = vpaddlq_u16(values.raw);
   const uint64x2_t x4 = vpaddlq_u32(x2);
-  return x4[0] + x4[1];
+  return vget_lane_u64(x4, 0) + vget_lane_u64(x4, 1);
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                                 const Mask128<T, N> mask) {
+  // Upper lanes of partial loads are undefined. OnlyActive will fix this if
+  // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
+  alignas(8) constexpr uint16_t kSliceLanes[4] = {1, 2, 4, 8};
+  const Simd<uint16_t, N> du;
+  const Vec128<uint16_t, N> slice(Load(Simd<uint16_t, 4>(), kSliceLanes).raw);
+  const Vec128<uint16_t, N> values = BitCast(du, VecFromMask(mask)) & slice;
+#if defined(__aarch64__)
+  return vaddv_u16(values.raw);
+#else
+  const uint32x2_t x2 = vpaddl_u16(values.raw);
+  const uint64x1_t x4 = vpaddl_u32(x2);
+  return vget_lane_u64(x4, 0);
 #endif
 }
 
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
                                  const Mask128<T> mask) {
-  constexpr uint32x4_t kCollapseMask = {1, 2, 4, 8};
+  alignas(16) constexpr uint32_t kSliceLanes[4] = {1, 2, 4, 8};
   const Full128<uint32_t> du;
-  const uint32x4_t values = BitCast(du, VecFromMask(mask)).raw & kCollapseMask;
+  const Vec128<uint32_t> values =
+      BitCast(du, VecFromMask(mask)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
-  return vaddvq_u32(values);
+  return vaddvq_u32(values.raw);
 #else
-  const uint64x2_t x2 = vpaddlq_u32(values);
-  return x2[0] + x2[1];
+  const uint64x2_t x2 = vpaddlq_u32(values.raw);
+  return vget_lane_u64(x2, 0) + vget_lane_u64(x2, 1);
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
+                                 const Mask128<T, N> mask) {
+  // Upper lanes of partial loads are undefined. OnlyActive will fix this if
+  // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
+  alignas(8) constexpr uint32_t kSliceLanes[2] = {1, 2};
+  const Simd<uint32_t, N> du;
+  const Vec128<uint32_t, N> slice(Load(Simd<uint32_t, 2>(), kSliceLanes).raw);
+  const Vec128<uint32_t, N> values = BitCast(du, VecFromMask(mask)) & slice;
+#if defined(__aarch64__)
+  return vaddv_u32(values.raw);
+#else
+  const uint64x1_t x2 = vpaddl_u32(values.raw);
+  return vget_lane_u64(x2, 0);
 #endif
 }
 
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
-  constexpr uint64x2_t kCollapseMask = {1, 2};
+  alignas(16) constexpr uint64_t kSliceLanes[2] = {1, 2};
   const Full128<uint64_t> du;
-  const uint64x2_t values = BitCast(du, VecFromMask(v)).raw & kCollapseMask;
+  const Vec128<uint64_t> values =
+      BitCast(du, VecFromMask(v)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
-  return vaddvq_u64(values);
+  return vaddvq_u64(values.raw);
 #else
-  return values[0] + values[1];
+  return vget_lane_u64(values.raw, 0) + vget_lane_u64(values.raw, 1);
 #endif
+}
+
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
+                                 const Mask128<T, 1> v) {
+  const Simd<uint64_t, 1> du;
+  const Vec128<uint64_t, 1> values = BitCast(du, VecFromMask(v)) & Set(du, 1);
+  return vget_lane_u64(values.raw, 0);
+}
+
+// Returns the lowest N for the BitsFromMask result.
+template <typename T, size_t N>
+constexpr uint64_t OnlyActive(uint64_t bits) {
+  return ((N * sizeof(T)) >= 8) ? bits : (bits & ((1ull << N) - 1));
 }
 
 // Returns number of lanes whose mask is set.
@@ -3238,9 +3325,10 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
 
 }  // namespace impl
 
-template <typename T>
-HWY_INLINE uint64_t BitsFromMask(const Mask128<T> mask) {
-  return impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return impl::OnlyActive<T, N>(
+      impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
 template <typename T>

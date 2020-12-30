@@ -322,31 +322,32 @@ Special functions for floating-point types:
 
 Let `M` denote a mask capable of storing true/false for each lane.
 
-*   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if
-    `v[i] == 0`, or true if `v[i]` has all bits set.
+*   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
+    0`, or true if `v[i]` has all bits set.
 
-*   <code>V **VecFromMask**(M m)</code>: returns 0 in lane `i` if
-    `m[i] == false`, otherwise all bits set.
+*   <code>V **VecFromMask**(M m)</code>: returns 0 in lane `i` if `m[i] ==
+    false`, otherwise all bits set.
 
-*   <code>V **IfThenElse**(M mask, V yes, V no)</code>:
-    returns `mask[i] ? yes[i] : no[i]`.
-*   <code>V **IfThenElseZero**(M mask, V yes)</code>:
-    returns `mask[i] ? yes[i] : 0`.
-*   <code>V **IfThenZeroElse**(M mask, V no)</code>:
-    returns `mask[i] ? 0 : no[i]`.
+*   <code>V **IfThenElse**(M mask, V yes, V no)</code>: returns `mask[i] ?
+    yes[i] : no[i]`.
+
+*   <code>V **IfThenElseZero**(M mask, V yes)</code>: returns `mask[i] ?
+    yes[i] : 0`.
+
+*   <code>V **IfThenZeroElse**(M mask, V no)</code>: returns `mask[i] ? 0 :
+    no[i]`.
 
 *   <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
 
-*   <code>bool **AllTrue**(M m)</code>: returns whether all `m[i]` are
-    true.
-*   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are
-    false.
+*   <code>bool **AllTrue**(M m)</code>: returns whether all `m[i]` are true.
 
-*   <code>uint64_t **BitsFromMask**(M m)</code>: returns `sum{1 << i}`
-    for all indices `i` where `m[i]` is true.
+*   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
 
-*   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are
-    true [0, N]. This is typically more expensive than AllTrue/False.
+*   <code>uint64_t **BitsFromMask**(M m)</code>: returns `sum{1 << i}` for all
+    indices `i` where `m[i]` is true.
+
+*   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
+    [0, N]. This is typically more expensive than AllTrue/False.
 
 ### Comparisons
 
@@ -500,6 +501,11 @@ their operands into independently processed 128-bit *blocks*.
     `InterleaveLower`, except that `Ret` is a vector with double-width lanes
     (required in order to use this operation with scalars).
 
+*   `V`: `ui` \
+    <code>V **TableLookupBytes**(V bytes, V from)</code>: returns
+    `bytes[from[i]]`. Uses byte lanes regardless of the actual vector types.
+    Results are undefined if `from[i] >= HWY_MIN(vector size, 16)`.
+
 **Note**: the following are only available for full vectors (`N` > 1), and split
 their operands into independently processed 128-bit *blocks*:
 
@@ -533,10 +539,6 @@ their operands into independently processed 128-bit *blocks*:
     <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
     vector of *blocks* each the result of shifting two concatenated *blocks*
     `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)).
-
-*   `V`: `ui`; `VI`: `ui` \
-    <code>V **TableLookupBytes**(V bytes, VI from)</code>: returns *blocks* with
-    `bytes[from[i]]`, or zero if bit 7 of byte `from[i]` is set.
 
 *   `V`: `uif32` \
     <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves

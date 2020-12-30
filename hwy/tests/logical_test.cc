@@ -339,7 +339,7 @@ class TestBitsFromMask {
 };
 
 HWY_NOINLINE void TestAllBitsFromMask() {
-  ForAllTypes(ForFullVectors<TestBitsFromMask>());
+  ForAllTypes(ForPartialVectors<TestBitsFromMask>());
 }
 
 struct TestCountTrue {

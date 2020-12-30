@@ -1531,35 +1531,35 @@ HWY_API Vec256<float> Shuffle0123(const Vec256<float> v) {
   return Vec256<float>{_mm256_shuffle_ps(v.raw, v.raw, 0x1B)};
 }
 
-// ------------------------------ Permute (runtime variable)
+// ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
-struct Permute256 {
+struct Indices256 {
   __m256i raw;
 };
 
 template <typename T>
-HWY_API Permute256<T> SetTableIndices(const Full256<T>, const int32_t* idx) {
+HWY_API Indices256<T> SetTableIndices(const Full256<T>, const int32_t* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
   const size_t N = 32 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
   }
 #endif
-  return Permute256<T>{LoadU(Full256<int32_t>(), idx).raw};
+  return Indices256<T>{LoadU(Full256<int32_t>(), idx).raw};
 }
 
 HWY_API Vec256<uint32_t> TableLookupLanes(const Vec256<uint32_t> v,
-                                          const Permute256<uint32_t> idx) {
+                                          const Indices256<uint32_t> idx) {
   return Vec256<uint32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
 }
 HWY_API Vec256<int32_t> TableLookupLanes(const Vec256<int32_t> v,
-                                         const Permute256<int32_t> idx) {
+                                         const Indices256<int32_t> idx) {
   return Vec256<int32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
 }
 HWY_API Vec256<float> TableLookupLanes(const Vec256<float> v,
-                                       const Permute256<float> idx) {
+                                       const Indices256<float> idx) {
   return Vec256<float>{_mm256_permutevar8x32_ps(v.raw, idx.raw)};
 }
 
@@ -1827,11 +1827,11 @@ HWY_INLINE Vec256<double> OddEven<double>(const Vec256<double> a,
 
 // ------------------------------ Shuffle bytes with variable indices
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes:
-// either valid indices in [0, 16) or >= 0x80 to zero the i-th output byte.
-template <typename T, typename TI>
+// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
+// lane indices in [0, 16).
+template <typename T>
 HWY_API Vec256<T> TableLookupBytes(const Vec256<T> bytes,
-                                   const Vec256<TI> from) {
+                                   const Vec256<T> from) {
   return Vec256<T>{_mm256_shuffle_epi8(bytes.raw, from.raw)};
 }
 

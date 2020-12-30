@@ -1840,12 +1840,12 @@ HWY_API Vec128<double, N> Broadcast(const Vec128<double, N> v) {
 
 // ------------------------------ Shuffle bytes with variable indices
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes:
-// either valid indices in [0, 16) or >= 0x80 to zero the i-th output byte.
-template <typename T, typename TI>
-HWY_API Vec128<T> TableLookupBytes(const Vec128<T> bytes,
-                                   const Vec128<TI> from) {
-  return Vec128<T>{_mm_shuffle_epi8(bytes.raw, from.raw)};
+// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
+// lane indices in [0, 16).
+template <typename T, size_t N>
+HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
+                                      const Vec128<T, N> from) {
+  return Vec128<T, N>{_mm_shuffle_epi8(bytes.raw, from.raw)};
 }
 
 // ------------------------------ Hard-coded shuffles
@@ -1918,16 +1918,16 @@ HWY_API Vec128<float> Shuffle0123(const Vec128<float> v) {
   return Vec128<float>{_mm_shuffle_ps(v.raw, v.raw, 0x1B)};
 }
 
-// ------------------------------ Permute (runtime variable)
+// ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
-struct permute_sse4 {
+struct Indices128 {
   __m128i raw;
 };
 
 template <typename T>
-HWY_API permute_sse4<T> SetTableIndices(Full128<T>, const int32_t* idx) {
+HWY_API Indices128<T> SetTableIndices(Full128<T>, const int32_t* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
   const size_t N = 16 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
@@ -1942,23 +1942,23 @@ HWY_API permute_sse4<T> SetTableIndices(Full128<T>, const int32_t* idx) {
     const size_t mod = idx_byte % sizeof(T);
     control[idx_byte] = idx[idx_lane] * sizeof(T) + mod;
   }
-  return permute_sse4<T>{Load(d8, control).raw};
+  return Indices128<T>{Load(d8, control).raw};
 }
 
 HWY_API Vec128<uint32_t> TableLookupLanes(const Vec128<uint32_t> v,
-                                          const permute_sse4<uint32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
+                                          const Indices128<uint32_t> idx) {
+  return TableLookupBytes(v, Vec128<uint32_t>{idx.raw});
 }
 HWY_API Vec128<int32_t> TableLookupLanes(const Vec128<int32_t> v,
-                                         const permute_sse4<int32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
+                                         const Indices128<int32_t> idx) {
+  return TableLookupBytes(v, Vec128<int32_t>{idx.raw});
 }
 HWY_API Vec128<float> TableLookupLanes(const Vec128<float> v,
-                                       const permute_sse4<float> idx) {
+                                       const Indices128<float> idx) {
   const Full128<int32_t> di;
   const Full128<float> df;
   return BitCast(df,
-                 TableLookupBytes(BitCast(di, v), Vec128<uint8_t>{idx.raw}));
+                 TableLookupBytes(BitCast(di, v), Vec128<int32_t>{idx.raw}));
 }
 
 // ------------------------------ Interleave lanes
@@ -2421,39 +2421,54 @@ Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
 
 namespace detail {
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
-  const Full128<uint8_t> d;
-  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
-  return static_cast<unsigned>(_mm_movemask_epi8(sign_bits));
+constexpr HWY_INLINE uint64_t U64FromInt(int bits) {
+  return static_cast<uint64_t>(static_cast<unsigned>(bits));
 }
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                              const Mask128<T, N> mask) {
+  const Simd<uint8_t, N> d;
+  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
+  return U64FromInt(_mm_movemask_epi8(sign_bits));
+}
+
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                              const Mask128<T, N> mask) {
   // Remove useless lower half of each u16 while preserving the sign bit.
   const auto sign_bits = _mm_packs_epi16(mask.raw, _mm_setzero_si128());
-  return static_cast<unsigned>(_mm_movemask_epi8(sign_bits));
+  return U64FromInt(_mm_movemask_epi8(sign_bits));
 }
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
-  const Full128<float> d;
-  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
-  return static_cast<unsigned>(_mm_movemask_ps(sign_bits));
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
+                              const Mask128<T, N> mask) {
+  const Simd<float, N> d;
+  const auto sign_bits = BitCast(d, VecFromMask(mask));
+  return U64FromInt(_mm_movemask_ps(sign_bits.raw));
 }
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
-  const Full128<double> d;
-  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
-  return static_cast<unsigned>(_mm_movemask_pd(sign_bits));
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
+                              const Mask128<T, N> mask) {
+  const Simd<double, N> d;
+  const auto sign_bits = BitCast(d, VecFromMask(mask));
+  return U64FromInt(_mm_movemask_pd(sign_bits.raw));
+}
+
+// Returns the lowest N of the _mm_movemask* bits.
+template <typename T, size_t N>
+constexpr uint64_t OnlyActive(uint64_t bits) {
+  return ((N * sizeof(T)) == 16) ? bits : bits & ((1ull << N) - 1);
 }
 
 }  // namespace detail
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(const Mask128<T> mask) {
-  return detail::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return detail::OnlyActive<T, N>(
+      detail::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
 template <typename T>

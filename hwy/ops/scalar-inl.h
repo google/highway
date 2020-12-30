@@ -772,6 +772,46 @@ HWY_INLINE Vec1<T> Broadcast(const Vec1<T> v) {
   return v;
 }
 
+// ------------------------------ Shuffle bytes with variable indices
+
+// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
+// indices in [0, sizeof(T)).
+template <typename T>
+HWY_API Vec1<T> TableLookupBytes(const Vec1<T> in, const Vec1<T> from) {
+  uint8_t in_bytes[sizeof(T)];
+  uint8_t from_bytes[sizeof(T)];
+  uint8_t out_bytes[sizeof(T)];
+  memcpy(&in_bytes, &in, sizeof(T));
+  memcpy(&from_bytes, &from, sizeof(T));
+  for (size_t i = 0; i < sizeof(T); ++i) {
+    out_bytes[i] = in_bytes[from_bytes[i]];
+  }
+  T out;
+  memcpy(&out, &out_bytes, sizeof(T));
+  return Vec1<T>{out};
+}
+
+// ------------------------------ TableLookupLanes
+
+// Returned by SetTableIndices for use by TableLookupLanes.
+template <typename T>
+struct Indices1 {
+  int raw;
+};
+
+template <typename T>
+HWY_API Indices1<T> SetTableIndices(Sisd<T>, const int32_t* idx) {
+#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+  HWY_DASSERT(idx[0] == 0);
+#endif
+  return Indices1<T>{idx[0]};
+}
+
+template <typename T>
+HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> idx) {
+  return v;
+}
+
 // ------------------------------ Zip/unpack
 
 HWY_INLINE Vec1<uint16_t> ZipLower(const Vec1<uint8_t> a,

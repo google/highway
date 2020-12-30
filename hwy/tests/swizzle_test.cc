@@ -332,21 +332,21 @@ struct TestTableLookupBytes {
     // Avoid "Do not know how to split the result of this operator"
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     RandomState rng{1234};
-    const Repartition<uint8_t, D> du8;
     const size_t N = Lanes(d);
-    const size_t N8 = Lanes(du8);
+    const size_t N8 = Lanes(Repartition<uint8_t, D>());
     auto in_bytes = AllocateAligned<uint8_t>(N8);
     for (size_t i = 0; i < N8; ++i) {
       in_bytes[i] = Random32(&rng) & 0xFF;
     }
-    const auto in = BitCast(d, Load(du8, in_bytes.get()));
+    const auto in =
+        BitCast(d, Load(d, reinterpret_cast<const T*>(in_bytes.get())));
     HWY_ALIGN const uint8_t index_bytes[kTestMaxVectorSize] = {
         // Same index as source, multiple outputs from same input,
         // unused input (9), ascending/descending and nonconsecutive neighbors.
         0,  2,  1, 2, 15, 12, 13, 14, 6,  7,  8,  5,  4,  3,  10, 11,
         11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
-    const auto indices = Load(du8, index_bytes);
+    const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes));
     auto out_lanes = AllocateAligned<T>(N);
     Store(TableLookupBytes(in, indices), d, out_lanes.get());
     const uint8_t* out_bytes =
@@ -355,6 +355,8 @@ struct TestTableLookupBytes {
     for (size_t block = 0; block + 16 <= N8; block += 16) {
       for (size_t i = 0; i < 16; ++i) {
         const uint8_t index = index_bytes[block + i];
+        // Don't check undefined results.
+        if (index >= N * sizeof(T)) continue;
         const uint8_t expected = in_bytes[(block + index) % N8];
         HWY_ASSERT_EQ(expected, out_bytes[block + i]);
       }
@@ -366,8 +368,7 @@ struct TestTableLookupBytes {
 };
 
 HWY_NOINLINE void TestAllTableLookupBytes() {
-  // Not supported by HWY_SCALAR (its vector size is always less than 16 bytes)
-  ForIntegerTypes(ForGE128Vectors<TestTableLookupBytes>());
+  ForIntegerTypes(ForPartialVectors<TestTableLookupBytes>());
 }
 struct TestTableLookupLanes {
   template <class T, class D>

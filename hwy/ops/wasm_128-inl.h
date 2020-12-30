@@ -1427,22 +1427,19 @@ HWY_API Vec128<float, N> Broadcast(const Vec128<float, N> v) {
 
 // ------------------------------ Shuffle bytes with variable indices
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes:
-// either valid indices in [0, 16) or >= 0x80 to zero the i-th output byte.
-template <typename T, typename TI>
-HWY_API Vec128<T> TableLookupBytes(const Vec128<T> bytes,
-                                   const Vec128<TI> from) {
-  // TODO(eustas): use swizzle? what about 0x80+ indices?
+// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
+// lane indices in [0, 16).
+template <typename T, size_t N>
+HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
+                                      const Vec128<T, N> from) {
+  // TODO(eustas): use swizzle? (shuffle does not work for variable indices)
   alignas(16) uint8_t control[16];
   alignas(16) uint8_t input[16];
   alignas(16) uint8_t output[16];
   wasm_v128_store(control, from.raw);
   wasm_v128_store(input, bytes.raw);
-  // TODO(eustas): wasm_v8x16_shuffle does not work: params have to be
-  // constants.
   for (size_t i = 0; i < 16; ++i) {
-    const int idx = control[i];
-    output[i] = (idx >= 0x80) ? 0 : input[idx];
+    output[i] = input[control[i]];
   }
   return Vec128<T>{wasm_v128_load(output)};
 }
@@ -1456,83 +1453,68 @@ HWY_API Vec128<T> TableLookupBytes(const Vec128<T> bytes,
 
 // Swap 32-bit halves in 64-bit halves.
 HWY_API Vec128<uint32_t> Shuffle2301(const Vec128<uint32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<uint32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
 }
 HWY_API Vec128<int32_t> Shuffle2301(const Vec128<int32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<int32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
 }
 HWY_API Vec128<float> Shuffle2301(const Vec128<float> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<float>{wasm_v32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
 }
 
 // Swap 64-bit halves
 HWY_API Vec128<uint32_t> Shuffle1032(const Vec128<uint32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<uint32_t>{wasm_v64x2_shuffle(v.raw, v.raw, 1, 0)};
 }
 HWY_API Vec128<int32_t> Shuffle1032(const Vec128<int32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<int32_t>{wasm_v64x2_shuffle(v.raw, v.raw, 1, 0)};
 }
 HWY_API Vec128<float> Shuffle1032(const Vec128<float> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<float>{wasm_v64x2_shuffle(v.raw, v.raw, 1, 0)};
 }
 
 // Rotate right 32 bits
 HWY_API Vec128<uint32_t> Shuffle0321(const Vec128<uint32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<uint32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
 }
 HWY_API Vec128<int32_t> Shuffle0321(const Vec128<int32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<int32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
 }
 HWY_API Vec128<float> Shuffle0321(const Vec128<float> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<float>{wasm_v32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
 }
 // Rotate left 32 bits
 HWY_API Vec128<uint32_t> Shuffle2103(const Vec128<uint32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<uint32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
 }
 HWY_API Vec128<int32_t> Shuffle2103(const Vec128<int32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<int32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
 }
 HWY_API Vec128<float> Shuffle2103(const Vec128<float> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<float>{wasm_v32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
 }
 
 // Reverse
 HWY_API Vec128<uint32_t> Shuffle0123(const Vec128<uint32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<uint32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
 }
 HWY_API Vec128<int32_t> Shuffle0123(const Vec128<int32_t> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<int32_t>{wasm_v32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
 }
 HWY_API Vec128<float> Shuffle0123(const Vec128<float> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<float>{wasm_v32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
 }
 
-// ------------------------------ Permute (runtime variable)
+// ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
-struct permute_wasm {
+struct Indices128 {
   __v128_u raw;
 };
 
 template <typename T>
-HWY_API permute_wasm<T> SetTableIndices(Full128<T>, const int32_t* idx) {
+HWY_API Indices128<T> SetTableIndices(Full128<T>, const int32_t* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
   const size_t N = 16 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
@@ -1547,21 +1529,21 @@ HWY_API permute_wasm<T> SetTableIndices(Full128<T>, const int32_t* idx) {
     const size_t mod = idx_byte % sizeof(T);
     control[idx_byte] = idx[idx_lane] * sizeof(T) + mod;
   }
-  return permute_wasm<T>{Load(d8, control).raw};
+  return Indices128<T>{Load(d8, control).raw};
 }
 
 HWY_API Vec128<uint32_t> TableLookupLanes(const Vec128<uint32_t> v,
-                                          const permute_wasm<uint32_t> idx) {
+                                          const Indices128<uint32_t> idx) {
   return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
 }
 
 HWY_API Vec128<int32_t> TableLookupLanes(const Vec128<int32_t> v,
-                                         const permute_wasm<int32_t> idx) {
+                                         const Indices128<int32_t> idx) {
   return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
 }
 
 HWY_API Vec128<float> TableLookupLanes(const Vec128<float> v,
-                                       const permute_wasm<float> idx) {
+                                       const Indices128<float> idx) {
   return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
 }
 
@@ -1927,8 +1909,9 @@ HWY_API bool AllTrue(const Mask128<float> v) {
 
 namespace impl {
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                              const Mask128<T, N> mask) {
   const __i8x16 slice =
       wasm_i8x16_make(1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8);
   // Each u32 lane has byte[i] = (1 << i) or 0.
@@ -1945,16 +1928,18 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
   return lanes[0] | (lanes[1] << 4) | (lanes[2] << 8) | (lanes[3] << 12);
 }
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                              const Mask128<T, N> mask) {
   // Remove useless lower half of each u16 while preserving the sign bit.
   const __i16x8 zero = wasm_i16x8_splat(0);
   const Mask128<T> mask8{wasm_i8x16_narrow_i16x8(mask.raw, zero)};
   return BitsFromMask(hwy::SizeTag<1>(), mask8);
 }
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
+                              const Mask128<T, N> mask) {
   const __i32x4 mask_i = static_cast<__i32x4>(mask.raw);
   const __i32x4 slice = wasm_i32x4_make(1, 2, 4, 8);
   const __i32x4 sliced_mask = wasm_v128_and(mask_i, slice);
@@ -1963,11 +1948,18 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
   return lanes[0] | lanes[1] | lanes[2] | lanes[3];
 }
 
+// Returns the lowest N for the BitsFromMask result.
+template <typename T, size_t N>
+constexpr uint64_t OnlyActive(uint64_t bits) {
+  return ((N * sizeof(T)) == 16) ? bits : bits & ((1ull << N) - 1);
+}
+
 }  // namespace impl
 
-template <typename T>
-HWY_API uint64_t BitsFromMask(const Mask128<T> mask) {
-  return impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return impl::OnlyActive<T, N>(
+      impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
 template <typename T>
