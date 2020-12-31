@@ -3182,7 +3182,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
 #else
   const uint32x4_t x2 = vpaddlq_u16(values.raw);
   const uint64x2_t x4 = vpaddlq_u32(x2);
-  return vget_lane_u64(x4, 0) + vget_lane_u64(x4, 1);
+  return vgetq_lane_u64(x4, 0) + vgetq_lane_u64(x4, 1);
 #endif
 }
 
@@ -3215,7 +3215,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   return vaddvq_u32(values.raw);
 #else
   const uint64x2_t x2 = vpaddlq_u32(values.raw);
-  return vget_lane_u64(x2, 0) + vget_lane_u64(x2, 1);
+  return vgetq_lane_u64(x2, 0) + vgetq_lane_u64(x2, 1);
 #endif
 }
 
@@ -3245,7 +3245,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
 #if defined(__aarch64__)
   return vaddvq_u64(values.raw);
 #else
-  return vget_lane_u64(values.raw, 0) + vget_lane_u64(values.raw, 1);
+  return vgetq_lane_u64(values.raw, 0) + vgetq_lane_u64(values.raw, 1);
 #endif
 }
 

@@ -808,7 +808,7 @@ HWY_API Indices1<T> SetTableIndices(Sisd<T>, const int32_t* idx) {
 }
 
 template <typename T>
-HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> idx) {
+HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
   return v;
 }
 
