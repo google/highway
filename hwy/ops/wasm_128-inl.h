@@ -1441,7 +1441,7 @@ HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
   for (size_t i = 0; i < 16; ++i) {
     output[i] = input[control[i]];
   }
-  return Vec128<T>{wasm_v128_load(output)};
+  return Vec128<T, N>{wasm_v128_load(output)};
 }
 
 // ------------------------------ Hard-coded shuffles
