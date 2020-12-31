@@ -81,7 +81,8 @@
 #define HWY_NORETURN __declspec(noreturn)
 #define HWY_LIKELY(expr) (expr)
 #define HWY_UNLIKELY(expr) (expr)
-#define HWY_DIAGNOSTICS(tokens) __pragma(warning(tokens))
+#define HWY_PRAGMA(tokens) __pragma(#tokens)
+#define HWY_DIAGNOSTICS(tokens) HWY_PRAGMA(warning(tokens))
 #define HWY_DIAGNOSTICS_OFF(msc, gcc) HWY_DIAGNOSTICS(msc)
 #define HWY_MAYBE_UNUSED
 #define HWY_HAS_ASSUME_ALIGNED 0
