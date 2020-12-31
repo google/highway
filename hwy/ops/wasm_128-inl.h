@@ -1534,17 +1534,20 @@ HWY_API Indices128<T> SetTableIndices(Full128<T>, const int32_t* idx) {
 
 HWY_API Vec128<uint32_t> TableLookupLanes(const Vec128<uint32_t> v,
                                           const Indices128<uint32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
+  return TableLookupBytes(v, Vec128<uint32_t>{idx.raw});
 }
 
 HWY_API Vec128<int32_t> TableLookupLanes(const Vec128<int32_t> v,
                                          const Indices128<int32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
+  return TableLookupBytes(v, Vec128<int32_t>{idx.raw});
 }
 
 HWY_API Vec128<float> TableLookupLanes(const Vec128<float> v,
                                        const Indices128<float> idx) {
-  return TableLookupBytes(v, Vec128<uint8_t>{idx.raw});
+  const Full128<int32_t> di;
+  const Full128<float> df;
+  return BitCast(df,
+                 TableLookupBytes(BitCast(di, v), Vec128<int32_t>{idx.raw}));
 }
 
 // ------------------------------ Zip lanes
