@@ -24,6 +24,11 @@
 
 namespace hwy {
 
+// API version (https://semver.org/)
+#define HWY_MAJOR 0
+#define HWY_MINOR 7
+#define HWY_PATCH 0
+
 //------------------------------------------------------------------------------
 // Shorthand for descriptors (defined in shared-inl.h) used to select overloads.
 
