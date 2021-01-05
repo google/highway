@@ -2256,6 +2256,76 @@ HWY_API size_t CountTrue(const Mask512<T> mask) {
   return PopCount(mask.raw);
 }
 
+// ------------------------------ Compress
+
+HWY_API Vec512<uint32_t> Compress(Vec512<uint32_t> v,
+                                  const Mask512<uint32_t> mask) {
+  return Vec512<uint32_t>{_mm512_maskz_compress_epi32(mask.raw, v.raw)};
+}
+HWY_API Vec512<int32_t> Compress(Vec512<int32_t> v,
+                                 const Mask512<int32_t> mask) {
+  return Vec512<int32_t>{_mm512_maskz_compress_epi32(mask.raw, v.raw)};
+}
+
+HWY_API Vec512<uint64_t> Compress(Vec512<uint64_t> v,
+                                  const Mask512<uint64_t> mask) {
+  return Vec512<uint64_t>{_mm512_maskz_compress_epi64(mask.raw, v.raw)};
+}
+HWY_API Vec512<int64_t> Compress(Vec512<int64_t> v,
+                                 const Mask512<int64_t> mask) {
+  return Vec512<int64_t>{_mm512_maskz_compress_epi64(mask.raw, v.raw)};
+}
+
+HWY_API Vec512<float> Compress(Vec512<float> v, const Mask512<float> mask) {
+  return Vec512<float>{_mm512_maskz_compress_ps(mask.raw, v.raw)};
+}
+
+HWY_API Vec512<double> Compress(Vec512<double> v, const Mask512<double> mask) {
+  return Vec512<double>{_mm512_maskz_compress_pd(mask.raw, v.raw)};
+}
+
+// ------------------------------ CompressStore
+
+HWY_API size_t CompressStore(Vec512<uint32_t> v, const Mask512<uint32_t> mask,
+                             Full512<uint32_t> /* tag */,
+                             uint32_t* HWY_RESTRICT aligned) {
+  _mm512_mask_compressstoreu_epi32(aligned, mask.raw, v.raw);
+  return CountTrue(mask);
+}
+HWY_API size_t CompressStore(Vec512<int32_t> v, const Mask512<int32_t> mask,
+                             Full512<int32_t> /* tag */,
+                             int32_t* HWY_RESTRICT aligned) {
+  _mm512_mask_compressstoreu_epi32(aligned, mask.raw, v.raw);
+  return CountTrue(mask);
+}
+
+HWY_API size_t CompressStore(Vec512<uint64_t> v, const Mask512<uint64_t> mask,
+                             Full512<uint64_t> /* tag */,
+                             uint64_t* HWY_RESTRICT aligned) {
+  _mm512_mask_compressstoreu_epi64(aligned, mask.raw, v.raw);
+  return CountTrue(mask);
+}
+HWY_API size_t CompressStore(Vec512<int64_t> v, const Mask512<int64_t> mask,
+                             Full512<int64_t> /* tag */,
+                             int64_t* HWY_RESTRICT aligned) {
+  _mm512_mask_compressstoreu_epi64(aligned, mask.raw, v.raw);
+  return CountTrue(mask);
+}
+
+HWY_API size_t CompressStore(Vec512<float> v, const Mask512<float> mask,
+                             Full512<float> /* tag */,
+                             float* HWY_RESTRICT aligned) {
+  _mm512_mask_compressstoreu_ps(aligned, mask.raw, v.raw);
+  return CountTrue(mask);
+}
+
+HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
+                             Full512<double> /* tag */,
+                             double* HWY_RESTRICT aligned) {
+  _mm512_mask_compressstoreu_pd(aligned, mask.raw, v.raw);
+  return CountTrue(mask);
+}
+
 // ------------------------------ Reductions
 
 // Returns 64-bit sums of 8-byte groups.

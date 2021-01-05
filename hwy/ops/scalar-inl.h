@@ -860,6 +860,21 @@ HWY_INLINE size_t CountTrue(const Mask1<T> mask) {
   return mask.bits == 0 ? 0 : 1;
 }
 
+template <typename T>
+HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> mask) {
+  // Upper lanes are undefined, so result is the same independent of mask.
+  return v;
+}
+
+// ------------------------------ CompressStore
+
+template <typename T>
+HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
+                             T* HWY_RESTRICT aligned) {
+  Store(Compress(v, mask), d, aligned);
+  return CountTrue(mask);
+}
+
 // ------------------------------ Reductions
 
 // Sum of all lanes, i.e. the only one.

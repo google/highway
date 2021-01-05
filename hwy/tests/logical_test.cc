@@ -197,6 +197,163 @@ HWY_NOINLINE void TestAllIfThenElse() {
   ForAllTypes(ForPartialVectors<TestIfThenElse>());
 }
 
+struct TestCompress {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng{1234};
+    const T no(0);
+    T yes;
+    memset(&yes, 0xFF, sizeof(yes));
+
+    const size_t N = Lanes(d);
+    auto in_lanes = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    auto actual = AllocateAligned<T>(N);
+
+    // Exhaustive test of all mask combinations unless N is large.
+    const uint64_t end = 1ull << std::min<size_t>(N, 16);
+    for (uint64_t code = 0; code < end; ++code) {
+      size_t expected_pos = 0;
+      for (size_t i = 0; i < N; ++i) {
+        in_lanes[i] = static_cast<T>(Random32(&rng));
+        const bool on = (code & (1ull << i)) != 0;
+        mask_lanes[i] = on ? yes : no;
+        if (on) {
+          expected[expected_pos++] = in_lanes[i];
+        }
+      }
+
+      const auto in = Load(d, in_lanes.get());
+      const auto mask = MaskFromVec(Load(d, mask_lanes.get()));
+      Store(Compress(in, mask), d, actual.get());
+      // Upper lanes are undefined.
+      for (size_t i = 0; i < expected_pos; ++i) {
+        HWY_ASSERT(actual[i] == expected[i]);
+      }
+
+      // Also check CompressStore in the same way.
+      std::fill(actual.get(), actual.get() + N, 0);
+      const size_t num_written = CompressStore(in, mask, d, actual.get());
+      HWY_ASSERT_EQ(expected_pos, num_written);
+      for (size_t i = 0; i < expected_pos; ++i) {
+        HWY_ASSERT_EQ(expected[i], actual[i]);
+      }
+    }
+  }
+};
+
+#if 0
+// Compressed to nibbles
+void PrintCompress32x8Tables() {
+  constexpr size_t N = 8;  // AVX2
+  for (uint64_t code = 0; code < 1ull << N; ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+
+    // Convert to nibbles
+    uint64_t packed = 0;
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT(indices[i] < 16);
+      packed += indices[i] << (i * 4);
+    }
+
+    HWY_ASSERT(packed < (1ull << 32));
+    printf("0x%08x,", static_cast<uint32_t>(packed));
+  }
+  printf("\n");
+}
+
+// Pairs of 32-bit lane indices
+void PrintCompress64x4Tables() {
+  constexpr size_t N = 4;  // AVX2
+  for (uint64_t code = 0; code < 1ull << N; ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d,%d,", 2 * indices[i], 2 * indices[i] + 1);
+    }
+  }
+  printf("\n");
+}
+
+// 4-tuple of byte indices
+void PrintCompress32x4Tables() {
+  using T = uint32_t;
+  constexpr size_t N = 4;  // SSE4
+  for (uint64_t code = 0; code < 1ull << N; ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+
+    for (size_t i = 0; i < N; ++i) {
+      for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
+        printf("%zu,", sizeof(T) * indices[i] + idx_byte);
+      }
+    }
+  }
+  printf("\n");
+}
+
+// 8-tuple of byte indices
+void PrintCompress64x2Tables() {
+  using T = uint64_t;
+  constexpr size_t N = 2;  // SSE4
+  for (uint64_t code = 0; code < 1ull << N; ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+
+    for (size_t i = 0; i < N; ++i) {
+      for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
+        printf("%zu,", sizeof(T) * indices[i] + idx_byte);
+      }
+    }
+  }
+  printf("\n");
+}
+
+#endif
+
+HWY_NOINLINE void TestAllCompress() {
+  // PrintCompress32x8Tables();
+  // PrintCompress64x4Tables();
+  // PrintCompress32x4Tables();
+  // PrintCompress64x2Tables();
+
+  ForPartialVectors<TestCompress>()(uint32_t());
+  ForPartialVectors<TestCompress>()(int32_t());
+  ForPartialVectors<TestCompress>()(float());
+
+#if HWY_CAP_INTEGER64
+  ForPartialVectors<TestCompress>()(uint64_t());
+  ForPartialVectors<TestCompress>()(int64_t());
+#endif
+
+#if HWY_CAP_FLOAT64
+  ForPartialVectors<TestCompress>()(double());
+#endif
+}
+
 struct TestZeroIfNegative {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -390,6 +547,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);

@@ -349,6 +349,18 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
     [0, N]. This is typically more expensive than AllTrue/False.
 
+*   `V`: `uif32,uif64` \
+    <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
+    `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
+    Compacts lanes whose mask is set into the lower lanes; upper lanes are
+    undefined.
+
+*   `V`: `uif32,uif64` \
+    <code>size_t **CompressStore**(V v, M m, D, T* aligned)</code>: writes lanes
+    whose mask is set into `aligned`, starting from lane 0. Returns
+    `CountTrue(m)`, the number of valid lanes. All subsequent lanes may be
+    overwritten! Alignment ensures inactive lanes will not cause faults.
+
 ### Comparisons
 
 These return a mask (see above) indicating whether the condition is true.
