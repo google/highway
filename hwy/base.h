@@ -209,6 +209,8 @@
 //------------------------------------------------------------------------------
 // Macros
 
+#define HWY_API static HWY_INLINE HWY_FLATTEN HWY_MAYBE_UNUSED
+
 #define HWY_CONCAT_IMPL(a, b) a##b
 #define HWY_CONCAT(a, b) HWY_CONCAT_IMPL(a, b)
 
@@ -303,14 +305,48 @@ constexpr inline size_t RoundUpTo(size_t what, size_t align) {
 }
 
 // Undefined results for x == 0.
-static HWY_INLINE HWY_MAYBE_UNUSED size_t
-Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
+HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
 #ifdef _MSC_VER
   unsigned long index;
   _BitScanForward(&index, x);
   return index;
 #else
   return static_cast<size_t>(__builtin_ctz(x));
+#endif
+}
+
+HWY_API size_t PopCount(uint64_t x) {
+#if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
+  return static_cast<size_t>(__builtin_popcountll(x));
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+  return _mm_popcnt_u64(x);
+#elif HWY_COMPILER_MSVC
+  return _mm_popcnt_u32(uint32_t(x)) + _mm_popcnt_u32(uint32_t(x >> 32));
+#else
+  x -= ((x >> 1) & 0x55555555U);
+  x = (((x >> 2) & 0x33333333U) + (x & 0x33333333U));
+  x = (((x >> 4) + x) & 0x0F0F0F0FU);
+  x += (x >> 8);
+  x += (x >> 16);
+  x += (x >> 32);
+  x = x & 0x0000007FU;
+  return (unsigned int)x;
+#endif
+}
+
+// The source/destination must not overlap/alias.
+template <size_t kBytes, typename From, typename To>
+HWY_API void CopyBytes(const From* from, To* to) {
+#if HWY_COMPILER_MSVC
+  const uint8_t* HWY_RESTRICT from_bytes =
+      reinterpret_cast<const uint8_t*>(from);
+  uint8_t* HWY_RESTRICT to_bytes = reinterpret_cast<uint8_t*>(to);
+  for (size_t i = 0; i < kBytes; ++i) {
+    to_bytes[i] = from_bytes[i];
+  }
+#else
+  // Avoids horrible codegen on Clang (series of PINSRB)
+  __builtin_memcpy(to, from, kBytes);
 #endif
 }
 

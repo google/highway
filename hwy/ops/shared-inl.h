@@ -35,9 +35,6 @@
 #define HWY_LOADDUP_ASM 0
 #endif
 
-// Shorthand for implementations of Highway ops.
-#define HWY_API static HWY_INLINE HWY_FLATTEN HWY_MAYBE_UNUSED
-
 namespace hwy {
 
 // Unfortunately the GCC/Clang intrinsics do not accept int64_t*.
@@ -182,41 +179,6 @@ HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(Simd<T, N>) {
 template <typename T, size_t N>
 HWY_INLINE HWY_MAYBE_UNUSED size_t Lanes(Simd<T, N>) {
   return N;
-}
-
-// The source/destination must not overlap/alias.
-template <size_t kBytes, typename From, typename To>
-HWY_API void CopyBytes(const From* from, To* to) {
-#if HWY_COMPILER_MSVC
-  const uint8_t* HWY_RESTRICT from_bytes =
-      reinterpret_cast<const uint8_t*>(from);
-  uint8_t* HWY_RESTRICT to_bytes = reinterpret_cast<uint8_t*>(to);
-  for (size_t i = 0; i < kBytes; ++i) {
-    to_bytes[i] = from_bytes[i];
-  }
-#else
-  // Avoids horrible codegen on Clang (series of PINSRB)
-  __builtin_memcpy(to, from, kBytes);
-#endif
-}
-
-HWY_API size_t PopCount(uint64_t x) {
-#if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
-  return static_cast<size_t>(__builtin_popcountll(x));
-#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
-  return _mm_popcnt_u64(x);
-#elif HWY_COMPILER_MSVC
-  return _mm_popcnt_u32(uint32_t(x)) + _mm_popcnt_u32(uint32_t(x>>32));
-#else
-  x -=  ((x >> 1) & 0x55555555U);
-  x  = (((x >> 2) & 0x33333333U) + (x & 0x33333333U));
-  x  = (((x >> 4) + x) & 0x0F0F0F0FU);
-  x +=   (x >> 8);
-  x +=   (x >> 16);
-  x +=   (x >> 32);
-  x  = x & 0x0000007FU;
-  return (unsigned int)x;
-#endif
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
