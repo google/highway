@@ -278,7 +278,7 @@ struct TestBroadcastR {
     const D d;
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
-    std::fill(in_lanes.get(), in_lanes.get() + N, 0);
+    std::fill(in_lanes.get(), in_lanes.get() + N, T(0));
     const size_t blockN = HWY_MIN(N * sizeof(T), 16) / sizeof(T);
     // Need to set within each 128-bit block
     for (size_t block = 0; block < N; block += blockN) {

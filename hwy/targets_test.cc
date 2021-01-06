@@ -85,7 +85,7 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
     return;
   }
   // Get the lowest bit in the mask (the best target) and disable that one.
-  uint32_t lowest_target = current_targets & (-current_targets);
+  uint32_t lowest_target = current_targets & (~current_targets + 1);
   // The lowest target shouldn't be one in the baseline.
   HWY_ASSERT((lowest_target & ~HWY_ENABLED_BASELINE) != 0);
   DisableTargets(lowest_target);

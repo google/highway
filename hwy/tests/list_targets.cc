@@ -22,7 +22,7 @@
 void PrintTargets(const char* msg, uint32_t targets) {
   fprintf(stderr, "%s", msg);
   for (unsigned x = targets; x != 0; x = x & (x - 1)) {
-    fprintf(stderr, " %s", hwy::TargetName(x & (-x)));
+    fprintf(stderr, " %s", hwy::TargetName(x & (~x + 1)));
   }
   fprintf(stderr, "\n");
 }

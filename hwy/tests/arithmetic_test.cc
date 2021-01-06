@@ -405,7 +405,7 @@ struct TestSignedVarRightShifts {
       // We want a right-shift here, which is undefined behavior for negative
       // numbers. Since we want (-1)>>1 to be -1, we need to adjust rounding if
       // minT is odd and negative.
-      T minT = min + i;
+      T minT = static_cast<T>(min + i);
       expected[i] = T(minT / 2 + (minT < 0 ? minT % 2 : 0));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), vn >> Set(d, 1));

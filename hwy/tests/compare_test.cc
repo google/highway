@@ -56,7 +56,7 @@ struct TestStrictT {
     const size_t N = Lanes(d);
     auto all_false = AllocateAligned<T>(N);
     auto all_true = AllocateAligned<T>(N);
-    std::fill(all_false.get(), all_false.get() + N, 0);
+    std::fill(all_false.get(), all_false.get() + N, T(0));
     memset(all_true.get(), 0xFF, N * sizeof(T));
 
     HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(v2 > vn));
