@@ -33,7 +33,7 @@ struct TestLowerHalf {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, 0);
+    std::fill(lanes.get(), lanes.get() + N, T(0));
     const auto v = Iota(d, 1);
     Store(LowerHalf(v), d2, lanes.get());
     size_t i = 0;
@@ -54,7 +54,7 @@ struct TestLowerQuarter {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, 0);
+    std::fill(lanes.get(), lanes.get() + N, T(0));
     const auto v = Iota(d, 1);
     const auto lo = LowerHalf(LowerHalf(v));
     Store(lo, d4, lanes.get());
@@ -85,7 +85,7 @@ struct TestUpperHalf {
     const auto v = Iota(d, 1);
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, 0);
+    std::fill(lanes.get(), lanes.get() + N, T(0));
 
     Store(UpperHalf(v), d2, lanes.get());
     size_t i = 0;

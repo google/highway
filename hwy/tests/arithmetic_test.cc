@@ -954,7 +954,7 @@ struct TestSumsOfU8 {
     const size_t N = Lanes(d);
     auto in_bytes = AllocateAligned<uint8_t>(N * sizeof(uint64_t));
     auto sums = AllocateAligned<T>(N);
-    std::fill(sums.get(), sums.get() + N, 0);
+    std::fill(sums.get(), sums.get() + N, T(0));
     for (size_t i = 0; i < N * sizeof(uint64_t); ++i) {
       const size_t group = i / sizeof(uint64_t);
       in_bytes[i] = static_cast<uint8_t>(2 * i + 1);
