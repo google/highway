@@ -861,7 +861,7 @@ HWY_INLINE size_t CountTrue(const Mask1<T> mask) {
 }
 
 template <typename T>
-HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> mask) {
+HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
   // Upper lanes are undefined, so result is the same independent of mask.
   return v;
 }
