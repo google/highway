@@ -701,7 +701,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, v2, NegMulAdd(v1, k0, v2));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (i + 1) * (i + 2);
+      expected[i] = static_cast<T>((i + 1) * (i + 2));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v2, v1, k0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v1, v2, k0));
@@ -709,7 +709,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v1, Neg(v2), k0));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (i + 2) * (i + 2) + (i + 1);
+      expected[i] = static_cast<T>((i + 2) * (i + 2) + (i + 1));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v2, v2, v1));
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(Neg(v2), v2, v1));
@@ -731,7 +731,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v1, Neg(k0), v2));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (i + 1) * (i + 2);
+      expected[i] = static_cast<T>((i + 1) * (i + 2));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v1, v2, k0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v2, v1, k0));
@@ -739,7 +739,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v2, Neg(v1), k0));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (i + 2) * (i + 2) - (1 + i);
+      expected[i] = static_cast<T>((i + 2) * (i + 2) - (1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v2, v2, v1));
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(Neg(v2), v2, v1));
@@ -982,7 +982,7 @@ struct TestSumOfLanes {
     auto in_lanes = AllocateAligned<T>(N);
     double sum = 0.0;
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(1u << i);
+      in_lanes[i] = static_cast<T>(1ull << i);
       sum += static_cast<double>(in_lanes[i]);
     }
     const auto v = Load(d, in_lanes.get());
@@ -1081,8 +1081,8 @@ struct TestAbsDiff {
     auto in_lanes_b = AllocateAligned<T>(N);
     auto out_lanes = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes_a[i] = (i ^ 1u) << i;
-      in_lanes_b[i] = i << i;
+      in_lanes_a[i] = static_cast<T>((i ^ 1u) << i);
+      in_lanes_b[i] = static_cast<T>(i << i);
       out_lanes[i] = fabsf(in_lanes_a[i] - in_lanes_b[i]);
     }
     const auto a = Load(d, in_lanes_a.get());

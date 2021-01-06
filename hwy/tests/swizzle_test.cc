@@ -351,7 +351,9 @@ struct TestTableLookupBytes {
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
     // Avoid undefined results / asan error for scalar by capping indices.
     for (uint8_t& byte : index_bytes) {
-      if (byte >= N * sizeof(T)) byte = N * sizeof(T) - 1;
+      if (byte >= N * sizeof(T)) {
+        byte = static_cast<uint8_t>(N * sizeof(T) - 1);
+      }
     }
     const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes));
     auto out_lanes = AllocateAligned<T>(N);
@@ -415,7 +417,7 @@ struct TestTableLookupLanes {
             idx[3] = i3;
 
             for (size_t i = 0; i < N; ++i) {
-              expected[i] = idx[i] + 1;  // == v[idx[i]]
+              expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
             }
 
             const auto opaque = SetTableIndices(d, idx.get());

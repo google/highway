@@ -112,7 +112,7 @@ struct TestStreamT {
         ~size_t(HWY_STREAM_MULTIPLE - 1);
     const size_t affected_lanes = affected_bytes / sizeof(T);
     auto out = AllocateAligned<T>(2 * affected_lanes);
-    std::fill(out.get(), out.get() + 2 * affected_lanes, 0);
+    std::fill(out.get(), out.get() + 2 * affected_lanes, T(0));
 
     Stream(v, d, out.get());
     StoreFence();

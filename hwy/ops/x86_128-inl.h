@@ -542,12 +542,12 @@ HWY_API Vec128<int64_t, N> ShiftLeftSame(const Vec128<int64_t, N> v,
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator>>(const Vec128<T, N> v, const Vec128<T, N> bits) {
   static_assert(N == 1, "SSE4 does not support full variable shift");
-  return ShiftRightSame(v, GetLane(bits));
+  return ShiftRightSame(v, static_cast<int>(GetLane(bits)));
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator<<(const Vec128<T, N> v, const Vec128<T, N> bits) {
   static_assert(N == 1, "SSE4 does not support full variable shift");
-  return ShiftLeftSame(v, GetLane(bits));
+  return ShiftLeftSame(v, static_cast<int>(GetLane(bits)));
 }
 
 #else
@@ -1940,7 +1940,7 @@ HWY_API Indices128<T> SetTableIndices(Full128<T>, const int32_t* idx) {
   for (size_t idx_byte = 0; idx_byte < 16; ++idx_byte) {
     const size_t idx_lane = idx_byte / sizeof(T);
     const size_t mod = idx_byte % sizeof(T);
-    control[idx_byte] = idx[idx_lane] * sizeof(T) + mod;
+    control[idx_byte] = static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + mod);
   }
   return Indices128<T>{Load(d8, control).raw};
 }

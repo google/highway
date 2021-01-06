@@ -233,7 +233,7 @@ struct TestSet {
     const auto v0 = Zero(d);
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
-    std::fill(expected.get(), expected.get() + N, 0);
+    std::fill(expected.get(), expected.get() + N, T(0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), v0);
 
     // Set
@@ -246,7 +246,7 @@ struct TestSet {
     // Iota
     const auto vi = Iota(d, T(5));
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = 5 + i;
+      expected[i] = T(5 + i);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), vi);
 

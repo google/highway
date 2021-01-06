@@ -233,7 +233,7 @@ struct TestCompress {
       }
 
       // Also check CompressStore in the same way.
-      std::fill(actual.get(), actual.get() + N, 0);
+      std::fill(actual.get(), actual.get() + N, T(0));
       const size_t num_written = CompressStore(in, mask, d, actual.get());
       HWY_ASSERT_EQ(expected_pos, num_written);
       for (size_t i = 0; i < expected_pos; ++i) {
