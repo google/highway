@@ -256,24 +256,18 @@ namespace HWY_NAMESPACE {
 template <class V>
 using LaneType = decltype(GetLane(V()));
 
-// Corresponding vector type, e.g. Vec128<float> for Simd<float, 4>. Useful as
-// the return type of functions that do not take a vector argument, or as an
-// argument type if the function only has a template argument for D.
+// Vector type, e.g. Vec128<float> for Simd<float, 4>. Useful as the return type
+// of functions that do not take a vector argument, or as an argument type if
+// the function only has a template argument for D, or for explicit type names
+// instead of auto. This may be a built-in type.
 template <class D>
 using Vec = decltype(Zero(D()));
 
-// Full vector types. These may be used instead of `auto` for improved clarity,
-// at the cost of reduced generality (cannot express half vectors etc.).
-using U8xN = Vec<HWY_FULL(uint8_t)>;
-using U16xN = Vec<HWY_FULL(uint16_t)>;
-using U32xN = Vec<HWY_FULL(uint32_t)>;
-using U64xN = Vec<HWY_FULL(uint64_t)>;
-using I8xN = Vec<HWY_FULL(int8_t)>;
-using I16xN = Vec<HWY_FULL(int16_t)>;
-using I32xN = Vec<HWY_FULL(int32_t)>;
-using I64xN = Vec<HWY_FULL(int64_t)>;
-using F32xN = Vec<HWY_FULL(float)>;
-using F64xN = Vec<HWY_FULL(double)>;
+// Mask type. Useful as the return type of functions that do not take a mask
+// argument, or as an argument type if the function only has a template argument
+// for D, or for explicit type names instead of auto.
+template <class D>
+using Mask = decltype(MaskFromVec(Zero(D())));
 
 // Returns the closest value to v within [lo, hi].
 template <class V>
