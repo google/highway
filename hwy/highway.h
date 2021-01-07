@@ -120,6 +120,12 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #define HWY_CHOOSE_WASM(FUNC_NAME) nullptr
 #endif
 
+#if HWY_TARGETS & HWY_RVV
+#define HWY_CHOOSE_RVV(FUNC_NAME) &N_RVV::FUNC_NAME
+#else
+#define HWY_CHOOSE_RVV(FUNC_NAME) nullptr
+#endif
+
 #if HWY_TARGETS & HWY_NEON
 #define HWY_CHOOSE_NEON(FUNC_NAME) &N_NEON::FUNC_NAME
 #else
@@ -241,6 +247,9 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #include "hwy/ops/arm_neon-inl.h"
 #elif HWY_TARGET == HWY_WASM
 #include "hwy/ops/wasm_128-inl.h"
+#elif HWY_TARGET == HWY_RVV
+// TODO(janwas): header
+#include "hwy/ops/shared-inl.h"
 #elif HWY_TARGET == HWY_SCALAR
 #include "hwy/ops/scalar-inl.h"
 #else
@@ -276,7 +285,8 @@ HWY_API V Clamp(const V v, const V lo, const V hi) {
 }
 
 // CombineShiftRightBytes (and ..Lanes) are not available for the scalar target.
-#if HWY_TARGET != HWY_SCALAR
+// TODO(janwas): implement for RVV
+#if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_RVV
 
 template <size_t kLanes, class V>
 HWY_API V CombineShiftRightLanes(const V hi, const V lo) {

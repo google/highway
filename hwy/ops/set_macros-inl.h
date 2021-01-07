@@ -184,6 +184,29 @@
 #define HWY_TARGET_STR "simd128"
 
 //-----------------------------------------------------------------------------
+// RVV
+#elif HWY_TARGET == HWY_RVV
+
+#define HWY_ALIGN
+#define HWY_LANES(T) (4096 / sizeof(T))
+
+#define HWY_GATHER_LANES(T) HWY_LANES(T)
+#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
+#define HWY_COMPARE64_LANES HWY_LANES(T)
+#define HWY_MINMAX64_LANES HWY_LANES(T)
+
+// TODO(janwas): enable after implementing
+#define HWY_CAP_INTEGER64 0
+#define HWY_CAP_FLOAT64 0
+#define HWY_CAP_GE256 0
+#define HWY_CAP_GE512 0
+
+#define HWY_NAMESPACE N_RVV
+
+// HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
+// (rv64gcv is not a valid target)
+
+//-----------------------------------------------------------------------------
 // SCALAR
 #elif HWY_TARGET == HWY_SCALAR
 

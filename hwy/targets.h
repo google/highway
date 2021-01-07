@@ -81,8 +81,13 @@
 
 #define HWY_HIGHEST_TARGET_BIT_WASM 20
 
-// 0x200000, 0x400000, 0x800000, 0x1000000, 0x2000000, 0x4000000, 0x8000000,
-// 0x10000000 reserved
+// 0x200000, 0x400000, 0x800000 reserved
+
+#define HWY_RVV 0x1000000
+
+#define HWY_HIGHEST_TARGET_BIT_RVV 24
+
+// 0x2000000, 0x4000000, 0x8000000, 0x10000000 reserved
 
 #define HWY_SCALAR 0x20000000
 // Cannot use higher values, otherwise HWY_TARGETS computation might overflow.
@@ -177,9 +182,16 @@
 #define HWY_BASELINE_AVX3 0
 #endif
 
+#ifdef __riscv_vector
+#define HWY_BASELINE_RVV HWY_RVV
+#else
+#define HWY_BASELINE_RVV 0
+#endif
+
 #define HWY_BASELINE_TARGETS                                                \
   (HWY_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | HWY_BASELINE_NEON | \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3)
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |              \
+   HWY_BASELINE_RVV)
 
 #endif  // HWY_BASELINE_TARGETS
 
@@ -325,6 +337,11 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       return "Wasm";
 #endif
 
+#if HWY_ARCH_RVV
+    case HWY_RVV:
+      return "RVV";
+#endif
+
     case HWY_SCALAR:
       return "Scalar";
 
@@ -426,6 +443,18 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       HWY_CHOOSE_WASM(func_name) /* WASM */
 
 #endif  // HWY_ARCH_WASM
+
+#if HWY_ARCH_RVV
+// See HWY_ARCH_X86 above for details.
+#define HWY_MAX_DYNAMIC_TARGETS 4
+#define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_RVV
+#define HWY_CHOOSE_TARGET_LIST(func_name)       \
+  nullptr,                       /* reserved */ \
+      nullptr,                   /* reserved */ \
+      nullptr,                   /* reserved */ \
+      HWY_CHOOSE_RVV(func_name) /* RVV */
+
+#endif  // HWY_ARCH_RVV
 
 struct ChosenTarget {
  public:

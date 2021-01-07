@@ -202,7 +202,14 @@
 #define HWY_ARCH_WASM 0
 #endif
 
-#if HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_WASM != 1
+#ifdef __riscv
+#define HWY_ARCH_RVV 1
+#else
+#define HWY_ARCH_RVV 0
+#endif
+
+#if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_WASM + \
+     HWY_ARCH_RVV) != 1
 #error "Must detect exactly one platform"
 #endif
 
@@ -307,7 +314,7 @@ constexpr inline size_t RoundUpTo(size_t what, size_t align) {
 // Undefined results for x == 0.
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
 #ifdef _MSC_VER
-  unsigned long index;
+  unsigned long index;  // NOLINT
   _BitScanForward(&index, x);
   return index;
 #else
