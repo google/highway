@@ -122,12 +122,21 @@ const float kNearOneF = BitCast<float>(0x3F7FFFFF);
 const double kNearOneD = BitCast<double>(0x3FEFFFFFFFFFFFFFULL);
 
 // clang-format off
+DEFINE_MATH_TEST(Acos,
+  std::acos,  Acos,  -1.0,       +1.0,        3,  // NEON is 3 instead of 2
+  std::acos,  Acos,  -1.0,       +1.0,        2)
 DEFINE_MATH_TEST(Acosh,
   std::acosh, Acosh, +1.0,       +FLT_MAX,    3,
   std::acosh, Acosh, +1.0,       +DBL_MAX,    3)
+DEFINE_MATH_TEST(Asin,
+  std::asin,  Asin,  -1.0,       +1.0,        3,  // NEON is 3 instead of 2
+  std::asin,  Asin,  -1.0,       +1.0,        2)
 DEFINE_MATH_TEST(Asinh,
   std::asinh, Asinh, -FLT_MAX,   +FLT_MAX,    3,
   std::asinh, Asinh, -DBL_MAX,   +DBL_MAX,    3)
+DEFINE_MATH_TEST(Atan,
+  std::atan,  Atan,  -FLT_MAX,   +FLT_MAX,    3,
+  std::atan,  Atan,  -DBL_MAX,   +DBL_MAX,    3)
 DEFINE_MATH_TEST(Atanh,
   std::atanh, Atanh, -kNearOneF, +kNearOneF,  4,  // NEON is 4 instead of 3
   std::atanh, Atanh, -kNearOneD, +kNearOneD,  3)
@@ -168,8 +177,11 @@ namespace hwy {
 class HwyMathTest : public hwy::TestWithParamTarget {};
 
 HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMathTest);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcosh);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsinh);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtanh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);

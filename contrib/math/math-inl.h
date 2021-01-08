@@ -28,6 +28,17 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 /**
+ * Highway SIMD version of std::acos(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: [-1, +1]
+ * @return arc cosine of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Acos(const D d, V x);
+
+/**
  * Highway SIMD version of std::acosh(x).
  *
  * Valid Lane Types: float32, float64
@@ -39,6 +50,17 @@ template <class D, class V>
 HWY_NOINLINE V Acosh(const D d, V x);
 
 /**
+ * Highway SIMD version of std::asin(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 2
+ *      Valid Range: [-1, +1]
+ * @return arc sine of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Asin(const D d, V x);
+
+/**
  * Highway SIMD version of std::asinh(x).
  *
  * Valid Lane Types: float32, float64
@@ -48,6 +70,17 @@ HWY_NOINLINE V Acosh(const D d, V x);
  */
 template <class D, class V>
 HWY_NOINLINE V Asinh(const D d, V x);
+
+/**
+ * Highway SIMD version of std::atan(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: float32[-FLT_MAX, +FLT_MAX], float64[-DBL_MAX, +DBL_MAX]
+ * @return arc tangent of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Atan(const D d, V x);
 
 /**
  * Highway SIMD version of std::atanh(x).
@@ -312,10 +345,110 @@ HWY_INLINE HWY_MAYBE_UNUSED T Estrin(T x, T c0, T c1, T c2, T c3, T c4, T c5,
                     MulAdd(x2, MulAdd(c3, x, c2), MulAdd(c1, x, c0)))));
 }
 
-template <typename FloatOrDouble>
+template <class FloatOrDouble>
+struct AsinImpl {};
+template <class FloatOrDouble>
+struct AtanImpl {};
+template <class FloatOrDouble>
 struct ExpImpl {};
-template <typename FloatOrDouble>
+template <class FloatOrDouble>
 struct LogImpl {};
+
+template <>
+struct AsinImpl<float> {
+  // Polynomial approximation for asin(x) over the range [0, 0.5).
+  template <class D, class V>
+  HWY_INLINE V AsinPoly(D d, V x2, V x) {
+    const auto k0 = Set(d, +0.1666677296f);
+    const auto k1 = Set(d, +0.07495029271f);
+    const auto k2 = Set(d, +0.04547423869f);
+    const auto k3 = Set(d, +0.02424046025f);
+    const auto k4 = Set(d, +0.04197454825f);
+
+    return Estrin(x2, k0, k1, k2, k3, k4);
+  }
+};
+
+#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
+
+template <>
+struct AsinImpl<double> {
+  // Polynomial approximation for asin(x) over the range [0, 0.5).
+  template <class D, class V>
+  HWY_INLINE V AsinPoly(D d, V x2, V x) {
+    const auto k0 = Set(d, +0.1666666666666497543);
+    const auto k1 = Set(d, +0.07500000000378581611);
+    const auto k2 = Set(d, +0.04464285681377102438);
+    const auto k3 = Set(d, +0.03038195928038132237);
+    const auto k4 = Set(d, +0.02237176181932048341);
+    const auto k5 = Set(d, +0.01735956991223614604);
+    const auto k6 = Set(d, +0.01388715184501609218);
+    const auto k7 = Set(d, +0.01215360525577377331);
+    const auto k8 = Set(d, +0.006606077476277170610);
+    const auto k9 = Set(d, +0.01929045477267910674);
+    const auto k10 = Set(d, -0.01581918243329996643);
+    const auto k11 = Set(d, +0.03161587650653934628);
+
+    return Estrin(x2, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11);
+  }
+};
+
+#endif
+
+template <>
+struct AtanImpl<float> {
+  // Polynomial approximation for atan(x) over the range [0, 1.0).
+  template <class D, class V>
+  HWY_INLINE V AtanPoly(D d, V x) {
+    const auto k0 = Set(d, -0.333331018686294555664062f);
+    const auto k1 = Set(d, +0.199926957488059997558594f);
+    const auto k2 = Set(d, -0.142027363181114196777344f);
+    const auto k3 = Set(d, +0.106347933411598205566406f);
+    const auto k4 = Set(d, -0.0748900920152664184570312f);
+    const auto k5 = Set(d, +0.0425049886107444763183594f);
+    const auto k6 = Set(d, -0.0159569028764963150024414f);
+    const auto k7 = Set(d, +0.00282363896258175373077393f);
+
+    const auto y = (x * x);
+    return MulAdd(Estrin(y, k0, k1, k2, k3, k4, k5, k6, k7), (y * x), x);
+  }
+};
+
+#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
+
+template <>
+struct AtanImpl<double> {
+  // Polynomial approximation for atan(x) over the range [0, 1.0).
+  template <class D, class V>
+  HWY_INLINE V AtanPoly(D d, V x) {
+    const auto k0 = Set(d, -0.333333333333311110369124);
+    const auto k1 = Set(d, +0.199999999996591265594148);
+    const auto k2 = Set(d, -0.14285714266771329383765);
+    const auto k3 = Set(d, +0.111111105648261418443745);
+    const auto k4 = Set(d, -0.090908995008245008229153);
+    const auto k5 = Set(d, +0.0769219538311769618355029);
+    const auto k6 = Set(d, -0.0666573579361080525984562);
+    const auto k7 = Set(d, +0.0587666392926673580854313);
+    const auto k8 = Set(d, -0.0523674852303482457616113);
+    const auto k9 = Set(d, +0.0466667150077840625632675);
+    const auto k10 = Set(d, -0.0407629191276836500001934);
+    const auto k11 = Set(d, +0.0337852580001353069993897);
+    const auto k12 = Set(d, -0.0254517624932312641616861);
+    const auto k13 = Set(d, +0.016599329773529201970117);
+    const auto k14 = Set(d, -0.00889896195887655491740809);
+    const auto k15 = Set(d, +0.00370026744188713119232403);
+    const auto k16 = Set(d, -0.00110611831486672482563471);
+    const auto k17 = Set(d, +0.000209850076645816976906797);
+    const auto k18 = Set(d, -1.88796008463073496563746e-5);
+
+    const auto y = (x * x);
+    return MulAdd(Estrin(y, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11,
+                         k12, k13, k14, k15, k16, k17, k18),
+                  (y * x), x);
+  }
+};
+
+#endif
 
 template <>
 struct ExpImpl<float> {
@@ -539,6 +672,30 @@ HWY_INLINE V Log(const D d, V x) {
 }  // namespace impl
 
 template <class D, class V>
+HWY_NOINLINE V Acos(const D d, V x) {
+  using LaneType = LaneType<V>;
+
+  const V kZero = Zero(d);
+  const V kHalf = Set(d, +0.5);
+  const V kOne = Set(d, +1.0);
+  const V kTwo = Set(d, +2.0);
+  const V kPi = Set(d, +3.14159265358979323846264);
+  const V kPiOverTwo = Set(d, +1.57079632679489661923132169);
+
+  const V sign_x = And(SignBit(d), x);
+  const V abs_x = Xor(x, sign_x);
+  const auto mask = (abs_x < kHalf);
+  const V yy = IfThenElse(mask, (abs_x * abs_x), ((kOne - abs_x) * kHalf));
+  const V y = IfThenElse(mask, abs_x, Sqrt(yy));
+
+  impl::AsinImpl<LaneType> impl;
+  const V t = (impl.AsinPoly(d, yy, y) * (y * yy));
+  const V z = IfThenElse(mask, (kPiOverTwo - (Xor(y, sign_x) + Xor(t, sign_x))),
+                         ((t + y) * kTwo));
+  return IfThenElse(Or(mask, (x >= kZero)), z, (kPi - z));
+}
+
+template <class D, class V>
 HWY_NOINLINE V Acosh(const D d, V x) {
   const V kLarge = Set(d, 268435456.0);
   const V kLog2 = Set(d, 0.693147180559945286227);
@@ -559,6 +716,27 @@ HWY_NOINLINE V Acosh(const D d, V x) {
   return IfThenElse(is_x_gt_2, z,
                     IfThenElse(y2 == kOne, y1, (z * y1 / (y2 - kOne)))) +
          IfThenElseZero(is_x_large, kLog2);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Asin(const D d, V x) {
+  using LaneType = LaneType<V>;
+
+  const V kHalf = Set(d, +0.5);
+  const V kOne = Set(d, +1.0);
+  const V kTwo = Set(d, +2.0);
+  const V kPiOverTwo = Set(d, +1.57079632679489661923132169);
+
+  const V sign_x = And(SignBit(d), x);
+  const V abs_x = Xor(x, sign_x);
+  const auto mask = (abs_x < kHalf);
+  const V yy = IfThenElse(mask, (abs_x * abs_x), (kOne - abs_x) * kHalf);
+  const V y = IfThenElse(mask, abs_x, Sqrt(yy));
+
+  impl::AsinImpl<LaneType> impl;
+  const V z0 = MulAdd(impl.AsinPoly(d, yy, y), (yy * y), y);
+  const V z1 = (kPiOverTwo - (z0 * kTwo));
+  return Or(IfThenElse(mask, z0, z1), sign_x);
 }
 
 template <class D, class V>
@@ -588,6 +766,22 @@ HWY_NOINLINE V Asinh(const D d, V x) {
                          IfThenElse(y2 == kOne, y1, (z * y1 / (y2 - kOne))));
   return Or((IfThenElse(is_x_lt_2, y, z) + IfThenElseZero(is_x_large, kLog2)),
             sign_x);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Atan(const D d, V x) {
+  using LaneType = LaneType<V>;
+
+  const V kOne = Set(d, +1.0);
+  const V kPiOverTwo = Set(d, +1.57079632679489661923132169);
+
+  const V sign = And(SignBit(d), x);
+  const V abs_x = Xor(x, sign);
+  const auto mask = (abs_x > kOne);
+
+  impl::AtanImpl<LaneType> impl;
+  const V y = impl.AtanPoly(d, IfThenElse(mask, (kOne / abs_x), abs_x));
+  return Or(IfThenElse(mask, (kPiOverTwo - y), y), sign);
 }
 
 template <class D, class V>
