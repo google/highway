@@ -1207,6 +1207,116 @@ HWY_API Vec512<double> VecFromMask(const Mask512<double> v) {
   return Vec512<double>{_mm512_castsi512_pd(_mm512_movm_epi64(v.raw))};
 }
 
+// ------------------------------ Mask logical
+
+namespace detail {
+
+template <typename T>
+HWY_API Mask512<T> And(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kand_mask64(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> And(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kand_mask32(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> And(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kand_mask16(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> And(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kand_mask8(a.raw, b.raw)};
+}
+
+template <typename T>
+HWY_API Mask512<T> AndNot(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
+                          const Mask512<T> b) {
+  return Mask512<T>{_kandn_mask64(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> AndNot(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
+                          const Mask512<T> b) {
+  return Mask512<T>{_kandn_mask32(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> AndNot(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
+                          const Mask512<T> b) {
+  return Mask512<T>{_kandn_mask16(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> AndNot(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
+                          const Mask512<T> b) {
+  return Mask512<T>{_kandn_mask8(a.raw, b.raw)};
+}
+
+template <typename T>
+HWY_API Mask512<T> Or(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
+                      const Mask512<T> b) {
+  return Mask512<T>{_kor_mask64(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Or(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
+                      const Mask512<T> b) {
+  return Mask512<T>{_kor_mask32(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Or(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
+                      const Mask512<T> b) {
+  return Mask512<T>{_kor_mask16(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Or(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
+                      const Mask512<T> b) {
+  return Mask512<T>{_kor_mask8(a.raw, b.raw)};
+}
+
+template <typename T>
+HWY_API Mask512<T> Xor(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kxor_mask64(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Xor(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kxor_mask32(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Xor(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kxor_mask16(a.raw, b.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
+                       const Mask512<T> b) {
+  return Mask512<T>{_kxor_mask8(a.raw, b.raw)};
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Mask512<T> And(const Mask512<T> a, Mask512<T> b) {
+  return detail::And(hwy::SizeTag<sizeof(T)>(), a, b);
+}
+
+template <typename T>
+HWY_API Mask512<T> AndNot(const Mask512<T> a, Mask512<T> b) {
+  return detail::AndNot(hwy::SizeTag<sizeof(T)>(), a, b);
+}
+
+template <typename T>
+HWY_API Mask512<T> Or(const Mask512<T> a, Mask512<T> b) {
+  return detail::Or(hwy::SizeTag<sizeof(T)>(), a, b);
+}
+
+template <typename T>
+HWY_API Mask512<T> Xor(const Mask512<T> a, Mask512<T> b) {
+  return detail::Xor(hwy::SizeTag<sizeof(T)>(), a, b);
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ Load

@@ -356,6 +356,28 @@ HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
   return IfThenElse(MaskFromVec(v), zero, v);
 }
 
+// ------------------------------ Mask logical
+
+template <typename T>
+HWY_API Mask256<T> And(const Mask256<T> a, Mask256<T> b) {
+  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T>
+HWY_API Mask256<T> AndNot(const Mask256<T> a, Mask256<T> b) {
+  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T>
+HWY_API Mask256<T> Or(const Mask256<T> a, Mask256<T> b) {
+  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T>
+HWY_API Mask256<T> Xor(const Mask256<T> a, Mask256<T> b) {
+  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
+}
+
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition

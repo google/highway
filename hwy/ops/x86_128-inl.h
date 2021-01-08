@@ -1343,6 +1343,28 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
   return IfThenElse(MaskFromVec(v), Zero(d), v);
 }
 
+// ------------------------------ Mask logical
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
+  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> AndNot(const Mask128<T, N> a, Mask128<T, N> b) {
+  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Or(const Mask128<T, N> a, Mask128<T, N> b) {
+  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
+  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
+}
+
 // ================================================== MEMORY
 
 // Clang static analysis claims the memory immediately after a partial vector

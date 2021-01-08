@@ -322,6 +322,18 @@ Special functions for floating-point types:
 
 Let `M` denote a mask capable of storing true/false for each lane.
 
+*   <code>M **And**(M a, M b)</code>: returns mask of elements indicating
+    whether both input mask elements were set.
+
+*   <code>M **AndNot**(M not_a, M b)</code>: returns mask of elements indicating
+    whether not_a is not set and b is set.
+
+*   <code>M **Or**(M a, M b)</code>: returns mask of elements indicating whether
+    either input mask element was set.
+
+*   <code>M **Xor**(M a, M b)</code>: returns mask of elements indicating
+    whether exactly one input mask element was set.
+
 *   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
     0`, or true if `v[i]` has all bits set.
 

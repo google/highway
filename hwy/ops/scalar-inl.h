@@ -162,6 +162,10 @@ template <typename T>
 HWY_INLINE Vec1<T> operator&(const Vec1<T> a, const Vec1<T> b) {
   return Vec1<T>(a.raw & b.raw);
 }
+template <typename T>
+HWY_INLINE Vec1<T> And(const Vec1<T> a, const Vec1<T> b) {
+  return Vec1<T>(a.raw & b.raw);
+}
 
 HWY_INLINE Vec1<float> And(const Vec1<float> a, const Vec1<float> b) {
   return BitwiseOp<int32_t>()(a, b, [](int32_t i, int32_t j) { return i & j; });
@@ -192,6 +196,10 @@ template <typename T>
 HWY_INLINE Vec1<T> operator|(const Vec1<T> a, const Vec1<T> b) {
   return Vec1<T>(a.raw | b.raw);
 }
+template <typename T>
+HWY_INLINE Vec1<T> Or(const Vec1<T> a, const Vec1<T> b) {
+  return Vec1<T>(a.raw | b.raw);
+}
 
 HWY_INLINE Vec1<float> Or(const Vec1<float> a, const Vec1<float> b) {
   return BitwiseOp<int32_t>()(a, b, [](int32_t i, int32_t j) { return i | j; });
@@ -204,6 +212,10 @@ HWY_INLINE Vec1<double> Or(const Vec1<double> a, const Vec1<double> b) {
 
 template <typename T>
 HWY_INLINE Vec1<T> operator^(const Vec1<T> a, const Vec1<T> b) {
+  return Vec1<T>(a.raw ^ b.raw);
+}
+template <typename T>
+HWY_INLINE Vec1<T> Xor(const Vec1<T> a, const Vec1<T> b) {
   return Vec1<T>(a.raw ^ b.raw);
 }
 
@@ -266,6 +278,28 @@ HWY_INLINE Vec1<T> IfThenZeroElse(const Mask1<T> mask, const Vec1<T> no) {
 template <typename T>
 HWY_INLINE Vec1<T> ZeroIfNegative(const Vec1<T> v) {
   return v.raw < 0 ? Vec1<T>(0) : v;
+}
+
+// ------------------------------ Mask logical
+
+template <typename T>
+HWY_API Mask1<T> And(const Mask1<T> a, Mask1<T> b) {
+  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T>
+HWY_API Mask1<T> AndNot(const Mask1<T> a, Mask1<T> b) {
+  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T>
+HWY_API Mask1<T> Or(const Mask1<T> a, Mask1<T> b) {
+  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+}
+
+template <typename T>
+HWY_API Mask1<T> Xor(const Mask1<T> a, Mask1<T> b) {
+  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
 }
 
 // ================================================== ARITHMETIC

@@ -531,6 +531,58 @@ HWY_NOINLINE void TestAllCountTrue() {
   ForAllTypes(ForFullVectors<TestCountTrue>());
 }
 
+template <class D, class M>
+void AssertMaskEq(D d, M a, M b) {
+  HWY_ASSERT_EQ(CountTrue(a), CountTrue(b));
+  HWY_ASSERT_VEC_EQ(d, VecFromMask(a), VecFromMask(b));
+}
+
+struct TestMaskLogical {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    // For all combinations of zero/nonzero state of subset of lanes:
+    const size_t max_lanes = std::min(N, size_t(10));
+
+    auto lanes = AllocateAligned<T>(N);
+    std::fill(lanes.get(), lanes.get() + N, T(1));
+
+    const auto v0 = Zero(d);
+    const auto m0 = MaskFromVec(v0);
+    T all;
+    memset(&all, 0xFF, sizeof(T));
+    const auto m_all = MaskFromVec(Set(d, all));
+
+    for (size_t code = 0; code < (1ull << max_lanes); ++code) {
+      for (size_t i = 0; i < max_lanes; ++i) {
+        lanes[i] = T(1);
+        if (code & (1ull << i)) {
+          lanes[i] = T(0);
+        }
+      }
+
+      const auto m = Load(d, lanes.get()) == v0;
+
+      AssertMaskEq(d, m0, Xor(m, m));
+      AssertMaskEq(d, m0, AndNot(m, m));
+      AssertMaskEq(d, m0, AndNot(m_all, m));
+
+      AssertMaskEq(d, m, Or(m, m));
+      AssertMaskEq(d, m, Or(m0, m));
+      AssertMaskEq(d, m, Or(m, m0));
+      AssertMaskEq(d, m, Xor(m0, m));
+      AssertMaskEq(d, m, Xor(m, m0));
+      AssertMaskEq(d, m, And(m, m));
+      AssertMaskEq(d, m, And(m_all, m));
+      AssertMaskEq(d, m, And(m, m_all));
+      AssertMaskEq(d, m, AndNot(m0, m));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskLogical() {
+  ForAllTypes(ForFullVectors<TestMaskLogical>());
+}
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -553,6 +605,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBitsFromMask);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskLogical);
 
 }  // namespace hwy
 #endif
