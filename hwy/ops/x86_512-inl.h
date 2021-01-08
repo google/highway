@@ -985,7 +985,7 @@ HWY_API Vec512<double> Floor(const Vec512<double> v) {
 
 // ================================================== COMPARE
 
-// Comparisons fill a lane with 1-bits if the condition is true, else 0.
+// Comparisons set a mask bit to 1 if the condition is true, else 0.
 
 namespace detail {
 

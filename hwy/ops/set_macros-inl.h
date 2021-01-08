@@ -187,7 +187,11 @@
 // RVV
 #elif HWY_TARGET == HWY_RVV
 
+// RVV only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN
+
+// Arbitrary constant, not the actual lane count! Large enough that we can
+// mul/div by 8 for LMUL.
 #define HWY_LANES(T) (4096 / sizeof(T))
 
 #define HWY_GATHER_LANES(T) HWY_LANES(T)

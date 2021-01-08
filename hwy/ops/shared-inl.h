@@ -165,6 +165,7 @@ using Half = typename D::Half;
 template <class D>
 using Twice = typename D::Twice;
 
+
 // Compile-time-constant, (typically but not guaranteed) an upper bound on the
 // number of lanes.
 // Prefer instead using Lanes() and dynamic allocation, or Rebind, or
