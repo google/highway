@@ -321,6 +321,11 @@ HWY_API Vec256<T> VecFromMask(const Mask256<T> v) {
   return Vec256<T>{v.raw};
 }
 
+template <typename T>
+HWY_API Vec256<T> VecFromMask(Full256<T> /* tag */, const Mask256<T> v) {
+  return Vec256<T>{v.raw};
+}
+
 // mask ? yes : no
 template <typename T>
 HWY_API Vec256<T> IfThenElse(const Mask256<T> mask, const Vec256<T> yes,
@@ -341,13 +346,13 @@ HWY_API Vec256<double> IfThenElse(const Mask256<double> mask,
 // mask ? yes : 0
 template <typename T>
 HWY_API Vec256<T> IfThenElseZero(Mask256<T> mask, Vec256<T> yes) {
-  return yes & VecFromMask(mask);
+  return yes & VecFromMask(Full256<T>(), mask);
 }
 
 // mask ? 0 : no
 template <typename T>
 HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
-  return AndNot(VecFromMask(mask), no);
+  return AndNot(VecFromMask(Full256<T>(), mask), no);
 }
 
 template <typename T, HWY_IF_FLOAT(T)>
@@ -360,22 +365,26 @@ HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
 
 template <typename T>
 HWY_API Mask256<T> And(const Mask256<T> a, Mask256<T> b) {
-  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+  const Full256<T> d;
+  return MaskFromVec(And(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T>
 HWY_API Mask256<T> AndNot(const Mask256<T> a, Mask256<T> b) {
-  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+  const Full256<T> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T>
 HWY_API Mask256<T> Or(const Mask256<T> a, Mask256<T> b) {
-  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+  const Full256<T> d;
+  return MaskFromVec(Or(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T>
 HWY_API Mask256<T> Xor(const Mask256<T> a, Mask256<T> b) {
-  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
+  const Full256<T> d;
+  return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 // ================================================== ARITHMETIC
@@ -2073,8 +2082,9 @@ namespace detail {
 
 template <typename T>
 HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, const Mask256<T> mask) {
-  const Full256<uint8_t> d;
-  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
+  const Full256<T> d;
+  const Full256<uint8_t> d8;
+  const auto sign_bits = BitCast(d8, VecFromMask(d, mask)).raw;
   // Prevent sign-extension of 32-bit masks because the intrinsic returns int.
   return static_cast<uint32_t>(_mm256_movemask_epi8(sign_bits));
 }
@@ -2101,15 +2111,17 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, const Mask256<T> mask) {
 
 template <typename T>
 HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, const Mask256<T> mask) {
-  const Full256<float> d;
-  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
+  const Full256<T> d;
+  const Full256<float> df;
+  const auto sign_bits = BitCast(df, VecFromMask(d, mask)).raw;
   return static_cast<unsigned>(_mm256_movemask_ps(sign_bits));
 }
 
 template <typename T>
 HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask256<T> mask) {
-  const Full256<double> d;
-  const auto sign_bits = BitCast(d, VecFromMask(mask)).raw;
+  const Full256<T> d;
+  const Full256<double> df;
+  const auto sign_bits = BitCast(df, VecFromMask(d, mask)).raw;
   return static_cast<unsigned>(_mm256_movemask_pd(sign_bits));
 }
 

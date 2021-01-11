@@ -473,21 +473,10 @@ HWY_NOINLINE void TestAllInterleave() {
   ForAllTypes(ForGE128Vectors<TestInterleave>());
 }
 
-template <typename T>
-struct MakeWideSigned {
-  using type = typename TypesOfSize<2 * sizeof(T)>::Signed;
-};
-
-template <typename T>
-struct MakeWideUnsigned {
-  using type = typename TypesOfSize<2 * sizeof(T)>::Unsigned;
-};
-
-template <template <class> class MakeWide>
 struct TestZipLower {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    using WideT = typename MakeWide<T>::type;
+    using WideT = MakeWide<T>;
     static_assert(sizeof(T) * 2 == sizeof(WideT), "Must be double-width");
     static_assert(IsSigned<T>() == IsSigned<WideT>(), "Must have same sign");
     const Repartition<WideT, D> dw;
@@ -518,11 +507,10 @@ struct TestZipLower {
   }
 };
 
-template <template <class> class MakeWide>
 struct TestZipUpper {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    using WideT = typename MakeWide<T>::type;
+    using WideT = MakeWide<T>;
     static_assert(sizeof(T) * 2 == sizeof(WideT), "Must be double-width");
     static_assert(IsSigned<T>() == IsSigned<WideT>(), "Must have same sign");
     const size_t N = Lanes(d);
@@ -553,28 +541,28 @@ struct TestZipUpper {
 };
 
 HWY_NOINLINE void TestAllZip() {
-  const ForPartialVectors<TestZipLower<MakeWideUnsigned>, 2> lower_unsigned;
+  const ForPartialVectors<TestZipLower, 2> lower_unsigned;
   lower_unsigned(uint8_t());
   lower_unsigned(uint16_t());
 #if HWY_CAP_INTEGER64
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForPartialVectors<TestZipLower<MakeWideSigned>, 2> lower_signed;
+  const ForPartialVectors<TestZipLower, 2> lower_signed;
   lower_signed(int8_t());
   lower_signed(int16_t());
 #if HWY_CAP_INTEGER64
   lower_signed(int32_t());  // generates i64
 #endif
 
-  const ForGE128Vectors<TestZipUpper<MakeWideUnsigned>> upper_unsigned;
+  const ForGE128Vectors<TestZipUpper> upper_unsigned;
   upper_unsigned(uint8_t());
   upper_unsigned(uint16_t());
 #if HWY_CAP_INTEGER64
   upper_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForGE128Vectors<TestZipUpper<MakeWideSigned>> upper_signed;
+  const ForGE128Vectors<TestZipUpper> upper_signed;
   upper_signed(int8_t());
   upper_signed(int16_t());
 #if HWY_CAP_INTEGER64

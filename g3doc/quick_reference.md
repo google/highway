@@ -333,8 +333,11 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
     0`, or true if `v[i]` has all bits set.
 
-*   <code>V **VecFromMask**(M m)</code>: returns 0 in lane `i` if `m[i] ==
+*   <code>V **VecFromMask**(D, M m)</code>: returns 0 in lane `i` if `m[i] ==
     false`, otherwise all bits set.
+
+*   <code>V **VecFromMask**(M m)</code>: returns 0 in lane `i` if `m[i] ==
+    false`, otherwise all bits set. DEPRECATED and will be removed before 1.0.
 
 *   <code>V **IfThenElse**(M mask, V yes, V no)</code>: returns `mask[i] ?
     yes[i] : no[i]`.
@@ -352,7 +355,7 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
 
 *   <code>uint64_t **BitsFromMask**(M m)</code>: returns `sum{1 << i}` for all
-    indices `i` where `m[i]` is true.
+    indices `i` where `m[i]` is true. DEPRECATED and will be removed before 1.0.
 
 *   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
     [0, N]. This is typically more expensive than AllTrue/False.
@@ -626,18 +629,20 @@ Being a horizontal operation (across lanes of the same vector), these are slower
 than normal SIMD operations and are typically used outside critical loops.
 
 *   `V`: `u8`; `Ret`: `u64` \
-    <code>Ret **SumsOfU8x8**(V)</code>: returns the sums of 8 consecutive
-    bytes in each 64-bit lane.
+    <code>Ret **SumsOfU8x8**(V)</code>: returns the sums of 8 consecutive bytes
+    in each 64-bit lane. DEPRECATED and will be removed before 1.0.
 
 *   `V`: `uif32/64` \
-    <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in
-    each lane.
+    <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
+    lane.
+
 *   `V`: `uif32/64` \
-    <code>V **MinOfLanes**(V v)</code>: returns the minimum-valued lane in
-    each lane.
+    <code>V **MinOfLanes**(V v)</code>: returns the minimum-valued lane in each
+    lane.
+
 *   `V`: `uif32/64` \
-    <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in
-    each lane.
+    <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
+    lane.
 
 ## Advanced macros
 

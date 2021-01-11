@@ -63,40 +63,91 @@ template <size_t N>
 struct SizeTag {};
 
 //------------------------------------------------------------------------------
-// Conversion between types of the same size
+// Same size types, half-width, double-width
 
-// Unsigned/signed/floating-point types whose sizes are kSize bytes.
-template <size_t kSize>
-struct TypesOfSize;
+template <typename T>
+struct TypeTraits;
 template <>
-struct TypesOfSize<1> {
+struct TypeTraits<uint8_t> {
   using Unsigned = uint8_t;
   using Signed = int8_t;
+  using Wide = uint16_t;
 };
 template <>
-struct TypesOfSize<2> {
+struct TypeTraits<int8_t> {
+  using Unsigned = uint8_t;
+  using Signed = int8_t;
+  using Wide = int16_t;
+};
+template <>
+struct TypeTraits<uint16_t> {
   using Unsigned = uint16_t;
   using Signed = int16_t;
+  using Wide = uint32_t;
+  using Narrow = uint8_t;
 };
 template <>
-struct TypesOfSize<4> {
+struct TypeTraits<int16_t> {
+  using Unsigned = uint16_t;
+  using Signed = int16_t;
+  using Wide = int32_t;
+  using Narrow = int8_t;
+};
+template <>
+struct TypeTraits<uint32_t> {
   using Unsigned = uint32_t;
   using Signed = int32_t;
   using Float = float;
+  using Wide = uint64_t;
+  using Narrow = uint16_t;
 };
 template <>
-struct TypesOfSize<8> {
+struct TypeTraits<int32_t> {
+  using Unsigned = uint32_t;
+  using Signed = int32_t;
+  using Float = float;
+  using Wide = int64_t;
+  using Narrow = int16_t;
+};
+template <>
+struct TypeTraits<uint64_t> {
   using Unsigned = uint64_t;
   using Signed = int64_t;
   using Float = double;
+  using Narrow = uint32_t;
+};
+template <>
+struct TypeTraits<int64_t> {
+  using Unsigned = uint64_t;
+  using Signed = int64_t;
+  using Float = double;
+  using Narrow = int32_t;
+};
+template <>
+struct TypeTraits<float> {
+  using Unsigned = uint32_t;
+  using Signed = int32_t;
+  using Float = float;
+  using Wide = double;
+};
+template <>
+struct TypeTraits<double> {
+  using Unsigned = uint64_t;
+  using Signed = int64_t;
+  using Float = double;
+  using Narrow = float;
 };
 
 template <typename T>
-using MakeUnsigned = typename TypesOfSize<sizeof(T)>::Unsigned;
+using MakeUnsigned = typename TypeTraits<T>::Unsigned;
 template <typename T>
-using MakeSigned = typename TypesOfSize<sizeof(T)>::Signed;
+using MakeSigned = typename TypeTraits<T>::Signed;
 template <typename T>
-using MakeFloat = typename TypesOfSize<sizeof(T)>::Float;
+using MakeFloat = typename TypeTraits<T>::Float;
+template <typename T>
+using MakeWide = typename TypeTraits<T>::Wide;
+template <typename T>
+using MakeNarrow = typename TypeTraits<T>::Narrow;
 
 }  // namespace hwy
 
@@ -153,9 +204,21 @@ struct Simd {
 template <class T, class D>
 using Rebind = typename D::template Rebind<T>;
 
+template <class D>
+using RebindToSigned = Rebind<MakeSigned<typename D::T>, D>;
+template <class D>
+using RebindToUnsigned = Rebind<MakeUnsigned<typename D::T>, D>;
+template <class D>
+using RebindToFloat = Rebind<MakeFloat<typename D::T>, D>;
+
 // Descriptor for the same total size as D, but with the LaneType T.
 template <class T, class D>
 using Repartition = typename D::template Repartition<T>;
+
+template <class D>
+using RepartitionToWide = Repartition<MakeWide<typename D::T>, D>;
+template <class D>
+using RepartitionToNarrow = Repartition<MakeNarrow<typename D::T>, D>;
 
 // Descriptor for the same lane type as D, but half the lanes.
 template <class D>
@@ -164,7 +227,6 @@ using Half = typename D::Half;
 // Descriptor for the same lane type as D, but twice the lanes.
 template <class D>
 using Twice = typename D::Twice;
-
 
 // Compile-time-constant, (typically but not guaranteed) an upper bound on the
 // number of lanes.

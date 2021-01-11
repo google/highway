@@ -965,7 +965,18 @@ HWY_API Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
 }
 
 template <typename T, size_t N>
+HWY_API Vec128<T, N> VecFromMask(const Simd<T, N> /* tag */,
+                                  const Mask128<T, N> v) {
+  return Vec128<T, N>{v.raw};
+}
+
+template <typename T, size_t N>
 HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
+  return Vec128<T, N>{v.raw};
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> VecFromMask(Simd<T, N> /* tag */, const Mask128<T, N> v) {
   return Vec128<T, N>{v.raw};
 }
 
@@ -979,13 +990,13 @@ HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,
 // mask ? yes : 0
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenElseZero(Mask128<T, N> mask, Vec128<T, N> yes) {
-  return yes & VecFromMask(mask);
+  return yes & VecFromMask(Simd<T, N>(), mask);
 }
 
 // mask ? 0 : no
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
-  return AndNot(VecFromMask(mask), no);
+  return AndNot(VecFromMask(Simd<T, N>(), mask), no);
 }
 
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
@@ -999,22 +1010,26 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(And(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> AndNot(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Or(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(Or(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 // ================================================== MEMORY

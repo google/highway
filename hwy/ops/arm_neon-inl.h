@@ -1192,8 +1192,8 @@ HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
   const auto removed_bits = mask & v_bits;
   // number is positive and at least one bit was set in the mantissa
   const auto should_round_up = MaskFromVec(
-      BitCast(df, AndNot(VecFromMask(removed_bits == Zero(du)),
-                         VecFromMask(Zero(du) == (v_bits & sign_mask)))));
+      BitCast(df, AndNot(VecFromMask(du, removed_bits == Zero(du)),
+                         VecFromMask(du, Zero(du) == (v_bits & sign_mask)))));
   const auto add_one = IfThenElseZero(should_round_up, Set(df, 1.0f));
   const auto rounded =
       BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
@@ -1406,6 +1406,12 @@ HWY_INLINE Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
   return Vec128<T, N>(v.raw);
 }
 
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> VecFromMask(Simd<T, N> /* tag */,
+                                     const Mask128<T, N> v) {
+  return Vec128<T, N>(v.raw);
+}
+
 // IfThenElse(mask, yes, no)
 // Returns mask ? b : a.
 #define HWY_NEON_BUILD_TPL_HWY_IF
@@ -1426,14 +1432,14 @@ HWY_NEON_DEF_FUNCTION_ALL_TYPES(IfThenElse, vbsl, _, HWY_IF)
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IfThenElseZero(const Mask128<T, N> mask,
                                        const Vec128<T, N> yes) {
-  return yes & VecFromMask(mask);
+  return yes & VecFromMask(Simd<T, N>(), mask);
 }
 
 // mask ? 0 : no
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IfThenZeroElse(const Mask128<T, N> mask,
                                        const Vec128<T, N> no) {
-  return AndNot(VecFromMask(mask), no);
+  return AndNot(VecFromMask(Simd<T, N>(), mask), no);
 }
 
 template <typename T, size_t N>
@@ -1447,22 +1453,26 @@ HWY_INLINE Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(And(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> AndNot(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Or(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(Or(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
-  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
+  const Simd<T, N> d;
+  return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 // ================================================== MEMORY
@@ -3005,7 +3015,7 @@ HWY_INLINE Mask128<int64_t, N> operator==(const Vec128<int64_t, N> a,
                                           const Vec128<int64_t, N> b) {
   const Simd<int32_t, N * 2> d32;
   const Simd<int64_t, N> d64;
-  const auto cmp32 = VecFromMask(BitCast(d32, a) == BitCast(d32, b));
+  const auto cmp32 = VecFromMask(d32, BitCast(d32, a) == BitCast(d32, b));
   const auto cmp64 = cmp32 & Shuffle2301(cmp32);
   return MaskFromVec(BitCast(d64, cmp64));
 }
@@ -3015,7 +3025,7 @@ HWY_INLINE Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
                                            const Vec128<uint64_t, N> b) {
   const Simd<uint32_t, N * 2> d32;
   const Simd<uint64_t, N> d64;
-  const auto cmp32 = VecFromMask(BitCast(d32, a) == BitCast(d32, b));
+  const auto cmp32 = VecFromMask(d32, BitCast(d32, a) == BitCast(d32, b));
   const auto cmp64 = cmp32 & Shuffle2301(cmp32);
   return MaskFromVec(BitCast(d64, cmp64));
 }
@@ -3258,17 +3268,17 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 
 template <typename T>
 HWY_INLINE bool AllFalse(const Mask128<T> v) {
-  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(v));
+  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), v));
   uint32x2_t a = vqmovn_u64(v64.raw);
   return vreinterpret_u64_u32(a)[0] == 0;
 }
 
 template <typename T>
 HWY_INLINE bool AllTrue(const Mask128<T> v) {
-  return AllFalse(VecFromMask(v) == Zero(Full128<T>()));
+  return AllFalse(VecFromMask(Full128<T>(), v) == Zero(Full128<T>()));
 }
 
-namespace impl {
+namespace detail {
 
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
@@ -3278,7 +3288,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   };
   const Full128<uint8_t> du;
   const Vec128<uint8_t> values =
-      BitCast(du, VecFromMask(mask)) & Load(du, kSliceLanes);
+      BitCast(du, VecFromMask(Full128<T>(), mask)) & Load(du, kSliceLanes);
 
 #if defined(__aarch64__)
   // Can't vaddv - we need two separate bytes (16 bits).
@@ -3302,9 +3312,10 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
   alignas(8) constexpr uint8_t kSliceLanes[8] = {1,    2,    4,    8,
                                                  0x10, 0x20, 0x40, 0x80};
+  const Simd<T, N> d;
   const Simd<uint8_t, N> du;
   const Vec128<uint8_t, N> slice(Load(Simd<uint8_t, 8>(), kSliceLanes).raw);
-  const Vec128<uint8_t, N> values = BitCast(du, VecFromMask(mask)) & slice;
+  const Vec128<uint8_t, N> values = BitCast(du, VecFromMask(d, mask)) & slice;
 
 #if defined(__aarch64__)
   return vaddv_u8(values.raw);
@@ -3321,9 +3332,10 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
                                  const Mask128<T> mask) {
   alignas(16) constexpr uint16_t kSliceLanes[8] = {1,    2,    4,    8,
                                                    0x10, 0x20, 0x40, 0x80};
+  const Full128<T> d;
   const Full128<uint16_t> du;
   const Vec128<uint16_t> values =
-      BitCast(du, VecFromMask(mask)) & Load(du, kSliceLanes);
+      BitCast(du, VecFromMask(d, mask)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
   return vaddvq_u16(values.raw);
 #else
@@ -3339,9 +3351,10 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
   // Upper lanes of partial loads are undefined. OnlyActive will fix this if
   // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
   alignas(8) constexpr uint16_t kSliceLanes[4] = {1, 2, 4, 8};
+  const Simd<T, N> d;
   const Simd<uint16_t, N> du;
   const Vec128<uint16_t, N> slice(Load(Simd<uint16_t, 4>(), kSliceLanes).raw);
-  const Vec128<uint16_t, N> values = BitCast(du, VecFromMask(mask)) & slice;
+  const Vec128<uint16_t, N> values = BitCast(du, VecFromMask(d, mask)) & slice;
 #if defined(__aarch64__)
   return vaddv_u16(values.raw);
 #else
@@ -3355,9 +3368,10 @@ template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
                                  const Mask128<T> mask) {
   alignas(16) constexpr uint32_t kSliceLanes[4] = {1, 2, 4, 8};
+  const Full128<T> d;
   const Full128<uint32_t> du;
   const Vec128<uint32_t> values =
-      BitCast(du, VecFromMask(mask)) & Load(du, kSliceLanes);
+      BitCast(du, VecFromMask(d, mask)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
   return vaddvq_u32(values.raw);
 #else
@@ -3372,9 +3386,10 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   // Upper lanes of partial loads are undefined. OnlyActive will fix this if
   // we load all kSliceLanes so the upper lanes do not pollute the valid bits.
   alignas(8) constexpr uint32_t kSliceLanes[2] = {1, 2};
+  const Simd<T, N> d;
   const Simd<uint32_t, N> du;
   const Vec128<uint32_t, N> slice(Load(Simd<uint32_t, 2>(), kSliceLanes).raw);
-  const Vec128<uint32_t, N> values = BitCast(du, VecFromMask(mask)) & slice;
+  const Vec128<uint32_t, N> values = BitCast(du, VecFromMask(d, mask)) & slice;
 #if defined(__aarch64__)
   return vaddv_u32(values.raw);
 #else
@@ -3386,9 +3401,10 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
   alignas(16) constexpr uint64_t kSliceLanes[2] = {1, 2};
+  const Full128<T> d;
   const Full128<uint64_t> du;
   const Vec128<uint64_t> values =
-      BitCast(du, VecFromMask(v)) & Load(du, kSliceLanes);
+      BitCast(du, VecFromMask(d, v)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
   return vaddvq_u64(values.raw);
 #else
@@ -3399,8 +3415,10 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
                                  const Mask128<T, 1> v) {
+  const Simd<T, 1> d;
   const Simd<uint64_t, 1> du;
-  const Vec128<uint64_t, 1> values = BitCast(du, VecFromMask(v)) & Set(du, 1);
+  const Vec128<uint64_t, 1> values =
+      BitCast(du, VecFromMask(d, v)) & Set(du, 1);
   return vget_lane_u64(values.raw, 0);
 }
 
@@ -3419,7 +3437,8 @@ constexpr uint64_t OnlyActive(uint64_t bits) {
 template <typename T>
 HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
   const Full128<int8_t> di;
-  const int8x16_t ones = vnegq_s8(BitCast(di, VecFromMask(mask)).raw);
+  const int8x16_t ones =
+      vnegq_s8(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
 
 #if defined(__aarch64__)
   return vaddvq_s8(ones);
@@ -3433,7 +3452,8 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
 template <typename T>
 HWY_INLINE size_t CountTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
   const Full128<int16_t> di;
-  const int16x8_t ones = vnegq_s16(BitCast(di, VecFromMask(mask)).raw);
+  const int16x8_t ones =
+      vnegq_s16(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
 
 #if defined(__aarch64__)
   return vaddvq_s16(ones);
@@ -3447,7 +3467,8 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
 template <typename T>
 HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
   const Full128<int32_t> di;
-  const int32x4_t ones = vnegq_s32(BitCast(di, VecFromMask(mask)).raw);
+  const int32x4_t ones =
+      vnegq_s32(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
 
 #if defined(__aarch64__)
   return vaddvq_s32(ones);
@@ -3461,26 +3482,27 @@ template <typename T>
 HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
 #if defined(__aarch64__)
   const Full128<int64_t> di;
-  const int64x2_t ones = vnegq_s64(BitCast(di, VecFromMask(mask)).raw);
+  const int64x2_t ones =
+      vnegq_s64(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
   return vaddvq_s64(ones);
 #else
   const Full128<int64_t> di;
-  const int64x2_t ones = vshrq_n_u64(BitCast(di, VecFromMask(mask)).raw, 63);
+  const int64x2_t ones =
+      vshrq_n_u64(BitCast(di, VecFromMask(Full128<T>(), mask)).raw, 63);
   return ones[0] + ones[1];
 #endif
 }
 
-}  // namespace impl
-
+}  // namespace detail
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
-  return impl::OnlyActive<T, N>(
-      impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+  return detail::OnlyActive<T, N>(
+      detail::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
 template <typename T>
 HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
-  return impl::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
+  return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 #if !defined(__aarch64__)

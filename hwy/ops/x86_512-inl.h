@@ -1207,6 +1207,11 @@ HWY_API Vec512<double> VecFromMask(const Mask512<double> v) {
   return Vec512<double>{_mm512_castsi512_pd(_mm512_movm_epi64(v.raw))};
 }
 
+template <typename T>
+HWY_API Vec512<T> VecFromMask(Full512<T> /* tag */, const Mask512<T> v) {
+  return VecFromMask(v);
+}
+
 // ------------------------------ Mask logical
 
 namespace detail {

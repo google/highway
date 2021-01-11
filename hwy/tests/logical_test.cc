@@ -173,7 +173,7 @@ struct TestIfThenElse {
     const auto vec = Load(d, mask_lanes.get());
     const auto mask = MaskFromVec(vec);
     // Separate lvalue works around clang-7 asan bug (unaligned spill).
-    const auto vec2 = VecFromMask(mask);
+    const auto vec2 = VecFromMask(d, mask);
     HWY_ASSERT_VEC_EQ(d, vec, vec2);
 
     auto out_lanes1 = AllocateAligned<T>(N);
@@ -534,7 +534,7 @@ HWY_NOINLINE void TestAllCountTrue() {
 template <class D, class M>
 void AssertMaskEq(D d, M a, M b) {
   HWY_ASSERT_EQ(CountTrue(a), CountTrue(b));
-  HWY_ASSERT_VEC_EQ(d, VecFromMask(a), VecFromMask(b));
+  HWY_ASSERT_VEC_EQ(d, VecFromMask(d, a), VecFromMask(d, b));
 }
 
 struct TestMaskLogical {

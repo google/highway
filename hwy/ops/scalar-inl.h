@@ -258,6 +258,13 @@ Vec1<T> VecFromMask(const Mask1<T> mask) {
   return v;
 }
 
+template <typename T>
+Vec1<T> VecFromMask(Sisd<T> /* tag */, const Mask1<T> mask) {
+  Vec1<T> v;
+  memcpy(&v.raw, &mask.bits, sizeof(v.raw));
+  return v;
+}
+
 // Returns mask ? yes : no.
 template <typename T>
 HWY_INLINE Vec1<T> IfThenElse(const Mask1<T> mask, const Vec1<T> yes,
@@ -284,22 +291,26 @@ HWY_INLINE Vec1<T> ZeroIfNegative(const Vec1<T> v) {
 
 template <typename T>
 HWY_API Mask1<T> And(const Mask1<T> a, Mask1<T> b) {
-  return MaskFromVec(And(VecFromMask(a), VecFromMask(b)));
+  const Sisd<T> d;
+  return MaskFromVec(And(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T>
 HWY_API Mask1<T> AndNot(const Mask1<T> a, Mask1<T> b) {
-  return MaskFromVec(AndNot(VecFromMask(a), VecFromMask(b)));
+  const Sisd<T> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T>
 HWY_API Mask1<T> Or(const Mask1<T> a, Mask1<T> b) {
-  return MaskFromVec(Or(VecFromMask(a), VecFromMask(b)));
+  const Sisd<T> d;
+  return MaskFromVec(Or(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 template <typename T>
 HWY_API Mask1<T> Xor(const Mask1<T> a, Mask1<T> b) {
-  return MaskFromVec(Xor(VecFromMask(a), VecFromMask(b)));
+  const Sisd<T> d;
+  return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
 // ================================================== ARITHMETIC
