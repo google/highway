@@ -4,16 +4,13 @@
 
 ## Usage modes
 
-A project or module using SIMD can choose to integrate into its callers via
-static or dynamic dispatch. Examples of both are provided in examples/.
+Highway can compile for multiple CPU targets, choosing the best available at
+runtime (dynamic dispatch), or compile for a single CPU target without runtime
+overhead (static dispatch). Examples of both are provided in examples/.
 
-Static dispatch means choosing the single CPU target at compile-time. This does
-not require any setup nor per-call overhead.
-
-Dynamic dispatch means generating implementations for multiple targets and
-choosing the best available at runtime. Uses the same source code as static,
-plus `#define HWY_TARGET_INCLUDE` and `#include
-"third_party/highway/hwy/foreach_target.h"`.
+Dynamic dispatch uses the same source code as static, plus `#define
+HWY_TARGET_INCLUDE`, `#include "hwy/foreach_target.h"` and
+`HWY_DYNAMIC_DISPATCH`.
 
 ## Headers
 
@@ -24,8 +21,7 @@ The public headers are:
     but allows declaring functions implemented out of line.
 
 *   hwy/base.h: included from headers that only need compiler/platform-dependent
-    definitions (e.g. `HWY_ALIGN_MAX` and/or `kMaxVectorSize`) without the full
-    highway.h.
+    definitions (e.g. `HWY_ALIGN_MAX` or `PopCount`) without the full highway.h.
 
 *   hwy/foreach_target.h: re-includes the translation unit (specified by
     `HWY_TARGET_INCLUDE`) once per enabled target to generate code from the same
@@ -67,12 +63,14 @@ HWY_AFTER_NAMESPACE();
 SIMD vectors consist of one or more 'lanes' of the same built-in type `T =
 uint##_t, int##_t, float or double` for `## = 8, 16, 32, 64`. Highway provides
 vectors with `N <= kMaxVectorSize / sizeof(T)` lanes, where `N` is a power of
-two.
+two. For targets whose vector sizes are unknown at compile time,
+`kMaxVectorSize` may be a (very loose) upper bound.
 
 Platforms such as x86 support multiple vector types, and other platforms require
-that vectors are built-in types. Thus the Highway API consists of overloaded
-functions selected via a zero-sized tag parameter `d` of type `D = Simd<T, N>`.
-These are typically constructed using aliases:
+that vectors are built-in types. On RVV, vectors are sizeless and thus cannot be
+wrapped inside a class. Thus the Highway API consists of overloaded functions
+selected via a zero-sized tag parameter `d` of type `D = Simd<T, N>`. These are
+typically constructed using aliases:
 
 *   `const HWY_FULL(T) d;` chooses the maximum N for the current target;
 *   `const HWY_CAPPED(T, N) d;` for up to `N` lanes.
@@ -81,16 +79,16 @@ The type `T` may be accessed as D::T (prefixed with typename if D is a template
 argument).
 
 There are three possibilities for the template parameter `N`:
-1.  Equal to the hardware vector width. This is the most common case, e.g. when
-    using `HWY_FULL(T)` on a target with compile-time constant vectors.
+
+1.  Equal to the hardware vector width, e.g. when using `HWY_FULL(T)` on a
+    target with compile-time constant vectors.
 
 1.  Less than the hardware vector width. This is the result of a compile-time
     decision by the user, i.e. using `HWY_CAPPED(T, N)` to limit the number of
     lanes, even when the hardware vector width could be greater.
 
-1.  Greater or equal to the hardware vector width, e.g. when the hardware vector
-    width is not known at compile-time. User code should not rely on `N`
-    actually being an upper bound, because variable vectors can be large!
+1.  Unrelated to the hardware vector width, e.g. when the hardware vector width
+    is not known at compile-time and may be very large.
 
 In all cases, `Lanes(d)` returns the actual number of lanes, i.e. the amount by
 which to advance loop counters. `MaxLanes(d)` returns the `N` from `Simd<T, N>`,
@@ -99,22 +97,20 @@ are not able to interpret it as constexpr. Instead of `MaxLanes`, prefer to use
 alternatives, e.g. `Rebind` or `aligned_allocator.h` for dynamic allocation of
 `Lanes(d)` elements.
 
-Note that case 3 does not imply the API will use more than one native vector.
-Highway is designed to map a user-specified vector to a single
-(possibly partial) vector. By discouraging user-specified `N`, we improve
-performance portability (e.g. by reducing spills to memory for platforms that
-have smaller vectors than the developer expected).
+Highway is designed to map a vector variable to a single (possibly partial)
+hardware vector. By discouraging user-specified `N` and tuples of vector
+variables, we improve performance portability (e.g. by reducing spills to memory
+for platforms that have smaller vectors than the developer expected). However,
+Highway can make use of RVV register groups, which behave like a single (but up
+to 8 times as large) hardware vector.
 
 To construct vectors, call factory functions (see "Initialization" below) with
 a tag parameter `d`.
 
-Local variables typically use auto for type deduction. If `d` is
-`HWY_FULL(int32_t)`, users may instead use the full-width vector alias `I32xN`
-(or `U16xN`, `F64xN` etc.) to document the types used.
-
-For function arguments, it is often sufficient to return the same type as the
-argument: `template<class V> V Squared(V v) { return v * v; }`. Otherwise, use
-the alias `Vec<D>`.
+Local variables typically use auto for type deduction. For some generic
+functions, a template argument `V` is sufficient: `template<class V> V Squared(V
+v) { return v * v; }`. In general, functions have a `D` template argument and
+can return vectors of type `Vec<D>`.
 
 Note that Highway functions reside in `hwy::HWY_NAMESPACE`, whereas user-defined
 functions reside in `project::[nested]::HWY_NAMESPACE`. Because all Highway
@@ -150,6 +146,16 @@ possibly with the specified size in bits of `T`.
 *   <code>V **operator+**(V a, V b)</code>: returns `a[i] + b[i]` (mod 2^bits).
 *   <code>V **operator-**(V a, V b)</code>: returns `a[i] - b[i]` (mod 2^bits).
 
+*   `V`: `if` \
+    <code>V **Neg**(V a)</code>: returns `-a[i]`.
+
+*   `V`: `i8/16/32`, `f` \
+    <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
+    integers, `LimitsMin()` maps to `LimitsMax() + 1`.
+
+*   `V`: `f32` \
+    <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
+
 *   `V`: `ui8/16` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to
     the minimum/maximum representable value.
@@ -160,10 +166,6 @@ possibly with the specified size in bits of `T`.
 
 *   `V`: `u8/16` \
     <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) / 2`.
-
-*   `V`: `i8/16/32`, `f` \
-    <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
-    integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
 *   `V`: `ui8/16/32`, `f` \
     <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
@@ -189,12 +191,6 @@ possibly with the specified size in bits of `T`.
 *   `V`: `f32` \
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
     `1.0 / a[i]`.
-
-*   `V`: `f32` \
-    <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
-
-*   `V`: `if` \
-    <code>V **Neg**(V a)</code>: returns `-a[i]`.
 
 #### Multiply
 
@@ -645,10 +641,10 @@ than normal SIMD operations and are typically used outside critical loops.
 
 ## Advanced macros
 
-Let `Target` denote an instruction set: `SCALAR/SSE4/AVX2/AVX3/PPC8/NEON/WASM`.
-Targets are only used if enabled (i.e. not broken nor disabled). Baseline means
-the compiler is allowed to generate such instructions (implying the target CPU
-would have to support them).
+Let `Target` denote an instruction set:
+`SCALAR/SSE4/AVX2/AVX3/PPC8/NEON/WASM/RVV`. Targets are only used if enabled
+(i.e. not broken nor disabled). Baseline means the compiler is allowed to
+generate such instructions (implying the target CPU would have to support them).
 
 *   `HWY_Target=##` are powers of two uniquely identifying `Target`.
 

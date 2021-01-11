@@ -261,6 +261,9 @@ namespace hwy {
 #if HWY_ARCH_X86
 static constexpr size_t kMaxVectorSize = 64;  // AVX-512
 #define HWY_ALIGN_MAX alignas(64)
+#elif HWY_ARCH_RVV
+static constexpr size_t kMaxVectorSize = 1ull << 31;
+#define HWY_ALIGN_MAX 8  // only elements need be aligned
 #else
 static constexpr size_t kMaxVectorSize = 16;
 #define HWY_ALIGN_MAX alignas(16)
