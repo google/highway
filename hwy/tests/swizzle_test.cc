@@ -343,19 +343,23 @@ struct TestTableLookupBytes {
     }
     const auto in =
         BitCast(d, Load(d, reinterpret_cast<const T*>(in_bytes.get())));
-    HWY_ALIGN uint8_t index_bytes[kTestMaxVectorSize] = {
+
+    // Enough test data; for larger vectors, upper lanes will be zero.
+    const uint8_t index_bytes_source[64] = {
         // Same index as source, multiple outputs from same input,
         // unused input (9), ascending/descending and nonconsecutive neighbors.
         0,  2,  1, 2, 15, 12, 13, 14, 6,  7,  8,  5,  4,  3,  10, 11,
         11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
-    // Avoid undefined results / asan error for scalar by capping indices.
-    for (uint8_t& byte : index_bytes) {
-      if (byte >= N * sizeof(T)) {
-        byte = static_cast<uint8_t>(N * sizeof(T) - 1);
+    auto index_bytes = AllocateAligned<uint8_t>(N8);
+    for (size_t i = 0; i < N8; ++i) {
+      index_bytes[i] = (i < 64) ? index_bytes_source[i] : 0;
+      // Avoid undefined results / asan error for scalar by capping indices.
+      if (index_bytes[i] >= N * sizeof(T)) {
+        index_bytes[i] = static_cast<uint8_t>(N * sizeof(T) - 1);
       }
     }
-    const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes));
+    const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
     auto out_lanes = AllocateAligned<T>(N);
     Store(TableLookupBytes(in, indices), d, out_lanes.get());
     const uint8_t* out_bytes =
@@ -387,16 +391,25 @@ struct TestTableLookupLanes {
       const int32_t N = Lanes(d);
       // Too many permutations to test exhaustively; choose one with repeated
       // and cross-block indices and ensure indices do not exceed #lanes.
-      HWY_ALIGN int32_t idx[kTestMaxVectorSize / sizeof(int32_t)] = {
-          1,      3,      2,      2,      8 % N, 1,     7,     6,
-          15 % N, 14 % N, 14 % N, 15 % N, 4,     9 % N, 8 % N, 5};
+      // For larger vectors, upper lanes will be zero.
+      HWY_ALIGN int32_t idx_source[16] = {1,  3,  2,  2,  8, 1, 7, 6,
+                                          15, 14, 14, 15, 4, 9, 8, 5};
+      auto idx = AllocateAligned<int32_t>(N);
+      for (size_t i = 0; i < N; ++i) {
+        idx[i] = (i < 16) ? idx_source[i] : 0;
+        // Avoid undefined results / asan error for scalar by capping indices.
+        if (idx[i] >= N) {
+          idx[i] = static_cast<int32_t>(N - 1);
+        }
+      }
+
       const auto v = Iota(d, 1);
       auto expected = AllocateAligned<T>(static_cast<size_t>(N));
       for (int32_t i = 0; i < N; ++i) {
         expected[i] = idx[i] + 1;  // == v[idx[i]]
       }
 
-      const auto opaque = SetTableIndices(d, idx);
+      const auto opaque = SetTableIndices(d, idx.get());
       const auto actual = TableLookupLanes(v, opaque);
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
     }

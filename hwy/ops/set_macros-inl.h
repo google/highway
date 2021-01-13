@@ -187,21 +187,22 @@
 // RVV
 #elif HWY_TARGET == HWY_RVV
 
-// RVV only requires lane alignment, not natural alignment of the entire vector.
+// RVV only requires lane alignment, not natural alignment of the entire vector,
+// and the compiler already aligns builtin types, so nothing to do here.
 #define HWY_ALIGN
 
 // Arbitrary constant, not the actual lane count! Large enough that we can
-// mul/div by 8 for LMUL.
+// mul/div by 8 for LMUL. Value matches kMaxVectorSize, see base.h.
 #define HWY_LANES(T) (4096 / sizeof(T))
 
 #define HWY_GATHER_LANES(T) HWY_LANES(T)
 #define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_COMPARE64_LANES HWY_LANES(T)
-#define HWY_MINMAX64_LANES HWY_LANES(T)
+// Cannot use HWY_LANES/sizeof here because these are used in an #if.
+#define HWY_COMPARE64_LANES 256
+#define HWY_MINMAX64_LANES 256
 
-// TODO(janwas): enable after implementing
-#define HWY_CAP_INTEGER64 0
-#define HWY_CAP_FLOAT64 0
+#define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 

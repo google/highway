@@ -55,8 +55,16 @@ static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
 #define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
 
 #define HWY_IF_FLOAT(T) hwy::EnableIf<hwy::IsFloat<T>()>* = nullptr
-// IsSigned<float>() is true, so cannot use that to differentiate int/float.
 #define HWY_IF_NOT_FLOAT(T) hwy::EnableIf<!hwy::IsFloat<T>()>* = nullptr
+
+// Argument is a Simd<T, N>, defined below.
+#define HWY_IF_UNSIGNED_D(D) hwy::EnableIf<!IsSigned<TFromD<D>>()>* = nullptr
+#define HWY_IF_SIGNED_D(D) \
+  hwy::EnableIf<IsSigned<TFromD<D>>() && !IsFloat<TFromD<D>>()>* = nullptr
+#define HWY_IF_FLOAT_D(D) hwy::EnableIf<IsFloat<TFromD<D>>()>* = nullptr
+
+#define HWY_IF_LANE_SIZE4_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 4>* = nullptr
+#define HWY_IF_LANE_SIZE8_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 8>* = nullptr
 
 // Empty struct used as a size tag type.
 template <size_t N>
@@ -144,6 +152,7 @@ template <typename T>
 using MakeSigned = typename TypeTraits<T>::Signed;
 template <typename T>
 using MakeFloat = typename TypeTraits<T>::Float;
+
 template <typename T>
 using MakeWide = typename TypeTraits<T>::Wide;
 template <typename T>
@@ -162,17 +171,13 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 // SIMD operations are implemented as overloaded functions selected using a
-// "descriptor" D := Simd<T, N>. T is the lane type, N the requested number of
-// lanes >= 1 (always a power of two). In the common case, users do not choose N
-// directly, but instead use HWY_FULL (the largest available size). N may differ
-// from the hardware vector size. If N is less, only that many lanes will be
-// loaded/stored.
+// "descriptor" D := Simd<T, N>. T is the lane type, N a number of lanes >= 1
+// (always a power of two). Users generally do not choose N directly, but
+// instead use HWY_FULL(T[, LMUL]) (the largest available size). N is not
+// necessarily the actual number of lanes, which is returned by Lanes(D()).
 //
 // Only HWY_FULL(T) and N <= 16 / sizeof(T) are guaranteed to be available - the
 // latter are useful if >128 bit vectors are unnecessary or undesirable.
-//
-// Users should not use the N of a Simd<> but instead query the actual number of
-// lanes via Lanes().
 template <typename Lane, size_t N>
 struct Simd {
   constexpr Simd() = default;
@@ -182,23 +187,26 @@ struct Simd {
   // Widening/narrowing ops change the number of lanes and/or their type.
   // To initialize such vectors, we need the corresponding descriptor types:
 
-  // PromoteTo/DemoteTo with another lane type, but same number of lanes.
+  // PromoteTo/DemoteTo() with another lane type, but same number of lanes.
   template <typename NewLane>
   using Rebind = Simd<NewLane, N>;
 
-  // MulEven with another lane type, but same total size.
+  // MulEven() with another lane type, but same total size.
   // Round up to correctly handle scalars with N=1.
   template <typename NewLane>
   using Repartition =
       Simd<NewLane, (N * sizeof(Lane) + sizeof(NewLane) - 1) / sizeof(NewLane)>;
 
-  // LowerHalf with the same lane type, but half the lanes.
+  // LowerHalf() with the same lane type, but half the lanes.
   // Round up to correctly handle scalars with N=1.
   using Half = Simd<T, (N + 1) / 2>;
 
-  // Combine with the same lane type, but twice the lanes.
+  // Combine() with the same lane type, but twice the lanes.
   using Twice = Simd<T, 2 * N>;
 };
+
+template <class D>
+using TFromD = typename D::T;
 
 // Descriptor for the same number of lanes as D, but with the LaneType T.
 template <class T, class D>
@@ -237,12 +245,17 @@ HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(Simd<T, N>) {
   return N;
 }
 
+// Targets with non-constexpr Lanes define this themselves.
+#if HWY_TARGET != HWY_RVV
+
 // (Potentially) non-constant actual size of the vector at runtime, subject to
 // the limit imposed by the Simd. Useful for advancing loop counters.
 template <typename T, size_t N>
 HWY_INLINE HWY_MAYBE_UNUSED size_t Lanes(Simd<T, N>) {
   return N;
 }
+
+#endif
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

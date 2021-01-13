@@ -31,13 +31,8 @@
 
 namespace hwy {
 
-// The maximum vector size used in tests when defining test data. This is at
-// least the kMaxVectorSize but it can be bigger. If you increased
-// kMaxVectorSize, you also need to increase this constant and update all the
-// tests that use it to define bigger arrays of test data.
+// The maximum vector size used in tests when defining test data. DEPRECATED.
 constexpr size_t kTestMaxVectorSize = 64;
-static_assert(kTestMaxVectorSize >= kMaxVectorSize,
-              "All kTestMaxVectorSize test arrays need to be updated");
 
 // googletest before 1.10 didn't define INSTANTIATE_TEST_SUITE_P() but instead
 // used INSTANTIATE_TEST_CASE_P which is now deprecated.

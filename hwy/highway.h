@@ -26,7 +26,7 @@ namespace hwy {
 
 // API version (https://semver.org/)
 #define HWY_MAJOR 0
-#define HWY_MINOR 8
+#define HWY_MINOR 9
 #define HWY_PATCH 0
 
 //------------------------------------------------------------------------------
@@ -37,8 +37,16 @@ namespace hwy {
 // qualify Highway functions with hwy::HWY_NAMESPACE. However, ADL rules for
 // templates require `using hwy::HWY_NAMESPACE::ShiftLeft;` etc. declarations.
 
-// Full (native-width) vector.
-#define HWY_FULL(T) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T)>
+// HWY_FULL(T[,LMUL=1]) is a native vector/group. LMUL is the number of
+// registers in the group, and is ignored on targets that do not support groups.
+#define HWY_FULL1(T) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T)>
+#define HWY_3TH_ARG(arg1, arg2, arg3, ...) arg3
+// Workaround for MSVC grouping __VA_ARGS__ into a single argument
+#define HWY_FULL_RECOMPOSER(args_with_paren) HWY_3TH_ARG args_with_paren
+// Trailing comma avoids -pedantic false alarm
+#define HWY_CHOOSE_FULL(...) \
+  HWY_FULL_RECOMPOSER((__VA_ARGS__, HWY_FULL2, HWY_FULL1, ))
+#define HWY_FULL(...) HWY_CHOOSE_FULL(__VA_ARGS__())(__VA_ARGS__)
 
 // Vector of up to MAX_N lanes.
 #define HWY_CAPPED(T, MAX_N) \
@@ -224,15 +232,21 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 
 //------------------------------------------------------------------------------
 
-// NOTE: ops/*.h cannot use regular include guards because their definitions
-// depend on HWY_TARGET, e.g. enabling AVX3 instructions on 128-bit vectors, so
-// we want to include them once per target. However, each *-inl.h includes
-// highway.h, so we still need an external per-target include guard.
+// NOTE: the following definitions and ops/*.h depend on HWY_TARGET, so we want
+// to include them once per target, which is ensured by the toggle check.
+// Because ops/*.h are included under it, they do not need their own guard.
 #if defined(HWY_HIGHWAY_PER_TARGET) == defined(HWY_TARGET_TOGGLE)
 #ifdef HWY_HIGHWAY_PER_TARGET
 #undef HWY_HIGHWAY_PER_TARGET
 #else
 #define HWY_HIGHWAY_PER_TARGET
+#endif
+
+#undef HWY_FULL2
+#if HWY_TARGET == HWY_RVV
+#define HWY_FULL2(T, LMUL) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T) * (LMUL)>
+#else
+#define HWY_FULL2(T, LMUL) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T)>
 #endif
 
 // These define ops inside namespace hwy::HWY_NAMESPACE.

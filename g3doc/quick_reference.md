@@ -34,6 +34,7 @@ The public headers are:
     prefetching) and memory barriers, independent of actual SIMD.
 
 SIMD implementations must be preceded and followed by the following:
+
 ```
 #include "hwy/highway.h"
 HWY_BEFORE_NAMESPACE();  // at file scope
@@ -62,23 +63,31 @@ HWY_AFTER_NAMESPACE();
 
 SIMD vectors consist of one or more 'lanes' of the same built-in type `T =
 uint##_t, int##_t, float or double` for `## = 8, 16, 32, 64`. Highway provides
-vectors with `N <= kMaxVectorSize / sizeof(T)` lanes, where `N` is a power of
-two. For targets whose vector sizes are unknown at compile time,
-`kMaxVectorSize` may be a (very loose) upper bound.
+vectors with `N` lanes (a power of two, not necessarily known at compile time).
 
 Platforms such as x86 support multiple vector types, and other platforms require
 that vectors are built-in types. On RVV, vectors are sizeless and thus cannot be
-wrapped inside a class. Thus the Highway API consists of overloaded functions
-selected via a zero-sized tag parameter `d` of type `D = Simd<T, N>`. These are
-typically constructed using aliases:
+wrapped inside a class. The Highway API satisfies these constraints because it
+is designed around overloaded functions selected via a zero-sized tag parameter
+`d` of type `D = Simd<T, N>`. These are typically constructed using aliases:
 
-*   `const HWY_FULL(T) d;` chooses the maximum N for the current target;
+*   `const HWY_FULL(T[, LMUL=1]) d;` chooses an `N` that results in a native
+    vector for the current target. For targets (e.g. RVV) that support register
+    groups, the optional `LMUL` (1, 2, 4, 8) specifies the number of registers
+    in the group. This effectively multiplies the lane count in each operation
+    by `LMUL`. For mixed-precision code, `LMUL` must be at least the ratio of
+    the sizes of the largest and smallest type. `LMUL > 1` is more efficient on
+    single-issue machines, but larger values reduce the effective number of
+    registers, which may cause the compiler to spill them to memory.
+
 *   `const HWY_CAPPED(T, N) d;` for up to `N` lanes.
 
-The type `T` may be accessed as D::T (prefixed with typename if D is a template
-argument).
+For mixed-precision code (e.g. `uint8_t` lanes promoted to `float`), descriptors
+for the smaller types must be obtained from those of the larger type (e.g. via
+`Rebind<uint8_t, HWY_FULL(float)>`).
 
-There are three possibilities for the template parameter `N`:
+The type `T` may be accessed as `TFromD<D>`. There are three possibilities for
+the template parameter `N`:
 
 1.  Equal to the hardware vector width, e.g. when using `HWY_FULL(T)` on a
     target with compile-time constant vectors.
@@ -97,12 +106,10 @@ are not able to interpret it as constexpr. Instead of `MaxLanes`, prefer to use
 alternatives, e.g. `Rebind` or `aligned_allocator.h` for dynamic allocation of
 `Lanes(d)` elements.
 
-Highway is designed to map a vector variable to a single (possibly partial)
-hardware vector. By discouraging user-specified `N` and tuples of vector
-variables, we improve performance portability (e.g. by reducing spills to memory
-for platforms that have smaller vectors than the developer expected). However,
-Highway can make use of RVV register groups, which behave like a single (but up
-to 8 times as large) hardware vector.
+Highway is designed to map a vector variable to a (possibly partial) hardware
+register or register group. By discouraging user-specified `N` and tuples of
+vector variables, we improve performance portability (e.g. by reducing spills to
+memory for platforms that have smaller vectors than the developer expected).
 
 To construct vectors, call factory functions (see "Initialization" below) with
 a tag parameter `d`.
@@ -232,26 +239,26 @@ variants are somewhat slower on ARM; it is preferable to replace them with
 
 #### Shifts
 
-**Note**: it is generally fastest to shift by a compile-time constant number of
-bits. ARM requires the count be less than the lane size.
+**Note**: Results are implementation-defined if the count `>= sizeof(T)*8)`.
+Compile-time constant shifts are generally the most efficient variant.
 
 *   `V`: `ui16/32/64` \
     <code>V **ShiftLeft**&lt;int&gt;(V a)</code> returns `a[i] <<` a
-    compile-time constant count.
+    compile-time constant count in `[0, sizeof(T)*8)`.
 
 *   `V`: `u16/32/64`, `i16/32` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >>` a
-    compile-time constant count. Inserts zero or sign bit(s) depending on `V`.
+    compile-time constant count in `[0, sizeof(T)*8)`.
 
 **Note**: Vectors must be `HWY_CAPPED(T, HWY_VARIABLE_SHIFT_LANES(T))`:
 
 *   `V`: `ui32/64` \
-    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`, which is
-    zero when `b[i] >= sizeof(T)*8`.
+    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`, or
+    implementation-defined if `b[i] >= sizeof(T)*8`.
 
 *   `V`: `u32/64`, `i32` \
-    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`, which is
-    zero when `b[i] >= sizeof(T)*8`. Inserts zero or sign bit(s).
+    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`, or
+    implementation-defined if `b[i] >= sizeof(T)*8`.
 
 **Note**: the following are only provided if `HWY_VARIABLE_SHIFT_LANES(T) == 1`:
 
@@ -260,7 +267,6 @@ bits. ARM requires the count be less than the lane size.
 
 *   `V`: `u16/32/64`, `i16/32` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
-    Inserts 0 or sign bit(s).
 
 #### Floating-point rounding
 
@@ -364,7 +370,7 @@ Let `M` denote a mask capable of storing true/false for each lane.
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
     Compacts lanes whose mask is set into the lower lanes; upper lanes are
-    undefined.
+    implementation-defined.
 
 *   `V`: `uif32,uif64` \
     <code>size_t **CompressStore**(V v, M m, D, T* aligned)</code>: writes lanes
@@ -416,13 +422,13 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 
 *   `V`,`VI`: (`uif32,i32`), (`uif64,i64`) \
     <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>.
-    Returns elements of base selected by signed/possibly repeated *byte*
-    `offsets[i]`.
+    Returns elements of base selected by possibly repeated *byte* `offsets[i]`.
+    Results are implementation-defined if `offsets[i]` is negative.
 
 *   `V`,`VI`: (`uif32,i32`), (`uif64,i64`) \
     <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>.
-    Returns vector of `base[indices[i]]`. Indices are signed and need not be
-    unique.
+    Returns vector of `base[indices[i]]`. Indices need not be unique, but
+    results are implementation-defined if they are negative.
 
 #### Store
 
@@ -527,7 +533,7 @@ their operands into independently processed 128-bit *blocks*.
 *   `V`: `ui` \
     <code>V **TableLookupBytes**(V bytes, V from)</code>: returns
     `bytes[from[i]]`. Uses byte lanes regardless of the actual vector types.
-    Results are undefined if `from[i] >= HWY_MIN(vector size, 16)`.
+    Results are implementation-defined if `from[i] >= HWY_MIN(vector size, 16)`.
 
 **Note**: the following are only available for full vectors (`N` > 1), and split
 their operands into independently processed 128-bit *blocks*:
@@ -689,7 +695,9 @@ generates the best possible code (or scalar fallback) from the same source code.
 *   `HWY_GATHER_LANES(T)`: supports GatherIndex/Offset.
 *   `HWY_VARIABLE_SHIFT_LANES(T)`: supports per-lane shift amounts (v1 << v2).
 
-As above, but the feature implies the type so there is no T parameter:
+As above, but the feature implies the type so there is no T parameter, thus
+these can be used in `#if` expressions.
+
 *   `HWY_COMPARE64_LANES`: 64-bit signed integer comparisons.
 *   `HWY_MINMAX64_LANES`: 64-bit signed/unsigned integer min/max.
 
