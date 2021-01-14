@@ -2,7 +2,7 @@
 
 OBJS := aligned_allocator.o nanobenchmark.o targets.o
 IMAGE_OBJS := image.o
-TEST_NAMES := arithmetic_test compare_test convert_test hwy_test logical_test memory_test swizzle_test
+TEST_NAMES := arithmetic_test combine_test compare_test convert_test hwy_test logical_test memory_test swizzle_test
 TESTS := $(foreach i, $(TEST_NAMES), bin/$(i))
 ROOT_TEST_NAMES := aligned_allocator_test nanobenchmark_test
 ROOT_TESTS := $(foreach i, $(ROOT_TEST_NAMES), bin/$(i))

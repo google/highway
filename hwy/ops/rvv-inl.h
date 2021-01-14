@@ -3755,6 +3755,44 @@ HWY_API V OddEven(const V a, const V b) {
   return IfThenElse(is_even, b, a);
 }
 
+// ------------------------------ ConcatUpperLower
+
+template <class V>
+HWY_API V ConcatUpperLower(const V hi, const V lo) {
+  const RebindToSigned<DFromV<V>> di;
+  const auto idx_half = Set(di, Lanes(di) / 2);
+  const auto is_lower_half = Lt(BitCast(di, detail::Iota0(di)), idx_half);
+  return IfThenElse(is_lower_half, lo, hi);
+}
+
+// ------------------------------ ConcatLowerLower
+
+template <class V>
+HWY_API V ConcatLowerLower(const V hi, const V lo) {
+  // Move lower half into upper
+  const auto hi_up = detail::SlideUp(hi, Lanes(DFromV<V>()) / 2);
+  return ConcatUpperLower(hi_up, lo);
+}
+
+// ------------------------------ ConcatUpperUpper
+
+template <class V>
+HWY_API V ConcatUpperUpper(const V hi, const V lo) {
+  // Move upper half into lower
+  const auto lo_down = detail::SlideDown(lo, Lanes(DFromV<V>()) / 2);
+  return ConcatUpperLower(hi, lo_down);
+}
+
+// ------------------------------ ConcatLowerUpper
+
+template <class V>
+HWY_API V ConcatLowerUpper(const V hi, const V lo) {
+  // Move half of both inputs to the other half
+  const auto hi_up = detail::SlideUp(hi, Lanes(DFromV<V>()) / 2);
+  const auto lo_down = detail::SlideDown(lo, Lanes(DFromV<V>()) / 2);
+  return ConcatUpperLower(hi_up, lo_down);
+}
+
 // ------------------------------ InterleaveLower
 
 template <class V>

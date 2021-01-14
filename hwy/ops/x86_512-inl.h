@@ -1966,7 +1966,7 @@ HWY_API Vec512<int64_t> ZipUpper(const Vec512<int32_t> a,
   return Vec512<int64_t>{_mm512_unpackhi_epi32(a.raw, b.raw)};
 }
 
-// ------------------------------ Blocks
+// ------------------------------ Concat* halves
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>

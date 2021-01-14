@@ -276,6 +276,7 @@ set(HWY_TEST_FILES
   # contrib/math/math_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
+  hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc
   hwy/tests/hwy_test.cc
