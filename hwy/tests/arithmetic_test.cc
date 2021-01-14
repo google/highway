@@ -945,36 +945,6 @@ HWY_NOINLINE void TestAllRound() {
   ForFloatTypes(ForPartialVectors<TestRound>());
 }
 
-struct TestSumsOfU8 {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if (!defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3) && \
-    HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
-    const size_t N = Lanes(d);
-    auto in_bytes = AllocateAligned<uint8_t>(N * sizeof(uint64_t));
-    auto sums = AllocateAligned<T>(N);
-    std::fill(sums.get(), sums.get() + N, T(0));
-    for (size_t i = 0; i < N * sizeof(uint64_t); ++i) {
-      const size_t group = i / sizeof(uint64_t);
-      in_bytes[i] = static_cast<uint8_t>(2 * i + 1);
-      sums[group] += in_bytes[i];
-    }
-    const Repartition<uint8_t, D> du8;
-    const auto v = Load(du8, in_bytes.get());
-    HWY_ASSERT_VEC_EQ(d, sums.get(), SumsOfU8x8(v));
-#else
-    (void)d;
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllSumsOfU8() {
-#if HWY_CAP_INTEGER64
-  ForPartialVectors<TestSumsOfU8>()(uint64_t());
-#endif
-}
-
 struct TestSumOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -1140,7 +1110,6 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllApproximateReciprocal);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReciprocalSquareRoot);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumsOfU8);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRound);

@@ -2145,18 +2145,6 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
 
 // ------------------------------ Reductions
 
-// TODO(eustas): optimize
-// Returns 64-bit sums of 8-byte groups.
-HWY_API Vec128<uint64_t> SumsOfU8x8(const Vec128<uint8_t> v) {
-  const auto kMask = wasm_i16x8_splat(0xFF);
-  const auto kMix = wasm_i16x8_splat(1);
-  const auto l = wasm_v128_and(v.raw, kMask);
-  const auto h = wasm_u16x8_shr(v.raw, 8);
-  const auto s16 = wasm_i16x8_add(h, l);
-  const auto s64 = wasm_i64x2_mul(s16, kMix);
-  return Vec128<uint64_t>{wasm_u64x2_shr(s64, 48)};
-}
-
 namespace detail {
 
 // For u32/i32/f32.

@@ -2324,11 +2324,6 @@ HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
 
 // ------------------------------ Reductions
 
-// Returns 64-bit sums of 8-byte groups.
-HWY_API Vec256<uint64_t> SumsOfU8x8(const Vec256<uint8_t> v) {
-  return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
-}
-
 namespace detail {
 
 // Returns sum{lane[i]} in each lane. "v3210" is a replicated 128-bit block.

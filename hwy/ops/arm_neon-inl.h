@@ -3158,19 +3158,6 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
 
 // ------------------------------ Reductions
 
-// Returns 64-bit sums of 8-byte groups.
-HWY_INLINE Vec128<uint64_t> SumsOfU8x8(const Vec128<uint8_t> v) {
-  uint16x8_t a = vpaddlq_u8(v.raw);
-  uint32x4_t b = vpaddlq_u16(a);
-  return Vec128<uint64_t>(vpaddlq_u32(b));
-}
-
-HWY_INLINE Vec128<uint64_t, 1> SumsOfU8x8(const Vec128<uint8_t, 8> v) {
-  uint16x4_t a = vpaddl_u8(v.raw);
-  uint32x2_t b = vpaddl_u16(a);
-  return Vec128<uint64_t, 1>(vpaddl_u32(b));
-}
-
 #if defined(__aarch64__)
 // Supported for 32b and 64b vector types. Returns the sum in each lane.
 HWY_INLINE Vec128<uint32_t> SumOfLanes(const Vec128<uint32_t> v) {

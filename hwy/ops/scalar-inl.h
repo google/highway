@@ -795,9 +795,8 @@ HWY_INLINE Vec1<int32_t> NearestInt(const Vec1<float> v) {
 
 // ================================================== SWIZZLE
 
-// Unsupported: Shift*Bytes, CombineShiftRightBytes, Interleave*,
-// Shuffle*, SumsOfU8x8, UpperHalf - these require more than one lane and/or
-// actual 128-bit vectors.
+// Unsupported: Shift*Bytes, CombineShiftRightBytes, Interleave*, Shuffle*,
+// UpperHalf - these require more than one lane and/or actual 128-bit vectors.
 
 template <typename T>
 HWY_INLINE T GetLane(const Vec1<T> v) {

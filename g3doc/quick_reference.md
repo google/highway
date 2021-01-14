@@ -634,10 +634,6 @@ lanes at no extra cost; you can use `GetLane` to obtain the value.
 Being a horizontal operation (across lanes of the same vector), these are slower
 than normal SIMD operations and are typically used outside critical loops.
 
-*   `V`: `u8`; `Ret`: `u64` \
-    <code>Ret **SumsOfU8x8**(V)</code>: returns the sums of 8 consecutive bytes
-    in each 64-bit lane. DEPRECATED and will be removed before 1.0.
-
 *   `V`: `uif32/64` \
     <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
     lane.

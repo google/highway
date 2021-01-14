@@ -2443,11 +2443,6 @@ HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
 
 // ------------------------------ Reductions
 
-// Returns 64-bit sums of 8-byte groups.
-HWY_API Vec512<uint64_t> SumsOfU8x8(const Vec512<uint8_t> v) {
-  return Vec512<uint64_t>{_mm512_sad_epu8(v.raw, _mm512_setzero_si512())};
-}
-
 // Returns the sum in each lane.
 HWY_API Vec512<int32_t> SumOfLanes(const Vec512<int32_t> v) {
   return Set(Full512<int32_t>(), _mm512_reduce_add_epi32(v.raw));
