@@ -68,6 +68,8 @@ namespace hwy {
 // defined), and can be used to deduce the return type of Choose*.
 #if HWY_STATIC_TARGET == HWY_SCALAR
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SCALAR::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_RVV
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_RVV::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_WASM
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_WASM::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_NEON
@@ -262,8 +264,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #elif HWY_TARGET == HWY_WASM
 #include "hwy/ops/wasm_128-inl.h"
 #elif HWY_TARGET == HWY_RVV
-// TODO(janwas): header
-#include "hwy/ops/shared-inl.h"
+#include "hwy/ops/rvv-inl.h"
 #elif HWY_TARGET == HWY_SCALAR
 #include "hwy/ops/scalar-inl.h"
 #else

@@ -358,15 +358,34 @@ struct ForeachSizeR<T, 0, kMinLanes, Test> {
 // These adapters may be called directly, or via For*Types:
 
 // Calls Test for all powers of two in [kMinLanes, kMaxLanes / kDivLanes].
-// Use a large default for kMaxLanes because we don't have access to T in the
-// template argument list.
+// kMaxLanes is used for HWY_GATHER_LANES etc; use a large default because we
+// don't have access to T in the template argument list.
 template <class Test, size_t kDivLanes = 1, size_t kMinLanes = 1,
           size_t kMaxLanes = 1ul << 30>
 struct ForPartialVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    // Only m1..8 for now, can ignore kMaxLanes because HWY_*_LANES are full.
+    ForeachSizeR<T, 8 / kDivLanes, HWY_LANES(T), Test>::Do();
+#else
     ForeachSizeR<T, HWY_MIN(kMaxLanes, HWY_LANES(T)) / kDivLanes / kMinLanes,
                  kMinLanes, Test>::Do();
+#endif
+  }
+};
+
+// Calls Test for all vectors that can be demoted log2(kFactor) times.
+template <class Test, size_t kFactor>
+struct ForDemoteVectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    // Only m1..8 for now.
+    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T), Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T), 1, Test>::Do();
+#endif
   }
 };
 
@@ -375,8 +394,13 @@ template <class Test>
 struct ForGE128Vectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+#else
     ForeachSizeR<T, HWY_LANES(T) / (16 / sizeof(T)), (16 / sizeof(T)),
                  Test>::Do();
+
+#endif
   }
 };
 
@@ -385,8 +409,12 @@ template <class Test>
 struct ForExtendableVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 4, HWY_LANES(T), Test>::Do();
+#else
     ForeachSizeR<T, HWY_LANES(T) / 2 / (16 / sizeof(T)), (16 / sizeof(T)),
                  Test>::Do();
+#endif
   }
 };
 
@@ -395,7 +423,11 @@ template <class Test>
 struct ForFullVectors {
   template <typename T>
   void operator()(T t) const {
+#if HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+#else
     Test()(t, HWY_FULL(T)());
+#endif
   }
 };
 
