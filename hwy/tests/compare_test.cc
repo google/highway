@@ -40,9 +40,9 @@ struct TestEquality {
     std::fill(all_false.get(), all_false.get() + N, T(0));
     memset(all_true.get(), 0xFF, N * sizeof(T));
 
-    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, v2 == v3));
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, v2 == v2));
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, v2 == v2b));
+    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, Eq(v2, v3)));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Eq(v2, v2)));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Eq(v2, v2b)));
   }
 };
 
@@ -59,10 +59,10 @@ struct TestStrictT {
     std::fill(all_false.get(), all_false.get() + N, T(0));
     memset(all_true.get(), 0xFF, N * sizeof(T));
 
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, v2 > vn));
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, vn < v2));
-    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, v2 < vn));
-    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, vn > v2));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Gt(v2, vn)));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Lt(vn, v2)));
+    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, Lt(v2, vn)));
+    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, Gt(vn, v2)));
   }
 };
 
@@ -93,14 +93,14 @@ struct TestWeak {
     std::fill(all_false.get(), all_false.get() + N, T(0));
     memset(all_true.get(), 0xFF, N * sizeof(T));
 
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, v2 >= v2));
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, vn <= vn));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Ge(v2, v2)));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Le(vn, vn)));
 
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, v2 >= vn));
-    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, vn <= v2));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Ge(v2, vn)));
+    HWY_ASSERT_VEC_EQ(d, all_true.get(), VecFromMask(d, Le(vn, v2)));
 
-    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, v2 <= vn));
-    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, vn >= v2));
+    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, Le(v2, vn)));
+    HWY_ASSERT_VEC_EQ(d, all_false.get(), VecFromMask(d, Ge(vn, v2)));
   }
 };
 

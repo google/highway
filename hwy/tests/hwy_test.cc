@@ -69,7 +69,7 @@ struct TestFloorLog2 {
 
 HWY_NOINLINE void TestAllFloorLog2() {
 #if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
-  ForPartialVectors<TestFloorLog2>()(float());
+  ForDemoteVectors<TestFloorLog2, 4>()(float());
 #endif
 }
 
@@ -262,15 +262,15 @@ struct TestSignBitInteger {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
-    const auto all = VecFromMask(v0 == v0);
+    const auto all = VecFromMask(d, Eq(v0, v0));
     const auto vs = SignBit(d);
-    const auto other = vs - Set(d, 1);
+    const auto other = Sub(vs, Set(d, 1));
 
     // Shifting left by one => overflow, equal zero
-    HWY_ASSERT_VEC_EQ(d, v0, vs + vs);
+    HWY_ASSERT_VEC_EQ(d, v0, Add(vs, vs));
     // Verify the lower bits are zero (only +/- and logical ops are available
     // for all types)
-    HWY_ASSERT_VEC_EQ(d, all, vs + other);
+    HWY_ASSERT_VEC_EQ(d, all, Add(vs, other));
   }
 };
 

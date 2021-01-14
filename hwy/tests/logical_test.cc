@@ -32,36 +32,36 @@ struct TestLogicalInteger {
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
 
-    HWY_ASSERT_VEC_EQ(d, v0, v0 & vi);
-    HWY_ASSERT_VEC_EQ(d, v0, vi & v0);
-    HWY_ASSERT_VEC_EQ(d, vi, vi & vi);
+    HWY_ASSERT_VEC_EQ(d, v0, And(v0, vi));
+    HWY_ASSERT_VEC_EQ(d, v0, And(vi, v0));
+    HWY_ASSERT_VEC_EQ(d, vi, And(vi, vi));
 
-    HWY_ASSERT_VEC_EQ(d, vi, v0 | vi);
-    HWY_ASSERT_VEC_EQ(d, vi, vi | v0);
-    HWY_ASSERT_VEC_EQ(d, vi, vi | vi);
+    HWY_ASSERT_VEC_EQ(d, vi, Or(v0, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, Or(vi, v0));
+    HWY_ASSERT_VEC_EQ(d, vi, Or(vi, vi));
 
-    HWY_ASSERT_VEC_EQ(d, vi, v0 ^ vi);
-    HWY_ASSERT_VEC_EQ(d, vi, vi ^ v0);
-    HWY_ASSERT_VEC_EQ(d, v0, vi ^ vi);
+    HWY_ASSERT_VEC_EQ(d, vi, Xor(v0, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, Xor(vi, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, Xor(vi, vi));
 
     HWY_ASSERT_VEC_EQ(d, vi, AndNot(v0, vi));
     HWY_ASSERT_VEC_EQ(d, v0, AndNot(vi, v0));
     HWY_ASSERT_VEC_EQ(d, v0, AndNot(vi, vi));
 
     auto v = vi;
-    v &= vi;
+    v = And(v, vi);
     HWY_ASSERT_VEC_EQ(d, vi, v);
-    v &= v0;
+    v = And(v, v0);
     HWY_ASSERT_VEC_EQ(d, v0, v);
 
-    v |= vi;
+    v = Or(v, vi);
     HWY_ASSERT_VEC_EQ(d, vi, v);
-    v |= v0;
+    v = Or(v, v0);
     HWY_ASSERT_VEC_EQ(d, vi, v);
 
-    v ^= vi;
+    v = Xor(v, vi);
     HWY_ASSERT_VEC_EQ(d, v0, v);
-    v ^= v0;
+    v = Xor(v, v0);
     HWY_ASSERT_VEC_EQ(d, v0, v);
   }
 };
@@ -121,7 +121,7 @@ struct TestCopySign {
     const auto vp = Iota(d, 1);
     auto vn = Iota(d, -128);
     // Ensure all lanes are negative even if there are many lanes.
-    vn = IfThenElse(vn < v0, vn, Neg(vn));
+    vn = IfThenElse(Lt(vn, v0), vn, Neg(vn));
 
     // Zero remains zero regardless of sign
     HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, v0));
@@ -361,7 +361,7 @@ struct TestZeroIfNegative {
     const auto vp = Iota(d, 1);
     auto vn = Iota(d, -128);
     // Ensure all lanes are negative even if there are many lanes.
-    vn = IfThenElse(vn < v0, vn, Neg(vn));
+    vn = IfThenElse(Lt(vn, v0), vn, Neg(vn));
 
     // Zero and positive remain unchanged
     HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(v0));
@@ -384,8 +384,8 @@ struct TestTestBit {
       const auto bit1 = Set(d, 1ull << i);
       const auto bit2 = Set(d, 1ull << ((i + 1) % kNumBits));
       const auto bit3 = Set(d, 1ull << ((i + 2) % kNumBits));
-      const auto bits12 = bit1 | bit2;
-      const auto bits23 = bit2 | bit3;
+      const auto bits12 = Or(bit1, bit2);
+      const auto bits23 = Or(bit2, bit3);
       HWY_ASSERT(AllTrue(TestBit(bit1, bit1)));
       HWY_ASSERT(AllTrue(TestBit(bits12, bit1)));
       HWY_ASSERT(AllTrue(TestBit(bits12, bit2)));
@@ -419,8 +419,8 @@ struct TestAllTrueFalse {
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));  // for clang-analyzer.
     Store(v, d, lanes.get());
-    HWY_ASSERT(AllTrue(v == zero));
-    HWY_ASSERT(!AllFalse(v == zero));
+    HWY_ASSERT(AllTrue(Eq(v, zero)));
+    HWY_ASSERT(!AllFalse(Eq(v, zero)));
 
 #if HWY_TARGET == HWY_SCALAR
     // Simple negation of the AllTrue result
@@ -434,19 +434,19 @@ struct TestAllTrueFalse {
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = max;
       v = Load(d, lanes.get());
-      HWY_ASSERT(!AllTrue(v == zero));
-      HWY_ASSERT(expected_all_false ^ AllFalse(v == zero));
+      HWY_ASSERT(!AllTrue(Eq(v, zero)));
+      HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
 
       lanes[i] = min_nonzero;
       v = Load(d, lanes.get());
-      HWY_ASSERT(!AllTrue(v == zero));
-      HWY_ASSERT(expected_all_false ^ AllFalse(v == zero));
+      HWY_ASSERT(!AllTrue(Eq(v, zero)));
+      HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
 
       // Reset to all zero
       lanes[i] = T(0);
       v = Load(d, lanes.get());
-      HWY_ASSERT(AllTrue(v == zero));
-      HWY_ASSERT(!AllFalse(v == zero));
+      HWY_ASSERT(AllTrue(Eq(v, zero)));
+      HWY_ASSERT(!AllFalse(Eq(v, zero)));
     }
   }
 };
@@ -520,7 +520,7 @@ struct TestCountTrue {
         }
       }
 
-      const auto mask = Load(d, lanes.get()) == Zero(d);
+      const auto mask = Eq(Load(d, lanes.get()), Zero(d));
       const size_t actual = CountTrue(mask);
       HWY_ASSERT_EQ(expected, actual);
     }
@@ -561,7 +561,7 @@ struct TestMaskLogical {
         }
       }
 
-      const auto m = Load(d, lanes.get()) == v0;
+      const auto m = Eq(Load(d, lanes.get()), v0);
 
       AssertMaskEq(d, m0, Xor(m, m));
       AssertMaskEq(d, m0, AndNot(m, m));

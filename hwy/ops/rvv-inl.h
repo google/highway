@@ -25,6 +25,12 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// TODO(janwas): Remove after cr/351751033
+template <class M>
+uint64_t BitsFromMask(M) {
+  return 0;
+}
+
 // Private shorthand so that definitions of Set etc. fit on a single line.
 using DU8M1 = Simd<uint8_t, HWY_LANES(uint8_t)>;
 using DU8M2 = Simd<uint8_t, HWY_LANES(uint8_t) * 2>;
@@ -625,10 +631,45 @@ HWY_API VFromD<DU> Iota0(const D d) {
 
 // ------------------------------ Not
 
+HWY_API VU8M1 Not(const VU8M1 v) { return vnot_v_u8m1(v); }
+HWY_API VU8M2 Not(const VU8M2 v) { return vnot_v_u8m2(v); }
+HWY_API VU8M4 Not(const VU8M4 v) { return vnot_v_u8m4(v); }
+HWY_API VU8M8 Not(const VU8M8 v) { return vnot_v_u8m8(v); }
+
+HWY_API VU16M1 Not(const VU16M1 v) { return vnot_v_u16m1(v); }
+HWY_API VU16M2 Not(const VU16M2 v) { return vnot_v_u16m2(v); }
+HWY_API VU16M4 Not(const VU16M4 v) { return vnot_v_u16m4(v); }
+HWY_API VU16M8 Not(const VU16M8 v) { return vnot_v_u16m8(v); }
+
 HWY_API VU32M1 Not(const VU32M1 v) { return vnot_v_u32m1(v); }
 HWY_API VU32M2 Not(const VU32M2 v) { return vnot_v_u32m2(v); }
 HWY_API VU32M4 Not(const VU32M4 v) { return vnot_v_u32m4(v); }
 HWY_API VU32M8 Not(const VU32M8 v) { return vnot_v_u32m8(v); }
+
+HWY_API VU64M1 Not(const VU64M1 v) { return vnot_v_u64m1(v); }
+HWY_API VU64M2 Not(const VU64M2 v) { return vnot_v_u64m2(v); }
+HWY_API VU64M4 Not(const VU64M4 v) { return vnot_v_u64m4(v); }
+HWY_API VU64M8 Not(const VU64M8 v) { return vnot_v_u64m8(v); }
+
+HWY_API VI8M1 Not(const VI8M1 v) { return vnot_v_i8m1(v); }
+HWY_API VI8M2 Not(const VI8M2 v) { return vnot_v_i8m2(v); }
+HWY_API VI8M4 Not(const VI8M4 v) { return vnot_v_i8m4(v); }
+HWY_API VI8M8 Not(const VI8M8 v) { return vnot_v_i8m8(v); }
+
+HWY_API VI16M1 Not(const VI16M1 v) { return vnot_v_i16m1(v); }
+HWY_API VI16M2 Not(const VI16M2 v) { return vnot_v_i16m2(v); }
+HWY_API VI16M4 Not(const VI16M4 v) { return vnot_v_i16m4(v); }
+HWY_API VI16M8 Not(const VI16M8 v) { return vnot_v_i16m8(v); }
+
+HWY_API VI32M1 Not(const VI32M1 v) { return vnot_v_i32m1(v); }
+HWY_API VI32M2 Not(const VI32M2 v) { return vnot_v_i32m2(v); }
+HWY_API VI32M4 Not(const VI32M4 v) { return vnot_v_i32m4(v); }
+HWY_API VI32M8 Not(const VI32M8 v) { return vnot_v_i32m8(v); }
+
+HWY_API VI64M1 Not(const VI64M1 v) { return vnot_v_i64m1(v); }
+HWY_API VI64M2 Not(const VI64M2 v) { return vnot_v_i64m2(v); }
+HWY_API VI64M4 Not(const VI64M4 v) { return vnot_v_i64m4(v); }
+HWY_API VI64M8 Not(const VI64M8 v) { return vnot_v_i64m8(v); }
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Not(const V v) {
@@ -1449,7 +1490,7 @@ HWY_API VU64M2 Shl(VU64M2 v, VU64M2 bits) { return vsll_vv_u64m2(v, bits); }
 HWY_API VU64M4 Shl(VU64M4 v, VU64M4 bits) { return vsll_vv_u64m4(v, bits); }
 HWY_API VU64M8 Shl(VU64M8 v, VU64M8 bits) { return vsll_vv_u64m8(v, bits); }
 
-// Signed (no i8,i16,i64)
+// Signed (no i8,i16)
 HWY_API VI32M1 Shl(const VI32M1 v, const VI32M1 bits) {
   return vsll_vv_i32m1(v, detail::BitCastToUnsigned(bits));
 }
@@ -1463,8 +1504,22 @@ HWY_API VI32M8 Shl(const VI32M8 v, const VI32M8 bits) {
   return vsll_vv_i32m8(v, detail::BitCastToUnsigned(bits));
 }
 
+HWY_API VI64M1 Shl(const VI64M1 v, const VI64M1 bits) {
+  return vsll_vv_i64m1(v, detail::BitCastToUnsigned(bits));
+}
+HWY_API VI64M2 Shl(const VI64M2 v, const VI64M2 bits) {
+  return vsll_vv_i64m2(v, detail::BitCastToUnsigned(bits));
+}
+HWY_API VI64M4 Shl(const VI64M4 v, const VI64M4 bits) {
+  return vsll_vv_i64m4(v, detail::BitCastToUnsigned(bits));
+}
+HWY_API VI64M8 Shl(const VI64M8 v, const VI64M8 bits) {
+  return vsll_vv_i64m8(v, detail::BitCastToUnsigned(bits));
+}
+
 // ------------------------------ Shr
 
+// Unsigned (no u8,u16)
 HWY_API VU32M1 Shr(VU32M1 v, VU32M1 bits) { return vsrl_vv_u32m1(v, bits); }
 HWY_API VU32M2 Shr(VU32M2 v, VU32M2 bits) { return vsrl_vv_u32m2(v, bits); }
 HWY_API VU32M4 Shr(VU32M4 v, VU32M4 bits) { return vsrl_vv_u32m4(v, bits); }
@@ -1475,6 +1530,7 @@ HWY_API VU64M2 Shr(VU64M2 v, VU64M2 bits) { return vsrl_vv_u64m2(v, bits); }
 HWY_API VU64M4 Shr(VU64M4 v, VU64M4 bits) { return vsrl_vv_u64m4(v, bits); }
 HWY_API VU64M8 Shr(VU64M8 v, VU64M8 bits) { return vsrl_vv_u64m8(v, bits); }
 
+// Signed (no i8,i16,i64)
 HWY_API VI32M1 Shr(const VI32M1 v, const VI32M1 bits) {
   return vsra_vv_i32m1(v, detail::BitCastToUnsigned(bits));
 }
@@ -1874,19 +1930,31 @@ HWY_API VF64M8 NegMulSub(const VF64M8 mul, const VF64M8 x, const VF64M8 sub) {
 
 // TODO(janwas): not yet in spec
 
-HWY_API VF32M1 Round(const VF32M1 v) { return v; }
+template <class V>
+HWY_API V Round(const V v) {
+  return v;
+}
 
 // ------------------------------ Trunc
 
-HWY_API VF32M1 Trunc(const VF32M1 v) { return v; }
+template <class V>
+HWY_API V Trunc(const V v) {
+  return v;
+}
 
 // ------------------------------ Ceil
 
-HWY_API VF32M1 Ceil(const VF32M1 v) { return v; }
+template <class V>
+HWY_API V Ceil(const V v) {
+  return v;
+}
 
 // ------------------------------ Floor
 
-HWY_API VF32M1 Floor(const VF32M1 v) { return v; }
+template <class V>
+HWY_API V Floor(const V v) {
+  return v;
+}
 
 // ================================================== COMPARE
 
@@ -2772,7 +2840,7 @@ HWY_API VFromD<Simd<int32_t, N>> PromoteTo(Simd<int32_t, N> d,
   return BitCast(d, PromoteTo(Simd<uint32_t, N>(), v));
 }
 
-template <class V, class D4 = Rebind<MakeWide<MakeWide<TFromV<V>>>, DFromV<V>>>
+template <class V, class D4 = Repartition<uint32_t, DFromV<V>>>
 HWY_API VFromD<D4> U32FromU8(const V v) {
   return PromoteTo(D4(), v);
 }

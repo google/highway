@@ -26,7 +26,7 @@ namespace hwy {
 
 // API version (https://semver.org/)
 #define HWY_MAJOR 0
-#define HWY_MINOR 9
+#define HWY_MINOR 10
 #define HWY_PATCH 0
 
 //------------------------------------------------------------------------------

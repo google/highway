@@ -38,16 +38,16 @@ struct TestPlusMinus {
       lanes[i] = static_cast<T>((2 + i) + (3 + i));
     }
     HWY_ASSERT_VEC_EQ(d, Load(d, lanes.get()), v2 + v3);
-    HWY_ASSERT_VEC_EQ(d, v3, (v2 + v3) - v2);
+    HWY_ASSERT_VEC_EQ(d, v3, Sub(Add(v2, v3), v2));
 
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = static_cast<T>((2 + i) + (4 + i));
     }
     auto sum = v2;
-    sum += v4;  // sum == 6,8..
+    sum = Add(sum, v4);  // sum == 6,8..
     HWY_ASSERT_VEC_EQ(d, Load(d, lanes.get()), sum);
 
-    sum -= v4;
+    sum = Sub(sum, v4);
     HWY_ASSERT_VEC_EQ(d, v2, sum);
   }
 };
@@ -63,9 +63,9 @@ struct TestUnsignedSaturatingArithmetic {
     const auto vi = Iota(d, 1);
     const auto vm = Set(d, LimitsMax<T>());
 
-    HWY_ASSERT_VEC_EQ(d, v0 + v0, SaturatedAdd(v0, v0));
-    HWY_ASSERT_VEC_EQ(d, v0 + vi, SaturatedAdd(v0, vi));
-    HWY_ASSERT_VEC_EQ(d, v0 + vm, SaturatedAdd(v0, vm));
+    HWY_ASSERT_VEC_EQ(d, Add(v0, v0), SaturatedAdd(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, Add(v0, vi), SaturatedAdd(v0, vi));
+    HWY_ASSERT_VEC_EQ(d, Add(v0, vm), SaturatedAdd(v0, vm));
     HWY_ASSERT_VEC_EQ(d, vm, SaturatedAdd(vi, vm));
     HWY_ASSERT_VEC_EQ(d, vm, SaturatedAdd(vm, vm));
 
@@ -73,7 +73,7 @@ struct TestUnsignedSaturatingArithmetic {
     HWY_ASSERT_VEC_EQ(d, v0, SaturatedSub(v0, vi));
     HWY_ASSERT_VEC_EQ(d, v0, SaturatedSub(vi, vi));
     HWY_ASSERT_VEC_EQ(d, v0, SaturatedSub(vi, vm));
-    HWY_ASSERT_VEC_EQ(d, vm - vi, SaturatedSub(vm, vi));
+    HWY_ASSERT_VEC_EQ(d, Sub(vm, vi), SaturatedSub(vm, vi));
   }
 };
 
@@ -93,7 +93,7 @@ struct TestSignedSaturatingArithmetic {
     HWY_ASSERT_VEC_EQ(d, vpm, SaturatedAdd(vpm, vpm));
 
     HWY_ASSERT_VEC_EQ(d, v0, SaturatedSub(v0, v0));
-    HWY_ASSERT_VEC_EQ(d, v0 - vi, SaturatedSub(v0, vi));
+    HWY_ASSERT_VEC_EQ(d, Sub(v0, vi), SaturatedSub(v0, vi));
     HWY_ASSERT_VEC_EQ(d, vn, SaturatedSub(vn, v0));
     HWY_ASSERT_VEC_EQ(d, vnm, SaturatedSub(vnm, vi));
     HWY_ASSERT_VEC_EQ(d, vnm, SaturatedSub(vnm, vpm));
@@ -317,25 +317,25 @@ struct TestUnsignedVarShifts {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T(i << 1);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi << Set(d, 1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(vi, Set(d, 1)));
 
     // Simple right shift
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T(i >> 1);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi >> Set(d, 1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(vi, Set(d, 1)));
 
     // Verify truncation for left-shift
     for (size_t i = 0; i < N; ++i) {
       expected[i] = (T(i) << kSign) & ~T(0);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi << Set(d, kSign));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(vi, Set(d, kSign)));
 
     // Verify variable left shift (assumes < 32 lanes)
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T(1) << i;
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), v1 << vi);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(v1, vi));
 #else  // HWY_DISABLE_BROKEN_AVX3_TESTS
     (void)d;
 #endif
@@ -357,7 +357,7 @@ struct TestSignedVarLeftShifts {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T(i << 1);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi << v1);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(vi, v1));
 
     // Shifting negative numbers left
     constexpr T min = LimitsMin<T>();
@@ -365,13 +365,13 @@ struct TestSignedVarLeftShifts {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T((min + i) << 1);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vn << v1);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(vn, v1));
 
     // Differing shift counts (assumes < 32 lanes)
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T(1) << i;
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), v1 << vi);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(v1, vi));
 #else  // HWY_DISABLE_BROKEN_AVX3_TESTS
     (void)d;
 #endif
@@ -396,7 +396,7 @@ struct TestSignedVarRightShifts {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = T(i >> 1);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi >> Set(d, 1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(vi, Set(d, 1)));
 
     // Sign extension
     constexpr T min = LimitsMin<T>();
@@ -408,13 +408,13 @@ struct TestSignedVarRightShifts {
       T minT = static_cast<T>(min + i);
       expected[i] = T(minT / 2 + (minT < 0 ? minT % 2 : 0));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vn >> Set(d, 1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(vn, Set(d, 1)));
 
     // Differing shift counts (assumes < 32 lanes)
     for (size_t i = 0; i < N; ++i) {
       expected[i] = LimitsMax<T>() >> i;
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vmax >> vi);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(vmax, vi));
 #else  // HWY_DISABLE_BROKEN_AVX3_TESTS
     (void)d;
 #endif
@@ -535,10 +535,10 @@ struct TestUnsignedMul {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
 
-    HWY_ASSERT_VEC_EQ(d, v0, v0 * v0);
-    HWY_ASSERT_VEC_EQ(d, v1, v1 * v1);
-    HWY_ASSERT_VEC_EQ(d, vi, v1 * vi);
-    HWY_ASSERT_VEC_EQ(d, vi, vi * v1);
+    HWY_ASSERT_VEC_EQ(d, v0, Mul(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, v1, Mul(v1, v1));
+    HWY_ASSERT_VEC_EQ(d, vi, Mul(v1, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, Mul(vi, v1));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((1 + i) * (1 + i));
@@ -548,17 +548,17 @@ struct TestUnsignedMul {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((1 + i) * (3 + i));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi * vj);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vj));
 
     const T max = LimitsMax<T>();
     const auto vmax = Set(d, max);
-    HWY_ASSERT_VEC_EQ(d, vmax, vmax * v1);
-    HWY_ASSERT_VEC_EQ(d, vmax, v1 * vmax);
+    HWY_ASSERT_VEC_EQ(d, vmax, Mul(vmax, v1));
+    HWY_ASSERT_VEC_EQ(d, vmax, Mul(v1, vmax));
 
     const size_t bits = sizeof(T) * 8;
     const uint64_t mask = (1ull << bits) - 1;
     const T max2 = (uint64_t(max) * max) & mask;
-    HWY_ASSERT_VEC_EQ(d, Set(d, max2), vmax * vmax);
+    HWY_ASSERT_VEC_EQ(d, Set(d, max2), Mul(vmax, vmax));
   }
 };
 
@@ -572,21 +572,21 @@ struct TestSignedMul {
     const auto v1 = Set(d, T(1));
     const auto vi = Iota(d, 1);
     const auto vn = Iota(d, -T(N));
-    HWY_ASSERT_VEC_EQ(d, v0, v0 * v0);
-    HWY_ASSERT_VEC_EQ(d, v1, v1 * v1);
-    HWY_ASSERT_VEC_EQ(d, vi, v1 * vi);
-    HWY_ASSERT_VEC_EQ(d, vi, vi * v1);
+    HWY_ASSERT_VEC_EQ(d, v0, Mul(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, v1, Mul(v1, v1));
+    HWY_ASSERT_VEC_EQ(d, vi, Mul(v1, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, Mul(vi, v1));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((1 + i) * (1 + i));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi * vi);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vi));
 
     for (int i = 0; i < static_cast<int>(N); ++i) {
       expected[i] = static_cast<T>((-T(N) + i) * (1 + i));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vn * vi);
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi * vn);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vn, vi));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vn));
   }
 };
 
@@ -757,14 +757,14 @@ struct TestDiv {
     const auto v1 = Set(d, T(1));
 
     // Unchanged after division by 1.
-    HWY_ASSERT_VEC_EQ(d, v, v / v1);
+    HWY_ASSERT_VEC_EQ(d, v, Div(v, v1));
 
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
       expected[i] = (T(i) - 2) / T(2);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), v / Set(d, T(2)));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Div(v, Set(d, T(2))));
   }
 };
 
@@ -774,7 +774,7 @@ struct TestApproximateReciprocal {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v = Iota(d, T(-2));
-    const auto nonzero = IfThenElse(v == Zero(d), Set(d, T(1)), v);
+    const auto nonzero = IfThenElse(Eq(v, Zero(d)), Set(d, T(1)), v);
     const size_t N = Lanes(d);
     auto input = AllocateAligned<T>(N);
     Store(nonzero, d, input.get());

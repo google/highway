@@ -3492,6 +3492,60 @@ HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
   return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
+// ================================================== Operator wrapper
+
+// These apply to all x86_*-inl.h because there are no restrictions on V.
+
+template <class V>
+HWY_API V Add(V a, V b) {
+  return a + b;
+}
+template <class V>
+HWY_API V Sub(V a, V b) {
+  return a - b;
+}
+
+template <class V>
+HWY_API V Mul(V a, V b) {
+  return a * b;
+}
+template <class V>
+HWY_API V Div(V a, V b) {
+  return a / b;
+}
+
+template <class V>
+V Shl(V a, V b) {
+  return a << b;
+}
+template <class V>
+V Shr(V a, V b) {
+  return a >> b;
+}
+
+template <class V>
+HWY_API auto Eq(V a, V b) -> decltype(a == b) {
+  return a == b;
+}
+template <class V>
+HWY_API auto Lt(V a, V b) -> decltype(a == b) {
+  return a < b;
+}
+
+template <class V>
+HWY_API auto Gt(V a, V b) -> decltype(a == b) {
+  return a > b;
+}
+template <class V>
+HWY_API auto Ge(V a, V b) -> decltype(a == b) {
+  return a >= b;
+}
+
+template <class V>
+HWY_API auto Le(V a, V b) -> decltype(a == b) {
+  return a <= b;
+}
+
 #if !defined(__aarch64__)
 #undef vuzp1_s8
 #undef vuzp1_u8

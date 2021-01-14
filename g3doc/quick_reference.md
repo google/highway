@@ -411,10 +411,9 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 *   <code>Vec&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
 
 *   <code>Vec&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one 128-bit
-    block loaded from `p` and broadcasted into all 128-bit block\[s\]. This
-    enables a specialized `U32FromU8` that avoids a 3-cycle overhead on
-    AVX2/AVX-512. This may be faster than broadcasting single values, and is
-    more convenient than preparing constants for the maximum vector length.
+    block loaded from `p` and broadcasted into all 128-bit block\[s\]. This may
+    be faster than broadcasting single values, and is more convenient than
+    preparing constants for the actual vector length.
 
 #### Gather
 
@@ -476,6 +475,7 @@ All functions except Stream are defined in cache_control.h.
 *   `V`,`D`: (`u8,u32`) \
     <code>Vec&lt;D&gt; **U32FromU8**(V)</code>: special-case `u8` to `u32`
     conversion when all blocks of `V` are identical, e.g. from `LoadDup128`.
+    DEPRECATED and will be removed before 1.0.
 
 *   `V`,`D`: (`u32,u8`) \
     <code>Vec&lt;D&gt; **U8FromU32**(V)</code>: special-case `u32` to `u8`

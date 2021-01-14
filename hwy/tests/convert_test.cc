@@ -223,25 +223,23 @@ struct TestDemoteTo {
 };
 
 HWY_NOINLINE void TestAllDemoteTo() {
-  const ForPartialVectors<TestDemoteTo<uint8_t>> to_u8;
-  to_u8(int16_t());
-  to_u8(int32_t());
+  ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int16_t());
+  ForDemoteVectors<TestDemoteTo<uint8_t>, 4>()(int32_t());
 
-  const ForPartialVectors<TestDemoteTo<int8_t>> to_i8;
-  to_i8(int16_t());
-  to_i8(int32_t());
+  ForDemoteVectors<TestDemoteTo<int8_t>, 2>()(int16_t());
+  ForDemoteVectors<TestDemoteTo<int8_t>, 4>()(int32_t());
 
-  const ForPartialVectors<TestDemoteTo<int16_t>> to_i16;
+  const ForDemoteVectors<TestDemoteTo<int16_t>, 2> to_i16;
   to_i16(int32_t());
 
-  const ForPartialVectors<TestDemoteTo<uint16_t>> to_u16;
+  const ForDemoteVectors<TestDemoteTo<uint16_t>, 2> to_u16;
   to_u16(int32_t());
 
 #if HWY_CAP_FLOAT64
-  const ForPartialVectors<TestDemoteTo<float>> to_float;
+  const ForDemoteVectors<TestDemoteTo<float>, 2> to_float;
   to_float(double());
 
-  const ForPartialVectors<TestDemoteTo<int32_t>> to_i32;
+  const ForDemoteVectors<TestDemoteTo<int32_t>, 2> to_i32;
   to_i32(double());
 #endif
 }
@@ -254,11 +252,13 @@ struct TestConvertU8 {
     const Repartition<uint8_t, D> du8;
     auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
     Store(Iota(du8, 0), du8, lanes8.get());
+#if HWY_TARGET != HWY_RVV
     HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0),
                       U32FromU8(LoadDup128(du8, lanes8.get())));
     Store(Iota(du8, 0x7F), du8, lanes8.get());
     HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0x7F),
                       U32FromU8(LoadDup128(du8, lanes8.get())));
+    #endif
     const Rebind<uint8_t, D> p8;
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0), U8FromU32(Iota(du32, 0)));
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0x7F), U8FromU32(Iota(du32, 0x7F)));
@@ -384,7 +384,7 @@ HWY_NOINLINE void TestAllConvertFloatInt() {
 #endif
 
 #if HWY_CAP_FLOAT64
-  ForPartialVectors<TestI32F64>()(double());
+  ForDemoteVectors<TestI32F64, 2>()(double());
 #endif
 }
 
