@@ -398,7 +398,13 @@ HWY_API Vec128<uint16_t, N> AverageRound(const Vec128<uint16_t, N> a,
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
 template <size_t N>
 HWY_API Vec128<int8_t, N> Abs(const Vec128<int8_t, N> v) {
+#if HWY_COMPILER_MSVC
+  // Workaround for incorrect codegen? (reaches breakpoint)
+  const auto zero = Zero(Simd<int8_t, N>());
+  return Vec128<int8_t, N>{_mm_max_epi8(v.raw, (zero - v).raw)};
+#else
   return Vec128<int8_t, N>{_mm_abs_epi8(v.raw)};
+#endif
 }
 template <size_t N>
 HWY_API Vec128<int16_t, N> Abs(const Vec128<int16_t, N> v) {
