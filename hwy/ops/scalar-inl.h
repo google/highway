@@ -895,10 +895,10 @@ HWY_INLINE bool AllTrue(const Mask1<T> mask) {
 }
 
 template <typename T>
-HWY_INLINE uint64_t BitsFromMask(const Mask1<T> mask) {
-  return mask.bits & 1;
+HWY_INLINE size_t StoreMaskBits(const Mask1<T> mask, uint8_t* p) {
+  *p = AllTrue(mask);
+  return 1;
 }
-
 template <typename T>
 HWY_INLINE size_t CountTrue(const Mask1<T> mask) {
   return mask.bits == 0 ? 0 : 1;

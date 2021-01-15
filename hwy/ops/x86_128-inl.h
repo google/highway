@@ -2504,29 +2504,36 @@ constexpr uint64_t OnlyActive(uint64_t bits) {
   return ((N * sizeof(T)) == 16) ? bits : bits & ((1ull << N) - 1);
 }
 
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}
+
 }  // namespace detail
 
 template <typename T, size_t N>
-HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
-  return detail::OnlyActive<T, N>(
-      detail::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  const size_t kNumBytes = (N + 7)/8;
+  memcpy(p, &bits, kNumBytes);
+  return kNumBytes;
 }
 
 template <typename T>
 HWY_API bool AllFalse(const Mask128<T> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
-  return BitsFromMask(mask) == 0;
+  return detail::BitsFromMask(mask) == 0;
 }
 
 template <typename T>
 HWY_API bool AllTrue(const Mask128<T> mask) {
   constexpr uint64_t kAllBits = (1ull << (16 / sizeof(T))) - 1;
-  return BitsFromMask(mask) == kAllBits;
+  return detail::BitsFromMask(mask) == kAllBits;
 }
 
 template <typename T>
 HWY_API size_t CountTrue(const Mask128<T> mask) {
-  return PopCount(BitsFromMask(mask));
+  return PopCount(detail::BitsFromMask(mask));
 }
 
 // ------------------------------ Compress
@@ -2652,7 +2659,7 @@ HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
-  return detail::Compress(v, BitsFromMask(mask));
+  return detail::Compress(v, detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressStore
@@ -2660,7 +2667,7 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
 template <typename T, size_t N>
 HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N> d, T* HWY_RESTRICT aligned) {
-  const uint64_t mask_bits = BitsFromMask(mask);
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
   // Avoid _mm_maskmoveu_si128 (>500 cycle latency because it bypasses caches).
   Store(detail::Compress(v, mask_bits), d, aligned);
   return PopCount(mask_bits);

@@ -1994,12 +1994,20 @@ constexpr uint64_t OnlyActive(uint64_t bits) {
   return ((N * sizeof(T)) == 16) ? bits : bits & ((1ull << N) - 1);
 }
 
+template <typename T, size_t N>
+HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return OnlyActive<T, N>(
+      BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}
+
 }  // namespace impl
 
 template <typename T, size_t N>
-HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
-  return impl::OnlyActive<T, N>(
-      impl::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  const size_t kNumBytes = (N + 7)/8;
+  memcpy(p, &bits, kNumBytes);
+  return kNumBytes;
 }
 
 template <typename T>
@@ -2130,7 +2138,7 @@ HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
-  return detail::Compress(v, BitsFromMask(mask));
+  return detail::Compress(v, impl::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressStore
@@ -2138,7 +2146,7 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
 template <typename T, size_t N>
 HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N> d, T* HWY_RESTRICT aligned) {
-  const uint64_t mask_bits = BitsFromMask(mask);
+  const uint64_t mask_bits = impl::BitsFromMask(mask);
   Store(detail::Compress(v, mask_bits), d, aligned);
   return PopCount(mask_bits);
 }

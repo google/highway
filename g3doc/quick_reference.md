@@ -360,8 +360,10 @@ Let `M` denote a mask capable of storing true/false for each lane.
 
 *   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
 
-*   <code>uint64_t **BitsFromMask**(M m)</code>: returns `sum{1 << i}` for all
-    indices `i` where `m[i]` is true. DEPRECATED and will be removed before 1.0.
+*   <code>size_t **StoreMaskBits**(M m, uint8_t* p)</code>: stores a bit array
+    indicating whether `m[i]` is true, in ascending order of `i`, filling the
+    bits of each byte from least to most significant, then proceeding to the
+    next byte. Returns the number of (partial) bytes written.
 
 *   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
     [0, N]. This is typically more expensive than AllTrue/False.

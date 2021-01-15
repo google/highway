@@ -2125,28 +2125,36 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask256<T> mask) {
   return static_cast<unsigned>(_mm256_movemask_pd(sign_bits));
 }
 
+template <typename T>
+HWY_API uint64_t BitsFromMask(const Mask256<T> mask) {
+  return BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
+}
+
 }  // namespace detail
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(const Mask256<T> mask) {
-  return detail::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
+HWY_INLINE size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  const size_t kNumBytes = (4 + sizeof(T) - 1) / sizeof(T);
+  memcpy(p, &bits, kNumBytes);
+  return kNumBytes;
 }
 
 template <typename T>
 HWY_API bool AllFalse(const Mask256<T> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
-  return BitsFromMask(mask) == 0;
+  return detail::BitsFromMask(mask) == 0;
 }
 
 template <typename T>
 HWY_API bool AllTrue(const Mask256<T> mask) {
   constexpr uint64_t kAllBits = (1ull << (32 / sizeof(T))) - 1;
-  return BitsFromMask(mask) == kAllBits;
+  return detail::BitsFromMask(mask) == kAllBits;
 }
 
 template <typename T>
 HWY_API size_t CountTrue(const Mask256<T> mask) {
-  return PopCount(BitsFromMask(mask));
+  return PopCount(detail::BitsFromMask(mask));
 }
 
 // ------------------------------ Compress
@@ -2309,7 +2317,7 @@ HWY_API Vec256<double> Compress(Vec256<double> v, const uint64_t mask_bits) {
 
 template <typename T>
 HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
-  return detail::Compress(v, BitsFromMask(mask));
+  return detail::Compress(v, detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressStore
@@ -2317,7 +2325,7 @@ HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
 template <typename T>
 HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
                              T* HWY_RESTRICT aligned) {
-  const uint64_t mask_bits = BitsFromMask(mask);
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
   Store(detail::Compress(v, mask_bits), d, aligned);
   return PopCount(mask_bits);
 }

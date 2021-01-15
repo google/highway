@@ -3032,130 +3032,6 @@ HWY_INLINE Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
 
 #endif
 
-// ------------------------------ Compress
-
-namespace detail {
-
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Idx32x4FromBits(const uint64_t mask_bits) {
-  HWY_DASSERT(mask_bits < 16);
-
-  // There are only 4 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t packed_array[16 * 16] = {
-      0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
-      4,  5,  6,  7,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  4,  5,  6,  7,  0,  1,  2,  3,  0,  1,  2,  3,  //
-      8,  9,  10, 11, 0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  8,  9,  10, 11, 0,  1,  2,  3,  0,  1,  2,  3,  //
-      4,  5,  6,  7,  8,  9,  10, 11, 0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 0,  1,  2,  3,  //
-      12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  //
-      4,  5,  6,  7,  12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  4,  5,  6,  7,  12, 13, 14, 15, 0,  1,  2,  3,  //
-      8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  //
-      0,  1,  2,  3,  8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  //
-      4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  //
-      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15};
-
-  const Simd<T, N> d;
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, Load(d8, packed_array + 16 * mask_bits));
-}
-
-#if HWY_CAP_INTEGER64 || HWY_CAP_FLOAT64
-
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Idx64x2FromBits(const uint64_t mask_bits) {
-  HWY_DASSERT(mask_bits < 4);
-
-  // There are only 2 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t packed_array[4 * 16] = {
-      0, 1, 2,  3,  4,  5,  6,  7,  0, 1, 2,  3,  4,  5,  6,  7,  //
-      0, 1, 2,  3,  4,  5,  6,  7,  0, 1, 2,  3,  4,  5,  6,  7,  //
-      8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2,  3,  4,  5,  6,  7,  //
-      0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15};
-
-  const Simd<T, N> d;
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, Load(d8, packed_array + 16 * mask_bits));
-}
-
-#endif
-
-// Helper function called by both Compress and CompressStore - avoids a
-// redundant BitsFromMask in the latter.
-
-template <size_t N>
-HWY_API Vec128<uint32_t, N> Compress(Vec128<uint32_t, N> v,
-                                     const uint64_t mask_bits) {
-  const auto idx = detail::Idx32x4FromBits<uint32_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-}
-template <size_t N>
-HWY_API Vec128<int32_t, N> Compress(Vec128<int32_t, N> v,
-                                    const uint64_t mask_bits) {
-  const auto idx = detail::Idx32x4FromBits<int32_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-}
-
-#if HWY_CAP_INTEGER64
-
-template <size_t N>
-HWY_API Vec128<uint64_t, N> Compress(Vec128<uint64_t, N> v,
-                                     const uint64_t mask_bits) {
-  const auto idx = detail::Idx64x2FromBits<uint64_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-}
-template <size_t N>
-HWY_API Vec128<int64_t, N> Compress(Vec128<int64_t, N> v,
-                                    const uint64_t mask_bits) {
-  const auto idx = detail::Idx64x2FromBits<int64_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-}
-
-#endif
-
-template <size_t N>
-HWY_API Vec128<float, N> Compress(Vec128<float, N> v,
-                                  const uint64_t mask_bits) {
-  const auto idx = detail::Idx32x4FromBits<int32_t, N>(mask_bits);
-  const Simd<float, N> df;
-  const Simd<int32_t, N> di;
-  return BitCast(df, TableLookupBytes(BitCast(di, v), idx));
-}
-
-#if HWY_CAP_FLOAT64
-
-template <size_t N>
-HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
-                                   const uint64_t mask_bits) {
-  const auto idx = detail::Idx64x2FromBits<int64_t, N>(mask_bits);
-  const Simd<double, N> df;
-  const Simd<int64_t, N> di;
-  return BitCast(df, TableLookupBytes(BitCast(di, v), idx));
-}
-
-#endif
-
-}  // namespace detail
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
-  return detail::Compress(v, BitsFromMask(mask));
-}
-
-// ------------------------------ CompressStore
-
-template <typename T, size_t N>
-HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
-                             Simd<T, N> d, T* HWY_RESTRICT aligned) {
-  const uint64_t mask_bits = BitsFromMask(mask);
-  Store(detail::Compress(v, mask_bits), d, aligned);
-  return PopCount(mask_bits);
-}
-
 // ------------------------------ Reductions
 
 #if defined(__aarch64__)
@@ -3480,16 +3356,148 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
 #endif
 }
 
-}  // namespace detail
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
-  return detail::OnlyActive<T, N>(
-      detail::BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  const size_t kNumBytes = (N + 7) / 8;
+  memcpy(p, &bits, kNumBytes);
+  return kNumBytes;
 }
 
 template <typename T>
 HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
   return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
+}
+
+// ------------------------------ Compress
+
+namespace detail {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Idx32x4FromBits(const uint64_t mask_bits) {
+  HWY_DASSERT(mask_bits < 16);
+
+  // There are only 4 lanes, so we can afford to load the index vector directly.
+  alignas(16) constexpr uint8_t packed_array[16 * 16] = {
+      0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
+      4,  5,  6,  7,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  4,  5,  6,  7,  0,  1,  2,  3,  0,  1,  2,  3,  //
+      8,  9,  10, 11, 0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  8,  9,  10, 11, 0,  1,  2,  3,  0,  1,  2,  3,  //
+      4,  5,  6,  7,  8,  9,  10, 11, 0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 0,  1,  2,  3,  //
+      12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  //
+      4,  5,  6,  7,  12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  4,  5,  6,  7,  12, 13, 14, 15, 0,  1,  2,  3,  //
+      8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,  //
+      0,  1,  2,  3,  8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  //
+      4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  //
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15};
+
+  const Simd<T, N> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, Load(d8, packed_array + 16 * mask_bits));
+}
+
+#if HWY_CAP_INTEGER64 || HWY_CAP_FLOAT64
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Idx64x2FromBits(const uint64_t mask_bits) {
+  HWY_DASSERT(mask_bits < 4);
+
+  // There are only 2 lanes, so we can afford to load the index vector directly.
+  alignas(16) constexpr uint8_t packed_array[4 * 16] = {
+      0, 1, 2,  3,  4,  5,  6,  7,  0, 1, 2,  3,  4,  5,  6,  7,  //
+      0, 1, 2,  3,  4,  5,  6,  7,  0, 1, 2,  3,  4,  5,  6,  7,  //
+      8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2,  3,  4,  5,  6,  7,  //
+      0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15};
+
+  const Simd<T, N> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, Load(d8, packed_array + 16 * mask_bits));
+}
+
+#endif
+
+// Helper function called by both Compress and CompressStore - avoids a
+// redundant BitsFromMask in the latter.
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> Compress(Vec128<uint32_t, N> v,
+                                     const uint64_t mask_bits) {
+  const auto idx = detail::Idx32x4FromBits<uint32_t, N>(mask_bits);
+  return TableLookupBytes(v, idx);
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> Compress(Vec128<int32_t, N> v,
+                                    const uint64_t mask_bits) {
+  const auto idx = detail::Idx32x4FromBits<int32_t, N>(mask_bits);
+  return TableLookupBytes(v, idx);
+}
+
+#if HWY_CAP_INTEGER64
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> Compress(Vec128<uint64_t, N> v,
+                                     const uint64_t mask_bits) {
+  const auto idx = detail::Idx64x2FromBits<uint64_t, N>(mask_bits);
+  return TableLookupBytes(v, idx);
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> Compress(Vec128<int64_t, N> v,
+                                    const uint64_t mask_bits) {
+  const auto idx = detail::Idx64x2FromBits<int64_t, N>(mask_bits);
+  return TableLookupBytes(v, idx);
+}
+
+#endif
+
+template <size_t N>
+HWY_API Vec128<float, N> Compress(Vec128<float, N> v,
+                                  const uint64_t mask_bits) {
+  const auto idx = detail::Idx32x4FromBits<int32_t, N>(mask_bits);
+  const Simd<float, N> df;
+  const Simd<int32_t, N> di;
+  return BitCast(df, TableLookupBytes(BitCast(di, v), idx));
+}
+
+#if HWY_CAP_FLOAT64
+
+template <size_t N>
+HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
+                                   const uint64_t mask_bits) {
+  const auto idx = detail::Idx64x2FromBits<int64_t, N>(mask_bits);
+  const Simd<double, N> df;
+  const Simd<int64_t, N> di;
+  return BitCast(df, TableLookupBytes(BitCast(di, v), idx));
+}
+
+#endif
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
+  return detail::Compress(v, detail::BitsFromMask(mask));
+}
+
+// ------------------------------ CompressStore
+
+template <typename T, size_t N>
+HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
+                             Simd<T, N> d, T* HWY_RESTRICT aligned) {
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  Store(detail::Compress(v, mask_bits), d, aligned);
+  return PopCount(mask_bits);
 }
 
 // ================================================== Operator wrapper

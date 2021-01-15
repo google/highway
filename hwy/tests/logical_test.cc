@@ -455,48 +455,43 @@ HWY_NOINLINE void TestAllAllTrueFalse() {
   ForAllTypes(ForFullVectors<TestAllTrueFalse>());
 }
 
-class TestBitsFromMask {
+class TestStoreMaskBits {
  public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
-    // Fixed patterns: all off/on/odd/even.
-    Bits(t, d, 0);
-    Bits(t, d, ~0ull);
-    Bits(t, d, 0x5555555555555555ull);
-    Bits(t, d, 0xAAAAAAAAAAAAAAAAull);
-
-    // Random mask patterns.
     std::mt19937_64 rng;
-    for (size_t i = 0; i < 100; ++i) {
-      Bits(t, d, rng());
-    }
-  }
-
- private:
-  template <typename T, class D>
-  HWY_NOINLINE void Bits(T /*unused*/, D d, uint64_t bits) {
-    // Generate a mask matching the given bits
     const size_t N = Lanes(d);
-    auto mask_lanes = AllocateAligned<T>(N);
-    memset(mask_lanes.get(), 0xFF, N * sizeof(T));
-    for (size_t i = 0; i < N; ++i) {
-      if ((bits & (1ull << i)) == 0) mask_lanes[i] = 0;
+    auto lanes = AllocateAligned<T>(N);
+    const size_t expected_bytes = (N + 7) / 8;
+    auto bits = AllocateAligned<uint8_t>(expected_bytes);
+
+    for (size_t rep = 0; rep < 100; ++rep) {
+      // Generate random mask pattern.
+      for (size_t i = 0; i < N; ++i) {
+        lanes[i] = (rng() & 1024) ? 1 : 0;
+      }
+      const auto mask = Load(d, lanes.get()) == Zero(d);
+
+      const size_t bytes_written = StoreMaskBits(mask, bits.get());
+
+      HWY_ASSERT_EQ(expected_bytes, bytes_written);
+      size_t i = 0;
+      // Stored bits must match original mask
+      for (; i < N; ++i) {
+        const bool bit = (bits[i / 8] & (1 << (i % 8))) != 0;
+        HWY_ASSERT_EQ(bit, lanes[i] == 0);
+      }
+      // Any partial bits in the last byte must be zero
+      for (; i < 8 * bytes_written; ++i) {
+        const int bit = (bits[i / 8] & (1 << (i % 8)));
+        HWY_ASSERT_EQ(bit, 0);
+      }
     }
-    const auto mask = MaskFromVec(Load(d, mask_lanes.get()));
-
-    const uint64_t actual_bits = BitsFromMask(mask);
-
-    // Clear bits that cannot be returned for this D.
-    const size_t shift = 64 - N;  // 0..63 - avoids UB for N == 64.
-    HWY_ASSERT(shift < 64);
-    const uint64_t expected_bits = (bits << shift) >> shift;
-
-    HWY_ASSERT_EQ(expected_bits, actual_bits);
   }
 };
 
-HWY_NOINLINE void TestAllBitsFromMask() {
-  ForAllTypes(ForPartialVectors<TestBitsFromMask>());
+HWY_NOINLINE void TestAllStoreMaskBits() {
+  ForAllTypes(ForPartialVectors<TestStoreMaskBits>());
 }
 
 struct TestCountTrue {
@@ -603,7 +598,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBitsFromMask);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskLogical);
 

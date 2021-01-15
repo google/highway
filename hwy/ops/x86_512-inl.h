@@ -2362,8 +2362,10 @@ HWY_API bool AllTrue(const Mask512<T> v) {
 }
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(const Mask512<T> mask) {
-  return mask.raw;
+HWY_INLINE size_t StoreMaskBits(const Mask512<T> mask, uint8_t* p) {
+  const size_t kNumBytes = 8 / sizeof(T);
+  memcpy(p, &mask.raw, kNumBytes);
+  return kNumBytes;
 }
 
 template <typename T>
