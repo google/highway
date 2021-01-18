@@ -1912,16 +1912,6 @@ HWY_API Vec256<uint64_t> PromoteTo(Full256<uint64_t> /* tag */,
   return Vec256<uint64_t>{_mm256_cvtepu32_epi64(v.raw)};
 }
 
-// Special case for "v" with all blocks equal (e.g. from LoadDup128):
-// single-cycle latency instead of 3.
-HWY_API Vec256<uint32_t> U32FromU8(const Vec256<uint8_t> v) {
-  const Full256<uint32_t> d32;
-  alignas(32) static constexpr uint32_t k32From8[8] = {
-      0xFFFFFF00UL, 0xFFFFFF01UL, 0xFFFFFF02UL, 0xFFFFFF03UL,
-      0xFFFFFF04UL, 0xFFFFFF05UL, 0xFFFFFF06UL, 0xFFFFFF07UL};
-  return TableLookupBytes(BitCast(d32, v), Load(d32, k32From8));
-}
-
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then ZipUpper/lo followed by
@@ -2163,18 +2153,14 @@ namespace detail {
 
 HWY_INLINE Vec256<uint32_t> Idx32x8FromBits(const uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 256);
-
-  const Full256<uint8_t> d8;
   const Full256<uint32_t> d32;
-  using V8 = Vec256<uint8_t>;
-  using V32 = Vec256<uint32_t>;
 
   // We need a masked Iota(). With 8 lanes, there are 256 combinations and a LUT
   // of SetTableIndices would require 8 KiB, a large part of L1D. The other
   // alternative is _pext_u64, but this is extremely slow on Zen2 (18 cycles)
   // and unavailable in 32-bit builds. We instead compress each index into 4
   // bits, for a total of 1 KiB.
-  alignas(16) constexpr uint32_t packed_array[256 + 4] = {
+  alignas(16) constexpr uint32_t packed_array[256] = {
       0x00000000, 0x00000000, 0x00000001, 0x00000010, 0x00000002, 0x00000020,
       0x00000021, 0x00000210, 0x00000003, 0x00000030, 0x00000031, 0x00000310,
       0x00000032, 0x00000320, 0x00000321, 0x00003210, 0x00000004, 0x00000040,
@@ -2219,20 +2205,13 @@ HWY_INLINE Vec256<uint32_t> Idx32x8FromBits(const uint64_t mask_bits) {
       0x00765421, 0x07654210, 0x00076543, 0x00765430, 0x00765431, 0x07654310,
       0x00765432, 0x07654320, 0x07654321, 0x76543210};
 
-  // Avoid Set and PromoteTo because of their 3 cycle lane-crossing latency.
-  // We can instead LoadDup128 to replicate packed[0] into bits 128..160 as
-  // required by U32FromU8. packed[1..3] are ignored but accessible because the
-  // array is padded.
-  const V32 packed = LoadDup128(d32, packed_array + mask_bits);
-
-  // Expand 8 nibbles into the lower 8 bytes of each 128-bit half.
-  alignas(16) constexpr uint32_t mask4[4] = {HWY_REP4(0x0F0F0F0F)};
-  const V8 lo = BitCast(d8, packed & LoadDup128(d32, mask4));
   // No need to mask because _mm256_permutevar8x32_epi32 ignores bits 3..31.
-  const V8 hi = BitCast(d8, ShiftRight<4>(packed));
-  const V8 bytes = InterleaveLower(lo, hi);
-
-  return U32FromU8(bytes);
+  // Just shift each copy of the 32 bit LUT to extract its 4-bit fields.
+  // If broadcasting 32-bit from memory incurs the 3-cycle block-crossing
+  // latency, it may be faster to use LoadDup128 and PSHUFB.
+  const auto packed = Set(d32, packed_array[mask_bits]);
+  alignas(32) constexpr uint32_t shifts[8] = {0, 4, 8, 12, 16, 20, 24, 28};
+  return packed >> Load(d32, shifts);
 }
 
 HWY_INLINE Vec256<uint32_t> Idx64x4FromBits(const uint64_t mask_bits) {

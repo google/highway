@@ -1827,11 +1827,6 @@ HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
   return Load(df, lanes64);
 }
 
-HWY_API Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
-  return Vec128<uint32_t>{
-      wasm_i32x4_widen_low_u16x8(wasm_i16x8_widen_low_u8x16(v.raw))};
-}
-
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <size_t N>

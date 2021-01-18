@@ -1924,11 +1924,6 @@ HWY_INLINE Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
   return Vec128<int32_t, N>(vget_low_s32(vreinterpretq_s32_u32(a)));
 }
 
-HWY_INLINE Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
-  return Vec128<uint32_t>(
-      vmovl_u16(vget_low_u16(vmovl_u8(vget_low_u8(v.raw)))));
-}
-
 // Signed: replicate sign bit to full vector.
 HWY_INLINE Vec128<int16_t> PromoteTo(Full128<int16_t> /* tag */,
                                      const Vec128<int8_t, 8> v) {

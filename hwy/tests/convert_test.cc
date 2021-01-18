@@ -252,13 +252,6 @@ struct TestConvertU8 {
     const Repartition<uint8_t, D> du8;
     auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
     Store(Iota(du8, 0), du8, lanes8.get());
-#if HWY_TARGET != HWY_RVV
-    HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0),
-                      U32FromU8(LoadDup128(du8, lanes8.get())));
-    Store(Iota(du8, 0x7F), du8, lanes8.get());
-    HWY_ASSERT_VEC_EQ(du32, Iota(du32, 0x7F),
-                      U32FromU8(LoadDup128(du8, lanes8.get())));
-    #endif
     const Rebind<uint8_t, D> p8;
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0), U8FromU32(Iota(du32, 0)));
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0x7F), U8FromU32(Iota(du32, 0x7F)));

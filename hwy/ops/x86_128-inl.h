@@ -2322,10 +2322,6 @@ HWY_API Vec128<double, N> PromoteTo(Simd<double, N> /* tag */,
   return Vec128<double, N>{_mm_cvtepi32_pd(v.raw)};
 }
 
-HWY_API Vec128<uint32_t> U32FromU8(const Vec128<uint8_t> v) {
-  return Vec128<uint32_t>{_mm_cvtepu8_epi32(v.raw)};
-}
-
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <size_t N>

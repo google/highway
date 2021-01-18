@@ -474,11 +474,6 @@ All functions except Stream are defined in cache_control.h.
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
     converted to 64-bit floating point.
 
-*   `V`,`D`: (`u8,u32`) \
-    <code>Vec&lt;D&gt; **U32FromU8**(V)</code>: special-case `u8` to `u32`
-    conversion when all blocks of `V` are identical, e.g. from `LoadDup128`.
-    DEPRECATED and will be removed before 1.0.
-
 *   `V`,`D`: (`u32,u8`) \
     <code>Vec&lt;D&gt; **U8FromU32**(V)</code>: special-case `u32` to `u8`
     conversion when all lanes of `V` are already clamped to `[0, 256)`.

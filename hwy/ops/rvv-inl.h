@@ -862,11 +862,6 @@ HWY_API VFromD<Simd<int32_t, N>> PromoteTo(Simd<int32_t, N> d,
   return BitCast(d, PromoteTo(Simd<uint32_t, N>(), v));
 }
 
-template <class V, class D4 = Repartition<uint32_t, DFromV<V>>>
-HWY_API VFromD<D4> U32FromU8(const V v) {
-  return PromoteTo(D4(), v);
-}
-
 // ------------------------------ PromoteTo I
 
 HWY_API Vi16m2 PromoteTo(Di16m2 /* d */, Vi8m1 v) { return vsext_vf2_i16m2(v); }

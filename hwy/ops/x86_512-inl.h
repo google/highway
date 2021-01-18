@@ -2100,18 +2100,6 @@ HWY_API Vec512<uint64_t> PromoteTo(Full512<uint64_t> /* tag */,
   return Vec512<uint64_t>{_mm512_cvtepu32_epi64(v.raw)};
 }
 
-// Special case for "v" with all blocks equal (e.g. from LoadDup128):
-// single-cycle latency instead of 3.
-HWY_API Vec512<uint32_t> U32FromU8(const Vec512<uint8_t> v) {
-  const Full512<uint32_t> d32;
-  alignas(64) static constexpr uint32_t k32From8[16] = {
-      0xFFFFFF00UL, 0xFFFFFF01UL, 0xFFFFFF02UL, 0xFFFFFF03UL,
-      0xFFFFFF04UL, 0xFFFFFF05UL, 0xFFFFFF06UL, 0xFFFFFF07UL,
-      0xFFFFFF08UL, 0xFFFFFF09UL, 0xFFFFFF0AUL, 0xFFFFFF0BUL,
-      0xFFFFFF0CUL, 0xFFFFFF0DUL, 0xFFFFFF0EUL, 0xFFFFFF0FUL};
-  return TableLookupBytes(BitCast(d32, v), Load(d32, k32From8));
-}
-
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then ZipUpper/lo followed by

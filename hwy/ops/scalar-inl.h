@@ -778,10 +778,6 @@ HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
-HWY_INLINE Vec1<uint32_t> U32FromU8(const Vec1<uint8_t> v) {
-  return PromoteTo(Sisd<uint32_t>(), v);
-}
-
 HWY_INLINE Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
   return DemoteTo(Sisd<uint8_t>(), v);
 }
