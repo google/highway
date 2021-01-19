@@ -258,25 +258,7 @@ HWY_NOINLINE void TestGather() {
 #endif
 }
 
-// NOLINTNEXTLINE(google-readability-namespace-comments)
-}  // namespace HWY_NAMESPACE
-}  // namespace hwy
-HWY_AFTER_NAMESPACE();
-
-#if HWY_ONCE
-namespace hwy {
-
-class HwyMemoryTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMemoryTest);
-
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestStream);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestGather);
-
-TEST(HwyMemoryTest, TestCompile) {
-  // Test that these functions compile.
+HWY_NOINLINE void TestAllCache() {
   LoadFence();
   StoreFence();
   int test = 0;
@@ -284,5 +266,17 @@ TEST(HwyMemoryTest, TestCompile) {
   FlushCacheline(&test);
 }
 
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
 }  // namespace hwy
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+HWY_BEFORE_TEST(HwyMemoryTest);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestStream);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestGather);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
+HWY_AFTER_TEST();
 #endif

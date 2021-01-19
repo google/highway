@@ -584,12 +584,7 @@ HWY_NOINLINE void TestAllMaskLogical() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class HwyLogicalTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyLogicalTest);
-
+HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
@@ -601,6 +596,5 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskLogical);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

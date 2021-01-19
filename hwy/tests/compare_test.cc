@@ -118,15 +118,9 @@ HWY_NOINLINE void TestAllWeak() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class HwyCompareTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyCompareTest);
-
+HWY_BEFORE_TEST(HwyCompareTest);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestStrict);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeak);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

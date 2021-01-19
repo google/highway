@@ -18,6 +18,9 @@
 
 namespace hwy {
 
+// Currently requires gTest.
+#if !HWY_TEST_STANDALONE
+
 class HwyTargetsTest : public testing::Test {
  protected:
   void TearDown() override {
@@ -96,5 +99,7 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
   HWY_ASSERT((lowest_target ^ current_targets) == SupportedTargets());
   DisableTargets(0);  // Reset the mask.
 }
+
+#endif  // HWY_TEST_STANDALONE
 
 }  // namespace hwy

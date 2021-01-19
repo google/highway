@@ -25,14 +25,28 @@
 #include <string>
 #include <utility>  // std::forward
 
-#include "gtest/gtest.h"
 #include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
+
+#ifndef HWY_TEST_STANDALONE
+#if HWY_ARCH_RVV
+// TODO(janwas): remove once gTest is supported.
+#define HWY_TEST_STANDALONE 1
+#else
+#define HWY_TEST_STANDALONE 0
+#endif
+#endif
+
+#if !HWY_TEST_STANDALONE
+#include "gtest/gtest.h"
+#endif
 
 namespace hwy {
 
 // The maximum vector size used in tests when defining test data. DEPRECATED.
 constexpr size_t kTestMaxVectorSize = 64;
+
+#if !HWY_TEST_STANDALONE
 
 // googletest before 1.10 didn't define INSTANTIATE_TEST_SUITE_P() but instead
 // used INSTANTIATE_TEST_CASE_P which is now deprecated.
@@ -150,6 +164,52 @@ std::string TestParamTargetNameAndT(
   HWY_EXPORT(func_name);                                                    \
   TEST_P(suite, func_name) { HWY_DYNAMIC_DISPATCH(func_name)(GetParam()); } \
   static_assert(true, "For requiring trailing semicolon")
+
+#define HWY_BEFORE_TEST(suite)                      \
+  namespace hwy {                                   \
+  class suite : public hwy::TestWithParamTarget {}; \
+  HWY_TARGET_INSTANTIATE_TEST_SUITE_P(suite);       \
+  static_assert(true, "For requiring trailing semicolon")
+
+#define HWY_AFTER_TEST(suite) \
+  } /* namespace hwy */       \
+  static_assert(true, "For requiring trailing semicolon")
+
+#else
+
+// Cannot be a function, otherwise the HWY_EXPORT table defined here will not
+// be visible to HWY_DYNAMIC_DISPATCH.
+#define HWY_EXPORT_AND_TEST_P(suite, func_name)            \
+  HWY_EXPORT(func_name);                                   \
+  SetSupportedTargetsForTest(0);                           \
+  for (uint32_t target : SupportedAndGeneratedTargets()) { \
+    SetSupportedTargetsForTest(target);                    \
+    fprintf(stderr, "=== %s for %s:\n", #func_name,        \
+            TargetName(static_cast<int>(target)));         \
+    HWY_DYNAMIC_DISPATCH(func_name)();                     \
+  }                                                        \
+  /* Disable the mask after the test. */                   \
+  SetSupportedTargetsForTest(0);                           \
+  static_assert(true, "For requiring trailing semicolon")
+
+#define HWY_BEFORE_TEST(suite) \
+  namespace hwy {              \
+  void RunAll() {              \
+    static_assert(true, "For requiring trailing semicolon")
+
+#define HWY_AFTER_TEST(suite)        \
+  } /* RunAll*/                      \
+  } /* namespace hwy */              \
+  int main(int argc, char* argv[]) { \
+    hwy::RunAll();                   \
+    printf("Success.\n");            \
+    return 0;                        \
+  }                                  \
+  static_assert(true, "For requiring trailing semicolon")
+
+// TODO(janwas): this only works for tests with a single TEST.
+#define TEST(suite, name) void main()
+#endif
 
 // Calls test for each enabled and available target.
 template <class Func, typename... Args>

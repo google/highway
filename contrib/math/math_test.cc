@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cfloat>  // FLT_MAX
 #include <cmath>
 #include <cstring>  // memcpy
+#include <iostream>
 #include <type_traits>
 
 // clang-format off
@@ -90,9 +92,9 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
 
       const auto ulp = ComputeUlpDelta(actual, expected);
       max_ulp = std::max<uint64_t>(max_ulp, ulp);
-      ASSERT_LE(ulp, max_error_ulp)
-          << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d) << ">("
-          << value << ") expected: " << expected << " actual: " << actual;
+      HWY_ASSERT(ulp <= max_error_ulp);
+      // << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d) << ">("
+      // << value << ") expected: " << expected << " actual: " << actual;
     }
   }
   std::cout << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
@@ -172,11 +174,7 @@ DEFINE_MATH_TEST(Tanh,
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class HwyMathTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyMathTest);
+HWY_BEFORE_TEST(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcosh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsin);
@@ -191,6 +189,5 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

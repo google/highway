@@ -270,17 +270,11 @@ HWY_NOINLINE void TestAllCombineShiftRight() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class HwyCombineTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyCombineTest);
-
+HWY_BEFORE_TEST(HwyCombineTest);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllLowerHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllUpperHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombineShiftRight);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

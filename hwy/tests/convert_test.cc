@@ -421,18 +421,12 @@ HWY_NOINLINE void TestAllNearestInt() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class HwyConvertTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyConvertTest);
-
+HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertFloatInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNearestInt);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

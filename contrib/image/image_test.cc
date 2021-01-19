@@ -59,7 +59,7 @@ struct TestAlignedT {
         // Sanity check to prevent optimizing out the writes
         const auto x = std::uniform_int_distribution<size_t>(0, xsize - 1)(rng);
         const auto y = std::uniform_int_distribution<size_t>(0, ysize - 1)(rng);
-        ASSERT_LT(img.ConstRow(y)[x], 16 + Lanes(d));
+        HWY_ASSERT(img.ConstRow(y)[x] < 16 + Lanes(d));
       }
     }
   }
@@ -105,8 +105,7 @@ struct TestUnalignedT {
         auto lanes = AllocateAligned<T>(N);
         Store(accum, d, lanes.get());
         for (size_t i = 0; i < N; ++i) {
-          ASSERT_LT(lanes[i], 16)
-              << xsize << "x" << ysize << " vec size:" << HWY_LANES(uint8_t);
+          HWY_ASSERT(lanes[i] < 16);
         }
 #else  // Check that writing padding does not overwrite valid samples
        // Initialize only the valid samples
@@ -127,7 +126,7 @@ struct TestUnalignedT {
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);
           for (size_t x = 0; x < xsize - 1; ++x) {
-            ASSERT_EQ(static_cast<T>(x), row[x]);
+            HWY_ASSERT_EQ(static_cast<T>(x), row[x]);
           }
         }
 #endif
@@ -144,13 +143,8 @@ void TestUnaligned() { ForUnsignedTypes(TestUnalignedT()); }
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class ImageTest : public hwy::TestWithParamTarget {};
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(ImageTest);
-
+HWY_BEFORE_TEST(ImageTest);
 HWY_EXPORT_AND_TEST_P(ImageTest, TestAligned);
 HWY_EXPORT_AND_TEST_P(ImageTest, TestUnaligned);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

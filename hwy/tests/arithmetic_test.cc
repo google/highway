@@ -1090,12 +1090,7 @@ HWY_NOINLINE void TestAllNeg() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-class HwyArithmeticTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyArithmeticTest);
-
+HWY_BEFORE_TEST(HwyArithmeticTest);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatingArithmetic);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllShifts);
@@ -1115,6 +1110,5 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRound);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbsDiff);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
-
-}  // namespace hwy
+HWY_AFTER_TEST();
 #endif

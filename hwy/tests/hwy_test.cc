@@ -58,7 +58,7 @@ struct TestFloorLog2 {
     FloorLog2(df, in.get(), out.get());
     int sum = 0;
     for (size_t i = 0; i < N; ++i) {
-      EXPECT_EQ(expected[i], out[i]);
+      HWY_ASSERT_EQ(expected[i], out[i]);
       sum += out[i];
     }
     PreventElision(sum);
@@ -323,35 +323,30 @@ HWY_NOINLINE void TestAllGetLane() {
   ForAllTypes(ForPartialVectors<TestGetLane>());
 }
 
+HWY_NOINLINE void TestAllPopCount() {
+  HWY_ASSERT_EQ(size_t(0), PopCount(0u));
+  HWY_ASSERT_EQ(size_t(1), PopCount(1u));
+  HWY_ASSERT_EQ(size_t(1), PopCount(2u));
+  HWY_ASSERT_EQ(size_t(2), PopCount(3u));
+  HWY_ASSERT_EQ(size_t(1), PopCount(0x80000000u));
+  HWY_ASSERT_EQ(size_t(31), PopCount(0x7FFFFFFFu));
+  HWY_ASSERT_EQ(size_t(32), PopCount(0xFFFFFFFFu));
+
+  HWY_ASSERT_EQ(size_t(1), PopCount(0x80000000ull));
+  HWY_ASSERT_EQ(size_t(31), PopCount(0x7FFFFFFFull));
+  HWY_ASSERT_EQ(size_t(32), PopCount(0xFFFFFFFFull));
+  HWY_ASSERT_EQ(size_t(33), PopCount(0x10FFFFFFFFull));
+  HWY_ASSERT_EQ(size_t(63), PopCount(0xFFFEFFFFFFFFFFFFull));
+  HWY_ASSERT_EQ(size_t(64), PopCount(0xFFFFFFFFFFFFFFFFull));
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-namespace hwy {
-
-TEST(BaseTest, TestPopCount) {
-  EXPECT_EQ(0, PopCount(0u));
-  EXPECT_EQ(1, PopCount(1u));
-  EXPECT_EQ(1, PopCount(2u));
-  EXPECT_EQ(2, PopCount(3u));
-  EXPECT_EQ(1, PopCount(0x80000000u));
-  EXPECT_EQ(31, PopCount(0x7FFFFFFFu));
-  EXPECT_EQ(32, PopCount(0xFFFFFFFFu));
-
-  EXPECT_EQ(1, PopCount(0x80000000ull));
-  EXPECT_EQ(31, PopCount(0x7FFFFFFFull));
-  EXPECT_EQ(32, PopCount(0xFFFFFFFFull));
-  EXPECT_EQ(33, PopCount(0x10FFFFFFFFull));
-  EXPECT_EQ(63, PopCount(0xFFFEFFFFFFFFFFFFull));
-  EXPECT_EQ(64, PopCount(0xFFFFFFFFFFFFFFFFull));
-}
-
-class HwyHwyTest : public hwy::TestWithParamTarget {};
-
-HWY_TARGET_INSTANTIATE_TEST_SUITE_P(HwyHwyTest);
-
+HWY_BEFORE_TEST(HwyHwyTest);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllFloorLog2);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSumMulAdd);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestLimits);
@@ -363,6 +358,6 @@ HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSignBit);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllName);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllGetLane);
-
-}  // namespace hwy
+HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllPopCount);
+HWY_AFTER_TEST();
 #endif
