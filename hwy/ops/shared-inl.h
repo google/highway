@@ -62,6 +62,7 @@ static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
 #define HWY_IF_SIGNED_D(D) \
   hwy::EnableIf<IsSigned<TFromD<D>>() && !IsFloat<TFromD<D>>()>* = nullptr
 #define HWY_IF_FLOAT_D(D) hwy::EnableIf<IsFloat<TFromD<D>>()>* = nullptr
+#define HWY_IF_NOT_FLOAT_D(D) hwy::EnableIf<!IsFloat<TFromD<D>>()>* = nullptr
 
 #define HWY_IF_LANE_SIZE4_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 4>* = nullptr
 #define HWY_IF_LANE_SIZE8_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 8>* = nullptr

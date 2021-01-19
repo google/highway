@@ -178,10 +178,10 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
 #undef HWY_SPECIALIZE
 
 // vector = f(d), e.g. Zero
-#define HWY_RVV_RETV_ARGD(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                             \
-      NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* d */) {                 \
-    return v##OP##_##CHAR##SEW##m##LMUL();                       \
+#define HWY_RVV_RETV_ARGD(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)          \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_D(CHAR, SEW, LMUL) d) { \
+    (void)Lanes(d);                                                       \
+    return v##OP##_##CHAR##SEW##m##LMUL();                                \
   }
 
 // vector = f(vector), e.g. Not
@@ -202,19 +202,6 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                     \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) { \
     return v##OP##_vv_##CHAR##SEW##m##LMUL(a, b);                        \
-  }
-
-// mask = f(vector, vector), e.g. Lt
-#define HWY_RVV_RETM_ARGVV(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)        \
-  HWY_API HWY_RVV_M(MLEN)                                                \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) { \
-    return v##OP##_vv_##CHAR##SEW##m##LMUL##_b##MLEN(a, b);              \
-  }
-
-// mask = f(mask, mask), e.g. And
-#define HWY_RVV_RETM_ARGMM(MLEN, NAME, OP)                             \
-  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) a, HWY_RVV_M(MLEN) b) { \
-    return vm##OP##_mm_b##MLEN(a, b);                                  \
   }
 
 // ================================================== INIT
@@ -240,10 +227,11 @@ using VFromD = decltype(Zero(D()));
 
 // ------------------------------ Set
 // vector = f(d, scalar), e.g. Set
-#define HWY_RVV_SET(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                       \
-      NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* d */, HWY_RVV_T(BASE, SEW) arg) { \
-    return v##OP##_##CHAR##SEW##m##LMUL(arg);                              \
+#define HWY_RVV_SET(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                 \
+      NAME(HWY_RVV_D(CHAR, SEW, LMUL) d, HWY_RVV_T(BASE, SEW) arg) { \
+    (void)Lanes(d);                                                  \
+    return v##OP##_##CHAR##SEW##m##LMUL(arg);                        \
   }
 
 HWY_RVV_FOREACH_UI(HWY_RVV_SET, Set, mv_v_x)
@@ -289,15 +277,11 @@ namespace detail {
     return v##OP##_v_u8m##LMUL##_##CHAR##SEW##m##LMUL(v);                 \
   }
 
-template <class V, class DU = RebindToUnsigned<DFromV<V>>>
-HWY_API VFromD<DU> BitCastToUnsigned(V v) {
-  return BitCast(DU(), v);
-}
-
 // Float: first cast to/from unsigned
 #define HWY_RVV_CAST_F(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)             \
   HWY_API vuint8m##LMUL##_t BitCastToByte(HWY_RVV_V(BASE, SEW, LMUL) v) { \
-    return v##OP##_v_u##SEW##m##LMUL##_u8m##LMUL(BitCastToUnsigned(v));   \
+    return v##OP##_v_u##SEW##m##LMUL##_u8m##LMUL(                         \
+        v##OP##_v_f##SEW##m##LMUL##_u##SEW##m##LMUL(v));                  \
   }                                                                       \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) BitCastFromByte(                     \
       HWY_RVV_D(CHAR, SEW, LMUL) /* d */, vuint8m##LMUL##_t v) {          \
@@ -322,6 +306,15 @@ template <class D, class FromV>
 HWY_API VFromD<D> BitCast(D d, FromV v) {
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
+
+namespace detail {
+
+template <class V, class DU = RebindToUnsigned<DFromV<V>>>
+HWY_API VFromD<DU> BitCastToUnsigned(V v) {
+  return BitCast(DU(), v);
+}
+
+}  // namespace detail
 
 // ------------------------------ Iota
 
@@ -366,6 +359,20 @@ HWY_API V And(const V a, const V b) {
 }
 
 // ------------------------------ Or
+
+// Scalar argument plus mask. Used by VecFromMask.
+#define HWY_RVV_OR_MASK(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                     \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_T(BASE, SEW) imm,       \
+           HWY_RVV_M(MLEN) mask, HWY_RVV_V(BASE, SEW, LMUL) maskedoff) { \
+    return v##OP##_##CHAR##SEW##m##LMUL##_m(mask, maskedoff, v, imm);    \
+  }
+
+namespace detail {
+HWY_RVV_FOREACH_UI(HWY_RVV_OR_MASK, Or, or_vx)
+}  // namespace detail
+
+#undef HWY_RVV_OR_MASK
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Or, or)
 
@@ -612,6 +619,14 @@ HWY_API V Floor(const V v) {
 // vboolXX_t is a power of two divisor for vector bits. SLEN 8 / LMUL 1 = 1/8th
 // of all bits; SLEN 8 / LMUL 4 = half of all bits.
 
+// mask = f(vector, vector)
+#define HWY_RVV_RETM_ARGVV(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)        \
+  HWY_API HWY_RVV_M(MLEN)                                                \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) { \
+    (void)Lanes(DFromV<decltype(a)>());                                  \
+    return v##OP##_vv_##CHAR##SEW##m##LMUL##_b##MLEN(a, b);              \
+  }
+
 // ------------------------------ Eq
 HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVV, Eq, mseq)
 HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Eq, mfeq)
@@ -634,6 +649,8 @@ HWY_API auto Gt(const V a, const V b) -> decltype(Lt(a, b)) {
 // ------------------------------ Le
 HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Le, mfle)
 
+#undef HWY_RVV_RETM_ARGVV
+
 // ------------------------------ Ge
 
 template <class V>
@@ -649,6 +666,13 @@ HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
 }
 
 // ------------------------------ And
+
+// mask = f(mask_a, mask_b) (note arg2,arg1 order!)
+#define HWY_RVV_RETM_ARGMM(MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) a, HWY_RVV_M(MLEN) b) { \
+    return vm##OP##_mm_b##MLEN(b, a);                                  \
+  }
+
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, And, and)
 
 // ------------------------------ AndNot
@@ -659,6 +683,8 @@ HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Or, or)
 
 // ------------------------------ Xor
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Xor, xor)
+
+#undef HWY_RVV_RETM_ARGMM
 
 // ------------------------------ IfThenElse
 #define HWY_RVV_IF_THEN_ELSE(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP) \
@@ -692,12 +718,20 @@ HWY_API auto MaskFromVec(const V v) -> decltype(Eq(v, v)) {
   return Ne(v, Zero(DFromV<V>()));
 }
 
+template <class D>
+using MFromD = decltype(MaskFromVec(Zero(D())));
+
 // ------------------------------ VecFromMask
 
-template <class D, class M>
-HWY_API VFromD<D> VecFromMask(const D d, const M mask) {
-  // TODO(janwas): masked Set with maskedoff = 0 would require one op less.
-  return IfThenElseZero(mask, Set(d, -1));
+template <class D, HWY_IF_NOT_FLOAT_D(D)>
+HWY_API VFromD<D> VecFromMask(const D d, MFromD<D> mask) {
+  const auto v0 = Zero(d);
+  return detail::Or(v0, -1, mask, v0);
+}
+
+template <class D, HWY_IF_FLOAT_D(D)>
+HWY_API VFromD<D> VecFromMask(const D d, MFromD<D> mask) {
+  return BitCast(d, VecFromMask(RebindToUnsigned<D>(), mask));
 }
 
 // ------------------------------ ZeroIfNegative
@@ -705,6 +739,7 @@ HWY_API VFromD<D> VecFromMask(const D d, const M mask) {
 template <class V>
 HWY_API V ZeroIfNegative(const V v) {
   const auto v0 = Zero(DFromV<V>());
+  // We already have a zero constant, so avoid IfThenZeroElse.
   return IfThenElse(Lt(v, v0), v0, v);
 }
 
@@ -741,6 +776,7 @@ HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                        \
       NAME(HWY_RVV_D(CHAR, SEW, LMUL) d,                    \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {   \
+    (void)Lanes(d);                                         \
     return v##OP##SEW##_v_##CHAR##SEW##m##LMUL(p);          \
   }
 HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le)
@@ -789,12 +825,13 @@ HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
 
 // ------------------------------ GatherOffset
 
-#define HWY_RVV_GATHER(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)       \
-  HWY_API void NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* d */,             \
-                    const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base, \
-                    HWY_RVV_V(BASE, SEW, LMUL) offset) {            \
-    v##OP##ei##SEW##_v_##CHAR##SEW##m##LMUL(                        \
-        base, detail::BitCastToUnsigned(offset));                   \
+#define HWY_RVV_GATHER(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                          \
+      NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                \
+           const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,    \
+           HWY_RVV_V(int, SEW, LMUL) offset) {                \
+    return v##OP##ei##SEW##_v_##CHAR##SEW##m##LMUL(           \
+        base, detail::BitCastToUnsigned(offset));             \
   }
 HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lx)
 #undef HWY_RVV_GATHER
@@ -1054,7 +1091,7 @@ HWY_API VFromD<DU> SetTableIndices(D d, const TFromD<DU>* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
   const size_t N = Lanes(d);
   for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TFromD<D>>(N));
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TFromD<DU>>(N));
   }
 #endif
   return Load(DU(), idx);
@@ -1117,12 +1154,12 @@ template <class V>
 HWY_API V Shuffle2103(const V v) {
   using D = DFromV<V>;
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto i = detail::Iota0(D());
   // This shuffle is a rotation. We can compute subtraction modulo 4 (number of
   // lanes per 128-bit block) via bitwise ops.
+  const auto i = detail::Xor(detail::Iota0(D()), 1);
   const auto lsb = detail::And(i, 1);
   const auto borrow = Add(lsb, lsb);
-  const auto idx = detail::Xor(Xor(i, borrow), 1);
+  const auto idx = Xor(i, borrow);
   return TableLookupLanes(v, idx);
 }
 
@@ -1132,12 +1169,12 @@ template <class V>
 HWY_API V Shuffle0321(const V v) {
   using D = DFromV<V>;
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto i = detail::Iota0(D());
   // This shuffle is a rotation. We can compute subtraction modulo 4 (number of
   // lanes per 128-bit block) via bitwise ops.
+  const auto i = detail::Xor(detail::Iota0(D()), 3);
   const auto lsb = detail::And(i, 1);
   const auto borrow = Add(lsb, lsb);
-  const auto idx = detail::Xor(Xor(i, borrow), 3);
+  const auto idx = Xor(i, borrow);
   return TableLookupLanes(v, idx);
 }
 
@@ -1164,7 +1201,6 @@ template <class V>
 HWY_API V TableLookupBytes(const V v, const V idx) {
   using D = DFromV<V>;
   const Repartition<uint8_t, D> d8;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d8);
   const auto offsets128 = detail::OffsetsOf128BitBlocks(d8, detail::Iota0(d8));
   const auto idx8 = Add(BitCast(d8, idx), offsets128);
   return BitCast(D(), TableLookupLanes(BitCast(d8, v), idx8));
@@ -1208,14 +1244,14 @@ namespace detail {
 HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideUp, slideup)
 }  // namespace detail
 
-template <int kLanes, class V>
+template <size_t kLanes, class V>
 HWY_API V ShiftLeftLanes(const V v) {
   using D = DFromV<V>;
   const RebindToSigned<D> di;
   const auto shifted = detail::SlideUp(v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
-  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromV<V>);
-  const auto idx_mod = detail::And(detail::Iota0(D()), kLanesPerBlock - 1);
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
+  const auto idx_mod = detail::And(detail::Iota0(di), kLanesPerBlock - 1);
   const auto clear = Lt(BitCast(di, idx_mod), Set(di, kLanes));
   return IfThenZeroElse(clear, shifted);
 }
@@ -1226,6 +1262,7 @@ template <int kBytes, class V>
 HWY_API V ShiftLeftBytes(const V v) {
   using D = DFromV<V>;
   const Repartition<uint8_t, D> d8;
+  Lanes(d8);
   return BitCast(D(), ShiftLeftLanes<kBytes>(BitCast(d8, v)));
 }
 
@@ -1237,15 +1274,15 @@ HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideDown, slidedown)
 
 #undef HWY_RVV_SLIDE
 
-template <int kLanes, class V>
+template <size_t kLanes, class V>
 HWY_API V ShiftRightLanes(const V v) {
   using D = DFromV<V>;
   const RebindToSigned<D> di;
   const auto shifted = detail::SlideDown(v, kLanes);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
-  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromV<V>);
-  const auto idx_mod = detail::And(detail::Iota0(D()), kLanesPerBlock - 1);
-  const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanes));
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
+  const auto idx_mod = detail::And(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanesPerBlock - kLanes));
   return IfThenElseZero(keep, shifted);
 }
 
@@ -1255,6 +1292,7 @@ template <int kBytes, class V>
 HWY_API V ShiftRightBytes(const V v) {
   using D = DFromV<V>;
   const Repartition<uint8_t, D> d8;
+  Lanes(d8);
   return BitCast(D(), ShiftRightLanes<kBytes>(BitCast(d8, v)));
 }
 
@@ -1489,18 +1527,18 @@ HWY_API V AbsDiff(const V a, const V b) {
 // ------------------------------ Iota
 
 template <class D, HWY_IF_UNSIGNED_D(D)>
-HWY_API auto Iota(const D d, TFromD<D> first) {
+HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   return Add(detail::Iota0(d), Set(d, first));
 }
 
 template <class D, HWY_IF_SIGNED_D(D)>
-HWY_API auto Iota(const D d, TFromD<D> first) {
+HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   const RebindToUnsigned<D> du;
   return Add(BitCast(d, detail::Iota0(du)), Set(d, first));
 }
 
 template <class D, HWY_IF_FLOAT_D(D)>
-HWY_API auto Iota(const D d, TFromD<D> first) {
+HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   const RebindToUnsigned<D> du;
   const RebindToSigned<D> di;
   return detail::Add(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
@@ -1555,8 +1593,6 @@ namespace detail {  // for code folding
 #undef HWY_RVV_FOREACH_UI32
 #undef HWY_RVV_FOREACH_UI64
 
-#undef HWY_RVV_RETM_ARGMM
-#undef HWY_RVV_RETM_ARGVV
 #undef HWY_RVV_RETV_ARGD
 #undef HWY_RVV_RETV_ARGV
 #undef HWY_RVV_RETV_ARGVS

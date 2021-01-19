@@ -36,6 +36,8 @@ HWY_BEFORE_NAMESPACE();
 namespace skeleton {
 namespace HWY_NAMESPACE {
 
+using hwy::HWY_NAMESPACE::MulAdd;
+
 // Computes out[i] = in1[i] * kMultiplier + in2[i] for i < 256.
 HWY_MAYBE_UNUSED void ExampleMulAdd(const float* HWY_RESTRICT in1,
                                     const float* HWY_RESTRICT in2,

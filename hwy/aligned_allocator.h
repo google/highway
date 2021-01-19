@@ -146,7 +146,7 @@ class AlignedFreer {
   template <typename T>
   void operator()(T* aligned_pointer) const {
     // TODO(deymo): assert that we are using a POD type T.
-    return FreeAlignedBytes(aligned_pointer, free_, opaque_ptr_);
+    FreeAlignedBytes(aligned_pointer, free_, opaque_ptr_);
   }
 
  private:

@@ -226,6 +226,8 @@ inline uint64_t Start64() {
       // "memory" avoids reordering. rdx = TSC >> 32.
       // "cc" = flags modified by SHL.
       : "rdx", "memory", "cc");
+#elif HWY_ARCH_RVV
+  asm volatile("rdcycle %0" : "=r"(t));
 #else
   // Fall back to OS - unsure how to reliably query cntvct_el0 frequency.
   timespec ts;
@@ -286,6 +288,8 @@ inline uint32_t Start32() {
       :
       // "memory" avoids reordering. rdx = TSC >> 32.
       : "rdx", "memory");
+#elif HWY_ARCH_RVV
+  asm volatile("rdcycle %0" : "=r"(t));
 #else
   t = static_cast<uint32_t>(Start64());
 #endif
