@@ -1880,9 +1880,10 @@ HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> di,
 }
 
 // For already range-limited input [0, 255].
-HWY_API Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
+template <size_t N>
+HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
   const auto intermediate = wasm_i16x8_narrow_i32x4(v.raw, v.raw);
-  return Vec128<uint8_t, 4>{
+  return Vec128<uint8_t, N>{
       wasm_u8x16_narrow_i16x8(intermediate, intermediate)};
 }
 
@@ -1926,22 +1927,6 @@ Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
 
 // ------------------------------ Mask
 
-template <typename T>
-HWY_API bool AllFalse(const Mask128<T> v) {
-  return !wasm_i8x16_any_true(v.raw);
-}
-HWY_API bool AllFalse(const Mask128<float> v) {
-  return !wasm_i32x4_any_true(v.raw);
-}
-
-template <typename T>
-HWY_API bool AllTrue(const Mask128<T> v) {
-  return wasm_i8x16_all_true(v.raw);
-}
-HWY_API bool AllTrue(const Mask128<float> v) {
-  return wasm_i32x4_all_true(v.raw);
-}
-
 namespace impl {
 
 template <typename T, size_t N>
@@ -1983,16 +1968,62 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   return lanes[0] | lanes[1] | lanes[2] | lanes[3];
 }
 
-// Returns the lowest N for the BitsFromMask result.
+// Returns the lowest N bits for the BitsFromMask result.
 template <typename T, size_t N>
 constexpr uint64_t OnlyActive(uint64_t bits) {
   return ((N * sizeof(T)) == 16) ? bits : bits & ((1ull << N) - 1);
+}
+
+// Returns 0xFF for bytes with index >= N, otherwise 0.
+template <size_t N>
+constexpr __i8x16 BytesAbove() {
+  return /**/
+      (N == 0)    ? wasm_i32x4_make(-1, -1, -1, -1)
+      : (N == 4)  ? wasm_i32x4_make(0, -1, -1, -1)
+      : (N == 8)  ? wasm_i32x4_make(0, 0, -1, -1)
+      : (N == 12) ? wasm_i32x4_make(0, 0, 0, -1)
+      : (N == 16) ? wasm_i32x4_make(0, 0, 0, 0)
+      : (N == 2)  ? wasm_i16x8_make(0, -1, -1, -1, -1, -1, -1, -1)
+      : (N == 6)  ? wasm_i16x8_make(0, 0, 0, -1, -1, -1, -1, -1)
+      : (N == 10) ? wasm_i16x8_make(0, 0, 0, 0, 0, -1, -1, -1)
+      : (N == 14) ? wasm_i16x8_make(0, 0, 0, 0, 0, 0, 0, -1)
+      : (N == 1)  ? wasm_i8x16_make(0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                                   -1, -1, -1, -1, -1)
+      : (N == 3)  ? wasm_i8x16_make(0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                                   -1, -1, -1, -1)
+      : (N == 5)  ? wasm_i8x16_make(0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1,
+                                   -1, -1, -1, -1)
+      : (N == 7)  ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1,
+                                   -1, -1, -1)
+      : (N == 9)  ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1,
+                                   -1, -1, -1)
+      : (N == 11)
+          ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1)
+      : (N == 13)
+          ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1)
+          : wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);
 }
 
 template <typename T, size_t N>
 HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
   return OnlyActive<T, N>(
       BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}
+
+HWY_API size_t CountTrue(hwy::SizeTag<1> tag, const Mask128<T> m) {
+  return PopCount(BitsFromMask(tag, m));
+}
+
+HWY_API size_t CountTrue(hwy::SizeTag<2> tag, const Mask128<T> m) {
+  return PopCount(BitsFromMask(tag, m));
+}
+
+HWY_API size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
+  const __i32x4 var_shift = wasm_i32x4_make(1, 2, 4, 8);
+  const __i32x4 shifted_bits = wasm_v128_and(m.raw, var_shift);
+  alignas(16) uint64_t lanes[2];
+  wasm_v128_store(lanes, shifted_bits);
+  return PopCount(lanes[0] | lanes[1]);
 }
 
 }  // namespace impl
@@ -2006,22 +2037,62 @@ HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
 }
 
 template <typename T>
-HWY_API size_t CountTrue(const Mask128<T> v) {
-  const __i32x4 mask =
-      wasm_i32x4_make(0x01010101, 0x01010101, 0x02020202, 0x02020202);
-  const __i8x16 shifted_bits = wasm_v128_and(v.raw, mask);
-  alignas(16) uint64_t lanes[2];
-  wasm_v128_store(lanes, shifted_bits);
-  return PopCount(lanes[0] | lanes[1]) / sizeof(T);
+HWY_API size_t CountTrue(const Mask128<T> m) {
+  return impl::CountTrue(hwy::SizeTag<sizeof(T)>(), m);
 }
 
-HWY_API size_t CountTrue(const Mask128<float> v) {
-  const __i32x4 var_shift = wasm_i32x4_make(1, 2, 4, 8);
-  const __i32x4 shifted_bits = wasm_v128_and(v.raw, var_shift);
-  alignas(16) uint64_t lanes[2];
-  wasm_v128_store(lanes, shifted_bits);
-  return PopCount(lanes[0] | lanes[1]);
+// Partial vector
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API size_t CountTrue(const Mask128<T, N> m) {
+  // Ensure all undefined bytes are 0.
+  const Mask<T, N> mask{BytesAbove<N * sizeof(T)>()};
+  return CountTrue(Mask128<T>{AndNot(mask, m).raw});
 }
+
+// Full vector, type-independent
+template <typename T>
+HWY_API bool AllFalse(const Mask128<T> m) {
+  return !wasm_i8x16_any_true(m.raw);
+}
+
+// Full vector, type-dependent
+namespace detail {
+template <typename T>
+HWY_API bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
+  return wasm_i8x16_all_true(m.raw);
+}
+template <typename T>
+HWY_API bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
+  return wasm_i16x8_all_true(m.raw);
+}
+template <typename T>
+HWY_API bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
+  return wasm_i32x4_all_true(m.raw);
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API bool AllTrue(const Mask128<T> m) {
+  return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), m);
+}
+
+// Partial vectors
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API bool AllFalse(const Mask128<T, N> m) {
+  // Ensure all undefined bytes are 0.
+  const Mask<T, N> mask{BytesAbove<N * sizeof(T)>()};
+  return AllFalse(Mask128<T>{AndNot(mask, m).raw});
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API bool AllTrue(const Mask128<T, N> m) {
+  // Ensure all undefined bytes are FF.
+  const Mask<T, N> mask{BytesAbove<N * sizeof(T)>()};
+  return AllTrue(Mask128<T>{Or(mask, m).raw});
+}
+
 // ------------------------------ Compress
 
 namespace detail {

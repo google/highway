@@ -2081,10 +2081,16 @@ HWY_INLINE Vec128<int32_t, 1> DemoteTo(Simd<int32_t, 1> /* tag */,
 
 #endif
 
-HWY_INLINE Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
+HWY_API Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
   const uint8x16_t org_v = detail::BitCastToByte(v).raw;
   const uint8x16_t w = vuzp1q_u8(org_v, org_v);
   return Vec128<uint8_t, 4>(vget_low_u8(vuzp1q_u8(w, w)));
+}
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
+  const uint8x8_t org_v = detail::BitCastToByte(v).raw;
+  const uint8x8_t w = vuzp1_u8(org_v, org_v);
+  return Vec128<uint8_t, N>(vuzp1_u8(w, w));
 }
 
 // In the following DemoteTo functions, |b| is purposely undefined.
@@ -3124,18 +3130,6 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 
 // ------------------------------ Mask
 
-template <typename T>
-HWY_INLINE bool AllFalse(const Mask128<T> v) {
-  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), v));
-  uint32x2_t a = vqmovn_u64(v64.raw);
-  return vreinterpret_u64_u32(a)[0] == 0;
-}
-
-template <typename T>
-HWY_INLINE bool AllTrue(const Mask128<T> v) {
-  return AllFalse(VecFromMask(Full128<T>(), v) == Zero(Full128<T>()));
-}
-
 namespace detail {
 
 template <typename T>
@@ -3257,12 +3251,12 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
 }
 
 template <typename T>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> m) {
   alignas(16) constexpr uint64_t kSliceLanes[2] = {1, 2};
   const Full128<T> d;
   const Full128<uint64_t> du;
   const Vec128<uint64_t> values =
-      BitCast(du, VecFromMask(d, v)) & Load(du, kSliceLanes);
+      BitCast(du, VecFromMask(d, m)) & Load(du, kSliceLanes);
 #if defined(__aarch64__)
   return vaddvq_u64(values.raw);
 #else
@@ -3272,11 +3266,11 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask128<T> v) {
 
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
-                                 const Mask128<T, 1> v) {
+                                 const Mask128<T, 1> m) {
   const Simd<T, 1> d;
   const Simd<uint64_t, 1> du;
   const Vec128<uint64_t, 1> values =
-      BitCast(du, VecFromMask(d, v)) & Set(du, 1);
+      BitCast(du, VecFromMask(d, m)) & Set(du, 1);
   return vget_lane_u64(values.raw, 0);
 }
 
@@ -3284,6 +3278,11 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
 template <typename T, size_t N>
 constexpr uint64_t OnlyActive(uint64_t bits) {
   return ((N * sizeof(T)) >= 8) ? bits : (bits & ((1ull << N) - 1));
+}
+
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
 // Returns number of lanes whose mask is set.
@@ -3351,12 +3350,19 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
 #endif
 }
 
-template <typename T, size_t N>
-HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
-  return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
+}  // namespace detail
+
+// Full
+template <typename T>
+HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
+  return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
-}  // namespace detail
+// Partial
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE size_t CountTrue(const Mask128<T, N> mask) {
+  return PopCount(detail::BitsFromMask(mask));
+}
 
 template <typename T, size_t N>
 HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
@@ -3366,9 +3372,24 @@ HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
   return kNumBytes;
 }
 
+// Full
 template <typename T>
-HWY_INLINE size_t CountTrue(const Mask128<T> mask) {
-  return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
+HWY_INLINE bool AllFalse(const Mask128<T> m) {
+  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), m));
+  uint32x2_t a = vqmovn_u64(v64.raw);
+  return vreinterpret_u64_u32(a)[0] == 0;
+}
+
+// Partial
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE bool AllFalse(const Mask128<T, N> m) {
+  return detail::BitsFromMask(m) == 0;
+}
+
+template <typename T, size_t N>
+HWY_INLINE bool AllTrue(const Mask128<T, N> m) {
+  const Simd<T, N> d;
+  return AllFalse(VecFromMask(d, m) == Zero(d));
 }
 
 // ------------------------------ Compress

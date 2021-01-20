@@ -454,13 +454,9 @@ struct TestAllTrueFalse {
     HWY_ASSERT(AllTrue(Eq(v, zero)));
     HWY_ASSERT(!AllFalse(Eq(v, zero)));
 
-#if HWY_TARGET == HWY_SCALAR
-    // Simple negation of the AllTrue result
-    const bool expected_all_false = false;
-#else
-    // There are multiple lanes and one is nonzero
-    const bool expected_all_false = true;
-#endif
+    // Single lane implies AllFalse = !AllTrue. Otherwise, there are multiple
+    // lanes and one is nonzero.
+    const bool expected_all_false = (N != 1);
 
     // Set each lane to nonzero and back to zero
     for (size_t i = 0; i < N; ++i) {
@@ -484,7 +480,7 @@ struct TestAllTrueFalse {
 };
 
 HWY_NOINLINE void TestAllAllTrueFalse() {
-  ForAllTypes(ForFullVectors<TestAllTrueFalse>());
+  ForAllTypes(ForPartialVectors<TestAllTrueFalse>());
 }
 
 class TestStoreMaskBits {
@@ -558,7 +554,7 @@ struct TestCountTrue {
 };
 
 HWY_NOINLINE void TestAllCountTrue() {
-  ForAllTypes(ForFullVectors<TestCountTrue>());
+  ForAllTypes(ForPartialVectors<TestCountTrue>());
 }
 
 struct TestMaskLogical {

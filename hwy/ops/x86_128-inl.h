@@ -2375,9 +2375,10 @@ HWY_INLINE Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> /* tag */,
 }
 
 // For already range-limited input [0, 255].
-HWY_API Vec128<uint8_t, 4> U8FromU32(const Vec128<uint32_t> v) {
-  const Full128<uint32_t> d32;
-  const Full128<uint8_t> d8;
+template <size_t N>
+HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
+  const Simd<uint32_t, N> d32;
+  const Simd<uint8_t, N * 4> d8;
   alignas(16) static constexpr uint32_t k8From32[4] = {
       0x0C080400u, 0x0C080400u, 0x0C080400u, 0x0C080400u};
   // Also replicate bytes into all 32 bit lanes for safety.
@@ -2515,20 +2516,21 @@ HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
   return kNumBytes;
 }
 
-template <typename T>
-HWY_API bool AllFalse(const Mask128<T> mask) {
+template <typename T, size_t N>
+HWY_API bool AllFalse(const Mask128<T, N> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
   return detail::BitsFromMask(mask) == 0;
 }
 
-template <typename T>
-HWY_API bool AllTrue(const Mask128<T> mask) {
-  constexpr uint64_t kAllBits = (1ull << (16 / sizeof(T))) - 1;
+template <typename T, size_t N>
+HWY_API bool AllTrue(const Mask128<T, N> mask) {
+  constexpr uint64_t kAllBits =
+      detail::OnlyActive<T, N>((1ull << (16 / sizeof(T))) - 1);
   return detail::BitsFromMask(mask) == kAllBits;
 }
 
-template <typename T>
-HWY_API size_t CountTrue(const Mask128<T> mask) {
+template <typename T, size_t N>
+HWY_API size_t CountTrue(const Mask128<T, N> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 

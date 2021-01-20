@@ -246,12 +246,7 @@ struct TestConvertU8 {
 };
 
 HWY_NOINLINE void TestAllConvertU8() {
-#if HWY_TARGET == HWY_RVV
   ForDemoteVectors<TestConvertU8, 4>()(uint32_t());
-#else
-  // TODO(janwas): allow partial, then remove this case
-  ForGE128Vectors<TestConvertU8>()(uint32_t());
-#endif
 }
 
 struct TestIntFromFloat {

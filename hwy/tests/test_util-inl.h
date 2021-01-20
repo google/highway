@@ -422,13 +422,10 @@ void AssertMaskEqual(D d, Mask<D> a, Mask<D> b, const char* filename,
                      int line) {
   AssertVecEqual(d, VecFromMask(d, a), VecFromMask(d, b), filename, line);
 
-// TODO(janwas): enable after partial vectors supported
-#if 0
   const std::string type_name = TypeName(TFromD<D>(), Lanes(d));
   AssertEqual(CountTrue(a), CountTrue(b), type_name, filename, line, 0);
   AssertEqual(AllTrue(a), AllTrue(b), type_name, filename, line, 0);
   AssertEqual(AllFalse(a), AllFalse(b), type_name, filename, line, 0);
-#endif
 
   // TODO(janwas): StoreMaskBits
 }

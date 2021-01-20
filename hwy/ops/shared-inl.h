@@ -26,6 +26,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/base.h"
+
 // Clang 3.9 generates VINSERTF128 instead of the desired VBROADCASTF128,
 // which would free up port5. However, inline assembly isn't supported on
 // MSVC, results in incorrect output on GCC 8.3, and raises "invalid output size
