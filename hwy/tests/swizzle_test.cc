@@ -40,42 +40,38 @@ struct TestShiftBytes {
     HWY_ASSERT_VEC_EQ(d, v0, ShiftRightBytes<1>(v0));
 
     // Zero after shifting out the high/low byte
-
     auto bytes = AllocateAligned<uint8_t>(N8);
     std::fill(bytes.get(), bytes.get() + N8, 0);
-
     bytes[N8 - 1] = 0x7F;
     const auto vhi = BitCast(d, Load(du8, bytes.get()));
     bytes[N8 - 1] = 0;
     bytes[0] = 0x7F;
     const auto vlo = BitCast(d, Load(du8, bytes.get()));
-    HWY_ASSERT(AllTrue(Eq(ShiftLeftBytes<1>(vhi), v0)));
-    HWY_ASSERT(AllTrue(Eq(ShiftRightBytes<1>(vlo), v0)));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftLeftBytes<1>(vhi));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightBytes<1>(vlo));
 
+    // Check expected result with Iota
     const size_t N = Lanes(d);
     auto in = AllocateAligned<T>(N);
     const uint8_t* in_bytes = reinterpret_cast<const uint8_t*>(in.get());
     const auto v = BitCast(d, Iota(du8, 1));
     Store(v, d, in.get());
 
-    auto shifted = AllocateAligned<T>(N);
-    const uint8_t* shifted_bytes =
-        reinterpret_cast<const uint8_t*>(shifted.get());
+    auto expected = AllocateAligned<T>(N);
+    uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
     const size_t kBlockSize = HWY_MIN(N8, 16);
-    Store(ShiftLeftBytes<1>(v), d, shifted.get());
     for (size_t block = 0; block < N8; block += kBlockSize) {
-      HWY_ASSERT_EQ(uint8_t(0), shifted_bytes[block]);
-      HWY_ASSERT(BytesEqual(in_bytes + block, shifted_bytes + block + 1,
-                            kBlockSize - 1));
+      expected_bytes[block] = 0;
+      memcpy(expected_bytes + block + 1, in_bytes + block, kBlockSize - 1);
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftBytes<1>(v));
 
-    Store(ShiftRightBytes<1>(v), d, shifted.get());
     for (size_t block = 0; block < N8; block += kBlockSize) {
-      HWY_ASSERT_EQ(uint8_t(0), shifted_bytes[block + kBlockSize - 1]);
-      HWY_ASSERT(BytesEqual(in_bytes + block + 1, shifted_bytes + block,
-                            kBlockSize - 1));
+      memcpy(expected_bytes + block, in_bytes + block + 1, kBlockSize - 1);
+      expected_bytes[block + kBlockSize - 1] = 0;
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightBytes<1>(v));
 #else
     (void)d;
 #endif  // #if HWY_TARGET != HWY_SCALAR
@@ -93,33 +89,23 @@ struct TestShiftLanes {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
     const auto v = Iota(d, T(1));
     const size_t N = Lanes(d);
-    auto lanes = AllocateAligned<T>(N);
-    {
-      const auto left0 = ShiftLeftLanes<0>(v);
-      const auto right0 = ShiftRightLanes<0>(v);
-      HWY_ASSERT_VEC_EQ(d, left0, v);
-      HWY_ASSERT_VEC_EQ(d, right0, v);
-    }
+    auto expected = AllocateAligned<T>(N);
+
+    HWY_ASSERT_VEC_EQ(d, v, ShiftLeftLanes<0>(v));
+    HWY_ASSERT_VEC_EQ(d, v, ShiftRightLanes<0>(v));
 
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
 
-    {
-      const auto left1 = ShiftLeftLanes<1>(v);
-      Store(left1, d, lanes.get());
-      for (size_t i = 0; i < Lanes(d); ++i) {
-        const T expected = (i % kLanesPerBlock) == 0 ? T(0) : T(i);
-        HWY_ASSERT_EQ(expected, lanes[i]);
-      }
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = (i % kLanesPerBlock) == 0 ? T(0) : T(i);
     }
-    {
-      const auto right1 = ShiftRightLanes<1>(v);
-      Store(right1, d, lanes.get());
-      for (size_t i = 0; i < Lanes(d); ++i) {
-        const T expected =
-            (i % kLanesPerBlock) == (kLanesPerBlock - 1) ? T(0) : T(2 + i);
-        HWY_ASSERT_EQ(expected, lanes[i]);
-      }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftLanes<1>(v));
+
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] =
+          (i % kLanesPerBlock) == (kLanesPerBlock - 1) ? T(0) : T(2 + i);
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightLanes<1>(v));
 #else
     (void)d;
 #endif  // #if HWY_TARGET != HWY_SCALAR
@@ -146,13 +132,13 @@ struct TestBroadcastR {
       in_lanes[block + kLane] = static_cast<T>(block + 1);
     }
     const auto in = Load(d, in_lanes.get());
-    auto out_lanes = AllocateAligned<T>(N);
-    Store(Broadcast<kLane>(in), d, out_lanes.get());
+    auto expected = AllocateAligned<T>(N);
     for (size_t block = 0; block < N; block += blockN) {
       for (size_t i = 0; i < blockN; ++i) {
-        HWY_ASSERT_EQ(T(block + 1), out_lanes[block + i]);
+        expected[block + i] = T(block + 1);
       }
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Broadcast<kLane>(in));
 
     TestBroadcastR<D, kLane - 1>()();
 #endif
@@ -219,18 +205,18 @@ struct TestTableLookupBytes {
       }
     }
     const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
-    auto out_lanes = AllocateAligned<T>(N);
-    Store(TableLookupBytes(in, indices), d, out_lanes.get());
-    const uint8_t* out_bytes =
-        reinterpret_cast<const uint8_t*>(out_lanes.get());
+    auto expected = AllocateAligned<T>(N);
+    uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
-    for (size_t block = 0; block + 16 <= N8; block += 16) {
-      for (size_t i = 0; i < 16; ++i) {
+    // Byte indices wrap around
+    const size_t mod = HWY_MIN(N8, 256);
+    for (size_t block = 0; block < N8; block += 16) {
+      for (size_t i = 0; i < 16 && (block + i) < N8; ++i) {
         const uint8_t index = index_bytes[block + i];
-        const uint8_t expected = in_bytes[(block + index) % N8];
-        HWY_ASSERT_EQ(expected, out_bytes[block + i]);
+        expected_bytes[block + i] = in_bytes[(block + index) % mod];
       }
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices));
   }
 };
 
@@ -246,59 +232,53 @@ struct TestTableLookupLanes {
 
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_CAP_GE256
-    {
-      const size_t N = Lanes(d);
+#if HWY_TARGET != HWY_SCALAR
+
+    const size_t N = Lanes(d);
+    auto idx = AllocateAligned<Index>(N);
+    std::fill(idx.get(), idx.get() + N, Index(0));
+    auto expected = AllocateAligned<T>(N);
+    const auto v = Iota(d, 1);
+
+    if (N <= 8) {  // Test all permutations
+      for (size_t i0 = 0; i0 < N; ++i0) {
+        idx[0] = static_cast<Index>(i0);
+        for (size_t i1 = 0; i1 < N; ++i1) {
+          idx[1] = static_cast<Index>(i1);
+          for (size_t i2 = 0; i2 < N; ++i2) {
+            idx[2] = static_cast<Index>(i2);
+            for (size_t i3 = 0; i3 < N; ++i3) {
+              idx[3] = static_cast<Index>(i3);
+
+              for (size_t i = 0; i < N; ++i) {
+                expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+              }
+
+              const auto opaque = SetTableIndices(d, idx.get());
+              const auto actual = TableLookupLanes(v, opaque);
+              HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
+            }
+          }
+        }
+      }
+    } else {
       // Too many permutations to test exhaustively; choose one with repeated
       // and cross-block indices and ensure indices do not exceed #lanes.
       // For larger vectors, upper lanes will be zero.
       HWY_ALIGN Index idx_source[16] = {1,  3,  2,  2,  8, 1, 7, 6,
                                         15, 14, 14, 15, 4, 9, 8, 5};
-      auto idx = AllocateAligned<Index>(N);
       for (size_t i = 0; i < N; ++i) {
         idx[i] = (i < 16) ? idx_source[i] : 0;
         // Avoid undefined results / asan error for scalar by capping indices.
         if (idx[i] >= N) {
           idx[i] = static_cast<Index>(N - 1);
         }
-      }
-
-      const auto v = Iota(d, 1);
-      auto expected = AllocateAligned<T>(N);
-      for (int32_t i = 0; i < N; ++i) {
         expected[i] = idx[i] + 1;  // == v[idx[i]]
       }
 
       const auto opaque = SetTableIndices(d, idx.get());
       const auto actual = TableLookupLanes(v, opaque);
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
-    }
-#elif HWY_TARGET != HWY_SCALAR  // 128-bit
-    // Test all possible permutations.
-    const size_t N = Lanes(d);
-    auto idx = AllocateAligned<Index>(N);
-    const auto v = Iota(d, 1);
-    auto expected = AllocateAligned<T>(N);
-
-    for (size_t i0 = 0; i0 < N; ++i0) {
-      idx[0] = static_cast<Index>(i0);
-      for (size_t i1 = 0; i1 < N; ++i1) {
-        idx[1] = static_cast<Index>(i1);
-        for (size_t i2 = 0; i2 < N; ++i2) {
-          idx[2] = static_cast<Index>(i2);
-          for (size_t i3 = 0; i3 < N; ++i3) {
-            idx[3] = static_cast<Index>(i3);
-
-            for (size_t i = 0; i < N; ++i) {
-              expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
-            }
-
-            const auto opaque = SetTableIndices(d, idx.get());
-            const auto actual = TableLookupLanes(v, opaque);
-            HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
-          }
-        }
-      }
     }
 #endif
   }
@@ -317,6 +297,7 @@ struct TestInterleave {
     const size_t N = Lanes(d);
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
       even_lanes[i] = static_cast<T>(2 * i + 0);
       odd_lanes[i] = static_cast<T>(2 * i + 1);
@@ -324,18 +305,19 @@ struct TestInterleave {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    auto lo_lanes = AllocateAligned<T>(N);
-    auto hi_lanes = AllocateAligned<T>(N);
-    Store(InterleaveLower(even, odd), d, lo_lanes.get());
-    Store(InterleaveUpper(even, odd), d, hi_lanes.get());
 
     const size_t blockN = 16 / sizeof(T);
     for (size_t i = 0; i < Lanes(d); ++i) {
       const size_t block = i / blockN;
-      const size_t lo = (i % blockN) + block * 2 * blockN;
-      HWY_ASSERT_EQ(T(lo), lo_lanes[i]);
-      HWY_ASSERT_EQ(T(lo + blockN), hi_lanes[i]);
+      expected[i] = (i % blockN) + block * 2 * blockN;
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveLower(even, odd));
+
+    for (size_t i = 0; i < Lanes(d); ++i) {
+      const size_t block = i / blockN;
+      expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(even, odd));
   }
 };
 
@@ -350,7 +332,6 @@ struct TestZipLower {
     using WideT = MakeWide<T>;
     static_assert(sizeof(T) * 2 == sizeof(WideT), "Must be double-width");
     static_assert(IsSigned<T>() == IsSigned<WideT>(), "Must have same sign");
-    const Repartition<WideT, D> dw;
     const size_t N = Lanes(d);
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
@@ -361,9 +342,8 @@ struct TestZipLower {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    auto lo_lanes = AllocateAligned<WideT>(Lanes(dw));
-    Store(ZipLower(even, odd), dw, lo_lanes.get());
-
+    const Repartition<WideT, D> dw;
+    auto expected = AllocateAligned<WideT>(Lanes(dw));
     const WideT blockN = static_cast<WideT>(16 / sizeof(WideT));
     for (size_t i = 0; i < Lanes(dw); ++i) {
       const size_t block = i / blockN;
@@ -371,10 +351,10 @@ struct TestZipLower {
       const WideT lo =
           static_cast<WideT>(2 * (i % blockN) + 4 * block * blockN);
       const WideT kBits = static_cast<WideT>(sizeof(T) * 8);
-      const WideT expected_lo =
+      expected[i] =
           static_cast<WideT>((static_cast<WideT>(lo + 1) << kBits) + lo);
-      HWY_ASSERT_EQ(expected_lo, lo_lanes[i]);
     }
+    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(even, odd));
   }
 };
 
@@ -395,8 +375,7 @@ struct TestZipUpper {
     const auto odd = Load(d, odd_lanes.get());
 
     const Repartition<WideT, D> dw;
-    auto hi_lanes = AllocateAligned<WideT>(Lanes(dw));
-    Store(ZipUpper(even, odd), dw, hi_lanes.get());
+    auto expected = AllocateAligned<WideT>(Lanes(dw));
 
     constexpr WideT blockN = static_cast<WideT>(16 / sizeof(WideT));
     for (size_t i = 0; i < Lanes(dw); ++i) {
@@ -404,37 +383,46 @@ struct TestZipUpper {
       const WideT lo =
           static_cast<WideT>(2 * (i % blockN) + 4 * block * blockN);
       const WideT kBits = static_cast<WideT>(sizeof(T) * 8);
-      const WideT expected_hi = static_cast<WideT>(
+      expected[i] = static_cast<WideT>(
           (static_cast<WideT>(lo + 2 * blockN + 1) << kBits) + lo + 2 * blockN);
-      HWY_ASSERT_EQ(expected_hi, hi_lanes[i]);
     }
+    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipUpper(even, odd));
   }
 };
 
 HWY_NOINLINE void TestAllZip() {
   const ForPartialVectors<TestZipLower, 2> lower_unsigned;
+  // TODO(janwas): fix
+#if HWY_TARGET != HWY_RVV
   lower_unsigned(uint8_t());
+#endif
   lower_unsigned(uint16_t());
 #if HWY_CAP_INTEGER64
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
   const ForPartialVectors<TestZipLower, 2> lower_signed;
+#if HWY_TARGET != HWY_RVV
   lower_signed(int8_t());
+#endif
   lower_signed(int16_t());
 #if HWY_CAP_INTEGER64
   lower_signed(int32_t());  // generates i64
 #endif
 
   const ForGE128Vectors<TestZipUpper> upper_unsigned;
+#if HWY_TARGET != HWY_RVV
   upper_unsigned(uint8_t());
+#endif
   upper_unsigned(uint16_t());
 #if HWY_CAP_INTEGER64
   upper_unsigned(uint32_t());  // generates u64
 #endif
 
   const ForGE128Vectors<TestZipUpper> upper_signed;
+#if HWY_TARGET != HWY_RVV
   upper_signed(int8_t());
+#endif
   upper_signed(int16_t());
 #if HWY_CAP_INTEGER64
   upper_signed(int32_t());  // generates i64
@@ -527,6 +515,8 @@ HWY_NOINLINE void TestAllSpecialShuffles() {
 struct TestConcatHalves {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // TODO(janwas): fix
+#if HWY_TARGET != HWY_RVV
     // Construct inputs such that interleaved halves == iota.
     const auto expected = Iota(d, 1);
 
@@ -541,6 +531,7 @@ struct TestConcatHalves {
     for (; i < N; ++i) {
       lo[i] = hi[i] = 0;
     }
+
     HWY_ASSERT_VEC_EQ(d, expected,
                       ConcatLowerLower(Load(d, hi.get()), Load(d, lo.get())));
 
@@ -552,8 +543,10 @@ struct TestConcatHalves {
       lo[i] = static_cast<T>(1 + i - N / 2);
       hi[i] = static_cast<T>(lo[i] + T(N) / 2);
     }
+
     HWY_ASSERT_VEC_EQ(d, expected,
                       ConcatUpperUpper(Load(d, hi.get()), Load(d, lo.get())));
+#endif
   }
 };
 
@@ -568,7 +561,10 @@ struct TestConcatLowerUpper {
     // Middle part of Iota(1) == Iota(1 + N / 2).
     const auto lo = Iota(d, 1);
     const auto hi = Iota(d, 1 + N);
+    // TODO(janwas): fix
+#if HWY_TARGET != HWY_RVV
     HWY_ASSERT_VEC_EQ(d, Iota(d, 1 + N / 2), ConcatLowerUpper(hi, lo));
+#endif
   }
 };
 

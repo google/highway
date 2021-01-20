@@ -18,10 +18,14 @@
 
 // Helper functions for use by *_test.cc.
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
+#include <iomanip>
 #include <random>
+#include <sstream>
 #include <string>
 #include <utility>  // std::forward
 
@@ -267,6 +271,19 @@ inline std::string ToString(T value) {
   return std::to_string(value);
 }
 
+static inline std::string FloatToString(double f, size_t digits) {
+  if (!std::isfinite(f)) {
+    return "<not-finite>";
+  }
+  // to_string doesn't return enough digits and sprintf may require a large
+  // buffer even if %.16f.
+  std::ostringstream oss;
+  oss << std::fixed;
+  oss << std::setprecision(digits);
+  oss << f;
+  return oss.str();
+}
+
 template <>
 inline std::string ToString<float>(const float value) {
   // Ensure -0 and 0 are equivalent (required by some tests).
@@ -274,11 +291,7 @@ inline std::string ToString<float>(const float value) {
   memcpy(&bits, &value, sizeof(bits));
   if ((bits & 0x7FFFFFFF) == 0) return "0";
 
-  // to_string doesn't return enough digits and sstream is a
-  // fairly large dependency (4KLOC).
-  char buf[100];
-  sprintf(buf, "%.8f", value);
-  return buf;
+  return FloatToString(static_cast<double>(value), 8);
 }
 
 template <>
@@ -288,11 +301,7 @@ inline std::string ToString<double>(const double value) {
   memcpy(&bits, &value, sizeof(bits));
   if ((bits & 0x7FFFFFFFFFFFFFFFull) == 0) return "0";
 
-  // to_string doesn't return enough digits and sstream is a
-  // fairly large dependency (4KLOC).
-  char buf[100];
-  sprintf(buf, "%.16f", value);
-  return buf;
+  return FloatToString(static_cast<double>(value), 16);
 }
 
 // String comparison
@@ -330,6 +339,23 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// Prints lanes around `lane`, in memory order.
+template <class D>
+void Print(const D d, const char* caption, const Vec<D> v, intptr_t lane = 0) {
+  using T = TFromD<D>;
+  const size_t N = Lanes(d);
+  auto lanes = AllocateAligned<T>(N);
+  Store(v, d, lanes.get());
+  const size_t begin = static_cast<size_t>(std::max<intptr_t>(0, lane - 2));
+  const size_t end = std::min(begin + 5, N);
+  printf("%s %s [%zu..]:\n  ", TypeName(T(), N).c_str(), caption, begin);
+  for (size_t i = begin; i < end; ++i) {
+    printf("%.0f,", double(lanes[i]));
+  }
+  if (begin >= end) printf("(out of bounds)");
+  printf("\n");
+}
+
 HWY_NORETURN void NotifyFailure(const char* filename, const int line,
                                 const char* type_name, const size_t lane,
                                 const char* expected, const char* actual) {
@@ -340,14 +366,14 @@ HWY_NORETURN void NotifyFailure(const char* filename, const int line,
 
 // Compare non-vector, non-string T.
 template <typename T>
-void AssertEqual(const T expected, const T actual, const std::string& name,
+void AssertEqual(const T expected, const T actual, const std::string& type_name,
                  const char* filename = "", const int line = -1,
                  const size_t lane = 0) {
   // Rely on string comparison to ensure similar floats are "equal".
   const std::string expected_str = ToString(expected);
   const std::string actual_str = ToString(actual);
   if (expected_str != actual_str) {
-    NotifyFailure(filename, line, name.c_str(), lane, expected_str.c_str(),
+    NotifyFailure(filename, line, type_name.c_str(), lane, expected_str.c_str(),
                   actual_str.c_str());
   }
 }
@@ -364,23 +390,59 @@ void AssertStringEqual(const char* expected, const char* actual,
 template <class D, class V>
 void AssertVecEqual(D d, const V expected, const V actual, const char* filename,
                     const int line) {
-  using T = typename D::T;
+  using T = TFromD<D>;
   const size_t N = Lanes(d);
   auto expected_lanes = AllocateAligned<T>(N);
   auto actual_lanes = AllocateAligned<T>(N);
   Store(expected, d, expected_lanes.get());
   Store(actual, d, actual_lanes.get());
   for (size_t i = 0; i < N; ++i) {
-    AssertEqual(expected_lanes[i], actual_lanes[i],
-                hwy::TypeName(expected_lanes[i], Lanes(d)), filename, line, i);
+    // Rely on string comparison to ensure similar floats are "equal".
+    const std::string expected_str = ToString(expected_lanes[i]);
+    const std::string actual_str = ToString(actual_lanes[i]);
+    if (expected_str != actual_str) {
+      printf("\n\n");
+      Print(d, "expect", expected, i);
+      Print(d, "actual", actual, i);
+      NotifyFailure(filename, line, hwy::TypeName(T(), N).c_str(), i,
+                    expected_str.c_str(), actual_str.c_str());
+    }
   }
 }
 
 // Compare expected lanes to vector.
-template <class D, class V>
-void AssertVecEqual(D d, const typename D::T* expected, V actual,
+template <class D>
+void AssertVecEqual(D d, const TFromD<D>* expected, Vec<D> actual,
                     const char* filename, int line) {
   AssertVecEqual(d, LoadU(d, expected), actual, filename, line);
+}
+
+template <class D>
+void AssertMaskEqual(D d, Mask<D> a, Mask<D> b, const char* filename,
+                     int line) {
+  AssertVecEqual(d, VecFromMask(d, a), VecFromMask(d, b), filename, line);
+
+// TODO(janwas): enable after partial vectors supported
+#if 0
+  const std::string type_name = TypeName(TFromD<D>(), Lanes(d));
+  AssertEqual(CountTrue(a), CountTrue(b), type_name, filename, line, 0);
+  AssertEqual(AllTrue(a), AllTrue(b), type_name, filename, line, 0);
+  AssertEqual(AllFalse(a), AllFalse(b), type_name, filename, line, 0);
+#endif
+
+  // TODO(janwas): StoreMaskBits
+}
+
+template <class D>
+Mask<D> MaskTrue(const D d) {
+  const auto v0 = Zero(d);
+  return Eq(v0, v0);
+}
+
+template <class D>
+Mask<D> MaskFalse(const D d) {
+  // Lt is only for signed types and we cannot yet cast mask types.
+  return Eq(Zero(d), Set(d, 1));
 }
 
 #ifndef HWY_ASSERT_EQ
@@ -393,6 +455,9 @@ void AssertVecEqual(D d, const typename D::T* expected, V actual,
 
 #define HWY_ASSERT_VEC_EQ(d, expected, actual) \
   AssertVecEqual(d, expected, actual, __FILE__, __LINE__)
+
+#define HWY_ASSERT_MASK_EQ(d, expected, actual) \
+  AssertMaskEqual(d, expected, actual, __FILE__, __LINE__)
 
 #endif  // HWY_ASSERT_EQ
 

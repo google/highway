@@ -33,9 +33,9 @@ struct TestBitCast {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Repartition<ToT, D> dto;
+    HWY_ASSERT_EQ(Lanes(d) * sizeof(T), Lanes(dto) * sizeof(ToT));
     const auto vf = Iota(d, 1);
     const auto vt = BitCast(dto, vf);
-    static_assert(sizeof(vf) == sizeof(vt), "Cast must return same size");
     // Must return the same bits
     auto from_lanes = AllocateAligned<T>(Lanes(d));
     auto to_lanes = AllocateAligned<ToT>(Lanes(dto));
@@ -237,17 +237,21 @@ HWY_NOINLINE void TestAllDemoteTo() {
 struct TestConvertU8 {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, const D du32) {
-    const Repartition<uint8_t, D> du8;
+    const Rebind<uint8_t, D> du8;
     auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
     Store(Iota(du8, 0), du8, lanes8.get());
-    const Rebind<uint8_t, D> p8;
-    HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0), U8FromU32(Iota(du32, 0)));
-    HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0x7F), U8FromU32(Iota(du32, 0x7F)));
+    HWY_ASSERT_VEC_EQ(du8, Iota(du8, 0), U8FromU32(Iota(du32, 0)));
+    HWY_ASSERT_VEC_EQ(du8, Iota(du8, 0x7F), U8FromU32(Iota(du32, 0x7F)));
   }
 };
 
 HWY_NOINLINE void TestAllConvertU8() {
+#if HWY_TARGET == HWY_RVV
+  ForDemoteVectors<TestConvertU8, 4>()(uint32_t());
+#else
+  // TODO(janwas): allow partial, then remove this case
   ForGE128Vectors<TestConvertU8>()(uint32_t());
+#endif
 }
 
 struct TestIntFromFloat {

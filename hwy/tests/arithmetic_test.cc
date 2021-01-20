@@ -37,8 +37,8 @@ struct TestPlusMinus {
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = static_cast<T>((2 + i) + (3 + i));
     }
-    HWY_ASSERT_VEC_EQ(d, Load(d, lanes.get()), v2 + v3);
-    HWY_ASSERT_VEC_EQ(d, v3, Sub(Add(v2, v3), v2));
+    HWY_ASSERT_VEC_EQ(d, lanes.get(), v2 + v3);
+    HWY_ASSERT_VEC_EQ(d, Set(d, 2), Sub(v4, v2));
 
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = static_cast<T>((2 + i) + (4 + i));

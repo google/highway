@@ -119,9 +119,7 @@ struct TestCopySign {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vp = Iota(d, 1);
-    auto vn = Iota(d, -128);
-    // Ensure all lanes are negative even if there are many lanes.
-    vn = IfThenElse(Lt(vn, v0), vn, Neg(vn));
+    const auto vn = Iota(d, T(-1E5));  // assumes N < 10^5
 
     // Zero remains zero regardless of sign
     HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, v0));
@@ -151,44 +149,78 @@ HWY_NOINLINE void TestAllCopySign() {
   ForFloatTypes(ForPartialVectors<TestCopySign>());
 }
 
-// Tests MaskFromVec, VecFromMask, IfThen*
+struct TestIfThenElse_Zero {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Sporadic segfault
+#if HWY_TARGET != HWY_RVV
+    RandomState rng{1234};
+    const size_t N = Lanes(d);
+    auto mask_lanes = AllocateAligned<T>(N);
+    auto lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        // Zero means true (easier to compare)
+        mask_lanes[i] = Random32(&rng) & 1;
+        lanes[i] = static_cast<T>(Random32(&rng) & 0x7F);
+      }
+      const auto v = Load(d, lanes.get());
+      const auto mask = Eq(Load(d, mask_lanes.get()), Zero(d));
+
+      for (size_t i = 0; i < N; ++i) {
+        expected[i] = mask_lanes[i] ? T(0) : lanes[i];
+      }
+      HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElseZero(mask, v));
+
+      for (size_t i = 0; i < N; ++i) {
+        expected[i] = mask_lanes[i] ? lanes[i] : T(0);
+      }
+      HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenZeroElse(mask, v));
+    }
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllIfThenElse_Zero() {
+  ForFloatTypes(ForPartialVectors<TestIfThenElse_Zero>());
+}
+
 struct TestIfThenElse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng{1234};
-    const T no(0);
-    T yes;
-    memset(&yes, 0xFF, sizeof(yes));
 
     const size_t N = Lanes(d);
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
     auto mask_lanes = AllocateAligned<T>(N);
-    for (size_t i = 0; i < N; ++i) {
-      in1[i] = static_cast<T>(Random32(&rng));
-      in2[i] = static_cast<T>(Random32(&rng));
-      mask_lanes[i] = (Random32(&rng) & 1024) ? no : yes;
-    }
+    auto expected = AllocateAligned<T>(N);
 
-    const auto vec = Load(d, mask_lanes.get());
-    const auto mask = MaskFromVec(vec);
-    // Separate lvalue works around clang-7 asan bug (unaligned spill).
-    const auto vec2 = VecFromMask(d, mask);
-    HWY_ASSERT_VEC_EQ(d, vec, vec2);
+    // NOTE: reverse polarity (mask is true iff lane == 0) because we cannot
+    // reliably compare against all bits set (NaN for float types).
+    const T off = 1;
 
-    auto out_lanes1 = AllocateAligned<T>(N);
-    auto out_lanes2 = AllocateAligned<T>(N);
-    auto out_lanes3 = AllocateAligned<T>(N);
-    const auto v1 = Load(d, in1.get());
-    const auto v2 = Load(d, in2.get());
-    Store(IfThenElse(mask, v1, v2), d, out_lanes1.get());
-    Store(IfThenElseZero(mask, v1), d, out_lanes2.get());
-    Store(IfThenZeroElse(mask, v2), d, out_lanes3.get());
-    for (size_t i = 0; i < N; ++i) {
-      // Cannot reliably compare against yes (NaN).
-      HWY_ASSERT_EQ((mask_lanes[i] == no) ? in2[i] : in1[i], out_lanes1[i]);
-      HWY_ASSERT_EQ((mask_lanes[i] == no) ? no : in1[i], out_lanes2[i]);
-      HWY_ASSERT_EQ((mask_lanes[i] == no) ? in2[i] : no, out_lanes3[i]);
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in1[i] = static_cast<T>(Random32(&rng));
+        in2[i] = static_cast<T>(Random32(&rng));
+        mask_lanes[i] = (Random32(&rng) & 1024) ? off : T(0);
+      }
+
+      const auto v1 = Load(d, in1.get());
+      const auto v2 = Load(d, in2.get());
+      const auto mask = Eq(Load(d, mask_lanes.get()), Zero(d));
+
+      // Sporadic segfault
+#if HWY_TARGET != HWY_RVV
+      for (size_t i = 0; i < N; ++i) {
+        expected[i] = (mask_lanes[i] == off) ? in2[i] : in1[i];
+      }
+      HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElse(mask, v1, v2));
+#endif
     }
   }
 };
@@ -197,6 +229,7 @@ HWY_NOINLINE void TestAllIfThenElse() {
   ForAllTypes(ForPartialVectors<TestIfThenElse>());
 }
 
+// Also tests MaskFromVec/VecFromMask
 struct TestCompress {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -212,7 +245,7 @@ struct TestCompress {
     auto actual = AllocateAligned<T>(N);
 
     // Exhaustive test of all mask combinations unless N is large.
-    const uint64_t end = 1ull << std::min<size_t>(N, 16);
+    const uint64_t end = 1ull << std::min<size_t>(N, 8);
     for (uint64_t code = 0; code < end; ++code) {
       size_t expected_pos = 0;
       for (size_t i = 0; i < N; ++i) {
@@ -225,7 +258,9 @@ struct TestCompress {
       }
 
       const auto in = Load(d, in_lanes.get());
-      const auto mask = MaskFromVec(Load(d, mask_lanes.get()));
+      const auto mask_vec = Load(d, mask_lanes.get());
+      const auto mask = MaskFromVec(mask_vec);
+      HWY_ASSERT_VEC_EQ(d, mask_vec, VecFromMask(d, mask));
       Store(Compress(in, mask), d, actual.get());
       // Upper lanes are undefined.
       for (size_t i = 0; i < expected_pos; ++i) {
@@ -359,9 +394,7 @@ struct TestZeroIfNegative {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vp = Iota(d, 1);
-    auto vn = Iota(d, -128);
-    // Ensure all lanes are negative even if there are many lanes.
-    vn = IfThenElse(Lt(vn, v0), vn, Neg(vn));
+    const auto vn = Iota(d, T(-1E5));  // assumes N < 10^5
 
     // Zero and positive remain unchanged
     HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(v0));
@@ -417,8 +450,7 @@ struct TestAllTrueFalse {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, T(0));  // for clang-analyzer.
-    Store(v, d, lanes.get());
+    std::fill(lanes.get(), lanes.get() + N, T(0));
     HWY_ASSERT(AllTrue(Eq(v, zero)));
     HWY_ASSERT(!AllFalse(Eq(v, zero)));
 
@@ -459,6 +491,8 @@ class TestStoreMaskBits {
  public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
+    // TODO(janwas): remove once implemented (cast or vse1)
+#if HWY_TARGET != HWY_RVV
     std::mt19937_64 rng;
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
@@ -487,6 +521,7 @@ class TestStoreMaskBits {
         HWY_ASSERT_EQ(bit, 0);
       }
     }
+#endif
   }
 };
 
@@ -526,28 +561,18 @@ HWY_NOINLINE void TestAllCountTrue() {
   ForAllTypes(ForFullVectors<TestCountTrue>());
 }
 
-template <class D, class M>
-void AssertMaskEq(D d, M a, M b) {
-  HWY_ASSERT_EQ(CountTrue(a), CountTrue(b));
-  HWY_ASSERT_VEC_EQ(d, VecFromMask(d, a), VecFromMask(d, b));
-}
-
 struct TestMaskLogical {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    // For all combinations of zero/nonzero state of subset of lanes:
-    const size_t max_lanes = std::min(N, size_t(10));
+    const auto m0 = MaskFalse(d);
+    const auto m_all = MaskTrue(d);
 
+    const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(1));
 
-    const auto v0 = Zero(d);
-    const auto m0 = MaskFromVec(v0);
-    T all;
-    memset(&all, 0xFF, sizeof(T));
-    const auto m_all = MaskFromVec(Set(d, all));
-
+    // For all combinations of zero/nonzero state of subset of lanes:
+    const size_t max_lanes = std::min(N, size_t(6));
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
         lanes[i] = T(1);
@@ -556,21 +581,21 @@ struct TestMaskLogical {
         }
       }
 
-      const auto m = Eq(Load(d, lanes.get()), v0);
+      const auto m = Eq(Load(d, lanes.get()), Zero(d));
 
-      AssertMaskEq(d, m0, Xor(m, m));
-      AssertMaskEq(d, m0, AndNot(m, m));
-      AssertMaskEq(d, m0, AndNot(m_all, m));
+      HWY_ASSERT_MASK_EQ(d, m0, Xor(m, m));
+      HWY_ASSERT_MASK_EQ(d, m0, AndNot(m, m));
+      HWY_ASSERT_MASK_EQ(d, m0, AndNot(m_all, m));
 
-      AssertMaskEq(d, m, Or(m, m));
-      AssertMaskEq(d, m, Or(m0, m));
-      AssertMaskEq(d, m, Or(m, m0));
-      AssertMaskEq(d, m, Xor(m0, m));
-      AssertMaskEq(d, m, Xor(m, m0));
-      AssertMaskEq(d, m, And(m, m));
-      AssertMaskEq(d, m, And(m_all, m));
-      AssertMaskEq(d, m, And(m, m_all));
-      AssertMaskEq(d, m, AndNot(m0, m));
+      HWY_ASSERT_MASK_EQ(d, m, Or(m, m));
+      HWY_ASSERT_MASK_EQ(d, m, Or(m0, m));
+      HWY_ASSERT_MASK_EQ(d, m, Or(m, m0));
+      HWY_ASSERT_MASK_EQ(d, m, Xor(m0, m));
+      HWY_ASSERT_MASK_EQ(d, m, Xor(m, m0));
+      HWY_ASSERT_MASK_EQ(d, m, And(m, m));
+      HWY_ASSERT_MASK_EQ(d, m, And(m_all, m));
+      HWY_ASSERT_MASK_EQ(d, m, And(m, m_all));
+      HWY_ASSERT_MASK_EQ(d, m, AndNot(m0, m));
     }
   }
 };
@@ -588,6 +613,7 @@ HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse_Zero);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);

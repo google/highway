@@ -22,6 +22,9 @@
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
+// Not yet implemented
+#if HWY_TARGET != HWY_RVV
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -177,10 +180,8 @@ struct TestCombineShiftRightBytesR {
     const auto lo = BitCast(d, Iota(d8, 1));
     const auto hi = BitCast(d, Iota(d8, 1 + N8));
 
-    auto lanes = AllocateAligned<T>(Lanes(d));
-
-    Store(CombineShiftRightBytes<kBytes>(hi, lo), d, lanes.get());
-    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(lanes.get());
+    auto expected = AllocateAligned<T>(Lanes(d));
+    uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
     const size_t kBlockSize = 16;
     for (size_t i = 0; i < N8; ++i) {
@@ -190,10 +191,11 @@ struct TestCombineShiftRightBytesR {
       const size_t idx = lane + kBytes;
       const size_t offset = (idx < kBlockSize) ? 0 : N8 - kBlockSize;
       const bool at_end = idx >= 2 * kBlockSize;
-      const uint8_t expected =
+      expected_bytes[i] =
           at_end ? 0 : static_cast<uint8_t>(first_lo + idx + 1 + offset);
-      HWY_ASSERT_EQ(expected, bytes[i]);
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(),
+                      CombineShiftRightBytes<kBytes>(hi, lo));
 
     TestCombineShiftRightBytesR<kBytes - 1>()(t, d);
 #else
@@ -214,10 +216,9 @@ struct TestCombineShiftRightLanesR {
     const auto lo = BitCast(d, Iota(d8, 1));
     const auto hi = BitCast(d, Iota(d8, 1 + N8));
 
-    auto lanes = AllocateAligned<T>(Lanes(d));
+    auto expected = AllocateAligned<T>(Lanes(d));
 
-    Store(CombineShiftRightLanes<kLanes>(hi, lo), d, lanes.get());
-    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(lanes.get());
+    uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
     const size_t kBlockSize = 16;
     for (size_t i = 0; i < N8; ++i) {
@@ -227,10 +228,11 @@ struct TestCombineShiftRightLanesR {
       const size_t idx = lane + kLanes * sizeof(T);
       const size_t offset = (idx < kBlockSize) ? 0 : N8 - kBlockSize;
       const bool at_end = idx >= 2 * kBlockSize;
-      const uint8_t expected =
+      expected_bytes[i] =
           at_end ? 0 : static_cast<uint8_t>(first_lo + idx + 1 + offset);
-      HWY_ASSERT_EQ(expected, bytes[i]);
     }
+    HWY_ASSERT_VEC_EQ(d, expected.get(),
+                      CombineShiftRightLanes<kLanes>(hi, lo));
 
     TestCombineShiftRightBytesR<kLanes - 1>()(t, d);
 #else
@@ -278,3 +280,5 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombineShiftRight);
 HWY_AFTER_TEST();
 #endif
+
+#endif  // HWY_TARGET!=HWY_RVV

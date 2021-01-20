@@ -264,7 +264,7 @@ static constexpr size_t kMaxVectorSize = 64;  // AVX-512
 // Not actually an upper bound on the size, but this value prevents crossing a
 // 4K boundary (relevant on Andes).
 static constexpr size_t kMaxVectorSize = 4096;
-#define HWY_ALIGN_MAX 8  // only elements need be aligned
+#define HWY_ALIGN_MAX alignas(8)  // only elements need be aligned
 #else
 static constexpr size_t kMaxVectorSize = 16;
 #define HWY_ALIGN_MAX alignas(16)
