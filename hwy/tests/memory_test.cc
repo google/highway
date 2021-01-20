@@ -140,8 +140,6 @@ HWY_NOINLINE void TestStream() {
 struct TestGatherT {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-   // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using Offset = MakeSigned<T>;
 
     // Base points to middle; |max_offset| + sizeof(T) <= kNumBytes / 2.
@@ -189,10 +187,6 @@ struct TestGatherT {
     const auto indices = Load(d_offset, index_lanes);
     actual = GatherIndex(d, reinterpret_cast<const T*>(middle), indices);
     HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
-
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -200,8 +194,6 @@ template <int kShift>
 struct TestGatherF {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-   // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using Offset = MakeSigned<T>;
     static_assert(sizeof(T) == (1 << kShift), "Incorrect kShift");
 
@@ -232,10 +224,6 @@ struct TestGatherF {
     const auto offsets = ShiftLeft<kShift>(indices);
     actual = GatherOffset(d, middle, offsets);
     HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
-
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 

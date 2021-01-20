@@ -113,8 +113,6 @@ HWY_NOINLINE void TestAllSaturatingArithmetic() {
 struct TestAverage {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-// Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v0 = Zero(d);
     const auto v1 = Set(d, T(1));
     const auto v2 = Set(d, T(2));
@@ -124,9 +122,6 @@ struct TestAverage {
     HWY_ASSERT_VEC_EQ(d, v1, AverageRound(v1, v1));
     HWY_ASSERT_VEC_EQ(d, v2, AverageRound(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, AverageRound(v2, v2));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -186,8 +181,6 @@ HWY_NOINLINE void TestAllAbs() {
 struct TestUnsignedShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-// Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     constexpr int kSign = (sizeof(T) * 8) - 1;
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
@@ -226,18 +219,12 @@ struct TestUnsignedShifts {
 #if HWY_VARIABLE_SHIFT_LANES == 1 || HWY_IDE
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftSame(vi, kSign));
 #endif
-
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
 struct TestSignedShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-// Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TU = MakeUnsigned<T>;
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
@@ -291,18 +278,12 @@ struct TestSignedShifts {
 #if HWY_VARIABLE_SHIFT_LANES == 1 || HWY_IDE
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftSame(vn, 1));
 #endif
-
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
 struct TestUnsignedVarShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-// Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     constexpr int kSign = (sizeof(T) * 8) - 1;
     const auto v0 = Zero(d);
     const auto v1 = Set(d, 1);
@@ -336,17 +317,12 @@ struct TestUnsignedVarShifts {
       expected[i] = T(1) << i;
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(v1, vi));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
 struct TestSignedVarLeftShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v1 = Set(d, 1);
     const auto vi = Iota(d, 0);
 
@@ -372,17 +348,12 @@ struct TestSignedVarLeftShifts {
       expected[i] = T(1) << i;
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(v1, vi));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
 struct TestSignedVarRightShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
     const auto vmax = Set(d, LimitsMax<T>());
@@ -415,9 +386,6 @@ struct TestSignedVarRightShifts {
       expected[i] = LimitsMax<T>() >> i;
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(vmax, vi));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -494,8 +462,6 @@ struct TestSignedMinMax {
 struct TestFloatMinMax {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v1 = Iota(d, 1);
     const auto v2 = Iota(d, 2);
     const auto v_neg = Iota(d, -T(Lanes(d)));
@@ -503,9 +469,6 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v_neg, Min(v1, v_neg));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -608,8 +571,6 @@ template <typename Wide>
 struct TestMulHigh {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
     auto expected_lanes = AllocateAligned<T>(N);
@@ -643,9 +604,6 @@ struct TestMulHigh {
     }
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, vni));
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(vni, v));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -812,8 +770,6 @@ HWY_NOINLINE void TestAllSquareRoot() {
 struct TestReciprocalSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const auto v = Set(d, 123.0f);
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
@@ -823,9 +779,6 @@ struct TestReciprocalSquareRoot {
       if (err < 0.0f) err = -err;
       HWY_ASSERT(err < 1E-4f);
     }
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -836,8 +789,6 @@ HWY_NOINLINE void TestAllReciprocalSquareRoot() {
 struct TestRound {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     // Numbers close to 0
     {
       const auto v = Set(d, T(0.4));
@@ -935,9 +886,6 @@ struct TestRound {
       HWY_ASSERT_VEC_EQ(d, v2, Round(v));
       HWY_ASSERT_VEC_EQ(d, v2, Trunc(v));
     }
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -980,8 +928,6 @@ HWY_NOINLINE void TestAllSumOfLanes() {
 struct TestMinOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
 
@@ -993,17 +939,12 @@ struct TestMinOfLanes {
     const auto v = Load(d, in_lanes.get());
     const auto expected = Set(d, min);
     HWY_ASSERT_VEC_EQ(d, expected, MinOfLanes(v));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
 struct TestMaxOfLanes {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
 
@@ -1015,9 +956,6 @@ struct TestMaxOfLanes {
     const auto v = Load(d, in_lanes.get());
     const auto expected = Set(d, max);
     HWY_ASSERT_VEC_EQ(d, expected, MaxOfLanes(v));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 

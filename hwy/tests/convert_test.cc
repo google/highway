@@ -137,8 +137,6 @@ template <typename ToT>
 struct TestPromoteTo {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const Rebind<ToT, D> to_d;
 
     const auto from_p1 = Iota(from_d, 1);
@@ -153,9 +151,6 @@ struct TestPromoteTo {
     HWY_ASSERT_VEC_EQ(to_d, to_n1, PromoteTo(to_d, from_n1));
     HWY_ASSERT_VEC_EQ(to_d, to_min, PromoteTo(to_d, from_min));
     HWY_ASSERT_VEC_EQ(to_d, to_max, PromoteTo(to_d, from_max));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)from_d;
-#endif
   }
 };
 
@@ -200,8 +195,6 @@ template <typename ToT>
 struct TestDemoteTo {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const Rebind<ToT, D> to_d;
 
     const auto from = Iota(from_d, 1);
@@ -216,9 +209,6 @@ struct TestDemoteTo {
     HWY_ASSERT_VEC_EQ(to_d, to_n1, DemoteTo(to_d, from_n1));
     HWY_ASSERT_VEC_EQ(to_d, to_min, DemoteTo(to_d, from_min));
     HWY_ASSERT_VEC_EQ(to_d, to_max, DemoteTo(to_d, from_max));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)from_d;
-#endif
   }
 };
 
@@ -247,18 +237,12 @@ HWY_NOINLINE void TestAllDemoteTo() {
 struct TestConvertU8 {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, const D du32) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const Repartition<uint8_t, D> du8;
     auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
     Store(Iota(du8, 0), du8, lanes8.get());
     const Rebind<uint8_t, D> p8;
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0), U8FromU32(Iota(du32, 0)));
     HWY_ASSERT_VEC_EQ(p8, Iota(p8, 0x7F), U8FromU32(Iota(du32, 0x7F)));
-
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)du32;
-#endif
   }
 };
 
@@ -269,8 +253,6 @@ HWY_NOINLINE void TestAllConvertU8() {
 struct TestIntFromFloat {
   template <typename T, class DF>
   HWY_NOINLINE void operator()(T /*unused*/, const DF df) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TI = MakeSigned<T>;
     const Rebind<TI, DF> di;
     // Integer positive
@@ -292,17 +274,12 @@ struct TestIntFromFloat {
     // Below negative
     HWY_ASSERT_VEC_EQ(di, Iota(di, TI(-24)),
                       ConvertTo(di, Iota(df, T(-24.001))));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)df;
-#endif
   }
 };
 
 struct TestFloatFromInt {
   template <typename T, class DI>
   HWY_NOINLINE void operator()(T /*unused*/, const DI di) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TF = MakeFloat<T>;
     const Rebind<TF, DI> df;
 
@@ -323,17 +300,12 @@ struct TestFloatFromInt {
 
     // Below negative
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), ConvertTo(df, Iota(di, T(-2))));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)di;
-#endif
   }
 };
 
 struct TestI32F64 {
   template <typename T, class DF>
   HWY_NOINLINE void operator()(T /*unused*/, const DF df) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     using TI = int32_t;
     using TF = double;
     const Rebind<TI, DF> di;
@@ -362,9 +334,6 @@ struct TestI32F64 {
     HWY_ASSERT_VEC_EQ(di, Iota(di, TI(-24)),
                       DemoteTo(di, Iota(df, T(-24.001))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), PromoteTo(df, Iota(di, T(-2))));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)df;
-#endif
   }
 };
 
@@ -384,8 +353,6 @@ HWY_NOINLINE void TestAllConvertFloatInt() {
 struct TestNearestInt {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, const D di) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     const Rebind<float, D> df;
 
     // Integer positive
@@ -405,9 +372,6 @@ struct TestNearestInt {
 
     // Below negative
     HWY_ASSERT_VEC_EQ(di, Iota(di, -24), NearestInt(Iota(df, -24.001f)));
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)di;
-#endif
   }
 };
 

@@ -26,9 +26,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
-
 template <class DF>
 HWY_NOINLINE void FloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
                             uint8_t* HWY_RESTRICT log2) {
@@ -65,12 +62,8 @@ struct TestFloorLog2 {
   }
 };
 
-#endif  // HWY_DISABLE_BROKEN_AVX3_TESTS
-
 HWY_NOINLINE void TestAllFloorLog2() {
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
   ForDemoteVectors<TestFloorLog2, 4>()(float());
-#endif
 }
 
 template <class D, typename T>

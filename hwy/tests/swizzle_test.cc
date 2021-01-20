@@ -193,8 +193,6 @@ HWY_NOINLINE void TestAllBroadcast() {
 struct TestTableLookupBytes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if !defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3
     RandomState rng{1234};
     const size_t N = Lanes(d);
     const size_t N8 = Lanes(Repartition<uint8_t, D>());
@@ -233,9 +231,6 @@ struct TestTableLookupBytes {
         HWY_ASSERT_EQ(expected, out_bytes[block + i]);
       }
     }
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
-#endif
   }
 };
 
@@ -251,9 +246,7 @@ struct TestTableLookupLanes {
 
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Avoid "Do not know how to split the result of this operator"
-#if (!defined(HWY_DISABLE_BROKEN_AVX3_TESTS) || HWY_TARGET != HWY_AVX3) && \
-    HWY_CAP_GE256
+#if HWY_CAP_GE256
     {
       const size_t N = Lanes(d);
       // Too many permutations to test exhaustively; choose one with repeated
@@ -280,7 +273,7 @@ struct TestTableLookupLanes {
       const auto actual = TableLookupLanes(v, opaque);
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
     }
-#elif !HWY_CAP_GE256 && HWY_TARGET != HWY_SCALAR  // 128-bit
+#elif HWY_TARGET != HWY_SCALAR  // 128-bit
     // Test all possible permutations.
     const size_t N = Lanes(d);
     auto idx = AllocateAligned<Index>(N);
@@ -307,8 +300,6 @@ struct TestTableLookupLanes {
         }
       }
     }
-#else  // HWY_DISABLE_BROKEN_AVX3_TESTS
-    (void)d;
 #endif
   }
 };
