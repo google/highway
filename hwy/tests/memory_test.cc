@@ -143,7 +143,7 @@ struct TestGather {
 
     const size_t N = Lanes(d);
 
-    RandomState rng{1234};
+    RandomState rng;
 
     // Data to be gathered from
     const size_t max_bytes = 4 * N * sizeof(T);  // upper bound on offset

@@ -1957,7 +1957,10 @@ HWY_API Vec128<uint8_t, 8> DemoteTo(Simd<uint8_t, 8> /* tag */,
   // Concatenate lower 64 bits of each 128-bit block
   const __m256i u16_concat = _mm256_permute4x64_epi64(u16_blocks, 0x88);
   const __m128i u16 = _mm256_castsi256_si128(u16_concat);
-  return Vec128<uint8_t, 8>{_mm_packus_epi16(u16, u16)};
+  // packus treats the input as signed; we want unsigned. Clear the MSB to get
+  // unsigned saturation to u8.
+  const __m128i i16 = _mm_and_si128(u16, _mm_set1_epi16(0x7FFF));
+  return Vec128<uint8_t, 8>{_mm_packus_epi16(i16, i16)};
 }
 
 HWY_API Vec128<uint8_t> DemoteTo(Full128<uint8_t> /* tag */,
@@ -1990,7 +1993,9 @@ HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,
 
 HWY_API Vec128<int32_t> DemoteTo(Full128<int32_t> /* tag */,
                                  const Vec256<double> v) {
-  return Vec128<int32_t>{_mm256_cvttpd_epi32(v.raw)};
+  // Ensure large positive values saturate to INT32_MAX.
+  const Vec256<double> clamped = Min(v, Set(Full256<double>(), 2147483647.0));
+  return Vec128<int32_t>{_mm256_cvttpd_epi32(clamped.raw)};
 }
 
 // For already range-limited input [0, 255].

@@ -2340,7 +2340,10 @@ template <size_t N>
 HWY_API Vec128<uint8_t, N> DemoteTo(Simd<uint8_t, N> /* tag */,
                                     const Vec128<int32_t, N> v) {
   const __m128i u16 = _mm_packus_epi32(v.raw, v.raw);
-  return Vec128<uint8_t, N>{_mm_packus_epi16(u16, u16)};
+  // packus treats the input as signed; we want unsigned. Clear the MSB to get
+  // unsigned saturation to u8.
+  const __m128i i16 = _mm_and_si128(u16, _mm_set1_epi16(0x7FFF));
+  return Vec128<uint8_t, N>{_mm_packus_epi16(i16, i16)};
 }
 
 template <size_t N>
@@ -2371,7 +2374,10 @@ HWY_INLINE Vec128<float, N> DemoteTo(Simd<float, N> /* tag */,
 template <size_t N>
 HWY_INLINE Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> /* tag */,
                                        const Vec128<double, N> v) {
-  return Vec128<int32_t, N>{_mm_cvttpd_epi32(v.raw)};
+  // Ensure large positive values saturate to INT32_MAX.
+  const Vec128<double, N> clamped =
+      Min(v, Set(Simd<double, N>(), 2147483647.0));
+  return Vec128<int32_t, N>{_mm_cvttpd_epi32(clamped.raw)};
 }
 
 // For already range-limited input [0, 255].

@@ -179,7 +179,7 @@ HWY_NOINLINE void TestAllBroadcast() {
 struct TestTableLookupBytes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    RandomState rng{1234};
+    RandomState rng;
     const size_t N = Lanes(d);
     const size_t N8 = Lanes(Repartition<uint8_t, D>());
     auto in_bytes = AllocateAligned<uint8_t>(N8);
@@ -557,12 +557,12 @@ HWY_NOINLINE void TestAllConcatHalves() {
 struct TestConcatLowerUpper {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // TODO(janwas): fix
+#if HWY_TARGET != HWY_RVV
     const size_t N = Lanes(d);
     // Middle part of Iota(1) == Iota(1 + N / 2).
     const auto lo = Iota(d, 1);
     const auto hi = Iota(d, 1 + N);
-    // TODO(janwas): fix
-#if HWY_TARGET != HWY_RVV
     HWY_ASSERT_VEC_EQ(d, Iota(d, 1 + N / 2), ConcatLowerUpper(hi, lo));
 #endif
   }

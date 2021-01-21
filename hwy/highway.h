@@ -204,10 +204,11 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 // This case still uses a table, although of a single element, to provide the
 // same compile error conditions as with the dynamic dispatch case when multiple
 // targets are being compiled.
-#define HWY_EXPORT(FUNC_NAME)                                                \
-  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
-      FUNC_NAME)[1] = {&HWY_STATIC_DISPATCH(FUNC_NAME)}
-#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) (*(HWY_DISPATCH_TABLE(FUNC_NAME)[0]))
+#define HWY_EXPORT(FUNC_NAME)                                       \
+  HWY_MAYBE_UNUSED static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) \
+      const HWY_DISPATCH_TABLE(FUNC_NAME)[1] = {                    \
+          &HWY_STATIC_DISPATCH(FUNC_NAME)}
+#define HWY_DYNAMIC_DISPATCH(FUNC_NAME) HWY_STATIC_DISPATCH(FUNC_NAME)
 
 #else
 

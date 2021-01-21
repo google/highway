@@ -2148,7 +2148,11 @@ HWY_API Vec256<int16_t> DemoteTo(Full256<int16_t> /* tag */,
 HWY_API Vec128<uint8_t, 16> DemoteTo(Full128<uint8_t> /* tag */,
                                      const Vec512<int32_t> v) {
   const Vec512<uint16_t> u16{_mm512_packus_epi32(v.raw, v.raw)};
-  const Vec512<uint8_t> u8{_mm512_packus_epi16(u16.raw, u16.raw)};
+  // packus treats the input as signed; we want unsigned. Clear the MSB to get
+  // unsigned saturation to u8.
+  const Vec512<int16_t> i16{
+      _mm512_and_si512(u16.raw, _mm512_set1_epi16(0x7FFF))};
+  const Vec512<uint8_t> u8{_mm512_packus_epi16(i16.raw, i16.raw)};
 
   alignas(16) static constexpr uint32_t kLanes[4] = {0, 4, 8, 12};
   const auto idx32 = LoadDup128(Full512<uint32_t>(), kLanes);
@@ -2197,7 +2201,9 @@ HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,
 
 HWY_API Vec256<int32_t> DemoteTo(Full256<int32_t> /* tag */,
                                  const Vec512<double> v) {
-  return Vec256<int32_t>{_mm512_cvttpd_epi32(v.raw)};
+  // Ensure large positive values saturate to INT32_MAX.
+  const Vec512<double> clamped = Min(v, Set(Full512<double>(), 2147483647.0));
+  return Vec256<int32_t>{_mm512_cvttpd_epi32(clamped.raw)};
 }
 
 // For already range-limited input [0, 255].

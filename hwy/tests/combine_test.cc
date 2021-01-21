@@ -281,4 +281,6 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombineShiftRight);
 HWY_AFTER_TEST();
 #endif
 
-#endif  // HWY_TARGET!=HWY_RVV
+#else
+int main(int, char**) { return 0; }
+#endif  // HWY_TARGET != HWY_RVV

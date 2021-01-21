@@ -46,7 +46,7 @@ struct TestFloorLog2 {
     auto in = AllocateAligned<uint8_t>(N);
     auto expected = AllocateAligned<uint8_t>(N);
 
-    RandomState rng{1234};
+    RandomState rng;
     for (size_t i = 0; i < N; ++i) {
       expected[i] = Random32(&rng) & 7;
       in[i] = static_cast<uint8_t>(1u << expected[i]);
@@ -84,7 +84,7 @@ HWY_NOINLINE void MulAddLoop(const D d, const T* HWY_RESTRICT mul_array,
 struct TestSumMulAdd {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    RandomState rng{1234};
+    RandomState rng;
     const size_t kSize = 64;
     HWY_ALIGN T mul[kSize];
     HWY_ALIGN T x[kSize];

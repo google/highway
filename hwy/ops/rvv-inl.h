@@ -324,6 +324,7 @@ HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGD, Iota0, id_v)
 
 template <class D, class DU = RebindToUnsigned<D>>
 HWY_API VFromD<DU> Iota0(const D d) {
+  Lanes(DU());
   return BitCastToUnsigned(Iota0(DU()));
 }
 
@@ -583,36 +584,6 @@ HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulSub, fnmacc)
 
 #undef HWY_RVV_FMA
 
-// ------------------------------ Round
-
-// TODO(janwas): not yet in spec
-
-template <class V>
-HWY_API V Round(const V v) {
-  return v;
-}
-
-// ------------------------------ Trunc
-
-template <class V>
-HWY_API V Trunc(const V v) {
-  return v;
-}
-
-// ------------------------------ Ceil
-
-template <class V>
-HWY_API V Ceil(const V v) {
-  return v;
-}
-
-// ------------------------------ Floor
-
-template <class V>
-HWY_API V Floor(const V v) {
-  return v;
-}
-
 // ================================================== COMPARE
 
 // Comparisons set a mask bit to 1 if the condition is true, else 0. The XX in
@@ -785,7 +756,6 @@ HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le)
 // Partial load
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_API VFromD<Simd<T, N>> Load(Simd<T, N> d, const T* HWY_RESTRICT p) {
-  // TODO(janwas): set VL
   return Load(d, p);
 }
 
@@ -801,8 +771,9 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
 
 #define HWY_RVV_RET_ARGVDP(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP) \
   HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                 \
-                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,           \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                 \
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {      \
+    (void)Lanes(d);                                               \
     return v##OP##SEW##_v_##CHAR##SEW##m##LMUL(p, v);             \
   }
 HWY_RVV_FOREACH(HWY_RVV_RET_ARGVDP, Store, se)
@@ -1409,6 +1380,7 @@ HWY_API V Combine(const V a, const V b) {
 #define HWY_RVV_REDUCE(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)             \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                      \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, 1) v0) {    \
+    vsetvlmax_e##SEW##m##LMUL();                                          \
     return Set(HWY_RVV_D(CHAR, SEW, LMUL)(),                              \
                GetLane(v##OP##_vs_##CHAR##SEW##m##LMUL##_##CHAR##SEW##m1( \
                    v0, v, v0)));                                          \
@@ -1442,8 +1414,9 @@ HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin)
 template <class V>
 HWY_API V MinOfLanes(const V v) {
   using T = TFromV<V>;
-  const auto v0 = Zero(Simd<T, HWY_LANES(T)>());  // always m1
-  return detail::RedMin(v, v0);
+  const Simd<T, HWY_LANES(T)> d1;  // always m1
+  const auto neutral = Set(d1, LimitsMax<T>());
+  return detail::RedMin(v, neutral);
 }
 
 // ------------------------------ MaxOfLanes
@@ -1458,8 +1431,9 @@ HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax)
 template <class V>
 HWY_API V MaxOfLanes(const V v) {
   using T = TFromV<V>;
-  const auto v0 = Zero(Simd<T, HWY_LANES(T)>());  // always m1
-  return detail::RedMax(v, v0);
+  const Simd<T, HWY_LANES(T)> d1;  // always m1
+  const auto neutral = Set(d1, LimitsMin<T>());
+  return detail::RedMax(v, neutral);
 }
 
 #undef HWY_RVV_REDUCE
@@ -1524,6 +1498,48 @@ HWY_API V AbsDiff(const V a, const V b) {
   return Abs(Sub(a, b));
 }
 
+// ------------------------------ Round
+
+// TODO(janwas): not yet in spec
+
+namespace detail {
+enum RoundingModes { kNear, kTrunc, kDown, kUp };
+}
+
+template <class V>
+HWY_API V Round(const V v) {
+  return ConvertTo(DFromV<V>(), NearestInt(v));
+}
+
+// ------------------------------ Trunc
+
+template <class V>
+HWY_API V Trunc(const V v) {
+  using DF = DFromV<V>;
+  const RebindToSigned<DF> di;
+  return ConvertTo(DF(), ConvertTo(di, v));
+}
+
+// ------------------------------ Ceil
+
+template <class V>
+HWY_API V Ceil(const V v) {
+  asm volatile("fsrm %0" ::"r"(detail::kUp));
+  const auto ret = Round(v);
+  asm volatile("fsrm %0" ::"r"(detail::kNear));
+  return ret;
+}
+
+// ------------------------------ Floor
+
+template <class V>
+HWY_API V Floor(const V v) {
+  asm volatile("fsrm %0" ::"r"(detail::kDown));
+  const auto ret = Round(v);
+  asm volatile("fsrm %0" ::"r"(detail::kNear));
+  return ret;
+}
+
 // ------------------------------ Iota
 
 template <class D, HWY_IF_UNSIGNED_D(D)>
@@ -1557,6 +1573,8 @@ HWY_RVV_FOREACH_I32(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
 
 template <class V>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {
+  const DFromV<V> d;
+  Lanes(d);
   const auto lo = Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   const RepartitionToWide<DFromV<V>> dw;

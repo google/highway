@@ -81,10 +81,13 @@ struct TestSignedSaturatingArithmetic {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
-    const auto vi = Iota(d, 1);
     const auto vpm = Set(d, LimitsMax<T>());
-    const auto vn = Iota(d, -T(Lanes(d)));
+    // Ensure all lanes are positive, even if Iota wraps around
+    const auto vi = Or(And(Iota(d, 0), vpm), Set(d, 1));
+    const auto vn = Sub(v0, vi);
     const auto vnm = Set(d, LimitsMin<T>());
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), Gt(vi, v0));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), Lt(vn, v0));
 
     HWY_ASSERT_VEC_EQ(d, v0, SaturatedAdd(v0, v0));
     HWY_ASSERT_VEC_EQ(d, vi, SaturatedAdd(v0, vi));
@@ -188,9 +191,9 @@ struct TestUnsignedShifts {
     auto expected = AllocateAligned<T>(N);
 
     // Shifting out of right side => zero
-    HWY_ASSERT_VEC_EQ(d, v0, ShiftRight<7>(vi));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftRight<kSign>(vi));
 #if HWY_VARIABLE_SHIFT_LANES == 1 || HWY_IDE
-    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightSame(vi, 7));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightSame(vi, kSign));
 #endif
 
     // Simple left shift
@@ -225,6 +228,7 @@ struct TestUnsignedShifts {
 struct TestSignedShifts {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    constexpr int kSign = (sizeof(T) * 8) - 1;
     using TU = MakeUnsigned<T>;
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
@@ -232,7 +236,7 @@ struct TestSignedShifts {
     auto expected = AllocateAligned<T>(N);
 
     // Shifting out of right side => zero
-    HWY_ASSERT_VEC_EQ(d, v0, ShiftRight<7>(vi));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftRight<kSign>(vi));
 #if HWY_VARIABLE_SHIFT_LANES == 1 || HWY_IDE
     HWY_ASSERT_VEC_EQ(d, v0, ShiftRightSame(vi, 7));
 #endif
@@ -427,35 +431,29 @@ struct TestUnsignedMinMax {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
-    const auto v1 = Iota(d, 1);
-    const auto v2 = Iota(d, 2);
-    const auto v_max = Iota(d, LimitsMax<T>() - Lanes(d) + 1);
+    // Leave headroom such that v1 < v2 even after wraparound.
+    const auto mod = And(Iota(d, 0), Set(d, LimitsMax<T>() >> 1));
+    const auto v1 = Add(mod, Set(d, 1));
+    const auto v2 = Add(mod, Set(d, 2));
     HWY_ASSERT_VEC_EQ(d, v1, Min(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v0, Min(v1, v0));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v0));
-    HWY_ASSERT_VEC_EQ(d, v1, Min(v1, v_max));
-    HWY_ASSERT_VEC_EQ(d, v_max, Max(v1, v_max));
-    HWY_ASSERT_VEC_EQ(d, v0, Min(v0, v_max));
-    HWY_ASSERT_VEC_EQ(d, v_max, Max(v0, v_max));
   }
 };
 
 struct TestSignedMinMax {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v1 = Iota(d, 1);
-    const auto v2 = Iota(d, 2);
-    const auto v_neg = Iota(d, -T(Lanes(d)));
-    const auto v_neg_max = Iota(d, LimitsMin<T>());
+    // Leave headroom such that v1 < v2 even after wraparound.
+    const auto mod = And(Iota(d, 0), Set(d, LimitsMax<T>() >> 1));
+    const auto v1 = Add(mod, Set(d, 1));
+    const auto v2 = Add(mod, Set(d, 2));
+    const auto v_neg = Sub(Zero(d), v1);
     HWY_ASSERT_VEC_EQ(d, v1, Min(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v_neg, Min(v1, v_neg));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
-    HWY_ASSERT_VEC_EQ(d, v_neg_max, Min(v1, v_neg_max));
-    HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg_max));
-    HWY_ASSERT_VEC_EQ(d, v_neg_max, Min(v_neg, v_neg_max));
-    HWY_ASSERT_VEC_EQ(d, v_neg, Max(v_neg, v_neg_max));
   }
 };
 
@@ -534,7 +532,7 @@ struct TestSignedMul {
     const auto v0 = Zero(d);
     const auto v1 = Set(d, T(1));
     const auto vi = Iota(d, 1);
-    const auto vn = Iota(d, -T(N));
+    const auto vn = Iota(d, -T(N));  // no i8 supported, so no wraparound
     HWY_ASSERT_VEC_EQ(d, v0, Mul(v0, v0));
     HWY_ASSERT_VEC_EQ(d, v1, Mul(v1, v1));
     HWY_ASSERT_VEC_EQ(d, vi, Mul(v1, vi));
@@ -567,16 +565,16 @@ HWY_NOINLINE void TestAllMul() {
   // No i64.
 }
 
-template <typename Wide>
 struct TestMulHigh {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using Wide = MakeWide<T>;
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
     auto expected_lanes = AllocateAligned<T>(N);
 
     const auto vi = Iota(d, 1);
-    const auto vni = Iota(d, -T(N));
+    const auto vni = Iota(d, -T(N));  // no i8 supported, so no wraparound
 
     const auto v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d, v0, MulHigh(v0, v0));
@@ -608,27 +606,27 @@ struct TestMulHigh {
 };
 
 HWY_NOINLINE void TestAllMulHigh() {
-  ForPartialVectors<TestMulHigh<int32_t>>()(int16_t());
-  ForPartialVectors<TestMulHigh<uint32_t>>()(uint16_t());
+  ForPartialVectors<TestMulHigh> test;
+  test(int16_t());
+  test(uint16_t());
 }
 
-template <typename Wide>
 struct TestMulEven {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    if (Lanes(d) == 1) return;
-    static_assert(sizeof(Wide) == 2 * sizeof(T), "Expected double-width type");
+    using Wide = MakeWide<T>;
     const Repartition<Wide, D> d2;
     const auto v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d2, Zero(d2), MulEven(v0, v0));
 
-    // scalar has N=1 and we write to "lane 1" below, though it isn't used by
-    // the actual MulEven.
-    auto in_lanes = AllocateAligned<T>(HWY_MAX(Lanes(d), 2));
+    const size_t N = Lanes(d);
+    auto in_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<Wide>(Lanes(d2));
-    for (size_t i = 0; i < Lanes(d); i += 2) {
+    for (size_t i = 0; i < N; i += 2) {
       in_lanes[i + 0] = LimitsMax<T>() >> i;
-      in_lanes[i + 1] = 1;  // will be overwritten with upper half of result
+      if (N != 1) {
+        in_lanes[i + 1] = 1;  // unused
+      }
       expected[i / 2] = Wide(in_lanes[i + 0]) * in_lanes[i + 0];
     }
 
@@ -638,8 +636,9 @@ struct TestMulEven {
 };
 
 HWY_NOINLINE void TestAllMulEven() {
-  ForPartialVectors<TestMulEven<int64_t>>()(int32_t());
-  ForPartialVectors<TestMulEven<uint64_t>>()(uint32_t());
+  ForPartialVectors<TestMulEven> test;
+  test(int32_t());
+  test(uint32_t());
 }
 
 struct TestMulAdd {
@@ -828,14 +827,24 @@ struct TestRound {
 
     // Huge positive
     {
+// TODO(janwas):Until we have native round, must fit in i32
+#if HWY_TARGET == HWY_RVV
+      const auto v = Set(d, T(1E8));
+#else
       const auto v = Set(d, T(1E15));
+#endif
       HWY_ASSERT_VEC_EQ(d, v, Ceil(v));
       HWY_ASSERT_VEC_EQ(d, v, Floor(v));
     }
 
     // Huge negative
     {
+// TODO(janwas):Until we have native round, must fit in i32
+#if HWY_TARGET == HWY_RVV
+      const auto v = Set(d, T(-1E8));
+#else
       const auto v = Set(d, T(-1E15));
+#endif
       HWY_ASSERT_VEC_EQ(d, v, Ceil(v));
       HWY_ASSERT_VEC_EQ(d, v, Floor(v));
     }
@@ -865,11 +874,12 @@ struct TestRound {
     // Above negative
     {
       // WARNING: using iota => ensure negative value is low enough that
-      // even 16 lanes remain negative, otherwise trunc will behave differently
+      // all lanes remain negative, otherwise trunc will behave differently
       // for positive/negative values.
-      const auto v = Iota(d, T(-19.9999));
-      const auto v3 = Iota(d, T(-19));
-      const auto v4 = Iota(d, T(-20));
+      HWY_ASSERT(Lanes(d) <= 512);
+      const auto v = Iota(d, T(-999.9999));
+      const auto v3 = Iota(d, T(-999));
+      const auto v4 = Iota(d, T(-1000));
       HWY_ASSERT_VEC_EQ(d, v3, Ceil(v));
       HWY_ASSERT_VEC_EQ(d, v4, Floor(v));
       HWY_ASSERT_VEC_EQ(d, v4, Round(v));
@@ -878,9 +888,9 @@ struct TestRound {
 
     // Below negative
     {
-      const auto v = Iota(d, T(-18.0001));
-      const auto v2 = Iota(d, T(-18));
-      const auto v3 = Iota(d, T(-19));
+      const auto v = Iota(d, T(-998.0001));
+      const auto v2 = Iota(d, T(-998));
+      const auto v3 = Iota(d, T(-999));
       HWY_ASSERT_VEC_EQ(d, v2, Ceil(v));
       HWY_ASSERT_VEC_EQ(d, v3, Floor(v));
       HWY_ASSERT_VEC_EQ(d, v2, Round(v));
@@ -898,14 +908,23 @@ struct TestSumOfLanes {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
+
+    // Lane i = bit i, higher lanes 0
     double sum = 0.0;
+    // Avoid setting sign bit and cap at double precision
+    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(1ull << i);
+      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
       sum += static_cast<double>(in_lanes[i]);
     }
-    const auto v = Load(d, in_lanes.get());
-    const auto expected = Set(d, T(sum));
-    HWY_ASSERT_VEC_EQ(d, expected, SumOfLanes(v));
+    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(Load(d, in_lanes.get())));
+
+    // Lane i = i (iota) to include upper lanes
+    sum = 0.0;
+    for (size_t i = 0; i < N; ++i) {
+      sum += static_cast<double>(i);
+    }
+    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(Iota(d, 0)));
   }
 };
 
@@ -931,14 +950,23 @@ struct TestMinOfLanes {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
 
+    // Lane i = bit i, higher lanes 2 (not the minimum)
     T min = LimitsMax<T>();
+    // Avoid setting sign bit and cap at double precision
+    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(1u << i);
+      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 2;
       min = std::min(min, in_lanes[i]);
     }
-    const auto v = Load(d, in_lanes.get());
-    const auto expected = Set(d, min);
-    HWY_ASSERT_VEC_EQ(d, expected, MinOfLanes(v));
+    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
+
+    // Lane i = N - i to include upper lanes
+    min = LimitsMax<T>();
+    for (size_t i = 0; i < N; ++i) {
+      in_lanes[i] = N - i;  // no 8-bit so no wraparound
+      min = std::min(min, in_lanes[i]);
+    }
+    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
   }
 };
 
@@ -949,13 +977,21 @@ struct TestMaxOfLanes {
     auto in_lanes = AllocateAligned<T>(N);
 
     T max = LimitsMin<T>();
+    // Avoid setting sign bit and cap at double precision
+    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(1u << i);
+      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
       max = std::max(max, in_lanes[i]);
     }
-    const auto v = Load(d, in_lanes.get());
-    const auto expected = Set(d, max);
-    HWY_ASSERT_VEC_EQ(d, expected, MaxOfLanes(v));
+    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
+
+    // Lane i = i to include upper lanes
+    max = LimitsMin<T>();
+    for (size_t i = 0; i < N; ++i) {
+      in_lanes[i] = i;  // no 8-bit so no wraparound
+      max = std::max(max, in_lanes[i]);
+    }
+    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
   }
 };
 

@@ -31,26 +31,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-template <class Out, class In>
-inline Out BitCast(const In& in) {
-  static_assert(sizeof(Out) == sizeof(In), "");
-  Out out;
-  std::memcpy(&out, &in, sizeof(out));
-  return out;
-}
-
-// Computes the difference in units of last place between x and y.
-inline uint32_t ComputeUlpDelta(float x, float y) {
-  const uint32_t ux = BitCast<uint32_t>(x + 0.0f);  // -0.0 -> +0.0
-  const uint32_t uy = BitCast<uint32_t>(y + 0.0f);  // -0.0 -> +0.0
-  return std::abs(BitCast<int32_t>(ux - uy));
-}
-inline uint64_t ComputeUlpDelta(double x, double y) {
-  const uint64_t ux = BitCast<uint64_t>(x + 0.0);  // -0.0 -> +0.0
-  const uint64_t uy = BitCast<uint64_t>(y + 0.0);  // -0.0 -> +0.0
-  return std::abs(BitCast<int64_t>(ux - uy));
-}
-
 template <class T, class D>
 void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
               D d, T min, T max, uint64_t max_error_ulp) {

@@ -16,18 +16,8 @@
 
 #include "hwy/tests/test_util-inl.h"
 
-namespace hwy {
-
 // Currently requires gTest.
 #if !HWY_TEST_STANDALONE
-
-class HwyTargetsTest : public testing::Test {
- protected:
-  void TearDown() override {
-    SetSupportedTargetsForTest(0);
-    DisableTargets(0);  // Reset the mask.
-  }
-};
 
 namespace fake {
 
@@ -47,26 +37,20 @@ DECLARE_FUNCTION(SCALAR)
 
 HWY_EXPORT(FakeFunction);
 
-}  // namespace fake
-
-// Test that the order in the HWY_EXPORT static array matches the expected
-// value of the target bits. This is only checked for the targets that are
-// enabled in the current compilation.
-TEST_F(HwyTargetsTest, ChosenTargetOrderTest) {
+void CheckFakeFunction() {
 #define CHECK_ARRAY_ENTRY(TGT)                                          \
   if ((HWY_TARGETS & HWY_##TGT) != 0) {                                 \
-    SetSupportedTargetsForTest(HWY_##TGT);                              \
+    hwy::SetSupportedTargetsForTest(HWY_##TGT);                         \
     /* Calling Update() first to make &HWY_DYNAMIC_DISPATCH() return */ \
     /* the pointer to the already cached function. */                   \
-    chosen_target.Update();                                             \
-    ASSERT_NE(nullptr, &HWY_DYNAMIC_DISPATCH(fake::FakeFunction));      \
-    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(fake::FakeFunction)(42)); \
+    hwy::chosen_target.Update();                                        \
+    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));       \
     /* Calling DeInit() will test that the initializer function */      \
     /* also calls the right function. */                                \
-    chosen_target.DeInit();                                             \
-    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(fake::FakeFunction)(42)); \
+    hwy::chosen_target.DeInit();                                        \
+    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));       \
     /* Second call uses the cached value from the previous call. */     \
-    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(fake::FakeFunction)(42)); \
+    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));       \
   }
   CHECK_ARRAY_ENTRY(AVX3)
   CHECK_ARRAY_ENTRY(AVX2)
@@ -76,7 +60,25 @@ TEST_F(HwyTargetsTest, ChosenTargetOrderTest) {
   CHECK_ARRAY_ENTRY(WASM)
   CHECK_ARRAY_ENTRY(RVV)
   CHECK_ARRAY_ENTRY(SCALAR)
+#undef CHECK_ARRAY_ENTRY
 }
+
+}  // namespace fake
+
+namespace hwy {
+
+class HwyTargetsTest : public testing::Test {
+ protected:
+  void TearDown() override {
+    SetSupportedTargetsForTest(0);
+    DisableTargets(0);  // Reset the mask.
+  }
+};
+
+// Test that the order in the HWY_EXPORT static array matches the expected
+// value of the target bits. This is only checked for the targets that are
+// enabled in the current compilation.
+TEST_F(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
 
 TEST_F(HwyTargetsTest, DisabledTargetsTest) {
   DisableTargets(~0u);
@@ -100,6 +102,6 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
   DisableTargets(0);  // Reset the mask.
 }
 
-#endif  // HWY_TEST_STANDALONE
-
 }  // namespace hwy
+
+#endif  // HWY_TEST_STANDALONE
