@@ -203,6 +203,62 @@ HWY_API Vec128<double, N> Undefined(Simd<double, N> /* tag */) {
 
 HWY_DIAGNOSTICS(pop)
 
+// ------------------------------ Extract lane
+
+// Gets the single value stored in a vector/part.
+template <size_t N>
+HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw) & 0xFF;
+}
+template <size_t N>
+HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw) & 0xFF;
+}
+template <size_t N>
+HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
+}
+template <size_t N>
+HWY_API int16_t GetLane(const Vec128<int16_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
+}
+template <size_t N>
+HWY_API uint32_t GetLane(const Vec128<uint32_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw);
+}
+template <size_t N>
+HWY_API int32_t GetLane(const Vec128<int32_t, N> v) {
+  return _mm_cvtsi128_si32(v.raw);
+}
+template <size_t N>
+HWY_API float GetLane(const Vec128<float, N> v) {
+  return _mm_cvtss_f32(v.raw);
+}
+template <size_t N>
+HWY_API uint64_t GetLane(const Vec128<uint64_t, N> v) {
+#if HWY_ARCH_X86_32
+  alignas(16) uint64_t lanes[2];
+  Store(v, Simd<uint64_t, N>(), lanes);
+  return lanes[0];
+#else
+  return _mm_cvtsi128_si64(v.raw);
+#endif
+}
+template <size_t N>
+HWY_API int64_t GetLane(const Vec128<int64_t, N> v) {
+#if HWY_ARCH_X86_32
+  alignas(16) int64_t lanes[2];
+  Store(v, Simd<int64_t, N>(), lanes);
+  return lanes[0];
+#else
+  return _mm_cvtsi128_si64(v.raw);
+#endif
+}
+template <size_t N>
+HWY_API double GetLane(const Vec128<double, N> v) {
+  return _mm_cvtsd_f64(v.raw);
+}
+
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition
@@ -1129,21 +1185,31 @@ HWY_API Mask128<double, N> operator>(const Vec128<double, N> a,
   return Mask128<double, N>{_mm_cmpgt_pd(a.raw, b.raw)};
 }
 
-#if HWY_TARGET != HWY_SSE4 || HWY_IDE
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
+                                      const Vec128<int64_t, N> b) {
+#if HWY_TARGET == HWY_SSE4  // SSE4.1
+  // If the upper half is less than or greater, this is the answer.
+  const __m128i m_gt = _mm_cmpgt_epi32(a.raw, b.raw);
+
+  // Otherwise, the lower half decides.
+  const __m128i m_eq = _mm_cmpeq_epi32(a.raw, b.raw);
+  const __m128i lo_in_hi = _mm_shuffle_epi32(m_gt, _MM_SHUFFLE(2, 2, 0, 0));
+  const __m128i lo_gt = _mm_and_si128(m_eq, lo_in_hi);
+
+  const __m128i gt = _mm_or_si128(lo_gt, m_gt);
+  // Copy result in upper 32 bits to lower 32 bits.
+  return Mask128<int64_t, N>{_mm_shuffle_epi32(gt, _MM_SHUFFLE(3, 3, 1, 1))};
+#else
+  return Mask128<int64_t, N>{_mm_cmpgt_epi64(a.raw, b.raw)};  // SSE4.2
+#endif
+}
 
 template <size_t N>
 HWY_API Mask128<int64_t, N> operator<(const Vec128<int64_t, N> a,
                                       const Vec128<int64_t, N> b) {
-  return Mask128<int64_t, N>{_mm_cmpgt_epi64(b.raw, a.raw)};
+  return operator>(b, a);
 }
-
-template <size_t N>
-HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
-                                      const Vec128<int64_t, N> b) {
-  return Mask128<int64_t, N>{_mm_cmpgt_epi64(a.raw, b.raw)};
-}
-
-#endif  // HWY_TARGET != HWY_SSE4
 
 // ------------------------------ Weak inequality
 
@@ -1296,6 +1362,22 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs, const Vec128<T, N> si
   return CopySign(abs, sign);
 #else
   return Or(abs, And(SignBit(Simd<T, N>()), sign));
+#endif
+}
+
+// ------------------------------ BroadcastSignBit
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> BroadcastSignBit(const Vec128<int32_t, N> v) {
+  return ShiftRight<31>(v);
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> BroadcastSignBit(const Vec128<int64_t, N> v) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, 63)};
+#else
+  return VecFromMask(v < Zero(Simd<int64_t, N>()));
 #endif
 }
 
@@ -1695,62 +1777,6 @@ HWY_API Vec128<double, N> GatherIndex(Simd<double, N> /* tag */,
 #endif  // HWY_TARGET != HWY_SSE4
 
 // ================================================== SWIZZLE
-
-// ------------------------------ Extract lane
-
-// Gets the single value stored in a vector/part.
-template <size_t N>
-HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFF;
-}
-template <size_t N>
-HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFF;
-}
-template <size_t N>
-HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
-}
-template <size_t N>
-HWY_API int16_t GetLane(const Vec128<int16_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
-}
-template <size_t N>
-HWY_API uint32_t GetLane(const Vec128<uint32_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw);
-}
-template <size_t N>
-HWY_API int32_t GetLane(const Vec128<int32_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw);
-}
-template <size_t N>
-HWY_API float GetLane(const Vec128<float, N> v) {
-  return _mm_cvtss_f32(v.raw);
-}
-template <size_t N>
-HWY_API uint64_t GetLane(const Vec128<uint64_t, N> v) {
-#if HWY_ARCH_X86_32
-  alignas(16) uint64_t lanes[2];
-  Store(v, Simd<uint64_t, N>(), lanes);
-  return lanes[0];
-#else
-  return _mm_cvtsi128_si64(v.raw);
-#endif
-}
-template <size_t N>
-HWY_API int64_t GetLane(const Vec128<int64_t, N> v) {
-#if HWY_ARCH_X86_32
-  alignas(16) int64_t lanes[2];
-  Store(v, Simd<int64_t, N>(), lanes);
-  return lanes[0];
-#else
-  return _mm_cvtsi128_si64(v.raw);
-#endif
-}
-template <size_t N>
-HWY_API double GetLane(const Vec128<double, N> v) {
-  return _mm_cvtsd_f64(v.raw);
-}
 
 // ------------------------------ Extract half
 
@@ -2371,12 +2397,42 @@ HWY_INLINE Vec128<float, N> DemoteTo(Simd<float, N> /* tag */,
   return Vec128<float, N>{_mm_cvtpd_ps(v.raw)};
 }
 
+namespace detail {
+
+// For well-defined float->int demotion in all x86_*-inl.h.
+
+template <size_t N>
+HWY_API auto ClampF64ToI32Max(Simd<double, N> d, decltype(Zero(d)) v)
+    -> decltype(Zero(d)) {
+  // The max can be exactly represented in binary64, so clamping beforehand
+  // prevents x86 conversion from raising an exception and returning 80..00.
+  return Min(v, Set(d, 2147483647.0));
+}
+
+// For ConvertTo float->int of same size, clamping before conversion would
+// change the result because the max integer value is not exactly representable.
+// Instead detect the overflow result after conversion and fix it.
+template <typename TI, size_t N, class DF = Simd<MakeFloat<TI>, N>>
+HWY_API auto FixConversionOverflow(Simd<TI, N> di,
+                                   decltype(Zero(DF())) original,
+                                   decltype(Zero(di).raw) converted_raw)
+    -> decltype(Zero(di)) {
+  // Combinations of original and output sign:
+  //   --: normal <0 or -huge_val to 80..00: OK
+  //   -+: -0 to 0                         : OK
+  //   +-: +huge_val to 80..00             : xor with FF..FF to get 7F..FF
+  //   ++: normal >0                       : OK
+  const auto converted = decltype(Zero(di)){converted_raw};
+  const auto sign_wrong = AndNot(BitCast(di, original), converted);
+  return BitCast(di, Xor(converted, BroadcastSignBit(sign_wrong)));
+}
+
+}  // namespace detail
+
 template <size_t N>
 HWY_INLINE Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> /* tag */,
                                        const Vec128<double, N> v) {
-  // Ensure large positive values saturate to INT32_MAX.
-  const Vec128<double, N> clamped =
-      Min(v, Set(Simd<double, N>(), 2147483647.0));
+  const auto clamped = detail::ClampF64ToI32Max(Simd<double, N>(), v);
   return Vec128<int32_t, N>{_mm_cvttpd_epi32(clamped.raw)};
 }
 
@@ -2419,23 +2475,28 @@ HWY_API Vec128<double, N> ConvertTo(Simd<double, N> dd,
 
 // Truncates (rounds toward zero).
 template <size_t N>
-HWY_API Vec128<int32_t, N> ConvertTo(Simd<int32_t, N> /* tag */,
+HWY_API Vec128<int32_t, N> ConvertTo(const Simd<int32_t, N> di,
                                      const Vec128<float, N> v) {
-  return Vec128<int32_t, N>{_mm_cvttps_epi32(v.raw)};
+  return detail::FixConversionOverflow(di, v, _mm_cvttps_epi32(v.raw));
 }
 
 template <size_t N>
 HWY_API Vec128<int64_t, N> ConvertTo(Simd<int64_t, N> di,
                                      const Vec128<double, N> v) {
 #if HWY_TARGET == HWY_AVX3
-  (void)di;
-  return Vec128<int64_t, N>{_mm_cvttpd_epi64(v.raw)};
+  return detail::FixConversionOverflow(di, v, _mm_cvttpd_epi64(v.raw));
 #else
   alignas(16) double lanes_d[2];
   Store(v, Simd<double, N>(), lanes_d);
   alignas(16) int64_t lanes_i[2];
   for (size_t i = 0; i < N; ++i) {
-    lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
+    if (lanes_d[i] >= LimitsMax<int64_t>()) {
+      lanes_i[i] = LimitsMax<int64_t>();
+    } else if (lanes_d[i] <= LimitsMin<int64_t>()) {
+      lanes_i[i] = LimitsMin<int64_t>();
+    } else {
+      lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
+    }
   }
   return Load(di, lanes_i);
 #endif
@@ -2443,7 +2504,8 @@ HWY_API Vec128<int64_t, N> ConvertTo(Simd<int64_t, N> di,
 
 template <size_t N>
 HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
-  return Vec128<int32_t, N>{_mm_cvtps_epi32(v.raw)};
+  const Simd<int32_t, N> di;
+  return detail::FixConversionOverflow(di, v, _mm_cvtps_epi32(v.raw));
 }
 
 // ================================================== MISC

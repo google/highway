@@ -661,7 +661,7 @@ HWY_API Vec512<uint64_t> ShiftRight(const Vec512<uint64_t> v) {
   return Vec512<uint64_t>{_mm512_srli_epi64(v.raw, kBits)};
 }
 
-// Signed (no i64 ShiftRight)
+// Signed
 template <int kBits>
 HWY_API Vec512<int16_t> ShiftLeft(const Vec512<int16_t> v) {
   return Vec512<int16_t>{_mm512_slli_epi16(v.raw, kBits)};
@@ -1136,6 +1136,16 @@ HWY_API Mask512<float> operator>=(const Vec512<float> a,
 HWY_API Mask512<double> operator>=(const Vec512<double> a,
                                    const Vec512<double> b) {
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+// ------------------------------ BroadcastSignBit
+
+HWY_API Vec512<int32_t> BroadcastSignBit(const Vec512<int32_t> v) {
+  return ShiftRight<31>(v);
+}
+
+HWY_API Vec512<int64_t> BroadcastSignBit(const Vec512<int64_t> v) {
+  return Vec512<int64_t>{_mm512_srai_epi64(v.raw, 63)};
 }
 
 // ------------------------------ Mask
@@ -2201,8 +2211,7 @@ HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,
 
 HWY_API Vec256<int32_t> DemoteTo(Full256<int32_t> /* tag */,
                                  const Vec512<double> v) {
-  // Ensure large positive values saturate to INT32_MAX.
-  const Vec512<double> clamped = Min(v, Set(Full512<double>(), 2147483647.0));
+  const auto clamped = detail::ClampF64ToI32Max(Full512<double>(), v);
   return Vec256<int32_t>{_mm512_cvttpd_epi32(clamped.raw)};
 }
 
@@ -2234,17 +2243,16 @@ HWY_API Vec512<double> ConvertTo(Full512<double> /* tag */,
 }
 
 // Truncates (rounds toward zero).
-HWY_API Vec512<int32_t> ConvertTo(Full512<int32_t> /* tag */,
-                                  const Vec512<float> v) {
-  return Vec512<int32_t>{_mm512_cvttps_epi32(v.raw)};
+HWY_API Vec512<int32_t> ConvertTo(Full512<int32_t> d, const Vec512<float> v) {
+  return detail::FixConversionOverflow(d, v, _mm512_cvttps_epi32(v.raw));
 }
-HWY_API Vec512<int64_t> ConvertTo(Full512<int64_t> /* tag */,
-                                  const Vec512<double> v) {
-  return Vec512<int64_t>{_mm512_cvttpd_epi64(v.raw)};
+HWY_API Vec512<int64_t> ConvertTo(Full512<int64_t> di, const Vec512<double> v) {
+  return detail::FixConversionOverflow(di, v, _mm512_cvttpd_epi64(v.raw));
 }
 
 HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
-  return Vec512<int32_t>{_mm512_cvtps_epi32(v.raw)};
+  const Full512<int32_t> di;
+  return detail::FixConversionOverflow(di, v, _mm512_cvtps_epi32(v.raw));
 }
 
 // ================================================== MISC

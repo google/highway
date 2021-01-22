@@ -204,7 +204,7 @@ std::string TestParamTargetNameAndT(
   } /* namespace hwy */              \
   int main(int argc, char* argv[]) { \
     hwy::RunAll();                   \
-    printf("Success.\n");            \
+    fprintf(stderr, "Success.\n");   \
     return 0;                        \
   }                                  \
   static_assert(true, "For requiring trailing semicolon")
@@ -335,12 +335,13 @@ HWY_NOINLINE void Print(const D d, const char* caption, const Vec<D> v,
   Store(v, d, lanes.get());
   const size_t begin = static_cast<size_t>(std::max<intptr_t>(0, lane - 2));
   const size_t end = std::min(begin + 5, N);
-  printf("%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption, begin);
+  fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
+          begin);
   for (size_t i = begin; i < end; ++i) {
-    printf("%s,", std::to_string(lanes[i]).c_str());
+    fprintf(stderr, "%s,", std::to_string(lanes[i]).c_str());
   }
-  if (begin >= end) printf("(out of bounds)");
-  printf("\n");
+  if (begin >= end) fprintf(stderr, "(out of bounds)");
+  fprintf(stderr, "\n");
 }
 
 static HWY_NORETURN HWY_NOINLINE void NotifyFailure(
@@ -423,7 +424,7 @@ HWY_NOINLINE void AssertVecEqual(D d, const V expected, const V actual,
   Store(actual, d, actual_lanes.get());
   for (size_t i = 0; i < N; ++i) {
     if (!IsEqual(expected_lanes[i], actual_lanes[i])) {
-      printf("\n\n");
+      fprintf(stderr, "\n\n");
       Print(d, "expect", expected, i);
       Print(d, "actual", actual, i);
       NotifyFailure(filename, line, hwy::TypeName(T(), N).c_str(), i,

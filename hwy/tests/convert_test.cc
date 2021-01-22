@@ -213,7 +213,7 @@ struct TestDemoteTo {
     const T max = LimitsMax<ToT>();
 
     RandomState rng;
-    for (size_t rep = 0; rep < 200; ++rep) {
+    for (size_t rep = 0; rep < 1000; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         do {
           const uint64_t bits = rng();
@@ -265,6 +265,28 @@ HWY_NOINLINE void TestAllConvertU8() {
   ForDemoteVectors<TestConvertU8, 4>()(uint32_t());
 }
 
+// Separate function to attempt to work around a compiler bug on ARM: when this
+// is merged with TestIntFromFloat, outputs match a previous Iota(-(N+1)) input.
+struct TestIntFromFloatHuge {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    // Still does not work, although ARMv7 manual says that float->int
+    // saturates, i.e. chooses the nearest representable value.
+#if HWY_TARGET != HWY_NEON
+    using TI = MakeSigned<TF>;
+    const Rebind<TI, DF> di;
+
+    // Huge positive
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
+                      ConvertTo(di, Set(df, TF(1E20))));
+
+    // Huge negative
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
+                      ConvertTo(di, Set(df, TF(-1E20))));
+#endif
+  }
+};
+
 struct TestIntFromFloat {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
@@ -292,8 +314,40 @@ struct TestIntFromFloat {
     // Below negative
     HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
                       ConvertTo(di, Iota(df, -TF(N + 1) - eps)));
+
+    // TF does not have enough precision to represent TI.
+    const double min = static_cast<double>(LimitsMin<TI>());
+    const double max = static_cast<double>(LimitsMax<TI>());
+
+    // Also check random values.
+    auto from = AllocateAligned<TF>(N);
+    auto expected = AllocateAligned<TI>(N);
+    RandomState rng;
+    for (size_t rep = 0; rep < 1000; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        do {
+          const uint64_t bits = rng();
+          memcpy(&from[i], &bits, sizeof(TF));
+        } while (!std::isfinite(from[i]));
+        if (from[i] >= max) {
+          expected[i] = LimitsMax<TI>();
+        } else if (from[i] <= min) {
+          expected[i] = LimitsMin<TI>();
+        } else {
+          expected[i] = static_cast<TI>(from[i]);
+        }
+      }
+
+      HWY_ASSERT_VEC_EQ(di, expected.get(),
+                        ConvertTo(di, Load(df, from.get())));
+    }
   }
 };
+
+HWY_NOINLINE void TestAllIntFromFloat() {
+  ForFloatTypes(ForPartialVectors<TestIntFromFloatHuge>());
+  ForFloatTypes(ForPartialVectors<TestIntFromFloat>());
+}
 
 struct TestFloatFromInt {
   template <typename TI, class DI>
@@ -307,8 +361,23 @@ struct TestFloatFromInt {
 
     // Integer negative
     HWY_ASSERT_VEC_EQ(df, Iota(df, -TF(N)), ConvertTo(df, Iota(di, -TI(N))));
+
+    // Max positive
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
+                      ConvertTo(df, Set(di, LimitsMax<TI>())));
+
+    // Min negative
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
+                      ConvertTo(df, Set(di, LimitsMin<TI>())));
   }
 };
+
+HWY_NOINLINE void TestAllFloatFromInt() {
+  ForPartialVectors<TestFloatFromInt>()(int32_t());
+#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
+  ForPartialVectors<TestFloatFromInt>()(int64_t());
+#endif
+}
 
 struct TestI32F64 {
   template <typename TF, class DF>
@@ -343,17 +412,26 @@ struct TestI32F64 {
     HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
                       DemoteTo(di, Iota(df, -TF(N + 1) - eps)));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), PromoteTo(df, Iota(di, TI(-2))));
+
+    // Huge positive float
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
+                      DemoteTo(di, Set(df, TF(1E12))));
+
+    // Huge negative float
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
+                      DemoteTo(di, Set(df, TF(-1E12))));
+
+    // Max positive int
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
+                      PromoteTo(df, Set(di, LimitsMax<TI>())));
+
+    // Min negative int
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
+                      PromoteTo(df, Set(di, LimitsMin<TI>())));
   }
 };
 
-HWY_NOINLINE void TestAllConvertFloatInt() {
-  ForFloatTypes(ForPartialVectors<TestIntFromFloat>());
-
-  ForPartialVectors<TestFloatFromInt>()(int32_t());
-#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
-  ForPartialVectors<TestFloatFromInt>()(int64_t());
-#endif
-
+HWY_NOINLINE void TestAllI32F64() {
 #if HWY_CAP_FLOAT64
   ForDemoteVectors<TestI32F64, 2>()(double());
 #endif
@@ -402,7 +480,9 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertFloatInt);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNearestInt);
 HWY_AFTER_TEST();
 #endif

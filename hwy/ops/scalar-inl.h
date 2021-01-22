@@ -241,6 +241,13 @@ HWY_API Vec1<T> CopySignToAbs(const Vec1<T> abs, const Vec1<T> sign) {
   return Or(abs, And(SignBit(Sisd<T>()), sign));
 }
 
+// ------------------------------ BroadcastSignBit
+
+template <typename T>
+HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
+  return ShiftRight<sizeof(T) * 8 - 1>(v);
+}
+
 // ------------------------------ Mask
 
 // v must be 0 or FF..FF.
@@ -716,7 +723,7 @@ HWY_INLINE void StoreU(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT p) {
   return Store(v, d, p);
 }
 
-// ------------------------------ "Non-temporal" stores
+// ------------------------------ Stream
 
 template <typename T>
 HWY_INLINE void Stream(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT aligned) {
@@ -748,31 +755,41 @@ HWY_INLINE Vec1<T> GatherIndex(Sisd<T> d, const T* HWY_RESTRICT base,
 template <typename FromT, typename ToT>
 HWY_INLINE Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) > sizeof(FromT), "Not promoting");
+  // For bits Y > X, floatX->floatY and intX->intY are always representable.
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
 template <typename FromT, typename ToT>
 HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
-  // Prevent ubsan errors when converting float to integers
-  if (IsFloat<FromT>() && !IsFloat<ToT>()) {
-    const double val = static_cast<double>(from.raw);
-    if (std::isinf(val) ||
-        std::fabs(val) > static_cast<double>(LimitsMax<ToT>())) {
-      return Vec1<ToT>(std::signbit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>());
+
+  // Prevent ubsan errors when converting float to narrower integer/float
+  if (IsFloat<FromT>()) {
+    if (std::isinf(from.raw) ||
+        std::fabs(from.raw) > static_cast<FromT>(LimitsMax<ToT>())) {
+      return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
+                                              : LimitsMax<ToT>());
     }
+  } else {
+    // Int to int: choose closest value in ToT to `from` (avoids UB)
+    from.raw = std::min<FromT>(std::max<FromT>(LimitsMin<ToT>(), from.raw),
+                               LimitsMax<ToT>());
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
 template <typename FromT, typename ToT>
 HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
-  // Prevent ubsan errors when converting float to integers
-  if (IsFloat<FromT>() && !IsFloat<ToT>()) {
-    const double val = static_cast<double>(from.raw);
-    if (std::isinf(val) ||
-        std::fabs(val) > static_cast<double>(LimitsMax<ToT>())) {
-      return Vec1<ToT>(std::signbit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>());
+  static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
+  // This function is only for int## -> float## (no check needed) and
+  // float## -> int## (return closest representable value).
+  if (IsFloat<FromT>()) {
+    // Cannot exactly represent LimitsMax<ToT> in FromT, so use double.
+    const double f = static_cast<double>(from.raw);
+    if (std::isinf(from.raw) ||
+        std::fabs(f) > static_cast<double>(LimitsMax<ToT>())) {
+      return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
+                                              : LimitsMax<ToT>());
     }
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
@@ -785,6 +802,11 @@ HWY_INLINE Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
 // Approximation of round-to-nearest for numbers representable as int32_t.
 HWY_INLINE Vec1<int32_t> NearestInt(const Vec1<float> v) {
   const float f = v.raw;
+  if (std::isinf(f) ||
+      std::fabs(f) > static_cast<float>(LimitsMax<int32_t>())) {
+    return Vec1<int32_t>(std::signbit(f) ? LimitsMin<int32_t>()
+                                         : LimitsMax<int32_t>());
+  }
   const float bias = f < 0.0f ? -0.5f : 0.5f;
   return Vec1<int32_t>(static_cast<int>(f + bias));
 }

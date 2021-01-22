@@ -1108,6 +1108,20 @@ HWY_API Mask256<double> operator>=(const Vec256<double> a,
   return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GE_OQ)};
 }
 
+// ------------------------------ BroadcastSignBit
+
+HWY_API Vec256<int32_t> BroadcastSignBit(const Vec256<int32_t> v) {
+  return ShiftRight<31>(v);
+}
+
+HWY_API Vec256<int64_t> BroadcastSignBit(const Vec256<int64_t> v) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<int64_t>{_mm256_srai_epi64(v.raw, 63)};
+#else
+  return VecFromMask(v < Zero(Full256<int64_t>()));
+#endif
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ Load
@@ -1993,8 +2007,7 @@ HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,
 
 HWY_API Vec128<int32_t> DemoteTo(Full128<int32_t> /* tag */,
                                  const Vec256<double> v) {
-  // Ensure large positive values saturate to INT32_MAX.
-  const Vec256<double> clamped = Min(v, Set(Full256<double>(), 2147483647.0));
+  const auto clamped = detail::ClampF64ToI32Max(Full256<double>(), v);
   return Vec128<int32_t>{_mm256_cvttpd_epi32(clamped.raw)};
 }
 
@@ -2035,28 +2048,33 @@ HWY_API Vec256<double> ConvertTo(Full256<double> dd, const Vec256<int64_t> v) {
 }
 
 // Truncates (rounds toward zero).
-HWY_API Vec256<int32_t> ConvertTo(Full256<int32_t> /* tag */,
-                                  const Vec256<float> v) {
-  return Vec256<int32_t>{_mm256_cvttps_epi32(v.raw)};
+HWY_API Vec256<int32_t> ConvertTo(Full256<int32_t> d, const Vec256<float> v) {
+  return detail::FixConversionOverflow(d, v, _mm256_cvttps_epi32(v.raw));
 }
 
 HWY_API Vec256<int64_t> ConvertTo(Full256<int64_t> di, const Vec256<double> v) {
 #if HWY_TARGET == HWY_AVX3
-  (void)di;
-  return Vec256<int64_t>{_mm256_cvttpd_epi64(v.raw)};
+  return detail::FixConversionOverflow(di, v, _mm256_cvttpd_epi64(v.raw));
 #else
   alignas(32) double lanes_d[4];
   Store(v, Full256<double>(), lanes_d);
   alignas(32) int64_t lanes_i[4];
   for (size_t i = 0; i < 4; ++i) {
-    lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
+    if (lanes_d[i] >= LimitsMax<int64_t>()) {
+      lanes_i[i] = LimitsMax<int64_t>();
+    } else if (lanes_d[i] <= LimitsMin<int64_t>()) {
+      lanes_i[i] = LimitsMin<int64_t>();
+    } else {
+      lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
+    }
   }
   return Load(di, lanes_i);
 #endif
 }
 
 HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
-  return Vec256<int32_t>{_mm256_cvtps_epi32(v.raw)};
+  const Full256<int32_t> di;
+  return detail::FixConversionOverflow(di, v, _mm256_cvtps_epi32(v.raw));
 }
 
 // ================================================== MISC

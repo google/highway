@@ -66,10 +66,34 @@ HWY_NOINLINE void TestAllEquality() {
   ForAllTypes(ForPartialVectors<TestEquality>());
 }
 
+// a > b should be true, verify that for Gt/Lt and with swapped args.
+template <class D>
+void EnsureGreater(D d, TFromD<D> a, TFromD<D> b) {
+  const auto mask_false = MaskFalse(d);
+  const auto mask_true = MaskTrue(d);
+
+  const auto va = Set(d, a);
+  const auto vb = Set(d, b);
+  HWY_ASSERT_MASK_EQ(d, mask_true, Gt(va, vb));
+  HWY_ASSERT_MASK_EQ(d, mask_false, Lt(va, vb));
+
+  // Swapped order
+  HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vb, va));
+  HWY_ASSERT_MASK_EQ(d, mask_true, Lt(vb, va));
+
+  // Also ensure irreflexive
+  HWY_ASSERT_MASK_EQ(d, mask_false, Gt(va, va));
+  HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vb, vb));
+  HWY_ASSERT_MASK_EQ(d, mask_false, Lt(va, va));
+  HWY_ASSERT_MASK_EQ(d, mask_false, Lt(vb, vb));
+}
+
 // Integer and floating-point.
 struct TestStrict {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const T min = LimitsMin<T>();
+    const T max = LimitsMax<T>();
     const auto v0 = Zero(d);
     const auto v2 = And(Iota(d, T(2)), Set(d, 127));  // 0..127
     const auto vn = Neg(v2) - Set(d, 1);              // -1..-128
@@ -77,9 +101,20 @@ struct TestStrict {
     const auto mask_false = MaskFalse(d);
     const auto mask_true = MaskTrue(d);
 
-    HWY_ASSERT_MASK_EQ(d, mask_true, Gt(Set(d, 2), Set(d, 1)));
-    HWY_ASSERT_MASK_EQ(d, mask_true, Lt(Set(d, -1), v0));
+    // Individual values of interest
+    EnsureGreater(d, 2, 1);
+    EnsureGreater(d, 1, 0);
+    EnsureGreater(d, 0, -1);
+    EnsureGreater(d, -1, -2);
+    EnsureGreater(d, max, max / 2);
+    EnsureGreater(d, max, 1);
+    EnsureGreater(d, max, 0);
+    EnsureGreater(d, max, -1);
+    EnsureGreater(d, max, min);
+    EnsureGreater(d, 0, min);
+    EnsureGreater(d, min / 2, min);
 
+    // Also use Iota to ensure lanes are independent
     HWY_ASSERT_MASK_EQ(d, mask_true, Gt(v2, vn));
     HWY_ASSERT_MASK_EQ(d, mask_true, Lt(vn, v2));
     HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, vn));
@@ -96,15 +131,7 @@ struct TestStrict {
 
 HWY_NOINLINE void TestAllStrict() {
   const ForExtendableVectors<TestStrict> test;
-
-  // Cannot use ForSignedTypes - need to check HWY_COMPARE64_LANES.
-  test(int8_t());
-  test(int16_t());
-  test(int32_t());
-#if HWY_COMPARE64_LANES > 1
-  test(int64_t());
-#endif
-
+  ForSignedTypes(test);
   ForFloatTypes(test);
 }
 

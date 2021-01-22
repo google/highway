@@ -374,6 +374,29 @@ HWY_NOINLINE void TestAllZeroIfNegative() {
   ForFloatTypes(ForPartialVectors<TestZeroIfNegative>());
 }
 
+struct TestBroadcastSignBit {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto s0 = Zero(d);
+    const auto s1 = Set(d, -1);  // all bit set
+
+    HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(Iota(d, 0)));
+    HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(Set(d, LimitsMax<T>())));
+
+    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Iota(d, -T(Lanes(d)))));
+    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Set(d, LimitsMin<T>())));
+    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Set(d, LimitsMin<T>() / 2)));
+  }
+};
+
+HWY_NOINLINE void TestAllBroadcastSignBit() {
+  ForPartialVectors<TestBroadcastSignBit> test;
+  test(int32_t());
+#if HWY_CAP_INTEGER64
+  test(int64_t());
+#endif
+}
+
 struct TestTestBit {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -577,6 +600,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);

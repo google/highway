@@ -833,28 +833,6 @@ HWY_API Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
 
 // ------------------------------ Strict inequality
 
-// Signed/float <
-template <size_t N>
-HWY_API Mask128<int8_t, N> operator<(const Vec128<int8_t, N> a,
-                                     const Vec128<int8_t, N> b) {
-  return Mask128<int8_t, N>{wasm_i8x16_lt(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Mask128<int16_t, N> operator<(const Vec128<int16_t, N> a,
-                                      const Vec128<int16_t, N> b) {
-  return Mask128<int16_t, N>{wasm_i16x8_lt(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Mask128<int32_t, N> operator<(const Vec128<int32_t, N> a,
-                                      const Vec128<int32_t, N> b) {
-  return Mask128<int32_t, N>{wasm_i32x4_lt(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Mask128<float, N> operator<(const Vec128<float, N> a,
-                                    const Vec128<float, N> b) {
-  return Mask128<float, N>{wasm_f32x4_lt(a.raw, b.raw)};
-}
-
 // Signed/float >
 template <size_t N>
 HWY_API Mask128<int8_t, N> operator>(const Vec128<int8_t, N> a,
@@ -872,9 +850,27 @@ HWY_API Mask128<int32_t, N> operator>(const Vec128<int32_t, N> a,
   return Mask128<int32_t, N>{wasm_i32x4_gt(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Mask128<float, N> operator>(const Vec128<float, N> a,
-                                    const Vec128<float, N> b) {
-  return Mask128<float, N>{wasm_f32x4_gt(a.raw, b.raw)};
+HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
+                                      const Vec128<int64_t, N> b) {
+  const Simd<int32_t, N * 2> d32;
+  const auto a32 = BitCast(d32, a);
+  const auto b32 = BitCast(d32, b);
+  // If the upper half is less than or greater, this is the answer.
+  const auto m_gt = a32 < b32;
+
+  // Otherwise, the lower half decides.
+  const auto m_eq = a32 == b32;
+  const auto lo_in_hi = wasm_v32x4_shuffle(m_gt, 2, 2, 0, 0);
+  const auto lo_gt = And(m_eq, lo_in_hi);
+
+  const auto gt = Or(lo_gt, m_gt);
+  // Copy result in upper 32 bits to lower 32 bits.
+  return Mask128<int64_t, N>{wasm_v32x4_shuffle(gt, 3, 3, 1, 1)};
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator<(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return operator>(b, a);
 }
 
 // ------------------------------ Weak inequality
@@ -956,6 +952,13 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
   return Or(abs, And(SignBit(Simd<T, N>()), sign));
 }
 
+// ------------------------------ BroadcastSignBit
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> BroadcastSignBit(const Vec128<int32_t, N> v) {
+  return ShiftRight<31>(v);
+}
+
 // ------------------------------ Mask
 
 // Mask and Vec are the same (true = FF..FF).
@@ -965,18 +968,13 @@ HWY_API Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
 }
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> VecFromMask(const Simd<T, N> /* tag */,
-                                  const Mask128<T, N> v) {
+HWY_API Vec128<T, N> VecFromMask(Simd<T, N> /* tag */, Mask128<T, N> v) {
   return Vec128<T, N>{v.raw};
 }
 
+// DEPRECATED
 template <typename T, size_t N>
 HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
-  return Vec128<T, N>{v.raw};
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> VecFromMask(Simd<T, N> /* tag */, const Mask128<T, N> v) {
   return Vec128<T, N>{v.raw};
 }
 

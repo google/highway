@@ -250,6 +250,9 @@ Compile-time constant shifts are generally the most efficient variant.
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >>` a
     compile-time constant count in `[0, sizeof(T)*8)`.
 
+*   `V`: `i32/64` \
+    <code>V **BroadcastSignBit(V a)</code> returns `a[i] < 0 ? -1 : 0`.
+
 **Note**: Vectors must be `HWY_CAPPED(T, HWY_VARIABLE_SHIFT_LANES(T))`:
 
 *   `V`: `ui32/64` \
@@ -478,6 +481,9 @@ All functions except Stream are defined in cache_control.h.
     <code>Vec&lt;D&gt; **U8FromU32**(V)</code>: special-case `u32` to `u8`
     conversion when all lanes of `V` are already clamped to `[0, 256)`.
 
+`DemoteTo` and float-to-int `ConvertTo` return the closest representable value
+if the input exceeds the destination range.
+
 *   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i32,i16`), (`i16,u8`), (`i32,u8`),
     (`i32,u16`), (`f64,f32`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: returns `a[i]` after packing
@@ -691,7 +697,8 @@ generates the best possible code (or scalar fallback) from the same source code.
 As above, but the feature implies the type so there is no T parameter, thus
 these can be used in `#if` expressions.
 
-*   `HWY_COMPARE64_LANES`: 64-bit signed integer comparisons.
+*   `HWY_COMPARE64_LANES`: 64-bit signed integer comparisons. DEPRECATED, this
+    always matches HWY_LANES(int64_t).
 *   `HWY_MINMAX64_LANES`: 64-bit signed/unsigned integer min/max.
 
 ## Detecting supported targets

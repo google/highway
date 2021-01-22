@@ -469,9 +469,10 @@ HWY_RVV_FOREACH_UI(HWY_RVV_SHIFT, ShiftLeft, sll)
 // ------------------------------ ShiftRight
 
 HWY_RVV_FOREACH_U(HWY_RVV_SHIFT, ShiftRight, srl)
-// No i8 nor i64 in API.
+// No i8 nor i64 in API, but need i64 for BroadcastSignBit.
 HWY_RVV_FOREACH_I16(HWY_RVV_SHIFT, ShiftRight, sra)
 HWY_RVV_FOREACH_I32(HWY_RVV_SHIFT, ShiftRight, sra)
+HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT, ShiftRight, sra)
 
 #undef HWY_RVV_SHIFT
 
@@ -712,6 +713,13 @@ HWY_API V ZeroIfNegative(const V v) {
   const auto v0 = Zero(DFromV<V>());
   // We already have a zero constant, so avoid IfThenZeroElse.
   return IfThenElse(Lt(v, v0), v0, v);
+}
+
+// ------------------------------ BroadcastSignBit
+
+template <class V>
+HWY_API V BroadcastSignBit(const V v) {
+  return ShiftRight<sizeof(TFromV<V>) * 8 - 1>(v);
 }
 
 // ------------------------------ AllFalse
