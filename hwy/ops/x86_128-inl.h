@@ -1365,22 +1365,6 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs, const Vec128<T, N> si
 #endif
 }
 
-// ------------------------------ BroadcastSignBit
-
-template <size_t N>
-HWY_API Vec128<int32_t, N> BroadcastSignBit(const Vec128<int32_t, N> v) {
-  return ShiftRight<31>(v);
-}
-
-template <size_t N>
-HWY_API Vec128<int64_t, N> BroadcastSignBit(const Vec128<int64_t, N> v) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, 63)};
-#else
-  return VecFromMask(v < Zero(Simd<int64_t, N>()));
-#endif
-}
-
 // ------------------------------ Mask
 
 // Mask and Vec are the same (true = FF..FF).
@@ -1461,6 +1445,31 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   const Simd<T, N> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
+}
+
+// ------------------------------ BroadcastSignBit (ShiftRight, IfThenElse)
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> BroadcastSignBit(const Vec128<int32_t, N> v) {
+  return ShiftRight<31>(v);
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> BroadcastSignBit(const Vec128<int64_t, N> v) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, 63)};
+#elif HWY_TARGET == HWY_AVX2
+  return VecFromMask(v < Zero(Simd<int64_t, N>()));
+#else
+  // Efficient Gt() requires SSE4.2 but we only have SSE4.1, so it is faster to
+  // generate constants and BLENDVPD, which only looks at the sign bit.
+  const Simd<int64_t, N> di;
+  const Simd<double, N> df;
+  const auto zero = Zero(di);
+  const auto all = BitCast(df, VecFromMask(zero == zero));
+  return BitCast(di, Vec128<double, N>{
+                         _mm_blendv_pd(BitCast(df, zero).raw, all.raw, v.raw)});
+#endif
 }
 
 // ================================================== MEMORY
