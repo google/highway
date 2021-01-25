@@ -356,7 +356,7 @@ template <class Out, class In>
 inline Out BitCast(const In& in) {
   static_assert(sizeof(Out) == sizeof(In), "");
   Out out;
-  memcpy(&out, &in, sizeof(out));
+  CopyBytes<sizeof(out)>(&in, &out);
   return out;
 }
 

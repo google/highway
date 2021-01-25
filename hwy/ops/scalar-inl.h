@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>  // memcpy
 
 #include <cmath>
 
@@ -254,21 +253,21 @@ HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
 template <typename T>
 HWY_INLINE Mask1<T> MaskFromVec(const Vec1<T> v) {
   Mask1<T> mask;
-  memcpy(&mask.bits, &v.raw, sizeof(mask.bits));
+  CopyBytes<sizeof(mask.bits)>(&v.raw, &mask.bits);
   return mask;
 }
 
 template <typename T>
 Vec1<T> VecFromMask(const Mask1<T> mask) {
   Vec1<T> v;
-  memcpy(&v.raw, &mask.bits, sizeof(v.raw));
+  CopyBytes<sizeof(v.raw)>(&mask.bits, &v.raw);
   return v;
 }
 
 template <typename T>
 Vec1<T> VecFromMask(Sisd<T> /* tag */, const Mask1<T> mask) {
   Vec1<T> v;
-  memcpy(&v.raw, &mask.bits, sizeof(v.raw));
+  CopyBytes<sizeof(v.raw)>(&mask.bits, &v.raw);
   return v;
 }
 
@@ -843,13 +842,13 @@ HWY_API Vec1<T> TableLookupBytes(const Vec1<T> in, const Vec1<T> from) {
   uint8_t in_bytes[sizeof(T)];
   uint8_t from_bytes[sizeof(T)];
   uint8_t out_bytes[sizeof(T)];
-  memcpy(&in_bytes, &in, sizeof(T));
-  memcpy(&from_bytes, &from, sizeof(T));
+  CopyBytes<sizeof(T)>(&in, &in_bytes);
+  CopyBytes<sizeof(T)>(&from, &from_bytes);
   for (size_t i = 0; i < sizeof(T); ++i) {
     out_bytes[i] = in_bytes[from_bytes[i]];
   }
   T out;
-  memcpy(&out, &out_bytes, sizeof(T));
+  CopyBytes<sizeof(T)>(&out_bytes, &out);
   return Vec1<T>{out};
 }
 

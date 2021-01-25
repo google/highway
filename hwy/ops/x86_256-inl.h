@@ -2149,7 +2149,7 @@ template <typename T>
 HWY_INLINE size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (4 + sizeof(T) - 1) / sizeof(T);
-  memcpy(p, &bits, kNumBytes);
+  CopyBytes<kNumBytes>(&bits, p);
   return kNumBytes;
 }
 

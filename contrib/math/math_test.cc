@@ -14,7 +14,6 @@
 
 #include <cfloat>  // FLT_MAX
 #include <cmath>
-#include <cstring>  // memcpy
 #include <iostream>
 #include <type_traits>
 
