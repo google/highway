@@ -987,6 +987,12 @@ HWY_API Vec512<double> Floor(const Vec512<double> v) {
 
 // Comparisons set a mask bit to 1 if the condition is true, else 0.
 
+template <typename TFrom, typename TTo>
+HWY_API Mask512<TTo> RebindMask(Full512<TTo> /*tag*/, Mask512<TFrom> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return Mask512<TTo>{m.raw};
+}
+
 namespace detail {
 
 template <typename T>

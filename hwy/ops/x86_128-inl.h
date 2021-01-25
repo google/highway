@@ -652,130 +652,6 @@ HWY_API Vec128<int64_t, N> operator<<(const Vec128<int64_t, N> v,
 
 #endif  // HWY_TARGET != HWY_SSE4
 
-// ------------------------------ Minimum
-
-// Unsigned (no u64 unless AVX3)
-template <size_t N>
-HWY_API Vec128<uint8_t, N> Min(const Vec128<uint8_t, N> a,
-                               const Vec128<uint8_t, N> b) {
-  return Vec128<uint8_t, N>{_mm_min_epu8(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint16_t, N> Min(const Vec128<uint16_t, N> a,
-                                const Vec128<uint16_t, N> b) {
-  return Vec128<uint16_t, N>{_mm_min_epu16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint32_t, N> Min(const Vec128<uint32_t, N> a,
-                                const Vec128<uint32_t, N> b) {
-  return Vec128<uint32_t, N>{_mm_min_epu32(a.raw, b.raw)};
-}
-#if HWY_TARGET == HWY_AVX3
-template <size_t N>
-HWY_API Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
-                                const Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_min_epu64(a.raw, b.raw)};
-}
-#endif
-
-// Signed (no i64 unless AVX3)
-template <size_t N>
-HWY_API Vec128<int8_t, N> Min(const Vec128<int8_t, N> a,
-                              const Vec128<int8_t, N> b) {
-  return Vec128<int8_t, N>{_mm_min_epi8(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int16_t, N> Min(const Vec128<int16_t, N> a,
-                               const Vec128<int16_t, N> b) {
-  return Vec128<int16_t, N>{_mm_min_epi16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int32_t, N> Min(const Vec128<int32_t, N> a,
-                               const Vec128<int32_t, N> b) {
-  return Vec128<int32_t, N>{_mm_min_epi32(a.raw, b.raw)};
-}
-#if HWY_TARGET == HWY_AVX3
-template <size_t N>
-HWY_API Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
-                               const Vec128<int64_t, N> b) {
-  return Vec128<int64_t, N>{_mm_min_epi64(a.raw, b.raw)};
-}
-#endif
-
-// Float
-template <size_t N>
-HWY_API Vec128<float, N> Min(const Vec128<float, N> a,
-                             const Vec128<float, N> b) {
-  return Vec128<float, N>{_mm_min_ps(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<double, N> Min(const Vec128<double, N> a,
-                              const Vec128<double, N> b) {
-  return Vec128<double, N>{_mm_min_pd(a.raw, b.raw)};
-}
-
-// ------------------------------ Maximum
-
-// Unsigned (no u64 unless AVX3)
-template <size_t N>
-HWY_API Vec128<uint8_t, N> Max(const Vec128<uint8_t, N> a,
-                               const Vec128<uint8_t, N> b) {
-  return Vec128<uint8_t, N>{_mm_max_epu8(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint16_t, N> Max(const Vec128<uint16_t, N> a,
-                                const Vec128<uint16_t, N> b) {
-  return Vec128<uint16_t, N>{_mm_max_epu16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint32_t, N> Max(const Vec128<uint32_t, N> a,
-                                const Vec128<uint32_t, N> b) {
-  return Vec128<uint32_t, N>{_mm_max_epu32(a.raw, b.raw)};
-}
-#if HWY_TARGET == HWY_AVX3
-template <size_t N>
-HWY_API Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
-                                const Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_max_epu64(a.raw, b.raw)};
-}
-#endif
-
-// Signed (no i64 unless AVX3)
-template <size_t N>
-HWY_API Vec128<int8_t, N> Max(const Vec128<int8_t, N> a,
-                              const Vec128<int8_t, N> b) {
-  return Vec128<int8_t, N>{_mm_max_epi8(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int16_t, N> Max(const Vec128<int16_t, N> a,
-                               const Vec128<int16_t, N> b) {
-  return Vec128<int16_t, N>{_mm_max_epi16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int32_t, N> Max(const Vec128<int32_t, N> a,
-                               const Vec128<int32_t, N> b) {
-  return Vec128<int32_t, N>{_mm_max_epi32(a.raw, b.raw)};
-}
-#if HWY_TARGET == HWY_AVX3
-template <size_t N>
-HWY_API Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
-                               const Vec128<int64_t, N> b) {
-  return Vec128<int64_t, N>{_mm_max_epi64(a.raw, b.raw)};
-}
-#endif
-
-// Float
-template <size_t N>
-HWY_API Vec128<float, N> Max(const Vec128<float, N> a,
-                             const Vec128<float, N> b) {
-  return Vec128<float, N>{_mm_max_ps(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<double, N> Max(const Vec128<double, N> a,
-                              const Vec128<double, N> b) {
-  return Vec128<double, N>{_mm_max_pd(a.raw, b.raw)};
-}
-
 // ------------------------------ Integer multiplication
 
 // Unsigned
@@ -1064,6 +940,12 @@ HWY_API Vec128<double, N> Floor(const Vec128<double, N> v) {
 // ================================================== COMPARE
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
+
+template <typename TFrom, typename TTo, size_t N>
+HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return Mask128<TTo, N>{m.raw};
+}
 
 // ------------------------------ Equality
 
@@ -1445,6 +1327,146 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   const Simd<T, N> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
+}
+
+// ------------------------------ Min (Gt, IfThenElse)
+
+// Unsigned
+template <size_t N>
+HWY_API Vec128<uint8_t, N> Min(const Vec128<uint8_t, N> a,
+                               const Vec128<uint8_t, N> b) {
+  return Vec128<uint8_t, N>{_mm_min_epu8(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> Min(const Vec128<uint16_t, N> a,
+                                const Vec128<uint16_t, N> b) {
+  return Vec128<uint16_t, N>{_mm_min_epu16(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> Min(const Vec128<uint32_t, N> a,
+                                const Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_min_epu32(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
+                                const Vec128<uint64_t, N> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<uint64_t, N>{_mm_min_epu64(a.raw, b.raw)};
+#else
+  const Simd<uint64_t, N> du;
+  const Simd<int64_t, N> di;
+  const auto msb = Set(du, 1ull << 63);
+  const auto gt = RebindMask(du, BitCast(di, a ^ msb) > BitCast(di, b ^ msb));
+  return IfThenElse(gt, b, a);
+#endif
+}
+
+// Signed
+template <size_t N>
+HWY_API Vec128<int8_t, N> Min(const Vec128<int8_t, N> a,
+                              const Vec128<int8_t, N> b) {
+  return Vec128<int8_t, N>{_mm_min_epi8(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> Min(const Vec128<int16_t, N> a,
+                               const Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>{_mm_min_epi16(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> Min(const Vec128<int32_t, N> a,
+                               const Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_min_epi32(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
+                               const Vec128<int64_t, N> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int64_t, N>{_mm_min_epi64(a.raw, b.raw)};
+#else
+  return IfThenElse(a < b, a, b);
+#endif
+}
+
+// Float
+template <size_t N>
+HWY_API Vec128<float, N> Min(const Vec128<float, N> a,
+                             const Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_min_ps(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> Min(const Vec128<double, N> a,
+                              const Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_min_pd(a.raw, b.raw)};
+}
+
+// ------------------------------ Max (Gt, IfThenElse)
+
+// Unsigned
+template <size_t N>
+HWY_API Vec128<uint8_t, N> Max(const Vec128<uint8_t, N> a,
+                               const Vec128<uint8_t, N> b) {
+  return Vec128<uint8_t, N>{_mm_max_epu8(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, N> Max(const Vec128<uint16_t, N> a,
+                                const Vec128<uint16_t, N> b) {
+  return Vec128<uint16_t, N>{_mm_max_epu16(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> Max(const Vec128<uint32_t, N> a,
+                                const Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_max_epu32(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
+                                const Vec128<uint64_t, N> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<uint64_t, N>{_mm_max_epu64(a.raw, b.raw)};
+#else
+  const Simd<uint64_t, N> du;
+  const Simd<int64_t, N> di;
+  const auto msb = Set(du, 1ull << 63);
+  const auto gt = RebindMask(du, BitCast(di, a ^ msb) > BitCast(di, b ^ msb));
+  return IfThenElse(gt, a, b);
+#endif
+}
+
+// Signed
+template <size_t N>
+HWY_API Vec128<int8_t, N> Max(const Vec128<int8_t, N> a,
+                              const Vec128<int8_t, N> b) {
+  return Vec128<int8_t, N>{_mm_max_epi8(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> Max(const Vec128<int16_t, N> a,
+                               const Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>{_mm_max_epi16(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> Max(const Vec128<int32_t, N> a,
+                               const Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_max_epi32(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
+                               const Vec128<int64_t, N> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int64_t, N>{_mm_max_epi64(a.raw, b.raw)};
+#else
+  return IfThenElse(a < b, b, a);
+#endif
+}
+
+// Float
+template <size_t N>
+HWY_API Vec128<float, N> Max(const Vec128<float, N> a,
+                             const Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_max_ps(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<double, N> Max(const Vec128<double, N> a,
+                              const Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_max_pd(a.raw, b.raw)};
 }
 
 // ------------------------------ BroadcastSignBit (ShiftRight, IfThenElse)

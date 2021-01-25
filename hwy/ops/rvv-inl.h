@@ -693,6 +693,13 @@ HWY_API auto MaskFromVec(const V v) -> decltype(Eq(v, v)) {
 template <class D>
 using MFromD = decltype(MaskFromVec(Zero(D())));
 
+template <class D, typename MFrom>
+HWY_API MFromD<D> RebindMask(const D d, const MFrom mask) {
+  // No need to check lane size/LMUL are the same: if not, casting MFrom to
+  // MFromD<D> would fail.
+  return mask;
+}
+
 // ------------------------------ VecFromMask
 
 template <class D, HWY_IF_NOT_FLOAT_D(D)>

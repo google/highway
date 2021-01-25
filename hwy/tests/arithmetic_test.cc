@@ -439,6 +439,15 @@ struct TestUnsignedMinMax {
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v0, Min(v1, v0));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v0));
+
+    const auto vmin = Set(d, LimitsMin<T>());
+    const auto vmax = Set(d, LimitsMax<T>());
+
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, vmax));
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmax, vmin));
+
+    HWY_ASSERT_VEC_EQ(d, vmax, Max(vmin, vmax));
+    HWY_ASSERT_VEC_EQ(d, vmax, Max(vmax, vmin));
   }
 };
 
@@ -454,6 +463,20 @@ struct TestSignedMinMax {
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v_neg, Min(v1, v_neg));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
+
+    const auto v0 = Zero(d);
+    const auto vmin = Set(d, LimitsMin<T>());
+    const auto vmax = Set(d, LimitsMax<T>());
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(v0, vmin));
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, Max(v0, vmin));
+    HWY_ASSERT_VEC_EQ(d, v0, Max(vmin, v0));
+
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, vmax));
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmax, vmin));
+
+    HWY_ASSERT_VEC_EQ(d, vmax, Max(vmin, vmax));
+    HWY_ASSERT_VEC_EQ(d, vmax, Max(vmax, vmin));
   }
 };
 
@@ -467,22 +490,26 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v2, Max(v1, v2));
     HWY_ASSERT_VEC_EQ(d, v_neg, Min(v1, v_neg));
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
+
+    const auto v0 = Zero(d);
+    const auto vmin = Set(d, LimitsMin<T>());
+    const auto vmax = Set(d, LimitsMax<T>());
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(v0, vmin));
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, Max(v0, vmin));
+    HWY_ASSERT_VEC_EQ(d, v0, Max(vmin, v0));
+
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, vmax));
+    HWY_ASSERT_VEC_EQ(d, vmin, Min(vmax, vmin));
+
+    HWY_ASSERT_VEC_EQ(d, vmax, Max(vmin, vmax));
+    HWY_ASSERT_VEC_EQ(d, vmax, Max(vmax, vmin));
   }
 };
 
 HWY_NOINLINE void TestAllMinMax() {
-  const ForPartialVectors<TestUnsignedMinMax> test_unsigned;
-  test_unsigned(uint8_t());
-  test_unsigned(uint16_t());
-  test_unsigned(uint32_t());
-  // No u64.
-
-  const ForPartialVectors<TestSignedMinMax> test_signed;
-  test_signed(int8_t());
-  test_signed(int16_t());
-  test_signed(int32_t());
-  // No i64.
-
+  ForUnsignedTypes(ForPartialVectors<TestUnsignedMinMax>());
+  ForSignedTypes(ForPartialVectors<TestSignedMinMax>());
   ForFloatTypes(ForPartialVectors<TestFloatMinMax>());
 }
 

@@ -890,28 +890,6 @@ HWY_INLINE Vec128<int64_t, 1> operator<<(const Vec128<int64_t, 1> v,
   return Vec128<int64_t, 1>(vshl_s64(v.raw, bits.raw));
 }
 
-// ------------------------------ Minimum
-
-// Unsigned (no u64)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Min, vmin, _, 2)
-
-// Signed (no i64)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(Min, vmin, _, 2)
-
-// Float
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vmin, _, 2)
-
-// ------------------------------ Maximum
-
-// Unsigned (no u64)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Max, vmax, _, 2)
-
-// Signed (no i64)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(Max, vmax, _, 2)
-
-// Float
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
-
 // ------------------------------ Integer multiplication
 
 // Unsigned
@@ -1293,13 +1271,19 @@ HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
 
 // ================================================== COMPARE
 
+// Comparisons fill a lane with 1-bits if the condition is true, else 0.
+
+template <typename TFrom, typename TTo, size_t N>
+HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return Mask128<TTo, N>{m.raw};
+}
+
 #define HWY_NEON_BUILD_TPL_HWY_COMPARE
 #define HWY_NEON_BUILD_RET_HWY_COMPARE(type, size) Mask128<type, size>
 #define HWY_NEON_BUILD_PARAM_HWY_COMPARE(type, size) \
   const Vec128<type, size> a, const Vec128<type, size> b
 #define HWY_NEON_BUILD_ARG_HWY_COMPARE a.raw, b.raw
-
-// Comparisons fill a lane with 1-bits if the condition is true, else 0.
 
 // ------------------------------ Equality
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator==, vceq, _, HWY_COMPARE)
@@ -1562,6 +1546,116 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   const Simd<T, N> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
+
+// ------------------------------ Min (IfThenElse, BroadcastSignBit)
+
+namespace detail {
+
+#if defined(__aarch64__)
+
+HWY_INLINE Vec128<uint64_t> Gt(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  return Vec128<uint64_t>(vcgtq_u64(a.raw, b.raw));
+}
+HWY_INLINE Vec128<uint64_t, 1> Gt(Vec128<uint64_t, 1> a,
+                                  Vec128<uint64_t, 1> b) {
+  return Vec128<uint64_t, 1>(vcgt_u64(a.raw, b.raw));
+}
+
+HWY_INLINE Vec128<int64_t> Gt(Vec128<int64_t> a, Vec128<int64_t> b) {
+  return Vec128<int64_t>(vcgtq_s64(a.raw, b.raw));
+}
+HWY_INLINE Vec128<int64_t, 1> Gt(Vec128<int64_t, 1> a, Vec128<int64_t, 1> b) {
+  return Vec128<int64_t, 1>(vcgt_s64(a.raw, b.raw));
+}
+
+#else
+
+HWY_INLINE Vec128<uint64_t> SaturatedSub(Vec128<uint64_t> a,
+                                         Vec128<uint64_t> b) {
+  return Vec128<uint64_t>(vqsubq_u64(a.raw, b.raw));
+}
+HWY_INLINE Vec128<uint64_t, 1> SaturatedSub(Vec128<uint64_t, 1> a,
+                                            Vec128<uint64_t, 1> b) {
+  return Vec128<uint64_t, 1>(vqsub_u64(a.raw, b.raw));
+}
+
+HWY_INLINE Vec128<int64_t> SaturatedSub(Vec128<int64_t> a, Vec128<int64_t> b) {
+  return Vec128<int64_t>(vqsubq_s64(a.raw, b.raw));
+}
+HWY_INLINE Vec128<int64_t, 1> SaturatedSub(Vec128<int64_t, 1> a,
+                                           Vec128<int64_t, 1> b) {
+  return Vec128<int64_t, 1>(vqsub_s64(a.raw, b.raw));
+}
+
+#endif
+
+}  // namespace detail
+
+// Unsigned
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Min, vmin, _, 2)
+
+template <size_t N>
+HWY_INLINE Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
+                                   const Vec128<uint64_t, N> b) {
+#if defined(__aarch64__)
+  return IfThenElse(MaskFromVec(detail::Gt(a, b)), b, a);
+#else
+  const Simd<uint64_t, N> du;
+  const Simd<int64_t, N> di;
+  return BitCast(du, BitCast(di, a) - BitCast(di, detail::SaturatedSub(a, b)));
+#endif
+}
+
+// Signed
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(Min, vmin, _, 2)
+
+template <size_t N>
+HWY_INLINE Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
+                                  const Vec128<int64_t, N> b) {
+#if defined(__aarch64__)
+  return IfThenElse(MaskFromVec(detail::Gt(a, b)), b, a);
+#else
+  const Vec128<int64_t, N> sign = detail::SaturatedSub(a, b);
+  return IfThenElse(MaskFromVec(BroadcastSignBit(sign)), a, b);
+#endif
+}
+
+// Float
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vmin, _, 2)
+
+// ------------------------------ Max (IfThenElse, BroadcastSignBit)
+
+// Unsigned (no u64)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Max, vmax, _, 2)
+
+template <size_t N>
+HWY_INLINE Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
+                                   const Vec128<uint64_t, N> b) {
+#if defined(__aarch64__)
+  return IfThenElse(MaskFromVec(detail::Gt(a, b)), a, b);
+#else
+  const Simd<uint64_t, N> du;
+  const Simd<int64_t, N> di;
+  return BitCast(du, BitCast(di, b) + BitCast(di, detail::SaturatedSub(a, b)));
+#endif
+}
+
+// Signed (no i64)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(Max, vmax, _, 2)
+
+template <size_t N>
+HWY_INLINE Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
+                                  const Vec128<int64_t, N> b) {
+#if defined(__aarch64__)
+  return IfThenElse(MaskFromVec(detail::Gt(a, b)), a, b);
+#else
+  const Vec128<int64_t, N> sign = detail::SaturatedSub(a, b);
+  return IfThenElse(MaskFromVec(BroadcastSignBit(sign)), b, a);
+#endif
+}
+
+// Float
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
 
 // ================================================== MEMORY
 

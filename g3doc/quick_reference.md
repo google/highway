@@ -174,14 +174,11 @@ possibly with the specified size in bits of `T`.
 *   `V`: `u8/16` \
     <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) / 2`.
 
-*   `V`: `ui8/16/32`, `f` \
-    <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
+*   <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
 
-*   `V`: `ui8/16/32`, `f` \
-    <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
+*   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
 
-*   `V`: `ui8/16/32`, `f` \
-    <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
+*   <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
     `[lo[i], hi[i]]`.
 
 *   `V`: `f` \
@@ -326,6 +323,10 @@ Special functions for floating-point types:
 ### Masks
 
 Let `M` denote a mask capable of storing true/false for each lane.
+
+*   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
+    reinterpreted as a mask for lanes of type `TFromD<D>`. `M1` and `M2` must
+    have the same number of lanes.
 
 *   <code>M **And**(M a, M b)</code>: returns mask of elements indicating
     whether both input mask elements were set.

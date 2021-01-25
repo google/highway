@@ -472,6 +472,17 @@ HWY_API Vec128<uint32_t, N> Min(const Vec128<uint32_t, N> a,
                                 const Vec128<uint32_t, N> b) {
   return Vec128<uint32_t, N>{wasm_u32x4_min(a.raw, b.raw)};
 }
+template <size_t N>
+HWY_API Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
+                                const Vec128<uint64_t, N> b) {
+  const uint64_t min0 =
+      std::min(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
+  const uint64_t min1 =
+      std::min(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
+  return wasm_u64x2_make(min0, min1);
+  // TODO(janwas): new op?
+  // return Vec128<uint64_t, N>{wasm_u64x2_min(a.raw, b.raw)};
+}
 
 // Signed
 template <size_t N>
@@ -488,6 +499,17 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> Min(const Vec128<int32_t, N> a,
                                const Vec128<int32_t, N> b) {
   return Vec128<int32_t, N>{wasm_i32x4_min(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
+                               const Vec128<int64_t, N> b) {
+  const int64_t min0 =
+      std::min(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
+  const int64_t min1 =
+      std::min(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
+  return wasm_i64x2_make(min0, min1);
+  // TODO(janwas): new op?
+  // return Vec128<int64_t, N>{wasm_i64x2_min(a.raw, b.raw)};
 }
 
 // Float
@@ -515,6 +537,17 @@ HWY_API Vec128<uint32_t, N> Max(const Vec128<uint32_t, N> a,
                                 const Vec128<uint32_t, N> b) {
   return Vec128<uint32_t, N>{wasm_u32x4_max(a.raw, b.raw)};
 }
+template <size_t N>
+HWY_API Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
+                                const Vec128<uint64_t, N> b) {
+  const uint64_t min0 =
+      std::max(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
+  const uint64_t min1 =
+      std::max(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
+  return wasm_u64x2_make(min0, min1);
+  // TODO(janwas): new op?
+  // return Vec128<uint64_t, N>{wasm_u64x2_max(a.raw, b.raw)};
+}
 
 // Signed
 template <size_t N>
@@ -531,6 +564,17 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> Max(const Vec128<int32_t, N> a,
                                const Vec128<int32_t, N> b) {
   return Vec128<int32_t, N>{wasm_i32x4_max(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
+                               const Vec128<int64_t, N> b) {
+  const int64_t min0 =
+      std::max(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
+  const int64_t min1 =
+      std::max(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
+  return wasm_i64x2_make(min0, min1);
+  // TODO(janwas): new op?
+  // return Vec128<int64_t, N>{wasm_i64x2_max(a.raw, b.raw)};
 }
 
 // Float
@@ -781,6 +825,12 @@ HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
 // ================================================== COMPARE
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
+
+template <typename TFrom, typename TTo, size_t N>
+HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return Mask128<TTo, N>{m.raw};
+}
 
 // ------------------------------ Equality
 
