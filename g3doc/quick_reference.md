@@ -135,9 +135,11 @@ such as a lane index or shift count) require a using-declaration such as
 ## Operations
 
 In the following, the argument or return type `V` denotes a vector with `N`
-lanes. Operations limited to certain vector types begin with a constraint of the
-form `V`: `{u,i,f}{8/16/32/64}` to denote unsigned/signed/floating-point types,
-possibly with the specified size in bits of `T`.
+lanes, and `M` a mask. Operations limited to certain vector types begin with a
+constraint of the form `V`: `{prefixes}[{bits}]`. The prefixes `u,i,f` denote
+unsigned, signed, and floating-point types, and bits indicates the number of
+bits per lane: 8, 16, 32, or 64. Any combination of the specified prefixes and
+bits are allowed. Abbreviations of the form `u32 = {u}{32}` may also be used.
 
 ### Initialization
 
@@ -157,25 +159,25 @@ possibly with the specified size in bits of `T`.
 *   <code>V **operator+**(V a, V b)</code>: returns `a[i] + b[i]` (mod 2^bits).
 *   <code>V **operator-**(V a, V b)</code>: returns `a[i] - b[i]` (mod 2^bits).
 
-*   `V`: `if` \
+*   `V`: `{i,f}` \
     <code>V **Neg**(V a)</code>: returns `-a[i]`.
 
-*   `V`: `i8/16/32`, `f` \
+*   `V`: `{i}{8,16,32}, {f}` \
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
 *   `V`: `f32` \
     <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
-*   `V`: `ui8/16` \
+*   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to
     the minimum/maximum representable value.
 
-*   `V`: `ui8/16` \
+*   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedSub**(V a, V b)</code> returns `a[i] - b[i]` saturated to
     the minimum/maximum representable value.
 
-*   `V`: `u8/16` \
+*   `V`: `{u}{8,16}` \
     <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) / 2`.
 
 *   <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
@@ -185,10 +187,10 @@ possibly with the specified size in bits of `T`.
 *   <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
     `[lo[i], hi[i]]`.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **operator/**(V a, V b)</code>: returns `a[i] / b[i]` in each lane.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.
 
 *   `V`: `f32` \
@@ -202,21 +204,21 @@ possibly with the specified size in bits of `T`.
 
 #### Multiply
 
-*   `V`: `ui16/32` \
-    <code>V <b>operator*</b>(V a, V b)</code>: returns the lower half of
-    `a[i] * b[i]` in each lane.
+*   `V`: `{u,i}{16,32}` \
+    <code>V <b>operator*</b>(V a, V b)</code>: returns the lower half of `a[i] *
+    b[i]` in each lane.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V <b>operator*</b>(V a, V b)</code>: returns `a[i] * b[i]` in each
     lane.
 
 *   `V`: `i16` \
-    <code>V **MulHigh**(V a, V b)</code>: returns the upper half of
-    `a[i] * b[i]` in each lane.
+    <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
+    b[i]` in each lane.
 
-*   `V`: `ui32` \
-    <code>V **MulEven**(V a, V b)</code>: returns double-wide result of
-    `a[i] * b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper).
+*   `V`: `{u,i}{32}` \
+    <code>V **MulEven**(V a, V b)</code>: returns double-wide result of `a[i] *
+    b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper).
 
 #### Fused multiply-add
 
@@ -225,18 +227,17 @@ and faster than separate multiplication followed by addition. The `*Sub`
 variants are somewhat slower on ARM; it is preferable to replace them with
 `MulAdd` using a negated constant.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **MulAdd**(V a, V b, V c)</code>: returns `a[i] * b[i] + c[i]`.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **NegMulAdd**(V a, V b, V c)</code>: returns `-a[i] * b[i] + c[i]`.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **MulSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`.
 
-*   `V`: `f` \
-    <code>V **NegMulSub**(V a, V b, V c)</code>: returns
-    `-a[i] * b[i] - c[i]`.
+*   `V`: `{f}` \
+    <code>V **NegMulSub**(V a, V b, V c)</code>: returns `-a[i] * b[i] - c[i]`.
 
 #### Shifts
 
@@ -247,43 +248,43 @@ shifting `MakeUnsigned<T>` and casting to `T`. Right-shifting negative signed
 
 Compile-time constant shifts, generally the most efficient variant:
 
-*   `V`: `ui16/32/64` \
+*   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftLeft**&lt;int&gt;(V a)</code> returns `a[i] << int`.
 
-*   `V`: `u16/32/64`, `i16/32` \
+*   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
 Per-lane variable shifts (slow if SSE4, or Shr i64 on AVX2):
 
-*   `V`: `ui32/64` \
+*   `V`: `{u,i}{32,64}` \
     <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.
 
-*   `V`: `u32/64`, `i32` \
+*   `V`: `{u,i}{32,64}` \
     <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`.
 
 **Note**: the following are only provided if `HWY_VARIABLE_SHIFT_LANES(T) == 1`:
 
-*   `V`: `ui16/32/64` \
+*   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftLeftSame**(V a, int bits)</code> returns `a[i] << bits`.
 
-*   `V`: `u16/32/64`, `i16/32` \
+*   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
 
 #### Floating-point rounding
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **Round**(V a)</code>: returns `a[i]` rounded towards the nearest
     integer, with ties to even.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **Trunc**(V a)</code>: returns `a[i]` rounded towards zero
     (truncate).
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **Ceil**(V a)</code>: returns `a[i]` rounded towards positive
     infinity (ceiling).
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **Floor**(V a)</code>: returns `a[i]` rounded towards negative
     infinity.
 
@@ -291,13 +292,13 @@ Per-lane variable shifts (slow if SSE4, or Shr i64 on AVX2):
 
 These operate on individual bits within each lane.
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>V **operator&**(V a, V b)</code>: returns `a[i] & b[i]`.
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>V **operator|**(V a, V b)</code>: returns `a[i] | b[i]`.
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>V **operator^**(V a, V b)</code>: returns `a[i] ^ b[i]`.
 
 For floating-point types, builtin operators are not always available, so
@@ -313,11 +314,11 @@ non-operator functions (also available for integers) must be used:
 
 Special functions for signed types:
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **CopySign**(V a, V b)</code>: returns the number with the magnitude
     of `a` and sign of `b`.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>V **CopySignToAbs**(V a, V b)</code>: as above, but potentially
     slightly more efficient; requires the first argument to be non-negative.
 
@@ -376,13 +377,13 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
     [0, N]. This is typically more expensive than AllTrue/False.
 
-*   `V`: `uif32,uif64` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
     Compacts lanes whose mask is set into the lower lanes; upper lanes are
     implementation-defined.
 
-*   `V`: `uif32,uif64` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>size_t **CompressStore**(V v, M m, D, T* aligned)</code>: writes lanes
     whose mask is set into `aligned`, starting from lane 0. Returns
     `CountTrue(m)`, the number of valid lanes. All subsequent lanes may be
@@ -394,17 +395,19 @@ These return a mask (see above) indicating whether the condition is true.
 
 *   <code>M **operator==**(V a, V b)</code>: returns `a[i] == b[i]`.
 
-*   `V`: `if` \
+*   `V`: `{i,f}` \
     <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`.
-*   `V`: `if` \
+
+*   `V`: `{i,f}` \
     <code>M **operator&gt;**(V a, V b)</code>: returns `a[i] > b[i]`.
 
-*   `V`: `f` \
+*   `V`: `{f}` \
     <code>M **operator&lt;=**(V a, V b)</code>: returns `a[i] <= b[i]`.
-*   `V`: `f` \
+
+*   `V`: `{f}` \
     <code>M **operator&gt;=**(V a, V b)</code>: returns `a[i] >= b[i]`.
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>M **TestBit**(V v, V bit)</code>: returns `(v[i] & bit[i]) == bit[i]`.
     `bit[i]` must have exactly one bit set.
 
@@ -429,12 +432,12 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 
 **Note**: Vectors must be `HWY_CAPPED(T, HWY_GATHER_LANES(T))`:
 
-*   `V`,`VI`: (`uif32,i32`), (`uif64,i64`) \
+*   `V`,`VI`: (`{u,i,f}{32},i32`), (`{u,i,f}{64},i64`) \
     <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>.
     Returns elements of base selected by possibly repeated *byte* `offsets[i]`.
     Results are implementation-defined if `offsets[i]` is negative.
 
-*   `V`,`VI`: (`uif32,i32`), (`uif64,i64`) \
+*   `V`,`VI`: (`{u,i,f}{32},i32`), (`{u,i,f}{64},i64`) \
     <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>.
     Returns vector of `base[indices[i]]`. Indices need not be unique, but
     results are implementation-defined if they are negative.
@@ -476,7 +479,7 @@ All functions except Stream are defined in cache_control.h.
 *   `V`,`D`: (`u8,i16`), (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`),
     (`i16,i32`), (`f16,f32`), (`f32,f64`) \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
-    or sign-extended to the wider `D::T` type.
+    or sign-extended to `MakeWide<T>`.
 
 *   `V`,`D`: `i32,f64` \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
@@ -492,7 +495,7 @@ if the input exceeds the destination range.
 *   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i32,i16`), (`i16,u8`), (`i32,u8`),
     (`i32,u16`), (`f64,f32`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: returns `a[i]` after packing
-    with signed/unsigned saturation, i.e. a vector with narrower type `D::T`.
+    with signed/unsigned saturation to `MakeNarrow<T>`.
 
 *   `V`,`D`: `f64,i32` \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: rounds floating point
@@ -514,17 +517,17 @@ if the input exceeds the destination range.
 
 ### Swizzle
 
-*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful
-    for extracting `SumOfLanes` results.
+*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
+    extracting `SumOfLanes` results.
 
-*   <code>V2 **Upper/LowerHalf**(V)</code>: returns upper or lower half of
-    the vector `V`.
+*   <code>V2 **Upper/LowerHalf**(V)</code>: returns upper or lower half of the
+    vector `V`.
 
-*   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose UpperHalf is
-    zero and whose LowerHalf is the argument.
+*   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose `UpperHalf` is
+    zero and whose `LowerHalf` is the argument.
 
-*   <code>V **Combine**(V2, V2)</code>: returns vector whose UpperHalf is
-    the first argument and whose LowerHalf is the second argument.
+*   <code>V **Combine**(V2, V2)</code>: returns vector whose `UpperHalf` is the
+    first argument and whose `LowerHalf` is the second argument.
 
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
@@ -532,16 +535,16 @@ if the input exceeds the destination range.
 **Note**: if vectors are larger than 128 bits, the following operations split
 their operands into independently processed 128-bit *blocks*.
 
-*   `V`: `ui16/32/64`, `f` \
+*   `V`: `{u,i}{16,32,64}, {f}` \
     <code>V **Broadcast**&lt;int i&gt;(V)</code>: returns individual *blocks*,
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
 
-*   `Ret`: double-width `u/i`; `V`: `u8/16/32`, `i8/16/32` \
+*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipLower**(V a, V b)</code>: returns the same bits as
-    `InterleaveLower`, except that `Ret` is a vector with double-width lanes
-    (required in order to use this operation with scalars).
+    `InterleaveLower`, but repartitioned into double-width lanes (required in
+    order to use this operation with scalars).
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>V **TableLookupBytes**(V bytes, V from)</code>: returns
     `bytes[from[i]]`. Uses byte lanes regardless of the actual vector types.
     Results are implementation-defined if `from[i] >= HWY_MIN(vector size, 16)`.
@@ -549,58 +552,55 @@ their operands into independently processed 128-bit *blocks*.
 **Note**: the following are only available for full vectors (`N` > 1), and split
 their operands into independently processed 128-bit *blocks*:
 
-*   `Ret`: double-width u/i; `V`: `u8/16/32`, `i8/16/32` \
+*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
-    `InterleaveUpper`, except that `Ret` is a vector with double-width lanes
-    (required in order to use this operation with scalars).
+    `InterleaveUpper`, but repartitioned into double-width lanes (required in
+    order to use this operation with scalars)
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>V **ShiftLeftBytes**&lt;int&gt;(V)</code>: returns the result of
     shifting independent *blocks* left by `int` bytes \[1, 15\].
 
-*   `V`: \
-    <code>V **ShiftLeftLanes**&lt;int&gt;(V)</code>: returns the result of
+*   <code>V **ShiftLeftLanes**&lt;int&gt;(V)</code>: returns the result of
     shifting independent *blocks* left by `int` lanes.
 
-*   `V`: `ui` \
+*   `V`: `{u,i}` \
     <code>V **ShiftRightBytes**&lt;int&gt;(V)</code>: returns the result of
     shifting independent *blocks* right by `int` bytes \[1, 15\].
 
-*   `V`: \
-    <code>V **ShiftRightLanes**&lt;int&gt;(V)</code>: returns the result of
+*   <code>V **ShiftRightLanes**&lt;int&gt;(V)</code>: returns the result of
     shifting independent *blocks* right by `int` lanes.
 
-*   `V`: \
+*   `V`: `{u,i}` \
     <code>V **CombineShiftRightBytes**&lt;int&gt;(V hi, V lo)</code>: returns a
     vector of *blocks* each the result of shifting two concatenated *blocks*
     `hi[i] || lo[i]` right by `int` bytes \[1, 16).
 
-*   `V`: \
-    <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
+*   <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
     vector of *blocks* each the result of shifting two concatenated *blocks*
     `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)).
 
-*   `V`: `uif32` \
+*   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves
     swapped inside 64-bit halves.
 
-*   `V`: `uif32` \
+*   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle1032**(V)</code>: returns *blocks* with 64-bit halves
     swapped.
 
-*   `V`: `uif64` \
+*   `V`: `{u,i,f}{64}` \
     <code>V **Shuffle01**(V)</code>: returns *blocks* with 64-bit halves
     swapped.
 
-*   `V`: `uif32` \
+*   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle0321**(V)</code>: returns *blocks* rotated right (toward
     the lower end) by 32 bits.
 
-*   `V`: `uif32` \
+*   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle2103**(V)</code>: returns *blocks* rotated left (toward the
     upper end) by 32 bits.
 
-*   `V`: `uif32` \
+*   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle0123**(V)</code>: returns *blocks* with lanes in reverse
     order.
 
@@ -629,7 +629,7 @@ more expensive on AVX2/AVX-512 than within-block operations.
     of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
     the other variants, this does not incur a block-crossing penalty on AVX2.
 
-*   `V`: `uif32` \
+*   `V`: `{u,i,f}{32}` \
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
     `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`.
 
@@ -645,15 +645,15 @@ lanes at no extra cost; you can use `GetLane` to obtain the value.
 Being a horizontal operation (across lanes of the same vector), these are slower
 than normal SIMD operations and are typically used outside critical loops.
 
-*   `V`: `uif32/64` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
     lane.
 
-*   `V`: `uif32/64` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>V **MinOfLanes**(V v)</code>: returns the minimum-valued lane in each
     lane.
 
-*   `V`: `uif32/64` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
     lane.
 
@@ -690,6 +690,7 @@ generate such instructions (implying the target CPU would have to support them).
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
 
 The following signal capabilities and expand to 1 or 0.
+
 *   `HWY_CAP_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
 *   `HWY_CAP_FLOAT64`: support for double-precision floating-point lanes.
 *   `HWY_CAP_GE256`: the current target supports vectors of >= 256 bits.
@@ -699,6 +700,7 @@ The following indicate the maximum number of lanes for certain operations. For
 targets that support the feature/operation, the macro evaluates to
 `HWY_LANES(T)`, otherwise 1. Using `HWY_CAPPED(T, HWY_GATHER_LANES(T))`
 generates the best possible code (or scalar fallback) from the same source code.
+
 *   `HWY_GATHER_LANES(T)`: supports GatherIndex/Offset.
 *   `HWY_VARIABLE_SHIFT_LANES(T)`: supports per-lane shift amounts (v1 << v2).
 
