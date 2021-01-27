@@ -123,7 +123,9 @@ HWY_INLINE Vec1<T> ShiftLeft(const Vec1<T> v) {
 template <int kBits, typename T>
 HWY_INLINE Vec1<T> ShiftRight(const Vec1<T> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  return Vec1<T>(v.raw >> kBits);
+  // Ensure shift-in-sign behaviour while avoiding UB (shifting if v < 0).
+  const auto not_v = ~static_cast<hwy::MakeUnsigned<T>>(v.raw);
+  return Vec1<T>(~(not_v >> kBits));
 }
 
 // ------------------------------ Shift lanes by independent variable #bits
@@ -135,7 +137,9 @@ HWY_INLINE Vec1<T> operator<<(const Vec1<T> v, const Vec1<T> bits) {
 }
 template <typename T>
 HWY_INLINE Vec1<T> operator>>(const Vec1<T> v, const Vec1<T> bits) {
-  return Vec1<T>(v.raw >> bits.raw);
+  // Ensure shift-in-sign behaviour while avoiding UB (shifting if v < 0).
+  const auto not_v = ~static_cast<hwy::MakeUnsigned<T>>(v.raw);
+  return Vec1<T>(~(not_v >> bits.raw));
 }
 
 // ================================================== LOGICAL
@@ -781,6 +785,69 @@ HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
                                LimitsMax<ToT>());
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
+}
+
+static HWY_INLINE Vec1<float> PromoteTo(Sisd<float> /* tag */,
+                                        const Vec1<float16_t> v) {
+  uint16_t bits16;
+  CopyBytes<2>(&v.raw, &bits16);
+  const uint32_t sign = bits16 >> 15;
+  const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
+  const uint32_t mantissa = bits16 & 0x3FF;
+
+  // Subnormal or zero
+  if (biased_exp == 0) {
+    const float subnormal = (1.0f / 16384) * (mantissa * (1.0f / 1024));
+    return Vec1<float>(sign ? -subnormal : subnormal);
+  }
+
+  // Normalized: convert the representation directly (faster than ldexp/tables).
+  const uint32_t biased_exp32 = biased_exp + (127 - 15);
+  const uint32_t mantissa32 = mantissa << (23 - 10);
+  const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
+  float out;
+  CopyBytes<4>(&bits32, &out);
+  return Vec1<float>(out);
+}
+
+static HWY_INLINE Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
+                                           const Vec1<float> v) {
+  uint32_t bits32;
+  CopyBytes<4>(&v.raw, &bits32);
+  const uint32_t sign = bits32 >> 31;
+  const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
+  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
+
+  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
+
+  // Tiny or zero => zero.
+  Vec1<float16_t> out;
+  if (exp < -24) {
+    bits32 = 0;
+    CopyBytes<2>(&bits32, &out);
+    return out;
+  }
+
+  uint32_t biased_exp16, mantissa16;
+
+  // exp = [-24, -15] => subnormal
+  if (exp < -14) {
+    biased_exp16 = 0;
+    const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
+    HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
+    mantissa16 = (1 << (10 - sub_exp)) + (mantissa32 >> (13 + sub_exp));
+  } else {
+    // exp = [-14, 15]
+    biased_exp16 = static_cast<uint32_t>(exp + 15);
+    HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
+    mantissa16 = mantissa32 >> 13;
+  }
+
+  HWY_DASSERT(mantissa16 < 1024);
+  const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
+  HWY_DASSERT(bits16 < 0x10000);
+  CopyBytes<2>(&bits16, &out);
+  return out;
 }
 
 template <typename FromT, typename ToT>

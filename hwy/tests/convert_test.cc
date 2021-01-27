@@ -183,6 +183,8 @@ HWY_NOINLINE void TestAllPromoteTo() {
   to_i32div4(uint8_t());
   to_i32div4(int8_t());
 
+  // Must test f16 separately because we can only load/store/convert them.
+
 #if HWY_CAP_INTEGER64
   const ForPartialVectors<TestPromoteTo<uint64_t>, 2> to_u64div2;
   to_u64div2(uint32_t());
@@ -236,11 +238,13 @@ HWY_NOINLINE void TestAllDemoteTo() {
   ForDemoteVectors<TestDemoteTo<int8_t>, 2>()(int16_t());
   ForDemoteVectors<TestDemoteTo<int8_t>, 4>()(int32_t());
 
+  const ForDemoteVectors<TestDemoteTo<uint16_t>, 2> to_u16;
+  to_u16(int32_t());
+
   const ForDemoteVectors<TestDemoteTo<int16_t>, 2> to_i16;
   to_i16(int32_t());
 
-  const ForDemoteVectors<TestDemoteTo<uint16_t>, 2> to_u16;
-  to_u16(int32_t());
+  // Must test f16 separately because we can only load/store/convert them.
 
 #if HWY_CAP_FLOAT64
   const ForDemoteVectors<TestDemoteTo<float>, 2> to_float;

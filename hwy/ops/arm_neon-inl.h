@@ -282,6 +282,11 @@ struct Raw128<int64_t, 2> {
 };
 
 template <>
+struct Raw128<float16_t, 8> {
+  using type = float16x8_t;
+};
+
+template <>
 struct Raw128<float, 4> {
   using type = float32x4_t;
 };
@@ -335,6 +340,11 @@ struct Raw128<int64_t, 1> {
 };
 
 template <>
+struct Raw128<float16_t, 4> {
+  using type = float16x4_t;
+};
+
+template <>
 struct Raw128<float, 2> {
   using type = float32x2_t;
 };
@@ -378,6 +388,11 @@ struct Raw128<int32_t, 1> {
 };
 
 template <>
+struct Raw128<float16_t, 2> {
+  using type = float16x4_t;
+};
+
+template <>
 struct Raw128<float, 1> {
   using type = float32x2_t;
 };
@@ -401,6 +416,11 @@ struct Raw128<int8_t, 2> {
 template <>
 struct Raw128<int16_t, 1> {
   using type = int16x4_t;
+};
+
+template <>
+struct Raw128<float16_t, 1> {
+  using type = float16x4_t;
 };
 
 // 8 (same as 64)
@@ -789,9 +809,29 @@ HWY_INLINE Vec128<double, 1> Abs(const Vec128<double, 1> v) {
 }
 #endif
 
+// ------------------------------ Neg
+
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Neg, vneg, _, 1)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(Neg, vneg, _, 1)  // i64 implemented below
+
+HWY_INLINE Vec128<int64_t, 1> Neg(const Vec128<int64_t, 1> v) {
+#if defined(__aarch64__)
+  return Vec128<int64_t, 1>(vneg_s64(v.raw));
+#else
+  return Zero(Simd<int64_t, 1>()) - v;
+#endif
+}
+
+HWY_INLINE Vec128<int64_t> Neg(const Vec128<int64_t> v) {
+#if defined(__aarch64__)
+  return Vec128<int64_t>(vnegq_s64(v.raw));
+#else
+  return Zero(Full128<int64_t>()) - v;
+#endif
+}
+
 // ------------------------------ Shift lanes by constant #bits
 
-// Only defined for ints and uints, except for signed i64 shr.
 #define HWY_NEON_BUILD_TPL_HWY_SHIFT template <int kBits>
 #define HWY_NEON_BUILD_RET_HWY_SHIFT(type, size) Vec128<type, size>
 #define HWY_NEON_BUILD_PARAM_HWY_SHIFT(type, size) const Vec128<type, size> v
@@ -807,87 +847,88 @@ HWY_NEON_DEF_FUNCTION_INTS(ShiftRight, vshr, _n_, HWY_SHIFT)
 #undef HWY_NEON_BUILD_PARAM_HWY_SHIFT
 #undef HWY_NEON_BUILD_ARG_HWY_SHIFT
 
-// ------------------------------ Shift lanes by independent variable #bits
+// ------------------------------ Shl
 
-// Unsigned (no u8,u16)
 HWY_INLINE Vec128<uint32_t> operator<<(const Vec128<uint32_t> v,
                                        const Vec128<uint32_t> bits) {
   return Vec128<uint32_t>(vshlq_u32(v.raw, vreinterpretq_s32_u32(bits.raw)));
 }
-HWY_INLINE Vec128<uint32_t> operator>>(const Vec128<uint32_t> v,
-                                       const Vec128<uint32_t> bits) {
-  return Vec128<uint32_t>(
-      vshlq_u32(v.raw, vnegq_s32(vreinterpretq_s32_u32(bits.raw))));
-}
-HWY_INLINE Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
-                                       const Vec128<uint64_t> bits) {
-  return Vec128<uint64_t>(vshlq_u64(v.raw, vreinterpretq_s64_u64(bits.raw)));
-}
-HWY_INLINE Vec128<uint64_t> operator>>(const Vec128<uint64_t> v,
-                                       const Vec128<uint64_t> bits) {
-#if defined(__aarch64__)
-  const int64x2_t neg_bits = vnegq_s64(vreinterpretq_s64_u64(bits.raw));
-#else
-  // A32 doesn't have vnegq_s64().
-  const int64x2_t neg_bits =
-      vsubq_s64(Set(Full128<int64_t>(), 0).raw, bits.raw);
-#endif
-  return Vec128<uint64_t>(vshlq_u64(v.raw, neg_bits));
-}
-
 template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint32_t, N> operator<<(const Vec128<uint32_t, N> v,
                                           const Vec128<uint32_t, N> bits) {
   return Vec128<uint32_t, N>(vshl_u32(v.raw, vreinterpret_s32_u32(bits.raw)));
 }
-template <size_t N, HWY_IF_LE64(uint32_t, N)>
-HWY_INLINE Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> v,
-                                          const Vec128<uint32_t, N> bits) {
-  return Vec128<uint32_t, N>(
-      vshl_u32(v.raw, vneg_s32(vreinterpret_s32_u32(bits.raw))));
+
+HWY_INLINE Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
+                                       const Vec128<uint64_t> bits) {
+  return Vec128<uint64_t>(vshlq_u64(v.raw, vreinterpretq_s64_u64(bits.raw)));
 }
 HWY_INLINE Vec128<uint64_t, 1> operator<<(const Vec128<uint64_t, 1> v,
                                           const Vec128<uint64_t, 1> bits) {
   return Vec128<uint64_t, 1>(vshl_u64(v.raw, vreinterpret_s64_u64(bits.raw)));
 }
-HWY_INLINE Vec128<uint64_t, 1> operator>>(const Vec128<uint64_t, 1> v,
-                                          const Vec128<uint64_t, 1> bits) {
-#if defined(__aarch64__)
-  const int64x1_t neg_bits = vneg_s64(vreinterpret_s64_u64(bits.raw));
-#else
-  // A32 doesn't have vneg_s64().
-  const int64x1_t neg_bits = vsub_s64(Set(Simd<int64_t, 1>(), 0).raw, bits.raw);
-#endif
-  return Vec128<uint64_t, 1>(vshl_u64(v.raw, neg_bits));
-}
 
-// Signed (no i8,i16)
 HWY_INLINE Vec128<int32_t> operator<<(const Vec128<int32_t> v,
                                       const Vec128<int32_t> bits) {
   return Vec128<int32_t>(vshlq_s32(v.raw, bits.raw));
 }
-HWY_INLINE Vec128<int32_t> operator>>(const Vec128<int32_t> v,
-                                      const Vec128<int32_t> bits) {
-  return Vec128<int32_t>(vshlq_s32(v.raw, vnegq_s32(bits.raw)));
-}
-HWY_INLINE Vec128<int64_t> operator<<(const Vec128<int64_t> v,
-                                      const Vec128<int64_t> bits) {
-  return Vec128<int64_t>(vshlq_s64(v.raw, bits.raw));
-}
-
 template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int32_t, N> operator<<(const Vec128<int32_t, N> v,
                                          const Vec128<int32_t, N> bits) {
   return Vec128<int32_t, N>(vshl_s32(v.raw, bits.raw));
 }
-template <size_t N, HWY_IF_LE64(int32_t, N)>
-HWY_INLINE Vec128<int32_t, N> operator>>(const Vec128<int32_t, N> v,
-                                         const Vec128<int32_t, N> bits) {
-  return Vec128<int32_t, N>(vshl_s32(v.raw, vneg_s32(bits.raw)));
+
+HWY_INLINE Vec128<int64_t> operator<<(const Vec128<int64_t> v,
+                                      const Vec128<int64_t> bits) {
+  return Vec128<int64_t>(vshlq_s64(v.raw, bits.raw));
 }
 HWY_INLINE Vec128<int64_t, 1> operator<<(const Vec128<int64_t, 1> v,
                                          const Vec128<int64_t, 1> bits) {
   return Vec128<int64_t, 1>(vshl_s64(v.raw, bits.raw));
+}
+
+// ------------------------------ Shr (Neg)
+
+HWY_INLINE Vec128<uint32_t> operator>>(const Vec128<uint32_t> v,
+                                       const Vec128<uint32_t> bits) {
+  const int32x4_t neg_bits = Neg(BitCast(Full128<int32_t>(), bits)).raw;
+  return Vec128<uint32_t>(vshlq_u32(v.raw, neg_bits));
+}
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_INLINE Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> v,
+                                          const Vec128<uint32_t, N> bits) {
+  const int32x2_t neg_bits = Neg(BitCast(Simd<int32_t, N>(), bits)).raw;
+  return Vec128<uint32_t, N>(vshl_u32(v.raw, neg_bits));
+}
+
+HWY_INLINE Vec128<uint64_t> operator>>(const Vec128<uint64_t> v,
+                                       const Vec128<uint64_t> bits) {
+  const int64x2_t neg_bits = Neg(BitCast(Full128<int64_t>(), bits)).raw;
+  return Vec128<uint64_t>(vshlq_u64(v.raw, neg_bits));
+}
+HWY_INLINE Vec128<uint64_t, 1> operator>>(const Vec128<uint64_t, 1> v,
+                                          const Vec128<uint64_t, 1> bits) {
+  const int64x1_t neg_bits = Neg(BitCast(Simd<int64_t, 1>(), bits)).raw;
+  return Vec128<uint64_t, 1>(vshl_u64(v.raw, neg_bits));
+}
+
+HWY_INLINE Vec128<int32_t> operator>>(const Vec128<int32_t> v,
+                                      const Vec128<int32_t> bits) {
+  return Vec128<int32_t>(vshlq_s32(v.raw, Neg(bits).raw));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_INLINE Vec128<int32_t, N> operator>>(const Vec128<int32_t, N> v,
+                                         const Vec128<int32_t, N> bits) {
+  return Vec128<int32_t, N>(vshl_s32(v.raw, Neg(bits).raw));
+}
+
+HWY_INLINE Vec128<int64_t> operator>>(const Vec128<int64_t> v,
+                                      const Vec128<int64_t> bits) {
+  return Vec128<int64_t>(vshlq_s64(v.raw, Neg(bits).raw));
+}
+HWY_INLINE Vec128<int64_t, 1> operator>>(const Vec128<int64_t, 1> v,
+                                         const Vec128<int64_t, 1> bits) {
+  return Vec128<int64_t, 1>(vshl_s64(v.raw, Neg(bits).raw));
 }
 
 // ------------------------------ Integer multiplication
@@ -1003,27 +1044,6 @@ HWY_INLINE Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
   uint32x2_t b_packed = vuzp1_u32(b.raw, b.raw);
   return Vec128<uint64_t, (N + 1) / 2>(
       vget_low_u64(vmull_u32(a_packed, b_packed)));
-}
-
-// ------------------------------ Floating-point negate
-
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Neg, vneg, _, 1)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(Neg, vneg, _, 1)
-
-HWY_INLINE Vec128<int64_t, 1> Neg(const Vec128<int64_t, 1> v) {
-#if defined(__aarch64__)
-  return Vec128<int64_t, 1>(vneg_s64(v.raw));
-#else
-  return Zero(Simd<int64_t, 1>()) - v;
-#endif
-}
-
-HWY_INLINE Vec128<int64_t> Neg(const Vec128<int64_t> v) {
-#if defined(__aarch64__)
-  return Vec128<int64_t>(vnegq_s64(v.raw));
-#else
-  return Zero(Full128<int64_t>()) - v;
-#endif
 }
 
 // ------------------------------ Floating-point mul / div
@@ -2149,6 +2169,16 @@ HWY_INLINE Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
   return Vec128<int64_t, N>(vget_low_s64(vmovl_s32(v.raw)));
 }
 
+HWY_INLINE Vec128<float> PromoteTo(Full128<float> /* tag */,
+                                   const Vec128<float16_t, 4> v) {
+  return Vec128<float>(vcvt_f32_f16(v.raw));
+}
+template <size_t N>
+HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
+                                      const Vec128<float16_t, N> v) {
+  return Vec128<float, N>(vcvt_f32_f16(vcombine_f16(v.raw, v.raw)));
+}
+
 #if defined(__aarch64__)
 HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
                                     const Vec128<float, 2> v) {
@@ -2236,6 +2266,16 @@ template <size_t N, HWY_IF_LE64(int16_t, N)>
 HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
                                       const Vec128<int16_t, N> v) {
   return Vec128<int8_t, N>(vqmovn_s16(vcombine_s16(v.raw, v.raw)));
+}
+
+HWY_INLINE Vec128<float16_t, 4> DemoteTo(Simd<float16_t, 4> /* tag */,
+                                         const Vec128<float> v) {
+  return Vec128<float16_t, 4>{vcvt_f16_f32(v.raw)};
+}
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
+                                         const Vec128<float, N> v) {
+  return Vec128<float16_t, 4>{vcvt_f16_f32(vcombine_f32(v.raw, v.raw))};
 }
 
 #if defined(__aarch64__)

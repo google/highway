@@ -633,88 +633,112 @@ HWY_API Vec512<double> Abs(const Vec512<double> v) {
   return Vec512<double>{_mm512_abs_pd(v.raw)};
 }
 
-// ------------------------------ Shift lanes by constant #bits
+// ------------------------------ ShiftLeft
 
-// Unsigned
 template <int kBits>
 HWY_API Vec512<uint16_t> ShiftLeft(const Vec512<uint16_t> v) {
   return Vec512<uint16_t>{_mm512_slli_epi16(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec512<uint16_t> ShiftRight(const Vec512<uint16_t> v) {
-  return Vec512<uint16_t>{_mm512_srli_epi16(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec512<uint32_t> ShiftLeft(const Vec512<uint32_t> v) {
   return Vec512<uint32_t>{_mm512_slli_epi32(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec512<uint32_t> ShiftRight(const Vec512<uint32_t> v) {
-  return Vec512<uint32_t>{_mm512_srli_epi32(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec512<uint64_t> ShiftLeft(const Vec512<uint64_t> v) {
   return Vec512<uint64_t>{_mm512_slli_epi64(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec512<uint64_t> ShiftRight(const Vec512<uint64_t> v) {
-  return Vec512<uint64_t>{_mm512_srli_epi64(v.raw, kBits)};
-}
 
-// Signed
 template <int kBits>
 HWY_API Vec512<int16_t> ShiftLeft(const Vec512<int16_t> v) {
   return Vec512<int16_t>{_mm512_slli_epi16(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec512<int16_t> ShiftRight(const Vec512<int16_t> v) {
-  return Vec512<int16_t>{_mm512_srai_epi16(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec512<int32_t> ShiftLeft(const Vec512<int32_t> v) {
   return Vec512<int32_t>{_mm512_slli_epi32(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec512<int32_t> ShiftRight(const Vec512<int32_t> v) {
-  return Vec512<int32_t>{_mm512_srai_epi32(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec512<int64_t> ShiftLeft(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_slli_epi64(v.raw, kBits)};
 }
 
-// ------------------------------ Shift lanes by independent variable #bits
+// ------------------------------ ShiftRight
 
-// Unsigned (no u8,u16)
+template <int kBits>
+HWY_API Vec512<uint16_t> ShiftRight(const Vec512<uint16_t> v) {
+  return Vec512<uint16_t>{_mm512_srli_epi16(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<uint32_t> ShiftRight(const Vec512<uint32_t> v) {
+  return Vec512<uint32_t>{_mm512_srli_epi32(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<uint64_t> ShiftRight(const Vec512<uint64_t> v) {
+  return Vec512<uint64_t>{_mm512_srli_epi64(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<int16_t> ShiftRight(const Vec512<int16_t> v) {
+  return Vec512<int16_t>{_mm512_srai_epi16(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<int32_t> ShiftRight(const Vec512<int32_t> v) {
+  return Vec512<int32_t>{_mm512_srai_epi32(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<int64_t> ShiftRight(const Vec512<int64_t> v) {
+  return Vec512<int64_t>{_mm512_srai_epi64(v.raw, kBits)};
+}
+
+// ------------------------------ Shl
+
 HWY_API Vec512<uint32_t> operator<<(const Vec512<uint32_t> v,
                                     const Vec512<uint32_t> bits) {
   return Vec512<uint32_t>{_mm512_sllv_epi32(v.raw, bits.raw)};
 }
-HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
-                                    const Vec512<uint32_t> bits) {
-  return Vec512<uint32_t>{_mm512_srlv_epi32(v.raw, bits.raw)};
-}
+
 HWY_API Vec512<uint64_t> operator<<(const Vec512<uint64_t> v,
                                     const Vec512<uint64_t> bits) {
   return Vec512<uint64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
 }
+
+HWY_API Vec512<int32_t> operator<<(const Vec512<int32_t> v,
+                                   const Vec512<int32_t> bits) {
+  return Vec512<int32_t>{_mm512_sllv_epi32(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<int64_t> operator<<(const Vec512<int64_t> v,
+                                   const Vec512<int64_t> bits) {
+  return Vec512<int64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
+}
+
+// ------------------------------ Shr
+
+HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
+                                    const Vec512<uint32_t> bits) {
+  return Vec512<uint32_t>{_mm512_srlv_epi32(v.raw, bits.raw)};
+}
+
 HWY_API Vec512<uint64_t> operator>>(const Vec512<uint64_t> v,
                                     const Vec512<uint64_t> bits) {
   return Vec512<uint64_t>{_mm512_srlv_epi64(v.raw, bits.raw)};
 }
 
-// Signed (no i8,i16,i64)
-HWY_API Vec512<int32_t> operator<<(const Vec512<int32_t> v,
-                                   const Vec512<int32_t> bits) {
-  return Vec512<int32_t>{_mm512_sllv_epi32(v.raw, bits.raw)};
-}
 HWY_API Vec512<int32_t> operator>>(const Vec512<int32_t> v,
                                    const Vec512<int32_t> bits) {
   return Vec512<int32_t>{_mm512_srav_epi32(v.raw, bits.raw)};
 }
-HWY_API Vec512<int64_t> operator<<(const Vec512<int64_t> v,
+
+HWY_API Vec512<int64_t> operator>>(const Vec512<int64_t> v,
                                    const Vec512<int64_t> bits) {
-  return Vec512<int64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
+  return Vec512<int64_t>{_mm512_srav_epi64(v.raw, bits.raw)};
 }
 
 // ------------------------------ Minimum
@@ -2076,6 +2100,11 @@ HWY_API Vec512<T> TableLookupBytes(const Vec512<T> bytes,
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
+HWY_API Vec512<float> PromoteTo(Full512<float> /* tag */,
+                                const Vec256<float16_t> v) {
+  return Vec512<float>{_mm512_cvtph_ps(v.raw)};
+}
+
 HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<float> v) {
   return Vec512<double>{_mm512_cvtps_pd(v.raw)};
 }
@@ -2208,6 +2237,11 @@ HWY_API Vec256<int8_t> DemoteTo(Full256<int8_t> /* tag */,
   const auto idx64 = Load(Full512<uint64_t>(), kLanes);
   const Vec512<int8_t> even{_mm512_permutexvar_epi64(idx64.raw, u8.raw)};
   return LowerHalf(even);
+}
+
+HWY_API Vec256<float16_t> DemoteTo(Full256<float16_t> /* tag */,
+                                   const Vec512<float> v) {
+  return Vec256<float16_t>{_mm512_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 }
 
 HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,

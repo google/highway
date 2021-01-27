@@ -43,10 +43,6 @@ using TFromV = TFromD<DFromV<V>>;
 // Generate specializations and function definitions using X macros. Although
 // harder to read and debug, writing everything manually is too bulky.
 
-// Macros concatenate base type and SEW (bits); these enable that for float.
-using float32_t = float;
-using float64_t = double;
-
 namespace detail {  // for code folding
 
 // For all mask sizes: (1/Nth of a register, one bit per lane)

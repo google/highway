@@ -84,9 +84,9 @@
 #define HWY_CAP_GE512 0
 
 #if defined(HWY_DISABLE_BMI2_FMA)
-#define HWY_TARGET_STR "avx,avx2"
+#define HWY_TARGET_STR "avx,avx2,f16c"
 #else
-#define HWY_TARGET_STR "avx,avx2,bmi,bmi2,fma"
+#define HWY_TARGET_STR "avx,avx2,bmi,bmi2,fma,f16c"
 #endif
 
 //-----------------------------------------------------------------------------
@@ -112,7 +112,7 @@
 // converting to half-vectors). HWY_DISABLE_BMI2_FMA is not relevant because if
 // we have AVX3, we should also have BMI2/FMA.
 #define HWY_TARGET_STR \
-  "avx,avx2,bmi,bmi2,fma,avx512f,avx512vl,avx512dq,avx512bw"
+  "avx,avx2,bmi,bmi2,fma,f16c,avx512f,avx512vl,avx512dq,avx512bw"
 
 //-----------------------------------------------------------------------------
 // PPC8

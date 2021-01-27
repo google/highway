@@ -227,14 +227,19 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_EXPORT(RunBenchmarks);
+
+void Run(int argc) {
+  for (uint32_t target : SupportedAndGeneratedTargets()) {
+    SetSupportedTargetsForTest(target);
+    HWY_DYNAMIC_DISPATCH(RunBenchmarks)(argc != 999);
+  }
+  SetSupportedTargetsForTest(0);  // Reset the mask afterwards.
+}
+
 }  // namespace hwy
 
 int main(int argc, char** /*argv*/) {
-  for (uint32_t target : hwy::SupportedAndGeneratedTargets()) {
-    hwy::SetSupportedTargetsForTest(target);
-    HWY_DYNAMIC_DISPATCH(hwy::RunBenchmarks)(argc != 999);
-  }
-  hwy::SetSupportedTargetsForTest(0);  // Reset the mask afterwards.
+  hwy::Run(argc);
   return 0;
 }
 #endif  // HWY_ONCE

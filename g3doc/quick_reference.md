@@ -61,9 +61,13 @@ HWY_AFTER_NAMESPACE();
 
 ## Vector and descriptor types
 
-SIMD vectors consist of one or more 'lanes' of the same built-in type `T =
-uint##_t, int##_t, float or double` for `## = 8, 16, 32, 64`. Highway provides
-vectors with `N` lanes (a power of two, not necessarily known at compile time).
+Highway vectors consist of one or more 'lanes' of the same built-in type `T =
+uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `T = float##_t` for `## = 16,
+32, 64`. `float16_t` is an IEEE binary16 half-float and only supports load,
+store, and conversion to/from `float32_t`; infinity or NaN have
+implementation-defined results.
+
+Each vector has `N` lanes (a power of two, possibly unknown at compile time).
 
 Platforms such as x86 support multiple vector types, and other platforms require
 that vectors are built-in types. On RVV, vectors are sizeless and thus cannot be
@@ -236,29 +240,26 @@ variants are somewhat slower on ARM; it is preferable to replace them with
 
 #### Shifts
 
-**Note**: Results are implementation-defined if the count `>= sizeof(T)*8)`.
-Compile-time constant shifts are generally the most efficient variant.
+**Note**: Counts not in `[0, sizeof(T)*8)` yield implementation-defined results.
+Left-shifting signed `T` and right-shifting positive signed `T` is the same as
+shifting `MakeUnsigned<T>` and casting to `T`. Right-shifting negative signed
+`T` is the same as an unsigned shift, except that 1-bits are shifted in.
+
+Compile-time constant shifts, generally the most efficient variant:
 
 *   `V`: `ui16/32/64` \
-    <code>V **ShiftLeft**&lt;int&gt;(V a)</code> returns `a[i] <<` a
-    compile-time constant count in `[0, sizeof(T)*8)`.
+    <code>V **ShiftLeft**&lt;int&gt;(V a)</code> returns `a[i] << int`.
 
 *   `V`: `u16/32/64`, `i16/32` \
-    <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >>` a
-    compile-time constant count in `[0, sizeof(T)*8)`.
+    <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
-*   `V`: `i32/64` \
-    <code>V **BroadcastSignBit(V a)</code> returns `a[i] < 0 ? -1 : 0`.
-
-**Note**: Vectors must be `HWY_CAPPED(T, HWY_VARIABLE_SHIFT_LANES(T))`:
+Per-lane variable shifts (slow if SSE4, or Shr i64 on AVX2):
 
 *   `V`: `ui32/64` \
-    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`, or
-    implementation-defined if `b[i] >= sizeof(T)*8`.
+    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.
 
 *   `V`: `u32/64`, `i32` \
-    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`, or
-    implementation-defined if `b[i] >= sizeof(T)*8`.
+    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`.
 
 **Note**: the following are only provided if `HWY_VARIABLE_SHIFT_LANES(T) == 1`:
 
@@ -310,7 +311,7 @@ non-operator functions (also available for integers) must be used:
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
-Special functions for floating-point types:
+Special functions for signed types:
 
 *   `V`: `f` \
     <code>V **CopySign**(V a, V b)</code>: returns the number with the magnitude
@@ -319,6 +320,9 @@ Special functions for floating-point types:
 *   `V`: `f` \
     <code>V **CopySignToAbs**(V a, V b)</code>: as above, but potentially
     slightly more efficient; requires the first argument to be non-negative.
+
+*   `V`: `i32/64` \
+    <code>V **BroadcastSignBit(V a)</code> returns `a[i] < 0 ? -1 : 0`.
 
 ### Masks
 
@@ -470,7 +474,7 @@ All functions except Stream are defined in cache_control.h.
     reinterpreted as type `Vec<D>`.
 
 *   `V`,`D`: (`u8,i16`), (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`),
-    (`i16,i32`), (`f32,f64`) \
+    (`i16,i32`), (`f16,f32`), (`f32,f64`) \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
     or sign-extended to the wider `D::T` type.
 
@@ -493,6 +497,9 @@ if the input exceeds the destination range.
 *   `V`,`D`: `f64,i32` \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: rounds floating point
     towards zero and converts the value to 32-bit integers.
+
+*   `V`,`D`: `f32,f16` \
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half.
 
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to

@@ -273,6 +273,15 @@ static constexpr size_t kMaxVectorSize = 16;
 HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
 
+// Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
+// by concatenating base type and bits.
+struct float16_t {
+  // __fp16 cannot be used as a function parameter in clang, so use a wrapper.
+  uint16_t bits;
+};
+using float32_t = float;
+using float64_t = double;
+
 template <typename T>
 constexpr bool IsFloat() {
   return T(1.25) != T(1);

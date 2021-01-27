@@ -56,15 +56,17 @@ static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
 #define HWY_IF_LE64(T, N) hwy::EnableIf<N * sizeof(T) <= 8>* = nullptr
 #define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
 
+#define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
+#define HWY_IF_SIGNED(T) \
+  hwy::EnableIf<IsSigned<T>() && !IsFloat<T>()>* = nullptr
 #define HWY_IF_FLOAT(T) hwy::EnableIf<hwy::IsFloat<T>()>* = nullptr
 #define HWY_IF_NOT_FLOAT(T) hwy::EnableIf<!hwy::IsFloat<T>()>* = nullptr
 
 // Argument is a Simd<T, N>, defined below.
-#define HWY_IF_UNSIGNED_D(D) hwy::EnableIf<!IsSigned<TFromD<D>>()>* = nullptr
-#define HWY_IF_SIGNED_D(D) \
-  hwy::EnableIf<IsSigned<TFromD<D>>() && !IsFloat<TFromD<D>>()>* = nullptr
-#define HWY_IF_FLOAT_D(D) hwy::EnableIf<IsFloat<TFromD<D>>()>* = nullptr
-#define HWY_IF_NOT_FLOAT_D(D) hwy::EnableIf<!IsFloat<TFromD<D>>()>* = nullptr
+#define HWY_IF_UNSIGNED_D(D) HWY_IF_UNSIGNED(TFromD<D>)
+#define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(TFromD<D>)
+#define HWY_IF_FLOAT_D(D) HWY_IF_FLOAT(TFromD<D>)
+#define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(TFromD<D>)
 
 #define HWY_IF_LANE_SIZE4_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 4>* = nullptr
 #define HWY_IF_LANE_SIZE8_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 8>* = nullptr

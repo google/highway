@@ -441,19 +441,6 @@ HWY_API Vec128<int32_t, N> ShiftRightSame(const Vec128<int32_t, N> v,
   return Vec128<int32_t, N>{wasm_i32x4_shr(v.raw, bits)};
 }
 
-// ------------------------------ Shift lanes by independent variable #bits
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> operator>>(const Vec128<T, N> v, const Vec128<T, N> bits) {
-  static_assert(N == 1, "Wasm does not support full variable shift");
-  return ShiftRightSame(v, GetLane(bits));
-}
-template <typename T, size_t N>
-HWY_API Vec128<T, N> operator<<(const Vec128<T, N> v, const Vec128<T, N> bits) {
-  static_assert(N == 1, "Wasm does not support full variable shift");
-  return ShiftLeftSame(v, GetLane(bits));
-}
-
 // ------------------------------ Minimum
 
 // Unsigned
@@ -475,11 +462,12 @@ HWY_API Vec128<uint32_t, N> Min(const Vec128<uint32_t, N> a,
 template <size_t N>
 HWY_API Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
                                 const Vec128<uint64_t, N> b) {
-  const uint64_t min0 =
+  alignas(16) float min[4];
+  min[0] =
       std::min(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
-  const uint64_t min1 =
+  min[1] =
       std::min(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
-  return wasm_u64x2_make(min0, min1);
+  return Vec128<uint64_t, N>{wasm_v128_load(min)};
   // TODO(janwas): new op?
   // return Vec128<uint64_t, N>{wasm_u64x2_min(a.raw, b.raw)};
 }
@@ -503,12 +491,13 @@ HWY_API Vec128<int32_t, N> Min(const Vec128<int32_t, N> a,
 template <size_t N>
 HWY_API Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
                                const Vec128<int64_t, N> b) {
-  const int64_t min0 =
+  alignas(16) float min[4];
+  min[0] =
       std::min(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
-  const int64_t min1 =
+  min[1] =
       std::min(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
-  return wasm_i64x2_make(min0, min1);
-  // TODO(janwas): new op?
+  return Vec128<int64_t, N>{wasm_v128_load(min)};
+  // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
   // return Vec128<int64_t, N>{wasm_i64x2_min(a.raw, b.raw)};
 }
 
@@ -540,12 +529,13 @@ HWY_API Vec128<uint32_t, N> Max(const Vec128<uint32_t, N> a,
 template <size_t N>
 HWY_API Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
                                 const Vec128<uint64_t, N> b) {
-  const uint64_t min0 =
+  alignas(16) float max[4];
+  max[0] =
       std::max(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
-  const uint64_t min1 =
+  max[1] =
       std::max(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
-  return wasm_u64x2_make(min0, min1);
-  // TODO(janwas): new op?
+  return Vec128<int64_t, N>{wasm_v128_load(max)};
+  // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
   // return Vec128<uint64_t, N>{wasm_u64x2_max(a.raw, b.raw)};
 }
 
@@ -568,12 +558,13 @@ HWY_API Vec128<int32_t, N> Max(const Vec128<int32_t, N> a,
 template <size_t N>
 HWY_API Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
                                const Vec128<int64_t, N> b) {
-  const int64_t min0 =
+  alignas(16) float max[4];
+  max[0] =
       std::max(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
-  const int64_t min1 =
+  max[1] =
       std::max(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
-  return wasm_i64x2_make(min0, min1);
-  // TODO(janwas): new op?
+  return Vec128<int64_t, N>{wasm_v128_load(max)};
+  // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
   // return Vec128<int64_t, N>{wasm_i64x2_max(a.raw, b.raw)};
 }
 
@@ -910,12 +901,18 @@ HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
 
   // Otherwise, the lower half decides.
   const auto m_eq = a32 == b32;
-  const auto lo_in_hi = wasm_v32x4_shuffle(m_gt, 2, 2, 0, 0);
+  const auto lo_in_hi = wasm_v32x4_shuffle(m_gt, m_gt, 2, 2, 0, 0);
   const auto lo_gt = And(m_eq, lo_in_hi);
 
   const auto gt = Or(lo_gt, m_gt);
   // Copy result in upper 32 bits to lower 32 bits.
-  return Mask128<int64_t, N>{wasm_v32x4_shuffle(gt, 3, 3, 1, 1)};
+  return Mask128<int64_t, N>{wasm_v32x4_shuffle(gt, gt, 3, 3, 1, 1)};
+}
+
+template <size_t N>
+HWY_API Mask128<float, N> operator>(const Vec128<float, N> a,
+                                    const Vec128<float, N> b) {
+  return Mask128<float, N>{wasm_f32x4_gt(a.raw, b.raw)};
 }
 
 template <typename T, size_t N>
@@ -1080,6 +1077,75 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
+// ------------------------------ Shl (IfThenElse)
+
+// The x86 multiply-by-Pow2() trick will not work because WASM saturates
+// float->int correctly to 2^31-1 (not 2^31). Because WASM's shifts take a
+// scalar count operand, per-lane shift instructions would require extract_lane
+// for each lane, and hoping that shuffle is correctly mapped to a native
+// instruction. Using non-vector shifts would incur a store-load forwarding
+// stall when loading the result vector. We instead test bits of the shift
+// count to "predicate" a shift of the entire vector by a constant.
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const Simd<T, N> d;
+  Mask128<T, N> mask;
+  // Need a signed type for BroadcastSignBit.
+  auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
+  // Move the highest valid bit of the shift count into the sign bit.
+  test = ShiftLeft<27>(test);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<16>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<8>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<4>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<2>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  return IfThenElse(mask, ShiftLeft<1>(v), v);
+}
+
+// ------------------------------ Shr
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const Simd<T, N> d;
+  Mask128<T, N> mask;
+  // Need a signed type for BroadcastSignBit.
+  auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
+  // Move the highest valid bit of the shift count into the sign bit.
+  test = ShiftLeft<27>(test);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<16>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<8>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<4>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<2>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  return IfThenElse(mask, ShiftRight<1>(v), v);
+}
 // ================================================== MEMORY
 
 // ------------------------------ Load
@@ -1875,6 +1941,14 @@ HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
   return Load(df, lanes64);
 }
 
+template <size_t N>
+HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
+                                      const Vec128<float16_t, N> v) {
+  (void)v;
+  static_assert(N != N, "TODO");
+  return Vec128<float, N>();  // TODO(janwas): implement
+}
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <size_t N>
@@ -1925,6 +1999,14 @@ HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> di,
   alignas(16) int32_t lanes[4] = {static_cast<int32_t>(lanes64[0])};
   if (N >= 2) lanes[1] = static_cast<int32_t>(lanes64[1]);
   return Load(di, lanes);
+}
+
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
+                                         const Vec128<float, N> v) {
+  (void)v;
+  static_assert(N != N, "TODO");
+  return Vec128<float16_t>();  // TODO(janwas): implement
 }
 
 // For already range-limited input [0, 255].
@@ -2058,14 +2140,17 @@ HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
       BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
+template <typename T>
 HWY_API size_t CountTrue(hwy::SizeTag<1> tag, const Mask128<T> m) {
   return PopCount(BitsFromMask(tag, m));
 }
 
+template <typename T>
 HWY_API size_t CountTrue(hwy::SizeTag<2> tag, const Mask128<T> m) {
   return PopCount(BitsFromMask(tag, m));
 }
 
+template <typename T>
 HWY_API size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
   const __i32x4 var_shift = wasm_i32x4_make(1, 2, 4, 8);
   const __i32x4 shifted_bits = wasm_v128_and(m.raw, var_shift);
@@ -2078,7 +2163,7 @@ HWY_API size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
 
 template <typename T, size_t N>
 HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
-  const uint64_t bits = detail::BitsFromMask(mask);
+  const uint64_t bits = impl::BitsFromMask(mask);
   const size_t kNumBytes = (N + 7)/8;
   CopyBytes<kNumBytes>(&bits, p);
   return kNumBytes;
@@ -2093,7 +2178,7 @@ HWY_API size_t CountTrue(const Mask128<T> m) {
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API size_t CountTrue(const Mask128<T, N> m) {
   // Ensure all undefined bytes are 0.
-  const Mask<T, N> mask{BytesAbove<N * sizeof(T)>()};
+  const Mask128<T, N> mask{impl::BytesAbove<N * sizeof(T)>()};
   return CountTrue(Mask128<T>{AndNot(mask, m).raw});
 }
 
@@ -2130,14 +2215,14 @@ HWY_API bool AllTrue(const Mask128<T> m) {
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API bool AllFalse(const Mask128<T, N> m) {
   // Ensure all undefined bytes are 0.
-  const Mask<T, N> mask{BytesAbove<N * sizeof(T)>()};
+  const Mask128<T, N> mask{impl::BytesAbove<N * sizeof(T)>()};
   return AllFalse(Mask128<T>{AndNot(mask, m).raw});
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API bool AllTrue(const Mask128<T, N> m) {
   // Ensure all undefined bytes are FF.
-  const Mask<T, N> mask{BytesAbove<N * sizeof(T)>()};
+  const Mask128<T, N> mask{impl::BytesAbove<N * sizeof(T)>()};
   return AllTrue(Mask128<T>{Or(mask, m).raw});
 }
 

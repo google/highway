@@ -387,6 +387,269 @@ HWY_API Mask256<T> Xor(const Mask256<T> a, Mask256<T> b) {
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
+// ================================================== COMPARE
+
+// Comparisons fill a lane with 1-bits if the condition is true, else 0.
+
+template <typename TFrom, typename TTo>
+HWY_API Mask256<TTo> RebindMask(Full256<TTo> /*tag*/, Mask256<TFrom> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return Mask256<TTo>{m.raw};
+}
+
+// ------------------------------ Equality
+
+// Unsigned
+HWY_API Mask256<uint8_t> operator==(const Vec256<uint8_t> a,
+                                    const Vec256<uint8_t> b) {
+  return Mask256<uint8_t>{_mm256_cmpeq_epi8(a.raw, b.raw)};
+}
+HWY_API Mask256<uint16_t> operator==(const Vec256<uint16_t> a,
+                                     const Vec256<uint16_t> b) {
+  return Mask256<uint16_t>{_mm256_cmpeq_epi16(a.raw, b.raw)};
+}
+HWY_API Mask256<uint32_t> operator==(const Vec256<uint32_t> a,
+                                     const Vec256<uint32_t> b) {
+  return Mask256<uint32_t>{_mm256_cmpeq_epi32(a.raw, b.raw)};
+}
+HWY_API Mask256<uint64_t> operator==(const Vec256<uint64_t> a,
+                                     const Vec256<uint64_t> b) {
+  return Mask256<uint64_t>{_mm256_cmpeq_epi64(a.raw, b.raw)};
+}
+
+// Signed
+HWY_API Mask256<int8_t> operator==(const Vec256<int8_t> a,
+                                   const Vec256<int8_t> b) {
+  return Mask256<int8_t>{_mm256_cmpeq_epi8(a.raw, b.raw)};
+}
+HWY_API Mask256<int16_t> operator==(const Vec256<int16_t> a,
+                                    const Vec256<int16_t> b) {
+  return Mask256<int16_t>{_mm256_cmpeq_epi16(a.raw, b.raw)};
+}
+HWY_API Mask256<int32_t> operator==(const Vec256<int32_t> a,
+                                    const Vec256<int32_t> b) {
+  return Mask256<int32_t>{_mm256_cmpeq_epi32(a.raw, b.raw)};
+}
+HWY_API Mask256<int64_t> operator==(const Vec256<int64_t> a,
+                                    const Vec256<int64_t> b) {
+  return Mask256<int64_t>{_mm256_cmpeq_epi64(a.raw, b.raw)};
+}
+
+// Float
+HWY_API Mask256<float> operator==(const Vec256<float> a,
+                                  const Vec256<float> b) {
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_EQ_OQ)};
+}
+HWY_API Mask256<double> operator==(const Vec256<double> a,
+                                   const Vec256<double> b) {
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_EQ_OQ)};
+}
+
+template <typename T>
+HWY_API Mask256<T> TestBit(const Vec256<T> v, const Vec256<T> bit) {
+  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
+  return (v & bit) == bit;
+}
+
+// ------------------------------ Strict inequality
+
+// Pre-9.3 GCC immintrin.h uses char, which may be unsigned, causing cmpgt_epi8
+// to perform an unsigned comparison instead of the intended signed. Workaround
+// is to cast to an explicitly signed type. See https://godbolt.org/z/PL7Ujy
+#if HWY_COMPILER_GCC != 0 && HWY_COMPILER_GCC < 930
+#define HWY_AVX2_GCC_CMPGT8_WORKAROUND 1
+#else
+#define HWY_AVX2_GCC_CMPGT8_WORKAROUND 0
+#endif
+
+// Signed/float <
+HWY_API Mask256<int8_t> operator<(const Vec256<int8_t> a,
+                                  const Vec256<int8_t> b) {
+#if HWY_AVX2_GCC_CMPGT8_WORKAROUND
+  using i8x32 = signed char __attribute__((__vector_size__(32)));
+  return Mask256<int8_t>{static_cast<__m256i>(reinterpret_cast<i8x32>(a.raw) <
+                                              reinterpret_cast<i8x32>(b.raw))};
+#else
+  return Mask256<int8_t>{_mm256_cmpgt_epi8(b.raw, a.raw)};
+#endif
+}
+HWY_API Mask256<int16_t> operator<(const Vec256<int16_t> a,
+                                   const Vec256<int16_t> b) {
+  return Mask256<int16_t>{_mm256_cmpgt_epi16(b.raw, a.raw)};
+}
+HWY_API Mask256<int32_t> operator<(const Vec256<int32_t> a,
+                                   const Vec256<int32_t> b) {
+  return Mask256<int32_t>{_mm256_cmpgt_epi32(b.raw, a.raw)};
+}
+HWY_API Mask256<int64_t> operator<(const Vec256<int64_t> a,
+                                   const Vec256<int64_t> b) {
+  return Mask256<int64_t>{_mm256_cmpgt_epi64(b.raw, a.raw)};
+}
+HWY_API Mask256<float> operator<(const Vec256<float> a, const Vec256<float> b) {
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_LT_OQ)};
+}
+HWY_API Mask256<double> operator<(const Vec256<double> a,
+                                  const Vec256<double> b) {
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_LT_OQ)};
+}
+
+// Signed/float >
+HWY_API Mask256<int8_t> operator>(const Vec256<int8_t> a,
+                                  const Vec256<int8_t> b) {
+#if HWY_AVX2_GCC_CMPGT8_WORKAROUND
+  using i8x32 = signed char __attribute__((__vector_size__(32)));
+  return Mask256<int8_t>{static_cast<__m256i>(reinterpret_cast<i8x32>(a.raw) >
+                                              reinterpret_cast<i8x32>(b.raw))};
+#else
+  return Mask256<int8_t>{_mm256_cmpgt_epi8(a.raw, b.raw)};
+#endif
+}
+HWY_API Mask256<int16_t> operator>(const Vec256<int16_t> a,
+                                   const Vec256<int16_t> b) {
+  return Mask256<int16_t>{_mm256_cmpgt_epi16(a.raw, b.raw)};
+}
+HWY_API Mask256<int32_t> operator>(const Vec256<int32_t> a,
+                                   const Vec256<int32_t> b) {
+  return Mask256<int32_t>{_mm256_cmpgt_epi32(a.raw, b.raw)};
+}
+HWY_API Mask256<int64_t> operator>(const Vec256<int64_t> a,
+                                   const Vec256<int64_t> b) {
+  return Mask256<int64_t>{_mm256_cmpgt_epi64(a.raw, b.raw)};
+}
+HWY_API Mask256<float> operator>(const Vec256<float> a, const Vec256<float> b) {
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GT_OQ)};
+}
+HWY_API Mask256<double> operator>(const Vec256<double> a,
+                                  const Vec256<double> b) {
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GT_OQ)};
+}
+
+// ------------------------------ Weak inequality
+
+// Float <= >=
+HWY_API Mask256<float> operator<=(const Vec256<float> a,
+                                  const Vec256<float> b) {
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_LE_OQ)};
+}
+HWY_API Mask256<double> operator<=(const Vec256<double> a,
+                                   const Vec256<double> b) {
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_LE_OQ)};
+}
+HWY_API Mask256<float> operator>=(const Vec256<float> a,
+                                  const Vec256<float> b) {
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GE_OQ)};
+}
+HWY_API Mask256<double> operator>=(const Vec256<double> a,
+                                   const Vec256<double> b) {
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+// ------------------------------ Min (Gt, IfThenElse)
+
+// Unsigned
+HWY_API Vec256<uint8_t> Min(const Vec256<uint8_t> a, const Vec256<uint8_t> b) {
+  return Vec256<uint8_t>{_mm256_min_epu8(a.raw, b.raw)};
+}
+HWY_API Vec256<uint16_t> Min(const Vec256<uint16_t> a,
+                             const Vec256<uint16_t> b) {
+  return Vec256<uint16_t>{_mm256_min_epu16(a.raw, b.raw)};
+}
+HWY_API Vec256<uint32_t> Min(const Vec256<uint32_t> a,
+                             const Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{_mm256_min_epu32(a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> Min(const Vec256<uint64_t> a,
+                             const Vec256<uint64_t> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<uint64_t>{_mm256_min_epu64(a.raw, b.raw)};
+#else
+  const Full256<uint64_t> du;
+  const Full256<int64_t> di;
+  const auto msb = Set(du, 1ull << 63);
+  const auto gt = RebindMask(du, BitCast(di, a ^ msb) > BitCast(di, b ^ msb));
+  return IfThenElse(gt, b, a);
+#endif
+}
+
+// Signed
+HWY_API Vec256<int8_t> Min(const Vec256<int8_t> a, const Vec256<int8_t> b) {
+  return Vec256<int8_t>{_mm256_min_epi8(a.raw, b.raw)};
+}
+HWY_API Vec256<int16_t> Min(const Vec256<int16_t> a, const Vec256<int16_t> b) {
+  return Vec256<int16_t>{_mm256_min_epi16(a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> Min(const Vec256<int32_t> a, const Vec256<int32_t> b) {
+  return Vec256<int32_t>{_mm256_min_epi32(a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> Min(const Vec256<int64_t> a, const Vec256<int64_t> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<int64_t>{_mm256_min_epi64(a.raw, b.raw)};
+#else
+  return IfThenElse(a < b, a, b);
+#endif
+}
+
+// Float
+HWY_API Vec256<float> Min(const Vec256<float> a, const Vec256<float> b) {
+  return Vec256<float>{_mm256_min_ps(a.raw, b.raw)};
+}
+HWY_API Vec256<double> Min(const Vec256<double> a, const Vec256<double> b) {
+  return Vec256<double>{_mm256_min_pd(a.raw, b.raw)};
+}
+
+// ------------------------------ Max (Gt, IfThenElse)
+
+// Unsigned
+HWY_API Vec256<uint8_t> Max(const Vec256<uint8_t> a, const Vec256<uint8_t> b) {
+  return Vec256<uint8_t>{_mm256_max_epu8(a.raw, b.raw)};
+}
+HWY_API Vec256<uint16_t> Max(const Vec256<uint16_t> a,
+                             const Vec256<uint16_t> b) {
+  return Vec256<uint16_t>{_mm256_max_epu16(a.raw, b.raw)};
+}
+HWY_API Vec256<uint32_t> Max(const Vec256<uint32_t> a,
+                             const Vec256<uint32_t> b) {
+  return Vec256<uint32_t>{_mm256_max_epu32(a.raw, b.raw)};
+}
+HWY_API Vec256<uint64_t> Max(const Vec256<uint64_t> a,
+                             const Vec256<uint64_t> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<uint64_t>{_mm256_max_epu64(a.raw, b.raw)};
+#else
+  const Full256<uint64_t> du;
+  const Full256<int64_t> di;
+  const auto msb = Set(du, 1ull << 63);
+  const auto gt = RebindMask(du, BitCast(di, a ^ msb) > BitCast(di, b ^ msb));
+  return IfThenElse(gt, a, b);
+#endif
+}
+
+// Signed
+HWY_API Vec256<int8_t> Max(const Vec256<int8_t> a, const Vec256<int8_t> b) {
+  return Vec256<int8_t>{_mm256_max_epi8(a.raw, b.raw)};
+}
+HWY_API Vec256<int16_t> Max(const Vec256<int16_t> a, const Vec256<int16_t> b) {
+  return Vec256<int16_t>{_mm256_max_epi16(a.raw, b.raw)};
+}
+HWY_API Vec256<int32_t> Max(const Vec256<int32_t> a, const Vec256<int32_t> b) {
+  return Vec256<int32_t>{_mm256_max_epi32(a.raw, b.raw)};
+}
+HWY_API Vec256<int64_t> Max(const Vec256<int64_t> a, const Vec256<int64_t> b) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<int64_t>{_mm256_max_epi64(a.raw, b.raw)};
+#else
+  return IfThenElse(a < b, b, a);
+#endif
+}
+
+// Float
+HWY_API Vec256<float> Max(const Vec256<float> a, const Vec256<float> b) {
+  return Vec256<float>{_mm256_max_ps(a.raw, b.raw)};
+}
+HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
+  return Vec256<double>{_mm256_max_pd(a.raw, b.raw)};
+}
+
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition
@@ -567,88 +830,144 @@ HWY_API Vec256<double> Abs(const Vec256<double> v) {
   return v & BitCast(Full256<double>(), mask);
 }
 
-// ------------------------------ Shift lanes by constant #bits
+// ------------------------------ ShiftLeft
 
-// Unsigned
 template <int kBits>
 HWY_API Vec256<uint16_t> ShiftLeft(const Vec256<uint16_t> v) {
   return Vec256<uint16_t>{_mm256_slli_epi16(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec256<uint16_t> ShiftRight(const Vec256<uint16_t> v) {
-  return Vec256<uint16_t>{_mm256_srli_epi16(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec256<uint32_t> ShiftLeft(const Vec256<uint32_t> v) {
   return Vec256<uint32_t>{_mm256_slli_epi32(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec256<uint32_t> ShiftRight(const Vec256<uint32_t> v) {
-  return Vec256<uint32_t>{_mm256_srli_epi32(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec256<uint64_t> ShiftLeft(const Vec256<uint64_t> v) {
   return Vec256<uint64_t>{_mm256_slli_epi64(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec256<uint64_t> ShiftRight(const Vec256<uint64_t> v) {
-  return Vec256<uint64_t>{_mm256_srli_epi64(v.raw, kBits)};
-}
 
-// Signed (no i64 ShiftRight)
 template <int kBits>
 HWY_API Vec256<int16_t> ShiftLeft(const Vec256<int16_t> v) {
   return Vec256<int16_t>{_mm256_slli_epi16(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec256<int16_t> ShiftRight(const Vec256<int16_t> v) {
-  return Vec256<int16_t>{_mm256_srai_epi16(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec256<int32_t> ShiftLeft(const Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_slli_epi32(v.raw, kBits)};
 }
-template <int kBits>
-HWY_API Vec256<int32_t> ShiftRight(const Vec256<int32_t> v) {
-  return Vec256<int32_t>{_mm256_srai_epi32(v.raw, kBits)};
-}
+
 template <int kBits>
 HWY_API Vec256<int64_t> ShiftLeft(const Vec256<int64_t> v) {
   return Vec256<int64_t>{_mm256_slli_epi64(v.raw, kBits)};
 }
 
-// ------------------------------ Shift lanes by independent variable #bits
+// ------------------------------ ShiftRight
 
-// Unsigned (no u8,u16)
+template <int kBits>
+HWY_API Vec256<uint16_t> ShiftRight(const Vec256<uint16_t> v) {
+  return Vec256<uint16_t>{_mm256_srli_epi16(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec256<uint32_t> ShiftRight(const Vec256<uint32_t> v) {
+  return Vec256<uint32_t>{_mm256_srli_epi32(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec256<uint64_t> ShiftRight(const Vec256<uint64_t> v) {
+  return Vec256<uint64_t>{_mm256_srli_epi64(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec256<int16_t> ShiftRight(const Vec256<int16_t> v) {
+  return Vec256<int16_t>{_mm256_srai_epi16(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec256<int32_t> ShiftRight(const Vec256<int32_t> v) {
+  return Vec256<int32_t>{_mm256_srai_epi32(v.raw, kBits)};
+}
+
+// i64 is implemented after BroadcastSignBit.
+
+// ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
+
+HWY_API Vec256<int32_t> BroadcastSignBit(const Vec256<int32_t> v) {
+  return ShiftRight<31>(v);
+}
+
+HWY_API Vec256<int64_t> BroadcastSignBit(const Vec256<int64_t> v) {
+#if HWY_TARGET == HWY_AVX2
+  return VecFromMask(v < Zero(Full256<int64_t>()));
+#else
+  return Vec256<int64_t>{_mm256_srai_epi64(v.raw, 63)};
+#endif
+}
+
+template <int kBits>
+HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<int64_t>{_mm256_srai_epi64(v.raw, kBits)};
+#else
+  const Full256<int64_t> di;
+  const Full256<uint64_t> du;
+  const auto right = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
+  const auto sign = ShiftLeft<64 - kBits>(BroadcastSignBit(v));
+  return right | sign;
+#endif
+}
+
+// ------------------------------ Shl
+
 HWY_API Vec256<uint32_t> operator<<(const Vec256<uint32_t> v,
                                     const Vec256<uint32_t> bits) {
   return Vec256<uint32_t>{_mm256_sllv_epi32(v.raw, bits.raw)};
 }
-HWY_API Vec256<uint32_t> operator>>(const Vec256<uint32_t> v,
-                                    const Vec256<uint32_t> bits) {
-  return Vec256<uint32_t>{_mm256_srlv_epi32(v.raw, bits.raw)};
-}
+
 HWY_API Vec256<uint64_t> operator<<(const Vec256<uint64_t> v,
                                     const Vec256<uint64_t> bits) {
   return Vec256<uint64_t>{_mm256_sllv_epi64(v.raw, bits.raw)};
 }
+
+HWY_API Vec256<int32_t> operator<<(const Vec256<int32_t> v,
+                                   const Vec256<int32_t> bits) {
+  return Vec256<int32_t>{_mm256_sllv_epi32(v.raw, bits.raw)};
+}
+
+HWY_API Vec256<int64_t> operator<<(const Vec256<int64_t> v,
+                                   const Vec256<int64_t> bits) {
+  return Vec256<int64_t>{_mm256_sllv_epi64(v.raw, bits.raw)};
+}
+
+// ------------------------------ Shr (BroadcastSignBit)
+
+HWY_API Vec256<uint32_t> operator>>(const Vec256<uint32_t> v,
+                                    const Vec256<uint32_t> bits) {
+  return Vec256<uint32_t>{_mm256_srlv_epi32(v.raw, bits.raw)};
+}
+
 HWY_API Vec256<uint64_t> operator>>(const Vec256<uint64_t> v,
                                     const Vec256<uint64_t> bits) {
   return Vec256<uint64_t>{_mm256_srlv_epi64(v.raw, bits.raw)};
 }
 
-// Signed (no i8,i16,i64)
-HWY_API Vec256<int32_t> operator<<(const Vec256<int32_t> v,
-                                   const Vec256<int32_t> bits) {
-  return Vec256<int32_t>{_mm256_sllv_epi32(v.raw, bits.raw)};
-}
 HWY_API Vec256<int32_t> operator>>(const Vec256<int32_t> v,
                                    const Vec256<int32_t> bits) {
   return Vec256<int32_t>{_mm256_srav_epi32(v.raw, bits.raw)};
 }
-HWY_API Vec256<int64_t> operator<<(const Vec256<int64_t> v,
+
+HWY_API Vec256<int64_t> operator>>(const Vec256<int64_t> v,
                                    const Vec256<int64_t> bits) {
-  return Vec256<int64_t>{_mm256_sllv_epi64(v.raw, bits.raw)};
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<int64_t>{_mm256_srav_epi64(v.raw, bits.raw)};
+#else
+  const Full256<int64_t> di;
+  const Full256<uint64_t> du;
+  const auto right = BitCast(di, BitCast(du, v) >> BitCast(du, bits));
+  const auto sign = BroadcastSignBit(v) << (Set(di, 64) - bits);
+  return right | sign;
+#endif
 }
 
 // ------------------------------ Integer multiplication
@@ -865,283 +1184,6 @@ HWY_API Vec256<float> Floor(const Vec256<float> v) {
 HWY_API Vec256<double> Floor(const Vec256<double> v) {
   return Vec256<double>{
       _mm256_round_pd(v.raw, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)};
-}
-
-// ================================================== COMPARE
-
-// Comparisons fill a lane with 1-bits if the condition is true, else 0.
-
-template <typename TFrom, typename TTo>
-HWY_API Mask256<TTo> RebindMask(Full256<TTo> /*tag*/, Mask256<TFrom> m) {
-  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask256<TTo>{m.raw};
-}
-
-// ------------------------------ Equality
-
-// Unsigned
-HWY_API Mask256<uint8_t> operator==(const Vec256<uint8_t> a,
-                                    const Vec256<uint8_t> b) {
-  return Mask256<uint8_t>{_mm256_cmpeq_epi8(a.raw, b.raw)};
-}
-HWY_API Mask256<uint16_t> operator==(const Vec256<uint16_t> a,
-                                     const Vec256<uint16_t> b) {
-  return Mask256<uint16_t>{_mm256_cmpeq_epi16(a.raw, b.raw)};
-}
-HWY_API Mask256<uint32_t> operator==(const Vec256<uint32_t> a,
-                                     const Vec256<uint32_t> b) {
-  return Mask256<uint32_t>{_mm256_cmpeq_epi32(a.raw, b.raw)};
-}
-HWY_API Mask256<uint64_t> operator==(const Vec256<uint64_t> a,
-                                     const Vec256<uint64_t> b) {
-  return Mask256<uint64_t>{_mm256_cmpeq_epi64(a.raw, b.raw)};
-}
-
-// Signed
-HWY_API Mask256<int8_t> operator==(const Vec256<int8_t> a,
-                                   const Vec256<int8_t> b) {
-  return Mask256<int8_t>{_mm256_cmpeq_epi8(a.raw, b.raw)};
-}
-HWY_API Mask256<int16_t> operator==(const Vec256<int16_t> a,
-                                    const Vec256<int16_t> b) {
-  return Mask256<int16_t>{_mm256_cmpeq_epi16(a.raw, b.raw)};
-}
-HWY_API Mask256<int32_t> operator==(const Vec256<int32_t> a,
-                                    const Vec256<int32_t> b) {
-  return Mask256<int32_t>{_mm256_cmpeq_epi32(a.raw, b.raw)};
-}
-HWY_API Mask256<int64_t> operator==(const Vec256<int64_t> a,
-                                    const Vec256<int64_t> b) {
-  return Mask256<int64_t>{_mm256_cmpeq_epi64(a.raw, b.raw)};
-}
-
-// Float
-HWY_API Mask256<float> operator==(const Vec256<float> a,
-                                  const Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_EQ_OQ)};
-}
-HWY_API Mask256<double> operator==(const Vec256<double> a,
-                                   const Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_EQ_OQ)};
-}
-
-template <typename T>
-HWY_API Mask256<T> TestBit(const Vec256<T> v, const Vec256<T> bit) {
-  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
-  return (v & bit) == bit;
-}
-
-// ------------------------------ Strict inequality
-
-// Pre-9.3 GCC immintrin.h uses char, which may be unsigned, causing cmpgt_epi8
-// to perform an unsigned comparison instead of the intended signed. Workaround
-// is to cast to an explicitly signed type. See https://godbolt.org/z/PL7Ujy
-#if HWY_COMPILER_GCC != 0 && HWY_COMPILER_GCC < 930
-#define HWY_AVX2_GCC_CMPGT8_WORKAROUND 1
-#else
-#define HWY_AVX2_GCC_CMPGT8_WORKAROUND 0
-#endif
-
-// Signed/float <
-HWY_API Mask256<int8_t> operator<(const Vec256<int8_t> a,
-                                  const Vec256<int8_t> b) {
-#if HWY_AVX2_GCC_CMPGT8_WORKAROUND
-  using i8x32 = signed char __attribute__((__vector_size__(32)));
-  return Mask256<int8_t>{static_cast<__m256i>(reinterpret_cast<i8x32>(a.raw) <
-                                              reinterpret_cast<i8x32>(b.raw))};
-#else
-  return Mask256<int8_t>{_mm256_cmpgt_epi8(b.raw, a.raw)};
-#endif
-}
-HWY_API Mask256<int16_t> operator<(const Vec256<int16_t> a,
-                                   const Vec256<int16_t> b) {
-  return Mask256<int16_t>{_mm256_cmpgt_epi16(b.raw, a.raw)};
-}
-HWY_API Mask256<int32_t> operator<(const Vec256<int32_t> a,
-                                   const Vec256<int32_t> b) {
-  return Mask256<int32_t>{_mm256_cmpgt_epi32(b.raw, a.raw)};
-}
-HWY_API Mask256<int64_t> operator<(const Vec256<int64_t> a,
-                                   const Vec256<int64_t> b) {
-  return Mask256<int64_t>{_mm256_cmpgt_epi64(b.raw, a.raw)};
-}
-HWY_API Mask256<float> operator<(const Vec256<float> a, const Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_LT_OQ)};
-}
-HWY_API Mask256<double> operator<(const Vec256<double> a,
-                                  const Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_LT_OQ)};
-}
-
-// Signed/float >
-HWY_API Mask256<int8_t> operator>(const Vec256<int8_t> a,
-                                  const Vec256<int8_t> b) {
-#if HWY_AVX2_GCC_CMPGT8_WORKAROUND
-  using i8x32 = signed char __attribute__((__vector_size__(32)));
-  return Mask256<int8_t>{static_cast<__m256i>(reinterpret_cast<i8x32>(a.raw) >
-                                              reinterpret_cast<i8x32>(b.raw))};
-#else
-  return Mask256<int8_t>{_mm256_cmpgt_epi8(a.raw, b.raw)};
-#endif
-}
-HWY_API Mask256<int16_t> operator>(const Vec256<int16_t> a,
-                                   const Vec256<int16_t> b) {
-  return Mask256<int16_t>{_mm256_cmpgt_epi16(a.raw, b.raw)};
-}
-HWY_API Mask256<int32_t> operator>(const Vec256<int32_t> a,
-                                   const Vec256<int32_t> b) {
-  return Mask256<int32_t>{_mm256_cmpgt_epi32(a.raw, b.raw)};
-}
-HWY_API Mask256<int64_t> operator>(const Vec256<int64_t> a,
-                                   const Vec256<int64_t> b) {
-  return Mask256<int64_t>{_mm256_cmpgt_epi64(a.raw, b.raw)};
-}
-HWY_API Mask256<float> operator>(const Vec256<float> a, const Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GT_OQ)};
-}
-HWY_API Mask256<double> operator>(const Vec256<double> a,
-                                  const Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GT_OQ)};
-}
-
-// ------------------------------ Weak inequality
-
-// Float <= >=
-HWY_API Mask256<float> operator<=(const Vec256<float> a,
-                                  const Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_LE_OQ)};
-}
-HWY_API Mask256<double> operator<=(const Vec256<double> a,
-                                   const Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_LE_OQ)};
-}
-HWY_API Mask256<float> operator>=(const Vec256<float> a,
-                                  const Vec256<float> b) {
-  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GE_OQ)};
-}
-HWY_API Mask256<double> operator>=(const Vec256<double> a,
-                                   const Vec256<double> b) {
-  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GE_OQ)};
-}
-
-// ------------------------------ BroadcastSignBit
-
-HWY_API Vec256<int32_t> BroadcastSignBit(const Vec256<int32_t> v) {
-  return ShiftRight<31>(v);
-}
-
-HWY_API Vec256<int64_t> BroadcastSignBit(const Vec256<int64_t> v) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<int64_t>{_mm256_srai_epi64(v.raw, 63)};
-#else
-  return VecFromMask(v < Zero(Full256<int64_t>()));
-#endif
-}
-
-// ------------------------------ Min (Gt, IfThenElse)
-
-// Unsigned
-HWY_API Vec256<uint8_t> Min(const Vec256<uint8_t> a, const Vec256<uint8_t> b) {
-  return Vec256<uint8_t>{_mm256_min_epu8(a.raw, b.raw)};
-}
-HWY_API Vec256<uint16_t> Min(const Vec256<uint16_t> a,
-                             const Vec256<uint16_t> b) {
-  return Vec256<uint16_t>{_mm256_min_epu16(a.raw, b.raw)};
-}
-HWY_API Vec256<uint32_t> Min(const Vec256<uint32_t> a,
-                             const Vec256<uint32_t> b) {
-  return Vec256<uint32_t>{_mm256_min_epu32(a.raw, b.raw)};
-}
-HWY_API Vec256<uint64_t> Min(const Vec256<uint64_t> a,
-                             const Vec256<uint64_t> b) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<uint64_t>{_mm256_min_epu64(a.raw, b.raw)};
-#else
-  const Full256<uint64_t> du;
-  const Full256<int64_t> di;
-  const auto msb = Set(du, 1ull << 63);
-  const auto gt = RebindMask(du, BitCast(di, a ^ msb) > BitCast(di, b ^ msb));
-  return IfThenElse(gt, b, a);
-#endif
-}
-
-// Signed
-HWY_API Vec256<int8_t> Min(const Vec256<int8_t> a, const Vec256<int8_t> b) {
-  return Vec256<int8_t>{_mm256_min_epi8(a.raw, b.raw)};
-}
-HWY_API Vec256<int16_t> Min(const Vec256<int16_t> a, const Vec256<int16_t> b) {
-  return Vec256<int16_t>{_mm256_min_epi16(a.raw, b.raw)};
-}
-HWY_API Vec256<int32_t> Min(const Vec256<int32_t> a, const Vec256<int32_t> b) {
-  return Vec256<int32_t>{_mm256_min_epi32(a.raw, b.raw)};
-}
-HWY_API Vec256<int64_t> Min(const Vec256<int64_t> a, const Vec256<int64_t> b) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<int64_t>{_mm256_min_epi64(a.raw, b.raw)};
-#else
-  return IfThenElse(a < b, a, b);
-#endif
-}
-
-// Float
-HWY_API Vec256<float> Min(const Vec256<float> a, const Vec256<float> b) {
-  return Vec256<float>{_mm256_min_ps(a.raw, b.raw)};
-}
-HWY_API Vec256<double> Min(const Vec256<double> a, const Vec256<double> b) {
-  return Vec256<double>{_mm256_min_pd(a.raw, b.raw)};
-}
-
-// ------------------------------ Max (Gt, IfThenElse)
-
-// Unsigned
-HWY_API Vec256<uint8_t> Max(const Vec256<uint8_t> a, const Vec256<uint8_t> b) {
-  return Vec256<uint8_t>{_mm256_max_epu8(a.raw, b.raw)};
-}
-HWY_API Vec256<uint16_t> Max(const Vec256<uint16_t> a,
-                             const Vec256<uint16_t> b) {
-  return Vec256<uint16_t>{_mm256_max_epu16(a.raw, b.raw)};
-}
-HWY_API Vec256<uint32_t> Max(const Vec256<uint32_t> a,
-                             const Vec256<uint32_t> b) {
-  return Vec256<uint32_t>{_mm256_max_epu32(a.raw, b.raw)};
-}
-HWY_API Vec256<uint64_t> Max(const Vec256<uint64_t> a,
-                             const Vec256<uint64_t> b) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<uint64_t>{_mm256_max_epu64(a.raw, b.raw)};
-#else
-  const Full256<uint64_t> du;
-  const Full256<int64_t> di;
-  const auto msb = Set(du, 1ull << 63);
-  const auto gt = RebindMask(du, BitCast(di, a ^ msb) > BitCast(di, b ^ msb));
-  return IfThenElse(gt, a, b);
-#endif
-}
-
-// Signed
-HWY_API Vec256<int8_t> Max(const Vec256<int8_t> a, const Vec256<int8_t> b) {
-  return Vec256<int8_t>{_mm256_max_epi8(a.raw, b.raw)};
-}
-HWY_API Vec256<int16_t> Max(const Vec256<int16_t> a, const Vec256<int16_t> b) {
-  return Vec256<int16_t>{_mm256_max_epi16(a.raw, b.raw)};
-}
-HWY_API Vec256<int32_t> Max(const Vec256<int32_t> a, const Vec256<int32_t> b) {
-  return Vec256<int32_t>{_mm256_max_epi32(a.raw, b.raw)};
-}
-HWY_API Vec256<int64_t> Max(const Vec256<int64_t> a, const Vec256<int64_t> b) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<int64_t>{_mm256_max_epi64(a.raw, b.raw)};
-#else
-  return IfThenElse(a < b, b, a);
-#endif
-}
-
-// Float
-HWY_API Vec256<float> Max(const Vec256<float> a, const Vec256<float> b) {
-  return Vec256<float>{_mm256_max_ps(a.raw, b.raw)};
-}
-HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
-  return Vec256<double>{_mm256_max_pd(a.raw, b.raw)};
 }
 
 // ================================================== MEMORY
@@ -1906,6 +1948,11 @@ HWY_API Vec256<T> TableLookupBytes(const Vec256<T> bytes,
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
+HWY_API Vec256<float> PromoteTo(Full256<float> /* tag */,
+                                const Vec128<float16_t, 8> v) {
+  return Vec256<float>{_mm256_cvtph_ps(v.raw)};
+}
+
 HWY_API Vec256<double> PromoteTo(Full256<double> /* tag */,
                                  const Vec128<float, 4> v) {
   return Vec256<double>{_mm256_cvtps_pd(v.raw)};
@@ -2020,6 +2067,11 @@ HWY_API Vec128<int8_t> DemoteTo(Full128<int8_t> /* tag */,
   const __m256i i8 = _mm256_packs_epi16(v.raw, v.raw);
   return Vec128<int8_t>{
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(i8, 0x88))};
+}
+
+HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> /* tag */,
+                                   const Vec256<float> v) {
+  return Vec128<float16_t>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 }
 
 HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,
