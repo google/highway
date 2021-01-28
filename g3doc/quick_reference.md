@@ -254,21 +254,21 @@ Compile-time constant shifts, generally the most efficient variant:
 *   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
-Per-lane variable shifts (slow if SSE4, or Shr i64 on AVX2):
-
-*   `V`: `{u,i}{32,64}` \
-    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.
-
-*   `V`: `{u,i}{32,64}` \
-    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`.
-
-**Note**: the following are only provided if `HWY_VARIABLE_SHIFT_LANES(T) == 1`:
+Shift all lanes by the same (not necessarily compile-time constant) amount:
 
 *   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftLeftSame**(V a, int bits)</code> returns `a[i] << bits`.
 
 *   `V`: `{u,i}{16,32,64}` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
+
+Per-lane variable shifts (slow if SSE4, or Shr i64 on AVX2):
+
+*   `V`: `{u,i}{16,32,64}` \
+    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.
+
+*   `V`: `{u,i}{16,32,64}` \
+    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`.
 
 #### Floating-point rounding
 
@@ -301,6 +301,9 @@ These operate on individual bits within each lane.
 *   `V`: `{u,i}` \
     <code>V **operator^**(V a, V b)</code>: returns `a[i] ^ b[i]`.
 
+*   `V`: `{u,i}` \
+    <code>V **Not**(V v)</code>: returns `~v[i]`.
+
 For floating-point types, builtin operators are not always available, so
 non-operator functions (also available for integers) must be used:
 
@@ -332,6 +335,9 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
     reinterpreted as a mask for lanes of type `TFromD<D>`. `M1` and `M2` must
     have the same number of lanes.
+
+*   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the
+    input mask element was not set.
 
 *   <code>M **And**(M a, M b)</code>: returns mask of elements indicating
     whether both input mask elements were set.
@@ -703,13 +709,15 @@ generates the best possible code (or scalar fallback) from the same source code.
 
 *   `HWY_GATHER_LANES(T)`: supports GatherIndex/Offset.
 *   `HWY_VARIABLE_SHIFT_LANES(T)`: supports per-lane shift amounts (v1 << v2).
+    DEPRECATED, this always matches HWY_LANES(T) and will be removed.
 
 As above, but the feature implies the type so there is no T parameter, thus
 these can be used in `#if` expressions.
 
 *   `HWY_COMPARE64_LANES`: 64-bit signed integer comparisons. DEPRECATED, this
-    always matches HWY_LANES(int64_t).
-*   `HWY_MINMAX64_LANES`: 64-bit signed/unsigned integer min/max.
+    always matches HWY_LANES(int64_t) and will be removed.
+*   `HWY_MINMAX64_LANES`: 64-bit signed/unsigned integer min/max. DEPRECATED,
+    this always matches HWY_LANES(int64_t) and will be removed.
 
 ## Detecting supported targets
 

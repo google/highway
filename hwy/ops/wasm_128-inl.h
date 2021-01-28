@@ -936,14 +936,21 @@ HWY_API Mask128<float, N> operator>=(const Vec128<float, N> a,
 
 // ================================================== LOGICAL
 
-// ------------------------------ Bitwise AND
+// ------------------------------ Not
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Not(Vec128<T, N> v) {
+  return Vec128<T, N>{wasm_v128_not(v.raw)};
+}
+
+// ------------------------------ And
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> And(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{wasm_v128_and(a.raw, b.raw)};
 }
 
-// ------------------------------ Bitwise AND-NOT
+// ------------------------------ AndNot
 
 // Returns ~not_mask & mask.
 template <typename T, size_t N>
@@ -951,14 +958,14 @@ HWY_API Vec128<T, N> AndNot(Vec128<T, N> not_mask, Vec128<T, N> mask) {
   return Vec128<T, N>{wasm_v128_andnot(mask.raw, not_mask.raw)};
 }
 
-// ------------------------------ Bitwise OR
+// ------------------------------ Or
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Or(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{wasm_v128_or(a.raw, b.raw)};
 }
 
-// ------------------------------ Bitwise XOR
+// ------------------------------ Xor
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Xor(Vec128<T, N> a, Vec128<T, N> b) {
@@ -999,11 +1006,15 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
   return Or(abs, And(SignBit(Simd<T, N>()), sign));
 }
 
-// ------------------------------ BroadcastSignBit
+// ------------------------------ BroadcastSignBit (compare)
 
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> BroadcastSignBit(const Vec128<T, N> v) {
+  return ShiftRight<sizeof(T) * 8 - 1>(v);
+}
 template <size_t N>
-HWY_API Vec128<int32_t, N> BroadcastSignBit(const Vec128<int32_t, N> v) {
-  return ShiftRight<31>(v);
+HWY_API Vec128<int8_t, N> BroadcastSignBit(const Vec128<int8_t, N> v) {
+  return VecFromMask(v < Zero(Simd<int8_t, N>()));
 }
 
 // ------------------------------ Mask
@@ -1054,6 +1065,12 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  const Simd<T, N> d;
+  return MaskFromVec(Not(VecFromMask(d, m)));
+}
+
+template <typename T, size_t N>
 HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
   const Simd<T, N> d;
   return MaskFromVec(And(VecFromMask(d, a), VecFromMask(d, b)));
@@ -1077,7 +1094,7 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
-// ------------------------------ Shl (IfThenElse)
+// ------------------------------ Shl (BroadcastSignBit, IfThenElse)
 
 // The x86 multiply-by-Pow2() trick will not work because WASM saturates
 // float->int correctly to 2^31-1 (not 2^31). Because WASM's shifts take a
@@ -1087,7 +1104,32 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
 // stall when loading the result vector. We instead test bits of the shift
 // count to "predicate" a shift of the entire vector by a constant.
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const Simd<T, N> d;
+  Mask128<T, N> mask;
+  // Need a signed type for BroadcastSignBit.
+  auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
+  // Move the highest valid bit of the shift count into the sign bit.
+  test = ShiftLeft<28>(test);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<8>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<4>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<2>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  return IfThenElse(mask, ShiftLeft<1>(v), v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const Simd<T, N> d;
   Mask128<T, N> mask;
@@ -1116,9 +1158,34 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-// ------------------------------ Shr
+// ------------------------------ Shr (BroadcastSignBit, IfThenElse)
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const Simd<T, N> d;
+  Mask128<T, N> mask;
+  // Need a signed type for BroadcastSignBit.
+  auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
+  // Move the highest valid bit of the shift count into the sign bit.
+  test = ShiftLeft<28>(test);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<8>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<4>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<2>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  return IfThenElse(mask, ShiftRight<1>(v), v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   const Simd<T, N> d;
   Mask128<T, N> mask;
@@ -1146,6 +1213,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
   return IfThenElse(mask, ShiftRight<1>(v), v);
 }
+
 // ================================================== MEMORY
 
 // ------------------------------ Load

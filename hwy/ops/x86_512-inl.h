@@ -213,7 +213,17 @@ HWY_DIAGNOSTICS(pop)
 
 // ================================================== LOGICAL
 
-// ------------------------------ Bitwise AND
+// ------------------------------ Not
+
+template <typename T>
+HWY_API Vec512<T> Not(const Vec512<T> v) {
+  using TU = MakeUnsigned<T>;
+  const __m512i vu = BitCast(Full512<TU>(), v).raw;
+  return BitCast(Full512<T>(),
+                 Vec512<TU>{_mm512_ternarylogic_epi32(vu, vu, vu, 0x55)});
+}
+
+// ------------------------------ And
 
 template <typename T>
 HWY_API Vec512<T> And(const Vec512<T> a, const Vec512<T> b) {
@@ -227,7 +237,7 @@ HWY_API Vec512<double> And(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_and_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Bitwise AND-NOT
+// ------------------------------ AndNot
 
 // Returns ~not_mask & mask.
 template <typename T>
@@ -243,7 +253,7 @@ HWY_API Vec512<double> AndNot(const Vec512<double> not_mask,
   return Vec512<double>{_mm512_andnot_pd(not_mask.raw, mask.raw)};
 }
 
-// ------------------------------ Bitwise OR
+// ------------------------------ Or
 
 template <typename T>
 HWY_API Vec512<T> Or(const Vec512<T> a, const Vec512<T> b) {
@@ -257,7 +267,7 @@ HWY_API Vec512<double> Or(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_or_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Bitwise XOR
+// ------------------------------ Xor
 
 template <typename T>
 HWY_API Vec512<T> Xor(const Vec512<T> a, const Vec512<T> b) {
@@ -697,7 +707,68 @@ HWY_API Vec512<int64_t> ShiftRight(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_srai_epi64(v.raw, kBits)};
 }
 
+// ------------------------------ ShiftLeftSame
+
+HWY_API Vec512<uint16_t> ShiftLeftSame(const Vec512<uint16_t> v,
+                                       const int bits) {
+  return Vec512<uint16_t>{_mm512_sll_epi16(v.raw, _mm_cvtsi32_si128(bits))};
+}
+HWY_API Vec512<uint32_t> ShiftLeftSame(const Vec512<uint32_t> v,
+                                       const int bits) {
+  return Vec512<uint32_t>{_mm512_sll_epi32(v.raw, _mm_cvtsi32_si128(bits))};
+}
+HWY_API Vec512<uint64_t> ShiftLeftSame(const Vec512<uint64_t> v,
+                                       const int bits) {
+  return Vec512<uint64_t>{_mm512_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec512<int16_t> ShiftLeftSame(const Vec512<int16_t> v, const int bits) {
+  return Vec512<int16_t>{_mm512_sll_epi16(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec512<int32_t> ShiftLeftSame(const Vec512<int32_t> v, const int bits) {
+  return Vec512<int32_t>{_mm512_sll_epi32(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec512<int64_t> ShiftLeftSame(const Vec512<int64_t> v, const int bits) {
+  return Vec512<int64_t>{_mm512_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+// ------------------------------ ShiftRightSame
+
+HWY_API Vec512<uint16_t> ShiftRightSame(const Vec512<uint16_t> v,
+                                        const int bits) {
+  return Vec512<uint16_t>{_mm512_srl_epi16(v.raw, _mm_cvtsi32_si128(bits))};
+}
+HWY_API Vec512<uint32_t> ShiftRightSame(const Vec512<uint32_t> v,
+                                        const int bits) {
+  return Vec512<uint32_t>{_mm512_srl_epi32(v.raw, _mm_cvtsi32_si128(bits))};
+}
+HWY_API Vec512<uint64_t> ShiftRightSame(const Vec512<uint64_t> v,
+                                        const int bits) {
+  return Vec512<uint64_t>{_mm512_srl_epi64(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec512<int16_t> ShiftRightSame(const Vec512<int16_t> v,
+                                       const int bits) {
+  return Vec512<int16_t>{_mm512_sra_epi16(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec512<int32_t> ShiftRightSame(const Vec512<int32_t> v,
+                                       const int bits) {
+  return Vec512<int32_t>{_mm512_sra_epi32(v.raw, _mm_cvtsi32_si128(bits))};
+}
+HWY_API Vec512<int64_t> ShiftRightSame(const Vec512<int64_t> v,
+                                       const int bits) {
+  return Vec512<int64_t>{_mm512_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
 // ------------------------------ Shl
+
+HWY_API Vec512<uint16_t> operator<<(const Vec512<uint16_t> v,
+                                    const Vec512<uint16_t> bits) {
+  return Vec512<uint16_t>{_mm512_sllv_epi16(v.raw, bits.raw)};
+}
 
 HWY_API Vec512<uint32_t> operator<<(const Vec512<uint32_t> v,
                                     const Vec512<uint32_t> bits) {
@@ -709,17 +780,20 @@ HWY_API Vec512<uint64_t> operator<<(const Vec512<uint64_t> v,
   return Vec512<uint64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
 }
 
-HWY_API Vec512<int32_t> operator<<(const Vec512<int32_t> v,
-                                   const Vec512<int32_t> bits) {
-  return Vec512<int32_t>{_mm512_sllv_epi32(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<int64_t> operator<<(const Vec512<int64_t> v,
-                                   const Vec512<int64_t> bits) {
-  return Vec512<int64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
+// Signed left shift is the same as unsigned.
+template <typename T, HWY_IF_SIGNED(T)>
+HWY_API Vec512<T> operator<<(const Vec512<T> v, const Vec512<T> bits) {
+  const Full512<T> di;
+  const Full512<MakeUnsigned<T>> du;
+  return BitCast(di, BitCast(du, v) << BitCast(du, bits));
 }
 
 // ------------------------------ Shr
+
+HWY_API Vec512<uint16_t> operator>>(const Vec512<uint16_t> v,
+                                    const Vec512<uint16_t> bits) {
+  return Vec512<uint16_t>{_mm512_srlv_epi16(v.raw, bits.raw)};
+}
 
 HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
                                     const Vec512<uint32_t> bits) {
@@ -729,6 +803,11 @@ HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
 HWY_API Vec512<uint64_t> operator>>(const Vec512<uint64_t> v,
                                     const Vec512<uint64_t> bits) {
   return Vec512<uint64_t>{_mm512_srlv_epi64(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<int16_t> operator>>(const Vec512<int16_t> v,
+                                   const Vec512<int16_t> bits) {
+  return Vec512<int16_t>{_mm512_srav_epi16(v.raw, bits.raw)};
 }
 
 HWY_API Vec512<int32_t> operator>>(const Vec512<int32_t> v,
@@ -1168,16 +1247,6 @@ HWY_API Mask512<double> operator>=(const Vec512<double> a,
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_GE_OQ)};
 }
 
-// ------------------------------ BroadcastSignBit
-
-HWY_API Vec512<int32_t> BroadcastSignBit(const Vec512<int32_t> v) {
-  return ShiftRight<31>(v);
-}
-
-HWY_API Vec512<int64_t> BroadcastSignBit(const Vec512<int64_t> v) {
-  return Vec512<int64_t>{_mm512_srai_epi64(v.raw, 63)};
-}
-
 // ------------------------------ Mask
 
 namespace detail {
@@ -1255,6 +1324,23 @@ HWY_API Vec512<T> VecFromMask(Full512<T> /* tag */, const Mask512<T> v) {
 // ------------------------------ Mask logical
 
 namespace detail {
+
+template <typename T>
+HWY_API Mask512<T> Not(hwy::SizeTag<1> /*tag*/, const Mask512<T> m) {
+  return Mask512<T>{_knot_mask64(m.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Not(hwy::SizeTag<2> /*tag*/, const Mask512<T> m) {
+  return Mask512<T>{_knot_mask32(m.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Not(hwy::SizeTag<4> /*tag*/, const Mask512<T> m) {
+  return Mask512<T>{_knot_mask16(m.raw)};
+}
+template <typename T>
+HWY_API Mask512<T> Not(hwy::SizeTag<8> /*tag*/, const Mask512<T> m) {
+  return Mask512<T>{_knot_mask8(m.raw)};
+}
 
 template <typename T>
 HWY_API Mask512<T> And(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
@@ -1343,6 +1429,11 @@ HWY_API Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 }  // namespace detail
 
 template <typename T>
+HWY_API Mask512<T> Not(const Mask512<T> m) {
+  return detail::Not(hwy::SizeTag<sizeof(T)>(), m);
+}
+
+template <typename T>
 HWY_API Mask512<T> And(const Mask512<T> a, Mask512<T> b) {
   return detail::And(hwy::SizeTag<sizeof(T)>(), a, b);
 }
@@ -1360,6 +1451,24 @@ HWY_API Mask512<T> Or(const Mask512<T> a, Mask512<T> b) {
 template <typename T>
 HWY_API Mask512<T> Xor(const Mask512<T> a, Mask512<T> b) {
   return detail::Xor(hwy::SizeTag<sizeof(T)>(), a, b);
+}
+
+// ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
+
+HWY_API Vec512<int8_t> BroadcastSignBit(const Vec512<int8_t> v) {
+  return VecFromMask(v < Zero(Full512<int8_t>()));
+}
+
+HWY_API Vec512<int16_t> BroadcastSignBit(const Vec512<int16_t> v) {
+  return ShiftRight<15>(v);
+}
+
+HWY_API Vec512<int32_t> BroadcastSignBit(const Vec512<int32_t> v) {
+  return ShiftRight<31>(v);
+}
+
+HWY_API Vec512<int64_t> BroadcastSignBit(const Vec512<int64_t> v) {
+  return Vec512<int64_t>{_mm512_srai_epi64(v.raw, 63)};
 }
 
 // ================================================== MEMORY

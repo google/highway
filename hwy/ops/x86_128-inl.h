@@ -262,7 +262,7 @@ HWY_API double GetLane(const Vec128<double, N> v) {
 
 // ================================================== LOGICAL
 
-// ------------------------------ Bitwise AND
+// ------------------------------ And
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> And(Vec128<T, N> a, Vec128<T, N> b) {
@@ -279,7 +279,7 @@ HWY_API Vec128<double, N> And(const Vec128<double, N> a,
   return Vec128<double, N>{_mm_and_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Bitwise AND-NOT
+// ------------------------------ AndNot
 
 // Returns ~not_mask & mask.
 template <typename T, size_t N>
@@ -297,7 +297,7 @@ HWY_API Vec128<double, N> AndNot(const Vec128<double, N> not_mask,
   return Vec128<double, N>{_mm_andnot_pd(not_mask.raw, mask.raw)};
 }
 
-// ------------------------------ Bitwise OR
+// ------------------------------ Or
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Or(Vec128<T, N> a, Vec128<T, N> b) {
@@ -315,7 +315,7 @@ HWY_API Vec128<double, N> Or(const Vec128<double, N> a,
   return Vec128<double, N>{_mm_or_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Bitwise XOR
+// ------------------------------ Xor
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Xor(Vec128<T, N> a, Vec128<T, N> b) {
@@ -331,6 +331,20 @@ template <size_t N>
 HWY_API Vec128<double, N> Xor(const Vec128<double, N> a,
                               const Vec128<double, N> b) {
   return Vec128<double, N>{_mm_xor_pd(a.raw, b.raw)};
+}
+
+// ------------------------------ Not
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
+#if HWY_TARGET == HWY_AVX3
+  using TU = MakeUnsigned<T>;
+  const __m128i vu = BitCast(Simd<TU, N>(), v).raw;
+  return BitCast(Simd<T, N>(),
+                 Vec128<TU, N>{_mm_ternarylogic_epi32(vu, vu, vu, 0x55)});
+#else
+  return Xor(v, Vec128<T, N>{_mm_set1_epi32(-1)});
+#endif
 }
 
 // ------------------------------ Operator overloads (internal-only if float)
@@ -448,6 +462,12 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 }
 
 // ------------------------------ Mask logical
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  const Simd<T, N> d;
+  return MaskFromVec(Not(VecFromMask(d, m)));
+}
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
@@ -958,7 +978,7 @@ HWY_API Vec128<int64_t, N> ShiftLeft(const Vec128<int64_t, N> v) {
   return Vec128<int64_t, N>{_mm_slli_epi64(v.raw, kBits)};
 }
 
-// ------------------------------ ShiftRight (BroadcastSignBit)
+// ------------------------------ ShiftRight
 
 template <int kBits, size_t N>
 HWY_API Vec128<uint16_t, N> ShiftRight(const Vec128<uint16_t, N> v) {
@@ -985,6 +1005,16 @@ HWY_API Vec128<int32_t, N> ShiftRight(const Vec128<int32_t, N> v) {
 // i64 is implemented after BroadcastSignBit.
 
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> BroadcastSignBit(const Vec128<int8_t, N> v) {
+  return VecFromMask(v < Zero(Simd<int8_t, N>()));
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> BroadcastSignBit(const Vec128<int16_t, N> v) {
+  return ShiftRight<15>(v);
+}
 
 template <size_t N>
 HWY_API Vec128<int32_t, N> BroadcastSignBit(const Vec128<int32_t, N> v) {
@@ -1090,141 +1120,13 @@ HWY_API Vec128<int32_t, N> ShiftRightSame(const Vec128<int32_t, N> v,
 template <size_t N>
 HWY_API Vec128<int64_t, N> ShiftRightSame(const Vec128<int64_t, N> v,
                                           const int bits) {
-  const Simd<int64_t, N> di;
 #if HWY_TARGET == HWY_AVX3
-  return Vec128<int64_t, N>{_mm_sra_epi64(v.raw, Set(di, bits))};
+  return Vec128<int64_t, N>{_mm_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 #else
+  const Simd<int64_t, N> di;
   const Simd<uint64_t, N> du;
   const auto right = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
   const auto sign = ShiftLeftSame(BroadcastSignBit(v), 64 - bits);
-  return right | sign;
-#endif
-}
-
-// ------------------------------ Shl (Mul)
-
-// Use AVX2+ variable shifts except for the SSE4 target. There, we multiply by
-// powers of two obtained by loading float exponents, which is considerably
-// faster (according to LLVM-MCA) than scalar or checking count bits:
-// https://gcc.godbolt.org/z/9G7Y9v.
-
-namespace detail {
-
-// Returns 2^v for use as per-lane multipliers.
-template <typename T, size_t N>
-HWY_API Vec128<T, N> Pow2(const Vec128<T, N> v) {
-  static_assert(sizeof(T) == 4, "For i32 or u32");
-  const Simd<T, N> d;
-  const Simd<MakeFloat<T>, N> df;
-  const auto exp = ShiftLeft<23>(v);
-  const auto binary32 = exp + Set(d, 0x3F800000);  // 1.0f
-  // Do not use ConvertTo because it checks for overflow, which is redundant
-  // because we only care about v in [0, 32).
-  return Vec128<T, N>{_mm_cvttps_epi32(BitCast(df, binary32).raw)};
-}
-
-}  // namespace detail
-
-template <size_t N>
-HWY_API Vec128<uint32_t, N> operator<<(const Vec128<uint32_t, N> v,
-                                       const Vec128<uint32_t, N> bits) {
-#if HWY_TARGET == HWY_SSE4
-  return v * detail::Pow2(bits);
-#else
-  return Vec128<uint32_t, N>{_mm_sllv_epi32(v.raw, bits.raw)};
-#endif
-}
-
-template <size_t N>
-HWY_API Vec128<uint64_t, N> operator<<(const Vec128<uint64_t, N> v,
-                                       const Vec128<uint64_t, N> bits) {
-#if HWY_TARGET == HWY_SSE4
-  // Individual shifts and combine
-  const __m128i out0 = _mm_sll_epi64(v.raw, bits.raw);
-  const __m128i bits1 = _mm_unpackhi_epi64(bits.raw, bits.raw);
-  const __m128i out1 = _mm_sll_epi64(v.raw, bits1);
-  return Vec128<uint64_t, N>{_mm_blend_epi16(out0, out1, 0xF0)};
-#else
-  return Vec128<uint64_t, N>{_mm_sllv_epi64(v.raw, bits.raw)};
-#endif
-}
-
-// Signed left shift is the same as unsigned.
-template <typename T, size_t N, HWY_IF_SIGNED(T)>
-HWY_API Vec128<T, N> operator<<(const Vec128<T, N> v, const Vec128<T, N> bits) {
-  const Simd<T, N> di;
-  const Simd<MakeUnsigned<T>, N> du;
-  return BitCast(di, BitCast(du, v) << BitCast(du, bits));
-}
-
-// ------------------------------ Shr (ShiftRight, MulEven, mask)
-
-// Use AVX2+ variable shifts except for the SSE4 target. There, we use widening
-// multiplication by powers of two obtained by loading float exponents, followed
-// by a constant right-shift by 32. This is still faster than a scalar or
-// bit-test approach: https://gcc.godbolt.org/z/9G7Y9v.
-template <size_t N>
-HWY_API Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> in,
-                                       const Vec128<uint32_t, N> bits) {
-#if HWY_TARGET == HWY_SSE4
-  // 32x32 -> 64 bit mul, then shift right by 32.
-  const Simd<uint32_t, N> d32;
-  // Move odd lanes into position for the second mul. Shuffle more gracefully
-  // handles N=1 than repartitioning to u64 and shifting 32 bits right.
-  const Vec128<uint32_t, N> in31{_mm_shuffle_epi32(in.raw, 0x31)};
-  // For bits=0, we cannot mul by 2^32, so fix the result later.
-  const auto mul = detail::Pow2(Set(d32, 32) - bits);
-  const auto out20 = ShiftRight<32>(MulEven(in, mul));  // z 2 z 0
-  const Vec128<uint32_t, N> mul31{_mm_shuffle_epi32(mul.raw, 0x31)};
-  // No need to shift right, already in the correct position.
-  const auto out31 = MulEven(in31, mul31);  // 3 ? 1 ?
-  // OddEven is defined below, avoid the dependency.
-  const Vec128<uint32_t, N> out{_mm_blend_epi16(out31.raw, out20.raw, 0x33)};
-  // Replace output with input where bits == 0.
-  return IfThenElse(bits == Zero(d32), in, out);
-#else
-  return Vec128<uint32_t, N>{_mm_srlv_epi32(in.raw, bits.raw)};
-#endif
-}
-
-template <size_t N>
-HWY_API Vec128<uint64_t, N> operator>>(const Vec128<uint64_t, N> v,
-                                       const Vec128<uint64_t, N> bits) {
-#if HWY_TARGET == HWY_SSE4
-  // Individual shifts and combine
-  const __m128i out0 = _mm_srl_epi64(v.raw, bits.raw);
-  const __m128i bits1 = _mm_unpackhi_epi64(bits.raw, bits.raw);
-  const __m128i out1 = _mm_srl_epi64(v.raw, bits1);
-  return Vec128<uint64_t, N>{_mm_blend_epi16(out0, out1, 0xF0)};
-#else
-  return Vec128<uint64_t, N>{_mm_srlv_epi64(v.raw, bits.raw)};
-#endif
-}
-
-template <size_t N>
-HWY_API Vec128<int32_t, N> operator>>(const Vec128<int32_t, N> v,
-                                      const Vec128<int32_t, N> bits) {
-#if HWY_TARGET == HWY_SSE4
-  const Simd<int32_t, N> di;
-  const Simd<uint32_t, N> du;
-  const auto right = BitCast(di, BitCast(du, v) >> BitCast(du, bits));
-  const auto sign = BroadcastSignBit(v) << (Set(di, 32) - bits);
-  return right | sign;
-#else
-  return Vec128<int32_t, N>{_mm_srav_epi32(v.raw, bits.raw)};
-#endif
-}
-
-template <size_t N>
-HWY_API Vec128<int64_t, N> operator>>(const Vec128<int64_t, N> v,
-                                      const Vec128<int64_t, N> bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec128<int64_t, N>{_mm_srav_epi64(v.raw, bits.raw)};
-#else
-  const Simd<int64_t, N> di;
-  const Simd<uint64_t, N> du;
-  const auto right = BitCast(di, BitCast(du, v) >> BitCast(du, bits));
-  const auto sign = BroadcastSignBit(v) << (Set(di, 64) - bits);
   return right | sign;
 #endif
 }
@@ -2296,35 +2198,35 @@ HWY_API Vec128<int64_t, (N + 1) / 2> ZipLower(const Vec128<int32_t, N> a,
 }
 
 template <size_t N>
-HWY_API Vec128<uint16_t, N / 2> ZipUpper(const Vec128<uint8_t, N> a,
-                                         const Vec128<uint8_t, N> b) {
-  return Vec128<uint16_t, N / 2>{_mm_unpackhi_epi8(a.raw, b.raw)};
+HWY_API Vec128<uint16_t, (N + 1) / 2> ZipUpper(const Vec128<uint8_t, N> a,
+                                               const Vec128<uint8_t, N> b) {
+  return Vec128<uint16_t, (N + 1) / 2>{_mm_unpackhi_epi8(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<uint32_t, N / 2> ZipUpper(const Vec128<uint16_t, N> a,
-                                         const Vec128<uint16_t, N> b) {
-  return Vec128<uint32_t, N / 2>{_mm_unpackhi_epi16(a.raw, b.raw)};
+HWY_API Vec128<uint32_t, (N + 1) / 2> ZipUpper(const Vec128<uint16_t, N> a,
+                                               const Vec128<uint16_t, N> b) {
+  return Vec128<uint32_t, (N + 1) / 2>{_mm_unpackhi_epi16(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<uint64_t, N / 2> ZipUpper(const Vec128<uint32_t, N> a,
-                                         const Vec128<uint32_t, N> b) {
-  return Vec128<uint64_t, N / 2>{_mm_unpackhi_epi32(a.raw, b.raw)};
+HWY_API Vec128<uint64_t, (N + 1) / 2> ZipUpper(const Vec128<uint32_t, N> a,
+                                               const Vec128<uint32_t, N> b) {
+  return Vec128<uint64_t, (N + 1) / 2>{_mm_unpackhi_epi32(a.raw, b.raw)};
 }
 
 template <size_t N>
-HWY_API Vec128<int16_t, N / 2> ZipUpper(const Vec128<int8_t, N> a,
-                                        const Vec128<int8_t, N> b) {
-  return Vec128<int16_t, N / 2>{_mm_unpackhi_epi8(a.raw, b.raw)};
+HWY_API Vec128<int16_t, (N + 1) / 2> ZipUpper(const Vec128<int8_t, N> a,
+                                              const Vec128<int8_t, N> b) {
+  return Vec128<int16_t, (N + 1) / 2>{_mm_unpackhi_epi8(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<int32_t, N / 2> ZipUpper(const Vec128<int16_t, N> a,
-                                        const Vec128<int16_t, N> b) {
-  return Vec128<int32_t, N / 2>{_mm_unpackhi_epi16(a.raw, b.raw)};
+HWY_API Vec128<int32_t, (N + 1) / 2> ZipUpper(const Vec128<int16_t, N> a,
+                                              const Vec128<int16_t, N> b) {
+  return Vec128<int32_t, (N + 1) / 2>{_mm_unpackhi_epi16(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<int64_t, N / 2> ZipUpper(const Vec128<int32_t, N> a,
-                                        const Vec128<int32_t, N> b) {
-  return Vec128<int64_t, N / 2>{_mm_unpackhi_epi32(a.raw, b.raw)};
+HWY_API Vec128<int64_t, (N + 1) / 2> ZipUpper(const Vec128<int32_t, N> a,
+                                              const Vec128<int32_t, N> b) {
+  return Vec128<int64_t, (N + 1) / 2>{_mm_unpackhi_epi32(a.raw, b.raw)};
 }
 
 // ------------------------------ Blocks
@@ -2412,6 +2314,198 @@ template <>
 HWY_INLINE Vec128<double> OddEven<double>(const Vec128<double> a,
                                           const Vec128<double> b) {
   return Vec128<double>{_mm_blend_pd(a.raw, b.raw, 1)};
+}
+
+// ------------------------------ Shl (ZipLower, Mul)
+
+// Use AVX2/3 variable shifts where available, otherwise multiply by powers of
+// two from loading float exponents, which is considerably faster (according
+// to LLVM-MCA) than scalar or testing bits: https://gcc.godbolt.org/z/9G7Y9v.
+
+#if HWY_TARGET != HWY_AVX3
+namespace detail {
+
+// Returns 2^v for use as per-lane multipliers to emulate 16-bit shifts.
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<MakeUnsigned<T>, N> Pow2(const Vec128<T, N> v) {
+  const Simd<T, N> d;
+  const Repartition<float, decltype(d)> df;
+  const auto zero = Zero(d);
+  // Move into exponent (this u16 will become the upper half of an f32)
+  const auto exp = ShiftLeft<23 - 16>(v);
+  const auto upper = exp + Set(d, 0x3F80);  // upper half of 1.0f
+  // Insert 0 into lower halves for reinterpreting as binary32.
+  const auto f0 = ZipLower(zero, upper);
+  const auto f1 = ZipUpper(zero, upper);
+  // Do not use ConvertTo because it checks for overflow, which is redundant
+  // because we only care about v in [0, 16).
+  const Vec128<int32_t, N> bits0{_mm_cvttps_epi32(BitCast(df, f0).raw)};
+  const Vec128<int32_t, N> bits1{_mm_cvttps_epi32(BitCast(df, f1).raw)};
+  return Vec128<MakeUnsigned<T>, N>{_mm_packus_epi32(bits0.raw, bits1.raw)};
+}
+
+// Same, for 32-bit shifts.
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<MakeUnsigned<T>, N> Pow2(const Vec128<T, N> v) {
+  const Simd<T, N> d;
+  const Simd<MakeFloat<T>, N> df;
+  const auto exp = ShiftLeft<23>(v);
+  const auto f = exp + Set(d, 0x3F800000);  // 1.0f
+  // Do not use ConvertTo because it checks for overflow, which is redundant
+  // because we only care about v in [0, 32).
+  return Vec128<MakeUnsigned<T>, N>{_mm_cvttps_epi32(BitCast(df, f).raw)};
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET != HWY_AVX3
+
+template <size_t N>
+HWY_API Vec128<uint16_t, N> operator<<(const Vec128<uint16_t, N> v,
+                                       const Vec128<uint16_t, N> bits) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<uint16_t, N>{_mm_sllv_epi16(v.raw, bits.raw)};
+#else
+  return v * detail::Pow2(bits);
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> operator<<(const Vec128<uint32_t, N> v,
+                                       const Vec128<uint32_t, N> bits) {
+#if HWY_TARGET == HWY_SSE4
+  return v * detail::Pow2(bits);
+#else
+  return Vec128<uint32_t, N>{_mm_sllv_epi32(v.raw, bits.raw)};
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator<<(const Vec128<uint64_t, N> v,
+                                       const Vec128<uint64_t, N> bits) {
+#if HWY_TARGET == HWY_SSE4
+  // Individual shifts and combine
+  const __m128i out0 = _mm_sll_epi64(v.raw, bits.raw);
+  const __m128i bits1 = _mm_unpackhi_epi64(bits.raw, bits.raw);
+  const __m128i out1 = _mm_sll_epi64(v.raw, bits1);
+  return Vec128<uint64_t, N>{_mm_blend_epi16(out0, out1, 0xF0)};
+#else
+  return Vec128<uint64_t, N>{_mm_sllv_epi64(v.raw, bits.raw)};
+#endif
+}
+
+// Signed left shift is the same as unsigned.
+template <typename T, size_t N, HWY_IF_SIGNED(T)>
+HWY_API Vec128<T, N> operator<<(const Vec128<T, N> v, const Vec128<T, N> bits) {
+  const Simd<T, N> di;
+  const Simd<MakeUnsigned<T>, N> du;
+  return BitCast(di, BitCast(du, v) << BitCast(du, bits));
+}
+
+// ------------------------------ Shr (mul, mask, BroadcastSignBit)
+
+// Use AVX2+ variable shifts except for the SSE4 target or 16-bit. There, we use
+// widening multiplication by powers of two obtained by loading float exponents,
+// followed by a constant right-shift. This is still faster than a scalar or
+// bit-test approach: https://gcc.godbolt.org/z/9G7Y9v.
+
+template <size_t N>
+HWY_API Vec128<uint16_t, N> operator>>(const Vec128<uint16_t, N> in,
+                                       const Vec128<uint16_t, N> bits) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<uint16_t, N>{_mm_srlv_epi16(in.raw, bits.raw)};
+#else
+  const Simd<uint16_t, N> d;
+  // For bits=0, we cannot mul by 2^16, so fix the result later.
+  const auto out = MulHigh(in, detail::Pow2(Set(d, 16) - bits));
+  // Replace output with input where bits == 0.
+  return IfThenElse(bits == Zero(d), in, out);
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> operator>>(const Vec128<uint32_t, N> in,
+                                       const Vec128<uint32_t, N> bits) {
+#if HWY_TARGET == HWY_SSE4
+  // 32x32 -> 64 bit mul, then shift right by 32.
+  const Simd<uint32_t, N> d32;
+  // Move odd lanes into position for the second mul. Shuffle more gracefully
+  // handles N=1 than repartitioning to u64 and shifting 32 bits right.
+  const Vec128<uint32_t, N> in31{_mm_shuffle_epi32(in.raw, 0x31)};
+  // For bits=0, we cannot mul by 2^32, so fix the result later.
+  const auto mul = detail::Pow2(Set(d32, 32) - bits);
+  const auto out20 = ShiftRight<32>(MulEven(in, mul));  // z 2 z 0
+  const Vec128<uint32_t, N> mul31{_mm_shuffle_epi32(mul.raw, 0x31)};
+  // No need to shift right, already in the correct position.
+  const auto out31 = MulEven(in31, mul31);  // 3 ? 1 ?
+  // OddEven is defined below, avoid the dependency.
+  const Vec128<uint32_t, N> out{_mm_blend_epi16(out31.raw, out20.raw, 0x33)};
+  // Replace output with input where bits == 0.
+  return IfThenElse(bits == Zero(d32), in, out);
+#else
+  return Vec128<uint32_t, N>{_mm_srlv_epi32(in.raw, bits.raw)};
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator>>(const Vec128<uint64_t, N> v,
+                                       const Vec128<uint64_t, N> bits) {
+#if HWY_TARGET == HWY_SSE4
+  // Individual shifts and combine
+  const __m128i out0 = _mm_srl_epi64(v.raw, bits.raw);
+  const __m128i bits1 = _mm_unpackhi_epi64(bits.raw, bits.raw);
+  const __m128i out1 = _mm_srl_epi64(v.raw, bits1);
+  return Vec128<uint64_t, N>{_mm_blend_epi16(out0, out1, 0xF0)};
+#else
+  return Vec128<uint64_t, N>{_mm_srlv_epi64(v.raw, bits.raw)};
+#endif
+}
+
+#if HWY_TARGET != HWY_AVX3
+namespace detail {
+
+// Also used in x86_256-inl.h.
+template <class DI, class V>
+HWY_API V SignedShr(const DI di, const V v, const V count_i) {
+  const RebindToUnsigned<DI> du;
+  const auto count = BitCast(du, count_i);  // same type as value to shift
+  // Clear sign and restore afterwards. This is preferable to shifting the MSB
+  // downwards because Shr is somewhat more expensive than Shl.
+  const auto sign = BroadcastSignBit(v);
+  const auto abs = BitCast(du, v ^ sign);  // off by one, but fixed below
+  return BitCast(di, abs >> count) ^ sign;
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET != HWY_AVX3
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> operator>>(const Vec128<int16_t, N> v,
+                                      const Vec128<int16_t, N> bits) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int16_t, N>{_mm_srav_epi16(v.raw, bits.raw)};
+#else
+  return detail::SignedShr(Simd<int16_t, N>(), v, bits);
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator>>(const Vec128<int32_t, N> v,
+                                      const Vec128<int32_t, N> bits) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int32_t, N>{_mm_srav_epi32(v.raw, bits.raw)};
+#else
+  return detail::SignedShr(Simd<int32_t, N>(), v, bits);
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator>>(const Vec128<int64_t, N> v,
+                                      const Vec128<int64_t, N> bits) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int64_t, N>{_mm_srav_epi64(v.raw, bits.raw)};
+#else
+  return detail::SignedShr(Simd<int64_t, N>(), v, bits);
+#endif
 }
 
 // ================================================== CONVERT

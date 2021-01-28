@@ -830,24 +830,37 @@ HWY_INLINE Vec128<int64_t> Neg(const Vec128<int64_t> v) {
 #endif
 }
 
-// ------------------------------ Shift lanes by constant #bits
+// ------------------------------ ShiftLeft
 
-#define HWY_NEON_BUILD_TPL_HWY_SHIFT template <int kBits>
-#define HWY_NEON_BUILD_RET_HWY_SHIFT(type, size) Vec128<type, size>
-#define HWY_NEON_BUILD_PARAM_HWY_SHIFT(type, size) const Vec128<type, size> v
-#define HWY_NEON_BUILD_ARG_HWY_SHIFT v.raw, kBits
+// Customize HWY_NEON_DEF_FUNCTION to special-case count=0 (not supported).
+#pragma push_macro("HWY_NEON_DEF_FUNCTION")
+#undef HWY_NEON_DEF_FUNCTION
+#define HWY_NEON_DEF_FUNCTION(type, size, name, prefix, infix, suffix, args)   \
+  template <int kBits>                                                         \
+  HWY_INLINE Vec128<type, size> name(const Vec128<type, size> v) {             \
+    return kBits == 0 ? v                                                      \
+                      : Vec128<type, size>(HWY_NEON_EVAL(                      \
+                            prefix##infix##suffix, v.raw, HWY_MAX(1, kBits))); \
+  }
 
 HWY_NEON_DEF_FUNCTION_INTS_UINTS(ShiftLeft, vshl, _n_, HWY_SHIFT)
 
 HWY_NEON_DEF_FUNCTION_UINTS(ShiftRight, vshr, _n_, HWY_SHIFT)
 HWY_NEON_DEF_FUNCTION_INTS(ShiftRight, vshr, _n_, HWY_SHIFT)
 
-#undef HWY_NEON_BUILD_TPL_HWY_SHIFT
-#undef HWY_NEON_BUILD_RET_HWY_SHIFT
-#undef HWY_NEON_BUILD_PARAM_HWY_SHIFT
-#undef HWY_NEON_BUILD_ARG_HWY_SHIFT
+#pragma pop_macro("HWY_NEON_DEF_FUNCTION")
 
 // ------------------------------ Shl
+
+HWY_INLINE Vec128<uint16_t> operator<<(const Vec128<uint16_t> v,
+                                       const Vec128<uint16_t> bits) {
+  return Vec128<uint16_t>(vshlq_u16(v.raw, vreinterpretq_s16_u16(bits.raw)));
+}
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> operator<<(const Vec128<uint16_t, N> v,
+                                          const Vec128<uint16_t, N> bits) {
+  return Vec128<uint16_t, N>(vshl_u16(v.raw, vreinterpret_s16_u16(bits.raw)));
+}
 
 HWY_INLINE Vec128<uint32_t> operator<<(const Vec128<uint32_t> v,
                                        const Vec128<uint32_t> bits) {
@@ -866,6 +879,16 @@ HWY_INLINE Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
 HWY_INLINE Vec128<uint64_t, 1> operator<<(const Vec128<uint64_t, 1> v,
                                           const Vec128<uint64_t, 1> bits) {
   return Vec128<uint64_t, 1>(vshl_u64(v.raw, vreinterpret_s64_u64(bits.raw)));
+}
+
+HWY_INLINE Vec128<int16_t> operator<<(const Vec128<int16_t> v,
+                                      const Vec128<int16_t> bits) {
+  return Vec128<int16_t>(vshlq_s16(v.raw, bits.raw));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> operator<<(const Vec128<int16_t, N> v,
+                                         const Vec128<int16_t, N> bits) {
+  return Vec128<int16_t, N>(vshl_s16(v.raw, bits.raw));
 }
 
 HWY_INLINE Vec128<int32_t> operator<<(const Vec128<int32_t> v,
@@ -888,6 +911,18 @@ HWY_INLINE Vec128<int64_t, 1> operator<<(const Vec128<int64_t, 1> v,
 }
 
 // ------------------------------ Shr (Neg)
+
+HWY_INLINE Vec128<uint16_t> operator>>(const Vec128<uint16_t> v,
+                                       const Vec128<uint16_t> bits) {
+  const int16x8_t neg_bits = Neg(BitCast(Full128<int16_t>(), bits)).raw;
+  return Vec128<uint16_t>(vshlq_u16(v.raw, neg_bits));
+}
+template <size_t N, HWY_IF_LE64(uint16_t, N)>
+HWY_INLINE Vec128<uint16_t, N> operator>>(const Vec128<uint16_t, N> v,
+                                          const Vec128<uint16_t, N> bits) {
+  const int16x4_t neg_bits = Neg(BitCast(Simd<int16_t, N>(), bits)).raw;
+  return Vec128<uint16_t, N>(vshl_u16(v.raw, neg_bits));
+}
 
 HWY_INLINE Vec128<uint32_t> operator>>(const Vec128<uint32_t> v,
                                        const Vec128<uint32_t> bits) {
@@ -912,6 +947,16 @@ HWY_INLINE Vec128<uint64_t, 1> operator>>(const Vec128<uint64_t, 1> v,
   return Vec128<uint64_t, 1>(vshl_u64(v.raw, neg_bits));
 }
 
+HWY_INLINE Vec128<int16_t> operator>>(const Vec128<int16_t> v,
+                                      const Vec128<int16_t> bits) {
+  return Vec128<int16_t>(vshlq_s16(v.raw, Neg(bits).raw));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_INLINE Vec128<int16_t, N> operator>>(const Vec128<int16_t, N> v,
+                                         const Vec128<int16_t, N> bits) {
+  return Vec128<int16_t, N>(vshl_s16(v.raw, Neg(bits).raw));
+}
+
 HWY_INLINE Vec128<int32_t> operator>>(const Vec128<int32_t> v,
                                       const Vec128<int32_t> bits) {
   return Vec128<int32_t>(vshlq_s32(v.raw, Neg(bits).raw));
@@ -929,6 +974,17 @@ HWY_INLINE Vec128<int64_t> operator>>(const Vec128<int64_t> v,
 HWY_INLINE Vec128<int64_t, 1> operator>>(const Vec128<int64_t, 1> v,
                                          const Vec128<int64_t, 1> bits) {
   return Vec128<int64_t, 1>(vshl_s64(v.raw, Neg(bits).raw));
+}
+
+// ------------------------------ ShiftLeftSame (Shl)
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> ShiftLeftSame(const Vec128<T, N> v, int bits) {
+  return v << Set(Simd<T, N>(), bits);
+}
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> ShiftRightSame(const Vec128<T, N> v, int bits) {
+  return v >> Set(Simd<T, N>(), bits);
 }
 
 // ------------------------------ Integer multiplication
@@ -1215,80 +1271,6 @@ HWY_INLINE Vec128<float, N> Sqrt(const Vec128<float, N> v) {
 }
 #endif
 
-// ------------------------------ Floating-point rounding
-
-#if defined(__aarch64__)
-// Toward nearest integer
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Round, vrndn, _, 1)
-
-// Toward zero, aka truncate
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Trunc, vrnd, _, 1)
-
-// Toward +infinity, aka ceiling
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Ceil, vrndp, _, 1)
-
-// Toward -infinity, aka floor
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Floor, vrndm, _, 1)
-#else
-
-template <size_t N>
-HWY_INLINE Vec128<float, N> Trunc(const Vec128<float, N> v) {
-  const Simd<uint32_t, N> du;
-  const Simd<int32_t, N> di;
-  const Simd<float, N> df;
-  const auto v_bits = BitCast(du, v);
-  const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
-  const auto bits_to_remove =
-      Set(du, 150) - Max(Min(biased_exp, Set(du, 150)), Set(du, 127));
-  const auto mask = (Set(du, 1) << bits_to_remove) - Set(du, 1);
-  return BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
-                                    BitCast(di, AndNot(mask, v_bits))));
-}
-
-// WARNING: does not quite have the same semantics as what NEON does on
-// aarch64. In particular, does not break ties to even.
-template <size_t N>
-HWY_INLINE Vec128<float, N> Round(const Vec128<float, N> v) {
-  const Simd<uint32_t, N> du;
-  const Simd<float, N> df;
-  const auto sign_mask = BitCast(df, Set(du, 0x80000000u));
-  // move 0.5f away from 0 and call truncate.
-  return Trunc(v + ((v & sign_mask) | Set(df, 0.5f)));
-}
-
-template <size_t N>
-HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
-  const Simd<uint32_t, N> du;
-  const Simd<int32_t, N> di;
-  const Simd<float, N> df;
-  const auto sign_mask = Set(du, 0x80000000u);
-  const auto v_bits = BitCast(du, v);
-  const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
-  const auto bits_to_remove =
-      Set(du, 150) - Max(Min(biased_exp, Set(du, 150)), Set(du, 127));
-  const auto high_bit = Set(du, 1) << bits_to_remove;
-  const auto mask = high_bit - Set(du, 1);
-  const auto removed_bits = mask & v_bits;
-  // number is positive and at least one bit was set in the mantissa
-  const auto should_round_up = MaskFromVec(
-      BitCast(df, AndNot(VecFromMask(du, removed_bits == Zero(du)),
-                         VecFromMask(du, Zero(du) == (v_bits & sign_mask)))));
-  const auto add_one = IfThenElseZero(should_round_up, Set(df, 1.0f));
-  const auto rounded =
-      BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
-                                 BitCast(di, AndNot(mask, v_bits))));
-  return rounded + add_one;
-}
-
-template <size_t N>
-HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
-  const Simd<float, N> df;
-  const auto zero = Zero(df);
-  return zero - Ceil(zero - v);
-}
-
-#endif
-
 // ================================================== COMPARE
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
@@ -1346,24 +1328,31 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator>=, vcge, _, HWY_COMPARE)
 
 // ================================================== LOGICAL
 
-// ------------------------------ Bitwise AND
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(And, vand, _, 2)
-// These operator& rely on the special cases for uint32_t and uint64_t just
-// defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
-template <size_t N>
-HWY_INLINE Vec128<float, N> And(const Vec128<float, N> a,
-                                const Vec128<float, N> b) {
-  const Simd<uint32_t, N> d;
-  return BitCast(Simd<float, N>(), BitCast(d, a) & BitCast(d, b));
+// ------------------------------ Not
+
+// There is no 64-bit vmvn, so cast instead of using HWY_NEON_DEF_FUNCTION.
+template <typename T>
+HWY_INLINE Vec128<T> Not(const Vec128<T> v) {
+  const Full128<uint8_t> d8;
+  return Vec128<T>(vmvnq_u8(BitCast(d8, v).raw));
 }
-template <size_t N>
-HWY_INLINE Vec128<double, N> And(const Vec128<double, N> a,
-                                 const Vec128<double, N> b) {
-  const Simd<uint64_t, N> d;
-  return BitCast(Simd<double, N>(), BitCast(d, a) & BitCast(d, b));
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE Vec128<T, N> Not(const Vec128<T, N> v) {
+  const Repartition<uint8_t, Simd<T, N>> d8;
+  return Vec128<T, N>(vmvn_u8(BitCast(d8, v).raw));
 }
 
-// ------------------------------ Bitwise AND-NOT
+// ------------------------------ And
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(And, vand, _, 2)
+
+// Uses the u32/64 defined above.
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_INLINE Vec128<T, N> And(const Vec128<T, N> a, const Vec128<T, N> b) {
+  const Simd<MakeUnsigned<T>, N> d;
+  return BitCast(Simd<T, N>(), BitCast(d, a) & BitCast(d, b));
+}
+
+// ------------------------------ AndNot
 
 namespace internal {
 // reversed_andnot returns a & ~b.
@@ -1371,71 +1360,42 @@ HWY_NEON_DEF_FUNCTION_INTS_UINTS(reversed_andnot, vbic, _, 2)
 }  // namespace internal
 
 // Returns ~not_mask & mask.
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
 HWY_INLINE Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
                                const Vec128<T, N> mask) {
   return internal::reversed_andnot(mask, not_mask);
 }
 
-// These AndNot() rely on the special cases for uint32_t and uint64_t just
-// defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
-
-template <size_t N>
-HWY_INLINE Vec128<float, N> AndNot(const Vec128<float, N> not_mask,
-                                   const Vec128<float, N> mask) {
-  const Simd<uint32_t, N> du;
-  Vec128<uint32_t, N> ret =
+// Uses the u32/64 defined above.
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_INLINE Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
+                               const Vec128<T, N> mask) {
+  const Simd<MakeUnsigned<T>, N> du;
+  Vec128<MakeUnsigned<T>, N> ret =
       internal::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
-  return BitCast(Simd<float, N>(), ret);
+  return BitCast(Simd<T, N>(), ret);
 }
 
-#if defined(__aarch64__)
-template <size_t N>
-HWY_INLINE Vec128<double, N> AndNot(const Vec128<double, N> not_mask,
-                                    const Vec128<double, N> mask) {
-  const Simd<uint64_t, N> du;
-  Vec128<uint64_t, N> ret =
-      internal::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
-  return BitCast(Simd<double, N>(), ret);
-}
-#endif
-
-// ------------------------------ Bitwise OR
+// ------------------------------ Or
 
 HWY_NEON_DEF_FUNCTION_INTS_UINTS(Or, vorr, _, 2)
 
-// These operator| rely on the special cases for uint32_t and uint64_t just
-// defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
-template <size_t N>
-HWY_INLINE Vec128<float, N> Or(const Vec128<float, N> a,
-                               const Vec128<float, N> b) {
-  const Simd<uint32_t, N> d;
-  return BitCast(Simd<float, N>(), BitCast(d, a) | BitCast(d, b));
-}
-template <size_t N>
-HWY_INLINE Vec128<double, N> Or(const Vec128<double, N> a,
-                                const Vec128<double, N> b) {
-  const Simd<uint64_t, N> d;
-  return BitCast(Simd<double, N>(), BitCast(d, a) | BitCast(d, b));
+// Uses the u32/64 defined above.
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_INLINE Vec128<T, N> Or(const Vec128<T, N> a, const Vec128<T, N> b) {
+  const Simd<MakeUnsigned<T>, N> d;
+  return BitCast(Simd<T, N>(), BitCast(d, a) | BitCast(d, b));
 }
 
-// ------------------------------ Bitwise XOR
+// ------------------------------ Xor
 
 HWY_NEON_DEF_FUNCTION_INTS_UINTS(Xor, veor, _, 2)
 
-// These operator| rely on the special cases for uint32_t and uint64_t just
-// defined by HWY_NEON_DEF_FUNCTION_INTS_UINTS() macro.
-template <size_t N>
-HWY_INLINE Vec128<float, N> Xor(const Vec128<float, N> a,
-                                const Vec128<float, N> b) {
-  const Simd<uint32_t, N> d;
-  return BitCast(Simd<float, N>(), BitCast(d, a) ^ BitCast(d, b));
-}
-template <size_t N>
-HWY_INLINE Vec128<double, N> Xor(const Vec128<double, N> a,
-                                 const Vec128<double, N> b) {
-  const Simd<uint64_t, N> d;
-  return BitCast(Simd<double, N>(), BitCast(d, a) ^ BitCast(d, b));
+// Uses the u32/64 defined above.
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_INLINE Vec128<T, N> Xor(const Vec128<T, N> a, const Vec128<T, N> b) {
+  const Simd<MakeUnsigned<T>, N> d;
+  return BitCast(Simd<T, N>(), BitCast(d, a) ^ BitCast(d, b));
 }
 
 // ------------------------------ Operator overloads (internal-only if float)
@@ -1542,6 +1502,12 @@ HWY_INLINE Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 
 
 // ------------------------------ Mask logical
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  const Simd<T, N> d;
+  return MaskFromVec(Not(VecFromMask(d, m)));
+}
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> And(const Mask128<T, N> a, Mask128<T, N> b) {
@@ -2399,6 +2365,80 @@ template <size_t N>
 HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
   return ConvertTo(Simd<int32_t, N>(), Round(v));
 }
+#endif
+
+// ------------------------------ Round (IfThenElse, mask, logical)
+
+#if defined(__aarch64__)
+// Toward nearest integer
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Round, vrndn, _, 1)
+
+// Toward zero, aka truncate
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Trunc, vrnd, _, 1)
+
+// Toward +infinity, aka ceiling
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Ceil, vrndp, _, 1)
+
+// Toward -infinity, aka floor
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Floor, vrndm, _, 1)
+#else
+
+template <size_t N>
+HWY_INLINE Vec128<float, N> Trunc(const Vec128<float, N> v) {
+  const Simd<uint32_t, N> du;
+  const Simd<int32_t, N> di;
+  const Simd<float, N> df;
+  const auto v_bits = BitCast(du, v);
+  const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
+  const auto bits_to_remove =
+      Set(du, 150) - Max(Min(biased_exp, Set(du, 150)), Set(du, 127));
+  const auto mask = (Set(du, 1) << bits_to_remove) - Set(du, 1);
+  return BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
+                                    BitCast(di, AndNot(mask, v_bits))));
+}
+
+// WARNING: does not quite have the same semantics as what NEON does on
+// aarch64. In particular, does not break ties to even.
+template <size_t N>
+HWY_INLINE Vec128<float, N> Round(const Vec128<float, N> v) {
+  const Simd<uint32_t, N> du;
+  const Simd<float, N> df;
+  const auto sign_mask = BitCast(df, Set(du, 0x80000000u));
+  // move 0.5f away from 0 and call truncate.
+  return Trunc(v + ((v & sign_mask) | Set(df, 0.5f)));
+}
+
+template <size_t N>
+HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
+  const Simd<uint32_t, N> du;
+  const Simd<int32_t, N> di;
+  const Simd<float, N> df;
+  const auto sign_mask = Set(du, 0x80000000u);
+  const auto v_bits = BitCast(du, v);
+  const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
+  const auto bits_to_remove =
+      Set(du, 150) - Max(Min(biased_exp, Set(du, 150)), Set(du, 127));
+  const auto high_bit = Set(du, 1) << bits_to_remove;
+  const auto mask = high_bit - Set(du, 1);
+  const auto removed_bits = mask & v_bits;
+  // number is positive and at least one bit was set in the mantissa
+  const auto should_round_up = MaskFromVec(
+      BitCast(df, AndNot(VecFromMask(du, removed_bits == Zero(du)),
+                         VecFromMask(du, Zero(du) == (v_bits & sign_mask)))));
+  const auto add_one = IfThenElseZero(should_round_up, Set(df, 1.0f));
+  const auto rounded =
+      BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
+                                 BitCast(di, AndNot(mask, v_bits))));
+  return rounded + add_one;
+}
+
+template <size_t N>
+HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
+  const Simd<float, N> df;
+  const auto zero = Zero(df);
+  return zero - Ceil(zero - v);
+}
+
 #endif
 
 // ================================================== SWIZZLE

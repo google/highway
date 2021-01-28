@@ -110,123 +110,63 @@ Vec1<T> Iota(const Sisd<T> /* tag */, const T2 first) {
   return Vec1<T>(static_cast<T>(first));
 }
 
-// ================================================== SHIFTS
-
-// ------------------------------ Shift lanes by constant #bits
-
-template <int kBits, typename T>
-HWY_INLINE Vec1<T> ShiftLeft(const Vec1<T> v) {
-  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  return Vec1<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << kBits);
-}
-
-template <int kBits, typename T>
-HWY_INLINE Vec1<T> ShiftRight(const Vec1<T> v) {
-  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  // Ensure shift-in-sign behaviour while avoiding UB (shifting if v < 0).
-  const auto not_v = ~static_cast<hwy::MakeUnsigned<T>>(v.raw);
-  return Vec1<T>(~(not_v >> kBits));
-}
-
-// ------------------------------ Shift lanes by independent variable #bits
-
-// Single-lane => same as above except for the argument type.
-template <typename T>
-HWY_INLINE Vec1<T> operator<<(const Vec1<T> v, const Vec1<T> bits) {
-  return Vec1<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << bits.raw);
-}
-template <typename T>
-HWY_INLINE Vec1<T> operator>>(const Vec1<T> v, const Vec1<T> bits) {
-  // Ensure shift-in-sign behaviour while avoiding UB (shifting if v < 0).
-  const auto not_v = ~static_cast<hwy::MakeUnsigned<T>>(v.raw);
-  return Vec1<T>(~(not_v >> bits.raw));
-}
-
 // ================================================== LOGICAL
 
-template <typename Bits>
-struct BitwiseOp {
-  template <typename T, class Op>
-  Vec1<T> operator()(const Vec1<T> a, const Vec1<T> b, const Op& op) const {
-    static_assert(sizeof(T) == sizeof(Bits), "Float/int size mismatch");
-    Bits ia, ib;
-    CopyBytes<sizeof(Bits)>(&a, &ia);
-    CopyBytes<sizeof(Bits)>(&b, &ib);
-    ia = op(ia, ib);
-    T ret;
-    CopyBytes<sizeof(Bits)>(&ia, &ret);
-    return Vec1<T>(ret);
-  }
-};
-
-// ------------------------------ Bitwise AND
+// ------------------------------ Not
 
 template <typename T>
-HWY_INLINE Vec1<T> operator&(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw & b.raw);
+HWY_INLINE Vec1<T> Not(const Vec1<T> v) {
+  using TU = MakeUnsigned<T>;
+  const Sisd<TU> du;
+  return BitCast(Sisd<T>(), Vec1<TU>(~BitCast(du, v).raw));
 }
+
+// ------------------------------ And
+
 template <typename T>
 HWY_INLINE Vec1<T> And(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw & b.raw);
+  using TU = MakeUnsigned<T>;
+  const Sisd<TU> du;
+  return BitCast(Sisd<T>(), Vec1<TU>(BitCast(du, a).raw & BitCast(du, b).raw));
+}
+template <typename T>
+HWY_INLINE Vec1<T> operator&(const Vec1<T> a, const Vec1<T> b) {
+  return And(a, b);
 }
 
-HWY_INLINE Vec1<float> And(const Vec1<float> a, const Vec1<float> b) {
-  return BitwiseOp<int32_t>()(a, b, [](int32_t i, int32_t j) { return i & j; });
-}
-HWY_INLINE Vec1<double> And(const Vec1<double> a, const Vec1<double> b) {
-  return BitwiseOp<int64_t>()(a, b, [](int64_t i, int64_t j) { return i & j; });
-}
+// ------------------------------ AndNot
 
-// ------------------------------ Bitwise AND-NOT
-
-// Returns ~a & b.
 template <typename T>
 HWY_INLINE Vec1<T> AndNot(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(~a.raw & b.raw);
-}
-HWY_INLINE Vec1<float> AndNot(const Vec1<float> a, const Vec1<float> b) {
-  return BitwiseOp<int32_t>()(a, b,
-                              [](int32_t i, int32_t j) { return ~i & j; });
-}
-HWY_INLINE Vec1<double> AndNot(const Vec1<double> a, const Vec1<double> b) {
-  return BitwiseOp<int64_t>()(a, b,
-                              [](int64_t i, int64_t j) { return ~i & j; });
+  using TU = MakeUnsigned<T>;
+  const Sisd<TU> du;
+  return BitCast(Sisd<T>(), Vec1<TU>(~BitCast(du, a).raw & BitCast(du, b).raw));
 }
 
-// ------------------------------ Bitwise OR
+// ------------------------------ Or
 
-template <typename T>
-HWY_INLINE Vec1<T> operator|(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw | b.raw);
-}
 template <typename T>
 HWY_INLINE Vec1<T> Or(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw | b.raw);
+  using TU = MakeUnsigned<T>;
+  const Sisd<TU> du;
+  return BitCast(Sisd<T>(), Vec1<TU>(BitCast(du, a).raw | BitCast(du, b).raw));
 }
-
-HWY_INLINE Vec1<float> Or(const Vec1<float> a, const Vec1<float> b) {
-  return BitwiseOp<int32_t>()(a, b, [](int32_t i, int32_t j) { return i | j; });
-}
-HWY_INLINE Vec1<double> Or(const Vec1<double> a, const Vec1<double> b) {
-  return BitwiseOp<int64_t>()(a, b, [](int64_t i, int64_t j) { return i | j; });
-}
-
-// ------------------------------ Bitwise XOR
-
 template <typename T>
-HWY_INLINE Vec1<T> operator^(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw ^ b.raw);
+HWY_INLINE Vec1<T> operator|(const Vec1<T> a, const Vec1<T> b) {
+  return Or(a, b);
 }
+
+// ------------------------------ Xor
+
 template <typename T>
 HWY_INLINE Vec1<T> Xor(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(a.raw ^ b.raw);
+  using TU = MakeUnsigned<T>;
+  const Sisd<TU> du;
+  return BitCast(Sisd<T>(), Vec1<TU>(BitCast(du, a).raw ^ BitCast(du, b).raw));
 }
-
-HWY_INLINE Vec1<float> Xor(const Vec1<float> a, const Vec1<float> b) {
-  return BitwiseOp<int32_t>()(a, b, [](int32_t i, int32_t j) { return i ^ j; });
-}
-HWY_INLINE Vec1<double> Xor(const Vec1<double> a, const Vec1<double> b) {
-  return BitwiseOp<int64_t>()(a, b, [](int64_t i, int64_t j) { return i ^ j; });
+template <typename T>
+HWY_INLINE Vec1<T> operator^(const Vec1<T> a, const Vec1<T> b) {
+  return Xor(a, b);
 }
 
 // ------------------------------ CopySign
@@ -248,7 +188,8 @@ HWY_API Vec1<T> CopySignToAbs(const Vec1<T> abs, const Vec1<T> sign) {
 
 template <typename T>
 HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
-  return ShiftRight<sizeof(T) * 8 - 1>(v);
+  // This is used inside ShiftRight, so we cannot implement in terms of it.
+  return v.raw < 0 ? Vec1<T>(T(-1)) : Vec1<T>(0);
 }
 
 // ------------------------------ Mask
@@ -306,6 +247,12 @@ HWY_INLINE Vec1<T> ZeroIfNegative(const Vec1<T> v) {
 // ------------------------------ Mask logical
 
 template <typename T>
+HWY_API Mask1<T> Not(const Mask1<T> m) {
+  const Sisd<T> d;
+  return MaskFromVec(Not(VecFromMask(d, m)));
+}
+
+template <typename T>
 HWY_API Mask1<T> And(const Mask1<T> a, Mask1<T> b) {
   const Sisd<T> d;
   return MaskFromVec(And(VecFromMask(d, a), VecFromMask(d, b)));
@@ -327,6 +274,81 @@ template <typename T>
 HWY_API Mask1<T> Xor(const Mask1<T> a, Mask1<T> b) {
   const Sisd<T> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
+}
+
+// ================================================== SHIFTS
+
+// ------------------------------ ShiftLeft (BroadcastSignBit)
+
+template <int kBits, typename T>
+HWY_INLINE Vec1<T> ShiftLeft(const Vec1<T> v) {
+  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
+  return Vec1<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << kBits);
+}
+
+template <int kBits, typename T>
+HWY_INLINE Vec1<T> ShiftRight(const Vec1<T> v) {
+  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
+#if __cplusplus >= 202002L
+  // Signed right shift is now guaranteed to be arithmetic (rounding toward
+  // negative infinity, i.e. shifting in the sign bit).
+  return Vec1<T>(v.raw >> kBits);
+#else
+  if (IsSigned<T>()) {
+    // Emulate arithmetic shift using only logical (unsigned) shifts, because
+    // signed shifts are still implementation-defined.
+    using TU = hwy::MakeUnsigned<T>;
+    const Sisd<TU> du;
+    const TU shifted = BitCast(du, v).raw >> kBits;
+    const TU sign = BitCast(du, BroadcastSignBit(v)).raw;
+    const TU upper = sign << (sizeof(TU) * 8 - 1 - kBits);
+    return BitCast(Sisd<T>(), Vec1<TU>(shifted | upper));
+  } else {
+    return Vec1<T>(v.raw >> kBits);  // unsigned, logical shift
+  }
+#endif
+}
+
+// ------------------------------ ShiftLeftSame (BroadcastSignBit)
+
+template <typename T>
+HWY_INLINE Vec1<T> ShiftLeftSame(const Vec1<T> v, int bits) {
+  return Vec1<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << bits);
+}
+
+template <typename T>
+HWY_INLINE Vec1<T> ShiftRightSame(const Vec1<T> v, int bits) {
+#if __cplusplus >= 202002L
+  // Signed right shift is now guaranteed to be arithmetic (rounding toward
+  // negative infinity, i.e. shifting in the sign bit).
+  return Vec1<T>(v.raw >> bits);
+#else
+  if (IsSigned<T>()) {
+    // Emulate arithmetic shift using only logical (unsigned) shifts, because
+    // signed shifts are still implementation-defined.
+    using TU = hwy::MakeUnsigned<T>;
+    const Sisd<TU> du;
+    const TU shifted = BitCast(du, v).raw >> bits;
+    const TU sign = BitCast(du, BroadcastSignBit(v)).raw;
+    const TU upper = sign << (sizeof(TU) * 8 - 1 - bits);
+    return BitCast(Sisd<T>(), Vec1<TU>(shifted | upper));
+  } else {
+    return Vec1<T>(v.raw >> bits);  // unsigned, logical shift
+  }
+#endif
+}
+
+// ------------------------------ Shl
+
+// Single-lane => same as ShiftLeftSame except for the argument type.
+template <typename T>
+HWY_INLINE Vec1<T> operator<<(const Vec1<T> v, const Vec1<T> bits) {
+  return ShiftLeftSame(v, bits.raw);
+}
+
+template <typename T>
+HWY_INLINE Vec1<T> operator>>(const Vec1<T> v, const Vec1<T> bits) {
+  return ShiftRightSame(v, bits.raw);
 }
 
 // ================================================== ARITHMETIC

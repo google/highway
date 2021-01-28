@@ -15,6 +15,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/base.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"
 #include "hwy/foreach_target.h"
@@ -31,6 +33,14 @@ struct TestLogicalInteger {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vi = Iota(d, 0);
+    const auto ones = VecFromMask(d, Eq(v0, v0));
+    const auto v1 = Set(d, 1);
+    const auto vnot1 = Set(d, ~T(1));
+
+    HWY_ASSERT_VEC_EQ(d, v0, Not(ones));
+    HWY_ASSERT_VEC_EQ(d, ones, Not(v0));
+    HWY_ASSERT_VEC_EQ(d, v1, Not(vnot1));
+    HWY_ASSERT_VEC_EQ(d, vnot1, Not(v1));
 
     HWY_ASSERT_VEC_EQ(d, v0, And(v0, vi));
     HWY_ASSERT_VEC_EQ(d, v0, And(vi, v0));
@@ -379,22 +389,20 @@ struct TestBroadcastSignBit {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto s0 = Zero(d);
     const auto s1 = Set(d, -1);  // all bit set
+    const auto vpos = And(Iota(d, 0), Set(d, LimitsMax<T>()));
+    const auto vneg = s1 - vpos;
 
-    HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(Iota(d, 0)));
+    HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(vpos));
     HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(Set(d, LimitsMax<T>())));
 
-    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Iota(d, -T(Lanes(d)))));
+    HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(vneg));
     HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Set(d, LimitsMin<T>())));
     HWY_ASSERT_VEC_EQ(d, s1, BroadcastSignBit(Set(d, LimitsMin<T>() / 2)));
   }
 };
 
 HWY_NOINLINE void TestAllBroadcastSignBit() {
-  ForPartialVectors<TestBroadcastSignBit> test;
-  test(int32_t());
-#if HWY_CAP_INTEGER64
-  test(int64_t());
-#endif
+  ForSignedTypes(ForPartialVectors<TestBroadcastSignBit>());
 }
 
 struct TestTestBit {
@@ -545,7 +553,7 @@ HWY_NOINLINE void TestAllCountTrue() {
   ForAllTypes(ForPartialVectors<TestCountTrue>());
 }
 
-struct TestMaskLogical {
+struct TestLogicalMask {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto m0 = MaskFalse(d);
@@ -554,6 +562,9 @@ struct TestMaskLogical {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(1));
+
+    HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
+    HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
 
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = std::min(N, size_t(6));
@@ -584,8 +595,8 @@ struct TestMaskLogical {
   }
 };
 
-HWY_NOINLINE void TestAllMaskLogical() {
-  ForAllTypes(ForFullVectors<TestMaskLogical>());
+HWY_NOINLINE void TestAllLogicalMask() {
+  ForAllTypes(ForFullVectors<TestLogicalMask>());
 }
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -605,6 +616,6 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskLogical);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalMask);
 HWY_AFTER_TEST();
 #endif

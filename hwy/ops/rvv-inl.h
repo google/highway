@@ -451,24 +451,25 @@ HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub)
 HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, AverageRound, aaddu)
 HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, AverageRound, aaddu)
 
-// ------------------------------ ShiftLeft
+// ------------------------------ ShiftLeft[Same]
 
 // Intrinsics do not define .vi forms, so use .vx instead.
-#define HWY_RVV_SHIFT(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)              \
-  template <int kBits>                                                    \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) { \
-    return v##OP##_vx_##CHAR##SEW##m##LMUL(v, kBits);                     \
+#define HWY_RVV_SHIFT(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)               \
+  template <int kBits>                                                     \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {  \
+    return v##OP##_vx_##CHAR##SEW##m##LMUL(v, kBits);                      \
+  }                                                                        \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                       \
+      NAME##Same(HWY_RVV_V(BASE, SEW, LMUL) v, int bits) {                 \
+    return v##OP##_vx_##CHAR##SEW##m##LMUL(v, static_cast<uint8_t>(bits)); \
   }
 
 HWY_RVV_FOREACH_UI(HWY_RVV_SHIFT, ShiftLeft, sll)
 
-// ------------------------------ ShiftRight
+// ------------------------------ ShiftRight[Same]
 
 HWY_RVV_FOREACH_U(HWY_RVV_SHIFT, ShiftRight, srl)
-// No i8 nor i64 in API, but need i64 for BroadcastSignBit.
-HWY_RVV_FOREACH_I16(HWY_RVV_SHIFT, ShiftRight, sra)
-HWY_RVV_FOREACH_I32(HWY_RVV_SHIFT, ShiftRight, sra)
-HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT, ShiftRight, sra)
+HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra)
 
 #undef HWY_RVV_SHIFT
 
@@ -479,8 +480,7 @@ HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT, ShiftRight, sra)
     return v##OP##_vv_##CHAR##SEW##m##LMUL(v, bits);                        \
   }
 
-HWY_RVV_FOREACH_U32(HWY_RVV_SHIFT_VV, Shl, sll)
-HWY_RVV_FOREACH_U64(HWY_RVV_SHIFT_VV, Shl, sll)
+HWY_RVV_FOREACH_U(HWY_RVV_SHIFT_VV, Shl, sll)
 
 #define HWY_RVV_SHIFT_II(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)              \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
@@ -489,16 +489,12 @@ HWY_RVV_FOREACH_U64(HWY_RVV_SHIFT_VV, Shl, sll)
                                            detail::BitCastToUnsigned(bits)); \
   }
 
-HWY_RVV_FOREACH_I32(HWY_RVV_SHIFT_II, Shl, sll)
-HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT_II, Shl, sll)
+HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shl, sll)
 
 // ------------------------------ Shr
 
-HWY_RVV_FOREACH_U32(HWY_RVV_SHIFT_VV, Shr, srl)
-HWY_RVV_FOREACH_U64(HWY_RVV_SHIFT_VV, Shr, srl)
-
-HWY_RVV_FOREACH_I32(HWY_RVV_SHIFT_II, Shr, sra)
-HWY_RVV_FOREACH_I64(HWY_RVV_SHIFT_II, Shr, sra)
+HWY_RVV_FOREACH_U(HWY_RVV_SHIFT_VV, Shr, srl)
+HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shr, sra)
 
 #undef HWY_RVV_SHIFT_II
 #undef HWY_RVV_SHIFT_VV
@@ -632,6 +628,18 @@ template <class V>
 HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
   return Ne(And(a, bit), Zero(DFromV<V>()));
 }
+
+// ------------------------------ Not
+
+// mask = f(mask)
+#define HWY_RVV_RETM_ARGM(MLEN, NAME, OP)           \
+  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) { \
+    return vm##OP##_m_b##MLEN(m);                   \
+  }
+
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, Not, not )
+
+#undef HWY_RVV_RETM_ARGM
 
 // ------------------------------ And
 
@@ -820,13 +828,13 @@ HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lx)
 
 // ------------------------------ GatherIndex
 
-template <class D, HWY_IF_LANE_SIZE4_D(D)>
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
 HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
                               const VFromD<RebindToSigned<D>> index) {
   return GatherOffset(d, base, ShiftLeft<2>(index));
 }
 
-template <class D, HWY_IF_LANE_SIZE8_D(D)>
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
 HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
                               const VFromD<RebindToSigned<D>> index) {
   return GatherOffset(d, base, ShiftLeft<3>(index));

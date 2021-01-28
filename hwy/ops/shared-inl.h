@@ -62,14 +62,19 @@ static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
 #define HWY_IF_FLOAT(T) hwy::EnableIf<hwy::IsFloat<T>()>* = nullptr
 #define HWY_IF_NOT_FLOAT(T) hwy::EnableIf<!hwy::IsFloat<T>()>* = nullptr
 
+#define HWY_IF_LANE_SIZE(T, bytes) \
+  hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
+#define HWY_IF_NOT_LANE_SIZE(T, bytes) \
+  hwy::EnableIf<sizeof(T) != (bytes)>* = nullptr
+
 // Argument is a Simd<T, N>, defined below.
 #define HWY_IF_UNSIGNED_D(D) HWY_IF_UNSIGNED(TFromD<D>)
 #define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(TFromD<D>)
 #define HWY_IF_FLOAT_D(D) HWY_IF_FLOAT(TFromD<D>)
 #define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(TFromD<D>)
 
-#define HWY_IF_LANE_SIZE4_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 4>* = nullptr
-#define HWY_IF_LANE_SIZE8_D(D) hwy::EnableIf<sizeof(TFromD<D>) == 8>* = nullptr
+#define HWY_IF_LANE_SIZE_D(D, bytes) HWY_IF_LANE_SIZE(TFromD<D>, bytes)
+#define HWY_IF_NOT_LANE_SIZE_D(D, bytes) HWY_IF_NOT_LANE_SIZE(TFromD<D>, bytes)
 
 // Empty struct used as a size tag type.
 template <size_t N>
