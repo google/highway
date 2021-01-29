@@ -2532,7 +2532,7 @@ HWY_INLINE Vec128<T> CombineShiftRightBytes(const Vec128<T> hi,
 
 // ------------------------------ Shift vector by constant #bytes
 
-namespace impl {
+namespace detail {
 
 // Need to partially specialize because CombineShiftRightBytes<16> and <0> are
 // compile errors.
@@ -2566,12 +2566,12 @@ struct ShiftRightBytesT<0> {
   }
 };
 
-}  // namespace impl
+}  // namespace detail
 
 // 0x01..0F, kBytes = 1 => 0x02..0F00
 template <int kBytes, typename T, size_t N>
 HWY_INLINE Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
-  return impl::ShiftLeftBytesT<kBytes>()(v);
+  return detail::ShiftLeftBytesT<kBytes>()(v);
 }
 
 template <int kLanes, typename T, size_t N>
@@ -2584,7 +2584,7 @@ HWY_INLINE Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
 // 0x01..0F, kBytes = 1 => 0x0001..0E
 template <int kBytes, typename T, size_t N>
 HWY_INLINE Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
-  return impl::ShiftRightBytesT<kBytes>()(v);
+  return detail::ShiftRightBytesT<kBytes>()(v);
 }
 
 template <int kLanes, typename T, size_t N>
