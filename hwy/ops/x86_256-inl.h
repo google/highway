@@ -256,13 +256,13 @@ HWY_API Vec256<double> Xor(const Vec256<double> a, const Vec256<double> b) {
 
 template <typename T>
 HWY_API Vec256<T> Not(const Vec256<T> v) {
-#if HWY_TARGET == HWY_AVX3
   using TU = MakeUnsigned<T>;
+#if HWY_TARGET == HWY_AVX3
   const __m256i vu = BitCast(Full256<TU>(), v).raw;
   return BitCast(Full256<T>(),
                  Vec256<TU>{_mm256_ternarylogic_epi32(vu, vu, vu, 0x55)});
 #else
-  return Xor(v, Vec256<T>{_mm256_set1_epi32(-1)});
+  return Xor(v, BitCast(Full256<T>(), Vec256<TU>{_mm256_set1_epi32(-1)}));
 #endif
 }
 

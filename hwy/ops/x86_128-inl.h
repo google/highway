@@ -337,13 +337,13 @@ HWY_API Vec128<double, N> Xor(const Vec128<double, N> a,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
-#if HWY_TARGET == HWY_AVX3
   using TU = MakeUnsigned<T>;
+#if HWY_TARGET == HWY_AVX3
   const __m128i vu = BitCast(Simd<TU, N>(), v).raw;
   return BitCast(Simd<T, N>(),
                  Vec128<TU, N>{_mm_ternarylogic_epi32(vu, vu, vu, 0x55)});
 #else
-  return Xor(v, Vec128<T, N>{_mm_set1_epi32(-1)});
+  return Xor(v, BitCast(Simd<T, N>(), Vec128<TU, N>{_mm_set1_epi32(-1)}));
 #endif
 }
 
@@ -2846,7 +2846,7 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
                               const Mask128<T, N> mask) {
   const Simd<T, N> d;
   const Simd<float, N> df;
-  const auto sign_bits = BitCast(d, VecFromMask(d, mask));
+  const auto sign_bits = BitCast(df, VecFromMask(d, mask));
   return U64FromInt(_mm_movemask_ps(sign_bits.raw));
 }
 
@@ -2855,7 +2855,7 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
                               const Mask128<T, N> mask) {
   const Simd<T, N> d;
   const Simd<double, N> df;
-  const auto sign_bits = BitCast(d, VecFromMask(d, mask));
+  const auto sign_bits = BitCast(df, VecFromMask(d, mask));
   return U64FromInt(_mm_movemask_pd(sign_bits.raw));
 }
 

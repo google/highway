@@ -200,6 +200,16 @@ HWY_NOINLINE void TestAllPromoteTo() {
 #endif
 }
 
+template <typename T, HWY_IF_FLOAT(T)>
+bool IsFinite(T t) {
+  return std::isfinite(t);
+}
+// Wrapper avoids calling std::isfinite for integer types (ambiguous).
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+bool IsFinite(T /*unused*/) {
+  return true;
+}
+
 template <typename ToT>
 struct TestDemoteTo {
   template <typename T, class D>
@@ -221,7 +231,7 @@ struct TestDemoteTo {
         do {
           const uint64_t bits = rng();
           memcpy(&from[i], &bits, sizeof(T));
-        } while (!std::isfinite(from[i]));
+        } while (!IsFinite(from[i]));
         expected[i] = static_cast<ToT>(std::min(std::max(min, from[i]), max));
       }
 

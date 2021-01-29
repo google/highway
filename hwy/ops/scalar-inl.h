@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>  // std::min
 #include <cmath>
 
 #include "hwy/ops/shared-inl.h"
@@ -790,22 +791,26 @@ HWY_INLINE Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
-template <typename FromT, typename ToT>
+template <typename FromT, typename ToT, HWY_IF_FLOAT(FromT)>
 HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
 
   // Prevent ubsan errors when converting float to narrower integer/float
-  if (IsFloat<FromT>()) {
-    if (std::isinf(from.raw) ||
-        std::fabs(from.raw) > static_cast<FromT>(LimitsMax<ToT>())) {
-      return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
-                                              : LimitsMax<ToT>());
-    }
-  } else {
-    // Int to int: choose closest value in ToT to `from` (avoids UB)
-    from.raw = std::min<FromT>(std::max<FromT>(LimitsMin<ToT>(), from.raw),
-                               LimitsMax<ToT>());
+  if (std::isinf(from.raw) ||
+      std::fabs(from.raw) > static_cast<FromT>(LimitsMax<ToT>())) {
+    return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
+                                            : LimitsMax<ToT>());
   }
+  return Vec1<ToT>(static_cast<ToT>(from.raw));
+}
+
+template <typename FromT, typename ToT, HWY_IF_NOT_FLOAT(FromT)>
+HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
+  static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
+
+  // Int to int: choose closest value in ToT to `from` (avoids UB)
+  from.raw = std::min<FromT>(std::max<FromT>(LimitsMin<ToT>(), from.raw),
+                             LimitsMax<ToT>());
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
@@ -872,20 +877,24 @@ static HWY_INLINE Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
   return out;
 }
 
-template <typename FromT, typename ToT>
+template <typename FromT, typename ToT, HWY_IF_FLOAT(FromT)>
 HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
-  // This function is only for int## -> float## (no check needed) and
-  // float## -> int## (return closest representable value).
-  if (IsFloat<FromT>()) {
-    // Cannot exactly represent LimitsMax<ToT> in FromT, so use double.
-    const double f = static_cast<double>(from.raw);
-    if (std::isinf(from.raw) ||
-        std::fabs(f) > static_cast<double>(LimitsMax<ToT>())) {
-      return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
-                                              : LimitsMax<ToT>());
-    }
+  // float## -> int##: return closest representable value. We cannot exactly
+  // represent LimitsMax<ToT> in FromT, so use double.
+  const double f = static_cast<double>(from.raw);
+  if (std::isinf(from.raw) ||
+      std::fabs(f) > static_cast<double>(LimitsMax<ToT>())) {
+    return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
+                                            : LimitsMax<ToT>());
   }
+  return Vec1<ToT>(static_cast<ToT>(from.raw));
+}
+
+template <typename FromT, typename ToT, HWY_IF_NOT_FLOAT(FromT)>
+HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
+  static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
+  // int## -> float##: no check needed
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
