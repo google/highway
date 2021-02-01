@@ -1028,14 +1028,13 @@ HWY_API Vec128<int64_t, N> BroadcastSignBit(const Vec128<int64_t, N> v) {
 #elif HWY_TARGET == HWY_AVX2
   return VecFromMask(v < Zero(Simd<int64_t, N>()));
 #else
-  // Efficient Gt() requires SSE4.2 but we only have SSE4.1, so it is faster to
-  // generate constants and BLENDVPD, which only looks at the sign bit.
-  const Simd<int64_t, N> di;
-  const Simd<double, N> df;
-  const auto zero = Zero(di);
-  const auto all = BitCast(df, VecFromMask(zero == zero));
-  const auto sign = MaskFromVec(BitCast(df, v));
-  return BitCast(di, IfThenElse(sign, all, BitCast(df, zero)));
+  // Efficient Gt() requires SSE4.2 but we only have SSE4.1. BLENDVPD requires
+  // two constants and domain crossing. 32-bit compare only requires Zero()
+  // plus a shuffle to replicate the upper 32 bits.
+  const Simd<int32_t, N * 2> d32;
+  const auto sign = BitCast(d32, v) < Zero(d32);
+  return Vec128<int64_t, N>{
+      _mm_shuffle_epi32(sign.raw, _MM_SHUFFLE(3, 3, 1, 1))};
 #endif
 }
 
