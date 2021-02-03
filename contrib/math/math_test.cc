@@ -145,6 +145,9 @@ DEFINE_MATH_TEST(Log1p,
 DEFINE_MATH_TEST(Log2,
   std::log2,  Log2,  +FLT_MIN,   +FLT_MAX,    2,
   std::log2,  Log2,  +DBL_MIN,   +DBL_MAX,    2)
+DEFINE_MATH_TEST(Sin,
+  std::sin,   Sin,   -39000.0,   +39000.0,    3,
+  std::sin,   Sin,   -39000.0,   +39000.0,    3)
 DEFINE_MATH_TEST(Sinh,
   std::sinh,  Sinh,  -80.0f,     +80.0f,      4,
   std::sinh,  Sinh,  -709.0,     +709.0,      4)
@@ -173,6 +176,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 HWY_AFTER_TEST();

@@ -171,6 +171,17 @@ template <class D, class V>
 HWY_NOINLINE V Log2(const D d, V x);
 
 /**
+ * Highway SIMD version of std::sin(x).
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: [-39000, +39000]
+ * @return sine of 'x'
+ */
+template <class D, class V>
+HWY_NOINLINE V Sin(const D d, V x);
+
+/**
  * Highway SIMD version of std::sinh(x).
  *
  * Valid Lane Types: float32, float64
@@ -361,7 +372,7 @@ struct AsinImpl {};
 template <class FloatOrDouble>
 struct AtanImpl {};
 template <class FloatOrDouble>
-struct CosImpl {};
+struct CosSinImpl {};
 template <class FloatOrDouble>
 struct ExpImpl {};
 template <class FloatOrDouble>
@@ -464,7 +475,7 @@ struct AtanImpl<double> {
 #endif
 
 template <>
-struct CosImpl<float> {
+struct CosSinImpl<float> {
   // Rounds float toward zero and returns as int32_t.
   template <class D, class V>
   HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
@@ -483,7 +494,7 @@ struct CosImpl<float> {
   }
 
   template <class D, class V, class VI32>
-  HWY_INLINE V Reduce(D d, V x, VI32 q) {
+  HWY_INLINE V CosReduce(D d, V x, VI32 q) {
     // kHalfPiPart0f + kHalfPiPart1f + kHalfPiPart2f + kHalfPiPart3f ~= -pi/2
     const V kHalfPiPart0f = Set(d, -0.5f * 3.140625f);
     const V kHalfPiPart1f = Set(d, -0.5f * 0.0009670257568359375f);
@@ -499,18 +510,42 @@ struct CosImpl<float> {
     return x;
   }
 
-  // sign = (q & 2) == 0 ? -0.0 : +0.0
+  template <class D, class V, class VI32>
+  HWY_INLINE V SinReduce(D d, V x, VI32 q) {
+    // kPiPart0f + kPiPart1f + kPiPart2f + kPiPart3f ~= -pi
+    const V kPiPart0f = Set(d, -3.140625f);
+    const V kPiPart1f = Set(d, -0.0009670257568359375f);
+    const V kPiPart2f = Set(d, -6.2771141529083251953e-7f);
+    const V kPiPart3f = Set(d, -1.2154201256553420762e-10f);
+
+    // Extended precision modular arithmetic.
+    const V qf = ConvertTo(d, q);
+    x = MulAdd(qf, kPiPart0f, x);
+    x = MulAdd(qf, kPiPart1f, x);
+    x = MulAdd(qf, kPiPart2f, x);
+    x = MulAdd(qf, kPiPart3f, x);
+    return x;
+  }
+
+  // (q & 2) == 0 ? -0.0 : +0.0
   template <class D, class VI32>
-  HWY_INLINE Vec<Rebind<float, D>> SignFromQuadrant(D d, VI32 q) {
+  HWY_INLINE Vec<Rebind<float, D>> CosSignFromQuadrant(D d, VI32 q) {
     const VI32 kTwo = Set(Rebind<int32_t, D>(), 2);
     return BitCast(d, ShiftLeft<30>(AndNot(q, kTwo)));
+  }
+
+  // ((q & 1) ? -0.0 : +0.0)
+  template <class D, class VI32>
+  HWY_INLINE Vec<Rebind<float, D>> SinSignFromQuadrant(D d, VI32 q) {
+    const VI32 kOne = Set(Rebind<int32_t, D>(), 1);
+    return BitCast(d, ShiftLeft<31>(And(q, kOne)));
   }
 };
 
 #if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
 
 template <>
-struct CosImpl<double> {
+struct CosSinImpl<double> {
   // Rounds double toward zero and returns as int32_t.
   template <class D, class V>
   HWY_INLINE Vec<Rebind<int32_t, D>> ToInt32(D /*unused*/, V x) {
@@ -534,7 +569,7 @@ struct CosImpl<double> {
   }
 
   template <class D, class V, class VI32>
-  HWY_INLINE V Reduce(D d, V x, VI32 q) {
+  HWY_INLINE V CosReduce(D d, V x, VI32 q) {
     // kHalfPiPart0d + kHalfPiPart1d + kHalfPiPart2d + kHalfPiPart3d ~= -pi/2
     const V kHalfPiPart0d = Set(d, -0.5 * 3.1415926218032836914);
     const V kHalfPiPart1d = Set(d, -0.5 * 3.1786509424591713469e-8);
@@ -550,12 +585,37 @@ struct CosImpl<double> {
     return x;
   }
 
-  // sign = (q & 2) == 0 ? -0.0 : +0.0
+  template <class D, class V, class VI32>
+  HWY_INLINE V SinReduce(D d, V x, VI32 q) {
+    // kPiPart0d + kPiPart1d + kPiPart2d + kPiPart3d ~= -pi
+    const V kPiPart0d = Set(d, -3.1415926218032836914);
+    const V kPiPart1d = Set(d, -3.1786509424591713469e-8);
+    const V kPiPart2d = Set(d, -1.2246467864107188502e-16);
+    const V kPiPart3d = Set(d, -1.2736634327021899816e-24);
+
+    // Extended precision modular arithmetic.
+    const V qf = PromoteTo(d, q);
+    x = MulAdd(qf, kPiPart0d, x);
+    x = MulAdd(qf, kPiPart1d, x);
+    x = MulAdd(qf, kPiPart2d, x);
+    x = MulAdd(qf, kPiPart3d, x);
+    return x;
+  }
+
+  // (q & 2) == 0 ? -0.0 : +0.0
   template <class D, class VI32>
-  HWY_INLINE Vec<Rebind<double, D>> SignFromQuadrant(D d, VI32 q) {
+  HWY_INLINE Vec<Rebind<double, D>> CosSignFromQuadrant(D d, VI32 q) {
     const VI32 kTwo = Set(Rebind<int32_t, D>(), 2);
     return BitCast(
         d, ShiftLeft<62>(PromoteTo(Rebind<int64_t, D>(), AndNot(q, kTwo))));
+  }
+
+  // ((q & 1) ? -0.0 : +0.0)
+  template <class D, class VI32>
+  HWY_INLINE Vec<Rebind<double, D>> SinSignFromQuadrant(D d, VI32 q) {
+    const VI32 kOne = Set(Rebind<int32_t, D>(), 1);
+    return BitCast(
+        d, ShiftLeft<63>(PromoteTo(Rebind<int64_t, D>(), And(q, kOne))));
   }
 };
 
@@ -908,7 +968,7 @@ HWY_NOINLINE V Atanh(const D d, V x) {
 template <class D, class V>
 HWY_NOINLINE V Cos(const D d, V x) {
   using LaneType = LaneType<V>;
-  impl::CosImpl<LaneType> impl;
+  impl::CosSinImpl<LaneType> impl;
 
   // Float Constants
   const V kOneOverPi = Set(d, 0.31830988618379067153);
@@ -924,7 +984,8 @@ HWY_NOINLINE V Cos(const D d, V x) {
   const VI32 q = (ShiftLeft<1>(impl.ToInt32(d, y * kOneOverPi)) + kOne);
 
   // Reduce range, apply sign, and approximate.
-  return impl.Poly(d, Xor(impl.Reduce(d, y, q), impl.SignFromQuadrant(d, q)));
+  return impl.Poly(
+      d, Xor(impl.CosReduce(d, y, q), impl.CosSignFromQuadrant(d, q)));
 }
 
 template <class D, class V>
@@ -1001,6 +1062,30 @@ HWY_NOINLINE V Log1p(const D d, V x) {
 template <class D, class V>
 HWY_NOINLINE V Log2(const D d, V x) {
   return Log(d, x) * Set(d, 1.44269504088896340735992);
+}
+
+template <class D, class V>
+HWY_NOINLINE V Sin(const D d, V x) {
+  using LaneType = LaneType<V>;
+  impl::CosSinImpl<LaneType> impl;
+
+  // Float Constants
+  const V kOneOverPi = Set(d, 0.31830988618379067153);
+  const V kHalf = Set(d, 0.5);
+
+  // Integer Constants
+  const Rebind<int32_t, D> di32;
+  using VI32 = decltype(Zero(di32));
+
+  const V abs_x = Abs(x);
+  const V sign_x = Xor(abs_x, x);
+
+  // Compute the quadrant, q = int((|x| / pi) + 0.5)
+  const VI32 q = impl.ToInt32(d, MulAdd(abs_x, kOneOverPi, kHalf));
+
+  // Reduce range, apply sign, and approximate.
+  return impl.Poly(d, Xor(impl.SinReduce(d, abs_x, q),
+                          Xor(impl.SinSignFromQuadrant(d, q), sign_x)));
 }
 
 template <class D, class V>
