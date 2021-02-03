@@ -71,9 +71,12 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
 
       const auto ulp = ComputeUlpDelta(actual, expected);
       max_ulp = std::max<uint64_t>(max_ulp, ulp);
+      if (ulp > max_error_ulp) {
+        std::cout << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
+                  << ">(" << value << ") expected: " << expected
+                  << " actual: " << actual << std::endl;
+      }
       HWY_ASSERT(ulp <= max_error_ulp);
-      // << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d) << ">("
-      // << value << ") expected: " << expected << " actual: " << actual;
     }
   }
   std::cout << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
@@ -121,12 +124,15 @@ DEFINE_MATH_TEST(Atan,
 DEFINE_MATH_TEST(Atanh,
   std::atanh, Atanh, -kNearOneF, +kNearOneF,  4,  // NEON is 4 instead of 3
   std::atanh, Atanh, -kNearOneD, +kNearOneD,  3)
+DEFINE_MATH_TEST(Cos,
+  std::cos,   Cos,   -39000.0,   +39000.0,    3,
+  std::cos,   Cos,   -39000.0,   +39000.0,    3)
 DEFINE_MATH_TEST(Exp,
-  std::exp,   Exp,   -FLT_MAX,   +104.0f,     1,
-  std::exp,   Exp,   -DBL_MAX,   +104.0f,     1)
+  std::exp,   Exp,   -FLT_MAX,   +104.0,      1,
+  std::exp,   Exp,   -DBL_MAX,   +104.0,      1)
 DEFINE_MATH_TEST(Expm1,
-  std::expm1, Expm1, -FLT_MAX,   +104.0f,     4,
-  std::expm1, Expm1, -DBL_MAX,   +104.0f,     4)
+  std::expm1, Expm1, -FLT_MAX,   +104.0,      4,
+  std::expm1, Expm1, -DBL_MAX,   +104.0,      4)
 DEFINE_MATH_TEST(Log,
   std::log,   Log,   +FLT_MIN,   +FLT_MAX,    1,
   std::log,   Log,   +DBL_MIN,   +DBL_MAX,    1)
@@ -160,6 +166,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtanh);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
