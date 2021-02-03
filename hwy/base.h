@@ -377,6 +377,22 @@ constexpr double HighestValue<double>() {
   return DBL_MAX;
 }
 
+// Returns 1 << mantissa_bits as a floating-point number. All integers whose
+// absolute value are less than this can be represented exactly.
+template <typename T>
+constexpr T MantissaEnd() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+}
+template <>
+constexpr float MantissaEnd() {
+  return 8388608.0f;  // 1 << 23
+}
+template <>
+constexpr double MantissaEnd<double>() {
+  // floating point literal with p52 requires C++17.
+  return 4503599627370496.0;  // 1 << 52
+}
+
 //------------------------------------------------------------------------------
 // Type relations
 

@@ -753,122 +753,131 @@ HWY_NOINLINE void TestAllReciprocalSquareRoot() {
   ForPartialVectors<TestReciprocalSquareRoot>()(float());
 }
 
+template <typename T, class D>
+AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
+  const T eps = std::numeric_limits<T>::epsilon();
+  const T test_cases[] = {// +/- 1
+                          T(1), T(-1),
+                          // +/- 0
+                          T(0), T(-0),
+                          // near 0
+                          T(0.4), T(-0.4),
+                          // +/- integer
+                          T(4), T(-32),
+                          // positive near limit
+                          MantissaEnd<T>() - T(1.5), MantissaEnd<T>() + T(1.5),
+                          // negative near limit
+                          -MantissaEnd<T>() - T(1.5),
+                          -MantissaEnd<T>() + T(1.5),
+                          // +/- huge
+                          T(1E54), T(-1E55),
+                          // positive tiebreak
+                          T(1.5), T(2.5),
+                          // negative tiebreak
+                          T(-1.5), T(-2.5),
+                          // positive +/- delta
+                          T(2.0001), T(3.9999),
+                          // negative +/- delta
+                          T(-999.9999), T(-998.0001),
+                          // positive +/- epsilon
+                          T(1) + eps, T(1) - eps,
+                          // negative +/- epsilon
+                          T(-1) + eps, T(-1) - eps,
+                          // qNaN
+                          GetLane(NaN(d))};
+  const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
+  const size_t N = Lanes(d);
+  padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
+  auto in = AllocateAligned<T>(padded);
+  auto expected = AllocateAligned<T>(padded);
+  std::copy(test_cases, test_cases + kNumTestCases, in.get());
+  std::fill(in.get() + kNumTestCases, in.get() + padded, T(0));
+  return in;
+}
+
 struct TestRound {
   template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // Numbers close to 0
-    {
-      const auto v = Set(d, T(0.4));
-      const auto zero = Set(d, 0);
-      const auto one = Set(d, 1);
-      HWY_ASSERT_VEC_EQ(d, one, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, zero, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, zero, Round(v));
-      HWY_ASSERT_VEC_EQ(d, zero, Trunc(v));
-    }
-    {
-      const auto v = Set(d, T(-0.4));
-      const auto neg_zero = Set(d, T(-0.0));
-      const auto neg_one = Set(d, -1);
-      HWY_ASSERT_VEC_EQ(d, neg_zero, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, neg_one, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, neg_zero, Round(v));
-      HWY_ASSERT_VEC_EQ(d, neg_zero, Trunc(v));
-    }
-    // Integer positive
-    {
-      const auto v = Iota(d, 4.0);
-      HWY_ASSERT_VEC_EQ(d, v, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, v, Round(v));
-      HWY_ASSERT_VEC_EQ(d, v, Trunc(v));
-    }
+  HWY_NOINLINE void operator()(T t, D d) {
+    size_t padded;
+    auto in = RoundTestCases(t, d, padded);
+    auto expected = AllocateAligned<T>(padded);
 
-    // Integer negative
-    {
-      const auto v = Iota(d, T(-32.0));
-      HWY_ASSERT_VEC_EQ(d, v, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, v, Round(v));
-      HWY_ASSERT_VEC_EQ(d, v, Trunc(v));
+    for (size_t i = 0; i < padded; ++i) {
+      // Avoid [std::]round, which does not round to nearest *even*.
+      // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
+      // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
+      expected[i] = nearbyint(in[i]);
     }
-
-    // Huge positive
-    {
-// TODO(janwas):Until we have native round, must fit in i32
-#if HWY_TARGET == HWY_RVV
-      const auto v = Set(d, T(1E8));
-#else
-      const auto v = Set(d, T(1E15));
-#endif
-      HWY_ASSERT_VEC_EQ(d, v, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v, Floor(v));
-    }
-
-    // Huge negative
-    {
-// TODO(janwas):Until we have native round, must fit in i32
-#if HWY_TARGET == HWY_RVV
-      const auto v = Set(d, T(-1E8));
-#else
-      const auto v = Set(d, T(-1E15));
-#endif
-      HWY_ASSERT_VEC_EQ(d, v, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v, Floor(v));
-    }
-
-    // Above positive
-    {
-      const auto v = Iota(d, T(2.0001));
-      const auto v3 = Iota(d, T(3));
-      const auto v2 = Iota(d, T(2));
-      HWY_ASSERT_VEC_EQ(d, v3, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v2, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, v2, Round(v));
-      HWY_ASSERT_VEC_EQ(d, v2, Trunc(v));
-    }
-
-    // Below positive
-    {
-      const auto v = Iota(d, T(3.9999));
-      const auto v4 = Iota(d, T(4));
-      const auto v3 = Iota(d, T(3));
-      HWY_ASSERT_VEC_EQ(d, v4, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v3, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, v4, Round(v));
-      HWY_ASSERT_VEC_EQ(d, v3, Trunc(v));
-    }
-
-    // Above negative
-    {
-      // WARNING: using iota => ensure negative value is low enough that
-      // all lanes remain negative, otherwise trunc will behave differently
-      // for positive/negative values.
-      HWY_ASSERT(Lanes(d) <= 512);
-      const auto v = Iota(d, T(-999.9999));
-      const auto v3 = Iota(d, T(-999));
-      const auto v4 = Iota(d, T(-1000));
-      HWY_ASSERT_VEC_EQ(d, v3, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v4, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, v4, Round(v));
-      HWY_ASSERT_VEC_EQ(d, v3, Trunc(v));
-    }
-
-    // Below negative
-    {
-      const auto v = Iota(d, T(-998.0001));
-      const auto v2 = Iota(d, T(-998));
-      const auto v3 = Iota(d, T(-999));
-      HWY_ASSERT_VEC_EQ(d, v2, Ceil(v));
-      HWY_ASSERT_VEC_EQ(d, v3, Floor(v));
-      HWY_ASSERT_VEC_EQ(d, v2, Round(v));
-      HWY_ASSERT_VEC_EQ(d, v2, Trunc(v));
+    for (size_t i = 0; i < padded; i += Lanes(d)) {
+      HWY_ASSERT_VEC_EQ(d, &expected[i], Round(Load(d, &in[i])));
     }
   }
 };
 
 HWY_NOINLINE void TestAllRound() {
   ForFloatTypes(ForPartialVectors<TestRound>());
+}
+
+struct TestTrunc {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+    size_t padded;
+    auto in = RoundTestCases(t, d, padded);
+    auto expected = AllocateAligned<T>(padded);
+
+    for (size_t i = 0; i < padded; ++i) {
+      // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
+      // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
+      expected[i] = trunc(in[i]);
+    }
+    for (size_t i = 0; i < padded; i += Lanes(d)) {
+      HWY_ASSERT_VEC_EQ(d, &expected[i], Trunc(Load(d, &in[i])));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllTrunc() {
+  ForFloatTypes(ForPartialVectors<TestTrunc>());
+}
+
+struct TestCeil {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+    size_t padded;
+    auto in = RoundTestCases(t, d, padded);
+    auto expected = AllocateAligned<T>(padded);
+
+    for (size_t i = 0; i < padded; ++i) {
+      expected[i] = std::ceil(in[i]);
+    }
+    for (size_t i = 0; i < padded; i += Lanes(d)) {
+      HWY_ASSERT_VEC_EQ(d, &expected[i], Ceil(Load(d, &in[i])));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllCeil() {
+  ForFloatTypes(ForPartialVectors<TestCeil>());
+}
+
+struct TestFloor {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+    size_t padded;
+    auto in = RoundTestCases(t, d, padded);
+    auto expected = AllocateAligned<T>(padded);
+
+    for (size_t i = 0; i < padded; ++i) {
+      expected[i] = std::floor(in[i]);
+    }
+    for (size_t i = 0; i < padded; i += Lanes(d)) {
+      HWY_ASSERT_VEC_EQ(d, &expected[i], Floor(Load(d, &in[i])));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFloor() {
+  ForFloatTypes(ForPartialVectors<TestFloor>());
 }
 
 struct TestSumOfLanes {
@@ -1050,6 +1059,9 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReciprocalSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRound);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllTrunc);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllCeil);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllFloor);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbsDiff);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 HWY_AFTER_TEST();

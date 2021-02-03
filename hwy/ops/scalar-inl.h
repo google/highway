@@ -587,29 +587,31 @@ HWY_INLINE Vec1<double> Sqrt(const Vec1<double> v) {
 
 // ------------------------------ Floating-point rounding
 
-// Approximation of round-to-nearest for numbers representable as integers.
-HWY_INLINE Vec1<float> Round(const Vec1<float> v) {
-  const float bias = v.raw < 0.0f ? -0.5f : 0.5f;
-  const int32_t rounded = static_cast<int32_t>(v.raw + bias);
-  if (rounded == 0) return Vec1<float>(v.raw < 0.0f ? -0.0f : 0.0f);
-  return Vec1<float>(static_cast<float>(rounded));
-}
-HWY_INLINE Vec1<double> Round(const Vec1<double> v) {
-  const double bias = v.raw < 0.0 ? -0.5 : 0.5;
-  const int64_t rounded = static_cast<int64_t>(v.raw + bias);
-  if (rounded == 0) return Vec1<double>(v.raw < 0.0 ? -0.0 : 0.0);
-  return Vec1<double>(std::copysign(rounded, v.raw));
+template <typename T>
+HWY_INLINE Vec1<T> Round(const Vec1<T> v) {
+  using TI = MakeSigned<T>;
+  if (!(Abs(v).raw < MantissaEnd<T>())) {  // Huge or NaN
+    return v;
+  }
+  const T bias = v.raw < T(0.0) ? T(-0.5) : T(0.5);
+  const TI rounded = static_cast<TI>(v.raw + bias);
+  if (rounded == 0) return CopySignToAbs(Vec1<T>(0), v);
+  // Round to even
+  if ((rounded & 1) && std::abs(rounded - v.raw) == T(0.5)) {
+    return Vec1<T>(static_cast<T>(rounded - (v.raw < T(0) ? -1 : 1)));
+  }
+  return Vec1<T>(static_cast<T>(rounded));
 }
 
-HWY_INLINE Vec1<float> Trunc(const Vec1<float> v) {
-  const int32_t truncated = static_cast<int32_t>(v.raw);
-  if (truncated == 0) return Vec1<float>(v.raw < 0.0f ? -0.0f : 0.0f);
-  return Vec1<float>(static_cast<float>(truncated));
-}
-HWY_INLINE Vec1<double> Trunc(const Vec1<double> v) {
-  const int64_t truncated = static_cast<int64_t>(v.raw);
-  if (truncated == 0) return Vec1<double>(v.raw < 0.0 ? -0.0 : 0.0);
-  return Vec1<double>(static_cast<double>(truncated));
+template <typename T>
+HWY_INLINE Vec1<T> Trunc(const Vec1<T> v) {
+  using TI = MakeSigned<T>;
+  if (!(Abs(v).raw <= MantissaEnd<T>())) {  // Huge or NaN
+    return v;
+  }
+  const TI truncated = static_cast<TI>(v.raw);
+  if (truncated == 0) return CopySignToAbs(Vec1<T>(0), v);
+  return Vec1<T>(static_cast<T>(truncated));
 }
 
 template <typename Float, typename Bits, int kMantissaBits, int kExponentBits,

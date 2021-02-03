@@ -2343,20 +2343,6 @@ HWY_INLINE Vec128<int64_t, 1> ConvertTo(Simd<int64_t, 1> /* tag */,
   return Vec128<int64_t, 1>(vcvt_s64_f64(v.raw));
 }
 
-HWY_INLINE Vec128<int32_t> NearestInt(const Vec128<float> v) {
-  return Vec128<int32_t>(vcvtnq_s32_f32(v.raw));
-}
-template <size_t N, HWY_IF_LE64(float, N)>
-HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
-  return Vec128<int32_t, N>(vcvtn_s32_f32(v.raw));
-}
-
-#else
-
-template <size_t N>
-HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
-  return ConvertTo(Simd<int32_t, N>(), Round(v));
-}
 #endif
 
 // ------------------------------ Round (IfThenElse, mask, logical)
@@ -2375,60 +2361,96 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Ceil, vrndp, _, 1)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Floor, vrndm, _, 1)
 #else
 
+// ------------------------------ Trunc
+
+// ARMv7 only supports truncation to integer. We can either convert back to
+// float (3 floating-point and 2 logic operations) or manipulate the binary32
+// representation, clearing the lowest 23-exp mantissa bits. This requires 9
+// integer operations and 3 constants, which is likely more expensive.
+
 template <size_t N>
 HWY_INLINE Vec128<float, N> Trunc(const Vec128<float, N> v) {
-  const Simd<uint32_t, N> du;
-  const Simd<int32_t, N> di;
   const Simd<float, N> df;
-  const auto v_bits = BitCast(du, v);
-  const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
-  const auto bits_to_remove =
-      Set(du, 150) - Max(Min(biased_exp, Set(du, 150)), Set(du, 127));
-  const auto mask = (Set(du, 1) << bits_to_remove) - Set(du, 1);
-  return BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
-                                    BitCast(di, AndNot(mask, v_bits))));
+  const Simd<int32_t, N> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // The original value is already the desired result if NaN or the magnitude is
+  // large (i.e. the value is already an integer).
+  const auto max = Set(df, MantissaEnd<float>());
+  return IfThenElse(Abs(v) < max, int_f, v);
 }
 
-// WARNING: does not quite have the same semantics as what NEON does on
-// aarch64. In particular, does not break ties to even.
 template <size_t N>
 HWY_INLINE Vec128<float, N> Round(const Vec128<float, N> v) {
-  const Simd<uint32_t, N> du;
   const Simd<float, N> df;
-  const auto sign_mask = BitCast(df, Set(du, 0x80000000u));
-  // move 0.5f away from 0 and call truncate.
-  return Trunc(v + ((v & sign_mask) | Set(df, 0.5f)));
+
+  // ARMv7 also lacks a native NearestInt, but we can instead rely on rounding
+  // (we assume the current mode is nearest-even) after addition with a large
+  // value such that no mantissa bits remain. We may need a compiler flag for
+  // precise floating-point to prevent this from being "optimized" out.
+  const auto max = Set(df, MantissaEnd<float>());
+  const auto large = CopySignToAbs(max, v);
+  const auto added = large + v;
+  const auto rounded = added - large;
+
+  // Keep original if NaN or the magnitude is large (already an int).
+  return IfThenElse(Abs(v) < max, rounded, v);
 }
 
 template <size_t N>
 HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
-  const Simd<uint32_t, N> du;
-  const Simd<int32_t, N> di;
   const Simd<float, N> df;
-  const auto sign_mask = Set(du, 0x80000000u);
-  const auto v_bits = BitCast(du, v);
-  const auto biased_exp = ShiftRight<23>(v_bits) & Set(du, 0xFF);
-  const auto bits_to_remove =
-      Set(du, 150) - Max(Min(biased_exp, Set(du, 150)), Set(du, 127));
-  const auto high_bit = Set(du, 1) << bits_to_remove;
-  const auto mask = high_bit - Set(du, 1);
-  const auto removed_bits = mask & v_bits;
-  // number is positive and at least one bit was set in the mantissa
-  const auto should_round_up = MaskFromVec(
-      BitCast(df, AndNot(VecFromMask(du, removed_bits == Zero(du)),
-                         VecFromMask(du, Zero(du) == (v_bits & sign_mask)))));
-  const auto add_one = IfThenElseZero(should_round_up, Set(df, 1.0f));
-  const auto rounded =
-      BitCast(df, IfThenZeroElse(BitCast(di, biased_exp) < Set(di, 127),
-                                 BitCast(di, AndNot(mask, v_bits))));
-  return rounded + add_one;
+  const Simd<int32_t, N> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a positive non-integer ends up smaller; if so, add 1.
+  const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
+
+  // Keep original if NaN or the magnitude is large (already an int).
+  const auto max = Set(df, MantissaEnd<float>());
+  return IfThenElse(Abs(v) < max, int_f - neg1, v);
 }
 
 template <size_t N>
 HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
   const Simd<float, N> df;
-  const auto zero = Zero(df);
-  return zero - Ceil(zero - v);
+  const Simd<int32_t, N> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a negative non-integer ends up larger; if so, subtract 1.
+  const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
+
+  // Keep original if NaN or the magnitude is large (already an int).
+  const auto max = Set(df, MantissaEnd<float>());
+  return IfThenElse(Abs(v) < max, int_f + neg1, v);
+}
+
+#endif
+
+// ------------------------------ NearestInt (Round)
+
+#if defined(__aarch64__)
+
+HWY_INLINE Vec128<int32_t> NearestInt(const Vec128<float> v) {
+  return Vec128<int32_t>(vcvtnq_s32_f32(v.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
+  return Vec128<int32_t, N>(vcvtn_s32_f32(v.raw));
+}
+
+#else
+
+template <size_t N>
+HWY_INLINE Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
+  const Simd<int32_t, N> di;
+  return ConvertTo(di, Round(v));
 }
 
 #endif

@@ -285,7 +285,8 @@ struct TestDemoteToFloat {
         } while (!IsFinite(from[i]));
         const T magn = std::abs(from[i]);
         const T max_abs = HighestValue<ToT>();
-        // RVV toolchain lacks std::copysign.
+        // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
+        // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
         const T clipped = copysign(std::min(magn, max_abs), from[i]);
         expected[i] = static_cast<ToT>(clipped);
       }

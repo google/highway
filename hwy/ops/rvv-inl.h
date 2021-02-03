@@ -1520,24 +1520,44 @@ HWY_API V AbsDiff(const V a, const V b) {
 
 // ------------------------------ Round
 
-// TODO(janwas): not yet in spec
+// IEEE-754 roundToIntegralTiesToEven returns floating-point, but we do not have
+// a dedicated instruction for that. Rounding to integer and converting back to
+// float is correct except when the input magnitude is large, in which case the
+// input was already an integer (because mantissa >> exponent is zero).
 
 namespace detail {
 enum RoundingModes { kNear, kTrunc, kDown, kUp };
+
+template <class V>
+HWY_API auto UseInt(const V v) -> decltype(MaskFromVec(v)) {
+  return Lt(Abs(v), Set(DFromV<V>(), MantissaEnd<TFromV<V>>()));
 }
+
+}  // namespace detail
 
 template <class V>
 HWY_API V Round(const V v) {
-  return ConvertTo(DFromV<V>(), NearestInt(v));
+  const DFromV<V> df;
+
+  const auto integer = NearestInt(v);  // round using current mode
+  const auto int_f = ConvertTo(df, integer);
+
+  const auto rounded = IfThenElse(detail::UseInt(v), int_f, v);
+  return CopySign(rounded, v);
 }
 
 // ------------------------------ Trunc
 
 template <class V>
 HWY_API V Trunc(const V v) {
-  using DF = DFromV<V>;
-  const RebindToSigned<DF> di;
-  return ConvertTo(DF(), ConvertTo(di, v));
+  const DFromV<V> df;
+  const RebindToSigned<decltype(df)> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  const auto trunc = IfThenElse(detail::UseInt(v), int_f, v);
+  return CopySign(trunc, v);
 }
 
 // ------------------------------ Ceil
