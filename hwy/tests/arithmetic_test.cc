@@ -15,6 +15,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/arithmetic_test.cc"
 #include "hwy/foreach_target.h"
@@ -429,8 +433,8 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
 
     const auto v0 = Zero(d);
-    const auto vmin = Set(d, LimitsMin<T>());
-    const auto vmax = Set(d, LimitsMax<T>());
+    const auto vmin = Set(d, T(-1E80));
+    const auto vmax = Set(d, T(1E80));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(v0, vmin));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, v0));
     HWY_ASSERT_VEC_EQ(d, v0, Max(v0, vmin));
@@ -914,8 +918,8 @@ struct TestMinOfLanes {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
 
-    // Lane i = bit i, higher lanes 2 (not the minimum)
-    T min = LimitsMax<T>();
+    // Lane i = bit i, higher lanes = 2 (not the minimum)
+    T min = HighestValue<T>();
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
@@ -925,7 +929,7 @@ struct TestMinOfLanes {
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
 
     // Lane i = N - i to include upper lanes
-    min = LimitsMax<T>();
+    min = HighestValue<T>();
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = N - i;  // no 8-bit so no wraparound
       min = std::min(min, in_lanes[i]);
@@ -940,7 +944,7 @@ struct TestMaxOfLanes {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
 
-    T max = LimitsMin<T>();
+    T max = LowestValue<T>();
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
@@ -950,7 +954,7 @@ struct TestMaxOfLanes {
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
 
     // Lane i = i to include upper lanes
-    max = LimitsMin<T>();
+    max = LowestValue<T>();
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = i;  // no 8-bit so no wraparound
       max = std::max(max, in_lanes[i]);
@@ -991,7 +995,7 @@ struct TestAbsDiff {
     for (size_t i = 0; i < N; ++i) {
       in_lanes_a[i] = static_cast<T>((i ^ 1u) << i);
       in_lanes_b[i] = static_cast<T>(i << i);
-      out_lanes[i] = fabsf(in_lanes_a[i] - in_lanes_b[i]);
+      out_lanes[i] = std::abs(in_lanes_a[i] - in_lanes_b[i]);
     }
     const auto a = Load(d, in_lanes_a.get());
     const auto b = Load(d, in_lanes_b.get());

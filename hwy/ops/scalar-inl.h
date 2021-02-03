@@ -21,6 +21,7 @@
 #include <algorithm>  // std::min
 #include <cmath>
 
+#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -797,9 +798,9 @@ HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
 
   // Prevent ubsan errors when converting float to narrower integer/float
   if (std::isinf(from.raw) ||
-      std::fabs(from.raw) > static_cast<FromT>(LimitsMax<ToT>())) {
-    return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
-                                            : LimitsMax<ToT>());
+      std::fabs(from.raw) > static_cast<FromT>(HighestValue<ToT>())) {
+    return Vec1<ToT>(std::signbit(from.raw) ? LowestValue<ToT>()
+                                            : HighestValue<ToT>());
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }

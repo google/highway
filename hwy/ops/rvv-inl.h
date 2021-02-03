@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -1434,7 +1435,7 @@ template <class V>
 HWY_API V MinOfLanes(const V v) {
   using T = TFromV<V>;
   const Simd<T, HWY_LANES(T)> d1;  // always m1
-  const auto neutral = Set(d1, LimitsMax<T>());
+  const auto neutral = Set(d1, HighestValue<T>());
   return detail::RedMin(v, neutral);
 }
 
@@ -1451,7 +1452,7 @@ template <class V>
 HWY_API V MaxOfLanes(const V v) {
   using T = TFromV<V>;
   const Simd<T, HWY_LANES(T)> d1;  // always m1
-  const auto neutral = Set(d1, LimitsMin<T>());
+  const auto neutral = Set(d1, LowestValue<T>());
   return detail::RedMax(v, neutral);
 }
 

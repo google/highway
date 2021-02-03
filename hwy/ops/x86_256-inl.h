@@ -23,8 +23,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Required for promotion/demotion and users of HWY_CAPPED.
-#include "hwy/ops/x86_128-inl.h"  // already includes shared-inl.h
+// For half-width vectors. Already includes base.h and shared-inl.h.
+#include "hwy/ops/x86_128-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -1359,14 +1359,14 @@ HWY_API Vec256<T> GatherOffset(hwy::SizeTag<8> /* tag */, Full256<T> /* tag */,
                                const T* HWY_RESTRICT base,
                                const Vec256<int64_t> offset) {
   return Vec256<T>{_mm256_i64gather_epi64(
-      reinterpret_cast<const hwy::GatherIndex64*>(base), offset.raw, 1)};
+      reinterpret_cast<const GatherIndex64*>(base), offset.raw, 1)};
 }
 template <typename T>
 HWY_API Vec256<T> GatherIndex(hwy::SizeTag<8> /* tag */, Full256<T> /* tag */,
                               const T* HWY_RESTRICT base,
                               const Vec256<int64_t> index) {
   return Vec256<T>{_mm256_i64gather_epi64(
-      reinterpret_cast<const hwy::GatherIndex64*>(base), index.raw, 8)};
+      reinterpret_cast<const GatherIndex64*>(base), index.raw, 8)};
 }
 
 }  // namespace detail

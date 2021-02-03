@@ -788,7 +788,8 @@ constant-propagation issues with Clang on ARM.
 
 *   `IsFloat<T>()` returns true if the `T` is a floating-point type.
 *   `IsSigned<T>()` returns true if the `T` is a signed or floating-point type.
-*   `LimitsMin/Max<T>()` return the smallest/largest value representable in `T`.
+*   `LimitsMin/Max<T>()` return the smallest/largest value representable in
+    integer `T`.
 *   `SizeTag<N>` is an empty struct, used to select overloaded functions
     appropriate for `N` bytes.
 

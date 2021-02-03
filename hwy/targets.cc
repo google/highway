@@ -36,14 +36,13 @@
 #endif
 
 namespace hwy {
-
 namespace {
+
+#if HWY_ARCH_X86
 
 bool IsBitSet(const uint32_t reg, const int index) {
   return (reg & (1U << index)) != 0;
 }
-
-#if HWY_ARCH_X86
 
 // Calls CPUID instruction with eax=level and ecx=count and returns the result
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).

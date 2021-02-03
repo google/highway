@@ -439,14 +439,12 @@ struct TestAllTrueFalse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto zero = Zero(d);
-    const T max = LimitsMax<T>();
-    const T min_nonzero = LimitsMin<T>() + 1;
-
     auto v = zero;
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
+
     HWY_ASSERT(AllTrue(Eq(v, zero)));
     HWY_ASSERT(!AllFalse(Eq(v, zero)));
 
@@ -456,12 +454,12 @@ struct TestAllTrueFalse {
 
     // Set each lane to nonzero and back to zero
     for (size_t i = 0; i < N; ++i) {
-      lanes[i] = max;
+      lanes[i] = T(1);
       v = Load(d, lanes.get());
       HWY_ASSERT(!AllTrue(Eq(v, zero)));
       HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
 
-      lanes[i] = min_nonzero;
+      lanes[i] = T(-1);
       v = Load(d, lanes.get());
       HWY_ASSERT(!AllTrue(Eq(v, zero)));
       HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));

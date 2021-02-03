@@ -16,7 +16,10 @@
 // External include guard in highway.h - see comment there.
 
 #include <arm_neon.h>
+#include <stddef.h>
+#include <stdint.h>
 
+#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -757,6 +760,14 @@ HWY_NEON_DEF_FUNCTION_INT_8(SaturatedSub, vqsub, _, 2)
 HWY_NEON_DEF_FUNCTION_INT_16(SaturatedSub, vqsub, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_8(SaturatedSub, vqsub, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_16(SaturatedSub, vqsub, _, 2)
+
+// Not part of API, used in implementation.
+namespace detail {
+HWY_NEON_DEF_FUNCTION_UINT_32(SaturatedSub, vqsub, _, 2)
+HWY_NEON_DEF_FUNCTION_UINT_64(SaturatedSub, vqsub, _, 2)
+HWY_NEON_DEF_FUNCTION_INT_32(SaturatedSub, vqsub, _, 2)
+HWY_NEON_DEF_FUNCTION_INT_64(SaturatedSub, vqsub, _, 2)
+}  // namespace detail
 
 // ------------------------------ Average
 
@@ -1552,25 +1563,6 @@ HWY_INLINE Vec128<int64_t> Gt(Vec128<int64_t> a, Vec128<int64_t> b) {
 }
 HWY_INLINE Vec128<int64_t, 1> Gt(Vec128<int64_t, 1> a, Vec128<int64_t, 1> b) {
   return Vec128<int64_t, 1>(vcgt_s64(a.raw, b.raw));
-}
-
-#else
-
-HWY_INLINE Vec128<uint64_t> SaturatedSub(Vec128<uint64_t> a,
-                                         Vec128<uint64_t> b) {
-  return Vec128<uint64_t>(vqsubq_u64(a.raw, b.raw));
-}
-HWY_INLINE Vec128<uint64_t, 1> SaturatedSub(Vec128<uint64_t, 1> a,
-                                            Vec128<uint64_t, 1> b) {
-  return Vec128<uint64_t, 1>(vqsub_u64(a.raw, b.raw));
-}
-
-HWY_INLINE Vec128<int64_t> SaturatedSub(Vec128<int64_t> a, Vec128<int64_t> b) {
-  return Vec128<int64_t>(vqsubq_s64(a.raw, b.raw));
-}
-HWY_INLINE Vec128<int64_t, 1> SaturatedSub(Vec128<int64_t, 1> a,
-                                           Vec128<int64_t, 1> b) {
-  return Vec128<int64_t, 1>(vqsub_s64(a.raw, b.raw));
 }
 
 #endif

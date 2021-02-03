@@ -68,28 +68,29 @@ HWY_NOINLINE void TestAllEquality() {
 
 // a > b should be true, verify that for Gt/Lt and with swapped args.
 template <class D>
-void EnsureGreater(D d, TFromD<D> a, TFromD<D> b) {
+void EnsureGreater(D d, TFromD<D> a, TFromD<D> b, const char* file, int line) {
   const auto mask_false = MaskFalse(d);
   const auto mask_true = MaskTrue(d);
 
   const auto va = Set(d, a);
   const auto vb = Set(d, b);
-  HWY_ASSERT_MASK_EQ(d, mask_true, Gt(va, vb));
-  HWY_ASSERT_MASK_EQ(d, mask_false, Lt(va, vb));
+  AssertMaskEqual(d, mask_true, Gt(va, vb), file, line);
+  AssertMaskEqual(d, mask_false, Lt(va, vb), file, line);
 
   // Swapped order
-  HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vb, va));
-  HWY_ASSERT_MASK_EQ(d, mask_true, Lt(vb, va));
+  AssertMaskEqual(d, mask_false, Gt(vb, va), file, line);
+  AssertMaskEqual(d, mask_true, Lt(vb, va), file, line);
 
   // Also ensure irreflexive
-  HWY_ASSERT_MASK_EQ(d, mask_false, Gt(va, va));
-  HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vb, vb));
-  HWY_ASSERT_MASK_EQ(d, mask_false, Lt(va, va));
-  HWY_ASSERT_MASK_EQ(d, mask_false, Lt(vb, vb));
+  AssertMaskEqual(d, mask_false, Gt(va, va), file, line);
+  AssertMaskEqual(d, mask_false, Gt(vb, vb), file, line);
+  AssertMaskEqual(d, mask_false, Lt(va, va), file, line);
+  AssertMaskEqual(d, mask_false, Lt(vb, vb), file, line);
 }
 
-// Integer and floating-point.
-struct TestStrict {
+#define HWY_ENSURE_GREATER(d, a, b) EnsureGreater(d, a, b, __FILE__, __LINE__)
+
+struct TestStrictInt {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const T min = LimitsMin<T>();
@@ -102,17 +103,17 @@ struct TestStrict {
     const auto mask_true = MaskTrue(d);
 
     // Individual values of interest
-    EnsureGreater(d, 2, 1);
-    EnsureGreater(d, 1, 0);
-    EnsureGreater(d, 0, -1);
-    EnsureGreater(d, -1, -2);
-    EnsureGreater(d, max, max / 2);
-    EnsureGreater(d, max, 1);
-    EnsureGreater(d, max, 0);
-    EnsureGreater(d, max, -1);
-    EnsureGreater(d, max, min);
-    EnsureGreater(d, 0, min);
-    EnsureGreater(d, min / 2, min);
+    HWY_ENSURE_GREATER(d, 2, 1);
+    HWY_ENSURE_GREATER(d, 1, 0);
+    HWY_ENSURE_GREATER(d, 0, -1);
+    HWY_ENSURE_GREATER(d, -1, -2);
+    HWY_ENSURE_GREATER(d, max, max / 2);
+    HWY_ENSURE_GREATER(d, max, 1);
+    HWY_ENSURE_GREATER(d, max, 0);
+    HWY_ENSURE_GREATER(d, max, -1);
+    HWY_ENSURE_GREATER(d, max, min);
+    HWY_ENSURE_GREATER(d, 0, min);
+    HWY_ENSURE_GREATER(d, min / 2, min);
 
     // Also use Iota to ensure lanes are independent
     HWY_ASSERT_MASK_EQ(d, mask_true, Gt(v2, vn));
@@ -129,14 +130,53 @@ struct TestStrict {
   }
 };
 
-HWY_NOINLINE void TestAllStrict() {
-  const ForExtendableVectors<TestStrict> test;
-  ForSignedTypes(test);
-  ForFloatTypes(test);
+HWY_NOINLINE void TestAllStrictInt() {
+  ForSignedTypes(ForExtendableVectors<TestStrictInt>());
 }
 
-// Floating-point.
-struct TestWeak {
+struct TestStrictFloat {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const T huge_neg = -1E70;
+    const T huge_pos = 1E90;
+    const auto v0 = Zero(d);
+    const auto v2 = Iota(d, T(2));
+    const auto vn = Neg(v2);
+
+    const auto mask_false = MaskFalse(d);
+    const auto mask_true = MaskTrue(d);
+
+    // Individual values of interest
+    HWY_ENSURE_GREATER(d, 2, 1);
+    HWY_ENSURE_GREATER(d, 1, 0);
+    HWY_ENSURE_GREATER(d, 0, -1);
+    HWY_ENSURE_GREATER(d, -1, -2);
+    HWY_ENSURE_GREATER(d, huge_pos, 1);
+    HWY_ENSURE_GREATER(d, huge_pos, 0);
+    HWY_ENSURE_GREATER(d, huge_pos, -1);
+    HWY_ENSURE_GREATER(d, huge_pos, huge_neg);
+    HWY_ENSURE_GREATER(d, 0, huge_neg);
+
+    // Also use Iota to ensure lanes are independent
+    HWY_ASSERT_MASK_EQ(d, mask_true, Gt(v2, vn));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Lt(vn, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, vn));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vn, v2));
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(vn, vn));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vn, vn));
+  }
+};
+
+HWY_NOINLINE void TestAllStrictFloat() {
+  ForFloatTypes(ForExtendableVectors<TestStrictFloat>());
+}
+
+struct TestWeakFloat {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v2 = Iota(d, 2);
@@ -156,8 +196,8 @@ struct TestWeak {
   }
 };
 
-HWY_NOINLINE void TestAllWeak() {
-  ForFloatTypes(ForPartialVectors<TestWeak>());
+HWY_NOINLINE void TestAllWeakFloat() {
+  ForFloatTypes(ForPartialVectors<TestWeakFloat>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -167,8 +207,10 @@ HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 HWY_BEFORE_TEST(HwyCompareTest);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMask);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
-HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrict);
-HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeak);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictInt);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);
 HWY_AFTER_TEST();
 #endif

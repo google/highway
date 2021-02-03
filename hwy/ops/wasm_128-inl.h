@@ -21,6 +21,7 @@
 
 #include <cmath>
 
+#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();

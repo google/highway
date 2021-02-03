@@ -22,8 +22,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Required for promotion/demotion and users of HWY_CAPPED.
-#include "hwy/ops/x86_256-inl.h"  // already includes shared-inl.h
+// For half-width vectors. Already includes base.h and shared-inl.h.
+#include "hwy/ops/x86_256-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {

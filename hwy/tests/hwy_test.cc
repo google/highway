@@ -94,12 +94,13 @@ struct TestSumMulAdd {
       x[i] = static_cast<T>(Random32(&rng) & 0xFF);
       add[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
-    MulAddLoop(d, mul, add, kSize, x);
-    double sum = 0.0;
-    for (auto xi : x) {
-      sum += static_cast<double>(xi);
+    double expected_sum = 0.0;
+    for (size_t i = 0; i < kSize; ++i) {
+      expected_sum += mul[i] * x[i] + add[i];
     }
-    HWY_ASSERT_EQ(78944.0, sum);
+
+    MulAddLoop(d, mul, add, kSize, x);
+    HWY_ASSERT_EQ(67008.0, expected_sum);
   }
 };
 

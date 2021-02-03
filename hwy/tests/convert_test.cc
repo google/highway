@@ -214,6 +214,7 @@ template <typename ToT>
 struct TestDemoteTo {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    static_assert(!IsFloat<ToT>(), "Use TestDemoteToFloat for float output");
     static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
     const Rebind<ToT, D> to_d;
 
@@ -241,7 +242,7 @@ struct TestDemoteTo {
   }
 };
 
-HWY_NOINLINE void TestAllDemoteTo() {
+HWY_NOINLINE void TestAllDemoteToInt() {
   ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int16_t());
   ForDemoteVectors<TestDemoteTo<uint8_t>, 4>()(int32_t());
 
@@ -253,15 +254,54 @@ HWY_NOINLINE void TestAllDemoteTo() {
 
   const ForDemoteVectors<TestDemoteTo<int16_t>, 2> to_i16;
   to_i16(int32_t());
+}
 
+HWY_NOINLINE void TestAllDemoteToMixed() {
+#if HWY_CAP_FLOAT64
+  const ForDemoteVectors<TestDemoteTo<int32_t>, 2> to_i32;
+  to_i32(double());
+#endif
+}
+
+template <typename ToT>
+struct TestDemoteToFloat {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    // For floats, we clamp differently and cannot call LimitsMin.
+    static_assert(IsFloat<ToT>(), "Use TestDemoteTo for integer output");
+    static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
+    const Rebind<ToT, D> to_d;
+
+    const size_t N = Lanes(from_d);
+    auto from = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<ToT>(N);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < 1000; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        do {
+          const uint64_t bits = rng();
+          memcpy(&from[i], &bits, sizeof(T));
+        } while (!IsFinite(from[i]));
+        const T magn = std::abs(from[i]);
+        const T max_abs = HighestValue<ToT>();
+        // RVV toolchain lacks std::copysign.
+        const T clipped = copysign(std::min(magn, max_abs), from[i]);
+        expected[i] = static_cast<ToT>(clipped);
+      }
+
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        DemoteTo(to_d, Load(from_d, from.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllDemoteToFloat() {
   // Must test f16 separately because we can only load/store/convert them.
 
 #if HWY_CAP_FLOAT64
-  const ForDemoteVectors<TestDemoteTo<float>, 2> to_float;
+  const ForDemoteVectors<TestDemoteToFloat<float>, 2> to_float;
   to_float(double());
-
-  const ForDemoteVectors<TestDemoteTo<int32_t>, 2> to_i32;
-  to_i32(double());
 #endif
 }
 
@@ -493,7 +533,9 @@ HWY_AFTER_NAMESPACE();
 HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToInt);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToMixed);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);

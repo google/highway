@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include <atomic>
+#include <cfloat>
 
 // Add to #if conditions to prevent IDE from graying out code.
 #if (defined __CDT_PARSER__) || (defined __INTELLISENSE__) || \
@@ -251,9 +252,11 @@
   } while (0)
 #endif
 
-//------------------------------------------------------------------------------
 
 namespace hwy {
+
+//------------------------------------------------------------------------------
+// Alignment
 
 // Not guaranteed to be an upper bound, but the alignment established by
 // aligned_allocator is HWY_MAX(HWY_ALIGNMENT, kMaxVectorSize).
@@ -270,8 +273,8 @@ static constexpr size_t kMaxVectorSize = 16;
 #define HWY_ALIGN_MAX alignas(16)
 #endif
 
-HWY_NORETURN void HWY_FORMAT(3, 4)
-    Abort(const char* file, int line, const char* format, ...);
+//------------------------------------------------------------------------------
+// Lane types
 
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
 // by concatenating base type and bits.
@@ -281,6 +284,47 @@ struct float16_t {
 };
 using float32_t = float;
 using float64_t = double;
+
+//------------------------------------------------------------------------------
+// Controlling overload resolution (SFINAE)
+
+template <bool Condition, class T>
+struct EnableIfT {};
+template <class T>
+struct EnableIfT<true, T> {
+  using type = T;
+};
+
+template <bool Condition, class T = void>
+using EnableIf = typename EnableIfT<Condition, T>::type;
+
+// Insert into template/function arguments to enable this overload only for
+// vectors of AT MOST this many bits.
+//
+// Note that enabling for exactly 128 bits is unnecessary because a function can
+// simply be overloaded with Vec128<T> and Full128<T> descriptor. Enabling for
+// other sizes (e.g. 64 bit) can be achieved with Simd<T, 8 / sizeof(T)>.
+#define HWY_IF_LE128(T, N) hwy::EnableIf<N * sizeof(T) <= 16>* = nullptr
+#define HWY_IF_LE64(T, N) hwy::EnableIf<N * sizeof(T) <= 8>* = nullptr
+#define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
+
+#define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
+#define HWY_IF_SIGNED(T) \
+  hwy::EnableIf<IsSigned<T>() && !IsFloat<T>()>* = nullptr
+#define HWY_IF_FLOAT(T) hwy::EnableIf<hwy::IsFloat<T>()>* = nullptr
+#define HWY_IF_NOT_FLOAT(T) hwy::EnableIf<!hwy::IsFloat<T>()>* = nullptr
+
+#define HWY_IF_LANE_SIZE(T, bytes) \
+  hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
+#define HWY_IF_NOT_LANE_SIZE(T, bytes) \
+  hwy::EnableIf<sizeof(T) != (bytes)>* = nullptr
+
+// Empty struct used as a size tag type.
+template <size_t N>
+struct SizeTag {};
+
+//------------------------------------------------------------------------------
+// Type traits
 
 template <typename T>
 constexpr bool IsFloat() {
@@ -295,24 +339,140 @@ constexpr bool IsSigned() {
 // Largest/smallest representable integer values.
 template <typename T>
 constexpr T LimitsMax() {
+  static_assert(!IsFloat<T>(), "Only for integer types");
   return IsSigned<T>() ? T((1ULL << (sizeof(T) * 8 - 1)) - 1)
                        : static_cast<T>(~0ull);
 }
 template <typename T>
 constexpr T LimitsMin() {
+  static_assert(!IsFloat<T>(), "Only for integer types");
   return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
 }
 
-// Manual control of overload resolution (SFINAE).
-template <bool Condition, class T>
-struct EnableIfT {};
-template <class T>
-struct EnableIfT<true, T> {
-  using type = T;
+// Largest/smallest representable value (integer or float). This naming avoids
+// confusion with numeric_limits<float>::min() (the smallest positive value).
+template <typename T>
+constexpr T LowestValue() {
+  return LimitsMin<T>();
+}
+template <>
+constexpr float LowestValue<float>() {
+  return -FLT_MAX;
+}
+template <>
+constexpr double LowestValue<double>() {
+  return -DBL_MAX;
+}
+
+template <typename T>
+constexpr T HighestValue() {
+  return LimitsMax<T>();
+}
+template <>
+constexpr float HighestValue<float>() {
+  return FLT_MAX;
+}
+template <>
+constexpr double HighestValue<double>() {
+  return DBL_MAX;
+}
+
+//------------------------------------------------------------------------------
+// Type relations
+
+namespace detail {
+
+template <typename T>
+struct Relations;
+template <>
+struct Relations<uint8_t> {
+  using Unsigned = uint8_t;
+  using Signed = int8_t;
+  using Wide = uint16_t;
+};
+template <>
+struct Relations<int8_t> {
+  using Unsigned = uint8_t;
+  using Signed = int8_t;
+  using Wide = int16_t;
+};
+template <>
+struct Relations<uint16_t> {
+  using Unsigned = uint16_t;
+  using Signed = int16_t;
+  using Wide = uint32_t;
+  using Narrow = uint8_t;
+};
+template <>
+struct Relations<int16_t> {
+  using Unsigned = uint16_t;
+  using Signed = int16_t;
+  using Wide = int32_t;
+  using Narrow = int8_t;
+};
+template <>
+struct Relations<uint32_t> {
+  using Unsigned = uint32_t;
+  using Signed = int32_t;
+  using Float = float;
+  using Wide = uint64_t;
+  using Narrow = uint16_t;
+};
+template <>
+struct Relations<int32_t> {
+  using Unsigned = uint32_t;
+  using Signed = int32_t;
+  using Float = float;
+  using Wide = int64_t;
+  using Narrow = int16_t;
+};
+template <>
+struct Relations<uint64_t> {
+  using Unsigned = uint64_t;
+  using Signed = int64_t;
+  using Float = double;
+  using Narrow = uint32_t;
+};
+template <>
+struct Relations<int64_t> {
+  using Unsigned = uint64_t;
+  using Signed = int64_t;
+  using Float = double;
+  using Narrow = int32_t;
+};
+template <>
+struct Relations<float> {
+  using Unsigned = uint32_t;
+  using Signed = int32_t;
+  using Float = float;
+  using Wide = double;
+};
+template <>
+struct Relations<double> {
+  using Unsigned = uint64_t;
+  using Signed = int64_t;
+  using Float = double;
+  using Narrow = float;
 };
 
-template <bool Condition, class T = void>
-using EnableIf = typename EnableIfT<Condition, T>::type;
+}  // namespace detail
+
+// Aliases for types of a different category, but the same size.
+template <typename T>
+using MakeUnsigned = typename detail::Relations<T>::Unsigned;
+template <typename T>
+using MakeSigned = typename detail::Relations<T>::Signed;
+template <typename T>
+using MakeFloat = typename detail::Relations<T>::Float;
+
+// Aliases for types of the same category, but different size.
+template <typename T>
+using MakeWide = typename detail::Relations<T>::Wide;
+template <typename T>
+using MakeNarrow = typename detail::Relations<T>::Narrow;
+
+//------------------------------------------------------------------------------
+// Helper functions
 
 template <typename T1, typename T2>
 constexpr inline T1 DivCeil(T1 a, T2 b) {
@@ -369,6 +529,9 @@ HWY_API void CopyBytes(const From* from, To* to) {
   __builtin_memcpy(to, from, kBytes);
 #endif
 }
+
+HWY_NORETURN void HWY_FORMAT(3, 4)
+    Abort(const char* file, int line, const char* format, ...);
 
 }  // namespace hwy
 

@@ -21,7 +21,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
+
+// Clang 3.9 generates VINSERTF128 instead of the desired VBROADCASTF128,
+// which would free up port5. However, inline assembly isn't supported on
+// MSVC, results in incorrect output on GCC 8.3, and raises "invalid output size
+// for constraint" errors on Clang (https://gcc.godbolt.org/z/-Jt_-F), hence we
+// disable it.
+#ifndef HWY_LOADDUP_ASM
+#define HWY_LOADDUP_ASM 0
+#endif
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -1721,6 +1731,10 @@ HWY_API void Stream(const Vec128<double, N> v, Simd<double, N> /* tag */,
 
 // ------------------------------ Gather
 
+// Unfortunately the GCC/Clang intrinsics do not accept int64_t*.
+using GatherIndex64 = long long int;  // NOLINT(google-runtime-int)
+static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
+
 #if HWY_TARGET == HWY_SSE4
 
 template <typename T, size_t N, typename Offset>
@@ -1767,14 +1781,14 @@ HWY_API Vec128<T, N> GatherOffset(hwy::SizeTag<8> /* tag */, Simd<T, N> /* d */,
                                   const T* HWY_RESTRICT base,
                                   const Vec128<int64_t, N> offset) {
   return Vec128<T, N>{_mm_i64gather_epi64(
-      reinterpret_cast<const hwy::GatherIndex64*>(base), offset.raw, 1)};
+      reinterpret_cast<const GatherIndex64*>(base), offset.raw, 1)};
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> GatherIndex(hwy::SizeTag<8> /* tag */, Simd<T, N> /* d */,
                                  const T* HWY_RESTRICT base,
                                  const Vec128<int64_t, N> index) {
   return Vec128<T, N>{_mm_i64gather_epi64(
-      reinterpret_cast<const hwy::GatherIndex64*>(base), index.raw, 8)};
+      reinterpret_cast<const GatherIndex64*>(base), index.raw, 8)};
 }
 
 }  // namespace detail

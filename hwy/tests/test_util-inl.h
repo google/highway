@@ -24,10 +24,12 @@
 #include <string.h>
 
 #include <cmath>  // isfinite
+#include <cstddef>
 #include <string>
 #include <utility>  // std::forward
 
 #include "hwy/aligned_allocator.h"
+#include "hwy/base.h"
 #include "hwy/highway.h"
 
 #ifndef HWY_TEST_STANDALONE
@@ -361,15 +363,25 @@ inline Out BitCast(const In& in) {
 }
 
 // Computes the difference in units of last place between x and y.
-static inline uint32_t ComputeUlpDelta(float x, float y) {
-  const uint32_t ux = BitCast<uint32_t>(x + 0.0f);  // -0.0 -> +0.0
-  const uint32_t uy = BitCast<uint32_t>(y + 0.0f);  // -0.0 -> +0.0
-  return std::abs(BitCast<int32_t>(ux - uy));
-}
-static inline uint64_t ComputeUlpDelta(double x, double y) {
-  const uint64_t ux = BitCast<uint64_t>(x + 0.0);  // -0.0 -> +0.0
-  const uint64_t uy = BitCast<uint64_t>(y + 0.0);  // -0.0 -> +0.0
-  return std::abs(BitCast<int64_t>(ux - uy));
+template <typename TF>
+MakeUnsigned<TF> ComputeUlpDelta(TF x, TF y) {
+  static_assert(IsFloat<TF>(), "Only makes sense for floating-point");
+  using TU = MakeUnsigned<TF>;
+
+  // Handle -0 == 0 and infinities.
+  if (x == y) return 0;
+
+  // Consider "equal" if both are NaN, so we can verify an expected NaN.
+  // Needs a special case because there are many possible NaN representations.
+  if (std::isnan(x) && std::isnan(y)) return 0;
+
+  // NOTE: no need to check for differing signs; they will result in large
+  // differences, which is fine, and we avoid overflow.
+
+  const TU ux = BitCast<TU>(x);
+  const TU uy = BitCast<TU>(y);
+  // Avoid unsigned->signed cast: 2's complement is only guaranteed by C++20.
+  return std::max(ux, uy) - std::min(ux, uy);
 }
 
 template <typename T, HWY_IF_NOT_FLOAT(T)>
@@ -379,14 +391,6 @@ HWY_NOINLINE bool IsEqual(const T expected, const T actual) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_NOINLINE bool IsEqual(const T expected, const T actual) {
-  // First check for NaN (consider two of them equal).
-  const bool finite_e = std::isfinite(expected);
-  const bool finite_a = std::isfinite(expected);
-  if (finite_e || finite_a) return finite_e == finite_a;
-
-  // Ensure -0 and 0 are equivalent (required by some tests).
-  if (expected == actual) return true;
-
   return ComputeUlpDelta(expected, actual) <= 1;
 }
 
