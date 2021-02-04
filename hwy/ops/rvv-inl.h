@@ -1542,8 +1542,7 @@ HWY_API V Round(const V v) {
   const auto integer = NearestInt(v);  // round using current mode
   const auto int_f = ConvertTo(df, integer);
 
-  const auto rounded = IfThenElse(detail::UseInt(v), int_f, v);
-  return CopySign(rounded, v);
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
 
 // ------------------------------ Trunc
@@ -1556,8 +1555,7 @@ HWY_API V Trunc(const V v) {
   const auto integer = ConvertTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
 
-  const auto trunc = IfThenElse(detail::UseInt(v), int_f, v);
-  return CopySign(trunc, v);
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
 
 // ------------------------------ Ceil
