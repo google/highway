@@ -108,7 +108,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     ```
     for (size_t i = 0; i < count; i += N) LoopBody<false>(d, 0);
     ```
-    Here, the template and second function argument are not needed.
+    Here, the template parameter and second function argument are not needed.
 
     This is the preferred option, unless `N` is in the thousands and vector
     operations are pipelined with long latencies. This was the case for
@@ -125,7 +125,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     for (; i + N <= count; i += N) LoopBody<false>(d, 0);
     for (; i < count; ++i) LoopBody<false>(HWY_CAPPED(T, 1)(), 0);
     ```
-    Here, the template and second function arguments are again not needed.
+    The template parameter and second function arguments are again not needed.
 
     This avoids duplicating code, and is reasonable if `count` is large.
     Otherwise, multiple iterations may be slower than one `LoopBody` variant
@@ -142,12 +142,13 @@ Highway offers several ways to express loops where `N` need not divide `count`:
       LoopBody<false>(d, 0);
     }
     if (i < count) {
-      LoopBody<true>(count - i);
+      LoopBody<true>(d, count - i);
     }
     ```
-    Now the template and second function argument can be used inside `LoopBody`
-    to replace `Load/Store` of full aligned vectors with `LoadN/StoreN(n)` that
-    affect no more than `n <= N` aligned elements (pending implementation).
+    Now the template parameter and second function argument can be used inside
+    `LoopBody` to replace `Load/Store` of full aligned vectors with
+    `LoadN/StoreN(n)` that affect no more than `1 <= n <= N` aligned elements
+    (pending implementation).
 
     This is a good default when it is infeasible to ensure vectors are padded.
     In contrast to the scalar loop, only a single final iteration is needed.
