@@ -324,6 +324,8 @@ HWY_API Vec<D> SignBit(D d) {
 template <class D>
 HWY_API Vec<D> NaN(D d) {
   const RebindToSigned<D> di;
+  // LimitsMax sets all exponent and mantissa bits to 1. The exponent plus
+  // mantissa MSB (to indicate quiet) would be sufficient.
   return BitCast(d, Set(di, LimitsMax<TFromD<decltype(di)>>()));
 }
 

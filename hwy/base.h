@@ -222,8 +222,9 @@
 #define HWY_CONCAT_IMPL(a, b) a##b
 #define HWY_CONCAT(a, b) HWY_CONCAT_IMPL(a, b)
 
+// Non-commutative: must have a, then b to match IEEE-754 behavior.
 #define HWY_MIN(a, b) ((a) < (b) ? (a) : (b))
-#define HWY_MAX(a, b) ((a) < (b) ? (b) : (a))
+#define HWY_MAX(a, b) ((a) > (b) ? (a) : (b))
 
 // Alternative for asm volatile("" : : : "memory"), which has no effect.
 #define HWY_FENCE std::atomic_thread_fence(std::memory_order_acq_rel)
