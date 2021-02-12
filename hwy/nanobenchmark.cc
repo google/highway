@@ -668,6 +668,8 @@ Ticks Overhead(const uint8_t* arg, const InputVec* inputs, const Params& p) {
 
 }  // namespace
 
+int Unpredictable1() { return timer::Start64() != ~0ULL; }
+
 size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
                const size_t num_inputs, Result* results, const Params& p) {
   NANOBENCHMARK_CHECK(num_inputs != 0);

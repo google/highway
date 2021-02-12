@@ -458,13 +458,27 @@ HWY_INLINE Vec1<double> Abs(const Vec1<double> a) {
 
 // ------------------------------ min/max
 
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT(T)>
 HWY_INLINE Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
   return Vec1<T>(HWY_MIN(a.raw, b.raw));
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_INLINE Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
+  if (std::isnan(a.raw)) return b;
+  if (std::isnan(b.raw)) return a;
+  return Vec1<T>(HWY_MIN(a.raw, b.raw));
+}
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
 HWY_INLINE Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
+  return Vec1<T>(HWY_MAX(a.raw, b.raw));
+}
+
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_INLINE Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
+  if (std::isnan(a.raw)) return b;
+  if (std::isnan(b.raw)) return a;
   return Vec1<T>(HWY_MAX(a.raw, b.raw));
 }
 

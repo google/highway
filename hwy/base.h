@@ -222,7 +222,6 @@
 #define HWY_CONCAT_IMPL(a, b) a##b
 #define HWY_CONCAT(a, b) HWY_CONCAT_IMPL(a, b)
 
-// Non-commutative: must have a, then b to match IEEE-754 behavior.
 #define HWY_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define HWY_MAX(a, b) ((a) > (b) ? (a) : (b))
 

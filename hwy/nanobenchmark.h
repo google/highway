@@ -81,6 +81,10 @@ double InvariantTicksPerSecond();
 
 }  // namespace platform
 
+// Returns 1, but without the compiler knowing what the value is. This prevents
+// optimizing out code.
+int Unpredictable1();
+
 // Input influencing the function being measured (e.g. number of bytes to copy).
 using FuncInput = size_t;
 

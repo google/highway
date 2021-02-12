@@ -53,16 +53,15 @@ class TwoArray {
   float* b_;
 };
 
-// Measures durations, verifies results, prints timings. `unpredictable1`
-// must have value 1 (unknown to the compiler to prevent elision).
+// Measures durations, verifies results, prints timings.
 template <class Benchmark>
-void RunBenchmark(const char* caption, const int unpredictable1) {
+void RunBenchmark(const char* caption) {
   printf("%10s: ", caption);
   const size_t kNumInputs = 1;
-  const FuncInput inputs[kNumInputs] = {Benchmark::NumItems() * unpredictable1};
+  const size_t num_items = Benchmark::NumItems() * Unpredictable1();
+  const FuncInput inputs[kNumInputs] = {num_items};
   Result results[kNumInputs];
 
-  const size_t num_items = Benchmark::NumItems() * unpredictable1;
   Benchmark benchmark(num_items);
 
   Params p;
@@ -212,11 +211,11 @@ struct BenchmarkDelta : public TwoArray {
   }
 };
 
-void RunBenchmarks(int unpredictable1) {
+void RunBenchmarks() {
   Intro();
   printf("------------------------ %s\n", TargetName(HWY_TARGET));
-  RunBenchmark<BenchmarkDot>("dot", unpredictable1);
-  RunBenchmark<BenchmarkDelta>("delta", unpredictable1);
+  RunBenchmark<BenchmarkDot>("dot");
+  RunBenchmark<BenchmarkDelta>("delta");
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -228,18 +227,18 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_EXPORT(RunBenchmarks);
 
-void Run(int argc) {
+void Run() {
   for (uint32_t target : SupportedAndGeneratedTargets()) {
     SetSupportedTargetsForTest(target);
-    HWY_DYNAMIC_DISPATCH(RunBenchmarks)(argc != 999);
+    HWY_DYNAMIC_DISPATCH(RunBenchmarks)();
   }
   SetSupportedTargetsForTest(0);  // Reset the mask afterwards.
 }
 
 }  // namespace hwy
 
-int main(int argc, char** /*argv*/) {
-  hwy::Run(argc);
+int main(int /*argc*/, char** /*argv*/) {
+  hwy::Run();
   return 0;
 }
 #endif  // HWY_ONCE

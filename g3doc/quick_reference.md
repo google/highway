@@ -180,10 +180,6 @@ bits are allowed. Abbreviations of the form `u32 = {u}{32}` may also be used.
 *   `V`: `{u}{8,16}` \
     <code>V **AverageRound**(V a, V b)</code> returns `(a[i] + b[i] + 1) / 2`.
 
-*   <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
-
-*   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
-
 *   <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
     `[lo[i], hi[i]]`.
 
@@ -201,6 +197,16 @@ bits are allowed. Abbreviations of the form `u32 = {u}{32}` may also be used.
 *   `V`: `f32` \
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
     `1.0 / a[i]`.
+
+**Note**: Min/Max corner cases are target-specific and may change. If either
+argument is qNaN, x86 SIMD returns the second argument, ARMv7 Neon returns NaN,
+Wasm is supposed to return NaN but does not always, but other targets actually
+uphold IEEE 754-2019 minimumNumber: returning the other argument if exactly one
+is qNaN, and NaN if both are.
+
+*   <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
+
+*   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
 
 #### Multiply
 

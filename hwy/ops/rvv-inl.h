@@ -502,17 +502,9 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shr, sra)
 
 // ------------------------------ Min
 
-// Same as HWY_RVV_RETV_ARGVV with reversed argument order for non-commutative
-// IEEE-754 min/max.
-#define HWY_RVV_MINMAX(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)            \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                     \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) { \
-    return v##OP##_vv_##CHAR##SEW##m##LMUL(b, a);                        \
-  }
-
-HWY_RVV_FOREACH_U(HWY_RVV_MINMAX, Min, minu)
-HWY_RVV_FOREACH_I(HWY_RVV_MINMAX, Min, min)
-HWY_RVV_FOREACH_F(HWY_RVV_MINMAX, Min, fmin)
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Min, minu)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Min, min)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Min, fmin)
 
 // ------------------------------ Max
 
@@ -524,11 +516,9 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, Max, fmax_vf)
 
 }  // namespace detail
 
-HWY_RVV_FOREACH_U(HWY_RVV_MINMAX, Max, maxu)
-HWY_RVV_FOREACH_I(HWY_RVV_MINMAX, Max, max)
-HWY_RVV_FOREACH_F(HWY_RVV_MINMAX, Max, fmax)
-
-#undef HWY_RVV_MINMAX
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Max, maxu)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Max, max)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Max, fmax)
 
 // ------------------------------ Mul
 

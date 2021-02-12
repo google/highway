@@ -22,8 +22,8 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/hwy_test.cc"
 #include "hwy/foreach_target.h"
-
 #include "hwy/highway.h"
+#include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/test_util-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -343,63 +343,64 @@ HWY_NOINLINE void TestAllSignBit() {
   ForFloatTypes(ForPartialVectors<TestSignBitFloat>());
 }
 
-template <class V>
-void AssertNaN(const V v, const char* file, int line) {
+template <class D, class V>
+void AssertNaN(const D d, const V v, const char* file, int line) {
   if (!std::isnan(GetLane(v))) {
-    Abort(file, line, "Expected NaN, got %f", GetLane(v));
+    const std::string type_name = TypeName(TFromD<D>(), Lanes(d));
+    Abort(file, line, "Expected %s NaN, got %E", type_name.c_str(), GetLane(v));
   }
 }
 
-#define HWY_ASSERT_NAN(v) AssertNaN(v, __FILE__, __LINE__)
+#define HWY_ASSERT_NAN(d, v) AssertNaN(d, v, __FILE__, __LINE__)
 
 struct TestNaN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v1 = Set(d, 1);
-    const auto nan = NaN(d);
-    HWY_ASSERT_NAN(nan);
+    const auto v1 = Set(d, T(Unpredictable1()));
+    const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
+    HWY_ASSERT_NAN(d, nan);
 
     // Arithmetic
-    HWY_ASSERT_NAN(Add(nan, v1));
-    HWY_ASSERT_NAN(Add(v1, nan));
-    HWY_ASSERT_NAN(Sub(nan, v1));
-    HWY_ASSERT_NAN(Sub(v1, nan));
-    HWY_ASSERT_NAN(Mul(nan, v1));
-    HWY_ASSERT_NAN(Mul(v1, nan));
-    HWY_ASSERT_NAN(Div(nan, v1));
-    HWY_ASSERT_NAN(Div(v1, nan));
+    HWY_ASSERT_NAN(d, Add(nan, v1));
+    HWY_ASSERT_NAN(d, Add(v1, nan));
+    HWY_ASSERT_NAN(d, Sub(nan, v1));
+    HWY_ASSERT_NAN(d, Sub(v1, nan));
+    HWY_ASSERT_NAN(d, Mul(nan, v1));
+    HWY_ASSERT_NAN(d, Mul(v1, nan));
+    HWY_ASSERT_NAN(d, Div(nan, v1));
+    HWY_ASSERT_NAN(d, Div(v1, nan));
 
     // FMA
-    HWY_ASSERT_NAN(MulAdd(nan, v1, v1));
-    HWY_ASSERT_NAN(MulAdd(v1, nan, v1));
-    HWY_ASSERT_NAN(MulAdd(v1, v1, nan));
-    HWY_ASSERT_NAN(MulSub(nan, v1, v1));
-    HWY_ASSERT_NAN(MulSub(v1, nan, v1));
-    HWY_ASSERT_NAN(MulSub(v1, v1, nan));
-    HWY_ASSERT_NAN(NegMulAdd(nan, v1, v1));
-    HWY_ASSERT_NAN(NegMulAdd(v1, nan, v1));
-    HWY_ASSERT_NAN(NegMulAdd(v1, v1, nan));
-    HWY_ASSERT_NAN(NegMulSub(nan, v1, v1));
-    HWY_ASSERT_NAN(NegMulSub(v1, nan, v1));
-    HWY_ASSERT_NAN(NegMulSub(v1, v1, nan));
+    HWY_ASSERT_NAN(d, MulAdd(nan, v1, v1));
+    HWY_ASSERT_NAN(d, MulAdd(v1, nan, v1));
+    HWY_ASSERT_NAN(d, MulAdd(v1, v1, nan));
+    HWY_ASSERT_NAN(d, MulSub(nan, v1, v1));
+    HWY_ASSERT_NAN(d, MulSub(v1, nan, v1));
+    HWY_ASSERT_NAN(d, MulSub(v1, v1, nan));
+    HWY_ASSERT_NAN(d, NegMulAdd(nan, v1, v1));
+    HWY_ASSERT_NAN(d, NegMulAdd(v1, nan, v1));
+    HWY_ASSERT_NAN(d, NegMulAdd(v1, v1, nan));
+    HWY_ASSERT_NAN(d, NegMulSub(nan, v1, v1));
+    HWY_ASSERT_NAN(d, NegMulSub(v1, nan, v1));
+    HWY_ASSERT_NAN(d, NegMulSub(v1, v1, nan));
 
     // Rcp/Sqrt
-    HWY_ASSERT_NAN(Sqrt(nan));
+    HWY_ASSERT_NAN(d, Sqrt(nan));
 
     // Sign manipulation
-    HWY_ASSERT_NAN(Abs(nan));
-    HWY_ASSERT_NAN(Neg(nan));
-    HWY_ASSERT_NAN(CopySign(nan, v1));
-    HWY_ASSERT_NAN(CopySignToAbs(nan, v1));
+    HWY_ASSERT_NAN(d, Abs(nan));
+    HWY_ASSERT_NAN(d, Neg(nan));
+    HWY_ASSERT_NAN(d, CopySign(nan, v1));
+    HWY_ASSERT_NAN(d, CopySignToAbs(nan, v1));
 
     // Rounding
-    HWY_ASSERT_NAN(Ceil(nan));
-    HWY_ASSERT_NAN(Floor(nan));
-    HWY_ASSERT_NAN(Round(nan));
-    HWY_ASSERT_NAN(Trunc(nan));
+    HWY_ASSERT_NAN(d, Ceil(nan));
+    HWY_ASSERT_NAN(d, Floor(nan));
+    HWY_ASSERT_NAN(d, Round(nan));
+    HWY_ASSERT_NAN(d, Trunc(nan));
 
     // Logical (And/AndNot/Xor will clear NaN!)
-    HWY_ASSERT_NAN(Or(nan, v1));
+    HWY_ASSERT_NAN(d, Or(nan, v1));
 
     // Comparison
     HWY_ASSERT(AllFalse(Eq(nan, v1)));
@@ -414,12 +415,12 @@ struct TestNaN {
 struct TestF32NaN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v1 = Set(d, 1);
-    const auto nan = NaN(d);
-    HWY_ASSERT_NAN(ApproximateReciprocal(nan));
-    HWY_ASSERT_NAN(ApproximateReciprocalSqrt(nan));
-    HWY_ASSERT_NAN(AbsDiff(nan, v1));
-    HWY_ASSERT_NAN(AbsDiff(v1, nan));
+    const auto v1 = Set(d, T(Unpredictable1()));
+    const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
+    HWY_ASSERT_NAN(d, ApproximateReciprocal(nan));
+    HWY_ASSERT_NAN(d, ApproximateReciprocalSqrt(nan));
+    HWY_ASSERT_NAN(d, AbsDiff(nan, v1));
+    HWY_ASSERT_NAN(d, AbsDiff(v1, nan));
   }
 };
 
@@ -427,27 +428,41 @@ struct TestF32NaN {
 struct TestFullNaN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v1 = Set(d, 1);
-    const auto nan = NaN(d);
+    const auto v1 = Set(d, T(Unpredictable1()));
+    const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
 
+    HWY_ASSERT_NAN(d, SumOfLanes(nan));
 // Reduction (pending clarification on RVV)
-#if !HWY_ARCH_RVV
-    HWY_ASSERT_NAN(MinOfLanes(nan));
-    HWY_ASSERT_NAN(MaxOfLanes(nan));
-    HWY_ASSERT_NAN(SumOfLanes(nan));
+#if HWY_TARGET != HWY_RVV
+    HWY_ASSERT_NAN(d, MinOfLanes(nan));
+    HWY_ASSERT_NAN(d, MaxOfLanes(nan));
 #endif
 
-    // Min/max (IEEE 754 rule: return 2nd arg if either is NaN)
-    // WARNING: gcc <7 and -ffast-math fail this test.
-#if !HWY_COMPILER_GCC || HWY_COMPILER_GCC >= 700
+#if HWY_ARCH_X86 && HWY_TARGET != HWY_SCALAR
+    // x86 SIMD returns the second operand if any input is NaN.
     HWY_ASSERT_VEC_EQ(d, v1, Min(nan, v1));
     HWY_ASSERT_VEC_EQ(d, v1, Max(nan, v1));
+    HWY_ASSERT_NAN(d, Min(v1, nan));
+    HWY_ASSERT_NAN(d, Max(v1, nan));
+#elif HWY_ARCH_WASM
+    // Should return NaN if any input is NaN, but does not for scalar.
+    // TODO(janwas): remove once this is fixed.
+#elif HWY_TARGET == HWY_NEON && !defined(__aarch64__)
+    // ARMv7 NEON returns NaN if any input is NaN.
+    HWY_ASSERT_NAN(d, Min(v1, nan));
+    HWY_ASSERT_NAN(d, Max(v1, nan));
+    HWY_ASSERT_NAN(d, Min(nan, v1));
+    HWY_ASSERT_NAN(d, Max(nan, v1));
+#else
+    // IEEE 754-2019 minimumNumber is defined as the other argument if exactly
+    // one is NaN, and qNaN if both are.
+    HWY_ASSERT_VEC_EQ(d, v1, Min(nan, v1));
+    HWY_ASSERT_VEC_EQ(d, v1, Max(nan, v1));
+    HWY_ASSERT_VEC_EQ(d, v1, Min(v1, nan));
+    HWY_ASSERT_VEC_EQ(d, v1, Max(v1, nan));
 #endif
-    // pending clarification on RVV
-#if !HWY_ARCH_RVV
-    HWY_ASSERT_NAN(Min(v1, nan));
-    HWY_ASSERT_NAN(Max(v1, nan));
-#endif
+    HWY_ASSERT_NAN(d, Min(nan, nan));
+    HWY_ASSERT_NAN(d, Max(nan, nan));
 
     // Comparison
     HWY_ASSERT(AllFalse(Eq(nan, v1)));

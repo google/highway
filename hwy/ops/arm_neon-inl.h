@@ -1598,8 +1598,12 @@ HWY_INLINE Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
 #endif
 }
 
-// Float
+// Float: IEEE minimumNumber on v8, otherwise NaN if any is NaN.
+#if defined(__aarch64__)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vminnm, _, 2)
+#else
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vmin, _, 2)
+#endif
 
 // ------------------------------ Max (IfThenElse, BroadcastSignBit)
 
@@ -1632,8 +1636,12 @@ HWY_INLINE Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
 #endif
 }
 
-// Float
+// Float: IEEE maximumNumber on v8, otherwise NaN if any is NaN.
+#if defined(__aarch64__)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmaxnm, _, 2)
+#else
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
+#endif
 
 // ================================================== MEMORY
 
