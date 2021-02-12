@@ -146,9 +146,9 @@ HWY_NORETURN void HWY_FORMAT(3, 4)
   // break there.
   __sanitizer_print_stack_trace();
 #endif  // defined(*_SANITIZER)
+  fflush(stderr);
 
 #if HWY_COMPILER_MSVC
-  __debugbreak();
   abort();  // Compile error without this due to HWY_NORETURN.
 #else
   __builtin_trap();
