@@ -2350,10 +2350,9 @@ HWY_API Vec128<MakeUnsigned<T>, N> Pow2(const Vec128<T, N> v) {
   // Insert 0 into lower halves for reinterpreting as binary32.
   const auto f0 = ZipLower(zero, upper);
   const auto f1 = ZipUpper(zero, upper);
-  // Do not use ConvertTo because it checks for overflow, which is redundant
-  // because we only care about v in [0, 16).
-  const Vec128<int32_t, N> bits0{_mm_cvttps_epi32(BitCast(df, f0).raw)};
-  const Vec128<int32_t, N> bits1{_mm_cvttps_epi32(BitCast(df, f1).raw)};
+  // See comment below.
+  const Vec128<int32_t, N> bits0{_mm_cvtps_epi32(BitCast(df, f0).raw)};
+  const Vec128<int32_t, N> bits1{_mm_cvtps_epi32(BitCast(df, f1).raw)};
   return Vec128<MakeUnsigned<T>, N>{_mm_packus_epi32(bits0.raw, bits1.raw)};
 }
 
@@ -2361,12 +2360,12 @@ HWY_API Vec128<MakeUnsigned<T>, N> Pow2(const Vec128<T, N> v) {
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<MakeUnsigned<T>, N> Pow2(const Vec128<T, N> v) {
   const Simd<T, N> d;
-  const Simd<MakeFloat<T>, N> df;
   const auto exp = ShiftLeft<23>(v);
   const auto f = exp + Set(d, 0x3F800000);  // 1.0f
-  // Do not use ConvertTo because it checks for overflow, which is redundant
-  // because we only care about v in [0, 32).
-  return Vec128<MakeUnsigned<T>, N>{_mm_cvttps_epi32(BitCast(df, f).raw)};
+  // Do not use ConvertTo because we rely on the native 0x80..00 overflow
+  // behavior. cvt instead of cvtt should be equivalent, but avoids test
+  // failure under GCC 10.2.1.
+  return Vec128<MakeUnsigned<T>, N>{_mm_cvtps_epi32(_mm_castsi128_ps(f.raw))};
 }
 
 }  // namespace detail

@@ -480,7 +480,7 @@ HWY_NOINLINE void TestAllAllTrueFalse() {
 class TestStoreMaskBits {
  public:
   template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
+  HWY_NOINLINE void operator()(T /*t*/, D d) {
     // TODO(janwas): remove once implemented (cast or vse1)
 #if HWY_TARGET != HWY_RVV
     RandomState rng;
