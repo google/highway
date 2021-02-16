@@ -382,6 +382,7 @@ constexpr double HighestValue<double>() {
 template <typename T>
 constexpr T MantissaEnd() {
   static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return 0;
 }
 template <>
 constexpr float MantissaEnd() {

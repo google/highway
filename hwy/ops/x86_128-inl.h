@@ -2841,7 +2841,6 @@ template <typename T, size_t N>
 HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                               const Mask128<T, N> mask) {
   const Simd<T, N> d;
-  const Simd<uint8_t, N> d8;
   const auto sign_bits = BitCast(d, VecFromMask(d, mask)).raw;
   return U64FromInt(_mm_movemask_epi8(sign_bits));
 }

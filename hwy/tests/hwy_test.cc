@@ -219,7 +219,7 @@ HWY_NOINLINE void TestAllName() { ForAllTypes(ForPartialVectors<TestName>()); }
 
 struct TestEqualInteger {
   template <class T>
-  HWY_NOINLINE void operator()(T t) const {
+  HWY_NOINLINE void operator()(T /*t*/) const {
     HWY_ASSERT(IsEqual(T(0), T(0)));
     HWY_ASSERT(IsEqual(T(1), T(1)));
     HWY_ASSERT(IsEqual(T(-1), T(-1)));
@@ -236,7 +236,7 @@ struct TestEqualInteger {
 
 struct TestEqualFloat {
   template <class T>
-  HWY_NOINLINE void operator()(T t) const {
+  HWY_NOINLINE void operator()(T /*t*/) const {
     HWY_ASSERT(IsEqual(T(0), T(0)));
     HWY_ASSERT(IsEqual(T(1), T(1)));
     HWY_ASSERT(IsEqual(T(-1), T(-1)));
