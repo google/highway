@@ -271,7 +271,7 @@ struct TestTableLookupLanes {
       for (size_t i = 0; i < N; ++i) {
         idx[i] = (i < 16) ? idx_source[i] : 0;
         // Avoid undefined results / asan error for scalar by capping indices.
-        if (idx[i] >= N) {
+        if (idx[i] >= static_cast<Index>(N)) {
           idx[i] = static_cast<Index>(N - 1);
         }
         expected[i] = idx[i] + 1;  // == v[idx[i]]
