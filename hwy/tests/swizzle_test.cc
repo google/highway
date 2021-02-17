@@ -234,7 +234,6 @@ struct TestTableLookupLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
-
     const size_t N = Lanes(d);
     auto idx = AllocateAligned<Index>(N);
     std::fill(idx.get(), idx.get() + N, Index(0));
@@ -281,6 +280,8 @@ struct TestTableLookupLanes {
       const auto actual = TableLookupLanes(v, opaque);
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
     }
+#else
+    (void)d;
 #endif
   }
 };
