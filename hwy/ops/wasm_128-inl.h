@@ -770,7 +770,7 @@ HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
   alignas(16) float output[4];
   wasm_v128_store(input, v.raw);
   for (size_t i = 0; i < 4; ++i) {
-    output[i] = std::round(input[i]);
+    output[i] = std::nearbyint(input[i]);
   }
   return Vec128<float, N>{wasm_v128_load(output)};
 }
@@ -1112,7 +1112,7 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   // Need a signed type for BroadcastSignBit.
   auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
   // Move the highest valid bit of the shift count into the sign bit.
-  test = ShiftLeft<28>(test);
+  test = ShiftLeft<12>(test);
 
   mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
   test = ShiftLeft<1>(test);  // next bit (descending order)
@@ -1168,7 +1168,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   // Need a signed type for BroadcastSignBit.
   auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
   // Move the highest valid bit of the shift count into the sign bit.
-  test = ShiftLeft<28>(test);
+  test = ShiftLeft<12>(test);
 
   mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
   test = ShiftLeft<1>(test);  // next bit (descending order)
