@@ -1323,107 +1323,196 @@ HWY_API Vec512<T> VecFromMask(Full512<T> /* tag */, const Mask512<T> v) {
 
 // ------------------------------ Mask logical
 
+// For Clang and GCC, mask intrinsics (KORTEST) weren't added until recently.
+#if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS) &&         \
+    (HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC >= 700 || \
+     HWY_COMPILER_CLANG >= 800)
+#define HWY_COMPILER_HAS_MASK_INTRINSICS 1
+#else
+#define HWY_COMPILER_HAS_MASK_INTRINSICS 0
+#endif
+
 namespace detail {
 
 template <typename T>
 HWY_API Mask512<T> Not(hwy::SizeTag<1> /*tag*/, const Mask512<T> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask64(m.raw)};
+#else
+  return Mask512<T>{!m.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Not(hwy::SizeTag<2> /*tag*/, const Mask512<T> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask32(m.raw)};
+#else
+  return Mask512<T>{!m.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Not(hwy::SizeTag<4> /*tag*/, const Mask512<T> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask16(m.raw)};
+#else
+  return Mask512<T>{!m.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Not(hwy::SizeTag<8> /*tag*/, const Mask512<T> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask8(m.raw)};
+#else
+  return Mask512<T>{!m.raw};
+#endif
 }
 
 template <typename T>
 HWY_API Mask512<T> And(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kand_mask64(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw & b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> And(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kand_mask32(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw & b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> And(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kand_mask16(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw & b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> And(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kand_mask8(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw & b.raw};
+#endif
 }
 
 template <typename T>
 HWY_API Mask512<T> AndNot(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
                           const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kandn_mask64(a.raw, b.raw)};
+#else
+  return Mask512<T>{~a.raw & b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> AndNot(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
                           const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kandn_mask32(a.raw, b.raw)};
+#else
+  return Mask512<T>{~a.raw & b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> AndNot(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
                           const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kandn_mask16(a.raw, b.raw)};
+#else
+  return Mask512<T>{~a.raw & b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> AndNot(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
                           const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kandn_mask8(a.raw, b.raw)};
+#else
+  return Mask512<T>{~a.raw & b.raw};
+#endif
 }
 
 template <typename T>
 HWY_API Mask512<T> Or(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
                       const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kor_mask64(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw | b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Or(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
                       const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kor_mask32(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw | b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Or(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
                       const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kor_mask16(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw | b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Or(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
                       const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kor_mask8(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw | b.raw};
+#endif
 }
 
 template <typename T>
 HWY_API Mask512<T> Xor(hwy::SizeTag<1> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kxor_mask64(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw ^ b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Xor(hwy::SizeTag<2> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kxor_mask32(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw ^ b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Xor(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kxor_mask16(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw ^ b.raw};
+#endif
 }
 template <typename T>
 HWY_API Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
                        const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kxor_mask8(a.raw, b.raw)};
+#else
+  return Mask512<T>{a.raw ^ b.raw};
+#endif
 }
 
 }  // namespace detail
@@ -2418,21 +2507,13 @@ Vec512<T> Iota(const Full512<T> d, const T2 first) {
 
 // ------------------------------ Mask
 
-// For Clang and GCC, KORTEST wasn't added until recently.
-#if HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC >= 700 || \
-    (HWY_COMPILER_CLANG >= 800 && !defined(__APPLE__))
-#define HWY_COMPILER_HAS_KORTEST 1
-#else
-#define HWY_COMPILER_HAS_KORTEST 0
-#endif
-
 // Beware: the suffix indicates the number of mask bits, not lane size!
 
 namespace detail {
 
 template <typename T>
 HWY_API bool AllFalse(hwy::SizeTag<1> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestz_mask64_u8(v.raw, v.raw);
 #else
   return v.raw == 0;
@@ -2440,7 +2521,7 @@ HWY_API bool AllFalse(hwy::SizeTag<1> /*tag*/, const Mask512<T> v) {
 }
 template <typename T>
 HWY_API bool AllFalse(hwy::SizeTag<2> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestz_mask32_u8(v.raw, v.raw);
 #else
   return v.raw == 0;
@@ -2448,7 +2529,7 @@ HWY_API bool AllFalse(hwy::SizeTag<2> /*tag*/, const Mask512<T> v) {
 }
 template <typename T>
 HWY_API bool AllFalse(hwy::SizeTag<4> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestz_mask16_u8(v.raw, v.raw);
 #else
   return v.raw == 0;
@@ -2456,7 +2537,7 @@ HWY_API bool AllFalse(hwy::SizeTag<4> /*tag*/, const Mask512<T> v) {
 }
 template <typename T>
 HWY_API bool AllFalse(hwy::SizeTag<8> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestz_mask8_u8(v.raw, v.raw);
 #else
   return v.raw == 0;
@@ -2474,7 +2555,7 @@ namespace detail {
 
 template <typename T>
 HWY_API bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestc_mask64_u8(v.raw, v.raw);
 #else
   return v.raw == 0xFFFFFFFFFFFFFFFFull;
@@ -2482,7 +2563,7 @@ HWY_API bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask512<T> v) {
 }
 template <typename T>
 HWY_API bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestc_mask32_u8(v.raw, v.raw);
 #else
   return v.raw == 0xFFFFFFFFull;
@@ -2490,7 +2571,7 @@ HWY_API bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask512<T> v) {
 }
 template <typename T>
 HWY_API bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestc_mask16_u8(v.raw, v.raw);
 #else
   return v.raw == 0xFFFFull;
@@ -2498,7 +2579,7 @@ HWY_API bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask512<T> v) {
 }
 template <typename T>
 HWY_API bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask512<T> v) {
-#if HWY_COMPILER_HAS_KORTEST
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
   return _kortestc_mask8_u8(v.raw, v.raw);
 #else
   return v.raw == 0xFFull;
