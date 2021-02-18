@@ -340,6 +340,8 @@ struct TestIntFromFloatHuge {
     // Huge negative (also lvalue for safety, but GCC bug was not triggered)
     const auto expected_min = Set(di, LimitsMin<TI>());
     HWY_ASSERT_VEC_EQ(di, expected_min, ConvertTo(di, Set(df, TF(-1E20))));
+#else
+    (void)df;
 #endif
   }
 };
