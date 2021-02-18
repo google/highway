@@ -1339,7 +1339,7 @@ HWY_API Mask512<T> Not(hwy::SizeTag<1> /*tag*/, const Mask512<T> m) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask64(m.raw)};
 #else
-  return Mask512<T>{!m.raw};
+  return Mask512<T>{~m.raw};
 #endif
 }
 template <typename T>
@@ -1347,7 +1347,7 @@ HWY_API Mask512<T> Not(hwy::SizeTag<2> /*tag*/, const Mask512<T> m) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask32(m.raw)};
 #else
-  return Mask512<T>{!m.raw};
+  return Mask512<T>{~m.raw};
 #endif
 }
 template <typename T>
@@ -1355,7 +1355,7 @@ HWY_API Mask512<T> Not(hwy::SizeTag<4> /*tag*/, const Mask512<T> m) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask16(m.raw)};
 #else
-  return Mask512<T>{!m.raw};
+  return Mask512<T>{static_cast<uint16_t>(~m.raw & 0xFFFF)};
 #endif
 }
 template <typename T>
@@ -1363,7 +1363,7 @@ HWY_API Mask512<T> Not(hwy::SizeTag<8> /*tag*/, const Mask512<T> m) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_knot_mask8(m.raw)};
 #else
-  return Mask512<T>{!m.raw};
+  return Mask512<T>{static_cast<uint8_t>(~m.raw & 0xFF)};
 #endif
 }
 
@@ -1391,7 +1391,7 @@ HWY_API Mask512<T> And(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kand_mask16(a.raw, b.raw)};
 #else
-  return Mask512<T>{a.raw & b.raw};
+  return Mask512<T>{static_cast<uint16_t>(a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -1400,7 +1400,7 @@ HWY_API Mask512<T> And(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kand_mask8(a.raw, b.raw)};
 #else
-  return Mask512<T>{a.raw & b.raw};
+  return Mask512<T>{static_cast<uint8_t>(a.raw & b.raw)};
 #endif
 }
 
@@ -1428,7 +1428,7 @@ HWY_API Mask512<T> AndNot(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kandn_mask16(a.raw, b.raw)};
 #else
-  return Mask512<T>{~a.raw & b.raw};
+  return Mask512<T>{static_cast<uint16_t>(~a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -1437,7 +1437,7 @@ HWY_API Mask512<T> AndNot(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kandn_mask8(a.raw, b.raw)};
 #else
-  return Mask512<T>{~a.raw & b.raw};
+  return Mask512<T>{static_cast<uint8_t>(~a.raw & b.raw)};
 #endif
 }
 
@@ -1465,7 +1465,7 @@ HWY_API Mask512<T> Or(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kor_mask16(a.raw, b.raw)};
 #else
-  return Mask512<T>{a.raw | b.raw};
+  return Mask512<T>{static_cast<uint16_t>(a.raw | b.raw)};
 #endif
 }
 template <typename T>
@@ -1474,7 +1474,7 @@ HWY_API Mask512<T> Or(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kor_mask8(a.raw, b.raw)};
 #else
-  return Mask512<T>{a.raw | b.raw};
+  return Mask512<T>{static_cast<uint8_t>(a.raw | b.raw)};
 #endif
 }
 
@@ -1502,7 +1502,7 @@ HWY_API Mask512<T> Xor(hwy::SizeTag<4> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kxor_mask16(a.raw, b.raw)};
 #else
-  return Mask512<T>{a.raw ^ b.raw};
+  return Mask512<T>{static_cast<uint16_t>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T>
@@ -1511,7 +1511,7 @@ HWY_API Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask512<T>{_kxor_mask8(a.raw, b.raw)};
 #else
-  return Mask512<T>{a.raw ^ b.raw};
+  return Mask512<T>{static_cast<uint8_t>(a.raw ^ b.raw)};
 #endif
 }
 

@@ -2276,9 +2276,9 @@ HWY_API Vec256<int64_t> ConvertTo(Full256<int64_t> di, const Vec256<double> v) {
   Store(v, Full256<double>(), lanes_d);
   alignas(32) int64_t lanes_i[4];
   for (size_t i = 0; i < 4; ++i) {
-    if (lanes_d[i] >= LimitsMax<int64_t>()) {
+    if (lanes_d[i] >= static_cast<double>(LimitsMax<int64_t>())) {
       lanes_i[i] = LimitsMax<int64_t>();
-    } else if (lanes_d[i] <= LimitsMin<int64_t>()) {
+    } else if (lanes_d[i] <= static_cast<double>(LimitsMin<int64_t>())) {
       lanes_i[i] = LimitsMin<int64_t>();
     } else {
       lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
