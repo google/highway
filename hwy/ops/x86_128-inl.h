@@ -2798,9 +2798,9 @@ HWY_API Vec128<int64_t, N> ConvertTo(Simd<int64_t, N> di,
   Store(v, Simd<double, N>(), lanes_d);
   alignas(16) int64_t lanes_i[2];
   for (size_t i = 0; i < N; ++i) {
-    if (lanes_d[i] >= LimitsMax<int64_t>()) {
+    if (lanes_d[i] >= static_cast<double>(LimitsMax<int64_t>())) {
       lanes_i[i] = LimitsMax<int64_t>();
-    } else if (lanes_d[i] <= LimitsMin<int64_t>()) {
+    } else if (lanes_d[i] <= static_cast<double>(LimitsMin<int64_t>())) {
       lanes_i[i] = LimitsMin<int64_t>();
     } else {
       lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
