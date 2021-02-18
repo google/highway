@@ -247,8 +247,15 @@
 #define HWY_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define HWY_MAX(a, b) ((a) > (b) ? (a) : (b))
 
-// Alternative for asm volatile("" : : : "memory"), which has no effect.
+// Compile-time fence to prevent undesirable code reordering. On Clang x86, the
+// typical asm volatile("" : : : "memory") has no effect, whereas atomic fence
+// does, without generating code.
+#if HWY_ARCH_X86
 #define HWY_FENCE std::atomic_thread_fence(std::memory_order_acq_rel)
+#else
+// TODO(janwas): investigate alternatives. On ARM, the above generates barriers.
+#define HWY_FENCE
+#endif
 
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
