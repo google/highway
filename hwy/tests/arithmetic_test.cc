@@ -433,8 +433,8 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
 
     const auto v0 = Zero(d);
-    const auto vmin = Set(d, T(-1E80));
-    const auto vmax = Set(d, T(1E80));
+    const auto vmin = Set(d, T(-1E30));
+    const auto vmax = Set(d, T(1E30));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(v0, vmin));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, v0));
     HWY_ASSERT_VEC_EQ(d, v0, Max(v0, vmin));
