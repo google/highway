@@ -175,7 +175,7 @@ std::string TestParamTargetNameAndT(
   HWY_TARGET_INSTANTIATE_TEST_SUITE_P(suite);       \
   static_assert(true, "For requiring trailing semicolon")
 
-#define HWY_AFTER_TEST(suite) \
+#define HWY_AFTER_TEST() \
   } /* namespace hwy */       \
   static_assert(true, "For requiring trailing semicolon")
 
@@ -201,7 +201,7 @@ std::string TestParamTargetNameAndT(
   void RunAll() {              \
     static_assert(true, "For requiring trailing semicolon")
 
-#define HWY_AFTER_TEST(suite)               \
+#define HWY_AFTER_TEST()               \
   } /* RunAll*/                             \
   } /* namespace hwy */                     \
   int main(int /*argc*/, char** /*argv*/) { \

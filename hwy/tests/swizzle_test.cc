@@ -19,7 +19,6 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/swizzle_test.cc"
 #include "hwy/foreach_target.h"
-
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -273,7 +272,7 @@ struct TestTableLookupLanes {
         if (idx[i] >= static_cast<Index>(N)) {
           idx[i] = static_cast<Index>(N - 1);
         }
-        expected[i] = idx[i] + 1;  // == v[idx[i]]
+        expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
       }
 
       const auto opaque = SetTableIndices(d, idx.get());
@@ -296,6 +295,7 @@ HWY_NOINLINE void TestAllTableLookupLanes() {
 struct TestInterleave {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TU = MakeUnsigned<T>;
     const size_t N = Lanes(d);
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
@@ -307,11 +307,11 @@ struct TestInterleave {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-
     const size_t blockN = 16 / sizeof(T);
     for (size_t i = 0; i < Lanes(d); ++i) {
       const size_t block = i / blockN;
-      expected[i] = (i % blockN) + block * 2 * blockN;
+      const size_t index = (i % blockN) + block * 2 * blockN;
+      expected[i] = static_cast<T>(index & LimitsMax<TU>());
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveLower(even, odd));
 

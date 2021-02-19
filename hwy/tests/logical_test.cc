@@ -225,7 +225,7 @@ struct TestCompress {
       size_t expected_pos = 0;
       for (size_t i = 0; i < N; ++i) {
         in_lanes[i] = static_cast<T>(Random32(&rng));
-        mask_lanes[i] = Random32(&rng) & 1;
+        mask_lanes[i] = static_cast<T>(Random32(&rng) & 1);
         if (mask_lanes[i] == 0) {  // Zero means true (easier to compare)
           expected[expected_pos++] = in_lanes[i];
         }
@@ -492,7 +492,7 @@ class TestStoreMaskBits {
     for (size_t rep = 0; rep < 100; ++rep) {
       // Generate random mask pattern.
       for (size_t i = 0; i < N; ++i) {
-        lanes[i] = (rng() & 1024) ? 1 : 0;
+        lanes[i] = static_cast<T>((rng() & 1024) ? 1 : 0);
       }
       const auto mask = Load(d, lanes.get()) == Zero(d);
 

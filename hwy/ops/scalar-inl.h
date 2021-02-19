@@ -345,12 +345,12 @@ HWY_INLINE Vec1<T> ShiftRightSame(const Vec1<T> v, int bits) {
 // Single-lane => same as ShiftLeftSame except for the argument type.
 template <typename T>
 HWY_INLINE Vec1<T> operator<<(const Vec1<T> v, const Vec1<T> bits) {
-  return ShiftLeftSame(v, bits.raw);
+  return ShiftLeftSame(v, static_cast<int>(bits.raw));
 }
 
 template <typename T>
 HWY_INLINE Vec1<T> operator>>(const Vec1<T> v, const Vec1<T> bits) {
-  return ShiftRightSame(v, bits.raw);
+  return ShiftRightSame(v, static_cast<int>(bits.raw));
 }
 
 // ================================================== ARITHMETIC

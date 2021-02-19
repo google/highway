@@ -940,7 +940,7 @@ struct TestMinOfLanes {
     // Lane i = N - i to include upper lanes
     min = HighestValue<T>();
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = N - i;  // no 8-bit so no wraparound
+      in_lanes[i] = static_cast<T>(N - i);  // no 8-bit T so no wraparound
       min = std::min(min, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
@@ -965,7 +965,7 @@ struct TestMaxOfLanes {
     // Lane i = i to include upper lanes
     max = LowestValue<T>();
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i;  // no 8-bit so no wraparound
+      in_lanes[i] = static_cast<T>(i);  // no 8-bit T so no wraparound
       max = std::max(max, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
