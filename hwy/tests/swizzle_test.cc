@@ -548,6 +548,8 @@ struct TestConcatHalves {
 
     HWY_ASSERT_VEC_EQ(d, expected,
                       ConcatUpperUpper(Load(d, hi.get()), Load(d, lo.get())));
+#else
+    (void)d;
 #endif
   }
 };
@@ -566,6 +568,8 @@ struct TestConcatLowerUpper {
     const auto lo = Iota(d, 1);
     const auto hi = Iota(d, 1 + N);
     HWY_ASSERT_VEC_EQ(d, Iota(d, 1 + N / 2), ConcatLowerUpper(hi, lo));
+#else
+    (void)d;
 #endif
   }
 };

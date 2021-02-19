@@ -320,7 +320,7 @@ namespace detail {
 HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGD, Iota0, id_v)
 
 template <class D, class DU = RebindToUnsigned<D>>
-HWY_API VFromD<DU> Iota0(const D d) {
+HWY_API VFromD<DU> Iota0(const D /*d*/) {
   Lanes(DU());
   return BitCastToUnsigned(Iota0(DU()));
 }
@@ -1480,6 +1480,8 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
     const size_t num_bytes = (Lanes(d8) + MLEN - 1) / MLEN;     \
     /* TODO(janwas): how to convert vbool* to vuint?*/          \
     /*Store(m, d8, p);*/                                        \
+    (void)m;                                                    \
+    (void)p;                                                    \
     return num_bytes;                                           \
   }
 HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, _, _)

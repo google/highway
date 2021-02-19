@@ -201,14 +201,14 @@ std::string TestParamTargetNameAndT(
   void RunAll() {              \
     static_assert(true, "For requiring trailing semicolon")
 
-#define HWY_AFTER_TEST(suite)        \
-  } /* RunAll*/                      \
-  } /* namespace hwy */              \
-  int main(int argc, char* argv[]) { \
-    hwy::RunAll();                   \
-    fprintf(stderr, "Success.\n");   \
-    return 0;                        \
-  }                                  \
+#define HWY_AFTER_TEST(suite)               \
+  } /* RunAll*/                             \
+  } /* namespace hwy */                     \
+  int main(int /*argc*/, char** /*argv*/) { \
+    hwy::RunAll();                          \
+    fprintf(stderr, "Success.\n");          \
+    return 0;                               \
+  }                                         \
   static_assert(true, "For requiring trailing semicolon")
 
 // TODO(janwas): this only works for tests with a single TEST.
@@ -575,6 +575,7 @@ struct ForFullVectors {
   void operator()(T t) const {
 #if HWY_TARGET == HWY_RVV
     ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+    (void)t;
 #else
     Test()(t, HWY_FULL(T)());
 #endif

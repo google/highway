@@ -511,6 +511,8 @@ class TestStoreMaskBits {
         HWY_ASSERT_EQ(bit, 0);
       }
     }
+#else
+    (void)d;
 #endif
   }
 };
