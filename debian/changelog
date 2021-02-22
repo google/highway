@@ -1,3 +1,9 @@
+highway (0.11.0-1) UNRELEASED; urgency=medium
+
+  * Add RVV+mask logical ops, allow Shl/ShiftLeftSame on all targets, more math
+
+ -- Jan Wassenberg <janwas@google.com>  Thu, 18 Feb 2021 20:00:00 +0200
+
 highway (0.7.0-1) UNRELEASED; urgency=medium
 
   * Added API stability notice, Compress[Store], contrib/, SignBit, CopySign
