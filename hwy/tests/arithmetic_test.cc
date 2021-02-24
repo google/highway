@@ -769,7 +769,7 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       MantissaEnd<T>() - T(1.5), MantissaEnd<T>() + T(1.5),
       // negative near limit
       -MantissaEnd<T>() - T(1.5), -MantissaEnd<T>() + T(1.5),
-      // +/- huge (but still fits in floa32t)
+      // +/- huge (but still fits in float)
       T(1E34), T(-1E35),
       // positive tiebreak
       T(1.5), T(2.5),

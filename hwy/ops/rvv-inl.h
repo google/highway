@@ -170,6 +170,14 @@ namespace detail {  // for code folding
     using Lane = HWY_RVV_T(BASE, SEW);                                    \
     using type = Simd<Lane, HWY_LANES(Lane) * LMUL>;                      \
   };
+using Vf16m1 = vfloat16m1_t;
+using Vf16m2 = vfloat16m2_t;
+using Vf16m4 = vfloat16m4_t;
+using Vf16m8 = vfloat16m8_t;
+using Df16m1 = Simd<float16_t, HWY_LANES(uint16_t) * 1>;
+using Df16m2 = Simd<float16_t, HWY_LANES(uint16_t) * 2>;
+using Df16m4 = Simd<float16_t, HWY_LANES(uint16_t) * 4>;
+using Df16m8 = Simd<float16_t, HWY_LANES(uint16_t) * 8>;
 
 HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
 #undef HWY_SPECIALIZE
@@ -921,6 +929,16 @@ HWY_API Vi64m8 PromoteTo(Di64m8 /* d */, const Vi32m4 v) {
 
 // ------------------------------ PromoteTo F
 
+HWY_API Vf32m2 PromoteTo(Df32m2 /* d */, const Vf16m1 v) {
+  return vfwcvt_f_f_v_f32m2(v);
+}
+HWY_API Vf32m4 PromoteTo(Df32m4 /* d */, const Vf16m2 v) {
+  return vfwcvt_f_f_v_f32m4(v);
+}
+HWY_API Vf32m8 PromoteTo(Df32m8 /* d */, const Vf16m4 v) {
+  return vfwcvt_f_f_v_f32m8(v);
+}
+
 HWY_API Vf64m2 PromoteTo(Df64m2 /* d */, const Vf32m1 v) {
   return vfwcvt_f_f_v_f64m2(v);
 }
@@ -1008,6 +1026,16 @@ HWY_API Vi8m2 DemoteTo(Di8m2 d, const Vi32m8 v) {
 }
 
 // ------------------------------ DemoteTo F
+
+HWY_API Vf16m1 DemoteTo(Df16m1 /* d */, const Vf32m2 v) {
+  return vfncvt_rod_f_f_w_f16m1(v);
+}
+HWY_API Vf16m2 DemoteTo(Df16m2 /* d */, const Vf32m4 v) {
+  return vfncvt_rod_f_f_w_f16m2(v);
+}
+HWY_API Vf16m4 DemoteTo(Df16m4 /* d */, const Vf32m8 v) {
+  return vfncvt_rod_f_f_w_f16m4(v);
+}
 
 HWY_API Vf32m1 DemoteTo(Df32m1 /* d */, const Vf64m2 v) {
   return vfncvt_rod_f_f_w_f32m1(v);

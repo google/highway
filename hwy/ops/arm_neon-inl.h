@@ -286,7 +286,7 @@ struct Raw128<int64_t, 2> {
 
 template <>
 struct Raw128<float16_t, 8> {
-  using type = float16x8_t;
+  using type = uint16x8_t;
 };
 
 template <>
@@ -344,7 +344,7 @@ struct Raw128<int64_t, 1> {
 
 template <>
 struct Raw128<float16_t, 4> {
-  using type = float16x4_t;
+  using type = uint16x4_t;
 };
 
 template <>
@@ -392,7 +392,7 @@ struct Raw128<int32_t, 1> {
 
 template <>
 struct Raw128<float16_t, 2> {
-  using type = float16x4_t;
+  using type = uint16x4_t;
 };
 
 template <>
@@ -423,7 +423,7 @@ struct Raw128<int16_t, 1> {
 
 template <>
 struct Raw128<float16_t, 1> {
-  using type = float16x4_t;
+  using type = uint16x4_t;
 };
 
 // 8 (same as 64)
@@ -2135,6 +2135,8 @@ HWY_INLINE Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
   return Vec128<int64_t, N>(vget_low_s64(vmovl_s32(v.raw)));
 }
 
+#if defined(__aarch64__)
+
 HWY_INLINE Vec128<float> PromoteTo(Full128<float> /* tag */,
                                    const Vec128<float16_t, 4> v) {
   return Vec128<float>(vcvt_f32_f16(v.raw));
@@ -2142,10 +2144,9 @@ HWY_INLINE Vec128<float> PromoteTo(Full128<float> /* tag */,
 template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
                                       const Vec128<float16_t, N> v) {
-  return Vec128<float, N>(vcvt_f32_f16(vcombine_f16(v.raw, v.raw)));
+  return Vec128<float, N>(vget_low_f32(vcvt_f32_f16(v.raw)));
 }
 
-#if defined(__aarch64__)
 HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
                                     const Vec128<float, 2> v) {
   return Vec128<double>(vcvt_f64_f32(v.raw));
@@ -2166,6 +2167,31 @@ HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
                                        const Vec128<int32_t, 1> v) {
   const int64x1_t i64 = vget_low_s64(vmovl_s32(v.raw));
   return Vec128<double, 1>(vcvt_f64_s64(i64));
+}
+
+#else
+
+template <size_t N>
+HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
+                                      const Vec128<float16_t, N> v) {
+  const Simd<uint16_t, N * 2> du16;
+  const Simd<int32_t, N> di32;
+  const Simd<uint32_t, N> du32;
+  const Simd<float, N> df32;
+  // Expand to u32 so we can shift.
+  const auto bits16 = PromoteTo(du32, Vec128<uint16_t, N>{v.raw});
+  const auto sign = ShiftRight<15>(bits16);
+  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
+  const auto mantissa = bits16 & Set(du32, 0x3FF);
+  const auto subnormal =
+      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
+                        Set(df32, 1.0f / 16384 / 1024));
+
+  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
+  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
+  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
+  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
+  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
 }
 
 #endif
@@ -2234,6 +2260,8 @@ HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
   return Vec128<int8_t, N>(vqmovn_s16(vcombine_s16(v.raw, v.raw)));
 }
 
+#if defined(__aarch64__)
+
 HWY_INLINE Vec128<float16_t, 4> DemoteTo(Simd<float16_t, 4> /* tag */,
                                          const Vec128<float> v) {
   return Vec128<float16_t, 4>{vcvt_f16_f32(v.raw)};
@@ -2241,10 +2269,9 @@ HWY_INLINE Vec128<float16_t, 4> DemoteTo(Simd<float16_t, 4> /* tag */,
 template <size_t N>
 HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
                                          const Vec128<float, N> v) {
-  return Vec128<float16_t, 4>{vcvt_f16_f32(vcombine_f32(v.raw, v.raw))};
+  return Vec128<float16_t, N>{vcvt_f16_f32(vcombine_f32(v.raw, v.raw))};
 }
 
-#if defined(__aarch64__)
 HWY_INLINE Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
                                      const Vec128<double> v) {
   return Vec128<float, 2>(vcvt_f32_f64(v.raw));
@@ -2265,6 +2292,39 @@ HWY_INLINE Vec128<int32_t, 1> DemoteTo(Simd<int32_t, 1> /* tag */,
   // There is no i64x1 -> i32x1 narrow, so expand to int64x2_t first.
   const int64x2_t i64x2 = vcombine_s64(i64, i64);
   return Vec128<int32_t, 1>(vqmovn_s64(i64x2));
+}
+
+#else
+
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
+                                         const Vec128<float, N> v) {
+  const Simd<int32_t, N> di;
+  const Simd<uint32_t, N> du;
+  const Simd<uint16_t, N> du16;
+  const Simd<float16_t, N> df16;
+  const auto bits32 = BitCast(du, v);
+  const auto sign = ShiftRight<31>(bits32);
+  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
+  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
+
+  const auto k15 = Set(di, 15);
+  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
+  const auto is_tiny = exp < Set(di, -24);
+
+  const auto is_subnormal = exp < Set(di, -14);
+  const auto biased_exp16 =
+      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
+  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
+  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
+                     (mantissa32 >> (Set(du, 13) + sub_exp));
+  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
+                                     ShiftRight<13>(mantissa32));  // <1024
+
+  const auto sign16 = ShiftLeft<15>(sign);
+  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
+  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
+  return Vec128<float16_t, N>(DemoteTo(du16, bits16).raw);
 }
 
 #endif
@@ -3003,7 +3063,7 @@ HWY_INLINE Vec128<double> InterleaveUpper(const Vec128<double> a,
 
 // ------------------------------ Zip lanes
 
-// Same as interleave_*, except that the return lanes are double-width integers;
+// Same as Interleave*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
 
 // Full vectors

@@ -2587,12 +2587,11 @@ template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
                                       const Vec128<float16_t, N> v) {
 #if HWY_TARGET == HWY_SSE4
-  const Simd<uint16_t, N> du16;
   const Simd<int32_t, N> di32;
   const Simd<uint32_t, N> du32;
   const Simd<float, N> df32;
   // Expand to u32 so we can shift.
-  const auto bits16 = ZipLower(BitCast(du16, v), Zero(du16));
+  const auto bits16 = PromoteTo(du32, Vec128<uint16_t, N>{v.raw});
   const auto sign = ShiftRight<15>(bits16);
   const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
   const auto mantissa = bits16 & Set(du32, 0x3FF);
@@ -2606,7 +2605,7 @@ HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
   const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
   return BitCast(df32, ShiftLeft<31>(sign) | bits32);
 #else
-  return Vec128<float>{_mm_cvtph_ps(v.raw)};
+  return Vec128<float, N>{_mm_cvtph_ps(v.raw)};
 #endif
 }
 
@@ -2686,13 +2685,14 @@ HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
   const auto biased_exp16 =
       BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
   const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
-  const auto sub_m = (Set(di, 1) << (Set(di, 10) - sub_exp)) +
-                     (mantissa32 >> (Set(di, 13) + sub_exp));
-  const auto mantissa16 =
-      IfThenElse(is_subnormal, sub_m, ShiftRight<13>(mantissa32));  // < 1024
+  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
+                     (mantissa32 >> (Set(du, 13) + sub_exp));
+  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
+                                     ShiftRight<13>(mantissa32));  // <1024
 
-  const auto bits16 = IfThenZeroElse(
-      is_tiny, ShiftLeft<15>(sign) | ShiftLeft<10>(biased_exp16) | mantissa16);
+  const auto sign16 = ShiftLeft<15>(sign);
+  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
+  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
   return BitCast(df16, DemoteTo(du16, bits16));
 #else
   return Vec128<float16_t, N>{_mm_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};

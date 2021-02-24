@@ -306,6 +306,55 @@ HWY_NOINLINE void TestAllDemoteToFloat() {
 #endif
 }
 
+template <class D>
+AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
+  const float test_cases[] = {
+      // +/- 1
+      1.0f, -1.0f,
+      // +/- 0
+      0.0f, -0.0f,
+      // near 0
+      0.25f, -0.25f,
+      // +/- integer
+      4.0f, -32.0f,
+      // positive near limit
+      65472.0f, 65504.0f,
+      // negative near limit
+      -65472.0f, -65504.0f,
+      // positive +/- delta
+      2.00390625f, 3.99609375f,
+      // negative +/- delta
+      -2.00390625f, -3.99609375f,
+      // No infinity/NaN - implementation-defined due to ARM.
+  };
+  const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
+  const size_t N = Lanes(d);
+  padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
+  auto in = AllocateAligned<float>(padded);
+  auto expected = AllocateAligned<float>(padded);
+  std::copy(test_cases, test_cases + kNumTestCases, in.get());
+  std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
+  return in;
+}
+
+struct TestF16 {
+  template <typename TF32, class DF32>
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
+    size_t padded;
+    auto in = F16TestCases(d32, padded);
+    auto expected = AllocateAligned<TF32>(padded);
+
+    const Rebind<float16_t, DF32> d16;
+
+    for (size_t i = 0; i < padded; i += Lanes(d32)) {
+      const auto loaded = Load(d32, &in[i]);
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, DemoteTo(d16, loaded)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16, 2>()(float()); }
+
 struct TestConvertU8 {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, const D du32) {
@@ -540,6 +589,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToMixed);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToFloat);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
