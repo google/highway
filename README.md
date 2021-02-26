@@ -52,6 +52,8 @@ cmake ..
 make -j && make test
 ```
 
+Or you can run `run_tests.sh` (`run_tests.bat` on Windows).
+
 To test on all the attainable targets for your platform, use
 `cmake .. -DCMAKE_CXX_FLAGS="-DHWY_COMPILE_ALL_ATTAINABLE"`. Otherwise, the
 default configuration skips baseline targets (e.g. scalar) that are superseded
