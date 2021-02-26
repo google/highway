@@ -539,7 +539,9 @@ if the input exceeds the destination range.
     zero and whose `LowerHalf` is the argument.
 
 *   <code>V **Combine**(V2, V2)</code>: returns vector whose `UpperHalf` is the
-    first argument and whose `LowerHalf` is the second argument.
+    first argument and whose `LowerHalf` is the second argument. This is
+    currently only implemented for RVV, AVX2, AVX3. If you need to assemble
+    <128 bit parts, please raise an issue to discuss.
 
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
