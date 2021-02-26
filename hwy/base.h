@@ -406,6 +406,21 @@ constexpr double HighestValue<double>() {
   return DBL_MAX;
 }
 
+// Returns bitmask of the exponent field in IEEE binary32/64.
+template <typename T>
+constexpr T ExponentMask() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return 0;
+}
+template <>
+constexpr uint32_t ExponentMask<uint32_t>() {
+  return 0x7F800000;
+}
+template <>
+constexpr uint64_t ExponentMask<uint64_t>() {
+  return 0x7FF0000000000000ULL;
+}
+
 // Returns 1 << mantissa_bits as a floating-point number. All integers whose
 // absolute value are less than this can be represented exactly.
 template <typename T>
@@ -414,7 +429,7 @@ constexpr T MantissaEnd() {
   return 0;
 }
 template <>
-constexpr float MantissaEnd() {
+constexpr float MantissaEnd<float>() {
   return 8388608.0f;  // 1 << 23
 }
 template <>

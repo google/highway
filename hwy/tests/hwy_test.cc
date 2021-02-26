@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -343,11 +344,27 @@ HWY_NOINLINE void TestAllSignBit() {
   ForFloatTypes(ForPartialVectors<TestSignBitFloat>());
 }
 
+// std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
+template <typename TF>
+bool IsNaN(TF f) {
+  MakeUnsigned<TF> bits;
+  memcpy(&bits, &f, sizeof(TF));
+  bits += bits;
+  bits >>= 1;  // clear sign bit
+  // NaN if all exponent bits are set and the mantissa is not zero.
+  return bits > ExponentMask<decltype(bits)>();
+}
+
 template <class D, class V>
 void AssertNaN(const D d, const V v, const char* file, int line) {
-  if (!std::isnan(GetLane(v))) {
-    const std::string type_name = TypeName(TFromD<D>(), Lanes(d));
-    Abort(file, line, "Expected %s NaN, got %E", type_name.c_str(), GetLane(v));
+  using T = TFromD<D>;
+  const T lane = GetLane(v);
+  if (!IsNaN(lane)) {
+    const std::string type_name = TypeName(T(), Lanes(d));
+    MakeUnsigned<T> bits;
+    memcpy(&bits, &lane, sizeof(T));
+    Abort(file, line, "Expected %s NaN, got %E (%" PRIu64 ")",
+          type_name.c_str(), lane, uint64_t(bits));
   }
 }
 
