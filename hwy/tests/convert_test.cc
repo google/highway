@@ -343,12 +343,14 @@ struct TestF16 {
     size_t padded;
     auto in = F16TestCases(d32, padded);
     auto expected = AllocateAligned<TF32>(padded);
-
-    const Rebind<float16_t, DF32> d16;
+    using TF16 = float16_t;
+    const Rebind<TF16, DF32> d16;
+    auto temp16 = AllocateAligned<TF16>(Lanes(d16));
 
     for (size_t i = 0; i < padded; i += Lanes(d32)) {
       const auto loaded = Load(d32, &in[i]);
-      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, DemoteTo(d16, loaded)));
+      Store(DemoteTo(d16, loaded), d16, temp16.get());
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, Load(d16, temp16.get())));
     }
   }
 };

@@ -516,6 +516,12 @@ HWY_NEON_DEF_FUNCTION_UINT_16(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 HWY_NEON_DEF_FUNCTION_UINT_32(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 HWY_NEON_DEF_FUNCTION_UINT_64(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 
+// Special case for float16_t, which has the same Raw as uint16_t.
+template <size_t N>
+HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<float16_t, N> v) {
+  return BitCastToByte(Vec128<uint16_t, N>(v.raw));
+}
+
 #undef HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
 #undef HWY_NEON_BUILD_RET_HWY_CAST_TO_U8
 #undef HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8
@@ -615,6 +621,13 @@ HWY_INLINE Vec128<double> BitCastFromByte(Full128<double> /* tag */,
   return Vec128<double>(vreinterpretq_f64_u8(v.raw));
 }
 #endif
+
+// Special case for float16_t, which has the same Raw as uint16_t.
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> BitCastFromByte(Simd<float16_t, N> /* tag */,
+                                                Vec128<uint8_t, N * 2> v) {
+  return Vec128<float16_t, N>(BitCastFromByte(Simd<uint16_t, N>(), v).raw);
+}
 
 }  // namespace detail
 
@@ -1829,6 +1842,15 @@ HWY_INLINE Vec128<int8_t, 1> LoadU(Simd<int8_t, 1> d,
   return Vec128<int8_t, 1>(b);
 }
 
+// float16_t uses the same Raw as uint16_t, so forward to that.
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> LoadU(Simd<float16_t, N> /*d*/,
+                                      const float16_t* HWY_RESTRICT p) {
+  const Simd<uint16_t, N> du16;
+  const auto pu16 = reinterpret_cast<const uint16_t*>(p);
+  return Vec128<float16_t, N>(LoadU(du16, pu16).raw);
+}
+
 // On ARM, Load is the same as LoadU.
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Load(Simd<T, N> d, const T* HWY_RESTRICT p) {
@@ -1997,6 +2019,15 @@ HWY_INLINE void StoreU(const Vec128<uint8_t, 1> v, Simd<uint8_t, 1>,
 HWY_INLINE void StoreU(const Vec128<int8_t, 1> v, Simd<int8_t, 1>,
                        int8_t* HWY_RESTRICT p) {
   vst1_lane_s8(p, v.raw, 0);
+}
+
+// float16_t uses the same Raw as uint16_t, so forward to that.
+template <size_t N>
+HWY_API void StoreU(Vec128<float16_t, N> v, Simd<float16_t, N> /* tag */,
+                    float16_t* HWY_RESTRICT p) {
+  const Simd<uint16_t, N> du16;
+  const auto pu16 = reinterpret_cast<uint16_t*>(p);
+  return StoreU(Vec128<uint16_t, N>(v.raw), du16, pu16);
 }
 
 // On ARM, Store is the same as StoreU.
@@ -2174,7 +2205,6 @@ HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
 template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
                                       const Vec128<float16_t, N> v) {
-  const Simd<uint16_t, N * 2> du16;
   const Simd<int32_t, N> di32;
   const Simd<uint32_t, N> du32;
   const Simd<float, N> df32;
@@ -2302,7 +2332,6 @@ HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
   const Simd<int32_t, N> di;
   const Simd<uint32_t, N> du;
   const Simd<uint16_t, N> du16;
-  const Simd<float16_t, N> df16;
   const auto bits32 = BitCast(du, v);
   const auto sign = ShiftRight<31>(bits32);
   const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);

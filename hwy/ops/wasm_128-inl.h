@@ -2013,9 +2013,23 @@ HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
 template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
                                       const Vec128<float16_t, N> v) {
-  (void)v;
-  static_assert(N != N, "TODO");
-  return Vec128<float, N>();  // TODO(janwas): implement
+  const Simd<int32_t, N> di32;
+  const Simd<uint32_t, N> du32;
+  const Simd<float, N> df32;
+  // Expand to u32 so we can shift.
+  const auto bits16 = PromoteTo(du32, Vec128<uint16_t, N>{v.raw});
+  const auto sign = ShiftRight<15>(bits16);
+  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
+  const auto mantissa = bits16 & Set(du32, 0x3FF);
+  const auto subnormal =
+      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
+                        Set(df32, 1.0f / 16384 / 1024));
+
+  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
+  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
+  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
+  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
+  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
@@ -2073,9 +2087,31 @@ HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> di,
 template <size_t N>
 HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
                                          const Vec128<float, N> v) {
-  (void)v;
-  static_assert(N != N, "TODO");
-  return Vec128<float16_t>();  // TODO(janwas): implement
+  const Simd<int32_t, N> di;
+  const Simd<uint32_t, N> du;
+  const Simd<uint16_t, N> du16;
+  const auto bits32 = BitCast(du, v);
+  const auto sign = ShiftRight<31>(bits32);
+  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
+  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
+
+  const auto k15 = Set(di, 15);
+  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
+  const auto is_tiny = exp < Set(di, -24);
+
+  const auto is_subnormal = exp < Set(di, -14);
+  const auto biased_exp16 =
+      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
+  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
+  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
+                     (mantissa32 >> (Set(du, 13) + sub_exp));
+  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
+                                     ShiftRight<13>(mantissa32));  // <1024
+
+  const auto sign16 = ShiftLeft<15>(sign);
+  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
+  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
+  return Vec128<float16_t, N>{DemoteTo(du16, bits16).raw};
 }
 
 // For already range-limited input [0, 255].
@@ -2233,7 +2269,7 @@ HWY_API size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
 template <typename T, size_t N>
 HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
-  const size_t kNumBytes = (N + 7)/8;
+  const size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(&bits, p);
   return kNumBytes;
 }

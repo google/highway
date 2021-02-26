@@ -307,10 +307,14 @@ static constexpr size_t kMaxVectorSize = 16;
 
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
 // by concatenating base type and bits.
+
+// RVV already has a builtin type.
+#if !HWY_ARCH_RVV
 struct float16_t {
   // __fp16 cannot be used as a function parameter in clang, so use a wrapper.
   uint16_t bits;
 };
+#endif
 using float32_t = float;
 using float64_t = double;
 

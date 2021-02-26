@@ -28,7 +28,7 @@ namespace hwy {
 // API version (https://semver.org/)
 #define HWY_MAJOR 0
 #define HWY_MINOR 11
-#define HWY_PATCH 0
+#define HWY_PATCH 1
 
 //------------------------------------------------------------------------------
 // Shorthand for descriptors (defined in shared-inl.h) used to select overloads.
@@ -299,33 +299,6 @@ using Mask = decltype(MaskFromVec(Zero(D())));
 template <class V>
 HWY_API V Clamp(const V v, const V lo, const V hi) {
   return Min(Max(lo, v), hi);
-}
-
-// Shared float16 Load/Store for all targets: same as u16 plus a cast.
-template <size_t N>
-HWY_API auto Load(Simd<float16_t, N> d, const float16_t* HWY_RESTRICT aligned)
-    -> decltype(Zero(d)) {
-  auto pu16 = reinterpret_cast<const uint16_t * HWY_RESTRICT>(aligned);
-  return BitCast(d, Load(Simd<uint16_t, N>(), pu16));
-}
-template <size_t N>
-HWY_API auto LoadU(Simd<float16_t, N> d, const float16_t* HWY_RESTRICT p)
-    -> decltype(Zero(d)) {
-  auto pu16 = reinterpret_cast<const uint16_t * HWY_RESTRICT>(p);
-  return BitCast(d, LoadU(Simd<uint16_t, N>(), pu16));
-}
-
-template <class V, size_t N>
-HWY_API void Store(V v, Simd<float16_t, N> /* tag */,
-                   float16_t* HWY_RESTRICT aligned) {
-  const Simd<uint16_t, N> du;
-  return Store(BitCast(du, v), du, reinterpret_cast<uint16_t*>(aligned));
-}
-template <class V, size_t N>
-HWY_API void StoreU(V v, Simd<float16_t, N> /* tag */,
-                    float16_t* HWY_RESTRICT p) {
-  const Simd<uint16_t, N> du;
-  return StoreU(BitCast(du, v), du, reinterpret_cast<uint16_t*>(p));
 }
 
 // CombineShiftRightBytes (and ..Lanes) are not available for the scalar target.

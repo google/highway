@@ -103,6 +103,8 @@ namespace detail {  // for code folding
   HWY_RVV_FOREACH_64(X_MACRO, int, i, NAME, OP)
 
 // SEW for float:
+#define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP) \
+  HWY_RVV_FOREACH_16(X_MACRO, float, f, NAME, OP)
 #define HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP) \
   HWY_RVV_FOREACH_32(X_MACRO, float, f, NAME, OP)
 #define HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP) \
@@ -122,6 +124,7 @@ namespace detail {  // for code folding
   HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP)
 
 #define HWY_RVV_FOREACH_F(X_MACRO, NAME, OP) \
+  HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP)     \
   HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP)     \
   HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP)
 

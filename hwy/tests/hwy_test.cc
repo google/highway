@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -363,8 +362,9 @@ void AssertNaN(const D d, const V v, const char* file, int line) {
     const std::string type_name = TypeName(T(), Lanes(d));
     MakeUnsigned<T> bits;
     memcpy(&bits, &lane, sizeof(T));
-    Abort(file, line, "Expected %s NaN, got %E (%" PRIu64 ")",
-          type_name.c_str(), lane, uint64_t(bits));
+    // RVV lacks PRIu64, so use size_t; double will be truncated on 32-bit.
+    Abort(file, line, "Expected %s NaN, got %E (%zu)", type_name.c_str(), lane,
+          size_t(bits));
   }
 }
 
