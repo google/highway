@@ -342,12 +342,12 @@ struct TestF16 {
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
     size_t padded;
     auto in = F16TestCases(d32, padded);
-    auto expected = AllocateAligned<TF32>(padded);
     using TF16 = float16_t;
     const Rebind<TF16, DF32> d16;
-    auto temp16 = AllocateAligned<TF16>(Lanes(d16));
+    const size_t N = Lanes(d32);  // same count for f16
+    auto temp16 = AllocateAligned<TF16>(N);
 
-    for (size_t i = 0; i < padded; i += Lanes(d32)) {
+    for (size_t i = 0; i < padded; i += N) {
       const auto loaded = Load(d32, &in[i]);
       Store(DemoteTo(d16, loaded), d16, temp16.get());
       HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, Load(d16, temp16.get())));

@@ -2583,9 +2583,17 @@ HWY_API Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
   return Vec128<int64_t, N>{_mm_cvtepi32_epi64(v.raw)};
 }
 
+// Workaround for origin tracking bug in Clang msan prior to 11.0
+// (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
+#if defined(MEMORY_SANITIZER) && \
+    (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
+#define HWY_INLINE_F16 HWY_NOINLINE
+#else
+#define HWY_INLINE_F16 HWY_INLINE
+#endif
 template <size_t N>
-HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
-                                      const Vec128<float16_t, N> v) {
+HWY_INLINE_F16 Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
+                                          const Vec128<float16_t, N> v) {
 #if HWY_TARGET == HWY_SSE4
   const Simd<int32_t, N> di32;
   const Simd<uint32_t, N> du32;
