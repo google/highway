@@ -677,7 +677,8 @@ size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
 
   const size_t num_skip = NumSkip(func, arg, unique, p);  // never 0
   if (num_skip == 0) return 0;  // NumSkip already printed error message
-  const float mul = 1.0f / static_cast<int>(num_skip);
+  // (slightly less work on x86 to cast from signed integer)
+  const float mul = 1.0f / static_cast<float>(static_cast<int>(num_skip));
 
   const InputVec& full =
       ReplicateInputs(inputs, num_inputs, unique.size(), num_skip, p);
@@ -710,7 +711,7 @@ size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
 
     const Ticks duration = (total - overhead) - (total_skip - overhead_skip);
     results[i].input = unique[i];
-    results[i].ticks = duration * mul;
+    results[i].ticks = static_cast<float>(duration) * mul;
     results[i].variability = static_cast<float>(max_rel_mad);
   }
 

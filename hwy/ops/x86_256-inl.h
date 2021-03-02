@@ -2479,7 +2479,8 @@ HWY_INLINE Vec256<uint32_t> Idx64x4FromBits(const uint64_t mask_bits) {
 HWY_API Vec256<uint32_t> Compress(Vec256<uint32_t> v,
                                   const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<uint32_t>{_mm256_maskz_compress_epi32(mask_bits, v.raw)};
+  return Vec256<uint32_t>{
+      _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
   return Vec256<uint32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
@@ -2487,7 +2488,8 @@ HWY_API Vec256<uint32_t> Compress(Vec256<uint32_t> v,
 }
 HWY_API Vec256<int32_t> Compress(Vec256<int32_t> v, const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<int32_t>{_mm256_maskz_compress_epi32(mask_bits, v.raw)};
+  return Vec256<int32_t>{
+      _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
   return Vec256<int32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
@@ -2497,7 +2499,8 @@ HWY_API Vec256<int32_t> Compress(Vec256<int32_t> v, const uint64_t mask_bits) {
 HWY_API Vec256<uint64_t> Compress(Vec256<uint64_t> v,
                                   const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<uint64_t>{_mm256_maskz_compress_epi64(mask_bits, v.raw)};
+  return Vec256<uint64_t>{
+      _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
   return Vec256<uint64_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
@@ -2505,7 +2508,8 @@ HWY_API Vec256<uint64_t> Compress(Vec256<uint64_t> v,
 }
 HWY_API Vec256<int64_t> Compress(Vec256<int64_t> v, const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<int64_t>{_mm256_maskz_compress_epi64(mask_bits, v.raw)};
+  return Vec256<int64_t>{
+      _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
   return Vec256<int64_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
@@ -2514,7 +2518,8 @@ HWY_API Vec256<int64_t> Compress(Vec256<int64_t> v, const uint64_t mask_bits) {
 
 HWY_API Vec256<float> Compress(Vec256<float> v, const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<float>{_mm256_maskz_compress_ps(mask_bits, v.raw)};
+  return Vec256<float>{
+      _mm256_maskz_compress_ps(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
   return Vec256<float>{_mm256_permutevar8x32_ps(v.raw, idx.raw)};
@@ -2523,7 +2528,8 @@ HWY_API Vec256<float> Compress(Vec256<float> v, const uint64_t mask_bits) {
 
 HWY_API Vec256<double> Compress(Vec256<double> v, const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<double>{_mm256_maskz_compress_pd(mask_bits, v.raw)};
+  return Vec256<double>{
+      _mm256_maskz_compress_pd(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
   return Vec256<double>{_mm256_castsi256_pd(
