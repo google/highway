@@ -262,8 +262,8 @@ uint32_t SupportedTargets() {
 #endif  // HWY_ARCH_X86
 
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
-    fprintf(stderr, "WARNING: CPU supports %ux but software requires %x\n",
-            bits, HWY_ENABLED_BASELINE);
+    fprintf(stderr, "WARNING: CPU supports %zx but software requires %x\n",
+            size_t(bits), HWY_ENABLED_BASELINE);
   }
 
   supported_.store(bits, std::memory_order_release);
