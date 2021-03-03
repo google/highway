@@ -194,13 +194,14 @@ struct TestLeftShifts {
       TestLeftShifts</*kSigned=*/false>()(t, d);
     }
 
+    using TI = MakeSigned<T>;
     using TU = MakeUnsigned<T>;
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
 
     const auto v0 = Zero(d);
     const auto v1 = Set(d, 1);
-    const auto values = Iota(d, kSigned ? -T(N) : T(0));  // value to shift
+    const auto values = Iota(d, kSigned ? -TI(N) : TI(0));  // value to shift
 
     constexpr size_t kMaxShift = (sizeof(T) * 8) - 1;
     const auto max_shift = Set(d, kMaxShift);
