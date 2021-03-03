@@ -16,9 +16,6 @@
 
 #include "hwy/tests/test_util-inl.h"
 
-// Currently requires gTest.
-#if !HWY_TEST_STANDALONE
-
 namespace fake {
 
 #define DECLARE_FUNCTION(TGT)                        \
@@ -103,5 +100,3 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
 }
 
 }  // namespace hwy
-
-#endif  // HWY_TEST_STANDALONE
