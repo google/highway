@@ -18,7 +18,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <atomic>
 #include <limits>
 
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
@@ -85,7 +84,7 @@ uint32_t ReadXCR0() {
 #endif  // HWY_ARCH_X86
 
 // Not function-local => no compiler-generated locking.
-std::atomic<uint32_t> supported_{0};  // Not yet initialized
+HWY_ATOMIC<uint32_t> supported_{0};  // Not yet initialized
 
 // When running tests, this value can be set to the mocked supported targets
 // mask. Only written to from a single thread before the test starts.

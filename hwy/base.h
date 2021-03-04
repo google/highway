@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
 #include <cfloat>
 
 // Add to #if conditions to prevent IDE from graying out code.
@@ -281,6 +280,38 @@
   } while (0)
 #endif
 
+//------------------------------------------------------------------------------
+// Emulate atomic
+
+#if HWY_ARCH_RVV
+
+// Occurs in user code, we do not distinguish between them.
+namespace std {
+enum { memory_order_relaxed, memory_order_acquire, memory_order_release };
+}  // namespace std
+
+template <typename T>
+class HWY_ATOMIC {
+ public:
+  HWY_ATOMIC(T val) : val_(val) {}
+
+  T fetch_add(T add, int /*memory_order*/) {
+    const T before = val_;
+    val_ += add;
+    return before;
+  }
+
+  void store(T new_val, int /*memory_order*/ = 0) { val_ = new_val; }
+  T load(int /*memory_order*/ = 0) const { return val_; }
+
+ private:
+  T val_;
+};
+
+#else
+#include <atomic>
+#define HWY_ATOMIC std::atomic
+#endif
 
 namespace hwy {
 
@@ -290,15 +321,15 @@ namespace hwy {
 // Not guaranteed to be an upper bound, but the alignment established by
 // aligned_allocator is HWY_MAX(HWY_ALIGNMENT, kMaxVectorSize).
 #if HWY_ARCH_X86
-static constexpr size_t kMaxVectorSize = 64;  // AVX-512
+static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 64;  // AVX-512
 #define HWY_ALIGN_MAX alignas(64)
 #elif HWY_ARCH_RVV
 // Not actually an upper bound on the size, but this value prevents crossing a
 // 4K boundary (relevant on Andes).
-static constexpr size_t kMaxVectorSize = 4096;
+static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 4096;
 #define HWY_ALIGN_MAX alignas(8)  // only elements need be aligned
 #else
-static constexpr size_t kMaxVectorSize = 16;
+static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #define HWY_ALIGN_MAX alignas(16)
 #endif
 

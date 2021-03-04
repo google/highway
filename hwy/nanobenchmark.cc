@@ -22,7 +22,6 @@
 
 #include <algorithm>  // sort
 #include <array>
-#include <atomic>
 #include <limits>
 #include <numeric>  // iota
 #include <random>

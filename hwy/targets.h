@@ -481,7 +481,7 @@ struct ChosenTarget {
 
  private:
   // Initialized to 1 so GetChosenTargetIndex() returns 0.
-  std::atomic<uint32_t> mask_{1};
+  HWY_ATOMIC<uint32_t> mask_{1};
 };
 
 extern ChosenTarget chosen_target;

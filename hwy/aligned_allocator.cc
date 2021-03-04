@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>  // malloc
 
-#include <atomic>
 #include <limits>
 
 #include "hwy/base.h"
@@ -41,7 +40,7 @@ struct AllocationHeader {
 
 // Returns a 'random' (cyclical) offset for AllocateAlignedBytes.
 size_t NextAlignedOffset() {
-  static std::atomic<uint32_t> next{0};
+  static HWY_ATOMIC<uint32_t> next{0};
   constexpr uint32_t kGroups = kAlias / kAlignment;
   const uint32_t group = next.fetch_add(1, std::memory_order_relaxed) % kGroups;
   const size_t offset = kAlignment * group;
