@@ -397,8 +397,8 @@ HWY_NOINLINE void AssertVecEqual(D d, const TFromD<D>* expected, Vec<D> actual,
 }
 
 template <class D>
-void AssertMaskEqual(D d, Mask<D> a, Mask<D> b, const char* filename,
-                     int line) {
+HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
+                                  const char* filename, int line) {
   AssertVecEqual(d, VecFromMask(d, a), VecFromMask(d, b), filename, line);
 
   const std::string type_name = TypeName(TFromD<D>(), Lanes(d));

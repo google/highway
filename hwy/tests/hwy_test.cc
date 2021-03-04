@@ -355,7 +355,7 @@ bool IsNaN(TF f) {
 }
 
 template <class D, class V>
-void AssertNaN(const D d, const V v, const char* file, int line) {
+HWY_NOINLINE void AssertNaN(const D d, const V v, const char* file, int line) {
   using T = TFromD<D>;
   const T lane = GetLane(v);
   if (!IsNaN(lane)) {
