@@ -25,6 +25,10 @@ reach version 1.0.
 Continuous integration tests use a recent version of Clang and older version of
 MSVC (VS2015). Also periodically tested on Clang 7-11 and GCC 8, 9 and 10.2.1.
 
+The `contrib` directory contains SIMD-related utilities: an image class with
+aligned rows, and a math library (16 functions already implemented, mostly
+trigonometry).
+
 ## Installation
 
 This project uses cmake to generate and build. In a Debian-based system you can
