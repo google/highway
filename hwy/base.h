@@ -290,15 +290,15 @@ namespace hwy {
 // Not guaranteed to be an upper bound, but the alignment established by
 // aligned_allocator is HWY_MAX(HWY_ALIGNMENT, kMaxVectorSize).
 #if HWY_ARCH_X86
-static constexpr size_t kMaxVectorSize = 64;  // AVX-512
+static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 64;  // AVX-512
 #define HWY_ALIGN_MAX alignas(64)
 #elif HWY_ARCH_RVV
 // Not actually an upper bound on the size, but this value prevents crossing a
 // 4K boundary (relevant on Andes).
-static constexpr size_t kMaxVectorSize = 4096;
+static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 4096;
 #define HWY_ALIGN_MAX alignas(8)  // only elements need be aligned
 #else
-static constexpr size_t kMaxVectorSize = 16;
+static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #define HWY_ALIGN_MAX alignas(16)
 #endif
 

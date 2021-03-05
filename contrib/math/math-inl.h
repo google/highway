@@ -382,7 +382,7 @@ template <>
 struct AsinImpl<float> {
   // Polynomial approximation for asin(x) over the range [0, 0.5).
   template <class D, class V>
-  HWY_INLINE V AsinPoly(D d, V x2, V x) {
+  HWY_INLINE V AsinPoly(D d, V x2, V /*x*/) {
     const auto k0 = Set(d, +0.1666677296f);
     const auto k1 = Set(d, +0.07495029271f);
     const auto k2 = Set(d, +0.04547423869f);
@@ -399,7 +399,7 @@ template <>
 struct AsinImpl<double> {
   // Polynomial approximation for asin(x) over the range [0, 0.5).
   template <class D, class V>
-  HWY_INLINE V AsinPoly(D d, V x2, V x) {
+  HWY_INLINE V AsinPoly(D d, V x2, V /*x*/) {
     const auto k0 = Set(d, +0.1666666666666497543);
     const auto k1 = Set(d, +0.07500000000378581611);
     const auto k2 = Set(d, +0.04464285681377102438);
@@ -673,7 +673,7 @@ struct ExpImpl<float> {
 template <>
 struct LogImpl<float> {
   template <class D, class V>
-  HWY_INLINE Vec<Rebind<int32_t, D>> Log2p1NoSubnormal(D d, V x) {
+  HWY_INLINE Vec<Rebind<int32_t, D>> Log2p1NoSubnormal(D /*d*/, V x) {
     const Rebind<int32_t, D> di32;
     const Rebind<uint32_t, D> du32;
     return BitCast(di32, ShiftRight<23>(BitCast(du32, x))) - Set(di32, 0x7F);
@@ -753,7 +753,7 @@ struct ExpImpl<double> {
 template <>
 struct LogImpl<double> {
   template <class D, class V>
-  HWY_INLINE Vec<Rebind<int64_t, D>> Log2p1NoSubnormal(D d, V x) {
+  HWY_INLINE Vec<Rebind<int64_t, D>> Log2p1NoSubnormal(D /*d*/, V x) {
     const Rebind<int64_t, D> di64;
     const Rebind<uint64_t, D> du64;
     return BitCast(di64, ShiftRight<52>(BitCast(du64, x))) - Set(di64, 0x3FF);
@@ -884,8 +884,9 @@ HWY_NOINLINE V Acosh(const D d, V x) {
       IfThenElse(is_x_gt_2, IfThenElse(is_x_large, x, y0), (y1 + kOne));
   const V z = impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y2);
 
-  return IfThenElse(is_x_gt_2, z,
-                    IfThenElse(y2 == kOne, y1, (z * y1 / (y2 - kOne)))) +
+  const auto is_pole = y2 == kOne;
+  const auto divisor = IfThenZeroElse(is_pole, y2) - kOne;
+  return IfThenElse(is_x_gt_2, z, IfThenElse(is_pole, y1, z * y1 / divisor)) +
          IfThenElseZero(is_x_large, kLog2);
 }
 
@@ -933,8 +934,10 @@ HWY_NOINLINE V Asinh(const D d, V x) {
       IfThenElse(is_x_lt_2, (y1 + kOne), IfThenElse(is_x_large, abs_x, y0));
   const V z = impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y2);
 
-  const V y = IfThenElse((abs_x < kSmall), x,
-                         IfThenElse(y2 == kOne, y1, (z * y1 / (y2 - kOne))));
+  const auto is_pole = y2 == kOne;
+  const auto divisor = IfThenZeroElse(is_pole, y2) - kOne;
+  const auto large = IfThenElse(is_pole, y1, z * y1 / divisor);
+  const V y = IfThenElse(abs_x < kSmall, x, large);
   return Or((IfThenElse(is_x_lt_2, y, z) + IfThenElseZero(is_x_large, kLog2)),
             sign_x);
 }
@@ -951,7 +954,8 @@ HWY_NOINLINE V Atan(const D d, V x) {
   const auto mask = (abs_x > kOne);
 
   impl::AtanImpl<LaneType> impl;
-  const V y = impl.AtanPoly(d, IfThenElse(mask, (kOne / abs_x), abs_x));
+  const auto divisor = IfThenElse(mask, abs_x, kOne);
+  const V y = impl.AtanPoly(d, IfThenElse(mask, kOne / divisor, abs_x));
   return Or(IfThenElse(mask, (kPiOverTwo - y), y), sign);
 }
 
@@ -1053,10 +1057,12 @@ template <class D, class V>
 HWY_NOINLINE V Log1p(const D d, V x) {
   const V kOne = Set(d, +1.0);
 
-  const V y = (x + kOne);
-  return IfThenElse(
-      (y == kOne), x,
-      (impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y) * (x / (y - kOne))));
+  const V y = x + kOne;
+  const auto is_pole = y == kOne;
+  const auto divisor = IfThenZeroElse(is_pole, y) - kOne;
+  const auto non_pole =
+      impl::Log<D, V, /*kAllowSubnormals=*/false>(d, y) * (x / divisor);
+  return IfThenElse(is_pole, x, non_pole);
 }
 
 template <class D, class V>
