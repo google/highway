@@ -2166,7 +2166,7 @@ HWY_INLINE Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
   return Vec128<int64_t, N>(vget_low_s64(vmovl_s32(v.raw)));
 }
 
-#if defined(__aarch64__)
+#if __ARM_FP & 2
 
 HWY_INLINE Vec128<float> PromoteTo(Full128<float> /* tag */,
                                    const Vec128<float16_t, 4> v) {
@@ -2176,28 +2176,6 @@ template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
                                       const Vec128<float16_t, N> v) {
   return Vec128<float, N>(vget_low_f32(vcvt_f32_f16(v.raw)));
-}
-
-HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
-                                    const Vec128<float, 2> v) {
-  return Vec128<double>(vcvt_f64_f32(v.raw));
-}
-
-HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
-                                       const Vec128<float, 1> v) {
-  return Vec128<double, 1>(vget_low_f64(vcvt_f64_f32(v.raw)));
-}
-
-HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
-                                    const Vec128<int32_t, 2> v) {
-  const int64x2_t i64 = vmovl_s32(v.raw);
-  return Vec128<double>(vcvtq_f64_s64(i64));
-}
-
-HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
-                                       const Vec128<int32_t, 1> v) {
-  const int64x1_t i64 = vget_low_s64(vmovl_s32(v.raw));
-  return Vec128<double, 1>(vcvt_f64_s64(i64));
 }
 
 #else
@@ -2222,6 +2200,32 @@ HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
   const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
   const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
   return BitCast(df32, ShiftLeft<31>(sign) | bits32);
+}
+
+#endif
+
+#if defined(__aarch64__)
+
+HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
+                                    const Vec128<float, 2> v) {
+  return Vec128<double>(vcvt_f64_f32(v.raw));
+}
+
+HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
+                                       const Vec128<float, 1> v) {
+  return Vec128<double, 1>(vget_low_f64(vcvt_f64_f32(v.raw)));
+}
+
+HWY_INLINE Vec128<double> PromoteTo(Full128<double> /* tag */,
+                                    const Vec128<int32_t, 2> v) {
+  const int64x2_t i64 = vmovl_s32(v.raw);
+  return Vec128<double>(vcvtq_f64_s64(i64));
+}
+
+HWY_INLINE Vec128<double, 1> PromoteTo(Simd<double, 1> /* tag */,
+                                       const Vec128<int32_t, 1> v) {
+  const int64x1_t i64 = vget_low_s64(vmovl_s32(v.raw));
+  return Vec128<double, 1>(vcvt_f64_s64(i64));
 }
 
 #endif
@@ -2290,7 +2294,7 @@ HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
   return Vec128<int8_t, N>(vqmovn_s16(vcombine_s16(v.raw, v.raw)));
 }
 
-#if defined(__aarch64__)
+#if __ARM_FP & 2
 
 HWY_INLINE Vec128<float16_t, 4> DemoteTo(Simd<float16_t, 4> /* tag */,
                                          const Vec128<float> v) {
@@ -2300,28 +2304,6 @@ template <size_t N>
 HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
                                          const Vec128<float, N> v) {
   return Vec128<float16_t, N>{vcvt_f16_f32(vcombine_f32(v.raw, v.raw))};
-}
-
-HWY_INLINE Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
-                                     const Vec128<double> v) {
-  return Vec128<float, 2>(vcvt_f32_f64(v.raw));
-}
-HWY_INLINE Vec128<float, 1> DemoteTo(Simd<float, 1> /* tag */,
-                                     const Vec128<double, 1> v) {
-  return Vec128<float, 1>(vcvt_f32_f64(vcombine_f64(v.raw, v.raw)));
-}
-
-HWY_INLINE Vec128<int32_t, 2> DemoteTo(Simd<int32_t, 2> /* tag */,
-                                       const Vec128<double> v) {
-  const int64x2_t i64 = vcvtq_s64_f64(v.raw);
-  return Vec128<int32_t, 2>(vqmovn_s64(i64));
-}
-HWY_INLINE Vec128<int32_t, 1> DemoteTo(Simd<int32_t, 1> /* tag */,
-                                       const Vec128<double, 1> v) {
-  const int64x1_t i64 = vcvt_s64_f64(v.raw);
-  // There is no i64x1 -> i32x1 narrow, so expand to int64x2_t first.
-  const int64x2_t i64x2 = vcombine_s64(i64, i64);
-  return Vec128<int32_t, 1>(vqmovn_s64(i64x2));
 }
 
 #else
@@ -2354,6 +2336,31 @@ HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
   const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
   const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
   return Vec128<float16_t, N>(DemoteTo(du16, bits16).raw);
+}
+
+#endif
+#if defined(__aarch64__)
+
+HWY_INLINE Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
+                                     const Vec128<double> v) {
+  return Vec128<float, 2>(vcvt_f32_f64(v.raw));
+}
+HWY_INLINE Vec128<float, 1> DemoteTo(Simd<float, 1> /* tag */,
+                                     const Vec128<double, 1> v) {
+  return Vec128<float, 1>(vcvt_f32_f64(vcombine_f64(v.raw, v.raw)));
+}
+
+HWY_INLINE Vec128<int32_t, 2> DemoteTo(Simd<int32_t, 2> /* tag */,
+                                       const Vec128<double> v) {
+  const int64x2_t i64 = vcvtq_s64_f64(v.raw);
+  return Vec128<int32_t, 2>(vqmovn_s64(i64));
+}
+HWY_INLINE Vec128<int32_t, 1> DemoteTo(Simd<int32_t, 1> /* tag */,
+                                       const Vec128<double, 1> v) {
+  const int64x1_t i64 = vcvt_s64_f64(v.raw);
+  // There is no i64x1 -> i32x1 narrow, so expand to int64x2_t first.
+  const int64x2_t i64x2 = vcombine_s64(i64, i64);
+  return Vec128<int32_t, 1>(vqmovn_s64(i64x2));
 }
 
 #endif
