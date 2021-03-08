@@ -36,7 +36,11 @@ namespace HWY_NAMESPACE {
  * @return arc cosine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Acos(const D d, V x);
+HWY_INLINE V Acos(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallAcos(const D d, V x) {
+  return Acos(d, x);
+}
 
 /**
  * Highway SIMD version of std::acosh(x).
@@ -47,7 +51,11 @@ HWY_NOINLINE V Acos(const D d, V x);
  * @return hyperbolic arc cosine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Acosh(const D d, V x);
+HWY_INLINE V Acosh(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallAcosh(const D d, V x) {
+  return Acosh(d, x);
+}
 
 /**
  * Highway SIMD version of std::asin(x).
@@ -58,7 +66,11 @@ HWY_NOINLINE V Acosh(const D d, V x);
  * @return arc sine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Asin(const D d, V x);
+HWY_INLINE V Asin(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallAsin(const D d, V x) {
+  return Asin(d, x);
+}
 
 /**
  * Highway SIMD version of std::asinh(x).
@@ -69,7 +81,11 @@ HWY_NOINLINE V Asin(const D d, V x);
  * @return hyperbolic arc sine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Asinh(const D d, V x);
+HWY_INLINE V Asinh(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallAsinh(const D d, V x) {
+  return Asinh(d, x);
+}
 
 /**
  * Highway SIMD version of std::atan(x).
@@ -80,7 +96,11 @@ HWY_NOINLINE V Asinh(const D d, V x);
  * @return arc tangent of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Atan(const D d, V x);
+HWY_INLINE V Atan(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallAtan(const D d, V x) {
+  return Atan(d, x);
+}
 
 /**
  * Highway SIMD version of std::atanh(x).
@@ -91,7 +111,11 @@ HWY_NOINLINE V Atan(const D d, V x);
  * @return hyperbolic arc tangent of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Atanh(const D d, V x);
+HWY_INLINE V Atanh(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallAtanh(const D d, V x) {
+  return Atanh(d, x);
+}
 
 /**
  * Highway SIMD version of std::cos(x).
@@ -102,7 +126,11 @@ HWY_NOINLINE V Atanh(const D d, V x);
  * @return cosine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Cos(const D d, V x);
+HWY_INLINE V Cos(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallCos(const D d, V x) {
+  return Cos(d, x);
+}
 
 /**
  * Highway SIMD version of std::exp(x).
@@ -113,7 +141,11 @@ HWY_NOINLINE V Cos(const D d, V x);
  * @return e^x
  */
 template <class D, class V>
-HWY_NOINLINE V Exp(const D d, V x);
+HWY_INLINE V Exp(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallExp(const D d, V x) {
+  return Exp(d, x);
+}
 
 /**
  * Highway SIMD version of std::expm1(x).
@@ -124,7 +156,11 @@ HWY_NOINLINE V Exp(const D d, V x);
  * @return e^x - 1
  */
 template <class D, class V>
-HWY_NOINLINE V Expm1(const D d, V x);
+HWY_INLINE V Expm1(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallExpm1(const D d, V x) {
+  return Expm1(d, x);
+}
 
 /**
  * Highway SIMD version of std::log(x).
@@ -135,7 +171,11 @@ HWY_NOINLINE V Expm1(const D d, V x);
  * @return natural logarithm of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Log(const D d, V x);
+HWY_INLINE V Log(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallLog(const D d, V x) {
+  return Log(d, x);
+}
 
 /**
  * Highway SIMD version of std::log10(x).
@@ -146,7 +186,11 @@ HWY_NOINLINE V Log(const D d, V x);
  * @return base 10 logarithm of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Log10(const D d, V x);
+HWY_INLINE V Log10(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallLog10(const D d, V x) {
+  return Log10(d, x);
+}
 
 /**
  * Highway SIMD version of std::log1p(x).
@@ -157,7 +201,11 @@ HWY_NOINLINE V Log10(const D d, V x);
  * @return log(1 + x)
  */
 template <class D, class V>
-HWY_NOINLINE V Log1p(const D d, V x);
+HWY_INLINE V Log1p(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallLog1p(const D d, V x) {
+  return Log1p(d, x);
+}
 
 /**
  * Highway SIMD version of std::log2(x).
@@ -168,7 +216,11 @@ HWY_NOINLINE V Log1p(const D d, V x);
  * @return base 2 logarithm of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Log2(const D d, V x);
+HWY_INLINE V Log2(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallLog2(const D d, V x) {
+  return Log2(d, x);
+}
 
 /**
  * Highway SIMD version of std::sin(x).
@@ -179,7 +231,11 @@ HWY_NOINLINE V Log2(const D d, V x);
  * @return sine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Sin(const D d, V x);
+HWY_INLINE V Sin(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallSin(const D d, V x) {
+  return Sin(d, x);
+}
 
 /**
  * Highway SIMD version of std::sinh(x).
@@ -190,7 +246,11 @@ HWY_NOINLINE V Sin(const D d, V x);
  * @return hyperbolic sine of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Sinh(const D d, V x);
+HWY_INLINE V Sinh(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallSinh(const D d, V x) {
+  return Sinh(d, x);
+}
 
 /**
  * Highway SIMD version of std::tanh(x).
@@ -201,7 +261,11 @@ HWY_NOINLINE V Sinh(const D d, V x);
  * @return hyperbolic tangent of 'x'
  */
 template <class D, class V>
-HWY_NOINLINE V Tanh(const D d, V x);
+HWY_INLINE V Tanh(const D d, V x);
+template <class D, class V>
+HWY_NOINLINE V CallTanh(const D d, V x) {
+  return Tanh(d, x);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
