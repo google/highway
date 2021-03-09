@@ -79,7 +79,7 @@ std::string BrandString() {
     return std::string();
   }
 
-  for (int i = 0; i < 3; ++i) {
+  for (size_t i = 0; i < 3; ++i) {
     Cpuid(0x80000002U + i, 0, abcd.data());
     memcpy(brand_string + i * 16, abcd.data(), sizeof(abcd));
   }
@@ -600,7 +600,8 @@ InputVec ReplicateInputs(const FuncInput* inputs, const size_t num_inputs,
 // randomly selected occurrences of "input_to_skip" removed.
 void FillSubset(const InputVec& full, const FuncInput input_to_skip,
                 const size_t num_skip, InputVec* subset) {
-  const size_t count = std::count(full.begin(), full.end(), input_to_skip);
+  const size_t count =
+      static_cast<size_t>(std::count(full.begin(), full.end(), input_to_skip));
   // Generate num_skip random indices: which occurrence to skip.
   std::vector<uint32_t> omit(count);
   std::iota(omit.begin(), omit.end(), 0);

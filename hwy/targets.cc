@@ -156,7 +156,7 @@ HWY_NORETURN void HWY_FORMAT(3, 4)
 }
 
 void DisableTargets(uint32_t disabled_targets) {
-  supported_mask_ = ~(disabled_targets & ~HWY_ENABLED_BASELINE);
+  supported_mask_ = ~(disabled_targets & ~uint32_t(HWY_ENABLED_BASELINE));
   // We can call Update() here to initialize the mask but that will trigger a
   // call to SupportedTargets() which we use in tests to tell whether any of the
   // highway dynamic dispatch functions were used.
