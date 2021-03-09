@@ -287,7 +287,7 @@ HWY_NOINLINE void Print(const D d, const char* caption, const Vec<D> v,
   auto lanes = AllocateAligned<T>(N);
   Store(v, d, lanes.get());
   const size_t begin = static_cast<size_t>(std::max<intptr_t>(0, lane - 2));
-  const size_t end = std::min(begin + 5, N);
+  const size_t end = std::min(begin + 7, N);
   fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
           begin);
   for (size_t i = begin; i < end; ++i) {

@@ -14,6 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>  // memcmp
 
 #include "hwy/base.h"
 
@@ -208,15 +209,56 @@ HWY_NOINLINE void TestAllIfThenElse() {
   ForAllTypes(ForPartialVectors<TestIfThenElse>());
 }
 
-// Also tests MaskFromVec/VecFromMask
-struct TestCompress {
+struct TestMaskVec {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
     const size_t N = Lanes(d);
-    auto in_lanes = AllocateAligned<T>(N);
     auto mask_lanes = AllocateAligned<T>(N);
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        mask_lanes[i] = static_cast<T>(Random32(&rng) & 1);
+      }
+
+      const auto mask = RebindMask(d, Eq(Load(d, mask_lanes.get()), Zero(d)));
+      HWY_ASSERT_MASK_EQ(d, mask, MaskFromVec(VecFromMask(d, mask)));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskVec() {
+  const ForPartialVectors<TestMaskVec> test;
+
+  test(uint16_t());
+  test(int16_t());
+  // TODO(janwas): float16_t - cannot compare yet
+
+  test(uint32_t());
+  test(int32_t());
+  test(float());
+
+#if HWY_CAP_INTEGER64
+  test(uint64_t());
+  test(int64_t());
+#endif
+#if HWY_CAP_FLOAT64
+  test(double());
+#endif
+}
+
+struct TestCompress {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TU = MakeUnsigned<T>;
+    const Rebind<TU, D> du;
+    const size_t N = Lanes(d);
+    auto in_lanes = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<TU>(N);
     auto expected = AllocateAligned<T>(N);
     auto actual = AllocateAligned<T>(N);
 
@@ -224,35 +266,56 @@ struct TestCompress {
     for (size_t rep = 0; rep < 100; ++rep) {
       size_t expected_pos = 0;
       for (size_t i = 0; i < N; ++i) {
-        in_lanes[i] = static_cast<T>(Random32(&rng));
-        mask_lanes[i] = static_cast<T>(Random32(&rng) & 1);
+        const uint64_t bits = Random32(&rng);
+        in_lanes[i] = T();  // cannot initialize float16_t directly.
+        CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
+        mask_lanes[i] = static_cast<TU>(Random32(&rng) & 1);
         if (mask_lanes[i] == 0) {  // Zero means true (easier to compare)
           expected[expected_pos++] = in_lanes[i];
         }
       }
 
       const auto in = Load(d, in_lanes.get());
-      const auto mask = Eq(Load(d, mask_lanes.get()), Zero(d));
+      const auto mask = RebindMask(d, Eq(Load(du, mask_lanes.get()), Zero(du)));
 
-      HWY_ASSERT_MASK_EQ(d, mask, MaskFromVec(VecFromMask(d, mask)));
       Store(Compress(in, mask), d, actual.get());
       // Upper lanes are undefined.
       for (size_t i = 0; i < expected_pos; ++i) {
-        HWY_ASSERT(actual[i] == expected[i]);
+        HWY_ASSERT(memcmp(&actual[i], &expected[i], sizeof(T)) == 0);
       }
 
       // Also check CompressStore in the same way.
-      std::fill(actual.get(), actual.get() + N, T(0));
+      memset(actual.get(), 0, N * sizeof(T));
       const size_t num_written = CompressStore(in, mask, d, actual.get());
       HWY_ASSERT_EQ(expected_pos, num_written);
       for (size_t i = 0; i < expected_pos; ++i) {
-        HWY_ASSERT_EQ(expected[i], actual[i]);
+        HWY_ASSERT(memcmp(&actual[i], &expected[i], sizeof(T)) == 0);
       }
     }
   }
 };
 
 #if 0
+namespace detail {  // for code folding
+void PrintCompress16x8Tables() {
+  constexpr size_t N = 8;  // 128-bit SIMD
+  for (uint64_t code = 0; code < 1ull << N; ++code) {
+    std::array<uint8_t, N> indices{0};
+    size_t pos = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+
+    // Doubled (for converting lane to byte indices)
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d,", 2 * indices[i]);
+    }
+  }
+  printf("\n");
+}
+
 // Compressed to nibbles
 void PrintCompress32x8Tables() {
   constexpr size_t N = 8;  // AVX2
@@ -340,16 +403,22 @@ void PrintCompress64x2Tables() {
   }
   printf("\n");
 }
-
+}  // namespace detail
 #endif
 
 HWY_NOINLINE void TestAllCompress() {
-  // PrintCompress32x8Tables();
-  // PrintCompress64x4Tables();
-  // PrintCompress32x4Tables();
-  // PrintCompress64x2Tables();
+  // detail::PrintCompress32x8Tables();
+  // detail::PrintCompress64x4Tables();
+  // detail::PrintCompress32x4Tables();
+  // detail::PrintCompress64x2Tables();
+  // detail::PrintCompress16x8Tables();
 
   const ForPartialVectors<TestCompress> test;
+
+  test(uint16_t());
+  test(int16_t());
+  test(float16_t());
+
   test(uint32_t());
   test(int32_t());
   test(float());
@@ -358,7 +427,6 @@ HWY_NOINLINE void TestAllCompress() {
   test(uint64_t());
   test(int64_t());
 #endif
-
 #if HWY_CAP_FLOAT64
   test(double());
 #endif
@@ -609,6 +677,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskVec);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);

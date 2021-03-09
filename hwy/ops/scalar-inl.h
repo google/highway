@@ -199,7 +199,7 @@ HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
 template <typename TFrom, typename TTo>
 HWY_API Mask1<TTo> RebindMask(Sisd<TTo> /*tag*/, Mask1<TFrom> m) {
   static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask1<TTo>(m.raw);
+  return Mask1<TTo>{m.bits};
 }
 
 // v must be 0 or FF..FF.

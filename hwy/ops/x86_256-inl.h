@@ -2473,75 +2473,96 @@ HWY_INLINE Vec256<uint32_t> Idx64x4FromBits(const uint64_t mask_bits) {
   return Load(d32, packed_array + 8 * mask_bits);
 }
 
-// Helper function called by both Compress and CompressStore - avoids a
+// Helper functions called by both Compress and CompressStore - avoids a
 // redundant BitsFromMask in the latter.
 
-HWY_API Vec256<uint32_t> Compress(Vec256<uint32_t> v,
-                                  const uint64_t mask_bits) {
+template <typename T>
+HWY_API Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
+                           const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<uint32_t>{
+  return Vec256<T>{
       _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
-  return Vec256<uint32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
-#endif
-}
-HWY_API Vec256<int32_t> Compress(Vec256<int32_t> v, const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<int32_t>{
-      _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), v.raw)};
-#else
-  const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
-  return Vec256<int32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+  return Vec256<T>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
 #endif
 }
 
-HWY_API Vec256<uint64_t> Compress(Vec256<uint64_t> v,
-                                  const uint64_t mask_bits) {
+template <typename T>
+HWY_API Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
+                           const uint64_t mask_bits) {
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<uint64_t>{
+  return Vec256<T>{
       _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), v.raw)};
 #else
   const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
-  return Vec256<uint64_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
-#endif
-}
-HWY_API Vec256<int64_t> Compress(Vec256<int64_t> v, const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<int64_t>{
-      _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), v.raw)};
-#else
-  const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
-  return Vec256<int64_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+  return Vec256<T>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
 #endif
 }
 
-HWY_API Vec256<float> Compress(Vec256<float> v, const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<float>{
-      _mm256_maskz_compress_ps(static_cast<__mmask8>(mask_bits), v.raw)};
-#else
-  const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
-  return Vec256<float>{_mm256_permutevar8x32_ps(v.raw, idx.raw)};
-#endif
+// Otherwise, defined in x86_512-inl.h so it can use wider vectors.
+#if HWY_TARGET != HWY_AVX3
+
+// LUTs are infeasible for 2^16 possible masks. Promoting to 32-bit and using
+// the native Compress is probably more efficient than 2 LUTs.
+template <typename T>
+HWY_API Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
+                           const uint64_t mask_bits) {
+  using D = Full256<T>;
+  const Rebind<uint16_t, D> du;
+  const Repartition<int32_t, D> dw;
+  const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
+  const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
+  const auto promoted1 = PromoteTo(dw, UpperHalf(vu16));
+
+  const uint64_t mask_bits0 = mask_bits & 0xFF;
+  const uint64_t mask_bits1 = mask_bits >> 8;
+  const auto compressed0 = Compress(hwy::SizeTag<4>(), promoted0, mask_bits0);
+  const auto compressed1 = Compress(hwy::SizeTag<4>(), promoted1, mask_bits1);
+
+  const Half<decltype(du)> dh;
+  const auto demoted0 = ZeroExtendVector(DemoteTo(dh, compressed0));
+  const auto demoted1 = ZeroExtendVector(DemoteTo(dh, compressed1));
+
+  const size_t count0 = PopCount(mask_bits0);
+  // Now combine by shifting demoted1 up. AVX2 lacks VPERMW, so start with
+  // VPERMD for shifting at 4 byte granularity.
+  alignas(32) constexpr int32_t iota4[16] = {0, 0, 0, 0, 0, 0, 0, 0,
+                                             0, 1, 2, 3, 4, 5, 6, 7};
+  const auto indices = SetTableIndices(dw, iota4 + 8 - count0 / 2);
+  const auto shift1_multiple4 =
+      BitCast(du, TableLookupLanes(BitCast(dw, demoted1), indices));
+
+  // Whole-register unconditional shift by 2 bytes.
+  // TODO(janwas): slow on AMD, use 2 shifts + permq + OR instead?
+  const __m256i lo_zz = _mm256_permute2x128_si256(shift1_multiple4.raw,
+                                                  shift1_multiple4.raw, 0x08);
+  const auto shift1_multiple2 =
+      Vec256<uint16_t>{_mm256_alignr_epi8(shift1_multiple4.raw, lo_zz, 14)};
+
+  // Make the shift conditional on the lower bit of count0.
+  const auto m_odd = TestBit(Set(du, count0), Set(du, 1));
+  const auto shifted1 = IfThenElse(m_odd, shift1_multiple2, shift1_multiple4);
+
+  // Blend the lower and shifted upper parts.
+  constexpr uint16_t on = 0xFFFF;
+  alignas(32) constexpr uint16_t lower_lanes[32] = {HWY_REP4(on), HWY_REP4(on),
+                                                    HWY_REP4(on), HWY_REP4(on)};
+  const auto m_lower = MaskFromVec(LoadU(du, lower_lanes + 16 - count0));
+  return BitCast(D(), IfThenElse(m_lower, demoted0, shifted1));
 }
 
-HWY_API Vec256<double> Compress(Vec256<double> v, const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec256<double>{
-      _mm256_maskz_compress_pd(static_cast<__mmask8>(mask_bits), v.raw)};
-#else
-  const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
-  return Vec256<double>{_mm256_castsi256_pd(
-      _mm256_permutevar8x32_epi32(_mm256_castpd_si256(v.raw), idx.raw))};
-#endif
-}
+#endif  // HWY_TARGET != HWY_AVX3
 
 }  // namespace detail
 
+// Otherwise, defined in x86_512-inl.h after detail::Compress.
+#if HWY_TARGET != HWY_AVX3
+
 template <typename T>
 HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
-  return detail::Compress(v, detail::BitsFromMask(mask));
+  return detail::Compress(hwy::SizeTag<sizeof(T)>(), v,
+                          detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressStore
@@ -2550,9 +2571,14 @@ template <typename T>
 HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
                              T* HWY_RESTRICT aligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
-  Store(detail::Compress(v, mask_bits), d, aligned);
+  // NOTE: it is tempting to split inputs into two halves for 16-bit lanes, but
+  // using StoreU to concatenate the results would cause page faults if
+  // `aligned` is the last valid vector. Instead rely on in-register splicing.
+  Store(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d, aligned);
   return PopCount(mask_bits);
 }
+
+#endif  // HWY_TARGET != HWY_AVX3
 
 // ------------------------------ Reductions
 

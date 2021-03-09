@@ -710,7 +710,7 @@ template <class D>
 using MFromD = decltype(MaskFromVec(Zero(D())));
 
 template <class D, typename MFrom>
-HWY_API MFromD<D> RebindMask(const D d, const MFrom mask) {
+HWY_API MFromD<D> RebindMask(const D /*d*/, const MFrom mask) {
   // No need to check lane size/LMUL are the same: if not, casting MFrom to
   // MFromD<D> would fail.
   return mask;
@@ -1092,6 +1092,7 @@ HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _)
     return v##OP##_vm_##CHAR##SEW##m##LMUL(mask, v, v);          \
   }
 
+HWY_RVV_FOREACH_UI16(HWY_RVV_COMPRESS, Compress, compress)
 HWY_RVV_FOREACH_UI32(HWY_RVV_COMPRESS, Compress, compress)
 HWY_RVV_FOREACH_UI64(HWY_RVV_COMPRESS, Compress, compress)
 HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress)

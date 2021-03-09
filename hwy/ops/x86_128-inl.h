@@ -510,7 +510,9 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
 template <typename TFrom, typename TTo, size_t N>
 HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
   static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask128<TTo, N>{m.raw};
+  Mask128<TTo, N> ret;  // prevents MSVC "Invalid aggregate initialization"
+  const Simd<TFrom, N> d;
+  return MaskFromVec(BitCast(Simd<TTo, N>(), VecFromMask(d, m)));
 }
 
 // ------------------------------ Equality
@@ -2922,6 +2924,142 @@ HWY_API size_t CountTrue(const Mask128<T, N> mask) {
 namespace detail {
 
 template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Idx16x8FromBits(const uint64_t mask_bits) {
+  HWY_DASSERT(mask_bits < 256);
+  const Simd<T, N> d;
+  const Rebind<uint8_t, decltype(d)> d8;
+  const Simd<uint16_t, N> du;
+
+  // compress_epi16 requires VBMI2 and there is no permutevar_epi16, so we need
+  // byte indices for PSHUFB (one vector's worth for each of 256 combinations of
+  // 8 mask bits). Loading them directly would require 4 KiB. We can instead
+  // store lane indices and convert to byte indices (2*lane + 0..1), with the
+  // doubling baked into the table. AVX2 Compress32 stores eight 4-bit lane
+  // indices (total 1 KiB), broadcasts them into each 32-bit lane and shifts.
+  // Here, 16-bit lanes are too narrow to hold all bits, and unpacking nibbles
+  // is likely more costly than the higher cache footprint from storing bytes.
+  alignas(16) constexpr uint8_t table[256 * 8] = {
+      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  2,  0,
+      0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  0,  0,  4,  0,  0,  0,
+      0,  0,  0,  0,  0,  4,  0,  0,  0,  0,  0,  0,  2,  4,  0,  0,  0,  0,
+      0,  0,  0,  2,  4,  0,  0,  0,  0,  0,  6,  0,  0,  0,  0,  0,  0,  0,
+      0,  6,  0,  0,  0,  0,  0,  0,  2,  6,  0,  0,  0,  0,  0,  0,  0,  2,
+      6,  0,  0,  0,  0,  0,  4,  6,  0,  0,  0,  0,  0,  0,  0,  4,  6,  0,
+      0,  0,  0,  0,  2,  4,  6,  0,  0,  0,  0,  0,  0,  2,  4,  6,  0,  0,
+      0,  0,  8,  0,  0,  0,  0,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  0,
+      2,  8,  0,  0,  0,  0,  0,  0,  0,  2,  8,  0,  0,  0,  0,  0,  4,  8,
+      0,  0,  0,  0,  0,  0,  0,  4,  8,  0,  0,  0,  0,  0,  2,  4,  8,  0,
+      0,  0,  0,  0,  0,  2,  4,  8,  0,  0,  0,  0,  6,  8,  0,  0,  0,  0,
+      0,  0,  0,  6,  8,  0,  0,  0,  0,  0,  2,  6,  8,  0,  0,  0,  0,  0,
+      0,  2,  6,  8,  0,  0,  0,  0,  4,  6,  8,  0,  0,  0,  0,  0,  0,  4,
+      6,  8,  0,  0,  0,  0,  2,  4,  6,  8,  0,  0,  0,  0,  0,  2,  4,  6,
+      8,  0,  0,  0,  10, 0,  0,  0,  0,  0,  0,  0,  0,  10, 0,  0,  0,  0,
+      0,  0,  2,  10, 0,  0,  0,  0,  0,  0,  0,  2,  10, 0,  0,  0,  0,  0,
+      4,  10, 0,  0,  0,  0,  0,  0,  0,  4,  10, 0,  0,  0,  0,  0,  2,  4,
+      10, 0,  0,  0,  0,  0,  0,  2,  4,  10, 0,  0,  0,  0,  6,  10, 0,  0,
+      0,  0,  0,  0,  0,  6,  10, 0,  0,  0,  0,  0,  2,  6,  10, 0,  0,  0,
+      0,  0,  0,  2,  6,  10, 0,  0,  0,  0,  4,  6,  10, 0,  0,  0,  0,  0,
+      0,  4,  6,  10, 0,  0,  0,  0,  2,  4,  6,  10, 0,  0,  0,  0,  0,  2,
+      4,  6,  10, 0,  0,  0,  8,  10, 0,  0,  0,  0,  0,  0,  0,  8,  10, 0,
+      0,  0,  0,  0,  2,  8,  10, 0,  0,  0,  0,  0,  0,  2,  8,  10, 0,  0,
+      0,  0,  4,  8,  10, 0,  0,  0,  0,  0,  0,  4,  8,  10, 0,  0,  0,  0,
+      2,  4,  8,  10, 0,  0,  0,  0,  0,  2,  4,  8,  10, 0,  0,  0,  6,  8,
+      10, 0,  0,  0,  0,  0,  0,  6,  8,  10, 0,  0,  0,  0,  2,  6,  8,  10,
+      0,  0,  0,  0,  0,  2,  6,  8,  10, 0,  0,  0,  4,  6,  8,  10, 0,  0,
+      0,  0,  0,  4,  6,  8,  10, 0,  0,  0,  2,  4,  6,  8,  10, 0,  0,  0,
+      0,  2,  4,  6,  8,  10, 0,  0,  12, 0,  0,  0,  0,  0,  0,  0,  0,  12,
+      0,  0,  0,  0,  0,  0,  2,  12, 0,  0,  0,  0,  0,  0,  0,  2,  12, 0,
+      0,  0,  0,  0,  4,  12, 0,  0,  0,  0,  0,  0,  0,  4,  12, 0,  0,  0,
+      0,  0,  2,  4,  12, 0,  0,  0,  0,  0,  0,  2,  4,  12, 0,  0,  0,  0,
+      6,  12, 0,  0,  0,  0,  0,  0,  0,  6,  12, 0,  0,  0,  0,  0,  2,  6,
+      12, 0,  0,  0,  0,  0,  0,  2,  6,  12, 0,  0,  0,  0,  4,  6,  12, 0,
+      0,  0,  0,  0,  0,  4,  6,  12, 0,  0,  0,  0,  2,  4,  6,  12, 0,  0,
+      0,  0,  0,  2,  4,  6,  12, 0,  0,  0,  8,  12, 0,  0,  0,  0,  0,  0,
+      0,  8,  12, 0,  0,  0,  0,  0,  2,  8,  12, 0,  0,  0,  0,  0,  0,  2,
+      8,  12, 0,  0,  0,  0,  4,  8,  12, 0,  0,  0,  0,  0,  0,  4,  8,  12,
+      0,  0,  0,  0,  2,  4,  8,  12, 0,  0,  0,  0,  0,  2,  4,  8,  12, 0,
+      0,  0,  6,  8,  12, 0,  0,  0,  0,  0,  0,  6,  8,  12, 0,  0,  0,  0,
+      2,  6,  8,  12, 0,  0,  0,  0,  0,  2,  6,  8,  12, 0,  0,  0,  4,  6,
+      8,  12, 0,  0,  0,  0,  0,  4,  6,  8,  12, 0,  0,  0,  2,  4,  6,  8,
+      12, 0,  0,  0,  0,  2,  4,  6,  8,  12, 0,  0,  10, 12, 0,  0,  0,  0,
+      0,  0,  0,  10, 12, 0,  0,  0,  0,  0,  2,  10, 12, 0,  0,  0,  0,  0,
+      0,  2,  10, 12, 0,  0,  0,  0,  4,  10, 12, 0,  0,  0,  0,  0,  0,  4,
+      10, 12, 0,  0,  0,  0,  2,  4,  10, 12, 0,  0,  0,  0,  0,  2,  4,  10,
+      12, 0,  0,  0,  6,  10, 12, 0,  0,  0,  0,  0,  0,  6,  10, 12, 0,  0,
+      0,  0,  2,  6,  10, 12, 0,  0,  0,  0,  0,  2,  6,  10, 12, 0,  0,  0,
+      4,  6,  10, 12, 0,  0,  0,  0,  0,  4,  6,  10, 12, 0,  0,  0,  2,  4,
+      6,  10, 12, 0,  0,  0,  0,  2,  4,  6,  10, 12, 0,  0,  8,  10, 12, 0,
+      0,  0,  0,  0,  0,  8,  10, 12, 0,  0,  0,  0,  2,  8,  10, 12, 0,  0,
+      0,  0,  0,  2,  8,  10, 12, 0,  0,  0,  4,  8,  10, 12, 0,  0,  0,  0,
+      0,  4,  8,  10, 12, 0,  0,  0,  2,  4,  8,  10, 12, 0,  0,  0,  0,  2,
+      4,  8,  10, 12, 0,  0,  6,  8,  10, 12, 0,  0,  0,  0,  0,  6,  8,  10,
+      12, 0,  0,  0,  2,  6,  8,  10, 12, 0,  0,  0,  0,  2,  6,  8,  10, 12,
+      0,  0,  4,  6,  8,  10, 12, 0,  0,  0,  0,  4,  6,  8,  10, 12, 0,  0,
+      2,  4,  6,  8,  10, 12, 0,  0,  0,  2,  4,  6,  8,  10, 12, 0,  14, 0,
+      0,  0,  0,  0,  0,  0,  0,  14, 0,  0,  0,  0,  0,  0,  2,  14, 0,  0,
+      0,  0,  0,  0,  0,  2,  14, 0,  0,  0,  0,  0,  4,  14, 0,  0,  0,  0,
+      0,  0,  0,  4,  14, 0,  0,  0,  0,  0,  2,  4,  14, 0,  0,  0,  0,  0,
+      0,  2,  4,  14, 0,  0,  0,  0,  6,  14, 0,  0,  0,  0,  0,  0,  0,  6,
+      14, 0,  0,  0,  0,  0,  2,  6,  14, 0,  0,  0,  0,  0,  0,  2,  6,  14,
+      0,  0,  0,  0,  4,  6,  14, 0,  0,  0,  0,  0,  0,  4,  6,  14, 0,  0,
+      0,  0,  2,  4,  6,  14, 0,  0,  0,  0,  0,  2,  4,  6,  14, 0,  0,  0,
+      8,  14, 0,  0,  0,  0,  0,  0,  0,  8,  14, 0,  0,  0,  0,  0,  2,  8,
+      14, 0,  0,  0,  0,  0,  0,  2,  8,  14, 0,  0,  0,  0,  4,  8,  14, 0,
+      0,  0,  0,  0,  0,  4,  8,  14, 0,  0,  0,  0,  2,  4,  8,  14, 0,  0,
+      0,  0,  0,  2,  4,  8,  14, 0,  0,  0,  6,  8,  14, 0,  0,  0,  0,  0,
+      0,  6,  8,  14, 0,  0,  0,  0,  2,  6,  8,  14, 0,  0,  0,  0,  0,  2,
+      6,  8,  14, 0,  0,  0,  4,  6,  8,  14, 0,  0,  0,  0,  0,  4,  6,  8,
+      14, 0,  0,  0,  2,  4,  6,  8,  14, 0,  0,  0,  0,  2,  4,  6,  8,  14,
+      0,  0,  10, 14, 0,  0,  0,  0,  0,  0,  0,  10, 14, 0,  0,  0,  0,  0,
+      2,  10, 14, 0,  0,  0,  0,  0,  0,  2,  10, 14, 0,  0,  0,  0,  4,  10,
+      14, 0,  0,  0,  0,  0,  0,  4,  10, 14, 0,  0,  0,  0,  2,  4,  10, 14,
+      0,  0,  0,  0,  0,  2,  4,  10, 14, 0,  0,  0,  6,  10, 14, 0,  0,  0,
+      0,  0,  0,  6,  10, 14, 0,  0,  0,  0,  2,  6,  10, 14, 0,  0,  0,  0,
+      0,  2,  6,  10, 14, 0,  0,  0,  4,  6,  10, 14, 0,  0,  0,  0,  0,  4,
+      6,  10, 14, 0,  0,  0,  2,  4,  6,  10, 14, 0,  0,  0,  0,  2,  4,  6,
+      10, 14, 0,  0,  8,  10, 14, 0,  0,  0,  0,  0,  0,  8,  10, 14, 0,  0,
+      0,  0,  2,  8,  10, 14, 0,  0,  0,  0,  0,  2,  8,  10, 14, 0,  0,  0,
+      4,  8,  10, 14, 0,  0,  0,  0,  0,  4,  8,  10, 14, 0,  0,  0,  2,  4,
+      8,  10, 14, 0,  0,  0,  0,  2,  4,  8,  10, 14, 0,  0,  6,  8,  10, 14,
+      0,  0,  0,  0,  0,  6,  8,  10, 14, 0,  0,  0,  2,  6,  8,  10, 14, 0,
+      0,  0,  0,  2,  6,  8,  10, 14, 0,  0,  4,  6,  8,  10, 14, 0,  0,  0,
+      0,  4,  6,  8,  10, 14, 0,  0,  2,  4,  6,  8,  10, 14, 0,  0,  0,  2,
+      4,  6,  8,  10, 14, 0,  12, 14, 0,  0,  0,  0,  0,  0,  0,  12, 14, 0,
+      0,  0,  0,  0,  2,  12, 14, 0,  0,  0,  0,  0,  0,  2,  12, 14, 0,  0,
+      0,  0,  4,  12, 14, 0,  0,  0,  0,  0,  0,  4,  12, 14, 0,  0,  0,  0,
+      2,  4,  12, 14, 0,  0,  0,  0,  0,  2,  4,  12, 14, 0,  0,  0,  6,  12,
+      14, 0,  0,  0,  0,  0,  0,  6,  12, 14, 0,  0,  0,  0,  2,  6,  12, 14,
+      0,  0,  0,  0,  0,  2,  6,  12, 14, 0,  0,  0,  4,  6,  12, 14, 0,  0,
+      0,  0,  0,  4,  6,  12, 14, 0,  0,  0,  2,  4,  6,  12, 14, 0,  0,  0,
+      0,  2,  4,  6,  12, 14, 0,  0,  8,  12, 14, 0,  0,  0,  0,  0,  0,  8,
+      12, 14, 0,  0,  0,  0,  2,  8,  12, 14, 0,  0,  0,  0,  0,  2,  8,  12,
+      14, 0,  0,  0,  4,  8,  12, 14, 0,  0,  0,  0,  0,  4,  8,  12, 14, 0,
+      0,  0,  2,  4,  8,  12, 14, 0,  0,  0,  0,  2,  4,  8,  12, 14, 0,  0,
+      6,  8,  12, 14, 0,  0,  0,  0,  0,  6,  8,  12, 14, 0,  0,  0,  2,  6,
+      8,  12, 14, 0,  0,  0,  0,  2,  6,  8,  12, 14, 0,  0,  4,  6,  8,  12,
+      14, 0,  0,  0,  0,  4,  6,  8,  12, 14, 0,  0,  2,  4,  6,  8,  12, 14,
+      0,  0,  0,  2,  4,  6,  8,  12, 14, 0,  10, 12, 14, 0,  0,  0,  0,  0,
+      0,  10, 12, 14, 0,  0,  0,  0,  2,  10, 12, 14, 0,  0,  0,  0,  0,  2,
+      10, 12, 14, 0,  0,  0,  4,  10, 12, 14, 0,  0,  0,  0,  0,  4,  10, 12,
+      14, 0,  0,  0,  2,  4,  10, 12, 14, 0,  0,  0,  0,  2,  4,  10, 12, 14,
+      0,  0,  6,  10, 12, 14, 0,  0,  0,  0,  0,  6,  10, 12, 14, 0,  0,  0,
+      2,  6,  10, 12, 14, 0,  0,  0,  0,  2,  6,  10, 12, 14, 0,  0,  4,  6,
+      10, 12, 14, 0,  0,  0,  0,  4,  6,  10, 12, 14, 0,  0,  2,  4,  6,  10,
+      12, 14, 0,  0,  0,  2,  4,  6,  10, 12, 14, 0,  8,  10, 12, 14, 0,  0,
+      0,  0,  0,  8,  10, 12, 14, 0,  0,  0,  2,  8,  10, 12, 14, 0,  0,  0,
+      0,  2,  8,  10, 12, 14, 0,  0,  4,  8,  10, 12, 14, 0,  0,  0,  0,  4,
+      8,  10, 12, 14, 0,  0,  2,  4,  8,  10, 12, 14, 0,  0,  0,  2,  4,  8,
+      10, 12, 14, 0,  6,  8,  10, 12, 14, 0,  0,  0,  0,  6,  8,  10, 12, 14,
+      0,  0,  2,  6,  8,  10, 12, 14, 0,  0,  0,  2,  6,  8,  10, 12, 14, 0,
+      4,  6,  8,  10, 12, 14, 0,  0,  0,  4,  6,  8,  10, 12, 14, 0,  2,  4,
+      6,  8,  10, 12, 14, 0,  0,  2,  4,  6,  8,  10, 12, 14};
+
+  const Vec128<uint8_t, 2 * N> byte_idx{Load(d8, table + mask_bits * 8).raw};
+  const Vec128<uint16_t, N> pairs = ZipLower(byte_idx, byte_idx);
+  return BitCast(d, pairs + Set(du, 0x0100));
+}
+
+template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Idx32x4FromBits(const uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 16);
 
@@ -2968,71 +3106,42 @@ HWY_INLINE Vec128<T, N> Idx64x2FromBits(const uint64_t mask_bits) {
 // Helper function called by both Compress and CompressStore - avoids a
 // redundant BitsFromMask in the latter.
 
-template <size_t N>
-HWY_API Vec128<uint32_t, N> Compress(Vec128<uint32_t, N> v,
-                                     const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec128<uint32_t, N>{_mm_maskz_compress_epi32(mask_bits, v.raw)};
-#else
-  const auto idx = detail::Idx32x4FromBits<uint32_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-#endif
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Compress(hwy::SizeTag<2> /*tag*/, Vec128<T, N> v,
+                              const uint64_t mask_bits) {
+  const auto idx = detail::Idx16x8FromBits<T, N>(mask_bits);
+  using D = Simd<T, N>;
+  const RebindToSigned<D> di;
+  return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
 }
-template <size_t N>
-HWY_API Vec128<int32_t, N> Compress(Vec128<int32_t, N> v,
-                                    const uint64_t mask_bits) {
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Compress(hwy::SizeTag<4> /*tag*/, Vec128<T, N> v,
+                              const uint64_t mask_bits) {
+  using D = Simd<T, N>;
+  using TI = MakeSigned<T>;
+  const Rebind<TI, D> di;
 #if HWY_TARGET == HWY_AVX3
-  return Vec128<int32_t, N>{_mm_maskz_compress_epi32(mask_bits, v.raw)};
+  return BitCast(D(), Vec128<TI, N>{_mm_maskz_compress_epi32(
+                          mask_bits, BitCast(di, v).raw)});
 #else
-  const auto idx = detail::Idx32x4FromBits<int32_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
+  const auto idx = detail::Idx32x4FromBits<T, N>(mask_bits);
+  return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
 #endif
 }
 
-template <size_t N>
-HWY_API Vec128<uint64_t, N> Compress(Vec128<uint64_t, N> v,
-                                     const uint64_t mask_bits) {
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Compress(hwy::SizeTag<8> /*tag*/, Vec128<T, N> v,
+                              const uint64_t mask_bits) {
+  using D = Simd<T, N>;
+  using TI = MakeSigned<T>;
+  const Rebind<TI, D> di;
 #if HWY_TARGET == HWY_AVX3
-  return Vec128<uint64_t, N>{_mm_maskz_compress_epi64(mask_bits, v.raw)};
+  return BitCast(D(), Vec128<TI, N>{_mm_maskz_compress_epi64(
+                          mask_bits, BitCast(di, v).raw)});
 #else
-  const auto idx = detail::Idx64x2FromBits<uint64_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-#endif
-}
-template <size_t N>
-HWY_API Vec128<int64_t, N> Compress(Vec128<int64_t, N> v,
-                                    const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec128<int64_t, N>{_mm_maskz_compress_epi64(mask_bits, v.raw)};
-#else
-  const auto idx = detail::Idx64x2FromBits<int64_t, N>(mask_bits);
-  return TableLookupBytes(v, idx);
-#endif
-}
-
-template <size_t N>
-HWY_API Vec128<float, N> Compress(Vec128<float, N> v,
-                                  const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec128<float, N>{_mm_maskz_compress_ps(mask_bits, v.raw)};
-#else
-  const auto idx = detail::Idx32x4FromBits<int32_t, N>(mask_bits);
-  const Simd<float, N> df;
-  const Simd<int32_t, N> di;
-  return BitCast(df, TableLookupBytes(BitCast(di, v), idx));
-#endif
-}
-
-template <size_t N>
-HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
-                                   const uint64_t mask_bits) {
-#if HWY_TARGET == HWY_AVX3
-  return Vec128<double, N>{_mm_maskz_compress_pd(mask_bits, v.raw)};
-#else
-  const auto idx = detail::Idx64x2FromBits<int64_t, N>(mask_bits);
-  const Simd<double, N> df;
-  const Simd<int64_t, N> di;
-  return BitCast(df, TableLookupBytes(BitCast(di, v), idx));
+  const auto idx = detail::Idx64x2FromBits<T, N>(mask_bits);
+  return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
 #endif
 }
 
@@ -3040,7 +3149,8 @@ HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
-  return detail::Compress(v, detail::BitsFromMask(mask));
+  return detail::Compress(hwy::SizeTag<sizeof(T)>(), v,
+                          detail::BitsFromMask(mask));
 }
 
 // ------------------------------ CompressStore
@@ -3050,7 +3160,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N> d, T* HWY_RESTRICT aligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   // Avoid _mm_maskmoveu_si128 (>500 cycle latency because it bypasses caches).
-  Store(detail::Compress(v, mask_bits), d, aligned);
+  Store(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d, aligned);
   return PopCount(mask_bits);
 }
 

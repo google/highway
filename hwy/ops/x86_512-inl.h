@@ -2633,7 +2633,80 @@ HWY_API Vec512<double> Compress(Vec512<double> v, const Mask512<double> mask) {
   return Vec512<double>{_mm512_maskz_compress_pd(mask.raw, v.raw)};
 }
 
+namespace detail {
+
+// Ignore IDE redefinition error for these two functions: if this header is
+// included, then the functions weren't actually defined in x86_256-inl.h.
+template <typename T>
+HWY_API Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
+                           const uint64_t mask_bits) {
+  using D = Full256<T>;
+  const Rebind<uint16_t, D> du;
+  const Rebind<int32_t, D> dw;       // 512-bit, not 256!
+  const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
+  const Mask512<int32_t> mask{static_cast<__mmask16>(mask_bits)};
+  return BitCast(D(), DemoteTo(du, Compress(PromoteTo(dw, vu16), mask)));
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
+  return detail::Compress(hwy::SizeTag<sizeof(T)>(), v,
+                          detail::BitsFromMask(mask));
+}
+
+// Expands to 32-bit, compresses, concatenate demoted halves.
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
+  using D = Full512<T>;
+  const Rebind<uint16_t, D> du;
+  const Repartition<int32_t, D> dw;
+  const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
+  const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
+  const auto promoted1 = PromoteTo(dw, UpperHalf(vu16));
+
+  const Mask512<int32_t> mask0{mask.raw & 0xFFFF};
+  const Mask512<int32_t> mask1{mask.raw >> 16};
+  const auto compressed0 = Compress(promoted0, mask0);
+  const auto compressed1 = Compress(promoted1, mask1);
+
+  const Half<decltype(du)> dh;
+  const auto demoted0 = ZeroExtendVector(DemoteTo(dh, compressed0));
+  const auto demoted1 = ZeroExtendVector(DemoteTo(dh, compressed1));
+
+  // Concatenate into single vector by shifting upper with writemask.
+  const size_t num0 = CountTrue(mask0);
+  const __mmask32 m_upper = ~((1u << num0) - 1);
+  alignas(64) uint16_t iota[64] = {
+      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+      16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+  const auto idx = LoadU(du, iota + 32 - num0);
+  return Vec512<T>{_mm512_mask_permutexvar_epi16(demoted0.raw, m_upper, idx.raw,
+                                                 demoted1.raw)};
+}
+
 // ------------------------------ CompressStore
+
+template <typename T>
+HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
+                             T* HWY_RESTRICT aligned) {
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  Store(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d, aligned);
+  return PopCount(mask_bits);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressStore(Vec512<T> v, const Mask512<T> mask, Full512<T> d,
+                             T* HWY_RESTRICT aligned) {
+  // NOTE: it is tempting to split inputs into two halves for 16-bit lanes, but
+  // using StoreU to concatenate the results would cause page faults if
+  // `aligned` is the last valid vector. Instead rely on in-register splicing.
+  Store(Compress(v, mask), d, aligned);
+  return CountTrue(mask);
+}
 
 HWY_API size_t CompressStore(Vec512<uint32_t> v, const Mask512<uint32_t> mask,
                              Full512<uint32_t> /* tag */,

@@ -309,11 +309,16 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // by concatenating base type and bits.
 
 // RVV already has a builtin type.
-#if !HWY_ARCH_RVV
+#if HWY_ARCH_RVV
+using float16_t = __fp16;
+#else
+#pragma pack(push, 1)
 struct float16_t {
   // __fp16 cannot be used as a function parameter in clang, so use a wrapper.
+  // It is also deprecated, and wide _Float16 support is far off.
   uint16_t bits;
 };
+#pragma pack(pop)
 #endif
 using float32_t = float;
 using float64_t = double;
@@ -504,6 +509,13 @@ struct Relations<int64_t> {
   using Signed = int64_t;
   using Float = double;
   using Narrow = int32_t;
+};
+template <>
+struct Relations<float16_t> {
+  using Unsigned = uint16_t;
+  using Signed = int16_t;
+  using Float = float16_t;
+  using Wide = float;
 };
 template <>
 struct Relations<float> {
