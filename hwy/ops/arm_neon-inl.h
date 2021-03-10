@@ -2170,7 +2170,7 @@ HWY_INLINE Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
 
 HWY_INLINE Vec128<float> PromoteTo(Full128<float> /* tag */,
                                    const Vec128<float16_t, 4> v) {
-  return Vec128<float>(vcvt_f32_f16(v.raw));
+  return Vec128<float>(vcvt_f32_f16(vreinterpret_f16_u16(v.raw)));
 }
 template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
@@ -2298,7 +2298,7 @@ HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
 
 HWY_INLINE Vec128<float16_t, 4> DemoteTo(Simd<float16_t, 4> /* tag */,
                                          const Vec128<float> v) {
-  return Vec128<float16_t, 4>{vcvt_f16_f32(v.raw)};
+  return Vec128<float16_t, 4>{vreinterpret_u16_f16(vcvt_f16_f32(v.raw))};
 }
 template <size_t N>
 HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
@@ -2397,7 +2397,7 @@ HWY_INLINE Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
                                       const Vec128<int32_t> v) {
   Vec128<int16_t, N> a = DemoteTo(Simd<int16_t, N>(), v);
   Vec128<int16_t, N> b;
-  uint16x8_t c = vcombine_s16(a.raw, b.raw);
+  int16x8_t c = vcombine_s16(a.raw, b.raw);
   return Vec128<int8_t, N>(vqmovn_s16(c));
 }
 
@@ -2980,7 +2980,7 @@ HWY_INLINE Vec128<T> Shuffle0123(const Vec128<T> v) {
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
 struct Indices128 {
-  uint8x16_t raw;
+  typename Raw128<T, 16 / sizeof(T)>::type raw;
 };
 
 template <typename T>
@@ -2999,7 +2999,7 @@ HWY_INLINE Indices128<T> SetTableIndices(const Full128<T>, const int32_t* idx) {
     const size_t mod = idx_byte % sizeof(T);
     control[idx_byte] = idx[idx_lane] * sizeof(T) + mod;
   }
-  return Indices128<T>{Load(d8, control).raw};
+  return Indices128<T>{BitCast(Full128<T>(), Load(d8, control)).raw};
 }
 
 HWY_INLINE Vec128<uint32_t> TableLookupLanes(const Vec128<uint32_t> v,
@@ -3093,7 +3093,7 @@ HWY_INLINE Vec128<float> InterleaveUpper(const Vec128<float> a,
 #if defined(__aarch64__)
 HWY_INLINE Vec128<double> InterleaveUpper(const Vec128<double> a,
                                           const Vec128<double> b) {
-  return Vec128<double>(vzip2q_s64(a.raw, b.raw));
+  return Vec128<double>(vzip2q_f64(a.raw, b.raw));
 }
 #endif
 
@@ -3105,119 +3105,125 @@ HWY_INLINE Vec128<double> InterleaveUpper(const Vec128<double> a,
 // Full vectors
 HWY_INLINE Vec128<uint16_t> ZipLower(const Vec128<uint8_t> a,
                                      const Vec128<uint8_t> b) {
-  return Vec128<uint16_t>(vzip1q_u8(a.raw, b.raw));
+  return Vec128<uint16_t>(vreinterpretq_u16_u8(vzip1q_u8(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<uint32_t> ZipLower(const Vec128<uint16_t> a,
                                      const Vec128<uint16_t> b) {
-  return Vec128<uint32_t>(vzip1q_u16(a.raw, b.raw));
+  return Vec128<uint32_t>(vreinterpretq_u32_u16(vzip1q_u16(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<uint64_t> ZipLower(const Vec128<uint32_t> a,
                                      const Vec128<uint32_t> b) {
-  return Vec128<uint64_t>(vzip1q_u32(a.raw, b.raw));
+  return Vec128<uint64_t>(vreinterpretq_u64_u32(vzip1q_u32(a.raw, b.raw)));
 }
 
 HWY_INLINE Vec128<int16_t> ZipLower(const Vec128<int8_t> a,
                                     const Vec128<int8_t> b) {
-  return Vec128<int16_t>(vzip1q_s8(a.raw, b.raw));
+  return Vec128<int16_t>(vreinterpretq_s16_s8(vzip1q_s8(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<int32_t> ZipLower(const Vec128<int16_t> a,
                                     const Vec128<int16_t> b) {
-  return Vec128<int32_t>(vzip1q_s16(a.raw, b.raw));
+  return Vec128<int32_t>(vreinterpretq_s32_s16(vzip1q_s16(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<int64_t> ZipLower(const Vec128<int32_t> a,
                                     const Vec128<int32_t> b) {
-  return Vec128<int64_t>(vzip1q_s32(a.raw, b.raw));
+  return Vec128<int64_t>(vreinterpretq_s64_s32(vzip1q_s32(a.raw, b.raw)));
 }
 
 HWY_INLINE Vec128<uint16_t> ZipUpper(const Vec128<uint8_t> a,
                                      const Vec128<uint8_t> b) {
-  return Vec128<uint16_t>(vzip2q_u8(a.raw, b.raw));
+  return Vec128<uint16_t>(vreinterpretq_u16_u8(vzip2q_u8(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<uint32_t> ZipUpper(const Vec128<uint16_t> a,
                                      const Vec128<uint16_t> b) {
-  return Vec128<uint32_t>(vzip2q_u16(a.raw, b.raw));
+  return Vec128<uint32_t>(vreinterpretq_u32_u16(vzip2q_u16(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<uint64_t> ZipUpper(const Vec128<uint32_t> a,
                                      const Vec128<uint32_t> b) {
-  return Vec128<uint64_t>(vzip2q_u32(a.raw, b.raw));
+  return Vec128<uint64_t>(vreinterpretq_u64_u32(vzip2q_u32(a.raw, b.raw)));
 }
 
 HWY_INLINE Vec128<int16_t> ZipUpper(const Vec128<int8_t> a,
                                     const Vec128<int8_t> b) {
-  return Vec128<int16_t>(vzip2q_s8(a.raw, b.raw));
+  return Vec128<int16_t>(vreinterpretq_s16_s8(vzip2q_s8(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<int32_t> ZipUpper(const Vec128<int16_t> a,
                                     const Vec128<int16_t> b) {
-  return Vec128<int32_t>(vzip2q_s16(a.raw, b.raw));
+  return Vec128<int32_t>(vreinterpretq_s32_s16(vzip2q_s16(a.raw, b.raw)));
 }
 HWY_INLINE Vec128<int64_t> ZipUpper(const Vec128<int32_t> a,
                                     const Vec128<int32_t> b) {
-  return Vec128<int64_t>(vzip2q_s32(a.raw, b.raw));
+  return Vec128<int64_t>(vreinterpretq_s64_s32(vzip2q_s32(a.raw, b.raw)));
 }
 
 // Half vectors or less
 template <size_t N, HWY_IF_LE64(uint8_t, N)>
 HWY_INLINE Vec128<uint16_t, (N + 1) / 2> ZipLower(const Vec128<uint8_t, N> a,
                                                   const Vec128<uint8_t, N> b) {
-  return Vec128<uint16_t, (N + 1) / 2>(vzip1_u8(a.raw, b.raw));
+  return Vec128<uint16_t, (N + 1) / 2>(
+      vreinterpret_u16_u8(vzip1_u8(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(uint16_t, N)>
 HWY_INLINE Vec128<uint32_t, (N + 1) / 2> ZipLower(const Vec128<uint16_t, N> a,
                                                   const Vec128<uint16_t, N> b) {
-  return Vec128<uint32_t, (N + 1) / 2>(vzip1_u16(a.raw, b.raw));
+  return Vec128<uint32_t, (N + 1) / 2>(
+      vreinterpret_u32_u16(vzip1_u16(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint64_t, (N + 1) / 2> ZipLower(const Vec128<uint32_t, N> a,
                                                   const Vec128<uint32_t, N> b) {
-  return Vec128<uint64_t, (N + 1) / 2>(vzip1_u32(a.raw, b.raw));
+  return Vec128<uint64_t, (N + 1) / 2>(
+      vreinterpret_u64_u32(vzip1_u32(a.raw, b.raw)));
 }
 
 template <size_t N, HWY_IF_LE64(int8_t, N)>
 HWY_INLINE Vec128<int16_t, (N + 1) / 2> ZipLower(const Vec128<int8_t, N> a,
                                                  const Vec128<int8_t, N> b) {
-  return Vec128<int16_t, (N + 1) / 2>(vzip1_s8(a.raw, b.raw));
+  return Vec128<int16_t, (N + 1) / 2>(
+      vreinterpret_s16_s8(vzip1_s8(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(int16_t, N)>
 HWY_INLINE Vec128<int32_t, (N + 1) / 2> ZipLower(const Vec128<int16_t, N> a,
                                                  const Vec128<int16_t, N> b) {
-  return Vec128<int32_t, (N + 1) / 2>(vzip1_s16(a.raw, b.raw));
+  return Vec128<int32_t, (N + 1) / 2>(
+      vreinterpret_s32_s16(vzip1_s16(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int64_t, (N + 1) / 2> ZipLower(const Vec128<int32_t, N> a,
                                                  const Vec128<int32_t, N> b) {
-  return Vec128<int64_t, (N + 1) / 2>(vzip1_s32(a.raw, b.raw));
+  return Vec128<int64_t, (N + 1) / 2>(
+      vreinterpret_s64_s32(vzip1_s32(a.raw, b.raw)));
 }
 
 template <size_t N, HWY_IF_LE64(uint8_t, N)>
 HWY_INLINE Vec128<uint16_t, N / 2> ZipUpper(const Vec128<uint8_t, N> a,
                                             const Vec128<uint8_t, N> b) {
-  return Vec128<uint16_t, N / 2>(vzip2_u8(a.raw, b.raw));
+  return Vec128<uint16_t, N / 2>(vreinterpret_u16_u8(vzip2_u8(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(uint16_t, N)>
 HWY_INLINE Vec128<uint32_t, N / 2> ZipUpper(const Vec128<uint16_t, N> a,
                                             const Vec128<uint16_t, N> b) {
-  return Vec128<uint32_t, N / 2>(vzip2_u16(a.raw, b.raw));
+  return Vec128<uint32_t, N / 2>(vreinterpret_u32_u16(vzip2_u16(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(uint32_t, N)>
 HWY_INLINE Vec128<uint64_t, N / 2> ZipUpper(const Vec128<uint32_t, N> a,
                                             const Vec128<uint32_t, N> b) {
-  return Vec128<uint64_t, N / 2>(vzip2_u32(a.raw, b.raw));
+  return Vec128<uint64_t, N / 2>(vreinterpret_u64_u32(vzip2_u32(a.raw, b.raw)));
 }
 
 template <size_t N, HWY_IF_LE64(int8_t, N)>
 HWY_INLINE Vec128<int16_t, N / 2> ZipUpper(const Vec128<int8_t, N> a,
                                            const Vec128<int8_t, N> b) {
-  return Vec128<int16_t, N / 2>(vzip2_s8(a.raw, b.raw));
+  return Vec128<int16_t, N / 2>(vreinterpret_s16_s8(vzip2_s8(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(int16_t, N)>
 HWY_INLINE Vec128<int32_t, N / 2> ZipUpper(const Vec128<int16_t, N> a,
                                            const Vec128<int16_t, N> b) {
-  return Vec128<int32_t, N / 2>(vzip2_s16(a.raw, b.raw));
+  return Vec128<int32_t, N / 2>(vreinterpret_s32_s16(vzip2_s16(a.raw, b.raw)));
 }
 template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int64_t, N / 2> ZipUpper(const Vec128<int32_t, N> a,
                                            const Vec128<int32_t, N> b) {
-  return Vec128<int64_t, N / 2>(vzip2_s32(a.raw, b.raw));
+  return Vec128<int64_t, N / 2>(vreinterpret_s64_s32(vzip2_s32(a.raw, b.raw)));
 }
 
 // ------------------------------ Blocks
