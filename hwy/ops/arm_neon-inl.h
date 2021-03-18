@@ -3696,9 +3696,13 @@ HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
 // Full
 template <typename T>
 HWY_INLINE bool AllFalse(const Mask128<T> m) {
+#if defined(__aarch64__)
+  return (vmaxvq_u32(m.raw) == 0);
+#else
   const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), m));
   uint32x2_t a = vqmovn_u64(v64.raw);
   return vreinterpret_u64_u32(a)[0] == 0;
+#endif
 }
 
 // Partial
