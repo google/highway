@@ -779,12 +779,29 @@ HWY_INLINE void Stream(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT aligned) {
   return Store(v, d, aligned);
 }
 
+// ------------------------------ Scatter
+
+template <typename T, typename Offset>
+HWY_INLINE void ScatterOffset(Vec1<T> v, Sisd<T> d, T* base,
+                              const Vec1<Offset> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+  uint8_t* const base8 = reinterpret_cast<uint8_t*>(base) + offset.raw;
+  return Store(v, d, reinterpret_cast<T*>(base8));
+}
+
+template <typename T, typename Index>
+HWY_INLINE void ScatterIndex(Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT base,
+                             const Vec1<Index> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+  return Store(v, d, base + index.raw);
+}
+
 // ------------------------------ Gather
 
 template <typename T, typename Offset>
 HWY_INLINE Vec1<T> GatherOffset(Sisd<T> d, const T* base,
                                 const Vec1<Offset> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "SVE requires same size base/ofs");
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
   const uintptr_t addr = reinterpret_cast<uintptr_t>(base) + offset.raw;
   return Load(d, reinterpret_cast<const T*>(addr));
 }
@@ -792,7 +809,7 @@ HWY_INLINE Vec1<T> GatherOffset(Sisd<T> d, const T* base,
 template <typename T, typename Index>
 HWY_INLINE Vec1<T> GatherIndex(Sisd<T> d, const T* HWY_RESTRICT base,
                                const Vec1<Index> index) {
-  static_assert(sizeof(T) == sizeof(Index), "SVE requires same size base/idx");
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
   return Load(d, base + index.raw);
 }
 

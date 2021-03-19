@@ -250,7 +250,12 @@ inline bool BytesEqual(const T1* p1, const T2* p2, const size_t size) {
   const uint8_t* bytes1 = reinterpret_cast<const uint8_t*>(p1);
   const uint8_t* bytes2 = reinterpret_cast<const uint8_t*>(p2);
   for (size_t i = 0; i < size; ++i) {
-    if (bytes1[i] != bytes2[i]) return false;
+    if (bytes1[i] != bytes2[i]) {
+      fprintf(stderr, "Mismatch at byte %zu of %zu: %d != %d (%s, %s)\n", i,
+              size, bytes1[i], bytes2[i], TypeName(T1(), 1).c_str(),
+              TypeName(T2(), 1).c_str());
+      return false;
+    }
   }
   return true;
 }

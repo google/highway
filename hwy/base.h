@@ -308,18 +308,13 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
 // by concatenating base type and bits.
 
-// RVV already has a builtin type.
-#if HWY_ARCH_RVV
-using float16_t = __fp16;
-#else
+// __fp16 cannot be used as a function parameter in clang (e.g. for Vec1), and
+// is also deprecated, so use a wrapper.
 #pragma pack(push, 1)
 struct float16_t {
-  // __fp16 cannot be used as a function parameter in clang, so use a wrapper.
-  // It is also deprecated, and wide _Float16 support is far off.
   uint16_t bits;
 };
 #pragma pack(pop)
-#endif
 using float32_t = float;
 using float64_t = double;
 

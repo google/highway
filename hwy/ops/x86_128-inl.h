@@ -1731,11 +1731,159 @@ HWY_API void Stream(const Vec128<double, N> v, Simd<double, N> /* tag */,
   _mm_stream_pd(aligned, v.raw);
 }
 
-// ------------------------------ Gather
+// ------------------------------ Scatter
 
 // Unfortunately the GCC/Clang intrinsics do not accept int64_t*.
 using GatherIndex64 = long long int;  // NOLINT(google-runtime-int)
 static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
+
+#if HWY_TARGET == HWY_AVX3
+namespace detail {
+
+template <typename T, size_t N>
+HWY_API void ScatterOffset(hwy::SizeTag<4> /* tag */, Vec128<T, N> v,
+                           Simd<T, N> /* tag */, T* HWY_RESTRICT base,
+                           const Vec128<int32_t, N> offset) {
+  if (N == 4) {
+    _mm_i32scatter_epi32(base, offset.raw, v.raw, 1);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i32scatter_epi32(base, mask, offset.raw, v.raw, 1);
+  }
+}
+template <typename T, size_t N>
+HWY_API void ScatterIndex(hwy::SizeTag<4> /* tag */, Vec128<T, N> v,
+                          Simd<T, N> /* tag */, T* HWY_RESTRICT base,
+                          const Vec128<int32_t, N> index) {
+  if (N == 4) {
+    _mm_i32scatter_epi32(base, index.raw, v.raw, 4);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i32scatter_epi32(base, mask, index.raw, v.raw, 4);
+  }
+}
+
+template <typename T, size_t N>
+HWY_API void ScatterOffset(hwy::SizeTag<8> /* tag */, Vec128<T, N> v,
+                           Simd<T, N> /* tag */, T* HWY_RESTRICT base,
+                           const Vec128<int64_t, N> offset) {
+  if (N == 2) {
+    _mm_i64scatter_epi64(base, offset.raw, v.raw, 1);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i64scatter_epi64(base, mask, offset.raw, v.raw, 1);
+  }
+}
+template <typename T, size_t N>
+HWY_API void ScatterIndex(hwy::SizeTag<8> /* tag */, Vec128<T, N> v,
+                          Simd<T, N> /* tag */, T* HWY_RESTRICT base,
+                          const Vec128<int64_t, N> index) {
+  if (N == 2) {
+    _mm_i64scatter_epi64(base, index.raw, v.raw, 8);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i64scatter_epi64(base, mask, index.raw, v.raw, 8);
+  }
+}
+
+}  // namespace detail
+
+template <typename T, size_t N, typename Offset>
+HWY_API void ScatterOffset(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
+                           const Vec128<Offset, N> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+  return detail::ScatterOffset(hwy::SizeTag<sizeof(T)>(), v, d, base, offset);
+}
+template <typename T, size_t N, typename Index>
+HWY_API void ScatterIndex(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
+                          const Vec128<Index, N> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+  return detail::ScatterIndex(hwy::SizeTag<sizeof(T)>(), v, d, base, index);
+}
+
+template <size_t N>
+HWY_INLINE void ScatterOffset(Vec128<float, N> v, Simd<float, N> /* tag */,
+                              float* HWY_RESTRICT base,
+                              const Vec128<int32_t, N> offset) {
+  if (N == 4) {
+    _mm_i32scatter_ps(base, offset.raw, v.raw, 1);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i32scatter_ps(base, mask, offset.raw, v.raw, 1);
+  }
+}
+template <size_t N>
+HWY_INLINE void ScatterIndex(Vec128<float, N> v, Simd<float, N> /* tag */,
+                             float* HWY_RESTRICT base,
+                             const Vec128<int32_t, N> index) {
+  if (N == 4) {
+    _mm_i32scatter_ps(base, index.raw, v.raw, 4);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i32scatter_ps(base, mask, index.raw, v.raw, 4);
+  }
+}
+
+template <size_t N>
+HWY_INLINE void ScatterOffset(Vec128<double, N> v, Simd<double, N> /* tag */,
+                              double* HWY_RESTRICT base,
+                              const Vec128<int64_t, N> offset) {
+  if (N == 2) {
+    _mm_i64scatter_pd(base, offset.raw, v.raw, 1);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i64scatter_pd(base, mask, offset.raw, v.raw, 1);
+  }
+}
+template <size_t N>
+HWY_INLINE void ScatterIndex(Vec128<double, N> v, Simd<double, N> /* tag */,
+                             double* HWY_RESTRICT base,
+                             const Vec128<int64_t, N> index) {
+  if (N == 2) {
+    _mm_i64scatter_pd(base, index.raw, v.raw, 8);
+  } else {
+    const __mmask8 mask = (1u << N) - 1;
+    _mm_mask_i64scatter_pd(base, mask, index.raw, v.raw, 8);
+  }
+}
+#else  // HWY_TARGET == HWY_AVX3
+
+template <typename T, size_t N, typename Offset, HWY_IF_LE128(T, N)>
+HWY_API void ScatterOffset(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
+                           const Vec128<Offset, N> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+
+  alignas(16) T lanes[N];
+  Store(v, d, lanes);
+
+  alignas(16) Offset offset_lanes[N];
+  Store(offset, Simd<Offset, N>(), offset_lanes);
+
+  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
+  for (size_t i = 0; i < N; ++i) {
+    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
+  }
+}
+
+template <typename T, size_t N, typename Index, HWY_IF_LE128(T, N)>
+HWY_API void ScatterIndex(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
+                          const Vec128<Index, N> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+
+  alignas(16) T lanes[N];
+  Store(v, d, lanes);
+
+  alignas(16) Index index_lanes[N];
+  Store(index, Simd<Index, N>(), index_lanes);
+
+  for (size_t i = 0; i < N; ++i) {
+    base[index_lanes[i]] = lanes[i];
+  }
+}
+
+#endif
+
+// ------------------------------ Gather
 
 #if HWY_TARGET == HWY_SSE4
 

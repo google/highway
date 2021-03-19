@@ -825,6 +825,33 @@ HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
   Store(v, d, aligned);
 }
 
+// ------------------------------ ScatterOffset
+
+#define HWY_RVV_SCATTER(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)      \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                   \
+                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,             \
+                    const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base, \
+                    HWY_RVV_V(int, SEW, LMUL) offset) {             \
+    return v##OP##ei##SEW##_v_##CHAR##SEW##m##LMUL(                 \
+        base, detail::BitCastToUnsigned(offset));                   \
+  }
+HWY_RVV_FOREACH(HWY_RVV_SCATTER, ScatterOffset, sx)
+#undef HWY_RVV_SCATTER
+
+// ------------------------------ ScatterIndex
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+HWY_API void ScatterIndex(VFromD<D> v, D d, const TFromD<D>* HWY_RESTRICT base,
+                          const VFromD<RebindToSigned<D>> index) {
+  return ScatterOffset(v, d, base, ShiftLeft<2>(index));
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+HWY_API void ScatterIndex(VFromD<D> v, D d, const TFromD<D>* HWY_RESTRICT base,
+                          const VFromD<RebindToSigned<D>> index) {
+  return ScatterOffset(v, d, base, ShiftLeft<3>(index));
+}
+
 // ------------------------------ GatherOffset
 
 #define HWY_RVV_GATHER(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP) \

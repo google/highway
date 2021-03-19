@@ -441,19 +441,32 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
     be faster than broadcasting single values, and is more convenient than
     preparing constants for the actual vector length.
 
-#### Gather
+#### Scatter/Gather
 
-**Note**: Vectors must be `HWY_CAPPED(T, HWY_GATHER_LANES(T))`:
+**Note**: Vectors must be `HWY_CAPPED(T, HWY_GATHER_LANES(T))`. We plan to lift
+this limitation and emulate Gather/Scatter on all targets.
 
-*   `V`,`VI`: (`{u,i,f}{32},i32`), (`{u,i,f}{64},i64`) \
-    <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>.
-    Returns elements of base selected by possibly repeated *byte* `offsets[i]`.
-    Results are implementation-defined if `offsets[i]` is negative.
+**Note**: Offsets/indices are of type `VI = Vec<RebindToSigned<D>>` and need not
+be unique. The results are implementation-defined if any are negative.
 
-*   `V`,`VI`: (`{u,i,f}{32},i32`), (`{u,i,f}{64},i64`) \
-    <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>.
-    Returns vector of `base[indices[i]]`. Indices need not be unique, but
-    results are implementation-defined if they are negative.
+**Note**: Where possible, applications should `Load/Store/TableLookup*` entire
+vectors, which is much faster than `Scatter/Gather`. Otherwise, code of the form
+`dst[tbl[i]] = F(src[i])` should when possible be transformed to `dst[i] =
+F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
+
+*   `D`: `{u,i,f}{32,64}` <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, const
+    T* base, VI offsets)</code>. Stores `v[i]` to the base address plus *byte*
+    `offsets[i]`.
+
+*   `D`: `{u,i,f}{32,64}` <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, const
+    T* base, VI indices)</code>. Stores `v[i]` to `base[indices[i]]`.
+
+*   `D`: `{u,i,f}{32,64}` <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base,
+    VI offsets)</code>. Returns elements of base selected by *byte*
+    `offsets[i]`.
+
+*   `D`: `{u,i,f}{32,64}` <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base,
+    VI indices)</code>. Returns vector of `base[indices[i]]`.
 
 #### Store
 

@@ -1678,6 +1678,79 @@ HWY_API void Stream(const Vec512<double> v, Full512<double>,
   _mm512_stream_pd(aligned, v.raw);
 }
 
+// ------------------------------ Scatter
+
+namespace detail {
+
+template <typename T>
+HWY_API void ScatterOffset(hwy::SizeTag<4> /* tag */, Vec512<T> v,
+                           Full512<T> /* tag */, T* HWY_RESTRICT base,
+                           const Vec512<int32_t> offset) {
+  _mm512_i32scatter_epi32(base, offset.raw, v.raw, 1);
+}
+template <typename T>
+HWY_API void ScatterIndex(hwy::SizeTag<4> /* tag */, Vec512<T> v,
+                          Full512<T> /* tag */, T* HWY_RESTRICT base,
+                          const Vec512<int32_t> index) {
+  _mm512_i32scatter_epi32(base, index.raw, v.raw, 4);
+}
+
+template <typename T>
+HWY_API void ScatterOffset(hwy::SizeTag<8> /* tag */, Vec512<T> v,
+                           Full512<T> /* tag */, T* HWY_RESTRICT base,
+                           const Vec512<int64_t> offset) {
+  _mm512_i64scatter_epi64(base, offset.raw, v.raw, 1);
+}
+template <typename T>
+HWY_API void ScatterIndex(hwy::SizeTag<8> /* tag */, Vec512<T> v,
+                          Full512<T> /* tag */, T* HWY_RESTRICT base,
+                          const Vec512<int64_t> index) {
+  _mm512_i64scatter_epi64(base, index.raw, v.raw, 8);
+}
+
+}  // namespace detail
+
+template <typename T, typename Offset>
+HWY_API void ScatterOffset(Vec512<T> v, Full512<T> d, T* HWY_RESTRICT base,
+                           const Vec512<Offset> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+  return detail::ScatterOffset(hwy::SizeTag<sizeof(T)>(), v, d, base, offset);
+}
+template <typename T, typename Index>
+HWY_API void ScatterIndex(Vec512<T> v, Full512<T> d, T* HWY_RESTRICT base,
+                          const Vec512<Index> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+  return detail::ScatterIndex(hwy::SizeTag<sizeof(T)>(), v, d, base, index);
+}
+
+template <>
+HWY_INLINE void ScatterOffset<float>(Vec512<float> v, Full512<float> /* tag */,
+                                     float* HWY_RESTRICT base,
+                                     const Vec512<int32_t> offset) {
+  _mm512_i32scatter_ps(base, offset.raw, v.raw, 1);
+}
+template <>
+HWY_INLINE void ScatterIndex<float>(Vec512<float> v, Full512<float> /* tag */,
+                                    float* HWY_RESTRICT base,
+                                    const Vec512<int32_t> index) {
+  _mm512_i32scatter_ps(base, index.raw, v.raw, 4);
+}
+
+template <>
+HWY_INLINE void ScatterOffset<double>(Vec512<double> v,
+                                      Full512<double> /* tag */,
+                                      double* HWY_RESTRICT base,
+                                      const Vec512<int64_t> offset) {
+  _mm512_i64scatter_pd(base, offset.raw, v.raw, 1);
+}
+template <>
+HWY_INLINE void ScatterIndex<double>(Vec512<double> v,
+                                     Full512<double> /* tag */,
+                                     double* HWY_RESTRICT base,
+                                     const Vec512<int64_t> index) {
+  _mm512_i64scatter_pd(base, index.raw, v.raw, 8);
+}
+
 // ------------------------------ Gather
 
 namespace detail {
@@ -1713,13 +1786,13 @@ HWY_API Vec512<T> GatherIndex(hwy::SizeTag<8> /* tag */, Full512<T> /* tag */,
 template <typename T, typename Offset>
 HWY_API Vec512<T> GatherOffset(Full512<T> d, const T* HWY_RESTRICT base,
                                const Vec512<Offset> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "SVE requires same size base/ofs");
+static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
   return detail::GatherOffset(hwy::SizeTag<sizeof(T)>(), d, base, offset);
 }
 template <typename T, typename Index>
 HWY_API Vec512<T> GatherIndex(Full512<T> d, const T* HWY_RESTRICT base,
                               const Vec512<Index> index) {
-  static_assert(sizeof(T) == sizeof(Index), "SVE requires same size base/idx");
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
   return detail::GatherIndex(hwy::SizeTag<sizeof(T)>(), d, base, index);
 }
 

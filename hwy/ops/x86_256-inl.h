@@ -1335,6 +1335,119 @@ HWY_API void Stream(const Vec256<double> v, Full256<double> /* tag */,
   _mm256_stream_pd(aligned, v.raw);
 }
 
+// ------------------------------ Scatter
+
+#if HWY_TARGET == HWY_AVX3
+namespace detail {
+
+template <typename T>
+HWY_API void ScatterOffset(hwy::SizeTag<4> /* tag */, Vec256<T> v,
+                           Full256<T> /* tag */, T* HWY_RESTRICT base,
+                           const Vec256<int32_t> offset) {
+  _mm256_i32scatter_epi32(base, offset.raw, v.raw, 1);
+}
+template <typename T>
+HWY_API void ScatterIndex(hwy::SizeTag<4> /* tag */, Vec256<T> v,
+                          Full256<T> /* tag */, T* HWY_RESTRICT base,
+                          const Vec256<int32_t> index) {
+  _mm256_i32scatter_epi32(base, index.raw, v.raw, 4);
+}
+
+template <typename T>
+HWY_API void ScatterOffset(hwy::SizeTag<8> /* tag */, Vec256<T> v,
+                           Full256<T> /* tag */, T* HWY_RESTRICT base,
+                           const Vec256<int64_t> offset) {
+  _mm256_i64scatter_epi64(base, offset.raw, v.raw, 1);
+}
+template <typename T>
+HWY_API void ScatterIndex(hwy::SizeTag<8> /* tag */, Vec256<T> v,
+                          Full256<T> /* tag */, T* HWY_RESTRICT base,
+                          const Vec256<int64_t> index) {
+  _mm256_i64scatter_epi64(base, index.raw, v.raw, 8);
+}
+
+}  // namespace detail
+
+template <typename T, typename Offset>
+HWY_API void ScatterOffset(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
+                           const Vec256<Offset> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+  return detail::ScatterOffset(hwy::SizeTag<sizeof(T)>(), v, d, base, offset);
+}
+template <typename T, typename Index>
+HWY_API void ScatterIndex(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
+                          const Vec256<Index> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+  return detail::ScatterIndex(hwy::SizeTag<sizeof(T)>(), v, d, base, index);
+}
+
+template <>
+HWY_INLINE void ScatterOffset<float>(Vec256<float> v, Full256<float> /* tag */,
+                                     float* HWY_RESTRICT base,
+                                     const Vec256<int32_t> offset) {
+  _mm256_i32scatter_ps(base, offset.raw, v.raw, 1);
+}
+template <>
+HWY_INLINE void ScatterIndex<float>(Vec256<float> v, Full256<float> /* tag */,
+                                    float* HWY_RESTRICT base,
+                                    const Vec256<int32_t> index) {
+  _mm256_i32scatter_ps(base, index.raw, v.raw, 4);
+}
+
+template <>
+HWY_INLINE void ScatterOffset<double>(Vec256<double> v,
+                                      Full256<double> /* tag */,
+                                      double* HWY_RESTRICT base,
+                                      const Vec256<int64_t> offset) {
+  _mm256_i64scatter_pd(base, offset.raw, v.raw, 1);
+}
+template <>
+HWY_INLINE void ScatterIndex<double>(Vec256<double> v,
+                                     Full256<double> /* tag */,
+                                     double* HWY_RESTRICT base,
+                                     const Vec256<int64_t> index) {
+  _mm256_i64scatter_pd(base, index.raw, v.raw, 8);
+}
+
+#else
+
+template <typename T, typename Offset>
+HWY_API void ScatterOffset(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
+                           const Vec256<Offset> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+
+  constexpr size_t N = 32 / sizeof(T);
+  alignas(32) T lanes[N];
+  Store(v, d, lanes);
+
+  alignas(32) Offset offset_lanes[N];
+  Store(offset, Simd<Offset, N>(), offset_lanes);
+
+  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
+  for (size_t i = 0; i < N; ++i) {
+    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
+  }
+}
+
+template <typename T, typename Index>
+HWY_API void ScatterIndex(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
+                          const Vec256<Index> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+
+  constexpr size_t N = 32 / sizeof(T);
+  alignas(32) T lanes[N];
+  Store(v, d, lanes);
+
+  alignas(32) Index index_lanes[N];
+  Store(index, Simd<Index, N>(), index_lanes);
+
+  for (size_t i = 0; i < N; ++i) {
+    base[index_lanes[i]] = lanes[i];
+  }
+}
+
+#endif
+
 // ------------------------------ Gather
 
 namespace detail {
@@ -1374,13 +1487,13 @@ HWY_API Vec256<T> GatherIndex(hwy::SizeTag<8> /* tag */, Full256<T> /* tag */,
 template <typename T, typename Offset>
 HWY_API Vec256<T> GatherOffset(Full256<T> d, const T* HWY_RESTRICT base,
                                const Vec256<Offset> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "SVE requires same size base/ofs");
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
   return detail::GatherOffset(hwy::SizeTag<sizeof(T)>(), d, base, offset);
 }
 template <typename T, typename Index>
 HWY_API Vec256<T> GatherIndex(Full256<T> d, const T* HWY_RESTRICT base,
                               const Vec256<Index> index) {
-  static_assert(sizeof(T) == sizeof(Index), "SVE requires same size base/idx");
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
   return detail::GatherIndex(hwy::SizeTag<sizeof(T)>(), d, base, index);
 }
 

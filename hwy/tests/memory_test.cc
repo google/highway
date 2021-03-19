@@ -136,6 +136,84 @@ HWY_NOINLINE void TestAllStream() {
   ForFloatTypes(test);
 }
 
+// Assumes little-endian byte order!
+struct TestScatter {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using Offset = MakeSigned<T>;
+
+    const size_t N = Lanes(d);
+    const size_t range = 4 * N;                  // number of items to scatter
+    const size_t max_bytes = range * sizeof(T);  // upper bound on offset
+
+    RandomState rng;
+
+    // Data to be scattered
+    auto bytes = AllocateAligned<uint8_t>(max_bytes);
+    for (size_t i = 0; i < max_bytes; ++i) {
+      bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
+    }
+    const auto data = Load(d, reinterpret_cast<const T*>(bytes.get()));
+
+    // Scatter into these regions, ensure vector results match scalar
+    auto expected = AllocateAligned<T>(range);
+    auto actual = AllocateAligned<T>(range);
+
+    const Rebind<Offset, D> d_offsets;
+    auto offsets = AllocateAligned<Offset>(N);  // or indices
+
+    for (size_t rep = 0; rep < 100; ++rep) {
+      // Byte offsets
+      std::fill(expected.get(), expected.get() + range, T(0));
+      std::fill(actual.get(), actual.get() + range, T(0));
+      for (size_t i = 0; i < N; ++i) {
+        offsets[i] =
+            static_cast<Offset>(Random32(&rng) % (max_bytes - sizeof(T)));
+        CopyBytes<sizeof(T)>(
+            bytes.get() + i * sizeof(T),
+            reinterpret_cast<uint8_t*>(expected.get()) + offsets[i]);
+      }
+      const auto voffsets = Load(d_offsets, offsets.get());
+      ScatterOffset(data, d, actual.get(), voffsets);
+      if (!BytesEqual(expected.get(), actual.get(), max_bytes)) {
+        Print(d, "Data", data);
+        Print(d_offsets, "Offsets", voffsets);
+        HWY_ASSERT(false);
+      }
+
+      // Indices
+      std::fill(expected.get(), expected.get() + range, T(0));
+      std::fill(actual.get(), actual.get() + range, T(0));
+      for (size_t i = 0; i < N; ++i) {
+        offsets[i] = static_cast<Offset>(Random32(&rng) % range);
+        CopyBytes<sizeof(T)>(bytes.get() + i * sizeof(T),
+                             &expected[offsets[i]]);
+      }
+      const auto vindices = Load(d_offsets, offsets.get());
+      ScatterIndex(data, d, actual.get(), vindices);
+      if (!BytesEqual(expected.get(), actual.get(), max_bytes)) {
+        Print(d, "Data", data);
+        Print(d_offsets, "Indices", vindices);
+        HWY_ASSERT(false);
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllScatter() {
+  // No u8,u16,i8,i16.
+  const ForPartialVectors<TestScatter> test;
+  test(uint32_t());
+  test(int32_t());
+
+#if HWY_CAP_INTEGER64
+  test(uint64_t());
+  test(int64_t());
+#endif
+
+  ForFloatTypes(test);
+}
+
 struct TestGather {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -218,6 +296,7 @@ HWY_BEFORE_TEST(HwyMemoryTest);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllGather);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
 HWY_AFTER_TEST();

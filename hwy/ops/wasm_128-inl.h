@@ -1278,6 +1278,41 @@ HWY_API void Stream(Vec128<T, N> v, Simd<T, N> /* tag */,
   wasm_v128_store(aligned, v.raw);
 }
 
+// ------------------------------ Scatter (Store)
+
+template <typename T, size_t N, typename Offset, HWY_IF_LE128(T, N)>
+HWY_API void ScatterOffset(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
+                           const Vec128<Offset, N> offset) {
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+
+  alignas(16) T lanes[N];
+  Store(v, d, lanes);
+
+  alignas(16) Offset offset_lanes[N];
+  Store(offset, Simd<Offset, N>(), offset_lanes);
+
+  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
+  for (size_t i = 0; i < N; ++i) {
+    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
+  }
+}
+
+template <typename T, size_t N, typename Index, HWY_IF_LE128(T, N)>
+HWY_API void ScatterIndex(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
+                          const Vec128<Index, N> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+
+  alignas(16) T lanes[N];
+  Store(v, d, lanes);
+
+  alignas(16) Index index_lanes[N];
+  Store(index, Simd<Index, N>(), index_lanes);
+
+  for (size_t i = 0; i < N; ++i) {
+    base[index_lanes[i]] = lanes[i];
+  }
+}
+
 // ------------------------------ Gather
 
 template <typename T, size_t N, typename Offset>
