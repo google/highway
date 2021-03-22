@@ -292,6 +292,7 @@ HWY_NOINLINE void TestAllCache() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyMemoryTest);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
@@ -299,5 +300,5 @@ HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllGather);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif

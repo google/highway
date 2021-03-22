@@ -15,12 +15,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <limits>
-
-#include "hwy/base.h"
-
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "tests/hwy_test.cc"
+#define HWY_TARGET_INCLUDE "highway_test.cc"
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"  // Unpredictable1
@@ -29,235 +25,6 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-
-template <class DF>
-HWY_NOINLINE void FloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
-                            uint8_t* HWY_RESTRICT log2) {
-  // Descriptors for all required data types:
-  const Rebind<int32_t, DF> d32;
-  const Rebind<uint8_t, DF> d8;
-
-  const auto u8 = Load(d8, values);
-  const auto bits = BitCast(d32, ConvertTo(df, PromoteTo(d32, u8)));
-  const auto exponent = ShiftRight<23>(bits) - Set(d32, 127);
-  Store(DemoteTo(d8, exponent), d8, log2);
-}
-
-struct TestFloorLog2 {
-  template <class T, class DF>
-  HWY_NOINLINE void operator()(T /*unused*/, DF df) {
-    const size_t N = Lanes(df);
-    auto in = AllocateAligned<uint8_t>(N);
-    auto expected = AllocateAligned<uint8_t>(N);
-
-    RandomState rng;
-    for (size_t i = 0; i < N; ++i) {
-      expected[i] = Random32(&rng) & 7;
-      in[i] = static_cast<uint8_t>(1u << expected[i]);
-    }
-    auto out = AllocateAligned<uint8_t>(N);
-    FloorLog2(df, in.get(), out.get());
-    int sum = 0;
-    for (size_t i = 0; i < N; ++i) {
-      HWY_ASSERT_EQ(expected[i], out[i]);
-      sum += out[i];
-    }
-    PreventElision(sum);
-  }
-};
-
-HWY_NOINLINE void TestAllFloorLog2() {
-  ForDemoteVectors<TestFloorLog2, 4>()(float());
-}
-
-template <class D, typename T>
-HWY_NOINLINE void MulAddLoop(const D d, const T* HWY_RESTRICT mul_array,
-                             const T* HWY_RESTRICT add_array, const size_t size,
-                             T* HWY_RESTRICT x_array) {
-  // Type-agnostic (caller-specified lane type) and width-agnostic (uses
-  // best available instruction set).
-  for (size_t i = 0; i < size; i += Lanes(d)) {
-    const auto mul = Load(d, mul_array + i);
-    const auto add = Load(d, add_array + i);
-    auto x = Load(d, x_array + i);
-    x = MulAdd(mul, x, add);
-    Store(x, d, x_array + i);
-  }
-}
-
-struct TestSumMulAdd {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    RandomState rng;
-    const size_t kSize = 64;
-    HWY_ALIGN T mul[kSize];
-    HWY_ALIGN T x[kSize];
-    HWY_ALIGN T add[kSize];
-    for (size_t i = 0; i < kSize; ++i) {
-      mul[i] = static_cast<T>(Random32(&rng) & 0xF);
-      x[i] = static_cast<T>(Random32(&rng) & 0xFF);
-      add[i] = static_cast<T>(Random32(&rng) & 0xFF);
-    }
-    double expected_sum = 0.0;
-    for (size_t i = 0; i < kSize; ++i) {
-      expected_sum += mul[i] * x[i] + add[i];
-    }
-
-    MulAddLoop(d, mul, add, kSize, x);
-    HWY_ASSERT_EQ(67008.0, expected_sum);
-  }
-};
-
-HWY_NOINLINE void TestAllSumMulAdd() {
-  ForFloatTypes(ForPartialVectors<TestSumMulAdd>());
-}
-
-//------------------------------------------------------------------------------
-// base.h
-
-HWY_NOINLINE void TestAllLimits() {
-  HWY_ASSERT_EQ(uint8_t(0), LimitsMin<uint8_t>());
-  HWY_ASSERT_EQ(uint16_t(0), LimitsMin<uint16_t>());
-  HWY_ASSERT_EQ(uint32_t(0), LimitsMin<uint32_t>());
-  HWY_ASSERT_EQ(uint64_t(0), LimitsMin<uint64_t>());
-
-  HWY_ASSERT_EQ(int8_t(-128), LimitsMin<int8_t>());
-  HWY_ASSERT_EQ(int16_t(-32768), LimitsMin<int16_t>());
-  HWY_ASSERT_EQ(int32_t(0x80000000u), LimitsMin<int32_t>());
-  HWY_ASSERT_EQ(int64_t(0x8000000000000000ull), LimitsMin<int64_t>());
-
-  HWY_ASSERT_EQ(uint8_t(0xFF), LimitsMax<uint8_t>());
-  HWY_ASSERT_EQ(uint16_t(0xFFFF), LimitsMax<uint16_t>());
-  HWY_ASSERT_EQ(uint32_t(0xFFFFFFFFu), LimitsMax<uint32_t>());
-  HWY_ASSERT_EQ(uint64_t(0xFFFFFFFFFFFFFFFFull), LimitsMax<uint64_t>());
-
-  HWY_ASSERT_EQ(int8_t(0x7F), LimitsMax<int8_t>());
-  HWY_ASSERT_EQ(int16_t(0x7FFF), LimitsMax<int16_t>());
-  HWY_ASSERT_EQ(int32_t(0x7FFFFFFFu), LimitsMax<int32_t>());
-  HWY_ASSERT_EQ(int64_t(0x7FFFFFFFFFFFFFFFull), LimitsMax<int64_t>());
-}
-
-struct TestLowestHighest {
-  template <class T>
-  HWY_NOINLINE void operator()(T /*unused*/) const {
-    HWY_ASSERT_EQ(std::numeric_limits<T>::lowest(), LowestValue<T>());
-    HWY_ASSERT_EQ(std::numeric_limits<T>::max(), HighestValue<T>());
-  }
-};
-
-HWY_NOINLINE void TestAllLowestHighest() { ForAllTypes(TestLowestHighest()); }
-struct TestIsUnsigned {
-  template <class T>
-  HWY_NOINLINE void operator()(T /*unused*/) const {
-    static_assert(!IsFloat<T>(), "Expected !IsFloat");
-    static_assert(!IsSigned<T>(), "Expected !IsSigned");
-  }
-};
-
-struct TestIsSigned {
-  template <class T>
-  HWY_NOINLINE void operator()(T /*unused*/) const {
-    static_assert(!IsFloat<T>(), "Expected !IsFloat");
-    static_assert(IsSigned<T>(), "Expected IsSigned");
-  }
-};
-
-struct TestIsFloat {
-  template <class T>
-  HWY_NOINLINE void operator()(T /*unused*/) const {
-    static_assert(IsFloat<T>(), "Expected IsFloat");
-    static_assert(IsSigned<T>(), "Floats are also considered signed");
-  }
-};
-
-HWY_NOINLINE void TestAllType() {
-  ForUnsignedTypes(TestIsUnsigned());
-  ForSignedTypes(TestIsSigned());
-  ForFloatTypes(TestIsFloat());
-}
-
-HWY_NOINLINE void TestAllPopCount() {
-  HWY_ASSERT_EQ(size_t(0), PopCount(0u));
-  HWY_ASSERT_EQ(size_t(1), PopCount(1u));
-  HWY_ASSERT_EQ(size_t(1), PopCount(2u));
-  HWY_ASSERT_EQ(size_t(2), PopCount(3u));
-  HWY_ASSERT_EQ(size_t(1), PopCount(0x80000000u));
-  HWY_ASSERT_EQ(size_t(31), PopCount(0x7FFFFFFFu));
-  HWY_ASSERT_EQ(size_t(32), PopCount(0xFFFFFFFFu));
-
-  HWY_ASSERT_EQ(size_t(1), PopCount(0x80000000ull));
-  HWY_ASSERT_EQ(size_t(31), PopCount(0x7FFFFFFFull));
-  HWY_ASSERT_EQ(size_t(32), PopCount(0xFFFFFFFFull));
-  HWY_ASSERT_EQ(size_t(33), PopCount(0x10FFFFFFFFull));
-  HWY_ASSERT_EQ(size_t(63), PopCount(0xFFFEFFFFFFFFFFFFull));
-  HWY_ASSERT_EQ(size_t(64), PopCount(0xFFFFFFFFFFFFFFFFull));
-}
-
-//------------------------------------------------------------------------------
-// test_util-inl.h
-
-struct TestName {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-    std::string expected = IsFloat<T>() ? "f" : (IsSigned<T>() ? "i" : "u");
-    expected += std::to_string(sizeof(T) * 8);
-
-    const size_t N = Lanes(d);
-    if (N != 1) {
-      expected += 'x';
-      expected += std::to_string(N);
-    }
-    const std::string actual = TypeName(t, N);
-    if (expected != actual) {
-      NotifyFailure(__FILE__, __LINE__, expected.c_str(), 0, expected.c_str(),
-                    actual.c_str());
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllName() { ForAllTypes(ForPartialVectors<TestName>()); }
-
-struct TestEqualInteger {
-  template <class T>
-  HWY_NOINLINE void operator()(T /*t*/) const {
-    HWY_ASSERT(IsEqual(T(0), T(0)));
-    HWY_ASSERT(IsEqual(T(1), T(1)));
-    HWY_ASSERT(IsEqual(T(-1), T(-1)));
-    HWY_ASSERT(IsEqual(LimitsMin<T>(), LimitsMin<T>()));
-
-    HWY_ASSERT(!IsEqual(T(0), T(1)));
-    HWY_ASSERT(!IsEqual(T(1), T(0)));
-    HWY_ASSERT(!IsEqual(T(1), T(-1)));
-    HWY_ASSERT(!IsEqual(T(-1), T(1)));
-    HWY_ASSERT(!IsEqual(LimitsMin<T>(), LimitsMax<T>()));
-    HWY_ASSERT(!IsEqual(LimitsMax<T>(), LimitsMin<T>()));
-  }
-};
-
-struct TestEqualFloat {
-  template <class T>
-  HWY_NOINLINE void operator()(T /*t*/) const {
-    HWY_ASSERT(IsEqual(T(0), T(0)));
-    HWY_ASSERT(IsEqual(T(1), T(1)));
-    HWY_ASSERT(IsEqual(T(-1), T(-1)));
-    HWY_ASSERT(IsEqual(MantissaEnd<T>(), MantissaEnd<T>()));
-
-    HWY_ASSERT(!IsEqual(T(0), T(1)));
-    HWY_ASSERT(!IsEqual(T(1), T(0)));
-    HWY_ASSERT(!IsEqual(T(1), T(-1)));
-    HWY_ASSERT(!IsEqual(T(-1), T(1)));
-    HWY_ASSERT(!IsEqual(LowestValue<T>(), HighestValue<T>()));
-    HWY_ASSERT(!IsEqual(HighestValue<T>(), LowestValue<T>()));
-  }
-};
-
-HWY_NOINLINE void TestAllEqual() {
-  ForIntegerTypes(TestEqualInteger());
-  ForFloatTypes(TestEqualFloat());
-}
-
-//------------------------------------------------------------------------------
-// highway.h
 
 struct TestSet {
   template <class T, class D>
@@ -534,20 +301,13 @@ HWY_NOINLINE void TestAllGetLane() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
-HWY_BEFORE_TEST(HwyHwyTest);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllFloorLog2);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSumMulAdd);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllLimits);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllLowestHighest);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllType);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllPopCount);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllEqual);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSet);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllOverflow);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllSignBit);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllName);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllNaN);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllCopyAndAssign);
-HWY_EXPORT_AND_TEST_P(HwyHwyTest, TestAllGetLane);
-HWY_AFTER_TEST();
+namespace hwy {
+HWY_BEFORE_TEST(HighwayTest);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSet);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllOverflow);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSignBit);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllNaN);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
+}  // namespace hwy
 #endif

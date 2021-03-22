@@ -73,7 +73,8 @@ class TestWithParamTarget : public testing::TestWithParam<uint32_t> {
 
 // Function to convert the test parameter of a TestWithParamTarget for
 // displaying it in the gtest test name.
-std::string TestParamTargetName(const testing::TestParamInfo<uint32_t>& info) {
+static inline std::string TestParamTargetName(
+    const testing::TestParamInfo<uint32_t>& info) {
   return TargetName(info.param);
 }
 
@@ -157,30 +158,9 @@ std::string TestParamTargetNameAndT(
   static_assert(true, "For requiring trailing semicolon")
 
 #define HWY_BEFORE_TEST(suite)                      \
-  namespace hwy {                                   \
   class suite : public hwy::TestWithParamTarget {}; \
   HWY_TARGET_INSTANTIATE_TEST_SUITE_P(suite);       \
   static_assert(true, "For requiring trailing semicolon")
-
-#define HWY_AFTER_TEST() \
-  } /* namespace hwy */       \
-  static_assert(true, "For requiring trailing semicolon")
-
-// Calls test for each enabled and available target.
-template <class Func, typename... Args>
-HWY_NOINLINE void RunTest(const Func& func, Args&&... args) {
-  SetSupportedTargetsForTest(0);
-  auto targets = SupportedAndGeneratedTargets();
-
-  for (uint32_t target : targets) {
-    SetSupportedTargetsForTest(target);
-    fprintf(stderr, "Testing for target %s.\n",
-            TargetName(static_cast<int>(target)));
-    func(std::forward<Args>(args)...);
-  }
-  // Disable the mask after the test.
-  SetSupportedTargetsForTest(0);
-}
 
 // 64-bit random generator (Xorshift128+). Much smaller state than std::mt19937,
 // which triggers a compiler bug.

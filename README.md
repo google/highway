@@ -65,7 +65,7 @@ by another baseline target.
 
 ## Quick start
 
-You can use the `skeleton` examples inside examples/ as a starting point.
+You can use the `benchmark` inside examples/ as a starting point.
 
 A [quick-reference page](g3doc/quick_reference.md) briefly lists all operations
 and their parameters, and the [instruction_matrix][instmtx] indicates the

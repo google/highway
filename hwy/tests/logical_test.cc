@@ -672,6 +672,7 @@ HWY_NOINLINE void TestAllLogicalMask() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
@@ -686,5 +687,5 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalMask);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif

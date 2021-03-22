@@ -206,11 +206,12 @@ HWY_NOINLINE void TestAllWeakFloat() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyCompareTest);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMask);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif

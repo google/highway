@@ -272,13 +272,14 @@ HWY_NOINLINE void TestAllCombineShiftRight() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyCombineTest);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllLowerHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllUpperHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombineShiftRight);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif
 
 #else

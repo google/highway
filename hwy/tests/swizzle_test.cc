@@ -624,6 +624,7 @@ HWY_NOINLINE void TestAllOddEven() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftBytes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftLanes);
@@ -637,5 +638,5 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatHalves);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatLowerUpper);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatUpperLower);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif

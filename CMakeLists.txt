@@ -193,34 +193,13 @@ add_custom_command(TARGET hwy POST_BUILD
 # Avoids mismatch between GTest's static CRT and our dynamic.
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-add_executable(skeleton hwy/examples/skeleton_main.cc)
-target_sources(skeleton PRIVATE
-    hwy/examples/skeleton-inl.h
-    hwy/examples/skeleton.cc
-    hwy/examples/skeleton.h
-    hwy/examples/skeleton_shared.h)
-# Try adding either -DHWY_COMPILE_ONLY_SCALAR or -DHWY_COMPILE_ONLY_STATIC to
-# observe the difference in targets printed.
-target_compile_options(skeleton PRIVATE ${HWY_FLAGS})
-target_link_libraries(skeleton hwy)
-set_target_properties(skeleton
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
-
-# Similar: shared headers but without the runtime dispatch in skeleton.cc/h
-add_executable(skeleton_static hwy/examples/skeleton_static_main.cc)
-target_sources(skeleton_static PRIVATE
-    hwy/examples/skeleton-inl.h
-    hwy/examples/skeleton_shared.h)
-target_compile_options(skeleton_static PRIVATE ${HWY_FLAGS})
-target_link_libraries(skeleton_static hwy)
-set_target_properties(skeleton_static
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
-
 # Programming exercise with integrated benchmark
 add_executable(hwy_benchmark hwy/examples/benchmark.cc)
 target_sources(hwy_benchmark PRIVATE
     hwy/nanobenchmark.cc
     hwy/nanobenchmark.h)
+# Try adding either -DHWY_COMPILE_ONLY_SCALAR or -DHWY_COMPILE_ONLY_STATIC to
+# observe the difference in targets printed.
 target_compile_options(hwy_benchmark PRIVATE ${HWY_FLAGS})
 target_link_libraries(hwy_benchmark hwy)
 set_target_properties(hwy_benchmark
@@ -274,17 +253,19 @@ endif() # HWY_SYSTEM_GTEST
 set(HWY_TEST_FILES
   contrib/image/image_test.cc
   # contrib/math/math_test.cc
+  hwy/aligned_allocator_test.cc
+  hwy/base_test.cc
+  hwy/highway_test.cc
+  hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc
-  hwy/tests/hwy_test.cc
   hwy/tests/logical_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/swizzle_test.cc
-  hwy/aligned_allocator_test.cc
-  hwy/targets_test.cc
+  hwy/tests/test_util_test.cc
 )
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)

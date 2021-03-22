@@ -585,6 +585,7 @@ HWY_NOINLINE void TestAllNearestInt() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
@@ -597,5 +598,5 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNearestInt);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif

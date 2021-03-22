@@ -1044,6 +1044,7 @@ HWY_NOINLINE void TestAllNeg() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyArithmeticTest);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatingArithmetic);
@@ -1067,5 +1068,5 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllFloor);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbsDiff);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif

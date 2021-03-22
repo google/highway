@@ -35,19 +35,19 @@ DECLARE_FUNCTION(SCALAR)
 HWY_EXPORT(FakeFunction);
 
 void CheckFakeFunction() {
-#define CHECK_ARRAY_ENTRY(TGT)                                          \
-  if ((HWY_TARGETS & HWY_##TGT) != 0) {                                 \
-    hwy::SetSupportedTargetsForTest(HWY_##TGT);                         \
-    /* Calling Update() first to make &HWY_DYNAMIC_DISPATCH() return */ \
-    /* the pointer to the already cached function. */                   \
-    hwy::chosen_target.Update();                                        \
-    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));       \
-    /* Calling DeInit() will test that the initializer function */      \
-    /* also calls the right function. */                                \
-    hwy::chosen_target.DeInit();                                        \
-    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));       \
-    /* Second call uses the cached value from the previous call. */     \
-    EXPECT_EQ(HWY_##TGT, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));       \
+#define CHECK_ARRAY_ENTRY(TGT)                                              \
+  if ((HWY_TARGETS & HWY_##TGT) != 0) {                                     \
+    hwy::SetSupportedTargetsForTest(HWY_##TGT);                             \
+    /* Calling Update() first to make &HWY_DYNAMIC_DISPATCH() return */     \
+    /* the pointer to the already cached function. */                       \
+    hwy::chosen_target.Update();                                            \
+    EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
+    /* Calling DeInit() will test that the initializer function */          \
+    /* also calls the right function. */                                    \
+    hwy::chosen_target.DeInit();                                            \
+    EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
+    /* Second call uses the cached value from the previous call. */         \
+    EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
   }
   CHECK_ARRAY_ENTRY(AVX3)
   CHECK_ARRAY_ENTRY(AVX2)

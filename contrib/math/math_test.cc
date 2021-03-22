@@ -162,6 +162,7 @@ DEFINE_MATH_TEST(Tanh,
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+namespace hwy {
 HWY_BEFORE_TEST(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcos);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcosh);
@@ -179,5 +180,5 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
-HWY_AFTER_TEST();
+}  // namespace hwy
 #endif
