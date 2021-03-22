@@ -19,7 +19,7 @@
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "contrib/math/math_test.cc"
+#define HWY_TARGET_INCLUDE "contrib/math/math_test_1.cc"
 #include "hwy/foreach_target.h"
 
 #include "contrib/math/math-inl.h"
@@ -52,7 +52,7 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
   }
 
   uint64_t max_ulp = 0;
-  constexpr UintT kSamplesPerRange = 100000;
+  constexpr UintT kSamplesPerRange = 50000;
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
@@ -106,33 +106,6 @@ const float kNearOneF = BitCast<float>(0x3F7FFFFF);
 const double kNearOneD = BitCast<double>(0x3FEFFFFFFFFFFFFFULL);
 
 // clang-format off
-DEFINE_MATH_TEST(Acos,
-  std::acos,  CallAcos,  -1.0,       +1.0,        3,  // NEON is 3 instead of 2
-  std::acos,  CallAcos,  -1.0,       +1.0,        2)
-DEFINE_MATH_TEST(Acosh,
-  std::acosh, CallAcosh, +1.0,       +FLT_MAX,    3,
-  std::acosh, CallAcosh, +1.0,       +DBL_MAX,    3)
-DEFINE_MATH_TEST(Asin,
-  std::asin,  CallAsin,  -1.0,       +1.0,        3,  // NEON is 3 instead of 2
-  std::asin,  CallAsin,  -1.0,       +1.0,        2)
-DEFINE_MATH_TEST(Asinh,
-  std::asinh, CallAsinh, -FLT_MAX,   +FLT_MAX,    3,
-  std::asinh, CallAsinh, -DBL_MAX,   +DBL_MAX,    3)
-DEFINE_MATH_TEST(Atan,
-  std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
-  std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
-DEFINE_MATH_TEST(Atanh,
-  std::atanh, CallAtanh, -kNearOneF, +kNearOneF,  4,  // NEON is 4 instead of 3
-  std::atanh, CallAtanh, -kNearOneD, +kNearOneD,  3)
-DEFINE_MATH_TEST(Cos,
-  std::cos,   CallCos,   -39000.0,   +39000.0,    3,
-  std::cos,   CallCos,   -39000.0,   +39000.0,    3)
-DEFINE_MATH_TEST(Exp,
-  std::exp,   CallExp,   -FLT_MAX,   +104.0,      1,
-  std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
-DEFINE_MATH_TEST(Expm1,
-  std::expm1, CallExpm1, -FLT_MAX,   +104.0,      4,
-  std::expm1, CallExpm1, -DBL_MAX,   +104.0,      4)
 DEFINE_MATH_TEST(Log,
   std::log,   CallLog,   +FLT_MIN,   +FLT_MAX,    1,
   std::log,   CallLog,   +DBL_MIN,   +DBL_MAX,    1)
@@ -164,15 +137,6 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(HwyMathTest);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcos);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcosh);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsin);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAsinh);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtanh);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllCos);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExp);
-HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllExpm1);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog10);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllLog1p);

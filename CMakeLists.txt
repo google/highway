@@ -252,7 +252,8 @@ endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
   contrib/image/image_test.cc
-  # contrib/math/math_test.cc
+  # contrib/math/math_test_0.cc
+  # contrib/math/math_test_1.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc
