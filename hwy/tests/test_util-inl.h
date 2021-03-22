@@ -490,15 +490,15 @@ struct ForGE128Vectors {
   }
 };
 
-// Calls Test for all powers of two in [128 bits, max bits/2].
-template <class Test>
+// Calls Test for all vectors that can be expanded by kFactor.
+template <class Test, size_t kFactor = 2>
 struct ForExtendableVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
 #if HWY_TARGET == HWY_RVV
-    ForeachSizeR<T, 4, HWY_LANES(T), Test>::Do();
+    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test>::Do();
 #else
-    ForeachSizeR<T, HWY_LANES(T) / 2 / (16 / sizeof(T)), (16 / sizeof(T)),
+    ForeachSizeR<T, HWY_LANES(T) / kFactor / (16 / sizeof(T)), (16 / sizeof(T)),
                  Test>::Do();
 #endif
   }

@@ -3985,6 +3985,40 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
   return PopCount(mask_bits);
 }
 
+// ------------------------------ StoreInterleaved3
+
+// 128 bits
+HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
+                               const Vec128<uint8_t> c,
+                               Full128<uint8_t> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const uint8x16x3_t triple = {a.raw, b.raw, c.raw};
+  vst3q_u8(aligned, triple);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> a,
+                               const Vec128<uint8_t, 8> b,
+                               const Vec128<uint8_t, 8> c,
+                               Simd<uint8_t, 8> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const uint8x8x3_t triple = {a.raw, b.raw, c.raw};
+  vst3_u8(aligned, triple);
+}
+
+// <= 32 bits: avoid writing more than N bytes by copying to buffer
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
+                               const Vec128<uint8_t, N> b,
+                               const Vec128<uint8_t, N> c,
+                               Simd<uint8_t, N> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  alignas(16) uint8_t buf[24];
+  const uint8x8x3_t triple = {a.raw, b.raw, c.raw};
+  vst3_u8(buf, triple);
+  CopyBytes<N * 3>(buf, aligned);
+}
+
 // ================================================== Operator wrapper
 
 // These apply to all x86_*-inl.h because there are no restrictions on V.

@@ -879,6 +879,23 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
   return GatherOffset(d, base, ShiftLeft<3>(index));
 }
 
+// ------------------------------ StoreInterleaved3
+
+#define HWY_RVV_STORE3(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)           \
+  HWY_API void NAME(                                                    \
+      HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b,       \
+      HWY_RVV_V(BASE, SEW, LMUL) c, HWY_RVV_D(CHAR, SEW, LMUL) /* d */, \
+      HWY_RVV_T(BASE, SEW) * HWY_RESTRICT aligned) {                    \
+    const v##BASE##SEW##m##LMUL##x3_t triple =                          \
+        vcreate_##CHAR##SEW##m##LMUL##x3(a, b, c);                      \
+    return v##OP##e8_v_##CHAR##SEW##m##LMUL##x3(aligned, triple);       \
+  }
+// Segments are limited to 8 registers, so we can only go up to LMUL=2.
+HWY_RVV_STORE3(uint, u, 8, 1, 8, StoreInterleaved3, sseg3)
+HWY_RVV_STORE3(uint, u, 8, 2, 4, StoreInterleaved3, sseg3)
+
+#undef HWY_RVV_STORE3
+
 // ================================================== CONVERT
 
 // ------------------------------ PromoteTo U

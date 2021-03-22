@@ -2693,6 +2693,63 @@ HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
 
 #endif  // HWY_TARGET != HWY_AVX3
 
+// ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
+// TableLookupBytes, UpperHalf)
+
+HWY_API void StoreInterleaved3(const Vec256<uint8_t> a, const Vec256<uint8_t> b,
+                               const Vec256<uint8_t> c, Full256<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const auto k5 = Set(d, 5);
+  const auto k6 = Set(d, 6);
+
+  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // 0x80 so lanes to be filled from other vectors are 0 for blending.
+  alignas(16) static constexpr uint8_t tbl_r0[16] = {
+      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
+      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
+  alignas(16) static constexpr uint8_t tbl_g0[16] = {
+      0x80, 0, 0x80, 0x80, 1, 0x80,  //
+      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
+  const auto shuf_r0 = LoadDup128(d, tbl_r0);
+  const auto shuf_g0 = LoadDup128(d, tbl_g0);  // cannot reuse r0 due to 5
+  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
+  const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
+  const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
+  const auto interleaved_10_00 = r0 | g0 | b0;
+
+  // We want to write the lower halves of the interleaved vectors, then the
+  // upper halves. _mm256_permute2x128_si256 is expensive on AMD. We could use
+  // ConcatUpperLower to obtain 10_05 and 15_0A, but that would require two
+  // unaligned stores. 128-bit stores instead?
+  const Half<decltype(d)> d2;
+  Store(LowerHalf(interleaved_10_00), d2, aligned + 0 * 16);
+
+  // Second vector: g10,r10, bgr[9:6], b5,g5
+  const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
+  const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
+  const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
+  const auto r1 = TableLookupBytes(a, shuf_r1);
+  const auto g1 = TableLookupBytes(b, shuf_g1);
+  const auto b1 = TableLookupBytes(c, shuf_b1);
+  const auto interleaved_15_05 = r1 | g1 | b1;
+  Store(LowerHalf(interleaved_15_05), d2, aligned + 1 * 16);
+
+  // Third vector: bgr[15:11], b10
+  const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
+  const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
+  const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
+  const auto r2 = TableLookupBytes(a, shuf_r2);
+  const auto g2 = TableLookupBytes(b, shuf_g2);
+  const auto b2 = TableLookupBytes(c, shuf_b2);
+  const auto interleaved_1A_0A = r2 | g2 | b2;
+  Store(LowerHalf(interleaved_1A_0A), d2, aligned + 2 * 16);
+
+  Store(UpperHalf(interleaved_10_00), d2, aligned + 3 * 16);
+  Store(UpperHalf(interleaved_15_05), d2, aligned + 4 * 16);
+  Store(UpperHalf(interleaved_1A_0A), d2, aligned + 5 * 16);
+}
+
 // ------------------------------ Reductions
 
 namespace detail {

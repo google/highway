@@ -2821,6 +2821,65 @@ HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
   return CountTrue(mask);
 }
 
+// ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
+// TableLookupBytes)
+
+HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
+                               const Vec512<uint8_t> c, Full512<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const auto k5 = Set(d, 5);
+  const auto k6 = Set(d, 6);
+
+  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // 0x80 so lanes to be filled from other vectors are 0 for blending.
+  alignas(16) static constexpr uint8_t tbl_r0[16] = {
+      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
+      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
+  alignas(16) static constexpr uint8_t tbl_g0[16] = {
+      0x80, 0, 0x80, 0x80, 1, 0x80,  //
+      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
+  const auto shuf_r0 = LoadDup128(d, tbl_r0);
+  const auto shuf_g0 = LoadDup128(d, tbl_g0);  // cannot reuse r0 due to 5
+  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
+  const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
+  const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
+  const auto i = (r0 | g0 | b0).raw;  // low byte in each 128bit: 30 20 10 00
+
+  // Second vector: g10,r10, bgr[9:6], b5,g5
+  const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
+  const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
+  const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
+  const auto r1 = TableLookupBytes(a, shuf_r1);
+  const auto g1 = TableLookupBytes(b, shuf_g1);
+  const auto b1 = TableLookupBytes(c, shuf_b1);
+  const auto j = (r1 | g1 | b1).raw;  // low byte in each 128bit: 35 25 15 05
+
+  // Third vector: bgr[15:11], b10
+  const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
+  const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
+  const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
+  const auto r2 = TableLookupBytes(a, shuf_r2);
+  const auto g2 = TableLookupBytes(b, shuf_g2);
+  const auto b2 = TableLookupBytes(c, shuf_b2);
+  const auto k = (r2 | g2 | b2).raw;  // low byte in each 128bit: 3A 2A 1A 0A
+
+  // To obtain 10 0A 05 00 in one vector, transpose "rows" into "columns".
+  const auto k3_k0_i3_i0 = _mm512_shuffle_i64x2(i, k, _MM_SHUFFLE(3, 0, 3, 0));
+  const auto i1_i2_j0_j1 = _mm512_shuffle_i64x2(j, i, _MM_SHUFFLE(1, 2, 0, 1));
+  const auto j2_j3_k1_k2 = _mm512_shuffle_i64x2(k, j, _MM_SHUFFLE(2, 3, 1, 2));
+
+  // Alternating order, most-significant 128 bits from the second arg.
+  const __mmask8 m = 0xCC;
+  const auto i1_k0_j0_i0 = _mm512_mask_blend_epi64(m, k3_k0_i3_i0, i1_i2_j0_j1);
+  const auto j2_i2_k1_j1 = _mm512_mask_blend_epi64(m, i1_i2_j0_j1, j2_j3_k1_k2);
+  const auto k3_j3_i3_k2 = _mm512_mask_blend_epi64(m, j2_j3_k1_k2, k3_k0_i3_i0);
+
+  Store(Vec512<uint8_t>{i1_k0_j0_i0}, d, aligned + 0 * 64);  //  10 0A 05 00
+  Store(Vec512<uint8_t>{j2_i2_k1_j1}, d, aligned + 1 * 64);  //  25 20 1A 15
+  Store(Vec512<uint8_t>{k3_j3_i3_k2}, d, aligned + 2 * 64);  //  3A 35 30 2A
+}
+
 // ------------------------------ Reductions
 
 // Returns the sum in each lane.

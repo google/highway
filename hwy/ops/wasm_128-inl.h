@@ -2603,6 +2603,127 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
   return PopCount(mask_bits);
 }
 
+// ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
+// TableLookupBytes)
+
+// 128 bits
+HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
+                               const Vec128<uint8_t> c, Full128<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const auto k5 = Set(d, 5);
+  const auto k6 = Set(d, 6);
+
+  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // 0x80 so lanes to be filled from other vectors are 0 for blending.
+  alignas(16) static constexpr uint8_t tbl_r0[16] = {
+      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
+      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
+  alignas(16) static constexpr uint8_t tbl_g0[16] = {
+      0x80, 0, 0x80, 0x80, 1, 0x80,  //
+      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
+  const auto shuf_r0 = Load(d, tbl_r0);
+  const auto shuf_g0 = Load(d, tbl_g0);  // cannot reuse r0 due to 5 in MSB
+  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
+  const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
+  const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
+  const auto int0 = r0 | g0 | b0;
+  Store(int0, d, aligned + 0 * 16);
+
+  // Second vector: g10,r10, bgr[9:6], b5,g5
+  const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
+  const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
+  const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
+  const auto r1 = TableLookupBytes(a, shuf_r1);
+  const auto g1 = TableLookupBytes(b, shuf_g1);
+  const auto b1 = TableLookupBytes(c, shuf_b1);
+  const auto int1 = r1 | g1 | b1;
+  Store(int1, d, aligned + 1 * 16);
+
+  // Third vector: bgr[15:11], b10
+  const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
+  const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
+  const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
+  const auto r2 = TableLookupBytes(a, shuf_r2);
+  const auto g2 = TableLookupBytes(b, shuf_g2);
+  const auto b2 = TableLookupBytes(c, shuf_b2);
+  const auto int2 = r2 | g2 | b2;
+  Store(int2, d, aligned + 2 * 16);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> a,
+                               const Vec128<uint8_t, 8> b,
+                               const Vec128<uint8_t, 8> c, Simd<uint8_t, 8> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // Use full vectors for the shuffles and first result.
+  const Full128<uint8_t> d_full;
+  const auto k5 = Set(d_full, 5);
+  const auto k6 = Set(d_full, 6);
+
+  const Vec128<uint8_t> full_a{a.raw};
+  const Vec128<uint8_t> full_b{b.raw};
+  const Vec128<uint8_t> full_c{c.raw};
+
+  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // 0x80 so lanes to be filled from other vectors are 0 for blending.
+  alignas(16) static constexpr uint8_t tbl_r0[16] = {
+      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
+      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
+  alignas(16) static constexpr uint8_t tbl_g0[16] = {
+      0x80, 0, 0x80, 0x80, 1, 0x80,  //
+      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
+  const auto shuf_r0 = Load(d_full, tbl_r0);
+  const auto shuf_g0 = Load(d_full, tbl_g0);  // cannot reuse r0 due to 5 in MSB
+  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto r0 = TableLookupBytes(full_a, shuf_r0);  // 5..4..3..2..1..0
+  const auto g0 = TableLookupBytes(full_b, shuf_g0);  // ..4..3..2..1..0.
+  const auto b0 = TableLookupBytes(full_c, shuf_b0);  // .4..3..2..1..0..
+  const auto int0 = r0 | g0 | b0;
+  Store(int0, d_full, aligned + 0 * 16);
+
+  // Second (HALF) vector: bgr[7:6], b5,g5
+  const auto shuf_r1 = shuf_b0 + k6;  // ..7..6..
+  const auto shuf_g1 = shuf_r0 + k5;  // .7..6..5
+  const auto shuf_b1 = shuf_g0 + k5;  // 7..6..5.
+  const auto r1 = TableLookupBytes(full_a, shuf_r1);
+  const auto g1 = TableLookupBytes(full_b, shuf_g1);
+  const auto b1 = TableLookupBytes(full_c, shuf_b1);
+  const decltype(Zero(d)) int1{(r1 | g1 | b1).raw};
+  Store(int1, d, aligned + 1 * 16);
+}
+
+// <= 32 bits
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
+                               const Vec128<uint8_t, N> b,
+                               const Vec128<uint8_t, N> c,
+                               Simd<uint8_t, N> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // Use full vectors for the shuffles and result.
+  const Full128<uint8_t> d_full;
+
+  const Vec128<uint8_t> full_a{a.raw};
+  const Vec128<uint8_t> full_b{b.raw};
+  const Vec128<uint8_t> full_c{c.raw};
+
+  // Shuffle (a,b,c) vector bytes to bgr[3:0].
+  // 0x80 so lanes to be filled from other vectors are 0 for blending.
+  alignas(16) static constexpr uint8_t tbl_r0[16] = {
+      0,    0x80, 0x80, 1,   0x80, 0x80, 2, 0x80, 0x80, 3, 0x80, 0x80,  //
+      0x80, 0x80, 0x80, 0x80};
+  const auto shuf_r0 = Load(d_full, tbl_r0);
+  const auto shuf_g0 = CombineShiftRightBytes<15>(shuf_r0, shuf_r0);
+  const auto shuf_b0 = CombineShiftRightBytes<14>(shuf_r0, shuf_r0);
+  const auto r0 = TableLookupBytes(full_a, shuf_r0);  // ......3..2..1..0
+  const auto g0 = TableLookupBytes(full_b, shuf_g0);  // .....3..2..1..0.
+  const auto b0 = TableLookupBytes(full_c, shuf_b0);  // ....3..2..1..0..
+  const auto int0 = r0 | g0 | b0;
+  alignas(16) uint8_t buf[16];
+  Store(int0, d_full, buf);
+  CopyBytes<N * 3>(buf, aligned);
+}
+
 // ------------------------------ Reductions
 
 namespace detail {

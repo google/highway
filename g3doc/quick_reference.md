@@ -454,19 +454,21 @@ vectors, which is much faster than `Scatter/Gather`. Otherwise, code of the form
 `dst[tbl[i]] = F(src[i])` should when possible be transformed to `dst[i] =
 F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 
-*   `D`: `{u,i,f}{32,64}` <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, const
-    T* base, VI offsets)</code>. Stores `v[i]` to the base address plus *byte*
-    `offsets[i]`.
+*   `D`: `{u,i,f}{32,64}` \
+    <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, const T* base, VI
+    offsets)</code>: stores `v[i]` to the base address plus *byte* `offsets[i]`.
 
-*   `D`: `{u,i,f}{32,64}` <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, const
-    T* base, VI indices)</code>. Stores `v[i]` to `base[indices[i]]`.
+*   `D`: `{u,i,f}{32,64}` \
+    <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, const T* base, VI
+    indices)</code>: stores `v[i]` to `base[indices[i]]`.
 
-*   `D`: `{u,i,f}{32,64}` <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base,
-    VI offsets)</code>. Returns elements of base selected by *byte*
-    `offsets[i]`.
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>:
+    returns elements of base selected by *byte* `offsets[i]`.
 
-*   `D`: `{u,i,f}{32,64}` <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base,
-    VI indices)</code>. Returns vector of `base[indices[i]]`.
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>:
+    returns vector of `base[indices[i]]`.
 
 #### Store
 
@@ -475,6 +477,12 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     sizeof(T) bytes.
 *   <code>void **StoreU**(Vec&lt;D&gt; a, D, T* p)</code>: as Store, but without
     the alignment requirement.
+
+*   `D`: `u8` \
+    <code>void **StoreInterleaved3**(Vec&lt;D&gt; a, Vec&lt;D&gt; b,
+    Vec&lt;D&gt; c, D, T* p)</code>: equivalent to shuffling a,b,c and three
+    `Store()` such that `p[0] == a[0], p[1] == b[0], p[2] == c[0]`. Useful for
+    RGB samples.
 
 ### Cache control
 

@@ -76,6 +76,59 @@ HWY_NOINLINE void TestAllLoadStore() {
   ForAllTypes(ForPartialVectors<TestLoadStore>());
 }
 
+struct TestStoreInterleaved {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+
+    RandomState rng;
+
+    // Data to be interleaved
+    auto bytes = AllocateAligned<uint8_t>(3 * N);
+    for (size_t i = 0; i < 3 * N; ++i) {
+      bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
+    }
+    const auto in0 = Load(d, &bytes[0 * N]);
+    const auto in1 = Load(d, &bytes[1 * N]);
+    const auto in2 = Load(d, &bytes[2 * N]);
+
+    // Interleave here, ensure vector results match scalar
+    auto expected = AllocateAligned<T>(4 * N);
+    auto actual = AllocateAligned<T>(4 * N);
+
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        expected[3 * i + 0] = bytes[0 * N + i];
+        expected[3 * i + 1] = bytes[1 * N + i];
+        expected[3 * i + 2] = bytes[2 * N + i];
+        // Ensure we do not write more than 3*N bytes
+        expected[3 * N + i] = actual[3 * N + i] = 0;
+      }
+      StoreInterleaved3(in0, in1, in2, d, actual.get());
+      if (!BytesEqual(expected.get(), actual.get(), 4 * N)) {
+        Print(d, "in0", in0);
+        Print(d, "in1", in1);
+        Print(d, "in2", in2);
+        const size_t i = 0;
+        fprintf(stderr, "interleaved %d %d %d  %d %d %d\n", actual[i],
+                actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
+                actual[i + 5]);
+        HWY_ASSERT(false);
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllStoreInterleaved() {
+#if HWY_TARGET == HWY_RVV
+  // Segments are limited to 8 registers, so we can only go up to LMUL=2.
+  const ForExtendableVectors<TestStoreInterleaved, 4> test;
+#else
+  const ForPartialVectors<TestStoreInterleaved> test;
+#endif
+  test(uint8_t());
+}
+
 struct TestLoadDup128 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -295,6 +348,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyMemoryTest);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreInterleaved);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
