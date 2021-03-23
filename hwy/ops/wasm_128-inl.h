@@ -2724,6 +2724,74 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
   CopyBytes<N * 3>(buf, aligned);
 }
 
+// ------------------------------ StoreInterleaved4
+
+// 128 bits
+HWY_API void StoreInterleaved4(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1,
+                               const Vec128<uint8_t> v2,
+                               const Vec128<uint8_t> v3, Full128<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(v0, v1);
+  const auto dc8 = ZipUpper(v2, v3);
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a7 d..a4
+  const auto dcba_8 = ZipLower(ba8, dc8);  // d..aB d..a8
+  const auto dcba_C = ZipUpper(ba8, dc8);  // d..aF d..aC
+  Store(BitCast(d, dcba_0), d, aligned + 0 * 16);
+  Store(BitCast(d, dcba_4), d, aligned + 1 * 16);
+  Store(BitCast(d, dcba_8), d, aligned + 2 * 16);
+  Store(BitCast(d, dcba_C), d, aligned + 3 * 16);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved4(const Vec128<uint8_t, 8> in0,
+                               const Vec128<uint8_t, 8> in1,
+                               const Vec128<uint8_t, 8> in2,
+                               const Vec128<uint8_t, 8> in3,
+                               Simd<uint8_t, 8> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // Use full vectors to reduce the number of stores.
+  const Vec128<uint8_t> v0{in0.raw};
+  const Vec128<uint8_t> v1{in1.raw};
+  const Vec128<uint8_t> v2{in2.raw};
+  const Vec128<uint8_t> v3{in3.raw};
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);       // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);       // d7 c7 .. d0 c0
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a7 d..a4
+  const Full128<uint8_t> d_full;
+  Store(BitCast(d_full, dcba_0), d_full, aligned + 0 * 16);
+  Store(BitCast(d_full, dcba_4), d_full, aligned + 1 * 16);
+}
+
+// <= 32 bits
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> in0,
+                               const Vec128<uint8_t, N> in1,
+                               const Vec128<uint8_t, N> in2,
+                               const Vec128<uint8_t, N> in3,
+                               Simd<uint8_t, N> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // Use full vectors to reduce the number of stores.
+  const Vec128<uint8_t> v0{in0.raw};
+  const Vec128<uint8_t> v1{in1.raw};
+  const Vec128<uint8_t> v2{in2.raw};
+  const Vec128<uint8_t> v3{in3.raw};
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);       // b3 a3 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);       // d3 c3 .. d0 c0
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  alignas(16) uint8_t buf[16];
+  const Full128<uint8_t> d_full;
+  Store(BitCast(d_full, dcba_0), d_full, buf);
+  CopyBytes<4 * N>(buf, aligned);
+}
+
 // ------------------------------ Reductions
 
 namespace detail {

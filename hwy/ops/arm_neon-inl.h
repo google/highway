@@ -3988,35 +3988,74 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
 // ------------------------------ StoreInterleaved3
 
 // 128 bits
-HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
-                               const Vec128<uint8_t> c,
+HWY_API void StoreInterleaved3(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1,
+                               const Vec128<uint8_t> v2,
                                Full128<uint8_t> /*tag*/,
                                uint8_t* HWY_RESTRICT aligned) {
-  const uint8x16x3_t triple = {a.raw, b.raw, c.raw};
+  const uint8x16x3_t triple = {v0.raw, v1.raw, v2.raw};
   vst3q_u8(aligned, triple);
 }
 
 // 64 bits
-HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> a,
-                               const Vec128<uint8_t, 8> b,
-                               const Vec128<uint8_t, 8> c,
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> v0,
+                               const Vec128<uint8_t, 8> v1,
+                               const Vec128<uint8_t, 8> v2,
                                Simd<uint8_t, 8> /*tag*/,
                                uint8_t* HWY_RESTRICT aligned) {
-  const uint8x8x3_t triple = {a.raw, b.raw, c.raw};
+  const uint8x8x3_t triple = {v0.raw, v1.raw, v2.raw};
   vst3_u8(aligned, triple);
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
 template <size_t N, HWY_IF_LE32(uint8_t, N)>
-HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
-                               const Vec128<uint8_t, N> b,
-                               const Vec128<uint8_t, N> c,
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
+                               const Vec128<uint8_t, N> v1,
+                               const Vec128<uint8_t, N> v2,
                                Simd<uint8_t, N> /*tag*/,
                                uint8_t* HWY_RESTRICT aligned) {
   alignas(16) uint8_t buf[24];
-  const uint8x8x3_t triple = {a.raw, b.raw, c.raw};
+  const uint8x8x3_t triple = {v0.raw, v1.raw, v2.raw};
   vst3_u8(buf, triple);
   CopyBytes<N * 3>(buf, aligned);
+}
+
+// ------------------------------ StoreInterleaved4
+
+// 128 bits
+HWY_API void StoreInterleaved4(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1,
+                               const Vec128<uint8_t> v2,
+                               const Vec128<uint8_t> v3,
+                               Full128<uint8_t> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const uint8x16x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
+  vst4q_u8(aligned, quad);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved4(const Vec128<uint8_t, 8> v0,
+                               const Vec128<uint8_t, 8> v1,
+                               const Vec128<uint8_t, 8> v2,
+                               const Vec128<uint8_t, 8> v3,
+                               Simd<uint8_t, 8> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  const uint8x8x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
+  vst4_u8(aligned, quad);
+}
+
+// <= 32 bits: avoid writing more than N bytes by copying to buffer
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> v0,
+                               const Vec128<uint8_t, N> v1,
+                               const Vec128<uint8_t, N> v2,
+                               const Vec128<uint8_t, N> v3,
+                               Simd<uint8_t, N> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  alignas(16) uint8_t buf[32];
+  const uint8x8x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
+  vst4_u8(buf, quad);
+  CopyBytes<N * 4>(buf, aligned);
 }
 
 // ================================================== Operator wrapper

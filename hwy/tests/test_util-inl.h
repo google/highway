@@ -226,7 +226,8 @@ static inline std::string TypeName(T /*unused*/, size_t N) {
 // String comparison
 
 template <typename T1, typename T2>
-inline bool BytesEqual(const T1* p1, const T2* p2, const size_t size) {
+inline bool BytesEqual(const T1* p1, const T2* p2, const size_t size,
+                       size_t* pos = nullptr) {
   const uint8_t* bytes1 = reinterpret_cast<const uint8_t*>(p1);
   const uint8_t* bytes2 = reinterpret_cast<const uint8_t*>(p2);
   for (size_t i = 0; i < size; ++i) {
@@ -234,6 +235,9 @@ inline bool BytesEqual(const T1* p1, const T2* p2, const size_t size) {
       fprintf(stderr, "Mismatch at byte %zu of %zu: %d != %d (%s, %s)\n", i,
               size, bytes1[i], bytes2[i], TypeName(T1(), 1).c_str(),
               TypeName(T2(), 1).c_str());
+      if (pos != nullptr) {
+        *pos = i;
+      }
       return false;
     }
   }

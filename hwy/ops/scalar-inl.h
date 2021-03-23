@@ -774,12 +774,21 @@ HWY_INLINE void StoreU(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT p) {
 
 // ------------------------------ StoreInterleaved3
 
-HWY_API void StoreInterleaved3(const Vec1<uint8_t> a, const Vec1<uint8_t> b,
-                               const Vec1<uint8_t> c, Sisd<uint8_t> d,
+HWY_API void StoreInterleaved3(const Vec1<uint8_t> v0, const Vec1<uint8_t> v1,
+                               const Vec1<uint8_t> v2, Sisd<uint8_t> d,
                                uint8_t* HWY_RESTRICT aligned) {
-  Store(a, d, aligned + 0);
-  Store(b, d, aligned + 1);
-  Store(c, d, aligned + 2);
+  Store(v0, d, aligned + 0);
+  Store(v1, d, aligned + 1);
+  Store(v2, d, aligned + 2);
+}
+
+HWY_API void StoreInterleaved4(const Vec1<uint8_t> v0, const Vec1<uint8_t> v1,
+                               const Vec1<uint8_t> v2, const Vec1<uint8_t> v3,
+                               Sisd<uint8_t> d, uint8_t* HWY_RESTRICT aligned) {
+  Store(v0, d, aligned + 0);
+  Store(v1, d, aligned + 1);
+  Store(v2, d, aligned + 2);
+  Store(v3, d, aligned + 3);
 }
 
 // ------------------------------ Stream

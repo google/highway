@@ -3316,13 +3316,14 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
 // TableLookupBytes)
 
 // 128 bits
-HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
-                               const Vec128<uint8_t> c, Full128<uint8_t> d,
+HWY_API void StoreInterleaved3(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1,
+                               const Vec128<uint8_t> v2, Full128<uint8_t> d,
                                uint8_t* HWY_RESTRICT aligned) {
   const auto k5 = Set(d, 5);
   const auto k6 = Set(d, 6);
 
-  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): r5, bgr[4:0].
   // 0x80 so lanes to be filled from other vectors are 0 for blending.
   alignas(16) static constexpr uint8_t tbl_r0[16] = {
       0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
@@ -3333,9 +3334,9 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
   const auto shuf_r0 = Load(d, tbl_r0);
   const auto shuf_g0 = Load(d, tbl_g0);  // cannot reuse r0 due to 5 in MSB
   const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
-  const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
-  const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
-  const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
+  const auto r0 = TableLookupBytes(v0, shuf_r0);  // 5..4..3..2..1..0
+  const auto g0 = TableLookupBytes(v1, shuf_g0);  // ..4..3..2..1..0.
+  const auto b0 = TableLookupBytes(v2, shuf_b0);  // .4..3..2..1..0..
   const auto int0 = r0 | g0 | b0;
   Store(int0, d, aligned + 0 * 16);
 
@@ -3343,9 +3344,9 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
   const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
   const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
   const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
-  const auto r1 = TableLookupBytes(a, shuf_r1);
-  const auto g1 = TableLookupBytes(b, shuf_g1);
-  const auto b1 = TableLookupBytes(c, shuf_b1);
+  const auto r1 = TableLookupBytes(v0, shuf_r1);
+  const auto g1 = TableLookupBytes(v1, shuf_g1);
+  const auto b1 = TableLookupBytes(v2, shuf_b1);
   const auto int1 = r1 | g1 | b1;
   Store(int1, d, aligned + 1 * 16);
 
@@ -3353,28 +3354,28 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t> a, const Vec128<uint8_t> b,
   const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
   const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
   const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
-  const auto r2 = TableLookupBytes(a, shuf_r2);
-  const auto g2 = TableLookupBytes(b, shuf_g2);
-  const auto b2 = TableLookupBytes(c, shuf_b2);
+  const auto r2 = TableLookupBytes(v0, shuf_r2);
+  const auto g2 = TableLookupBytes(v1, shuf_g2);
+  const auto b2 = TableLookupBytes(v2, shuf_b2);
   const auto int2 = r2 | g2 | b2;
   Store(int2, d, aligned + 2 * 16);
 }
 
 // 64 bits
-HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> a,
-                               const Vec128<uint8_t, 8> b,
-                               const Vec128<uint8_t, 8> c, Simd<uint8_t, 8> d,
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> v0,
+                               const Vec128<uint8_t, 8> v1,
+                               const Vec128<uint8_t, 8> v2, Simd<uint8_t, 8> d,
                                uint8_t* HWY_RESTRICT aligned) {
   // Use full vectors for the shuffles and first result.
   const Full128<uint8_t> d_full;
   const auto k5 = Set(d_full, 5);
   const auto k6 = Set(d_full, 6);
 
-  const Vec128<uint8_t> full_a{a.raw};
-  const Vec128<uint8_t> full_b{b.raw};
-  const Vec128<uint8_t> full_c{c.raw};
+  const Vec128<uint8_t> full_a{v0.raw};
+  const Vec128<uint8_t> full_b{v1.raw};
+  const Vec128<uint8_t> full_c{v2.raw};
 
-  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): r5, bgr[4:0].
   // 0x80 so lanes to be filled from other vectors are 0 for blending.
   alignas(16) static constexpr uint8_t tbl_r0[16] = {
       0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
@@ -3404,19 +3405,19 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> a,
 
 // <= 32 bits
 template <size_t N, HWY_IF_LE32(uint8_t, N)>
-HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
-                               const Vec128<uint8_t, N> b,
-                               const Vec128<uint8_t, N> c,
+HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
+                               const Vec128<uint8_t, N> v1,
+                               const Vec128<uint8_t, N> v2,
                                Simd<uint8_t, N> /*tag*/,
                                uint8_t* HWY_RESTRICT aligned) {
   // Use full vectors for the shuffles and result.
   const Full128<uint8_t> d_full;
 
-  const Vec128<uint8_t> full_a{a.raw};
-  const Vec128<uint8_t> full_b{b.raw};
-  const Vec128<uint8_t> full_c{c.raw};
+  const Vec128<uint8_t> full_a{v0.raw};
+  const Vec128<uint8_t> full_b{v1.raw};
+  const Vec128<uint8_t> full_c{v2.raw};
 
-  // Shuffle (a,b,c) vector bytes to bgr[3:0].
+  // Shuffle (v0,v1,v2) vector bytes to bgr[3:0].
   // 0x80 so lanes to be filled from other vectors are 0 for blending.
   alignas(16) static constexpr uint8_t tbl_r0[16] = {
       0,    0x80, 0x80, 1,   0x80, 0x80, 2, 0x80, 0x80, 3, 0x80, 0x80,  //
@@ -3431,6 +3432,74 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
   alignas(16) uint8_t buf[16];
   Store(int0, d_full, buf);
   CopyBytes<N * 3>(buf, aligned);
+}
+
+// ------------------------------ StoreInterleaved4
+
+// 128 bits
+HWY_API void StoreInterleaved4(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1,
+                               const Vec128<uint8_t> v2,
+                               const Vec128<uint8_t> v3, Full128<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(v0, v1);
+  const auto dc8 = ZipUpper(v2, v3);
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a7 d..a4
+  const auto dcba_8 = ZipLower(ba8, dc8);  // d..aB d..a8
+  const auto dcba_C = ZipUpper(ba8, dc8);  // d..aF d..aC
+  Store(BitCast(d, dcba_0), d, aligned + 0 * 16);
+  Store(BitCast(d, dcba_4), d, aligned + 1 * 16);
+  Store(BitCast(d, dcba_8), d, aligned + 2 * 16);
+  Store(BitCast(d, dcba_C), d, aligned + 3 * 16);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved4(const Vec128<uint8_t, 8> in0,
+                               const Vec128<uint8_t, 8> in1,
+                               const Vec128<uint8_t, 8> in2,
+                               const Vec128<uint8_t, 8> in3,
+                               Simd<uint8_t, 8> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // Use full vectors to reduce the number of stores.
+  const Vec128<uint8_t> v0{in0.raw};
+  const Vec128<uint8_t> v1{in1.raw};
+  const Vec128<uint8_t> v2{in2.raw};
+  const Vec128<uint8_t> v3{in3.raw};
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);       // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);       // d7 c7 .. d0 c0
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a7 d..a4
+  const Full128<uint8_t> d_full;
+  Store(BitCast(d_full, dcba_0), d_full, aligned + 0 * 16);
+  Store(BitCast(d_full, dcba_4), d_full, aligned + 1 * 16);
+}
+
+// <= 32 bits
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> in0,
+                               const Vec128<uint8_t, N> in1,
+                               const Vec128<uint8_t, N> in2,
+                               const Vec128<uint8_t, N> in3,
+                               Simd<uint8_t, N> /*tag*/,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // Use full vectors to reduce the number of stores.
+  const Vec128<uint8_t> v0{in0.raw};
+  const Vec128<uint8_t> v1{in1.raw};
+  const Vec128<uint8_t> v2{in2.raw};
+  const Vec128<uint8_t> v3{in3.raw};
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);       // b3 a3 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);       // d3 c3 .. d0 c0
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  alignas(16) uint8_t buf[16];
+  const Full128<uint8_t> d_full;
+  Store(BitCast(d_full, dcba_0), d_full, buf);
+  CopyBytes<4 * N>(buf, aligned);
 }
 
 // ------------------------------ Reductions

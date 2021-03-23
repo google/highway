@@ -1974,38 +1974,26 @@ HWY_API Vec256<int64_t> ZipUpper(const Vec256<int32_t> a,
   return Vec256<int64_t>{_mm256_unpackhi_epi32(a.raw, b.raw)};
 }
 
-// ------------------------------ Blocks
+// ------------------------------ Blocks (LowerHalf, ZeroExtendVector)
+
+// _mm256_broadcastsi128_si256 has 7 cycle latency. _mm256_permute2x128_si256 is
+// slow on Zen1 (8 uops); we can avoid it for LowerLower and UpperLower, and on
+// UpperUpper at the cost of one extra cycle/instruction.
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>
 HWY_API Vec256<T> ConcatLowerLower(const Vec256<T> hi, const Vec256<T> lo) {
-  return Vec256<T>{_mm256_permute2x128_si256(lo.raw, hi.raw, 0x20)};
+  return Vec256<T>{_mm256_inserti128_si256(lo.raw, LowerHalf(hi).raw, 1)};
 }
 template <>
 HWY_INLINE Vec256<float> ConcatLowerLower(const Vec256<float> hi,
                                           const Vec256<float> lo) {
-  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x20)};
+  return Vec256<float>{_mm256_insertf128_ps(lo.raw, LowerHalf(hi).raw, 1)};
 }
 template <>
 HWY_INLINE Vec256<double> ConcatLowerLower(const Vec256<double> hi,
                                            const Vec256<double> lo) {
-  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x20)};
-}
-
-// hiH,hiL loH,loL |-> hiH,loH (= upper halves)
-template <typename T>
-HWY_API Vec256<T> ConcatUpperUpper(const Vec256<T> hi, const Vec256<T> lo) {
-  return Vec256<T>{_mm256_permute2x128_si256(lo.raw, hi.raw, 0x31)};
-}
-template <>
-HWY_INLINE Vec256<float> ConcatUpperUpper(const Vec256<float> hi,
-                                          const Vec256<float> lo) {
-  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x31)};
-}
-template <>
-HWY_INLINE Vec256<double> ConcatUpperUpper(const Vec256<double> hi,
-                                           const Vec256<double> lo) {
-  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x31)};
+  return Vec256<double>{_mm256_insertf128_ps(lo.raw, LowerHalf(hi).raw, 1)};
 }
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
@@ -2038,6 +2026,12 @@ template <>
 HWY_INLINE Vec256<double> ConcatUpperLower(const Vec256<double> hi,
                                            const Vec256<double> lo) {
   return Vec256<double>{_mm256_blend_pd(hi.raw, lo.raw, 3)};
+}
+
+// hiH,hiL loH,loL |-> hiH,loH (= upper halves)
+template <typename T>
+HWY_API Vec256<T> ConcatUpperUpper(const Vec256<T> hi, const Vec256<T> lo) {
+  return ConcatUpperLower(hi, ZeroExtendVector(UpperHalf(lo)));
 }
 
 // ------------------------------ Odd/even lanes
@@ -2694,15 +2688,16 @@ HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
 #endif  // HWY_TARGET != HWY_AVX3
 
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
-// TableLookupBytes, UpperHalf)
+// TableLookupBytes, ConcatUpperLower)
 
-HWY_API void StoreInterleaved3(const Vec256<uint8_t> a, const Vec256<uint8_t> b,
-                               const Vec256<uint8_t> c, Full256<uint8_t> d,
+HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
+                               const Vec256<uint8_t> v1,
+                               const Vec256<uint8_t> v2, Full256<uint8_t> d,
                                uint8_t* HWY_RESTRICT aligned) {
   const auto k5 = Set(d, 5);
   const auto k6 = Set(d, 6);
 
-  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
+  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): r5, bgr[4:0].
   // 0x80 so lanes to be filled from other vectors are 0 for blending.
   alignas(16) static constexpr uint8_t tbl_r0[16] = {
       0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
@@ -2713,41 +2708,69 @@ HWY_API void StoreInterleaved3(const Vec256<uint8_t> a, const Vec256<uint8_t> b,
   const auto shuf_r0 = LoadDup128(d, tbl_r0);
   const auto shuf_g0 = LoadDup128(d, tbl_g0);  // cannot reuse r0 due to 5
   const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
-  const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
-  const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
-  const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
+  const auto r0 = TableLookupBytes(v0, shuf_r0);  // 5..4..3..2..1..0
+  const auto g0 = TableLookupBytes(v1, shuf_g0);  // ..4..3..2..1..0.
+  const auto b0 = TableLookupBytes(v2, shuf_b0);  // .4..3..2..1..0..
   const auto interleaved_10_00 = r0 | g0 | b0;
-
-  // We want to write the lower halves of the interleaved vectors, then the
-  // upper halves. _mm256_permute2x128_si256 is expensive on AMD. We could use
-  // ConcatUpperLower to obtain 10_05 and 15_0A, but that would require two
-  // unaligned stores. 128-bit stores instead?
-  const Half<decltype(d)> d2;
-  Store(LowerHalf(interleaved_10_00), d2, aligned + 0 * 16);
 
   // Second vector: g10,r10, bgr[9:6], b5,g5
   const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
   const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
   const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
-  const auto r1 = TableLookupBytes(a, shuf_r1);
-  const auto g1 = TableLookupBytes(b, shuf_g1);
-  const auto b1 = TableLookupBytes(c, shuf_b1);
+  const auto r1 = TableLookupBytes(v0, shuf_r1);
+  const auto g1 = TableLookupBytes(v1, shuf_g1);
+  const auto b1 = TableLookupBytes(v2, shuf_b1);
   const auto interleaved_15_05 = r1 | g1 | b1;
-  Store(LowerHalf(interleaved_15_05), d2, aligned + 1 * 16);
+
+  // We want to write the lower halves of the interleaved vectors, then the
+  // upper halves. We could obtain 10_05 and 15_0A via ConcatUpperLower, but
+  // that would require two unaligned stores. For the lower halves, we can
+  // merge two 128-bit stores for the same swizzling cost:
+  const auto out0 = ConcatLowerLower(interleaved_15_05, interleaved_10_00);
+  Store(out0, d, aligned + 0 * 32);
 
   // Third vector: bgr[15:11], b10
   const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
   const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
   const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
-  const auto r2 = TableLookupBytes(a, shuf_r2);
-  const auto g2 = TableLookupBytes(b, shuf_g2);
-  const auto b2 = TableLookupBytes(c, shuf_b2);
+  const auto r2 = TableLookupBytes(v0, shuf_r2);
+  const auto g2 = TableLookupBytes(v1, shuf_g2);
+  const auto b2 = TableLookupBytes(v2, shuf_b2);
   const auto interleaved_1A_0A = r2 | g2 | b2;
-  Store(LowerHalf(interleaved_1A_0A), d2, aligned + 2 * 16);
 
-  Store(UpperHalf(interleaved_10_00), d2, aligned + 3 * 16);
-  Store(UpperHalf(interleaved_15_05), d2, aligned + 4 * 16);
-  Store(UpperHalf(interleaved_1A_0A), d2, aligned + 5 * 16);
+  const auto out1 = ConcatUpperLower(interleaved_10_00, interleaved_1A_0A);
+  Store(out1, d, aligned + 1 * 32);
+
+  const auto out2 = ConcatUpperUpper(interleaved_1A_0A, interleaved_15_05);
+  Store(out2, d, aligned + 2 * 32);
+}
+
+// ------------------------------ StoreInterleaved4
+
+HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
+                               const Vec256<uint8_t> v1,
+                               const Vec256<uint8_t> v2,
+                               const Vec256<uint8_t> v3, Full256<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(v0, v1);
+  const auto dc8 = ZipUpper(v2, v3);
+  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a13 d..a10 | d..a03 d..a00
+  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a17 d..a14 | d..a07 d..a04
+  const auto dcba_8 = ZipLower(ba8, dc8);  // d..a1B d..a18 | d..a0B d..a08
+  const auto dcba_C = ZipUpper(ba8, dc8);  // d..a1F d..a1C | d..a0F d..a0C
+  // Write lower halves, then upper. vperm2i128 is slow on Zen1 but we can
+  // efficiently combine two lower halves into 256 bits:
+  const auto out0 = BitCast(d, ConcatLowerLower(dcba_4, dcba_0));
+  const auto out1 = BitCast(d, ConcatLowerLower(dcba_C, dcba_8));
+  Store(out0, d, aligned + 0 * 32);
+  Store(out1, d, aligned + 1 * 32);
+  const auto out2 = BitCast(d, ConcatUpperUpper(dcba_4, dcba_0));
+  const auto out3 = BitCast(d, ConcatUpperUpper(dcba_C, dcba_8));
+  Store(out2, d, aligned + 2 * 32);
+  Store(out3, d, aligned + 3 * 32);
 }
 
 // ------------------------------ Reductions

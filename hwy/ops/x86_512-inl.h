@@ -2880,6 +2880,39 @@ HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
   Store(Vec512<uint8_t>{k3_j3_i3_k2}, d, aligned + 2 * 64);  //  3A 35 30 2A
 }
 
+// ------------------------------ StoreInterleaved4
+
+HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
+                               const Vec512<uint8_t> v1,
+                               const Vec512<uint8_t> v2,
+                               const Vec512<uint8_t> v3, Full512<uint8_t> d,
+                               uint8_t* HWY_RESTRICT aligned) {
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(v0, v1);
+  const auto dc8 = ZipUpper(v2, v3);
+  const auto i = ZipLower(ba0, dc0).raw;  // 4x128bit: d..a3 d..a0
+  const auto j = ZipUpper(ba0, dc0).raw;  // 4x128bit: d..a7 d..a4
+  const auto k = ZipLower(ba8, dc8).raw;  // 4x128bit: d..aB d..a8
+  const auto l = ZipUpper(ba8, dc8).raw;  // 4x128bit: d..aF d..aC
+  // 128-bit blocks were independent until now; transpose 4x4.
+  const auto j1_j0_i1_i0 = _mm512_shuffle_i64x2(i, j, _MM_SHUFFLE(1, 0, 1, 0));
+  const auto l1_l0_k1_k0 = _mm512_shuffle_i64x2(k, l, _MM_SHUFFLE(1, 0, 1, 0));
+  const auto j3_j2_i3_i2 = _mm512_shuffle_i64x2(i, j, _MM_SHUFFLE(3, 2, 3, 2));
+  const auto l3_l2_k3_k2 = _mm512_shuffle_i64x2(k, l, _MM_SHUFFLE(3, 2, 3, 2));
+  constexpr int k20 = _MM_SHUFFLE(2, 0, 2, 0);
+  constexpr int k31 = _MM_SHUFFLE(3, 1, 3, 1);
+  const auto l0_k0_j0_i0 = _mm512_shuffle_i64x2(j1_j0_i1_i0, l1_l0_k1_k0, k20);
+  const auto l1_k1_j1_i1 = _mm512_shuffle_i64x2(j1_j0_i1_i0, l1_l0_k1_k0, k31);
+  const auto l2_k2_j2_i2 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k20);
+  const auto l3_k3_j3_i3 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k31);
+  Store(Vec512<uint8_t>{l0_k0_j0_i0}, d, aligned + 0 * 64);
+  Store(Vec512<uint8_t>{l1_k1_j1_i1}, d, aligned + 1 * 64);
+  Store(Vec512<uint8_t>{l2_k2_j2_i2}, d, aligned + 2 * 64);
+  Store(Vec512<uint8_t>{l3_k3_j3_i3}, d, aligned + 3 * 64);
+}
+
 // ------------------------------ Reductions
 
 // Returns the sum in each lane.

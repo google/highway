@@ -896,6 +896,24 @@ HWY_RVV_STORE3(uint, u, 8, 2, 4, StoreInterleaved3, sseg3)
 
 #undef HWY_RVV_STORE3
 
+// ------------------------------ StoreInterleaved4
+
+#define HWY_RVV_STORE4(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)       \
+  HWY_API void NAME(                                                \
+      HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_V(BASE, SEW, LMUL) v1, \
+      HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_V(BASE, SEW, LMUL) v3, \
+      HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                           \
+      HWY_RVV_T(BASE, SEW) * HWY_RESTRICT aligned) {                \
+    const v##BASE##SEW##m##LMUL##x4_t quad =                        \
+        vcreate_##CHAR##SEW##m##LMUL##x4(v0, v1, v2, v3);           \
+    return v##OP##e8_v_##CHAR##SEW##m##LMUL##x4(aligned, quad);     \
+  }
+// Segments are limited to 8 registers, so we can only go up to LMUL=2.
+HWY_RVV_STORE4(uint, u, 8, 1, 8, StoreInterleaved4, sseg4)
+HWY_RVV_STORE4(uint, u, 8, 2, 4, StoreInterleaved4, sseg4)
+
+#undef HWY_RVV_STORE4
+
 // ================================================== CONVERT
 
 // ------------------------------ PromoteTo U

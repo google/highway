@@ -76,7 +76,7 @@ HWY_NOINLINE void TestAllLoadStore() {
   ForAllTypes(ForPartialVectors<TestLoadStore>());
 }
 
-struct TestStoreInterleaved {
+struct TestStoreInterleaved3 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -105,11 +105,12 @@ struct TestStoreInterleaved {
         expected[3 * N + i] = actual[3 * N + i] = 0;
       }
       StoreInterleaved3(in0, in1, in2, d, actual.get());
-      if (!BytesEqual(expected.get(), actual.get(), 4 * N)) {
-        Print(d, "in0", in0);
-        Print(d, "in1", in1);
-        Print(d, "in2", in2);
-        const size_t i = 0;
+      size_t pos = 0;
+      if (!BytesEqual(expected.get(), actual.get(), 4 * N, &pos)) {
+        Print(d, "in0", in0, pos / 3);
+        Print(d, "in1", in1, pos / 3);
+        Print(d, "in2", in2, pos / 3);
+        const size_t i = pos;
         fprintf(stderr, "interleaved %d %d %d  %d %d %d\n", actual[i],
                 actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
                 actual[i + 5]);
@@ -119,12 +120,69 @@ struct TestStoreInterleaved {
   }
 };
 
-HWY_NOINLINE void TestAllStoreInterleaved() {
+HWY_NOINLINE void TestAllStoreInterleaved3() {
 #if HWY_TARGET == HWY_RVV
   // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-  const ForExtendableVectors<TestStoreInterleaved, 4> test;
+  const ForExtendableVectors<TestStoreInterleaved3, 4> test;
 #else
-  const ForPartialVectors<TestStoreInterleaved> test;
+  const ForPartialVectors<TestStoreInterleaved3> test;
+#endif
+  test(uint8_t());
+}
+
+struct TestStoreInterleaved4 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+
+    RandomState rng;
+
+    // Data to be interleaved
+    auto bytes = AllocateAligned<uint8_t>(4 * N);
+    for (size_t i = 0; i < 4 * N; ++i) {
+      bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
+    }
+    const auto in0 = Load(d, &bytes[0 * N]);
+    const auto in1 = Load(d, &bytes[1 * N]);
+    const auto in2 = Load(d, &bytes[2 * N]);
+    const auto in3 = Load(d, &bytes[3 * N]);
+
+    // Interleave here, ensure vector results match scalar
+    auto expected = AllocateAligned<T>(5 * N);
+    auto actual = AllocateAligned<T>(5 * N);
+
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        expected[4 * i + 0] = bytes[0 * N + i];
+        expected[4 * i + 1] = bytes[1 * N + i];
+        expected[4 * i + 2] = bytes[2 * N + i];
+        expected[4 * i + 3] = bytes[3 * N + i];
+        // Ensure we do not write more than 4*N bytes
+        expected[4 * N + i] = actual[4 * N + i] = 0;
+      }
+      StoreInterleaved4(in0, in1, in2, in3, d, actual.get());
+      size_t pos = 0;
+      if (!BytesEqual(expected.get(), actual.get(), 5 * N, &pos)) {
+        Print(d, "in0", in0, pos / 4);
+        Print(d, "in1", in1, pos / 4);
+        Print(d, "in2", in2, pos / 4);
+        Print(d, "in3", in3, pos / 4);
+        const size_t i = pos;
+        fprintf(stderr, "interleaved %d %d %d %d  %d %d %d %d\n", actual[i],
+                actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
+                actual[i + 5], actual[i + 6], actual[i + 7]);
+        HWY_ASSERT(false);
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllStoreInterleaved4() {
+#if HWY_TARGET == HWY_RVV
+  // Segments are limited to 8 registers, so we can only go up to LMUL=2.
+  const ForExtendableVectors<TestStoreInterleaved4, 4> test;
+#else
+  const ForPartialVectors<TestStoreInterleaved4> test;
 #endif
   test(uint8_t());
 }
@@ -348,7 +406,8 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyMemoryTest);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
-HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreInterleaved);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreInterleaved3);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreInterleaved4);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
