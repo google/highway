@@ -52,7 +52,12 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
   }
 
   uint64_t max_ulp = 0;
+#if HWY_ARCH_ARM
+  // Emulation is slower, so cannot afford as many.
+  constexpr UintT kSamplesPerRange = 25000;
+#else
   constexpr UintT kSamplesPerRange = 100000;
+#endif
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
