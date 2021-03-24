@@ -412,9 +412,9 @@ HWY_API Mask256<T> Xor(const Mask256<T> a, Mask256<T> b) {
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
 
 template <typename TFrom, typename TTo>
-HWY_API Mask256<TTo> RebindMask(Full256<TTo> /*tag*/, Mask256<TFrom> m) {
+HWY_API Mask256<TTo> RebindMask(Full256<TTo> d_to, Mask256<TFrom> m) {
   static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask256<TTo>{m.raw};
+  return MaskFromVec(BitCast(d_to, VecFromMask(Full256<TFrom>(), m)));
 }
 
 // ------------------------------ Equality
@@ -1993,7 +1993,7 @@ HWY_INLINE Vec256<float> ConcatLowerLower(const Vec256<float> hi,
 template <>
 HWY_INLINE Vec256<double> ConcatLowerLower(const Vec256<double> hi,
                                            const Vec256<double> lo) {
-  return Vec256<double>{_mm256_insertf128_ps(lo.raw, LowerHalf(hi).raw, 1)};
+  return Vec256<double>{_mm256_insertf128_pd(lo.raw, LowerHalf(hi).raw, 1)};
 }
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
@@ -2586,25 +2586,29 @@ HWY_INLINE Vec256<uint32_t> Idx64x4FromBits(const uint64_t mask_bits) {
 template <typename T>
 HWY_API Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
                            const uint64_t mask_bits) {
+  const auto vu = BitCast(Full256<uint32_t>(), v);
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<T>{
-      _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), v.raw)};
+  const __m256i ret =
+      _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), vu.raw);
 #else
   const Vec256<uint32_t> idx = detail::Idx32x8FromBits(mask_bits);
-  return Vec256<T>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+  const __m256i ret = _mm256_permutevar8x32_epi32(vu.raw, idx.raw);
 #endif
+  return BitCast(Full256<T>(), Vec256<uint32_t>{ret});
 }
 
 template <typename T>
 HWY_API Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
                            const uint64_t mask_bits) {
+  const auto vu = BitCast(Full256<uint64_t>(), v);
 #if HWY_TARGET == HWY_AVX3
-  return Vec256<T>{
-      _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), v.raw)};
+  const __m256i ret =
+      _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), vu.raw);
 #else
   const Vec256<uint32_t> idx = detail::Idx64x4FromBits(mask_bits);
-  return Vec256<T>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+  const __m256i ret = _mm256_permutevar8x32_epi32(vu.raw, idx.raw);
 #endif
+  return BitCast(Full256<T>(), Vec256<uint64_t>{ret});
 }
 
 // Otherwise, defined in x86_512-inl.h so it can use wider vectors.

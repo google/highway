@@ -2739,8 +2739,8 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
   const auto promoted1 = PromoteTo(dw, UpperHalf(vu16));
 
-  const Mask512<int32_t> mask0{mask.raw & 0xFFFF};
-  const Mask512<int32_t> mask1{mask.raw >> 16};
+  const Mask512<int32_t> mask0{static_cast<__mmask16>(mask.raw & 0xFFFF)};
+  const Mask512<int32_t> mask1{static_cast<__mmask16>(mask.raw >> 16)};
   const auto compressed0 = Compress(promoted0, mask0);
   const auto compressed1 = Compress(promoted1, mask1);
 

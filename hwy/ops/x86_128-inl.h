@@ -510,7 +510,6 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
 template <typename TFrom, typename TTo, size_t N>
 HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
   static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  Mask128<TTo, N> ret;  // prevents MSVC "Invalid aggregate initialization"
   const Simd<TFrom, N> d;
   return MaskFromVec(BitCast(Simd<TTo, N>(), VecFromMask(d, m)));
 }
