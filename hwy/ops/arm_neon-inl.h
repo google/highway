@@ -26,6 +26,8 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+deliberate_failure();
+
 // Macros used to define single and double function calls for multiple types
 // for full and half vectors. These macros are undefined at the end of the file.
 
