@@ -231,7 +231,7 @@ struct TestFullNaN {
 #elif HWY_ARCH_WASM
     // Should return NaN if any input is NaN, but does not for scalar.
     // TODO(janwas): remove once this is fixed.
-#elif HWY_TARGET == HWY_NEON && !defined(__aarch64__)
+#elif HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7
     // ARMv7 NEON returns NaN if any input is NaN.
     HWY_ASSERT_NAN(d, Min(v1, nan));
     HWY_ASSERT_NAN(d, Max(v1, nan));
