@@ -234,8 +234,7 @@
 #define HWY_ARCH_ARM 0
 #endif
 
-// There isn't yet a standard __wasm or __wasm__.
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__wasm__) || defined(__WASM__)
 #define HWY_ARCH_WASM 1
 #else
 #define HWY_ARCH_WASM 0
