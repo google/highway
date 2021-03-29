@@ -443,9 +443,6 @@ either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 
 #### Scatter/Gather
 
-**Note**: Vectors must be `HWY_CAPPED(T, HWY_GATHER_LANES(T))`. We plan to lift
-this limitation and emulate Gather/Scatter on all targets.
-
 **Note**: Offsets/indices are of type `VI = Vec<RebindToSigned<D>>` and need not
 be unique. The results are implementation-defined if any are negative.
 
@@ -737,22 +734,10 @@ The following signal capabilities and expand to 1 or 0.
 *   `HWY_CAP_GE256`: the current target supports vectors of >= 256 bits.
 *   `HWY_CAP_GE512`: the current target supports vectors of >= 512 bits.
 
-The following indicate the maximum number of lanes for certain operations. For
-targets that support the feature/operation, the macro evaluates to
-`HWY_LANES(T)`, otherwise 1. Using `HWY_CAPPED(T, HWY_GATHER_LANES(T))`
-generates the best possible code (or scalar fallback) from the same source code.
+The following were used to signal the maximum number of lanes for certain
+operations, but this is no longer necessary, so they are DEPRECATED:
 
-*   `HWY_GATHER_LANES(T)`: supports GatherIndex/Offset.
-*   `HWY_VARIABLE_SHIFT_LANES(T)`: supports per-lane shift amounts (v1 << v2).
-    DEPRECATED, this always matches HWY_LANES(T) and will be removed.
-
-As above, but the feature implies the type so there is no T parameter, thus
-these can be used in `#if` expressions.
-
-*   `HWY_COMPARE64_LANES`: 64-bit signed integer comparisons. DEPRECATED, this
-    always matches HWY_LANES(int64_t) and will be removed.
-*   `HWY_MINMAX64_LANES`: 64-bit signed/unsigned integer min/max. DEPRECATED,
-    this always matches HWY_LANES(int64_t) and will be removed.
+*   `HWY_GATHER_LANES(T)`.
 
 ## Detecting supported targets
 

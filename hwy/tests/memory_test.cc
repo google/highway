@@ -372,21 +372,15 @@ struct TestGather {
 
 HWY_NOINLINE void TestAllGather() {
   // No u8,u16,i8,i16.
-  const ForPartialVectors<TestGather, 1, 1, HWY_GATHER_LANES(uint32_t)> test32;
-  test32(uint32_t());
-  test32(int32_t());
+  const ForPartialVectors<TestGather> test;
+  test(uint32_t());
+  test(int32_t());
 
 #if HWY_CAP_INTEGER64
-  const ForPartialVectors<TestGather, 1, 1, HWY_GATHER_LANES(uint64_t)> test64;
-  test64(uint64_t());
-  test64(int64_t());
+  test(uint64_t());
+  test(int64_t());
 #endif
-
-  ForPartialVectors<TestGather, 1, 1, HWY_GATHER_LANES(float)>()(float());
-
-#if HWY_CAP_FLOAT64
-  ForPartialVectors<TestGather, 1, 1, HWY_GATHER_LANES(double)>()(double());
-#endif
+  ForFloatTypes(test);
 }
 
 HWY_NOINLINE void TestAllCache() {

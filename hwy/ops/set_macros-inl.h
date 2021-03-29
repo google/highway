@@ -31,11 +31,6 @@
 #undef HWY_ALIGN
 #undef HWY_LANES
 
-#undef HWY_GATHER_LANES
-#undef HWY_VARIABLE_SHIFT_LANES
-#undef HWY_COMPARE64_LANES
-#undef HWY_MINMAX64_LANES
-
 #undef HWY_CAP_INTEGER64
 #undef HWY_CAP_FLOAT64
 #undef HWY_CAP_GE256
@@ -53,11 +48,6 @@
 #define HWY_ALIGN alignas(16)
 #define HWY_LANES(T) (16 / sizeof(T))
 
-#define HWY_GATHER_LANES(T) 1
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_COMPARE64_LANES 2
-#define HWY_MINMAX64_LANES 1
-
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
@@ -72,11 +62,6 @@
 #define HWY_NAMESPACE N_AVX2
 #define HWY_ALIGN alignas(32)
 #define HWY_LANES(T) (32 / sizeof(T))
-
-#define HWY_GATHER_LANES(T) HWY_LANES(T)
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_COMPARE64_LANES 4
-#define HWY_MINMAX64_LANES 1
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
@@ -95,11 +80,6 @@
 
 #define HWY_ALIGN alignas(64)
 #define HWY_LANES(T) (64 / sizeof(T))
-
-#define HWY_GATHER_LANES(T) HWY_LANES(T)
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_COMPARE64_LANES 8
-#define HWY_MINMAX64_LANES 8
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
@@ -121,11 +101,6 @@
 #define HWY_ALIGN alignas(16)
 #define HWY_LANES(T) (16 / sizeof(T))
 
-#define HWY_GATHER_LANES(T) 1
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_COMPARE64_LANES 2
-#define HWY_MINMAX64_LANES 2
-
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
@@ -141,11 +116,6 @@
 
 #define HWY_ALIGN alignas(16)
 #define HWY_LANES(T) (16 / sizeof(T))
-
-#define HWY_GATHER_LANES(T) 1
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_MINMAX64_LANES 2
-#define HWY_COMPARE64_LANES 2
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_GE256 0
@@ -168,11 +138,6 @@
 #define HWY_ALIGN alignas(16)
 #define HWY_LANES(T) (16 / sizeof(T))
 
-#define HWY_GATHER_LANES(T) 1
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-#define HWY_COMPARE64_LANES 2
-#define HWY_MINMAX64_LANES 2
-
 #define HWY_CAP_INTEGER64 0
 #define HWY_CAP_FLOAT64 0
 #define HWY_CAP_GE256 0
@@ -194,11 +159,6 @@
 // mul/div by 8 for LMUL. Value matches kMaxVectorSize, see base.h.
 #define HWY_LANES(T) (4096 / sizeof(T))
 
-#define HWY_GATHER_LANES(T) HWY_LANES(T)
-#define HWY_VARIABLE_SHIFT_LANES(T) HWY_LANES(T)
-// Cannot use HWY_LANES/sizeof here because these are used in an #if.
-#define HWY_COMPARE64_LANES 256
-#define HWY_MINMAX64_LANES 256
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
@@ -216,11 +176,6 @@
 
 #define HWY_ALIGN
 #define HWY_LANES(T) 1
-
-#define HWY_GATHER_LANES(T) 1
-#define HWY_VARIABLE_SHIFT_LANES(T) 1
-#define HWY_COMPARE64_LANES 1
-#define HWY_MINMAX64_LANES 1
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
@@ -265,3 +220,7 @@
 #else
 #define HWY_ATTR
 #endif
+
+// DEPRECATED
+#undef HWY_GATHER_LANES
+#define HWY_GATHER_LANES(T) HWY_LANES(T)

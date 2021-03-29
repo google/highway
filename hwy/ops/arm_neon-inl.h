@@ -3333,26 +3333,38 @@ HWY_API void ScatterIndex(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT base,
   }
 }
 
-// ------------------------------ Gather (requires GetLane)
+// ------------------------------ Gather (Load/Store)
 
 template <typename T, size_t N, typename Offset>
 HWY_API Vec128<T, N> GatherOffset(const Simd<T, N> d,
                                   const T* HWY_RESTRICT base,
                                   const Vec128<Offset, N> offset) {
-  static_assert(N == 1, "NEON does not support full gather");
-  static_assert(sizeof(T) == sizeof(Offset), "T must match Offset");
-  const uintptr_t address = reinterpret_cast<uintptr_t>(base) + GetLane(offset);
-  T val;
-  CopyBytes<sizeof(T)>(reinterpret_cast<const T*>(address), &val);
-  return Set(d, val);
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+
+  alignas(16) Offset offset_lanes[N];
+  Store(offset, Simd<Offset, N>(), offset_lanes);
+
+  alignas(16) T lanes[N];
+  const uint8_t* base_bytes = reinterpret_cast<const uint8_t*>(base);
+  for (size_t i = 0; i < N; ++i) {
+    CopyBytes<sizeof(T)>(base_bytes + offset_lanes[i], &lanes[i]);
+  }
+  return Load(d, lanes);
 }
 
 template <typename T, size_t N, typename Index>
 HWY_API Vec128<T, N> GatherIndex(const Simd<T, N> d, const T* HWY_RESTRICT base,
                                  const Vec128<Index, N> index) {
-  static_assert(N == 1, "NEON does not support full gather");
-  static_assert(sizeof(T) == sizeof(Index), "T must match Index");
-  return Set(d, base[GetLane(index)]);
+  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+
+  alignas(16) Index index_lanes[N];
+  Store(index, Simd<Index, N>(), index_lanes);
+
+  alignas(16) T lanes[N];
+  for (size_t i = 0; i < N; ++i) {
+    lanes[i] = base[index_lanes[i]];
+  }
+  return Load(d, lanes);
 }
 
 // ------------------------------ ARMv7 int64 comparisons (requires Shuffle2301)

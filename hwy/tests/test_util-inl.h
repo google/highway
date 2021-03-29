@@ -447,11 +447,8 @@ struct ForeachSizeR<T, 0, kMinLanes, Test> {
 
 // These adapters may be called directly, or via For*Types:
 
-// Calls Test for all powers of two in [kMinLanes, kMaxLanes / kDivLanes].
-// kMaxLanes is used for HWY_GATHER_LANES etc; use a large default because we
-// don't have access to T in the template argument list.
-template <class Test, size_t kDivLanes = 1, size_t kMinLanes = 1,
-          size_t kMaxLanes = 1ul << 30>
+// Calls Test for all powers of two in [kMinLanes, HWY_LANES(T) / kDivLanes].
+template <class Test, size_t kDivLanes = 1, size_t kMinLanes = 1>
 struct ForPartialVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
@@ -459,8 +456,8 @@ struct ForPartialVectors {
     // Only m1..8 for now, can ignore kMaxLanes because HWY_*_LANES are full.
     ForeachSizeR<T, 8 / kDivLanes, HWY_LANES(T), Test>::Do();
 #else
-    ForeachSizeR<T, HWY_MIN(kMaxLanes, HWY_LANES(T)) / kDivLanes / kMinLanes,
-                 kMinLanes, Test>::Do();
+    ForeachSizeR<T, HWY_LANES(T) / kDivLanes / kMinLanes, kMinLanes,
+                 Test>::Do();
 #endif
   }
 };
