@@ -876,6 +876,16 @@ HWY_NEON_DEF_FUNCTION_INTS(ShiftRight, vshr, _n_, HWY_SHIFT)
 
 // ------------------------------ Shl
 
+HWY_INLINE Vec128<uint8_t> operator<<(const Vec128<uint8_t> v,
+                                      const Vec128<uint8_t> bits) {
+  return Vec128<uint8_t>(vshlq_u8(v.raw, vreinterpretq_s8_u8(bits.raw)));
+}
+template <size_t N, HWY_IF_LE64(uint8_t, N)>
+HWY_INLINE Vec128<uint8_t, N> operator<<(const Vec128<uint8_t, N> v,
+                                         const Vec128<uint8_t, N> bits) {
+  return Vec128<uint8_t, N>(vshl_u8(v.raw, vreinterpret_s8_u8(bits.raw)));
+}
+
 HWY_INLINE Vec128<uint16_t> operator<<(const Vec128<uint16_t> v,
                                        const Vec128<uint16_t> bits) {
   return Vec128<uint16_t>(vshlq_u16(v.raw, vreinterpretq_s16_u16(bits.raw)));
@@ -903,6 +913,16 @@ HWY_INLINE Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
 HWY_INLINE Vec128<uint64_t, 1> operator<<(const Vec128<uint64_t, 1> v,
                                           const Vec128<uint64_t, 1> bits) {
   return Vec128<uint64_t, 1>(vshl_u64(v.raw, vreinterpret_s64_u64(bits.raw)));
+}
+
+HWY_INLINE Vec128<int8_t> operator<<(const Vec128<int8_t> v,
+                                     const Vec128<int8_t> bits) {
+  return Vec128<int8_t>(vshlq_s8(v.raw, bits.raw));
+}
+template <size_t N, HWY_IF_LE64(int8_t, N)>
+HWY_INLINE Vec128<int8_t, N> operator<<(const Vec128<int8_t, N> v,
+                                        const Vec128<int8_t, N> bits) {
+  return Vec128<int8_t, N>(vshl_s8(v.raw, bits.raw));
 }
 
 HWY_INLINE Vec128<int16_t> operator<<(const Vec128<int16_t> v,
@@ -935,6 +955,18 @@ HWY_INLINE Vec128<int64_t, 1> operator<<(const Vec128<int64_t, 1> v,
 }
 
 // ------------------------------ Shr (Neg)
+
+HWY_INLINE Vec128<uint8_t> operator>>(const Vec128<uint8_t> v,
+                                      const Vec128<uint8_t> bits) {
+  const int8x16_t neg_bits = Neg(BitCast(Full128<int8_t>(), bits)).raw;
+  return Vec128<uint8_t>(vshlq_u8(v.raw, neg_bits));
+}
+template <size_t N, HWY_IF_LE64(uint8_t, N)>
+HWY_INLINE Vec128<uint8_t, N> operator>>(const Vec128<uint8_t, N> v,
+                                         const Vec128<uint8_t, N> bits) {
+  const int8x8_t neg_bits = Neg(BitCast(Simd<int8_t, N>(), bits)).raw;
+  return Vec128<uint8_t, N>(vshl_u8(v.raw, neg_bits));
+}
 
 HWY_INLINE Vec128<uint16_t> operator>>(const Vec128<uint16_t> v,
                                        const Vec128<uint16_t> bits) {
@@ -969,6 +1001,16 @@ HWY_INLINE Vec128<uint64_t, 1> operator>>(const Vec128<uint64_t, 1> v,
                                           const Vec128<uint64_t, 1> bits) {
   const int64x1_t neg_bits = Neg(BitCast(Simd<int64_t, 1>(), bits)).raw;
   return Vec128<uint64_t, 1>(vshl_u64(v.raw, neg_bits));
+}
+
+HWY_INLINE Vec128<int8_t> operator>>(const Vec128<int8_t> v,
+                                     const Vec128<int8_t> bits) {
+  return Vec128<int8_t>(vshlq_s8(v.raw, Neg(bits).raw));
+}
+template <size_t N, HWY_IF_LE64(int8_t, N)>
+HWY_INLINE Vec128<int8_t, N> operator>>(const Vec128<int8_t, N> v,
+                                        const Vec128<int8_t, N> bits) {
+  return Vec128<int8_t, N>(vshl_s8(v.raw, Neg(bits).raw));
 }
 
 HWY_INLINE Vec128<int16_t> operator>>(const Vec128<int16_t> v,

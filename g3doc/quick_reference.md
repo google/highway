@@ -252,23 +252,24 @@ Left-shifting signed `T` and right-shifting positive signed `T` is the same as
 shifting `MakeUnsigned<T>` and casting to `T`. Right-shifting negative signed
 `T` is the same as an unsigned shift, except that 1-bits are shifted in.
 
-Compile-time constant shifts, generally the most efficient variant:
+Compile-time constant shifts, generally the most efficient variant (though 8-bit
+shifts are potentially slower than other lane sizes):
 
-*   `V`: `{u,i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **ShiftLeft**&lt;int&gt;(V a)</code> returns `a[i] << int`.
 
-*   `V`: `{u,i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
 Shift all lanes by the same (not necessarily compile-time constant) amount:
 
-*   `V`: `{u,i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **ShiftLeftSame**(V a, int bits)</code> returns `a[i] << bits`.
 
-*   `V`: `{u,i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
 
-Per-lane variable shifts (slow if SSE4, or Shr i64 on AVX2):
+Per-lane variable shifts (slow if SSE4, or 16-bit, or Shr i64 on AVX2):
 
 *   `V`: `{u,i}{16,32,64}` \
     <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.

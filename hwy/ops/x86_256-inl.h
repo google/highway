@@ -925,6 +925,14 @@ HWY_API Vec256<int64_t> ShiftLeft(const Vec256<int64_t> v) {
   return Vec256<int64_t>{_mm256_slli_epi64(v.raw, kBits)};
 }
 
+template <int kBits, typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec256<T> ShiftLeft(const Vec256<T> v) {
+  const Full256<T> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const auto shifted = BitCast(d8, ShiftLeft<kBits>(BitCast(d16, v)));
+  return kBits == 1 ? (v + v) : (shifted & Set(d8, (0xFF << kBits) & 0xFF));
+}
+
 // ------------------------------ ShiftRight
 
 template <int kBits>
@@ -943,6 +951,14 @@ HWY_API Vec256<uint64_t> ShiftRight(const Vec256<uint64_t> v) {
 }
 
 template <int kBits>
+HWY_API Vec256<uint8_t> ShiftRight(const Vec256<uint8_t> v) {
+  const Full256<uint8_t> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec256<uint8_t> shifted{ShiftRight<kBits>(Vec256<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
+}
+
+template <int kBits>
 HWY_API Vec256<int16_t> ShiftRight(const Vec256<int16_t> v) {
   return Vec256<int16_t>{_mm256_srai_epi16(v.raw, kBits)};
 }
@@ -950,6 +966,15 @@ HWY_API Vec256<int16_t> ShiftRight(const Vec256<int16_t> v) {
 template <int kBits>
 HWY_API Vec256<int32_t> ShiftRight(const Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_srai_epi32(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec256<int8_t> ShiftRight(const Vec256<int8_t> v) {
+  const Full256<int8_t> di;
+  const Full256<uint8_t> du;
+  const auto shifted = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
+  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
+  return (shifted ^ shifted_sign) - shifted_sign;
 }
 
 // i64 is implemented after BroadcastSignBit.
@@ -1016,6 +1041,14 @@ HWY_API Vec256<int64_t> ShiftLeftSame(const Vec256<int64_t> v, const int bits) {
   return Vec256<int64_t>{_mm256_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec256<T> ShiftLeftSame(const Vec256<T> v, const int bits) {
+  const Full256<T> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const auto shifted = BitCast(d8, ShiftLeftSame(BitCast(d16, v), bits));
+  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+}
+
 // ------------------------------ ShiftRightSame (BroadcastSignBit)
 
 HWY_API Vec256<uint16_t> ShiftRightSame(const Vec256<uint16_t> v,
@@ -1029,6 +1062,13 @@ HWY_API Vec256<uint32_t> ShiftRightSame(const Vec256<uint32_t> v,
 HWY_API Vec256<uint64_t> ShiftRightSame(const Vec256<uint64_t> v,
                                         const int bits) {
   return Vec256<uint64_t>{_mm256_srl_epi64(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec256<uint8_t> ShiftRightSame(Vec256<uint8_t> v, const int bits) {
+  const Full256<uint8_t> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const auto shifted = BitCast(d8, ShiftRightSame(BitCast(d16, v), bits));
+  return shifted & Set(d8, 0xFF >> bits);
 }
 
 HWY_API Vec256<int16_t> ShiftRightSame(const Vec256<int16_t> v,
@@ -1051,6 +1091,14 @@ HWY_API Vec256<int64_t> ShiftRightSame(const Vec256<int64_t> v,
   const auto sign = ShiftLeftSame(BroadcastSignBit(v), 64 - bits);
   return right | sign;
 #endif
+}
+
+HWY_API Vec256<int8_t> ShiftRightSame(Vec256<int8_t> v, const int bits) {
+  const Full256<int8_t> di;
+  const Full256<uint8_t> du;
+  const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
+  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
+  return (shifted ^ shifted_sign) - shifted_sign;
 }
 
 // ------------------------------ Negate

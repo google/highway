@@ -396,9 +396,36 @@ HWY_API Vec128<int32_t, N> ShiftRight(const Vec128<int32_t, N> v) {
   return Vec128<int32_t, N>{wasm_i32x4_shr(v.raw, kBits)};
 }
 
+// 8-bit
+template <int kBits, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> ShiftLeft(const Vec128<T, N> v) {
+  const Simd<T, N> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec128<T, N> shifted{ShiftLeft<kBits>(Vec128<MakeWide<T>>{v.raw}).raw};
+  return kBits == 1 ? (v + v) : (shifted & Set(d8, (0xFF << kBits) & 0xFF));
+}
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint8_t, N> ShiftRight(const Vec128<uint8_t, N> v) {
+  const Simd<uint8_t, N> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec128<uint8_t, N> shifted{
+      ShiftRight<kBits>(Vec128<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
+}
+
+template <int kBits, size_t N>
+HWY_API Vec128<int8_t, N> ShiftRight(const Vec128<int8_t, N> v) {
+  const Simd<int8_t, N> di;
+  const Simd<uint8_t, N> du;
+  const auto shifted = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
+  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
+  return (shifted ^ shifted_sign) - shifted_sign;
+}
+
 // ------------------------------ Shift lanes by same variable #bits
 
-// Unsigned (no u8)
+// Unsigned
 template <size_t N>
 HWY_API Vec128<uint16_t, N> ShiftLeftSame(const Vec128<uint16_t, N> v,
                                           const int bits) {
@@ -420,7 +447,7 @@ HWY_API Vec128<uint32_t, N> ShiftRightSame(const Vec128<uint32_t, N> v,
   return Vec128<uint32_t, N>{wasm_u32x4_shr(v.raw, bits)};
 }
 
-// Signed (no i8)
+// Signed
 template <size_t N>
 HWY_API Vec128<int16_t, N> ShiftLeftSame(const Vec128<int16_t, N> v,
                                          const int bits) {
@@ -440,6 +467,35 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> ShiftRightSame(const Vec128<int32_t, N> v,
                                           const int bits) {
   return Vec128<int32_t, N>{wasm_i32x4_shr(v.raw, bits)};
+}
+
+// 8-bit
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> ShiftLeftSame(const Vec128<T, N> v, const int bits) {
+  const Simd<T, N> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec128<T, N> shifted{
+      ShiftLeftSame(Vec128<MakeWide<T>>{v.raw}, bits).raw};
+  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+}
+
+template <size_t N>
+HWY_API Vec128<uint8_t, N> ShiftRightSame(Vec128<uint8_t, N> v,
+                                          const int bits) {
+  const Simd<uint8_t, N> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec128<uint8_t, N> shifted{
+      ShiftRightSame(Vec128<uint16_t>{v.raw}, bits).raw};
+  return shifted & Set(d8, 0xFF >> bits);
+}
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> ShiftRightSame(Vec128<int8_t, N> v, const int bits) {
+  const Simd<int8_t, N> di;
+  const Simd<uint8_t, N> du;
+  const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
+  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
+  return (shifted ^ shifted_sign) - shifted_sign;
 }
 
 // ------------------------------ Minimum

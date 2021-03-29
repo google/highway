@@ -675,6 +675,14 @@ HWY_API Vec512<int64_t> ShiftLeft(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_slli_epi64(v.raw, kBits)};
 }
 
+template <int kBits, typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec512<T> ShiftLeft(const Vec512<T> v) {
+  const Full512<T> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const auto shifted = BitCast(d8, ShiftLeft<kBits>(BitCast(d16, v)));
+  return kBits == 1 ? (v + v) : (shifted & Set(d8, (0xFF << kBits) & 0xFF));
+}
+
 // ------------------------------ ShiftRight
 
 template <int kBits>
@@ -693,6 +701,14 @@ HWY_API Vec512<uint64_t> ShiftRight(const Vec512<uint64_t> v) {
 }
 
 template <int kBits>
+HWY_API Vec512<uint8_t> ShiftRight(const Vec512<uint8_t> v) {
+  const Full512<uint8_t> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec512<uint8_t> shifted{ShiftRight<kBits>(Vec512<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
+}
+
+template <int kBits>
 HWY_API Vec512<int16_t> ShiftRight(const Vec512<int16_t> v) {
   return Vec512<int16_t>{_mm512_srai_epi16(v.raw, kBits)};
 }
@@ -705,6 +721,15 @@ HWY_API Vec512<int32_t> ShiftRight(const Vec512<int32_t> v) {
 template <int kBits>
 HWY_API Vec512<int64_t> ShiftRight(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_srai_epi64(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<int8_t> ShiftRight(const Vec512<int8_t> v) {
+  const Full512<int8_t> di;
+  const Full512<uint8_t> du;
+  const auto shifted = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
+  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
+  return (shifted ^ shifted_sign) - shifted_sign;
 }
 
 // ------------------------------ ShiftLeftSame
@@ -734,6 +759,14 @@ HWY_API Vec512<int64_t> ShiftLeftSame(const Vec512<int64_t> v, const int bits) {
   return Vec512<int64_t>{_mm512_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec512<T> ShiftLeftSame(const Vec512<T> v, const int bits) {
+  const Full512<T> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const auto shifted = BitCast(d8, ShiftLeftSame(BitCast(d16, v), bits));
+  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+}
+
 // ------------------------------ ShiftRightSame
 
 HWY_API Vec512<uint16_t> ShiftRightSame(const Vec512<uint16_t> v,
@@ -749,6 +782,13 @@ HWY_API Vec512<uint64_t> ShiftRightSame(const Vec512<uint64_t> v,
   return Vec512<uint64_t>{_mm512_srl_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
+HWY_API Vec512<uint8_t> ShiftRightSame(Vec512<uint8_t> v, const int bits) {
+  const Full512<uint8_t> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const auto shifted = BitCast(d8, ShiftRightSame(BitCast(d16, v), bits));
+  return shifted & Set(d8, 0xFF >> bits);
+}
+
 HWY_API Vec512<int16_t> ShiftRightSame(const Vec512<int16_t> v,
                                        const int bits) {
   return Vec512<int16_t>{_mm512_sra_epi16(v.raw, _mm_cvtsi32_si128(bits))};
@@ -761,6 +801,14 @@ HWY_API Vec512<int32_t> ShiftRightSame(const Vec512<int32_t> v,
 HWY_API Vec512<int64_t> ShiftRightSame(const Vec512<int64_t> v,
                                        const int bits) {
   return Vec512<int64_t>{_mm512_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
+}
+
+HWY_API Vec512<int8_t> ShiftRightSame(Vec512<int8_t> v, const int bits) {
+  const Full512<int8_t> di;
+  const Full512<uint8_t> du;
+  const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
+  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
+  return (shifted ^ shifted_sign) - shifted_sign;
 }
 
 // ------------------------------ Shl
