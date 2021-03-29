@@ -2270,20 +2270,13 @@ namespace detail {
 template <typename T, size_t N>
 HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                               const Mask128<T, N> mask) {
-  const __i8x16 slice =
-      wasm_i8x16_make(1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8);
-  // Each u32 lane has byte[i] = (1 << i) or 0.
-  const __i8x16 v8_4_2_1 = wasm_v128_and(mask.raw, slice);
-  // OR together 4 bytes of each u32 to get the 4 bits.
-  const __i16x8 v2_1_z_z = wasm_i32x4_shl(v8_4_2_1, 16);
-  const __i16x8 v82_41_2_1 = wasm_v128_or(v8_4_2_1, v2_1_z_z);
-  const __i16x8 v41_2_1_0 = wasm_i32x4_shl(v82_41_2_1, 8);
-  const __i16x8 v8421_421_21_10 = wasm_v128_or(v82_41_2_1, v41_2_1_0);
-  const __i16x8 nibble_per_u32 = wasm_i32x4_shr(v8421_421_21_10, 24);
-  // Assemble four nibbles into 16 bits.
-  alignas(16) uint32_t lanes[4];
-  wasm_v128_store(lanes, nibble_per_u32);
-  return lanes[0] | (lanes[1] << 4) | (lanes[2] << 8) | (lanes[3] << 12);
+  alignas(16) uint64_t lanes[2];
+  wasm_v128_store(lanes, mask);
+
+  constexpr uint64_t kMagic = 0x103070F1F3F80ULL;
+  const uint64_t lo = ((lanes[0] * kMagic) >> 56);
+  const uint64_t hi = ((lanes[1] * kMagic) >> 48) & 0xFF00;
+  return (hi + lo);
 }
 
 template <typename T, size_t N>
