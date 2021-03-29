@@ -218,13 +218,17 @@
 #define HWY_ARCH_ARM_A64 0
 #endif
 
-#if (defined(__arm__) || defined(_M_ARM)) && !HWY_ARCH_ARM_A64
+#if defined(__arm__) || defined(_M_ARM)
 #define HWY_ARCH_ARM_V7 1
 #else
 #define HWY_ARCH_ARM_V7 0
 #endif
 
-#if HWY_ARCH_ARM_A64 ||HWY_ARCH_ARM_V7
+#if HWY_ARCH_ARM_A64 && HWY_ARCH_ARM_V7
+#error "Cannot have both A64 and V7"
+#endif
+
+#if HWY_ARCH_ARM_A64 || HWY_ARCH_ARM_V7
 #define HWY_ARCH_ARM 1
 #else
 #define HWY_ARCH_ARM 0

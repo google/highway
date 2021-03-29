@@ -1169,7 +1169,7 @@ HWY_INLINE Vec128<float, N> AbsDiff(const Vec128<float, N> a,
 // ------------------------------ Floating-point multiply-add variants
 
 // Returns add + mul * x
-#if HWY_ARCH_ARM_A64
+#if defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
 template <size_t N, HWY_IF_LE64(float, N)>
 HWY_INLINE Vec128<float, N> MulAdd(const Vec128<float, N> mul,
                                    const Vec128<float, N> x,
@@ -1179,16 +1179,6 @@ HWY_INLINE Vec128<float, N> MulAdd(const Vec128<float, N> mul,
 HWY_INLINE Vec128<float> MulAdd(const Vec128<float> mul, const Vec128<float> x,
                                 const Vec128<float> add) {
   return Vec128<float>(vfmaq_f32(add.raw, mul.raw, x.raw));
-}
-HWY_INLINE Vec128<double, 1> MulAdd(const Vec128<double, 1> mul,
-                                    const Vec128<double, 1> x,
-                                    const Vec128<double, 1> add) {
-  return Vec128<double, 1>(vfma_f64(add.raw, mul.raw, x.raw));
-}
-HWY_INLINE Vec128<double> MulAdd(const Vec128<double> mul,
-                                 const Vec128<double> x,
-                                 const Vec128<double> add) {
-  return Vec128<double>(vfmaq_f64(add.raw, mul.raw, x.raw));
 }
 #else
 // Emulate FMA for floats.
@@ -1200,8 +1190,21 @@ HWY_INLINE Vec128<float, N> MulAdd(const Vec128<float, N> mul,
 }
 #endif
 
-// Returns add - mul * x
 #if HWY_ARCH_ARM_A64
+HWY_INLINE Vec128<double, 1> MulAdd(const Vec128<double, 1> mul,
+                                    const Vec128<double, 1> x,
+                                    const Vec128<double, 1> add) {
+  return Vec128<double, 1>(vfma_f64(add.raw, mul.raw, x.raw));
+}
+HWY_INLINE Vec128<double> MulAdd(const Vec128<double> mul,
+                                 const Vec128<double> x,
+                                 const Vec128<double> add) {
+  return Vec128<double>(vfmaq_f64(add.raw, mul.raw, x.raw));
+}
+#endif
+
+// Returns add - mul * x
+#if defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
 template <size_t N, HWY_IF_LE64(float, N)>
 HWY_INLINE Vec128<float, N> NegMulAdd(const Vec128<float, N> mul,
                                       const Vec128<float, N> x,
@@ -1213,17 +1216,6 @@ HWY_INLINE Vec128<float> NegMulAdd(const Vec128<float> mul,
                                    const Vec128<float> add) {
   return Vec128<float>(vfmsq_f32(add.raw, mul.raw, x.raw));
 }
-
-HWY_INLINE Vec128<double, 1> NegMulAdd(const Vec128<double, 1> mul,
-                                       const Vec128<double, 1> x,
-                                       const Vec128<double, 1> add) {
-  return Vec128<double, 1>(vfms_f64(add.raw, mul.raw, x.raw));
-}
-HWY_INLINE Vec128<double> NegMulAdd(const Vec128<double> mul,
-                                    const Vec128<double> x,
-                                    const Vec128<double> add) {
-  return Vec128<double>(vfmsq_f64(add.raw, mul.raw, x.raw));
-}
 #else
 // Emulate FMA for floats.
 template <size_t N>
@@ -1234,17 +1226,24 @@ HWY_INLINE Vec128<float, N> NegMulAdd(const Vec128<float, N> mul,
 }
 #endif
 
+#if HWY_ARCH_ARM_A64
+HWY_INLINE Vec128<double, 1> NegMulAdd(const Vec128<double, 1> mul,
+                                       const Vec128<double, 1> x,
+                                       const Vec128<double, 1> add) {
+  return Vec128<double, 1>(vfms_f64(add.raw, mul.raw, x.raw));
+}
+HWY_INLINE Vec128<double> NegMulAdd(const Vec128<double> mul,
+                                    const Vec128<double> x,
+                                    const Vec128<double> add) {
+  return Vec128<double>(vfmsq_f64(add.raw, mul.raw, x.raw));
+}
+#endif
+
 // Returns mul * x - sub
 template <size_t N>
 HWY_INLINE Vec128<float, N> MulSub(const Vec128<float, N> mul,
                                    const Vec128<float, N> x,
                                    const Vec128<float, N> sub) {
-  return MulAdd(mul, x, Neg(sub));
-}
-template <size_t N>
-HWY_INLINE Vec128<double, N> MulSub(const Vec128<double, N> mul,
-                                    const Vec128<double, N> x,
-                                    const Vec128<double, N> sub) {
   return MulAdd(mul, x, Neg(sub));
 }
 
@@ -1255,12 +1254,21 @@ HWY_INLINE Vec128<float, N> NegMulSub(const Vec128<float, N> mul,
                                       const Vec128<float, N> sub) {
   return Neg(MulAdd(mul, x, sub));
 }
+
+#if HWY_ARCH_ARM_A64
+template <size_t N>
+HWY_INLINE Vec128<double, N> MulSub(const Vec128<double, N> mul,
+                                    const Vec128<double, N> x,
+                                    const Vec128<double, N> sub) {
+  return MulAdd(mul, x, Neg(sub));
+}
 template <size_t N>
 HWY_INLINE Vec128<double, N> NegMulSub(const Vec128<double, N> mul,
                                        const Vec128<double, N> x,
                                        const Vec128<double, N> sub) {
   return Neg(MulAdd(mul, x, sub));
 }
+#endif
 
 // ------------------------------ Floating-point square root
 

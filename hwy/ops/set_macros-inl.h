@@ -151,10 +151,10 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
-#ifdef __arm__
-#define HWY_CAP_FLOAT64 0
-#else
+#if HWY_ARCH_ARM_A64
 #define HWY_CAP_FLOAT64 1
+#else
+#define HWY_CAP_FLOAT64 0
 #endif
 
 #define HWY_NAMESPACE N_NEON
