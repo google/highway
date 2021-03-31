@@ -402,7 +402,9 @@ HWY_API Vec128<T, N> ShiftLeft(const Vec128<T, N> v) {
   const Simd<T, N> d8;
   // Use raw instead of BitCast to support N=1.
   const Vec128<T, N> shifted{ShiftLeft<kBits>(Vec128<MakeWide<T>>{v.raw}).raw};
-  return kBits == 1 ? (v + v) : (shifted & Set(d8, (0xFF << kBits) & 0xFF));
+  return kBits == 1
+             ? (v + v)
+             : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
 
 template <int kBits, size_t N>
@@ -1071,7 +1073,7 @@ HWY_API Vec128<T, N> BroadcastSignBit(const Vec128<T, N> v) {
 }
 template <size_t N>
 HWY_API Vec128<int8_t, N> BroadcastSignBit(const Vec128<int8_t, N> v) {
-  return VecFromMask(v < Zero(Simd<int8_t, N>()));
+  return VecFromMask(Simd<int8_t, N>(), v < Zero(Simd<int8_t, N>()));
 }
 
 // ------------------------------ Mask
@@ -2271,7 +2273,7 @@ template <typename T, size_t N>
 HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                               const Mask128<T, N> mask) {
   alignas(16) uint64_t lanes[2];
-  wasm_v128_store(lanes, mask);
+  wasm_v128_store(lanes, mask.raw);
 
   constexpr uint64_t kMagic = 0x103070F1F3F80ULL;
   const uint64_t lo = ((lanes[0] * kMagic) >> 56);

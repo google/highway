@@ -993,7 +993,9 @@ HWY_API Vec128<T, N> ShiftLeft(const Vec128<T, N> v) {
   const Simd<T, N> d8;
   // Use raw instead of BitCast to support N=1.
   const Vec128<T, N> shifted{ShiftLeft<kBits>(Vec128<MakeWide<T>>{v.raw}).raw};
-  return kBits == 1 ? (v + v) : (shifted & Set(d8, (0xFF << kBits) & 0xFF));
+  return kBits == 1
+             ? (v + v)
+             : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
 
 // ------------------------------ ShiftRight

@@ -930,7 +930,9 @@ HWY_API Vec256<T> ShiftLeft(const Vec256<T> v) {
   const Full256<T> d8;
   const RepartitionToWide<decltype(d8)> d16;
   const auto shifted = BitCast(d8, ShiftLeft<kBits>(BitCast(d16, v)));
-  return kBits == 1 ? (v + v) : (shifted & Set(d8, (0xFF << kBits) & 0xFF));
+  return kBits == 1
+             ? (v + v)
+             : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
 
 // ------------------------------ ShiftRight
