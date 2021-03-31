@@ -20,7 +20,9 @@
 
 #include "hwy/base.h"
 
-#ifndef __SSE2__
+// Requires SSE2; fails to compile on 32-bit Clang 7 (see
+// https://github.com/gperftools/gperftools/issues/946).
+#if !defined(__SSE2__) || (HWY_COMPILER_CLANG && HWY_ARCH_X86_32)
 #undef HWY_DISABLE_CACHE_CONTROL
 #define HWY_DISABLE_CACHE_CONTROL
 #endif
