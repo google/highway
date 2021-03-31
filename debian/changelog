@@ -1,3 +1,10 @@
+highway (0.12.0-1) UNRELEASED; urgency=medium
+
+  * Add Shift*8, Compress16, Gather, StoreInterleaved3/4, inlined math
+  * Remove deprecated HWY_*_LANES, deprecate HWY_GATHER_LANES
+
+ -- Jan Wassenberg <janwas@google.com>  Mon, 29 Mar 2021 12:00:00 +0200
+
 highway (0.11.1-1) UNRELEASED; urgency=medium
 
   * Fix clang7 asan error, finish f16 conversions and add test
