@@ -94,7 +94,8 @@ struct TestStoreInterleaved3 {
 
     // Interleave here, ensure vector results match scalar
     auto expected = AllocateAligned<T>(4 * N);
-    auto actual = AllocateAligned<T>(4 * N);
+    auto actual_aligned = AllocateAligned<T>(4 * N + 1);
+    T* actual = actual_aligned.get() + 1;
 
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
@@ -104,9 +105,9 @@ struct TestStoreInterleaved3 {
         // Ensure we do not write more than 3*N bytes
         expected[3 * N + i] = actual[3 * N + i] = 0;
       }
-      StoreInterleaved3(in0, in1, in2, d, actual.get());
+      StoreInterleaved3(in0, in1, in2, d, actual);
       size_t pos = 0;
-      if (!BytesEqual(expected.get(), actual.get(), 4 * N, &pos)) {
+      if (!BytesEqual(expected.get(), actual, 4 * N, &pos)) {
         Print(d, "in0", in0, pos / 3);
         Print(d, "in1", in1, pos / 3);
         Print(d, "in2", in2, pos / 3);
@@ -149,7 +150,8 @@ struct TestStoreInterleaved4 {
 
     // Interleave here, ensure vector results match scalar
     auto expected = AllocateAligned<T>(5 * N);
-    auto actual = AllocateAligned<T>(5 * N);
+    auto actual_aligned = AllocateAligned<T>(5 * N + 1);
+    T* actual = actual_aligned.get() + 1;
 
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
@@ -160,9 +162,9 @@ struct TestStoreInterleaved4 {
         // Ensure we do not write more than 4*N bytes
         expected[4 * N + i] = actual[4 * N + i] = 0;
       }
-      StoreInterleaved4(in0, in1, in2, in3, d, actual.get());
+      StoreInterleaved4(in0, in1, in2, in3, d, actual);
       size_t pos = 0;
-      if (!BytesEqual(expected.get(), actual.get(), 5 * N, &pos)) {
+      if (!BytesEqual(expected.get(), actual, 5 * N, &pos)) {
         Print(d, "in0", in0, pos / 4);
         Print(d, "in1", in1, pos / 4);
         Print(d, "in2", in2, pos / 4);

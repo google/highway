@@ -2745,7 +2745,7 @@ HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
 HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
                                const Vec256<uint8_t> v1,
                                const Vec256<uint8_t> v2, Full256<uint8_t> d,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   const auto k5 = Set(d, 5);
   const auto k6 = Set(d, 6);
 
@@ -2776,10 +2776,10 @@ HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
 
   // We want to write the lower halves of the interleaved vectors, then the
   // upper halves. We could obtain 10_05 and 15_0A via ConcatUpperLower, but
-  // that would require two unaligned stores. For the lower halves, we can
+  // that would require two ununaligned stores. For the lower halves, we can
   // merge two 128-bit stores for the same swizzling cost:
   const auto out0 = ConcatLowerLower(interleaved_15_05, interleaved_10_00);
-  Store(out0, d, aligned + 0 * 32);
+  StoreU(out0, d, unaligned + 0 * 32);
 
   // Third vector: bgr[15:11], b10
   const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
@@ -2791,10 +2791,10 @@ HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
   const auto interleaved_1A_0A = r2 | g2 | b2;
 
   const auto out1 = ConcatUpperLower(interleaved_10_00, interleaved_1A_0A);
-  Store(out1, d, aligned + 1 * 32);
+  StoreU(out1, d, unaligned + 1 * 32);
 
   const auto out2 = ConcatUpperUpper(interleaved_1A_0A, interleaved_15_05);
-  Store(out2, d, aligned + 2 * 32);
+  StoreU(out2, d, unaligned + 2 * 32);
 }
 
 // ------------------------------ StoreInterleaved4
@@ -2803,7 +2803,7 @@ HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
                                const Vec256<uint8_t> v1,
                                const Vec256<uint8_t> v2,
                                const Vec256<uint8_t> v3, Full256<uint8_t> d,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   // let a,b,c,d denote v0..3.
   const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
   const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
@@ -2817,12 +2817,12 @@ HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
   // efficiently combine two lower halves into 256 bits:
   const auto out0 = BitCast(d, ConcatLowerLower(dcba_4, dcba_0));
   const auto out1 = BitCast(d, ConcatLowerLower(dcba_C, dcba_8));
-  Store(out0, d, aligned + 0 * 32);
-  Store(out1, d, aligned + 1 * 32);
+  StoreU(out0, d, unaligned + 0 * 32);
+  StoreU(out1, d, unaligned + 1 * 32);
   const auto out2 = BitCast(d, ConcatUpperUpper(dcba_4, dcba_0));
   const auto out3 = BitCast(d, ConcatUpperUpper(dcba_C, dcba_8));
-  Store(out2, d, aligned + 2 * 32);
-  Store(out3, d, aligned + 3 * 32);
+  StoreU(out2, d, unaligned + 2 * 32);
+  StoreU(out3, d, unaligned + 3 * 32);
 }
 
 // ------------------------------ Reductions

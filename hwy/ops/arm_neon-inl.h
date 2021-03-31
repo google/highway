@@ -4054,9 +4054,9 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t> v0,
                                const Vec128<uint8_t> v1,
                                const Vec128<uint8_t> v2,
                                Full128<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   const uint8x16x3_t triple = {v0.raw, v1.raw, v2.raw};
-  vst3q_u8(aligned, triple);
+  vst3q_u8(unaligned, triple);
 }
 
 // 64 bits
@@ -4064,9 +4064,9 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> v0,
                                const Vec128<uint8_t, 8> v1,
                                const Vec128<uint8_t, 8> v2,
                                Simd<uint8_t, 8> /*tag*/,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   const uint8x8x3_t triple = {v0.raw, v1.raw, v2.raw};
-  vst3_u8(aligned, triple);
+  vst3_u8(unaligned, triple);
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
@@ -4075,11 +4075,11 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
                                const Vec128<uint8_t, N> v1,
                                const Vec128<uint8_t, N> v2,
                                Simd<uint8_t, N> /*tag*/,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   alignas(16) uint8_t buf[24];
   const uint8x8x3_t triple = {v0.raw, v1.raw, v2.raw};
   vst3_u8(buf, triple);
-  CopyBytes<N * 3>(buf, aligned);
+  CopyBytes<N * 3>(buf, unaligned);
 }
 
 // ------------------------------ StoreInterleaved4
@@ -4090,9 +4090,9 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t> v0,
                                const Vec128<uint8_t> v2,
                                const Vec128<uint8_t> v3,
                                Full128<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   const uint8x16x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
-  vst4q_u8(aligned, quad);
+  vst4q_u8(unaligned, quad);
 }
 
 // 64 bits
@@ -4101,9 +4101,9 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, 8> v0,
                                const Vec128<uint8_t, 8> v2,
                                const Vec128<uint8_t, 8> v3,
                                Simd<uint8_t, 8> /*tag*/,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   const uint8x8x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
-  vst4_u8(aligned, quad);
+  vst4_u8(unaligned, quad);
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
@@ -4113,11 +4113,11 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> v0,
                                const Vec128<uint8_t, N> v2,
                                const Vec128<uint8_t, N> v3,
                                Simd<uint8_t, N> /*tag*/,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   alignas(16) uint8_t buf[32];
   const uint8x8x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
   vst4_u8(buf, quad);
-  CopyBytes<N * 4>(buf, aligned);
+  CopyBytes<N * 4>(buf, unaligned);
 }
 
 // ================================================== Operator wrapper

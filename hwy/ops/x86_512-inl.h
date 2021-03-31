@@ -2874,7 +2874,7 @@ HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
 
 HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
                                const Vec512<uint8_t> c, Full512<uint8_t> d,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   const auto k5 = Set(d, 5);
   const auto k6 = Set(d, 6);
 
@@ -2923,9 +2923,9 @@ HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
   const auto j2_i2_k1_j1 = _mm512_mask_blend_epi64(m, i1_i2_j0_j1, j2_j3_k1_k2);
   const auto k3_j3_i3_k2 = _mm512_mask_blend_epi64(m, j2_j3_k1_k2, k3_k0_i3_i0);
 
-  Store(Vec512<uint8_t>{i1_k0_j0_i0}, d, aligned + 0 * 64);  //  10 0A 05 00
-  Store(Vec512<uint8_t>{j2_i2_k1_j1}, d, aligned + 1 * 64);  //  25 20 1A 15
-  Store(Vec512<uint8_t>{k3_j3_i3_k2}, d, aligned + 2 * 64);  //  3A 35 30 2A
+  StoreU(Vec512<uint8_t>{i1_k0_j0_i0}, d, unaligned + 0 * 64);  //  10 0A 05 00
+  StoreU(Vec512<uint8_t>{j2_i2_k1_j1}, d, unaligned + 1 * 64);  //  25 20 1A 15
+  StoreU(Vec512<uint8_t>{k3_j3_i3_k2}, d, unaligned + 2 * 64);  //  3A 35 30 2A
 }
 
 // ------------------------------ StoreInterleaved4
@@ -2934,7 +2934,7 @@ HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
                                const Vec512<uint8_t> v1,
                                const Vec512<uint8_t> v2,
                                const Vec512<uint8_t> v3, Full512<uint8_t> d,
-                               uint8_t* HWY_RESTRICT aligned) {
+                               uint8_t* HWY_RESTRICT unaligned) {
   // let a,b,c,d denote v0..3.
   const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
   const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
@@ -2955,10 +2955,10 @@ HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
   const auto l1_k1_j1_i1 = _mm512_shuffle_i64x2(j1_j0_i1_i0, l1_l0_k1_k0, k31);
   const auto l2_k2_j2_i2 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k20);
   const auto l3_k3_j3_i3 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k31);
-  Store(Vec512<uint8_t>{l0_k0_j0_i0}, d, aligned + 0 * 64);
-  Store(Vec512<uint8_t>{l1_k1_j1_i1}, d, aligned + 1 * 64);
-  Store(Vec512<uint8_t>{l2_k2_j2_i2}, d, aligned + 2 * 64);
-  Store(Vec512<uint8_t>{l3_k3_j3_i3}, d, aligned + 3 * 64);
+  StoreU(Vec512<uint8_t>{l0_k0_j0_i0}, d, unaligned + 0 * 64);
+  StoreU(Vec512<uint8_t>{l1_k1_j1_i1}, d, unaligned + 1 * 64);
+  StoreU(Vec512<uint8_t>{l2_k2_j2_i2}, d, unaligned + 2 * 64);
+  StoreU(Vec512<uint8_t>{l3_k3_j3_i3}, d, unaligned + 3 * 64);
 }
 
 // ------------------------------ Reductions

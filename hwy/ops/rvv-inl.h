@@ -885,10 +885,10 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
   HWY_API void NAME(                                                    \
       HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b,       \
       HWY_RVV_V(BASE, SEW, LMUL) c, HWY_RVV_D(CHAR, SEW, LMUL) /* d */, \
-      HWY_RVV_T(BASE, SEW) * HWY_RESTRICT aligned) {                    \
+      HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned) {                  \
     const v##BASE##SEW##m##LMUL##x3_t triple =                          \
         vcreate_##CHAR##SEW##m##LMUL##x3(a, b, c);                      \
-    return v##OP##e8_v_##CHAR##SEW##m##LMUL##x3(aligned, triple);       \
+    return v##OP##e8_v_##CHAR##SEW##m##LMUL##x3(unaligned, triple);     \
   }
 // Segments are limited to 8 registers, so we can only go up to LMUL=2.
 HWY_RVV_STORE3(uint, u, 8, 1, 8, StoreInterleaved3, sseg3)

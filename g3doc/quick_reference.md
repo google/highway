@@ -479,7 +479,7 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 *   `D`: `u8` \
     <code>void **StoreInterleaved3**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1,
     Vec&lt;D&gt; v2, D, T* p)</code>: equivalent to shuffling `v0, v1, v2`
-    followed by three `Store()`, such that `p[0] == v0[0], p[1] == v1[0],
+    followed by three `StoreU()`, such that `p[0] == v0[0], p[1] == v1[0],
     p[2] == v1[0]`. Useful for RGB samples.
 
 *   `D`: `u8` \
