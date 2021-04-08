@@ -34,11 +34,11 @@
 #include <sys/platform/ppc.h>  // NOLINT __ppc_get_timebase_freq
 #elif HWY_ARCH_X86
 
-#ifdef _MSC_VER
+#if HWY_COMPILER_MSVC
 #include <intrin.h>
 #else
 #include <cpuid.h>  // NOLINT
-#endif              // _MSC_VER
+#endif              // HWY_COMPILER_MSVC
 
 #endif  // HWY_ARCH_X86
 
