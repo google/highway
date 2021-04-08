@@ -28,11 +28,11 @@
 
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
-#ifdef _MSC_VER
+#if HWY_COMPILER_MSVC
 #include <intrin.h>
-#else
+#else  // HWY_COMPILER_MSVC
 #include <cpuid.h>
-#endif
+#endif // HWY_COMPILER_MSVC
 #endif
 
 namespace hwy {
@@ -48,13 +48,13 @@ bool IsBitSet(const uint32_t reg, const int index) {
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
 void Cpuid(const uint32_t level, const uint32_t count,
            uint32_t* HWY_RESTRICT abcd) {
-#ifdef _MSC_VER
+#if HWY_COMPILER_MSVC
   int regs[4];
   __cpuidex(regs, level, count);
   for (int i = 0; i < 4; ++i) {
     abcd[i] = regs[i];
   }
-#else
+#else  // HWY_COMPILER_MSVC
   uint32_t a;
   uint32_t b;
   uint32_t c;
@@ -64,22 +64,22 @@ void Cpuid(const uint32_t level, const uint32_t count,
   abcd[1] = b;
   abcd[2] = c;
   abcd[3] = d;
-#endif
+#endif  // HWY_COMPILER_MSVC
 }
 
 // Returns the lower 32 bits of extended control register 0.
 // Requires CPU support for "OSXSAVE" (see below).
 uint32_t ReadXCR0() {
-#ifdef _MSC_VER
+#if HWY_COMPILER_MSVC
   return static_cast<uint32_t>(_xgetbv(0));
-#else
+#else  // HWY_COMPILER_MSVC
   uint32_t xcr0, xcr0_high;
   const uint32_t index = 0;
   asm volatile(".byte 0x0F, 0x01, 0xD0"
                : "=a"(xcr0), "=d"(xcr0_high)
                : "c"(index));
   return xcr0;
-#endif
+#endif  // HWY_COMPILER_MSVC
 }
 
 #endif  // HWY_ARCH_X86
