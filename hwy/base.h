@@ -551,13 +551,13 @@ constexpr inline size_t RoundUpTo(size_t what, size_t align) {
 
 // Undefined results for x == 0.
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
-#ifdef _MSC_VER
+#if HWY_COMPILER_MSVC
   unsigned long index;  // NOLINT
   _BitScanForward(&index, x);
   return index;
-#else
+#else  // HWY_COMPILER_MSVC
   return static_cast<size_t>(__builtin_ctz(x));
-#endif
+#endif  // HWY_COMPILER_MSVC
 }
 
 HWY_API size_t PopCount(uint64_t x) {

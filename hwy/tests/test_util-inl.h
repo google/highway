@@ -223,9 +223,11 @@ static HWY_INLINE uint32_t Random32(RandomState* rng) {
 // built-in types.
 template <class T>
 inline void PreventElision(T&& output) {
-#ifndef _MSC_VER
+#if HWY_COMPILER_MSVC
   asm volatile("" : "+r"(output) : : "memory");
-#endif
+#else  // HWY_COMPILER_MSVC
+  (void)output;
+#endif  // HWY_COMPILER_MSVC
 }
 
 // Returns a name for the vector/part/scalar. The type prefix is u/i/f for
