@@ -34,7 +34,10 @@
 //------------------------------------------------------------------------------
 // Detect compiler using predefined macros
 
-#ifdef _MSC_VER
+// clang-cl defines _MSC_VER but doesn't behave like MSVC in other aspects like
+// used in HWY_DIAGNOSTICS(). We include a check that we are not clang for that
+// purpose.
+#if defined(_MSC_VER) && !defined(__clang__)
 #define HWY_COMPILER_MSVC _MSC_VER
 #else
 #define HWY_COMPILER_MSVC 0
