@@ -22,7 +22,7 @@
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
-// Inclde these directly here.
+// Include these directly here.
 #include <smmintrin.h>
 #include <avxintrin.h>
 #include <avx2intrin.h>
