@@ -111,7 +111,7 @@ struct TestStoreInterleaved3 {
         Print(d, "in0", in0, pos / 3);
         Print(d, "in1", in1, pos / 3);
         Print(d, "in2", in2, pos / 3);
-        const size_t i = pos;
+        const size_t i = pos - pos % 3;
         fprintf(stderr, "interleaved %d %d %d  %d %d %d\n", actual[i],
                 actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
                 actual[i + 5]);

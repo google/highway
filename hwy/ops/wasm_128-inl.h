@@ -1757,16 +1757,21 @@ HWY_API Vec128<float, N> Broadcast(const Vec128<float, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
                                       const Vec128<T, N> from) {
-  // TODO(eustas): use swizzle? (shuffle does not work for variable indices)
+// Not yet available in all engines, see
+// https://github.com/WebAssembly/simd/blob/bdcc304b2d379f4601c2c44ea9b44ed9484fde7e/proposals/simd/ImplementationStatus.md
+#if 0
+  return Vec128<T, N>{wasm_v8x16_swizzle(bytes.raw, from.raw)};
+#else
   alignas(16) uint8_t control[16];
   alignas(16) uint8_t input[16];
   alignas(16) uint8_t output[16];
   wasm_v128_store(control, from.raw);
   wasm_v128_store(input, bytes.raw);
   for (size_t i = 0; i < 16; ++i) {
-    output[i] = input[control[i]];
+    output[i] = control[i] < 16 ? input[control[i]] : 0;
   }
   return Vec128<T, N>{wasm_v128_load(output)};
+#endif
 }
 
 // ------------------------------ Hard-coded shuffles
