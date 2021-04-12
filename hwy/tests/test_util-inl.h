@@ -204,9 +204,9 @@ static HWY_INLINE uint32_t Random32(RandomState* rng) {
 template <class T>
 inline void PreventElision(T&& output) {
 #if HWY_COMPILER_MSVC
-  asm volatile("" : "+r"(output) : : "memory");
-#else  // HWY_COMPILER_MSVC
   (void)output;
+#else   // HWY_COMPILER_MSVC
+  asm volatile("" : "+r"(output) : : "memory");
 #endif  // HWY_COMPILER_MSVC
 }
 
