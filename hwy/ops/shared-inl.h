@@ -14,6 +14,8 @@
 
 // Per-target definitions shared by ops/*.h and user code.
 
+#include <cmath>
+
 // Separate header because foreach_target.h re-enables its include guard.
 #include "hwy/ops/set_macros-inl.h"
 

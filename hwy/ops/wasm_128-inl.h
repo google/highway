@@ -19,8 +19,6 @@
 #include <stdint.h>
 #include <wasm_simd128.h>
 
-#include <cmath>
-
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 

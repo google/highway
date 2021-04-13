@@ -19,7 +19,6 @@
 #include <stdint.h>
 
 #include <algorithm>  // std::min
-#include <cmath>
 
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"

@@ -16,8 +16,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <cmath>
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/convert_test.cc"
 #include "hwy/foreach_target.h"

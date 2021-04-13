@@ -19,7 +19,6 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include <cmath>
 #include <memory>
 #include <numeric>  // iota
 

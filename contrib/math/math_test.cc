@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <cfloat>  // FLT_MAX
-#include <cmath>
 #include <iostream>
 #include <type_traits>
 

@@ -23,7 +23,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <cmath>  // isfinite
 #include <cstddef>
 #include <string>
 #include <utility>  // std::forward
