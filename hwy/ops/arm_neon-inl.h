@@ -2522,18 +2522,26 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Floor, vrndm, _, 1)
 // representation, clearing the lowest 23-exp mantissa bits. This requires 9
 // integer operations and 3 constants, which is likely more expensive.
 
+namespace detail {
+
+// The original value is already the desired result if NaN or the magnitude is
+// large (i.e. the value is already an integer).
+template <size_t N>
+HWY_API Mask128<float, N> UseInt(const Vec128<float, N> v) {
+  return Abs(v) < Set(Simd<float, N>(), MantissaEnd<float>());
+}
+
+}  // namespace detail
+
 template <size_t N>
 HWY_INLINE Vec128<float, N> Trunc(const Vec128<float, N> v) {
   const Simd<float, N> df;
-  const Simd<int32_t, N> di;
+  const RebindToSigned<decltype(df)> di;
 
   const auto integer = ConvertTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
 
-  // The original value is already the desired result if NaN or the magnitude is
-  // large (i.e. the value is already an integer).
-  const auto max = Set(df, MantissaEnd<float>());
-  return IfThenElse(Abs(v) < max, int_f, v);
+  return IfThenElse(detail::UseInt(v), int_f, v);
 }
 
 template <size_t N>
@@ -2556,7 +2564,7 @@ HWY_INLINE Vec128<float, N> Round(const Vec128<float, N> v) {
 template <size_t N>
 HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
   const Simd<float, N> df;
-  const Simd<int32_t, N> di;
+  const RebindToSigned<decltype(df)> di;
 
   const auto integer = ConvertTo(di, v);  // round toward 0
   const auto int_f = ConvertTo(df, integer);
@@ -2564,9 +2572,7 @@ HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
   // Truncating a positive non-integer ends up smaller; if so, add 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
 
-  // Keep original if NaN or the magnitude is large (already an int).
-  const auto max = Set(df, MantissaEnd<float>());
-  return IfThenElse(Abs(v) < max, int_f - neg1, v);
+  return IfThenElse(detail::UseInt(v), int_f - neg1, v);
 }
 
 template <size_t N>
@@ -2580,9 +2586,7 @@ HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
   // Truncating a negative non-integer ends up larger; if so, subtract 1.
   const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
 
-  // Keep original if NaN or the magnitude is large (already an int).
-  const auto max = Set(df, MantissaEnd<float>());
-  return IfThenElse(Abs(v) < max, int_f + neg1, v);
+  return IfThenElse(detail::UseInt(v), int_f + neg1, v);
 }
 
 #endif

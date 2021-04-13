@@ -818,60 +818,6 @@ HWY_API Vec128<float, N> ApproximateReciprocalSqrt(const Vec128<float, N> v) {
   return one / Sqrt(v);
 }
 
-// ------------------------------ Floating-point rounding
-
-// Toward nearest integer, ties to even
-template <size_t N>
-HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.nearest? (not implemented yet)
-  alignas(16) float input[4];
-  alignas(16) float output[4];
-  wasm_v128_store(input, v.raw);
-  for (size_t i = 0; i < 4; ++i) {
-    output[i] = std::nearbyint(input[i]);
-  }
-  return Vec128<float, N>{wasm_v128_load(output)};
-}
-
-// Toward zero, aka truncate
-template <size_t N>
-HWY_API Vec128<float, N> Trunc(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.trunc? (not implemented yet)
-  alignas(16) float input[4];
-  alignas(16) float output[4];
-  wasm_v128_store(input, v.raw);
-  for (size_t i = 0; i < 4; ++i) {
-    output[i] = std::trunc(input[i]);
-  }
-  return Vec128<float, N>{wasm_v128_load(output)};
-}
-
-// Toward +infinity, aka ceiling
-template <size_t N>
-HWY_API Vec128<float, N> Ceil(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.ceil? (not implemented yet)
-  alignas(16) float input[4];
-  alignas(16) float output[4];
-  wasm_v128_store(input, v.raw);
-  for (size_t i = 0; i < 4; ++i) {
-    output[i] = std::ceil(input[i]);
-  }
-  return Vec128<float, N>{wasm_v128_load(output)};
-}
-
-// Toward -infinity, aka floor
-template <size_t N>
-HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.floor? (not implemented yet)
-  alignas(16) float input[4];
-  alignas(16) float output[4];
-  wasm_v128_store(input, v.raw);
-  for (size_t i = 0; i < 4; ++i) {
-    output[i] = std::floor(input[i]);
-  }
-  return Vec128<float, N>{wasm_v128_load(output)};
-}
-
 // ================================================== COMPARE
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
@@ -2256,6 +2202,81 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
   // Shift input by 0.5 away from 0.
   const __f32x4 fixed = wasm_f32x4_add(v.raw, delta);
   return Vec128<int32_t, N>{wasm_i32x4_trunc_saturate_f32x4(fixed)};
+}
+
+// ------------------------------ Floating-point rounding (ConvertTo)
+
+// IEEE-754 roundToIntegralTiesToEven returns floating-point, but we do not yet
+// have an instruction for that. Rounding to integer and converting back to
+// float is correct except when the input magnitude is large, in which case the
+// input was already an integer (because mantissa >> exponent is zero).
+
+namespace detail {
+
+template <size_t N>
+HWY_API Mask128<float, N> UseInt(const Vec128<float, N> v) {
+  return Abs(v) < Set(Simd<float, N>(), MantissaEnd<float>());
+}
+
+}  // namespace detail
+
+// Toward nearest integer, ties to even
+template <size_t N>
+HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
+  // TODO(eustas): is it f32x4.nearest? (not implemented yet)
+  const Simd<float, N> df;
+
+  const auto integer = NearestInt(v);  // round using current mode
+  const auto int_f = ConvertTo(df, integer);
+
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
+}
+
+// Toward zero, aka truncate
+template <size_t N>
+HWY_API Vec128<float, N> Trunc(const Vec128<float, N> v) {
+  // TODO(eustas): is it f32x4.trunc? (not implemented yet)
+  const Simd<float, N> df;
+  const RebindToSigned<decltype(df)> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
+}
+
+// Toward +infinity, aka ceiling
+template <size_t N>
+HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
+  // TODO(eustas): is it f32x4.ceil? (not implemented yet)
+  const Simd<float, N> df;
+  const RebindToSigned<decltype(df)> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a positive non-integer ends up smaller; if so, add 1.
+  const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
+
+  // Keep original if NaN or the magnitude is large (already an int).
+  return IfThenElse(detail::UseInt(v), int_f - neg1, v);
+}
+
+// Toward -infinity, aka floor
+template <size_t N>
+HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
+  // TODO(eustas): is it f32x4.floor? (not implemented yet)
+  const Simd<float, N> df;
+  const RebindToSigned<decltype(df)> di;
+
+  const auto integer = ConvertTo(di, v);  // round toward 0
+  const auto int_f = ConvertTo(df, integer);
+
+  // Truncating a negative non-integer ends up larger; if so, subtract 1.
+  const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
+
+  // Keep original if NaN or the magnitude is large (already an int).
+  return IfThenElse(detail::UseInt(v), int_f + neg1, v);
 }
 
 // ================================================== MISC
