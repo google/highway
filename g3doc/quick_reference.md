@@ -33,6 +33,12 @@ The public headers are:
 *   hwy/cache_control.h: defines stand-alone functions to control caching (e.g.
     prefetching) and memory barriers, independent of actual SIMD.
 
+*   hwy/nanobenchmark.h: library for precisely measuring elapsed time (under
+    varying inputs) for benchmarking small/medium regions of code.
+
+*   hwy/tests/test_util-inl.h: defines macros for invoking tests on all
+    available targets, plus per-target functions useful in tests (e.g. Print).
+
 SIMD implementations must be preceded and followed by the following:
 
 ```
