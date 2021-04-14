@@ -215,13 +215,15 @@ inline void PreventElision(T&& output) {
 // understanding which instantiation of a generic test failed.
 template <typename T>
 static inline std::string TypeName(T /*unused*/, size_t N) {
-  std::string prefix(IsFloat<T>() ? "f" : (IsSigned<T>() ? "i" : "u"));
-  prefix += std::to_string(sizeof(T) * 8);
-
-  // Scalars: omit the xN suffix.
-  if (N == 1) return prefix;
-
-  return prefix + 'x' + std::to_string(N);
+  const char prefix = IsFloat<T>() ? 'f' : (IsSigned<T>() ? 'i' : 'u');
+  char name[64];
+  // Omit the xN suffix for scalars.
+  if (N == 1) {
+    snprintf(name, sizeof(name), "%c%zu", prefix, sizeof(T) * 8);
+  } else {
+    snprintf(name, sizeof(name), "%c%zux%zu", prefix, sizeof(T) * 8, N);
+  }
+  return name;
 }
 
 // String comparison
@@ -281,7 +283,7 @@ HWY_NOINLINE void Print(const D d, const char* caption, const Vec<D> v,
   fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
           begin);
   for (size_t i = begin; i < end; ++i) {
-    fprintf(stderr, "%s,", std::to_string(lanes[i]).c_str());
+    fprintf(stderr, "%g,", double(lanes[i]));
   }
   if (begin >= end) fprintf(stderr, "(out of bounds)");
   fprintf(stderr, "\n");
@@ -342,10 +344,12 @@ HWY_NOINLINE void AssertEqual(const T expected, const T actual,
                               const char* filename = "", const int line = -1,
                               const size_t lane = 0) {
   if (!IsEqual(expected, actual)) {
-    const std::string expected_str = std::to_string(expected);
-    const std::string actual_str = std::to_string(actual);
-    NotifyFailure(filename, line, type_name.c_str(), lane, expected_str.c_str(),
-                  actual_str.c_str());
+    char expected_str[100];
+    snprintf(expected_str, sizeof(expected_str), "%g", double(expected));
+    char actual_str[100];
+    snprintf(actual_str, sizeof(actual_str), "%g", double(actual));
+    NotifyFailure(filename, line, type_name.c_str(), lane, expected_str,
+                  actual_str);
   }
 }
 
@@ -372,9 +376,15 @@ HWY_NOINLINE void AssertVecEqual(D d, const V expected, const V actual,
       fprintf(stderr, "\n\n");
       Print(d, "expect", expected, i);
       Print(d, "actual", actual, i);
+
+      char expected_str[100];
+      snprintf(expected_str, sizeof(expected_str), "%g",
+               double(expected_lanes[i]));
+      char actual_str[100];
+      snprintf(actual_str, sizeof(actual_str), "%g", double(actual_lanes[i]));
+
       NotifyFailure(filename, line, hwy::TypeName(T(), N).c_str(), i,
-                    std::to_string(expected_lanes[i]).c_str(),
-                    std::to_string(actual_lanes[i]).c_str());
+                    expected_str, actual_str);
     }
   }
 }

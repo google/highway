@@ -28,13 +28,16 @@ namespace HWY_NAMESPACE {
 struct TestName {
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
+    char num[10];
     std::string expected = IsFloat<T>() ? "f" : (IsSigned<T>() ? "i" : "u");
-    expected += std::to_string(sizeof(T) * 8);
+    snprintf(num, sizeof(num), "%zu", sizeof(T) * 8);
+    expected += num;
 
     const size_t N = Lanes(d);
     if (N != 1) {
       expected += 'x';
-      expected += std::to_string(N);
+      snprintf(num, sizeof(num), "%zu", N);
+      expected += num;
     }
     const std::string actual = TypeName(t, N);
     if (expected != actual) {
