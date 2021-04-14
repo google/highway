@@ -545,37 +545,6 @@ HWY_NOINLINE void TestAllI32F64() {
 #endif
 }
 
-struct TestNearestInt {
-  template <typename TI, class DI>
-  HWY_NOINLINE void operator()(TI /*unused*/, const DI di) {
-    using TF = MakeFloat<TI>;
-    const Rebind<TF, DI> df;
-    const size_t N = Lanes(df);
-
-    // Integer positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, 4), NearestInt(Iota(df, 4.0f)));
-
-    // Integer negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -32), NearestInt(Iota(df, -32.0f)));
-
-    // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, 2), NearestInt(Iota(df, 2.001f)));
-
-    // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, 4), NearestInt(Iota(df, 3.9999f)));
-
-    const TF eps = static_cast<TF>(0.0001);
-    // Above negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), NearestInt(Iota(df, -TF(N) + eps)));
-
-    // Below negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), NearestInt(Iota(df, -TF(N) - eps)));
-  }
-};
-
-HWY_NOINLINE void TestAllNearestInt() {
-  ForPartialVectors<TestNearestInt>()(int32_t());
-}
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -595,6 +564,5 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNearestInt);
 }  // namespace hwy
 #endif

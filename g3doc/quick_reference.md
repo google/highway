@@ -556,7 +556,8 @@ if the input exceeds the destination range.
     zero and converts the value to same-sized integer.
 
 *   `V`: `f32`; `Ret`: `i32` \
-    <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`.
+    <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
+    results are undefined for NaN.
 
 ### Swizzle
 

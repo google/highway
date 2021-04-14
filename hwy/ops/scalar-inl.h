@@ -624,6 +624,31 @@ HWY_INLINE Vec1<T> Round(const Vec1<T> v) {
   return Vec1<T>(static_cast<T>(rounded));
 }
 
+// Round-to-nearest even.
+HWY_INLINE Vec1<int32_t> NearestInt(const Vec1<float> v) {
+  using T = float;
+  using TI = int32_t;
+
+  const T abs = Abs(v).raw;
+  const bool signbit = std::signbit(v.raw);
+
+  if (!(abs < MantissaEnd<T>())) {  // Huge or NaN
+    // Check if too large to cast or NaN
+    if (!(abs <= static_cast<T>(LimitsMax<TI>()))) {
+      return Vec1<TI>(signbit ? LimitsMin<TI>() : LimitsMax<TI>());
+    }
+    return Vec1<int32_t>(static_cast<TI>(v.raw));
+  }
+  const T bias = v.raw < T(0.0) ? T(-0.5) : T(0.5);
+  const TI rounded = static_cast<TI>(v.raw + bias);
+  if (rounded == 0) return Vec1<int32_t>(0);
+  // Round to even
+  if ((rounded & 1) && std::abs(rounded - v.raw) == T(0.5)) {
+    return Vec1<TI>(rounded - (signbit ? -1 : 1));
+  }
+  return Vec1<TI>(rounded);
+}
+
 template <typename T>
 HWY_INLINE Vec1<T> Trunc(const Vec1<T> v) {
   using TI = MakeSigned<T>;
@@ -964,18 +989,6 @@ HWY_INLINE Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
 
 HWY_INLINE Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
   return DemoteTo(Sisd<uint8_t>(), v);
-}
-
-// Approximation of round-to-nearest for numbers representable as int32_t.
-HWY_INLINE Vec1<int32_t> NearestInt(const Vec1<float> v) {
-  const float f = v.raw;
-  if (std::isinf(f) ||
-      std::fabs(f) > static_cast<float>(LimitsMax<int32_t>())) {
-    return Vec1<int32_t>(std::signbit(f) ? LimitsMin<int32_t>()
-                                         : LimitsMax<int32_t>());
-  }
-  const float bias = f < 0.0f ? -0.5f : 0.5f;
-  return Vec1<int32_t>(static_cast<int>(f + bias));
 }
 
 // ================================================== SWIZZLE

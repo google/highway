@@ -972,6 +972,39 @@ HWY_NOINLINE void TestAllRound() {
   ForFloatTypes(ForPartialVectors<TestRound>());
 }
 
+struct TestNearestInt {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF tf, const DF df) {
+    using TI = MakeSigned<TF>;
+    const RebindToSigned<DF> di;
+
+    size_t padded;
+    auto in = RoundTestCases(tf, df, padded);
+    auto expected = AllocateAligned<TI>(padded);
+
+    for (size_t i = 0; i < padded; ++i) {
+      if (std::isnan(in[i])) {
+        // We replace NaN with 0 below (no_nan)
+        expected[i] = 0.0f;
+      } else if (std::isinf(in[i]) || std::abs(in[i]) > LimitsMax<TI>()) {
+        // Avoid undefined result for lrintf
+        expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
+      } else {
+        expected[i] = lrintf(in[i]);
+      }
+    }
+    for (size_t i = 0; i < padded; i += Lanes(df)) {
+      const auto v = Load(df, &in[i]);
+      const auto no_nan = IfThenElse(v == v, v, Zero(df));
+      HWY_ASSERT_VEC_EQ(di, &expected[i], NearestInt(no_nan));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllNearestInt() {
+  ForPartialVectors<TestNearestInt>()(float());
+}
+
 struct TestTrunc {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
@@ -1215,6 +1248,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReciprocalSquareRoot);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRound);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNearestInt);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllTrunc);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllFloor);
