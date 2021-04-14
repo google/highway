@@ -1703,6 +1703,8 @@ HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
                                       const Vec128<T, N> from) {
 // Not yet available in all engines, see
 // https://github.com/WebAssembly/simd/blob/bdcc304b2d379f4601c2c44ea9b44ed9484fde7e/proposals/simd/ImplementationStatus.md
+// V8 implementation of this had a bug, fixed on 2021-04-03:
+// https://chromium-review.googlesource.com/c/v8/v8/+/2822951
 #if 0
   return Vec128<T, N>{wasm_v8x16_swizzle(bytes.raw, from.raw)};
 #else
