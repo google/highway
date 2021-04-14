@@ -356,9 +356,9 @@ HWY_INLINE Vec1<T> operator>>(const Vec1<T> v, const Vec1<T> bits) {
 
 template <typename T>
 HWY_INLINE Vec1<T> operator+(Vec1<T> a, Vec1<T> b) {
-  const uint64_t a64 = static_cast<int64_t>(a.raw);
-  const uint64_t b64 = static_cast<int64_t>(b.raw);
-  return Vec1<T>((a64 + b64) & ~T(0));
+  const uint64_t a64 = static_cast<uint64_t>(a.raw);
+  const uint64_t b64 = static_cast<uint64_t>(b.raw);
+  return Vec1<T>(static_cast<T>((a64 + b64) & static_cast<uint64_t>(~T(0))));
 }
 HWY_INLINE Vec1<float> operator+(const Vec1<float> a, const Vec1<float> b) {
   return Vec1<float>(a.raw + b.raw);
@@ -369,9 +369,9 @@ HWY_INLINE Vec1<double> operator+(const Vec1<double> a, const Vec1<double> b) {
 
 template <typename T>
 HWY_INLINE Vec1<T> operator-(Vec1<T> a, Vec1<T> b) {
-  const uint64_t a64 = static_cast<int64_t>(a.raw);
-  const uint64_t b64 = static_cast<int64_t>(b.raw);
-  return Vec1<T>((a64 - b64) & ~T(0));
+  const uint64_t a64 = static_cast<uint64_t>(a.raw);
+  const uint64_t b64 = static_cast<uint64_t>(b.raw);
+  return Vec1<T>(static_cast<T>((a64 - b64) & static_cast<uint64_t>(~T(0))));
 }
 HWY_INLINE Vec1<float> operator-(const Vec1<float> a, const Vec1<float> b) {
   return Vec1<float>(a.raw - b.raw);
@@ -387,21 +387,25 @@ HWY_INLINE Vec1<double> operator-(const Vec1<double> a, const Vec1<double> b) {
 // Unsigned
 HWY_INLINE Vec1<uint8_t> SaturatedAdd(const Vec1<uint8_t> a,
                                       const Vec1<uint8_t> b) {
-  return Vec1<uint8_t>(HWY_MIN(HWY_MAX(0, a.raw + b.raw), 255));
+  return Vec1<uint8_t>(
+      static_cast<uint8_t>(HWY_MIN(HWY_MAX(0, a.raw + b.raw), 255)));
 }
 HWY_INLINE Vec1<uint16_t> SaturatedAdd(const Vec1<uint16_t> a,
                                        const Vec1<uint16_t> b) {
-  return Vec1<uint16_t>(HWY_MIN(HWY_MAX(0, a.raw + b.raw), 65535));
+  return Vec1<uint16_t>(
+      static_cast<uint16_t>(HWY_MIN(HWY_MAX(0, a.raw + b.raw), 65535)));
 }
 
 // Signed
 HWY_INLINE Vec1<int8_t> SaturatedAdd(const Vec1<int8_t> a,
                                      const Vec1<int8_t> b) {
-  return Vec1<int8_t>(HWY_MIN(HWY_MAX(-128, a.raw + b.raw), 127));
+  return Vec1<int8_t>(
+      static_cast<int8_t>(HWY_MIN(HWY_MAX(-128, a.raw + b.raw), 127)));
 }
 HWY_INLINE Vec1<int16_t> SaturatedAdd(const Vec1<int16_t> a,
                                       const Vec1<int16_t> b) {
-  return Vec1<int16_t>(HWY_MIN(HWY_MAX(-32768, a.raw + b.raw), 32767));
+  return Vec1<int16_t>(
+      static_cast<int16_t>(HWY_MIN(HWY_MAX(-32768, a.raw + b.raw), 32767)));
 }
 
 // ------------------------------ Saturating subtraction
@@ -411,21 +415,25 @@ HWY_INLINE Vec1<int16_t> SaturatedAdd(const Vec1<int16_t> a,
 // Unsigned
 HWY_INLINE Vec1<uint8_t> SaturatedSub(const Vec1<uint8_t> a,
                                       const Vec1<uint8_t> b) {
-  return Vec1<uint8_t>(HWY_MIN(HWY_MAX(0, a.raw - b.raw), 255));
+  return Vec1<uint8_t>(
+      static_cast<uint8_t>(HWY_MIN(HWY_MAX(0, a.raw - b.raw), 255)));
 }
 HWY_INLINE Vec1<uint16_t> SaturatedSub(const Vec1<uint16_t> a,
                                        const Vec1<uint16_t> b) {
-  return Vec1<uint16_t>(HWY_MIN(HWY_MAX(0, a.raw - b.raw), 65535));
+  return Vec1<uint16_t>(
+      static_cast<uint16_t>(HWY_MIN(HWY_MAX(0, a.raw - b.raw), 65535)));
 }
 
 // Signed
 HWY_INLINE Vec1<int8_t> SaturatedSub(const Vec1<int8_t> a,
                                      const Vec1<int8_t> b) {
-  return Vec1<int8_t>(HWY_MIN(HWY_MAX(-128, a.raw - b.raw), 127));
+  return Vec1<int8_t>(
+      static_cast<int8_t>(HWY_MIN(HWY_MAX(-128, a.raw - b.raw), 127)));
 }
 HWY_INLINE Vec1<int16_t> SaturatedSub(const Vec1<int16_t> a,
                                       const Vec1<int16_t> b) {
-  return Vec1<int16_t>(HWY_MIN(HWY_MAX(-32768, a.raw - b.raw), 32767));
+  return Vec1<int16_t>(
+      static_cast<int16_t>(HWY_MIN(HWY_MAX(-32768, a.raw - b.raw), 32767)));
 }
 
 // ------------------------------ Average
@@ -434,11 +442,11 @@ HWY_INLINE Vec1<int16_t> SaturatedSub(const Vec1<int16_t> a,
 
 HWY_INLINE Vec1<uint8_t> AverageRound(const Vec1<uint8_t> a,
                                       const Vec1<uint8_t> b) {
-  return Vec1<uint8_t>((a.raw + b.raw + 1) / 2);
+  return Vec1<uint8_t>(static_cast<uint8_t>((a.raw + b.raw + 1) / 2));
 }
 HWY_INLINE Vec1<uint16_t> AverageRound(const Vec1<uint16_t> a,
                                        const Vec1<uint16_t> b) {
-  return Vec1<uint16_t>((a.raw + b.raw + 1) / 2);
+  return Vec1<uint16_t>(static_cast<uint16_t>((a.raw + b.raw + 1) / 2));
 }
 
 // ------------------------------ Absolute value
@@ -513,15 +521,15 @@ HWY_INLINE Vec1<T> operator/(const Vec1<T> a, const Vec1<T> b) {
 
 // Returns the upper 16 bits of a * b in each lane.
 HWY_INLINE Vec1<int16_t> MulHigh(const Vec1<int16_t> a, const Vec1<int16_t> b) {
-  return Vec1<int16_t>((a.raw * b.raw) >> 16);
+  return Vec1<int16_t>(static_cast<int16_t>((a.raw * b.raw) >> 16));
 }
 HWY_INLINE Vec1<uint16_t> MulHigh(const Vec1<uint16_t> a,
                                   const Vec1<uint16_t> b) {
   // Cast to uint32_t first to prevent overflow. Otherwise the result of
   // uint16_t * uint16_t is in "int" which may overflow. In practice the result
   // is the same but this way it is also defined.
-  return Vec1<uint16_t>(
-      (static_cast<uint32_t>(a.raw) * static_cast<uint32_t>(b.raw)) >> 16);
+  return Vec1<uint16_t>(static_cast<uint16_t>(
+      (static_cast<uint32_t>(a.raw) * static_cast<uint32_t>(b.raw)) >> 16));
 }
 
 // Multiplies even lanes (0, 2 ..) and returns the double-wide result.
@@ -640,7 +648,8 @@ V Ceiling(const V v) {
   Bits bits;
   CopyBytes<sizeof(Bits)>(&v, &bits);
 
-  const int exponent = ((bits >> kMantissaBits) & kExponentMask) - kBias;
+  const int exponent =
+      static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
   // Already an integer.
   if (exponent >= kMantissaBits) return v;
   // |v| <= 1 => 0 or 1.
@@ -671,7 +680,8 @@ V Floor(const V v) {
   Bits bits;
   CopyBytes<sizeof(Bits)>(&v, &bits);
 
-  const int exponent = ((bits >> kMantissaBits) & kExponentMask) - kBias;
+  const int exponent =
+      static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
   // Already an integer.
   if (exponent >= kMantissaBits) return v;
   // |v| <= 1 => -1 or 0.
@@ -877,7 +887,8 @@ static HWY_INLINE Vec1<float> PromoteTo(Sisd<float> /* tag */,
 
   // Subnormal or zero
   if (biased_exp == 0) {
-    const float subnormal = (1.0f / 16384) * (mantissa * (1.0f / 1024));
+    const float subnormal =
+        (1.0f / 16384) * (static_cast<float>(mantissa) * (1.0f / 1024));
     return Vec1<float>(sign ? -subnormal : subnormal);
   }
 
