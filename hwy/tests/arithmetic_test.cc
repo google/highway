@@ -986,7 +986,7 @@ struct TestNearestInt {
     for (size_t i = 0; i < padded; ++i) {
       if (std::isnan(in[i])) {
         // We replace NaN with 0 below (no_nan)
-        expected[i] = 0.0f;
+        expected[i] = 0;
       } else if (std::isinf(in[i]) || double(std::abs(in[i])) >= max) {
         // Avoid undefined result for lrintf
         expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
