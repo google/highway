@@ -982,11 +982,12 @@ struct TestNearestInt {
     auto in = RoundTestCases(tf, df, padded);
     auto expected = AllocateAligned<TI>(padded);
 
+    constexpr double max = static_cast<double>(LimitsMax<TI>());
     for (size_t i = 0; i < padded; ++i) {
       if (std::isnan(in[i])) {
         // We replace NaN with 0 below (no_nan)
         expected[i] = 0.0f;
-      } else if (std::isinf(in[i]) || std::abs(in[i]) > LimitsMax<TI>()) {
+      } else if (std::isinf(in[i]) || double(std::abs(in[i])) >= max) {
         // Avoid undefined result for lrintf
         expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
       } else {
@@ -995,7 +996,7 @@ struct TestNearestInt {
     }
     for (size_t i = 0; i < padded; i += Lanes(df)) {
       const auto v = Load(df, &in[i]);
-      const auto no_nan = IfThenElse(v == v, v, Zero(df));
+      const auto no_nan = IfThenElse(Eq(v, v), v, Zero(df));
       HWY_ASSERT_VEC_EQ(di, &expected[i], NearestInt(no_nan));
     }
   }
