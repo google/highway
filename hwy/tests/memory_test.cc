@@ -391,6 +391,7 @@ HWY_NOINLINE void TestAllCache() {
   int test = 0;
   Prefetch(&test);
   FlushCacheline(&test);
+  Pause();
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

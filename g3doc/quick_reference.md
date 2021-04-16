@@ -514,6 +514,9 @@ All functions except Stream are defined in cache_control.h.
 *   <code>void **Prefetch**(const T* p)</code>: begins loading the cache line
     containing "p".
 
+*   <code>void **Pause**()</code>: when called inside a spin-loop, may reduce
+    power consumption.
+
 ### Type conversion
 
 *   <code>Vec&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
