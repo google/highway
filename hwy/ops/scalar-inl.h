@@ -643,7 +643,7 @@ HWY_INLINE Vec1<int32_t> NearestInt(const Vec1<float> v) {
   const TI rounded = static_cast<TI>(v.raw + bias);
   if (rounded == 0) return Vec1<int32_t>(0);
   // Round to even
-  if ((rounded & 1) && std::abs(rounded - v.raw) == T(0.5)) {
+  if ((rounded & 1) && std::abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
     return Vec1<TI>(rounded - (signbit ? -1 : 1));
   }
   return Vec1<TI>(rounded);
