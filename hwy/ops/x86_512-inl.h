@@ -184,23 +184,24 @@ HWY_API Vec512<uint16_t> Set(Full512<uint16_t> /* tag */, const uint16_t t) {
   return Vec512<uint16_t>{_mm512_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
 HWY_API Vec512<uint32_t> Set(Full512<uint32_t> /* tag */, const uint32_t t) {
-  return Vec512<uint32_t>{_mm512_set1_epi32(static_cast<int>(t))};  // NOLINT
+  return Vec512<uint32_t>{_mm512_set1_epi32(static_cast<int>(t))};
 }
 HWY_API Vec512<uint64_t> Set(Full512<uint64_t> /* tag */, const uint64_t t) {
   return Vec512<uint64_t>{
       _mm512_set1_epi64(static_cast<long long>(t))};  // NOLINT
 }
 HWY_API Vec512<int8_t> Set(Full512<int8_t> /* tag */, const int8_t t) {
-  return Vec512<int8_t>{_mm512_set1_epi8(t)};
+  return Vec512<int8_t>{_mm512_set1_epi8(static_cast<char>(t))};  // NOLINT
 }
 HWY_API Vec512<int16_t> Set(Full512<int16_t> /* tag */, const int16_t t) {
-  return Vec512<int16_t>{_mm512_set1_epi16(t)};
+  return Vec512<int16_t>{_mm512_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
 HWY_API Vec512<int32_t> Set(Full512<int32_t> /* tag */, const int32_t t) {
   return Vec512<int32_t>{_mm512_set1_epi32(t)};
 }
 HWY_API Vec512<int64_t> Set(Full512<int64_t> /* tag */, const int64_t t) {
-  return Vec512<int64_t>{_mm512_set1_epi64(t)};
+  return Vec512<int64_t>{
+      _mm512_set1_epi64(static_cast<long long>(t))};  // NOLINT
 }
 HWY_API Vec512<float> Set(Full512<float> /* tag */, const float t) {
   return Vec512<float>{_mm512_set1_ps(t)};

@@ -154,27 +154,28 @@ HWY_API Vec128<double, N> Zero(Simd<double, N> /* tag */) {
 // Returns a vector/part with all lanes set to "t".
 template <size_t N, HWY_IF_LE128(uint8_t, N)>
 HWY_API Vec128<uint8_t, N> Set(Simd<uint8_t, N> /* tag */, const uint8_t t) {
-  return Vec128<uint8_t, N>{_mm_set1_epi8(t)};
+  return Vec128<uint8_t, N>{_mm_set1_epi8(static_cast<char>(t))};  // NOLINT
 }
 template <size_t N, HWY_IF_LE128(uint16_t, N)>
 HWY_API Vec128<uint16_t, N> Set(Simd<uint16_t, N> /* tag */, const uint16_t t) {
-  return Vec128<uint16_t, N>{_mm_set1_epi16(t)};
+  return Vec128<uint16_t, N>{_mm_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
 template <size_t N, HWY_IF_LE128(uint32_t, N)>
 HWY_API Vec128<uint32_t, N> Set(Simd<uint32_t, N> /* tag */, const uint32_t t) {
-  return Vec128<uint32_t, N>{_mm_set1_epi32(t)};
+  return Vec128<uint32_t, N>{_mm_set1_epi32(static_cast<int>(t))};
 }
 template <size_t N, HWY_IF_LE128(uint64_t, N)>
 HWY_API Vec128<uint64_t, N> Set(Simd<uint64_t, N> /* tag */, const uint64_t t) {
-  return Vec128<uint64_t, N>{_mm_set1_epi64x(t)};
+  return Vec128<uint64_t, N>{
+      _mm_set1_epi64x(static_cast<long long>(t))};  // NOLINT
 }
 template <size_t N, HWY_IF_LE128(int8_t, N)>
 HWY_API Vec128<int8_t, N> Set(Simd<int8_t, N> /* tag */, const int8_t t) {
-  return Vec128<int8_t, N>{_mm_set1_epi8(t)};
+  return Vec128<int8_t, N>{_mm_set1_epi8(static_cast<char>(t))};  // NOLINT
 }
 template <size_t N, HWY_IF_LE128(int16_t, N)>
 HWY_API Vec128<int16_t, N> Set(Simd<int16_t, N> /* tag */, const int16_t t) {
-  return Vec128<int16_t, N>{_mm_set1_epi16(t)};
+  return Vec128<int16_t, N>{_mm_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
 template <size_t N, HWY_IF_LE128(int32_t, N)>
 HWY_API Vec128<int32_t, N> Set(Simd<int32_t, N> /* tag */, const int32_t t) {
@@ -182,7 +183,8 @@ HWY_API Vec128<int32_t, N> Set(Simd<int32_t, N> /* tag */, const int32_t t) {
 }
 template <size_t N, HWY_IF_LE128(int64_t, N)>
 HWY_API Vec128<int64_t, N> Set(Simd<int64_t, N> /* tag */, const int64_t t) {
-  return Vec128<int64_t, N>{_mm_set1_epi64x(t)};
+  return Vec128<int64_t, N>{
+      _mm_set1_epi64x(static_cast<long long>(t))};  // NOLINT
 }
 template <size_t N, HWY_IF_LE128(float, N)>
 HWY_API Vec128<float, N> Set(Simd<float, N> /* tag */, const float t) {

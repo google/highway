@@ -159,23 +159,24 @@ HWY_API Vec256<uint16_t> Set(Full256<uint16_t> /* tag */, const uint16_t t) {
   return Vec256<uint16_t>{_mm256_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
 HWY_API Vec256<uint32_t> Set(Full256<uint32_t> /* tag */, const uint32_t t) {
-  return Vec256<uint32_t>{_mm256_set1_epi32(static_cast<int>(t))};  // NOLINT
+  return Vec256<uint32_t>{_mm256_set1_epi32(static_cast<int>(t))};
 }
 HWY_API Vec256<uint64_t> Set(Full256<uint64_t> /* tag */, const uint64_t t) {
   return Vec256<uint64_t>{
       _mm256_set1_epi64x(static_cast<long long>(t))};  // NOLINT
 }
 HWY_API Vec256<int8_t> Set(Full256<int8_t> /* tag */, const int8_t t) {
-  return Vec256<int8_t>{_mm256_set1_epi8(t)};
+  return Vec256<int8_t>{_mm256_set1_epi8(static_cast<char>(t))};  // NOLINT
 }
 HWY_API Vec256<int16_t> Set(Full256<int16_t> /* tag */, const int16_t t) {
-  return Vec256<int16_t>{_mm256_set1_epi16(t)};
+  return Vec256<int16_t>{_mm256_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
 HWY_API Vec256<int32_t> Set(Full256<int32_t> /* tag */, const int32_t t) {
   return Vec256<int32_t>{_mm256_set1_epi32(t)};
 }
 HWY_API Vec256<int64_t> Set(Full256<int64_t> /* tag */, const int64_t t) {
-  return Vec256<int64_t>{_mm256_set1_epi64x(t)};
+  return Vec256<int64_t>{
+      _mm256_set1_epi64x(static_cast<long long>(t))};  // NOLINT
 }
 HWY_API Vec256<float> Set(Full256<float> /* tag */, const float t) {
   return Vec256<float>{_mm256_set1_ps(t)};
