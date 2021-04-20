@@ -63,6 +63,8 @@ To test on all the attainable targets for your platform, use
 default configuration skips baseline targets (e.g. scalar) that are superseded
 by another baseline target.
 
+Bazel is also supported for building, but it is not as widely used/tested.
+
 ## Quick start
 
 You can use the `benchmark` inside examples/ as a starting point.
