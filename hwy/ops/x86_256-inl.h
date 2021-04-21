@@ -844,7 +844,13 @@ HWY_API Vec256<uint16_t> AverageRound(const Vec256<uint16_t> a,
 
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
 HWY_API Vec256<int8_t> Abs(const Vec256<int8_t> v) {
+#if HWY_COMPILER_MSVC
+  // Workaround for incorrect codegen? (wrong result)
+  const auto zero = Zero(Full256<int8_t>());
+  return Vec256<int8_t>{_mm256_max_epi8(v.raw, (zero - v).raw)};
+#else
   return Vec256<int8_t>{_mm256_abs_epi8(v.raw)};
+#endif
 }
 HWY_API Vec256<int16_t> Abs(const Vec256<int16_t> v) {
   return Vec256<int16_t>{_mm256_abs_epi16(v.raw)};

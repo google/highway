@@ -121,10 +121,13 @@
 #pragma message("x86 Clang <= 6: define HWY_COMPILE_ONLY_SCALAR or upgrade.")
 #endif
 
-// MSVC, or 32-bit may fail to compile AVX2/3.
-#elif HWY_COMPILER_MSVC != 0 || HWY_ARCH_X86_32
+// 32-bit may fail to compile AVX2/3.
+#elif HWY_ARCH_X86_32
 #define HWY_BROKEN_TARGETS (HWY_AVX2 | HWY_AVX3)
-#pragma message("Disabling AVX2/3 due to known issues with MSVC/32-bit builds")
+
+// MSVC AVX3 support is buggy: https://github.com/Mysticial/Flops/issues/16
+#elif HWY_COMPILER_MSVC != 0
+#define HWY_BROKEN_TARGETS (HWY_AVX3)
 
 #else
 #define HWY_BROKEN_TARGETS 0
