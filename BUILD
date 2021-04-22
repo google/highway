@@ -177,7 +177,7 @@ HWY_TESTS = [
     ("contrib/image/", "image_test"),
     ("contrib/math/", "math_test"),
     ("hwy/examples/", "skeleton_test"),
-    # ("hwy/", "nanobenchmark_test"),  # restore after this is ported to gTest
+    ("hwy/", "nanobenchmark_test"),
     ("hwy/", "aligned_allocator_test"),
     ("hwy/", "base_test"),
     ("hwy/", "highway_test"),
