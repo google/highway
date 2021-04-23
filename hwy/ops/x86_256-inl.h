@@ -858,6 +858,12 @@ HWY_API Vec256<int16_t> Abs(const Vec256<int16_t> v) {
 HWY_API Vec256<int32_t> Abs(const Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_abs_epi32(v.raw)};
 }
+HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
+  const Vec256<double> pos = BitCast(Full256<double>(), v);
+  const Vec256<double> neg = BitCast(Full256<double>(), ((v ^ v) - v));
+  const Vec256<double> abs = {_mm256_blendv_pd(pos.raw, neg.raw, pos.raw)};
+  return BitCast(Full256<int64_t>(), abs);
+}
 
 HWY_API Vec256<float> Abs(const Vec256<float> v) {
   const Vec256<int32_t> mask{_mm256_set1_epi32(0x7FFFFFFF)};

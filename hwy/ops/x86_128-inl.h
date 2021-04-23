@@ -897,6 +897,13 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
   return Vec128<int32_t, N>{_mm_abs_epi32(v.raw)};
 }
+template <size_t N>
+HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
+  const Vec128<double, N> pos = BitCast(Simd<double, N>(), v);
+  const Vec128<double, N> neg = BitCast(Simd<double, N>(), ((v ^ v) - v));
+  const Vec128<double, N> abs = {_mm_blendv_pd(pos.raw, neg.raw, pos.raw)};
+  return BitCast(Simd<int64_t, N>(), abs);
+}
 
 template <size_t N>
 HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {

@@ -658,6 +658,9 @@ HWY_API Vec512<int16_t> Abs(const Vec512<int16_t> v) {
 HWY_API Vec512<int32_t> Abs(const Vec512<int32_t> v) {
   return Vec512<int32_t>{_mm512_abs_epi32(v.raw)};
 }
+HWY_API Vec512<int64_t> Abs(const Vec512<int64_t> v) {
+  return Vec512<int64_t>{_mm512_abs_epi64(v.raw)};
+}
 
 // These aren't native instructions, they also involve AND with constant.
 HWY_API Vec512<float> Abs(const Vec512<float> v) {

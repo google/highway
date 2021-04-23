@@ -176,6 +176,7 @@ HWY_NOINLINE void TestAllAbs() {
   test(int8_t());
   test(int16_t());
   test(int32_t());
+  test(int64_t());
 
   const ForPartialVectors<TestFloatAbs> test_float;
   test_float(float());

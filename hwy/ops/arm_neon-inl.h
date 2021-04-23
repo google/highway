@@ -802,6 +802,12 @@ HWY_INLINE Vec128<int16_t> Abs(const Vec128<int16_t> v) {
 HWY_INLINE Vec128<int32_t> Abs(const Vec128<int32_t> v) {
   return Vec128<int32_t>(vabsq_s32(v.raw));
 }
+HWY_INLINE Vec128<int64_t> Abs(const Vec128<int64_t> v) {
+#if HWY_ARCH_ARM_A64
+  return Vec128<int64_t>(vabsq_s64(v.raw));
+#endif
+  // TODO(janwas): Still needs to be done.
+}
 HWY_INLINE Vec128<float> Abs(const Vec128<float> v) {
   return Vec128<float>(vabsq_f32(v.raw));
 }
