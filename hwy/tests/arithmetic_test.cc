@@ -172,16 +172,8 @@ struct TestFloatAbs {
 };
 
 HWY_NOINLINE void TestAllAbs() {
-  const ForPartialVectors<TestAbs> test;
-  test(int8_t());
-  test(int16_t());
-  test(int32_t());
-
-  const ForPartialVectors<TestFloatAbs> test_float;
-  test_float(float());
-#if HWY_CAP_FLOAT64
-  test_float(double());
-#endif
+  ForSignedTypes(ForPartialVectors<TestAbs>());
+  ForFloatTypes(ForPartialVectors<TestFloatAbs>());
 }
 
 template <bool kSigned>

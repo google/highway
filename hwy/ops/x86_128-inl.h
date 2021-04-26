@@ -897,7 +897,7 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
   return Vec128<int32_t, N>{_mm_abs_epi32(v.raw)};
 }
-
+// i64 is implemented after BroadcastSignBit.
 template <size_t N>
 HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
   const Vec128<int32_t, N> mask{_mm_set1_epi32(0x7FFFFFFF)};
@@ -1075,6 +1075,16 @@ HWY_API Vec128<int64_t, N> BroadcastSignBit(const Vec128<int64_t, N> v) {
   const auto sign = BitCast(d32, v) < Zero(d32);
   return Vec128<int64_t, N>{
       _mm_shuffle_epi32(sign.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec128<int64_t, N>{_mm_abs_epi64(v.raw)};
+#else
+  const auto zero = Zero(Simd<int64_t,N>());
+  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
 #endif
 }
 

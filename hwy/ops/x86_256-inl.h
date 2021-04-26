@@ -858,6 +858,7 @@ HWY_API Vec256<int16_t> Abs(const Vec256<int16_t> v) {
 HWY_API Vec256<int32_t> Abs(const Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_abs_epi32(v.raw)};
 }
+// i64 is implemented after BroadcastSignBit.
 
 HWY_API Vec256<float> Abs(const Vec256<float> v) {
   const Vec256<int32_t> mask{_mm256_set1_epi32(0x7FFFFFFF)};
@@ -1031,6 +1032,15 @@ HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
   const auto right = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
   const auto sign = ShiftLeft<64 - kBits>(BroadcastSignBit(v));
   return right | sign;
+#endif
+}
+
+HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
+#if HWY_TARGET == HWY_AVX3
+  return Vec256<int64_t>{_mm256_abs_epi64(v.raw)};
+#else
+  const auto zero = Zero(Full256<int64_t>());
+  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
 #endif
 }
 

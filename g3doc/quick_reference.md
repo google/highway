@@ -168,7 +168,7 @@ bits are allowed. Abbreviations of the form `u32 = {u}{32}` may also be used.
 *   `V`: `{i,f}` \
     <code>V **Neg**(V a)</code>: returns `-a[i]`.
 
-*   `V`: `{i}{8,16,32}, {f}` \
+*   `V`: `{i,f}` \
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 

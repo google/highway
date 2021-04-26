@@ -350,6 +350,12 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
   return Vec128<int32_t, N>{wasm_i32x4_abs(v.raw)};
 }
+template <size_t N>
+HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
+  // TODO(janwas): use wasm_i64x2_abs when available
+  const Vec128<int64_t, N> mask = wasm_i64x2_shr(v.raw, 63);
+  return ((v ^ mask) - mask);
+}
 
 template <size_t N>
 HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
