@@ -1069,10 +1069,9 @@ HWY_API Vec128<int64_t, N> BroadcastSignBit(const Vec128<int64_t, N> v) {
   return VecFromMask(v < Zero(Simd<int64_t, N>()));
 #else
   // Efficient Gt() requires SSE4.2 but we only have SSE4.1. BLENDVPD requires
-  // two constants and domain crossing. 32-bit compare only requires Zero()
-  // plus a shuffle to replicate the upper 32 bits.
+  // two constants and domain crossing. 32-bit shift avoids generating a zero.
   const Simd<int32_t, N * 2> d32;
-  const auto sign = BitCast(d32, v) < Zero(d32);
+  const auto sign = ShiftRight<31>(BitCast(d32, v));
   return Vec128<int64_t, N>{
       _mm_shuffle_epi32(sign.raw, _MM_SHUFFLE(3, 3, 1, 1))};
 #endif
