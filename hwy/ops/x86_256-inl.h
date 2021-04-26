@@ -2388,6 +2388,11 @@ HWY_API Vec128<int8_t> DemoteTo(Full128<int8_t> /* tag */,
 
 HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> /* tag */,
                                    const Vec256<float> v) {
+#if HWY_COMPILER_MSVC
+  // Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
+  // 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
+#pragma warning(suppress : 4556)
+#endif
   return Vec128<float16_t>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 }
 
