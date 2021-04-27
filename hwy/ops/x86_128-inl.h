@@ -2086,10 +2086,10 @@ HWY_INLINE Vec128<double, 1> UpperHalf(Vec128<double> v) {
 // ------------------------------ Shift vector by constant #bytes
 
 // 0x01..0F, kBytes = 1 => 0x02..0F00
-template <int kBytes, typename T>
-HWY_API Vec128<T> ShiftLeftBytes(const Vec128<T> v) {
+template <int kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
-  return Vec128<T>{_mm_slli_si128(v.raw, kBytes)};
+  return Vec128<T, N>{_mm_slli_si128(v.raw, kBytes)};
 }
 
 template <int kLanes, typename T, size_t N>
@@ -2100,10 +2100,10 @@ HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
 }
 
 // 0x01..0F, kBytes = 1 => 0x0001..0E
-template <int kBytes, typename T>
-HWY_API Vec128<T> ShiftRightBytes(const Vec128<T> v) {
+template <int kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
-  return Vec128<T>{_mm_srli_si128(v.raw, kBytes)};
+  return Vec128<T, N>{_mm_srli_si128(v.raw, kBytes)};
 }
 
 template <int kLanes, typename T, size_t N>
@@ -2513,47 +2513,47 @@ HWY_INLINE Vec128<double> ConcatUpperLower(const Vec128<double> hi,
 
 namespace detail {
 
-template <typename T>
-HWY_API Vec128<T> OddEven(hwy::SizeTag<1> /* tag */, const Vec128<T> a,
-                          const Vec128<T> b) {
-  const Full128<T> d;
-  const Full128<uint8_t> d8;
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEven(hwy::SizeTag<1> /* tag */, const Vec128<T, N> a,
+                             const Vec128<T, N> b) {
+  const Simd<T, N> d;
+  const Repartition<uint8_t, decltype(d)> d8;
   alignas(16) constexpr uint8_t mask[16] = {0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0,
                                             0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0};
   return IfThenElse(MaskFromVec(BitCast(d, Load(d8, mask))), b, a);
 }
-template <typename T>
-HWY_API Vec128<T> OddEven(hwy::SizeTag<2> /* tag */, const Vec128<T> a,
-                          const Vec128<T> b) {
-  return Vec128<T>{_mm_blend_epi16(a.raw, b.raw, 0x55)};
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEven(hwy::SizeTag<2> /* tag */, const Vec128<T, N> a,
+                             const Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_blend_epi16(a.raw, b.raw, 0x55)};
 }
-template <typename T>
-HWY_API Vec128<T> OddEven(hwy::SizeTag<4> /* tag */, const Vec128<T> a,
-                          const Vec128<T> b) {
-  return Vec128<T>{_mm_blend_epi16(a.raw, b.raw, 0x33)};
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEven(hwy::SizeTag<4> /* tag */, const Vec128<T, N> a,
+                             const Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_blend_epi16(a.raw, b.raw, 0x33)};
 }
-template <typename T>
-HWY_API Vec128<T> OddEven(hwy::SizeTag<8> /* tag */, const Vec128<T> a,
-                          const Vec128<T> b) {
-  return Vec128<T>{_mm_blend_epi16(a.raw, b.raw, 0x0F)};
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEven(hwy::SizeTag<8> /* tag */, const Vec128<T, N> a,
+                             const Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_blend_epi16(a.raw, b.raw, 0x0F)};
 }
 
 }  // namespace detail
 
-template <typename T>
-HWY_API Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
   return detail::OddEven(hwy::SizeTag<sizeof(T)>(), a, b);
 }
-template <>
-HWY_INLINE Vec128<float> OddEven<float>(const Vec128<float> a,
-                                        const Vec128<float> b) {
-  return Vec128<float>{_mm_blend_ps(a.raw, b.raw, 5)};
+template <size_t N>
+HWY_INLINE Vec128<float, N> OddEven(const Vec128<float, N> a,
+                                    const Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_blend_ps(a.raw, b.raw, 5)};
 }
 
-template <>
-HWY_INLINE Vec128<double> OddEven<double>(const Vec128<double> a,
-                                          const Vec128<double> b) {
-  return Vec128<double>{_mm_blend_pd(a.raw, b.raw, 1)};
+template <size_t N>
+HWY_INLINE Vec128<double, N> OddEven(const Vec128<double, N> a,
+                                     const Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_blend_pd(a.raw, b.raw, 1)};
 }
 
 // ------------------------------ Shl (ZipLower, Mul)
@@ -2991,7 +2991,7 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
   return LowerHalf(LowerHalf(BitCast(d8, quad)));
 }
 
-// ------------------------------ Convert integer <=> floating point
+// ------------------------------ Integer <=> fp (Abs, OddEven, CopySign)
 
 template <size_t N>
 HWY_API Vec128<float, N> ConvertTo(Simd<float, N> /* tag */,
@@ -3006,13 +3006,20 @@ HWY_API Vec128<double, N> ConvertTo(Simd<double, N> dd,
   (void)dd;
   return Vec128<double, N>{_mm_cvtepi64_pd(v.raw)};
 #else
-  alignas(16) int64_t lanes_i[2];
-  Store(v, Simd<int64_t, N>(), lanes_i);
-  alignas(16) double lanes_d[2];
-  for (size_t i = 0; i < N; ++i) {
-    lanes_d[i] = static_cast<double>(lanes_i[i]);
-  }
-  return Load(dd, lanes_d);
+  const auto a = Abs(v);
+  const Repartition<uint32_t, decltype(dd)> d32;
+  // Insert upper and lower halves into an f64 with large exponent. We do not
+  // have i64 shifts but shifting 128 bits is fine for OddEven below.
+  const auto a_upper = BitCast(d32, ShiftRightBytes<4>(a));
+  const auto a_lower = BitCast(d32, a);
+  // Upper 32 bits of 2^52 and 2^84 in binary64 (we replace the lower 32 bits
+  // via OddEven so we can use the same u32 type as above).
+  const auto k2_52 = Set(d32, 0x43300000);
+  const auto k2_84 = Set(d32, 0x45300000);  // == 2^(52 + 32)
+  const auto hi_f64 = BitCast(dd, OddEven(k2_84, a_upper));
+  const auto lo_f64 = BitCast(dd, OddEven(k2_52, a_lower));
+  const auto f_abs = ((hi_f64 - Set(dd, 1.9342813118337666E+25)) + lo_f64);
+  return CopySignToAbs(f_abs, BitCast(dd, v));
 #endif
 }
 

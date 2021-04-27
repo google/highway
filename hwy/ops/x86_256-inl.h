@@ -2431,7 +2431,7 @@ HWY_API Vec128<uint8_t, 8> U8FromU32(const Vec256<uint32_t> v) {
   return BitCast(Simd<uint8_t, 8>(), pair);
 }
 
-// ------------------------------ Convert integer <=> floating point
+// ------------------------------ Integer <=> fp (Abs, OddEven, CopySign)
 
 HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,
                                 const Vec256<int32_t> v) {
@@ -2443,13 +2443,20 @@ HWY_API Vec256<double> ConvertTo(Full256<double> dd, const Vec256<int64_t> v) {
   (void)dd;
   return Vec256<double>{_mm256_cvtepi64_pd(v.raw)};
 #else
-  alignas(32) int64_t lanes_i[4];
-  Store(v, Full256<int64_t>(), lanes_i);
-  alignas(32) double lanes_d[4];
-  for (size_t i = 0; i < 4; ++i) {
-    lanes_d[i] = static_cast<double>(lanes_i[i]);
-  }
-  return Load(dd, lanes_d);
+  const auto a = Abs(v);
+  const Repartition<uint32_t, decltype(dd)> d32;
+  // Insert upper and lower halves into an f64 with large exponent. We do not
+  // have i64 shifts but shifting 128 bits is fine for OddEven below.
+  const auto a_upper = BitCast(d32, ShiftRightBytes<4>(a));
+  const auto a_lower = BitCast(d32, a);
+  // Upper 32 bits of 2^52 and 2^84 in binary64 (we replace the lower 32 bits
+  // via OddEven so we can use the same u32 type as above).
+  const auto k2_52 = Set(d32, 0x43300000);
+  const auto k2_84 = Set(d32, 0x45300000);  // == 2^(52 + 32)
+  const auto hi_f64 = BitCast(dd, OddEven(k2_84, a_upper));
+  const auto lo_f64 = BitCast(dd, OddEven(k2_52, a_lower));
+  const auto f_abs = ((hi_f64 - Set(dd, 1.9342813118337666E+25)) + lo_f64);
+  return CopySignToAbs(f_abs, BitCast(dd, v));
 #endif
 }
 
