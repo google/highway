@@ -118,10 +118,10 @@ cc_library(
 cc_library(
     name = "image",
     srcs = [
-        "contrib/image/image.cc",
+        "hwy/contrib/image/image.cc",
     ],
     hdrs = [
-        "contrib/image/image.h",
+        "hwy/contrib/image/image.h",
     ],
     compatible_with = [],
     deps = [":hwy"],
@@ -131,7 +131,7 @@ cc_library(
     name = "math",
     compatible_with = [],
     textual_hdrs = [
-        "contrib/math/math-inl.h",
+        "hwy/contrib/math/math-inl.h",
     ],
     deps = [":hwy"],
 )
@@ -174,8 +174,8 @@ cc_binary(
 
 # path, name
 HWY_TESTS = [
-    ("contrib/image/", "image_test"),
-    ("contrib/math/", "math_test"),
+    ("hwy/contrib/image/", "image_test"),
+    ("hwy/contrib/math/", "math_test"),
     ("hwy/examples/", "skeleton_test"),
     ("hwy/", "nanobenchmark_test"),
     ("hwy/", "aligned_allocator_test"),

@@ -19,7 +19,7 @@ if(POLICY CMP0083)
   cmake_policy(SET CMP0083 NEW)
 endif()
 
-project(hwy VERSION 0.1)
+project(hwy VERSION 0.12.0)  # Keep in sync with highway.h version
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -51,10 +51,13 @@ check_cxx_source_compiles(
   HWY_EMSCRIPTEN
 )
 
+set(HWY_CONTRIB_SOURCES
+    hwy/contrib/image/image.cc
+    hwy/contrib/image/image.h
+    hwy/contrib/math/math-inl.h
+)
+
 set(HWY_SOURCES
-    contrib/image/image.cc
-    contrib/image/image.h
-    contrib/math/math-inl.h
     hwy/aligned_allocator.cc
     hwy/aligned_allocator.h
     hwy/base.h
@@ -153,6 +156,11 @@ target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
+add_library(hwy_contrib STATIC ${HWY_CONTRIB_SOURCES})
+target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
+set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
 # -------------------------------------------------------- install library
 install(TARGETS hwy
   DESTINATION "${CMAKE_INSTALL_LIBDIR}")
@@ -166,9 +174,21 @@ foreach (source ${HWY_SOURCES})
   endif()
 endforeach()
 
-# Add a pkg-config file for libhwy and the test library.
+install(TARGETS hwy_contrib
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+# Install all the headers keeping the relative path to the current directory
+# when installing them.
+foreach (source ${HWY_CONTRIB_SOURCES})
+  if ("${source}" MATCHES "\.h$")
+    get_filename_component(dirname "${source}" DIRECTORY)
+    install(FILES "${source}"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${dirname}")
+  endif()
+endforeach()
+
+# Add a pkg-config file for libhwy and the contrib/test libraries.
 set(HWY_LIBRARY_VERSION "${CMAKE_PROJECT_VERSION}")
-foreach (pc libhwy.pc libhwy-test.pc)
+foreach (pc libhwy.pc libhwy-contrib.pc libhwy-test.pc)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${pc}.in" "${pc}" @ONLY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${pc}"
       DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
@@ -251,8 +271,8 @@ endif()
 endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
-  contrib/image/image_test.cc
-  # contrib/math/math_test.cc
+  hwy/contrib/image/image_test.cc
+  # hwy/contrib/math/math_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc

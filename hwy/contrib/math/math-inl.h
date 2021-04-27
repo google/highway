@@ -13,12 +13,12 @@
 // limitations under the License.
 
 // Include guard (still compiled once per target)
-#if defined(HIGHWAY_CONTRIB_MATH_MATH_INL_H_) == \
+#if defined(HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_) == \
     defined(HWY_TARGET_TOGGLE)
-#ifdef HIGHWAY_CONTRIB_MATH_MATH_INL_H_
-#undef HIGHWAY_CONTRIB_MATH_MATH_INL_H_
+#ifdef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
+#undef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #else
-#define HIGHWAY_CONTRIB_MATH_MATH_INL_H_
+#define HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #endif
 
 #include "hwy/highway.h"
@@ -1189,4 +1189,4 @@ HWY_INLINE V Tanh(const D d, V x) {
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
-#endif  // HIGHWAY_CONTRIB_MATH_MATH_INL_H_
+#endif  // HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
