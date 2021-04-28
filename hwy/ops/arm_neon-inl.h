@@ -1540,11 +1540,35 @@ HWY_API Vec128<T, N> BroadcastSignBit(const Vec128<T, N> v) {
 
 // ------------------------------ Make mask
 
-template <typename T, size_t N>
-HWY_INLINE Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
-  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
+#define HWY_NEON_BUILD_TPL_HWY_TESTBIT
+#define HWY_NEON_BUILD_RET_HWY_TESTBIT(type, size) Mask128<type, size>
+#define HWY_NEON_BUILD_PARAM_HWY_TESTBIT(type, size) \
+  Vec128<type, size> v, Vec128<type, size> bit
+#define HWY_NEON_BUILD_ARG_HWY_TESTBIT v.raw, bit.raw
+
+#if HWY_ARCH_ARM_A64
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(TestBit, vtst, _, HWY_TESTBIT)
+#else
+// No 64-bit versions on armv7
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(TestBit, vtst, _, HWY_TESTBIT)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(TestBit, vtst, _, HWY_TESTBIT)
+
+template <size_t N>
+HWY_INLINE Mask128<uint64_t, N> TestBit(Vec128<uint64_t, N> v,
+                                        Vec128<uint64_t, N> bit) {
   return (v & bit) == bit;
 }
+template <size_t N>
+HWY_INLINE Mask128<int64_t, N> TestBit(Vec128<int64_t, N> v,
+                                       Vec128<int64_t, N> bit) {
+  return (v & bit) == bit;
+}
+
+#endif
+#undef HWY_NEON_BUILD_TPL_HWY_TESTBIT
+#undef HWY_NEON_BUILD_RET_HWY_TESTBIT
+#undef HWY_NEON_BUILD_PARAM_HWY_TESTBIT
+#define HWY_NEON_BUILD_ARG_HWY_TESTBIT
 
 // Mask and Vec are the same (true = FF..FF).
 template <typename T, size_t N>
