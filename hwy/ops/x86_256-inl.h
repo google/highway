@@ -2431,7 +2431,7 @@ HWY_API Vec128<uint8_t, 8> U8FromU32(const Vec256<uint32_t> v) {
   return BitCast(Simd<uint8_t, 8>(), pair);
 }
 
-// ------------------------------ Integer <=> fp (Abs, OddEven, CopySign)
+// ------------------------------ Integer <=> fp (ShiftRight, OddEven)
 
 HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,
                                 const Vec256<int32_t> v) {
@@ -2443,20 +2443,20 @@ HWY_API Vec256<double> ConvertTo(Full256<double> dd, const Vec256<int64_t> v) {
   (void)dd;
   return Vec256<double>{_mm256_cvtepi64_pd(v.raw)};
 #else
-  const auto a = Abs(v);
+  // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
   const Repartition<uint32_t, decltype(dd)> d32;
-  // Insert upper and lower halves into an f64 with large exponent. We do not
-  // have i64 shifts but shifting 128 bits is fine for OddEven below.
-  const auto a_upper = BitCast(d32, ShiftRightBytes<4>(a));
-  const auto a_lower = BitCast(d32, a);
-  // Upper 32 bits of 2^52 and 2^84 in binary64 (we replace the lower 32 bits
-  // via OddEven so we can use the same u32 type as above).
-  const auto k2_52 = Set(d32, 0x43300000);
-  const auto k2_84 = Set(d32, 0x45300000);  // == 2^(52 + 32)
-  const auto hi_f64 = BitCast(dd, OddEven(k2_84, a_upper));
-  const auto lo_f64 = BitCast(dd, OddEven(k2_52, a_lower));
-  const auto f_abs = ((hi_f64 - Set(dd, 1.9342813118337666E+25)) + lo_f64);
-  return CopySignToAbs(f_abs, BitCast(dd, v));
+  const Repartition<uint64_t, decltype(dd)> d64;
+
+  // Toggle MSB of lower 32-bits and insert exponent for 2^84 + 2^63
+  const auto k84_63 = Set(d64, 0x4530000080000000ULL);
+  const auto v_upper = BitCast(dd, ShiftRight<32>(BitCast(d64, v)) ^ k84_63);
+
+  // Exponent is 2^52, lower 32 bits from v (=> 32-bit OddEven)
+  const auto k52 = Set(d32, 0x43300000);
+  const auto v_lower = BitCast(dd, OddEven(k52, BitCast(d32, v)));
+
+  const auto k84_63_52 = BitCast(dd, Set(d64, 0x4530000080100000ULL));
+  return (v_upper - k84_63_52) + v_lower;  // order matters!
 #endif
 }
 
