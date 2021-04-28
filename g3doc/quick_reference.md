@@ -437,10 +437,16 @@ Memory operands are little-endian, otherwise their order would depend on the
 lane configuration. Pointers are the addresses of `N` consecutive `T` values,
 either naturally-aligned (`aligned`) or possibly unaligned (`p`).
 
+**Note**: computations with low arithmetic intensity (FLOP/s per memory traffic
+bytes), e.g. dot product, can be *1.5 times as fast* when the memory operands
+are naturally aligned. An unaligned access may require two load ports.
+
 #### Load
 
 *   <code>Vec&lt;D&gt; **Load**(D, const T* aligned)</code>: returns
-    `aligned[i]`.
+    `aligned[i]`. May fault if the pointer is not aligned to the vector size.
+    Using this whenever possible improves codegen on SSE4: unlike `LoadU`,
+    `Load` can be fused into a memory operand, which reduces register pressure.
 *   <code>Vec&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
 
 *   <code>Vec&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one 128-bit
