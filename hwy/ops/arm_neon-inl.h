@@ -1185,21 +1185,34 @@ HWY_INLINE Vec128<float, N> ApproximateReciprocal(const Vec128<float, N> v) {
 #if HWY_ARCH_ARM_A64
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator/, vdiv, _, 2)
 #else
-// Emulated with approx reciprocal + Newton-Raphson + mul
+// Not defined on armv7: approximate
+namespace detail {
+
+HWY_INLINE Vec128<float> ReciprocalNewtonRaphsonStep(
+    const Vec128<float> recip, const Vec128<float> divisor) {
+  return Vec128<float>(vrecpsq_f32(recip.raw, divisor.raw));
+}
+template <size_t N>
+HWY_INLINE Vec128<float, N> ReciprocalNewtonRaphsonStep(
+    const Vec128<float, N> recip, Vec128<float, N> divisor) {
+  return Vec128<float, N>(vrecps_f32(recip.raw, divisor.raw));
+}
+
+}  // namespace detail
+
 template <size_t N>
 HWY_INLINE Vec128<float, N> operator/(const Vec128<float, N> a,
                                       const Vec128<float, N> b) {
   auto x = ApproximateReciprocal(b);
-  // Newton-Raphson on 1/x - b
-  const auto two = Set(Simd<float, N>(), 2);
-  x = x * (two - b * x);
-  x = x * (two - b * x);
-  x = x * (two - b * x);
+  x *= detail::ReciprocalNewtonRaphsonStep(x, b);
+  x *= detail::ReciprocalNewtonRaphsonStep(x, b);
+  x *= detail::ReciprocalNewtonRaphsonStep(x, b);
   return a * x;
 }
 #endif
 
-// Absolute value of difference.
+// ------------------------------ Absolute value of difference.
+
 HWY_INLINE Vec128<float> AbsDiff(const Vec128<float> a, const Vec128<float> b) {
   return Vec128<float>(vabdq_f32(a.raw, b.raw));
 }
@@ -1313,7 +1326,7 @@ HWY_INLINE Vec128<double, N> NegMulSub(const Vec128<double, N> mul,
 }
 #endif
 
-// ------------------------------ Floating-point square root
+// ------------------------------ Floating-point square root (IfThenZeroElse)
 
 // Approximate reciprocal square root
 HWY_INLINE Vec128<float> ApproximateReciprocalSqrt(const Vec128<float> v) {
@@ -1329,20 +1342,31 @@ HWY_INLINE Vec128<float, N> ApproximateReciprocalSqrt(
 #if HWY_ARCH_ARM_A64
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Sqrt, vsqrt, _, 1)
 #else
-// Not defined on armv7: emulate with approx reciprocal sqrt + Goldschmidt.
+namespace detail {
+
+HWY_INLINE Vec128<float> ReciprocalSqrtStep(const Vec128<float> root,
+                                            const Vec128<float> recip) {
+  return Vec128<float>(vrsqrtsq_f32(root.raw, recip.raw));
+}
+template <size_t N>
+HWY_INLINE Vec128<float, N> ReciprocalSqrtStep(const Vec128<float, N> root,
+                                               Vec128<float, N> recip) {
+  return Vec128<float, N>(vrsqrts_f32(root.raw, recip.raw));
+}
+
+}  // namespace detail
+
+// Not defined on armv7: approximate
 template <size_t N>
 HWY_INLINE Vec128<float, N> Sqrt(const Vec128<float, N> v) {
-  auto b = v;
-  auto Y = ApproximateReciprocalSqrt(v);
-  auto x = v * Y;
-  const auto half = Set(Simd<float, N>(), 0.5);
-  const auto oneandhalf = Set(Simd<float, N>(), 1.5);
-  for (size_t i = 0; i < 3; i++) {
-    b = b * Y * Y;
-    Y = oneandhalf - half * b;
-    x = x * Y;
-  }
-  return IfThenZeroElse(v == Zero(Simd<float, N>()), x);
+  auto recip = ApproximateReciprocalSqrt(v);
+
+  recip *= detail::ReciprocalSqrtStep(v * recip, recip);
+  recip *= detail::ReciprocalSqrtStep(v * recip, recip);
+  recip *= detail::ReciprocalSqrtStep(v * recip, recip);
+
+  const auto root = v * recip;
+  return IfThenZeroElse(v == Zero(Simd<float, N>()), root);
 }
 #endif
 

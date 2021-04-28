@@ -78,7 +78,8 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
       if (ulp > max_error_ulp) {
         std::cout << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
                   << ">(" << value << ") expected: " << expected
-                  << " actual: " << actual << std::endl;
+                  << " actual: " << actual << " ulp: " << ulp
+                  << " max: " << max_error_ulp << std::endl;
       }
       HWY_ASSERT(ulp <= max_error_ulp);
     }
@@ -117,7 +118,7 @@ DEFINE_MATH_TEST(Acosh,
   std::acosh, CallAcosh, +1.0,       +FLT_MAX,    3,
   std::acosh, CallAcosh, +1.0,       +DBL_MAX,    3)
 DEFINE_MATH_TEST(Asin,
-  std::asin,  CallAsin,  -1.0,       +1.0,        3,  // NEON is 3 instead of 2
+  std::asin,  CallAsin,  -1.0,       +1.0,        4,  // ARMv7 is 4 instead of 2
   std::asin,  CallAsin,  -1.0,       +1.0,        2)
 DEFINE_MATH_TEST(Asinh,
   std::asinh, CallAsinh, -FLT_MAX,   +FLT_MAX,    3,
