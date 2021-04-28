@@ -339,7 +339,7 @@ Special functions for signed types:
     slightly more efficient; requires the first argument to be non-negative.
 
 *   `V`: `i32/64` \
-    <code>V **BroadcastSignBit(V a)</code> returns `a[i] < 0 ? -1 : 0`.
+    <code>V **BroadcastSignBit**(V a)</code> returns `a[i] < 0 ? -1 : 0`.
 
 ### Masks
 
