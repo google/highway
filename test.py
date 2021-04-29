@@ -106,6 +106,7 @@ def main(args):
       "--config=android_arm", "--copt=-mfpu=neon-vfpv4",
       "--copt=-mfloat-abi=softfp"
   ])
+  run_blaze_tests(work_dir, target, "msvc", [], ["--config=msvc"])
   run_wasm_tests(work_dir, options, target)
 
   print_status("done")
