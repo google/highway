@@ -1415,6 +1415,10 @@ HWY_API void Stream(const Vec256<double> v, Full256<double> /* tag */,
 
 // ------------------------------ Scatter
 
+// Work around warnings in the intrinsic definitions (passing -1 as a mask).
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+
 #if HWY_TARGET == HWY_AVX3
 namespace detail {
 
@@ -1600,6 +1604,8 @@ HWY_INLINE Vec256<double> GatherIndex<double>(Full256<double> /* tag */,
                                               const Vec256<int64_t> index) {
   return Vec256<double>{_mm256_i64gather_pd(base, index.raw, 8)};
 }
+
+HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE
 

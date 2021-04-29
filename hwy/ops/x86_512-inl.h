@@ -1123,6 +1123,10 @@ HWY_API Vec512<float> ApproximateReciprocalSqrt(const Vec512<float> v) {
 
 // ------------------------------ Floating-point rounding
 
+// Work around warnings in the intrinsic definitions (passing -1 as a mask).
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+
 // Toward nearest integer, tie to even
 HWY_API Vec512<float> Round(const Vec512<float> v) {
   return Vec512<float>{_mm512_roundscale_ps(
@@ -1162,6 +1166,8 @@ HWY_API Vec512<double> Floor(const Vec512<double> v) {
   return Vec512<double>{
       _mm512_roundscale_pd(v.raw, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)};
 }
+
+HWY_DIAGNOSTICS(pop)
 
 // ================================================== COMPARE
 
@@ -1757,6 +1763,10 @@ HWY_API void Stream(const Vec512<double> v, Full512<double>,
 
 // ------------------------------ Scatter
 
+// Work around warnings in the intrinsic definitions (passing -1 as a mask).
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+
 namespace detail {
 
 template <typename T>
@@ -1898,6 +1908,8 @@ HWY_INLINE Vec512<double> GatherIndex<double>(Full512<double> /* tag */,
                                               const Vec512<int64_t> index) {
   return Vec512<double>{_mm512_i64gather_pd(index.raw, base, 8)};
 }
+
+HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE
 
@@ -2589,7 +2601,11 @@ HWY_API Vec256<int8_t> DemoteTo(Full256<int8_t> /* tag */,
 
 HWY_API Vec256<float16_t> DemoteTo(Full256<float16_t> /* tag */,
                                    const Vec512<float> v) {
+  // Work around warnings in the intrinsic definitions (passing -1 as a mask).
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
   return Vec256<float16_t>{_mm512_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
+  HWY_DIAGNOSTICS(pop)
 }
 
 HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,

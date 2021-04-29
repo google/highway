@@ -1798,6 +1798,10 @@ HWY_API void Stream(const Vec128<double, N> v, Simd<double, N> /* tag */,
 
 // ------------------------------ Scatter
 
+// Work around warnings in the intrinsic definitions (passing -1 as a mask).
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+
 // Unfortunately the GCC/Clang intrinsics do not accept int64_t*.
 using GatherIndex64 = long long int;  // NOLINT(google-runtime-int)
 static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
@@ -2058,6 +2062,8 @@ HWY_API Vec128<double, N> GatherIndex(Simd<double, N> /* tag */,
 }
 
 #endif  // HWY_TARGET != HWY_SSE4
+
+HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE
 
