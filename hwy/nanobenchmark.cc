@@ -421,7 +421,7 @@ double InvariantTicksPerSecond() {
 
 double Now() {
   static const double mul = 1.0 / InvariantTicksPerSecond();
-  return timer::Start() * mul;
+  return static_cast<double>(timer::Start()) * mul;
 }
 
 uint64_t TimerResolution() {
@@ -490,7 +490,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
     // Median absolute deviation (mad) is a robust measure of 'variability'.
     const timer::Ticks abs_mad = robust_statistics::MedianAbsoluteDeviation(
         samples.data(), samples.size(), est);
-    *rel_mad = static_cast<double>(int(abs_mad)) / est;
+    *rel_mad = static_cast<double>(abs_mad) / static_cast<double>(est);
 
     if (*rel_mad <= max_rel_mad || abs_mad <= max_abs_mad) {
       if (p.verbose) {
