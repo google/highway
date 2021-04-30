@@ -669,6 +669,16 @@ HWY_INLINE Vec128<T, N> Undefined(Simd<T, N> /*d*/) {
   HWY_DIAGNOSTICS(pop)
 }
 
+// Returns a vector with lane i=[0, N) set to "first" + i.
+template <typename T, size_t N, typename T2>
+Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
+  HWY_ALIGN T lanes[16 / sizeof(T)];
+  for (size_t i = 0; i < 16 / sizeof(T); ++i) {
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+  }
+  return Load(d, lanes);
+}
+
 // ------------------------------ Extract lane
 
 HWY_INLINE uint8_t GetLane(const Vec128<uint8_t, 16> v) {
@@ -1424,6 +1434,14 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator>=, vcge, _, HWY_COMPARE)
 #undef HWY_NEON_BUILD_RET_HWY_COMPARE
 #undef HWY_NEON_BUILD_PARAM_HWY_COMPARE
 #undef HWY_NEON_BUILD_ARG_HWY_COMPARE
+
+// ------------------------------ FirstN (Iota, Lt)
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
+  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
+  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(num)));
+}
 
 // ================================================== LOGICAL
 
@@ -3398,16 +3416,6 @@ HWY_INLINE Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
 }
 
 // ================================================== MISC
-
-// Returns a vector with lane i=[0, N) set to "first" + i.
-template <typename T, size_t N, typename T2>
-Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
-  HWY_ALIGN T lanes[16 / sizeof(T)];
-  for (size_t i = 0; i < 16 / sizeof(T); ++i) {
-    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
-  }
-  return Load(d, lanes);
-}
 
 // ------------------------------ Scatter (Store)
 

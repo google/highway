@@ -223,6 +223,11 @@ Vec1<T> VecFromMask(Sisd<T> /* tag */, const Mask1<T> mask) {
   return v;
 }
 
+template <typename T>
+HWY_INLINE Mask1<T> FirstN(Sisd<T> /*tag*/, size_t n) {
+  return Mask1<T>::FromBool(n != 0);
+}
+
 // Returns mask ? yes : no.
 template <typename T>
 HWY_INLINE Vec1<T> IfThenElse(const Mask1<T> mask, const Vec1<T> yes,

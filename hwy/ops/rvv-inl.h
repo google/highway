@@ -1318,11 +1318,12 @@ HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f)
 
 // ------------------------------ ShiftLeftLanes
 
-// vector = f(vector, size_t)
-#define HWY_RVV_SLIDE(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                         \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, size_t lanes) {     \
-    return v##OP##_vx_##CHAR##SEW##m##LMUL(v, v, lanes);     \
+// vector = f(vector, vector, size_t)
+#define HWY_RVV_SLIDE(BASE, CHAR, SEW, LMUL, MLEN, NAME, OP)               \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                       \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) dst, HWY_RVV_V(BASE, SEW, LMUL) src, \
+           size_t lanes) {                                                 \
+    return v##OP##_vx_##CHAR##SEW##m##LMUL(dst, src, lanes);               \
   }
 
 namespace detail {
@@ -1333,7 +1334,7 @@ template <size_t kLanes, class V>
 HWY_API V ShiftLeftLanes(const V v) {
   using D = DFromV<V>;
   const RebindToSigned<D> di;
-  const auto shifted = detail::SlideUp(v, kLanes);
+  const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
   const auto idx_mod = detail::And(detail::Iota0(di), kLanesPerBlock - 1);
@@ -1363,7 +1364,7 @@ template <size_t kLanes, class V>
 HWY_API V ShiftRightLanes(const V v) {
   using D = DFromV<V>;
   const RebindToSigned<D> di;
-  const auto shifted = detail::SlideDown(v, kLanes);
+  const auto shifted = detail::SlideDown(v, v, kLanes);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
   const auto idx_mod = detail::And(detail::Iota0(di), kLanesPerBlock - 1);
@@ -1405,7 +1406,7 @@ HWY_API V ConcatUpperLower(const V hi, const V lo) {
 template <class V>
 HWY_API V ConcatLowerLower(const V hi, const V lo) {
   // Move lower half into upper
-  const auto hi_up = detail::SlideUp(hi, Lanes(DFromV<V>()) / 2);
+  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
   return ConcatUpperLower(hi_up, lo);
 }
 
@@ -1414,7 +1415,7 @@ HWY_API V ConcatLowerLower(const V hi, const V lo) {
 template <class V>
 HWY_API V ConcatUpperUpper(const V hi, const V lo) {
   // Move upper half into lower
-  const auto lo_down = detail::SlideDown(lo, Lanes(DFromV<V>()) / 2);
+  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
   return ConcatUpperLower(hi, lo_down);
 }
 
@@ -1423,8 +1424,8 @@ HWY_API V ConcatUpperUpper(const V hi, const V lo) {
 template <class V>
 HWY_API V ConcatLowerUpper(const V hi, const V lo) {
   // Move half of both inputs to the other half
-  const auto hi_up = detail::SlideUp(hi, Lanes(DFromV<V>()) / 2);
-  const auto lo_down = detail::SlideDown(lo, Lanes(DFromV<V>()) / 2);
+  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
+  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
   return ConcatUpperLower(hi_up, lo_down);
 }
 
@@ -1581,6 +1582,22 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
 HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, _, _)
 #undef HWY_RVV_STORE_MASK_BITS
 
+// ------------------------------ FirstN (Iota0, Lt, RebindMask, SlideUp)
+
+// Disallow for 8-bit because Iota is likely to overflow.
+template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
+HWY_API MFromD<D> FirstN(const D d, const size_t n) {
+  const RebindToSigned<D> di;
+  return RebindMask(d, Lt(BitCast(di, detail::Iota0(d)), Set(di, n)));
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
+HWY_API MFromD<D> FirstN(const D d, const size_t n) {
+  const auto zero = Zero(d);
+  const auto one = Set(d, 1);
+  return Eq(detail::SlideUp(one, zero, n), one);
+}
+
 // ------------------------------ Neg
 
 template <class V, HWY_IF_SIGNED_V(V)>
@@ -1712,7 +1729,7 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {
   const auto lo = Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   const RepartitionToWide<DFromV<V>> dw;
-  return BitCast(dw, OddEven(detail::SlideUp(hi, 1), lo));
+  return BitCast(dw, OddEven(detail::SlideUp(hi, hi, 1), lo));
 }
 
 // ================================================== END MACROS

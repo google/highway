@@ -345,6 +345,11 @@ Special functions for signed types:
 
 Let `M` denote a mask capable of storing true/false for each lane.
 
+*   <code>M **FirstN**(D, size_t N)</code>: returns mask with the first `N`
+    lanes (those with index `< N`) true. `N` larger than `Lanes(D())` result in
+    an all-true mask. Useful for implementing "masked" stores by loading `prev`
+    followed by `IfThenElse(FirstN(d, N), what_to_store, prev)`.
+
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
     reinterpreted as a mask for lanes of type `TFromD<D>`. `M1` and `M2` must
     have the same number of lanes.

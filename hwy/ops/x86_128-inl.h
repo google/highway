@@ -686,6 +686,14 @@ HWY_API Mask128<double, N> operator>=(const Vec128<double, N> a,
   return Mask128<double, N>{_mm_cmpge_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ FirstN (Iota, Lt)
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
+  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
+  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(num)));
+}
+
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition

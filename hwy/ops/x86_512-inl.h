@@ -117,9 +117,8 @@ struct RawMask512<8> {
 // Mask register: one bit per lane.
 template <typename T>
 class Mask512 {
-  using Raw = typename RawMask512<sizeof(T)>::type;
-
  public:
+  using Raw = typename RawMask512<sizeof(T)>::type;
   Raw raw;
 };
 
@@ -347,7 +346,45 @@ HWY_API Vec512<T> CopySignToAbs(const Vec512<T> abs, const Vec512<T> sign) {
   return CopySign(abs, sign);
 }
 
-// ------------------------------ Select/blend
+// ------------------------------ FirstN
+
+// Possibilities for constructing a bitmask of N ones:
+// - kshift* only consider the lowest byte of the shift count, so they would
+//   not correctly handle large n.
+// - Scalar shifts >= 64 are UB.
+// - BZHI has the desired semantics; we assume AVX-512 implies BMI2. However,
+//   we need 64-bit masks for sizeof(T) == 1, so special-case 32-bit builds.
+
+#if HWY_ARCH_X86_32
+namespace detail {
+
+// 32 bit mask is sufficient for lane size >= 2.
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
+HWY_API Mask512<T> FirstN(size_t n) {
+  using Bits = typename Mask512<T>::Raw;
+  return Mask512<T>{static_cast<Bits>(_bzhi_u32(~uint32_t(0), n))};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Mask512<T> FirstN(size_t n) {
+  const uint64_t bits = n < 64 ? ((1ULL << n) - 1) : ~uint64_t(0);
+  return Mask512<T>{static_cast<__mmask64>(bits)};
+}
+
+}  // namespace detail
+#endif  // HWY_ARCH_X86_32
+
+template <typename T>
+HWY_API Mask512<T> FirstN(const Full512<T> /*tag*/, size_t n) {
+#if HWY_ARCH_X86_64
+  using Bits = typename Mask512<T>::Raw;
+  return Mask512<T>{static_cast<Bits>(_bzhi_u64(~uint64_t(0), n))};
+#else
+  return detail::FirstN<T>(n);
+#endif
+}
+
+// ------------------------------ IfThenElse
 
 // Returns mask ? b : a.
 

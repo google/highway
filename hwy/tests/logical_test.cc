@@ -160,6 +160,30 @@ HWY_NOINLINE void TestAllCopySign() {
   ForFloatTypes(ForPartialVectors<TestCopySign>());
 }
 
+struct TestFirstN {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto mask_lanes = AllocateAligned<T>(N);
+
+    // NOTE: reverse polarity (mask is true iff mask_lanes[i] == 0) because we
+    // cannot reliably compare against all bits set (NaN for float types).
+    const T off = 1;
+
+    for (size_t len = 0; len <= N; ++len) {
+      for (size_t i = 0; i < N; ++i) {
+        mask_lanes[i] = i < len ? T(0) : off;
+      }
+      const auto mask = Eq(Load(d, mask_lanes.get()), Zero(d));
+      HWY_ASSERT_MASK_EQ(d, mask, FirstN(d, len));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFirstN() {
+  ForAllTypes(ForPartialVectors<TestFirstN>());
+}
+
 struct TestIfThenElse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -677,6 +701,7 @@ HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFirstN);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskVec);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);

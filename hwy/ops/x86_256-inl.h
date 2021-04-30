@@ -20,6 +20,7 @@
 // particular, "Broadcast", pack and zip behavior may be surprising.
 
 #include <immintrin.h>  // AVX2+
+
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
@@ -352,6 +353,8 @@ HWY_API Vec256<T> VecFromMask(Full256<T> /* tag */, const Mask256<T> v) {
   return Vec256<T>{v.raw};
 }
 
+// ------------------------------ IfThenElse
+
 // mask ? yes : no
 template <typename T>
 HWY_API Vec256<T> IfThenElse(const Mask256<T> mask, const Vec256<T> yes,
@@ -680,6 +683,14 @@ HWY_API Vec256<float> Max(const Vec256<float> a, const Vec256<float> b) {
 }
 HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{_mm256_max_pd(a.raw, b.raw)};
+}
+
+// ------------------------------ FirstN (Iota, Lt)
+
+template <typename T>
+HWY_API Mask256<T> FirstN(const Full256<T> d, size_t n) {
+  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
+  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(n)));
 }
 
 // ================================================== ARITHMETIC
