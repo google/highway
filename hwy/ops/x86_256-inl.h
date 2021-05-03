@@ -2413,15 +2413,17 @@ HWY_API Vec128<int8_t> DemoteTo(Full128<int8_t> /* tag */,
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(i8, 0x88))};
 }
 
-HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> /* tag */,
-                                   const Vec256<float> v) {
-#if HWY_COMPILER_MSVC
   // Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
   // 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
-#pragma warning(suppress : 4556)
-#endif
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wsign-conversion")
+
+HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> /* tag */,
+                                   const Vec256<float> v) {
   return Vec128<float16_t>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 }
+
+HWY_DIAGNOSTICS(pop)
 
 HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,
                                const Vec256<double> v) {
