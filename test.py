@@ -29,16 +29,22 @@ def print_status(name):
   print("=" * 60, name)
 
 
-def run_blaze_tests(work_dir, target, config_name, blazerc, config):
-  """Builds and runs via blaze."""
+def run_blaze_tests(work_dir, target, desired_config, config_name, blazerc,
+                    config):
+  """Builds and runs via blaze or returns 0 if skipped."""
+  if desired_config is not None and desired_config != config_name:
+    return 0
   print_status(config_name)
   default_config = ["-c", "opt", "--copt=-DHWY_COMPILE_ALL_ATTAINABLE"]
   args = ["blaze"] + blazerc + ["test", ":" + target] + config + default_config
   run_subprocess(args, work_dir)
+  return 1
 
 
-def run_wasm_tests(work_dir, options, target):
-  """Builds wasm via blaze, runs by unpacking and calling v8."""
+def run_wasm_tests(work_dir, target, desired_config, config_name, options):
+  """Runs wasm via blaze/v8, or returns 0 if skipped."""
+  if desired_config is not None and desired_config != config_name:
+    return 0
   args = [options.v8, "--no-liftoff", "--experimental-wasm-simd"]
   # Otherwise v8 returns 0 even after compile failures!
   args.append("--no-wasm-async-compilation")
@@ -81,35 +87,44 @@ def run_wasm_tests(work_dir, options, target):
 
   print("Finished", num_tests_run, "; skipped", ",".join(skipped))
   assert (num_tests_run != 0)
+  return 1
 
 
 def main(args):
   parser = argparse.ArgumentParser(description="Run test(s)")
   parser.add_argument("--v8", help="Pathname to v8 (default ~/jsvu/v8)")
   parser.add_argument("--test", help="Which test to run (defaults to all)")
+  parser.add_argument("--config", help="Which config to run (defaults to all)")
   parser.add_argument("--profile", action="store_true", help="Enable profiling")
   options = parser.parse_args(args)
   if options.v8 is None:
     options.v8 = os.path.join(os.getenv("HOME"), ".jsvu", "v8")
 
   work_dir = os.path.dirname(os.path.realpath(__file__))
-
   target = "hwy_ops_tests" if options.test is None else options.test
 
-  run_blaze_tests(work_dir, target, "x86", [], [])
-  run_blaze_tests(
-      work_dir, target, "RVV",
+  num_config = 0
+  num_config += run_blaze_tests(work_dir, target, options.config, "x86", [], [])
+  num_config += run_blaze_tests(
+      work_dir, target, options.config, "rvv",
       ["--blazerc=../../third_party/unsupported_toolchains/mpu/blazerc"],
       ["--config=mpu64_gcc"])
-  run_blaze_tests(work_dir, target, "ARM64", [], ["--config=android_arm64"])
-  run_blaze_tests(work_dir, target, "ARMv7", [], [
+  num_config += run_blaze_tests(work_dir, target, options.config, "arm8", [],
+                                ["--config=android_arm64"])
+  num_config += run_blaze_tests(work_dir, target, options.config, "arm7", [], [
       "--config=android_arm", "--copt=-mfpu=neon-vfpv4",
       "--copt=-mfloat-abi=softfp"
   ])
-  run_blaze_tests(work_dir, target, "msvc", [], ["--config=msvc"])
-  run_wasm_tests(work_dir, options, target)
+  num_config += run_blaze_tests(work_dir, target, options.config, "msvc", [],
+                                ["--config=msvc"])
+  num_config += run_wasm_tests(work_dir, target, options.config, "wasm",
+                               options)
 
-  print_status("done")
+  if num_config == 0:
+    print_status("ERROR: unknown --config=%s, omit to see valid names" %
+                 (options.config,))
+  else:
+    print_status("done")
 
 
 if __name__ == "__main__":
