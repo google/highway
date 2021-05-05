@@ -15,7 +15,7 @@ applying the same operation to 'lanes'.
 ## Current status
 
 Supported targets: scalar, SSE4, AVX2, AVX-512, NEON (ARMv7 and v8), WASM SIMD.
-A port to RVV is in progress.
+Ports to RVV and SVE/SVE2 are in progress.
 
 Version 0.11 is considered stable enough to use in other projects, and is
 expected to remain backwards compatible unless serious issues are discovered

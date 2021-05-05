@@ -65,7 +65,9 @@
 // HWY_MAX_DYNAMIC_TARGETS in total.
 #define HWY_HIGHEST_TARGET_BIT_X86 9
 
-// 0x400, 0x800, 0x1000 reserved for SVE, SVE2, Helium
+#define HWY_SVE2 0x400
+#define HWY_SVE 0x800
+// 0x1000 reserved for Helium
 #define HWY_NEON 0x2000
 
 #define HWY_HIGHEST_TARGET_BIT_ARM 13
@@ -160,6 +162,18 @@
 #define HWY_BASELINE_PPC8 0
 #endif
 
+#if defined(__ARM_FEATURE_SVE2) && 0
+#define HWY_BASELINE_SVE2 HWY_SVE2
+#else
+#define HWY_BASELINE_SVE2 0
+#endif
+
+#if defined(__ARM_FEATURE_SVE) && 0
+#define HWY_BASELINE_SVE HWY_SVE
+#else
+#define HWY_BASELINE_SVE 0
+#endif
+
 // GCC 4.5.4 only defines the former; 5.4 defines both.
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
 #define HWY_BASELINE_NEON HWY_NEON
@@ -195,9 +209,9 @@
 #endif
 
 #define HWY_BASELINE_TARGETS                                                \
-  (HWY_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | HWY_BASELINE_NEON | \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |              \
-   HWY_BASELINE_RVV)
+  (HWY_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | HWY_BASELINE_SVE2 | \
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE4 |               \
+   HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 | HWY_BASELINE_RVV)
 
 #endif  // HWY_BASELINE_TARGETS
 
@@ -329,6 +343,10 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 #endif
 
 #if HWY_ARCH_ARM
+    case HWY_SVE2:
+      return "SVE2";
+    case HWY_SVE:
+      return "SVE";
     case HWY_NEON:
       return "Neon";
 #endif
@@ -411,21 +429,17 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       nullptr,                    /* SSE3 */     \
       nullptr                     /* SSE2 */
 
-#endif  // HWY_ARCH_X86
-
-#if HWY_ARCH_ARM
+#elif HWY_ARCH_ARM
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 4
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_ARM
 #define HWY_CHOOSE_TARGET_LIST(func_name)       \
-  nullptr,                       /* reserved */ \
-      nullptr,                   /* reserved */ \
+  HWY_CHOOSE_SVE2(func_name),    /* SVE2 */     \
+      HWY_CHOOSE_SVE(func_name), /* SVE */      \
       nullptr,                   /* reserved */ \
       HWY_CHOOSE_NEON(func_name) /* NEON */
 
-#endif  // HWY_ARCH_ARM
-
-#if HWY_ARCH_PPC
+#elif HWY_ARCH_PPC
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 5
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_PPC
@@ -436,9 +450,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       nullptr,                    /* VSX */      \
       nullptr                     /* AltiVec */
 
-#endif  // HWY_ARCH_PPC
-
-#if HWY_ARCH_WASM
+#elif HWY_ARCH_WASM
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 4
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_WASM
@@ -448,9 +460,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       nullptr,                   /* reserved */ \
       HWY_CHOOSE_WASM(func_name) /* WASM */
 
-#endif  // HWY_ARCH_WASM
-
-#if HWY_ARCH_RVV
+#elif HWY_ARCH_RVV
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 4
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_RVV

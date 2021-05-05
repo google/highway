@@ -106,6 +106,7 @@ cc_library(
     textual_hdrs = [
         "hwy/foreach_target.h",  # public
         "hwy/ops/arm_neon-inl.h",
+        "hwy/ops/arm_sve-inl.h",
         "hwy/ops/rvv-inl.h",
         "hwy/ops/scalar-inl.h",
         "hwy/ops/set_macros-inl.h",
