@@ -277,6 +277,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #elif HWY_TARGET == HWY_AVX3
 #include "hwy/ops/x86_512-inl.h"
 #elif HWY_TARGET == HWY_PPC8
+#error "PPC is not yet supported"
 #elif HWY_TARGET == HWY_NEON
 #include "hwy/ops/arm_neon-inl.h"
 #elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2

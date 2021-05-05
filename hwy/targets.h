@@ -156,7 +156,8 @@
 #define HWY_BASELINE_WASM 0
 #endif
 
-#ifdef __VSX__
+// Avoid choosing the PPC target until we have an implementation.
+#if defined(__VSX__) && 0
 #define HWY_BASELINE_PPC8 HWY_PPC8
 #else
 #define HWY_BASELINE_PPC8 0
