@@ -25,11 +25,12 @@
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
 // Include these directly here.
-#include <smmintrin.h>
-#include <avxintrin.h>
 #include <avx2intrin.h>
+#include <avxintrin.h>
+#include <bmi2intrin.h>  // _pext_u64
 #include <f16cintrin.h>
 #include <fmaintrin.h>
+#include <smmintrin.h>
 #endif
 
 #include <stddef.h>
