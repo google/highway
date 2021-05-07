@@ -297,9 +297,9 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS})
 
   if(HWY_SYSTEM_GTEST)
-    target_link_libraries(${TESTNAME} hwy GTest::GTest GTest::Main)
+    target_link_libraries(${TESTNAME} hwy hwy_contrib GTest::GTest GTest::Main)
   else()
-    target_link_libraries(${TESTNAME} hwy gtest gtest_main)
+    target_link_libraries(${TESTNAME} hwy hwy_contrib gtest gtest_main)
   endif()
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
