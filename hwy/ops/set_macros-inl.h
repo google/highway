@@ -197,6 +197,7 @@
 #elif HWY_TARGET == HWY_SCALAR
 
 #define HWY_ALIGN
+// For internal use only; use Lanes(d) instead.
 #define HWY_LANES(T) 1
 
 #define HWY_CAP_INTEGER64 1

@@ -743,9 +743,6 @@ generate such instructions (implying the target CPU would have to support them).
     finally reverts to `HWY_STATIC_TARGET`. Can be used in `#if` expressions to
     provide an alternative to functions which are not supported by HWY_SCALAR.
 
-*   `HWY_LANES(T)`: how many lanes of type `T` in a full vector (>= 1). Used by
-    HWY_FULL/CAPPED. Note: cannot be used in #if because it uses sizeof.
-
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
 
@@ -753,13 +750,14 @@ The following signal capabilities and expand to 1 or 0.
 
 *   `HWY_CAP_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
 *   `HWY_CAP_FLOAT64`: support for double-precision floating-point lanes.
-*   `HWY_CAP_GE256`: the current target supports vectors of >= 256 bits.
-*   `HWY_CAP_GE512`: the current target supports vectors of >= 512 bits.
 
 The following were used to signal the maximum number of lanes for certain
-operations, but this is no longer necessary, so they are DEPRECATED:
+operations, but this is no longer necessary (nor possible on SVE/RVV), so they
+are DEPRECATED:
 
 *   `HWY_GATHER_LANES(T)`.
+*   `HWY_CAP_GE256`: the current target supports vectors of >= 256 bits.
+*   `HWY_CAP_GE512`: the current target supports vectors of >= 512 bits.
 
 ## Detecting supported targets
 
