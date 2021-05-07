@@ -92,6 +92,9 @@
 // 0x2000000, 0x4000000, 0x8000000, 0x10000000 reserved
 
 #define HWY_SCALAR 0x20000000
+
+#define HWY_HIGHEST_TARGET_BIT_SCALAR 29
+
 // Cannot use higher values, otherwise HWY_TARGETS computation might overflow.
 
 //------------------------------------------------------------------------------
@@ -150,33 +153,37 @@
 // user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
 
-#ifdef __wasm_simd128__
+// Also check HWY_ARCH to ensure that simulating unknown platforms ends up with
+// HWY_TARGET == HWY_SCALAR.
+
+#if HWY_ARCH_WASM && defined(__wasm_simd128__)
 #define HWY_BASELINE_WASM HWY_WASM
 #else
 #define HWY_BASELINE_WASM 0
 #endif
 
 // Avoid choosing the PPC target until we have an implementation.
-#if defined(__VSX__) && 0
+#if HWY_ARCH_PPC && defined(__VSX__) && 0
 #define HWY_BASELINE_PPC8 HWY_PPC8
 #else
 #define HWY_BASELINE_PPC8 0
 #endif
 
-#if defined(__ARM_FEATURE_SVE2) && 0
+// Avoid choosing the SVE[2] targets the implementation is ready.
+#if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE2) && 0
 #define HWY_BASELINE_SVE2 HWY_SVE2
 #else
 #define HWY_BASELINE_SVE2 0
 #endif
 
-#if defined(__ARM_FEATURE_SVE) && 0
+#if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE) && 0
 #define HWY_BASELINE_SVE HWY_SVE
 #else
 #define HWY_BASELINE_SVE 0
 #endif
 
 // GCC 4.5.4 only defines the former; 5.4 defines both.
-#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+#if HWY_ARCH_ARM && (defined(__ARM_NEON__) || defined(__ARM_NEON))
 #define HWY_BASELINE_NEON HWY_NEON
 #else
 #define HWY_BASELINE_NEON 0
@@ -185,25 +192,26 @@
 // MSVC does not set SSE4_1, but it does set AVX; checking for the latter means
 // we at least get SSE4 on machines supporting AVX but not AVX2.
 // https://stackoverflow.com/questions/18563978/
-#if defined(__SSE4_1__) || (HWY_COMPILER_MSVC != 0 && defined(__AVX__))
+#if HWY_ARCH_X86 && \
+    (defined(__SSE4_1__) || (HWY_COMPILER_MSVC != 0 && defined(__AVX__)))
 #define HWY_BASELINE_SSE4 HWY_SSE4
 #else
 #define HWY_BASELINE_SSE4 0
 #endif
 
-#ifdef __AVX2__
+#if HWY_ARCH_X86 && defined(__AVX2__)
 #define HWY_BASELINE_AVX2 HWY_AVX2
 #else
 #define HWY_BASELINE_AVX2 0
 #endif
 
-#ifdef __AVX512F__
+#if HWY_ARCH_X86 && defined(__AVX512F__)
 #define HWY_BASELINE_AVX3 HWY_AVX3
 #else
 #define HWY_BASELINE_AVX3 0
 #endif
 
-#ifdef __riscv_vector
+#if HWY_ARCH_RVV && defined(__riscv_vector)
 #define HWY_BASELINE_RVV HWY_RVV
 #else
 #define HWY_BASELINE_RVV 0
@@ -371,7 +379,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       return "Scalar";
 
     default:
-      return "?";
+      return "Unknown";  // must satisfy gtest IsValidParamName()
   }
 }
 
@@ -471,7 +479,12 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       nullptr,                   /* reserved */ \
       HWY_CHOOSE_RVV(func_name) /* RVV */
 
-#endif  // HWY_ARCH_RVV
+#else
+// Unknown architecture, will use HWY_SCALAR without dynamic dispatch, though
+// still creating single-entry tables in HWY_EXPORT to ensure portability.
+#define HWY_MAX_DYNAMIC_TARGETS 1
+#define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_SCALAR
+#endif
 
 struct ChosenTarget {
  public:

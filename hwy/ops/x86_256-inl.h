@@ -2551,8 +2551,7 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, const Mask256<T> mask) {
   const auto compressed =
       _mm256_permute4x64_epi64(sign_bits, _MM_SHUFFLE(3, 1, 2, 0));
   return static_cast<unsigned>(_mm256_movemask_epi8(compressed));
-
-#endif
+#endif  // HWY_ARCH_X86_64
 }
 
 template <typename T>

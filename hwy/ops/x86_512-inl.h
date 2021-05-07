@@ -381,7 +381,7 @@ HWY_API Mask512<T> FirstN(const Full512<T> /*tag*/, size_t n) {
   return Mask512<T>{static_cast<Bits>(_bzhi_u64(~uint64_t(0), n))};
 #else
   return detail::FirstN<T>(n);
-#endif
+#endif  // HWY_ARCH_X86_64
 }
 
 // ------------------------------ IfThenElse

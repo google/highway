@@ -203,6 +203,10 @@
 #define HWY_ARCH_X86_64 0
 #endif
 
+#if HWY_ARCH_X86_32 && HWY_ARCH_X86_64
+#error "Cannot have both x86-32 and x86-64"
+#endif
+
 #if HWY_ARCH_X86_32 || HWY_ARCH_X86_64
 #define HWY_ARCH_X86 1
 #else
@@ -249,9 +253,11 @@
 #define HWY_ARCH_RVV 0
 #endif
 
+// It is an error to detect multiple architectures at the same time, but OK to
+// detect none of the above.
 #if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_WASM + \
-     HWY_ARCH_RVV) != 1
-#error "Must detect exactly one platform"
+     HWY_ARCH_RVV) > 1
+#error "Must not detect more than one architecture"
 #endif
 
 //------------------------------------------------------------------------------
