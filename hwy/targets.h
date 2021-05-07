@@ -111,15 +111,9 @@
 #ifndef HWY_BROKEN_TARGETS
 
 // x86 clang-6: we saw multiple AVX2/3 compile errors and in one case invalid
-// SSE4 codegen (msan failure), so disable all those targets.
+// SSE4 codegen (possibly only for msan), so disable all those targets.
 #if HWY_ARCH_X86 && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700)
-// TODO: Disable all non-scalar targets for every build target once we have
-// clang-7 enabled in our builders.
-#ifdef MEMORY_SANITIZER
 #define HWY_BROKEN_TARGETS (HWY_SSE4 | HWY_AVX2 | HWY_AVX3)
-#else
-#define HWY_BROKEN_TARGETS 0
-#endif
 // This entails a major speed reduction, so warn unless the user explicitly
 // opts in to scalar-only.
 #if !defined(HWY_COMPILE_ONLY_SCALAR)
