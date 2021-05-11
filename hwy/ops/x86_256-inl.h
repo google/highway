@@ -25,8 +25,9 @@
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
 // Include these directly here.
-#include <avx2intrin.h>
 #include <avxintrin.h>
+// avxintrin defines __m256i and must come before avx2intrin.
+#include <avx2intrin.h>
 #include <bmi2intrin.h>  // _pext_u64
 #include <f16cintrin.h>
 #include <fmaintrin.h>
