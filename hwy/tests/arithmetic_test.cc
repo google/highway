@@ -1086,8 +1086,7 @@ struct TestSumOfLanes {
 };
 
 HWY_NOINLINE void TestAllSumOfLanes() {
-  // Only full vectors because lanes in partial vectors are undefined.
-  const ForFullVectors<TestSumOfLanes> sum;
+  const ForPartialVectors<TestSumOfLanes> sum;
 
   // No u8/u16/i8/i16.
   sum(uint32_t());
@@ -1153,9 +1152,8 @@ struct TestMaxOfLanes {
 };
 
 HWY_NOINLINE void TestAllMinMaxOfLanes() {
-  // Only full vectors because lanes in partial vectors are undefined.
-  const ForFullVectors<TestMinOfLanes> min;
-  const ForFullVectors<TestMaxOfLanes> max;
+  const ForPartialVectors<TestMinOfLanes> min;
+  const ForPartialVectors<TestMaxOfLanes> max;
 
   // No u8/u16/i8/i16.
   min(uint32_t());

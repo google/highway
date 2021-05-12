@@ -698,9 +698,9 @@ more expensive on AVX2/AVX-512 than within-block operations.
 
 ### Reductions
 
-**Note**: the following are only available for full vectors (including scalar).
-These 'reduce' all lanes to a single result. This result is broadcasted to all
-lanes at no extra cost; you can use `GetLane` to obtain the value.
+**Note**: these 'reduce' all lanes to a single result (e.g. sum), which is
+broadcasted to all lanes at no extra cost. To obtain a scalar, you can call
+`GetLane`.
 
 Being a horizontal operation (across lanes of the same vector), these are slower
 than normal SIMD operations and are typically used outside critical loops.

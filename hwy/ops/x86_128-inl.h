@@ -3604,55 +3604,87 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> in0,
 
 namespace detail {
 
-// For u32/i32/f32.
-template <typename T, size_t N>
-HWY_API Vec128<T, N> SumOfLanes(hwy::SizeTag<4> /* tag */,
-                                const Vec128<T, N> v3210) {
+// N=1 for any T: no-op
+template <typename T>
+HWY_API Vec128<T, 1> SumOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                const Vec128<T, 1> v) {
+  return v;
+}
+template <typename T>
+HWY_API Vec128<T, 1> MinOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                const Vec128<T, 1> v) {
+  return v;
+}
+template <typename T>
+HWY_API Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                const Vec128<T, 1> v) {
+  return v;
+}
+
+// u32/i32/f32:
+
+// N=2
+template <typename T>
+HWY_API Vec128<T, 2> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T, 2> v10) {
+  return v10 + Vec128<T, 2>{Shuffle2301(Vec128<T>{v10.raw}).raw};
+}
+template <typename T>
+HWY_API Vec128<T, 2> MinOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T, 2> v10) {
+  return Min(v10, Vec128<T, 2>{Shuffle2301(Vec128<T>{v10.raw}).raw});
+}
+template <typename T>
+HWY_API Vec128<T, 2> MaxOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T, 2> v10) {
+  return Max(v10, Vec128<T, 2>{Shuffle2301(Vec128<T>{v10.raw}).raw});
+}
+
+// N=4 (full)
+template <typename T>
+HWY_API Vec128<T> SumOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
   const Vec128<T> v1032 = Shuffle1032(v3210);
   const Vec128<T> v31_20_31_20 = v3210 + v1032;
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return v20_31_20_31 + v31_20_31_20;
 }
-template <typename T, size_t N>
-HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<4> /* tag */,
-                                const Vec128<T, N> v3210) {
+template <typename T>
+HWY_API Vec128<T> MinOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
   const Vec128<T> v1032 = Shuffle1032(v3210);
   const Vec128<T> v31_20_31_20 = Min(v3210, v1032);
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return Min(v20_31_20_31, v31_20_31_20);
 }
-template <typename T, size_t N>
-HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<4> /* tag */,
-                                const Vec128<T, N> v3210) {
+template <typename T>
+HWY_API Vec128<T> MaxOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
   const Vec128<T> v1032 = Shuffle1032(v3210);
   const Vec128<T> v31_20_31_20 = Max(v3210, v1032);
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return Max(v20_31_20_31, v31_20_31_20);
 }
 
-// For u64/i64/f64.
-template <typename T, size_t N>
-HWY_API Vec128<T, N> SumOfLanes(hwy::SizeTag<8> /* tag */,
-                                const Vec128<T, N> v10) {
+// u64/i64/f64:
+
+// N=2 (full)
+template <typename T>
+HWY_API Vec128<T> SumOfLanes(hwy::SizeTag<8> /* tag */, const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return v10 + v01;
 }
-template <typename T, size_t N>
-HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<8> /* tag */,
-                                const Vec128<T, N> v10) {
+template <typename T>
+HWY_API Vec128<T> MinOfLanes(hwy::SizeTag<8> /* tag */, const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Min(v10, v01);
 }
-template <typename T, size_t N>
-HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<8> /* tag */,
-                                const Vec128<T, N> v10) {
+template <typename T>
+HWY_API Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */, const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Max(v10, v01);
 }
 
 }  // namespace detail
 
-// Supported for u/i/f 32/64. Returns the sum in each lane.
+// Supported for u/i/f 32/64. Returns the same value in each lane.
 template <typename T, size_t N>
 HWY_API Vec128<T, N> SumOfLanes(const Vec128<T, N> v) {
   return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), v);
