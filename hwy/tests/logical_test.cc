@@ -524,7 +524,7 @@ struct TestTestBit {
 };
 
 HWY_NOINLINE void TestAllTestBit() {
-  ForIntegerTypes(ForFullVectors<TestTestBit>());
+  ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
 struct TestAllTrueFalse {
@@ -688,7 +688,7 @@ struct TestLogicalMask {
 };
 
 HWY_NOINLINE void TestAllLogicalMask() {
-  ForAllTypes(ForFullVectors<TestLogicalMask>());
+  ForAllTypes(ForPartialVectors<TestLogicalMask>());
 }
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

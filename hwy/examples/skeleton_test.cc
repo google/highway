@@ -58,7 +58,7 @@ struct TestFloorLog2 {
 };
 
 HWY_NOINLINE void TestAllFloorLog2() {
-  ForFullVectors<TestFloorLog2>()(float());
+  ForPartialVectors<TestFloorLog2>()(float());
 }
 
 // Calls function defined in skeleton-inl.h.

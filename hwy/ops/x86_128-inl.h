@@ -2282,44 +2282,47 @@ HWY_API Vec128<float> Shuffle0123(const Vec128<float> v) {
 // ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.
-template <typename T>
+template <typename T, size_t N>
 struct Indices128 {
   __m128i raw;
 };
 
-template <typename T>
-HWY_API Indices128<T> SetTableIndices(Full128<T>, const int32_t* idx) {
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
-  const size_t N = 16 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
   }
 #endif
 
-  const Full128<uint8_t> d8;
-  alignas(16) uint8_t control[16];
-  for (size_t idx_byte = 0; idx_byte < 16; ++idx_byte) {
-    const size_t idx_lane = idx_byte / sizeof(T);
-    const size_t mod = idx_byte % sizeof(T);
-    control[idx_byte] = static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + mod);
+  const Repartition<uint8_t, decltype(d)> d8;
+  alignas(16) uint8_t control[16] = {0};
+  for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
+    for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
+      control[idx_lane * sizeof(T) + idx_byte] =
+          static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + idx_byte);
+    }
   }
-  return Indices128<T>{Load(d8, control).raw};
+  return Indices128<T, N>{Load(d8, control).raw};
 }
 
-HWY_API Vec128<uint32_t> TableLookupLanes(const Vec128<uint32_t> v,
-                                          const Indices128<uint32_t> idx) {
-  return TableLookupBytes(v, Vec128<uint32_t>{idx.raw});
+template <size_t N>
+HWY_API Vec128<uint32_t, N> TableLookupLanes(
+    const Vec128<uint32_t, N> v, const Indices128<uint32_t, N> idx) {
+  return TableLookupBytes(v, Vec128<uint32_t, N>{idx.raw});
 }
-HWY_API Vec128<int32_t> TableLookupLanes(const Vec128<int32_t> v,
-                                         const Indices128<int32_t> idx) {
-  return TableLookupBytes(v, Vec128<int32_t>{idx.raw});
+template <size_t N>
+HWY_API Vec128<int32_t, N> TableLookupLanes(const Vec128<int32_t, N> v,
+                                            const Indices128<int32_t, N> idx) {
+  return TableLookupBytes(v, Vec128<int32_t, N>{idx.raw});
 }
-HWY_API Vec128<float> TableLookupLanes(const Vec128<float> v,
-                                       const Indices128<float> idx) {
-  const Full128<int32_t> di;
-  const Full128<float> df;
+template <size_t N>
+HWY_API Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
+                                          const Indices128<float, N> idx) {
+  const Simd<int32_t, N> di;
+  const Simd<float, N> df;
   return BitCast(df,
-                 TableLookupBytes(BitCast(di, v), Vec128<int32_t>{idx.raw}));
+                 TableLookupBytes(BitCast(di, v), Vec128<int32_t, N>{idx.raw}));
 }
 
 // ------------------------------ Interleave lanes
