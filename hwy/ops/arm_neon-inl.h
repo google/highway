@@ -26,6 +26,8 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+namespace detail {  // for code folding and Raw128
+
 // Macros used to define single and double function calls for multiple types
 // for full and half vectors. These macros are undefined at the end of the file.
 
@@ -437,12 +439,14 @@ struct Raw128<int8_t, 1> {
   using type = int8x8_t;
 };
 
+}  // namespace detail
+
 template <typename T>
 using Full128 = Simd<T, 16 / sizeof(T)>;
 
 template <typename T, size_t N = 16 / sizeof(T)>
 class Vec128 {
-  using Raw = typename Raw128<T, N>::type;
+  using Raw = typename detail::Raw128<T, N>::type;
 
  public:
   HWY_INLINE Vec128() {}
@@ -480,7 +484,8 @@ class Vec128 {
 // FF..FF or 0, also for floating-point - see README.
 template <typename T, size_t N = 16 / sizeof(T)>
 class Mask128 {
-  using Raw = typename Raw128<T, N>::type;
+  // ARM C Language Extensions return and expect unsigned type.
+  using Raw = typename detail::Raw128<MakeUnsigned<T>, N>::type;
 
  public:
   HWY_INLINE Mask128() {}
@@ -664,7 +669,7 @@ template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Undefined(Simd<T, N> /*d*/) {
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
-  typename Raw128<T, N>::type a;
+  typename detail::Raw128<T, N>::type a;
   return Vec128<T, N>(a);
   HWY_DIAGNOSTICS(pop)
 }
@@ -679,10 +684,10 @@ Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
   return Load(d, lanes);
 }
 
-// ------------------------------ Extract lane
+// ------------------------------ GetLane
 
 HWY_INLINE uint8_t GetLane(const Vec128<uint8_t, 16> v) {
-  return vget_lane_u8(vget_low_u8(v.raw), 0);
+  return vgetq_lane_u8(v.raw, 0);
 }
 template <size_t N>
 HWY_INLINE uint8_t GetLane(const Vec128<uint8_t, N> v) {
@@ -690,7 +695,7 @@ HWY_INLINE uint8_t GetLane(const Vec128<uint8_t, N> v) {
 }
 
 HWY_INLINE int8_t GetLane(const Vec128<int8_t, 16> v) {
-  return vget_lane_s8(vget_low_s8(v.raw), 0);
+  return vgetq_lane_s8(v.raw, 0);
 }
 template <size_t N>
 HWY_INLINE int8_t GetLane(const Vec128<int8_t, N> v) {
@@ -698,7 +703,7 @@ HWY_INLINE int8_t GetLane(const Vec128<int8_t, N> v) {
 }
 
 HWY_INLINE uint16_t GetLane(const Vec128<uint16_t, 8> v) {
-  return vget_lane_u16(vget_low_u16(v.raw), 0);
+  return vgetq_lane_u16(v.raw, 0);
 }
 template <size_t N>
 HWY_INLINE uint16_t GetLane(const Vec128<uint16_t, N> v) {
@@ -706,7 +711,7 @@ HWY_INLINE uint16_t GetLane(const Vec128<uint16_t, N> v) {
 }
 
 HWY_INLINE int16_t GetLane(const Vec128<int16_t, 8> v) {
-  return vget_lane_s16(vget_low_s16(v.raw), 0);
+  return vgetq_lane_s16(v.raw, 0);
 }
 template <size_t N>
 HWY_INLINE int16_t GetLane(const Vec128<int16_t, N> v) {
@@ -714,7 +719,7 @@ HWY_INLINE int16_t GetLane(const Vec128<int16_t, N> v) {
 }
 
 HWY_INLINE uint32_t GetLane(const Vec128<uint32_t, 4> v) {
-  return vget_lane_u32(vget_low_u32(v.raw), 0);
+  return vgetq_lane_u32(v.raw, 0);
 }
 template <size_t N>
 HWY_INLINE uint32_t GetLane(const Vec128<uint32_t, N> v) {
@@ -722,7 +727,7 @@ HWY_INLINE uint32_t GetLane(const Vec128<uint32_t, N> v) {
 }
 
 HWY_INLINE int32_t GetLane(const Vec128<int32_t, 4> v) {
-  return vget_lane_s32(vget_low_s32(v.raw), 0);
+  return vgetq_lane_s32(v.raw, 0);
 }
 template <size_t N>
 HWY_INLINE int32_t GetLane(const Vec128<int32_t, N> v) {
@@ -730,20 +735,20 @@ HWY_INLINE int32_t GetLane(const Vec128<int32_t, N> v) {
 }
 
 HWY_INLINE uint64_t GetLane(const Vec128<uint64_t, 2> v) {
-  return vget_lane_u64(vget_low_u64(v.raw), 0);
+  return vgetq_lane_u64(v.raw, 0);
 }
 HWY_INLINE uint64_t GetLane(const Vec128<uint64_t, 1> v) {
   return vget_lane_u64(v.raw, 0);
 }
 HWY_INLINE int64_t GetLane(const Vec128<int64_t, 2> v) {
-  return vget_lane_s64(vget_low_s64(v.raw), 0);
+  return vgetq_lane_s64(v.raw, 0);
 }
 HWY_INLINE int64_t GetLane(const Vec128<int64_t, 1> v) {
   return vget_lane_s64(v.raw, 0);
 }
 
 HWY_INLINE float GetLane(const Vec128<float, 4> v) {
-  return vget_lane_f32(vget_low_f32(v.raw), 0);
+  return vgetq_lane_f32(v.raw, 0);
 }
 HWY_INLINE float GetLane(const Vec128<float, 2> v) {
   return vget_lane_f32(v.raw, 0);
@@ -753,7 +758,7 @@ HWY_INLINE float GetLane(const Vec128<float, 1> v) {
 }
 #if HWY_ARCH_ARM_A64
 HWY_INLINE double GetLane(const Vec128<double, 2> v) {
-  return vget_lane_f64(vget_low_f64(v.raw), 0);
+  return vgetq_lane_f64(v.raw, 0);
 }
 HWY_INLINE double GetLane(const Vec128<double, 1> v) {
   return vget_lane_f64(v.raw, 0);
@@ -795,8 +800,6 @@ HWY_NEON_DEF_FUNCTION_INT_64(SaturatedSub, vqsub, _, 2)
 // ------------------------------ Average
 
 // Returns (a + b + 1) / 2
-
-// Unsigned
 HWY_NEON_DEF_FUNCTION_UINT_8(AverageRound, vrhadd, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_16(AverageRound, vrhadd, _, 2)
 
@@ -1380,69 +1383,6 @@ HWY_INLINE Vec128<float, N> Sqrt(const Vec128<float, N> v) {
 }
 #endif
 
-// ================================================== COMPARE
-
-// Comparisons fill a lane with 1-bits if the condition is true, else 0.
-
-template <typename TFrom, typename TTo, size_t N>
-HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
-  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask128<TTo, N>{m.raw};
-}
-
-#define HWY_NEON_BUILD_TPL_HWY_COMPARE
-#define HWY_NEON_BUILD_RET_HWY_COMPARE(type, size) Mask128<type, size>
-#define HWY_NEON_BUILD_PARAM_HWY_COMPARE(type, size) \
-  const Vec128<type, size> a, const Vec128<type, size> b
-#define HWY_NEON_BUILD_ARG_HWY_COMPARE a.raw, b.raw
-
-// ------------------------------ Equality
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator==, vceq, _, HWY_COMPARE)
-#if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator==, vceq, _, HWY_COMPARE)
-#else
-// No 64-bit comparisons on armv7: emulate them below, after Shuffle2301.
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator==, vceq, _, HWY_COMPARE)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator==, vceq, _, HWY_COMPARE)
-#endif
-
-// ------------------------------ Strict inequality
-
-// Signed/float < (no unsigned)
-#if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS(operator<, vclt, _, HWY_COMPARE)
-#else
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator<, vclt, _, HWY_COMPARE)
-#endif
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<, vclt, _, HWY_COMPARE)
-
-// Signed/float > (no unsigned)
-#if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS(operator>, vcgt, _, HWY_COMPARE)
-#else
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator>, vcgt, _, HWY_COMPARE)
-#endif
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator>, vcgt, _, HWY_COMPARE)
-
-// ------------------------------ Weak inequality
-
-// Float <= >=
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<=, vcle, _, HWY_COMPARE)
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator>=, vcge, _, HWY_COMPARE)
-
-#undef HWY_NEON_BUILD_TPL_HWY_COMPARE
-#undef HWY_NEON_BUILD_RET_HWY_COMPARE
-#undef HWY_NEON_BUILD_PARAM_HWY_COMPARE
-#undef HWY_NEON_BUILD_ARG_HWY_COMPARE
-
-// ------------------------------ FirstN (Iota, Lt)
-
-template <typename T, size_t N>
-HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
-  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(num)));
-}
-
 // ================================================== LOGICAL
 
 // ------------------------------ Not
@@ -1450,13 +1390,16 @@ HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
 // There is no 64-bit vmvn, so cast instead of using HWY_NEON_DEF_FUNCTION.
 template <typename T>
 HWY_INLINE Vec128<T> Not(const Vec128<T> v) {
-  const Full128<uint8_t> d8;
-  return Vec128<T>(vmvnq_u8(BitCast(d8, v).raw));
+  const Full128<T> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, Vec128<uint8_t>(vmvnq_u8(BitCast(d8, v).raw)));
 }
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_INLINE Vec128<T, N> Not(const Vec128<T, N> v) {
-  const Repartition<uint8_t, Simd<T, N>> d8;
-  return Vec128<T, N>(vmvn_u8(BitCast(d8, v).raw));
+  const Simd<T, N> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  using V8 = decltype(Zero(d8));
+  return BitCast(d, V8(vmvn_u8(BitCast(d8, v).raw)));
 }
 
 // ------------------------------ And
@@ -1556,57 +1499,38 @@ HWY_API Vec128<T, N> BroadcastSignBit(const Vec128<T, N> v) {
   return ShiftRight<sizeof(T) * 8 - 1>(v);
 }
 
-// ------------------------------ Make mask
+// ================================================== MASK
 
-#define HWY_NEON_BUILD_TPL_HWY_TESTBIT
-#define HWY_NEON_BUILD_RET_HWY_TESTBIT(type, size) Mask128<type, size>
-#define HWY_NEON_BUILD_PARAM_HWY_TESTBIT(type, size) \
-  Vec128<type, size> v, Vec128<type, size> bit
-#define HWY_NEON_BUILD_ARG_HWY_TESTBIT v.raw, bit.raw
+// ------------------------------ To/from vector
 
-#if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(TestBit, vtst, _, HWY_TESTBIT)
-#else
-// No 64-bit versions on armv7
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(TestBit, vtst, _, HWY_TESTBIT)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(TestBit, vtst, _, HWY_TESTBIT)
-
-template <size_t N>
-HWY_INLINE Mask128<uint64_t, N> TestBit(Vec128<uint64_t, N> v,
-                                        Vec128<uint64_t, N> bit) {
-  return (v & bit) == bit;
-}
-template <size_t N>
-HWY_INLINE Mask128<int64_t, N> TestBit(Vec128<int64_t, N> v,
-                                       Vec128<int64_t, N> bit) {
-  return (v & bit) == bit;
-}
-
-#endif
-#undef HWY_NEON_BUILD_TPL_HWY_TESTBIT
-#undef HWY_NEON_BUILD_RET_HWY_TESTBIT
-#undef HWY_NEON_BUILD_PARAM_HWY_TESTBIT
-#define HWY_NEON_BUILD_ARG_HWY_TESTBIT
-
-// Mask and Vec are the same (true = FF..FF).
+// Mask and Vec have the same representation (true = FF..FF).
 template <typename T, size_t N>
 HWY_INLINE Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
-  return Mask128<T, N>(v.raw);
+  const Simd<MakeUnsigned<T>, N> du;
+  return Mask128<T, N>(BitCast(du, v).raw);
 }
 
+// DEPRECATED
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
-  return Vec128<T, N>(v.raw);
+  return BitCast(Simd<T, N>(), Vec128<MakeUnsigned<T>, N>(v.raw));
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> VecFromMask(Simd<T, N> /* tag */,
-                                     const Mask128<T, N> v) {
-  return Vec128<T, N>(v.raw);
+HWY_INLINE Vec128<T, N> VecFromMask(Simd<T, N> d, const Mask128<T, N> v) {
+  return BitCast(d, Vec128<MakeUnsigned<T>, N>(v.raw));
 }
 
-// IfThenElse(mask, yes, no)
-// Returns mask ? b : a.
+// ------------------------------ RebindMask
+
+template <typename TFrom, typename TTo, size_t N>
+HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> dto, Mask128<TFrom, N> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return MaskFromVec(BitCast(dto, VecFromMask(Simd<TFrom, N>(), m)));
+}
+
+// ------------------------------ IfThenElse(mask, yes, no) = mask ? b : a.
+
 #define HWY_NEON_BUILD_TPL_HWY_IF
 #define HWY_NEON_BUILD_RET_HWY_IF(type, size) Vec128<type, size>
 #define HWY_NEON_BUILD_PARAM_HWY_IF(type, size)                 \
@@ -1641,23 +1565,6 @@ HWY_INLINE Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
   return Max(zero, v);
 }
 
-HWY_INLINE Vec128<int64_t> Abs(const Vec128<int64_t> v) {
-#if HWY_ARCH_ARM_A64
-  return Vec128<int64_t>(vabsq_s64(v.raw));
-#else
-  const auto zero = Zero(Full128<int64_t>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
-#endif
-}
-HWY_INLINE Vec128<int64_t, 1> Abs(const Vec128<int64_t, 1> v) {
-#if HWY_ARCH_ARM_A64
-  return Vec128<int64_t, 1>(vabs_s64(v.raw));
-#else
-  const auto zero = Zero(Simd<int64_t, 1>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
-#endif
-}
-
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
@@ -1688,6 +1595,194 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   const Simd<T, N> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
+}
+
+// ================================================== COMPARE
+
+// Comparisons fill a lane with 1-bits if the condition is true, else 0.
+
+// ------------------------------ Shuffle2301 (for i64 compares)
+
+// Swap 32-bit halves in 64-bits
+HWY_INLINE Vec128<uint32_t, 2> Shuffle2301(const Vec128<uint32_t, 2> v) {
+  return Vec128<uint32_t, 2>(vrev64_u32(v.raw));
+}
+HWY_INLINE Vec128<int32_t, 2> Shuffle2301(const Vec128<int32_t, 2> v) {
+  return Vec128<int32_t, 2>(vrev64_s32(v.raw));
+}
+HWY_INLINE Vec128<float, 2> Shuffle2301(const Vec128<float, 2> v) {
+  return Vec128<float, 2>(vrev64_f32(v.raw));
+}
+HWY_INLINE Vec128<uint32_t> Shuffle2301(const Vec128<uint32_t> v) {
+  return Vec128<uint32_t>(vrev64q_u32(v.raw));
+}
+HWY_INLINE Vec128<int32_t> Shuffle2301(const Vec128<int32_t> v) {
+  return Vec128<int32_t>(vrev64q_s32(v.raw));
+}
+HWY_INLINE Vec128<float> Shuffle2301(const Vec128<float> v) {
+  return Vec128<float>(vrev64q_f32(v.raw));
+}
+
+// Intrinsics return unsigned mask, and our macros do not support casting,
+// so the intrinsics reside in detail and are called from a wrapper.
+namespace detail {
+
+#define HWY_NEON_BUILD_TPL_HWY_COMPARE
+#define HWY_NEON_BUILD_RET_HWY_COMPARE(type, size) Mask128<type, size>
+#define HWY_NEON_BUILD_PARAM_HWY_COMPARE(type, size) \
+  const Vec128<type, size> a, const Vec128<type, size> b
+#define HWY_NEON_BUILD_ARG_HWY_COMPARE a.raw, b.raw
+
+// ------------------------------ Equality
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Eq, vceq, _, HWY_COMPARE)
+#if HWY_ARCH_ARM_A64
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(Eq, vceq, _, HWY_COMPARE)
+#else
+// No 64-bit comparisons on armv7: emulate them below, after Shuffle2301.
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(Eq, vceq, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Eq, vceq, _, HWY_COMPARE)
+#endif
+
+// ------------------------------ Strict inequality (signed, float)
+#if HWY_ARCH_ARM_A64
+HWY_NEON_DEF_FUNCTION_INTS(Lt, vclt, _, HWY_COMPARE)
+#else
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(Lt, vclt, _, HWY_COMPARE)
+#endif
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Lt, vclt, _, HWY_COMPARE)
+
+// ------------------------------ Weak inequality (float)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Le, vcle, _, HWY_COMPARE)
+
+#undef HWY_NEON_BUILD_TPL_HWY_COMPARE
+#undef HWY_NEON_BUILD_RET_HWY_COMPARE
+#undef HWY_NEON_BUILD_PARAM_HWY_COMPARE
+#undef HWY_NEON_BUILD_ARG_HWY_COMPARE
+
+}  // namespace detail
+
+// ------------------------------ ARMv7 i64 compare (Shuffle2301, Eq)
+
+#if HWY_ARCH_ARM_V7
+namespace detail {
+
+template <size_t N>
+HWY_INLINE Mask128<int64_t, N> Eq(const Vec128<int64_t, N> a,
+                                  const Vec128<int64_t, N> b) {
+  const Simd<int32_t, N * 2> d32;
+  const Simd<int64_t, N> d64;
+  const auto cmp32 = VecFromMask(d32, Eq(BitCast(d32, a), BitCast(d32, b)));
+  const auto cmp64 = cmp32 & Shuffle2301(cmp32);
+  return MaskFromVec(BitCast(d64, cmp64));
+}
+
+template <size_t N>
+HWY_INLINE Mask128<uint64_t, N> Eq(const Vec128<uint64_t, N> a,
+                                   const Vec128<uint64_t, N> b) {
+  const Simd<uint32_t, N * 2> d32;
+  const Simd<uint64_t, N> d64;
+  const auto cmp32 = VecFromMask(d32, Eq(BitCast(d32, a), BitCast(d32, b)));
+  const auto cmp64 = cmp32 & Shuffle2301(cmp32);
+  return MaskFromVec(BitCast(d64, cmp64));
+}
+
+HWY_INLINE Mask128<int64_t> Lt(const Vec128<int64_t> a,
+                               const Vec128<int64_t> b) {
+  const int64x2_t sub = vqsubq_s64(a.raw, b.raw);
+  return MaskFromVec(BroadcastSignBit(Vec128<int64_t>(sub)));
+}
+HWY_INLINE Mask128<int64_t, 1> Lt(const Vec128<int64_t, 1> a,
+                                  const Vec128<int64_t, 1> b) {
+  const int64x1_t sub = vqsub_s64(a.raw, b.raw);
+  return MaskFromVec(BroadcastSignBit(Vec128<int64_t, 1>(sub)));
+}
+
+}  // namespace detail
+#endif
+
+// ------------------------------ Comparison wrapper
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator==(Vec128<T, N> a, Vec128<T, N> b) {
+  return RebindMask(Simd<T, N>(), detail::Eq(a, b));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator<(Vec128<T, N> a, Vec128<T, N> b) {
+  return RebindMask(Simd<T, N>(), detail::Lt(a, b));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator<=(Vec128<T, N> a, Vec128<T, N> b) {
+  return RebindMask(Simd<T, N>(), detail::Le(a, b));
+}
+
+// Swapped operand order
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
+  return operator<(b, a);
+}
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator>=(Vec128<T, N> a, Vec128<T, N> b) {
+  return operator<=(b, a);
+}
+
+// ------------------------------ FirstN (Iota, Lt)
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
+  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
+  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(num)));
+}
+
+// ------------------------------ TestBit (Eq)
+
+#define HWY_NEON_BUILD_TPL_HWY_TESTBIT
+#define HWY_NEON_BUILD_RET_HWY_TESTBIT(type, size) Mask128<type, size>
+#define HWY_NEON_BUILD_PARAM_HWY_TESTBIT(type, size) \
+  Vec128<type, size> v, Vec128<type, size> bit
+#define HWY_NEON_BUILD_ARG_HWY_TESTBIT v.raw, bit.raw
+
+#if HWY_ARCH_ARM_A64
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(TestBit, vtst, _, HWY_TESTBIT)
+#else
+// No 64-bit versions on armv7
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(TestBit, vtst, _, HWY_TESTBIT)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(TestBit, vtst, _, HWY_TESTBIT)
+
+template <size_t N>
+HWY_INLINE Mask128<uint64_t, N> TestBit(Vec128<uint64_t, N> v,
+                                        Vec128<uint64_t, N> bit) {
+  return (v & bit) == bit;
+}
+template <size_t N>
+HWY_INLINE Mask128<int64_t, N> TestBit(Vec128<int64_t, N> v,
+                                       Vec128<int64_t, N> bit) {
+  return (v & bit) == bit;
+}
+
+#endif
+#undef HWY_NEON_BUILD_TPL_HWY_TESTBIT
+#undef HWY_NEON_BUILD_RET_HWY_TESTBIT
+#undef HWY_NEON_BUILD_PARAM_HWY_TESTBIT
+#undef HWY_NEON_BUILD_ARG_HWY_TESTBIT
+
+// ------------------------------ Abs i64 (IfThenElse, BroadcastSignBit)
+HWY_INLINE Vec128<int64_t> Abs(const Vec128<int64_t> v) {
+#if HWY_ARCH_ARM_A64
+  return Vec128<int64_t>(vabsq_s64(v.raw));
+#else
+  const auto zero = Zero(Full128<int64_t>());
+  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
+#endif
+}
+HWY_INLINE Vec128<int64_t, 1> Abs(const Vec128<int64_t, 1> v) {
+#if HWY_ARCH_ARM_A64
+  return Vec128<int64_t, 1>(vabs_s64(v.raw));
+#else
+  const auto zero = Zero(Simd<int64_t, 1>());
+  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
+#endif
 }
 
 // ------------------------------ Min (IfThenElse, BroadcastSignBit)
@@ -1888,73 +1983,72 @@ HWY_INLINE Vec128<double, 1> LoadU(Simd<double, 1> /* tag */,
 // we don't actually care what is in it, and we don't want
 // to introduce extra overhead by initializing it to something.
 
-HWY_INLINE Vec128<uint8_t, 4> LoadU(Simd<uint8_t, 4> d,
+HWY_INLINE Vec128<uint8_t, 4> LoadU(Simd<uint8_t, 4> /*tag*/,
                                     const uint8_t* HWY_RESTRICT p) {
-  uint32x2_t a = Undefined(d).raw;
+  uint32x2_t a = Undefined(Simd<uint32_t, 2>()).raw;
   uint32x2_t b = vld1_lane_u32(reinterpret_cast<const uint32_t*>(p), a, 0);
   return Vec128<uint8_t, 4>(vreinterpret_u8_u32(b));
 }
-HWY_INLINE Vec128<uint16_t, 2> LoadU(Simd<uint16_t, 2> d,
+HWY_INLINE Vec128<uint16_t, 2> LoadU(Simd<uint16_t, 2> /*tag*/,
                                      const uint16_t* HWY_RESTRICT p) {
-  uint32x2_t a = Undefined(d).raw;
+  uint32x2_t a = Undefined(Simd<uint32_t, 2>()).raw;
   uint32x2_t b = vld1_lane_u32(reinterpret_cast<const uint32_t*>(p), a, 0);
   return Vec128<uint16_t, 2>(vreinterpret_u16_u32(b));
 }
-HWY_INLINE Vec128<uint32_t, 1> LoadU(Simd<uint32_t, 1> d,
+HWY_INLINE Vec128<uint32_t, 1> LoadU(Simd<uint32_t, 1> /*tag*/,
                                      const uint32_t* HWY_RESTRICT p) {
-  uint32x2_t a = Undefined(d).raw;
+  uint32x2_t a = Undefined(Simd<uint32_t, 2>()).raw;
   uint32x2_t b = vld1_lane_u32(p, a, 0);
   return Vec128<uint32_t, 1>(b);
 }
-HWY_INLINE Vec128<int8_t, 4> LoadU(Simd<int8_t, 4> d,
+HWY_INLINE Vec128<int8_t, 4> LoadU(Simd<int8_t, 4> /*tag*/,
                                    const int8_t* HWY_RESTRICT p) {
-  int32x2_t a = Undefined(d).raw;
+  int32x2_t a = Undefined(Simd<int32_t, 2>()).raw;
   int32x2_t b = vld1_lane_s32(reinterpret_cast<const int32_t*>(p), a, 0);
   return Vec128<int8_t, 4>(vreinterpret_s8_s32(b));
 }
-HWY_INLINE Vec128<int16_t, 2> LoadU(Simd<int16_t, 2> d,
+HWY_INLINE Vec128<int16_t, 2> LoadU(Simd<int16_t, 2> /*tag*/,
                                     const int16_t* HWY_RESTRICT p) {
-  int32x2_t a = Undefined(d).raw;
+  int32x2_t a = Undefined(Simd<int32_t, 2>()).raw;
   int32x2_t b = vld1_lane_s32(reinterpret_cast<const int32_t*>(p), a, 0);
   return Vec128<int16_t, 2>(vreinterpret_s16_s32(b));
 }
-HWY_INLINE Vec128<int32_t, 1> LoadU(Simd<int32_t, 1> d,
+HWY_INLINE Vec128<int32_t, 1> LoadU(Simd<int32_t, 1> /*tag*/,
                                     const int32_t* HWY_RESTRICT p) {
-  int32x2_t a = Undefined(d).raw;
+  int32x2_t a = Undefined(Simd<int32_t, 2>()).raw;
   int32x2_t b = vld1_lane_s32(p, a, 0);
   return Vec128<int32_t, 1>(b);
 }
-HWY_INLINE Vec128<float, 1> LoadU(Simd<float, 1> d,
+HWY_INLINE Vec128<float, 1> LoadU(Simd<float, 1> /*tag*/,
                                   const float* HWY_RESTRICT p) {
-  float32x2_t a = Undefined(d).raw;
+  float32x2_t a = Undefined(Simd<float, 2>()).raw;
   float32x2_t b = vld1_lane_f32(p, a, 0);
   return Vec128<float, 1>(b);
 }
 
 // ------------------------------ Load 16
 
-HWY_INLINE Vec128<uint8_t, 2> LoadU(Simd<uint8_t, 2> d,
+HWY_INLINE Vec128<uint8_t, 2> LoadU(Simd<uint8_t, 2> /*tag*/,
                                     const uint8_t* HWY_RESTRICT p) {
-  uint16x4_t a = Undefined(d).raw;
+  uint16x4_t a = Undefined(Simd<uint16_t, 4>()).raw;
   uint16x4_t b = vld1_lane_u16(reinterpret_cast<const uint16_t*>(p), a, 0);
   return Vec128<uint8_t, 2>(vreinterpret_u8_u16(b));
 }
-HWY_INLINE Vec128<uint16_t, 1> LoadU(Simd<uint16_t, 1> d,
+HWY_INLINE Vec128<uint16_t, 1> LoadU(Simd<uint16_t, 1> /*tag*/,
                                      const uint16_t* HWY_RESTRICT p) {
-  uint16x4_t a = Undefined(d).raw;
+  uint16x4_t a = Undefined(Simd<uint16_t, 4>()).raw;
   uint16x4_t b = vld1_lane_u16(p, a, 0);
   return Vec128<uint16_t, 1>(b);
 }
-
-HWY_INLINE Vec128<int8_t, 2> LoadU(Simd<int8_t, 2> d,
+HWY_INLINE Vec128<int8_t, 2> LoadU(Simd<int8_t, 2> /*tag*/,
                                    const int8_t* HWY_RESTRICT p) {
-  int16x4_t a = Undefined(d).raw;
+  int16x4_t a = Undefined(Simd<int16_t, 4>()).raw;
   int16x4_t b = vld1_lane_s16(reinterpret_cast<const int16_t*>(p), a, 0);
   return Vec128<int8_t, 2>(vreinterpret_s8_s16(b));
 }
-HWY_INLINE Vec128<int16_t, 1> LoadU(Simd<int16_t, 1> d,
+HWY_INLINE Vec128<int16_t, 1> LoadU(Simd<int16_t, 1> /*tag*/,
                                     const int16_t* HWY_RESTRICT p) {
-  int16x4_t a = Undefined(d).raw;
+  int16x4_t a = Undefined(Simd<int16_t, 4>()).raw;
   int16x4_t b = vld1_lane_s16(p, a, 0);
   return Vec128<int16_t, 1>(b);
 }
@@ -2092,12 +2186,12 @@ HWY_INLINE void StoreU(const Vec128<double, 1> v, Simd<double, 1> /* tag */,
 HWY_INLINE void StoreU(const Vec128<uint8_t, 4> v, Simd<uint8_t, 4>,
                        uint8_t* HWY_RESTRICT p) {
   uint32x2_t a = vreinterpret_u32_u8(v.raw);
-  vst1_lane_u32(p, a, 0);
+  vst1_lane_u32(reinterpret_cast<uint32_t*>(p), a, 0);
 }
 HWY_INLINE void StoreU(const Vec128<uint16_t, 2> v, Simd<uint16_t, 2>,
                        uint16_t* HWY_RESTRICT p) {
   uint32x2_t a = vreinterpret_u32_u16(v.raw);
-  vst1_lane_u32(p, a, 0);
+  vst1_lane_u32(reinterpret_cast<uint32_t*>(p), a, 0);
 }
 HWY_INLINE void StoreU(const Vec128<uint32_t, 1> v, Simd<uint32_t, 1>,
                        uint32_t* HWY_RESTRICT p) {
@@ -2106,12 +2200,12 @@ HWY_INLINE void StoreU(const Vec128<uint32_t, 1> v, Simd<uint32_t, 1>,
 HWY_INLINE void StoreU(const Vec128<int8_t, 4> v, Simd<int8_t, 4>,
                        int8_t* HWY_RESTRICT p) {
   int32x2_t a = vreinterpret_s32_s8(v.raw);
-  vst1_lane_s32(p, a, 0);
+  vst1_lane_s32(reinterpret_cast<int32_t*>(p), a, 0);
 }
 HWY_INLINE void StoreU(const Vec128<int16_t, 2> v, Simd<int16_t, 2>,
                        int16_t* HWY_RESTRICT p) {
   int32x2_t a = vreinterpret_s32_s16(v.raw);
-  vst1_lane_s32(p, a, 0);
+  vst1_lane_s32(reinterpret_cast<int32_t*>(p), a, 0);
 }
 HWY_INLINE void StoreU(const Vec128<int32_t, 1> v, Simd<int32_t, 1>,
                        int32_t* HWY_RESTRICT p) {
@@ -2127,7 +2221,7 @@ HWY_INLINE void StoreU(const Vec128<float, 1> v, Simd<float, 1>,
 HWY_INLINE void StoreU(const Vec128<uint8_t, 2> v, Simd<uint8_t, 2>,
                        uint8_t* HWY_RESTRICT p) {
   uint16x4_t a = vreinterpret_u16_u8(v.raw);
-  vst1_lane_u16(p, a, 0);
+  vst1_lane_u16(reinterpret_cast<uint16_t*>(p), a, 0);
 }
 HWY_INLINE void StoreU(const Vec128<uint16_t, 1> v, Simd<uint16_t, 1>,
                        uint16_t* HWY_RESTRICT p) {
@@ -2136,7 +2230,7 @@ HWY_INLINE void StoreU(const Vec128<uint16_t, 1> v, Simd<uint16_t, 1>,
 HWY_INLINE void StoreU(const Vec128<int8_t, 2> v, Simd<int8_t, 2>,
                        int8_t* HWY_RESTRICT p) {
   int16x4_t a = vreinterpret_s16_s8(v.raw);
-  vst1_lane_s16(p, a, 0);
+  vst1_lane_s16(reinterpret_cast<int16_t*>(p), a, 0);
 }
 HWY_INLINE void StoreU(const Vec128<int16_t, 1> v, Simd<int16_t, 1>,
                        int16_t* HWY_RESTRICT p) {
@@ -2201,18 +2295,18 @@ HWY_INLINE Vec128<uint64_t> PromoteTo(Full128<uint64_t> /* tag */,
                                       const Vec128<uint32_t, 2> v) {
   return Vec128<uint64_t>(vmovl_u32(v.raw));
 }
-HWY_INLINE Vec128<int16_t> PromoteTo(Full128<int16_t> /* tag */,
+HWY_INLINE Vec128<int16_t> PromoteTo(Full128<int16_t> d,
                                      const Vec128<uint8_t, 8> v) {
-  return Vec128<int16_t>(vmovl_u8(v.raw));
+  return BitCast(d, Vec128<uint16_t>(vmovl_u8(v.raw)));
 }
-HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> /* tag */,
+HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> d,
                                      const Vec128<uint8_t, 4> v) {
   uint16x8_t a = vmovl_u8(v.raw);
-  return Vec128<int32_t>(vreinterpretq_s32_u16(vmovl_u16(vget_low_u16(a))));
+  return BitCast(d, Vec128<uint32_t>(vmovl_u16(vget_low_u16(a))));
 }
-HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> /* tag */,
+HWY_INLINE Vec128<int32_t> PromoteTo(Full128<int32_t> d,
                                      const Vec128<uint16_t, 4> v) {
-  return Vec128<int32_t>(vmovl_u16(v.raw));
+  return BitCast(d, Vec128<uint32_t>(vmovl_u16(v.raw)));
 }
 
 // Unsigned: zero-extend to half vector.
@@ -2238,9 +2332,9 @@ HWY_INLINE Vec128<uint64_t, N> PromoteTo(Simd<uint64_t, N> /* tag */,
   return Vec128<uint64_t, N>(vget_low_u64(vmovl_u32(v.raw)));
 }
 template <size_t N, HWY_IF_LE64(int16_t, N)>
-HWY_INLINE Vec128<int16_t, N> PromoteTo(Simd<int16_t, N> /* tag */,
+HWY_INLINE Vec128<int16_t, N> PromoteTo(Simd<int16_t, N> d,
                                         const Vec128<uint8_t, N> v) {
-  return Vec128<int16_t, N>(vget_low_s16(vmovl_u8(v.raw)));
+  return BitCast(d, Vec128<uint16_t, N>(vget_low_u16(vmovl_u8(v.raw))));
 }
 template <size_t N, HWY_IF_LE64(int32_t, N)>
 HWY_INLINE Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
@@ -2303,12 +2397,14 @@ HWY_INLINE Vec128<int64_t, N> PromoteTo(Simd<int64_t, N> /* tag */,
 
 HWY_INLINE Vec128<float> PromoteTo(Full128<float> /* tag */,
                                    const Vec128<float16_t, 4> v) {
-  return Vec128<float>(vcvt_f32_f16(vreinterpret_f16_u16(v.raw)));
+  const float32x4_t f32 = vcvt_f32_f16(vreinterpret_f16_u16(v.raw));
+  return Vec128<float>(f32);
 }
 template <size_t N>
 HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
                                       const Vec128<float16_t, N> v) {
-  return Vec128<float, N>(vget_low_f32(vcvt_f32_f16(v.raw)));
+  const float32x4_t f32 = vcvt_f32_f16(vreinterpret_f16_u16(v.raw));
+  return Vec128<float, N>(vget_low_f32(f32));
 }
 
 #else
@@ -2436,7 +2532,8 @@ HWY_INLINE Vec128<float16_t, 4> DemoteTo(Simd<float16_t, 4> /* tag */,
 template <size_t N>
 HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
                                          const Vec128<float, N> v) {
-  return Vec128<float16_t, N>{vcvt_f16_f32(vcombine_f32(v.raw, v.raw))};
+  const float16x4_t f16 = vcvt_f16_f32(vcombine_f32(v.raw, v.raw));
+  return Vec128<float16_t, N>(vreinterpret_u16_f16(f16));
 }
 
 #else
@@ -3048,32 +3145,57 @@ HWY_INLINE Vec128<T, N> TableLookupBytes(
                                                 BitCast(d8, from).raw)));
 }
 
-// ------------------------------ Hard-coded shuffles
+// ------------------------------ TableLookupLanes
+
+// Returned by SetTableIndices for use by TableLookupLanes.
+template <typename T, size_t N>
+struct Indices128 {
+  typename detail::Raw128<T, N>::type raw;
+};
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
+#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+  for (size_t i = 0; i < N; ++i) {
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
+  }
+#endif
+
+  const Repartition<uint8_t, decltype(d)> d8;
+  alignas(16) uint8_t control[16] = {0};
+  for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
+    for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
+      control[idx_lane * sizeof(T) + idx_byte] =
+          static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + idx_byte);
+    }
+  }
+  return Indices128<T, N>{BitCast(d, Load(d8, control)).raw};
+}
+
+template <size_t N>
+HWY_INLINE Vec128<uint32_t, N> TableLookupLanes(
+    const Vec128<uint32_t, N> v, const Indices128<uint32_t, N> idx) {
+  return TableLookupBytes(v, Vec128<uint32_t, N>{idx.raw});
+}
+template <size_t N>
+HWY_INLINE Vec128<int32_t, N> TableLookupLanes(
+    const Vec128<int32_t, N> v, const Indices128<int32_t, N> idx) {
+  return TableLookupBytes(v, Vec128<int32_t, N>{idx.raw});
+}
+template <size_t N>
+HWY_INLINE Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
+                                             const Indices128<float, N> idx) {
+  const Simd<int32_t, N> di;
+  const auto idx_i = BitCast(di, Vec128<float, N>{idx.raw});
+  return BitCast(Simd<float, N>(), TableLookupBytes(BitCast(di, v), idx_i));
+}
+
+// ------------------------------ Other shuffles (TableLookupBytes)
 
 // Notation: let Vec128<int32_t> have lanes 3,2,1,0 (0 is least-significant).
 // Shuffle0321 rotates one lane to the right (the previous least-significant
 // lane is now most-significant). These could also be implemented via
 // CombineShiftRightBytes but the shuffle_abcd notation is more convenient.
-
-// Swap 32-bit halves in 64-bits
-HWY_INLINE Vec128<uint32_t, 2> Shuffle2301(const Vec128<uint32_t, 2> v) {
-  return Vec128<uint32_t, 2>(vrev64_u32(v.raw));
-}
-HWY_INLINE Vec128<int32_t, 2> Shuffle2301(const Vec128<int32_t, 2> v) {
-  return Vec128<int32_t, 2>(vrev64_s32(v.raw));
-}
-HWY_INLINE Vec128<float, 2> Shuffle2301(const Vec128<float, 2> v) {
-  return Vec128<float, 2>(vrev64_f32(v.raw));
-}
-HWY_INLINE Vec128<uint32_t> Shuffle2301(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t>(vrev64q_u32(v.raw));
-}
-HWY_INLINE Vec128<int32_t> Shuffle2301(const Vec128<int32_t> v) {
-  return Vec128<int32_t>(vrev64q_s32(v.raw));
-}
-HWY_INLINE Vec128<float> Shuffle2301(const Vec128<float> v) {
-  return Vec128<float>(vrev64q_f32(v.raw));
-}
 
 // Swap 64-bit halves
 template <typename T>
@@ -3110,52 +3232,6 @@ HWY_INLINE Vec128<T> Shuffle0123(const Vec128<T> v) {
   const Full128<uint8_t> d8;
   const Full128<T> d;
   return TableLookupBytes(v, BitCast(d, Load(d8, bytes)));
-}
-
-// ------------------------------ TableLookupLanes
-
-// Returned by SetTableIndices for use by TableLookupLanes.
-template <typename T, size_t N>
-struct Indices128 {
-  typename Raw128<T, N>::type raw;
-};
-
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_INLINE Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
-  }
-#endif
-
-  const Repartition<uint8_t, decltype(d)> d8;
-  alignas(16) uint8_t control[16] = {0};
-  for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
-    for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-      control[idx_lane * sizeof(T) + idx_byte] =
-          static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + idx_byte);
-    }
-  }
-  return Indices128<T, N>{Load(d8, control).raw};
-}
-
-template <size_t N>
-HWY_INLINE Vec128<uint32_t, N> TableLookupLanes(
-    const Vec128<uint32_t, N> v, const Indices128<uint32_t, N> idx) {
-  return TableLookupBytes(v, Vec128<uint32_t, N>{idx.raw});
-}
-template <size_t N>
-HWY_INLINE Vec128<int32_t, N> TableLookupLanes(
-    const Vec128<int32_t, N> v, const Indices128<int32_t, N> idx) {
-  return TableLookupBytes(v, Vec128<int32_t, N>{idx.raw});
-}
-template <size_t N>
-HWY_INLINE Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
-                                             const Indices128<float, N> idx) {
-  const Simd<int32_t, N> di;
-  const Simd<float, N> df;
-  return BitCast(df,
-                 TableLookupBytes(BitCast(di, v), Vec128<int32_t, N>{idx.raw}));
 }
 
 // ------------------------------ Interleave lanes
@@ -3489,48 +3565,6 @@ HWY_API Vec128<T, N> GatherIndex(const Simd<T, N> d, const T* HWY_RESTRICT base,
   return Load(d, lanes);
 }
 
-// ------------------------------ ARMv7 int64 comparisons (requires Shuffle2301)
-
-#if HWY_ARCH_ARM_V7
-
-template <size_t N>
-HWY_INLINE Mask128<int64_t, N> operator==(const Vec128<int64_t, N> a,
-                                          const Vec128<int64_t, N> b) {
-  const Simd<int32_t, N * 2> d32;
-  const Simd<int64_t, N> d64;
-  const auto cmp32 = VecFromMask(d32, BitCast(d32, a) == BitCast(d32, b));
-  const auto cmp64 = cmp32 & Shuffle2301(cmp32);
-  return MaskFromVec(BitCast(d64, cmp64));
-}
-
-template <size_t N>
-HWY_INLINE Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
-                                           const Vec128<uint64_t, N> b) {
-  const Simd<uint32_t, N * 2> d32;
-  const Simd<uint64_t, N> d64;
-  const auto cmp32 = VecFromMask(d32, BitCast(d32, a) == BitCast(d32, b));
-  const auto cmp64 = cmp32 & Shuffle2301(cmp32);
-  return MaskFromVec(BitCast(d64, cmp64));
-}
-
-HWY_INLINE Mask128<int64_t> operator<(const Vec128<int64_t> a,
-                                      const Vec128<int64_t> b) {
-  const int64x2_t sub = vqsubq_s64(a.raw, b.raw);
-  return MaskFromVec(BroadcastSignBit(Vec128<int64_t>(sub)));
-}
-HWY_INLINE Mask128<int64_t, 1> operator<(const Vec128<int64_t, 1> a,
-                                         const Vec128<int64_t, 1> b) {
-  const int64x1_t sub = vqsub_s64(a.raw, b.raw);
-  return MaskFromVec(BroadcastSignBit(Vec128<int64_t, 1>(sub)));
-}
-
-template <size_t N>
-HWY_INLINE Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
-                                         const Vec128<int64_t, N> b) {
-  return b < a;
-}
-#endif
-
 // ------------------------------ Reductions
 
 namespace detail {
@@ -3676,13 +3710,13 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   const uint8x8_t x2 = vget_low_u8(vpaddq_u8(values.raw, values.raw));
   const uint8x8_t x4 = vpadd_u8(x2, x2);
   const uint8x8_t x8 = vpadd_u8(x4, x4);
-  return vreinterpret_u16_u8(x8)[0];
+  return vget_lane_u64(vreinterpret_u64_u8(x8), 0);
 #else
   // Don't have vpaddq, so keep doubling lane size.
   const uint16x8_t x2 = vpaddlq_u8(values.raw);
   const uint32x4_t x4 = vpaddlq_u16(x2);
   const uint64x2_t x8 = vpaddlq_u32(x4);
-  return (uint64_t(x8[1]) << 8) | x8[0];
+  return (vgetq_lane_u64(x8, 1) << 8) | vgetq_lane_u64(x8, 0);
 #endif
 }
 
@@ -3832,7 +3866,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
   const int16x8_t x2 = vpaddlq_s8(ones);
   const int32x4_t x4 = vpaddlq_s16(x2);
   const int64x2_t x8 = vpaddlq_s32(x4);
-  return x8[0] + x8[1];
+  return vgetq_lane_s64(x8, 0) + vgetq_lane_s64(x8, 1);
 #endif
 }
 template <typename T>
@@ -3846,7 +3880,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
 #else
   const int32x4_t x2 = vpaddlq_s16(ones);
   const int64x2_t x4 = vpaddlq_s32(x2);
-  return x4[0] + x4[1];
+  return vgetq_lane_s64(x4, 0) + vgetq_lane_s64(x4, 1);
 #endif
 }
 
@@ -3860,7 +3894,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
   return vaddvq_s32(ones);
 #else
   const int64x2_t x2 = vpaddlq_s32(ones);
-  return x2[0] + x2[1];
+  return vgetq_lane_s64(x2, 0) + vgetq_lane_s64(x2, 1);
 #endif
 }
 
@@ -3872,10 +3906,10 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
       vnegq_s64(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
   return vaddvq_s64(ones);
 #else
-  const Full128<int64_t> di;
-  const int64x2_t ones =
-      vshrq_n_u64(BitCast(di, VecFromMask(Full128<T>(), mask)).raw, 63);
-  return ones[0] + ones[1];
+  const Full128<uint64_t> du;
+  const auto mask_u = VecFromMask(du, RebindMask(du, mask));
+  const uint64x2_t ones = vshrq_n_u64(mask_u.raw, 63);
+  return vgetq_lane_u64(ones, 0) + vgetq_lane_u64(ones, 1);
 #endif
 }
 
@@ -3909,7 +3943,7 @@ HWY_INLINE bool AllFalse(const Mask128<T> m) {
 #else
   const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), m));
   uint32x2_t a = vqmovn_u64(v64.raw);
-  return vreinterpret_u64_u32(a)[0] == 0;
+  return vget_lane_u64(vreinterpret_u64_u32(a), 0) == 0;
 #endif
 }
 
@@ -4285,6 +4319,7 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
   return a <= b;
 }
 
+namespace detail {  // for code folding
 #if HWY_ARCH_ARM_V7
 #undef vuzp1_s8
 #undef vuzp1_u8
@@ -4372,6 +4407,7 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
 #undef HWY_NEON_DEF_FUNCTION_UINT_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
+}  // namespace detail
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

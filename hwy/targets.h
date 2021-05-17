@@ -128,6 +128,10 @@
 #elif HWY_COMPILER_MSVC != 0
 #define HWY_BROKEN_TARGETS (HWY_AVX3)
 
+// armv7be has not been tested and is not yet supported.
+#elif HWY_ARCH_ARM_V7 && (defined(__ARM_BIG_ENDIAN) || defined(__BIG_ENDIAN))
+#define HWY_BROKEN_TARGETS (HWY_NEON)
+
 #else
 #define HWY_BROKEN_TARGETS 0
 #endif
@@ -176,7 +180,7 @@
 #define HWY_BASELINE_SVE 0
 #endif
 
-// GCC 4.5.4 only defines the former; 5.4 defines both.
+// GCC 4.5.4 only defines __ARM_NEON__; 5.4 defines both.
 #if HWY_ARCH_ARM && (defined(__ARM_NEON__) || defined(__ARM_NEON))
 #define HWY_BASELINE_NEON HWY_NEON
 #else
