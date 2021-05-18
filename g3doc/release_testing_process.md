@@ -30,7 +30,16 @@ done
 export QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf
 rm -rf build_arm7 && mkdir build_arm7 && cd build_arm7
 CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ cmake .. -DHWY_CMAKE_ARM7:BOOL=ON
-make -j8 && ctest
+make -j8 && ctest && cd ..
+```
+
+#### ARMv8 cross compile (GCC)
+
+```
+export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
+rm -rf build_arm8 && mkdir build_arm8 && cd build_arm8
+CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ cmake ..
+make -j8 && ctest && cd ..
 ```
 
 #### JPEG XL clang (debug, asan, msan)

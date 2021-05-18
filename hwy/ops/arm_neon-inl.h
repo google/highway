@@ -1623,10 +1623,6 @@ HWY_INLINE Vec128<float> Shuffle2301(const Vec128<float> v) {
   return Vec128<float>(vrev64q_f32(v.raw));
 }
 
-// Intrinsics return unsigned mask, and our macros do not support casting,
-// so the intrinsics reside in detail and are called from a wrapper.
-namespace detail {
-
 #define HWY_NEON_BUILD_TPL_HWY_COMPARE
 #define HWY_NEON_BUILD_RET_HWY_COMPARE(type, size) Mask128<type, size>
 #define HWY_NEON_BUILD_PARAM_HWY_COMPARE(type, size) \
@@ -1634,41 +1630,38 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_COMPARE a.raw, b.raw
 
 // ------------------------------ Equality
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Eq, vceq, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator==, vceq, _, HWY_COMPARE)
 #if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(Eq, vceq, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator==, vceq, _, HWY_COMPARE)
 #else
 // No 64-bit comparisons on armv7: emulate them below, after Shuffle2301.
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(Eq, vceq, _, HWY_COMPARE)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Eq, vceq, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator==, vceq, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator==, vceq, _, HWY_COMPARE)
 #endif
 
 // ------------------------------ Strict inequality (signed, float)
 #if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS(Lt, vclt, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_INTS(operator<, vclt, _, HWY_COMPARE)
 #else
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(Lt, vclt, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator<, vclt, _, HWY_COMPARE)
 #endif
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Lt, vclt, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<, vclt, _, HWY_COMPARE)
 
 // ------------------------------ Weak inequality (float)
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Le, vcle, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<=, vcle, _, HWY_COMPARE)
 
 #undef HWY_NEON_BUILD_TPL_HWY_COMPARE
 #undef HWY_NEON_BUILD_RET_HWY_COMPARE
 #undef HWY_NEON_BUILD_PARAM_HWY_COMPARE
 #undef HWY_NEON_BUILD_ARG_HWY_COMPARE
 
-}  // namespace detail
-
 // ------------------------------ ARMv7 i64 compare (Shuffle2301, Eq)
 
 #if HWY_ARCH_ARM_V7
-namespace detail {
 
 template <size_t N>
-HWY_INLINE Mask128<int64_t, N> Eq(const Vec128<int64_t, N> a,
-                                  const Vec128<int64_t, N> b) {
+HWY_INLINE Mask128<int64_t, N> operator==(const Vec128<int64_t, N> a,
+                                          const Vec128<int64_t, N> b) {
   const Simd<int32_t, N * 2> d32;
   const Simd<int64_t, N> d64;
   const auto cmp32 = VecFromMask(d32, Eq(BitCast(d32, a), BitCast(d32, b)));
@@ -1677,8 +1670,8 @@ HWY_INLINE Mask128<int64_t, N> Eq(const Vec128<int64_t, N> a,
 }
 
 template <size_t N>
-HWY_INLINE Mask128<uint64_t, N> Eq(const Vec128<uint64_t, N> a,
-                                   const Vec128<uint64_t, N> b) {
+HWY_INLINE Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
+                                           const Vec128<uint64_t, N> b) {
   const Simd<uint32_t, N * 2> d32;
   const Simd<uint64_t, N> d64;
   const auto cmp32 = VecFromMask(d32, Eq(BitCast(d32, a), BitCast(d32, b)));
@@ -1686,38 +1679,21 @@ HWY_INLINE Mask128<uint64_t, N> Eq(const Vec128<uint64_t, N> a,
   return MaskFromVec(BitCast(d64, cmp64));
 }
 
-HWY_INLINE Mask128<int64_t> Lt(const Vec128<int64_t> a,
-                               const Vec128<int64_t> b) {
+HWY_INLINE Mask128<int64_t> operator<(const Vec128<int64_t> a,
+                                      const Vec128<int64_t> b) {
   const int64x2_t sub = vqsubq_s64(a.raw, b.raw);
   return MaskFromVec(BroadcastSignBit(Vec128<int64_t>(sub)));
 }
-HWY_INLINE Mask128<int64_t, 1> Lt(const Vec128<int64_t, 1> a,
-                                  const Vec128<int64_t, 1> b) {
+HWY_INLINE Mask128<int64_t, 1> operator<(const Vec128<int64_t, 1> a,
+                                         const Vec128<int64_t, 1> b) {
   const int64x1_t sub = vqsub_s64(a.raw, b.raw);
   return MaskFromVec(BroadcastSignBit(Vec128<int64_t, 1>(sub)));
 }
 
-}  // namespace detail
 #endif
 
-// ------------------------------ Comparison wrapper
+// ------------------------------ Reversed comparisons
 
-template <typename T, size_t N>
-HWY_API Mask128<T, N> operator==(Vec128<T, N> a, Vec128<T, N> b) {
-  return RebindMask(Simd<T, N>(), detail::Eq(a, b));
-}
-
-template <typename T, size_t N>
-HWY_API Mask128<T, N> operator<(Vec128<T, N> a, Vec128<T, N> b) {
-  return RebindMask(Simd<T, N>(), detail::Lt(a, b));
-}
-
-template <typename T, size_t N>
-HWY_API Mask128<T, N> operator<=(Vec128<T, N> a, Vec128<T, N> b) {
-  return RebindMask(Simd<T, N>(), detail::Le(a, b));
-}
-
-// Swapped operand order
 template <typename T, size_t N>
 HWY_API Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
   return operator<(b, a);
@@ -1787,28 +1763,17 @@ HWY_INLINE Vec128<int64_t, 1> Abs(const Vec128<int64_t, 1> v) {
 
 // ------------------------------ Min (IfThenElse, BroadcastSignBit)
 
-namespace detail {
-
 #if HWY_ARCH_ARM_A64
 
-HWY_INLINE Vec128<uint64_t> Gt(Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  return Vec128<uint64_t>(vcgtq_u64(a.raw, b.raw));
+HWY_INLINE Mask128<uint64_t> operator<(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  return Mask128<uint64_t>(vcltq_u64(a.raw, b.raw));
 }
-HWY_INLINE Vec128<uint64_t, 1> Gt(Vec128<uint64_t, 1> a,
-                                  Vec128<uint64_t, 1> b) {
-  return Vec128<uint64_t, 1>(vcgt_u64(a.raw, b.raw));
-}
-
-HWY_INLINE Vec128<int64_t> Gt(Vec128<int64_t> a, Vec128<int64_t> b) {
-  return Vec128<int64_t>(vcgtq_s64(a.raw, b.raw));
-}
-HWY_INLINE Vec128<int64_t, 1> Gt(Vec128<int64_t, 1> a, Vec128<int64_t, 1> b) {
-  return Vec128<int64_t, 1>(vcgt_s64(a.raw, b.raw));
+HWY_INLINE Mask128<uint64_t, 1> operator<(Vec128<uint64_t, 1> a,
+                                          Vec128<uint64_t, 1> b) {
+  return Mask128<uint64_t, 1>(vclt_u64(a.raw, b.raw));
 }
 
 #endif
-
-}  // namespace detail
 
 // Unsigned
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Min, vmin, _, 2)
@@ -1817,7 +1782,7 @@ template <size_t N>
 HWY_INLINE Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
                                    const Vec128<uint64_t, N> b) {
 #if HWY_ARCH_ARM_A64
-  return IfThenElse(MaskFromVec(detail::Gt(a, b)), b, a);
+  return IfThenElse(b < a, b, a);
 #else
   const Simd<uint64_t, N> du;
   const Simd<int64_t, N> di;
@@ -1832,7 +1797,7 @@ template <size_t N>
 HWY_INLINE Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
                                   const Vec128<int64_t, N> b) {
 #if HWY_ARCH_ARM_A64
-  return IfThenElse(MaskFromVec(detail::Gt(a, b)), b, a);
+  return IfThenElse(b < a, b, a);
 #else
   const Vec128<int64_t, N> sign = detail::SaturatedSub(a, b);
   return IfThenElse(MaskFromVec(BroadcastSignBit(sign)), a, b);
@@ -1855,7 +1820,7 @@ template <size_t N>
 HWY_INLINE Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
                                    const Vec128<uint64_t, N> b) {
 #if HWY_ARCH_ARM_A64
-  return IfThenElse(MaskFromVec(detail::Gt(a, b)), a, b);
+  return IfThenElse(b < a, a, b);
 #else
   const Simd<uint64_t, N> du;
   const Simd<int64_t, N> di;
@@ -1870,7 +1835,7 @@ template <size_t N>
 HWY_INLINE Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
                                   const Vec128<int64_t, N> b) {
 #if HWY_ARCH_ARM_A64
-  return IfThenElse(MaskFromVec(detail::Gt(a, b)), a, b);
+  return IfThenElse(b < a, a, b);
 #else
   const Vec128<int64_t, N> sign = detail::SaturatedSub(a, b);
   return IfThenElse(MaskFromVec(BroadcastSignBit(sign)), b, a);
@@ -3939,7 +3904,9 @@ HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
 template <typename T>
 HWY_INLINE bool AllFalse(const Mask128<T> m) {
 #if HWY_ARCH_ARM_A64
-  return (vmaxvq_u32(m.raw) == 0);
+  const Full128<uint32_t> d32;
+  const auto m32 = MaskFromVec(BitCast(d32, VecFromMask(Full128<T>(), m)));
+  return (vmaxvq_u32(m32.raw) == 0);
 #else
   const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), m));
   uint32x2_t a = vqmovn_u64(v64.raw);

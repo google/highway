@@ -537,6 +537,8 @@ struct TestAllTrueFalse {
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
 
+    auto mask_lanes = AllocateAligned<T>(N);
+
     HWY_ASSERT(AllTrue(Eq(v, zero)));
     HWY_ASSERT(!AllFalse(Eq(v, zero)));
 
@@ -548,7 +550,13 @@ struct TestAllTrueFalse {
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = T(1);
       v = Load(d, lanes.get());
-      HWY_ASSERT(!AllTrue(Eq(v, zero)));
+
+      // GCC 10.2.1 workaround: AllTrue(Eq(v, zero)) is true but should not be.
+      // Assigning to an lvalue is insufficient but storing to memory prevents
+      // the bug; so does Print of VecFromMask(d, Eq(v, zero)).
+      Store(VecFromMask(d, Eq(v, zero)), d, mask_lanes.get());
+      HWY_ASSERT(!AllTrue(MaskFromVec(Load(d, mask_lanes.get()))));
+
       HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
 
       lanes[i] = T(-1);
