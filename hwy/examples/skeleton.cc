@@ -72,9 +72,12 @@ HWY_NOINLINE void FloorLog2(const uint8_t* HWY_RESTRICT values, size_t count,
   for (; i + N <= count; i += N) {
     OneFloorLog2(df, values + i, log2 + i);
   }
+  // TODO(janwas): implement
+#if HWY_TARGET != HWY_RVV
   for (; i < count; ++i) {
     OneFloorLog2(HWY_CAPPED(float, 1)(), values + i, log2 + i);
   }
+#endif
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

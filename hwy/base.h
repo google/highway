@@ -334,6 +334,12 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 
 // RVV already has a builtin type and the GCC intrinsics require it.
 #if HWY_ARCH_RVV && HWY_COMPILER_GCC
+#define HWY_NATIVE_FLOAT16 1
+#else
+#define HWY_NATIVE_FLOAT16 0
+#endif
+
+#if HWY_NATIVE_FLOAT16
 using float16_t = __fp16;
 // Clang does not allow __fp16 arguments, but scalar.h requires LaneType
 // arguments, so use a wrapper.
