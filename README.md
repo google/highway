@@ -23,8 +23,11 @@ while implementing SVE/RVV targets. After these targets are added, Highway will
 reach version 1.0.
 
 Continuous integration tests build with a recent version of Clang (running on
-x86 and QEMU for ARM) and MSVC from VS2015 (running on x86). Also periodically
-tested on x86 with Clang 7-11 and GCC 8, 9 and 10.2.1.
+x86 and QEMU for ARM) and MSVC from VS2015 (running on x86).
+
+Before releases, we also test on x86 with Clang and GCC, and ARMv7 via
+GCC cross-compile and QEMU. See the
+[testing process](g3doc/release_testing_process.md) for details.
 
 The `contrib` directory contains SIMD-related utilities: an image class with
 aligned rows, and a math library (16 functions already implemented, mostly

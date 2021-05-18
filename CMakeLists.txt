@@ -40,6 +40,8 @@ if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON?")
+
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
    "int main() {
@@ -150,7 +152,17 @@ else()
       -fno-exceptions
     )
   endif()
-endif()
+
+  if (HWY_CMAKE_ARM7)
+    list(APPEND HWY_FLAGS
+      -march=armv7-a
+      -mfpu=neon-vfpv4
+      -mfloat-abi=hard  # must match the toolchain specified as CXX=
+      -mfp16-format=ieee  # required for vcvt_f32_f16
+    )
+  endif()  # HWY_CMAKE_ARM7
+
+endif()  # !MSVC
 
 add_library(hwy STATIC ${HWY_SOURCES})
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
@@ -295,6 +307,8 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   get_filename_component(TESTNAME ${TESTFILE} NAME_WE)
   add_executable(${TESTNAME} ${TESTFILE})
   target_compile_options(${TESTNAME} PRIVATE ${HWY_FLAGS})
+  # Test all targets, not just the best/baseline.
+  target_compile_options(${TESTNAME} PRIVATE -DHWY_COMPILE_ALL_ATTAINABLE=1)
 
   if(HWY_SYSTEM_GTEST)
     target_link_libraries(${TESTNAME} hwy hwy_contrib GTest::GTest GTest::Main)
