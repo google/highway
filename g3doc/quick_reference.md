@@ -67,77 +67,76 @@ HWY_AFTER_NAMESPACE();
 
 ## Vector and descriptor types
 
-Highway vectors consist of one or more 'lanes' of the same built-in type `T =
-uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `T = float##_t` for `## = 16,
-32, 64`.
+Highway vectors consist of one or more 'lanes' of the same built-in type
+`uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `float##_t` for `## = 16, 32,
+64`.
 
-`float16_t` is an IEEE binary16 half-float and only supports load, store, and
-conversion to/from `float32_t`. `float16_t` infinity or NaN have
-implementation-defined results.
+In Highway, `float16_t` (an IEEE binary16 half-float) only supports load, store,
+and conversion to/from `float32_t`; the behavior of `float16_t` infinity and NaN
+are implementation-defined due to ARMv7.
 
-Each vector has `N` lanes (a power of two, possibly unknown at compile time).
+On RVV, vectors are sizeless and cannot be wrapped inside a class. The Highway
+API allows using built-in types as vectors because operations are expressed as
+overloaded functions. Instead of constructors, overloaded initialization
+functions such as `Set` take a zero-sized tag argument called `d` of type `D =
+Simd<T, N>` and return an actual vector of unspecified type.
 
-Platforms such as x86 support multiple vector types, and other platforms require
-that vectors are built-in types. On RVV, vectors are sizeless and thus cannot be
-wrapped inside a class. The Highway API satisfies these constraints because it
-is designed around overloaded functions selected via a zero-sized tag parameter
-`d` of type `D = Simd<T, N>`. These are typically constructed using aliases:
+`T` is one of the lane types above, and may be retrieved via `TFromD<D>`.
 
-*   `const HWY_FULL(T[, LMUL=1]) d;` chooses an `N` that results in a native
-    vector for the current target. For targets (e.g. RVV) that support register
-    groups, the optional `LMUL` (1, 2, 4, 8) specifies the number of registers
-    in the group. This effectively multiplies the lane count in each operation
-    by `LMUL`. For mixed-precision code, `LMUL` must be at least the ratio of
-    the sizes of the largest and smallest type. `LMUL > 1` is more efficient on
-    single-issue machines, but larger values reduce the effective number of
-    registers, which may cause the compiler to spill them to memory.
+`N` is target-dependent and not directly user-specified. The actual lane count
+may not be known at compile time, but can be obtained via `Lanes(d)`. Use this
+value, which is potentially different from `N`, to increment loop counters etc.
+It is typically a power of two, but that is not guaranteed e.g. on SVE.
 
-*   `const HWY_CAPPED(T, N) d;` for up to `N` lanes.
+`d` lvalues (a tag, NOT actual vector) are typically obtained using two aliases:
 
-For mixed-precision code (e.g. `uint8_t` lanes promoted to `float`), descriptors
-for the smaller types must be obtained from those of the larger type (e.g. via
+*   Most common: pass `HWY_FULL(T[, LMUL=1]) d;` as an argument to return a
+    native vector. This is preferred because it fully utilizes vector lanes.
+
+    For targets (e.g. RVV) that support register groups, the optional `LMUL` (1,
+    2, 4, 8) specifies the number of registers in the group. This effectively
+    multiplies the lane count in each operation by `LMUL`. For mixed-precision
+    code, `LMUL` must be at least the ratio of the sizes of the largest and
+    smallest type. `LMUL > 1` is more efficient on single-issue machines, but
+    larger values reduce the effective number of registers, which may cause the
+    compiler to spill them to memory.
+
+*   Less common: pass `HWY_CAPPED(T, N) d;` as an argument to return a vector
+    which may be native width, but no more than `N` lanes have observable
+    effects such as loading/storing to memory. This is less performance-portable
+    because it may not use all available lanes. Note that the resulting lane
+    count may also be less than `N`.
+
+    For targets (e.g. RVV) that have compile-time-unknown lane counts, such
+    vectors incur additional runtime cost in `Load` etc.
+
+User-specified lane counts or tuples of vectors could cause spills on targets
+with fewer or smaller vectors. By contrast, Highway encourages vector-length
+agnostic code, which is more performance-portable.
+
+Given that lane counts are potentially compile-time-unknown, storage for vectors
+should be dynamically allocated, e.g. via `AllocateAligned(Lanes(d))`. For
+applications that require a compile-time estimate, `MaxLanes(d)` returns the `N`
+from `Simd<T, N>`, which is NOT necessarily the actual lane count. This is
+DISCOURAGED because it is not guaranteed to be an upper bound (RVV vectors may
+be very large) and some compilers are not able to interpret it as constexpr.
+
+For mixed-precision code (e.g. `uint8_t` lanes promoted to `float`), tags for
+the smaller types must be obtained from those of the larger type (e.g. via
 `Rebind<uint8_t, HWY_FULL(float)>`).
 
-The type `T` may be accessed as `TFromD<D>`. There are three possibilities for
-the template parameter `N`:
+## Using unspecified vector types
 
-1.  Equal to the hardware vector width, e.g. when using `HWY_FULL(T)` on a
-    target with compile-time constant vectors.
+Because vector types are unspecified, local vector variables are typically
+defined using `auto` for type deduction. A template argument `V` suffices for
+simple generic functions: `template<class V> V Squared(V v) { return v * v; }`.
 
-1.  Less than the hardware vector width. This is the result of a compile-time
-    decision by the user, i.e. using `HWY_CAPPED(T, N)` to limit the number of
-    lanes, even when the hardware vector width could be greater.
-
-1.  Unrelated to the hardware vector width, e.g. when the hardware vector width
-    is not known at compile-time and may be very large.
-
-In all cases, `Lanes(d)` returns the actual number of lanes, i.e. the amount by
-which to advance loop counters. `MaxLanes(d)` returns the `N` from `Simd<T, N>`,
-which is NOT necessarily the actual vector size (see above) and some compilers
-are not able to interpret it as constexpr. Instead of `MaxLanes`, prefer to use
-alternatives, e.g. `Rebind` or `aligned_allocator.h` for dynamic allocation of
-`Lanes(d)` elements.
-
-Highway is designed to map a vector variable to a (possibly partial) hardware
-register or register group. By discouraging user-specified `N` and tuples of
-vector variables, we improve performance portability (e.g. by reducing spills to
-memory for platforms that have smaller vectors than the developer expected).
-
-To construct vectors, call factory functions (see "Initialization" below) with
-a tag parameter `d`.
-
-Local variables typically use auto for type deduction. For some generic
-functions, a template argument `V` is sufficient: `template<class V> V Squared(V
-v) { return v * v; }`. In general, functions have a `D` template argument and
-can return vectors of type `Vec<D>`.
-
-Note that Highway functions reside in `hwy::HWY_NAMESPACE`, whereas user-defined
-functions reside in `project::[nested]::HWY_NAMESPACE`. Highway functions
-generally take either a `Simd` or vector argument. For targets where vectors are
-defined in namespace `hwy`, the functions will be found via Argument-Dependent
-Lookup. However, this does not work for function templates, and RVV and SVE both
-use builtin vectors. Thus we recommend a `using hwy::HWY_NAMESPACE;` directive
-inside `project::[nested]::HWY_NAMESPACE`.
+Many functions will need a `D` template argument in order to initialize any
+constants. They can use a separate `V` template argument for vectors, or use
+`Vec<D>`, or where an lvalue `d` is available, `decltype(Zero(d))`. Using such
+aliases instead of auto may improve readability of mixed-type code. They can
+also be used for member variables, which are discouraged because compilers often
+have difficulty mapping them to registers.
 
 ## Operations
 
@@ -147,6 +146,14 @@ constraint of the form `V`: `{prefixes}[{bits}]`. The prefixes `u,i,f` denote
 unsigned, signed, and floating-point types, and bits indicates the number of
 bits per lane: 8, 16, 32, or 64. Any combination of the specified prefixes and
 bits are allowed. Abbreviations of the form `u32 = {u}{32}` may also be used.
+
+Note that Highway functions reside in `hwy::HWY_NAMESPACE`, whereas user-defined
+functions reside in `project::[nested]::HWY_NAMESPACE`. Highway functions
+generally take either a `Simd` or vector/mask argument. For targets where
+vectors and masks are defined in namespace `hwy`, the functions will be found
+via Argument-Dependent Lookup. However, this does not work for function
+templates, and RVV and SVE both use builtin vectors. Thus we recommend a `using
+hwy::HWY_NAMESPACE;` directive inside `project::[nested]::HWY_NAMESPACE`.
 
 ### Initialization
 
