@@ -69,8 +69,10 @@ HWY_AFTER_NAMESPACE();
 
 Highway vectors consist of one or more 'lanes' of the same built-in type `T =
 uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `T = float##_t` for `## = 16,
-32, 64`. `float16_t` is an IEEE binary16 half-float and only supports load,
-store, and conversion to/from `float32_t`; infinity or NaN have
+32, 64`.
+
+`float16_t` is an IEEE binary16 half-float and only supports load, store, and
+conversion to/from `float32_t`. `float16_t` infinity or NaN have
 implementation-defined results.
 
 Each vector has `N` lanes (a power of two, possibly unknown at compile time).
@@ -130,13 +132,12 @@ v) { return v * v; }`. In general, functions have a `D` template argument and
 can return vectors of type `Vec<D>`.
 
 Note that Highway functions reside in `hwy::HWY_NAMESPACE`, whereas user-defined
-functions reside in `project::[nested]::HWY_NAMESPACE`. Because all Highway
-functions generally take either a `Simd` or vector argument, which are also
-defined in namespace `hwy`, they will typically be found via Argument-Dependent
-Lookup and namespace qualifiers are not necessary. As an exception, Highway
-functions that are templates (e.g. because they require a compile-time argument
-such as a lane index or shift count) require a using-declaration such as
-`using hwy::HWY_NAMESPACE::ShiftLeft`.
+functions reside in `project::[nested]::HWY_NAMESPACE`. Highway functions
+generally take either a `Simd` or vector argument. For targets where vectors are
+defined in namespace `hwy`, the functions will be found via Argument-Dependent
+Lookup. However, this does not work for function templates, and RVV and SVE both
+use builtin vectors. Thus we recommend a `using hwy::HWY_NAMESPACE;` directive
+inside `project::[nested]::HWY_NAMESPACE`.
 
 ## Operations
 
@@ -819,7 +820,8 @@ Clang and GCC require e.g. -mavx2 flags in order to use SIMD intrinsics.
 However, this enables AVX2 instructions in the entire translation unit, which
 may violate the one-definition rule and cause crashes. Instead, we use
 target-specific attributes introduced via #pragma. Function using SIMD must
-reside between `HWY_BEFORE_NAMESPACE` and `HWY_AFTER_NAMESPACE`.
+reside between `HWY_BEFORE_NAMESPACE` and `HWY_AFTER_NAMESPACE`. Alternatively,
+individual functions or lambdas may be prefixed with `HWY_ATTR`.
 
 Immediates (compile-time constants) are specified as template arguments to avoid
 constant-propagation issues with Clang on ARM.
