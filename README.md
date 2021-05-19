@@ -25,7 +25,7 @@ reach version 1.0.
 Continuous integration tests build with a recent version of Clang (running on
 x86 and QEMU for ARM) and MSVC from VS2015 (running on x86).
 
-Before releases, we also test on x86 with Clang and GCC, and ARMv7 via
+Before releases, we also test on x86 with Clang and GCC, and ARMv7/8 via
 GCC cross-compile and QEMU. See the
 [testing process](g3doc/release_testing_process.md) for details.
 
