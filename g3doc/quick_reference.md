@@ -818,8 +818,10 @@ policy for selecting `HWY_TARGETS`:
     and permitted by the compiler, independently of autovectorization), which
     maximizes coverage in tests.
 
-If none are defined, the default is to select all attainable targets except any
-non-best baseline (typically `HWY_SCALAR`), which reduces code size.
+If none are defined, but `HWY_IS_TEST` is defined, the default is
+`HWY_COMPILE_ALL_ATTAINABLE`. Otherwise, the default is to select all attainable
+targets except any non-best baseline (typically `HWY_SCALAR`), which reduces
+code size.
 
 ## Compiler support
 
