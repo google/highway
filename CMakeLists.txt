@@ -41,6 +41,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON?")
+set(HWY_CMAKE_SCALAR OFF CACHE BOOL "Only build scalar target")
 
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
@@ -163,6 +164,10 @@ else()
   endif()  # HWY_CMAKE_ARM7
 
 endif()  # !MSVC
+
+if (HWY_CMAKE_SCALAR)
+  list(APPEND HWY_FLAGS "-DHWY_DISABLED_TARGETS=~HWY_SCALAR")
+endif()
 
 add_library(hwy STATIC ${HWY_SOURCES})
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
