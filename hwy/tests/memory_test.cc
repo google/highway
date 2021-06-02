@@ -15,7 +15,7 @@
 // Ensure incompabilities with Windows macros (e.g. #define StoreFence) are
 // detected. Must come before Highway headers.
 #if defined(_WIN32) || defined(_WIN64)
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 #include <stddef.h>
