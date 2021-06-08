@@ -52,16 +52,12 @@ for VER in 7 8 9 10 11; do
 done
 ```
 
-#### JPEG XL Webassembly
+#### JPEG XL tests
 
 ```
-sudo docker pull gcr.io/jpegxl/jpegxl-builder
-sudo docker run -it --rm -v $HOME/libjxl:/libjxl -w /libjxl gcr.io/jpegxl/jpegxl-builder@sha256:40590aed7021cc1864cf7f6f554e8a435240d151ca6ff9a6eb15ad86cde1d286
-rm -rf build-wasm32
-mkdir -p /libjxl/em_cache
-export EM_CACHE=/libjxl/em_cache
-export V8=/opt/.jsvu/v8
-source /opt/emsdk/emsdk_env.sh
-BUILD_TARGET=wasm32 ENABLE_WASM_SIMD=1 SKIP_TEST=1 PACK_TEST=1 emconfigure ./ci.sh release
-BUILD_TARGET=wasm32 emconfigure ./ci.sh test
+git -C third_party/highway pull -r origin master
+git diff
+vi deps.sh
+git commit -a -m"Highway test"
+git push git@gitlab.com:$USER/jpeg-xl.git HEAD:main --force
 ```
