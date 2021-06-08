@@ -22,6 +22,28 @@
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
+#ifdef HWY_WASM_OLD_NAMES
+#define wasm_i8x16_shuffle wasm_v8x16_shuffle
+#define wasm_i16x8_shuffle wasm_v16x8_shuffle
+#define wasm_i32x4_shuffle wasm_v32x4_shuffle
+#define wasm_i64x2_shuffle wasm_v64x2_shuffle
+#define wasm_u16x8_extend_low_u8x16 wasm_i16x8_widen_low_u8x16
+#define wasm_u32x4_extend_low_u16x8 wasm_i32x4_widen_low_u16x8
+#define wasm_i32x4_extend_low_i16x8 wasm_i32x4_widen_low_i16x8
+#define wasm_i16x8_extend_low_i8x16 wasm_i16x8_widen_low_i8x16
+#define wasm_u32x4_extend_high_u16x8 wasm_i32x4_widen_high_u16x8
+#define wasm_i32x4_extend_high_i16x8 wasm_i32x4_widen_high_i16x8
+#define wasm_i32x4_trunc_sat_f32x4 wasm_i32x4_trunc_saturate_f32x4
+#define wasm_u8x16_add_sat wasm_u8x16_add_saturate
+#define wasm_u8x16_sub_sat wasm_u8x16_sub_saturate
+#define wasm_u16x8_add_sat wasm_u16x8_add_saturate
+#define wasm_u16x8_sub_sat wasm_u16x8_sub_saturate
+#define wasm_i8x16_add_sat wasm_i8x16_add_saturate
+#define wasm_i8x16_sub_sat wasm_i8x16_sub_saturate
+#define wasm_i16x8_add_sat wasm_i16x8_add_saturate
+#define wasm_i16x8_sub_sat wasm_i16x8_sub_saturate
+#endif
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
