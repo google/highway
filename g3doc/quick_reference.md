@@ -31,7 +31,7 @@ The public headers are:
     alignment suitable for `Load`/`Store`.
 
 *   hwy/cache_control.h: defines stand-alone functions to control caching (e.g.
-    prefetching) and memory barriers, independent of actual SIMD.
+    prefetching), independent of actual SIMD.
 
 *   hwy/nanobenchmark.h: library for precisely measuring elapsed time (under
     varying inputs) for benchmarking small/medium regions of code.
@@ -93,13 +93,16 @@ It is typically a power of two, but that is not guaranteed e.g. on SVE.
 *   Most common: pass `HWY_FULL(T[, LMUL=1]) d;` as an argument to return a
     native vector. This is preferred because it fully utilizes vector lanes.
 
-    For targets (e.g. RVV) that support register groups, the optional `LMUL` (1,
-    2, 4, 8) specifies the number of registers in the group. This effectively
-    multiplies the lane count in each operation by `LMUL`. For mixed-precision
-    code, `LMUL` must be at least the ratio of the sizes of the largest and
-    smallest type. `LMUL > 1` is more efficient on single-issue machines, but
-    larger values reduce the effective number of registers, which may cause the
-    compiler to spill them to memory.
+    Only for targets (e.g. RVV) that support register groups, the second
+    argument (1, 2, 4, 8) specifies `LMUL`, the number of registers in the
+    group. This effectively multiplies the lane count in each operation by
+    `LMUL`. This argument will eventually be an optional hint that may improve
+    performance on 1-2 wide machines (at the cost of reducing the effective
+    number of registers), but the experimental GCC support for RVV does not
+    support fractional `LMUL`. Thus, mixed-precision code (e.g. demoting float
+    to uint8_t) currently requires `LMUL` to be at least the ratio of the sizes
+    of the largest and smallest type, and smaller `d` to be obtained via
+    `Half<DLarger>`.
 
 *   Less common: pass `HWY_CAPPED(T, N) d;` as an argument to return a vector
     which may be native width, but no more than `N` lanes have observable
@@ -514,24 +517,35 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 
 ### Cache control
 
-All functions except Stream are defined in cache_control.h.
+All functions except `Stream` are defined in cache_control.h.
 
-*   <code>void **Stream**(Vec&lt;D&gt; a, D, const T* aligned)</code>: copies
-    `a[i]` into `aligned[i]` with non-temporal hint on x86 (for good
-    performance, call for all consecutive vectors within the same cache line).
-    (Over)writes a multiple of HWY_STREAM_MULTIPLE bytes.
+*   <code>void **Stream**(Vec&lt;D&gt; a, D d, const T* aligned)</code>: copies
+    `a[i]` into `aligned[i]` with non-temporal hint if available (useful for
+    write-only data; avoids cache pollution). May be implemented using a
+    CPU-internal buffer. To avoid partial flushes and unpredictable interactions
+    with atomics (for example, see Intel SDM Vol 4, Sec. 8.1.2.2), call this
+    consecutively for an entire naturally aligned cache line (typically 64
+    bytes). Each call may write a multiple of `HWY_STREAM_MULTIPLE` bytes, which
+    can exceed `Lanes(d) * sizeof(T)`. The new contents of `aligned` may not be
+    visible until `FlushStream` is called.
+
+*   <code>void **FlushStream**()</code>: ensures values written by previous
+    `Stream` calls are visible on the current core. This is NOT sufficient for
+    synchronizing across cores; when `Stream` outputs are to be consumed by
+    other core(s), the producer must publish availability (e.g. via mutex or
+    atomic_flag) after `FlushStream`.
+
+*   <code>void **StoreFence**()</code>: DEPRECATED, calls `FlushStream`.
 
 *   <code>void **LoadFence**()</code>: delays subsequent loads until prior loads
     are visible. Also a full fence on Intel CPUs. No effect on non-x86.
-
-*   <code>void **StoreFence**()</code>: ensures previous non-temporal stores are
-    visible. No effect on non-x86.
+    DEPRECATED due to differing behavior across architectures AND vendors.
 
 *   <code>void **FlushCacheline**(const void* p)</code>: invalidates and flushes
-    the cache line containing "p". No effect on non-x86.
+    the cache line containing "p", if possible.
 
-*   <code>void **Prefetch**(const T* p)</code>: begins loading the cache line
-    containing "p".
+*   <code>void **Prefetch**(const T* p)</code>: optionally begins loading the
+    cache line containing "p" to reduce latency of subsequent actual loads.
 
 *   <code>void **Pause**()</code>: when called inside a spin-loop, may reduce
     power consumption.
