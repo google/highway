@@ -27,25 +27,6 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 // All types.
-struct TestMask {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    auto lanes = AllocateAligned<T>(N);
-
-    std::fill(lanes.get(), lanes.get() + N, T(0));
-    const auto actual_false = MaskFromVec(Load(d, lanes.get()));
-    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), actual_false);
-
-    memset(lanes.get(), 0xFF, N * sizeof(T));
-    const auto actual_true = MaskFromVec(Load(d, lanes.get()));
-    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), actual_true);
-  }
-};
-
-HWY_NOINLINE void TestAllMask() { ForAllTypes(ForPartialVectors<TestMask>()); }
-
-// All types.
 struct TestEquality {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -208,7 +189,6 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(HwyCompareTest);
-HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllMask);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
