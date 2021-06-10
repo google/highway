@@ -76,11 +76,10 @@ COPTS = select({
     "//conditions:default": CLANG_GCC_COPTS + CLANG_ONLY_COPTS,
 })
 
-# Unused on Bazel builds, where these are not defined/known; Copybara replaces
-# usages of this with an empty list.
+# Unused on Bazel builds, where this is not defined/known; Copybara replaces
+# usages with an empty list.
 COMPAT = [
-    "//buildenv/target:mobile",
-    "//buildenv/target:vendor",
+    "//buildenv/target:non_prod",  # includes mobile/vendor.
 ]
 
 # WARNING: changing flags such as HWY_DISABLED_TARGETS may break users without
