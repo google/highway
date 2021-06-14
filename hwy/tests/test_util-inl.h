@@ -196,6 +196,10 @@ static HWY_INLINE uint32_t Random32(RandomState* rng) {
   return static_cast<uint32_t>((*rng)());
 }
 
+static HWY_INLINE uint64_t Random64(RandomState* rng) {
+  return (*rng)();
+}
+
 // Prevents the compiler from eliding the computations that led to "output".
 // Works by indicating to the compiler that "output" is being read and modified.
 // The +r constraint avoids unnecessary writes to memory, but only works for

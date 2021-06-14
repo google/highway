@@ -3459,6 +3459,98 @@ HWY_INLINE Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
   return IfThenElse(MaskFromVec(vec), b, a);
 }
 
+// ================================================== CRYPTO
+
+#if HWY_ARCH_ARM_A64
+
+HWY_API Vec128<uint64_t> CLMulLower(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  return Vec128<uint64_t>((uint64x2_t)vmull_p64(GetLane(a), GetLane(b)));
+}
+
+HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  return Vec128<uint64_t>(
+      (uint64x2_t)vmull_high_p64((poly64x2_t)a.raw, (poly64x2_t)b.raw));
+}
+
+#else
+
+namespace detail {
+
+// Constant-time implementation inspired by
+// https://www.bearssl.org/constanttime.html, but about half the cost because we
+// use 64x64 multiplies and 128-bit XORs.
+
+// Scalar 64 x 64 bit multiply, returning the full 128 bit result.
+HWY_INLINE Vec128<uint64_t> MulLower(const Vec128<uint64_t> a,
+                                     const Vec128<uint64_t> b) {
+  uint64_t hi;
+  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 0), vgetq_lane_u64(b.raw, 0), &hi);
+  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
+}
+
+HWY_INLINE Vec128<uint64_t> MulUpper(const Vec128<uint64_t> a,
+                                     const Vec128<uint64_t> b) {
+  uint64_t hi;
+  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 1), vgetq_lane_u64(b.raw, 1), &hi);
+  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
+}
+
+}  // namespace detail
+
+HWY_API Vec128<uint64_t> CLMulLower(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  const Full128<uint64_t> d;
+  const auto k1 = Set(d, 0x1111111111111111ULL);
+  const auto k2 = Set(d, 0x2222222222222222ULL);
+  const auto k4 = Set(d, 0x4444444444444444ULL);
+  const auto k8 = Set(d, 0x8888888888888888ULL);
+  const auto a0 = a & k1;
+  const auto a1 = a & k2;
+  const auto a2 = a & k4;
+  const auto a3 = a & k8;
+  const auto b0 = b & k1;
+  const auto b1 = b & k2;
+  const auto b2 = b & k4;
+  const auto b3 = b & k8;
+
+  auto m0 = detail::MulLower(a0, b0) ^ detail::MulLower(a1, b3);
+  auto m1 = detail::MulLower(a0, b1) ^ detail::MulLower(a1, b0);
+  auto m2 = detail::MulLower(a0, b2) ^ detail::MulLower(a1, b1);
+  auto m3 = detail::MulLower(a0, b3) ^ detail::MulLower(a1, b2);
+  m0 ^= detail::MulLower(a2, b2) ^ detail::MulLower(a3, b1);
+  m1 ^= detail::MulLower(a2, b3) ^ detail::MulLower(a3, b2);
+  m2 ^= detail::MulLower(a2, b0) ^ detail::MulLower(a3, b3);
+  m3 ^= detail::MulLower(a2, b1) ^ detail::MulLower(a3, b0);
+  return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
+}
+
+HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  const Full128<uint64_t> d;
+  const auto k1 = Set(d, 0x1111111111111111ULL);
+  const auto k2 = Set(d, 0x2222222222222222ULL);
+  const auto k4 = Set(d, 0x4444444444444444ULL);
+  const auto k8 = Set(d, 0x8888888888888888ULL);
+  const auto a0 = a & k1;
+  const auto a1 = a & k2;
+  const auto a2 = a & k4;
+  const auto a3 = a & k8;
+  const auto b0 = b & k1;
+  const auto b1 = b & k2;
+  const auto b2 = b & k4;
+  const auto b3 = b & k8;
+
+  auto m0 = detail::MulUpper(a0, b0) ^ detail::MulUpper(a1, b3);
+  auto m1 = detail::MulUpper(a0, b1) ^ detail::MulUpper(a1, b0);
+  auto m2 = detail::MulUpper(a0, b2) ^ detail::MulUpper(a1, b1);
+  auto m3 = detail::MulUpper(a0, b3) ^ detail::MulUpper(a1, b2);
+  m0 ^= detail::MulUpper(a2, b2) ^ detail::MulUpper(a3, b1);
+  m1 ^= detail::MulUpper(a2, b3) ^ detail::MulUpper(a3, b2);
+  m2 ^= detail::MulUpper(a2, b0) ^ detail::MulUpper(a3, b3);
+  m3 ^= detail::MulUpper(a2, b1) ^ detail::MulUpper(a3, b0);
+  return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
+}
+
+#endif  // HWY_ARCH_ARM_A64
+
 // ================================================== MISC
 
 // ------------------------------ Scatter (Store)

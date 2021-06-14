@@ -295,6 +295,7 @@ set(HWY_TEST_FILES
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc
+  hwy/tests/crypto_test.cc
   hwy/tests/logical_test.cc
   hwy/tests/mask_test.cc
   hwy/tests/memory_test.cc

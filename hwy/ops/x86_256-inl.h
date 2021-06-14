@@ -2511,11 +2511,25 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
   return detail::FixConversionOverflow(di, v, _mm256_cvtps_epi32(v.raw));
 }
 
+// ================================================== CRYPTO
+
+// TODO(janwas): _mm256_clmulepi64_epi128
+
+HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Combine(CLMulLower(UpperHalf(a), UpperHalf(b)),
+                 CLMulLower(LowerHalf(a), LowerHalf(b)));
+}
+
+HWY_API Vec256<uint64_t> CLMulUpper(Vec256<uint64_t> a, Vec256<uint64_t> b) {
+  return Combine(CLMulUpper(UpperHalf(a), UpperHalf(b)),
+                 CLMulUpper(LowerHalf(a), LowerHalf(b)));
+}
+
 // ================================================== MISC
 
 // Returns a vector with lane i=[0, N) set to "first" + i.
 template <typename T, typename T2>
-Vec256<T> Iota(const Full256<T> d, const T2 first) {
+HWY_API Vec256<T> Iota(const Full256<T> d, const T2 first) {
   HWY_ALIGN T lanes[32 / sizeof(T)];
   for (size_t i = 0; i < 32 / sizeof(T); ++i) {
     lanes[i] = static_cast<T>(first + static_cast<T2>(i));

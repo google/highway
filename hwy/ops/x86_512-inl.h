@@ -2696,6 +2696,38 @@ HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
   return detail::FixConversionOverflow(di, v, _mm512_cvtps_epi32(v.raw));
 }
 
+// ================================================== CRYPTO
+
+// TODO(janwas): _mm512_clmulepi64_epi128
+
+HWY_API Vec512<uint64_t> CLMulLower(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
+  alignas(64) uint64_t a[8];
+  alignas(64) uint64_t b[8];
+  const Full512<uint64_t> d;
+  const Full128<uint64_t> d128;
+  Store(va, d, a);
+  Store(vb, d, b);
+  for (size_t i = 0; i < 8; i += 2) {
+    const auto mul = CLMulLower(Load(d128, a + i), Load(d128, b + i));
+    Store(mul, d128, a + i);
+  }
+  return Load(d, a);
+}
+
+HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
+  alignas(64) uint64_t a[8];
+  alignas(64) uint64_t b[8];
+  const Full512<uint64_t> d;
+  const Full128<uint64_t> d128;
+  Store(va, d, a);
+  Store(vb, d, b);
+  for (size_t i = 0; i < 8; i += 2) {
+    const auto mul = CLMulUpper(Load(d128, a + i), Load(d128, b + i));
+    Store(mul, d128, a + i);
+  }
+  return Load(d, a);
+}
+
 // ================================================== MISC
 
 // Returns a vector with lane i=[0, N) set to "first" + i.

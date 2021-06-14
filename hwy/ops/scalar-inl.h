@@ -1139,15 +1139,15 @@ HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
 
 // Sum of all lanes, i.e. the only one.
 template <typename T>
-HWY_INLINE Vec1<T> SumOfLanes(const Vec1<T> v0) {
+HWY_API Vec1<T> SumOfLanes(const Vec1<T> v0) {
   return v0;
 }
 template <typename T>
-HWY_INLINE Vec1<T> MinOfLanes(const Vec1<T> v) {
+HWY_API Vec1<T> MinOfLanes(const Vec1<T> v) {
   return v;
 }
 template <typename T>
-HWY_INLINE Vec1<T> MaxOfLanes(const Vec1<T> v) {
+HWY_API Vec1<T> MaxOfLanes(const Vec1<T> v) {
   return v;
 }
 

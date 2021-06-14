@@ -102,7 +102,9 @@ constexpr uint32_t kSSE3 = 1 << 2;
 constexpr uint32_t kSSSE3 = 1 << 3;
 constexpr uint32_t kSSE41 = 1 << 4;
 constexpr uint32_t kSSE42 = 1 << 5;
-constexpr uint32_t kGroupSSE4 = kSSE | kSSE2 | kSSE3 | kSSSE3 | kSSE41 | kSSE42;
+constexpr uint32_t kCLMUL = 1 << 6;
+constexpr uint32_t kGroupSSE4 =
+    kSSE | kSSE2 | kSSE3 | kSSSE3 | kSSE41 | kSSE42 | kCLMUL;
 
 constexpr uint32_t kAVX = 1u << 6;
 constexpr uint32_t kAVX2 = 1u << 7;
@@ -116,16 +118,18 @@ constexpr uint32_t kBMI2 = 1u << 11;
 // [https://www.virtualbox.org/ticket/15471]. Thus we provide the option of
 // avoiding using and requiring these so AVX2 can still be used.
 #ifdef HWY_DISABLE_BMI2_FMA
-constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kLZCNT;
+constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kLZCNT | kGroupSSE4;
 #else
-constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kFMA | kLZCNT | kBMI | kBMI2;
+constexpr uint32_t kGroupAVX2 =
+    kAVX | kAVX2 | kFMA | kLZCNT | kBMI | kBMI2 | kGroupSSE4;
 #endif
 
 constexpr uint32_t kAVX512F = 1u << 12;
 constexpr uint32_t kAVX512VL = 1u << 13;
 constexpr uint32_t kAVX512DQ = 1u << 14;
 constexpr uint32_t kAVX512BW = 1u << 15;
-constexpr uint32_t kGroupAVX3 = kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW;
+constexpr uint32_t kGroupAVX3 =
+    kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW | kGroupAVX2;
 #endif  // HWY_ARCH_X86
 
 }  // namespace
@@ -193,69 +197,74 @@ uint32_t SupportedTargets() {
   bits = HWY_SCALAR;
 
 #if HWY_ARCH_X86
-  uint32_t flags = 0;
-  uint32_t abcd[4];
+  bool has_osxsave = false;
+  {  // ensures we do not accidentally use flags outside this block
+    uint32_t flags = 0;
+    uint32_t abcd[4];
 
-  Cpuid(0, 0, abcd);
-  const uint32_t max_level = abcd[0];
+    Cpuid(0, 0, abcd);
+    const uint32_t max_level = abcd[0];
 
-  // Standard feature flags
-  Cpuid(1, 0, abcd);
-  flags |= IsBitSet(abcd[3], 25) ? kSSE : 0;
-  flags |= IsBitSet(abcd[3], 26) ? kSSE2 : 0;
-  flags |= IsBitSet(abcd[2], 0) ? kSSE3 : 0;
-  flags |= IsBitSet(abcd[2], 9) ? kSSSE3 : 0;
-  flags |= IsBitSet(abcd[2], 19) ? kSSE41 : 0;
-  flags |= IsBitSet(abcd[2], 20) ? kSSE42 : 0;
-  flags |= IsBitSet(abcd[2], 12) ? kFMA : 0;
-  flags |= IsBitSet(abcd[2], 28) ? kAVX : 0;
-  const bool has_osxsave = IsBitSet(abcd[2], 27);
+    // Standard feature flags
+    Cpuid(1, 0, abcd);
+    flags |= IsBitSet(abcd[3], 25) ? kSSE : 0;
+    flags |= IsBitSet(abcd[3], 26) ? kSSE2 : 0;
+    flags |= IsBitSet(abcd[2], 0) ? kSSE3 : 0;
+    flags |= IsBitSet(abcd[2], 1) ? kCLMUL : 0;
+    flags |= IsBitSet(abcd[2], 9) ? kSSSE3 : 0;
+    flags |= IsBitSet(abcd[2], 19) ? kSSE41 : 0;
+    flags |= IsBitSet(abcd[2], 20) ? kSSE42 : 0;
+    flags |= IsBitSet(abcd[2], 12) ? kFMA : 0;
+    flags |= IsBitSet(abcd[2], 28) ? kAVX : 0;
+    has_osxsave = IsBitSet(abcd[2], 27);
 
-  // Extended feature flags
-  Cpuid(0x80000001U, 0, abcd);
-  flags |= IsBitSet(abcd[2], 5) ? kLZCNT : 0;
+    // Extended feature flags
+    Cpuid(0x80000001U, 0, abcd);
+    flags |= IsBitSet(abcd[2], 5) ? kLZCNT : 0;
 
-  // Extended features
-  if (max_level >= 7) {
-    Cpuid(7, 0, abcd);
-    flags |= IsBitSet(abcd[1], 3) ? kBMI : 0;
-    flags |= IsBitSet(abcd[1], 5) ? kAVX2 : 0;
-    flags |= IsBitSet(abcd[1], 8) ? kBMI2 : 0;
+    // Extended features
+    if (max_level >= 7) {
+      Cpuid(7, 0, abcd);
+      flags |= IsBitSet(abcd[1], 3) ? kBMI : 0;
+      flags |= IsBitSet(abcd[1], 5) ? kAVX2 : 0;
+      flags |= IsBitSet(abcd[1], 8) ? kBMI2 : 0;
 
-    flags |= IsBitSet(abcd[1], 16) ? kAVX512F : 0;
-    flags |= IsBitSet(abcd[1], 17) ? kAVX512DQ : 0;
-    flags |= IsBitSet(abcd[1], 30) ? kAVX512BW : 0;
-    flags |= IsBitSet(abcd[1], 31) ? kAVX512VL : 0;
+      flags |= IsBitSet(abcd[1], 16) ? kAVX512F : 0;
+      flags |= IsBitSet(abcd[1], 17) ? kAVX512DQ : 0;
+      flags |= IsBitSet(abcd[1], 30) ? kAVX512BW : 0;
+      flags |= IsBitSet(abcd[1], 31) ? kAVX512VL : 0;
+    }
+
+    // Set target bit(s) if all their group's flags are all set.
+    if ((flags & kGroupAVX3) == kGroupAVX3) {
+      bits |= HWY_AVX3;
+    }
+    if ((flags & kGroupAVX2) == kGroupAVX2) {
+      bits |= HWY_AVX2;
+    }
+    if ((flags & kGroupSSE4) == kGroupSSE4) {
+      bits |= HWY_SSE4;
+    }
   }
 
-  // Verify OS support for XSAVE, without which XMM/YMM registers are not
-  // preserved across context switches and are not safe to use.
+  // Clear bits if the OS does not support XSAVE - otherwise, registers
+  // are not preserved across context switches.
   if (has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
     // XMM
     if (!IsBitSet(xcr0, 1)) {
-      flags = 0;
+      bits &= ~(HWY_SSE4 | HWY_AVX2 | HWY_AVX3);
     }
     // YMM
     if (!IsBitSet(xcr0, 2)) {
-      flags &= ~kGroupAVX2;
+      bits &= ~(HWY_SSE4 | HWY_AVX2);
     }
     // ZMM + opmask
     if ((xcr0 & 0x70) != 0x70) {
-      flags &= ~kGroupAVX3;
+      bits &= ~HWY_AVX3;
     }
   }
 
-  // Set target bit(s) if all their group's flags are all set.
-  if ((flags & kGroupAVX3) == kGroupAVX3) {
-    bits |= HWY_AVX3;
-  }
-  if ((flags & kGroupAVX2) == kGroupAVX2) {
-    bits |= HWY_AVX2;
-  }
-  if ((flags & kGroupSSE4) == kGroupSSE4) {
-    bits |= HWY_SSE4;
-  }
 #else
   // TODO(janwas): detect for other platforms
   bits = HWY_ENABLED_BASELINE;

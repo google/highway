@@ -739,6 +739,20 @@ than normal SIMD operations and are typically used outside critical loops.
     <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
     lane.
 
+### Crypto
+
+*   `V`: `u64` \
+    <code>V <b>CLMulLower</b>(V a, V b)</code>: carryless multiplication of the
+    lower 64 bits of each 128-bit block into a 128-bit product. The latency is
+    independent of the input values (assuming that is true of normal integer
+    multiplication) so this can safely be used in cryto. Applications that wish
+    to multiply upper with lower halves can `Shuffle01` one of the operands; on
+    x86 that is expected to be latency-neutral.
+
+*   `V`: `u64` \
+    <code>V <b>CLMulUpper</b>(V a, V b)</code>: as CLMulLower, but multiplies
+    the upper 64 bits of each 128-bit block.
+
 ## Advanced macros
 
 Let `Target` denote an instruction set:

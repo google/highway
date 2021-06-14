@@ -193,6 +193,7 @@ HWY_TESTS = [
     ("hwy/tests/", "combine_test"),
     ("hwy/tests/", "compare_test"),
     ("hwy/tests/", "convert_test"),
+    ("hwy/tests/", "crypto_test"),
     ("hwy/tests/", "logical_test"),
     ("hwy/tests/", "mask_test"),
     ("hwy/tests/", "memory_test"),

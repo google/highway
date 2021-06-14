@@ -623,6 +623,30 @@ HWY_API size_t PopCount(uint64_t x) {
 #endif
 }
 
+#if HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+#pragma intrinsic(_umul128)
+#endif
+
+// 64 x 64 = 128 bit multiplication
+HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
+#if defined(__SIZEOF_INT128__)
+  __uint128_t product = (__uint128_t)a * (__uint128_t)b;
+  *upper = (uint64_t)(product >> 64);
+  return (uint64_t)(product & 0xFFFFFFFFFFFFFFFFULL);
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+  return _umul128(a, b, upper);
+#else
+  constexpr uint64_t kLo32 = 0xFFFFFFFFU;
+  const uint64_t lo_lo = (a & kLo32) * (b & kLo32);
+  const uint64_t hi_lo = (a >> 32) * (b & kLo32);
+  const uint64_t lo_hi = (a & kLo32) * (b >> 32);
+  const uint64_t hi_hi = (a >> 32) * (b >> 32);
+  const uint64_t t = (lo_lo >> 32) + (hi_lo & kLo32) + lo_hi;
+  *upper = (hi_lo >> 32) + (t >> 32) + hi_hi;
+  return (t << 32) | (lo_lo & kLo32);
+#endif
+}
+
 // The source/destination must not overlap/alias.
 template <size_t kBytes, typename From, typename To>
 HWY_API void CopyBytes(const From* from, To* to) {

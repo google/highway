@@ -20,6 +20,7 @@
 #include <smmintrin.h>  // SSE4
 #include <stddef.h>
 #include <stdint.h>
+#include <wmmintrin.h>  // CLMUL
 
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
@@ -3075,11 +3076,25 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
   return detail::FixConversionOverflow(di, v, _mm_cvtps_epi32(v.raw));
 }
 
+// ================================================== CRYPTO
+
+template <size_t N, HWY_IF_LE128(uint64_t, N)>
+HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_clmulepi64_si128(a.raw, b.raw, 0x00)};
+}
+
+template <size_t N, HWY_IF_LE128(uint64_t, N)>
+HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_clmulepi64_si128(a.raw, b.raw, 0x11)};
+}
+
 // ================================================== MISC
 
 // Returns a vector with lane i=[0, N) set to "first" + i.
 template <typename T, size_t N, typename T2, HWY_IF_LE128(T, N)>
-Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
+HWY_API Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
   HWY_ALIGN T lanes[16 / sizeof(T)];
   for (size_t i = 0; i < 16 / sizeof(T); ++i) {
     lanes[i] = static_cast<T>(first + static_cast<T2>(i));

@@ -560,11 +560,25 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Max, fmax)
 
 // ------------------------------ Mul
 
+// Only for internal use (Highway only promises Mul for 16/32-bit inputs).
+// Used by MulLower.
+namespace detail {
+HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, Mul, mul)
+}  // namespace detail
+
 HWY_RVV_FOREACH_UI16(HWY_RVV_RETV_ARGVV, Mul, mul)
 HWY_RVV_FOREACH_UI32(HWY_RVV_RETV_ARGVV, Mul, mul)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Mul, fmul)
 
 // ------------------------------ MulHigh
+
+// Only for internal use (Highway only promises MulHigh for 16-bit inputs).
+// Used by MulEven; vwmul does not work for m8.
+namespace detail {
+HWY_RVV_FOREACH_I32(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
+HWY_RVV_FOREACH_U32(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
+HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
+}  // namespace detail
 
 HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
 HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
@@ -1728,13 +1742,6 @@ HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
 
 // ------------------------------ MulEven
 
-// Using vwmul does not work for m8, so use mulh instead. Highway only provides
-// MulHigh for 16-bit, so use a private wrapper.
-namespace detail {
-HWY_RVV_FOREACH_U32(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
-HWY_RVV_FOREACH_I32(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
-}  // namespace detail
-
 template <class V>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {
   const DFromV<V> d;
@@ -1743,6 +1750,89 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {
   const auto hi = detail::MulHigh(a, b);
   const RepartitionToWide<DFromV<V>> dw;
   return BitCast(dw, OddEven(detail::SlideUp(hi, hi, 1), lo));
+}
+
+// ------------------------------ CLMul
+
+// Constant-time implementation inspired by
+// https://www.bearssl.org/constanttime.html, but about half the cost because we
+// use 64x64 multiplies.
+namespace detail {
+
+// There is no 64x64 vwmul. This is basically MulEven, but without the
+// double-wide return type (not available for u64 inputs).
+template <class V>
+HWY_API V MulLower(const V a, const V b) {
+  const DFromV<V> d;
+  Lanes(d);
+  const auto lo = Mul(a, b);
+  const auto hi = detail::MulHigh(a, b);
+  return OddEven(detail::SlideUp(hi, hi, 1), lo);
+}
+
+template <class V>
+HWY_API V MulUpper(const V a, const V b) {
+  const DFromV<V> d;
+  Lanes(d);
+  const auto lo = Mul(a, b);
+  const auto hi = detail::MulHigh(a, b);
+  return OddEven(hi, detail::SlideDown(lo, lo, 1));
+}
+
+}  // namespace detail
+
+template <class V>
+HWY_API V CLMulLower(V a, V b) {
+  const DFromV<V> d;
+  const auto k1 = Set(d, 0x1111111111111111ULL);
+  const auto k2 = Set(d, 0x2222222222222222ULL);
+  const auto k4 = Set(d, 0x4444444444444444ULL);
+  const auto k8 = Set(d, 0x8888888888888888ULL);
+  const auto a0 = a & k1;
+  const auto a1 = a & k2;
+  const auto a2 = a & k4;
+  const auto a3 = a & k8;
+  const auto b0 = b & k1;
+  const auto b1 = b & k2;
+  const auto b2 = b & k4;
+  const auto b3 = b & k8;
+
+  auto m0 = detail::MulLower(a0, b0) ^ detail::MulLower(a1, b3);
+  auto m1 = detail::MulLower(a0, b1) ^ detail::MulLower(a1, b0);
+  auto m2 = detail::MulLower(a0, b2) ^ detail::MulLower(a1, b1);
+  auto m3 = detail::MulLower(a0, b3) ^ detail::MulLower(a1, b2);
+  m0 ^= detail::MulLower(a2, b2) ^ detail::MulLower(a3, b1);
+  m1 ^= detail::MulLower(a2, b3) ^ detail::MulLower(a3, b2);
+  m2 ^= detail::MulLower(a2, b0) ^ detail::MulLower(a3, b3);
+  m3 ^= detail::MulLower(a2, b1) ^ detail::MulLower(a3, b0);
+  return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
+}
+
+template <class V>
+HWY_API V CLMulUpper(V a, V b) {
+  const DFromV<V> d;
+  const auto k1 = Set(d, 0x1111111111111111ULL);
+  const auto k2 = Set(d, 0x2222222222222222ULL);
+  const auto k4 = Set(d, 0x4444444444444444ULL);
+  const auto k8 = Set(d, 0x8888888888888888ULL);
+  const auto a0 = a & k1;
+  const auto a1 = a & k2;
+  const auto a2 = a & k4;
+  const auto a3 = a & k8;
+  const auto b0 = b & k1;
+  const auto b1 = b & k2;
+  const auto b2 = b & k4;
+  const auto b3 = b & k8;
+
+  auto m0 = detail::MulUpper(a0, b0) ^ detail::MulUpper(a1, b3);
+  auto m1 = detail::MulUpper(a0, b1) ^ detail::MulUpper(a1, b0);
+  auto m2 = detail::MulUpper(a0, b2) ^ detail::MulUpper(a1, b1);
+  auto m3 = detail::MulUpper(a0, b3) ^ detail::MulUpper(a1, b2);
+  m0 ^= detail::MulUpper(a2, b2) ^ detail::MulUpper(a3, b1);
+  m1 ^= detail::MulUpper(a2, b3) ^ detail::MulUpper(a3, b2);
+  m2 ^= detail::MulUpper(a2, b0) ^ detail::MulUpper(a3, b3);
+  m3 ^= detail::MulUpper(a2, b1) ^ detail::MulUpper(a3, b0);
+  return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
 }
 
 // ================================================== END MACROS
