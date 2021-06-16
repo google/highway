@@ -190,20 +190,28 @@
 // MSVC does not set SSE4_1, but it does set AVX; checking for the latter means
 // we at least get SSE4 on machines supporting AVX but not AVX2.
 // https://stackoverflow.com/questions/18563978/
-#if HWY_ARCH_X86 && \
-    (defined(__SSE4_1__) || (HWY_COMPILER_MSVC != 0 && defined(__AVX__)))
+#if HWY_ARCH_X86 && ((defined(__SSE4_1__) && defined(__PCLMUL__)) || \
+                     (HWY_COMPILER_MSVC != 0 && defined(__AVX__)))
 #define HWY_BASELINE_SSE4 HWY_SSE4
 #else
 #define HWY_BASELINE_SSE4 0
 #endif
 
-#if HWY_ARCH_X86 && defined(__AVX2__)
+// If the config flag for disabling BMI2/FMA is set, no need to check for them.
+#define HWY_CHECK_BMI2_FMA \
+  (defined(HWY_DISABLE_BMI2_FMA) || (defined(__BMI2__) && defined(__FMA__)))
+
+#if HWY_ARCH_X86 && defined(__AVX2__) &&                              \
+    (HWY_COMPILER_MSVC != 0 || /* MSVC does not set the following: */ \
+     (defined(__PCLMUL__) && defined(__F16C__) && HWY_CHECK_BMI2_FMA))
 #define HWY_BASELINE_AVX2 HWY_AVX2
 #else
 #define HWY_BASELINE_AVX2 0
 #endif
 
-#if HWY_ARCH_X86 && defined(__AVX512F__)
+// Require everything in AVX2 plus AVX-512 flags (also set by MSVC)
+#if HWY_BASELINE_AVX2 != 0 && defined(__AVX512F__) && defined(__AVX512BW__) && \
+    defined(__AVX512DQ__) && defined(__AVX512VL__)
 #define HWY_BASELINE_AVX3 HWY_AVX3
 #else
 #define HWY_BASELINE_AVX3 0
