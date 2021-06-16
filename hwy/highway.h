@@ -87,6 +87,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX2::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_AVX3
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_AVX3_DL
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_DL::FUNC_NAME
 #endif
 
 // Dynamic dispatch declarations.
@@ -183,6 +185,12 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #define HWY_CHOOSE_AVX3(FUNC_NAME) nullptr
 #endif
 
+#if HWY_TARGETS & HWY_AVX3_DL
+#define HWY_CHOOSE_AVX3_DL(FUNC_NAME) &N_AVX3_DL::FUNC_NAME
+#else
+#define HWY_CHOOSE_AVX3_DL(FUNC_NAME) nullptr
+#endif
+
 #define HWY_DISPATCH_TABLE(FUNC_NAME) \
   HWY_CONCAT(FUNC_NAME, HighwayDispatchTable)
 
@@ -274,7 +282,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #include "hwy/ops/x86_128-inl.h"
 #elif HWY_TARGET == HWY_AVX2
 #include "hwy/ops/x86_256-inl.h"
-#elif HWY_TARGET == HWY_AVX3
+#elif HWY_TARGET <= HWY_AVX3
 #include "hwy/ops/x86_512-inl.h"
 #elif HWY_TARGET == HWY_PPC8
 #error "PPC is not yet supported"

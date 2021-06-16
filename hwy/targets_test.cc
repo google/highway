@@ -23,6 +23,7 @@ namespace fake {
     uint32_t FakeFunction(int) { return HWY_##TGT; } \
   }
 
+DECLARE_FUNCTION(AVX3_DL)
 DECLARE_FUNCTION(AVX3)
 DECLARE_FUNCTION(AVX2)
 DECLARE_FUNCTION(SSE4)
@@ -49,6 +50,7 @@ void CheckFakeFunction() {
     /* Second call uses the cached value from the previous call. */         \
     EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
   }
+  CHECK_ARRAY_ENTRY(AVX3_DL)
   CHECK_ARRAY_ENTRY(AVX3)
   CHECK_ARRAY_ENTRY(AVX2)
   CHECK_ARRAY_ENTRY(SSE4)

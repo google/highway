@@ -75,8 +75,8 @@
 #endif
 
 //-----------------------------------------------------------------------------
-// AVX3
-#elif HWY_TARGET == HWY_AVX3
+// AVX3[_DL]
+#elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL
 
 #define HWY_ALIGN alignas(64)
 #define HWY_LANES(T) (64 / sizeof(T))
@@ -86,6 +86,8 @@
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 1
 
+#if HWY_TARGET == HWY_AVX3
+
 #define HWY_NAMESPACE N_AVX3
 
 // Must include AVX2 because an AVX3 test may call AVX2 functions (e.g. when
@@ -93,6 +95,18 @@
 // we have AVX3, we should also have BMI2/FMA.
 #define HWY_TARGET_STR \
   "avx,avx2,bmi,bmi2,fma,f16c,pclmul,avx512f,avx512vl,avx512dq,avx512bw"
+
+#elif HWY_TARGET == HWY_AVX3_DL
+
+#define HWY_NAMESPACE N_AVX3_DL
+
+#define HWY_TARGET_STR                                                    \
+  "avx,avx2,bmi,bmi2,fma,f16c,pclmul,avx512f,avx512vl,avx512dq,avx512bw," \
+  "vpclmulqdq,vaes,avxvnni"
+
+#else
+#error "Logic error"
+#endif  // HWY_TARGET == HWY_AVX3_DL
 
 //-----------------------------------------------------------------------------
 // PPC8

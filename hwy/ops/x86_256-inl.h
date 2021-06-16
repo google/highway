@@ -272,7 +272,7 @@ HWY_API Vec256<double> Xor(const Vec256<double> a, const Vec256<double> b) {
 template <typename T>
 HWY_API Vec256<T> Not(const Vec256<T> v) {
   using TU = MakeUnsigned<T>;
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   const __m256i vu = BitCast(Full256<TU>(), v).raw;
   return BitCast(Full256<T>(),
                  Vec256<TU>{_mm256_ternarylogic_epi32(vu, vu, vu, 0x55)});
@@ -307,7 +307,7 @@ HWY_API Vec256<T> CopySign(const Vec256<T> magn, const Vec256<T> sign) {
   const Full256<T> d;
   const auto msb = SignBit(d);
 
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   const Rebind<MakeUnsigned<T>, decltype(d)> du;
   // Truth table for msb, magn, sign | bitwise msb ? sign : mag
   //                  0    0     0   |  0
@@ -329,7 +329,7 @@ HWY_API Vec256<T> CopySign(const Vec256<T> magn, const Vec256<T> sign) {
 
 template <typename T>
 HWY_API Vec256<T> CopySignToAbs(const Vec256<T> abs, const Vec256<T> sign) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   // AVX3 can also handle abs < 0, so no extra action needed.
   return CopySign(abs, sign);
 #else
@@ -597,7 +597,7 @@ HWY_API Vec256<uint32_t> Min(const Vec256<uint32_t> a,
 }
 HWY_API Vec256<uint64_t> Min(const Vec256<uint64_t> a,
                              const Vec256<uint64_t> b) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<uint64_t>{_mm256_min_epu64(a.raw, b.raw)};
 #else
   const Full256<uint64_t> du;
@@ -619,7 +619,7 @@ HWY_API Vec256<int32_t> Min(const Vec256<int32_t> a, const Vec256<int32_t> b) {
   return Vec256<int32_t>{_mm256_min_epi32(a.raw, b.raw)};
 }
 HWY_API Vec256<int64_t> Min(const Vec256<int64_t> a, const Vec256<int64_t> b) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_min_epi64(a.raw, b.raw)};
 #else
   return IfThenElse(a < b, a, b);
@@ -650,7 +650,7 @@ HWY_API Vec256<uint32_t> Max(const Vec256<uint32_t> a,
 }
 HWY_API Vec256<uint64_t> Max(const Vec256<uint64_t> a,
                              const Vec256<uint64_t> b) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<uint64_t>{_mm256_max_epu64(a.raw, b.raw)};
 #else
   const Full256<uint64_t> du;
@@ -672,7 +672,7 @@ HWY_API Vec256<int32_t> Max(const Vec256<int32_t> a, const Vec256<int32_t> b) {
   return Vec256<int32_t>{_mm256_max_epi32(a.raw, b.raw)};
 }
 HWY_API Vec256<int64_t> Max(const Vec256<int64_t> a, const Vec256<int64_t> b) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_max_epi64(a.raw, b.raw)};
 #else
   return IfThenElse(a < b, b, a);
@@ -1037,7 +1037,7 @@ HWY_API Vec256<int64_t> BroadcastSignBit(const Vec256<int64_t> v) {
 
 template <int kBits>
 HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_srai_epi64(v.raw, kBits)};
 #else
   const Full256<int64_t> di;
@@ -1049,7 +1049,7 @@ HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
 }
 
 HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_abs_epi64(v.raw)};
 #else
   const auto zero = Zero(Full256<int64_t>());
@@ -1125,7 +1125,7 @@ HWY_API Vec256<int32_t> ShiftRightSame(const Vec256<int32_t> v,
 }
 HWY_API Vec256<int64_t> ShiftRightSame(const Vec256<int64_t> v,
                                        const int bits) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 #else
   const Full256<int64_t> di;
@@ -1432,7 +1432,7 @@ HWY_API void Stream(const Vec256<double> v, Full256<double> /* tag */,
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
 
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
 namespace detail {
 
 template <typename T>
@@ -2190,7 +2190,7 @@ HWY_API Vec256<T> TableLookupBytes(const Vec256<T> bytes,
 
 // ------------------------------ Shl (Mul, ZipLower)
 
-#if HWY_TARGET != HWY_AVX3
+#if HWY_TARGET > HWY_AVX3  // AVX2 or older
 namespace detail {
 
 // Returns 2^v for use as per-lane multipliers to emulate 16-bit shifts.
@@ -2213,11 +2213,11 @@ HWY_API Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
 }
 
 }  // namespace detail
-#endif  // HWY_TARGET != HWY_AVX3
+#endif  // HWY_TARGET > HWY_AVX3
 
 HWY_API Vec256<uint16_t> operator<<(const Vec256<uint16_t> v,
                                     const Vec256<uint16_t> bits) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<uint16_t>{_mm256_sllv_epi16(v.raw, bits.raw)};
 #else
   return v * detail::Pow2(bits);
@@ -2246,7 +2246,7 @@ HWY_API Vec256<T> operator<<(const Vec256<T> v, const Vec256<T> bits) {
 
 HWY_API Vec256<uint16_t> operator>>(const Vec256<uint16_t> v,
                                     const Vec256<uint16_t> bits) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<uint16_t>{_mm256_srlv_epi16(v.raw, bits.raw)};
 #else
   const Full256<uint16_t> d;
@@ -2269,7 +2269,7 @@ HWY_API Vec256<uint64_t> operator>>(const Vec256<uint64_t> v,
 
 HWY_API Vec256<int16_t> operator>>(const Vec256<int16_t> v,
                                    const Vec256<int16_t> bits) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int16_t>{_mm256_srav_epi16(v.raw, bits.raw)};
 #else
   return detail::SignedShr(Full256<int16_t>(), v, bits);
@@ -2283,7 +2283,7 @@ HWY_API Vec256<int32_t> operator>>(const Vec256<int32_t> v,
 
 HWY_API Vec256<int64_t> operator>>(const Vec256<int64_t> v,
                                    const Vec256<int64_t> bits) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_srav_epi64(v.raw, bits.raw)};
 #else
   return detail::SignedShr(Full256<int64_t>(), v, bits);
@@ -2460,7 +2460,7 @@ HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,
 }
 
 HWY_API Vec256<double> ConvertTo(Full256<double> dd, const Vec256<int64_t> v) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   (void)dd;
   return Vec256<double>{_mm256_cvtepi64_pd(v.raw)};
 #else
@@ -2487,7 +2487,7 @@ HWY_API Vec256<int32_t> ConvertTo(Full256<int32_t> d, const Vec256<float> v) {
 }
 
 HWY_API Vec256<int64_t> ConvertTo(Full256<int64_t> di, const Vec256<double> v) {
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   return detail::FixConversionOverflow(di, v, _mm256_cvttpd_epi64(v.raw));
 #else
   alignas(32) double lanes_d[4];
@@ -2711,7 +2711,7 @@ template <typename T>
 HWY_API Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
                            const uint64_t mask_bits) {
   const auto vu = BitCast(Full256<uint32_t>(), v);
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   const __m256i ret =
       _mm256_maskz_compress_epi32(static_cast<__mmask8>(mask_bits), vu.raw);
 #else
@@ -2725,7 +2725,7 @@ template <typename T>
 HWY_API Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
                            const uint64_t mask_bits) {
   const auto vu = BitCast(Full256<uint64_t>(), v);
-#if HWY_TARGET == HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3
   const __m256i ret =
       _mm256_maskz_compress_epi64(static_cast<__mmask8>(mask_bits), vu.raw);
 #else
@@ -2736,7 +2736,7 @@ HWY_API Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
 }
 
 // Otherwise, defined in x86_512-inl.h so it can use wider vectors.
-#if HWY_TARGET != HWY_AVX3
+#if HWY_TARGET > HWY_AVX3  // AVX2 or older
 
 // LUTs are infeasible for 2^16 possible masks. Promoting to 32-bit and using
 // the native Compress is probably more efficient than 2 LUTs.
@@ -2787,12 +2787,12 @@ HWY_API Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
   return BitCast(D(), IfThenElse(m_lower, demoted0, shifted1));
 }
 
-#endif  // HWY_TARGET != HWY_AVX3
+#endif  // HWY_TARGET > HWY_AVX3
 
 }  // namespace detail
 
 // Otherwise, defined in x86_512-inl.h after detail::Compress.
-#if HWY_TARGET != HWY_AVX3
+#if HWY_TARGET > HWY_AVX3  // AVX2 or older
 
 template <typename T>
 HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
@@ -2813,7 +2813,7 @@ HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
   return PopCount(mask_bits);
 }
 
-#endif  // HWY_TARGET != HWY_AVX3
+#endif  // HWY_TARGET > HWY_AVX3
 
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
 // TableLookupBytes, ConcatUpperLower)

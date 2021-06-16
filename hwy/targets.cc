@@ -130,6 +130,11 @@ constexpr uint32_t kAVX512DQ = 1u << 14;
 constexpr uint32_t kAVX512BW = 1u << 15;
 constexpr uint32_t kGroupAVX3 =
     kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW | kGroupAVX2;
+
+constexpr uint32_t kVNNI = 1u << 16;
+constexpr uint32_t kVPCLMULQDQ = 1u << 17;
+constexpr uint32_t kVAES = 1u << 18;
+constexpr uint32_t kGroupAVX3_DL = kVNNI | kVPCLMULQDQ | kVAES | kGroupAVX3;
 #endif  // HWY_ARCH_X86
 
 }  // namespace
@@ -233,9 +238,16 @@ uint32_t SupportedTargets() {
       flags |= IsBitSet(abcd[1], 17) ? kAVX512DQ : 0;
       flags |= IsBitSet(abcd[1], 30) ? kAVX512BW : 0;
       flags |= IsBitSet(abcd[1], 31) ? kAVX512VL : 0;
+
+      flags |= IsBitSet(abcd[2], 9) ? kVAES : 0;
+      flags |= IsBitSet(abcd[2], 10) ? kVPCLMULQDQ : 0;
+      flags |= IsBitSet(abcd[2], 11) ? kVNNI : 0;
     }
 
     // Set target bit(s) if all their group's flags are all set.
+    if ((flags & kGroupAVX3_DL) == kGroupAVX3_DL) {
+      bits |= HWY_AVX3_DL;
+    }
     if ((flags & kGroupAVX3) == kGroupAVX3) {
       bits |= HWY_AVX3;
     }
@@ -253,15 +265,15 @@ uint32_t SupportedTargets() {
     const uint32_t xcr0 = ReadXCR0();
     // XMM
     if (!IsBitSet(xcr0, 1)) {
-      bits &= ~(HWY_SSE4 | HWY_AVX2 | HWY_AVX3);
+      bits &= ~(HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
     }
     // YMM
     if (!IsBitSet(xcr0, 2)) {
-      bits &= ~(HWY_SSE4 | HWY_AVX2);
+      bits &= ~(HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
     }
     // ZMM + opmask
     if ((xcr0 & 0x70) != 0x70) {
-      bits &= ~HWY_AVX3;
+      bits &= ~(HWY_AVX3 | HWY_AVX3_DL);
     }
   }
 

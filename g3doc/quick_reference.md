@@ -608,7 +608,7 @@ if the input exceeds the destination range.
 
 *   <code>V **Combine**(V2, V2)</code>: returns vector whose `UpperHalf` is the
     first argument and whose `LowerHalf` is the second argument. This is
-    currently only implemented for RVV, AVX2, AVX3. If you need to assemble
+    currently only implemented for RVV, AVX2, AVX3*. If you need to assemble
     <128 bit parts, please raise an issue to discuss.
 
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
@@ -756,9 +756,10 @@ than normal SIMD operations and are typically used outside critical loops.
 ## Advanced macros
 
 Let `Target` denote an instruction set:
-`SCALAR/SSE4/AVX2/AVX3/PPC8/NEON/WASM/RVV`. Targets are only used if enabled
-(i.e. not broken nor disabled). Baseline means the compiler is allowed to
-generate such instructions (implying the target CPU would have to support them).
+`SCALAR/SSE4/AVX2/AVX3/AVX3_DL/PPC8/NEON/WASM/RVV`. Targets are only used if
+enabled (i.e. not broken nor disabled). Baseline means the compiler is allowed
+to generate such instructions (implying the target CPU would have to support
+them).
 
 *   `HWY_Target=##` are powers of two uniquely identifying `Target`.
 
@@ -778,6 +779,10 @@ generate such instructions (implying the target CPU would have to support them).
     mode. For dynamic dispatch, this changes before each re-inclusion and
     finally reverts to `HWY_STATIC_TARGET`. Can be used in `#if` expressions to
     provide an alternative to functions which are not supported by HWY_SCALAR.
+
+*   `HWY_WANT_AVX3_DL`: additional opt-in for HWY_AVX3, which is disabled unless
+    this is defined by the app before including highway.h, OR all AVX3_DL
+    compiler flags are specified.
 
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.

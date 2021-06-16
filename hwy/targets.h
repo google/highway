@@ -52,7 +52,12 @@
 // The C99 preprocessor evaluates #if expressions using intmax_t types, so we
 // can use 32-bit literals.
 
-// 1,2,4: reserved
+// 1,2: reserved
+
+// Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VAES). Later to be
+// added: BF16 (Cooper Lake). VP2INTERSECT is only in Tiger Lake? We do not yet
+// have uses for VBMI, VBMI2, VPOPCNTDQ, BITALG, GFNI.
+#define HWY_AVX3_DL 4  // see HWY_WANT_AVX3_DL below
 #define HWY_AVX3 8
 #define HWY_AVX2 16
 // 32: reserved for AVX
@@ -113,7 +118,7 @@
 // x86 clang-6: we saw multiple AVX2/3 compile errors and in one case invalid
 // SSE4 codegen (possibly only for msan), so disable all those targets.
 #if HWY_ARCH_X86 && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700)
-#define HWY_BROKEN_TARGETS (HWY_SSE4 | HWY_AVX2 | HWY_AVX3)
+#define HWY_BROKEN_TARGETS (HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL)
 // This entails a major speed reduction, so warn unless the user explicitly
 // opts in to scalar-only.
 #if !defined(HWY_COMPILE_ONLY_SCALAR)
@@ -122,11 +127,11 @@
 
 // 32-bit may fail to compile AVX2/3.
 #elif HWY_ARCH_X86_32
-#define HWY_BROKEN_TARGETS (HWY_AVX2 | HWY_AVX3)
+#define HWY_BROKEN_TARGETS (HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL)
 
 // MSVC AVX3 support is buggy: https://github.com/Mysticial/Flops/issues/16
 #elif HWY_COMPILER_MSVC != 0
-#define HWY_BROKEN_TARGETS (HWY_AVX3)
+#define HWY_BROKEN_TARGETS (HWY_AVX3 | HWY_AVX3_DL)
 
 // armv7be has not been tested and is not yet supported.
 #elif HWY_ARCH_ARM_V7 && (defined(__ARM_BIG_ENDIAN) || defined(__BIG_ENDIAN))
@@ -217,6 +222,14 @@
 #define HWY_BASELINE_AVX3 0
 #endif
 
+// TODO(janwas): not yet known whether these will be set by MSVC
+#if HWY_BASELINE_AVX3 != 0 && defined(__AVXVNNI__) && defined(__VAES__) && \
+    defined(__VPCLMULQDQ__)
+#define HWY_BASELINE_AVX3_DL HWY_AVX3_DL
+#else
+#define HWY_BASELINE_AVX3_DL 0
+#endif
+
 #if HWY_ARCH_RVV && defined(__riscv_vector)
 #define HWY_BASELINE_RVV HWY_RVV
 #else
@@ -226,7 +239,8 @@
 #define HWY_BASELINE_TARGETS                                                \
   (HWY_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | HWY_BASELINE_SVE2 | \
    HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE4 |               \
-   HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 | HWY_BASELINE_RVV)
+   HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL |           \
+   HWY_BASELINE_RVV)
 
 #endif  // HWY_BASELINE_TARGETS
 
@@ -256,11 +270,20 @@
 #error "Invalid config: can only define a single policy for targets"
 #endif
 
+// Further to checking for disabled/broken targets, we only use AVX3_DL after
+// explicit opt-in (via this macro OR baseline compiler flags) to avoid
+// generating a codepath which is only helpful if the app uses AVX3_DL features.
+#if defined(HWY_WANT_AVX3_DL)
+#define HWY_CHECK_AVX3_DL HWY_AVX3_DL
+#else
+#define HWY_CHECK_AVX3_DL HWY_BASELINE_AVX3_DL
+#endif
+
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
 #define HWY_ATTAINABLE_TARGETS \
-  HWY_ENABLED(HWY_SCALAR | HWY_SSE4 | HWY_AVX2 | HWY_AVX3)
+  HWY_ENABLED(HWY_SCALAR | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_CHECK_AVX3_DL)
 #else
 #define HWY_ATTAINABLE_TARGETS HWY_ENABLED_BASELINE
 #endif
@@ -354,6 +377,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       return "AVX2";
     case HWY_AVX3:
       return "AVX3";
+    case HWY_AVX3_DL:
+      return "AVX3_DL";
 #endif
 
 #if HWY_ARCH_ARM
@@ -431,17 +456,17 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 // HWY_MAX_DYNAMIC_TARGETS) bit. This list must contain exactly
 // HWY_MAX_DYNAMIC_TARGETS elements and does not include SCALAR. The first entry
 // corresponds to the best target. Don't include a "," at the end of the list.
-#define HWY_CHOOSE_TARGET_LIST(func_name)        \
-  nullptr,                        /* reserved */ \
-      nullptr,                    /* reserved */ \
-      nullptr,                    /* reserved */ \
-      HWY_CHOOSE_AVX3(func_name), /* AVX3 */     \
-      HWY_CHOOSE_AVX2(func_name), /* AVX2 */     \
-      nullptr,                    /* AVX */      \
-      HWY_CHOOSE_SSE4(func_name), /* SSE4 */     \
-      nullptr,                    /* SSSE3 */    \
-      nullptr,                    /* SSE3 */     \
-      nullptr                     /* SSE2 */
+#define HWY_CHOOSE_TARGET_LIST(func_name)           \
+  nullptr,                           /* reserved */ \
+      nullptr,                       /* reserved */ \
+      HWY_CHOOSE_AVX3_DL(func_name), /* AVX3_DL */  \
+      HWY_CHOOSE_AVX3(func_name),    /* AVX3 */     \
+      HWY_CHOOSE_AVX2(func_name),    /* AVX2 */     \
+      nullptr,                       /* AVX */      \
+      HWY_CHOOSE_SSE4(func_name),    /* SSE4 */     \
+      nullptr,                       /* SSSE3 */    \
+      nullptr,                       /* SSE3 */     \
+      nullptr                        /* SSE2 */
 
 #elif HWY_ARCH_ARM
 // See HWY_ARCH_X86 above for details.
