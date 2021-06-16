@@ -2698,9 +2698,10 @@ HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
 
 // ================================================== CRYPTO
 
-// TODO(janwas): _mm512_clmulepi64_epi128
-
 HWY_API Vec512<uint64_t> CLMulLower(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
+#if HWY_TARGET == HWY_AVX3_DL
+  return Vec512<uint64_t>{_mm512_clmulepi64_epi128(va.raw, vb.raw, 0x00)};
+#else
   alignas(64) uint64_t a[8];
   alignas(64) uint64_t b[8];
   const Full512<uint64_t> d;
@@ -2712,9 +2713,13 @@ HWY_API Vec512<uint64_t> CLMulLower(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
     Store(mul, d128, a + i);
   }
   return Load(d, a);
+#endif
 }
 
 HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
+#if HWY_TARGET == HWY_AVX3_DL
+  return Vec512<uint64_t>{_mm512_clmulepi64_epi128(va.raw, vb.raw, 0x11)};
+#else
   alignas(64) uint64_t a[8];
   alignas(64) uint64_t b[8];
   const Full512<uint64_t> d;
@@ -2726,6 +2731,7 @@ HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
     Store(mul, d128, a + i);
   }
   return Load(d, a);
+#endif
 }
 
 // ================================================== MISC
