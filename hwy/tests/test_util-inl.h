@@ -25,13 +25,12 @@
 
 #include <cstddef>
 #include <string>
-#include <utility>  // std::forward
+#include <utility>  // std::tuple
 
+#include "gtest/gtest.h"
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/highway.h"
-
-#include "gtest/gtest.h"
 
 namespace hwy {
 
