@@ -60,9 +60,9 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
-    const UintT step = std::max<UintT>(1, ((stop - start) / kSamplesPerRange));
+    const UintT step = HWY_MAX(1, ((stop - start) / kSamplesPerRange));
     for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
-      const T value = BitCast<T>(std::min(value_bits, stop));
+      const T value = BitCast<T>(HWY_MIN(value_bits, stop));
       const T actual = GetLane(fxN(d, Set(d, value)));
       const T expected = fx1(value);
 
@@ -74,7 +74,7 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
 #endif
 
       const auto ulp = ComputeUlpDelta(actual, expected);
-      max_ulp = std::max<uint64_t>(max_ulp, ulp);
+      max_ulp = HWY_MAX(max_ulp, ulp);
       if (ulp > max_error_ulp) {
         std::cout << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d)
                   << ">(" << value << ") expected: " << expected

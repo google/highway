@@ -18,8 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>  // std::min
-
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
@@ -902,8 +900,7 @@ HWY_INLINE Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
 
   // Int to int: choose closest value in ToT to `from` (avoids UB)
-  from.raw = std::min<FromT>(std::max<FromT>(LimitsMin<ToT>(), from.raw),
-                             LimitsMax<ToT>());
+  from.raw = HWY_MIN(HWY_MAX(LimitsMin<ToT>(), from.raw), LimitsMax<ToT>());
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 

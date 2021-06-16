@@ -459,7 +459,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
       static_cast<size_t>(ticks_per_second * p.seconds_per_eval);
   size_t samples_per_eval =
       est == 0 ? p.min_samples_per_eval : ticks_per_eval / est;
-  samples_per_eval = std::max(samples_per_eval, p.min_samples_per_eval);
+  samples_per_eval = HWY_MAX(samples_per_eval, p.min_samples_per_eval);
 
   std::vector<timer::Ticks> samples;
   samples.reserve(1 + samples_per_eval);
@@ -530,7 +530,7 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
     const timer::Ticks total = SampleUntilStable(
         p.target_rel_mad, &rel_mad, p,
         [func, arg, input]() { platform::PreventElision(func(arg, input)); });
-    min_duration = std::min(min_duration, total - timer_resolution);
+    min_duration = HWY_MIN(min_duration, total - timer_resolution);
   }
 
   // Number of repetitions required to reach the target resolution.
@@ -615,7 +615,7 @@ timer::Ticks TotalDuration(const Func func, const uint8_t* arg,
           platform::PreventElision(func(arg, input));
         }
       });
-  *max_rel_mad = std::max(*max_rel_mad, rel_mad);
+  *max_rel_mad = HWY_MAX(*max_rel_mad, rel_mad);
   return duration;
 }
 

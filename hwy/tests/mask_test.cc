@@ -451,7 +451,7 @@ struct TestCountTrue {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     // For all combinations of zero/nonzero state of subset of lanes:
-    const size_t max_lanes = std::min(N, size_t(10));
+    const size_t max_lanes = HWY_MIN(N, size_t(10));
 
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(1));
@@ -492,7 +492,7 @@ struct TestLogicalMask {
     HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
 
     // For all combinations of zero/nonzero state of subset of lanes:
-    const size_t max_lanes = std::min(N, size_t(6));
+    const size_t max_lanes = HWY_MIN(N, size_t(6));
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
         lanes[i] = T(1);

@@ -231,7 +231,7 @@ struct TestDemoteTo {
           const uint64_t bits = rng();
           memcpy(&from[i], &bits, sizeof(T));
         } while (!IsFinite(from[i]));
-        expected[i] = static_cast<ToT>(std::min(std::max(min, from[i]), max));
+        expected[i] = static_cast<ToT>(HWY_MIN(HWY_MAX(min, from[i]), max));
       }
 
       HWY_ASSERT_VEC_EQ(to_d, expected.get(),
@@ -285,7 +285,7 @@ struct TestDemoteToFloat {
         const T max_abs = HighestValue<ToT>();
         // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
         // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
-        const T clipped = copysign(std::min(magn, max_abs), from[i]);
+        const T clipped = copysign(HWY_MIN(magn, max_abs), from[i]);
         expected[i] = static_cast<ToT>(clipped);
       }
 

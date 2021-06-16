@@ -567,9 +567,9 @@ HWY_API Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
                                 const Vec128<uint64_t, N> b) {
   alignas(16) float min[4];
   min[0] =
-      std::min(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
+      HWY_MIN(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
   min[1] =
-      std::min(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
+      HWY_MIN(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
   return Vec128<uint64_t, N>{wasm_v128_load(min)};
   // TODO(janwas): new op?
   // return Vec128<uint64_t, N>{wasm_u64x2_min(a.raw, b.raw)};
@@ -596,9 +596,9 @@ HWY_API Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
                                const Vec128<int64_t, N> b) {
   alignas(16) float min[4];
   min[0] =
-      std::min(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
+      HWY_MIN(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
   min[1] =
-      std::min(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
+      HWY_MIN(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
   return Vec128<int64_t, N>{wasm_v128_load(min)};
   // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
   // return Vec128<int64_t, N>{wasm_i64x2_min(a.raw, b.raw)};
@@ -634,9 +634,9 @@ HWY_API Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
                                 const Vec128<uint64_t, N> b) {
   alignas(16) float max[4];
   max[0] =
-      std::max(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
+      HWY_MAX(wasm_u64x2_extract_lane(a, 0), wasm_u64x2_extract_lane(b, 0));
   max[1] =
-      std::max(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
+      HWY_MAX(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
   return Vec128<int64_t, N>{wasm_v128_load(max)};
   // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
   // return Vec128<uint64_t, N>{wasm_u64x2_max(a.raw, b.raw)};
@@ -663,9 +663,9 @@ HWY_API Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
                                const Vec128<int64_t, N> b) {
   alignas(16) float max[4];
   max[0] =
-      std::max(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
+      HWY_MAX(wasm_i64x2_extract_lane(a, 0), wasm_i64x2_extract_lane(b, 0));
   max[1] =
-      std::max(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
+      HWY_MAX(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
   return Vec128<int64_t, N>{wasm_v128_load(max)};
   // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
   // return Vec128<int64_t, N>{wasm_i64x2_max(a.raw, b.raw)};

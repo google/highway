@@ -282,8 +282,8 @@ HWY_NOINLINE void Print(const D d, const char* caption, const Vec<D> v,
   const size_t N = Lanes(d);
   auto lanes = AllocateAligned<T>(N);
   Store(v, d, lanes.get());
-  const size_t begin = static_cast<size_t>(std::max<intptr_t>(0, lane - 2));
-  const size_t end = std::min(begin + 7, N);
+  const size_t begin = static_cast<size_t>(HWY_MAX(0, lane - 2));
+  const size_t end = HWY_MIN(begin + 7, N);
   fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
           begin);
   for (size_t i = begin; i < end; ++i) {
@@ -328,7 +328,7 @@ MakeUnsigned<TF> ComputeUlpDelta(TF x, TF y) {
   const TU ux = BitCast<TU>(x);
   const TU uy = BitCast<TU>(y);
   // Avoid unsigned->signed cast: 2's complement is only guaranteed by C++20.
-  return std::max(ux, uy) - std::min(ux, uy);
+  return HWY_MAX(ux, uy) - HWY_MIN(ux, uy);
 }
 
 template <typename T, HWY_IF_NOT_FLOAT(T)>

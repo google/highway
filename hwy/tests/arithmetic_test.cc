@@ -853,7 +853,7 @@ struct TestApproximateReciprocal {
 
     double max_l1 = 0.0;
     for (size_t i = 0; i < N; ++i) {
-      max_l1 = std::max<double>(max_l1, std::abs((1.0 / input[i]) - actual[i]));
+      max_l1 = HWY_MAX(max_l1, std::abs((1.0 / input[i]) - actual[i]));
     }
     const double max_rel = max_l1 / std::abs(1.0 / input[N - 1]);
     printf("max err %f\n", max_rel);
@@ -1112,7 +1112,7 @@ struct TestMinOfLanes {
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 2;
-      min = std::min(min, in_lanes[i]);
+      min = HWY_MIN(min, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
 
@@ -1120,7 +1120,7 @@ struct TestMinOfLanes {
     min = HighestValue<T>();
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = static_cast<T>(N - i);  // no 8-bit T so no wraparound
-      min = std::min(min, in_lanes[i]);
+      min = HWY_MIN(min, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
   }
@@ -1137,7 +1137,7 @@ struct TestMaxOfLanes {
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
-      max = std::max(max, in_lanes[i]);
+      max = HWY_MAX(max, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
 
@@ -1145,7 +1145,7 @@ struct TestMaxOfLanes {
     max = LowestValue<T>();
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = static_cast<T>(i);  // no 8-bit T so no wraparound
-      max = std::max(max, in_lanes[i]);
+      max = HWY_MAX(max, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
   }
