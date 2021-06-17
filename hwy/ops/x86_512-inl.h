@@ -2680,6 +2680,25 @@ HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
 
 // ================================================== CRYPTO
 
+HWY_API Vec512<uint8_t> AESRound(Vec512<uint8_t> state,
+                                 Vec512<uint8_t> round_key) {
+#if HWY_TARGET == HWY_AVX3_DL
+  return Vec512<uint8_t>{_mm512_aesenc_epi128(state.raw, round_key.raw)};
+#else
+  alignas(64) uint8_t a[64];
+  alignas(64) uint8_t b[64];
+  const Full512<uint8_t> d;
+  const Full128<uint8_t> d128;
+  Store(state, d, a);
+  Store(round_key, d, b);
+  for (size_t i = 0; i < 64; i += 16) {
+    const auto enc = AESRound(Load(d128, a + i), Load(d128, b + i));
+    Store(enc, d128, a + i);
+  }
+  return Load(d, a);
+#endif
+}
+
 HWY_API Vec512<uint64_t> CLMulLower(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec512<uint64_t>{_mm512_clmulepi64_epi128(va.raw, vb.raw, 0x00)};

@@ -741,6 +741,13 @@ than normal SIMD operations and are typically used outside critical loops.
 
 ### Crypto
 
+*   `V`: `u8` \
+    <code>V <b>AESRound</b>(V state, V round_key)</code>: one round of AES
+    encrytion: `MixColumns(SubBytes(ShiftRows(state))) ^ round_key`. This
+    matches x86 AES-NI. The latency is independent of the input values. Only
+    available if `HWY_CAP_AES` (we expect to lift this requirement soon and
+    support it on all targets except `HWY_SCALAR`).
+
 *   `V`: `u64` \
     <code>V <b>CLMulLower</b>(V a, V b)</code>: carryless multiplication of the
     lower 64 bits of each 128-bit block into a 128-bit product. The latency is

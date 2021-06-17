@@ -192,23 +192,32 @@
 #define HWY_BASELINE_NEON 0
 #endif
 
-// MSVC does not set SSE4_1, but it does set AVX; checking for the latter means
-// we at least get SSE4 on machines supporting AVX but not AVX2.
-// https://stackoverflow.com/questions/18563978/
-#if HWY_ARCH_X86 && ((defined(__SSE4_1__) && defined(__PCLMUL__)) || \
-                     (HWY_COMPILER_MSVC != 0 && defined(__AVX__)))
+// MSVC does not define macros for these specific extensions; we only know SSE4
+// is enabled if AVX is (https://stackoverflow.com/questions/18563978/), and
+// cannot check for PCLMUL/AES/BMI2/FMA/F16C individually.
+#if HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+#define HWY_CHECK_SSE4 defined(__AVX__)
+#define HWY_CHECK_PCLMUL_AES 1
+#define HWY_CHECK_BMI2_FMA 1
+#define HWY_CHECK_F16C 1
+#else
+#define HWY_CHECK_SSE4 defined(__SSE4_1__)
+// If these are disabled, they should not gate the availability of SSE4/AVX2.
+#define HWY_CHECK_PCLMUL_AES \
+  (defined(HWY_DISABLE_PCLMUL_AES) || (defined(__PCLMUL__) && defined(__AES__)))
+#define HWY_CHECK_BMI2_FMA \
+  (defined(HWY_DISABLE_BMI2_FMA) || (defined(__BMI2__) && defined(__FMA__)))
+#define HWY_CHECK_F16C (defined(HWY_DISABLE_F16C) || defined(__F16C__))
+#endif
+
+#if HWY_ARCH_X86 && HWY_CHECK_SSE4 && HWY_CHECK_PCLMUL_AES
 #define HWY_BASELINE_SSE4 HWY_SSE4
 #else
 #define HWY_BASELINE_SSE4 0
 #endif
 
-// If the config flag for disabling BMI2/FMA is set, no need to check for them.
-#define HWY_CHECK_BMI2_FMA \
-  (defined(HWY_DISABLE_BMI2_FMA) || (defined(__BMI2__) && defined(__FMA__)))
-
-#if HWY_ARCH_X86 && defined(__AVX2__) &&                              \
-    (HWY_COMPILER_MSVC != 0 || /* MSVC does not set the following: */ \
-     (defined(__PCLMUL__) && defined(__F16C__) && HWY_CHECK_BMI2_FMA))
+#if HWY_BASELINE_SSE4 != 0 && HWY_CHECK_BMI2_FMA && HWY_CHECK_F16C && \
+    defined(__AVX2__)
 #define HWY_BASELINE_AVX2 HWY_AVX2
 #else
 #define HWY_BASELINE_AVX2 0

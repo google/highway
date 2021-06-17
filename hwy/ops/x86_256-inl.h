@@ -1358,6 +1358,11 @@ HWY_API Vec256<T> LoadDup128(Full256<T> /* tag */, const T* HWY_RESTRICT p) {
   __m256i out;
   asm("vbroadcasti128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<T>{out};
+#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+  // Workaround for incorrect results with _mm256_broadcastsi128_si256
+  const __m128i v128 = LoadU(Full128<T>(), p).raw;
+  return Vec256<T>{
+      _mm256_inserti128_si256(_mm256_zextsi128_si256(v128), v128, 1)};
 #else
   return Vec256<T>{_mm256_broadcastsi128_si256(LoadU(Full128<T>(), p).raw)};
 #endif
@@ -1368,6 +1373,10 @@ HWY_API Vec256<float> LoadDup128(Full256<float> /* tag */,
   __m256 out;
   asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<float>{out};
+#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+  const __m128 v128 = LoadU(Full128<float>(), p).raw;
+  return Vec256<float>{
+      _mm256_insertf128_ps(_mm256_zextps128_ps256(v128), v128, 1)};
 #else
   return Vec256<float>{_mm256_broadcast_ps(reinterpret_cast<const __m128*>(p))};
 #endif
@@ -1378,6 +1387,10 @@ HWY_API Vec256<double> LoadDup128(Full256<double> /* tag */,
   __m256d out;
   asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<double>{out};
+#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+  const __m128d v128 = LoadU(Full128<double>(), p).raw;
+  return Vec256<double>{
+      _mm256_insertf128_pd(_mm256_zextpd128_pd256(v128), v128, 1)};
 #else
   return Vec256<double>{
       _mm256_broadcast_pd(reinterpret_cast<const __m128d*>(p))};
@@ -2272,6 +2285,8 @@ HWY_API Vec256<int64_t> operator>>(const Vec256<int64_t> v,
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
+// TODO(janwas): support HWY_DISABLE_F16C
+
 HWY_API Vec256<float> PromoteTo(Full256<float> /* tag */,
                                 const Vec128<float16_t, 8> v) {
   return Vec256<float>{_mm256_cvtph_ps(v.raw)};
@@ -2490,6 +2505,16 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
 }
 
 // ================================================== CRYPTO
+
+HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
+                                 Vec256<uint8_t> round_key) {
+#if HWY_TARGET == HWY_AVX3_DL
+  return Vec256<uint8_t>{_mm256_aesenc_epi128(state.raw, round_key.raw)};
+#else
+  return Combine(AESRound(UpperHalf(state), UpperHalf(round_key)),
+                 AESRound(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
 
 HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL

@@ -31,6 +31,44 @@ namespace HWY_NAMESPACE {
 
 #define HWY_PRINT_CLMUL_GOLDEN 0
 
+struct TestAES {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_CAP_AES
+    // Test vector (after first KeyAddition) from
+    // https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/AES_Core128.pdf
+    alignas(16) constexpr uint8_t test_lanes[16] = {
+        0x40, 0xBF, 0xAB, 0xF4, 0x06, 0xEE, 0x4D, 0x30,
+        0x42, 0xCA, 0x6B, 0x99, 0x7A, 0x5C, 0x58, 0x16};
+    const auto test = LoadDup128(d, test_lanes);
+
+    // = MixColumn result
+    alignas(16) constexpr uint8_t expected0_lanes[16] = {
+        0x52, 0x9F, 0x16, 0xC2, 0x97, 0x86, 0x15, 0xCA,
+        0xE0, 0x1A, 0xAE, 0x54, 0xBA, 0x1A, 0x26, 0x59};
+    const auto expected0 = LoadDup128(d, expected0_lanes);
+
+    // = KeyAddition result
+    alignas(16) constexpr uint8_t expected_lanes[16] = {
+        0xF2, 0x65, 0xE8, 0xD5, 0x1F, 0xD2, 0x39, 0x7B,
+        0xC3, 0xB9, 0x97, 0x6D, 0x90, 0x76, 0x50, 0x5C};
+    const auto expected = LoadDup128(d, expected_lanes);
+
+    alignas(16) uint8_t key_lanes[16];
+    for (size_t i = 0; i < 16; ++i) {
+      key_lanes[i] = expected0_lanes[i] ^ expected_lanes[i];
+    }
+    const auto round_key = LoadDup128(d, key_lanes);
+
+    HWY_ASSERT_VEC_EQ(d, expected0, AESRound(test, Zero(d)));
+    HWY_ASSERT_VEC_EQ(d, expected, AESRound(test, round_key));
+#else
+    (void)d;
+#endif
+  }
+};
+HWY_NOINLINE void TestAllAES() { ForGE128Vectors<TestAES>()(uint8_t()); }
+
 struct TestCLMul {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -446,6 +484,7 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 HWY_BEFORE_TEST(HwyCryptoTest);
+HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAES);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllCLMul);
 }  // namespace hwy
 #endif

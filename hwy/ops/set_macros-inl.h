@@ -38,6 +38,31 @@
 
 #undef HWY_TARGET_STR
 
+#if defined(HWY_DISABLE_PCLMUL_AES)
+#define HWY_TARGET_STR_PCLMUL_AES ""
+#else
+#define HWY_TARGET_STR_PCLMUL_AES ",pclmul,aes"
+#endif
+
+#if defined(HWY_DISABLE_BMI2_FMA)
+#define HWY_TARGET_STR_BMI2_FMA ""
+#else
+#define HWY_TARGET_STR_BMI2_FMA ",bmi,bmi2,fma"
+#endif
+
+#if defined(HWY_DISABLE_F16C)
+#define HWY_TARGET_STR_F16C ""
+#else
+#define HWY_TARGET_STR_F16C ",f16c"
+#endif
+
+#define HWY_TARGET_STR_SSE4 "sse2,ssse3,sse4.1" HWY_TARGET_STR_PCLMUL_AES
+// Include previous targets, which are the half-vectors of the next target.
+#define HWY_TARGET_STR_AVX2 \
+  HWY_TARGET_STR_SSE4 ",avx,avx2" HWY_TARGET_STR_BMI2_FMA HWY_TARGET_STR_F16C
+#define HWY_TARGET_STR_AVX3 \
+  HWY_TARGET_STR_AVX2 ",avx512f,avx512vl,avx512dq,avx512bw"
+
 // Before include guard so we redefine HWY_TARGET_STR on each include,
 // governed by the current HWY_TARGET.
 //-----------------------------------------------------------------------------
@@ -50,10 +75,11 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
-#define HWY_TARGET_STR "sse2,ssse3,sse4.1,pclmul"
+#define HWY_TARGET_STR HWY_TARGET_STR_SSE4
 
 //-----------------------------------------------------------------------------
 // AVX2
@@ -65,14 +91,11 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
 
-#if defined(HWY_DISABLE_BMI2_FMA)
-#define HWY_TARGET_STR "avx,avx2,f16c,pclmul"
-#else
-#define HWY_TARGET_STR "avx,avx2,bmi,bmi2,fma,f16c,pclmul"
-#endif
+#define HWY_TARGET_STR HWY_TARGET_STR_AVX2
 
 //-----------------------------------------------------------------------------
 // AVX3[_DL]
@@ -83,27 +106,16 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 1
 
 #if HWY_TARGET == HWY_AVX3
-
 #define HWY_NAMESPACE N_AVX3
-
-// Must include AVX2 because an AVX3 test may call AVX2 functions (e.g. when
-// converting to half-vectors). HWY_DISABLE_BMI2_FMA is not relevant because if
-// we have AVX3, we should also have BMI2/FMA.
-#define HWY_TARGET_STR \
-  "avx,avx2,bmi,bmi2,fma,f16c,pclmul,avx512f,avx512vl,avx512dq,avx512bw"
-
+#define HWY_TARGET_STR HWY_TARGET_STR_AVX3
 #elif HWY_TARGET == HWY_AVX3_DL
-
 #define HWY_NAMESPACE N_AVX3_DL
-
-#define HWY_TARGET_STR                                                    \
-  "avx,avx2,bmi,bmi2,fma,f16c,pclmul,avx512f,avx512vl,avx512dq,avx512bw," \
-  "vpclmulqdq,vaes,avxvnni"
-
+#define HWY_TARGET_STR HWY_TARGET_STR_AVX3 ",vpclmulqdq,vaes,avxvnni"
 #else
 #error "Logic error"
 #endif  // HWY_TARGET == HWY_AVX3_DL
@@ -117,6 +129,7 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -141,6 +154,12 @@
 #define HWY_CAP_FLOAT64 0
 #endif
 
+#if defined(__ARM_FEATURE_AES)
+#define HWY_CAP_AES 1
+#else
+#define HWY_CAP_AES 0
+#endif
+
 #define HWY_NAMESPACE N_NEON
 
 // HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
@@ -156,6 +175,7 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 1  // TODO(janwas): need runtime check?
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -176,6 +196,7 @@
 
 #define HWY_CAP_INTEGER64 0
 #define HWY_CAP_FLOAT64 0
+#define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -198,6 +219,7 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -216,6 +238,7 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 

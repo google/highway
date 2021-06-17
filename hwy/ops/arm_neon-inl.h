@@ -3457,6 +3457,20 @@ HWY_API Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
 
 // ================================================== CRYPTO
 
+#if defined(__ARM_FEATURE_AES)
+
+HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
+                                 Vec128<uint8_t> round_key) {
+  // NOTE: it is important that AESE and AESMC be consecutive instructions so
+  // they can be fused. AESE includes AddRoundKey, which is a different ordering
+  // than the AES-NI semantics we adopted, so XOR by 0 and later with the actual
+  // round key (the compiler will hopefully optimize this for multiple rounds).
+  return Vec128<uint8_t>(vaesmcq_u8(vaeseq_u8(state.raw, vdupq_n_u8(0)))) ^
+         round_key;
+}
+
+#endif  // __ARM_FEATURE_AES
+
 #if HWY_ARCH_ARM_A64
 
 HWY_API Vec128<uint64_t> CLMulLower(Vec128<uint64_t> a, Vec128<uint64_t> b) {
