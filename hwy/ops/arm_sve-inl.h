@@ -207,20 +207,20 @@ namespace detail {
 
 // Other integers
 #define HWY_SVE_CAST_UI(BASE, CHAR, BITS, NAME, OP)                   \
-  HWY_API vuint8m##_t BitCastToByte(HWY_SVE_V(BASE, BITS) v) {        \
+  HWY_INLINE vuint8m##_t BitCastToByte(HWY_SVE_V(BASE, BITS) v) {        \
     return v##OP##_v_##CHAR##BITS##_u8m(v);                           \
   }                                                                   \
-  HWY_API HWY_SVE_V(BASE, BITS)                                       \
+  HWY_INLINE HWY_SVE_V(BASE, BITS)                                       \
       BitCastFromByte(HWY_SVE_D(CHAR, BITS) /* d */, vuint8m##_t v) { \
     return v##OP##_v_u8m##_##CHAR##BITS(v);                           \
   }
 
 // Float: first cast to/from unsigned
 #define HWY_SVE_CAST_F(BASE, CHAR, BITS, NAME, OP)                    \
-  HWY_API vuint8m##_t BitCastToByte(HWY_SVE_V(BASE, BITS) v) {        \
+  HWY_INLINE vuint8m##_t BitCastToByte(HWY_SVE_V(BASE, BITS) v) {        \
     return v##OP##_v_u##BITS##_u8m(v##OP##_v_f##BITS##_u##BITS(v));   \
   }                                                                   \
-  HWY_API HWY_SVE_V(BASE, BITS)                                       \
+  HWY_INLINE HWY_SVE_V(BASE, BITS)                                       \
       BitCastFromByte(HWY_SVE_D(CHAR, BITS) /* d */, vuint8m##_t v) { \
     return v##OP##_v_u##BITS##_f##BITS(v##OP##_v_u8m##_u##BITS(v));   \
   }
@@ -246,7 +246,7 @@ HWY_API VFromD<D> BitCast(D d, FromV v) {
 namespace detail {
 
 template <class V, class DU = RebindToUnsigned<DFromV<V>>>
-HWY_API VFromD<DU> BitCastToUnsigned(V v) {
+HWY_INLINE VFromD<DU> BitCastToUnsigned(V v) {
   return BitCast(DU(), v);
 }
 
@@ -259,7 +259,7 @@ namespace detail {
 HWY_SVE_FOREACH_U(HWY_SVE_RETV_ARGD, Iota0, id_v)
 
 template <class D, class DU = RebindToUnsigned<D>>
-HWY_API VFromD<DU> Iota0(const D /*d*/) {
+HWY_INLINE VFromD<DU> Iota0(const D /*d*/) {
   Lanes(DU());
   return BitCastToUnsigned(Iota0(DU()));
 }
@@ -1195,7 +1195,7 @@ constexpr size_t LanesPerBlock(D) {
 }
 
 template <class D, class V>
-HWY_API V OffsetsOf128BitBlocks(const D d, const V iota0) {
+HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
   using T = MakeUnsigned<TFromD<D>>;
   return detail::And(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
 }
@@ -1561,7 +1561,7 @@ namespace detail {
 enum RoundingModes { kNear, kTrunc, kDown, kUp };
 
 template <class V>
-HWY_API auto UseInt(const V v) -> decltype(MaskFromVec(v)) {
+HWY_INLINE auto UseInt(const V v) -> decltype(MaskFromVec(v)) {
   return Lt(Abs(v), Set(DFromV<V>(), MantissaEnd<TFromV<V>>()));
 }
 

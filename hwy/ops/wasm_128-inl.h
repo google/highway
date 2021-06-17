@@ -105,16 +105,16 @@ class Mask128 {
 
 namespace detail {
 
-HWY_API __v128_u BitCastToInteger(__v128_u v) { return v; }
-HWY_API __v128_u BitCastToInteger(__f32x4 v) {
+HWY_INLINE __v128_u BitCastToInteger(__v128_u v) { return v; }
+HWY_INLINE __v128_u BitCastToInteger(__f32x4 v) {
   return static_cast<__v128_u>(v);
 }
-HWY_API __v128_u BitCastToInteger(__f64x2 v) {
+HWY_INLINE __v128_u BitCastToInteger(__f64x2 v) {
   return static_cast<__v128_u>(v);
 }
 
 template <typename T, size_t N>
-HWY_API Vec128<uint8_t, N * sizeof(T)> BitCastToByte(Vec128<T, N> v) {
+HWY_INLINE Vec128<uint8_t, N * sizeof(T)> BitCastToByte(Vec128<T, N> v) {
   return Vec128<uint8_t, N * sizeof(T)>{BitCastToInteger(v.raw)};
 }
 
@@ -129,8 +129,8 @@ struct BitCastFromInteger128<float> {
 };
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> BitCastFromByte(Simd<T, N> /* tag */,
-                                     Vec128<uint8_t, N * sizeof(T)> v) {
+HWY_INLINE Vec128<T, N> BitCastFromByte(Simd<T, N> /* tag */,
+                                        Vec128<uint8_t, N * sizeof(T)> v) {
   return Vec128<T, N>{BitCastFromInteger128<T>()(v.raw)};
 }
 
@@ -888,7 +888,7 @@ namespace detail {
 // input magnitude is large, in which case the input was already an integer
 // (because mantissa >> exponent is zero).
 template <size_t N>
-HWY_API Mask128<float, N> UseInt(const Vec128<float, N> v) {
+HWY_INLINE Mask128<float, N> UseInt(const Vec128<float, N> v) {
   return Abs(v) < Set(Simd<float, N>(), MantissaEnd<float>());
 }
 
@@ -909,7 +909,7 @@ HWY_API Vec128<float, N> Trunc(const Vec128<float, N> v) {
 
 // Toward +infinity, aka ceiling
 template <size_t N>
-HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
+HWY_API Vec128<float, N> Ceil(const Vec128<float, N> v) {
   // TODO(eustas): is it f32x4.ceil? (not implemented yet)
   const Simd<float, N> df;
   const RebindToSigned<decltype(df)> di;
@@ -925,7 +925,7 @@ HWY_INLINE Vec128<float, N> Ceil(const Vec128<float, N> v) {
 
 // Toward -infinity, aka floor
 template <size_t N>
-HWY_INLINE Vec128<float, N> Floor(const Vec128<float, N> v) {
+HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
   // TODO(eustas): is it f32x4.floor? (not implemented yet)
   const Simd<float, N> df;
   const RebindToSigned<decltype(df)> di;
@@ -1537,8 +1537,7 @@ HWY_API Vec128<T, 8 / sizeof(T)> UpperHalf(Vec128<T> v) {
   // TODO(eustas): use swizzle?
   return Vec128<T, 8 / sizeof(T)>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
 }
-template <>
-HWY_INLINE Vec128<float, 2> UpperHalf(Vec128<float> v) {
+HWY_API Vec128<float, 2> UpperHalf(Vec128<float> v) {
   // TODO(eustas): use swizzle?
   return Vec128<float, 2>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
 }
@@ -2036,19 +2035,16 @@ template <typename T>
 HWY_API Vec128<T> InterleaveLower(const Vec128<T> a, const Vec128<T> b) {
   return Vec128<T>{ZipLower(a, b).raw};
 }
-template <>
-HWY_INLINE Vec128<uint32_t> InterleaveLower<uint32_t>(
-    const Vec128<uint32_t> a, const Vec128<uint32_t> b) {
+HWY_API Vec128<uint32_t> InterleaveLower(const Vec128<uint32_t> a,
+                                         const Vec128<uint32_t> b) {
   return Vec128<uint32_t>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 4, 1, 5)};
 }
-template <>
-HWY_INLINE Vec128<int32_t> InterleaveLower<int32_t>(const Vec128<int32_t> a,
-                                                    const Vec128<int32_t> b) {
+HWY_API Vec128<int32_t> InterleaveLower(const Vec128<int32_t> a,
+                                        const Vec128<int32_t> b) {
   return Vec128<int32_t>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 4, 1, 5)};
 }
-template <>
-HWY_INLINE Vec128<float> InterleaveLower<float>(const Vec128<float> a,
-                                                const Vec128<float> b) {
+HWY_API Vec128<float> InterleaveLower(const Vec128<float> a,
+                                      const Vec128<float> b) {
   return Vec128<float>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 4, 1, 5)};
 }
 
@@ -2056,19 +2052,16 @@ template <typename T>
 HWY_API Vec128<T> InterleaveUpper(const Vec128<T> a, const Vec128<T> b) {
   return Vec128<T>{ZipUpper(a, b).raw};
 }
-template <>
-HWY_INLINE Vec128<uint32_t> InterleaveUpper<uint32_t>(
-    const Vec128<uint32_t> a, const Vec128<uint32_t> b) {
+HWY_API Vec128<uint32_t> InterleaveUpper(const Vec128<uint32_t> a,
+                                         const Vec128<uint32_t> b) {
   return Vec128<uint32_t>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
-template <>
-HWY_INLINE Vec128<int32_t> InterleaveUpper<int32_t>(const Vec128<int32_t> a,
-                                                    const Vec128<int32_t> b) {
+HWY_API Vec128<int32_t> InterleaveUpper(const Vec128<int32_t> a,
+                                        const Vec128<int32_t> b) {
   return Vec128<int32_t>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
-template <>
-HWY_INLINE Vec128<float> InterleaveUpper<float>(const Vec128<float> a,
-                                                const Vec128<float> b) {
+HWY_API Vec128<float> InterleaveUpper(const Vec128<float> a,
+                                      const Vec128<float> b) {
   return Vec128<float>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
 
@@ -2103,8 +2096,8 @@ HWY_API Vec128<T> ConcatUpperLower(const Vec128<T> hi, const Vec128<T> lo) {
 namespace {
 
 template <typename T>
-HWY_API Vec128<T> odd_even_impl(hwy::SizeTag<1> /* tag */, const Vec128<T> a,
-                                const Vec128<T> b) {
+HWY_INLINE Vec128<T> odd_even_impl(hwy::SizeTag<1> /* tag */, const Vec128<T> a,
+                                   const Vec128<T> b) {
   const Full128<T> d;
   const Full128<uint8_t> d8;
   alignas(16) constexpr uint8_t mask[16] = {0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0,
@@ -2112,18 +2105,18 @@ HWY_API Vec128<T> odd_even_impl(hwy::SizeTag<1> /* tag */, const Vec128<T> a,
   return IfThenElse(MaskFromVec(BitCast(d, Load(d8, mask))), b, a);
 }
 template <typename T>
-HWY_API Vec128<T> odd_even_impl(hwy::SizeTag<2> /* tag */, const Vec128<T> a,
-                                const Vec128<T> b) {
+HWY_INLINE Vec128<T> odd_even_impl(hwy::SizeTag<2> /* tag */, const Vec128<T> a,
+                                   const Vec128<T> b) {
   return Vec128<T>{wasm_i16x8_shuffle(a.raw, b.raw, 8, 1, 10, 3, 12, 5, 14, 7)};
 }
 template <typename T>
-HWY_API Vec128<T> odd_even_impl(hwy::SizeTag<4> /* tag */, const Vec128<T> a,
-                                const Vec128<T> b) {
+HWY_INLINE Vec128<T> odd_even_impl(hwy::SizeTag<4> /* tag */, const Vec128<T> a,
+                                   const Vec128<T> b) {
   return Vec128<T>{wasm_i32x4_shuffle(a.raw, b.raw, 4, 1, 6, 3)};
 }
 // TODO(eustas): implement
 // template <typename T>
-// HWY_API Vec128<T> odd_even_impl(hwy::SizeTag<8> /* tag */,
+// HWY_INLINE Vec128<T> odd_even_impl(hwy::SizeTag<8> /* tag */,
 //                                                 const Vec128<T> a,
 //                                                 const Vec128<T> b)
 
@@ -2133,9 +2126,7 @@ template <typename T>
 HWY_API Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
   return odd_even_impl(hwy::SizeTag<sizeof(T)>(), a, b);
 }
-template <>
-HWY_INLINE Vec128<float> OddEven<float>(const Vec128<float> a,
-                                        const Vec128<float> b) {
+HWY_API Vec128<float> OddEven(const Vec128<float> a, const Vec128<float> b) {
   return Vec128<float>{wasm_i32x4_shuffle(a.raw, b.raw, 4, 1, 6, 3)};
 }
 
@@ -2208,8 +2199,8 @@ HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
 }
 
 template <size_t N>
-HWY_INLINE Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
-                                      const Vec128<float16_t, N> v) {
+HWY_API Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
+                                   const Vec128<float16_t, N> v) {
   const Simd<int32_t, N> di32;
   const Simd<uint32_t, N> du32;
   const Simd<float, N> df32;
@@ -2282,8 +2273,8 @@ HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> di,
 }
 
 template <size_t N>
-HWY_INLINE Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
-                                         const Vec128<float, N> v) {
+HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
+                                      const Vec128<float, N> v) {
   const Simd<int32_t, N> di;
   const Simd<uint32_t, N> du;
   const Simd<uint16_t, N> du16;
@@ -2422,8 +2413,8 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 namespace detail {
 
 template <typename T, size_t N>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
-                              const Mask128<T, N> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask128<T, N> mask) {
   alignas(16) uint64_t lanes[2];
   wasm_v128_store(lanes, mask.raw);
 
@@ -2434,8 +2425,8 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
 }
 
 template <typename T, size_t N>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
-                              const Mask128<T, N> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                                 const Mask128<T, N> mask) {
   // Remove useless lower half of each u16 while preserving the sign bit.
   const __i16x8 zero = wasm_i16x8_splat(0);
   const Mask128<T> mask8{wasm_i8x16_narrow_i16x8(mask.raw, zero)};
@@ -2443,8 +2434,8 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
 }
 
 template <typename T, size_t N>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
-                              const Mask128<T, N> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
+                                 const Mask128<T, N> mask) {
   const __i32x4 mask_i = static_cast<__i32x4>(mask.raw);
   const __i32x4 slice = wasm_i32x4_make(1, 2, 4, 8);
   const __i32x4 sliced_mask = wasm_v128_and(mask_i, slice);
@@ -2490,22 +2481,22 @@ constexpr __i8x16 BytesAbove() {
 }
 
 template <typename T, size_t N>
-HWY_API uint64_t BitsFromMask(const Mask128<T, N> mask) {
+HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
   return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
 }
 
 template <typename T>
-HWY_API size_t CountTrue(hwy::SizeTag<1> tag, const Mask128<T> m) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<1> tag, const Mask128<T> m) {
   return PopCount(BitsFromMask(tag, m));
 }
 
 template <typename T>
-HWY_API size_t CountTrue(hwy::SizeTag<2> tag, const Mask128<T> m) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<2> tag, const Mask128<T> m) {
   return PopCount(BitsFromMask(tag, m));
 }
 
 template <typename T>
-HWY_API size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
+HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
   const __i32x4 var_shift = wasm_i32x4_make(1, 2, 4, 8);
   const __i32x4 shifted_bits = wasm_v128_and(m.raw, var_shift);
   alignas(16) uint64_t lanes[2];
@@ -2516,7 +2507,7 @@ HWY_API size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
 }  // namespace detail
 
 template <typename T, size_t N>
-HWY_INLINE size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(&bits, p);
@@ -2553,15 +2544,15 @@ HWY_API bool AllFalse(const Mask128<T> m) {
 // Full vector, type-dependent
 namespace detail {
 template <typename T>
-HWY_API bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
   return wasm_i8x16_all_true(m.raw);
 }
 template <typename T>
-HWY_API bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
   return wasm_i16x8_all_true(m.raw);
 }
 template <typename T>
-HWY_API bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
   return wasm_i32x4_all_true(m.raw);
 }
 
@@ -2777,8 +2768,8 @@ HWY_INLINE Vec128<T, N> Idx64x2FromBits(const uint64_t mask_bits) {
 // redundant BitsFromMask in the latter.
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Compress(hwy::SizeTag<2> /*tag*/, Vec128<T, N> v,
-                              const uint64_t mask_bits) {
+HWY_INLINE Vec128<T, N> Compress(hwy::SizeTag<2> /*tag*/, Vec128<T, N> v,
+                                 const uint64_t mask_bits) {
   const auto idx = detail::Idx16x8FromBits<T, N>(mask_bits);
   using D = Simd<T, N>;
   const RebindToSigned<D> di;
@@ -2786,8 +2777,8 @@ HWY_API Vec128<T, N> Compress(hwy::SizeTag<2> /*tag*/, Vec128<T, N> v,
 }
 
 template <typename T, size_t N>
-HWY_API Vec128<T, N> Compress(hwy::SizeTag<4> /*tag*/, Vec128<T, N> v,
-                              const uint64_t mask_bits) {
+HWY_INLINE Vec128<T, N> Compress(hwy::SizeTag<4> /*tag*/, Vec128<T, N> v,
+                                 const uint64_t mask_bits) {
   const auto idx = detail::Idx32x4FromBits<T, N>(mask_bits);
   using D = Simd<T, N>;
   const RebindToSigned<D> di;
@@ -2797,9 +2788,9 @@ HWY_API Vec128<T, N> Compress(hwy::SizeTag<4> /*tag*/, Vec128<T, N> v,
 #if HWY_CAP_INTEGER64 || HWY_CAP_FLOAT64
 
 template <typename T, size_t N>
-HWY_API Vec128<uint64_t, N> Compress(hwy::SizeTag<8> /*tag*/,
-                                     Vec128<uint64_t, N> v,
-                                     const uint64_t mask_bits) {
+HWY_INLINE Vec128<uint64_t, N> Compress(hwy::SizeTag<8> /*tag*/,
+                                        Vec128<uint64_t, N> v,
+                                        const uint64_t mask_bits) {
   const auto idx = detail::Idx64x2FromBits<uint64_t, N>(mask_bits);
   using D = Simd<T, N>;
   const RebindToSigned<D> di;
@@ -3021,18 +3012,18 @@ namespace detail {
 
 // N=1 for any T: no-op
 template <typename T>
-HWY_API Vec128<T, 1> SumOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
-                                const Vec128<T, 1> v) {
+HWY_INLINE Vec128<T, 1> SumOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                   const Vec128<T, 1> v) {
   return v;
 }
 template <typename T>
-HWY_API Vec128<T, 1> MinOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
-                                const Vec128<T, 1> v) {
+HWY_INLINE Vec128<T, 1> MinOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                   const Vec128<T, 1> v) {
   return v;
 }
 template <typename T>
-HWY_API Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
-                                const Vec128<T, 1> v) {
+HWY_INLINE Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                   const Vec128<T, 1> v) {
   return v;
 }
 
@@ -3040,38 +3031,41 @@ HWY_API Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
 
 // N=2
 template <typename T>
-HWY_API Vec128<T, 2> SumOfLanes(hwy::SizeTag<4> /* tag */,
-                                const Vec128<T, 2> v10) {
+HWY_INLINE Vec128<T, 2> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                   const Vec128<T, 2> v10) {
   return v10 + Vec128<T, 2>{Shuffle2301(Vec128<T>{v10.raw}).raw};
 }
 template <typename T>
-HWY_API Vec128<T, 2> MinOfLanes(hwy::SizeTag<4> /* tag */,
-                                const Vec128<T, 2> v10) {
+HWY_INLINE Vec128<T, 2> MinOfLanes(hwy::SizeTag<4> /* tag */,
+                                   const Vec128<T, 2> v10) {
   return Min(v10, Vec128<T, 2>{Shuffle2301(Vec128<T>{v10.raw}).raw});
 }
 template <typename T>
-HWY_API Vec128<T, 2> MaxOfLanes(hwy::SizeTag<4> /* tag */,
-                                const Vec128<T, 2> v10) {
+HWY_INLINE Vec128<T, 2> MaxOfLanes(hwy::SizeTag<4> /* tag */,
+                                   const Vec128<T, 2> v10) {
   return Max(v10, Vec128<T, 2>{Shuffle2301(Vec128<T>{v10.raw}).raw});
 }
 
 // N=4 (full)
 template <typename T>
-HWY_API Vec128<T> SumOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
+HWY_INLINE Vec128<T> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T> v3210) {
   const Vec128<T> v1032 = Shuffle1032(v3210);
   const Vec128<T> v31_20_31_20 = v3210 + v1032;
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return v20_31_20_31 + v31_20_31_20;
 }
 template <typename T>
-HWY_API Vec128<T> MinOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
+HWY_INLINE Vec128<T> MinOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T> v3210) {
   const Vec128<T> v1032 = Shuffle1032(v3210);
   const Vec128<T> v31_20_31_20 = Min(v3210, v1032);
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return Min(v20_31_20_31, v31_20_31_20);
 }
 template <typename T>
-HWY_API Vec128<T> MaxOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
+HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec128<T> v3210) {
   const Vec128<T> v1032 = Shuffle1032(v3210);
   const Vec128<T> v31_20_31_20 = Max(v3210, v1032);
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
@@ -3082,17 +3076,20 @@ HWY_API Vec128<T> MaxOfLanes(hwy::SizeTag<4> /* tag */, const Vec128<T> v3210) {
 
 // N=2 (full)
 template <typename T>
-HWY_API Vec128<T> SumOfLanes(hwy::SizeTag<8> /* tag */, const Vec128<T> v10) {
+HWY_INLINE Vec128<T> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return v10 + v01;
 }
 template <typename T>
-HWY_API Vec128<T> MinOfLanes(hwy::SizeTag<8> /* tag */, const Vec128<T> v10) {
+HWY_INLINE Vec128<T> MinOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Min(v10, v01);
 }
 template <typename T>
-HWY_API Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */, const Vec128<T> v10) {
+HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Max(v10, v01);
 }

@@ -105,12 +105,14 @@ class Mask256 {
 
 namespace detail {
 
-HWY_API __m256i BitCastToInteger(__m256i v) { return v; }
-HWY_API __m256i BitCastToInteger(__m256 v) { return _mm256_castps_si256(v); }
-HWY_API __m256i BitCastToInteger(__m256d v) { return _mm256_castpd_si256(v); }
+HWY_INLINE __m256i BitCastToInteger(__m256i v) { return v; }
+HWY_INLINE __m256i BitCastToInteger(__m256 v) { return _mm256_castps_si256(v); }
+HWY_INLINE __m256i BitCastToInteger(__m256d v) {
+  return _mm256_castpd_si256(v);
+}
 
 template <typename T>
-HWY_API Vec256<uint8_t> BitCastToByte(Vec256<T> v) {
+HWY_INLINE Vec256<uint8_t> BitCastToByte(Vec256<T> v) {
   return Vec256<uint8_t>{BitCastToInteger(v.raw)};
 }
 
@@ -129,7 +131,7 @@ struct BitCastFromInteger256<double> {
 };
 
 template <typename T>
-HWY_API Vec256<T> BitCastFromByte(Full256<T> /* tag */, Vec256<uint8_t> v) {
+HWY_INLINE Vec256<T> BitCastFromByte(Full256<T> /* tag */, Vec256<uint8_t> v) {
   return Vec256<T>{BitCastFromInteger256<T>()(v.raw)};
 }
 
@@ -1436,28 +1438,28 @@ HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
 namespace detail {
 
 template <typename T>
-HWY_API void ScatterOffset(hwy::SizeTag<4> /* tag */, Vec256<T> v,
-                           Full256<T> /* tag */, T* HWY_RESTRICT base,
-                           const Vec256<int32_t> offset) {
+HWY_INLINE void ScatterOffset(hwy::SizeTag<4> /* tag */, Vec256<T> v,
+                              Full256<T> /* tag */, T* HWY_RESTRICT base,
+                              const Vec256<int32_t> offset) {
   _mm256_i32scatter_epi32(base, offset.raw, v.raw, 1);
 }
 template <typename T>
-HWY_API void ScatterIndex(hwy::SizeTag<4> /* tag */, Vec256<T> v,
-                          Full256<T> /* tag */, T* HWY_RESTRICT base,
-                          const Vec256<int32_t> index) {
+HWY_INLINE void ScatterIndex(hwy::SizeTag<4> /* tag */, Vec256<T> v,
+                             Full256<T> /* tag */, T* HWY_RESTRICT base,
+                             const Vec256<int32_t> index) {
   _mm256_i32scatter_epi32(base, index.raw, v.raw, 4);
 }
 
 template <typename T>
-HWY_API void ScatterOffset(hwy::SizeTag<8> /* tag */, Vec256<T> v,
-                           Full256<T> /* tag */, T* HWY_RESTRICT base,
-                           const Vec256<int64_t> offset) {
+HWY_INLINE void ScatterOffset(hwy::SizeTag<8> /* tag */, Vec256<T> v,
+                              Full256<T> /* tag */, T* HWY_RESTRICT base,
+                              const Vec256<int64_t> offset) {
   _mm256_i64scatter_epi64(base, offset.raw, v.raw, 1);
 }
 template <typename T>
-HWY_API void ScatterIndex(hwy::SizeTag<8> /* tag */, Vec256<T> v,
-                          Full256<T> /* tag */, T* HWY_RESTRICT base,
-                          const Vec256<int64_t> index) {
+HWY_INLINE void ScatterIndex(hwy::SizeTag<8> /* tag */, Vec256<T> v,
+                             Full256<T> /* tag */, T* HWY_RESTRICT base,
+                             const Vec256<int64_t> index) {
   _mm256_i64scatter_epi64(base, index.raw, v.raw, 8);
 }
 
@@ -1476,31 +1478,25 @@ HWY_API void ScatterIndex(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
   return detail::ScatterIndex(hwy::SizeTag<sizeof(T)>(), v, d, base, index);
 }
 
-template <>
-HWY_INLINE void ScatterOffset<float>(Vec256<float> v, Full256<float> /* tag */,
-                                     float* HWY_RESTRICT base,
-                                     const Vec256<int32_t> offset) {
+HWY_API void ScatterOffset(Vec256<float> v, Full256<float> /* tag */,
+                           float* HWY_RESTRICT base,
+                           const Vec256<int32_t> offset) {
   _mm256_i32scatter_ps(base, offset.raw, v.raw, 1);
 }
-template <>
-HWY_INLINE void ScatterIndex<float>(Vec256<float> v, Full256<float> /* tag */,
-                                    float* HWY_RESTRICT base,
-                                    const Vec256<int32_t> index) {
+HWY_API void ScatterIndex(Vec256<float> v, Full256<float> /* tag */,
+                          float* HWY_RESTRICT base,
+                          const Vec256<int32_t> index) {
   _mm256_i32scatter_ps(base, index.raw, v.raw, 4);
 }
 
-template <>
-HWY_INLINE void ScatterOffset<double>(Vec256<double> v,
-                                      Full256<double> /* tag */,
-                                      double* HWY_RESTRICT base,
-                                      const Vec256<int64_t> offset) {
+HWY_API void ScatterOffset(Vec256<double> v, Full256<double> /* tag */,
+                           double* HWY_RESTRICT base,
+                           const Vec256<int64_t> offset) {
   _mm256_i64scatter_pd(base, offset.raw, v.raw, 1);
 }
-template <>
-HWY_INLINE void ScatterIndex<double>(Vec256<double> v,
-                                     Full256<double> /* tag */,
-                                     double* HWY_RESTRICT base,
-                                     const Vec256<int64_t> index) {
+HWY_API void ScatterIndex(Vec256<double> v, Full256<double> /* tag */,
+                          double* HWY_RESTRICT base,
+                          const Vec256<int64_t> index) {
   _mm256_i64scatter_pd(base, index.raw, v.raw, 8);
 }
 
@@ -1548,31 +1544,35 @@ HWY_API void ScatterIndex(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
 namespace detail {
 
 template <typename T>
-HWY_API Vec256<T> GatherOffset(hwy::SizeTag<4> /* tag */, Full256<T> /* tag */,
-                               const T* HWY_RESTRICT base,
-                               const Vec256<int32_t> offset) {
+HWY_INLINE Vec256<T> GatherOffset(hwy::SizeTag<4> /* tag */,
+                                  Full256<T> /* tag */,
+                                  const T* HWY_RESTRICT base,
+                                  const Vec256<int32_t> offset) {
   return Vec256<T>{_mm256_i32gather_epi32(
       reinterpret_cast<const int32_t*>(base), offset.raw, 1)};
 }
 template <typename T>
-HWY_API Vec256<T> GatherIndex(hwy::SizeTag<4> /* tag */, Full256<T> /* tag */,
-                              const T* HWY_RESTRICT base,
-                              const Vec256<int32_t> index) {
+HWY_INLINE Vec256<T> GatherIndex(hwy::SizeTag<4> /* tag */,
+                                 Full256<T> /* tag */,
+                                 const T* HWY_RESTRICT base,
+                                 const Vec256<int32_t> index) {
   return Vec256<T>{_mm256_i32gather_epi32(
       reinterpret_cast<const int32_t*>(base), index.raw, 4)};
 }
 
 template <typename T>
-HWY_API Vec256<T> GatherOffset(hwy::SizeTag<8> /* tag */, Full256<T> /* tag */,
-                               const T* HWY_RESTRICT base,
-                               const Vec256<int64_t> offset) {
+HWY_INLINE Vec256<T> GatherOffset(hwy::SizeTag<8> /* tag */,
+                                  Full256<T> /* tag */,
+                                  const T* HWY_RESTRICT base,
+                                  const Vec256<int64_t> offset) {
   return Vec256<T>{_mm256_i64gather_epi64(
       reinterpret_cast<const GatherIndex64*>(base), offset.raw, 1)};
 }
 template <typename T>
-HWY_API Vec256<T> GatherIndex(hwy::SizeTag<8> /* tag */, Full256<T> /* tag */,
-                              const T* HWY_RESTRICT base,
-                              const Vec256<int64_t> index) {
+HWY_INLINE Vec256<T> GatherIndex(hwy::SizeTag<8> /* tag */,
+                                 Full256<T> /* tag */,
+                                 const T* HWY_RESTRICT base,
+                                 const Vec256<int64_t> index) {
   return Vec256<T>{_mm256_i64gather_epi64(
       reinterpret_cast<const GatherIndex64*>(base), index.raw, 8)};
 }
@@ -1592,29 +1592,25 @@ HWY_API Vec256<T> GatherIndex(Full256<T> d, const T* HWY_RESTRICT base,
   return detail::GatherIndex(hwy::SizeTag<sizeof(T)>(), d, base, index);
 }
 
-template <>
-HWY_INLINE Vec256<float> GatherOffset<float>(Full256<float> /* tag */,
-                                             const float* HWY_RESTRICT base,
-                                             const Vec256<int32_t> offset) {
+HWY_API Vec256<float> GatherOffset(Full256<float> /* tag */,
+                                   const float* HWY_RESTRICT base,
+                                   const Vec256<int32_t> offset) {
   return Vec256<float>{_mm256_i32gather_ps(base, offset.raw, 1)};
 }
-template <>
-HWY_INLINE Vec256<float> GatherIndex<float>(Full256<float> /* tag */,
-                                            const float* HWY_RESTRICT base,
-                                            const Vec256<int32_t> index) {
+HWY_API Vec256<float> GatherIndex(Full256<float> /* tag */,
+                                  const float* HWY_RESTRICT base,
+                                  const Vec256<int32_t> index) {
   return Vec256<float>{_mm256_i32gather_ps(base, index.raw, 4)};
 }
 
-template <>
-HWY_INLINE Vec256<double> GatherOffset<double>(Full256<double> /* tag */,
-                                               const double* HWY_RESTRICT base,
-                                               const Vec256<int64_t> offset) {
+HWY_API Vec256<double> GatherOffset(Full256<double> /* tag */,
+                                    const double* HWY_RESTRICT base,
+                                    const Vec256<int64_t> offset) {
   return Vec256<double>{_mm256_i64gather_pd(base, offset.raw, 1)};
 }
-template <>
-HWY_INLINE Vec256<double> GatherIndex<double>(Full256<double> /* tag */,
-                                              const double* HWY_RESTRICT base,
-                                              const Vec256<int64_t> index) {
+HWY_API Vec256<double> GatherIndex(Full256<double> /* tag */,
+                                   const double* HWY_RESTRICT base,
+                                   const Vec256<int64_t> index) {
   return Vec256<double>{_mm256_i64gather_pd(base, index.raw, 8)};
 }
 
@@ -1633,12 +1629,10 @@ template <typename T>
 HWY_API Vec128<T> LowerHalf(Vec256<T> v) {
   return Vec128<T>{_mm256_castsi256_si128(v.raw)};
 }
-template <>
-HWY_INLINE Vec128<float> LowerHalf(Vec256<float> v) {
+HWY_API Vec128<float> LowerHalf(Vec256<float> v) {
   return Vec128<float>{_mm256_castps256_ps128(v.raw)};
 }
-template <>
-HWY_INLINE Vec128<double> LowerHalf(Vec256<double> v) {
+HWY_API Vec128<double> LowerHalf(Vec256<double> v) {
   return Vec128<double>{_mm256_castpd256_pd128(v.raw)};
 }
 
@@ -1646,12 +1640,10 @@ template <typename T>
 HWY_API Vec128<T> UpperHalf(Vec256<T> v) {
   return Vec128<T>{_mm256_extracti128_si256(v.raw, 1)};
 }
-template <>
-HWY_INLINE Vec128<float> UpperHalf(Vec256<float> v) {
+HWY_API Vec128<float> UpperHalf(Vec256<float> v) {
   return Vec128<float>{_mm256_extractf128_ps(v.raw, 1)};
 }
-template <>
-HWY_INLINE Vec128<double> UpperHalf(Vec256<double> v) {
+HWY_API Vec128<double> UpperHalf(Vec256<double> v) {
   return Vec128<double>{_mm256_extractf128_pd(v.raw, 1)};
 }
 
@@ -1676,16 +1668,14 @@ HWY_API Vec256<T> ZeroExtendVector(Vec128<T> lo) {
   return Vec256<T>{_mm256_zextsi128_si256(lo.raw)};
 #endif
 }
-template <>
-HWY_INLINE Vec256<float> ZeroExtendVector(Vec128<float> lo) {
+HWY_API Vec256<float> ZeroExtendVector(Vec128<float> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec256<float>{_mm256_insertf128_ps(_mm256_setzero_ps(), lo.raw, 0)};
 #else
   return Vec256<float>{_mm256_zextps128_ps256(lo.raw)};
 #endif
 }
-template <>
-HWY_INLINE Vec256<double> ZeroExtendVector(Vec128<double> lo) {
+HWY_API Vec256<double> ZeroExtendVector(Vec128<double> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec256<double>{_mm256_insertf128_pd(_mm256_setzero_pd(), lo.raw, 0)};
 #else
@@ -1700,13 +1690,11 @@ HWY_API Vec256<T> Combine(Vec128<T> hi, Vec128<T> lo) {
   const auto lo256 = ZeroExtendVector(lo);
   return Vec256<T>{_mm256_inserti128_si256(lo256.raw, hi.raw, 1)};
 }
-template <>
-HWY_INLINE Vec256<float> Combine(Vec128<float> hi, Vec128<float> lo) {
+HWY_API Vec256<float> Combine(Vec128<float> hi, Vec128<float> lo) {
   const auto lo256 = ZeroExtendVector(lo);
   return Vec256<float>{_mm256_insertf128_ps(lo256.raw, hi.raw, 1)};
 }
-template <>
-HWY_INLINE Vec256<double> Combine(Vec128<double> hi, Vec128<double> lo) {
+HWY_API Vec256<double> Combine(Vec128<double> hi, Vec128<double> lo) {
   const auto lo256 = ZeroExtendVector(lo);
   return Vec256<double>{_mm256_insertf128_pd(lo256.raw, hi.raw, 1)};
 }
@@ -2082,14 +2070,12 @@ template <typename T>
 HWY_API Vec256<T> ConcatLowerLower(const Vec256<T> hi, const Vec256<T> lo) {
   return Vec256<T>{_mm256_inserti128_si256(lo.raw, LowerHalf(hi).raw, 1)};
 }
-template <>
-HWY_INLINE Vec256<float> ConcatLowerLower(const Vec256<float> hi,
-                                          const Vec256<float> lo) {
+HWY_API Vec256<float> ConcatLowerLower(const Vec256<float> hi,
+                                       const Vec256<float> lo) {
   return Vec256<float>{_mm256_insertf128_ps(lo.raw, LowerHalf(hi).raw, 1)};
 }
-template <>
-HWY_INLINE Vec256<double> ConcatLowerLower(const Vec256<double> hi,
-                                           const Vec256<double> lo) {
+HWY_API Vec256<double> ConcatLowerLower(const Vec256<double> hi,
+                                        const Vec256<double> lo) {
   return Vec256<double>{_mm256_insertf128_pd(lo.raw, LowerHalf(hi).raw, 1)};
 }
 
@@ -2098,14 +2084,12 @@ template <typename T>
 HWY_API Vec256<T> ConcatLowerUpper(const Vec256<T> hi, const Vec256<T> lo) {
   return Vec256<T>{_mm256_permute2x128_si256(lo.raw, hi.raw, 0x21)};
 }
-template <>
-HWY_INLINE Vec256<float> ConcatLowerUpper(const Vec256<float> hi,
-                                          const Vec256<float> lo) {
+HWY_API Vec256<float> ConcatLowerUpper(const Vec256<float> hi,
+                                       const Vec256<float> lo) {
   return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x21)};
 }
-template <>
-HWY_INLINE Vec256<double> ConcatLowerUpper(const Vec256<double> hi,
-                                           const Vec256<double> lo) {
+HWY_API Vec256<double> ConcatLowerUpper(const Vec256<double> hi,
+                                        const Vec256<double> lo) {
   return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x21)};
 }
 
@@ -2114,14 +2098,12 @@ template <typename T>
 HWY_API Vec256<T> ConcatUpperLower(const Vec256<T> hi, const Vec256<T> lo) {
   return Vec256<T>{_mm256_blend_epi32(hi.raw, lo.raw, 0x0F)};
 }
-template <>
-HWY_INLINE Vec256<float> ConcatUpperLower(const Vec256<float> hi,
-                                          const Vec256<float> lo) {
+HWY_API Vec256<float> ConcatUpperLower(const Vec256<float> hi,
+                                       const Vec256<float> lo) {
   return Vec256<float>{_mm256_blend_ps(hi.raw, lo.raw, 0x0F)};
 }
-template <>
-HWY_INLINE Vec256<double> ConcatUpperLower(const Vec256<double> hi,
-                                           const Vec256<double> lo) {
+HWY_API Vec256<double> ConcatUpperLower(const Vec256<double> hi,
+                                        const Vec256<double> lo) {
   return Vec256<double>{_mm256_blend_pd(hi.raw, lo.raw, 3)};
 }
 
@@ -2136,8 +2118,8 @@ HWY_API Vec256<T> ConcatUpperUpper(const Vec256<T> hi, const Vec256<T> lo) {
 namespace detail {
 
 template <typename T>
-HWY_API Vec256<T> OddEven(hwy::SizeTag<1> /* tag */, const Vec256<T> a,
-                          const Vec256<T> b) {
+HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<1> /* tag */, const Vec256<T> a,
+                             const Vec256<T> b) {
   const Full256<T> d;
   const Full256<uint8_t> d8;
   alignas(32) constexpr uint8_t mask[16] = {0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0,
@@ -2145,18 +2127,18 @@ HWY_API Vec256<T> OddEven(hwy::SizeTag<1> /* tag */, const Vec256<T> a,
   return IfThenElse(MaskFromVec(BitCast(d, LoadDup128(d8, mask))), b, a);
 }
 template <typename T>
-HWY_API Vec256<T> OddEven(hwy::SizeTag<2> /* tag */, const Vec256<T> a,
-                          const Vec256<T> b) {
+HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<2> /* tag */, const Vec256<T> a,
+                             const Vec256<T> b) {
   return Vec256<T>{_mm256_blend_epi16(a.raw, b.raw, 0x55)};
 }
 template <typename T>
-HWY_API Vec256<T> OddEven(hwy::SizeTag<4> /* tag */, const Vec256<T> a,
-                          const Vec256<T> b) {
+HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<4> /* tag */, const Vec256<T> a,
+                             const Vec256<T> b) {
   return Vec256<T>{_mm256_blend_epi32(a.raw, b.raw, 0x55)};
 }
 template <typename T>
-HWY_API Vec256<T> OddEven(hwy::SizeTag<8> /* tag */, const Vec256<T> a,
-                          const Vec256<T> b) {
+HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<8> /* tag */, const Vec256<T> a,
+                             const Vec256<T> b) {
   return Vec256<T>{_mm256_blend_epi32(a.raw, b.raw, 0x33)};
 }
 
@@ -2166,15 +2148,11 @@ template <typename T>
 HWY_API Vec256<T> OddEven(const Vec256<T> a, const Vec256<T> b) {
   return detail::OddEven(hwy::SizeTag<sizeof(T)>(), a, b);
 }
-template <>
-HWY_INLINE Vec256<float> OddEven<float>(const Vec256<float> a,
-                                        const Vec256<float> b) {
+HWY_API Vec256<float> OddEven(const Vec256<float> a, const Vec256<float> b) {
   return Vec256<float>{_mm256_blend_ps(a.raw, b.raw, 0x55)};
 }
 
-template <>
-HWY_INLINE Vec256<double> OddEven<double>(const Vec256<double> a,
-                                          const Vec256<double> b) {
+HWY_API Vec256<double> OddEven(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{_mm256_blend_pd(a.raw, b.raw, 5)};
 }
 
@@ -2195,7 +2173,7 @@ namespace detail {
 
 // Returns 2^v for use as per-lane multipliers to emulate 16-bit shifts.
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
+HWY_INLINE Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
   const Full256<T> d;
   const Full256<float> df;
   const auto zero = Zero(d);
@@ -2548,7 +2526,8 @@ HWY_API Vec256<T> Iota(const Full256<T> d, const T2 first) {
 namespace detail {
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, const Mask256<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask256<T> mask) {
   const Full256<T> d;
   const Full256<uint8_t> d8;
   const auto sign_bits = BitCast(d8, VecFromMask(d, mask)).raw;
@@ -2557,7 +2536,8 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, const Mask256<T> mask) {
 }
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, const Mask256<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
+                                 const Mask256<T> mask) {
 #if HWY_ARCH_X86_64
   const uint64_t sign_bits8 = BitsFromMask(hwy::SizeTag<1>(), mask);
   // Skip the bits from the lower byte of each u16 (better not to use the
@@ -2576,7 +2556,8 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, const Mask256<T> mask) {
 }
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, const Mask256<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
+                                 const Mask256<T> mask) {
   const Full256<T> d;
   const Full256<float> df;
   const auto sign_bits = BitCast(df, VecFromMask(d, mask)).raw;
@@ -2584,7 +2565,8 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, const Mask256<T> mask) {
 }
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask256<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
+                                 const Mask256<T> mask) {
   const Full256<T> d;
   const Full256<double> df;
   const auto sign_bits = BitCast(df, VecFromMask(d, mask)).raw;
@@ -2592,14 +2574,14 @@ HWY_API uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, const Mask256<T> mask) {
 }
 
 template <typename T>
-HWY_API uint64_t BitsFromMask(const Mask256<T> mask) {
+HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
   return BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 }  // namespace detail
 
 template <typename T>
-HWY_INLINE size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (4 + sizeof(T) - 1) / sizeof(T);
   CopyBytes<kNumBytes>(&bits, p);
@@ -2714,8 +2696,8 @@ HWY_INLINE Vec256<uint32_t> Idx64x4FromBits(const uint64_t mask_bits) {
 // redundant BitsFromMask in the latter.
 
 template <typename T>
-HWY_API Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
-                           const uint64_t mask_bits) {
+HWY_INLINE Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
+                              const uint64_t mask_bits) {
   const auto vu = BitCast(Full256<uint32_t>(), v);
 #if HWY_TARGET <= HWY_AVX3
   const __m256i ret =
@@ -2728,8 +2710,8 @@ HWY_API Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
 }
 
 template <typename T>
-HWY_API Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
-                           const uint64_t mask_bits) {
+HWY_INLINE Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
+                              const uint64_t mask_bits) {
   const auto vu = BitCast(Full256<uint64_t>(), v);
 #if HWY_TARGET <= HWY_AVX3
   const __m256i ret =
@@ -2747,8 +2729,8 @@ HWY_API Vec256<T> Compress(hwy::SizeTag<8> /*tag*/, Vec256<T> v,
 // LUTs are infeasible for 2^16 possible masks. Promoting to 32-bit and using
 // the native Compress is probably more efficient than 2 LUTs.
 template <typename T>
-HWY_API Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
-                           const uint64_t mask_bits) {
+HWY_INLINE Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
+                              const uint64_t mask_bits) {
   using D = Full256<T>;
   const Rebind<uint16_t, D> du;
   const Repartition<int32_t, D> dw;
@@ -2914,21 +2896,24 @@ namespace detail {
 // Returns sum{lane[i]} in each lane. "v3210" is a replicated 128-bit block.
 // Same logic as x86/128.h, but with Vec256 arguments.
 template <typename T>
-HWY_API Vec256<T> SumOfLanes(hwy::SizeTag<4> /* tag */, const Vec256<T> v3210) {
+HWY_INLINE Vec256<T> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec256<T> v3210) {
   const auto v1032 = Shuffle1032(v3210);
   const auto v31_20_31_20 = v3210 + v1032;
   const auto v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return v20_31_20_31 + v31_20_31_20;
 }
 template <typename T>
-HWY_API Vec256<T> MinOfLanes(hwy::SizeTag<4> /* tag */, const Vec256<T> v3210) {
+HWY_INLINE Vec256<T> MinOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec256<T> v3210) {
   const auto v1032 = Shuffle1032(v3210);
   const auto v31_20_31_20 = Min(v3210, v1032);
   const auto v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return Min(v20_31_20_31, v31_20_31_20);
 }
 template <typename T>
-HWY_API Vec256<T> MaxOfLanes(hwy::SizeTag<4> /* tag */, const Vec256<T> v3210) {
+HWY_INLINE Vec256<T> MaxOfLanes(hwy::SizeTag<4> /* tag */,
+                                const Vec256<T> v3210) {
   const auto v1032 = Shuffle1032(v3210);
   const auto v31_20_31_20 = Max(v3210, v1032);
   const auto v20_31_20_31 = Shuffle0321(v31_20_31_20);
@@ -2936,17 +2921,20 @@ HWY_API Vec256<T> MaxOfLanes(hwy::SizeTag<4> /* tag */, const Vec256<T> v3210) {
 }
 
 template <typename T>
-HWY_API Vec256<T> SumOfLanes(hwy::SizeTag<8> /* tag */, const Vec256<T> v10) {
+HWY_INLINE Vec256<T> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec256<T> v10) {
   const auto v01 = Shuffle01(v10);
   return v10 + v01;
 }
 template <typename T>
-HWY_API Vec256<T> MinOfLanes(hwy::SizeTag<8> /* tag */, const Vec256<T> v10) {
+HWY_INLINE Vec256<T> MinOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec256<T> v10) {
   const auto v01 = Shuffle01(v10);
   return Min(v10, v01);
 }
 template <typename T>
-HWY_API Vec256<T> MaxOfLanes(hwy::SizeTag<8> /* tag */, const Vec256<T> v10) {
+HWY_INLINE Vec256<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
+                                const Vec256<T> v10) {
   const auto v01 = Shuffle01(v10);
   return Max(v10, v01);
 }

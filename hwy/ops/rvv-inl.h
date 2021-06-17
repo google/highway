@@ -340,7 +340,7 @@ HWY_API VFromD<Simd<T, N>> BitCast(Simd<T, N> /*tag*/, FromV v) {
 namespace detail {
 
 template <class V, class DU = RebindToUnsigned<DFromV<V>>>
-HWY_API VFromD<DU> BitCastToUnsigned(V v) {
+HWY_INLINE VFromD<DU> BitCastToUnsigned(V v) {
   return BitCast(DU(), v);
 }
 
@@ -353,14 +353,14 @@ namespace detail {
 HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGD, Iota0, id_v)
 
 template <class D, class DU = RebindToUnsigned<D>>
-HWY_API VFromD<DU> Iota0(const D /*d*/) {
+HWY_INLINE VFromD<DU> Iota0(const D /*d*/) {
   Lanes(DU());
   return BitCastToUnsigned(Iota0(DU()));
 }
 
 // Partial
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API VFromD<Simd<T, N>> Iota0(Simd<T, N> /*tag*/) {
+HWY_INLINE VFromD<Simd<T, N>> Iota0(Simd<T, N> /*tag*/) {
   return Iota0(Full<T>());
 }
 
@@ -1312,10 +1312,11 @@ constexpr size_t LanesPerBlock(D) {
 }
 
 template <class D, class V>
-HWY_API V OffsetsOf128BitBlocks(const D d, const V iota0) {
+HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
   using T = MakeUnsigned<TFromD<D>>;
   return detail::And(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
 }
+
 }  // namespace detail
 
 template <class V>
@@ -1672,9 +1673,10 @@ namespace detail {
 enum RoundingModes { kNear, kTrunc, kDown, kUp };
 
 template <class V>
-HWY_API auto UseInt(const V v) -> decltype(MaskFromVec(v)) {
+HWY_INLINE auto UseInt(const V v) -> decltype(MaskFromVec(v)) {
   return Lt(Abs(v), Set(DFromV<V>(), MantissaEnd<TFromV<V>>()));
 }
+
 }  // namespace detail
 
 template <class V>
@@ -1762,7 +1764,7 @@ namespace detail {
 // There is no 64x64 vwmul. This is basically MulEven, but without the
 // double-wide return type (not available for u64 inputs).
 template <class V>
-HWY_API V MulLower(const V a, const V b) {
+HWY_INLINE V MulLower(const V a, const V b) {
   const DFromV<V> d;
   Lanes(d);
   const auto lo = Mul(a, b);
@@ -1771,7 +1773,7 @@ HWY_API V MulLower(const V a, const V b) {
 }
 
 template <class V>
-HWY_API V MulUpper(const V a, const V b) {
+HWY_INLINE V MulUpper(const V a, const V b) {
   const DFromV<V> d;
   Lanes(d);
   const auto lo = Mul(a, b);
