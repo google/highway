@@ -47,6 +47,11 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 template <typename T>
+using Full512 = Simd<T, 64 / sizeof(T)>;
+
+namespace detail {
+
+template <typename T>
 struct Raw512 {
   using type = __m512i;
 };
@@ -59,12 +64,31 @@ struct Raw512<double> {
   using type = __m512d;
 };
 
-template <typename T>
-using Full512 = Simd<T, 64 / sizeof(T)>;
+// Template arg: sizeof(lane type)
+template <size_t size>
+struct RawMask512 {};
+template <>
+struct RawMask512<1> {
+  using type = __mmask64;
+};
+template <>
+struct RawMask512<2> {
+  using type = __mmask32;
+};
+template <>
+struct RawMask512<4> {
+  using type = __mmask16;
+};
+template <>
+struct RawMask512<8> {
+  using type = __mmask8;
+};
+
+}  // namespace detail
 
 template <typename T>
 class Vec512 {
-  using Raw = typename Raw512<T>::type;
+  using Raw = typename detail::Raw512<T>::type;
 
  public:
   // Compound assignment. Only usable if there is a corresponding non-member
@@ -94,32 +118,10 @@ class Vec512 {
   Raw raw;
 };
 
-// Template arg: sizeof(lane type)
-template <size_t size>
-struct RawMask512 {};
-template <>
-struct RawMask512<1> {
-  using type = __mmask64;
-};
-template <>
-struct RawMask512<2> {
-  using type = __mmask32;
-};
-template <>
-struct RawMask512<4> {
-  using type = __mmask16;
-};
-template <>
-struct RawMask512<8> {
-  using type = __mmask8;
-};
-
 // Mask register: one bit per lane.
 template <typename T>
-class Mask512 {
- public:
-  using Raw = typename RawMask512<sizeof(T)>::type;
-  Raw raw;
+struct Mask512 {
+  typename detail::RawMask512<sizeof(T)>::type raw;
 };
 
 // ------------------------------ BitCast
@@ -363,8 +365,9 @@ namespace detail {
 // 32 bit mask is sufficient for lane size >= 2.
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
-  using Bits = typename Mask512<T>::Raw;
-  return Mask512<T>{static_cast<Bits>(_bzhi_u32(~uint32_t(0), n))};
+  Mask512<T> m;
+  m.raw = static_cast<decltype(m.raw)>(_bzhi_u32(~uint32_t(0), n));
+  return m;
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 1)>
@@ -379,8 +382,9 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
 template <typename T>
 HWY_API Mask512<T> FirstN(const Full512<T> /*tag*/, size_t n) {
 #if HWY_ARCH_X86_64
-  using Bits = typename Mask512<T>::Raw;
-  return Mask512<T>{static_cast<Bits>(_bzhi_u64(~uint64_t(0), n))};
+  Mask512<T> m;
+  m.raw = static_cast<decltype(m.raw)>(_bzhi_u64(~uint64_t(0), n));
+  return m;
 #else
   return detail::FirstN<T>(n);
 #endif  // HWY_ARCH_X86_64

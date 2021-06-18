@@ -45,6 +45,11 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 template <typename T>
+using Full256 = Simd<T, 32 / sizeof(T)>;
+
+namespace detail {
+
+template <typename T>
 struct Raw256 {
   using type = __m256i;
 };
@@ -57,12 +62,11 @@ struct Raw256<double> {
   using type = __m256d;
 };
 
-template <typename T>
-using Full256 = Simd<T, 32 / sizeof(T)>;
+}  // namespace detail
 
 template <typename T>
 class Vec256 {
-  using Raw = typename Raw256<T>::type;
+  using Raw = typename detail::Raw256<T>::type;
 
  public:
   // Compound assignment. Only usable if there is a corresponding non-member
@@ -92,13 +96,10 @@ class Vec256 {
   Raw raw;
 };
 
-// Integer: FF..FF or 0. Float: MSB, all other bits undefined - see README.
+// FF..FF or 0.
 template <typename T>
-class Mask256 {
-  using Raw = typename Raw256<T>::type;
-
- public:
-  Raw raw;
+struct Mask256 {
+  typename detail::Raw256<T>::type raw;
 };
 
 // ------------------------------ BitCast

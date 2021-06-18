@@ -26,6 +26,9 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+template <typename T>
+using Full128 = Simd<T, 16 / sizeof(T)>;
+
 namespace detail {  // for code folding and Raw128
 
 // Macros used to define single and double function calls for multiple types
@@ -441,9 +444,6 @@ struct Raw128<int8_t, 1> {
 
 }  // namespace detail
 
-template <typename T>
-using Full128 = Simd<T, 16 / sizeof(T)>;
-
 template <typename T, size_t N = 16 / sizeof(T)>
 class Vec128 {
   using Raw = typename detail::Raw128<T, N>::type;
@@ -481,7 +481,7 @@ class Vec128 {
   Raw raw;
 };
 
-// FF..FF or 0, also for floating-point - see README.
+// FF..FF or 0.
 template <typename T, size_t N = 16 / sizeof(T)>
 class Mask128 {
   // ARM C Language Extensions return and expect unsigned type.
@@ -495,6 +495,21 @@ class Mask128 {
 
   Raw raw;
 };
+
+namespace detail {
+
+// Deduce Simd<T, N> from Vec128<T, N>
+struct DeduceD {
+  template <typename T, size_t N>
+  Simd<T, N> operator()(Vec128<T, N>) const {
+    return Simd<T, N>();
+  }
+};
+
+}  // namespace detail
+
+template <class V>
+using DFromV = decltype(detail::DeduceD()(V()));
 
 // ------------------------------ BitCast
 

@@ -130,16 +130,37 @@ the smaller types must be obtained from those of the larger type (e.g. via
 
 ## Using unspecified vector types
 
-Because vector types are unspecified, local vector variables are typically
-defined using `auto` for type deduction. A template argument `V` suffices for
-simple generic functions: `template<class V> V Squared(V v) { return v * v; }`.
+Because vector types are unspecified, local vector variables `v` are typically
+defined using `auto` for type deduction. The vector type `V` can be obtained via
+`decltype(v)`, `Vec<D>`, or if an lvalue `d` is available, `decltype(Zero(d))`.
 
-Many functions will need a `D` template argument in order to initialize any
-constants. They can use a separate `V` template argument for vectors, or use
-`Vec<D>`, or where an lvalue `d` is available, `decltype(Zero(d))`. Using such
-aliases instead of auto may improve readability of mixed-type code. They can
-also be used for member variables, which are discouraged because compilers often
-have difficulty mapping them to registers.
+Using a type alias of `V` instead of auto may improve readability of code using
+several types of vectors.
+
+Vectors are sizeless types on RVV/SVE. Therefore, vectors must not be used in
+arrays/STL containers (use the lane type `T` instead), class members,
+static/thread_local variables, new-expressions (use `AllocateAligned` instead),
+and sizeof/pointer arithmetic (increment `T*` by `Lanes()` instead).
+
+Initializing constants requires an lvalue `d` or type `D`, which can be passed
+as a template argument or obtained via `DFromV<V>`.
+
+**Note**: For builtin `V` (currently necessary on RVV/SVE), `DV = DFromV<V>`
+might not be the same as the `D` used to create `V`. In particular, `DV` must
+not be passed to `Load/Store` functions because it may lack the limit on `N`
+established by the original `D`. However, `Vec<DV>` is the same as `V`.
+
+Thus a template argument `V` suffices for generic functions that do not load
+from/store to memory: `template<class V> V Mul4(V v) { return v *
+Set(DFromV<V>(), 4); }`.
+
+Example of mixing partial vectors with generic functions:
+
+```
+HWY_CAPPED(int16_t, 2) d2;
+auto v = Mul4(Set(d2, 2));
+Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
+```
 
 ## Operations
 

@@ -29,7 +29,7 @@ namespace HWY_NAMESPACE {
 template <class V>
 struct DFromV_t {};  // specialized in macros
 template <class V>
-using DFromV = typename DFromV_t<V>::type;
+using DFromV = typename DFromV_t<RemoveConst<V>>::type;
 
 template <class V>
 using TFromV = TFromD<DFromV<V>>;

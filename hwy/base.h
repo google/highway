@@ -393,6 +393,18 @@ using EnableIf = typename EnableIfT<Condition, T>::type;
 template <size_t N>
 struct SizeTag {};
 
+template <class T>
+struct RemoveConstT {
+  using type = T;
+};
+template <class T>
+struct RemoveConstT<const T> {
+  using type = T;
+};
+
+template <class T>
+using RemoveConst = typename RemoveConstT<T>::type;
+
 //------------------------------------------------------------------------------
 // Type traits
 

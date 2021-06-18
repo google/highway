@@ -49,6 +49,11 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 template <typename T>
+using Full128 = Simd<T, 16 / sizeof(T)>;
+
+namespace detail {
+
+template <typename T>
 struct Raw128 {
   using type = __v128_u;
 };
@@ -57,12 +62,11 @@ struct Raw128<float> {
   using type = __f32x4;
 };
 
-template <typename T>
-using Full128 = Simd<T, 16 / sizeof(T)>;
+} // namespace detail
 
 template <typename T, size_t N = 16 / sizeof(T)>
 class Vec128 {
-  using Raw = typename Raw128<T>::type;
+  using Raw = typename detail::Raw128<T>::type;
 
  public:
   // Compound assignment. Only usable if there is a corresponding non-member
@@ -92,14 +96,26 @@ class Vec128 {
   Raw raw;
 };
 
-// Integer: FF..FF or 0. Float: MSB, all other bits undefined - see README.
+// FF..FF or 0.
 template <typename T, size_t N = 16 / sizeof(T)>
-class Mask128 {
-  using Raw = typename Raw128<T>::type;
-
- public:
-  Raw raw;
+struct Mask128 {
+  typename detail::Raw128<T>::type raw;
 };
+
+namespace detail {
+
+// Deduce Simd<T, N> from Vec128<T, N>
+struct DeduceD {
+  template <typename T, size_t N>
+  Simd<T, N> operator()(Vec128<T, N>) const {
+    return Simd<T, N>();
+  }
+};
+
+}  // namespace detail
+
+template <class V>
+using DFromV = decltype(detail::DeduceD()(V()));
 
 // ------------------------------ BitCast
 

@@ -77,6 +77,21 @@ class Mask1 {
   Raw bits;
 };
 
+namespace detail {
+
+// Deduce Sisd<T> from Vec1<T>
+struct Deduce1 {
+  template <typename T>
+  Sisd<T> operator()(Vec1<T>) const {
+    return Sisd<T>();
+  }
+};
+
+}  // namespace detail
+
+template <class V>
+using DFromV = decltype(detail::Deduce1()(V()));
+
 // ------------------------------ BitCast
 
 template <typename T, typename FromT>

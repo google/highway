@@ -286,6 +286,19 @@ HWY_NOINLINE void TestAllGetLane() {
   ForAllTypes(ForPartialVectors<TestGetLane>());
 }
 
+struct TestDFromV {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    using D0 = DFromV<decltype(v0)>;         // not necessarily same as D
+    const auto v0b = And(v0, Set(D0(), 1));  // but vectors can interoperate
+    HWY_ASSERT_VEC_EQ(d, v0, v0b);
+  }
+};
+
+HWY_NOINLINE void TestAllDFromV() {
+  ForAllTypes(ForPartialVectors<TestDFromV>());
+}
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -301,5 +314,6 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSignBit);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllNaN);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);
 }  // namespace hwy
 #endif
