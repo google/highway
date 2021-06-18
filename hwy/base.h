@@ -316,7 +316,7 @@ namespace hwy {
 #if HWY_ARCH_X86
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 64;  // AVX-512
 #define HWY_ALIGN_MAX alignas(64)
-#elif HWY_ARCH_RVV
+#elif HWY_ARCH_RVV && defined(__riscv_vector)
 // Not actually an upper bound on the size, but this value prevents crossing a
 // 4K boundary (relevant on Andes).
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 4096;
@@ -333,7 +333,7 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // by concatenating base type and bits.
 
 // RVV already has a builtin type and the GCC intrinsics require it.
-#if HWY_ARCH_RVV && HWY_COMPILER_GCC
+#if HWY_ARCH_RVV && HWY_COMPILER_GCC && defined(__riscv_vector)
 #define HWY_NATIVE_FLOAT16 1
 #else
 #define HWY_NATIVE_FLOAT16 0
