@@ -1879,9 +1879,11 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> TableLookupBytesOr0(const Vec128<T, N> bytes,
                                          const Vec128<T, N> from) {
   const Simd<T, N> d;
-  Repartition<int8_t, decltype(d)> d8;
-  const auto msb = RebindMask(d, BitCast(di8, from) < Zero(di8));
-  return IfThenZeroElse(msb, TableLookupBytes(bytes, from));
+  // Mask size must match vector type, so cast everything to this type.
+  Repartition<int8_t, decltype(d)> di8;
+  const auto msb = BitCast(di8, from) < Zero(di8);
+  const auto lookup = TableLookupBytes(BitCast(di8, bytes), BitCast(di8, from));
+  return BitCast(d, IfThenZeroElse(msb, lookup));
 }
 
 // ------------------------------ Hard-coded shuffles
