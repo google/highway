@@ -652,6 +652,14 @@ their operands into independently processed 128-bit *blocks*.
     `bytes[from[i]]`. Uses byte lanes regardless of the actual vector types.
     Results are implementation-defined if `from[i] >= HWY_MIN(vector size, 16)`.
 
+*   `V`: `{u,i}` \
+    <code>V **TableLookupBytesOr0**(V bytes, V from)</code>: returns
+    `bytes[from[i]]`, or 0 if `from[i] & 0x80`. Uses byte lanes regardless of
+    the actual vector types. Results are implementation-defined for `from[i]` in
+    `[HWY_MIN(vector size, 16), 0x80)`. The zeroing behavior has zero cost on
+    x86 and ARM. For vectors of >= 256 bytes (can happen on SVE and RVV), this
+    will set all lanes after the first 128 to 0.
+
 **Note**: the following are only available for full vectors (`N` > 1), and split
 their operands into independently processed 128-bit *blocks*:
 

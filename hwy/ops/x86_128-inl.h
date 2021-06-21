@@ -2244,6 +2244,12 @@ HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
   return Vec128<T, N>{_mm_shuffle_epi8(bytes.raw, from.raw)};
 }
 
+// For all vector widths; x86 anyway zeroes if >= 0x80.
+template <class V>
+HWY_API V TableLookupBytesOr0(const V bytes, const V from) {
+  return TableLookupBytes(bytes, from);
+}
+
 // ------------------------------ Hard-coded shuffles
 
 // Notation: let Vec128<int32_t> have lanes 3,2,1,0 (0 is least-significant).

@@ -1056,6 +1056,21 @@ HWY_API Vec1<T> TableLookupBytes(const Vec1<T> in, const Vec1<T> from) {
   return Vec1<T>{out};
 }
 
+template <typename T>
+HWY_API Vec1<T> TableLookupBytesOr0(const Vec1<T> in, const Vec1<T> from) {
+  uint8_t in_bytes[sizeof(T)];
+  uint8_t from_bytes[sizeof(T)];
+  uint8_t out_bytes[sizeof(T)];
+  CopyBytes<sizeof(T)>(&in, &in_bytes);
+  CopyBytes<sizeof(T)>(&from, &from_bytes);
+  for (size_t i = 0; i < sizeof(T); ++i) {
+    out_bytes[i] = from_bytes[i] & 0x80 ? 0 : in_bytes[from_bytes[i]];
+  }
+  T out;
+  CopyBytes<sizeof(T)>(&out_bytes, &out);
+  return Vec1<T>{out};
+}
+
 // ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.

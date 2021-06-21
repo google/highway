@@ -1875,6 +1875,15 @@ HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
 #endif
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> TableLookupBytesOr0(const Vec128<T, N> bytes,
+                                         const Vec128<T, N> from) {
+  const Simd<T, N> d;
+  Repartition<int8_t, decltype(d)> d8;
+  const auto msb = RebindMask(d, BitCast(di8, from) < Zero(di8));
+  return IfThenZeroElse(msb, TableLookupBytes(bytes, from));
+}
+
 // ------------------------------ Hard-coded shuffles
 
 // Notation: let Vec128<int32_t> have lanes 3,2,1,0 (0 is least-significant).

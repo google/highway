@@ -1328,6 +1328,16 @@ HWY_API V TableLookupBytes(const V v, const V idx) {
   return BitCast(D(), TableLookupLanes(BitCast(d8, v), idx8));
 }
 
+template <class V>
+HWY_API V TableLookupBytesOr0(const V v, const V idx) {
+  using D = DFromV<V>;
+  // Mask size must match vector type, so cast everything to this type.
+  const Repartition<int8_t, D> di8;
+  const auto lookup = TableLookupBytes(BitCast(di8, v), BitCast(di8, idx));
+  const auto msb = Lt(BitCast(di8, idx), Zero(di8));
+  return BitCast(D(), IfThenZeroElse(msb, lookup));
+}
+
 // ------------------------------ Broadcast
 
 template <int kLane, class V>

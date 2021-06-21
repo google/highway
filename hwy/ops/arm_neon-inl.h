@@ -3121,6 +3121,12 @@ HWY_API Vec128<T, N> TableLookupBytes(
                                                 BitCast(d8, from).raw)));
 }
 
+// For all vector widths; ARM anyway zeroes if >= 0x10.
+template <class V>
+HWY_API V TableLookupBytesOr0(const V bytes, const V from) {
+  return TableLookupBytes(bytes, from);
+}
+
 // ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.

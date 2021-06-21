@@ -217,6 +217,23 @@ struct TestTableLookupBytes {
       }
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices));
+
+    // Individually test zeroing each byte position.
+    for (size_t i = 0; i < N8; ++i) {
+      const uint8_t prev_expected = expected_bytes[i];
+      const uint8_t prev_index = index_bytes[i];
+      expected_bytes[i] = 0;
+
+      const int idx = 0x80 + ((Random32(&rng) & 7) << 4);
+      HWY_ASSERT(0x80 <= idx && idx < 256);
+      index_bytes[i] = static_cast<uint8_t>(idx);
+
+      const auto indices =
+          Load(d, reinterpret_cast<const T*>(index_bytes.get()));
+      HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytesOr0(in, indices));
+      expected_bytes[i] = prev_expected;
+      index_bytes[i] = prev_index;
+    }
   }
 };
 
