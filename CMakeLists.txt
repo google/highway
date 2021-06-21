@@ -177,6 +177,28 @@ target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
+# -------------------------------------------------------- hwy_list_targets
+# Generate a tool to print the compiled-in targets as defined by the current
+# flags. This tool will print to stderr at build time, after building hwy.
+add_executable(hwy_list_targets hwy/tests/list_targets.cc)
+target_compile_options(hwy_list_targets PRIVATE ${HWY_FLAGS})
+target_include_directories(hwy_list_targets PRIVATE
+  $<TARGET_PROPERTY:hwy,INCLUDE_DIRECTORIES>)
+# TARGET_FILE always returns the path to executable
+# Naked target also not always could be run (due to the lack of '.\' prefix)
+# Thus effective command to run should contain the full path
+# and emulator prefix (if any).
+add_custom_command(TARGET hwy POST_BUILD
+    COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:hwy_list_targets> || (exit 0))
+
+# --------------------------------------------------------
+# The following sections are skipped if this project is added via
+# add_subdirectory into parent project (i.e. used as library).
+# Those sections contain artifacts that are not required for building
+# parent project: tests, examples, benchmarks and installation.
+# --------------------------------------------------------
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+
 # -------------------------------------------------------- install library
 install(TARGETS hwy
   DESTINATION "${CMAKE_INSTALL_LIBDIR}")
@@ -209,20 +231,6 @@ foreach (pc libhwy.pc libhwy-contrib.pc libhwy-test.pc)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${pc}"
       DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 endforeach()
-
-# -------------------------------------------------------- hwy_list_targets
-# Generate a tool to print the compiled-in targets as defined by the current
-# flags. This tool will print to stderr at build time, after building hwy.
-add_executable(hwy_list_targets hwy/tests/list_targets.cc)
-target_compile_options(hwy_list_targets PRIVATE ${HWY_FLAGS})
-target_include_directories(hwy_list_targets PRIVATE
-  $<TARGET_PROPERTY:hwy,INCLUDE_DIRECTORIES>)
-# TARGET_FILE always returns the path to executable
-# Naked target also not always could be run (due to the lack of '.\' prefix)
-# Thus effective command to run should contain the full path
-# and emulator prefix (if any).
-add_custom_command(TARGET hwy POST_BUILD
-    COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:hwy_list_targets> || (exit 0))
 
 # -------------------------------------------------------- Examples
 
@@ -341,3 +349,5 @@ endforeach ()
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
 endif() # BUILD_TESTING
+
+endif() # CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR
