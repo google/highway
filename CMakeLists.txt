@@ -64,6 +64,8 @@ set(HWY_SOURCES
     hwy/aligned_allocator.h
     hwy/base.h
     hwy/cache_control.h
+    hwy/detect_compiler_arch.h  # private
+    hwy/detect_targets.h  # private
     hwy/foreach_target.h
     hwy/highway.h
     hwy/nanobenchmark.cc

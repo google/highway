@@ -276,17 +276,23 @@ namespace HWY_NAMESPACE {
 // Prints lanes around `lane`, in memory order.
 template <class D>
 HWY_NOINLINE void Print(const D d, const char* caption, const Vec<D> v,
-                        intptr_t lane = 0) {
+                        intptr_t lane = 0, size_t max_lanes = 7) {
   using T = TFromD<D>;
   const size_t N = Lanes(d);
   auto lanes = AllocateAligned<T>(N);
   Store(v, d, lanes.get());
   const size_t begin = static_cast<size_t>(HWY_MAX(0, lane - 2));
-  const size_t end = HWY_MIN(begin + 7, N);
+  const size_t end = HWY_MIN(begin + max_lanes, N);
   fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
           begin);
   for (size_t i = begin; i < end; ++i) {
-    fprintf(stderr, "%g,", double(lanes[i]));
+    if (sizeof(T) == 1 && 0 <= lanes[i] && lanes[i] < 256) {
+      uint8_t byte;                    // avoids compile error for T=double.
+      CopyBytes<1>(&lanes[i], &byte);  // endian-safe: we ensured sizeof(T)=1.
+      fprintf(stderr, "0x%02X,", byte);
+    } else {
+      fprintf(stderr, "%g,", double(lanes[i]));
+    }
   }
   if (begin >= end) fprintf(stderr, "(out of bounds)");
   fprintf(stderr, "\n");

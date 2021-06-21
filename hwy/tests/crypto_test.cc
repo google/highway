@@ -14,8 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
-#include <algorithm>
+#include <string.h>  // memcpy
 
 #include "hwy/aligned_allocator.h"
 
@@ -430,12 +429,11 @@ struct TestCLMul {
     const size_t padded = RoundUpTo(kCLMulNum, N);
     auto expected_lower = AllocateAligned<T>(padded);
     auto expected_upper = AllocateAligned<T>(padded);
-    std::copy(kCLMulLower, kCLMulLower + kCLMulNum, expected_lower.get());
-    std::copy(kCLMulUpper, kCLMulUpper + kCLMulNum, expected_upper.get());
-    std::fill(expected_lower.get() + kCLMulNum, expected_lower.get() + padded,
-              0ULL);
-    std::fill(expected_upper.get() + kCLMulNum, expected_upper.get() + padded,
-              0ULL);
+    memcpy(expected_lower.get(), kCLMulLower, kCLMulNum * sizeof(T));
+    memcpy(expected_upper.get(), kCLMulUpper, kCLMulNum * sizeof(T));
+    const size_t padding_size = (padded - kCLMulNum) * sizeof(T);
+    memset(expected_lower.get() + kCLMulNum, 0, padding_size);
+    memset(expected_upper.get() + kCLMulNum, 0, padding_size);
 
     // Random inputs in each lane
     RandomState rng;

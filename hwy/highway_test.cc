@@ -76,6 +76,22 @@ HWY_NOINLINE void TestAllOverflow() {
   ForIntegerTypes(ForPartialVectors<TestOverflow>());
 }
 
+struct TestClamp {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto v1 = Set(d, 1);
+    const auto v2 = Set(d, 2);
+
+    HWY_ASSERT_VEC_EQ(d, v1, Clamp(v2, v0, v1));
+    HWY_ASSERT_VEC_EQ(d, v1, Clamp(v0, v1, v2));
+  }
+};
+
+HWY_NOINLINE void TestAllClamp() {
+  ForAllTypes(ForPartialVectors<TestClamp>());
+}
+
 struct TestSignBitInteger {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -310,6 +326,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HighwayTest);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSet);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllOverflow);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllClamp);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSignBit);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllNaN);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);

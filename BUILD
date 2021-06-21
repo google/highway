@@ -93,16 +93,19 @@ cc_library(
         "hwy/aligned_allocator.cc",
         "hwy/targets.cc",
     ],
+    # Normal headers with include guards
     hdrs = [
         "hwy/aligned_allocator.h",
         "hwy/base.h",
         "hwy/cache_control.h",
-        "hwy/highway.h",
+        "hwy/detect_compiler_arch.h",  # private
+        "hwy/detect_targets.h",  # private
         "hwy/targets.h",
     ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
+        "hwy/highway.h",  # public
         "hwy/foreach_target.h",  # public
         "hwy/ops/arm_neon-inl.h",
         "hwy/ops/arm_sve-inl.h",

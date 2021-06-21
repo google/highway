@@ -19,7 +19,7 @@
 // targets except HWY_STATIC_TARGET. Defines unique HWY_TARGET each time so that
 // highway.h defines the corresponding macro/namespace.
 
-#include "hwy/targets.h"
+#include "hwy/detect_targets.h"
 
 // *_inl.h may include other headers, which requires include guards to prevent
 // repeated inclusion. The guards must be reset after compiling each target, so

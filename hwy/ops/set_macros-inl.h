@@ -25,7 +25,7 @@
 
 #endif  // HWY_SET_MACROS_PER_TARGET
 
-#include "hwy/targets.h"
+#include "hwy/detect_targets.h"
 
 #undef HWY_NAMESPACE
 #undef HWY_ALIGN
