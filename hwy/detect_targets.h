@@ -59,8 +59,7 @@
 #define HWY_AVX2 16
 // 32: reserved for AVX
 #define HWY_SSE4 64
-#define HWY_SSSE3 128
-// 0x100, 0x200: reserved for SSE3, SSE2
+// 0x80, 0x100, 0x200: reserved for SSSE3, SSE3, SSE2
 
 // The highest bit in the HWY_TARGETS mask that a x86 target can have. Used for
 // dynamic dispatch. All x86 target bits must be lower or equal to
@@ -193,13 +192,11 @@
 // Special handling for MSVC because it has fewer predefined macros
 #if HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
 
-// We can only be sure SSSE3/SSE4 are enabled if AVX is
+// We can only be sure SSE4 is enabled if AVX is
 // (https://stackoverflow.com/questions/18563978/)
 #if defined(__AVX__)
-#define HWY_CHECK_SSSE3 1
 #define HWY_CHECK_SSE4 1
 #else
-#define HWY_CHECK_SSSE3 0
 #define HWY_CHECK_SSE4 0
 #endif
 
@@ -211,13 +208,7 @@
 
 #else  // non-MSVC
 
-#if defined(__SSSE3__)
-#define HWY_CHECK_SSSE3 1
-#else
-#define HWY_CHECK_SSSE3 0
-#endif
-
-#if defined(__SSE4_1__) && defined(__SSE4_2__)
+#if defined(__SSE4_1__)
 #define HWY_CHECK_SSE4 1
 #else
 #define HWY_CHECK_SSE4 0
@@ -243,12 +234,6 @@
 #endif
 
 #endif  // non-MSVC
-
-#if HWY_ARCH_X86 && HWY_CHECK_SSSE3
-#define HWY_BASELINE_SSSE3 HWY_SSSE3
-#else
-#define HWY_BASELINE_SSSE3 0
-#endif
 
 #if HWY_ARCH_X86 && HWY_CHECK_SSE4 && HWY_CHECK_PCLMUL_AES
 #define HWY_BASELINE_SSE4 HWY_SSE4
@@ -287,9 +272,9 @@
 
 #define HWY_BASELINE_TARGETS                                                \
   (HWY_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | HWY_BASELINE_SVE2 | \
-   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSSE3 |              \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |              \
-   HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE4 |               \
+   HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL |           \
+   HWY_BASELINE_RVV)
 
 #endif  // HWY_BASELINE_TARGETS
 
@@ -331,9 +316,8 @@
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
-#define HWY_ATTAINABLE_TARGETS                                          \
-  HWY_ENABLED(HWY_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | \
-              HWY_CHECK_AVX3_DL)
+#define HWY_ATTAINABLE_TARGETS \
+  HWY_ENABLED(HWY_SCALAR | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_CHECK_AVX3_DL)
 #else
 #define HWY_ATTAINABLE_TARGETS HWY_ENABLED_BASELINE
 #endif

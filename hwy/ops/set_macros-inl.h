@@ -56,10 +56,7 @@
 #define HWY_TARGET_STR_F16C ",f16c"
 #endif
 
-#define HWY_TARGET_STR_SSSE3 "sse2,ssse3"
-
-#define HWY_TARGET_STR_SSE4 \
-  HWY_TARGET_STR_SSSE3 ",sse4.1,sse4.2" HWY_TARGET_STR_PCLMUL_AES
+#define HWY_TARGET_STR_SSE4 "sse2,ssse3,sse4.1" HWY_TARGET_STR_PCLMUL_AES
 // Include previous targets, which are the half-vectors of the next target.
 #define HWY_TARGET_STR_AVX2 \
   HWY_TARGET_STR_SSE4 ",avx,avx2" HWY_TARGET_STR_BMI2_FMA HWY_TARGET_STR_F16C
@@ -69,23 +66,8 @@
 // Before include guard so we redefine HWY_TARGET_STR on each include,
 // governed by the current HWY_TARGET.
 //-----------------------------------------------------------------------------
-// SSSE3
-#if HWY_TARGET == HWY_SSSE3
-
-#define HWY_NAMESPACE N_SSSE3
-#define HWY_ALIGN alignas(16)
-#define HWY_LANES(T) (16 / sizeof(T))
-
-#define HWY_CAP_INTEGER64 1
-#define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 0
-#define HWY_CAP_GE256 0
-#define HWY_CAP_GE512 0
-
-#define HWY_TARGET_STR HWY_TARGET_STR_SSSE3
-//-----------------------------------------------------------------------------
 // SSE4
-#elif HWY_TARGET == HWY_SSE4
+#if HWY_TARGET == HWY_SSE4
 
 #define HWY_NAMESPACE N_SSE4
 #define HWY_ALIGN alignas(16)

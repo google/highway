@@ -307,7 +307,7 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 *   `V`: `{u,i}` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
 
-Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
+Per-lane variable shifts (slow if SSE4, or 16-bit, or Shr i64 on AVX2):
 
 *   `V`: `{u,i}{16,32,64}` \
     <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.
@@ -482,7 +482,7 @@ are naturally aligned. An unaligned access may require two load ports.
 
 *   <code>Vec&lt;D&gt; **Load**(D, const T* aligned)</code>: returns
     `aligned[i]`. May fault if the pointer is not aligned to the vector size.
-    Using this whenever possible improves codegen on SSSE3/SSE4: unlike `LoadU`,
+    Using this whenever possible improves codegen on SSE4: unlike `LoadU`,
     `Load` can be fused into a memory operand, which reduces register pressure.
 *   <code>Vec&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
 
@@ -792,10 +792,10 @@ than normal SIMD operations and are typically used outside critical loops.
 ## Advanced macros
 
 Let `Target` denote an instruction set:
-`SCALAR/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/PPC8/NEON/WASM/RVV`. Targets are only used
-if enabled (i.e. not broken nor disabled). Baseline means the compiler is
-allowed to generate such instructions (implying the target CPU would have to
-support them).
+`SCALAR/SSE4/AVX2/AVX3/AVX3_DL/PPC8/NEON/WASM/RVV`. Targets are only used if
+enabled (i.e. not broken nor disabled). Baseline means the compiler is allowed
+to generate such instructions (implying the target CPU would have to support
+them).
 
 *   `HWY_Target=##` are powers of two uniquely identifying `Target`.
 
