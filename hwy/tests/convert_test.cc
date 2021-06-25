@@ -458,10 +458,10 @@ HWY_NOINLINE void TestAllIntFromFloat() {
 }
 
 struct TestFloatFromInt {
-  template <typename TI, class DI>
-  HWY_NOINLINE void operator()(TI /*unused*/, const DI di) {
-    using TF = MakeFloat<TI>;
-    const Rebind<TF, DI> df;
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeSigned<TF>;
+    const RebindToSigned<DF> di;
     const size_t N = Lanes(df);
 
     // Integer positive
@@ -481,10 +481,7 @@ struct TestFloatFromInt {
 };
 
 HWY_NOINLINE void TestAllFloatFromInt() {
-  ForPartialVectors<TestFloatFromInt>()(int32_t());
-#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
-  ForPartialVectors<TestFloatFromInt>()(int64_t());
-#endif
+  ForFloatTypes(ForPartialVectors<TestFloatFromInt>());
 }
 
 struct TestI32F64 {

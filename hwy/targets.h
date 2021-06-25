@@ -75,6 +75,8 @@ HWY_INLINE std::vector<uint32_t> SupportedAndGeneratedTargets() {
 static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
   switch (target) {
 #if HWY_ARCH_X86
+    case HWY_SSSE3:
+      return "SSSE3";
     case HWY_SSE4:
       return "SSE4";
     case HWY_AVX2:
@@ -168,7 +170,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       HWY_CHOOSE_AVX2(func_name),    /* AVX2 */     \
       nullptr,                       /* AVX */      \
       HWY_CHOOSE_SSE4(func_name),    /* SSE4 */     \
-      nullptr,                       /* SSSE3 */    \
+      HWY_CHOOSE_SSSE3(func_name),   /* SSSE3 */    \
       nullptr,                       /* SSE3 */     \
       nullptr                        /* SSE2 */
 

@@ -2486,19 +2486,18 @@ HWY_API Vec256<int64_t> ConvertTo(Full256<int64_t> di, const Vec256<double> v) {
 #if HWY_TARGET <= HWY_AVX3
   return detail::FixConversionOverflow(di, v, _mm256_cvttpd_epi64(v.raw));
 #else
-  alignas(32) double lanes_d[4];
-  Store(v, Full256<double>(), lanes_d);
-  alignas(32) int64_t lanes_i[4];
-  for (size_t i = 0; i < 4; ++i) {
-    if (lanes_d[i] >= static_cast<double>(LimitsMax<int64_t>())) {
-      lanes_i[i] = LimitsMax<int64_t>();
-    } else if (lanes_d[i] <= static_cast<double>(LimitsMin<int64_t>())) {
-      lanes_i[i] = LimitsMin<int64_t>();
-    } else {
-      lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
-    }
-  }
-  return Load(di, lanes_i);
+  // For 4 elements, it might be faster to merge 2 range-limited conversions,
+  // but the 52-bit method (https://stackoverflow.com/questions/41144668) cannot
+  // truncate, and f64->i32 can have 7 cycle latency, and it's not clear that
+  // special cases (NaN) can be handled efficiently.
+  const auto v10 = LowerHalf(v);
+  const auto v32 = UpperHalf(v);
+  const __m128i i0 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v10.raw));
+  const __m128i i2 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v32.raw));
+  __m128i i10 = _mm_insert_epi64(i0, _mm_cvttsd_si64(UpperHalf(v10).raw), 1);
+  __m128i i32 = _mm_insert_epi64(i2, _mm_cvttsd_si64(UpperHalf(v32).raw), 1);
+  const auto i3210 = Combine(Vec128<int64_t>{i32}, Vec128<int64_t>{i10});
+  return detail::FixConversionOverflow(di, v, i3210.raw);
 #endif
 }
 
