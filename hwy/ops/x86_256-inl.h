@@ -1360,10 +1360,12 @@ HWY_API Vec256<T> LoadDup128(Full256<T> /* tag */, const T* HWY_RESTRICT p) {
   asm("vbroadcasti128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<T>{out};
 #elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
-  // Workaround for incorrect results with _mm256_broadcastsi128_si256
+  // Workaround for incorrect results with _mm256_broadcastsi128_si256. Note
+  // that MSVC also lacks _mm256_zextsi128_si256, but cast (which leaves the
+  // upper half undefined) is fine because we're overwriting that anyway.
   const __m128i v128 = LoadU(Full128<T>(), p).raw;
   return Vec256<T>{
-      _mm256_inserti128_si256(_mm256_zextsi128_si256(v128), v128, 1)};
+      _mm256_inserti128_si256(_mm256_castsi128_si256(v128), v128, 1)};
 #else
   return Vec256<T>{_mm256_broadcastsi128_si256(LoadU(Full128<T>(), p).raw)};
 #endif
@@ -1377,7 +1379,7 @@ HWY_API Vec256<float> LoadDup128(Full256<float> /* tag */,
 #elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
   const __m128 v128 = LoadU(Full128<float>(), p).raw;
   return Vec256<float>{
-      _mm256_insertf128_ps(_mm256_zextps128_ps256(v128), v128, 1)};
+      _mm256_insertf128_ps(_mm256_castps128_ps256(v128), v128, 1)};
 #else
   return Vec256<float>{_mm256_broadcast_ps(reinterpret_cast<const __m128*>(p))};
 #endif
@@ -1391,7 +1393,7 @@ HWY_API Vec256<double> LoadDup128(Full256<double> /* tag */,
 #elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
   const __m128d v128 = LoadU(Full128<double>(), p).raw;
   return Vec256<double>{
-      _mm256_insertf128_pd(_mm256_zextpd128_pd256(v128), v128, 1)};
+      _mm256_insertf128_pd(_mm256_castpd128_pd256(v128), v128, 1)};
 #else
   return Vec256<double>{
       _mm256_broadcast_pd(reinterpret_cast<const __m128d*>(p))};
@@ -1669,9 +1671,9 @@ HWY_API Vec128<double> UpperHalf(Vec256<double> v) {
 // compiler could decide to optimize out code that relies on this.
 //
 // The newer _mm256_zextsi128_si256 intrinsic fixes this by specifying the
-// zeroing, but it is not available on GCC until 10.1. For older GCC, we can
-// still obtain the desired code thanks to pattern recognition; note that the
-// expensive insert instruction is not actually generated, see
+// zeroing, but it is not available on MSVC nor GCC until 10.1. For older GCC,
+// we can still obtain the desired code thanks to pattern recognition; note that
+// the expensive insert instruction is not actually generated, see
 // https://gcc.godbolt.org/z/1MKGaP.
 
 template <typename T>
