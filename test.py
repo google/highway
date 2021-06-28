@@ -36,7 +36,11 @@ def run_blaze_tests(work_dir, target, desired_config, config_name, blazerc,
     return 0
   print_status(config_name)
   default_config = ["-c", "opt", "--copt=-DHWY_COMPILE_ALL_ATTAINABLE"]
-  args = ["blaze"] + blazerc + ["test", ":" + target] + config + default_config
+  # One config is build-only. We have cc_test, not android_test; they do not
+  # actually run (executable not found) but this config seems to be the only
+  # supported way to get a 32-bit x86 build.
+  command = "build" if config == "android_x86" else "test"
+  args = ["blaze"] + blazerc + [command, ":" + target] + config + default_config
   run_subprocess(args, work_dir)
   return 1
 
@@ -115,6 +119,8 @@ def main(args):
       "--config=android_arm", "--copt=-mfpu=neon-vfpv4",
       "--copt=-mfloat-abi=softfp"
   ])
+  num_config += run_blaze_tests(work_dir, target, options.config, "android_x86",
+                                [], ["--config=android_x86"])
   num_config += run_blaze_tests(work_dir, target, options.config, "msvc", [],
                                 ["--config=msvc"])
   num_config += run_wasm_tests(work_dir, target, options.config, "wasm",
