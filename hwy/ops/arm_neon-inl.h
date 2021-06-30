@@ -3492,7 +3492,7 @@ HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
 
 #endif  // __ARM_FEATURE_AES
 
-#if HWY_ARCH_ARM_A64
+#if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_AES)
 
 HWY_API Vec128<uint64_t> CLMulLower(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return Vec128<uint64_t>((uint64x2_t)vmull_p64(GetLane(a), GetLane(b)));
