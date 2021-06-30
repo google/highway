@@ -34,6 +34,12 @@ using DFromV = typename DFromV_t<RemoveConst<V>>::type;
 template <class V>
 using TFromV = TFromD<DFromV<V>>;
 
+template <typename T, size_t N>
+HWY_INLINE constexpr size_t MLenFromD(Simd<T, N> /* tag */) {
+  // Returns divisor = type bits / LMUL
+  return sizeof(T) * 8 / (N / HWY_LANES(T));
+}
+
 #define HWY_IF_UNSIGNED_V(V) hwy::EnableIf<!IsSigned<TFromV<V>>()>* = nullptr
 #define HWY_IF_SIGNED_V(V) \
   hwy::EnableIf<IsSigned<TFromV<V>>() && !IsFloat<TFromV<V>>()>* = nullptr
@@ -685,9 +691,15 @@ HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
 // ------------------------------ Not
 
 // mask = f(mask)
-#define HWY_RVV_RETM_ARGM(MLEN, NAME, OP)           \
-  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) { \
-    return vm##OP##_m_b##MLEN(m);                   \
+#define HWY_RVV_RETM_ARGM(MLEN, NAME, OP)                 \
+  template <class D>                                      \
+  HWY_API HWY_RVV_M(MLEN) NAME(D d, HWY_RVV_M(MLEN) m) {  \
+    static_assert(MLenFromD(d) == MLEN, "Type mismatch"); \
+    return vm##OP##_m_b##MLEN(m);                         \
+  }                                                       \
+  /* DEPRECATED */                                        \
+  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) {       \
+    return vm##OP##_m_b##MLEN(m);                         \
   }
 
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, Not, not )
@@ -797,17 +809,31 @@ HWY_RVV_FOREACH_B(HWY_RVV_ALL_FALSE, _, _)
 
 // ------------------------------ AllTrue
 
-#define HWY_RVV_ALL_TRUE(MLEN, NAME, OP)    \
-  HWY_API bool AllTrue(HWY_RVV_M(MLEN) m) { \
-    return AllFalse(vmnot_m_b##MLEN(m));    \
+#define HWY_RVV_ALL_TRUE(MLEN, NAME, OP)                  \
+  template <class D>                                      \
+  HWY_API bool AllTrue(D d, HWY_RVV_M(MLEN) m) {          \
+    static_assert(MLenFromD(d) == MLEN, "Type mismatch"); \
+    return AllFalse(vmnot_m_b##MLEN(m));                  \
+  }                                                       \
+  /* DEPRECATED */                                        \
+  HWY_API bool AllTrue(HWY_RVV_M(MLEN) m) {               \
+    return AllFalse(vmnot_m_b##MLEN(m));                  \
   }
+
 HWY_RVV_FOREACH_B(HWY_RVV_ALL_TRUE, _, _)
 #undef HWY_RVV_ALL_TRUE
 
 // ------------------------------ CountTrue
 
-#define HWY_RVV_COUNT_TRUE(MLEN, NAME, OP) \
+#define HWY_RVV_COUNT_TRUE(MLEN, NAME, OP)                \
+  template <class D>                                      \
+  HWY_API size_t CountTrue(D d, HWY_RVV_M(MLEN) m) {      \
+    static_assert(MLenFromD(d) == MLEN, "Type mismatch"); \
+    return vpopc_m_b##MLEN(m);                            \
+  }                                                       \
+  /* DEPRECATED */                                        \
   HWY_API size_t CountTrue(HWY_RVV_M(MLEN) m) { return vpopc_m_b##MLEN(m); }
+
 HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
 #undef HWY_RVV_COUNT_TRUE
 
@@ -1203,7 +1229,7 @@ template <class V, class M, class D>
 HWY_API size_t CompressStore(const V v, const M mask, const D d,
                              TFromD<D>* HWY_RESTRICT aligned) {
   Store(Compress(v, mask), d, aligned);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 // ------------------------------ TableLookupLanes
@@ -1609,16 +1635,21 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
 }
 
 // ------------------------------ StoreMaskBits
-#define HWY_RVV_STORE_MASK_BITS(MLEN, NAME, OP)                 \
-  HWY_API size_t StoreMaskBits(HWY_RVV_M(MLEN) m, uint8_t* p) { \
-    /* LMUL=1 is always enough */                               \
-    Full<uint8_t> d8;                                           \
-    const size_t num_bytes = (Lanes(d8) + MLEN - 1) / MLEN;     \
-    /* TODO(janwas): how to convert vbool* to vuint?*/          \
-    /*Store(m, d8, p);*/                                        \
-    (void)m;                                                    \
-    (void)p;                                                    \
-    return num_bytes;                                           \
+#define HWY_RVV_STORE_MASK_BITS(MLEN, NAME, OP)                              \
+  /* DEPRECATED */                                                           \
+  HWY_API size_t StoreMaskBits(HWY_RVV_M(MLEN) m, uint8_t* p) {              \
+    /* LMUL=1 is always enough */                                            \
+    Full<uint8_t> d8;                                                        \
+    const size_t num_bytes = (Lanes(d8) + MLEN - 1) / MLEN;                  \
+    /* TODO(janwas): how to convert vbool* to vuint?*/                       \
+    /*Store(m, d8, p);*/                                                     \
+    (void)m;                                                                 \
+    (void)p;                                                                 \
+    return num_bytes;                                                        \
+  }                                                                          \
+  template <class D>                                                         \
+  HWY_API size_t StoreMaskBits(D /* tag */, HWY_RVV_M(MLEN) m, uint8_t* p) { \
+    return StoreMaskBits(m, p);                                              \
   }
 HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, _, _)
 #undef HWY_RVV_STORE_MASK_BITS

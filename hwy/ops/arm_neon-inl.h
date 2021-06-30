@@ -1580,8 +1580,7 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
-HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
-  const Simd<T, N> d;
+HWY_API Mask128<T, N> Not(const Simd<T, N> d, const Mask128<T, N> m) {
   return MaskFromVec(Not(VecFromMask(d, m)));
 }
 
@@ -4009,18 +4008,19 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
 
 // Full
 template <typename T>
-HWY_API size_t CountTrue(const Mask128<T> mask) {
+HWY_API size_t CountTrue(Full128<T> /* tag */, const Mask128<T> mask) {
   return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 // Partial
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API size_t CountTrue(const Mask128<T, N> mask) {
+HWY_API size_t CountTrue(Simd<T, N> /* tag */, const Mask128<T, N> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
 template <typename T, size_t N>
-HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(Simd<T, N> /* tag */, const Mask128<T, N> mask,
+                             uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(&bits, p);
@@ -4048,8 +4048,7 @@ HWY_API bool AllFalse(const Mask128<T, N> m) {
 }
 
 template <typename T, size_t N>
-HWY_API bool AllTrue(const Mask128<T, N> m) {
-  const Simd<T, N> d;
+HWY_API bool AllTrue(const Simd<T, N> d, const Mask128<T, N> m) {
   return AllFalse(VecFromMask(d, m) == Zero(d));
 }
 
@@ -4357,6 +4356,28 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> v0,
   const uint8x8x4_t quad = {v0.raw, v1.raw, v2.raw, v3.raw};
   vst4_u8(buf, quad);
   CopyBytes<N * 4>(buf, unaligned);
+}
+
+// ================================================== DEPRECATED
+
+template <typename T, size_t N>
+HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+  return StoreMaskBits(Simd<T, N>(), mask, p);
+}
+
+template <typename T, size_t N>
+HWY_API bool AllTrue(const Mask128<T, N> mask) {
+  return AllTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API size_t CountTrue(const Mask128<T, N> mask) {
+  return CountTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  return Not(Simd<T, N>(), m);
 }
 
 // ================================================== Operator wrapper

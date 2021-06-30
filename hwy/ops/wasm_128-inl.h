@@ -1215,8 +1215,7 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
-HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
-  const Simd<T, N> d;
+HWY_API Mask128<T, N> Not(Simd<T, N> d, const Mask128<T, N> m) {
   return MaskFromVec(Not(VecFromMask(d, m)));
 }
 
@@ -2534,24 +2533,25 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
 }  // namespace detail
 
 template <typename T, size_t N>
-HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(const Simd<T, N> /* tag */,
+                             const Mask128<T, N> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(&bits, p);
   return kNumBytes;
 }
 
-template <typename T>
-HWY_API size_t CountTrue(const Mask128<T> m) {
+template <typename T, size_t N>
+HWY_API size_t CountTrue(const Simd<T, N> /* tag */, const Mask128<T> m) {
   return detail::CountTrue(hwy::SizeTag<sizeof(T)>(), m);
 }
 
 // Partial vector
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API size_t CountTrue(const Mask128<T, N> m) {
+HWY_API size_t CountTrue(const Simd<T, N> d, const Mask128<T, N> m) {
   // Ensure all undefined bytes are 0.
   const Mask128<T, N> mask{detail::BytesAbove<N * sizeof(T)>()};
-  return CountTrue(Mask128<T>{AndNot(mask, m).raw});
+  return CountTrue(d, Mask128<T>{AndNot(mask, m).raw});
 }
 
 // Full vector, type-independent
@@ -2585,8 +2585,8 @@ HWY_INLINE bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
 
 }  // namespace detail
 
-template <typename T>
-HWY_API bool AllTrue(const Mask128<T> m) {
+template <typename T, size_t N>
+HWY_API bool AllTrue(const Simd<T, N> /* tag */, const Mask128<T> m) {
   return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), m);
 }
 
@@ -2600,10 +2600,10 @@ HWY_API bool AllFalse(const Mask128<T, N> m) {
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API bool AllTrue(const Mask128<T, N> m) {
+HWY_API bool AllTrue(const Simd<T, N> d, const Mask128<T, N> m) {
   // Ensure all undefined bytes are FF.
   const Mask128<T, N> mask{detail::BytesAbove<N * sizeof(T)>()};
-  return AllTrue(Mask128<T>{Or(mask, m).raw});
+  return AllTrue(d, Mask128<T>{Or(mask, m).raw});
 }
 
 // ------------------------------ Compress
@@ -3135,6 +3135,28 @@ HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+// ================================================== DEPRECATED
+
+template <typename T, size_t N>
+HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+  return StoreMaskBits(Simd<T, N>(), mask, p);
+}
+
+template <typename T, size_t N>
+HWY_API bool AllTrue(const Mask128<T, N> mask) {
+  return AllTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API size_t CountTrue(const Mask128<T, N> mask) {
+  return CountTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  return Not(Simd<T, N>(), m);
 }
 
 // ================================================== Operator wrapper

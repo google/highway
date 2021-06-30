@@ -266,8 +266,7 @@ HWY_API Vec1<T> ZeroIfNegative(const Vec1<T> v) {
 // ------------------------------ Mask logical
 
 template <typename T>
-HWY_API Mask1<T> Not(const Mask1<T> m) {
-  const Sisd<T> d;
+HWY_API Mask1<T> Not(Sisd<T> d, const Mask1<T> m) {
   return MaskFromVec(Not(VecFromMask(d, m)));
 }
 
@@ -1123,17 +1122,17 @@ HWY_API bool AllFalse(const Mask1<T> mask) {
 }
 
 template <typename T>
-HWY_API bool AllTrue(const Mask1<T> mask) {
+HWY_API bool AllTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits != 0;
 }
 
 template <typename T>
-HWY_API size_t StoreMaskBits(const Mask1<T> mask, uint8_t* p) {
-  *p = AllTrue(mask);
+HWY_API size_t StoreMaskBits(Sisd<T> d, const Mask1<T> mask, uint8_t* p) {
+  *p = AllTrue(d, mask);
   return 1;
 }
 template <typename T>
-HWY_API size_t CountTrue(const Mask1<T> mask) {
+HWY_API size_t CountTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits == 0 ? 0 : 1;
 }
 
@@ -1149,7 +1148,7 @@ template <typename T>
 HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
                              T* HWY_RESTRICT aligned) {
   Store(Compress(v, mask), d, aligned);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 // ------------------------------ Reductions
@@ -1166,6 +1165,28 @@ HWY_API Vec1<T> MinOfLanes(const Vec1<T> v) {
 template <typename T>
 HWY_API Vec1<T> MaxOfLanes(const Vec1<T> v) {
   return v;
+}
+
+// ================================================== DEPRECATED
+
+template <typename T>
+HWY_API size_t StoreMaskBits(const Mask1<T> mask, uint8_t* p) {
+  return StoreMaskBits(Sisd<T>(), mask, p);
+}
+
+template <typename T>
+HWY_API bool AllTrue(const Mask1<T> mask) {
+  return AllTrue(Sisd<T>(), mask);
+}
+
+template <typename T>
+HWY_API size_t CountTrue(const Mask1<T> mask) {
+  return CountTrue(Sisd<T>(), mask);
+}
+
+template <typename T>
+HWY_API Mask1<T> Not(const Mask1<T> m) {
+  return Not(Sisd<T>(), m);
 }
 
 // ================================================== Operator wrapper

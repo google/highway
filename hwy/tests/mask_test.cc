@@ -364,7 +364,7 @@ struct TestAllTrueFalse {
 
     auto mask_lanes = AllocateAligned<T>(N);
 
-    HWY_ASSERT(AllTrue(Eq(v, zero)));
+    HWY_ASSERT(AllTrue(d, Eq(v, zero)));
     HWY_ASSERT(!AllFalse(Eq(v, zero)));
 
     // Single lane implies AllFalse = !AllTrue. Otherwise, there are multiple
@@ -380,19 +380,19 @@ struct TestAllTrueFalse {
       // Assigning to an lvalue is insufficient but storing to memory prevents
       // the bug; so does Print of VecFromMask(d, Eq(v, zero)).
       Store(VecFromMask(d, Eq(v, zero)), d, mask_lanes.get());
-      HWY_ASSERT(!AllTrue(MaskFromVec(Load(d, mask_lanes.get()))));
+      HWY_ASSERT(!AllTrue(d, MaskFromVec(Load(d, mask_lanes.get()))));
 
       HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
 
       lanes[i] = T(-1);
       v = Load(d, lanes.get());
-      HWY_ASSERT(!AllTrue(Eq(v, zero)));
+      HWY_ASSERT(!AllTrue(d, Eq(v, zero)));
       HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
 
       // Reset to all zero
       lanes[i] = T(0);
       v = Load(d, lanes.get());
-      HWY_ASSERT(AllTrue(Eq(v, zero)));
+      HWY_ASSERT(AllTrue(d, Eq(v, zero)));
       HWY_ASSERT(!AllFalse(Eq(v, zero)));
     }
   }
@@ -421,7 +421,7 @@ class TestStoreMaskBits {
       }
       const auto mask = Load(d, lanes.get()) == Zero(d);
 
-      const size_t bytes_written = StoreMaskBits(mask, bits.get());
+      const size_t bytes_written = StoreMaskBits(d, mask, bits.get());
 
       HWY_ASSERT_EQ(expected_bytes, bytes_written);
       size_t i = 0;
@@ -468,7 +468,7 @@ struct TestCountTrue {
       }
 
       const auto mask = Eq(Load(d, lanes.get()), Zero(d));
-      const size_t actual = CountTrue(mask);
+      const size_t actual = CountTrue(d, mask);
       HWY_ASSERT_EQ(expected, actual);
     }
   }
@@ -488,8 +488,8 @@ struct TestLogicalMask {
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(1));
 
-    HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
-    HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
+    HWY_ASSERT_MASK_EQ(d, m0, Not(d, m_all));
+    HWY_ASSERT_MASK_EQ(d, m_all, Not(d, m0));
 
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = HWY_MIN(N, size_t(6));

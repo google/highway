@@ -397,8 +397,7 @@ HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
 // ------------------------------ Mask logical
 
 template <typename T>
-HWY_API Mask256<T> Not(const Mask256<T> m) {
-  const Full256<T> d;
+HWY_API Mask256<T> Not(const Full256<T> d, const Mask256<T> m) {
   return MaskFromVec(Not(VecFromMask(d, m)));
 }
 
@@ -2628,7 +2627,8 @@ HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
 }  // namespace detail
 
 template <typename T>
-HWY_API size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(const Full256<T> /* tag */, const Mask256<T> mask,
+                             uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (4 + sizeof(T) - 1) / sizeof(T);
   CopyBytes<kNumBytes>(&bits, p);
@@ -2642,13 +2642,13 @@ HWY_API bool AllFalse(const Mask256<T> mask) {
 }
 
 template <typename T>
-HWY_API bool AllTrue(const Mask256<T> mask) {
+HWY_API bool AllTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
   constexpr uint64_t kAllBits = (1ull << (32 / sizeof(T))) - 1;
   return detail::BitsFromMask(mask) == kAllBits;
 }
 
 template <typename T>
-HWY_API size_t CountTrue(const Mask256<T> mask) {
+HWY_API size_t CountTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
@@ -3003,6 +3003,28 @@ template <typename T>
 HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
+}
+
+// ================================================== DEPRECATED
+
+template <typename T>
+HWY_API size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
+  return StoreMaskBits(Full256<T>(), mask, p);
+}
+
+template <typename T>
+HWY_API bool AllTrue(const Mask256<T> mask) {
+  return AllTrue(Full256<T>(), mask);
+}
+
+template <typename T>
+HWY_API size_t CountTrue(const Mask256<T> mask) {
+  return CountTrue(Full256<T>(), mask);
+}
+
+template <typename T>
+HWY_API Mask256<T> Not(const Mask256<T> m) {
+  return Not(Full256<T>(), m);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

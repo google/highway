@@ -521,8 +521,7 @@ HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
-HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
-  const Simd<T, N> d;
+HWY_API Mask128<T, N> Not(const Simd<T, N> d, const Mask128<T, N> m) {
   return MaskFromVec(Not(VecFromMask(d, m)));
 }
 
@@ -3645,7 +3644,8 @@ HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
 }  // namespace detail
 
 template <typename T, size_t N>
-HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(const Simd<T, N> /* tag */,
+                             const Mask128<T, N> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
   const size_t kNumBytes = (N + 7)/8;
   CopyBytes<kNumBytes>(&bits, p);
@@ -3659,14 +3659,14 @@ HWY_API bool AllFalse(const Mask128<T, N> mask) {
 }
 
 template <typename T, size_t N>
-HWY_API bool AllTrue(const Mask128<T, N> mask) {
+HWY_API bool AllTrue(const Simd<T, N> /* tag */, const Mask128<T, N> mask) {
   constexpr uint64_t kAllBits =
       detail::OnlyActive<T, N>((1ull << (16 / sizeof(T))) - 1);
   return detail::BitsFromMask(mask) == kAllBits;
 }
 
 template <typename T, size_t N>
-HWY_API size_t CountTrue(const Mask128<T, N> mask) {
+HWY_API size_t CountTrue(const Simd<T, N> /* tag */, const Mask128<T, N> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
@@ -4207,6 +4207,28 @@ HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+// ================================================== DEPRECATED
+
+template <typename T, size_t N>
+HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
+  return StoreMaskBits(Simd<T, N>(), mask, p);
+}
+
+template <typename T, size_t N>
+HWY_API bool AllTrue(const Mask128<T, N> mask) {
+  return AllTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API size_t CountTrue(const Mask128<T, N> mask) {
+  return CountTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  return Not(Simd<T, N>(), m);
 }
 
 // ================================================== Operator wrapper

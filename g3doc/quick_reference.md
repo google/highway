@@ -387,7 +387,10 @@ Let `M` denote a mask capable of storing true/false for each lane.
     have the same number of lanes.
 
 *   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the
-    input mask element was not set.
+    input mask element was not set. DEPRECATED, SVE needs an extra D argument.
+
+*   <code>M **Not**(D, M m)</code>: returns mask of elements indicating whether
+    the input mask element was not set.
 
 *   <code>M **And**(M a, M b)</code>: returns mask of elements indicating
     whether both input mask elements were set.
@@ -407,9 +410,6 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>V **VecFromMask**(D, M m)</code>: returns 0 in lane `i` if `m[i] ==
     false`, otherwise all bits set.
 
-*   <code>V **VecFromMask**(M m)</code>: returns 0 in lane `i` if `m[i] ==
-    false`, otherwise all bits set. DEPRECATED and will be removed before 1.0.
-
 *   <code>V **IfThenElse**(M mask, V yes, V no)</code>: returns `mask[i] ?
     yes[i] : no[i]`.
 
@@ -422,16 +422,29 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
 
 *   <code>bool **AllTrue**(M m)</code>: returns whether all `m[i]` are true.
+    DEPRECATED, SVE needs an extra D argument.
+
+*   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.
 
 *   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
 
 *   <code>size_t **StoreMaskBits**(M m, uint8_t* p)</code>: stores a bit array
     indicating whether `m[i]` is true, in ascending order of `i`, filling the
     bits of each byte from least to most significant, then proceeding to the
+    next byte. Returns the number of (partial) bytes written. DEPRECATED, SVE
+    needs an extra D argument.
+
+*   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
+    array indicating whether `m[i]` is true, in ascending order of `i`, filling
+    the bits of each byte from least to most significant, then proceeding to the
     next byte. Returns the number of (partial) bytes written.
 
 *   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
-    [0, N]. This is typically more expensive than AllTrue/False.
+    [0, N]. This is typically more expensive than AllTrue/False. DEPRECATED, SVE
+    needs an extra D argument.
+
+*   <code>size_t **CountTrue**(D, M m)</code>: returns how many of `m[i]` are
+    true [0, N]. This is typically more expensive than AllTrue/False.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is

@@ -1646,7 +1646,7 @@ HWY_INLINE Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 }  // namespace detail
 
 template <typename T>
-HWY_API Mask512<T> Not(const Mask512<T> m) {
+HWY_API Mask512<T> Not(const Full512<T> /* tag */, const Mask512<T> m) {
   return detail::Not(hwy::SizeTag<sizeof(T)>(), m);
 }
 
@@ -2835,19 +2835,20 @@ HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask512<T> v) {
 }  // namespace detail
 
 template <typename T>
-HWY_API bool AllTrue(const Mask512<T> v) {
+HWY_API bool AllTrue(const Full512<T> /* tag */, const Mask512<T> v) {
   return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), v);
 }
 
 template <typename T>
-HWY_API size_t StoreMaskBits(const Mask512<T> mask, uint8_t* p) {
+HWY_API size_t StoreMaskBits(const Full512<T> /* tag */, const Mask512<T> mask,
+                             uint8_t* p) {
   const size_t kNumBytes = 8 / sizeof(T);
   CopyBytes<kNumBytes>(&mask.raw, p);
   return kNumBytes;
 }
 
 template <typename T>
-HWY_API size_t CountTrue(const Mask512<T> mask) {
+HWY_API size_t CountTrue(const Full512<T> /* tag */, const Mask512<T> mask) {
   return PopCount(mask.raw);
 }
 
@@ -2922,7 +2923,7 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const auto demoted1 = ZeroExtendVector(DemoteTo(dh, compressed1));
 
   // Concatenate into single vector by shifting upper with writemask.
-  const size_t num0 = CountTrue(mask0);
+  const size_t num0 = CountTrue(dw, mask0);
   const __mmask32 m_upper = ~((1u << num0) - 1);
   alignas(64) uint16_t iota[64] = {
       0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -2951,47 +2952,45 @@ HWY_API size_t CompressStore(Vec512<T> v, const Mask512<T> mask, Full512<T> d,
   // using StoreU to concatenate the results would cause page faults if
   // `aligned` is the last valid vector. Instead rely on in-register splicing.
   Store(Compress(v, mask), d, aligned);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<uint32_t> v, const Mask512<uint32_t> mask,
-                             Full512<uint32_t> /* tag */,
+                             Full512<uint32_t> d,
                              uint32_t* HWY_RESTRICT aligned) {
   _mm512_mask_compressstoreu_epi32(aligned, mask.raw, v.raw);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 HWY_API size_t CompressStore(Vec512<int32_t> v, const Mask512<int32_t> mask,
-                             Full512<int32_t> /* tag */,
+                             Full512<int32_t> d,
                              int32_t* HWY_RESTRICT aligned) {
   _mm512_mask_compressstoreu_epi32(aligned, mask.raw, v.raw);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<uint64_t> v, const Mask512<uint64_t> mask,
-                             Full512<uint64_t> /* tag */,
+                             Full512<uint64_t> d,
                              uint64_t* HWY_RESTRICT aligned) {
   _mm512_mask_compressstoreu_epi64(aligned, mask.raw, v.raw);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 HWY_API size_t CompressStore(Vec512<int64_t> v, const Mask512<int64_t> mask,
-                             Full512<int64_t> /* tag */,
+                             Full512<int64_t> d,
                              int64_t* HWY_RESTRICT aligned) {
   _mm512_mask_compressstoreu_epi64(aligned, mask.raw, v.raw);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<float> v, const Mask512<float> mask,
-                             Full512<float> /* tag */,
-                             float* HWY_RESTRICT aligned) {
+                             Full512<float> d, float* HWY_RESTRICT aligned) {
   _mm512_mask_compressstoreu_ps(aligned, mask.raw, v.raw);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
-                             Full512<double> /* tag */,
-                             double* HWY_RESTRICT aligned) {
+                             Full512<double> d, double* HWY_RESTRICT aligned) {
   _mm512_mask_compressstoreu_pd(aligned, mask.raw, v.raw);
-  return CountTrue(mask);
+  return CountTrue(d, mask);
 }
 
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
@@ -3150,6 +3149,27 @@ HWY_API Vec512<double> MaxOfLanes(const Vec512<double> v) {
   return Set(Full512<double>(), _mm512_reduce_max_pd(v.raw));
 }
 
+// ================================================== DEPRECATED
+
+template <typename T>
+HWY_API size_t StoreMaskBits(const Mask512<T> mask, uint8_t* p) {
+  return StoreMaskBits(Full512<T>(), mask, p);
+}
+
+template <typename T>
+HWY_API bool AllTrue(const Mask512<T> mask) {
+  return AllTrue(Full512<T>(), mask);
+}
+
+template <typename T>
+HWY_API size_t CountTrue(const Mask512<T> mask) {
+  return CountTrue(Full512<T>(), mask);
+}
+
+template <typename T>
+HWY_API Mask512<T> Not(const Mask512<T> m) {
+  return Not(Full512<T>(), m);
+}
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

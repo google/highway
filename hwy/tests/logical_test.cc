@@ -211,9 +211,9 @@ struct TestTestBit {
       const auto bit3 = Set(d, 1ull << ((i + 2) % kNumBits));
       const auto bits12 = Or(bit1, bit2);
       const auto bits23 = Or(bit2, bit3);
-      HWY_ASSERT(AllTrue(TestBit(bit1, bit1)));
-      HWY_ASSERT(AllTrue(TestBit(bits12, bit1)));
-      HWY_ASSERT(AllTrue(TestBit(bits12, bit2)));
+      HWY_ASSERT(AllTrue(d, TestBit(bit1, bit1)));
+      HWY_ASSERT(AllTrue(d, TestBit(bits12, bit1)));
+      HWY_ASSERT(AllTrue(d, TestBit(bits12, bit2)));
 
       HWY_ASSERT(AllFalse(TestBit(bits12, bit3)));
       HWY_ASSERT(AllFalse(TestBit(bits23, bit1)));

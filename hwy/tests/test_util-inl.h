@@ -412,8 +412,8 @@ HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
   AssertVecEqual(d, VecFromMask(d, a), VecFromMask(d, b), filename, line);
 
   const std::string type_name = TypeName(TFromD<D>(), Lanes(d));
-  AssertEqual(CountTrue(a), CountTrue(b), type_name, filename, line, 0);
-  AssertEqual(AllTrue(a), AllTrue(b), type_name, filename, line, 0);
+  AssertEqual(CountTrue(d, a), CountTrue(d, b), type_name, filename, line, 0);
+  AssertEqual(AllTrue(d, a), AllTrue(d, b), type_name, filename, line, 0);
   AssertEqual(AllFalse(a), AllFalse(b), type_name, filename, line, 0);
 
   // TODO(janwas): StoreMaskBits
