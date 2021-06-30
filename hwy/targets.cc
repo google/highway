@@ -100,11 +100,12 @@ constexpr uint32_t kSSE = 1 << 0;
 constexpr uint32_t kSSE2 = 1 << 1;
 constexpr uint32_t kSSE3 = 1 << 2;
 constexpr uint32_t kSSSE3 = 1 << 3;
+constexpr uint32_t kGroupSSSE3 = kSSE | kSSE2 | kSSE3 | kSSSE3;
+
 constexpr uint32_t kSSE41 = 1 << 4;
 constexpr uint32_t kSSE42 = 1 << 5;
 constexpr uint32_t kCLMUL = 1 << 6;
-constexpr uint32_t kGroupSSE4 =
-    kSSE | kSSE2 | kSSE3 | kSSSE3 | kSSE41 | kSSE42 | kCLMUL;
+constexpr uint32_t kGroupSSE4 = kSSE41 | kSSE42 | kCLMUL | kGroupSSSE3;
 
 constexpr uint32_t kAVX = 1u << 6;
 constexpr uint32_t kAVX2 = 1u << 7;
@@ -257,6 +258,9 @@ uint32_t SupportedTargets() {
     if ((flags & kGroupSSE4) == kGroupSSE4) {
       bits |= HWY_SSE4;
     }
+    if ((flags & kGroupSSSE3) == kGroupSSSE3) {
+      bits |= HWY_SSSE3;
+    }
   }
 
   // Clear bits if the OS does not support XSAVE - otherwise, registers
@@ -265,7 +269,7 @@ uint32_t SupportedTargets() {
     const uint32_t xcr0 = ReadXCR0();
     // XMM
     if (!IsBitSet(xcr0, 1)) {
-      bits &= ~(HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
+      bits &= ~(HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
     }
     // YMM
     if (!IsBitSet(xcr0, 2)) {

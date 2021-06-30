@@ -376,8 +376,9 @@ struct TestIntFromFloatHuge {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
     // Still does not work, although ARMv7 manual says that float->int
-    // saturates, i.e. chooses the nearest representable value.
-#if HWY_TARGET != HWY_NEON
+    // saturates, i.e. chooses the nearest representable value. Also causes
+    // out-of-memory for MSVC.
+#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
@@ -395,33 +396,31 @@ struct TestIntFromFloatHuge {
   }
 };
 
-struct TestIntFromFloat {
+class TestIntFromFloat {
   template <typename TF, class DF>
-  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+  static HWY_NOINLINE void TestPowers(TF /*unused*/, const DF df) {
+    const RebindToSigned<DF> di;
+    constexpr size_t kBits = sizeof(TF) * 8;
+
+    // Powers of two, plus offsets to set some mantissa bits.
+    const uint64_t ofs_table[3] = {0ULL, 3ULL << (kBits / 2),
+                                   1ULL << (kBits - 15)};
+    for (int sign = 0; sign < 2; ++sign) {
+      for (size_t shift = 0; shift < kBits - 1; ++shift) {
+        for (uint64_t ofs : ofs_table) {
+          const int64_t mag = (int64_t(1) << shift) + ofs;
+          const int64_t val = sign ? mag : -mag;
+          HWY_ASSERT_VEC_EQ(di, Set(di, val), ConvertTo(di, Set(df, val)));
+        }
+      }
+    }
+  }
+
+  template <typename TF, class DF>
+  static HWY_NOINLINE void TestRandom(TF /*unused*/, const DF df) {
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
     const size_t N = Lanes(df);
-
-    // Integer positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), ConvertTo(di, Iota(df, TF(4.0))));
-
-    // Integer negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), ConvertTo(di, Iota(df, -TF(N))));
-
-    // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(2)), ConvertTo(di, Iota(df, TF(2.001))));
-
-    // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(3)), ConvertTo(di, Iota(df, TF(3.9999))));
-
-    const TF eps = static_cast<TF>(0.0001);
-    // Above negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)),
-                      ConvertTo(di, Iota(df, -TF(N + 1) + eps)));
-
-    // Below negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
-                      ConvertTo(di, Iota(df, -TF(N + 1) - eps)));
 
     // TF does not have enough precision to represent TI.
     const double min = static_cast<double>(LimitsMin<TI>());
@@ -450,6 +449,38 @@ struct TestIntFromFloat {
                         ConvertTo(di, Load(df, from.get())));
     }
   }
+
+ public:
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF tf, const DF df) {
+    using TI = MakeSigned<TF>;
+    const Rebind<TI, DF> di;
+    const size_t N = Lanes(df);
+
+    // Integer positive
+    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), ConvertTo(di, Iota(df, TF(4.0))));
+
+    // Integer negative
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), ConvertTo(di, Iota(df, -TF(N))));
+
+    // Above positive
+    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(2)), ConvertTo(di, Iota(df, TF(2.001))));
+
+    // Below positive
+    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(3)), ConvertTo(di, Iota(df, TF(3.9999))));
+
+    const TF eps = static_cast<TF>(0.0001);
+    // Above negative
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)),
+                      ConvertTo(di, Iota(df, -TF(N + 1) + eps)));
+
+    // Below negative
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
+                      ConvertTo(di, Iota(df, -TF(N + 1) - eps)));
+
+    TestPowers(tf, df);
+    TestRandom(tf, df);
+  }
 };
 
 HWY_NOINLINE void TestAllIntFromFloat() {
@@ -458,10 +489,10 @@ HWY_NOINLINE void TestAllIntFromFloat() {
 }
 
 struct TestFloatFromInt {
-  template <typename TI, class DI>
-  HWY_NOINLINE void operator()(TI /*unused*/, const DI di) {
-    using TF = MakeFloat<TI>;
-    const Rebind<TF, DI> df;
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeSigned<TF>;
+    const RebindToSigned<DF> di;
     const size_t N = Lanes(df);
 
     // Integer positive
@@ -481,10 +512,7 @@ struct TestFloatFromInt {
 };
 
 HWY_NOINLINE void TestAllFloatFromInt() {
-  ForPartialVectors<TestFloatFromInt>()(int32_t());
-#if HWY_CAP_FLOAT64 && HWY_CAP_INTEGER64
-  ForPartialVectors<TestFloatFromInt>()(int64_t());
-#endif
+  ForFloatTypes(ForPartialVectors<TestFloatFromInt>());
 }
 
 struct TestI32F64 {

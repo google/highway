@@ -243,13 +243,6 @@ struct TestNaN {
 #endif
     HWY_ASSERT_NAN(d, Min(nan, nan));
     HWY_ASSERT_NAN(d, Max(nan, nan));
-
-    // Comparison
-    HWY_ASSERT(AllFalse(Eq(nan, v1)));
-    HWY_ASSERT(AllFalse(Gt(nan, v1)));
-    HWY_ASSERT(AllFalse(Lt(nan, v1)));
-    HWY_ASSERT(AllFalse(Ge(nan, v1)));
-    HWY_ASSERT(AllFalse(Le(nan, v1)));
   }
 };
 

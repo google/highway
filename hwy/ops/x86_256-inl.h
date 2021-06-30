@@ -20,7 +20,6 @@
 // particular, "Broadcast", pack and zip behavior may be surprising.
 
 #include <immintrin.h>  // AVX2+
-
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
@@ -2486,19 +2485,39 @@ HWY_API Vec256<int64_t> ConvertTo(Full256<int64_t> di, const Vec256<double> v) {
 #if HWY_TARGET <= HWY_AVX3
   return detail::FixConversionOverflow(di, v, _mm256_cvttpd_epi64(v.raw));
 #else
-  alignas(32) double lanes_d[4];
-  Store(v, Full256<double>(), lanes_d);
-  alignas(32) int64_t lanes_i[4];
-  for (size_t i = 0; i < 4; ++i) {
-    if (lanes_d[i] >= static_cast<double>(LimitsMax<int64_t>())) {
-      lanes_i[i] = LimitsMax<int64_t>();
-    } else if (lanes_d[i] <= static_cast<double>(LimitsMin<int64_t>())) {
-      lanes_i[i] = LimitsMin<int64_t>();
-    } else {
-      lanes_i[i] = static_cast<int64_t>(lanes_d[i]);
-    }
-  }
-  return Load(di, lanes_i);
+  using VI = decltype(Zero(di));
+  const VI k0 = Zero(di);
+  const VI k1 = Set(di, 1);
+  const VI k51 = Set(di, 51);
+
+  // Exponent indicates whether the number can be represented as int64_t.
+  const VI biased_exp = ShiftRight<52>(BitCast(di, v)) & Set(di, 0x7FF);
+  const VI exp = biased_exp - Set(di, 0x3FF);
+  const auto in_range = exp < Set(di, 63);
+
+  // If we were to cap the exponent at 51 and add 2^52, the number would be in
+  // [2^52, 2^53) and mantissa bits could be read out directly. We need to
+  // round-to-0 (truncate), but changing rounding mode in MXCSR hits a
+  // compiler reordering bug: https://gcc.godbolt.org/z/4hKj6c6qc . We instead
+  // manually shift the mantissa into place (we already have many of the
+  // inputs anyway).
+  const VI shift_mnt = Max(k51 - exp, k0);
+  const VI shift_int = Max(exp - k51, k0);
+  const VI mantissa = BitCast(di, v) & Set(di, (1ULL << 52) - 1);
+  // Include implicit 1-bit; shift by one more to ensure it's in the mantissa.
+  const VI int52 = (mantissa | Set(di, 1ULL << 52)) >> (shift_mnt + k1);
+  // For inputs larger than 2^52, insert zeros at the bottom.
+  const VI shifted = int52 << shift_int;
+  // Restore the one bit lost when shifting in the implicit 1-bit.
+  const VI restored = shifted | ((mantissa & k1) << (shift_int - k1));
+
+  // Saturate to LimitsMin (unchanged when negating below) or LimitsMax.
+  const VI sign_mask = BroadcastSignBit(BitCast(di, v));
+  const VI limit = Set(di, LimitsMax<int64_t>()) - sign_mask;
+  const VI magnitude = IfThenElse(in_range, restored, limit);
+
+  // If the input was negative, negate the integer (two's complement).
+  return (magnitude ^ sign_mask) - sign_mask;
 #endif
 }
 

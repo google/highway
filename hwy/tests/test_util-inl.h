@@ -275,8 +275,9 @@ namespace HWY_NAMESPACE {
 
 // Prints lanes around `lane`, in memory order.
 template <class D>
-HWY_NOINLINE void Print(const D d, const char* caption, const Vec<D> v,
-                        intptr_t lane = 0, size_t max_lanes = 7) {
+HWY_NOINLINE void Print(const D d, const char* caption,
+                        const decltype(Zero(d)) v, intptr_t lane = 0,
+                        size_t max_lanes = 7) {
   using T = TFromD<D>;
   const size_t N = Lanes(d);
   auto lanes = AllocateAligned<T>(N);
