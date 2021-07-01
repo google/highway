@@ -2063,7 +2063,7 @@ HWY_API Vec512<T> ShiftRightLanes(const Vec512<T> v) {
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
-// ------------------------------ Extract from 2x 128-bit at constant offset
+// ------------------------------ Extract from 4x 128-bit at constant offset
 
 // Extracts 128 bits from <hi, lo> by skipping the least-significant kBytes.
 template <int kBytes, typename T>

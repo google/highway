@@ -45,7 +45,7 @@ HWY_NOINLINE void OneFloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
 
   const auto u8 = Load(d8, values);
   const auto bits = BitCast(d32, ConvertTo(df, PromoteTo(d32, u8)));
-  const auto exponent = ShiftRight<23>(bits) - Set(d32, 127);
+  const auto exponent = Sub(ShiftRight<23>(bits), Set(d32, 127));
   Store(DemoteTo(d8, exponent), d8, log2);
 }
 

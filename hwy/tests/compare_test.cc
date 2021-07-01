@@ -78,7 +78,7 @@ struct TestStrictInt {
     const T max = LimitsMax<T>();
     const auto v0 = Zero(d);
     const auto v2 = And(Iota(d, T(2)), Set(d, 127));  // 0..127
-    const auto vn = Neg(v2) - Set(d, 1);              // -1..-128
+    const auto vn = Sub(Neg(v2), Set(d, 1));          // -1..-128
 
     const auto mask_false = MaskFalse(d);
     const auto mask_true = MaskTrue(d);
@@ -160,7 +160,7 @@ HWY_NOINLINE void TestAllStrictFloat() {
 struct TestWeakFloat {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v2 = Iota(d, 2);
+    const auto v2 = Iota(d, T(2));
     const auto vn = Iota(d, -T(Lanes(d)));
 
     const auto mask_false = MaskFalse(d);

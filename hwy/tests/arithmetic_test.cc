@@ -40,7 +40,7 @@ struct TestPlusMinus {
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = static_cast<T>((2 + i) + (3 + i));
     }
-    HWY_ASSERT_VEC_EQ(d, lanes.get(), v2 + v3);
+    HWY_ASSERT_VEC_EQ(d, lanes.get(), Add(v2, v3));
     HWY_ASSERT_VEC_EQ(d, Set(d, 2), Sub(v4, v2));
 
     for (size_t i = 0; i < N; ++i) {
@@ -376,7 +376,7 @@ class TestSignedRightShifts {
 
     // First test positive values, negative are checked below.
     const auto v0 = Zero(d);
-    const auto values = Iota(d, 0) & Set(d, kMax);
+    const auto values = And(Iota(d, 0), Set(d, kMax));
 
     // Shift by 0
     HWY_ASSERT_VEC_EQ(d, values, ShiftRight<0>(values));
@@ -616,7 +616,7 @@ struct TestUnsignedMul {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((1 + i) * (1 + i));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), vi * vi);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vi));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((1 + i) * (3 + i));
@@ -870,7 +870,7 @@ struct TestSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto vi = Iota(d, 0);
-    HWY_ASSERT_VEC_EQ(d, vi, Sqrt(vi * vi));
+    HWY_ASSERT_VEC_EQ(d, vi, Sqrt(Mul(vi, vi)));
   }
 };
 

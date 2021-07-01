@@ -186,7 +186,7 @@ struct TestBroadcastSignBit {
     const auto s0 = Zero(d);
     const auto s1 = Set(d, -1);  // all bit set
     const auto vpos = And(Iota(d, 0), Set(d, LimitsMax<T>()));
-    const auto vneg = s1 - vpos;
+    const auto vneg = Sub(s1, vpos);
 
     HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(vpos));
     HWY_ASSERT_VEC_EQ(d, s0, BroadcastSignBit(Set(d, LimitsMax<T>())));

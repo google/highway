@@ -66,9 +66,9 @@ struct TestOverflow {
     const auto vmax = Set(d, LimitsMax<T>());
     const auto vmin = Set(d, LimitsMin<T>());
     // Unsigned underflow / negative -> positive
-    HWY_ASSERT_VEC_EQ(d, vmax, vmin - v1);
+    HWY_ASSERT_VEC_EQ(d, vmax, Sub(vmin, v1));
     // Unsigned overflow / positive -> negative
-    HWY_ASSERT_VEC_EQ(d, vmin, vmax + v1);
+    HWY_ASSERT_VEC_EQ(d, vmin, Add(vmax, v1));
   }
 };
 

@@ -1469,9 +1469,7 @@ HWY_API V OddEven(const V a, const V b) {
 template <class V>
 HWY_API V ConcatUpperLower(const V hi, const V lo) {
   const RebindToSigned<DFromV<V>> di;
-  const auto idx_half = Set(di, Lanes(di) / 2);
-  const auto is_lower_half = Lt(BitCast(di, detail::Iota0(di)), idx_half);
-  return IfThenElse(is_lower_half, lo, hi);
+  return IfThenElse(FirstN(di, Lanes(di) / 2), lo, hi);
 }
 
 // ------------------------------ ConcatLowerLower

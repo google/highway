@@ -757,7 +757,8 @@ more expensive on AVX2/AVX-512 than within-block operations.
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
     `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`.
 
-*   <code>VI **SetTableIndices**(D, int* idx)</code> prepares for
+*   `VI`: `i32` \
+    <code>VI **SetTableIndices**(D, int32_t* idx)</code> prepares for
     `TableLookupLanes` with lane indices `idx = [0, N)` (need not be unique).
 
 ### Reductions

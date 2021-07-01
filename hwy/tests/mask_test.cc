@@ -419,7 +419,7 @@ class TestStoreMaskBits {
       for (size_t i = 0; i < N; ++i) {
         lanes[i] = static_cast<T>((rng() & 1024) ? 1 : 0);
       }
-      const auto mask = Load(d, lanes.get()) == Zero(d);
+      const auto mask = Eq(Load(d, lanes.get()), Zero(d));
 
       const size_t bytes_written = StoreMaskBits(d, mask, bits.get());
 
