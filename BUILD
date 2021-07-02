@@ -209,7 +209,12 @@ HWY_TESTS = [
             srcs = [
                 subdir + test + ".cc",
             ],
-            copts = COPTS,
+            copts = COPTS + [
+                # gTest triggers this warning (which is enabled by the
+                # extra-semi in COPTS), so we need to disable it here,
+                # but it's still enabled for :hwy.
+                "-Wno-c++98-compat-extra-semi",
+            ],
             # for test_suite. math_test is not yet supported on RVV.
             tags = ["hwy_ops_test"] if test != "math_test" else [],
             deps = [
