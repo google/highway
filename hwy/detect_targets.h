@@ -170,14 +170,14 @@
 #define HWY_BASELINE_PPC8 0
 #endif
 
-// Avoid choosing the SVE[2] targets the implementation is ready.
-#if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE2) && 0
+// SVE compiles, but is not yet tested.
+#if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE2)
 #define HWY_BASELINE_SVE2 HWY_SVE2
 #else
 #define HWY_BASELINE_SVE2 0
 #endif
 
-#if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE) && 0
+#if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE)
 #define HWY_BASELINE_SVE HWY_SVE
 #else
 #define HWY_BASELINE_SVE 0

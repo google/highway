@@ -184,7 +184,8 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // by concatenating base type and bits.
 
 // RVV already has a builtin type and the GCC intrinsics require it.
-#if HWY_ARCH_RVV && HWY_COMPILER_GCC && defined(__riscv_vector)
+#if (HWY_ARCH_RVV && HWY_COMPILER_GCC && defined(__riscv_vector)) || \
+    (HWY_ARCH_ARM && (__ARM_FP & 2))
 #define HWY_NATIVE_FLOAT16 1
 #else
 #define HWY_NATIVE_FLOAT16 0
@@ -433,6 +434,7 @@ struct Relations<float> {
   using Signed = int32_t;
   using Float = float;
   using Wide = double;
+  using Narrow = float16_t;
 };
 template <>
 struct Relations<double> {

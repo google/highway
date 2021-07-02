@@ -183,6 +183,7 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
+#define HWY_CAP_AES 0  // TODO(janwas): need runtime check?
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
