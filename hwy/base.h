@@ -219,6 +219,21 @@ struct EnableIfT<true, T> {
 template <bool Condition, class T = void>
 using EnableIf = typename EnableIfT<Condition, T>::type;
 
+template <typename T, typename U>
+struct IsSameT {
+  enum { value = 0 };
+};
+
+template <typename T>
+struct IsSameT<T, T> {
+  enum { value = 1 };
+};
+
+template <typename T, typename U>
+HWY_API constexpr bool IsSame() {
+  return IsSameT<T, U>::value;
+}
+
 // Insert into template/function arguments to enable this overload only for
 // vectors of AT MOST this many bits.
 //

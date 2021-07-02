@@ -260,9 +260,16 @@ is qNaN, and NaN if both are.
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.
 
-*   `V`: `{u,i}{32}` \
-    <code>V **MulEven**(V a, V b)</code>: returns double-wide result of `a[i] *
-    b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper).
+*   `V`: `{u,i}{32},u64` \
+    <code>V2 **MulEven**(V a, V b)</code>: returns double-wide result of `a[i] *
+    b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper). `V2` is
+    a vector with double-width lanes, or the same as `V` for 64-bit inputs
+    (which are only supported if `HWY_TARGET != HWY_SCALAR`).
+
+*   `V`: `u64` \
+    <code>V **MulOdd**(V a, V b)</code>: returns double-wide result of `a[i] *
+    b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
+    supported if `HWY_TARGET != HWY_SCALAR`.
 
 #### Fused multiply-add
 

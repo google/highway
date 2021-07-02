@@ -98,6 +98,12 @@ using Twice = typename D::Twice;
 #define HWY_IF_LANE_SIZE_D(D, bytes) HWY_IF_LANE_SIZE(TFromD<D>, bytes)
 #define HWY_IF_NOT_LANE_SIZE_D(D, bytes) HWY_IF_NOT_LANE_SIZE(TFromD<D>, bytes)
 
+// Same, but with a vector argument.
+#define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(TFromV<V>)
+#define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
+#define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
+#define HWY_IF_LANE_SIZE_V(V, bytes) HWY_IF_LANE_SIZE(TFromV<V>, bytes)
+
 // Compile-time-constant, (typically but not guaranteed) an upper bound on the
 // number of lanes.
 // Prefer instead using Lanes() and dynamic allocation, or Rebind, or

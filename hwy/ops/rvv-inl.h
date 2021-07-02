@@ -40,11 +40,6 @@ HWY_INLINE constexpr size_t MLenFromD(Simd<T, N> /* tag */) {
   return sizeof(T) * 8 / (N / HWY_LANES(T));
 }
 
-#define HWY_IF_UNSIGNED_V(V) hwy::EnableIf<!IsSigned<TFromV<V>>()>* = nullptr
-#define HWY_IF_SIGNED_V(V) \
-  hwy::EnableIf<IsSigned<TFromV<V>>() && !IsFloat<TFromV<V>>()>* = nullptr
-#define HWY_IF_FLOAT_V(V) hwy::EnableIf<IsFloat<TFromV<V>>()>* = nullptr
-
 // kShift = log2 of multiplier: 0 for m1, 1 for m2, -2 for mf4
 template <typename T, int kShift = 0>
 using Full = Simd<T, (kShift < 0) ? (HWY_LANES(T) >> (-kShift))
@@ -1668,7 +1663,7 @@ HWY_API MFromD<D> FirstN(const D d, const size_t n) {
   return Eq(detail::SlideUp(one, zero, n), one);
 }
 
-// ------------------------------ Neg
+// ------------------------------ Neg (Sub)
 
 template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V Neg(const V v) {
@@ -1683,7 +1678,7 @@ HWY_API V Neg(const V v) {
 
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn)
 
-// ------------------------------ Abs
+// ------------------------------ Abs (Max, Neg)
 
 template <class V, HWY_IF_SIGNED_V(V)>
 HWY_API V Abs(const V v) {
@@ -1694,14 +1689,14 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx)
 
 #undef HWY_RVV_RETV_ARGV2
 
-// ------------------------------ AbsDiff
+// ------------------------------ AbsDiff (Abs, Sub)
 
 template <class V>
 HWY_API V AbsDiff(const V a, const V b) {
   return Abs(Sub(a, b));
 }
 
-// ------------------------------ Round
+// ------------------------------ Round  (NearestInt, ConvertTo, CopySign)
 
 // IEEE-754 roundToIntegralTiesToEven returns floating-point, but we do not have
 // a dedicated instruction for that. Rounding to integer and converting back to
@@ -1728,7 +1723,7 @@ HWY_API V Round(const V v) {
   return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
 }
 
-// ------------------------------ Trunc
+// ------------------------------ Trunc (ConvertTo)
 
 template <class V>
 HWY_API V Trunc(const V v) {
@@ -1761,7 +1756,7 @@ HWY_API V Floor(const V v) {
   return ret;
 }
 
-// ------------------------------ Iota
+// ------------------------------ Iota (ConvertTo)
 
 template <class D, HWY_IF_UNSIGNED_D(D)>
 HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
@@ -1781,9 +1776,9 @@ HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   return detail::AddK(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
 }
 
-// ------------------------------ MulEven
+// ------------------------------ MulEven/Odd (Mul, OddEven)
 
-template <class V>
+template <class V, HWY_IF_LANE_SIZE_V(V, 4)>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {
   const DFromV<V> d;
   Lanes(d);
@@ -1793,87 +1788,23 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {
   return BitCast(dw, OddEven(detail::SlideUp(hi, hi, 1), lo));
 }
 
-// ------------------------------ CLMul
-
-// Constant-time implementation inspired by
-// https://www.bearssl.org/constanttime.html, but about half the cost because we
-// use 64x64 multiplies.
-namespace detail {
-
-// There is no 64x64 vwmul. This is basically MulEven, but without the
-// double-wide return type (not available for u64 inputs).
-template <class V>
-HWY_INLINE V MulLower(const V a, const V b) {
+// There is no 64x64 vwmul.
+template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
+HWY_INLINE V MulEven(const V a, const V b) {
   const DFromV<V> d;
   Lanes(d);
-  const auto lo = Mul(a, b);
+  const auto lo = detail::Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   return OddEven(detail::SlideUp(hi, hi, 1), lo);
 }
 
-template <class V>
-HWY_INLINE V MulUpper(const V a, const V b) {
+template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
+HWY_INLINE V MulOdd(const V a, const V b) {
   const DFromV<V> d;
   Lanes(d);
-  const auto lo = Mul(a, b);
+  const auto lo = detail::Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   return OddEven(hi, detail::SlideDown(lo, lo, 1));
-}
-
-}  // namespace detail
-
-template <class V>
-HWY_API V CLMulLower(V a, V b) {
-  const DFromV<V> d;
-  const auto k1 = Set(d, 0x1111111111111111ULL);
-  const auto k2 = Set(d, 0x2222222222222222ULL);
-  const auto k4 = Set(d, 0x4444444444444444ULL);
-  const auto k8 = Set(d, 0x8888888888888888ULL);
-  const auto a0 = a & k1;
-  const auto a1 = a & k2;
-  const auto a2 = a & k4;
-  const auto a3 = a & k8;
-  const auto b0 = b & k1;
-  const auto b1 = b & k2;
-  const auto b2 = b & k4;
-  const auto b3 = b & k8;
-
-  auto m0 = detail::MulLower(a0, b0) ^ detail::MulLower(a1, b3);
-  auto m1 = detail::MulLower(a0, b1) ^ detail::MulLower(a1, b0);
-  auto m2 = detail::MulLower(a0, b2) ^ detail::MulLower(a1, b1);
-  auto m3 = detail::MulLower(a0, b3) ^ detail::MulLower(a1, b2);
-  m0 ^= detail::MulLower(a2, b2) ^ detail::MulLower(a3, b1);
-  m1 ^= detail::MulLower(a2, b3) ^ detail::MulLower(a3, b2);
-  m2 ^= detail::MulLower(a2, b0) ^ detail::MulLower(a3, b3);
-  m3 ^= detail::MulLower(a2, b1) ^ detail::MulLower(a3, b0);
-  return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
-}
-
-template <class V>
-HWY_API V CLMulUpper(V a, V b) {
-  const DFromV<V> d;
-  const auto k1 = Set(d, 0x1111111111111111ULL);
-  const auto k2 = Set(d, 0x2222222222222222ULL);
-  const auto k4 = Set(d, 0x4444444444444444ULL);
-  const auto k8 = Set(d, 0x8888888888888888ULL);
-  const auto a0 = a & k1;
-  const auto a1 = a & k2;
-  const auto a2 = a & k4;
-  const auto a3 = a & k8;
-  const auto b0 = b & k1;
-  const auto b1 = b & k2;
-  const auto b2 = b & k4;
-  const auto b3 = b & k8;
-
-  auto m0 = detail::MulUpper(a0, b0) ^ detail::MulUpper(a1, b3);
-  auto m1 = detail::MulUpper(a0, b1) ^ detail::MulUpper(a1, b0);
-  auto m2 = detail::MulUpper(a0, b2) ^ detail::MulUpper(a1, b1);
-  auto m3 = detail::MulUpper(a0, b3) ^ detail::MulUpper(a1, b2);
-  m0 ^= detail::MulUpper(a2, b2) ^ detail::MulUpper(a3, b1);
-  m1 ^= detail::MulUpper(a2, b3) ^ detail::MulUpper(a3, b2);
-  m2 ^= detail::MulUpper(a2, b0) ^ detail::MulUpper(a3, b3);
-  m3 ^= detail::MulUpper(a2, b1) ^ detail::MulUpper(a3, b0);
-  return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
 }
 
 // ================================================== END MACROS

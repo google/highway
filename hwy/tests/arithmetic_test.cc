@@ -747,10 +747,50 @@ struct TestMulEven {
   }
 };
 
+struct TestMulEvenOdd64 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    const auto v0 = Zero(d);
+    HWY_ASSERT_VEC_EQ(d, Zero(d), MulEven(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, Zero(d), MulOdd(v0, v0));
+
+    const size_t N = Lanes(d);
+    auto in1 = AllocateAligned<T>(N);
+    auto in2 = AllocateAligned<T>(N);
+    auto expected_even = AllocateAligned<T>(N);
+    auto expected_odd = AllocateAligned<T>(N);
+
+    // Random inputs in each lane
+    RandomState rng;
+    for (size_t rep = 0; rep < 1000; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in1[i] = Random64(&rng);
+        in2[i] = Random64(&rng);
+      }
+
+      for (size_t i = 0; i < N; i += 2) {
+        expected_even[i] = Mul128(in1[i], in2[i], &expected_even[i + 1]);
+        expected_odd[i] = Mul128(in1[i + 1], in2[i + 1], &expected_odd[i + 1]);
+      }
+
+      const auto a = Load(d, in1.get());
+      const auto b = Load(d, in2.get());
+      HWY_ASSERT_VEC_EQ(d, expected_even.get(), MulEven(a, b));
+      HWY_ASSERT_VEC_EQ(d, expected_odd.get(), MulOdd(a, b));
+    }
+#else
+    (void)d;
+#endif  // HWY_TARGET != HWY_SCALAR
+  }
+};
+
 HWY_NOINLINE void TestAllMulEven() {
   ForPartialVectors<TestMulEven> test;
   test(int32_t());
   test(uint32_t());
+
+  ForGE128Vectors<TestMulEvenOdd64>()(uint64_t());
 }
 
 struct TestMulAdd {

@@ -200,6 +200,65 @@ HWY_API V AESRound(V state, const V round_key) {
   return state;
 }
 
+// Constant-time implementation inspired by
+// https://www.bearssl.org/constanttime.html, but about half the cost because we
+// use 64x64 multiplies and 128-bit XORs.
+template <class V>
+HWY_API V CLMulLower(V a, V b) {
+  const DFromV<V> d;
+  static_assert(IsSame<TFromD<decltype(d)>, uint64_t>(), "V must be u64");
+  const auto k1 = Set(d, 0x1111111111111111ULL);
+  const auto k2 = Set(d, 0x2222222222222222ULL);
+  const auto k4 = Set(d, 0x4444444444444444ULL);
+  const auto k8 = Set(d, 0x8888888888888888ULL);
+  const auto a0 = And(a, k1);
+  const auto a1 = And(a, k2);
+  const auto a2 = And(a, k4);
+  const auto a3 = And(a, k8);
+  const auto b0 = And(b, k1);
+  const auto b1 = And(b, k2);
+  const auto b2 = And(b, k4);
+  const auto b3 = And(b, k8);
+
+  auto m0 = Xor(MulEven(a0, b0), MulEven(a1, b3));
+  auto m1 = Xor(MulEven(a0, b1), MulEven(a1, b0));
+  auto m2 = Xor(MulEven(a0, b2), MulEven(a1, b1));
+  auto m3 = Xor(MulEven(a0, b3), MulEven(a1, b2));
+  m0 = Xor(m0, Xor(MulEven(a2, b2), MulEven(a3, b1)));
+  m1 = Xor(m1, Xor(MulEven(a2, b3), MulEven(a3, b2)));
+  m2 = Xor(m2, Xor(MulEven(a2, b0), MulEven(a3, b3)));
+  m3 = Xor(m3, Xor(MulEven(a2, b1), MulEven(a3, b0)));
+  return Or(Or(And(m0, k1), And(m1, k2)), Or(And(m2, k4), And(m3, k8)));
+}
+
+template <class V>
+HWY_API V CLMulUpper(V a, V b) {
+  const DFromV<V> d;
+  static_assert(IsSame<TFromD<decltype(d)>, uint64_t>(), "V must be u64");
+  const auto k1 = Set(d, 0x1111111111111111ULL);
+  const auto k2 = Set(d, 0x2222222222222222ULL);
+  const auto k4 = Set(d, 0x4444444444444444ULL);
+  const auto k8 = Set(d, 0x8888888888888888ULL);
+  const auto a0 = And(a, k1);
+  const auto a1 = And(a, k2);
+  const auto a2 = And(a, k4);
+  const auto a3 = And(a, k8);
+  const auto b0 = And(b, k1);
+  const auto b1 = And(b, k2);
+  const auto b2 = And(b, k4);
+  const auto b3 = And(b, k8);
+
+  auto m0 = Xor(MulOdd(a0, b0), MulOdd(a1, b3));
+  auto m1 = Xor(MulOdd(a0, b1), MulOdd(a1, b0));
+  auto m2 = Xor(MulOdd(a0, b2), MulOdd(a1, b1));
+  auto m3 = Xor(MulOdd(a0, b3), MulOdd(a1, b2));
+  m0 = Xor(m0, Xor(MulOdd(a2, b2), MulOdd(a3, b1)));
+  m1 = Xor(m1, Xor(MulOdd(a2, b3), MulOdd(a3, b2)));
+  m2 = Xor(m2, Xor(MulOdd(a2, b0), MulOdd(a3, b3)));
+  m3 = Xor(m3, Xor(MulOdd(a2, b1), MulOdd(a3, b0)));
+  return Or(Or(And(m0, k1), And(m1, k2)), Or(And(m2, k4), And(m3, k8)));
+}
+
 #endif  // HWY_NATIVE_AES
 #endif  // HWY_TARGET != HWY_SCALAR
 

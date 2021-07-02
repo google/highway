@@ -2712,8 +2712,6 @@ HWY_API Vec512<uint8_t> AESRound(Vec512<uint8_t> state,
 #endif
 }
 
-#endif  // HWY_DISABLE_PCLMUL_AES
-
 HWY_API Vec512<uint64_t> CLMulLower(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec512<uint64_t>{_mm512_clmulepi64_epi128(va.raw, vb.raw, 0x00)};
@@ -2749,6 +2747,8 @@ HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
   return Load(d, a);
 #endif
 }
+
+#endif  // HWY_DISABLE_PCLMUL_AES
 
 // ================================================== MISC
 
@@ -3094,6 +3094,64 @@ HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
   StoreU(Vec512<uint8_t>{l1_k1_j1_i1}, d, unaligned + 1 * 64);
   StoreU(Vec512<uint8_t>{l2_k2_j2_i2}, d, unaligned + 2 * 64);
   StoreU(Vec512<uint8_t>{l3_k3_j3_i3}, d, unaligned + 3 * 64);
+}
+
+// ------------------------------ MulEven/Odd (Shuffle2301, InterleaveLower)
+
+HWY_INLINE Vec512<uint64_t> MulEven(const Vec512<uint64_t> a,
+                                    const Vec512<uint64_t> b) {
+  const DFromV<decltype(a)> du64;
+  const RepartitionToNarrow<decltype(du64)> du32;
+  const auto maskL = Set(du64, 0xFFFFFFFFULL);
+  const auto a32 = BitCast(du32, a);
+  const auto b32 = BitCast(du32, b);
+  // Inputs for MulEven: we only need the lower 32 bits
+  const auto aH = Shuffle2301(a32);
+  const auto bH = Shuffle2301(b32);
+
+  // Knuth double-word multiplication. We use 32x32 = 64 MulEven and only need
+  // the even (lower 64 bits of every 128-bit block) results. See
+  // https://github.com/hcs0/Hackers-Delight/blob/master/muldwu.c.tat
+  const auto aLbL = MulEven(a32, b32);
+  const auto w3 = aLbL & maskL;
+
+  const auto t2 = MulEven(aH, b32) + ShiftRight<32>(aLbL);
+  const auto w2 = t2 & maskL;
+  const auto w1 = ShiftRight<32>(t2);
+
+  const auto t = MulEven(a32, bH) + w2;
+  const auto k = ShiftRight<32>(t);
+
+  const auto mulH = MulEven(aH, bH) + w1 + k;
+  const auto mulL = ShiftLeft<32>(t) + w3;
+  return InterleaveLower(mulL, mulH);
+}
+
+HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
+                                   const Vec512<uint64_t> b) {
+  const DFromV<decltype(a)> du64;
+  const RepartitionToNarrow<decltype(du64)> du32;
+  const auto maskL = Set(du64, 0xFFFFFFFFULL);
+  const auto a32 = BitCast(du32, a);
+  const auto b32 = BitCast(du32, b);
+  // Inputs for MulEven: we only need bits [95:64] (= upper half of input)
+  const auto aH = Shuffle2301(a32);
+  const auto bH = Shuffle2301(b32);
+
+  // Same as above, but we're using the odd results (upper 64 bits per block).
+  const auto aLbL = MulEven(a32, b32);
+  const auto w3 = aLbL & maskL;
+
+  const auto t2 = MulEven(aH, b32) + ShiftRight<32>(aLbL);
+  const auto w2 = t2 & maskL;
+  const auto w1 = ShiftRight<32>(t2);
+
+  const auto t = MulEven(a32, bH) + w2;
+  const auto k = ShiftRight<32>(t);
+
+  const auto mulH = MulEven(aH, bH) + w1 + k;
+  const auto mulL = ShiftLeft<32>(t) + w3;
+  return InterleaveUpper(mulL, mulH);
 }
 
 // ------------------------------ Reductions
