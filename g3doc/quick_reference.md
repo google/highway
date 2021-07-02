@@ -589,8 +589,9 @@ All functions except `Stream` are defined in cache_control.h.
 *   <code>Vec&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
     reinterpreted as type `Vec<D>`.
 
-*   `V`,`D`: (`u8,i16`), (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`),
-    (`i16,i32`), (`f16,f32`), (`f32,f64`) \
+*   `V`,`D`: (`u8,u16`), (`u16,u32`), (`u8,u32`), (`u32,u64`), (`u8,i16`), \
+    (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`), \
+    (`f16,f32`), (`f32,f64`) \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
     or sign-extended to `MakeWide<T>`.
 
