@@ -3479,6 +3479,13 @@ HWY_API Vec128<T> OddEven(const Vec128<T> a, const Vec128<T> b) {
 
 #if defined(__ARM_FEATURE_AES)
 
+// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
+#ifdef HWY_NATIVE_AES
+#undef HWY_NATIVE_AES
+#else
+#define HWY_NATIVE_AES
+#endif
+
 HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
                                  Vec128<uint8_t> round_key) {
   // NOTE: it is important that AESE and AESMC be consecutive instructions so

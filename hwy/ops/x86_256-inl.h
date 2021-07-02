@@ -2527,6 +2527,15 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
 
 // ================================================== CRYPTO
 
+#if !defined(HWY_DISABLE_PCLMUL_AES)
+
+// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
+#ifdef HWY_NATIVE_AES
+#undef HWY_NATIVE_AES
+#else
+#define HWY_NATIVE_AES
+#endif
+
 HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
                                  Vec256<uint8_t> round_key) {
 #if HWY_TARGET == HWY_AVX3_DL
@@ -2536,6 +2545,8 @@ HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
                  AESRound(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
+
+#endif  // HWY_DISABLE_PCLMUL_AES
 
 HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL

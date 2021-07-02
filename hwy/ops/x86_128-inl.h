@@ -3477,9 +3477,33 @@ HWY_API Vec128<double, N> Floor(const Vec128<double, N> v) {
 
 // ================================================== CRYPTO
 
-// TODO(janwas): honor HWY_DISABLE_PCLMUL_AES
+#if !defined(HWY_DISABLE_PCLMUL_AES) && HWY_TARGET != HWY_SSSE3
 
-#if HWY_TARGET == HWY_SSSE3
+// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
+#ifdef HWY_NATIVE_AES
+#undef HWY_NATIVE_AES
+#else
+#define HWY_NATIVE_AES
+#endif
+
+HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
+                                 Vec128<uint8_t> round_key) {
+  return Vec128<uint8_t>{_mm_aesenc_si128(state.raw, round_key.raw)};
+}
+
+template <size_t N, HWY_IF_LE128(uint64_t, N)>
+HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_clmulepi64_si128(a.raw, b.raw, 0x00)};
+}
+
+template <size_t N, HWY_IF_LE128(uint64_t, N)>
+HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_clmulepi64_si128(a.raw, b.raw, 0x11)};
+}
+
+#else
 
 // Constant-time implementation inspired by
 // https://www.bearssl.org/constanttime.html, but about half the cost because we
@@ -3555,26 +3579,7 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return (m0 & k1) | (m1 & k2) | (m2 & k4) | (m3 & k8);
 }
 
-#else  // HWY_TARGET == HWY_SSSE3
-
-HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
-                                 Vec128<uint8_t> round_key) {
-  return Vec128<uint8_t>{_mm_aesenc_si128(state.raw, round_key.raw)};
-}
-
-template <size_t N, HWY_IF_LE128(uint64_t, N)>
-HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
-                                       Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_clmulepi64_si128(a.raw, b.raw, 0x00)};
-}
-
-template <size_t N, HWY_IF_LE128(uint64_t, N)>
-HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
-                                       Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_clmulepi64_si128(a.raw, b.raw, 0x11)};
-}
-
-#endif  // HWY_TARGET == HWY_SSSE3
+#endif  // !defined(HWY_DISABLE_PCLMUL_AES) && HWY_TARGET != HWY_SSSE3
 
 // ================================================== MISC
 

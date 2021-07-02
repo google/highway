@@ -93,7 +93,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -109,7 +108,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
 
@@ -124,7 +122,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 1
 
@@ -147,7 +144,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -172,12 +168,6 @@
 #define HWY_CAP_FLOAT64 0
 #endif
 
-#if defined(__ARM_FEATURE_AES)
-#define HWY_CAP_AES 1
-#else
-#define HWY_CAP_AES 0
-#endif
-
 #define HWY_NAMESPACE N_NEON
 
 // HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
@@ -193,7 +183,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 1  // TODO(janwas): need runtime check?
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -214,7 +203,6 @@
 
 #define HWY_CAP_INTEGER64 0
 #define HWY_CAP_FLOAT64 0
-#define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -237,7 +225,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -256,7 +243,6 @@
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 

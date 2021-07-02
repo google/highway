@@ -208,7 +208,7 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
     return v##OP##_v_##CHAR##SEW##LMUL(v);                                \
   }
 
-// vector = f(vector, scalar), e.g. detail::Add
+// vector = f(vector, scalar), e.g. detail::AddK
 #define HWY_RVV_RETV_ARGVS(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                     \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_T(BASE, SEW) b) {       \
@@ -389,7 +389,7 @@ HWY_API V Not(const V v) {
 
 // Non-vector version (ideally immediate) for use with Iota0
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, And, and_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AndK, and_vx)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, And, and)
@@ -430,7 +430,7 @@ HWY_API V Or(const V a, const V b) {
 
 // Non-vector version (ideally immediate) for use with Iota0
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, Xor, xor_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, XorK, xor_vx)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Xor, xor)
@@ -464,8 +464,8 @@ HWY_API V CopySignToAbs(const V abs, const V sign) {
 // ------------------------------ Add
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, Add, add_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, Add, fadd_vf)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AddK, add_vx)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, AddK, fadd_vf)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Add, add)
@@ -1262,7 +1262,7 @@ template <class V>
 HWY_API V Shuffle01(const V v) {
   using D = DFromV<V>;
   static_assert(sizeof(TFromD<D>) == 8, "Defined for 64-bit types");
-  const auto idx = detail::Xor(detail::Iota0(D()), 1);
+  const auto idx = detail::XorK(detail::Iota0(D()), 1);
   return TableLookupLanes(v, idx);
 }
 
@@ -1272,7 +1272,7 @@ template <class V>
 HWY_API V Shuffle2301(const V v) {
   using D = DFromV<V>;
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::Xor(detail::Iota0(D()), 1);
+  const auto idx = detail::XorK(detail::Iota0(D()), 1);
   return TableLookupLanes(v, idx);
 }
 
@@ -1282,7 +1282,7 @@ template <class V>
 HWY_API V Shuffle1032(const V v) {
   using D = DFromV<V>;
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::Xor(detail::Iota0(D()), 2);
+  const auto idx = detail::XorK(detail::Iota0(D()), 2);
   return TableLookupLanes(v, idx);
 }
 
@@ -1292,7 +1292,7 @@ template <class V>
 HWY_API V Shuffle0123(const V v) {
   using D = DFromV<V>;
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::Xor(detail::Iota0(D()), 3);
+  const auto idx = detail::XorK(detail::Iota0(D()), 3);
   return TableLookupLanes(v, idx);
 }
 
@@ -1304,8 +1304,8 @@ HWY_API V Shuffle2103(const V v) {
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
   // This shuffle is a rotation. We can compute subtraction modulo 4 (number of
   // lanes per 128-bit block) via bitwise ops.
-  const auto i = detail::Xor(detail::Iota0(D()), 1);
-  const auto lsb = detail::And(i, 1);
+  const auto i = detail::XorK(detail::Iota0(D()), 1);
+  const auto lsb = detail::AndK(i, 1);
   const auto borrow = Add(lsb, lsb);
   const auto idx = Xor(i, borrow);
   return TableLookupLanes(v, idx);
@@ -1319,8 +1319,8 @@ HWY_API V Shuffle0321(const V v) {
   static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
   // This shuffle is a rotation. We can compute subtraction modulo 4 (number of
   // lanes per 128-bit block) via bitwise ops.
-  const auto i = detail::Xor(detail::Iota0(D()), 3);
-  const auto lsb = detail::And(i, 1);
+  const auto i = detail::XorK(detail::Iota0(D()), 3);
+  const auto lsb = detail::AndK(i, 1);
   const auto borrow = Add(lsb, lsb);
   const auto idx = Xor(i, borrow);
   return TableLookupLanes(v, idx);
@@ -1340,7 +1340,7 @@ constexpr size_t LanesPerBlock(D) {
 template <class D, class V>
 HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
   using T = MakeUnsigned<TFromD<D>>;
-  return detail::And(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
+  return detail::AndK(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
 }
 
 }  // namespace detail
@@ -1373,7 +1373,7 @@ HWY_API V Broadcast(const V v) {
   static_assert(0 <= kLane && kLane < kLanesPerBlock, "Invalid lane");
   auto idx = detail::OffsetsOf128BitBlocks(d, detail::Iota0(d));
   if (kLane != 0) {
-    idx = detail::Add(idx, kLane);
+    idx = detail::AddK(idx, kLane);
   }
   return TableLookupLanes(v, idx);
 }
@@ -1410,7 +1410,7 @@ HWY_API V ShiftLeftLanes(const V v) {
   const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::And(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto idx_mod = detail::AndK(detail::Iota0(di), kLanesPerBlock - 1);
   const auto clear = Lt(BitCast(di, idx_mod), Set(di, kLanes));
   return IfThenZeroElse(clear, shifted);
 }
@@ -1440,7 +1440,7 @@ HWY_API V ShiftRightLanes(const V v) {
   const auto shifted = detail::SlideDown(v, v, kLanes);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::And(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto idx_mod = detail::AndK(detail::Iota0(di), kLanesPerBlock - 1);
   const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanesPerBlock - kLanes));
   return IfThenElseZero(keep, shifted);
 }
@@ -1460,7 +1460,7 @@ HWY_API V ShiftRightBytes(const V v) {
 template <class V>
 HWY_API V OddEven(const V a, const V b) {
   const RebindToUnsigned<DFromV<V>> du;  // Iota0 is unsigned only
-  const auto is_even = Eq(detail::And(detail::Iota0(du), 1), Zero(du));
+  const auto is_even = Eq(detail::AndK(detail::Iota0(du), 1), Zero(du));
   return IfThenElse(is_even, b, a);
 }
 
@@ -1508,9 +1508,9 @@ HWY_API V InterleaveLower(const V a, const V b) {
   const RebindToUnsigned<decltype(d)> du;
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   const auto i = detail::Iota0(d);
-  const auto idx_mod = ShiftRight<1>(detail::And(i, kLanesPerBlock - 1));
+  const auto idx_mod = ShiftRight<1>(detail::AndK(i, kLanesPerBlock - 1));
   const auto idx = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
-  const auto is_even = Eq(detail::And(i, 1), Zero(du));
+  const auto is_even = Eq(detail::AndK(i, 1), Zero(du));
   return IfThenElse(is_even, TableLookupLanes(a, idx),
                     TableLookupLanes(b, idx));
 }
@@ -1523,10 +1523,10 @@ HWY_API V InterleaveUpper(const V a, const V b) {
   const RebindToUnsigned<decltype(d)> du;
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   const auto i = detail::Iota0(d);
-  const auto idx_mod = ShiftRight<1>(detail::And(i, kLanesPerBlock - 1));
+  const auto idx_mod = ShiftRight<1>(detail::AndK(i, kLanesPerBlock - 1));
   const auto idx_lower = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
-  const auto idx = detail::Add(idx_lower, kLanesPerBlock / 2);
-  const auto is_even = Eq(detail::And(i, 1), Zero(du));
+  const auto idx = detail::AddK(idx_lower, kLanesPerBlock / 2);
+  const auto is_even = Eq(detail::AndK(i, 1), Zero(du));
   return IfThenElse(is_even, TableLookupLanes(a, idx),
                     TableLookupLanes(b, idx));
 }
@@ -1628,7 +1628,7 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
   const auto loaded = Load(d, p);
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   // Broadcast the first block
-  const auto idx = detail::And(detail::Iota0(d), kLanesPerBlock - 1);
+  const auto idx = detail::AndK(detail::Iota0(d), kLanesPerBlock - 1);
   return TableLookupLanes(loaded, idx);
 }
 
@@ -1778,7 +1778,7 @@ template <class D, HWY_IF_FLOAT_D(D)>
 HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   const RebindToUnsigned<D> du;
   const RebindToSigned<D> di;
-  return detail::Add(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
+  return detail::AddK(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
 }
 
 // ------------------------------ MulEven
