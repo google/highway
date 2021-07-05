@@ -303,6 +303,7 @@ set(HWY_TEST_FILES
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
+  hwy/tests/blockwise_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc

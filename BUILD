@@ -189,6 +189,7 @@ HWY_TESTS = [
     ("hwy/", "highway_test"),
     ("hwy/", "targets_test"),
     ("hwy/tests/", "arithmetic_test"),
+    ("hwy/tests/", "blockwise_test"),
     ("hwy/tests/", "combine_test"),
     ("hwy/tests/", "compare_test"),
     ("hwy/tests/", "convert_test"),
