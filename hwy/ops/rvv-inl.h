@@ -203,7 +203,7 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
     return v##OP##_v_##CHAR##SEW##LMUL(v);                                \
   }
 
-// vector = f(vector, scalar), e.g. detail::AddK
+// vector = f(vector, scalar), e.g. detail::AddS
 #define HWY_RVV_RETV_ARGVS(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                     \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_T(BASE, SEW) b) {       \
@@ -384,7 +384,7 @@ HWY_API V Not(const V v) {
 
 // Non-vector version (ideally immediate) for use with Iota0
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AndK, and_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AndS, and_vx)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, And, and)
@@ -397,18 +397,6 @@ HWY_API V And(const V a, const V b) {
 }
 
 // ------------------------------ Or
-
-// Scalar argument plus mask. Used by VecFromMask.
-#define HWY_RVV_OR_MASK(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP)    \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                     \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_T(BASE, SEW) imm,       \
-           HWY_RVV_M(MLEN) mask, HWY_RVV_V(BASE, SEW, LMUL) maskedoff) { \
-    return v##OP##_##CHAR##SEW##LMUL##_m(mask, maskedoff, v, imm);       \
-  }
-
-namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_OR_MASK, Or, or_vx)
-}  // namespace detail
 
 #undef HWY_RVV_OR_MASK
 
@@ -425,7 +413,7 @@ HWY_API V Or(const V a, const V b) {
 
 // Non-vector version (ideally immediate) for use with Iota0
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, XorK, xor_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, XorS, xor_vx)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Xor, xor)
@@ -459,8 +447,8 @@ HWY_API V CopySignToAbs(const V abs, const V sign) {
 // ------------------------------ Add
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AddK, add_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, AddK, fadd_vf)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AddS, add_vx)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, AddS, fadd_vf)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Add, add)
@@ -585,7 +573,6 @@ HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
 HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
 
 // ------------------------------ Div
-
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Div, fdiv)
 
 // ------------------------------ ApproximateReciprocal
@@ -645,6 +632,14 @@ HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulSub, fnmacc)
     return v##OP##_vv_##CHAR##SEW##LMUL##_b##MLEN(a, b);                 \
   }
 
+// mask = f(vector, scalar)
+#define HWY_RVV_RETM_ARGVS(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_M(MLEN)                                                \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_T(BASE, SEW) b) {       \
+    (void)Lanes(DFromV<decltype(a)>());                                  \
+    return v##OP##_vx_##CHAR##SEW##LMUL##_b##MLEN(a, b);                 \
+  }
+
 // ------------------------------ Eq
 HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVV, Eq, mseq)
 HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Eq, mfeq)
@@ -657,27 +652,29 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Ne, mfne)
 HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVV, Lt, mslt)
 HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Lt, mflt)
 
-// ------------------------------ Gt
-
-template <class V>
-HWY_API auto Gt(const V a, const V b) -> decltype(Lt(a, b)) {
-  return Lt(b, a);
-}
+namespace detail {
+HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVS, LtS, mslt)
+}  // namespace detail
 
 // ------------------------------ Le
 HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Le, mfle)
 
 #undef HWY_RVV_RETM_ARGVV
+#undef HWY_RVV_RETM_ARGVS
 
-// ------------------------------ Ge
+// ------------------------------ Gt/Ge
 
 template <class V>
 HWY_API auto Ge(const V a, const V b) -> decltype(Le(a, b)) {
   return Le(b, a);
 }
 
-// ------------------------------ TestBit
+template <class V>
+HWY_API auto Gt(const V a, const V b) -> decltype(Lt(a, b)) {
+  return Lt(b, a);
+}
 
+// ------------------------------ TestBit
 template <class V>
 HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
   return Ne(And(a, bit), Zero(DFromV<V>()));
@@ -733,15 +730,14 @@ HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Xor, xor)
 HWY_RVV_FOREACH(HWY_RVV_IF_THEN_ELSE, IfThenElse, merge)
 
 #undef HWY_RVV_IF_THEN_ELSE
-// ------------------------------ IfThenElseZero
 
+// ------------------------------ IfThenElseZero
 template <class M, class V>
 HWY_API V IfThenElseZero(const M mask, const V yes) {
   return IfThenElse(mask, yes, Zero(DFromV<V>()));
 }
 
 // ------------------------------ IfThenZeroElse
-
 template <class M, class V>
 HWY_API V IfThenZeroElse(const M mask, const V no) {
   return IfThenElse(mask, Zero(DFromV<V>()), no);
@@ -766,10 +762,20 @@ HWY_API MFromD<D> RebindMask(const D /*d*/, const MFrom mask) {
 
 // ------------------------------ VecFromMask
 
+namespace detail {
+#define HWY_RVV_VEC_FROM_MASK(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_M(MLEN) m) {              \
+    return v##OP##_##CHAR##SEW##LMUL##_m(m, v0, v0, 1);                     \
+  }
+
+HWY_RVV_FOREACH_UI(HWY_RVV_VEC_FROM_MASK, SubS, sub_vx)
+#undef HWY_RVV_VEC_FROM_MASK
+}  // namespace detail
+
 template <class D, HWY_IF_NOT_FLOAT_D(D)>
 HWY_API VFromD<D> VecFromMask(const D d, MFromD<D> mask) {
-  const auto v0 = Zero(d);
-  return detail::Or(v0, -1, mask, v0);
+  return detail::SubS(Zero(d), mask);
 }
 
 template <class D, HWY_IF_FLOAT_D(D)>
@@ -778,7 +784,6 @@ HWY_API VFromD<D> VecFromMask(const D d, MFromD<D> mask) {
 }
 
 // ------------------------------ ZeroIfNegative
-
 template <class V>
 HWY_API V ZeroIfNegative(const V v) {
   const auto v0 = Zero(DFromV<V>());
@@ -787,7 +792,6 @@ HWY_API V ZeroIfNegative(const V v) {
 }
 
 // ------------------------------ BroadcastSignBit
-
 template <class V>
 HWY_API V BroadcastSignBit(const V v) {
   return ShiftRight<sizeof(TFromV<V>) * 8 - 1>(v);
@@ -887,7 +891,6 @@ HWY_API void StoreU(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
 }
 
 // ------------------------------ Stream
-
 template <class V, class D, typename T>
 HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
   Store(v, d, aligned);
@@ -1202,29 +1205,111 @@ HWY_API VFromD<Simd<T, N>> ConvertTo(Simd<T, N> /*tag*/, FromV v) {
   return ConvertTo(Full<T>(), v);
 }
 
-// ================================================== SWIZZLE
+// ================================================== COMBINE
 
-// ------------------------------ Compress
+namespace detail {
 
-#define HWY_RVV_COMPRESS(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                   \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) mask) {       \
-    return v##OP##_vm_##CHAR##SEW##LMUL(mask, v, v);                   \
+// For x86-compatible behaviour mandated by Highway API: TableLookupBytes
+// offsets are implicitly relative to the start of their 128-bit block.
+template <class D>
+constexpr size_t LanesPerBlock(D) {
+  return 16 / sizeof(TFromD<D>);
+}
+
+template <class D, class V>
+HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
+  using T = MakeUnsigned<TFromD<D>>;
+  return AndS(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
+}
+
+template <size_t kLanes, class D>
+MFromD<D> FirstNPerBlock(D /* tag */) {
+  const RebindToUnsigned<D> du;
+  const RebindToSigned<D> di;
+  constexpr size_t kLanesPerBlock = LanesPerBlock(du);
+  const auto idx_mod = AndS(Iota0(du), kLanesPerBlock - 1);
+  return LtS(BitCast(di, idx_mod), static_cast<TFromD<decltype(di)>>(kLanes));
+}
+
+// vector = f(vector, vector, size_t)
+#define HWY_RVV_SLIDE(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP)        \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                       \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) dst, HWY_RVV_V(BASE, SEW, LMUL) src, \
+           size_t lanes) {                                                 \
+    return v##OP##_vx_##CHAR##SEW##LMUL(dst, src, lanes);                  \
   }
 
-HWY_RVV_FOREACH_UI16(HWY_RVV_COMPRESS, Compress, compress)
-HWY_RVV_FOREACH_UI32(HWY_RVV_COMPRESS, Compress, compress)
-HWY_RVV_FOREACH_UI64(HWY_RVV_COMPRESS, Compress, compress)
-HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress)
-#undef HWY_RVV_COMPRESS
+HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideUp, slideup)
+HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideDown, slidedown)
 
-// ------------------------------ CompressStore
+#undef HWY_RVV_SLIDE
 
-template <class V, class M, class D>
-HWY_API size_t CompressStore(const V v, const M mask, const D d,
-                             TFromD<D>* HWY_RESTRICT aligned) {
-  Store(Compress(v, mask), d, aligned);
-  return CountTrue(d, mask);
+}  // namespace detail
+
+// ------------------------------ ConcatUpperLower
+template <class V>
+HWY_API V ConcatUpperLower(const V hi, const V lo) {
+  const RebindToSigned<DFromV<V>> di;
+  return IfThenElse(FirstN(di, Lanes(di) / 2), lo, hi);
+}
+
+// ------------------------------ ConcatLowerLower
+template <class V>
+HWY_API V ConcatLowerLower(const V hi, const V lo) {
+  // Move lower half into upper
+  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
+  return ConcatUpperLower(hi_up, lo);
+}
+
+// ------------------------------ ConcatUpperUpper
+template <class V>
+HWY_API V ConcatUpperUpper(const V hi, const V lo) {
+  // Move upper half into lower
+  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
+  return ConcatUpperLower(hi, lo_down);
+}
+
+// ------------------------------ ConcatLowerUpper
+template <class V>
+HWY_API V ConcatLowerUpper(const V hi, const V lo) {
+  // Move half of both inputs to the other half
+  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
+  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
+  return ConcatUpperLower(hi_up, lo_down);
+}
+
+// ------------------------------ Combine
+
+// TODO(janwas): implement after LMUL ext/trunc
+#if 0
+
+template <class V>
+HWY_API V Combine(const V a, const V b) {
+  using D = DFromV<V>;
+  // double LMUL of inputs, then SlideUp with Lanes().
+}
+
+#endif
+
+// ================================================== SWIZZLE
+
+// ------------------------------ GetLane
+
+#define HWY_RVV_GET_LANE(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_T(BASE, SEW) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {    \
+    return v##OP##_s_##CHAR##SEW##LMUL##_##CHAR##SEW(v);               \
+  }
+
+HWY_RVV_FOREACH_UI(HWY_RVV_GET_LANE, GetLane, mv_x)
+HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f)
+#undef HWY_RVV_GET_LANE
+
+// ------------------------------ OddEven
+template <class V>
+HWY_API V OddEven(const V a, const V b) {
+  const RebindToUnsigned<DFromV<V>> du;  // Iota0 is unsigned only
+  const auto is_even = Eq(detail::AndS(detail::Iota0(du), 1), Zero(du));
+  return IfThenElse(is_even, b, a);
 }
 
 // ------------------------------ TableLookupLanes
@@ -1251,94 +1336,100 @@ HWY_API VFromD<DU> SetTableIndices(D d, const TFromD<DU>* idx) {
 HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather)
 #undef HWY_RVV_TABLE
 
-// ------------------------------ Shuffle01
+// ------------------------------ Compress
 
-template <class V>
-HWY_API V Shuffle01(const V v) {
-  using D = DFromV<V>;
-  static_assert(sizeof(TFromD<D>) == 8, "Defined for 64-bit types");
-  const auto idx = detail::XorK(detail::Iota0(D()), 1);
-  return TableLookupLanes(v, idx);
+#define HWY_RVV_COMPRESS(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                   \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) mask) {       \
+    return v##OP##_vm_##CHAR##SEW##LMUL(mask, v, v);                   \
+  }
+
+HWY_RVV_FOREACH_UI16(HWY_RVV_COMPRESS, Compress, compress)
+HWY_RVV_FOREACH_UI32(HWY_RVV_COMPRESS, Compress, compress)
+HWY_RVV_FOREACH_UI64(HWY_RVV_COMPRESS, Compress, compress)
+HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress)
+#undef HWY_RVV_COMPRESS
+
+// ------------------------------ CompressStore
+template <class V, class M, class D>
+HWY_API size_t CompressStore(const V v, const M mask, const D d,
+                             TFromD<D>* HWY_RESTRICT aligned) {
+  Store(Compress(v, mask), d, aligned);
+  return CountTrue(d, mask);
 }
 
-// ------------------------------ Shuffle2301
+// ================================================== BLOCKWISE
 
+// ------------------------------ CombineShiftRightBytes
+template <size_t kBytes, class V>
+HWY_API V CombineShiftRightBytes(const V hi, V lo) {
+  const DFromV<decltype(hi)> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto hi8 = BitCast(d8, hi);
+  const auto lo8 = BitCast(d8, lo);
+  const auto hi_up = detail::SlideUp(hi8, hi8, 16 - kBytes);
+  const auto lo_down = detail::SlideDown(lo8, lo8, kBytes);
+  const auto is_lo = detail::FirstNPerBlock<16 - kBytes>(d8);
+  return BitCast(d, IfThenElse(is_lo, lo_down, hi_up));
+}
+
+// ------------------------------ Shuffle2301 (ShiftLeft)
 template <class V>
 HWY_API V Shuffle2301(const V v) {
-  using D = DFromV<V>;
-  static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::XorK(detail::Iota0(D()), 1);
-  return TableLookupLanes(v, idx);
-}
-
-// ------------------------------ Shuffle1032
-
-template <class V>
-HWY_API V Shuffle1032(const V v) {
-  using D = DFromV<V>;
-  static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::XorK(detail::Iota0(D()), 2);
-  return TableLookupLanes(v, idx);
-}
-
-// ------------------------------ Shuffle0123
-
-template <class V>
-HWY_API V Shuffle0123(const V v) {
-  using D = DFromV<V>;
-  static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::XorK(detail::Iota0(D()), 3);
-  return TableLookupLanes(v, idx);
+  const DFromV<V> d;
+  static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
+  const Repartition<uint64_t, decltype(d)> du64;
+  const auto v64 = BitCast(du64, v);
+  return BitCast(d, Or(ShiftRight<32>(v64), ShiftLeft<32>(v64)));
 }
 
 // ------------------------------ Shuffle2103
-
 template <class V>
 HWY_API V Shuffle2103(const V v) {
-  using D = DFromV<V>;
-  static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  // This shuffle is a rotation. We can compute subtraction modulo 4 (number of
-  // lanes per 128-bit block) via bitwise ops.
-  const auto i = detail::XorK(detail::Iota0(D()), 1);
-  const auto lsb = detail::AndK(i, 1);
-  const auto borrow = Add(lsb, lsb);
-  const auto idx = Xor(i, borrow);
-  return TableLookupLanes(v, idx);
+  const DFromV<V> d;
+  static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto v8 = BitCast(d8, v);
+  return BitCast(d, CombineShiftRightBytes<12>(v8, v8));
 }
 
 // ------------------------------ Shuffle0321
-
 template <class V>
 HWY_API V Shuffle0321(const V v) {
-  using D = DFromV<V>;
-  static_assert(sizeof(TFromD<D>) == 4, "Defined for 32-bit types");
-  // This shuffle is a rotation. We can compute subtraction modulo 4 (number of
-  // lanes per 128-bit block) via bitwise ops.
-  const auto i = detail::XorK(detail::Iota0(D()), 3);
-  const auto lsb = detail::AndK(i, 1);
-  const auto borrow = Add(lsb, lsb);
-  const auto idx = Xor(i, borrow);
-  return TableLookupLanes(v, idx);
+  const DFromV<V> d;
+  static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto v8 = BitCast(d8, v);
+  return BitCast(d, CombineShiftRightBytes<4>(v8, v8));
+}
+
+// ------------------------------ Shuffle1032
+template <class V>
+HWY_API V Shuffle1032(const V v) {
+  const DFromV<V> d;
+  static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto v8 = BitCast(d8, v);
+  return BitCast(d, CombineShiftRightBytes<8>(v8, v8));
+}
+
+// ------------------------------ Shuffle01
+template <class V>
+HWY_API V Shuffle01(const V v) {
+  const DFromV<V> d;
+  static_assert(sizeof(TFromD<decltype(d)>) == 8, "Defined for 64-bit types");
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto v8 = BitCast(d8, v);
+  return BitCast(d, CombineShiftRightBytes<8>(v8, v8));
+}
+
+// ------------------------------ Shuffle0123
+template <class V>
+HWY_API V Shuffle0123(const V v) {
+  return Shuffle2301(Shuffle1032(v));
 }
 
 // ------------------------------ TableLookupBytes
-
-namespace detail {
-
-// For x86-compatible behaviour mandated by Highway API: TableLookupBytes
-// offsets are implicitly relative to the start of their 128-bit block.
-template <class D>
-constexpr size_t LanesPerBlock(D) {
-  return 16 / sizeof(TFromD<D>);
-}
-
-template <class D, class V>
-HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
-  using T = MakeUnsigned<TFromD<D>>;
-  return detail::AndK(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
-}
-
-}  // namespace detail
 
 template <class V>
 HWY_API V TableLookupBytes(const V v, const V idx) {
@@ -1360,7 +1451,6 @@ HWY_API V TableLookupBytesOr0(const V v, const V idx) {
 }
 
 // ------------------------------ Broadcast
-
 template <int kLane, class V>
 HWY_API V Broadcast(const V v) {
   const DFromV<V> d;
@@ -1368,35 +1458,12 @@ HWY_API V Broadcast(const V v) {
   static_assert(0 <= kLane && kLane < kLanesPerBlock, "Invalid lane");
   auto idx = detail::OffsetsOf128BitBlocks(d, detail::Iota0(d));
   if (kLane != 0) {
-    idx = detail::AddK(idx, kLane);
+    idx = detail::AddS(idx, kLane);
   }
   return TableLookupLanes(v, idx);
 }
 
-// ------------------------------ GetLane
-
-#define HWY_RVV_GET_LANE(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_T(BASE, SEW) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {    \
-    return v##OP##_s_##CHAR##SEW##LMUL##_##CHAR##SEW(v);               \
-  }
-
-HWY_RVV_FOREACH_UI(HWY_RVV_GET_LANE, GetLane, mv_x)
-HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f)
-#undef HWY_RVV_GET_LANE
-
-// ------------------------------ ShiftLeftLanes
-
-// vector = f(vector, vector, size_t)
-#define HWY_RVV_SLIDE(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP)        \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                       \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) dst, HWY_RVV_V(BASE, SEW, LMUL) src, \
-           size_t lanes) {                                                 \
-    return v##OP##_vx_##CHAR##SEW##LMUL(dst, src, lanes);                  \
-  }
-
-namespace detail {
-HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideUp, slideup)
-}  // namespace detail
+// ------------------------------ ShiftLeft/RightLanes
 
 template <size_t kLanes, class V>
 HWY_API V ShiftLeftLanes(const V v) {
@@ -1405,12 +1472,24 @@ HWY_API V ShiftLeftLanes(const V v) {
   const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::AndK(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto idx_mod = detail::AndS(detail::Iota0(di), kLanesPerBlock - 1);
   const auto clear = Lt(BitCast(di, idx_mod), Set(di, kLanes));
   return IfThenZeroElse(clear, shifted);
 }
 
-// ------------------------------ ShiftLeftBytes
+template <size_t kLanes, class V>
+HWY_API V ShiftRightLanes(const V v) {
+  using D = DFromV<V>;
+  const RebindToSigned<D> di;
+  const auto shifted = detail::SlideDown(v, v, kLanes);
+  // Match x86 semantics by zeroing upper lanes in 128-bit blocks
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
+  const auto idx_mod = detail::AndS(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanesPerBlock - kLanes));
+  return IfThenElseZero(keep, shifted);
+}
+
+// ------------------------------ ShiftLeft/RightBytes
 
 template <int kBytes, class V>
 HWY_API V ShiftLeftBytes(const V v) {
@@ -1420,28 +1499,6 @@ HWY_API V ShiftLeftBytes(const V v) {
   return BitCast(D(), ShiftLeftLanes<kBytes>(BitCast(d8, v)));
 }
 
-// ------------------------------ ShiftRightLanes
-
-namespace detail {
-HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideDown, slidedown)
-}  // namespace detail
-
-#undef HWY_RVV_SLIDE
-
-template <size_t kLanes, class V>
-HWY_API V ShiftRightLanes(const V v) {
-  using D = DFromV<V>;
-  const RebindToSigned<D> di;
-  const auto shifted = detail::SlideDown(v, v, kLanes);
-  // Match x86 semantics by zeroing upper lanes in 128-bit blocks
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::AndK(detail::Iota0(di), kLanesPerBlock - 1);
-  const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanesPerBlock - kLanes));
-  return IfThenElseZero(keep, shifted);
-}
-
-// ------------------------------ ShiftRightBytes
-
 template <int kBytes, class V>
 HWY_API V ShiftRightBytes(const V v) {
   using D = DFromV<V>;
@@ -1450,62 +1507,18 @@ HWY_API V ShiftRightBytes(const V v) {
   return BitCast(D(), ShiftRightLanes<kBytes>(BitCast(d8, v)));
 }
 
-// ------------------------------ OddEven
-
-template <class V>
-HWY_API V OddEven(const V a, const V b) {
-  const RebindToUnsigned<DFromV<V>> du;  // Iota0 is unsigned only
-  const auto is_even = Eq(detail::AndK(detail::Iota0(du), 1), Zero(du));
-  return IfThenElse(is_even, b, a);
-}
-
-// ------------------------------ ConcatUpperLower
-
-template <class V>
-HWY_API V ConcatUpperLower(const V hi, const V lo) {
-  const RebindToSigned<DFromV<V>> di;
-  return IfThenElse(FirstN(di, Lanes(di) / 2), lo, hi);
-}
-
-// ------------------------------ ConcatLowerLower
-
-template <class V>
-HWY_API V ConcatLowerLower(const V hi, const V lo) {
-  // Move lower half into upper
-  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
-  return ConcatUpperLower(hi_up, lo);
-}
-
-// ------------------------------ ConcatUpperUpper
-
-template <class V>
-HWY_API V ConcatUpperUpper(const V hi, const V lo) {
-  // Move upper half into lower
-  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
-  return ConcatUpperLower(hi, lo_down);
-}
-
-// ------------------------------ ConcatLowerUpper
-
-template <class V>
-HWY_API V ConcatLowerUpper(const V hi, const V lo) {
-  // Move half of both inputs to the other half
-  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
-  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
-  return ConcatUpperLower(hi_up, lo_down);
-}
-
 // ------------------------------ InterleaveLower
 
+// TODO(janwas): PromoteTo(LowerHalf), slide1up, add
 template <class V>
 HWY_API V InterleaveLower(const V a, const V b) {
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
-  const auto i = detail::Iota0(d);
-  const auto idx_mod = ShiftRight<1>(detail::AndK(i, kLanesPerBlock - 1));
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const auto i = detail::Iota0(du);
+  const auto idx_mod = ShiftRight<1>(detail::AndS(i, kLanesPerBlock - 1));
   const auto idx = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
-  const auto is_even = Eq(detail::AndK(i, 1), Zero(du));
+  const auto is_even = Eq(detail::AndS(i, 1), Zero(du));
   return IfThenElse(is_even, TableLookupLanes(a, idx),
                     TableLookupLanes(b, idx));
 }
@@ -1516,17 +1529,17 @@ template <class V>
 HWY_API V InterleaveUpper(const V a, const V b) {
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
-  const auto i = detail::Iota0(d);
-  const auto idx_mod = ShiftRight<1>(detail::AndK(i, kLanesPerBlock - 1));
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const auto i = detail::Iota0(du);
+  const auto idx_mod = ShiftRight<1>(detail::AndS(i, kLanesPerBlock - 1));
   const auto idx_lower = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
-  const auto idx = detail::AddK(idx_lower, kLanesPerBlock / 2);
-  const auto is_even = Eq(detail::AndK(i, 1), Zero(du));
+  const auto idx = detail::AddS(idx_lower, kLanesPerBlock / 2);
+  const auto is_even = Eq(detail::AndS(i, 1), Zero(du));
   return IfThenElse(is_even, TableLookupLanes(a, idx),
                     TableLookupLanes(b, idx));
 }
 
-// ------------------------------ ZipLower
+// ------------------------------ ZipLower/Upper
 
 template <class V>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipLower(const V a, const V b) {
@@ -1534,26 +1547,11 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipLower(const V a, const V b) {
   return BitCast(dw, InterleaveLower(a, b));
 }
 
-// ------------------------------ ZipUpper
-
 template <class V>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipUpper(const V a, const V b) {
   RepartitionToWide<DFromV<V>> dw;
   return BitCast(dw, InterleaveUpper(a, b));
 }
-
-// ------------------------------ Combine
-
-// TODO(janwas): implement after LMUL ext/trunc
-#if 0
-
-template <class V>
-HWY_API V Combine(const V a, const V b) {
-  using D = DFromV<V>;
-  // double LMUL of inputs, then SlideUp with Lanes().
-}
-
-#endif
 
 // ================================================== REDUCE
 
@@ -1623,7 +1621,7 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
   const auto loaded = Load(d, p);
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   // Broadcast the first block
-  const auto idx = detail::AndK(detail::Iota0(d), kLanesPerBlock - 1);
+  const auto idx = detail::AndS(detail::Iota0(d), kLanesPerBlock - 1);
   return TableLookupLanes(loaded, idx);
 }
 
@@ -1690,7 +1688,6 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx)
 #undef HWY_RVV_RETV_ARGV2
 
 // ------------------------------ AbsDiff (Abs, Sub)
-
 template <class V>
 HWY_API V AbsDiff(const V a, const V b) {
   return Abs(Sub(a, b));
@@ -1724,7 +1721,6 @@ HWY_API V Round(const V v) {
 }
 
 // ------------------------------ Trunc (ConvertTo)
-
 template <class V>
 HWY_API V Trunc(const V v) {
   const DFromV<V> df;
@@ -1737,7 +1733,6 @@ HWY_API V Trunc(const V v) {
 }
 
 // ------------------------------ Ceil
-
 template <class V>
 HWY_API V Ceil(const V v) {
   asm volatile("fsrm %0" ::"r"(detail::kUp));
@@ -1747,7 +1742,6 @@ HWY_API V Ceil(const V v) {
 }
 
 // ------------------------------ Floor
-
 template <class V>
 HWY_API V Floor(const V v) {
   asm volatile("fsrm %0" ::"r"(detail::kDown));
@@ -1773,7 +1767,7 @@ template <class D, HWY_IF_FLOAT_D(D)>
 HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   const RebindToUnsigned<D> du;
   const RebindToSigned<D> di;
-  return detail::AddK(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
+  return detail::AddS(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
 }
 
 // ------------------------------ MulEven/Odd (Mul, OddEven)

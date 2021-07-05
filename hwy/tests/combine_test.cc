@@ -168,104 +168,6 @@ HWY_NOINLINE void TestAllCombine() {
   ForAllTypes(ForExtendableVectors<TestCombine>());
 }
 
-
-template <int kBytes>
-struct TestCombineShiftRightBytesR {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-// Scalar does not define CombineShiftRightBytes.
-#if HWY_TARGET != HWY_SCALAR || HWY_IDE
-    const Repartition<uint8_t, D> d8;
-    const size_t N8 = Lanes(d8);
-    const auto lo = BitCast(d, Iota(d8, 1));
-    const auto hi = BitCast(d, Iota(d8, 1 + N8));
-
-    auto expected = AllocateAligned<T>(Lanes(d));
-    uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
-
-    const size_t kBlockSize = 16;
-    for (size_t i = 0; i < N8; ++i) {
-      const size_t block = i / kBlockSize;
-      const size_t lane = i % kBlockSize;
-      const size_t first_lo = block * kBlockSize;
-      const size_t idx = lane + kBytes;
-      const size_t offset = (idx < kBlockSize) ? 0 : N8 - kBlockSize;
-      const bool at_end = idx >= 2 * kBlockSize;
-      expected_bytes[i] =
-          at_end ? 0 : static_cast<uint8_t>(first_lo + idx + 1 + offset);
-    }
-    HWY_ASSERT_VEC_EQ(d, expected.get(),
-                      CombineShiftRightBytes<kBytes>(hi, lo));
-
-    TestCombineShiftRightBytesR<kBytes - 1>()(t, d);
-#else
-    (void)t;
-    (void)d;
-#endif  // #if HWY_TARGET != HWY_SCALAR
-  }
-};
-
-template <int kLanes>
-struct TestCombineShiftRightLanesR {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-// Scalar does not define CombineShiftRightBytes (needed for *Lanes).
-#if HWY_TARGET != HWY_SCALAR || HWY_IDE
-    const Repartition<uint8_t, D> d8;
-    const size_t N8 = Lanes(d8);
-    const auto lo = BitCast(d, Iota(d8, 1));
-    const auto hi = BitCast(d, Iota(d8, 1 + N8));
-
-    auto expected = AllocateAligned<T>(Lanes(d));
-
-    uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
-
-    const size_t kBlockSize = 16;
-    for (size_t i = 0; i < N8; ++i) {
-      const size_t block = i / kBlockSize;
-      const size_t lane = i % kBlockSize;
-      const size_t first_lo = block * kBlockSize;
-      const size_t idx = lane + kLanes * sizeof(T);
-      const size_t offset = (idx < kBlockSize) ? 0 : N8 - kBlockSize;
-      const bool at_end = idx >= 2 * kBlockSize;
-      expected_bytes[i] =
-          at_end ? 0 : static_cast<uint8_t>(first_lo + idx + 1 + offset);
-    }
-    HWY_ASSERT_VEC_EQ(d, expected.get(),
-                      CombineShiftRightLanes<kLanes>(hi, lo));
-
-    TestCombineShiftRightBytesR<kLanes - 1>()(t, d);
-#else
-    (void)t;
-    (void)d;
-#endif  // #if HWY_TARGET != HWY_SCALAR
-  }
-};
-
-template <>
-struct TestCombineShiftRightBytesR<0> {
-  template <class T, class D>
-  void operator()(T /*unused*/, D /*unused*/) {}
-};
-
-template <>
-struct TestCombineShiftRightLanesR<0> {
-  template <class T, class D>
-  void operator()(T /*unused*/, D /*unused*/) {}
-};
-
-struct TestCombineShiftRight {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-    TestCombineShiftRightBytesR<15>()(t, d);
-    TestCombineShiftRightLanesR<16 / sizeof(T) - 1>()(t, d);
-  }
-};
-
-HWY_NOINLINE void TestAllCombineShiftRight() {
-  ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());
-}
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -278,7 +180,6 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllLowerHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllUpperHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
-HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombineShiftRight);
 }  // namespace hwy
 #endif
 

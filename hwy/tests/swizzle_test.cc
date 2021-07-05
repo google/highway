@@ -413,7 +413,7 @@ struct TestZipUpper {
 
 HWY_NOINLINE void TestAllZip() {
   const ForPartialVectors<TestZipLower, 2> lower_unsigned;
-  // TODO(janwas): fix
+  // TODO(janwas): enable after LowerHalf available
 #if HWY_TARGET != HWY_RVV
   lower_unsigned(uint8_t());
 #endif
@@ -514,6 +514,115 @@ class TestSpecialShuffle64 {
     }
   }
 };
+
+template <int kBytes>
+struct TestCombineShiftRightBytesR {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+// Scalar does not define CombineShiftRightBytes.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+    const size_t kBlockSize = 16;
+    static_assert(kBytes < kBlockSize, "Shift count is per block");
+    const Repartition<uint8_t, D> d8;
+    const size_t N8 = Lanes(d8);
+    auto hi_bytes = AllocateAligned<uint8_t>(N8);
+    auto lo_bytes = AllocateAligned<uint8_t>(N8);
+    auto expected_bytes = AllocateAligned<uint8_t>(N8);
+    uint8_t combined[2 * kBlockSize];
+
+    // Random inputs in each lane
+    RandomState rng;
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N8; ++i) {
+        hi_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
+        lo_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
+      }
+      for (size_t i = 0; i < N8; i += kBlockSize) {
+        CopyBytes<kBlockSize>(&lo_bytes[i], combined);
+        CopyBytes<kBlockSize>(&hi_bytes[i], combined + kBlockSize);
+        CopyBytes<kBlockSize>(combined + kBytes, &expected_bytes[i]);
+      }
+
+      const auto hi = BitCast(d, Load(d8, hi_bytes.get()));
+      const auto lo = BitCast(d, Load(d8, lo_bytes.get()));
+      const auto expected = BitCast(d, Load(d8, expected_bytes.get()));
+      HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightBytes<kBytes>(hi, lo));
+    }
+
+    TestCombineShiftRightBytesR<kBytes - 1>()(t, d);
+#else
+    (void)t;
+    (void)d;
+#endif  // #if HWY_TARGET != HWY_SCALAR
+  }
+};
+
+template <int kLanes>
+struct TestCombineShiftRightLanesR {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+// Scalar does not define CombineShiftRightBytes (needed for *Lanes).
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+    const Repartition<uint8_t, D> d8;
+    const size_t N8 = Lanes(d8);
+
+    auto hi_bytes = AllocateAligned<uint8_t>(N8);
+    auto lo_bytes = AllocateAligned<uint8_t>(N8);
+    auto expected_bytes = AllocateAligned<uint8_t>(N8);
+    const size_t kBlockSize = 16;
+    uint8_t combined[2 * kBlockSize];
+
+    // Random inputs in each lane
+    RandomState rng;
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N8; ++i) {
+        hi_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
+        lo_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
+      }
+      for (size_t i = 0; i < N8; i += kBlockSize) {
+        CopyBytes<kBlockSize>(&lo_bytes[i], combined);
+        CopyBytes<kBlockSize>(&hi_bytes[i], combined + kBlockSize);
+        CopyBytes<kBlockSize>(combined + kLanes * sizeof(T),
+                              &expected_bytes[i]);
+      }
+
+      const auto hi = BitCast(d, Load(d8, hi_bytes.get()));
+      const auto lo = BitCast(d, Load(d8, lo_bytes.get()));
+      const auto expected = BitCast(d, Load(d8, expected_bytes.get()));
+      HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightLanes<kLanes>(hi, lo));
+    }
+
+    TestCombineShiftRightLanesR<kLanes - 1>()(t, d);
+#else
+    (void)t;
+    (void)d;
+#endif  // #if HWY_TARGET != HWY_SCALAR
+  }
+};
+
+template <>
+struct TestCombineShiftRightBytesR<0> {
+  template <class T, class D>
+  void operator()(T /*unused*/, D /*unused*/) {}
+};
+
+template <>
+struct TestCombineShiftRightLanesR<0> {
+  template <class T, class D>
+  void operator()(T /*unused*/, D /*unused*/) {}
+};
+
+struct TestCombineShiftRight {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T t, D d) {
+    TestCombineShiftRightBytesR<15>()(t, d);
+    TestCombineShiftRightLanesR<16 / sizeof(T) - 1>()(t, d);
+  }
+};
+
+HWY_NOINLINE void TestAllCombineShiftRight() {
+  ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());
+}
 
 HWY_NOINLINE void TestAllSpecialShuffles() {
   const ForGE128Vectors<TestSpecialShuffle32> test32;
@@ -652,6 +761,7 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupBytes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllInterleave);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllZip);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCombineShiftRight);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSpecialShuffles);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatHalves);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatLowerUpper);
