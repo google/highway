@@ -96,90 +96,59 @@ HWY_NOINLINE void TestAllTableLookupLanes() {
   test(float());
 }
 
-struct TestConcatHalves {
+struct TestConcat {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // TODO(janwas): fix
-#if HWY_TARGET != HWY_RVV
-    // Construct inputs such that interleaved halves == iota.
-    const auto expected = Iota(d, 1);
-
     const size_t N = Lanes(d);
-    auto lo = AllocateAligned<T>(N);
+    const size_t half_bytes = N * sizeof(T) / 2;
+
     auto hi = AllocateAligned<T>(N);
-    size_t i;
-    for (i = 0; i < N / 2; ++i) {
-      lo[i] = static_cast<T>(1 + i);
-      hi[i] = static_cast<T>(lo[i] + T(N) / 2);
-    }
-    for (; i < N; ++i) {
-      lo[i] = hi[i] = 0;
-    }
-
-    HWY_ASSERT_VEC_EQ(d, expected,
-                      ConcatLowerLower(Load(d, hi.get()), Load(d, lo.get())));
-
-    // Same for high blocks.
-    for (i = 0; i < N / 2; ++i) {
-      lo[i] = hi[i] = 0;
-    }
-    for (; i < N; ++i) {
-      lo[i] = static_cast<T>(1 + i - N / 2);
-      hi[i] = static_cast<T>(lo[i] + T(N) / 2);
-    }
-
-    HWY_ASSERT_VEC_EQ(d, expected,
-                      ConcatUpperUpper(Load(d, hi.get()), Load(d, lo.get())));
-#else
-    (void)d;
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllConcatHalves() {
-  ForAllTypes(ForGE128Vectors<TestConcatHalves>());
-}
-
-struct TestConcatLowerUpper {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    // TODO(janwas): fix
-#if HWY_TARGET != HWY_RVV
-    const size_t N = Lanes(d);
-    // Middle part of Iota(1) == Iota(1 + N / 2).
-    const auto lo = Iota(d, 1);
-    const auto hi = Iota(d, 1 + N);
-    HWY_ASSERT_VEC_EQ(d, Iota(d, 1 + N / 2), ConcatLowerUpper(hi, lo));
-#else
-    (void)d;
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllConcatLowerUpper() {
-  ForAllTypes(ForGE128Vectors<TestConcatLowerUpper>());
-}
-
-struct TestConcatUpperLower {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    const auto lo = Iota(d, 1);
-    const auto hi = Iota(d, 1 + N);
+    auto lo = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
-    size_t i = 0;
-    for (; i < N / 2; ++i) {
-      expected[i] = static_cast<T>(1 + i);
+    RandomState rng;
+    for (size_t rep = 0; rep < 10; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        hi[i] = static_cast<T>(Random64(&rng) & 0xFF);
+        lo[i] = static_cast<T>(Random64(&rng) & 0xFF);
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[N / 2], half_bytes);
+        memcpy(&expected[0], &lo[0], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperLower(vhi, vlo));
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[N / 2], half_bytes);
+        memcpy(&expected[0], &lo[N / 2], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperUpper(vhi, vlo));
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[0], half_bytes);
+        memcpy(&expected[0], &lo[N / 2], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerUpper(vhi, vlo));
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[0], half_bytes);
+        memcpy(&expected[0], &lo[0], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerLower(vhi, vlo));
+      }
     }
-    for (; i < N; ++i) {
-      expected[i] = static_cast<T>(1 + i + N);
-    }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperLower(hi, lo));
   }
 };
 
-HWY_NOINLINE void TestAllConcatUpperLower() {
-  ForAllTypes(ForGE128Vectors<TestConcatUpperLower>());
+HWY_NOINLINE void TestAllConcat() {
+  ForAllTypes(ForGE128Vectors<TestConcat>());
 }
 
 struct TestOddEven {
@@ -209,9 +178,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatHalves);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatLowerUpper);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcatUpperLower);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllConcat);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
 }  // namespace hwy
 #endif

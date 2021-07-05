@@ -42,8 +42,9 @@ HWY_API V Clamp(const V v, const V lo, const V hi) {
   return Min(Max(lo, v), hi);
 }
 
-// CombineShiftRightBytes (and ..Lanes) are not available for the scalar target.
-#if HWY_TARGET != HWY_SCALAR
+// CombineShiftRightBytes (and -Lanes) are not available for the scalar target,
+// and RVV has its own implementation of -Lanes.
+#if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_RVV
 template <size_t kLanes, class V>
 HWY_API V CombineShiftRightLanes(const V hi, const V lo) {
   constexpr size_t kBytes = kLanes * sizeof(LaneType<V>);

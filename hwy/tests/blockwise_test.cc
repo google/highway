@@ -402,21 +402,20 @@ class TestSpecialShuffle32 {
 
  private:
   template <class D, class V>
-  HWY_NOINLINE void VerifyLanes32(D d, V v, const int i3, const int i2,
+  HWY_NOINLINE void VerifyLanes32(D d, V actual, const int i3, const int i2,
                                   const int i1, const int i0,
                                   const char* filename, const int line) {
-    using T = typename D::T;
-    const size_t N = Lanes(d);
-    auto lanes = AllocateAligned<T>(N);
-    Store(v, d, lanes.get());
-    const std::string name = TypeName(lanes[0], N);
+    using T = TFromD<D>;
     constexpr size_t kBlockN = 16 / sizeof(T);
-    for (int block = 0; block < static_cast<int>(N); block += kBlockN) {
-      AssertEqual(T(block + i3), lanes[block + 3], name, filename, line);
-      AssertEqual(T(block + i2), lanes[block + 2], name, filename, line);
-      AssertEqual(T(block + i1), lanes[block + 1], name, filename, line);
-      AssertEqual(T(block + i0), lanes[block + 0], name, filename, line);
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t block = 0; block < N; block += kBlockN) {
+      expected[block + 3] = static_cast<T>(block + i3);
+      expected[block + 2] = static_cast<T>(block + i2);
+      expected[block + 1] = static_cast<T>(block + i1);
+      expected[block + 0] = static_cast<T>(block + i0);
     }
+    AssertVecEqual(d, expected.get(), actual, filename, line);
   }
 };
 
@@ -430,18 +429,17 @@ class TestSpecialShuffle64 {
 
  private:
   template <class D, class V>
-  HWY_NOINLINE void VerifyLanes64(D d, V v, const int i1, const int i0,
+  HWY_NOINLINE void VerifyLanes64(D d, V actual, const int i1, const int i0,
                                   const char* filename, const int line) {
-    using T = typename D::T;
-    const size_t N = Lanes(d);
-    auto lanes = AllocateAligned<T>(N);
-    Store(v, d, lanes.get());
-    const std::string name = TypeName(lanes[0], N);
+    using T = TFromD<D>;
     constexpr size_t kBlockN = 16 / sizeof(T);
-    for (int block = 0; block < static_cast<int>(N); block += kBlockN) {
-      AssertEqual(T(block + i1), lanes[block + 1], name, filename, line);
-      AssertEqual(T(block + i0), lanes[block + 0], name, filename, line);
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t block = 0; block < N; block += kBlockN) {
+      expected[block + 1] = static_cast<T>(block + i1);
+      expected[block + 0] = static_cast<T>(block + i0);
     }
+    AssertVecEqual(d, expected.get(), actual, filename, line);
   }
 };
 
