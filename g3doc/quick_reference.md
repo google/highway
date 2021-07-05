@@ -434,6 +434,10 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.
 
 *   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
+    DEPRECATED, SVE needs an extra D argument.
+
+*   <code>bool **AllFalse**(D, M m)</code>: returns whether all `m[i]` are
+    false.
 
 *   <code>size_t **StoreMaskBits**(M m, uint8_t* p)</code>: stores a bit array
     indicating whether `m[i]` is true, in ascending order of `i`, filling the
@@ -460,11 +464,11 @@ Let `M` denote a mask capable of storing true/false for each lane.
     implementation-defined. Slow with 16-bit lanes.
 
 *   `V`: `{u,i,f}{16,32,64}` \
-    <code>size_t **CompressStore**(V v, M m, D, T* aligned)</code>: writes lanes
-    whose mask is set into `aligned`, starting from lane 0. Returns
-    `CountTrue(m)`, the number of valid lanes. All subsequent lanes may be
-    overwritten! Alignment ensures inactive lanes will not cause faults. Slow
-    with 16-bit lanes.
+    <code>size_t **CompressStore**(V v, M m, D d, T* aligned)</code>: writes
+    lanes whose mask `m` is set into `aligned`, starting from lane 0. Returns
+    `CountTrue(d, m)`, the number of valid lanes. All subsequent lanes may be
+    overwritten! Alignment ensures inactive lanes will not cause faults. Slower
+    for 16-bit lanes.
 
 ### Comparisons
 

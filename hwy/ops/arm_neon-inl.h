@@ -3969,13 +3969,13 @@ HWY_API size_t StoreMaskBits(Simd<T, N> /* tag */, const Mask128<T, N> mask,
 
 // Full
 template <typename T>
-HWY_API bool AllFalse(const Mask128<T> m) {
+HWY_API bool AllFalse(const Full128<T> d, const Mask128<T> m) {
 #if HWY_ARCH_ARM_A64
   const Full128<uint32_t> d32;
-  const auto m32 = MaskFromVec(BitCast(d32, VecFromMask(Full128<T>(), m)));
+  const auto m32 = MaskFromVec(BitCast(d32, VecFromMask(d, m)));
   return (vmaxvq_u32(m32.raw) == 0);
 #else
-  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(Full128<T>(), m));
+  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(d, m));
   uint32x2_t a = vqmovn_u64(v64.raw);
   return vget_lane_u64(vreinterpret_u64_u32(a), 0) == 0;
 #endif
@@ -3983,7 +3983,7 @@ HWY_API bool AllFalse(const Mask128<T> m) {
 
 // Partial
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API bool AllFalse(const Mask128<T, N> m) {
+HWY_API bool AllFalse(const Simd<T, N> /* tag */, const Mask128<T, N> m) {
   return detail::BitsFromMask(m) == 0;
 }
 
@@ -4308,6 +4308,11 @@ HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
 template <typename T, size_t N>
 HWY_API bool AllTrue(const Mask128<T, N> mask) {
   return AllTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API bool AllFalse(const Mask128<T, N> mask) {
+  return AllFalse(Simd<T, N>(), mask);
 }
 
 template <typename T, size_t N>

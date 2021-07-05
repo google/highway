@@ -178,12 +178,15 @@
 
 // SVE only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN alignas(8)
-// Upper bound, not the actual lane count!
+
+// <= 16 bytes: exact size (from HWY_CAPPED). 256 bytes denotes a full vector
+// (that is the upper bound defined by SVE). In between: fraction of the full
+// length, a power of two; HWY_LANES(T)/4 denotes 1/4 the actual length (not
+// necessarily a power of two because SVE allows integer multiples of 128 bit).
 #define HWY_LANES(T) (256 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
-#define HWY_CAP_AES 0  // TODO(janwas): need runtime check?
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 

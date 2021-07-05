@@ -2804,7 +2804,7 @@ HWY_INLINE bool AllFalse(hwy::SizeTag<8> /*tag*/, const Mask512<T> v) {
 }  // namespace detail
 
 template <typename T>
-HWY_API bool AllFalse(const Mask512<T> v) {
+HWY_API bool AllFalse(const Full512<T> /* tag */, const Mask512<T> v) {
   return detail::AllFalse(hwy::SizeTag<sizeof(T)>(), v);
 }
 
@@ -3228,6 +3228,11 @@ HWY_API size_t StoreMaskBits(const Mask512<T> mask, uint8_t* p) {
 template <typename T>
 HWY_API bool AllTrue(const Mask512<T> mask) {
   return AllTrue(Full512<T>(), mask);
+}
+
+template <typename T>
+HWY_API bool AllFalse(const Mask512<T> mask) {
+  return AllFalse(Full512<T>(), mask);
 }
 
 template <typename T>

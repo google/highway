@@ -799,9 +799,15 @@ HWY_API V BroadcastSignBit(const V v) {
 
 // ------------------------------ AllFalse
 
-#define HWY_RVV_ALL_FALSE(MLEN, NAME, OP)          \
-  HWY_API bool AllFalse(const HWY_RVV_M(MLEN) m) { \
-    return vfirst_m_b##MLEN(m) < 0;                \
+#define HWY_RVV_ALL_FALSE(MLEN, NAME, OP)                     \
+  template <class D>                                          \
+  HWY_API bool AllFalse(const D d, const HWY_RVV_M(MLEN) m) { \
+    static_assert(MLenFromD(d) == MLEN, "Type mismatch");     \
+    return vfirst_m_b##MLEN(m) < 0;                           \
+  }                                                           \
+  /* DEPRECATED */                                            \
+  HWY_API bool AllFalse(const HWY_RVV_M(MLEN) m) {            \
+    return vfirst_m_b##MLEN(m) < 0;                           \
   }
 HWY_RVV_FOREACH_B(HWY_RVV_ALL_FALSE, _, _)
 #undef HWY_RVV_ALL_FALSE

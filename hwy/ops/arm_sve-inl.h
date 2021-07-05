@@ -175,6 +175,23 @@ HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS(a, b);                        \
   }
 
+// ------------------------------ Lanes
+
+// Returns actual vector length (limited to the N specified via HWY_CAPPED if
+// that is no more than 128 bit)
+#define HWY_SVE_LANES(BASE, CHAR, BITS, NAME, OP)                   \
+  template <size_t N>                                               \
+  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) /* d */) {           \
+    size_t actual = sv##OP##_##CHAR##BITS(HWY_SVE_V(BASE, BITS)()); \
+    if (N <= 16 / sizeof(HWY_SVE_T(BASE, BITS))) {                  \
+      actual = HWY_MIN(actual, N);                                  \
+    }                                                               \
+    return actual;                                                  \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_LANES, Lanes, len)
+#undef HWY_SVE_LANESz
+
 // ================================================== MASK INIT
 
 // One mask bit per byte; only the one belonging to the lowest byte is valid.
@@ -205,32 +222,30 @@ HWY_SVE_FOREACH(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)  // return all-true
 
 HWY_API svbool_t PFalse() { return svpfalse_b(); }
 
-// Returns mask honoring HWY_CAPPED, or all-true if it was HWY_FULL. This is
-// used in functions that load/store memory; other functions (e.g. arithmetic on
-// partial vectors) can ignore the requested N and use PTrue instead.
+// Returns all-true if d is HWY_FULL, FirstN(N) if d was from HWY_CAPPED (up to
+// 128 bits), otherwise FirstN(Ceil(Lanes() / div)), where div is at most 8,
+// which would be encoded as HWY_LANES(T) / 8).
+//
+// This is used in functions that load/store memory; other functions (e.g.
+// arithmetic on partial vectors) can ignore d and use PTrue instead.
 template <typename T, size_t N>
 svbool_t Mask(Simd<T, N> d) {
-  return N != HWY_LANES(T) ? FirstN(d, N) : PTrue(d);
+  static_assert(N <= HWY_LANES(T), "N cannot exceed a full vector");
+  constexpr size_t div = HWY_LANES(T) / N;
+  // Sanity check: HWY_LANES is defined such that this holds.
+  static_assert(N <= 16 / sizeof(T) || (1 <= div && div <= 8), "");
+
+  // Round up just in case - expected to be unnecessary because div <= 8, and
+  // StoreMaskBits uses it on a byte vector where Lanes() >= 16.
+  return N == HWY_LANES(T)     ? PTrue(d)
+         : N <= 16 / sizeof(T) ? FirstN(d, N)
+                               : FirstN(d, (Lanes(d) + div - 1) / div);
 }
 
 }  // namespace detail
 
 // ================================================== INIT
 
-// ------------------------------ Lanes
-
-#define HWY_SVE_LANES(BASE, CHAR, BITS, NAME, OP)                   \
-  template <size_t N>                                               \
-  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) /* d */) {           \
-    size_t actual = sv##OP##_##CHAR##BITS(HWY_SVE_V(BASE, BITS)()); \
-    if (N != HWY_LANES(HWY_SVE_T(BASE, BITS))) {                    \
-      actual = HWY_MIN(actual, N);                                  \
-    }                                                               \
-    return actual;                                                  \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_LANES, Lanes, len)
-#undef HWY_SVE_LANES
 
 // ------------------------------ Undefined
 
@@ -568,12 +583,14 @@ HWY_API svbool_t Xor(svbool_t a, svbool_t b) {
 }
 
 // ------------------------------ AllFalse
-HWY_API bool AllFalse(svbool_t m) { return !svptest_any(m, m); }
+HWY_API bool AllFalse(Simd<T, N> d, svbool_t m) {
+  return !svptest_any(detail::Mask(d), m);
+}
 
 // ------------------------------ AllTrue
 template <typename T, size_t N>
 HWY_API bool AllTrue(Simd<T, N> d, svbool_t m) {
-  return AllFalse(Not(d, m));
+  return AllFalse(d, Not(d, m));
 }
 
 // ------------------------------ CountTrue
@@ -581,7 +598,7 @@ HWY_API bool AllTrue(Simd<T, N> d, svbool_t m) {
 #define HWY_SVE_COUNT_TRUE(BASE, CHAR, BITS, NAME, OP)          \
   template <size_t N>                                           \
   HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) d, svbool_t m) { \
-    return sv##OP##_b##BITS(detail::PTrue(d), m);               \
+    return sv##OP##_b##BITS(detail::Mask(d), m);                \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE, CountTrue, cntp)
@@ -1302,7 +1319,6 @@ HWY_API V Shuffle2301(const V v) {
 }
 
 // ------------------------------ Shuffle2103
-
 template <class V>
 HWY_API V Shuffle2103(const V v) {
   const DFromV<V> d;
@@ -1312,7 +1328,6 @@ HWY_API V Shuffle2103(const V v) {
 }
 
 // ------------------------------ Shuffle0321
-
 template <class V>
 HWY_API V Shuffle0321(const V v) {
   const DFromV<V> d;
@@ -1322,7 +1337,6 @@ HWY_API V Shuffle0321(const V v) {
 }
 
 // ------------------------------ Shuffle1032
-
 template <class V>
 HWY_API V Shuffle1032(const V v) {
   const DFromV<V> d;
@@ -1332,7 +1346,6 @@ HWY_API V Shuffle1032(const V v) {
 }
 
 // ------------------------------ Shuffle01
-
 template <class V>
 HWY_API V Shuffle01(const V v) {
   const DFromV<V> d;
@@ -1341,15 +1354,10 @@ HWY_API V Shuffle01(const V v) {
   return BitCast(d, CombineShiftRightBytes<8>(v8, v8));
 }
 
-// ------------------------------ Shuffle0123 (TableLookupLanes)
-
+// ------------------------------ Shuffle0123
 template <class V>
 HWY_API V Shuffle0123(const V v) {
-  const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-  static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
-  const auto idx = detail::XorN(Iota(di, 0), 3);
-  return TableLookupLanes(v, idx);
+  return Shuffle2301(Shuffle1032(v));
 }
 
 // ------------------------------ TableLookupBytes
@@ -1432,17 +1440,22 @@ HWY_API V ShiftRightBytes(const V v) {
 
 // ------------------------------ InterleaveLower
 
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipLower, zip1)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipUpper, zip2)
+}  // namespace detail
+
 template <class V>
 HWY_API V InterleaveLower(const V a, const V b) {
   const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto i = Iota(di, 0);
-  const auto idx_mod = ShiftRight<1>(detail::AndN(i, kLanesPerBlock - 1));
-  const auto idx = Add(idx_mod, detail::OffsetsOf128BitBlocks(di, i));
-  const auto is_even = Eq(detail::AndN(i, 1), Zero(di));
-  return IfThenElse(is_even, TableLookupLanes(a, idx),
-                    TableLookupLanes(b, idx));
+  // Move lower halves of blocks to lower half of vector.
+  const Repartition<uint64_t, decltype(d)> d64;
+  const auto a64 = BitCast(d64, a);
+  const auto b64 = BitCast(d64, b);
+  const auto a_blocks = detail::InterleaveEven(a64, a64);
+  const auto b_blocks = detail::InterleaveEven(b64, b64);
+
+  return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
 }
 
 // ------------------------------ InterleaveUpper
@@ -1450,15 +1463,14 @@ HWY_API V InterleaveLower(const V a, const V b) {
 template <class V>
 HWY_API V InterleaveUpper(const V a, const V b) {
   const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto i = Iota(di, 0);
-  const auto idx_mod = ShiftRight<1>(detail::AndN(i, kLanesPerBlock - 1));
-  const auto idx_lower = Add(idx_mod, detail::OffsetsOf128BitBlocks(di, i));
-  const auto idx = detail::AddN(idx_lower, kLanesPerBlock / 2);
-  const auto is_even = Eq(detail::AndN(i, 1), Zero(di));
-  return IfThenElse(is_even, TableLookupLanes(a, idx),
-                    TableLookupLanes(b, idx));
+  // Move upper halves of blocks to lower half of vector.
+  const Repartition<uint64_t, decltype(d)> d64;
+  const auto a64 = BitCast(d64, a);
+  const auto b64 = BitCast(d64, b);
+  const auto a_blocks = detail::InterleaveOdd(a64, a64);
+  const auto b_blocks = detail::InterleaveOdd(b64, b64);
+
+  return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
 }
 
 // ------------------------------ ZipLower

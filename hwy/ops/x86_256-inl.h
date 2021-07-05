@@ -2703,7 +2703,7 @@ HWY_API size_t StoreMaskBits(const Full256<T> /* tag */, const Mask256<T> mask,
 }
 
 template <typename T>
-HWY_API bool AllFalse(const Mask256<T> mask) {
+HWY_API bool AllFalse(const Full256<T> /* tag */, const Mask256<T> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
   return detail::BitsFromMask(mask) == 0;
 }
@@ -3082,6 +3082,11 @@ HWY_API size_t StoreMaskBits(const Mask256<T> mask, uint8_t* p) {
 template <typename T>
 HWY_API bool AllTrue(const Mask256<T> mask) {
   return AllTrue(Full256<T>(), mask);
+}
+
+template <typename T>
+HWY_API bool AllFalse(const Mask256<T> mask) {
+  return AllFalse(Full256<T>(), mask);
 }
 
 template <typename T>

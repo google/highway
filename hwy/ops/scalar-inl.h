@@ -1117,7 +1117,7 @@ HWY_API Vec1<int64_t> ZipLower(const Vec1<int32_t> a, const Vec1<int32_t> b) {
 // ------------------------------ Mask
 
 template <typename T>
-HWY_API bool AllFalse(const Mask1<T> mask) {
+HWY_API bool AllFalse(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits == 0;
 }
 
@@ -1177,6 +1177,11 @@ HWY_API size_t StoreMaskBits(const Mask1<T> mask, uint8_t* p) {
 template <typename T>
 HWY_API bool AllTrue(const Mask1<T> mask) {
   return AllTrue(Sisd<T>(), mask);
+}
+
+template <typename T>
+HWY_API bool AllFalse(const Mask1<T> mask) {
+  return AllFalse(Sisd<T>(), mask);
 }
 
 template <typename T>

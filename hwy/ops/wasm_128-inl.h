@@ -2477,21 +2477,22 @@ HWY_API size_t CountTrue(const Simd<T, N> d, const Mask128<T, N> m) {
   return CountTrue(d, Mask128<T>{AndNot(mask, m).raw});
 }
 
-// Full vector, type-independent
+// Full vector
 template <typename T>
-HWY_API bool AllFalse(const Mask128<T> m) {
+HWY_API bool AllFalse(const Full128<T> d, const Mask128<T> m) {
 #if 0
   // Casting followed by wasm_i8x16_any_true results in wasm error:
   // i32.eqz[0] expected type i32, found i8x16.popcnt of type s128
-  const auto v8 = BitCast(Full128<int8_t>(), VecFromMask(Full128<T>(), m));
+  const auto v8 = BitCast(Full128<int8_t>(), VecFromMask(d, m));
   return !wasm_i8x16_any_true(v8.raw);
 #else
+  (void)d;
   return (wasm_i64x2_extract_lane(m.raw, 0) |
           wasm_i64x2_extract_lane(m.raw, 1)) == 0;
 #endif
 }
 
-// Full vector, type-dependent
+// Full vector
 namespace detail {
 template <typename T>
 HWY_INLINE bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
@@ -2516,7 +2517,7 @@ HWY_API bool AllTrue(const Simd<T, N> /* tag */, const Mask128<T> m) {
 // Partial vectors
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API bool AllFalse(const Mask128<T, N> m) {
+HWY_API bool AllFalse(Simd<T, N> /* tag */, const Mask128<T, N> m) {
   // Ensure all undefined bytes are 0.
   const Mask128<T, N> mask{detail::BytesAbove<N * sizeof(T)>()};
   return AllFalse(Mask128<T>{AndNot(mask, m).raw});
@@ -3088,6 +3089,11 @@ HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
 template <typename T, size_t N>
 HWY_API bool AllTrue(const Mask128<T, N> mask) {
   return AllTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API bool AllFalse(const Mask128<T, N> mask) {
+  return AllFalse(Simd<T, N>(), mask);
 }
 
 template <typename T, size_t N>

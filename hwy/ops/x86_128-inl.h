@@ -3598,7 +3598,7 @@ HWY_API size_t StoreMaskBits(const Simd<T, N> /* tag */,
 }
 
 template <typename T, size_t N>
-HWY_API bool AllFalse(const Mask128<T, N> mask) {
+HWY_API bool AllFalse(const Simd<T, N> /* tag */, const Mask128<T, N> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
   return detail::BitsFromMask(mask) == 0;
 }
@@ -4164,6 +4164,11 @@ HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* p) {
 template <typename T, size_t N>
 HWY_API bool AllTrue(const Mask128<T, N> mask) {
   return AllTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API bool AllFalse(const Mask128<T, N> mask) {
+  return AllFalse(Simd<T, N>(), mask);
 }
 
 template <typename T, size_t N>

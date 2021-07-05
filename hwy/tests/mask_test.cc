@@ -365,7 +365,7 @@ struct TestAllTrueFalse {
     auto mask_lanes = AllocateAligned<T>(N);
 
     HWY_ASSERT(AllTrue(d, Eq(v, zero)));
-    HWY_ASSERT(!AllFalse(Eq(v, zero)));
+    HWY_ASSERT(!AllFalse(d, Eq(v, zero)));
 
     // Single lane implies AllFalse = !AllTrue. Otherwise, there are multiple
     // lanes and one is nonzero.
@@ -382,18 +382,18 @@ struct TestAllTrueFalse {
       Store(VecFromMask(d, Eq(v, zero)), d, mask_lanes.get());
       HWY_ASSERT(!AllTrue(d, MaskFromVec(Load(d, mask_lanes.get()))));
 
-      HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
+      HWY_ASSERT(expected_all_false ^ AllFalse(d, Eq(v, zero)));
 
       lanes[i] = T(-1);
       v = Load(d, lanes.get());
       HWY_ASSERT(!AllTrue(d, Eq(v, zero)));
-      HWY_ASSERT(expected_all_false ^ AllFalse(Eq(v, zero)));
+      HWY_ASSERT(expected_all_false ^ AllFalse(d, Eq(v, zero)));
 
       // Reset to all zero
       lanes[i] = T(0);
       v = Load(d, lanes.get());
       HWY_ASSERT(AllTrue(d, Eq(v, zero)));
-      HWY_ASSERT(!AllFalse(Eq(v, zero)));
+      HWY_ASSERT(!AllFalse(d, Eq(v, zero)));
     }
   }
 };
