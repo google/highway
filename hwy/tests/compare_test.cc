@@ -38,8 +38,14 @@ struct TestEquality {
     const auto mask_true = MaskTrue(d);
 
     HWY_ASSERT_MASK_EQ(d, mask_false, Eq(v2, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Eq(v3, v2));
     HWY_ASSERT_MASK_EQ(d, mask_true, Eq(v2, v2));
     HWY_ASSERT_MASK_EQ(d, mask_true, Eq(v2, v2b));
+
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ne(v2, v3));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ne(v3, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Ne(v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Ne(v2, v2b));
   }
 };
 

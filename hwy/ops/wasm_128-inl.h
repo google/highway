@@ -965,6 +965,12 @@ HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
   return Mask128<TTo, N>{m.raw};
 }
 
+template <typename T, size_t N>
+HWY_API Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
+  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
+  return (v & bit) == bit;
+}
+
 // ------------------------------ Equality
 
 // Unsigned
@@ -1008,10 +1014,47 @@ HWY_API Mask128<float, N> operator==(const Vec128<float, N> a,
   return Mask128<float, N>{wasm_f32x4_eq(a.raw, b.raw)};
 }
 
-template <typename T, size_t N>
-HWY_API Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
-  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
-  return (v & bit) == bit;
+// ------------------------------ Inequality
+
+// Unsigned
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator!=(const Vec128<uint8_t, N> a,
+                                       const Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{wasm_i8x16_ne(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator!=(const Vec128<uint16_t, N> a,
+                                        const Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{wasm_i16x8_ne(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator!=(const Vec128<uint32_t, N> a,
+                                        const Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{wasm_i32x4_ne(a.raw, b.raw)};
+}
+
+// Signed
+template <size_t N>
+HWY_API Mask128<int8_t, N> operator!=(const Vec128<int8_t, N> a,
+                                      const Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{wasm_i8x16_ne(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> operator!=(Vec128<int16_t, N> a,
+                                       Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{wasm_i16x8_ne(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> operator!=(const Vec128<int32_t, N> a,
+                                       const Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{wasm_i32x4_ne(a.raw, b.raw)};
+}
+
+// Float
+template <size_t N>
+HWY_API Mask128<float, N> operator!=(const Vec128<float, N> a,
+                                     const Vec128<float, N> b) {
+  return Mask128<float, N>{wasm_f32x4_ne(a.raw, b.raw)};
 }
 
 // ------------------------------ Strict inequality
@@ -3138,6 +3181,10 @@ V Shr(V a, V b) {
 template <class V>
 HWY_API auto Eq(V a, V b) -> decltype(a == b) {
   return a == b;
+}
+template <class V>
+HWY_API auto Ne(V a, V b) -> decltype(a == b) {
+  return a != b;
 }
 template <class V>
 HWY_API auto Lt(V a, V b) -> decltype(a == b) {

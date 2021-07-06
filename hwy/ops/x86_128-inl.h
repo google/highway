@@ -638,6 +638,12 @@ HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> /*tag*/, Mask128<TFrom, N> m) {
   return MaskFromVec(BitCast(Simd<TTo, N>(), VecFromMask(d, m)));
 }
 
+template <typename T, size_t N>
+HWY_API Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
+  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
+  return (v & bit) == bit;
+}
+
 // ------------------------------ Equality
 
 // Unsigned
@@ -706,10 +712,22 @@ HWY_API Mask128<double, N> operator==(const Vec128<double, N> a,
   return Mask128<double, N>{_mm_cmpeq_pd(a.raw, b.raw)};
 }
 
-template <typename T, size_t N>
-HWY_API Mask128<T, N> TestBit(Vec128<T, N> v, Vec128<T, N> bit) {
-  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
-  return (v & bit) == bit;
+// ------------------------------ Inequality
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
+HWY_API Mask128<T, N> operator!=(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return Not(a == b);
+}
+
+template <size_t N>
+HWY_API Mask128<float, N> operator!=(const Vec128<float, N> a,
+                                     const Vec128<float, N> b) {
+  return Mask128<float, N>{_mm_cmpneq_ps(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<double, N> operator!=(const Vec128<double, N> a,
+                                      const Vec128<double, N> b) {
+  return Mask128<double, N>{_mm_cmpneq_pd(a.raw, b.raw)};
 }
 
 // ------------------------------ Strict inequality
@@ -4215,6 +4233,10 @@ V Shr(V a, V b) {
 template <class V>
 HWY_API auto Eq(V a, V b) -> decltype(a == b) {
   return a == b;
+}
+template <class V>
+HWY_API auto Ne(V a, V b) -> decltype(a == b) {
+  return a != b;
 }
 template <class V>
 HWY_API auto Lt(V a, V b) -> decltype(a == b) {

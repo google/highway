@@ -179,6 +179,10 @@ via Argument-Dependent Lookup. However, this does not work for function
 templates, and RVV and SVE both use builtin vectors. Thus we recommend a `using
 hwy::HWY_NAMESPACE;` directive inside `project::[nested]::HWY_NAMESPACE`.
 
+Note that overloaded operators are not yet supported on RVV and SVE; code that
+wishes to run on all targets until that is resolved can use functions such as
+`Eq`, `Lt`, `Add`, `Div` etc.
+
 ### Initialization
 
 *   <code>V **Zero**(D)</code>: returns N-lane vector with all bits set to 0.
@@ -475,6 +479,7 @@ Let `M` denote a mask capable of storing true/false for each lane.
 These return a mask (see above) indicating whether the condition is true.
 
 *   <code>M **operator==**(V a, V b)</code>: returns `a[i] == b[i]`.
+*   <code>M **operator!=**(V a, V b)</code>: returns `a[i] != b[i]`.
 
 *   `V`: `{i,f}` \
     <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`.

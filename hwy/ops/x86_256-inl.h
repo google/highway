@@ -435,6 +435,12 @@ HWY_API Mask256<TTo> RebindMask(Full256<TTo> d_to, Mask256<TFrom> m) {
   return MaskFromVec(BitCast(d_to, VecFromMask(Full256<TFrom>(), m)));
 }
 
+template <typename T>
+HWY_API Mask256<T> TestBit(const Vec256<T> v, const Vec256<T> bit) {
+  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
+  return (v & bit) == bit;
+}
+
 // ------------------------------ Equality
 
 // Unsigned
@@ -483,10 +489,20 @@ HWY_API Mask256<double> operator==(const Vec256<double> a,
   return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_EQ_OQ)};
 }
 
-template <typename T>
-HWY_API Mask256<T> TestBit(const Vec256<T> v, const Vec256<T> bit) {
-  static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
-  return (v & bit) == bit;
+// ------------------------------ Inequality
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_API Mask256<T> operator!=(const Vec256<T> a, const Vec256<T> b) {
+  return Not(a == b);
+}
+
+HWY_API Mask256<float> operator!=(const Vec256<float> a,
+                                  const Vec256<float> b) {
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+HWY_API Mask256<double> operator!=(const Vec256<double> a,
+                                   const Vec256<double> b) {
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_NEQ_OQ)};
 }
 
 // ------------------------------ Strict inequality

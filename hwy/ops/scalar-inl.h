@@ -759,6 +759,11 @@ HWY_API Mask1<T> operator==(const Vec1<T> a, const Vec1<T> b) {
 }
 
 template <typename T>
+HWY_API Mask1<T> operator!=(const Vec1<T> a, const Vec1<T> b) {
+  return Mask1<T>::FromBool(a.raw != b.raw);
+}
+
+template <typename T>
 HWY_API Mask1<T> TestBit(const Vec1<T> v, const Vec1<T> bit) {
   static_assert(!hwy::IsFloat<T>(), "Only integer vectors supported");
   return (v & bit) == bit;
@@ -1226,6 +1231,10 @@ V Shr(V a, V b) {
 template <class V>
 HWY_API auto Eq(V a, V b) -> decltype(a == b) {
   return a == b;
+}
+template <class V>
+HWY_API auto Ne(V a, V b) -> decltype(a == b) {
+  return a != b;
 }
 template <class V>
 HWY_API auto Lt(V a, V b) -> decltype(a == b) {

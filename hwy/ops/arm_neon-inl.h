@@ -1664,6 +1664,12 @@ HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator==, vceq, _, HWY_COMPARE)
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator==, vceq, _, HWY_COMPARE)
 #endif
 
+// ------------------------------ Inequality
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator!=(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return Not(a == b);
+}
+
 // ------------------------------ Strict inequality (signed, float)
 #if HWY_ARCH_ARM_A64
 HWY_NEON_DEF_FUNCTION_INTS(operator<, vclt, _, HWY_COMPARE)
@@ -4359,6 +4365,10 @@ V Shr(V a, V b) {
 template <class V>
 HWY_API auto Eq(V a, V b) -> decltype(a == b) {
   return a == b;
+}
+template <class V>
+HWY_API auto Ne(V a, V b) -> decltype(a == b) {
+  return a != b;
 }
 template <class V>
 HWY_API auto Lt(V a, V b) -> decltype(a == b) {

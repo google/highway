@@ -1303,6 +1303,54 @@ HWY_API Mask512<double> operator==(const Vec512<double> a,
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_EQ_OQ)};
 }
 
+// ------------------------------ Inequality
+
+// Unsigned
+HWY_API Mask512<uint8_t> operator!=(const Vec512<uint8_t> a,
+                                    const Vec512<uint8_t> b) {
+  return Mask512<uint8_t>{_mm512_cmpneq_epi8_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<uint16_t> operator!=(const Vec512<uint16_t> a,
+                                     const Vec512<uint16_t> b) {
+  return Mask512<uint16_t>{_mm512_cmpneq_epi16_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<uint32_t> operator!=(const Vec512<uint32_t> a,
+                                     const Vec512<uint32_t> b) {
+  return Mask512<uint32_t>{_mm512_cmpneq_epi32_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<uint64_t> operator!=(const Vec512<uint64_t> a,
+                                     const Vec512<uint64_t> b) {
+  return Mask512<uint64_t>{_mm512_cmpneq_epi64_mask(a.raw, b.raw)};
+}
+
+// Signed
+HWY_API Mask512<int8_t> operator!=(const Vec512<int8_t> a,
+                                   const Vec512<int8_t> b) {
+  return Mask512<int8_t>{_mm512_cmpneq_epi8_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<int16_t> operator!=(const Vec512<int16_t> a,
+                                    const Vec512<int16_t> b) {
+  return Mask512<int16_t>{_mm512_cmpneq_epi16_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<int32_t> operator!=(const Vec512<int32_t> a,
+                                    const Vec512<int32_t> b) {
+  return Mask512<int32_t>{_mm512_cmpneq_epi32_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<int64_t> operator!=(const Vec512<int64_t> a,
+                                    const Vec512<int64_t> b) {
+  return Mask512<int64_t>{_mm512_cmpneq_epi64_mask(a.raw, b.raw)};
+}
+
+// Float
+HWY_API Mask512<float> operator!=(const Vec512<float> a,
+                                  const Vec512<float> b) {
+  return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+HWY_API Mask512<double> operator!=(const Vec512<double> a,
+                                   const Vec512<double> b) {
+  return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+
 // ------------------------------ Strict inequality
 
 // Signed/float <
