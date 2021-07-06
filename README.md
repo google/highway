@@ -61,11 +61,6 @@ make -j && make test
 
 Or you can run `run_tests.sh` (`run_tests.bat` on Windows).
 
-To test on all the attainable targets for your platform, use
-`cmake .. -DCMAKE_CXX_FLAGS="-DHWY_COMPILE_ALL_ATTAINABLE"`. Otherwise, the
-default configuration skips baseline targets (e.g. scalar) that are superseded
-by another baseline target.
-
 Bazel is also supported for building, but it is not as widely used/tested.
 
 ## Quick start
@@ -79,10 +74,11 @@ number of instructions per operation.
 We recommend using full SIMD vectors whenever possible for maximum performance
 portability. To obtain them, pass a `HWY_FULL(float)` tag to functions such as
 `Zero/Set/Load`. There is also the option of a vector of up to `N` (a power of
-two) lanes: `HWY_CAPPED(T, N)`. 128-bit vectors are guaranteed to be available
-for lanes of type `T` if `HWY_TARGET != HWY_SCALAR` and `N == 16 / sizeof(T)`.
+two <= 16/sizeof(T)) lanes of type `T`: `HWY_CAPPED(T, N)`. If `HWY_TARGET ==
+HWY_SCALAR`, the vector always has one lane. For all other targets, up to
+128-bit vectors are guaranteed to be available.
 
-Functions using Highway must be inside a namespace `namespace HWY_NAMESPACE {`
+Functions using Highway must be inside `namespace HWY_NAMESPACE {`
 (possibly nested in one or more other namespaces defined by the project), and
 additionally either prefixed with `HWY_ATTR`, or residing between
 `HWY_BEFORE_NAMESPACE()` and `HWY_AFTER_NAMESPACE()`.
@@ -97,7 +93,7 @@ additionally either prefixed with `HWY_ATTR`, or residing between
 
 *   For dynamic dispatch, a table of function pointers is generated via the
     `HWY_EXPORT` macro that is used by `HWY_DYNAMIC_DISPATCH(func)(args)` to
-    call the best function pointer for the current CPU supported targets. A
+    call the best function pointer for the current CPU's supported targets. A
     module is automatically compiled for each target in `HWY_TARGETS` (see
     [quick-reference](g3doc/quick_reference.md)) if `HWY_TARGET_INCLUDE` is
     defined and foreach_target.h is included.
@@ -139,10 +135,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     The template parameter and second function arguments are again not needed.
 
     This avoids duplicating code, and is reasonable if `count` is large.
-    Otherwise, multiple iterations may be slower than one `LoopBody` variant
-    with masking, especially because the `HWY_SCALAR` target selected by
-    `HWY_CAPPED(T, 1)` is slower for some operations due to workarounds for
-    undefined behavior in C++.
+    If `count` is small, the second loop may be slower than the next option.
 
 *   Process whole vectors as above, followed by a single call to a modified
     `LoopBody` with masking:
@@ -157,9 +150,8 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     }
     ```
     Now the template parameter and second function argument can be used inside
-    `LoopBody` to replace `Load/Store` of full aligned vectors with
-    `LoadN/StoreN(n)` that affect no more than `1 <= n <= N` aligned elements
-    (pending implementation).
+    `LoopBody` to 'blend' the new partial vector with previous memory contents:
+    `Store(IfThenElse(FirstN(d, N), partial, prev_full), d, aligned_pointer);`.
 
     This is a good default when it is infeasible to ensure vectors are padded.
     In contrast to the scalar loop, only a single final iteration is needed.
@@ -170,7 +162,9 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     the trouble of using SIMD clearly cares about speed. However, portability,
     maintainability and readability also matter, otherwise we would write in
     assembly. We aim for performance within 10-20% of a hand-written assembly
-    implementation on the development platform.
+    implementation on the development platform. There is no performance gap vs.
+    intrinsics: Highway code can do anything they can. If necessary, you can use
+    platform-specific instructions inside `#if HWY_TARGET == HWY_NEON` etc.
 
 *   The guiding principles of C++ are "pay only for what you use" and "leave no
     room for a lower-level language below C++". We apply these by defining a
@@ -192,14 +186,12 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     blocks) and AVX-512 added two kinds of predicates (writemask and zeromask).
     To ensure the API reflects hardware realities, we suggest a flexible
     approach that adds new operations as they become commonly available, with
-    scalar fallbacks where not supported.
+    fallback implementations where necessary.
 
-*   Masking is not yet widely supported on current CPUs. It is difficult to
-    define an interface that provides access to all platform features while
-    retaining performance portability. The P0214R5 proposal lacks support for
-    AVX-512/ARM SVE zeromasks. We suggest limiting usage of masks to the
-    `IfThen[Zero]Else[Zero]` functions until the community has gained more
-    experience with them.
+*   Masking/predication differs between platforms, and it is not clear how
+    important the use cases are beyond the ternary operator `IfThenElse`.
+    AVX-512/ARM SVE zeromasks are useful, but not supported by P0214R5.
+    We provide `IfThen[Zero]Else[Zero]` variants.
 
 *   "Width-agnostic" SIMD is more future-proof than user-specified fixed sizes.
     For example, valarray-like code can iterate over a 1D array with a
@@ -209,7 +201,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     RiscV V as well as Agner Fog's
     [ForwardCom instruction set proposal](https://goo.gl/CFizWu). However, some
     applications may require fixed sizes, so we also guarantee support for
-    128-bit vectors in each instruction set.
+    <= 128-bit vectors in each instruction set.
 
 *   The API and its implementation should be usable and efficient with commonly
     used compilers, including MSVC. For example, we write `ShiftLeft<3>(v)`
@@ -227,23 +219,23 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     Therefore, we provide code paths for multiple instruction sets and choose
     the most suitable at runtime. To reduce overhead, dispatch should be hoisted
     to higher layers instead of checking inside every low-level function.
-    Highway supports inlining functions in the same file or in *-inl.h headers.
-    We generate all code paths from the same source to reduce implementation-
-    and debugging cost.
+    Highway supports inlining functions in the same file or in `*-inl.h`
+    headers. We generate all code paths from the same source to reduce
+    implementation- and debugging cost.
 
 *   Not every CPU need be supported. For example, pre-SSE4.1 CPUs are
     increasingly rare and the AVX instruction set is limited to floating-point
     operations. To reduce code size and compile time, we provide specializations
-    for SSE4, AVX2 and AVX-512 instruction sets on x86, plus a scalar fallback.
+    for S-SSE3, SSE4, AVX2 and AVX-512 instruction sets on x86, plus a scalar
+    fallback.
 
 *   Access to platform-specific intrinsics is necessary for acceptance in
     performance-critical projects. We provide conversions to and from intrinsics
     to allow utilizing specialized platform-specific functionality, and simplify
     incremental porting of existing code.
 
-*   The core API should be compact and easy to learn. We provide only the few
-    dozen operations which are necessary and sufficient for most of the 150+
-    SIMD applications we examined.
+*   The core API should be compact and easy to learn; we provide a concise
+    summary in g3doc/quick_reference.md.
 
 ## Prior API designs
 
@@ -257,6 +249,10 @@ multiple platforms and/or instruction sets from the same source, and improves
 runtime dispatch.
 
 ## Differences versus [P0214R5 proposal](https://goo.gl/zKW4SA)
+
+1.  Allowing the use of built-in vector types by relying on non-member
+    functions. By contrast, P0214R5 requires a wrapper class, which does not
+    work for sizeless vector types currently used by ARM SVE and Risc-V.
 
 1.  Adding widely used and portable operations such as `AndNot`, `AverageRound`,
     bit-shift by immediates and `IfThenElse`.
@@ -286,13 +282,6 @@ runtime dispatch.
     static target selection and runtime dispatch for hotspots that may benefit
     from newer instruction sets if available.
 
-1.  Using built-in PPC vector types without a wrapper class. This leads to much
-    better code generation with GCC 6.3: https://godbolt.org/z/pd2PNP.
-    By contrast, P0214R5 requires a wrapper. We avoid this by using only the
-    member operators provided by the PPC vectors; all other functions and
-    typedefs are non-members. 2019-04 update: Clang power64le does not have
-    this issue, so we simplified get_part(d, v) to GetLane(v).
-
 1.  Omitting inefficient or non-performance-portable operations such as `hmax`,
     `operator[]`, and unsupported integer comparisons. Applications can often
     replace these operations at lower cost than emulating that exact behavior.
@@ -301,8 +290,8 @@ runtime dispatch.
 
 1.  Ensuring signed integer overflow has well-defined semantics (wraparound).
 
-1.  Simple header-only implementation and less than a tenth of the size of the
-    Vc library from which P0214 was derived (98,000 lines in
+1.  Simple header-only implementation and a fraction of the size of the
+    Vc library from which P0214 was derived (39K, vs. 92K lines in
     https://github.com/VcDevel/Vc according to the gloc Chrome extension).
 
 1.  Avoiding hidden performance costs. P0214R5 allows implicit conversions from
@@ -338,7 +327,7 @@ vectors cannot be default-constructed. We instead use a dedicated 'descriptor'
 type `Simd` for overloading, abbreviated to `D` for template arguments and
 `d` in lvalues.
 
-Note that generic function templates are possible (see highway.h).
+Note that generic function templates are possible (see generic_ops-inlz.h).
 
 ## Masks
 
