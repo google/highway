@@ -16,12 +16,12 @@
 #include <stdint.h>
 #include <string.h>  // memcmp
 
+#include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"
 #include "hwy/foreach_target.h"
-
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -231,6 +231,33 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
+struct TestPopCount {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_RVV && defined(NDEBUG)
+    constexpr size_t kNumTests = 1 << 24;
+#else
+    constexpr size_t kNumTests = 1 << 18;
+#endif
+    RandomState rng;
+    size_t N = Lanes(d);
+    auto data = AllocateAligned<T>(N);
+    auto popcnt = AllocateAligned<T>(N);
+    for (size_t i = 0; i < kNumTests / N; i++) {
+      for (size_t i = 0; i < N; i++) {
+        data[i] = rng();
+        popcnt[i] = PopCount(data[i]);
+      }
+      HWY_ASSERT_VEC_EQ(d, popcnt.get(), PopulationCount(Load(d, data.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllPopCount() {
+  // TODO(veluca): Test on 64-bit vectors too.
+  ForUnsignedTypes(ForGE128Vectors<TestPopCount>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -245,5 +272,6 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllPopCount);
 }  // namespace hwy
 #endif

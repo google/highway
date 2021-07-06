@@ -98,9 +98,9 @@
 // are inlined. Support both per-function annotation (HWY_ATTR) for lambdas and
 // automatic annotation via pragmas.
 #if HWY_COMPILER_CLANG
-#define HWY_PUSH_ATTRIBUTES(targets_str)                                     \
+#define HWY_PUSH_ATTRIBUTES(targets_str)                                \
   HWY_PRAGMA(clang attribute push(__attribute__((target(targets_str))), \
-                                       apply_to = function))
+                                  apply_to = function))
 #define HWY_POP_ATTRIBUTES HWY_PRAGMA(clang attribute pop)
 #elif HWY_COMPILER_GCC
 #define HWY_PUSH_ATTRIBUTES(targets_str) \
@@ -155,7 +155,6 @@
   do {                         \
   } while (0)
 #endif
-
 
 namespace hwy {
 
@@ -479,7 +478,7 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
   unsigned long index;  // NOLINT
   _BitScanForward(&index, x);
   return index;
-#else  // HWY_COMPILER_MSVC
+#else   // HWY_COMPILER_MSVC
   return static_cast<size_t>(__builtin_ctz(x));
 #endif  // HWY_COMPILER_MSVC
 }

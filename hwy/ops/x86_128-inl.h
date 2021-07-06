@@ -1460,7 +1460,7 @@ HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec128<int64_t, N>{_mm_abs_epi64(v.raw)};
 #else
-  const auto zero = Zero(Simd<int64_t,N>());
+  const auto zero = Zero(Simd<int64_t, N>());
   return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
 #endif
 }
@@ -3592,7 +3592,7 @@ template <typename T, size_t N>
 HWY_API size_t StoreMaskBits(const Simd<T, N> /* tag */,
                              const Mask128<T, N> mask, uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);
-  const size_t kNumBytes = (N + 7)/8;
+  const size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(&bits, p);
   return kNumBytes;
 }

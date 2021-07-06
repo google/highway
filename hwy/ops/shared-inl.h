@@ -104,6 +104,11 @@ using Twice = typename D::Twice;
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
 #define HWY_IF_LANE_SIZE_V(V, bytes) HWY_IF_LANE_SIZE(TFromV<V>, bytes)
 
+// For implementing functions for a specific type.
+// IsSame<...>() in template arguments is broken on MSVC2015.
+#define HWY_IF_LANES_ARE(T, V) \
+  EnableIf<IsSameT<T, TFromD<DFromV<V>>>::value>* = nullptr
+
 // Compile-time-constant, (typically but not guaranteed) an upper bound on the
 // number of lanes.
 // Prefer instead using Lanes() and dynamic allocation, or Rebind, or

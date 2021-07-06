@@ -262,6 +262,58 @@ HWY_API V CLMulUpper(V a, V b) {
 #endif  // HWY_NATIVE_AES
 #endif  // HWY_TARGET != HWY_SCALAR
 
+// "Include guard": skip if native POPCNT-related instructions are available.
+// TODO(veluca): actually implement target-specific versions.
+#if (defined(HWY_NATIVE_POPCNT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+template <typename V, HWY_IF_LANES_ARE(uint8_t, V)>
+HWY_API V PopulationCount(V v) {
+  constexpr DFromV<V> d;
+  // TODO(veluca): Remove this restriction when LoadDup128 and TableLookupBytes
+  // work correctly for shorter vectors.
+  static_assert(MaxLanes(d) >= 16, "Not implemented for <128 bit vectors");
+  HWY_ALIGN constexpr uint8_t kLookup[16] = {
+      0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+  };
+  auto lo = And(v, Set(d, 0xF));
+  auto hi = ShiftRight<4>(v);
+  auto lookup = LoadDup128(d, kLookup);
+  return Add(TableLookupBytes(lookup, hi), TableLookupBytes(lookup, lo));
+}
+
+template <typename V, HWY_IF_LANES_ARE(uint16_t, V)>
+HWY_API V PopulationCount(V v) {
+  const DFromV<V> d;
+  Repartition<uint8_t, decltype(d)> d8;
+  auto vals = BitCast(d, PopulationCount(BitCast(d8, v)));
+  return Add(ShiftRight<8>(vals), And(vals, Set(d, 0xFF)));
+}
+
+template <typename V, HWY_IF_LANES_ARE(uint32_t, V)>
+HWY_API V PopulationCount(V v) {
+  const DFromV<V> d;
+  Repartition<uint16_t, decltype(d)> d16;
+  auto vals = BitCast(d, PopulationCount(BitCast(d16, v)));
+  return Add(ShiftRight<16>(vals), And(vals, Set(d, 0xFF)));
+}
+
+#if HWY_CAP_INTEGER64
+template <typename V, HWY_IF_LANES_ARE(uint64_t, V)>
+HWY_API V PopulationCount(V v) {
+  const DFromV<V> d;
+  Repartition<uint32_t, decltype(d)> d32;
+  auto vals = BitCast(d, PopulationCount(BitCast(d32, v)));
+  return Add(ShiftRight<32>(vals), And(vals, Set(d, 0xFF)));
+}
+#endif
+
+#endif  // HWY_NATIVE_POPCNT
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
