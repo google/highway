@@ -582,17 +582,6 @@ HWY_API svbool_t Xor(svbool_t a, svbool_t b) {
   return svsel_b(a, svnand_b_z(a, a, b), b);  // a ? !(a & b) : b.
 }
 
-// ------------------------------ AllFalse
-HWY_API bool AllFalse(Simd<T, N> d, svbool_t m) {
-  return !svptest_any(detail::Mask(d), m);
-}
-
-// ------------------------------ AllTrue
-template <typename T, size_t N>
-HWY_API bool AllTrue(Simd<T, N> d, svbool_t m) {
-  return AllFalse(d, Not(d, m));
-}
-
 // ------------------------------ CountTrue
 
 #define HWY_SVE_COUNT_TRUE(BASE, CHAR, BITS, NAME, OP)          \
@@ -603,6 +592,25 @@ HWY_API bool AllTrue(Simd<T, N> d, svbool_t m) {
 
 HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE, CountTrue, cntp)
 #undef HWY_SVE_COUNT_TRUE
+
+// ------------------------------ AllFalse
+template <typename T, size_t N>
+HWY_API bool AllFalse(Simd<T, N> d, svbool_t m) {
+  return !svptest_any(detail::Mask(d), m);
+}
+
+// ------------------------------ AllTrue
+template <typename T, size_t N>
+HWY_API bool AllTrue(Simd<T, N> d, svbool_t m) {
+  return CountTrue(d, m) == Lanes(d);
+}
+
+// ------------------------------ FindFirstTrue
+template <typename T, size_t N>
+HWY_API intptr_t FindFirstTrue(Simd<T, N> d, svbool_t m) {
+  // all false: brka = 0 => -1. first true: brka = 1 => 0.
+  return CountTrue(d, svbrka_b_z(detail::Mask(d), m)) - 1;
+}
 
 // ------------------------------ IfThenElse
 #define HWY_SVE_IF_THEN_ELSE(BASE, CHAR, BITS, NAME, OP)                      \
@@ -1570,9 +1578,28 @@ HWY_API VFromD<DW> MulEven(const V a, const V b) {
 #endif
 }
 
+HWY_API svuint64_t MulEven(const svuint64_t a, const svuint64_t b) {
+  const auto lo = Mul(a, b);
+  const auto hi = detail::MulHigh(a, b);
+  return detail::InterleaveEven(hi, lo);
+}
+
+HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
+  const auto lo = Mul(a, b);
+  const auto hi = detail::MulHigh(a, b);
+  return detail::InterleaveOdd(hi, lo);
+}
+
 // ------------------------------ AESRound / CLMul
 
 #if defined(__ARM_FEATURE_SVE2_AES)
+
+// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
+#ifdef HWY_NATIVE_AES
+#undef HWY_NATIVE_AES
+#else
+#define HWY_NATIVE_AES
+#endif
 
 HWY_API svuint8_t AESRound(svuint8_t state, svuint8_t round_key) {
   // NOTE: it is important that AESE and AESMC be consecutive instructions so
@@ -1589,85 +1616,6 @@ HWY_API svuint64_t CLMulLower(const svuint64_t a, const svuint64_t b) {
 
 HWY_API svuint64_t CLMulUpper(const svuint64_t a, const svuint64_t b) {
   return svpmullt_pair(a, b);
-}
-
-#else
-
-// Constant-time implementation inspired by
-// https://www.bearssl.org/constanttime.html, but about half the cost because we
-// use 64x64 multiplies.
-namespace detail {
-
-template <class V>
-HWY_INLINE V MulLower(const V a, const V b) {
-  const DFromV<V> d;
-  const auto lo = Mul(a, b);
-  const auto hi = detail::MulHigh(a, b);
-  return detail::InterleaveEven(hi, lo);
-}
-
-template <class V>
-HWY_INLINE V MulUpper(const V a, const V b) {
-  const DFromV<V> d;
-  const auto lo = Mul(a, b);
-  const auto hi = detail::MulHigh(a, b);
-  return detail::InterleaveOdd(hi, lo);
-}
-
-}  // namespace detail
-
-template <class V>
-HWY_API V CLMulLower(V a, V b) {
-  const DFromV<V> d;
-  const auto k1 = Set(d, 0x1111111111111111ULL);
-  const auto k2 = Set(d, 0x2222222222222222ULL);
-  const auto k4 = Set(d, 0x4444444444444444ULL);
-  const auto k8 = Set(d, 0x8888888888888888ULL);
-  const auto a0 = And(a, k1);
-  const auto a1 = And(a, k2);
-  const auto a2 = And(a, k4);
-  const auto a3 = And(a, k8);
-  const auto b0 = And(b, k1);
-  const auto b1 = And(b, k2);
-  const auto b2 = And(b, k4);
-  const auto b3 = And(b, k8);
-
-  auto m0 = Xor(detail::MulLower(a0, b0), detail::MulLower(a1, b3));
-  auto m1 = Xor(detail::MulLower(a0, b1), detail::MulLower(a1, b0));
-  auto m2 = Xor(detail::MulLower(a0, b2), detail::MulLower(a1, b1));
-  auto m3 = Xor(detail::MulLower(a0, b3), detail::MulLower(a1, b2));
-  m0 = Xor(m0, Xor(detail::MulLower(a2, b2), detail::MulLower(a3, b1)));
-  m1 = Xor(m1, Xor(detail::MulLower(a2, b3), detail::MulLower(a3, b2)));
-  m2 = Xor(m2, Xor(detail::MulLower(a2, b0), detail::MulLower(a3, b3)));
-  m3 = Xor(m3, Xor(detail::MulLower(a2, b1), detail::MulLower(a3, b0)));
-  return Or(Or(And(m0, k1), And(m1, k2)), Or(And(m2, k4), And(m3, k8)));
-}
-
-template <class V>
-HWY_API V CLMulUpper(V a, V b) {
-  const DFromV<V> d;
-  const auto k1 = Set(d, 0x1111111111111111ULL);
-  const auto k2 = Set(d, 0x2222222222222222ULL);
-  const auto k4 = Set(d, 0x4444444444444444ULL);
-  const auto k8 = Set(d, 0x8888888888888888ULL);
-  const auto a0 = And(a, k1);
-  const auto a1 = And(a, k2);
-  const auto a2 = And(a, k4);
-  const auto a3 = And(a, k8);
-  const auto b0 = And(b, k1);
-  const auto b1 = And(b, k2);
-  const auto b2 = And(b, k4);
-  const auto b3 = And(b, k8);
-
-  auto m0 = Xor(detail::MulUpper(a0, b0), detail::MulUpper(a1, b3));
-  auto m1 = Xor(detail::MulUpper(a0, b1), detail::MulUpper(a1, b0));
-  auto m2 = Xor(detail::MulUpper(a0, b2), detail::MulUpper(a1, b1));
-  auto m3 = Xor(detail::MulUpper(a0, b3), detail::MulUpper(a1, b2));
-  m0 = Xor(m0, Xor(detail::MulUpper(a2, b2), detail::MulUpper(a3, b1)));
-  m1 = Xor(m1, Xor(detail::MulUpper(a2, b3), detail::MulUpper(a3, b2)));
-  m2 = Xor(m2, Xor(detail::MulUpper(a2, b0), detail::MulUpper(a3, b3)));
-  m3 = Xor(m3, Xor(detail::MulUpper(a2, b1), detail::MulUpper(a3, b0)));
-  return Or(Or(And(m0, k1), And(m1, k2)), Or(And(m2, k4), And(m3, k8)));
 }
 
 #endif  // __ARM_FEATURE_SVE2_AES

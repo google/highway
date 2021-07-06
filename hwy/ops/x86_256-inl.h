@@ -2735,6 +2735,13 @@ HWY_API size_t CountTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
+template <typename T>
+HWY_API intptr_t FindFirstTrue(const Full256<T> /* tag */,
+                               const Mask256<T> mask) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+}
+
 // ------------------------------ Compress
 
 namespace detail {

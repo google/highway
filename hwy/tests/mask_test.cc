@@ -478,6 +478,39 @@ HWY_NOINLINE void TestAllCountTrue() {
   ForAllTypes(ForPartialVectors<TestCountTrue>());
 }
 
+struct TestFindFirstTrue {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    // For all combinations of zero/nonzero state of subset of lanes:
+    const size_t max_lanes = HWY_MIN(N, size_t(10));
+
+    auto lanes = AllocateAligned<T>(N);
+    std::fill(lanes.get(), lanes.get() + N, T(1));
+
+    HWY_ASSERT_EQ(intptr_t(-1), FindFirstTrue(d, MaskFalse(d)));
+    HWY_ASSERT_EQ(intptr_t(0), FindFirstTrue(d, MaskTrue(d)));
+
+    for (size_t code = 1; code < (1ull << max_lanes); ++code) {
+      for (size_t i = 0; i < max_lanes; ++i) {
+        lanes[i] = T(1);
+        if (code & (1ull << i)) {
+          lanes[i] = T(0);
+        }
+      }
+
+      const intptr_t expected = Num0BitsBelowLS1Bit_Nonzero32(code);
+      const auto mask = Eq(Load(d, lanes.get()), Zero(d));
+      const intptr_t actual = FindFirstTrue(d, mask);
+      HWY_ASSERT_EQ(expected, actual);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFindFirstTrue() {
+  ForAllTypes(ForPartialVectors<TestFindFirstTrue>());
+}
+
 struct TestLogicalMask {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -539,6 +572,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFindFirstTrue);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalMask);
 }  // namespace hwy
 #endif

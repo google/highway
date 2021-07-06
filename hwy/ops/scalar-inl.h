@@ -1136,9 +1136,15 @@ HWY_API size_t StoreMaskBits(Sisd<T> d, const Mask1<T> mask, uint8_t* p) {
   *p = AllTrue(d, mask);
   return 1;
 }
+
 template <typename T>
 HWY_API size_t CountTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits == 0 ? 0 : 1;
+}
+
+template <typename T>
+HWY_API intptr_t FindFirstTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
+  return mask.bits == 0 ? -1 : 0;
 }
 
 template <typename T>

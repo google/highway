@@ -2573,6 +2573,13 @@ HWY_API bool AllTrue(const Simd<T, N> d, const Mask128<T, N> m) {
   return AllTrue(d, Mask128<T>{Or(mask, m).raw});
 }
 
+template <typename T, size_t N>
+HWY_API intptr_t FindFirstTrue(const Simd<T, N> /* tag */,
+                               const Mask128<T, N> mask) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+}
+
 // ------------------------------ Compress
 
 namespace detail {

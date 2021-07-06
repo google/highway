@@ -3965,6 +3965,13 @@ HWY_API size_t CountTrue(Simd<T, N> /* tag */, const Mask128<T, N> mask) {
 }
 
 template <typename T, size_t N>
+HWY_API intptr_t FindFirstTrue(const Simd<T, N> /* tag */,
+                              const Mask128<T, N> mask) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+}
+
+template <typename T, size_t N>
 HWY_API size_t StoreMaskBits(Simd<T, N> /* tag */, const Mask128<T, N> mask,
                              uint8_t* p) {
   const uint64_t bits = detail::BitsFromMask(mask);

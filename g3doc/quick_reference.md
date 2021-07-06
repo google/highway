@@ -461,6 +461,9 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>size_t **CountTrue**(D, M m)</code>: returns how many of `m[i]` are
     true [0, N]. This is typically more expensive than AllTrue/False.
 
+*   <code>intptr_t **FindFirstTrue**(D, M m)</code>: returns the index of the
+    first (i.e. lowest index) `m[i]` that is true, or -1 if none are.
+
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
@@ -802,13 +805,13 @@ than normal SIMD operations and are typically used outside critical loops.
 ### Crypto
 
 *   `V`: `u8` \
-    <code>V <b>AESRound</b>(V state, V round_key)</code>: one round of AES
+    <code>V **AESRound**(V state, V round_key)</code>: one round of AES
     encrytion: `MixColumns(SubBytes(ShiftRows(state))) ^ round_key`. This
     matches x86 AES-NI. The latency is independent of the input values. Only
     available if `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`: `u64` \
-    <code>V <b>CLMulLower</b>(V a, V b)</code>: carryless multiplication of the
+    <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the
     lower 64 bits of each 128-bit block into a 128-bit product. The latency is
     independent of the input values (assuming that is true of normal integer
     multiplication) so this can safely be used in cryto. Applications that wish
@@ -816,8 +819,8 @@ than normal SIMD operations and are typically used outside critical loops.
     x86 that is expected to be latency-neutral.
 
 *   `V`: `u64` \
-    <code>V <b>CLMulUpper</b>(V a, V b)</code>: as CLMulLower, but multiplies
-    the upper 64 bits of each 128-bit block.
+    <code>V **CLMulUpper**(V a, V b)</code>: as CLMulLower, but multiplies the
+    upper 64 bits of each 128-bit block.
 
 ## Advanced macros
 

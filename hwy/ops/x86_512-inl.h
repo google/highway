@@ -2911,6 +2911,18 @@ HWY_API size_t CountTrue(const Full512<T> /* tag */, const Mask512<T> mask) {
   return PopCount(mask.raw);
 }
 
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
+HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
+                               const Mask512<T> mask) {
+  return mask.raw ? Num0BitsBelowLS1Bit_Nonzero32(mask.raw) : -1;
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
+                               const Mask512<T> mask) {
+  return mask.raw ? Num0BitsBelowLS1Bit_Nonzero64(mask.raw) : -1;
+}
+
 // ------------------------------ Compress
 
 HWY_API Vec512<uint32_t> Compress(Vec512<uint32_t> v,

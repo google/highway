@@ -483,6 +483,16 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
 #endif  // HWY_COMPILER_MSVC
 }
 
+HWY_API size_t Num0BitsBelowLS1Bit_Nonzero64(const uint64_t x) {
+#if HWY_COMPILER_MSVC
+  unsigned long index;  // NOLINT
+  _BitScanForward64(&index, x);
+  return index;
+#else   // HWY_COMPILER_MSVC
+  return static_cast<size_t>(__builtin_ctzll(x));
+#endif  // HWY_COMPILER_MSVC
+}
+
 HWY_API size_t PopCount(uint64_t x) {
 #if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
   return static_cast<size_t>(__builtin_popcountll(x));
