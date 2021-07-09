@@ -273,6 +273,24 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_NOINLINE void PrintValue(T value) {
+  uint8_t byte;
+  CopyBytes<1>(&value, &byte);  // endian-safe: we ensured sizeof(T)=1.
+  fprintf(stderr, "0x%02X,", byte);
+}
+
+HWY_NOINLINE void PrintValue(float16_t value) {
+  uint16_t bits;
+  CopyBytes<2>(&value, &bits);
+  fprintf(stderr, "0x%02X,", bits);
+}
+
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
+HWY_NOINLINE void PrintValue(T value) {
+  fprintf(stderr, "%g,", double(value));
+}
+
 // Prints lanes around `lane`, in memory order.
 template <class D>
 HWY_NOINLINE void Print(const D d, const char* caption,
@@ -287,13 +305,7 @@ HWY_NOINLINE void Print(const D d, const char* caption,
   fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
           begin);
   for (size_t i = begin; i < end; ++i) {
-    if (sizeof(T) == 1 && 0 <= lanes[i] && lanes[i] < 256) {
-      uint8_t byte;                    // avoids compile error for T=double.
-      CopyBytes<1>(&lanes[i], &byte);  // endian-safe: we ensured sizeof(T)=1.
-      fprintf(stderr, "0x%02X,", byte);
-    } else {
-      fprintf(stderr, "%g,", double(lanes[i]));
-    }
+    PrintValue(lanes[i]);
   }
   if (begin >= end) fprintf(stderr, "(out of bounds)");
   fprintf(stderr, "\n");
@@ -339,7 +351,7 @@ MakeUnsigned<TF> ComputeUlpDelta(TF x, TF y) {
 
 template <typename T, HWY_IF_NOT_FLOAT(T)>
 HWY_NOINLINE bool IsEqual(const T expected, const T actual) {
-  return expected == actual;
+  return memcmp(&expected, &actual, sizeof(T)) == 0;
 }
 
 template <typename T, HWY_IF_FLOAT(T)>

@@ -199,9 +199,14 @@ struct TestCompress {
       const auto mask = RebindMask(d, Eq(Load(du, mask_lanes.get()), Zero(du)));
 
       Store(Compress(in, mask), d, actual.get());
-      // Upper lanes are undefined.
+      // Upper lanes are undefined. Modified from AssertVecEqual.
       for (size_t i = 0; i < expected_pos; ++i) {
-        HWY_ASSERT(memcmp(&actual[i], &expected[i], sizeof(T)) == 0);
+        if (!IsEqual(expected[i], actual[i])) {
+          fprintf(stderr, "Mismatch at %zu:\n\n", i);
+          Print(d, "expect", Load(d, expected.get()), 0, Lanes(d));
+          Print(d, "actual", Load(d, actual.get()), 0, Lanes(d));
+          HWY_ASSERT(false);
+        }
       }
 
       // Also check CompressStore in the same way.
@@ -209,7 +214,12 @@ struct TestCompress {
       const size_t num_written = CompressStore(in, mask, d, actual.get());
       HWY_ASSERT_EQ(expected_pos, num_written);
       for (size_t i = 0; i < expected_pos; ++i) {
-        HWY_ASSERT(memcmp(&actual[i], &expected[i], sizeof(T)) == 0);
+        if (!IsEqual(expected[i], actual[i])) {
+          fprintf(stderr, "Mismatch at %zu:\n\n", i);
+          Print(d, "expect", Load(d, expected.get()), 0, Lanes(d));
+          Print(d, "actual", Load(d, actual.get()), 0, Lanes(d));
+          HWY_ASSERT(false);
+        }
       }
     }
   }
@@ -407,7 +417,7 @@ class TestStoreMaskBits {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D d) {
     // TODO(janwas): remove once implemented (cast or vse1)
-#if HWY_TARGET != HWY_RVV
+#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SVE && HWY_TARGET != HWY_SVE2
     RandomState rng;
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);

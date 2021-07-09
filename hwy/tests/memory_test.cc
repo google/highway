@@ -287,8 +287,8 @@ struct TestScatter {
       std::fill(expected.get(), expected.get() + range, T(0));
       std::fill(actual.get(), actual.get() + range, T(0));
       for (size_t i = 0; i < N; ++i) {
-        offsets[i] =
-            static_cast<Offset>(Random32(&rng) % (max_bytes - sizeof(T)));
+        // Must be aligned
+        offsets[i] = static_cast<Offset>((Random32(&rng) % range) * sizeof(T));
         CopyBytes<sizeof(T)>(
             bytes.get() + i * sizeof(T),
             reinterpret_cast<uint8_t*>(expected.get()) + offsets[i]);
@@ -340,11 +340,12 @@ struct TestGather {
     using Offset = MakeSigned<T>;
 
     const size_t N = Lanes(d);
+    const size_t range = 4 * N;                  // number of items to gather
+    const size_t max_bytes = range * sizeof(T);  // upper bound on offset
 
     RandomState rng;
 
     // Data to be gathered from
-    const size_t max_bytes = 4 * N * sizeof(T);  // upper bound on offset
     auto bytes = AllocateAligned<uint8_t>(max_bytes);
     for (size_t i = 0; i < max_bytes; ++i) {
       bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
@@ -357,8 +358,8 @@ struct TestGather {
     for (size_t rep = 0; rep < 100; ++rep) {
       // Offsets
       for (size_t i = 0; i < N; ++i) {
-        offsets[i] =
-            static_cast<Offset>(Random32(&rng) % (max_bytes - sizeof(T)));
+        // Must be aligned
+        offsets[i] = static_cast<Offset>((Random32(&rng) % range) * sizeof(T));
         CopyBytes<sizeof(T)>(bytes.get() + offsets[i], &expected[i]);
       }
 

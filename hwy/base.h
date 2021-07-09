@@ -276,12 +276,18 @@ using RemoveConst = typename RemoveConstT<T>::type;
 
 template <typename T>
 constexpr bool IsFloat() {
-  return T(1.25) != T(1);
+  // Cannot use T(1.25) != T(1) for float16_t, which can only be converted to or
+  // from a float, not compared.
+  return IsSame<T, float>() || IsSame<T, double>();
 }
 
 template <typename T>
 constexpr bool IsSigned() {
   return T(0) > T(-1);
+}
+template <>
+constexpr bool IsSigned<float16_t>() {
+  return true;
 }
 
 // Largest/smallest representable integer values.
