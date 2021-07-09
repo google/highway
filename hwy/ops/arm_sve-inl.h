@@ -1501,11 +1501,11 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipUpper(const V a, const V b) {
 
 // ================================================== REDUCE
 
-// vector = f(vector)
-#define HWY_SVE_REDUCE(BASE, CHAR, BITS, NAME, OP)              \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
-    return Set(DFromV<decltype(v)>(),                           \
-               sv##OP##_##CHAR##BITS(HWY_SVE_PTRUE(BITS), v));  \
+#define HWY_SVE_REDUCE(BASE, CHAR, BITS, NAME, OP)                \
+  template <size_t N>                                             \
+  HWY_API HWY_SVE_V(BASE, BITS)                                   \
+      NAME(HWY_SVE_D(BASE, BITS, N) d, HWY_SVE_V(BASE, BITS) v) { \
+    return Set(d, sv##OP##_##CHAR##BITS(detail::Mask(d), v));     \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_REDUCE, SumOfLanes, addv)

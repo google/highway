@@ -1114,14 +1114,15 @@ struct TestSumOfLanes {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
       sum += static_cast<double>(in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
+                      SumOfLanes(d, Load(d, in_lanes.get())));
 
     // Lane i = i (iota) to include upper lanes
     sum = 0.0;
     for (size_t i = 0; i < N; ++i) {
       sum += static_cast<double>(i);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(Iota(d, 0)));
+    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
   }
 };
 
@@ -1154,7 +1155,7 @@ struct TestMinOfLanes {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 2;
       min = HWY_MIN(min, in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
 
     // Lane i = N - i to include upper lanes
     min = HighestValue<T>();
@@ -1162,7 +1163,7 @@ struct TestMinOfLanes {
       in_lanes[i] = static_cast<T>(N - i);  // no 8-bit T so no wraparound
       min = HWY_MIN(min, in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
   }
 };
 
@@ -1179,7 +1180,7 @@ struct TestMaxOfLanes {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
       max = HWY_MAX(max, in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
 
     // Lane i = i to include upper lanes
     max = LowestValue<T>();
@@ -1187,7 +1188,7 @@ struct TestMaxOfLanes {
       in_lanes[i] = static_cast<T>(i);  // no 8-bit T so no wraparound
       max = HWY_MAX(max, in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
   }
 };
 

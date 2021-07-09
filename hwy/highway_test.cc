@@ -210,11 +210,11 @@ struct TestNaN {
     HWY_ASSERT(AllFalse(d, Le(nan, v1)));
 
     // Reduction
-    HWY_ASSERT_NAN(d, SumOfLanes(nan));
+    HWY_ASSERT_NAN(d, SumOfLanes(d, nan));
 // TODO(janwas): re-enable after QEMU is fixed
 #if HWY_TARGET != HWY_RVV
-    HWY_ASSERT_NAN(d, MinOfLanes(nan));
-    HWY_ASSERT_NAN(d, MaxOfLanes(nan));
+    HWY_ASSERT_NAN(d, MinOfLanes(d, nan));
+    HWY_ASSERT_NAN(d, MaxOfLanes(d, nan));
 #endif
 
     // Min

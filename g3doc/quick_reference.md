@@ -784,23 +784,34 @@ their operands into independently processed 128-bit *blocks*.
 ### Reductions
 
 **Note**: these 'reduce' all lanes to a single result (e.g. sum), which is
-broadcasted to all lanes at no extra cost. To obtain a scalar, you can call
-`GetLane`.
+broadcasted to all lanes. To obtain a scalar, you can call `GetLane`.
 
 Being a horizontal operation (across lanes of the same vector), these are slower
 than normal SIMD operations and are typically used outside critical loops.
 
 *   `V`: `{u,i,f}{32,64}` \
-    <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
+    <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
     lane.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **MinOfLanes**(D, V v)</code>: returns the minimum-valued lane in
+    each lane.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **MaxOfLanes**(D, V v)</code>: returns the maximum-valued lane in
+    each lane.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
+    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **MinOfLanes**(V v)</code>: returns the minimum-valued lane in each
-    lane.
+    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
-    lane.
+    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
 
 ### Crypto
 

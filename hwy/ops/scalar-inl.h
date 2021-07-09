@@ -1166,15 +1166,15 @@ HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
 
 // Sum of all lanes, i.e. the only one.
 template <typename T>
-HWY_API Vec1<T> SumOfLanes(const Vec1<T> v0) {
-  return v0;
-}
-template <typename T>
-HWY_API Vec1<T> MinOfLanes(const Vec1<T> v) {
+HWY_API Vec1<T> SumOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
 }
 template <typename T>
-HWY_API Vec1<T> MaxOfLanes(const Vec1<T> v) {
+HWY_API Vec1<T> MinOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
+  return v;
+}
+template <typename T>
+HWY_API Vec1<T> MaxOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
 }
 
@@ -1198,6 +1198,19 @@ HWY_API bool AllFalse(const Mask1<T> mask) {
 template <typename T>
 HWY_API size_t CountTrue(const Mask1<T> mask) {
   return CountTrue(Sisd<T>(), mask);
+}
+
+template <typename T>
+HWY_API Vec1<T> SumOfLanes(const Vec1<T> v) {
+  return SumOfLanes(Sisd<T>(), v);
+}
+template <typename T>
+HWY_API Vec1<T> MinOfLanes(const Vec1<T> v) {
+  return MinOfLanes(Sisd<T>(), v);
+}
+template <typename T>
+HWY_API Vec1<T> MaxOfLanes(const Vec1<T> v) {
+  return MaxOfLanes(Sisd<T>(), v);
 }
 
 // ================================================== Operator wrapper

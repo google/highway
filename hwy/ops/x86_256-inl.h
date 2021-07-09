@@ -3080,17 +3080,17 @@ HWY_INLINE Vec256<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
 
 // Supported for {uif}32x8, {uif}64x4. Returns the sum in each lane.
 template <typename T>
-HWY_API Vec256<T> SumOfLanes(const Vec256<T> vHL) {
+HWY_API Vec256<T> SumOfLanes(Full256<T> /* tag */, const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
   return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), vLH + vHL);
 }
 template <typename T>
-HWY_API Vec256<T> MinOfLanes(const Vec256<T> vHL) {
+HWY_API Vec256<T> MinOfLanes(Full256<T> /* tag */, const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
   return detail::MinOfLanes(hwy::SizeTag<sizeof(T)>(), Min(vLH, vHL));
 }
 template <typename T>
-HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
+HWY_API Vec256<T> MaxOfLanes(Full256<T> /* tag */, const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
 }
@@ -3115,6 +3115,19 @@ HWY_API bool AllFalse(const Mask256<T> mask) {
 template <typename T>
 HWY_API size_t CountTrue(const Mask256<T> mask) {
   return CountTrue(Full256<T>(), mask);
+}
+
+template <typename T>
+HWY_API Vec256<T> SumOfLanes(const Vec256<T> vHL) {
+  return SumOfLanes(Full256<T>(), vHL);
+}
+template <typename T>
+HWY_API Vec256<T> MinOfLanes(const Vec256<T> vHL) {
+  return MinOfLanes(Full256<T>(), vHL);
+}
+template <typename T>
+HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
+  return MaxOfLanes(Full256<T>(), vHL);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

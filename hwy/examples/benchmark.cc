@@ -131,7 +131,7 @@ class BenchmarkDot : public TwoArray {
         sum[i] += sum[i + power];
       }
     }
-    dot_ = GetLane(SumOfLanes(sum[0]));
+    dot_ = GetLane(SumOfLanes(d, sum[0]));
     return static_cast<FuncOutput>(dot_);
   }
   void Verify(size_t num_items) {

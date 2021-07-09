@@ -1605,10 +1605,9 @@ HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum)
 HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredsum)
 }  // namespace detail
 
-template <class V>
-HWY_API V SumOfLanes(const V v) {
-  using T = TFromV<V>;
-  const auto v0 = Zero(Full<T>());  // always m1
+template <class D>
+HWY_API VFromD<D> SumOfLanes(D /* d */, const VFromD<D> v) {
+  const auto v0 = Zero(Full<TFromD<D>>());  // always m1
   return detail::RedSum(v, v0);
 }
 
@@ -1619,9 +1618,9 @@ HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMin, redmin)
 HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin)
 }  // namespace detail
 
-template <class V>
-HWY_API V MinOfLanes(const V v) {
-  using T = TFromV<V>;
+template <class D>
+HWY_API VFromD<D> MinOfLanes(D /* d */, const VFromD<D> v) {
+  using T = TFromD<D>;
   const Full<T> d1;  // always m1
   const auto neutral = Set(d1, HighestValue<T>());
   return detail::RedMin(v, neutral);
@@ -1634,9 +1633,9 @@ HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMax, redmax)
 HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax)
 }  // namespace detail
 
-template <class V>
-HWY_API V MaxOfLanes(const V v) {
-  using T = TFromV<V>;
+template <class D>
+HWY_API VFromD<D> MaxOfLanes(D /* d */, const VFromD<D> v) {
+  using T = TFromD<D>;
   const Full<T> d1;  // always m1
   const auto neutral = Set(d1, LowestValue<T>());
   return detail::RedMax(v, neutral);

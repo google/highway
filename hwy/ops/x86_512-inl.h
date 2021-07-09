@@ -3217,65 +3217,63 @@ HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
 // ------------------------------ Reductions
 
 // Returns the sum in each lane.
-HWY_API Vec512<int32_t> SumOfLanes(const Vec512<int32_t> v) {
-  return Set(Full512<int32_t>(), _mm512_reduce_add_epi32(v.raw));
+HWY_API Vec512<int32_t> SumOfLanes(Full512<int32_t> d, Vec512<int32_t> v) {
+  return Set(d, _mm512_reduce_add_epi32(v.raw));
 }
-HWY_API Vec512<int64_t> SumOfLanes(const Vec512<int64_t> v) {
-  return Set(Full512<int64_t>(), _mm512_reduce_add_epi64(v.raw));
+HWY_API Vec512<int64_t> SumOfLanes(Full512<int64_t> d, Vec512<int64_t> v) {
+  return Set(d, _mm512_reduce_add_epi64(v.raw));
 }
-HWY_API Vec512<uint32_t> SumOfLanes(const Vec512<uint32_t> v) {
-  return BitCast(Full512<uint32_t>(),
-                 SumOfLanes(BitCast(Full512<int32_t>(), v)));
+HWY_API Vec512<uint32_t> SumOfLanes(Full512<uint32_t> d, Vec512<uint32_t> v) {
+  return Set(d, _mm512_reduce_add_epi32(v.raw));
 }
-HWY_API Vec512<uint64_t> SumOfLanes(const Vec512<uint64_t> v) {
-  return BitCast(Full512<uint64_t>(),
-                 SumOfLanes(BitCast(Full512<int64_t>(), v)));
+HWY_API Vec512<uint64_t> SumOfLanes(Full512<uint64_t> d, Vec512<uint64_t> v) {
+  return Set(d, _mm512_reduce_add_epi64(v.raw));
 }
-HWY_API Vec512<float> SumOfLanes(const Vec512<float> v) {
-  return Set(Full512<float>(), _mm512_reduce_add_ps(v.raw));
+HWY_API Vec512<float> SumOfLanes(Full512<float> d, Vec512<float> v) {
+  return Set(d, _mm512_reduce_add_ps(v.raw));
 }
-HWY_API Vec512<double> SumOfLanes(const Vec512<double> v) {
-  return Set(Full512<double>(), _mm512_reduce_add_pd(v.raw));
+HWY_API Vec512<double> SumOfLanes(Full512<double> d, Vec512<double> v) {
+  return Set(d, _mm512_reduce_add_pd(v.raw));
 }
 
 // Returns the minimum in each lane.
-HWY_API Vec512<int32_t> MinOfLanes(const Vec512<int32_t> v) {
-  return Set(Full512<int32_t>(), _mm512_reduce_min_epi32(v.raw));
+HWY_API Vec512<int32_t> MinOfLanes(Full512<int32_t> d, Vec512<int32_t> v) {
+  return Set(d, _mm512_reduce_min_epi32(v.raw));
 }
-HWY_API Vec512<int64_t> MinOfLanes(const Vec512<int64_t> v) {
-  return Set(Full512<int64_t>(), _mm512_reduce_min_epi64(v.raw));
+HWY_API Vec512<int64_t> MinOfLanes(Full512<int64_t> d, Vec512<int64_t> v) {
+  return Set(d, _mm512_reduce_min_epi64(v.raw));
 }
-HWY_API Vec512<uint32_t> MinOfLanes(const Vec512<uint32_t> v) {
-  return Set(Full512<uint32_t>(), _mm512_reduce_min_epu32(v.raw));
+HWY_API Vec512<uint32_t> MinOfLanes(Full512<uint32_t> d, Vec512<uint32_t> v) {
+  return Set(d, _mm512_reduce_min_epu32(v.raw));
 }
-HWY_API Vec512<uint64_t> MinOfLanes(const Vec512<uint64_t> v) {
-  return Set(Full512<uint64_t>(), _mm512_reduce_min_epu64(v.raw));
+HWY_API Vec512<uint64_t> MinOfLanes(Full512<uint64_t> d, Vec512<uint64_t> v) {
+  return Set(d, _mm512_reduce_min_epu64(v.raw));
 }
-HWY_API Vec512<float> MinOfLanes(const Vec512<float> v) {
-  return Set(Full512<float>(), _mm512_reduce_min_ps(v.raw));
+HWY_API Vec512<float> MinOfLanes(Full512<float> d, Vec512<float> v) {
+  return Set(d, _mm512_reduce_min_ps(v.raw));
 }
-HWY_API Vec512<double> MinOfLanes(const Vec512<double> v) {
-  return Set(Full512<double>(), _mm512_reduce_min_pd(v.raw));
+HWY_API Vec512<double> MinOfLanes(Full512<double> d, Vec512<double> v) {
+  return Set(d, _mm512_reduce_min_pd(v.raw));
 }
 
 // Returns the maximum in each lane.
-HWY_API Vec512<int32_t> MaxOfLanes(const Vec512<int32_t> v) {
-  return Set(Full512<int32_t>(), _mm512_reduce_max_epi32(v.raw));
+HWY_API Vec512<int32_t> MaxOfLanes(Full512<int32_t> d, Vec512<int32_t> v) {
+  return Set(d, _mm512_reduce_max_epi32(v.raw));
 }
-HWY_API Vec512<int64_t> MaxOfLanes(const Vec512<int64_t> v) {
-  return Set(Full512<int64_t>(), _mm512_reduce_max_epi64(v.raw));
+HWY_API Vec512<int64_t> MaxOfLanes(Full512<int64_t> d, Vec512<int64_t> v) {
+  return Set(d, _mm512_reduce_max_epi64(v.raw));
 }
-HWY_API Vec512<uint32_t> MaxOfLanes(const Vec512<uint32_t> v) {
-  return Set(Full512<uint32_t>(), _mm512_reduce_max_epu32(v.raw));
+HWY_API Vec512<uint32_t> MaxOfLanes(Full512<uint32_t> d, Vec512<uint32_t> v) {
+  return Set(d, _mm512_reduce_max_epu32(v.raw));
 }
-HWY_API Vec512<uint64_t> MaxOfLanes(const Vec512<uint64_t> v) {
-  return Set(Full512<uint64_t>(), _mm512_reduce_max_epu64(v.raw));
+HWY_API Vec512<uint64_t> MaxOfLanes(Full512<uint64_t> d, Vec512<uint64_t> v) {
+  return Set(d, _mm512_reduce_max_epu64(v.raw));
 }
-HWY_API Vec512<float> MaxOfLanes(const Vec512<float> v) {
-  return Set(Full512<float>(), _mm512_reduce_max_ps(v.raw));
+HWY_API Vec512<float> MaxOfLanes(Full512<float> d, Vec512<float> v) {
+  return Set(d, _mm512_reduce_max_ps(v.raw));
 }
-HWY_API Vec512<double> MaxOfLanes(const Vec512<double> v) {
-  return Set(Full512<double>(), _mm512_reduce_max_pd(v.raw));
+HWY_API Vec512<double> MaxOfLanes(Full512<double> d, Vec512<double> v) {
+  return Set(d, _mm512_reduce_max_pd(v.raw));
 }
 
 // ================================================== DEPRECATED
@@ -3298,6 +3296,21 @@ HWY_API bool AllFalse(const Mask512<T> mask) {
 template <typename T>
 HWY_API size_t CountTrue(const Mask512<T> mask) {
   return CountTrue(Full512<T>(), mask);
+}
+
+template <typename T>
+HWY_API Vec512<T> SumOfLanes(Vec512<T> v) {
+  return SumOfLanes(Full512<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec512<T> MinOfLanes(Vec512<T> v) {
+  return MinOfLanes(Full512<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec512<T> MaxOfLanes(Vec512<T> v) {
+  return MaxOfLanes(Full512<T>(), v);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

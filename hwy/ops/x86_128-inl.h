@@ -4167,15 +4167,15 @@ HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
 
 // Supported for u/i/f 32/64. Returns the same value in each lane.
 template <typename T, size_t N>
-HWY_API Vec128<T, N> SumOfLanes(const Vec128<T, N> v) {
+HWY_API Vec128<T, N> SumOfLanes(Simd<T, N> /* tag */, const Vec128<T, N> v) {
   return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), v);
 }
 template <typename T, size_t N>
-HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
+HWY_API Vec128<T, N> MinOfLanes(Simd<T, N> /* tag */, const Vec128<T, N> v) {
   return detail::MinOfLanes(hwy::SizeTag<sizeof(T)>(), v);
 }
 template <typename T, size_t N>
-HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
+HWY_API Vec128<T, N> MaxOfLanes(Simd<T, N> /* tag */, const Vec128<T, N> v) {
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), v);
 }
 
@@ -4199,6 +4199,19 @@ HWY_API bool AllFalse(const Mask128<T, N> mask) {
 template <typename T, size_t N>
 HWY_API size_t CountTrue(const Mask128<T, N> mask) {
   return CountTrue(Simd<T, N>(), mask);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> SumOfLanes(const Vec128<T, N> v) {
+  return SumOfLanes(Simd<T, N>(), v);
+}
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
+  return MinOfLanes(Simd<T, N>(), v);
+}
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
+  return MaxOfLanes(Simd<T, N>(), v);
 }
 
 // ================================================== Operator wrapper
