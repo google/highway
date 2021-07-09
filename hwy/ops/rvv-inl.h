@@ -684,12 +684,6 @@ HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
 
 // mask = f(mask)
 #define HWY_RVV_RETM_ARGM(MLEN, NAME, OP)                 \
-  template <class D>                                      \
-  HWY_API HWY_RVV_M(MLEN) NAME(D d, HWY_RVV_M(MLEN) m) {  \
-    static_assert(MLenFromD(d) == MLEN, "Type mismatch"); \
-    return vm##OP##_m_b##MLEN(m);                         \
-  }                                                       \
-  /* DEPRECATED */                                        \
   HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) {       \
     return vm##OP##_m_b##MLEN(m);                         \
   }

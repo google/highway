@@ -565,9 +565,11 @@ HWY_API svbool_t RebindMask(const D /*d*/, const MFrom mask) {
 
 // ------------------------------ Mask logical
 
-template <typename T, size_t N>
-HWY_API svbool_t Not(Simd<T, N> d, svbool_t m) {
-  return svnot_b_z(detail::PTrue(d), m);
+HWY_API svbool_t Not(svbool_t m) {
+  // We don't know the lane type, so assume 8-bit. For larger types, this will
+  // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
+  // correspond to the lowest byte in the lane. Per ARM, such bits are ignored.
+  return svnot_b_z(svptrue_b8(), m);
 }
 HWY_API svbool_t And(svbool_t a, svbool_t b) {
   return svand_b_z(b, b, a);  // same order as AndNot for consistency

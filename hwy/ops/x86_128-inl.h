@@ -521,8 +521,8 @@ HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
-HWY_API Mask128<T, N> Not(const Simd<T, N> d, const Mask128<T, N> m) {
-  return MaskFromVec(Not(VecFromMask(d, m)));
+HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
+  return MaskFromVec(Not(VecFromMask(Simd<T, N>(), m)));
 }
 
 template <typename T, size_t N>
@@ -4199,11 +4199,6 @@ HWY_API bool AllFalse(const Mask128<T, N> mask) {
 template <typename T, size_t N>
 HWY_API size_t CountTrue(const Mask128<T, N> mask) {
   return CountTrue(Simd<T, N>(), mask);
-}
-
-template <typename T, size_t N>
-HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
-  return Not(Simd<T, N>(), m);
 }
 
 // ================================================== Operator wrapper

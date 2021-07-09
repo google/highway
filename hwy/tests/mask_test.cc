@@ -531,8 +531,8 @@ struct TestLogicalMask {
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(1));
 
-    HWY_ASSERT_MASK_EQ(d, m0, Not(d, m_all));
-    HWY_ASSERT_MASK_EQ(d, m_all, Not(d, m0));
+    HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
+    HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
 
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = HWY_MIN(N, size_t(6));

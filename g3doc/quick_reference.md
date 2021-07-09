@@ -398,10 +398,7 @@ Let `M` denote a mask capable of storing true/false for each lane.
     have the same number of lanes.
 
 *   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the
-    input mask element was not set. DEPRECATED, SVE needs an extra D argument.
-
-*   <code>M **Not**(D, M m)</code>: returns mask of elements indicating whether
-    the input mask element was not set.
+    input mask element was not set.
 
 *   <code>M **And**(M a, M b)</code>: returns mask of elements indicating
     whether both input mask elements were set.

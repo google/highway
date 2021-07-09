@@ -1694,7 +1694,7 @@ HWY_INLINE Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 }  // namespace detail
 
 template <typename T>
-HWY_API Mask512<T> Not(const Full512<T> /* tag */, const Mask512<T> m) {
+HWY_API Mask512<T> Not(const Mask512<T> m) {
   return detail::Not(hwy::SizeTag<sizeof(T)>(), m);
 }
 
@@ -3300,10 +3300,6 @@ HWY_API size_t CountTrue(const Mask512<T> mask) {
   return CountTrue(Full512<T>(), mask);
 }
 
-template <typename T>
-HWY_API Mask512<T> Not(const Mask512<T> m) {
-  return Not(Full512<T>(), m);
-}
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

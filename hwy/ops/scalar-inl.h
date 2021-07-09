@@ -266,8 +266,8 @@ HWY_API Vec1<T> ZeroIfNegative(const Vec1<T> v) {
 // ------------------------------ Mask logical
 
 template <typename T>
-HWY_API Mask1<T> Not(Sisd<T> d, const Mask1<T> m) {
-  return MaskFromVec(Not(VecFromMask(d, m)));
+HWY_API Mask1<T> Not(const Mask1<T> m) {
+  return MaskFromVec(Not(VecFromMask(Sisd<T>(), m)));
 }
 
 template <typename T>
@@ -1198,11 +1198,6 @@ HWY_API bool AllFalse(const Mask1<T> mask) {
 template <typename T>
 HWY_API size_t CountTrue(const Mask1<T> mask) {
   return CountTrue(Sisd<T>(), mask);
-}
-
-template <typename T>
-HWY_API Mask1<T> Not(const Mask1<T> m) {
-  return Not(Sisd<T>(), m);
 }
 
 // ================================================== Operator wrapper

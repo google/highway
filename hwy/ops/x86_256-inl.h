@@ -397,8 +397,8 @@ HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
 // ------------------------------ Mask logical
 
 template <typename T>
-HWY_API Mask256<T> Not(const Full256<T> d, const Mask256<T> m) {
-  return MaskFromVec(Not(VecFromMask(d, m)));
+HWY_API Mask256<T> Not(const Mask256<T> m) {
+  return MaskFromVec(Not(VecFromMask(Full256<T>(), m)));
 }
 
 template <typename T>
@@ -3115,11 +3115,6 @@ HWY_API bool AllFalse(const Mask256<T> mask) {
 template <typename T>
 HWY_API size_t CountTrue(const Mask256<T> mask) {
   return CountTrue(Full256<T>(), mask);
-}
-
-template <typename T>
-HWY_API Mask256<T> Not(const Mask256<T> m) {
-  return Not(Full256<T>(), m);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
