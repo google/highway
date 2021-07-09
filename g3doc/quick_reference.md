@@ -649,10 +649,7 @@ if the input exceeds the destination range.
     <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
     results are undefined for NaN.
 
-### Swizzle
-
-*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
-    extracting `SumOfLanes` results.
+### Combine
 
 *   <code>V2 **Upper/LowerHalf**(V)</code>: returns upper or lower half of the
     vector `V`.
@@ -665,8 +662,24 @@ if the input exceeds the destination range.
     currently only implemented for RVV, AVX2, AVX3*. If you need to assemble
     <128 bit parts, please raise an issue to discuss.
 
-*   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
-    taken from `a` and the even lanes from `b`.
+**Note**: the following operations cross block boundaries, which is typically
+more expensive on AVX2/AVX-512 than per-block operations.
+
+*   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation
+    of the lower halves of `hi` and `lo` without splitting into blocks.
+
+*   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation
+    of the upper halves of `hi` and `lo` without splitting into blocks.
+
+*   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of
+    the concatenation of `hi` and `lo` without splitting into blocks. Useful for
+    swapping the two blocks in 256-bit vectors.
+
+*   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters
+    of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
+    the other variants, this does not incur a block-crossing penalty on AVX2.
+
+### Blockwise
 
 **Note**: if vectors are larger than 128 bits, the following operations split
 their operands into independently processed 128-bit *blocks*.
@@ -674,11 +687,6 @@ their operands into independently processed 128-bit *blocks*.
 *   `V`: `{u,i}{16,32,64}, {f}` \
     <code>V **Broadcast**&lt;int i&gt;(V)</code>: returns individual *blocks*,
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
-
-*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
-    <code>Ret **ZipLower**(V a, V b)</code>: returns the same bits as
-    `InterleaveLower`, but repartitioned into double-width lanes (required in
-    order to use this operation with scalars).
 
 *   `V`: `{u,i}` \
     <code>V **TableLookupBytes**(V bytes, V from)</code>: returns
@@ -693,8 +701,18 @@ their operands into independently processed 128-bit *blocks*.
     x86 and ARM. For vectors of >= 256 bytes (can happen on SVE and RVV), this
     will set all lanes after the first 128 to 0.
 
-**Note**: the following are only available for full vectors (`N` > 1), and split
-their operands into independently processed 128-bit *blocks*:
+*   <code>V **InterleaveLower**(V a, V b)</code>: returns *blocks* with
+    alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
+    least-significant lane).
+
+*   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with
+    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
+    least-significant lane).
+
+*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
+    <code>Ret **ZipLower**(V a, V b)</code>: returns the same bits as
+    `InterleaveLower`, but repartitioned into double-width lanes (required in
+    order to use this operation with scalars).
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
@@ -748,34 +766,19 @@ their operands into independently processed 128-bit *blocks*:
     <code>V **Shuffle0123**(V)</code>: returns *blocks* with lanes in reverse
     order.
 
-*   <code>V **InterleaveLower**(V a, V b)</code>: returns *blocks* with
-    alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
-    least-significant lane).
+### Swizzle
 
-*   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with
-    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
-    least-significant lane).
+*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
+    extracting `SumOfLanes` results.
 
-**Note**: the following operations cross block boundaries, which is typically
-more expensive on AVX2/AVX-512 than within-block operations.
-
-*   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation
-    of the lower halves of `hi` and `lo` without splitting into blocks.
-
-*   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation
-    of the upper halves of `hi` and `lo` without splitting into blocks.
-
-*   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of
-    the concatenation of `hi` and `lo` without splitting into blocks. Useful for
-    swapping the two blocks in 256-bit vectors.
-
-*   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters
-    of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
-    the other variants, this does not incur a block-crossing penalty on AVX2.
+*   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
+    taken from `a` and the even lanes from `b`.
 
 *   `V`: `{u,i,f}{32}` \
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
-    `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`.
+    `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`. The
+    indices are not limited to blocks, hence this is slower than
+    `TableLookupBytes*` on AVX2/AVX-512.
 
 *   `VI`: `i32` \
     <code>VI **SetTableIndices**(D, int32_t* idx)</code> prepares for
