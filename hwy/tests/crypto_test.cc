@@ -125,6 +125,7 @@ struct TestCLMul {
     // needs 64 bit lanes and 128-bit result
 #if HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
     const size_t N = Lanes(d);
+    if (N == 1) return;  // need at least 2 lanes
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
 

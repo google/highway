@@ -756,6 +756,8 @@ struct TestMulEvenOdd64 {
     HWY_ASSERT_VEC_EQ(d, Zero(d), MulOdd(v0, v0));
 
     const size_t N = Lanes(d);
+    if (N == 1) return;  // need at least 2 lanes
+
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
     auto expected_even = AllocateAligned<T>(N);
@@ -941,36 +943,53 @@ template <typename T, class D>
 AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
   const T eps = std::numeric_limits<T>::epsilon();
   const T test_cases[] = {
-      // +/- 1
-      T(1), T(-1),
-      // +/- 0
-      T(0), T(-0),
-      // near 0
-      T(0.4), T(-0.4),
-      // +/- integer
-      T(4), T(-32),
-      // positive near limit
-      MantissaEnd<T>() - T(1.5), MantissaEnd<T>() + T(1.5),
-      // negative near limit
-      -MantissaEnd<T>() - T(1.5), -MantissaEnd<T>() + T(1.5),
-      // +/- huge (but still fits in float)
-      T(1E34), T(-1E35),
-      // positive tiebreak
-      T(1.5), T(2.5),
-      // negative tiebreak
-      T(-1.5), T(-2.5),
-      // positive +/- delta
-      T(2.0001), T(3.9999),
-      // negative +/- delta
-      T(-999.9999), T(-998.0001),
-      // positive +/- epsilon
-      T(1) + eps, T(1) - eps,
-      // negative +/- epsilon
-      T(-1) + eps, T(-1) - eps,
-      // +/- infinity
-      std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(),
-      // qNaN
-      GetLane(NaN(d))};
+    // +/- 1
+    T(1),
+    T(-1),
+    // +/- 0
+    T(0),
+    T(-0),
+    // near 0
+    T(0.4),
+    T(-0.4),
+    // +/- integer
+    T(4),
+    T(-32),
+    // positive near limit
+    MantissaEnd<T>() - T(1.5),
+    MantissaEnd<T>() + T(1.5),
+    // negative near limit
+    -MantissaEnd<T>() - T(1.5),
+    -MantissaEnd<T>() + T(1.5),
+    // positive tiebreak
+    T(1.5),
+    T(2.5),
+    // negative tiebreak
+    T(-1.5),
+    T(-2.5),
+    // positive +/- delta
+    T(2.0001),
+    T(3.9999),
+    // negative +/- delta
+    T(-999.9999),
+    T(-998.0001),
+    // positive +/- epsilon
+    T(1) + eps,
+    T(1) - eps,
+    // negative +/- epsilon
+    T(-1) + eps,
+    T(-1) - eps,
+#if !defined(HWY_EMULATE_SVE)  // these are not safe to just cast to int
+    // +/- huge (but still fits in float)
+    T(1E34),
+    T(-1E35),
+    // +/- infinity
+    std::numeric_limits<T>::infinity(),
+    -std::numeric_limits<T>::infinity(),
+    // qNaN
+    GetLane(NaN(d))
+#endif
+  };
   const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
@@ -1127,18 +1146,18 @@ struct TestSumOfLanes {
 };
 
 HWY_NOINLINE void TestAllSumOfLanes() {
-  const ForPartialVectors<TestSumOfLanes> sum;
+  const ForPartialVectors<TestSumOfLanes> test;
 
   // No u8/u16/i8/i16.
-  sum(uint32_t());
-  sum(int32_t());
+  test(uint32_t());
+  test(int32_t());
 
 #if HWY_CAP_INTEGER64
-  sum(uint64_t());
-  sum(int64_t());
+  test(uint64_t());
+  test(int64_t());
 #endif
 
-  ForFloatTypes(sum);
+  ForFloatTypes(test);
 }
 
 struct TestMinOfLanes {

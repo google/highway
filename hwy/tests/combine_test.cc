@@ -168,6 +168,61 @@ HWY_NOINLINE void TestAllCombine() {
   ForAllTypes(ForExtendableVectors<TestCombine>());
 }
 
+struct TestConcat {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const size_t half_bytes = N * sizeof(T) / 2;
+
+    auto hi = AllocateAligned<T>(N);
+    auto lo = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    RandomState rng;
+    for (size_t rep = 0; rep < 10; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        hi[i] = static_cast<T>(Random64(&rng) & 0xFF);
+        lo[i] = static_cast<T>(Random64(&rng) & 0xFF);
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[N / 2], half_bytes);
+        memcpy(&expected[0], &lo[0], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperLower(vhi, vlo));
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[N / 2], half_bytes);
+        memcpy(&expected[0], &lo[N / 2], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperUpper(vhi, vlo));
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[0], half_bytes);
+        memcpy(&expected[0], &lo[N / 2], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerUpper(vhi, vlo));
+      }
+
+      {
+        memcpy(&expected[N / 2], &hi[0], half_bytes);
+        memcpy(&expected[0], &lo[0], half_bytes);
+        const auto vhi = Load(d, hi.get());
+        const auto vlo = Load(d, lo.get());
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerLower(vhi, vlo));
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllConcat() {
+  ForAllTypes(ForGE128Vectors<TestConcat>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -180,6 +235,7 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllLowerHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllUpperHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
+HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcat);
 }  // namespace hwy
 #endif
 

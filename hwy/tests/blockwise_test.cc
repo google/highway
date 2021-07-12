@@ -69,7 +69,11 @@ struct TestShiftBytes {
 
     for (size_t block = 0; block < N8; block += kBlockSize) {
       memcpy(expected_bytes + block, in_bytes + block + 1, kBlockSize - 1);
-      expected_bytes[block + kBlockSize - 1] = 0;
+      if (N8 >= 16) {
+        expected_bytes[block + kBlockSize - 1] = 0;
+      } else {
+        expected_bytes[block + kBlockSize - 1] = block + kBlockSize + 1;
+      }
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightBytes<1>(v));
 #else
@@ -124,6 +128,7 @@ struct TestBroadcastR {
     using T = typename D::T;
     const D d;
     const size_t N = Lanes(d);
+    if (kLane >= N) return;
     auto in_lanes = AllocateAligned<T>(N);
     std::fill(in_lanes.get(), in_lanes.get() + N, T(0));
     const size_t blockN = HWY_MIN(N * sizeof(T), 16) / sizeof(T);
@@ -180,8 +185,11 @@ struct TestTableLookupBytes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
+    const Repartition<uint8_t, D> d8;
     const size_t N = Lanes(d);
-    const size_t N8 = Lanes(Repartition<uint8_t, D>());
+    const size_t N8 = Lanes(d8);
+
+    // Random input bytes
     auto in_bytes = AllocateAligned<uint8_t>(N8);
     for (size_t i = 0; i < N8; ++i) {
       in_bytes[i] = Random32(&rng) & 0xFF;
@@ -197,23 +205,23 @@ struct TestTableLookupBytes {
         11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
     auto index_bytes = AllocateAligned<uint8_t>(N8);
+    const size_t max_index = HWY_MIN(N8, 16) - 1;
     for (size_t i = 0; i < N8; ++i) {
       index_bytes[i] = (i < 64) ? index_bytes_source[i] : 0;
-      // Avoid undefined results / asan error for scalar by capping indices.
-      if (index_bytes[i] >= N * sizeof(T)) {
-        index_bytes[i] = static_cast<uint8_t>(N * sizeof(T) - 1);
-      }
+      // Avoid asan error for partial vectors.
+      index_bytes[i] = HWY_MIN(index_bytes[i], max_index);
     }
     const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
+
     auto expected = AllocateAligned<T>(N);
     uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
-    // Byte indices wrap around
-    const size_t mod = HWY_MIN(N8, 256);
     for (size_t block = 0; block < N8; block += 16) {
       for (size_t i = 0; i < 16 && (block + i) < N8; ++i) {
         const uint8_t index = index_bytes[block + i];
-        expected_bytes[block + i] = in_bytes[(block + index) % mod];
+        HWY_ASSERT(block + index < N8);  // indices were already capped to N8.
+        // For large vectors, the lane index may wrap around due to block.
+        expected_bytes[block + i] = in_bytes[(block & 0xFF) + index];
       }
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices));
@@ -264,11 +272,13 @@ struct TestInterleave {
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveLower(even, odd));
 
-    for (size_t i = 0; i < Lanes(d); ++i) {
-      const size_t block = i / blockN;
-      expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
+    if (N >= 16 / sizeof(T)) {
+      for (size_t i = 0; i < Lanes(d); ++i) {
+        const size_t block = i / blockN;
+        expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
+      }
+      HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(even, odd));
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(even, odd));
   }
 };
 
@@ -316,6 +326,7 @@ struct TestZipUpper {
     static_assert(sizeof(T) * 2 == sizeof(WideT), "Must be double-width");
     static_assert(IsSigned<T>() == IsSigned<WideT>(), "Must have same sign");
     const size_t N = Lanes(d);
+    if (N < 16 / sizeof(T)) return;
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
     for (size_t i = 0; i < Lanes(d); ++i) {
@@ -382,67 +393,6 @@ HWY_NOINLINE void TestAllZip() {
   // No float - concatenating f32 does not result in a f64
 }
 
-class TestSpecialShuffle32 {
- public:
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, 0);
-
-#define VERIFY_LANES_32(d, v, i3, i2, i1, i0) \
-  VerifyLanes32((d), (v), (i3), (i2), (i1), (i0), __FILE__, __LINE__)
-
-    VERIFY_LANES_32(d, Shuffle2301(v), 2, 3, 0, 1);
-    VERIFY_LANES_32(d, Shuffle1032(v), 1, 0, 3, 2);
-    VERIFY_LANES_32(d, Shuffle0321(v), 0, 3, 2, 1);
-    VERIFY_LANES_32(d, Shuffle2103(v), 2, 1, 0, 3);
-    VERIFY_LANES_32(d, Shuffle0123(v), 0, 1, 2, 3);
-
-#undef VERIFY_LANES_32
-  }
-
- private:
-  template <class D, class V>
-  HWY_NOINLINE void VerifyLanes32(D d, V actual, const int i3, const int i2,
-                                  const int i1, const int i0,
-                                  const char* filename, const int line) {
-    using T = TFromD<D>;
-    constexpr size_t kBlockN = 16 / sizeof(T);
-    const size_t N = Lanes(d);
-    auto expected = AllocateAligned<T>(N);
-    for (size_t block = 0; block < N; block += kBlockN) {
-      expected[block + 3] = static_cast<T>(block + i3);
-      expected[block + 2] = static_cast<T>(block + i2);
-      expected[block + 1] = static_cast<T>(block + i1);
-      expected[block + 0] = static_cast<T>(block + i0);
-    }
-    AssertVecEqual(d, expected.get(), actual, filename, line);
-  }
-};
-
-class TestSpecialShuffle64 {
- public:
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, 0);
-    VerifyLanes64(d, Shuffle01(v), 0, 1, __FILE__, __LINE__);
-  }
-
- private:
-  template <class D, class V>
-  HWY_NOINLINE void VerifyLanes64(D d, V actual, const int i1, const int i0,
-                                  const char* filename, const int line) {
-    using T = TFromD<D>;
-    constexpr size_t kBlockN = 16 / sizeof(T);
-    const size_t N = Lanes(d);
-    auto expected = AllocateAligned<T>(N);
-    for (size_t block = 0; block < N; block += kBlockN) {
-      expected[block + 1] = static_cast<T>(block + i1);
-      expected[block + 0] = static_cast<T>(block + i0);
-    }
-    AssertVecEqual(d, expected.get(), actual, filename, line);
-  }
-};
-
 template <int kBytes>
 struct TestCombineShiftRightBytesR {
   template <class T, class D>
@@ -453,6 +403,7 @@ struct TestCombineShiftRightBytesR {
     static_assert(kBytes < kBlockSize, "Shift count is per block");
     const Repartition<uint8_t, D> d8;
     const size_t N8 = Lanes(d8);
+    if (N8 < 16) return;
     auto hi_bytes = AllocateAligned<uint8_t>(N8);
     auto lo_bytes = AllocateAligned<uint8_t>(N8);
     auto expected_bytes = AllocateAligned<uint8_t>(N8);
@@ -493,6 +444,7 @@ struct TestCombineShiftRightLanesR {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
     const Repartition<uint8_t, D> d8;
     const size_t N8 = Lanes(d8);
+    if (N8 < 16) return;
 
     auto hi_bytes = AllocateAligned<uint8_t>(N8);
     auto lo_bytes = AllocateAligned<uint8_t>(N8);
@@ -551,6 +503,63 @@ struct TestCombineShiftRight {
 HWY_NOINLINE void TestAllCombineShiftRight() {
   ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());
 }
+
+class TestSpecialShuffle32 {
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v = Iota(d, 0);
+    VerifyLanes32(d, Shuffle2301(v), 2, 3, 0, 1, __FILE__, __LINE__);
+    VerifyLanes32(d, Shuffle1032(v), 1, 0, 3, 2, __FILE__, __LINE__);
+    VerifyLanes32(d, Shuffle0321(v), 0, 3, 2, 1, __FILE__, __LINE__);
+    VerifyLanes32(d, Shuffle2103(v), 2, 1, 0, 3, __FILE__, __LINE__);
+    VerifyLanes32(d, Shuffle0123(v), 0, 1, 2, 3, __FILE__, __LINE__);
+  }
+
+ private:
+  template <class D, class V>
+  HWY_NOINLINE void VerifyLanes32(D d, V actual, const int i3, const int i2,
+                                  const int i1, const int i0,
+                                  const char* filename, const int line) {
+    using T = TFromD<D>;
+    constexpr size_t kBlockN = 16 / sizeof(T);
+    const size_t N = Lanes(d);
+    if (N < 4) return;
+    auto expected = AllocateAligned<T>(N);
+    for (size_t block = 0; block < N; block += kBlockN) {
+      expected[block + 3] = static_cast<T>(block + i3);
+      expected[block + 2] = static_cast<T>(block + i2);
+      expected[block + 1] = static_cast<T>(block + i1);
+      expected[block + 0] = static_cast<T>(block + i0);
+    }
+    AssertVecEqual(d, expected.get(), actual, filename, line);
+  }
+};
+
+class TestSpecialShuffle64 {
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v = Iota(d, 0);
+    VerifyLanes64(d, Shuffle01(v), 0, 1, __FILE__, __LINE__);
+  }
+
+ private:
+  template <class D, class V>
+  HWY_NOINLINE void VerifyLanes64(D d, V actual, const int i1, const int i0,
+                                  const char* filename, const int line) {
+    using T = TFromD<D>;
+    constexpr size_t kBlockN = 16 / sizeof(T);
+    const size_t N = Lanes(d);
+    if (N < 2) return;
+    auto expected = AllocateAligned<T>(N);
+    for (size_t block = 0; block < N; block += kBlockN) {
+      expected[block + 1] = static_cast<T>(block + i1);
+      expected[block + 0] = static_cast<T>(block + i0);
+    }
+    AssertVecEqual(d, expected.get(), actual, filename, line);
+  }
+};
 
 HWY_NOINLINE void TestAllSpecialShuffles() {
   const ForGE128Vectors<TestSpecialShuffle32> test32;

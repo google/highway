@@ -224,13 +224,22 @@ struct TestDemoteTo {
     const T min = LimitsMin<ToT>();
     const T max = LimitsMax<ToT>();
 
+    const auto value_ok = [&](T& value) {
+      if (!IsFinite(value)) return false;
+#if HWY_EMULATE_SVE
+      // farm_sve just casts, which is undefined if the value is out of range.
+      value = HWY_MIN(HWY_MAX(min, value), max);
+#endif
+      return true;
+    };
+
     RandomState rng;
     for (size_t rep = 0; rep < 1000; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         do {
           const uint64_t bits = rng();
           memcpy(&from[i], &bits, sizeof(T));
-        } while (!IsFinite(from[i]));
+        } while (!value_ok(from[i]));
         expected[i] = static_cast<ToT>(HWY_MIN(HWY_MAX(min, from[i]), max));
       }
 
@@ -338,6 +347,9 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
 struct TestF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
+#if defined(HWY_EMULATE_SVE) && !defined(__F16C__)
+#error "Disable this test or ensure farm_sve actually converts to f16"
+#endif
     size_t padded;
     auto in = F16TestCases(d32, padded);
     using TF16 = float16_t;
@@ -377,8 +389,8 @@ struct TestIntFromFloatHuge {
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
     // Still does not work, although ARMv7 manual says that float->int
     // saturates, i.e. chooses the nearest representable value. Also causes
-    // out-of-memory for MSVC.
-#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC
+    // out-of-memory for MSVC, and unsafe cast in farm_sve.
+#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC && !defined(HWY_EMULATE_SVE)
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
@@ -436,6 +448,10 @@ class TestIntFromFloat {
           const uint64_t bits = rng();
           memcpy(&from[i], &bits, sizeof(TF));
         } while (!std::isfinite(from[i]));
+#if defined(HWY_EMULATE_SVE)
+        // farm_sve just casts, which is undefined if the value is out of range.
+        from[i] = HWY_MIN(HWY_MAX(min / 2, from[i]), max / 2);
+#endif
         if (from[i] >= max) {
           expected[i] = LimitsMax<TI>();
         } else if (from[i] <= min) {
@@ -549,14 +565,6 @@ struct TestI32F64 {
                       DemoteTo(di, Iota(df, -TF(N + 1) - eps)));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), PromoteTo(df, Iota(di, TI(-2))));
 
-    // Huge positive float
-    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
-                      DemoteTo(di, Set(df, TF(1E12))));
-
-    // Huge negative float
-    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
-                      DemoteTo(di, Set(df, TF(-1E12))));
-
     // Max positive int
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
                       PromoteTo(df, Set(di, LimitsMax<TI>())));
@@ -564,6 +572,17 @@ struct TestI32F64 {
     // Min negative int
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
                       PromoteTo(df, Set(di, LimitsMin<TI>())));
+
+    // farm_sve just casts, which is undefined if the value is out of range.
+#if !defined(HWY_EMULATE_SVE)
+    // Huge positive float
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
+                      DemoteTo(di, Set(df, TF(1E12))));
+
+    // Huge negative float
+    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
+                      DemoteTo(di, Set(df, TF(-1E12))));
+#endif
   }
 };
 
