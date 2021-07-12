@@ -461,14 +461,36 @@ HWY_NOINLINE Mask<D> MaskFalse(const D d) {
 
 // Helpers for instantiating tests with combinations of lane types / counts.
 
-// For all powers of two in [kMinLanes, N * kMinLanes] (so that recursion stops
-// at N == 0)
-template <typename T, size_t N, size_t kMinLanes, class Test>
+template <bool valid>
+struct CallTestIf {
+  template <typename T, size_t N, class Test>
+  static void Do() {
+    Test()(T(), Simd<T, N>());
+  }
+};
+// Avoids instantiating tests for invalid N (a smaller fraction than 1/8th).
+template <>
+struct CallTestIf<false> {
+  template <typename T, size_t N, class Test>
+  static void Do() {
+    // Should only happen with scalable vectors.
+    HWY_ASSERT(HWY_TARGET == HWY_RVV || HWY_TARGET == HWY_SVE ||
+               HWY_TARGET == HWY_SVE2);
+  }
+};
+
+// For all powers of two in [kMinLanes, kMul * kMinLanes] (so that recursion
+// stops at kMul == 0)
+template <typename T, size_t kMul, size_t kMinLanes, class Test>
 struct ForeachSizeR {
   static void Do() {
-    static_assert(N != 0, "End of recursion");
-    Test()(T(), Simd<T, N * kMinLanes>());
-    ForeachSizeR<T, N / 2, kMinLanes, Test>::Do();
+    static_assert(kMul != 0, "End of recursion");
+    constexpr size_t N = kMul * kMinLanes;
+    constexpr bool kIsExact = N * sizeof(T) <= 16;
+    constexpr bool kIsRatio = N >= HWY_LANES(T) / 8;
+    CallTestIf<kIsExact || kIsRatio>::template Do<T, N, Test>();
+
+    ForeachSizeR<T, kMul / 2, kMinLanes, Test>::Do();
   }
 };
 
@@ -503,6 +525,8 @@ struct ForDemoteVectors {
 #if HWY_TARGET == HWY_RVV
     // Only m1..8 for now.
     ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T), Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T) / 8, Test>::Do();
 #else
     ForeachSizeR<T, HWY_LANES(T), 1, Test>::Do();
 #endif

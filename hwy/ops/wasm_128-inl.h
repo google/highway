@@ -1581,23 +1581,16 @@ HWY_API float GetLane(const Vec128<float, N> v) {
   return wasm_f32x4_extract_lane(v.raw, 0);
 }
 
-// ------------------------------ Extract half
+// ------------------------------ LowerHalf
 
-// Returns upper/lower half of a vector.
 template <typename T, size_t N>
-HWY_API Vec128<T, N / 2> LowerHalf(Vec128<T, N> v) {
+HWY_API Vec128<T, N / 2> LowerHalf(Simd<T, N / 2> /* tag */, Vec128<T, N> v) {
   return Vec128<T, N / 2>{v.raw};
 }
 
-// These copy hi into lo (smaller instruction encoding than shifts).
-template <typename T>
-HWY_API Vec128<T, 8 / sizeof(T)> UpperHalf(Vec128<T> v) {
-  // TODO(eustas): use swizzle?
-  return Vec128<T, 8 / sizeof(T)>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
-}
-HWY_API Vec128<float, 2> UpperHalf(Vec128<float> v) {
-  // TODO(eustas): use swizzle?
-  return Vec128<float, 2>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
+template <typename T, size_t N>
+HWY_API Vec128<T, N / 2> LowerHalf(Vec128<T, N> v) {
+  return LowerHalf(Simd<T, N / 2>(), v);
 }
 
 // ------------------------------ Shift vector by constant #bytes
@@ -1684,8 +1677,8 @@ HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
 }
 
 // 0x01..0F, kBytes = 1 => 0x0001..0E
-template <int kBytes, typename T>
-HWY_API Vec128<T> ShiftRightBytes(const Vec128<T> v) {
+template <int kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   const __i8x16 zero = wasm_i8x16_splat(0);
   switch (kBytes) {
@@ -1693,73 +1686,79 @@ HWY_API Vec128<T> ShiftRightBytes(const Vec128<T> v) {
       return v;
 
     case 1:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 1, 2, 3, 4, 5, 6, 7, 8,
-                                          9, 10, 11, 12, 13, 14, 15, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 1, 2, 3, 4, 5, 6, 7,
+                                             8, 9, 10, 11, 12, 13, 14, 15, 16)};
 
     case 2:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 2, 3, 4, 5, 6, 7, 8, 9,
-                                          10, 11, 12, 13, 14, 15, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(
+          v.raw, zero, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 16)};
 
     case 3:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 3, 4, 5, 6, 7, 8, 9, 10,
-                                          11, 12, 13, 14, 15, 16, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 3, 4, 5, 6, 7, 8, 9,
+                                             10, 11, 12, 13, 14, 15, 16, 16,
+                                             16)};
 
     case 4:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 4, 5, 6, 7, 8, 9, 10, 11,
-                                          12, 13, 14, 15, 16, 16, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 4, 5, 6, 7, 8, 9, 10,
+                                             11, 12, 13, 14, 15, 16, 16, 16,
+                                             16)};
 
     case 5:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 5, 6, 7, 8, 9, 10, 11,
-                                          12, 13, 14, 15, 16, 16, 16, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 5, 6, 7, 8, 9, 10, 11,
+                                             12, 13, 14, 15, 16, 16, 16, 16,
+                                             16)};
 
     case 6:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 6, 7, 8, 9, 10, 11, 12,
-                                          13, 14, 15, 16, 16, 16, 16, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 6, 7, 8, 9, 10, 11,
+                                             12, 13, 14, 15, 16, 16, 16, 16, 16,
+                                             16)};
 
     case 7:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 7, 8, 9, 10, 11, 12, 13,
-                                          14, 15, 16, 16, 16, 16, 16, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 7, 8, 9, 10, 11, 12,
+                                             13, 14, 15, 16, 16, 16, 16, 16, 16,
+                                             16)};
 
     case 8:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 8, 9, 10, 11, 12, 13, 14,
-                                          15, 16, 16, 16, 16, 16, 16, 16, 16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 8, 9, 10, 11, 12, 13,
+                                             14, 15, 16, 16, 16, 16, 16, 16, 16,
+                                             16)};
 
     case 9:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 9, 10, 11, 12, 13, 14,
-                                          15, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 9, 10, 11, 12, 13, 14,
+                                             15, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16)};
 
     case 10:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 10, 11, 12, 13, 14, 15,
-                                          16, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 10, 11, 12, 13, 14,
+                                             15, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16, 16)};
 
     case 11:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 11, 12, 13, 14, 15, 16,
-                                          16, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 11, 12, 13, 14, 15,
+                                             16, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16, 16)};
 
     case 12:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 12, 13, 14, 15, 16, 16,
-                                          16, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 12, 13, 14, 15, 16,
+                                             16, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16, 16)};
 
     case 13:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 13, 14, 15, 16, 16, 16,
-                                          16, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 13, 14, 15, 16, 16,
+                                             16, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16, 16)};
 
     case 14:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 14, 15, 16, 16, 16, 16,
-                                          16, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 14, 15, 16, 16, 16,
+                                             16, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16, 16)};
 
     case 15:
-      return Vec128<T>{wasm_i8x16_shuffle(v.raw, zero, 15, 16, 16, 16, 16, 16,
-                                          16, 16, 16, 16, 16, 16, 16, 16, 16,
-                                          16)};
+      return Vec128<T, N>{wasm_i8x16_shuffle(v.raw, zero, 15, 16, 16, 16, 16,
+                                             16, 16, 16, 16, 16, 16, 16, 16, 16,
+                                             16, 16)};
   }
-  return Vec128<T>{zero};
+  return Vec128<T, N>{zero};
 }
 
 template <int kLanes, typename T, size_t N>
@@ -1767,6 +1766,31 @@ HWY_API Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
   const Simd<uint8_t, N * sizeof(T)> d8;
   const Simd<T, N> d;
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+}
+
+// ------------------------------ UpperHalf (ShiftRightBytes)
+
+// Full input: copy hi into lo (smaller instruction encoding than shifts).
+template <typename T>
+HWY_API Vec128<T, 8 / sizeof(T)> UpperHalf(Half<Full128<T>> /* tag */,
+                                           const Vec128<T> v) {
+  // TODO(eustas): use swizzle?
+  return Vec128<T, 8 / sizeof(T)>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
+}
+HWY_API Vec128<float, 2> UpperHalf(Half<Full128<float>> /* tag */,
+                                   const Vec128<float> v) {
+  // TODO(eustas): use swizzle?
+  return Vec128<float, 2>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
+}
+
+// Partial
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Half<Simd<T, N>> /* tag */,
+                                         Vec128<T, N> v) {
+  const Simd<T, N> d;
+  const auto vu = BitCast(RebindToUnsigned<decltype(d)>(), v);
+  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(vu));
+  return Vec128<T, (N + 1) / 2>{upper.raw};
 }
 
 // ------------------------------ Extract from 2x 128-bit at constant offset
@@ -3162,6 +3186,11 @@ HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
   return MaxOfLanes(Simd<T, N>(), v);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
+  return UpperHalf(Half<Simd<T, N>>(), v);
 }
 
 // ================================================== Operator wrapper

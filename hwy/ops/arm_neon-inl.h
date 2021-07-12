@@ -2790,7 +2790,7 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 
 // ================================================== SWIZZLE
 
-// ------------------------------ Extract half
+// ------------------------------ LowerHalf
 
 // <= 64 bit: just return different type
 template <typename T, size_t N, HWY_IF_LE64(uint8_t, N)>
@@ -2831,38 +2831,10 @@ HWY_API Vec128<double, 1> LowerHalf(const Vec128<double> v) {
 }
 #endif
 
-HWY_API Vec128<uint8_t, 8> UpperHalf(const Vec128<uint8_t> v) {
-  return Vec128<uint8_t, 8>(vget_high_u8(v.raw));
+template <typename T, size_t N>
+HWY_API Vec128<T, N / 2> LowerHalf(Simd<T, N / 2> /* tag */, Vec128<T, N> v) {
+  return LowerHalf(v);
 }
-HWY_API Vec128<uint16_t, 4> UpperHalf(const Vec128<uint16_t> v) {
-  return Vec128<uint16_t, 4>(vget_high_u16(v.raw));
-}
-HWY_API Vec128<uint32_t, 2> UpperHalf(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t, 2>(vget_high_u32(v.raw));
-}
-HWY_API Vec128<uint64_t, 1> UpperHalf(const Vec128<uint64_t> v) {
-  return Vec128<uint64_t, 1>(vget_high_u64(v.raw));
-}
-HWY_API Vec128<int8_t, 8> UpperHalf(const Vec128<int8_t> v) {
-  return Vec128<int8_t, 8>(vget_high_s8(v.raw));
-}
-HWY_API Vec128<int16_t, 4> UpperHalf(const Vec128<int16_t> v) {
-  return Vec128<int16_t, 4>(vget_high_s16(v.raw));
-}
-HWY_API Vec128<int32_t, 2> UpperHalf(const Vec128<int32_t> v) {
-  return Vec128<int32_t, 2>(vget_high_s32(v.raw));
-}
-HWY_API Vec128<int64_t, 1> UpperHalf(const Vec128<int64_t> v) {
-  return Vec128<int64_t, 1>(vget_high_s64(v.raw));
-}
-HWY_API Vec128<float, 2> UpperHalf(const Vec128<float> v) {
-  return Vec128<float, 2>(vget_high_f32(v.raw));
-}
-#if HWY_ARCH_ARM_A64
-HWY_API Vec128<double, 1> UpperHalf(const Vec128<double> v) {
-  return Vec128<double, 1>(vget_high_f64(v.raw));
-}
-#endif
 
 // ------------------------------ Extract from 2x 128-bit at constant offset
 
@@ -2877,6 +2849,16 @@ HWY_API Vec128<T> CombineShiftRightBytes(const Vec128<T> hi,
                                           BitCast(d8, hi).raw, kBytes)));
 }
 
+// Partial vectors (for UpperHalf)
+template <int kBytes, typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> CombineShiftRightBytes(const Vec128<T, N> hi,
+                                            const Vec128<T, N> lo) {
+  static_assert(0 < kBytes && kBytes < 8, "kBytes must be in [1, 7]");
+  const Repartition<uint8_t, Simd<T, N>> d8;
+  return Vec128<T, N>(
+      vext_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes));
+}
+
 // ------------------------------ Shift vector by constant #bytes
 
 namespace detail {
@@ -2887,7 +2869,7 @@ template <int kBytes>
 struct ShiftLeftBytesT {
   template <class T, size_t N>
   HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
-    return CombineShiftRightBytes<16 - kBytes>(v, Zero(Full128<T>()));
+    return CombineShiftRightBytes<16 - kBytes>(v, Zero(Simd<T, N>()));
   }
 };
 template <>
@@ -2902,7 +2884,7 @@ template <int kBytes>
 struct ShiftRightBytesT {
   template <class T, size_t N>
   HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
-    return CombineShiftRightBytes<kBytes>(Zero(Full128<T>()), v);
+    return CombineShiftRightBytes<kBytes>(Zero(Simd<T, N>()), v);
   }
 };
 template <>
@@ -2939,6 +2921,62 @@ HWY_API Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
   const Simd<uint8_t, N * sizeof(T)> d8;
   const Simd<T, N> d;
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+}
+
+// ------------------------------ UpperHalf (ShiftRightBytes)
+
+// Full input
+HWY_API Vec128<uint8_t, 8> UpperHalf(Simd<uint8_t, 8> /* tag */,
+                                     const Vec128<uint8_t> v) {
+  return Vec128<uint8_t, 8>(vget_high_u8(v.raw));
+}
+HWY_API Vec128<uint16_t, 4> UpperHalf(Simd<uint16_t, 4> /* tag */,
+                                      const Vec128<uint16_t> v) {
+  return Vec128<uint16_t, 4>(vget_high_u16(v.raw));
+}
+HWY_API Vec128<uint32_t, 2> UpperHalf(Simd<uint32_t, 2> /* tag */,
+                                      const Vec128<uint32_t> v) {
+  return Vec128<uint32_t, 2>(vget_high_u32(v.raw));
+}
+HWY_API Vec128<uint64_t, 1> UpperHalf(Simd<uint64_t, 1> /* tag */,
+                                      const Vec128<uint64_t> v) {
+  return Vec128<uint64_t, 1>(vget_high_u64(v.raw));
+}
+HWY_API Vec128<int8_t, 8> UpperHalf(Simd<int8_t, 8> /* tag */,
+                                    const Vec128<int8_t> v) {
+  return Vec128<int8_t, 8>(vget_high_s8(v.raw));
+}
+HWY_API Vec128<int16_t, 4> UpperHalf(Simd<int16_t, 4> /* tag */,
+                                     const Vec128<int16_t> v) {
+  return Vec128<int16_t, 4>(vget_high_s16(v.raw));
+}
+HWY_API Vec128<int32_t, 2> UpperHalf(Simd<int32_t, 2> /* tag */,
+                                     const Vec128<int32_t> v) {
+  return Vec128<int32_t, 2>(vget_high_s32(v.raw));
+}
+HWY_API Vec128<int64_t, 1> UpperHalf(Simd<int64_t, 1> /* tag */,
+                                     const Vec128<int64_t> v) {
+  return Vec128<int64_t, 1>(vget_high_s64(v.raw));
+}
+HWY_API Vec128<float, 2> UpperHalf(Simd<float, 2> /* tag */,
+                                   const Vec128<float> v) {
+  return Vec128<float, 2>(vget_high_f32(v.raw));
+}
+#if HWY_ARCH_ARM_A64
+HWY_API Vec128<double, 1> UpperHalf(Simd<double, 1> /* tag */,
+                                    const Vec128<double> v) {
+  return Vec128<double, 1>(vget_high_f64(v.raw));
+}
+#endif
+
+// Partial
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Half<Simd<T, N>> /* tag */,
+                                         Vec128<T, N> v) {
+  const Simd<T, N> d;
+  const auto vu = BitCast(RebindToUnsigned<decltype(d)>(), v);
+  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(vu));
+  return Vec128<T, (N + 1) / 2>(upper.raw);
 }
 
 // ------------------------------ Broadcast/splat any lane
@@ -4344,6 +4382,11 @@ HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
   return MaxOfLanes(Simd<T, N>(), v);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
+  return UpperHalf(Half<Simd<T, N>>(), v);
 }
 
 // ================================================== Operator wrapper

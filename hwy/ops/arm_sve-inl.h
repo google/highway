@@ -232,8 +232,6 @@ template <typename T, size_t N>
 svbool_t Mask(Simd<T, N> d) {
   static_assert(N <= HWY_LANES(T), "N cannot exceed a full vector");
   constexpr size_t div = HWY_LANES(T) / N;
-  // Sanity check: HWY_LANES is defined such that this holds.
-  static_assert(N <= 16 / sizeof(T) || (1 <= div && div <= 8), "");
 
   // Round up just in case - expected to be unnecessary because div <= 8, and
   // StoreMaskBits uses it on a byte vector where Lanes() >= 16.
@@ -1166,14 +1164,19 @@ HWY_API V ZeroExtendVector(const V lo) {
 
 // ------------------------------ Lower/UpperHalf
 
+template <class D2, class V>
+HWY_API V LowerHalf(D2 /* tag */, const V v) {
+  return v;
+}
+
 template <class V>
 HWY_API V LowerHalf(const V v) {
   return v;
 }
 
-template <class V>
-HWY_API V UpperHalf(const V v) {
-  return detail::Splice(v, v, detail::MaskUpperHalf(DFromV<V>()));
+template <class D2, class V>
+HWY_API V UpperHalf(const D2 d2, const V v) {
+  return detail::Splice(v, v, Not(FirstN(DFromV<V>(), Lanes(d2))));
 }
 
 // ================================================== SWIZZLE

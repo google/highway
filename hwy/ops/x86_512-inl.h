@@ -2000,33 +2000,41 @@ HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE
 
-template <typename T>
-HWY_API T GetLane(const Vec512<T> v) {
-  return GetLane(LowerHalf(v));
-}
-
-// ------------------------------ Extract half
+// ------------------------------ LowerHalf
 
 template <typename T>
-HWY_API Vec256<T> LowerHalf(Vec512<T> v) {
+HWY_API Vec256<T> LowerHalf(Full256<T> /* tag */, Vec512<T> v) {
   return Vec256<T>{_mm512_castsi512_si256(v.raw)};
 }
-HWY_API Vec256<float> LowerHalf(Vec512<float> v) {
+HWY_API Vec256<float> LowerHalf(Full256<float> /* tag */, Vec512<float> v) {
   return Vec256<float>{_mm512_castps512_ps256(v.raw)};
 }
-HWY_API Vec256<double> LowerHalf(Vec512<double> v) {
+HWY_API Vec256<double> LowerHalf(Full256<double> /* tag */, Vec512<double> v) {
   return Vec256<double>{_mm512_castpd512_pd256(v.raw)};
 }
 
 template <typename T>
-HWY_API Vec256<T> UpperHalf(Vec512<T> v) {
+HWY_API Vec256<T> LowerHalf(Vec512<T> v) {
+  return LowerHalf(Full256<T>(), v);
+}
+
+// ------------------------------ UpperHalf
+
+template <typename T>
+HWY_API Vec256<T> UpperHalf(Full256<T> /* tag */, Vec512<T> v) {
   return Vec256<T>{_mm512_extracti32x8_epi32(v.raw, 1)};
 }
-HWY_API Vec256<float> UpperHalf(Vec512<float> v) {
+HWY_API Vec256<float> UpperHalf(Full256<float> /* tag */, Vec512<float> v) {
   return Vec256<float>{_mm512_extractf32x8_ps(v.raw, 1)};
 }
-HWY_API Vec256<double> UpperHalf(Vec512<double> v) {
+HWY_API Vec256<double> UpperHalf(Full256<double> /* tag */, Vec512<double> v) {
   return Vec256<double>{_mm512_extractf64x4_pd(v.raw, 1)};
+}
+
+// ------------------------------ GetLane (LowerHalf)
+template <typename T>
+HWY_API T GetLane(const Vec512<T> v) {
+  return GetLane(LowerHalf(v));
 }
 
 // ------------------------------ ZeroExtendVector
@@ -2982,7 +2990,7 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const Repartition<int32_t, D> dw;
   const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
   const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
-  const auto promoted1 = PromoteTo(dw, UpperHalf(vu16));
+  const auto promoted1 = PromoteTo(dw, UpperHalf(Half<decltype(du)>(), vu16));
 
   const Mask512<int32_t> mask0{static_cast<__mmask16>(mask.raw & 0xFFFF)};
   const Mask512<int32_t> mask1{static_cast<__mmask16>(mask.raw >> 16)};
@@ -3311,6 +3319,11 @@ HWY_API Vec512<T> MinOfLanes(Vec512<T> v) {
 template <typename T>
 HWY_API Vec512<T> MaxOfLanes(Vec512<T> v) {
   return MaxOfLanes(Full512<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec256<T> UpperHalf(Vec512<T> v) {
+  return UpperHalf(Full256<T>(), v);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

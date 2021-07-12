@@ -1648,33 +1648,41 @@ HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE
 
-template <typename T>
-HWY_API T GetLane(const Vec256<T> v) {
-  return GetLane(LowerHalf(v));
-}
-
-// ------------------------------ Extract half
+// ------------------------------ LowerHalf
 
 template <typename T>
-HWY_API Vec128<T> LowerHalf(Vec256<T> v) {
+HWY_API Vec128<T> LowerHalf(Full128<T> /* tag */, Vec256<T> v) {
   return Vec128<T>{_mm256_castsi256_si128(v.raw)};
 }
-HWY_API Vec128<float> LowerHalf(Vec256<float> v) {
+HWY_API Vec128<float> LowerHalf(Full128<float> /* tag */, Vec256<float> v) {
   return Vec128<float>{_mm256_castps256_ps128(v.raw)};
 }
-HWY_API Vec128<double> LowerHalf(Vec256<double> v) {
+HWY_API Vec128<double> LowerHalf(Full128<double> /* tag */, Vec256<double> v) {
   return Vec128<double>{_mm256_castpd256_pd128(v.raw)};
 }
 
 template <typename T>
-HWY_API Vec128<T> UpperHalf(Vec256<T> v) {
+HWY_API Vec128<T> LowerHalf(Vec256<T> v) {
+  return LowerHalf(Full128<T>(), v);
+}
+
+// ------------------------------ UpperHalf
+
+template <typename T>
+HWY_API Vec128<T> UpperHalf(Full128<T> /* tag */, Vec256<T> v) {
   return Vec128<T>{_mm256_extracti128_si256(v.raw, 1)};
 }
-HWY_API Vec128<float> UpperHalf(Vec256<float> v) {
+HWY_API Vec128<float> UpperHalf(Full128<float> /* tag */, Vec256<float> v) {
   return Vec128<float>{_mm256_extractf128_ps(v.raw, 1)};
 }
-HWY_API Vec128<double> UpperHalf(Vec256<double> v) {
+HWY_API Vec128<double> UpperHalf(Full128<double> /* tag */, Vec256<double> v) {
   return Vec128<double>{_mm256_extractf128_pd(v.raw, 1)};
+}
+
+// ------------------------------ GetLane (LowerHalf)
+template <typename T>
+HWY_API T GetLane(const Vec256<T> v) {
+  return GetLane(LowerHalf(v));
 }
 
 // ------------------------------ ZeroExtendVector
@@ -2140,7 +2148,7 @@ HWY_API Vec256<double> ConcatUpperLower(const Vec256<double> hi,
 // hiH,hiL loH,loL |-> hiH,loH (= upper halves)
 template <typename T>
 HWY_API Vec256<T> ConcatUpperUpper(const Vec256<T> hi, const Vec256<T> lo) {
-  return ConcatUpperLower(hi, ZeroExtendVector(UpperHalf(lo)));
+  return ConcatUpperLower(hi, ZeroExtendVector(UpperHalf(Full128<T>(), lo)));
 }
 
 // ------------------------------ Odd/even lanes
@@ -2513,7 +2521,7 @@ HWY_API Vec128<uint8_t, 8> U8FromU32(const Vec256<uint32_t> v) {
   const auto quad = TableLookupBytes(v, Load(d32, k8From32));
   // Interleave both quadruplets - OR instead of unpack reduces port5 pressure.
   const auto lo = LowerHalf(quad);
-  const auto hi = UpperHalf(quad);
+  const auto hi = UpperHalf(Full128<uint32_t>(), quad);
   const auto pair = LowerHalf(lo | hi);
   return BitCast(Simd<uint8_t, 8>(), pair);
 }
@@ -2613,7 +2621,8 @@ HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint8_t>{_mm256_aesenc_epi128(state.raw, round_key.raw)};
 #else
-  return Combine(AESRound(UpperHalf(state), UpperHalf(round_key)),
+  const Full128<uint8_t> d2;
+  return Combine(AESRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
                  AESRound(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
@@ -2622,7 +2631,8 @@ HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint64_t>{_mm256_clmulepi64_epi128(a.raw, b.raw, 0x00)};
 #else
-  return Combine(CLMulLower(UpperHalf(a), UpperHalf(b)),
+  const Full128<uint64_t> d2;
+  return Combine(CLMulLower(UpperHalf(d2, a), UpperHalf(d2, b)),
                  CLMulLower(LowerHalf(a), LowerHalf(b)));
 #endif
 }
@@ -2631,7 +2641,8 @@ HWY_API Vec256<uint64_t> CLMulUpper(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint64_t>{_mm256_clmulepi64_epi128(a.raw, b.raw, 0x11)};
 #else
-  return Combine(CLMulUpper(UpperHalf(a), UpperHalf(b)),
+  const Full128<uint64_t> d2;
+  return Combine(CLMulUpper(UpperHalf(d2, a), UpperHalf(d2, b)),
                  CLMulUpper(LowerHalf(a), LowerHalf(b)));
 #endif
 }
@@ -2873,7 +2884,7 @@ HWY_INLINE Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
   const Repartition<int32_t, D> dw;
   const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
   const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
-  const auto promoted1 = PromoteTo(dw, UpperHalf(vu16));
+  const auto promoted1 = PromoteTo(dw, UpperHalf(Half<decltype(du)>(), vu16));
 
   const uint64_t mask_bits0 = mask_bits & 0xFF;
   const uint64_t mask_bits1 = mask_bits >> 8;
@@ -3128,6 +3139,11 @@ HWY_API Vec256<T> MinOfLanes(const Vec256<T> vHL) {
 template <typename T>
 HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
   return MaxOfLanes(Full256<T>(), vHL);
+}
+
+template <typename T>
+HWY_API Vec128<T> UpperHalf(Vec256<T> v) {
+  return UpperHalf(Full128<T>(), v);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

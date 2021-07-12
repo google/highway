@@ -648,8 +648,15 @@ if the input exceeds the destination range.
 
 ### Combine
 
-*   <code>V2 **Upper/LowerHalf**(V)</code>: returns upper or lower half of the
-    vector `V`.
+*   <code>V2 **LowerHalf**([D, ] V)</code>: returns the lower half of the vector
+    `V`. The optional `D` (provided for consistency with `UpperHalf`) is
+    `Half<DFromV<V>>`.
+
+*   <code>V2 **UpperHalf**(V)</code>: returns upper half of the vector `V`.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V2 **UpperHalf**(D, V)</code>: returns upper half of the vector `V`,
+    where `D` is `Half<DFromV<V>>`.
 
 *   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose `UpperHalf` is
     zero and whose `LowerHalf` is the argument.

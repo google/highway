@@ -1033,6 +1033,11 @@ HWY_API Vec1<T> LowerHalf(Vec1<T> v) {
   return v;
 }
 
+template <typename T>
+HWY_API Vec1<T> LowerHalf(Sisd<T> /* tag */, Vec1<T> v) {
+  return v;
+}
+
 // ------------------------------ Broadcast/splat any lane
 
 template <int kLane, typename T>

@@ -38,7 +38,7 @@ struct TestLowerHalf {
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
     const auto v = Iota(d, 1);
-    Store(LowerHalf(v), d2, lanes.get());
+    Store(LowerHalf(d2, v), d2, lanes.get());
     size_t i = 0;
     for (; i < Lanes(d2); ++i) {
       HWY_ASSERT_EQ(T(1 + i), lanes[i]);
@@ -53,13 +53,14 @@ struct TestLowerHalf {
 struct TestLowerQuarter {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Half<Half<D>> d4;
+    const Half<D> d2;
+    const Half<decltype(d2)> d4;
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
     const auto v = Iota(d, 1);
-    const auto lo = LowerHalf(LowerHalf(v));
+    const auto lo = LowerHalf(d4, LowerHalf(d2, v));
     Store(lo, d4, lanes.get());
     size_t i = 0;
     for (; i < Lanes(d4); ++i) {
@@ -87,10 +88,11 @@ struct TestUpperHalf {
 
     const auto v = Iota(d, 1);
     const size_t N = Lanes(d);
+    if (N == 1) return;
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
 
-    Store(UpperHalf(v), d2, lanes.get());
+    Store(UpperHalf(d2, v), d2, lanes.get());
     size_t i = 0;
     for (; i < Lanes(d2); ++i) {
       HWY_ASSERT_EQ(T(Lanes(d2) + 1 + i), lanes[i]);
@@ -106,7 +108,7 @@ struct TestUpperHalf {
 };
 
 HWY_NOINLINE void TestAllUpperHalf() {
-  ForAllTypes(ForGE128Vectors<TestUpperHalf>());
+  ForAllTypes(ForDemoteVectors<TestUpperHalf, 2>());
 }
 
 struct TestZeroExtendVector {
