@@ -351,5 +351,11 @@ set, we provide a special `ZeroIfNegative` function.
 [intro]: g3doc/highway_intro.pdf
 [instmtx]: g3doc/instruction_matrix.pdf
 
+## Acknowledgments
+
+We have used [farm-sve](https://gitlab.inria.fr/bramas/farm-sve) by Berenger
+Bramas; it has proved useful for checking the SVE port on an x86 development
+machine.
+
 This is not an officially supported Google product.
 Contact: janwas@google.com

@@ -156,6 +156,10 @@
   } while (0)
 #endif
 
+#if defined(HWY_EMULATE_SVE)
+class FarmFloat16;
+#endif
+
 namespace hwy {
 
 //------------------------------------------------------------------------------
@@ -190,7 +194,9 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #define HWY_NATIVE_FLOAT16 0
 #endif
 
-#if HWY_NATIVE_FLOAT16
+#if defined(HWY_EMULATE_SVE)
+using float16_t = FarmFloat16;
+#elif HWY_NATIVE_FLOAT16
 using float16_t = __fp16;
 // Clang does not allow __fp16 arguments, but scalar.h requires LaneType
 // arguments, so use a wrapper.

@@ -154,6 +154,10 @@
 // user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
 
+#if defined(HWY_EMULATE_SVE)
+#define HWY_BASELINE_TARGETS HWY_SVE  // does not support SVE2
+#else
+
 // Also check HWY_ARCH to ensure that simulating unknown platforms ends up with
 // HWY_TARGET == HWY_SCALAR.
 
@@ -291,6 +295,7 @@
    HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |              \
    HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
 
+#endif  // HWY_EMULATE_SVE
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
