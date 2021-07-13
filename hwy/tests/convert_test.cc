@@ -160,39 +160,39 @@ struct TestPromoteTo {
 };
 
 HWY_NOINLINE void TestAllPromoteTo() {
-  const ForPartialVectors<TestPromoteTo<uint16_t>, 2> to_u16div2;
+  const ForPromoteVectors<TestPromoteTo<uint16_t>, 2> to_u16div2;
   to_u16div2(uint8_t());
 
-  const ForPartialVectors<TestPromoteTo<uint32_t>, 4> to_u32div4;
+  const ForPromoteVectors<TestPromoteTo<uint32_t>, 4> to_u32div4;
   to_u32div4(uint8_t());
 
-  const ForPartialVectors<TestPromoteTo<uint32_t>, 2> to_u32div2;
+  const ForPromoteVectors<TestPromoteTo<uint32_t>, 2> to_u32div2;
   to_u32div2(uint16_t());
 
-  const ForPartialVectors<TestPromoteTo<int16_t>, 2> to_i16div2;
+  const ForPromoteVectors<TestPromoteTo<int16_t>, 2> to_i16div2;
   to_i16div2(uint8_t());
   to_i16div2(int8_t());
 
-  const ForPartialVectors<TestPromoteTo<int32_t>, 2> to_i32div2;
+  const ForPromoteVectors<TestPromoteTo<int32_t>, 2> to_i32div2;
   to_i32div2(uint16_t());
   to_i32div2(int16_t());
 
-  const ForPartialVectors<TestPromoteTo<int32_t>, 4> to_i32div4;
+  const ForPromoteVectors<TestPromoteTo<int32_t>, 4> to_i32div4;
   to_i32div4(uint8_t());
   to_i32div4(int8_t());
 
   // Must test f16 separately because we can only load/store/convert them.
 
 #if HWY_CAP_INTEGER64
-  const ForPartialVectors<TestPromoteTo<uint64_t>, 2> to_u64div2;
+  const ForPromoteVectors<TestPromoteTo<uint64_t>, 2> to_u64div2;
   to_u64div2(uint32_t());
 
-  const ForPartialVectors<TestPromoteTo<int64_t>, 2> to_i64div2;
+  const ForPromoteVectors<TestPromoteTo<int64_t>, 2> to_i64div2;
   to_i64div2(int32_t());
 #endif
 
 #if HWY_CAP_FLOAT64
-  const ForPartialVectors<TestPromoteTo<double>, 2> to_f64div2;
+  const ForPromoteVectors<TestPromoteTo<double>, 2> to_f64div2;
   to_f64div2(int32_t());
   to_f64div2(float());
 #endif
@@ -250,22 +250,22 @@ struct TestDemoteTo {
 };
 
 HWY_NOINLINE void TestAllDemoteToInt() {
-  ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int16_t());
+  ForDemoteVectors<TestDemoteTo<uint8_t>>()(int16_t());
   ForDemoteVectors<TestDemoteTo<uint8_t>, 4>()(int32_t());
 
-  ForDemoteVectors<TestDemoteTo<int8_t>, 2>()(int16_t());
+  ForDemoteVectors<TestDemoteTo<int8_t>>()(int16_t());
   ForDemoteVectors<TestDemoteTo<int8_t>, 4>()(int32_t());
 
-  const ForDemoteVectors<TestDemoteTo<uint16_t>, 2> to_u16;
+  const ForDemoteVectors<TestDemoteTo<uint16_t>> to_u16;
   to_u16(int32_t());
 
-  const ForDemoteVectors<TestDemoteTo<int16_t>, 2> to_i16;
+  const ForDemoteVectors<TestDemoteTo<int16_t>> to_i16;
   to_i16(int32_t());
 }
 
 HWY_NOINLINE void TestAllDemoteToMixed() {
 #if HWY_CAP_FLOAT64
-  const ForDemoteVectors<TestDemoteTo<int32_t>, 2> to_i32;
+  const ForDemoteVectors<TestDemoteTo<int32_t>> to_i32;
   to_i32(double());
 #endif
 }
@@ -365,7 +365,7 @@ struct TestF16 {
   }
 };
 
-HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16, 2>()(float()); }
+HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16>()(float()); }
 
 struct TestConvertU8 {
   template <typename T, class D>
@@ -588,7 +588,7 @@ struct TestI32F64 {
 
 HWY_NOINLINE void TestAllI32F64() {
 #if HWY_CAP_FLOAT64
-  ForDemoteVectors<TestI32F64, 2>()(double());
+  ForDemoteVectors<TestI32F64>()(double());
 #endif
 }
 

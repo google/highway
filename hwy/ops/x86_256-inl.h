@@ -1699,21 +1699,23 @@ HWY_API T GetLane(const Vec256<T> v) {
 // https://gcc.godbolt.org/z/1MKGaP.
 
 template <typename T>
-HWY_API Vec256<T> ZeroExtendVector(Vec128<T> lo) {
+HWY_API Vec256<T> ZeroExtendVector(Full256<T> /* tag */, Vec128<T> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec256<T>{_mm256_inserti128_si256(_mm256_setzero_si256(), lo.raw, 0)};
 #else
   return Vec256<T>{_mm256_zextsi128_si256(lo.raw)};
 #endif
 }
-HWY_API Vec256<float> ZeroExtendVector(Vec128<float> lo) {
+HWY_API Vec256<float> ZeroExtendVector(Full256<float> /* tag */,
+                                       Vec128<float> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec256<float>{_mm256_insertf128_ps(_mm256_setzero_ps(), lo.raw, 0)};
 #else
   return Vec256<float>{_mm256_zextps128_ps256(lo.raw)};
 #endif
 }
-HWY_API Vec256<double> ZeroExtendVector(Vec128<double> lo) {
+HWY_API Vec256<double> ZeroExtendVector(Full256<double> /* tag */,
+                                        Vec128<double> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec256<double>{_mm256_insertf128_pd(_mm256_setzero_pd(), lo.raw, 0)};
 #else
@@ -1724,16 +1726,18 @@ HWY_API Vec256<double> ZeroExtendVector(Vec128<double> lo) {
 // ------------------------------ Combine
 
 template <typename T>
-HWY_API Vec256<T> Combine(Vec128<T> hi, Vec128<T> lo) {
-  const auto lo256 = ZeroExtendVector(lo);
+HWY_API Vec256<T> Combine(Full256<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const auto lo256 = ZeroExtendVector(d, lo);
   return Vec256<T>{_mm256_inserti128_si256(lo256.raw, hi.raw, 1)};
 }
-HWY_API Vec256<float> Combine(Vec128<float> hi, Vec128<float> lo) {
-  const auto lo256 = ZeroExtendVector(lo);
+HWY_API Vec256<float> Combine(Full256<float> d, Vec128<float> hi,
+                              Vec128<float> lo) {
+  const auto lo256 = ZeroExtendVector(d, lo);
   return Vec256<float>{_mm256_insertf128_ps(lo256.raw, hi.raw, 1)};
 }
-HWY_API Vec256<double> Combine(Vec128<double> hi, Vec128<double> lo) {
-  const auto lo256 = ZeroExtendVector(lo);
+HWY_API Vec256<double> Combine(Full256<double> d, Vec128<double> hi,
+                               Vec128<double> lo) {
+  const auto lo256 = ZeroExtendVector(d, lo);
   return Vec256<double>{_mm256_insertf128_pd(lo256.raw, hi.raw, 1)};
 }
 
@@ -2105,50 +2109,63 @@ HWY_API Vec256<int64_t> ZipUpper(const Vec256<int32_t> a,
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>
-HWY_API Vec256<T> ConcatLowerLower(const Vec256<T> hi, const Vec256<T> lo) {
-  return Vec256<T>{_mm256_inserti128_si256(lo.raw, LowerHalf(hi).raw, 1)};
+HWY_API Vec256<T> ConcatLowerLower(Full256<T> d, const Vec256<T> hi,
+                                   const Vec256<T> lo) {
+  const Half<decltype(d)> d2;
+  return Vec256<T>{_mm256_inserti128_si256(lo.raw, LowerHalf(d2, hi).raw, 1)};
 }
-HWY_API Vec256<float> ConcatLowerLower(const Vec256<float> hi,
+HWY_API Vec256<float> ConcatLowerLower(Full256<float> d, const Vec256<float> hi,
                                        const Vec256<float> lo) {
-  return Vec256<float>{_mm256_insertf128_ps(lo.raw, LowerHalf(hi).raw, 1)};
+  const Half<decltype(d)> d2;
+  return Vec256<float>{_mm256_insertf128_ps(lo.raw, LowerHalf(d2, hi).raw, 1)};
 }
-HWY_API Vec256<double> ConcatLowerLower(const Vec256<double> hi,
+HWY_API Vec256<double> ConcatLowerLower(Full256<double> d,
+                                        const Vec256<double> hi,
                                         const Vec256<double> lo) {
-  return Vec256<double>{_mm256_insertf128_pd(lo.raw, LowerHalf(hi).raw, 1)};
+  const Half<decltype(d)> d2;
+  return Vec256<double>{_mm256_insertf128_pd(lo.raw, LowerHalf(d2, hi).raw, 1)};
 }
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
 template <typename T>
-HWY_API Vec256<T> ConcatLowerUpper(const Vec256<T> hi, const Vec256<T> lo) {
+HWY_API Vec256<T> ConcatLowerUpper(Full256<T> /* tag */, const Vec256<T> hi,
+                                   const Vec256<T> lo) {
   return Vec256<T>{_mm256_permute2x128_si256(lo.raw, hi.raw, 0x21)};
 }
-HWY_API Vec256<float> ConcatLowerUpper(const Vec256<float> hi,
+HWY_API Vec256<float> ConcatLowerUpper(Full256<float> /* tag */,
+                                       const Vec256<float> hi,
                                        const Vec256<float> lo) {
   return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x21)};
 }
-HWY_API Vec256<double> ConcatLowerUpper(const Vec256<double> hi,
+HWY_API Vec256<double> ConcatLowerUpper(Full256<double> /* tag */,
+                                        const Vec256<double> hi,
                                         const Vec256<double> lo) {
   return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x21)};
 }
 
 // hiH,hiL loH,loL |-> hiH,loL (= outer halves)
 template <typename T>
-HWY_API Vec256<T> ConcatUpperLower(const Vec256<T> hi, const Vec256<T> lo) {
+HWY_API Vec256<T> ConcatUpperLower(Full256<T> /* tag */, const Vec256<T> hi,
+                                   const Vec256<T> lo) {
   return Vec256<T>{_mm256_blend_epi32(hi.raw, lo.raw, 0x0F)};
 }
-HWY_API Vec256<float> ConcatUpperLower(const Vec256<float> hi,
+HWY_API Vec256<float> ConcatUpperLower(Full256<float> /* tag */,
+                                       const Vec256<float> hi,
                                        const Vec256<float> lo) {
   return Vec256<float>{_mm256_blend_ps(hi.raw, lo.raw, 0x0F)};
 }
-HWY_API Vec256<double> ConcatUpperLower(const Vec256<double> hi,
+HWY_API Vec256<double> ConcatUpperLower(Full256<double> /* tag */,
+                                        const Vec256<double> hi,
                                         const Vec256<double> lo) {
   return Vec256<double>{_mm256_blend_pd(hi.raw, lo.raw, 3)};
 }
 
 // hiH,hiL loH,loL |-> hiH,loH (= upper halves)
 template <typename T>
-HWY_API Vec256<T> ConcatUpperUpper(const Vec256<T> hi, const Vec256<T> lo) {
-  return ConcatUpperLower(hi, ZeroExtendVector(UpperHalf(Full128<T>(), lo)));
+HWY_API Vec256<T> ConcatUpperUpper(Full256<T> d, const Vec256<T> hi,
+                                   const Vec256<T> lo) {
+  const Half<decltype(d)> d2;
+  return ConcatUpperLower(d, hi, ZeroExtendVector(d, UpperHalf(d2, lo)));
 }
 
 // ------------------------------ Odd/even lanes
@@ -2621,8 +2638,9 @@ HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint8_t>{_mm256_aesenc_epi128(state.raw, round_key.raw)};
 #else
-  const Full128<uint8_t> d2;
-  return Combine(AESRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+  const Full256<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d, AESRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
                  AESRound(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
@@ -2631,8 +2649,9 @@ HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint64_t>{_mm256_clmulepi64_epi128(a.raw, b.raw, 0x00)};
 #else
-  const Full128<uint64_t> d2;
-  return Combine(CLMulLower(UpperHalf(d2, a), UpperHalf(d2, b)),
+  const Full256<uint64_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d, CLMulLower(UpperHalf(d2, a), UpperHalf(d2, b)),
                  CLMulLower(LowerHalf(a), LowerHalf(b)));
 #endif
 }
@@ -2641,8 +2660,9 @@ HWY_API Vec256<uint64_t> CLMulUpper(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint64_t>{_mm256_clmulepi64_epi128(a.raw, b.raw, 0x11)};
 #else
-  const Full128<uint64_t> d2;
-  return Combine(CLMulUpper(UpperHalf(d2, a), UpperHalf(d2, b)),
+  const Full256<uint64_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d, CLMulUpper(UpperHalf(d2, a), UpperHalf(d2, b)),
                  CLMulUpper(LowerHalf(a), LowerHalf(b)));
 #endif
 }
@@ -2990,7 +3010,7 @@ HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
   // upper halves. We could obtain 10_05 and 15_0A via ConcatUpperLower, but
   // that would require two ununaligned stores. For the lower halves, we can
   // merge two 128-bit stores for the same swizzling cost:
-  const auto out0 = ConcatLowerLower(interleaved_15_05, interleaved_10_00);
+  const auto out0 = ConcatLowerLower(d, interleaved_15_05, interleaved_10_00);
   StoreU(out0, d, unaligned + 0 * 32);
 
   // Third vector: bgr[15:11], b10
@@ -3002,10 +3022,10 @@ HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
   const auto b2 = TableLookupBytes(v2, shuf_b2);
   const auto interleaved_1A_0A = r2 | g2 | b2;
 
-  const auto out1 = ConcatUpperLower(interleaved_10_00, interleaved_1A_0A);
+  const auto out1 = ConcatUpperLower(d, interleaved_10_00, interleaved_1A_0A);
   StoreU(out1, d, unaligned + 1 * 32);
 
-  const auto out2 = ConcatUpperUpper(interleaved_1A_0A, interleaved_15_05);
+  const auto out2 = ConcatUpperUpper(d, interleaved_1A_0A, interleaved_15_05);
   StoreU(out2, d, unaligned + 2 * 32);
 }
 
@@ -3016,6 +3036,7 @@ HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
                                const Vec256<uint8_t> v2,
                                const Vec256<uint8_t> v3, Full256<uint8_t> d,
                                uint8_t* HWY_RESTRICT unaligned) {
+  const Repartition<uint32_t, decltype(d)> d32;
   // let a,b,c,d denote v0..3.
   const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
   const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
@@ -3027,12 +3048,12 @@ HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
   const auto dcba_C = ZipUpper(ba8, dc8);  // d..a1F d..a1C | d..a0F d..a0C
   // Write lower halves, then upper. vperm2i128 is slow on Zen1 but we can
   // efficiently combine two lower halves into 256 bits:
-  const auto out0 = BitCast(d, ConcatLowerLower(dcba_4, dcba_0));
-  const auto out1 = BitCast(d, ConcatLowerLower(dcba_C, dcba_8));
+  const auto out0 = BitCast(d, ConcatLowerLower(d32, dcba_4, dcba_0));
+  const auto out1 = BitCast(d, ConcatLowerLower(d32, dcba_C, dcba_8));
   StoreU(out0, d, unaligned + 0 * 32);
   StoreU(out1, d, unaligned + 1 * 32);
-  const auto out2 = BitCast(d, ConcatUpperUpper(dcba_4, dcba_0));
-  const auto out3 = BitCast(d, ConcatUpperUpper(dcba_C, dcba_8));
+  const auto out2 = BitCast(d, ConcatUpperUpper(d32, dcba_4, dcba_0));
+  const auto out3 = BitCast(d, ConcatUpperUpper(d32, dcba_C, dcba_8));
   StoreU(out2, d, unaligned + 2 * 32);
   StoreU(out3, d, unaligned + 3 * 32);
 }
@@ -3091,18 +3112,18 @@ HWY_INLINE Vec256<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
 
 // Supported for {uif}32x8, {uif}64x4. Returns the sum in each lane.
 template <typename T>
-HWY_API Vec256<T> SumOfLanes(Full256<T> /* tag */, const Vec256<T> vHL) {
-  const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
+HWY_API Vec256<T> SumOfLanes(Full256<T> d, const Vec256<T> vHL) {
+  const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
   return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), vLH + vHL);
 }
 template <typename T>
-HWY_API Vec256<T> MinOfLanes(Full256<T> /* tag */, const Vec256<T> vHL) {
-  const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
+HWY_API Vec256<T> MinOfLanes(Full256<T> d, const Vec256<T> vHL) {
+  const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
   return detail::MinOfLanes(hwy::SizeTag<sizeof(T)>(), Min(vLH, vHL));
 }
 template <typename T>
-HWY_API Vec256<T> MaxOfLanes(Full256<T> /* tag */, const Vec256<T> vHL) {
-  const Vec256<T> vLH = ConcatLowerUpper(vHL, vHL);
+HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
+  const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
 }
 
@@ -3144,6 +3165,36 @@ HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
 template <typename T>
 HWY_API Vec128<T> UpperHalf(Vec256<T> v) {
   return UpperHalf(Full128<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec256<T> Combine(Vec128<T> hi, Vec128<T> lo) {
+  return Combine(Full256<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec256<T> ZeroExtendVector(Vec128<T> lo) {
+  return ZeroExtendVector(Full256<T>(), lo);
+}
+
+template <typename T>
+HWY_API Vec256<T> ConcatLowerLower(Vec256<T> hi, Vec256<T> lo) {
+  return ConcatLowerLower(Full256<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec256<T> ConcatLowerUpper(Vec256<T> hi, Vec256<T> lo) {
+  return ConcatLowerUpper(Full256<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec256<T> ConcatUpperLower(Vec256<T> hi, Vec256<T> lo) {
+  return ConcatUpperLower(Full256<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec256<T> ConcatUpperUpper(Vec256<T> hi, Vec256<T> lo) {
+  return ConcatUpperUpper(Full256<T>(), hi, lo);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

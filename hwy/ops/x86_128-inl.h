@@ -172,7 +172,7 @@ HWY_API Vec128<T, N> BitCast(Simd<T, N> d,
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
-// ------------------------------ Set
+// ------------------------------ Zero
 
 // Returns an all-zero vector/part.
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
@@ -187,6 +187,11 @@ template <size_t N, HWY_IF_LE128(double, N)>
 HWY_API Vec128<double, N> Zero(Simd<double, N> /* tag */) {
   return Vec128<double, N>{_mm_setzero_pd()};
 }
+
+template <class D>
+using VFromD = decltype(Zero(D()));
+
+// ------------------------------ Set
 
 // Returns a vector/part with all lanes set to "t".
 template <size_t N, HWY_IF_LE128(uint8_t, N)>
@@ -2319,8 +2324,13 @@ HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
 
 // 0x01..0F, kBytes = 1 => 0x0001..0E
 template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
+HWY_API Vec128<T, N> ShiftRightBytes(Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
+  // For partial vectors, clear upper lanes so we shift in zeros.
+  if (N != 16 / sizeof(T)) {
+    const Vec128<T> vfull{v.raw};
+    v = Vec128<T, N>{IfThenElseZero(FirstN(Full128<T>(), N), vfull).raw};
+  }
   return Vec128<T, N>{_mm_srli_si128(v.raw, kBytes)};
 }
 
@@ -2497,203 +2507,234 @@ HWY_API Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
 // the least-significant lane) and "b". To concatenate two half-width integers
 // into one, use ZipLower/Upper instead (also works with scalar).
 
-HWY_API Vec128<uint8_t> InterleaveLower(const Vec128<uint8_t> a,
-                                        const Vec128<uint8_t> b) {
-  return Vec128<uint8_t>{_mm_unpacklo_epi8(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint8_t, N)>
+HWY_API Vec128<uint8_t, N> InterleaveLower(const Vec128<uint8_t, N> a,
+                                           const Vec128<uint8_t, N> b) {
+  return Vec128<uint8_t, N>{_mm_unpacklo_epi8(a.raw, b.raw)};
 }
-HWY_API Vec128<uint16_t> InterleaveLower(const Vec128<uint16_t> a,
-                                         const Vec128<uint16_t> b) {
-  return Vec128<uint16_t>{_mm_unpacklo_epi16(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint16_t, N)>
+HWY_API Vec128<uint16_t, N> InterleaveLower(const Vec128<uint16_t, N> a,
+                                            const Vec128<uint16_t, N> b) {
+  return Vec128<uint16_t, N>{_mm_unpacklo_epi16(a.raw, b.raw)};
 }
-HWY_API Vec128<uint32_t> InterleaveLower(const Vec128<uint32_t> a,
-                                         const Vec128<uint32_t> b) {
-  return Vec128<uint32_t>{_mm_unpacklo_epi32(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint32_t, N)>
+HWY_API Vec128<uint32_t, N> InterleaveLower(const Vec128<uint32_t, N> a,
+                                            const Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_unpacklo_epi32(a.raw, b.raw)};
 }
-HWY_API Vec128<uint64_t> InterleaveLower(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
-  return Vec128<uint64_t>{_mm_unpacklo_epi64(a.raw, b.raw)};
-}
-
-HWY_API Vec128<int8_t> InterleaveLower(const Vec128<int8_t> a,
-                                       const Vec128<int8_t> b) {
-  return Vec128<int8_t>{_mm_unpacklo_epi8(a.raw, b.raw)};
-}
-HWY_API Vec128<int16_t> InterleaveLower(const Vec128<int16_t> a,
-                                        const Vec128<int16_t> b) {
-  return Vec128<int16_t>{_mm_unpacklo_epi16(a.raw, b.raw)};
-}
-HWY_API Vec128<int32_t> InterleaveLower(const Vec128<int32_t> a,
-                                        const Vec128<int32_t> b) {
-  return Vec128<int32_t>{_mm_unpacklo_epi32(a.raw, b.raw)};
-}
-HWY_API Vec128<int64_t> InterleaveLower(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
-  return Vec128<int64_t>{_mm_unpacklo_epi64(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint64_t, N)>
+HWY_API Vec128<uint64_t, N> InterleaveLower(const Vec128<uint64_t, N> a,
+                                            const Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_unpacklo_epi64(a.raw, b.raw)};
 }
 
-HWY_API Vec128<float> InterleaveLower(const Vec128<float> a,
-                                      const Vec128<float> b) {
-  return Vec128<float>{_mm_unpacklo_ps(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int8_t, N)>
+HWY_API Vec128<int8_t, N> InterleaveLower(const Vec128<int8_t, N> a,
+                                          const Vec128<int8_t, N> b) {
+  return Vec128<int8_t, N>{_mm_unpacklo_epi8(a.raw, b.raw)};
 }
-HWY_API Vec128<double> InterleaveLower(const Vec128<double> a,
-                                       const Vec128<double> b) {
-  return Vec128<double>{_mm_unpacklo_pd(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int16_t, N)>
+HWY_API Vec128<int16_t, N> InterleaveLower(const Vec128<int16_t, N> a,
+                                           const Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>{_mm_unpacklo_epi16(a.raw, b.raw)};
 }
-
-HWY_API Vec128<uint8_t> InterleaveUpper(const Vec128<uint8_t> a,
-                                        const Vec128<uint8_t> b) {
-  return Vec128<uint8_t>{_mm_unpackhi_epi8(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int32_t, N)>
+HWY_API Vec128<int32_t, N> InterleaveLower(const Vec128<int32_t, N> a,
+                                           const Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_unpacklo_epi32(a.raw, b.raw)};
 }
-HWY_API Vec128<uint16_t> InterleaveUpper(const Vec128<uint16_t> a,
-                                         const Vec128<uint16_t> b) {
-  return Vec128<uint16_t>{_mm_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec128<uint32_t> InterleaveUpper(const Vec128<uint32_t> a,
-                                         const Vec128<uint32_t> b) {
-  return Vec128<uint32_t>{_mm_unpackhi_epi32(a.raw, b.raw)};
-}
-HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
-  return Vec128<uint64_t>{_mm_unpackhi_epi64(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int64_t, N)>
+HWY_API Vec128<int64_t, N> InterleaveLower(const Vec128<int64_t, N> a,
+                                           const Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_unpacklo_epi64(a.raw, b.raw)};
 }
 
-HWY_API Vec128<int8_t> InterleaveUpper(const Vec128<int8_t> a,
-                                       const Vec128<int8_t> b) {
-  return Vec128<int8_t>{_mm_unpackhi_epi8(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(float, N)>
+HWY_API Vec128<float, N> InterleaveLower(const Vec128<float, N> a,
+                                         const Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_unpacklo_ps(a.raw, b.raw)};
 }
-HWY_API Vec128<int16_t> InterleaveUpper(const Vec128<int16_t> a,
-                                        const Vec128<int16_t> b) {
-  return Vec128<int16_t>{_mm_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec128<int32_t> InterleaveUpper(const Vec128<int32_t> a,
-                                        const Vec128<int32_t> b) {
-  return Vec128<int32_t>{_mm_unpackhi_epi32(a.raw, b.raw)};
-}
-HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
-  return Vec128<int64_t>{_mm_unpackhi_epi64(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(double, N)>
+HWY_API Vec128<double, N> InterleaveLower(const Vec128<double, N> a,
+                                          const Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_unpacklo_pd(a.raw, b.raw)};
 }
 
-HWY_API Vec128<float> InterleaveUpper(const Vec128<float> a,
-                                      const Vec128<float> b) {
-  return Vec128<float>{_mm_unpackhi_ps(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint8_t, N)>
+HWY_API Vec128<uint8_t, N> InterleaveUpper(const Vec128<uint8_t, N> a,
+                                           const Vec128<uint8_t, N> b) {
+  return Vec128<uint8_t, N>{_mm_unpackhi_epi8(a.raw, b.raw)};
 }
-HWY_API Vec128<double> InterleaveUpper(const Vec128<double> a,
-                                       const Vec128<double> b) {
-  return Vec128<double>{_mm_unpackhi_pd(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint16_t, N)>
+HWY_API Vec128<uint16_t, N> InterleaveUpper(const Vec128<uint16_t, N> a,
+                                            const Vec128<uint16_t, N> b) {
+  return Vec128<uint16_t, N>{_mm_unpackhi_epi16(a.raw, b.raw)};
 }
-
-// ------------------------------ Zip lanes
-
-// Same as interleave_*, except that the return lanes are double-width integers;
-// this is necessary because the single-lane scalar cannot return two values.
-
-template <size_t N>
-HWY_API Vec128<uint16_t, (N + 1) / 2> ZipLower(const Vec128<uint8_t, N> a,
-                                               const Vec128<uint8_t, N> b) {
-  return Vec128<uint16_t, (N + 1) / 2>{_mm_unpacklo_epi8(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint32_t, N)>
+HWY_API Vec128<uint32_t, N> InterleaveUpper(const Vec128<uint32_t, N> a,
+                                            const Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>{_mm_unpackhi_epi32(a.raw, b.raw)};
 }
-template <size_t N>
-HWY_API Vec128<uint32_t, (N + 1) / 2> ZipLower(const Vec128<uint16_t, N> a,
-                                               const Vec128<uint16_t, N> b) {
-  return Vec128<uint32_t, (N + 1) / 2>{_mm_unpacklo_epi16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint64_t, (N + 1) / 2> ZipLower(const Vec128<uint32_t, N> a,
-                                               const Vec128<uint32_t, N> b) {
-  return Vec128<uint64_t, (N + 1) / 2>{_mm_unpacklo_epi32(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(uint64_t, N)>
+HWY_API Vec128<uint64_t, N> InterleaveUpper(const Vec128<uint64_t, N> a,
+                                            const Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_unpackhi_epi64(a.raw, b.raw)};
 }
 
-template <size_t N>
-HWY_API Vec128<int16_t, (N + 1) / 2> ZipLower(const Vec128<int8_t, N> a,
-                                              const Vec128<int8_t, N> b) {
-  return Vec128<int16_t, (N + 1) / 2>{_mm_unpacklo_epi8(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int8_t, N)>
+HWY_API Vec128<int8_t, N> InterleaveUpper(const Vec128<int8_t, N> a,
+                                          const Vec128<int8_t, N> b) {
+  return Vec128<int8_t, N>{_mm_unpackhi_epi8(a.raw, b.raw)};
 }
-template <size_t N>
-HWY_API Vec128<int32_t, (N + 1) / 2> ZipLower(const Vec128<int16_t, N> a,
-                                              const Vec128<int16_t, N> b) {
-  return Vec128<int32_t, (N + 1) / 2>{_mm_unpacklo_epi16(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int16_t, N)>
+HWY_API Vec128<int16_t, N> InterleaveUpper(const Vec128<int16_t, N> a,
+                                           const Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>{_mm_unpackhi_epi16(a.raw, b.raw)};
 }
-template <size_t N>
-HWY_API Vec128<int64_t, (N + 1) / 2> ZipLower(const Vec128<int32_t, N> a,
-                                              const Vec128<int32_t, N> b) {
-  return Vec128<int64_t, (N + 1) / 2>{_mm_unpacklo_epi32(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int32_t, N)>
+HWY_API Vec128<int32_t, N> InterleaveUpper(const Vec128<int32_t, N> a,
+                                           const Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_unpackhi_epi32(a.raw, b.raw)};
 }
-
-template <size_t N>
-HWY_API Vec128<uint16_t, (N + 1) / 2> ZipUpper(const Vec128<uint8_t, N> a,
-                                               const Vec128<uint8_t, N> b) {
-  return Vec128<uint16_t, (N + 1) / 2>{_mm_unpackhi_epi8(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint32_t, (N + 1) / 2> ZipUpper(const Vec128<uint16_t, N> a,
-                                               const Vec128<uint16_t, N> b) {
-  return Vec128<uint32_t, (N + 1) / 2>{_mm_unpackhi_epi16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<uint64_t, (N + 1) / 2> ZipUpper(const Vec128<uint32_t, N> a,
-                                               const Vec128<uint32_t, N> b) {
-  return Vec128<uint64_t, (N + 1) / 2>{_mm_unpackhi_epi32(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(int64_t, N)>
+HWY_API Vec128<int64_t, N> InterleaveUpper(const Vec128<int64_t, N> a,
+                                           const Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_unpackhi_epi64(a.raw, b.raw)};
 }
 
-template <size_t N>
-HWY_API Vec128<int16_t, (N + 1) / 2> ZipUpper(const Vec128<int8_t, N> a,
-                                              const Vec128<int8_t, N> b) {
-  return Vec128<int16_t, (N + 1) / 2>{_mm_unpackhi_epi8(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(float, N)>
+HWY_API Vec128<float, N> InterleaveUpper(const Vec128<float, N> a,
+                                         const Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_unpackhi_ps(a.raw, b.raw)};
 }
-template <size_t N>
-HWY_API Vec128<int32_t, (N + 1) / 2> ZipUpper(const Vec128<int16_t, N> a,
-                                              const Vec128<int16_t, N> b) {
-  return Vec128<int32_t, (N + 1) / 2>{_mm_unpackhi_epi16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int64_t, (N + 1) / 2> ZipUpper(const Vec128<int32_t, N> a,
-                                              const Vec128<int32_t, N> b) {
-  return Vec128<int64_t, (N + 1) / 2>{_mm_unpackhi_epi32(a.raw, b.raw)};
+template <size_t N, HWY_IF_LE128(double, N)>
+HWY_API Vec128<double, N> InterleaveUpper(const Vec128<double, N> a,
+                                          const Vec128<double, N> b) {
+  return Vec128<double, N>{_mm_unpackhi_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Blocks
+// ------------------------------ ZipLower (InterleaveLower)
+template <typename T, size_t N, class DW = RepartitionToWide<Simd<T, N>>>
+HWY_API VFromD<DW> ZipLower(Vec128<T, N> a, Vec128<T, N> b) {
+  return BitCast(DW(), InterleaveLower(a, b));
+}
+
+// ------------------------------ ZipUpper (InterleaveUpper)
+template <typename T, size_t N, class DW = RepartitionToWide<Simd<T, N>>>
+HWY_API VFromD<DW> ZipUpper(Vec128<T, N> a, Vec128<T, N> b) {
+  return BitCast(DW(), InterleaveUpper(a, b));
+}
+
+// ================================================== COMBINE
+
+// ------------------------------ Combine (InterleaveLower)
+
+// N = N/2 + N/2 (upper half undefined)
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API Vec128<T, N> Combine(Simd<T, N> d, Vec128<T, N / 2> hi_half,
+                             Vec128<T, N / 2> lo_half) {
+  const Half<decltype(d)> d2;
+  const RebindToUnsigned<decltype(d2)> du2;
+  // Treat half-width input as one lane, and expand to two lanes.
+  using VU = Vec128<UnsignedFromSize<N * sizeof(T) / 2>, 2>;
+  const VU lo{BitCast(du2, lo_half).raw};
+  const VU hi{BitCast(du2, hi_half).raw};
+  return BitCast(d, InterleaveLower(lo, hi));
+}
+
+// ------------------------------ ZeroExtendVector (Combine, IfThenElseZero)
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec128<T> ZeroExtendVector(Full128<T> /* tag */,
+                                   Vec128<T, 8 / sizeof(T)> lo) {
+  return Vec128<T>{_mm_move_epi64(lo.raw)};
+}
+
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T> ZeroExtendVector(Full128<T> d, Vec128<T, 8 / sizeof(T)> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, ZeroExtendVector(du, BitCast(Half<decltype(du)>(), lo)));
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> ZeroExtendVector(Simd<T, N> d, Vec128<T, N / 2> lo) {
+  return IfThenElseZero(FirstN(d, N / 2), Vec128<T, N>{lo.raw});
+}
+
+// ------------------------------ Concat full (InterleaveLower)
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>
-HWY_API Vec128<T> ConcatLowerLower(const Vec128<T> hi, const Vec128<T> lo) {
-  const Full128<uint64_t> d64;
-  return BitCast(Full128<T>(),
-                 InterleaveLower(BitCast(d64, lo), BitCast(d64, hi)));
+HWY_API Vec128<T> ConcatLowerLower(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const Repartition<uint64_t, decltype(d)> d64;
+  return BitCast(d, InterleaveLower(BitCast(d64, lo), BitCast(d64, hi)));
 }
 
 // hiH,hiL loH,loL |-> hiH,loH (= upper halves)
 template <typename T>
-HWY_API Vec128<T> ConcatUpperUpper(const Vec128<T> hi, const Vec128<T> lo) {
-  const Full128<uint64_t> d64;
-  return BitCast(Full128<T>(),
-                 InterleaveUpper(BitCast(d64, lo), BitCast(d64, hi)));
+HWY_API Vec128<T> ConcatUpperUpper(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const Repartition<uint64_t, decltype(d)> d64;
+  return BitCast(d, InterleaveUpper(BitCast(d64, lo), BitCast(d64, hi)));
 }
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves)
 template <typename T>
-HWY_API Vec128<T> ConcatLowerUpper(const Vec128<T> hi, const Vec128<T> lo) {
+HWY_API Vec128<T> ConcatLowerUpper(Full128<T> /* tag */, const Vec128<T> hi,
+                                   const Vec128<T> lo) {
   return CombineShiftRightBytes<8>(hi, lo);
 }
 
 // hiH,hiL loH,loL |-> hiH,loL (= outer halves)
 template <typename T>
-HWY_API Vec128<T> ConcatUpperLower(const Vec128<T> hi, const Vec128<T> lo) {
+HWY_API Vec128<T> ConcatUpperLower(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
 #if HWY_TARGET == HWY_SSSE3
   const Full128<double> dd;
   const __m128d concat = _mm_move_sd(BitCast(dd, hi).raw, BitCast(dd, lo).raw);
-  return BitCast(Full128<T>(), Vec128<double>{concat});
+  return BitCast(d, Vec128<double>{concat});
 #else
+  (void)d;
   return Vec128<T>{_mm_blend_epi16(hi.raw, lo.raw, 0x0F)};
 #endif
 }
-HWY_API Vec128<float> ConcatUpperLower(const Vec128<float> hi,
+HWY_API Vec128<float> ConcatUpperLower(Full128<float> /* tag */,
+                                       const Vec128<float> hi,
                                        const Vec128<float> lo) {
   return Vec128<float>{_mm_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(3, 2, 1, 0))};
 }
-HWY_API Vec128<double> ConcatUpperLower(const Vec128<double> hi,
+HWY_API Vec128<double> ConcatUpperLower(Full128<double> /* tag */,
+                                        const Vec128<double> hi,
                                         const Vec128<double> lo) {
   return Vec128<double>{_mm_shuffle_pd(lo.raw, hi.raw, _MM_SHUFFLE2(1, 0))};
+}
+
+// ------------------------------ Concat partial (Combine, LowerHalf)
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> ConcatLowerLower(Simd<T, N> d, Vec128<T, N> hi,
+                                      Vec128<T, N> lo) {
+  const Half<decltype(d)> d2;
+  return Combine(LowerHalf(d2, hi), LowerHalf(d2, lo));
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> ConcatUpperUpper(Simd<T, N> d, Vec128<T, N> hi,
+                                      Vec128<T, N> lo) {
+  const Half<decltype(d)> d2;
+  return Combine(UpperHalf(d2, hi), UpperHalf(d2, lo));
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> ConcatLowerUpper(Simd<T, N> d, const Vec128<T, N> hi,
+                                      const Vec128<T, N> lo) {
+  const Half<decltype(d)> d2;
+  return Combine(LowerHalf(d2, hi), UpperHalf(d2, lo));
+}
+
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N> d, Vec128<T, N> hi,
+                                      Vec128<T, N> lo) {
+  const Half<decltype(d)> d2;
+  return Combine(UpperHalf(d2, hi), LowerHalf(d2, lo));
 }
 
 // ------------------------------ OddEven (IfThenElse)
@@ -2848,7 +2889,7 @@ HWY_API Vec128<uint64_t> operator<<(const Vec128<uint64_t> v,
   const Vec128<uint64_t> out0{_mm_sll_epi64(v.raw, bits.raw)};
   const __m128i bits1 = _mm_unpackhi_epi64(bits.raw, bits.raw);
   const Vec128<uint64_t> out1{_mm_sll_epi64(v.raw, bits1)};
-  return ConcatUpperLower(out1, out0);
+  return ConcatUpperLower(Full128<uint64_t>(), out1, out0);
 #else
   return Vec128<uint64_t>{_mm_sllv_epi64(v.raw, bits.raw)};
 #endif
@@ -2925,7 +2966,7 @@ HWY_API Vec128<uint64_t> operator>>(const Vec128<uint64_t> v,
   const Vec128<uint64_t> out0{_mm_srl_epi64(v.raw, bits.raw)};
   const __m128i bits1 = _mm_unpackhi_epi64(bits.raw, bits.raw);
   const Vec128<uint64_t> out1{_mm_srl_epi64(v.raw, bits1)};
-  return ConcatUpperLower(out1, out0);
+  return ConcatUpperLower(Full128<uint64_t>(), out1, out0);
 #else
   return Vec128<uint64_t>{_mm_srlv_epi64(v.raw, bits.raw)};
 #endif
@@ -4238,6 +4279,37 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
   return UpperHalf(Half<Simd<T, N>>(), v);
+}
+
+template <typename T, size_t N2>
+HWY_API Vec128<T, N2 * 2> Combine(Vec128<T, N2> hi2, Vec128<T, N2> lo2) {
+  return Combine(Simd<T, N2 * 2>(), hi2, lo2);
+}
+
+template <typename T, size_t N2, HWY_IF_LE64(T, N2)>
+HWY_API Vec128<T, N2 * 2> ZeroExtendVector(Vec128<T, N2> lo) {
+  return ZeroExtendVector(Simd<T, N2 * 2>(), lo);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> ConcatLowerLower(Vec128<T, N> hi, Vec128<T, N> lo) {
+  return ConcatLowerLower(Simd<T, N>(), hi, lo);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> ConcatUpperUpper(Vec128<T, N> hi, Vec128<T, N> lo) {
+  return ConcatUpperUpper(Simd<T, N>(), hi, lo);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> ConcatLowerUpper(const Vec128<T, N> hi,
+                                      const Vec128<T, N> lo) {
+  return ConcatLowerUpper(Simd<T, N>(), hi, lo);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> ConcatUpperLower(Vec128<T, N> hi, Vec128<T, N> lo) {
+  return ConcatUpperLower(Simd<T, N>(), hi, lo);
 }
 
 // ================================================== Operator wrapper

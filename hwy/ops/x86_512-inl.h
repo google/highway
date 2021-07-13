@@ -2051,21 +2051,23 @@ HWY_API T GetLane(const Vec512<T> v) {
 // https://gcc.godbolt.org/z/1MKGaP.
 
 template <typename T>
-HWY_API Vec512<T> ZeroExtendVector(Vec256<T> lo) {
+HWY_API Vec512<T> ZeroExtendVector(Full512<T> /* tag */, Vec256<T> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec512<T>{_mm512_inserti32x8(_mm512_setzero_si512(), lo.raw, 0)};
 #else
   return Vec512<T>{_mm512_zextsi256_si512(lo.raw)};
 #endif
 }
-HWY_API Vec512<float> ZeroExtendVector(Vec256<float> lo) {
+HWY_API Vec512<float> ZeroExtendVector(Full512<float> /* tag */,
+                                       Vec256<float> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec512<float>{_mm512_insertf32x8(_mm512_setzero_ps(), lo.raw, 0)};
 #else
   return Vec512<float>{_mm512_zextps256_ps512(lo.raw)};
 #endif
 }
-HWY_API Vec512<double> ZeroExtendVector(Vec256<double> lo) {
+HWY_API Vec512<double> ZeroExtendVector(Full512<double> /* tag */,
+                                        Vec256<double> lo) {
 #if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
   return Vec512<double>{_mm512_insertf64x4(_mm512_setzero_pd(), lo.raw, 0)};
 #else
@@ -2076,16 +2078,18 @@ HWY_API Vec512<double> ZeroExtendVector(Vec256<double> lo) {
 // ------------------------------ Combine
 
 template <typename T>
-HWY_API Vec512<T> Combine(Vec256<T> hi, Vec256<T> lo) {
-  const auto lo512 = ZeroExtendVector(lo);
+HWY_API Vec512<T> Combine(Full512<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const auto lo512 = ZeroExtendVector(d, lo);
   return Vec512<T>{_mm512_inserti32x8(lo512.raw, hi.raw, 1)};
 }
-HWY_API Vec512<float> Combine(Vec256<float> hi, Vec256<float> lo) {
-  const auto lo512 = ZeroExtendVector(lo);
+HWY_API Vec512<float> Combine(Full512<float> d, Vec256<float> hi,
+                              Vec256<float> lo) {
+  const auto lo512 = ZeroExtendVector(d, lo);
   return Vec512<float>{_mm512_insertf32x8(lo512.raw, hi.raw, 1)};
 }
-HWY_API Vec512<double> Combine(Vec256<double> hi, Vec256<double> lo) {
-  const auto lo512 = ZeroExtendVector(lo);
+HWY_API Vec512<double> Combine(Full512<double> d, Vec256<double> hi,
+                               Vec256<double> lo) {
+  const auto lo512 = ZeroExtendVector(d, lo);
   return Vec512<double>{_mm512_insertf64x4(lo512.raw, hi.raw, 1)};
 }
 
@@ -2457,60 +2461,72 @@ HWY_API Vec512<int64_t> ZipUpper(const Vec512<int32_t> a,
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>
-HWY_API Vec512<T> ConcatLowerLower(const Vec512<T> hi, const Vec512<T> lo) {
+HWY_API Vec512<T> ConcatLowerLower(Full512<T> /* tag */, const Vec512<T> hi,
+                                   const Vec512<T> lo) {
   return Vec512<T>{_mm512_shuffle_i32x4(lo.raw, hi.raw, _MM_PERM_BABA)};
 }
-HWY_API Vec512<float> ConcatLowerLower(const Vec512<float> hi,
+HWY_API Vec512<float> ConcatLowerLower(Full512<float> /* tag */,
+                                       const Vec512<float> hi,
                                        const Vec512<float> lo) {
   return Vec512<float>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_BABA)};
 }
-HWY_API Vec512<double> ConcatLowerLower(const Vec512<double> hi,
+HWY_API Vec512<double> ConcatLowerLower(Full512<double> /* tag */,
+                                        const Vec512<double> hi,
                                         const Vec512<double> lo) {
   return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_BABA)};
 }
 
 // hiH,hiL loH,loL |-> hiH,loH (= upper halves)
 template <typename T>
-HWY_API Vec512<T> ConcatUpperUpper(const Vec512<T> hi, const Vec512<T> lo) {
+HWY_API Vec512<T> ConcatUpperUpper(Full512<T> /* tag */, const Vec512<T> hi,
+                                   const Vec512<T> lo) {
   return Vec512<T>{_mm512_shuffle_i32x4(lo.raw, hi.raw, _MM_PERM_DCDC)};
 }
-HWY_API Vec512<float> ConcatUpperUpper(const Vec512<float> hi,
+HWY_API Vec512<float> ConcatUpperUpper(Full512<float> /* tag */,
+                                       const Vec512<float> hi,
                                        const Vec512<float> lo) {
   return Vec512<float>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_DCDC)};
 }
-HWY_API Vec512<double> ConcatUpperUpper(const Vec512<double> hi,
+HWY_API Vec512<double> ConcatUpperUpper(Full512<double> /* tag */,
+                                        const Vec512<double> hi,
                                         const Vec512<double> lo) {
   return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_DCDC)};
 }
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves / swap blocks)
 template <typename T>
-HWY_API Vec512<T> ConcatLowerUpper(const Vec512<T> hi, const Vec512<T> lo) {
+HWY_API Vec512<T> ConcatLowerUpper(Full512<T> /* tag */, const Vec512<T> hi,
+                                   const Vec512<T> lo) {
   return Vec512<T>{_mm512_shuffle_i32x4(lo.raw, hi.raw, 0x4E)};
 }
-HWY_API Vec512<float> ConcatLowerUpper(const Vec512<float> hi,
+HWY_API Vec512<float> ConcatLowerUpper(Full512<float> /* tag */,
+                                       const Vec512<float> hi,
                                        const Vec512<float> lo) {
   return Vec512<float>{_mm512_shuffle_f32x4(lo.raw, hi.raw, 0x4E)};
 }
-HWY_API Vec512<double> ConcatLowerUpper(const Vec512<double> hi,
+HWY_API Vec512<double> ConcatLowerUpper(Full512<double> /* tag */,
+                                        const Vec512<double> hi,
                                         const Vec512<double> lo) {
   return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, 0x4E)};
 }
 
 // hiH,hiL loH,loL |-> hiH,loL (= outer halves)
 template <typename T>
-HWY_API Vec512<T> ConcatUpperLower(const Vec512<T> hi, const Vec512<T> lo) {
+HWY_API Vec512<T> ConcatUpperLower(Full512<T> /* tag */, const Vec512<T> hi,
+                                   const Vec512<T> lo) {
   // There are no imm8 blend in AVX512. Use blend16 because 32-bit masks
   // are efficiently loaded from 32-bit regs.
   const __mmask32 mask = /*_cvtu32_mask32 */ (0x0000FFFF);
   return Vec512<T>{_mm512_mask_blend_epi16(mask, hi.raw, lo.raw)};
 }
-HWY_API Vec512<float> ConcatUpperLower(const Vec512<float> hi,
+HWY_API Vec512<float> ConcatUpperLower(Full512<float> /* tag */,
+                                       const Vec512<float> hi,
                                        const Vec512<float> lo) {
   const __mmask16 mask = /*_cvtu32_mask16 */ (0x00FF);
   return Vec512<float>{_mm512_mask_blend_ps(mask, hi.raw, lo.raw)};
 }
-HWY_API Vec512<double> ConcatUpperLower(const Vec512<double> hi,
+HWY_API Vec512<double> ConcatUpperLower(Full512<double> /* tag */,
+                                        const Vec512<double> hi,
                                         const Vec512<double> lo) {
   const __mmask8 mask = /*_cvtu32_mask8 */ (0x0F);
   return Vec512<double>{_mm512_mask_blend_pd(mask, hi.raw, lo.raw)};
@@ -3324,6 +3340,36 @@ HWY_API Vec512<T> MaxOfLanes(Vec512<T> v) {
 template <typename T>
 HWY_API Vec256<T> UpperHalf(Vec512<T> v) {
   return UpperHalf(Full256<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec512<T> Combine(Vec256<T> hi, Vec256<T> lo) {
+  return Combine(Full512<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec512<T> ZeroExtendVector(Vec256<T> lo) {
+  return ZeroExtendVector(Full512<T>(), lo);
+}
+
+template <typename T>
+HWY_API Vec512<T> ConcatLowerLower(Vec512<T> hi, Vec512<T> lo) {
+  return ConcatLowerLower(Full512<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec512<T> ConcatLowerUpper(Vec512<T> hi, Vec512<T> lo) {
+  return ConcatLowerUpper(Full512<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec512<T> ConcatUpperLower(Vec512<T> hi, Vec512<T> lo) {
+  return ConcatUpperLower(Full512<T>(), hi, lo);
+}
+
+template <typename T>
+HWY_API Vec512<T> ConcatUpperUpper(Vec512<T> hi, Vec512<T> lo) {
+  return ConcatUpperUpper(Full512<T>(), hi, lo);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

@@ -659,29 +659,58 @@ if the input exceeds the destination range.
     where `D` is `Half<DFromV<V>>`.
 
 *   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose `UpperHalf` is
-    zero and whose `LowerHalf` is the argument.
+    zero and whose `LowerHalf` is the argument. DEPRECATED, supporting partial
+    vectors requires a D argument.
+
+*   <code>V **ZeroExtendVector**(D, V2)</code>: returns vector whose `UpperHalf`
+    is zero and whose `LowerHalf` is the argument; `D` is `Twice<DFromV<V2>>`.
 
 *   <code>V **Combine**(V2, V2)</code>: returns vector whose `UpperHalf` is the
     first argument and whose `LowerHalf` is the second argument. This is
-    currently only implemented for RVV, AVX2, AVX3*. If you need to assemble
-    <128 bit parts, please raise an issue to discuss.
+    currently only implemented for RVV, AVX2, AVX3*. DEPRECATED, supporting
+    partial vectors requires a D argument.
+
+*   <code>V **Combine**(D, V2, V2)</code>: returns vector whose `UpperHalf` is
+    the first argument and whose `LowerHalf` is the second argument. This is
+    currently only implemented for RVV, AVX2, AVX3*. `D` is `Twice<DFromV<V2>>`.
 
 **Note**: the following operations cross block boundaries, which is typically
 more expensive on AVX2/AVX-512 than per-block operations.
 
 *   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation
     of the lower halves of `hi` and `lo` without splitting into blocks.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **ConcatLowerLower**(D, V hi, V lo)</code>: returns the
+    concatenation of the lower halves of `hi` and `lo` without splitting into
+    blocks. `D` is `DFromV<V>`.
 
 *   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation
     of the upper halves of `hi` and `lo` without splitting into blocks.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **ConcatUpperUpper**(D, V hi, V lo)</code>: returns the
+    concatenation of the upper halves of `hi` and `lo` without splitting into
+    blocks. `D` is `DFromV<V>`.
 
 *   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of
     the concatenation of `hi` and `lo` without splitting into blocks. Useful for
-    swapping the two blocks in 256-bit vectors.
+    swapping the two blocks in 256-bit vectors. DEPRECATED, supporting partial
+    vectors requires a D argument.
+
+*   <code>V **ConcatLowerUpper**(D, V hi, V lo)</code>: returns the inner half
+    of the concatenation of `hi` and `lo` without splitting into blocks. Useful
+    for swapping the two blocks in 256-bit vectors. `D` is `DFromV<V>`.
 
 *   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters
     of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
     the other variants, this does not incur a block-crossing penalty on AVX2.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **ConcatUpperLower**(D, V hi, V lo)</code>: returns the outer
+    quarters of the concatenation of `hi` and `lo` without splitting into
+    blocks. Unlike the other variants, this does not incur a block-crossing
+    penalty on AVX2. `D` is `DFromV<V>`.
 
 ### Blockwise
 

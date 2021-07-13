@@ -1018,15 +1018,8 @@ HWY_API Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
   return DemoteTo(Sisd<uint8_t>(), v);
 }
 
-// ================================================== SWIZZLE
-
-// Unsupported: Shift*Bytes, CombineShiftRightBytes, Interleave*, Shuffle*,
-// UpperHalf - these require more than one lane and/or actual 128-bit vectors.
-
-template <typename T>
-HWY_API T GetLane(const Vec1<T> v) {
-  return v.raw;
-}
+// ================================================== COMBINE
+// UpperHalf, ZeroExtendVector, Combine, Concat* are unsupported.
 
 template <typename T>
 HWY_API Vec1<T> LowerHalf(Vec1<T> v) {
@@ -1037,6 +1030,38 @@ template <typename T>
 HWY_API Vec1<T> LowerHalf(Sisd<T> /* tag */, Vec1<T> v) {
   return v;
 }
+
+// ================================================== SWIZZLE
+// OddEven is unsupported.
+
+template <typename T>
+HWY_API T GetLane(const Vec1<T> v) {
+  return v.raw;
+}
+
+// ------------------------------ TableLookupLanes
+
+// Returned by SetTableIndices for use by TableLookupLanes.
+template <typename T>
+struct Indices1 {
+  int raw;
+};
+
+template <typename T>
+HWY_API Indices1<T> SetTableIndices(Sisd<T>, const int32_t* idx) {
+#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+  HWY_DASSERT(idx[0] == 0);
+#endif
+  return Indices1<T>{idx[0]};
+}
+
+template <typename T>
+HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
+  return v;
+}
+
+// ================================================== BLOCKWISE
+// Shift*Bytes, CombineShiftRightBytes, Interleave*, Shuffle* are unsupported.
 
 // ------------------------------ Broadcast/splat any lane
 
@@ -1080,27 +1105,6 @@ HWY_API Vec1<T> TableLookupBytesOr0(const Vec1<T> in, const Vec1<T> from) {
   return Vec1<T>{out};
 }
 
-// ------------------------------ TableLookupLanes
-
-// Returned by SetTableIndices for use by TableLookupLanes.
-template <typename T>
-struct Indices1 {
-  int raw;
-};
-
-template <typename T>
-HWY_API Indices1<T> SetTableIndices(Sisd<T>, const int32_t* idx) {
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
-  HWY_DASSERT(idx[0] == 0);
-#endif
-  return Indices1<T>{idx[0]};
-}
-
-template <typename T>
-HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
-  return v;
-}
-
 // ------------------------------ Zip/unpack
 
 HWY_API Vec1<uint16_t> ZipLower(const Vec1<uint8_t> a, const Vec1<uint8_t> b) {
@@ -1124,7 +1128,7 @@ HWY_API Vec1<int64_t> ZipLower(const Vec1<int32_t> a, const Vec1<int32_t> b) {
   return Vec1<int64_t>((int64_t(b.raw) << 32) + a.raw);
 }
 
-// ------------------------------ Mask
+// ================================================== MASK
 
 template <typename T>
 HWY_API bool AllFalse(Sisd<T> /* tag */, const Mask1<T> mask) {
@@ -1167,7 +1171,7 @@ HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
   return CountTrue(d, mask);
 }
 
-// ------------------------------ Reductions
+// ================================================== REDUCTIONS
 
 // Sum of all lanes, i.e. the only one.
 template <typename T>

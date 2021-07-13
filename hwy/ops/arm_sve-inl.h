@@ -1077,22 +1077,9 @@ HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
 
 namespace detail {
 
-#define HWY_SVE_CONCAT_EVEN(BASE, CHAR, BITS, NAME, OP)          \
-  template <size_t N>                                            \
-  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N) d, svbool_t hi, \
-                        svbool_t lo) {                           \
-    return sv##OP##_b##BITS(lo, hi);                             \
-  }
-HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVEN, ConcatEven, uzp1)
-#undef HWY_SVE_CONCAT_EVEN
-
-template <typename T, size_t N>
-svbool_t MaskLowerHalf(Simd<T, N> d) {
-  return ConcatEven(d, PFalse(), PTrue(d));
-}
 template <typename T, size_t N>
 svbool_t MaskUpperHalf(Simd<T, N> d) {
-  return ConcatEven(d, PTrue(d), PFalse());
+  return Not(FirstN(d, Lanes(d)));
 }
 
 // Right-shift vector pair by constexpr; can be used to slide down (=N) or up
@@ -1119,47 +1106,42 @@ HWY_SVE_FOREACH(HWY_SVE_SPLICE, Splice, splice)
 }  // namespace detail
 
 // ------------------------------ ConcatUpperLower
-
-template <class V>
-HWY_API V ConcatUpperLower(const V hi, const V lo) {
-  return IfThenElse(detail::MaskLowerHalf(DFromV<V>()), lo, hi);
+template <class D, class V>
+HWY_API V ConcatUpperLower(const D d, const V hi, const V lo) {
+  return IfThenElse(FirstN(d, Lanes(d)), lo, hi);
 }
 
 // ------------------------------ ConcatLowerLower
-
-template <class V>
-HWY_API V ConcatLowerLower(const V hi, const V lo) {
-  return detail::Splice(hi, lo, detail::MaskLowerHalf(DFromV<V>()));
+template <class D, class V>
+HWY_API V ConcatLowerLower(const D d, const V hi, const V lo) {
+  return detail::Splice(hi, lo, FirstN(d, Lanes(d) / 2));
 }
 
 // ------------------------------ ConcatLowerUpper
-
-template <class V>
-HWY_API V ConcatLowerUpper(const V hi, const V lo) {
-  return detail::Splice(hi, lo, detail::MaskUpperHalf(DFromV<V>()));
+template <class D, class V>
+HWY_API V ConcatLowerUpper(const D d, const V hi, const V lo) {
+  return detail::Splice(hi, lo, detail::MaskUpperHalf(d));
 }
 
 // ------------------------------ ConcatUpperUpper
-
-template <class V>
-HWY_API V ConcatUpperUpper(const V hi, const V lo) {
-  const svbool_t mask_upper = detail::MaskUpperHalf(DFromV<V>());
+template <class D, class V>
+HWY_API V ConcatUpperUpper(const D d, const V hi, const V lo) {
+  const svbool_t mask_upper = detail::MaskUpperHalf(d);
   const V lo_upper = detail::Splice(lo, lo, mask_upper);
   return IfThenElse(mask_upper, hi, lo_upper);
 }
 
 // ------------------------------ Combine
-
-template <class V>
-HWY_API V Combine(const V hi, const V lo) {
-  return ConcatLowerLower(hi, lo);
+template <class D, class V2>
+HWY_API VFromD<D> Combine(const D d, const V2 hi, const V2 lo) {
+  return ConcatLowerLower(d, hi, lo);
 }
 
 // ------------------------------ ZeroExtendVector
 
-template <class V>
-HWY_API V ZeroExtendVector(const V lo) {
-  return Combine(lo ^ lo, lo);
+template <class D, class V>
+HWY_API V ZeroExtendVector(const D d, const V lo) {
+  return Combine(d, Zero(Half<D>()), lo);
 }
 
 // ------------------------------ Lower/UpperHalf
@@ -1176,7 +1158,7 @@ HWY_API V LowerHalf(const V v) {
 
 template <class D2, class V>
 HWY_API V UpperHalf(const D2 d2, const V v) {
-  return detail::Splice(v, v, Not(FirstN(DFromV<V>(), Lanes(d2))));
+  return detail::Splice(v, v, detail::MaskUpperHalf(Twice<D2>()));
 }
 
 // ================================================== SWIZZLE

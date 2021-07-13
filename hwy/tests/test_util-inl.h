@@ -502,38 +502,23 @@ struct ForeachSizeR<T, 0, kMinLanes, Test> {
 
 // These adapters may be called directly, or via For*Types:
 
-// Calls Test for all powers of two in [kMinLanes, HWY_LANES(T) / kDivLanes].
-template <class Test, size_t kDivLanes = 1, size_t kMinLanes = 1>
+// Calls Test for all power of two N in [1, Lanes(d)]. This is the default
+// for ops that do not narrow nor widen their input, nor require 128 bits.
+template <class Test>
 struct ForPartialVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
 #if HWY_TARGET == HWY_RVV
-    // Only m1..8 for now, can ignore kMaxLanes because HWY_*_LANES are full.
-    ForeachSizeR<T, 8 / kDivLanes, HWY_LANES(T), Test>::Do();
-#else
-    ForeachSizeR<T, HWY_LANES(T) / kDivLanes / kMinLanes, kMinLanes,
-                 Test>::Do();
-#endif
-  }
-};
-
-// Calls Test for all vectors that can be demoted log2(kFactor) times.
-template <class Test, size_t kFactor>
-struct ForDemoteVectors {
-  template <typename T>
-  void operator()(T /*unused*/) const {
-#if HWY_TARGET == HWY_RVV
-    // Only m1..8 for now.
-    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T), Test>::Do();
-#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
-    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T) / 8, Test>::Do();
+    // Only m1..8 until we support fractional LMUL.
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
 #else
     ForeachSizeR<T, HWY_LANES(T), 1, Test>::Do();
 #endif
   }
 };
 
-// Calls Test for all powers of two in [128 bits, max bits].
+// Calls Test for all power of two N in [16 / sizeof(T), Lanes(d)]. This is for
+// ops that require at least 128 bits, e.g. AES or 64x64 = 128 mul.
 template <class Test>
 struct ForGE128Vectors {
   template <typename T>
@@ -543,21 +528,76 @@ struct ForGE128Vectors {
 #else
     ForeachSizeR<T, HWY_LANES(T) / (16 / sizeof(T)), (16 / sizeof(T)),
                  Test>::Do();
-
 #endif
   }
 };
 
-// Calls Test for all vectors that can be expanded by kFactor.
+// Calls Test for all power of two N in [1, Lanes(d) / kFactor]. This is for
+// ops that widen their input, e.g. Combine (not supported by HWY_SCALAR).
 template <class Test, size_t kFactor = 2>
 struct ForExtendableVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
 #if HWY_TARGET == HWY_RVV
     ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test>::Do();
+#elif HWY_TARGET == HWY_SCALAR
+    // not supported
 #else
-    ForeachSizeR<T, HWY_LANES(T) / kFactor / (16 / sizeof(T)), (16 / sizeof(T)),
-                 Test>::Do();
+    ForeachSizeR<T, HWY_LANES(T) / kFactor, 1, Test>::Do();
+#endif
+  }
+};
+
+// Calls Test for all N that can be promoted (not the same as Extendable because
+// HWY_SCALAR has one lane). Also used for ZipLower, but not ZipUpper.
+template <class Test, size_t kFactor = 2>
+struct ForPromoteVectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test>::Do();
+#elif HWY_TARGET == HWY_SCALAR
+    ForeachSizeR<T, 1, 1, Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T) / kFactor, 1, Test>::Do();
+#endif
+  }
+};
+
+// Calls Test for all power of two N in [kFactor, Lanes(d)]. This is for ops
+// that narrow their input, e.g. UpperHalf.
+template <class Test, size_t kFactor = 2>
+struct ForShrinkableVectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    // Only m1..8 until we support fractional LMUL.
+    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T), Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T) / 8, Test>::Do();
+#elif HWY_TARGET == HWY_SCALAR
+    // not supported
+#else
+    ForeachSizeR<T, HWY_LANES(T) / kFactor, kFactor, Test>::Do();
+#endif
+  }
+};
+
+// Calls Test for all N than can be demoted (not the same as Shrinkable because
+// HWY_SCALAR has one lane). Also used for LowerHalf, but not UpperHalf.
+template <class Test, size_t kFactor = 2>
+struct ForDemoteVectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    // Only m1..8 until we support fractional LMUL.
+    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T), Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T) / 8, Test>::Do();
+#elif HWY_TARGET == HWY_SCALAR
+    ForeachSizeR<T, 1, 1, Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T) / kFactor, kFactor, Test>::Do();
 #endif
   }
 };

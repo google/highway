@@ -235,9 +235,9 @@ struct TestPopCount {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_RVV && defined(NDEBUG)
-    constexpr size_t kNumTests = 1 << 24;
+    constexpr size_t kNumTests = 1 << 20;
 #else
-    constexpr size_t kNumTests = 1 << 18;
+    constexpr size_t kNumTests = 1 << 14;
 #endif
     RandomState rng;
     size_t N = Lanes(d);

@@ -53,7 +53,7 @@ struct TestOddEven {
 };
 
 HWY_NOINLINE void TestAllOddEven() {
-  ForAllTypes(ForGE128Vectors<TestOddEven>());
+  ForAllTypes(ForShrinkableVectors<TestOddEven>());
 }
 
 struct TestTableLookupLanes {

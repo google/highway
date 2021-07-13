@@ -249,6 +249,7 @@ HWY_API constexpr bool IsSame() {
 #define HWY_IF_LE128(T, N) hwy::EnableIf<N * sizeof(T) <= 16>* = nullptr
 #define HWY_IF_LE64(T, N) hwy::EnableIf<N * sizeof(T) <= 8>* = nullptr
 #define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
+#define HWY_IF_GE64(T, N) hwy::EnableIf<N * sizeof(T) >= 8>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
 #define HWY_IF_SIGNED(T) \
@@ -455,6 +456,31 @@ struct Relations<double> {
   using Narrow = float;
 };
 
+template <size_t N>
+struct TypeFromSize;
+template <>
+struct TypeFromSize<1> {
+  using Unsigned = uint8_t;
+  using Signed = int8_t;
+};
+template <>
+struct TypeFromSize<2> {
+  using Unsigned = uint16_t;
+  using Signed = int16_t;
+};
+template <>
+struct TypeFromSize<4> {
+  using Unsigned = uint32_t;
+  using Signed = int32_t;
+  using Float = float;
+};
+template <>
+struct TypeFromSize<8> {
+  using Unsigned = uint64_t;
+  using Signed = int64_t;
+  using Float = double;
+};
+
 }  // namespace detail
 
 // Aliases for types of a different category, but the same size.
@@ -470,6 +496,14 @@ template <typename T>
 using MakeWide = typename detail::Relations<T>::Wide;
 template <typename T>
 using MakeNarrow = typename detail::Relations<T>::Narrow;
+
+// Obtain type from its size [bytes].
+template <size_t N>
+using UnsignedFromSize = typename detail::TypeFromSize<N>::Unsigned;
+template <size_t N>
+using SignedFromSize = typename detail::TypeFromSize<N>::Signed;
+template <size_t N>
+using FloatFromSize = typename detail::TypeFromSize<N>::Float;
 
 //------------------------------------------------------------------------------
 // Helper functions

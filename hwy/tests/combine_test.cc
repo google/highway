@@ -74,9 +74,8 @@ struct TestLowerQuarter {
 };
 
 HWY_NOINLINE void TestAllLowerHalf() {
-  constexpr size_t kDiv = 1;
-  ForAllTypes(ForPartialVectors<TestLowerHalf, kDiv, /*kMinLanes=*/2>());
-  ForAllTypes(ForPartialVectors<TestLowerQuarter, kDiv, /*kMinLanes=*/4>());
+  ForAllTypes(ForDemoteVectors<TestLowerHalf>());
+  ForAllTypes(ForDemoteVectors<TestLowerQuarter, 4>());
 }
 
 struct TestUpperHalf {
@@ -88,7 +87,6 @@ struct TestUpperHalf {
 
     const auto v = Iota(d, 1);
     const size_t N = Lanes(d);
-    if (N == 1) return;
     auto lanes = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
 
@@ -108,13 +106,12 @@ struct TestUpperHalf {
 };
 
 HWY_NOINLINE void TestAllUpperHalf() {
-  ForAllTypes(ForDemoteVectors<TestUpperHalf, 2>());
+  ForAllTypes(ForShrinkableVectors<TestUpperHalf>());
 }
 
 struct TestZeroExtendVector {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_CAP_GE256
     const Twice<D> d2;
 
     const auto v = Iota(d, 1);
@@ -123,7 +120,7 @@ struct TestZeroExtendVector {
     Store(v, d, &lanes[0]);
     Store(v, d, &lanes[N2 / 2]);
 
-    const auto ext = ZeroExtendVector(v);
+    const auto ext = ZeroExtendVector(d2, v);
     Store(ext, d2, lanes.get());
 
     size_t i = 0;
@@ -135,9 +132,6 @@ struct TestZeroExtendVector {
     for (; i < N2; ++i) {
       HWY_ASSERT_EQ(T(0), lanes[i]);
     }
-#else
-    (void)d;
-#endif
   }
 };
 
@@ -148,21 +142,17 @@ HWY_NOINLINE void TestAllZeroExtendVector() {
 struct TestCombine {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_CAP_GE256
     const Twice<D> d2;
     const size_t N2 = Lanes(d2);
     auto lanes = AllocateAligned<T>(N2);
 
     const auto lo = Iota(d, 1);
     const auto hi = Iota(d, N2 / 2 + 1);
-    const auto combined = Combine(hi, lo);
+    const auto combined = Combine(d2, hi, lo);
     Store(combined, d2, lanes.get());
 
     const auto expected = Iota(d2, 1);
     HWY_ASSERT_VEC_EQ(d2, expected, combined);
-#else
-    (void)d;
-#endif
   }
 };
 
@@ -191,7 +181,7 @@ struct TestConcat {
         memcpy(&expected[0], &lo[0], half_bytes);
         const auto vhi = Load(d, hi.get());
         const auto vlo = Load(d, lo.get());
-        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperLower(vhi, vlo));
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperLower(d, vhi, vlo));
       }
 
       {
@@ -199,7 +189,7 @@ struct TestConcat {
         memcpy(&expected[0], &lo[N / 2], half_bytes);
         const auto vhi = Load(d, hi.get());
         const auto vlo = Load(d, lo.get());
-        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperUpper(vhi, vlo));
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperUpper(d, vhi, vlo));
       }
 
       {
@@ -207,7 +197,7 @@ struct TestConcat {
         memcpy(&expected[0], &lo[N / 2], half_bytes);
         const auto vhi = Load(d, hi.get());
         const auto vlo = Load(d, lo.get());
-        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerUpper(vhi, vlo));
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerUpper(d, vhi, vlo));
       }
 
       {
@@ -215,14 +205,14 @@ struct TestConcat {
         memcpy(&expected[0], &lo[0], half_bytes);
         const auto vhi = Load(d, hi.get());
         const auto vlo = Load(d, lo.get());
-        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerLower(vhi, vlo));
+        HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerLower(d, vhi, vlo));
       }
     }
   }
 };
 
 HWY_NOINLINE void TestAllConcat() {
-  ForAllTypes(ForGE128Vectors<TestConcat>());
+  ForAllTypes(ForShrinkableVectors<TestConcat>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

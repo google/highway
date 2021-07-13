@@ -118,7 +118,7 @@ struct TestStrictInt {
 };
 
 HWY_NOINLINE void TestAllStrictInt() {
-  ForSignedTypes(ForExtendableVectors<TestStrictInt>());
+  ForSignedTypes(ForPartialVectors<TestStrictInt>());
 }
 
 struct TestStrictFloat {
@@ -160,7 +160,7 @@ struct TestStrictFloat {
 };
 
 HWY_NOINLINE void TestAllStrictFloat() {
-  ForFloatTypes(ForExtendableVectors<TestStrictFloat>());
+  ForFloatTypes(ForPartialVectors<TestStrictFloat>());
 }
 
 struct TestWeakFloat {

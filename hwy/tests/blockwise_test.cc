@@ -69,11 +69,7 @@ struct TestShiftBytes {
 
     for (size_t block = 0; block < N8; block += kBlockSize) {
       memcpy(expected_bytes + block, in_bytes + block + 1, kBlockSize - 1);
-      if (N8 >= 16) {
-        expected_bytes[block + kBlockSize - 1] = 0;
-      } else {
-        expected_bytes[block + kBlockSize - 1] = block + kBlockSize + 1;
-      }
+      expected_bytes[block + kBlockSize - 1] = 0;
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightBytes<1>(v));
 #else
@@ -83,7 +79,7 @@ struct TestShiftBytes {
 };
 
 HWY_NOINLINE void TestAllShiftBytes() {
-  ForIntegerTypes(ForGE128Vectors<TestShiftBytes>());
+  ForIntegerTypes(ForPartialVectors<TestShiftBytes>());
 }
 
 struct TestShiftLanes {
@@ -106,8 +102,8 @@ struct TestShiftLanes {
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftLanes<1>(v));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] =
-          (i % kLanesPerBlock) == (kLanesPerBlock - 1) ? T(0) : T(2 + i);
+      const size_t mod = i % kLanesPerBlock;
+      expected[i] = mod == (kLanesPerBlock - 1) || i >= N - 1 ? T(0) : T(2 + i);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightLanes<1>(v));
 #else
@@ -117,7 +113,7 @@ struct TestShiftLanes {
 };
 
 HWY_NOINLINE void TestAllShiftLanes() {
-  ForAllTypes(ForGE128Vectors<TestShiftLanes>());
+  ForAllTypes(ForPartialVectors<TestShiftLanes>());
 }
 
 template <typename D, int kLane>
@@ -249,7 +245,7 @@ HWY_NOINLINE void TestAllTableLookupBytes() {
   ForIntegerTypes(ForPartialVectors<TestTableLookupBytes>());
 }
 
-struct TestInterleave {
+struct TestInterleaveLower {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     using TU = MakeUnsigned<T>;
@@ -271,20 +267,37 @@ struct TestInterleave {
       expected[i] = static_cast<T>(index & LimitsMax<TU>());
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveLower(even, odd));
+  }
+};
 
-    if (N >= 16 / sizeof(T)) {
-      for (size_t i = 0; i < Lanes(d); ++i) {
-        const size_t block = i / blockN;
-        expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
-      }
-      HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(even, odd));
+struct TestInterleaveUpper {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto even_lanes = AllocateAligned<T>(N);
+    auto odd_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      even_lanes[i] = static_cast<T>(2 * i + 0);
+      odd_lanes[i] = static_cast<T>(2 * i + 1);
     }
+    const auto even = Load(d, even_lanes.get());
+    const auto odd = Load(d, odd_lanes.get());
+
+    const size_t blockN = 16 / sizeof(T);
+    for (size_t i = 0; i < Lanes(d); ++i) {
+      const size_t block = i / blockN;
+      expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(even, odd));
   }
 };
 
 HWY_NOINLINE void TestAllInterleave() {
+  // TODO(janwas): Demote/Shrinkable once Interleave supports partials
+  ForAllTypes(ForGE128Vectors<TestInterleaveLower>());
   // Not supported by HWY_SCALAR: Interleave(f32, f32) would return f32x2.
-  ForAllTypes(ForGE128Vectors<TestInterleave>());
+  ForAllTypes(ForGE128Vectors<TestInterleaveUpper>());
 }
 
 struct TestZipLower {
@@ -353,7 +366,8 @@ struct TestZipUpper {
 };
 
 HWY_NOINLINE void TestAllZip() {
-  const ForPartialVectors<TestZipLower, 2> lower_unsigned;
+  // TODO(janwas): Promote/Extendable once Interleave supports partials
+  const ForGE128Vectors<TestZipLower> lower_unsigned;
   // TODO(janwas): enable after LowerHalf available
 #if HWY_TARGET != HWY_RVV
   lower_unsigned(uint8_t());
@@ -363,7 +377,7 @@ HWY_NOINLINE void TestAllZip() {
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForPartialVectors<TestZipLower, 2> lower_signed;
+  const ForGE128Vectors<TestZipLower> lower_signed;
 #if HWY_TARGET != HWY_RVV
   lower_signed(int8_t());
 #endif
@@ -501,7 +515,7 @@ struct TestCombineShiftRight {
 };
 
 HWY_NOINLINE void TestAllCombineShiftRight() {
-  ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());
+  ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());  // TODO(janwas): part
 }
 
 class TestSpecialShuffle32 {
