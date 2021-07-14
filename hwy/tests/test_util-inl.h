@@ -532,6 +532,21 @@ struct ForGE128Vectors {
   }
 };
 
+// Calls Test for all power of two N in [8 / sizeof(T), Lanes(d)]. This is for
+// ops that require at least 64 bits, e.g. casts.
+template <class Test>
+struct ForGE64Vectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T) / (8 / sizeof(T)), (8 / sizeof(T)),
+                 Test>::Do();
+#endif
+  }
+};
+
 // Calls Test for all power of two N in [1, Lanes(d) / kFactor]. This is for
 // ops that widen their input, e.g. Combine (not supported by HWY_SCALAR).
 template <class Test, size_t kFactor = 2>

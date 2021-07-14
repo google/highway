@@ -2520,15 +2520,53 @@ HWY_API Vec512<T> OddEven(const Vec512<T> a, const Vec512<T> b) {
   return IfThenElse(Mask512<T>{0x5555555555555555ull >> shift}, b, a);
 }
 
-// ------------------------------ Shuffle bytes with variable indices
+// ------------------------------ TableLookupBytes (ZeroExtendVector)
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
-// lane indices in [0, 16).
+// Both full
 template <typename T>
-HWY_API Vec512<T> TableLookupBytes(const Vec512<T> bytes,
-                                   const Vec512<T> from) {
+HWY_API Vec512<T> TableLookupBytes(Vec512<T> bytes, Vec512<T> from) {
   return Vec512<T>{_mm512_shuffle_epi8(bytes.raw, from.raw)};
 }
+
+// Partial index vector
+template <typename T, typename TI, size_t NI>
+HWY_API Vec128<TI, NI> TableLookupBytes(Vec512<T> bytes, Vec128<TI, NI> from) {
+  const Full512<TI> d512;
+  const Half<decltype(d512)> d256;
+  const Half<decltype(d256)> d128;
+  // First expand to full 128, then 256, then 512.
+  const Vec128<TI> from_full{from.raw};
+  const auto from_512 =
+      ZeroExtendVector(d512, ZeroExtendVector(d256, from_full));
+  const auto tbl_full = TableLookupBytes(bytes, from_512);
+  // Shrink to 256, then 128, then partial.
+  return Vec128<TI, NI>{LowerHalf(d128, LowerHalf(d256, tbl_full)).raw};
+}
+template <typename T, typename TI>
+HWY_API Vec256<TI> TableLookupBytes(Vec512<T> bytes, Vec256<TI> from) {
+  const auto from_512 = ZeroExtendVector(Full512<TI>(), from);
+  return LowerHalf(Full256<TI>(), TableLookupBytes(bytes, from_512));
+}
+
+// Partial table vector
+template <typename T, size_t N, typename TI>
+HWY_API Vec512<TI> TableLookupBytes(Vec128<T, N> bytes, Vec512<TI> from) {
+  const Full512<TI> d512;
+  const Half<decltype(d512)> d256;
+  const Half<decltype(d256)> d128;
+  // First expand to full 128, then 256, then 512.
+  const Vec128<T> bytes_full{bytes.raw};
+  const auto bytes_512 =
+      ZeroExtendVector(d512, ZeroExtendVector(d256, bytes_full));
+  return TableLookupBytes(bytes_512, from);
+}
+template <typename T, typename TI>
+HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
+  const auto bytes_512 = ZeroExtendVector(Full512<T>(), bytes);
+  return TableLookupBytes(bytes_512, from);
+}
+
+// Partial both are handled by x86_128/256.
 
 // ================================================== CONVERT
 

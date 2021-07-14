@@ -1380,9 +1380,9 @@ HWY_API V Shuffle0123(const V v) {
 
 // ------------------------------ TableLookupBytes
 
-template <class V>
-HWY_API V TableLookupBytes(const V v, const V idx) {
-  const DFromV<V> d;
+template <class V, class VI>
+HWY_API VI TableLookupBytes(const V v, const VI idx) {
+  const DFromV<VI> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const Repartition<int8_t, decltype(d)> di8;
   const auto offsets128 = detail::OffsetsOf128BitBlocks(du8, Iota(du8, 0));
@@ -1390,9 +1390,9 @@ HWY_API V TableLookupBytes(const V v, const V idx) {
   return BitCast(d, TableLookupLanes(BitCast(du8, v), idx8));
 }
 
-template <class V>
-HWY_API V TableLookupBytesOr0(const V v, const V idx) {
-  const DFromV<V> d;
+template <class V, class VI>
+HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
+  const DFromV<VI> d;
   // Mask size must match vector type, so cast everything to this type.
   const Repartition<int8_t, decltype(d)> di8;
   const auto lookup = TableLookupBytes(BitCast(di8, v), BitCast(di8, idx));

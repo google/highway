@@ -274,15 +274,12 @@ HWY_API V CLMulUpper(V a, V b) {
 template <typename V, HWY_IF_LANES_ARE(uint8_t, V)>
 HWY_API V PopulationCount(V v) {
   constexpr DFromV<V> d;
-  // TODO(veluca): Remove this restriction when LoadDup128 and TableLookupBytes
-  // work correctly for shorter vectors.
-  static_assert(MaxLanes(d) >= 16, "Not implemented for <128 bit vectors");
   HWY_ALIGN constexpr uint8_t kLookup[16] = {
       0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
   };
   auto lo = And(v, Set(d, 0xF));
   auto hi = ShiftRight<4>(v);
-  auto lookup = LoadDup128(d, kLookup);
+  auto lookup = LoadDup128(Simd<uint8_t, HWY_MAX(16, MaxLanes(d))>(), kLookup);
   return Add(TableLookupBytes(lookup, hi), TableLookupBytes(lookup, lo));
 }
 

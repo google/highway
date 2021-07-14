@@ -722,17 +722,20 @@ their operands into independently processed 128-bit *blocks*.
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
 
 *   `V`: `{u,i}` \
-    <code>V **TableLookupBytes**(V bytes, V from)</code>: returns
+    <code>VI **TableLookupBytes**(V bytes, VI from)</code>: returns
     `bytes[from[i]]`. Uses byte lanes regardless of the actual vector types.
-    Results are implementation-defined if `from[i] >= HWY_MIN(vector size, 16)`.
+    Results are implementation-defined if `from[i] >= HWY_MIN(lanes in V, 16)`.
+    The number of lanes in `V` and `VI` may differ, e.g. a full-length table
+    vector loaded via `LoadDup128`, plus partial vector `VI` of 4-bit indices.
 
 *   `V`: `{u,i}` \
-    <code>V **TableLookupBytesOr0**(V bytes, V from)</code>: returns
+    <code>VI **TableLookupBytesOr0**(V bytes, VI from)</code>: returns
     `bytes[from[i]]`, or 0 if `from[i] & 0x80`. Uses byte lanes regardless of
     the actual vector types. Results are implementation-defined for `from[i]` in
     `[HWY_MIN(vector size, 16), 0x80)`. The zeroing behavior has zero cost on
     x86 and ARM. For vectors of >= 256 bytes (can happen on SVE and RVV), this
-    will set all lanes after the first 128 to 0.
+    will set all lanes after the first 128 to 0. The number of lanes in `V` and
+    `VI` may differ.
 
 *   <code>V **InterleaveLower**([D, ] V a, V b)</code>: returns *blocks* with
     alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
@@ -825,7 +828,8 @@ their operands into independently processed 128-bit *blocks*.
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
     `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`. The
     indices are not limited to blocks, hence this is slower than
-    `TableLookupBytes*` on AVX2/AVX-512.
+    `TableLookupBytes*` on AVX2/AVX-512. Results are implementation-defined if
+    `indices[i] >= Lanes(D())`.
 
 *   `VI`: `i32` \
     <code>VI **SetTableIndices**(D, int32_t* idx)</code> prepares for

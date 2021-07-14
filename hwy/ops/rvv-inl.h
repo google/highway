@@ -1451,9 +1451,9 @@ HWY_API V Shuffle0123(const V v) {
 
 // ------------------------------ TableLookupBytes
 
-template <class V>
-HWY_API V TableLookupBytes(const V v, const V idx) {
-  const DFromV<V> d;
+template <class V, class VI>
+HWY_API VI TableLookupBytes(const V v, const VI idx) {
+  const DFromV<VI> d;
   const Repartition<uint8_t, decltype(d)> d8;
   Lanes(d8);
   const auto offsets128 = detail::OffsetsOf128BitBlocks(d8, detail::Iota0(d8));
@@ -1463,9 +1463,9 @@ HWY_API V TableLookupBytes(const V v, const V idx) {
   return out;
 }
 
-template <class V>
-HWY_API V TableLookupBytesOr0(const V v, const V idx) {
-  const DFromV<V> d;
+template <class V, class VI>
+HWY_API V TableLookupBytesOr0(const VI v, const V idx) {
+  const DFromV<VI> d;
   // Mask size must match vector type, so cast everything to this type.
   const Repartition<int8_t, decltype(d)> di8;
   Lanes(di8);

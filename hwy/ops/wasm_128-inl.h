@@ -1934,19 +1934,19 @@ HWY_API Vec128<float, N> Broadcast(const Vec128<float, N> v) {
       wasm_i32x4_shuffle(v.raw, v.raw, kLane, kLane, kLane, kLane)};
 }
 
-// ------------------------------ Shuffle bytes with variable indices
+// ------------------------------ TableLookupBytes
 
 // Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
 // lane indices in [0, 16).
-template <typename T, size_t N>
-HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
-                                      const Vec128<T, N> from) {
+template <typename T, size_t N, typename TI, size_t NI>
+HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> bytes,
+                                        const Vec128<TI, NI> from) {
 // Not yet available in all engines, see
 // https://github.com/WebAssembly/simd/blob/bdcc304b2d379f4601c2c44ea9b44ed9484fde7e/proposals/simd/ImplementationStatus.md
 // V8 implementation of this had a bug, fixed on 2021-04-03:
 // https://chromium-review.googlesource.com/c/v8/v8/+/2822951
 #if 0
-  return Vec128<T, N>{wasm_i8x16_swizzle(bytes.raw, from.raw)};
+  return Vec128<TI, NI>{wasm_i8x16_swizzle(bytes.raw, from.raw)};
 #else
   alignas(16) uint8_t control[16];
   alignas(16) uint8_t input[16];
@@ -1956,18 +1956,20 @@ HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
   for (size_t i = 0; i < 16; ++i) {
     output[i] = control[i] < 16 ? input[control[i]] : 0;
   }
-  return Vec128<T, N>{wasm_v128_load(output)};
+  return Vec128<TI, NI>{wasm_v128_load(output)};
 #endif
 }
 
-template <typename T, size_t N>
-HWY_API Vec128<T, N> TableLookupBytesOr0(const Vec128<T, N> bytes,
-                                         const Vec128<T, N> from) {
-  const Simd<T, N> d;
+template <typename T, size_t N, typename TI, size_t NI>
+HWY_API Vec128<TI, NI> TableLookupBytesOr0(const Vec128<T, N> bytes,
+                                           const Vec128<TI, NI> from) {
+  const Simd<TI, NI> d;
   // Mask size must match vector type, so cast everything to this type.
   Repartition<int8_t, decltype(d)> di8;
+  Repartition<int8_t, Simd<T, N>> d_bytes8;
   const auto msb = BitCast(di8, from) < Zero(di8);
-  const auto lookup = TableLookupBytes(BitCast(di8, bytes), BitCast(di8, from));
+  const auto lookup =
+      TableLookupBytes(BitCast(d_bytes8, bytes), BitCast(di8, from));
   return BitCast(d, IfThenZeroElse(msb, lookup));
 }
 

@@ -2439,19 +2439,17 @@ HWY_API Vec128<double, N> Broadcast(const Vec128<double, N> v) {
   return Vec128<double, N>{_mm_shuffle_pd(v.raw, v.raw, 3 * kLane)};
 }
 
-// ------------------------------ Shuffle bytes with variable indices
-
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
-// lane indices in [0, 16).
-template <typename T, size_t N>
-HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T, N> bytes,
-                                      const Vec128<T, N> from) {
-  return Vec128<T, N>{_mm_shuffle_epi8(bytes.raw, from.raw)};
+// ------------------------------ TableLookupBytes
+template <typename T, size_t N, typename TI, size_t NI>
+HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> bytes,
+                                        const Vec128<TI, NI> from) {
+  return Vec128<TI, NI>{_mm_shuffle_epi8(bytes.raw, from.raw)};
 }
 
+// ------------------------------ TableLookupBytesOr0
 // For all vector widths; x86 anyway zeroes if >= 0x80.
-template <class V>
-HWY_API V TableLookupBytesOr0(const V bytes, const V from) {
+template <class V, class VI>
+HWY_API VI TableLookupBytesOr0(const V bytes, const VI from) {
   return TableLookupBytes(bytes, from);
 }
 

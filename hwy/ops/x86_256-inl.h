@@ -2190,15 +2190,36 @@ HWY_API Vec256<double> OddEven(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{_mm256_blend_pd(a.raw, b.raw, 5)};
 }
 
-// ------------------------------ Shuffle bytes with variable indices
+// ------------------------------ TableLookupBytes (ZeroExtendVector)
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
-// lane indices in [0, 16).
-template <typename T>
-HWY_API Vec256<T> TableLookupBytes(const Vec256<T> bytes,
-                                   const Vec256<T> from) {
-  return Vec256<T>{_mm256_shuffle_epi8(bytes.raw, from.raw)};
+// Both full
+template <typename T, typename TI>
+HWY_API Vec256<TI> TableLookupBytes(const Vec256<T> bytes,
+                                    const Vec256<TI> from) {
+  return Vec256<TI>{_mm256_shuffle_epi8(bytes.raw, from.raw)};
 }
+
+// Partial index vector
+template <typename T, typename TI, size_t NI>
+HWY_API Vec128<TI, NI> TableLookupBytes(const Vec256<T> bytes,
+                                        const Vec128<TI, NI> from) {
+  // First expand to full 128, then 256.
+  const auto from_256 = ZeroExtendVector(Full256<TI>(), Vec128<TI>{from.raw});
+  const auto tbl_full = TableLookupBytes(bytes, from_256);
+  // Shrink to 128, then partial.
+  return Vec128<TI, NI>{LowerHalf(Full128<TI>(), tbl_full).raw};
+}
+
+// Partial table vector
+template <typename T, size_t N, typename TI>
+HWY_API Vec256<TI> TableLookupBytes(const Vec128<T, N> bytes,
+                                    const Vec256<TI> from) {
+  // First expand to full 128, then 256.
+  const auto bytes_256 = ZeroExtendVector(Full256<T>(), Vec128<T>{bytes.raw});
+  return TableLookupBytes(bytes_256, from);
+}
+
+// Partial both are handled by x86_128.
 
 // ------------------------------ Shl (Mul, ZipLower)
 

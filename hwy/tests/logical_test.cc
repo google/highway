@@ -254,8 +254,7 @@ struct TestPopCount {
 };
 
 HWY_NOINLINE void TestAllPopCount() {
-  // TODO(veluca): Test on 64-bit vectors too.
-  ForUnsignedTypes(ForGE128Vectors<TestPopCount>());
+  ForUnsignedTypes(ForPartialVectors<TestPopCount>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

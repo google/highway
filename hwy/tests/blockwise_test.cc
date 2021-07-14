@@ -119,8 +119,6 @@ HWY_NOINLINE void TestAllShiftLanes() {
 template <typename D, int kLane>
 struct TestBroadcastR {
   HWY_NOINLINE void operator()() const {
-// TODO(janwas): fix failure
-#if HWY_TARGET != HWY_WASM
     using T = typename D::T;
     const D d;
     const size_t N = Lanes(d);
@@ -142,7 +140,6 @@ struct TestBroadcastR {
     HWY_ASSERT_VEC_EQ(d, expected.get(), Broadcast<kLane>(in));
 
     TestBroadcastR<D, kLane - 1>()();
-#endif
   }
 };
 
@@ -177,21 +174,37 @@ HWY_NOINLINE void TestAllBroadcast() {
   ForFloatTypes(test);
 }
 
+template <bool kFull>
+struct ChooseTableSize {
+  template <typename T, typename DIdx>
+  using type = DIdx;
+};
+template <>
+struct ChooseTableSize<true> {
+  template <typename T, typename DIdx>
+  using type = HWY_FULL(T);
+};
+
+template <bool kFull>
 struct TestTableLookupBytes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
     RandomState rng;
+    const typename ChooseTableSize<kFull>::template type<T, D> d_tbl;
+    const Repartition<uint8_t, decltype(d_tbl)> d_tbl8;
+    const size_t NT8 = Lanes(d_tbl8);
+
     const Repartition<uint8_t, D> d8;
     const size_t N = Lanes(d);
     const size_t N8 = Lanes(d8);
 
     // Random input bytes
-    auto in_bytes = AllocateAligned<uint8_t>(N8);
-    for (size_t i = 0; i < N8; ++i) {
+    auto in_bytes = AllocateAligned<uint8_t>(NT8);
+    for (size_t i = 0; i < NT8; ++i) {
       in_bytes[i] = Random32(&rng) & 0xFF;
     }
-    const auto in =
-        BitCast(d, Load(d, reinterpret_cast<const T*>(in_bytes.get())));
+    const auto in = BitCast(d_tbl, Load(d_tbl8, in_bytes.get()));
 
     // Enough test data; for larger vectors, upper lanes will be zero.
     const uint8_t index_bytes_source[64] = {
@@ -238,11 +251,21 @@ struct TestTableLookupBytes {
       expected_bytes[i] = prev_expected;
       index_bytes[i] = prev_index;
     }
+#else
+    (void)d;
+#endif
   }
 };
 
 HWY_NOINLINE void TestAllTableLookupBytes() {
-  ForIntegerTypes(ForPartialVectors<TestTableLookupBytes>());
+  // Partial index, same-sized table.
+  ForIntegerTypes(ForPartialVectors<TestTableLookupBytes<false>>());
+
+// TODO(janwas): requires LMUL trunc/ext, which is not yet implemented.
+#if HWY_TARGET != HWY_RVV
+  // Partial index, full-size table.
+  ForIntegerTypes(ForPartialVectors<TestTableLookupBytes<true>>());
+#endif
 }
 
 struct TestInterleaveLower {

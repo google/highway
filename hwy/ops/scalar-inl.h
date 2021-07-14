@@ -206,6 +206,19 @@ HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
   return v.raw < 0 ? Vec1<T>(T(-1)) : Vec1<T>(0);
 }
 
+// ------------------------------ PopulationCount
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+template <typename T>
+HWY_API Vec1<T> PopulationCount(Vec1<T> v) {
+  return Vec1<T>(PopCount(v.raw));
+}
+
 // ------------------------------ Mask
 
 template <typename TFrom, typename TTo>

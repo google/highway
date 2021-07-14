@@ -3172,46 +3172,6 @@ HWY_API Vec128<int64_t, 1> Broadcast(const Vec128<int64_t, 1> v) {
   return v;
 }
 
-// ------------------------------ Shuffle bytes with variable indices
-
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
-// lane indices in [0, 16).
-template <typename T>
-HWY_API Vec128<T> TableLookupBytes(const Vec128<T> bytes,
-                                   const Vec128<T> from) {
-  const Full128<T> d;
-  const Repartition<uint8_t, decltype(d)> d8;
-#if HWY_ARCH_ARM_A64
-  return BitCast(d, Vec128<uint8_t>(vqtbl1q_u8(BitCast(d8, bytes).raw,
-                                               BitCast(d8, from).raw)));
-#else
-  uint8x16_t table0 = BitCast(d8, bytes).raw;
-  uint8x8x2_t table;
-  table.val[0] = vget_low_u8(table0);
-  table.val[1] = vget_high_u8(table0);
-  uint8x16_t idx = BitCast(d8, from).raw;
-  uint8x8_t low = vtbl2_u8(table, vget_low_u8(idx));
-  uint8x8_t hi = vtbl2_u8(table, vget_high_u8(idx));
-  return BitCast(d, Vec128<uint8_t>(vcombine_u8(low, hi)));
-#endif
-}
-
-template <typename T, size_t N, typename TI, HWY_IF_LE64(T, N)>
-HWY_API Vec128<T, N> TableLookupBytes(
-    const Vec128<T, N> bytes,
-    const Vec128<TI, N * sizeof(T) / sizeof(TI)> from) {
-  const Simd<T, N> d;
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, decltype(Zero(d8))(vtbl1_u8(BitCast(d8, bytes).raw,
-                                                BitCast(d8, from).raw)));
-}
-
-// For all vector widths; ARM anyway zeroes if >= 0x10.
-template <class V>
-HWY_API V TableLookupBytesOr0(const V bytes, const V from) {
-  return TableLookupBytes(bytes, from);
-}
-
 // ------------------------------ TableLookupLanes
 
 // Returned by SetTableIndices for use by TableLookupLanes.
@@ -3675,6 +3635,69 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 #endif  // __ARM_FEATURE_AES
 
 // ================================================== MISC
+
+// ------------------------------ TableLookupBytes (Combine, LowerHalf)
+
+// Both full
+template <typename T>
+HWY_API Vec128<T> TableLookupBytes(const Vec128<T> bytes,
+                                   const Vec128<T> from) {
+  const Full128<T> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+#if HWY_ARCH_ARM_A64
+  return BitCast(d, Vec128<uint8_t>(vqtbl1q_u8(BitCast(d8, bytes).raw,
+                                               BitCast(d8, from).raw)));
+#else
+  uint8x16_t table0 = BitCast(d8, bytes).raw;
+  uint8x8x2_t table;
+  table.val[0] = vget_low_u8(table0);
+  table.val[1] = vget_high_u8(table0);
+  uint8x16_t idx = BitCast(d8, from).raw;
+  uint8x8_t low = vtbl2_u8(table, vget_low_u8(idx));
+  uint8x8_t hi = vtbl2_u8(table, vget_high_u8(idx));
+  return BitCast(d, Vec128<uint8_t>(vcombine_u8(low, hi)));
+#endif
+}
+
+// Partial index vector
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> TableLookupBytes(const Vec128<T> bytes,
+                                      const Vec128<T, N> from) {
+  const Full128<T> d_full;
+  const Vec128<T, 8 / sizeof(T)> from64(from.raw);
+  const auto idx_full = Combine(d_full, from64, from64);
+  const auto out_full = TableLookupBytes(bytes, idx_full);
+  return Vec128<T, N>(LowerHalf(Half<decltype(d_full)>(), out_full).raw);
+}
+
+// Partial table vector
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API Vec128<T> TableLookupBytes(const Vec128<T, N> bytes,
+                                   const Vec128<T> from) {
+  const Full128<T> d_full;
+  return TableLookupBytes(Combine(d_full, bytes, bytes), from);
+}
+
+// Partial both
+template <typename T, size_t N, typename TI, size_t NI, HWY_IF_LE64(T, N),
+          HWY_IF_LE64(TI, NI)>
+HWY_API VFromD<Repartition<T, Simd<TI, NI>>> TableLookupBytes(
+    Vec128<T, N> bytes, Vec128<TI, NI> from) {
+  const Simd<T, N> d;
+  const Simd<TI, NI> d_idx;
+  const Repartition<T, decltype(d_idx)> d_out;
+  // uint8x8
+  const auto bytes8 = BitCast(Repartition<uint8_t, decltype(d)>(), bytes);
+  const auto from8 = BitCast(Repartition<uint8_t, decltype(d_idx)>(), from);
+  // First treat as index vector, then cast to lanes of T.
+  return BitCast(d_out, Vec128<TI, NI>(vtbl1_u8(bytes8.raw, from8.raw)));
+}
+
+// For all vector widths; ARM anyway zeroes if >= 0x10.
+template <class V, class VI>
+HWY_API VI TableLookupBytesOr0(const V bytes, const VI from) {
+  return TableLookupBytes(bytes, from);
+}
 
 // ------------------------------ Scatter (Store)
 
