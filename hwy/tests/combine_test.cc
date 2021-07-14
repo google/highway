@@ -36,16 +36,21 @@ struct TestLowerHalf {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
+    auto lanes2 = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
+    std::fill(lanes2.get(), lanes2.get() + N, T(0));
     const auto v = Iota(d, 1);
     Store(LowerHalf(d2, v), d2, lanes.get());
+    Store(LowerHalf(v), d2, lanes2.get());  // optionally without D
     size_t i = 0;
     for (; i < Lanes(d2); ++i) {
       HWY_ASSERT_EQ(T(1 + i), lanes[i]);
+      HWY_ASSERT_EQ(T(1 + i), lanes2[i]);
     }
     // Other half remains unchanged
     for (; i < N; ++i) {
       HWY_ASSERT_EQ(T(0), lanes[i]);
+      HWY_ASSERT_EQ(T(0), lanes2[i]);
     }
   }
 };
@@ -58,17 +63,23 @@ struct TestLowerQuarter {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
+    auto lanes2 = AllocateAligned<T>(N);
     std::fill(lanes.get(), lanes.get() + N, T(0));
+    std::fill(lanes2.get(), lanes2.get() + N, T(0));
     const auto v = Iota(d, 1);
     const auto lo = LowerHalf(d4, LowerHalf(d2, v));
+    const auto lo2 = LowerHalf(LowerHalf(v));  // optionally without D
     Store(lo, d4, lanes.get());
+    Store(lo2, d4, lanes2.get());
     size_t i = 0;
     for (; i < Lanes(d4); ++i) {
       HWY_ASSERT_EQ(T(i + 1), lanes[i]);
+      HWY_ASSERT_EQ(T(i + 1), lanes2[i]);
     }
     // Upper 3/4 remain unchanged
     for (; i < N; ++i) {
       HWY_ASSERT_EQ(T(0), lanes[i]);
+      HWY_ASSERT_EQ(T(0), lanes2[i]);
     }
   }
 };
