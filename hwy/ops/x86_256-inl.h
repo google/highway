@@ -1952,7 +1952,7 @@ HWY_API Vec256<float> TableLookupLanes(const Vec256<float> v,
   return Vec256<float>{_mm256_permutevar8x32_ps(v.raw, idx.raw)};
 }
 
-// ------------------------------ Interleave lanes
+// ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides
 // the least-significant lane) and "b". To concatenate two half-width integers
@@ -2001,6 +2001,17 @@ HWY_API Vec256<double> InterleaveLower(const Vec256<double> a,
   return Vec256<double>{_mm256_unpacklo_pd(a.raw, b.raw)};
 }
 
+// Additional overload for the optional Simd<> tag.
+template <typename T, class V = Vec256<T>>
+HWY_API V InterleaveLower(Full256<T> /* tag */, V a, V b) {
+  return InterleaveLower(a, b);
+}
+
+// ------------------------------ InterleaveUpper
+
+// All functions inside detail lack the required D parameter.
+namespace detail {
+
 HWY_API Vec256<uint8_t> InterleaveUpper(const Vec256<uint8_t> a,
                                         const Vec256<uint8_t> b) {
   return Vec256<uint8_t>{_mm256_unpackhi_epi8(a.raw, b.raw)};
@@ -2044,61 +2055,29 @@ HWY_API Vec256<double> InterleaveUpper(const Vec256<double> a,
   return Vec256<double>{_mm256_unpackhi_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Zip lanes
+}  // namespace detail
 
-// Same as interleave_*, except that the return lanes are double-width integers;
+template <typename T, class V = Vec256<T>>
+HWY_API V InterleaveUpper(Full256<T> /* tag */, V a, V b) {
+  return detail::InterleaveUpper(a, b);
+}
+
+// ------------------------------ ZipLower/ZipUpper (InterleaveLower)
+
+// Same as Interleave*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
-
-HWY_API Vec256<uint16_t> ZipLower(const Vec256<uint8_t> a,
-                                  const Vec256<uint8_t> b) {
-  return Vec256<uint16_t>{_mm256_unpacklo_epi8(a.raw, b.raw)};
+template <typename T, typename TW = MakeWide<T>>
+HWY_API Vec256<TW> ZipLower(Vec256<T> a, Vec256<T> b) {
+  return BitCast(Full256<TW>(), InterleaveLower(Full256<T>(), a, b));
 }
-HWY_API Vec256<uint32_t> ZipLower(const Vec256<uint16_t> a,
-                                  const Vec256<uint16_t> b) {
-  return Vec256<uint32_t>{_mm256_unpacklo_epi16(a.raw, b.raw)};
-}
-HWY_API Vec256<uint64_t> ZipLower(const Vec256<uint32_t> a,
-                                  const Vec256<uint32_t> b) {
-  return Vec256<uint64_t>{_mm256_unpacklo_epi32(a.raw, b.raw)};
+template <typename T, typename TW = MakeWide<T>>
+HWY_API Vec256<TW> ZipLower(Full256<TW> dw, Vec256<T> a, Vec256<T> b) {
+  return BitCast(dw, InterleaveLower(Full256<T>(), a, b));
 }
 
-HWY_API Vec256<int16_t> ZipLower(const Vec256<int8_t> a,
-                                 const Vec256<int8_t> b) {
-  return Vec256<int16_t>{_mm256_unpacklo_epi8(a.raw, b.raw)};
-}
-HWY_API Vec256<int32_t> ZipLower(const Vec256<int16_t> a,
-                                 const Vec256<int16_t> b) {
-  return Vec256<int32_t>{_mm256_unpacklo_epi16(a.raw, b.raw)};
-}
-HWY_API Vec256<int64_t> ZipLower(const Vec256<int32_t> a,
-                                 const Vec256<int32_t> b) {
-  return Vec256<int64_t>{_mm256_unpacklo_epi32(a.raw, b.raw)};
-}
-
-HWY_API Vec256<uint16_t> ZipUpper(const Vec256<uint8_t> a,
-                                  const Vec256<uint8_t> b) {
-  return Vec256<uint16_t>{_mm256_unpackhi_epi8(a.raw, b.raw)};
-}
-HWY_API Vec256<uint32_t> ZipUpper(const Vec256<uint16_t> a,
-                                  const Vec256<uint16_t> b) {
-  return Vec256<uint32_t>{_mm256_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec256<uint64_t> ZipUpper(const Vec256<uint32_t> a,
-                                  const Vec256<uint32_t> b) {
-  return Vec256<uint64_t>{_mm256_unpackhi_epi32(a.raw, b.raw)};
-}
-
-HWY_API Vec256<int16_t> ZipUpper(const Vec256<int8_t> a,
-                                 const Vec256<int8_t> b) {
-  return Vec256<int16_t>{_mm256_unpackhi_epi8(a.raw, b.raw)};
-}
-HWY_API Vec256<int32_t> ZipUpper(const Vec256<int16_t> a,
-                                 const Vec256<int16_t> b) {
-  return Vec256<int32_t>{_mm256_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec256<int64_t> ZipUpper(const Vec256<int32_t> a,
-                                 const Vec256<int32_t> b) {
-  return Vec256<int64_t>{_mm256_unpackhi_epi32(a.raw, b.raw)};
+template <typename T, typename TW = MakeWide<T>>
+HWY_API Vec256<TW> ZipUpper(Full256<TW> dw, Vec256<T> a, Vec256<T> b) {
+  return BitCast(dw, InterleaveUpper(Full256<T>(), a, b));
 }
 
 // ------------------------------ Blocks (LowerHalf, ZeroExtendVector)
@@ -2230,14 +2209,15 @@ namespace detail {
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_INLINE Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
   const Full256<T> d;
-  const Full256<float> df;
+  const RepartitionToWide<decltype(d)> dw;
+  const Rebind<float, decltype(dw)> df;
   const auto zero = Zero(d);
   // Move into exponent (this u16 will become the upper half of an f32)
   const auto exp = ShiftLeft<23 - 16>(v);
   const auto upper = exp + Set(d, 0x3F80);  // upper half of 1.0f
   // Insert 0 into lower halves for reinterpreting as binary32.
-  const auto f0 = ZipLower(zero, upper);
-  const auto f1 = ZipUpper(zero, upper);
+  const auto f0 = ZipLower(dw, zero, upper);
+  const auto f1 = ZipUpper(dw, zero, upper);
   // Do not use ConvertTo because it checks for overflow, which is redundant
   // because we only care about v in [0, 16).
   const Vec256<int32_t> bits0{_mm256_cvttps_epi32(BitCast(df, f0).raw)};
@@ -2376,7 +2356,7 @@ HWY_INLINE Vec256<uint64_t> MulOdd(const Vec256<uint64_t> a,
 
   const auto mulH = MulEven(aH, bH) + w1 + k;
   const auto mulL = ShiftLeft<32>(t) + w3;
-  return InterleaveUpper(mulL, mulH);
+  return InterleaveUpper(du64, mulL, mulH);
 }
 
 // ================================================== CONVERT
@@ -3034,28 +3014,29 @@ HWY_API void StoreInterleaved3(const Vec256<uint8_t> v0,
 HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
                                const Vec256<uint8_t> v1,
                                const Vec256<uint8_t> v2,
-                               const Vec256<uint8_t> v3, Full256<uint8_t> d,
+                               const Vec256<uint8_t> v3, Full256<uint8_t> d8,
                                uint8_t* HWY_RESTRICT unaligned) {
-  const Repartition<uint32_t, decltype(d)> d32;
+  const RepartitionToWide<decltype(d8)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
   // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
-  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
-  const auto ba8 = ZipUpper(v0, v1);
-  const auto dc8 = ZipUpper(v2, v3);
-  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a13 d..a10 | d..a03 d..a00
-  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a17 d..a14 | d..a07 d..a04
-  const auto dcba_8 = ZipLower(ba8, dc8);  // d..a1B d..a18 | d..a0B d..a08
-  const auto dcba_C = ZipUpper(ba8, dc8);  // d..a1F d..a1C | d..a0F d..a0C
+  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(d16, v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(d16, v0, v1);
+  const auto dc8 = ZipUpper(d16, v2, v3);
+  const auto dcba_0 = ZipLower(d32, ba0, dc0);  // d..a13 d..a10 | d..a03 d..a00
+  const auto dcba_4 = ZipUpper(d32, ba0, dc0);  // d..a17 d..a14 | d..a07 d..a04
+  const auto dcba_8 = ZipLower(d32, ba8, dc8);  // d..a1B d..a18 | d..a0B d..a08
+  const auto dcba_C = ZipUpper(d32, ba8, dc8);  // d..a1F d..a1C | d..a0F d..a0C
   // Write lower halves, then upper. vperm2i128 is slow on Zen1 but we can
   // efficiently combine two lower halves into 256 bits:
-  const auto out0 = BitCast(d, ConcatLowerLower(d32, dcba_4, dcba_0));
-  const auto out1 = BitCast(d, ConcatLowerLower(d32, dcba_C, dcba_8));
-  StoreU(out0, d, unaligned + 0 * 32);
-  StoreU(out1, d, unaligned + 1 * 32);
-  const auto out2 = BitCast(d, ConcatUpperUpper(d32, dcba_4, dcba_0));
-  const auto out3 = BitCast(d, ConcatUpperUpper(d32, dcba_C, dcba_8));
-  StoreU(out2, d, unaligned + 2 * 32);
-  StoreU(out3, d, unaligned + 3 * 32);
+  const auto out0 = BitCast(d8, ConcatLowerLower(d32, dcba_4, dcba_0));
+  const auto out1 = BitCast(d8, ConcatLowerLower(d32, dcba_C, dcba_8));
+  StoreU(out0, d8, unaligned + 0 * 32);
+  StoreU(out1, d8, unaligned + 1 * 32);
+  const auto out2 = BitCast(d8, ConcatUpperUpper(d32, dcba_4, dcba_0));
+  const auto out3 = BitCast(d8, ConcatUpperUpper(d32, dcba_C, dcba_8));
+  StoreU(out2, d8, unaligned + 2 * 32);
+  StoreU(out3, d8, unaligned + 3 * 32);
 }
 
 // ------------------------------ Reductions
@@ -3165,6 +3146,16 @@ HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
 template <typename T>
 HWY_API Vec128<T> UpperHalf(Vec256<T> v) {
   return UpperHalf(Full128<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec256<T> InterleaveUpper(Vec256<T> a, Vec256<T> b) {
+  return InterleaveUpper(Full256<T>(), a, b);
+}
+
+template <typename T>
+HWY_API Vec256<MakeWide<T>> ZipUpper(Vec256<T> a, Vec256<T> b) {
+  return InterleaveUpper(Full256<MakeWide<T>>(), a, b);
 }
 
 template <typename T>

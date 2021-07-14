@@ -2132,7 +2132,16 @@ HWY_API Vec128<float, N> InterleaveLower(Vec128<float, N> a,
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 4, 1, 5)};
 }
 
-// ------------------------------ InterleaveUpper
+// Additional overload for the optional Simd<> tag.
+template <typename T, size_t N, class V = Vec128<T, N>>
+HWY_API V InterleaveLower(Simd<T, N> /* tag */, V a, V b) {
+  return InterleaveLower(a, b);
+}
+
+// ------------------------------ InterleaveUpper (UpperHalf)
+
+// All functions inside detail lack the required D parameter.
+namespace detail {
 
 template <size_t N>
 HWY_API Vec128<uint8_t, N> InterleaveUpper(Vec128<uint8_t, N> a,
@@ -2188,16 +2197,39 @@ HWY_API Vec128<float, N> InterleaveUpper(Vec128<float, N> a,
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
 }
 
-// ------------------------------ ZipLower (InterleaveLower)
+}  // namespace detail
+
+// Full
+template <typename T, class V = Vec128<T>>
+HWY_API V InterleaveUpper(Full128<T> /* tag */, V a, V b) {
+  return detail::InterleaveUpper(a, b);
+}
+
+// Partial
+template <typename T, size_t N, HWY_IF_LE64(T, N), class V = Vec128<T, N>>
+HWY_API V InterleaveUpper(Simd<T, N> d, V a, V b) {
+  const Half<decltype(d)> d2;
+  return InterleaveLower(d, V{UpperHalf(d2, a).raw}, V{UpperHalf(d2, b).raw});
+}
+
+// ------------------------------ ZipLower/ZipUpper (InterleaveLower)
+
+// Same as Interleave*, except that the return lanes are double-width integers;
+// this is necessary because the single-lane scalar cannot return two values.
 template <typename T, size_t N, class DW = RepartitionToWide<Simd<T, N>>>
 HWY_API VFromD<DW> ZipLower(Vec128<T, N> a, Vec128<T, N> b) {
   return BitCast(DW(), InterleaveLower(a, b));
 }
+template <typename T, size_t N, class D = Simd<T, N>,
+          class DW = RepartitionToWide<D>>
+HWY_API VFromD<DW> ZipLower(DW dw, Vec128<T, N> a, Vec128<T, N> b) {
+  return BitCast(dw, InterleaveLower(D(), a, b));
+}
 
-// ------------------------------ ZipUpper (InterleaveUpper)
-template <typename T, size_t N, class DW = RepartitionToWide<Simd<T, N>>>
-HWY_API VFromD<DW> ZipUpper(Vec128<T, N> a, Vec128<T, N> b) {
-  return BitCast(DW(), InterleaveUpper(a, b));
+template <typename T, size_t N, class D = Simd<T, N>,
+          class DW = RepartitionToWide<D>>
+HWY_API VFromD<DW> ZipUpper(DW dw, Vec128<T, N> a, Vec128<T, N> b) {
+  return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
 // ================================================== COMBINE
@@ -3062,21 +3094,23 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> a,
 HWY_API void StoreInterleaved4(const Vec128<uint8_t> v0,
                                const Vec128<uint8_t> v1,
                                const Vec128<uint8_t> v2,
-                               const Vec128<uint8_t> v3, Full128<uint8_t> d,
+                               const Vec128<uint8_t> v3, Full128<uint8_t> d8,
                                uint8_t* HWY_RESTRICT unaligned) {
+  const RepartitionToWide<decltype(d8)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
   // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
-  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
-  const auto ba8 = ZipUpper(v0, v1);
-  const auto dc8 = ZipUpper(v2, v3);
-  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
-  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a7 d..a4
-  const auto dcba_8 = ZipLower(ba8, dc8);  // d..aB d..a8
-  const auto dcba_C = ZipUpper(ba8, dc8);  // d..aF d..aC
-  StoreU(BitCast(d, dcba_0), d, unaligned + 0 * 16);
-  StoreU(BitCast(d, dcba_4), d, unaligned + 1 * 16);
-  StoreU(BitCast(d, dcba_8), d, unaligned + 2 * 16);
-  StoreU(BitCast(d, dcba_C), d, unaligned + 3 * 16);
+  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(d16, v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(d16, v0, v1);
+  const auto dc8 = ZipUpper(d16, v2, v3);
+  const auto dcba_0 = ZipLower(d32, ba0, dc0);  // d..a3 d..a0
+  const auto dcba_4 = ZipUpper(d32, ba0, dc0);  // d..a7 d..a4
+  const auto dcba_8 = ZipLower(d32, ba8, dc8);  // d..aB d..a8
+  const auto dcba_C = ZipUpper(d32, ba8, dc8);  // d..aF d..aC
+  StoreU(BitCast(d8, dcba_0), d8, unaligned + 0 * 16);
+  StoreU(BitCast(d8, dcba_4), d8, unaligned + 1 * 16);
+  StoreU(BitCast(d8, dcba_8), d8, unaligned + 2 * 16);
+  StoreU(BitCast(d8, dcba_C), d8, unaligned + 3 * 16);
 }
 
 // 64 bits
@@ -3084,21 +3118,23 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, 8> in0,
                                const Vec128<uint8_t, 8> in1,
                                const Vec128<uint8_t, 8> in2,
                                const Vec128<uint8_t, 8> in3,
-                               Simd<uint8_t, 8> /*tag*/,
+                               Simd<uint8_t, 8> /* tag */,
                                uint8_t* HWY_RESTRICT unaligned) {
   // Use full vectors to reduce the number of stores.
+  const Full128<uint8_t> d_full8;
+  const RepartitionToWide<decltype(d_full8)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
   const Vec128<uint8_t> v0{in0.raw};
   const Vec128<uint8_t> v1{in1.raw};
   const Vec128<uint8_t> v2{in2.raw};
   const Vec128<uint8_t> v3{in3.raw};
   // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(v0, v1);       // b7 a7 .. b0 a0
-  const auto dc0 = ZipLower(v2, v3);       // d7 c7 .. d0 c0
-  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
-  const auto dcba_4 = ZipUpper(ba0, dc0);  // d..a7 d..a4
-  const Full128<uint8_t> d_full;
-  StoreU(BitCast(d_full, dcba_0), d_full, unaligned + 0 * 16);
-  StoreU(BitCast(d_full, dcba_4), d_full, unaligned + 1 * 16);
+  const auto ba0 = ZipLower(d16, v0, v1);       // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(d16, v2, v3);       // d7 c7 .. d0 c0
+  const auto dcba_0 = ZipLower(d32, ba0, dc0);  // d..a3 d..a0
+  const auto dcba_4 = ZipUpper(d32, ba0, dc0);  // d..a7 d..a4
+  StoreU(BitCast(d_full8, dcba_0), d_full8, unaligned + 0 * 16);
+  StoreU(BitCast(d_full8, dcba_4), d_full8, unaligned + 1 * 16);
 }
 
 // <= 32 bits
@@ -3110,17 +3146,19 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> in0,
                                Simd<uint8_t, N> /*tag*/,
                                uint8_t* HWY_RESTRICT unaligned) {
   // Use full vectors to reduce the number of stores.
+  const Full128<uint8_t> d_full8;
+  const RepartitionToWide<decltype(d_full8)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
   const Vec128<uint8_t> v0{in0.raw};
   const Vec128<uint8_t> v1{in1.raw};
   const Vec128<uint8_t> v2{in2.raw};
   const Vec128<uint8_t> v3{in3.raw};
   // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(v0, v1);       // b3 a3 .. b0 a0
-  const auto dc0 = ZipLower(v2, v3);       // d3 c3 .. d0 c0
-  const auto dcba_0 = ZipLower(ba0, dc0);  // d..a3 d..a0
+  const auto ba0 = ZipLower(d16, v0, v1);       // b3 a3 .. b0 a0
+  const auto dc0 = ZipLower(d16, v2, v3);       // d3 c3 .. d0 c0
+  const auto dcba_0 = ZipLower(d32, ba0, dc0);  // d..a3 d..a0
   alignas(16) uint8_t buf[16];
-  const Full128<uint8_t> d_full;
-  StoreU(BitCast(d_full, dcba_0), d_full, buf);
+  StoreU(BitCast(d_full8, dcba_0), d_full8, buf);
   CopyBytes<4 * N>(buf, unaligned);
 }
 
@@ -3284,6 +3322,16 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
   return UpperHalf(Half<Simd<T, N>>(), v);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> InterleaveUpper(Vec128<T, N> a, Vec128<T, N> b) {
+  return InterleaveUpper(Simd<T, N>(), a, b);
+}
+
+template <typename T, size_t N, class D = Simd<T, N>>
+HWY_API VFromD<RepartitionToWide<D>> ZipUpper(Vec128<T, N> a, Vec128<T, N> b) {
+  return InterleaveUpper(RepartitionToWide<D>(), a, b);
 }
 
 template <typename T, size_t N2>

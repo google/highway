@@ -1105,7 +1105,7 @@ HWY_API Vec1<T> TableLookupBytesOr0(const Vec1<T> in, const Vec1<T> from) {
   return Vec1<T>{out};
 }
 
-// ------------------------------ Zip/unpack
+// ------------------------------ ZipLower
 
 HWY_API Vec1<uint16_t> ZipLower(const Vec1<uint8_t> a, const Vec1<uint8_t> b) {
   return Vec1<uint16_t>(static_cast<uint16_t>((uint32_t(b.raw) << 8) + a.raw));
@@ -1126,6 +1126,11 @@ HWY_API Vec1<int32_t> ZipLower(const Vec1<int16_t> a, const Vec1<int16_t> b) {
 }
 HWY_API Vec1<int64_t> ZipLower(const Vec1<int32_t> a, const Vec1<int32_t> b) {
   return Vec1<int64_t>((int64_t(b.raw) << 32) + a.raw);
+}
+
+template <typename T, typename TW = MakeWide<T>, class VW = Vec1<TW>>
+HWY_API VW ZipLower(Sisd<TW> /* tag */, Vec1<T> a, Vec1<T> b) {
+  return VW((TW(b.raw) << (sizeof(T) * 8)) + a.raw);
 }
 
 // ================================================== MASK

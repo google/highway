@@ -2308,7 +2308,7 @@ HWY_API Vec512<float> TableLookupLanes(const Vec512<float> v,
   return Vec512<float>{_mm512_permutexvar_ps(idx.raw, v.raw)};
 }
 
-// ------------------------------ Interleave lanes
+// ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides
 // the least-significant lane) and "b". To concatenate two half-width integers
@@ -2357,6 +2357,17 @@ HWY_API Vec512<double> InterleaveLower(const Vec512<double> a,
   return Vec512<double>{_mm512_unpacklo_pd(a.raw, b.raw)};
 }
 
+// Additional overload for the optional Simd<> tag.
+template <typename T, class V = Vec512<T>>
+HWY_API V InterleaveLower(Full512<T> /* tag */, V a, V b) {
+  return InterleaveLower(a, b);
+}
+
+// ------------------------------ InterleaveUpper
+
+// All functions inside detail lack the required D parameter.
+namespace detail {
+
 HWY_API Vec512<uint8_t> InterleaveUpper(const Vec512<uint8_t> a,
                                         const Vec512<uint8_t> b) {
   return Vec512<uint8_t>{_mm512_unpackhi_epi8(a.raw, b.raw)};
@@ -2400,61 +2411,29 @@ HWY_API Vec512<double> InterleaveUpper(const Vec512<double> a,
   return Vec512<double>{_mm512_unpackhi_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Zip lanes
+}  // namespace detail
 
-// Same as interleave_*, except that the return lanes are double-width integers;
+template <typename T, class V = Vec512<T>>
+HWY_API V InterleaveUpper(Full512<T> /* tag */, V a, V b) {
+  return detail::InterleaveUpper(a, b);
+}
+
+// ------------------------------ ZipLower/ZipUpper (InterleaveLower)
+
+// Same as Interleave*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
-
-HWY_API Vec512<uint16_t> ZipLower(const Vec512<uint8_t> a,
-                                  const Vec512<uint8_t> b) {
-  return Vec512<uint16_t>{_mm512_unpacklo_epi8(a.raw, b.raw)};
+template <typename T, typename TW = MakeWide<T>>
+HWY_API Vec512<TW> ZipLower(Vec512<T> a, Vec512<T> b) {
+  return BitCast(Full512<TW>(), InterleaveLower(a, b));
 }
-HWY_API Vec512<uint32_t> ZipLower(const Vec512<uint16_t> a,
-                                  const Vec512<uint16_t> b) {
-  return Vec512<uint32_t>{_mm512_unpacklo_epi16(a.raw, b.raw)};
-}
-HWY_API Vec512<uint64_t> ZipLower(const Vec512<uint32_t> a,
-                                  const Vec512<uint32_t> b) {
-  return Vec512<uint64_t>{_mm512_unpacklo_epi32(a.raw, b.raw)};
+template <typename T, typename TW = MakeWide<T>>
+HWY_API Vec512<TW> ZipLower(Full512<TW> d, Vec512<T> a, Vec512<T> b) {
+  return BitCast(Full512<TW>(), InterleaveLower(d, a, b));
 }
 
-HWY_API Vec512<int16_t> ZipLower(const Vec512<int8_t> a,
-                                 const Vec512<int8_t> b) {
-  return Vec512<int16_t>{_mm512_unpacklo_epi8(a.raw, b.raw)};
-}
-HWY_API Vec512<int32_t> ZipLower(const Vec512<int16_t> a,
-                                 const Vec512<int16_t> b) {
-  return Vec512<int32_t>{_mm512_unpacklo_epi16(a.raw, b.raw)};
-}
-HWY_API Vec512<int64_t> ZipLower(const Vec512<int32_t> a,
-                                 const Vec512<int32_t> b) {
-  return Vec512<int64_t>{_mm512_unpacklo_epi32(a.raw, b.raw)};
-}
-
-HWY_API Vec512<uint16_t> ZipUpper(const Vec512<uint8_t> a,
-                                  const Vec512<uint8_t> b) {
-  return Vec512<uint16_t>{_mm512_unpackhi_epi8(a.raw, b.raw)};
-}
-HWY_API Vec512<uint32_t> ZipUpper(const Vec512<uint16_t> a,
-                                  const Vec512<uint16_t> b) {
-  return Vec512<uint32_t>{_mm512_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec512<uint64_t> ZipUpper(const Vec512<uint32_t> a,
-                                  const Vec512<uint32_t> b) {
-  return Vec512<uint64_t>{_mm512_unpackhi_epi32(a.raw, b.raw)};
-}
-
-HWY_API Vec512<int16_t> ZipUpper(const Vec512<int8_t> a,
-                                 const Vec512<int8_t> b) {
-  return Vec512<int16_t>{_mm512_unpackhi_epi8(a.raw, b.raw)};
-}
-HWY_API Vec512<int32_t> ZipUpper(const Vec512<int16_t> a,
-                                 const Vec512<int16_t> b) {
-  return Vec512<int32_t>{_mm512_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec512<int64_t> ZipUpper(const Vec512<int32_t> a,
-                                 const Vec512<int32_t> b) {
-  return Vec512<int64_t>{_mm512_unpackhi_epi32(a.raw, b.raw)};
+template <typename T, typename TW = MakeWide<T>>
+HWY_API Vec512<TW> ZipUpper(Full512<TW> d, Vec512<T> a, Vec512<T> b) {
+  return BitCast(Full512<TW>(), InterleaveUpper(d, a, b));
 }
 
 // ------------------------------ Concat* halves
@@ -3152,17 +3131,19 @@ HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
 HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
                                const Vec512<uint8_t> v1,
                                const Vec512<uint8_t> v2,
-                               const Vec512<uint8_t> v3, Full512<uint8_t> d,
+                               const Vec512<uint8_t> v3, Full512<uint8_t> d8,
                                uint8_t* HWY_RESTRICT unaligned) {
+  const RepartitionToWide<decltype(d8)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
   // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(v0, v1);  // b7 a7 .. b0 a0
-  const auto dc0 = ZipLower(v2, v3);  // d7 c7 .. d0 c0
-  const auto ba8 = ZipUpper(v0, v1);
-  const auto dc8 = ZipUpper(v2, v3);
-  const auto i = ZipLower(ba0, dc0).raw;  // 4x128bit: d..a3 d..a0
-  const auto j = ZipUpper(ba0, dc0).raw;  // 4x128bit: d..a7 d..a4
-  const auto k = ZipLower(ba8, dc8).raw;  // 4x128bit: d..aB d..a8
-  const auto l = ZipUpper(ba8, dc8).raw;  // 4x128bit: d..aF d..aC
+  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
+  const auto dc0 = ZipLower(d16, v2, v3);  // d7 c7 .. d0 c0
+  const auto ba8 = ZipUpper(d16, v0, v1);
+  const auto dc8 = ZipUpper(d16, v2, v3);
+  const auto i = ZipLower(d32, ba0, dc0).raw;  // 4x128bit: d..a3 d..a0
+  const auto j = ZipUpper(d32, ba0, dc0).raw;  // 4x128bit: d..a7 d..a4
+  const auto k = ZipLower(d32, ba8, dc8).raw;  // 4x128bit: d..aB d..a8
+  const auto l = ZipUpper(d32, ba8, dc8).raw;  // 4x128bit: d..aF d..aC
   // 128-bit blocks were independent until now; transpose 4x4.
   const auto j1_j0_i1_i0 = _mm512_shuffle_i64x2(i, j, _MM_SHUFFLE(1, 0, 1, 0));
   const auto l1_l0_k1_k0 = _mm512_shuffle_i64x2(k, l, _MM_SHUFFLE(1, 0, 1, 0));
@@ -3174,10 +3155,10 @@ HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
   const auto l1_k1_j1_i1 = _mm512_shuffle_i64x2(j1_j0_i1_i0, l1_l0_k1_k0, k31);
   const auto l2_k2_j2_i2 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k20);
   const auto l3_k3_j3_i3 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k31);
-  StoreU(Vec512<uint8_t>{l0_k0_j0_i0}, d, unaligned + 0 * 64);
-  StoreU(Vec512<uint8_t>{l1_k1_j1_i1}, d, unaligned + 1 * 64);
-  StoreU(Vec512<uint8_t>{l2_k2_j2_i2}, d, unaligned + 2 * 64);
-  StoreU(Vec512<uint8_t>{l3_k3_j3_i3}, d, unaligned + 3 * 64);
+  StoreU(Vec512<uint8_t>{l0_k0_j0_i0}, d8, unaligned + 0 * 64);
+  StoreU(Vec512<uint8_t>{l1_k1_j1_i1}, d8, unaligned + 1 * 64);
+  StoreU(Vec512<uint8_t>{l2_k2_j2_i2}, d8, unaligned + 2 * 64);
+  StoreU(Vec512<uint8_t>{l3_k3_j3_i3}, d8, unaligned + 3 * 64);
 }
 
 // ------------------------------ MulEven/Odd (Shuffle2301, InterleaveLower)
@@ -3235,7 +3216,7 @@ HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
 
   const auto mulH = MulEven(aH, bH) + w1 + k;
   const auto mulL = ShiftLeft<32>(t) + w3;
-  return InterleaveUpper(mulL, mulH);
+  return InterleaveUpper(du64, mulL, mulH);
 }
 
 // ------------------------------ Reductions
@@ -3340,6 +3321,16 @@ HWY_API Vec512<T> MaxOfLanes(Vec512<T> v) {
 template <typename T>
 HWY_API Vec256<T> UpperHalf(Vec512<T> v) {
   return UpperHalf(Full256<T>(), v);
+}
+
+template <typename T>
+HWY_API Vec512<T> InterleaveUpper(Vec512<T> a, Vec512<T> b) {
+  return InterleaveUpper(Full512<T>(), a, b);
+}
+
+template <typename T>
+HWY_API Vec512<MakeWide<T>> ZipUpper(Vec512<T> a, Vec512<T> b) {
+  return InterleaveUpper(Full512<MakeWide<T>>(), a, b);
 }
 
 template <typename T>

@@ -260,13 +260,14 @@ struct TestInterleaveLower {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    const size_t blockN = 16 / sizeof(T);
+    const size_t blockN = HWY_MIN(16 / sizeof(T), N);
     for (size_t i = 0; i < Lanes(d); ++i) {
       const size_t block = i / blockN;
       const size_t index = (i % blockN) + block * 2 * blockN;
       expected[i] = static_cast<T>(index & LimitsMax<TU>());
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveLower(even, odd));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveLower(d, even, odd));
   }
 };
 
@@ -284,20 +285,19 @@ struct TestInterleaveUpper {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    const size_t blockN = 16 / sizeof(T);
+    const size_t blockN = HWY_MIN(16 / sizeof(T), N);
     for (size_t i = 0; i < Lanes(d); ++i) {
       const size_t block = i / blockN;
       expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(even, odd));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(d, even, odd));
   }
 };
 
 HWY_NOINLINE void TestAllInterleave() {
-  // TODO(janwas): Demote/Shrinkable once Interleave supports partials
-  ForAllTypes(ForGE128Vectors<TestInterleaveLower>());
-  // Not supported by HWY_SCALAR: Interleave(f32, f32) would return f32x2.
-  ForAllTypes(ForGE128Vectors<TestInterleaveUpper>());
+  // Not DemoteVectors because this cannot be supported by HWY_SCALAR.
+  ForAllTypes(ForShrinkableVectors<TestInterleaveLower>());
+  ForAllTypes(ForShrinkableVectors<TestInterleaveUpper>());
 }
 
 struct TestZipLower {
@@ -317,9 +317,11 @@ struct TestZipLower {
     const auto odd = Load(d, odd_lanes.get());
 
     const Repartition<WideT, D> dw;
-    auto expected = AllocateAligned<WideT>(Lanes(dw));
-    const WideT blockN = static_cast<WideT>(16 / sizeof(WideT));
-    for (size_t i = 0; i < Lanes(dw); ++i) {
+    const size_t NW = Lanes(dw);
+    auto expected = AllocateAligned<WideT>(NW);
+    const WideT blockN = static_cast<WideT>(HWY_MIN(16 / sizeof(WideT), NW));
+
+    for (size_t i = 0; i < NW; ++i) {
       const size_t block = i / blockN;
       // Value of least-significant lane in lo-vector.
       const WideT lo =
@@ -329,6 +331,7 @@ struct TestZipLower {
           static_cast<WideT>((static_cast<WideT>(lo + 1) << kBits) + lo);
     }
     HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(even, odd));
+    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(dw, even, odd));
   }
 };
 
@@ -349,11 +352,12 @@ struct TestZipUpper {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    const Repartition<WideT, D> dw;
-    auto expected = AllocateAligned<WideT>(Lanes(dw));
+        const Repartition<WideT, D> dw;
+    const size_t NW = Lanes(dw);
+    auto expected = AllocateAligned<WideT>(NW);
+    const WideT blockN = static_cast<WideT>(HWY_MIN(16 / sizeof(WideT), NW));
 
-    constexpr WideT blockN = static_cast<WideT>(16 / sizeof(WideT));
-    for (size_t i = 0; i < Lanes(dw); ++i) {
+    for (size_t i = 0; i < NW; ++i) {
       const size_t block = i / blockN;
       const WideT lo =
           static_cast<WideT>(2 * (i % blockN) + 4 * block * blockN);
@@ -361,13 +365,12 @@ struct TestZipUpper {
       expected[i] = static_cast<WideT>(
           (static_cast<WideT>(lo + 2 * blockN + 1) << kBits) + lo + 2 * blockN);
     }
-    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipUpper(even, odd));
+    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipUpper(dw, even, odd));
   }
 };
 
 HWY_NOINLINE void TestAllZip() {
-  // TODO(janwas): Promote/Extendable once Interleave supports partials
-  const ForGE128Vectors<TestZipLower> lower_unsigned;
+  const ForDemoteVectors<TestZipLower> lower_unsigned;
   // TODO(janwas): enable after LowerHalf available
 #if HWY_TARGET != HWY_RVV
   lower_unsigned(uint8_t());
@@ -377,7 +380,7 @@ HWY_NOINLINE void TestAllZip() {
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForGE128Vectors<TestZipLower> lower_signed;
+  const ForDemoteVectors<TestZipLower> lower_signed;
 #if HWY_TARGET != HWY_RVV
   lower_signed(int8_t());
 #endif
@@ -386,7 +389,7 @@ HWY_NOINLINE void TestAllZip() {
   lower_signed(int32_t());  // generates i64
 #endif
 
-  const ForGE128Vectors<TestZipUpper> upper_unsigned;
+  const ForShrinkableVectors<TestZipUpper> upper_unsigned;
 #if HWY_TARGET != HWY_RVV
   upper_unsigned(uint8_t());
 #endif
@@ -395,7 +398,7 @@ HWY_NOINLINE void TestAllZip() {
   upper_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForGE128Vectors<TestZipUpper> upper_signed;
+  const ForShrinkableVectors<TestZipUpper> upper_signed;
 #if HWY_TARGET != HWY_RVV
   upper_signed(int8_t());
 #endif

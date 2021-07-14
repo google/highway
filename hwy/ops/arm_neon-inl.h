@@ -3301,16 +3301,13 @@ HWY_API Vec128<T> Shuffle0123(const Vec128<T> v) {
   return TableLookupBytes(v, BitCast(d, Load(d8, bytes)));
 }
 
-// ------------------------------ Interleave lanes
+// ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides
 // the least-significant lane) and "b". To concatenate two half-width integers
 // into one, use ZipLower/Upper instead (also works with scalar).
 HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveLower, vzip1, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveLower, vzip1, _, 2)
-
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveUpper, vzip2, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveUpper, vzip2, _, 2)
 
 #if HWY_ARCH_ARM_A64
 // N=1 makes no sense (in that case, there would be no upper/lower).
@@ -3322,14 +3319,9 @@ HWY_API Vec128<int64_t> InterleaveLower(const Vec128<int64_t> a,
                                         const Vec128<int64_t> b) {
   return Vec128<int64_t>(vzip1q_s64(a.raw, b.raw));
 }
-
-HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
-  return Vec128<uint64_t>(vzip2q_u64(a.raw, b.raw));
-}
-HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
-  return Vec128<int64_t>(vzip2q_s64(a.raw, b.raw));
+HWY_API Vec128<double> InterleaveLower(const Vec128<double> a,
+                                       const Vec128<double> b) {
+  return Vec128<double>(vzip1q_f64(a.raw, b.raw));
 }
 #else
 // ARMv7 emulation.
@@ -3342,17 +3334,6 @@ HWY_API Vec128<int64_t> InterleaveLower(const Vec128<int64_t> a,
                                         const Vec128<int64_t> b) {
   auto flip = CombineShiftRightBytes<8>(a, a);
   return CombineShiftRightBytes<8>(b, flip);
-}
-
-HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
-                                         const Vec128<uint64_t> b) {
-  auto flip = CombineShiftRightBytes<8>(b, b);
-  return CombineShiftRightBytes<8>(flip, a);
-}
-HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
-  auto flip = CombineShiftRightBytes<8>(b, b);
-  return CombineShiftRightBytes<8>(flip, a);
 }
 #endif
 
@@ -3367,14 +3348,51 @@ HWY_API Vec128<float, N> InterleaveLower(const Vec128<float, N> a,
   return Vec128<float, N>(vzip1_f32(a.raw, b.raw));
 }
 
+// < 64 bit parts
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  using V64 = Vec128<T, 8 / sizeof(T)>;
+  return Vec128<T, N>(InterleaveLower(V64(a.raw), V64(b.raw)).raw);
+}
+
+// Additional overload for the optional Simd<> tag.
+template <typename T, size_t N, class V = Vec128<T, N>>
+HWY_API V InterleaveLower(Simd<T, N> /* tag */, V a, V b) {
+  return InterleaveLower(a, b);
+}
+
+// ------------------------------ InterleaveUpper (UpperHalf)
+
+// All functions inside detail lack the required D parameter.
+namespace detail {
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveUpper, vzip2, _, 2)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveUpper, vzip2, _, 2)
+
 #if HWY_ARCH_ARM_A64
-HWY_API Vec128<double> InterleaveLower(const Vec128<double> a,
-                                       const Vec128<double> b) {
-  return Vec128<double>(vzip1q_f64(a.raw, b.raw));
+// N=1 makes no sense (in that case, there would be no upper/lower).
+HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
+                                         const Vec128<uint64_t> b) {
+  return Vec128<uint64_t>(vzip2q_u64(a.raw, b.raw));
+}
+HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
+                                        const Vec128<int64_t> b) {
+  return Vec128<int64_t>(vzip2q_s64(a.raw, b.raw));
 }
 HWY_API Vec128<double> InterleaveUpper(const Vec128<double> a,
                                        const Vec128<double> b) {
   return Vec128<double>(vzip2q_f64(a.raw, b.raw));
+}
+#else
+// ARMv7 emulation.
+HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
+                                         const Vec128<uint64_t> b) {
+  auto flip = CombineShiftRightBytes<8>(b, b);
+  return CombineShiftRightBytes<8>(flip, a);
+}
+HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
+                                        const Vec128<int64_t> b) {
+  auto flip = CombineShiftRightBytes<8>(b, b);
+  return CombineShiftRightBytes<8>(flip, a);
 }
 #endif
 
@@ -3382,25 +3400,27 @@ HWY_API Vec128<float> InterleaveUpper(const Vec128<float> a,
                                       const Vec128<float> b) {
   return Vec128<float>(vzip2q_f32(a.raw, b.raw));
 }
-template <size_t N, HWY_IF_LE64(float, N)>
-HWY_API Vec128<float, N> InterleaveUpper(const Vec128<float, N> a,
-                                         const Vec128<float, N> b) {
-  return Vec128<float, N>(vzip2_f32(a.raw, b.raw));
+HWY_API Vec128<float, 2> InterleaveUpper(const Vec128<float, 2> a,
+                                         const Vec128<float, 2> b) {
+  return Vec128<float, 2>(vzip2_f32(a.raw, b.raw));
 }
 
-// < 64 bit parts
-template <typename T, size_t N, HWY_IF_LE32(T, N)>
-HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
-  using V64 = Vec128<T, 8 / sizeof(T)>;
-  return Vec128<T, N>(InterleaveLower(V64(a.raw), V64(b.raw)).raw);
-}
-template <typename T, size_t N, HWY_IF_LE32(T, N)>
-HWY_API Vec128<T, N> InterleaveUpper(Vec128<T, N> a, Vec128<T, N> b) {
-  using V64 = Vec128<T, 8 / sizeof(T)>;
-  return Vec128<T, N>(InterleaveUpper(V64(a.raw), V64(b.raw)).raw);
+}  // namespace detail
+
+// Full register
+template <typename T, size_t N, HWY_IF_GE64(T, N), class V = Vec128<T, N>>
+HWY_API V InterleaveUpper(Simd<T, N> /* tag */, V a, V b) {
+  return detail::InterleaveUpper(a, b);
 }
 
-// ------------------------------ Zip lanes
+// Partial
+template <typename T, size_t N, HWY_IF_LE32(T, N), class V = Vec128<T, N>>
+HWY_API V InterleaveUpper(Simd<T, N> d, V a, V b) {
+  const Half<decltype(d)> d2;
+  return InterleaveLower(d, V(UpperHalf(d2, a).raw), V(UpperHalf(d2, b).raw));
+}
+
+// ------------------------------ ZipLower/ZipUpper (InterleaveLower)
 
 // Same as Interleave*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
@@ -3408,10 +3428,16 @@ template <typename T, size_t N, class DW = RepartitionToWide<Simd<T, N>>>
 HWY_API VFromD<DW> ZipLower(Vec128<T, N> a, Vec128<T, N> b) {
   return BitCast(DW(), InterleaveLower(a, b));
 }
+template <typename T, size_t N, class D = Simd<T, N>,
+          class DW = RepartitionToWide<D>>
+HWY_API VFromD<DW> ZipLower(DW dw, Vec128<T, N> a, Vec128<T, N> b) {
+  return BitCast(dw, InterleaveLower(D(), a, b));
+}
 
-template <typename T, size_t N, class DW = RepartitionToWide<Simd<T, N>>>
-HWY_API VFromD<DW> ZipUpper(Vec128<T, N> a, Vec128<T, N> b) {
-  return BitCast(DW(), InterleaveUpper(a, b));
+template <typename T, size_t N, class D = Simd<T, N>,
+          class DW = RepartitionToWide<D>>
+HWY_API VFromD<DW> ZipUpper(DW dw, Vec128<T, N> a, Vec128<T, N> b) {
+  return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
 // ================================================== COMBINE
@@ -3532,7 +3558,7 @@ HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   // Treat half-width input as a single lane and interleave them.
   const Repartition<UnsignedFromSize<N * sizeof(T) / 2>, decltype(d)> du;
-  return BitCast(d, InterleaveUpper(BitCast(du, lo), BitCast(du, hi)));
+  return BitCast(d, InterleaveUpper(du, BitCast(du, lo), BitCast(du, hi)));
 }
 
 #if HWY_ARCH_ARM_A64
@@ -4470,6 +4496,16 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
   return UpperHalf(Half<Simd<T, N>>(), v);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> InterleaveUpper(Vec128<T, N> a, Vec128<T, N> b) {
+  return InterleaveUpper(Simd<T, N>(), a, b);
+}
+
+template <typename T, size_t N, class D = Simd<T, N>>
+HWY_API VFromD<RepartitionToWide<D>> ZipUpper(Vec128<T, N> a, Vec128<T, N> b) {
+  return InterleaveUpper(RepartitionToWide<D>(), a, b);
 }
 
 template <typename T, size_t N2>

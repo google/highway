@@ -734,23 +734,37 @@ their operands into independently processed 128-bit *blocks*.
     x86 and ARM. For vectors of >= 256 bytes (can happen on SVE and RVV), this
     will set all lanes after the first 128 to 0.
 
-*   <code>V **InterleaveLower**(V a, V b)</code>: returns *blocks* with
+*   <code>V **InterleaveLower**([D, ] V a, V b)</code>: returns *blocks* with
     alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
-    least-significant lane).
+    least-significant lane). The optional `D` (provided for consistency with
+    `InterleaveUpper`) is `DFromV<V>`.
 
 *   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with
     alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
-    least-significant lane).
+    least-significant lane). DEPRECATED, supporting partial vectors requires a D
+    argument.
+
+*   <code>V **InterleaveUpper**(D, V a, V b)</code>: returns *blocks* with
+    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
+    least-significant lane). `D` is `DFromV<V>`.
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
-    <code>Ret **ZipLower**(V a, V b)</code>: returns the same bits as
+    <code>Ret **ZipLower**([D, ] V a, V b)</code>: returns the same bits as
     `InterleaveLower`, but repartitioned into double-width lanes (required in
-    order to use this operation with scalars).
+    order to use this operation with scalars). The optional `D` (provided for
+    consistency with `ZipUpper`) is `RepartitionToWide<DFromV<V>>`.
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
     `InterleaveUpper`, but repartitioned into double-width lanes (required in
-    order to use this operation with scalars)
+    order to use this operation with scalars). DEPRECATED, supporting partial
+    vectors requires a D argument.
+
+*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
+    <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
+    `InterleaveUpper`, but repartitioned into double-width lanes (required in
+    order to use this operation with scalars). `D` is
+    `RepartitionToWide<DFromV<V>>`.
 
 *   `V`: `{u,i}` \
     <code>V **ShiftLeftBytes**&lt;int&gt;(V)</code>: returns the result of

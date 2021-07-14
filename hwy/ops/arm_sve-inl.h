@@ -26,6 +26,10 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// SVE only supports fractions, not LMUL > 1.
+template <typename T, int kShift = 0>
+using Full = Simd<T, (kShift <= 0) ? (HWY_LANES(T) >> (-kShift)) : 0>;
+
 template <class V>
 struct DFromV_t {};  // specialized in macros
 template <class V>
@@ -177,20 +181,37 @@ HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
 
 // ------------------------------ Lanes
 
-// Returns actual vector length (limited to the N specified via HWY_CAPPED if
-// that is no more than 128 bit)
-#define HWY_SVE_LANES(BASE, CHAR, BITS, NAME, OP)                   \
-  template <size_t N>                                               \
-  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) /* d */) {           \
-    size_t actual = sv##OP##_##CHAR##BITS(HWY_SVE_V(BASE, BITS)()); \
-    if (N <= 16 / sizeof(HWY_SVE_T(BASE, BITS))) {                  \
-      actual = HWY_MIN(actual, N);                                  \
-    }                                                               \
-    return actual;                                                  \
+namespace detail {
+// Returns actual lanes of a full hardware vector, using `d` only to determine
+// the element width, without capping the number of lanes.
+#define HWY_SVE_LANES(BASE, CHAR, BITS, NAME, OP)          \
+  template <size_t N>                                      \
+  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) /* d */) {  \
+    return sv##OP##_##CHAR##BITS(HWY_SVE_V(BASE, BITS)()); \
   }
+HWY_SVE_FOREACH(HWY_SVE_LANES, HardwareLanes, len)
+#undef HWY_SVE_LANES
 
-HWY_SVE_FOREACH(HWY_SVE_LANES, Lanes, len)
-#undef HWY_SVE_LANESz
+// Returns `actual` capped according to `d`, which is either an upper limit,
+// or power-of-two divisor 1..8 encoded as HWY_LANES(T) / divisor.
+template <typename T, size_t N>
+constexpr size_t CappedLanes(Simd<T, N> /* d */, size_t actual) {
+  static_assert(N <= HWY_LANES(T), "N cannot exceed a full vector");
+
+  return (N <= 16 / sizeof(T))
+             ? HWY_MIN(actual, N)
+             // Round up just in case - expected to be unnecessary because
+             // StoreMaskBits has actual = HardwareLanes() >= 16 (bytes).
+             : (actual + (HWY_LANES(T) / N) - 1) / (HWY_LANES(T) / N);
+}
+
+}  // namespace detail
+
+// Returns actual number of lanes capped according to `d` (see above).
+template <typename T, size_t N>
+HWY_API size_t Lanes(Simd<T, N> d) {
+  return detail::CappedLanes(d, detail::HardwareLanes(d));
+}
 
 // ================================================== MASK INIT
 
@@ -1264,9 +1285,11 @@ namespace detail {
 
 // For x86-compatible behaviour mandated by Highway API: TableLookupBytes
 // offsets are implicitly relative to the start of their 128-bit block.
-template <class D>
-constexpr size_t LanesPerBlock(D) {
-  return 16 / sizeof(TFromD<D>);
+template <typename T, size_t N>
+constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
+  // Honor <= 128-bit limit like CappedLanes, without also adopting its
+  // partial vector scheme, because vectors are partitioned into blocks.
+  return HWY_MIN(16 / sizeof(T), N);
 }
 
 template <class D, class V>
@@ -1440,9 +1463,9 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipLower, zip1)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipUpper, zip2)
 }  // namespace detail
 
-template <class V>
-HWY_API V InterleaveLower(const V a, const V b) {
-  const DFromV<V> d;
+template <class D, class V>
+HWY_API V InterleaveLower(D d, const V a, const V b) {
+  static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   // Move lower halves of blocks to lower half of vector.
   const Repartition<uint64_t, decltype(d)> d64;
   const auto a64 = BitCast(d64, a);
@@ -1453,11 +1476,15 @@ HWY_API V InterleaveLower(const V a, const V b) {
   return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
 }
 
+template <class V>
+HWY_API V InterleaveLower(const V a, const V b) {
+  return InterleaveLower(DFromV<V>(), a, b);
+}
+
 // ------------------------------ InterleaveUpper
 
 template <class V>
-HWY_API V InterleaveUpper(const V a, const V b) {
-  const DFromV<V> d;
+HWY_API V InterleaveUpper(Full<TFromV<V>> d, const V a, const V b) {
   // Move upper halves of blocks to lower half of vector.
   const Repartition<uint64_t, decltype(d)> d64;
   const auto a64 = BitCast(d64, a);
@@ -1468,20 +1495,32 @@ HWY_API V InterleaveUpper(const V a, const V b) {
   return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
 }
 
+template <typename T, size_t N, class V, HWY_IF_NOT_FULL(T, N)>
+HWY_API V InterleaveUpper(Simd<T, N> d, const V a, const V b) {
+  static_assert(IsSame<T, TFromV<V>>(), "D/V mismatch");
+  const Half<decltype(d)> d2;
+  return InterleaveLower(d, UpperHalf(d2, a), UpperHalf(d2, b));
+}
+
 // ------------------------------ ZipLower
 
-template <class V>
-HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipLower(const V a, const V b) {
-  RepartitionToWide<DFromV<V>> dw;
-  return BitCast(dw, InterleaveLower(a, b));
+template <class V, class DW = RepartitionToWide<DFromV<V>>>
+HWY_API VFromD<DW> ZipLower(DW dw, V a, V b) {
+  const RepartitionToNarrow<DW> dn;
+  static_assert(IsSame<TFromD<decltype(dn)>, TFromV<V>>(), "D/V mismatch");
+  return BitCast(dw, InterleaveLower(dn, a, b));
+}
+template <class V, class D = DFromV<V>, class DW = RepartitionToWide<D>>
+HWY_API VFromD<DW> ZipLower(const V a, const V b) {
+  return BitCast(DW(), InterleaveLower(D(), a, b));
 }
 
 // ------------------------------ ZipUpper
-
-template <class V>
-HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipUpper(const V a, const V b) {
-  RepartitionToWide<DFromV<V>> dw;
-  return BitCast(dw, InterleaveUpper(a, b));
+template <class V, class DW = RepartitionToWide<DFromV<V>>>
+HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
+  const RepartitionToNarrow<DW> dn;
+  static_assert(IsSame<TFromD<decltype(dn)>, TFromV<V>>(), "D/V mismatch");
+  return BitCast(dw, InterleaveUpper(dn, a, b));
 }
 
 // ================================================== REDUCE

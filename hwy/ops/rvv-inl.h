@@ -1223,9 +1223,10 @@ namespace detail {
 
 // For x86-compatible behaviour mandated by Highway API: TableLookupBytes
 // offsets are implicitly relative to the start of their 128-bit block.
-template <class D>
-constexpr size_t LanesPerBlock(D) {
-  return 16 / sizeof(TFromD<D>);
+template <typename T, size_t N>
+constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
+  // Also cap to the limit imposed by D (for fixed-size <= 128-bit vectors).
+  return HWY_MIN(16 / sizeof(T), N);
 }
 
 template <class D, class V>
@@ -1539,9 +1540,9 @@ HWY_API V ShiftRightBytes(const V v) {
 // ------------------------------ InterleaveLower
 
 // TODO(janwas): PromoteTo(LowerHalf), slide1up, add
-template <class V>
-HWY_API V InterleaveLower(const V a, const V b) {
-  const DFromV<V> d;
+template <class D, class V>
+HWY_API V InterleaveLower(D d, const V a, const V b) {
+  static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const RebindToUnsigned<decltype(d)> du;
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
   const auto i = detail::Iota0(du);
@@ -1552,11 +1553,16 @@ HWY_API V InterleaveLower(const V a, const V b) {
                     TableLookupLanes(b, idx));
 }
 
+template <class V>
+HWY_API V InterleaveLower(const V a, const V b) {
+  return InterleaveLower(DFromV<V>(), a, b);
+}
+
 // ------------------------------ InterleaveUpper
 
-template <class V>
-HWY_API V InterleaveUpper(const V a, const V b) {
-  const DFromV<V> d;
+template <class D, class V>
+HWY_API V InterleaveUpper(const D d, const V a, const V b) {
+  static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const RebindToUnsigned<decltype(d)> du;
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
   const auto i = detail::Iota0(du);
@@ -1568,20 +1574,27 @@ HWY_API V InterleaveUpper(const V a, const V b) {
                     TableLookupLanes(b, idx));
 }
 
-// ------------------------------ ZipLower/Upper
+// ------------------------------ ZipLower
 
-template <class V>
-HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipLower(const V a, const V b) {
-  const RepartitionToWide<DFromV<V>> dw;
-  const auto zipped = BitCast(dw, InterleaveLower(a, b));
+template <class V, class DW = RepartitionToWide<DFromV<V>>>
+HWY_API VFromD<DW> ZipLower(DW dw, V a, V b) {
+  const RepartitionToNarrow<DW> dn;
+  static_assert(IsSame<TFromD<decltype(dn)>, TFromV<V>>(), "D/V mismatch");
+  const auto zipped = BitCast(dw, InterleaveLower(dn, a, b));
   Lanes(dw);
   return zipped;
 }
+template <class V, class DW = RepartitionToWide<DFromV<V>>>
+HWY_API VFromD<DW> ZipLower(const V a, const V b) {
+  return ZipLower(DW(), a, b);
+}
 
-template <class V>
-HWY_API VFromD<RepartitionToWide<DFromV<V>>> ZipUpper(const V a, const V b) {
-  const RepartitionToWide<DFromV<V>> dw;
-  const auto zipped = BitCast(dw, InterleaveUpper(a, b));
+// ------------------------------ ZipUpper
+template <class DW, class V>
+HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
+  const RepartitionToNarrow<DW> dn;
+  static_assert(IsSame<TFromD<decltype(dn)>, TFromV<V>>(), "D/V mismatch");
+  const auto zipped = BitCast(dw, InterleaveUpper(dn, a, b));
   Lanes(dw);
   return zipped;
 }

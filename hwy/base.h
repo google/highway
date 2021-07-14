@@ -262,6 +262,8 @@ HWY_API constexpr bool IsSame() {
 #define HWY_IF_NOT_LANE_SIZE(T, bytes) \
   hwy::EnableIf<sizeof(T) != (bytes)>* = nullptr
 
+#define HWY_IF_NOT_FULL(T, N) hwy::EnableIf<(N) != HWY_LANES(T)>* = nullptr
+
 // Empty struct used as a size tag type.
 template <size_t N>
 struct SizeTag {};
