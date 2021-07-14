@@ -1372,9 +1372,8 @@ HWY_API size_t CompressStore(const V v, const M mask, const D d,
 // ================================================== BLOCKWISE
 
 // ------------------------------ CombineShiftRightBytes
-template <size_t kBytes, class V>
-HWY_API V CombineShiftRightBytes(const V hi, V lo) {
-  const DFromV<decltype(hi)> d;
+template <size_t kBytes, class D, class V = VFromD<D>>
+HWY_API V CombineShiftRightBytes(const D d, const V hi, V lo) {
   const Repartition<uint8_t, decltype(d)> d8;
   Lanes(d8);
   const auto hi8 = BitCast(d8, hi);
@@ -1388,9 +1387,8 @@ HWY_API V CombineShiftRightBytes(const V hi, V lo) {
 }
 
 // ------------------------------ CombineShiftRightLanes
-template <size_t kLanes, class V>
-HWY_API V CombineShiftRightLanes(const V hi, V lo) {
-  const DFromV<decltype(hi)> d;
+template <size_t kLanes, class D, class V = VFromD<D>>
+HWY_API V CombineShiftRightLanes(const D d, const V hi, V lo) {
   constexpr size_t kLanesUp = 16 / sizeof(TFromV<V>) - kLanes;
   const auto hi_up = detail::SlideUp(hi, hi, kLanesUp);
   const auto lo_down = detail::SlideDown(lo, lo, kLanes);
@@ -1416,7 +1414,7 @@ template <class V>
 HWY_API V Shuffle2103(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
-  return CombineShiftRightLanes<3>(v, v);
+  return CombineShiftRightLanes<3>(d, v, v);
 }
 
 // ------------------------------ Shuffle0321
@@ -1424,7 +1422,7 @@ template <class V>
 HWY_API V Shuffle0321(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
-  return CombineShiftRightLanes<1>(v, v);
+  return CombineShiftRightLanes<1>(d, v, v);
 }
 
 // ------------------------------ Shuffle1032
@@ -1432,7 +1430,7 @@ template <class V>
 HWY_API V Shuffle1032(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
-  return CombineShiftRightLanes<2>(v, v);
+  return CombineShiftRightLanes<2>(d, v, v);
 }
 
 // ------------------------------ Shuffle01
@@ -1440,7 +1438,7 @@ template <class V>
 HWY_API V Shuffle01(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 8, "Defined for 64-bit types");
-  return CombineShiftRightLanes<1>(v, v);
+  return CombineShiftRightLanes<1>(d, v, v);
 }
 
 // ------------------------------ Shuffle0123

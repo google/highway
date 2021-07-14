@@ -2367,16 +2367,28 @@ HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Half<Simd<T, N>> /* tag */,
   return Vec128<T, (N + 1) / 2>{upper.raw};
 }
 
-// ------------------------------ Extract from 2x 128-bit at constant offset
+// ------------------------------ CombineShiftRightBytes
 
-// Extracts 128 bits from <hi, lo> by skipping the least-significant kBytes.
-template <int kBytes, typename T>
-HWY_API Vec128<T> CombineShiftRightBytes(const Vec128<T> hi,
-                                         const Vec128<T> lo) {
-  const Full128<uint8_t> d8;
-  const Vec128<uint8_t> extracted_bytes{
-      _mm_alignr_epi8(BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)};
-  return BitCast(Full128<T>(), extracted_bytes);
+template <int kBytes, typename T, class V = Vec128<T>>
+HWY_API V CombineShiftRightBytes(Full128<T> d, V hi, V lo) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, Vec128<uint8_t>{_mm_alignr_epi8(
+                        BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)});
+}
+
+template <int kBytes, typename T, size_t N, HWY_IF_LE64(T, N),
+          class V = Vec128<T, N>>
+HWY_API V CombineShiftRightBytes(Simd<T, N> d, V hi, V lo) {
+  constexpr size_t kSize = N * sizeof(T);
+  static_assert(0 < kBytes && kBytes < kSize, "kBytes invalid");
+  const Repartition<uint8_t, decltype(d)> d8;
+  const Full128<uint8_t> d_full8;
+  using V8 = VFromD<decltype(d_full8)>;
+  const V8 hi8{BitCast(d8, hi).raw};
+  // Move into most-significant bytes
+  const V8 lo8 = ShiftLeftBytes<16 - kSize>(V8{BitCast(d8, lo).raw});
+  const V8 r = CombineShiftRightBytes<16 - kSize + kBytes>(d_full8, hi8, lo8);
+  return V{BitCast(Full128<T>(), r).raw};
 }
 
 // ------------------------------ Broadcast/splat any lane
@@ -2701,9 +2713,9 @@ HWY_API Vec128<T> ConcatUpperUpper(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
 
 // hiH,hiL loH,loL |-> hiL,loH (= inner halves)
 template <typename T>
-HWY_API Vec128<T> ConcatLowerUpper(Full128<T> /* tag */, const Vec128<T> hi,
+HWY_API Vec128<T> ConcatLowerUpper(Full128<T> d, const Vec128<T> hi,
                                    const Vec128<T> lo) {
-  return CombineShiftRightBytes<8>(hi, lo);
+  return CombineShiftRightBytes<8>(d, hi, lo);
 }
 
 // hiH,hiL loH,loL |-> hiH,loL (= outer halves)
@@ -3991,7 +4003,7 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t> v0,
       0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
   const auto shuf_r0 = Load(d, tbl_r0);
   const auto shuf_g0 = Load(d, tbl_g0);  // cannot reuse r0 due to 5 in MSB
-  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto shuf_b0 = CombineShiftRightBytes<15>(d, shuf_g0, shuf_g0);
   const auto r0 = TableLookupBytes(v0, shuf_r0);  // 5..4..3..2..1..0
   const auto g0 = TableLookupBytes(v1, shuf_g0);  // ..4..3..2..1..0.
   const auto b0 = TableLookupBytes(v2, shuf_b0);  // .4..3..2..1..0..
@@ -4043,7 +4055,7 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, 8> v0,
       0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
   const auto shuf_r0 = Load(d_full, tbl_r0);
   const auto shuf_g0 = Load(d_full, tbl_g0);  // cannot reuse r0 due to 5 in MSB
-  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto shuf_b0 = CombineShiftRightBytes<15>(d_full, shuf_g0, shuf_g0);
   const auto r0 = TableLookupBytes(full_a, shuf_r0);  // 5..4..3..2..1..0
   const auto g0 = TableLookupBytes(full_b, shuf_g0);  // ..4..3..2..1..0.
   const auto b0 = TableLookupBytes(full_c, shuf_b0);  // .4..3..2..1..0..
@@ -4081,8 +4093,8 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
       0,    0x80, 0x80, 1,   0x80, 0x80, 2, 0x80, 0x80, 3, 0x80, 0x80,  //
       0x80, 0x80, 0x80, 0x80};
   const auto shuf_r0 = Load(d_full, tbl_r0);
-  const auto shuf_g0 = CombineShiftRightBytes<15>(shuf_r0, shuf_r0);
-  const auto shuf_b0 = CombineShiftRightBytes<14>(shuf_r0, shuf_r0);
+  const auto shuf_g0 = CombineShiftRightBytes<15>(d_full, shuf_r0, shuf_r0);
+  const auto shuf_b0 = CombineShiftRightBytes<14>(d_full, shuf_r0, shuf_r0);
   const auto r0 = TableLookupBytes(full_a, shuf_r0);  // ......3..2..1..0
   const auto g0 = TableLookupBytes(full_b, shuf_g0);  // .....3..2..1..0.
   const auto b0 = TableLookupBytes(full_c, shuf_b0);  // ....3..2..1..0..
@@ -4308,6 +4320,11 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
   return UpperHalf(Half<Simd<T, N>>(), v);
+}
+
+template <size_t kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> CombineShiftRightBytes(Vec128<T, N> hi, Vec128<T, N> lo) {
+  return CombineShiftRightBytes<kBytes>(Simd<T, N>(), hi, lo);
 }
 
 template <typename T, size_t N>

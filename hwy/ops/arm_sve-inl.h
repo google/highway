@@ -1308,9 +1308,8 @@ svbool_t FirstNPerBlock(D d) {
 
 }  // namespace detail
 
-template <size_t kBytes, class V>
-HWY_API V CombineShiftRightBytes(const V hi, V lo) {
-  const DFromV<decltype(hi)> d;
+template <size_t kBytes, class D, class V = VFromD<D>>
+HWY_API V CombineShiftRightBytes(const D d, const V hi, const V lo) {
   const Repartition<uint8_t, decltype(d)> d8;
   const V hi_up = detail::Ext<16 - kBytes>(hi, hi);
   const V lo_down = detail::Ext<kBytes>(lo, lo);
@@ -1342,7 +1341,7 @@ HWY_API V Shuffle2103(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
   const svuint8_t v8 = BitCast(Repartition<uint8_t, decltype(d)>(), v);
-  return BitCast(d, CombineShiftRightBytes<12>(v8, v8));
+  return BitCast(d, CombineShiftRightBytes<12>(d, v8, v8));
 }
 
 // ------------------------------ Shuffle0321
@@ -1351,7 +1350,7 @@ HWY_API V Shuffle0321(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
   const svuint8_t v8 = BitCast(HWY_FULL(uint8_t)(), v);
-  return BitCast(d, CombineShiftRightBytes<4>(v8, v8));
+  return BitCast(d, CombineShiftRightBytes<4>(d, v8, v8));
 }
 
 // ------------------------------ Shuffle1032
@@ -1360,7 +1359,7 @@ HWY_API V Shuffle1032(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
   const svuint8_t v8 = BitCast(HWY_FULL(uint8_t)(), v);
-  return BitCast(d, CombineShiftRightBytes<8>(v8, v8));
+  return BitCast(d, CombineShiftRightBytes<8>(d, v8, v8));
 }
 
 // ------------------------------ Shuffle01
@@ -1369,7 +1368,7 @@ HWY_API V Shuffle01(const V v) {
   const DFromV<V> d;
   static_assert(sizeof(TFromD<decltype(d)>) == 8, "Defined for 64-bit types");
   const svuint8_t v8 = BitCast(HWY_FULL(uint8_t)(), v);
-  return BitCast(d, CombineShiftRightBytes<8>(v8, v8));
+  return BitCast(d, CombineShiftRightBytes<8>(d, v8, v8));
 }
 
 // ------------------------------ Shuffle0123

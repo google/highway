@@ -2123,16 +2123,13 @@ HWY_API Vec512<T> ShiftRightLanes(const Vec512<T> v) {
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
-// ------------------------------ Extract from 4x 128-bit at constant offset
+// ------------------------------ CombineShiftRightBytes
 
-// Extracts 128 bits from <hi, lo> by skipping the least-significant kBytes.
-template <int kBytes, typename T>
-HWY_API Vec512<T> CombineShiftRightBytes(const Vec512<T> hi,
-                                         const Vec512<T> lo) {
-  const Full512<uint8_t> d8;
-  const Vec512<uint8_t> extracted_bytes{
-      _mm512_alignr_epi8(BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)};
-  return BitCast(Full512<T>(), extracted_bytes);
+template <int kBytes, typename T, class V = Vec512<T>>
+HWY_API V CombineShiftRightBytes(Full512<T> d, V hi, V lo) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, Vec512<uint8_t>{_mm512_alignr_epi8(
+                        BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)});
 }
 
 // ------------------------------ Broadcast/splat any lane
@@ -3124,7 +3121,7 @@ HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
       0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
   const auto shuf_r0 = LoadDup128(d, tbl_r0);
   const auto shuf_g0 = LoadDup128(d, tbl_g0);  // cannot reuse r0 due to 5
-  const auto shuf_b0 = CombineShiftRightBytes<15>(shuf_g0, shuf_g0);
+  const auto shuf_b0 = CombineShiftRightBytes<15>(d, shuf_g0, shuf_g0);
   const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
   const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
   const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
@@ -3359,6 +3356,11 @@ HWY_API Vec512<T> MaxOfLanes(Vec512<T> v) {
 template <typename T>
 HWY_API Vec256<T> UpperHalf(Vec512<T> v) {
   return UpperHalf(Full256<T>(), v);
+}
+
+template <size_t kBytes, typename T>
+HWY_API Vec512<T> CombineShiftRightBytes(Vec512<T> hi, Vec512<T> lo) {
+  return CombineShiftRightBytes<kBytes>(Full512<T>(), hi, lo);
 }
 
 template <typename T>

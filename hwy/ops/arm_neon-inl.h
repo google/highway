@@ -2839,41 +2839,50 @@ HWY_API Vec128<T, N / 2> LowerHalf(Simd<T, N / 2> /* tag */, Vec128<T, N> v) {
   return LowerHalf(v);
 }
 
-// ------------------------------ Extract from 2x 128-bit at constant offset
+// ------------------------------ CombineShiftRightBytes
 
-// Extracts 128 bits from <hi, lo> by skipping the least-significant kBytes.
-template <int kBytes, typename T>
-HWY_API Vec128<T> CombineShiftRightBytes(const Vec128<T> hi,
-                                         const Vec128<T> lo) {
+// 128-bit
+template <int kBytes, typename T, class V128 = Vec128<T>>
+HWY_API V128 CombineShiftRightBytes(Full128<T> d, V128 hi, V128 lo) {
   static_assert(0 < kBytes && kBytes < 16, "kBytes must be in [1, 15]");
-  const Full128<uint8_t> d8;
-  return BitCast(Full128<T>(),
-                 Vec128<uint8_t>(vextq_u8(BitCast(d8, lo).raw,
-                                          BitCast(d8, hi).raw, kBytes)));
+  const Repartition<uint8_t, decltype(d)> d8;
+  return V128(vextq_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes));
 }
 
-// <= 64-bit
-template <int kBytes, typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API Vec128<T, N> CombineShiftRightBytes(const Vec128<T, N> hi,
-                                            const Vec128<T, N> lo) {
+// 64-bit
+template <int kBytes, typename T, class V64 = Vec128<T, 8 / sizeof(T)>>
+HWY_API V64 CombineShiftRightBytes(Simd<T, 8 / sizeof(T)> d, V64 hi, V64 lo) {
   static_assert(0 < kBytes && kBytes < 8, "kBytes must be in [1, 7]");
-  const Repartition<uint8_t, Simd<T, N>> d8;
-  return Vec128<T, N>(
-      vext_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes));
+  const Repartition<uint8_t, decltype(d)> d8;
+  return V64(vext_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes));
 }
+
+// <= 32-bit defined after ShiftLeftBytes.
 
 // ------------------------------ Shift vector by constant #bytes
 
 namespace detail {
 
-// Partially specialize because CombineShiftRightBytes<0> and <kReg> are compile
-// errors; callers replace the latter with 0xFF for easier specialization.
+// Partially specialize because kBytes = 0 and >= size are compile errors;
+// callers replace the latter with 0xFF for easier specialization.
 template <int kBytes>
 struct ShiftLeftBytesT {
-  template <class T, size_t N>
+  // Full
+  template <class T>
+  HWY_INLINE Vec128<T> operator()(const Vec128<T> v) {
+    const Full128<T> d;
+    return CombineShiftRightBytes<16 - kBytes>(d, v, Zero(d));
+  }
+
+  // Partial
+  template <class T, size_t N, HWY_IF_LE64(T, N)>
   HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
-    constexpr size_t kReg = N * sizeof(T) == 16 ? 16 : 8;
-    return CombineShiftRightBytes<kReg - kBytes>(v, Zero(Simd<T, N>()));
+    // Expand to 64-bit so we only use the native EXT instruction.
+    const Simd<T, 8 / sizeof(T)> d64;
+    const auto zero64 = Zero(d64);
+    const decltype(zero64) v64(v.raw);
+    return Vec128<T, N>(
+        CombineShiftRightBytes<8 - kBytes>(d64, v64, zero64).raw);
   }
 };
 template <>
@@ -2903,7 +2912,7 @@ struct ShiftRightBytesT {
       v = Vec128<T, N>(
           IfThenElseZero(FirstN(dreg, N), VFromD<decltype(dreg)>(v.raw)).raw);
     }
-    return CombineShiftRightBytes<kBytes>(Zero(d), v);
+    return CombineShiftRightBytes<kBytes>(d, Zero(d), v);
   }
 };
 template <>
@@ -2926,8 +2935,8 @@ struct ShiftRightBytesT<0xFF> {
 // 0x01..0F, kBytes = 1 => 0x02..0F00
 template <int kBytes, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
-  constexpr size_t kReg = N * sizeof(T) == 16 ? 16 : 8;
-  return detail::ShiftLeftBytesT < kBytes == kReg ? 0xFF : kBytes > ()(v);
+  return detail::ShiftLeftBytesT < kBytes >= N * sizeof(T) ? 0xFF
+                                                           : kBytes > ()(v);
 }
 
 template <int kLanes, typename T, size_t N>
@@ -2940,8 +2949,8 @@ HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
 // 0x01..0F, kBytes = 1 => 0x0001..0E
 template <int kBytes, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
-  constexpr size_t kReg = N * sizeof(T) == 16 ? 16 : 8;
-  return detail::ShiftRightBytesT < kBytes == kReg ? 0xFF : kBytes > ()(v);
+  return detail::ShiftRightBytesT < kBytes >= N * sizeof(T) ? 0xFF
+                                                            : kBytes > ()(v);
 }
 
 template <int kLanes, typename T, size_t N>
@@ -2949,6 +2958,22 @@ HWY_API Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
   const Simd<uint8_t, N * sizeof(T)> d8;
   const Simd<T, N> d;
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+}
+
+// Calls ShiftLeftBytes
+template <int kBytes, typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API Vec128<T, N> CombineShiftRightBytes(Simd<T, N> d, Vec128<T, N> hi,
+                                            Vec128<T, N> lo) {
+  constexpr size_t kSize = N * sizeof(T);
+  static_assert(0 < kBytes && kBytes < kSize, "kBytes invalid");
+  const Repartition<uint8_t, decltype(d)> d8;
+  const Simd<uint8_t, 8> d_full;
+  using V64 = VFromD<decltype(d_full)>;
+  const V64 hi64(BitCast(d8, hi).raw);
+  // Move into most-significant bytes
+  const V64 lo64 = ShiftLeftBytes<8 - kSize>(V64(BitCast(d8, lo).raw));
+  const V64 r = CombineShiftRightBytes<8 - kSize + kBytes>(d_full, hi64, lo64);
+  return Vec128<T, N>(r.raw);
 }
 
 // ------------------------------ UpperHalf (ShiftRightBytes)
@@ -3227,23 +3252,23 @@ HWY_API Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
 // Swap 64-bit halves
 template <typename T>
 HWY_API Vec128<T> Shuffle1032(const Vec128<T> v) {
-  return CombineShiftRightBytes<8>(v, v);
+  return CombineShiftRightBytes<8>(Full128<T>(), v, v);
 }
 template <typename T>
 HWY_API Vec128<T> Shuffle01(const Vec128<T> v) {
-  return CombineShiftRightBytes<8>(v, v);
+  return CombineShiftRightBytes<8>(Full128<T>(), v, v);
 }
 
 // Rotate right 32 bits
 template <typename T>
 HWY_API Vec128<T> Shuffle0321(const Vec128<T> v) {
-  return CombineShiftRightBytes<4>(v, v);
+  return CombineShiftRightBytes<4>(Full128<T>(), v, v);
 }
 
 // Rotate left 32 bits
 template <typename T>
 HWY_API Vec128<T> Shuffle2103(const Vec128<T> v) {
-  return CombineShiftRightBytes<12>(v, v);
+  return CombineShiftRightBytes<12>(Full128<T>(), v, v);
 }
 
 // Reverse
@@ -3287,13 +3312,11 @@ HWY_API Vec128<double> InterleaveLower(const Vec128<double> a,
 // ARMv7 emulation.
 HWY_API Vec128<uint64_t> InterleaveLower(const Vec128<uint64_t> a,
                                          const Vec128<uint64_t> b) {
-  auto flip = CombineShiftRightBytes<8>(a, a);
-  return CombineShiftRightBytes<8>(b, flip);
+  return CombineShiftRightBytes<8>(Full128<uint64_t>(), b, Shuffle01(a));
 }
 HWY_API Vec128<int64_t> InterleaveLower(const Vec128<int64_t> a,
                                         const Vec128<int64_t> b) {
-  auto flip = CombineShiftRightBytes<8>(a, a);
-  return CombineShiftRightBytes<8>(b, flip);
+  return CombineShiftRightBytes<8>(Full128<int64_t>(), b, Shuffle01(a));
 }
 #endif
 
@@ -3334,30 +3357,24 @@ HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
                                          const Vec128<uint64_t> b) {
   return Vec128<uint64_t>(vzip2q_u64(a.raw, b.raw));
 }
-HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
+HWY_API Vec128<int64_t> InterleaveUpper(Vec128<int64_t> a, Vec128<int64_t> b) {
   return Vec128<int64_t>(vzip2q_s64(a.raw, b.raw));
 }
-HWY_API Vec128<double> InterleaveUpper(const Vec128<double> a,
-                                       const Vec128<double> b) {
+HWY_API Vec128<double> InterleaveUpper(Vec128<double> a, Vec128<double> b) {
   return Vec128<double>(vzip2q_f64(a.raw, b.raw));
 }
 #else
 // ARMv7 emulation.
 HWY_API Vec128<uint64_t> InterleaveUpper(const Vec128<uint64_t> a,
                                          const Vec128<uint64_t> b) {
-  auto flip = CombineShiftRightBytes<8>(b, b);
-  return CombineShiftRightBytes<8>(flip, a);
+  return CombineShiftRightBytes<8>(Full128<uint64_t>(), Shuffle01(b), a);
 }
-HWY_API Vec128<int64_t> InterleaveUpper(const Vec128<int64_t> a,
-                                        const Vec128<int64_t> b) {
-  auto flip = CombineShiftRightBytes<8>(b, b);
-  return CombineShiftRightBytes<8>(flip, a);
+HWY_API Vec128<int64_t> InterleaveUpper(Vec128<int64_t> a, Vec128<int64_t> b) {
+  return CombineShiftRightBytes<8>(Full128<int64_t>(), Shuffle01(b), a);
 }
 #endif
 
-HWY_API Vec128<float> InterleaveUpper(const Vec128<float> a,
-                                      const Vec128<float> b) {
+HWY_API Vec128<float> InterleaveUpper(Vec128<float> a, Vec128<float> b) {
   return Vec128<float>(vzip2q_f32(a.raw, b.raw));
 }
 HWY_API Vec128<float, 2> InterleaveUpper(const Vec128<float, 2> a,
@@ -3561,16 +3578,21 @@ HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
 template <typename T, size_t N, HWY_IF_GE64(T, N)>
 HWY_API Vec128<T, N> ConcatLowerUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
-  return CombineShiftRightBytes<N * sizeof(T) / 2>(hi, lo);
+  return CombineShiftRightBytes<N * sizeof(T) / 2>(d, hi, lo);
 }
 
-// <= 32-bit input/output: bring lo to top of 64-bit reg, then extract
+// <= 32-bit input/output
 template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_API Vec128<T, N> ConcatLowerUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   constexpr size_t kSize = N * sizeof(T);
-  const auto shifted = ShiftLeftBytes<8 - kSize>(lo);
-  return CombineShiftRightBytes<8 - kSize / 2>(hi, shifted);
+  const Simd<uint8_t, 8> d64;
+  using V64 = VFromD<decltype(d64)>;
+  const V64 hi64(hi.raw);
+  // Move into most-significant bytes
+  const V64 lo64 = ShiftLeftBytes<8 - kSize>(V64(lo.raw));
+  return Vec128<T, N>(
+      CombineShiftRightBytes<8 - kSize / 2>(d64, hi64, lo64).raw);
 }
 
 // ------------------------------ ConcatUpperLower
@@ -3845,10 +3867,10 @@ HWY_INLINE Vec128<float> SumOfLanes(const Vec128<float> v) {
   return Vec128<float>(vaddq_f32(v1.val[0], v1.val[1]));
 }
 HWY_INLINE Vec128<uint64_t> SumOfLanes(const Vec128<uint64_t> v) {
-  return v + CombineShiftRightBytes<8>(v, v);
+  return v + Shuffle01(v);
 }
 HWY_INLINE Vec128<int64_t> SumOfLanes(const Vec128<int64_t> v) {
-  return v + CombineShiftRightBytes<8>(v, v);
+  return v + Shuffle01(v);
 }
 #endif
 
@@ -4519,6 +4541,11 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
   return UpperHalf(Half<Simd<T, N>>(), v);
+}
+
+template <size_t kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> CombineShiftRightBytes(Vec128<T, N> hi, Vec128<T, N> lo) {
+  return CombineShiftRightBytes<kBytes>(Simd<T, N>(), hi, lo);
 }
 
 template <typename T, size_t N>

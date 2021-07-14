@@ -465,7 +465,7 @@ struct TestCombineShiftRightBytesR {
       const auto hi = BitCast(d, Load(d8, hi_bytes.get()));
       const auto lo = BitCast(d, Load(d8, lo_bytes.get()));
       const auto expected = BitCast(d, Load(d8, expected_bytes.get()));
-      HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightBytes<kBytes>(hi, lo));
+      HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightBytes<kBytes>(d, hi, lo));
     }
 
     TestCombineShiftRightBytesR<kBytes - 1>()(t, d);
@@ -509,7 +509,7 @@ struct TestCombineShiftRightLanesR {
       const auto hi = BitCast(d, Load(d8, hi_bytes.get()));
       const auto lo = BitCast(d, Load(d8, lo_bytes.get()));
       const auto expected = BitCast(d, Load(d8, expected_bytes.get()));
-      HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightLanes<kLanes>(hi, lo));
+      HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightLanes<kLanes>(d, hi, lo));
     }
 
     TestCombineShiftRightLanesR<kLanes - 1>()(t, d);
@@ -535,13 +535,15 @@ struct TestCombineShiftRightLanesR<0> {
 struct TestCombineShiftRight {
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
-    TestCombineShiftRightBytesR<15>()(t, d);
-    TestCombineShiftRightLanesR<16 / sizeof(T) - 1>()(t, d);
+    constexpr size_t kMaxBytes = HWY_MIN(16, MaxLanes(d) * sizeof(T));
+    TestCombineShiftRightBytesR<kMaxBytes - 1>()(t, d);
+    TestCombineShiftRightLanesR<kMaxBytes / sizeof(T) - 1>()(t, d);
   }
 };
 
 HWY_NOINLINE void TestAllCombineShiftRight() {
-  ForAllTypes(ForGE128Vectors<TestCombineShiftRight>());  // TODO(janwas): part
+  // Need at least 2 lanes.
+  ForAllTypes(ForShrinkableVectors<TestCombineShiftRight>());
 }
 
 class TestSpecialShuffle32 {

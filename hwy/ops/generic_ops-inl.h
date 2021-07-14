@@ -45,12 +45,20 @@ HWY_API V Clamp(const V v, const V lo, const V hi) {
 // CombineShiftRightBytes (and -Lanes) are not available for the scalar target,
 // and RVV has its own implementation of -Lanes.
 #if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_RVV
-template <size_t kLanes, class V>
-HWY_API V CombineShiftRightLanes(const V hi, const V lo) {
+
+template <size_t kLanes, class D, class V = VFromD<D>>
+HWY_API V CombineShiftRightLanes(D d, const V hi, const V lo) {
   constexpr size_t kBytes = kLanes * sizeof(LaneType<V>);
   static_assert(kBytes < 16, "Shift count is per-block");
-  return CombineShiftRightBytes<kBytes>(hi, lo);
+  return CombineShiftRightBytes<kBytes>(d, hi, lo);
 }
+
+// DEPRECATED
+template <size_t kLanes, class V>
+HWY_API V CombineShiftRightLanes(const V hi, const V lo) {
+  return CombineShiftRightLanes<kLanes>(DFromV<V>(), hi, lo);
+}
+
 #endif
 
 // Returns lanes with the most significant bit set and all other bits zero.

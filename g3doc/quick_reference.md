@@ -786,11 +786,23 @@ their operands into independently processed 128-bit *blocks*.
 *   `V`: `{u,i}` \
     <code>V **CombineShiftRightBytes**&lt;int&gt;(V hi, V lo)</code>: returns a
     vector of *blocks* each the result of shifting two concatenated *blocks*
-    `hi[i] || lo[i]` right by `int` bytes \[1, 16).
+    `hi[i] || lo[i]` right by `int` bytes \[1, 16). DEPRECATED, supporting
+    partial vectors requires a D argument.
+
+*   `V`: `{u,i}` \
+    <code>V **CombineShiftRightBytes**&lt;int&gt;(D, V hi, V lo)</code>: returns
+    a vector of *blocks* each the result of shifting two concatenated *blocks*
+    `hi[i] || lo[i]` right by `int` bytes \[1, 16). `D` is `DFromV<V>`.
 
 *   <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
     vector of *blocks* each the result of shifting two concatenated *blocks*
-    `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)).
+    `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). DEPRECATED,
+    supporting partial vectors requires a D argument.
+
+*   <code>V **CombineShiftRightLanes**&lt;int&gt;(D, V hi, V lo)</code>: returns
+    a vector of *blocks* each the result of shifting two concatenated *blocks*
+    `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). `D` is
+    `DFromV<V>`.
 
 *   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves
