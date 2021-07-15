@@ -37,7 +37,8 @@ struct TestShiftBytes {
     // Zero remains zero
     const auto v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d, v0, ShiftLeftBytes<1>(v0));
-    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightBytes<1>(v0));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftLeftBytes<1>(d, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightBytes<1>(d, v0));
 
     // Zero after shifting out the high/low byte
     auto bytes = AllocateAligned<uint8_t>(N8);
@@ -48,7 +49,8 @@ struct TestShiftBytes {
     bytes[0] = 0x7F;
     const auto vlo = BitCast(d, Load(du8, bytes.get()));
     HWY_ASSERT_VEC_EQ(d, v0, ShiftLeftBytes<1>(vhi));
-    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightBytes<1>(vlo));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftLeftBytes<1>(d, vhi));
+    HWY_ASSERT_VEC_EQ(d, v0, ShiftRightBytes<1>(d, vlo));
 
     // Check expected result with Iota
     const size_t N = Lanes(d);
@@ -66,12 +68,13 @@ struct TestShiftBytes {
       memcpy(expected_bytes + block + 1, in_bytes + block, kBlockSize - 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftBytes<1>(v));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftBytes<1>(d, v));
 
     for (size_t block = 0; block < N8; block += kBlockSize) {
       memcpy(expected_bytes + block, in_bytes + block + 1, kBlockSize - 1);
       expected_bytes[block + kBlockSize - 1] = 0;
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightBytes<1>(v));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightBytes<1>(d, v));
 #else
     (void)d;
 #endif  // #if HWY_TARGET != HWY_SCALAR
@@ -92,7 +95,8 @@ struct TestShiftLanes {
     auto expected = AllocateAligned<T>(N);
 
     HWY_ASSERT_VEC_EQ(d, v, ShiftLeftLanes<0>(v));
-    HWY_ASSERT_VEC_EQ(d, v, ShiftRightLanes<0>(v));
+    HWY_ASSERT_VEC_EQ(d, v, ShiftLeftLanes<0>(d, v));
+    HWY_ASSERT_VEC_EQ(d, v, ShiftRightLanes<0>(d, v));
 
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
 
@@ -100,12 +104,13 @@ struct TestShiftLanes {
       expected[i] = (i % kLanesPerBlock) == 0 ? T(0) : T(i);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftLanes<1>(v));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftLanes<1>(d, v));
 
     for (size_t i = 0; i < N; ++i) {
       const size_t mod = i % kLanesPerBlock;
       expected[i] = mod == (kLanesPerBlock - 1) || i >= N - 1 ? T(0) : T(2 + i);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightLanes<1>(v));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightLanes<1>(d, v));
 #else
     (void)d;
 #endif  // #if HWY_TARGET != HWY_SCALAR

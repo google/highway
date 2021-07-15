@@ -707,18 +707,22 @@ their operands into independently processed 128-bit *blocks*.
     `RepartitionToWide<DFromV<V>>`.
 
 *   `V`: `{u,i}` \
-    <code>V **ShiftLeftBytes**&lt;int&gt;(V)</code>: returns the result of
-    shifting independent *blocks* left by `int` bytes \[1, 15\].
+    <code>V **ShiftLeftBytes**&lt;int&gt;([D, ] V)</code>: returns the result of
+    shifting independent *blocks* left by `int` bytes \[1, 15\]. The optional
+    `D` (provided for consistency with `ShiftRightBytes`) is `DFromV<V>`.
 
-*   <code>V **ShiftLeftLanes**&lt;int&gt;(V)</code>: returns the result of
-    shifting independent *blocks* left by `int` lanes.
+*   <code>V **ShiftLeftLanes**&lt;int&gt;([D, ] V)</code>: returns the result of
+    shifting independent *blocks* left by `int` lanes. The optional `D`
+    (provided for consistency with `ShiftRightLanes`) is `DFromV<V>`.
 
 *   `V`: `{u,i}` \
-    <code>V **ShiftRightBytes**&lt;int&gt;(V)</code>: returns the result of
-    shifting independent *blocks* right by `int` bytes \[1, 15\].
+    <code>V **ShiftRightBytes**&lt;int&gt;(D, V)</code>: returns the result of
+    shifting independent *blocks* right by `int` bytes \[1, 15\], shifting in
+    zeros even for partial vectors. `D` is `DFromV<V>`.
 
-*   <code>V **ShiftRightLanes**&lt;int&gt;(V)</code>: returns the result of
-    shifting independent *blocks* right by `int` lanes.
+*   <code>V **ShiftRightLanes**&lt;int&gt;(D, V)</code>: returns the result of
+    shifting independent *blocks* right by `int` lanes, shifting in zeros even
+    for partial vectors. `D` is `DFromV<V>`.
 
 *   `V`: `{u,i}` \
     <code>V **CombineShiftRightBytes**&lt;int&gt;(D, V hi, V lo)</code>: returns
@@ -830,6 +834,7 @@ than normal SIMD operations and are typically used outside critical loops.
 *   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
     [0, N]. This is typically more expensive than AllTrue/False. DEPRECATED, SVE
     needs an extra D argument.
+
 *   <code>void **StoreFence**()</code>: DEPRECATED, calls `FlushStream`.
 
 *   <code>void **LoadFence**()</code>: delays subsequent loads until prior loads
@@ -838,6 +843,15 @@ than normal SIMD operations and are typically used outside critical loops.
 
 *   <code>V2 **UpperHalf**(V)</code>: returns upper half of the vector `V`.
     DEPRECATED, supporting partial vectors requires a D argument.
+
+*   `V`: `{u,i}` \
+    <code>V **ShiftRightBytes**&lt;int&gt;(V)</code>: returns the result of
+    shifting independent *blocks* right by `int` bytes \[1, 15\]. DEPRECATED,
+    supporting partial vectors requires a D argument.
+
+*   <code>V **ShiftRightLanes**&lt;int&gt;(V)</code>: returns the result of
+    shifting independent *blocks* right by `int` lanes. DEPRECATED, supporting
+    partial vectors requires a D argument.
 
 *   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose `UpperHalf` is
     zero and whose `LowerHalf` is the argument. DEPRECATED, supporting partial

@@ -2093,33 +2093,43 @@ HWY_API Vec512<double> Combine(Full512<double> d, Vec256<double> hi,
   return Vec512<double>{_mm512_insertf64x4(lo512.raw, hi.raw, 1)};
 }
 
-// ------------------------------ Shift vector by constant #bytes
+// ------------------------------ ShiftLeftBytes
 
-// 0x01..0F, kBytes = 1 => 0x02..0F00
 template <int kBytes, typename T>
-HWY_API Vec512<T> ShiftLeftBytes(const Vec512<T> v) {
+HWY_API Vec512<T> ShiftLeftBytes(Full512<T> /* tag */, const Vec512<T> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   return Vec512<T>{_mm512_bslli_epi128(v.raw, kBytes)};
 }
 
+template <int kBytes, typename T>
+HWY_API Vec512<T> ShiftLeftBytes(const Vec512<T> v) {
+  return ShiftLeftBytes<kBytes>(Full512<T>(), v);
+}
+
+// ------------------------------ ShiftLeftLanes
+
 template <int kLanes, typename T>
-HWY_API Vec512<T> ShiftLeftLanes(const Vec512<T> v) {
-  const Full512<uint8_t> d8;
-  const Full512<T> d;
+HWY_API Vec512<T> ShiftLeftLanes(Full512<T> d, const Vec512<T> v) {
+  const Repartition<uint8_t, decltype(d)> d8;
   return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
-// 0x01..0F, kBytes = 1 => 0x0001..0E
+template <int kLanes, typename T>
+HWY_API Vec512<T> ShiftLeftLanes(const Vec512<T> v) {
+  return ShiftLeftLanes<kLanes>(Full512<T>(), v);
+}
+
+// ------------------------------ ShiftRightBytes
 template <int kBytes, typename T>
-HWY_API Vec512<T> ShiftRightBytes(const Vec512<T> v) {
+HWY_API Vec512<T> ShiftRightBytes(Full512<T> /* tag */, const Vec512<T> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   return Vec512<T>{_mm512_bsrli_epi128(v.raw, kBytes)};
 }
 
+// ------------------------------ ShiftRightLanes
 template <int kLanes, typename T>
-HWY_API Vec512<T> ShiftRightLanes(const Vec512<T> v) {
-  const Full512<uint8_t> d8;
-  const Full512<T> d;
+HWY_API Vec512<T> ShiftRightLanes(Full512<T> d, const Vec512<T> v) {
+  const Repartition<uint8_t, decltype(d)> d8;
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
@@ -3356,6 +3366,16 @@ HWY_API Vec512<T> MaxOfLanes(Vec512<T> v) {
 template <typename T>
 HWY_API Vec256<T> UpperHalf(Vec512<T> v) {
   return UpperHalf(Full256<T>(), v);
+}
+
+template <int kBytes, typename T>
+HWY_API Vec512<T> ShiftRightBytes(const Vec512<T> v) {
+  return ShiftRightBytes<kBytes>(Full512<T>(), v);
+}
+
+template <int kLanes, typename T>
+HWY_API Vec512<T> ShiftRightLanes(const Vec512<T> v) {
+  return ShiftRightBytes<kLanes>(Full512<T>(), v);
 }
 
 template <size_t kBytes, typename T>

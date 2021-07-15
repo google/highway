@@ -1487,11 +1487,10 @@ HWY_API V Broadcast(const V v) {
   return TableLookupLanes(v, idx);
 }
 
-// ------------------------------ ShiftLeft/RightLanes
+// ------------------------------ ShiftLeftLanes
 
-template <size_t kLanes, class V>
-HWY_API V ShiftLeftLanes(const V v) {
-  const DFromV<V> d;
+template <size_t kLanes, class D, class V = VFromD<D>>
+HWY_API V ShiftLeftLanes(const D d, const V v) {
   const RebindToSigned<decltype(d)> di;
   const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
@@ -1502,22 +1501,14 @@ HWY_API V ShiftLeftLanes(const V v) {
 }
 
 template <size_t kLanes, class V>
-HWY_API V ShiftRightLanes(const V v) {
-  const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-  const auto shifted = detail::SlideDown(v, v, kLanes);
-  // Match x86 semantics by zeroing upper lanes in 128-bit blocks
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::AndS(detail::Iota0(di), kLanesPerBlock - 1);
-  const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanesPerBlock - kLanes));
-  return IfThenElseZero(keep, shifted);
+HWY_API V ShiftLeftLanes(const V v) {
+  return ShiftLeftLanes<kLanes>(DFromV<V>(), v);
 }
 
-// ------------------------------ ShiftLeft/RightBytes
+// ------------------------------ ShiftLeftBytes
 
 template <int kBytes, class V>
-HWY_API V ShiftLeftBytes(const V v) {
-  const DFromV<V> d;
+HWY_API V ShiftLeftBytes(DFromV<V> d, const V v) {
   const Repartition<uint8_t, decltype(d)> d8;
   Lanes(d8);
   const auto shifted = BitCast(d, ShiftLeftLanes<kBytes>(BitCast(d8, v)));
@@ -1526,11 +1517,33 @@ HWY_API V ShiftLeftBytes(const V v) {
 }
 
 template <int kBytes, class V>
-HWY_API V ShiftRightBytes(const V v) {
-  const DFromV<V> d;
+HWY_API V ShiftLeftBytes(const V v) {
+  return ShiftLeftBytes<kBytes>(DFromV<V>(), v);
+}
+
+// ------------------------------ ShiftRightLanes
+template <size_t kLanes, typename T, size_t N, class V = VFromD<Simd<T, N>>>
+HWY_API V ShiftRightLanes(const Simd<T, N> d, V v) {
+  const RebindToSigned<decltype(d)> di;
+  // For partial vectors, clear upper lanes so we shift in zeros.
+  if (N <= 16 / sizeof(T)) {
+    v = IfThenElseZero(FirstN(d, N), v);
+  }
+
+  const auto shifted = detail::SlideDown(v, v, kLanes);
+  // Match x86 semantics by zeroing upper lanes in 128-bit blocks
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
+  const auto idx_mod = detail::AndS(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto keep = Lt(BitCast(di, idx_mod), Set(di, kLanesPerBlock - kLanes));
+  return IfThenElseZero(keep, shifted);
+}
+
+// ------------------------------ ShiftRightBytes
+template <int kBytes, class D, class V = VFromD<D>>
+HWY_API V ShiftRightBytes(const D d, const V v) {
   const Repartition<uint8_t, decltype(d)> d8;
   Lanes(d8);
-  const auto shifted = BitCast(d, ShiftRightLanes<kBytes>(BitCast(d8, v)));
+  const auto shifted = BitCast(d, ShiftRightLanes<kBytes>(d8, BitCast(d8, v)));
   Lanes(d);
   return shifted;
 }

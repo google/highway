@@ -1416,9 +1416,8 @@ HWY_API V Broadcast(const V v) {
 
 // ------------------------------ ShiftLeftLanes
 
-template <size_t kLanes, class V>
-HWY_API V ShiftLeftLanes(const V v) {
-  const DFromV<V> d;
+template <size_t kLanes, class D, class V = VFromD<D>>
+HWY_API V ShiftLeftLanes(D d, const V v) {
   const RebindToSigned<decltype(d)> di;
   const auto zero = Zero(d);
   const auto shifted = detail::Splice(v, zero, FirstN(d, kLanes));
@@ -1426,12 +1425,20 @@ HWY_API V ShiftLeftLanes(const V v) {
   return IfThenElse(detail::FirstNPerBlock<kLanes>(d), zero, shifted);
 }
 
-// ------------------------------ ShiftRightLanes
-
 template <size_t kLanes, class V>
-HWY_API V ShiftRightLanes(const V v) {
-  const DFromV<V> d;
+HWY_API V ShiftLeftLanes(const V v) {
+  return ShiftLeftLanes<kLanes>(DFromV<V>(), v);
+}
+
+// ------------------------------ ShiftRightLanes
+template <size_t kLanes, typename T, size_t N, class V = VFromD<Simd<T, N>>>
+HWY_API V ShiftRightLanes(Simd<T, N> d, V v) {
   const RebindToSigned<decltype(d)> di;
+  // For partial vectors, clear upper lanes so we shift in zeros.
+  if (N <= 16 / sizeof(T)) {
+    v = IfThenElseZero(FirstN(d, N), v);
+  }
+
   const auto shifted = detail::Ext<kLanes>(v, v);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
@@ -1439,20 +1446,24 @@ HWY_API V ShiftRightLanes(const V v) {
   return IfThenElseZero(mask, shifted);
 }
 
-// ------------------------------ ShiftLeft/RightBytes
+// ------------------------------ ShiftLeftBytes
 
-template <int kBytes, class V>
-HWY_API V ShiftLeftBytes(const V v) {
-  const DFromV<V> d;
+template <int kBytes, class D, class V = VFromD<D>>
+HWY_API V ShiftLeftBytes(const D d, const V v) {
   const Repartition<uint8_t, decltype(d)> d8;
   return BitCast(d, ShiftLeftLanes<kBytes>(BitCast(d8, v)));
 }
 
 template <int kBytes, class V>
-HWY_API V ShiftRightBytes(const V v) {
-  const DFromV<V> d;
+HWY_API V ShiftLeftBytes(const V v) {
+  return ShiftLeftBytes<kBytes>(DFromV<V>(), v);
+}
+
+// ------------------------------ ShiftRightBytes
+template <int kBytes, class D, class V = VFromD<D>>
+HWY_API V ShiftRightBytes(const D d, const V v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightLanes<kBytes>(BitCast(d8, v)));
+  return BitCast(d, ShiftRightLanes<kBytes>(d8, BitCast(d8, v)));
 }
 
 // ------------------------------ InterleaveLower

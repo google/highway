@@ -2306,25 +2306,35 @@ HWY_API Vec128<T, N / 2> LowerHalf(Vec128<T, N> v) {
   return LowerHalf(Simd<T, N / 2>(), v);
 }
 
-// ------------------------------ Shift vector by constant #bytes
+// ------------------------------ ShiftLeftBytes
 
-// 0x01..0F, kBytes = 1 => 0x02..0F00
 template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
+HWY_API Vec128<T, N> ShiftLeftBytes(Simd<T, N> /* tag */, Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   return Vec128<T, N>{_mm_slli_si128(v.raw, kBytes)};
 }
 
+template <int kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
+  return ShiftLeftBytes<kBytes>(Simd<T, N>(), v);
+}
+
+// ------------------------------ ShiftLeftLanes
+
 template <int kLanes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
-  const Simd<uint8_t, N * sizeof(T)> d8;
-  const Simd<T, N> d;
+HWY_API Vec128<T, N> ShiftLeftLanes(Simd<T, N> d, const Vec128<T, N> v) {
+  const Repartition<uint8_t, decltype(d)> d8;
   return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
-// 0x01..0F, kBytes = 1 => 0x0001..0E
+template <int kLanes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
+  return ShiftLeftLanes<kLanes>(Simd<T, N>(), v);
+}
+
+// ------------------------------ ShiftRightBytes
 template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftRightBytes(Vec128<T, N> v) {
+HWY_API Vec128<T, N> ShiftRightBytes(Simd<T, N> /* tag */, Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   // For partial vectors, clear upper lanes so we shift in zeros.
   if (N != 16 / sizeof(T)) {
@@ -2334,10 +2344,10 @@ HWY_API Vec128<T, N> ShiftRightBytes(Vec128<T, N> v) {
   return Vec128<T, N>{_mm_srli_si128(v.raw, kBytes)};
 }
 
+// ------------------------------ ShiftRightLanes
 template <int kLanes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
-  const Simd<uint8_t, N * sizeof(T)> d8;
-  const Simd<T, N> d;
+HWY_API Vec128<T, N> ShiftRightLanes(Simd<T, N> d, const Vec128<T, N> v) {
+  const Repartition<uint8_t, decltype(d)> d8;
   return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
 }
 
@@ -4320,6 +4330,16 @@ HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
   return UpperHalf(Half<Simd<T, N>>(), v);
+}
+
+template <int kBytes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
+  return ShiftRightBytes<kBytes>(Simd<T, N>(), v);
+}
+
+template <int kLanes, typename T, size_t N>
+HWY_API Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
+  return ShiftRightLanes<kLanes>(Simd<T, N>(), v);
 }
 
 template <size_t kBytes, typename T, size_t N>
