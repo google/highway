@@ -250,6 +250,7 @@ HWY_API constexpr bool IsSame() {
 #define HWY_IF_LE64(T, N) hwy::EnableIf<N * sizeof(T) <= 8>* = nullptr
 #define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
 #define HWY_IF_GE64(T, N) hwy::EnableIf<N * sizeof(T) >= 8>* = nullptr
+#define HWY_IF_GE128(T, N) hwy::EnableIf<N * sizeof(T) >= 16>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
 #define HWY_IF_SIGNED(T) \
@@ -261,8 +262,6 @@ HWY_API constexpr bool IsSame() {
   hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
 #define HWY_IF_NOT_LANE_SIZE(T, bytes) \
   hwy::EnableIf<sizeof(T) != (bytes)>* = nullptr
-
-#define HWY_IF_NOT_FULL(T, N) hwy::EnableIf<(N) != HWY_LANES(T)>* = nullptr
 
 // Empty struct used as a size tag type.
 template <size_t N>

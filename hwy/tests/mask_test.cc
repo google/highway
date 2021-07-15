@@ -85,40 +85,38 @@ struct TestIfThenElse {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
     const size_t N = Lanes(d);
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
-    auto mask_lanes = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
-
-    // NOTE: reverse polarity (mask is true iff lane == 0) because we cannot
-    // reliably compare against all bits set (NaN for float types).
-    const T off = 1;
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < 50; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         in1[i] = static_cast<T>(Random32(&rng));
         in2[i] = static_cast<T>(Random32(&rng));
-        mask_lanes[i] = (Random32(&rng) & 1024) ? off : T(0);
+        mask_lanes[i] = Random32(&rng) & 16;
       }
 
       const auto v1 = Load(d, in1.get());
       const auto v2 = Load(d, in2.get());
-      const auto mask = Eq(Load(d, mask_lanes.get()), Zero(d));
+      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = (mask_lanes[i] == off) ? in2[i] : in1[i];
+        expected[i] = (mask_lanes[i]) ? in1[i] : in2[i];
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElse(mask, v1, v2));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = mask_lanes[i] ? T(0) : in1[i];
+        expected[i] = mask_lanes[i] ? in1[i] : T(0);
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElseZero(mask, v1));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = mask_lanes[i] ? in2[i] : T(0);
+        expected[i] = mask_lanes[i] ? T(0) : in2[i];
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenZeroElse(mask, v2));
     }
@@ -134,16 +132,18 @@ struct TestMaskVec {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
     const size_t N = Lanes(d);
-    auto mask_lanes = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<TI>(N);
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        mask_lanes[i] = static_cast<T>(Random32(&rng) & 1);
+        mask_lanes[i] = static_cast<TI>(Random32(&rng) & 1);
       }
 
-      const auto mask = RebindMask(d, Eq(Load(d, mask_lanes.get()), Zero(d)));
+      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
       HWY_ASSERT_MASK_EQ(d, mask, MaskFromVec(VecFromMask(d, mask)));
     }
   }

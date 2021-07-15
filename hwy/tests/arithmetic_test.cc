@@ -756,7 +756,7 @@ struct TestMulEvenOdd64 {
     HWY_ASSERT_VEC_EQ(d, Zero(d), MulOdd(v0, v0));
 
     const size_t N = Lanes(d);
-    HWY_ASSERT(N > 1);  // ensured by ForGE128Vectors
+    if (N == 1) return;
 
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);

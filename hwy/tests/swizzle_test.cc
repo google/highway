@@ -131,11 +131,11 @@ struct TestCompress {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
-    using TU = MakeUnsigned<T>;
-    const Rebind<TU, D> du;
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
-    auto mask_lanes = AllocateAligned<TU>(N);
+    auto mask_lanes = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
     auto actual = AllocateAligned<T>(N);
 
@@ -146,14 +146,14 @@ struct TestCompress {
         const uint64_t bits = Random32(&rng);
         in_lanes[i] = T();  // cannot initialize float16_t directly.
         CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
-        mask_lanes[i] = static_cast<TU>(Random32(&rng) & 1);
-        if (mask_lanes[i] == 0) {  // Zero means true (easier to compare)
+        mask_lanes[i] = static_cast<TI>(Random32(&rng) & 1);
+        if (mask_lanes[i] > 0) {
           expected[expected_pos++] = in_lanes[i];
         }
       }
 
       const auto in = Load(d, in_lanes.get());
-      const auto mask = RebindMask(d, Eq(Load(du, mask_lanes.get()), Zero(du)));
+      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
 
       Store(Compress(in, mask), d, actual.get());
       // Upper lanes are undefined. Modified from AssertVecEqual.

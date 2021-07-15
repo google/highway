@@ -125,7 +125,8 @@ struct TestCLMul {
     // needs 64 bit lanes and 128-bit result
 #if HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
     const size_t N = Lanes(d);
-    HWY_ASSERT(N > 1);  // ensured by ForGE128Vectors
+    if (N == 1) return;
+
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
 
