@@ -429,31 +429,15 @@ Let `M` denote a mask capable of storing true/false for each lane.
 
 *   <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
 
-*   <code>bool **AllTrue**(M m)</code>: returns whether all `m[i]` are true.
-    DEPRECATED, SVE needs an extra D argument.
-
 *   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.
-
-*   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
-    DEPRECATED, SVE needs an extra D argument.
 
 *   <code>bool **AllFalse**(D, M m)</code>: returns whether all `m[i]` are
     false.
-
-*   <code>size_t **StoreMaskBits**(M m, uint8_t* p)</code>: stores a bit array
-    indicating whether `m[i]` is true, in ascending order of `i`, filling the
-    bits of each byte from least to most significant, then proceeding to the
-    next byte. Returns the number of (partial) bytes written. DEPRECATED, SVE
-    needs an extra D argument.
 
 *   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
     array indicating whether `m[i]` is true, in ascending order of `i`, filling
     the bits of each byte from least to most significant, then proceeding to the
     next byte. Returns the number of (partial) bytes written.
-
-*   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
-    [0, N]. This is typically more expensive than AllTrue/False. DEPRECATED, SVE
-    needs an extra D argument.
 
 *   <code>size_t **CountTrue**(D, M m)</code>: returns how many of `m[i]` are
     true [0, N]. This is typically more expensive than AllTrue/False.
@@ -585,12 +569,6 @@ All functions except `Stream` are defined in cache_control.h.
     other core(s), the producer must publish availability (e.g. via mutex or
     atomic_flag) after `FlushStream`.
 
-*   <code>void **StoreFence**()</code>: DEPRECATED, calls `FlushStream`.
-
-*   <code>void **LoadFence**()</code>: delays subsequent loads until prior loads
-    are visible. Also a full fence on Intel CPUs. No effect on non-x86.
-    DEPRECATED due to differing behavior across architectures AND vendors.
-
 *   <code>void **FlushCacheline**(const void* p)</code>: invalidates and flushes
     the cache line containing "p", if possible.
 
@@ -652,23 +630,11 @@ if the input exceeds the destination range.
     `V`. The optional `D` (provided for consistency with `UpperHalf`) is
     `Half<DFromV<V>>`.
 
-*   <code>V2 **UpperHalf**(V)</code>: returns upper half of the vector `V`.
-    DEPRECATED, supporting partial vectors requires a D argument.
-
 *   <code>V2 **UpperHalf**(D, V)</code>: returns upper half of the vector `V`,
     where `D` is `Half<DFromV<V>>`.
 
-*   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose `UpperHalf` is
-    zero and whose `LowerHalf` is the argument. DEPRECATED, supporting partial
-    vectors requires a D argument.
-
 *   <code>V **ZeroExtendVector**(D, V2)</code>: returns vector whose `UpperHalf`
     is zero and whose `LowerHalf` is the argument; `D` is `Twice<DFromV<V2>>`.
-
-*   <code>V **Combine**(V2, V2)</code>: returns vector whose `UpperHalf` is the
-    first argument and whose `LowerHalf` is the second argument. This is
-    currently only implemented for RVV, AVX2, AVX3*. DEPRECATED, supporting
-    partial vectors requires a D argument.
 
 *   <code>V **Combine**(D, V2, V2)</code>: returns vector whose `UpperHalf` is
     the first argument and whose `LowerHalf` is the second argument. This is
@@ -677,35 +643,17 @@ if the input exceeds the destination range.
 **Note**: the following operations cross block boundaries, which is typically
 more expensive on AVX2/AVX-512 than per-block operations.
 
-*   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation
-    of the lower halves of `hi` and `lo` without splitting into blocks.
-    DEPRECATED, supporting partial vectors requires a D argument.
-
 *   <code>V **ConcatLowerLower**(D, V hi, V lo)</code>: returns the
     concatenation of the lower halves of `hi` and `lo` without splitting into
     blocks. `D` is `DFromV<V>`.
-
-*   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation
-    of the upper halves of `hi` and `lo` without splitting into blocks.
-    DEPRECATED, supporting partial vectors requires a D argument.
 
 *   <code>V **ConcatUpperUpper**(D, V hi, V lo)</code>: returns the
     concatenation of the upper halves of `hi` and `lo` without splitting into
     blocks. `D` is `DFromV<V>`.
 
-*   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of
-    the concatenation of `hi` and `lo` without splitting into blocks. Useful for
-    swapping the two blocks in 256-bit vectors. DEPRECATED, supporting partial
-    vectors requires a D argument.
-
 *   <code>V **ConcatLowerUpper**(D, V hi, V lo)</code>: returns the inner half
     of the concatenation of `hi` and `lo` without splitting into blocks. Useful
     for swapping the two blocks in 256-bit vectors. `D` is `DFromV<V>`.
-
-*   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters
-    of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
-    the other variants, this does not incur a block-crossing penalty on AVX2.
-    DEPRECATED, supporting partial vectors requires a D argument.
 
 *   <code>V **ConcatUpperLower**(D, V hi, V lo)</code>: returns the outer
     quarters of the concatenation of `hi` and `lo` without splitting into
@@ -742,11 +690,6 @@ their operands into independently processed 128-bit *blocks*.
     least-significant lane). The optional `D` (provided for consistency with
     `InterleaveUpper`) is `DFromV<V>`.
 
-*   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with
-    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
-    least-significant lane). DEPRECATED, supporting partial vectors requires a D
-    argument.
-
 *   <code>V **InterleaveUpper**(D, V a, V b)</code>: returns *blocks* with
     alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
     least-significant lane). `D` is `DFromV<V>`.
@@ -756,12 +699,6 @@ their operands into independently processed 128-bit *blocks*.
     `InterleaveLower`, but repartitioned into double-width lanes (required in
     order to use this operation with scalars). The optional `D` (provided for
     consistency with `ZipUpper`) is `RepartitionToWide<DFromV<V>>`.
-
-*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
-    <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
-    `InterleaveUpper`, but repartitioned into double-width lanes (required in
-    order to use this operation with scalars). DEPRECATED, supporting partial
-    vectors requires a D argument.
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
@@ -784,20 +721,9 @@ their operands into independently processed 128-bit *blocks*.
     shifting independent *blocks* right by `int` lanes.
 
 *   `V`: `{u,i}` \
-    <code>V **CombineShiftRightBytes**&lt;int&gt;(V hi, V lo)</code>: returns a
-    vector of *blocks* each the result of shifting two concatenated *blocks*
-    `hi[i] || lo[i]` right by `int` bytes \[1, 16). DEPRECATED, supporting
-    partial vectors requires a D argument.
-
-*   `V`: `{u,i}` \
     <code>V **CombineShiftRightBytes**&lt;int&gt;(D, V hi, V lo)</code>: returns
     a vector of *blocks* each the result of shifting two concatenated *blocks*
     `hi[i] || lo[i]` right by `int` bytes \[1, 16). `D` is `DFromV<V>`.
-
-*   <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
-    vector of *blocks* each the result of shifting two concatenated *blocks*
-    `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). DEPRECATED,
-    supporting partial vectors requires a D argument.
 
 *   <code>V **CombineShiftRightLanes**&lt;int&gt;(D, V hi, V lo)</code>: returns
     a vector of *blocks* each the result of shifting two concatenated *blocks*
@@ -867,18 +793,6 @@ than normal SIMD operations and are typically used outside critical loops.
     <code>V **MaxOfLanes**(D, V v)</code>: returns the maximum-valued lane in
     each lane.
 
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
-    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
-
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **MinOfLanes**(V v)</code>: returns the minimum-valued lane in each
-    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
-
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
-    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
-
 ### Crypto
 
 *   `V`: `u8` \
@@ -898,6 +812,93 @@ than normal SIMD operations and are typically used outside critical loops.
 *   `V`: `u64` \
     <code>V **CLMulUpper**(V a, V b)</code>: as CLMulLower, but multiplies the
     upper 64 bits of each 128-bit block.
+
+### Deprecated
+
+*   <code>bool **AllTrue**(M m)</code>: returns whether all `m[i]` are true.
+    DEPRECATED, SVE needs an extra D argument.
+
+*   <code>bool **AllFalse**(M m)</code>: returns whether all `m[i]` are false.
+    DEPRECATED, SVE needs an extra D argument.
+
+*   <code>size_t **StoreMaskBits**(M m, uint8_t* p)</code>: stores a bit array
+    indicating whether `m[i]` is true, in ascending order of `i`, filling the
+    bits of each byte from least to most significant, then proceeding to the
+    next byte. Returns the number of (partial) bytes written. DEPRECATED, SVE
+    needs an extra D argument.
+
+*   <code>size_t **CountTrue**(M m)</code>: returns how many of `m[i]` are true
+    [0, N]. This is typically more expensive than AllTrue/False. DEPRECATED, SVE
+    needs an extra D argument.
+*   <code>void **StoreFence**()</code>: DEPRECATED, calls `FlushStream`.
+
+*   <code>void **LoadFence**()</code>: delays subsequent loads until prior loads
+    are visible. Also a full fence on Intel CPUs. No effect on non-x86.
+    DEPRECATED due to differing behavior across architectures AND vendors.
+
+*   <code>V2 **UpperHalf**(V)</code>: returns upper half of the vector `V`.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **ZeroExtendVector**(V2)</code>: returns vector whose `UpperHalf` is
+    zero and whose `LowerHalf` is the argument. DEPRECATED, supporting partial
+    vectors requires a D argument.
+
+*   <code>V **Combine**(V2, V2)</code>: returns vector whose `UpperHalf` is the
+    first argument and whose `LowerHalf` is the second argument. This is
+    currently only implemented for RVV, AVX2, AVX3*. DEPRECATED, supporting
+    partial vectors requires a D argument.
+
+*   <code>V **ConcatLowerLower**(V hi, V lo)</code>: returns the concatenation
+    of the lower halves of `hi` and `lo` without splitting into blocks.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **ConcatUpperUpper**(V hi, V lo)</code>: returns the concatenation
+    of the upper halves of `hi` and `lo` without splitting into blocks.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **ConcatLowerUpper**(V hi, V lo)</code>: returns the inner half of
+    the concatenation of `hi` and `lo` without splitting into blocks. Useful for
+    swapping the two blocks in 256-bit vectors. DEPRECATED, supporting partial
+    vectors requires a D argument.
+
+*   <code>V **ConcatUpperLower**(V hi, V lo)</code>: returns the outer quarters
+    of the concatenation of `hi` and `lo` without splitting into blocks. Unlike
+    the other variants, this does not incur a block-crossing penalty on AVX2.
+    DEPRECATED, supporting partial vectors requires a D argument.
+
+*   <code>V **InterleaveUpper**(V a, V b)</code>: returns *blocks* with
+    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
+    least-significant lane). DEPRECATED, supporting partial vectors requires a D
+    argument.
+
+*   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
+    <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
+    `InterleaveUpper`, but repartitioned into double-width lanes (required in
+    order to use this operation with scalars). DEPRECATED, supporting partial
+    vectors requires a D argument.
+
+*   `V`: `{u,i}` \
+    <code>V **CombineShiftRightBytes**&lt;int&gt;(V hi, V lo)</code>: returns a
+    vector of *blocks* each the result of shifting two concatenated *blocks*
+    `hi[i] || lo[i]` right by `int` bytes \[1, 16). DEPRECATED, supporting
+    partial vectors requires a D argument.
+
+*   <code>V **CombineShiftRightLanes**&lt;int&gt;(V hi, V lo)</code>: returns a
+    vector of *blocks* each the result of shifting two concatenated *blocks*
+    `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). DEPRECATED,
+    supporting partial vectors requires a D argument.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **SumOfLanes**(V v)</code>: returns the sum of all lanes in each
+    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **MinOfLanes**(V v)</code>: returns the minimum-valued lane in each
+    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
+    lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
 
 ## Advanced macros
 
