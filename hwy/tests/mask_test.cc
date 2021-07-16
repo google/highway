@@ -222,39 +222,72 @@ HWY_NOINLINE void TestAllAllTrueFalse() {
 class TestStoreMaskBits {
  public:
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*t*/, D d) {
+  HWY_NOINLINE void operator()(T /*t*/, D /*d*/) {
     // TODO(janwas): remove once implemented (cast or vse1)
-#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SVE && HWY_TARGET != HWY_SVE2
+#if HWY_TARGET != HWY_RVV
     RandomState rng;
-    const size_t N = Lanes(d);
-    auto lanes = AllocateAligned<T>(N);
-    const size_t expected_bytes = (N + 7) / 8;
-    auto bits = AllocateAligned<uint8_t>(expected_bytes);
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(di);
+    auto bool_lanes = AllocateAligned<TI>(N);
+
+    const Half<Half<Half<HWY_FULL(uint8_t)>>> d_bits;
+    const size_t expected_num_bytes = (N + 7) / 8;
+    auto expected = AllocateAligned<uint8_t>(expected_num_bytes);
+    auto actual = AllocateAligned<uint8_t>(expected_num_bytes);
 
     for (size_t rep = 0; rep < 100; ++rep) {
       // Generate random mask pattern.
       for (size_t i = 0; i < N; ++i) {
-        lanes[i] = static_cast<T>((rng() & 1024) ? 1 : 0);
+        bool_lanes[i] = static_cast<T>((rng() & 1024) ? 1 : 0);
       }
-      const auto mask = Eq(Load(d, lanes.get()), Zero(d));
+      const auto bools = Load(di, bool_lanes.get());
+      const auto mask = Gt(bools, Zero(di));
 
-      const size_t bytes_written = StoreMaskBits(d, mask, bits.get());
+      const size_t bytes_written = StoreMaskBits(di, mask, actual.get());
+      if (bytes_written != expected_num_bytes) {
+        fprintf(stderr, "%s expected %zu bytes, actual %zu\n",
+                TypeName(T(), N).c_str(), expected_num_bytes, bytes_written);
 
-      HWY_ASSERT_EQ(expected_bytes, bytes_written);
+        HWY_ASSERT(false);
+      }
+
+      memset(expected.get(), 0, expected_num_bytes);
+      for (size_t i = 0; i < N; ++i) {
+        expected[i / 8] |= bool_lanes[i] << (i % 8);
+      }
+
       size_t i = 0;
       // Stored bits must match original mask
       for (; i < N; ++i) {
-        const bool bit = (bits[i / 8] & (1 << (i % 8))) != 0;
-        HWY_ASSERT_EQ(bit, lanes[i] == 0);
+        const TI is_set = (actual[i / 8] & (1 << (i % 8))) ? 1 : 0;
+        if (is_set != bool_lanes[i]) {
+          fprintf(stderr, "%s lane %zu: expected %d, actual %d\n",
+                  TypeName(T(), N).c_str(), i, int(bool_lanes[i]), int(is_set));
+          Print(di, "bools", bools, 0, N);
+          Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
+                expected_num_bytes);
+          Print(d_bits, "actual bytes", Load(d_bits, actual.get()), 0,
+                expected_num_bytes);
+
+          HWY_ASSERT(false);
+        }
       }
       // Any partial bits in the last byte must be zero
       for (; i < 8 * bytes_written; ++i) {
-        const int bit = (bits[i / 8] & (1 << (i % 8)));
-        HWY_ASSERT_EQ(bit, 0);
+        const int bit = (actual[i / 8] & (1 << (i % 8)));
+        if (bit != 0) {
+          fprintf(stderr, "%s: bit #%zu should be zero\n",
+                  TypeName(T(), N).c_str(), i);
+          Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
+                expected_num_bytes);
+          Print(d_bits, "actual bytes", Load(d_bits, actual.get()), 0,
+                expected_num_bytes);
+
+          HWY_ASSERT(false);
+        }
       }
     }
-#else
-    (void)d;
 #endif
   }
 };

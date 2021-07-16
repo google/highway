@@ -1654,18 +1654,51 @@ V AverageRound(const V a, const V b) {
 #endif  // HWY_TARGET == HWY_SVE2
 
 // ------------------------------ StoreMaskBits
+
+namespace detail {
+
+// Returns mask ? 1 : 0 in BYTE lanes.
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
+  return svdup_n_u8_z(m, 1);
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  const svuint8_t b16 = BitCast(d8, svdup_n_u16_z(m, 1));
+  return detail::ConcatEven(b16, b16);
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
+  return U8FromU32(svdup_n_u32_z(m, 1));
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
+  const Repartition<uint32_t, decltype(d)> d32;
+  const svuint32_t b64 = BitCast(d32, svdup_n_u64_z(m, 1));
+  return U8FromU32(detail::ConcatEven(b64, b64));
+}
+
+}  // namespace detail
+
 template <typename T, size_t N>
 HWY_API size_t StoreMaskBits(Simd<T, N> d, svbool_t m, uint8_t* p) {
-  const RebindToUnsigned<decltype(d)> du;
   const Repartition<uint8_t, decltype(d)> d8;
-  const auto v = BitCast(du, VecFromMask(d, m));
-  const auto idx_bit = detail::AndN(Iota(du, 0), 7);
-  const auto bits = And(v, Shl(Set(du, 1), idx_bit));
-  const size_t num_bytes = (Lanes(d8) + 8 - 1) / 8;
-  // TODO(janwas): implement
-  (void)bits;
-  (void)p;
-  // Store(m, d8, p);
+  const Repartition<uint16_t, decltype(d)> d16;
+  const Repartition<uint32_t, decltype(d)> d32;
+  const Repartition<uint64_t, decltype(d)> d64;
+  auto x = detail::BoolFromMask(d, m);
+  // Compact bytes to bits. Could use SVE2 BDEP, but it's optional.
+  x = Or(x, BitCast(d8, ShiftRight<7>(BitCast(d16, x))));
+  x = Or(x, BitCast(d8, ShiftRight<14>(BitCast(d32, x))));
+  x = Or(x, BitCast(d8, ShiftRight<28>(BitCast(d64, x))));
+
+  // Round up for partial vectors < 8 bytes.
+  const size_t num_bytes = (Lanes(d) + 8 - 1) / 8;
+
+  // Truncate to 8 bits and store.
+  svst1b_u64(FirstN(d64, num_bytes), p, BitCast(d64, x));
+
   return num_bytes;
 }
 
