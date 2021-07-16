@@ -135,6 +135,11 @@
 #elif HWY_ARCH_ARM_V7 && (defined(__ARM_BIG_ENDIAN) || defined(__BIG_ENDIAN))
 #define HWY_BROKEN_TARGETS (HWY_NEON)
 
+// SVE[2] require recent clang or gcc versions.
+#elif (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) ||\
+(!HWY_COMPILER_CLANG && HWY_COMPILER_GCC && HWY_COMPILER_GCC < 1000)
+#define HWY_BROKEN_TARGETS (HWY_SVE | HWY_SVE2)
+
 #else
 #define HWY_BROKEN_TARGETS 0
 #endif
