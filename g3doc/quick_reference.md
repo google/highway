@@ -346,7 +346,11 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 
 ### Logical
 
-These operate on individual bits within each lane.
+*   `V`: `{u,i}` \
+    <code>V **PopulationCount**(V a)</code>: returns the number of 1-bits in
+    each lane, i.e. `PopCount(a[i])`.
+
+The following operate on individual bits within each lane:
 
 *   `V`: `{u,i}` \
     <code>V **operator&**(V a, V b)</code>: returns `a[i] & b[i]`.

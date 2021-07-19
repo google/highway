@@ -418,6 +418,96 @@ HWY_API Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ PopulationCount
+
+// 8/16 require BITALG, 32/64 require VPOPCNTDQ.
+#if HWY_TARGET == HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+namespace detail {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<1> /* tag */,
+                                        Vec128<T, N> v) {
+  return Vec128<T, N>{_mm_popcnt_epi8(v.raw)};
+}
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<2> /* tag */,
+                                        Vec128<T, N> v) {
+  return Vec128<T, N>{_mm_popcnt_epi16(v.raw)};
+}
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<4> /* tag */,
+                                        Vec128<T, N> v) {
+  return Vec128<T, N>{_mm_popcnt_epi32(v.raw)};
+}
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<8> /* tag */,
+                                        Vec128<T, N> v) {
+  return Vec128<T, N>{_mm_popcnt_epi64(v.raw)};
+}
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
+  return detail::PopulationCount(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+#endif  // HWY_TARGET == HWY_AVX3_DL
+
+// ================================================== SIGN
+
+// ------------------------------ Neg
+
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
+  return Xor(v, SignBit(Simd<T, N>()));
+}
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
+  return Zero(Simd<T, N>()) - v;
+}
+
+// ------------------------------ Abs
+
+// Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
+template <size_t N>
+HWY_API Vec128<int8_t, N> Abs(const Vec128<int8_t, N> v) {
+#if HWY_COMPILER_MSVC
+  // Workaround for incorrect codegen? (reaches breakpoint)
+  const auto zero = Zero(Simd<int8_t, N>());
+  return Vec128<int8_t, N>{_mm_max_epi8(v.raw, (zero - v).raw)};
+#else
+  return Vec128<int8_t, N>{_mm_abs_epi8(v.raw)};
+#endif
+}
+template <size_t N>
+HWY_API Vec128<int16_t, N> Abs(const Vec128<int16_t, N> v) {
+  return Vec128<int16_t, N>{_mm_abs_epi16(v.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
+  return Vec128<int32_t, N>{_mm_abs_epi32(v.raw)};
+}
+// i64 is implemented after BroadcastSignBit.
+template <size_t N>
+HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
+  const Vec128<int32_t, N> mask{_mm_set1_epi32(0x7FFFFFFF)};
+  return v & BitCast(Simd<float, N>(), mask);
+}
+template <size_t N>
+HWY_API Vec128<double, N> Abs(const Vec128<double, N> v) {
+  const Vec128<int64_t, N> mask{_mm_set1_epi64x(0x7FFFFFFFFFFFFFFFLL)};
+  return v & BitCast(Simd<double, N>(), mask);
+}
+
 // ------------------------------ CopySign
 
 template <typename T, size_t N>
@@ -458,6 +548,8 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
   return Or(abs, And(SignBit(Simd<T, N>()), sign));
 #endif
 }
+
+// ================================================== MASK
 
 // ------------------------------ Mask
 
@@ -1233,39 +1325,6 @@ HWY_API Vec128<uint16_t, N> AverageRound(const Vec128<uint16_t, N> a,
   return Vec128<uint16_t, N>{_mm_avg_epu16(a.raw, b.raw)};
 }
 
-// ------------------------------ Abs
-
-// Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
-template <size_t N>
-HWY_API Vec128<int8_t, N> Abs(const Vec128<int8_t, N> v) {
-#if HWY_COMPILER_MSVC
-  // Workaround for incorrect codegen? (reaches breakpoint)
-  const auto zero = Zero(Simd<int8_t, N>());
-  return Vec128<int8_t, N>{_mm_max_epi8(v.raw, (zero - v).raw)};
-#else
-  return Vec128<int8_t, N>{_mm_abs_epi8(v.raw)};
-#endif
-}
-template <size_t N>
-HWY_API Vec128<int16_t, N> Abs(const Vec128<int16_t, N> v) {
-  return Vec128<int16_t, N>{_mm_abs_epi16(v.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
-  return Vec128<int32_t, N>{_mm_abs_epi32(v.raw)};
-}
-// i64 is implemented after BroadcastSignBit.
-template <size_t N>
-HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
-  const Vec128<int32_t, N> mask{_mm_set1_epi32(0x7FFFFFFF)};
-  return v & BitCast(Simd<float, N>(), mask);
-}
-template <size_t N>
-HWY_API Vec128<double, N> Abs(const Vec128<double, N> v) {
-  const Vec128<int64_t, N> mask{_mm_set1_epi64x(0x7FFFFFFFFFFFFFFFLL)};
-  return v & BitCast(Simd<double, N>(), mask);
-}
-
 // ------------------------------ Integer multiplication
 
 template <size_t N>
@@ -1619,18 +1678,6 @@ HWY_API Vec128<int8_t, N> ShiftRightSame(Vec128<int8_t, N> v, const int bits) {
   const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
   const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
   return (shifted ^ shifted_sign) - shifted_sign;
-}
-
-// ------------------------------ Negate
-
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
-  return Xor(v, SignBit(Simd<T, N>()));
-}
-
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
-  return Zero(Simd<T, N>()) - v;
 }
 
 // ------------------------------ Floating-point mul / div

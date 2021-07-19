@@ -125,6 +125,9 @@ def main(args):
                                 [], ["--config=android_x86"])
   num_config += run_blaze_tests(work_dir, target, options.config, "msvc", [],
                                 ["--config=msvc"])
+  num_config += run_blaze_tests(work_dir, target, options.config, "avx3dl", [],
+                                ["--copt=-DHWY_WANT_AVX3_DL"])
+
   num_config += run_wasm_tests(work_dir, target, options.config, "wasm",
                                options)
 

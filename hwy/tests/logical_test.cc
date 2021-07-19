@@ -231,7 +231,7 @@ HWY_NOINLINE void TestAllTestBit() {
   ForIntegerTypes(ForPartialVectors<TestTestBit>());
 }
 
-struct TestPopCount {
+struct TestPopulationCount {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_RVV && defined(NDEBUG)
@@ -253,8 +253,8 @@ struct TestPopCount {
   }
 };
 
-HWY_NOINLINE void TestAllPopCount() {
-  ForUnsignedTypes(ForPartialVectors<TestPopCount>());
+HWY_NOINLINE void TestAllPopulationCount() {
+  ForUnsignedTypes(ForPartialVectors<TestPopulationCount>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -271,6 +271,6 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllPopCount);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllPopulationCount);
 }  // namespace hwy
 #endif

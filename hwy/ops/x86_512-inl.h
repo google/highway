@@ -23,17 +23,25 @@
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
 // Include these directly here.
+// clang-format off
 #include <smmintrin.h>
+
 #include <avxintrin.h>
 #include <avx2intrin.h>
 #include <f16cintrin.h>
 #include <fmaintrin.h>
+
 #include <avx512fintrin.h>
 #include <avx512vlintrin.h>
 #include <avx512bwintrin.h>
 #include <avx512dqintrin.h>
 #include <avx512vlbwintrin.h>
 #include <avx512vldqintrin.h>
+#include <avx512bitalgintrin.h>
+#include <avx512vlbitalgintrin.h>
+#include <avx512vpopcntdqintrin.h>
+#include <avx512vpopcntdqvlintrin.h>
+// clang-format on
 #endif
 
 #include <stddef.h>
@@ -319,6 +327,47 @@ HWY_API Vec512<T> operator^(const Vec512<T> a, const Vec512<T> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ PopulationCount
+
+// 8/16 require BITALG, 32/64 require VPOPCNTDQ.
+#if HWY_TARGET == HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+namespace detail {
+
+template <typename T>
+HWY_INLINE Vec512<T> PopulationCount(hwy::SizeTag<1> /* tag */, Vec512<T> v) {
+  return Vec512<T>{_mm512_popcnt_epi8(v.raw)};
+}
+template <typename T>
+HWY_INLINE Vec512<T> PopulationCount(hwy::SizeTag<2> /* tag */, Vec512<T> v) {
+  return Vec512<T>{_mm512_popcnt_epi16(v.raw)};
+}
+template <typename T>
+HWY_INLINE Vec512<T> PopulationCount(hwy::SizeTag<4> /* tag */, Vec512<T> v) {
+  return Vec512<T>{_mm512_popcnt_epi32(v.raw)};
+}
+template <typename T>
+HWY_INLINE Vec512<T> PopulationCount(hwy::SizeTag<8> /* tag */, Vec512<T> v) {
+  return Vec512<T>{_mm512_popcnt_epi64(v.raw)};
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Vec512<T> PopulationCount(Vec512<T> v) {
+  return detail::PopulationCount(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+#endif  // HWY_TARGET == HWY_AVX3_DL
+
+// ================================================== SIGN
+
 // ------------------------------ CopySign
 
 template <typename T>
@@ -349,6 +398,8 @@ HWY_API Vec512<T> CopySignToAbs(const Vec512<T> abs, const Vec512<T> sign) {
   // AVX3 can also handle abs < 0, so no extra action needed.
   return CopySign(abs, sign);
 }
+
+// ================================================== MASK
 
 // ------------------------------ FirstN
 
@@ -685,7 +736,7 @@ HWY_API Vec512<uint16_t> AverageRound(const Vec512<uint16_t> a,
   return Vec512<uint16_t>{_mm512_avg_epu16(a.raw, b.raw)};
 }
 
-// ------------------------------ Absolute value
+// ------------------------------ Abs (Sub)
 
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
 HWY_API Vec512<int8_t> Abs(const Vec512<int8_t> v) {
@@ -714,7 +765,6 @@ HWY_API Vec512<float> Abs(const Vec512<float> v) {
 HWY_API Vec512<double> Abs(const Vec512<double> v) {
   return Vec512<double>{_mm512_abs_pd(v.raw)};
 }
-
 // ------------------------------ ShiftLeft
 
 template <int kBits>
@@ -1067,7 +1117,7 @@ HWY_API Vec512<uint64_t> MulEven(const Vec512<uint32_t> a,
   return Vec512<uint64_t>{_mm512_mul_epu32(a.raw, b.raw)};
 }
 
-// ------------------------------ Negate
+// ------------------------------ Neg (Sub)
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec512<T> Neg(const Vec512<T> v) {

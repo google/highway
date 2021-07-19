@@ -416,6 +416,23 @@ HWY_API V AndNot(const V a, const V b) {
   return BitCast(df, AndNot(BitCast(du, a), BitCast(du, b)));
 }
 
+// ------------------------------ PopulationCount
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+// Need to return original type instead of unsigned.
+#define HWY_SVE_POPCNT(BASE, CHAR, BITS, NAME, OP)                     \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {        \
+    return BitCast(DFromV<decltype(v)>(),                              \
+                   sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v)); \
+  }
+HWY_SVE_FOREACH_UI(HWY_SVE_POPCNT, PopulationCount, cnt)
+#undef HWY_SVE_POPCNT
+
 // ================================================== SIGN
 
 // ------------------------------ Neg

@@ -135,7 +135,10 @@ constexpr uint32_t kGroupAVX3 =
 constexpr uint32_t kVNNI = 1u << 16;
 constexpr uint32_t kVPCLMULQDQ = 1u << 17;
 constexpr uint32_t kVAES = 1u << 18;
-constexpr uint32_t kGroupAVX3_DL = kVNNI | kVPCLMULQDQ | kVAES | kGroupAVX3;
+constexpr uint32_t kPOPCNTDQ = 1u << 19;
+constexpr uint32_t kBITALG = 1u << 20;
+constexpr uint32_t kGroupAVX3_DL =
+    kVNNI | kVPCLMULQDQ | kVAES | kPOPCNTDQ | kBITALG | kGroupAVX3;
 #endif  // HWY_ARCH_X86
 
 }  // namespace
@@ -243,6 +246,8 @@ uint32_t SupportedTargets() {
       flags |= IsBitSet(abcd[2], 9) ? kVAES : 0;
       flags |= IsBitSet(abcd[2], 10) ? kVPCLMULQDQ : 0;
       flags |= IsBitSet(abcd[2], 11) ? kVNNI : 0;
+      flags |= IsBitSet(abcd[2], 12) ? kBITALG : 0;
+      flags |= IsBitSet(abcd[2], 14) ? kPOPCNTDQ : 0;
     }
 
     // Set target bit(s) if all their group's flags are all set.

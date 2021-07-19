@@ -821,50 +821,6 @@ HWY_NEON_DEF_FUNCTION_INT_64(SaturatedSub, vqsub, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_8(AverageRound, vrhadd, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_16(AverageRound, vrhadd, _, 2)
 
-// ------------------------------ Absolute value
-
-// Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
-HWY_API Vec128<int8_t> Abs(const Vec128<int8_t> v) {
-  return Vec128<int8_t>(vabsq_s8(v.raw));
-}
-HWY_API Vec128<int16_t> Abs(const Vec128<int16_t> v) {
-  return Vec128<int16_t>(vabsq_s16(v.raw));
-}
-HWY_API Vec128<int32_t> Abs(const Vec128<int32_t> v) {
-  return Vec128<int32_t>(vabsq_s32(v.raw));
-}
-// i64 is implemented after BroadcastSignBit.
-HWY_API Vec128<float> Abs(const Vec128<float> v) {
-  return Vec128<float>(vabsq_f32(v.raw));
-}
-
-template <size_t N, HWY_IF_LE64(int8_t, N)>
-HWY_API Vec128<int8_t, N> Abs(const Vec128<int8_t, N> v) {
-  return Vec128<int8_t, N>(vabs_s8(v.raw));
-}
-template <size_t N, HWY_IF_LE64(int16_t, N)>
-HWY_API Vec128<int16_t, N> Abs(const Vec128<int16_t, N> v) {
-  return Vec128<int16_t, N>(vabs_s16(v.raw));
-}
-template <size_t N, HWY_IF_LE64(int32_t, N)>
-HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
-  return Vec128<int32_t, N>(vabs_s32(v.raw));
-}
-template <size_t N, HWY_IF_LE64(float, N)>
-HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
-  return Vec128<float, N>(vabs_f32(v.raw));
-}
-
-#if HWY_ARCH_ARM_A64
-HWY_API Vec128<double> Abs(const Vec128<double> v) {
-  return Vec128<double>(vabsq_f64(v.raw));
-}
-
-HWY_API Vec128<double, 1> Abs(const Vec128<double, 1> v) {
-  return Vec128<double, 1>(vabs_f64(v.raw));
-}
-#endif
-
 // ------------------------------ Neg
 
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Neg, vneg, _, 1)
@@ -1503,6 +1459,124 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
   return Xor(a, b);
 }
+
+// ------------------------------ PopulationCount
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+namespace detail {
+
+template <typename T>
+HWY_INLINE Vec128<T> PopulationCount(hwy::SizeTag<1> /* tag */, Vec128<T> v) {
+  const Full128<uint8_t> d8;
+  return Vec128<T>(vcntq_u8(BitCast(d8, v).raw));
+}
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<1> /* tag */,
+                                        Vec128<T, N> v) {
+  const Simd<uint8_t, N> d8;
+  return Vec128<T, N>(vcnt_u8(BitCast(d8, v).raw));
+}
+
+// ARM lacks popcount for lane sizes > 1, so take pairwise sums of the bytes.
+template <typename T>
+HWY_INLINE Vec128<T> PopulationCount(hwy::SizeTag<2> /* tag */, Vec128<T> v) {
+  const Full128<uint8_t> d8;
+  const uint8x16_t bytes = vcntq_u8(BitCast(d8, v).raw);
+  return Vec128<T>(vpaddlq_u8(bytes));
+}
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<2> /* tag */,
+                                        Vec128<T, N> v) {
+  const Repartition<uint8_t, Simd<T, N>> d8;
+  const uint8x8_t bytes = vcnt_u8(BitCast(d8, v).raw);
+  return Vec128<T, N>(vpaddl_u8(bytes));
+}
+
+template <typename T>
+HWY_INLINE Vec128<T> PopulationCount(hwy::SizeTag<4> /* tag */, Vec128<T> v) {
+  const Full128<uint8_t> d8;
+  const uint8x16_t bytes = vcntq_u8(BitCast(d8, v).raw);
+  return Vec128<T>(vpaddlq_u16(vpaddlq_u8(bytes)));
+}
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<4> /* tag */,
+                                        Vec128<T, N> v) {
+  const Repartition<uint8_t, Simd<T, N>> d8;
+  const uint8x8_t bytes = vcnt_u8(BitCast(d8, v).raw);
+  return Vec128<T, N>(vpaddl_u16(vpaddl_u8(bytes)));
+}
+
+template <typename T>
+HWY_INLINE Vec128<T> PopulationCount(hwy::SizeTag<8> /* tag */, Vec128<T> v) {
+  const Full128<uint8_t> d8;
+  const uint8x16_t bytes = vcntq_u8(BitCast(d8, v).raw);
+  return Vec128<T>(vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(bytes))));
+}
+template <typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<8> /* tag */,
+                                        Vec128<T, N> v) {
+  const Repartition<uint8_t, Simd<T, N>> d8;
+  const uint8x8_t bytes = vcnt_u8(BitCast(d8, v).raw);
+  return Vec128<T, N>(vpaddl_u32(vpaddl_u16(vpaddl_u8(bytes))));
+}
+
+}  // namespace detail
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
+  return detail::PopulationCount(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+// ================================================== SIGN
+
+// ------------------------------ Abs
+
+// Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
+HWY_API Vec128<int8_t> Abs(const Vec128<int8_t> v) {
+  return Vec128<int8_t>(vabsq_s8(v.raw));
+}
+HWY_API Vec128<int16_t> Abs(const Vec128<int16_t> v) {
+  return Vec128<int16_t>(vabsq_s16(v.raw));
+}
+HWY_API Vec128<int32_t> Abs(const Vec128<int32_t> v) {
+  return Vec128<int32_t>(vabsq_s32(v.raw));
+}
+// i64 is implemented after BroadcastSignBit.
+HWY_API Vec128<float> Abs(const Vec128<float> v) {
+  return Vec128<float>(vabsq_f32(v.raw));
+}
+
+template <size_t N, HWY_IF_LE64(int8_t, N)>
+HWY_API Vec128<int8_t, N> Abs(const Vec128<int8_t, N> v) {
+  return Vec128<int8_t, N>(vabs_s8(v.raw));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_API Vec128<int16_t, N> Abs(const Vec128<int16_t, N> v) {
+  return Vec128<int16_t, N>(vabs_s16(v.raw));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
+  return Vec128<int32_t, N>(vabs_s32(v.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
+  return Vec128<float, N>(vabs_f32(v.raw));
+}
+
+#if HWY_ARCH_ARM_A64
+HWY_API Vec128<double> Abs(const Vec128<double> v) {
+  return Vec128<double>(vabsq_f64(v.raw));
+}
+
+HWY_API Vec128<double, 1> Abs(const Vec128<double, 1> v) {
+  return Vec128<double, 1>(vabs_f64(v.raw));
+}
+#endif
 
 // ------------------------------ CopySign
 

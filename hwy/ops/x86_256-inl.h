@@ -300,6 +300,47 @@ HWY_API Vec256<T> operator^(const Vec256<T> a, const Vec256<T> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ PopulationCount
+
+// 8/16 require BITALG, 32/64 require VPOPCNTDQ.
+#if HWY_TARGET == HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_POPCNT
+#undef HWY_NATIVE_POPCNT
+#else
+#define HWY_NATIVE_POPCNT
+#endif
+
+namespace detail {
+
+template <typename T>
+HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<1> /* tag */, Vec256<T> v) {
+  return Vec256<T>{_mm256_popcnt_epi8(v.raw)};
+}
+template <typename T>
+HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<2> /* tag */, Vec256<T> v) {
+  return Vec256<T>{_mm256_popcnt_epi16(v.raw)};
+}
+template <typename T>
+HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<4> /* tag */, Vec256<T> v) {
+  return Vec256<T>{_mm256_popcnt_epi32(v.raw)};
+}
+template <typename T>
+HWY_INLINE Vec256<T> PopulationCount(hwy::SizeTag<8> /* tag */, Vec256<T> v) {
+  return Vec256<T>{_mm256_popcnt_epi64(v.raw)};
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Vec256<T> PopulationCount(Vec256<T> v) {
+  return detail::PopulationCount(hwy::SizeTag<sizeof(T)>(), v);
+}
+
+#endif  // HWY_TARGET == HWY_AVX3_DL
+
+// ================================================== SIGN
+
 // ------------------------------ CopySign
 
 template <typename T>
@@ -338,6 +379,8 @@ HWY_API Vec256<T> CopySignToAbs(const Vec256<T> abs, const Vec256<T> sign) {
   return Or(abs, And(SignBit(Full256<T>()), sign));
 #endif
 }
+
+// ================================================== MASK
 
 // ------------------------------ Mask
 
@@ -870,7 +913,7 @@ HWY_API Vec256<uint16_t> AverageRound(const Vec256<uint16_t> a,
   return Vec256<uint16_t>{_mm256_avg_epu16(a.raw, b.raw)};
 }
 
-// ------------------------------ Absolute value
+// ------------------------------ Abs (Sub)
 
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
 HWY_API Vec256<int8_t> Abs(const Vec256<int8_t> v) {
@@ -1161,7 +1204,7 @@ HWY_API Vec256<int8_t> ShiftRightSame(Vec256<int8_t> v, const int bits) {
   return (shifted ^ shifted_sign) - shifted_sign;
 }
 
-// ------------------------------ Negate
+// ------------------------------ Neg (Xor, Sub)
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec256<T> Neg(const Vec256<T> v) {
