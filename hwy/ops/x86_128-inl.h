@@ -737,7 +737,7 @@ HWY_API Mask128<double, N> operator!=(const Vec128<double, N> a,
 
 // ------------------------------ Strict inequality
 
-// Signed/float <
+// Signed/Unsigned/Float <
 template <size_t N>
 HWY_API Mask128<int8_t, N> operator<(const Vec128<int8_t, N> a,
                                      const Vec128<int8_t, N> b) {
@@ -752,6 +752,39 @@ template <size_t N>
 HWY_API Mask128<int32_t, N> operator<(const Vec128<int32_t, N> a,
                                       const Vec128<int32_t, N> b) {
   return Mask128<int32_t, N>{_mm_cmpgt_epi32(b.raw, a.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator<(const Vec128<int64_t, N> a,
+                                      const Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{_mm_cmpgt_epi64(b.raw, a.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator<(const Vec128<uint8_t, N> a,
+                                      const Vec128<uint8_t, N> b) {
+  const Vec128<uint8_t, N> max = {_mm_max_epu8(a.raw, b.raw)};
+  return (a != max);
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator<(const Vec128<uint16_t, N> a,
+                                       const Vec128<uint16_t, N> b) {
+  const Vec128<uint16_t, N> max = {_mm_max_epu16(a.raw, b.raw)};
+  return (a != max);
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator<(const Vec128<uint32_t, N> a,
+                                       const Vec128<uint32_t, N> b) {
+  const Vec128<uint32_t, N> max = {_mm_max_epu32(a.raw, b.raw)};
+  return (a != max);
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator<(const Vec128<uint64_t, N> a,
+                                       const Vec128<uint64_t, N> b) {
+  const Vec128<uint64_t, N> kSignBit =
+      Set(Simd<uint64_t, N>(), 0x8000000000000000ULL);
+  const Mask128<int64_t, N> result =
+      (BitCast(Simd<int64_t, N>(), (a ^ kSignBit)) <
+       BitCast(Simd<int64_t, N>(), (b ^ kSignBit)));
+  return {result.raw};
 }
 template <size_t N>
 HWY_API Mask128<float, N> operator<(const Vec128<float, N> a,
@@ -779,6 +812,26 @@ template <size_t N>
 HWY_API Mask128<int32_t, N> operator>(const Vec128<int32_t, N> a,
                                       const Vec128<int32_t, N> b) {
   return Mask128<int32_t, N>{_mm_cmpgt_epi32(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator>(const Vec128<uint8_t, N> a,
+                                      const Vec128<uint8_t, N> b) {
+  return (b < a);
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator>(const Vec128<uint16_t, N> a,
+                                       const Vec128<uint16_t, N> b) {
+  return (b < a);
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator>(const Vec128<uint32_t, N> a,
+                                       const Vec128<uint32_t, N> b) {
+  return (b < a);
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator>(const Vec128<uint64_t, N> a,
+                                       const Vec128<uint64_t, N> b) {
+  return (b < a);
 }
 template <size_t N>
 HWY_API Mask128<float, N> operator>(const Vec128<float, N> a,
@@ -811,15 +864,52 @@ HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
 #endif
 }
 
-template <size_t N>
-HWY_API Mask128<int64_t, N> operator<(const Vec128<int64_t, N> a,
-                                      const Vec128<int64_t, N> b) {
-  return operator>(b, a);
-}
-
 // ------------------------------ Weak inequality
 
-// Float <= >=
+// Signed/Unsigned/Float <= >=
+template <size_t N>
+HWY_API Mask128<int8_t, N> operator<=(const Vec128<int8_t, N> a,
+                                      const Vec128<int8_t, N> b) {
+  return Not(a > b);
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> operator<=(const Vec128<int16_t, N> a,
+                                       const Vec128<int16_t, N> b) {
+  return Not(a > b);
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> operator<=(const Vec128<int32_t, N> a,
+                                       const Vec128<int32_t, N> b) {
+  return Not(a > b);
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator<=(const Vec128<int64_t, N> a,
+                                       const Vec128<int64_t, N> b) {
+  return Not(a > b);
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator<=(const Vec128<uint8_t, N> a,
+                                       const Vec128<uint8_t, N> b) {
+  const Vec128<uint8_t, N> min = {_mm_min_epu8(a.raw, b.raw)};
+  return (a == min);
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator<=(const Vec128<uint16_t, N> a,
+                                        const Vec128<uint16_t, N> b) {
+  const Vec128<uint16_t, N> min = {_mm_min_epu16(a.raw, b.raw)};
+  return (a == min);
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator<=(const Vec128<uint32_t, N> a,
+                                        const Vec128<uint32_t, N> b) {
+  const Vec128<uint32_t, N> min = {_mm_min_epu32(a.raw, b.raw)};
+  return (a == min);
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator<=(const Vec128<uint64_t, N> a,
+                                        const Vec128<uint64_t, N> b) {
+  return Not(a > b);
+}
 template <size_t N>
 HWY_API Mask128<float, N> operator<=(const Vec128<float, N> a,
                                      const Vec128<float, N> b) {
@@ -829,6 +919,49 @@ template <size_t N>
 HWY_API Mask128<double, N> operator<=(const Vec128<double, N> a,
                                       const Vec128<double, N> b) {
   return Mask128<double, N>{_mm_cmple_pd(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int8_t, N> operator>=(const Vec128<int8_t, N> a,
+                                      const Vec128<int8_t, N> b) {
+  return Not(a < b);
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> operator>=(const Vec128<int16_t, N> a,
+                                       const Vec128<int16_t, N> b) {
+  return Not(a < b);
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> operator>=(const Vec128<int32_t, N> a,
+                                       const Vec128<int32_t, N> b) {
+  return Not(a < b);
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator>=(const Vec128<int64_t, N> a,
+                                       const Vec128<int64_t, N> b) {
+  return Not(a < b);
+}
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator>=(const Vec128<uint8_t, N> a,
+                                       const Vec128<uint8_t, N> b) {
+  const Vec128<uint8_t, N> max = {_mm_max_epu8(a.raw, b.raw)};
+  return (a == max);
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator>=(const Vec128<uint16_t, N> a,
+                                        const Vec128<uint16_t, N> b) {
+  const Vec128<uint16_t, N> max = {_mm_max_epu16(a.raw, b.raw)};
+  return (a == max);
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator>=(const Vec128<uint32_t, N> a,
+                                        const Vec128<uint32_t, N> b) {
+  const Vec128<uint32_t, N> max = {_mm_max_epu32(a.raw, b.raw)};
+  return (a == max);
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator>=(const Vec128<uint64_t, N> a,
+                                        const Vec128<uint64_t, N> b) {
+  return Not(a < b);
 }
 template <size_t N>
 HWY_API Mask128<float, N> operator>=(const Vec128<float, N> a,

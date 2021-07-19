@@ -77,7 +77,7 @@ void EnsureGreater(D d, TFromD<D> a, TFromD<D> b, const char* file, int line) {
 
 #define HWY_ENSURE_GREATER(d, a, b) EnsureGreater(d, a, b, __FILE__, __LINE__)
 
-struct TestStrictInt {
+struct TestCompareInt {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const T min = LimitsMin<T>();
@@ -92,33 +92,47 @@ struct TestStrictInt {
     // Individual values of interest
     HWY_ENSURE_GREATER(d, 2, 1);
     HWY_ENSURE_GREATER(d, 1, 0);
-    HWY_ENSURE_GREATER(d, 0, -1);
-    HWY_ENSURE_GREATER(d, -1, -2);
     HWY_ENSURE_GREATER(d, max, max / 2);
     HWY_ENSURE_GREATER(d, max, 1);
     HWY_ENSURE_GREATER(d, max, 0);
-    HWY_ENSURE_GREATER(d, max, -1);
     HWY_ENSURE_GREATER(d, max, min);
-    HWY_ENSURE_GREATER(d, 0, min);
-    HWY_ENSURE_GREATER(d, min / 2, min);
+    if (std::is_signed<T>::value) {
+      HWY_ENSURE_GREATER(d, 0, min);
+      HWY_ENSURE_GREATER(d, min / 2, min);
+      HWY_ENSURE_GREATER(d, 0, -1);
+      HWY_ENSURE_GREATER(d, -1, -2);
+      HWY_ENSURE_GREATER(d, max, -1);
+    }
 
     // Also use Iota to ensure lanes are independent
-    HWY_ASSERT_MASK_EQ(d, mask_true, Gt(v2, vn));
-    HWY_ASSERT_MASK_EQ(d, mask_true, Lt(vn, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, vn));
-    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vn, v2));
-
-    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v0, v0));
-    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(vn, vn));
-    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ge(v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Ge(v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v0, v2));
     HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v2, v2));
-    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vn, vn));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Le(v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Le(v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v2));
+
+    if (std::is_signed<T>::value) {
+      HWY_ASSERT_MASK_EQ(d, mask_true, Gt(v2, vn));
+      HWY_ASSERT_MASK_EQ(d, mask_true, Lt(vn, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, vn));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vn, v2));
+
+      HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Lt(vn, vn));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v0, v0));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v2, v2));
+      HWY_ASSERT_MASK_EQ(d, mask_false, Gt(vn, vn));
+    }
   }
 };
 
-HWY_NOINLINE void TestAllStrictInt() {
-  ForSignedTypes(ForPartialVectors<TestStrictInt>());
+HWY_NOINLINE void TestAllCompareInt() {
+  ForSignedTypes(ForPartialVectors<TestCompareInt>());
+  ForUnsignedTypes(ForPartialVectors<TestCompareInt>());
 }
 
 struct TestStrictFloat {
@@ -196,7 +210,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyCompareTest);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
-HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictInt);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllCompareInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);
 }  // namespace hwy

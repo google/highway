@@ -516,7 +516,7 @@ HWY_API Mask256<double> operator!=(const Vec256<double> a,
 #define HWY_AVX2_GCC_CMPGT8_WORKAROUND 0
 #endif
 
-// Signed/float <
+// Signed/Unsigned/Float <
 HWY_API Mask256<int8_t> operator<(const Vec256<int8_t> a,
                                   const Vec256<int8_t> b) {
 #if HWY_AVX2_GCC_CMPGT8_WORKAROUND
@@ -538,6 +538,29 @@ HWY_API Mask256<int32_t> operator<(const Vec256<int32_t> a,
 HWY_API Mask256<int64_t> operator<(const Vec256<int64_t> a,
                                    const Vec256<int64_t> b) {
   return Mask256<int64_t>{_mm256_cmpgt_epi64(b.raw, a.raw)};
+}
+HWY_API Mask256<uint8_t> operator<(const Vec256<uint8_t> a,
+                                   const Vec256<uint8_t> b) {
+  const Vec256<uint8_t> max = {_mm256_max_epu8(a.raw, b.raw)};
+  return (a != max);
+}
+HWY_API Mask256<uint16_t> operator<(const Vec256<uint16_t> a,
+                                    const Vec256<uint16_t> b) {
+  const Vec256<uint16_t> max = {_mm256_max_epu16(a.raw, b.raw)};
+  return (a != max);
+}
+HWY_API Mask256<uint32_t> operator<(const Vec256<uint32_t> a,
+                                    const Vec256<uint32_t> b) {
+  const Vec256<uint32_t> max = {_mm256_max_epu32(a.raw, b.raw)};
+  return (a != max);
+}
+HWY_API Mask256<uint64_t> operator<(const Vec256<uint64_t> a,
+                                    const Vec256<uint64_t> b) {
+  const Vec256<uint64_t> kSignBit =
+      Set(Full256<uint64_t>(), 0x8000000000000000ULL);
+  const Vec256<int64_t> x = {(a ^ kSignBit).raw};
+  const Vec256<int64_t> y = {(b ^ kSignBit).raw};
+  return {(x < y).raw};
 }
 HWY_API Mask256<float> operator<(const Vec256<float> a, const Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_LT_OQ)};
@@ -570,6 +593,22 @@ HWY_API Mask256<int64_t> operator>(const Vec256<int64_t> a,
                                    const Vec256<int64_t> b) {
   return Mask256<int64_t>{_mm256_cmpgt_epi64(a.raw, b.raw)};
 }
+HWY_API Mask256<uint8_t> operator>(const Vec256<uint8_t> a,
+                                   const Vec256<uint8_t> b) {
+  return (b < a);
+}
+HWY_API Mask256<uint16_t> operator>(const Vec256<uint16_t> a,
+                                    const Vec256<uint16_t> b) {
+  return (b < a);
+}
+HWY_API Mask256<uint32_t> operator>(const Vec256<uint32_t> a,
+                                    const Vec256<uint32_t> b) {
+  return (b < a);
+}
+HWY_API Mask256<uint64_t> operator>(const Vec256<uint64_t> a,
+                                    const Vec256<uint64_t> b) {
+  return (b < a);
+}
 HWY_API Mask256<float> operator>(const Vec256<float> a, const Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GT_OQ)};
 }
@@ -580,7 +619,42 @@ HWY_API Mask256<double> operator>(const Vec256<double> a,
 
 // ------------------------------ Weak inequality
 
-// Float <= >=
+// Signed/Unsigned/Float <= >=
+HWY_API Mask256<int8_t> operator<=(const Vec256<int8_t> a,
+                                   const Vec256<int8_t> b) {
+  return Not(a > b);
+}
+HWY_API Mask256<int16_t> operator<=(const Vec256<int16_t> a,
+                                    const Vec256<int16_t> b) {
+  return Not(a > b);
+}
+HWY_API Mask256<int32_t> operator<=(const Vec256<int32_t> a,
+                                    const Vec256<int32_t> b) {
+  return Not(a > b);
+}
+HWY_API Mask256<int64_t> operator<=(const Vec256<int64_t> a,
+                                    const Vec256<int64_t> b) {
+  return Not(a > b);
+}
+HWY_API Mask256<uint8_t> operator<=(const Vec256<uint8_t> a,
+                                    const Vec256<uint8_t> b) {
+  const Vec256<uint8_t> min = {_mm256_min_epu8(a.raw, b.raw)};
+  return (a == min);
+}
+HWY_API Mask256<uint16_t> operator<=(const Vec256<uint16_t> a,
+                                     const Vec256<uint16_t> b) {
+  const Vec256<uint16_t> min = {_mm256_min_epu16(a.raw, b.raw)};
+  return (a == min);
+}
+HWY_API Mask256<uint32_t> operator<=(const Vec256<uint32_t> a,
+                                     const Vec256<uint32_t> b) {
+  const Vec256<uint32_t> min = {_mm256_min_epu32(a.raw, b.raw)};
+  return (a == min);
+}
+HWY_API Mask256<uint64_t> operator<=(const Vec256<uint64_t> a,
+                                     const Vec256<uint64_t> b) {
+  return Not(a > b);
+}
 HWY_API Mask256<float> operator<=(const Vec256<float> a,
                                   const Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_LE_OQ)};
@@ -588,6 +662,41 @@ HWY_API Mask256<float> operator<=(const Vec256<float> a,
 HWY_API Mask256<double> operator<=(const Vec256<double> a,
                                    const Vec256<double> b) {
   return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_LE_OQ)};
+}
+HWY_API Mask256<int8_t> operator>=(const Vec256<int8_t> a,
+                                   const Vec256<int8_t> b) {
+  return Not(a < b);
+}
+HWY_API Mask256<int16_t> operator>=(const Vec256<int16_t> a,
+                                    const Vec256<int16_t> b) {
+  return Not(a < b);
+}
+HWY_API Mask256<int32_t> operator>=(const Vec256<int32_t> a,
+                                    const Vec256<int32_t> b) {
+  return Not(a < b);
+}
+HWY_API Mask256<int64_t> operator>=(const Vec256<int64_t> a,
+                                    const Vec256<int64_t> b) {
+  return Not(a < b);
+}
+HWY_API Mask256<uint8_t> operator>=(const Vec256<uint8_t> a,
+                                    const Vec256<uint8_t> b) {
+  const Vec256<uint8_t> max = {_mm256_max_epu8(a.raw, b.raw)};
+  return (a == max);
+}
+HWY_API Mask256<uint16_t> operator>=(const Vec256<uint16_t> a,
+                                     const Vec256<uint16_t> b) {
+  const Vec256<uint16_t> max = {_mm256_max_epu16(a.raw, b.raw)};
+  return (a == max);
+}
+HWY_API Mask256<uint32_t> operator>=(const Vec256<uint32_t> a,
+                                     const Vec256<uint32_t> b) {
+  const Vec256<uint32_t> max = {_mm256_max_epu32(a.raw, b.raw)};
+  return (a == max);
+}
+HWY_API Mask256<uint64_t> operator>=(const Vec256<uint64_t> a,
+                                     const Vec256<uint64_t> b) {
+  return Not(a < b);
 }
 HWY_API Mask256<float> operator>=(const Vec256<float> a,
                                   const Vec256<float> b) {
@@ -1371,7 +1480,7 @@ template <typename T>
 HWY_API Vec256<T> LoadDup128(Full256<T> /* tag */, const T* HWY_RESTRICT p) {
 #if HWY_LOADDUP_ASM
   __m256i out;
-  asm("vbroadcasti128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
+  asm("vbroadcasti128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
   return Vec256<T>{out};
 #elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
   // Workaround for incorrect results with _mm256_broadcastsi128_si256. Note
@@ -1388,7 +1497,7 @@ HWY_API Vec256<float> LoadDup128(Full256<float> /* tag */,
                                  const float* const HWY_RESTRICT p) {
 #if HWY_LOADDUP_ASM
   __m256 out;
-  asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
+  asm("vbroadcastf128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
   return Vec256<float>{out};
 #elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
   const __m128 v128 = LoadU(Full128<float>(), p).raw;
@@ -1402,7 +1511,7 @@ HWY_API Vec256<double> LoadDup128(Full256<double> /* tag */,
                                   const double* const HWY_RESTRICT p) {
 #if HWY_LOADDUP_ASM
   __m256d out;
-  asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
+  asm("vbroadcastf128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
   return Vec256<double>{out};
 #elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
   const __m128d v128 = LoadU(Full128<double>(), p).raw;
@@ -2516,8 +2625,8 @@ HWY_API Vec128<int8_t> DemoteTo(Full128<int8_t> /* tag */,
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(i8, 0x88))};
 }
 
-  // Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
-  // 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
+// Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
+// 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wsign-conversion")
 
