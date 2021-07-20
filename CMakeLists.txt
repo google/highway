@@ -110,7 +110,6 @@ else()
 
   if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     list(APPEND HWY_FLAGS
-      -Wc++2a-extensions
       -Wfloat-overflow-conversion
       -Wfloat-zero-conversion
       -Wfor-loop-analysis
@@ -129,6 +128,9 @@ else()
       # Use color in messages
       -fdiagnostics-show-option -fcolor-diagnostics
     )
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
+      list(APPEND HWY_FLAGS -Wc++2a-extensions)
+    endif()
   endif()
 
   if (WIN32)
