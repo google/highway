@@ -201,7 +201,7 @@
 #define HWY_NAMESPACE N_SVE
 #endif
 
-// HWY_TARGET_STR remains undefined - TODO(janwas): attribute for SVE?
+// HWY_TARGET_STR remains undefined
 
 //-----------------------------------------------------------------------------
 // WASM

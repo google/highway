@@ -2436,13 +2436,6 @@ HWY_INLINE Vec256<uint64_t> MulOdd(const Vec256<uint64_t> a,
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
-// TODO(janwas): support HWY_DISABLE_F16C
-
-HWY_API Vec256<float> PromoteTo(Full256<float> /* tag */,
-                                const Vec128<float16_t, 8> v) {
-  return Vec256<float>{_mm256_cvtph_ps(v.raw)};
-}
-
 HWY_API Vec256<double> PromoteTo(Full256<double> /* tag */,
                                  const Vec128<float, 4> v) {
   return Vec256<double>{_mm256_cvtps_pd(v.raw)};
@@ -2564,9 +2557,38 @@ HWY_API Vec128<int8_t> DemoteTo(Full128<int8_t> /* tag */,
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wsign-conversion")
 
-HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> /* tag */,
+HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> df16,
                                    const Vec256<float> v) {
+#ifdef HWY_DISABLE_F16C
+  const RebindToUnsigned<decltype(df16)> du16;
+  const Rebind<uint32_t, decltype(df16)> du;
+  const RebindToSigned<decltype(du)> di;
+  const auto bits32 = BitCast(du, v);
+  const auto sign = ShiftRight<31>(bits32);
+  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
+  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
+
+  const auto k15 = Set(di, 15);
+  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
+  const auto is_tiny = exp < Set(di, -24);
+
+  const auto is_subnormal = exp < Set(di, -14);
+  const auto biased_exp16 =
+      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
+  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
+  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
+                     (mantissa32 >> (Set(du, 13) + sub_exp));
+  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
+                                     ShiftRight<13>(mantissa32));  // <1024
+
+  const auto sign16 = ShiftLeft<15>(sign);
+  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
+  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
+  return BitCast(df16, DemoteTo(du16, bits16));
+#else
+  (void)df16;
   return Vec128<float16_t>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
+#endif
 }
 
 HWY_DIAGNOSTICS(pop)
@@ -2673,6 +2695,32 @@ HWY_API Vec256<int64_t> ConvertTo(Full256<int64_t> di, const Vec256<double> v) {
 HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
   const Full256<int32_t> di;
   return detail::FixConversionOverflow(di, v, _mm256_cvtps_epi32(v.raw));
+}
+
+
+HWY_API Vec256<float> PromoteTo(Full256<float> df32,
+                                const Vec128<float16_t> v) {
+#ifdef HWY_DISABLE_F16C
+  const RebindToSigned<decltype(df32)> di32;
+  const RebindToUnsigned<decltype(df32)> du32;
+  // Expand to u32 so we can shift.
+  const auto bits16 = PromoteTo(du32, Vec128<uint16_t>{v.raw});
+  const auto sign = ShiftRight<15>(bits16);
+  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
+  const auto mantissa = bits16 & Set(du32, 0x3FF);
+  const auto subnormal =
+      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
+                        Set(df32, 1.0f / 16384 / 1024));
+
+  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
+  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
+  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
+  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
+  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
+#else
+  (void)df32;
+  return Vec256<float>{_mm256_cvtph_ps(v.raw)};
+#endif
 }
 
 // ================================================== CRYPTO

@@ -3355,16 +3355,7 @@ HWY_API Vec128<T> Shuffle2103(const Vec128<T> v) {
 // Reverse
 template <typename T>
 HWY_API Vec128<T> Shuffle0123(const Vec128<T> v) {
-  static_assert(sizeof(T) == 4,
-                "Shuffle0123 should only be applied to 32-bit types");
-  // TODO(janwas): more efficient implementation?,
-  // It is possible to use two instructions (vrev64q_u32 and vcombine_u32 of the
-  // high/low parts) instead of the extra memory and load.
-  static constexpr uint8_t bytes[16] = {12, 13, 14, 15, 8, 9, 10, 11,
-                                        4,  5,  6,  7,  0, 1, 2,  3};
-  const Full128<uint8_t> d8;
-  const Full128<T> d;
-  return TableLookupBytes(v, BitCast(d, Load(d8, bytes)));
+  return Shuffle2301(Shuffle1032(v));
 }
 
 // ------------------------------ InterleaveLower

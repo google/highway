@@ -271,7 +271,6 @@ HWY_API V CLMulUpper(V a, V b) {
 #endif  // HWY_TARGET != HWY_SCALAR
 
 // "Include guard": skip if native POPCNT-related instructions are available.
-// TODO(veluca): actually implement target-specific versions.
 #if (defined(HWY_NATIVE_POPCNT) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_POPCNT
 #undef HWY_NATIVE_POPCNT

@@ -413,9 +413,7 @@ HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
 }
 template <size_t N>
 HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
-  // TODO(janwas): use wasm_i64x2_abs when available
-  const Vec128<int64_t, N> mask = wasm_i64x2_shr(v.raw, 63);
-  return ((v ^ mask) - mask);
+  return Vec128<int32_t, N>{wasm_i62x2_abs(v.raw)};
 }
 
 template <size_t N>
@@ -592,8 +590,6 @@ HWY_API Vec128<uint64_t, N> Min(const Vec128<uint64_t, N> a,
   min[1] =
       HWY_MIN(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
   return Vec128<uint64_t, N>{wasm_v128_load(min)};
-  // TODO(janwas): new op?
-  // return Vec128<uint64_t, N>{wasm_u64x2_min(a.raw, b.raw)};
 }
 
 // Signed
@@ -621,8 +617,6 @@ HWY_API Vec128<int64_t, N> Min(const Vec128<int64_t, N> a,
   min[1] =
       HWY_MIN(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
   return Vec128<int64_t, N>{wasm_v128_load(min)};
-  // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
-  // return Vec128<int64_t, N>{wasm_i64x2_min(a.raw, b.raw)};
 }
 
 // Float
@@ -659,8 +653,6 @@ HWY_API Vec128<uint64_t, N> Max(const Vec128<uint64_t, N> a,
   max[1] =
       HWY_MAX(wasm_u64x2_extract_lane(a, 1), wasm_u64x2_extract_lane(b, 1));
   return Vec128<int64_t, N>{wasm_v128_load(max)};
-  // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
-  // return Vec128<uint64_t, N>{wasm_u64x2_max(a.raw, b.raw)};
 }
 
 // Signed
@@ -688,8 +680,6 @@ HWY_API Vec128<int64_t, N> Max(const Vec128<int64_t, N> a,
   max[1] =
       HWY_MAX(wasm_i64x2_extract_lane(a, 1), wasm_i64x2_extract_lane(b, 1));
   return Vec128<int64_t, N>{wasm_v128_load(max)};
-  // TODO(janwas): new op? (also do not yet have wasm_u64x2_make)
-  // return Vec128<int64_t, N>{wasm_i64x2_max(a.raw, b.raw)};
 }
 
 // Float
@@ -815,7 +805,6 @@ HWY_API Vec128<float, N> operator/(const Vec128<float, N> a,
 // Approximate reciprocal
 template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocal(const Vec128<float, N> v) {
-  // TODO(eustas): replace, when implemented in WASM.
   const Vec128<float, N> one = Vec128<float, N>{wasm_f32x4_splat(1.0f)};
   return one / v;
 }
@@ -888,76 +877,25 @@ HWY_API Vec128<float, N> ApproximateReciprocalSqrt(const Vec128<float, N> v) {
 // Toward nearest integer, ties to even
 template <size_t N>
 HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
-  // IEEE-754 roundToIntegralTiesToEven returns floating-point, but we do not
-  // yet have an instruction for that (f32x4.nearest is not implemented). We
-  // rely on rounding after addition with a large value such that no mantissa
-  // bits remain (assuming the current mode is nearest-even). We may need a
-  // compiler flag for precise floating-point to prevent "optimizing" this out.
-  const Simd<float, N> df;
-  const auto max = Set(df, MantissaEnd<float>());
-  const auto large = CopySignToAbs(max, v);
-  const auto added = large + v;
-  const auto rounded = added - large;
-
-  // Keep original if NaN or the magnitude is large (already an int).
-  return IfThenElse(Abs(v) < max, rounded, v);
+  return Vec128<float, N>{wasm_f32x4_nearest(v.raw)};
 }
-
-namespace detail {
-
-// Truncating to integer and converting back to float is correct except when the
-// input magnitude is large, in which case the input was already an integer
-// (because mantissa >> exponent is zero).
-template <size_t N>
-HWY_INLINE Mask128<float, N> UseInt(const Vec128<float, N> v) {
-  return Abs(v) < Set(Simd<float, N>(), MantissaEnd<float>());
-}
-
-}  // namespace detail
 
 // Toward zero, aka truncate
 template <size_t N>
 HWY_API Vec128<float, N> Trunc(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.trunc? (not implemented yet)
-  const Simd<float, N> df;
-  const RebindToSigned<decltype(df)> di;
-
-  const auto integer = ConvertTo(di, v);  // round toward 0
-  const auto int_f = ConvertTo(df, integer);
-
-  return IfThenElse(detail::UseInt(v), CopySign(int_f, v), v);
+  return Vec128<float, N>{wasm_f32x4_trunc(v.raw)};
 }
 
 // Toward +infinity, aka ceiling
 template <size_t N>
 HWY_API Vec128<float, N> Ceil(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.ceil? (not implemented yet)
-  const Simd<float, N> df;
-  const RebindToSigned<decltype(df)> di;
-
-  const auto integer = ConvertTo(di, v);  // round toward 0
-  const auto int_f = ConvertTo(df, integer);
-
-  // Truncating a positive non-integer ends up smaller; if so, add 1.
-  const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f < v)));
-
-  return IfThenElse(detail::UseInt(v), int_f - neg1, v);
+  return Vec128<float, N>{wasm_f32x4_ceil(v.raw)};
 }
 
 // Toward -infinity, aka floor
 template <size_t N>
 HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
-  // TODO(eustas): is it f32x4.floor? (not implemented yet)
-  const Simd<float, N> df;
-  const RebindToSigned<decltype(df)> di;
-
-  const auto integer = ConvertTo(di, v);  // round toward 0
-  const auto int_f = ConvertTo(df, integer);
-
-  // Truncating a negative non-integer ends up larger; if so, subtract 1.
-  const auto neg1 = ConvertTo(df, VecFromMask(di, RebindMask(di, int_f > v)));
-
-  return IfThenElse(detail::UseInt(v), int_f + neg1, v);
+  return Vec128<float, N>{wasm_f32x4_floor(v.raw)};
 }
 
 // ================================================== COMPARE
@@ -1800,12 +1738,10 @@ HWY_API Vec128<T, N> ShiftRightLanes(Simd<T, N> d, const Vec128<T, N> v) {
 template <typename T>
 HWY_API Vec128<T, 8 / sizeof(T)> UpperHalf(Half<Full128<T>> /* tag */,
                                            const Vec128<T> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<T, 8 / sizeof(T)>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
 }
 HWY_API Vec128<float, 2> UpperHalf(Half<Full128<float>> /* tag */,
                                    const Vec128<float> v) {
-  // TODO(eustas): use swizzle?
   return Vec128<float, 2>{wasm_i32x4_shuffle(v.raw, v.raw, 2, 3, 2, 3)};
 }
 
@@ -2419,13 +2355,7 @@ HWY_API Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
 template <size_t N>
 HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
                                     const Vec128<int32_t, N> v) {
-  // TODO(janwas): use https://github.com/WebAssembly/simd/pull/383
-  alignas(16) int32_t lanes[4];
-  Store(v, Simd<int32_t, N>(), lanes);
-  alignas(16) double lanes64[2];
-  lanes64[0] = lanes[0];
-  lanes64[1] = N >= 2 ? lanes[1] : 0.0;
-  return Load(df, lanes64);
+  return Vec128<double, N>{wasm_f64x2_convert_low_i32x4(v.raw)};
 }
 
 template <size_t N>
@@ -2492,14 +2422,9 @@ HWY_API Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
 }
 
 template <size_t N>
-HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> di,
+HWY_API Vec128<int32_t, N> DemoteTo(Simd<int32_t, N> /* di */,
                                     const Vec128<double, N> v) {
-  // TODO(janwas): use https://github.com/WebAssembly/simd/pull/383
-  alignas(16) double lanes64[2];
-  Store(v, Simd<double, N>(), lanes64);
-  alignas(16) int32_t lanes[4] = {static_cast<int32_t>(lanes64[0])};
-  if (N >= 2) lanes[1] = static_cast<int32_t>(lanes64[1]);
-  return Load(di, lanes);
+  return Vec128<int32_t, N>{wasm_i32x4_trunc_sat_f64x2_zero(v.raw)};
 }
 
 template <size_t N>
@@ -2565,9 +2490,10 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 
 namespace detail {
 
-template <typename T, size_t N>
+// Full
+template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
-                                 const Mask128<T, N> mask) {
+                                 const Mask128<T> mask) {
   alignas(16) uint64_t lanes[2];
   wasm_v128_store(lanes, mask.raw);
 
@@ -2577,12 +2503,31 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   return (hi + lo);
 }
 
+// 64-bit
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask128<T, 8> mask) {
+  constexpr uint64_t kMagic = 0x103070F1F3F80ULL;
+  return (wasm_i64x2_extract_lane(mask.raw, 0) * kMagic) >> 56;
+}
+
+// 32-bit or less: need masking
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
+                                 const Mask128<T, N> mask) {
+  uint64_t bytes = wasm_i64x2_extract_lane(mask.raw, 0);
+  // Clear potentially undefined bytes.
+  bytes &= (1ULL << (N * 8)) - 1;
+  constexpr uint64_t kMagic = 0x103070F1F3F80ULL;
+  return (bytes * kMagic) >> 56;
+}
+
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
                                  const Mask128<T, N> mask) {
   // Remove useless lower half of each u16 while preserving the sign bit.
   const __i16x8 zero = wasm_i16x8_splat(0);
-  const Mask128<T> mask8{wasm_i8x16_narrow_i16x8(mask.raw, zero)};
+  const Mask128<uint8_t, N> mask8{wasm_i8x16_narrow_i16x8(mask.raw, zero)};
   return BitsFromMask(hwy::SizeTag<1>(), mask8);
 }
 

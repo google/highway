@@ -1042,7 +1042,6 @@ HWY_API Vec128<T, N> Load(Simd<T, N> /* tag */, const T* HWY_RESTRICT p) {
   CopyBytes<kSize>(p, &v);
   return Vec128<T, N>{v};
 #else
-  // TODO(janwas): load_ss?
   int32_t bits;
   CopyBytes<kSize>(p, &bits);
   return Vec128<T, N>{_mm_cvtsi32_si128(bits)};
@@ -3253,12 +3252,11 @@ HWY_API Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
 #define HWY_INLINE_F16 HWY_INLINE
 #endif
 template <size_t N>
-HWY_INLINE_F16 Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
+HWY_INLINE_F16 Vec128<float, N> PromoteTo(Simd<float, N> df32,
                                           const Vec128<float16_t, N> v) {
-#if HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
-  const Simd<int32_t, N> di32;
-  const Simd<uint32_t, N> du32;
-  const Simd<float, N> df32;
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_F16C)
+  const RebindToSigned<decltype(df32)> di32;
+  const RebindToUnsigned<decltype(df32)> du32;
   // Expand to u32 so we can shift.
   const auto bits16 = PromoteTo(du32, Vec128<uint16_t, N>{v.raw});
   const auto sign = ShiftRight<15>(bits16);
@@ -3274,6 +3272,7 @@ HWY_INLINE_F16 Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
   const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
   return BitCast(df32, ShiftLeft<31>(sign) | bits32);
 #else
+  (void)df32;
   return Vec128<float, N>{_mm_cvtph_ps(v.raw)};
 #endif
 }
@@ -3344,13 +3343,12 @@ HWY_API Vec128<int8_t, N> DemoteTo(Simd<int8_t, N> /* tag */,
 }
 
 template <size_t N>
-HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
+HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> df16,
                                       const Vec128<float, N> v) {
-#if HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
-  const Simd<int32_t, N> di;
-  const Simd<uint32_t, N> du;
-  const Simd<uint16_t, N> du16;
-  const Simd<float16_t, N> df16;
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_F16C)
+  const RebindToUnsigned<decltype(df16)> du16;
+  const Rebind<uint32_t, decltype(df16)> du;
+  const RebindToSigned<decltype(du)> di;
   const auto bits32 = BitCast(du, v);
   const auto sign = ShiftRight<31>(bits32);
   const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
@@ -3374,6 +3372,7 @@ HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
   const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
   return BitCast(df16, DemoteTo(du16, bits16));
 #else
+  (void)df16;
   return Vec128<float16_t, N>{_mm_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 #endif
 }

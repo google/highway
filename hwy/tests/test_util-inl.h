@@ -428,7 +428,19 @@ HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
   AssertEqual(AllTrue(d, a), AllTrue(d, b), type_name, filename, line, 0);
   AssertEqual(AllFalse(d, a), AllFalse(d, b), type_name, filename, line, 0);
 
-  // TODO(janwas): StoreMaskBits
+  // TODO(janwas): remove RVV once implemented (cast or vse1)
+#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
+  const Repartition<uint8_t, D> d8;
+  const size_t N8 = Lanes(d8);
+  auto bits_a = AllocateAligned<uint8_t>(N8);
+  auto bits_b = AllocateAligned<uint8_t>(N8);
+  memset(bits_a.get(), 0, N8);
+  memset(bits_b.get(), 0, N8);
+  const size_t num_bytes_a = StoreMaskBits(d, a, bits_a.get());
+  const size_t num_bytes_b = StoreMaskBits(d, b, bits_b.get());
+  AssertEqual(num_bytes_a, num_bytes_b, type_name, filename, line, 0);
+  AssertVecEqual(d8, bits_a.get(), Load(d8, bits_b.get()), filename, line);
+#endif
 }
 
 template <class D>
