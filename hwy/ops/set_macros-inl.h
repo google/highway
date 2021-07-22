@@ -32,6 +32,7 @@
 #undef HWY_LANES
 
 #undef HWY_CAP_INTEGER64
+#undef HWY_CAP_FLOAT16
 #undef HWY_CAP_FLOAT64
 #undef HWY_CAP_GE256
 #undef HWY_CAP_GE512
@@ -77,6 +78,7 @@
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_AES 0
 #define HWY_CAP_GE256 0
@@ -92,6 +94,7 @@
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
@@ -107,6 +110,7 @@
 #define HWY_LANES(T) (32 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 0
@@ -121,6 +125,7 @@
 #define HWY_LANES(T) (64 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 1
 #define HWY_CAP_GE512 1
@@ -144,6 +149,7 @@
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 0
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
@@ -160,6 +166,7 @@
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
@@ -177,6 +184,10 @@
 // SVE[2]
 #elif HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE
 
+#if defined(HWY_EMULATE_SVE) && !defined(__F16C__)
+#error "Disable HWY_CAP_FLOAT16 or ensure farm_sve actually converts to f16"
+#endif
+
 // SVE only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN alignas(8)
 
@@ -191,6 +202,7 @@
 #define HWY_LANES(T) (2048 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
@@ -211,6 +223,7 @@
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 0
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 0
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
@@ -237,6 +250,12 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
+#if defined(__riscv_zfh)
+#define HWY_CAP_FLOAT16 1
+#else
+#define HWY_CAP_FLOAT16 0
+#endif
+
 #define HWY_NAMESPACE N_RVV
 
 // HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
@@ -251,6 +270,7 @@
 #define HWY_LANES(T) 1
 
 #define HWY_CAP_INTEGER64 1
+#define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 1
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0

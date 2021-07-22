@@ -955,6 +955,7 @@ support them).
 The following signal capabilities and expand to 1 or 0.
 
 *   `HWY_CAP_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
+*   `HWY_CAP_FLOAT16`: support for IEEE half-precision floating-point lanes.
 *   `HWY_CAP_FLOAT64`: support for double-precision floating-point lanes.
 
 The following were used to signal the maximum number of lanes for certain
