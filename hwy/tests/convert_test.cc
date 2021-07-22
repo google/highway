@@ -349,9 +349,7 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
 struct TestF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if defined(HWY_EMULATE_SVE) && !defined(__F16C__)
-#error "Disable this test or ensure farm_sve actually converts to f16"
-#endif
+#if HWY_CAP_FLOAT16
     size_t padded;
     auto in = F16TestCases(d32, padded);
     using TF16 = float16_t;
@@ -364,6 +362,9 @@ struct TestF16 {
       Store(DemoteTo(d16, loaded), d16, temp16.get());
       HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, Load(d16, temp16.get())));
     }
+#else
+    (void)d32;
+#endif
   }
 };
 
