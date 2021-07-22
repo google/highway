@@ -326,6 +326,7 @@ HWY_NOINLINE void TestAllCompress() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllGetLane);
@@ -333,4 +334,11 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCompress);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

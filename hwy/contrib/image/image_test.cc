@@ -143,9 +143,17 @@ void TestUnaligned() { ForUnsignedTypes(TestUnalignedT()); }
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(ImageTest);
 HWY_EXPORT_AND_TEST_P(ImageTest, TestAligned);
 HWY_EXPORT_AND_TEST_P(ImageTest, TestUnaligned);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

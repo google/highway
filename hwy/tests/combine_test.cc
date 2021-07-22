@@ -232,6 +232,7 @@ HWY_NOINLINE void TestAllConcat() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwyCombineTest);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllLowerHalf);
@@ -240,7 +241,14 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcat);
 }  // namespace hwy
-#endif
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
+#endif  // HWY_ONCE
 
 #else
 int main(int, char**) { return 0; }

@@ -315,6 +315,7 @@ HWY_NOINLINE void TestAllDFromV() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HighwayTest);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSet);
@@ -326,4 +327,11 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

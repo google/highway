@@ -412,6 +412,7 @@ HWY_NOINLINE void TestAllLogicalMask() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFromVec);
@@ -424,4 +425,11 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFindFirstTrue);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalMask);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

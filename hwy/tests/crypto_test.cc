@@ -533,9 +533,17 @@ HWY_NOINLINE void TestAllCLMul() { ForGE128Vectors<TestCLMul>()(uint64_t()); }
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwyCryptoTest);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAES);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllCLMul);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

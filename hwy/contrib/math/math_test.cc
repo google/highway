@@ -167,6 +167,7 @@ DEFINE_MATH_TEST(Tanh,
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwyMathTest);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAcos);
@@ -186,4 +187,11 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

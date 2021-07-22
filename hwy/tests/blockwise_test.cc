@@ -632,6 +632,7 @@ HWY_NOINLINE void TestAllSpecialShuffles() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftBytes);
@@ -643,4 +644,11 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllZip);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCombineShiftRight);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSpecialShuffles);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

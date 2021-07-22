@@ -193,6 +193,7 @@ HWY_NOINLINE void TestAllWeakFloat() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwyCompareTest);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
@@ -200,4 +201,11 @@ HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif

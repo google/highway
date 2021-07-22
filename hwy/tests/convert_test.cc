@@ -601,6 +601,7 @@ HWY_NOINLINE void TestAllI32F64() {
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
+
 namespace hwy {
 HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
@@ -614,4 +615,11 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 }  // namespace hwy
+
+// Ought not to be necessary, but without this, no tests run on RVV.
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
 #endif
