@@ -2920,7 +2920,8 @@ template <int kBytes, typename T, class V128 = Vec128<T>>
 HWY_API V128 CombineShiftRightBytes(Full128<T> d, V128 hi, V128 lo) {
   static_assert(0 < kBytes && kBytes < 16, "kBytes must be in [1, 15]");
   const Repartition<uint8_t, decltype(d)> d8;
-  return V128(vextq_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes));
+  uint8x16_t v8 = vextq_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes);
+  return BitCast(d, Vec128<uint8_t>(v8));
 }
 
 // 64-bit
@@ -2928,7 +2929,8 @@ template <int kBytes, typename T, class V64 = Vec128<T, 8 / sizeof(T)>>
 HWY_API V64 CombineShiftRightBytes(Simd<T, 8 / sizeof(T)> d, V64 hi, V64 lo) {
   static_assert(0 < kBytes && kBytes < 8, "kBytes must be in [1, 7]");
   const Repartition<uint8_t, decltype(d)> d8;
-  return V64(vext_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes));
+  uint8x8_t v8 = vext_u8(BitCast(d8, lo).raw, BitCast(d8, hi).raw, kBytes);
+  return BitCast(d, VFromD<decltype(d8)>(v8));
 }
 
 // <= 32-bit defined after ShiftLeftBytes.
@@ -2969,7 +2971,7 @@ struct ShiftLeftBytesT<0> {
 template <>
 struct ShiftLeftBytesT<0xFF> {
   template <class T, size_t N>
-  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
+  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> /* v */) {
     return Zero(Simd<T, N>());
   }
 };
@@ -2999,7 +3001,7 @@ struct ShiftRightBytesT<0> {
 template <>
 struct ShiftRightBytesT<0xFF> {
   template <class T, size_t N>
-  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> v) {
+  HWY_INLINE Vec128<T, N> operator()(const Vec128<T, N> /* v */) {
     return Zero(Simd<T, N>());
   }
 };
@@ -3048,13 +3050,15 @@ HWY_API Vec128<T, N> CombineShiftRightBytes(Simd<T, N> d, Vec128<T, N> hi,
   constexpr size_t kSize = N * sizeof(T);
   static_assert(0 < kBytes && kBytes < kSize, "kBytes invalid");
   const Repartition<uint8_t, decltype(d)> d8;
-  const Simd<uint8_t, 8> d_full;
-  using V64 = VFromD<decltype(d_full)>;
+  const Simd<uint8_t, 8> d_full8;
+  const Repartition<T, decltype(d_full8)> d_full;
+  using V64 = VFromD<decltype(d_full8)>;
   const V64 hi64(BitCast(d8, hi).raw);
   // Move into most-significant bytes
   const V64 lo64 = ShiftLeftBytes<8 - kSize>(V64(BitCast(d8, lo).raw));
-  const V64 r = CombineShiftRightBytes<8 - kSize + kBytes>(d_full, hi64, lo64);
-  return Vec128<T, N>(r.raw);
+  const V64 r = CombineShiftRightBytes<8 - kSize + kBytes>(d_full8, hi64, lo64);
+  // After casting to full 64-bit vector of correct type, shrink to 32-bit
+  return Vec128<T, N>(BitCast(d_full, r).raw);
 }
 
 // ------------------------------ UpperHalf (ShiftRightBytes)
@@ -3494,46 +3498,49 @@ HWY_API VFromD<DW> ZipUpper(DW dw, Vec128<T, N> a, Vec128<T, N> b) {
 // ------------------------------ Combine (InterleaveLower)
 
 // Full result
-HWY_API Vec128<uint8_t> Combine(Full128<uint8_t> d, Vec128<uint8_t, 8> hi,
-                                Vec128<uint8_t, 8> lo) {
+HWY_API Vec128<uint8_t> Combine(Full128<uint8_t> /* tag */,
+                                Vec128<uint8_t, 8> hi, Vec128<uint8_t, 8> lo) {
   return Vec128<uint8_t>(vcombine_u8(lo.raw, hi.raw));
 }
-HWY_API Vec128<uint16_t> Combine(Full128<uint16_t> d, Vec128<uint16_t, 4> hi,
+HWY_API Vec128<uint16_t> Combine(Full128<uint16_t> /* tag */,
+                                 Vec128<uint16_t, 4> hi,
                                  Vec128<uint16_t, 4> lo) {
   return Vec128<uint16_t>(vcombine_u16(lo.raw, hi.raw));
 }
-HWY_API Vec128<uint32_t> Combine(Full128<uint32_t> d, Vec128<uint32_t, 2> hi,
+HWY_API Vec128<uint32_t> Combine(Full128<uint32_t> /* tag */,
+                                 Vec128<uint32_t, 2> hi,
                                  Vec128<uint32_t, 2> lo) {
   return Vec128<uint32_t>(vcombine_u32(lo.raw, hi.raw));
 }
-HWY_API Vec128<uint64_t> Combine(Full128<uint64_t> d, Vec128<uint64_t, 1> hi,
+HWY_API Vec128<uint64_t> Combine(Full128<uint64_t> /* tag */,
+                                 Vec128<uint64_t, 1> hi,
                                  Vec128<uint64_t, 1> lo) {
   return Vec128<uint64_t>(vcombine_u64(lo.raw, hi.raw));
 }
 
-HWY_API Vec128<int8_t> Combine(Full128<int8_t> d, Vec128<int8_t, 8> hi,
+HWY_API Vec128<int8_t> Combine(Full128<int8_t> /* tag */, Vec128<int8_t, 8> hi,
                                Vec128<int8_t, 8> lo) {
   return Vec128<int8_t>(vcombine_s8(lo.raw, hi.raw));
 }
-HWY_API Vec128<int16_t> Combine(Full128<int16_t> d, Vec128<int16_t, 4> hi,
-                                Vec128<int16_t, 4> lo) {
+HWY_API Vec128<int16_t> Combine(Full128<int16_t> /* tag */,
+                                Vec128<int16_t, 4> hi, Vec128<int16_t, 4> lo) {
   return Vec128<int16_t>(vcombine_s16(lo.raw, hi.raw));
 }
-HWY_API Vec128<int32_t> Combine(Full128<int32_t> d, Vec128<int32_t, 2> hi,
-                                Vec128<int32_t, 2> lo) {
+HWY_API Vec128<int32_t> Combine(Full128<int32_t> /* tag */,
+                                Vec128<int32_t, 2> hi, Vec128<int32_t, 2> lo) {
   return Vec128<int32_t>(vcombine_s32(lo.raw, hi.raw));
 }
-HWY_API Vec128<int64_t> Combine(Full128<int64_t> d, Vec128<int64_t, 1> hi,
-                                Vec128<int64_t, 1> lo) {
+HWY_API Vec128<int64_t> Combine(Full128<int64_t> /* tag */,
+                                Vec128<int64_t, 1> hi, Vec128<int64_t, 1> lo) {
   return Vec128<int64_t>(vcombine_s64(lo.raw, hi.raw));
 }
 
-HWY_API Vec128<float> Combine(Full128<float> d, Vec128<float, 2> hi,
+HWY_API Vec128<float> Combine(Full128<float> /* tag */, Vec128<float, 2> hi,
                               Vec128<float, 2> lo) {
   return Vec128<float>(vcombine_f32(lo.raw, hi.raw));
 }
 #if HWY_ARCH_ARM_A64
-HWY_API Vec128<double> Combine(Full128<double> d, Vec128<double, 1> hi,
+HWY_API Vec128<double> Combine(Full128<double> /* tag */, Vec128<double, 1> hi,
                                Vec128<double, 1> lo) {
   return Vec128<double>(vcombine_f64(lo.raw, hi.raw));
 }
@@ -3543,9 +3550,12 @@ HWY_API Vec128<double> Combine(Full128<double> d, Vec128<double, 1> hi,
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> Combine(Simd<T, N> d, Vec128<T, N / 2> hi,
                              Vec128<T, N / 2> lo) {
-  // Treat half-width input as one <= 32-bit lane, and expand to two lanes.
-  using VU = Vec128<UnsignedFromSize<N * sizeof(T) / 2>, 2>;
-  return BitCast(d, InterleaveLower(VU(lo.raw), VU(hi.raw)));
+  // First double N (only lower halves will be used).
+  const Vec128<T, N> hi2(hi.raw);
+  const Vec128<T, N> lo2(lo.raw);
+  // Repartition to two unsigned lanes (each the size of the valid input).
+  const Simd<UnsignedFromSize<N * sizeof(T) / 2>, 2> du;
+  return BitCast(d, InterleaveLower(BitCast(du, lo2), BitCast(du, hi2)));
 }
 
 // ------------------------------ ZeroExtendVector (Combine)
@@ -3658,13 +3668,16 @@ template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_API Vec128<T, N> ConcatLowerUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   constexpr size_t kSize = N * sizeof(T);
-  const Simd<uint8_t, 8> d64;
-  using V64 = VFromD<decltype(d64)>;
-  const V64 hi64(hi.raw);
+  const Repartition<uint8_t, decltype(d)> d8;
+  const Simd<uint8_t, 8> d8x8;
+  const Simd<T, 8 / sizeof(T)> d64;
+  using V8x8 = VFromD<decltype(d8x8)>;
+  const V8x8 hi8x8(BitCast(d8, hi).raw);
   // Move into most-significant bytes
-  const V64 lo64 = ShiftLeftBytes<8 - kSize>(V64(lo.raw));
-  return Vec128<T, N>(
-      CombineShiftRightBytes<8 - kSize / 2>(d64, hi64, lo64).raw);
+  const V8x8 lo8x8 = ShiftLeftBytes<8 - kSize>(V8x8(BitCast(d8, lo).raw));
+  const V8x8 r = CombineShiftRightBytes<8 - kSize / 2>(d8x8, hi8x8, lo8x8);
+  // Back to original lane type, then shrink N.
+  return Vec128<T, N>(BitCast(d64, r).raw);
 }
 
 // ------------------------------ ConcatUpperLower
@@ -3779,12 +3792,12 @@ HWY_API VFromD<Repartition<T, Simd<TI, NI>>> TableLookupBytes(
     Vec128<T, N> bytes, Vec128<TI, NI> from) {
   const Simd<T, N> d;
   const Simd<TI, NI> d_idx;
-  const Repartition<T, decltype(d_idx)> d_out;
+  const Repartition<uint8_t, decltype(d_idx)> d_idx8;
   // uint8x8
   const auto bytes8 = BitCast(Repartition<uint8_t, decltype(d)>(), bytes);
-  const auto from8 = BitCast(Repartition<uint8_t, decltype(d_idx)>(), from);
-  // First treat as index vector, then cast to lanes of T.
-  return BitCast(d_out, Vec128<TI, NI>(vtbl1_u8(bytes8.raw, from8.raw)));
+  const auto from8 = BitCast(d_idx8, from);
+  const VFromD<decltype(d_idx8)> v8(vtbl1_u8(bytes8.raw, from8.raw));
+  return BitCast(d_idx, v8);
 }
 
 // For all vector widths; ARM anyway zeroes if >= 0x10.
