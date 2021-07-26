@@ -2353,7 +2353,7 @@ HWY_API Vec128<int32_t, N> PromoteTo(Simd<int32_t, N> /* tag */,
 }
 
 template <size_t N>
-HWY_API Vec128<double, N> PromoteTo(Simd<double, N> df,
+HWY_API Vec128<double, N> PromoteTo(Simd<double, N> /* tag */,
                                     const Vec128<int32_t, N> v) {
   return Vec128<double, N>{wasm_f64x2_convert_low_i32x4(v.raw)};
 }
