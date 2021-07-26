@@ -161,6 +161,7 @@
 
 #if defined(HWY_EMULATE_SVE)
 #define HWY_BASELINE_TARGETS HWY_SVE  // does not support SVE2
+#define HWY_BASELINE_AVX3_DL 0
 #else
 
 // Also check HWY_ARCH to ensure that simulating unknown platforms ends up with
@@ -301,6 +302,11 @@
    HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
 
 #endif  // HWY_EMULATE_SVE
+
+#else
+// User already defined HWY_BASELINE_TARGETS, but we still need to define
+// HWY_BASELINE_AVX3 (matching user's definition) for HWY_CHECK_AVX3_DL.
+#define HWY_BASELINE_AVX3_DL (HWY_BASELINE_TARGETS & HWY_AVX3_DL)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
