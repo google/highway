@@ -216,8 +216,8 @@ HWY_TESTS = [
                 # but it's still enabled for :hwy.
                 "-Wno-c++98-compat-extra-semi",
             ],
-            # for test_suite. math_test is not yet supported on RVV.
-            tags = ["hwy_ops_test"] if test != "math_test" else [],
+            # for test_suite.
+            tags = ["hwy_ops_test"],
             deps = [
                 ":hwy",
                 ":hwy_test_util",

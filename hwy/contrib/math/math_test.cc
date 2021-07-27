@@ -51,8 +51,10 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
   }
 
   uint64_t max_ulp = 0;
-#if HWY_ARCH_ARM
   // Emulation is slower, so cannot afford as many.
+#if HWY_ARCH_RVV
+  constexpr UintT kSamplesPerRange = 2500;
+#elif HWY_ARCH_ARM
   constexpr UintT kSamplesPerRange = 25000;
 #else
   constexpr UintT kSamplesPerRange = 100000;
@@ -88,6 +90,25 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
             << ", Max ULP: " << max_ulp << std::endl;
 }
 
+// TODO(janwas): remove once RVV supports fractional LMUL
+#undef DEFINE_MATH_TEST_FUNC
+#if HWY_TARGET == HWY_RVV
+
+#define DEFINE_MATH_TEST_FUNC(NAME)                    \
+  HWY_NOINLINE void TestAll##NAME() {                  \
+    ForFloatTypes(ForShrinkableVectors<Test##NAME>()); \
+  }
+
+#else
+
+#define DEFINE_MATH_TEST_FUNC(NAME)                 \
+  HWY_NOINLINE void TestAll##NAME() {               \
+    ForFloatTypes(ForPartialVectors<Test##NAME>()); \
+  }
+
+#endif
+
+#undef DEFINE_MATH_TEST
 #define DEFINE_MATH_TEST(NAME, F32x1, F32xN, F32_MIN, F32_MAX, F32_ERROR, \
                          F64x1, F64xN, F64_MIN, F64_MAX, F64_ERROR)       \
   struct Test##NAME {                                                     \
@@ -102,9 +123,7 @@ void TestMath(const std::string name, T (*fx1)(T), Vec<D> (*fxN)(D, Vec<D>),
       }                                                                   \
     }                                                                     \
   };                                                                      \
-  HWY_NOINLINE void TestAll##NAME() {                                     \
-    ForFloatTypes(ForPartialVectors<Test##NAME>());                       \
-  }
+  DEFINE_MATH_TEST_FUNC(NAME)
 
 // Floating point values closest to but less than 1.0
 const float kNearOneF = BitCast<float>(0x3F7FFFFF);
