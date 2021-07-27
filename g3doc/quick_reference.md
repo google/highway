@@ -104,14 +104,17 @@ It is typically a power of two, but that is not guaranteed e.g. on SVE.
     of the largest and smallest type, and smaller `d` to be obtained via
     `Half<DLarger>`.
 
-*   Less common: pass `HWY_CAPPED(T, N) d;` as an argument to return a vector
-    which may be native width, but no more than `N` lanes have observable
-    effects such as loading/storing to memory. This is less performance-portable
-    because it may not use all available lanes. Note that the resulting lane
-    count may also be less than `N`.
+*   Less common: pass `HWY_CAPPED(T, N) d;` as an argument to return a vector or
+    mask where only the first `N` lanes have observable effects such as
+    loading/storing to memory, or being counted by `CountTrue`.
 
-    For targets (e.g. RVV) that have compile-time-unknown lane counts, such
-    vectors incur additional runtime cost in `Load` etc.
+    These may be implemented using full vectors plus additional runtime cost for
+    masking in `Load` etc. For `HWY_SCALAR`, vectors always have a single lane.
+    All other targets allow any `N <= 16/sizeof(T)`. This is useful for
+    algorithms tailored to 128-bit vectors.
+
+*   The result of `UpperHalf`/`LowerHalf` has half the lanes. To obtain a
+    corresponding `d`, use `Half<decltype(d)>`; the opposite is `Twice<>`.
 
 User-specified lane counts or tuples of vectors could cause spills on targets
 with fewer or smaller vectors. By contrast, Highway encourages vector-length

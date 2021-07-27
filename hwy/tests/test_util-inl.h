@@ -420,6 +420,7 @@ HWY_NOINLINE void AssertVecEqual(D d, const TFromD<D>* expected, Vec<D> actual,
   AssertVecEqual(d, LoadU(d, expected), actual, filename, line);
 }
 
+// Only checks the valid mask elements (those whose index < Lanes(d)).
 template <class D>
 HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
                                   const char* filename, int line) {
@@ -432,6 +433,7 @@ HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
 
   // TODO(janwas): remove RVV once implemented (cast or vse1)
 #if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
+  const size_t N = Lanes(d);
   const Repartition<uint8_t, D> d8;
   const size_t N8 = Lanes(d8);
   auto bits_a = AllocateAligned<uint8_t>(N8);
@@ -441,20 +443,45 @@ HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
   const size_t num_bytes_a = StoreMaskBits(d, a, bits_a.get());
   const size_t num_bytes_b = StoreMaskBits(d, b, bits_b.get());
   AssertEqual(num_bytes_a, num_bytes_b, type_name, filename, line, 0);
-  AssertVecEqual(d8, bits_a.get(), Load(d8, bits_b.get()), filename, line);
+  size_t i = 0;
+  // First check whole bytes (if that many elements are still valid)
+  for (; i < N / 8; ++i) {
+    if (bits_a[i] != bits_b[i]) {
+      fprintf(stderr, "Mismatch in byte %zu: %d != %d\n", i, bits_a[i],
+              bits_b[i]);
+      Print(d8, "expect", Load(d8, bits_a.get()), 0, N8);
+      Print(d8, "actual", Load(d8, bits_b.get()), 0, N8);
+      hwy::Abort(filename, line, "Masks not equal");
+    }
+  }
+  // Then the valid bit(s) in the last byte.
+  const size_t remainder = N % 8;
+  if (remainder != 0) {
+    const int mask = (1 << remainder) - 1;
+    const int valid_a = bits_a[i] & mask;
+    const int valid_b = bits_b[i] & mask;
+    if (valid_a != valid_b) {
+      fprintf(stderr, "Mismatch in last byte %zu: %d != %d\n", i, valid_a,
+              valid_b);
+      Print(d8, "expect", Load(d8, bits_a.get()), 0, N8);
+      Print(d8, "actual", Load(d8, bits_b.get()), 0, N8);
+      hwy::Abort(filename, line, "Masks not equal");
+    }
+  }
 #endif
 }
 
+// Only sets valid elements (those whose index < Lanes(d)). This helps catch
+// tests that are not masking off the (undefined) upper mask elements.
 template <class D>
 HWY_NOINLINE Mask<D> MaskTrue(const D d) {
-  const auto v0 = Zero(d);
-  return Eq(v0, v0);
+  return FirstN(d, Lanes(d));
 }
 
 template <class D>
 HWY_NOINLINE Mask<D> MaskFalse(const D d) {
-  // Lt is only for signed types and we cannot yet cast mask types.
-  return Eq(Zero(d), Set(d, 1));
+  const auto zero = Zero(RebindToSigned<D>());
+  return RebindMask(d, Lt(zero, zero));
 }
 
 #ifndef HWY_ASSERT_EQ

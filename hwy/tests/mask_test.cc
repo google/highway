@@ -36,7 +36,7 @@ struct TestFromVec {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
 
-    std::fill(lanes.get(), lanes.get() + N, T(0));
+    memset(lanes.get(), 0, N * sizeof(T));
     const auto actual_false = MaskFromVec(Load(d, lanes.get()));
     HWY_ASSERT_MASK_EQ(d, MaskFalse(d), actual_false);
 
@@ -90,7 +90,7 @@ struct TestIfThenElse {
     const size_t N = Lanes(d);
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
-    auto mask_lanes = AllocateAligned<TI>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
 
     // Each lane should have a chance of having mask=true.
@@ -98,25 +98,25 @@ struct TestIfThenElse {
       for (size_t i = 0; i < N; ++i) {
         in1[i] = static_cast<T>(Random32(&rng));
         in2[i] = static_cast<T>(Random32(&rng));
-        mask_lanes[i] = Random32(&rng) & 16;
+        bool_lanes[i] = (Random32(&rng) & 16) ? TI(1) : TI(0);
       }
 
       const auto v1 = Load(d, in1.get());
       const auto v2 = Load(d, in2.get());
-      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
+      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = (mask_lanes[i]) ? in1[i] : in2[i];
+        expected[i] = bool_lanes[i] ? in1[i] : in2[i];
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElse(mask, v1, v2));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = mask_lanes[i] ? in1[i] : T(0);
+        expected[i] = bool_lanes[i] ? in1[i] : T(0);
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElseZero(mask, v1));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = mask_lanes[i] ? T(0) : in2[i];
+        expected[i] = bool_lanes[i] ? T(0) : in2[i];
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenZeroElse(mask, v2));
     }
@@ -135,15 +135,15 @@ struct TestMaskVec {
     using TI = MakeSigned<T>;  // For mask > 0 comparison
     const Rebind<TI, D> di;
     const size_t N = Lanes(d);
-    auto mask_lanes = AllocateAligned<TI>(N);
+    auto bool_lanes = AllocateAligned<TI>(N);
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        mask_lanes[i] = static_cast<TI>(Random32(&rng) & 1);
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
       }
 
-      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
+      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
       HWY_ASSERT_MASK_EQ(d, mask, MaskFromVec(VecFromMask(d, mask)));
     }
   }
@@ -299,25 +299,25 @@ HWY_NOINLINE void TestAllStoreMaskBits() {
 struct TestCountTrue {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(di);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    memset(bool_lanes.get(), 0, N * sizeof(TI));
+
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = HWY_MIN(N, size_t(10));
-
-    auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, T(1));
 
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {
       // Number of zeros written = number of mask lanes that are true.
       size_t expected = 0;
       for (size_t i = 0; i < max_lanes; ++i) {
-        lanes[i] = T(1);
-        if (code & (1ull << i)) {
-          ++expected;
-          lanes[i] = T(0);
-        }
+        const bool is_true = (code & (1ull << i)) != 0;
+        bool_lanes[i] = is_true ? T(1) : T(0);
+        expected += is_true;
       }
 
-      const auto mask = Eq(Load(d, lanes.get()), Zero(d));
+      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
       const size_t actual = CountTrue(d, mask);
       HWY_ASSERT_EQ(expected, actual);
     }
@@ -331,26 +331,25 @@ HWY_NOINLINE void TestAllCountTrue() {
 struct TestFindFirstTrue {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(di);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    memset(bool_lanes.get(), 0, N * sizeof(TI));
+
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = HWY_MIN(N, size_t(10));
-
-    auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, T(1));
 
     HWY_ASSERT_EQ(intptr_t(-1), FindFirstTrue(d, MaskFalse(d)));
     HWY_ASSERT_EQ(intptr_t(0), FindFirstTrue(d, MaskTrue(d)));
 
     for (size_t code = 1; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
-        lanes[i] = T(1);
-        if (code & (1ull << i)) {
-          lanes[i] = T(0);
-        }
+        bool_lanes[i] = (code & (1ull << i)) ? T(1) : T(0);
       }
 
       const intptr_t expected = Num0BitsBelowLS1Bit_Nonzero32(code);
-      const auto mask = Eq(Load(d, lanes.get()), Zero(d));
+      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
       const intptr_t actual = FindFirstTrue(d, mask);
       HWY_ASSERT_EQ(expected, actual);
     }
@@ -367,9 +366,11 @@ struct TestLogicalMask {
     const auto m0 = MaskFalse(d);
     const auto m_all = MaskTrue(d);
 
-    const size_t N = Lanes(d);
-    auto lanes = AllocateAligned<T>(N);
-    std::fill(lanes.get(), lanes.get() + N, T(1));
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(di);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    memset(bool_lanes.get(), 0, N * sizeof(TI));
 
     HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
     HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
@@ -378,13 +379,10 @@ struct TestLogicalMask {
     const size_t max_lanes = HWY_MIN(N, size_t(6));
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
-        lanes[i] = T(1);
-        if (code & (1ull << i)) {
-          lanes[i] = T(0);
-        }
+        bool_lanes[i] = (code & (1ull << i)) ? T(1) : T(0);
       }
 
-      const auto m = Eq(Load(d, lanes.get()), Zero(d));
+      const auto m = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
 
       HWY_ASSERT_MASK_EQ(d, m0, Xor(m, m));
       HWY_ASSERT_MASK_EQ(d, m0, AndNot(m, m));
