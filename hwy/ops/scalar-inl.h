@@ -216,7 +216,7 @@ HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
 
 template <typename T>
 HWY_API Vec1<T> PopulationCount(Vec1<T> v) {
-  return Vec1<T>(PopCount(v.raw));
+  return Vec1<T>(static_cast<T>(PopCount(v.raw)));
 }
 
 // ------------------------------ Mask

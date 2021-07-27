@@ -3033,7 +3033,8 @@ HWY_INLINE Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
       Vec256<uint16_t>{_mm256_alignr_epi8(shift1_multiple4.raw, lo_zz, 14)};
 
   // Make the shift conditional on the lower bit of count0.
-  const auto m_odd = TestBit(Set(du, count0), Set(du, 1));
+  const auto m_odd =
+      TestBit(Set(du, static_cast<uint16_t>(count0)), Set(du, 1));
   const auto shifted1 = IfThenElse(m_odd, shift1_multiple2, shift1_multiple4);
 
   // Blend the lower and shifted upper parts.

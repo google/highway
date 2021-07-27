@@ -239,7 +239,7 @@ class TestStoreMaskBits {
     for (size_t rep = 0; rep < 100; ++rep) {
       // Generate random mask pattern.
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = static_cast<T>((rng() & 1024) ? 1 : 0);
+        bool_lanes[i] = static_cast<TI>((rng() & 1024) ? 1 : 0);
       }
       const auto bools = Load(di, bool_lanes.get());
       const auto mask = Gt(bools, Zero(di));

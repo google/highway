@@ -425,7 +425,8 @@ class TestIntFromFloat {
         for (uint64_t ofs : ofs_table) {
           const int64_t mag = (int64_t(1) << shift) + ofs;
           const int64_t val = sign ? mag : -mag;
-          HWY_ASSERT_VEC_EQ(di, Set(di, val), ConvertTo(di, Set(df, val)));
+          HWY_ASSERT_VEC_EQ(di, Set(di, val),
+                            ConvertTo(di, Set(df, static_cast<TF>(val))));
         }
       }
     }
