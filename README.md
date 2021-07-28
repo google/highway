@@ -15,9 +15,10 @@ applying the same operation to 'lanes'.
 ## Current status
 
 Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, NEON (ARMv7 and v8),
-WASM SIMD. SVE compiles and has been validated using farm_sve (see
-acknowledgments), but is not yet continuously tested. SVE2 is implemented but
-not yet validated. A subset of RVV is implemented and tested with GCC and QEMU.
+SVE, WASM SIMD.
+
+SVE is tested using farm_sve (see acknowledgments). SVE2 is implemented but not
+yet validated. A subset of RVV is implemented and tested with GCC and QEMU.
 Work is underway to compile using LLVM, which has different intrinsics with AVL.
 
 Version 0.11 is considered stable enough to use in other projects, and is
