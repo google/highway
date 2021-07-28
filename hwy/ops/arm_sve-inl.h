@@ -19,7 +19,7 @@
 #include <stdint.h>
 
 #if defined(HWY_EMULATE_SVE)
-#include "hwy/ops/farm_sve.h"
+#include "third_party/farm_sve/farm_sve.h"
 #else
 #include <arm_sve.h>
 #endif

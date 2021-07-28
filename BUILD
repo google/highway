@@ -41,6 +41,13 @@ selects.config_setting_group(
     ],
 )
 
+config_setting(
+    name = "emulate_sve",
+    values = {
+        "copt": "-DHWY_EMULATE_SVE",
+    },
+)
+
 # Additional warnings for Clang OR GCC (skip for MSVC)
 CLANG_GCC_COPTS = [
     "-Werror",
@@ -119,6 +126,10 @@ cc_library(
         "hwy/ops/x86_256-inl.h",
         "hwy/ops/x86_512-inl.h",
     ],
+    deps = select({
+        ":emulate_sve": ["//third_party/farm_sve"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
