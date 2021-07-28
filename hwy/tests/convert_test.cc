@@ -34,7 +34,10 @@ struct TestBitCast {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Repartition<ToT, D> dto;
-    HWY_ASSERT_EQ(Lanes(d) * sizeof(T), Lanes(dto) * sizeof(ToT));
+    const size_t N = Lanes(d);
+    const size_t Nto = Lanes(dto);
+    if (N == 0 || Nto == 0) return;
+    HWY_ASSERT_EQ(N * sizeof(T), Nto * sizeof(ToT));
     const auto vf = Iota(d, 1);
     const auto vt = BitCast(dto, vf);
     // Must return the same bits

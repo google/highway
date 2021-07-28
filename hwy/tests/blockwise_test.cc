@@ -303,6 +303,7 @@ struct TestInterleaveUpper {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
+    if (N == 1) return;
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
@@ -634,15 +635,15 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-HWY_BEFORE_TEST(HwySwizzleTest);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftBytes);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllShiftLanes);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllBroadcast);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupBytes);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllInterleave);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllZip);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCombineShiftRight);
-HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSpecialShuffles);
+HWY_BEFORE_TEST(HwyBlockwiseTest);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftBytes);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftLanes);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllBroadcast);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytes);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllInterleave);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZip);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllCombineShiftRight);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllSpecialShuffles);
 }  // namespace hwy
 
 // Ought not to be necessary, but without this, no tests run on RVV.

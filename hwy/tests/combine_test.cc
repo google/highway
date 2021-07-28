@@ -175,6 +175,7 @@ struct TestConcat {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
+    if (N == 1) return;
     const size_t half_bytes = N * sizeof(T) / 2;
 
     auto hi = AllocateAligned<T>(N);

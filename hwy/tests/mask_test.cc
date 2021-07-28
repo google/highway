@@ -279,6 +279,7 @@ class TestStoreMaskBits {
         if (bit != 0) {
           fprintf(stderr, "%s: bit #%zu should be zero\n",
                   TypeName(T(), N).c_str(), i);
+          Print(di, "bools", bools, 0, N);
           Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
                 expected_num_bytes);
           Print(d_bits, "actual bytes", Load(d_bits, actual.get()), 0,
@@ -412,16 +413,16 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-HWY_BEFORE_TEST(HwyLogicalTest);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFromVec);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFirstN);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfThenElse);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllMaskVec);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllAllTrueFalse);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllStoreMaskBits);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCountTrue);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllFindFirstTrue);
-HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalMask);
+HWY_BEFORE_TEST(HwyMaskTest);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFromVec);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFirstN);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllIfThenElse);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskVec);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllAllTrueFalse);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllStoreMaskBits);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllCountTrue);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFindFirstTrue);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllLogicalMask);
 }  // namespace hwy
 
 // Ought not to be necessary, but without this, no tests run on RVV.

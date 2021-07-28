@@ -146,7 +146,7 @@ struct TestCompress {
         const uint64_t bits = Random32(&rng);
         in_lanes[i] = T();  // cannot initialize float16_t directly.
         CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
-        mask_lanes[i] = static_cast<TI>(Random32(&rng) & 1);
+        mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (mask_lanes[i] > 0) {
           expected[expected_pos++] = in_lanes[i];
         }
@@ -159,9 +159,11 @@ struct TestCompress {
       // Upper lanes are undefined. Modified from AssertVecEqual.
       for (size_t i = 0; i < expected_pos; ++i) {
         if (!IsEqual(expected[i], actual[i])) {
-          fprintf(stderr, "Mismatch at %zu:\n\n", i);
-          Print(d, "expect", Load(d, expected.get()), 0, Lanes(d));
-          Print(d, "actual", Load(d, actual.get()), 0, Lanes(d));
+          fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
+          Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
+          Print(d, "in", in, 0, N);
+          Print(d, "expect", Load(d, expected.get()), 0, N);
+          Print(d, "actual", Load(d, actual.get()), 0, N);
           HWY_ASSERT(false);
         }
       }
@@ -172,9 +174,11 @@ struct TestCompress {
       HWY_ASSERT_EQ(expected_pos, num_written);
       for (size_t i = 0; i < expected_pos; ++i) {
         if (!IsEqual(expected[i], actual[i])) {
-          fprintf(stderr, "Mismatch at %zu:\n\n", i);
-          Print(d, "expect", Load(d, expected.get()), 0, Lanes(d));
-          Print(d, "actual", Load(d, actual.get()), 0, Lanes(d));
+          fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
+          Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
+          Print(d, "in", in, 0, N);
+          Print(d, "expect", Load(d, expected.get()), 0, N);
+          Print(d, "actual", Load(d, actual.get()), 0, N);
           HWY_ASSERT(false);
         }
       }

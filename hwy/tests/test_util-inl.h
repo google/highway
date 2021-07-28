@@ -506,7 +506,10 @@ template <bool valid>
 struct CallTestIf {
   template <typename T, size_t N, class Test>
   static void Do() {
-    Test()(T(), Simd<T, N>());
+    const Simd<T, N> d;
+    // Skip invalid fractions (e.g. 1/8th of u32x4).
+    if (Lanes(d) == 0) return;
+    Test()(T(), d);
   }
 };
 // Avoids instantiating tests for invalid N (a smaller fraction than 1/8th).
