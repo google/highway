@@ -26,10 +26,17 @@
 namespace hwy {
 
 // Returns (cached) bitfield of enabled targets that are supported on this CPU.
-// Implemented in supported_targets.cc; unconditionally compiled to support the
-// use case of binary-only distributions. The HWY_SUPPORTED_TARGETS wrapper may
-// allow eliding calls to this function.
+// Implemented in targets.cc; unconditionally compiled to support the use case
+// of binary-only distributions. The HWY_SUPPORTED_TARGETS wrapper may allow
+// eliding calls to this function.
 uint32_t SupportedTargets();
+
+// Evaluates to a function call, or literal if there is a single target.
+#if (HWY_TARGETS & (HWY_TARGETS - 1)) == 0
+#define HWY_SUPPORTED_TARGETS HWY_TARGETS
+#else
+#define HWY_SUPPORTED_TARGETS hwy::SupportedTargets()
+#endif
 
 // Disable from runtime dispatch the mask of compiled in targets. Targets that
 // were not enabled at compile time are ignored. This function is useful to
@@ -39,17 +46,9 @@ uint32_t SupportedTargets();
 // returns at least the baseline target.
 void DisableTargets(uint32_t disabled_targets);
 
-// Single target: reduce code size by eliding the call and conditional branches
-// inside Choose*() functions.
-#if (HWY_TARGETS & (HWY_TARGETS - 1)) == 0
-#define HWY_SUPPORTED_TARGETS HWY_TARGETS
-#else
-#define HWY_SUPPORTED_TARGETS hwy::SupportedTargets()
-#endif
-
 // Set the mock mask of CPU supported targets instead of the actual CPU
 // supported targets computed in SupportedTargets(). The return value of
-// SupportedTargets() will still be affected by the DisabledTargets() mask
+// SupportedTargets() will still be affected by the DisableTargets() mask
 // regardless of this mock, to prevent accidentally adding targets that are
 // known to be buggy in the current CPU. Call with a mask of 0 to disable the
 // mock and use the actual CPU supported targets instead.
