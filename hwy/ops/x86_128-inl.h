@@ -296,7 +296,7 @@ HWY_API uint64_t GetLane(const Vec128<uint64_t, N> v) {
   Store(v, Simd<uint64_t, N>(), lanes);
   return lanes[0];
 #else
-  return _mm_cvtsi128_si64(v.raw);
+  return static_cast<uint64_t>(_mm_cvtsi128_si64(v.raw));
 #endif
 }
 template <size_t N>
