@@ -33,11 +33,6 @@ namespace hwy {
 //------------------------------------------------------------------------------
 // Shorthand for descriptors (defined in shared-inl.h) used to select overloads.
 
-// Because Highway functions take descriptor and/or vector arguments, ADL finds
-// these functions without requiring users in project::HWY_NAMESPACE to
-// qualify Highway functions with hwy::HWY_NAMESPACE. However, ADL rules for
-// templates require `using hwy::HWY_NAMESPACE::ShiftLeft;` etc. declarations.
-
 // HWY_FULL(T[,LMUL=1]) is a native vector/group. LMUL is the number of
 // registers in the group, and is ignored on targets that do not support groups.
 #define HWY_FULL1(T) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T)>

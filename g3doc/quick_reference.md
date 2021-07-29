@@ -179,8 +179,14 @@ functions reside in `project::[nested]::HWY_NAMESPACE`. Highway functions
 generally take either a `Simd` or vector/mask argument. For targets where
 vectors and masks are defined in namespace `hwy`, the functions will be found
 via Argument-Dependent Lookup. However, this does not work for function
-templates, and RVV and SVE both use builtin vectors. Thus we recommend a `using
-hwy::HWY_NAMESPACE;` directive inside `project::[nested]::HWY_NAMESPACE`.
+templates, and RVV and SVE both use builtin vectors. There are three options for
+portable code, in descending order of preference:
+
+-   `namespace hn = highway::HWY_NAMESPACE;` alias used to prefix ops, e.g.
+    `hn::LoadDup128(..)`;
+-   `using hwy::HWY_NAMESPACE::LoadDup128;` declarations for each op used;
+-   `using hwy::HWY_NAMESPACE;` directive. This is generally discouraged,
+    especially for SIMD code residing in a header.
 
 Note that overloaded operators are not yet supported on RVV and SVE; code that
 wishes to run on all targets until that is resolved can use functions such as
