@@ -193,8 +193,7 @@
 
 // <= 16 bytes: exact size (from HWY_CAPPED). 2048 bytes denotes a full vector.
 // In between: fraction of the full length, a power of two; HWY_LANES(T)/4
-// denotes 1/4 the actual length (not necessarily a power of two because SVE
-// allows integer multiples of 128 bit).
+// denotes 1/4 the actual length (a power of two because we use SV_POW2).
 //
 // The upper bound for SVE is actually 256 bytes, but we need to be able to
 // differentiate 1/8th of a vector, subsequently demoted to 1/4 the lane width,
@@ -241,9 +240,9 @@
 #define HWY_ALIGN
 
 // Arbitrary constant, not the actual lane count! Large enough that we can
-// mul/div by 8 for LMUL. Value matches kMaxVectorSize, see base.h.
+// mul/div by 8 for LMUL.
+// TODO(janwas): update to actual upper bound 64K, plus headroom for 1/8.
 #define HWY_LANES(T) (4096 / sizeof(T))
-
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1

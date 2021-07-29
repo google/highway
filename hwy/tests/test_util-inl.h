@@ -597,10 +597,17 @@ template <class Test, size_t kFactor = 2>
 struct ForExtendableVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
-#if HWY_TARGET == HWY_RVV
-    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test>::Do();
-#elif HWY_TARGET == HWY_SCALAR
+#if HWY_TARGET == HWY_SCALAR
     // not supported
+#elif HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test>::Do();
+    // TODO(janwas): also capped
+    // ForeachSizeR<T, (16 / sizeof(T)) / kFactor, 1, Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    // Capped
+    ForeachSizeR<T, (16 / sizeof(T)) / kFactor, 1, Test>::Do();
+    // Fractions
+    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T) / 8, Test>::Do();
 #else
     ForeachSizeR<T, HWY_LANES(T) / kFactor, 1, Test>::Do();
 #endif
@@ -613,12 +620,10 @@ template <class Test, size_t kFactor = 2>
 struct ForPromoteVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
-#if HWY_TARGET == HWY_RVV
-    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test>::Do();
-#elif HWY_TARGET == HWY_SCALAR
+#if HWY_TARGET == HWY_SCALAR
     ForeachSizeR<T, 1, 1, Test>::Do();
 #else
-    ForeachSizeR<T, HWY_LANES(T) / kFactor, 1, Test>::Do();
+    return ForExtendableVectors<Test, kFactor>()(T());
 #endif
   }
 };

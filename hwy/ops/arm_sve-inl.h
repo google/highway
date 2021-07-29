@@ -190,35 +190,40 @@ HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
 // ------------------------------ Lanes
 
 namespace detail {
-// Returns actual lanes of a full hardware vector, using `d` only to determine
-// the element width, without capping the number of lanes.
-#define HWY_SVE_LANES(BASE, CHAR, BITS, NAME, OP)          \
-  template <size_t N>                                      \
-  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) /* d */) {  \
-    return sv##OP##_##CHAR##BITS(HWY_SVE_V(BASE, BITS)()); \
-  }
-HWY_SVE_FOREACH(HWY_SVE_LANES, HardwareLanes, len)
-#undef HWY_SVE_LANES
 
-// Returns `actual` capped according to `d`, which is either an upper limit,
-// or power-of-two divisor 1..8 encoded as HWY_LANES(T) / divisor.
-template <typename T, size_t N>
-constexpr size_t CappedLanes(Simd<T, N> /* d */, size_t actual) {
-  static_assert(N <= HWY_LANES(T), "N cannot exceed a full vector");
-
-  return (N <= 16 / sizeof(T))
-             ? HWY_MIN(actual, N)
-             // Round up just in case - expected to be unnecessary because
-             // StoreMaskBits has actual = HardwareLanes() >= 16 (bytes).
-             : (actual + (HWY_LANES(T) / N) - 1) / (HWY_LANES(T) / N);
+// Returns actual lanes of a hardware vector, rounded down to a power of two.
+HWY_INLINE size_t HardwareLanes(hwy::SizeTag<1> /* tag */) {
+  return svcntb_pat(SV_POW2);
+}
+HWY_INLINE size_t HardwareLanes(hwy::SizeTag<2> /* tag */) {
+  return svcnth_pat(SV_POW2);
+}
+HWY_INLINE size_t HardwareLanes(hwy::SizeTag<8> /* tag */) {
+  return svcntd_pat(SV_POW2);
+}
+HWY_INLINE size_t HardwareLanes(hwy::SizeTag<4> /* tag */) {
+  return svcntw_pat(SV_POW2);
 }
 
 }  // namespace detail
 
-// Returns actual number of lanes capped according to `d` (see above).
-template <typename T, size_t N>
-HWY_API size_t Lanes(Simd<T, N> d) {
-  return detail::CappedLanes(d, detail::HardwareLanes(d));
+// Capped to <= 128-bit: SVE is at least that large, so no need to query actual.
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API constexpr size_t Lanes(Simd<T, N> /* tag */) {
+  return N;
+}
+
+// Returns actual number of lanes after dividing by div={1,2,4,8}.
+// May return 0 if div > 16/sizeof(T): there is no "1/8th" of a u32x4, but it
+// would be valid for u32x8 (i.e. hardware vectors >= 256 bits).
+template <typename T, size_t N, HWY_IF_GT128(T, N)>
+HWY_API size_t Lanes(Simd<T, N> /* tag */) {
+  static_assert(N <= HWY_LANES(T), "N cannot exceed a full vector");
+
+  const size_t actual = detail::HardwareLanes(hwy::SizeTag<sizeof(T)>());
+  const size_t div = HWY_LANES(T) / N;
+  static_assert(div <= 8, "Invalid N - must be <=128 bit, or >=1/8th");
+  return actual / div;
 }
 
 // ================================================== MASK INIT
@@ -237,7 +242,7 @@ HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
 namespace detail {
 
 // All-true mask from a macro
-#define HWY_SVE_PTRUE(BITS) svptrue_b##BITS()
+#define HWY_SVE_PTRUE(BITS) svptrue_pat_b##BITS(SV_POW2)
 
 #define HWY_SVE_WRAP_PTRUE(BASE, CHAR, BITS, NAME, OP) \
   template <size_t N>                                  \
@@ -609,7 +614,7 @@ HWY_API svbool_t Not(svbool_t m) {
   // We don't know the lane type, so assume 8-bit. For larger types, this will
   // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
   // correspond to the lowest byte in the lane. Per ARM, such bits are ignored.
-  return svnot_b_z(svptrue_b8(), m);
+  return svnot_b_z(HWY_SVE_PTRUE(8), m);
 }
 HWY_API svbool_t And(svbool_t a, svbool_t b) {
   return svand_b_z(b, b, a);  // same order as AndNot for consistency
@@ -634,6 +639,20 @@ HWY_API svbool_t Xor(svbool_t a, svbool_t b) {
 
 HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE, CountTrue, cntp)
 #undef HWY_SVE_COUNT_TRUE
+
+// For 16-bit Compress: full vector, not limited to SV_POW2.
+namespace detail {
+
+#define HWY_SVE_COUNT_TRUE_FULL(BASE, CHAR, BITS, NAME, OP)     \
+  template <size_t N>                                           \
+  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) d, svbool_t m) { \
+    return sv##OP##_b##BITS(svptrue_b##BITS(), m);              \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE_FULL, CountTrueFull, cntp)
+#undef HWY_SVE_COUNT_TRUE_FULL
+
+}  // namespace detail
 
 // ------------------------------ AllFalse
 template <typename T, size_t N>
@@ -753,33 +772,14 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
     return sv##OP##_##CHAR##BITS(detail::Mask(d), p);      \
   }
 
-#if defined(HWY_EMULATE_SVE)  // might not have set enough bits
-
-#define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, NAME, OP)                  \
-  template <size_t N>                                                    \
-  HWY_API HWY_SVE_V(BASE, BITS)                                          \
-      NAME(HWY_SVE_D(BASE, BITS, N) d,                                   \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {               \
-    /* Predicate governs the 128 individual bits, so set to all-true. */ \
-    svbool_t pg = svptrue_b8();                                          \
-    for (size_t i = FARM_NB_BITS_IN_VEC / 8; i < 128; ++i) {             \
-      pg.vec[i] = true;                                                  \
-    }                                                                    \
-    return sv##OP##_##CHAR##BITS(pg, p);                                 \
+#define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, NAME, OP)    \
+  template <size_t N>                                      \
+  HWY_API HWY_SVE_V(BASE, BITS)                            \
+      NAME(HWY_SVE_D(BASE, BITS, N) d,                     \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
+    /* All-true predicate to load all 128 bits. */         \
+    return sv##OP##_##CHAR##BITS(HWY_SVE_PTRUE(8), p);     \
   }
-
-#else
-
-#define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, NAME, OP)            \
-  template <size_t N>                                              \
-  HWY_API HWY_SVE_V(BASE, BITS)                                    \
-      NAME(HWY_SVE_D(BASE, BITS, N) d,                             \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {         \
-    /* We want to load all of the 128 bits, so set to all-true. */ \
-    return sv##OP##_##CHAR##BITS(svptrue_b8(), p);                 \
-  }
-
-#endif
 
 #define HWY_SVE_STORE(BASE, CHAR, BITS, NAME, OP)                        \
   template <size_t N>                                                    \
@@ -1331,8 +1331,10 @@ HWY_API V Compress(V v, svbool_t mask16) {
   const V v16H = detail::ConcatEven(evenH, evenH);
 
   // We need to combine two vectors of non-constexpr length, so the only option
-  // is Splice, which requires us to synthesize a mask.
-  const auto compressed_maskL = FirstN(d16, CountTrue(dw, mask32L));
+  // is Splice, which requires us to synthesize a mask. NOTE: this function uses
+  // full vectors (SV_ALL instead of SV_POW2), hence we need unmasked svcnt.
+  const size_t countL = detail::CountTrueFull(dw, mask32L);
+  const auto compressed_maskL = FirstN(d16, countL);
   return detail::Splice(v16H, v16L, compressed_maskL);
 }
 
@@ -1362,8 +1364,7 @@ namespace detail {
 // offsets are implicitly relative to the start of their 128-bit block.
 template <typename T, size_t N>
 constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
-  // Honor <= 128-bit limit like CappedLanes, without also adopting its
-  // partial vector scheme, because vectors are partitioned into blocks.
+  // We might have a capped vector smaller than a block, so honor that.
   return HWY_MIN(16 / sizeof(T), N);
 }
 
@@ -1558,9 +1559,7 @@ HWY_API V ShiftRightBytes(const D d, const V v) {
 // ------------------------------ InterleaveLower
 
 namespace detail {
-
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipLower, zip1)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipUpper, zip2)
 }  // namespace detail
 
 template <class D, class V>
@@ -1583,24 +1582,38 @@ HWY_API V InterleaveLower(const V a, const V b) {
 
 // ------------------------------ InterleaveUpper
 
-template <typename T, size_t N, HWY_IF_GE128(T, N),
-          class V = VFromD<Simd<T, N>>>
-HWY_API V InterleaveUpper(Simd<T, N> d, const V a, const V b) {
+// Full vector: guaranteed to have at least one block
+template <typename T, class V = VFromD<Full<T>>>
+HWY_API V InterleaveUpper(Simd<T, HWY_LANES(T)> d, const V a, const V b) {
   // Move upper halves of blocks to lower half of vector.
   const Repartition<uint64_t, decltype(d)> d64;
   const auto a64 = BitCast(d64, a);
   const auto b64 = BitCast(d64, b);
   const auto a_blocks = detail::ConcatOdd(a64, a64);
   const auto b_blocks = detail::ConcatOdd(b64, b64);
-
   return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
 }
 
+// Capped: less than one block
 template <typename T, size_t N, HWY_IF_LE64(T, N), class V = VFromD<Simd<T, N>>>
 HWY_API V InterleaveUpper(Simd<T, N> d, const V a, const V b) {
   static_assert(IsSame<T, TFromV<V>>(), "D/V mismatch");
   const Half<decltype(d)> d2;
   return InterleaveLower(d, UpperHalf(d2, a), UpperHalf(d2, b));
+}
+
+// Partial: need runtime check
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) && N * sizeof(T) >= 16)>* = nullptr,
+          class V = VFromD<Simd<T, N>>>
+HWY_API V InterleaveUpper(Simd<T, N> d, const V a, const V b) {
+  static_assert(IsSame<T, TFromV<V>>(), "D/V mismatch");
+  // Less than one block: treat as capped
+  if (Lanes(d) * sizeof(T) < 16) {
+    const Half<decltype(d)> d2;
+    return InterleaveLower(d, UpperHalf(d2, a), UpperHalf(d2, b));
+  }
+  return InterleaveUpper(Full<T>(), a, b);
 }
 
 // ------------------------------ ZipLower
@@ -1710,11 +1723,19 @@ HWY_API size_t StoreMaskBits(Simd<T, N> d, svbool_t m, uint8_t* p) {
   x = Or(x, BitCast(d8, ShiftRight<14>(BitCast(d32, x))));
   x = Or(x, BitCast(d8, ShiftRight<28>(BitCast(d64, x))));
 
-  // Round up for partial vectors < 8 bytes.
-  const size_t num_bytes = (Lanes(d) + 8 - 1) / 8;
+  const size_t num_bits = Lanes(d);
+  const size_t num_bytes = (num_bits + 8 - 1) / 8;  // Round up, see below
 
   // Truncate to 8 bits and store.
   svst1b_u64(FirstN(d64, num_bytes), p, BitCast(d64, x));
+
+  // Non-full byte, need to clear the undefined upper bits. Can happen for
+  // capped/partial vectors or large T and small hardware vectors.
+  if (num_bits < 8) {
+    const int mask = (1 << num_bits) - 1;
+    p[num_bytes - 1] = static_cast<uint8_t>(p[num_bytes - 1] & mask);
+  }
+  // Else: we wrote full bytes because num_bits is a power of two >= 8.
 
   return num_bytes;
 }

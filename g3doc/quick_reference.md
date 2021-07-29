@@ -21,7 +21,7 @@ The public headers are:
     but allows declaring functions implemented out of line.
 
 *   hwy/base.h: included from headers that only need compiler/platform-dependent
-    definitions (e.g. `HWY_ALIGN_MAX` or `PopCount`) without the full highway.h.
+    definitions (e.g. `PopCount`) without the full highway.h.
 
 *   hwy/foreach_target.h: re-includes the translation unit (specified by
     `HWY_TARGET_INCLUDE`) once per enabled target to generate code from the same
@@ -55,16 +55,6 @@ namespace HWY_NAMESPACE {
 HWY_AFTER_NAMESPACE();
 ```
 
-## Preprocessor macros
-
-*   `HWY_ALIGN`: Ensures an array is aligned and suitable for Load()/Store()
-    functions. Example: `HWY_ALIGN float lanes[4];` Note that arrays are mainly
-    useful for 128-bit SIMD, or `LoadDup128`; otherwise, use dynamic allocation.
-
-*   `HWY_ALIGN_MAX`: As `HWY_ALIGN`, but aligns to an upper bound suitable for
-    all targets on this platform. Use this for caller of SIMD modules, e.g. for
-    arrays used as arguments.
-
 ## Vector and descriptor types
 
 Highway vectors consist of one or more 'lanes' of the same built-in type
@@ -86,7 +76,13 @@ Simd<T, N>` and return an actual vector of unspecified type.
 `N` is target-dependent and not directly user-specified. The actual lane count
 may not be known at compile time, but can be obtained via `Lanes(d)`. Use this
 value, which is potentially different from `N`, to increment loop counters etc.
-It is typically a power of two, but that is not guaranteed e.g. on SVE.
+
+The actual lane count is guaranteed to be a power of two, even on SVE hardware
+where vectors can be a multiple of 128 bits (there, the extra lanes remain
+unused). This simplifies alignment: remainders can be computed as `count &
+(Lanes(d) - 1)` instead of an expensive modulo. It also ensures loop trip counts
+that are a large power of two (at least `MaxLanes`) are evenly divisible by the
+lane count, thus avoiding the need for a second loop to handle remainders.
 
 `d` lvalues (a tag, NOT actual vector) are typically obtained using two aliases:
 
@@ -105,8 +101,8 @@ It is typically a power of two, but that is not guaranteed e.g. on SVE.
     `Half<DLarger>`.
 
 *   Less common: pass `HWY_CAPPED(T, N) d;` as an argument to return a vector or
-    mask where only the first `N` lanes have observable effects such as
-    loading/storing to memory, or being counted by `CountTrue`.
+    mask where only the first `N` (a power of two) lanes have observable effects
+    such as loading/storing to memory, or being counted by `CountTrue`.
 
     These may be implemented using full vectors plus additional runtime cost for
     masking in `Load` etc. For `HWY_SCALAR`, vectors always have a single lane.
@@ -122,10 +118,9 @@ agnostic code, which is more performance-portable.
 
 Given that lane counts are potentially compile-time-unknown, storage for vectors
 should be dynamically allocated, e.g. via `AllocateAligned(Lanes(d))`. For
-applications that require a compile-time estimate, `MaxLanes(d)` returns the `N`
-from `Simd<T, N>`, which is NOT necessarily the actual lane count. This is
-DISCOURAGED because it is not guaranteed to be an upper bound (RVV vectors may
-be very large) and some compilers are not able to interpret it as constexpr.
+applications that require a compile-time bound, `MaxLanes(d)` returns the `N`
+from `Simd<T, N>`, which is a (loose) upper bound, NOT necessarily the actual
+lane count. Note that some compilers are not able to interpret it as constexpr.
 
 For mixed-precision code (e.g. `uint8_t` lanes promoted to `float`), tags for
 the smaller types must be obtained from those of the larger type (e.g. via
@@ -926,6 +921,21 @@ than normal SIMD operations and are typically used outside critical loops.
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **MaxOfLanes**(V v)</code>: returns the maximum-valued lane in each
     lane. DEPRECATED, SVE/RVV require a D argument to support partial vectors.
+
+## Preprocessor macros
+
+*   `HWY_ALIGN`: Prefix for stack-allocated (i.e. automatic storage duration)
+    arrays to ensure they have suitable alignment for Load()/Store(). This is
+    specific to `HWY_TARGET` and should only be used inside `HWY_NAMESPACE`.
+
+    Arrays should also only be used for partial (<= 128-bit) vectors, or
+    `LoadDup128`, because full vectors may be too large for the stack and should
+    be heap-allocated instead (see aligned_allocator.h).
+
+    Example: `HWY_ALIGN float lanes[4];`
+
+*   `HWY_ALIGN_MAX`: as `HWY_ALIGN`, but independent of `HWY_TARGET` and may be
+    used outside `HWY_NAMESPACE`.
 
 ## Advanced macros
 

@@ -120,7 +120,7 @@ TEST(AlignedAllocatorTest, AllocDefaultPointers) {
                                    /*opaque_ptr=*/nullptr);
   ASSERT_NE(nullptr, ptr);
   // Make sure the pointer is actually aligned.
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % kMaxVectorSize);
+  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
   char* p = static_cast<char*>(ptr);
   size_t ret = 0;
   for (size_t i = 0; i < kSize; i++) {
@@ -152,7 +152,7 @@ TEST(AlignedAllocatorTest, CustomAlloc) {
   // We should have only requested one alloc from the allocator.
   EXPECT_EQ(1U, fake_alloc.PendingAllocs());
   // Make sure the pointer is actually aligned.
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % kMaxVectorSize);
+  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
   FreeAlignedBytes(ptr, &FakeAllocator::StaticFree, &fake_alloc);
   EXPECT_EQ(0U, fake_alloc.PendingAllocs());
 }
@@ -197,7 +197,7 @@ TEST(AlignedAllocatorTest, MakeUniqueAlignedArray) {
 TEST(AlignedAllocatorTest, AllocSingleInt) {
   auto ptr = AllocateAligned<uint32_t>(1);
   ASSERT_NE(nullptr, ptr.get());
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % kMaxVectorSize);
+  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
   // Force delete of the unique_ptr now to check that it doesn't crash.
   ptr.reset(nullptr);
   EXPECT_EQ(nullptr, ptr.get());
@@ -207,7 +207,7 @@ TEST(AlignedAllocatorTest, AllocMultipleInt) {
   const size_t kSize = 7777;
   auto ptr = AllocateAligned<uint32_t>(kSize);
   ASSERT_NE(nullptr, ptr.get());
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % kMaxVectorSize);
+  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
   // ptr[i] is actually (*ptr.get())[i] which will use the operator[] of the
   // underlying type chosen by AllocateAligned() for the std::unique_ptr.
   EXPECT_EQ(&(ptr[0]) + 1, &(ptr[1]));

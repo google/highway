@@ -163,20 +163,26 @@ class FarmFloat16;
 namespace hwy {
 
 //------------------------------------------------------------------------------
-// Alignment
+// kMaxVectorSize (undocumented, pending removal)
 
-// Not guaranteed to be an upper bound, but the alignment established by
-// aligned_allocator is HWY_MAX(HWY_ALIGNMENT, kMaxVectorSize).
 #if HWY_ARCH_X86
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 64;  // AVX-512
-#define HWY_ALIGN_MAX alignas(64)
 #elif HWY_ARCH_RVV && defined(__riscv_vector)
-// Not actually an upper bound on the size, but this value prevents crossing a
-// 4K boundary (relevant on Andes).
+// Not actually an upper bound on the size.
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 4096;
-#define HWY_ALIGN_MAX alignas(8)  // only elements need be aligned
 #else
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
+#endif
+
+//------------------------------------------------------------------------------
+// Alignment
+
+// For stack-allocated partial arrays or LoadDup128.
+#if HWY_ARCH_X86
+#define HWY_ALIGN_MAX alignas(64)
+#elif HWY_ARCH_RVV && defined(__riscv_vector)
+#define HWY_ALIGN_MAX alignas(8)  // only elements need be aligned
+#else
 #define HWY_ALIGN_MAX alignas(16)
 #endif
 
@@ -251,6 +257,7 @@ HWY_API constexpr bool IsSame() {
 #define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
 #define HWY_IF_GE64(T, N) hwy::EnableIf<N * sizeof(T) >= 8>* = nullptr
 #define HWY_IF_GE128(T, N) hwy::EnableIf<N * sizeof(T) >= 16>* = nullptr
+#define HWY_IF_GT128(T, N) hwy::EnableIf<(N * sizeof(T) > 16)>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
 #define HWY_IF_SIGNED(T) \
