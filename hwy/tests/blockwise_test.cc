@@ -223,7 +223,7 @@ struct TestTableLookupBytes {
     for (size_t i = 0; i < N8; ++i) {
       index_bytes[i] = (i < 64) ? index_bytes_source[i] : 0;
       // Avoid asan error for partial vectors.
-      index_bytes[i] = HWY_MIN(index_bytes[i], max_index);
+      index_bytes[i] = static_cast<uint8_t>(HWY_MIN(index_bytes[i], max_index));
     }
     const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
 

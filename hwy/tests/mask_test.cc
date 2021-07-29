@@ -314,7 +314,7 @@ struct TestCountTrue {
       size_t expected = 0;
       for (size_t i = 0; i < max_lanes; ++i) {
         const bool is_true = (code & (1ull << i)) != 0;
-        bool_lanes[i] = is_true ? T(1) : T(0);
+        bool_lanes[i] = is_true ? TI(1) : TI(0);
         expected += is_true;
       }
 
@@ -346,10 +346,11 @@ struct TestFindFirstTrue {
 
     for (size_t code = 1; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
-        bool_lanes[i] = (code & (1ull << i)) ? T(1) : T(0);
+        bool_lanes[i] = (code & (1ull << i)) ? TI(1) : TI(0);
       }
 
-      const intptr_t expected = Num0BitsBelowLS1Bit_Nonzero32(code);
+      const intptr_t expected =
+          static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero32(code));
       const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
       const intptr_t actual = FindFirstTrue(d, mask);
       HWY_ASSERT_EQ(expected, actual);
@@ -380,7 +381,7 @@ struct TestLogicalMask {
     const size_t max_lanes = HWY_MIN(N, size_t(6));
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
-        bool_lanes[i] = (code & (1ull << i)) ? T(1) : T(0);
+        bool_lanes[i] = (code & (1ull << i)) ? TI(1) : TI(0);
       }
 
       const auto m = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));

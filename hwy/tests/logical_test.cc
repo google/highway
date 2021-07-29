@@ -245,8 +245,8 @@ struct TestPopulationCount {
     auto popcnt = AllocateAligned<T>(N);
     for (size_t i = 0; i < kNumTests / N; i++) {
       for (size_t i = 0; i < N; i++) {
-        data[i] = rng();
-        popcnt[i] = PopCount(data[i]);
+        data[i] = static_cast<T>(rng());
+        popcnt[i] = static_cast<T>(PopCount(data[i]));
       }
       HWY_ASSERT_VEC_EQ(d, popcnt.get(), PopulationCount(Load(d, data.get())));
     }

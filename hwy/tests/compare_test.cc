@@ -124,8 +124,8 @@ HWY_NOINLINE void TestAllStrictInt() {
 struct TestStrictFloat {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const T huge_neg = -1E35;
-    const T huge_pos = 1E36;
+    const T huge_neg = T(-1E35);
+    const T huge_pos = T(1E36);
     const auto v0 = Zero(d);
     const auto v2 = Iota(d, T(2));
     const auto vn = Neg(v2);
