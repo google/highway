@@ -127,7 +127,6 @@ struct TestZeroExtendVector {
 
     const auto v = Iota(d, 1);
     const size_t N2 = Lanes(d2);
-    HWY_ASSERT(N2 != 0);
     auto lanes = AllocateAligned<T>(N2);
     Store(v, d, &lanes[0]);
     Store(v, d, &lanes[N2 / 2]);

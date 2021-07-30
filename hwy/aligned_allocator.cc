@@ -64,6 +64,7 @@ size_t NextAlignedOffset() {
 
 void* AllocateAlignedBytes(const size_t payload_size, AllocPtr alloc_ptr,
                            void* opaque_ptr) {
+  HWY_ASSERT(payload_size != 0);  // likely a bug in caller
   if (payload_size >= std::numeric_limits<size_t>::max() / 2) {
     HWY_DASSERT(false && "payload_size too large");
     return nullptr;

@@ -788,7 +788,7 @@ struct TestMulEvenOdd64 {
 };
 
 HWY_NOINLINE void TestAllMulEven() {
-  ForPartialVectors<TestMulEven> test;
+  ForExtendableVectors<TestMulEven> test;
   test(int32_t());
   test(uint32_t());
 
