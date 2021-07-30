@@ -274,15 +274,16 @@ uint32_t SupportedTargets() {
     const uint32_t xcr0 = ReadXCR0();
     // XMM
     if (!IsBitSet(xcr0, 1)) {
-      bits &= ~(HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
+      bits &=
+          ~uint32_t(HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
     }
     // YMM
     if (!IsBitSet(xcr0, 2)) {
-      bits &= ~(HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
+      bits &= ~uint32_t(HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
     }
     // ZMM + opmask
     if ((xcr0 & 0x70) != 0x70) {
-      bits &= ~(HWY_AVX3 | HWY_AVX3_DL);
+      bits &= ~uint32_t(HWY_AVX3 | HWY_AVX3_DL);
     }
   }
 

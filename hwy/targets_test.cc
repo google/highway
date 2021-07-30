@@ -92,14 +92,14 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
 
   DisableTargets(0);  // Reset the mask.
   uint32_t current_targets = SupportedTargets();
-  if ((current_targets & ~HWY_ENABLED_BASELINE) == 0) {
+  if ((current_targets & ~uint32_t(HWY_ENABLED_BASELINE)) == 0) {
     // We can't test anything else if the only compiled target is the baseline.
     return;
   }
   // Get the lowest bit in the mask (the best target) and disable that one.
   uint32_t lowest_target = current_targets & (~current_targets + 1);
   // The lowest target shouldn't be one in the baseline.
-  HWY_ASSERT((lowest_target & ~HWY_ENABLED_BASELINE) != 0);
+  HWY_ASSERT((lowest_target & ~uint32_t(HWY_ENABLED_BASELINE)) != 0);
   DisableTargets(lowest_target);
 
   // Check that the other targets are still enabled.

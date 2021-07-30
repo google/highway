@@ -199,7 +199,7 @@ struct TestLeftShifts {
 
     // 1
     for (size_t i = 0; i < N; ++i) {
-      const T value = kSigned ? T(i) - T(N) : T(i);
+      const T value = kSigned ? T(T(i) - T(N)) : T(i);
       expected[i] = T(TU(value) << 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeft<1>(values));
@@ -207,7 +207,7 @@ struct TestLeftShifts {
 
     // max
     for (size_t i = 0; i < N; ++i) {
-      const T value = kSigned ? T(i) - T(N) : T(i);
+      const T value = kSigned ? T(T(i) - T(N)) : T(i);
       expected[i] = T(TU(value) << kMaxShift);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeft<kMaxShift>(values));
@@ -353,9 +353,9 @@ T RightShiftNegative(T val) {
   TU bits;
   CopyBytes<sizeof(T)>(&val, &bits);
 
-  const TU shifted = bits >> kAmount;
+  const TU shifted = TU(bits >> kAmount);
 
-  const TU all = ~TU(0);
+  const TU all = TU(~TU(0));
   const size_t num_zero = sizeof(TU) * 8 - 1 - kAmount;
   const TU sign_extended = static_cast<TU>((all << num_zero) & LimitsMax<TU>());
 
@@ -655,8 +655,8 @@ struct TestSignedMul {
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vi));
 
-    for (int i = 0; i < static_cast<int>(N); ++i) {
-      expected[i] = static_cast<T>((-T(N) + i) * (1 + i));
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = static_cast<T>((-T(N) + T(i)) * T(1u + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vn, vi));
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vn));
@@ -695,22 +695,22 @@ struct TestMulHigh {
 
     // Large positive squared
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = LimitsMax<T>() >> i;
-      expected_lanes[i] = (Wide(in_lanes[i]) * in_lanes[i]) >> 16;
+      in_lanes[i] = T(LimitsMax<T>() >> i);
+      expected_lanes[i] = T((Wide(in_lanes[i]) * in_lanes[i]) >> 16);
     }
     auto v = Load(d, in_lanes.get());
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, v));
 
     // Large positive * small positive
-    for (int i = 0; i < static_cast<int>(N); ++i) {
-      expected_lanes[i] = static_cast<T>((Wide(in_lanes[i]) * T(1 + i)) >> 16);
+    for (size_t i = 0; i < N; ++i) {
+      expected_lanes[i] = T((Wide(in_lanes[i]) * T(1u + i)) >> 16);
     }
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, vi));
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(vi, v));
 
     // Large positive * small negative
     for (size_t i = 0; i < N; ++i) {
-      expected_lanes[i] = (Wide(in_lanes[i]) * T(i - N)) >> 16;
+      expected_lanes[i] = T((Wide(in_lanes[i]) * T(i - N)) >> 16);
     }
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, vni));
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(vni, v));
@@ -826,7 +826,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(Neg(v2), v2, v1));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = -T(i + 2) * (i + 2) + (1 + i);
+      expected[i] = T(-T(i + 2u) * (i + 2u) + (1u + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v2, v2, v1));
 
@@ -1011,7 +1011,7 @@ struct TestRound {
       // Avoid [std::]round, which does not round to nearest *even*.
       // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
       // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
-      expected[i] = nearbyint(in[i]);
+      expected[i] = static_cast<T>(nearbyint(in[i]));
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
       HWY_ASSERT_VEC_EQ(d, &expected[i], Round(Load(d, &in[i])));
@@ -1042,7 +1042,7 @@ struct TestNearestInt {
         // Avoid undefined result for lrintf
         expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
       } else {
-        expected[i] = lrintf(in[i]);
+        expected[i] = static_cast<TI>(lrintf(in[i]));
       }
     }
     for (size_t i = 0; i < padded; i += Lanes(df)) {
@@ -1067,7 +1067,7 @@ struct TestTrunc {
     for (size_t i = 0; i < padded; ++i) {
       // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
       // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
-      expected[i] = trunc(in[i]);
+      expected[i] = static_cast<T>(trunc(in[i]));
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
       HWY_ASSERT_VEC_EQ(d, &expected[i], Trunc(Load(d, &in[i])));

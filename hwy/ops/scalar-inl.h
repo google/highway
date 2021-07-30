@@ -986,7 +986,7 @@ HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
     biased_exp16 = 0;
     const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
     HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
-    mantissa16 = static_cast<uint32_t>((1 << (10 - sub_exp)) +
+    mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
                                        (mantissa32 >> (13 + sub_exp)));
   } else {
     // exp = [-14, 15]

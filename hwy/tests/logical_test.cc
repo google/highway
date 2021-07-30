@@ -36,7 +36,7 @@ struct TestLogicalInteger {
     const auto vi = Iota(d, 0);
     const auto ones = VecFromMask(d, Eq(v0, v0));
     const auto v1 = Set(d, 1);
-    const auto vnot1 = Set(d, ~T(1));
+    const auto vnot1 = Set(d, T(~T(1)));
 
     HWY_ASSERT_VEC_EQ(d, v0, Not(ones));
     HWY_ASSERT_VEC_EQ(d, ones, Not(v0));
@@ -206,9 +206,9 @@ struct TestTestBit {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t kNumBits = sizeof(T) * 8;
     for (size_t i = 0; i < kNumBits; ++i) {
-      const auto bit1 = Set(d, 1ull << i);
-      const auto bit2 = Set(d, 1ull << ((i + 1) % kNumBits));
-      const auto bit3 = Set(d, 1ull << ((i + 2) % kNumBits));
+      const auto bit1 = Set(d, T(1ull << i));
+      const auto bit2 = Set(d, T(1ull << ((i + 1) % kNumBits)));
+      const auto bit3 = Set(d, T(1ull << ((i + 2) % kNumBits)));
       const auto bits12 = Or(bit1, bit2);
       const auto bits23 = Or(bit2, bit3);
       HWY_ASSERT(AllTrue(d, TestBit(bit1, bit1)));

@@ -888,7 +888,7 @@ HWY_API Vec512<T> ShiftLeftSame(const Vec512<T> v, const int bits) {
   const Full512<T> d8;
   const RepartitionToWide<decltype(d8)> d16;
   const auto shifted = BitCast(d8, ShiftLeftSame(BitCast(d16, v), bits));
-  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+  return shifted & Set(d8, static_cast<T>((0xFF << bits) & 0xFF));
 }
 
 // ------------------------------ ShiftRightSame
@@ -3013,13 +3013,13 @@ HWY_API size_t CountTrue(const Full512<T> /* tag */, const Mask512<T> mask) {
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
                                const Mask512<T> mask) {
-  return mask.raw ? Num0BitsBelowLS1Bit_Nonzero32(mask.raw) : -1;
+  return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask.raw)) : -1;
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 1)>
 HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
                                const Mask512<T> mask) {
-  return mask.raw ? Num0BitsBelowLS1Bit_Nonzero64(mask.raw) : -1;
+  return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask.raw)) : -1;
 }
 
 // ------------------------------ Compress

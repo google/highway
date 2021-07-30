@@ -307,7 +307,7 @@ struct TestScatter {
       for (size_t i = 0; i < N; ++i) {
         offsets[i] = static_cast<Offset>(Random32(&rng) % range);
         CopyBytes<sizeof(T)>(bytes.get() + i * sizeof(T),
-                             &expected[offsets[i]]);
+                             &expected[size_t(offsets[i])]);
       }
       const auto vindices = Load(d_offsets, offsets.get());
       ScatterIndex(data, d, actual.get(), vindices);

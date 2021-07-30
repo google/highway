@@ -1149,7 +1149,7 @@ HWY_API Vec256<T> ShiftLeftSame(const Vec256<T> v, const int bits) {
   const Full256<T> d8;
   const RepartitionToWide<decltype(d8)> d16;
   const auto shifted = BitCast(d8, ShiftLeftSame(BitCast(d16, v), bits));
-  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+  return shifted & Set(d8, static_cast<T>((0xFF << bits) & 0xFF));
 }
 
 // ------------------------------ ShiftRightSame (BroadcastSignBit)
@@ -2872,7 +2872,7 @@ template <typename T>
 HWY_API intptr_t FindFirstTrue(const Full256<T> /* tag */,
                                const Mask256<T> mask) {
   const uint64_t bits = detail::BitsFromMask(mask);
-  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+  return bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(bits)) : -1;
 }
 
 // ------------------------------ Compress

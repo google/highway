@@ -254,7 +254,7 @@ class TestStoreMaskBits {
 
       memset(expected.get(), 0, expected_num_bytes);
       for (size_t i = 0; i < N; ++i) {
-        expected[i / 8] |= bool_lanes[i] << (i % 8);
+        expected[i / 8] = uint8_t(expected[i / 8] | (bool_lanes[i] << (i % 8)));
       }
 
       size_t i = 0;
@@ -350,7 +350,7 @@ struct TestFindFirstTrue {
       }
 
       const intptr_t expected =
-          static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero32(code));
+          static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero32(uint32_t(code)));
       const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
       const intptr_t actual = FindFirstTrue(d, mask);
       HWY_ASSERT_EQ(expected, actual);

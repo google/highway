@@ -263,23 +263,23 @@ HWY_DIAGNOSTICS(pop)
 // Gets the single value stored in a vector/part.
 template <size_t N>
 HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFF;
+  return static_cast<uint8_t>(_mm_cvtsi128_si32(v.raw) & 0xFF);
 }
 template <size_t N>
 HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFF;
+  return static_cast<int8_t>(_mm_cvtsi128_si32(v.raw) & 0xFF);
 }
 template <size_t N>
 HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
+  return static_cast<uint16_t>(_mm_cvtsi128_si32(v.raw) & 0xFFFF);
 }
 template <size_t N>
 HWY_API int16_t GetLane(const Vec128<int16_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw) & 0xFFFF;
+  return static_cast<int16_t>(_mm_cvtsi128_si32(v.raw) & 0xFFFF);
 }
 template <size_t N>
 HWY_API uint32_t GetLane(const Vec128<uint32_t, N> v) {
-  return _mm_cvtsi128_si32(v.raw);
+  return static_cast<uint32_t>(_mm_cvtsi128_si32(v.raw));
 }
 template <size_t N>
 HWY_API int32_t GetLane(const Vec128<int32_t, N> v) {
@@ -1614,7 +1614,7 @@ HWY_API Vec128<T, N> ShiftLeftSame(const Vec128<T, N> v, const int bits) {
   // Use raw instead of BitCast to support N=1.
   const Vec128<T, N> shifted{
       ShiftLeftSame(Vec128<MakeWide<T>>{v.raw}, bits).raw};
-  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+  return shifted & Set(d8, static_cast<T>((0xFF << bits) & 0xFF));
 }
 
 // ------------------------------ ShiftRightSame (BroadcastSignBit)
@@ -1642,7 +1642,7 @@ HWY_API Vec128<uint8_t, N> ShiftRightSame(Vec128<uint8_t, N> v,
   // Use raw instead of BitCast to support N=1.
   const Vec128<uint8_t, N> shifted{
       ShiftRightSame(Vec128<uint16_t>{v.raw}, bits).raw};
-  return shifted & Set(d8, 0xFF >> bits);
+  return shifted & Set(d8, static_cast<uint8_t>(0xFF >> bits));
 }
 
 template <size_t N>
@@ -1675,7 +1675,8 @@ HWY_API Vec128<int8_t, N> ShiftRightSame(Vec128<int8_t, N> v, const int bits) {
   const Simd<int8_t, N> di;
   const Simd<uint8_t, N> du;
   const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
-  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
+  const auto shifted_sign =
+      BitCast(di, Set(du, static_cast<uint8_t>(0x80 >> bits)));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
 
@@ -2542,7 +2543,7 @@ HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
   for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
     for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
       control[idx_lane * sizeof(T) + idx_byte] =
-          static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + idx_byte);
+          static_cast<uint8_t>(size_t(idx[idx_lane]) * sizeof(T) + idx_byte);
     }
   }
   return Indices128<T, N>{Load(d8, control).raw};
@@ -3790,7 +3791,7 @@ template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N> /* tag */,
                                const Mask128<T, N> mask) {
   const uint64_t bits = detail::BitsFromMask(mask);
-  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+  return bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(bits)) : -1;
 }
 
 // ------------------------------ Compress
@@ -3997,7 +3998,7 @@ HWY_INLINE Vec128<T, N> Compress(hwy::SizeTag<4> /*tag*/, Vec128<T, N> v,
   const Rebind<TI, D> di;
 #if HWY_TARGET <= HWY_AVX3
   return BitCast(D(), Vec128<TI, N>{_mm_maskz_compress_epi32(
-                          mask_bits, BitCast(di, v).raw)});
+                          __mmask8(mask_bits), BitCast(di, v).raw)});
 #else
   const auto idx = detail::Idx32x4FromBits<T, N>(mask_bits);
   return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
@@ -4012,7 +4013,7 @@ HWY_INLINE Vec128<T, N> Compress(hwy::SizeTag<8> /*tag*/, Vec128<T, N> v,
   const Rebind<TI, D> di;
 #if HWY_TARGET <= HWY_AVX3
   return BitCast(D(), Vec128<TI, N>{_mm_maskz_compress_epi64(
-                          mask_bits, BitCast(di, v).raw)});
+                          __mmask8(mask_bits), BitCast(di, v).raw)});
 #else
   const auto idx = detail::Idx64x2FromBits<T, N>(mask_bits);
   return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));

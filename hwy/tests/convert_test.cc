@@ -422,11 +422,10 @@ class TestIntFromFloat {
     constexpr size_t kBits = sizeof(TF) * 8;
 
     // Powers of two, plus offsets to set some mantissa bits.
-    const uint64_t ofs_table[3] = {0ULL, 3ULL << (kBits / 2),
-                                   1ULL << (kBits - 15)};
+    const int64_t ofs_table[3] = {0LL, 3LL << (kBits / 2), 1LL << (kBits - 15)};
     for (int sign = 0; sign < 2; ++sign) {
       for (size_t shift = 0; shift < kBits - 1; ++shift) {
-        for (uint64_t ofs : ofs_table) {
+        for (int64_t ofs : ofs_table) {
           const int64_t mag = (int64_t(1) << shift) + ofs;
           const int64_t val = sign ? mag : -mag;
           HWY_ASSERT_VEC_EQ(di, Set(di, static_cast<TI>(val)),

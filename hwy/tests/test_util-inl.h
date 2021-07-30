@@ -296,12 +296,13 @@ HWY_NOINLINE void PrintValue(T value) {
 // Prints lanes around `lane`, in memory order.
 template <class D>
 HWY_NOINLINE void Print(const D d, const char* caption,
-                        const decltype(Zero(d)) v, intptr_t lane = 0,
+                        const decltype(Zero(d)) v, size_t lane_u = 0,
                         size_t max_lanes = 7) {
   using T = TFromD<D>;
   const size_t N = Lanes(d);
   auto lanes = AllocateAligned<T>(N);
   Store(v, d, lanes.get());
+  const intptr_t lane = intptr_t(lane_u);
   const size_t begin = static_cast<size_t>(HWY_MAX(0, lane - 2));
   const size_t end = HWY_MIN(begin + max_lanes, N);
   fprintf(stderr, "%s %s [%zu+ ->]:\n  ", TypeName(T(), N).c_str(), caption,
