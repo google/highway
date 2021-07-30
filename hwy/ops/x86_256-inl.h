@@ -1171,7 +1171,7 @@ HWY_API Vec256<uint8_t> ShiftRightSame(Vec256<uint8_t> v, const int bits) {
   const Full256<uint8_t> d8;
   const RepartitionToWide<decltype(d8)> d16;
   const auto shifted = BitCast(d8, ShiftRightSame(BitCast(d16, v), bits));
-  return shifted & Set(d8, 0xFF >> bits);
+  return shifted & Set(d8, static_cast<uint8_t>(0xFF >> bits));
 }
 
 HWY_API Vec256<int16_t> ShiftRightSame(const Vec256<int16_t> v,
@@ -1200,7 +1200,8 @@ HWY_API Vec256<int8_t> ShiftRightSame(Vec256<int8_t> v, const int bits) {
   const Full256<int8_t> di;
   const Full256<uint8_t> du;
   const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
-  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
+  const auto shifted_sign =
+      BitCast(di, Set(du, static_cast<uint8_t>(0x80 >> bits)));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
 

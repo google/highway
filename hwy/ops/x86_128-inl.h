@@ -3812,7 +3812,7 @@ HWY_INLINE Vec128<T, N> Idx16x8FromBits(const uint64_t mask_bits) {
   // indices (total 1 KiB), broadcasts them into each 32-bit lane and shifts.
   // Here, 16-bit lanes are too narrow to hold all bits, and unpacking nibbles
   // is likely more costly than the higher cache footprint from storing bytes.
-  alignas(16) constexpr uint8_t table[256 * 8] = {
+  alignas(16) constexpr uint8_t table[2048] = {
       0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  2,  0,
       0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  0,  0,  4,  0,  0,  0,
       0,  0,  0,  0,  0,  4,  0,  0,  0,  0,  0,  0,  2,  4,  0,  0,  0,  0,
@@ -3938,7 +3938,7 @@ HWY_INLINE Vec128<T, N> Idx32x4FromBits(const uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 16);
 
   // There are only 4 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t packed_array[16 * 16] = {
+  alignas(16) constexpr uint8_t packed_array[256] = {
       0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
       0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
       4,  5,  6,  7,  0,  1,  2,  3,  0,  1,  2,  3,  0,  1,  2,  3,  //
@@ -3966,7 +3966,7 @@ HWY_INLINE Vec128<T, N> Idx64x2FromBits(const uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 4);
 
   // There are only 2 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t packed_array[4 * 16] = {
+  alignas(16) constexpr uint8_t packed_array[64] = {
       0, 1, 2,  3,  4,  5,  6,  7,  0, 1, 2,  3,  4,  5,  6,  7,  //
       0, 1, 2,  3,  4,  5,  6,  7,  0, 1, 2,  3,  4,  5,  6,  7,  //
       8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2,  3,  4,  5,  6,  7,  //

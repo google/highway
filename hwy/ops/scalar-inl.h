@@ -937,7 +937,7 @@ HWY_API Vec1<float> PromoteTo(Sisd<float> /* tag */, const Vec1<float16_t> v) {
 #else
   const uint16_t bits16 = v.raw.bits;
 #endif
-  const uint32_t sign = bits16 >> 15;
+  const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
   const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
   const uint32_t mantissa = bits16 & 0x3FF;
 
@@ -986,7 +986,8 @@ HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
     biased_exp16 = 0;
     const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
     HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
-    mantissa16 = (1 << (10 - sub_exp)) + (mantissa32 >> (13 + sub_exp));
+    mantissa16 = static_cast<uint32_t>((1 << (10 - sub_exp)) +
+                                       (mantissa32 >> (13 + sub_exp)));
   } else {
     // exp = [-14, 15]
     biased_exp16 = static_cast<uint32_t>(exp + 15);

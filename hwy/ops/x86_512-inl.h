@@ -910,7 +910,7 @@ HWY_API Vec512<uint8_t> ShiftRightSame(Vec512<uint8_t> v, const int bits) {
   const Full512<uint8_t> d8;
   const RepartitionToWide<decltype(d8)> d16;
   const auto shifted = BitCast(d8, ShiftRightSame(BitCast(d16, v), bits));
-  return shifted & Set(d8, 0xFF >> bits);
+  return shifted & Set(d8, static_cast<uint8_t>(0xFF >> bits));
 }
 
 HWY_API Vec512<int16_t> ShiftRightSame(const Vec512<int16_t> v,
@@ -931,7 +931,8 @@ HWY_API Vec512<int8_t> ShiftRightSame(Vec512<int8_t> v, const int bits) {
   const Full512<int8_t> di;
   const Full512<uint8_t> du;
   const auto shifted = BitCast(di, ShiftRightSame(BitCast(du, v), bits));
-  const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
+  const auto shifted_sign =
+      BitCast(di, Set(du, static_cast<uint8_t>(0x80 >> bits)));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
 
@@ -3324,10 +3325,10 @@ HWY_API Vec512<int64_t> SumOfLanes(Full512<int64_t> d, Vec512<int64_t> v) {
   return Set(d, _mm512_reduce_add_epi64(v.raw));
 }
 HWY_API Vec512<uint32_t> SumOfLanes(Full512<uint32_t> d, Vec512<uint32_t> v) {
-  return Set(d, _mm512_reduce_add_epi32(v.raw));
+  return Set(d, static_cast<uint32_t>(_mm512_reduce_add_epi32(v.raw)));
 }
 HWY_API Vec512<uint64_t> SumOfLanes(Full512<uint64_t> d, Vec512<uint64_t> v) {
-  return Set(d, _mm512_reduce_add_epi64(v.raw));
+  return Set(d, static_cast<uint64_t>(_mm512_reduce_add_epi64(v.raw)));
 }
 HWY_API Vec512<float> SumOfLanes(Full512<float> d, Vec512<float> v) {
   return Set(d, _mm512_reduce_add_ps(v.raw));
