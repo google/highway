@@ -99,13 +99,14 @@ else()
     -fmerge-all-constants
 
     # Warnings
+    -Werror
     -Wall
     -Wextra
-    -Wformat-security
-    -Wno-unused-function
-    -Wnon-virtual-dtor
-    -Woverloaded-virtual
+    # These are not included in Wall nor Wextra:
+    -Wconversion
+    -Wsign-conversion
     -Wvla
+    -Wnon-virtual-dtor
   )
 
   if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
