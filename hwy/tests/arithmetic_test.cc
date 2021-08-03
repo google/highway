@@ -826,7 +826,8 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(Neg(v2), v2, v1));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = T(-T(i + 2u) * (i + 2u) + (1u + i));
+      expected[i] =
+          T(-T(i + 2u) * static_cast<T>(i + 2) + static_cast<T>(1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v2, v2, v1));
 

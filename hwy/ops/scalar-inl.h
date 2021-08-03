@@ -132,7 +132,7 @@ template <typename T>
 HWY_API Vec1<T> Not(const Vec1<T> v) {
   using TU = MakeUnsigned<T>;
   const Sisd<TU> du;
-  return BitCast(Sisd<T>(), Vec1<TU>(~BitCast(du, v).raw));
+  return BitCast(Sisd<T>(), Vec1<TU>(static_cast<TU>(~BitCast(du, v).raw)));
 }
 
 // ------------------------------ And
@@ -154,7 +154,8 @@ template <typename T>
 HWY_API Vec1<T> AndNot(const Vec1<T> a, const Vec1<T> b) {
   using TU = MakeUnsigned<T>;
   const Sisd<TU> du;
-  return BitCast(Sisd<T>(), Vec1<TU>(~BitCast(du, a).raw & BitCast(du, b).raw));
+  return BitCast(Sisd<T>(), Vec1<TU>(static_cast<TU>(~BitCast(du, a).raw &
+                                                     BitCast(du, b).raw)));
 }
 
 // ------------------------------ Or
@@ -1144,7 +1145,7 @@ HWY_API Vec1<int64_t> ZipLower(const Vec1<int32_t> a, const Vec1<int32_t> b) {
 
 template <typename T, typename TW = MakeWide<T>, class VW = Vec1<TW>>
 HWY_API VW ZipLower(Sisd<TW> /* tag */, Vec1<T> a, Vec1<T> b) {
-  return VW((TW(b.raw) << (sizeof(T) * 8)) + a.raw);
+  return VW(static_cast<TW>((TW{b.raw} << (sizeof(T) * 8)) + a.raw));
 }
 
 // ================================================== MASK

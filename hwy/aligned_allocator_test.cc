@@ -126,7 +126,7 @@ TEST(AlignedAllocatorTest, AllocDefaultPointers) {
   for (size_t i = 0; i < kSize; i++) {
     // Performs a computation using p[] to prevent it being optimized away.
     p[i] = static_cast<char>(i & 0x7F);
-    if (i) ret += p[i] * p[i - 1];
+    if (i) ret += static_cast<size_t>(p[i] * p[i - 1]);
   }
   EXPECT_NE(0U, ret);
   FreeAlignedBytes(ptr, /*free_ptr=*/nullptr, /*opaque_ptr=*/nullptr);

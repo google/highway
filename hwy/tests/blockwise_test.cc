@@ -355,7 +355,8 @@ struct TestZipLower {
       // Value of least-significant lane in lo-vector.
       const size_t lo = 2u * (i % blockN) + 4u * block * blockN;
       const size_t kBits = sizeof(T) * 8;
-      expected[i] = WideT((static_cast<WideT>(lo + 1) << kBits) + lo);
+      expected[i] = static_cast<WideT>((static_cast<WideT>(lo + 1) << kBits) +
+                                       static_cast<WideT>(lo));
     }
     HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(even, odd));
     HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(dw, even, odd));
@@ -388,8 +389,9 @@ struct TestZipUpper {
       const size_t block = i / blockN;
       const size_t lo = 2u * (i % blockN) + 4u * block * blockN;
       const size_t kBits = sizeof(T) * 8;
-      expected[i] = WideT((static_cast<WideT>(lo + 2 * blockN + 1) << kBits) +
-                          lo + 2 * blockN);
+      expected[i] = static_cast<WideT>(
+          (static_cast<WideT>(lo + 2 * blockN + 1) << kBits) +
+          static_cast<WideT>(lo + 2 * blockN));
     }
     HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipUpper(dw, even, odd));
   }
