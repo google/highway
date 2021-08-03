@@ -1364,8 +1364,8 @@ HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress)
 // ------------------------------ CompressStore
 template <class V, class M, class D>
 HWY_API size_t CompressStore(const V v, const M mask, const D d,
-                             TFromD<D>* HWY_RESTRICT aligned) {
-  Store(Compress(v, mask), d, aligned);
+                             TFromD<D>* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 

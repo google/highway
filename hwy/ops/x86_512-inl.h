@@ -3109,57 +3109,56 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
 
 template <typename T>
 HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
-                             T* HWY_RESTRICT aligned) {
+                             T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
-  Store(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d, aligned);
+  StoreU(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d,
+         unaligned);
   return PopCount(mask_bits);
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API size_t CompressStore(Vec512<T> v, const Mask512<T> mask, Full512<T> d,
-                             T* HWY_RESTRICT aligned) {
-  // NOTE: it is tempting to split inputs into two halves for 16-bit lanes, but
-  // using StoreU to concatenate the results would cause page faults if
-  // `aligned` is the last valid vector. Instead rely on in-register splicing.
-  Store(Compress(v, mask), d, aligned);
+                             T* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<uint32_t> v, const Mask512<uint32_t> mask,
                              Full512<uint32_t> d,
-                             uint32_t* HWY_RESTRICT aligned) {
-  _mm512_mask_compressstoreu_epi32(aligned, mask.raw, v.raw);
+                             uint32_t* HWY_RESTRICT unaligned) {
+  _mm512_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
   return CountTrue(d, mask);
 }
 HWY_API size_t CompressStore(Vec512<int32_t> v, const Mask512<int32_t> mask,
                              Full512<int32_t> d,
-                             int32_t* HWY_RESTRICT aligned) {
-  _mm512_mask_compressstoreu_epi32(aligned, mask.raw, v.raw);
+                             int32_t* HWY_RESTRICT unaligned) {
+  _mm512_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
   return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<uint64_t> v, const Mask512<uint64_t> mask,
                              Full512<uint64_t> d,
-                             uint64_t* HWY_RESTRICT aligned) {
-  _mm512_mask_compressstoreu_epi64(aligned, mask.raw, v.raw);
+                             uint64_t* HWY_RESTRICT unaligned) {
+  _mm512_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
   return CountTrue(d, mask);
 }
 HWY_API size_t CompressStore(Vec512<int64_t> v, const Mask512<int64_t> mask,
                              Full512<int64_t> d,
-                             int64_t* HWY_RESTRICT aligned) {
-  _mm512_mask_compressstoreu_epi64(aligned, mask.raw, v.raw);
+                             int64_t* HWY_RESTRICT unaligned) {
+  _mm512_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
   return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<float> v, const Mask512<float> mask,
-                             Full512<float> d, float* HWY_RESTRICT aligned) {
-  _mm512_mask_compressstoreu_ps(aligned, mask.raw, v.raw);
+                             Full512<float> d, float* HWY_RESTRICT unaligned) {
+  _mm512_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
   return CountTrue(d, mask);
 }
 
 HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
-                             Full512<double> d, double* HWY_RESTRICT aligned) {
-  _mm512_mask_compressstoreu_pd(aligned, mask.raw, v.raw);
+                             Full512<double> d,
+                             double* HWY_RESTRICT unaligned) {
+  _mm512_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
   return CountTrue(d, mask);
 }
 

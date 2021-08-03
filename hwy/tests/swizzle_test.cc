@@ -134,56 +134,64 @@ struct TestCompress {
     using TI = MakeSigned<T>;  // For mask > 0 comparison
     const Rebind<TI, D> di;
     const size_t N = Lanes(d);
-    auto in_lanes = AllocateAligned<T>(N);
-    auto mask_lanes = AllocateAligned<TI>(N);
-    auto expected = AllocateAligned<T>(N);
-    auto actual = AllocateAligned<T>(N);
 
-    // Each lane should have a chance of having mask=true.
-    for (size_t rep = 0; rep < 100; ++rep) {
-      size_t expected_pos = 0;
-      for (size_t i = 0; i < N; ++i) {
-        const uint64_t bits = Random32(&rng);
-        in_lanes[i] = T();  // cannot initialize float16_t directly.
-        CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
-        mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
-        if (mask_lanes[i] > 0) {
-          expected[expected_pos++] = in_lanes[i];
+    for (int frac : {0, 2, 3}) {
+      // For CompressStore
+      const size_t misalign = static_cast<size_t>(frac) * N / 4;
+
+      auto in_lanes = AllocateAligned<T>(N);
+      auto mask_lanes = AllocateAligned<TI>(N);
+      auto expected = AllocateAligned<T>(N);
+      auto actual_a = AllocateAligned<T>(misalign + N);
+      T* actual_u = actual_a.get() + misalign;
+
+      // Each lane should have a chance of having mask=true.
+      for (size_t rep = 0; rep < 100; ++rep) {
+        size_t expected_pos = 0;
+        for (size_t i = 0; i < N; ++i) {
+          const uint64_t bits = Random32(&rng);
+          in_lanes[i] = T();  // cannot initialize float16_t directly.
+          CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
+          mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+          if (mask_lanes[i] > 0) {
+            expected[expected_pos++] = in_lanes[i];
+          }
         }
-      }
 
-      const auto in = Load(d, in_lanes.get());
-      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
+        const auto in = Load(d, in_lanes.get());
+        const auto mask =
+            RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
 
-      Store(Compress(in, mask), d, actual.get());
-      // Upper lanes are undefined. Modified from AssertVecEqual.
-      for (size_t i = 0; i < expected_pos; ++i) {
-        if (!IsEqual(expected[i], actual[i])) {
-          fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
-          Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
-          Print(d, "in", in, 0, N);
-          Print(d, "expect", Load(d, expected.get()), 0, N);
-          Print(d, "actual", Load(d, actual.get()), 0, N);
-          HWY_ASSERT(false);
+        StoreU(Compress(in, mask), d, actual_u);
+        // Upper lanes are undefined. Modified from AssertVecEqual.
+        for (size_t i = 0; i < expected_pos; ++i) {
+          if (!IsEqual(expected[i], actual_u[i])) {
+            fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
+            Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
+            Print(d, "in", in, 0, N);
+            Print(d, "expect", Load(d, expected.get()), 0, N);
+            Print(d, "actual", LoadU(d, actual_u), 0, N);
+            HWY_ASSERT(false);
+          }
         }
-      }
 
-      // Also check CompressStore in the same way.
-      memset(actual.get(), 0, N * sizeof(T));
-      const size_t num_written = CompressStore(in, mask, d, actual.get());
-      HWY_ASSERT_EQ(expected_pos, num_written);
-      for (size_t i = 0; i < expected_pos; ++i) {
-        if (!IsEqual(expected[i], actual[i])) {
-          fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
-          Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
-          Print(d, "in", in, 0, N);
-          Print(d, "expect", Load(d, expected.get()), 0, N);
-          Print(d, "actual", Load(d, actual.get()), 0, N);
-          HWY_ASSERT(false);
+        // Also check CompressStore in the same way.
+        memset(actual_u, 0, N * sizeof(T));
+        const size_t num_written = CompressStore(in, mask, d, actual_u);
+        HWY_ASSERT_EQ(expected_pos, num_written);
+        for (size_t i = 0; i < expected_pos; ++i) {
+          if (!IsEqual(expected[i], actual_u[i])) {
+            fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
+            Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
+            Print(d, "in", in, 0, N);
+            Print(d, "expect", Load(d, expected.get()), 0, N);
+            Print(d, "actual", LoadU(d, actual_u), 0, N);
+            HWY_ASSERT(false);
+          }
         }
-      }
-    }
-  }
+      }  // rep
+    }    // frac
+  }      // operator()
 };
 
 // For regenerating tables used in the implementation

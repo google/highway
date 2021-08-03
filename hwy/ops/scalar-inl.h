@@ -1185,8 +1185,8 @@ HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
 
 template <typename T>
 HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
-                             T* HWY_RESTRICT aligned) {
-  Store(Compress(v, mask), d, aligned);
+                             T* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 

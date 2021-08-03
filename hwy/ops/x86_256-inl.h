@@ -3063,12 +3063,10 @@ HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
 
 template <typename T>
 HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
-                             T* HWY_RESTRICT aligned) {
+                             T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
-  // NOTE: it is tempting to split inputs into two halves for 16-bit lanes, but
-  // using StoreU to concatenate the results would cause page faults if
-  // `aligned` is the last valid vector. Instead rely on in-register splicing.
-  Store(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d, aligned);
+  StoreU(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d,
+         unaligned);
   return PopCount(mask_bits);
 }
 

@@ -460,11 +460,11 @@ Let `M` denote a mask capable of storing true/false for each lane.
     implementation-defined. Slow with 16-bit lanes.
 
 *   `V`: `{u,i,f}{16,32,64}` \
-    <code>size_t **CompressStore**(V v, M m, D d, T* aligned)</code>: writes
-    lanes whose mask `m` is set into `aligned`, starting from lane 0. Returns
-    `CountTrue(d, m)`, the number of valid lanes. All subsequent lanes may be
-    overwritten! Alignment ensures inactive lanes will not cause faults. Slower
-    for 16-bit lanes.
+    <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
+    whose mask `m` is set into `p`, starting from lane 0. Returns `CountTrue(d,
+    m)`, the number of valid lanes. May be implemented as `Compress` followed by
+    `StoreU`; lanes after the valid ones may still be overwritten! Slower for
+    16-bit lanes.
 
 ### Comparisons
 
@@ -543,6 +543,7 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 *   <code>void **Store**(Vec&lt;D&gt; a, D, T* aligned)</code>: copies `a[i]`
     into `aligned[i]`, which must be naturally aligned. Writes exactly N *
     sizeof(T) bytes.
+
 *   <code>void **StoreU**(Vec&lt;D&gt; a, D, T* p)</code>: as Store, but without
     the alignment requirement.
 

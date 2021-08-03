@@ -1349,8 +1349,8 @@ HWY_API svfloat16_t Compress(svfloat16_t v, svbool_t mask16) {
 
 template <class V, class M, class D>
 HWY_API size_t CompressStore(const V v, const M mask, const D d,
-                             TFromD<D>* HWY_RESTRICT aligned) {
-  Store(Compress(v, mask), d, aligned);
+                             TFromD<D>* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 
