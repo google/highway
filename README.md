@@ -1,7 +1,7 @@
 # Efficient and performance-portable SIMD
 
 Highway is a C++ library for SIMD (Single Instruction, Multiple Data), i.e.
-applying the same operation to 'lanes'.
+applying the same operation to multiple 'lanes' using a single CPU instruction.
 
 ## Why Highway?
 
@@ -331,7 +331,7 @@ vectors cannot be default-constructed. We instead use a dedicated 'descriptor'
 type `Simd` for overloading, abbreviated to `D` for template arguments and
 `d` in lvalues.
 
-Note that generic function templates are possible (see generic_ops-inlz.h).
+Note that generic function templates are possible (see generic_ops-inl.h).
 
 ## Masks
 
