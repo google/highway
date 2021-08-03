@@ -2997,6 +2997,15 @@ HWY_API bool AllTrue(const Full512<T> /* tag */, const Mask512<T> v) {
   return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), v);
 }
 
+// `p` points to at least 8 readable bytes, not all of which need be valid.
+template <typename T>
+HWY_API Mask512<T> LoadMaskBits(const Full512<T> /* tag */, const uint8_t* p) {
+  Mask512<T> mask;
+  CopyBytes<8 / sizeof(T)>(p, &mask.raw);
+  return mask;
+}
+
+// `p` points to at least 8 writable bytes.
 template <typename T>
 HWY_API size_t StoreMaskBits(const Full512<T> /* tag */, const Mask512<T> mask,
                              uint8_t* p) {

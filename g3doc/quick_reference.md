@@ -177,7 +177,7 @@ via Argument-Dependent Lookup. However, this does not work for function
 templates, and RVV and SVE both use builtin vectors. There are three options for
 portable code, in descending order of preference:
 
--   `namespace hn = highway::HWY_NAMESPACE;` alias used to prefix ops, e.g.
+-   `namespace hn = hwy::HWY_NAMESPACE;` alias used to prefix ops, e.g.
     `hn::LoadDup128(..)`;
 -   `using hwy::HWY_NAMESPACE::LoadDup128;` declarations for each op used;
 -   `using hwy::HWY_NAMESPACE;` directive. This is generally discouraged,
@@ -442,10 +442,16 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>bool **AllFalse**(D, M m)</code>: returns whether all `m[i]` are
     false.
 
+*   <code>M **LoadMaskBits**(D, const uint8_t* p)</code>: returns a mask
+    indicating whether the i-th bit in the array is set. Loads bytes and bits in
+    ascending order of address and index. At least 8 bytes of `p` must be
+    readable, but only `(Lanes(D()) + 7) / 8` need be initialized.
+
 *   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
     array indicating whether `m[i]` is true, in ascending order of `i`, filling
     the bits of each byte from least to most significant, then proceeding to the
-    next byte. Returns the number of (partial) bytes written.
+    next byte. Returns the number of bytes written: `(Lanes(D()) + 7) / 8`. At
+    least 8 bytes of `p` must be writable.
 
 *   <code>size_t **CountTrue**(D, M m)</code>: returns how many of `m[i]` are
     true [0, N]. This is typically more expensive than AllTrue/False.

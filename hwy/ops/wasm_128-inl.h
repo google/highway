@@ -2486,6 +2486,58 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 
 // ================================================== MISC
 
+// ------------------------------ LoadMaskBits (TestBit)
+
+namespace detail {
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  // Easier than Set(), which would require an >8-bit type, which would not
+  // compile for T=uint8_t, N=1.
+  const Vec128<T, N> vbits{wasm_i32x4_splat(static_cast<int32_t>(bits))};
+
+  // Replicate bytes 8x such that each byte contains the bit that governs it.
+  alignas(16) constexpr uint8_t kRep8[16] = {0, 0, 0, 0, 0, 0, 0, 0,
+                                             1, 1, 1, 1, 1, 1, 1, 1};
+  const auto rep8 = TableLookupBytes(vbits, Load(du, kRep8));
+
+  alignas(16) constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
+                                            1, 2, 4, 8, 16, 32, 64, 128};
+  return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
+  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) constexpr uint64_t kBit[8] = {1, 2};
+  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+}
+
+}  // namespace detail
+
+// `p` points to at least 8 readable bytes, not all of which need be valid.
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API Mask128<T, N> LoadMaskBits(Simd<T, N> d, const uint8_t* p) {
+  uint64_t bits = 0;
+  CopyBytes<(N + 7) / 8>(p, &bits);
+  return detail::LoadMaskBits(d, bits);
+}
+
 // ------------------------------ Mask
 
 namespace detail {
@@ -2604,6 +2656,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
 
 }  // namespace detail
 
+// `p` points to at least 8 writable bytes.
 template <typename T, size_t N>
 HWY_API size_t StoreMaskBits(const Simd<T, N> /* tag */,
                              const Mask128<T, N> mask, uint8_t* p) {

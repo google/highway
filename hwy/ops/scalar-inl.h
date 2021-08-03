@@ -1160,6 +1160,13 @@ HWY_API bool AllTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits != 0;
 }
 
+// `p` points to at least 8 readable bytes, not all of which need be valid.
+template <typename T>
+HWY_API Mask1<T> LoadMaskBits(Sisd<T> /* tag */, const uint8_t* p) {
+  return Mask1<T>::FromBool((*p & 1) != 0);
+}
+
+// `p` points to at least 8 writable bytes.
 template <typename T>
 HWY_API size_t StoreMaskBits(Sisd<T> d, const Mask1<T> mask, uint8_t* p) {
   *p = AllTrue(d, mask);

@@ -234,7 +234,7 @@ class TestStoreMaskBits {
     const Half<Half<Half<HWY_FULL(uint8_t)>>> d_bits;
     const size_t expected_num_bytes = (N + 7) / 8;
     auto expected = AllocateAligned<uint8_t>(expected_num_bytes);
-    auto actual = AllocateAligned<uint8_t>(expected_num_bytes);
+    auto actual = AllocateAligned<uint8_t>(HWY_MAX(8, expected_num_bytes));
 
     for (size_t rep = 0; rep < 100; ++rep) {
       // Generate random mask pattern.
@@ -244,6 +244,7 @@ class TestStoreMaskBits {
       const auto bools = Load(di, bool_lanes.get());
       const auto mask = Gt(bools, Zero(di));
 
+      // Requires at least 8 bytes, ensured above.
       const size_t bytes_written = StoreMaskBits(di, mask, actual.get());
       if (bytes_written != expected_num_bytes) {
         fprintf(stderr, "%s expected %zu bytes, actual %zu\n",
@@ -251,6 +252,13 @@ class TestStoreMaskBits {
 
         HWY_ASSERT(false);
       }
+
+// TODO(janwas): enable after implemented
+#if HWY_TARGET != HWY_RVV
+      // Requires at least 8 bytes, ensured above.
+      const auto mask2 = LoadMaskBits(di, actual.get());
+      HWY_ASSERT_MASK_EQ(di, mask, mask2);
+#endif
 
       memset(expected.get(), 0, expected_num_bytes);
       for (size_t i = 0; i < N; ++i) {

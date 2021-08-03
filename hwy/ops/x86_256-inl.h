@@ -2783,7 +2783,63 @@ HWY_API Vec256<T> Iota(const Full256<T> d, const T2 first) {
   return Load(d, lanes);
 }
 
-// ------------------------------ Mask
+// ------------------------------ LoadMaskBits (TestBit)
+
+namespace detail {
+
+// 256 suffix avoids ambiguity with x86_128 without needing HWY_IF_LE128 there.
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  const Repartition<uint32_t, decltype(d)> du32;
+  const auto vbits = BitCast(du, Set(du32, static_cast<uint32_t>(bits)));
+
+  // Replicate bytes 8x such that each byte contains the bit that governs it.
+  const Repartition<uint64_t, decltype(d)> du64;
+  alignas(32) constexpr uint64_t kRep8[4] = {
+      0x0000000000000000ull, 0x0101010101010101ull, 0x0202020202020202ull,
+      0x0303030303030303ull};
+  const auto rep8 = TableLookupBytes(vbits, BitCast(du, Load(du64, kRep8)));
+
+  alignas(32) constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
+                                            1, 2, 4, 8, 16, 32, 64, 128};
+  return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(32) constexpr uint16_t kBit[16] = {
+      1,     2,     4,     8,     16,     32,     64,     128,
+      0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000, 0x4000, 0x8000};
+  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr uint32_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr uint64_t kBit[8] = {1, 2, 4, 8};
+  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+}
+
+}  // namespace detail
+
+// `p` points to at least 8 readable bytes, not all of which need be valid.
+template <typename T>
+HWY_API Mask256<T> LoadMaskBits(Full256<T> d, const uint8_t* p) {
+  uint64_t bits = 0;
+  CopyBytes<(32 / sizeof(T) + 7) / 8>(p, &bits);
+  return detail::LoadMaskBits256(d, bits);
+}
+
+// ------------------------------ StoreMaskBits
 
 namespace detail {
 
@@ -2842,6 +2898,7 @@ HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
 
 }  // namespace detail
 
+// `p` points to at least 8 writable bytes.
 template <typename T>
 HWY_API size_t StoreMaskBits(const Full256<T> /* tag */, const Mask256<T> mask,
                              uint8_t* p) {
@@ -2850,6 +2907,8 @@ HWY_API size_t StoreMaskBits(const Full256<T> /* tag */, const Mask256<T> mask,
   CopyBytes<kNumBytes>(&bits, p);
   return kNumBytes;
 }
+
+// ------------------------------ Mask
 
 template <typename T>
 HWY_API bool AllFalse(const Full256<T> /* tag */, const Mask256<T> mask) {

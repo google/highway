@@ -1683,6 +1683,76 @@ V AverageRound(const V a, const V b) {
 }
 #endif  // HWY_TARGET == HWY_SVE2
 
+// ------------------------------ LoadMaskBits (TestBit)
+
+// `p` points to at least 8 readable bytes, not all of which need be valid.
+template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
+HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* p) {
+  const RebindToUnsigned<D> du;
+  const svuint8_t iota = Iota(du, 0);
+
+  // Load correct number of bytes (bits/8) with 7 zeros after each.
+  const svuint8_t bytes = BitCast(du, svld1ub_u64(detail::PTrue(d), p));
+  // Replicate bytes 8x such that each byte contains the bit that governs it.
+  const svuint8_t rep8 = svtbl_u8(bytes, detail::AndNotN(7, iota));
+
+  // 1, 2, 4, 8, 16, 32, 64, 128,  1, 2 ..
+  const svuint8_t bit = Shl(Set(du, 1), detail::AndN(iota, 7));
+
+  return TestBit(rep8, bit);
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
+HWY_INLINE svbool_t LoadMaskBits(D /* tag */, const uint8_t* p) {
+  const RebindToUnsigned<D> du;
+  const Repartition<uint8_t, D> du8;
+
+  // There may be up to 128 bits; need the actual size to avoid overrunning p.
+  const svuint8_t bytes = svld1(FirstN(du8, (Lanes(du) + 7) / 8), p);
+
+  // Replicate bytes 16x such that each lane contains the bit that governs it.
+  const svuint8_t rep16 = svtbl_u8(bytes, ShiftRight<4>(Iota(du8, 0)));
+
+  // 1, 2, 4, 8, 16, 32, 64, 128,  1, 2 ..
+  const svuint16_t bit = Shl(Set(du, 1), detail::AndN(Iota(du, 0), 7));
+
+  return TestBit(BitCast(du, rep16), bit);
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+HWY_INLINE svbool_t LoadMaskBits(D /* tag */, const uint8_t* p) {
+  const RebindToUnsigned<D> du;
+  const Repartition<uint8_t, D> du8;
+
+  // Upper bound = 2048 bits / 32 bit = 64 bits; at least 8 bytes are readable,
+  // so we can skip computing the actual length (Lanes(du)+7)/8.
+  const svuint8_t bytes = svld1(FirstN(du8, 8), p);
+
+  // Replicate bytes 32x such that each lane contains the bit that governs it.
+  const svuint8_t rep32 = svtbl_u8(bytes, ShiftRight<5>(Iota(du8, 0)));
+
+  // 1, 2, 4, 8, 16, 32, 64, 128,  1, 2 ..
+  const svuint32_t bit = Shl(Set(du, 1), detail::AndN(Iota(du, 0), 7));
+
+  return TestBit(BitCast(du, rep32), bit);
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+HWY_INLINE svbool_t LoadMaskBits(D /* tag */, const uint8_t* p) {
+  const RebindToUnsigned<D> du;
+
+  // Max 2048 bits = 32 lanes = 32 input bits; replicate those into each lane.
+  // The "at least 8 byte" guarantee in quick_reference ensures this is safe.
+  uint32_t bits;
+  CopyBytes<4>(p, &bits);
+  const auto vbits = Set(du, bits);
+
+  // 2 ^ {0,1, .., 31}, will not have more lanes than that.
+  const svuint64_t bit = Shl(Set(du, 1), Iota(du, 0));
+
+  return TestBit(vbits, bit);
+}
+
 // ------------------------------ StoreMaskBits
 
 namespace detail {
@@ -1711,6 +1781,7 @@ HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
 
 }  // namespace detail
 
+// `p` points to at least 8 writable bytes.
 template <typename T, size_t N>
 HWY_API size_t StoreMaskBits(Simd<T, N> d, svbool_t m, uint8_t* p) {
   const Repartition<uint8_t, decltype(d)> d8;
