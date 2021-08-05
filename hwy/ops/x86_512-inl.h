@@ -1308,170 +1308,98 @@ HWY_API Mask512<T> TestBit(const Vec512<T> v, const Vec512<T> bit) {
 
 // ------------------------------ Equality
 
-// Unsigned
-HWY_API Mask512<uint8_t> operator==(const Vec512<uint8_t> a,
-                                    const Vec512<uint8_t> b) {
-  return Mask512<uint8_t>{_mm512_cmpeq_epi8_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Mask512<T> operator==(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpeq_epi8_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<uint16_t> operator==(const Vec512<uint16_t> a,
-                                     const Vec512<uint16_t> b) {
-  return Mask512<uint16_t>{_mm512_cmpeq_epi16_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Mask512<T> operator==(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpeq_epi16_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<uint32_t> operator==(const Vec512<uint32_t> a,
-                                     const Vec512<uint32_t> b) {
-  return Mask512<uint32_t>{_mm512_cmpeq_epi32_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Mask512<T> operator==(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpeq_epi32_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<uint64_t> operator==(const Vec512<uint64_t> a,
-                                     const Vec512<uint64_t> b) {
-  return Mask512<uint64_t>{_mm512_cmpeq_epi64_mask(a.raw, b.raw)};
-}
-
-// Signed
-HWY_API Mask512<int8_t> operator==(const Vec512<int8_t> a,
-                                   const Vec512<int8_t> b) {
-  return Mask512<int8_t>{_mm512_cmpeq_epi8_mask(a.raw, b.raw)};
-}
-HWY_API Mask512<int16_t> operator==(const Vec512<int16_t> a,
-                                    const Vec512<int16_t> b) {
-  return Mask512<int16_t>{_mm512_cmpeq_epi16_mask(a.raw, b.raw)};
-}
-HWY_API Mask512<int32_t> operator==(const Vec512<int32_t> a,
-                                    const Vec512<int32_t> b) {
-  return Mask512<int32_t>{_mm512_cmpeq_epi32_mask(a.raw, b.raw)};
-}
-HWY_API Mask512<int64_t> operator==(const Vec512<int64_t> a,
-                                    const Vec512<int64_t> b) {
-  return Mask512<int64_t>{_mm512_cmpeq_epi64_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Mask512<T> operator==(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpeq_epi64_mask(a.raw, b.raw)};
 }
 
-// Float
-HWY_API Mask512<float> operator==(const Vec512<float> a,
-                                  const Vec512<float> b) {
+HWY_API Mask512<float> operator==(Vec512<float> a, Vec512<float> b) {
   return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_EQ_OQ)};
 }
-HWY_API Mask512<double> operator==(const Vec512<double> a,
-                                   const Vec512<double> b) {
+
+HWY_API Mask512<double> operator==(Vec512<double> a, Vec512<double> b) {
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_EQ_OQ)};
 }
 
 // ------------------------------ Inequality
 
-// Unsigned
-HWY_API Mask512<uint8_t> operator!=(const Vec512<uint8_t> a,
-                                    const Vec512<uint8_t> b) {
-  return Mask512<uint8_t>{_mm512_cmpneq_epi8_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Mask512<T> operator!=(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpneq_epi8_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<uint16_t> operator!=(const Vec512<uint16_t> a,
-                                     const Vec512<uint16_t> b) {
-  return Mask512<uint16_t>{_mm512_cmpneq_epi16_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Mask512<T> operator!=(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpneq_epi16_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<uint32_t> operator!=(const Vec512<uint32_t> a,
-                                     const Vec512<uint32_t> b) {
-  return Mask512<uint32_t>{_mm512_cmpneq_epi32_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Mask512<T> operator!=(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpneq_epi32_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<uint64_t> operator!=(const Vec512<uint64_t> a,
-                                     const Vec512<uint64_t> b) {
-  return Mask512<uint64_t>{_mm512_cmpneq_epi64_mask(a.raw, b.raw)};
-}
-
-// Signed
-HWY_API Mask512<int8_t> operator!=(const Vec512<int8_t> a,
-                                   const Vec512<int8_t> b) {
-  return Mask512<int8_t>{_mm512_cmpneq_epi8_mask(a.raw, b.raw)};
-}
-HWY_API Mask512<int16_t> operator!=(const Vec512<int16_t> a,
-                                    const Vec512<int16_t> b) {
-  return Mask512<int16_t>{_mm512_cmpneq_epi16_mask(a.raw, b.raw)};
-}
-HWY_API Mask512<int32_t> operator!=(const Vec512<int32_t> a,
-                                    const Vec512<int32_t> b) {
-  return Mask512<int32_t>{_mm512_cmpneq_epi32_mask(a.raw, b.raw)};
-}
-HWY_API Mask512<int64_t> operator!=(const Vec512<int64_t> a,
-                                    const Vec512<int64_t> b) {
-  return Mask512<int64_t>{_mm512_cmpneq_epi64_mask(a.raw, b.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Mask512<T> operator!=(Vec512<T> a, Vec512<T> b) {
+  return Mask512<T>{_mm512_cmpneq_epi64_mask(a.raw, b.raw)};
 }
 
-// Float
-HWY_API Mask512<float> operator!=(const Vec512<float> a,
-                                  const Vec512<float> b) {
+HWY_API Mask512<float> operator!=(Vec512<float> a, Vec512<float> b) {
   return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
 }
-HWY_API Mask512<double> operator!=(const Vec512<double> a,
-                                   const Vec512<double> b) {
+
+HWY_API Mask512<double> operator!=(Vec512<double> a, Vec512<double> b) {
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
 }
 
 // ------------------------------ Strict inequality
 
-// Signed/float <
-HWY_API Mask512<int8_t> operator<(const Vec512<int8_t> a,
-                                  const Vec512<int8_t> b) {
-  return Mask512<int8_t>{_mm512_cmpgt_epi8_mask(b.raw, a.raw)};
-}
-HWY_API Mask512<int16_t> operator<(const Vec512<int16_t> a,
-                                   const Vec512<int16_t> b) {
-  return Mask512<int16_t>{_mm512_cmpgt_epi16_mask(b.raw, a.raw)};
-}
-HWY_API Mask512<int32_t> operator<(const Vec512<int32_t> a,
-                                   const Vec512<int32_t> b) {
-  return Mask512<int32_t>{_mm512_cmpgt_epi32_mask(b.raw, a.raw)};
-}
-HWY_API Mask512<int64_t> operator<(const Vec512<int64_t> a,
-                                   const Vec512<int64_t> b) {
-  return Mask512<int64_t>{_mm512_cmpgt_epi64_mask(b.raw, a.raw)};
-}
-HWY_API Mask512<float> operator<(const Vec512<float> a, const Vec512<float> b) {
-  return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_LT_OQ)};
-}
-HWY_API Mask512<double> operator<(const Vec512<double> a,
-                                  const Vec512<double> b) {
-  return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_LT_OQ)};
-}
-
-// Signed/float >
-HWY_API Mask512<int8_t> operator>(const Vec512<int8_t> a,
-                                  const Vec512<int8_t> b) {
+HWY_API Mask512<int8_t> operator>(Vec512<int8_t> a, Vec512<int8_t> b) {
   return Mask512<int8_t>{_mm512_cmpgt_epi8_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<int16_t> operator>(const Vec512<int16_t> a,
-                                   const Vec512<int16_t> b) {
+HWY_API Mask512<int16_t> operator>(Vec512<int16_t> a, Vec512<int16_t> b) {
   return Mask512<int16_t>{_mm512_cmpgt_epi16_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<int32_t> operator>(const Vec512<int32_t> a,
-                                   const Vec512<int32_t> b) {
+HWY_API Mask512<int32_t> operator>(Vec512<int32_t> a, Vec512<int32_t> b) {
   return Mask512<int32_t>{_mm512_cmpgt_epi32_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<int64_t> operator>(const Vec512<int64_t> a,
-                                   const Vec512<int64_t> b) {
+HWY_API Mask512<int64_t> operator>(Vec512<int64_t> a, Vec512<int64_t> b) {
   return Mask512<int64_t>{_mm512_cmpgt_epi64_mask(a.raw, b.raw)};
 }
-HWY_API Mask512<float> operator>(const Vec512<float> a, const Vec512<float> b) {
+HWY_API Mask512<float> operator>(Vec512<float> a, Vec512<float> b) {
   return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_GT_OQ)};
 }
-HWY_API Mask512<double> operator>(const Vec512<double> a,
-                                  const Vec512<double> b) {
+HWY_API Mask512<double> operator>(Vec512<double> a, Vec512<double> b) {
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_GT_OQ)};
 }
 
 // ------------------------------ Weak inequality
 
-// Float <= >=
-HWY_API Mask512<float> operator<=(const Vec512<float> a,
-                                  const Vec512<float> b) {
-  return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_LE_OQ)};
-}
-HWY_API Mask512<double> operator<=(const Vec512<double> a,
-                                   const Vec512<double> b) {
-  return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_LE_OQ)};
-}
-HWY_API Mask512<float> operator>=(const Vec512<float> a,
-                                  const Vec512<float> b) {
+HWY_API Mask512<float> operator>=(Vec512<float> a, Vec512<float> b) {
   return Mask512<float>{_mm512_cmp_ps_mask(a.raw, b.raw, _CMP_GE_OQ)};
 }
-HWY_API Mask512<double> operator>=(const Vec512<double> a,
-                                   const Vec512<double> b) {
+HWY_API Mask512<double> operator>=(Vec512<double> a, Vec512<double> b) {
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+// ------------------------------ Reversed comparisons
+
+template <typename T>
+HWY_API Mask512<T> operator<(Vec512<T> a, Vec512<T> b) {
+  return b > a;
+}
+
+template <typename T>
+HWY_API Mask512<T> operator<=(Vec512<T> a, Vec512<T> b) {
+  return b >= a;
 }
 
 // ------------------------------ Mask
@@ -1549,15 +1477,6 @@ HWY_API Vec512<T> VecFromMask(Full512<T> /* tag */, const Mask512<T> v) {
 }
 
 // ------------------------------ Mask logical
-
-// For Clang and GCC, mask intrinsics (KORTEST) weren't added until recently.
-#if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS) &&         \
-    (HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC >= 700 || \
-     HWY_COMPILER_CLANG >= 800)
-#define HWY_COMPILER_HAS_MASK_INTRINSICS 1
-#else
-#define HWY_COMPILER_HAS_MASK_INTRINSICS 0
-#endif
 
 namespace detail {
 
@@ -2909,114 +2828,117 @@ Vec512<T> Iota(const Full512<T> d, const T2 first) {
   return Load(d, lanes);
 }
 
-// ------------------------------ Mask
+// ------------------------------ Mask testing
 
 // Beware: the suffix indicates the number of mask bits, not lane size!
 
 namespace detail {
 
 template <typename T>
-HWY_INLINE bool AllFalse(hwy::SizeTag<1> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllFalse(hwy::SizeTag<1> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestz_mask64_u8(v.raw, v.raw);
+  return _kortestz_mask64_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0;
+  return mask.raw == 0;
 #endif
 }
 template <typename T>
-HWY_INLINE bool AllFalse(hwy::SizeTag<2> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllFalse(hwy::SizeTag<2> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestz_mask32_u8(v.raw, v.raw);
+  return _kortestz_mask32_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0;
+  return mask.raw == 0;
 #endif
 }
 template <typename T>
-HWY_INLINE bool AllFalse(hwy::SizeTag<4> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllFalse(hwy::SizeTag<4> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestz_mask16_u8(v.raw, v.raw);
+  return _kortestz_mask16_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0;
+  return mask.raw == 0;
 #endif
 }
 template <typename T>
-HWY_INLINE bool AllFalse(hwy::SizeTag<8> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllFalse(hwy::SizeTag<8> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestz_mask8_u8(v.raw, v.raw);
+  return _kortestz_mask8_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0;
+  return mask.raw == 0;
 #endif
 }
 
 }  // namespace detail
 
 template <typename T>
-HWY_API bool AllFalse(const Full512<T> /* tag */, const Mask512<T> v) {
-  return detail::AllFalse(hwy::SizeTag<sizeof(T)>(), v);
+HWY_API bool AllFalse(const Full512<T> /* tag */, const Mask512<T> mask) {
+  return detail::AllFalse(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 namespace detail {
 
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<1> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestc_mask64_u8(v.raw, v.raw);
+  return _kortestc_mask64_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0xFFFFFFFFFFFFFFFFull;
+  return mask.raw == 0xFFFFFFFFFFFFFFFFull;
 #endif
 }
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestc_mask32_u8(v.raw, v.raw);
+  return _kortestc_mask32_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0xFFFFFFFFull;
+  return mask.raw == 0xFFFFFFFFull;
 #endif
 }
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestc_mask16_u8(v.raw, v.raw);
+  return _kortestc_mask16_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0xFFFFull;
+  return mask.raw == 0xFFFFull;
 #endif
 }
 template <typename T>
-HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask512<T> v) {
+HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask512<T> mask) {
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
-  return _kortestc_mask8_u8(v.raw, v.raw);
+  return _kortestc_mask8_u8(mask.raw, mask.raw);
 #else
-  return v.raw == 0xFFull;
+  return mask.raw == 0xFFull;
 #endif
 }
 
 }  // namespace detail
 
 template <typename T>
-HWY_API bool AllTrue(const Full512<T> /* tag */, const Mask512<T> v) {
-  return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), v);
+HWY_API bool AllTrue(const Full512<T> /* tag */, const Mask512<T> mask) {
+  return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
 template <typename T>
-HWY_API Mask512<T> LoadMaskBits(const Full512<T> /* tag */, const uint8_t* p) {
+HWY_API Mask512<T> LoadMaskBits(const Full512<T> /* tag */,
+                                const uint8_t* HWY_RESTRICT bits) {
   Mask512<T> mask;
-  CopyBytes<8 / sizeof(T)>(p, &mask.raw);
+  CopyBytes<8 / sizeof(T)>(bits, &mask.raw);
+  // N >= 8 (= 512 / 64), so no need to mask invalid bits.
   return mask;
 }
 
 // `p` points to at least 8 writable bytes.
 template <typename T>
 HWY_API size_t StoreMaskBits(const Full512<T> /* tag */, const Mask512<T> mask,
-                             uint8_t* p) {
+                             uint8_t* bits) {
   const size_t kNumBytes = 8 / sizeof(T);
-  CopyBytes<kNumBytes>(&mask.raw, p);
+  CopyBytes<kNumBytes>(&mask.raw, bits);
+  // N >= 8 (= 512 / 64), so no need to mask invalid bits.
   return kNumBytes;
 }
 
 template <typename T>
 HWY_API size_t CountTrue(const Full512<T> /* tag */, const Mask512<T> mask) {
-  return PopCount(mask.raw);
+  return PopCount(static_cast<uint64_t>(mask.raw));
 }
 
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
@@ -3033,53 +2955,45 @@ HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
 
 // ------------------------------ Compress
 
-HWY_API Vec512<uint32_t> Compress(Vec512<uint32_t> v,
-                                  const Mask512<uint32_t> mask) {
-  return Vec512<uint32_t>{_mm512_maskz_compress_epi32(mask.raw, v.raw)};
-}
-HWY_API Vec512<int32_t> Compress(Vec512<int32_t> v,
-                                 const Mask512<int32_t> mask) {
-  return Vec512<int32_t>{_mm512_maskz_compress_epi32(mask.raw, v.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Compress(Vec512<T> v, Mask512<T> mask) {
+  return Vec512<T>{_mm512_maskz_compress_epi32(mask.raw, v.raw)};
 }
 
-HWY_API Vec512<uint64_t> Compress(Vec512<uint64_t> v,
-                                  const Mask512<uint64_t> mask) {
-  return Vec512<uint64_t>{_mm512_maskz_compress_epi64(mask.raw, v.raw)};
-}
-HWY_API Vec512<int64_t> Compress(Vec512<int64_t> v,
-                                 const Mask512<int64_t> mask) {
-  return Vec512<int64_t>{_mm512_maskz_compress_epi64(mask.raw, v.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> Compress(Vec512<T> v, Mask512<T> mask) {
+  return Vec512<T>{_mm512_maskz_compress_epi64(mask.raw, v.raw)};
 }
 
-HWY_API Vec512<float> Compress(Vec512<float> v, const Mask512<float> mask) {
+HWY_API Vec512<float> Compress(Vec512<float> v, Mask512<float> mask) {
   return Vec512<float>{_mm512_maskz_compress_ps(mask.raw, v.raw)};
 }
 
-HWY_API Vec512<double> Compress(Vec512<double> v, const Mask512<double> mask) {
+HWY_API Vec512<double> Compress(Vec512<double> v, Mask512<double> mask) {
   return Vec512<double>{_mm512_maskz_compress_pd(mask.raw, v.raw)};
 }
 
-namespace detail {
-
-// Ignore IDE redefinition error for these two functions: if this header is
-// included, then the functions weren't actually defined in x86_256-inl.h.
-template <typename T>
-HWY_INLINE Vec256<T> Compress(hwy::SizeTag<2> /*tag*/, Vec256<T> v,
-                              const uint64_t mask_bits) {
+// Ignore IDE redefinition errors - Compress(Vec128/256) are not actually
+// defined elsewhere if we are including x86_512-inl.h.
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> mask) {
   using D = Full256<T>;
   const Rebind<uint16_t, D> du;
   const Rebind<int32_t, D> dw;       // 512-bit, not 256!
   const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
-  const Mask512<int32_t> mask{static_cast<__mmask16>(mask_bits)};
-  return BitCast(D(), DemoteTo(du, Compress(PromoteTo(dw, vu16), mask)));
+  const Mask512<int32_t> mask32{static_cast<__mmask16>(mask.raw)};
+  return BitCast(D(), DemoteTo(du, Compress(PromoteTo(dw, vu16), mask32)));
 }
 
-}  // namespace detail
-
-template <typename T>
-HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
-  return detail::Compress(hwy::SizeTag<sizeof(T)>(), v,
-                          detail::BitsFromMask(mask));
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
+  const Simd<T, N> d;
+  const Rebind<uint16_t, decltype(d)> du;
+  const Rebind<int32_t, decltype(d)> dw;  // double-width, but maybe not 256!
+  const auto vu16 = BitCast(du, v);       // (required for float16_t inputs)
+  // MFromD may be either Mask128 (if <= half vector) or Mask256.
+  const auto mask32 = MFromD<decltype(dw)>::FromBits(uint64_t{mask.raw});
+  return BitCast(d, DemoteTo(du, Compress(PromoteTo(dw, vu16), mask32)));
 }
 
 // Expands to 32-bit, compresses, concatenate demoted halves.
@@ -3092,8 +3006,9 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
   const auto promoted1 = PromoteTo(dw, UpperHalf(Half<decltype(du)>(), vu16));
 
-  const Mask512<int32_t> mask0{static_cast<__mmask16>(mask.raw & 0xFFFF)};
-  const Mask512<int32_t> mask1{static_cast<__mmask16>(mask.raw >> 16)};
+  const uint32_t mask_bits{mask.raw};
+  const Mask512<int32_t> mask0{static_cast<__mmask16>(mask_bits & 0xFFFF)};
+  const Mask512<int32_t> mask1{static_cast<__mmask16>(mask_bits >> 16)};
   const auto compressed0 = Compress(promoted0, mask0);
   const auto compressed1 = Compress(promoted1, mask1);
 
@@ -3114,61 +3029,69 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
                                                  demoted1.raw)};
 }
 
+// ------------------------------ CompressBits
+template <typename T>
+HWY_API Vec512<T> CompressBits(Vec512<T> v, const uint8_t* HWY_RESTRICT bits) {
+  return Compress(v, LoadMaskBits(Full512<T>(), bits));
+}
+
 // ------------------------------ CompressStore
 
-template <typename T>
-HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
-                             T* HWY_RESTRICT unaligned) {
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
-  StoreU(detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits), d,
-         unaligned);
-  return PopCount(mask_bits);
+// Ignore IDE redefinition errors - CompressStore(Vec128/256) are not actually
+// defined elsewhere if we are including x86_512-inl.h.
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
+                             Simd<T, N> d, T* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
+  return PopCount(uint64_t{mask.raw});
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API size_t CompressStore(Vec512<T> v, const Mask512<T> mask, Full512<T> d,
+HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
                              T* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
-  return CountTrue(d, mask);
+  return PopCount(uint64_t{mask.raw});
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> d,
+                             T* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
+  return PopCount(uint64_t{mask.raw});
 }
 
-HWY_API size_t CompressStore(Vec512<uint32_t> v, const Mask512<uint32_t> mask,
-                             Full512<uint32_t> d,
-                             uint32_t* HWY_RESTRICT unaligned) {
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> /* tag */,
+                             T* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
-  return CountTrue(d, mask);
-}
-HWY_API size_t CompressStore(Vec512<int32_t> v, const Mask512<int32_t> mask,
-                             Full512<int32_t> d,
-                             int32_t* HWY_RESTRICT unaligned) {
-  _mm512_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
-  return CountTrue(d, mask);
+  return PopCount(uint64_t{mask.raw});
 }
 
-HWY_API size_t CompressStore(Vec512<uint64_t> v, const Mask512<uint64_t> mask,
-                             Full512<uint64_t> d,
-                             uint64_t* HWY_RESTRICT unaligned) {
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> /* tag */,
+                             T* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
-  return CountTrue(d, mask);
-}
-HWY_API size_t CompressStore(Vec512<int64_t> v, const Mask512<int64_t> mask,
-                             Full512<int64_t> d,
-                             int64_t* HWY_RESTRICT unaligned) {
-  _mm512_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
-  return CountTrue(d, mask);
+  return PopCount(uint64_t{mask.raw});
 }
 
-HWY_API size_t CompressStore(Vec512<float> v, const Mask512<float> mask,
-                             Full512<float> d, float* HWY_RESTRICT unaligned) {
+HWY_API size_t CompressStore(Vec512<float> v, Mask512<float> mask,
+                             Full512<float> /* tag */,
+                             float* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
-  return CountTrue(d, mask);
+  return PopCount(uint64_t{mask.raw});
 }
 
-HWY_API size_t CompressStore(Vec512<double> v, const Mask512<double> mask,
-                             Full512<double> d,
+HWY_API size_t CompressStore(Vec512<double> v, Mask512<double> mask,
+                             Full512<double> /* tag */,
                              double* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
-  return CountTrue(d, mask);
+  return PopCount(uint64_t{mask.raw});
+}
+
+// ------------------------------ CompressBitsStore
+template <typename T>
+HWY_API size_t CompressBitsStore(Vec512<T> v, const uint8_t* HWY_RESTRICT bits,
+                                 Full512<T> d, T* HWY_RESTRICT unaligned) {
+  return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
 }
 
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
@@ -3388,8 +3311,8 @@ HWY_API Vec512<double> MaxOfLanes(Full512<double> d, Vec512<double> v) {
 // ================================================== DEPRECATED
 
 template <typename T>
-HWY_API size_t StoreMaskBits(const Mask512<T> mask, uint8_t* p) {
-  return StoreMaskBits(Full512<T>(), mask, p);
+HWY_API size_t StoreMaskBits(const Mask512<T> mask, uint8_t* bits) {
+  return StoreMaskBits(Full512<T>(), mask, bits);
 }
 
 template <typename T>

@@ -445,7 +445,8 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>M **LoadMaskBits**(D, const uint8_t* p)</code>: returns a mask
     indicating whether the i-th bit in the array is set. Loads bytes and bits in
     ascending order of address and index. At least 8 bytes of `p` must be
-    readable, but only `(Lanes(D()) + 7) / 8` need be initialized.
+    readable, but only `(Lanes(D()) + 7) / 8` need be initialized. Any unused
+    bits (happens if `Lanes(D()) < 8`) are treated as if they were zero.
 
 *   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
     array indicating whether `m[i]` is true, in ascending order of `i`, filling
@@ -463,7 +464,8 @@ Let `M` denote a mask capable of storing true/false for each lane.
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
     Compacts lanes whose mask is set into the lower lanes; upper lanes are
-    implementation-defined. Slow with 16-bit lanes.
+    implementation-defined. Slow with 16-bit lanes. Use this form when the input
+    is already a mask, e.g. returned by a comparison.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
@@ -471,6 +473,19 @@ Let `M` denote a mask capable of storing true/false for each lane.
     m)`, the number of valid lanes. May be implemented as `Compress` followed by
     `StoreU`; lanes after the valid ones may still be overwritten! Slower for
     16-bit lanes.
+
+*   `V`: `{u,i,f}{16,32,64}` \
+    <code>V **CompressBits**(V v, const uint8_t* HWY_RESTRICT bits)</code>:
+    Equivalent to, but often faster than `Compress(v, LoadMaskBits(d, bits))`.
+    `bits` is as specified for `LoadMaskBits`. If called multiple times, the
+    `bits` pointer passed to this function must also be marked `HWY_RESTRICT` to
+    avoid repeated work. Note that if the vector has less than 8 elements,
+    incrementing `bits` will not work as intended for packed bit arrays.
+
+*   `V`: `{u,i,f}{16,32,64}` \
+    <code>size_t **CompressBitsStore**(V v, const uint8_t* HWY_RESTRICT bits, D
+    d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see
+    remarks there.
 
 ### Comparisons
 

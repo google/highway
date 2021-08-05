@@ -1352,6 +1352,7 @@ HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather)
 #define HWY_RVV_COMPRESS(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                   \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) mask) {       \
+    Lanes(HWY_RVV_D(CHAR, SEW, LMUL)());                               \
     return v##OP##_vm_##CHAR##SEW##LMUL(mask, v, v);                   \
   }
 
@@ -1682,21 +1683,22 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
 }
 
 // ------------------------------ StoreMaskBits
-#define HWY_RVV_STORE_MASK_BITS(MLEN, NAME, OP)                              \
-  /* DEPRECATED */                                                           \
-  HWY_API size_t StoreMaskBits(HWY_RVV_M(MLEN) m, uint8_t* p) {              \
-    /* LMUL=1 is always enough */                                            \
-    Full<uint8_t> d8;                                                        \
-    const size_t num_bytes = (Lanes(d8) + MLEN - 1) / MLEN;                  \
-    /* TODO(janwas): how to convert vbool* to vuint?*/                       \
-    /*Store(m, d8, p);*/                                                     \
-    (void)m;                                                                 \
-    (void)p;                                                                 \
-    return num_bytes;                                                        \
-  }                                                                          \
-  template <class D>                                                         \
-  HWY_API size_t StoreMaskBits(D /* tag */, HWY_RVV_M(MLEN) m, uint8_t* p) { \
-    return StoreMaskBits(m, p);                                              \
+#define HWY_RVV_STORE_MASK_BITS(MLEN, NAME, OP)                    \
+  /* DEPRECATED */                                                 \
+  HWY_API size_t StoreMaskBits(HWY_RVV_M(MLEN) m, uint8_t* bits) { \
+    /* LMUL=1 is always enough */                                  \
+    Full<uint8_t> d8;                                              \
+    const size_t num_bytes = (Lanes(d8) + MLEN - 1) / MLEN;        \
+    /* TODO(janwas): how to convert vbool* to vuint?*/             \
+    /*Store(m, d8, bits);*/                                        \
+    (void)m;                                                       \
+    (void)bits;                                                    \
+    return num_bytes;                                              \
+  }                                                                \
+  template <class D>                                               \
+  HWY_API size_t StoreMaskBits(D /* tag */, HWY_RVV_M(MLEN) m,     \
+                               uint8_t* bits) {                    \
+    return StoreMaskBits(m, bits);                                 \
   }
 HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, _, _)
 #undef HWY_RVV_STORE_MASK_BITS

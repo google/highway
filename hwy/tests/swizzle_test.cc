@@ -126,7 +126,28 @@ HWY_NOINLINE void TestAllTableLookupLanes() {
   test(float());
 }
 
-struct TestCompress {
+class TestCompress {
+  template <typename T, typename TI, size_t N>
+  void CheckStored(Simd<T, N> d, Simd<TI, N> di, size_t expected_pos,
+                   const AlignedFreeUniquePtr<T[]>& in,
+                   const AlignedFreeUniquePtr<TI[]>& mask_lanes,
+                   const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
+                   int line) {
+    // Upper lanes are undefined. Modified from AssertVecEqual.
+    for (size_t i = 0; i < expected_pos; ++i) {
+      if (!IsEqual(expected[i], actual_u[i])) {
+        fprintf(stderr, "Mismatch at i=%zu of %zu, line %d:\n\n", i,
+                expected_pos, line);
+        Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
+        Print(d, "in", Load(d, in.get()), 0, N);
+        Print(d, "expect", Load(d, expected.get()), 0, N);
+        Print(d, "actual", Load(d, actual_u), 0, N);
+        HWY_ASSERT(false);
+      }
+    }
+  }
+
+ public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
@@ -144,6 +165,7 @@ struct TestCompress {
       auto expected = AllocateAligned<T>(N);
       auto actual_a = AllocateAligned<T>(misalign + N);
       T* actual_u = actual_a.get() + misalign;
+      auto bits = AllocateAligned<uint8_t>(HWY_MAX(8, (N + 7) / 8));
 
       // Each lane should have a chance of having mask=true.
       for (size_t rep = 0; rep < 100; ++rep) {
@@ -161,34 +183,36 @@ struct TestCompress {
         const auto in = Load(d, in_lanes.get());
         const auto mask =
             RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
+        StoreMaskBits(d, mask, bits.get());
 
-        StoreU(Compress(in, mask), d, actual_u);
-        // Upper lanes are undefined. Modified from AssertVecEqual.
-        for (size_t i = 0; i < expected_pos; ++i) {
-          if (!IsEqual(expected[i], actual_u[i])) {
-            fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
-            Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
-            Print(d, "in", in, 0, N);
-            Print(d, "expect", Load(d, expected.get()), 0, N);
-            Print(d, "actual", LoadU(d, actual_u), 0, N);
-            HWY_ASSERT(false);
-          }
-        }
-
-        // Also check CompressStore in the same way.
+        // Compress
         memset(actual_u, 0, N * sizeof(T));
-        const size_t num_written = CompressStore(in, mask, d, actual_u);
-        HWY_ASSERT_EQ(expected_pos, num_written);
-        for (size_t i = 0; i < expected_pos; ++i) {
-          if (!IsEqual(expected[i], actual_u[i])) {
-            fprintf(stderr, "Mismatch at i=%zu of %zu:\n\n", i, expected_pos);
-            Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
-            Print(d, "in", in, 0, N);
-            Print(d, "expect", Load(d, expected.get()), 0, N);
-            Print(d, "actual", LoadU(d, actual_u), 0, N);
-            HWY_ASSERT(false);
-          }
-        }
+        StoreU(Compress(in, mask), d, actual_u);
+        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
+                    actual_u, __LINE__);
+
+        // CompressStore
+        memset(actual_u, 0, N * sizeof(T));
+        const size_t size1 = CompressStore(in, mask, d, actual_u);
+        HWY_ASSERT_EQ(expected_pos, size1);
+        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
+                    actual_u, __LINE__);
+
+        // TODO(janwas): remove once implemented (cast or vse1)
+#if HWY_TARGET != HWY_RVV
+        // CompressBits
+        memset(actual_u, 0, N * sizeof(T));
+        StoreU(CompressBits(in, bits.get()), d, actual_u);
+        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
+                    actual_u, __LINE__);
+
+        // CompressBitsStore
+        memset(actual_u, 0, N * sizeof(T));
+        const size_t size2 = CompressBitsStore(in, bits.get(), d, actual_u);
+        HWY_ASSERT_EQ(expected_pos, size2);
+        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
+                    actual_u, __LINE__);
+#endif
       }  // rep
     }    // frac
   }      // operator()
@@ -350,7 +374,7 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCompress);
 }  // namespace hwy
 
 // Ought not to be necessary, but without this, no tests run on RVV.
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

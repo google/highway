@@ -1162,14 +1162,15 @@ HWY_API bool AllTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
 template <typename T>
-HWY_API Mask1<T> LoadMaskBits(Sisd<T> /* tag */, const uint8_t* p) {
-  return Mask1<T>::FromBool((*p & 1) != 0);
+HWY_API Mask1<T> LoadMaskBits(Sisd<T> /* tag */,
+                              const uint8_t* HWY_RESTRICT bits) {
+  return Mask1<T>::FromBool((bits[0] & 1) != 0);
 }
 
 // `p` points to at least 8 writable bytes.
 template <typename T>
-HWY_API size_t StoreMaskBits(Sisd<T> d, const Mask1<T> mask, uint8_t* p) {
-  *p = AllTrue(d, mask);
+HWY_API size_t StoreMaskBits(Sisd<T> d, const Mask1<T> mask, uint8_t* bits) {
+  *bits = AllTrue(d, mask);
   return 1;
 }
 
@@ -1183,9 +1184,16 @@ HWY_API intptr_t FindFirstTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits == 0 ? -1 : 0;
 }
 
+// ------------------------------ Compress, CompressBits
+
 template <typename T>
 HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
   // Upper lanes are undefined, so result is the same independent of mask.
+  return v;
+}
+
+template <typename T>
+HWY_API Vec1<T> Compress(Vec1<T> v, const uint8_t* HWY_RESTRICT /* bits */) {
   return v;
 }
 
@@ -1194,6 +1202,16 @@ HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
 template <typename T>
 HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
                              T* HWY_RESTRICT unaligned) {
+  StoreU(Compress(v, mask), d, unaligned);
+  return CountTrue(d, mask);
+}
+
+// ------------------------------ CompressBitsStore
+
+template <typename T>
+HWY_API size_t CompressBitsStore(Vec1<T> v, const uint8_t* HWY_RESTRICT bits,
+                                 Sisd<T> d, T* HWY_RESTRICT unaligned) {
+  const Mask1<T> mask = LoadMaskBits(d, bits);
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
@@ -1217,8 +1235,8 @@ HWY_API Vec1<T> MaxOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
 // ================================================== DEPRECATED
 
 template <typename T>
-HWY_API size_t StoreMaskBits(const Mask1<T> mask, uint8_t* p) {
-  return StoreMaskBits(Sisd<T>(), mask, p);
+HWY_API size_t StoreMaskBits(const Mask1<T> mask, uint8_t* bits) {
+  return StoreMaskBits(Sisd<T>(), mask, bits);
 }
 
 template <typename T>
