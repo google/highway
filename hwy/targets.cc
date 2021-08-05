@@ -19,6 +19,7 @@
 #include <stdio.h>
 
 #include <atomic>
+#include <cstddef>
 #include <limits>
 
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
@@ -95,50 +96,86 @@ uint32_t supported_targets_for_test_ = 0;
 uint32_t supported_mask_{std::numeric_limits<uint32_t>::max()};
 
 #if HWY_ARCH_X86
-// Bits indicating which instruction set extensions are supported.
-constexpr uint32_t kSSE = 1 << 0;
-constexpr uint32_t kSSE2 = 1 << 1;
-constexpr uint32_t kSSE3 = 1 << 2;
-constexpr uint32_t kSSSE3 = 1 << 3;
-constexpr uint32_t kGroupSSSE3 = kSSE | kSSE2 | kSSE3 | kSSSE3;
+// Arbritrary bit indices indicating which instruction set extensions are
+// supported. Use enum to ensure values are distinct.
+enum class FeatureIndex : uint32_t {
+  kSSE = 0,
+  kSSE2,
+  kSSE3,
+  kSSSE3,
 
-constexpr uint32_t kSSE41 = 1 << 4;
-constexpr uint32_t kSSE42 = 1 << 5;
-constexpr uint32_t kCLMUL = 1 << 6;
-constexpr uint32_t kGroupSSE4 = kSSE41 | kSSE42 | kCLMUL | kGroupSSSE3;
+  kSSE41,
+  kSSE42,
+  kCLMUL,
+  kAES,
 
-constexpr uint32_t kAVX = 1u << 6;
-constexpr uint32_t kAVX2 = 1u << 7;
-constexpr uint32_t kFMA = 1u << 8;
-constexpr uint32_t kLZCNT = 1u << 9;
-constexpr uint32_t kBMI = 1u << 10;
-constexpr uint32_t kBMI2 = 1u << 11;
+  kAVX,
+  kAVX2,
+  kF16C,
+  kFMA,
+  kLZCNT,
+  kBMI,
+  kBMI2,
+
+  kAVX512F,
+  kAVX512VL,
+  kAVX512DQ,
+  kAVX512BW,
+
+  kVNNI,
+  kVPCLMULQDQ,
+  kVAES,
+  kPOPCNTDQ,
+  kBITALG,
+
+  kSentinel
+};
+static_assert(static_cast<size_t>(FeatureIndex::kSentinel) < 64,
+              "Too many bits for u64");
+
+constexpr uint64_t Bit(FeatureIndex index) {
+  return 1ull << static_cast<size_t>(index);
+}
+
+constexpr uint64_t kGroupSSSE3 =
+    Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2) |
+    Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3);
+
+constexpr uint64_t kGroupSSE4 =
+    Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) |
+    Bit(FeatureIndex::kCLMUL) | Bit(FeatureIndex::kAES) | kGroupSSSE3;
 
 // We normally assume BMI/BMI2/FMA are available if AVX2 is. This allows us to
 // use BZHI and (compiler-generated) MULX. However, VirtualBox lacks them
 // [https://www.virtualbox.org/ticket/15471]. Thus we provide the option of
 // avoiding using and requiring these so AVX2 can still be used.
 #ifdef HWY_DISABLE_BMI2_FMA
-constexpr uint32_t kGroupAVX2 = kAVX | kAVX2 | kLZCNT | kGroupSSE4;
+constexpr uint64_t kGroupBMI2_FMA = 0;
 #else
-constexpr uint32_t kGroupAVX2 =
-    kAVX | kAVX2 | kFMA | kLZCNT | kBMI | kBMI2 | kGroupSSE4;
+constexpr uint64_t kGroupBMI2_FMA = Bit(FeatureIndex::kBMI) |
+                                    Bit(FeatureIndex::kBMI2) |
+                                    Bit(FeatureIndex::kFMA);
 #endif
 
-constexpr uint32_t kAVX512F = 1u << 12;
-constexpr uint32_t kAVX512VL = 1u << 13;
-constexpr uint32_t kAVX512DQ = 1u << 14;
-constexpr uint32_t kAVX512BW = 1u << 15;
-constexpr uint32_t kGroupAVX3 =
-    kAVX512F | kAVX512VL | kAVX512DQ | kAVX512BW | kGroupAVX2;
+#ifdef HWY_DISABLE_F16C
+constexpr uint64_t kGroupF16C = 0;
+#else
+constexpr uint64_t kGroupF16C = Bit(FeatureIndex::kF16C);
+#endif
 
-constexpr uint32_t kVNNI = 1u << 16;
-constexpr uint32_t kVPCLMULQDQ = 1u << 17;
-constexpr uint32_t kVAES = 1u << 18;
-constexpr uint32_t kPOPCNTDQ = 1u << 19;
-constexpr uint32_t kBITALG = 1u << 20;
-constexpr uint32_t kGroupAVX3_DL =
-    kVNNI | kVPCLMULQDQ | kVAES | kPOPCNTDQ | kBITALG | kGroupAVX3;
+constexpr uint64_t kGroupAVX2 =
+    Bit(FeatureIndex::kAVX) | Bit(FeatureIndex::kAVX2) |
+    Bit(FeatureIndex::kLZCNT) | kGroupBMI2_FMA | kGroupF16C | kGroupSSE4;
+
+constexpr uint64_t kGroupAVX3 =
+    Bit(FeatureIndex::kAVX512F) | Bit(FeatureIndex::kAVX512VL) |
+    Bit(FeatureIndex::kAVX512DQ) | Bit(FeatureIndex::kAVX512BW) | kGroupAVX2;
+
+constexpr uint64_t kGroupAVX3_DL =
+    Bit(FeatureIndex::kVNNI) | Bit(FeatureIndex::kVPCLMULQDQ) |
+    Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
+    Bit(FeatureIndex::kBITALG) | kGroupAVX3;
+
 #endif  // HWY_ARCH_X86
 
 }  // namespace
@@ -208,7 +245,7 @@ uint32_t SupportedTargets() {
 #if HWY_ARCH_X86
   bool has_osxsave = false;
   {  // ensures we do not accidentally use flags outside this block
-    uint32_t flags = 0;
+    uint64_t flags = 0;
     uint32_t abcd[4];
 
     Cpuid(0, 0, abcd);
@@ -216,38 +253,40 @@ uint32_t SupportedTargets() {
 
     // Standard feature flags
     Cpuid(1, 0, abcd);
-    flags |= IsBitSet(abcd[3], 25) ? kSSE : 0;
-    flags |= IsBitSet(abcd[3], 26) ? kSSE2 : 0;
-    flags |= IsBitSet(abcd[2], 0) ? kSSE3 : 0;
-    flags |= IsBitSet(abcd[2], 1) ? kCLMUL : 0;
-    flags |= IsBitSet(abcd[2], 9) ? kSSSE3 : 0;
-    flags |= IsBitSet(abcd[2], 19) ? kSSE41 : 0;
-    flags |= IsBitSet(abcd[2], 20) ? kSSE42 : 0;
-    flags |= IsBitSet(abcd[2], 12) ? kFMA : 0;
-    flags |= IsBitSet(abcd[2], 28) ? kAVX : 0;
+    flags |= IsBitSet(abcd[3], 25) ? Bit(FeatureIndex::kSSE) : 0;
+    flags |= IsBitSet(abcd[3], 26) ? Bit(FeatureIndex::kSSE2) : 0;
+    flags |= IsBitSet(abcd[2], 0) ? Bit(FeatureIndex::kSSE3) : 0;
+    flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kCLMUL) : 0;
+    flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kSSSE3) : 0;
+    flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kFMA) : 0;
+    flags |= IsBitSet(abcd[2], 19) ? Bit(FeatureIndex::kSSE41) : 0;
+    flags |= IsBitSet(abcd[2], 20) ? Bit(FeatureIndex::kSSE42) : 0;
+    flags |= IsBitSet(abcd[2], 25) ? Bit(FeatureIndex::kAES) : 0;
+    flags |= IsBitSet(abcd[2], 28) ? Bit(FeatureIndex::kAVX) : 0;
+    flags |= IsBitSet(abcd[2], 29) ? Bit(FeatureIndex::kF16C) : 0;
     has_osxsave = IsBitSet(abcd[2], 27);
 
     // Extended feature flags
     Cpuid(0x80000001U, 0, abcd);
-    flags |= IsBitSet(abcd[2], 5) ? kLZCNT : 0;
+    flags |= IsBitSet(abcd[2], 5) ? Bit(FeatureIndex::kLZCNT) : 0;
 
     // Extended features
     if (max_level >= 7) {
       Cpuid(7, 0, abcd);
-      flags |= IsBitSet(abcd[1], 3) ? kBMI : 0;
-      flags |= IsBitSet(abcd[1], 5) ? kAVX2 : 0;
-      flags |= IsBitSet(abcd[1], 8) ? kBMI2 : 0;
+      flags |= IsBitSet(abcd[1], 3) ? Bit(FeatureIndex::kBMI) : 0;
+      flags |= IsBitSet(abcd[1], 5) ? Bit(FeatureIndex::kAVX2) : 0;
+      flags |= IsBitSet(abcd[1], 8) ? Bit(FeatureIndex::kBMI2) : 0;
 
-      flags |= IsBitSet(abcd[1], 16) ? kAVX512F : 0;
-      flags |= IsBitSet(abcd[1], 17) ? kAVX512DQ : 0;
-      flags |= IsBitSet(abcd[1], 30) ? kAVX512BW : 0;
-      flags |= IsBitSet(abcd[1], 31) ? kAVX512VL : 0;
+      flags |= IsBitSet(abcd[1], 16) ? Bit(FeatureIndex::kAVX512F) : 0;
+      flags |= IsBitSet(abcd[1], 17) ? Bit(FeatureIndex::kAVX512DQ) : 0;
+      flags |= IsBitSet(abcd[1], 30) ? Bit(FeatureIndex::kAVX512BW) : 0;
+      flags |= IsBitSet(abcd[1], 31) ? Bit(FeatureIndex::kAVX512VL) : 0;
 
-      flags |= IsBitSet(abcd[2], 9) ? kVAES : 0;
-      flags |= IsBitSet(abcd[2], 10) ? kVPCLMULQDQ : 0;
-      flags |= IsBitSet(abcd[2], 11) ? kVNNI : 0;
-      flags |= IsBitSet(abcd[2], 12) ? kBITALG : 0;
-      flags |= IsBitSet(abcd[2], 14) ? kPOPCNTDQ : 0;
+      flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kVAES) : 0;
+      flags |= IsBitSet(abcd[2], 10) ? Bit(FeatureIndex::kVPCLMULQDQ) : 0;
+      flags |= IsBitSet(abcd[2], 11) ? Bit(FeatureIndex::kVNNI) : 0;
+      flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kBITALG) : 0;
+      flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
     }
 
     // Set target bit(s) if all their group's flags are all set.
