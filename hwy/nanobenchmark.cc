@@ -154,7 +154,7 @@ inline Ticks Start() {
 #else  // POSIX
   timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  t = ts.tv_sec * 1000000000LL + ts.tv_nsec;
+  t = static_cast<Ticks>(ts.tv_sec * 1000000000LL + ts.tv_nsec);
 #endif
   return t;
 }
@@ -537,7 +537,9 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
   const size_t max_skip = p.precision_divisor;
   // Number of repetitions given the estimated duration.
   const size_t num_skip =
-      min_duration == 0 ? 0 : (max_skip + min_duration - 1) / min_duration;
+      min_duration == 0
+          ? 0
+          : static_cast<size_t>((max_skip + min_duration - 1) / min_duration);
   if (p.verbose) {
     printf("res=%zu max_skip=%zu min_dur=%zu num_skip=%zu\n",
            size_t(timer_resolution), max_skip, size_t(min_duration), num_skip);

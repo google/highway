@@ -4018,7 +4018,7 @@ HWY_INLINE Vec128<T, N> Set64(Simd<T, N> d, uint64_t bits) {
   return Vec128<T, N>(vdup_n_u64(bits));
 }
 template <typename T>
-HWY_INLINE Vec128<T> Set64(Full128<T> d, uint64_t bits) {
+HWY_INLINE Vec128<T> Set64(Full128<T> /* tag */, uint64_t bits) {
   return Vec128<T>(vdupq_n_u64(bits));
 }
 
@@ -4246,7 +4246,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
   const int16x8_t x2 = vpaddlq_s8(ones);
   const int32x4_t x4 = vpaddlq_s16(x2);
   const int64x2_t x8 = vpaddlq_s32(x4);
-  return vgetq_lane_s64(x8, 0) + vgetq_lane_s64(x8, 1);
+  return static_cast<size_t>(vgetq_lane_s64(x8, 0) + vgetq_lane_s64(x8, 1));
 #endif
 }
 template <typename T>
@@ -4260,7 +4260,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
 #else
   const int32x4_t x2 = vpaddlq_s16(ones);
   const int64x2_t x4 = vpaddlq_s32(x2);
-  return vgetq_lane_s64(x4, 0) + vgetq_lane_s64(x4, 1);
+  return static_cast<size_t>(vgetq_lane_s64(x4, 0) + vgetq_lane_s64(x4, 1));
 #endif
 }
 
@@ -4274,7 +4274,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
   return vaddvq_s32(ones);
 #else
   const int64x2_t x2 = vpaddlq_s32(ones);
-  return vgetq_lane_s64(x2, 0) + vgetq_lane_s64(x2, 1);
+  return static_cast<size_t>(vgetq_lane_s64(x2, 0) + vgetq_lane_s64(x2, 1));
 #endif
 }
 
@@ -4289,7 +4289,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
   const Full128<uint64_t> du;
   const auto mask_u = VecFromMask(du, RebindMask(du, mask));
   const uint64x2_t ones = vshrq_n_u64(mask_u.raw, 63);
-  return vgetq_lane_u64(ones, 0) + vgetq_lane_u64(ones, 1);
+  return static_cast<size_t>(vgetq_lane_u64(ones, 0) + vgetq_lane_u64(ones, 1));
 #endif
 }
 
