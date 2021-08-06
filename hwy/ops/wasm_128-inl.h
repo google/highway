@@ -178,19 +178,19 @@ using VFromD = decltype(Zero(D()));
 // Returns a vector/part with all lanes set to "t".
 template <size_t N, HWY_IF_LE128(uint8_t, N)>
 HWY_API Vec128<uint8_t, N> Set(Simd<uint8_t, N> /* tag */, const uint8_t t) {
-  return Vec128<uint8_t, N>{wasm_i8x16_splat(t)};
+  return Vec128<uint8_t, N>{wasm_i8x16_splat(static_cast<int8_t>(t))};
 }
 template <size_t N, HWY_IF_LE128(uint16_t, N)>
 HWY_API Vec128<uint16_t, N> Set(Simd<uint16_t, N> /* tag */, const uint16_t t) {
-  return Vec128<uint16_t, N>{wasm_i16x8_splat(t)};
+  return Vec128<uint16_t, N>{wasm_i16x8_splat(static_cast<int16_t>(t))};
 }
 template <size_t N, HWY_IF_LE128(uint32_t, N)>
 HWY_API Vec128<uint32_t, N> Set(Simd<uint32_t, N> /* tag */, const uint32_t t) {
-  return Vec128<uint32_t, N>{wasm_i32x4_splat(t)};
+  return Vec128<uint32_t, N>{wasm_i32x4_splat(static_cast<int32_t>(t))};
 }
 template <size_t N, HWY_IF_LE128(uint64_t, N)>
 HWY_API Vec128<uint64_t, N> Set(Simd<uint64_t, N> /* tag */, const uint64_t t) {
-  return Vec128<uint64_t, N>{wasm_i64x2_splat(t)};
+  return Vec128<uint64_t, N>{wasm_i64x2_splat(static_cast<int64_t>(t))};
 }
 
 template <size_t N, HWY_IF_LE128(int8_t, N)>
@@ -750,7 +750,7 @@ template <size_t N>
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
                                              const Vec128<int32_t, N> b) {
   // TODO(eustas): replace, when implemented in WASM.
-  const auto kEvenMask = wasm_i32x4_make(0xFFFFFFFF, 0, 0xFFFFFFFF, 0);
+  const auto kEvenMask = wasm_i32x4_make(-1, 0, -1, 0);
   const auto ae = wasm_v128_and(a.raw, kEvenMask);
   const auto be = wasm_v128_and(b.raw, kEvenMask);
   return Vec128<int64_t, (N + 1) / 2>{wasm_i64x2_mul(ae, be)};
@@ -759,7 +759,7 @@ template <size_t N>
 HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
                                               const Vec128<uint32_t, N> b) {
   // TODO(eustas): replace, when implemented in WASM.
-  const auto kEvenMask = wasm_i32x4_make(0xFFFFFFFF, 0, 0xFFFFFFFF, 0);
+  const auto kEvenMask = wasm_i32x4_make(-1, 0, -1, 0);
   const auto ae = wasm_v128_and(a.raw, kEvenMask);
   const auto be = wasm_v128_and(b.raw, kEvenMask);
   return Vec128<uint64_t, (N + 1) / 2>{wasm_i64x2_mul(ae, be)};
@@ -3212,16 +3212,18 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> in0,
 HWY_INLINE Vec128<uint64_t> MulEven(const Vec128<uint64_t> a,
                                     const Vec128<uint64_t> b) {
   alignas(16) uint64_t mul[2];
-  mul[0] = Mul128(wasm_i64x2_extract_lane(a.raw, 0),
-                  wasm_i64x2_extract_lane(b.raw, 0), &mul[1]);
+  mul[0] =
+      Mul128(static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 0)),
+             static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 0)), &mul[1]);
   return Load(Full128<uint64_t>(), mul);
 }
 
 HWY_INLINE Vec128<uint64_t> MulOdd(const Vec128<uint64_t> a,
                                    const Vec128<uint64_t> b) {
   alignas(16) uint64_t mul[2];
-  mul[0] = Mul128(wasm_i64x2_extract_lane(a.raw, 1),
-                  wasm_i64x2_extract_lane(b.raw, 1), &mul[1]);
+  mul[0] =
+      Mul128(static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 1)),
+             static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 1)), &mul[1]);
   return Load(Full128<uint64_t>(), mul);
 }
 

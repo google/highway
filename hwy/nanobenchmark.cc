@@ -457,8 +457,9 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
   static const double ticks_per_second = platform::InvariantTicksPerSecond();
   const size_t ticks_per_eval =
       static_cast<size_t>(ticks_per_second * p.seconds_per_eval);
-  size_t samples_per_eval =
-      est == 0 ? p.min_samples_per_eval : ticks_per_eval / est;
+  size_t samples_per_eval = est == 0
+                                ? p.min_samples_per_eval
+                                : static_cast<size_t>(ticks_per_eval / est);
   samples_per_eval = HWY_MAX(samples_per_eval, p.min_samples_per_eval);
 
   std::vector<timer::Ticks> samples;

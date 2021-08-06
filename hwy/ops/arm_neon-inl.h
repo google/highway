@@ -1034,11 +1034,11 @@ HWY_API Vec128<int64_t, 1> operator>>(const Vec128<int64_t, 1> v,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> ShiftLeftSame(const Vec128<T, N> v, int bits) {
-  return v << Set(Simd<T, N>(), bits);
+  return v << Set(Simd<T, N>(), static_cast<T>(bits));
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRightSame(const Vec128<T, N> v, int bits) {
-  return v >> Set(Simd<T, N>(), bits);
+  return v >> Set(Simd<T, N>(), static_cast<T>(bits));
 }
 
 // ------------------------------ Integer multiplication
@@ -3302,8 +3302,8 @@ HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
   alignas(16) uint8_t control[16] = {0};
   for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
     for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-      control[idx_lane * sizeof(T) + idx_byte] =
-          static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + idx_byte);
+      control[idx_lane * sizeof(T) + idx_byte] = static_cast<uint8_t>(
+          static_cast<size_t>(idx[idx_lane]) * sizeof(T) + idx_byte);
     }
   }
   return Indices128<T, N>{BitCast(d, Load(d8, control)).raw};
@@ -4013,26 +4013,26 @@ namespace detail {
 // overload is required to call the q vs non-q intrinsics. Note that 8-bit
 // LoadMaskBits only requires 16 bits, but 64 avoids casting.
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_INLINE Vec128<T, N> Set64(Simd<T, N> d, uint64_t bits) {
-  const RebindToUnsigned<decltype(d)> du;
-  return Vec128<T, N>(vdup_n_u64(bits));
+HWY_INLINE Vec128<T, N> Set64(Simd<T, N> /* tag */, uint64_t mask_bits) {
+  const auto v64 = Vec128<uint64_t, 1>(vdup_n_u64(mask_bits));
+  return Vec128<T, N>(BitCast(Simd<T, 8 / sizeof(T)>(), v64).raw);
 }
 template <typename T>
-HWY_INLINE Vec128<T> Set64(Full128<T> /* tag */, uint64_t bits) {
-  return Vec128<T>(vdupq_n_u64(bits));
+HWY_INLINE Vec128<T> Set64(Full128<T> d, uint64_t mask_bits) {
+  return BitCast(d, Vec128<uint64_t>(vdupq_n_u64(mask_bits)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   // Easier than Set(), which would require an >8-bit type, which would not
   // compile for T=uint8_t, N=1.
-  const auto vbits = Set64(du, bits);
+  const auto vmask_bits = Set64(du, mask_bits);
 
   // Replicate bytes 8x such that each byte contains the bit that governs it.
   alignas(16) constexpr uint8_t kRep8[16] = {0, 0, 0, 0, 0, 0, 0, 0,
                                              1, 1, 1, 1, 1, 1, 1, 1};
-  const auto rep8 = TableLookupBytes(vbits, Load(du, kRep8));
+  const auto rep8 = TableLookupBytes(vmask_bits, Load(du, kRep8));
 
   alignas(16) constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
                                             1, 2, 4, 8, 16, 32, 64, 128};
@@ -4040,24 +4040,26 @@ HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+  const auto vmask_bits = Set(du, static_cast<uint16_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
-  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+  const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint64_t kBit[8] = {1, 2};
-  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
 }
 
 }  // namespace detail
@@ -4241,7 +4243,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
       vnegq_s8(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
 
 #if HWY_ARCH_ARM_A64
-  return vaddvq_s8(ones);
+  return static_cast<size_t>(vaddvq_s8(ones));
 #else
   const int16x8_t x2 = vpaddlq_s8(ones);
   const int32x4_t x4 = vpaddlq_s16(x2);
@@ -4256,7 +4258,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> mask) {
       vnegq_s16(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
 
 #if HWY_ARCH_ARM_A64
-  return vaddvq_s16(ones);
+  return static_cast<size_t>(vaddvq_s16(ones));
 #else
   const int32x4_t x2 = vpaddlq_s16(ones);
   const int64x2_t x4 = vpaddlq_s32(x2);
@@ -4271,7 +4273,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> mask) {
       vnegq_s32(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
 
 #if HWY_ARCH_ARM_A64
-  return vaddvq_s32(ones);
+  return static_cast<size_t>(vaddvq_s32(ones));
 #else
   const int64x2_t x2 = vpaddlq_s32(ones);
   return static_cast<size_t>(vgetq_lane_s64(x2, 0) + vgetq_lane_s64(x2, 1));
@@ -4284,7 +4286,7 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> mask) {
   const Full128<int64_t> di;
   const int64x2_t ones =
       vnegq_s64(BitCast(di, VecFromMask(Full128<T>(), mask)).raw);
-  return vaddvq_s64(ones);
+  return static_cast<size_t>(vaddvq_s64(ones));
 #else
   const Full128<uint64_t> du;
   const auto mask_u = VecFromMask(du, RebindMask(du, mask));
@@ -4311,7 +4313,7 @@ template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N> /* tag */,
                               const Mask128<T, N> mask) {
   const uint64_t bits = detail::BitsFromMask(mask);
-  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+  return bits ? static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero64(bits)) : -1;
 }
 
 // `p` points to at least 8 writable bytes.
@@ -4577,8 +4579,6 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
                                      const uint8_t* HWY_RESTRICT bits) {
-  const Simd<T, N> d;
-
   uint64_t mask_bits = 0;
   constexpr size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(bits, &mask_bits);
