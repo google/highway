@@ -474,13 +474,15 @@ HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
 
 // Only sets valid elements (those whose index < Lanes(d)). This helps catch
 // tests that are not masking off the (undefined) upper mask elements.
+//
+// TODO(janwas): with HWY_NOINLINE GCC zeros the upper half of AVX2 masks.
 template <class D>
-HWY_NOINLINE Mask<D> MaskTrue(const D d) {
+HWY_INLINE Mask<D> MaskTrue(const D d) {
   return FirstN(d, Lanes(d));
 }
 
 template <class D>
-HWY_NOINLINE Mask<D> MaskFalse(const D d) {
+HWY_INLINE Mask<D> MaskFalse(const D d) {
   const auto zero = Zero(RebindToSigned<D>());
   return RebindMask(d, Lt(zero, zero));
 }
