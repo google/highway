@@ -4338,7 +4338,7 @@ HWY_API size_t CountTrue(const Simd<T, N> /* tag */, const Mask128<T, N> mask) {
 template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N> /* tag */,
                                const Mask128<T, N> mask) {
-  const uint64_t mask_bits = static_cast<uint64_t>(mask.raw) & ((1u << N) - 1);
+  const uint32_t mask_bits = static_cast<uint32_t>(mask.raw) & ((1u << N) - 1);
   return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
 }
 
@@ -4391,29 +4391,30 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
 // ------------------------------ CompressStore
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask, Simd<T, N> d,
-                             T* HWY_RESTRICT unaligned) {
+HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
+                             Simd<T, N> /* tag */, T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
   return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask, Simd<T, N> d,
-                             T* HWY_RESTRICT unaligned) {
+HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
+                             Simd<T, N> /* tag */, T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
   return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
 }
 
 template <size_t N, HWY_IF_LE128(float, N)>
 HWY_API size_t CompressStore(Vec128<float, N> v, Mask128<float, N> mask,
-                             Simd<float, N> d, float* HWY_RESTRICT unaligned) {
+                             Simd<float, N> /* tag */,
+                             float* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
   return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
 }
 
 template <size_t N, HWY_IF_LE128(double, N)>
 HWY_API size_t CompressStore(Vec128<double, N> v, Mask128<double, N> mask,
-                             Simd<double, N> d,
+                             Simd<double, N> /* tag */,
                              double* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
   return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
@@ -4455,14 +4456,16 @@ template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
+  const auto vmask_bits = Set(du, static_cast<uint16_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
-  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
+  const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>

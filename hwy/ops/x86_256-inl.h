@@ -1255,7 +1255,12 @@ HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
 template <typename T>
 HWY_API Mask256<T> FirstN(const Full256<T> d, size_t n) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask256<T>::FromBits(_bzhi_u32(~0u, n));
+  (void)d;
+#if HWY_ARCH_X86_64
+  return Mask256<T>::FromBits(_bzhi_u64(~0ull, n));
+#else
+  return Mask256<T>::FromBits(_bzhi_u32(~0u, static_cast<uint32_t>(n)));
+#endif  // HWY_ARCH_X86_64
 #else
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(n)));
@@ -3520,14 +3525,16 @@ HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t mask_bits) {
   alignas(32) constexpr uint16_t kBit[16] = {
       1,     2,     4,     8,     16,     32,     64,     128,
       0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000, 0x4000, 0x8000};
-  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
+  const auto vmask_bits = Set(du, static_cast<uint16_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
   constexpr uint32_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
+  const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
