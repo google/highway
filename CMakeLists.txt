@@ -185,13 +185,14 @@ target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 # flags. This tool will print to stderr at build time, after building hwy.
 add_executable(hwy_list_targets hwy/tests/list_targets.cc)
 target_compile_options(hwy_list_targets PRIVATE ${HWY_FLAGS})
+target_link_libraries(hwy_list_targets hwy)
 target_include_directories(hwy_list_targets PRIVATE
   $<TARGET_PROPERTY:hwy,INCLUDE_DIRECTORIES>)
 # TARGET_FILE always returns the path to executable
 # Naked target also not always could be run (due to the lack of '.\' prefix)
 # Thus effective command to run should contain the full path
 # and emulator prefix (if any).
-add_custom_command(TARGET hwy POST_BUILD
+add_custom_command(TARGET hwy_list_targets POST_BUILD
     COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:hwy_list_targets> || (exit 0))
 
 # --------------------------------------------------------
