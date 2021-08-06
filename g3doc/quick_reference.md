@@ -392,18 +392,68 @@ Special functions for signed types:
 *   `V`: `i32/64` \
     <code>V **BroadcastSignBit**(V a)</code> returns `a[i] < 0 ? -1 : 0`.
 
+*   <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
+
 ### Masks
 
 Let `M` denote a mask capable of storing true/false for each lane.
 
+#### Creation
+
 *   <code>M **FirstN**(D, size_t N)</code>: returns mask with the first `N`
-    lanes (those with index `< N`) true. `N` larger than `Lanes(D())` result in
-    an all-true mask. Useful for implementing "masked" stores by loading `prev`
+    lanes (those with index `< N`) true. `N >= Lanes(D())` results in an
+    all-true mask. Useful for implementing "masked" stores by loading `prev`
     followed by `IfThenElse(FirstN(d, N), what_to_store, prev)`.
+
+*   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
+    0`, or true if `v[i]` has all bits set.
+
+*   <code>M **LoadMaskBits**(D, const uint8_t* p)</code>: returns a mask
+    indicating whether the i-th bit in the array is set. Loads bytes and bits in
+    ascending order of address and index. At least 8 bytes of `p` must be
+    readable, but only `(Lanes(D()) + 7) / 8` need be initialized. Any unused
+    bits (happens if `Lanes(D()) < 8`) are treated as if they were zero.
+
+#### Conversion
 
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
     reinterpreted as a mask for lanes of type `TFromD<D>`. `M1` and `M2` must
     have the same number of lanes.
+
+*   <code>V **VecFromMask**(D, M m)</code>: returns 0 in lane `i` if `m[i] ==
+    false`, otherwise all bits set.
+
+*   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
+    array indicating whether `m[i]` is true, in ascending order of `i`, filling
+    the bits of each byte from least to most significant, then proceeding to the
+    next byte. Returns the number of bytes written: `(Lanes(D()) + 7) / 8`. At
+    least 8 bytes of `p` must be writable.
+
+#### Testing
+
+*   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.
+
+*   <code>bool **AllFalse**(D, M m)</code>: returns whether all `m[i]` are
+    false.
+
+*   <code>size_t **CountTrue**(D, M m)</code>: returns how many of `m[i]` are
+    true [0, N]. This is typically more expensive than AllTrue/False.
+
+*   <code>intptr_t **FindFirstTrue**(D, M m)</code>: returns the index of the
+    first (i.e. lowest index) `m[i]` that is true, or -1 if none are.
+
+#### Ternary operator
+
+*   <code>V **IfThenElse**(M mask, V yes, V no)</code>: returns `mask[i] ?
+    yes[i] : no[i]`.
+
+*   <code>V **IfThenElseZero**(M mask, V yes)</code>: returns `mask[i] ?
+    yes[i] : 0`.
+
+*   <code>V **IfThenZeroElse**(M mask, V no)</code>: returns `mask[i] ? 0 :
+    no[i]`.
+
+#### Logical
 
 *   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the
     input mask element was not set.
@@ -420,45 +470,7 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>M **Xor**(M a, M b)</code>: returns mask of elements indicating
     whether exactly one input mask element was set.
 
-*   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
-    0`, or true if `v[i]` has all bits set.
-
-*   <code>V **VecFromMask**(D, M m)</code>: returns 0 in lane `i` if `m[i] ==
-    false`, otherwise all bits set.
-
-*   <code>V **IfThenElse**(M mask, V yes, V no)</code>: returns `mask[i] ?
-    yes[i] : no[i]`.
-
-*   <code>V **IfThenElseZero**(M mask, V yes)</code>: returns `mask[i] ?
-    yes[i] : 0`.
-
-*   <code>V **IfThenZeroElse**(M mask, V no)</code>: returns `mask[i] ? 0 :
-    no[i]`.
-
-*   <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
-
-*   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.
-
-*   <code>bool **AllFalse**(D, M m)</code>: returns whether all `m[i]` are
-    false.
-
-*   <code>M **LoadMaskBits**(D, const uint8_t* p)</code>: returns a mask
-    indicating whether the i-th bit in the array is set. Loads bytes and bits in
-    ascending order of address and index. At least 8 bytes of `p` must be
-    readable, but only `(Lanes(D()) + 7) / 8` need be initialized. Any unused
-    bits (happens if `Lanes(D()) < 8`) are treated as if they were zero.
-
-*   <code>size_t **StoreMaskBits**(D, M m, uint8_t* p)</code>: stores a bit
-    array indicating whether `m[i]` is true, in ascending order of `i`, filling
-    the bits of each byte from least to most significant, then proceeding to the
-    next byte. Returns the number of bytes written: `(Lanes(D()) + 7) / 8`. At
-    least 8 bytes of `p` must be writable.
-
-*   <code>size_t **CountTrue**(D, M m)</code>: returns how many of `m[i]` are
-    true [0, N]. This is typically more expensive than AllTrue/False.
-
-*   <code>intptr_t **FindFirstTrue**(D, M m)</code>: returns the index of the
-    first (i.e. lowest index) `m[i]` that is true, or -1 if none are.
+#### Compress
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
@@ -487,7 +499,7 @@ Let `M` denote a mask capable of storing true/false for each lane.
     d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see
     remarks there.
 
-### Comparisons
+#### Comparisons
 
 These return a mask (see above) indicating whether the condition is true.
 
@@ -715,6 +727,8 @@ their operands into independently processed 128-bit *blocks*.
     will set all lanes after the first 128 to 0. The number of lanes in `V` and
     `VI` may differ.
 
+#### Zip/Interleave
+
 *   <code>V **InterleaveLower**([D, ] V a, V b)</code>: returns *blocks* with
     alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
     least-significant lane). The optional `D` (provided for consistency with
@@ -735,6 +749,8 @@ their operands into independently processed 128-bit *blocks*.
     `InterleaveUpper`, but repartitioned into double-width lanes (required in
     order to use this operation with scalars). `D` is
     `RepartitionToWide<DFromV<V>>`.
+
+#### Shift
 
 *   `V`: `{u,i}` \
     <code>V **ShiftLeftBytes**&lt;int&gt;([D, ] V)</code>: returns the result of
@@ -763,6 +779,8 @@ their operands into independently processed 128-bit *blocks*.
     a vector of *blocks* each the result of shifting two concatenated *blocks*
     `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). `D` is
     `DFromV<V>`.
+
+#### Shuffle
 
 *   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves
