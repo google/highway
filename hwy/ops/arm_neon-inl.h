@@ -1962,45 +1962,45 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
 // ------------------------------ Load 128
 
 HWY_API Vec128<uint8_t> LoadU(Full128<uint8_t> /* tag */,
-                              const uint8_t* HWY_RESTRICT aligned) {
-  return Vec128<uint8_t>(vld1q_u8(aligned));
+                              const uint8_t* HWY_RESTRICT unaligned) {
+  return Vec128<uint8_t>(vld1q_u8(unaligned));
 }
 HWY_API Vec128<uint16_t> LoadU(Full128<uint16_t> /* tag */,
-                               const uint16_t* HWY_RESTRICT aligned) {
-  return Vec128<uint16_t>(vld1q_u16(aligned));
+                               const uint16_t* HWY_RESTRICT unaligned) {
+  return Vec128<uint16_t>(vld1q_u16(unaligned));
 }
 HWY_API Vec128<uint32_t> LoadU(Full128<uint32_t> /* tag */,
-                               const uint32_t* HWY_RESTRICT aligned) {
-  return Vec128<uint32_t>(vld1q_u32(aligned));
+                               const uint32_t* HWY_RESTRICT unaligned) {
+  return Vec128<uint32_t>(vld1q_u32(unaligned));
 }
 HWY_API Vec128<uint64_t> LoadU(Full128<uint64_t> /* tag */,
-                               const uint64_t* HWY_RESTRICT aligned) {
-  return Vec128<uint64_t>(vld1q_u64(aligned));
+                               const uint64_t* HWY_RESTRICT unaligned) {
+  return Vec128<uint64_t>(vld1q_u64(unaligned));
 }
 HWY_API Vec128<int8_t> LoadU(Full128<int8_t> /* tag */,
-                             const int8_t* HWY_RESTRICT aligned) {
-  return Vec128<int8_t>(vld1q_s8(aligned));
+                             const int8_t* HWY_RESTRICT unaligned) {
+  return Vec128<int8_t>(vld1q_s8(unaligned));
 }
 HWY_API Vec128<int16_t> LoadU(Full128<int16_t> /* tag */,
-                              const int16_t* HWY_RESTRICT aligned) {
-  return Vec128<int16_t>(vld1q_s16(aligned));
+                              const int16_t* HWY_RESTRICT unaligned) {
+  return Vec128<int16_t>(vld1q_s16(unaligned));
 }
 HWY_API Vec128<int32_t> LoadU(Full128<int32_t> /* tag */,
-                              const int32_t* HWY_RESTRICT aligned) {
-  return Vec128<int32_t>(vld1q_s32(aligned));
+                              const int32_t* HWY_RESTRICT unaligned) {
+  return Vec128<int32_t>(vld1q_s32(unaligned));
 }
 HWY_API Vec128<int64_t> LoadU(Full128<int64_t> /* tag */,
-                              const int64_t* HWY_RESTRICT aligned) {
-  return Vec128<int64_t>(vld1q_s64(aligned));
+                              const int64_t* HWY_RESTRICT unaligned) {
+  return Vec128<int64_t>(vld1q_s64(unaligned));
 }
 HWY_API Vec128<float> LoadU(Full128<float> /* tag */,
-                            const float* HWY_RESTRICT aligned) {
-  return Vec128<float>(vld1q_f32(aligned));
+                            const float* HWY_RESTRICT unaligned) {
+  return Vec128<float>(vld1q_f32(unaligned));
 }
 #if HWY_ARCH_ARM_A64
 HWY_API Vec128<double> LoadU(Full128<double> /* tag */,
-                             const double* HWY_RESTRICT aligned) {
-  return Vec128<double>(vld1q_f64(aligned));
+                             const double* HWY_RESTRICT unaligned) {
+  return Vec128<double>(vld1q_f64(unaligned));
 }
 #endif
 
@@ -2166,45 +2166,45 @@ HWY_API Vec128<T, N> LoadDup128(Simd<T, N> d, const T* const HWY_RESTRICT p) {
 // ------------------------------ Store 128
 
 HWY_API void StoreU(const Vec128<uint8_t> v, Full128<uint8_t> /* tag */,
-                    uint8_t* HWY_RESTRICT aligned) {
-  vst1q_u8(aligned, v.raw);
+                    uint8_t* HWY_RESTRICT unaligned) {
+  vst1q_u8(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<uint16_t> v, Full128<uint16_t> /* tag */,
-                    uint16_t* HWY_RESTRICT aligned) {
-  vst1q_u16(aligned, v.raw);
+                    uint16_t* HWY_RESTRICT unaligned) {
+  vst1q_u16(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<uint32_t> v, Full128<uint32_t> /* tag */,
-                    uint32_t* HWY_RESTRICT aligned) {
-  vst1q_u32(aligned, v.raw);
+                    uint32_t* HWY_RESTRICT unaligned) {
+  vst1q_u32(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<uint64_t> v, Full128<uint64_t> /* tag */,
-                    uint64_t* HWY_RESTRICT aligned) {
-  vst1q_u64(aligned, v.raw);
+                    uint64_t* HWY_RESTRICT unaligned) {
+  vst1q_u64(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<int8_t> v, Full128<int8_t> /* tag */,
-                    int8_t* HWY_RESTRICT aligned) {
-  vst1q_s8(aligned, v.raw);
+                    int8_t* HWY_RESTRICT unaligned) {
+  vst1q_s8(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<int16_t> v, Full128<int16_t> /* tag */,
-                    int16_t* HWY_RESTRICT aligned) {
-  vst1q_s16(aligned, v.raw);
+                    int16_t* HWY_RESTRICT unaligned) {
+  vst1q_s16(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<int32_t> v, Full128<int32_t> /* tag */,
-                    int32_t* HWY_RESTRICT aligned) {
-  vst1q_s32(aligned, v.raw);
+                    int32_t* HWY_RESTRICT unaligned) {
+  vst1q_s32(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<int64_t> v, Full128<int64_t> /* tag */,
-                    int64_t* HWY_RESTRICT aligned) {
-  vst1q_s64(aligned, v.raw);
+                    int64_t* HWY_RESTRICT unaligned) {
+  vst1q_s64(unaligned, v.raw);
 }
 HWY_API void StoreU(const Vec128<float> v, Full128<float> /* tag */,
-                    float* HWY_RESTRICT aligned) {
-  vst1q_f32(aligned, v.raw);
+                    float* HWY_RESTRICT unaligned) {
+  vst1q_f32(unaligned, v.raw);
 }
 #if HWY_ARCH_ARM_A64
 HWY_API void StoreU(const Vec128<double> v, Full128<double> /* tag */,
-                    double* HWY_RESTRICT aligned) {
-  vst1q_f64(aligned, v.raw);
+                    double* HWY_RESTRICT unaligned) {
+  vst1q_f64(unaligned, v.raw);
 }
 #endif
 
@@ -2331,8 +2331,8 @@ HWY_API void StoreU(Vec128<float16_t, N> v, Simd<float16_t, N> /* tag */,
 
 // On ARM, Store is the same as StoreU.
 template <typename T, size_t N>
-HWY_API void Store(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT p) {
-  StoreU(v, d, p);
+HWY_API void Store(Vec128<T, N> v, Simd<T, N> d, T* HWY_RESTRICT aligned) {
+  StoreU(v, d, aligned);
 }
 
 // ------------------------------ Non-temporal stores
