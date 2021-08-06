@@ -2992,7 +2992,8 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   const Rebind<int32_t, decltype(d)> dw;  // double-width, but maybe not 256!
   const auto vu16 = BitCast(du, v);       // (required for float16_t inputs)
   // MFromD may be either Mask128 (if <= half vector) or Mask256.
-  const auto mask32 = MFromD<decltype(dw)>::FromBits(uint64_t{mask.raw});
+  const uint64_t mask_bits = uint64_t{mask.raw} & ((1ull << N) - 1);
+  const auto mask32 = MFromD<decltype(dw)>::FromBits(mask_bits);
   return BitCast(d, DemoteTo(du, Compress(PromoteTo(dw, vu16), mask32)));
 }
 
@@ -3043,7 +3044,7 @@ template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N> d, T* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
-  return PopCount(uint64_t{mask.raw});
+  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
