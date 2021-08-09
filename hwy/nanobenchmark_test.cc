@@ -24,7 +24,7 @@ namespace hwy {
 namespace {
 
 // Governs duration of test; avoid timeout in debug builds.
-#ifdef NDEBUG
+#if HWY_NDEBUG
 constexpr size_t kMaxEvals = 4;
 #else
 constexpr size_t kMaxEvals = 3;

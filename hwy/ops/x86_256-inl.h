@@ -2495,7 +2495,7 @@ struct Indices256 {
 
 template <typename T>
 HWY_API Indices256<T> SetTableIndices(const Full256<T>, const int32_t* idx) {
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
   const size_t N = 32 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));

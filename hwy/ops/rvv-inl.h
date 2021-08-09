@@ -1327,11 +1327,13 @@ HWY_API V OddEven(const V a, const V b) {
 
 template <class D, class DU = RebindToUnsigned<D>>
 HWY_API VFromD<DU> SetTableIndices(D d, const TFromD<DU>* idx) {
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
   const size_t N = Lanes(d);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TFromD<DU>>(N));
   }
+  #else
+  (void)d;
 #endif
   return Load(DU(), idx);
 }

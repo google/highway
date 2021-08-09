@@ -1266,11 +1266,13 @@ HWY_API V OddEven(const V odd, const V even) {
 
 template <class D, class DI = RebindToSigned<D>>
 HWY_API VFromD<DI> SetTableIndices(D d, const TFromD<DI>* idx) {
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
   const size_t N = Lanes(d);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TFromD<DI>>(N));
   }
+#else
+  (void)d;
 #endif
   return Load(DI(), idx);
 }

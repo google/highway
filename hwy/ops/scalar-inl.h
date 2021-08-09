@@ -1064,7 +1064,7 @@ struct Indices1 {
 
 template <typename T>
 HWY_API Indices1<T> SetTableIndices(Sisd<T>, const int32_t* idx) {
-#if !defined(NDEBUG) || defined(ADDRESS_SANITIZER)
+#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
   HWY_DASSERT(idx[0] == 0);
 #endif
   return Indices1<T>{idx[0]};
