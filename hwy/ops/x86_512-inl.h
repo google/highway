@@ -2973,39 +2973,42 @@ HWY_API Vec512<double> Compress(Vec512<double> v, Mask512<double> mask) {
   return Vec512<double>{_mm512_maskz_compress_pd(mask.raw, v.raw)};
 }
 
-// Ignore IDE redefinition errors - Compress(Vec128/256) are not actually
-// defined elsewhere if we are including x86_512-inl.h.
+// 16-bit may use the 32-bit Compress and must be defined after it.
+//
+// Ignore IDE redefinition error - this is not actually defined in x86_256 if
+// we are including x86_512-inl.h.
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> mask) {
-  using D = Full256<T>;
-  const Rebind<uint16_t, D> du;
-  const Rebind<int32_t, D> dw;       // 512-bit, not 256!
-  const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
-  const Mask512<int32_t> mask32{static_cast<__mmask16>(mask.raw)};
-  return BitCast(D(), DemoteTo(du, Compress(PromoteTo(dw, vu16), mask32)));
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  const Simd<T, N> d;
+  const Full256<T> d;
   const Rebind<uint16_t, decltype(d)> du;
-  const Rebind<int32_t, decltype(d)> dw;  // double-width, but maybe not 256!
-  const auto vu16 = BitCast(du, v);       // (required for float16_t inputs)
-  // MFromD may be either Mask128 (if <= half vector) or Mask256.
-  const uint64_t mask_bits = uint64_t{mask.raw} & ((1ull << N) - 1);
-  const auto mask32 = MFromD<decltype(dw)>::FromBits(mask_bits);
-  return BitCast(d, DemoteTo(du, Compress(PromoteTo(dw, vu16), mask32)));
+  const auto vu = BitCast(du, v);  // (required for float16_t inputs)
+
+#if HWY_TARGET == HWY_AVX3_DL  // VBMI2
+  const Vec256<uint16_t> cu{_mm256_maskz_compress_epi16(mask.raw, vu.raw)};
+#else
+  // Promote to i32 (512-bit vector!) so we can use the native Compress.
+  const auto vw = PromoteTo(Rebind<int32_t, decltype(d)>(), vu);
+  const Mask512<int32_t> mask32{static_cast<__mmask16>(mask.raw)};
+  const auto cu = DemoteTo(du, Compress(vw, mask32));
+#endif  // HWY_TARGET == HWY_AVX3_DL
+
+  return BitCast(d, cu);
 }
 
 // Expands to 32-bit, compresses, concatenate demoted halves.
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
-  using D = Full512<T>;
-  const Rebind<uint16_t, D> du;
-  const Repartition<int32_t, D> dw;
-  const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
-  const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
-  const auto promoted1 = PromoteTo(dw, UpperHalf(Half<decltype(du)>(), vu16));
+  const Full512<T> d;
+  const Rebind<uint16_t, decltype(d)> du;
+  const auto vu = BitCast(du, v);  // (required for float16_t inputs)
+
+#if HWY_TARGET == HWY_AVX3_DL  // VBMI2
+  const Vec512<uint16_t> cu{_mm512_maskz_compress_epi16(mask.raw, v.raw)};
+#else
+  const Repartition<int32_t, decltype(d)> dw;
+  const Half<decltype(du)> duh;
+  const auto promoted0 = PromoteTo(dw, LowerHalf(duh, vu));
+  const auto promoted1 = PromoteTo(dw, UpperHalf(duh, vu));
 
   const uint32_t mask_bits{mask.raw};
   const Mask512<int32_t> mask0{static_cast<__mmask16>(mask_bits & 0xFFFF)};
@@ -3013,9 +3016,8 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const auto compressed0 = Compress(promoted0, mask0);
   const auto compressed1 = Compress(promoted1, mask1);
 
-  const Half<decltype(du)> dh;
-  const auto demoted0 = ZeroExtendVector(DemoteTo(dh, compressed0));
-  const auto demoted1 = ZeroExtendVector(DemoteTo(dh, compressed1));
+  const auto demoted0 = ZeroExtendVector(DemoteTo(duh, compressed0));
+  const auto demoted1 = ZeroExtendVector(DemoteTo(duh, compressed1));
 
   // Concatenate into single vector by shifting upper with writemask.
   const size_t num0 = CountTrue(dw, mask0);
@@ -3026,8 +3028,11 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
       16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
   const auto idx = LoadU(du, iota + 32 - num0);
-  return Vec512<T>{_mm512_mask_permutexvar_epi16(demoted0.raw, m_upper, idx.raw,
-                                                 demoted1.raw)};
+  const Vec512<uint16_t> cu{_mm512_mask_permutexvar_epi16(
+      demoted0.raw, m_upper, idx.raw, demoted1.raw)};
+#endif  // HWY_TARGET == HWY_AVX3_DL
+
+  return BitCast(d, cu);
 }
 
 // ------------------------------ CompressBits
@@ -3038,26 +3043,39 @@ HWY_API Vec512<T> CompressBits(Vec512<T> v, const uint8_t* HWY_RESTRICT bits) {
 
 // ------------------------------ CompressStore
 
-// Ignore IDE redefinition errors - CompressStore(Vec128/256) are not actually
-// defined elsewhere if we are including x86_512-inl.h.
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
-                             Simd<T, N> d, T* HWY_RESTRICT unaligned) {
-  StoreU(Compress(v, mask), d, unaligned);
-  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API size_t CompressStore(Vec256<T> v, const Mask256<T> mask, Full256<T> d,
-                             T* HWY_RESTRICT unaligned) {
-  StoreU(Compress(v, mask), d, unaligned);
-  return PopCount(uint64_t{mask.raw});
-}
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> d,
                              T* HWY_RESTRICT unaligned) {
-  StoreU(Compress(v, mask), d, unaligned);
-  return PopCount(uint64_t{mask.raw});
+  const Rebind<uint16_t, decltype(d)> du;
+  const auto vu = BitCast(du, v);  // (required for float16_t inputs)
+
+  const uint64_t mask_bits{mask.raw};
+
+#if HWY_TARGET == HWY_AVX3_DL  // VBMI2
+  _mm512_mask_compressstoreu_epi16(unaligned, mask.raw, v.raw);
+#else
+  const Repartition<int32_t, decltype(d)> dw;
+  const Half<decltype(du)> duh;
+  const auto promoted0 = PromoteTo(dw, LowerHalf(duh, vu));
+  const auto promoted1 = PromoteTo(dw, UpperHalf(duh, vu));
+
+  const uint64_t maskL = mask_bits & 0xFFFF;
+  const uint64_t maskH = mask_bits >> 16;
+  const Mask512<int32_t> mask0{static_cast<__mmask16>(maskL)};
+  const Mask512<int32_t> mask1{static_cast<__mmask16>(maskH)};
+  const auto compressed0 = Compress(promoted0, mask0);
+  const auto compressed1 = Compress(promoted1, mask1);
+
+  const Half<decltype(d)> dh;
+  const auto demoted0 = BitCast(dh, DemoteTo(duh, compressed0));
+  const auto demoted1 = BitCast(dh, DemoteTo(duh, compressed1));
+
+  // Store 256-bit halves
+  StoreU(demoted0, dh, unaligned);
+  StoreU(demoted1, dh, unaligned + PopCount(maskL));
+#endif
+
+  return PopCount(mask_bits);
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>

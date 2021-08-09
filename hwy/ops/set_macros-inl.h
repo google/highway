@@ -131,12 +131,17 @@
 #define HWY_CAP_GE512 1
 
 #if HWY_TARGET == HWY_AVX3
+
 #define HWY_NAMESPACE N_AVX3
 #define HWY_TARGET_STR HWY_TARGET_STR_AVX3
+
 #elif HWY_TARGET == HWY_AVX3_DL
+
 #define HWY_NAMESPACE N_AVX3_DL
 #define HWY_TARGET_STR \
-  HWY_TARGET_STR_AVX3 ",vpclmulqdq,vaes,avxvnni,avx512bitalg,avx512vpopcntdq"
+  HWY_TARGET_STR_AVX3  \
+      ",vpclmulqdq,avx512vbmi2,vaes,avxvnni,avx512bitalg,avx512vpopcntdq"
+
 #else
 #error "Logic error"
 #endif  // HWY_TARGET == HWY_AVX3_DL

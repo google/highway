@@ -16,6 +16,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <array>  // IWYU pragma: keep
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/swizzle_test.cc"
 #include "hwy/foreach_target.h"
@@ -25,6 +27,9 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+
+// For regenerating tables used in the implementation
+#define HWY_PRINT_TABLES 0
 
 struct TestGetLane {
   template <class T, class D>
@@ -218,10 +223,10 @@ class TestCompress {
   }      // operator()
 };
 
-// For regenerating tables used in the implementation
-#if 0
+#if HWY_PRINT_TABLES
 namespace detail {  // for code folding
 void PrintCompress16x8Tables() {
+  printf("======================================= 16x8\n");
   constexpr size_t N = 8;  // 128-bit SIMD
   for (uint64_t code = 0; code < 1ull << N; ++code) {
     std::array<uint8_t, N> indices{0};
@@ -240,8 +245,30 @@ void PrintCompress16x8Tables() {
   printf("\n");
 }
 
+// Similar to the above, but uses native 16-bit shuffle instead of bytes.
+void PrintCompress16x16HalfTables() {
+  printf("======================================= 16x16Half\n");
+  constexpr size_t N = 8;
+  for (uint64_t code = 0; code < 1ull << N; ++code) {
+    std::array<uint8_t, N> indices{0};
+    size_t pos = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d,", indices[i]);
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
 // Compressed to nibbles
 void PrintCompress32x8Tables() {
+  printf("======================================= 32x8\n");
   constexpr size_t N = 8;  // AVX2
   for (uint64_t code = 0; code < 1ull << N; ++code) {
     std::array<uint32_t, N> indices{0};
@@ -267,6 +294,7 @@ void PrintCompress32x8Tables() {
 
 // Pairs of 32-bit lane indices
 void PrintCompress64x4Tables() {
+  printf("======================================= 64x4\n");
   constexpr size_t N = 4;  // AVX2
   for (uint64_t code = 0; code < 1ull << N; ++code) {
     std::array<uint32_t, N> indices{0};
@@ -286,6 +314,7 @@ void PrintCompress64x4Tables() {
 
 // 4-tuple of byte indices
 void PrintCompress32x4Tables() {
+  printf("======================================= 32x4\n");
   using T = uint32_t;
   constexpr size_t N = 4;  // SSE4
   for (uint64_t code = 0; code < 1ull << N; ++code) {
@@ -308,6 +337,7 @@ void PrintCompress32x4Tables() {
 
 // 8-tuple of byte indices
 void PrintCompress64x2Tables() {
+  printf("======================================= 64x2\n");
   using T = uint64_t;
   constexpr size_t N = 2;  // SSE4
   for (uint64_t code = 0; code < 1ull << N; ++code) {
@@ -328,14 +358,17 @@ void PrintCompress64x2Tables() {
   printf("\n");
 }
 }  // namespace detail
-#endif
+#endif  // HWY_PRINT_TABLES
 
 HWY_NOINLINE void TestAllCompress() {
-  // detail::PrintCompress32x8Tables();
-  // detail::PrintCompress64x4Tables();
-  // detail::PrintCompress32x4Tables();
-  // detail::PrintCompress64x2Tables();
-  // detail::PrintCompress16x8Tables();
+#if HWY_PRINT_TABLES
+  detail::PrintCompress32x8Tables();
+  detail::PrintCompress64x4Tables();
+  detail::PrintCompress32x4Tables();
+  detail::PrintCompress64x2Tables();
+  detail::PrintCompress16x8Tables();
+  detail::PrintCompress16x16HalfTables();
+#endif
 
   const ForPartialVectors<TestCompress> test;
 

@@ -124,6 +124,7 @@ enum class FeatureIndex : uint32_t {
 
   kVNNI,
   kVPCLMULQDQ,
+  kVBMI2,
   kVAES,
   kPOPCNTDQ,
   kBITALG,
@@ -173,8 +174,8 @@ constexpr uint64_t kGroupAVX3 =
 
 constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVNNI) | Bit(FeatureIndex::kVPCLMULQDQ) |
-    Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
-    Bit(FeatureIndex::kBITALG) | kGroupAVX3;
+    Bit(FeatureIndex::kVBMI2) | Bit(FeatureIndex::kVAES) |
+    Bit(FeatureIndex::kPOPCNTDQ) | Bit(FeatureIndex::kBITALG) | kGroupAVX3;
 
 #endif  // HWY_ARCH_X86
 
@@ -282,6 +283,7 @@ uint32_t SupportedTargets() {
       flags |= IsBitSet(abcd[1], 30) ? Bit(FeatureIndex::kAVX512BW) : 0;
       flags |= IsBitSet(abcd[1], 31) ? Bit(FeatureIndex::kAVX512VL) : 0;
 
+      flags |= IsBitSet(abcd[2], 6) ? Bit(FeatureIndex::kVBMI2) : 0;
       flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kVAES) : 0;
       flags |= IsBitSet(abcd[2], 10) ? Bit(FeatureIndex::kVPCLMULQDQ) : 0;
       flags |= IsBitSet(abcd[2], 11) ? Bit(FeatureIndex::kVNNI) : 0;

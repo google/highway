@@ -3429,6 +3429,8 @@ HWY_API bool AllTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
 
 // ------------------------------ Compress
 
+// 16-bit is defined in x86_512 so we can use 512-bit vectors.
+
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> mask) {
   return Vec256<T>{_mm256_maskz_compress_epi32(mask.raw, v.raw)};
@@ -3447,8 +3449,6 @@ HWY_API Vec256<double> Compress(Vec256<double> v, Mask256<double> mask) {
   return Vec256<double>{_mm256_maskz_compress_pd(mask.raw, v.raw)};
 }
 
-// 16-bit defined in x86_512-inl.h so it can use wider vectors.
-
 // ------------------------------ CompressBits (LoadMaskBits)
 
 template <typename T>
@@ -3457,6 +3457,39 @@ HWY_API Vec256<T> CompressBits(Vec256<T> v, const uint8_t* HWY_RESTRICT bits) {
 }
 
 // ------------------------------ CompressStore
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> d,
+                             T* HWY_RESTRICT unaligned) {
+  const Rebind<uint16_t, decltype(d)> du;
+  const auto vu = BitCast(du, v);  // (required for float16_t inputs)
+
+  const uint64_t mask_bits{mask.raw};
+
+#if HWY_TARGET == HWY_AVX3_DL  // VBMI2
+  _mm256_mask_compressstoreu_epi16(unaligned, mask.raw, v.raw);
+#else
+  // Split into halves to keep the table size manageable.
+  const Half<decltype(du)> duh;
+  const auto vL = LowerHalf(duh, vu);
+  const auto vH = UpperHalf(duh, vu);
+
+  const uint64_t mask_bitsL = mask_bits & 0xFF;
+  const uint64_t mask_bitsH = mask_bits >> 8;
+
+  const auto idxL = detail::IndicesForCompress16(mask_bitsL);
+  const auto idxH = detail::IndicesForCompress16(mask_bitsH);
+
+  // Compress and 128-bit halves.
+  const Vec128<uint16_t> cL{_mm_permutexvar_epi16(idxL.raw, vL.raw)};
+  const Vec128<uint16_t> cH{_mm_permutexvar_epi16(idxH.raw, vH.raw)};
+  const Half<decltype(d)> dh;
+  StoreU(BitCast(dh, cL), dh, unaligned);
+  StoreU(BitCast(dh, cH), dh, unaligned + PopCount(mask_bitsL));
+#endif  // HWY_TARGET == HWY_AVX3_DL
+
+  return PopCount(mask_bits);
+}
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> /* tag */,
