@@ -635,8 +635,8 @@ All functions except `Stream` are defined in cache_control.h.
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
     converted to 64-bit floating point.
 
-*   `V`,`D`: (`u32,u8`) \
-    <code>Vec&lt;D&gt; **U8FromU32**(V)</code>: special-case `u32` to `u8`
+*   `V`,`V8`: (`u32,u8`) \
+    <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8`
     conversion when all lanes of `V` are already clamped to `[0, 256)`.
 
 `DemoteTo` and float-to-int `ConvertTo` return the closest representable value
@@ -745,7 +745,7 @@ their operands into independently processed 128-bit *blocks*.
     consistency with `ZipUpper`) is `RepartitionToWide<DFromV<V>>`.
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
-    <code>Ret **ZipUpper**(V a, V b)</code>: returns the same bits as
+    <code>Ret **ZipUpper**(D, V a, V b)</code>: returns the same bits as
     `InterleaveUpper`, but repartitioned into double-width lanes (required in
     order to use this operation with scalars). `D` is
     `RepartitionToWide<DFromV<V>>`.
