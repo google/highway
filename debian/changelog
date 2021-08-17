@@ -1,3 +1,11 @@
+highway (0.14.1-1) UNRELEASED; urgency=medium
+
+  * Add LoadMaskBits, CompressBits[Store]
+  * Fix CPU feature check (AES/F16C) and warnings
+  * Improved DASSERT - disabled in optimized builds
+
+ -- Jan Wassenberg <janwas@google.com>  Tue, 17 Aug 2021 14:00:00 +0200
+
 highway (0.14.0-1) UNRELEASED; urgency=medium
 
   * Add SVE, S-SSE3, AVX3_DL targets
