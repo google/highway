@@ -24,10 +24,10 @@ namespace hwy {
 namespace {
 
 // Governs duration of test; avoid timeout in debug builds.
-#if HWY_NDEBUG
-constexpr size_t kMaxEvals = 4;
-#else
+#if HWY_IS_DEBUG_BUILD
 constexpr size_t kMaxEvals = 3;
+#else
+constexpr size_t kMaxEvals = 4;
 #endif
 
 FuncOutput Div(const void*, FuncInput in) {

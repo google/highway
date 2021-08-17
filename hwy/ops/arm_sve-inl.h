@@ -1266,7 +1266,7 @@ HWY_API V OddEven(const V odd, const V even) {
 
 template <class D, class DI = RebindToSigned<D>>
 HWY_API VFromD<DI> SetTableIndices(D d, const TFromD<DI>* idx) {
-#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
+#if HWY_IS_DEBUG_BUILD
   const size_t N = Lanes(d);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TFromD<DI>>(N));

@@ -234,10 +234,10 @@ HWY_NOINLINE void TestAllTestBit() {
 struct TestPopulationCount {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET != HWY_RVV && HWY_NDEBUG
-    constexpr size_t kNumTests = 1 << 20;
-#else
+#if HWY_TARGET == HWY_RVV || HWY_IS_DEBUG_BUILD
     constexpr size_t kNumTests = 1 << 14;
+#else
+    constexpr size_t kNumTests = 1 << 20;
 #endif
     RandomState rng;
     size_t N = Lanes(d);

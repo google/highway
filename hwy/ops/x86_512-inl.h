@@ -2263,7 +2263,7 @@ struct Indices512 {
 
 template <typename T>
 HWY_API Indices512<T> SetTableIndices(const Full512<T>, const int32_t* idx) {
-#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
+#if HWY_IS_DEBUG_BUILD
   const size_t N = 64 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));

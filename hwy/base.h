@@ -135,14 +135,6 @@
 // 4 instances of a given literal value, useful as input to LoadDup128.
 #define HWY_REP4(literal) literal, literal, literal, literal
 
-// Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
-// MSVC defines NDEBUG (if not, could instead check _DEBUG).
-#if defined(__OPTIMIZE__) || defined(NDEBUG)
-#define HWY_NDEBUG 1
-#else
-#define HWY_NDEBUG 0
-#endif
-
 #define HWY_ABORT(format, ...) \
   ::hwy::Abort(__FILE__, __LINE__, format, ##__VA_ARGS__)
 
@@ -154,9 +146,20 @@
     }                                     \
   } while (0)
 
-// Only for "debug" builds
-#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
+// For enabling HWY_DASSERT and shortening tests in slower debug builds
+#if !defined(HWY_IS_DEBUG_BUILD)
+// Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
+// MSVC defines NDEBUG (if not, could instead check _DEBUG).
+#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) ||            \
+    defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER) || defined(__clang_analyzer__)
+#define HWY_IS_DEBUG_BUILD 1
+#else
+#define HWY_IS_DEBUG_BUILD 0
+#endif
+#endif  // HWY_IS_DEBUG_BUILD
+
+#if HWY_IS_DEBUG_BUILD
 #define HWY_DASSERT(condition) HWY_ASSERT(condition)
 #else
 #define HWY_DASSERT(condition) \

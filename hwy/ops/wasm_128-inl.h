@@ -1990,7 +1990,7 @@ struct Indices128 {
 
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
-#if !HWY_NDEBUG || defined(ADDRESS_SANITIZER)
+#if HWY_IS_DEBUG_BUILD
   for (size_t i = 0; i < N; ++i) {
     HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
   }
