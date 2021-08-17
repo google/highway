@@ -547,9 +547,23 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
 
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero64(const uint64_t x) {
 #if HWY_COMPILER_MSVC
+#if HWY_ARCH_X86_64
   unsigned long index;  // NOLINT
   _BitScanForward64(&index, x);
   return index;
+#else   // HWY_ARCH_X86_64
+  // _BitScanForward64 not available
+  uint32_t lsb = static_cast<uint32_t>(x & 0xFFFFFFFF);
+  unsigned long index;
+  if (lsb == 0) {
+    uint32_t msb = static_cast<uint32_t>(x >> 32u);
+    _BitScanForward(&index, msb);
+    return 32 + index;
+  } else {
+    _BitScanForward(&index, lsb);
+    return index;
+  }
+#endif  // HWY_ARCH_X86_64
 #else   // HWY_COMPILER_MSVC
   return static_cast<size_t>(__builtin_ctzll(x));
 #endif  // HWY_COMPILER_MSVC
