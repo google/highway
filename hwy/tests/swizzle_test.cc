@@ -134,10 +134,15 @@ HWY_NOINLINE void TestAllTableLookupLanes() {
 class TestCompress {
   template <typename T, typename TI, size_t N>
   void CheckStored(Simd<T, N> d, Simd<TI, N> di, size_t expected_pos,
-                   const AlignedFreeUniquePtr<T[]>& in,
+                   size_t actual_pos, const AlignedFreeUniquePtr<T[]>& in,
                    const AlignedFreeUniquePtr<TI[]>& mask_lanes,
                    const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
                    int line) {
+    if (expected_pos != actual_pos) {
+      hwy::Abort(__FILE__, line,
+                 "Size mismatch for %s: expected %zu, actual %zu\n",
+                 TypeName(T(), N).c_str(), expected_pos, actual_pos);
+    }
     // Upper lanes are undefined. Modified from AssertVecEqual.
     for (size_t i = 0; i < expected_pos; ++i) {
       if (!IsEqual(expected[i], actual_u[i])) {
@@ -193,14 +198,13 @@ class TestCompress {
         // Compress
         memset(actual_u, 0, N * sizeof(T));
         StoreU(Compress(in, mask), d, actual_u);
-        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
-                    actual_u, __LINE__);
+        CheckStored(d, di, expected_pos, expected_pos, in_lanes, mask_lanes,
+                    expected, actual_u, __LINE__);
 
         // CompressStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size1 = CompressStore(in, mask, d, actual_u);
-        HWY_ASSERT_EQ(expected_pos, size1);
-        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
+        CheckStored(d, di, expected_pos, size1, in_lanes, mask_lanes, expected,
                     actual_u, __LINE__);
 
         // TODO(janwas): remove once implemented (cast or vse1)
@@ -208,14 +212,13 @@ class TestCompress {
         // CompressBits
         memset(actual_u, 0, N * sizeof(T));
         StoreU(CompressBits(in, bits.get()), d, actual_u);
-        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
-                    actual_u, __LINE__);
+        CheckStored(d, di, expected_pos, expected_pos, in_lanes, mask_lanes,
+                    expected, actual_u, __LINE__);
 
         // CompressBitsStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size2 = CompressBitsStore(in, bits.get(), d, actual_u);
-        HWY_ASSERT_EQ(expected_pos, size2);
-        CheckStored(d, di, expected_pos, in_lanes, mask_lanes, expected,
+        CheckStored(d, di, expected_pos, size2, in_lanes, mask_lanes, expected,
                     actual_u, __LINE__);
 #endif
       }  // rep

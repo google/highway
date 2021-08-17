@@ -4517,7 +4517,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask, Simd<T, N> d,
   const Vec128<uint16_t, N> cu{_mm_permutexvar_epi16(idx.raw, vu.raw)};
   StoreU(BitCast(d, cu), d, unaligned);
 #endif  // HWY_TARGET == HWY_AVX3_DL
-  return PopCount(mask_bits);
+  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
