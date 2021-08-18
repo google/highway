@@ -868,6 +868,18 @@ HWY_API VFromD<Simd<T, N>> Load(Simd<T, N> d, const T* HWY_RESTRICT p) {
   return Load(d, p);
 }
 
+// ------------------------------ MaskedLoad
+
+#define HWY_RVV_MASKED_LOAD(BASE, CHAR, SEW, LMUL, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                      \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_D(CHAR, SEW, LMUL) d,               \
+           const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                 \
+    (void)Lanes(d);                                                       \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, Zero(d), p);           \
+  }
+HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le)
+#undef HWY_RVV_MASKED_LOAD
+
 // ------------------------------ LoadU
 
 // RVV only requires lane alignment, not natural alignment of the entire vector.

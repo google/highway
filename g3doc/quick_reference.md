@@ -534,10 +534,23 @@ are naturally aligned. An unaligned access may require two load ports.
 
 #### Load
 
+Requires naturally-aligned vectors (e.g. from aligned_allocator.h):
+
 *   <code>Vec&lt;D&gt; **Load**(D, const T* aligned)</code>: returns
     `aligned[i]`. May fault if the pointer is not aligned to the vector size.
     Using this whenever possible improves codegen on SSSE3/SSE4: unlike `LoadU`,
     `Load` can be fused into a memory operand, which reduces register pressure.
+
+*   <code>Vec&lt;D&gt; **MaskedLoad**(M mask, D, const T* aligned)</code>:
+    returns `aligned[i]` or zero if the `mask` governing element `i` is false.
+    May fault if the pointer is not aligned to the vector size. The alignment
+    requirement prevents differing behavior for "masked off" elements at invalid
+    addresses. Equivalent to, and potentially more efficient than,
+    `IfThenElseZero(mask, Load(D(), aligned))`.
+
+Requires only *element-aligned* vectors (e.g. from malloc/std::vector, or
+aligned memory at indices which are not a multiple of the vector length):
+
 *   <code>Vec&lt;D&gt; **LoadU**(D, const T* p)</code>: returns `p[i]`.
 
 *   <code>Vec&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one 128-bit

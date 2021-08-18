@@ -813,6 +813,12 @@ HWY_API Vec1<T> Load(Sisd<T> /* tag */, const T* HWY_RESTRICT aligned) {
 }
 
 template <typename T>
+HWY_API Vec1<T> MaskedLoad(Mask1<T> m, Sisd<T> d,
+                           const T* HWY_RESTRICT aligned) {
+  return IfThenElseZero(m, Load(d, aligned));
+}
+
+template <typename T>
 HWY_API Vec1<T> LoadU(Sisd<T> d, const T* HWY_RESTRICT p) {
   return Load(d, p);
 }

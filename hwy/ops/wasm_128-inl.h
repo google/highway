@@ -1358,6 +1358,12 @@ HWY_API Vec128<T> Load(Full128<T> /* tag */, const T* HWY_RESTRICT aligned) {
   return Vec128<T>{wasm_v128_load(aligned)};
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> d,
+                                const T* HWY_RESTRICT aligned) {
+  return IfThenElseZero(m, Load(d, aligned));
+}
+
 // Partial load.
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> Load(Simd<T, N> /* tag */, const T* HWY_RESTRICT p) {

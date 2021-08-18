@@ -762,7 +762,7 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
 
 // ================================================== MEMORY
 
-// ------------------------------ Load/Store/Stream
+// ------------------------------ Load/MaskedLoad/LoadDup128/Store/Stream
 
 #define HWY_SVE_LOAD(BASE, CHAR, BITS, NAME, OP)           \
   template <size_t N>                                      \
@@ -770,6 +770,14 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
       NAME(HWY_SVE_D(BASE, BITS, N) d,                     \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
     return sv##OP##_##CHAR##BITS(detail::Mask(d), p);      \
+  }
+
+#define HWY_SVE_MASKED_LOAD(BASE, CHAR, BITS, NAME, OP)    \
+  template <size_t N>                                      \
+  HWY_API HWY_SVE_V(BASE, BITS)                            \
+      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N) d,         \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
+    return sv##OP##_##CHAR##BITS(m, p);                    \
   }
 
 #define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, NAME, OP)    \
@@ -789,11 +797,13 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_LOAD, Load, ld1)
+HWY_SVE_FOREACH(HWY_SVE_MASKED_LOAD, MaskedLoad, ld1)
 HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDup128, ld1rq)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Store, st1)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Stream, stnt1)
 
 #undef HWY_SVE_LOAD
+#undef HWY_SVE_MASKED_LOAD
 #undef HWY_SVE_LOAD_DUP128
 #undef HWY_SVE_STORE
 

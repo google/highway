@@ -1921,6 +1921,49 @@ HWY_API Vec256<double> LoadU(Full256<double> /* tag */,
   return Vec256<double>{_mm256_loadu_pd(p)};
 }
 
+// ------------------------------ MaskedLoad
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec256<T>{_mm256_maskz_load_epi32(m.raw, aligned)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec256<T>{_mm256_maskz_load_epi64(m.raw, aligned)};
+}
+
+HWY_API Vec256<float> MaskedLoad(Mask256<float> m, Full256<float> /* tag */,
+                                 const float* HWY_RESTRICT aligned) {
+  return Vec256<float>{_mm256_maskz_load_ps(m.raw, aligned)};
+}
+
+HWY_API Vec256<double> MaskedLoad(Mask256<double> m, Full256<double> /* tag */,
+                                  const double* HWY_RESTRICT aligned) {
+  return Vec256<double>{_mm256_maskz_load_pd(m.raw, aligned)};
+}
+
+// There is no load_epi8/16, so use loadu instead.
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec256<T>{_mm256_maskz_loadu_epi8(m.raw, aligned)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec256<T>{_mm256_maskz_loadu_epi16(m.raw, aligned)};
+}
+
+#endif // else: fallback defined in x86_128-inl.h
+
+// ------------------------------ LoadDup128
+
 // Loads 128 bit and duplicates into both 128-bit halves. This avoids the
 // 3-cycle cost of moving data between 128-bit halves and avoids port 5.
 template <typename T>

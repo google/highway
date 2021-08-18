@@ -19,6 +19,7 @@
 // particular, "Broadcast", pack and zip behavior may be surprising.
 
 #include <immintrin.h>  // AVX2+
+
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
@@ -1712,8 +1713,7 @@ HWY_API Vec512<int64_t> BroadcastSignBit(const Vec512<int64_t> v) {
 
 template <typename T>
 HWY_API Vec512<T> Load(Full512<T> /* tag */, const T* HWY_RESTRICT aligned) {
-  return Vec512<T>{
-      _mm512_load_si512(reinterpret_cast<const __m512i*>(aligned))};
+  return Vec512<T>{_mm512_load_si512(aligned)};
 }
 HWY_API Vec512<float> Load(Full512<float> /* tag */,
                            const float* HWY_RESTRICT aligned) {
@@ -1726,7 +1726,7 @@ HWY_API Vec512<double> Load(Full512<double> /* tag */,
 
 template <typename T>
 HWY_API Vec512<T> LoadU(Full512<T> /* tag */, const T* HWY_RESTRICT p) {
-  return Vec512<T>{_mm512_loadu_si512(reinterpret_cast<const __m512i*>(p))};
+  return Vec512<T>{_mm512_loadu_si512(p)};
 }
 HWY_API Vec512<float> LoadU(Full512<float> /* tag */,
                             const float* HWY_RESTRICT p) {
@@ -1736,6 +1736,45 @@ HWY_API Vec512<double> LoadU(Full512<double> /* tag */,
                              const double* HWY_RESTRICT p) {
   return Vec512<double>{_mm512_loadu_pd(p)};
 }
+
+// ------------------------------ MaskedLoad
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec512<T>{_mm512_maskz_load_epi32(m.raw, aligned)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec512<T>{_mm512_maskz_load_epi64(m.raw, aligned)};
+}
+
+HWY_API Vec512<float> MaskedLoad(Mask512<float> m, Full512<float> /* tag */,
+                                 const float* HWY_RESTRICT aligned) {
+  return Vec512<float>{_mm512_maskz_load_ps(m.raw, aligned)};
+}
+
+HWY_API Vec512<double> MaskedLoad(Mask512<double> m, Full512<double> /* tag */,
+                                  const double* HWY_RESTRICT aligned) {
+  return Vec512<double>{_mm512_maskz_load_pd(m.raw, aligned)};
+}
+
+// There is no load_epi8/16, so use loadu instead.
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec512<T>{_mm512_maskz_loadu_epi8(m.raw, aligned)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  return Vec512<T>{_mm512_maskz_loadu_epi16(m.raw, aligned)};
+}
+
+// ------------------------------ LoadDup128
 
 // Loads 128 bit and duplicates into both 128-bit halves. This avoids the
 // 3-cycle cost of moving data between 128-bit halves and avoids port 5.

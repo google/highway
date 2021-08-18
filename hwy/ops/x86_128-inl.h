@@ -1644,6 +1644,59 @@ HWY_API Vec128<T, N> LoadDup128(Simd<T, N> d, const T* HWY_RESTRICT p) {
   return LoadU(d, p);
 }
 
+// ------------------------------ MaskedLoad
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4), HWY_IF_LE128(T, N)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
+                                const T* HWY_RESTRICT aligned) {
+  return Vec128<T, N>{_mm_maskz_load_epi32(m.raw, aligned)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8), HWY_IF_LE128(T, N)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
+                                const T* HWY_RESTRICT aligned) {
+  return Vec128<T, N>{_mm_maskz_load_epi64(m.raw, aligned)};
+}
+
+template <size_t N, HWY_IF_LE128(float, N)>
+HWY_API Vec128<float, N> MaskedLoad(Mask128<float, N> m,
+                                    Simd<float, N> /* tag */,
+                                    const float* HWY_RESTRICT aligned) {
+  return Vec128<float, N>{_mm_maskz_load_ps(m.raw, aligned)};
+}
+
+template <size_t N, HWY_IF_LE128(double, N)>
+HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m,
+                                     Simd<double, N> /* tag */,
+                                     const double* HWY_RESTRICT aligned) {
+  return Vec128<double, N>{_mm_maskz_load_pd(m.raw, aligned)};
+}
+
+// There is no load_epi8/16, so use loadu instead.
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1), HWY_IF_LE128(T, N)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
+                                const T* HWY_RESTRICT aligned) {
+  return Vec128<T, N>{_mm_maskz_loadu_epi8(m.raw, aligned)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_LE128(T, N)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
+                                const T* HWY_RESTRICT aligned) {
+  return Vec128<T, N>{_mm_maskz_loadu_epi16(m.raw, aligned)};
+}
+
+#else
+
+// Also applies to x86_256-inl.
+template <class M, class D>
+HWY_API VFromD<D> MaskedLoad(M m, D d, const TFromD<D>* HWY_RESTRICT aligned) {
+  return IfThenElseZero(m, Load(d, aligned));
+}
+
+#endif
+
 // ------------------------------ Store
 
 template <typename T>
