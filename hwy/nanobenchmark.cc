@@ -400,7 +400,7 @@ double NominalClockRate() {
 
 double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC
-  return __ppc_get_timebase_freq();
+  return double(__ppc_get_timebase_freq());
 #elif HWY_ARCH_X86
   // We assume the TSC is invariant; it is on all recent Intel/AMD CPUs.
   return NominalClockRate();
