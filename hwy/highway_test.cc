@@ -143,11 +143,15 @@ HWY_NOINLINE void AssertNaN(const D d, const V& v, const char* file, int line) {
   const T lane = GetLane(v);
   if (!IsNaN(lane)) {
     const std::string type_name = TypeName(T(), Lanes(d));
-    MakeUnsigned<T> bits;
-    memcpy(&bits, &lane, sizeof(T));
-    // RVV lacks PRIu64, so use size_t; double will be truncated on 32-bit.
-    Abort(file, line, "Expected %s NaN, got %E (%zu)", type_name.c_str(), lane,
-          size_t(bits));
+    // RVV lacks PRIu64 and MSYS still has problems with %zu, so print bytes to
+    // avoid truncating doubles.
+    uint8_t bytes[HWY_MAX(sizeof(T), 8)] = {0};
+    memcpy(bytes, &lane, sizeof(T));
+    Abort(file, line,
+          "Expected %s NaN, got %E (bytes %02x %02x %02x %02x %02x %02x %02x "
+          "%02x)",
+          type_name.c_str(), lane, bytes[0], bytes[1], bytes[2], bytes[3],
+          bytes[4], bytes[5], bytes[6], bytes[7]);
   }
 }
 

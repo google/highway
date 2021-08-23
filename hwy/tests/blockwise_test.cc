@@ -565,7 +565,7 @@ class TestSpecialShuffle32 {
 
  private:
   template <class D, class V>
-  HWY_NOINLINE void VerifyLanes32(D d, V actual, const size_t i3,
+  HWY_NOINLINE void VerifyLanes32(D d, const V& actual, const size_t i3,
                                   const size_t i2, const size_t i1,
                                   const size_t i0, const char* filename,
                                   const int line) {
@@ -594,7 +594,7 @@ class TestSpecialShuffle64 {
 
  private:
   template <class D, class V>
-  HWY_NOINLINE void VerifyLanes64(D d, V actual, const size_t i1,
+  HWY_NOINLINE void VerifyLanes64(D d, const V& actual, const size_t i1,
                                   const size_t i0, const char* filename,
                                   const int line) {
     using T = TFromD<D>;

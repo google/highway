@@ -99,7 +99,6 @@ else()
     -fmerge-all-constants
 
     # Warnings
-    -Werror
     -Wall
     -Wextra
     # These are not included in Wall nor Wextra:
@@ -161,8 +160,11 @@ else()
     list(APPEND HWY_FLAGS
       -fmath-errno
       -fno-exceptions
+
+      # We are not yet able to set this on Windows because MSYS warns about %zu.
+      -Werror
     )
-  endif()
+  endif()  # WIN32
 
   if (HWY_CMAKE_ARM7)
     list(APPEND HWY_FLAGS
