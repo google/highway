@@ -293,10 +293,14 @@ HWY_NOINLINE void PrintValue(T value) {
   fprintf(stderr, "%g,", double(value));
 }
 
+// NOTE: in non-inlined functions, we pass V arguments by const reference to
+// work around a GCC bug on Windows causing crashes from unaligned loads, see:
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412.
+
 // Prints lanes around `lane`, in memory order.
 template <class D>
 HWY_NOINLINE void Print(const D d, const char* caption,
-                        const decltype(Zero(d)) v, size_t lane_u = 0,
+                        const decltype(Zero(d))& v, size_t lane_u = 0,
                         size_t max_lanes = 7) {
   using T = TFromD<D>;
   const size_t N = Lanes(d);
@@ -388,7 +392,7 @@ static HWY_NOINLINE HWY_MAYBE_UNUSED void AssertStringEqual(
 
 // Compare expected vector to vector.
 template <class D, class V>
-HWY_NOINLINE void AssertVecEqual(D d, const V expected, const V actual,
+HWY_NOINLINE void AssertVecEqual(D d, const V& expected, const V& actual,
                                  const char* filename, const int line) {
   using T = TFromD<D>;
   const size_t N = Lanes(d);
@@ -416,14 +420,15 @@ HWY_NOINLINE void AssertVecEqual(D d, const V expected, const V actual,
 
 // Compare expected lanes to vector.
 template <class D>
-HWY_NOINLINE void AssertVecEqual(D d, const TFromD<D>* expected, Vec<D> actual,
-                                 const char* filename, int line) {
+HWY_NOINLINE void AssertVecEqual(D d, const TFromD<D>* expected,
+                                 const Vec<D>& actual, const char* filename,
+                                 int line) {
   AssertVecEqual(d, LoadU(d, expected), actual, filename, line);
 }
 
 // Only checks the valid mask elements (those whose index < Lanes(d)).
 template <class D>
-HWY_NOINLINE void AssertMaskEqual(D d, Mask<D> a, Mask<D> b,
+HWY_NOINLINE void AssertMaskEqual(D d, const Mask<D>& a, const Mask<D>& b,
                                   const char* filename, int line) {
   AssertVecEqual(d, VecFromMask(d, a), VecFromMask(d, b), filename, line);
 
