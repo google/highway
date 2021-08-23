@@ -135,22 +135,27 @@ else()
   endif()
 
   if (WIN32)
+    if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+      list(APPEND HWY_FLAGS
+        -Wno-global-constructors
+        -Wno-language-extension-token
+        -Wno-used-but-marked-unused
+        -Wno-shadow-field-in-constructor
+        -Wno-unused-member-function
+        -Wno-unused-template
+        -Wno-c++98-compat-pedantic
+        -Wno-used-but-marked-unused
+        -Wno-zero-as-null-pointer-constant
+      )
+    endif()
+
     list(APPEND HWY_FLAGS
-      -Wno-c++98-compat-pedantic
       -Wno-cast-align
       -Wno-double-promotion
       -Wno-float-equal
       -Wno-format-nonliteral
-      -Wno-global-constructors
-      -Wno-language-extension-token
-      -Wno-missing-prototypes
       -Wno-shadow
-      -Wno-shadow-field-in-constructor
       -Wno-sign-conversion
-      -Wno-unused-member-function
-      -Wno-unused-template
-      -Wno-used-but-marked-unused
-      -Wno-zero-as-null-pointer-constant
     )
   else()
     list(APPEND HWY_FLAGS
