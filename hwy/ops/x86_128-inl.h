@@ -167,10 +167,16 @@ struct DeduceD {
   }
 };
 
+// Workaround for MSVC v19.14: alias with a dependent type fails to specialize.
+template <class V>
+struct ExpandDFromV {
+  using type = decltype(DeduceD()(static_cast<V*>(nullptr)));
+};
+
 }  // namespace detail
 
 template <class V>
-using DFromV = decltype(detail::DeduceD()(static_cast<V*>(nullptr)));
+using DFromV = typename detail::ExpandDFromV<V>::type;
 
 // ------------------------------ BitCast
 
