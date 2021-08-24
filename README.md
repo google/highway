@@ -14,8 +14,9 @@ applying the same operation to multiple 'lanes' using a single CPU instruction.
 
 ## Current status
 
-Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, NEON (ARMv7 and v8),
-SVE, WASM SIMD.
+Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, AVX3_DL (~Icelake,
+requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE,
+WASM SIMD.
 
 SVE is tested using farm_sve (see acknowledgments). SVE2 is implemented but not
 yet validated. A subset of RVV is implemented and tested with GCC and QEMU.
@@ -23,8 +24,7 @@ Work is underway to compile using LLVM, which has different intrinsics with AVL.
 
 Version 0.11 is considered stable enough to use in other projects, and is
 expected to remain backwards compatible unless serious issues are discovered
-while implementing SVE/RVV targets. After these targets are added, Highway will
-reach version 1.0.
+while finishing the RVV target. After that, Highway will reach version 1.0.
 
 Continuous integration tests build with a recent version of Clang (running on
 x86 and QEMU for ARM) and MSVC from VS2015 (running on x86).
@@ -227,7 +227,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     headers. We generate all code paths from the same source to reduce
     implementation- and debugging cost.
 
-*   Not every CPU need be supported. For example, pre-SSE4.1 CPUs are
+*   Not every CPU need be supported. For example, pre-SSSE3 CPUs are
     increasingly rare and the AVX instruction set is limited to floating-point
     operations. To reduce code size and compile time, we provide specializations
     for S-SSE3, SSE4, AVX2 and AVX-512 instruction sets on x86, plus a scalar
@@ -252,7 +252,32 @@ dispatch. The current design (used in JPEG XL) enables code generation for
 multiple platforms and/or instruction sets from the same source, and improves
 runtime dispatch.
 
-## Differences versus [P0214R5 proposal](https://goo.gl/zKW4SA)
+## Overloaded function API
+
+Most C++ vector APIs rely on class templates. However, the ARM SVE vector
+type is sizeless and cannot be wrapped in a class. We instead rely on overloaded
+functions. Overloading based on vector types is also undesirable because SVE
+vectors cannot be default-constructed. We instead use a dedicated 'descriptor'
+type `Simd` for overloading, abbreviated to `D` for template arguments and
+`d` in lvalues.
+
+Note that generic function templates are possible (see generic_ops-inl.h).
+
+## Masks
+
+AVX-512 introduced a major change to the SIMD interface: special mask registers
+(one bit per lane) that serve as predicates. It would be expensive to force
+AVX-512 implementations to conform to the prior model of full vectors with lanes
+set to all one or all zero bits. We instead provide a Mask type that emulates
+a subset of this functionality on other platforms at zero cost.
+
+Masks are returned by comparisons and `TestBit`; they serve as the input to
+`IfThen*`. We provide conversions between masks and vector lanes. For clarity
+and safety, we use FF..FF as the definition of true. To also benefit from
+x86 instructions that only require the sign bit of floating-point inputs to be
+set, we provide a special `ZeroIfNegative` function.
+
+## Differences vs. [P0214R5](https://goo.gl/zKW4SA) / std::experimental::simd
 
 1.  Allowing the use of built-in vector types by relying on non-member
     functions. By contrast, P0214R5 requires a wrapper class, which does not
@@ -320,32 +345,8 @@ runtime dispatch.
 *   Inastemp ([code](https://goo.gl/hg3USM), [paper](https://goo.gl/YcTU7S))
     is a vector library for scientific computing with some innovative features:
     automatic FLOPS counting, and "if/else branches" using lambda functions.
-    It supports IBM Power8, but only provides float and double types.
-
-## Overloaded function API
-
-Most C++ vector APIs rely on class templates. However, the ARM SVE vector
-type is sizeless and cannot be wrapped in a class. We instead rely on overloaded
-functions. Overloading based on vector types is also undesirable because SVE
-vectors cannot be default-constructed. We instead use a dedicated 'descriptor'
-type `Simd` for overloading, abbreviated to `D` for template arguments and
-`d` in lvalues.
-
-Note that generic function templates are possible (see generic_ops-inl.h).
-
-## Masks
-
-AVX-512 introduced a major change to the SIMD interface: special mask registers
-(one bit per lane) that serve as predicates. It would be expensive to force
-AVX-512 implementations to conform to the prior model of full vectors with lanes
-set to all one or all zero bits. We instead provide a Mask type that emulates
-a subset of this functionality on other platforms at zero cost.
-
-Masks are returned by comparisons and `TestBit`; they serve as the input to
-`IfThen*`. We provide conversions between masks and vector lanes. For clarity
-and safety, we use FF..FF as the definition of true. To also benefit from
-x86 instructions that only require the sign bit of floating-point inputs to be
-set, we provide a special `ZeroIfNegative` function.
+    It supports IBM Power8, but only provides float and double types and does
+    not support SVE without assuming the runtime vector size.
 
 ## Additional resources
 
