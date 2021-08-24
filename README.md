@@ -102,6 +102,22 @@ additionally either prefixed with `HWY_ATTR`, or residing between
     [quick-reference](g3doc/quick_reference.md)) if `HWY_TARGET_INCLUDE` is
     defined and foreach_target.h is included.
 
+## Compiler flags
+
+Applications should be compiled with optimizations enabled - without inlining,
+SIMD code may slow down by factors of 10 to 100. For clang and GCC, `-O2` is
+generally sufficient.
+
+For MSVC, we recommend compiling with `/Gv` to allow non-inlined functions to
+pass vector arguments in registers. If intending to use the AVX2 target together
+with half-width vectors (e.g. for `PromoteTo`), it is also important to compile
+with `/arch:AVX2`. This seems to be the only way to generate VEX-encoded SSE4
+instructions on MSVC. Otherwise, mixing VEX-encoded AVX2 instructions and
+non-VEX SSE4 may cause severe performance degradation. Unfortunately, the
+resulting binary will then require AVX2. Note that no such flag is needed for
+clang and GCC because they support target-specific attributes, which we use to
+ensure proper VEX code generation for AVX2 targets.
+
 ## Strip-mining loops
 
 To vectorize a loop, "strip-mining" transforms it into an outer loop and inner
