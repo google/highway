@@ -27,10 +27,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// NOTE: in non-inlined functions, we pass V arguments by const reference to
-// work around a GCC bug on Windows causing crashes from unaligned loads, see:
-// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412.
-
 /**
  * Highway SIMD version of std::acos(x).
  *
@@ -42,7 +38,7 @@ namespace HWY_NAMESPACE {
 template <class D, class V>
 HWY_INLINE V Acos(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallAcos(const D d, const V& x) {
+HWY_NOINLINE V CallAcos(const D d, VecArg<V> x) {
   return Acos(d, x);
 }
 
@@ -57,7 +53,7 @@ HWY_NOINLINE V CallAcos(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Acosh(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallAcosh(const D d, const V& x) {
+HWY_NOINLINE V CallAcosh(const D d, VecArg<V> x) {
   return Acosh(d, x);
 }
 
@@ -72,7 +68,7 @@ HWY_NOINLINE V CallAcosh(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Asin(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallAsin(const D d, const V& x) {
+HWY_NOINLINE V CallAsin(const D d, VecArg<V> x) {
   return Asin(d, x);
 }
 
@@ -87,7 +83,7 @@ HWY_NOINLINE V CallAsin(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Asinh(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallAsinh(const D d, const V& x) {
+HWY_NOINLINE V CallAsinh(const D d, VecArg<V> x) {
   return Asinh(d, x);
 }
 
@@ -102,7 +98,7 @@ HWY_NOINLINE V CallAsinh(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Atan(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallAtan(const D d, const V& x) {
+HWY_NOINLINE V CallAtan(const D d, VecArg<V> x) {
   return Atan(d, x);
 }
 
@@ -117,7 +113,7 @@ HWY_NOINLINE V CallAtan(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Atanh(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallAtanh(const D d, const V& x) {
+HWY_NOINLINE V CallAtanh(const D d, VecArg<V> x) {
   return Atanh(d, x);
 }
 
@@ -132,7 +128,7 @@ HWY_NOINLINE V CallAtanh(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Cos(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallCos(const D d, const V& x) {
+HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
   return Cos(d, x);
 }
 
@@ -147,7 +143,7 @@ HWY_NOINLINE V CallCos(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Exp(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallExp(const D d, const V& x) {
+HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
   return Exp(d, x);
 }
 
@@ -162,7 +158,7 @@ HWY_NOINLINE V CallExp(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Expm1(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallExpm1(const D d, const V& x) {
+HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
   return Expm1(d, x);
 }
 
@@ -177,7 +173,7 @@ HWY_NOINLINE V CallExpm1(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Log(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallLog(const D d, const V& x) {
+HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
   return Log(d, x);
 }
 
@@ -192,7 +188,7 @@ HWY_NOINLINE V CallLog(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Log10(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallLog10(const D d, const V& x) {
+HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
   return Log10(d, x);
 }
 
@@ -207,7 +203,7 @@ HWY_NOINLINE V CallLog10(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Log1p(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallLog1p(const D d, const V& x) {
+HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
   return Log1p(d, x);
 }
 
@@ -222,7 +218,7 @@ HWY_NOINLINE V CallLog1p(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Log2(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallLog2(const D d, const V& x) {
+HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
   return Log2(d, x);
 }
 
@@ -237,7 +233,7 @@ HWY_NOINLINE V CallLog2(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Sin(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallSin(const D d, const V& x) {
+HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
   return Sin(d, x);
 }
 
@@ -252,7 +248,7 @@ HWY_NOINLINE V CallSin(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Sinh(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallSinh(const D d, const V& x) {
+HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
   return Sinh(d, x);
 }
 
@@ -267,7 +263,7 @@ HWY_NOINLINE V CallSinh(const D d, const V& x) {
 template <class D, class V>
 HWY_INLINE V Tanh(const D d, V x);
 template <class D, class V>
-HWY_NOINLINE V CallTanh(const D d, const V& x) {
+HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
   return Tanh(d, x);
 }
 

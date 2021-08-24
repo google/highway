@@ -31,7 +31,7 @@ namespace HWY_NAMESPACE {
 
 template <class T, class D>
 void TestMath(const std::string name, T (*fx1)(T),
-              Vec<D> (*fxN)(D, const Vec<D> &), D d, T min, T max,
+              Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
               uint64_t max_error_ulp) {
   constexpr bool kIsF32 = (sizeof(T) == 4);
   using UintT = MakeUnsigned<T>;

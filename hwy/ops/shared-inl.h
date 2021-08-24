@@ -130,6 +130,25 @@ HWY_INLINE HWY_MAYBE_UNUSED size_t Lanes(Simd<T, N>) {
 
 #endif
 
+// NOTE: GCC generates incorrect code for vector arguments to non-inlined
+// functions in two situations:
+// - on Windows and GCC 10.3, passing by value crashes due to unaligned loads:
+//   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412.
+// - on ARM64 and GCC 9.3.0 or 11.2.1, passing by const& causes many (but not
+//   all) tests to fail.
+//
+// We therefore pass by const& only on GCC and Windows. This alias must be used
+// for all vector/mask parameters of functions marked HWY_NOINLINE, and possibly
+// also all functions not marked HWY_INLINE nor HWY_API.
+#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && \
+    (defined(_WIN32) || defined(_WIN64))
+template <class V>
+using VecArg = const V&;
+#else
+template <class V>
+using VecArg = V;
+#endif
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
