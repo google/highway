@@ -42,6 +42,10 @@ endif()
 
 set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON?")
 
+# Unconditionally adding -Werror risks breaking the build when new warnings
+# arise due to compiler/platform changes. Enable this in CI/tests.
+set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
+
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
    "int main() {
@@ -160,9 +164,6 @@ else()
     list(APPEND HWY_FLAGS
       -fmath-errno
       -fno-exceptions
-
-      # We are not yet able to set this on Windows because MSYS warns about %zu.
-      -Werror
     )
   endif()  # WIN32
 
@@ -174,6 +175,10 @@ else()
       -mfp16-format=ieee  # required for vcvt_f32_f16
     )
   endif()  # HWY_CMAKE_ARM7
+
+  if (HWY_WARNINGS_ARE_ERRORS)
+    list(APPEND HWY_FLAGS -Werror)
+  endif()
 
 endif()  # !MSVC
 

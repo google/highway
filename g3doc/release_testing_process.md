@@ -20,7 +20,7 @@ run_tests.bat
 
 ```
 for VER in 8 9 10; do
-  rm -rf build_g$VER && mkdir build_g$VER && cd build_g$VER && CC=gcc-$VER CXX=g++-$VER cmake .. && make -j && make test && cd .. && rm -rf build_g$VER
+  rm -rf build_g$VER && mkdir build_g$VER && cd build_g$VER && CC=gcc-$VER CXX=g++-$VER cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON && make -j && make test && cd .. && rm -rf build_g$VER
 done
 ```
 
@@ -29,7 +29,7 @@ done
 ```
 export QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf
 rm -rf build_arm7 && mkdir build_arm7 && cd build_arm7
-CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ cmake .. -DHWY_CMAKE_ARM7:BOOL=ON
+CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ cmake .. -DHWY_CMAKE_ARM7:BOOL=ON -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
 make -j8 && ctest && cd ..
 ```
 
@@ -38,7 +38,7 @@ make -j8 && ctest && cd ..
 ```
 export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
 rm -rf build_arm8 && mkdir build_arm8 && cd build_arm8
-CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ cmake ..
+CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
 make -j8 && ctest && cd ..
 ```
 
