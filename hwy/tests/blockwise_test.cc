@@ -187,7 +187,7 @@ struct ChooseTableSize {
 template <>
 struct ChooseTableSize<true> {
   template <typename T, typename DIdx>
-  using type = HWY_FULL(T);
+  using type = ScalableTag<T>;
 };
 
 template <bool kFull>

@@ -262,7 +262,7 @@ class TestStoreMaskBits {
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
 
-    const Half<Half<Half<HWY_FULL(uint8_t)>>> d_bits;
+    const ScalableTag<uint8_t, -3> d_bits;
     const size_t expected_num_bytes = (N + 7) / 8;
     auto expected = AllocateAligned<uint8_t>(expected_num_bytes);
     auto actual = AllocateAligned<uint8_t>(HWY_MAX(8, expected_num_bytes));

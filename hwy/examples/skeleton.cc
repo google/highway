@@ -72,7 +72,7 @@ void FloorLog2(const uint8_t* HWY_RESTRICT values, size_t count,
   CodepathDemo();
 
   // Second argument is necessary on RVV until it supports fractional lengths.
-  HWY_FULL(float, 4) df;
+  const ScalableTag<float, 2> df;
 
   const size_t N = Lanes(df);
   size_t i = 0;

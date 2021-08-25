@@ -26,7 +26,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-size_t GetVectorSize() { return Lanes(HWY_FULL(uint8_t)()); }
+size_t GetVectorSize() { return Lanes(ScalableTag<uint8_t>()); }
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 

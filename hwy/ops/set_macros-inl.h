@@ -29,6 +29,7 @@
 
 #undef HWY_NAMESPACE
 #undef HWY_ALIGN
+#undef HWY_MAX_LANES
 #undef HWY_LANES
 
 #undef HWY_CAP_INTEGER64
@@ -75,6 +76,7 @@
 
 #define HWY_NAMESPACE N_SSSE3
 #define HWY_ALIGN alignas(16)
+#define HWY_MAX_LANES(T) (16 / sizeof(T))
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
@@ -91,6 +93,7 @@
 
 #define HWY_NAMESPACE N_SSE4
 #define HWY_ALIGN alignas(16)
+#define HWY_MAX_LANES(T) (16 / sizeof(T))
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
@@ -108,6 +111,7 @@
 #define HWY_NAMESPACE N_AVX2
 #define HWY_ALIGN alignas(32)
 #define HWY_LANES(T) (32 / sizeof(T))
+#define HWY_MAX_LANES(T) (32 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT16 1
@@ -122,6 +126,7 @@
 #elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL
 
 #define HWY_ALIGN alignas(64)
+#define HWY_MAX_LANES(T) (64 / sizeof(T))
 #define HWY_LANES(T) (64 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
@@ -151,6 +156,7 @@
 #elif HWY_TARGET == HWY_PPC8
 
 #define HWY_ALIGN alignas(16)
+#define HWY_MAX_LANES(T) (16 / sizeof(T))
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
@@ -168,6 +174,7 @@
 #elif HWY_TARGET == HWY_NEON
 
 #define HWY_ALIGN alignas(16)
+#define HWY_MAX_LANES(T) (16 / sizeof(T))
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
@@ -196,14 +203,12 @@
 // SVE only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN alignas(8)
 
-// <= 16 bytes: exact size (from HWY_CAPPED). 2048 bytes denotes a full vector.
-// In between: fraction of the full length, a power of two; HWY_LANES(T)/4
-// denotes 1/4 the actual length (a power of two because we use SV_POW2).
-//
-// The upper bound for SVE is actually 256 bytes, but we need to be able to
-// differentiate 1/8th of a vector, subsequently demoted to 1/4 the lane width,
-// from an exact size <= 16 bytes.
-#define HWY_LANES(T) (2048 / sizeof(T))
+#define HWY_MAX_LANES(T) (256 / sizeof(T))
+
+// <= HWY_MAX_LANES(T): exact size. Otherwise a fraction 1/div (div = 1,2,4,8)
+// is encoded as HWY_LANES(T)/div. This value leaves enough room for div=8 and
+// demoting to 1/8 the lane width while still exceeding HWY_MAX_LANES.
+#define HWY_LANES(T) (32768 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT16 1
@@ -224,6 +229,7 @@
 #elif HWY_TARGET == HWY_WASM
 
 #define HWY_ALIGN alignas(16)
+#define HWY_MAX_LANES(T) (16 / sizeof(T))
 #define HWY_LANES(T) (16 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 0
@@ -244,10 +250,13 @@
 // and the compiler already aligns builtin types, so nothing to do here.
 #define HWY_ALIGN
 
-// Arbitrary constant, not the actual lane count! Large enough that we can
-// mul/div by 8 for LMUL.
-// TODO(janwas): update to actual upper bound 64K, plus headroom for 1/8.
-#define HWY_LANES(T) (4096 / sizeof(T))
+// The spec requires VLEN <= 2^16 bits, so the limit is 2^16 bytes (LMUL=8).
+#define HWY_MAX_LANES(T) (65536 / sizeof(T))
+
+// <= HWY_MAX_LANES(T): exact size. Otherwise a fraction 1/div (div = 1,2,4,8)
+// is encoded as HWY_LANES(T)/div. This value leaves enough room for div=8 and
+// demoting to 1/8 the lane width while still exceeding HWY_MAX_LANES.
+#define HWY_LANES(T) (8388608 / sizeof(T))
 
 #define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT64 1
@@ -270,7 +279,7 @@
 #elif HWY_TARGET == HWY_SCALAR
 
 #define HWY_ALIGN
-// For internal use only; use Lanes(d) instead.
+#define HWY_MAX_LANES(T) 1
 #define HWY_LANES(T) 1
 
 #define HWY_CAP_INTEGER64 1

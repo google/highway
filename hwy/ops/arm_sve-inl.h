@@ -1886,7 +1886,7 @@ HWY_API svuint8_t AESRound(svuint8_t state, svuint8_t round_key) {
   // they can be fused. AESE includes AddRoundKey, which is a different ordering
   // than the AES-NI semantics we adopted, so XOR by 0 and later with the actual
   // round key (the compiler will hopefully optimize this for multiple rounds).
-  const svuint8_t zero = Zero(HWY_FULL(uint8_t)());
+  const svuint8_t zero = svdup_n_u8(0);
   return Xor(vaesmcq_u8(vaeseq_u8(state, zero), round_key));
 }
 
