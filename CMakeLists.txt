@@ -46,6 +46,8 @@ set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON?")
 # arise due to compiler/platform changes. Enable this in CI/tests.
 set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
 
+set(HWY_EXAMPLES_TESTS_INSTALL ON CACHE BOOL "Build examples, tests, install?")
+
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
    "int main() {
@@ -208,12 +210,9 @@ add_custom_command(TARGET hwy_list_targets POST_BUILD
     COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:hwy_list_targets> || (exit 0))
 
 # --------------------------------------------------------
-# The following sections are skipped if this project is added via
-# add_subdirectory into parent project (i.e. used as library).
-# Those sections contain artifacts that are not required for building
-# parent project: tests, examples, benchmarks and installation.
-# --------------------------------------------------------
-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+# Allow skipping the following sections for projects that do not need them:
+# tests, examples, benchmarks and installation.
+if (HWY_EXAMPLES_TESTS_INSTALL)
 
 # -------------------------------------------------------- install library
 install(TARGETS hwy
@@ -367,4 +366,4 @@ target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
 endif() # BUILD_TESTING
 
-endif() # CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR
+endif() # HWY_EXAMPLES_TESTS_INSTALL
