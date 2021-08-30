@@ -765,7 +765,7 @@ struct TestMulEvenOdd64 {
 
     // Random inputs in each lane
     RandomState rng;
-    for (size_t rep = 0; rep < 1000; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         in1[i] = Random64(&rng);
         in2[i] = Random64(&rng);
@@ -895,13 +895,24 @@ struct TestApproximateReciprocal {
     Store(ApproximateReciprocal(nonzero), d, actual.get());
 
     double max_l1 = 0.0;
+    double worst_expected = 0.0;
+    double worst_actual = 0.0;
     for (size_t i = 0; i < N; ++i) {
-      max_l1 = HWY_MAX(max_l1, std::abs((1.0 / input[i]) - actual[i]));
+      const double expected = 1.0 / input[i];
+      const double l1 = std::abs(expected - actual[i]);
+      if (l1 > max_l1) {
+        max_l1 = l1;
+        worst_expected = expected;
+        worst_actual = actual[i];
+      }
     }
-    const double max_rel = max_l1 / std::abs(1.0 / input[N - 1]);
-    printf("max err %f\n", max_rel);
-
-    HWY_ASSERT(max_rel < 0.002);
+    const double abs_worst_expected = std::abs(worst_expected);
+    if (abs_worst_expected > 1E-5) {
+      const double max_rel = max_l1 / abs_worst_expected;
+      fprintf(stderr, "max l1 %f rel %f (%f vs %f)\n", max_l1, max_rel,
+              worst_expected, worst_actual);
+      HWY_ASSERT(max_rel < 0.004);
+    }
   }
 };
 
@@ -931,7 +942,9 @@ struct TestReciprocalSquareRoot {
     for (size_t i = 0; i < N; ++i) {
       float err = lanes[i] - 0.090166f;
       if (err < 0.0f) err = -err;
-      HWY_ASSERT(err < 1E-4f);
+      if (err >= 4E-4f) {
+        HWY_ABORT("Lane %zu(%zu): actual %f err %f\n", i, N, lanes[i], err);
+      }
     }
   }
 };

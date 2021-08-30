@@ -723,6 +723,18 @@ void ForAllTypes(const Func& func) {
   ForFloatTypes(func);
 }
 
+// For tests that involve loops, adjust the trip count so that emulated tests
+// finish quickly (but always at least 2 iterations to ensure some diversity).
+constexpr size_t AdjustedReps(size_t max_reps) {
+#if HWY_ARCH_RVV
+  return HWY_MAX(max_reps / 16, 2);
+#elif HWY_ARCH_ARM
+  return HWY_MAX(max_reps / 4, 2);
+#else
+  return HWY_MAX(max_reps, 2);
+#endif
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

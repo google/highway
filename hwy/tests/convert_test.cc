@@ -151,7 +151,7 @@ struct TestPromoteTo {
     auto expected = AllocateAligned<ToT>(N);
 
     RandomState rng;
-    for (size_t rep = 0; rep < 200; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         const uint64_t bits = rng();
         memcpy(&from[i], &bits, sizeof(T));
@@ -239,7 +239,7 @@ struct TestDemoteTo {
     };
 
     RandomState rng;
-    for (size_t rep = 0; rep < 1000; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         do {
           const uint64_t bits = rng();
@@ -289,7 +289,7 @@ struct TestDemoteToFloat {
     auto expected = AllocateAligned<ToT>(N);
 
     RandomState rng;
-    for (size_t rep = 0; rep < 1000; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         do {
           const uint64_t bits = rng();
@@ -449,7 +449,7 @@ class TestIntFromFloat {
     auto from = AllocateAligned<TF>(N);
     auto expected = AllocateAligned<TI>(N);
     RandomState rng;
-    for (size_t rep = 0; rep < 1000; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         do {
           const uint64_t bits = rng();

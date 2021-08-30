@@ -94,7 +94,7 @@ struct TestIfThenElse {
     auto expected = AllocateAligned<T>(N);
 
     // Each lane should have a chance of having mask=true.
-    for (size_t rep = 0; rep < 50; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         in1[i] = static_cast<T>(Random32(&rng));
         in2[i] = static_cast<T>(Random32(&rng));
@@ -138,7 +138,7 @@ struct TestMaskVec {
     auto bool_lanes = AllocateAligned<TI>(N);
 
     // Each lane should have a chance of having mask=true.
-    for (size_t rep = 0; rep < 100; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
       }
@@ -183,7 +183,7 @@ struct TestMaskedLoad {
     Store(Iota(d, T{1}), d, lanes.get());
 
     // Each lane should have a chance of having mask=true.
-    for (size_t rep = 0; rep < 100; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
       }
@@ -267,7 +267,7 @@ class TestStoreMaskBits {
     auto expected = AllocateAligned<uint8_t>(expected_num_bytes);
     auto actual = AllocateAligned<uint8_t>(HWY_MAX(8, expected_num_bytes));
 
-    for (size_t rep = 0; rep < 100; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       // Generate random mask pattern.
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = static_cast<TI>((rng() & 1024) ? 1 : 0);

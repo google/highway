@@ -54,7 +54,7 @@ void TestMath(const std::string name, T (*fx1)(T),
   uint64_t max_ulp = 0;
   // Emulation is slower, so cannot afford as many.
 #if HWY_ARCH_RVV
-  constexpr UintT kSamplesPerRange = 2500;
+  constexpr UintT kSamplesPerRange = 200;
 #elif HWY_ARCH_ARM
   constexpr UintT kSamplesPerRange = 25000;
 #else
@@ -65,7 +65,9 @@ void TestMath(const std::string name, T (*fx1)(T),
     const UintT stop = ranges[range_index][1];
     const UintT step = HWY_MAX(1, ((stop - start) / kSamplesPerRange));
     for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
-      const T value = BitCast<T>(HWY_MIN(value_bits, stop));
+      // For reasons unknown, the HWY_MAX is necessary on RVV, otherwise
+      // value_bits can be less than start, and thus possibly NaN.
+      const T value = BitCast<T>(HWY_MIN(HWY_MAX(start, value_bits), stop));
       const T actual = GetLane(fxN(d, Set(d, value)));
       const T expected = fx1(value);
 

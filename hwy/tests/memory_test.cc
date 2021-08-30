@@ -85,6 +85,8 @@ HWY_NOINLINE void TestAllLoadStore() {
 struct TestStoreInterleaved3 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+// TODO(janwas): restore once segment intrinsics are available
+#if HWY_TARGET != HWY_RVV
     const size_t N = Lanes(d);
 
     RandomState rng;
@@ -124,6 +126,9 @@ struct TestStoreInterleaved3 {
         HWY_ASSERT(false);
       }
     }
+#else
+    (void)d;
+#endif
   }
 };
 
@@ -140,6 +145,8 @@ HWY_NOINLINE void TestAllStoreInterleaved3() {
 struct TestStoreInterleaved4 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+// TODO(janwas): restore once segment intrinsics are available
+#if HWY_TARGET != HWY_RVV
     const size_t N = Lanes(d);
 
     RandomState rng;
@@ -182,6 +189,9 @@ struct TestStoreInterleaved4 {
         HWY_ASSERT(false);
       }
     }
+#else
+    (void)d;
+#endif
   }
 };
 

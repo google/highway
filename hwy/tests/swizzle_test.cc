@@ -178,7 +178,7 @@ class TestCompress {
       auto bits = AllocateAligned<uint8_t>(HWY_MAX(8, (N + 7) / 8));
 
       // Each lane should have a chance of having mask=true.
-      for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
         size_t expected_pos = 0;
         for (size_t i = 0; i < N; ++i) {
           const uint64_t bits = Random32(&rng);

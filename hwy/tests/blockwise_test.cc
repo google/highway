@@ -456,7 +456,7 @@ struct TestCombineShiftRightBytesR {
 
     // Random inputs in each lane
     RandomState rng;
-    for (size_t rep = 0; rep < 100; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(100); ++rep) {
       for (size_t i = 0; i < N8; ++i) {
         hi_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
         lo_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
@@ -499,7 +499,7 @@ struct TestCombineShiftRightLanesR {
 
     // Random inputs in each lane
     RandomState rng;
-    for (size_t rep = 0; rep < 100; ++rep) {
+    for (size_t rep = 0; rep < AdjustedReps(100); ++rep) {
       for (size_t i = 0; i < N8; ++i) {
         hi_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
         lo_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);

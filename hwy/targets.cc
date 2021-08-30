@@ -201,6 +201,8 @@ HWY_NORETURN void HWY_FORMAT(3, 4)
 
 #if HWY_COMPILER_MSVC
   abort();  // Compile error without this due to HWY_NORETURN.
+#elif HWY_ARCH_RVV
+  exit(1);  // trap/abort just freeze Spike
 #else
   __builtin_trap();
 #endif
