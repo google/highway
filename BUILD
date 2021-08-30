@@ -227,6 +227,7 @@ HWY_TESTS = [
                 # but it's still enabled for :hwy.
                 "-Wno-c++98-compat-extra-semi",
             ],
+            local_defines = ["HWY_IS_TEST"],
             # for test_suite.
             tags = ["hwy_ops_test"],
             deps = [

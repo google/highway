@@ -2386,6 +2386,26 @@ HWY_API Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
   return BitCast(df32, ShiftLeft<31>(sign) | bits32);
 }
 
+template <size_t N>
+HWY_API Vec128<float, N> PromoteLowerTo(Simd<float, N> df32,
+                                        const Vec128<bfloat16_t, N * 2> v) {
+  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
+  const Rebind<uint16_t, decltype(df32)> du16_half;
+  const RebindToSigned<decltype(df32)> di32;
+  const auto half = BitCast(du16_half, LowerHalf(dbf16_half, v));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> PromoteUpperTo(Simd<float, N> df32,
+                                        const Vec128<bfloat16_t, N * 2> v) {
+  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
+  const Rebind<uint16_t, decltype(df32)> du16_half;
+  const RebindToSigned<decltype(df32)> di32;
+  const auto half = BitCast(du16_half, UpperHalf(dbf16_half, v));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+}
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <size_t N>
@@ -2461,6 +2481,16 @@ HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
   const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
   const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
   return Vec128<float16_t, N>{DemoteTo(du16, bits16).raw};
+}
+
+template <size_t N>
+HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> dbf16,
+                                      const Vec128<float, N> v) {
+  const Rebind<int32_t, decltype(dbf16)> di32;
+  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+  const Rebind<uint16_t, decltype(dbf16)> du16;
+  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
+  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
 // For already range-limited input [0, 255].

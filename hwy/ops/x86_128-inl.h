@@ -3922,6 +3922,26 @@ HWY_INLINE_F16 Vec128<float, N> PromoteTo(Simd<float, N> df32,
 }
 
 template <size_t N>
+HWY_API Vec128<float, N> PromoteLowerTo(Simd<float, N> df32,
+                                        const Vec128<bfloat16_t, N * 2> v) {
+  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
+  const Rebind<uint16_t, decltype(df32)> du16_half;
+  const RebindToSigned<decltype(df32)> di32;
+  const auto half = BitCast(du16_half, LowerHalf(dbf16_half, v));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> PromoteUpperTo(Simd<float, N> df32,
+                                        const Vec128<bfloat16_t, N * 2> v) {
+  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
+  const Rebind<uint16_t, decltype(df32)> du16_half;
+  const RebindToSigned<decltype(df32)> di32;
+  const auto half = BitCast(du16_half, UpperHalf(dbf16_half, v));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+}
+
+template <size_t N>
 HWY_API Vec128<double, N> PromoteTo(Simd<double, N> /* tag */,
                                     const Vec128<float, N> v) {
   return Vec128<double, N>{_mm_cvtps_pd(v.raw)};
@@ -4019,6 +4039,17 @@ HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> df16,
   (void)df16;
   return Vec128<float16_t, N>{_mm_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 #endif
+}
+
+template <size_t N>
+HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N> dbf16,
+                                       const Vec128<float, N> v) {
+  // TODO(janwas): _mm_cvtneps_pbh once we have avx512bf16.
+  const Rebind<int32_t, decltype(dbf16)> di32;
+  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+  const Rebind<uint16_t, decltype(dbf16)> du16;
+  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
+  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
 template <size_t N>

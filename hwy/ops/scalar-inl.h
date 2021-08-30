@@ -968,6 +968,10 @@ HWY_API Vec1<float> PromoteTo(Sisd<float> /* tag */, const Vec1<float16_t> v) {
   return Vec1<float>(out);
 }
 
+HWY_API Vec1<float> PromoteLowerTo(Sisd<float> d, const Vec1<bfloat16_t> v) {
+  return Set(d, F32FromBF16(v.raw));
+}
+
 HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
                                  const Vec1<float> v) {
   uint32_t bits32;
@@ -1016,6 +1020,10 @@ HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
   out.raw.bits = static_cast<uint16_t>(bits16);
 #endif
   return out;
+}
+
+HWY_API Vec1<bfloat16_t> DemoteTo(Sisd<bfloat16_t> d, const Vec1<float> v) {
+  return Set(d, BF16FromF32(v.raw));
 }
 
 template <typename FromT, typename ToT, HWY_IF_FLOAT(FromT)>

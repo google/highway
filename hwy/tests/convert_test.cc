@@ -186,7 +186,7 @@ HWY_NOINLINE void TestAllPromoteTo() {
   to_i32div4(uint8_t());
   to_i32div4(int8_t());
 
-  // Must test f16 separately because we can only load/store/convert them.
+  // Must test f16/bf16 separately because we can only load/store/convert them.
 
 #if HWY_CAP_INTEGER64
   const ForPromoteVectors<TestPromoteTo<uint64_t>, 2> to_u64div2;
@@ -372,6 +372,79 @@ struct TestF16 {
 };
 
 HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16>()(float()); }
+
+template <class D>
+AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
+  const float test_cases[] = {
+      // +/- 1
+      1.0f, -1.0f,
+      // +/- 0
+      0.0f, -0.0f,
+      // near 0
+      0.25f, -0.25f,
+      // +/- integer
+      4.0f, -32.0f,
+      // positive near limit
+      3.389531389251535E38f, 1.99384199368e+38f,
+      // negative near limit
+      -3.389531389251535E38f, -1.99384199368e+38f,
+      // positive +/- delta
+      2.015625f, 3.984375f,
+      // negative +/- delta
+      -2.015625f, -3.984375f,
+      // No infinity/NaN - implementation-defined due to ARM.
+  };
+  const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
+  const size_t N = Lanes(d);
+  padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
+  auto in = AllocateAligned<float>(padded);
+  auto expected = AllocateAligned<float>(padded);
+  std::copy(test_cases, test_cases + kNumTestCases, in.get());
+  std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
+  return in;
+}
+
+struct TestBF16 {
+  template <typename TF32, class DF32>
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
+#if HWY_TARGET != HWY_RVV
+    size_t padded;
+    auto in = BF16TestCases(d32, padded);
+    using TBF16 = bfloat16_t;
+#if HWY_TARGET == HWY_SCALAR
+    const Rebind<TBF16, DF32> dbf16;  // avoid 4/2 = 2 lanes
+#else
+    const Repartition<TBF16, DF32> dbf16;
+#endif
+    const Half<decltype(dbf16)> dbf16_half;
+    const size_t N = Lanes(d32);
+    auto temp16 = AllocateAligned<TBF16>(2 * N);
+    const auto zero = Zero(dbf16_half);
+
+    for (size_t i = 0; i < padded; i += N) {
+      const auto loaded = Load(d32, &in[i]);
+      const auto v16 = DemoteTo(dbf16_half, loaded);
+      Store(v16, dbf16_half, temp16.get() + 0);
+      Store(zero, dbf16_half, temp16.get() + N);
+      auto v16x2 = Load(dbf16, temp16.get());
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteLowerTo(d32, v16x2));
+
+#if HWY_TARGET != HWY_SCALAR
+      HWY_ASSERT_VEC_EQ(d32, Zero(d32), PromoteUpperTo(d32, v16x2));
+      Store(zero, dbf16_half, temp16.get() + 0);
+      Store(v16, dbf16_half, temp16.get() + N);
+      v16x2 = Load(dbf16, temp16.get());
+      HWY_ASSERT_VEC_EQ(d32, Zero(d32), PromoteLowerTo(d32, v16x2));
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteUpperTo(d32, v16x2));
+#endif
+    }
+#else
+    (void)d32;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllBF16() { ForShrinkableVectors<TestBF16>()(float()); }
 
 struct TestConvertU8 {
   template <typename T, class D>
@@ -615,6 +688,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToMixed);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);

@@ -295,6 +295,11 @@ struct Raw128<float16_t, 8> {
 };
 
 template <>
+struct Raw128<bfloat16_t, 8> {
+  using type = uint16x8_t;
+};
+
+template <>
 struct Raw128<float, 4> {
   using type = float32x4_t;
 };
@@ -353,6 +358,11 @@ struct Raw128<float16_t, 4> {
 };
 
 template <>
+struct Raw128<bfloat16_t, 4> {
+  using type = uint16x4_t;
+};
+
+template <>
 struct Raw128<float, 2> {
   using type = float32x2_t;
 };
@@ -401,6 +411,11 @@ struct Raw128<float16_t, 2> {
 };
 
 template <>
+struct Raw128<bfloat16_t, 2> {
+  using type = uint16x4_t;
+};
+
+template <>
 struct Raw128<float, 1> {
   using type = float32x2_t;
 };
@@ -428,6 +443,11 @@ struct Raw128<int16_t, 1> {
 
 template <>
 struct Raw128<float16_t, 1> {
+  using type = uint16x4_t;
+};
+
+template <>
+struct Raw128<bfloat16_t, 1> {
   using type = uint16x4_t;
 };
 
@@ -536,9 +556,13 @@ HWY_NEON_DEF_FUNCTION_UINT_16(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 HWY_NEON_DEF_FUNCTION_UINT_32(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 HWY_NEON_DEF_FUNCTION_UINT_64(BitCastToByte, vreinterpret, _u8_, HWY_CAST_TO_U8)
 
-// Special case for float16_t, which has the same Raw as uint16_t.
+// Special cases for [b]float16_t, which have the same Raw as uint16_t.
 template <size_t N>
 HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<float16_t, N> v) {
+  return BitCastToByte(Vec128<uint16_t, N>(v.raw));
+}
+template <size_t N>
+HWY_INLINE Vec128<uint8_t, N * 2> BitCastToByte(Vec128<bfloat16_t, N> v) {
   return BitCastToByte(Vec128<uint16_t, N>(v.raw));
 }
 
@@ -642,11 +666,16 @@ HWY_INLINE Vec128<double> BitCastFromByte(Full128<double> /* tag */,
 }
 #endif
 
-// Special case for float16_t, which has the same Raw as uint16_t.
+// Special cases for [b]float16_t, which have the same Raw as uint16_t.
 template <size_t N>
 HWY_INLINE Vec128<float16_t, N> BitCastFromByte(Simd<float16_t, N> /* tag */,
                                                 Vec128<uint8_t, N * 2> v) {
   return Vec128<float16_t, N>(BitCastFromByte(Simd<uint16_t, N>(), v).raw);
+}
+template <size_t N>
+HWY_INLINE Vec128<bfloat16_t, N> BitCastFromByte(Simd<bfloat16_t, N> /* tag */,
+                                                 Vec128<uint8_t, N * 2> v) {
+  return Vec128<bfloat16_t, N>(BitCastFromByte(Simd<uint16_t, N>(), v).raw);
 }
 
 }  // namespace detail
@@ -677,6 +706,11 @@ HWY_NEON_DEF_FUNCTION_ALL_TYPES(Set, vdup, _n_, HWY_SET1)
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Zero(Simd<T, N> d) {
   return Set(d, 0);
+}
+
+template <size_t N>
+HWY_API Vec128<bfloat16_t, N> Zero(Simd<bfloat16_t, N> d) {
+  return Vec128<bfloat16_t, N>(Zero(Simd<uint16_t, N>()).raw);
 }
 
 template <class D>
@@ -2142,13 +2176,20 @@ HWY_API Vec128<int8_t, 1> LoadU(Simd<int8_t, 1> d,
   return Vec128<int8_t, 1>(b);
 }
 
-// float16_t uses the same Raw as uint16_t, so forward to that.
+// [b]float16_t use the same Raw as uint16_t, so forward to that.
 template <size_t N>
 HWY_API Vec128<float16_t, N> LoadU(Simd<float16_t, N> /*d*/,
                                    const float16_t* HWY_RESTRICT p) {
   const Simd<uint16_t, N> du16;
   const auto pu16 = reinterpret_cast<const uint16_t*>(p);
   return Vec128<float16_t, N>(LoadU(du16, pu16).raw);
+}
+template <size_t N>
+HWY_API Vec128<bfloat16_t, N> LoadU(Simd<bfloat16_t, N> /*d*/,
+                                    const bfloat16_t* HWY_RESTRICT p) {
+  const Simd<uint16_t, N> du16;
+  const auto pu16 = reinterpret_cast<const uint16_t*>(p);
+  return Vec128<bfloat16_t, N>(LoadU(du16, pu16).raw);
 }
 
 // On ARM, Load is the same as LoadU.
@@ -2326,10 +2367,17 @@ HWY_API void StoreU(const Vec128<int8_t, 1> v, Simd<int8_t, 1>,
   vst1_lane_s8(p, v.raw, 0);
 }
 
-// float16_t uses the same Raw as uint16_t, so forward to that.
+// [b]float16_t use the same Raw as uint16_t, so forward to that.
 template <size_t N>
 HWY_API void StoreU(Vec128<float16_t, N> v, Simd<float16_t, N> /* tag */,
                     float16_t* HWY_RESTRICT p) {
+  const Simd<uint16_t, N> du16;
+  const auto pu16 = reinterpret_cast<uint16_t*>(p);
+  return StoreU(Vec128<uint16_t, N>(v.raw), du16, pu16);
+}
+template <size_t N>
+HWY_API void StoreU(Vec128<bfloat16_t, N> v, Simd<bfloat16_t, N> /* tag */,
+                    bfloat16_t* HWY_RESTRICT p) {
   const Simd<uint16_t, N> du16;
   const auto pu16 = reinterpret_cast<uint16_t*>(p);
   return StoreU(Vec128<uint16_t, N>(v.raw), du16, pu16);
@@ -2647,6 +2695,17 @@ HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
 }
 
 #endif
+
+template <size_t N>
+HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N> dbf16,
+                                       const Vec128<float, N> v) {
+  const Rebind<int32_t, decltype(dbf16)> di32;
+  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+  const Rebind<uint16_t, decltype(dbf16)> du16;
+  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
+  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
+}
+
 #if HWY_ARCH_ARM_A64
 
 HWY_API Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
@@ -3748,6 +3807,41 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 #endif  // __ARM_FEATURE_AES
 
 // ================================================== MISC
+
+// ------------------------------ PromoteUpperTo (UpperHalf)
+
+HWY_API Vec128<int32_t> PromoteUpperTo(Full128<int32_t> d,
+                                       const Vec128<uint16_t> v) {
+#if HWY_ARCH_ARM_A64
+  return BitCast(d, Vec128<uint32_t>(vmovl_high_u16(v.raw)));
+#else
+  return PromoteTo(d, UpperHalf(Simd<uint16_t, 4>(), v));
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> PromoteUpperTo(Simd<int32_t, N> d32,
+                                          const Vec128<uint16_t, N * 2> v) {
+  return PromoteTo(d32, UpperHalf(Simd<uint16_t, N>(), v));
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> PromoteLowerTo(Simd<float, N> df32,
+                                        const Vec128<bfloat16_t, N * 2> v) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const Half<decltype(du16)> du16_half;
+  const RebindToSigned<decltype(df32)> di32;
+  const auto half = LowerHalf(du16_half, BitCast(du16, v));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> PromoteUpperTo(Simd<float, N> df32,
+                                        const Vec128<bfloat16_t, N * 2> v) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToSigned<decltype(df32)> di32;
+  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
+}
 
 // ------------------------------ TableLookupBytes (Combine, LowerHalf)
 

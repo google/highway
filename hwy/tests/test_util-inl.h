@@ -288,6 +288,12 @@ HWY_NOINLINE void PrintValue(float16_t value) {
 }
 #endif
 
+HWY_NOINLINE void PrintValue(bfloat16_t value) {
+  uint16_t bits;
+  CopyBytes<2>(&value, &bits);
+  fprintf(stderr, "0x%02X,", bits);
+}
+
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_NOINLINE void PrintValue(T value) {
   fprintf(stderr, "%g,", double(value));
