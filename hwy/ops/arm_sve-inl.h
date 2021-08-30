@@ -807,6 +807,21 @@ HWY_SVE_FOREACH(HWY_SVE_STORE, Stream, stnt1)
 #undef HWY_SVE_LOAD_DUP128
 #undef HWY_SVE_STORE
 
+// BF16 is the same as svuint16_t because BF16 is optional before v8.6.
+template <size_t N>
+HWY_API svuint16_t Load(Simd<bfloat16_t, N> d,
+                        const bfloat16_t* HWY_RESTRICT p) {
+  return Load(RebindToUnsigned<decltype(d)>(),
+              reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
+}
+
+template <size_t N>
+HWY_API void Store(svuint16_t v, Simd<bfloat16_t, N> d,
+                   bfloat16_t* HWY_RESTRICT p) {
+  Store(v, RebindToUnsigned<decltype(d)>(),
+        reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
+}
+
 // ------------------------------ Load/StoreU
 
 // SVE only requires lane alignment, not natural alignment of the entire
@@ -1093,9 +1108,28 @@ HWY_API svint8_t DemoteTo(Simd<int8_t, N> dn, const svint32_t v) {
 
 // ------------------------------ DemoteTo F
 
+namespace detail {
+
+#define HWY_SVE_CONCAT_EVERY_SECOND(BASE, CHAR, BITS, NAME, OP)  \
+  HWY_API HWY_SVE_V(BASE, BITS)                                  \
+      NAME(HWY_SVE_V(BASE, BITS) hi, HWY_SVE_V(BASE, BITS) lo) { \
+    return sv##OP##_##CHAR##BITS(lo, hi);                        \
+  }
+HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEven, uzp1)
+HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOdd, uzp2)
+#undef HWY_SVE_CONCAT_EVERY_SECOND
+
+}  // namespace detail
+
 template <size_t N>
 HWY_API svfloat16_t DemoteTo(Simd<float16_t, N> d, const svfloat32_t v) {
   return svcvt_f16_f32_x(detail::PTrue(d), v);
+}
+
+template <size_t N>
+HWY_API svuint16_t DemoteTo(Simd<bfloat16_t, N> d, const svfloat32_t v) {
+  const svuint16_t halves = BitCast(Full<uint16_t>(), v);
+  return detail::ConcatOdd(halves, halves);  // can ignore upper half of vec
 }
 
 template <size_t N>
@@ -1299,19 +1333,6 @@ HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
 #undef HWY_SVE_TABLE
 
 // ------------------------------ Compress (PromoteTo)
-
-namespace detail {
-
-#define HWY_SVE_CONCAT_EVERY_SECOND(BASE, CHAR, BITS, NAME, OP)  \
-  HWY_API HWY_SVE_V(BASE, BITS)                                  \
-      NAME(HWY_SVE_V(BASE, BITS) hi, HWY_SVE_V(BASE, BITS) lo) { \
-    return sv##OP##_##CHAR##BITS(lo, hi);                        \
-  }
-HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEven, uzp1)
-HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOdd, uzp2)
-#undef HWY_SVE_CONCAT_EVERY_SECOND
-
-}  // namespace detail
 
 #define HWY_SVE_COMPRESS(BASE, CHAR, BITS, NAME, OP)                           \
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) { \
@@ -1668,6 +1689,13 @@ HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanes, maxnmv)
 #undef HWY_SVE_REDUCE
 
 // ================================================== Ops with dependencies
+
+// ------------------------------ PromoteTo bfloat16 (InterleaveLower)
+
+template <size_t N>
+HWY_API svfloat32_t PromoteTo(Simd<float32_t, N> df32, const svuint16_t v) {
+  return BitCast(df32, detail::ZipLower(svdup_n_u16(0), v));
+}
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
 template <class V>

@@ -3149,6 +3149,16 @@ HWY_API Vec128<float16_t> DemoteTo(Full128<float16_t> df16,
 
 HWY_DIAGNOSTICS(pop)
 
+HWY_API Vec128<bfloat16_t> DemoteTo(Full128<bfloat16_t> dbf16,
+                                    const Vec256<float> v) {
+  // TODO(janwas): _mm256_cvtneps_pbh once we have avx512bf16.
+  const Rebind<int32_t, decltype(dbf16)> di32;
+  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+  const Rebind<uint16_t, decltype(dbf16)> du16;
+  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
+  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
+}
+
 HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,
                                const Vec256<double> v) {
   return Vec128<float>{_mm256_cvtpd_ps(v.raw)};
@@ -3277,6 +3287,13 @@ HWY_API Vec256<float> PromoteTo(Full256<float> df32,
   (void)df32;
   return Vec256<float>{_mm256_cvtph_ps(v.raw)};
 #endif
+}
+
+HWY_API Vec256<float> PromoteTo(Full256<float> df32,
+                                const Vec128<bfloat16_t> v) {
+  const RebindToSigned<decltype(df32)> di32;
+  const Rebind<uint16_t, decltype(df32)> du16_half;
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16_half, v))));
 }
 
 // ================================================== CRYPTO

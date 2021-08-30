@@ -2588,19 +2588,6 @@ HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
-HWY_API Vec512<float> PromoteTo(Full512<float> /* tag */,
-                                const Vec256<float16_t> v) {
-  return Vec512<float>{_mm512_cvtph_ps(v.raw)};
-}
-
-HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<float> v) {
-  return Vec512<double>{_mm512_cvtps_pd(v.raw)};
-}
-
-HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<int32_t> v) {
-  return Vec512<double>{_mm512_cvtepi32_pd(v.raw)};
-}
-
 // Unsigned: zero-extend.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then Zip* would be faster.
@@ -2652,6 +2639,27 @@ HWY_API Vec512<int32_t> PromoteTo(Full512<int32_t> /* tag */,
 HWY_API Vec512<int64_t> PromoteTo(Full512<int64_t> /* tag */,
                                   Vec256<int32_t> v) {
   return Vec512<int64_t>{_mm512_cvtepi32_epi64(v.raw)};
+}
+
+// Float
+HWY_API Vec512<float> PromoteTo(Full512<float> /* tag */,
+                                const Vec256<float16_t> v) {
+  return Vec512<float>{_mm512_cvtph_ps(v.raw)};
+}
+
+HWY_API Vec512<float> PromoteTo(Full512<float> df32,
+                                const Vec256<bfloat16_t> v) {
+  const RebindToSigned<decltype(df32)> di32;
+  const Rebind<uint16_t, decltype(df32)> du16_half;
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16_half, v))));
+}
+
+HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<float> v) {
+  return Vec512<double>{_mm512_cvtps_pd(v.raw)};
+}
+
+HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<int32_t> v) {
+  return Vec512<double>{_mm512_cvtepi32_pd(v.raw)};
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
@@ -2734,6 +2742,16 @@ HWY_API Vec256<float16_t> DemoteTo(Full256<float16_t> /* tag */,
   HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
   return Vec256<float16_t>{_mm512_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
   HWY_DIAGNOSTICS(pop)
+}
+
+HWY_API Vec256<bfloat16_t> DemoteTo(Full256<bfloat16_t> dbf16,
+                                    const Vec512<float> v) {
+  // TODO(janwas): _mm512_cvtneps_pbh once we have avx512bf16.
+  const Rebind<int32_t, decltype(dbf16)> di32;
+  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+  const Rebind<uint16_t, decltype(dbf16)> du16;
+  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
+  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
 HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,

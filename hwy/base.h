@@ -211,6 +211,8 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #define HWY_NATIVE_FLOAT16 0
 #endif
 
+#pragma pack(push, 1)
+
 #if defined(HWY_EMULATE_SVE)
 using float16_t = FarmFloat16;
 #elif HWY_NATIVE_FLOAT16
@@ -219,12 +221,16 @@ using float16_t = __fp16;
 // arguments, so use a wrapper.
 // TODO(janwas): replace with _Float16 when that is supported?
 #else
-#pragma pack(push, 1)
 struct float16_t {
   uint16_t bits;
 };
-#pragma pack(pop)
 #endif
+
+struct bfloat16_t {
+  uint16_t bits;
+};
+
+#pragma pack(pop)
 
 using float32_t = float;
 using float64_t = double;
@@ -460,6 +466,12 @@ struct Relations<float16_t> {
   using Wide = float;
 };
 template <>
+struct Relations<bfloat16_t> {
+  using Unsigned = uint16_t;
+  using Signed = int16_t;
+  using Wide = float;
+};
+template <>
 struct Relations<float> {
   using Unsigned = uint32_t;
   using Signed = int32_t;
@@ -629,6 +641,22 @@ HWY_API void CopyBytes(const From* from, To* to) {
   // Avoids horrible codegen on Clang (series of PINSRB)
   __builtin_memcpy(to, from, kBytes);
 #endif
+}
+
+HWY_API float F32FromBF16(bfloat16_t bf) {
+  uint32_t bits = bf.bits;
+  bits <<= 16;
+  float f;
+  CopyBytes<4>(&bits, &f);
+  return f;
+}
+
+HWY_API bfloat16_t BF16FromF32(float f) {
+  uint32_t bits;
+  CopyBytes<4>(&f, &bits);
+  bfloat16_t bf;
+  bf.bits = static_cast<uint16_t>(bits >> 16);
+  return bf;
 }
 
 HWY_NORETURN void HWY_FORMAT(3, 4)

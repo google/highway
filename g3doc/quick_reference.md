@@ -59,11 +59,11 @@ HWY_AFTER_NAMESPACE();
 
 Highway vectors consist of one or more 'lanes' of the same built-in type
 `uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `float##_t` for `## = 16, 32,
-64`.
+64` and `bfloat16_t`.
 
-In Highway, `float16_t` (an IEEE binary16 half-float) only supports load, store,
-and conversion to/from `float32_t`; the behavior of `float16_t` infinity and NaN
-are implementation-defined due to ARMv7.
+In Highway, `float16_t` (an IEEE binary16 half-float) and `bfloat16_t` only
+support load, store, and conversion to/from `float32_t`; the behavior of their
+infinity and NaN are implementation-defined due to ARMv7.
 
 On RVV, vectors are sizeless and cannot be wrapped inside a class. The Highway
 API allows using built-in types as vectors because operations are expressed as
@@ -640,17 +640,17 @@ All functions except `Stream` are defined in cache_control.h.
 
 *   `V`,`D`: (`u8,u16`), (`u16,u32`), (`u8,u32`), (`u32,u64`), (`u8,i16`), \
     (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`), \
-    (`f16,f32`), (`f32,f64`) \
+    (`f16,f32`), (`bf16,f32`), (`f32,f64`) \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
-    or sign-extended to `MakeWide<T>`.
+    or sign-extended or widened to `MakeWide<T>`.
 
 *   `V`,`D`: `i32,f64` \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
     converted to 64-bit floating point.
 
 *   `V`,`V8`: (`u32,u8`) \
-    <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8`
-    conversion when all lanes of `V` are already clamped to `[0, 256)`.
+    <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8` conversion when
+    all lanes of `V` are already clamped to `[0, 256)`.
 
 `DemoteTo` and float-to-int `ConvertTo` return the closest representable value
 if the input exceeds the destination range.
@@ -664,8 +664,9 @@ if the input exceeds the destination range.
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: rounds floating point
     towards zero and converts the value to 32-bit integers.
 
-*   `V`,`D`: `f32,f16` \
-    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half.
+*   `V`,`D`: (`f32,f16`), (`f32,bf16`) \
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half (for
+    bf16, by truncating the bits).
 
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
