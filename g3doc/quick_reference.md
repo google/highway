@@ -61,9 +61,10 @@ Highway vectors consist of one or more 'lanes' of the same built-in type
 `uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `float##_t` for `## = 16, 32,
 64` and `bfloat16_t`.
 
-In Highway, `float16_t` (an IEEE binary16 half-float) and `bfloat16_t` only
-support load, store, and conversion to/from `float32_t`; the behavior of
-infinity and NaN in these data formats are implementation-defined due to ARMv7.
+In Highway, `float16_t` (an IEEE binary16 half-float) and `bfloat16_t` (the
+upper 16 bits of an IEEE binary32 float) only support load, store, and
+conversion to/from `float32_t`. The behavior of infinity and NaN in `float16_t`
+is implementation-defined due to ARMv7.
 
 On RVV, vectors are sizeless and cannot be wrapped inside a class. The Highway
 API allows using built-in types as vectors because operations are expressed as
@@ -76,6 +77,9 @@ Simd<T, N>` and return an actual vector of unspecified type.
 `N` is target-dependent and not directly user-specified. The actual lane count
 may not be known at compile time, but can be obtained via `Lanes(d)`. Use this
 value, which is potentially different from `N`, to increment loop counters etc.
+Note that `Lanes(d)` could potentially change at runtime, upon user request via
+special CPU instructions. Thus we discourage caching the result; it is typically
+used inside a function or basic block.
 
 The actual lane count is guaranteed to be a power of two, even on SVE hardware
 where vectors can be a multiple of 128 bits (there, the extra lanes remain
@@ -86,28 +90,35 @@ lane count, thus avoiding the need for a second loop to handle remainders.
 
 `d` lvalues (a tag, NOT actual vector) are typically obtained using two aliases:
 
-*   Most common: pass `HWY_FULL(T[, LMUL=1]) d;` as an argument to return a
-    native vector. This is preferred because it fully utilizes vector lanes.
+*   Most common: `ScalableTag<T[, shift]> d;` or the macro form `HWY_FULL(T[,
+    LMUL=1]) d;`. With the default value of the second argument, these both
+    select full vectors which utilize all available lanes.
 
-    Only for targets (e.g. RVV) that support register groups, the second
-    argument (1, 2, 4, 8) specifies `LMUL`, the number of registers in the
-    group. This effectively multiplies the lane count in each operation by
-    `LMUL`. This argument will eventually be an optional hint that may improve
-    performance on 1-2 wide machines (at the cost of reducing the effective
-    number of registers), but the experimental GCC support for RVV does not
-    support fractional `LMUL`. Thus, mixed-precision code (e.g. demoting float
-    to uint8_t) currently requires `LMUL` to be at least the ratio of the sizes
-    of the largest and smallest type, and smaller `d` to be obtained via
-    `Half<DLarger>`.
+    Only for targets (e.g. RVV) that support register groups, the shift (-3..3)
+    and LMUL argument (1, 2, 4, 8) specify `LMUL`, the number of registers in
+    the group. This effectively multiplies the lane count in each operation by
+    `LMUL`, or shifts by `shift` (negative values are understood as
+    right-shifting by the absolute value). These arguments will eventually be
+    optional hints that may improve performance on 1-2 wide machines (at the
+    cost of reducing the effective number of registers), but the experimental
+    GCC support for RVV does not support fractional `LMUL`. Thus,
+    mixed-precision code (e.g. demoting float to uint8_t) currently requires
+    `LMUL` to be at least the ratio of the sizes of the largest and smallest
+    type, and smaller `d` to be obtained via `Half<DLarger>`.
 
-*   Less common: pass `HWY_CAPPED(T, N) d;` as an argument to return a vector or
-    mask where only the first `N` (a power of two) lanes have observable effects
-    such as loading/storing to memory, or being counted by `CountTrue`.
+*   Less common: `CappedTag<T, N> d` or the macro form `HWY_CAPPED(T, N) d;`.
+    These select vectors or masks where *no more than* the first `N` (a power of
+    two) lanes have observable effects such as loading/storing to memory, or
+    being counted by `CountTrue`. The number of lanes may also be less; for the
+    `HWY_SCALAR` target, vectors always have a single lane.
 
-    These may be implemented using full vectors plus additional runtime cost for
-    masking in `Load` etc. For `HWY_SCALAR`, vectors always have a single lane.
-    All other targets allow any `N <= 16/sizeof(T)`. This is useful for
-    algorithms tailored to 128-bit vectors.
+*   For applications that require fixed-size vectors: `FixedTag<T, N> d;` will
+    select vectors where exactly `N` lanes have observable effects. These may be
+    implemented using full vectors plus additional runtime cost for masking in
+    `Load` etc. All targets except `HWY_SCALAR` allow any power of two `N <=
+    16/sizeof(T)`. This tag can be used when the `HWY_SCALAR` target is anyway
+    disabled (superseded by a higher baseline) or unusable (due to use of ops
+    such as `TableLookupBytes`).
 
 *   The result of `UpperHalf`/`LowerHalf` has half the lanes. To obtain a
     corresponding `d`, use `Half<decltype(d)>`; the opposite is `Twice<>`.
@@ -128,17 +139,14 @@ the smaller types must be obtained from those of the larger type (e.g. via
 
 ## Using unspecified vector types
 
-Because vector types are unspecified, local vector variables `v` are typically
-defined using `auto` for type deduction. The vector type `V` can be obtained via
-`decltype(v)`, `Vec<D>`, or if an lvalue `d` is available, `decltype(Zero(d))`.
-
-Using a type alias of `V` instead of auto may improve readability of code using
-several types of vectors.
+Vector types are unspecified and depend on the target. User code could define
+them as `auto`, but it is more readable (due to making the type visible) to use
+an alias such as `Vec<D>`, or `decltype(Zero(d))`.
 
 Vectors are sizeless types on RVV/SVE. Therefore, vectors must not be used in
 arrays/STL containers (use the lane type `T` instead), class members,
 static/thread_local variables, new-expressions (use `AllocateAligned` instead),
-and sizeof/pointer arithmetic (increment `T*` by `Lanes()` instead).
+and sizeof/pointer arithmetic (increment `T*` by `Lanes(d)` instead).
 
 Initializing constants requires an lvalue `d` or type `D`, which can be passed
 as a template argument or obtained via `DFromV<V>`.
@@ -155,7 +163,7 @@ Set(DFromV<V>(), 4); }`.
 Example of mixing partial vectors with generic functions:
 
 ```
-HWY_CAPPED(int16_t, 2) d2;
+CappedTag<int16_t, 2> d2;
 auto v = Mul4(Set(d2, 2));
 Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
 ```
