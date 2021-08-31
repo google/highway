@@ -13,11 +13,9 @@
 # limitations under the License.
 
 name: Build / test
-on: [push]
+on: [push, pull_request]
 jobs:
-
-  # JOB
-  build:
+  cmake:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -36,3 +34,14 @@ jobs:
           CXXFLAGS=-Werror CC=clang-6.0 CXX=clang++-6.0 cmake -B build-clang-6 .
           cmake --build build-clang-6
           ctest --test-dir build-clang-6
+
+  bazel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: bazelbuild/setup-bazelisk@v1
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/bazel
+          key: bazel-${{ runner.os }}
+      - run: bazel build //...
