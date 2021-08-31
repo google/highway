@@ -81,6 +81,13 @@ COPTS = select({
     ":compiler_gcc": CLANG_GCC_COPTS,
     # Default to clang because compiler detection only works in Bazel
     "//conditions:default": CLANG_GCC_COPTS + CLANG_ONLY_COPTS,
+}) + select({
+    "@platforms//cpu:riscv64": [
+        "-march=rv64gcv0p10",
+        "-menable-experimental-extensions",
+    ],
+    "//conditions:default": [
+    ],
 })
 
 # Unused on Bazel builds, where this is not defined/known; Copybara replaces
@@ -227,6 +234,14 @@ HWY_TESTS = [
                 # but it's still enabled for :hwy.
                 "-Wno-c++98-compat-extra-semi",
             ],
+            features = select({
+                "@platforms//cpu:riscv64": ["fully_static_link"],
+                "//conditions:default": [],
+            }),
+            linkstatic = select({
+                "@platforms//cpu:riscv64": True,
+                "//conditions:default": False,
+            }),
             local_defines = ["HWY_IS_TEST"],
             # for test_suite.
             tags = ["hwy_ops_test"],
