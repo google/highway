@@ -92,6 +92,9 @@ struct Deduce1 {
 template <class V>
 using DFromV = decltype(detail::Deduce1()(V()));
 
+template <class V>
+using TFromV = TFromD<DFromV<V>>;
+
 // ------------------------------ BitCast
 
 template <typename T, typename FromT>

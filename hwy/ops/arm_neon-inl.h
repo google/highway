@@ -531,6 +531,9 @@ struct DeduceD {
 template <class V>
 using DFromV = decltype(detail::DeduceD()(V()));
 
+template <class V>
+using TFromV = TFromD<DFromV<V>>;
+
 // ------------------------------ BitCast
 
 namespace detail {

@@ -117,6 +117,9 @@ struct DeduceD {
 template <class V>
 using DFromV = decltype(detail::DeduceD()(V()));
 
+template <class V>
+using TFromV = TFromD<DFromV<V>>;
+
 // ------------------------------ BitCast
 
 namespace detail {
@@ -2484,8 +2487,8 @@ HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> /* tag */,
 }
 
 template <size_t N>
-HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N> dbf16,
-                                      const Vec128<float, N> v) {
+HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N> dbf16,
+                                       const Vec128<float, N> v) {
   const Rebind<int32_t, decltype(dbf16)> di32;
   const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
   const Rebind<uint16_t, decltype(dbf16)> du16;

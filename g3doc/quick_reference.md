@@ -55,6 +55,15 @@ namespace HWY_NAMESPACE {
 HWY_AFTER_NAMESPACE();
 ```
 
+## Notation in this doc
+
+*   `T` denotes the type of a vector lane;
+*   `N` is a size_t value that governs (but is not necessarily identical to) the
+    number of lanes;
+*   `D` is shorthand for `Simd<T, N>`;
+*   `d` is an lvalue of type `D`, passed as a function argument e.g. to Zero;
+*   `V` is the type of a vector.
+
 ## Vector and descriptor types
 
 Highway vectors consist of one or more 'lanes' of the same built-in type
@@ -106,19 +115,19 @@ lane count, thus avoiding the need for a second loop to handle remainders.
     `LMUL` to be at least the ratio of the sizes of the largest and smallest
     type, and smaller `d` to be obtained via `Half<DLarger>`.
 
-*   Less common: `CappedTag<T, N> d` or the macro form `HWY_CAPPED(T, N) d;`.
-    These select vectors or masks where *no more than* the first `N` (a power of
-    two) lanes have observable effects such as loading/storing to memory, or
-    being counted by `CountTrue`. The number of lanes may also be less; for the
-    `HWY_SCALAR` target, vectors always have a single lane.
+*   Less common: `CappedTag<T, kCap> d` or the macro form `HWY_CAPPED(T, kCap)
+    d;`. These select vectors or masks where *no more than* the first `kCap` (a
+    power of two) lanes have observable effects such as loading/storing to
+    memory, or being counted by `CountTrue`. The number of lanes may also be
+    less; for the `HWY_SCALAR` target, vectors always have a single lane.
 
-*   For applications that require fixed-size vectors: `FixedTag<T, N> d;` will
-    select vectors where exactly `N` lanes have observable effects. These may be
-    implemented using full vectors plus additional runtime cost for masking in
-    `Load` etc. All targets except `HWY_SCALAR` allow any power of two `N <=
-    16/sizeof(T)`. This tag can be used when the `HWY_SCALAR` target is anyway
-    disabled (superseded by a higher baseline) or unusable (due to use of ops
-    such as `TableLookupBytes`).
+*   For applications that require fixed-size vectors: `FixedTag<T, kCount> d;`
+    will select vectors where exactly `kCount` lanes have observable effects.
+    These may be implemented using full vectors plus additional runtime cost for
+    masking in `Load` etc. All targets except `HWY_SCALAR` allow any power of
+    two `kCount <= 16/sizeof(T)`. This tag can be used when the `HWY_SCALAR`
+    target is anyway disabled (superseded by a higher baseline) or unusable (due
+    to use of ops such as `TableLookupBytes`).
 
 *   The result of `UpperHalf`/`LowerHalf` has half the lanes. To obtain a
     corresponding `d`, use `Half<decltype(d)>`; the opposite is `Twice<>`.
@@ -129,9 +138,9 @@ agnostic code, which is more performance-portable.
 
 Given that lane counts are potentially compile-time-unknown, storage for vectors
 should be dynamically allocated, e.g. via `AllocateAligned(Lanes(d))`. For
-applications that require a compile-time bound, `MaxLanes(d)` returns the `N`
-from `Simd<T, N>`, which is a (loose) upper bound, NOT necessarily the actual
-lane count. Note that some compilers are not able to interpret it as constexpr.
+applications that require a compile-time bound, `MaxLanes(d)` uses the `N` from
+`Simd<T, N>` to return a (loose) upper bound, NOT necessarily the actual lane
+count. Note that some compilers are not able to interpret it as constexpr.
 
 For mixed-precision code (e.g. `uint8_t` lanes promoted to `float`), tags for
 the smaller types must be obtained from those of the larger type (e.g. via
@@ -148,13 +157,15 @@ arrays/STL containers (use the lane type `T` instead), class members,
 static/thread_local variables, new-expressions (use `AllocateAligned` instead),
 and sizeof/pointer arithmetic (increment `T*` by `Lanes(d)` instead).
 
-Initializing constants requires an lvalue `d` or type `D`, which can be passed
-as a template argument or obtained via `DFromV<V>`.
+Initializing constants requires a tag type `D`, or an lvalue `d` of that type.
+The `D` can be passed as a template argument or obtained from a vector type `V`
+via `DFromV<V>`. `TFromV<V>` is equivalent to `TFromD<DFromV<V>>`.
 
-**Note**: For builtin `V` (currently necessary on RVV/SVE), `DV = DFromV<V>`
-might not be the same as the `D` used to create `V`. In particular, `DV` must
-not be passed to `Load/Store` functions because it may lack the limit on `N`
-established by the original `D`. However, `Vec<DV>` is the same as `V`.
+**Note**: Let `DV = DFromV<V>`. For builtin `V` (currently necessary on
+RVV/SVE), `DV` might not be the same as the `D` used to create `V`. In
+particular, `DV` must not be passed to `Load/Store` functions because it may
+lack the limit on `N` established by the original `D`. However, `Vec<DV>` is the
+same as `V`.
 
 Thus a template argument `V` suffices for generic functions that do not load
 from/store to memory: `template<class V> V Mul4(V v) { return v *

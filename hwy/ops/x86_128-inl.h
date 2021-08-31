@@ -178,6 +178,9 @@ struct ExpandDFromV {
 template <class V>
 using DFromV = typename detail::ExpandDFromV<V>::type;
 
+template <class V>
+using TFromV = TFromD<DFromV<V>>;
+
 // ------------------------------ BitCast
 
 namespace detail {
