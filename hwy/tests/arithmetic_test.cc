@@ -862,8 +862,6 @@ HWY_NOINLINE void TestAllMulAdd() {
   ForFloatTypes(ForPartialVectors<TestMulAdd>());
 }
 
-#if HWY_TARGET != HWY_RVV
-
 struct TestReorderWidenMulAccumulate {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
@@ -932,12 +930,8 @@ struct TestReorderWidenMulAccumulate {
   }
 };
 
-#endif  //  HWY_TARGET != HWY_RVV
-
 HWY_NOINLINE void TestAllReorderWidenMulAccumulate() {
-#if HWY_TARGET != HWY_RVV
   ForShrinkableVectors<TestReorderWidenMulAccumulate>()(bfloat16_t());
-#endif
 }
 
 struct TestDiv {

@@ -212,6 +212,11 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
 HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e)
 #undef HWY_RVV_LANES
 
+template <size_t N>
+HWY_API size_t Lanes(Simd<bfloat16_t, N> /* tag*/) {
+  return Lanes(Simd<uint16_t, N>());
+}
+
 // ------------------------------ Common x-macros
 
 // Last argument to most intrinsics. Use when the op has no d arg of its own.
@@ -254,8 +259,16 @@ HWY_RVV_FOREACH_UI(HWY_RVV_SET, Set, mv_v_x)
 HWY_RVV_FOREACH_F(HWY_RVV_SET, Set, fmv_v_f)
 #undef HWY_RVV_SET
 
+// Treat bfloat16_t as uint16_t (using the previously defined Set overloads);
+// required for Zero and VFromD.
+template <size_t N>
+decltype(Set(Simd<uint16_t, N>(), 0)) Set(Simd<bfloat16_t, N> d,
+                                          bfloat16_t arg) {
+  return Set(RebindToUnsigned<decltype(d)>(), arg.bits);
+}
+
 template <class D>
-using VFromD = decltype(Set(D(), 0));
+using VFromD = decltype(Set(D(), TFromD<D>()));
 
 // Partial vectors
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
@@ -354,6 +367,12 @@ HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret)
 #undef HWY_RVV_CAST_I8
 #undef HWY_RVV_CAST_U
 #undef HWY_RVV_CAST_IF
+
+template <size_t N>
+HWY_INLINE VFromD<Simd<uint16_t, N>> BitCastFromByte(
+    Simd<bfloat16_t, N> /* d */, VFromD<Simd<uint8_t, N * 2>> v) {
+  return BitCastFromByte(Simd<uint16_t, N>(), v);
+}
 
 }  // namespace detail
 
@@ -884,6 +903,21 @@ HWY_API VFromD<Simd<T, N>> Load(Simd<T, N> d, const T* HWY_RESTRICT p) {
   return Load(d, p);
 }
 
+// There is no native BF16, treat as uint16_t.
+template <size_t N>
+HWY_API VFromD<Simd<uint16_t, N>> Load(Simd<bfloat16_t, N> d,
+                                       const bfloat16_t* HWY_RESTRICT p) {
+  return Load(RebindToUnsigned<decltype(d)>(),
+              reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
+}
+
+template <size_t N>
+HWY_API void Store(VFromD<Simd<uint16_t, N>> v, Simd<bfloat16_t, N> d,
+                   bfloat16_t* HWY_RESTRICT p) {
+  Store(v, RebindToUnsigned<decltype(d)>(),
+        reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
+}
+
 // ------------------------------ LoadU
 
 // RVV only requires lane alignment, not natural alignment of the entire vector.
@@ -1109,37 +1143,67 @@ HWY_RVV_PROMOTE_X2(vfwcvt_f_x_v_, float, f, 64, int, 32)
 #undef HWY_RVV_PROMOTE
 
 template <size_t N>
-HWY_API VFromD<Simd<int16_t, N>> PromoteTo(Simd<int16_t, N> d,
-                                           VFromD<Simd<uint8_t, N>> v) {
-  return BitCast(d, PromoteTo(Simd<uint16_t, N>(), v));
+HWY_API auto PromoteTo(Simd<int16_t, N> d, VFromD<Simd<uint8_t, N>> v)
+    -> VFromD<decltype(d)> {
+  return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
 template <size_t N>
-HWY_API VFromD<Simd<int32_t, N>> PromoteTo(Simd<int32_t, N> d,
-                                           VFromD<Simd<uint8_t, N>> v) {
-  return BitCast(d, PromoteTo(Simd<uint32_t, N>(), v));
+HWY_API auto PromoteTo(Simd<int32_t, N> d, VFromD<Simd<uint8_t, N>> v)
+    -> VFromD<decltype(d)> {
+  return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
 
 template <size_t N>
-HWY_API VFromD<Simd<int32_t, N>> PromoteTo(Simd<int32_t, N> d,
-                                           VFromD<Simd<uint16_t, N>> v) {
-  return BitCast(d, PromoteTo(Simd<uint32_t, N>(), v));
+HWY_API auto PromoteTo(Simd<int32_t, N> d, VFromD<Simd<uint16_t, N>> v)
+    -> VFromD<decltype(d)> {
+  return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
+}
+
+template <size_t N>
+HWY_API auto PromoteTo(Simd<float32_t, N> d, VFromD<Simd<bfloat16_t, N>> v)
+    -> VFromD<decltype(d)> {
+  const RebindToSigned<decltype(d)> di32;
+  const Rebind<uint16_t, decltype(d)> du16;
+  return BitCast(d, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
 }
 
 // ------------------------------ DemoteTo U
 
+// Unsigned -> unsigned (also used for bf16)
+namespace detail {
+
+HWY_INLINE Vu16m1 DemoteTo(Du16m1 d, const Vu32m2 v) {
+  return vnclipu_wx_u16m1(v, 0, Lanes(d));
+}
+HWY_INLINE Vu16m2 DemoteTo(Du16m2 d, const Vu32m4 v) {
+  return vnclipu_wx_u16m2(v, 0, Lanes(d));
+}
+HWY_INLINE Vu16m4 DemoteTo(Du16m4 d, const Vu32m8 v) {
+  return vnclipu_wx_u16m4(v, 0, Lanes(d));
+}
+
+HWY_INLINE Vu8m1 DemoteTo(Du8m1 d, const Vu16m2 v) {
+  return vnclipu_wx_u8m1(v, 0, Lanes(d));
+}
+HWY_INLINE Vu8m2 DemoteTo(Du8m2 d, const Vu16m4 v) {
+  return vnclipu_wx_u8m2(v, 0, Lanes(d));
+}
+HWY_INLINE Vu8m4 DemoteTo(Du8m4 d, const Vu16m8 v) {
+  return vnclipu_wx_u8m4(v, 0, Lanes(d));
+}
+
+}  // namespace detail
+
 // First clamp negative numbers to zero to match x86 packus.
 HWY_API Vu16m1 DemoteTo(Du16m1 d, const Vi32m2 v) {
-  return vnclipu_wx_u16m1(detail::BitCastToUnsigned(detail::Max(v, 0)), 0,
-                          Lanes(d));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
 }
 HWY_API Vu16m2 DemoteTo(Du16m2 d, const Vi32m4 v) {
-  return vnclipu_wx_u16m2(detail::BitCastToUnsigned(detail::Max(v, 0)), 0,
-                          Lanes(d));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
 }
 HWY_API Vu16m4 DemoteTo(Du16m4 d, const Vi32m8 v) {
-  return vnclipu_wx_u16m4(detail::BitCastToUnsigned(detail::Max(v, 0)), 0,
-                          Lanes(d));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
 }
 
 HWY_API Vu8m1 DemoteTo(Du8m1 d, const Vi32m4 v) {
@@ -1150,16 +1214,13 @@ HWY_API Vu8m2 DemoteTo(Du8m2 d, const Vi32m8 v) {
 }
 
 HWY_API Vu8m1 DemoteTo(Du8m1 d, const Vi16m2 v) {
-  return vnclipu_wx_u8m1(detail::BitCastToUnsigned(detail::Max(v, 0)), 0,
-                         Lanes(d));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
 }
 HWY_API Vu8m2 DemoteTo(Du8m2 d, const Vi16m4 v) {
-  return vnclipu_wx_u8m2(detail::BitCastToUnsigned(detail::Max(v, 0)), 0,
-                         Lanes(d));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
 }
 HWY_API Vu8m4 DemoteTo(Du8m4 d, const Vi16m8 v) {
-  return vnclipu_wx_u8m4(detail::BitCastToUnsigned(detail::Max(v, 0)), 0,
-                         Lanes(d));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
 }
 
 HWY_API Vu8m1 U8FromU32(const Vu32m4 v) {
@@ -1232,6 +1293,14 @@ HWY_API Vi32m2 DemoteTo(Di32m2 d, const Vf64m4 v) {
 }
 HWY_API Vi32m4 DemoteTo(Di32m4 d, const Vf64m8 v) {
   return vfncvt_rtz_x_f_w_i32m4(v, Lanes(d));
+}
+
+template <size_t N>
+HWY_API VFromD<Simd<uint16_t, N>> DemoteTo(Simd<bfloat16_t, N> d,
+                                           VFromD<Simd<float, N>> v) {
+  const RebindToUnsigned<decltype(d)> du16;
+  const Rebind<uint32_t, decltype(d)> du32;
+  return DemoteTo(du16, BitCast(du32, v));
 }
 
 // ------------------------------ ConvertTo F
@@ -1937,6 +2006,37 @@ HWY_INLINE V MulOdd(const V a, const V b) {
   const auto lo = detail::Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   return OddEven(hi, detail::Slide1Down(lo));
+}
+
+// ------------------------------ ReorderDemote2To (OddEven)
+
+template <size_t N, class DF = Simd<float, N / 2>>
+HWY_API VFromD<Simd<uint16_t, N>> ReorderDemote2To(Simd<bfloat16_t, N> dbf16,
+                                                   VFromD<DF> a, VFromD<DF> b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const RebindToUnsigned<DF> du32;
+  const VFromD<decltype(du32)> b_in_even = ShiftRight<16>(BitCast(du32, b));
+  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+}
+
+// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
+template <size_t N, class DU16 = Simd<uint16_t, N * 2>>
+HWY_API auto ReorderWidenMulAccumulate(Simd<float, N> df32, VFromD<DU16> a,
+                                       VFromD<DU16> b,
+                                       const VFromD<decltype(df32)> sum0,
+                                       VFromD<decltype(df32)>& sum1)
+    -> VFromD<decltype(df32)> {
+  const DU16 du16;
+  const RebindToUnsigned<decltype(df32)> du32;
+  using VU32 = VFromD<decltype(du32)>;
+  const VFromD<DU16> zero = Zero(du16);
+  const VU32 a0 = ZipLower(du32, zero, BitCast(du16, a));
+  const VU32 a1 = ZipUpper(du32, zero, BitCast(du16, a));
+  const VU32 b0 = ZipLower(du32, zero, BitCast(du16, b));
+  const VU32 b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
+  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
 // ================================================== END MACROS

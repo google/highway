@@ -505,7 +505,7 @@ class TestReorderDemote2To {
  public:
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR
     size_t padded;
     auto in = ReorderBF16TestCases(d32, padded);
 
@@ -542,7 +542,7 @@ class TestReorderDemote2To {
       HWY_ASSERT_VEC_EQ(d32, expected.get() + 0, Load(d32, actual.get() + 0));
       HWY_ASSERT_VEC_EQ(d32, expected.get() + N, Load(d32, actual.get() + N));
     }
-#else
+#else  // HWY_SCALAR
     (void)d32;
 #endif
   }
