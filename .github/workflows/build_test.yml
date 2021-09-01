@@ -16,24 +16,34 @@ name: Build / test
 on: [push, pull_request]
 jobs:
   cmake:
+    name: Build and test ${{ matrix.name }}
     runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        include:
+          - name: Clang-5.0
+            extra_deps: clang-5.0
+            c_compiler: clang-5.0
+            cxx_compiler: clang++-5.0
+
+          - name: Clang-6.0
+            extra_deps: clang-6.0
+            c_compiler: clang-6.0
+            cxx_compiler: clang++-6.0
+
     steps:
       - uses: actions/checkout@v2
 
       - name: Install deps
-        run: sudo apt-get install clang-5.0 clang-6.0 cmake
+        run: sudo apt-get install ${{ matrix.extra_deps }}
 
-      - name: Clang-5.0
+      - name: Build and test
         run: |
-          CXXFLAGS=-Werror CC=clang-5.0 CXX=clang++-5.0 cmake -B build-clang-5 .
-          cmake --build build-clang-5
-          ctest --test-dir build-clang-5
-
-      - name: Clang-6.0
-        run: |
-          CXXFLAGS=-Werror CC=clang-6.0 CXX=clang++-6.0 cmake -B build-clang-6 .
-          cmake --build build-clang-6
-          ctest --test-dir build-clang-6
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS=-Werror CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -B out .
+          cmake --build out
+          ctest --test-dir out
 
   bazel:
     runs-on: ubuntu-latest
