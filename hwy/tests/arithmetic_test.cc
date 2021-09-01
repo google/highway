@@ -862,6 +862,84 @@ HWY_NOINLINE void TestAllMulAdd() {
   ForFloatTypes(ForPartialVectors<TestMulAdd>());
 }
 
+#if HWY_TARGET != HWY_RVV
+
+struct TestReorderWidenMulAccumulate {
+  template <typename TN, class DN>
+  HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
+    using TW = MakeWide<TN>;
+    const RepartitionToWide<DN> dw;
+    const auto f0 = Zero(dw);
+    const auto f1 = Set(dw, 1.0f);
+    const auto fi = Iota(dw, 1);
+    const auto bf0 = ReorderDemote2To(dn, f0, f0);
+    const auto bf1 = ReorderDemote2To(dn, f1, f1);
+    const auto bfi = ReorderDemote2To(dn, fi, fi);
+    const size_t NW = Lanes(dw);
+    auto delta = AllocateAligned<TW>(2 * NW);
+    for (size_t i = 0; i < 2 * NW; ++i) {
+      delta[i] = 0.0f;
+    }
+
+    // Any input zero => both outputs zero
+    auto sum1 = f0;
+    HWY_ASSERT_VEC_EQ(dw, f0,
+                      ReorderWidenMulAccumulate(dw, bf0, bf0, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, sum1);
+    HWY_ASSERT_VEC_EQ(dw, f0,
+                      ReorderWidenMulAccumulate(dw, bf0, bfi, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, sum1);
+    HWY_ASSERT_VEC_EQ(dw, f0,
+                      ReorderWidenMulAccumulate(dw, bfi, bf0, f0, sum1));
+    HWY_ASSERT_VEC_EQ(dw, f0, sum1);
+
+    // delta[p] := 1.0, all others zero. For each p: Dot(delta, all-ones) == 1.
+    for (size_t p = 0; p < 2 * NW; ++p) {
+      delta[p] = 1.0f;
+      const auto delta0 = Load(dw, delta.get() + 0);
+      const auto delta1 = Load(dw, delta.get() + NW);
+      delta[p] = 0.0f;
+      const auto bf_delta = ReorderDemote2To(dn, delta0, delta1);
+
+      {
+        sum1 = f0;
+        const auto sum0 =
+            ReorderWidenMulAccumulate(dw, bf_delta, bf1, f0, sum1);
+        HWY_ASSERT_EQ(1.0f, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+      }
+      // Swapped arg order
+      {
+        sum1 = f0;
+        const auto sum0 =
+            ReorderWidenMulAccumulate(dw, bf1, bf_delta, f0, sum1);
+        HWY_ASSERT_EQ(1.0f, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+      }
+      // Start with nonzero sum0 or sum1
+      {
+        sum1 = delta1;
+        const auto sum0 =
+            ReorderWidenMulAccumulate(dw, bf_delta, bf1, delta0, sum1);
+        HWY_ASSERT_EQ(2.0f, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+      }
+      // Start with nonzero sum0 or sum1, and swap arg order
+      {
+        sum1 = delta1;
+        const auto sum0 =
+            ReorderWidenMulAccumulate(dw, bf1, bf_delta, delta0, sum1);
+        HWY_ASSERT_EQ(2.0f, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+      }
+    }
+  }
+};
+
+#endif  //  HWY_TARGET != HWY_RVV
+
+HWY_NOINLINE void TestAllReorderWidenMulAccumulate() {
+#if HWY_TARGET != HWY_RVV
+  ForShrinkableVectors<TestReorderWidenMulAccumulate>()(bfloat16_t());
+#endif
+}
+
 struct TestDiv {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -1307,6 +1385,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMul);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulHigh);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulAdd);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReorderWidenMulAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllApproximateReciprocal);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSquareRoot);

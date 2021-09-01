@@ -2390,23 +2390,11 @@ HWY_API Vec128<float, N> PromoteTo(Simd<float, N> /* tag */,
 }
 
 template <size_t N>
-HWY_API Vec128<float, N> PromoteLowerTo(Simd<float, N> df32,
-                                        const Vec128<bfloat16_t, N * 2> v) {
-  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
-  const Rebind<uint16_t, decltype(df32)> du16_half;
+HWY_API Vec128<float, N> PromoteTo(Simd<float, N> df32,
+                                   const Vec128<bfloat16_t, N> v) {
+  const Rebind<uint16_t, decltype(df32)> du16;
   const RebindToSigned<decltype(df32)> di32;
-  const auto half = BitCast(du16_half, LowerHalf(dbf16_half, v));
-  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
-}
-
-template <size_t N>
-HWY_API Vec128<float, N> PromoteUpperTo(Simd<float, N> df32,
-                                        const Vec128<bfloat16_t, N * 2> v) {
-  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
-  const Rebind<uint16_t, decltype(df32)> du16_half;
-  const RebindToSigned<decltype(df32)> di32;
-  const auto half = BitCast(du16_half, UpperHalf(dbf16_half, v));
-  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
@@ -2494,6 +2482,15 @@ HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N> dbf16,
   const Rebind<uint16_t, decltype(dbf16)> du16;
   const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
   return BitCast(dbf16, DemoteTo(du16, bits_in_32));
+}
+
+template <size_t N>
+HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
+    Simd<bfloat16_t, 2 * N> dbf16, Vec128<float, N> a, Vec128<float, N> b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Repartition<uint32_t, decltype(dbf16)> du32;
+  const Vec128<uint32_t, N> b_in_even = ShiftRight<16>(BitCast(du32, b));
+  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
 // For already range-limited input [0, 255].
@@ -3264,6 +3261,25 @@ HWY_INLINE Vec128<uint64_t> MulOdd(const Vec128<uint64_t> a,
       Mul128(static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 1)),
              static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 1)), &mul[1]);
   return Load(Full128<uint64_t>(), mul);
+}
+
+// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
+template <size_t N>
+HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N> df32,
+                                                   Vec128<bfloat16_t, 2 * N> a,
+                                                   Vec128<bfloat16_t, 2 * N> b,
+                                                   const Vec128<float, N> sum0,
+                                                   Vec128<float, N>& sum1) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToUnsigned<decltype(df32)> du32;
+  const Vec128<uint16_t, 2 * N> zero = Zero(du16);
+  const Vec128<uint32_t, N> a0 = ZipLower(du32, zero, BitCast(du16, a));
+  const Vec128<uint32_t, N> a1 = ZipUpper(du32, zero, BitCast(du16, a));
+  const Vec128<uint32_t, N> b0 = ZipLower(du32, zero, BitCast(du16, b));
+  const Vec128<uint32_t, N> b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
+  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
 // ------------------------------ Reductions

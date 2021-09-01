@@ -2709,6 +2709,15 @@ HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N> dbf16,
   return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
+template <size_t N>
+HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
+    Simd<bfloat16_t, 2 * N> dbf16, Vec128<float, N> a, Vec128<float, N> b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Repartition<uint32_t, decltype(dbf16)> du32;
+  const Vec128<uint32_t, N> b_in_even = ShiftRight<16>(BitCast(du32, b));
+  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+}
+
 #if HWY_ARCH_ARM_A64
 
 HWY_API Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
@@ -3561,6 +3570,25 @@ HWY_API VFromD<DW> ZipUpper(DW dw, Vec128<T, N> a, Vec128<T, N> b) {
   return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
+// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
+template <size_t N>
+HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N> df32,
+                                                   Vec128<bfloat16_t, 2 * N> a,
+                                                   Vec128<bfloat16_t, 2 * N> b,
+                                                   const Vec128<float, N> sum0,
+                                                   Vec128<float, N>& sum1) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToUnsigned<decltype(df32)> du32;
+  const Vec128<uint16_t, 2 * N> zero = Zero(du16);
+  const Vec128<uint32_t, N> a0 = ZipLower(du32, zero, BitCast(du16, a));
+  const Vec128<uint32_t, N> a1 = ZipUpper(du32, zero, BitCast(du16, a));
+  const Vec128<uint32_t, N> b0 = ZipLower(du32, zero, BitCast(du16, b));
+  const Vec128<uint32_t, N> b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
+  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+}
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)
@@ -3811,39 +3839,12 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 
 // ================================================== MISC
 
-// ------------------------------ PromoteUpperTo (UpperHalf)
-
-HWY_API Vec128<int32_t> PromoteUpperTo(Full128<int32_t> d,
-                                       const Vec128<uint16_t> v) {
-#if HWY_ARCH_ARM_A64
-  return BitCast(d, Vec128<uint32_t>(vmovl_high_u16(v.raw)));
-#else
-  return PromoteTo(d, UpperHalf(Simd<uint16_t, 4>(), v));
-#endif
-}
-
 template <size_t N>
-HWY_API Vec128<int32_t, N> PromoteUpperTo(Simd<int32_t, N> d32,
-                                          const Vec128<uint16_t, N * 2> v) {
-  return PromoteTo(d32, UpperHalf(Simd<uint16_t, N>(), v));
-}
-
-template <size_t N>
-HWY_API Vec128<float, N> PromoteLowerTo(Simd<float, N> df32,
-                                        const Vec128<bfloat16_t, N * 2> v) {
-  const Repartition<uint16_t, decltype(df32)> du16;
-  const Half<decltype(du16)> du16_half;
+HWY_API Vec128<float, N> PromoteTo(Simd<float, N> df32,
+                                   const Vec128<bfloat16_t, N> v) {
+  const Rebind<uint16_t, decltype(df32)> du16;
   const RebindToSigned<decltype(df32)> di32;
-  const auto half = LowerHalf(du16_half, BitCast(du16, v));
-  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
-}
-
-template <size_t N>
-HWY_API Vec128<float, N> PromoteUpperTo(Simd<float, N> df32,
-                                        const Vec128<bfloat16_t, N * 2> v) {
-  const Repartition<uint16_t, decltype(df32)> du16;
-  const RebindToSigned<decltype(df32)> di32;
-  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
 }
 
 // ------------------------------ TableLookupBytes (Combine, LowerHalf)

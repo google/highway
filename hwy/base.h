@@ -319,6 +319,10 @@ template <>
 constexpr bool IsSigned<float16_t>() {
   return true;
 }
+template <>
+constexpr bool IsSigned<bfloat16_t>() {
+  return true;
+}
 
 // Largest/smallest representable integer values.
 template <typename T>

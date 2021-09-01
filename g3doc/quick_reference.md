@@ -298,6 +298,14 @@ is qNaN, and NaN if both are.
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.
 
+*   `V`: `bf16`; `D`: `f32` \
+    <code>Vec<D> **ReorderWidenMulAccumulate**(D, V a, V b, Vec<D> sum0, Vec<D>&
+    sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] * b[i]` to
+    either `sum1[j]` or lane `j` of the return value, where `j = P(i)` and `P`
+    is a permutation. The only guarantee is that `SumOfLanes(Add(return_value,
+    sum1))` is the sum of all `a[i] * b[i]`. This is useful for computing dot
+    products and the L2 norm.
+
 #### Fused multiply-add
 
 When implemented using special instructions, these functions are more precise
@@ -658,12 +666,15 @@ All functions except `Stream` are defined in cache_control.h.
     reinterpreted as type `Vec<D>`.
 
 *   `V`,`D`: (`u8,u16`), (`u16,u32`), (`u8,u32`), (`u32,u64`), (`u8,i16`), \
-    (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`), \
-    (`f16,f32`), (`f32,f64`) \
+    (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`)
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
-    or sign-extended or widened to `MakeWide<T>`.
+    or sign-extended to the integer type `MakeWide<T>`.
 
-*   `V`,`D`: `i32,f64` \
+*   `V`,`D`: (`f16,f32`), (`bf16,f32`), (`f32,f64`) \
+    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
+    widened to the floating-point type `MakeWide<T>`.
+
+*   `V`,`D`: \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
     converted to 64-bit floating point.
 
@@ -694,7 +705,12 @@ if the input exceeds the destination range.
 
 *   `V`,`D`: (`f32,f16`), (`f32,bf16`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half (for
-    bf16, by truncating the bits).
+    bf16, it is unspecified whether this truncates or rounds).
+
+*   `V`,`D`: (`f32,bf16`) \
+    <code>Vec&lt;D&gt; **ReorderDemote2To**(D, V a, V b)</code>: as above, but
+    converts two inputs, `D` and the output have twice as many lanes as `V`, and
+    the output order is some permutation of the inputs.
 
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to

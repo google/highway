@@ -2647,22 +2647,11 @@ HWY_API Vec512<float> PromoteTo(Full512<float> /* tag */,
   return Vec512<float>{_mm512_cvtph_ps(v.raw)};
 }
 
-HWY_API Vec512<float> PromoteLowerTo(Full512<float> df32,
-                                     const Vec512<bfloat16_t> v) {
-  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
-  const Rebind<uint16_t, decltype(df32)> du16_half;
+HWY_API Vec512<float> PromoteTo(Full512<float> df32,
+                                const Vec256<bfloat16_t> v) {
+  const Rebind<uint16_t, decltype(df32)> du16;
   const RebindToSigned<decltype(df32)> di32;
-  const auto half = BitCast(du16_half, LowerHalf(dbf16_half, v));
-  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
-}
-
-HWY_API Vec512<float> PromoteUpperTo(Full512<float> df32,
-                                     const Vec512<bfloat16_t> v) {
-  const Rebind<bfloat16_t, decltype(df32)> dbf16_half;
-  const Rebind<uint16_t, decltype(df32)> du16_half;
-  const RebindToSigned<decltype(df32)> di32;
-  const auto half = BitCast(du16_half, UpperHalf(dbf16_half, v));
-  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, half)));
+  return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
 }
 
 HWY_API Vec512<double> PromoteTo(Full512<double> /* tag */, Vec256<float> v) {
@@ -2763,6 +2752,15 @@ HWY_API Vec256<bfloat16_t> DemoteTo(Full256<bfloat16_t> dbf16,
   const Rebind<uint16_t, decltype(dbf16)> du16;
   const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
   return BitCast(dbf16, DemoteTo(du16, bits_in_32));
+}
+
+HWY_API Vec512<bfloat16_t> ReorderDemote2To(Full512<bfloat16_t> dbf16,
+                                            Vec512<float> a, Vec512<float> b) {
+  // TODO(janwas): _mm512_cvtne2ps_pbh once we have avx512bf16.
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Repartition<uint32_t, decltype(dbf16)> du32;
+  const Vec512<uint32_t> b_in_even = ShiftRight<16>(BitCast(du32, b));
+  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
 HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,
@@ -3331,6 +3329,27 @@ HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
   const auto mulH = MulEven(aH, bH) + w1 + k;
   const auto mulL = ShiftLeft<32>(t) + w3;
   return InterleaveUpper(du64, mulL, mulH);
+}
+
+// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
+HWY_API Vec512<float> ReorderWidenMulAccumulate(Full512<float> df32,
+                                                Vec512<bfloat16_t> a,
+                                                Vec512<bfloat16_t> b,
+                                                const Vec512<float> sum0,
+                                                Vec512<float>& sum1) {
+  // TODO(janwas): _mm512_dpbf16_ps when available
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToUnsigned<decltype(df32)> du32;
+  const Vec512<uint16_t> zero = Zero(du16);
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo.
+  const Vec512<uint32_t> a0 = ZipLower(du32, zero, BitCast(du16, a));
+  const Vec512<uint32_t> a1 = ZipUpper(du32, zero, BitCast(du16, a));
+  const Vec512<uint32_t> b0 = ZipLower(du32, zero, BitCast(du16, b));
+  const Vec512<uint32_t> b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
+  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
 // ------------------------------ Reductions

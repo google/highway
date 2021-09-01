@@ -280,19 +280,20 @@ svbool_t Mask(Simd<T, N> d) {
 HWY_SVE_FOREACH(HWY_SVE_SET, Set, dup_n)
 #undef HWY_SVE_SET
 
+// Required for Zero and VFromD
+template <size_t N>
+svuint16_t Set(Simd<bfloat16_t, N> d, bfloat16_t arg) {
+  return Set(RebindToUnsigned<decltype(d)>(), arg.bits);
+}
+
 template <class D>
-using VFromD = decltype(Set(D(), 0));
+using VFromD = decltype(Set(D(), TFromD<D>()));
 
 // ------------------------------ Zero
 
 template <class D>
 VFromD<D> Zero(D d) {
   return Set(d, 0);
-}
-
-template <size_t N>
-svuint16_t Zero(Simd<bfloat16_t, N> d) {
-  return Zero(Simd<uint16_t, N>());
 }
 
 // ------------------------------ Undefined
@@ -341,6 +342,12 @@ HWY_SVE_FOREACH_F(HWY_SVE_CAST, _, reinterpret)
 
 #undef HWY_SVE_CAST_NOP
 #undef HWY_SVE_CAST
+
+template <size_t N>
+HWY_INLINE svuint16_t BitCastFromByte(Simd<bfloat16_t, N> /* d */,
+                                      svuint8_t v) {
+  return BitCastFromByte(Simd<uint16_t, N>(), v);
+}
 
 }  // namespace detail
 
@@ -1697,19 +1704,22 @@ HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanes, maxnmv)
 
 // ================================================== Ops with dependencies
 
-// ------------------------------ PromoteTo bfloat16 (InterleaveLower)
+// ------------------------------ PromoteTo bfloat16 (ZipLower)
 
 template <size_t N>
-HWY_API svfloat32_t PromoteLowerTo(Simd<float32_t, N> df32,
-                                   const svuint16_t v) {
+HWY_API svfloat32_t PromoteTo(Simd<float32_t, N> df32, const svuint16_t v) {
   return BitCast(df32, detail::ZipLower(svdup_n_u16(0), v));
 }
 
+// ------------------------------ ReorderDemote2To (OddEven)
+
 template <size_t N>
-HWY_API svfloat32_t PromoteUpperTo(Simd<float32_t, N> df32,
-                                   const svuint16_t v) {
-  const Simd<uint16_t, N> du16;
-  return PromoteLowerTo(df32, UpperHalf(du16, v));
+HWY_API svuint16_t ReorderDemote2To(Simd<bfloat16_t, N> dbf16, svfloat32_t a,
+                                    svfloat32_t b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Repartition<uint32_t, decltype(dbf16)> du32;
+  const svuint32_t b_in_even = ShiftRight<16>(BitCast(du32, b));
+  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
@@ -1911,6 +1921,25 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
   const auto lo = Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   return detail::InterleaveOdd(lo, hi);
+}
+
+// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
+template <size_t N>
+HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N> df32, svuint16_t a,
+                                              svuint16_t b,
+                                              const svfloat32_t sum0,
+                                              svfloat32_t& sum1) {
+  // TODO(janwas): svbfmlalb_f32 if __ARM_FEATURE_SVE_BF16.
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToUnsigned<decltype(df32)> du32;
+  const svuint16_t zero = Zero(du16);
+  const svuint32_t a0 = ZipLower(du32, zero, BitCast(du16, a));
+  const svuint32_t a1 = ZipUpper(du32, zero, BitCast(du16, a));
+  const svuint32_t b0 = ZipLower(du32, zero, BitCast(du16, b));
+  const svuint32_t b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
+  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
 // ------------------------------ AESRound / CLMul

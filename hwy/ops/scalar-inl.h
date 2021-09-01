@@ -971,7 +971,7 @@ HWY_API Vec1<float> PromoteTo(Sisd<float> /* tag */, const Vec1<float16_t> v) {
   return Vec1<float>(out);
 }
 
-HWY_API Vec1<float> PromoteLowerTo(Sisd<float> d, const Vec1<bfloat16_t> v) {
+HWY_API Vec1<float> PromoteTo(Sisd<float> d, const Vec1<bfloat16_t> v) {
   return Set(d, F32FromBF16(v.raw));
 }
 
@@ -1233,6 +1233,17 @@ HWY_API size_t CompressBitsStore(Vec1<T> v, const uint8_t* HWY_RESTRICT bits,
   const Mask1<T> mask = LoadMaskBits(d, bits);
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
+}
+
+// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
+HWY_API Vec1<float> ReorderWidenMulAccumulate(Sisd<float> /* tag */,
+                                              Vec1<bfloat16_t> a,
+                                              Vec1<bfloat16_t> b,
+                                              const Vec1<float> sum0,
+                                              Vec1<float>& /* sum1 */) {
+  return MulAdd(Vec1<float>(F32FromBF16(a.raw)),
+                Vec1<float>(F32FromBF16(b.raw)), sum0);
 }
 
 // ================================================== REDUCTIONS
