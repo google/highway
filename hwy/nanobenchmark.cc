@@ -353,6 +353,12 @@ void Cpuid(const uint32_t level, const uint32_t count,
 #endif
 }
 
+bool HasRDTSCP() {
+  uint32_t abcd[4];
+  Cpuid(0x80000001U, 0, abcd);         // Extended feature flags
+  return (abcd[3] & (1u << 27)) != 0;  // RDTSCP
+}
+
 std::string BrandString() {
   char brand_string[49];
   std::array<uint32_t, 4> abcd;
@@ -647,6 +653,15 @@ int Unpredictable1() { return timer::Start() != ~0ULL; }
 size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
                const size_t num_inputs, Result* results, const Params& p) {
   NANOBENCHMARK_CHECK(num_inputs != 0);
+
+#if HWY_ARCH_X86
+  if (!platform::HasRDTSCP()) {
+    fprintf(stderr, "CPU '%s' does not support RDTSCP, skipping benchmark.\n",
+            platform::BrandString().c_str());
+    return 0;
+  }
+#endif
+
   const InputVec& unique = UniqueInputs(inputs, num_inputs);
 
   const size_t num_skip = NumSkip(func, arg, unique, p);  // never 0
