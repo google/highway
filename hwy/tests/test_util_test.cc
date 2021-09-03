@@ -41,8 +41,8 @@ struct TestName {
     }
     const std::string actual = TypeName(t, N);
     if (expected != actual) {
-      NotifyFailure(__FILE__, __LINE__, expected.c_str(), 0, expected.c_str(),
-                    actual.c_str());
+      HWY_ABORT("%s mismatch: expected '%s', got '%s'.\n",
+                hwy::TargetName(HWY_TARGET), expected.c_str(), actual.c_str());
     }
   }
 };

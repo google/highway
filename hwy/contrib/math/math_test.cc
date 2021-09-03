@@ -29,6 +29,14 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+template <class Out, class In>
+inline Out BitCast(const In& in) {
+  static_assert(sizeof(Out) == sizeof(In), "");
+  Out out;
+  CopyBytes<sizeof(out)>(&in, &out);
+  return out;
+}
+
 template <class T, class D>
 void TestMath(const std::string name, T (*fx1)(T),
               Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
@@ -78,7 +86,7 @@ void TestMath(const std::string name, T (*fx1)(T),
       }
 #endif
 
-      const auto ulp = ComputeUlpDelta(actual, expected);
+      const auto ulp = hwy::detail::ComputeUlpDelta(actual, expected);
       max_ulp = HWY_MAX(max_ulp, ulp);
       if (ulp > max_error_ulp) {
         std::cout << name << "<" << (kIsF32 ? "F32x" : "F64x") << Lanes(d)

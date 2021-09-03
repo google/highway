@@ -160,9 +160,17 @@ cc_library(
     deps = [":hwy"],
 )
 
+# Everything required for tests that use Highway.
 cc_library(
     name = "hwy_test_util",
-    textual_hdrs = ["hwy/tests/test_util-inl.h"],
+    srcs = ["hwy/tests/test_util.cc"],
+    hdrs = ["hwy/tests/test_util.h"],
+    textual_hdrs = [
+        "hwy/tests/test_util-inl.h",
+        "hwy/tests/hwy_gtest.h",
+    ],
+    # Must not depend on a gtest variant, which can conflict with the
+    # GUNIT_INTERNAL_BUILD_MODE defined by the test.
     deps = [":hwy"],
 )
 

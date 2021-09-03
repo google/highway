@@ -88,7 +88,13 @@ set(HWY_SOURCES
     hwy/ops/x86_512-inl.h
     hwy/targets.cc
     hwy/targets.h
+)
+
+set(HWY_TEST_SOURCES
+    hwy/tests/hwy_gtest.h
     hwy/tests/test_util-inl.h
+    hwy/tests/test_util.cc
+    hwy/tests/test_util.h
 )
 
 if (MSVC)
@@ -194,6 +200,11 @@ target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
+add_library(hwy_test STATIC ${HWY_TEST_SOURCES})
+target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
+set_property(TARGET hwy_test PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(hwy_test PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
 # -------------------------------------------------------- hwy_list_targets
 # Generate a tool to print the compiled-in targets as defined by the current
 # flags. This tool will print to stderr at build time, after building hwy.
@@ -232,6 +243,18 @@ install(TARGETS hwy_contrib
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_CONTRIB_SOURCES})
+  if ("${source}" MATCHES "\.h$")
+    get_filename_component(dirname "${source}" DIRECTORY)
+    install(FILES "${source}"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${dirname}")
+  endif()
+endforeach()
+
+install(TARGETS hwy_test
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+# Install all the headers keeping the relative path to the current directory
+# when installing them.
+foreach (source ${HWY_TEST_SOURCES})
   if ("${source}" MATCHES "\.h$")
     get_filename_component(dirname "${source}" DIRECTORY)
     install(FILES "${source}"
@@ -343,9 +366,9 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
 
   if(HWY_SYSTEM_GTEST)
-    target_link_libraries(${TESTNAME} hwy hwy_contrib GTest::GTest GTest::Main)
+    target_link_libraries(${TESTNAME} hwy hwy_contrib hwy_test GTest::GTest GTest::Main)
   else()
-    target_link_libraries(${TESTNAME} hwy hwy_contrib gtest gtest_main)
+    target_link_libraries(${TESTNAME} hwy hwy_contrib hwy_test gtest gtest_main)
   endif()
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
