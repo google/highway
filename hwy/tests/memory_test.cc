@@ -331,17 +331,7 @@ struct TestScatter {
 };
 
 HWY_NOINLINE void TestAllScatter() {
-  // No u8,u16,i8,i16.
-  const ForPartialVectors<TestScatter> test;
-  test(uint32_t());
-  test(int32_t());
-
-#if HWY_CAP_INTEGER64
-  test(uint64_t());
-  test(int64_t());
-#endif
-
-  ForFloatTypes(test);
+  ForUIF3264(ForPartialVectors<TestScatter>());
 }
 
 struct TestGather {
@@ -391,16 +381,7 @@ struct TestGather {
 };
 
 HWY_NOINLINE void TestAllGather() {
-  // No u8,u16,i8,i16.
-  const ForPartialVectors<TestGather> test;
-  test(uint32_t());
-  test(int32_t());
-
-#if HWY_CAP_INTEGER64
-  test(uint64_t());
-  test(int64_t());
-#endif
-  ForFloatTypes(test);
+  ForUIF3264(ForPartialVectors<TestGather>());
 }
 
 HWY_NOINLINE void TestAllCache() {

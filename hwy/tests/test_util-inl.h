@@ -197,7 +197,7 @@ struct ForeachSizeR {
 
     // Skip invalid fractions (e.g. 1/8th of u32x4).
     const size_t lanes = kPromote ? PromotedLanes(d) : Lanes(d);
-    if (lanes == 0) return;
+    if (lanes < kMinLanes) return;
 
     Test()(T(), d);
 
@@ -389,6 +389,18 @@ void ForFloatTypes(const Func& func) {
 template <class Func>
 void ForAllTypes(const Func& func) {
   ForIntegerTypes(func);
+  ForFloatTypes(func);
+}
+
+template <class Func>
+void ForUIF3264(const Func& func) {
+  func(uint32_t());
+  func(int32_t());
+#if HWY_CAP_INTEGER64
+  func(uint64_t());
+  func(int64_t());
+#endif
+
   ForFloatTypes(func);
 }
 

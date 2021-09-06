@@ -90,39 +90,39 @@ void ToString(const TypeInfo& info, const void* ptr, char* string100) {
   if (info.sizeof_t == 1) {
     uint8_t byte;
     CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
-    snprintf(string100, 100, "0x%02X,", byte);
+    snprintf(string100, 100, "0x%02X", byte);
   } else if (info.sizeof_t == 2) {
     uint16_t bits;
     CopyBytes<2>(ptr, &bits);
-    snprintf(string100, 100, "0x%04X,", bits);
+    snprintf(string100, 100, "0x%04X", bits);
   } else if (info.sizeof_t == 4) {
     if (info.is_float) {
       float value;
       CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%g,", double(value));
+      snprintf(string100, 100, "%g", double(value));
     } else if (info.is_signed) {
       int32_t value;
       CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%d,", value);
+      snprintf(string100, 100, "%d", value);
     } else {
       uint32_t value;
       CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%u,", value);
+      snprintf(string100, 100, "%u", value);
     }
   } else {
     HWY_ASSERT(info.sizeof_t == 8);
     if (info.is_float) {
       double value;
       CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%g,", value);
+      snprintf(string100, 100, "%g", value);
     } else if (info.is_signed) {
       int64_t value;
       CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%" PRIi64 ",", value);
+      snprintf(string100, 100, "%" PRIi64 "", value);
     } else {
       uint64_t value;
       CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%" PRIu64 ",", value);
+      snprintf(string100, 100, "%" PRIu64 "", value);
     }
   }
 }
@@ -149,17 +149,21 @@ void PrintArray(const TypeInfo& info, const char* caption,
   fprintf(stderr, "\n");
 }
 
-HWY_NORETURN void PrintMismatchAndAbort(
-    const TypeInfo& info, const void* expected_ptr, const void* actual_ptr,
-    const char* target_name, const char* filename, int line, size_t lane) {
+HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,
+                                        const void* expected_ptr,
+                                        const void* actual_ptr,
+                                        const char* target_name,
+                                        const char* filename, int line,
+                                        size_t lane, size_t num_lanes) {
   char type_name[100];
   TypeName(info, 1, type_name);
   char expected_str[100];
   ToString(info, expected_ptr, expected_str);
   char actual_str[100];
   ToString(info, actual_ptr, actual_str);
-  Abort(filename, line, "%s, %s lane %zu mismatch: expected '%s', got '%s'.\n",
-        target_name, type_name, lane, expected_str, actual_str);
+  Abort(filename, line,
+        "%s, %sx%zu lane %zu mismatch: expected '%s', got '%s'.\n", target_name,
+        type_name, num_lanes, lane, expected_str, actual_str);
 }
 
 void AssertArrayEqual(const TypeInfo& info, const void* expected_void,
@@ -177,7 +181,7 @@ void AssertArrayEqual(const TypeInfo& info, const void* expected_void,
       PrintArray(info, "actual", actual_array, N, i);
 
       PrintMismatchAndAbort(info, expected_ptr, actual_ptr, target_name,
-                            filename, line, i);
+                            filename, line, i, N);
     }
   }
 }

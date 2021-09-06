@@ -381,17 +381,7 @@ HWY_NOINLINE void TestAllCompress() {
   test(float16_t());
 #endif
 
-  test(uint32_t());
-  test(int32_t());
-  test(float());
-
-#if HWY_CAP_INTEGER64
-  test(uint64_t());
-  test(int64_t());
-#endif
-#if HWY_CAP_FLOAT64
-  test(double());
-#endif
+  ForUIF3264(test);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

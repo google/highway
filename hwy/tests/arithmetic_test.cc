@@ -1232,18 +1232,7 @@ struct TestSumOfLanes {
 };
 
 HWY_NOINLINE void TestAllSumOfLanes() {
-  const ForPartialVectors<TestSumOfLanes> test;
-
-  // No u8/u16/i8/i16.
-  test(uint32_t());
-  test(int32_t());
-
-#if HWY_CAP_INTEGER64
-  test(uint64_t());
-  test(int64_t());
-#endif
-
-  ForFloatTypes(test);
+  ForUIF3264(ForPartialVectors<TestSumOfLanes>());
 }
 
 struct TestMinOfLanes {
@@ -1298,24 +1287,8 @@ struct TestMaxOfLanes {
 };
 
 HWY_NOINLINE void TestAllMinMaxOfLanes() {
-  const ForPartialVectors<TestMinOfLanes> min;
-  const ForPartialVectors<TestMaxOfLanes> max;
-
-  // No u8/u16/i8/i16.
-  min(uint32_t());
-  max(uint32_t());
-  min(int32_t());
-  max(int32_t());
-
-#if HWY_CAP_INTEGER64
-  min(uint64_t());
-  max(uint64_t());
-  min(int64_t());
-  max(int64_t());
-#endif
-
-  ForFloatTypes(min);
-  ForFloatTypes(max);
+  ForUIF3264(ForPartialVectors<TestMinOfLanes>());
+  ForUIF3264(ForPartialVectors<TestMaxOfLanes>());
 }
 
 struct TestAbsDiff {

@@ -138,9 +138,12 @@ void PrintArray(const TypeInfo& info, const char* caption,
                 const void* array_void, size_t N, size_t lane_u = 0,
                 size_t max_lanes = 7);
 
-HWY_NORETURN void PrintMismatchAndAbort(
-    const TypeInfo& info, const void* expected_ptr, const void* actual_ptr,
-    const char* target_name, const char* filename, int line, size_t lane = 0);
+HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,
+                                        const void* expected_ptr,
+                                        const void* actual_ptr,
+                                        const char* target_name,
+                                        const char* filename, int line,
+                                        size_t lane = 0, size_t num_lanes = 1);
 
 void AssertArrayEqual(const TypeInfo& info, const void* expected_void,
                       const void* actual_void, size_t N,

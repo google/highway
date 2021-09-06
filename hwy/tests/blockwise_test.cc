@@ -162,21 +162,10 @@ struct TestBroadcast {
 
 HWY_NOINLINE void TestAllBroadcast() {
   const ForPartialVectors<TestBroadcast> test;
-  // No u8.
+  // No u/i8.
   test(uint16_t());
-  test(uint32_t());
-#if HWY_CAP_INTEGER64
-  test(uint64_t());
-#endif
-
-  // No i8.
   test(int16_t());
-  test(int32_t());
-#if HWY_CAP_INTEGER64
-  test(int64_t());
-#endif
-
-  ForFloatTypes(test);
+  ForUIF3264(test);
 }
 
 template <bool kFull>
