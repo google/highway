@@ -132,7 +132,9 @@
 #define HWY_BROKEN_TARGETS (HWY_AVX3 | HWY_AVX3_DL)
 
 // armv7be has not been tested and is not yet supported.
-#elif HWY_ARCH_ARM_V7 && (defined(__ARM_BIG_ENDIAN) || defined(__BIG_ENDIAN))
+#elif HWY_ARCH_ARM_V7 &&          \
+    (defined(__ARM_BIG_ENDIAN) || \
+     (defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN))
 #define HWY_BROKEN_TARGETS (HWY_NEON)
 
 // SVE[2] require recent clang or gcc versions.
