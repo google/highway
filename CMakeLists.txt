@@ -60,6 +60,7 @@ check_cxx_source_compiles(
 )
 
 set(HWY_CONTRIB_SOURCES
+    hwy/contrib/dot/dot-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
     hwy/contrib/math/math-inl.h
@@ -333,8 +334,9 @@ endif()
 endif() # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
+  hwy/contrib/dot/dot_test.cc
   hwy/contrib/image/image_test.cc
-  # hwy/contrib/math/math_test.cc
+  hwy/contrib/math/math_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc

@@ -140,6 +140,15 @@ cc_library(
 )
 
 cc_library(
+    name = "dot",
+    compatible_with = [],
+    textual_hdrs = [
+        "hwy/contrib/dot/dot-inl.h",
+    ],
+    deps = [":hwy"],
+)
+
+cc_library(
     name = "image",
     srcs = [
         "hwy/contrib/image/image.cc",
@@ -206,6 +215,7 @@ cc_binary(
 
 # path, name
 HWY_TESTS = [
+    ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
     ("hwy/examples/", "skeleton_test"),
@@ -254,6 +264,7 @@ HWY_TESTS = [
             # for test_suite.
             tags = ["hwy_ops_test"],
             deps = [
+                ":dot",
                 ":hwy",
                 ":hwy_test_util",
                 ":image",
