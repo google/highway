@@ -90,7 +90,11 @@ struct CappedTagChecker {
 template <typename T, size_t kNumLanes>
 struct FixedTagChecker {
   static_assert(kNumLanes != 0, "Does not make sense to have zero lanes");
-  static_assert(kNumLanes <= HWY_MAX_LANES(T), "Must not exceed upper bound");
+  static_assert(kNumLanes * sizeof(T) <= HWY_MAX_BYTES, "Too many lanes");
+#if HWY_TARGET == HWY_SCALAR
+  // HWY_MAX_BYTES would still allow uint8x8, which is not supported.
+  static_assert(kNumLanes == 1, "Scalar only supports one lane");
+#endif
   using type = Simd<T, kNumLanes>;
 };
 
