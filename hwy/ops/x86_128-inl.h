@@ -3474,6 +3474,65 @@ HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N> d, Vec128<T, N> hi,
   return Combine(UpperHalf(d2, hi), LowerHalf(d2, lo));
 }
 
+// ------------------------------ ConcatOdd
+
+// 32-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const RebindToFloat<decltype(d)> df;
+  return BitCast(
+      d, Vec128<float>{_mm_shuffle_ps(BitCast(df, lo).raw, BitCast(df, hi).raw,
+                                      _MM_SHUFFLE(3, 1, 3, 1))});
+}
+template <size_t N>
+HWY_API Vec128<float> ConcatOdd(Full128<float> /* tag */, Vec128<float> hi,
+                                Vec128<float> lo) {
+  return Vec128<float>{_mm_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(3, 1, 3, 1))};
+}
+
+// 32-bit partial
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, 2> ConcatOdd(Simd<T, 2> d, Vec128<T, 2> hi, Vec128<T, 2> lo) {
+  return InterleaveUpper(d, lo, hi);
+}
+
+// 64-bit full - no partial because we need at least two inputs to have
+// even/odd.
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  return InterleaveUpper(d, lo, hi);
+}
+
+// ------------------------------ ConcatEven (InterleaveLower)
+
+// 32-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const RebindToFloat<decltype(d)> df;
+  return BitCast(
+      d, Vec128<float>{_mm_shuffle_ps(BitCast(df, lo).raw, BitCast(df, hi).raw,
+                                      _MM_SHUFFLE(2, 0, 2, 0))});
+}
+template <size_t N>
+HWY_API Vec128<float> ConcatEven(Full128<float> /* tag */, Vec128<float> hi,
+                                 Vec128<float> lo) {
+  return Vec128<float>{_mm_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(2, 0, 2, 0))};
+}
+
+// 32-bit partial
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, 2> ConcatEven(Simd<T, 2> d, Vec128<T, 2> hi,
+                                Vec128<T, 2> lo) {
+  return InterleaveLower(d, lo, hi);
+}
+
+// 64-bit full - no partial because we need at least two inputs to have
+// even/odd.
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  return InterleaveLower(d, lo, hi);
+}
+
 // ------------------------------ OddEven (IfThenElse)
 
 namespace detail {

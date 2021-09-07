@@ -20,6 +20,8 @@
 
 #include <immintrin.h>  // AVX2+
 
+#include "hwy/base.h"
+
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
@@ -2527,7 +2529,83 @@ HWY_API Vec512<double> ConcatUpperLower(Full512<double> /* tag */,
   return Vec512<double>{_mm512_mask_blend_pd(mask, hi.raw, lo.raw)};
 }
 
-// ------------------------------ Odd/even lanes
+// ------------------------------ ConcatOdd
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> ConcatOdd(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint32_t kIdx[16] = {1,  3,  5,  7,  9,  11, 13, 15,
+                                             17, 19, 21, 23, 25, 27, 29, 31};
+  return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi32(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask16{0xFFFF}, BitCast(du, hi).raw)});
+}
+
+HWY_API Vec512<float> ConcatOdd(Full512<float> d, Vec512<float> hi,
+                                Vec512<float> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint32_t kIdx[16] = {1,  3,  5,  7,  9,  11, 13, 15,
+                                             17, 19, 21, 23, 25, 27, 29, 31};
+  return Vec512<float>{_mm512_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
+                                                    __mmask16{0xFFFF}, hi.raw)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> ConcatOdd(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  return BitCast(d, Vec512<uint64_t>{_mm512_mask2_permutex2var_epi64(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
+                        BitCast(du, hi).raw)});
+}
+
+HWY_API Vec512<double> ConcatOdd(Full512<double> d, Vec512<double> hi,
+                                 Vec512<double> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  return Vec512<double>{_mm512_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
+                                                     __mmask8{0xFF}, hi.raw)};
+}
+
+// ------------------------------ ConcatEven
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> ConcatEven(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint32_t kIdx[16] = {0,  2,  4,  6,  8,  10, 12, 14,
+                                             16, 18, 20, 22, 24, 26, 28, 30};
+  return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi32(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask16{0xFFFF}, BitCast(du, hi).raw)});
+}
+
+HWY_API Vec512<float> ConcatEven(Full512<float> d, Vec512<float> hi,
+                                 Vec512<float> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint32_t kIdx[16] = {0,  2,  4,  6,  8,  10, 12, 14,
+                                             16, 18, 20, 22, 24, 26, 28, 30};
+  return Vec512<float>{_mm512_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
+                                                    __mmask16{0xFFFF}, hi.raw)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> ConcatEven(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+  return BitCast(d, Vec512<uint64_t>{_mm512_mask2_permutex2var_epi64(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
+                        BitCast(du, hi).raw)});
+}
+
+HWY_API Vec512<double> ConcatEven(Full512<double> d, Vec512<double> hi,
+                                  Vec512<double> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+  return Vec512<double>{_mm512_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
+                                                     __mmask8{0xFF}, hi.raw)};
+}
+
+// ------------------------------ OddEven
 
 template <typename T>
 HWY_API Vec512<T> OddEven(const Vec512<T> a, const Vec512<T> b) {

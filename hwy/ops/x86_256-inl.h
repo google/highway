@@ -2755,7 +2755,142 @@ HWY_API Vec256<T> ConcatUpperUpper(Full256<T> d, const Vec256<T> hi,
   return ConcatUpperLower(d, hi, ZeroExtendVector(d, UpperHalf(d2, lo)));
 }
 
-// ------------------------------ Odd/even lanes
+// ------------------------------ ConcatOdd
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> ConcatOdd(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(32) constexpr uint32_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  return BitCast(d, Vec256<uint32_t>{_mm256_mask2_permutex2var_epi32(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
+                        BitCast(du, hi).raw)});
+#else
+  const RebindToFloat<decltype(d)> df;
+  const Vec256<float> v3131{_mm256_shuffle_ps(
+      BitCast(df, lo).raw, BitCast(df, hi).raw, _MM_SHUFFLE(3, 1, 3, 1))};
+  return Vec256<T>{_mm256_permute4x64_epi64(BitCast(du, v3131).raw,
+                                            _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
+HWY_API Vec256<float> ConcatOdd(Full256<float> d, Vec256<float> hi,
+                                Vec256<float> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(32) constexpr uint32_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  return Vec256<float>{_mm256_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
+                                                    __mmask8{0xFF}, hi.raw)};
+#else
+  const Vec256<float> v3131{
+      _mm256_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(3, 1, 3, 1))};
+  return BitCast(d, Vec256<uint32_t>{_mm256_permute4x64_epi64(
+                        BitCast(du, v3131).raw, _MM_SHUFFLE(3, 1, 2, 0))});
+#endif
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> ConcatOdd(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(64) constexpr uint64_t kIdx[4] = {1, 3, 5, 7};
+  return BitCast(d, Vec256<uint64_t>{_mm256_mask2_permutex2var_epi64(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
+                        BitCast(du, hi).raw)});
+#else
+  const RebindToFloat<decltype(d)> df;
+  const Vec256<double> v31{
+      _mm256_shuffle_pd(BitCast(df, lo).raw, BitCast(df, hi).raw, 15)};
+  return Vec256<T>{
+      _mm256_permute4x64_epi64(BitCast(du, v31).raw, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
+HWY_API Vec256<double> ConcatOdd(Full256<double> d, Vec256<double> hi,
+                                 Vec256<double> lo) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint64_t kIdx[4] = {1, 3, 5, 7};
+  return Vec256<double>{_mm256_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
+                                                     __mmask8{0xFF}, hi.raw)};
+#else
+  (void)d;
+  const Vec256<double> v31{_mm256_shuffle_pd(lo.raw, hi.raw, 15)};
+  return Vec256<double>{
+      _mm256_permute4x64_pd(v31.raw, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
+// ------------------------------ ConcatEven
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> ConcatEven(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(64) constexpr uint32_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+  return BitCast(d, Vec256<uint32_t>{_mm256_mask2_permutex2var_epi32(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
+                        BitCast(du, hi).raw)});
+#else
+  const RebindToFloat<decltype(d)> df;
+  const Vec256<float> v2020{_mm256_shuffle_ps(
+      BitCast(df, lo).raw, BitCast(df, hi).raw, _MM_SHUFFLE(2, 0, 2, 0))};
+  return Vec256<T>{_mm256_permute4x64_epi64(BitCast(du, v2020).raw,
+                                            _MM_SHUFFLE(3, 1, 2, 0))};
+
+#endif
+}
+
+HWY_API Vec256<float> ConcatEven(Full256<float> d, Vec256<float> hi,
+                                 Vec256<float> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(64) constexpr uint32_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+  return Vec256<float>{_mm256_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
+                                                    __mmask8{0xFF}, hi.raw)};
+#else
+  const Vec256<float> v2020{
+      _mm256_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(2, 0, 2, 0))};
+  return BitCast(d, Vec256<uint32_t>{_mm256_permute4x64_epi64(
+                        BitCast(du, v2020).raw, _MM_SHUFFLE(3, 1, 2, 0))});
+
+#endif
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> ConcatEven(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(64) constexpr uint64_t kIdx[4] = {0, 2, 4, 6};
+  return BitCast(d, Vec256<uint64_t>{_mm256_mask2_permutex2var_epi64(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
+                        BitCast(du, hi).raw)});
+#else
+  const RebindToFloat<decltype(d)> df;
+  const Vec256<double> v20{
+      _mm256_shuffle_pd(BitCast(df, lo).raw, BitCast(df, hi).raw, 0)};
+  return Vec256<T>{
+      _mm256_permute4x64_epi64(BitCast(du, v20).raw, _MM_SHUFFLE(3, 1, 2, 0))};
+
+#endif
+}
+
+HWY_API Vec256<double> ConcatEven(Full256<double> d, Vec256<double> hi,
+                                  Vec256<double> lo) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint64_t kIdx[4] = {0, 2, 4, 6};
+  return Vec256<double>{_mm256_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
+                                                     __mmask8{0xFF}, hi.raw)};
+#else
+  (void)d;
+  const Vec256<double> v20{_mm256_shuffle_pd(lo.raw, hi.raw, 0)};
+  return Vec256<double>{
+      _mm256_permute4x64_pd(v20.raw, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
+// ------------------------------ OddEven
 
 namespace detail {
 

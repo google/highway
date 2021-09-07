@@ -1118,12 +1118,14 @@ HWY_API svint8_t DemoteTo(Simd<int8_t, N> dn, const svint32_t v) {
   return BitCast(dn, svuzp1_s8(v2, v2));
 }
 
-// ------------------------------ DemoteTo F
+// ------------------------------ ConcatEven/ConcatOdd
 
+// WARNING: the upper half of these needs fixing up (uzp1/uzp2 use the
+// full vector length, not rounded down to a power of two as we require).
 namespace detail {
 
 #define HWY_SVE_CONCAT_EVERY_SECOND(BASE, CHAR, BITS, NAME, OP)  \
-  HWY_API HWY_SVE_V(BASE, BITS)                                  \
+  HWY_INLINE HWY_SVE_V(BASE, BITS)                               \
       NAME(HWY_SVE_V(BASE, BITS) hi, HWY_SVE_V(BASE, BITS) lo) { \
     return sv##OP##_##CHAR##BITS(lo, hi);                        \
   }
@@ -1131,7 +1133,41 @@ HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEven, uzp1)
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOdd, uzp2)
 #undef HWY_SVE_CONCAT_EVERY_SECOND
 
+// Used to slide up / shift whole register left; mask indicates which range
+// to take from lo, and the rest is filled from hi starting at its lowest.
+#define HWY_SVE_SPLICE(BASE, CHAR, BITS, NAME, OP)                         \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(                                      \
+      HWY_SVE_V(BASE, BITS) hi, HWY_SVE_V(BASE, BITS) lo, svbool_t mask) { \
+    return sv##OP##_##CHAR##BITS(mask, lo, hi);                            \
+  }
+HWY_SVE_FOREACH(HWY_SVE_SPLICE, Splice, splice)
+#undef HWY_SVE_SPLICE
+
 }  // namespace detail
+
+template <class D>
+HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
+#if 0  // if we could assume VL is a power of two
+  return detail::ConcatOdd(hi, lo);
+#else
+  const VFromD<D> hi_odd = detail::ConcatOdd(hi, hi);
+  const VFromD<D> lo_odd = detail::ConcatOdd(lo, lo);
+  return detail::Splice(hi_odd, lo_odd, FirstN(d, Lanes(d) / 2));
+#endif
+}
+
+template <class D>
+HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
+#if 0  // if we could assume VL is a power of two
+  return detail::ConcatEven(hi, lo);
+#else
+  const VFromD<D> hi_odd = detail::ConcatEven(hi, hi);
+  const VFromD<D> lo_odd = detail::ConcatEven(lo, lo);
+  return detail::Splice(hi_odd, lo_odd, FirstN(d, Lanes(d) / 2));
+#endif
+}
+
+// ------------------------------ DemoteTo F
 
 template <size_t N>
 HWY_API svfloat16_t DemoteTo(Simd<float16_t, N> d, const svfloat32_t v) {
@@ -1223,16 +1259,6 @@ svbool_t MaskUpperHalf(Simd<T, N> d) {
   }
 HWY_SVE_FOREACH(HWY_SVE_EXT, Ext, ext)
 #undef HWY_SVE_EXT
-
-// Used to slide up / shift whole register left; mask indicates which range
-// to take from lo, and the rest is filled from hi starting at its lowest.
-#define HWY_SVE_SPLICE(BASE, CHAR, BITS, NAME, OP)                         \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(                                      \
-      HWY_SVE_V(BASE, BITS) hi, HWY_SVE_V(BASE, BITS) lo, svbool_t mask) { \
-    return sv##OP##_##CHAR##BITS(mask, lo, hi);                            \
-  }
-HWY_SVE_FOREACH(HWY_SVE_SPLICE, Splice, splice)
-#undef HWY_SVE_SPLICE
 
 }  // namespace detail
 
@@ -1372,7 +1398,7 @@ HWY_API V Compress(V v, svbool_t mask16) {
   // Demote to 16-bit (already in range) - separately so we can splice
   const V evenL = BitCast(d16, compressedL);
   const V evenH = BitCast(d16, compressedH);
-  const V v16L = detail::ConcatEven(evenL, evenL);
+  const V v16L = detail::ConcatEven(evenL, evenL);  // only lower half needed
   const V v16H = detail::ConcatEven(evenH, evenH);
 
   // We need to combine two vectors of non-constexpr length, so the only option
@@ -1616,7 +1642,7 @@ HWY_API V InterleaveLower(D d, const V a, const V b) {
   const Repartition<uint64_t, decltype(d)> d64;
   const auto a64 = BitCast(d64, a);
   const auto b64 = BitCast(d64, b);
-  const auto a_blocks = detail::ConcatEven(a64, a64);
+  const auto a_blocks = detail::ConcatEven(a64, a64);  // only lower half needed
   const auto b_blocks = detail::ConcatEven(b64, b64);
 
   return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
@@ -1636,7 +1662,7 @@ HWY_API V InterleaveUpper(Simd<T, HWY_LANES(T)> d, const V a, const V b) {
   const Repartition<uint64_t, decltype(d)> d64;
   const auto a64 = BitCast(d64, a);
   const auto b64 = BitCast(d64, b);
-  const auto a_blocks = detail::ConcatOdd(a64, a64);
+  const auto a_blocks = detail::ConcatOdd(a64, a64);  // only lower half needed
   const auto b_blocks = detail::ConcatOdd(b64, b64);
   return detail::ZipLower(BitCast(d, a_blocks), BitCast(d, b_blocks));
 }
@@ -1834,7 +1860,7 @@ template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
   const Repartition<uint8_t, decltype(d)> d8;
   const svuint8_t b16 = BitCast(d8, svdup_n_u16_z(m, 1));
-  return detail::ConcatEven(b16, b16);
+  return detail::ConcatEven(b16, b16);  // only lower half needed
 }
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
@@ -1844,7 +1870,7 @@ template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API svuint8_t BoolFromMask(Simd<T, N> d, svbool_t m) {
   const Repartition<uint32_t, decltype(d)> d32;
   const svuint32_t b64 = BitCast(d32, svdup_n_u64_z(m, 1));
-  return U8FromU32(detail::ConcatEven(b64, b64));
+  return U8FromU32(detail::ConcatEven(b64, b64));  // only lower half needed
 }
 
 }  // namespace detail

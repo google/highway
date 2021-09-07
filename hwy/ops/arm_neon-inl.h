@@ -1159,54 +1159,6 @@ HWY_API Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
   return Vec128<uint16_t, N>(vget_low_u16(vuzp2q_u16(hi_lo, hi_lo)));
 }
 
-// Multiplies even lanes (0, 2 ..) and places the double-wide result into
-// even and the upper half into its odd neighbor lane.
-HWY_API Vec128<int64_t> MulEven(const Vec128<int32_t> a,
-                                const Vec128<int32_t> b) {
-  int32x4_t a_packed = vuzp1q_s32(a.raw, a.raw);
-  int32x4_t b_packed = vuzp1q_s32(b.raw, b.raw);
-  return Vec128<int64_t>(
-      vmull_s32(vget_low_s32(a_packed), vget_low_s32(b_packed)));
-}
-HWY_API Vec128<uint64_t> MulEven(const Vec128<uint32_t> a,
-                                 const Vec128<uint32_t> b) {
-  uint32x4_t a_packed = vuzp1q_u32(a.raw, a.raw);
-  uint32x4_t b_packed = vuzp1q_u32(b.raw, b.raw);
-  return Vec128<uint64_t>(
-      vmull_u32(vget_low_u32(a_packed), vget_low_u32(b_packed)));
-}
-
-template <size_t N>
-HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
-                                             const Vec128<int32_t, N> b) {
-  int32x2_t a_packed = vuzp1_s32(a.raw, a.raw);
-  int32x2_t b_packed = vuzp1_s32(b.raw, b.raw);
-  return Vec128<int64_t, (N + 1) / 2>(
-      vget_low_s64(vmull_s32(a_packed, b_packed)));
-}
-template <size_t N>
-HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
-                                              const Vec128<uint32_t, N> b) {
-  uint32x2_t a_packed = vuzp1_u32(a.raw, a.raw);
-  uint32x2_t b_packed = vuzp1_u32(b.raw, b.raw);
-  return Vec128<uint64_t, (N + 1) / 2>(
-      vget_low_u64(vmull_u32(a_packed, b_packed)));
-}
-
-HWY_INLINE Vec128<uint64_t> MulEven(const Vec128<uint64_t> a,
-                                    const Vec128<uint64_t> b) {
-  uint64_t hi;
-  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 0), vgetq_lane_u64(b.raw, 0), &hi);
-  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
-}
-
-HWY_INLINE Vec128<uint64_t> MulOdd(const Vec128<uint64_t> a,
-                                   const Vec128<uint64_t> b) {
-  uint64_t hi;
-  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 1), vgetq_lane_u64(b.raw, 1), &hi);
-  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
-}
-
 // ------------------------------ Floating-point mul / div
 
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)
@@ -3785,6 +3737,90 @@ HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N> d, Vec128<T, N> hi,
   return IfThenElse(FirstN(d, Lanes(d) / 2), lo, hi);
 }
 
+// ------------------------------ ConcatOdd (InterleaveUpper)
+
+// 32-bit full
+HWY_API Vec128<uint32_t> ConcatOdd(Full128<uint32_t> /* tag */,
+                                   Vec128<uint32_t> hi, Vec128<uint32_t> lo) {
+  return Vec128<uint32_t>(vuzp2q_u32(lo.raw, hi.raw));
+}
+HWY_API Vec128<int32_t> ConcatOdd(Full128<int32_t> /* tag */,
+                                  Vec128<int32_t> hi, Vec128<int32_t> lo) {
+  return Vec128<int32_t>(vuzp2q_s32(lo.raw, hi.raw));
+}
+HWY_API Vec128<float> ConcatOdd(Full128<float> /* tag */, Vec128<float> hi,
+                                Vec128<float> lo) {
+  return Vec128<float>(vuzp2q_f32(lo.raw, hi.raw));
+}
+
+// 32-bit partial
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_API Vec128<uint32_t, N> ConcatOdd(Simd<uint32_t, N> /* tag */,
+                                      Vec128<uint32_t, N> hi,
+                                      Vec128<uint32_t, N> lo) {
+  return Vec128<uint32_t, N>(vuzp2_u32(lo.raw, hi.raw));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_API Vec128<int32_t, N> ConcatOdd(Simd<int32_t, N> /* tag */,
+                                     Vec128<int32_t, N> hi,
+                                     Vec128<int32_t, N> lo) {
+  return Vec128<int32_t, N>(vuzp2_s32(lo.raw, hi.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_API Vec128<float, N> ConcatOdd(Simd<float, N> /* tag */,
+                                   Vec128<float, N> hi, Vec128<float, N> lo) {
+  return Vec128<float, N>(vuzp2_f32(lo.raw, hi.raw));
+}
+
+// 64-bit full - no partial because we need at least two inputs to have
+// even/odd. ARMv7 lacks vuzpq_u64, and it's anyway the same as InterleaveUpper.
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  return InterleaveUpper(d, lo, hi);
+}
+
+// ------------------------------ ConcatEven (InterleaveLower)
+
+// 32-bit full
+HWY_API Vec128<uint32_t> ConcatEven(Full128<uint32_t> /* tag */,
+                                    Vec128<uint32_t> hi, Vec128<uint32_t> lo) {
+  return Vec128<uint32_t>(vuzp1q_u32(lo.raw, hi.raw));
+}
+HWY_API Vec128<int32_t> ConcatEven(Full128<int32_t> /* tag */,
+                                   Vec128<int32_t> hi, Vec128<int32_t> lo) {
+  return Vec128<int32_t>(vuzp1q_s32(lo.raw, hi.raw));
+}
+HWY_API Vec128<float> ConcatEven(Full128<float> /* tag */, Vec128<float> hi,
+                                 Vec128<float> lo) {
+  return Vec128<float>(vuzp1q_f32(lo.raw, hi.raw));
+}
+
+// 32-bit partial
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_API Vec128<uint32_t, N> ConcatEven(Simd<uint32_t, N> /* tag */,
+                                       Vec128<uint32_t, N> hi,
+                                       Vec128<uint32_t, N> lo) {
+  return Vec128<uint32_t, N>(vuzp1_u32(lo.raw, hi.raw));
+}
+template <size_t N, HWY_IF_LE64(int32_t, N)>
+HWY_API Vec128<int32_t, N> ConcatEven(Simd<int32_t, N> /* tag */,
+                                      Vec128<int32_t, N> hi,
+                                      Vec128<int32_t, N> lo) {
+  return Vec128<int32_t, N>(vuzp1_s32(lo.raw, hi.raw));
+}
+template <size_t N, HWY_IF_LE64(float, N)>
+HWY_API Vec128<float, N> ConcatEven(Simd<float, N> /* tag */,
+                                    Vec128<float, N> hi, Vec128<float, N> lo) {
+  return Vec128<float, N>(vuzp1_f32(lo.raw, hi.raw));
+}
+
+// 64-bit full - no partial because we need at least two inputs to have
+// even/odd. ARMv7 lacks vuzpq_u64, and it's anyway the same as InterleaveUpper.
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  return InterleaveLower(d, lo, hi);
+}
+
 // ------------------------------ OddEven (IfThenElse)
 
 template <typename T, size_t N>
@@ -3845,6 +3881,56 @@ HWY_API Vec128<float, N> PromoteTo(Simd<float, N> df32,
   const Rebind<uint16_t, decltype(df32)> du16;
   const RebindToSigned<decltype(df32)> di32;
   return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
+}
+
+// ------------------------------ MulEven (ConcatEven)
+
+// Multiplies even lanes (0, 2 ..) and places the double-wide result into
+// even and the upper half into its odd neighbor lane.
+HWY_API Vec128<int64_t> MulEven(Vec128<int32_t> a, Vec128<int32_t> b) {
+  const Full128<int32_t> d;
+  int32x4_t a_packed = ConcatEven(d, a, a).raw;
+  int32x4_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<int64_t>(
+      vmull_s32(vget_low_s32(a_packed), vget_low_s32(b_packed)));
+}
+HWY_API Vec128<uint64_t> MulEven(Vec128<uint32_t> a, Vec128<uint32_t> b) {
+  const Full128<uint32_t> d;
+  uint32x4_t a_packed = ConcatEven(d, a, a).raw;
+  uint32x4_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<uint64_t>(
+      vmull_u32(vget_low_u32(a_packed), vget_low_u32(b_packed)));
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
+                                             const Vec128<int32_t, N> b) {
+  const Simd<int32_t, N> d;
+  int32x2_t a_packed = ConcatEven(d, a, a).raw;
+  int32x2_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<int64_t, (N + 1) / 2>(
+      vget_low_s64(vmull_s32(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
+                                              const Vec128<uint32_t, N> b) {
+  const Simd<uint32_t, N> d;
+  uint32x2_t a_packed = ConcatEven(d, a, a).raw;
+  uint32x2_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<uint64_t, (N + 1) / 2>(
+      vget_low_u64(vmull_u32(a_packed, b_packed)));
+}
+
+HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  uint64_t hi;
+  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 0), vgetq_lane_u64(b.raw, 0), &hi);
+  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
+}
+
+HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+  uint64_t hi;
+  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 1), vgetq_lane_u64(b.raw, 1), &hi);
+  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
 }
 
 // ------------------------------ TableLookupBytes (Combine, LowerHalf)

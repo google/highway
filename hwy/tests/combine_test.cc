@@ -227,6 +227,27 @@ HWY_NOINLINE void TestAllConcat() {
   ForAllTypes(ForShrinkableVectors<TestConcat>());
 }
 
+struct TestConcatOddEven {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
+    const size_t N = Lanes(d);
+    const auto hi = Iota(d, N);
+    const auto lo = Iota(d, 0);
+    const auto even = Add(Iota(d, 0), Iota(d, 0));
+    const auto odd = Add(even, Set(d, 1));
+    HWY_ASSERT_VEC_EQ(d, odd, ConcatOdd(d, hi, lo));
+    HWY_ASSERT_VEC_EQ(d, even, ConcatEven(d, hi, lo));
+#else
+    (void)d;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllConcatOddEven() {
+  ForUIF3264(ForShrinkableVectors<TestConcatOddEven>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -241,6 +262,7 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllUpperHalf);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcat);
+HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcatOddEven);
 }  // namespace hwy
 
 // Ought not to be necessary, but without this, no tests run on RVV.
