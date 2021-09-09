@@ -64,6 +64,7 @@ set(HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
     hwy/contrib/math/math-inl.h
+    hwy/contrib/sort/sort-inl.h
 )
 
 set(HWY_SOURCES
@@ -337,6 +338,7 @@ set(HWY_TEST_FILES
   hwy/contrib/dot/dot_test.cc
   hwy/contrib/image/image_test.cc
   hwy/contrib/math/math_test.cc
+  hwy/contrib/sort/sort_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc

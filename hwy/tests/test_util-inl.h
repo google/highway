@@ -411,6 +411,8 @@ constexpr size_t AdjustedReps(size_t max_reps) {
   return HWY_MAX(max_reps / 16, 2);
 #elif HWY_ARCH_ARM
   return HWY_MAX(max_reps / 4, 2);
+#elif HWY_IS_DEBUG_BUILD
+  return HWY_MAX(max_reps / 8, 2);
 #else
   return HWY_MAX(max_reps, 2);
 #endif

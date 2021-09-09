@@ -169,6 +169,15 @@ cc_library(
     deps = [":hwy"],
 )
 
+cc_library(
+    name = "sort",
+    compatible_with = [],
+    textual_hdrs = [
+        "hwy/contrib/sort/sort-inl.h",
+    ],
+    deps = [":hwy"],
+)
+
 # Everything required for tests that use Highway.
 cc_library(
     name = "hwy_test_util",
@@ -218,6 +227,7 @@ HWY_TESTS = [
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
+    ("hwy/contrib/sort/", "sort_test"),
     ("hwy/examples/", "skeleton_test"),
     ("hwy/", "nanobenchmark_test"),
     ("hwy/", "aligned_allocator_test"),
@@ -271,6 +281,7 @@ HWY_TESTS = [
                 ":math",
                 ":nanobenchmark",
                 ":skeleton",
+                ":sort",
                 "@com_google_googletest//:gtest_main",
             ],
         ),
