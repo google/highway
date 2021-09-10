@@ -32,25 +32,28 @@ namespace HWY_NAMESPACE {
 #if HWY_TARGET != HWY_SCALAR && HWY_ARCH_X86
 
 class TestRanges {
-  constexpr size_t K() { return 32; }
+  template <class D>
+  size_t K(D d) {
+    return 8 * Lanes(d);
+  }
 
   template <SortOrder kOrder, class D>
   void Validate(D d, const TFromD<D>* in, const TFromD<D>* out) {
     const size_t N = Lanes(d);
     // For each range:
-    for (size_t i = 0; i < 8 * N; i += K()) {
+    for (size_t i = 0; i < 8 * N; i += K(d)) {
       // Ensure it matches the sort order
-      for (size_t j = 0; j < K() - 1; ++j) {
-        if (!Compare<kOrder>(out[i + j], out[i + j + 1])) {
+      for (size_t j = 0; j < K(d) - 1; ++j) {
+        if (!Compare(out[i + j], out[i + j + 1], kOrder)) {
           printf("range=%zu lane=%zu N=%zu %.0f %.0f\n\n", i, j, N,
                  static_cast<float>(out[i + j + 0]),
                  static_cast<float>(out[i + j + 1]));
-          for (size_t k = 0; k < K(); ++k) {
+          for (size_t k = 0; k < K(d); ++k) {
             printf("%.0f\n", static_cast<float>(out[i + k]));
           }
 
           printf("\n\nin was:\n");
-          for (size_t k = 0; k < K(); ++k) {
+          for (size_t k = 0; k < K(d); ++k) {
             printf("%.0f\n", static_cast<float>(in[i + k]));
           }
           fflush(stdout);
@@ -85,7 +88,7 @@ class TestRanges {
 
     // For each range, try all 0/1 combinations and set any other lanes to
     // random inputs.
-    for (size_t range = 0; range < 8 * N; range += K()) {
+    for (size_t range = 0; range < 8 * N; range += K(d)) {
       // First set all to random, will later overwrite those for `range`
       for (size_t i = 0; i < 8 * N; ++i) {
         in[i] = static_cast<T>(Random32(&rng) & 0xFF);
@@ -93,12 +96,12 @@ class TestRanges {
 
       // Now try all combinations of {0,1} for lanes in the range. This is
       // sufficient to establish correctness (arbitrary inputs could be
-      // mapped to 0/1 with a comparison predicate). Need to stop after
-      // 20 bits so tests run quickly enough.
-      const size_t max_bits = AdjustedReps(1ull << HWY_MIN(K(), 20));
+      // mapped to 0/1 with a comparison predicate). Need to truncate the
+      // count so tests run quickly enough.
+      const size_t max_bits = AdjustedReps(1ull << HWY_MIN(K(d), 16));
       for (size_t bits = 0; bits < max_bits; ++bits) {
-        for (size_t i = 0; i < K(); ++i) {
-          in[range + i] = (bits >> i) & 1;
+        for (size_t i = 0; i < HWY_MIN(K(d), 16); ++i) {
+          in[range + i] = (bits >> HWY_MIN(i, 63)) & 1;
         }
 
         for (size_t i = 0; i < 8 * N; ++i) {
@@ -121,9 +124,8 @@ class TestRanges {
 
 void TestAllRanges() {
   TestRanges test;
-  // TODO(janwas): ScalableTag
-  test(int32_t(), CappedTag<int32_t, 4>());
-  test(uint32_t(), CappedTag<uint32_t, 4>());
+  test(int32_t(), CappedTag<int32_t, 16>());
+  test(uint32_t(), CappedTag<uint32_t, 16>());
 }
 
 #else
