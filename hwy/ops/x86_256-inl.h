@@ -2560,6 +2560,14 @@ HWY_API Vec256<float> TableLookupLanes(const Vec256<float> v,
   return Vec256<float>{_mm256_permutevar8x32_ps(v.raw, idx.raw)};
 }
 
+// ------------------------------ Reverse
+
+template <typename T>
+HWY_API Vec256<T> Reverse(Full256<T> d, const Vec256<T> v) {
+  alignas(32) constexpr int32_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+  return TableLookupLanes(v, SetTableIndices(d, kReverse));
+}
+
 // ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides

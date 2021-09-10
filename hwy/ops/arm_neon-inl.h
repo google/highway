@@ -3356,6 +3356,23 @@ HWY_API Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
   return BitCast(Simd<float, N>(), TableLookupBytes(BitCast(di, v), idx_i));
 }
 
+// ------------------------------ Reverse (Shuffle0123, Shuffle2301)
+
+template <typename T>
+HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
+  return Shuffle0123(v);
+}
+
+template <typename T>
+HWY_API Vec128<T, 2> Reverse(Simd<T, 2> /* tag */, const Vec128<T, 2> v) {
+  return Vec128<T, 2>(Shuffle2301(v));
+}
+
+template <typename T>
+HWY_API Vec128<T, 1> Reverse(Simd<T, 1> /* tag */, const Vec128<T, 1> v) {
+  return v;
+}
+
 // ------------------------------ Other shuffles (TableLookupBytes)
 
 // Notation: let Vec128<int32_t> have lanes 3,2,1,0 (0 is least-significant).

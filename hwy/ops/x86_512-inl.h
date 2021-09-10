@@ -2326,6 +2326,15 @@ HWY_API Vec512<float> TableLookupLanes(const Vec512<float> v,
   return Vec512<float>{_mm512_permutexvar_ps(idx.raw, v.raw)};
 }
 
+// ------------------------------ Reverse
+
+template <typename T>
+HWY_API Vec512<T> Reverse(Full512<T> d, const Vec512<T> v) {
+  alignas(32) constexpr int32_t kReverse[16] = {15, 14, 13, 12, 11, 10, 9, 8,
+                                                7,  6,  5,  4,  3,  2,  1, 0};
+  return TableLookupLanes(v, SetTableIndices(d, kReverse));
+}
+
 // ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides

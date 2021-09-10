@@ -131,6 +131,26 @@ HWY_NOINLINE void TestAllTableLookupLanes() {
   test(float());
 }
 
+struct TestReverse {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const auto v = Iota(d, 1);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = static_cast<T>(N - i);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Reverse(d, v));
+  }
+};
+
+HWY_NOINLINE void TestAllReverse() {
+  const ForPartialVectors<TestReverse> test;
+  test(uint32_t());
+  test(int32_t());
+  test(float());
+}
+
 class TestCompress {
   template <typename T, typename TI, size_t N>
   void CheckStored(Simd<T, N> d, Simd<TI, N> di, size_t expected_pos,
@@ -396,6 +416,7 @@ HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCompress);
 }  // namespace hwy
 

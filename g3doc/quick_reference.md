@@ -891,6 +891,10 @@ their operands into independently processed 128-bit *blocks*.
     <code>VI **SetTableIndices**(D, int32_t* idx)</code> prepares for
     `TableLookupLanes` with lane indices `idx = [0, N)` (need not be unique).
 
+*   `V`: `{u,i,f}{32}` \
+    <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
+    order (`out[i] == a[Lanes(D()) - 1 - i]`).
+
 ### Reductions
 
 **Note**: these 'reduce' all lanes to a single result (e.g. sum), which is

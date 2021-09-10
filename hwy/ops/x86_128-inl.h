@@ -3214,6 +3214,23 @@ HWY_API Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
                  TableLookupBytes(BitCast(di, v), Vec128<int32_t, N>{idx.raw}));
 }
 
+// ------------------------------ Reverse (Shuffle0123, Shuffle2301)
+
+template <typename T>
+HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
+  return Shuffle0123(v);
+}
+
+template <typename T>
+HWY_API Vec128<T, 2> Reverse(Simd<T, 2> /* tag */, const Vec128<T, 2> v) {
+  return Vec128<T, 2>{Shuffle2301(Vec128<T>{v.raw}).raw};
+}
+
+template <typename T>
+HWY_API Vec128<T, 1> Reverse(Simd<T, 1> /* tag */, const Vec128<T, 1> v) {
+  return v;
+}
+
 // ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides

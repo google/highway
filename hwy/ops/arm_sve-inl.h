@@ -191,6 +191,20 @@ HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
 
 namespace detail {
 
+// Returns actual lanes of a hardware vector without rounding to a power of two.
+HWY_INLINE size_t AllHardwareLanes(hwy::SizeTag<1> /* tag */) {
+  return svcntb_pat(SV_ALL);
+}
+HWY_INLINE size_t AllHardwareLanes(hwy::SizeTag<2> /* tag */) {
+  return svcnth_pat(SV_ALL);
+}
+HWY_INLINE size_t AllHardwareLanes(hwy::SizeTag<4> /* tag */) {
+  return svcntw_pat(SV_ALL);
+}
+HWY_INLINE size_t AllHardwareLanes(hwy::SizeTag<8> /* tag */) {
+  return svcntd_pat(SV_ALL);
+}
+
 // Returns actual lanes of a hardware vector, rounded down to a power of two.
 HWY_INLINE size_t HardwareLanes(hwy::SizeTag<1> /* tag */) {
   return svcntb_pat(SV_POW2);
@@ -198,11 +212,11 @@ HWY_INLINE size_t HardwareLanes(hwy::SizeTag<1> /* tag */) {
 HWY_INLINE size_t HardwareLanes(hwy::SizeTag<2> /* tag */) {
   return svcnth_pat(SV_POW2);
 }
-HWY_INLINE size_t HardwareLanes(hwy::SizeTag<8> /* tag */) {
-  return svcntd_pat(SV_POW2);
-}
 HWY_INLINE size_t HardwareLanes(hwy::SizeTag<4> /* tag */) {
   return svcntw_pat(SV_POW2);
+}
+HWY_INLINE size_t HardwareLanes(hwy::SizeTag<8> /* tag */) {
+  return svcntd_pat(SV_POW2);
 }
 
 }  // namespace detail
@@ -1369,6 +1383,27 @@ HWY_API VFromD<DI> SetTableIndices(D d, const TFromD<DI>* idx) {
 
 HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
 #undef HWY_SVE_TABLE
+
+// ------------------------------ Reverse
+
+#if 0  // if we could assume VL is a power of two
+#error "Update macro"
+#endif
+#define HWY_SVE_REVERSE(BASE, CHAR, BITS, NAME, OP)                     \
+  template <size_t N>                                                   \
+  HWY_API HWY_SVE_V(BASE, BITS)                                         \
+      NAME(Simd<HWY_SVE_T(BASE, BITS), N> d, HWY_SVE_V(BASE, BITS) v) { \
+    const auto reversed = sv##OP##_##CHAR##BITS(v);                     \
+    /* Shift right to remove extra (non-pow2 and remainder) lanes. */   \
+    const size_t all_lanes =                                            \
+        detail::AllHardwareLanes(hwy::SizeTag<BITS / 8>());             \
+    /* TODO(janwas): on SVE2, use whilege. */                           \
+    const svbool_t mask = Not(FirstN(d, all_lanes - Lanes(d)));         \
+    return detail::Splice(reversed, reversed, mask);                    \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_REVERSE, Reverse, rev)
+#undef HWY_SVE_REVERSE
 
 // ------------------------------ Compress (PromoteTo)
 

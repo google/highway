@@ -1094,6 +1094,13 @@ HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
   return v;
 }
 
+// ------------------------------ Reverse
+
+template <typename T>
+HWY_API Vec1<T> Reverse(Sisd<T> /* tag */, const Vec1<T> v) {
+  return v;
+}
+
 // ================================================== BLOCKWISE
 // Shift*Bytes, CombineShiftRightBytes, Interleave*, Shuffle* are unsupported.
 

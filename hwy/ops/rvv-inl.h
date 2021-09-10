@@ -1510,6 +1510,16 @@ HWY_API VFromD<DU> SetTableIndices(D d, const TFromD<DU>* idx) {
 HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather)
 #undef HWY_RVV_TABLE
 
+// ------------------------------ Reverse
+template <class D>
+HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
+  const RebindToUnsigned<D> du;
+  using TU = TFromD<decltype(du)>;
+  const size_t N = Lanes(du);
+  const auto idx = Sub(Set(du, static_cast<TU>(N - 1)), detail::Iota0(du));
+  return TableLookupLanes(v, idx);
+}
+
 // ------------------------------ Compress
 
 #define HWY_RVV_COMPRESS(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME,  \
