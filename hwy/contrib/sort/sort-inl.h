@@ -35,200 +35,17 @@ namespace HWY_NAMESPACE {
 
 enum class SortOrder { kAscending, kDescending };
 
+constexpr inline SortOrder Reverse(SortOrder order) {
+  return (order == SortOrder::kAscending) ? SortOrder::kDescending
+                                          : SortOrder::kAscending;
+}
+
+namespace verify {
+
 template <typename T>
 bool Compare(T a, T b, SortOrder kOrder) {
   if (kOrder == SortOrder::kAscending) return a <= b;
   return a >= b;
-}
-
-namespace detail {
-
-// TODO(janwas): move into op
-HWY_API Vec128<uint32_t> Shuffle3120(Vec128<uint32_t> lo, Vec128<uint32_t> hi) {
-  const Full128<uint32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(3, 1, 2, 0);
-  return BitCast(d, Vec128<float>{_mm_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-HWY_API Vec128<int32_t> Shuffle3120(Vec128<int32_t> lo, Vec128<int32_t> hi) {
-  const Full128<int32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(3, 1, 2, 0);
-  return BitCast(d, Vec128<float>{_mm_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-
-HWY_API Vec128<uint32_t> Shuffle2031(Vec128<uint32_t> lo, Vec128<uint32_t> hi) {
-  const Full128<uint32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(2, 0, 3, 1);
-  return BitCast(d, Vec128<float>{_mm_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-HWY_API Vec128<int32_t> Shuffle2031(Vec128<int32_t> lo, Vec128<int32_t> hi) {
-  const Full128<int32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(2, 0, 3, 1);
-  return BitCast(d, Vec128<float>{_mm_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-
-#if HWY_TARGET <= HWY_AVX2
-HWY_API Vec256<uint32_t> Shuffle3120(Vec256<uint32_t> lo, Vec256<uint32_t> hi) {
-  const Full256<uint32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(3, 1, 2, 0);
-  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-HWY_API Vec256<int32_t> Shuffle3120(Vec256<int32_t> lo, Vec256<int32_t> hi) {
-  const Full256<int32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(3, 1, 2, 0);
-  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-
-HWY_API Vec256<uint32_t> Shuffle2031(Vec256<uint32_t> lo, Vec256<uint32_t> hi) {
-  const Full256<uint32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(2, 0, 3, 1);
-  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-HWY_API Vec256<int32_t> Shuffle2031(Vec256<int32_t> lo, Vec256<int32_t> hi) {
-  const Full256<int32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(2, 0, 3, 1);
-  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-#endif  // HWY_TARGET <= HWY_AVX2
-
-#if HWY_TARGET <= HWY_AVX3
-HWY_API Vec512<uint32_t> Shuffle3120(Vec512<uint32_t> lo, Vec512<uint32_t> hi) {
-  const Full512<uint32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(3, 1, 2, 0);
-  return BitCast(d, Vec512<float>{_mm512_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-HWY_API Vec512<int32_t> Shuffle3120(Vec512<int32_t> lo, Vec512<int32_t> hi) {
-  const Full512<int32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(3, 1, 2, 0);
-  return BitCast(d, Vec512<float>{_mm512_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-
-HWY_API Vec512<uint32_t> Shuffle2031(Vec512<uint32_t> lo, Vec512<uint32_t> hi) {
-  const Full512<uint32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(2, 0, 3, 1);
-  return BitCast(d, Vec512<float>{_mm512_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-HWY_API Vec512<int32_t> Shuffle2031(Vec512<int32_t> lo, Vec512<int32_t> hi) {
-  const Full512<int32_t> d;
-  const RebindToFloat<decltype(d)> df;
-  constexpr int kShuffle = _MM_SHUFFLE(2, 0, 3, 1);
-  return BitCast(d, Vec512<float>{_mm512_shuffle_ps(
-                        BitCast(df, lo).raw, BitCast(df, hi).raw, kShuffle)});
-}
-#endif  // HWY_TARGET <= HWY_AVX3
-
-// For each lane i: replaces a[i] with the first and b[i] with the second
-// according to kOrder.
-// Corresponds to a conditional swap, which is one "node" of a sorting network.
-// Min/Max are cheaper than compare + blend at least for integers.
-template <SortOrder kOrder, class V>
-HWY_INLINE void SortLanesIn2Vectors(V& a, V& b) {
-  V temp = a;
-  a = (kOrder == SortOrder::kAscending) ? Min(a, b) : Max(a, b);
-  b = (kOrder == SortOrder::kAscending) ? Max(temp, b) : Min(temp, b);
-}
-
-// For the last layer of bitonic merge. Conditionally swaps lane 1 with lane 0
-// and 2 with 3 within each quartet.
-template <SortOrder kOrder, class D>
-HWY_INLINE void SortAdjacentLanes(D d, Vec<D>& v0, Vec<D>& v1) {
-  Vec<D> tmp = v0;
-  v0 = Shuffle3120(v0, v1);   // 7520
-  v1 = Shuffle2031(tmp, v1);  // 6431
-  SortLanesIn2Vectors<kOrder>(v0, v1);
-
-  tmp = v0;
-  v0 = InterleaveLower(d, v0, v1);
-  v1 = InterleaveUpper(d, tmp, v1);
-}
-
-// 4 ops. (Not available for u32 because u64 comparisons are not in the API.)
-template <SortOrder kOrder, size_t N, class V = Vec<Simd<int32_t, N>>>
-HWY_INLINE void SortAdjacentLanes(Simd<int32_t, N> d, V& v0, V& v1) {
-  const RepartitionToWide<decltype(d)> dw;
-  const auto wide0 = BitCast(dw, v0);
-  const auto wide1 = BitCast(dw, v1);
-  const auto swap0 = BitCast(dw, Shuffle2301(v0));
-  const auto swap1 = BitCast(dw, Shuffle2301(v1));
-  if (kOrder == SortOrder::kAscending) {
-    v0 = BitCast(d, Max(wide0, swap0));
-    v1 = BitCast(d, Max(wide1, swap1));
-  } else {
-    v0 = BitCast(d, Min(wide0, swap0));
-    v1 = BitCast(d, Min(wide1, swap1));
-  }
-}
-
-// For each lane: sorts the four values in the that lane of the four vectors.
-template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void SortLanesIn4Vectors(D d, const TFromD<D>* in, V& v0, V& v1,
-                                    V& v2, V& v3) {
-  const size_t N = Lanes(d);
-
-  // Bitonic and odd-even sorters both have 5 nodes. This one is from
-  // http://users.telenet.be/bertdobbelaere/SorterHunter/sorting_networks.html
-
-  // layer 1
-  v0 = Load(d, in + 0 * N);
-  v2 = Load(d, in + 2 * N);
-  SortLanesIn2Vectors<kOrder>(v0, v2);
-  v1 = Load(d, in + 1 * N);
-  v3 = Load(d, in + 3 * N);
-  SortLanesIn2Vectors<kOrder>(v1, v3);
-
-  // layer 2
-  SortLanesIn2Vectors<kOrder>(v0, v1);
-  SortLanesIn2Vectors<kOrder>(v2, v3);
-
-  // layer 3
-  SortLanesIn2Vectors<kOrder>(v1, v2);
-}
-
-// Inputs are the result of SortLanesIn4Vectors (row-major). Their columns are
-// sorted, and the output vectors consist of sorted quartets (128-bit blocks).
-template <class D, class V = Vec<D>>
-HWY_INLINE void Transpose4x4(D d, V& v0, V& v1, V& v2, V& v3) {
-  const RepartitionToWide<decltype(d)> dw;
-
-  // Input: first number is reg, second is lane (0 is lowest)
-  // 03 02 01 00  |
-  // 13 12 11 10  | columns are sorted
-  // 23 22 21 20  | (in this order)
-  // 33 32 31 30  V
-  const V t0 = InterleaveLower(d, v0, v1);  // 11 01 10 00
-  const V t1 = InterleaveLower(d, v2, v3);  // 31 21 30 20
-  const V t2 = InterleaveUpper(d, v0, v1);  // 13 03 12 02
-  const V t3 = InterleaveUpper(d, v2, v3);  // 33 23 32 22
-
-  // 30 20 10 00
-  v0 = BitCast(d, InterleaveLower(BitCast(dw, t0), BitCast(dw, t1)));
-  // 31 21 11 01
-  v1 = BitCast(d, InterleaveUpper(BitCast(dw, t0), BitCast(dw, t1)));
-  // 32 22 12 02
-  v2 = BitCast(d, InterleaveLower(BitCast(dw, t2), BitCast(dw, t3)));
-  // 33 23 13 03 --> sorted in descending order (03=smallest in lane 0).
-  v3 = BitCast(d, InterleaveUpper(BitCast(dw, t2), BitCast(dw, t3)));
 }
 
 #if HWY_SORT_VERIFY
@@ -238,15 +55,24 @@ class Runs {
   using T = TFromD<D>;
 
  public:
-  Runs(D d, size_t num_regs) {
+  Runs(D d, size_t num_regs, size_t run_length = 0, bool alternating = false) {
     const size_t N = Lanes(d);
 
     buf_ = AllocateAligned<T>(N);
     consecutive_ = AllocateAligned<T>(num_regs * N);
 
     num_regs_ = num_regs;
-    run_length_ = num_regs * 4;
-    num_runs_ = N / 4;
+    if (run_length) {
+      run_length_ = run_length;
+      num_runs_ = num_regs * N / run_length;
+      is_vector_ = true;
+      alternating_ = alternating;
+    } else {
+      run_length_ = num_regs * 4;
+      num_runs_ = N / 4;
+      is_vector_ = false;
+      alternating_ = false;
+    }
   }
 
   void ScatterQuartets(D d, const size_t idx_reg, Vec<D> v) {
@@ -259,7 +85,13 @@ class Runs {
     }
   }
 
+  void StoreVector(D d, const size_t idx_reg, Vec<D> v) {
+    HWY_ASSERT(idx_reg < num_regs_);
+    Store(v, d, &consecutive_[idx_reg * Lanes(d)]);
+  }
+
   bool IsBitonic() const {
+    HWY_ASSERT(!alternating_);
     for (size_t ir = 0; ir < num_runs_; ++ir) {
       const T* p = &consecutive_[ir * run_length_];
       bool is_asc = true;
@@ -304,12 +136,16 @@ class Runs {
 
   void CheckSorted(SortOrder kOrder, int line, int caller) const {
     for (size_t ir = 0; ir < num_runs_; ++ir) {
+      const SortOrder order =
+          (alternating_ && (ir & 1)) ? Reverse(kOrder) : kOrder;
       const T* p = &consecutive_[ir * run_length_];
 
       for (size_t i = 0; i < run_length_ - 1; ++i) {
-        if (!Compare(p[i], p[i + 1], kOrder)) {
-          printf("ir%zu run_length=%zu order=%d\n", ir, run_length_,
-                 static_cast<int>(kOrder));
+        if (!Compare(p[i], p[i + 1], order)) {
+          printf(
+              "ir%zu run_length=%zu alt=%d original order=%d this order=%d\n",
+              ir, run_length_, alternating_, static_cast<int>(kOrder),
+              static_cast<int>(order));
           for (size_t i = 0; i < run_length_; ++i) {
             printf(" %.0f\n", static_cast<float>(p[i]));
           }
@@ -326,6 +162,8 @@ class Runs {
   size_t num_regs_;
   size_t run_length_;
   size_t num_runs_;
+  bool is_vector_;
+  bool alternating_;
 };
 
 template <class D>
@@ -443,16 +281,127 @@ Runs<D> StoreDeinterleavedQuartets(
   return runs;
 }
 
-#endif
+template <class D>
+Runs<D> StoreVectors(D d, Vec<D> v0, size_t run_length, bool alternating) {
+  Runs runs(d, 1, run_length, alternating);
+  runs.StoreVector(d, 0, v0);
+  return runs;
+}
+
+template <class D>
+Runs<D> StoreVectors(D d, Vec<D> v0, Vec<D> v1) {
+  constexpr size_t kRegs = 2;
+  Runs runs(d, kRegs, /*run_length=*/kRegs * Lanes(d), /*alternating=*/false);
+  runs.StoreVector(d, 0, v0);
+  runs.StoreVector(d, 1, v1);
+  return runs;
+}
+
+template <class D>
+Runs<D> StoreVectors(D d, Vec<D> v0, Vec<D> v1, Vec<D> v2, Vec<D> v3) {
+  constexpr size_t kRegs = 4;
+  Runs runs(d, kRegs, /*run_length=*/kRegs * Lanes(d), /*alternating=*/false);
+  runs.StoreVector(d, 0, v0);
+  runs.StoreVector(d, 1, v1);
+  runs.StoreVector(d, 2, v2);
+  runs.StoreVector(d, 3, v3);
+  return runs;
+}
+
+template <class D>
+Runs<D> StoreVectors(D d, Vec<D> v0, Vec<D> v1, Vec<D> v2, Vec<D> v3, Vec<D> v4,
+                     Vec<D> v5, Vec<D> v6, Vec<D> v7) {
+  constexpr size_t kRegs = 8;
+  Runs runs(d, kRegs, /*run_length=*/kRegs * Lanes(d), /*alternating=*/false);
+  runs.StoreVector(d, 0, v0);
+  runs.StoreVector(d, 1, v1);
+  runs.StoreVector(d, 2, v2);
+  runs.StoreVector(d, 3, v3);
+  runs.StoreVector(d, 4, v4);
+  runs.StoreVector(d, 5, v5);
+  runs.StoreVector(d, 6, v6);
+  runs.StoreVector(d, 7, v7);
+  return runs;
+}
+
+#endif  // HWY_SORT_VERIFY
+}  // namespace verify
+
+namespace detail {
+
+// ------------------------------ Vector-length agnostic (quartets)
+
+// For each lane i: replaces a[i] with the first and b[i] with the second
+// according to kOrder.
+// Corresponds to a conditional swap, which is one "node" of a sorting network.
+// Min/Max are cheaper than compare + blend at least for integers.
+template <SortOrder kOrder, class V>
+HWY_INLINE void SortLanesIn2Vectors(V& a, V& b) {
+  V temp = a;
+  a = (kOrder == SortOrder::kAscending) ? Min(a, b) : Max(a, b);
+  b = (kOrder == SortOrder::kAscending) ? Max(temp, b) : Min(temp, b);
+}
+
+// For each lane: sorts the four values in the that lane of the four vectors.
+template <SortOrder kOrder, class D, class V = Vec<D>>
+HWY_INLINE void SortLanesIn4Vectors(D d, const TFromD<D>* in, V& v0, V& v1,
+                                    V& v2, V& v3) {
+  const size_t N = Lanes(d);
+
+  // Bitonic and odd-even sorters both have 5 nodes. This one is from
+  // http://users.telenet.be/bertdobbelaere/SorterHunter/sorting_networks.html
+
+  // layer 1
+  v0 = Load(d, in + 0 * N);
+  v2 = Load(d, in + 2 * N);
+  SortLanesIn2Vectors<kOrder>(v0, v2);
+  v1 = Load(d, in + 1 * N);
+  v3 = Load(d, in + 3 * N);
+  SortLanesIn2Vectors<kOrder>(v1, v3);
+
+  // layer 2
+  SortLanesIn2Vectors<kOrder>(v0, v1);
+  SortLanesIn2Vectors<kOrder>(v2, v3);
+
+  // layer 3
+  SortLanesIn2Vectors<kOrder>(v1, v2);
+}
+
+// Inputs are vectors with columns in sorted order (from SortLanesIn4Vectors).
+// Transposes so that output vectors are sorted quartets (128-bit blocks),
+// and a quartet in v0 comes before its counterpart in v1, etc.
+template <class D, class V = Vec<D>>
+HWY_INLINE void Transpose4x4(D d, V& v0, V& v1, V& v2, V& v3) {
+  const RepartitionToWide<decltype(d)> dw;
+
+  // Input: first number is reg, second is lane (0 is lowest)
+  // 03 02 01 00  |
+  // 13 12 11 10  | columns are sorted
+  // 23 22 21 20  | (in this order)
+  // 33 32 31 30  V
+  const V t0 = InterleaveLower(d, v0, v1);  // 11 01 10 00
+  const V t1 = InterleaveLower(d, v2, v3);  // 31 21 30 20
+  const V t2 = InterleaveUpper(d, v0, v1);  // 13 03 12 02
+  const V t3 = InterleaveUpper(d, v2, v3);  // 33 23 32 22
+
+  // 30 20 10 00
+  v0 = BitCast(d, InterleaveLower(BitCast(dw, t0), BitCast(dw, t1)));
+  // 31 21 11 01
+  v1 = BitCast(d, InterleaveUpper(BitCast(dw, t0), BitCast(dw, t1)));
+  // 32 22 12 02
+  v2 = BitCast(d, InterleaveLower(BitCast(dw, t2), BitCast(dw, t3)));
+  // 33 23 13 03 --> sorted in descending order (03=smallest in lane 0).
+  v3 = BitCast(d, InterleaveUpper(BitCast(dw, t2), BitCast(dw, t3)));
+}
 
 // 12 ops (including 4 swizzle)
 // Precondition: v0 and v1 are already sorted according to kOrder.
 // Postcondition: concatenate(v0, v1) is sorted and v0 is the lower half.
 template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void SortedMergePlus4(D d, V& v0, V& v1, int caller) {
+HWY_INLINE void Merge2SortedQuartets(D d, V& v0, V& v1, int caller) {
 #if HWY_SORT_VERIFY
-  const Runs<D> input0 = StoreDeinterleavedQuartets(d, v0);
-  const Runs<D> input1 = StoreDeinterleavedQuartets(d, v1);
+  const verify::Runs<D> input0 = verify::StoreDeinterleavedQuartets(d, v0);
+  const verify::Runs<D> input1 = verify::StoreDeinterleavedQuartets(d, v1);
   input0.CheckSorted(kOrder, __LINE__, caller);
   input1.CheckSorted(kOrder, __LINE__, caller);
 #endif
@@ -471,368 +420,470 @@ HWY_INLINE void SortedMergePlus4(D d, V& v0, V& v1, int caller) {
   v0 = Shuffle0321(v0);
 
 #if HWY_SORT_VERIFY
-  auto output = StoreDeinterleavedQuartets(d, v0, v1);
+  auto output = verify::StoreDeinterleavedQuartets(d, v0, v1);
   output.CheckSorted(kOrder, __LINE__, caller);
 #endif
 }
 
-// 12 ops (including 6 swizzle)
+// ------------------------------ Bitonic merge (quartets)
+
+// For the last layer of bitonic merge. Conditionally swaps even-numbered lanes
+// with their odd-numbered neighbor. Works for both quartets and vectors.
+template <SortOrder kOrder, class D>
+HWY_INLINE void SortAdjacentLanesQV(D d, Vec<D>& q_or_v) {
+  // Optimization for 32-bit integers: swap via Shuffle and 64-bit Min/Max.
+  // (not worthwhile on SSE4/AVX2 because they lack 64-bit Min/Max)
+#if !HWY_ARCH_X86 || HWY_TARGET <= HWY_AVX3
+  if (sizeof(TFromD<D>) == 4 && !IsFloat<TFromD<D>>()) {
+    const RepartitionToWide<decltype(d)> dw;
+    const auto wide = BitCast(dw, q_or_v);
+    const auto swap = BitCast(dw, Shuffle2301(q_or_v));
+    if (kOrder == SortOrder::kAscending) {
+      q_or_v = BitCast(d, Max(wide, swap));
+    } else {
+      q_or_v = BitCast(d, Min(wide, swap));
+    }
+  } else
+#endif
+  {
+    Vec<D> swapped = Shuffle2301(q_or_v);
+    SortLanesIn2Vectors<kOrder>(q_or_v, swapped);
+    q_or_v = OddEven(swapped, q_or_v);
+  }
+}
+
+// Lane 0 with 2, 1 with 3 etc. Works for both quartets and vectors.
+template <SortOrder kOrder, class D>
+HWY_INLINE void SortDistance2LanesQV(D d, Vec<D>& q_or_v) {
+  const RepartitionToWide<decltype(d)> dw;
+  Vec<D> swapped = Shuffle1032(q_or_v);
+  SortLanesIn2Vectors<kOrder>(q_or_v, swapped);
+  q_or_v = BitCast(d, OddEven(BitCast(dw, swapped), BitCast(dw, q_or_v)));
+}
+
+// For all BitonicMerge*, and each block, the concatenation of those blocks from
+// the first half and second half of the input vectors must be sorted in
+// opposite orders.
+
+// 14 ops (including 4 swizzle)
 template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void BitonicMerge4Plus4(D d, V& v0, V& v1, int caller) {
+HWY_INLINE void BitonicMerge2Quartets(D d, V& q0, V& q1, int caller) {
 #if HWY_SORT_VERIFY
-  const Runs<D> input = StoreDeinterleavedQuartets(d, v0, v1);
+  const verify::Runs<D> input = verify::StoreDeinterleavedQuartets(d, q0, q1);
   if (caller == -1) input.CheckBitonic(__LINE__, __LINE__);
 #endif
 
   // Layer 1: lane stride 4 (2 ops)
-  SortLanesIn2Vectors<kOrder>(v0, v1);
+  SortLanesIn2Vectors<kOrder>(q0, q1);
 
   // Layer 2: lane stride 2 (6 ops)
-  const RepartitionToWide<decltype(d)> dw;
-  V tmp = v0;
-  // 5410
-  v0 = BitCast(d, InterleaveLower(dw, BitCast(dw, v0), BitCast(dw, v1)));
-  // 7632
-  v1 = BitCast(d, InterleaveUpper(dw, BitCast(dw, tmp), BitCast(dw, v1)));
-  SortLanesIn2Vectors<kOrder>(v0, v1);
-  // v0, v1: M75 M64 M31 M20, m75 m64 m31 m20
-  // Output: M75 M64 m75 m64 M31 M20 m31 m20
-  tmp = v0;
-  v0 = BitCast(d, InterleaveLower(d, BitCast(dw, v0), BitCast(dw, v1)));
-  v1 = BitCast(d, InterleaveUpper(d, BitCast(dw, tmp), BitCast(dw, v1)));
+  SortDistance2LanesQV<kOrder>(d, q0);
+  SortDistance2LanesQV<kOrder>(d, q1);
 
   // Layer 3: lane stride 1 (4 ops)
-  SortAdjacentLanes<kOrder>(d, v0, v1);
+  SortAdjacentLanesQV<kOrder>(d, q0);
+  SortAdjacentLanesQV<kOrder>(d, q1);
 
 #if HWY_SORT_VERIFY
-  const Runs<D> output = StoreDeinterleavedQuartets(d, v0, v1);
+  const verify::Runs<D> output = verify::StoreDeinterleavedQuartets(d, q0, q1);
   output.CheckSorted(kOrder, __LINE__, caller);
 #endif
 }
 
-// 28 ops, more efficient than three 4+4 merges (36 ops).
+// 32 ops, more efficient than three 4+4 merges (36 ops).
 template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void BitonicMergeSorted8Plus8(D d, V& v0, V& v1, V& v2, V& v3,
-                                         int caller) {
+HWY_INLINE void BitonicMerge4Quartets(D d, V& q0, V& q1, V& q2, V& q3,
+                                      int caller) {
 #if HWY_SORT_VERIFY
-  const Runs<D> input = StoreDeinterleavedQuartets(d, v0, v1, v2, v3);
+  const verify::Runs<D> input =
+      verify::StoreDeinterleavedQuartets(d, q0, q1, q2, q3);
   if (caller == -1) input.CheckBitonic(__LINE__, __LINE__);
 #endif
 
   // Layer 1: lane stride 8
-  SortLanesIn2Vectors<kOrder>(v0, v2);
-  SortLanesIn2Vectors<kOrder>(v1, v3);
+  SortLanesIn2Vectors<kOrder>(q0, q2);
+  SortLanesIn2Vectors<kOrder>(q1, q3);
 
   // Layers 2 to 4
-  // Inputs are not fully sorted, so cannot use SortedMergePlus4.
-  BitonicMerge4Plus4<kOrder>(d, v0, v1, __LINE__);
-  BitonicMerge4Plus4<kOrder>(d, v2, v3, __LINE__);
+  // Inputs are not fully sorted, so cannot use Merge2SortedQuartets.
+  BitonicMerge2Quartets<kOrder>(d, q0, q1, __LINE__);
+  BitonicMerge2Quartets<kOrder>(d, q2, q3, __LINE__);
 
 #if HWY_SORT_VERIFY
-  const Runs<D> output = StoreDeinterleavedQuartets(d, v0, v1, v2, v3);
+  const verify::Runs<D> output =
+      verify::StoreDeinterleavedQuartets(d, q0, q1, q2, q3);
   output.CheckSorted(kOrder, __LINE__, caller);
 #endif
 }
 
-// 64 ops. concatenate(v0, v1, v2, v3) and concatenate(v4, v5, v6, v7) must be
-// sorted in opposite orders.
+// 72 ops.
 template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void BitonicMergeSorted16Plus16(D d, V& v0, V& v1, V& v2, V& v3,
-                                           V& v4, V& v5, V& v6, V& v7,
-                                           int caller) {
+HWY_INLINE void BitonicMerge8Quartets(D d, V& q0, V& q1, V& q2, V& q3, V& q4,
+                                      V& q5, V& q6, V& q7, int caller) {
 #if HWY_SORT_VERIFY
-  const Runs<D> input =
-      StoreDeinterleavedQuartets(d, v0, v1, v2, v3, v4, v5, v6, v7);
+  const verify::Runs<D> input =
+      verify::StoreDeinterleavedQuartets(d, q0, q1, q2, q3, q4, q5, q6, q7);
   if (caller == -1) input.CheckBitonic(__LINE__, __LINE__);
 #endif
 
   // Layer 1: lane stride 16
+  SortLanesIn2Vectors<kOrder>(q0, q4);
+  SortLanesIn2Vectors<kOrder>(q1, q5);
+  SortLanesIn2Vectors<kOrder>(q2, q6);
+  SortLanesIn2Vectors<kOrder>(q3, q7);
+
+  // Layers 2 to 5
+  BitonicMerge4Quartets<kOrder>(d, q0, q1, q2, q3, __LINE__);
+  BitonicMerge4Quartets<kOrder>(d, q4, q5, q6, q7, __LINE__);
+
+#if HWY_SORT_VERIFY
+  const verify::Runs<D> output =
+      verify::StoreDeinterleavedQuartets(d, q0, q1, q2, q3, q4, q5, q6, q7);
+  output.CheckSorted(kOrder, __LINE__, caller);
+#endif
+}
+
+// ------------------------------ Bitonic merge (vectors)
+
+// Lane 0 with 4, 1 with 5 etc. Only used for vectors with at least 8 lanes.
+#if HWY_TARGET <= HWY_AVX3
+
+// TODO(janwas): move to op
+template <typename T>
+Vec512<T> Shuffle128_2020(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_shuffle_i32x4(a.raw, b.raw, _MM_SHUFFLE(2, 0, 2, 0))};
+}
+
+template <typename T>
+Vec512<T> Shuffle128_3131(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_shuffle_i32x4(a.raw, b.raw, _MM_SHUFFLE(3, 1, 3, 1))};
+}
+
+template <typename T>
+Vec512<T> Shuffle128_2301(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_shuffle_i32x4(a.raw, b.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+}
+
+template <typename T>
+Vec512<T> OddEven128(Vec512<T> odd, Vec512<T> even) {
+  return Vec512<T>{_mm512_mask_blend_epi64(__mmask8{0x33u}, odd.raw, even.raw)};
+}
+
+template <SortOrder kOrder, class T>
+HWY_INLINE void SortDistance4LanesV(Simd<T, 16> d, Vec<decltype(d)>& v) {
+  // In: FEDCBA98 76543210
+  // Swap 128-bit halves of each 256 bits => BA98FEDC 32107654
+  Vec512<T> swapped = Shuffle128_2301(v, v);
+  SortLanesIn2Vectors<kOrder>(v, swapped);
+  v = OddEven128(swapped, v);
+}
+
+#endif
+
+template <SortOrder kOrder, typename T>
+HWY_INLINE void SortDistance4LanesV(Simd<T, 8> d, Vec<decltype(d)>& v) {
+  Vec<decltype(d)> swapped = ConcatLowerUpper(d, v, v);
+  SortLanesIn2Vectors<kOrder>(v, swapped);
+  v = ConcatUpperLower(swapped, v);
+}
+
+template <SortOrder kOrder, typename T>
+HWY_INLINE void SortDistance4LanesV(Simd<T, 4> /* tag */, ...) {}
+
+// Only used for vectors with at least 16 lanes.
+template <SortOrder kOrder, class D>
+HWY_INLINE void SortDistance8LanesV(D d, Vec<D>& v) {
+  Vec<D> swapped = ConcatLowerUpper(d, v, v);
+  SortLanesIn2Vectors<kOrder>(v, swapped);
+  v = ConcatUpperLower(swapped, v);
+}
+
+// 120 ops. Only used if vectors are at least 8 lanes.
+template <SortOrder kOrder, class D, class V = Vec<D>>
+HWY_INLINE void BitonicMergeTo64(D d, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
+                                 V& v6, V& v7, int caller) {
+#if HWY_SORT_VERIFY
+  const verify::Runs<D> input =
+      verify::StoreVectors(d, v0, v1, v2, v3, v4, v5, v6, v7);
+  if (caller == -1) input.CheckBitonic(__LINE__, __LINE__);
+#endif
+
+  // Layer 1: lane stride 32
   SortLanesIn2Vectors<kOrder>(v0, v4);
   SortLanesIn2Vectors<kOrder>(v1, v5);
   SortLanesIn2Vectors<kOrder>(v2, v6);
   SortLanesIn2Vectors<kOrder>(v3, v7);
 
-  // Layers 2 to 5
-  BitonicMergeSorted8Plus8<kOrder>(d, v0, v1, v2, v3, __LINE__);
-  BitonicMergeSorted8Plus8<kOrder>(d, v4, v5, v6, v7, __LINE__);
+  // Layer 2: lane stride 16
+  SortLanesIn2Vectors<kOrder>(v0, v2);
+  SortLanesIn2Vectors<kOrder>(v1, v3);
+  SortLanesIn2Vectors<kOrder>(v4, v6);
+  SortLanesIn2Vectors<kOrder>(v5, v7);
+
+  // Layer 3: lane stride 8
+  SortLanesIn2Vectors<kOrder>(v0, v1);
+  SortLanesIn2Vectors<kOrder>(v2, v3);
+  SortLanesIn2Vectors<kOrder>(v4, v5);
+  SortLanesIn2Vectors<kOrder>(v6, v7);
+
+  // Layer 4: lane stride 4
+  SortDistance4LanesV<kOrder>(d, v0);
+  SortDistance4LanesV<kOrder>(d, v1);
+  SortDistance4LanesV<kOrder>(d, v2);
+  SortDistance4LanesV<kOrder>(d, v3);
+  SortDistance4LanesV<kOrder>(d, v4);
+  SortDistance4LanesV<kOrder>(d, v5);
+  SortDistance4LanesV<kOrder>(d, v6);
+  SortDistance4LanesV<kOrder>(d, v7);
+
+  // Layer 5: lane stride 2
+  SortDistance2LanesQV<kOrder>(d, v0);
+  SortDistance2LanesQV<kOrder>(d, v1);
+  SortDistance2LanesQV<kOrder>(d, v2);
+  SortDistance2LanesQV<kOrder>(d, v3);
+  SortDistance2LanesQV<kOrder>(d, v4);
+  SortDistance2LanesQV<kOrder>(d, v5);
+  SortDistance2LanesQV<kOrder>(d, v6);
+  SortDistance2LanesQV<kOrder>(d, v7);
+
+  // Layer 6: lane stride 1
+  SortAdjacentLanesQV<kOrder>(d, v0);
+  SortAdjacentLanesQV<kOrder>(d, v1);
+  SortAdjacentLanesQV<kOrder>(d, v2);
+  SortAdjacentLanesQV<kOrder>(d, v3);
+  SortAdjacentLanesQV<kOrder>(d, v4);
+  SortAdjacentLanesQV<kOrder>(d, v5);
+  SortAdjacentLanesQV<kOrder>(d, v6);
+  SortAdjacentLanesQV<kOrder>(d, v7);
 
 #if HWY_SORT_VERIFY
-  const Runs<D> output =
-      StoreDeinterleavedQuartets(d, v0, v1, v2, v3, v4, v5, v6, v7);
+  const verify::Runs<D> output =
+      verify::StoreVectors(d, v0, v1, v2, v3, v4, v5, v6, v7);
   output.CheckSorted(kOrder, __LINE__, caller);
 #endif
 }
 
-// concatenate(v0..7) and concatenate(q8..F) must be sorted in opposite orders.
+// 60 ops. Only used if vectors are at least 16 lanes.
 template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void BitonicMergeSorted32Plus32(D d, V& v0, V& v1, V& v2, V& v3,
-                                           V& v4, V& v5, V& v6, V& v7, V& q8,
-                                           V& q9, V& qA, V& qB, V& qC, V& qD,
-                                           V& qE, V& qF, int caller) {
+HWY_INLINE void BitonicMergeTo64(D d, V& v0, V& v1, V& v2, V& v3, int caller) {
 #if HWY_SORT_VERIFY
-  const Runs<D> input = StoreDeinterleavedQuartets(
-      d, v0, v1, v2, v3, v4, v5, v6, v7, q8, q9, qA, qB, qC, qD, qE, qF);
+  const verify::Runs<D> input = verify::StoreVectors(d, v0, v1, v2, v3);
   if (caller == -1) input.CheckBitonic(__LINE__, __LINE__);
 #endif
 
   // Layer 1: lane stride 32
-  SortLanesIn2Vectors<kOrder>(v0, q8);
-  SortLanesIn2Vectors<kOrder>(v1, q9);
-  SortLanesIn2Vectors<kOrder>(v2, qA);
-  SortLanesIn2Vectors<kOrder>(v3, qB);
-  SortLanesIn2Vectors<kOrder>(v4, qC);
-  SortLanesIn2Vectors<kOrder>(v5, qD);
-  SortLanesIn2Vectors<kOrder>(v6, qE);
-  SortLanesIn2Vectors<kOrder>(v7, qF);
+  SortLanesIn2Vectors<kOrder>(v0, v2);
+  SortLanesIn2Vectors<kOrder>(v1, v3);
 
-  // Layers 2 to 6
-  BitonicMergeSorted16Plus16<kOrder>(d, v0, v1, v2, v3, v4, v5, v6, v7,
-                                     __LINE__);
-  BitonicMergeSorted16Plus16<kOrder>(d, q8, q9, qA, qB, qC, qD, qE, qF,
-                                     __LINE__);
+  // Layer 2: lane stride 16
+  SortLanesIn2Vectors<kOrder>(v0, v1);
+  SortLanesIn2Vectors<kOrder>(v2, v3);
+
+  // Layer 3: lane stride 8
+  SortDistance8LanesV<kOrder>(d, v0);
+  SortDistance8LanesV<kOrder>(d, v1);
+  SortDistance8LanesV<kOrder>(d, v2);
+  SortDistance8LanesV<kOrder>(d, v3);
+
+  // Layer 4: lane stride 4
+  SortDistance4LanesV<kOrder>(d, v0);
+  SortDistance4LanesV<kOrder>(d, v1);
+  SortDistance4LanesV<kOrder>(d, v2);
+  SortDistance4LanesV<kOrder>(d, v3);
+
+  // Layer 5: lane stride 2
+  SortDistance2LanesQV<kOrder>(d, v0);
+  SortDistance2LanesQV<kOrder>(d, v1);
+  SortDistance2LanesQV<kOrder>(d, v2);
+  SortDistance2LanesQV<kOrder>(d, v3);
+
+  // Layer 6: lane stride 1
+  SortAdjacentLanesQV<kOrder>(d, v0);
+  SortAdjacentLanesQV<kOrder>(d, v1);
+  SortAdjacentLanesQV<kOrder>(d, v2);
+  SortAdjacentLanesQV<kOrder>(d, v3);
 
 #if HWY_SORT_VERIFY
-  const Runs<D> output = StoreDeinterleavedQuartets(
-      d, v0, v1, v2, v3, v4, v5, v6, v7, q8, q9, qA, qB, qC, qD, qE, qF);
+  const verify::Runs<D> output = verify::StoreVectors(d, v0, v1, v2, v3);
   output.CheckSorted(kOrder, __LINE__, caller);
 #endif
 }
 
-// concatenate(v0..7) and concatenate(v8..F) must be sorted in opposite orders.
+// 128 ops. Only used if vectors are at least 16 lanes.
 template <SortOrder kOrder, class D, class V = Vec<D>>
-HWY_INLINE void BitonicMergeSorted64Plus64(
-    D d, V& v00, V& v01, V& v02, V& v03, V& v04, V& v05, V& v06, V& v07, V& v08,
-    V& v09, V& v0A, V& v0B, V& v0C, V& v0D, V& v0E, V& v0F, V& q10, V& q11,
-    V& q12, V& q13, V& q14, V& q15, V& q16, V& q17, V& q18, V& q19, V& q1A,
-    V& q1B, V& q1C, V& q1D, V& q1E, V& q1F, int caller) {
+HWY_INLINE void BitonicMergeTo128(D d, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
+                                  V& v6, V& v7, int caller) {
 #if HWY_SORT_VERIFY
-  const Runs<D> input = StoreDeinterleavedQuartets(
-      d, v00, v01, v02, v03, v04, v05, v06, v07, v08, v09, v0A, v0B, v0C, v0D,
-      v0E, v0F, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q1A, q1B, q1C,
-      q1D, q1E, q1F);
+  const verify::Runs<D> input =
+      verify::StoreVectors(d, v0, v1, v2, v3, v4, v5, v6, v7);
   if (caller == -1) input.CheckBitonic(__LINE__, __LINE__);
 #endif
 
   // Layer 1: lane stride 64
-  SortLanesIn2Vectors<kOrder>(v00, q10);
-  SortLanesIn2Vectors<kOrder>(v01, q11);
-  SortLanesIn2Vectors<kOrder>(v02, q12);
-  SortLanesIn2Vectors<kOrder>(v03, q13);
-  SortLanesIn2Vectors<kOrder>(v04, q14);
-  SortLanesIn2Vectors<kOrder>(v05, q15);
-  SortLanesIn2Vectors<kOrder>(v06, q16);
-  SortLanesIn2Vectors<kOrder>(v07, q17);
-  SortLanesIn2Vectors<kOrder>(v08, q18);
-  SortLanesIn2Vectors<kOrder>(v09, q19);
-  SortLanesIn2Vectors<kOrder>(v0A, q1A);
-  SortLanesIn2Vectors<kOrder>(v0B, q1B);
-  SortLanesIn2Vectors<kOrder>(v0C, q1C);
-  SortLanesIn2Vectors<kOrder>(v0D, q1D);
-  SortLanesIn2Vectors<kOrder>(v0E, q1E);
-  SortLanesIn2Vectors<kOrder>(v0F, q1F);
+  SortLanesIn2Vectors<kOrder>(v0, v4);
+  SortLanesIn2Vectors<kOrder>(v1, v5);
+  SortLanesIn2Vectors<kOrder>(v2, v6);
+  SortLanesIn2Vectors<kOrder>(v3, v7);
 
-  // Layers 2 to 7
-  BitonicMergeSorted32Plus32<kOrder>(d, v00, v01, v02, v03, v04, v05, v06, v07,
-                                     v08, v09, v0A, v0B, v0C, v0D, v0E, v0F,
-                                     __LINE__);
-  BitonicMergeSorted32Plus32<kOrder>(d, q10, q11, q12, q13, q14, q15, q16, q17,
-                                     q18, q19, q1A, q1B, q1C, q1D, q1E, q1F,
-                                     __LINE__);
+  BitonicMergeTo64<kOrder>(d, v0, v1, v2, v3, __LINE__);
+  BitonicMergeTo64<kOrder>(d, v4, v5, v6, v7, __LINE__);
 
 #if HWY_SORT_VERIFY
-  const Runs<D> output = StoreDeinterleavedQuartets(
-      d, v00, v01, v02, v03, v04, v05, v06, v07, v08, v09, v0A, v0B, v0C, v0D,
-      v0E, v0F, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q1A, q1B, q1C,
-      q1D, q1E, q1F);
+  const verify::Runs<D> output =
+      verify::StoreVectors(d, v0, v1, v2, v3, v4, v5, v6, v7);
   output.CheckSorted(kOrder, __LINE__, caller);
 #endif
 }
 
-// TODO(janwas): pre-permute arg order at the call site
-template <SortOrder kOrder, class D>
-HWY_INLINE void CombineTwoHalves(D d, Vec<D>& v0, Vec<D>& v1, Vec<D>& v2,
-                                 Vec<D>& v3, Vec<D>& v4, Vec<D>& v5, Vec<D>& v6,
-                                 Vec<D>& v7, TFromD<D>* inout) {
-  const Half<D> d4;
-  using V4 = Vec<decltype(d4)>;
-  V4 h0 = LowerHalf(d4, v0);
-  V4 h1 = LowerHalf(d4, v1);
-  V4 h2 = LowerHalf(d4, v2);
-  V4 h3 = LowerHalf(d4, v3);
-  V4 h4 = LowerHalf(d4, v4);
-  V4 h5 = LowerHalf(d4, v5);
-  V4 h6 = LowerHalf(d4, v6);
-  V4 h7 = LowerHalf(d4, v7);
+// ------------------------------ Vector-length dependent
 
-  V4 q8 = LowerHalf(d4, Reverse(d, v0));
-  V4 q9 = LowerHalf(d4, Reverse(d, v1));
-  V4 qA = LowerHalf(d4, Reverse(d, v2));
-  V4 qB = LowerHalf(d4, Reverse(d, v3));
-  V4 qC = LowerHalf(d4, Reverse(d, v4));
-  V4 qD = LowerHalf(d4, Reverse(d, v5));
-  V4 qE = LowerHalf(d4, Reverse(d, v6));
-  V4 qF = LowerHalf(d4, Reverse(d, v7));
+// Only called when N=4 (single block, so quartets can just be stored).
+template <SortOrder kOrder, class D, class V>
+HWY_API size_t SingleQuartetPerVector(D d, V& q0, V& q1, V& q2, V& q3, V& q4,
+                                      V& q5, V& q6, V& q7, TFromD<D>* inout) {
+  Store(q0, d, inout + 0 * 4);
+  Store(q1, d, inout + 1 * 4);
+  Store(q2, d, inout + 2 * 4);
+  Store(q3, d, inout + 3 * 4);
+  Store(q4, d, inout + 4 * 4);
+  Store(q5, d, inout + 5 * 4);
+  Store(q6, d, inout + 6 * 4);
+  Store(q7, d, inout + 7 * 4);
+  return 8 * 4;
+}
 
-  // Second half: quartets reversed, and passed in reverse order - including
-  // the permutation from BitonicMergeSorted16Plus16.
-  detail::BitonicMergeSorted32Plus32<kOrder>(
-      d4, h0, h1, h4, h5, h2, h3, h6, h7, qF, qE, qB, qA, qD, qC, q9, q8, -1);
-  const Vec<D> h54 = Combine(d, h5, h4);
-  Store(h0, d4, inout + 0x0 * 4);
-  const Vec<D> h32 = Combine(d, h3, h2);
-  Store(h1, d4, inout + 0x1 * 4);
-  const Vec<D> h76 = Combine(d, h7, h6);
-  Store(h54, d, inout + 0x2 * 4);
-  const Vec<D> qEF = Combine(d, qE, qF);
-  Store(h32, d, inout + 0x4 * 4);
-  const Vec<D> qAB = Combine(d, qA, qB);
-  Store(h76, d, inout + 0x6 * 4);
-  const Vec<D> qCD = Combine(d, qC, qD);
-  Store(qEF, d, inout + 0x8 * 4);
-  const Vec<D> q89 = Combine(d, q8, q9);
-  Store(qAB, d, inout + 0xA * 4);
-  Store(qCD, d, inout + 0xC * 4);
-  Store(q89, d, inout + 0xE * 4);
+// Only called when N=8.
+template <SortOrder kOrder, class D, class V>
+HWY_API size_t TwoQuartetsPerVector(D d, V& q0, V& q1, V& q2, V& q3, V& q4,
+                                    V& q5, V& q6, V& q7, TFromD<D>* inout) {
+  V v0 = ConcatLowerLower(d, q1, q0);
+  V v1 = ConcatLowerLower(d, q3, q2);
+  V v2 = ConcatLowerLower(d, q5, q4);
+  V v3 = ConcatLowerLower(d, q7, q6);
+  // TODO(janwas): merge into single table
+  V v4 = Reverse(d, ConcatUpperUpper(d, q7, q6));
+  V v5 = Reverse(d, ConcatUpperUpper(d, q5, q4));
+  V v6 = Reverse(d, ConcatUpperUpper(d, q3, q2));
+  V v7 = Reverse(d, ConcatUpperUpper(d, q1, q0));
+  detail::BitonicMergeTo64<kOrder>(d, v0, v1, v2, v3, v4, v5, v6, v7, -1);
+
+  Store(v0, d, inout + 0 * 8);
+  Store(v1, d, inout + 1 * 8);
+  Store(v2, d, inout + 2 * 8);
+  Store(v3, d, inout + 3 * 8);
+  Store(v4, d, inout + 4 * 8);
+  Store(v5, d, inout + 5 * 8);
+  Store(v6, d, inout + 6 * 8);
+  Store(v7, d, inout + 7 * 8);
+  return 8 * 8;
+}
+
+// Only called when N=16.
+template <SortOrder kOrder, typename T, class V>
+HWY_API size_t FourQuartetsPerVector(Simd<T, 16> d, V& q0, V& q1, V& q2, V& q3,
+                                     V& q4, V& q5, V& q6, V& q7, T* inout) {
+  const V q11_01_10_00 = Shuffle128_2020(q0, q1);
+  const V q13_03_12_02 = Shuffle128_2020(q2, q3);
+  V v0 = Shuffle128_2020(q11_01_10_00, q13_03_12_02);  // 3..0
+
+  const V q15_05_14_04 = Shuffle128_2020(q4, q5);
+  const V q17_07_16_06 = Shuffle128_2020(q6, q7);
+  V v1 = Shuffle128_2020(q15_05_14_04, q17_07_16_06);  // 7..4
+
+  const V q19_09_18_08 = Shuffle128_3131(q0, q1);
+  const V q1b_0b_1a_0a = Shuffle128_3131(q2, q3);
+  V v3 = Reverse(d, Shuffle128_2020(q19_09_18_08, q1b_0b_1a_0a));  // b..8
+
+  const V q1d_0d_1c_0c = Shuffle128_3131(q4, q5);
+  const V q1f_0f_1e_0e = Shuffle128_3131(q6, q7);
+  V v2 = Reverse(d, Shuffle128_2020(q1d_0d_1c_0c, q1f_0f_1e_0e));  // f..c
+
+  detail::BitonicMergeTo64<kOrder>(d, v0, v1, v2, v3, -1);
+
+  // TODO(janwas): merge into single table
+  V v4 = Shuffle128_3131(q11_01_10_00, q13_03_12_02);              // 13..10
+  V v5 = Shuffle128_3131(q15_05_14_04, q17_07_16_06);              // 17..14
+  V v7 = Reverse(d, Shuffle128_3131(q19_09_18_08, q1b_0b_1a_0a));  // 1b..18
+  V v6 = Reverse(d, Shuffle128_3131(q1d_0d_1c_0c, q1f_0f_1e_0e));  // 1f..1c
+
+  detail::BitonicMergeTo64<Reverse(kOrder)>(d, v4, v5, v6, v7, -1);
+
+  detail::BitonicMergeTo128<kOrder>(d, v0, v1, v2, v3, v4, v5, v6, v7, -1);
+
+  Store(v0, d, inout + 0 * 16);
+  Store(v1, d, inout + 1 * 16);
+  Store(v2, d, inout + 2 * 16);
+  Store(v3, d, inout + 3 * 16);
+  Store(v4, d, inout + 4 * 16);
+  Store(v5, d, inout + 5 * 16);
+  Store(v6, d, inout + 6 * 16);
+  Store(v7, d, inout + 7 * 16);
+  return 8 * 16;
+}
+
+// Avoid needing #if at the call sites.
+template <SortOrder kOrder, typename T>
+HWY_API size_t TwoQuartetsPerVector(Simd<T, 4> /* tag */, ...) {
+  return 0;
+}
+
+template <SortOrder kOrder, typename T>
+HWY_API size_t FourQuartetsPerVector(Simd<T, 4> /* tag */, ...) {
+  return 0;
+}
+template <SortOrder kOrder, typename T>
+HWY_API size_t FourQuartetsPerVector(Simd<T, 8> /* tag */, ...) {
+  return 0;
 }
 
 }  // namespace detail
 
+template <class D>
+HWY_API size_t SortBatchSize(D d) {
+  const size_t N = Lanes(d);
+  if (N == 4) return 32;
+  if (N == 8) return 64;
+  if (N == 16) return 128;
+  return 0;
+}
+
 template <SortOrder kOrder, class D>
-HWY_API void Sort8Vectors(D d, TFromD<D>* inout) {
+HWY_API size_t SortBatch(D d, TFromD<D>* inout) {
   const size_t N = Lanes(d);
 
-  Vec<D> v0, v1, v2, v3;
-  detail::SortLanesIn4Vectors<kOrder>(d, inout, v0, v1, v2, v3);
-  detail::Transpose4x4(d, v0, v1, v2, v3);
-  detail::SortedMergePlus4<kOrder>(d, v0, v1, -1);
-  detail::SortedMergePlus4<kOrder>(d, v2, v3, -1);
+  Vec<D> q0, q1, q2, q3;
+  detail::SortLanesIn4Vectors<kOrder>(d, inout, q0, q1, q2, q3);
+  detail::Transpose4x4(d, q0, q1, q2, q3);
+  detail::Merge2SortedQuartets<kOrder>(d, q0, q1, -1);
+  detail::Merge2SortedQuartets<kOrder>(d, q2, q3, -1);
 
   // Bitonic merges require one input to be in reverse order.
-  constexpr SortOrder kReverse = (kOrder == SortOrder::kAscending)
-                                     ? SortOrder::kDescending
-                                     : SortOrder::kAscending;
+  constexpr SortOrder kReverse = Reverse(kOrder);
 
-  Vec<D> v4, v5, v6, v7;
-  detail::SortLanesIn4Vectors<kReverse>(d, inout + 4 * N, v4, v5, v6, v7);
-  detail::Transpose4x4(d, v4, v5, v6, v7);
-  detail::SortedMergePlus4<kReverse>(d, v4, v5, -1);
-  detail::SortedMergePlus4<kReverse>(d, v6, v7, -1);
+  Vec<D> q4, q5, q6, q7;
+  detail::SortLanesIn4Vectors<kReverse>(d, inout + 4 * N, q4, q5, q6, q7);
+  detail::Transpose4x4(d, q4, q5, q6, q7);
+  detail::Merge2SortedQuartets<kReverse>(d, q4, q5, -1);
+  detail::Merge2SortedQuartets<kReverse>(d, q6, q7, -1);
 
-  detail::BitonicMergeSorted8Plus8<kOrder>(d, v0, v1, v4, v5, -1);
-  detail::BitonicMergeSorted8Plus8<kReverse>(d, v2, v3, v6, v7, -1);
+  detail::BitonicMerge4Quartets<kOrder>(d, q0, q1, q4, q5, -1);
+  detail::BitonicMerge4Quartets<kReverse>(d, q2, q3, q6, q7, -1);
 
-  detail::BitonicMergeSorted16Plus16<kOrder>(d, v0, v1, v4, v5, v2, v3, v6, v7,
-                                             -1);
+  detail::BitonicMerge8Quartets<kOrder>(d, q0, q1, q4, q5, q2, q3, q6, q7,
+                                        __LINE__);
 
   if (N == 4) {
-    // Only a single quartet per register: store in fully-sorted order.
-    Store(v0, d, inout + 0 * N);
-    Store(v1, d, inout + 1 * N);
-    Store(v4, d, inout + 2 * N);
-    Store(v5, d, inout + 3 * N);
-    Store(v2, d, inout + 4 * N);
-    Store(v3, d, inout + 5 * N);
-    Store(v6, d, inout + 6 * N);
-    Store(v7, d, inout + 7 * N);
-    return;
+    return detail::SingleQuartetPerVector<kOrder>(d, q0, q1, q4, q5, q2, q3, q6,
+                                                  q7, inout);
   }
 
-  // Will not compile for 128-bit SIMD because FixedTag<T, 4> does not match
-  // LowerHalf of Vec128.
-#if HWY_MAX_BYTES != 16
   if (N == 8) {
-    detail::CombineTwoHalves<kOrder>(d, v0, v1, v2, v3, v4, v5, v6, v7, inout);
-    return;
+    return detail::TwoQuartetsPerVector<kOrder>(d, q0, q1, q4, q5, q2, q3, q6,
+                                                q7, inout);
   }
-#endif
 
-#if HWY_MAX_BYTES == 64
-  if (N == 16) {
-    const FixedTag<TFromD<D>, 8> d8;
-    using V8 = Vec<decltype(d8)>;
-    V8 L0 = LowerHalf(d8, v0);
-    V8 L1 = LowerHalf(d8, v1);
-    V8 L2 = LowerHalf(d8, v4);
-    V8 L3 = LowerHalf(d8, v5);
-    V8 L4 = LowerHalf(d8, v2);
-    V8 L5 = LowerHalf(d8, v3);
-    V8 L6 = LowerHalf(d8, v6);
-    V8 L7 = LowerHalf(d8, v7);
-
-    // TODO(janwas): for AVX-512, combine into TableLookupLanes
-    // Second half: quartets reversed, and passed in reverse order - including
-    // the permutation from BitonicMergeSorted16Plus16.
-    V8 U0 = Shuffle0123(UpperHalf(d8, v7));
-    V8 U1 = Shuffle0123(UpperHalf(d8, v6));
-    V8 U2 = Shuffle0123(UpperHalf(d8, v3));
-    V8 U3 = Shuffle0123(UpperHalf(d8, v2));
-    V8 U4 = Shuffle0123(UpperHalf(d8, v5));
-    V8 U5 = Shuffle0123(UpperHalf(d8, v4));
-    V8 U6 = Shuffle0123(UpperHalf(d8, v1));
-    V8 U7 = Shuffle0123(UpperHalf(d8, v0));
-
-    detail::BitonicMergeSorted32Plus32<kOrder>(
-        d8, L0, L1, L2, L3, L4, L5, L6, L7, U0, U1, U2, U3, U4, U5, U6, U7, -1);
-
-    const FixedTag<TFromD<D>, 4> d4;
-    using V4 = Vec<decltype(d4)>;
-    V4 X0 = LowerHalf(d4, L0);
-    V4 X1 = LowerHalf(d4, L1);
-    V4 X2 = LowerHalf(d4, L2);
-    V4 X3 = LowerHalf(d4, L3);
-    V4 X4 = LowerHalf(d4, L4);
-    V4 X5 = LowerHalf(d4, L5);
-    V4 X6 = LowerHalf(d4, L6);
-    V4 X7 = LowerHalf(d4, L7);
-    V4 X8 = LowerHalf(d4, U0);
-    V4 X9 = LowerHalf(d4, U1);
-    V4 XA = LowerHalf(d4, U2);
-    V4 XB = LowerHalf(d4, U3);
-    V4 XC = LowerHalf(d4, U4);
-    V4 XD = LowerHalf(d4, U5);
-    V4 XE = LowerHalf(d4, U6);
-    V4 XF = LowerHalf(d4, U7);
-
-    // Second half: quartets reversed, and passed in reverse order.
-    V4 Y0 = LowerHalf(d4, Reverse(d8, U7));
-    V4 Y1 = LowerHalf(d4, Reverse(d8, U6));
-    V4 Y2 = LowerHalf(d4, Reverse(d8, U5));
-    V4 Y3 = LowerHalf(d4, Reverse(d8, U4));
-    V4 Y4 = LowerHalf(d4, Reverse(d8, U3));
-    V4 Y5 = LowerHalf(d4, Reverse(d8, U2));
-    V4 Y6 = LowerHalf(d4, Reverse(d8, U1));
-    V4 Y7 = LowerHalf(d4, Reverse(d8, U0));
-    V4 Y8 = LowerHalf(d4, Reverse(d8, L7));
-    V4 Y9 = LowerHalf(d4, Reverse(d8, L6));
-    V4 YA = LowerHalf(d4, Reverse(d8, L5));
-    V4 YB = LowerHalf(d4, Reverse(d8, L4));
-    V4 YC = LowerHalf(d4, Reverse(d8, L3));
-    V4 YD = LowerHalf(d4, Reverse(d8, L2));
-    V4 YE = LowerHalf(d4, Reverse(d8, L1));
-    V4 YF = LowerHalf(d4, Reverse(d8, L0));
-
-    detail::BitonicMergeSorted64Plus64<kOrder>(
-        d4, X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, XA, XB, XC, XD, XE, XF, Y0,
-        Y1, Y2, Y3, Y4, Y5, Y6, Y7, Y8, Y9, YA, YB, YC, YD, YE, YF, -1);
-    const Vec<D> sorted0 = Combine(d, Combine(d8, X3, X2), Combine(d8, X1, X0));
-    const Vec<D> sorted1 = Combine(d, Combine(d8, X7, X6), Combine(d8, X5, X4));
-    const Vec<D> sorted2 = Combine(d, Combine(d8, XB, XA), Combine(d8, X9, X8));
-    const Vec<D> sorted3 = Combine(d, Combine(d8, XF, XE), Combine(d8, XD, XC));
-    const Vec<D> sorted4 = Combine(d, Combine(d8, Y3, Y2), Combine(d8, Y1, Y0));
-    const Vec<D> sorted5 = Combine(d, Combine(d8, Y7, Y6), Combine(d8, Y5, Y4));
-    const Vec<D> sorted6 = Combine(d, Combine(d8, YB, YA), Combine(d8, Y9, Y8));
-    const Vec<D> sorted7 = Combine(d, Combine(d8, YF, YE), Combine(d8, YD, YC));
-    Store(sorted0, d, inout + 0 * 16);
-    Store(sorted1, d, inout + 1 * 16);
-    Store(sorted2, d, inout + 2 * 16);
-    Store(sorted3, d, inout + 3 * 16);
-    Store(sorted4, d, inout + 4 * 16);
-    Store(sorted5, d, inout + 5 * 16);
-    Store(sorted6, d, inout + 6 * 16);
-    Store(sorted7, d, inout + 7 * 16);
-    return;
-  }
-#endif
+  return detail::FourQuartetsPerVector<kOrder>(d, q0, q1, q4, q5, q2, q3, q6,
+                                               q7, inout);
 }
 
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_ARCH_X86
