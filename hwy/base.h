@@ -586,6 +586,41 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero64(const uint64_t x) {
 #endif  // HWY_COMPILER_MSVC
 }
 
+// Undefined results for x == 0.
+HWY_API size_t Num0BitsAboveMS1Bit_Nonzero32(const uint32_t x) {
+#if HWY_COMPILER_MSVC
+  unsigned long index;  // NOLINT
+  _BitScanReverse(&index, x);
+  return 31 - index;
+#else   // HWY_COMPILER_MSVC
+  return static_cast<size_t>(__builtin_clz(x));
+#endif  // HWY_COMPILER_MSVC
+}
+
+HWY_API size_t Num0BitsAboveMS1Bit_Nonzero64(const uint64_t x) {
+#if HWY_COMPILER_MSVC
+#if HWY_ARCH_X86_64
+  unsigned long index;  // NOLINT
+  _BitScanReverse64(&index, x);
+  return 63 - index;
+#else   // HWY_ARCH_X86_64
+  // _BitScanReverse64 not available
+  const uint32_t msb = static_cast<uint32_t>(x >> 32u);
+  unsigned long index;
+  if (msb == 0) {
+    const uint32_t lsb = static_cast<uint32_t>(x & 0xFFFFFFFF);
+    _BitScanReverse(&index, lsb);
+    return 63 - index;
+  } else {
+    _BitScanReverse(&index, msb);
+    return 31 - index;
+  }
+#endif  // HWY_ARCH_X86_64
+#else   // HWY_COMPILER_MSVC
+  return static_cast<size_t>(__builtin_clzll(x));
+#endif  // HWY_COMPILER_MSVC
+}
+
 HWY_API size_t PopCount(uint64_t x) {
 #if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
   return static_cast<size_t>(__builtin_popcountll(x));

@@ -101,6 +101,40 @@ struct TestIsSame {
 
 HWY_NOINLINE void TestAllIsSame() { ForAllTypes(TestIsSame()); }
 
+HWY_NOINLINE void TestAllBitScan() {
+  HWY_ASSERT_EQ(size_t(0), Num0BitsAboveMS1Bit_Nonzero32(0x80000000u));
+  HWY_ASSERT_EQ(size_t(0), Num0BitsAboveMS1Bit_Nonzero32(0xFFFFFFFFu));
+  HWY_ASSERT_EQ(size_t(1), Num0BitsAboveMS1Bit_Nonzero32(0x40000000u));
+  HWY_ASSERT_EQ(size_t(1), Num0BitsAboveMS1Bit_Nonzero32(0x40108210u));
+  HWY_ASSERT_EQ(size_t(30), Num0BitsAboveMS1Bit_Nonzero32(2u));
+  HWY_ASSERT_EQ(size_t(30), Num0BitsAboveMS1Bit_Nonzero32(3u));
+  HWY_ASSERT_EQ(size_t(31), Num0BitsAboveMS1Bit_Nonzero32(1u));
+
+  HWY_ASSERT_EQ(size_t(0),
+                Num0BitsAboveMS1Bit_Nonzero64(0x8000000000000000ull));
+  HWY_ASSERT_EQ(size_t(0),
+                Num0BitsAboveMS1Bit_Nonzero64(0xFFFFFFFFFFFFFFFFull));
+  HWY_ASSERT_EQ(size_t(1),
+                Num0BitsAboveMS1Bit_Nonzero64(0x4000000000000000ull));
+  HWY_ASSERT_EQ(size_t(1),
+                Num0BitsAboveMS1Bit_Nonzero64(0x4010821004200011ull));
+  HWY_ASSERT_EQ(size_t(62), Num0BitsAboveMS1Bit_Nonzero64(2ull));
+  HWY_ASSERT_EQ(size_t(62), Num0BitsAboveMS1Bit_Nonzero64(3ull));
+  HWY_ASSERT_EQ(size_t(63), Num0BitsAboveMS1Bit_Nonzero64(1ull));
+
+  HWY_ASSERT_EQ(size_t(0), Num0BitsBelowLS1Bit_Nonzero32(1u));
+  HWY_ASSERT_EQ(size_t(1), Num0BitsBelowLS1Bit_Nonzero32(2u));
+  HWY_ASSERT_EQ(size_t(30), Num0BitsBelowLS1Bit_Nonzero32(0xC0000000u));
+  HWY_ASSERT_EQ(size_t(31), Num0BitsBelowLS1Bit_Nonzero32(0x80000000u));
+
+  HWY_ASSERT_EQ(size_t(0), Num0BitsBelowLS1Bit_Nonzero64(1ull));
+  HWY_ASSERT_EQ(size_t(1), Num0BitsBelowLS1Bit_Nonzero64(2ull));
+  HWY_ASSERT_EQ(size_t(62),
+                Num0BitsBelowLS1Bit_Nonzero64(0xC000000000000000ull));
+  HWY_ASSERT_EQ(size_t(63),
+                Num0BitsBelowLS1Bit_Nonzero64(0x8000000000000000ull));
+}
+
 HWY_NOINLINE void TestAllPopCount() {
   HWY_ASSERT_EQ(size_t(0), PopCount(0u));
   HWY_ASSERT_EQ(size_t(1), PopCount(1u));
@@ -131,6 +165,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLimits);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllLowestHighest);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllType);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
 }  // namespace hwy
 
