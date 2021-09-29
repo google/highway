@@ -146,13 +146,30 @@
     }                                     \
   } while (0)
 
+#if HWY_HAS_FEATURE(memory_sanitizer) || defined(MEMORY_SANITIZER)
+#define HWY_IS_MSAN 1
+#else
+#define HWY_IS_MSAN 0
+#endif
+
+#if HWY_HAS_FEATURE(address_sanitizer) || defined(ADDRESS_SANITIZER)
+#define HWY_IS_ASAN 1
+#else
+#define HWY_IS_ASAN 0
+#endif
+
+#if __has_feature(thread_sanitizer) || defined(THREAD_SANITIZER)
+#define HWY_IS_TSAN 1
+#else
+#define HWY_IS_TSAN 0
+#endif
+
 // For enabling HWY_DASSERT and shortening tests in slower debug builds
 #if !defined(HWY_IS_DEBUG_BUILD)
 // Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
 // MSVC defines NDEBUG (if not, could instead check _DEBUG).
-#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) ||            \
-    defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER) || defined(__clang_analyzer__)
+#if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) || HWY_IS_ASAN || \
+    HWY_IS_MSAN || HWY_IS_TSAN || defined(__clang_analyzer__)
 #define HWY_IS_DEBUG_BUILD 1
 #else
 #define HWY_IS_DEBUG_BUILD 0

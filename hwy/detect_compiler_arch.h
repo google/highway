@@ -97,6 +97,12 @@
 #define HWY_HAS_ATTRIBUTE(name) 0
 #endif
 
+#ifdef __has_feature
+#define HWY_HAS_FEATURE(name) __has_feature(name)
+#else
+#define HWY_HAS_FEATURE(name) 0
+#endif
+
 //------------------------------------------------------------------------------
 // Architecture
 
