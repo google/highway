@@ -158,7 +158,7 @@
 #define HWY_IS_ASAN 0
 #endif
 
-#if __has_feature(thread_sanitizer) || defined(THREAD_SANITIZER)
+#if HWY_HAS_FEATURE(thread_sanitizer) || defined(THREAD_SANITIZER)
 #define HWY_IS_TSAN 1
 #else
 #define HWY_IS_TSAN 0
