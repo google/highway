@@ -1360,25 +1360,25 @@ HWY_API V OddEven(const V odd, const V even) {
 
 // ------------------------------ TableLookupLanes
 
-template <class D, class DI = RebindToSigned<D>>
-HWY_API VFromD<DI> SetTableIndices(D d, const TFromD<DI>* idx) {
+template <class D, typename TI>
+HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const size_t N = Lanes(d);
   for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TFromD<DI>>(N));
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
   }
-#else
-  (void)d;
 #endif
-  return Load(DI(), idx);
+  const Rebind<TI, decltype(d)> di;
+  const RebindToUnsigned<decltype(di)> du;
+  return BitCast(du, Load(di, idx));
 }
 
 // <32bit are not part of Highway API, but used in Broadcast.
-#define HWY_SVE_TABLE(BASE, CHAR, BITS, NAME, OP)                             \
-  HWY_API HWY_SVE_V(BASE, BITS)                                               \
-      NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(int, BITS) idx) {               \
-    const auto idx_u = BitCast(RebindToUnsigned<DFromV<decltype(v)>>(), idx); \
-    return sv##OP##_##CHAR##BITS(v, idx_u);                                   \
+#define HWY_SVE_TABLE(BASE, CHAR, BITS, NAME, OP)                \
+  HWY_API HWY_SVE_V(BASE, BITS)                                  \
+      NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(uint, BITS) idx) { \
+    return sv##OP##_##CHAR##BITS(v, idx);                        \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
@@ -1572,9 +1572,8 @@ template <class V, class VI>
 HWY_API VI TableLookupBytes(const V v, const VI idx) {
   const DFromV<VI> d;
   const Repartition<uint8_t, decltype(d)> du8;
-  const Repartition<int8_t, decltype(d)> di8;
   const auto offsets128 = detail::OffsetsOf128BitBlocks(du8, Iota(du8, 0));
-  const auto idx8 = BitCast(di8, Add(BitCast(du8, idx), offsets128));
+  const auto idx8 = Add(BitCast(du8, idx), offsets128);
   return BitCast(d, TableLookupLanes(BitCast(du8, v), idx8));
 }
 
@@ -1600,10 +1599,10 @@ HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
 template <int kLane, class V>
 HWY_API V Broadcast(const V v) {
   const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
   static_assert(0 <= kLane && kLane < kLanesPerBlock, "Invalid lane");
-  auto idx = detail::OffsetsOf128BitBlocks(di, Iota(di, 0));
+  auto idx = detail::OffsetsOf128BitBlocks(du, Iota(du, 0));
   if (kLane != 0) {
     idx = detail::AddN(idx, kLane);
   }

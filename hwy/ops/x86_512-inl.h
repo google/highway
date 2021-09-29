@@ -2302,36 +2302,49 @@ struct Indices512 {
   __m512i raw;
 };
 
-template <typename T>
-HWY_API Indices512<T> SetTableIndices(const Full512<T>, const int32_t* idx) {
+template <typename T, typename TI>
+HWY_API Indices512<T> SetTableIndices(const Full512<T>, const TI* idx) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const size_t N = 64 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
   }
 #endif
-  return Indices512<T>{LoadU(Full512<int32_t>(), idx).raw};
+  return Indices512<T>{LoadU(Full512<TI>(), idx).raw};
 }
 
-HWY_API Vec512<uint32_t> TableLookupLanes(const Vec512<uint32_t> v,
-                                          const Indices512<uint32_t> idx) {
-  return Vec512<uint32_t>{_mm512_permutexvar_epi32(idx.raw, v.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutexvar_epi32(idx.raw, v.raw)};
 }
-HWY_API Vec512<int32_t> TableLookupLanes(const Vec512<int32_t> v,
-                                         const Indices512<int32_t> idx) {
-  return Vec512<int32_t>{_mm512_permutexvar_epi32(idx.raw, v.raw)};
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutexvar_epi64(idx.raw, v.raw)};
 }
-HWY_API Vec512<float> TableLookupLanes(const Vec512<float> v,
-                                       const Indices512<float> idx) {
+
+HWY_API Vec512<float> TableLookupLanes(Vec512<float> v, Indices512<float> idx) {
   return Vec512<float>{_mm512_permutexvar_ps(idx.raw, v.raw)};
+}
+
+HWY_API Vec512<double> TableLookupLanes(Vec512<double> v,
+                                        Indices512<double> idx) {
+  return Vec512<double>{_mm512_permutexvar_pd(idx.raw, v.raw)};
 }
 
 // ------------------------------ Reverse
 
-template <typename T>
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec512<T> Reverse(Full512<T> d, const Vec512<T> v) {
-  alignas(32) constexpr int32_t kReverse[16] = {15, 14, 13, 12, 11, 10, 9, 8,
+  alignas(64) constexpr int32_t kReverse[16] = {15, 14, 13, 12, 11, 10, 9, 8,
                                                 7,  6,  5,  4,  3,  2,  1, 0};
+  return TableLookupLanes(v, SetTableIndices(d, kReverse));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> Reverse(Full512<T> d, const Vec512<T> v) {
+  alignas(64) constexpr int64_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 

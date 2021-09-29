@@ -2536,35 +2536,87 @@ struct Indices256 {
   __m256i raw;
 };
 
-template <typename T>
-HWY_API Indices256<T> SetTableIndices(const Full256<T>, const int32_t* idx) {
+// Native 8x32 instruction: just load indices
+template <typename T, typename TI, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Indices256<T> SetTableIndices(const Full256<T>, const TI* idx) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const size_t N = 32 / sizeof(T);
   for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
   }
 #endif
-  return Indices256<T>{LoadU(Full256<int32_t>(), idx).raw};
+  return Indices256<T>{LoadU(Full256<TI>(), idx).raw};
 }
 
-HWY_API Vec256<uint32_t> TableLookupLanes(const Vec256<uint32_t> v,
-                                          const Indices256<uint32_t> idx) {
-  return Vec256<uint32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+// 64-bit lanes: convert indices to 8x32 unless AVX3 is available
+template <typename T, typename TI, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Indices256<T> SetTableIndices(const Full256<T>, const TI* idx) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+#if HWY_IS_DEBUG_BUILD
+  const size_t N = 32 / sizeof(T);
+  for (size_t i = 0; i < N; ++i) {
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
+  }
+#endif
+
+  const Full256<TI> di;
+#if HWY_TARGET <= HWY_AVX3
+  return Indices256<T>{LoadU(di, idx).raw};
+#else
+  const Full256<float> df;
+  const Vec256<TI> idx64 = LoadU(di, idx);
+  // Replicate 64-bit index into upper 32 bits
+  const Vec256<TI> dup =
+      BitCast(di, Vec256<float>{_mm256_moveldup_ps(BitCast(df, idx64).raw)});
+  // For each idx64 i, idx32 are 2*i and 2*i+1.
+  const Vec256<TI> idx32 = dup + dup + Set(di, TI(1) << 32);
+  return Indices256<T>{idx32.raw};
+#endif
 }
-HWY_API Vec256<int32_t> TableLookupLanes(const Vec256<int32_t> v,
-                                         const Indices256<int32_t> idx) {
-  return Vec256<int32_t>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices256<T> idx) {
+  return Vec256<T>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
 }
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<T>{_mm256_permutexvar_epi64(idx.raw, v.raw)};
+#else
+  return Vec256<T>{_mm256_permutevar8x32_epi32(v.raw, idx.raw)};
+#endif
+}
+
 HWY_API Vec256<float> TableLookupLanes(const Vec256<float> v,
                                        const Indices256<float> idx) {
   return Vec256<float>{_mm256_permutevar8x32_ps(v.raw, idx.raw)};
 }
 
+HWY_API Vec256<double> TableLookupLanes(const Vec256<double> v,
+                                        const Indices256<double> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<double>{_mm256_permutexvar_pd(idx.raw, v.raw)};
+#else
+  const Full256<double> df;
+  const Full256<uint64_t> du;
+  return BitCast(df, Vec256<uint64_t>{_mm256_permutevar8x32_epi32(
+                         BitCast(du, v).raw, idx.raw)});
+#endif
+}
+
 // ------------------------------ Reverse
 
-template <typename T>
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec256<T> Reverse(Full256<T> d, const Vec256<T> v) {
   alignas(32) constexpr int32_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+  return TableLookupLanes(v, SetTableIndices(d, kReverse));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> Reverse(Full256<T> d, const Vec256<T> v) {
+  alignas(32) constexpr int64_t kReverse[4] = {3, 2, 1, 0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 

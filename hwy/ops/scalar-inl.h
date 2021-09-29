@@ -1080,11 +1080,12 @@ HWY_API T GetLane(const Vec1<T> v) {
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
 struct Indices1 {
-  int raw;
+  MakeSigned<T> raw;
 };
 
-template <typename T>
-HWY_API Indices1<T> SetTableIndices(Sisd<T>, const int32_t* idx) {
+template <typename T, typename TI>
+HWY_API Indices1<T> SetTableIndices(Sisd<T>, const TI* idx) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane size");
   HWY_DASSERT(idx[0] == 0);
   return Indices1<T>{idx[0]};
 }

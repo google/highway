@@ -62,31 +62,26 @@ HWY_NOINLINE void TestAllOddEven() {
 }
 
 struct TestTableLookupLanes {
-#if HWY_TARGET == HWY_RVV
-  using Index = uint32_t;
-#else
-  using Index = int32_t;
-#endif
-
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TI = MakeSigned<T>;
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
-    auto idx = AllocateAligned<Index>(N);
-    std::fill(idx.get(), idx.get() + N, Index(0));
+    auto idx = AllocateAligned<TI>(N);
+    memset(idx.get(), 0, N * sizeof(TI));
     auto expected = AllocateAligned<T>(N);
     const auto v = Iota(d, 1);
 
     if (N <= 8) {  // Test all permutations
       for (size_t i0 = 0; i0 < N; ++i0) {
-        idx[0] = static_cast<Index>(i0);
+        idx[0] = static_cast<TI>(i0);
 
         for (size_t i1 = 0; i1 < N; ++i1) {
-          if (N >= 2) idx[1] = static_cast<Index>(i1);
+          if (N >= 2) idx[1] = static_cast<TI>(i1);
           for (size_t i2 = 0; i2 < N; ++i2) {
-            if (N >= 4) idx[2] = static_cast<Index>(i2);
+            if (N >= 4) idx[2] = static_cast<TI>(i2);
             for (size_t i3 = 0; i3 < N; ++i3) {
-              if (N >= 4) idx[3] = static_cast<Index>(i3);
+              if (N >= 4) idx[3] = static_cast<TI>(i3);
 
               for (size_t i = 0; i < N; ++i) {
                 expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
@@ -103,13 +98,13 @@ struct TestTableLookupLanes {
       // Too many permutations to test exhaustively; choose one with repeated
       // and cross-block indices and ensure indices do not exceed #lanes.
       // For larger vectors, upper lanes will be zero.
-      HWY_ALIGN Index idx_source[16] = {1,  3,  2,  2,  8, 1, 7, 6,
-                                        15, 14, 14, 15, 4, 9, 8, 5};
+      HWY_ALIGN TI idx_source[16] = {1,  3,  2,  2,  8, 1, 7, 6,
+                                     15, 14, 14, 15, 4, 9, 8, 5};
       for (size_t i = 0; i < N; ++i) {
         idx[i] = (i < 16) ? idx_source[i] : 0;
         // Avoid undefined results / asan error for scalar by capping indices.
-        if (idx[i] >= static_cast<Index>(N)) {
-          idx[i] = static_cast<Index>(N - 1);
+        if (idx[i] >= static_cast<TI>(N)) {
+          idx[i] = static_cast<TI>(N - 1);
         }
         expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
       }
@@ -119,16 +114,16 @@ struct TestTableLookupLanes {
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
     }
 #else
-    (void)d;
+    const TI index = 0;
+    const auto opaque = SetTableIndices(d, &index);
+    const auto v = Set(d, 1);
+    HWY_ASSERT_VEC_EQ(d, v, TableLookupLanes(v, opaque));
 #endif
   }
 };
 
 HWY_NOINLINE void TestAllTableLookupLanes() {
-  const ForPartialVectors<TestTableLookupLanes> test;
-  test(uint32_t());
-  test(int32_t());
-  test(float());
+  ForUIF3264(ForPartialVectors<TestTableLookupLanes>());
 }
 
 struct TestReverse {
@@ -145,10 +140,7 @@ struct TestReverse {
 };
 
 HWY_NOINLINE void TestAllReverse() {
-  const ForPartialVectors<TestReverse> test;
-  test(uint32_t());
-  test(int32_t());
-  test(float());
+  ForUIF3264(ForPartialVectors<TestReverse>());
 }
 
 class TestCompress {

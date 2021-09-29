@@ -880,18 +880,19 @@ their operands into independently processed 128-bit *blocks*.
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
 
-*   `V`: `{u,i,f}{32}` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
     `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`. The
     indices are not limited to blocks, hence this is slower than
-    `TableLookupBytes*` on AVX2/AVX-512. Results are implementation-defined if
-    `indices[i] >= Lanes(D())`.
+    `TableLookupBytes*` on AVX2/AVX-512. Results are implementation-defined
+    unless `0 <= indices[i] < Lanes(D())`.
 
-*   `VI`: `i32` \
-    <code>VI **SetTableIndices**(D, int32_t* idx)</code> prepares for
+*   `VI`: `{u,i}{32,64}` \
+    <code>VI **SetTableIndices**(D, TFromV<VI>* idx)</code> prepares for
     `TableLookupLanes` with lane indices `idx = [0, N)` (need not be unique).
+    The size in bytes of `VI` lanes must match that of `D`.
 
-*   `V`: `{u,i,f}{32}` \
+*   `V`: `{u,i,f}{32,64}` \
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
 

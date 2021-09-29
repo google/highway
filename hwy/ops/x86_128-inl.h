@@ -140,7 +140,7 @@ struct Mask128 {
 #else  // AVX2 or below
 
 // FF..FF or 0.
-template <typename T, size_t N>
+template <typename T, size_t N = 16 / sizeof(T)>
 struct Mask128 {
   typename detail::Raw128<T>::type raw;
 };
@@ -1651,6 +1651,16 @@ HWY_API Vec128<T, N> LoadU(Simd<T, N> d, const T* HWY_RESTRICT p) {
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_API Vec128<T, N> LoadDup128(Simd<T, N> d, const T* HWY_RESTRICT p) {
   return LoadU(d, p);
+}
+
+// Returns a vector with lane i=[0, N) set to "first" + i.
+template <typename T, size_t N, typename T2, HWY_IF_LE128(T, N)>
+HWY_API Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
+  HWY_ALIGN T lanes[16 / sizeof(T)];
+  for (size_t i = 0; i < 16 / sizeof(T); ++i) {
+    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+  }
+  return Load(d, lanes);
 }
 
 // ------------------------------ MaskedLoad
@@ -3168,22 +3178,26 @@ HWY_API VI TableLookupBytesOr0(const V bytes, const VI from) {
   return TableLookupBytes(bytes, from);
 }
 
-// ------------------------------ TableLookupLanes
+// ------------------------------ TableLookupLanes (Shuffle01)
 
 // Returned by SetTableIndices for use by TableLookupLanes.
-template <typename T, size_t N>
+template <typename T, size_t N = 16 / sizeof(T)>
 struct Indices128 {
   __m128i raw;
 };
 
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
+template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N),
+          HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<int32_t>(N));
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
   }
 #endif
-
+#if HWY_TARGET <= HWY_AVX2
+  return Indices128<T, N>{LoadU(Simd<TI, N>(), idx).raw};
+#else
   const Repartition<uint8_t, decltype(d)> d8;
   alignas(16) uint8_t control[16] = {0};
   for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
@@ -3193,42 +3207,116 @@ HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const int32_t* idx) {
     }
   }
   return Indices128<T, N>{Load(d8, control).raw};
+#endif
 }
 
-template <size_t N>
-HWY_API Vec128<uint32_t, N> TableLookupLanes(
-    const Vec128<uint32_t, N> v, const Indices128<uint32_t, N> idx) {
-  return TableLookupBytes(v, Vec128<uint32_t, N>{idx.raw});
+template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N),
+          HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+#if HWY_IS_DEBUG_BUILD
+  for (size_t i = 0; i < N; ++i) {
+    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
+  }
+#endif
+  // Always load - even without AVX3, we can shuffle+blend.
+  return Indices128<T, N>{LoadU(Simd<TI, N>(), idx).raw};
 }
-template <size_t N>
-HWY_API Vec128<int32_t, N> TableLookupLanes(const Vec128<int32_t, N> v,
-                                            const Indices128<int32_t, N> idx) {
-  return TableLookupBytes(v, Vec128<int32_t, N>{idx.raw});
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
+#if HWY_TARGET <= HWY_AVX2
+  const Simd<T, N> d;
+  const Simd<float, N> df;
+  const Vec128<float, N> perm{_mm_permutevar_ps(BitCast(df, v).raw, idx.raw)};
+  return BitCast(d, perm);
+#else
+  return TableLookupBytes(v, Vec128<T, N>{idx.raw});
+#endif
 }
-template <size_t N>
-HWY_API Vec128<float, N> TableLookupLanes(const Vec128<float, N> v,
-                                          const Indices128<float, N> idx) {
+
+template <size_t N, HWY_IF_GE64(float, N)>
+HWY_API Vec128<float, N> TableLookupLanes(Vec128<float, N> v,
+                                          Indices128<float, N> idx) {
+#if HWY_TARGET <= HWY_AVX2
+  return Vec128<float, N>{_mm_permutevar_ps(v.raw, idx.raw)};
+#else
   const Simd<int32_t, N> di;
   const Simd<float, N> df;
   return BitCast(df,
                  TableLookupBytes(BitCast(di, v), Vec128<int32_t, N>{idx.raw}));
+#endif
+}
+
+// Single lane: no change
+template <typename T>
+HWY_API Vec128<T, 1> TableLookupLanes(Vec128<T, 1> v,
+                                      Indices128<T, 1> /* idx */) {
+  return v;
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> TableLookupLanes(Vec128<T> v, Indices128<T> idx) {
+  const Full128<T> d;
+  Vec128<int64_t> vidx{idx.raw};
+#if HWY_TARGET <= HWY_AVX2
+  // There is no _mm_permute[x]var_epi64.
+  vidx += vidx;  // bit1 is the decider (unusual)
+  const Full128<double> df;
+  return BitCast(
+      d, Vec128<double>{_mm_permutevar_pd(BitCast(df, v).raw, vidx.raw)});
+#else
+  // Only 2 lanes: can swap+blend. Choose v if vidx == iota. To avoid a 64-bit
+  // comparison (expensive on SSSE3), just invert the upper lane and subtract 1
+  // to obtain an all-zero or all-one mask.
+  const Full128<int64_t> di;
+  const Vec128<int64_t> same = (vidx ^ Iota(di, 0)) - Set(di, 1);
+  const Mask128<T> mask_same = RebindMask(d, MaskFromVec(same));
+  return IfThenElse(mask_same, v, Shuffle01(v));
+#endif
+}
+
+HWY_API Vec128<double> TableLookupLanes(Vec128<double> v,
+                                        Indices128<double> idx) {
+  Vec128<int64_t> vidx{idx.raw};
+#if HWY_TARGET <= HWY_AVX2
+  vidx += vidx;  // bit1 is the decider (unusual)
+  return Vec128<double>{_mm_permutevar_pd(v.raw, vidx.raw)};
+#else
+  // Only 2 lanes: can swap+blend. Choose v if vidx == iota. To avoid a 64-bit
+  // comparison (expensive on SSSE3), just invert the upper lane and subtract 1
+  // to obtain an all-zero or all-one mask.
+  const Full128<double> d;
+  const Full128<int64_t> di;
+  const Vec128<int64_t> same = (vidx ^ Iota(di, 0)) - Set(di, 1);
+  const Mask128<double> mask_same = RebindMask(d, MaskFromVec(same));
+  return IfThenElse(mask_same, v, Shuffle01(v));
+#endif
 }
 
 // ------------------------------ Reverse (Shuffle0123, Shuffle2301)
 
+// Single lane: no change
 template <typename T>
-HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
-  return Shuffle0123(v);
+HWY_API Vec128<T, 1> Reverse(Simd<T, 1> /* tag */, const Vec128<T, 1> v) {
+  return v;
 }
 
-template <typename T>
+// Two lanes: shuffle
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T, 2> Reverse(Simd<T, 2> /* tag */, const Vec128<T, 2> v) {
   return Vec128<T, 2>{Shuffle2301(Vec128<T>{v.raw}).raw};
 }
 
-template <typename T>
-HWY_API Vec128<T, 1> Reverse(Simd<T, 1> /* tag */, const Vec128<T, 1> v) {
-  return v;
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
+  return Shuffle01(v);
+}
+
+// Four lanes: shuffle
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
+  return Shuffle0123(v);
 }
 
 // ------------------------------ InterleaveLower
@@ -4467,16 +4555,6 @@ HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
 #endif  // !defined(HWY_DISABLE_PCLMUL_AES) && HWY_TARGET != HWY_SSSE3
 
 // ================================================== MISC
-
-// Returns a vector with lane i=[0, N) set to "first" + i.
-template <typename T, size_t N, typename T2, HWY_IF_LE128(T, N)>
-HWY_API Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
-  HWY_ALIGN T lanes[16 / sizeof(T)];
-  for (size_t i = 0; i < 16 / sizeof(T); ++i) {
-    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
-  }
-  return Load(d, lanes);
-}
 
 #if HWY_TARGET <= HWY_AVX3
 
