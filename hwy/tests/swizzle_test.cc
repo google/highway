@@ -61,6 +61,47 @@ HWY_NOINLINE void TestAllOddEven() {
   ForAllTypes(ForShrinkableVectors<TestOddEven>());
 }
 
+struct TestOddEvenBlocks {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const auto even = Iota(d, 1);
+    const auto odd = Iota(d, 1 + N);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      const size_t idx_block = i / (16 / sizeof(T));
+      expected[i] = static_cast<T>(1 + i + ((idx_block & 1) ? N : 0));
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), OddEvenBlocks(odd, even));
+  }
+};
+
+HWY_NOINLINE void TestAllOddEvenBlocks() {
+  ForAllTypes(ForShrinkableVectors<TestOddEvenBlocks>());
+}
+
+struct TestSwapAdjacentBlocks {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    constexpr size_t kLanesPerBlock = 16 / sizeof(T);
+    if (N < 2 * kLanesPerBlock) return;
+    const auto vi = Iota(d, 1);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      const size_t idx_block = i / kLanesPerBlock;
+      const size_t base = (idx_block ^ 1) * kLanesPerBlock;
+      const size_t mod = i % kLanesPerBlock;
+      expected[i] = static_cast<T>(1 + base + mod);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), SwapAdjacentBlocks(vi));
+  }
+};
+
+HWY_NOINLINE void TestAllSwapAdjacentBlocks() {
+  ForAllTypes(ForPartialVectors<TestSwapAdjacentBlocks>());
+}
+
 struct TestTableLookupLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -407,6 +448,8 @@ namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEvenBlocks);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSwapAdjacentBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCompress);

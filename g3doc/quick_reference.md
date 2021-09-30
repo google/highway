@@ -880,6 +880,14 @@ their operands into independently processed 128-bit *blocks*.
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
 
+*   <code>V **OddEvenBlocks**(V a, V b)</code>: returns a vector whose odd
+    blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
+    vector has no more than one block (i.e. is 128 bits or scalar).
+
+*   <code>V **SwapAdjacentBlocks**(V v)</code>: returns a vector where blocks of
+    index `2*i` and `2*i+1` are swapped. Results are undefined for vectors with
+    less than two blocks; callers must first check that via `Lanes`.
+
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
     `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`. The

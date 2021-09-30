@@ -3713,6 +3713,19 @@ HWY_API Vec128<double, N> OddEven(const Vec128<double, N> a,
   return Vec128<double>{_mm_shuffle_pd(b.raw, a.raw, _MM_SHUFFLE2(1, 0))};
 }
 
+// ------------------------------ OddEvenBlocks
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {
+  return even;
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> SwapAdjacentBlocks(Vec128<T, N> v) {
+  return v;
+}
+
 // ------------------------------ Shl (ZipLower, Mul)
 
 // Use AVX2/3 variable shifts where available, otherwise multiply by powers of

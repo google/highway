@@ -1484,6 +1484,27 @@ HWY_API V OddEven(const V a, const V b) {
   return IfThenElse(is_even, b, a);
 }
 
+// ------------------------------ OddEvenBlocks
+template <class V>
+HWY_API V OddEvenBlocks(const V a, const V b) {
+  const RebindToUnsigned<DFromV<V>> du;  // Iota0 is unsigned only
+  constexpr size_t kShift = CeilLog2(16 / sizeof(TFromV<V>));
+  const auto idx_block = ShiftRight<kShift>(detail::Iota0(du));
+  const auto is_even = Eq(detail::AndS(idx_block, 1), Zero(du));
+  return IfThenElse(is_even, b, a);
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <class V>
+HWY_API V SwapAdjacentBlocks(const V v) {
+  const DFromV<V> d;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
+  const V down = detail::SlideDown(v, v, kLanesPerBlock);
+  const V up = detail::SlideUp(v, v, kLanesPerBlock);
+  return OddEvenBlocks(up, down);
+}
+
 // ------------------------------ TableLookupLanes
 
 template <class D, typename TI>

@@ -1358,6 +1358,37 @@ HWY_API V OddEven(const V odd, const V even) {
   return detail::InterleaveOdd(even_in_odd, odd);
 }
 
+// ------------------------------ OddEvenBlocks
+template <class V>
+HWY_API V OddEvenBlocks(const V odd, const V even) {
+  const RebindToUnsigned<DFromV<V>> du;
+  constexpr size_t kShift = CeilLog2(16 / sizeof(TFromV<V>));
+  const auto idx_block = ShiftRight<kShift>(Iota(du, 0));
+  const svbool_t is_even = Eq(detail::AndN(idx_block, 1), Zero(du));
+  return IfThenElse(is_even, even, odd);
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+namespace detail {
+
+template <typename T, size_t N>
+constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
+  // We might have a capped vector smaller than a block, so honor that.
+  return HWY_MIN(16 / sizeof(T), N);
+}
+
+}  // namespace detail
+
+template <class V>
+HWY_API V SwapAdjacentBlocks(const V v) {
+  const DFromV<V> d;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
+  const V down = detail::Ext<kLanesPerBlock>(v, v);
+  const V up = detail::Splice(v, v, FirstN(d, kLanesPerBlock));
+  return OddEvenBlocks(up, down);
+}
+
 // ------------------------------ TableLookupLanes
 
 template <class D, typename TI>
@@ -1468,12 +1499,6 @@ namespace detail {
 
 // For x86-compatible behaviour mandated by Highway API: TableLookupBytes
 // offsets are implicitly relative to the start of their 128-bit block.
-template <typename T, size_t N>
-constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
-  // We might have a capped vector smaller than a block, so honor that.
-  return HWY_MIN(16 / sizeof(T), N);
-}
-
 template <class D, class V>
 HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
   using T = MakeUnsigned<TFromD<D>>;

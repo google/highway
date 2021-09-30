@@ -2364,6 +2364,19 @@ HWY_API Vec128<float, N> OddEven(const Vec128<float, N> a,
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 4, 1, 6, 3)};
 }
 
+// ------------------------------ OddEvenBlocks
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {
+  return even;
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> SwapAdjacentBlocks(Vec128<T, N> v) {
+  return v;
+}
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)

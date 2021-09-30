@@ -2636,6 +2636,40 @@ HWY_API Vec512<T> OddEven(const Vec512<T> a, const Vec512<T> b) {
   return IfThenElse(Mask512<T>{0x5555555555555555ull >> shift}, b, a);
 }
 
+// ------------------------------ OddEvenBlocks
+
+template <typename T>
+HWY_API Vec512<T> OddEvenBlocks(Vec512<T> odd, Vec512<T> even) {
+  return Vec512<T>{_mm512_mask_blend_epi64(__mmask8{0x33u}, odd.raw, even.raw)};
+}
+
+HWY_API Vec512<float> OddEvenBlocks(Vec512<float> odd, Vec512<float> even) {
+  return Vec512<float>{
+      _mm512_mask_blend_ps(__mmask16{0x0F0Fu}, odd.raw, even.raw)};
+}
+
+HWY_API Vec512<double> OddEvenBlocks(Vec512<double> odd, Vec512<double> even) {
+  return Vec512<double>{
+      _mm512_mask_blend_pd(__mmask8{0x33u}, odd.raw, even.raw)};
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T>
+HWY_API Vec512<T> SwapAdjacentBlocks(Vec512<T> v) {
+  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+}
+
+HWY_API Vec512<float> SwapAdjacentBlocks(Vec512<float> v) {
+  return Vec512<float>{
+      _mm512_shuffle_f32x4(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+}
+
+HWY_API Vec512<double> SwapAdjacentBlocks(Vec512<double> v) {
+  return Vec512<double>{
+      _mm512_shuffle_f64x2(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+}
+
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
 
 // Both full

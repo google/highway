@@ -2661,15 +2661,6 @@ HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N> dbf16,
   return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
-template <size_t N>
-HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
-    Simd<bfloat16_t, 2 * N> dbf16, Vec128<float, N> a, Vec128<float, N> b) {
-  const RebindToUnsigned<decltype(dbf16)> du16;
-  const Repartition<uint32_t, decltype(dbf16)> du32;
-  const Vec128<uint32_t, N> b_in_even = ShiftRight<16>(BitCast(du32, b));
-  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
-}
-
 #if HWY_ARCH_ARM_A64
 
 HWY_API Vec128<float, 2> DemoteTo(Simd<float, 2> /* tag */,
@@ -3855,6 +3846,30 @@ HWY_API Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
   };
   const auto vec = BitCast(d, Load(d8, kBytes));
   return IfThenElse(MaskFromVec(vec), b, a);
+}
+
+// ------------------------------ OddEvenBlocks
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {
+  return even;
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> SwapAdjacentBlocks(Vec128<T, N> v) {
+  return v;
+}
+
+// ------------------------------ ReorderDemote2To (OddEven)
+
+template <size_t N>
+HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
+    Simd<bfloat16_t, 2 * N> dbf16, Vec128<float, N> a, Vec128<float, N> b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Repartition<uint32_t, decltype(dbf16)> du32;
+  const Vec128<uint32_t, N> b_in_even = ShiftRight<16>(BitCast(du32, b));
+  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
 // ================================================== CRYPTO

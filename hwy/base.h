@@ -657,6 +657,16 @@ HWY_API size_t PopCount(uint64_t x) {
 #endif
 }
 
+template <typename TI>
+HWY_API constexpr size_t FloorLog2(TI x) {
+  return x == 1 ? 0 : FloorLog2(x >> 1) + 1;
+}
+
+template <typename TI>
+HWY_API constexpr size_t CeilLog2(TI x) {
+  return x == 1 ? 0 : FloorLog2(x - 1) + 1;
+}
+
 #if HWY_COMPILER_MSVC && HWY_ARCH_X86_64
 #pragma intrinsic(_umul128)
 #endif

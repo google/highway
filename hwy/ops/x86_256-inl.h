@@ -2993,6 +2993,40 @@ HWY_API Vec256<double> OddEven(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{_mm256_blend_pd(a.raw, b.raw, 5)};
 }
 
+// ------------------------------ OddEvenBlocks
+
+template <typename T>
+Vec256<T> OddEvenBlocks(Vec256<T> odd, Vec256<T> even) {
+  return Vec256<T>{_mm256_blend_epi32(odd.raw, even.raw, 0xFu)};
+}
+
+HWY_API Vec256<float> OddEvenBlocks(Vec256<float> odd, Vec256<float> even) {
+  return Vec256<float>{_mm256_blend_ps(odd.raw, even.raw, 0xFu)};
+}
+
+HWY_API Vec256<double> OddEvenBlocks(Vec256<double> odd, Vec256<double> even) {
+  return Vec256<double>{_mm256_blend_pd(odd.raw, even.raw, 0x3u)};
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T>
+HWY_API Vec256<T> SwapAdjacentBlocks(Vec256<T> v) {
+  return Vec256<T>{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
+}
+
+HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
+  const Full256<float> df;
+  const Full256<int32_t> di;
+  // Avoid _mm256_permute2f128_ps - slow on AMD.
+  return BitCast(df, Vec256<int32_t>{_mm256_permute4x64_epi64(
+                         BitCast(di, v).raw, _MM_SHUFFLE(1, 0, 3, 2))});
+}
+
+HWY_API Vec256<double> SwapAdjacentBlocks(Vec256<double> v) {
+  return Vec256<double>{_mm256_permute4x64_pd(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
+}
+
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
 
 // Both full

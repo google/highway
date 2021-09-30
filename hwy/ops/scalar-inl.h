@@ -1068,11 +1068,27 @@ HWY_API Vec1<T> LowerHalf(Sisd<T> /* tag */, Vec1<T> v) {
 }
 
 // ================================================== SWIZZLE
-// OddEven is unsupported.
 
 template <typename T>
 HWY_API T GetLane(const Vec1<T> v) {
   return v.raw;
+}
+
+template <typename T>
+HWY_API Vec1<T> OddEven(Vec1<T> /* odd */, Vec1<T> even) {
+  return even;
+}
+
+template <typename T>
+HWY_API Vec1<T> OddEvenBlocks(Vec1<T> /* odd */, Vec1<T> even) {
+  return even;
+}
+
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T>
+HWY_API Vec1<T> SwapAdjacentBlocks(Vec1<T> v) {
+  return v;
 }
 
 // ------------------------------ TableLookupLanes
