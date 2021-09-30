@@ -219,6 +219,8 @@ class TestCompress {
     const Rebind<TI, D> di;
     const size_t N = Lanes(d);
 
+    const T zero{0};
+
     for (int frac : {0, 2, 3}) {
       // For CompressStore
       const size_t misalign = static_cast<size_t>(frac) * N / 4;
@@ -260,6 +262,16 @@ class TestCompress {
         CheckStored(d, di, expected_pos, size1, in_lanes, mask_lanes, expected,
                     actual_u, __LINE__);
 
+        // CompressBlendedStore
+        memset(actual_u, 0, N * sizeof(T));
+        const size_t size2 = CompressBlendedStore(in, mask, d, actual_u);
+        CheckStored(d, di, expected_pos, size2, in_lanes, mask_lanes, expected,
+                    actual_u, __LINE__);
+        // Subsequent lanes are untouched.
+        for (size_t i = size2; i < N; ++i) {
+          HWY_ASSERT_EQ(zero, actual_u[i]);
+        }
+
         // TODO(janwas): remove once implemented (cast or vse1)
 #if HWY_TARGET != HWY_RVV
         // CompressBits
@@ -270,8 +282,8 @@ class TestCompress {
 
         // CompressBitsStore
         memset(actual_u, 0, N * sizeof(T));
-        const size_t size2 = CompressBitsStore(in, bits.get(), d, actual_u);
-        CheckStored(d, di, expected_pos, size2, in_lanes, mask_lanes, expected,
+        const size_t size3 = CompressBitsStore(in, bits.get(), d, actual_u);
+        CheckStored(d, di, expected_pos, size3, in_lanes, mask_lanes, expected,
                     actual_u, __LINE__);
 #endif
       }  // rep

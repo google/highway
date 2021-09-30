@@ -514,6 +514,13 @@ Let `M` denote a mask capable of storing true/false for each lane.
     16-bit lanes.
 
 *   `V`: `{u,i,f}{16,32,64}` \
+    <code>size_t **CompressBlendedStore**(V v, M m, D d, T* p)</code>: writes
+    only lanes whose mask `m` is set into `p`, starting from lane 0. Returns
+    `CountTrue(d, m)`, the number of lanes written. Does not modify subsequent
+    lanes, but there is no guarantee of atomicity because this may be
+    implemented as `Compress, LoadU, IfThenElse(FirstN), StoreU`.
+
+*   `V`: `{u,i,f}{16,32,64}` \
     <code>V **CompressBits**(V v, const uint8_t* HWY_RESTRICT bits)</code>:
     Equivalent to, but often faster than `Compress(v, LoadMaskBits(d, bits))`.
     `bits` is as specified for `LoadMaskBits`. If called multiple times, the

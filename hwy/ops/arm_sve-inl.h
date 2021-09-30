@@ -236,8 +236,7 @@ HWY_API size_t Lanes(Simd<T, N> /* tag */) {
 
   const size_t actual = detail::HardwareLanes(hwy::SizeTag<sizeof(T)>());
   const size_t div = HWY_LANES(T) / N;
-  static_assert(div <= 8, "Invalid N - must be <=128 bit, or >=1/8th");
-  return actual / div;
+  return (div <= 8) ? actual / div : HWY_MIN(actual, N);
 }
 
 // ================================================== MASK INIT
@@ -822,16 +821,26 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
     sv##OP##_##CHAR##BITS(detail::Mask(d), p, v);                        \
   }
 
+#define HWY_SVE_MASKED_STORE(BASE, CHAR, BITS, NAME, OP)      \
+  template <size_t N>                                         \
+  HWY_API void NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v,      \
+                    HWY_SVE_D(BASE, BITS, N) d,               \
+                    HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
+    sv##OP##_##CHAR##BITS(m, p, v);                           \
+  }
+
 HWY_SVE_FOREACH(HWY_SVE_LOAD, Load, ld1)
 HWY_SVE_FOREACH(HWY_SVE_MASKED_LOAD, MaskedLoad, ld1)
 HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDup128, ld1rq)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Store, st1)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Stream, stnt1)
+HWY_SVE_FOREACH(HWY_SVE_MASKED_STORE, MaskedStore, st1)
 
 #undef HWY_SVE_LOAD
 #undef HWY_SVE_MASKED_LOAD
 #undef HWY_SVE_LOAD_DUP128
 #undef HWY_SVE_STORE
+#undef HWY_SVE_MASKED_STORE
 
 // BF16 is the same as svuint16_t because BF16 is optional before v8.6.
 template <size_t N>
@@ -1489,6 +1498,17 @@ HWY_API size_t CompressStore(const V v, const M mask, const D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
+}
+
+// ------------------------------ CompressBlendedStore
+
+template <class V, class M, class D>
+HWY_API size_t CompressBlendedStore(const V v, const M mask, const D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(d, mask);
+  const svbool_t store_mask = FirstN(d, count);
+  MaskedStore(store_mask, Compress(v, mask), d, unaligned);
+  return count;
 }
 
 // ================================================== BLOCKWISE

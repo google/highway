@@ -957,6 +957,18 @@ HWY_API void Store(VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
   return Store(v, Full<T>(), p);
 }
 
+// ------------------------------ MaskedStore
+
+#define HWY_RVV_RET_ARGMVDP(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, \
+                            NAME, OP)                                     \
+  HWY_API void NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v,      \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                         \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {              \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));       \
+  }
+HWY_RVV_FOREACH(HWY_RVV_RET_ARGMVDP, MaskedStore, se)
+#undef HWY_RVV_RET_ARGMVDP
+
 // ------------------------------ StoreU
 
 // RVV only requires lane alignment, not natural alignment of the entire vector.
@@ -1563,6 +1575,16 @@ HWY_API size_t CompressStore(const V v, const M mask, const D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
+}
+
+// ------------------------------ CompressBlendedStore
+template <class V, class M, class D>
+HWY_API size_t CompressBlendedStore(const V v, const M mask, const D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(d, mask);
+  const auto store_mask = FirstN(d, count);
+  MaskedStore(store_mask, Compress(v, mask), d, unaligned);
+  return count;
 }
 
 // ================================================== BLOCKWISE

@@ -1249,6 +1249,16 @@ HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
   return CountTrue(d, mask);
 }
 
+// ------------------------------ CompressBlendedStore
+
+template <typename T>
+HWY_API size_t CompressBlendedStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  if (!mask.bits) return 0;
+  StoreU(v, d, unaligned);
+  return 1;
+}
+
 // ------------------------------ CompressBitsStore
 
 template <typename T>

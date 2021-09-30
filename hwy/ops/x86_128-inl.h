@@ -4830,6 +4830,23 @@ HWY_API size_t CompressStore(Vec128<double, N> v, Mask128<double, N> mask,
   return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
 }
 
+// ------------------------------ CompressBlendedStore (CompressStore)
+template <typename T, size_t N>
+HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                                    Simd<T, N> d, T* HWY_RESTRICT unaligned) {
+  // AVX-512 already does the blending at no extra cost (latency 11,
+  // rthroughput 2 - same as compress plus store).
+  if (HWY_TARGET == HWY_AVX3_DL || sizeof(T) != 2) {
+    return CompressStore(v, m, d, unaligned);
+  } else {
+    const size_t count = CountTrue(m);
+    const Vec128<T, N> compressed = Compress(v, m);
+    const Vec128<T, N> prev = LoadU(d, unaligned);
+    StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+    return count;
+  }
+}
+
 // ------------------------------ CompressBitsStore (LoadMaskBits)
 
 template <typename T, size_t N>
@@ -5220,6 +5237,24 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N> d,
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   StoreU(compressed, d, unaligned);
   return PopCount(mask_bits);
+}
+
+template <typename T, size_t N>
+HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                                    Simd<T, N> d, T* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;
+
+  const uint64_t mask_bits = detail::BitsFromMask(m);
+  HWY_DASSERT(mask_bits < (1ull << N));
+  const size_t count = PopCount(mask_bits);
+
+  // Avoid _mm_maskmoveu_si128 (>500 cycle latency because it bypasses caches).
+  const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
+  const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
+
+  const Vec128<T, N> prev = LoadU(d, unaligned);
+  StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+  return count;
 }
 
 template <typename T, size_t N>

@@ -3838,6 +3838,23 @@ HWY_API size_t CompressStore(Vec256<double> v, Mask256<double> mask,
   return PopCount(uint64_t{mask.raw} & 0xFull);
 }
 
+// ------------------------------ CompressBlendedStore (CompressStore)
+template <typename T>
+HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  // AVX-512 already does the blending at no extra cost (latency 11,
+  // rthroughput 2 - same as compress plus store).
+  if (HWY_TARGET == HWY_AVX3_DL || sizeof(T) != 2) {
+    return CompressStore(v, m, d, unaligned);
+  } else {
+    const size_t count = CountTrue(m);
+    const Vec256<T> compressed = Compress(v, m);
+    const Vec256<T> prev = LoadU(d, unaligned);
+    StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+    return count;
+  }
+}
+
 // ------------------------------ CompressBitsStore (LoadMaskBits)
 
 template <typename T>
@@ -4189,6 +4206,17 @@ HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   const uint64_t mask_bits = detail::BitsFromMask(m);
   StoreU(detail::Compress(v, mask_bits), d, unaligned);
   return PopCount(mask_bits);
+}
+
+template <typename T>
+HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  const uint64_t mask_bits = detail::BitsFromMask(m);
+  const size_t count = PopCount(mask_bits);
+  const Vec256<T> compress = detail::Compress(v, mask_bits);
+  const Vec256<T> prev = LoadU(d, unaligned);
+  StoreU(IfThenElse(FirstN(d, count), compress, prev), d, unaligned);
+  return count;
 }
 
 template <typename T>

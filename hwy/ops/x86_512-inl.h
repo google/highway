@@ -3306,6 +3306,23 @@ HWY_API size_t CompressStore(Vec512<double> v, Mask512<double> mask,
   return PopCount(uint64_t{mask.raw});
 }
 
+// ------------------------------ CompressBlendedStore
+template <typename T>
+HWY_API size_t CompressBlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  // AVX-512 already does the blending at no extra cost (latency 11,
+  // rthroughput 2 - same as compress plus store).
+  if (HWY_TARGET == HWY_AVX3_DL || sizeof(T) != 2) {
+    return CompressStore(v, m, d, unaligned);
+  } else {
+    const size_t count = CountTrue(m);
+    const Vec512<T> compressed = Compress(v, m);
+    const Vec512<T> prev = LoadU(d, unaligned);
+    StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+    return count;
+  }
+}
+
 // ------------------------------ CompressBitsStore
 template <typename T>
 HWY_API size_t CompressBitsStore(Vec512<T> v, const uint8_t* HWY_RESTRICT bits,

@@ -4811,13 +4811,27 @@ HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
 }
 
 // ------------------------------ CompressStore
-
 template <typename T, size_t N>
 HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N> d, T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   StoreU(detail::Compress(v, mask_bits), d, unaligned);
   return PopCount(mask_bits);
+}
+
+// ------------------------------ CompressBlendedStore
+template <typename T, size_t N>
+HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                                    Simd<T, N> d, T* HWY_RESTRICT unaligned) {
+  const RebindToUnsigned<decltype(d)> du;  // so we can support fp16/bf16
+  using TU = TFromD<decltype(du)>;
+  const uint64_t mask_bits = detail::BitsFromMask(m);
+  const size_t count = PopCount(mask_bits);
+  const Mask128<TU, N> store_mask = FirstN(du, count);
+  const Vec128<TU, N> compressed = detail::Compress(BitCast(du, v), mask_bits);
+  const Vec128<TU, N> prev = BitCast(du, LoadU(d, unaligned));
+  StoreU(BitCast(d, IfThenElse(store_mask, compressed, prev)), d, unaligned);
+  return count;
 }
 
 // ------------------------------ CompressBitsStore
