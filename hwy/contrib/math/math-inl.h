@@ -877,31 +877,32 @@ struct LogImpl<double> {
 template <class D, class V, bool kAllowSubnormals = true>
 HWY_INLINE V Log(const D d, V x) {
   // http://git.musl-libc.org/cgit/musl/tree/src/math/log.c for more info.
-  using LaneType = LaneType<V>;
-  impl::LogImpl<LaneType> impl;
+  using T = TFromD<D>;
+  impl::LogImpl<T> impl;
 
   // clang-format off
-  constexpr bool kIsF32 = (sizeof(LaneType) == 4);
+  constexpr bool kIsF32 = (sizeof(T) == 4);
 
   // Float Constants
-  const V kLn2Hi     = Set(d, (kIsF32 ? 0.69313812256f   :
-                                        0.693147180369123816490   ));
-  const V kLn2Lo     = Set(d, (kIsF32 ? 9.0580006145e-6f :
-                                        1.90821492927058770002e-10));
-  const V kOne       = Set(d, +1.0);
-  const V kMinNormal = Set(d, (kIsF32 ? 1.175494351e-38f :
-                                        2.2250738585072014e-308   ));
-  const V kScale     = Set(d, (kIsF32 ? 3.355443200e+7f  :
-                                        1.8014398509481984e+16    ));
+  const V kLn2Hi     = Set(d, T{kIsF32 ? 0.69313812256f   :
+                                        0.693147180369123816490});
+  const V kLn2Lo     = Set(d, T{kIsF32 ? 9.0580006145e-6f :
+                                        1.90821492927058770002e-10});
+  const V kOne       = Set(d, T{+1.0});
+  const V kMinNormal = Set(d, T{kIsF32 ? 1.175494351e-38f :
+                                        2.2250738585072014e-308});
+  const V kScale     = Set(d, T{kIsF32 ? 3.355443200e+7f  :
+                                        1.8014398509481984e+16});
 
   // Integer Constants
-  const Rebind<MakeSigned<LaneType>, D> di;
+  using TI = MakeSigned<T>;
+  const Rebind<TI, D> di;
   using VI = decltype(Zero(di));
-  const VI kLowerBits = Set(di, (kIsF32 ? 0x00000000L : 0xFFFFFFFFLL));
-  const VI kMagic     = Set(di, (kIsF32 ? 0x3F3504F3L : 0x3FE6A09E00000000LL));
-  const VI kExpMask   = Set(di, (kIsF32 ? 0x3F800000L : 0x3FF0000000000000LL));
-  const VI kExpScale  = Set(di, (kIsF32 ? -25         : -54));
-  const VI kManMask   = Set(di, (kIsF32 ? 0x7FFFFFL   : 0xFFFFF00000000LL));
+  const VI kLowerBits = Set(di, TI{kIsF32 ? 0x00000000L : 0xFFFFFFFFLL});
+  const VI kMagic     = Set(di, TI{kIsF32 ? 0x3F3504F3L : 0x3FE6A09E00000000LL});
+  const VI kExpMask   = Set(di, TI{kIsF32 ? 0x3F800000L : 0x3FF0000000000000LL});
+  const VI kExpScale  = Set(di, TI{kIsF32 ? -25         : -54});
+  const VI kManMask   = Set(di, TI{kIsF32 ? 0x7FFFFFL   : 0xFFFFF00000000LL});
   // clang-format on
 
   // Scale up 'x' so that it is no longer denormalized.
@@ -940,12 +941,12 @@ HWY_INLINE V Log(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Acos(const D d, V x) {
-  using LaneType = LaneType<V>;
+  using T = TFromD<D>;
 
   const V kZero = Zero(d);
-  const V kHalf = Set(d, +0.5);
-  const V kPi = Set(d, +3.14159265358979323846264);
-  const V kPiOverTwo = Set(d, +1.57079632679489661923132169);
+  const V kHalf = Set(d, T{+0.5});
+  const V kPi = Set(d, T{+3.14159265358979323846264});
+  const V kPiOverTwo = Set(d, T{+1.57079632679489661923132169});
 
   const V sign_x = And(SignBit(d), x);
   const V abs_x = Xor(x, sign_x);
@@ -954,7 +955,7 @@ HWY_INLINE V Acos(const D d, V x) {
       IfThenElse(mask, Mul(abs_x, abs_x), NegMulAdd(abs_x, kHalf, kHalf));
   const V y = IfThenElse(mask, abs_x, Sqrt(yy));
 
-  impl::AsinImpl<LaneType> impl;
+  impl::AsinImpl<T> impl;
   const V t = Mul(impl.AsinPoly(d, yy, y), Mul(y, yy));
 
   const V t_plus_y = Add(t, y);
@@ -966,10 +967,12 @@ HWY_INLINE V Acos(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Acosh(const D d, V x) {
-  const V kLarge = Set(d, 268435456.0);
-  const V kLog2 = Set(d, 0.693147180559945286227);
-  const V kOne = Set(d, +1.0);
-  const V kTwo = Set(d, +2.0);
+  using T = TFromD<D>;
+
+  const V kLarge = Set(d, T{268435456.0});
+  const V kLog2 = Set(d, T{0.693147180559945286227});
+  const V kOne = Set(d, T{+1.0});
+  const V kTwo = Set(d, T{+2.0});
 
   const auto is_x_large = Gt(x, kLarge);
   const auto is_x_gt_2 = Gt(x, kTwo);
@@ -991,11 +994,11 @@ HWY_INLINE V Acosh(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Asin(const D d, V x) {
-  using LaneType = LaneType<V>;
+  using T = TFromD<D>;
 
-  const V kHalf = Set(d, +0.5);
-  const V kTwo = Set(d, +2.0);
-  const V kPiOverTwo = Set(d, +1.57079632679489661923132169);
+  const V kHalf = Set(d, T{+0.5});
+  const V kTwo = Set(d, T{+2.0});
+  const V kPiOverTwo = Set(d, T{+1.57079632679489661923132169});
 
   const V sign_x = And(SignBit(d), x);
   const V abs_x = Xor(x, sign_x);
@@ -1004,7 +1007,7 @@ HWY_INLINE V Asin(const D d, V x) {
       IfThenElse(mask, Mul(abs_x, abs_x), NegMulAdd(abs_x, kHalf, kHalf));
   const V y = IfThenElse(mask, abs_x, Sqrt(yy));
 
-  impl::AsinImpl<LaneType> impl;
+  impl::AsinImpl<T> impl;
   const V z0 = MulAdd(impl.AsinPoly(d, yy, y), Mul(yy, y), y);
   const V z1 = NegMulAdd(z0, kTwo, kPiOverTwo);
   return Or(IfThenElse(mask, z0, z1), sign_x);
@@ -1012,11 +1015,13 @@ HWY_INLINE V Asin(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Asinh(const D d, V x) {
-  const V kSmall = Set(d, 1.0 / 268435456.0);
-  const V kLarge = Set(d, 268435456.0);
-  const V kLog2 = Set(d, 0.693147180559945286227);
-  const V kOne = Set(d, +1.0);
-  const V kTwo = Set(d, +2.0);
+  using T = TFromD<D>;
+
+  const V kSmall = Set(d, T{1.0 / 268435456.0});
+  const V kLarge = Set(d, T{268435456.0});
+  const V kLog2 = Set(d, T{0.693147180559945286227});
+  const V kOne = Set(d, T{+1.0});
+  const V kTwo = Set(d, T{+2.0});
 
   const V sign_x = And(SignBit(d), x);  // Extract the sign bit
   const V abs_x = Xor(x, sign_x);
@@ -1043,16 +1048,16 @@ HWY_INLINE V Asinh(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Atan(const D d, V x) {
-  using LaneType = LaneType<V>;
+  using T = TFromD<D>;
 
-  const V kOne = Set(d, +1.0);
-  const V kPiOverTwo = Set(d, +1.57079632679489661923132169);
+  const V kOne = Set(d, T{+1.0});
+  const V kPiOverTwo = Set(d, T{+1.57079632679489661923132169});
 
   const V sign = And(SignBit(d), x);
   const V abs_x = Xor(x, sign);
   const auto mask = Gt(abs_x, kOne);
 
-  impl::AtanImpl<LaneType> impl;
+  impl::AtanImpl<T> impl;
   const auto divisor = IfThenElse(mask, abs_x, kOne);
   const V y = impl.AtanPoly(d, IfThenElse(mask, Div(kOne, divisor), abs_x));
   return Or(IfThenElse(mask, Sub(kPiOverTwo, y), y), sign);
@@ -1060,8 +1065,10 @@ HWY_INLINE V Atan(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Atanh(const D d, V x) {
-  const V kHalf = Set(d, +0.5);
-  const V kOne = Set(d, +1.0);
+  using T = TFromD<D>;
+
+  const V kHalf = Set(d, T{+0.5});
+  const V kOne = Set(d, T{+1.0});
 
   const V sign = And(SignBit(d), x);  // Extract the sign bit
   const V abs_x = Xor(x, sign);
@@ -1071,11 +1078,11 @@ HWY_INLINE V Atanh(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Cos(const D d, V x) {
-  using LaneType = LaneType<V>;
-  impl::CosSinImpl<LaneType> impl;
+  using T = TFromD<D>;
+  impl::CosSinImpl<T> impl;
 
   // Float Constants
-  const V kOneOverPi = Set(d, 0.31830988618379067153);
+  const V kOneOverPi = Set(d, T{0.31830988618379067153});
 
   // Integer Constants
   const Rebind<int32_t, D> di32;
@@ -1094,17 +1101,17 @@ HWY_INLINE V Cos(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Exp(const D d, V x) {
-  using LaneType = LaneType<V>;
+  using T = TFromD<D>;
 
   // clang-format off
-  const V kHalf        = Set(d, +0.5);
-  const V kLowerBound  = Set(d, (sizeof(LaneType) == 4 ? -104.0 : -1000.0));
-  const V kNegZero     = Set(d, -0.0);
-  const V kOne         = Set(d, +1.0);
-  const V kOneOverLog2 = Set(d, +1.442695040888963407359924681);
+  const V kHalf        = Set(d, T{+0.5});
+  const V kLowerBound  = Set(d, T{(sizeof(T) == 4 ? -104.0 : -1000.0)});
+  const V kNegZero     = Set(d, T{-0.0});
+  const V kOne         = Set(d, T{+1.0});
+  const V kOneOverLog2 = Set(d, T{+1.442695040888963407359924681});
   // clang-format on
 
-  impl::ExpImpl<LaneType> impl;
+  impl::ExpImpl<T> impl;
 
   // q = static_cast<int32>((x / log(2)) + ((x < 0) ? -0.5 : +0.5))
   const auto q =
@@ -1118,19 +1125,19 @@ HWY_INLINE V Exp(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Expm1(const D d, V x) {
-  using LaneType = LaneType<V>;
+  using T = TFromD<D>;
 
   // clang-format off
-  const V kHalf        = Set(d, +0.5);
-  const V kLowerBound  = Set(d, (sizeof(LaneType) == 4 ? -104.0 : -1000.0));
-  const V kLn2Over2    = Set(d, +0.346573590279972654708616);
-  const V kNegOne      = Set(d, -1.0);
-  const V kNegZero     = Set(d, -0.0);
-  const V kOne         = Set(d, +1.0);
-  const V kOneOverLog2 = Set(d, +1.442695040888963407359924681);
+  const V kHalf        = Set(d, T{+0.5});
+  const V kLowerBound  = Set(d, T{(sizeof(T) == 4 ? -104.0 : -1000.0)});
+  const V kLn2Over2    = Set(d, T{+0.346573590279972654708616});
+  const V kNegOne      = Set(d, T{-1.0});
+  const V kNegZero     = Set(d, T{-0.0});
+  const V kOne         = Set(d, T{+1.0});
+  const V kOneOverLog2 = Set(d, T{+1.442695040888963407359924681});
   // clang-format on
 
-  impl::ExpImpl<LaneType> impl;
+  impl::ExpImpl<T> impl;
 
   // q = static_cast<int32>((x / log(2)) + ((x < 0) ? -0.5 : +0.5))
   const auto q =
@@ -1150,12 +1157,14 @@ HWY_INLINE V Log(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Log10(const D d, V x) {
-  return Mul(Log(d, x), Set(d, 0.4342944819032518276511));
+  using T = TFromD<D>;
+  return Mul(Log(d, x), Set(d, T{0.4342944819032518276511}));
 }
 
 template <class D, class V>
 HWY_INLINE V Log1p(const D d, V x) {
-  const V kOne = Set(d, +1.0);
+  using T = TFromD<D>;
+  const V kOne = Set(d, T{+1.0});
 
   const V y = Add(x, kOne);
   const auto is_pole = Eq(y, kOne);
@@ -1167,17 +1176,18 @@ HWY_INLINE V Log1p(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Log2(const D d, V x) {
-  return Mul(Log(d, x), Set(d, 1.44269504088896340735992));
+  using T = TFromD<D>;
+  return Mul(Log(d, x), Set(d, T{1.44269504088896340735992}));
 }
 
 template <class D, class V>
 HWY_INLINE V Sin(const D d, V x) {
-  using LaneType = LaneType<V>;
-  impl::CosSinImpl<LaneType> impl;
+  using T = TFromD<D>;
+  impl::CosSinImpl<T> impl;
 
   // Float Constants
-  const V kOneOverPi = Set(d, 0.31830988618379067153);
-  const V kHalf = Set(d, 0.5);
+  const V kOneOverPi = Set(d, T{0.31830988618379067153});
+  const V kHalf = Set(d, T{0.5});
 
   // Integer Constants
   const Rebind<int32_t, D> di32;
@@ -1196,9 +1206,10 @@ HWY_INLINE V Sin(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Sinh(const D d, V x) {
-  const V kHalf = Set(d, +0.5);
-  const V kOne = Set(d, +1.0);
-  const V kTwo = Set(d, +2.0);
+  using T = TFromD<D>;
+  const V kHalf = Set(d, T{+0.5});
+  const V kOne = Set(d, T{+1.0});
+  const V kTwo = Set(d, T{+2.0});
 
   const V sign = And(SignBit(d), x);  // Extract the sign bit
   const V abs_x = Xor(x, sign);
@@ -1209,9 +1220,10 @@ HWY_INLINE V Sinh(const D d, V x) {
 
 template <class D, class V>
 HWY_INLINE V Tanh(const D d, V x) {
-  const V kLimit = Set(d, 18.714973875);
-  const V kOne = Set(d, +1.0);
-  const V kTwo = Set(d, +2.0);
+  using T = TFromD<D>;
+  const V kLimit = Set(d, T{18.714973875});
+  const V kOne = Set(d, T{+1.0});
+  const V kTwo = Set(d, T{+2.0});
 
   const V sign = And(SignBit(d), x);  // Extract the sign bit
   const V abs_x = Xor(x, sign);
