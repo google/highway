@@ -545,6 +545,17 @@ HWY_SVE_FOREACH_I(HWY_SVE_SHIFT_N, ShiftRight, asr_n)
 
 #undef HWY_SVE_SHIFT_N
 
+// ------------------------------ RotateRight
+
+// TODO(janwas): svxar on SVE2
+template <int kBits, class V>
+HWY_API V RotateRight(const V v) {
+  constexpr size_t kSizeInBits = sizeof(TFromV<V>) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<kSizeInBits - kBits>(v));
+}
+
 // ------------------------------ Shl/r
 
 #define HWY_SVE_SHIFT(BASE, CHAR, BITS, NAME, OP)                          \

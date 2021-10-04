@@ -491,6 +491,15 @@ HWY_API Vec128<int8_t, N> ShiftRight(const Vec128<int8_t, N> v) {
   return (shifted ^ shifted_sign) - shifted_sign;
 }
 
+// ------------------------------ RotateRight (ShiftRight, Or)
+template <int kBits, typename T, size_t N>
+HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
+  constexpr size_t kSizeInBits = sizeof(T) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<kSizeInBits - kBits>(v));
+}
+
 // ------------------------------ Shift lanes by same variable #bits
 
 // Unsigned
@@ -2050,6 +2059,13 @@ HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
   return Shuffle0123(v);
 }
 
+// 16-bit
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse(Simd<T, N> d, const Vec128<T, N> v) {
+  const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
+  return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
+}
+
 // ------------------------------ InterleaveLower
 
 template <size_t N>
@@ -3454,6 +3470,26 @@ HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
                                 const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Max(v10, v01);
+}
+
+// u16/i16
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_GE32(T, N)>
+HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<2> /* tag */, Vec128<T, N> v) {
+  const Repartition<int32_t, Simd<T, N>> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MinOfLanes(d32, Min(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(Simd<T, N>(), Or(min, ShiftLeft<16>(min)));
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_GE32(T, N)>
+HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<2> /* tag */, Vec128<T, N> v) {
+  const Repartition<int32_t, Simd<T, N>> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MaxOfLanes(d32, Max(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(Simd<T, N>(), Or(min, ShiftLeft<16>(min)));
 }
 
 }  // namespace detail

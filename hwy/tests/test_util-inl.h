@@ -14,6 +14,7 @@
 
 // Target-specific helper functions for use by *_test.cc.
 
+#include "hwy/base.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util.h"
 
@@ -402,6 +403,16 @@ void ForUIF3264(const Func& func) {
 #endif
 
   ForFloatTypes(func);
+}
+
+template <class Func>
+void ForUIF163264(const Func& func) {
+  ForUIF3264(func);
+  func(uint16_t());
+  func(int16_t());
+#if HWY_CAP_FLOAT16
+  func(float16_t());
+#endif
 }
 
 // For tests that involve loops, adjust the trip count so that emulated tests

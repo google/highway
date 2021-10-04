@@ -313,7 +313,7 @@ HWY_API Mask1<T> Xor(const Mask1<T> a, Mask1<T> b) {
 
 // ================================================== SHIFTS
 
-// ------------------------------ ShiftLeft (BroadcastSignBit)
+// ------------------------------ ShiftLeft/ShiftRight (BroadcastSignBit)
 
 template <int kBits, typename T>
 HWY_API Vec1<T> ShiftLeft(const Vec1<T> v) {
@@ -342,6 +342,15 @@ HWY_API Vec1<T> ShiftRight(const Vec1<T> v) {
     return Vec1<T>(v.raw >> kBits);  // unsigned, logical shift
   }
 #endif
+}
+
+// ------------------------------ RotateRight (ShiftRight)
+
+template <int kBits, typename T>
+HWY_API Vec1<T> RotateRight(const Vec1<T> v) {
+  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<sizeof(T) * 8 - kBits>(v));
 }
 
 // ------------------------------ ShiftLeftSame (BroadcastSignBit)

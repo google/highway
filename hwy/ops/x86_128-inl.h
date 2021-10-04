@@ -2159,6 +2159,30 @@ HWY_API Vec128<int8_t, N> ShiftRight(const Vec128<int8_t, N> v) {
 
 // i64 is implemented after BroadcastSignBit.
 
+// ------------------------------ RotateRight (ShiftRight, Or)
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint32_t, N> RotateRight(const Vec128<uint32_t, N> v) {
+  static_assert(0 <= kBits && kBits < 32, "Invalid shift count");
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<uint32_t, N>{_mm_ror_epi32(v.raw, kBits)};
+#else
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(31, 32 - kBits)>(v));
+#endif
+}
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint64_t, N> RotateRight(const Vec128<uint64_t, N> v) {
+  static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<uint64_t, N>{_mm_ror_epi64(v.raw, kBits)};
+#else
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(63, 64 - kBits)>(v));
+#endif
+}
+
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
 
 template <size_t N>
@@ -3317,6 +3341,26 @@ HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
   return Shuffle0123(v);
+}
+
+// 16-bit
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse(Simd<T, N> d, const Vec128<T, N> v) {
+#if HWY_TARGET <= HWY_AVX3
+  if (N == 1) return v;
+  if (N == 2) {
+    const Repartition<uint32_t, decltype(d)> du32;
+    return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+  }
+  const RebindToSigned<decltype(d)> di;
+  alignas(16) constexpr int16_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+  const Vec128<int16_t, N> idx = Load(di, kReverse + (N == 8 ? 0 : 4));
+  return BitCast(d, Vec128<int16_t, N>{
+                        _mm_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
+#else
+  const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
+  return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
+#endif
 }
 
 // ------------------------------ InterleaveLower
@@ -5561,6 +5605,26 @@ HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
                                 const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Max(v10, v01);
+}
+
+// u16/i16
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_GE32(T, N)>
+HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<2> /* tag */, Vec128<T, N> v) {
+  const Repartition<int32_t, Simd<T, N>> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MinOfLanes(d32, Min(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(Simd<T, N>(), Or(min, ShiftLeft<16>(min)));
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_GE32(T, N)>
+HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<2> /* tag */, Vec128<T, N> v) {
+  const Repartition<int32_t, Simd<T, N>> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MaxOfLanes(d32, Max(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(Simd<T, N>(), Or(min, ShiftLeft<16>(min)));
 }
 
 }  // namespace detail

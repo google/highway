@@ -859,6 +859,20 @@ HWY_API Vec512<int8_t> ShiftRight(const Vec512<int8_t> v) {
   return (shifted ^ shifted_sign) - shifted_sign;
 }
 
+// ------------------------------ RotateRight
+
+template <int kBits>
+HWY_API Vec512<uint32_t> RotateRight(const Vec512<uint32_t> v) {
+  static_assert(0 <= kBits && kBits < 32, "Invalid shift count");
+  return Vec512<uint32_t>{_mm512_ror_epi32(v.raw, kBits)};
+}
+
+template <int kBits>
+HWY_API Vec512<uint64_t> RotateRight(const Vec512<uint64_t> v) {
+  static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
+  return Vec512<uint64_t>{_mm512_ror_epi64(v.raw, kBits)};
+}
+
 // ------------------------------ ShiftLeftSame
 
 HWY_API Vec512<uint16_t> ShiftLeftSame(const Vec512<uint16_t> v,
@@ -2335,6 +2349,17 @@ HWY_API Vec512<double> TableLookupLanes(Vec512<double> v,
 
 // ------------------------------ Reverse
 
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> Reverse(Full512<T> d, const Vec512<T> v) {
+  const RebindToSigned<decltype(d)> di;
+  alignas(64) constexpr int16_t kReverse[32] = {
+      31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
+      15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0};
+  const Vec512<int16_t> idx = Load(di, kReverse);
+  return BitCast(d, Vec512<int16_t>{
+                        _mm512_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
+}
+
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec512<T> Reverse(Full512<T> d, const Vec512<T> v) {
   alignas(64) constexpr int32_t kReverse[16] = {15, 14, 13, 12, 11, 10, 9, 8,
@@ -3544,6 +3569,15 @@ HWY_API Vec512<float> MinOfLanes(Full512<float> d, Vec512<float> v) {
 HWY_API Vec512<double> MinOfLanes(Full512<double> d, Vec512<double> v) {
   return Set(d, _mm512_reduce_min_pd(v.raw));
 }
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> MinOfLanes(Full512<T> d, Vec512<T> v) {
+  const Repartition<int32_t, decltype(d)> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MinOfLanes(d32, Min(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(d, Or(min, ShiftLeft<16>(min)));
+}
 
 // Returns the maximum in each lane.
 HWY_API Vec512<int32_t> MaxOfLanes(Full512<int32_t> d, Vec512<int32_t> v) {
@@ -3563,6 +3597,15 @@ HWY_API Vec512<float> MaxOfLanes(Full512<float> d, Vec512<float> v) {
 }
 HWY_API Vec512<double> MaxOfLanes(Full512<double> d, Vec512<double> v) {
   return Set(d, _mm512_reduce_max_pd(v.raw));
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> MaxOfLanes(Full512<T> d, Vec512<T> v) {
+  const Repartition<int32_t, decltype(d)> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MaxOfLanes(d32, Max(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(d, Or(min, ShiftLeft<16>(min)));
 }
 
 // ================================================== DEPRECATED

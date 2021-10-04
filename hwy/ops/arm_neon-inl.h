@@ -899,6 +899,31 @@ HWY_NEON_DEF_FUNCTION_INTS(ShiftRight, vshr, _n_, HWY_SHIFT)
 
 #pragma pop_macro("HWY_NEON_DEF_FUNCTION")
 
+// ------------------------------ RotateRight (ShiftRight, Or)
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint32_t, N> RotateRight(const Vec128<uint32_t, N> v) {
+  static_assert(0 <= kBits && kBits < 32, "Invalid shift count");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(31, 32 - kBits)>(v));
+}
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint64_t, N> RotateRight(const Vec128<uint64_t, N> v) {
+  static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(63, 64 - kBits)>(v));
+}
+
+#if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_CRYPTO)
+template <int kBits>
+HWY_API Vec128<uint64_t> RotateRight(const Vec128<uint64_t> v) {
+  static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
+  const Vec128<uint64_t> zero = Zero(Full128<uint64_t>());
+  return Vec128<uint64_t>(vxarq_u64(v.raw, zero.raw, kBits));
+}
+#endif
+
 // ------------------------------ Shl
 
 HWY_API Vec128<uint8_t> operator<<(const Vec128<uint8_t> v,
@@ -3363,6 +3388,13 @@ HWY_API Vec128<T> Reverse(Full128<T> /* tag */, const Vec128<T> v) {
   return Shuffle0123(v);
 }
 
+// 16-bit
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse(Simd<T, N> d, const Vec128<T, N> v) {
+  const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
+  return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
+}
+
 // ------------------------------ Other shuffles (TableLookupBytes)
 
 // Notation: let Vec128<int32_t> have lanes 3,2,1,0 (0 is least-significant).
@@ -4209,6 +4241,26 @@ HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
                                 const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Max(v10, v01);
+}
+
+// u16/i16
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_GE32(T, N)>
+HWY_API Vec128<T, N> MinOfLanes(hwy::SizeTag<2> /* tag */, Vec128<T, N> v) {
+  const Repartition<int32_t, Simd<T, N>> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MinOfLanes(d32, Min(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(Simd<T, N>(), Or(min, ShiftLeft<16>(min)));
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_GE32(T, N)>
+HWY_API Vec128<T, N> MaxOfLanes(hwy::SizeTag<2> /* tag */, Vec128<T, N> v) {
+  const Repartition<int32_t, Simd<T, N>> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MaxOfLanes(d32, Max(even, odd));
+  // Also broadcast into odd lanes.
+  return BitCast(Simd<T, N>(), Or(min, ShiftLeft<16>(min)));
 }
 
 }  // namespace detail

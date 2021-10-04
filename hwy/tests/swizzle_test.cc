@@ -171,17 +171,24 @@ struct TestReverse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
-    const auto v = Iota(d, 1);
+    const RebindToUnsigned<D> du;  // Iota does not support float16_t.
+    const auto v = BitCast(d, Iota(du, 1));
     auto expected = AllocateAligned<T>(N);
+
+    // Can't set float16_t value directly, need to permute in memory.
+    auto copy = AllocateAligned<T>(N);
+    Store(v, d, copy.get());
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>(N - i);
+      expected[i] = copy[N - 1 - i];
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Reverse(d, v));
   }
 };
 
 HWY_NOINLINE void TestAllReverse() {
-  ForUIF3264(ForPartialVectors<TestReverse>());
+  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
+  // which requires 16 bits.
+  ForUIF163264(ForPartialVectors<TestReverse>());
 }
 
 class TestCompress {

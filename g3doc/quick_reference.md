@@ -332,14 +332,19 @@ Left-shifting signed `T` and right-shifting positive signed `T` is the same as
 shifting `MakeUnsigned<T>` and casting to `T`. Right-shifting negative signed
 `T` is the same as an unsigned shift, except that 1-bits are shifted in.
 
-Compile-time constant shifts, generally the most efficient variant (though 8-bit
-shifts are potentially slower than other lane sizes):
+Compile-time constant shifts: the amount must be in [0, sizeof(T)*8). Generally
+the most efficient variant, but 8-bit shifts are potentially slower than other
+lane sizes, and `RotateRight` is often emulated with shifts:
 
 *   `V`: `{u,i}` \
     <code>V **ShiftLeft**&lt;int&gt;(V a)</code> returns `a[i] << int`.
 
 *   `V`: `{u,i}` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
+
+*   `V`: `{u}{32,64}` \
+    <code>V **RotateRight**&lt;int&gt;(V a)</code> returns `(a[i] >> int) |
+    (a[i] << (sizeof(T)*8 - int))`.
 
 Shift all lanes by the same (not necessarily compile-time constant) amount:
 
@@ -907,7 +912,7 @@ their operands into independently processed 128-bit *blocks*.
     `TableLookupLanes` with lane indices `idx = [0, N)` (need not be unique).
     The size in bytes of `VI` lanes must match that of `D`.
 
-*   `V`: `{u,i,f}{32,64}` \
+*   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
 
@@ -923,11 +928,11 @@ than normal SIMD operations and are typically used outside critical loops.
     <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
     lane.
 
-*   `V`: `{u,i,f}{32,64}` \
+*   `V`: `{u,i,f}{32,64},{u,i}{16}` \
     <code>V **MinOfLanes**(D, V v)</code>: returns the minimum-valued lane in
     each lane.
 
-*   `V`: `{u,i,f}{32,64}` \
+*   `V`: `{u,i,f}{32,64},{u,i}{16}` \
     <code>V **MaxOfLanes**(D, V v)</code>: returns the maximum-valued lane in
     each lane.
 

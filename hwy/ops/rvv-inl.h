@@ -557,6 +557,15 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra)
 
 #undef HWY_RVV_SHIFT
 
+// ------------------------------ RotateRight
+template <int kBits, class V>
+HWY_API V RotateRight(const V v) {
+  constexpr size_t kSizeInBits = sizeof(TFromV<V>) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v), ShiftLeft<kSizeInBits - kBits>(v));
+}
+
 // ------------------------------ Shl
 #define HWY_RVV_SHIFT_VV(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
                          OP)                                                 \
