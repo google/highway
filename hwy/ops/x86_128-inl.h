@@ -3236,7 +3236,7 @@ HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
 
 template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N),
           HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> /* tag */, const TI* idx) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   for (size_t i = 0; i < N; ++i) {
