@@ -129,7 +129,8 @@ void TestMath(const std::string name, T (*fx1)(T),
         TestMath<T, D>(HWY_STR(NAME), F32x1, F32xN, d, F32_MIN, F32_MAX,  \
                        F32_ERROR);                                        \
       } else {                                                            \
-        TestMath<T, D>(HWY_STR(NAME), F64x1, F64xN, d, F64_MIN, F64_MAX,  \
+        TestMath<T, D>(HWY_STR(NAME), F64x1, F64xN, d,                    \
+                       static_cast<T>(F64_MIN), static_cast<T>(F64_MAX),  \
                        F64_ERROR);                                        \
       }                                                                   \
     }                                                                     \
@@ -142,13 +143,13 @@ const double kNearOneD = BitCast<double>(0x3FEFFFFFFFFFFFFFULL);
 
 // clang-format off
 DEFINE_MATH_TEST(Acos,
-  std::acos,  CallAcos,  -1.0,       +1.0,        3,  // NEON is 3 instead of 2
+  std::acos,  CallAcos,  -1.0f,      +1.0f,       3,  // NEON is 3 instead of 2
   std::acos,  CallAcos,  -1.0,       +1.0,        2)
 DEFINE_MATH_TEST(Acosh,
-  std::acosh, CallAcosh, +1.0,       +FLT_MAX,    3,
+  std::acosh, CallAcosh, +1.0f,      +FLT_MAX,    3,
   std::acosh, CallAcosh, +1.0,       +DBL_MAX,    3)
 DEFINE_MATH_TEST(Asin,
-  std::asin,  CallAsin,  -1.0,       +1.0,        4,  // ARMv7 is 4 instead of 2
+  std::asin,  CallAsin,  -1.0f,      +1.0f,       4,  // ARMv7 is 4 instead of 2
   std::asin,  CallAsin,  -1.0,       +1.0,        2)
 DEFINE_MATH_TEST(Asinh,
   std::asinh, CallAsinh, -FLT_MAX,   +FLT_MAX,    3,
@@ -160,13 +161,13 @@ DEFINE_MATH_TEST(Atanh,
   std::atanh, CallAtanh, -kNearOneF, +kNearOneF,  4,  // NEON is 4 instead of 3
   std::atanh, CallAtanh, -kNearOneD, +kNearOneD,  3)
 DEFINE_MATH_TEST(Cos,
-  std::cos,   CallCos,   -39000.0,   +39000.0,    3,
+  std::cos,   CallCos,   -39000.0f,  +39000.0f,   3,
   std::cos,   CallCos,   -39000.0,   +39000.0,    3)
 DEFINE_MATH_TEST(Exp,
-  std::exp,   CallExp,   -FLT_MAX,   +104.0,      1,
+  std::exp,   CallExp,   -FLT_MAX,   +104.0f,     1,
   std::exp,   CallExp,   -DBL_MAX,   +104.0,      1)
 DEFINE_MATH_TEST(Expm1,
-  std::expm1, CallExpm1, -FLT_MAX,   +104.0,      4,
+  std::expm1, CallExpm1, -FLT_MAX,   +104.0f,     4,
   std::expm1, CallExpm1, -DBL_MAX,   +104.0,      4)
 DEFINE_MATH_TEST(Log,
   std::log,   CallLog,   +FLT_MIN,   +FLT_MAX,    1,
@@ -175,13 +176,13 @@ DEFINE_MATH_TEST(Log10,
   std::log10, CallLog10, +FLT_MIN,   +FLT_MAX,    2,
   std::log10, CallLog10, +DBL_MIN,   +DBL_MAX,    2)
 DEFINE_MATH_TEST(Log1p,
-  std::log1p, CallLog1p, +0.0f,      +1e37,       3,  // NEON is 3 instead of 2
+  std::log1p, CallLog1p, +0.0f,      +1e37f,      3,  // NEON is 3 instead of 2
   std::log1p, CallLog1p, +0.0,       +DBL_MAX,    2)
 DEFINE_MATH_TEST(Log2,
   std::log2,  CallLog2,  +FLT_MIN,   +FLT_MAX,    2,
   std::log2,  CallLog2,  +DBL_MIN,   +DBL_MAX,    2)
 DEFINE_MATH_TEST(Sin,
-  std::sin,   CallSin,   -39000.0,   +39000.0,    3,
+  std::sin,   CallSin,   -39000.0f,  +39000.0f,   3,
   std::sin,   CallSin,   -39000.0,   +39000.0,    3)
 DEFINE_MATH_TEST(Sinh,
   std::sinh,  CallSinh,  -80.0f,     +80.0f,      4,
