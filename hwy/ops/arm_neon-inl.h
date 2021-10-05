@@ -915,14 +915,8 @@ HWY_API Vec128<uint64_t, N> RotateRight(const Vec128<uint64_t, N> v) {
   return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(63, 64 - kBits)>(v));
 }
 
-#if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_CRYPTO)
-template <int kBits>
-HWY_API Vec128<uint64_t> RotateRight(const Vec128<uint64_t> v) {
-  static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
-  const Vec128<uint64_t> zero = Zero(Full128<uint64_t>());
-  return Vec128<uint64_t>(vxarq_u64(v.raw, zero.raw, kBits));
-}
-#endif
+// NOTE: vxarq_u64 can be applied to uint64_t, but we do not yet have a
+// mechanism for checking for extensions to ARMv8.
 
 // ------------------------------ Shl
 
