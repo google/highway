@@ -85,7 +85,7 @@ class TestReverse {
     const size_t expected_size = SortBatchSize(d);
 
     for (size_t i = 0; i < K(d); ++i) {
-      in[i] = K(d) - i;
+      in[i] = static_cast<T>(K(d) - i);
       inout[i] = in[i];
     }
 
