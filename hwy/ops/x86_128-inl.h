@@ -3220,7 +3220,8 @@ HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
   }
 #endif
 #if HWY_TARGET <= HWY_AVX2
-  return Indices128<T, N>{LoadU(Simd<TI, N>(), idx).raw};
+  const Rebind<TI, decltype(d)> di;
+  return Indices128<T, N>{LoadU(di, idx).raw};
 #else
   const Repartition<uint8_t, decltype(d)> d8;
   alignas(16) uint8_t control[16] = {0};
