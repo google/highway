@@ -38,9 +38,9 @@ inline Out BitCast(const In& in) {
 }
 
 template <class T, class D>
-void TestMath(const std::string name, T (*fx1)(T),
-              Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
-              uint64_t max_error_ulp) {
+HWY_NOINLINE void TestMath(const std::string name, T (*fx1)(T),
+                           Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
+                           uint64_t max_error_ulp) {
   constexpr bool kIsF32 = (sizeof(T) == 4);
   using UintT = MakeUnsigned<T>;
 
