@@ -642,19 +642,22 @@ HWY_API size_t Num0BitsAboveMS1Bit_Nonzero64(const uint64_t x) {
 HWY_API size_t PopCount(uint64_t x) {
 #if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
   return static_cast<size_t>(__builtin_popcountll(x));
-#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+  // This instruction has a separate feature flag, but is often called from
+  // non-SIMD code, so we don't want to require dynamic dispatch. It was first
+  // supported by Intel in Nehalem (SSE4.2), but MSVC only predefines a macro
+  // for AVX, so check for that.
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64 && defined(__AVX__)
   return _mm_popcnt_u64(x);
-#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_32
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_32 && defined(__AVX__)
   return _mm_popcnt_u32(uint32_t(x)) + _mm_popcnt_u32(uint32_t(x >> 32));
 #else
-  x -= ((x >> 1) & 0x55555555U);
-  x = (((x >> 2) & 0x33333333U) + (x & 0x33333333U));
-  x = (((x >> 4) + x) & 0x0F0F0F0FU);
+  x -= ((x >> 1) & 0x5555555555555555ULL);
+  x = (((x >> 2) & 0x3333333333333333ULL) + (x & 0x3333333333333333ULL));
+  x = (((x >> 4) + x) & 0x0F0F0F0F0F0F0F0FULL);
   x += (x >> 8);
   x += (x >> 16);
   x += (x >> 32);
-  x = x & 0x0000007FU;
-  return (unsigned int)x;
+  return static_cast<size_t>(x & 0x7Fu);
 #endif
 }
 
