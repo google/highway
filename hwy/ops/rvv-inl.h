@@ -1831,7 +1831,7 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 
 namespace detail {
 HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredsum)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredusum)
 }  // namespace detail
 
 template <class D>
