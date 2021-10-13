@@ -65,7 +65,8 @@ class TestDot {
     using T = TFromD<D>;
     const size_t N = Lanes(d);
     const auto random_t = [&rng]() {
-      return (int32_t(Random32(&rng) & 1023) - 512) * (1.0f / 64);
+      const int32_t bits = static_cast<int32_t>(Random32(&rng)) & 1023;
+      return static_cast<float>(bits - 512) * (1.0f / 64);
     };
 
     const bool kIsAlignedA = (kAssumptions & Dot::kVectorAlignedA) != 0;
