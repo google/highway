@@ -1014,7 +1014,6 @@ HWY_API Mask128<float, N> operator!=(const Vec128<float, N> a,
 
 // ------------------------------ Strict inequality
 
-// Signed/float >
 template <size_t N>
 HWY_API Mask128<int8_t, N> operator>(const Vec128<int8_t, N> a,
                                      const Vec128<int8_t, N> b) {
@@ -1047,6 +1046,14 @@ HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
   const auto gt = Or(lo_gt, m_gt);
   // Copy result in upper 32 bits to lower 32 bits.
   return Mask128<int64_t, N>{wasm_i32x4_shuffle(gt, gt, 3, 3, 1, 1)};
+}
+
+template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
+HWY_API Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
+  const Simd<T, N> du;
+  const RebindToSigned<decltype(du)> di;
+  const Vec128<T, N> msb = Set(du, (LimitsMax<T>() >> 1) + 1);
+  return RebindMask(du, BitCast(di, Xor(a, msb)) > BitCast(di, Xor(b, msb)));
 }
 
 template <size_t N>

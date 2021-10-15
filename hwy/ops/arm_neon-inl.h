@@ -1605,7 +1605,7 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
 
 // ------------------------------ BroadcastSignBit
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_SIGNED(T)>
 HWY_API Vec128<T, N> BroadcastSignBit(const Vec128<T, N> v) {
   return ShiftRight<sizeof(T) * 8 - 1>(v);
 }
@@ -1757,8 +1757,9 @@ HWY_API Mask128<T, N> operator!=(const Vec128<T, N> a, const Vec128<T, N> b) {
 
 // ------------------------------ Strict inequality (signed, float)
 #if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_INTS(operator<, vclt, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator<, vclt, _, HWY_COMPARE)
 #else
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator<, vclt, _, HWY_COMPARE)
 HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator<, vclt, _, HWY_COMPARE)
 #endif
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<, vclt, _, HWY_COMPARE)
@@ -1804,6 +1805,15 @@ HWY_API Mask128<int64_t, 1> operator<(const Vec128<int64_t, 1> a,
                                       const Vec128<int64_t, 1> b) {
   const int64x1_t sub = vqsub_s64(a.raw, b.raw);
   return MaskFromVec(BroadcastSignBit(Vec128<int64_t, 1>(sub)));
+}
+
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator<(const Vec128<uint64_t, N> a,
+                                       const Vec128<uint64_t, N> b) {
+  const Simd<int64_t, N> di;
+  const Simd<uint64_t, N> du;
+  const Vec128<uint64_t, N> msb = AndNot(a, b) | AndNot(a ^ b, a - b);
+  return MaskFromVec(BitCast(du, BroadcastSignBit(BitCast(di, msb))));
 }
 
 #endif
@@ -1878,18 +1888,6 @@ HWY_API Vec128<int64_t, 1> Abs(const Vec128<int64_t, 1> v) {
 }
 
 // ------------------------------ Min (IfThenElse, BroadcastSignBit)
-
-#if HWY_ARCH_ARM_A64
-
-HWY_API Mask128<uint64_t> operator<(Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  return Mask128<uint64_t>(vcltq_u64(a.raw, b.raw));
-}
-HWY_API Mask128<uint64_t, 1> operator<(Vec128<uint64_t, 1> a,
-                                       Vec128<uint64_t, 1> b) {
-  return Mask128<uint64_t, 1>(vclt_u64(a.raw, b.raw));
-}
-
-#endif
 
 // Unsigned
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(Min, vmin, _, 2)

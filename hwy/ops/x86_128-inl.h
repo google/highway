@@ -1249,6 +1249,28 @@ HWY_API Mask128<int64_t, N> operator>(Vec128<int64_t, N> a,
                                       Vec128<int64_t, N> b) {
   return Mask128<int64_t, N>{_mm_cmpgt_epi64_mask(a.raw, b.raw)};
 }
+
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator>(Vec128<uint8_t, N> a,
+                                      Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{_mm_cmpgt_epu8_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator>(Vec128<uint16_t, N> a,
+                                       Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{_mm_cmpgt_epu16_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator>(Vec128<uint32_t, N> a,
+                                       Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{_mm_cmpgt_epu32_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator>(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{_mm_cmpgt_epu64_mask(a.raw, b.raw)};
+}
+
 template <size_t N>
 HWY_API Mask128<float, N> operator>(Vec128<float, N> a, Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_GT_OQ)};
@@ -1466,6 +1488,15 @@ HWY_API Mask128<int32_t, N> operator>(Vec128<int32_t, N> a,
                                       Vec128<int32_t, N> b) {
   return Mask128<int32_t, N>{_mm_cmpgt_epi32(a.raw, b.raw)};
 }
+
+template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
+HWY_API Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
+  const Simd<T, N> du;
+  const RebindToSigned<decltype(du)> di;
+  const Vec128<T, N> msb = Set(du, (LimitsMax<T>() >> 1) + 1);
+  return RebindMask(du, BitCast(di, Xor(a, msb)) > BitCast(di, Xor(b, msb)));
+}
+
 template <size_t N>
 HWY_API Mask128<float, N> operator>(Vec128<float, N> a, Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmpgt_ps(a.raw, b.raw)};

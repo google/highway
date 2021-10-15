@@ -749,7 +749,7 @@ HWY_SVE_FOREACH(HWY_SVE_COMPARE, Eq, cmpeq)
 HWY_SVE_FOREACH(HWY_SVE_COMPARE, Ne, cmpne)
 
 // ------------------------------ Lt
-HWY_SVE_FOREACH_IF(HWY_SVE_COMPARE, Lt, cmplt)
+HWY_SVE_FOREACH(HWY_SVE_COMPARE, Lt, cmplt)
 namespace detail {
 HWY_SVE_FOREACH_IF(HWY_SVE_COMPARE_N, LtN, cmplt_n)
 }  // namespace detail

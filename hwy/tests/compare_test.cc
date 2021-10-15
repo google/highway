@@ -77,6 +77,37 @@ void EnsureGreater(D d, TFromD<D> a, TFromD<D> b, const char* file, int line) {
 
 #define HWY_ENSURE_GREATER(d, a, b) EnsureGreater(d, a, b, __FILE__, __LINE__)
 
+struct TestStrictUnsigned {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const T max = LimitsMax<T>();
+    const auto v0 = Zero(d);
+    const auto v2 = And(Iota(d, T(2)), Set(d, 255));  // 0..255
+
+    const auto mask_false = MaskFalse(d);
+
+    // Individual values of interest
+    HWY_ENSURE_GREATER(d, 2, 1);
+    HWY_ENSURE_GREATER(d, 1, 0);
+    HWY_ENSURE_GREATER(d, 128, 127);
+    HWY_ENSURE_GREATER(d, max, max / 2);
+    HWY_ENSURE_GREATER(d, max, 1);
+    HWY_ENSURE_GREATER(d, max, 0);
+
+    // Also use Iota to ensure lanes are independent
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v0, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v0, v0));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt(v2, v2));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Gt(v2, v2));
+  }
+};
+
+HWY_NOINLINE void TestAllStrictUnsigned() {
+  ForUnsignedTypes(ForPartialVectors<TestStrictUnsigned>());
+}
+
 struct TestStrictInt {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -197,6 +228,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyCompareTest);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEquality);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictUnsigned);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);

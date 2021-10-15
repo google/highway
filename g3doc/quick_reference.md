@@ -545,11 +545,9 @@ These return a mask (see above) indicating whether the condition is true.
 *   <code>M **operator==**(V a, V b)</code>: returns `a[i] == b[i]`.
 *   <code>M **operator!=**(V a, V b)</code>: returns `a[i] != b[i]`.
 
-*   `V`: `{i,f}` \
-    <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`.
+*   <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`.
 
-*   `V`: `{i,f}` \
-    <code>M **operator&gt;**(V a, V b)</code>: returns `a[i] > b[i]`.
+*   <code>M **operator&gt;**(V a, V b)</code>: returns `a[i] > b[i]`.
 
 *   `V`: `{f}` \
     <code>M **operator&lt;=**(V a, V b)</code>: returns `a[i] <= b[i]`.

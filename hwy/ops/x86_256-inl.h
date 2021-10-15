@@ -20,6 +20,8 @@
 // particular, "Broadcast", pack and zip behavior may be surprising.
 
 #include <immintrin.h>  // AVX2+
+
+#include "hwy/base.h"
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
@@ -918,7 +920,6 @@ HWY_API Mask256<double> operator!=(Vec256<double> a, Vec256<double> b) {
 
 // ------------------------------ Strict inequality
 
-// Signed/float <
 HWY_API Mask256<int8_t> operator>(Vec256<int8_t> a, Vec256<int8_t> b) {
   return Mask256<int8_t>{_mm256_cmpgt_epi8_mask(a.raw, b.raw)};
 }
@@ -931,6 +932,23 @@ HWY_API Mask256<int32_t> operator>(Vec256<int32_t> a, Vec256<int32_t> b) {
 HWY_API Mask256<int64_t> operator>(Vec256<int64_t> a, Vec256<int64_t> b) {
   return Mask256<int64_t>{_mm256_cmpgt_epi64_mask(a.raw, b.raw)};
 }
+
+HWY_API Mask256<uint8_t> operator>(Vec256<uint8_t> a, Vec256<uint8_t> b) {
+  return Mask256<uint8_t>{_mm256_cmpgt_epu8_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<uint16_t> operator>(const Vec256<uint16_t> a,
+                                    const Vec256<uint16_t> b) {
+  return Mask256<uint16_t>{_mm256_cmpgt_epu16_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<uint32_t> operator>(const Vec256<uint32_t> a,
+                                    const Vec256<uint32_t> b) {
+  return Mask256<uint32_t>{_mm256_cmpgt_epu32_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<uint64_t> operator>(const Vec256<uint64_t> a,
+                                    const Vec256<uint64_t> b) {
+  return Mask256<uint64_t>{_mm256_cmpgt_epu64_mask(a.raw, b.raw)};
+}
+
 HWY_API Mask256<float> operator>(Vec256<float> a, Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps_mask(a.raw, b.raw, _CMP_GT_OQ)};
 }
@@ -1090,7 +1108,6 @@ HWY_API Mask256<double> operator!=(const Vec256<double> a,
 #define HWY_AVX2_GCC_CMPGT8_WORKAROUND 0
 #endif
 
-// Signed/float <
 HWY_API Mask256<int8_t> operator>(Vec256<int8_t> a, Vec256<int8_t> b) {
 #if HWY_AVX2_GCC_CMPGT8_WORKAROUND
   using i8x32 = signed char __attribute__((__vector_size__(32)));
@@ -1112,6 +1129,15 @@ HWY_API Mask256<int64_t> operator>(const Vec256<int64_t> a,
                                    const Vec256<int64_t> b) {
   return Mask256<int64_t>{_mm256_cmpgt_epi64(a.raw, b.raw)};
 }
+
+template <typename T, HWY_IF_UNSIGNED(T)>
+HWY_API Mask256<T> operator>(const Vec256<T> a, const Vec256<T> b) {
+  const Full256<T> du;
+  const RebindToSigned<decltype(du)> di;
+  const Vec256<T> msb = Set(du, (LimitsMax<T>() >> 1) + 1);
+  return RebindMask(du, BitCast(di, Xor(a, msb)) > BitCast(di, Xor(b, msb)));
+}
+
 HWY_API Mask256<float> operator>(const Vec256<float> a, const Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GT_OQ)};
 }
