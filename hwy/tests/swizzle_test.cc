@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -200,14 +201,16 @@ class TestCompress {
                    int line) {
     if (expected_pos != actual_pos) {
       hwy::Abort(__FILE__, line,
-                 "Size mismatch for %s: expected %zu, actual %zu\n",
-                 TypeName(T(), N).c_str(), expected_pos, actual_pos);
+                 "Size mismatch for %s: expected %" PRIu64 ", actual %" PRIu64 "\n",
+                 TypeName(T(), N).c_str(), static_cast<uint64_t>(expected_pos), static_cast<uint64_t>(actual_pos));
     }
     // Upper lanes are undefined. Modified from AssertVecEqual.
     for (size_t i = 0; i < expected_pos; ++i) {
       if (!IsEqual(expected[i], actual_u[i])) {
-        fprintf(stderr, "Mismatch at i=%zu of %zu, line %d:\n\n", i,
-                expected_pos, line);
+        fprintf(stderr,
+                "Mismatch at i=%" PRIu64 " of %" PRIu64 ", line %d:\n\n",
+                static_cast<uint64_t>(i), static_cast<uint64_t>(expected_pos),
+                line);
         Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
         Print(d, "in", Load(d, in.get()), 0, N);
         Print(d, "expect", Load(d, expected.get()), 0, N);
@@ -403,7 +406,8 @@ void PrintCompress32x4Tables() {
 
     for (size_t i = 0; i < N; ++i) {
       for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-        printf("%zu,", sizeof(T) * indices[i] + idx_byte);
+        printf("%" PRIu64 ",",
+               static_cast<uint64_t>(sizeof(T) * indices[i] + idx_byte));
       }
     }
   }
@@ -426,7 +430,8 @@ void PrintCompress64x2Tables() {
 
     for (size_t i = 0; i < N; ++i) {
       for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-        printf("%zu,", sizeof(T) * indices[i] + idx_byte);
+        printf("%" PRIu64 ",",
+               static_cast<uint64_t>(sizeof(T) * indices[i] + idx_byte));
       }
     }
   }

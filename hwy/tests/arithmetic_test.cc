@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -1060,7 +1061,9 @@ struct TestReciprocalSquareRoot {
       float err = lanes[i] - 0.090166f;
       if (err < 0.0f) err = -err;
       if (err >= 4E-4f) {
-        HWY_ABORT("Lane %zu(%zu): actual %f err %f\n", i, N, lanes[i], err);
+        HWY_ABORT("Lane %" PRIu64 "(%" PRIu64 "): actual %f err %f\n",
+                  static_cast<uint64_t>(i), static_cast<uint64_t>(N), lanes[i],
+                  err);
       }
     }
   }

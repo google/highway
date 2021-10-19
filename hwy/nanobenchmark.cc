@@ -14,6 +14,7 @@
 
 #include "hwy/nanobenchmark.h"
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>  // abort
@@ -501,17 +502,21 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
 
     if (*rel_mad <= max_rel_mad || abs_mad <= max_abs_mad) {
       if (p.verbose) {
-        printf("%6zu samples => %5zu (abs_mad=%4zu, rel_mad=%4.2f%%)\n",
-               samples.size(), size_t(est), size_t(abs_mad), *rel_mad * 100.0);
+        printf("%6" PRIu64 " samples => %5" PRIu64 " (abs_mad=%4" PRIu64
+               ", rel_mad=%4.2f%%)\n",
+               static_cast<uint64_t>(samples.size()),
+               static_cast<uint64_t>(est), static_cast<uint64_t>(abs_mad),
+               *rel_mad * 100.0);
       }
       return est;
     }
   }
 
   if (p.verbose) {
-    printf(
-        "WARNING: rel_mad=%4.2f%% still exceeds %4.2f%% after %6zu samples.\n",
-        *rel_mad * 100.0, max_rel_mad * 100.0, samples.size());
+    printf("WARNING: rel_mad=%4.2f%% still exceeds %4.2f%% after %6" PRIu64
+           " samples.\n",
+           *rel_mad * 100.0, max_rel_mad * 100.0,
+           static_cast<uint64_t>(samples.size()));
   }
   return est;
 }
@@ -548,8 +553,11 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
           ? 0
           : static_cast<size_t>((max_skip + min_duration - 1) / min_duration);
   if (p.verbose) {
-    printf("res=%zu max_skip=%zu min_dur=%zu num_skip=%zu\n",
-           size_t(timer_resolution), max_skip, size_t(min_duration), num_skip);
+    printf("res=%" PRIu64 " max_skip=%" PRIu64 " min_dur=%" PRIu64
+           " num_skip=%" PRIu64 "\n",
+           static_cast<uint64_t>(timer_resolution),
+           static_cast<uint64_t>(max_skip), static_cast<uint64_t>(min_duration),
+           static_cast<uint64_t>(num_skip));
   }
   return num_skip;
 }
@@ -676,14 +684,19 @@ size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
   const timer::Ticks overhead = Overhead(arg, &full, p);
   const timer::Ticks overhead_skip = Overhead(arg, &subset, p);
   if (overhead < overhead_skip) {
-    fprintf(stderr, "Measurement failed: overhead %zu < %zu\n",
-            size_t(overhead), size_t(overhead_skip));
+    fprintf(stderr, "Measurement failed: overhead %" PRIu64 " < %" PRIu64 "\n",
+            static_cast<uint64_t>(overhead),
+            static_cast<uint64_t>(overhead_skip));
     return 0;
   }
 
   if (p.verbose) {
-    printf("#inputs=%5zu,%5zu overhead=%5zu,%5zu\n", full.size(), subset.size(),
-           size_t(overhead), size_t(overhead_skip));
+    printf("#inputs=%5" PRIu64 ",%5" PRIu64 " overhead=%5" PRIu64 ",%5" PRIu64
+           "\n",
+           static_cast<uint64_t>(full.size()),
+           static_cast<uint64_t>(subset.size()),
+           static_cast<uint64_t>(overhead),
+           static_cast<uint64_t>(overhead_skip));
   }
 
   double max_rel_mad = 0.0;
@@ -695,8 +708,8 @@ size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
         TotalDuration(func, arg, &subset, p, &max_rel_mad);
 
     if (total < total_skip) {
-      fprintf(stderr, "Measurement failed: total %zu < %zu\n", size_t(total),
-              size_t(total_skip));
+      fprintf(stderr, "Measurement failed: total %" PRIu64 " < %" PRIu64 "\n",
+              static_cast<uint64_t>(total), static_cast<uint64_t>(total_skip));
       return 0;
     }
 

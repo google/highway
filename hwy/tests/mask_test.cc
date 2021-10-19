@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>  // memcmp
@@ -268,8 +269,10 @@ class TestStoreMaskBits {
       // Requires at least 8 bytes, ensured above.
       const size_t bytes_written = StoreMaskBits(di, mask, actual.get());
       if (bytes_written != expected_num_bytes) {
-        fprintf(stderr, "%s expected %zu bytes, actual %zu\n",
-                TypeName(T(), N).c_str(), expected_num_bytes, bytes_written);
+        fprintf(stderr, "%s expected %" PRIu64 " bytes, actual %" PRIu64 "\n",
+                TypeName(T(), N).c_str(),
+                static_cast<uint64_t>(expected_num_bytes),
+                static_cast<uint64_t>(bytes_written));
 
         HWY_ASSERT(false);
       }
@@ -291,8 +294,9 @@ class TestStoreMaskBits {
       for (; i < N; ++i) {
         const TI is_set = (actual[i / 8] & (1 << (i % 8))) ? 1 : 0;
         if (is_set != bool_lanes[i]) {
-          fprintf(stderr, "%s lane %zu: expected %d, actual %d\n",
-                  TypeName(T(), N).c_str(), i, int(bool_lanes[i]), int(is_set));
+          fprintf(stderr, "%s lane %" PRIu64 ": expected %d, actual %d\n",
+                  TypeName(T(), N).c_str(), static_cast<uint64_t>(i),
+                  int(bool_lanes[i]), int(is_set));
           Print(di, "bools", bools, 0, N);
           Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
                 expected_num_bytes);
@@ -306,8 +310,8 @@ class TestStoreMaskBits {
       for (; i < 8 * bytes_written; ++i) {
         const int bit = (actual[i / 8] & (1 << (i % 8)));
         if (bit != 0) {
-          fprintf(stderr, "%s: bit #%zu should be zero\n",
-                  TypeName(T(), N).c_str(), i);
+          fprintf(stderr, "%s: bit #%" PRIu64 " should be zero\n",
+                  TypeName(T(), N).c_str(), static_cast<uint64_t>(i));
           Print(di, "bools", bools, 0, N);
           Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
                 expected_num_bytes);
