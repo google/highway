@@ -19,7 +19,7 @@ if(POLICY CMP0083)
   cmake_policy(SET CMP0083 NEW)
 endif()
 
-project(hwy VERSION 0.15.0)  # Keep in sync with highway.h version
+project(hwy LANGUAGES CXX VERSION 0.15.0)  # Keep in sync with highway.h version
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -378,8 +378,13 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   else()
     target_link_libraries(${TESTNAME} hwy hwy_contrib hwy_test gtest gtest_main)
   endif()
-  # Output test targets in the test directory.
-  set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
+
+  # MINGW with Ninja generates two build rules for the same file when setting a
+  # prefix in the target. We skip the prefix in MINGW to workaround the issue.
+  if(NOT MINGW OR NOT ${CMAKE_GENERATOR} STREQUAL "Ninja")
+    # Output test targets in the test directory.
+    set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
+  endif()
 
   if (HWY_EMSCRIPTEN)
     set_target_properties(${TESTNAME} PROPERTIES LINK_FLAGS "-s SINGLE_FILE=1")
