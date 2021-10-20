@@ -3349,10 +3349,10 @@ HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
-  using TI = MakeSigned<T>;
   const Simd<T, N> d;
-  const Simd<TI, N> di;
-  return BitCast(d, TableLookupBytes(BitCast(di, v), Vec128<TI, N>{idx.raw}));
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(
+      d, TableLookupBytes(BitCast(di, v), BitCast(di, Vec128<T, N>{idx.raw})));
 }
 
 // ------------------------------ Reverse (Shuffle0123, Shuffle2301, Shuffle01)
