@@ -172,8 +172,8 @@ struct Dot {
     // Won't be able to do a full vector load without padding => scalar loop.
     if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
         HWY_UNLIKELY(num_elements < N)) {
-      float_t sum0 = 0.0f;  // Only 2x unroll to avoid excessive code size for..
-      float_t sum1 = 0.0f;  // this unlikely(?) case.
+      float sum0 = 0.0f;  // Only 2x unroll to avoid excessive code size for..
+      float sum1 = 0.0f;  // this unlikely(?) case.
       for (; i + 2 <= num_elements; i += 2) {
         sum0 += F32FromBF16(pa[i + 0]) * F32FromBF16(pb[i + 0]);
         sum1 += F32FromBF16(pa[i + 1]) * F32FromBF16(pb[i + 1]);
