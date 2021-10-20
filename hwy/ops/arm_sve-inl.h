@@ -244,10 +244,10 @@ HWY_API size_t Lanes(Simd<T, N> /* tag */) {
 // One mask bit per byte; only the one belonging to the lowest byte is valid.
 
 // ------------------------------ FirstN
-#define HWY_SVE_FIRSTN(BASE, CHAR, BITS, NAME, OP)                       \
-  template <size_t KN>                                                   \
-  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, KN) /* d */, uint32_t N) { \
-    return sv##OP##_b##BITS##_u32(uint32_t(0), N);                       \
+#define HWY_SVE_FIRSTN(BASE, CHAR, BITS, NAME, OP)                        \
+  template <size_t KN>                                                    \
+  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, KN) /* d */, size_t N) {    \
+    return sv##OP##_b##BITS##_u32(uint32_t{0}, static_cast<uint32_t>(N)); \
   }
 HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
 #undef HWY_SVE_FIRSTN

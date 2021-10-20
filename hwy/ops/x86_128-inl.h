@@ -607,7 +607,10 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
 
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_API Mask128<T, N> FirstN(const Simd<T, N> /*tag*/, size_t n) {
-  return Mask128<T, N>::FromBits(_bzhi_u64(~uint64_t(0), n));
+  const uint64_t all = (1ull << N) - 1;
+  // BZHI only looks at the lower 8 bits of n!
+  const uint64_t bits = (n > 255) ? all : _bzhi_u64(all, n);
+  return Mask128<T, N>::FromBits(bits);
 }
 
 template <class D>

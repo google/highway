@@ -434,8 +434,9 @@ Let `M` denote a mask capable of storing true/false for each lane.
 
 *   <code>M **FirstN**(D, size_t N)</code>: returns mask with the first `N`
     lanes (those with index `< N`) true. `N >= Lanes(D())` results in an
-    all-true mask. Useful for implementing "masked" stores by loading `prev`
-    followed by `IfThenElse(FirstN(d, N), what_to_store, prev)`.
+    all-true mask. `N` must be less than `LimitsMax<MakeSigned<TFromD<D>>>()`.
+    Useful for implementing "masked" stores by loading `prev` followed by
+    `IfThenElse(FirstN(d, N), what_to_store, prev)`.
 
 *   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
     0`, or true if `v[i]` has all bits set.

@@ -55,25 +55,21 @@ struct TestFirstN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
-    auto mask_lanes = AllocateAligned<T>(N);
 
-    // GCC workaround: we previously used zero to indicate true because we can
-    // safely compare with that value. However, that hits an ICE for u64x1 on
-    // GCC 8.3 but not 8.4, even if the implementation of operator== is
-    // simplified to return zero. Using MaskFromVec avoids this, and requires
-    // FF..FF and 0 constants.
-    T on;
-    memset(&on, 0xFF, sizeof(on));
-    const T off = 0;
+    const RebindToSigned<D> di;
+    using TI = TFromD<decltype(di)>;
+    const size_t max_len =
+        static_cast<size_t>(HWY_MIN(LimitsMax<TI>(), LimitsMax<size_t>()));
 
-    for (size_t len = 0; len <= N; ++len) {
-      for (size_t i = 0; i < N; ++i) {
-        mask_lanes[i] = i < len ? on : off;
-      }
-      const auto mask_vals = Load(d, mask_lanes.get());
-      const auto mask = MaskFromVec(mask_vals);
-      HWY_ASSERT_MASK_EQ(d, mask, FirstN(d, len));
+    for (size_t len = 0; len <= HWY_MIN(2 * N, max_len); ++len) {
+      const auto expected =
+          RebindMask(d, Lt(Iota(di, 0), Set(di, static_cast<TI>(len))));
+      const auto actual = FirstN(d, len);
+      HWY_ASSERT_MASK_EQ(d, expected, actual);
     }
+
+    // Also ensure huge values yield all-true.
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), FirstN(d, max_len));
   }
 };
 

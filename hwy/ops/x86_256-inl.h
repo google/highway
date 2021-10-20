@@ -1282,10 +1282,16 @@ template <typename T>
 HWY_API Mask256<T> FirstN(const Full256<T> d, size_t n) {
 #if HWY_TARGET <= HWY_AVX3
   (void)d;
+  constexpr size_t N = 32 / sizeof(T);
 #if HWY_ARCH_X86_64
-  return Mask256<T>::FromBits(_bzhi_u64(~0ull, n));
+  const uint64_t all = (1ull << N) - 1;
+  // BZHI only looks at the lower 8 bits of n!
+  return Mask256<T>::FromBits((n > 255) ? all : _bzhi_u64(all, n));
 #else
-  return Mask256<T>::FromBits(_bzhi_u32(~0u, static_cast<uint32_t>(n)));
+  const uint32_t all = static_cast<uint32_t>((1ull << N) - 1);
+  // BZHI only looks at the lower 8 bits of n!
+  return Mask256<T>::FromBits(
+      (n > 255) ? all : _bzhi_u32(all, static_cast<uint32_t>(n)));
 #endif  // HWY_ARCH_X86_64
 #else
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
