@@ -30,8 +30,9 @@ bool BytesEqual(const void* p1, const void* p2, const size_t size,
   const uint8_t* bytes2 = reinterpret_cast<const uint8_t*>(p2);
   for (size_t i = 0; i < size; ++i) {
     if (bytes1[i] != bytes2[i]) {
-      fprintf(stderr, "Mismatch at byte %zu of %zu: %d != %d\n", i, size,
-              bytes1[i], bytes2[i]);
+      fprintf(stderr, "Mismatch at byte %" PRIu64 " of %" PRIu64 ": %d != %d\n",
+              static_cast<uint64_t>(i), static_cast<uint64_t>(size), bytes1[i],
+              bytes2[i]);
       if (pos != nullptr) {
         *pos = i;
       }
@@ -71,7 +72,8 @@ bool IsEqual(const TypeInfo& info, const void* expected_ptr,
     CopyBytes<8>(actual_ptr, &actual);
     return ComputeUlpDelta(expected, actual) <= 1;
   } else {
-    HWY_ABORT("Unexpected float size %zu\n", info.sizeof_t);
+    HWY_ABORT("Unexpected float size %" PRIu64 "\n",
+              static_cast<uint64_t>(info.sizeof_t));
     return false;
   }
 }
@@ -80,9 +82,12 @@ void TypeName(const TypeInfo& info, size_t N, char* string100) {
   const char prefix = info.is_float ? 'f' : (info.is_signed ? 'i' : 'u');
   // Omit the xN suffix for scalars.
   if (N == 1) {
-    snprintf(string100, 64, "%c%zu", prefix, info.sizeof_t * 8);
+    snprintf(string100, 64, "%c%" PRIu64, prefix,
+             static_cast<uint64_t>(info.sizeof_t * 8));
   } else {
-    snprintf(string100, 64, "%c%zux%zu", prefix, info.sizeof_t * 8, N);
+    snprintf(string100, 64, "%c%" PRIu64 "x%" PRIu64, prefix,
+             static_cast<uint64_t>(info.sizeof_t * 8),
+             static_cast<uint64_t>(N));
   }
 }
 
@@ -138,7 +143,8 @@ void PrintArray(const TypeInfo& info, const char* caption,
   const intptr_t lane = intptr_t(lane_u);
   const size_t begin = static_cast<size_t>(HWY_MAX(0, lane - 2));
   const size_t end = HWY_MIN(begin + max_lanes, N);
-  fprintf(stderr, "%s %s [%zu+ ->]:\n  ", type_name, caption, begin);
+  fprintf(stderr, "%s %s [%" PRIu64 "+ ->]:\n  ", type_name, caption,
+          static_cast<uint64_t>(begin));
   for (size_t i = begin; i < end; ++i) {
     const void* ptr = array_bytes + i * info.sizeof_t;
     char str[100];
@@ -162,8 +168,10 @@ HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,
   char actual_str[100];
   ToString(info, actual_ptr, actual_str);
   Abort(filename, line,
-        "%s, %sx%zu lane %zu mismatch: expected '%s', got '%s'.\n", target_name,
-        type_name, num_lanes, lane, expected_str, actual_str);
+        "%s, %sx%" PRIu64 " lane %" PRIu64
+        " mismatch: expected '%s', got '%s'.\n",
+        target_name, type_name, static_cast<uint64_t>(num_lanes),
+        static_cast<uint64_t>(lane), expected_str, actual_str);
 }
 
 void AssertArrayEqual(const TypeInfo& info, const void* expected_void,

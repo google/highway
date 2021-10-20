@@ -16,7 +16,9 @@
 #define HWY_TARGET_INCLUDE "hwy/examples/benchmark.cc"
 #include "hwy/foreach_target.h"
 
+#include <inttypes.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include <memory>
@@ -79,7 +81,8 @@ void RunBenchmark(const char* caption) {
   for (size_t i = 0; i < num_results; ++i) {
     const double cycles_per_item = results[i].ticks / double(results[i].input);
     const double mad = results[i].variability * cycles_per_item;
-    printf("%6zu: %6.3f (+/- %5.3f)\n", results[i].input, cycles_per_item, mad);
+    printf("%6" PRIu64 ": %6.3f (+/- %5.3f)\n",
+           static_cast<uint64_t>(results[i].input), cycles_per_item, mad);
   }
 }
 

@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_SORT_INL_H_
 #endif
 
+#include <inttypes.h>
+
 #include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
 
@@ -125,7 +127,8 @@ class Runs {
     if (IsBitonic()) return;
     for (size_t ir = 0; ir < num_runs_; ++ir) {
       const T* p = &consecutive_[ir * run_length_];
-      printf("run %zu (len %zu)\n", ir, run_length_);
+      printf("run %" PRIu64 " (len %" PRIu64 ")\n", static_cast<uint64_t>(ir),
+             static_cast<uint64_t>(run_length_));
       for (size_t i = 0; i < run_length_; ++i) {
         printf("%.0f\n", static_cast<float>(p[i]));
       }
@@ -142,10 +145,11 @@ class Runs {
 
       for (size_t i = 0; i < run_length_ - 1; ++i) {
         if (!Compare(p[i], p[i + 1], order)) {
-          printf(
-              "ir%zu run_length=%zu alt=%d original order=%d this order=%d\n",
-              ir, run_length_, alternating_, static_cast<int>(kOrder),
-              static_cast<int>(order));
+          printf("ir%" PRIu64 " run_length=%" PRIu64
+                 " alt=%d original order=%d this order=%d\n",
+                 static_cast<uint64_t>(ir), static_cast<uint64_t>(run_length_),
+                 alternating_, static_cast<int>(kOrder),
+                 static_cast<int>(order));
           for (size_t i = 0; i < run_length_; ++i) {
             printf(" %.0f\n", static_cast<float>(p[i]));
           }

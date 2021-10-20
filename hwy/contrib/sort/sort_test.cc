@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,8 +43,10 @@ void Validate(D d, const TFromD<D>* in, const TFromD<D>* out) {
   // Ensure it matches the sort order
   for (size_t i = 0; i < K(d) - 1; ++i) {
     if (!verify::Compare(out[i], out[i + 1], kOrder)) {
-      printf("range=%zu lane=%zu N=%zu %.0f %.0f\n\n", i, i, N,
-             static_cast<float>(out[i + 0]), static_cast<float>(out[i + 1]));
+      printf("range=%" PRIu64 " lane=%" PRIu64 " N=%" PRIu64 " %.0f %.0f\n\n",
+             static_cast<uint64_t>(i), static_cast<uint64_t>(i),
+             static_cast<uint64_t>(N), static_cast<float>(out[i + 0]),
+             static_cast<float>(out[i + 1]));
       for (size_t i = 0; i < K(d); ++i) {
         printf("%.0f\n", static_cast<float>(out[i]));
       }

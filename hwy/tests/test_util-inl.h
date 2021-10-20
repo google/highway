@@ -14,6 +14,9 @@
 
 // Target-specific helper functions for use by *_test.cc.
 
+#include <inttypes.h>
+#include <stdint.h>
+
 #include "hwy/base.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util.h"
@@ -116,8 +119,8 @@ HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
   // First check whole bytes (if that many elements are still valid)
   for (; i < N / 8; ++i) {
     if (bits_a[i] != bits_b[i]) {
-      fprintf(stderr, "Mismatch in byte %zu: %d != %d\n", i, bits_a[i],
-              bits_b[i]);
+      fprintf(stderr, "Mismatch in byte %" PRIu64 ": %d != %d\n",
+              static_cast<uint64_t>(i), bits_a[i], bits_b[i]);
       Print(d8, "expect", Load(d8, bits_a.get()), 0, N8);
       Print(d8, "actual", Load(d8, bits_b.get()), 0, N8);
       hwy::Abort(filename, line, "Masks not equal");
@@ -130,8 +133,8 @@ HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
     const int valid_a = bits_a[i] & mask;
     const int valid_b = bits_b[i] & mask;
     if (valid_a != valid_b) {
-      fprintf(stderr, "Mismatch in last byte %zu: %d != %d\n", i, valid_a,
-              valid_b);
+      fprintf(stderr, "Mismatch in last byte %" PRIu64 ": %d != %d\n",
+              static_cast<uint64_t>(i), valid_a, valid_b);
       Print(d8, "expect", Load(d8, bits_a.get()), 0, N8);
       Print(d8, "actual", Load(d8, bits_b.get()), 0, N8);
       hwy::Abort(filename, line, "Masks not equal");

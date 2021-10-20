@@ -14,6 +14,8 @@
 
 #include "hwy/nanobenchmark.h"
 
+#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include <random>
@@ -44,8 +46,9 @@ void MeasureDiv(const FuncInput (&inputs)[N]) {
   params.max_evals = kMaxEvals;
   const size_t num_results = Measure(&Div, nullptr, inputs, N, results, params);
   for (size_t i = 0; i < num_results; ++i) {
-    printf("%5zu: %6.2f ticks; MAD=%4.2f%%\n", results[i].input,
-           results[i].ticks, results[i].variability * 100.0);
+    printf("%5" PRIu64 ": %6.2f ticks; MAD=%4.2f%%\n",
+           static_cast<uint64_t>(results[i].input), results[i].ticks,
+           results[i].variability * 100.0);
   }
 }
 
