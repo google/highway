@@ -198,11 +198,11 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 4
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_WASM
-#define HWY_CHOOSE_TARGET_LIST(func_name)       \
-  nullptr,                       /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
-      HWY_CHOOSE_WASM(func_name) /* WASM */
+#define HWY_CHOOSE_TARGET_LIST(func_name)         \
+  nullptr,                         /* reserved */ \
+      nullptr,                     /* reserved */ \
+      HWY_CHOOSE_WASM2(func_name), /* WASM2 */    \
+      HWY_CHOOSE_WASM(func_name)   /* WASM */
 
 #elif HWY_ARCH_RVV
 // See HWY_ARCH_X86 above for details.

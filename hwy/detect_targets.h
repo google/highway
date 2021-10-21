@@ -81,7 +81,7 @@
 
 #define HWY_HIGHEST_TARGET_BIT_PPC 18
 
-// 0x80000 reserved
+#define HWY_WASM2 0x80000  // Experimental
 #define HWY_WASM 0x100000
 
 #define HWY_HIGHEST_TARGET_BIT_WASM 20
@@ -170,7 +170,11 @@
 // HWY_TARGET == HWY_SCALAR.
 
 #if HWY_ARCH_WASM && defined(__wasm_simd128__)
+#if defined(HWY_WANT_WASM2)
+#define HWY_BASELINE_WASM HWY_WASM2
+#else
 #define HWY_BASELINE_WASM HWY_WASM
+#endif // HWY_WANT_WASM2
 #else
 #define HWY_BASELINE_WASM 0
 #endif

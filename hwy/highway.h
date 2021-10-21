@@ -66,6 +66,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SCALAR::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_RVV
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_RVV::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_WASM2
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_WASM2::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_WASM
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_WASM::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_NEON
@@ -126,6 +128,12 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 // were disabled at runtime we fall back to the baseline with
 // HWY_STATIC_DISPATCH()
 #define HWY_CHOOSE_SCALAR(FUNC_NAME) &HWY_STATIC_DISPATCH(FUNC_NAME)
+#endif
+
+#if HWY_TARGETS & HWY_WASM2
+#define HWY_CHOOSE_WASM2(FUNC_NAME) &N_WASM2::FUNC_NAME
+#else
+#define HWY_CHOOSE_WASM2(FUNC_NAME) nullptr
 #endif
 
 #if HWY_TARGETS & HWY_WASM
@@ -293,6 +301,8 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #include "hwy/ops/arm_neon-inl.h"
 #elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
 #include "hwy/ops/arm_sve-inl.h"
+#elif HWY_TARGET == HWY_WASM2
+#include "hwy/ops/wasm_256-inl.h"
 #elif HWY_TARGET == HWY_WASM
 #include "hwy/ops/wasm_128-inl.h"
 #elif HWY_TARGET == HWY_RVV

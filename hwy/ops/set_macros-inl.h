@@ -243,6 +243,24 @@
 #define HWY_TARGET_STR "simd128"
 
 //-----------------------------------------------------------------------------
+// WASM2
+#elif HWY_TARGET == HWY_WASM2
+
+#define HWY_ALIGN alignas(32)
+#define HWY_MAX_BYTES 32
+#define HWY_LANES(T) (32 / sizeof(T))
+
+#define HWY_CAP_INTEGER64 0
+#define HWY_CAP_FLOAT16 1
+#define HWY_CAP_FLOAT64 0
+#define HWY_CAP_GE256 0
+#define HWY_CAP_GE512 0
+
+#define HWY_NAMESPACE N_WASM2
+
+#define HWY_TARGET_STR "simd128"
+
+//-----------------------------------------------------------------------------
 // RVV
 #elif HWY_TARGET == HWY_RVV
 
