@@ -212,6 +212,13 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
 HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e)
 #undef HWY_RVV_LANES
 
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
+HWY_API size_t Lanes(Simd<T, N> /* tag*/) {
+  return HWY_MIN(N, Lanes(Full<T>()));
+}
+
 template <size_t N>
 HWY_API size_t Lanes(Simd<bfloat16_t, N> /* tag*/) {
   return Lanes(Simd<uint16_t, N>());
@@ -267,14 +274,15 @@ decltype(Set(Simd<uint16_t, N>(), 0)) Set(Simd<bfloat16_t, N> d,
   return Set(RebindToUnsigned<decltype(d)>(), arg.bits);
 }
 
-template <class D>
-using VFromD = decltype(Set(D(), TFromD<D>()));
-
-// Partial vectors
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API VFromD<Simd<T, N>> Set(Simd<T, N> /*tag*/, T arg) {
+// Capped vectors
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
+HWY_API decltype(Set(Full<T>(), T{0})) Set(Simd<T, N> /*tag*/, T arg) {
   return Set(Full<T>(), arg);
 }
+
+template <class D>
+using VFromD = decltype(Set(D(), TFromD<D>()));
 
 // ------------------------------ Zero
 
@@ -381,8 +389,9 @@ HWY_API VFromD<D> BitCast(D d, FromV v) {
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
-// Partial
-template <typename T, size_t N, class FromV, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N, class FromV,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API VFromD<Simd<T, N>> BitCast(Simd<T, N> /*tag*/, FromV v) {
   return BitCast(Full<T>(), v);
 }
@@ -413,8 +422,9 @@ HWY_INLINE VFromD<DU> Iota0(const D /*d*/) {
   return BitCastToUnsigned(Iota0(DU()));
 }
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_INLINE VFromD<Simd<T, N>> Iota0(Simd<T, N> /*tag*/) {
   return Iota0(Full<T>());
 }
@@ -907,8 +917,9 @@ HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
 HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le)
 #undef HWY_RVV_LOAD
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API VFromD<Simd<T, N>> Load(Simd<T, N> d, const T* HWY_RESTRICT p) {
   return Load(d, p);
 }
@@ -960,8 +971,9 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le)
 HWY_RVV_FOREACH(HWY_RVV_RET_ARGVDP, Store, se)
 #undef HWY_RVV_RET_ARGVDP
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API void Store(VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
                    T* HWY_RESTRICT p) {
   return Store(v, Full<T>(), p);
@@ -1007,8 +1019,9 @@ HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
 HWY_RVV_FOREACH(HWY_RVV_SCATTER, ScatterOffset, sux)
 #undef HWY_RVV_SCATTER
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API void ScatterOffset(VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
                            T* HWY_RESTRICT base,
                            VFromD<Simd<MakeSigned<T>, N>> offset) {
@@ -1042,8 +1055,9 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
 HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lux)
 #undef HWY_RVV_GATHER
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API VFromD<Simd<T, N>> GatherOffset(Simd<T, N> /* d */,
                                         const T* HWY_RESTRICT base,
                                         VFromD<Simd<MakeSigned<T>, N>> offset) {
@@ -1084,8 +1098,9 @@ HWY_RVV_STORE3(uint, u, 8, m2, /*kShift=*/1, 4, StoreInterleaved3, sseg3)
 
 #undef HWY_RVV_STORE3
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API void StoreInterleaved3(VFromD<Simd<T, N>> v0, VFromD<Simd<T, N>> v1,
                                VFromD<Simd<T, N>> v2, Simd<T, N> /*tag*/,
                                T* unaligned) {
@@ -1110,8 +1125,9 @@ HWY_RVV_STORE4(uint, u, 8, m2, /*kShift=*/1, 4, StoreInterleaved4, sseg4)
 
 #undef HWY_RVV_STORE4
 
-// Partial
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API void StoreInterleaved4(VFromD<Simd<T, N>> v0, VFromD<Simd<T, N>> v1,
                                VFromD<Simd<T, N>> v2, VFromD<Simd<T, N>> v3,
                                Simd<T, N> /*tag*/, T* unaligned) {
@@ -1348,8 +1364,9 @@ HWY_API VFromD<Simd<uint16_t, N>> DemoteTo(Simd<bfloat16_t, N> d,
 HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _)
 #undef HWY_RVV_CONVERT
 
-// Partial
-template <typename T, size_t N, class FromV, HWY_IF_LE128(T, N)>
+// Capped
+template <typename T, size_t N, class FromV,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
 HWY_API VFromD<Simd<T, N>> ConvertTo(Simd<T, N> /*tag*/, FromV v) {
   return ConvertTo(Full<T>(), v);
 }
