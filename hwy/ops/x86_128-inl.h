@@ -4916,6 +4916,10 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   // AVX-512 already does the blending at no extra cost (latency 11,
   // rthroughput 2 - same as compress plus store).
   if (HWY_TARGET == HWY_AVX3_DL || sizeof(T) != 2) {
+    // We're relying on the mask to blend. Clear the undefined upper bits.
+    if (N != 16 / sizeof(T)) {
+      m = And(m, FirstN(d, N));
+    }
     return CompressStore(v, m, d, unaligned);
   } else {
     const size_t count = CountTrue(m);
