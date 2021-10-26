@@ -1698,7 +1698,7 @@ HWY_API VI TableLookupBytes(const V v, const VI idx) {
 }
 
 template <class V, class VI>
-HWY_API V TableLookupBytesOr0(const VI v, const V idx) {
+HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
   const DFromV<VI> d;
   // Mask size must match vector type, so cast everything to this type.
   const Repartition<int8_t, decltype(d)> di8;

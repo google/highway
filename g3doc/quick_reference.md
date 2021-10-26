@@ -789,20 +789,23 @@ their operands into independently processed 128-bit *blocks*.
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
 
 *   `V`: `{u,i}` \
-    <code>VI **TableLookupBytes**(V bytes, VI from)</code>: returns
-    `bytes[from[i]]`. Uses byte lanes regardless of the actual vector types.
-    Results are implementation-defined if `from[i] >= HWY_MIN(lanes in V, 16)`.
-    The number of lanes in `V` and `VI` may differ, e.g. a full-length table
-    vector loaded via `LoadDup128`, plus partial vector `VI` of 4-bit indices.
+    <code>VI **TableLookupBytes**(V bytes, VI indices)</code>: returns
+    `bytes[indices[i]]`. Uses byte lanes regardless of the actual vector types.
+    Results are implementation-defined if `indices[i] < 0` or `indices[i] >=
+    HWY_MIN(Lanes(DFromV<V>()), 16)`. `VI` are integers with the same bit width
+    as a lane in `V`. The number of lanes in `V` and `VI` may differ, e.g. a
+    full-length table vector loaded via `LoadDup128`, plus partial vector `VI`
+    of 4-bit indices.
 
 *   `V`: `{u,i}` \
-    <code>VI **TableLookupBytesOr0**(V bytes, VI from)</code>: returns
-    `bytes[from[i]]`, or 0 if `from[i] & 0x80`. Uses byte lanes regardless of
-    the actual vector types. Results are implementation-defined for `from[i]` in
-    `[HWY_MIN(vector size, 16), 0x80)`. The zeroing behavior has zero cost on
-    x86 and ARM. For vectors of >= 256 bytes (can happen on SVE and RVV), this
-    will set all lanes after the first 128 to 0. The number of lanes in `V` and
-    `VI` may differ.
+    <code>VI **TableLookupBytesOr0**(V bytes, VI indices)</code>: returns
+    `bytes[indices[i]]`, or 0 if `indices[i] & 0x80`. Uses byte lanes regardless
+    of the actual vector types. Results are implementation-defined for
+    `indices[i] < 0` or in `[HWY_MIN(Lanes(DFromV<V>()), 16), 0x80)`. The
+    zeroing behavior has zero cost on x86 and ARM. For vectors of >= 256 bytes
+    (can happen on SVE and RVV), this will set all lanes after the first 128
+    to 0. `VI` are integers with the same bit width as a lane in `V`. The number
+    of lanes in `V` and `VI` may differ.
 
 #### Zip/Interleave
 
@@ -900,16 +903,18 @@ their operands into independently processed 128-bit *blocks*.
     less than two blocks; callers must first check that via `Lanes`.
 
 *   `V`: `{u,i,f}{32,64}` \
-    <code>V **TableLookupLanes**(V a, VI)</code> returns a vector of
-    `a[indices[i]]`, where `VI` is from `SetTableIndices(D, &indices[0])`. The
-    indices are not limited to blocks, hence this is slower than
-    `TableLookupBytes*` on AVX2/AVX-512. Results are implementation-defined
-    unless `0 <= indices[i] < Lanes(D())`.
+    <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector of
+    `a[indices[i]]`, where `unspecified` is the return value of
+    `SetTableIndices(D, &indices[0])`. The indices are not limited to blocks,
+    hence this is slower than `TableLookupBytes*` on AVX2/AVX-512. Results are
+    implementation-defined unless `0 <= indices[i] < Lanes(D())`. `indices` are
+    always integers, even if `V` is a floating-point type.
 
-*   `VI`: `{u,i}{32,64}` \
-    <code>VI **SetTableIndices**(D, TFromV<VI>* idx)</code> prepares for
-    `TableLookupLanes` with lane indices `idx = [0, N)` (need not be unique).
-    The size in bytes of `VI` lanes must match that of `D`.
+*   `D`: `{u,i}{32,64}` \
+    <code>unspecified **SetTableIndices**(D d, TI* idx)</code> prepares for
+    `TableLookupLanes` by loading `Lanes(d)` integer indices from `idx`, which
+    must be in the range `[0, Lanes(d))` but need not be unique. The index type
+    `TI` must be an integer of the same size as `TFromD<D>`.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed

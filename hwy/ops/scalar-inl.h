@@ -1138,38 +1138,36 @@ HWY_API Vec1<T> Broadcast(const Vec1<T> v) {
   return v;
 }
 
-// ------------------------------ Shuffle bytes with variable indices
+// ------------------------------ TableLookupBytes, TableLookupBytesOr0
 
-// Returns vector of bytes[from[i]]. "from" is also interpreted as bytes, i.e.
-// indices in [0, sizeof(T)).
-template <typename T>
-HWY_API Vec1<T> TableLookupBytes(const Vec1<T> in, const Vec1<T> from) {
+template <typename T, typename TI>
+HWY_API Vec1<TI> TableLookupBytes(const Vec1<T> in, const Vec1<TI> indices) {
   uint8_t in_bytes[sizeof(T)];
-  uint8_t from_bytes[sizeof(T)];
+  uint8_t idx_bytes[sizeof(T)];
   uint8_t out_bytes[sizeof(T)];
   CopyBytes<sizeof(T)>(&in, &in_bytes);
-  CopyBytes<sizeof(T)>(&from, &from_bytes);
+  CopyBytes<sizeof(T)>(&indices, &idx_bytes);
   for (size_t i = 0; i < sizeof(T); ++i) {
-    out_bytes[i] = in_bytes[from_bytes[i]];
+    out_bytes[i] = in_bytes[idx_bytes[i]];
   }
-  T out;
-  CopyBytes<sizeof(T)>(&out_bytes, &out);
-  return Vec1<T>{out};
+  TI out;
+  CopyBytes<sizeof(TI)>(&out_bytes, &out);
+  return Vec1<TI>{out};
 }
 
-template <typename T>
-HWY_API Vec1<T> TableLookupBytesOr0(const Vec1<T> in, const Vec1<T> from) {
+template <typename T, typename TI>
+HWY_API Vec1<TI> TableLookupBytesOr0(const Vec1<T> in, const Vec1<TI> indices) {
   uint8_t in_bytes[sizeof(T)];
-  uint8_t from_bytes[sizeof(T)];
+  uint8_t idx_bytes[sizeof(T)];
   uint8_t out_bytes[sizeof(T)];
   CopyBytes<sizeof(T)>(&in, &in_bytes);
-  CopyBytes<sizeof(T)>(&from, &from_bytes);
+  CopyBytes<sizeof(T)>(&indices, &idx_bytes);
   for (size_t i = 0; i < sizeof(T); ++i) {
-    out_bytes[i] = from_bytes[i] & 0x80 ? 0 : in_bytes[from_bytes[i]];
+    out_bytes[i] = idx_bytes[i] & 0x80 ? 0 : in_bytes[idx_bytes[i]];
   }
-  T out;
-  CopyBytes<sizeof(T)>(&out_bytes, &out);
-  return Vec1<T>{out};
+  TI out;
+  CopyBytes<sizeof(TI)>(&out_bytes, &out);
+  return Vec1<TI>{out};
 }
 
 // ------------------------------ ZipLower

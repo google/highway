@@ -2716,9 +2716,9 @@ HWY_API Vec512<double> SwapAdjacentBlocks(Vec512<double> v) {
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
 
 // Both full
-template <typename T>
-HWY_API Vec512<T> TableLookupBytes(Vec512<T> bytes, Vec512<T> from) {
-  return Vec512<T>{_mm512_shuffle_epi8(bytes.raw, from.raw)};
+template <typename T, typename TI>
+HWY_API Vec512<TI> TableLookupBytes(Vec512<T> bytes, Vec512<TI> indices) {
+  return Vec512<TI>{_mm512_shuffle_epi8(bytes.raw, indices.raw)};
 }
 
 // Partial index vector
