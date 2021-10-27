@@ -1513,35 +1513,35 @@ HWY_API Vec128<T, N> GatherIndex(const Simd<T, N> d, const T* HWY_RESTRICT base,
 // Gets the single value stored in a vector/part.
 template <size_t N>
 HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
-  return wasm_i8x16_extract_lane(v.raw, 0);
+  return static_cast<uint8_t>(wasm_i8x16_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
-  return wasm_i8x16_extract_lane(v.raw, 0);
+  return static_cast<int8_t>(wasm_i8x16_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
-  return wasm_i16x8_extract_lane(v.raw, 0);
+  return static_cast<uint16_t>(wasm_i16x8_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API int16_t GetLane(const Vec128<int16_t, N> v) {
-  return wasm_i16x8_extract_lane(v.raw, 0);
+  return static_cast<int16_t>(wasm_i16x8_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API uint32_t GetLane(const Vec128<uint32_t, N> v) {
-  return wasm_i32x4_extract_lane(v.raw, 0);
+  return static_cast<uint32_t>(wasm_i32x4_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API int32_t GetLane(const Vec128<int32_t, N> v) {
-  return wasm_i32x4_extract_lane(v.raw, 0);
+  return static_cast<int32_t>(wasm_i32x4_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API uint64_t GetLane(const Vec128<uint64_t, N> v) {
-  return wasm_i64x2_extract_lane(v.raw, 0);
+  return static_cast<uint64_t>(wasm_i64x2_extract_lane(v.raw, 0));
 }
 template <size_t N>
 HWY_API int64_t GetLane(const Vec128<int64_t, N> v) {
-  return wasm_i64x2_extract_lane(v.raw, 0);
+  return static_cast<int64_t>(wasm_i64x2_extract_lane(v.raw, 0));
 }
 
 template <size_t N>
