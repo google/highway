@@ -905,10 +905,17 @@ their operands into independently processed 128-bit *blocks*.
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector of
     `a[indices[i]]`, where `unspecified` is the return value of
-    `SetTableIndices(D, &indices[0])`. The indices are not limited to blocks,
-    hence this is slower than `TableLookupBytes*` on AVX2/AVX-512. Results are
-    implementation-defined unless `0 <= indices[i] < Lanes(D())`. `indices` are
-    always integers, even if `V` is a floating-point type.
+    `SetTableIndices(D, &indices[0])` or `IndicesFromVec`. The indices are not
+    limited to blocks, hence this is slower than `TableLookupBytes*` on
+    AVX2/AVX-512. Results are implementation-defined unless `0 <= indices[i] <
+    Lanes(D())`. `indices` are always integers, even if `V` is a floating-point
+    type.
+
+*   `D`: `{u,i}{32,64}` \
+    <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
+    `TableLookupLanes` with integer indices in `idx`, which must be the same bit
+    width as `TFromD<D>` and in the range `[0, Lanes(d))`, but need not be
+    unique.
 
 *   `D`: `{u,i}{32,64}` \
     <code>unspecified **SetTableIndices**(D d, TI* idx)</code> prepares for

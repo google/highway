@@ -2328,22 +2328,27 @@ HWY_API Vec512<float> Shuffle0123(const Vec512<float> v) {
 
 // ------------------------------ TableLookupLanes
 
-// Returned by SetTableIndices for use by TableLookupLanes.
+// Returned by SetTableIndices/IndicesFromVec for use by TableLookupLanes.
 template <typename T>
 struct Indices512 {
   __m512i raw;
 };
 
 template <typename T, typename TI>
-HWY_API Indices512<T> SetTableIndices(const Full512<T>, const TI* idx) {
+HWY_API Indices512<T> IndicesFromVec(Full512<T> /* tag */, Vec512<TI> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
-  const size_t N = 64 / sizeof(T);
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
+  const Full512<TI> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
 #endif
-  return Indices512<T>{LoadU(Full512<TI>(), idx).raw};
+  return Indices512<T>{vec.raw};
+}
+
+template <typename T, typename TI>
+HWY_API Indices512<T> SetTableIndices(const Full512<T> d, const TI* idx) {
+  const Rebind<TI, decltype(d)> di;
+  return IndicesFromVec(d, LoadU(di, idx));
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>

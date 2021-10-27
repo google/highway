@@ -1546,18 +1546,21 @@ HWY_API V SwapAdjacentBlocks(const V v) {
 
 // ------------------------------ TableLookupLanes
 
+template <class D, class VI>
+HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TFromV<VI>), "Index != lane");
+  const RebindToUnsigned<D> du;
+  const auto indices = BitCast(du, vec);
+#if HWY_IS_DEBUG_BUILD
+  HWY_DASSERT(AllTrue(du, Lt(indices, Set(du, Lanes(d)))));
+#endif
+  return indices;
+}
+
 template <class D, typename TI>
 HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
   static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
-#if HWY_IS_DEBUG_BUILD
-  const size_t N = Lanes(d);
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
-#endif
-  const Rebind<TI, decltype(d)> di;
-  const RebindToUnsigned<decltype(di)> du;
-  return BitCast(du, Load(di, idx));
+  return IndicesFromVec(d, LoadU(Rebind<TI, D>(), idx));
 }
 
 // <32bit are not part of Highway API, but used in Broadcast. This limits VLMAX

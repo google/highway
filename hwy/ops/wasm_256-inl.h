@@ -1918,36 +1918,28 @@ HWY_API Vec128<float> Shuffle0123(const Vec128<float> v) {
 
 // Returned by SetTableIndices for use by TableLookupLanes.
 template <typename T>
-struct Indices128 {
+struct Indices256 {
   __v128_u raw;
 };
 
-template <typename T, typename TI>
-HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+template <typename T, size_t N, typename TI>
+HWY_API Indices256<T, N> IndicesFromVec(Simd<T, N> d, Vec256<TI, N> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
-#if HWY_IS_DEBUG_BUILD
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
-#endif
+  return Indices256<T, N>{};
+}
 
-  const Repartition<uint8_t, decltype(d)> d8;
-  alignas(16) uint8_t control[16] = {0};
-  for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
-    for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-      control[idx_lane * sizeof(T) + idx_byte] =
-          static_cast<uint8_t>(idx[idx_lane] * sizeof(T) + idx_byte);
-    }
-  }
-  return Indices128<T, N>{Load(d8, control).raw};
+template <typename T, size_t N, typename TI, HWY_IF_LE256(T, N)>
+HWY_API Indices256<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+  const Rebind<TI, decltype(d)> di;
+  return IndicesFromVec(d, LoadU(di, idx));
 }
 
 template <typename T>
-HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices128<T, N> idx) {
+HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices256<T, N> idx) {
   using TI = MakeSigned<T>;
   const Simd<T, N> d;
   const Simd<TI, N> di;
-  return BitCast(d, TableLookupBytes(BitCast(di, v), Vec128<TI, N>{idx.raw}));
+  return BitCast(d, TableLookupBytes(BitCast(di, v), Vec256<TI, N>{idx.raw}));
 }
 
 // ------------------------------ Reverse (Shuffle0123, Shuffle2301, Shuffle01)

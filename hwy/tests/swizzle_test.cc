@@ -109,6 +109,7 @@ struct TestTableLookupLanes {
     using TI = MakeSigned<T>;
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
+    const Rebind<TI, D> di;
     auto idx = AllocateAligned<TI>(N);
     memset(idx.get(), 0, N * sizeof(TI));
     auto expected = AllocateAligned<T>(N);
@@ -129,9 +130,13 @@ struct TestTableLookupLanes {
                 expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
               }
 
-              const auto opaque = SetTableIndices(d, idx.get());
-              const auto actual = TableLookupLanes(v, opaque);
-              HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
+              const auto opaque1 = IndicesFromVec(d, Load(di, idx.get()));
+              const auto actual1 = TableLookupLanes(v, opaque1);
+              HWY_ASSERT_VEC_EQ(d, expected.get(), actual1);
+
+              const auto opaque2 = SetTableIndices(d, idx.get());
+              const auto actual2 = TableLookupLanes(v, opaque2);
+              HWY_ASSERT_VEC_EQ(d, expected.get(), actual2);
             }
           }
         }
@@ -151,15 +156,21 @@ struct TestTableLookupLanes {
         expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
       }
 
-      const auto opaque = SetTableIndices(d, idx.get());
-      const auto actual = TableLookupLanes(v, opaque);
-      HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
+      const auto opaque1 = IndicesFromVec(d, Load(di, idx.get()));
+      const auto actual1 = TableLookupLanes(v, opaque1);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual1);
+
+      const auto opaque2 = SetTableIndices(d, idx.get());
+      const auto actual2 = TableLookupLanes(v, opaque2);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual2);
     }
 #else
     const TI index = 0;
-    const auto opaque = SetTableIndices(d, &index);
     const auto v = Set(d, 1);
-    HWY_ASSERT_VEC_EQ(d, v, TableLookupLanes(v, opaque));
+    const auto opaque1 = SetTableIndices(d, &index);
+    HWY_ASSERT_VEC_EQ(d, v, TableLookupLanes(v, opaque1));
+    const auto opaque2 = IndicesFromVec(d, Zero(d));
+    HWY_ASSERT_VEC_EQ(d, v, TableLookupLanes(v, opaque2));
 #endif
   }
 };

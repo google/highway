@@ -2586,42 +2586,40 @@ HWY_API Vec256<float> Shuffle0123(const Vec256<float> v) {
 
 // ------------------------------ TableLookupLanes
 
-// Returned by SetTableIndices for use by TableLookupLanes.
+// Returned by SetTableIndices/IndicesFromVec for use by TableLookupLanes.
 template <typename T>
 struct Indices256 {
   __m256i raw;
 };
 
-// Native 8x32 instruction: just load indices
+// Native 8x32 instruction: indices remain unchanged
 template <typename T, typename TI, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Indices256<T> SetTableIndices(const Full256<T>, const TI* idx) {
+HWY_API Indices256<T> IndicesFromVec(Full256<T> /* tag */, Vec256<TI> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
-  const size_t N = 32 / sizeof(T);
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
+  const Full256<TI> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(32 / sizeof(T))))));
 #endif
-  return Indices256<T>{LoadU(Full256<TI>(), idx).raw};
+  return Indices256<T>{vec.raw};
 }
 
 // 64-bit lanes: convert indices to 8x32 unless AVX3 is available
 template <typename T, typename TI, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Indices256<T> SetTableIndices(const Full256<T>, const TI* idx) {
+HWY_API Indices256<T> IndicesFromVec(Full256<T> d, Vec256<TI> idx64) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+  const Rebind<TI, decltype(d)> di;
+  (void)di;  // potentially unused
 #if HWY_IS_DEBUG_BUILD
-  const size_t N = 32 / sizeof(T);
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
+  HWY_DASSERT(AllFalse(di, Lt(idx64, Zero(di))) &&
+              AllTrue(di, Lt(idx64, Set(di, static_cast<TI>(32 / sizeof(T))))));
 #endif
 
-  const Full256<TI> di;
 #if HWY_TARGET <= HWY_AVX3
-  return Indices256<T>{LoadU(di, idx).raw};
+  (void)d;
+  return Indices256<T>{idx64.raw};
 #else
-  const Full256<float> df;
-  const Vec256<TI> idx64 = LoadU(di, idx);
+  const Repartition<float, decltype(d)> df;  // 32-bit!
   // Replicate 64-bit index into upper 32 bits
   const Vec256<TI> dup =
       BitCast(di, Vec256<float>{_mm256_moveldup_ps(BitCast(df, idx64).raw)});
@@ -2629,6 +2627,12 @@ HWY_API Indices256<T> SetTableIndices(const Full256<T>, const TI* idx) {
   const Vec256<TI> idx32 = dup + dup + Set(di, TI(1) << 32);
   return Indices256<T>{idx32.raw};
 #endif
+}
+
+template <typename T, typename TI>
+HWY_API Indices256<T> SetTableIndices(const Full256<T> d, const TI* idx) {
+  const Rebind<TI, decltype(d)> di;
+  return IndicesFromVec(d, LoadU(di, idx));
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>

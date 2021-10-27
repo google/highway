@@ -1109,10 +1109,15 @@ struct Indices1 {
 };
 
 template <typename T, typename TI>
-HWY_API Indices1<T> SetTableIndices(Sisd<T>, const TI* idx) {
+HWY_API Indices1<T> IndicesFromVec(Sisd<T>, Vec1<TI> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane size");
-  HWY_DASSERT(idx[0] == 0);
-  return Indices1<T>{idx[0]};
+  HWY_DASSERT(vec.raw == 0);
+  return Indices1<T>{vec.raw};
+}
+
+template <typename T, typename TI>
+HWY_API Indices1<T> SetTableIndices(Sisd<T> d, const TI* idx) {
+  return IndicesFromVec(d, LoadU(idx));
 }
 
 template <typename T>

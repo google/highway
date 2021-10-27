@@ -3238,7 +3238,7 @@ HWY_API VI TableLookupBytesOr0(const V bytes, const VI from) {
 
 // ------------------------------ TableLookupLanes (Shuffle01)
 
-// Returned by SetTableIndices for use by TableLookupLanes.
+// Returned by SetTableIndices/IndicesFromVec for use by TableLookupLanes.
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Indices128 {
   __m128i raw;
@@ -3246,40 +3246,55 @@ struct Indices128 {
 
 template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N),
           HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+HWY_API Indices128<T, N> IndicesFromVec(Simd<T, N> d, Vec128<TI, N> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
+  const Simd<TI, N> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, N))));
 #endif
+
 #if HWY_TARGET <= HWY_AVX2
-  const Rebind<TI, decltype(d)> di;
-  return Indices128<T, N>{LoadU(di, idx).raw};
+  (void)d;
+  return Indices128<T, N>{vec.raw};
 #else
   const Repartition<uint8_t, decltype(d)> d8;
-  alignas(16) uint8_t control[16] = {0};
-  for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
-    for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-      control[idx_lane * sizeof(T) + idx_byte] =
-          static_cast<uint8_t>(size_t(idx[idx_lane]) * sizeof(T) + idx_byte);
-    }
-  }
-  return Indices128<T, N>{Load(d8, control).raw};
+  using V8 = VFromD<decltype(d8)>;
+  alignas(16) constexpr uint8_t kByteOffsets[16] = {0, 1, 2, 3, 0, 1, 2, 3,
+                                                    0, 1, 2, 3, 0, 1, 2, 3};
+
+  // Broadcast each lane index to all 4 bytes of T
+  alignas(16) constexpr uint8_t kBroadcastLaneBytes[16] = {
+      0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12};
+  const V8 lane_indices = TableLookupBytes(vec, Load(d8, kBroadcastLaneBytes));
+
+  // Shift to bytes
+  const Repartition<uint16_t, decltype(d)> d16;
+  const V8 byte_indices = BitCast(d8, ShiftLeft<2>(BitCast(d16, lane_indices)));
+
+  return Indices128<T, N>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
 #endif
 }
 
 template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N),
           HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> /* tag */, const TI* idx) {
+HWY_API Indices128<T, N> IndicesFromVec(Simd<T, N> /* tag */,
+                                        Vec128<TI, N> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
+  const Simd<TI, N> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(N)))));
 #endif
-  // Always load - even without AVX3, we can shuffle+blend.
-  return Indices128<T, N>{LoadU(Simd<TI, N>(), idx).raw};
+
+  // No change - even without AVX3, we can shuffle+blend.
+  return Indices128<T, N>{vec.raw};
+}
+
+template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N)>
+HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+  const Rebind<TI, decltype(d)> di;
+  return IndicesFromVec(d, LoadU(di, idx));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>

@@ -3328,23 +3328,47 @@ struct Indices128 {
 };
 
 template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N)>
-HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+HWY_API Indices128<T, N> IndicesFromVec(Simd<T, N> d, Vec128<TI, N> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
-  for (size_t i = 0; i < N; ++i) {
-    HWY_DASSERT(0 <= idx[i] && idx[i] < static_cast<TI>(N));
-  }
+  const Simd<TI, N> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(N)))));
 #endif
 
   const Repartition<uint8_t, decltype(d)> d8;
-  alignas(16) uint8_t control[16] = {0};
-  for (size_t idx_lane = 0; idx_lane < N; ++idx_lane) {
-    for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
-      control[idx_lane * sizeof(T) + idx_byte] = static_cast<uint8_t>(
-          static_cast<size_t>(idx[idx_lane]) * sizeof(T) + idx_byte);
-    }
+  using V8 = VFromD<decltype(d8)>;
+  const Repartition<uint16_t, decltype(d)> d16;
+
+  // Broadcast each lane index to all bytes of T and shift to bytes
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8, "");
+  if (sizeof(T) == 4) {
+    alignas(16) constexpr uint8_t kBroadcastLaneBytes[16] = {
+        0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12};
+    const V8 lane_indices =
+        TableLookupBytes(BitCast(d8, vec), Load(d8, kBroadcastLaneBytes));
+    const V8 byte_indices =
+        BitCast(d8, ShiftLeft<2>(BitCast(d16, lane_indices)));
+    alignas(16) constexpr uint8_t kByteOffsets[16] = {0, 1, 2, 3, 0, 1, 2, 3,
+                                                      0, 1, 2, 3, 0, 1, 2, 3};
+    return Indices128<T, N>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
+  } else {
+    alignas(16) constexpr uint8_t kBroadcastLaneBytes[16] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8};
+    const V8 lane_indices =
+        TableLookupBytes(BitCast(d8, vec), Load(d8, kBroadcastLaneBytes));
+    const V8 byte_indices =
+        BitCast(d8, ShiftLeft<3>(BitCast(d16, lane_indices)));
+    alignas(16) constexpr uint8_t kByteOffsets[16] = {0, 1, 2, 3, 4, 5, 6, 7,
+                                                      0, 1, 2, 3, 4, 5, 6, 7};
+    return Indices128<T, N>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
   }
-  return Indices128<T, N>{BitCast(d, Load(d8, control)).raw};
+}
+
+template <typename T, size_t N, typename TI, HWY_IF_LE128(T, N)>
+HWY_API Indices128<T, N> SetTableIndices(Simd<T, N> d, const TI* idx) {
+  const Rebind<TI, decltype(d)> di;
+  return IndicesFromVec(d, LoadU(di, idx));
 }
 
 template <typename T, size_t N>
