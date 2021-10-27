@@ -712,7 +712,7 @@ HWY_API Vec128<T, N> Zero(Simd<T, N> d) {
 }
 
 template <size_t N>
-HWY_API Vec128<bfloat16_t, N> Zero(Simd<bfloat16_t, N> d) {
+HWY_API Vec128<bfloat16_t, N> Zero(Simd<bfloat16_t, N> /* tag */) {
   return Vec128<bfloat16_t, N>(Zero(Simd<uint16_t, N>()).raw);
 }
 

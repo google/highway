@@ -773,7 +773,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask16(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{a.raw & b.raw};
+  return Mask128<T, N>{static_cast<__mmask16>(a.raw & b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -782,7 +782,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{a.raw & b.raw};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw & b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -791,7 +791,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint16_t>(a.raw & b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw & b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -800,7 +800,7 @@ HWY_INLINE Mask128<T, N> And(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kand_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint8_t>(a.raw & b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw & b.raw)};
 #endif
 }
 
@@ -810,7 +810,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask16(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{~a.raw & b.raw};
+  return Mask128<T, N>{static_cast<__mmask16>(~a.raw & b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -819,7 +819,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{~a.raw & b.raw};
+  return Mask128<T, N>{static_cast<__mmask8>(~a.raw & b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -828,7 +828,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint16_t>(~a.raw & b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(~a.raw & b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -837,7 +837,7 @@ HWY_INLINE Mask128<T, N> AndNot(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kandn_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint8_t>(~a.raw & b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(~a.raw & b.raw)};
 #endif
 }
 
@@ -847,7 +847,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask16(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{a.raw | b.raw};
+  return Mask128<T, N>{static_cast<__mmask16>(a.raw | b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -856,7 +856,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{a.raw | b.raw};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw | b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -865,7 +865,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint16_t>(a.raw | b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw | b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -874,7 +874,7 @@ HWY_INLINE Mask128<T, N> Or(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kor_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint8_t>(a.raw | b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw | b.raw)};
 #endif
 }
 
@@ -884,7 +884,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask16(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{a.raw ^ b.raw};
+  return Mask128<T, N>{static_cast<__mmask16>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -893,7 +893,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{a.raw ^ b.raw};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -902,7 +902,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint16_t>(a.raw ^ b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T, size_t N>
@@ -911,7 +911,7 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask128<T, N>{_kxor_mask8(a.raw, b.raw)};
 #else
-  return Mask128<T, N>{static_cast<uint8_t>(a.raw ^ b.raw)};
+  return Mask128<T, N>{static_cast<__mmask8>(a.raw ^ b.raw)};
 #endif
 }
 

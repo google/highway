@@ -560,7 +560,7 @@ HWY_INLINE Mask256<T> And(hwy::SizeTag<1> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kand_mask32(a.raw, b.raw)};
 #else
-  return Mask256<T>{a.raw & b.raw};
+  return Mask256<T>{static_cast<__mmask32>(a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -569,7 +569,7 @@ HWY_INLINE Mask256<T> And(hwy::SizeTag<2> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kand_mask16(a.raw, b.raw)};
 #else
-  return Mask256<T>{a.raw & b.raw};
+  return Mask256<T>{static_cast<__mmask16>(a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -578,7 +578,7 @@ HWY_INLINE Mask256<T> And(hwy::SizeTag<4> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kand_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint16_t>(a.raw & b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -587,7 +587,7 @@ HWY_INLINE Mask256<T> And(hwy::SizeTag<8> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kand_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint8_t>(a.raw & b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(a.raw & b.raw)};
 #endif
 }
 
@@ -597,7 +597,7 @@ HWY_INLINE Mask256<T> AndNot(hwy::SizeTag<1> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kandn_mask32(a.raw, b.raw)};
 #else
-  return Mask256<T>{~a.raw & b.raw};
+  return Mask256<T>{static_cast<__mmask32>(~a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -606,7 +606,7 @@ HWY_INLINE Mask256<T> AndNot(hwy::SizeTag<2> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kandn_mask16(a.raw, b.raw)};
 #else
-  return Mask256<T>{~a.raw & b.raw};
+  return Mask256<T>{static_cast<__mmask16>(~a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -615,7 +615,7 @@ HWY_INLINE Mask256<T> AndNot(hwy::SizeTag<4> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kandn_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint16_t>(~a.raw & b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(~a.raw & b.raw)};
 #endif
 }
 template <typename T>
@@ -624,7 +624,7 @@ HWY_INLINE Mask256<T> AndNot(hwy::SizeTag<8> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kandn_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint8_t>(~a.raw & b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(~a.raw & b.raw)};
 #endif
 }
 
@@ -634,7 +634,7 @@ HWY_INLINE Mask256<T> Or(hwy::SizeTag<1> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kor_mask32(a.raw, b.raw)};
 #else
-  return Mask256<T>{a.raw | b.raw};
+  return Mask256<T>{static_cast<__mmask32>(a.raw | b.raw)};
 #endif
 }
 template <typename T>
@@ -643,7 +643,7 @@ HWY_INLINE Mask256<T> Or(hwy::SizeTag<2> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kor_mask16(a.raw, b.raw)};
 #else
-  return Mask256<T>{a.raw | b.raw};
+  return Mask256<T>{static_cast<__mmask16>(a.raw | b.raw)};
 #endif
 }
 template <typename T>
@@ -652,7 +652,7 @@ HWY_INLINE Mask256<T> Or(hwy::SizeTag<4> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kor_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint16_t>(a.raw | b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(a.raw | b.raw)};
 #endif
 }
 template <typename T>
@@ -661,7 +661,7 @@ HWY_INLINE Mask256<T> Or(hwy::SizeTag<8> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kor_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint8_t>(a.raw | b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(a.raw | b.raw)};
 #endif
 }
 
@@ -671,7 +671,7 @@ HWY_INLINE Mask256<T> Xor(hwy::SizeTag<1> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kxor_mask32(a.raw, b.raw)};
 #else
-  return Mask256<T>{a.raw ^ b.raw};
+  return Mask256<T>{static_cast<__mmask32>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T>
@@ -680,7 +680,7 @@ HWY_INLINE Mask256<T> Xor(hwy::SizeTag<2> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kxor_mask16(a.raw, b.raw)};
 #else
-  return Mask256<T>{a.raw ^ b.raw};
+  return Mask256<T>{static_cast<__mmask16>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T>
@@ -689,7 +689,7 @@ HWY_INLINE Mask256<T> Xor(hwy::SizeTag<4> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kxor_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint16_t>(a.raw ^ b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(a.raw ^ b.raw)};
 #endif
 }
 template <typename T>
@@ -698,7 +698,7 @@ HWY_INLINE Mask256<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask256<T> a,
 #if HWY_COMPILER_HAS_MASK_INTRINSICS
   return Mask256<T>{_kxor_mask8(a.raw, b.raw)};
 #else
-  return Mask256<T>{static_cast<uint8_t>(a.raw ^ b.raw)};
+  return Mask256<T>{static_cast<__mmask8>(a.raw ^ b.raw)};
 #endif
 }
 
