@@ -26,11 +26,11 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// SIMD operations are implemented as overloaded functions selected using a
-// "descriptor" D := Simd<T, N>. T is the lane type, N an opaque integer for
-// internal use only. Users create D via aliases ScalableTag<T>() (a full
-// vector), CappedTag<T, kLimit> or FixedTag<T, kNumLanes>. The actual number of
-// lanes (always a power of two) is Lanes(D()).
+// SIMD operations are implemented as overloaded functions selected using a tag
+// type D := Simd<T, N>. T is the lane type, N an opaque integer for internal
+// use only. Users create D via aliases ScalableTag<T>() (a full vector),
+// CappedTag<T, kLimit> or FixedTag<T, kNumLanes>. The actual number of lanes
+// (always a power of two) is Lanes(D()).
 template <typename Lane, size_t N>
 struct Simd {
   constexpr Simd() = default;
@@ -38,7 +38,7 @@ struct Simd {
   static_assert((N & (N - 1)) == 0 && N != 0, "N must be a power of two");
 
   // Widening/narrowing ops change the number of lanes and/or their type.
-  // To initialize such vectors, we need the corresponding descriptor types:
+  // To initialize such vectors, we need the corresponding tag types:
 
   // PromoteTo/DemoteTo() with another lane type, but same number of lanes.
   template <typename NewLane>
@@ -139,7 +139,7 @@ using FixedTag = typename detail::FixedTagChecker<T, kNumLanes>::type;
 template <class D>
 using TFromD = typename D::T;
 
-// Descriptor for the same number of lanes as D, but with the LaneType T.
+// Tag for the same number of lanes as D, but with the LaneType T.
 template <class T, class D>
 using Rebind = typename D::template Rebind<T>;
 
@@ -150,7 +150,7 @@ using RebindToUnsigned = Rebind<MakeUnsigned<TFromD<D>>, D>;
 template <class D>
 using RebindToFloat = Rebind<MakeFloat<TFromD<D>>, D>;
 
-// Descriptor for the same total size as D, but with the LaneType T.
+// Tag for the same total size as D, but with the LaneType T.
 template <class T, class D>
 using Repartition = typename D::template Repartition<T>;
 
@@ -159,7 +159,7 @@ using RepartitionToWide = Repartition<MakeWide<TFromD<D>>, D>;
 template <class D>
 using RepartitionToNarrow = Repartition<MakeNarrow<TFromD<D>>, D>;
 
-// Descriptor for the same lane type as D, but half the lanes.
+// Tag for the same lane type as D, but half the lanes.
 template <class D>
 using Half = typename D::Half;
 

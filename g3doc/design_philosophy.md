@@ -91,12 +91,12 @@ runtime dispatch.
 
 ## Overloaded function API
 
-Most C++ vector APIs rely on class templates. However, the ARM SVE vector
-type is sizeless and cannot be wrapped in a class. We instead rely on overloaded
+Most C++ vector APIs rely on class templates. However, the ARM SVE vector type
+is sizeless and cannot be wrapped in a class. We instead rely on overloaded
 functions. Overloading based on vector types is also undesirable because SVE
-vectors cannot be default-constructed. We instead use a dedicated 'descriptor'
-type `Simd` for overloading, abbreviated to `D` for template arguments and
-`d` in lvalues.
+vectors cannot be default-constructed. We instead use a dedicated tag type
+`Simd` for overloading, abbreviated to `D` for template arguments and `d` in
+lvalues.
 
 Note that generic function templates are possible (see generic_ops-inl.h).
 

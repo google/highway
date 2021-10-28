@@ -31,7 +31,9 @@ namespace hwy {
 #define HWY_PATCH 2
 
 //------------------------------------------------------------------------------
-// Shorthand for descriptors (defined in shared-inl.h) used to select overloads.
+// Shorthand for tags (defined in shared-inl.h) used to select overloads.
+// Note that ScalableTag<T> is preferred over HWY_FULL, and CappedTag<T, N> over
+// HWY_CAPPED(T, N).
 
 // HWY_FULL(T[,LMUL=1]) is a native vector/group. LMUL is the number of
 // registers in the group, and is ignored on targets that do not support groups.

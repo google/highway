@@ -64,7 +64,7 @@ HWY_AFTER_NAMESPACE();
 *   `d` is an lvalue of type `D`, passed as a function argument e.g. to Zero;
 *   `V` is the type of a vector.
 
-## Vector and descriptor types
+## Vector and tag types
 
 Highway vectors consist of one or more 'lanes' of the same built-in type
 `uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `float##_t` for `## = 16, 32,
