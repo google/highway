@@ -2716,14 +2716,16 @@ template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                                  const Mask128<T, 8> mask) {
   constexpr uint64_t kMagic = 0x103070F1F3F80ULL;
-  return (wasm_i64x2_extract_lane(mask.raw, 0) * kMagic) >> 56;
+  return (static_cast<uint64_t>(wasm_i64x2_extract_lane(mask.raw, 0)) *
+          kMagic) >>
+         56;
 }
 
 // 32-bit or less: need masking
 template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                                  const Mask128<T, N> mask) {
-  uint64_t bytes = wasm_i64x2_extract_lane(mask.raw, 0);
+  uint64_t bytes = static_cast<uint64_t>(wasm_i64x2_extract_lane(mask.raw, 0));
   // Clear potentially undefined bytes.
   bytes &= (1ULL << (N * 8)) - 1;
   constexpr uint64_t kMagic = 0x103070F1F3F80ULL;
