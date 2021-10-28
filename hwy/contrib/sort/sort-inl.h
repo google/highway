@@ -31,11 +31,11 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+enum class SortOrder { kAscending, kDescending };
+
 #if HWY_TARGET != HWY_SCALAR && HWY_ARCH_X86
 
 #define HWY_SORT_VERIFY 1
-
-enum class SortOrder { kAscending, kDescending };
 
 constexpr inline SortOrder Reverse(SortOrder order) {
   return (order == SortOrder::kAscending) ? SortOrder::kDescending
@@ -889,6 +889,14 @@ HWY_API size_t SortBatch(D d, TFromD<D>* inout) {
 
   return detail::FourQuartetsPerVector<kOrder>(d, q0, q1, q4, q5, q2, q3, q6,
                                                q7, inout);
+}
+
+#else
+
+// Avoids unused attribute warning
+template <SortOrder kOrder, class D>
+HWY_API size_t SortBatch(D /* tag */, TFromD<D>* /* inout */) {
+  return 0;
 }
 
 #endif  // HWY_TARGET != HWY_SCALAR && HWY_ARCH_X86

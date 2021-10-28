@@ -553,7 +553,7 @@ HWY_API Vec128<T, N> ShiftLeftSame(const Vec128<T, N> v, const int bits) {
   // Use raw instead of BitCast to support N=1.
   const Vec128<T, N> shifted{
       ShiftLeftSame(Vec128<MakeWide<T>>{v.raw}, bits).raw};
-  return shifted & Set(d8, (0xFF << bits) & 0xFF);
+  return shifted & Set(d8, static_cast<T>((0xFF << bits) & 0xFF));
 }
 
 template <size_t N>
@@ -2666,14 +2666,16 @@ template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+  return RebindMask(
+      d, TestBit(Set(du, static_cast<uint16_t>(bits)), Load(du, kBit)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N> d, uint64_t bits) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
-  return RebindMask(d, TestBit(Set(du, bits), Load(du, kBit)));
+  return RebindMask(
+      d, TestBit(Set(du, static_cast<uint32_t>(bits)), Load(du, kBit)));
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
@@ -2894,7 +2896,7 @@ template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N> /* tag */,
                                const Mask128<T, N> mask) {
   const uint64_t bits = detail::BitsFromMask(mask);
-  return bits ? Num0BitsBelowLS1Bit_Nonzero64(bits) : -1;
+  return bits ? static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero64(bits)) : -1;
 }
 
 // ------------------------------ Compress
