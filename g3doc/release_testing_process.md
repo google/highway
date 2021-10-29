@@ -59,5 +59,5 @@ git -C third_party/highway pull -r origin master
 git diff
 vi deps.sh
 git commit -a -m"Highway test"
-git push git@gitlab.com:$USER/jpeg-xl.git HEAD:main --force
+git push git@github.com:$USER/libjxl.git HEAD:main --force
 ```
