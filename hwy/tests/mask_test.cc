@@ -58,8 +58,10 @@ struct TestFirstN {
 
     const RebindToSigned<D> di;
     using TI = TFromD<decltype(di)>;
-    const size_t max_len =
-        HWY_MIN(static_cast<size_t>(LimitsMax<TI>()), LimitsMax<size_t>());
+    const uint64_t max_size_t =
+        static_cast<uint64_t>(static_cast<size_t>(~0ULL));
+    const uint64_t max_ti = static_cast<uint64_t>(LimitsMax<TI>());
+    const size_t max_len = static_cast<size_t>(max_ti & max_size_t);
 
     for (size_t len = 0; len <= HWY_MIN(2 * N, max_len); ++len) {
       const auto expected =
