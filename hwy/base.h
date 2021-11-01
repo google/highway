@@ -323,14 +323,14 @@ using RemoveConst = typename RemoveConstT<T>::type;
 // Type traits
 
 template <typename T>
-constexpr bool IsFloat() {
+HWY_API constexpr bool IsFloat() {
   // Cannot use T(1.25) != T(1) for float16_t, which can only be converted to or
   // from a float, not compared.
   return IsSame<T, float>() || IsSame<T, double>();
 }
 
 template <typename T>
-constexpr bool IsSigned() {
+HWY_API constexpr bool IsSigned() {
   return T(0) > T(-1);
 }
 template <>
@@ -344,13 +344,13 @@ constexpr bool IsSigned<bfloat16_t>() {
 
 // Largest/smallest representable integer values.
 template <typename T>
-constexpr T LimitsMax() {
+HWY_API constexpr T LimitsMax() {
   static_assert(!IsFloat<T>(), "Only for integer types");
   return IsSigned<T>() ? T((1ULL << (sizeof(T) * 8 - 1)) - 1)
                        : static_cast<T>(~0ull);
 }
 template <typename T>
-constexpr T LimitsMin() {
+HWY_API constexpr T LimitsMin() {
   static_assert(!IsFloat<T>(), "Only for integer types");
   return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
 }
@@ -358,7 +358,7 @@ constexpr T LimitsMin() {
 // Largest/smallest representable value (integer or float). This naming avoids
 // confusion with numeric_limits<float>::min() (the smallest positive value).
 template <typename T>
-constexpr T LowestValue() {
+HWY_API constexpr T LowestValue() {
   return LimitsMin<T>();
 }
 template <>
@@ -371,7 +371,7 @@ constexpr double LowestValue<double>() {
 }
 
 template <typename T>
-constexpr T HighestValue() {
+HWY_API constexpr T HighestValue() {
   return LimitsMax<T>();
 }
 template <>

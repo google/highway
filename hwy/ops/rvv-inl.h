@@ -423,10 +423,10 @@ HWY_INLINE VFromD<DU> Iota0(const D /*d*/) {
 }
 
 // Capped
-template <typename T, size_t N,
+template <typename T, size_t N, typename TU = MakeUnsigned<T>,
           hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
-HWY_INLINE VFromD<Simd<T, N>> Iota0(Simd<T, N> /*tag*/) {
-  return Iota0(Full<T>());
+HWY_INLINE VFromD<Full<TU>> Iota0(Simd<T, N> /*tag*/) {
+  return Iota0(Full<TU>());
 }
 
 }  // namespace detail
@@ -614,9 +614,9 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Min, fmin)
 
 namespace detail {
 
-HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVS, Max, maxu_vx)
-HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVS, Max, max_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, Max, fmax_vf)
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVS, MaxS, maxu_vx)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVS, MaxS, max_vx)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, MaxS, fmax_vf)
 
 }  // namespace detail
 
@@ -1235,13 +1235,13 @@ HWY_INLINE Vu8m4 DemoteTo(Du8m4 d, const Vu16m8 v) {
 
 // First clamp negative numbers to zero to match x86 packus.
 HWY_API Vu16m1 DemoteTo(Du16m1 d, const Vi32m2 v) {
-  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::MaxS(v, 0)));
 }
 HWY_API Vu16m2 DemoteTo(Du16m2 d, const Vi32m4 v) {
-  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::MaxS(v, 0)));
 }
 HWY_API Vu16m4 DemoteTo(Du16m4 d, const Vi32m8 v) {
-  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::MaxS(v, 0)));
 }
 
 HWY_API Vu8m1 DemoteTo(Du8m1 d, const Vi32m4 v) {
@@ -1252,13 +1252,13 @@ HWY_API Vu8m2 DemoteTo(Du8m2 d, const Vi32m8 v) {
 }
 
 HWY_API Vu8m1 DemoteTo(Du8m1 d, const Vi16m2 v) {
-  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::MaxS(v, 0)));
 }
 HWY_API Vu8m2 DemoteTo(Du8m2 d, const Vi16m4 v) {
-  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::MaxS(v, 0)));
 }
 HWY_API Vu8m4 DemoteTo(Du8m4 d, const Vi16m8 v) {
-  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::Max(v, 0)));
+  return detail::DemoteTo(d, detail::BitCastToUnsigned(detail::MaxS(v, 0)));
 }
 
 HWY_API Vu8m1 U8FromU32(const Vu32m4 v) {
@@ -1415,33 +1415,32 @@ HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideDown, slidedown)
 }  // namespace detail
 
 // ------------------------------ ConcatUpperLower
-template <class V>
-HWY_API V ConcatUpperLower(const V hi, const V lo) {
-  const RebindToSigned<DFromV<V>> di;
-  return IfThenElse(FirstN(di, Lanes(di) / 2), lo, hi);
+template <class D, class V>
+HWY_API V ConcatUpperLower(D d, const V hi, const V lo) {
+  return IfThenElse(FirstN(d, Lanes(d) / 2), lo, hi);
 }
 
 // ------------------------------ ConcatLowerLower
-template <class V>
-HWY_API V ConcatLowerLower(const V hi, const V lo) {
-  return detail::SlideUp(lo, hi, Lanes(DFromV<V>()) / 2);
+template <class D, class V>
+HWY_API V ConcatLowerLower(D d, const V hi, const V lo) {
+  return detail::SlideUp(lo, hi, Lanes(d) / 2);
 }
 
 // ------------------------------ ConcatUpperUpper
-template <class V>
-HWY_API V ConcatUpperUpper(const V hi, const V lo) {
+template <class D, class V>
+HWY_API V ConcatUpperUpper(D d, const V hi, const V lo) {
   // Move upper half into lower
-  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
-  return ConcatUpperLower(hi, lo_down);
+  const auto lo_down = detail::SlideDown(lo, lo, Lanes(d) / 2);
+  return ConcatUpperLower(d, hi, lo_down);
 }
 
 // ------------------------------ ConcatLowerUpper
-template <class V>
-HWY_API V ConcatLowerUpper(const V hi, const V lo) {
+template <class D, class V>
+HWY_API V ConcatLowerUpper(D d, const V hi, const V lo) {
   // Move half of both inputs to the other half
-  const auto hi_up = detail::SlideUp(hi, hi, Lanes(DFromV<V>()) / 2);
-  const auto lo_down = detail::SlideDown(lo, lo, Lanes(DFromV<V>()) / 2);
-  return ConcatUpperLower(hi_up, lo_down);
+  const auto hi_up = detail::SlideUp(hi, hi, Lanes(d) / 2);
+  const auto lo_down = detail::SlideDown(lo, lo, Lanes(d) / 2);
+  return ConcatUpperLower(d, hi_up, lo_down);
 }
 
 // ------------------------------ Combine
@@ -1933,7 +1932,9 @@ HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, _, _)
 template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
 HWY_API MFromD<D> FirstN(const D d, const size_t n) {
   const RebindToSigned<D> di;
-  return RebindMask(d, Lt(BitCast(di, detail::Iota0(d)), Set(di, n)));
+  using TI = TFromD<decltype(di)>;
+  return RebindMask(
+      d, Lt(BitCast(di, detail::Iota0(d)), Set(di, static_cast<TI>(n))));
 }
 
 template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
