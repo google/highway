@@ -805,6 +805,11 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 // Ought not to be necessary, but without this, no tests run on RVV.
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
+  // For RISC-V, we can currently only build the tests without running.
+  // TODO(janwas): enable once supported.
+#if HWY_ARCH_RVV
+  return GTEST_SKIP();
+#endif
   return RUN_ALL_TESTS();
 }
 

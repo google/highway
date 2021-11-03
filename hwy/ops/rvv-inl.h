@@ -1548,7 +1548,7 @@ HWY_API V SwapAdjacentBlocks(const V v) {
 template <class D, class VI>
 HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
   static_assert(sizeof(TFromD<D>) == sizeof(TFromV<VI>), "Index != lane");
-  const RebindToUnsigned<D> du;
+  const RebindToUnsigned<decltype(d)> du;
   const auto indices = BitCast(du, vec);
 #if HWY_IS_DEBUG_BUILD
   HWY_DASSERT(AllTrue(du, Lt(indices, Set(du, Lanes(d)))));
