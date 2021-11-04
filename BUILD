@@ -50,7 +50,6 @@ config_setting(
 
 # Additional warnings for Clang OR GCC (skip for MSVC)
 CLANG_GCC_COPTS = [
-    "-Werror",
     "-Wunused-parameter",
     "-Wunused-variable",
     "-Wextra-semi",
