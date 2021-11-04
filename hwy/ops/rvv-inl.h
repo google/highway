@@ -991,6 +991,20 @@ HWY_API void Store(VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
 HWY_RVV_FOREACH(HWY_RVV_RET_ARGMVDP, MaskedStore, se)
 #undef HWY_RVV_RET_ARGMVDP
 
+namespace detail {
+
+#define HWY_RVV_RET_ARGNVDP(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, \
+                            NAME, OP)                                     \
+  HWY_API void NAME(size_t count, HWY_RVV_V(BASE, SEW, LMUL) v,           \
+                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                   \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {              \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, count);                 \
+  }
+HWY_RVV_FOREACH(HWY_RVV_RET_ARGNVDP, StoreN, se)
+#undef HWY_RVV_RET_ARGNVDP
+
+}  // namespace detail
+
 // ------------------------------ StoreU
 
 // RVV only requires lane alignment, not natural alignment of the entire vector.
@@ -1611,8 +1625,7 @@ template <class V, class M, class D>
 HWY_API size_t CompressBlendedStore(const V v, const M mask, const D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const size_t count = CountTrue(d, mask);
-  const auto store_mask = FirstN(d, count);
-  MaskedStore(store_mask, Compress(v, mask), d, unaligned);
+  detail::StoreN(count, Compress(v, mask), d, unaligned);
   return count;
 }
 
