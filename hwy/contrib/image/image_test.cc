@@ -87,7 +87,7 @@ struct TestUnalignedT {
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);
           for (size_t x = 0; x < xsize; ++x) {
-            row[x] = 1 << dist(rng);
+            row[x] = static_cast<T>(1u << dist(rng));
           }
         }
 

@@ -603,19 +603,6 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
 
 #if HWY_TARGET <= HWY_AVX3
 
-// ------------------------------ FirstN
-
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API Mask128<T, N> FirstN(const Simd<T, N> /*tag*/, size_t n) {
-  const uint64_t all = (1ull << N) - 1;
-  // BZHI only looks at the lower 8 bits of n!
-  const uint64_t bits = (n > 255) ? all : _bzhi_u64(all, n);
-  return Mask128<T, N>::FromBits(bits);
-}
-
-template <class D>
-using MFromD = decltype(FirstN(D(), 0));
-
 // ------------------------------ IfThenElse
 
 // Returns mask ? b : a.
@@ -1529,7 +1516,6 @@ HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
 #endif
 }
 
-
 // ------------------------------ Weak inequality
 
 template <size_t N>
@@ -1542,17 +1528,6 @@ HWY_API Mask128<double, N> operator>=(const Vec128<double, N> a,
                                       const Vec128<double, N> b) {
   return Mask128<double, N>{_mm_cmpge_pd(a.raw, b.raw)};
 }
-
-// ------------------------------ FirstN (Iota, Lt)
-
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
-  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(num)));
-}
-
-template <class D>
-using MFromD = decltype(FirstN(D(), 0));
 
 #endif  // HWY_TARGET <= HWY_AVX3
 
@@ -1567,6 +1542,24 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> operator<=(Vec128<T, N> a, Vec128<T, N> b) {
   return b >= a;
 }
+
+// ------------------------------ FirstN (Iota, Lt)
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
+#if HWY_TARGET <= HWY_AVX3
+  const uint64_t all = (1ull << N) - 1;
+  // BZHI only looks at the lower 8 bits of num!
+  const uint64_t bits = (num > 255) ? all : _bzhi_u64(all, num);
+  return Mask128<T, N>::FromBits(bits);
+#else
+  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
+  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<MakeSigned<T>>(num)));
+#endif
+}
+
+template <class D>
+using MFromD = decltype(FirstN(D(), 0));
 
 // ================================================== MEMORY (1)
 
