@@ -1548,6 +1548,7 @@ HWY_API Mask128<T, N> operator<=(Vec128<T, N> a, Vec128<T, N> b) {
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
 #if HWY_TARGET <= HWY_AVX3
+  (void)d;
   const uint64_t all = (1ull << N) - 1;
   // BZHI only looks at the lower 8 bits of num!
   const uint64_t bits = (num > 255) ? all : _bzhi_u64(all, num);
