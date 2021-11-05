@@ -4012,9 +4012,8 @@ HWY_API Mask256<T> LoadMaskBits(Full256<T> d,
 
 namespace detail {
 
-template <typename T>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
-                                 const Mask256<T> mask) {
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
   const Full256<T> d;
   const Full256<uint8_t> d8;
   const auto sign_bits = BitCast(d8, VecFromMask(d, mask)).raw;
@@ -4022,11 +4021,13 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   return static_cast<uint32_t>(_mm256_movemask_epi8(sign_bits));
 }
 
-template <typename T>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
-                                 const Mask256<T> mask) {
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
 #if HWY_ARCH_X86_64
-  const uint64_t sign_bits8 = BitsFromMask(hwy::SizeTag<1>(), mask);
+  const Full256<T> d;
+  const Full256<uint8_t> d8;
+  const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
+  const uint64_t sign_bits8 = BitsFromMask(mask8);
   // Skip the bits from the lower byte of each u16 (better not to use the
   // same packs_epi16 as SSE4, because that requires an extra swizzle here).
   return _pext_u64(sign_bits8, 0xAAAAAAAAull);
@@ -4042,27 +4043,20 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
 #endif  // HWY_ARCH_X86_64
 }
 
-template <typename T>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
-                                 const Mask256<T> mask) {
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
   const Full256<T> d;
   const Full256<float> df;
   const auto sign_bits = BitCast(df, VecFromMask(d, mask)).raw;
   return static_cast<unsigned>(_mm256_movemask_ps(sign_bits));
 }
 
-template <typename T>
-HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
-                                 const Mask256<T> mask) {
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
   const Full256<T> d;
   const Full256<double> df;
   const auto sign_bits = BitCast(df, VecFromMask(d, mask)).raw;
   return static_cast<unsigned>(_mm256_movemask_pd(sign_bits));
-}
-
-template <typename T>
-HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
-  return BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask);
 }
 
 }  // namespace detail
@@ -4081,19 +4075,40 @@ HWY_API size_t StoreMaskBits(const Full256<T> /* tag */, const Mask256<T> mask,
 
 // ------------------------------ Mask testing
 
-template <typename T>
+// Specialize for 16-bit lanes to avoid unnecessary pext. This assumes each mask
+// lane is 0 or ~0.
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API bool AllFalse(const Full256<T> d, const Mask256<T> mask) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
+  return detail::BitsFromMask(mask8) == 0;
+}
+
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API bool AllFalse(const Full256<T> /* tag */, const Mask256<T> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
   return detail::BitsFromMask(mask) == 0;
 }
 
-template <typename T>
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API bool AllTrue(const Full256<T> d, const Mask256<T> mask) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
+  return detail::BitsFromMask(mask8) == (1ull << 32) - 1;
+}
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API bool AllTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
   constexpr uint64_t kAllBits = (1ull << (32 / sizeof(T))) - 1;
   return detail::BitsFromMask(mask) == kAllBits;
 }
 
-template <typename T>
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CountTrue(const Full256<T> d, const Mask256<T> mask) {
+  const Repartition<uint8_t, decltype(d)> d8;
+  const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
+  return PopCount(detail::BitsFromMask(mask8)) >> 1;
+}
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API size_t CountTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
