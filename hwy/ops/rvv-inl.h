@@ -771,7 +771,7 @@ HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, Not, not )
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, And, and)
 
 // ------------------------------ AndNot
-HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, AndNot, andnot)
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, AndNot, andn)
 
 // ------------------------------ Or
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Or, or)
@@ -898,7 +898,7 @@ HWY_RVV_FOREACH_B(HWY_RVV_ALL_TRUE, _, _)
   template <class D>                                      \
   HWY_API size_t CountTrue(D d, HWY_RVV_M(MLEN) m) {      \
     static_assert(MLenFromD(d) == MLEN, "Type mismatch"); \
-    return vpopc_m_b##MLEN(m, Lanes(d));                  \
+    return vcpop_m_b##MLEN(m, Lanes(d));                  \
   }
 
 HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
