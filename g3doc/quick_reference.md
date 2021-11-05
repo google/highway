@@ -434,7 +434,8 @@ Let `M` denote a mask capable of storing true/false for each lane.
 
 *   <code>M **FirstN**(D, size_t N)</code>: returns mask with the first `N`
     lanes (those with index `< N`) true. `N >= Lanes(D())` results in an
-    all-true mask. `N` must not exceed `LimitsMax<MakeSigned<TFromD<D>>>()`.
+    all-true mask. `N` must not exceed
+    `LimitsMax<SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(TFromD<D>))>>()`.
     Useful for implementing "masked" stores by loading `prev` followed by
     `IfThenElse(FirstN(d, N), what_to_store, prev)`.
 
