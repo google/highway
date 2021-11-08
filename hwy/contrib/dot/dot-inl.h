@@ -62,11 +62,13 @@ struct Dot {
     const size_t N = Lanes(d);
     size_t i = 0;
 
-    constexpr bool kIsAtLeastOneVector = kAssumptions & kAtLeastOneVector;
-    constexpr bool kIsMultipleOfVector = kAssumptions & kMultipleOfVector;
-    constexpr bool kIsPaddedToVector = kAssumptions & kPaddedToVector;
-    constexpr bool kIsAlignedA = kAssumptions & kVectorAlignedA;
-    constexpr bool kIsAlignedB = kAssumptions & kVectorAlignedB;
+    constexpr bool kIsAtLeastOneVector =
+        (kAssumptions & kAtLeastOneVector) != 0;
+    constexpr bool kIsMultipleOfVector =
+        (kAssumptions & kMultipleOfVector) != 0;
+    constexpr bool kIsPaddedToVector = (kAssumptions & kPaddedToVector) != 0;
+    constexpr bool kIsAlignedA = (kAssumptions & kVectorAlignedA) != 0;
+    constexpr bool kIsAlignedB = (kAssumptions & kVectorAlignedB) != 0;
 
     // Won't be able to do a full vector load without padding => scalar loop.
     if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
@@ -163,11 +165,13 @@ struct Dot {
     const size_t N = Lanes(d);
     size_t i = 0;
 
-    constexpr bool kIsAtLeastOneVector = kAssumptions & kAtLeastOneVector;
-    constexpr bool kIsMultipleOfVector = kAssumptions & kMultipleOfVector;
-    constexpr bool kIsPaddedToVector = kAssumptions & kPaddedToVector;
-    constexpr bool kIsAlignedA = kAssumptions & kVectorAlignedA;
-    constexpr bool kIsAlignedB = kAssumptions & kVectorAlignedB;
+    constexpr bool kIsAtLeastOneVector =
+        (kAssumptions & kAtLeastOneVector) != 0;
+    constexpr bool kIsMultipleOfVector =
+        (kAssumptions & kMultipleOfVector) != 0;
+    constexpr bool kIsPaddedToVector = (kAssumptions & kPaddedToVector) != 0;
+    constexpr bool kIsAlignedA = (kAssumptions & kVectorAlignedA) != 0;
+    constexpr bool kIsAlignedB = (kAssumptions & kVectorAlignedB) != 0;
 
     // Won't be able to do a full vector load without padding => scalar loop.
     if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
