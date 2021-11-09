@@ -1695,26 +1695,26 @@ HWY_API Vec128<T, N> Iota(const Simd<T, N> d, const T2 first) {
 
 #if HWY_TARGET <= HWY_AVX3
 
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4), HWY_IF_LE128(T, N)>
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
                                 const T* HWY_RESTRICT aligned) {
   return Vec128<T, N>{_mm_maskz_load_epi32(m.raw, aligned)};
 }
 
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8), HWY_IF_LE128(T, N)>
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
                                 const T* HWY_RESTRICT aligned) {
   return Vec128<T, N>{_mm_maskz_load_epi64(m.raw, aligned)};
 }
 
-template <size_t N, HWY_IF_LE128(float, N)>
+template <size_t N>
 HWY_API Vec128<float, N> MaskedLoad(Mask128<float, N> m,
                                     Simd<float, N> /* tag */,
                                     const float* HWY_RESTRICT aligned) {
   return Vec128<float, N>{_mm_maskz_load_ps(m.raw, aligned)};
 }
 
-template <size_t N, HWY_IF_LE128(double, N)>
+template <size_t N>
 HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m,
                                      Simd<double, N> /* tag */,
                                      const double* HWY_RESTRICT aligned) {
@@ -1722,23 +1722,63 @@ HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m,
 }
 
 // There is no load_epi8/16, so use loadu instead.
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1), HWY_IF_LE128(T, N)>
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
                                 const T* HWY_RESTRICT aligned) {
   return Vec128<T, N>{_mm_maskz_loadu_epi8(m.raw, aligned)};
 }
 
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_LE128(T, N)>
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
                                 const T* HWY_RESTRICT aligned) {
   return Vec128<T, N>{_mm_maskz_loadu_epi16(m.raw, aligned)};
 }
 
-#else
+#elif HWY_TARGET == HWY_AVX2
 
-// Also applies to x86_256-inl.
-template <class M, class D>
-HWY_API VFromD<D> MaskedLoad(M m, D d, const TFromD<D>* HWY_RESTRICT aligned) {
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
+                                const T* HWY_RESTRICT aligned) {
+  auto aligned_p = reinterpret_cast<const int*>(aligned);  // NOLINT
+  return Vec128<T, N>{_mm_maskload_epi32(aligned_p, m.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> /* tag */,
+                                const T* HWY_RESTRICT aligned) {
+  auto aligned_p = reinterpret_cast<const long long*>(aligned);  // NOLINT
+  return Vec128<T, N>{_mm_maskload_epi64(aligned_p, m.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> MaskedLoad(Mask128<float, N> m, Simd<float, N> d,
+                                    const float* HWY_RESTRICT aligned) {
+  const Vec128<int32_t, N> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  return Vec128<float, N>{_mm_maskload_ps(aligned, mi.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m, Simd<double, N> d,
+                                     const double* HWY_RESTRICT aligned) {
+  const Vec128<int64_t, N> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  return Vec128<double, N>{_mm_maskload_pd(aligned, mi.raw)};
+}
+
+// There is no maskload_epi8/16, so blend instead.
+template <typename T, size_t N, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> d,
+                                const T* HWY_RESTRICT aligned) {
+  return IfThenElseZero(m, Load(d, aligned));
+}
+
+#else  // <= SSE4
+
+// Avoid maskmov* - its nontemporal 'hint' causes it to bypass caches (slow).
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N> d,
+                                const T* HWY_RESTRICT aligned) {
   return IfThenElseZero(m, Load(d, aligned));
 }
 

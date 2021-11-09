@@ -2016,7 +2016,44 @@ HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
   return Vec256<T>{_mm256_maskz_loadu_epi16(m.raw, aligned)};
 }
 
-#endif // else: fallback defined in x86_128-inl.h
+#else  //  AVX2
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  auto aligned_p = reinterpret_cast<const int*>(aligned);  // NOLINT
+  return Vec256<T>{_mm256_maskload_epi32(aligned_p, m.raw)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> /* tag */,
+                             const T* HWY_RESTRICT aligned) {
+  auto aligned_p = reinterpret_cast<const long long*>(aligned);  // NOLINT
+  return Vec256<T>{_mm256_maskload_epi64(aligned_p, m.raw)};
+}
+
+HWY_API Vec256<float> MaskedLoad(Mask256<float> m, Full256<float> d,
+                                 const float* HWY_RESTRICT aligned) {
+  const Vec256<int32_t> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  return Vec256<float>{_mm256_maskload_ps(aligned, mi.raw)};
+}
+
+HWY_API Vec256<double> MaskedLoad(Mask256<double> m, Full256<double> d,
+                                  const double* HWY_RESTRICT aligned) {
+  const Vec256<int64_t> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  return Vec256<double>{_mm256_maskload_pd(aligned, mi.raw)};
+}
+
+// There is no maskload_epi8/16, so blend instead.
+template <typename T, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
+HWY_API Vec256<T> MaskedLoad(Mask256<T> m, Full256<T> d,
+                             const T* HWY_RESTRICT aligned) {
+  return IfThenElseZero(m, Load(d, aligned));
+}
+
+#endif
 
 // ------------------------------ LoadDup128
 
@@ -3915,21 +3952,103 @@ HWY_API size_t CompressStore(Vec256<double> v, Mask256<double> mask,
 }
 
 // ------------------------------ CompressBlendedStore (CompressStore)
-template <typename T>
+
+#if HWY_TARGET == HWY_AVX2
+namespace detail {
+
+// Intel SDM says "No AC# reported for any mask bit combinations". However, AMD
+// allows AC# if "Alignment checking enabled and: 256-bit memory operand not
+// 32-byte aligned". Fortunately AC# is not enabled by default and requires both
+// OS support (CR0) and the application to set rflags.AC. We assume these remain
+// disabled because x86/x64 code and compiler output often contain misaligned
+// scalar accesses, which would also fault.
+//
+// Caveat: these are slow on AMD Jaguar/Bulldozer.
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API void MaskedStore(Mask256<T> m, Vec256<T> v, Full256<T> /* tag */,
+                         T* HWY_RESTRICT unaligned) {
+  auto unaligned_p = reinterpret_cast<int*>(aligned);  // NOLINT
+  _mm256_maskstore_epi32(unaligned_p, m.raw, v.raw);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void MaskedStore(Mask256<T> m, Vec256<T> v, Full256<T> /* tag */,
+                         T* HWY_RESTRICT unaligned) {
+  auto unaligned_p = reinterpret_cast<long long*>(aligned);  // NOLINT
+  _mm256_maskstore_epi64(unaligned_p, m.raw, v.raw);
+}
+
+HWY_API void MaskedStore(Mask256<float> m, Vec256<float> v, Full256<float> d,
+                         float* HWY_RESTRICT unaligned) {
+  const Vec256<int32_t> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  _mm256_maskstore_ps(unaligned, mi.raw, v.raw);
+}
+
+HWY_API void MaskedStore(Mask256<double> m, Vec256<double> v, Full256<double> d,
+                         double* HWY_RESTRICT unaligned) {
+  const Vec256<int64_t> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  _mm256_maskstore_pd(unaligned, mi.raw, v.raw);
+}
+
+// There is no maskstore_epi8/16, so blend instead.
+template <typename T, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
+HWY_API void MaskedStore(Mask256<T> m, Vec256<T> v, Full256<T> d,
+                         T* HWY_RESTRICT unaligned) {
+  StoreU(IfThenElse(m, v, LoadU(d, unaligned)), d, unaligned);
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET == HWY_AVX2
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                                     T* HWY_RESTRICT unaligned) {
-  // AVX-512 already does the blending at no extra cost (latency 11,
-  // rthroughput 2 - same as compress plus store).
-  if (HWY_TARGET == HWY_AVX3_DL || sizeof(T) != 2) {
-    return CompressStore(v, m, d, unaligned);
-  } else {
-    const size_t count = CountTrue(m);
-    const Vec256<T> compressed = Compress(v, m);
-    const Vec256<T> prev = LoadU(d, unaligned);
-    StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
-    return count;
-  }
+  // Native (32 or 64-bit) AVX-512 instruction already does the blending at no
+  // extra cost (latency 11, rthroughput 2 - same as compress plus store).
+  return CompressStore(v, m, d, unaligned);
 }
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return CompressStore(v, m, d, unaligned);  // also native
+#else
+  const size_t count = CountTrue(m);
+  const Vec256<T> compressed = Compress(v, m);
+  // There is no 16-bit MaskedStore, so blend.
+  const Vec256<T> prev = LoadU(d, unaligned);
+  StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+  return count;
+#endif
+}
+
+#else  // AVX2
+
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
+HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(m);
+  detail::MaskedStore(FirstN(d, count), d, Compress(v, m));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  // There is no 16-bit MaskedStore, so blend.
+  const size_t count = CountTrue(m);
+  const Vec256<T> compressed = Compress(v, m);
+  const Vec256<T> prev = LoadU(d, unaligned);
+  StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+  return count;
+}
+
+#endif  // AVX2
 
 // ------------------------------ CompressBitsStore (LoadMaskBits)
 
