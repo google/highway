@@ -4096,7 +4096,7 @@ HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t mask_bits) {
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
-  constexpr uint32_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  alignas(32) constexpr uint32_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
   const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
   return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
@@ -4104,7 +4104,7 @@ HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t mask_bits) {
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_INLINE Mask256<T> LoadMaskBits256(Full256<T> d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
-  constexpr uint64_t kBit[8] = {1, 2, 4, 8};
+  alignas(32) constexpr uint64_t kBit[8] = {1, 2, 4, 8};
   return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
 }
 
