@@ -10,36 +10,10 @@ run_tests.bat
 
 ### Linux x86
 
-#### Default
+#### Clang, GCC, ARM cross compile
 
 ```
 ./run_tests.sh
-```
-
-#### GCC
-
-```
-for VER in 8 9 10; do
-  rm -rf build_g$VER && mkdir build_g$VER && cd build_g$VER && CC=gcc-$VER CXX=g++-$VER cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON && make -j && make test && cd .. && rm -rf build_g$VER
-done
-```
-
-#### ARMv7 cross compile (GCC)
-
-```
-export QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf
-rm -rf build_arm7 && mkdir build_arm7 && cd build_arm7
-CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ cmake .. -DHWY_CMAKE_ARM7:BOOL=ON -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
-make -j8 && ctest && cd ..
-```
-
-#### ARMv8 cross compile (GCC)
-
-```
-export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
-rm -rf build_arm8 && mkdir build_arm8 && cd build_arm8
-CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
-make -j8 && ctest && cd ..
 ```
 
 #### JPEG XL clang (debug, asan, msan)
