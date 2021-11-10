@@ -3351,7 +3351,8 @@ HWY_API Indices128<T, N> IndicesFromVec(Simd<T, N> d, Vec128<TI, N> vec) {
         BitCast(d8, ShiftLeft<2>(BitCast(d16, lane_indices)));
     alignas(16) constexpr uint8_t kByteOffsets[16] = {0, 1, 2, 3, 0, 1, 2, 3,
                                                       0, 1, 2, 3, 0, 1, 2, 3};
-    return Indices128<T, N>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
+    const V8 sum = Add(byte_indices, Load(d8, kByteOffsets));
+    return Indices128<T, N>{BitCast(d, sum).raw};
   } else {
     alignas(16) constexpr uint8_t kBroadcastLaneBytes[16] = {
         0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8};
@@ -3361,7 +3362,8 @@ HWY_API Indices128<T, N> IndicesFromVec(Simd<T, N> d, Vec128<TI, N> vec) {
         BitCast(d8, ShiftLeft<3>(BitCast(d16, lane_indices)));
     alignas(16) constexpr uint8_t kByteOffsets[16] = {0, 1, 2, 3, 4, 5, 6, 7,
                                                       0, 1, 2, 3, 4, 5, 6, 7};
-    return Indices128<T, N>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
+    const V8 sum = Add(byte_indices, Load(d8, kByteOffsets));
+    return Indices128<T, N>{BitCast(d, sum).raw};
   }
 }
 
