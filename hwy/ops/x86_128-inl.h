@@ -3143,7 +3143,7 @@ HWY_API Vec128<T, N> ShiftRightBytes(Simd<T, N> /* tag */, Vec128<T, N> v) {
 template <int kLanes, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRightLanes(Simd<T, N> d, const Vec128<T, N> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(d8, BitCast(d8, v)));
 }
 
 // ------------------------------ UpperHalf (ShiftRightBytes)
@@ -3167,8 +3167,9 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Half<Simd<T, N>> /* tag */,
                                          Vec128<T, N> v) {
   const Simd<T, N> d;
-  const auto vu = BitCast(RebindToUnsigned<decltype(d)>(), v);
-  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(vu));
+  const RebindToUnsigned<decltype(d)> du;
+  const auto vu = BitCast(du, v);
+  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(du, vu));
   return Vec128<T, (N + 1) / 2>{upper.raw};
 }
 
@@ -3683,28 +3684,28 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatLowerLower(Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(LowerHalf(d2, hi), LowerHalf(d2, lo));
+  return Combine(d, LowerHalf(d2, hi), LowerHalf(d2, lo));
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatUpperUpper(Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(UpperHalf(d2, hi), UpperHalf(d2, lo));
+  return Combine(d, UpperHalf(d2, hi), UpperHalf(d2, lo));
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatLowerUpper(Simd<T, N> d, const Vec128<T, N> hi,
                                       const Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(LowerHalf(d2, hi), UpperHalf(d2, lo));
+  return Combine(d, LowerHalf(d2, hi), UpperHalf(d2, lo));
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(UpperHalf(d2, hi), LowerHalf(d2, lo));
+  return Combine(d, UpperHalf(d2, hi), LowerHalf(d2, lo));
 }
 
 // ------------------------------ ConcatOdd
@@ -4971,7 +4972,7 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
     }
     return CompressStore(v, m, d, unaligned);
   } else {
-    const size_t count = CountTrue(m);
+    const size_t count = CountTrue(d, m);
     const Vec128<T, N> compressed = Compress(v, m);
     const Vec128<T, N> prev = LoadU(d, unaligned);
     StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);

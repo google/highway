@@ -2473,7 +2473,7 @@ HWY_API Vec256<T> ShiftRightBytes(Full256<T> /* tag */, const Vec256<T> v) {
 template <int kLanes, typename T>
 HWY_API Vec256<T> ShiftRightLanes(Full256<T> d, const Vec256<T> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(d8, BitCast(d8, v)));
 }
 
 // ------------------------------ CombineShiftRightBytes
@@ -4019,7 +4019,7 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
 #if HWY_TARGET <= HWY_AVX3_DL
   return CompressStore(v, m, d, unaligned);  // also native
 #else
-  const size_t count = CountTrue(m);
+  const size_t count = CountTrue(d, m);
   const Vec256<T> compressed = Compress(v, m);
   // There is no 16-bit MaskedStore, so blend.
   const Vec256<T> prev = LoadU(d, unaligned);
@@ -4353,8 +4353,8 @@ HWY_INLINE Vec256<T> Compress(Vec256<T> v, const uint64_t mask_bits) {
   const auto compressed1 = Compress(promoted1, mask_bits1);
 
   const Half<decltype(du)> dh;
-  const auto demoted0 = ZeroExtendVector(DemoteTo(dh, compressed0));
-  const auto demoted1 = ZeroExtendVector(DemoteTo(dh, compressed1));
+  const auto demoted0 = ZeroExtendVector(du, DemoteTo(dh, compressed0));
+  const auto demoted1 = ZeroExtendVector(du, DemoteTo(dh, compressed1));
 
   const size_t count0 = PopCount(mask_bits0);
   // Now combine by shifting demoted1 up. AVX2 lacks VPERMW, so start with

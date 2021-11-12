@@ -589,7 +589,7 @@ template <SortOrder kOrder, typename T>
 HWY_INLINE void SortDistance4LanesV(Simd<T, 8> d, Vec<decltype(d)>& v) {
   Vec<decltype(d)> swapped = ConcatLowerUpper(d, v, v);
   SortLanesIn2Vectors<kOrder>(v, swapped);
-  v = ConcatUpperLower(swapped, v);
+  v = ConcatUpperLower(d, swapped, v);
 }
 
 template <SortOrder kOrder, typename T>
@@ -600,7 +600,7 @@ template <SortOrder kOrder, class D>
 HWY_INLINE void SortDistance8LanesV(D d, Vec<D>& v) {
   Vec<D> swapped = ConcatLowerUpper(d, v, v);
   SortLanesIn2Vectors<kOrder>(v, swapped);
-  v = ConcatUpperLower(swapped, v);
+  v = ConcatUpperLower(d, swapped, v);
 }
 
 // 120 ops. Only used if vectors are at least 8 lanes.

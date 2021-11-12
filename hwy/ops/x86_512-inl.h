@@ -2173,7 +2173,7 @@ HWY_API Vec512<T> ShiftRightBytes(Full512<T> /* tag */, const Vec512<T> v) {
 template <int kLanes, typename T>
 HWY_API Vec512<T> ShiftRightLanes(Full512<T> d, const Vec512<T> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(d8, BitCast(d8, v)));
 }
 
 // ------------------------------ CombineShiftRightBytes
@@ -3264,8 +3264,8 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const auto compressed0 = Compress(promoted0, mask0);
   const auto compressed1 = Compress(promoted1, mask1);
 
-  const auto demoted0 = ZeroExtendVector(DemoteTo(duh, compressed0));
-  const auto demoted1 = ZeroExtendVector(DemoteTo(duh, compressed1));
+  const auto demoted0 = ZeroExtendVector(du, DemoteTo(duh, compressed0));
+  const auto demoted1 = ZeroExtendVector(du, DemoteTo(duh, compressed1));
 
   // Concatenate into single vector by shifting upper with writemask.
   const size_t num0 = CountTrue(dw, mask0);
@@ -3363,7 +3363,7 @@ HWY_API size_t CompressBlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> d,
   if (HWY_TARGET == HWY_AVX3_DL || sizeof(T) != 2) {
     return CompressStore(v, m, d, unaligned);
   } else {
-    const size_t count = CountTrue(m);
+    const size_t count = CountTrue(d, m);
     const Vec512<T> compressed = Compress(v, m);
     const Vec512<T> prev = LoadU(d, unaligned);
     StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);

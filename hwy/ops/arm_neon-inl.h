@@ -1621,12 +1621,6 @@ HWY_API Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
   return Mask128<T, N>(BitCast(du, v).raw);
 }
 
-// DEPRECATED
-template <typename T, size_t N>
-HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
-  return BitCast(Simd<T, N>(), Vec128<MakeUnsigned<T>, N>(v.raw));
-}
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> VecFromMask(Simd<T, N> d, const Mask128<T, N> v) {
   return BitCast(d, Vec128<MakeUnsigned<T>, N>(v.raw));
@@ -3077,7 +3071,7 @@ HWY_API Vec128<T, N> ShiftRightBytes(Simd<T, N> /* tag */, Vec128<T, N> v) {
 template <int kLanes, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRightLanes(Simd<T, N> d, const Vec128<T, N> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(d8, BitCast(d8, v)));
 }
 
 // Calls ShiftLeftBytes
@@ -3149,8 +3143,9 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Half<Simd<T, N>> /* tag */,
                                          Vec128<T, N> v) {
   const Simd<T, N> d;
-  const auto vu = BitCast(RebindToUnsigned<decltype(d)>(), v);
-  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(vu));
+  const RebindToUnsigned<decltype(d)> du;
+  const auto vu = BitCast(du, v);
+  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(du, vu));
   return Vec128<T, (N + 1) / 2>(upper.raw);
 }
 
@@ -3710,7 +3705,7 @@ template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_API Vec128<T, N> ConcatLowerLower(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(LowerHalf(d2, hi), LowerHalf(d2, lo));
+  return Combine(d, LowerHalf(d2, hi), LowerHalf(d2, lo));
 }
 #endif  // HWY_ARCH_ARM_A64
 
@@ -3754,7 +3749,7 @@ template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(UpperHalf(d2, hi), UpperHalf(d2, lo));
+  return Combine(d, UpperHalf(d2, hi), UpperHalf(d2, lo));
 }
 
 #endif  // HWY_ARCH_ARM_A64
@@ -4639,7 +4634,7 @@ HWY_API bool AllFalse(const Simd<T, N> /* tag */, const Mask128<T, N> m) {
 
 template <typename T, size_t N>
 HWY_API bool AllTrue(const Simd<T, N> d, const Mask128<T, N> m) {
-  return AllFalse(VecFromMask(d, m) == Zero(d));
+  return AllFalse(d, VecFromMask(d, m) == Zero(d));
 }
 
 // ------------------------------ Compress
@@ -4995,6 +4990,11 @@ HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> v0,
 }
 
 // ================================================== DEPRECATED
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
+  return BitCast(Simd<T, N>(), Vec128<MakeUnsigned<T>, N>(v.raw));
+}
 
 template <typename T, size_t N>
 HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* bits) {
