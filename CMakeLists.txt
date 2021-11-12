@@ -219,8 +219,10 @@ target_include_directories(hwy_list_targets PRIVATE
 # Naked target also not always could be run (due to the lack of '.\' prefix)
 # Thus effective command to run should contain the full path
 # and emulator prefix (if any).
+if (NOT CMAKE_CROSSCOMPILING OR CMAKE_CROSSCOMPILING_EMULATOR)
 add_custom_command(TARGET hwy_list_targets POST_BUILD
     COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:hwy_list_targets> || (exit 0))
+endif()
 
 # --------------------------------------------------------
 # Allow skipping the following sections for projects that do not need them:
