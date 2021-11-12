@@ -379,7 +379,7 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
     target_link_libraries(${TESTNAME} hwy hwy_contrib hwy_test gtest gtest_main)
   endif()
   # Output test targets in the test directory.
-  set_target_properties(${TESTNAME} PROPERTIES PREFIX "tests/")
+  set_target_properties(${TESTNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "tests")
 
   if (HWY_EMSCRIPTEN)
     set_target_properties(${TESTNAME} PROPERTIES LINK_FLAGS "-s SINGLE_FILE=1")
