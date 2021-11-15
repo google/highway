@@ -4625,6 +4625,70 @@ HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
 }
 
+// ------------------------------ Lt128
+
+namespace detail {
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
+Mask256<T> ShiftMaskLeft(Mask256<T> m) {
+  return Mask256<T>{_kshiftli_mask32(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
+Mask256<T> ShiftMaskLeft(Mask256<T> m) {
+  return Mask256<T>{_kshiftli_mask16(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
+Mask256<T> ShiftMaskLeft(Mask256<T> m) {
+  return Mask256<T>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
+Mask256<T> ShiftMaskLeft(Mask256<T> m) {
+  return Mask256<T>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+#else
+
+template <size_t kLanes, typename T>
+Mask256<T> ShiftMaskLeft(Mask256<T> m) {
+  return MaskFromVec(ShiftLeftLanes<kLanes>(VecFromMask(Full256<T>(), m)));
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
+}  // namespace detail
+
+template <typename T>
+HWY_INLINE Mask256<T> Lt128(Full256<T> d, Vec256<T> a, Vec256<T> b) {
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+  // Truth table of Eq and Lt for Hi and Lo u64.
+  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
+  // =H =L cH cL  | out = cH | (=H & cL)
+  //  0  0  0  0  |  0
+  //  0  0  0  1  |  0
+  //  0  0  1  0  |  1
+  //  0  0  1  1  |  1
+  //  0  1  0  0  |  0
+  //  0  1  0  1  |  0
+  //  0  1  1  0  |  1
+  //  1  0  0  0  |  0
+  //  1  0  0  1  |  1
+  //  1  1  0  0  |  0
+  const Mask256<T> eqHL = Eq(a, b);
+  const Mask256<T> cmpHL = Lt(a, b);
+  // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
+  // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
+  // comparison result leftwards requires only 6 on AVX3, otherwise 4.
+  const Mask256<T> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
+  const Mask256<T> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const Vec256<T> vecHx = VecFromMask(d, outHx);
+  return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
 // ================================================== DEPRECATED
 
 template <typename T>

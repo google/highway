@@ -2137,6 +2137,34 @@ HWY_API auto ReorderWidenMulAccumulate(Simd<float, N> df32, VFromD<DU16> a,
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
+// ------------------------------ Lt128
+
+template <class D>
+HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  // Truth table of Eq and Compare for Hi and Lo u64.
+  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
+  // =H =L cH cL  | out = cH | (=H & cL)
+  //  0  0  0  0  |  0
+  //  0  0  0  1  |  0
+  //  0  0  1  0  |  1
+  //  0  0  1  1  |  1
+  //  0  1  0  0  |  0
+  //  0  1  0  1  |  0
+  //  0  1  1  0  |  1
+  //  1  0  0  0  |  0
+  //  1  0  0  1  |  1
+  //  1  1  0  0  |  0
+  const MFromD<D> eqHL = Eq(a, b);
+  const MFromD<D> cmpHL = Lt(a, b);
+  // Shift leftward so L can influence H.
+  const MFromD<D> cmpLx = MaskFromVec(detail::Slide1Up(VecFromMask(d, cmpHL)));
+  const MFromD<D> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const VFromD<D> vecHx = VecFromMask(d, outHx);
+  // Replicate H to its neighbor.
+  return MaskFromVec(OddEven(vecHx, detail::Slide1Down(vecHx)));
+}
+
 // ================================================== END MACROS
 namespace detail {  // for code folding
 #undef HWY_IF_FLOAT_V

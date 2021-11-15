@@ -561,6 +561,12 @@ These return a mask (see above) indicating whether the condition is true.
     <code>M **TestBit**(V v, V bit)</code>: returns `(v[i] & bit[i]) == bit[i]`.
     `bit[i]` must have exactly one bit set.
 
+*   `V`: `u64` \
+    <code>M **Lt128**(V a, V b)</code>: for each adjacent pair of 64-bit lanes
+    (e.g. indices 1,0), returns whether a[1]:a[0] concatenated to an unsigned
+    128-bit integer (with the least significant bits in a[0]) is less than
+    b[1]:b[0]. For each pair, the mask lanes are either both true or both false.
+
 ### Memory
 
 Memory operands are little-endian, otherwise their order would depend on the

@@ -3631,6 +3631,59 @@ HWY_API Vec512<T> MaxOfLanes(Full512<T> d, Vec512<T> v) {
   return BitCast(d, Or(min, ShiftLeft<16>(min)));
 }
 
+// ------------------------------ Lt128
+
+namespace detail {
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
+Mask512<T> ShiftMaskLeft(Mask512<T> m) {
+  return Mask512<T>{_kshiftli_mask64(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
+Mask512<T> ShiftMaskLeft(Mask512<T> m) {
+  return Mask512<T>{_kshiftli_mask32(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
+Mask512<T> ShiftMaskLeft(Mask512<T> m) {
+  return Mask512<T>{_kshiftli_mask16(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
+Mask512<T> ShiftMaskLeft(Mask512<T> m) {
+  return Mask512<T>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_INLINE Mask512<T> Lt128(Full512<T> d, Vec512<T> a, Vec512<T> b) {
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+  // Truth table of Eq and Lt for Hi and Lo u64.
+  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
+  // =H =L cH cL  | out = cH | (=H & cL)
+  //  0  0  0  0  |  0
+  //  0  0  0  1  |  0
+  //  0  0  1  0  |  1
+  //  0  0  1  1  |  1
+  //  0  1  0  0  |  0
+  //  0  1  0  1  |  0
+  //  0  1  1  0  |  1
+  //  1  0  0  0  |  0
+  //  1  0  0  1  |  1
+  //  1  1  0  0  |  0
+  const Mask512<T> eqHL = Eq(a, b);
+  const Mask512<T> cmpHL = Lt(a, b);
+  // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
+  // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
+  // comparison result leftwards requires only 6.
+  const Mask512<T> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
+  const Mask512<T> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const Vec512<T> vecHx = VecFromMask(d, outHx);
+  return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
 // ================================================== DEPRECATED
 
 template <typename T>

@@ -5732,6 +5732,60 @@ HWY_API Vec128<T, N> MaxOfLanes(Simd<T, N> /* tag */, const Vec128<T, N> v) {
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), v);
 }
 
+// ------------------------------ Lt128
+
+namespace detail {
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <size_t kLanes, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+Mask128<T, N> ShiftMaskLeft(Mask128<T, N> m) {
+  return Mask128<T, N>{_kshiftli_mask16(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
+Mask128<T, N> ShiftMaskLeft(Mask128<T, N> m) {
+  return Mask128<T, N>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+#else
+
+template <size_t kLanes, typename T, size_t N>
+Mask128<T, N> ShiftMaskLeft(Mask128<T, N> m) {
+  return MaskFromVec(ShiftLeftLanes<kLanes>(VecFromMask(Simd<T, N>(), m)));
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
+}  // namespace detail
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+  // Truth table of Eq and Lt for Hi and Lo u64.
+  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
+  // =H =L cH cL  | out = cH | (=H & cL)
+  //  0  0  0  0  |  0
+  //  0  0  0  1  |  0
+  //  0  0  1  0  |  1
+  //  0  0  1  1  |  1
+  //  0  1  0  0  |  0
+  //  0  1  0  1  |  0
+  //  0  1  1  0  |  1
+  //  1  0  0  0  |  0
+  //  1  0  0  1  |  1
+  //  1  1  0  0  |  0
+  const Mask128<T, N> eqHL = Eq(a, b);
+  const Mask128<T, N> cmpHL = Lt(a, b);
+  // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
+  // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
+  // comparison result leftwards requires only 6 on AVX3, otherwise 4.
+  const Mask128<T, N> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
+  const Mask128<T, N> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const Vec128<T, N> vecHx = VecFromMask(d, outHx);
+  return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
 // ================================================== DEPRECATED
 
 template <typename T, size_t N>

@@ -2091,6 +2091,32 @@ HWY_API svuint64_t CLMulUpper(const svuint64_t a, const svuint64_t b) {
 
 #endif  // __ARM_FEATURE_SVE2_AES
 
+// ------------------------------ Lt128
+
+template <class D>
+HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  // Truth table of Eq and Compare for Hi and Lo u64.
+  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
+  // =H =L cH cL  | out = cH | (=H & cL) = IfThenElse(=H, cL, cH)
+  //  0  0  0  0  |  0
+  //  0  0  0  1  |  0
+  //  0  0  1  0  |  1
+  //  0  0  1  1  |  1
+  //  0  1  0  0  |  0
+  //  0  1  0  1  |  0
+  //  0  1  1  0  |  1
+  //  1  0  0  0  |  0
+  //  1  0  0  1  |  1
+  //  1  1  0  0  |  0
+  const svbool_t eqHL = Eq(a, b);
+  const svbool_t cmpHL = Lt(a, b);
+  // trn (interleave even/odd) allow us to move and copy masks across lanes.
+  const svbool_t cmpLL = svtrn1_b64(cmpHL, cmpHL);
+  const svbool_t outHx = svsel_b(eqHL, cmpLL, cmpHL);  // See truth table above.
+  return svtrn2_b64(outHx, outHx);                     // replicate to HH
+}
+
 // ================================================== END MACROS
 namespace detail {  // for code folding
 #undef HWY_IF_FLOAT_V
