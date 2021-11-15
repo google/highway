@@ -46,7 +46,8 @@ set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON?")
 # arise due to compiler/platform changes. Enable this in CI/tests.
 set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
 
-set(HWY_EXAMPLES_TESTS_INSTALL ON CACHE BOOL "Build examples, tests, install?")
+set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
+set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
 
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
@@ -227,9 +228,10 @@ endif()
 # --------------------------------------------------------
 # Allow skipping the following sections for projects that do not need them:
 # tests, examples, benchmarks and installation.
-if (HWY_EXAMPLES_TESTS_INSTALL)
 
 # -------------------------------------------------------- install library
+if (HWY_ENABLE_INSTALL)
+
 install(TARGETS hwy
   DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 # Install all the headers keeping the relative path to the current directory
@@ -274,7 +276,9 @@ foreach (pc libhwy.pc libhwy-contrib.pc libhwy-test.pc)
       DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 endforeach()
 
+endif() # HWY_ENABLE_INSTALL
 # -------------------------------------------------------- Examples
+if (HWY_ENABLE_EXAMPLES)
 
 # Avoids mismatch between GTest's static CRT and our dynamic.
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -291,6 +295,7 @@ target_link_libraries(hwy_benchmark hwy)
 set_target_properties(hwy_benchmark
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
+endif() # HWY_ENABLE_EXAMPLES
 # -------------------------------------------------------- Tests
 
 include(CTest)
@@ -396,5 +401,3 @@ endforeach ()
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
 endif() # BUILD_TESTING
-
-endif() # HWY_EXAMPLES_TESTS_INSTALL
