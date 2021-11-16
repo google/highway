@@ -5017,14 +5017,27 @@ HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
   const Mask128<T, N> eqHL = Eq(a, b);
-  const Mask128<T, N> cmpHL = Lt(a, b);
+  const Mask128<T, N> ltHL = Lt(a, b);
   // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
   // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
   // comparison result leftwards requires only 4.
-  const Mask128<T, N> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
-  const Mask128<T, N> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const Mask128<T, N> ltLx = detail::ShiftMaskLeft<1>(ltHL);
+  const Mask128<T, N> outHx = Or(ltHL, And(eqHL, ltLx));
   const Vec128<T, N> vecHx = VecFromMask(d, outHx);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
+// ------------------------------ Min128, Max128 (Lt128)
+
+// Without a native OddEven, it seems infeasible to go faster than Lt128.
+template <class D>
+HWY_INLINE VFromD<D> Min128(D d, const VFromD<D> a, const VFromD<D> b) {
+  return IfThenElse(Lt128(d, a, b), a, b);
+}
+
+template <class D>
+HWY_INLINE VFromD<D> Max128(D d, const VFromD<D> a, const VFromD<D> b) {
+  return IfThenElse(Lt128(d, a, b), b, a);
 }
 
 // ================================================== DEPRECATED

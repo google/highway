@@ -263,6 +263,8 @@ wishes to run on all targets until that is resolved can use functions such as
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
     `1.0 / a[i]`.
 
+#### Min/Max
+
 **Note**: Min/Max corner cases are target-specific and may change. If either
 argument is qNaN, x86 SIMD returns the second argument, ARMv7 Neon returns NaN,
 Wasm is supposed to return NaN but does not always, but other targets actually
@@ -272,6 +274,16 @@ is qNaN, and NaN if both are.
 *   <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
 
 *   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
+
+*   `V`: `u64` \
+    <code>M **Min128**(D, V a, V b)</code>: returns the minimum of unsigned
+    128-bit values, each stored as an adjacent pair of 64-bit lanes (e.g.
+    indices 1 and 0, where 0 is the least-significant 64-bits).
+
+*   `V`: `u64` \
+    <code>M **Max128**(D, V a, V b)</code>: returns the maximum of unsigned
+    128-bit values, each stored as an adjacent pair of 64-bit lanes (e.g.
+    indices 1 and 0, where 0 is the least-significant 64-bits).
 
 #### Multiply
 
@@ -562,9 +574,9 @@ These return a mask (see above) indicating whether the condition is true.
     `bit[i]` must have exactly one bit set.
 
 *   `V`: `u64` \
-    <code>M **Lt128**(V a, V b)</code>: for each adjacent pair of 64-bit lanes
-    (e.g. indices 1,0), returns whether a[1]:a[0] concatenated to an unsigned
-    128-bit integer (with the least significant bits in a[0]) is less than
+    <code>M **Lt128**(D, V a, V b)</code>: for each adjacent pair of 64-bit
+    lanes (e.g. indices 1,0), returns whether a[1]:a[0] concatenated to an
+    unsigned 128-bit integer (least significant bits in a[0]) is less than
     b[1]:b[0]. For each pair, the mask lanes are either both true or both false.
 
 ### Memory

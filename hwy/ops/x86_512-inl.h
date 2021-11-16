@@ -3657,9 +3657,8 @@ Mask512<T> ShiftMaskLeft(Mask512<T> m) {
 
 }  // namespace detail
 
-template <typename T>
-HWY_INLINE Mask512<T> Lt128(Full512<T> d, Vec512<T> a, Vec512<T> b) {
-  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+HWY_INLINE Mask512<uint64_t> Lt128(Full512<uint64_t> d, Vec512<uint64_t> a,
+                                   Vec512<uint64_t> b) {
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -3673,15 +3672,70 @@ HWY_INLINE Mask512<T> Lt128(Full512<T> d, Vec512<T> a, Vec512<T> b) {
   //  1  0  0  0  |  0
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
-  const Mask512<T> eqHL = Eq(a, b);
-  const Mask512<T> cmpHL = Lt(a, b);
+  const Mask512<uint64_t> eqHL = Eq(a, b);
+  const Mask512<uint64_t> ltHL = Lt(a, b);
   // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
   // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
   // comparison result leftwards requires only 6.
-  const Mask512<T> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
-  const Mask512<T> outHx = Or(cmpHL, And(eqHL, cmpLx));
-  const Vec512<T> vecHx = VecFromMask(d, outHx);
+  const Mask512<uint64_t> ltLX = detail::ShiftMaskLeft<1>(ltHL);
+  const Mask512<uint64_t> outHx = Or(ltHL, And(eqHL, ltLX));
+  const Vec512<uint64_t> vecHx = VecFromMask(d, outHx);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
+// ------------------------------ Min128, Max128
+
+namespace detail {
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
+Mask512<T> ShiftMaskRight(Mask512<T> m) {
+  return Mask512<T>{_kshiftri_mask64(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
+Mask512<T> ShiftMaskRight(Mask512<T> m) {
+  return Mask512<T>{_kshiftri_mask32(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
+Mask512<T> ShiftMaskRight(Mask512<T> m) {
+  return Mask512<T>{_kshiftri_mask16(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
+Mask512<T> ShiftMaskRight(Mask512<T> m) {
+  return Mask512<T>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+}  // namespace detail
+
+// 8 ops (vs 9 for Lt128 + IfThenElse)
+HWY_INLINE Vec512<uint64_t> Min128(Full512<uint64_t> /* tag */,
+                                   Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  const Mask512<uint64_t> ltHL = Lt(a, b);
+  const Mask512<uint64_t> eqHL = Eq(a, b);
+  const Vec512<uint64_t> minHL = Min(a, b);
+  const Mask512<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
+  const Mask512<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
+  // If the upper lane is the decider, take lo from the same reg.
+  const Vec512<uint64_t> lo = IfThenElse(ltXH, a, b);
+  // The upper lane is just minHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
+}
+
+HWY_INLINE Vec512<uint64_t> Max128(Full512<uint64_t> /* tag */,
+                                   Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  const Mask512<uint64_t> ltHL = Lt(a, b);
+  const Mask512<uint64_t> eqHL = Eq(a, b);
+  const Vec512<uint64_t> maxHL = Max(a, b);
+  const Mask512<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
+  const Mask512<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
+  // If the upper lane is the decider, take lo from the same reg.
+  const Vec512<uint64_t> lo = IfThenElse(ltXH, b, a);
+  // The upper lane is just maxHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
 }
 
 // ================================================== DEPRECATED

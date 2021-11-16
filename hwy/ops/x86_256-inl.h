@@ -4628,7 +4628,6 @@ HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
 // ------------------------------ Lt128
 
 namespace detail {
-
 #if HWY_TARGET <= HWY_AVX3
 
 template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
@@ -4659,7 +4658,6 @@ Mask256<T> ShiftMaskLeft(Mask256<T> m) {
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
-
 }  // namespace detail
 
 template <typename T>
@@ -4679,14 +4677,81 @@ HWY_INLINE Mask256<T> Lt128(Full256<T> d, Vec256<T> a, Vec256<T> b) {
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
   const Mask256<T> eqHL = Eq(a, b);
-  const Mask256<T> cmpHL = Lt(a, b);
+  const Mask256<T> ltHL = Lt(a, b);
   // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
   // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
   // comparison result leftwards requires only 6 on AVX3, otherwise 4.
-  const Mask256<T> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
-  const Mask256<T> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const Mask256<T> ltLx = detail::ShiftMaskLeft<1>(ltHL);
+  const Mask256<T> outHx = Or(ltHL, And(eqHL, ltLx));
   const Vec256<T> vecHx = VecFromMask(d, outHx);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
+// ------------------------------ Min128, Max128 (Lt128)
+
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
+Mask256<T> ShiftMaskRight(Mask256<T> m) {
+  return Mask256<T>{_kshiftri_mask32(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
+Mask256<T> ShiftMaskRight(Mask256<T> m) {
+  return Mask256<T>{_kshiftri_mask16(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
+Mask256<T> ShiftMaskRight(Mask256<T> m) {
+  return Mask256<T>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
+Mask256<T> ShiftMaskRight(Mask256<T> m) {
+  return Mask256<T>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3
+
+HWY_INLINE Vec256<uint64_t> Min128(Full256<uint64_t> d, Vec256<uint64_t> a,
+                                   Vec256<uint64_t> b) {
+#if HWY_TARGET <= HWY_AVX3
+  (void)d;
+  // 8 ops (vs 9 for Lt128 + IfThenElse)
+  const Mask256<uint64_t> ltHL = Lt(a, b);
+  const Mask256<uint64_t> eqHL = Eq(a, b);
+  const Vec256<uint64_t> minHL = Min(a, b);
+  const Mask256<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
+  const Mask256<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
+  // If the upper lane is the decider, take lo from the same reg.
+  const Vec256<uint64_t> lo = IfThenElse(ltXH, a, b);
+  // The upper lane is just minHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
+#else
+  return IfThenElse(Lt128(d, a, b), a, b);
+#endif
+}
+
+HWY_INLINE Vec256<uint64_t> Max128(Full256<uint64_t> d, Vec256<uint64_t> a,
+                                   Vec256<uint64_t> b) {
+#if HWY_TARGET <= HWY_AVX3
+  (void)d;
+  const Mask256<uint64_t> ltHL = Lt(a, b);
+  const Mask256<uint64_t> eqHL = Eq(a, b);
+  const Vec256<uint64_t> maxHL = Max(a, b);
+  const Mask256<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
+  const Mask256<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
+  // If the upper lane is the decider, take lo from the same reg.
+  const Vec256<uint64_t> lo = IfThenElse(ltXH, b, a);
+  // The upper lane is just maxHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
+#else
+  return IfThenElse(Lt128(d, a, b), b, a);
+#endif
 }
 
 // ================================================== DEPRECATED

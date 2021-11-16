@@ -3414,17 +3414,14 @@ HWY_API Vec256<T> MaxOfLanes(Full256<T> /* tag */, const Vec256<T> v) {
 
 // ------------------------------ Lt128
 
-namespace detail {
-
-template <size_t kLanes, typename T>
-Mask256<T> ShiftMaskLeft(Mask256<T> m) {
-  return MaskFromVec(ShiftLeftLanes<kLanes>(VecFromMask(Full256<T>(), m)));
-}
-
-}  // namespace detail
-
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
+template <typename T>
 HWY_INLINE Mask256<T> Lt128(Full256<T> d, Vec256<T> a, Vec256<T> b) {}
+
+template <typename T>
+HWY_INLINE Vec256<T> Min128(Full256<T> d, Vec256<T> a, Vec256<T> b) {}
+
+template <typename T>
+HWY_INLINE Vec256<T> Max128(Full256<T> d, Vec256<T> a, Vec256<T> b) {}
 
 // ================================================== DEPRECATED
 

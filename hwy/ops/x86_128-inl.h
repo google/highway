@@ -5776,14 +5776,73 @@ HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
   const Mask128<T, N> eqHL = Eq(a, b);
-  const Mask128<T, N> cmpHL = Lt(a, b);
+  const Mask128<T, N> ltHL = Lt(a, b);
   // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
   // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
   // comparison result leftwards requires only 6 on AVX3, otherwise 4.
-  const Mask128<T, N> cmpLx = detail::ShiftMaskLeft<1>(cmpHL);
-  const Mask128<T, N> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const Mask128<T, N> ltLx = detail::ShiftMaskLeft<1>(ltHL);
+  const Mask128<T, N> outHx = Or(ltHL, And(eqHL, ltLx));
   const Vec128<T, N> vecHx = VecFromMask(d, outHx);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+}
+
+// ------------------------------ Min128, Max128 (Lt128)
+
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+template <size_t kLanes, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+Mask128<T, N> ShiftMaskRight(Mask128<T, N> m) {
+  return Mask128<T, N>{_kshiftri_mask16(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+template <size_t kLanes, typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
+Mask128<T, N> ShiftMaskRight(Mask128<T, N> m) {
+  return Mask128<T, N>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3
+
+template <size_t N>
+HWY_INLINE Vec128<uint64_t, N> Min128(Simd<uint64_t, N> d,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+#if HWY_TARGET <= HWY_AVX3
+  // 8 ops (vs 9 for Lt128 + IfThenElse)
+  const Mask128<uint64_t, N> ltHL = Lt(a, b);
+  const Mask128<uint64_t, N> eqHL = Eq(a, b);
+  const Vec128<uint64_t, N> minHL = Min(a, b);
+  const Mask128<uint64_t, N> ltXH = detail::ShiftMaskRight<1>(ltHL);
+  const Mask128<uint64_t, N> eqXH = detail::ShiftMaskRight<1>(eqHL);
+  // If the upper lane is the decider, take lo from the same reg.
+  const Vec128<uint64_t, N> lo = IfThenElse(ltXH, a, b);
+  // The upper lane is just minHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
+#else
+  return IfThenElse(Lt128(d, a, b), a, b);
+#endif
+}
+
+template <size_t N>
+HWY_INLINE Vec128<uint64_t, N> Max128(Simd<uint64_t, N> d,
+                                      Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+#if HWY_TARGET <= HWY_AVX3
+  const Mask128<uint64_t, N> ltHL = Lt(a, b);
+  const Mask128<uint64_t, N> eqHL = Eq(a, b);
+  const Vec128<uint64_t, N> maxHL = Max(a, b);
+  const Mask128<uint64_t, N> ltXH = detail::ShiftMaskRight<1>(ltHL);
+  const Mask128<uint64_t, N> eqXH = detail::ShiftMaskRight<1>(eqHL);
+  // If the upper lane is the decider, take lo from the same reg.
+  const Vec128<uint64_t, N> lo = IfThenElse(ltXH, b, a);
+  // The upper lane is just maxHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
+#else
+  return IfThenElse(Lt128(d, a, b), b, a);
+#endif
 }
 
 // ================================================== DEPRECATED

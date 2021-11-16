@@ -2156,13 +2156,43 @@ HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
   const MFromD<D> eqHL = Eq(a, b);
-  const MFromD<D> cmpHL = Lt(a, b);
+  const MFromD<D> ltHL = Lt(a, b);
   // Shift leftward so L can influence H.
-  const MFromD<D> cmpLx = MaskFromVec(detail::Slide1Up(VecFromMask(d, cmpHL)));
-  const MFromD<D> outHx = Or(cmpHL, And(eqHL, cmpLx));
+  const MFromD<D> ltLx = MaskFromVec(detail::Slide1Up(VecFromMask(d, ltHL)));
+  const MFromD<D> outHx = Or(ltHL, And(eqHL, ltLx));
   const VFromD<D> vecHx = VecFromMask(d, outHx);
   // Replicate H to its neighbor.
   return MaskFromVec(OddEven(vecHx, detail::Slide1Down(vecHx)));
+}
+
+// ------------------------------ Min128, Max128 (Lt128)
+
+template <class D>
+HWY_INLINE VFromD<D> Min128(D d, const VFromD<D> a, const VFromD<D> b) {
+  const VFromD<D> aXH = detail::Slide1Down(a);
+  const VFromD<D> bXH = detail::Slide1Down(b);
+  const VFromD<D> minHL = Min(a, b);
+  const MFromD<D> ltXH = Lt(aXH, bXH);
+  const MFromD<D> eqXH = Eq(aXH, bXH);
+  // If the upper lane is the decider, take lo from the same reg.
+  const VFromD<D> lo = IfThenElse(ltXH, a, b);
+  // The upper lane is just minHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
+}
+
+template <class D>
+HWY_INLINE VFromD<D> Max128(D d, const VFromD<D> a, const VFromD<D> b) {
+  const VFromD<D> aXH = detail::Slide1Down(a);
+  const VFromD<D> bXH = detail::Slide1Down(b);
+  const VFromD<D> maxHL = Max(a, b);
+  const MFromD<D> ltXH = Lt(aXH, bXH);
+  const MFromD<D> eqXH = Eq(aXH, bXH);
+  // If the upper lane is the decider, take lo from the same reg.
+  const VFromD<D> lo = IfThenElse(ltXH, b, a);
+  // The upper lane is just maxHL; if they are equal, we also need to use the
+  // actual min of the lower lanes.
+  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
 }
 
 // ================================================== END MACROS

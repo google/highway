@@ -644,6 +644,84 @@ HWY_NOINLINE void TestAllMinMax() {
   ForFloatTypes(ForPartialVectors<TestFloatMinMax>());
 }
 
+class TestMinMax128 {
+  template <class D>
+  static HWY_NOINLINE Vec<D> Make128(D d, uint64_t hi, uint64_t lo) {
+    alignas(16) uint64_t in[2];
+    in[0] = lo;
+    in[1] = hi;
+    return LoadDup128(d, in);
+  }
+
+ public:
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using V = Vec<D>;
+    const size_t N = Lanes(d);
+    auto a_lanes = AllocateAligned<T>(N);
+    auto b_lanes = AllocateAligned<T>(N);
+    auto min_lanes = AllocateAligned<T>(N);
+    auto max_lanes = AllocateAligned<T>(N);
+    RandomState rng;
+
+    const V v00 = Zero(d);
+    const V v01 = Make128(d, 0, 1);
+    const V v10 = Make128(d, 1, 0);
+    const V v11 = Add(v01, v10);
+
+    // Same arg
+    HWY_ASSERT_VEC_EQ(d, v00, Min128(d, v00, v00));
+    HWY_ASSERT_VEC_EQ(d, v01, Min128(d, v01, v01));
+    HWY_ASSERT_VEC_EQ(d, v10, Min128(d, v10, v10));
+    HWY_ASSERT_VEC_EQ(d, v11, Min128(d, v11, v11));
+    HWY_ASSERT_VEC_EQ(d, v00, Max128(d, v00, v00));
+    HWY_ASSERT_VEC_EQ(d, v01, Max128(d, v01, v01));
+    HWY_ASSERT_VEC_EQ(d, v10, Max128(d, v10, v10));
+    HWY_ASSERT_VEC_EQ(d, v11, Max128(d, v11, v11));
+
+    // First arg less
+    HWY_ASSERT_VEC_EQ(d, v00, Min128(d, v00, v01));
+    HWY_ASSERT_VEC_EQ(d, v01, Min128(d, v01, v10));
+    HWY_ASSERT_VEC_EQ(d, v10, Min128(d, v10, v11));
+    HWY_ASSERT_VEC_EQ(d, v01, Max128(d, v00, v01));
+    HWY_ASSERT_VEC_EQ(d, v10, Max128(d, v01, v10));
+    HWY_ASSERT_VEC_EQ(d, v11, Max128(d, v10, v11));
+
+    // Second arg less
+    HWY_ASSERT_VEC_EQ(d, v00, Min128(d, v01, v00));
+    HWY_ASSERT_VEC_EQ(d, v01, Min128(d, v10, v01));
+    HWY_ASSERT_VEC_EQ(d, v10, Min128(d, v11, v10));
+    HWY_ASSERT_VEC_EQ(d, v01, Max128(d, v01, v00));
+    HWY_ASSERT_VEC_EQ(d, v10, Max128(d, v10, v01));
+    HWY_ASSERT_VEC_EQ(d, v11, Max128(d, v11, v10));
+
+    // Also check 128-bit blocks are independent
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        a_lanes[i] = Random64(&rng);
+        b_lanes[i] = Random64(&rng);
+      }
+      const V a = Load(d, a_lanes.get());
+      const V b = Load(d, b_lanes.get());
+      for (size_t i = 0; i < N; i += 2) {
+        const bool lt = a_lanes[i + 1] == b_lanes[i + 1]
+                            ? (a_lanes[i] < b_lanes[i])
+                            : (a_lanes[i + 1] < b_lanes[i + 1]);
+        min_lanes[i + 0] = lt ? a_lanes[i + 0] : b_lanes[i + 0];
+        min_lanes[i + 1] = lt ? a_lanes[i + 1] : b_lanes[i + 1];
+        max_lanes[i + 0] = lt ? b_lanes[i + 0] : a_lanes[i + 0];
+        max_lanes[i + 1] = lt ? b_lanes[i + 1] : a_lanes[i + 1];
+      }
+      HWY_ASSERT_VEC_EQ(d, min_lanes.get(), Min128(d, a, b));
+      HWY_ASSERT_VEC_EQ(d, max_lanes.get(), Max128(d, a, b));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMinMax128() {
+  ForGE128Vectors<TestMinMax128>()(uint64_t());
+}
+
 struct TestUnsignedMul {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -1401,6 +1479,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllShifts);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllVariableShifts);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllRotateRight);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax128);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMul);

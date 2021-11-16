@@ -2110,11 +2110,23 @@ HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
   const svbool_t eqHL = Eq(a, b);
-  const svbool_t cmpHL = Lt(a, b);
+  const svbool_t ltHL = Lt(a, b);
   // trn (interleave even/odd) allow us to move and copy masks across lanes.
-  const svbool_t cmpLL = svtrn1_b64(cmpHL, cmpHL);
-  const svbool_t outHx = svsel_b(eqHL, cmpLL, cmpHL);  // See truth table above.
+  const svbool_t cmpLL = svtrn1_b64(ltHL, ltHL);
+  const svbool_t outHx = svsel_b(eqHL, cmpLL, ltHL);   // See truth table above.
   return svtrn2_b64(outHx, outHx);                     // replicate to HH
+}
+
+// ------------------------------ Min128, Max128 (Lt128)
+
+template <class D>
+HWY_INLINE svuint64_t Min128(D d, const svuint64_t a, const svuint64_t b) {
+  return IfThenElse(Lt128(d, a, b), a, b);
+}
+
+template <class D>
+HWY_INLINE svuint64_t Max128(D d, const svuint64_t a, const svuint64_t b) {
+  return IfThenElse(Lt128(d, a, b), b, a);
 }
 
 // ================================================== END MACROS
