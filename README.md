@@ -19,8 +19,8 @@ requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE,
 WASM SIMD.
 
 SVE is tested using farm_sve (see acknowledgments). SVE2 is implemented but not
-yet validated. A subset of RVV is implemented and tested with GCC and QEMU.
-Work is underway to compile using LLVM, which has different intrinsics with AVL.
+yet validated. A subset of RVV is implemented and tested with LLVM and QEMU.
+Work is underway to add RVV ops which were not yet supported by GCC.
 
 Version 0.11 is considered stable enough to use in other projects, and is
 expected to remain backwards compatible unless serious issues are discovered
@@ -34,8 +34,8 @@ GCC cross-compile and QEMU. See the
 [testing process](g3doc/release_testing_process.md) for details.
 
 The `contrib` directory contains SIMD-related utilities: an image class with
-aligned rows, and a math library (16 functions already implemented, mostly
-trigonometry).
+aligned rows, a math library (16 functions already implemented, mostly
+trigonometry), and functions for computing dot products and sorting.
 
 ## Installation
 
@@ -76,31 +76,40 @@ and their parameters, and the [instruction_matrix](g3doc/instruction_matrix.pdf)
 indicates the number of instructions per operation.
 
 We recommend using full SIMD vectors whenever possible for maximum performance
-portability. To obtain them, pass a `HWY_FULL(float)` tag to functions such as
-`Zero/Set/Load`. There is also the option of a vector of up to `N` (a power of
-two <= 16/sizeof(T)) lanes of type `T`: `HWY_CAPPED(T, N)`. If `HWY_TARGET ==
-HWY_SCALAR`, the vector always has one lane. For all other targets, up to
-128-bit vectors are guaranteed to be available.
+portability. To obtain them, pass a `ScalableTag<float>` (or equivalently
+`HWY_FULL(float)`) tag to functions such as `Zero/Set/Load`. There are two
+alternatives for use-cases requiring an upper bound on the lanes:
 
-Functions using Highway must be inside `namespace HWY_NAMESPACE {`
-(possibly nested in one or more other namespaces defined by the project), and
-additionally either prefixed with `HWY_ATTR`, or residing between
-`HWY_BEFORE_NAMESPACE()` and `HWY_AFTER_NAMESPACE()`.
+-   For up to a power of two `N`, specify `CappedTag<T, N>` (or
+    equivalently `HWY_CAPPED(T, N)`). This is useful for data structures such as
+    a narrow matrix. A loop is still required because vectors may actually have
+    fewer than `N` lanes.
+
+-   For exactly a power of two `N` lanes, specify `FixedTag<T, N>`. The largest
+    supported `N` depends on the target, but is guaranteed to be at least
+    `16/sizeof(T)`.
+
+Functions using Highway must either be inside `namespace HWY_NAMESPACE {`
+(possibly nested in one or more other namespaces defined by the project), OR
+each op must be prefixed with `hn::`, e.g. `namespace hn = hwy::HWY_NAMESPACE;
+hn::LoadDup128()`. Additionally, each function using Highway must either be
+prefixed with `HWY_ATTR`, OR reside between `HWY_BEFORE_NAMESPACE()` and
+`HWY_AFTER_NAMESPACE()`.
 
 *   For static dispatch, `HWY_TARGET` will be the best available target among
     `HWY_BASELINE_TARGETS`, i.e. those allowed for use by the compiler (see
-    [quick-reference](g3doc/quick_reference.md)). Functions inside `HWY_NAMESPACE`
-    can be called using `HWY_STATIC_DISPATCH(func)(args)` within the same module
-    they are defined in. You can call the function from other modules by
-    wrapping it in a regular function and declaring the regular function in a
-    header.
+    [quick-reference](g3doc/quick_reference.md)). Functions inside
+    `HWY_NAMESPACE` can be called using `HWY_STATIC_DISPATCH(func)(args)` within
+    the same module they are defined in. You can call the function from other
+    modules by wrapping it in a regular function and declaring the regular
+    function in a header.
 
 *   For dynamic dispatch, a table of function pointers is generated via the
     `HWY_EXPORT` macro that is used by `HWY_DYNAMIC_DISPATCH(func)(args)` to
     call the best function pointer for the current CPU's supported targets. A
     module is automatically compiled for each target in `HWY_TARGETS` (see
     [quick-reference](g3doc/quick_reference.md)) if `HWY_TARGET_INCLUDE` is
-    defined and foreach_target.h is included.
+    defined and `foreach_target.h` is included.
 
 ## Compiler flags
 
@@ -123,17 +132,17 @@ ensure proper VEX code generation for AVX2 targets.
 To vectorize a loop, "strip-mining" transforms it into an outer loop and inner
 loop with number of iterations matching the preferred vector width.
 
-In this section, let `T` denote the element type, `d = HWY_FULL(T)`, `count` the
-number of elements to process, and `N = Lanes(d)` the number of lanes in a full
-vector. Assume the loop body is given as a function `template<bool partial,
-class D> void LoopBody(D d, size_t max_n)`.
+In this section, let `T` denote the element type, `d = ScalableTag<T>`, `count`
+the number of elements to process, and `N = Lanes(d)` the number of lanes in a
+full vector. Assume the loop body is given as a function `template<bool partial,
+class D> void LoopBody(D d, size_t index, size_t max_n)`.
 
 Highway offers several ways to express loops where `N` need not divide `count`:
 
 *   Ensure all inputs/outputs are padded. Then the loop is simply
 
     ```
-    for (size_t i = 0; i < count; i += N) LoopBody<false>(d, 0);
+    for (size_t i = 0; i < count; i += N) LoopBody<false>(d, i, 0);
     ```
     Here, the template parameter and second function argument are not needed.
 
@@ -149,8 +158,8 @@ Highway offers several ways to express loops where `N` need not divide `count`:
 
     ```
     size_t i = 0;
-    for (; i + N <= count; i += N) LoopBody<false>(d, 0);
-    for (; i < count; ++i) LoopBody<false>(HWY_CAPPED(T, 1)(), 0);
+    for (; i + N <= count; i += N) LoopBody<false>(d, i, 0);
+    for (; i < count; ++i) LoopBody<false>(HWY_CAPPED(T, 1)(), i, 0);
     ```
     The template parameter and second function arguments are again not needed.
 
@@ -163,18 +172,20 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     ```
     size_t i = 0;
     for (; i + N <= count; i += N) {
-      LoopBody<false>(d, 0);
+      LoopBody<false>(d, i, 0);
     }
     if (i < count) {
-      LoopBody<true>(d, count - i);
+      LoopBody<true>(d, i, count - i);
     }
     ```
-    Now the template parameter and second function argument can be used inside
+    Now the template parameter and third function argument can be used inside
     `LoopBody` to 'blend' the new partial vector with previous memory contents:
     `Store(IfThenElse(FirstN(d, N), partial, prev_full), d, aligned_pointer);`.
 
     This is a good default when it is infeasible to ensure vectors are padded.
     In contrast to the scalar loop, only a single final iteration is needed.
+    The increased code size from two loop bodies is expected to be worthwhile
+    because it avoids the cost of masking in all but the final iteration.
 
 ## Additional resources
 
