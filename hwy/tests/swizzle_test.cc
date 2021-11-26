@@ -203,6 +203,34 @@ HWY_NOINLINE void TestAllReverse() {
   ForUIF163264(ForPartialVectors<TestReverse>());
 }
 
+struct TestReverseBlocks {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const RebindToUnsigned<D> du;  // Iota does not support float16_t.
+    const auto v = BitCast(d, Iota(du, 1));
+    auto expected = AllocateAligned<T>(N);
+
+    constexpr size_t kLanesPerBlock = 16 / sizeof(T);
+    const size_t num_blocks = N / kLanesPerBlock;
+    HWY_ASSERT(num_blocks != 0);
+
+    // Can't set float16_t value directly, need to permute in memory.
+    auto copy = AllocateAligned<T>(N);
+    Store(v, d, copy.get());
+    for (size_t i = 0; i < N; ++i) {
+      const size_t idx_block = i / kLanesPerBlock;
+      const size_t base = (num_blocks - 1 - idx_block) * kLanesPerBlock;
+      expected[i] = copy[base + (i % kLanesPerBlock)];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseBlocks(d, v));
+  }
+};
+
+HWY_NOINLINE void TestAllReverseBlocks() {
+  ForAllTypes(ForGE128Vectors<TestReverseBlocks>());
+}
+
 class TestCompress {
   template <typename T, typename TI, size_t N>
   void CheckStored(Simd<T, N> d, Simd<TI, N> di, size_t expected_pos,
@@ -487,6 +515,7 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEvenBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSwapAdjacentBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverseBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCompress);
 }  // namespace hwy
 

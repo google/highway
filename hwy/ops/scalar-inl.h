@@ -1125,6 +1125,14 @@ HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
   return v;
 }
 
+// ------------------------------ ReverseBlocks
+
+// Single block: no change
+template <typename T>
+HWY_API Vec1<T> ReverseBlocks(Sisd<T> /* tag */, const Vec1<T> v) {
+  return v;
+}
+
 // ------------------------------ Reverse
 
 template <typename T>

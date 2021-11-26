@@ -1625,6 +1625,13 @@ HWY_API V Shuffle0123(const V v) {
   return Shuffle2301(Shuffle1032(v));
 }
 
+// ------------------------------ ReverseBlocks (Reverse, Shuffle01)
+template <class D, class V = VFromD<D>>
+HWY_API V ReverseBlocks(D d, V v) {
+  const Repartition<uint64_t, D> du64;
+  return BitCast(d, Shuffle01(Reverse(du64, BitCast(du64, v))));
+}
+
 // ------------------------------ TableLookupBytes
 
 template <class V, class VI>

@@ -3403,6 +3403,14 @@ HWY_API Vec128<double> TableLookupLanes(Vec128<double> v,
 #endif
 }
 
+// ------------------------------ ReverseBlocks
+
+// Single block: no change
+template <typename T>
+HWY_API Vec128<T> ReverseBlocks(Full128<T> /* tag */, const Vec128<T> v) {
+  return v;
+}
+
 // ------------------------------ Reverse (Shuffle0123, Shuffle2301)
 
 // Single lane: no change

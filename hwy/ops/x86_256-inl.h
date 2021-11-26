@@ -3140,6 +3140,13 @@ HWY_API Vec256<double> SwapAdjacentBlocks(Vec256<double> v) {
   return Vec256<double>{_mm256_permute4x64_pd(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
 }
 
+// ------------------------------ ReverseBlocks (ConcatLowerUpper)
+
+template <typename T>
+HWY_API Vec256<T> ReverseBlocks(Full256<T> /* tag */, Vec256<T> v) {
+  return ConcatLowerUpper(v, v);
+}
+
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
 
 // Both full

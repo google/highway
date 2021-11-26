@@ -2718,6 +2718,22 @@ HWY_API Vec512<double> SwapAdjacentBlocks(Vec512<double> v) {
       _mm512_shuffle_f64x2(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
 }
 
+// ------------------------------ ReverseBlocks
+
+template <typename T>
+HWY_API Vec512<T> ReverseBlocks(Full512<T> /* tag */, Vec512<T> v) {
+  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+}
+HWY_API Vec512<float> ReverseBlocks(Full512<float> /* tag */, Vec512<float> v) {
+  return Vec512<float>{
+      _mm512_shuffle_f32x4(v.raw, v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+}
+HWY_API Vec512<double> ReverseBlocks(Full512<double> /* tag */,
+                                     Vec512<double> v) {
+  return Vec512<double>{
+      _mm512_shuffle_f64x2(v.raw, v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+}
+
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
 
 // Both full

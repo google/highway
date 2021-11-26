@@ -513,6 +513,8 @@ HWY_API V CopySignToAbs(const V abs, const V sign) {
 namespace detail {
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AddS, add_vx)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, AddS, fadd_vf)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, ReverseSubS, rsub_vx)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, ReverseSubS, frsub_vf)
 }  // namespace detail
 
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Add, add)
@@ -1593,8 +1595,21 @@ HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
   const RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
   const size_t N = Lanes(du);
-  const auto idx = Sub(Set(du, static_cast<TU>(N - 1)), detail::Iota0(du));
+  const auto idx =
+      detail::ReverseSubS(detail::Iota0(du), static_cast<TU>(N - 1));
   return TableLookupLanes(v, idx);
+}
+
+// ------------------------------ ReverseBlocks (Reverse, Shuffle01)
+template <class D, class V = VFromD<D>>
+HWY_API V ReverseBlocks(D d, V v) {
+  const Repartition<uint64_t, D> du64;
+  const size_t N = Lanes(du64);
+  const auto rev =
+      detail::ReverseSubS(detail::Iota0(du64), static_cast<uint64_t>(N - 1));
+  // Swap lo/hi u64 within each block
+  const auto idx = detail::XorS(rev, 1);
+  return BitCast(d, TableLookupLanes(BitCast(du64, v), idx));
 }
 
 // ------------------------------ Compress
@@ -2051,13 +2066,13 @@ HWY_API V Floor(const V v) {
 
 template <class D, HWY_IF_UNSIGNED_D(D)>
 HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
-  return Add(detail::Iota0(d), Set(d, first));
+  return detail::AddS(detail::Iota0(d), first);
 }
 
 template <class D, HWY_IF_SIGNED_D(D)>
 HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
   const RebindToUnsigned<D> du;
-  return Add(BitCast(d, detail::Iota0(du)), Set(d, first));
+  return detail::AddS(BitCast(d, detail::Iota0(du)), first);
 }
 
 template <class D, HWY_IF_FLOAT_D(D)>

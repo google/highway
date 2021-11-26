@@ -2298,6 +2298,13 @@ HWY_API Vec256<T> SwapAdjacentBlocks(Vec256<T> v) {
   return v;
 }
 
+// ------------------------------ ReverseBlocks
+
+template <typename T>
+HWY_API Vec256<T> ReverseBlocks(Full256<T> /* tag */, const Vec256<T> v) {
+  return v;
+}
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)

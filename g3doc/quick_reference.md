@@ -921,6 +921,9 @@ their operands into independently processed 128-bit *blocks*.
     index `2*i` and `2*i+1` are swapped. Results are undefined for vectors with
     less than two blocks; callers must first check that via `Lanes`.
 
+*   <code>V **ReverseBlocks**(V v)</code>: returns a vector with blocks in
+    reversed order.
+
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector of
     `a[indices[i]]`, where `unspecified` is the return value of
