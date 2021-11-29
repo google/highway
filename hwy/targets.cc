@@ -15,23 +15,28 @@
 #include "hwy/targets.h"
 
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #include <atomic>
-#include <cstddef>
-#include <limits>
+
+#include "hwy/base.h"
 
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
     defined(THREAD_SANITIZER)
 #include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
 #endif                                        // defined(*_SANITIZER)
 
+#if HWY_COMPILER_MSVC || HWY_ARCH_RVV
+#include <stdlib.h>  // abort / exit
+#endif
+
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
 #if HWY_COMPILER_MSVC
 #include <intrin.h>
-#else  // HWY_COMPILER_MSVC
+#else  // !HWY_COMPILER_MSVC
 #include <cpuid.h>
 #endif  // HWY_COMPILER_MSVC
 #endif  // HWY_ARCH_X86
@@ -93,7 +98,7 @@ std::atomic<uint32_t> supported_{0};  // Not yet initialized
 uint32_t supported_targets_for_test_ = 0;
 
 // Mask of targets disabled at runtime with DisableTargets.
-uint32_t supported_mask_{std::numeric_limits<uint32_t>::max()};
+uint32_t supported_mask_{LimitsMax<uint32_t>()};
 
 #if HWY_ARCH_X86
 // Arbritrary bit indices indicating which instruction set extensions are
