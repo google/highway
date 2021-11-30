@@ -9,8 +9,8 @@ runtime (dynamic dispatch), or compile for a single CPU target without runtime
 overhead (static dispatch). Examples of both are provided in examples/.
 
 Dynamic dispatch uses the same source code as static, plus `#define
-HWY_TARGET_INCLUDE`, `#include "hwy/foreach_target.h"` and
-`HWY_DYNAMIC_DISPATCH`.
+HWY_TARGET_INCLUDE`, `#include "hwy/foreach_target.h"`
+(which must come before any inclusion of highway.h) and `HWY_DYNAMIC_DISPATCH`.
 
 ## Headers
 

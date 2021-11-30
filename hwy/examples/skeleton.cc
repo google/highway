@@ -24,6 +24,7 @@
 // Generates code for each enabled target by re-including this source file.
 #include "hwy/foreach_target.h"
 
+// Must come after foreach_target.h to avoid redefinition errors.
 #include "hwy/highway.h"
 
 // Optional, can instead add HWY_ATTR to all functions.

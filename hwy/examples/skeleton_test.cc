@@ -21,10 +21,13 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "examples/skeleton_test.cc"
 #include "hwy/foreach_target.h"
+
+// Must come after foreach_target.h to avoid redefinition errors.
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
 // Optional: factor out parts of the implementation into *-inl.h
+// (must also come after foreach_target.h to avoid redefinition errors)
 #include "hwy/examples/skeleton-inl.h"
 
 HWY_BEFORE_NAMESPACE();

@@ -25,8 +25,10 @@
 #include <numeric>  // iota
 
 #include "hwy/aligned_allocator.h"
+// Must come after foreach_target.h to avoid redefinition errors.
 #include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
