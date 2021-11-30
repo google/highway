@@ -446,6 +446,13 @@ HWY_API V AndNot(const V a, const V b) {
   return BitCast(df, AndNot(BitCast(du, a), BitCast(du, b)));
 }
 
+// ------------------------------ OrAnd
+
+template <class V>
+HWY_API V OrAnd(const V o, const V a1, const V a2) {
+  return Or(o, And(a1, a2));
+}
+
 // ------------------------------ PopulationCount
 
 #ifdef HWY_NATIVE_POPCNT

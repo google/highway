@@ -496,6 +496,13 @@ HWY_API V AndNot(const V not_a, const V b) {
   return And(Not(not_a), b);
 }
 
+// ------------------------------ OrAnd
+
+template <class V>
+HWY_API V OrAnd(const V o, const V a1, const V a2) {
+  return Or(o, And(a1, a2));
+}
+
 // ------------------------------ CopySign
 
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, CopySign, fsgnj)

@@ -59,6 +59,15 @@ struct TestLogicalInteger {
     HWY_ASSERT_VEC_EQ(d, v0, AndNot(vi, v0));
     HWY_ASSERT_VEC_EQ(d, v0, AndNot(vi, vi));
 
+    HWY_ASSERT_VEC_EQ(d, v0, OrAnd(v0, v0, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, OrAnd(v0, vi, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, OrAnd(v0, v0, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, OrAnd(v0, vi, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, OrAnd(vi, v0, v0));
+    HWY_ASSERT_VEC_EQ(d, vi, OrAnd(vi, vi, v0));
+    HWY_ASSERT_VEC_EQ(d, vi, OrAnd(vi, v0, vi));
+    HWY_ASSERT_VEC_EQ(d, vi, OrAnd(vi, vi, vi));
+
     auto v = vi;
     v = And(v, vi);
     HWY_ASSERT_VEC_EQ(d, vi, v);

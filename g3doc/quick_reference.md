@@ -423,6 +423,11 @@ non-operator functions (also available for integers) must be used:
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
+The following three-argument functions may be more efficient than assembling
+them from 2-argument functions:
+
+*   <code>V **OrAnd**(V o, V a1, V a2)</code>: returns `o[i] | (a1[i] & a2[i])`.
+
 Special functions for signed types:
 
 *   `V`: `{f}` \

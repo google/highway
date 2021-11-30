@@ -326,6 +326,22 @@ HWY_API Vec256<T> Not(const Vec256<T> v) {
 #endif
 }
 
+// ------------------------------ OrAnd
+
+template <typename T>
+HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
+#if HWY_TARGET <= HWY_AVX3
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m256i ret = _mm256_ternarylogic_epi64(
+      BitCast(du, o).raw, BitCast(du, a1).raw, BitCast(du, a2).raw, 0xF8);
+  return BitCast(d, VU{ret});
+#else
+  return Or(o, And(a1, a2));
+#endif
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T>
@@ -4634,39 +4650,6 @@ HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
 
 // ------------------------------ Lt128
 
-namespace detail {
-#if HWY_TARGET <= HWY_AVX3
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
-Mask256<T> ShiftMaskLeft(Mask256<T> m) {
-  return Mask256<T>{_kshiftli_mask32(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
-Mask256<T> ShiftMaskLeft(Mask256<T> m) {
-  return Mask256<T>{_kshiftli_mask16(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
-Mask256<T> ShiftMaskLeft(Mask256<T> m) {
-  return Mask256<T>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
-Mask256<T> ShiftMaskLeft(Mask256<T> m) {
-  return Mask256<T>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-#else
-
-template <size_t kLanes, typename T>
-Mask256<T> ShiftMaskLeft(Mask256<T> m) {
-  return MaskFromVec(ShiftLeftLanes<kLanes>(VecFromMask(Full256<T>(), m)));
-}
-
-#endif  // HWY_TARGET <= HWY_AVX3
-}  // namespace detail
-
 template <typename T>
 HWY_INLINE Mask256<T> Lt128(Full256<T> d, Vec256<T> a, Vec256<T> b) {
   static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
@@ -4683,14 +4666,11 @@ HWY_INLINE Mask256<T> Lt128(Full256<T> d, Vec256<T> a, Vec256<T> b) {
   //  1  0  0  0  |  0
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
-  const Mask256<T> eqHL = Eq(a, b);
-  const Mask256<T> ltHL = Lt(a, b);
-  // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
-  // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
-  // comparison result leftwards requires only 6 on AVX3, otherwise 4.
-  const Mask256<T> ltLx = detail::ShiftMaskLeft<1>(ltHL);
-  const Mask256<T> outHx = Or(ltHL, And(eqHL, ltLx));
-  const Vec256<T> vecHx = VecFromMask(d, outHx);
+  using V = decltype(a);
+  const V eqHL = VecFromMask(d, Eq(a, b));
+  const V ltHL = VecFromMask(d, Lt(a, b));
+  const V ltLX = ShiftLeftLanes<1>(ltHL);
+  const V vecHx = OrAnd(ltHL, eqHL, ltLX);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
 }
 

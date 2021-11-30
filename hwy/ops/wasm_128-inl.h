@@ -1127,6 +1127,13 @@ HWY_API Vec128<T, N> Xor(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{wasm_v128_xor(a.raw, b.raw)};
 }
 
+// ------------------------------ OrAnd
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
+  return Or(o, And(a1, a2));
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T, size_t N>

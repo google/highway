@@ -451,6 +451,22 @@ HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
 #endif
 }
 
+// ------------------------------ OrAnd
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
+#if HWY_TARGET <= HWY_AVX3
+  const Simd<T, N> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m128i ret = _mm_ternarylogic_epi64(
+      BitCast(du, o).raw, BitCast(du, a1).raw, BitCast(du, a2).raw, 0xF8);
+  return BitCast(d, VU{ret});
+#else
+  return Or(o, And(a1, a2));
+#endif
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T, size_t N>
@@ -5742,31 +5758,6 @@ HWY_API Vec128<T, N> MaxOfLanes(Simd<T, N> /* tag */, const Vec128<T, N> v) {
 
 // ------------------------------ Lt128
 
-namespace detail {
-
-#if HWY_TARGET <= HWY_AVX3
-
-template <size_t kLanes, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
-Mask128<T, N> ShiftMaskLeft(Mask128<T, N> m) {
-  return Mask128<T, N>{_kshiftli_mask16(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
-Mask128<T, N> ShiftMaskLeft(Mask128<T, N> m) {
-  return Mask128<T, N>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-#else
-
-template <size_t kLanes, typename T, size_t N>
-Mask128<T, N> ShiftMaskLeft(Mask128<T, N> m) {
-  return MaskFromVec(ShiftLeftLanes<kLanes>(VecFromMask(Simd<T, N>(), m)));
-}
-
-#endif  // HWY_TARGET <= HWY_AVX3
-
-}  // namespace detail
-
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
   static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
@@ -5783,14 +5774,11 @@ HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
   //  1  0  0  0  |  0
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
-  const Mask128<T, N> eqHL = Eq(a, b);
-  const Mask128<T, N> ltHL = Lt(a, b);
-  // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
-  // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
-  // comparison result leftwards requires only 6 on AVX3, otherwise 4.
-  const Mask128<T, N> ltLx = detail::ShiftMaskLeft<1>(ltHL);
-  const Mask128<T, N> outHx = Or(ltHL, And(eqHL, ltLx));
-  const Vec128<T, N> vecHx = VecFromMask(d, outHx);
+  using V = decltype(a);
+  const V eqHL = VecFromMask(d, Eq(a, b));
+  const V ltHL = VecFromMask(d, Lt(a, b));
+  const V ltLX = ShiftLeftLanes<1>(ltHL);
+  const V vecHx = OrAnd(ltHL, eqHL, ltLX);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
 }
 

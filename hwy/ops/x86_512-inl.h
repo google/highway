@@ -313,6 +313,18 @@ HWY_API Vec512<double> Xor(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_xor_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ OrAnd
+
+template <typename T>
+HWY_API Vec512<T> OrAnd(Vec512<T> o, Vec512<T> a1, Vec512<T> a2) {
+  const Full512<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m512i ret = _mm512_ternarylogic_epi64(
+      BitCast(du, o).raw, BitCast(du, a1).raw, BitCast(du, a2).raw, 0xF8);
+  return BitCast(d, VU{ret});
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T>
@@ -3649,30 +3661,6 @@ HWY_API Vec512<T> MaxOfLanes(Full512<T> d, Vec512<T> v) {
 
 // ------------------------------ Lt128
 
-namespace detail {
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
-Mask512<T> ShiftMaskLeft(Mask512<T> m) {
-  return Mask512<T>{_kshiftli_mask64(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
-Mask512<T> ShiftMaskLeft(Mask512<T> m) {
-  return Mask512<T>{_kshiftli_mask32(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
-Mask512<T> ShiftMaskLeft(Mask512<T> m) {
-  return Mask512<T>{_kshiftli_mask16(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
-Mask512<T> ShiftMaskLeft(Mask512<T> m) {
-  return Mask512<T>{_kshiftli_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-}  // namespace detail
-
 HWY_INLINE Mask512<uint64_t> Lt128(Full512<uint64_t> d, Vec512<uint64_t> a,
                                    Vec512<uint64_t> b) {
   // Truth table of Eq and Lt for Hi and Lo u64.
@@ -3688,14 +3676,11 @@ HWY_INLINE Mask512<uint64_t> Lt128(Full512<uint64_t> d, Vec512<uint64_t> a,
   //  1  0  0  0  |  0
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
-  const Mask512<uint64_t> eqHL = Eq(a, b);
-  const Mask512<uint64_t> ltHL = Lt(a, b);
-  // We need to bring cL to the upper lane/bit corresponding to cH. Comparing
-  // the result of InterleaveUpper/Lower requires 9 ops, whereas shifting the
-  // comparison result leftwards requires only 6.
-  const Mask512<uint64_t> ltLX = detail::ShiftMaskLeft<1>(ltHL);
-  const Mask512<uint64_t> outHx = Or(ltHL, And(eqHL, ltLX));
-  const Vec512<uint64_t> vecHx = VecFromMask(d, outHx);
+  using V = decltype(a);
+  const V eqHL = VecFromMask(d, Eq(a, b));
+  const V ltHL = VecFromMask(d, Lt(a, b));
+  const V ltLX = ShiftLeftLanes<1>(ltHL);
+  const V vecHx = OrAnd(ltHL, eqHL, ltLX);
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
 }
 

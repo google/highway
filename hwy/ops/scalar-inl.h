@@ -187,6 +187,13 @@ HWY_API Vec1<T> operator^(const Vec1<T> a, const Vec1<T> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ OrAnd
+
+template <typename T>
+HWY_API Vec1<T> OrAnd(const Vec1<T> o, const Vec1<T> a1, const Vec1<T> a2) {
+  return Or(o, And(a1, a2));
+}
+
 // ------------------------------ CopySign
 
 template <typename T>
