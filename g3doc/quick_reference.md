@@ -504,6 +504,9 @@ Let `M` denote a mask capable of storing true/false for each lane.
 *   <code>V **IfThenZeroElse**(M mask, V no)</code>: returns `mask[i] ? 0 :
     no[i]`.
 
+*   <code>V **IfVecThenElse**(V mask, V yes, V no)</code>: equivalent to and
+    possibly faster than `IfVecThenElse(MaskFromVec(mask), yes, no)`.
+
 #### Logical
 
 *   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the

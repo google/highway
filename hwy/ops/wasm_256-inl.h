@@ -1048,9 +1048,16 @@ HWY_API Vec256<T> Xor(Vec256<T> a, Vec256<T> b) {
 
 // ------------------------------ OrAnd
 
-template <typename T, size_t N>
-HWY_API Vec256<T, N> OrAnd(Vec256<T, N> o, Vec256<T, N> a1, Vec256<T, N> a2) {
+template <typename T>
+HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
   return Or(o, And(a1, a2));
+}
+
+// ------------------------------ IfVecThenElse
+
+template <typename T>
+HWY_API Vec256<T> IfVecThenElse(Vec256<T> mask, Vec256<T> yes, Vec256<T> no) {
+  return IfThenElse(MaskFromVec(mask), yes, no);
 }
 
 // ------------------------------ Operator overloads (internal-only if float)

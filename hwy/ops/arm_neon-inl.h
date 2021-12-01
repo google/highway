@@ -1458,6 +1458,14 @@ HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
   return Or(o, And(a1, a2));
 }
 
+// ------------------------------ IfVecThenElse
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> IfVecThenElse(Vec128<T, N> mask, Vec128<T, N> yes,
+                                   Vec128<T, N> no) {
+  return IfThenElse(MaskFromVec(mask), yes, no);
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T, size_t N>

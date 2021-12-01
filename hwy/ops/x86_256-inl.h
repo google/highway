@@ -342,6 +342,22 @@ HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
 #endif
 }
 
+// ------------------------------ IfVecThenElse
+
+template <typename T>
+HWY_API Vec256<T> IfVecThenElse(Vec256<T> mask, Vec256<T> yes, Vec256<T> no) {
+#if HWY_TARGET <= HWY_AVX3
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  return BitCast(d, VU{_mm256_ternarylogic_epi64(BitCast(du, mask).raw,
+                                                 BitCast(du, yes).raw,
+                                                 BitCast(du, no).raw, 0xCA)});
+#else
+  return IfThenElse(MaskFromVec(mask), yes, no);
+#endif
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T>
@@ -4646,99 +4662,6 @@ template <typename T>
 HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
-}
-
-// ------------------------------ Lt128
-
-template <typename T>
-HWY_INLINE Mask256<T> Lt128(Full256<T> d, Vec256<T> a, Vec256<T> b) {
-  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
-  // Truth table of Eq and Lt for Hi and Lo u64.
-  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
-  // =H =L cH cL  | out = cH | (=H & cL)
-  //  0  0  0  0  |  0
-  //  0  0  0  1  |  0
-  //  0  0  1  0  |  1
-  //  0  0  1  1  |  1
-  //  0  1  0  0  |  0
-  //  0  1  0  1  |  0
-  //  0  1  1  0  |  1
-  //  1  0  0  0  |  0
-  //  1  0  0  1  |  1
-  //  1  1  0  0  |  0
-  using V = decltype(a);
-  const V eqHL = VecFromMask(d, Eq(a, b));
-  const V ltHL = VecFromMask(d, Lt(a, b));
-  const V ltLX = ShiftLeftLanes<1>(ltHL);
-  const V vecHx = OrAnd(ltHL, eqHL, ltLX);
-  return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
-}
-
-// ------------------------------ Min128, Max128 (Lt128)
-
-#if HWY_TARGET <= HWY_AVX3
-namespace detail {
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
-Mask256<T> ShiftMaskRight(Mask256<T> m) {
-  return Mask256<T>{_kshiftri_mask32(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
-Mask256<T> ShiftMaskRight(Mask256<T> m) {
-  return Mask256<T>{_kshiftri_mask16(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
-Mask256<T> ShiftMaskRight(Mask256<T> m) {
-  return Mask256<T>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
-Mask256<T> ShiftMaskRight(Mask256<T> m) {
-  return Mask256<T>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-}  // namespace detail
-#endif  // HWY_TARGET <= HWY_AVX3
-
-HWY_INLINE Vec256<uint64_t> Min128(Full256<uint64_t> d, Vec256<uint64_t> a,
-                                   Vec256<uint64_t> b) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)d;
-  // 8 ops (vs 9 for Lt128 + IfThenElse)
-  const Mask256<uint64_t> ltHL = Lt(a, b);
-  const Mask256<uint64_t> eqHL = Eq(a, b);
-  const Vec256<uint64_t> minHL = Min(a, b);
-  const Mask256<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
-  const Mask256<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
-  // If the upper lane is the decider, take lo from the same reg.
-  const Vec256<uint64_t> lo = IfThenElse(ltXH, a, b);
-  // The upper lane is just minHL; if they are equal, we also need to use the
-  // actual min of the lower lanes.
-  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
-#else
-  return IfThenElse(Lt128(d, a, b), a, b);
-#endif
-}
-
-HWY_INLINE Vec256<uint64_t> Max128(Full256<uint64_t> d, Vec256<uint64_t> a,
-                                   Vec256<uint64_t> b) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)d;
-  const Mask256<uint64_t> ltHL = Lt(a, b);
-  const Mask256<uint64_t> eqHL = Eq(a, b);
-  const Vec256<uint64_t> maxHL = Max(a, b);
-  const Mask256<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
-  const Mask256<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
-  // If the upper lane is the decider, take lo from the same reg.
-  const Vec256<uint64_t> lo = IfThenElse(ltXH, b, a);
-  // The upper lane is just maxHL; if they are equal, we also need to use the
-  // actual min of the lower lanes.
-  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
-#else
-  return IfThenElse(Lt128(d, a, b), b, a);
-#endif
 }
 
 // ================================================== DEPRECATED

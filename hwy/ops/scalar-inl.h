@@ -194,6 +194,13 @@ HWY_API Vec1<T> OrAnd(const Vec1<T> o, const Vec1<T> a1, const Vec1<T> a2) {
   return Or(o, And(a1, a2));
 }
 
+// ------------------------------ IfVecThenElse
+
+template <typename T>
+HWY_API Vec1<T> IfVecThenElse(Vec1<T> mask, Vec1<T> yes, Vec1<T> no) {
+  return IfThenElse(MaskFromVec(mask), yes, no);
+}
+
 // ------------------------------ CopySign
 
 template <typename T>

@@ -467,6 +467,23 @@ HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
 #endif
 }
 
+// ------------------------------ IfVecThenElse
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> IfVecThenElse(Vec128<T, N> mask, Vec128<T, N> yes,
+                                   Vec128<T, N> no) {
+#if HWY_TARGET <= HWY_AVX3
+  const Simd<T, N> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  return BitCast(
+      d, VU{_mm_ternarylogic_epi64(BitCast(du, mask).raw, BitCast(du, yes).raw,
+                                   BitCast(du, no).raw, 0xCA)});
+#else
+  return IfThenElse(MaskFromVec(mask), yes, no);
+#endif
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T, size_t N>
@@ -5758,9 +5775,12 @@ HWY_API Vec128<T, N> MaxOfLanes(Simd<T, N> /* tag */, const Vec128<T, N> v) {
 
 // ------------------------------ Lt128
 
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
-  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+namespace detail {
+
+// Returns vector-mask for Lt128. Also used by x86_256/x86_512.
+template <class D, class V = VFromD<D>>
+HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -5774,71 +5794,31 @@ HWY_INLINE Mask128<T, N> Lt128(Simd<T, N> d, Vec128<T, N> a, Vec128<T, N> b) {
   //  1  0  0  0  |  0
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
-  using V = decltype(a);
   const V eqHL = VecFromMask(d, Eq(a, b));
   const V ltHL = VecFromMask(d, Lt(a, b));
   const V ltLX = ShiftLeftLanes<1>(ltHL);
   const V vecHx = OrAnd(ltHL, eqHL, ltLX);
-  return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
+  return InterleaveUpper(d, vecHx, vecHx);
+}
+
+}  // namespace detail
+
+template <class D, class V = VFromD<D>>
+HWY_API MFromD<D> Lt128(D d, const V a, const V b) {
+  return MaskFromVec(detail::Lt128Vec(d, a, b));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
 
-#if HWY_TARGET <= HWY_AVX3
-namespace detail {
-
-template <size_t kLanes, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
-Mask128<T, N> ShiftMaskRight(Mask128<T, N> m) {
-  return Mask128<T, N>{_kshiftri_mask16(m.raw, static_cast<unsigned>(kLanes))};
+// Avoids the extra MaskFromVec in Lt128.
+template <class D, class V = VFromD<D>>
+HWY_API V Min128(D d, const V a, const V b) {
+  return IfVecThenElse(detail::Lt128Vec(d, a, b), a, b);
 }
 
-template <size_t kLanes, typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
-Mask128<T, N> ShiftMaskRight(Mask128<T, N> m) {
-  return Mask128<T, N>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-}  // namespace detail
-#endif  // HWY_TARGET <= HWY_AVX3
-
-template <size_t N>
-HWY_INLINE Vec128<uint64_t, N> Min128(Simd<uint64_t, N> d,
-                                      Vec128<uint64_t, N> a,
-                                      Vec128<uint64_t, N> b) {
-#if HWY_TARGET <= HWY_AVX3
-  // 8 ops (vs 9 for Lt128 + IfThenElse)
-  const Mask128<uint64_t, N> ltHL = Lt(a, b);
-  const Mask128<uint64_t, N> eqHL = Eq(a, b);
-  const Vec128<uint64_t, N> minHL = Min(a, b);
-  const Mask128<uint64_t, N> ltXH = detail::ShiftMaskRight<1>(ltHL);
-  const Mask128<uint64_t, N> eqXH = detail::ShiftMaskRight<1>(eqHL);
-  // If the upper lane is the decider, take lo from the same reg.
-  const Vec128<uint64_t, N> lo = IfThenElse(ltXH, a, b);
-  // The upper lane is just minHL; if they are equal, we also need to use the
-  // actual min of the lower lanes.
-  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
-#else
-  return IfThenElse(Lt128(d, a, b), a, b);
-#endif
-}
-
-template <size_t N>
-HWY_INLINE Vec128<uint64_t, N> Max128(Simd<uint64_t, N> d,
-                                      Vec128<uint64_t, N> a,
-                                      Vec128<uint64_t, N> b) {
-#if HWY_TARGET <= HWY_AVX3
-  const Mask128<uint64_t, N> ltHL = Lt(a, b);
-  const Mask128<uint64_t, N> eqHL = Eq(a, b);
-  const Vec128<uint64_t, N> maxHL = Max(a, b);
-  const Mask128<uint64_t, N> ltXH = detail::ShiftMaskRight<1>(ltHL);
-  const Mask128<uint64_t, N> eqXH = detail::ShiftMaskRight<1>(eqHL);
-  // If the upper lane is the decider, take lo from the same reg.
-  const Vec128<uint64_t, N> lo = IfThenElse(ltXH, b, a);
-  // The upper lane is just maxHL; if they are equal, we also need to use the
-  // actual min of the lower lanes.
-  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
-#else
-  return IfThenElse(Lt128(d, a, b), b, a);
-#endif
+template <class D, class V = VFromD<D>>
+HWY_API V Max128(D d, const V a, const V b) {
+  return IfVecThenElse(detail::Lt128Vec(d, a, b), b, a);
 }
 
 // ================================================== DEPRECATED

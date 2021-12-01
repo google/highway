@@ -857,6 +857,13 @@ HWY_API VFromD<D> VecFromMask(const D d, MFromD<D> mask) {
   return BitCast(d, VecFromMask(RebindToUnsigned<D>(), mask));
 }
 
+// ------------------------------ IfVecThenElse (MaskFromVec)
+
+template <class V>
+HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
+  return IfThenElse(MaskFromVec(mask), yes, no);
+}
+
 // ------------------------------ ZeroIfNegative
 template <class V>
 HWY_API V ZeroIfNegative(const V v) {
@@ -2177,12 +2184,11 @@ HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
   //  1  0  0  0  |  0
   //  1  0  0  1  |  1
   //  1  1  0  0  |  0
-  const MFromD<D> eqHL = Eq(a, b);
-  const MFromD<D> ltHL = Lt(a, b);
+  const VFromD<D> eqHL = VecFromMask(d, Eq(a, b));
+  const VFromD<D> ltHL = VecFromMask(d, Lt(a, b));
   // Shift leftward so L can influence H.
-  const MFromD<D> ltLx = MaskFromVec(detail::Slide1Up(VecFromMask(d, ltHL)));
-  const MFromD<D> outHx = Or(ltHL, And(eqHL, ltLx));
-  const VFromD<D> vecHx = VecFromMask(d, outHx);
+  const VFromD<D> ltLx = detail::Slide1Up(ltHL);
+  const VFromD<D> vecHx = OrAnd(ltHL, eqHL, ltLx);
   // Replicate H to its neighbor.
   return MaskFromVec(OddEven(vecHx, detail::Slide1Down(vecHx)));
 }

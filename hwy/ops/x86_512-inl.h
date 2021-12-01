@@ -325,6 +325,22 @@ HWY_API Vec512<T> OrAnd(Vec512<T> o, Vec512<T> a1, Vec512<T> a2) {
   return BitCast(d, VU{ret});
 }
 
+// ------------------------------ IfVecThenElse
+
+template <typename T>
+HWY_API Vec512<T> IfVecThenElse(Vec512<T> mask, Vec512<T> yes, Vec512<T> no) {
+#if HWY_TARGET <= HWY_AVX3
+  const Full512<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  return BitCast(d, VU{_mm512_ternarylogic_epi64(BitCast(du, mask).raw,
+                                                 BitCast(du, yes).raw,
+                                                 BitCast(du, no).raw, 0xCA)});
+#else
+  return IfThenElse(MaskFromVec(mask), yes, no);
+#endif
+}
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T>
@@ -3657,86 +3673,6 @@ HWY_API Vec512<T> MaxOfLanes(Full512<T> d, Vec512<T> v) {
   const auto min = MaxOfLanes(d32, Max(even, odd));
   // Also broadcast into odd lanes.
   return BitCast(d, Or(min, ShiftLeft<16>(min)));
-}
-
-// ------------------------------ Lt128
-
-HWY_INLINE Mask512<uint64_t> Lt128(Full512<uint64_t> d, Vec512<uint64_t> a,
-                                   Vec512<uint64_t> b) {
-  // Truth table of Eq and Lt for Hi and Lo u64.
-  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
-  // =H =L cH cL  | out = cH | (=H & cL)
-  //  0  0  0  0  |  0
-  //  0  0  0  1  |  0
-  //  0  0  1  0  |  1
-  //  0  0  1  1  |  1
-  //  0  1  0  0  |  0
-  //  0  1  0  1  |  0
-  //  0  1  1  0  |  1
-  //  1  0  0  0  |  0
-  //  1  0  0  1  |  1
-  //  1  1  0  0  |  0
-  using V = decltype(a);
-  const V eqHL = VecFromMask(d, Eq(a, b));
-  const V ltHL = VecFromMask(d, Lt(a, b));
-  const V ltLX = ShiftLeftLanes<1>(ltHL);
-  const V vecHx = OrAnd(ltHL, eqHL, ltLX);
-  return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
-}
-
-// ------------------------------ Min128, Max128
-
-namespace detail {
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 1)>
-Mask512<T> ShiftMaskRight(Mask512<T> m) {
-  return Mask512<T>{_kshiftri_mask64(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 2)>
-Mask512<T> ShiftMaskRight(Mask512<T> m) {
-  return Mask512<T>{_kshiftri_mask32(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 4)>
-Mask512<T> ShiftMaskRight(Mask512<T> m) {
-  return Mask512<T>{_kshiftri_mask16(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-template <size_t kLanes, typename T, HWY_IF_LANE_SIZE(T, 8)>
-Mask512<T> ShiftMaskRight(Mask512<T> m) {
-  return Mask512<T>{_kshiftri_mask8(m.raw, static_cast<unsigned>(kLanes))};
-}
-
-}  // namespace detail
-
-// 8 ops (vs 9 for Lt128 + IfThenElse)
-HWY_INLINE Vec512<uint64_t> Min128(Full512<uint64_t> /* tag */,
-                                   Vec512<uint64_t> a, Vec512<uint64_t> b) {
-  const Mask512<uint64_t> ltHL = Lt(a, b);
-  const Mask512<uint64_t> eqHL = Eq(a, b);
-  const Vec512<uint64_t> minHL = Min(a, b);
-  const Mask512<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
-  const Mask512<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
-  // If the upper lane is the decider, take lo from the same reg.
-  const Vec512<uint64_t> lo = IfThenElse(ltXH, a, b);
-  // The upper lane is just minHL; if they are equal, we also need to use the
-  // actual min of the lower lanes.
-  return OddEven(minHL, IfThenElse(eqXH, minHL, lo));
-}
-
-HWY_INLINE Vec512<uint64_t> Max128(Full512<uint64_t> /* tag */,
-                                   Vec512<uint64_t> a, Vec512<uint64_t> b) {
-  const Mask512<uint64_t> ltHL = Lt(a, b);
-  const Mask512<uint64_t> eqHL = Eq(a, b);
-  const Vec512<uint64_t> maxHL = Max(a, b);
-  const Mask512<uint64_t> ltXH = detail::ShiftMaskRight<1>(ltHL);
-  const Mask512<uint64_t> eqXH = detail::ShiftMaskRight<1>(eqHL);
-  // If the upper lane is the decider, take lo from the same reg.
-  const Vec512<uint64_t> lo = IfThenElse(ltXH, b, a);
-  // The upper lane is just maxHL; if they are equal, we also need to use the
-  // actual min of the lower lanes.
-  return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
 }
 
 // ================================================== DEPRECATED

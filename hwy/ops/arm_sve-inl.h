@@ -803,6 +803,14 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
   return BitCast(d, VecFromMask(RebindToUnsigned<D>(), mask));
 }
 
+// ------------------------------ IfVecThenElse (MaskFromVec, IfThenElse)
+
+template <class V>
+HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
+  // TODO(janwas): use svbsl for SVE2
+  return IfThenElse(MaskFromVec(mask), yes, no);
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ Load/MaskedLoad/LoadDup128/Store/Stream

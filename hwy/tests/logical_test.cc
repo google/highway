@@ -165,6 +165,43 @@ struct TestCopySign {
   }
 };
 
+struct TestIfVecThenElse {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TU = MakeUnsigned<T>;  // For all-one mask
+    const Rebind<TU, D> du;
+    const size_t N = Lanes(d);
+    auto in1 = AllocateAligned<T>(N);
+    auto in2 = AllocateAligned<T>(N);
+    auto vec_lanes = AllocateAligned<TU>(N);
+    auto expected = AllocateAligned<T>(N);
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in1[i] = static_cast<T>(Random32(&rng));
+        in2[i] = static_cast<T>(Random32(&rng));
+        vec_lanes[i] = (Random32(&rng) & 16) ? ~TU(0) : TU(0);
+      }
+
+      const auto v1 = Load(d, in1.get());
+      const auto v2 = Load(d, in2.get());
+      const auto vec = BitCast(d, Load(du, vec_lanes.get()));
+
+      for (size_t i = 0; i < N; ++i) {
+        expected[i] = vec_lanes[i] ? in1[i] : in2[i];
+      }
+      HWY_ASSERT_VEC_EQ(d, expected.get(), IfVecThenElse(vec, v1, v2));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllIfVecThenElse() {
+  ForAllTypes(ForPartialVectors<TestIfVecThenElse>());
+}
+
 HWY_NOINLINE void TestAllCopySign() {
   ForFloatTypes(ForPartialVectors<TestCopySign>());
 }
@@ -277,6 +314,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyLogicalTest);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalInteger);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfVecThenElse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);
