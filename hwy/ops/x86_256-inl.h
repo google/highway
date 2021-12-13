@@ -3730,6 +3730,19 @@ HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
 #endif
 }
 
+HWY_API Vec256<uint8_t> AESLastRound(Vec256<uint8_t> state,
+                                     Vec256<uint8_t> round_key) {
+#if HWY_TARGET == HWY_AVX3_DL
+  return Vec256<uint8_t>{_mm256_aesenclast_epi128(state.raw, round_key.raw)};
+#else
+  const Full256<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d,
+                 AESLastRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+                 AESLastRound(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
 HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec256<uint64_t>{_mm256_clmulepi64_epi128(a.raw, b.raw, 0x00)};

@@ -1848,7 +1848,7 @@ HWY_API Vec512<T> LoadDup128(Full512<T> /* tag */,
   // https://gcc.godbolt.org/z/-Jt_-F
 #if HWY_LOADDUP_ASM
   __m512i out;
-  asm("vbroadcasti128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
+  asm("vbroadcasti128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
   return Vec512<T>{out};
 #else
   const auto x4 = LoadU(Full128<T>(), p);
@@ -1859,7 +1859,7 @@ HWY_API Vec512<float> LoadDup128(Full512<float> /* tag */,
                                  const float* const HWY_RESTRICT p) {
 #if HWY_LOADDUP_ASM
   __m512 out;
-  asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
+  asm("vbroadcastf128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
   return Vec512<float>{out};
 #else
   const __m128 x4 = _mm_loadu_ps(p);
@@ -1871,7 +1871,7 @@ HWY_API Vec512<double> LoadDup128(Full512<double> /* tag */,
                                   const double* const HWY_RESTRICT p) {
 #if HWY_LOADDUP_ASM
   __m512d out;
-  asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
+  asm("vbroadcastf128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
   return Vec512<double>{out};
 #else
   const __m128d x2 = _mm_loadu_pd(p);
@@ -2035,7 +2035,7 @@ HWY_INLINE Vec512<T> GatherIndex(hwy::SizeTag<8> /* tag */,
 template <typename T, typename Offset>
 HWY_API Vec512<T> GatherOffset(Full512<T> d, const T* HWY_RESTRICT base,
                                const Vec512<Offset> offset) {
-static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
   return detail::GatherOffset(hwy::SizeTag<sizeof(T)>(), d, base, offset);
 }
 template <typename T, typename Index>
@@ -3056,17 +3056,23 @@ HWY_API Vec512<uint8_t> AESRound(Vec512<uint8_t> state,
 #if HWY_TARGET == HWY_AVX3_DL
   return Vec512<uint8_t>{_mm512_aesenc_epi128(state.raw, round_key.raw)};
 #else
-  alignas(64) uint8_t a[64];
-  alignas(64) uint8_t b[64];
   const Full512<uint8_t> d;
-  const Full128<uint8_t> d128;
-  Store(state, d, a);
-  Store(round_key, d, b);
-  for (size_t i = 0; i < 64; i += 16) {
-    const auto enc = AESRound(Load(d128, a + i), Load(d128, b + i));
-    Store(enc, d128, a + i);
-  }
-  return Load(d, a);
+  const Half<decltype(d)> d2;
+  return Combine(d, AESRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+                 AESRound(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+HWY_API Vec512<uint8_t> AESLastRound(Vec512<uint8_t> state,
+                                     Vec512<uint8_t> round_key) {
+#if HWY_TARGET == HWY_AVX3_DL
+  return Vec512<uint8_t>{_mm512_aesenclast_epi128(state.raw, round_key.raw)};
+#else
+  const Full512<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d,
+                 AESLastRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+                 AESLastRound(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
 

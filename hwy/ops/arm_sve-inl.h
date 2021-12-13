@@ -2103,6 +2103,10 @@ HWY_API svuint8_t AESRound(svuint8_t state, svuint8_t round_key) {
   return Xor(vaesmcq_u8(vaeseq_u8(state, zero), round_key));
 }
 
+HWY_API svuint8_t AESLastRound(svuint8_t state, svuint8_t round_key) {
+  return Xor(vaeseq_u8(state, svdup_n_u8(0)), round_key);
+}
+
 HWY_API svuint64_t CLMulLower(const svuint64_t a, const svuint64_t b) {
   return svpmullb_pair(a, b);
 }

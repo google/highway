@@ -4723,6 +4723,11 @@ HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
   return Vec128<uint8_t>{_mm_aesenc_si128(state.raw, round_key.raw)};
 }
 
+HWY_API Vec128<uint8_t> AESLastRound(Vec128<uint8_t> state,
+                                     Vec128<uint8_t> round_key) {
+  return Vec128<uint8_t>{_mm_aesenclast_si128(state.raw, round_key.raw)};
+}
+
 template <size_t N, HWY_IF_LE128(uint64_t, N)>
 HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
                                        Vec128<uint64_t, N> b) {

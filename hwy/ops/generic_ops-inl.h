@@ -208,6 +208,15 @@ HWY_API V AESRound(V state, const V round_key) {
   return state;
 }
 
+template <class V>  // u8
+HWY_API V AESLastRound(V state, const V round_key) {
+  // LIke AESRound, but without MixColumns.
+  state = detail::SubBytes(state);
+  state = detail::ShiftRows(state);
+  state = Xor(state, round_key);  // AddRoundKey
+  return state;
+}
+
 // Constant-time implementation inspired by
 // https://www.bearssl.org/constanttime.html, but about half the cost because we
 // use 64x64 multiplies and 128-bit XORs.

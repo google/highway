@@ -89,11 +89,17 @@ class TestAES {
         0x42, 0xCA, 0x6B, 0x99, 0x7A, 0x5C, 0x58, 0x16};
     const auto test = LoadDup128(d, test_lanes);
 
+    // = ShiftRow result
+    alignas(16) constexpr uint8_t expected_sr_lanes[16] = {
+        0x09, 0x28, 0x7F, 0x47, 0x6F, 0x74, 0x6A, 0xBF,
+        0x2C, 0x4A, 0x62, 0x04, 0xDA, 0x08, 0xE3, 0xEE};
+    const auto expected_sr = LoadDup128(d, expected_sr_lanes);
+
     // = MixColumn result
-    alignas(16) constexpr uint8_t expected0_lanes[16] = {
+    alignas(16) constexpr uint8_t expected_mc_lanes[16] = {
         0x52, 0x9F, 0x16, 0xC2, 0x97, 0x86, 0x15, 0xCA,
         0xE0, 0x1A, 0xAE, 0x54, 0xBA, 0x1A, 0x26, 0x59};
-    const auto expected0 = LoadDup128(d, expected0_lanes);
+    const auto expected_mc = LoadDup128(d, expected_mc_lanes);
 
     // = KeyAddition result
     alignas(16) constexpr uint8_t expected_lanes[16] = {
@@ -103,12 +109,15 @@ class TestAES {
 
     alignas(16) uint8_t key_lanes[16];
     for (size_t i = 0; i < 16; ++i) {
-      key_lanes[i] = expected0_lanes[i] ^ expected_lanes[i];
+      key_lanes[i] = expected_mc_lanes[i] ^ expected_lanes[i];
     }
     const auto round_key = LoadDup128(d, key_lanes);
 
-    HWY_ASSERT_VEC_EQ(d, expected0, AESRound(test, Zero(d)));
+    HWY_ASSERT_VEC_EQ(d, expected_mc, AESRound(test, Zero(d)));
     HWY_ASSERT_VEC_EQ(d, expected, AESRound(test, round_key));
+    HWY_ASSERT_VEC_EQ(d, expected_sr, AESLastRound(test, Zero(d)));
+    HWY_ASSERT_VEC_EQ(d, Xor(expected_sr, round_key),
+                      AESLastRound(test, round_key));
 
     TestSBox(t, d);
   }

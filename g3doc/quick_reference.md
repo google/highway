@@ -985,6 +985,12 @@ than normal SIMD operations and are typically used outside critical loops.
     matches x86 AES-NI. The latency is independent of the input values. Only
     available if `HWY_TARGET != HWY_SCALAR`.
 
+*   `V`: `u8` \
+    <code>V **AESLastRound**(V state, V round_key)</code>: the last round of AES
+    encrytion: `SubBytes(ShiftRows(state)) ^ round_key`. This matches x86
+    AES-NI. The latency is independent of the input values. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
+
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the
     lower 64 bits of each 128-bit block into a 128-bit product. The latency is

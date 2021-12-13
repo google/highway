@@ -3961,6 +3961,11 @@ HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
          round_key;
 }
 
+HWY_API Vec128<uint8_t> AESLastRound(Vec128<uint8_t> state,
+                                     Vec128<uint8_t> round_key) {
+  return Vec128<uint8_t>(vaeseq_u8(state.raw, vdupq_n_u8(0))) ^ round_key;
+}
+
 HWY_API Vec128<uint64_t> CLMulLower(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return Vec128<uint64_t>((uint64x2_t)vmull_p64(GetLane(a), GetLane(b)));
 }
