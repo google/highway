@@ -259,6 +259,11 @@ HWY_API Vec128<uint32_t, N> operator+(const Vec128<uint32_t, N> a,
                                       const Vec128<uint32_t, N> b) {
   return Vec128<uint32_t, N>{wasm_i32x4_add(a.raw, b.raw)};
 }
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator+(const Vec128<uint64_t, N> a,
+                                      const Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{wasm_i64x2_add(a.raw, b.raw)};
+}
 
 // Signed
 template <size_t N>
@@ -275,6 +280,11 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> operator+(const Vec128<int32_t, N> a,
                                      const Vec128<int32_t, N> b) {
   return Vec128<int32_t, N>{wasm_i32x4_add(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator+(const Vec128<int64_t, N> a,
+                                     const Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{wasm_i64x2_add(a.raw, b.raw)};
 }
 
 // Float
@@ -944,6 +954,11 @@ HWY_API Mask128<uint32_t, N> operator==(const Vec128<uint32_t, N> a,
                                         const Vec128<uint32_t, N> b) {
   return Mask128<uint32_t, N>{wasm_i32x4_eq(a.raw, b.raw)};
 }
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator==(const Vec128<uint64_t, N> a,
+                                        const Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{wasm_i64x2_eq(a.raw, b.raw)};
+}
 
 // Signed
 template <size_t N>
@@ -960,6 +975,11 @@ template <size_t N>
 HWY_API Mask128<int32_t, N> operator==(const Vec128<int32_t, N> a,
                                        const Vec128<int32_t, N> b) {
   return Mask128<int32_t, N>{wasm_i32x4_eq(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator==(const Vec128<int64_t, N> a,
+                                       const Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{wasm_i64x2_eq(a.raw, b.raw)};
 }
 
 // Float
@@ -1040,12 +1060,12 @@ HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
 
   // Otherwise, the lower half decides.
   const auto m_eq = a32 == b32;
-  const auto lo_in_hi = wasm_i32x4_shuffle(m_gt, m_gt, 2, 2, 0, 0);
-  const auto lo_gt = And(m_eq, lo_in_hi);
+  const auto lo_in_hi = wasm_i32x4_shuffle(m_gt.raw, m_gt.raw, 2, 2, 0, 0);
+  const auto lo_gt = And(m_eq, Mask128<int32_t, N * 2>{lo_in_hi});
 
   const auto gt = Or(lo_gt, m_gt);
   // Copy result in upper 32 bits to lower 32 bits.
-  return Mask128<int64_t, N>{wasm_i32x4_shuffle(gt, gt, 3, 3, 1, 1)};
+  return Mask128<int64_t, N>{wasm_i32x4_shuffle(gt.raw, gt.raw, 3, 3, 1, 1)};
 }
 
 template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
@@ -2777,6 +2797,17 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   return lanes[0] | lanes[1] | lanes[2] | lanes[3];
 }
 
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
+                                 const Mask128<T, N> mask) {
+  const __i64x2 mask_i = static_cast<__i64x2>(mask.raw);
+  const __i64x2 slice = wasm_i64x2_make(1, 2);
+  const __i64x2 sliced_mask = wasm_v128_and(mask_i, slice);
+  alignas(16) uint64_t lanes[2];
+  wasm_v128_store(lanes, sliced_mask);
+  return lanes[0] | lanes[1];
+}
+
 // Returns the lowest N bits for the BitsFromMask result.
 template <typename T, size_t N>
 constexpr uint64_t OnlyActive(uint64_t bits) {
@@ -2837,6 +2868,13 @@ HWY_INLINE size_t CountTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
   return PopCount(lanes[0] | lanes[1]);
 }
 
+template <typename T>
+HWY_INLINE size_t CountTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> m) {
+  alignas(16) int64_t lanes[2];
+  wasm_v128_store(lanes, m.raw);
+  return static_cast<size_t>(-(lanes[0] + lanes[1]));
+}
+
 }  // namespace detail
 
 // `p` points to at least 8 writable bytes.
@@ -2890,6 +2928,10 @@ HWY_INLINE bool AllTrue(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
 template <typename T>
 HWY_INLINE bool AllTrue(hwy::SizeTag<4> /*tag*/, const Mask128<T> m) {
   return wasm_i32x4_all_true(m.raw);
+}
+template <typename T>
+HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask128<T> m) {
+  return wasm_i64x2_all_true(m.raw);
 }
 
 }  // namespace detail
