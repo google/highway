@@ -94,8 +94,8 @@ void Intro() {
   const ScalableTag<float> d;  // largest possible vector
   for (size_t i = 0; i < 16; i += Lanes(d)) {
     const auto vec = Load(d, in + i);  // aligned!
-    auto result = vec * vec;
-    result += result;  // can update if not const
+    auto result = Mul(vec, vec);
+    result = Add(result, result);  // can update if not const
     Store(result, d, out + i);
   }
   printf("\nF(x)->2*x^2, F(%.0f) = %.1f\n", in[2], out[2]);
@@ -133,7 +133,7 @@ class BenchmarkDot : public TwoArray {
     // lanes.
     for (size_t power = 1; power < unroll; power *= 2) {
       for (size_t i = 0; i < unroll; i += 2 * power) {
-        sum[i] += sum[i + power];
+        sum[i] = Add(sum[i], sum[i + power]);
       }
     }
     dot_ = GetLane(SumOfLanes(d, sum[0]));
@@ -197,7 +197,7 @@ struct BenchmarkDelta : public TwoArray {
       const auto a = Load(df, &a_[i]);
       const auto shifted = CombineShiftRightLanes<3>(a, prev);
       prev = a;
-      Store(a - shifted, df, &b_[i]);
+      Store(Sub(a, shifted), df, &b_[i]);
     }
 #endif
     return static_cast<FuncOutput>(b_[num_items - 1]);

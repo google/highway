@@ -766,14 +766,20 @@ HWY_API V IfThenZeroElse(const M mask, const V no) {
 
 // ------------------------------ Eq
 HWY_SVE_FOREACH(HWY_SVE_COMPARE, Eq, cmpeq)
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_N, EqN, cmpeq_n)
+}  // namespace detail
 
 // ------------------------------ Ne
 HWY_SVE_FOREACH(HWY_SVE_COMPARE, Ne, cmpne)
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_N, NeN, cmpne_n)
+}  // namespace detail
 
 // ------------------------------ Lt
 HWY_SVE_FOREACH(HWY_SVE_COMPARE, Lt, cmplt)
 namespace detail {
-HWY_SVE_FOREACH_IF(HWY_SVE_COMPARE_N, LtN, cmplt_n)
+HWY_SVE_FOREACH(HWY_SVE_COMPARE_N, LtN, cmplt_n)
 }  // namespace detail
 
 // ------------------------------ Le
@@ -796,13 +802,13 @@ HWY_API svbool_t Ge(const V a, const V b) {
 // ------------------------------ TestBit
 template <class V>
 HWY_API svbool_t TestBit(const V a, const V bit) {
-  return Ne(And(a, bit), Zero(DFromV<V>()));
+  return detail::NeN(And(a, bit), 0);
 }
 
 // ------------------------------ MaskFromVec (Ne)
 template <class V>
 HWY_API svbool_t MaskFromVec(const V v) {
-  return Ne(v, Zero(DFromV<V>()));
+  return detail::NeN(v, static_cast<TFromV<V>>(0));
 }
 
 // ------------------------------ VecFromMask
@@ -1099,7 +1105,7 @@ HWY_API svuint8_t DemoteTo(Simd<uint8_t, N> dn, const svint16_t v) {
   const RebindToUnsigned<decltype(di)> du;
   using TN = TFromD<decltype(dn)>;
   // First clamp negative numbers to zero and cast to unsigned.
-  const svuint16_t clamped = BitCast(du, Max(Zero(di), v));
+  const svuint16_t clamped = BitCast(du, detail::MaxN(v, 0));
   // Saturate to unsigned-max and halve the width.
   const svuint8_t vn = BitCast(dn, detail::SaturateU<TN>(clamped));
   return svuzp1_u8(vn, vn);
@@ -1111,7 +1117,7 @@ HWY_API svuint16_t DemoteTo(Simd<uint16_t, N> dn, const svint32_t v) {
   const RebindToUnsigned<decltype(di)> du;
   using TN = TFromD<decltype(dn)>;
   // First clamp negative numbers to zero and cast to unsigned.
-  const svuint32_t clamped = BitCast(du, Max(Zero(di), v));
+  const svuint32_t clamped = BitCast(du, detail::MaxN(v, 0));
   // Saturate to unsigned-max and halve the width.
   const svuint16_t vn = BitCast(dn, detail::SaturateU<TN>(clamped));
   return svuzp1_u16(vn, vn);
@@ -1124,7 +1130,7 @@ HWY_API svuint8_t DemoteTo(Simd<uint8_t, N> dn, const svint32_t v) {
   const RepartitionToNarrow<decltype(du)> d2;
   using TN = TFromD<decltype(dn)>;
   // First clamp negative numbers to zero and cast to unsigned.
-  const svuint32_t clamped = BitCast(du, Max(Zero(di), v));
+  const svuint32_t clamped = BitCast(du, detail::MaxN(v, 0));
   // Saturate to unsigned-max and quarter the width.
   const svuint16_t cast16 = BitCast(d2, detail::SaturateU<TN>(clamped));
   const svuint8_t x2 = BitCast(dn, svuzp1_u16(cast16, cast16));
@@ -1412,9 +1418,11 @@ HWY_API V OddEven(const V odd, const V even) {
 template <class V>
 HWY_API V OddEvenBlocks(const V odd, const V even) {
   const RebindToUnsigned<DFromV<V>> du;
-  constexpr size_t kShift = CeilLog2(16 / sizeof(TFromV<V>));
+  using TU = TFromD<decltype(du)>;
+  constexpr size_t kShift = CeilLog2(16 / sizeof(TU));
   const auto idx_block = ShiftRight<kShift>(Iota(du, 0));
-  const svbool_t is_even = Eq(detail::AndN(idx_block, 1), Zero(du));
+  const auto lsb = detail::AndN(idx_block, static_cast<TU>(1));
+  const svbool_t is_even = detail::EqN(lsb, static_cast<TU>(0));
   return IfThenElse(is_even, even, odd);
 }
 
@@ -1443,11 +1451,12 @@ HWY_API V SwapAdjacentBlocks(const V v) {
 
 template <class D, class VI>
 HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
-  static_assert(sizeof(TFromD<D>) == sizeof(TFromV<VI>), "Index != lane");
+  using TI = TFromV<VI>;
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index/lane size mismatch");
   const RebindToUnsigned<D> du;
   const auto indices = BitCast(du, vec);
 #if HWY_IS_DEBUG_BUILD
-  HWY_DASSERT(AllTrue(du, Lt(indices, Set(du, Lanes(d)))));
+  HWY_DASSERT(AllTrue(du, detail::LtN(indices, static_cast<TI>(Lanes(d)))));
 #endif
   return indices;
 }
@@ -1680,7 +1689,7 @@ HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
   const Repartition<int8_t, decltype(d)> di8;
 
   auto idx8 = BitCast(di8, idx);
-  const auto msb = Lt(idx8, Zero(di8));
+  const auto msb = detail::LtN(idx8, 0);
 // Prevent overflow in table lookups (unnecessary if native)
 #if defined(HWY_EMULATE_SVE)
   idx8 = IfThenZeroElse(msb, idx8);
@@ -1881,9 +1890,7 @@ HWY_API svuint16_t ReorderDemote2To(Simd<bfloat16_t, N> dbf16, svfloat32_t a,
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
 template <class V>
 HWY_API V ZeroIfNegative(const V v) {
-  const auto v0 = Zero(DFromV<V>());
-  // We already have a zero constant, so avoid IfThenZeroElse.
-  return IfThenElse(Lt(v, v0), v0, v);
+  return IfThenZeroElse(detail::LtN(v, 0), v);
 }
 
 // ------------------------------ BroadcastSignBit (ShiftRight)
@@ -1900,7 +1907,7 @@ HWY_SVE_FOREACH_U16(HWY_SVE_RETV_ARGPVV, AverageRound, rhadd)
 #else
 template <class V>
 V AverageRound(const V a, const V b) {
-  return ShiftRight<1>(Add(Add(a, b), Set(DFromV<V>(), 1)));
+  return ShiftRight<1>(detail::AddN(Add(a, b), 1));
 }
 #endif  // HWY_TARGET == HWY_SVE2
 
