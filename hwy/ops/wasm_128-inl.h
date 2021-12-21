@@ -337,7 +337,7 @@ HWY_API Vec128<float, N> operator-(const Vec128<float, N> a,
   return Vec128<float, N>{wasm_f32x4_sub(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating addition
+// ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
 
@@ -365,7 +365,7 @@ HWY_API Vec128<int16_t, N> SaturatedAdd(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{wasm_i16x8_add_sat(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating subtraction
+// ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
 
@@ -453,6 +453,10 @@ template <int kBits, size_t N>
 HWY_API Vec128<uint32_t, N> ShiftRight(const Vec128<uint32_t, N> v) {
   return Vec128<uint32_t, N>{wasm_u32x4_shr(v.raw, kBits)};
 }
+template <int kBits, size_t N>
+HWY_API Vec128<uint64_t, N> ShiftRight(const Vec128<uint64_t, N> v) {
+  return Vec128<uint64_t, N>{wasm_u64x2_shr(v.raw, kBits)};
+}
 
 // Signed
 template <int kBits, size_t N>
@@ -470,6 +474,10 @@ HWY_API Vec128<int32_t, N> ShiftLeft(const Vec128<int32_t, N> v) {
 template <int kBits, size_t N>
 HWY_API Vec128<int32_t, N> ShiftRight(const Vec128<int32_t, N> v) {
   return Vec128<int32_t, N>{wasm_i32x4_shr(v.raw, kBits)};
+}
+template <int kBits, size_t N>
+HWY_API Vec128<int64_t, N> ShiftRight(const Vec128<int64_t, N> v) {
+  return Vec128<int64_t, N>{wasm_i64x2_shr(v.raw, kBits)};
 }
 
 // 8-bit
@@ -533,6 +541,16 @@ HWY_API Vec128<uint32_t, N> ShiftRightSame(const Vec128<uint32_t, N> v,
                                            const int bits) {
   return Vec128<uint32_t, N>{wasm_u32x4_shr(v.raw, bits)};
 }
+template <size_t N>
+HWY_API Vec128<uint64_t, N> ShiftLeftSame(const Vec128<uint64_t, N> v,
+                                          const int bits) {
+  return Vec128<uint64_t, N>{wasm_u64x2_shl(v.raw, bits)};
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, N> ShiftRightSame(const Vec128<uint64_t, N> v,
+                                           const int bits) {
+  return Vec128<uint64_t, N>{wasm_u64x2_shr(v.raw, bits)};
+}
 
 // Signed
 template <size_t N>
@@ -554,6 +572,16 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> ShiftRightSame(const Vec128<int32_t, N> v,
                                           const int bits) {
   return Vec128<int32_t, N>{wasm_i32x4_shr(v.raw, bits)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> ShiftLeftSame(const Vec128<int64_t, N> v,
+                                         const int bits) {
+  return Vec128<int64_t, N>{wasm_i64x2_shl(v.raw, bits)};
+}
+template <size_t N>
+HWY_API Vec128<int64_t, N> ShiftRightSame(const Vec128<int64_t, N> v,
+                                          const int bits) {
+  return Vec128<int64_t, N>{wasm_i64x2_shr(v.raw, bits)};
 }
 
 // 8-bit
@@ -2683,6 +2711,30 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 }
 
 // ================================================== MISC
+
+// ------------------------------ SumsOf8 (ShiftRight, Add)
+template <size_t N>
+HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
+  const Simd<uint8_t, N> du8;
+  const RepartitionToWide<decltype(du8)> du16;
+  const RepartitionToWide<decltype(du16)> du32;
+  const RepartitionToWide<decltype(du32)> du64;
+  using VU16 = VFromD<decltype(du16)>;
+
+  const VU16 vFDB97531 = ShiftRight<8>(BitCast(du16, v));
+  const VU16 vECA86420 = And(BitCast(du16, v), Set(du16, 0xFF));
+  const VU16 sFE_DC_BA_98_76_54_32_10 = Add(vFDB97531, vECA86420);
+
+  const VU16 szz_FE_zz_BA_zz_76_zz_32 =
+      BitCast(du16, ShiftRight<16>(BitCast(du32, sFE_DC_BA_98_76_54_32_10)));
+  const VU16 sxx_FC_xx_B8_xx_74_xx_30 =
+      Add(sFE_DC_BA_98_76_54_32_10, szz_FE_zz_BA_zz_76_zz_32);
+  const VU16 szz_zz_xx_FC_zz_zz_xx_74 =
+      BitCast(du16, ShiftRight<32>(BitCast(du64, sxx_FC_xx_B8_xx_74_xx_30)));
+  const VU16 sxx_xx_xx_F8_xx_xx_xx_70 =
+      Add(sxx_FC_xx_B8_xx_74_xx_30, szz_zz_xx_FC_zz_zz_xx_74);
+  return And(BitCast(du64, sxx_xx_xx_F8_xx_xx_xx_70), Set(du64, 0xFFFF));
+}
 
 // ------------------------------ LoadMaskBits (TestBit)
 

@@ -2009,7 +2009,13 @@ HWY_API Vec128<double, N> operator-(const Vec128<double, N> a,
   return Vec128<double, N>{_mm_sub_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating addition
+// ------------------------------ SumsOf8
+template <size_t N>
+HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
+  return Vec128<uint64_t, N / 8>{_mm_sad_epu8(v.raw, _mm_setzero_si128())};
+}
+
+// ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
 
@@ -2037,7 +2043,7 @@ HWY_API Vec128<int16_t, N> SaturatedAdd(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{_mm_adds_epi16(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating subtraction
+// ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
 

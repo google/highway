@@ -437,7 +437,13 @@ HWY_API Vec1<double> operator-(const Vec1<double> a, const Vec1<double> b) {
   return Vec1<double>(a.raw - b.raw);
 }
 
-// ------------------------------ Saturating addition
+// ------------------------------ SumsOf8
+
+HWY_API Vec1<uint64_t> SumsOf8(const Vec1<uint8_t> v) {
+  return Vec1<uint64_t>(v.raw);
+}
+
+// ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
 

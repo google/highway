@@ -1427,7 +1427,12 @@ HWY_API Vec256<double> operator-(const Vec256<double> a,
   return Vec256<double>{_mm256_sub_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating addition
+// ------------------------------ SumsOf8
+HWY_API Vec256<uint64_t> SumsOf8(const Vec256<uint8_t> v) {
+  return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
+}
+
+// ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
 
@@ -1451,7 +1456,7 @@ HWY_API Vec256<int16_t> SaturatedAdd(const Vec256<int16_t> a,
   return Vec256<int16_t>{_mm256_adds_epi16(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating subtraction
+// ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
 

@@ -234,6 +234,10 @@ wishes to run on all targets until that is resolved can use functions such as
 *   `V`: `f32` \
     <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
+*   `V`: `u8` \
+    <code>VU64 **SumsOf8**(V v)</code> returns the sums of 8 consecutive u8
+    lanes, zero-extending each sum into a u64 lane. This is slower on RVV/WASM.
+
 *   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to
     the minimum/maximum representable value.

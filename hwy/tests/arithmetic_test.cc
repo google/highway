@@ -1447,6 +1447,39 @@ HWY_NOINLINE void TestAllAbsDiff() {
   ForPartialVectors<TestAbsDiff>()(float());
 }
 
+struct TestSumsOf8 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const size_t N = Lanes(d);
+    if (N < 8) return;
+    const Repartition<uint64_t, D> du64;
+
+    auto in_lanes = AllocateAligned<T>(N);
+    auto sum_lanes = AllocateAligned<uint64_t>(N / 8);
+
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in_lanes[i] = Random64(&rng) & 0xFF;
+      }
+
+      for (size_t idx_sum = 0; idx_sum < N / 8; ++idx_sum) {
+        uint64_t sum = 0;
+        for (size_t i = 0; i < 8; ++i) {
+          sum += in_lanes[idx_sum * 8 + i];
+        }
+        sum_lanes[idx_sum] = sum;
+      }
+
+      const Vec<D> in = Load(d, in_lanes.get());
+      HWY_ASSERT_VEC_EQ(du64, sum_lanes.get(), SumsOf8(in));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllSumsOf8() { ForGE64Vectors<TestSumsOf8>()(uint8_t()); }
+
 struct TestNeg {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -1499,6 +1532,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllTrunc);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllFloor);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbsDiff);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumsOf8);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 }  // namespace hwy
 

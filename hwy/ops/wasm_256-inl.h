@@ -247,7 +247,12 @@ HWY_API Vec128<float, N> operator-(const Vec128<float, N> a,
   return Vec128<float, N>{wasm_f32x4_sub(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating addition
+// ------------------------------ SumsOf8
+HWY_API Vec256<uint64_t> SumsOf8(const Vec256<uint8_t> v) {
+  HWY_ABORT("not implemented");
+}
+
+// ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
 
@@ -275,7 +280,7 @@ HWY_API Vec128<int16_t, N> SaturatedAdd(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{wasm_i16x8_add_sat(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating subtraction
+// ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
 

@@ -828,7 +828,16 @@ HWY_NEON_DEF_FUNCTION_ALL_TYPES(operator+, vadd, _, 2)
 // ------------------------------ Subtraction
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(operator-, vsub, _, 2)
 
-// ------------------------------ Saturating addition and subtraction
+// ------------------------------ SumsOf8
+
+HWY_API Vec128<uint64_t> SumsOf8(const Vec128<uint8_t> v) {
+  return Vec128<uint64_t>(vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(v.raw))));
+}
+HWY_API Vec128<uint64_t, 1> SumsOf8(const Vec128<uint8_t, 8> v) {
+  return Vec128<uint64_t, 1>(vpaddl_u32(vpaddl_u16(vpaddl_u8(v.raw))));
+}
+
+// ------------------------------ SaturatedAdd
 // Only defined for uint8_t, uint16_t and their signed versions, as in other
 // architectures.
 
@@ -837,6 +846,8 @@ HWY_NEON_DEF_FUNCTION_INT_8(SaturatedAdd, vqadd, _, 2)
 HWY_NEON_DEF_FUNCTION_INT_16(SaturatedAdd, vqadd, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_8(SaturatedAdd, vqadd, _, 2)
 HWY_NEON_DEF_FUNCTION_UINT_16(SaturatedAdd, vqadd, _, 2)
+
+// ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
 HWY_NEON_DEF_FUNCTION_INT_8(SaturatedSub, vqsub, _, 2)

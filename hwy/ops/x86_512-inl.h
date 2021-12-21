@@ -709,7 +709,12 @@ HWY_API Vec512<double> operator-(const Vec512<double> a,
   return Vec512<double>{_mm512_sub_pd(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating addition
+// ------------------------------ SumsOf8
+HWY_API Vec512<uint64_t> SumsOf8(const Vec512<uint8_t> v) {
+  return Vec512<uint64_t>{_mm512_sad_epu8(v.raw, _mm512_setzero_si512())};
+}
+
+// ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
 
@@ -733,7 +738,7 @@ HWY_API Vec512<int16_t> SaturatedAdd(const Vec512<int16_t> a,
   return Vec512<int16_t>{_mm512_adds_epi16(a.raw, b.raw)};
 }
 
-// ------------------------------ Saturating subtraction
+// ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
 

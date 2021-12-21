@@ -518,6 +518,21 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGPVN_MASK, SubN, sub_n)
 
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGPVV, Sub, sub)
 
+// ------------------------------ SumsOf8
+HWY_API svuint64_t SumsOf8(const svuint8_t v) {
+  const Full<uint32_t> du32;
+  const Full<uint64_t> du64;
+  const svbool_t pg = detail::PTrue(du64);
+
+  const svuint32_t sums_of_4 = svdot_n_u32(Zero(du32), v, 1);
+  // Compute pairwise sum of u32 and extend to u64.
+  // TODO(janwas): on SVE2, we can instead use svaddp.
+  const svuint64_t hi = svlsr_n_u64_x(pg, BitCast(du64, sums_of_4), 32);
+  // Isolate the lower 32 bits (to be added to the upper 32 and zero-extended)
+  const svuint64_t lo = svextw_u64_x(pg, BitCast(du64, sums_of_4));
+  return Add(hi, lo);
+}
+
 // ------------------------------ SaturatedAdd
 
 HWY_SVE_FOREACH_UI08(HWY_SVE_RETV_ARGVV, SaturatedAdd, qadd)

@@ -576,6 +576,30 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra)
 
 #undef HWY_RVV_SHIFT
 
+// ------------------------------ SumsOf8 (ShiftRight, Add)
+template <class VU8>
+HWY_API VFromD<Repartition<uint64_t, DFromV<VU8>>> SumsOf8(const VU8 v) {
+  const DFromV<VU8> du8;
+  const RepartitionToWide<decltype(du8)> du16;
+  const RepartitionToWide<decltype(du16)> du32;
+  const RepartitionToWide<decltype(du32)> du64;
+  using VU16 = VFromD<decltype(du16)>;
+
+  const VU16 vFDB97531 = ShiftRight<8>(BitCast(du16, v));
+  const VU16 vECA86420 = detail::AndS(BitCast(du16, v), 0xFF);
+  const VU16 sFE_DC_BA_98_76_54_32_10 = Add(vFDB97531, vECA86420);
+
+  const VU16 szz_FE_zz_BA_zz_76_zz_32 =
+      BitCast(du16, ShiftRight<16>(BitCast(du32, sFE_DC_BA_98_76_54_32_10)));
+  const VU16 sxx_FC_xx_B8_xx_74_xx_30 =
+      Add(sFE_DC_BA_98_76_54_32_10, szz_FE_zz_BA_zz_76_zz_32);
+  const VU16 szz_zz_xx_FC_zz_zz_xx_74 =
+      BitCast(du16, ShiftRight<32>(BitCast(du64, sxx_FC_xx_B8_xx_74_xx_30)));
+  const VU16 sxx_xx_xx_F8_xx_xx_xx_70 =
+      Add(sxx_FC_xx_B8_xx_74_xx_30, szz_zz_xx_FC_zz_zz_xx_74);
+  return detail::AndS(BitCast(du64, sxx_xx_xx_F8_xx_xx_xx_70), 0xFFFFull);
+}
+
 // ------------------------------ RotateRight
 template <int kBits, class V>
 HWY_API V RotateRight(const V v) {
