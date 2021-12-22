@@ -1077,31 +1077,39 @@ HWY_API Mask128<int32_t, N> operator>(const Vec128<int32_t, N> a,
                                       const Vec128<int32_t, N> b) {
   return Mask128<int32_t, N>{wasm_i32x4_gt(a.raw, b.raw)};
 }
+
 template <size_t N>
-HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
-                                      const Vec128<int64_t, N> b) {
-  const Simd<int32_t, N * 2> d32;
+HWY_API Mask128<uint8_t, N> operator>(const Vec128<uint8_t, N> a,
+                                      const Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{wasm_u8x16_gt(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator>(const Vec128<uint16_t, N> a,
+                                       const Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{wasm_u16x8_gt(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator>(const Vec128<uint32_t, N> a,
+                                       const Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{wasm_u32x4_gt(a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Mask128<T, N> operator>(const Vec128<T, N> a, const Vec128<T, N> b) {
+  const RepartitionToNarrow<Simd<T, N>> d32;
   const auto a32 = BitCast(d32, a);
   const auto b32 = BitCast(d32, b);
-  // If the upper half is less than or greater, this is the answer.
-  const auto m_gt = a32 < b32;
+  // If the upper halves are not equal, this is the answer.
+  const auto m_gt = a32 > b32;
 
   // Otherwise, the lower half decides.
   const auto m_eq = a32 == b32;
-  const auto lo_in_hi = wasm_i32x4_shuffle(m_gt.raw, m_gt.raw, 2, 2, 0, 0);
-  const auto lo_gt = And(m_eq, Mask128<int32_t, N * 2>{lo_in_hi});
+  const auto lo_in_hi = wasm_i32x4_shuffle(m_gt.raw, m_gt.raw, 0, 0, 2, 2);
+  const auto lo_gt = And(m_eq, MaskFromVec(VFromD<decltype(d32)>{lo_in_hi}));
 
   const auto gt = Or(lo_gt, m_gt);
   // Copy result in upper 32 bits to lower 32 bits.
-  return Mask128<int64_t, N>{wasm_i32x4_shuffle(gt.raw, gt.raw, 3, 3, 1, 1)};
-}
-
-template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
-HWY_API Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
-  const Simd<T, N> du;
-  const RebindToSigned<decltype(du)> di;
-  const Vec128<T, N> msb = Set(du, (LimitsMax<T>() >> 1) + 1);
-  return RebindMask(du, BitCast(di, Xor(a, msb)) > BitCast(di, Xor(b, msb)));
+  return Mask128<T, N>{wasm_i32x4_shuffle(gt.raw, gt.raw, 1, 1, 3, 3)};
 }
 
 template <size_t N>

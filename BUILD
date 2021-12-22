@@ -18,6 +18,11 @@ config_setting(
     flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc"},
 )
 
+config_setting(
+    name = "compiler_emscripten",
+    flag_values = {"//tools/cpp:cc_target_os": "emscripten"},
+)
+
 # See https://github.com/bazelbuild/bazel/issues/12707
 config_setting(
     name = "compiler_gcc_bug",
@@ -265,6 +270,18 @@ HWY_TESTS = [
                 "@platforms//cpu:riscv64": ["fully_static_link"],
                 "//conditions:default": [],
             }),
+            linkopts = select({
+                ":compiler_emscripten": [
+                    "-s ASSERTIONS=2",
+                    "-s ENVIRONMENT=node,shell,web",
+                    "-s ERROR_ON_UNDEFINED_SYMBOLS=1",
+                    "-s DEMANGLE_SUPPORT=1",
+                    "-s EXIT_RUNTIME=1",
+                    "-s ALLOW_MEMORY_GROWTH=1",
+                    "--pre-js $(location :preamble.js.lds)",
+                ],
+                "//conditions:default": [],
+            }),
             linkstatic = select({
                 "@platforms//cpu:riscv64": True,
                 "//conditions:default": False,
@@ -282,7 +299,10 @@ HWY_TESTS = [
                 ":skeleton",
                 ":sort",
                 "@com_google_googletest//:gtest_main",
-            ],
+            ] + select({
+                ":compiler_emscripten": [":preamble.js.lds"],
+                "//conditions:default": [],
+            }),
         ),
     ]
     for subdir, test in HWY_TESTS

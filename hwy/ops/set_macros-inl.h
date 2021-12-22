@@ -250,7 +250,7 @@
 #define HWY_MAX_BYTES 32
 #define HWY_LANES(T) (32 / sizeof(T))
 
-#define HWY_CAP_INTEGER64 0
+#define HWY_CAP_INTEGER64 1
 #define HWY_CAP_FLOAT16 1
 #define HWY_CAP_FLOAT64 0
 #define HWY_CAP_GE256 0
