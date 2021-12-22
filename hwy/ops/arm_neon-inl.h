@@ -3434,6 +3434,70 @@ HWY_API Vec128<T, N> Reverse(Simd<T, N> d, const Vec128<T, N> v) {
   return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
 }
 
+// ------------------------------ Reverse2
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> d, const Vec128<T, N> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint16_t, N>(vrev32_u16(BitCast(du, v).raw)));
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T> Reverse2(Full128<T> d, const Vec128<T> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint16_t>(vrev32q_u16(BitCast(du, v).raw)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4), HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> d, const Vec128<T, N> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint32_t, N>(vrev64_u32(BitCast(du, v).raw)));
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T> Reverse2(Full128<T> d, const Vec128<T> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint32_t>(vrev64q_u32(BitCast(du, v).raw)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle01(v);
+}
+
+// ------------------------------ Reverse4
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2), HWY_IF_LE64(T, N)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> d, const Vec128<T, N> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint16_t, N>(vrev64_u16(BitCast(du, v).raw)));
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T> Reverse4(Full128<T> d, const Vec128<T> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint16_t>(vrev64q_u16(BitCast(du, v).raw)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle0123(v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  HWY_ASSERT(0);  // don't have 8 u64 lanes
+}
+
+// ------------------------------ Reverse8
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse8(Simd<T, N> d, const Vec128<T, N> v) {
+  return Reverse(d, v);
+}
+
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse8(Simd<T, N> d, const Vec128<T, N> v) {
+  HWY_ASSERT(0);  // don't have 8 lanes unless 16-bit
+}
+
 // ------------------------------ Other shuffles (TableLookupBytes)
 
 // Notation: let Vec128<int32_t> have lanes 3,2,1,0 (0 is least-significant).

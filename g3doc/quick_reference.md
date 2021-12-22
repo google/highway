@@ -894,15 +894,7 @@ their operands into independently processed 128-bit *blocks*.
 #### Shuffle
 
 *   `V`: `{u,i,f}{32}` \
-    <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves
-    swapped inside 64-bit halves.
-
-*   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle1032**(V)</code>: returns *blocks* with 64-bit halves
-    swapped.
-
-*   `V`: `{u,i,f}{64}` \
-    <code>V **Shuffle01**(V)</code>: returns *blocks* with 64-bit halves
     swapped.
 
 *   `V`: `{u,i,f}{32}` \
@@ -912,6 +904,17 @@ their operands into independently processed 128-bit *blocks*.
 *   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle2103**(V)</code>: returns *blocks* rotated left (toward the
     upper end) by 32 bits.
+
+The following are equivalent to `Reverse2` or `Reverse4`, which should be used
+instead because they are more general:
+
+*   `V`: `{u,i,f}{32}` \
+    <code>V **Shuffle2301**(V)</code>: returns *blocks* with 32-bit halves
+    swapped inside 64-bit halves.
+
+*   `V`: `{u,i,f}{64}` \
+    <code>V **Shuffle01**(V)</code>: returns *blocks* with 64-bit halves
+    swapped.
 
 *   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle0123**(V)</code>: returns *blocks* with lanes in reverse
@@ -960,6 +963,20 @@ their operands into independently processed 128-bit *blocks*.
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
+
+The following `ReverseN` must not be called if `Lanes(D()) > N`:
+
+*   `V`: `{u,i,f}{16,32,64}` \
+    <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
+    contiguous lanes in reversed order (`out[i] == a[i ^ 1]`).
+
+*   `V`: `{u,i,f}{16,32,64}` \
+    <code>V **Reverse4**(D, V a)</code> returns a vector with each group of 4
+    contiguous lanes in reversed order (`out[i] == a[i ^ 3]`).
+
+*   `V`: `{u,i,f}{16,32,64}` \
+    <code>V **Reverse8**(D, V a)</code> returns a vector with each group of 8
+    contiguous lanes in reversed order (`out[i] == a[i ^ 7]`).
 
 ### Reductions
 

@@ -3495,6 +3495,81 @@ HWY_API Vec128<T, N> Reverse(Simd<T, N> d, const Vec128<T, N> v) {
 #endif
 }
 
+// ------------------------------ Reverse2
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> d, const Vec128<T, N> v) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle2301(v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle01(v);
+}
+
+// ------------------------------ Reverse4
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> d, const Vec128<T, N> v) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToSigned<decltype(d)> di;
+  alignas(16) constexpr int16_t kReverse4[8] = {3, 2, 1, 0, 7, 6, 5, 4};
+  const Vec128<int16_t, N> idx = Load(di, kReverse4);
+  return BitCast(d, Vec128<int16_t, N>{
+                        _mm_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
+#else
+  const RepartitionToWide<decltype(d)> dw;
+  return Reverse2(d, BitCast(d, Shuffle2301(BitCast(dw, v))));
+#endif
+}
+
+// For N=4, a single shufflelo suffices.
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, 4> Reverse4(Simd<T, 4> d, const Vec128<T, 4> v) {
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d, Vec128<int16_t, 4>{_mm_shufflelo_epi16(
+                        BitCast(di, v).raw, _MM_SHUFFLE(0, 1, 2, 3))});
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle0123(v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> /* tag */,
+                              const Vec128<T, N> /* v */) {
+  HWY_ASSERT(0);  // don't have 4 u64 lanes
+}
+
+// ------------------------------ Reverse8
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse8(Simd<T, N> d, const Vec128<T, N> v) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToSigned<decltype(d)> di;
+  alignas(32) constexpr int16_t kReverse8[16] = {7,  6,  5,  4,  3,  2,  1, 0,
+                                                 15, 14, 13, 12, 11, 10, 9, 8};
+  const Vec128<int16_t, N> idx = Load(di, kReverse8);
+  return BitCast(d, Vec128<int16_t, N>{
+                        _mm_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
+#else
+  const RepartitionToWide<decltype(d)> dw;
+  return Reverse2(d, BitCast(d, Shuffle0123(BitCast(dw, v))));
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse8(Simd<T, N> /* tag */, Vec128<T, N> /* v */) {
+  HWY_ASSERT(0);  // don't have 8 lanes unless 16-bit
+}
+
 // ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides

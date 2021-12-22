@@ -2429,6 +2429,75 @@ HWY_API Vec512<T> Reverse(Full512<T> d, const Vec512<T> v) {
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 
+// ------------------------------ Reverse2
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> Reverse2(Full512<T> d, const Vec512<T> v) {
+  const Full512<uint32_t> du32;
+  return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Reverse2(Full512<T> /* tag */, const Vec512<T> v) {
+  return Shuffle2301(v);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> Reverse2(Full512<T> /* tag */, const Vec512<T> v) {
+  return Shuffle01(v);
+}
+
+// ------------------------------ Reverse4
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> Reverse4(Full512<T> d, const Vec512<T> v) {
+  const RebindToSigned<decltype(d)> di;
+  alignas(64) constexpr int16_t kReverse4[32] = {
+      3,  2,  1,  0,  7,  6,  5,  4,  11, 10, 9,  8,  15, 14, 13, 12,
+      19, 18, 17, 16, 23, 22, 21, 20, 27, 26, 25, 24, 31, 30, 29, 28};
+  const Vec512<int16_t> idx = Load(di, kReverse4);
+  return BitCast(d, Vec512<int16_t>{
+                        _mm512_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Reverse4(Full512<T> /* tag */, const Vec512<T> v) {
+  return Shuffle0123(v);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> Reverse4(Full512<T> /* tag */, const Vec512<T> v) {
+  return Vec512<T>{_mm512_permutex_epi64(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+}
+
+// ------------------------------ Reverse8
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> Reverse8(Full512<T> d, const Vec512<T> v) {
+  const RebindToSigned<decltype(d)> di;
+  alignas(64) constexpr int16_t kReverse8[32] = {
+      7,  6,  5,  4,  3,  2,  1,  0,  15, 14, 13, 12, 11, 10, 9,  8,
+      23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24};
+  const Vec512<int16_t> idx = Load(di, kReverse8);
+  return BitCast(d, Vec512<int16_t>{
+                        _mm512_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Reverse8(Full512<T> d, const Vec512<T> v) {
+  const RebindToSigned<decltype(d)> di;
+  alignas(64) constexpr int32_t kReverse8[16] = {7,  6,  5,  4,  3,  2,  1, 0,
+                                                 15, 14, 13, 12, 11, 10, 9, 8};
+  const Vec512<int32_t> idx = Load(di, kReverse8);
+  return BitCast(d, Vec512<int32_t>{
+                        _mm512_permutexvar_epi32(idx.raw, BitCast(di, v).raw)});
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> Reverse8(Full512<T> d, const Vec512<T> v) {
+  return Reverse(d, v);
+}
+
 // ------------------------------ InterleaveLower
 
 // Interleaves lanes from halves of the 128-bit blocks of "a" (which provides

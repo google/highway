@@ -1160,6 +1160,21 @@ HWY_API Vec1<T> Reverse(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
 }
 
+template <typename T>
+HWY_API Vec1<T> Reverse2(Sisd<T> /* tag */, const Vec1<T> v) {
+  return v;
+}
+
+template <typename T>
+HWY_API Vec1<T> Reverse4(Sisd<T> /* tag */, const Vec1<T> v) {
+  return v;
+}
+
+template <typename T>
+HWY_API Vec1<T> Reverse8(Sisd<T> /* tag */, const Vec1<T> v) {
+  return v;
+}
+
 // ================================================== BLOCKWISE
 // Shift*Bytes, CombineShiftRightBytes, Interleave*, Shuffle* are unsupported.
 

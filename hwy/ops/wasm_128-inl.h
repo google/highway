@@ -2023,57 +2023,39 @@ HWY_API Vec128<TI, NI> TableLookupBytesOr0(const Vec128<T, N> bytes,
 // CombineShiftRightBytes but the shuffle_abcd notation is more convenient.
 
 // Swap 32-bit halves in 64-bit halves.
-HWY_API Vec128<uint32_t> Shuffle2301(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
-}
-HWY_API Vec128<int32_t> Shuffle2301(const Vec128<int32_t> v) {
-  return Vec128<int32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
-}
-HWY_API Vec128<float> Shuffle2301(const Vec128<float> v) {
-  return Vec128<float>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Shuffle2301(const Vec128<T, N> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit lanes");
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
 }
 
 // Swap 64-bit halves
-HWY_API Vec128<uint32_t> Shuffle1032(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t>{wasm_i64x2_shuffle(v.raw, v.raw, 1, 0)};
-}
-HWY_API Vec128<int32_t> Shuffle1032(const Vec128<int32_t> v) {
-  return Vec128<int32_t>{wasm_i64x2_shuffle(v.raw, v.raw, 1, 0)};
-}
-HWY_API Vec128<float> Shuffle1032(const Vec128<float> v) {
-  return Vec128<float>{wasm_i64x2_shuffle(v.raw, v.raw, 1, 0)};
+template <typename T>
+HWY_API Vec128<T> Shuffle1032(const Vec128<T> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit lanes");
+  return Vec128<T>{wasm_i64x2_shuffle(v.raw, v.raw, 1, 0)};
 }
 
 // Rotate right 32 bits
-HWY_API Vec128<uint32_t> Shuffle0321(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
+template <typename T>
+HWY_API Vec128<T> Shuffle0321(const Vec128<T> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit lanes");
+  return Vec128<T>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
 }
-HWY_API Vec128<int32_t> Shuffle0321(const Vec128<int32_t> v) {
-  return Vec128<int32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
-}
-HWY_API Vec128<float> Shuffle0321(const Vec128<float> v) {
-  return Vec128<float>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 2, 3, 0)};
-}
+
 // Rotate left 32 bits
-HWY_API Vec128<uint32_t> Shuffle2103(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
-}
-HWY_API Vec128<int32_t> Shuffle2103(const Vec128<int32_t> v) {
-  return Vec128<int32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
-}
-HWY_API Vec128<float> Shuffle2103(const Vec128<float> v) {
-  return Vec128<float>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
+template <typename T>
+HWY_API Vec128<T> Shuffle2103(const Vec128<T> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit lanes");
+  return Vec128<T>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 0, 1, 2)};
 }
 
 // Reverse
-HWY_API Vec128<uint32_t> Shuffle0123(const Vec128<uint32_t> v) {
-  return Vec128<uint32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
-}
-HWY_API Vec128<int32_t> Shuffle0123(const Vec128<int32_t> v) {
-  return Vec128<int32_t>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
-}
-HWY_API Vec128<float> Shuffle0123(const Vec128<float> v) {
-  return Vec128<float>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
+template <typename T>
+HWY_API Vec128<T> Shuffle0123(const Vec128<T> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit lanes");
+  return Vec128<T>{wasm_i32x4_shuffle(v.raw, v.raw, 3, 2, 1, 0)};
 }
 
 // ------------------------------ TableLookupLanes
@@ -2166,6 +2148,55 @@ template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec128<T, N> Reverse(Simd<T, N> d, const Vec128<T, N> v) {
   const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
   return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
+}
+
+// ------------------------------ Reverse2
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> d, const Vec128<T, N> v) {
+  const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
+  return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle2301(v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle01(v);
+}
+
+// ------------------------------ Reverse4
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> d, const Vec128<T, N> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Vec128<uint16_t, N>{wasm_i16x8_shuffle(v.raw, v.raw, 3, 2,
+                                                           1, 0, 7, 6, 5, 4)});
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  return Shuffle0123(v);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Reverse4(Simd<T, N> /* tag */, const Vec128<T, N> v) {
+  HWY_ASSERT(0);  // don't have 8 u64 lanes
+}
+
+// ------------------------------ Reverse8
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse8(Simd<T, N> d, const Vec128<T, N> v) {
+  return Reverse(d, v);
+}
+
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Reverse8(Simd<T, N> d, const Vec128<T, N> v) {
+  HWY_ASSERT(0);  // don't have 8 lanes unless 16-bit
 }
 
 // ------------------------------ InterleaveLower

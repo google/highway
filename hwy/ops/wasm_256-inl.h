@@ -1993,6 +1993,27 @@ HWY_API Vec256<T> Reverse(Full256<T> d, const Vec256<T> v) {
   return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
 }
 
+// ------------------------------ Reverse2
+
+template <typename T>
+HWY_API Vec256<T> Reverse2(Full256<T> d, const Vec256<T> v) {
+  HWY_ASSERT(0);
+}
+
+// ------------------------------ Reverse4
+
+template <typename T>
+HWY_API Vec256<T> Reverse4(Full256<T> d, const Vec256<T> v) {
+  HWY_ASSERT(0);
+}
+
+// ------------------------------ Reverse8
+
+template <typename T>
+HWY_API Vec256<T> Reverse8(Full256<T> d, const Vec256<T> v) {
+  HWY_ASSERT(0);
+}
+
 // ------------------------------ InterleaveLower
 
 template <size_t N>

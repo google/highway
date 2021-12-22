@@ -316,6 +316,73 @@ struct ForGE64Vectors {
   }
 };
 
+// TODO(janwas): unify these into one template with kBits argument
+template <class Test>
+struct ForGE32Vectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_SCALAR
+    // not supported
+#elif HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+    // TODO(janwas): also capped
+    // ForeachSizeR<T, 1, (4 / sizeof(T)), Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    // Capped
+    ForeachSizeR<T, 1, 4 / sizeof(T), Test>::Do();
+    // Fractions
+    ForeachSizeR<T, 4, HWY_LANES(T) / 4, Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T) / (4 / sizeof(T)), (4 / sizeof(T)),
+                 Test>::Do();
+#endif
+  }
+};
+
+template <class Test>
+struct ForGE256Vectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_SCALAR
+    // not supported
+#elif HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+    // TODO(janwas): also capped
+    // ForeachSizeR<T, 1, (32 / sizeof(T)), Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    // Capped
+    ForeachSizeR<T, 1, 32 / sizeof(T), Test>::Do();
+    // Fractions
+    ForeachSizeR<T, 8, HWY_LANES(T) / 8, Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T) / (32 / sizeof(T)), (32 / sizeof(T)),
+                 Test>::Do();
+#endif
+  }
+};
+
+template <class Test>
+struct ForGE512Vectors {
+  template <typename T>
+  void operator()(T /*unused*/) const {
+#if HWY_TARGET == HWY_SCALAR
+    // not supported
+#elif HWY_TARGET == HWY_RVV
+    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do();
+    // TODO(janwas): also capped
+    // ForeachSizeR<T, 1, (64 / sizeof(T)), Test>::Do();
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    // Capped
+    ForeachSizeR<T, 1, 64 / sizeof(T), Test>::Do();
+    // Fractions
+    ForeachSizeR<T, 8, HWY_LANES(T) / 8, Test>::Do();
+#else
+    ForeachSizeR<T, HWY_LANES(T) / (64 / sizeof(T)), (64 / sizeof(T)),
+                 Test>::Do();
+#endif
+  }
+};
+
 // Calls Test for all N that can be promoted (not the same as Extendable because
 // HWY_SCALAR has one lane). Also used for ZipLower, but not ZipUpper.
 template <class Test, size_t kFactor = 2>
@@ -397,25 +464,42 @@ void ForAllTypes(const Func& func) {
 }
 
 template <class Func>
-void ForUIF3264(const Func& func) {
-  func(uint32_t());
-  func(int32_t());
-#if HWY_CAP_INTEGER64
-  func(uint64_t());
-  func(int64_t());
-#endif
-
-  ForFloatTypes(func);
-}
-
-template <class Func>
-void ForUIF163264(const Func& func) {
-  ForUIF3264(func);
+void ForUIF16(const Func& func) {
   func(uint16_t());
   func(int16_t());
 #if HWY_CAP_FLOAT16
   func(float16_t());
 #endif
+}
+
+template <class Func>
+void ForUIF32(const Func& func) {
+  func(uint32_t());
+  func(int32_t());
+  func(float());
+}
+
+template <class Func>
+void ForUIF64(const Func& func) {
+#if HWY_CAP_INTEGER64
+  func(uint64_t());
+  func(int64_t());
+#endif
+#if HWY_CAP_FLOAT64
+  func(double());
+#endif
+}
+
+template <class Func>
+void ForUIF3264(const Func& func) {
+  ForUIF32(func);
+  ForUIF64(func);
+}
+
+template <class Func>
+void ForUIF163264(const Func& func) {
+  ForUIF16(func);
+  ForUIF3264(func);
 }
 
 // For tests that involve loops, adjust the trip count so that emulated tests

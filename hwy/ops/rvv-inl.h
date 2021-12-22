@@ -132,15 +132,17 @@ namespace detail {  // for code folding
   HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP)     \
   HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP)
 
+#define HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP) \
+  HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP)         \
+  HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP)
+
 #if HWY_CAP_FLOAT16
 #define HWY_RVV_FOREACH_F(X_MACRO, NAME, OP) \
   HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP)
+  HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP)
 #else
 #define HWY_RVV_FOREACH_F(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP)
+  HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP)
 #endif
 
 // Commonly used type categories for a given SEW:
@@ -155,6 +157,10 @@ namespace detail {  // for code folding
 #define HWY_RVV_FOREACH_UI64(X_MACRO, NAME, OP) \
   HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP)        \
   HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP)
+
+#define HWY_RVV_FOREACH_UI3264(X_MACRO, NAME, OP) \
+  HWY_RVV_FOREACH_UI32(X_MACRO, NAME, OP)         \
+  HWY_RVV_FOREACH_UI64(X_MACRO, NAME, OP)
 
 // Commonly used type categories:
 #define HWY_RVV_FOREACH_UI(X_MACRO, NAME, OP) \
@@ -1655,6 +1661,59 @@ HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
   return TableLookupLanes(v, idx);
 }
 
+// ------------------------------ Reverse2 (RotateRight, OddEven)
+
+namespace detail {
+// Special instruction for 1 lane is presumably faster?
+#define HWY_RVV_SLIDE1(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {      \
+    return v##OP##_##CHAR##SEW##LMUL(v, 0, HWY_RVV_AVL(SEW, SHIFT));           \
+  }
+
+HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Up, slide1up_vx)
+HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Up, fslide1up_vf)
+HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx)
+HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf)
+#undef HWY_RVV_SLIDE1
+}  // namespace detail
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const Repartition<uint32_t, D> du32;
+  return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  return BitCast(d, RotateRight<32>(BitCast(du64, v)));
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+HWY_API VFromD<D> Reverse2(D /* tag */, const VFromD<D> v) {
+  const VFromD<D> up = detail::Slide1Up(v);
+  const VFromD<D> down = detail::Slide1Down(v);
+  return OddEven(up, down);
+}
+
+// ------------------------------ Reverse4 (TableLookupLanes)
+
+template <class D>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  const RebindToUnsigned<D> du;
+  const auto idx = detail::XorS(detail::Iota0(du), 3);
+  return BitCast(d, TableLookupLanes(BitCast(du, v), idx));
+}
+
+// ------------------------------ Reverse8 (TableLookupLanes)
+
+template <class D>
+HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
+  const RebindToUnsigned<D> du;
+  const auto idx = detail::XorS(detail::Iota0(du), 7);
+  return BitCast(d, TableLookupLanes(BitCast(du, v), idx));
+}
+
 // ------------------------------ ReverseBlocks (Reverse, Shuffle01)
 template <class D, class V = VFromD<D>>
 HWY_API V ReverseBlocks(D d, V v) {
@@ -2141,20 +2200,6 @@ HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
 }
 
 // ------------------------------ MulEven/Odd (Mul, OddEven)
-
-namespace detail {
-// Special instruction for 1 lane is presumably faster?
-#define HWY_RVV_SLIDE1(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {      \
-    return v##OP##_vx_##CHAR##SEW##LMUL(v, 0, HWY_RVV_AVL(SEW, SHIFT));        \
-  }
-
-HWY_RVV_FOREACH_UI32(HWY_RVV_SLIDE1, Slide1Up, slide1up)
-HWY_RVV_FOREACH_U64(HWY_RVV_SLIDE1, Slide1Up, slide1up)
-HWY_RVV_FOREACH_UI32(HWY_RVV_SLIDE1, Slide1Down, slide1down)
-HWY_RVV_FOREACH_U64(HWY_RVV_SLIDE1, Slide1Down, slide1down)
-#undef HWY_RVV_SLIDE1
-}  // namespace detail
 
 template <class V, HWY_IF_LANE_SIZE_V(V, 4)>
 HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(const V a, const V b) {

@@ -1498,6 +1498,46 @@ HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
 HWY_SVE_FOREACH(HWY_SVE_REVERSE, Reverse, rev)
 #undef HWY_SVE_REVERSE
 
+// ------------------------------ Reverse2
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+  return BitCast(d, svrevh_u32_x(detail::PTrue(d), BitCast(dw, v)));
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+  return BitCast(d, svrevw_u64_x(detail::PTrue(d), BitCast(dw, v)));
+}
+
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+HWY_API VFromD<D> Reverse2(D /* tag */, const VFromD<D> v) {  // 3210
+  const auto even_in_odd = detail::Insert(v, 0);              // 210z
+  return detail::InterleaveOdd(v, even_in_odd);               // 2301
+}
+
+// ------------------------------ Reverse4 (TableLookupLanes)
+
+template <class D>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const auto idx = detail::XorN(Iota(du, 0), 3);
+  return TableLookupLanes(v, BitCast(du, idx));
+}
+
+// ------------------------------ Reverse8 (TableLookupLanes)
+
+template <class D>
+HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const auto idx = detail::XorN(Iota(du, 0), 7);
+  return TableLookupLanes(v, BitCast(du, idx));
+}
+
 // ------------------------------ Compress (PromoteTo)
 
 #define HWY_SVE_COMPRESS(BASE, CHAR, BITS, NAME, OP)                           \

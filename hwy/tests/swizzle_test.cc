@@ -197,10 +197,88 @@ struct TestReverse {
   }
 };
 
+struct TestReverse2 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const RebindToUnsigned<D> du;  // Iota does not support float16_t.
+    const auto v = BitCast(d, Iota(du, 1));
+    auto expected = AllocateAligned<T>(N);
+
+    // Can't set float16_t value directly, need to permute in memory.
+    auto copy = AllocateAligned<T>(N);
+    Store(v, d, copy.get());
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = copy[i ^ 1];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Reverse2(d, v));
+  }
+};
+
+struct TestReverse4 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const RebindToUnsigned<D> du;  // Iota does not support float16_t.
+    const auto v = BitCast(d, Iota(du, 1));
+    auto expected = AllocateAligned<T>(N);
+
+    // Can't set float16_t value directly, need to permute in memory.
+    auto copy = AllocateAligned<T>(N);
+    Store(v, d, copy.get());
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = copy[i ^ 3];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Reverse4(d, v));
+  }
+};
+
+struct TestReverse8 {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const RebindToUnsigned<D> du;  // Iota does not support float16_t.
+    const auto v = BitCast(d, Iota(du, 1));
+    auto expected = AllocateAligned<T>(N);
+
+    // Can't set float16_t value directly, need to permute in memory.
+    auto copy = AllocateAligned<T>(N);
+    Store(v, d, copy.get());
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = copy[i ^ 7];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Reverse8(d, v));
+  }
+};
+
 HWY_NOINLINE void TestAllReverse() {
   // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
   // which requires 16 bits.
   ForUIF163264(ForPartialVectors<TestReverse>());
+}
+
+HWY_NOINLINE void TestAllReverse2() {
+  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
+  // which requires 16 bits.
+  ForUIF64(ForGE128Vectors<TestReverse2>());
+  ForUIF32(ForGE64Vectors<TestReverse2>());
+  ForUIF16(ForGE32Vectors<TestReverse2>());
+}
+
+HWY_NOINLINE void TestAllReverse4() {
+  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
+  // which requires 16 bits.
+  ForUIF64(ForGE256Vectors<TestReverse4>());
+  ForUIF32(ForGE128Vectors<TestReverse4>());
+  ForUIF16(ForGE64Vectors<TestReverse4>());
+}
+
+HWY_NOINLINE void TestAllReverse8() {
+  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
+  // which requires 16 bits.
+  ForUIF64(ForGE512Vectors<TestReverse8>());
+  ForUIF32(ForGE256Vectors<TestReverse8>());
+  ForUIF16(ForGE128Vectors<TestReverse8>());
 }
 
 struct TestReverseBlocks {
@@ -515,6 +593,9 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEvenBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSwapAdjacentBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse2);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse4);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverse8);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllReverseBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllCompress);
 }  // namespace hwy
