@@ -20,7 +20,7 @@ config_setting(
 
 config_setting(
     name = "compiler_emscripten",
-    flag_values = {"//tools/cpp:cc_target_os": "emscripten"},
+    values = {"cpu": "wasm32"},
 )
 
 # See https://github.com/bazelbuild/bazel/issues/12707
