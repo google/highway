@@ -60,7 +60,7 @@ struct Simd {
 
 namespace detail {
 
-// Given N from HWY_LANES(T), returns N for use in Simd<T, N> to describe:
+// Given N from HWY_LANES(T), returns kN for use in Simd<T, kN> to describe:
 // - a full vector (pow2 = 0);
 // - 2,4,8 regs on RVV, otherwise a full vector (pow2 [1,3]);
 // - a fraction of a register from 1/8 to 1/2 (pow2 [-3,-1]).
@@ -163,7 +163,7 @@ using RepartitionToNarrow = Repartition<MakeNarrow<TFromD<D>>, D>;
 template <class D>
 using Half = typename D::Half;
 
-// Descriptor for the same lane type as D, but twice the lanes.
+// Tag for the same lane type as D, but twice the lanes.
 template <class D>
 using Twice = typename D::Twice;
 
@@ -186,10 +186,10 @@ using Twice = typename D::Twice;
 #define HWY_IF_LANES_ARE(T, V) \
   EnableIf<IsSameT<T, TFromD<DFromV<V>>>::value>* = nullptr
 
-// Compile-time-constant, (typically but not guaranteed) an upper bound on the
-// number of lanes.
-// Prefer instead using Lanes() and dynamic allocation, or Rebind, or
-// `#if HWY_CAP_GE*`.
+// Upper bound on the number of lanes. Intended for template arguments and
+// reducing code size (e.g. for SSE4, we know at compile-time that vectors will
+// not exceed 16 bytes). WARNING: this may be a loose bound, use Lanes() as the
+// actual size for allocating storage.
 template <typename T, size_t N>
 HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(Simd<T, N>) {
   return N;
@@ -211,7 +211,7 @@ HWY_INLINE HWY_MAYBE_UNUSED size_t Lanes(Simd<T, N>) {
 // functions in two situations:
 // - on Windows and GCC 10.3, passing by value crashes due to unaligned loads:
 //   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412.
-// - on ARM64 and GCC 9.3.0 or 11.2.1, passing by const& causes many (but not
+// - on ARM64 and GCC 9.3.0 or 11.2.1, passing by value causes many (but not
 //   all) tests to fail.
 //
 // We therefore pass by const& only on GCC and (Windows or ARM64). This alias
