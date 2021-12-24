@@ -39,18 +39,19 @@ namespace detail {  // for code folding and Raw128
 #define HWY_NEON_BUILD_TPL_2
 #define HWY_NEON_BUILD_TPL_3
 
-// HWY_NEON_BUILD_RET_* is return type.
-#define HWY_NEON_BUILD_RET_1(type, size) Vec128<type, size>
-#define HWY_NEON_BUILD_RET_2(type, size) Vec128<type, size>
-#define HWY_NEON_BUILD_RET_3(type, size) Vec128<type, size>
+// HWY_NEON_BUILD_RET_* is return type; type arg is without _t suffix so we can
+// extend it to int32x4x2_t packs.
+#define HWY_NEON_BUILD_RET_1(type, size) Vec128<type##_t, size>
+#define HWY_NEON_BUILD_RET_2(type, size) Vec128<type##_t, size>
+#define HWY_NEON_BUILD_RET_3(type, size) Vec128<type##_t, size>
 
 // HWY_NEON_BUILD_PARAM_* is the list of parameters the function receives.
-#define HWY_NEON_BUILD_PARAM_1(type, size) const Vec128<type, size> a
+#define HWY_NEON_BUILD_PARAM_1(type, size) const Vec128<type##_t, size> a
 #define HWY_NEON_BUILD_PARAM_2(type, size) \
-  const Vec128<type, size> a, const Vec128<type, size> b
-#define HWY_NEON_BUILD_PARAM_3(type, size)                \
-  const Vec128<type, size> a, const Vec128<type, size> b, \
-      const Vec128<type, size> c
+  const Vec128<type##_t, size> a, const Vec128<type##_t, size> b
+#define HWY_NEON_BUILD_PARAM_3(type, size)                        \
+  const Vec128<type##_t, size> a, const Vec128<type##_t, size> b, \
+      const Vec128<type##_t, size> c
 
 // HWY_NEON_BUILD_ARG_* is the list of arguments passed to the underlying
 // function.
@@ -86,70 +87,76 @@ namespace detail {  // for code folding and Raw128
 // using args=2.
 
 // uint8_t
-#define HWY_NEON_DEF_FUNCTION_UINT_8(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(uint8_t, 16, name, prefix##q, infix, u8, args) \
-  HWY_NEON_DEF_FUNCTION(uint8_t, 8, name, prefix, infix, u8, args)     \
-  HWY_NEON_DEF_FUNCTION(uint8_t, 4, name, prefix, infix, u8, args)     \
-  HWY_NEON_DEF_FUNCTION(uint8_t, 2, name, prefix, infix, u8, args)     \
-  HWY_NEON_DEF_FUNCTION(uint8_t, 1, name, prefix, infix, u8, args)
+#define HWY_NEON_DEF_FUNCTION_UINT_8(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(uint8, 16, name, prefix##q, infix, u8, args) \
+  HWY_NEON_DEF_FUNCTION(uint8, 8, name, prefix, infix, u8, args)     \
+  HWY_NEON_DEF_FUNCTION(uint8, 4, name, prefix, infix, u8, args)     \
+  HWY_NEON_DEF_FUNCTION(uint8, 2, name, prefix, infix, u8, args)     \
+  HWY_NEON_DEF_FUNCTION(uint8, 1, name, prefix, infix, u8, args)
 
 // int8_t
-#define HWY_NEON_DEF_FUNCTION_INT_8(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(int8_t, 16, name, prefix##q, infix, s8, args) \
-  HWY_NEON_DEF_FUNCTION(int8_t, 8, name, prefix, infix, s8, args)     \
-  HWY_NEON_DEF_FUNCTION(int8_t, 4, name, prefix, infix, s8, args)     \
-  HWY_NEON_DEF_FUNCTION(int8_t, 2, name, prefix, infix, s8, args)     \
-  HWY_NEON_DEF_FUNCTION(int8_t, 1, name, prefix, infix, s8, args)
+#define HWY_NEON_DEF_FUNCTION_INT_8(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(int8, 16, name, prefix##q, infix, s8, args) \
+  HWY_NEON_DEF_FUNCTION(int8, 8, name, prefix, infix, s8, args)     \
+  HWY_NEON_DEF_FUNCTION(int8, 4, name, prefix, infix, s8, args)     \
+  HWY_NEON_DEF_FUNCTION(int8, 2, name, prefix, infix, s8, args)     \
+  HWY_NEON_DEF_FUNCTION(int8, 1, name, prefix, infix, s8, args)
 
 // uint16_t
-#define HWY_NEON_DEF_FUNCTION_UINT_16(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(uint16_t, 8, name, prefix##q, infix, u16, args) \
-  HWY_NEON_DEF_FUNCTION(uint16_t, 4, name, prefix, infix, u16, args)    \
-  HWY_NEON_DEF_FUNCTION(uint16_t, 2, name, prefix, infix, u16, args)    \
-  HWY_NEON_DEF_FUNCTION(uint16_t, 1, name, prefix, infix, u16, args)
+#define HWY_NEON_DEF_FUNCTION_UINT_16(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(uint16, 8, name, prefix##q, infix, u16, args) \
+  HWY_NEON_DEF_FUNCTION(uint16, 4, name, prefix, infix, u16, args)    \
+  HWY_NEON_DEF_FUNCTION(uint16, 2, name, prefix, infix, u16, args)    \
+  HWY_NEON_DEF_FUNCTION(uint16, 1, name, prefix, infix, u16, args)
 
 // int16_t
-#define HWY_NEON_DEF_FUNCTION_INT_16(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(int16_t, 8, name, prefix##q, infix, s16, args) \
-  HWY_NEON_DEF_FUNCTION(int16_t, 4, name, prefix, infix, s16, args)    \
-  HWY_NEON_DEF_FUNCTION(int16_t, 2, name, prefix, infix, s16, args)    \
-  HWY_NEON_DEF_FUNCTION(int16_t, 1, name, prefix, infix, s16, args)
+#define HWY_NEON_DEF_FUNCTION_INT_16(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(int16, 8, name, prefix##q, infix, s16, args) \
+  HWY_NEON_DEF_FUNCTION(int16, 4, name, prefix, infix, s16, args)    \
+  HWY_NEON_DEF_FUNCTION(int16, 2, name, prefix, infix, s16, args)    \
+  HWY_NEON_DEF_FUNCTION(int16, 1, name, prefix, infix, s16, args)
 
 // uint32_t
-#define HWY_NEON_DEF_FUNCTION_UINT_32(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(uint32_t, 4, name, prefix##q, infix, u32, args) \
-  HWY_NEON_DEF_FUNCTION(uint32_t, 2, name, prefix, infix, u32, args)    \
-  HWY_NEON_DEF_FUNCTION(uint32_t, 1, name, prefix, infix, u32, args)
+#define HWY_NEON_DEF_FUNCTION_UINT_32(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(uint32, 4, name, prefix##q, infix, u32, args) \
+  HWY_NEON_DEF_FUNCTION(uint32, 2, name, prefix, infix, u32, args)    \
+  HWY_NEON_DEF_FUNCTION(uint32, 1, name, prefix, infix, u32, args)
 
 // int32_t
-#define HWY_NEON_DEF_FUNCTION_INT_32(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(int32_t, 4, name, prefix##q, infix, s32, args) \
-  HWY_NEON_DEF_FUNCTION(int32_t, 2, name, prefix, infix, s32, args)    \
-  HWY_NEON_DEF_FUNCTION(int32_t, 1, name, prefix, infix, s32, args)
+#define HWY_NEON_DEF_FUNCTION_INT_32(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(int32, 4, name, prefix##q, infix, s32, args) \
+  HWY_NEON_DEF_FUNCTION(int32, 2, name, prefix, infix, s32, args)    \
+  HWY_NEON_DEF_FUNCTION(int32, 1, name, prefix, infix, s32, args)
 
 // uint64_t
-#define HWY_NEON_DEF_FUNCTION_UINT_64(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(uint64_t, 2, name, prefix##q, infix, u64, args) \
-  HWY_NEON_DEF_FUNCTION(uint64_t, 1, name, prefix, infix, u64, args)
+#define HWY_NEON_DEF_FUNCTION_UINT_64(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(uint64, 2, name, prefix##q, infix, u64, args) \
+  HWY_NEON_DEF_FUNCTION(uint64, 1, name, prefix, infix, u64, args)
 
 // int64_t
-#define HWY_NEON_DEF_FUNCTION_INT_64(name, prefix, infix, args)        \
-  HWY_NEON_DEF_FUNCTION(int64_t, 2, name, prefix##q, infix, s64, args) \
-  HWY_NEON_DEF_FUNCTION(int64_t, 1, name, prefix, infix, s64, args)
+#define HWY_NEON_DEF_FUNCTION_INT_64(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(int64, 2, name, prefix##q, infix, s64, args) \
+  HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args)
+
+// float
+#define HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(float32, 4, name, prefix##q, infix, f32, args) \
+  HWY_NEON_DEF_FUNCTION(float32, 2, name, prefix, infix, f32, args)    \
+  HWY_NEON_DEF_FUNCTION(float32, 1, name, prefix, infix, f32, args)
+
+// double
+#define HWY_NEON_DEF_FUNCTION_FLOAT_64(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(float64, 2, name, prefix##q, infix, f64, args) \
+  HWY_NEON_DEF_FUNCTION(float64, 1, name, prefix, infix, f64, args)
 
 // float and double
 #if HWY_ARCH_ARM_A64
-#define HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args)   \
-  HWY_NEON_DEF_FUNCTION(float, 4, name, prefix##q, infix, f32, args)  \
-  HWY_NEON_DEF_FUNCTION(float, 2, name, prefix, infix, f32, args)     \
-  HWY_NEON_DEF_FUNCTION(float, 1, name, prefix, infix, f32, args)     \
-  HWY_NEON_DEF_FUNCTION(double, 2, name, prefix##q, infix, f64, args) \
-  HWY_NEON_DEF_FUNCTION(double, 1, name, prefix, infix, f64, args)
+#define HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)         \
+  HWY_NEON_DEF_FUNCTION_FLOAT_64(name, prefix, infix, args)
 #else
-#define HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args)  \
-  HWY_NEON_DEF_FUNCTION(float, 4, name, prefix##q, infix, f32, args) \
-  HWY_NEON_DEF_FUNCTION(float, 2, name, prefix, infix, f32, args)    \
-  HWY_NEON_DEF_FUNCTION(float, 1, name, prefix, infix, f32, args)
+#define HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)
 #endif
 
 // Helper macros to define for more than one type.
@@ -542,8 +549,8 @@ namespace detail {
 // vreinterpret*_u8_*() set of functions.
 #define HWY_NEON_BUILD_TPL_HWY_CAST_TO_U8
 #define HWY_NEON_BUILD_RET_HWY_CAST_TO_U8(type, size) \
-  Vec128<uint8_t, size * sizeof(type)>
-#define HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8(type, size) Vec128<type, size> v
+  Vec128<uint8_t, size * sizeof(type##_t)>
+#define HWY_NEON_BUILD_PARAM_HWY_CAST_TO_U8(type, size) Vec128<type##_t, size> v
 #define HWY_NEON_BUILD_ARG_HWY_CAST_TO_U8 v.raw
 
 // Special case of u8 to u8 since vreinterpret*_u8_u8 is obviously not defined.
@@ -693,9 +700,9 @@ HWY_API Vec128<T, N> BitCast(Simd<T, N> d,
 
 // Returns a vector with all lanes set to "t".
 #define HWY_NEON_BUILD_TPL_HWY_SET1
-#define HWY_NEON_BUILD_RET_HWY_SET1(type, size) Vec128<type, size>
+#define HWY_NEON_BUILD_RET_HWY_SET1(type, size) Vec128<type##_t, size>
 #define HWY_NEON_BUILD_PARAM_HWY_SET1(type, size) \
-  Simd<type, size> /* tag */, const type t
+  Simd<type##_t, size> /* tag */, const type##_t t
 #define HWY_NEON_BUILD_ARG_HWY_SET1 t
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(Set, vdup, _n_, HWY_SET1)
@@ -897,9 +904,9 @@ HWY_API Vec128<int64_t> Neg(const Vec128<int64_t> v) {
 #undef HWY_NEON_DEF_FUNCTION
 #define HWY_NEON_DEF_FUNCTION(type, size, name, prefix, infix, suffix, args)   \
   template <int kBits>                                                         \
-  HWY_API Vec128<type, size> name(const Vec128<type, size> v) {                \
+  HWY_API Vec128<type##_t, size> name(const Vec128<type##_t, size> v) {        \
     return kBits == 0 ? v                                                      \
-                      : Vec128<type, size>(HWY_NEON_EVAL(                      \
+                      : Vec128<type##_t, size>(HWY_NEON_EVAL(                  \
                             prefix##infix##suffix, v.raw, HWY_MAX(1, kBits))); \
   }
 
@@ -1418,16 +1425,16 @@ HWY_API Vec128<T, N> And(const Vec128<T, N> a, const Vec128<T, N> b) {
 
 // ------------------------------ AndNot
 
-namespace internal {
+namespace detail {
 // reversed_andnot returns a & ~b.
 HWY_NEON_DEF_FUNCTION_INTS_UINTS(reversed_andnot, vbic, _, 2)
-}  // namespace internal
+}  // namespace detail
 
 // Returns ~not_mask & mask.
 template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
 HWY_API Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
                             const Vec128<T, N> mask) {
-  return internal::reversed_andnot(mask, not_mask);
+  return detail::reversed_andnot(mask, not_mask);
 }
 
 // Uses the u32/64 defined above.
@@ -1436,7 +1443,7 @@ HWY_API Vec128<T, N> AndNot(const Vec128<T, N> not_mask,
                             const Vec128<T, N> mask) {
   const Simd<MakeUnsigned<T>, N> du;
   Vec128<MakeUnsigned<T>, N> ret =
-      internal::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
+      detail::reversed_andnot(BitCast(du, mask), BitCast(du, not_mask));
   return BitCast(Simd<T, N>(), ret);
 }
 
@@ -1663,10 +1670,10 @@ HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N> dto, Mask128<TFrom, N> m) {
 // ------------------------------ IfThenElse(mask, yes, no) = mask ? b : a.
 
 #define HWY_NEON_BUILD_TPL_HWY_IF
-#define HWY_NEON_BUILD_RET_HWY_IF(type, size) Vec128<type, size>
-#define HWY_NEON_BUILD_PARAM_HWY_IF(type, size)                 \
-  const Mask128<type, size> mask, const Vec128<type, size> yes, \
-      const Vec128<type, size> no
+#define HWY_NEON_BUILD_RET_HWY_IF(type, size) Vec128<type##_t, size>
+#define HWY_NEON_BUILD_PARAM_HWY_IF(type, size)                         \
+  const Mask128<type##_t, size> mask, const Vec128<type##_t, size> yes, \
+      const Vec128<type##_t, size> no
 #define HWY_NEON_BUILD_ARG_HWY_IF mask.raw, yes.raw, no.raw
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(IfThenElse, vbsl, _, HWY_IF)
@@ -1754,9 +1761,9 @@ HWY_API Vec128<float> Shuffle2301(const Vec128<float> v) {
 }
 
 #define HWY_NEON_BUILD_TPL_HWY_COMPARE
-#define HWY_NEON_BUILD_RET_HWY_COMPARE(type, size) Mask128<type, size>
+#define HWY_NEON_BUILD_RET_HWY_COMPARE(type, size) Mask128<type##_t, size>
 #define HWY_NEON_BUILD_PARAM_HWY_COMPARE(type, size) \
-  const Vec128<type, size> a, const Vec128<type, size> b
+  const Vec128<type##_t, size> a, const Vec128<type##_t, size> b
 #define HWY_NEON_BUILD_ARG_HWY_COMPARE a.raw, b.raw
 
 // ------------------------------ Equality
@@ -1860,9 +1867,9 @@ HWY_API Mask128<T, N> FirstN(const Simd<T, N> d, size_t num) {
 // ------------------------------ TestBit (Eq)
 
 #define HWY_NEON_BUILD_TPL_HWY_TESTBIT
-#define HWY_NEON_BUILD_RET_HWY_TESTBIT(type, size) Mask128<type, size>
+#define HWY_NEON_BUILD_RET_HWY_TESTBIT(type, size) Mask128<type##_t, size>
 #define HWY_NEON_BUILD_PARAM_HWY_TESTBIT(type, size) \
-  Vec128<type, size> v, Vec128<type, size> bit
+  Vec128<type##_t, size> v, Vec128<type##_t, size> bit
 #define HWY_NEON_BUILD_ARG_HWY_TESTBIT v.raw, bit.raw
 
 #if HWY_ARCH_ARM_A64
@@ -3766,18 +3773,42 @@ HWY_API Vec128<T, N> ConcatLowerLower(const Simd<T, N> d, Vec128<T, N> hi,
   return BitCast(d, InterleaveLower(BitCast(du, lo), BitCast(du, hi)));
 }
 
-#if HWY_ARCH_ARM_A64
 namespace detail {
+#if HWY_ARCH_ARM_A64
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveEven, vtrn1, _, 2)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveEven, vtrn1, _, 2)
+HWY_NEON_DEF_FUNCTION_FLOAT_32(InterleaveEven, vtrn1, _, 2)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveOdd, vtrn2, _, 2)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveOdd, vtrn2, _, 2)
+HWY_NEON_DEF_FUNCTION_FLOAT_32(InterleaveOdd, vtrn2, _, 2)
+#else
 
-HWY_INLINE Vec128<uint8_t, 2> ConcatEven(Vec128<uint8_t, 2> hi,
-                                         Vec128<uint8_t, 2> lo) {
-  return Vec128<uint8_t, 2>(vtrn1_u8(lo.raw, hi.raw));
-}
-HWY_INLINE Vec128<uint16_t, 2> ConcatEven(Vec128<uint16_t, 2> hi,
-                                          Vec128<uint16_t, 2> lo) {
-  return Vec128<uint16_t, 2>(vtrn1_u16(lo.raw, hi.raw));
-}
+// vtrn returns a struct with even and odd result.
+#define HWY_NEON_BUILD_TPL_HWY_TRN
+#define HWY_NEON_BUILD_RET_HWY_TRN(type, size) type##x##size##x2_t
+// Pass raw args so we can accept uint16x2 args, for which there is no
+// corresponding uint16x2x2 return type.
+#define HWY_NEON_BUILD_PARAM_HWY_TRN(TYPE, size) \
+  Raw128<TYPE##_t, size>::type a, Raw128<TYPE##_t, size>::type b
+#define HWY_NEON_BUILD_ARG_HWY_TRN a, b
 
+// Cannot use UINT8 etc. type macros because the x2_t tuples are only defined
+// for full and half vectors.
+HWY_NEON_DEF_FUNCTION(uint8, 16, InterleaveEvenOdd, vtrnq, _, u8, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(uint8, 8, InterleaveEvenOdd, vtrn, _, u8, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(uint16, 8, InterleaveEvenOdd, vtrnq, _, u16, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(uint16, 4, InterleaveEvenOdd, vtrn, _, u16, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(uint32, 4, InterleaveEvenOdd, vtrnq, _, u32, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(uint32, 2, InterleaveEvenOdd, vtrn, _, u32, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(int8, 16, InterleaveEvenOdd, vtrnq, _, s8, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(int8, 8, InterleaveEvenOdd, vtrn, _, s8, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(int16, 8, InterleaveEvenOdd, vtrnq, _, s16, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(int16, 4, InterleaveEvenOdd, vtrn, _, s16, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(int32, 4, InterleaveEvenOdd, vtrnq, _, s32, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(int32, 2, InterleaveEvenOdd, vtrn, _, s32, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(float32, 4, InterleaveEvenOdd, vtrnq, _, f32, HWY_TRN)
+HWY_NEON_DEF_FUNCTION(float32, 2, InterleaveEvenOdd, vtrn, _, f32, HWY_TRN)
+#endif
 }  // namespace detail
 
 // <= 32-bit input/output
@@ -3786,18 +3817,15 @@ HWY_API Vec128<T, N> ConcatLowerLower(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   // Treat half-width input as two lanes and take every second one.
   const Repartition<UnsignedFromSize<N * sizeof(T) / 2>, decltype(d)> du;
-  return BitCast(d, detail::ConcatEven(BitCast(du, hi), BitCast(du, lo)));
-}
-
+  using VU = VFromD<decltype(du)>;
+#if HWY_ARCH_ARM_A64
+  return BitCast(d, detail::InterleaveEven(BitCast(du, lo), BitCast(du, hi)));
 #else
-
-template <typename T, size_t N, HWY_IF_LE32(T, N)>
-HWY_API Vec128<T, N> ConcatLowerLower(const Simd<T, N> d, Vec128<T, N> hi,
-                                      Vec128<T, N> lo) {
-  const Half<decltype(d)> d2;
-  return Combine(d, LowerHalf(d2, hi), LowerHalf(d2, lo));
+  return BitCast(
+      d, VU(detail::InterleaveEvenOdd(BitCast(du, lo).raw, BitCast(du, hi).raw)
+                .val[0]));
+#endif
 }
-#endif  // HWY_ARCH_ARM_A64
 
 // ------------------------------ ConcatUpperUpper
 
@@ -3810,39 +3838,21 @@ HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
   return BitCast(d, InterleaveUpper(du, BitCast(du, lo), BitCast(du, hi)));
 }
 
-#if HWY_ARCH_ARM_A64
-namespace detail {
-
-HWY_INLINE Vec128<uint8_t, 2> ConcatOdd(Vec128<uint8_t, 2> hi,
-                                        Vec128<uint8_t, 2> lo) {
-  return Vec128<uint8_t, 2>(vtrn2_u8(lo.raw, hi.raw));
-}
-HWY_INLINE Vec128<uint16_t, 2> ConcatOdd(Vec128<uint16_t, 2> hi,
-                                         Vec128<uint16_t, 2> lo) {
-  return Vec128<uint16_t, 2>(vtrn2_u16(lo.raw, hi.raw));
-}
-
-}  // namespace detail
-
 // <= 32-bit input/output
 template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   // Treat half-width input as two lanes and take every second one.
   const Repartition<UnsignedFromSize<N * sizeof(T) / 2>, decltype(d)> du;
-  return BitCast(d, detail::ConcatOdd(BitCast(du, hi), BitCast(du, lo)));
-}
-
+  using VU = VFromD<decltype(du)>;
+#if HWY_ARCH_ARM_A64
+  return BitCast(d, detail::InterleaveOdd(BitCast(du, lo), BitCast(du, hi)));
 #else
-
-template <typename T, size_t N, HWY_IF_LE32(T, N)>
-HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
-                                      Vec128<T, N> lo) {
-  const Half<decltype(d)> d2;
-  return Combine(d, UpperHalf(d2, hi), UpperHalf(d2, lo));
+  return BitCast(
+      d, VU(detail::InterleaveEvenOdd(BitCast(du, lo).raw, BitCast(du, hi).raw)
+                .val[1]));
+#endif
 }
-
-#endif  // HWY_ARCH_ARM_A64
 
 // ------------------------------ ConcatLowerUpper (ShiftLeftBytes)
 
@@ -3961,6 +3971,38 @@ HWY_API Vec128<float, N> ConcatEven(Simd<float, N> /* tag */,
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
   return InterleaveLower(d, lo, hi);
+}
+
+// ------------------------------ DupEven (InterleaveLower)
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
+#if HWY_ARCH_ARM_A64
+  return detail::InterleaveEven(v, v);
+#else
+  return Vec128<T, N>(detail::InterleaveEvenOdd(v.raw, v.raw).val[0]);
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> DupEven(const Vec128<T, N> v) {
+  return InterleaveLower(Simd<T, N>(), v, v);
+}
+
+// ------------------------------ DupOdd (InterleaveUpper)
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {
+#if HWY_ARCH_ARM_A64
+  return detail::InterleaveOdd(v, v);
+#else
+  return Vec128<T, N>(detail::InterleaveEvenOdd(v.raw, v.raw).val[1]);
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> DupOdd(const Vec128<T, N> v) {
+  return InterleaveUpper(Simd<T, N>(), v, v);
 }
 
 // ------------------------------ OddEven (IfThenElse)

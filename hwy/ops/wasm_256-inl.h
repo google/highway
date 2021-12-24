@@ -2284,6 +2284,18 @@ HWY_API Vec128<T> ConcatEven(Full256<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
   return InterleaveLower(Full256<T>(), lo, hi);
 }
 
+// ------------------------------ DupEven
+template <typename T>
+HWY_API Vec256<T> DupEven(Vec256<T> v) {
+  HWY_ASSERT(0);
+}
+
+// ------------------------------ DupOdd
+template <typename T>
+HWY_API Vec256<T> DupOdd(Vec256<T> v) {
+  HWY_ASSERT(0);
+}
+
 // ------------------------------ OddEven
 
 namespace detail {

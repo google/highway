@@ -3175,6 +3175,38 @@ HWY_API Vec256<double> ConcatEven(Full256<double> d, Vec256<double> hi,
 #endif
 }
 
+// ------------------------------ DupEven (InterleaveLower)
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> DupEven(Vec256<T> v) {
+  return Vec256<T>{_mm256_shuffle_epi32(v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+HWY_API Vec256<float> DupEven(Vec256<float> v) {
+  return Vec256<float>{
+      _mm256_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> DupEven(const Vec256<T> v) {
+  return InterleaveLower(Full256<T>(), v, v);
+}
+
+// ------------------------------ DupOdd (InterleaveUpper)
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> DupOdd(Vec256<T> v) {
+  return Vec256<T>{_mm256_shuffle_epi32(v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+}
+HWY_API Vec256<float> DupOdd(Vec256<float> v) {
+  return Vec256<float>{
+      _mm256_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> DupOdd(const Vec256<T> v) {
+  return InterleaveUpper(Full256<T>(), v, v);
+}
+
 // ------------------------------ OddEven
 
 namespace detail {

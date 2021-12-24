@@ -925,6 +925,16 @@ instead because they are more general:
 *   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
     extracting `SumOfLanes` results.
 
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
+    lanes to the next higher-indexed lane. For each even lane index `i`,
+    `r[i] == v[i]` and `r[i + 1] == v[i]`.
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
+    to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
+    v[i]` and `r[i - 1] == v[i]`.
+
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
 

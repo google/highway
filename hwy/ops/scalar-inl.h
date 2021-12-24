@@ -1104,6 +1104,12 @@ HWY_API T GetLane(const Vec1<T> v) {
 }
 
 template <typename T>
+HWY_API Vec1<T> DupEven(Vec1<T> v) {
+  return v;
+}
+// DupOdd is unsupported.
+
+template <typename T>
 HWY_API Vec1<T> OddEven(Vec1<T> /* odd */, Vec1<T> even) {
   return even;
 }

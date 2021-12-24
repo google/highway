@@ -1400,12 +1400,32 @@ HWY_API V UpperHalf(const D2 d2, const V v) {
 HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLane, lasta)
 #undef HWY_SVE_GET_LANE
 
+// ------------------------------ DupEven
+
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveEven, trn1)
+}  // namespace detail
+
+template <class V>
+HWY_API V DupEven(const V v) {
+  return detail::InterleaveEven(v, v);
+}
+
+// ------------------------------ DupOdd
+
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveOdd, trn2)
+}  // namespace detail
+
+template <class V>
+HWY_API V DupOdd(const V v) {
+  return detail::InterleaveOdd(v, v);
+}
+
 // ------------------------------ OddEven
 
 namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVN, Insert, insr_n)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveEven, trn1)
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, InterleaveOdd, trn2)
 }  // namespace detail
 
 template <class V>

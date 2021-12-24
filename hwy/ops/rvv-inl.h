@@ -1579,6 +1579,20 @@ HWY_API VFromD<D> UpperHalf(const D d, const VFromD<D> v) {
 
 // ================================================== SWIZZLE
 
+namespace detail {
+// Special instruction for 1 lane is presumably faster?
+#define HWY_RVV_SLIDE1(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {      \
+    return v##OP##_##CHAR##SEW##LMUL(v, 0, HWY_RVV_AVL(SEW, SHIFT));           \
+  }
+
+HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Up, slide1up_vx)
+HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Up, fslide1up_vf)
+HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx)
+HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf)
+#undef HWY_RVV_SLIDE1
+}  // namespace detail
+
 // ------------------------------ GetLane
 
 #define HWY_RVV_GET_LANE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
@@ -1597,6 +1611,20 @@ HWY_API V OddEven(const V a, const V b) {
   const RebindToUnsigned<DFromV<V>> du;  // Iota0 is unsigned only
   const auto is_even = detail::EqS(detail::AndS(detail::Iota0(du), 1), 0);
   return IfThenElse(is_even, b, a);
+}
+
+// ------------------------------ DupEven (OddEven)
+template <class V>
+HWY_API V DupEven(const V v) {
+  const V up = detail::Slide1Up(v);
+  return OddEven(up, v);
+}
+
+// ------------------------------ DupOdd (OddEven)
+template <class V>
+HWY_API V DupOdd(const V v) {
+  const V down = detail::Slide1Down(v);
+  return OddEven(v, down);
 }
 
 // ------------------------------ OddEvenBlocks
@@ -1662,20 +1690,6 @@ HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
 }
 
 // ------------------------------ Reverse2 (RotateRight, OddEven)
-
-namespace detail {
-// Special instruction for 1 lane is presumably faster?
-#define HWY_RVV_SLIDE1(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {      \
-    return v##OP##_##CHAR##SEW##LMUL(v, 0, HWY_RVV_AVL(SEW, SHIFT));           \
-  }
-
-HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Up, slide1up_vx)
-HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Up, fslide1up_vf)
-HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx)
-HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf)
-#undef HWY_RVV_SLIDE1
-}  // namespace detail
 
 template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {

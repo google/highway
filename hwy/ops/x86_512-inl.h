@@ -2773,6 +2773,38 @@ HWY_API Vec512<double> ConcatEven(Full512<double> d, Vec512<double> hi,
                                                      __mmask8{0xFF}, hi.raw)};
 }
 
+// ------------------------------ DupEven (InterleaveLower)
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> DupEven(Vec512<T> v) {
+  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+HWY_API Vec512<float> DupEven(Vec512<float> v) {
+  return Vec512<float>{
+      _mm512_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> DupEven(const Vec512<T> v) {
+  return InterleaveLower(Full512<T>(), v, v);
+}
+
+// ------------------------------ DupOdd (InterleaveUpper)
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> DupOdd(Vec512<T> v) {
+  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+}
+HWY_API Vec512<float> DupOdd(Vec512<float> v) {
+  return Vec512<float>{
+      _mm512_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> DupOdd(const Vec512<T> v) {
+  return InterleaveUpper(Full512<T>(), v, v);
+}
+
 // ------------------------------ OddEven
 
 template <typename T>

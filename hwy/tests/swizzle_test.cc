@@ -44,6 +44,42 @@ HWY_NOINLINE void TestAllGetLane() {
   ForAllTypes(ForPartialVectors<TestGetLane>());
 }
 
+struct TestDupEven {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = static_cast<T>((i & ~1) + 1);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), DupEven(Iota(d, 1)));
+  }
+};
+
+HWY_NOINLINE void TestAllDupEven() {
+  ForUIF3264(ForShrinkableVectors<TestDupEven>());
+}
+
+struct TestDupOdd {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = static_cast<T>((i & ~1) + 2);
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), DupOdd(Iota(d, 1)));
+#else
+    (void)d;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllDupOdd() {
+  ForUIF3264(ForShrinkableVectors<TestDupOdd>());
+}
+
 struct TestOddEven {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -588,6 +624,8 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllGetLane);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllDupEven);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllDupOdd);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEvenBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSwapAdjacentBlocks);
