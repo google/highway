@@ -2465,6 +2465,9 @@ template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec512<T> Reverse4(Full512<T> /* tag */, const Vec512<T> v) {
   return Vec512<T>{_mm512_permutex_epi64(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
 }
+HWY_API Vec512<double> Reverse4(Full512<double> /* tag */, Vec512<double> v) {
+  return Vec512<double>{_mm512_permutex_pd(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+}
 
 // ------------------------------ Reverse8
 
