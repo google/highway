@@ -1,5 +1,7 @@
 # Efficient and performance-portable SIMD
 
+[//]: # (placeholder, do not remove)
+
 Highway is a C++ library for SIMD (Single Instruction, Multiple Data), i.e.
 applying the same operation to multiple 'lanes' using a single CPU instruction.
 
