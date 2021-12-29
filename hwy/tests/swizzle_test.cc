@@ -50,7 +50,7 @@ struct TestDupEven {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i & ~1) + 1);
+      expected[i] = static_cast<T>((static_cast<int>(i) & ~1) + 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), DupEven(Iota(d, 1)));
   }
@@ -67,7 +67,7 @@ struct TestDupOdd {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i & ~1) + 2);
+      expected[i] = static_cast<T>((static_cast<int>(i) & ~1) + 2);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), DupOdd(Iota(d, 1)));
 #else

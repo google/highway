@@ -183,7 +183,7 @@ struct TestIfVecThenElse {
       for (size_t i = 0; i < N; ++i) {
         in1[i] = static_cast<T>(Random32(&rng));
         in2[i] = static_cast<T>(Random32(&rng));
-        vec_lanes[i] = (Random32(&rng) & 16) ? ~TU(0) : TU(0);
+        vec_lanes[i] = (Random32(&rng) & 16) ? static_cast<TU>(~TU(0)) : TU(0);
       }
 
       const auto v1 = Load(d, in1.get());

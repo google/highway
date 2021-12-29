@@ -2665,17 +2665,17 @@ HWY_API Vec512<double> ConcatUpperUpper(Full512<double> /* tag */,
 template <typename T>
 HWY_API Vec512<T> ConcatLowerUpper(Full512<T> /* tag */, const Vec512<T> hi,
                                    const Vec512<T> lo) {
-  return Vec512<T>{_mm512_shuffle_i32x4(lo.raw, hi.raw, 0x4E)};
+  return Vec512<T>{_mm512_shuffle_i32x4(lo.raw, hi.raw, _MM_PERM_BADC)};
 }
 HWY_API Vec512<float> ConcatLowerUpper(Full512<float> /* tag */,
                                        const Vec512<float> hi,
                                        const Vec512<float> lo) {
-  return Vec512<float>{_mm512_shuffle_f32x4(lo.raw, hi.raw, 0x4E)};
+  return Vec512<float>{_mm512_shuffle_f32x4(lo.raw, hi.raw, _MM_PERM_BADC)};
 }
 HWY_API Vec512<double> ConcatLowerUpper(Full512<double> /* tag */,
                                         const Vec512<double> hi,
                                         const Vec512<double> lo) {
-  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, 0x4E)};
+  return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, _MM_PERM_BADC)};
 }
 
 // hiH,hiL loH,loL |-> hiH,loL (= outer halves)
@@ -2780,11 +2780,10 @@ HWY_API Vec512<double> ConcatEven(Full512<double> d, Vec512<double> hi,
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec512<T> DupEven(Vec512<T> v) {
-  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_PERM_CCAA)};
 }
 HWY_API Vec512<float> DupEven(Vec512<float> v) {
-  return Vec512<float>{
-      _mm512_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+  return Vec512<float>{_mm512_shuffle_ps(v.raw, v.raw, _MM_PERM_CCAA)};
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
@@ -2796,11 +2795,10 @@ HWY_API Vec512<T> DupEven(const Vec512<T> v) {
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec512<T> DupOdd(Vec512<T> v) {
-  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_PERM_DDBB)};
 }
 HWY_API Vec512<float> DupOdd(Vec512<float> v) {
-  return Vec512<float>{
-      _mm512_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  return Vec512<float>{_mm512_shuffle_ps(v.raw, v.raw, _MM_PERM_DDBB)};
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
@@ -2838,33 +2836,29 @@ HWY_API Vec512<double> OddEvenBlocks(Vec512<double> odd, Vec512<double> even) {
 
 template <typename T>
 HWY_API Vec512<T> SwapAdjacentBlocks(Vec512<T> v) {
-  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, _MM_PERM_CDAB)};
 }
 
 HWY_API Vec512<float> SwapAdjacentBlocks(Vec512<float> v) {
-  return Vec512<float>{
-      _mm512_shuffle_f32x4(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+  return Vec512<float>{_mm512_shuffle_f32x4(v.raw, v.raw, _MM_PERM_CDAB)};
 }
 
 HWY_API Vec512<double> SwapAdjacentBlocks(Vec512<double> v) {
-  return Vec512<double>{
-      _mm512_shuffle_f64x2(v.raw, v.raw, _MM_SHUFFLE(2, 3, 0, 1))};
+  return Vec512<double>{_mm512_shuffle_f64x2(v.raw, v.raw, _MM_PERM_CDAB)};
 }
 
 // ------------------------------ ReverseBlocks
 
 template <typename T>
 HWY_API Vec512<T> ReverseBlocks(Full512<T> /* tag */, Vec512<T> v) {
-  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, _MM_PERM_ABCD)};
 }
 HWY_API Vec512<float> ReverseBlocks(Full512<float> /* tag */, Vec512<float> v) {
-  return Vec512<float>{
-      _mm512_shuffle_f32x4(v.raw, v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+  return Vec512<float>{_mm512_shuffle_f32x4(v.raw, v.raw, _MM_PERM_ABCD)};
 }
 HWY_API Vec512<double> ReverseBlocks(Full512<double> /* tag */,
                                      Vec512<double> v) {
-  return Vec512<double>{
-      _mm512_shuffle_f64x2(v.raw, v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+  return Vec512<double>{_mm512_shuffle_f64x2(v.raw, v.raw, _MM_PERM_ABCD)};
 }
 
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
@@ -3577,9 +3571,9 @@ HWY_API void StoreInterleaved3(const Vec512<uint8_t> a, const Vec512<uint8_t> b,
   const auto k = (r2 | g2 | b2).raw;  // low byte in each 128bit: 3A 2A 1A 0A
 
   // To obtain 10 0A 05 00 in one vector, transpose "rows" into "columns".
-  const auto k3_k0_i3_i0 = _mm512_shuffle_i64x2(i, k, _MM_SHUFFLE(3, 0, 3, 0));
-  const auto i1_i2_j0_j1 = _mm512_shuffle_i64x2(j, i, _MM_SHUFFLE(1, 2, 0, 1));
-  const auto j2_j3_k1_k2 = _mm512_shuffle_i64x2(k, j, _MM_SHUFFLE(2, 3, 1, 2));
+  const auto k3_k0_i3_i0 = _mm512_shuffle_i64x2(i, k, _MM_PERM_DADA);
+  const auto i1_i2_j0_j1 = _mm512_shuffle_i64x2(j, i, _MM_PERM_BCAB);
+  const auto j2_j3_k1_k2 = _mm512_shuffle_i64x2(k, j, _MM_PERM_CDBC);
 
   // Alternating order, most-significant 128 bits from the second arg.
   const __mmask8 m = 0xCC;
@@ -3611,12 +3605,12 @@ HWY_API void StoreInterleaved4(const Vec512<uint8_t> v0,
   const auto k = ZipLower(d32, ba8, dc8).raw;  // 4x128bit: d..aB d..a8
   const auto l = ZipUpper(d32, ba8, dc8).raw;  // 4x128bit: d..aF d..aC
   // 128-bit blocks were independent until now; transpose 4x4.
-  const auto j1_j0_i1_i0 = _mm512_shuffle_i64x2(i, j, _MM_SHUFFLE(1, 0, 1, 0));
-  const auto l1_l0_k1_k0 = _mm512_shuffle_i64x2(k, l, _MM_SHUFFLE(1, 0, 1, 0));
-  const auto j3_j2_i3_i2 = _mm512_shuffle_i64x2(i, j, _MM_SHUFFLE(3, 2, 3, 2));
-  const auto l3_l2_k3_k2 = _mm512_shuffle_i64x2(k, l, _MM_SHUFFLE(3, 2, 3, 2));
-  constexpr int k20 = _MM_SHUFFLE(2, 0, 2, 0);
-  constexpr int k31 = _MM_SHUFFLE(3, 1, 3, 1);
+  const auto j1_j0_i1_i0 = _mm512_shuffle_i64x2(i, j, _MM_PERM_BABA);
+  const auto l1_l0_k1_k0 = _mm512_shuffle_i64x2(k, l, _MM_PERM_BABA);
+  const auto j3_j2_i3_i2 = _mm512_shuffle_i64x2(i, j, _MM_PERM_DCDC);
+  const auto l3_l2_k3_k2 = _mm512_shuffle_i64x2(k, l, _MM_PERM_DCDC);
+  constexpr _MM_PERM_ENUM k20 = _MM_PERM_CACA;
+  constexpr _MM_PERM_ENUM k31 = _MM_PERM_DBDB;
   const auto l0_k0_j0_i0 = _mm512_shuffle_i64x2(j1_j0_i1_i0, l1_l0_k1_k0, k20);
   const auto l1_k1_j1_i1 = _mm512_shuffle_i64x2(j1_j0_i1_i0, l1_l0_k1_k0, k31);
   const auto l2_k2_j2_i2 = _mm512_shuffle_i64x2(j3_j2_i3_i2, l3_l2_k3_k2, k20);
