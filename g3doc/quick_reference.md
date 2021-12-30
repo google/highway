@@ -219,6 +219,13 @@ wishes to run on all targets until that is resolved can use functions such as
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
 
+### Printing
+
+*   <code>V **Print**(D, const char* caption, V [, size_t lane][, size_t
+    max_lanes])</code>: prints `caption` followed by up to `max_lanes`
+    comma-separated lanes from the vector argument, starting at index `lane`.
+    Defined in test_util-inl.h.
+
 ### Arithmetic
 
 *   <code>V **operator+**(V a, V b)</code>: returns `a[i] + b[i]` (mod 2^bits).
@@ -449,7 +456,8 @@ Special functions for signed types:
 
 ### Masks
 
-Let `M` denote a mask capable of storing true/false for each lane.
+Let `M` denote a mask capable of storing a logical true/false for each lane (the
+encoding depends on the platform).
 
 #### Creation
 
@@ -461,7 +469,8 @@ Let `M` denote a mask capable of storing true/false for each lane.
     `IfThenElse(FirstN(d, N), what_to_store, prev)`.
 
 *   <code>M **MaskFromVec**(V v)</code>: returns false in lane `i` if `v[i] ==
-    0`, or true if `v[i]` has all bits set.
+    0`, or true if `v[i]` has all bits set. The result is
+    *implementation-defined* if `v[i]` is neither zero nor all bits set.
 
 *   <code>M **LoadMaskBits**(D, const uint8_t* p)</code>: returns a mask
     indicating whether the i-th bit in the array is set. Loads bytes and bits in
@@ -499,6 +508,9 @@ Let `M` denote a mask capable of storing true/false for each lane.
 
 #### Ternary operator
 
+For `IfThen*`, masks must adhere to the invariant established by `MaskFromVec`:
+false is zero, true has all bits set:
+
 *   <code>V **IfThenElse**(M mask, V yes, V no)</code>: returns `mask[i] ?
     yes[i] : no[i]`.
 
@@ -509,44 +521,45 @@ Let `M` denote a mask capable of storing true/false for each lane.
     no[i]`.
 
 *   <code>V **IfVecThenElse**(V mask, V yes, V no)</code>: equivalent to and
-    possibly faster than `IfVecThenElse(MaskFromVec(mask), yes, no)`.
+    possibly faster than `IfVecThenElse(MaskFromVec(mask), yes, no)`. The result
+    is *implementation-defined* if `mask[i]` is neither zero nor all bits set.
 
 #### Logical
 
 *   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the
-    input mask element was not set.
+    input mask element was false.
 
 *   <code>M **And**(M a, M b)</code>: returns mask of elements indicating
-    whether both input mask elements were set.
+    whether both input mask elements were true.
 
 *   <code>M **AndNot**(M not_a, M b)</code>: returns mask of elements indicating
-    whether not_a is not set and b is set.
+    whether not_a is false and b is true.
 
 *   <code>M **Or**(M a, M b)</code>: returns mask of elements indicating whether
-    either input mask element was set.
+    either input mask element was true.
 
 *   <code>M **Xor**(M a, M b)</code>: returns mask of elements indicating
-    whether exactly one input mask element was set.
+    whether exactly one input mask element was true.
 
 #### Compress
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
-    Compacts lanes whose mask is set into the lower lanes; upper lanes are
+    Compacts lanes whose mask is true into the lower lanes; upper lanes are
     implementation-defined. Slow with 16-bit lanes. Use this form when the input
     is already a mask, e.g. returned by a comparison.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
-    whose mask `m` is set into `p`, starting from lane 0. Returns `CountTrue(d,
+    whose mask `m` is true into `p`, starting from lane 0. Returns `CountTrue(d,
     m)`, the number of valid lanes. May be implemented as `Compress` followed by
     `StoreU`; lanes after the valid ones may still be overwritten! Slower for
     16-bit lanes.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>size_t **CompressBlendedStore**(V v, M m, D d, T* p)</code>: writes
-    only lanes whose mask `m` is set into `p`, starting from lane 0. Returns
+    only lanes whose mask `m` is true into `p`, starting from lane 0. Returns
     `CountTrue(d, m)`, the number of lanes written. Does not modify subsequent
     lanes, but there is no guarantee of atomicity because this may be
     implemented as `Compress, LoadU, IfThenElse(FirstN), StoreU`.

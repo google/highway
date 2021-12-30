@@ -15,6 +15,9 @@
 // 128-bit ARM64 NEON vectors and operations.
 // External include guard in highway.h - see comment there.
 
+// ARM NEON intrinsics are documented at:
+// https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]
+
 #include <arm_neon.h>
 #include <stddef.h>
 #include <stdint.h>
