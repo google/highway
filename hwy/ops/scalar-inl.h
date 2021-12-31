@@ -290,6 +290,11 @@ HWY_API Vec1<T> IfThenZeroElse(const Mask1<T> mask, const Vec1<T> no) {
 }
 
 template <typename T>
+HWY_API Vec1<T> IfNegativeThenElse(Vec1<T> v, Vec1<T> yes, Vec1<T> no) {
+  return v.raw < 0 ? yes : no;
+}
+
+template <typename T>
 HWY_API Vec1<T> ZeroIfNegative(const Vec1<T> v) {
   return v.raw < 0 ? Vec1<T>(0) : v;
 }

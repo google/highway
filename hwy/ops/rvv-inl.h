@@ -925,6 +925,18 @@ HWY_API V BroadcastSignBit(const V v) {
   return ShiftRight<sizeof(TFromV<V>) * 8 - 1>(v);
 }
 
+// ------------------------------ IfNegativeThenElse (BroadcastSignBit)
+template <class V>
+HWY_API V IfNegativeThenElse(V v, V yes, V no) {
+  static_assert(IsSigned<TFromV<V>>(), "Only works for signed/float");
+  const DFromV<V> d;
+  const RebindToSigned<decltype(d)> di;
+
+  MFromD<decltype(d)> m =
+      MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+  return IfThenElse(m, yes, no);
+}
+
 // ------------------------------ FindFirstTrue
 
 #define HWY_RVV_FIND_FIRST_TRUE(SEW, SHIFT, MLEN, NAME, OP) \

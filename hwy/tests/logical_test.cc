@@ -226,6 +226,31 @@ HWY_NOINLINE void TestAllZeroIfNegative() {
   ForFloatTypes(ForPartialVectors<TestZeroIfNegative>());
 }
 
+struct TestIfNegative {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vp = Iota(d, 1);
+    const auto vn = Or(vp, SignBit(d));
+
+    // Zero and positive remain unchanged
+    HWY_ASSERT_VEC_EQ(d, v0, IfNegativeThenElse(v0, vn, v0));
+    HWY_ASSERT_VEC_EQ(d, vn, IfNegativeThenElse(v0, v0, vn));
+    HWY_ASSERT_VEC_EQ(d, vp, IfNegativeThenElse(vp, vn, vp));
+    HWY_ASSERT_VEC_EQ(d, vn, IfNegativeThenElse(vp, vp, vn));
+
+    // Negative are replaced with 2nd arg
+    HWY_ASSERT_VEC_EQ(d, v0, IfNegativeThenElse(vn, v0, vp));
+    HWY_ASSERT_VEC_EQ(d, vn, IfNegativeThenElse(vn, vn, v0));
+    HWY_ASSERT_VEC_EQ(d, vp, IfNegativeThenElse(vn, vp, vn));
+  }
+};
+
+HWY_NOINLINE void TestAllIfNegative() {
+  ForFloatTypes(ForPartialVectors<TestIfNegative>());
+  ForSignedTypes(ForPartialVectors<TestIfNegative>());
+}
+
 struct TestBroadcastSignBit {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -317,6 +342,7 @@ HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllLogicalFloat);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfVecThenElse);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllCopySign);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllZeroIfNegative);
+HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllBroadcastSignBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllTestBit);
 HWY_EXPORT_AND_TEST_P(HwyLogicalTest, TestAllPopulationCount);

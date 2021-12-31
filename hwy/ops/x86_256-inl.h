@@ -817,6 +817,7 @@ HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
   const auto zero = Zero(Full256<T>());
+  // AVX2 IfThenElse only looks at the MSB for 32/64-bit lanes
   return IfThenElse(MaskFromVec(v), zero, v);
 }
 
@@ -1720,6 +1721,35 @@ HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
   const auto zero = Zero(Full256<int64_t>());
   return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
 #endif
+}
+
+// ------------------------------ IfNegativeThenElse (BroadcastSignBit)
+HWY_API Vec256<int8_t> IfNegativeThenElse(Vec256<int8_t> v, Vec256<int8_t> yes,
+                                          Vec256<int8_t> no) {
+  // int8: AVX2 IfThenElse only looks at the MSB.
+  return IfThenElse(MaskFromVec(v), yes, no);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
+  static_assert(IsSigned<T>(), "Only works for signed/float");
+  const Full256<T> d;
+  const RebindToSigned<decltype(d)> di;
+
+  // 16-bit: no native blendv, so copy sign to lower byte's MSB.
+  v = BitCast(d, BroadcastSignBit(BitCast(di, v)));
+  return IfThenElse(MaskFromVec(v), yes, no);
+}
+
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
+HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
+  static_assert(IsSigned<T>(), "Only works for signed/float");
+  const Full256<T> d;
+  const RebindToFloat<decltype(d)> df;
+
+  // 32/64-bit: use float IfThenElse, which only looks at the MSB.
+  const MFromD<decltype(df)> msb = MaskFromVec(BitCast(df, v));
+  return BitCast(d, IfThenElse(msb, BitCast(df, yes), BitCast(df, no)));
 }
 
 // ------------------------------ ShiftLeftSame

@@ -452,7 +452,12 @@ Special functions for signed types:
 *   `V`: `i32/64` \
     <code>V **BroadcastSignBit**(V a)</code> returns `a[i] < 0 ? -1 : 0`.
 
-*   <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
+*   `V`: `{f}` \
+    <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
+
+*   `V`: `{i,f}` \
+    <code>V **IfNegativeThenElse**(V v, V yes, V no)</code>: returns `v[i] < 0 ?
+    yes[i] : no[i]`. This may be more efficient than `IfThenElse(Lt..)`.
 
 ### Masks
 

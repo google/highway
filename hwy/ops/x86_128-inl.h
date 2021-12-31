@@ -2359,6 +2359,39 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
   return IfThenElse(mask, Zero(d), v);
 }
 
+// ------------------------------ IfNegativeThenElse
+template <size_t N>
+HWY_API Vec128<int8_t, N> IfNegativeThenElse(const Vec128<int8_t, N> v,
+                                             const Vec128<int8_t, N> yes,
+                                             const Vec128<int8_t, N> no) {
+  // int8: IfThenElse only looks at the MSB.
+  return IfThenElse(MaskFromVec(v), yes, no);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
+                                        Vec128<T, N> no) {
+  static_assert(IsSigned<T>(), "Only works for signed/float");
+  const Simd<T, N> d;
+  const RebindToSigned<decltype(d)> di;
+
+  // 16-bit: no native blendv, so copy sign to lower byte's MSB.
+  v = BitCast(d, BroadcastSignBit(BitCast(di, v)));
+  return IfThenElse(MaskFromVec(v), yes, no);
+}
+
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
+                                        Vec128<T, N> no) {
+  static_assert(IsSigned<T>(), "Only works for signed/float");
+  const Simd<T, N> d;
+  const RebindToFloat<decltype(d)> df;
+
+  // 32/64-bit: use float IfThenElse, which only looks at the MSB.
+  return BitCast(d, IfThenElse(MaskFromVec(BitCast(df, v)), BitCast(df, yes),
+                               BitCast(df, no)));
+}
+
 // ------------------------------ ShiftLeftSame
 
 template <size_t N>

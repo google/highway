@@ -603,6 +603,13 @@ HWY_API Vec512<double> IfThenZeroElse(const Mask512<double> mask,
   return Vec512<double>{_mm512_mask_xor_pd(no.raw, mask.raw, no.raw, no.raw)};
 }
 
+template <typename T>
+HWY_API Vec512<T> IfNegativeThenElse(Vec512<T> v, Vec512<T> yes, Vec512<T> no) {
+  static_assert(IsSigned<T>(), "Only works for signed/float");
+  // AVX3 MaskFromVec only looks at the MSB
+  return IfThenElse(MaskFromVec(v), yes, no);
+}
+
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec512<T> ZeroIfNegative(const Vec512<T> v) {
   // AVX3 MaskFromVec only looks at the MSB

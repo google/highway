@@ -1281,6 +1281,17 @@ HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
   return AndNot(VecFromMask(Simd<T, N>(), mask), no);
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
+                                        Vec128<T, N> no) {
+  static_assert(IsSigned<T>(), "Only works for signed/float");
+  const Simd<T, N> d;
+  const RebindToSigned<decltype(d)> di;
+
+  v = BitCast(d, BroadcastSignBit(BitCast(di, v)));
+  return IfThenElse(MaskFromVec(v), yes, no);
+}
+
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
   const Simd<T, N> d;

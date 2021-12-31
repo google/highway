@@ -1145,6 +1145,12 @@ HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
   return AndNot(VecFromMask(Full256<T>(), mask), no);
 }
 
+template <typename T>
+    HWY_API Vec256 <
+    T IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
+  HWY_ASSERT(0);
+}
+
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
   const Full256<T> d;
