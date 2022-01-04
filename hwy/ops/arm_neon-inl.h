@@ -3831,10 +3831,10 @@ HWY_API Vec128<T, N> ConcatLowerLower(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   // Treat half-width input as two lanes and take every second one.
   const Repartition<UnsignedFromSize<N * sizeof(T) / 2>, decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
 #if HWY_ARCH_ARM_A64
   return BitCast(d, detail::InterleaveEven(BitCast(du, lo), BitCast(du, hi)));
 #else
+  using VU = VFromD<decltype(du)>;
   return BitCast(
       d, VU(detail::InterleaveEvenOdd(BitCast(du, lo).raw, BitCast(du, hi).raw)
                 .val[0]));
@@ -3858,10 +3858,10 @@ HWY_API Vec128<T, N> ConcatUpperUpper(const Simd<T, N> d, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   // Treat half-width input as two lanes and take every second one.
   const Repartition<UnsignedFromSize<N * sizeof(T) / 2>, decltype(d)> du;
-  using VU = VFromD<decltype(du)>;
 #if HWY_ARCH_ARM_A64
   return BitCast(d, detail::InterleaveOdd(BitCast(du, lo), BitCast(du, hi)));
 #else
+  using VU = VFromD<decltype(du)>;
   return BitCast(
       d, VU(detail::InterleaveEvenOdd(BitCast(du, lo).raw, BitCast(du, hi).raw)
                 .val[1]));
