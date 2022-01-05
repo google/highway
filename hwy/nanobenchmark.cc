@@ -37,7 +37,7 @@
 #include <windows.h>
 #endif
 
-#if defined(__MACH__)
+#if defined(__APPLE__)
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #endif
@@ -148,7 +148,7 @@ inline Ticks Start() {
   LARGE_INTEGER counter;
   (void)QueryPerformanceCounter(&counter);
   t = counter.QuadPart;
-#elif defined(__MACH__)
+#elif defined(__APPLE__)
   t = mach_absolute_time();
 #elif defined(__HAIKU__)
   t = system_time_nsecs();  // since boot
@@ -415,7 +415,7 @@ double InvariantTicksPerSecond() {
   LARGE_INTEGER freq;
   (void)QueryPerformanceFrequency(&freq);
   return double(freq.QuadPart);
-#elif defined(__MACH__)
+#elif defined(__APPLE__)
   // https://developer.apple.com/library/mac/qa/qa1398/_index.html
   mach_timebase_info_data_t timebase;
   (void)mach_timebase_info(&timebase);
