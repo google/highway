@@ -201,11 +201,13 @@ add_library(hwy_contrib STATIC ${HWY_CONTRIB_SOURCES})
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_compile_features(hwy_contrib PUBLIC cxx_std_11)
 
 add_library(hwy_test STATIC ${HWY_TEST_SOURCES})
 target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_test PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy_test PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_compile_features(hwy_test PUBLIC cxx_std_11)
 
 # -------------------------------------------------------- hwy_list_targets
 # Generate a tool to print the compiled-in targets as defined by the current
