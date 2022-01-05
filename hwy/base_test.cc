@@ -17,6 +17,9 @@
 
 #include <limits>
 
+#include "hwy/tests/include_farm_sve.h"
+// ^ must come before highway.h.
+
 #include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE

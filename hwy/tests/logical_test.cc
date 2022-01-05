@@ -16,8 +16,10 @@
 #include <stdint.h>
 #include <string.h>  // memcmp
 
+#include "hwy/tests/include_farm_sve.h"
+// ^ must come before highway.h.
+
 #include "hwy/aligned_allocator.h"
-#include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"

@@ -16,6 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "hwy/tests/include_farm_sve.h"
+// ^ must come before highway.h.
+
 #include "hwy/aligned_allocator.h"
 
 // clang-format off

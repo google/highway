@@ -17,6 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "hwy/tests/include_farm_sve.h"
+// ^ must come before highway.h.
+
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"

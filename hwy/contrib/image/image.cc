@@ -14,15 +14,17 @@
 
 #include "hwy/contrib/image/image.h"
 
+#include <algorithm>  // swap
 #include <cstddef>
+
+#include "hwy/tests/include_farm_sve.h"
+// ^ must come before highway.h.
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/image/image.cc"
-
-#include <algorithm>  // swap
-
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {

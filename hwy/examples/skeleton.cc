@@ -16,6 +16,9 @@
 
 #include <stdio.h>
 
+// Must come before highway.h.
+#include "hwy/tests/include_farm_sve.h"
+
 // First undef to prevent error when re-included.
 #undef HWY_TARGET_INCLUDE
 // For runtime dispatch, specify the name of the current file (unfortunately
