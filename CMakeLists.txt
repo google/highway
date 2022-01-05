@@ -21,9 +21,7 @@ endif()
 
 project(hwy VERSION 0.15.0)  # Keep in sync with highway.h version
 
-set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # Enabled PIE binaries by default if supported.
 include(CheckPIESupported OPTIONAL RESULT_VARIABLE CHECK_PIE_SUPPORTED)
@@ -197,6 +195,7 @@ add_library(hwy STATIC ${HWY_SOURCES})
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_compile_features(hwy PUBLIC cxx_std_11)
 
 add_library(hwy_contrib STATIC ${HWY_CONTRIB_SOURCES})
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
