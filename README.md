@@ -2,17 +2,54 @@
 
 [//]: # (placeholder, do not remove)
 
-Highway is a C++ library for SIMD (Single Instruction, Multiple Data), i.e.
-applying the same operation to multiple 'lanes' using a single CPU instruction.
+Highway is a C++ library that provides portable SIMD/vector intrinsics.
 
-## Why Highway?
+## Why
 
-- more portable (same source code) than platform-specific intrinsics,
-- works on a wider range of compilers than compiler-specific vector extensions,
-- more dependable than autovectorization,
-- easier to write/maintain than assembly language,
-- supports **runtime dispatch**,
-- supports **variable-length vector** architectures.
+We are passionate about high-performance software. We see major untapped
+potential in CPUs (servers, mobile, desktops). Highway is for engineers who want
+to reliably and economically push the boundaries of what is possible in
+software.
+
+## How
+
+CPUs provide SIMD/vector instructions that apply the same operation to multiple
+data items. This can reduce energy usage e.g. *fivefold* because fewer
+instructions are executed. We also often see *5-10x* speedups.
+
+Highway makes SIMD/vector programming practical and workable according to these
+guiding principles:
+
+**Does what you expect**: Highway is a C++ library with carefully-chosen
+functions that map well to CPU instructions without extensive compiler
+transformations. The resulting code is more predictable and robust to code
+changes/compiler updates than autovectorization.
+
+**Works on widely-used platforms**: Highway supports four architectures; the
+same application code can target eight instruction sets, including those with
+'scalable' vectors (size unknown at compile time). Highway only requires C++11
+and supports four families of compilers. If you would like to use Highway on
+other platforms, please raise an issue.
+
+**Flexible to deploy**: Applications using Highway can run on heterogeneous
+clouds or client devices, choosing the best available instruction set at
+runtime. Alternatively, developers may choose to target a single instruction set
+without any runtime overhead. In both cases, the application code is the same
+except for swapping `HWY_STATIC_DISPATCH` with `HWY_DYNAMIC_DISPATCH` plus one
+line of code.
+
+**Suitable for a variety of domains**: Highway provides an extensive set of
+operations, used for image processing (floating-point), compression, video
+analysis, linear algebra, cryptography, sorting and random generation. We
+recognise that new use-cases may require additional ops and are happy to add
+them where it makes sense (e.g. no performance cliffs on some architectures). If
+you would like to discuss, please file an issue.
+
+**Rewards data-parallel design**: Highway provides tools such as Gather,
+MaskedLoad, and FixedTag to enable speedups for legacy data structures. However,
+the biggest gains are unlocked by designing algorithms and data structures for
+scalable vectors. Helpful techniques include batching, structure-of-array
+layouts, and aligned/padded allocations.
 
 ## Current status
 
