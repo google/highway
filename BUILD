@@ -1,6 +1,6 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
-load("@rules_cc//cc:defs.bzl", "cc_test")
 
+load("@rules_cc//cc:defs.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
@@ -380,3 +380,5 @@ test_suite(
     name = "hwy_farm_tests",
     tags = ["hwy_farm_test"],
 )
+
+# Placeholder for integration test, do not remove
