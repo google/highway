@@ -186,7 +186,7 @@
 #define HWY_BASELINE_PPC8 0
 #endif
 
-// SVE compiles, but is not yet tested.
+// SVE2 compiles, but is not yet tested.
 #if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE2)
 #define HWY_BASELINE_SVE2 HWY_SVE2
 #else
