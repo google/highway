@@ -93,6 +93,7 @@ set(HWY_SOURCES
 
 set(HWY_TEST_SOURCES
     hwy/tests/hwy_gtest.h
+    hwy/tests/include_farm_sve.h
     hwy/tests/test_util-inl.h
     hwy/tests/test_util.cc
     hwy/tests/test_util.h
