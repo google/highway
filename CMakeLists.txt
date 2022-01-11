@@ -219,6 +219,12 @@ set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
 target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy PUBLIC cxx_std_11)
+set_target_properties(hwy PROPERTIES
+  LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
+if(UNIX)
+  set_property(TARGET hwy APPEND_STRING PROPERTY
+    LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
+endif()
 
 add_library(hwy_contrib ${HWY_CONTRIB_SOURCES})
 target_link_libraries(hwy_contrib hwy)
