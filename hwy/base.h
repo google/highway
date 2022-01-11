@@ -24,6 +24,7 @@
 #include <cfloat>
 
 #include "hwy/detect_compiler_arch.h"
+#include "hwy/highway_export.h"
 
 //------------------------------------------------------------------------------
 // Compiler-specific definitions
@@ -728,7 +729,7 @@ HWY_API bfloat16_t BF16FromF32(float f) {
   return bf;
 }
 
-HWY_NORETURN void HWY_FORMAT(3, 4)
+HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
 
 }  // namespace hwy

@@ -79,6 +79,7 @@ set(HWY_SOURCES
     hwy/detect_targets.h  # private
     hwy/foreach_target.h
     hwy/highway.h
+    hwy/highway_export.h
     hwy/nanobenchmark.cc
     hwy/nanobenchmark.h
     hwy/ops/arm_neon-inl.h
@@ -200,8 +201,19 @@ endif()  # !MSVC
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 # only expose shared option to advanced users:
 mark_as_advanced(BUILD_SHARED_LIBS)
+# Define visibility settings globally:
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
+# This preprocessor define will drive the build, also used in the *.pc files:
+if(BUILD_SHARED_LIBS)
+  set(DLLEXPORT_TO_DEFINE "HWY_SHARED_DEFINE")
+else()
+  set(DLLEXPORT_TO_DEFINE "HWY_STATIC_DEFINE")
+endif()
 
 add_library(hwy ${HWY_SOURCES})
+target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
@@ -209,6 +221,7 @@ target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy PUBLIC cxx_std_11)
 
 add_library(hwy_contrib ${HWY_CONTRIB_SOURCES})
+target_link_libraries(hwy_contrib hwy)
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy_contrib PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
@@ -216,6 +229,7 @@ target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
 
 add_library(hwy_test ${HWY_TEST_SOURCES})
+target_link_libraries(hwy_test hwy)
 target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_test PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy_test PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})

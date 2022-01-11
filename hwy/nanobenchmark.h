@@ -47,6 +47,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/highway_export.h"
+
 // Enables sanity checks that verify correct operation at the cost of
 // longer benchmark runs.
 #ifndef NANOBENCHMARK_ENABLE_CHECKS
@@ -88,7 +90,7 @@ uint64_t TimerResolution();
 
 // Returns 1, but without the compiler knowing what the value is. This prevents
 // optimizing out code.
-int Unpredictable1();
+HWY_DLLEXPORT int Unpredictable1();
 
 // Input influencing the function being measured (e.g. number of bytes to copy).
 using FuncInput = size_t;
@@ -164,9 +166,9 @@ struct Result {
 //   uniform distribution over [0, 4) could be represented as {3,0,2,1}.
 // Returns how many Result were written to "results": one per unique input, or
 //   zero if the measurement failed (an error message goes to stderr).
-size_t Measure(const Func func, const uint8_t* arg, const FuncInput* inputs,
-               const size_t num_inputs, Result* results,
-               const Params& p = Params());
+HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
+                             const FuncInput* inputs, const size_t num_inputs,
+                             Result* results, const Params& p = Params());
 
 // Calls operator() of the given closure (lambda function).
 template <class Closure>

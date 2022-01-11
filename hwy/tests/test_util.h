@@ -29,6 +29,7 @@
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/highway.h"
+#include "hwy/highway_export.h"
 
 namespace hwy {
 
@@ -70,9 +71,7 @@ static HWY_INLINE uint32_t Random32(RandomState* rng) {
   return static_cast<uint32_t>((*rng)());
 }
 
-static HWY_INLINE uint64_t Random64(RandomState* rng) {
-  return (*rng)();
-}
+static HWY_INLINE uint64_t Random64(RandomState* rng) { return (*rng)(); }
 
 // Prevents the compiler from eliding the computations that led to "output".
 // Works by indicating to the compiler that "output" is being read and modified.
@@ -87,8 +86,8 @@ inline void PreventElision(T&& output) {
 #endif  // HWY_COMPILER_MSVC
 }
 
-bool BytesEqual(const void* p1, const void* p2, const size_t size,
-                size_t* pos = nullptr);
+HWY_DLLEXPORT bool BytesEqual(const void* p1, const void* p2, const size_t size,
+                              size_t* pos = nullptr);
 
 void AssertStringEqual(const char* expected, const char* actual,
                        const char* target_name, const char* filename, int line);
@@ -132,25 +131,25 @@ HWY_INLINE TypeInfo MakeTypeInfo() {
   return info;
 }
 
-bool IsEqual(const TypeInfo& info, const void* expected_ptr,
-             const void* actual_ptr);
+HWY_DLLEXPORT bool IsEqual(const TypeInfo& info, const void* expected_ptr,
+                           const void* actual_ptr);
 
-void TypeName(const TypeInfo& info, size_t N, char* string100);
+HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100);
 
-void PrintArray(const TypeInfo& info, const char* caption,
-                const void* array_void, size_t N, size_t lane_u = 0,
-                size_t max_lanes = 7);
+HWY_DLLEXPORT void PrintArray(const TypeInfo& info, const char* caption,
+                              const void* array_void, size_t N,
+                              size_t lane_u = 0, size_t max_lanes = 7);
 
-HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,
-                                        const void* expected_ptr,
-                                        const void* actual_ptr,
-                                        const char* target_name,
-                                        const char* filename, int line,
-                                        size_t lane = 0, size_t num_lanes = 1);
+HWY_DLLEXPORT HWY_NORETURN void PrintMismatchAndAbort(
+    const TypeInfo& info, const void* expected_ptr, const void* actual_ptr,
+    const char* target_name, const char* filename, int line, size_t lane = 0,
+    size_t num_lanes = 1);
 
-void AssertArrayEqual(const TypeInfo& info, const void* expected_void,
-                      const void* actual_void, size_t N,
-                      const char* target_name, const char* filename, int line);
+HWY_DLLEXPORT void AssertArrayEqual(const TypeInfo& info,
+                                    const void* expected_void,
+                                    const void* actual_void, size_t N,
+                                    const char* target_name,
+                                    const char* filename, int line);
 
 }  // namespace detail
 
