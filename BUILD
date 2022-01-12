@@ -107,6 +107,7 @@ cc_library(
     # Normal headers with include guards
     hdrs = [
         "hwy/aligned_allocator.h",
+        "hwy/highway_export.h",
     ],
     compatible_with = [],
     copts = COPTS,
