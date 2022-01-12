@@ -36,8 +36,9 @@ using TFromV = TFromD<DFromV<V>>;
 
 template <typename T, size_t N>
 HWY_INLINE constexpr size_t MLenFromD(Simd<T, N> /* tag */) {
-  // Returns divisor = type bits / LMUL
-  return sizeof(T) * 8 / (N / HWY_LANES(T));
+  // Returns divisor = type bits / LMUL. Prevent divide-by-zero for N < LANES
+  // (i.e. partial or capped vectors).
+  return sizeof(T) * 8 / (HWY_MAX(1, N / HWY_LANES(T)));
 }
 
 // kShift = log2 of multiplier: 0 for m1, 1 for m2, -2 for mf4

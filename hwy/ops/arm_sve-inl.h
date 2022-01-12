@@ -276,7 +276,7 @@ HWY_API svbool_t PFalse() { return svpfalse_b(); }
 // This is used in functions that load/store memory; other functions (e.g.
 // arithmetic on partial vectors) can ignore d and use PTrue instead.
 template <typename T, size_t N>
-svbool_t Mask(Simd<T, N> d) {
+svbool_t MakeMask(Simd<T, N> d) {
   return N == HWY_LANES(T) ? PTrue(d) : FirstN(d, Lanes(d));
 }
 
@@ -695,7 +695,7 @@ HWY_API svbool_t Xor(svbool_t a, svbool_t b) {
 #define HWY_SVE_COUNT_TRUE(BASE, CHAR, BITS, HALF, NAME, OP)    \
   template <size_t N>                                           \
   HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N) d, svbool_t m) { \
-    return sv##OP##_b##BITS(detail::Mask(d), m);                \
+    return sv##OP##_b##BITS(detail::MakeMask(d), m);                \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE, CountTrue, cntp)
@@ -718,7 +718,7 @@ HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE_FULL, CountTrueFull, cntp)
 // ------------------------------ AllFalse
 template <typename T, size_t N>
 HWY_API bool AllFalse(Simd<T, N> d, svbool_t m) {
-  return !svptest_any(detail::Mask(d), m);
+  return !svptest_any(detail::MakeMask(d), m);
 }
 
 // ------------------------------ AllTrue
@@ -730,7 +730,7 @@ HWY_API bool AllTrue(Simd<T, N> d, svbool_t m) {
 // ------------------------------ FindFirstTrue
 template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(Simd<T, N> d, svbool_t m) {
-  return AllFalse(d, m) ? -1 : CountTrue(d, svbrkb_b_z(detail::Mask(d), m));
+  return AllFalse(d, m) ? -1 : CountTrue(d, svbrkb_b_z(detail::MakeMask(d), m));
 }
 
 // ------------------------------ IfThenElse
@@ -844,7 +844,7 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
   HWY_API HWY_SVE_V(BASE, BITS)                            \
       NAME(HWY_SVE_D(BASE, BITS, N) d,                     \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
-    return sv##OP##_##CHAR##BITS(detail::Mask(d), p);      \
+    return sv##OP##_##CHAR##BITS(detail::MakeMask(d), p);      \
   }
 
 #define HWY_SVE_MASKED_LOAD(BASE, CHAR, BITS, HALF, NAME, OP) \
@@ -868,7 +868,7 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
   template <size_t N>                                                    \
   HWY_API void NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_D(BASE, BITS, N) d, \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {            \
-    sv##OP##_##CHAR##BITS(detail::Mask(d), p, v);                        \
+    sv##OP##_##CHAR##BITS(detail::MakeMask(d), p, v);                        \
   }
 
 #define HWY_SVE_MASKED_STORE(BASE, CHAR, BITS, HALF, NAME, OP) \
@@ -928,7 +928,7 @@ HWY_API void StoreU(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
   HWY_API void NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_D(BASE, BITS, N) d,     \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,               \
                     HWY_SVE_V(int, BITS) offset) {                           \
-    sv##OP##_s##BITS##offset_##CHAR##BITS(detail::Mask(d), base, offset, v); \
+    sv##OP##_s##BITS##offset_##CHAR##BITS(detail::MakeMask(d), base, offset, v); \
   }
 
 #define HWY_SVE_SCATTER_INDEX(BASE, CHAR, BITS, HALF, NAME, OP)            \
@@ -936,7 +936,7 @@ HWY_API void StoreU(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
   HWY_API void NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_D(BASE, BITS, N) d,   \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,             \
                     HWY_SVE_V(int, BITS) index) {                          \
-    sv##OP##_s##BITS##index_##CHAR##BITS(detail::Mask(d), base, index, v); \
+    sv##OP##_s##BITS##index_##CHAR##BITS(detail::MakeMask(d), base, index, v); \
   }
 
 HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_OFFSET, ScatterOffset, st1_scatter)
@@ -952,7 +952,7 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_INDEX, ScatterIndex, st1_scatter)
       NAME(HWY_SVE_D(BASE, BITS, N) d,                                  \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,             \
            HWY_SVE_V(int, BITS) offset) {                               \
-    return sv##OP##_s##BITS##offset_##CHAR##BITS(detail::Mask(d), base, \
+    return sv##OP##_s##BITS##offset_##CHAR##BITS(detail::MakeMask(d), base, \
                                                  offset);               \
   }
 #define HWY_SVE_GATHER_INDEX(BASE, CHAR, BITS, HALF, NAME, OP)                 \
@@ -961,7 +961,7 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_INDEX, ScatterIndex, st1_scatter)
       NAME(HWY_SVE_D(BASE, BITS, N) d,                                         \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,                    \
            HWY_SVE_V(int, BITS) index) {                                       \
-    return sv##OP##_s##BITS##index_##CHAR##BITS(detail::Mask(d), base, index); \
+    return sv##OP##_s##BITS##index_##CHAR##BITS(detail::MakeMask(d), base, index); \
   }
 
 HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_OFFSET, GatherOffset, ld1_gather)
@@ -977,7 +977,7 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_INDEX, GatherIndex, ld1_gather)
                     HWY_SVE_V(BASE, BITS) v2, HWY_SVE_D(BASE, BITS, N) d,     \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT unaligned) {         \
     const sv##BASE##BITS##x3_t triple = svcreate3##_##CHAR##BITS(v0, v1, v2); \
-    sv##OP##_##CHAR##BITS(detail::Mask(d), unaligned, triple);                \
+    sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned, triple);                \
   }
 HWY_SVE_FOREACH_U08(HWY_SVE_STORE3, StoreInterleaved3, st3)
 
@@ -993,7 +993,7 @@ HWY_SVE_FOREACH_U08(HWY_SVE_STORE3, StoreInterleaved3, st3)
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT unaligned) {   \
     const sv##BASE##BITS##x4_t quad =                                   \
         svcreate4##_##CHAR##BITS(v0, v1, v2, v3);                       \
-    sv##OP##_##CHAR##BITS(detail::Mask(d), unaligned, quad);            \
+    sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned, quad);            \
   }
 HWY_SVE_FOREACH_U08(HWY_SVE_STORE4, StoreInterleaved4, st4)
 
@@ -1316,7 +1316,7 @@ svbool_t MaskLowerHalf(Simd<T, N> d) {
 template <typename T, size_t N>
 svbool_t MaskUpperHalf(Simd<T, N> d) {
   // For Splice to work as intended, make sure bits above Lanes(d) are zero.
-  return AndNot(MaskLowerHalf(d), detail::Mask(d));
+  return AndNot(MaskLowerHalf(d), detail::MakeMask(d));
 }
 
 // Right-shift vector pair by constexpr; can be used to slide down (=N) or up
@@ -1796,7 +1796,7 @@ HWY_API V ShiftRightLanes(Simd<T, N> d, V v) {
   const RebindToSigned<decltype(d)> di;
   // For partial vectors, clear upper lanes so we shift in zeros.
   if (N != HWY_LANES(T)) {
-    v = IfThenElseZero(detail::Mask(d), v);
+    v = IfThenElseZero(detail::MakeMask(d), v);
   }
 
   const auto shifted = detail::Ext<kLanes>(v, v);
@@ -1915,7 +1915,7 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   template <size_t N>                                             \
   HWY_API HWY_SVE_V(BASE, BITS)                                   \
       NAME(HWY_SVE_D(BASE, BITS, N) d, HWY_SVE_V(BASE, BITS) v) { \
-    return Set(d, sv##OP##_##CHAR##BITS(detail::Mask(d), v));     \
+    return Set(d, sv##OP##_##CHAR##BITS(detail::MakeMask(d), v));     \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_REDUCE, SumOfLanes, addv)
