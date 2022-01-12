@@ -28,9 +28,7 @@
 #include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
 #endif                                        // defined(*_SANITIZER)
 
-#if HWY_COMPILER_MSVC || HWY_ARCH_RVV
 #include <stdlib.h>  // abort / exit
-#endif
 
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
@@ -195,21 +193,22 @@ HWY_NORETURN void HWY_FORMAT(3, 4)
   va_end(args);
 
   fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-  // If compiled with any sanitizer print a stack trace. This call doesn't crash
-  // the program, instead the trap below will crash it also allowing gdb to
-  // break there.
+
+// If compiled with any sanitizer, they can also print a stack trace.
+#if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
   __sanitizer_print_stack_trace();
-#endif  // defined(*_SANITIZER)
+#endif  // HWY_IS_*
   fflush(stderr);
 
-#if HWY_COMPILER_MSVC
-  abort();  // Compile error without this due to HWY_NORETURN.
-#elif HWY_ARCH_RVV
-  exit(1);  // trap/abort just freeze Spike
-#else
+// Now terminate the program:
+#if HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
+  // Facilitates breaking into a debugger, but don't use this in non-debug
+  // builds because it looks like "illegal instruction", which is misleading.
   __builtin_trap();
+#elif HWY_ARCH_RVV
+  exit(1);  // trap/abort just freeze Spike.
+#else
+  abort();  // Compile error without this due to HWY_NORETURN.
 #endif
 }
 
