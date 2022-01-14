@@ -64,114 +64,162 @@ namespace detail {  // for code folding
   X_MACRO(8, 2, 2, NAME, OP)                 \
   X_MACRO(8, 3, 1, NAME, OP)
 
-// For given SEW, iterate over all LMUL. Precompute SEW/LMUL => MLEN because we
-// need to token-paste the result. For the same reason, we also pass the
-// twice-as-long and half-as-long LMUL suffixes as arguments.
+// For given SEW, iterate over one of LMULS: _TRUNC, _EXT, _ALL. This allows
+// reusing type lists such as HWY_RVV_FOREACH_U for _ALL (the usual case) or
+// _EXT (for Combine). To achieve this, we HWY_CONCAT with the LMULS suffix.
+//
+// Precompute SEW/LMUL => MLEN to allow token-pasting the result. For the same
+// reason, also pass the double-width and half SEW and LMUL (suffixed D and H,
+// respectively).
+// Args: BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, MLEN, NAME, OP
 // TODO(janwas): add fractional LMUL
-#define HWY_RVV_FOREACH_08(X_MACRO, BASE, CHAR, NAME, OP)                 \
-  X_MACRO(BASE, CHAR, 8, m1, m2, mf2, /*kShift=*/0, /*MLEN=*/8, NAME, OP) \
-  X_MACRO(BASE, CHAR, 8, m2, m4, m1, /*kShift=*/1, /*MLEN=*/4, NAME, OP)  \
-  X_MACRO(BASE, CHAR, 8, m4, m8, m2, /*kShift=*/2, /*MLEN=*/2, NAME, OP)  \
-  X_MACRO(BASE, CHAR, 8, m8, __, m4, /*kShift=*/3, /*MLEN=*/1, NAME, OP)
 
-#define HWY_RVV_FOREACH_16(X_MACRO, BASE, CHAR, NAME, OP)                   \
-  X_MACRO(BASE, CHAR, 16, m1, m2, mf2, /*kShift=*/0, /*MLEN=*/16, NAME, OP) \
-  X_MACRO(BASE, CHAR, 16, m2, m4, m1, /*kShift=*/1, /*MLEN=*/8, NAME, OP)   \
-  X_MACRO(BASE, CHAR, 16, m4, m8, m2, /*kShift=*/2, /*MLEN=*/4, NAME, OP)   \
-  X_MACRO(BASE, CHAR, 16, m8, __, m4, /*kShift=*/3, /*MLEN=*/2, NAME, OP)
+// LMULS = _TRUNC: truncatable (LMUL > 1)
+#define HWY_RVV_FOREACH_08_TRUNC(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 8, 16, __, m2, m4, m1, 1, /*MLEN=*/4, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, m4, m8, m2, 2, /*MLEN=*/2, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, m8, __, m4, 3, /*MLEN=*/1, NAME, OP)
 
-#define HWY_RVV_FOREACH_32(X_MACRO, BASE, CHAR, NAME, OP)                   \
-  X_MACRO(BASE, CHAR, 32, m1, m2, mf2, /*kShift=*/0, /*MLEN=*/32, NAME, OP) \
-  X_MACRO(BASE, CHAR, 32, m2, m4, m1, /*kShift=*/1, /*MLEN=*/16, NAME, OP)  \
-  X_MACRO(BASE, CHAR, 32, m4, m8, m2, /*kShift=*/2, /*MLEN=*/8, NAME, OP)   \
-  X_MACRO(BASE, CHAR, 32, m8, __, m4, /*kShift=*/3, /*MLEN=*/4, NAME, OP)
+#define HWY_RVV_FOREACH_16_TRUNC(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m2, m4, m1, 1, /*MLEN=*/8, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m4, m8, m2, 2, /*MLEN=*/4, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m8, __, m4, 3, /*MLEN=*/2, NAME, OP)
 
-#define HWY_RVV_FOREACH_64(X_MACRO, BASE, CHAR, NAME, OP)                   \
-  X_MACRO(BASE, CHAR, 64, m1, m2, mf2, /*kShift=*/0, /*MLEN=*/64, NAME, OP) \
-  X_MACRO(BASE, CHAR, 64, m2, m4, m1, /*kShift=*/1, /*MLEN=*/32, NAME, OP)  \
-  X_MACRO(BASE, CHAR, 64, m4, m8, m2, /*kShift=*/2, /*MLEN=*/16, NAME, OP)  \
-  X_MACRO(BASE, CHAR, 64, m8, __, m4, /*kShift=*/3, /*MLEN=*/8, NAME, OP)
+#define HWY_RVV_FOREACH_32_TRUNC(X_MACRO, BASE, CHAR, NAME, OP)         \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m2, m4, m1, 1, /*MLEN=*/16, NAME, OP) \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m4, m8, m2, 2, /*MLEN=*/8, NAME, OP)  \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m8, __, m4, 3, /*MLEN=*/4, NAME, OP)
+
+#define HWY_RVV_FOREACH_64_TRUNC(X_MACRO, BASE, CHAR, NAME, OP)         \
+  X_MACRO(BASE, CHAR, 64, __, 32, m2, m4, m1, 1, /*MLEN=*/32, NAME, OP) \
+  X_MACRO(BASE, CHAR, 64, __, 32, m4, m8, m2, 2, /*MLEN=*/16, NAME, OP) \
+  X_MACRO(BASE, CHAR, 64, __, 32, m8, __, m4, 3, /*MLEN=*/8, NAME, OP)
+
+// LMULS Extendable (LMUL < 8)
+#define HWY_RVV_FOREACH_08_EXT(X_MACRO, BASE, CHAR, NAME, OP)          \
+  X_MACRO(BASE, CHAR, 8, 16, __, m1, m2, mf2, 0, /*MLEN=*/8, NAME, OP) \
+  X_MACRO(BASE, CHAR, 8, 16, __, m2, m4, m1, 1, /*MLEN=*/4, NAME, OP)  \
+  X_MACRO(BASE, CHAR, 8, 16, __, m4, m8, m2, 2, /*MLEN=*/2, NAME, OP)
+
+#define HWY_RVV_FOREACH_16_EXT(X_MACRO, BASE, CHAR, NAME, OP)           \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m1, m2, mf2, 0, /*MLEN=*/16, NAME, OP) \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m2, m4, m1, 1, /*MLEN=*/8, NAME, OP)   \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m4, m8, m2, 2, /*MLEN=*/4, NAME, OP)
+
+#define HWY_RVV_FOREACH_32_EXT(X_MACRO, BASE, CHAR, NAME, OP)            \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m1, m2, mf2, 0, /*MLEN=*/32, NAME, OP) \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m2, m4, m1, 1, /*MLEN=*/16, NAME, OP)  \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m4, m8, m2, 2, /*MLEN=*/8, NAME, OP)
+
+#define HWY_RVV_FOREACH_64_EXT(X_MACRO, BASE, CHAR, NAME, OP)            \
+  X_MACRO(BASE, CHAR, 64, __, 32, m1, m2, mf2, 0, /*MLEN=*/64, NAME, OP) \
+  X_MACRO(BASE, CHAR, 64, __, 32, m2, m4, m1, 1, /*MLEN=*/32, NAME, OP)  \
+  X_MACRO(BASE, CHAR, 64, __, 32, m4, m8, m2, 2, /*MLEN=*/16, NAME, OP)
+
+// All (1 <= LMUL <= 8)
+#define HWY_RVV_FOREACH_08_ALL(X_MACRO, BASE, CHAR, NAME, OP) \
+  HWY_RVV_FOREACH_08_EXT(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 8, 16, __, m8, __, m4, 3, /*MLEN=*/1, NAME, OP)
+
+#define HWY_RVV_FOREACH_16_ALL(X_MACRO, BASE, CHAR, NAME, OP) \
+  HWY_RVV_FOREACH_16_EXT(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 16, 32, 8, m8, __, m4, 3, /*MLEN=*/2, NAME, OP)
+
+#define HWY_RVV_FOREACH_32_ALL(X_MACRO, BASE, CHAR, NAME, OP) \
+  HWY_RVV_FOREACH_32_EXT(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 32, 64, 16, m8, __, m4, 3, /*MLEN=*/4, NAME, OP)
+
+#define HWY_RVV_FOREACH_64_ALL(X_MACRO, BASE, CHAR, NAME, OP) \
+  HWY_RVV_FOREACH_64_EXT(X_MACRO, BASE, CHAR, NAME, OP)       \
+  X_MACRO(BASE, CHAR, 64, __, 32, m8, __, m4, 3, /*MLEN=*/8, NAME, OP)
 
 // SEW for unsigned:
-#define HWY_RVV_FOREACH_U08(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_08(X_MACRO, uint, u, NAME, OP)
-#define HWY_RVV_FOREACH_U16(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_16(X_MACRO, uint, u, NAME, OP)
-#define HWY_RVV_FOREACH_U32(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_32(X_MACRO, uint, u, NAME, OP)
-#define HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_64(X_MACRO, uint, u, NAME, OP)
+#define HWY_RVV_FOREACH_U08(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_08, LMULS)(X_MACRO, uint, u, NAME, OP)
+#define HWY_RVV_FOREACH_U16(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_16, LMULS)(X_MACRO, uint, u, NAME, OP)
+#define HWY_RVV_FOREACH_U32(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_32, LMULS)(X_MACRO, uint, u, NAME, OP)
+#define HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_64, LMULS)(X_MACRO, uint, u, NAME, OP)
 
 // SEW for signed:
-#define HWY_RVV_FOREACH_I08(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_08(X_MACRO, int, i, NAME, OP)
-#define HWY_RVV_FOREACH_I16(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_16(X_MACRO, int, i, NAME, OP)
-#define HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_32(X_MACRO, int, i, NAME, OP)
-#define HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_64(X_MACRO, int, i, NAME, OP)
+#define HWY_RVV_FOREACH_I08(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_08, LMULS)(X_MACRO, int, i, NAME, OP)
+#define HWY_RVV_FOREACH_I16(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_16, LMULS)(X_MACRO, int, i, NAME, OP)
+#define HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_32, LMULS)(X_MACRO, int, i, NAME, OP)
+#define HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_64, LMULS)(X_MACRO, int, i, NAME, OP)
 
 // SEW for float:
-#define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_16(X_MACRO, float, f, NAME, OP)
-#define HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_32(X_MACRO, float, f, NAME, OP)
-#define HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_64(X_MACRO, float, f, NAME, OP)
+#if HWY_CAP_FLOAT16
+#define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_16, LMULS)(X_MACRO, float, f, NAME, OP)
+#else
+#define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS)
+#endif
+#define HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_32, LMULS)(X_MACRO, float, f, NAME, OP)
+#define HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP, LMULS) \
+  HWY_CONCAT(HWY_RVV_FOREACH_64, LMULS)(X_MACRO, float, f, NAME, OP)
+
+// Commonly used type/SEW groups:
+#define HWY_RVV_FOREACH_UI08(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U08(X_MACRO, NAME, OP, LMULS)        \
+  HWY_RVV_FOREACH_I08(X_MACRO, NAME, OP, LMULS)
+
+#define HWY_RVV_FOREACH_UI16(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U16(X_MACRO, NAME, OP, LMULS)        \
+  HWY_RVV_FOREACH_I16(X_MACRO, NAME, OP, LMULS)
+
+#define HWY_RVV_FOREACH_UI32(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U32(X_MACRO, NAME, OP, LMULS)        \
+  HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP, LMULS)
+
+#define HWY_RVV_FOREACH_UI64(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP, LMULS)        \
+  HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP, LMULS)
+
+#define HWY_RVV_FOREACH_UI3264(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_UI32(X_MACRO, NAME, OP, LMULS)         \
+  HWY_RVV_FOREACH_UI64(X_MACRO, NAME, OP, LMULS)
+
+#define HWY_RVV_FOREACH_UI163264(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_UI16(X_MACRO, NAME, OP, LMULS)           \
+  HWY_RVV_FOREACH_UI3264(X_MACRO, NAME, OP, LMULS)
+
+#define HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP, LMULS)         \
+  HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP, LMULS)
 
 // For all combinations of SEW:
-#define HWY_RVV_FOREACH_U(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_U08(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_U16(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_U32(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP)
+#define HWY_RVV_FOREACH_U(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U08(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_U16(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_U32(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP, LMULS)
 
-#define HWY_RVV_FOREACH_I(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_I08(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_I16(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP)
+#define HWY_RVV_FOREACH_I(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_I08(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_I16(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP, LMULS)
 
-#define HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_F32(X_MACRO, NAME, OP)         \
-  HWY_RVV_FOREACH_F64(X_MACRO, NAME, OP)
-
-#if HWY_CAP_FLOAT16
-#define HWY_RVV_FOREACH_F(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP)
-#else
-#define HWY_RVV_FOREACH_F(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP)
-#endif
-
-// Commonly used type categories for a given SEW:
-#define HWY_RVV_FOREACH_UI16(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_U16(X_MACRO, NAME, OP)        \
-  HWY_RVV_FOREACH_I16(X_MACRO, NAME, OP)
-
-#define HWY_RVV_FOREACH_UI32(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_U32(X_MACRO, NAME, OP)        \
-  HWY_RVV_FOREACH_I32(X_MACRO, NAME, OP)
-
-#define HWY_RVV_FOREACH_UI64(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_U64(X_MACRO, NAME, OP)        \
-  HWY_RVV_FOREACH_I64(X_MACRO, NAME, OP)
-
-#define HWY_RVV_FOREACH_UI3264(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_UI32(X_MACRO, NAME, OP)         \
-  HWY_RVV_FOREACH_UI64(X_MACRO, NAME, OP)
+#define HWY_RVV_FOREACH_F(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_F3264(X_MACRO, NAME, OP, LMULS)
 
 // Commonly used type categories:
-#define HWY_RVV_FOREACH_UI(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_U(X_MACRO, NAME, OP)        \
-  HWY_RVV_FOREACH_I(X_MACRO, NAME, OP)
+#define HWY_RVV_FOREACH_UI(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U(X_MACRO, NAME, OP, LMULS)        \
+  HWY_RVV_FOREACH_I(X_MACRO, NAME, OP, LMULS)
 
-#define HWY_RVV_FOREACH(X_MACRO, NAME, OP) \
-  HWY_RVV_FOREACH_U(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_I(X_MACRO, NAME, OP)     \
-  HWY_RVV_FOREACH_F(X_MACRO, NAME, OP)
+#define HWY_RVV_FOREACH(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_U(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_I(X_MACRO, NAME, OP, LMULS)     \
+  HWY_RVV_FOREACH_F(X_MACRO, NAME, OP, LMULS)
 
 // Assemble types for use in x-macros
 #define HWY_RVV_T(BASE, SEW) BASE##SEW##_t
@@ -185,7 +233,8 @@ namespace detail {  // for code folding
 
 // Until we have full intrinsic support for fractional LMUL, mixed-precision
 // code can use LMUL 1..8 (adequate unless they need many registers).
-#define HWY_SPECIALIZE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_SPECIALIZE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   using HWY_RVV_D(CHAR, SEW, LMUL) = Full<HWY_RVV_T(BASE, SEW), SHIFT>;        \
   using V##CHAR##SEW##LMUL = HWY_RVV_V(BASE, SEW, LMUL);                       \
   template <>                                                                  \
@@ -204,19 +253,20 @@ using Df16m4 = Full<float16_t, 2>;
 using Df16m8 = Full<float16_t, 3>;
 #endif
 
-HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _)
+HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
 #undef HWY_SPECIALIZE
 
 // ------------------------------ Lanes
 
 // WARNING: we want to query VLMAX/sizeof(T), but this actually changes VL!
 // vlenb is not exposed through intrinsics and vreadvl is not VLMAX.
-#define HWY_RVV_LANES(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_LANES(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
   HWY_API size_t NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* d */) {                   \
     return v##OP##SEW##LMUL();                                                \
   }
 
-HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e)
+HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL)
 #undef HWY_RVV_LANES
 
 // Capped
@@ -237,40 +287,41 @@ HWY_API size_t Lanes(Simd<bfloat16_t, N> /* tag*/) {
 #define HWY_RVV_AVL(SEW, SHIFT) Lanes(Full<HWY_RVV_T(uint, SEW), SHIFT>())
 
 // vector = f(vector), e.g. Not
-#define HWY_RVV_RETV_ARGV(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                          OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {     \
-    return v##OP##_v_##CHAR##SEW##LMUL(v, HWY_RVV_AVL(SEW, SHIFT));           \
+#define HWY_RVV_RETV_ARGV(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                          SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {  \
+    return v##OP##_v_##CHAR##SEW##LMUL(v, HWY_RVV_AVL(SEW, SHIFT));        \
   }
 
 // vector = f(vector, scalar), e.g. detail::AddS
-#define HWY_RVV_RETV_ARGVS(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                           OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_T(BASE, SEW) b) {             \
-    return v##OP##_##CHAR##SEW##LMUL(a, b, HWY_RVV_AVL(SEW, SHIFT));           \
+#define HWY_RVV_RETV_ARGVS(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_T(BASE, SEW) b) {          \
+    return v##OP##_##CHAR##SEW##LMUL(a, b, HWY_RVV_AVL(SEW, SHIFT));        \
   }
 
 // vector = f(vector, vector), e.g. Add
-#define HWY_RVV_RETV_ARGVV(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                           OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
-    return v##OP##_vv_##CHAR##SEW##LMUL(a, b, HWY_RVV_AVL(SEW, SHIFT));        \
+#define HWY_RVV_RETV_ARGVV(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {    \
+    return v##OP##_vv_##CHAR##SEW##LMUL(a, b, HWY_RVV_AVL(SEW, SHIFT));     \
   }
 
 // ================================================== INIT
 
 // ------------------------------ Set
 
-#define HWY_RVV_SET(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_SET(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                    MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
       NAME(HWY_RVV_D(CHAR, SEW, LMUL) d, HWY_RVV_T(BASE, SEW) arg) {        \
     return v##OP##_##CHAR##SEW##LMUL(arg, Lanes(d));                        \
   }
 
-HWY_RVV_FOREACH_UI(HWY_RVV_SET, Set, mv_v_x)
-HWY_RVV_FOREACH_F(HWY_RVV_SET, Set, fmv_v_f)
+HWY_RVV_FOREACH_UI(HWY_RVV_SET, Set, mv_v_x, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_SET, Set, fmv_v_f, _ALL)
 #undef HWY_RVV_SET
 
 // Treat bfloat16_t as uint16_t (using the previously defined Set overloads);
@@ -304,14 +355,14 @@ HWY_API VFromD<Simd<T, N>> Zero(Simd<T, N> d) {
 // by it gives unpredictable results. It should only be used for maskoff, so
 // keep it internal. For the Highway op, just use Zero (single instruction).
 namespace detail {
-#define HWY_RVV_UNDEFINED(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                          OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
-      NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* tag */) {                            \
-    return v##OP##_##CHAR##SEW##LMUL(); /* no AVL */                          \
+#define HWY_RVV_UNDEFINED(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                          SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                       \
+      NAME(HWY_RVV_D(CHAR, SEW, LMUL) /* tag */) {                         \
+    return v##OP##_##CHAR##SEW##LMUL(); /* no AVL */                       \
   }
 
-HWY_RVV_FOREACH(HWY_RVV_UNDEFINED, Undefined, undefined)
+HWY_RVV_FOREACH(HWY_RVV_UNDEFINED, Undefined, undefined, _ALL)
 #undef HWY_RVV_UNDEFINED
 }  // namespace detail
 
@@ -325,8 +376,8 @@ HWY_API VFromD<D> Undefined(D d) {
 namespace detail {
 
 // There is no reinterpret from u8 <-> u8, so just return.
-#define HWY_RVV_CAST_U8(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME,    \
-                        OP)                                                    \
+#define HWY_RVV_CAST_U8(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,       \
+                        SHIFT, MLEN, NAME, OP)                                 \
   HWY_API vuint8##LMUL##_t BitCastToByte(vuint8##LMUL##_t v) { return v; }     \
   HWY_API vuint8##LMUL##_t BitCastFromByte(HWY_RVV_D(CHAR, SEW, LMUL) /* d */, \
                                            vuint8##LMUL##_t v) {               \
@@ -334,8 +385,8 @@ namespace detail {
   }
 
 // For i8, need a single reinterpret (HWY_RVV_CAST_IF does two).
-#define HWY_RVV_CAST_I8(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME,   \
-                        OP)                                                   \
+#define HWY_RVV_CAST_I8(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,      \
+                        SHIFT, MLEN, NAME, OP)                                \
   HWY_API vuint8##LMUL##_t BitCastToByte(vint8##LMUL##_t v) {                 \
     return vreinterpret_v_i8##LMUL##_u8##LMUL(v);                             \
   }                                                                           \
@@ -346,7 +397,8 @@ namespace detail {
 
 // Separate u/i because clang only provides signed <-> unsigned reinterpret for
 // the same SEW.
-#define HWY_RVV_CAST_U(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_CAST_U(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   HWY_API vuint8##LMUL##_t BitCastToByte(HWY_RVV_V(BASE, SEW, LMUL) v) {       \
     return v##OP##_v_##CHAR##SEW##LMUL##_u8##LMUL(v);                          \
   }                                                                            \
@@ -356,27 +408,28 @@ namespace detail {
   }
 
 // Signed/Float: first cast to/from unsigned
-#define HWY_RVV_CAST_IF(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                        OP)                                                 \
-  HWY_API vuint8##LMUL##_t BitCastToByte(HWY_RVV_V(BASE, SEW, LMUL) v) {    \
-    return v##OP##_v_u##SEW##LMUL##_u8##LMUL(                               \
-        v##OP##_v_##CHAR##SEW##LMUL##_u##SEW##LMUL(v));                     \
-  }                                                                         \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) BitCastFromByte(                       \
-      HWY_RVV_D(CHAR, SEW, LMUL) /* d */, vuint8##LMUL##_t v) {             \
-    return v##OP##_v_u##SEW##LMUL##_##CHAR##SEW##LMUL(                      \
-        v##OP##_v_u8##LMUL##_u##SEW##LMUL(v));                              \
+#define HWY_RVV_CAST_IF(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                        SHIFT, MLEN, NAME, OP)                           \
+  HWY_API vuint8##LMUL##_t BitCastToByte(HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    return v##OP##_v_u##SEW##LMUL##_u8##LMUL(                            \
+        v##OP##_v_##CHAR##SEW##LMUL##_u##SEW##LMUL(v));                  \
+  }                                                                      \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) BitCastFromByte(                    \
+      HWY_RVV_D(CHAR, SEW, LMUL) /* d */, vuint8##LMUL##_t v) {          \
+    return v##OP##_v_u##SEW##LMUL##_##CHAR##SEW##LMUL(                   \
+        v##OP##_v_u8##LMUL##_u##SEW##LMUL(v));                           \
   }
 
-HWY_RVV_FOREACH_U08(HWY_RVV_CAST_U8, _, reinterpret)
-HWY_RVV_FOREACH_I08(HWY_RVV_CAST_I8, _, reinterpret)
-HWY_RVV_FOREACH_U16(HWY_RVV_CAST_U, _, reinterpret)
-HWY_RVV_FOREACH_U32(HWY_RVV_CAST_U, _, reinterpret)
-HWY_RVV_FOREACH_U64(HWY_RVV_CAST_U, _, reinterpret)
-HWY_RVV_FOREACH_I16(HWY_RVV_CAST_IF, _, reinterpret)
-HWY_RVV_FOREACH_I32(HWY_RVV_CAST_IF, _, reinterpret)
-HWY_RVV_FOREACH_I64(HWY_RVV_CAST_IF, _, reinterpret)
-HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret)
+// Cannot use existing type lists because U/I8 are no-ops.
+HWY_RVV_FOREACH_U08(HWY_RVV_CAST_U8, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_I08(HWY_RVV_CAST_I8, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_U16(HWY_RVV_CAST_U, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_U32(HWY_RVV_CAST_U, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_U64(HWY_RVV_CAST_U, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_I16(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_I32(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_I64(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
 
 #undef HWY_RVV_CAST_U8
 #undef HWY_RVV_CAST_I8
@@ -416,12 +469,13 @@ HWY_INLINE VFromD<DU> BitCastToUnsigned(V v) {
 
 namespace detail {
 
-#define HWY_RVV_IOTA(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_IOTA(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                     MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_D(CHAR, SEW, LMUL) d) {    \
     return v##OP##_##CHAR##SEW##LMUL(Lanes(d));                              \
   }
 
-HWY_RVV_FOREACH_U(HWY_RVV_IOTA, Iota0, id_v)
+HWY_RVV_FOREACH_U(HWY_RVV_IOTA, Iota0, id_v, _ALL)
 #undef HWY_RVV_IOTA
 
 template <class D, class DU = RebindToUnsigned<D>>
@@ -442,7 +496,7 @@ HWY_INLINE VFromD<Full<TU>> Iota0(Simd<T, N> /*tag*/) {
 
 // ------------------------------ Not
 
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGV, Not, not )
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGV, Not, not, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Not(const V v) {
@@ -455,10 +509,10 @@ HWY_API V Not(const V v) {
 
 // Non-vector version (ideally immediate) for use with Iota0
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AndS, and_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AndS, and_vx, _ALL)
 }  // namespace detail
 
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, And, and)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, And, and, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V And(const V a, const V b) {
@@ -469,9 +523,7 @@ HWY_API V And(const V a, const V b) {
 
 // ------------------------------ Or
 
-#undef HWY_RVV_OR_MASK
-
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Or, or)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Or, or, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Or(const V a, const V b) {
@@ -484,10 +536,10 @@ HWY_API V Or(const V a, const V b) {
 
 // Non-vector version (ideally immediate) for use with Iota0
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, XorS, xor_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, XorS, xor_vx, _ALL)
 }  // namespace detail
 
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Xor, xor)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Xor, xor, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V Xor(const V a, const V b) {
@@ -512,7 +564,7 @@ HWY_API V OrAnd(const V o, const V a1, const V a2) {
 
 // ------------------------------ CopySign
 
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, CopySign, fsgnj)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, CopySign, fsgnj, _ALL)
 
 template <class V>
 HWY_API V CopySignToAbs(const V abs, const V sign) {
@@ -525,45 +577,46 @@ HWY_API V CopySignToAbs(const V abs, const V sign) {
 // ------------------------------ Add
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AddS, add_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, AddS, fadd_vf)
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, ReverseSubS, rsub_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, ReverseSubS, frsub_vf)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, AddS, add_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, AddS, fadd_vf, _ALL)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, ReverseSubS, rsub_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, ReverseSubS, frsub_vf, _ALL)
 }  // namespace detail
 
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Add, add)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Add, fadd)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Add, add, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Add, fadd, _ALL)
 
 // ------------------------------ Sub
-HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Sub, sub)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Sub, fsub)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Sub, sub, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Sub, fsub, _ALL)
 
 // ------------------------------ SaturatedAdd
 
-HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, SaturatedAdd, saddu)
-HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, SaturatedAdd, saddu)
+HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, SaturatedAdd, saddu, _ALL)
+HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, SaturatedAdd, saddu, _ALL)
 
-HWY_RVV_FOREACH_I08(HWY_RVV_RETV_ARGVV, SaturatedAdd, sadd)
-HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, SaturatedAdd, sadd)
+HWY_RVV_FOREACH_I08(HWY_RVV_RETV_ARGVV, SaturatedAdd, sadd, _ALL)
+HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, SaturatedAdd, sadd, _ALL)
 
 // ------------------------------ SaturatedSub
 
-HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, SaturatedSub, ssubu)
-HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, SaturatedSub, ssubu)
+HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, SaturatedSub, ssubu, _ALL)
+HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, SaturatedSub, ssubu, _ALL)
 
-HWY_RVV_FOREACH_I08(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub)
-HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub)
+HWY_RVV_FOREACH_I08(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub, _ALL)
+HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub, _ALL)
 
 // ------------------------------ AverageRound
 
 // TODO(janwas): check vxrm rounding mode
-HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, AverageRound, aaddu)
-HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, AverageRound, aaddu)
+HWY_RVV_FOREACH_U08(HWY_RVV_RETV_ARGVV, AverageRound, aaddu, _ALL)
+HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, AverageRound, aaddu, _ALL)
 
 // ------------------------------ ShiftLeft[Same]
 
 // Intrinsics do not define .vi forms, so use .vx instead.
-#define HWY_RVV_SHIFT(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_SHIFT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
   template <int kBits>                                                        \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {     \
     return v##OP##_vx_##CHAR##SEW##LMUL(v, kBits, HWY_RVV_AVL(SEW, SHIFT));   \
@@ -574,12 +627,12 @@ HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, AverageRound, aaddu)
                                         HWY_RVV_AVL(SEW, SHIFT));             \
   }
 
-HWY_RVV_FOREACH_UI(HWY_RVV_SHIFT, ShiftLeft, sll)
+HWY_RVV_FOREACH_UI(HWY_RVV_SHIFT, ShiftLeft, sll, _ALL)
 
 // ------------------------------ ShiftRight[Same]
 
-HWY_RVV_FOREACH_U(HWY_RVV_SHIFT, ShiftRight, srl)
-HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra)
+HWY_RVV_FOREACH_U(HWY_RVV_SHIFT, ShiftRight, srl, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra, _ALL)
 
 #undef HWY_RVV_SHIFT
 
@@ -617,109 +670,110 @@ HWY_API V RotateRight(const V v) {
 }
 
 // ------------------------------ Shl
-#define HWY_RVV_SHIFT_VV(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                         OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, LMUL) bits) {  \
-    return v##OP##_vv_##CHAR##SEW##LMUL(v, bits, HWY_RVV_AVL(SEW, SHIFT));   \
+#define HWY_RVV_SHIFT_VV(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                         SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, LMUL) bits) { \
+    return v##OP##_vv_##CHAR##SEW##LMUL(v, bits, HWY_RVV_AVL(SEW, SHIFT));  \
   }
 
-HWY_RVV_FOREACH_U(HWY_RVV_SHIFT_VV, Shl, sll)
+HWY_RVV_FOREACH_U(HWY_RVV_SHIFT_VV, Shl, sll, _ALL)
 
-#define HWY_RVV_SHIFT_II(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                         OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, LMUL) bits) {  \
-    return v##OP##_vv_##CHAR##SEW##LMUL(v, detail::BitCastToUnsigned(bits),  \
-                                        HWY_RVV_AVL(SEW, SHIFT));            \
+#define HWY_RVV_SHIFT_II(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                         SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, LMUL) bits) { \
+    return v##OP##_vv_##CHAR##SEW##LMUL(v, detail::BitCastToUnsigned(bits), \
+                                        HWY_RVV_AVL(SEW, SHIFT));           \
   }
 
-HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shl, sll)
+HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shl, sll, _ALL)
 
 // ------------------------------ Shr
 
-HWY_RVV_FOREACH_U(HWY_RVV_SHIFT_VV, Shr, srl)
-HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shr, sra)
+HWY_RVV_FOREACH_U(HWY_RVV_SHIFT_VV, Shr, srl, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shr, sra, _ALL)
 
 #undef HWY_RVV_SHIFT_II
 #undef HWY_RVV_SHIFT_VV
 
 // ------------------------------ Min
 
-HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Min, minu)
-HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Min, min)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Min, fmin)
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Min, minu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Min, min, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Min, fmin, _ALL)
 
 // ------------------------------ Max
 
 namespace detail {
 
-HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVS, MaxS, maxu_vx)
-HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVS, MaxS, max_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, MaxS, fmax_vf)
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVS, MaxS, maxu_vx, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVS, MaxS, max_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, MaxS, fmax_vf, _ALL)
 
 }  // namespace detail
 
-HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Max, maxu)
-HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Max, max)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Max, fmax)
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Max, maxu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Max, max, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Max, fmax, _ALL)
 
 // ------------------------------ Mul
 
 // Only for internal use (Highway only promises Mul for 16/32-bit inputs).
 // Used by MulLower.
 namespace detail {
-HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, Mul, mul)
+HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, Mul, mul, _ALL)
 }  // namespace detail
 
-HWY_RVV_FOREACH_UI16(HWY_RVV_RETV_ARGVV, Mul, mul)
-HWY_RVV_FOREACH_UI32(HWY_RVV_RETV_ARGVV, Mul, mul)
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Mul, fmul)
+HWY_RVV_FOREACH_UI16(HWY_RVV_RETV_ARGVV, Mul, mul, _ALL)
+HWY_RVV_FOREACH_UI32(HWY_RVV_RETV_ARGVV, Mul, mul, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Mul, fmul, _ALL)
 
 // ------------------------------ MulHigh
 
 // Only for internal use (Highway only promises MulHigh for 16-bit inputs).
 // Used by MulEven; vwmul does not work for m8.
 namespace detail {
-HWY_RVV_FOREACH_I32(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
-HWY_RVV_FOREACH_U32(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
-HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
+HWY_RVV_FOREACH_I32(HWY_RVV_RETV_ARGVV, MulHigh, mulh, _ALL)
+HWY_RVV_FOREACH_U32(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
+HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
 }  // namespace detail
 
-HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, MulHigh, mulhu)
-HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, MulHigh, mulh)
+HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
+HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, MulHigh, mulh, _ALL)
 
 // ------------------------------ Div
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Div, fdiv)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Div, fdiv, _ALL)
 
 // ------------------------------ ApproximateReciprocal
-HWY_RVV_FOREACH_F32(HWY_RVV_RETV_ARGV, ApproximateReciprocal, frec7)
+HWY_RVV_FOREACH_F32(HWY_RVV_RETV_ARGV, ApproximateReciprocal, frec7, _ALL)
 
 // ------------------------------ Sqrt
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV, Sqrt, fsqrt)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV, Sqrt, fsqrt, _ALL)
 
 // ------------------------------ ApproximateReciprocalSqrt
-HWY_RVV_FOREACH_F32(HWY_RVV_RETV_ARGV, ApproximateReciprocalSqrt, frsqrt7)
+HWY_RVV_FOREACH_F32(HWY_RVV_RETV_ARGV, ApproximateReciprocalSqrt, frsqrt7, _ALL)
 
 // ------------------------------ MulAdd
 // Note: op is still named vv, not vvv.
-#define HWY_RVV_FMA(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP)    \
+#define HWY_RVV_FMA(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT,    \
+                    MLEN, NAME, OP)                                            \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) mul, HWY_RVV_V(BASE, SEW, LMUL) x,       \
            HWY_RVV_V(BASE, SEW, LMUL) add) {                                   \
     return v##OP##_vv_##CHAR##SEW##LMUL(add, mul, x, HWY_RVV_AVL(SEW, SHIFT)); \
   }
 
-HWY_RVV_FOREACH_F(HWY_RVV_FMA, MulAdd, fmacc)
+HWY_RVV_FOREACH_F(HWY_RVV_FMA, MulAdd, fmacc, _ALL)
 
 // ------------------------------ NegMulAdd
-HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulAdd, fnmsac)
+HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulAdd, fnmsac, _ALL)
 
 // ------------------------------ MulSub
-HWY_RVV_FOREACH_F(HWY_RVV_FMA, MulSub, fmsac)
+HWY_RVV_FOREACH_F(HWY_RVV_FMA, MulSub, fmsac, _ALL)
 
 // ------------------------------ NegMulSub
-HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulSub, fnmacc)
+HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulSub, fnmacc, _ALL)
 
 #undef HWY_RVV_FMA
 
@@ -730,53 +784,53 @@ HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulSub, fnmacc)
 // of all bits; SLEN 8 / LMUL 4 = half of all bits.
 
 // mask = f(vector, vector)
-#define HWY_RVV_RETM_ARGVV(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                           OP)                                                 \
-  HWY_API HWY_RVV_M(MLEN)                                                      \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
-    return v##OP##_vv_##CHAR##SEW##LMUL##_b##MLEN(a, b,                        \
-                                                  HWY_RVV_AVL(SEW, SHIFT));    \
+#define HWY_RVV_RETM_ARGVV(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_M(MLEN)                                                   \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {    \
+    return v##OP##_vv_##CHAR##SEW##LMUL##_b##MLEN(a, b,                     \
+                                                  HWY_RVV_AVL(SEW, SHIFT)); \
   }
 
 // mask = f(vector, scalar)
-#define HWY_RVV_RETM_ARGVS(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                           OP)                                                 \
+#define HWY_RVV_RETM_ARGVS(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \
+                           SHIFT, MLEN, NAME, OP)                              \
   HWY_API HWY_RVV_M(MLEN)                                                      \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_T(BASE, SEW) b) {             \
     return v##OP##_##CHAR##SEW##LMUL##_b##MLEN(a, b, HWY_RVV_AVL(SEW, SHIFT)); \
   }
 
 // ------------------------------ Eq
-HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVV, Eq, mseq)
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Eq, mfeq)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVV, Eq, mseq, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Eq, mfeq, _ALL)
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVS, EqS, mseq_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, EqS, mfeq_vf)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVS, EqS, mseq_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, EqS, mfeq_vf, _ALL)
 }  // namespace detail
 
 // ------------------------------ Ne
-HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVV, Ne, msne)
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Ne, mfne)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVV, Ne, msne, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Ne, mfne, _ALL)
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVS, NeS, msne_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, NeS, mfne_vf)
+HWY_RVV_FOREACH_UI(HWY_RVV_RETM_ARGVS, NeS, msne_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, NeS, mfne_vf, _ALL)
 }  // namespace detail
 
 // ------------------------------ Lt
-HWY_RVV_FOREACH_U(HWY_RVV_RETM_ARGVV, Lt, msltu)
-HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVV, Lt, mslt)
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Lt, mflt)
+HWY_RVV_FOREACH_U(HWY_RVV_RETM_ARGVV, Lt, msltu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVV, Lt, mslt, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Lt, mflt, _ALL)
 
 namespace detail {
-HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVS, LtS, mslt_vx)
-HWY_RVV_FOREACH_U(HWY_RVV_RETM_ARGVS, LtS, msltu_vx)
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, LtS, mflt_vf)
+HWY_RVV_FOREACH_I(HWY_RVV_RETM_ARGVS, LtS, mslt_vx, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_RETM_ARGVS, LtS, msltu_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVS, LtS, mflt_vf, _ALL)
 }  // namespace detail
 
 // ------------------------------ Le
-HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Le, mfle)
+HWY_RVV_FOREACH_F(HWY_RVV_RETM_ARGVV, Le, mfle, _ALL)
 
 #undef HWY_RVV_RETM_ARGVV
 #undef HWY_RVV_RETM_ARGVS
@@ -833,15 +887,15 @@ HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Xor, xor)
 #undef HWY_RVV_RETM_ARGMM
 
 // ------------------------------ IfThenElse
-#define HWY_RVV_IF_THEN_ELSE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN,     \
-                             NAME, OP)                                         \
+#define HWY_RVV_IF_THEN_ELSE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                             SHIFT, MLEN, NAME, OP)                            \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
       NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) yes,                  \
            HWY_RVV_V(BASE, SEW, LMUL) no) {                                    \
     return v##OP##_vvm_##CHAR##SEW##LMUL(m, no, yes, HWY_RVV_AVL(SEW, SHIFT)); \
   }
 
-HWY_RVV_FOREACH(HWY_RVV_IF_THEN_ELSE, IfThenElse, merge)
+HWY_RVV_FOREACH(HWY_RVV_IF_THEN_ELSE, IfThenElse, merge, _ALL)
 
 #undef HWY_RVV_IF_THEN_ELSE
 
@@ -853,15 +907,15 @@ HWY_API V IfThenElseZero(const M mask, const V yes) {
 
 // ------------------------------ IfThenZeroElse
 
-#define HWY_RVV_IF_THEN_ZERO_ELSE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, \
-                                  MLEN, NAME, OP)                         \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                      \
-      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) no) {            \
-    return v##OP##_##CHAR##SEW##LMUL(m, no, 0, HWY_RVV_AVL(SEW, SHIFT));  \
+#define HWY_RVV_IF_THEN_ZERO_ELSE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, \
+                                  LMULH, SHIFT, MLEN, NAME, OP)             \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) no) {              \
+    return v##OP##_##CHAR##SEW##LMUL(m, no, 0, HWY_RVV_AVL(SEW, SHIFT));    \
   }
 
-HWY_RVV_FOREACH_UI(HWY_RVV_IF_THEN_ZERO_ELSE, IfThenZeroElse, merge_vxm)
-HWY_RVV_FOREACH_F(HWY_RVV_IF_THEN_ZERO_ELSE, IfThenZeroElse, fmerge_vfm)
+HWY_RVV_FOREACH_UI(HWY_RVV_IF_THEN_ZERO_ELSE, IfThenZeroElse, merge_vxm, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_IF_THEN_ZERO_ELSE, IfThenZeroElse, fmerge_vfm, _ALL)
 
 #undef HWY_RVV_IF_THEN_ZERO_ELSE
 
@@ -885,15 +939,15 @@ HWY_API MFromD<D> RebindMask(const D /*d*/, const MFrom mask) {
 // ------------------------------ VecFromMask
 
 namespace detail {
-#define HWY_RVV_VEC_FROM_MASK(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, \
-                              NAME, OP)                                     \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                        \
-      NAME(HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_M(MLEN) m) {              \
-    return v##OP##_##CHAR##SEW##LMUL##_m(m, v0, v0, 1,                      \
-                                         HWY_RVV_AVL(SEW, SHIFT));          \
+#define HWY_RVV_VEC_FROM_MASK(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                              SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_M(MLEN) m) {                 \
+    return v##OP##_##CHAR##SEW##LMUL##_m(m, v0, v0, 1,                         \
+                                         HWY_RVV_AVL(SEW, SHIFT));             \
   }
 
-HWY_RVV_FOREACH_UI(HWY_RVV_VEC_FROM_MASK, SubS, sub_vx)
+HWY_RVV_FOREACH_UI(HWY_RVV_VEC_FROM_MASK, SubS, sub_vx, _ALL)
 #undef HWY_RVV_VEC_FROM_MASK
 }  // namespace detail
 
@@ -984,13 +1038,14 @@ HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
 
 // ------------------------------ Load
 
-#define HWY_RVV_LOAD(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_LOAD(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                     MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
       NAME(HWY_RVV_D(CHAR, SEW, LMUL) d,                                     \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                    \
     return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, Lanes(d));                    \
   }
-HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le)
+HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le, _ALL)
 #undef HWY_RVV_LOAD
 
 // Capped
@@ -1025,26 +1080,26 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
 
 // ------------------------------ MaskedLoad
 
-#define HWY_RVV_MASKED_LOAD(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, \
-                            NAME, OP)                                     \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                      \
-      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_D(CHAR, SEW, LMUL) d,               \
-           const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                 \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, Zero(d), p, Lanes(d)); \
+#define HWY_RVV_MASKED_LOAD(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                            SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_D(CHAR, SEW, LMUL) d,                  \
+           const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                    \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, Zero(d), p, Lanes(d));    \
   }
-HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le)
+HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL)
 #undef HWY_RVV_MASKED_LOAD
 
 // ------------------------------ Store
 
-#define HWY_RVV_RET_ARGVDP(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                           OP)                                                 \
-  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                              \
-                    HWY_RVV_D(CHAR, SEW, LMUL) d,                              \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                   \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, Lanes(d));                   \
+#define HWY_RVV_RET_ARGVDP(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                           \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                           \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, Lanes(d));                \
   }
-HWY_RVV_FOREACH(HWY_RVV_RET_ARGVDP, Store, se)
+HWY_RVV_FOREACH(HWY_RVV_RET_ARGVDP, Store, se, _ALL)
 #undef HWY_RVV_RET_ARGVDP
 
 // Capped
@@ -1057,26 +1112,26 @@ HWY_API void Store(VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
 
 // ------------------------------ MaskedStore
 
-#define HWY_RVV_RET_ARGMVDP(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, \
-                            NAME, OP)                                     \
-  HWY_API void NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v,      \
-                    HWY_RVV_D(CHAR, SEW, LMUL) d,                         \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {              \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));       \
+#define HWY_RVV_RET_ARGMVDP(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                            SHIFT, MLEN, NAME, OP)                           \
+  HWY_API void NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v,         \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                            \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                 \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));          \
   }
-HWY_RVV_FOREACH(HWY_RVV_RET_ARGMVDP, MaskedStore, se)
+HWY_RVV_FOREACH(HWY_RVV_RET_ARGMVDP, MaskedStore, se, _ALL)
 #undef HWY_RVV_RET_ARGMVDP
 
 namespace detail {
 
-#define HWY_RVV_RET_ARGNVDP(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, \
-                            NAME, OP)                                     \
-  HWY_API void NAME(size_t count, HWY_RVV_V(BASE, SEW, LMUL) v,           \
-                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                   \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {              \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, count);                 \
+#define HWY_RVV_RET_ARGNVDP(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                            SHIFT, MLEN, NAME, OP)                           \
+  HWY_API void NAME(size_t count, HWY_RVV_V(BASE, SEW, LMUL) v,              \
+                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                      \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                 \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, count);                    \
   }
-HWY_RVV_FOREACH(HWY_RVV_RET_ARGNVDP, StoreN, se)
+HWY_RVV_FOREACH(HWY_RVV_RET_ARGNVDP, StoreN, se, _ALL)
 #undef HWY_RVV_RET_ARGNVDP
 
 }  // namespace detail
@@ -1097,16 +1152,16 @@ HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
 
 // ------------------------------ ScatterOffset
 
-#define HWY_RVV_SCATTER(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                        OP)                                                 \
-  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                           \
-                    HWY_RVV_D(CHAR, SEW, LMUL) d,                           \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,               \
-                    HWY_RVV_V(int, SEW, LMUL) offset) {                     \
-    return v##OP##ei##SEW##_v_##CHAR##SEW##LMUL(                            \
-        base, detail::BitCastToUnsigned(offset), v, Lanes(d));              \
+#define HWY_RVV_SCATTER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                        SHIFT, MLEN, NAME, OP)                           \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                        \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                        \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,            \
+                    HWY_RVV_V(int, SEW, LMUL) offset) {                  \
+    return v##OP##ei##SEW##_v_##CHAR##SEW##LMUL(                         \
+        base, detail::BitCastToUnsigned(offset), v, Lanes(d));           \
   }
-HWY_RVV_FOREACH(HWY_RVV_SCATTER, ScatterOffset, sux)
+HWY_RVV_FOREACH(HWY_RVV_SCATTER, ScatterOffset, sux, _ALL)
 #undef HWY_RVV_SCATTER
 
 // Capped
@@ -1134,7 +1189,8 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
 
 // ------------------------------ GatherOffset
 
-#define HWY_RVV_GATHER(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_GATHER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
       NAME(HWY_RVV_D(CHAR, SEW, LMUL) d,                                       \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,                     \
@@ -1142,7 +1198,7 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
     return v##OP##ei##SEW##_v_##CHAR##SEW##LMUL(                               \
         base, detail::BitCastToUnsigned(offset), Lanes(d));                    \
   }
-HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lux)
+HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lux, _ALL)
 #undef HWY_RVV_GATHER
 
 // Capped
@@ -1173,7 +1229,8 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
 
 // ------------------------------ StoreInterleaved3
 
-#define HWY_RVV_STORE3(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_STORE3(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   HWY_API void NAME(                                                           \
       HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_V(BASE, SEW, LMUL) v1,            \
       HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_D(CHAR, SEW, LMUL) d,             \
@@ -1199,7 +1256,8 @@ HWY_API void StoreInterleaved3(VFromD<Simd<T, N>> v0, VFromD<Simd<T, N>> v1,
 
 // ------------------------------ StoreInterleaved4
 
-#define HWY_RVV_STORE4(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_STORE4(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   HWY_API void NAME(                                                           \
       HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_V(BASE, SEW, LMUL) v1,            \
       HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_V(BASE, SEW, LMUL) v3,            \
@@ -1228,6 +1286,28 @@ HWY_API void StoreInterleaved4(VFromD<Simd<T, N>> v0, VFromD<Simd<T, N>> v1,
 
 // ================================================== CONVERT
 
+// ------------------------------ PromoteTo
+
+// SEW is for the input so we can use F16 (no-op if not supported).
+#define HWY_RVV_PROMOTE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                        SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(BASE, SEWD, LMULD)                                     \
+      NAME(HWY_RVV_D(CHAR, SEWD, LMULD) d, HWY_RVV_V(BASE, SEW, LMUL) v) { \
+    return OP##CHAR##SEWD##LMULD(v, Lanes(d));                             \
+  }
+
+HWY_RVV_FOREACH_U08(HWY_RVV_PROMOTE, PromoteTo, vzext_vf2_, _EXT)
+HWY_RVV_FOREACH_U16(HWY_RVV_PROMOTE, PromoteTo, vzext_vf2_, _EXT)
+HWY_RVV_FOREACH_U32(HWY_RVV_PROMOTE, PromoteTo, vzext_vf2_, _EXT)
+HWY_RVV_FOREACH_I08(HWY_RVV_PROMOTE, PromoteTo, vsext_vf2_, _EXT)
+HWY_RVV_FOREACH_I16(HWY_RVV_PROMOTE, PromoteTo, vsext_vf2_, _EXT)
+HWY_RVV_FOREACH_I32(HWY_RVV_PROMOTE, PromoteTo, vsext_vf2_, _EXT)
+HWY_RVV_FOREACH_F16(HWY_RVV_PROMOTE, PromoteTo, vfwcvt_f_f_v_, _EXT)
+HWY_RVV_FOREACH_F32(HWY_RVV_PROMOTE, PromoteTo, vfwcvt_f_f_v_, _EXT)
+#undef HWY_RVV_PROMOTE
+
+// The above X-macro cannot handle 4x promotion nor type switching.
+// TODO(janwas): use BASE2 arg to allow the latter.
 #define HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, LMUL, LMUL_IN) \
   HWY_API HWY_RVV_V(BASE, BITS, LMUL) PromoteTo(                               \
       HWY_RVV_D(CHAR, BITS, LMUL) d, HWY_RVV_V(BASE_IN, BITS_IN, LMUL_IN) v) { \
@@ -1246,22 +1326,8 @@ HWY_API void StoreInterleaved4(VFromD<Simd<T, N>> v0, VFromD<Simd<T, N>> v1,
   HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m4, m1)  \
   HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m8, m2)
 
-// ------------------------------ PromoteTo
-
-HWY_RVV_PROMOTE_X2(vzext_vf2_, uint, u, 16, uint, 8)
-HWY_RVV_PROMOTE_X2(vzext_vf2_, uint, u, 32, uint, 16)
-HWY_RVV_PROMOTE_X2(vzext_vf2_, uint, u, 64, uint, 32)
 HWY_RVV_PROMOTE_X4(vzext_vf4_, uint, u, 32, uint, 8)
-
-HWY_RVV_PROMOTE_X2(vsext_vf2_, int, i, 16, int, 8)
-HWY_RVV_PROMOTE_X2(vsext_vf2_, int, i, 32, int, 16)
-HWY_RVV_PROMOTE_X2(vsext_vf2_, int, i, 64, int, 32)
 HWY_RVV_PROMOTE_X4(vsext_vf4_, int, i, 32, int, 8)
-
-#if HWY_CAP_FLOAT16
-HWY_RVV_PROMOTE_X2(vfwcvt_f_f_v_, float, f, 32, float, 16)
-#endif
-HWY_RVV_PROMOTE_X2(vfwcvt_f_f_v_, float, f, 64, float, 32)
 
 // i32 to f64
 HWY_RVV_PROMOTE_X2(vfwcvt_f_x_v_, float, f, 64, int, 32)
@@ -1298,29 +1364,18 @@ HWY_API auto PromoteTo(Simd<float32_t, N> d, VFromD<Simd<bfloat16_t, N>> v)
 
 // ------------------------------ DemoteTo U
 
+// SEW is for the destination (arbitrary).
+#define HWY_RVV_DEMOTE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
+  HWY_API HWY_RVV_V(BASE, SEW, LMULH)                                          \
+      NAME(HWY_RVV_D(CHAR, SEW, LMULH) d, HWY_RVV_V(BASE, SEWD, LMUL) v) {     \
+    return OP##CHAR##SEW##LMULH(v, 0, Lanes(d));                               \
+  }
+
 // Unsigned -> unsigned (also used for bf16)
 namespace detail {
-
-HWY_INLINE Vu16m1 DemoteTo(Du16m1 d, const Vu32m2 v) {
-  return vnclipu_wx_u16m1(v, 0, Lanes(d));
-}
-HWY_INLINE Vu16m2 DemoteTo(Du16m2 d, const Vu32m4 v) {
-  return vnclipu_wx_u16m2(v, 0, Lanes(d));
-}
-HWY_INLINE Vu16m4 DemoteTo(Du16m4 d, const Vu32m8 v) {
-  return vnclipu_wx_u16m4(v, 0, Lanes(d));
-}
-
-HWY_INLINE Vu8m1 DemoteTo(Du8m1 d, const Vu16m2 v) {
-  return vnclipu_wx_u8m1(v, 0, Lanes(d));
-}
-HWY_INLINE Vu8m2 DemoteTo(Du8m2 d, const Vu16m4 v) {
-  return vnclipu_wx_u8m2(v, 0, Lanes(d));
-}
-HWY_INLINE Vu8m4 DemoteTo(Du8m4 d, const Vu16m8 v) {
-  return vnclipu_wx_u8m4(v, 0, Lanes(d));
-}
-
+HWY_RVV_FOREACH_U08(HWY_RVV_DEMOTE, DemoteTo, vnclipu_wx_, _TRUNC)
+HWY_RVV_FOREACH_U16(HWY_RVV_DEMOTE, DemoteTo, vnclipu_wx_, _TRUNC)
 }  // namespace detail
 
 // First clamp negative numbers to zero to match x86 packus.
@@ -1362,25 +1417,8 @@ HWY_API Vu8m2 U8FromU32(const Vu32m8 v) {
 
 // ------------------------------ DemoteTo I
 
-HWY_API Vi8m1 DemoteTo(Di8m1 d, const Vi16m2 v) {
-  return vnclip_wx_i8m1(v, 0, Lanes(d));
-}
-HWY_API Vi8m2 DemoteTo(Di8m2 d, const Vi16m4 v) {
-  return vnclip_wx_i8m2(v, 0, Lanes(d));
-}
-HWY_API Vi8m4 DemoteTo(Di8m4 d, const Vi16m8 v) {
-  return vnclip_wx_i8m4(v, 0, Lanes(d));
-}
-
-HWY_API Vi16m1 DemoteTo(Di16m1 d, const Vi32m2 v) {
-  return vnclip_wx_i16m1(v, 0, Lanes(d));
-}
-HWY_API Vi16m2 DemoteTo(Di16m2 d, const Vi32m4 v) {
-  return vnclip_wx_i16m2(v, 0, Lanes(d));
-}
-HWY_API Vi16m4 DemoteTo(Di16m4 d, const Vi32m8 v) {
-  return vnclip_wx_i16m4(v, 0, Lanes(d));
-}
+HWY_RVV_FOREACH_I08(HWY_RVV_DEMOTE, DemoteTo, vnclip_wx_, _TRUNC)
+HWY_RVV_FOREACH_I16(HWY_RVV_DEMOTE, DemoteTo, vnclip_wx_, _TRUNC)
 
 HWY_API Vi8m1 DemoteTo(Di8m1 d, const Vi32m4 v) {
   return DemoteTo(d, DemoteTo(Di16m2(), v));
@@ -1389,30 +1427,22 @@ HWY_API Vi8m2 DemoteTo(Di8m2 d, const Vi32m8 v) {
   return DemoteTo(d, DemoteTo(Di16m4(), v));
 }
 
+#undef HWY_RVV_DEMOTE
+
 // ------------------------------ DemoteTo F
 
-#if HWY_CAP_FLOAT16
-HWY_API Vf16m1 DemoteTo(Df16m1 d, const Vf32m2 v) {
-  return vfncvt_rod_f_f_w_f16m1(v, Lanes(d));
-}
-HWY_API Vf16m2 DemoteTo(Df16m2 d, const Vf32m4 v) {
-  return vfncvt_rod_f_f_w_f16m2(v, Lanes(d));
-}
-HWY_API Vf16m4 DemoteTo(Df16m4 d, const Vf32m8 v) {
-  return vfncvt_rod_f_f_w_f16m4(v, Lanes(d));
-}
-#endif
+// SEW is for the output so we can use F16 (no-op if not supported).
+#define HWY_RVV_DEMOTE_F(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                         SHIFT, MLEN, NAME, OP)                            \
+  HWY_API HWY_RVV_V(BASE, SEW, LMULH)                                      \
+      NAME(HWY_RVV_D(CHAR, SEW, LMULH) d, HWY_RVV_V(BASE, SEWD, LMUL) v) { \
+    return OP##SEW##LMULH(v, Lanes(d));                                    \
+  }
+HWY_RVV_FOREACH_F16(HWY_RVV_DEMOTE_F, DemoteTo, vfncvt_rod_f_f_w_f, _TRUNC)
+HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, vfncvt_rod_f_f_w_f, _TRUNC)
+#undef HWY_RVV_DEMOTE_F
 
-HWY_API Vf32m1 DemoteTo(Df32m1 d, const Vf64m2 v) {
-  return vfncvt_rod_f_f_w_f32m1(v, Lanes(d));
-}
-HWY_API Vf32m2 DemoteTo(Df32m2 d, const Vf64m4 v) {
-  return vfncvt_rod_f_f_w_f32m2(v, Lanes(d));
-}
-HWY_API Vf32m4 DemoteTo(Df32m4 d, const Vf64m8 v) {
-  return vfncvt_rod_f_f_w_f32m4(v, Lanes(d));
-}
-
+// TODO(janwas): add BASE2 arg to allow generating this via DEMOTE_F.
 HWY_API Vi32m1 DemoteTo(Di32m1 d, const Vf64m2 v) {
   return vfncvt_rtz_x_f_w_i32m1(v, Lanes(d));
 }
@@ -1433,8 +1463,8 @@ HWY_API VFromD<Simd<uint16_t, N>> DemoteTo(Simd<bfloat16_t, N> d,
 
 // ------------------------------ ConvertTo F
 
-#define HWY_RVV_CONVERT(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME,    \
-                        OP)                                                    \
+#define HWY_RVV_CONVERT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,       \
+                        SHIFT, MLEN, NAME, OP)                                 \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
       ConvertTo(HWY_RVV_D(CHAR, SEW, LMUL) d, HWY_RVV_V(int, SEW, LMUL) v) {   \
     return vfcvt_f_x_v_f##SEW##LMUL(v, Lanes(d));                              \
@@ -1451,7 +1481,7 @@ HWY_API VFromD<Simd<uint16_t, N>> DemoteTo(Simd<bfloat16_t, N> d,
 
 // API only requires f32 but we provide f64 for internal use (otherwise, it
 // seems difficult to implement Iota without a _mf2 vector half).
-HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _)
+HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _, _ALL)
 #undef HWY_RVV_CONVERT
 
 // Capped
@@ -1489,7 +1519,8 @@ HWY_INLINE MFromD<D> FirstNPerBlock(D /* tag */) {
 }
 
 // vector = f(vector, vector, size_t)
-#define HWY_RVV_SLIDE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_SLIDE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) dst, HWY_RVV_V(BASE, SEW, LMUL) src,    \
            size_t lanes) {                                                    \
@@ -1497,8 +1528,8 @@ HWY_INLINE MFromD<D> FirstNPerBlock(D /* tag */) {
                                         HWY_RVV_AVL(SEW, SHIFT));             \
   }
 
-HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideUp, slideup)
-HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideDown, slidedown)
+HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideUp, slideup, _ALL)
+HWY_RVV_FOREACH(HWY_RVV_SLIDE, SlideDown, slidedown, _ALL)
 
 #undef HWY_RVV_SLIDE
 
@@ -1535,87 +1566,97 @@ HWY_API V ConcatLowerUpper(D d, const V hi, const V lo) {
 
 // ------------------------------ Combine
 
-// TODO(janwas): implement after LMUL ext/trunc
-#if 0
+namespace detail {
+#define HWY_RVV_EXT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT,  \
+                    MLEN, NAME, OP)                                          \
+  HWY_API HWY_RVV_V(BASE, SEW, LMULD) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    return v##OP##_v_##CHAR##SEW##LMUL##_##CHAR##SEW##LMULD(v); /* no AVL */ \
+  }
+HWY_RVV_FOREACH(HWY_RVV_EXT, Ext, lmul_ext, _EXT)
+#undef HWY_RVV_EXT
+}  // namespace detail
 
-template <class V>
-HWY_API V Combine(const V a, const V b) {
-  using D = DFromV<V>;
-  // double LMUL of inputs, then SlideUp with Lanes().
+template <class D2, class V>
+HWY_API VFromD<D2> Combine(D2 d2, const V hi, const V lo) {
+  const DFromV<V> d;
+  return detail::SlideUp(detail::Ext(lo), detail::Ext(hi), Lanes(d));
 }
-
-#endif
 
 // ------------------------------ ZeroExtendVector
 
-template <class V>
-HWY_API V ZeroExtendVector(const V lo) {
-  return Combine(Xor(lo, lo), lo);
+template <class D2, class V>
+HWY_API VFromD<D2> ZeroExtendVector(D2 d2, const V lo) {
+  return Combine(d2, Xor(lo, lo), lo);
 }
 
 // ------------------------------ Lower/UpperHalf
 
 namespace detail {
-#define HWY_RVV_TRUNC(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_V(BASE, SEW, HALF) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {     \
-    return v##OP##_v_##CHAR##SEW##LMUL##_##CHAR##SEW##HALF(v); /* no AVL */   \
+#define HWY_RVV_TRUNC(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
+  HWY_API HWY_RVV_V(BASE, SEW, LMULH) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {    \
+    return v##OP##_v_##CHAR##SEW##LMUL##_##CHAR##SEW##LMULH(v); /* no AVL */  \
   }
-HWY_RVV_FOREACH_U08(HWY_RVV_TRUNC, Trunc, lmul_trunc)
-HWY_RVV_FOREACH_I08(HWY_RVV_TRUNC, Trunc, lmul_trunc)
-HWY_RVV_FOREACH_UI16(HWY_RVV_TRUNC, Trunc, lmul_trunc)
-HWY_RVV_FOREACH_UI32(HWY_RVV_TRUNC, Trunc, lmul_trunc)
-#if HWY_CAP_FLOAT16
-HWY_RVV_FOREACH_F16(HWY_RVV_TRUNC, Trunc, lmul_trunc)
-#endif
-HWY_RVV_FOREACH_F32(HWY_RVV_TRUNC, Trunc, lmul_trunc)
+HWY_RVV_FOREACH_UI08(HWY_RVV_TRUNC, Trunc, lmul_trunc, _TRUNC)
+HWY_RVV_FOREACH_UI16(HWY_RVV_TRUNC, Trunc, lmul_trunc, _TRUNC)
+HWY_RVV_FOREACH_UI32(HWY_RVV_TRUNC, Trunc, lmul_trunc, _TRUNC)
+HWY_RVV_FOREACH_F16(HWY_RVV_TRUNC, Trunc, lmul_trunc, _TRUNC)
+HWY_RVV_FOREACH_F32(HWY_RVV_TRUNC, Trunc, lmul_trunc, _TRUNC)
 #undef HWY_RVV_TRUNC
 }  // namespace detail
 
-template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
-HWY_API VFromD<D> LowerHalf(const D /* tag */, const VFromD<D> v) {
+template <class D2, HWY_IF_NOT_LANE_SIZE_D(D2, 8)>
+HWY_API VFromD<D2> LowerHalf(const D2 /* tag */, const VFromD<Twice<D2>> v) {
   return detail::Trunc(v);
 }
 
 // Intrinsics do not provide mf2 for 64-bit T because VLEN might only be 64,
 // so "half-vectors" might not exist. However, the application processor profile
 // requires VLEN >= 128. Bypass this by casting to 32-bit.
-template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
-HWY_API VFromD<D> LowerHalf(const D d, const VFromD<D> v) {
-  const Repartition<uint32_t, D> d32;
-  return BitCast(d, detail::Trunc(BitCast(Twice<decltype(d32)>(), v)));
+template <class D2, HWY_IF_LANE_SIZE_D(D2, 8)>
+HWY_API VFromD<D2> LowerHalf(const D2 d2, const VFromD<Twice<D2>> v) {
+  const Twice<RepartitionToNarrow<D2>> d32;
+  return BitCast(d2, detail::Trunc(BitCast(d32, v)));
 }
 
-template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
-HWY_API VFromD<D> UpperHalf(const D d, const VFromD<D> v) {
-  return LowerHalf(d, detail::SlideDown(v, v, Lanes(d)));
+// Same, but without D arg
+template <class V>
+HWY_API VFromD<Half<DFromV<V>>> LowerHalf(const V v) {
+  return LowerHalf(Half<DFromV<V>>(), v);
+}
+
+template <class D2>
+HWY_API VFromD<D2> UpperHalf(const D2 d2, const VFromD<Twice<D2>> v) {
+  return LowerHalf(d2, detail::SlideDown(v, v, Lanes(d2)));
 }
 
 // ================================================== SWIZZLE
 
 namespace detail {
 // Special instruction for 1 lane is presumably faster?
-#define HWY_RVV_SLIDE1(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_SLIDE1(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {      \
     return v##OP##_##CHAR##SEW##LMUL(v, 0, HWY_RVV_AVL(SEW, SHIFT));           \
   }
 
-HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Up, slide1up_vx)
-HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Up, fslide1up_vf)
-HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx)
-HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf)
+HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Up, slide1up_vx, _ALL)
+HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Up, fslide1up_vf, _ALL)
+HWY_RVV_FOREACH_UI3264(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx, _ALL)
+HWY_RVV_FOREACH_F3264(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf, _ALL)
 #undef HWY_RVV_SLIDE1
 }  // namespace detail
 
 // ------------------------------ GetLane
 
-#define HWY_RVV_GET_LANE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                         OP)                                                 \
-  HWY_API HWY_RVV_T(BASE, SEW) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {          \
-    return v##OP##_s_##CHAR##SEW##LMUL##_##CHAR##SEW(v); /* no AVL */        \
+#define HWY_RVV_GET_LANE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                         SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_T(BASE, SEW) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {       \
+    return v##OP##_s_##CHAR##SEW##LMUL##_##CHAR##SEW(v); /* no AVL */     \
   }
 
-HWY_RVV_FOREACH_UI(HWY_RVV_GET_LANE, GetLane, mv_x)
-HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f)
+HWY_RVV_FOREACH_UI(HWY_RVV_GET_LANE, GetLane, mv_x, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f, _ALL)
 #undef HWY_RVV_GET_LANE
 
 // ------------------------------ OddEven
@@ -1682,13 +1723,14 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
 
 // <32bit are not part of Highway API, but used in Broadcast. This limits VLMAX
 // to 2048! We could instead use vrgatherei16.
-#define HWY_RVV_TABLE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_TABLE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(uint, SEW, LMUL) idx) {    \
     return v##OP##_vv_##CHAR##SEW##LMUL(v, idx, HWY_RVV_AVL(SEW, SHIFT));     \
   }
 
-HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather)
+HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather, _ALL)
 #undef HWY_RVV_TABLE
 
 // ------------------------------ Reverse
@@ -1755,17 +1797,15 @@ HWY_API V ReverseBlocks(D d, V v) {
 
 // ------------------------------ Compress
 
-#define HWY_RVV_COMPRESS(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME,  \
-                         OP)                                                  \
+#define HWY_RVV_COMPRESS(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,     \
+                         SHIFT, MLEN, NAME, OP)                               \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) mask) {              \
     return v##OP##_vm_##CHAR##SEW##LMUL(mask, v, v, HWY_RVV_AVL(SEW, SHIFT)); \
   }
 
-HWY_RVV_FOREACH_UI16(HWY_RVV_COMPRESS, Compress, compress)
-HWY_RVV_FOREACH_UI32(HWY_RVV_COMPRESS, Compress, compress)
-HWY_RVV_FOREACH_UI64(HWY_RVV_COMPRESS, Compress, compress)
-HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress)
+HWY_RVV_FOREACH_UI163264(HWY_RVV_COMPRESS, Compress, compress, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress, _ALL)
 #undef HWY_RVV_COMPRESS
 
 // ------------------------------ CompressStore
@@ -2011,7 +2051,8 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 // ================================================== REDUCE
 
 // vector = f(vector, zero_m1)
-#define HWY_RVV_REDUCE(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, OP) \
+#define HWY_RVV_REDUCE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
       NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, m1) v0) {        \
     return Set(HWY_RVV_D(CHAR, SEW, LMUL)(),                                   \
@@ -2022,8 +2063,8 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 // ------------------------------ SumOfLanes
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredusum)
+HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredusum, _ALL)
 }  // namespace detail
 
 template <class D>
@@ -2034,9 +2075,9 @@ HWY_API VFromD<D> SumOfLanes(D /* d */, const VFromD<D> v) {
 
 // ------------------------------ MinOfLanes
 namespace detail {
-HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMin, redminu)
-HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMin, redmin)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin)
+HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMin, redminu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMin, redmin, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin, _ALL)
 }  // namespace detail
 
 template <class D>
@@ -2049,9 +2090,9 @@ HWY_API VFromD<D> MinOfLanes(D /* d */, const VFromD<D> v) {
 
 // ------------------------------ MaxOfLanes
 namespace detail {
-HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMax, redmaxu)
-HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMax, redmax)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax)
+HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMax, redmaxu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMax, redmax, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax, _ALL)
 }  // namespace detail
 
 template <class D>
@@ -2124,13 +2165,13 @@ HWY_API V Neg(const V v) {
 }
 
 // vector = f(vector), but argument is repeated
-#define HWY_RVV_RETV_ARGV2(BASE, CHAR, SEW, LMUL, X2, HALF, SHIFT, MLEN, NAME, \
-                           OP)                                                 \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {      \
-    return v##OP##_vv_##CHAR##SEW##LMUL(v, v, HWY_RVV_AVL(SEW, SHIFT));        \
+#define HWY_RVV_RETV_ARGV2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME(HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    return v##OP##_vv_##CHAR##SEW##LMUL(v, v, HWY_RVV_AVL(SEW, SHIFT));     \
   }
 
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn, _ALL)
 
 // ------------------------------ Abs (Max, Neg)
 
@@ -2139,7 +2180,7 @@ HWY_API V Abs(const V v) {
   return Max(v, Neg(v));
 }
 
-HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx, _ALL)
 
 #undef HWY_RVV_RETV_ARGV2
 
@@ -2341,18 +2382,26 @@ HWY_INLINE VFromD<D> Max128(D d, const VFromD<D> a, const VFromD<D> b) {
 
 // ================================================== END MACROS
 namespace detail {  // for code folding
-#undef HWY_IF_FLOAT_V
-#undef HWY_IF_SIGNED_V
-#undef HWY_IF_UNSIGNED_V
-
+#undef HWY_RVV_AVL
+#undef HWY_RVV_D
 #undef HWY_RVV_FOREACH
-#undef HWY_RVV_FOREACH_08
-#undef HWY_RVV_FOREACH_16
-#undef HWY_RVV_FOREACH_32
-#undef HWY_RVV_FOREACH_64
+#undef HWY_RVV_FOREACH_08_ALL
+#undef HWY_RVV_FOREACH_08_EXT
+#undef HWY_RVV_FOREACH_08_TRUNC
+#undef HWY_RVV_FOREACH_16_ALL
+#undef HWY_RVV_FOREACH_16_EXT
+#undef HWY_RVV_FOREACH_16_TRUNC
+#undef HWY_RVV_FOREACH_32_ALL
+#undef HWY_RVV_FOREACH_32_EXT
+#undef HWY_RVV_FOREACH_32_TRUNC
+#undef HWY_RVV_FOREACH_64_ALL
+#undef HWY_RVV_FOREACH_64_EXT
+#undef HWY_RVV_FOREACH_64_TRUNC
 #undef HWY_RVV_FOREACH_B
 #undef HWY_RVV_FOREACH_F
+#undef HWY_RVV_FOREACH_F16
 #undef HWY_RVV_FOREACH_F32
+#undef HWY_RVV_FOREACH_F3264
 #undef HWY_RVV_FOREACH_F64
 #undef HWY_RVV_FOREACH_I
 #undef HWY_RVV_FOREACH_I08
@@ -2365,19 +2414,18 @@ namespace detail {  // for code folding
 #undef HWY_RVV_FOREACH_U32
 #undef HWY_RVV_FOREACH_U64
 #undef HWY_RVV_FOREACH_UI
+#undef HWY_RVV_FOREACH_UI08
 #undef HWY_RVV_FOREACH_UI16
+#undef HWY_RVV_FOREACH_UI163264
 #undef HWY_RVV_FOREACH_UI32
+#undef HWY_RVV_FOREACH_UI3264
 #undef HWY_RVV_FOREACH_UI64
-
+#undef HWY_RVV_M
 #undef HWY_RVV_RETV_ARGV
 #undef HWY_RVV_RETV_ARGVS
 #undef HWY_RVV_RETV_ARGVV
-
 #undef HWY_RVV_T
-#undef HWY_RVV_D
 #undef HWY_RVV_V
-#undef HWY_RVV_M
-
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

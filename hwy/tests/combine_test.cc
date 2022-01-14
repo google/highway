@@ -25,9 +25,6 @@
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
-// Not yet implemented
-#if HWY_TARGET != HWY_RVV
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -275,7 +272,3 @@ int main(int argc, char **argv) {
 }
 
 #endif  // HWY_ONCE
-
-#else
-int main(int, char**) { return 0; }
-#endif  // HWY_TARGET != HWY_RVV
