@@ -9,6 +9,11 @@
 #ifndef HWY_DLLEXPORT_H
 #define HWY_DLLEXPORT_H
 
+// Bazel build are always static:
+#if !defined(HWY_SHARED_DEFINE) && !defined(HWY_STATIC_DEFINE)
+#define HWY_STATIC_DEFINE
+#endif
+
 #ifdef HWY_STATIC_DEFINE
 #define HWY_DLLEXPORT
 #define HWY_NO_EXPORT
