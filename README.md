@@ -1,4 +1,4 @@
-# Efficient and performance-portable SIMD
+# Efficient and performance-portable vector software
 
 [//]: # (placeholder, do not remove)
 
@@ -50,6 +50,21 @@ MaskedLoad, and FixedTag to enable speedups for legacy data structures. However,
 the biggest gains are unlocked by designing algorithms and data structures for
 scalable vectors. Helpful techniques include batching, structure-of-array
 layouts, and aligned/padded allocations.
+
+## Examples
+
+Online demos using Compiler Explorer:
+
+-   [generating code for multiple targets](https://gcc.godbolt.org/z/n6rx6xK5h) (recommended)
+-   [single target using -m flags](https://gcc.godbolt.org/z/rGnjMevKG)
+
+Projects using Highway: (to add yours, feel free to raise an issue or contact us
+via the below email)
+
+*   [iresearch database index](https://github.com/iresearch-toolkit/iresearch/blob/e7638e7a4b99136ca41f82be6edccf01351a7223/core/utils/simd_utils.hpp)
+*   [JPEG XL image codec](https://github.com/libjxl/libjxl)
+*   [Grok JPEG 2000 image codec](https://github.com/GrokImageCompression/grok)
+*   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort)
 
 ## Current status
 
