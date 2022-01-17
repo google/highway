@@ -288,7 +288,6 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 # Programming exercise with integrated benchmark
 add_executable(hwy_benchmark hwy/examples/benchmark.cc)
 target_sources(hwy_benchmark PRIVATE
-    hwy/nanobenchmark.cc
     hwy/nanobenchmark.h)
 # Try adding either -DHWY_COMPILE_ONLY_SCALAR or -DHWY_COMPILE_ONLY_STATIC to
 # observe the difference in targets printed.
