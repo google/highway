@@ -320,102 +320,6 @@ template <class T>
 using RemoveConst = typename RemoveConstT<T>::type;
 
 //------------------------------------------------------------------------------
-// Type traits
-
-template <typename T>
-HWY_API constexpr bool IsFloat() {
-  // Cannot use T(1.25) != T(1) for float16_t, which can only be converted to or
-  // from a float, not compared.
-  return IsSame<T, float>() || IsSame<T, double>();
-}
-
-template <typename T>
-HWY_API constexpr bool IsSigned() {
-  return T(0) > T(-1);
-}
-template <>
-constexpr bool IsSigned<float16_t>() {
-  return true;
-}
-template <>
-constexpr bool IsSigned<bfloat16_t>() {
-  return true;
-}
-
-// Largest/smallest representable integer values.
-template <typename T>
-HWY_API constexpr T LimitsMax() {
-  static_assert(!IsFloat<T>(), "Only for integer types");
-  return IsSigned<T>() ? T((1ULL << (sizeof(T) * 8 - 1)) - 1)
-                       : static_cast<T>(~0ull);
-}
-template <typename T>
-HWY_API constexpr T LimitsMin() {
-  static_assert(!IsFloat<T>(), "Only for integer types");
-  return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
-}
-
-// Largest/smallest representable value (integer or float). This naming avoids
-// confusion with numeric_limits<float>::min() (the smallest positive value).
-template <typename T>
-HWY_API constexpr T LowestValue() {
-  return LimitsMin<T>();
-}
-template <>
-constexpr float LowestValue<float>() {
-  return -FLT_MAX;
-}
-template <>
-constexpr double LowestValue<double>() {
-  return -DBL_MAX;
-}
-
-template <typename T>
-HWY_API constexpr T HighestValue() {
-  return LimitsMax<T>();
-}
-template <>
-constexpr float HighestValue<float>() {
-  return FLT_MAX;
-}
-template <>
-constexpr double HighestValue<double>() {
-  return DBL_MAX;
-}
-
-// Returns bitmask of the exponent field in IEEE binary32/64.
-template <typename T>
-constexpr T ExponentMask() {
-  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
-  return 0;
-}
-template <>
-constexpr uint32_t ExponentMask<uint32_t>() {
-  return 0x7F800000;
-}
-template <>
-constexpr uint64_t ExponentMask<uint64_t>() {
-  return 0x7FF0000000000000ULL;
-}
-
-// Returns 1 << mantissa_bits as a floating-point number. All integers whose
-// absolute value are less than this can be represented exactly.
-template <typename T>
-constexpr T MantissaEnd() {
-  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
-  return 0;
-}
-template <>
-constexpr float MantissaEnd<float>() {
-  return 8388608.0f;  // 1 << 23
-}
-template <>
-constexpr double MantissaEnd<double>() {
-  // floating point literal with p52 requires C++17.
-  return 4503599627370496.0;  // 1 << 52
-}
-
-//------------------------------------------------------------------------------
 // Type relations
 
 namespace detail {
@@ -555,6 +459,103 @@ template <size_t N>
 using SignedFromSize = typename detail::TypeFromSize<N>::Signed;
 template <size_t N>
 using FloatFromSize = typename detail::TypeFromSize<N>::Float;
+
+//------------------------------------------------------------------------------
+// Type traits
+
+template <typename T>
+HWY_API constexpr bool IsFloat() {
+  // Cannot use T(1.25) != T(1) for float16_t, which can only be converted to or
+  // from a float, not compared.
+  return IsSame<T, float>() || IsSame<T, double>();
+}
+
+template <typename T>
+HWY_API constexpr bool IsSigned() {
+  return T(0) > T(-1);
+}
+template <>
+constexpr bool IsSigned<float16_t>() {
+  return true;
+}
+template <>
+constexpr bool IsSigned<bfloat16_t>() {
+  return true;
+}
+
+// Largest/smallest representable integer values.
+template <typename T>
+HWY_API constexpr T LimitsMax() {
+  static_assert(!IsFloat<T>(), "Only for integer types");
+  using TU = MakeUnsigned<T>;
+  return static_cast<T>(IsSigned<T>() ? (static_cast<TU>(~0ull) >> 1)
+                                      : static_cast<TU>(~0ull));
+}
+template <typename T>
+HWY_API constexpr T LimitsMin() {
+  static_assert(!IsFloat<T>(), "Only for integer types");
+  return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
+}
+
+// Largest/smallest representable value (integer or float). This naming avoids
+// confusion with numeric_limits<float>::min() (the smallest positive value).
+template <typename T>
+HWY_API constexpr T LowestValue() {
+  return LimitsMin<T>();
+}
+template <>
+constexpr float LowestValue<float>() {
+  return -FLT_MAX;
+}
+template <>
+constexpr double LowestValue<double>() {
+  return -DBL_MAX;
+}
+
+template <typename T>
+HWY_API constexpr T HighestValue() {
+  return LimitsMax<T>();
+}
+template <>
+constexpr float HighestValue<float>() {
+  return FLT_MAX;
+}
+template <>
+constexpr double HighestValue<double>() {
+  return DBL_MAX;
+}
+
+// Returns bitmask of the exponent field in IEEE binary32/64.
+template <typename T>
+constexpr T ExponentMask() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return 0;
+}
+template <>
+constexpr uint32_t ExponentMask<uint32_t>() {
+  return 0x7F800000;
+}
+template <>
+constexpr uint64_t ExponentMask<uint64_t>() {
+  return 0x7FF0000000000000ULL;
+}
+
+// Returns 1 << mantissa_bits as a floating-point number. All integers whose
+// absolute value are less than this can be represented exactly.
+template <typename T>
+constexpr T MantissaEnd() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return 0;
+}
+template <>
+constexpr float MantissaEnd<float>() {
+  return 8388608.0f;  // 1 << 23
+}
+template <>
+constexpr double MantissaEnd<double>() {
+  // floating point literal with p52 requires C++17.
+  return 4503599627370496.0;  // 1 << 52
+}
 
 //------------------------------------------------------------------------------
 // Helper functions
