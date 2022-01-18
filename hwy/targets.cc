@@ -23,10 +23,9 @@
 
 #include "hwy/base.h"
 
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
+#if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
 #include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
-#endif                                        // defined(*_SANITIZER)
+#endif
 
 #include <stdlib.h>  // abort / exit
 
