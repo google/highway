@@ -21,6 +21,10 @@ endif()
 
 project(hwy VERSION 0.15.0)  # Keep in sync with highway.h version
 
+# Directly define the ABI version from the cmake project() version values:
+set(LIBRARY_VERSION "${hwy_VERSION}")
+set(LIBRARY_SOVERSION ${hwy_VERSION_MAJOR})
+
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enabled PIE binaries by default if supported.
@@ -75,6 +79,7 @@ set(HWY_SOURCES
     hwy/detect_targets.h  # private
     hwy/foreach_target.h
     hwy/highway.h
+    hwy/highway_export.h
     hwy/nanobenchmark.cc
     hwy/nanobenchmark.h
     hwy/ops/arm_neon-inl.h
@@ -192,21 +197,48 @@ else()
 
 endif()  # !MSVC
 
-add_library(hwy STATIC ${HWY_SOURCES})
+# By default prefer STATIC build (legacy behavior)
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+# only expose shared option to advanced users:
+mark_as_advanced(BUILD_SHARED_LIBS)
+# Define visibility settings globally:
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
+# This preprocessor define will drive the build, also used in the *.pc files:
+if(BUILD_SHARED_LIBS)
+  set(DLLEXPORT_TO_DEFINE "HWY_SHARED_DEFINE")
+else()
+  set(DLLEXPORT_TO_DEFINE "HWY_STATIC_DEFINE")
+endif()
+
+add_library(hwy ${HWY_SOURCES})
+target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
 target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy PUBLIC cxx_std_11)
+set_target_properties(hwy PROPERTIES
+  LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
+if(UNIX)
+  set_property(TARGET hwy APPEND_STRING PROPERTY
+    LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
+endif()
 
-add_library(hwy_contrib STATIC ${HWY_CONTRIB_SOURCES})
+add_library(hwy_contrib ${HWY_CONTRIB_SOURCES})
+target_link_libraries(hwy_contrib hwy)
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_target_properties(hwy_contrib PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
 target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
 
-add_library(hwy_test STATIC ${HWY_TEST_SOURCES})
+add_library(hwy_test ${HWY_TEST_SOURCES})
+target_link_libraries(hwy_test hwy)
 target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_test PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_target_properties(hwy_test PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
 target_include_directories(hwy_test PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy_test PUBLIC cxx_std_11)
 
@@ -288,7 +320,6 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 # Programming exercise with integrated benchmark
 add_executable(hwy_benchmark hwy/examples/benchmark.cc)
 target_sources(hwy_benchmark PRIVATE
-    hwy/nanobenchmark.cc
     hwy/nanobenchmark.h)
 # Try adding either -DHWY_COMPILE_ONLY_SCALAR or -DHWY_COMPILE_ONLY_STATIC to
 # observe the difference in targets printed.

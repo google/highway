@@ -27,12 +27,13 @@
 
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
+#include "hwy/highway_export.h"
 
 namespace hwy {
 
 // Type-independent parts of Image<> - reduces code duplication and facilitates
 // moving member function implementations to cc file.
-struct ImageBase {
+struct HWY_DLLEXPORT ImageBase {
   // Returns required alignment in bytes for externally allocated memory.
   static size_t VectorSize();
 
