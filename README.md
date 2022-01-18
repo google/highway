@@ -68,6 +68,8 @@ via the below email)
 
 ## Current status
 
+### Targets
+
 Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, AVX3_DL (~Icelake,
 requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE,
 WASM SIMD.
@@ -76,9 +78,18 @@ SVE is tested using farm_sve (see acknowledgments). SVE2 is implemented but not
 yet validated. A subset of RVV is implemented and tested with LLVM and QEMU.
 Work is underway to add RVV ops which were not yet supported by GCC.
 
-Version 0.11 is considered stable enough to use in other projects, and is
-expected to remain backwards compatible unless serious issues are discovered
-while finishing the RVV target. After that, Highway will reach version 1.0.
+### Versioning
+
+Highway releases aim to follow the semver.org system (MAJOR.MINOR.PATCH),
+incrementing MINOR after backward-compatible additions and PATCH after
+backward-compatible fixes. We recommend using releases (rather than the Git tip)
+because they are tested more extensively, see below.
+
+Version 0.11 is considered stable enough to use in other projects.
+Version 1.0 will signal an increased focus on backwards compatibility and will
+be reached after the RVV target is finished (planned for 2022H1).
+
+### Testing
 
 Continuous integration tests build with a recent version of Clang (running on
 x86 and QEMU for ARM) and MSVC from VS2015 (running on x86).
@@ -86,6 +97,8 @@ x86 and QEMU for ARM) and MSVC from VS2015 (running on x86).
 Before releases, we also test on x86 with Clang and GCC, and ARMv7/8 via
 GCC cross-compile and QEMU. See the
 [testing process](g3doc/release_testing_process.md) for details.
+
+### Related modules
 
 The `contrib` directory contains SIMD-related utilities: an image class with
 aligned rows, a math library (16 functions already implemented, mostly
