@@ -117,7 +117,7 @@ struct TestOddEvenBlocks {
 };
 
 HWY_NOINLINE void TestAllOddEvenBlocks() {
-  ForAllTypes(ForShrinkableVectors<TestOddEvenBlocks>());
+  ForAllTypes(ForGEVectors<128, TestOddEvenBlocks>());
 }
 
 struct TestSwapAdjacentBlocks {
@@ -139,7 +139,7 @@ struct TestSwapAdjacentBlocks {
 };
 
 HWY_NOINLINE void TestAllSwapAdjacentBlocks() {
-  ForAllTypes(ForPartialVectors<TestSwapAdjacentBlocks>());
+  ForAllTypes(ForGEVectors<128, TestSwapAdjacentBlocks>());
 }
 
 struct TestTableLookupLanes {
@@ -299,25 +299,25 @@ HWY_NOINLINE void TestAllReverse() {
 HWY_NOINLINE void TestAllReverse2() {
   // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
   // which requires 16 bits.
-  ForUIF64(ForGE128Vectors<TestReverse2>());
-  ForUIF32(ForGE64Vectors<TestReverse2>());
-  ForUIF16(ForGE32Vectors<TestReverse2>());
+  ForUIF64(ForGEVectors<128, TestReverse2>());
+  ForUIF32(ForGEVectors<64, TestReverse2>());
+  ForUIF16(ForGEVectors<32, TestReverse2>());
 }
 
 HWY_NOINLINE void TestAllReverse4() {
   // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
   // which requires 16 bits.
-  ForUIF64(ForGE256Vectors<TestReverse4>());
-  ForUIF32(ForGE128Vectors<TestReverse4>());
-  ForUIF16(ForGE64Vectors<TestReverse4>());
+  ForUIF64(ForGEVectors<256, TestReverse4>());
+  ForUIF32(ForGEVectors<128, TestReverse4>());
+  ForUIF16(ForGEVectors<64, TestReverse4>());
 }
 
 HWY_NOINLINE void TestAllReverse8() {
   // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
   // which requires 16 bits.
-  ForUIF64(ForGE512Vectors<TestReverse8>());
-  ForUIF32(ForGE256Vectors<TestReverse8>());
-  ForUIF16(ForGE128Vectors<TestReverse8>());
+  ForUIF64(ForGEVectors<512, TestReverse8>());
+  ForUIF32(ForGEVectors<256, TestReverse8>());
+  ForUIF16(ForGEVectors<128, TestReverse8>());
 }
 
 struct TestReverseBlocks {
@@ -345,7 +345,7 @@ struct TestReverseBlocks {
 };
 
 HWY_NOINLINE void TestAllReverseBlocks() {
-  ForAllTypes(ForGE128Vectors<TestReverseBlocks>());
+  ForAllTypes(ForGEVectors<128, TestReverseBlocks>());
 }
 
 class TestCompress {

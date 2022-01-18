@@ -233,7 +233,7 @@ struct TestLoadDup128 {
 };
 
 HWY_NOINLINE void TestAllLoadDup128() {
-  ForAllTypes(ForGE128Vectors<TestLoadDup128>());
+  ForAllTypes(ForGEVectors<128, TestLoadDup128>());
 }
 
 struct TestStream {

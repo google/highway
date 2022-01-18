@@ -603,19 +603,19 @@ class TestSpecialShuffle64 {
 };
 
 HWY_NOINLINE void TestAllSpecialShuffles() {
-  const ForGE128Vectors<TestSpecialShuffle32> test32;
+  const ForGEVectors<128, TestSpecialShuffle32> test32;
   test32(uint32_t());
   test32(int32_t());
   test32(float());
 
 #if HWY_CAP_INTEGER64
-  const ForGE128Vectors<TestSpecialShuffle64> test64;
+  const ForGEVectors<128, TestSpecialShuffle64> test64;
   test64(uint64_t());
   test64(int64_t());
 #endif
 
 #if HWY_CAP_FLOAT64
-  const ForGE128Vectors<TestSpecialShuffle64> test_d;
+  const ForGEVectors<128, TestSpecialShuffle64> test_d;
   test_d(double());
 #endif
 }

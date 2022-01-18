@@ -239,7 +239,7 @@ HWY_API size_t Lanes(Simd<T, N> /* tag */) {
 
   const size_t actual = detail::HardwareLanes(hwy::SizeTag<sizeof(T)>());
   const size_t div = HWY_LANES(T) / N;
-  return (div <= 8) ? actual / div : HWY_MIN(actual, N);
+  return (div <= 8) ? (actual / div) : HWY_MIN(actual, N);
 }
 
 // ================================================== MASK INIT
@@ -1446,27 +1446,6 @@ HWY_API V OddEvenBlocks(const V odd, const V even) {
   return IfThenElse(is_even, even, odd);
 }
 
-// ------------------------------ SwapAdjacentBlocks
-
-namespace detail {
-
-template <typename T, size_t N>
-constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
-  // We might have a capped vector smaller than a block, so honor that.
-  return HWY_MIN(16 / sizeof(T), N);
-}
-
-}  // namespace detail
-
-template <class V>
-HWY_API V SwapAdjacentBlocks(const V v) {
-  const DFromV<V> d;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
-  const V down = detail::Ext<kLanesPerBlock>(v, v);
-  const V up = detail::Splice(v, v, FirstN(d, kLanesPerBlock));
-  return OddEvenBlocks(up, down);
-}
-
 // ------------------------------ TableLookupLanes
 
 template <class D, class VI>
@@ -1496,6 +1475,28 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
 
 HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
 #undef HWY_SVE_TABLE
+
+// ------------------------------ SwapAdjacentBlocks (TableLookupLanes)
+
+namespace detail {
+
+template <typename T, size_t N>
+constexpr size_t LanesPerBlock(Simd<T, N> /* tag */) {
+  // We might have a capped vector smaller than a block, so honor that.
+  return HWY_MIN(16 / sizeof(T), N);
+}
+
+}  // namespace detail
+
+template <class V>
+HWY_API V SwapAdjacentBlocks(const V v) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr auto kLanesPerBlock =
+      static_cast<TFromV<V>>(detail::LanesPerBlock(d));
+  const VFromD<decltype(du)> idx = detail::XorN(Iota(du, 0), kLanesPerBlock);
+  return TableLookupLanes(v, idx);
+}
 
 // ------------------------------ Reverse
 
@@ -1546,7 +1547,7 @@ template <class D>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
   const auto idx = detail::XorN(Iota(du, 0), 3);
-  return TableLookupLanes(v, BitCast(du, idx));
+  return TableLookupLanes(v, idx);
 }
 
 // ------------------------------ Reverse8 (TableLookupLanes)
@@ -1555,7 +1556,7 @@ template <class D>
 HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
   const auto idx = detail::XorN(Iota(du, 0), 7);
-  return TableLookupLanes(v, BitCast(du, idx));
+  return TableLookupLanes(v, idx);
 }
 
 // ------------------------------ Compress (PromoteTo)

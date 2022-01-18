@@ -238,7 +238,6 @@ class TestLt128 {
     const V v01 = Make128(d, 0, 1);
     const V v10 = Make128(d, 1, 0);
     const V v11 = Add(v01, v10);
-    const V iota = Iota(d, 1);
 
     const auto mask_false = MaskFalse(d);
     const auto mask_true = MaskTrue(d);
@@ -257,14 +256,27 @@ class TestLt128 {
     HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, v11, v01));
 
     // Also check 128-bit blocks are independent
+    const V iota = Iota(d, 1);
     HWY_ASSERT_MASK_EQ(d, mask_true, Lt128(d, iota, Add(iota, v01)));
     HWY_ASSERT_MASK_EQ(d, mask_true, Lt128(d, iota, Add(iota, v10)));
     HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, Add(iota, v01), iota));
     HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, Add(iota, v10), iota));
+
+    // Max value
+    const V vm = Make128(d, LimitsMax<T>(), LimitsMax<T>());
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, vm, vm));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, vm, v00));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, vm, v01));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, vm, v10));
+    HWY_ASSERT_MASK_EQ(d, mask_false, Lt128(d, vm, v11));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Lt128(d, v00, vm));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Lt128(d, v01, vm));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Lt128(d, v10, vm));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Lt128(d, v11, vm));
   }
 };
 
-HWY_NOINLINE void TestAllLt128() { ForGE128Vectors<TestLt128>()(uint64_t()); }
+HWY_NOINLINE void TestAllLt128() { ForGEVectors<128, TestLt128>()(uint64_t()); }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

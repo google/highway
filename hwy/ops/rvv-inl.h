@@ -276,6 +276,13 @@ HWY_API size_t Lanes(Simd<T, N> /* tag*/) {
   return HWY_MIN(N, Lanes(Full<T>()));
 }
 
+// Fraction
+template <typename T, size_t N,
+          hwy::EnableIf<(HWY_LANES(T) / 8 <= N && N < HWY_LANES(T))>* = nullptr>
+HWY_API size_t Lanes(Simd<T, N> /* tag*/) {
+  return Lanes(Simd<T, HWY_LANES(T)>()) / (HWY_LANES(T) / N);
+}
+
 template <size_t N>
 HWY_API size_t Lanes(Simd<bfloat16_t, N> /* tag*/) {
   return Lanes(Simd<uint16_t, N>());
@@ -1092,15 +1099,15 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL)
 
 // ------------------------------ Store
 
-#define HWY_RVV_RET_ARGVDP(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                           SHIFT, MLEN, NAME, OP)                           \
-  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                           \
-                    HWY_RVV_D(CHAR, SEW, LMUL) d,                           \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, Lanes(d));                \
+#define HWY_RVV_STORE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                             \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                             \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                  \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, Lanes(d));                  \
   }
-HWY_RVV_FOREACH(HWY_RVV_RET_ARGVDP, Store, se, _ALL)
-#undef HWY_RVV_RET_ARGVDP
+HWY_RVV_FOREACH(HWY_RVV_STORE, Store, se, _ALL)
+#undef HWY_RVV_STORE
 
 // Capped
 template <typename T, size_t N,
@@ -1112,27 +1119,36 @@ HWY_API void Store(VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
 
 // ------------------------------ MaskedStore
 
-#define HWY_RVV_RET_ARGMVDP(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                            SHIFT, MLEN, NAME, OP)                           \
-  HWY_API void NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v,         \
-                    HWY_RVV_D(CHAR, SEW, LMUL) d,                            \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                 \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));          \
+#define HWY_RVV_MASKED_STORE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                             SHIFT, MLEN, NAME, OP)                           \
+  HWY_API void NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v,          \
+                    HWY_RVV_D(CHAR, SEW, LMUL) d,                             \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                  \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));           \
   }
-HWY_RVV_FOREACH(HWY_RVV_RET_ARGMVDP, MaskedStore, se, _ALL)
-#undef HWY_RVV_RET_ARGMVDP
+HWY_RVV_FOREACH(HWY_RVV_MASKED_STORE, MaskedStore, se, _ALL)
+#undef HWY_RVV_MASKED_STORE
 
 namespace detail {
 
-#define HWY_RVV_RET_ARGNVDP(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                            SHIFT, MLEN, NAME, OP)                           \
-  HWY_API void NAME(size_t count, HWY_RVV_V(BASE, SEW, LMUL) v,              \
-                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                      \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                 \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, count);                    \
+#define HWY_RVV_STOREN(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
+  HWY_API void NAME(size_t count, HWY_RVV_V(BASE, SEW, LMUL) v,                \
+                    HWY_RVV_D(CHAR, SEW, LMUL) /* d */,                        \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                   \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, count);                      \
   }
-HWY_RVV_FOREACH(HWY_RVV_RET_ARGNVDP, StoreN, se, _ALL)
-#undef HWY_RVV_RET_ARGNVDP
+HWY_RVV_FOREACH(HWY_RVV_STOREN, StoreN, se, _ALL)
+#undef HWY_RVV_STOREN
+
+// Capped
+template <typename T, size_t N,
+          hwy::EnableIf<(N < HWY_LANES(T) / 8)>* = nullptr>
+HWY_API void StoreN(size_t count, VFromD<Simd<T, N>> v, Simd<T, N> /* d */,
+                    T* HWY_RESTRICT p) {
+  // Pass full D to match one of the above overloads
+  StoreN(count, v, DFromV<decltype(v)>(), p);
+}
 
 }  // namespace detail
 
@@ -2152,6 +2168,7 @@ HWY_API MFromD<D> FirstN(const D d, const size_t n) {
 
 template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
 HWY_API MFromD<D> FirstN(const D d, const size_t n) {
+  // TODO(janwas): for reasons unknown, this freezes spike.
   const auto zero = Zero(d);
   const auto one = Set(d, 1);
   return Eq(detail::SlideUp(one, zero, n), one);

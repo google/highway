@@ -125,7 +125,7 @@ class TestAES {
     TestSBox(t, d);
   }
 };
-HWY_NOINLINE void TestAllAES() { ForGE128Vectors<TestAES>()(uint8_t()); }
+HWY_NOINLINE void TestAllAES() { ForGEVectors<128, TestAES>()(uint8_t()); }
 
 #else
 HWY_NOINLINE void TestAllAES() {}
@@ -537,7 +537,7 @@ struct TestCLMul {
   }
 };
 
-HWY_NOINLINE void TestAllCLMul() { ForGE128Vectors<TestCLMul>()(uint64_t()); }
+HWY_NOINLINE void TestAllCLMul() { ForGEVectors<128, TestCLMul>()(uint64_t()); }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

@@ -722,7 +722,7 @@ class TestMinMax128 {
 };
 
 HWY_NOINLINE void TestAllMinMax128() {
-  ForGE128Vectors<TestMinMax128>()(uint64_t());
+  ForGEVectors<128, TestMinMax128>()(uint64_t());
 }
 
 struct TestUnsignedMul {
@@ -919,7 +919,7 @@ HWY_NOINLINE void TestAllMulEven() {
   test(int32_t());
   test(uint32_t());
 
-  ForGE128Vectors<TestMulEvenOdd64>()(uint64_t());
+  ForGEVectors<128, TestMulEvenOdd64>()(uint64_t());
 }
 
 struct TestMulAdd {
@@ -1481,7 +1481,9 @@ struct TestSumsOf8 {
   }
 };
 
-HWY_NOINLINE void TestAllSumsOf8() { ForGE64Vectors<TestSumsOf8>()(uint8_t()); }
+HWY_NOINLINE void TestAllSumsOf8() {
+  ForGEVectors<64, TestSumsOf8>()(uint8_t());
+}
 
 struct TestNeg {
   template <typename T, class D>

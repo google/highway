@@ -138,7 +138,7 @@ HWY_NOINLINE void TestAllBitCast() {
 
 #if HWY_TARGET != HWY_SCALAR
   // For non-scalar vectors, we can cast all types to all.
-  ForAllTypes(ForGE64Vectors<TestBitCastFrom>());
+  ForAllTypes(ForGEVectors<64, TestBitCastFrom>());
 #endif
 }
 
