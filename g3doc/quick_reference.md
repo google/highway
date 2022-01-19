@@ -1198,17 +1198,19 @@ support them).
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
 
-The following signal capabilities and expand to 1 or 0.
+The following indicate support for certain lane types and expand to 1 or 0:
 
-*   `HWY_CAP_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
-*   `HWY_CAP_FLOAT16`: support for IEEE half-precision floating-point lanes.
-*   `HWY_CAP_FLOAT64`: support for double-precision floating-point lanes.
+*   `HWY_HAVE_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
+*   `HWY_HAVE_FLOAT16`: support for 16-bit floating-point lanes.
+*   `HWY_HAVE_FLOAT64`: support for double-precision floating-point lanes.
+
+The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
+`HWY_CAP_FLOAT64`, respectively. Those `HWY_CAP_*` names are DEPRECATED.
 
 The following were used to signal the maximum number of lanes for certain
 operations, but this is no longer necessary (nor possible on SVE/RVV), so they
 are DEPRECATED:
 
-*   `HWY_GATHER_LANES(T)`.
 *   `HWY_CAP_GE256`: the current target supports vectors of >= 256 bits.
 *   `HWY_CAP_GE512`: the current target supports vectors of >= 512 bits.
 

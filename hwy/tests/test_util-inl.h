@@ -41,7 +41,7 @@ HWY_NOINLINE void PrintValue(T value) {
   fprintf(stderr, "0x%02X,", byte);
 }
 
-#if HWY_CAP_FLOAT16
+#if HWY_HAVE_FLOAT16
 HWY_NOINLINE void PrintValue(float16_t value) {
   uint16_t bits;
   CopyBytes<2>(&value, &bits);
@@ -347,7 +347,7 @@ void ForSignedTypes(const Func& func) {
   func(int8_t());
   func(int16_t());
   func(int32_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   func(int64_t());
 #endif
 }
@@ -357,7 +357,7 @@ void ForUnsignedTypes(const Func& func) {
   func(uint8_t());
   func(uint16_t());
   func(uint32_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   func(uint64_t());
 #endif
 }
@@ -371,7 +371,7 @@ void ForIntegerTypes(const Func& func) {
 template <class Func>
 void ForFloatTypes(const Func& func) {
   func(float());
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   func(double());
 #endif
 }
@@ -386,7 +386,7 @@ template <class Func>
 void ForUIF16(const Func& func) {
   func(uint16_t());
   func(int16_t());
-#if HWY_CAP_FLOAT16
+#if HWY_HAVE_FLOAT16
   func(float16_t());
 #endif
 }
@@ -400,11 +400,11 @@ void ForUIF32(const Func& func) {
 
 template <class Func>
 void ForUIF64(const Func& func) {
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   func(uint64_t());
   func(int64_t());
 #endif
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   func(double());
 #endif
 }

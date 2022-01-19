@@ -610,7 +610,7 @@ HWY_NOINLINE void TestAllCompress() {
 
   test(uint16_t());
   test(int16_t());
-#if HWY_CAP_FLOAT16
+#if HWY_HAVE_FLOAT16
   test(float16_t());
 #endif
 

@@ -396,7 +396,7 @@ HWY_NOINLINE void TestAllZip() {
   lower_unsigned(uint8_t());
 #endif
   lower_unsigned(uint16_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
@@ -405,7 +405,7 @@ HWY_NOINLINE void TestAllZip() {
   lower_signed(int8_t());
 #endif
   lower_signed(int16_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   lower_signed(int32_t());  // generates i64
 #endif
 
@@ -414,7 +414,7 @@ HWY_NOINLINE void TestAllZip() {
   upper_unsigned(uint8_t());
 #endif
   upper_unsigned(uint16_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   upper_unsigned(uint32_t());  // generates u64
 #endif
 
@@ -423,7 +423,7 @@ HWY_NOINLINE void TestAllZip() {
   upper_signed(int8_t());
 #endif
   upper_signed(int16_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   upper_signed(int32_t());  // generates i64
 #endif
 
@@ -608,13 +608,13 @@ HWY_NOINLINE void TestAllSpecialShuffles() {
   test32(int32_t());
   test32(float());
 
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   const ForGEVectors<128, TestSpecialShuffle64> test64;
   test64(uint64_t());
   test64(int64_t());
 #endif
 
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   const ForGEVectors<128, TestSpecialShuffle64> test_d;
   test_d(double());
 #endif

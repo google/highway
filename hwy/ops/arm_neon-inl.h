@@ -4980,7 +4980,7 @@ HWY_INLINE Vec128<T, N> IdxFromBits(hwy::SizeTag<4> /*tag*/,
   return BitCast(d, Load(d8, packed_array + 16 * mask_bits));
 }
 
-#if HWY_CAP_INTEGER64 || HWY_CAP_FLOAT64
+#if HWY_HAVE_INTEGER64 || HWY_HAVE_FLOAT64
 
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IdxFromBits(hwy::SizeTag<8> /*tag*/,

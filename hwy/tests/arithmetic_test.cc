@@ -544,7 +544,7 @@ HWY_NOINLINE void TestAllVariableShifts() {
   shl_s(int32_t());
   shr_s(int32_t());
 
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   shl_u(uint64_t());
   shr_u(uint64_t());
 
@@ -556,7 +556,7 @@ HWY_NOINLINE void TestAllVariableShifts() {
 HWY_NOINLINE void TestAllRotateRight() {
   const ForPartialVectors<TestRotateRight> test;
   test(uint32_t());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   test(uint64_t());
 #endif
 }

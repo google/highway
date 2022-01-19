@@ -60,17 +60,17 @@ struct TestBitCastFrom {
     TestBitCast<uint8_t>()(t, d);
     TestBitCast<uint16_t>()(t, d);
     TestBitCast<uint32_t>()(t, d);
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
     TestBitCast<uint64_t>()(t, d);
 #endif
     TestBitCast<int8_t>()(t, d);
     TestBitCast<int16_t>()(t, d);
     TestBitCast<int32_t>()(t, d);
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
     TestBitCast<int64_t>()(t, d);
 #endif
     TestBitCast<float>()(t, d);
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
     TestBitCast<double>()(t, d);
 #endif
   }
@@ -106,35 +106,35 @@ HWY_NOINLINE void TestAllBitCast() {
   to_i32(int32_t());
   to_i32(float());
 
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   const ForPartialVectors<TestBitCast<uint64_t>> to_u64;
   to_u64(uint64_t());
   to_u64(int64_t());
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   to_u64(double());
 #endif
 
   const ForPartialVectors<TestBitCast<int64_t>> to_i64;
   to_i64(uint64_t());
   to_i64(int64_t());
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   to_i64(double());
 #endif
-#endif  // HWY_CAP_INTEGER64
+#endif  // HWY_HAVE_INTEGER64
 
   const ForPartialVectors<TestBitCast<float>> to_float;
   to_float(uint32_t());
   to_float(int32_t());
   to_float(float());
 
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   const ForPartialVectors<TestBitCast<double>> to_double;
   to_double(double());
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   to_double(uint64_t());
   to_double(int64_t());
-#endif  // HWY_CAP_INTEGER64
-#endif  // HWY_CAP_FLOAT64
+#endif  // HWY_HAVE_INTEGER64
+#endif  // HWY_HAVE_FLOAT64
 
 #if HWY_TARGET != HWY_SCALAR
   // For non-scalar vectors, we can cast all types to all.
@@ -191,7 +191,7 @@ HWY_NOINLINE void TestAllPromoteTo() {
 
   // Must test f16/bf16 separately because we can only load/store/convert them.
 
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   const ForPromoteVectors<TestPromoteTo<uint64_t>, 2> to_u64div2;
   to_u64div2(uint32_t());
 
@@ -199,7 +199,7 @@ HWY_NOINLINE void TestAllPromoteTo() {
   to_i64div2(int32_t());
 #endif
 
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   const ForPromoteVectors<TestPromoteTo<double>, 2> to_f64div2;
   to_f64div2(int32_t());
   to_f64div2(float());
@@ -272,7 +272,7 @@ HWY_NOINLINE void TestAllDemoteToInt() {
 }
 
 HWY_NOINLINE void TestAllDemoteToMixed() {
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   const ForDemoteVectors<TestDemoteTo<int32_t>> to_i32;
   to_i32(double());
 #endif
@@ -315,7 +315,7 @@ struct TestDemoteToFloat {
 HWY_NOINLINE void TestAllDemoteToFloat() {
   // Must test f16 separately because we can only load/store/convert them.
 
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   const ForDemoteVectors<TestDemoteToFloat<float>, 2> to_float;
   to_float(double());
 #endif
@@ -355,7 +355,7 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
 struct TestF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_CAP_FLOAT16
+#if HWY_HAVE_FLOAT16
     size_t padded;
     auto in = F16TestCases(d32, padded);
     using TF16 = float16_t;
@@ -776,7 +776,7 @@ struct TestI32F64 {
 };
 
 HWY_NOINLINE void TestAllI32F64() {
-#if HWY_CAP_FLOAT64
+#if HWY_HAVE_FLOAT64
   ForDemoteVectors<TestI32F64>()(double());
 #endif
 }

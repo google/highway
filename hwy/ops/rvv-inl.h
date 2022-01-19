@@ -154,7 +154,7 @@ namespace detail {  // for code folding
   HWY_CONCAT(HWY_RVV_FOREACH_64, LMULS)(X_MACRO, int, i, NAME, OP)
 
 // SEW for float:
-#if HWY_CAP_FLOAT16
+#if HWY_HAVE_FLOAT16
 #define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS) \
   HWY_CONCAT(HWY_RVV_FOREACH_16, LMULS)(X_MACRO, float, f, NAME, OP)
 #else
@@ -242,7 +242,7 @@ namespace detail {  // for code folding
     using Lane = HWY_RVV_T(BASE, SEW);                                         \
     using type = Full<Lane, SHIFT>;                                            \
   };
-#if HWY_CAP_FLOAT16
+#if HWY_HAVE_FLOAT16
 using Vf16m1 = vfloat16m1_t;
 using Vf16m2 = vfloat16m2_t;
 using Vf16m4 = vfloat16m4_t;

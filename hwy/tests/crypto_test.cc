@@ -135,7 +135,7 @@ struct TestCLMul {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // needs 64 bit lanes and 128-bit result
-#if HWY_TARGET != HWY_SCALAR && HWY_CAP_INTEGER64
+#if HWY_TARGET != HWY_SCALAR && HWY_HAVE_INTEGER64
     const size_t N = Lanes(d);
     if (N == 1) return;
 

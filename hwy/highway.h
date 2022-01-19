@@ -267,6 +267,11 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 
 #endif  // HWY_IDE || ((HWY_TARGETS & (HWY_TARGETS - 1)) == 0)
 
+// DEPRECATED names; please use HWY_HAVE_* instead.
+#define HWY_CAP_INTEGER64 HWY_HAVE_INTEGER64
+#define HWY_CAP_FLOAT16 HWY_HAVE_FLOAT16
+#define HWY_CAP_FLOAT64 HWY_HAVE_FLOAT64
+
 }  // namespace hwy
 
 #endif  // HWY_HIGHWAY_INCLUDED

@@ -315,7 +315,7 @@ HWY_API V PopulationCount(V v) {
   return Add(ShiftRight<16>(vals), And(vals, Set(d, 0xFF)));
 }
 
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
 template <typename V, HWY_IF_LANES_ARE(uint64_t, V)>
 HWY_API V PopulationCount(V v) {
   const DFromV<V> d;

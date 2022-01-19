@@ -2999,7 +2999,7 @@ HWY_INLINE Vec256<T> Idx32x4FromBits(const uint64_t mask_bits) {
   return BitCast(d, Load(d8, packed_array + 16 * mask_bits));
 }
 
-#if HWY_CAP_INTEGER64 || HWY_CAP_FLOAT64
+#if HWY_HAVE_INTEGER64 || HWY_HAVE_FLOAT64
 
 template <typename T>
 HWY_INLINE Vec256<T> Idx64x2FromBits(const uint64_t mask_bits) {
@@ -3040,7 +3040,7 @@ HWY_INLINE Vec256<T> Compress(hwy::SizeTag<4> /*tag*/, Vec256<T> v,
   return BitCast(D(), TableLookupBytes(BitCast(di, v), BitCast(di, idx)));
 }
 
-#if HWY_CAP_INTEGER64 || HWY_CAP_FLOAT64
+#if HWY_HAVE_INTEGER64 || HWY_HAVE_FLOAT64
 
 template <typename T>
 HWY_INLINE Vec128<uint64_t, N> Compress(hwy::SizeTag<8> /*tag*/,

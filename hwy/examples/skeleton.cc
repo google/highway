@@ -63,7 +63,7 @@ ATTR_MSAN void OneFloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
 void CodepathDemo() {
   // Highway defaults to portability, but per-target codepaths may be selected
   // via #if HWY_TARGET == HWY_SSE4 or by testing capability macros:
-#if HWY_CAP_INTEGER64
+#if HWY_HAVE_INTEGER64
   const char* gather = "Has int64";
 #else
   const char* gather = "No int64";
