@@ -299,7 +299,7 @@ struct ForGEVectors {
   }
 };
 
-template <size_t kMinBits, class Test>
+template <class Test>
 using ForGE128Vectors = ForGEVectors<128, Test>;
 
 // Calls Test for all N that can be promoted (not the same as Extendable because
