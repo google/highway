@@ -2196,16 +2196,13 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N> df32, svuint16_t a,
 #endif
 
 HWY_API svuint8_t AESRound(svuint8_t state, svuint8_t round_key) {
-  // NOTE: it is important that AESE and AESMC be consecutive instructions so
-  // they can be fused. AESE includes AddRoundKey, which is a different ordering
-  // than the AES-NI semantics we adopted, so XOR by 0 and later with the actual
-  // round key (the compiler will hopefully optimize this for multiple rounds).
+  // It is not clear whether E and MC fuse like they did on NEON.
   const svuint8_t zero = svdup_n_u8(0);
-  return Xor(vaesmcq_u8(vaeseq_u8(state, zero), round_key));
+  return Xor(svaesmc_u8(svaese_u8(state, zero)), round_key);
 }
 
 HWY_API svuint8_t AESLastRound(svuint8_t state, svuint8_t round_key) {
-  return Xor(vaeseq_u8(state, svdup_n_u8(0)), round_key);
+  return Xor(svaese_u8(state, svdup_n_u8(0)), round_key);
 }
 
 HWY_API svuint64_t CLMulLower(const svuint64_t a, const svuint64_t b) {
