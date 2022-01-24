@@ -80,7 +80,7 @@ COPTS = select({
     "//conditions:default": CLANG_GCC_COPTS + CLANG_ONLY_COPTS,
 }) + select({
     "@platforms//cpu:riscv64": [
-        "-march=rv64gcv0p10",
+        "-march=rv64gcv1p0",
         "-menable-experimental-extensions",
     ],
     "//conditions:default": [
