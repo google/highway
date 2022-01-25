@@ -575,7 +575,7 @@ Vec512<T> OddEven128(Vec512<T> odd, Vec512<T> even) {
 }
 
 template <SortOrder kOrder, class T>
-HWY_INLINE void SortDistance4LanesV(Simd<T, 16> d, Vec<decltype(d)>& v) {
+HWY_INLINE void SortDistance4LanesV(Simd<T, 16, 0> d, Vec<decltype(d)>& v) {
   // In: FEDCBA98 76543210
   // Swap 128-bit halves of each 256 bits => BA98FEDC 32107654
   Vec512<T> swapped = Shuffle128_2301(v, v);
@@ -586,14 +586,14 @@ HWY_INLINE void SortDistance4LanesV(Simd<T, 16> d, Vec<decltype(d)>& v) {
 #endif
 
 template <SortOrder kOrder, typename T>
-HWY_INLINE void SortDistance4LanesV(Simd<T, 8> d, Vec<decltype(d)>& v) {
+HWY_INLINE void SortDistance4LanesV(Simd<T, 8, 0> d, Vec<decltype(d)>& v) {
   Vec<decltype(d)> swapped = ConcatLowerUpper(d, v, v);
   SortLanesIn2Vectors<kOrder>(v, swapped);
   v = ConcatUpperLower(d, swapped, v);
 }
 
 template <SortOrder kOrder, typename T>
-HWY_INLINE void SortDistance4LanesV(Simd<T, 4> /* tag */, ...) {}
+HWY_INLINE void SortDistance4LanesV(Simd<T, 4, 0> /* tag */, ...) {}
 
 // Only used for vectors with at least 16 lanes.
 template <SortOrder kOrder, class D>
@@ -785,8 +785,9 @@ HWY_API size_t TwoQuartetsPerVector(D d, V& q0, V& q1, V& q2, V& q3, V& q4,
 
 // Only called when N=16.
 template <SortOrder kOrder, typename T, class V>
-HWY_API size_t FourQuartetsPerVector(Simd<T, 16> d, V& q0, V& q1, V& q2, V& q3,
-                                     V& q4, V& q5, V& q6, V& q7, T* inout) {
+HWY_API size_t FourQuartetsPerVector(Simd<T, 16, 0> d, V& q0, V& q1, V& q2,
+                                     V& q3, V& q4, V& q5, V& q6, V& q7,
+                                     T* inout) {
   const V q11_01_10_00 = Shuffle128_2020(q0, q1);
   const V q13_03_12_02 = Shuffle128_2020(q2, q3);
   V v0 = Shuffle128_2020(q11_01_10_00, q13_03_12_02);  // 3..0
@@ -828,16 +829,16 @@ HWY_API size_t FourQuartetsPerVector(Simd<T, 16> d, V& q0, V& q1, V& q2, V& q3,
 
 // Avoid needing #if at the call sites.
 template <SortOrder kOrder, typename T>
-HWY_API size_t TwoQuartetsPerVector(Simd<T, 4> /* tag */, ...) {
+HWY_API size_t TwoQuartetsPerVector(Simd<T, 4, 0> /* tag */, ...) {
   return 0;
 }
 
 template <SortOrder kOrder, typename T>
-HWY_API size_t FourQuartetsPerVector(Simd<T, 4> /* tag */, ...) {
+HWY_API size_t FourQuartetsPerVector(Simd<T, 4, 0> /* tag */, ...) {
   return 0;
 }
 template <SortOrder kOrder, typename T>
-HWY_API size_t FourQuartetsPerVector(Simd<T, 8> /* tag */, ...) {
+HWY_API size_t FourQuartetsPerVector(Simd<T, 8, 0> /* tag */, ...) {
   return 0;
 }
 

@@ -284,7 +284,7 @@ HWY_API constexpr bool IsSame() {
 //
 // Note that enabling for exactly 128 bits is unnecessary because a function can
 // simply be overloaded with Vec128<T> and/or Full128<T> tag. Enabling for other
-// sizes (e.g. 64 bit) can be achieved via Simd<T, 8 / sizeof(T)>.
+// sizes (e.g. 64 bit) can be achieved via Simd<T, 8 / sizeof(T), 0>.
 #define HWY_IF_LE128(T, N) hwy::EnableIf<N * sizeof(T) <= 16>* = nullptr
 #define HWY_IF_LE64(T, N) hwy::EnableIf<N * sizeof(T) <= 8>* = nullptr
 #define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr

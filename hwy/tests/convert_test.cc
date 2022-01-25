@@ -168,39 +168,39 @@ struct TestPromoteTo {
 };
 
 HWY_NOINLINE void TestAllPromoteTo() {
-  const ForPromoteVectors<TestPromoteTo<uint16_t>, 2> to_u16div2;
+  const ForPromoteVectors<TestPromoteTo<uint16_t>, 1> to_u16div2;
   to_u16div2(uint8_t());
 
-  const ForPromoteVectors<TestPromoteTo<uint32_t>, 4> to_u32div4;
+  const ForPromoteVectors<TestPromoteTo<uint32_t>, 2> to_u32div4;
   to_u32div4(uint8_t());
 
-  const ForPromoteVectors<TestPromoteTo<uint32_t>, 2> to_u32div2;
+  const ForPromoteVectors<TestPromoteTo<uint32_t>, 1> to_u32div2;
   to_u32div2(uint16_t());
 
-  const ForPromoteVectors<TestPromoteTo<int16_t>, 2> to_i16div2;
+  const ForPromoteVectors<TestPromoteTo<int16_t>, 1> to_i16div2;
   to_i16div2(uint8_t());
   to_i16div2(int8_t());
 
-  const ForPromoteVectors<TestPromoteTo<int32_t>, 2> to_i32div2;
+  const ForPromoteVectors<TestPromoteTo<int32_t>, 1> to_i32div2;
   to_i32div2(uint16_t());
   to_i32div2(int16_t());
 
-  const ForPromoteVectors<TestPromoteTo<int32_t>, 4> to_i32div4;
+  const ForPromoteVectors<TestPromoteTo<int32_t>, 2> to_i32div4;
   to_i32div4(uint8_t());
   to_i32div4(int8_t());
 
   // Must test f16/bf16 separately because we can only load/store/convert them.
 
 #if HWY_HAVE_INTEGER64
-  const ForPromoteVectors<TestPromoteTo<uint64_t>, 2> to_u64div2;
+  const ForPromoteVectors<TestPromoteTo<uint64_t>, 1> to_u64div2;
   to_u64div2(uint32_t());
 
-  const ForPromoteVectors<TestPromoteTo<int64_t>, 2> to_i64div2;
+  const ForPromoteVectors<TestPromoteTo<int64_t>, 1> to_i64div2;
   to_i64div2(int32_t());
 #endif
 
 #if HWY_HAVE_FLOAT64
-  const ForPromoteVectors<TestPromoteTo<double>, 2> to_f64div2;
+  const ForPromoteVectors<TestPromoteTo<double>, 1> to_f64div2;
   to_f64div2(int32_t());
   to_f64div2(float());
 #endif
@@ -251,18 +251,18 @@ struct TestDemoteTo {
         expected[i] = static_cast<ToT>(HWY_MIN(HWY_MAX(min, from[i]), max));
       }
 
-      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
-                        DemoteTo(to_d, Load(from_d, from.get())));
+      const auto in = Load(from_d, from.get());
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(), DemoteTo(to_d, in));
     }
   }
 };
 
 HWY_NOINLINE void TestAllDemoteToInt() {
   ForDemoteVectors<TestDemoteTo<uint8_t>>()(int16_t());
-  ForDemoteVectors<TestDemoteTo<uint8_t>, 4>()(int32_t());
+  ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int32_t());
 
   ForDemoteVectors<TestDemoteTo<int8_t>>()(int16_t());
-  ForDemoteVectors<TestDemoteTo<int8_t>, 4>()(int32_t());
+  ForDemoteVectors<TestDemoteTo<int8_t>, 2>()(int32_t());
 
   const ForDemoteVectors<TestDemoteTo<uint16_t>> to_u16;
   to_u16(int32_t());
@@ -316,7 +316,7 @@ HWY_NOINLINE void TestAllDemoteToFloat() {
   // Must test f16 separately because we can only load/store/convert them.
 
 #if HWY_HAVE_FLOAT64
-  const ForDemoteVectors<TestDemoteToFloat<float>, 2> to_float;
+  const ForDemoteVectors<TestDemoteToFloat<float>, 1> to_float;
   to_float(double());
 #endif
 }
@@ -567,7 +567,7 @@ struct TestConvertU8 {
 };
 
 HWY_NOINLINE void TestAllConvertU8() {
-  ForDemoteVectors<TestConvertU8, 4>()(uint32_t());
+  ForDemoteVectors<TestConvertU8, 2>()(uint32_t());
 }
 
 // Separate function to attempt to work around a compiler bug on ARM: when this

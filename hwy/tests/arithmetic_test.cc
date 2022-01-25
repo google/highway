@@ -915,7 +915,7 @@ struct TestMulEvenOdd64 {
 };
 
 HWY_NOINLINE void TestAllMulEven() {
-  ForExtendableVectors<TestMulEven> test;
+  ForPromoteVectors<TestMulEven> test;
   test(int32_t());
   test(uint32_t());
 

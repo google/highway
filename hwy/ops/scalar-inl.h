@@ -27,7 +27,7 @@ namespace HWY_NAMESPACE {
 
 // Single instruction, single data.
 template <typename T>
-using Sisd = Simd<T, 1>;
+using Sisd = Simd<T, 1, 0>;
 
 // (Wrapper class required for overloading comparison operators.)
 template <typename T>

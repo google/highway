@@ -138,7 +138,7 @@ struct TestStoreInterleaved3 {
 HWY_NOINLINE void TestAllStoreInterleaved3() {
 #if HWY_TARGET == HWY_RVV
   // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-  const ForExtendableVectors<TestStoreInterleaved3, 4> test;
+  const ForExtendableVectors<TestStoreInterleaved3, 2> test;
 #else
   const ForPartialVectors<TestStoreInterleaved3> test;
 #endif
@@ -201,7 +201,7 @@ struct TestStoreInterleaved4 {
 HWY_NOINLINE void TestAllStoreInterleaved4() {
 #if HWY_TARGET == HWY_RVV
   // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-  const ForExtendableVectors<TestStoreInterleaved4, 4> test;
+  const ForExtendableVectors<TestStoreInterleaved4, 2> test;
 #else
   const ForPartialVectors<TestStoreInterleaved4> test;
 #endif

@@ -57,9 +57,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-template <typename T>
-using Full512 = Simd<T, 64 / sizeof(T)>;
-
 namespace detail {
 
 template <typename T>
@@ -2553,12 +2550,6 @@ HWY_API Vec512<double> InterleaveLower(const Vec512<double> a,
   return Vec512<double>{_mm512_unpacklo_pd(a.raw, b.raw)};
 }
 
-// Additional overload for the optional Simd<> tag.
-template <typename T, class V = Vec512<T>>
-HWY_API V InterleaveLower(Full512<T> /* tag */, V a, V b) {
-  return InterleaveLower(a, b);
-}
-
 // ------------------------------ InterleaveUpper
 
 // All functions inside detail lack the required D parameter.
@@ -2623,8 +2614,8 @@ HWY_API Vec512<TW> ZipLower(Vec512<T> a, Vec512<T> b) {
   return BitCast(Full512<TW>(), InterleaveLower(a, b));
 }
 template <typename T, typename TW = MakeWide<T>>
-HWY_API Vec512<TW> ZipLower(Full512<TW> d, Vec512<T> a, Vec512<T> b) {
-  return BitCast(Full512<TW>(), InterleaveLower(d, a, b));
+HWY_API Vec512<TW> ZipLower(Full512<TW> /* d */, Vec512<T> a, Vec512<T> b) {
+  return BitCast(Full512<TW>(), InterleaveLower(a, b));
 }
 
 template <typename T, typename TW = MakeWide<T>>

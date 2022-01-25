@@ -29,6 +29,28 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+struct TestMaxLanes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const size_t kMax = MaxLanes(d);
+    HWY_ASSERT(N <= kMax);
+// TODO(janwas): remove once RVV has HWY_HAVE_SCALABLE
+#if HWY_TARGET != HWY_RVV
+    HWY_ASSERT(kMax <= (HWY_MAX_BYTES / sizeof(T)));
+#endif
+#if HWY_HAVE_SCALABLE
+    if (detail::IsFull(d)) {
+      HWY_ASSERT(kMax == HWY_MAX_BYTES / sizeof(T));
+    }
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllMaxLanes() {
+  ForAllTypes(ForPartialVectors<TestMaxLanes>());
+}
+
 struct TestSet {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -325,6 +347,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(HighwayTest);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllMaxLanes);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSet);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllOverflow);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllClamp);

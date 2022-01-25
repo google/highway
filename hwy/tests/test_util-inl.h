@@ -178,96 +178,118 @@ HWY_INLINE Mask<D> MaskFalse(const D d) {
 
 // Helpers for instantiating tests with combinations of lane types / counts.
 
-// For ensuring we do not call tests with D such that widening D results in 0
-// lanes. Example: assume T=u32, VLEN=256, and fraction=1/8: there is no 1/8th
-// of a u64 vector in this case.
-template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
-HWY_INLINE size_t PromotedLanes(const D d) {
-  return Lanes(RepartitionToWide<decltype(d)>());
-}
-// Already the widest possible T, cannot widen.
-template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
-HWY_INLINE size_t PromotedLanes(const D d) {
-  return Lanes(d);
-}
+// Calls Test for each CappedTag<T, N> where N is in [kMinLanes, kMul * kMinArg]
+// and the resulting Lanes() is in [min_lanes, max_lanes]. The upper bound
+// is required to ensure capped vectors remain extendable. Implemented by
+// recursively halving kMul until it is zero.
+template <typename T, size_t kMul, size_t kMinArg, class Test>
+struct ForeachCappedR {
+  static void Do(size_t min_lanes, size_t max_lanes) {
+    const CappedTag<T, kMul * kMinArg> d;
 
-// For all power of two Simd<T, N> with N in [kMinLanes, kMul * kMinArg] and
-// the resulting Lanes() >= min_lanes.
-// Implemented by recursively halving kMul until it is zero.
-template <typename T, size_t kMul, size_t kMinArg, class Test,
-          bool kPromote = false>
-struct ForeachSizeR {
-  static void Do(size_t min_lanes) {
-    const Simd<T, kMul * kMinArg> d;
-
-    // Skip invalid fractions (e.g. 1/8th of u32x4).
-    const size_t lanes = kPromote ? PromotedLanes(d) : Lanes(d);
+    // If we already don't have enough lanes, stop.
+    const size_t lanes = Lanes(d);
     if (lanes < min_lanes) return;
-    Test()(T(), d);
-    static_assert(kMul != 0, "Recursion should have ended already");
-    ForeachSizeR<T, kMul / 2, kMinArg, Test, kPromote>::Do(min_lanes);
+
+    if (lanes <= max_lanes) {
+      Test()(T(), d);
+    }
+    ForeachCappedR<T, kMul / 2, kMinArg, Test>::Do(min_lanes, max_lanes);
   }
 };
 
 // Base case to stop the recursion.
-template <typename T, size_t kMinArg, class Test, bool kPromote>
-struct ForeachSizeR<T, 0, kMinArg, Test, kPromote> {
+template <typename T, size_t kMinArg, class Test>
+struct ForeachCappedR<T, 0, kMinArg, Test> {
+  static void Do(size_t, size_t) {}
+};
+
+#if HWY_HAVE_SCALABLE
+template <typename T, int kPow2, int kAddPow2, class Test>
+struct ForeachShiftR {
+  static void Do(size_t min_lanes) {
+    const ScalableTag<T, kPow2 + kAddPow2> d;
+
+    // Ensure we have enough lanes (we would not for 1/8th of u32x4 etc.).
+    if (Lanes(d) < min_lanes) return;
+
+    Test()(T(), d);
+    ForeachShiftR<T, kPow2 - 1, kAddPow2, Test>::Do(min_lanes);
+  }
+};
+
+// Base case to stop the recursion.
+template <typename T, int kAddPow2, class Test>
+struct ForeachShiftR<T, -4, kAddPow2, Test> {
   static void Do(size_t) {}
 };
+#else
+// ForeachCappedR already handled all possible sizes.
+#endif  // HWY_HAVE_SCALABLE
 
 // These adapters may be called directly, or via For*Types:
 
-// Calls Test for all power of two N in [1, Lanes(d) / kFactor]. This is for
+// Calls Test for all power of two N in [1, Lanes(d) >> kPow2]. This is for
 // ops that widen their input, e.g. Combine (not supported by HWY_SCALAR).
-template <class Test, size_t kFactor = 2>
+template <class Test, int kPow2 = 1>
 struct ForExtendableVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+    static_assert(kPow2 >= 0, "kPow2 should be log2(factor)");
     constexpr size_t kMaxCapped = HWY_MAX_BYTES / sizeof(T);
+    // Skip CappedTag that are already full vectors.
+    const size_t max_lanes = Lanes(ScalableTag<T>()) >> kPow2;
     (void)kMaxCapped;
+    (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
     // not supported
 #else
-    constexpr bool kPromote = true;
 #if HWY_TARGET == HWY_RVV
-    // Capped: TODO(janwas): enable
-    // ForeachSizeR<T, kMaxCapped / kFactor, 1, Test, kPromote>::Do(1);
+    // ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test>::Do(1, max_lanes)
     // Multiples. TODO(janwas): also fractions
-    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T), Test, kPromote>::Do(1);
+    ForeachCappedR<T, (8 >> kPow2), HWY_LANES(T), Test>::Do(1, max_lanes);
 #elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
-    // Capped: TODO(janwas): enable
-    // ForeachSizeR<T, kMaxCapped / kFactor, 1, Test, kPromote>::Do(1);
-    // Fractions
-    ForeachSizeR<T, 8 / kFactor, HWY_LANES(T) / 8, Test, kPromote>::Do(1);
+    ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test>::Do(1, max_lanes);
+    ForeachShiftR<T, -kPow2, 0, Test>::Do(1);
 #else
-    ForeachSizeR<T, HWY_LANES(T) / kFactor, 1, Test, kPromote>::Do(1);
+    // TODO(janwas): pull this out of #if once RVV also supports it
+    ForeachCappedR<T, (HWY_LANES(T) >> kPow2), 1, Test>::Do(1, max_lanes);
 #endif
 #endif  // HWY_SCALAR
   }
 };
 
-// Calls Test for all power of two N in [kFactor, Lanes(d)]. This is for ops
+// Calls Test for all power of two N in [1 << kPow2, Lanes(d)]. This is for ops
 // that narrow their input, e.g. UpperHalf.
-template <class Test, size_t kFactor = 2>
+template <class Test, int kPow2 = 1>
 struct ForShrinkableVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+    static_assert(kPow2 >= 0, "kPow2 should be log2(factor)");
+    constexpr size_t kMinLanes = size_t{1} << kPow2;
     constexpr size_t kMaxCapped = HWY_MAX_BYTES / sizeof(T);
-    (void)kMaxCapped;
+    // For shrinking, an upper limit is unnecessary.
+    constexpr size_t max_lanes = kMaxCapped;
+
+    (void)kMinLanes;
+    (void)max_lanes;
+    (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
     // not supported
 #elif HWY_TARGET == HWY_RVV
     // Capped: TODO(janwas): enable
-    // ForeachSizeR<T, kMaxCapped / kFactor, kFactor, Test>::Do(kFactor);
-    // Multiples. TODO(janwas): also fraction
-    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T), Test>::Do(kFactor);
+    // ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes,
+    // Test>::Do(kMinLanes,max_lanes); Multiples. TODO(janwas): also fraction
+    ForeachCappedR<T, (8 >> kPow2), kMinLanes * HWY_LANES(T), Test>::Do(
+        kMinLanes, max_lanes);
 #elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
-    // Capped: TODO(janwas): enable
-    // ForeachSizeR<T, kMaxCapped / kFactor, kFactor, Test>::Do(kFactor);
-    // Fractions
-    ForeachSizeR<T, 8 / kFactor, kFactor * HWY_LANES(T) / 8, Test>::Do(kFactor);
+    ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes, Test>::Do(kMinLanes,
+                                                                  max_lanes);
+    ForeachShiftR<T, -kPow2, kPow2, Test>::Do(kMinLanes);
 #else
-    ForeachSizeR<T, HWY_LANES(T) / kFactor, kFactor, Test>::Do(kFactor);
+    // TODO(janwas): pull this out of #if once RVV also supports it
+    ForeachCappedR<T, (HWY_LANES(T) >> kPow2), kMinLanes, Test>::Do(kMinLanes,
+                                                                    max_lanes);
 #endif
   }
 };
@@ -280,21 +302,25 @@ struct ForGEVectors {
   void operator()(T /*unused*/) const {
     constexpr size_t kMaxCapped = HWY_MAX_BYTES / sizeof(T);
     constexpr size_t kMinLanes = kMinBits / 8 / sizeof(T);
-    (void)kMaxCapped;
+    // An upper limit is unnecessary.
+    constexpr size_t max_lanes = kMaxCapped;
+    (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
     (void)kMinLanes;  // not supported
 #elif HWY_TARGET == HWY_RVV
     // Capped: TODO(janwas): enable
-    // ForeachSizeR<T, kMaxCapped / kMinLanes, kMinLanes, Test>::Do(kMinLanes);
+    // ForeachCappedR<T, kMaxCapped / kMinLanes, kMinLanes,
+    // Test>::Do(kMinLanes, max_lanes);
     // Multiples. TODO(janwas): also fraction
-    ForeachSizeR<T, 8, HWY_LANES(T), Test>::Do(kMinLanes);
+    ForeachCappedR<T, 8, HWY_LANES(T), Test>::Do(kMinLanes, max_lanes);
 #elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
-    // Capped: TODO(janwas): enable
-    // ForeachSizeR<T, HWY_LANES(T) / kMinLanes, kMinLanes,
-    // Test>::Do(kMinLanes); Fractions
-    ForeachSizeR<T, 8, HWY_LANES(T) / 8, Test>::Do(kMinLanes);
+    ForeachCappedR<T, HWY_LANES(T) / kMinLanes, kMinLanes, Test>::Do(kMinLanes,
+                                                                     max_lanes);
+    ForeachShiftR<T, 0, 0, Test>::Do(kMinLanes);
 #else
-    ForeachSizeR<T, HWY_LANES(T) / kMinLanes, kMinLanes, Test>::Do(kMinLanes);
+    // TODO(janwas): pull this out of #if once RVV also supports it
+    ForeachCappedR<T, HWY_LANES(T) / kMinLanes, kMinLanes, Test>::Do(kMinLanes,
+                                                                     max_lanes);
 #endif
   }
 };
@@ -304,28 +330,71 @@ using ForGE128Vectors = ForGEVectors<128, Test>;
 
 // Calls Test for all N that can be promoted (not the same as Extendable because
 // HWY_SCALAR has one lane). Also used for ZipLower, but not ZipUpper.
-template <class Test, size_t kFactor = 2>
+template <class Test, int kPow2 = 1>
 struct ForPromoteVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+    constexpr size_t kFactor = size_t{1} << kPow2;
+    static_assert(kFactor >= 2 && kFactor * sizeof(T) <= sizeof(uint64_t), "");
+    constexpr size_t kMaxCapped = HWY_MAX_BYTES / sizeof(T);
+    constexpr size_t kMinLanes = kFactor;
+    // Skip CappedTag that are already full vectors.
+    const size_t max_lanes = Lanes(ScalableTag<T>()) >> kPow2;
+    (void)kMaxCapped;
+    (void)kMinLanes;
+    (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
-    ForeachSizeR<T, 1, 1, Test, /*kPromote=*/true>::Do(1);
+    ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
 #else
-    return ForExtendableVectors<Test, kFactor>()(T());
+#if HWY_TARGET == HWY_RVV
+    // ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test>::Do(kMinLanes,
+    // max_lanes);
+    // Multiples. TODO(janwas): also fractions
+    ForeachCappedR<T, (8 >> kPow2), HWY_LANES(T), Test>::Do(kMinLanes,
+                                                            max_lanes);
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test>::Do(kMinLanes, max_lanes);
+    ForeachShiftR<T, -kPow2, 0, Test>::Do(kMinLanes);
+#else
+    // TODO(janwas): pull this out of #if once RVV also supports it
+    ForeachCappedR<T, (HWY_LANES(T) >> kPow2), 1, Test>::Do(kMinLanes,
+                                                            max_lanes);
 #endif
+#endif  // HWY_SCALAR
   }
 };
 
 // Calls Test for all N than can be demoted (not the same as Shrinkable because
 // HWY_SCALAR has one lane). Also used for LowerHalf, but not UpperHalf.
-template <class Test, size_t kFactor = 2>
+template <class Test, int kPow2 = 1>
 struct ForDemoteVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
+    static_assert(kPow2 >= 0, "kPow2 should be log2(factor)");
+    constexpr size_t kMinLanes = size_t{1} << kPow2;
+    constexpr size_t kMaxCapped = HWY_MAX_BYTES / sizeof(T);
+    // For shrinking, an upper limit is unnecessary.
+    constexpr size_t max_lanes = kMaxCapped;
+
+    (void)kMinLanes;
+    (void)max_lanes;
+    (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
-    ForeachSizeR<T, 1, 1, Test>::Do(1);
+    ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
+#elif HWY_TARGET == HWY_RVV
+    // Capped: TODO(janwas): enable
+    // ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes,
+    // Test>::Do(kMinLanes,max_lanes); Multiples. TODO(janwas): also fraction
+    ForeachCappedR<T, (8 >> kPow2), kMinLanes * HWY_LANES(T), Test>::Do(
+        kMinLanes, max_lanes);
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+    ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes, Test>::Do(kMinLanes,
+                                                                  max_lanes);
+    ForeachShiftR<T, -kPow2, kPow2, Test>::Do(kMinLanes);
 #else
-    return ForShrinkableVectors<Test, kFactor>()(T());
+    // TODO(janwas): pull this out of #if once RVV also supports it
+    ForeachCappedR<T, (HWY_LANES(T) >> kPow2), kMinLanes, Test>::Do(kMinLanes,
+                                                                    max_lanes);
 #endif
   }
 };
@@ -336,7 +405,7 @@ template <class Test>
 struct ForPartialVectors {
   template <typename T>
   void operator()(T t) const {
-    ForExtendableVectors<Test, 1>()(t);
+    ForExtendableVectors<Test, 0>()(t);
   }
 };
 

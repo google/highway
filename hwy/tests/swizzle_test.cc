@@ -349,16 +349,18 @@ HWY_NOINLINE void TestAllReverseBlocks() {
 }
 
 class TestCompress {
-  template <typename T, typename TI, size_t N>
-  void CheckStored(Simd<T, N> d, Simd<TI, N> di, size_t expected_pos,
-                   size_t actual_pos, const AlignedFreeUniquePtr<T[]>& in,
+  template <class D, class DI, typename T = TFromD<D>, typename TI = TFromD<DI>>
+  void CheckStored(D d, DI di, size_t expected_pos, size_t actual_pos,
+                   const AlignedFreeUniquePtr<T[]>& in,
                    const AlignedFreeUniquePtr<TI[]>& mask_lanes,
                    const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
                    int line) {
     if (expected_pos != actual_pos) {
-      hwy::Abort(__FILE__, line,
-                 "Size mismatch for %s: expected %" PRIu64 ", actual %" PRIu64 "\n",
-                 TypeName(T(), N).c_str(), static_cast<uint64_t>(expected_pos), static_cast<uint64_t>(actual_pos));
+      hwy::Abort(
+          __FILE__, line,
+          "Size mismatch for %s: expected %" PRIu64 ", actual %" PRIu64 "\n",
+          TypeName(T(), Lanes(d)).c_str(), static_cast<uint64_t>(expected_pos),
+          static_cast<uint64_t>(actual_pos));
     }
     // Upper lanes are undefined. Modified from AssertVecEqual.
     for (size_t i = 0; i < expected_pos; ++i) {
@@ -367,6 +369,7 @@ class TestCompress {
                 "Mismatch at i=%" PRIu64 " of %" PRIu64 ", line %d:\n\n",
                 static_cast<uint64_t>(i), static_cast<uint64_t>(expected_pos),
                 line);
+        const size_t N = Lanes(d);
         Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
         Print(d, "in", Load(d, in.get()), 0, N);
         Print(d, "expect", Load(d, expected.get()), 0, N);

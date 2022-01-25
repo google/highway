@@ -44,10 +44,6 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-
-template <typename T>
-using Full256 = Simd<T, 32 / sizeof(T)>;
-
 namespace detail {
 
 template <typename T>
@@ -2301,7 +2297,7 @@ HWY_API void ScatterOffset(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
   Store(v, d, lanes);
 
   alignas(32) Offset offset_lanes[N];
-  Store(offset, Simd<Offset, N>(), offset_lanes);
+  Store(offset, Full256<Offset>(), offset_lanes);
 
   uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
   for (size_t i = 0; i < N; ++i) {
@@ -2319,7 +2315,7 @@ HWY_API void ScatterIndex(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT base,
   Store(v, d, lanes);
 
   alignas(32) Index index_lanes[N];
-  Store(index, Simd<Index, N>(), index_lanes);
+  Store(index, Full256<Index>(), index_lanes);
 
   for (size_t i = 0; i < N; ++i) {
     base[index_lanes[i]] = lanes[i];
@@ -2924,12 +2920,6 @@ HWY_API Vec256<double> InterleaveLower(const Vec256<double> a,
   return Vec256<double>{_mm256_unpacklo_pd(a.raw, b.raw)};
 }
 
-// Additional overload for the optional Simd<> tag.
-template <typename T, class V = Vec256<T>>
-HWY_API V InterleaveLower(Full256<T> /* tag */, V a, V b) {
-  return InterleaveLower(a, b);
-}
-
 // ------------------------------ InterleaveUpper
 
 // All functions inside detail lack the required D parameter.
@@ -2991,11 +2981,11 @@ HWY_API V InterleaveUpper(Full256<T> /* tag */, V a, V b) {
 // this is necessary because the single-lane scalar cannot return two values.
 template <typename T, typename TW = MakeWide<T>>
 HWY_API Vec256<TW> ZipLower(Vec256<T> a, Vec256<T> b) {
-  return BitCast(Full256<TW>(), InterleaveLower(Full256<T>(), a, b));
+  return BitCast(Full256<TW>(), InterleaveLower(a, b));
 }
 template <typename T, typename TW = MakeWide<T>>
 HWY_API Vec256<TW> ZipLower(Full256<TW> dw, Vec256<T> a, Vec256<T> b) {
-  return BitCast(dw, InterleaveLower(Full256<T>(), a, b));
+  return BitCast(dw, InterleaveLower(a, b));
 }
 
 template <typename T, typename TW = MakeWide<T>>
@@ -3617,7 +3607,7 @@ HWY_API Vec128<int16_t> DemoteTo(Full128<int16_t> /* tag */,
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(i16, 0x88))};
 }
 
-HWY_API Vec128<uint8_t, 8> DemoteTo(Simd<uint8_t, 8> /* tag */,
+HWY_API Vec128<uint8_t, 8> DemoteTo(Full64<uint8_t> /* tag */,
                                     const Vec256<int32_t> v) {
   const __m256i u16_blocks = _mm256_packus_epi32(v.raw, v.raw);
   // Concatenate lower 64 bits of each 128-bit block
@@ -3636,7 +3626,7 @@ HWY_API Vec128<uint8_t> DemoteTo(Full128<uint8_t> /* tag */,
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(u8, 0x88))};
 }
 
-HWY_API Vec128<int8_t, 8> DemoteTo(Simd<int8_t, 8> /* tag */,
+HWY_API Vec128<int8_t, 8> DemoteTo(Full64<int8_t> /* tag */,
                                    const Vec256<int32_t> v) {
   const __m256i i16_blocks = _mm256_packs_epi32(v.raw, v.raw);
   // Concatenate lower 64 bits of each 128-bit block
@@ -3734,7 +3724,7 @@ HWY_API Vec128<uint8_t, 8> U8FromU32(const Vec256<uint32_t> v) {
   const auto lo = LowerHalf(quad);
   const auto hi = UpperHalf(Full128<uint32_t>(), quad);
   const auto pair = LowerHalf(lo | hi);
-  return BitCast(Simd<uint8_t, 8>(), pair);
+  return BitCast(Full64<uint8_t>(), pair);
 }
 
 // ------------------------------ Integer <=> fp (ShiftRight, OddEven)
@@ -4438,7 +4428,7 @@ HWY_API intptr_t FindFirstTrue(const Full256<T> /* tag */,
 namespace detail {
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_INLINE Indices256<uint32_t> IndicesFromBits(Simd<T, 8> d,
+HWY_INLINE Indices256<uint32_t> IndicesFromBits(Full256<T> d,
                                                 uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> d32;
   // We need a masked Iota(). With 8 lanes, there are 256 combinations and a LUT
@@ -4501,7 +4491,7 @@ HWY_INLINE Indices256<uint32_t> IndicesFromBits(Simd<T, 8> d,
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_INLINE Indices256<uint32_t> IndicesFromBits(Simd<T, 4> d,
+HWY_INLINE Indices256<uint32_t> IndicesFromBits(Full256<T> d,
                                                 uint64_t mask_bits) {
   const Repartition<uint32_t, decltype(d)> d32;
 

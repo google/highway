@@ -37,7 +37,9 @@ namespace hwy {
 
 // HWY_FULL(T[,LMUL=1]) is a native vector/group. LMUL is the number of
 // registers in the group, and is ignored on targets that do not support groups.
-#define HWY_FULL1(T) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T)>
+#define HWY_FULL1(T) hwy::HWY_NAMESPACE::ScalableTag<T>
+#define HWY_FULL2(T, LMUL) \
+  hwy::HWY_NAMESPACE::ScalableTag<T, CeilLog2(HWY_MAX(0, LMUL))>
 #define HWY_3TH_ARG(arg1, arg2, arg3, ...) arg3
 // Workaround for MSVC grouping __VA_ARGS__ into a single argument
 #define HWY_FULL_RECOMPOSER(args_with_paren) HWY_3TH_ARG args_with_paren
@@ -46,9 +48,9 @@ namespace hwy {
   HWY_FULL_RECOMPOSER((__VA_ARGS__, HWY_FULL2, HWY_FULL1, ))
 #define HWY_FULL(...) HWY_CHOOSE_FULL(__VA_ARGS__())(__VA_ARGS__)
 
-// Vector of up to MAX_N lanes. Discouraged, when possible, use Half<> instead.
+// Vector of up to MAX_N lanes. It's better to use full vectors where possible.
 #define HWY_CAPPED(T, MAX_N) \
-  hwy::HWY_NAMESPACE::Simd<T, HWY_MIN(MAX_N, HWY_LANES(T))>
+  hwy::HWY_NAMESPACE::CappedTag<T, HWY_MIN(MAX_N, HWY_LANES(T))>
 
 //------------------------------------------------------------------------------
 // Export user functions for static/dynamic dispatch
@@ -286,13 +288,6 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #undef HWY_HIGHWAY_PER_TARGET
 #else
 #define HWY_HIGHWAY_PER_TARGET
-#endif
-
-#undef HWY_FULL2
-#if HWY_TARGET == HWY_RVV
-#define HWY_FULL2(T, LMUL) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T) * (LMUL)>
-#else
-#define HWY_FULL2(T, LMUL) hwy::HWY_NAMESPACE::Simd<T, HWY_LANES(T)>
 #endif
 
 // These define ops inside namespace hwy::HWY_NAMESPACE.

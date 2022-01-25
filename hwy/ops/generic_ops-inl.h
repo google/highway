@@ -19,14 +19,14 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// The lane type of a vector type, e.g. float for Vec<Simd<float, 4>>.
+// The lane type of a vector type, e.g. float for Vec<ScalableTag<float>>.
 template <class V>
 using LaneType = decltype(GetLane(V()));
 
-// Vector type, e.g. Vec128<float> for Simd<float, 4>. Useful as the return type
-// of functions that do not take a vector argument, or as an argument type if
-// the function only has a template argument for D, or for explicit type names
-// instead of auto. This may be a built-in type.
+// Vector type, e.g. Vec128<float> for CappedTag<float, 4>. Useful as the return
+// type of functions that do not take a vector argument, or as an argument type
+// if the function only has a template argument for D, or for explicit type
+// names instead of auto. This may be a built-in type.
 template <class D>
 using Vec = decltype(Zero(D()));
 
@@ -295,7 +295,8 @@ HWY_API V PopulationCount(V v) {
   };
   auto lo = And(v, Set(d, 0xF));
   auto hi = ShiftRight<4>(v);
-  auto lookup = LoadDup128(Simd<uint8_t, HWY_MAX(16, MaxLanes(d))>(), kLookup);
+  auto lookup =
+      LoadDup128(CappedTag<uint8_t, HWY_MAX(16, MaxLanes(d))>(), kLookup);
   return Add(TableLookupBytes(lookup, hi), TableLookupBytes(lookup, lo));
 }
 
