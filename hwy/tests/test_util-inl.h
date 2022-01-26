@@ -494,7 +494,7 @@ void ForUIF163264(const Func& func) {
 // finish quickly (but always at least 2 iterations to ensure some diversity).
 constexpr size_t AdjustedReps(size_t max_reps) {
 #if HWY_ARCH_RVV
-  return HWY_MAX(max_reps / 16, 2);
+  return HWY_MAX(max_reps / 32, 2);
 #elif HWY_ARCH_ARM
   return HWY_MAX(max_reps / 4, 2);
 #elif HWY_IS_DEBUG_BUILD
@@ -508,7 +508,7 @@ constexpr size_t AdjustedReps(size_t max_reps) {
 constexpr size_t AdjustedLog2Reps(size_t max_pow2) {
   // If "negative" (unsigned wraparound), use original.
 #if HWY_ARCH_RVV
-  return HWY_MIN(max_pow2 - 3, max_pow2);
+  return HWY_MIN(max_pow2 - 4, max_pow2);
 #elif HWY_ARCH_ARM
   return HWY_MIN(max_pow2 - 1, max_pow2);
 #elif HWY_IS_DEBUG_BUILD

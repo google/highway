@@ -64,7 +64,7 @@ HWY_NOINLINE void TestMath(const std::string name, T (*fx1)(T),
 
   uint64_t max_ulp = 0;
   // Emulation is slower, so cannot afford as many.
-  constexpr UintT kSamplesPerRange = static_cast<UintT>(AdjustedReps(10000));
+  constexpr UintT kSamplesPerRange = static_cast<UintT>(AdjustedReps(4000));
   for (int range_index = 0; range_index < range_count; ++range_index) {
     const UintT start = ranges[range_index][0];
     const UintT stop = ranges[range_index][1];
