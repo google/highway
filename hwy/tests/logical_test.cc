@@ -307,16 +307,11 @@ HWY_NOINLINE void TestAllTestBit() {
 struct TestPopulationCount {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET == HWY_RVV || HWY_IS_DEBUG_BUILD
-    constexpr size_t kNumTests = 1 << 14;
-#else
-    constexpr size_t kNumTests = 1 << 20;
-#endif
     RandomState rng;
     size_t N = Lanes(d);
     auto data = AllocateAligned<T>(N);
     auto popcnt = AllocateAligned<T>(N);
-    for (size_t i = 0; i < kNumTests / N; i++) {
+    for (size_t i = 0; i < AdjustedReps(1 << 18) / N; i++) {
       for (size_t i = 0; i < N; i++) {
         data[i] = static_cast<T>(rng());
         popcnt[i] = static_cast<T>(PopCount(data[i]));

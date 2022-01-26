@@ -168,6 +168,8 @@ struct TestPromoteTo {
 };
 
 HWY_NOINLINE void TestAllPromoteTo() {
+// farm_sve's promote/demote semantics are incorrect.
+#if !defined(HWY_EMULATE_SVE)
   const ForPromoteVectors<TestPromoteTo<uint16_t>, 1> to_u16div2;
   to_u16div2(uint8_t());
 
@@ -204,6 +206,7 @@ HWY_NOINLINE void TestAllPromoteTo() {
   to_f64div2(int32_t());
   to_f64div2(float());
 #endif
+#endif  // !defined(HWY_EMULATE_SVE)
 }
 
 template <typename T, HWY_IF_FLOAT(T)>
@@ -258,6 +261,8 @@ struct TestDemoteTo {
 };
 
 HWY_NOINLINE void TestAllDemoteToInt() {
+// farm_sve's promote/demote semantics are incorrect.
+#if !defined(HWY_EMULATE_SVE)
   ForDemoteVectors<TestDemoteTo<uint8_t>>()(int16_t());
   ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int32_t());
 
@@ -269,10 +274,11 @@ HWY_NOINLINE void TestAllDemoteToInt() {
 
   const ForDemoteVectors<TestDemoteTo<int16_t>> to_i16;
   to_i16(int32_t());
+#endif  // !defined(HWY_EMULATE_SVE)
 }
 
 HWY_NOINLINE void TestAllDemoteToMixed() {
-#if HWY_HAVE_FLOAT64
+#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
   const ForDemoteVectors<TestDemoteTo<int32_t>> to_i32;
   to_i32(double());
 #endif
@@ -315,7 +321,7 @@ struct TestDemoteToFloat {
 HWY_NOINLINE void TestAllDemoteToFloat() {
   // Must test f16 separately because we can only load/store/convert them.
 
-#if HWY_HAVE_FLOAT64
+#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
   const ForDemoteVectors<TestDemoteToFloat<float>, 1> to_float;
   to_float(double());
 #endif
@@ -355,7 +361,7 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
 struct TestF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_HAVE_FLOAT16
+#if HWY_HAVE_FLOAT16 && !defined(HWY_EMULATE_SVE)
     size_t padded;
     auto in = F16TestCases(d32, padded);
     using TF16 = float16_t;
@@ -409,7 +415,8 @@ AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
 struct TestBF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_TARGET != HWY_RVV
+#if HWY_TARGET != HWY_RVV && !defined(HWY_EMULATE_SVE)
+
     size_t padded;
     auto in = BF16TestCases(d32, padded);
     using TBF16 = bfloat16_t;
@@ -508,7 +515,8 @@ class TestReorderDemote2To {
  public:
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR && !defined(HWY_EMULATE_SVE)
+
     size_t padded;
     auto in = ReorderBF16TestCases(d32, padded);
 
@@ -776,7 +784,7 @@ struct TestI32F64 {
 };
 
 HWY_NOINLINE void TestAllI32F64() {
-#if HWY_HAVE_FLOAT64
+#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
   ForDemoteVectors<TestI32F64>()(double());
 #endif
 }

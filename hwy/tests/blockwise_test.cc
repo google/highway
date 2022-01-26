@@ -556,11 +556,13 @@ class TestSpecialShuffle32 {
   }
 
  private:
+  // HWY_INLINE works around a Clang SVE compiler bug where all but the first
+  // 128 bits (the NEON register) of actual are zero.
   template <class D, class V>
-  HWY_NOINLINE void VerifyLanes32(D d, VecArg<V> actual, const size_t i3,
-                                  const size_t i2, const size_t i1,
-                                  const size_t i0, const char* filename,
-                                  const int line) {
+  HWY_INLINE void VerifyLanes32(D d, VecArg<V> actual, const size_t i3,
+                                const size_t i2, const size_t i1,
+                                const size_t i0, const char* filename,
+                                const int line) {
     using T = TFromD<D>;
     constexpr size_t kBlockN = 16 / sizeof(T);
     const size_t N = Lanes(d);
@@ -585,10 +587,12 @@ class TestSpecialShuffle64 {
   }
 
  private:
+  // HWY_INLINE works around a Clang SVE compiler bug where all but the first
+  // 128 bits (the NEON register) of actual are zero.
   template <class D, class V>
-  HWY_NOINLINE void VerifyLanes64(D d, VecArg<V> actual, const size_t i1,
-                                  const size_t i0, const char* filename,
-                                  const int line) {
+  HWY_INLINE void VerifyLanes64(D d, VecArg<V> actual, const size_t i1,
+                                const size_t i0, const char* filename,
+                                const int line) {
     using T = TFromD<D>;
     constexpr size_t kBlockN = 16 / sizeof(T);
     const size_t N = Lanes(d);

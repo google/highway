@@ -1045,21 +1045,33 @@ HWY_API svint32_t PromoteTo(Simd<int32_t, N, kPow2> dto, svuint8_t vfrom) {
 
 // ------------------------------ PromoteTo F
 
+// svcvt* expects inputs in even lanes, whereas Highway wants lower lanes, so
+// first replicate each lane once.
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipLower, zip1)
+// Do not use zip2 to implement PromoteUpperTo or similar because vectors may be
+// non-powers of two, so getting the actual "upper half" requires MaskUpperHalf.
+}  // namespace detail
+
 template <size_t N, int kPow2>
 HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> /* d */,
                               const svfloat16_t v) {
-  return svcvt_f32_f16_x(detail::PTrue(Simd<float16_t, N, kPow2>()), v);
+  const svfloat16_t vv = detail::ZipLower(v, v);
+  return svcvt_f32_f16_x(detail::PTrue(Simd<float16_t, N, kPow2>()), vv);
 }
 
 template <size_t N, int kPow2>
 HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
                               const svfloat32_t v) {
-  return svcvt_f64_f32_x(detail::PTrue(Simd<float32_t, N, kPow2>()), v);
+  const svfloat32_t vv = detail::ZipLower(v, v);
+  return svcvt_f64_f32_x(detail::PTrue(Simd<float32_t, N, kPow2>()), vv);
 }
 
 template <size_t N, int kPow2>
-HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */, svint32_t v) {
-  return svcvt_f64_s32_x(detail::PTrue(Simd<int32_t, N, kPow2>()), v);
+HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
+                              const svint32_t v) {
+  const svint32_t vv = detail::ZipLower(v, v);
+  return svcvt_f64_s32_x(detail::PTrue(Simd<int32_t, N, kPow2>()), vv);
 }
 
 // For 16-bit Compress
@@ -1237,23 +1249,26 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 
 template <size_t N, int kPow2>
 HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat32_t v) {
-  return svcvt_f16_f32_x(detail::PTrue(d), v);
+  const svfloat16_t in_even = svcvt_f16_f32_x(detail::PTrue(d), v);
+  return detail::ConcatEven(in_even, in_even);  // only low 1/2 of result valid
 }
 
 template <size_t N, int kPow2>
 HWY_API svuint16_t DemoteTo(Simd<bfloat16_t, N, kPow2> d, const svfloat32_t v) {
-  const svuint16_t halves = BitCast(ScalableTag<uint16_t>(), v);
-  return detail::ConcatOdd(halves, halves);  // can ignore upper half of vec
+  const svuint16_t in_even = BitCast(ScalableTag<uint16_t>(), v);
+  return detail::ConcatOdd(in_even, in_even);  // can ignore upper half of vec
 }
 
 template <size_t N, int kPow2>
 HWY_API svfloat32_t DemoteTo(Simd<float32_t, N, kPow2> d, const svfloat64_t v) {
-  return svcvt_f32_f64_x(detail::PTrue(d), v);
+  const svfloat32_t in_even = svcvt_f32_f64_x(detail::PTrue(d), v);
+  return detail::ConcatEven(in_even, in_even);  // only low 1/2 of result valid
 }
 
 template <size_t N, int kPow2>
 HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
-  return svcvt_s32_f64_x(detail::PTrue(d), v);
+  const svint32_t in_even = svcvt_s32_f64_x(detail::PTrue(d), v);
+  return detail::ConcatEven(in_even, in_even);  // only low 1/2 of result valid
 }
 
 // ------------------------------ ConvertTo F
@@ -1541,6 +1556,7 @@ HWY_API VFromD<D> Reverse2(D /* tag */, const VFromD<D> v) {  // 3210
 
 // ------------------------------ Reverse4 (TableLookupLanes)
 
+// TODO(janwas): is this approach faster than Shuffle0123?
 template <class D>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
@@ -1660,21 +1676,11 @@ HWY_API V CombineShiftRightBytes(const D d, const V hi, const V lo) {
 
 // ------------------------------ Shuffle2301
 
-#define HWY_SVE_SHUFFLE_2301(BASE, CHAR, BITS, HALF, NAME, OP)                \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {               \
-    const DFromV<decltype(v)> d;                                              \
-    const svuint64_t vu64 = BitCast(Repartition<uint64_t, decltype(d)>(), v); \
-    return BitCast(d, sv##OP##_u64_x(HWY_SVE_PTRUE(64), vu64));               \
-  }
-
-HWY_SVE_FOREACH_UI32(HWY_SVE_SHUFFLE_2301, Shuffle2301, revw)
-#undef HWY_SVE_SHUFFLE_2301
-
-template <class V, HWY_IF_FLOAT_V(V)>
+template <class V>
 HWY_API V Shuffle2301(const V v) {
-  const DFromV<V> df;
-  const RebindToUnsigned<decltype(df)> du;
-  return BitCast(df, Shuffle2301(BitCast(du, v)));
+  const DFromV<V> d;
+  static_assert(sizeof(TFromD<decltype(d)>) == 4, "Defined for 32-bit types");
+  return Reverse2(d, v);
 }
 
 // ------------------------------ Shuffle2103
@@ -1826,12 +1832,6 @@ HWY_API V ShiftRightBytes(const D d, const V v) {
 }
 
 // ------------------------------ InterleaveLower
-
-namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipLower, zip1)
-// Do not use zip2 to implement PromoteUpperTo or similar because vectors may be
-// non-powers of two, so getting the actual "upper half" requires MaskUpperHalf.
-}  // namespace detail
 
 template <class D, class V>
 HWY_API V InterleaveLower(D d, const V a, const V b) {
