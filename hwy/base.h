@@ -254,15 +254,15 @@ using float64_t = double;
 //------------------------------------------------------------------------------
 // Controlling overload resolution (SFINAE)
 
-template <bool Condition, class T>
+template <bool Condition>
 struct EnableIfT {};
-template <class T>
-struct EnableIfT<true, T> {
-  using type = T;
+template <>
+struct EnableIfT<true> {
+  using type = void;
 };
 
-template <bool Condition, class T = void>
-using EnableIf = typename EnableIfT<Condition, T>::type;
+template <bool Condition>
+using EnableIf = typename EnableIfT<Condition>::type;
 
 template <typename T, typename U>
 struct IsSameT {

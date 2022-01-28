@@ -956,21 +956,30 @@ HWY_API Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
 
-template <typename FromT, typename ToT, HWY_IF_FLOAT(FromT)>
-HWY_API Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
-  static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
-
+// MSVC 19.10 cannot deduce the argument type if HWY_IF_FLOAT(FromT) is here,
+// so we overload for FromT=double and ToT={float,int32_t}.
+HWY_API Vec1<float> DemoteTo(Sisd<float> /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting float to narrower integer/float
   if (std::isinf(from.raw) ||
-      std::fabs(from.raw) > static_cast<FromT>(HighestValue<ToT>())) {
-    return Vec1<ToT>(std::signbit(from.raw) ? LowestValue<ToT>()
-                                            : HighestValue<ToT>());
+      std::fabs(from.raw) > static_cast<double>(HighestValue<float>())) {
+    return Vec1<float>(std::signbit(from.raw) ? LowestValue<float>()
+                                              : HighestValue<float>());
   }
-  return Vec1<ToT>(static_cast<ToT>(from.raw));
+  return Vec1<float>(static_cast<float>(from.raw));
+}
+HWY_API Vec1<int32_t> DemoteTo(Sisd<int32_t> /* tag */, Vec1<double> from) {
+  // Prevent ubsan errors when converting int32_t to narrower integer/int32_t
+  if (std::isinf(from.raw) ||
+      std::fabs(from.raw) > static_cast<double>(HighestValue<int32_t>())) {
+    return Vec1<int32_t>(std::signbit(from.raw) ? LowestValue<int32_t>()
+                                                : HighestValue<int32_t>());
+  }
+  return Vec1<int32_t>(static_cast<int32_t>(from.raw));
 }
 
-template <typename FromT, typename ToT, HWY_IF_NOT_FLOAT(FromT)>
+template <typename FromT, typename ToT>
 HWY_API Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
+  static_assert(!IsFloat<FromT>(), "FromT=double are handled above");
   static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
 
   // Int to int: choose closest value in ToT to `from` (avoids UB)

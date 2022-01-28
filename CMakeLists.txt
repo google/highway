@@ -392,9 +392,11 @@ set(HWY_TEST_FILES
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc
   hwy/tests/crypto_test.cc
+  hwy/tests/demote_test.cc
   hwy/tests/logical_test.cc
   hwy/tests/mask_test.cc
   hwy/tests/memory_test.cc
+  hwy/tests/shift_test.cc
   hwy/tests/swizzle_test.cc
   hwy/tests/test_util_test.cc
 )

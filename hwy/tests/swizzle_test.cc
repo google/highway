@@ -19,6 +19,7 @@
 
 #include <array>  // IWYU pragma: keep
 
+#include "hwy/base.h"
 #include "hwy/tests/include_farm_sve.h"
 // ^ must come before highway.h.
 
@@ -399,7 +400,10 @@ class TestCompress {
       auto expected = AllocateAligned<T>(N);
       auto actual_a = AllocateAligned<T>(misalign + N);
       T* actual_u = actual_a.get() + misalign;
-      auto bits = AllocateAligned<uint8_t>(HWY_MAX(8, (N + 7) / 8));
+
+      const size_t bits_size = RoundUpTo((N + 7) / 8, 8);
+      auto bits = AllocateAligned<uint8_t>(bits_size);
+      memset(bits.get(), 0, bits_size);  // for MSAN
 
       // Each lane should have a chance of having mask=true.
       for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {

@@ -219,114 +219,6 @@ bool IsFinite(T /*unused*/) {
   return true;
 }
 
-template <typename ToT>
-struct TestDemoteTo {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    static_assert(!IsFloat<ToT>(), "Use TestDemoteToFloat for float output");
-    static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
-    const Rebind<ToT, D> to_d;
-
-    const size_t N = Lanes(from_d);
-    auto from = AllocateAligned<T>(N);
-    auto expected = AllocateAligned<ToT>(N);
-
-    // Narrower range in the wider type, for clamping before we cast
-    const T min = LimitsMin<ToT>();
-    const T max = LimitsMax<ToT>();
-
-    const auto value_ok = [&](T& value) {
-      if (!IsFinite(value)) return false;
-#if HWY_EMULATE_SVE
-      // farm_sve just casts, which is undefined if the value is out of range.
-      value = HWY_MIN(HWY_MAX(min, value), max);
-#endif
-      return true;
-    };
-
-    RandomState rng;
-    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        do {
-          const uint64_t bits = rng();
-          memcpy(&from[i], &bits, sizeof(T));
-        } while (!value_ok(from[i]));
-        expected[i] = static_cast<ToT>(HWY_MIN(HWY_MAX(min, from[i]), max));
-      }
-
-      const auto in = Load(from_d, from.get());
-      HWY_ASSERT_VEC_EQ(to_d, expected.get(), DemoteTo(to_d, in));
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllDemoteToInt() {
-// farm_sve's promote/demote semantics are incorrect.
-#if !defined(HWY_EMULATE_SVE)
-  ForDemoteVectors<TestDemoteTo<uint8_t>>()(int16_t());
-  ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int32_t());
-
-  ForDemoteVectors<TestDemoteTo<int8_t>>()(int16_t());
-  ForDemoteVectors<TestDemoteTo<int8_t>, 2>()(int32_t());
-
-  const ForDemoteVectors<TestDemoteTo<uint16_t>> to_u16;
-  to_u16(int32_t());
-
-  const ForDemoteVectors<TestDemoteTo<int16_t>> to_i16;
-  to_i16(int32_t());
-#endif  // !defined(HWY_EMULATE_SVE)
-}
-
-HWY_NOINLINE void TestAllDemoteToMixed() {
-#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
-  const ForDemoteVectors<TestDemoteTo<int32_t>> to_i32;
-  to_i32(double());
-#endif
-}
-
-template <typename ToT>
-struct TestDemoteToFloat {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
-    // For floats, we clamp differently and cannot call LimitsMin.
-    static_assert(IsFloat<ToT>(), "Use TestDemoteTo for integer output");
-    static_assert(sizeof(T) > sizeof(ToT), "Input type must be wider");
-    const Rebind<ToT, D> to_d;
-
-    const size_t N = Lanes(from_d);
-    auto from = AllocateAligned<T>(N);
-    auto expected = AllocateAligned<ToT>(N);
-
-    RandomState rng;
-    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        do {
-          const uint64_t bits = rng();
-          memcpy(&from[i], &bits, sizeof(T));
-        } while (!IsFinite(from[i]));
-        const T magn = std::abs(from[i]);
-        const T max_abs = HighestValue<ToT>();
-        // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
-        // https://lists.freebsd.org/pipermail/freebsd-current/2014-January/048130.html
-        const T clipped = copysign(HWY_MIN(magn, max_abs), from[i]);
-        expected[i] = static_cast<ToT>(clipped);
-      }
-
-      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
-                        DemoteTo(to_d, Load(from_d, from.get())));
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllDemoteToFloat() {
-  // Must test f16 separately because we can only load/store/convert them.
-
-#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
-  const ForDemoteVectors<TestDemoteToFloat<float>, 1> to_float;
-  to_float(double());
-#endif
-}
-
 template <class D>
 AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
   const float test_cases[] = {
@@ -427,6 +319,7 @@ struct TestBF16 {
 #endif
     const Half<decltype(dbf16)> dbf16_half;
     const size_t N = Lanes(d32);
+    HWY_ASSERT(Lanes(dbf16_half) <= N);
     auto temp16 = AllocateAligned<TBF16>(N);
 
     for (size_t i = 0; i < padded; i += N) {
@@ -443,125 +336,6 @@ struct TestBF16 {
 };
 
 HWY_NOINLINE void TestAllBF16() { ForShrinkableVectors<TestBF16>()(float()); }
-
-template <class D>
-AlignedFreeUniquePtr<float[]> ReorderBF16TestCases(D d, size_t& padded) {
-  const float test_cases[] = {
-      // Same as BF16TestCases:
-      // +/- 1
-      1.0f,
-      -1.0f,
-      // +/- 0
-      0.0f,
-      -0.0f,
-      // near 0
-      0.25f,
-      -0.25f,
-      // +/- integer
-      4.0f,
-      -32.0f,
-      // positive +/- delta
-      2.015625f,
-      3.984375f,
-      // negative +/- delta
-      -2.015625f,
-      -3.984375f,
-
-      // No huge values - would interfere with sum. But add more to fill 2 * N:
-      -2.0f,
-      -10.0f,
-      0.03125f,
-      1.03125f,
-      1.5f,
-      2.0f,
-      4.0f,
-      5.0f,
-      6.0f,
-      8.0f,
-      10.0f,
-      256.0f,
-      448.0f,
-      2080.0f,
-  };
-  const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
-  const size_t N = Lanes(d);
-  padded = RoundUpTo(kNumTestCases, 2 * N);  // allow loading pairs of vectors
-  auto in = AllocateAligned<float>(padded);
-  auto expected = AllocateAligned<float>(padded);
-  std::copy(test_cases, test_cases + kNumTestCases, in.get());
-  std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
-  return in;
-}
-
-class TestReorderDemote2To {
-  // In-place N^2 selection sort to avoid dependencies
-  void Sort(float* p, size_t count) {
-    for (size_t i = 0; i < count - 1; ++i) {
-      // Find min_element
-      size_t idx_min = i;
-      for (size_t j = i + 1; j < count; j++) {
-        if (p[j] < p[idx_min]) {
-          idx_min = j;
-        }
-      }
-
-      // Swap with current
-      const float tmp = p[i];
-      p[i] = p[idx_min];
-      p[idx_min] = tmp;
-    }
-  }
-
- public:
-  template <typename TF32, class DF32>
-  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_TARGET != HWY_SCALAR && !defined(HWY_EMULATE_SVE)
-
-    size_t padded;
-    auto in = ReorderBF16TestCases(d32, padded);
-
-    using TBF16 = bfloat16_t;
-    const Repartition<TBF16, DF32> dbf16;
-    const Half<decltype(dbf16)> dbf16_half;
-    const size_t N = Lanes(d32);
-    auto temp16 = AllocateAligned<TBF16>(2 * N);
-    auto expected = AllocateAligned<float>(2 * N);
-    auto actual = AllocateAligned<float>(2 * N);
-
-    for (size_t i = 0; i < padded; i += 2 * N) {
-      const auto f0 = Load(d32, &in[i + 0]);
-      const auto f1 = Load(d32, &in[i + N]);
-      const auto v16 = ReorderDemote2To(dbf16, f0, f1);
-      Store(v16, dbf16, temp16.get());
-      const auto promoted0 = PromoteTo(d32, Load(dbf16_half, temp16.get() + 0));
-      const auto promoted1 = PromoteTo(d32, Load(dbf16_half, temp16.get() + N));
-
-      // Smoke test: sum should be same (with tolerance for non-associativity)
-      const auto sum_expected =
-          GetLane(SumOfLanes(d32, Add(promoted0, promoted1)));
-      const auto sum_actual = GetLane(SumOfLanes(d32, Add(f0, f1)));
-      HWY_ASSERT(sum_actual - 1E-4 <= sum_actual &&
-                 sum_expected <= sum_actual + 1E-4);
-
-      // Ensure values are the same after sorting to undo the Reorder
-      Store(f0, d32, expected.get() + 0);
-      Store(f1, d32, expected.get() + N);
-      Store(promoted0, d32, actual.get() + 0);
-      Store(promoted1, d32, actual.get() + N);
-      Sort(expected.get(), 2 * N);
-      Sort(actual.get(), 2 * N);
-      HWY_ASSERT_VEC_EQ(d32, expected.get() + 0, Load(d32, actual.get() + 0));
-      HWY_ASSERT_VEC_EQ(d32, expected.get() + N, Load(d32, actual.get() + N));
-    }
-#else  // HWY_SCALAR
-    (void)d32;
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllReorderDemote2To() {
-  ForShrinkableVectors<TestReorderDemote2To>()(float());
-}
 
 struct TestConvertU8 {
   template <typename T, class D>
@@ -736,30 +510,21 @@ struct TestI32F64 {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), DemoteTo(di, Iota(df, TF(4.0))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, TI(4))));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), DemoteTo(di, Iota(df, -TF(N))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, -TF(N)), PromoteTo(df, Iota(di, -TI(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(2)), DemoteTo(di, Iota(df, TF(2.001))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(2.0)), PromoteTo(df, Iota(di, TI(2))));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(3)), DemoteTo(di, Iota(df, TF(3.9999))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, TI(4))));
 
-    const TF eps = static_cast<TF>(0.0001);
     // Above negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)),
-                      DemoteTo(di, Iota(df, -TF(N + 1) + eps)));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-4.0)), PromoteTo(df, Iota(di, TI(-4))));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
-                      DemoteTo(di, Iota(df, -TF(N + 1) - eps)));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), PromoteTo(df, Iota(di, TI(-2))));
 
     // Max positive int
@@ -769,17 +534,6 @@ struct TestI32F64 {
     // Min negative int
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
                       PromoteTo(df, Set(di, LimitsMin<TI>())));
-
-    // farm_sve just casts, which is undefined if the value is out of range.
-#if !defined(HWY_EMULATE_SVE)
-    // Huge positive float
-    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
-                      DemoteTo(di, Set(df, TF(1E12))));
-
-    // Huge negative float
-    HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
-                      DemoteTo(di, Set(df, TF(-1E12))));
-#endif
   }
 };
 
@@ -801,12 +555,8 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToInt);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToMixed);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllDemoteToFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllReorderDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);

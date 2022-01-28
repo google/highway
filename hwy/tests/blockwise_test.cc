@@ -430,12 +430,13 @@ HWY_NOINLINE void TestAllZip() {
   // No float - concatenating f32 does not result in a f64
 }
 
-template <int kBytes>
-struct TestCombineShiftRightBytesR {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
 // Scalar does not define CombineShiftRightBytes.
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
+
+template <int kBytes>
+struct TestCombineShiftRightBytes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
     const size_t kBlockSize = 16;
     static_assert(kBytes < kBlockSize, "Shift count is per block");
     const Repartition<uint8_t, D> d8;
@@ -464,21 +465,13 @@ struct TestCombineShiftRightBytesR {
       const auto expected = BitCast(d, Load(d8, expected_bytes.get()));
       HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightBytes<kBytes>(d, hi, lo));
     }
-
-    TestCombineShiftRightBytesR<kBytes - 1>()(t, d);
-#else
-    (void)t;
-    (void)d;
-#endif  // #if HWY_TARGET != HWY_SCALAR
   }
 };
 
 template <int kLanes>
-struct TestCombineShiftRightLanesR {
+struct TestCombineShiftRightLanes {
   template <class T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-// Scalar does not define CombineShiftRightBytes (needed for *Lanes).
-#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+  HWY_NOINLINE void operator()(T, D d) {
     const Repartition<uint8_t, D> d8;
     const size_t N8 = Lanes(d8);
     if (N8 < 16) return;
@@ -508,33 +501,29 @@ struct TestCombineShiftRightLanesR {
       const auto expected = BitCast(d, Load(d8, expected_bytes.get()));
       HWY_ASSERT_VEC_EQ(d, expected, CombineShiftRightLanes<kLanes>(d, hi, lo));
     }
-
-    TestCombineShiftRightLanesR<kLanes - 1>()(t, d);
-#else
-    (void)t;
-    (void)d;
-#endif  // #if HWY_TARGET != HWY_SCALAR
   }
 };
 
-template <>
-struct TestCombineShiftRightBytesR<0> {
-  template <class T, class D>
-  void operator()(T /*unused*/, D /*unused*/) {}
-};
-
-template <>
-struct TestCombineShiftRightLanesR<0> {
-  template <class T, class D>
-  void operator()(T /*unused*/, D /*unused*/) {}
-};
+#endif  // #if HWY_TARGET != HWY_SCALAR
 
 struct TestCombineShiftRight {
   template <class T, class D>
   HWY_NOINLINE void operator()(T t, D d) {
+// Scalar does not define CombineShiftRightBytes.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
     constexpr int kMaxBytes = HWY_MIN(16, int(MaxLanes(d) * sizeof(T)));
-    TestCombineShiftRightBytesR<kMaxBytes - 1>()(t, d);
-    TestCombineShiftRightLanesR<kMaxBytes / int(sizeof(T)) - 1>()(t, d);
+    constexpr int kMaxLanes = kMaxBytes / static_cast<int>(sizeof(T));
+    TestCombineShiftRightBytes<kMaxBytes - 1>()(t, d);
+    TestCombineShiftRightBytes<HWY_MAX(kMaxBytes / 2, 1)>()(t, d);
+    TestCombineShiftRightBytes<1>()(t, d);
+
+    TestCombineShiftRightLanes<kMaxLanes - 1>()(t, d);
+    TestCombineShiftRightLanes<HWY_MAX(kMaxLanes / 2, -1)>()(t, d);
+    TestCombineShiftRightLanes<1>()(t, d);
+#else
+    (void)t;
+    (void)d;
+#endif
   }
 };
 

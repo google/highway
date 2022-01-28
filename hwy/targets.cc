@@ -200,12 +200,12 @@ HWY_NORETURN void HWY_FORMAT(3, 4)
   fflush(stderr);
 
 // Now terminate the program:
-#if HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
+#if HWY_ARCH_RVV
+  exit(1);  // trap/abort just freeze Spike.
+#elif HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
   // Facilitates breaking into a debugger, but don't use this in non-debug
   // builds because it looks like "illegal instruction", which is misleading.
   __builtin_trap();
-#elif HWY_ARCH_RVV
-  exit(1);  // trap/abort just freeze Spike.
 #else
   abort();  // Compile error without this due to HWY_NORETURN.
 #endif
