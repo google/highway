@@ -16,10 +16,10 @@
 #define HWY_TARGET_INCLUDE "hwy/examples/benchmark.cc"
 #include "hwy/foreach_target.h"
 
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 
 #include <memory>
 #include <numeric>  // iota

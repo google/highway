@@ -22,7 +22,7 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_SORT_INL_H_
 #endif
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"

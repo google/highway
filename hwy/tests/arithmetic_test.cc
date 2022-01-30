@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
 #include <limits>

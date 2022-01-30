@@ -14,12 +14,12 @@
 
 #include "hwy/nanobenchmark.h"
 
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>  // abort
-#include <string.h>  // memcpy
-#include <time.h>    // clock_gettime
+#include <cinttypes>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>  // abort
+#include <cstring>  // memcpy
+#include <ctime>    // clock_gettime
 
 #include <algorithm>  // sort
 #include <array>

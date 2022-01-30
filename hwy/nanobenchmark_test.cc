@@ -14,9 +14,9 @@
 
 #include "hwy/nanobenchmark.h"
 
-#include <inttypes.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
 
 #include <random>
 

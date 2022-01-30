@@ -14,8 +14,8 @@
 
 // Target-specific helper functions for use by *_test.cc.
 
-#include <inttypes.h>
-#include <stdint.h>
+#include <cinttypes>
+#include <cstdint>
 
 #include "hwy/base.h"
 #include "hwy/tests/hwy_gtest.h"

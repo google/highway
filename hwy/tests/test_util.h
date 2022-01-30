@@ -17,9 +17,9 @@
 
 // Target-independent helper functions for use by *_test.cc.
 
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <string>
 

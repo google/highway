@@ -17,10 +17,10 @@
 
 // SIMD/multicore-friendly planar image representation with row accessors.
 
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <cstddef>
 #include <utility>  // std::move

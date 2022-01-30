@@ -14,9 +14,9 @@
 
 #include "hwy/tests/test_util.h"
 
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdio>
 
 #include <cmath>
 

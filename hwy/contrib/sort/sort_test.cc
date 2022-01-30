@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <inttypes.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
 #include "hwy/tests/include_farm_sve.h"
 // ^ must come before highway.h.
