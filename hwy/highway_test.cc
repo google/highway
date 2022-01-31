@@ -15,6 +15,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <bitset>
+
 #include "hwy/tests/include_farm_sve.h"
 // ^ must come before highway.h.
 
@@ -29,26 +31,50 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// For testing that ForPartialVectors reaches every possible size:
+using NumLanesSet = std::bitset<HWY_MAX_BYTES + 1>;
+
+// Monostate pattern because ForPartialVectors takes a template argument, not a
+// functor by reference.
+static NumLanesSet* NumLanesForSize(size_t sizeof_t) {
+  HWY_ASSERT(sizeof_t <= sizeof(uint64_t));
+  static NumLanesSet num_lanes[sizeof(uint64_t) + 1];
+  return num_lanes + sizeof_t;
+}
+static size_t* MaxLanesForSize(size_t sizeof_t) {
+  HWY_ASSERT(sizeof_t <= sizeof(uint64_t));
+  static size_t num_lanes[sizeof(uint64_t) + 1] = {0};
+  return num_lanes + sizeof_t;
+}
+
 struct TestMaxLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const size_t kMax = MaxLanes(d);
     HWY_ASSERT(N <= kMax);
-// TODO(janwas): remove once RVV has HWY_HAVE_SCALABLE
-#if HWY_TARGET != HWY_RVV
     HWY_ASSERT(kMax <= (HWY_MAX_BYTES / sizeof(T)));
-#endif
-#if HWY_HAVE_SCALABLE
-    if (detail::IsFull(d)) {
-      HWY_ASSERT(kMax == HWY_MAX_BYTES / sizeof(T));
-    }
-#endif
+
+    NumLanesForSize(sizeof(T))->set(N);
+    *MaxLanesForSize(sizeof(T)) = HWY_MAX(*MaxLanesForSize(sizeof(T)), N);
   }
 };
 
 HWY_NOINLINE void TestAllMaxLanes() {
   ForAllTypes(ForPartialVectors<TestMaxLanes>());
+
+  // Ensure ForPartialVectors visited all powers of two [1, N].
+  for (size_t sizeof_t : {sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
+                          sizeof(uint64_t)}) {
+    const size_t N = *MaxLanesForSize(sizeof_t);
+    for (size_t i = 1; i <= N; i += i) {
+      if (!NumLanesForSize(sizeof_t)->test(i)) {
+        fprintf(stderr, "T=%zu: did not visit for N=%zu, max=%zu\n", sizeof_t,
+                i, N);
+        HWY_ASSERT(false);
+      }
+    }
+  }
 }
 
 struct TestSet {

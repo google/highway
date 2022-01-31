@@ -280,12 +280,11 @@
 // The spec requires VLEN <= 2^16 bits, so the limit is 2^16 bytes (LMUL=8).
 #define HWY_MAX_BYTES 65536
 
-// <= HWY_MAX_BYTES / sizeof(T): exact size. Otherwise a fraction 1/div (div =
-// 1,2,4,8) is encoded as HWY_LANES(T) / div. This value leaves enough room for
-// div=8 and demoting to 1/8 the lane width while still exceeding HWY_MAX_BYTES.
-#define HWY_LANES(T) (8388608 / sizeof(T))
+// = HWY_MAX_BYTES divided by max LMUL=8 because MaxLanes includes the actual
+// LMUL. This is the tightest possible upper bound.
+#define HWY_LANES(T) (8192 / sizeof(T))
 
-#define HWY_HAVE_SCALABLE 0  // TODO(janwas): enable once ready
+#define HWY_HAVE_SCALABLE 1
 #define HWY_HAVE_INTEGER64 1
 #define HWY_HAVE_FLOAT64 1
 #define HWY_CAP_GE256 0

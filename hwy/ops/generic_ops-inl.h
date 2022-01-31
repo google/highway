@@ -287,24 +287,39 @@ HWY_API V CLMulUpper(V a, V b) {
 #define HWY_NATIVE_POPCNT
 #endif
 
-template <typename V, HWY_IF_LANES_ARE(uint8_t, V)>
+// This algorithm requires vectors to be at least 16 bytes, which is the case
+// for LMUL >= 2. If not, use the fallback below.
+template <typename V, HWY_IF_LANES_ARE(uint8_t, V), HWY_IF_GE128_D(DFromV<V>),
+          HWY_IF_POW2_GE(DFromV<V>, 1)>
 HWY_API V PopulationCount(V v) {
-  constexpr DFromV<V> d;
+  const DFromV<V> d;
   HWY_ALIGN constexpr uint8_t kLookup[16] = {
       0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
   };
-  auto lo = And(v, Set(d, 0xF));
-  auto hi = ShiftRight<4>(v);
-  auto lookup =
-      LoadDup128(CappedTag<uint8_t, HWY_MAX(16, MaxLanes(d))>(), kLookup);
+  const auto lo = And(v, Set(d, 0xF));
+  const auto hi = ShiftRight<4>(v);
+  const auto lookup = LoadDup128(d, kLookup);
   return Add(TableLookupBytes(lookup, hi), TableLookupBytes(lookup, lo));
 }
+
+// RVV has a specialization that avoids the Set().
+#if HWY_TARGET != HWY_RVV
+// Slower fallback for capped vectors.
+template <typename V, HWY_IF_LANES_ARE(uint8_t, V), HWY_IF_LT128_D(DFromV<V>)>
+HWY_API V PopulationCount(V v) {
+  const DFromV<V> d;
+  // See https://arxiv.org/pdf/1611.07612.pdf, Figure 3
+  v = Sub(v, And(ShiftRight<1>(v), Set(d, 0x55)));
+  v = Add(And(ShiftRight<2>(v), Set(d, 0x33)), And(v, Set(d, 0x33)));
+  return And(Add(v, ShiftRight<4>(v)), Set(d, 0x0F));
+}
+#endif  // HWY_TARGET != HWY_RVV
 
 template <typename V, HWY_IF_LANES_ARE(uint16_t, V)>
 HWY_API V PopulationCount(V v) {
   const DFromV<V> d;
-  Repartition<uint8_t, decltype(d)> d8;
-  auto vals = BitCast(d, PopulationCount(BitCast(d8, v)));
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto vals = BitCast(d, PopulationCount(BitCast(d8, v)));
   return Add(ShiftRight<8>(vals), And(vals, Set(d, 0xFF)));
 }
 

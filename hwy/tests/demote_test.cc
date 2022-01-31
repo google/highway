@@ -26,6 +26,9 @@
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
+// Causes build timeout.
+#if !HWY_IS_MSAN
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -267,7 +270,6 @@ HWY_NOINLINE void TestAllReorderDemote2To() {
   ForShrinkableVectors<TestReorderDemote2To>()(float());
 }
 
-
 struct TestI32F64 {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
@@ -315,21 +317,24 @@ HWY_NOINLINE void TestAllI32F64() {
 #endif
 }
 
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
+#endif  //  !HWY_IS_MSAN
+
 #if HWY_ONCE
 
 namespace hwy {
+#if !HWY_IS_MSAN
 HWY_BEFORE_TEST(HwyDemoteTest);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToInt);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToMixed);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToFloat);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllReorderDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllI32F64);
+#endif  //  !HWY_IS_MSAN
 }  // namespace hwy
 
 // Ought not to be necessary, but without this, no tests run on RVV.

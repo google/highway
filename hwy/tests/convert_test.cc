@@ -307,8 +307,7 @@ AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
 struct TestBF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_TARGET != HWY_RVV && !defined(HWY_EMULATE_SVE)
-
+#if !defined(HWY_EMULATE_SVE)
     size_t padded;
     auto in = BF16TestCases(d32, padded);
     using TBF16 = bfloat16_t;

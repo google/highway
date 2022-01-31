@@ -220,7 +220,7 @@ HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
   const size_t actual = detail::HardwareLanes(hwy::SizeTag<sizeof(T)>());
   // Common case of full vectors: avoid any extra instructions.
   if (detail::IsFull(d)) return actual;
-  return detail::ScaleByPower(HWY_MIN(actual, N), kPow2);
+  return HWY_MIN(detail::ScaleByPower(actual, kPow2), N);
 }
 
 // ================================================== MASK INIT

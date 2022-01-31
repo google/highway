@@ -41,8 +41,13 @@ struct Simd {
   using T = Lane;
   static_assert((N & (N - 1)) == 0 && N != 0, "N must be a power of two");
 
+  // Only for use by MaxLanes, required by MSVC.
+  enum { kPrivateN = N };
+  enum { kPrivatePow2 = kPow2 };
+
   template <typename NewT>
   static constexpr size_t NewN() {
+    // Round up to correctly handle scalars with N=1.
     return (N * sizeof(T) + sizeof(NewT) - 1) / sizeof(NewT);
   }
 
@@ -61,28 +66,29 @@ struct Simd {
 // PromoteTo/DemoteTo() with another lane type, but same number of lanes.
 #if HWY_HAVE_SCALABLE
   template <typename NewT>
-  using Rebind = Simd<NewT, NewN<NewT>(), kPow2 + Pow2Ratio<NewT>()>;
+  using Rebind = Simd<NewT, N, kPow2 + Pow2Ratio<NewT>()>;
 #else
   template <typename NewT>
   using Rebind = Simd<NewT, N, kPow2>;
 #endif
 
   // Change lane type while keeping the same vector size, e.g. for MulEven.
-  // Round up to correctly handle scalars with N=1.
   template <typename NewT>
   using Repartition = Simd<NewT, NewN<NewT>(), kPow2>;
 
 // Half the lanes while keeping the same lane type, e.g. for LowerHalf.
 // Round up to correctly handle scalars with N=1.
 #if HWY_HAVE_SCALABLE
-  using Half = Simd<T, N, kPow2 - 1>;
+  // Reducing the cap (N) is required for SVE - if N is the limiter for f32xN,
+  // then we expect Half<Rebind<u16>> to have N/2 lanes (rounded up).
+  using Half = Simd<T, (N + 1) / 2, kPow2 - 1>;
 #else
   using Half = Simd<T, (N + 1) / 2, kPow2>;
 #endif
 
 // Twice the lanes while keeping the same lane type, e.g. for Combine.
 #if HWY_HAVE_SCALABLE
-  using Twice = Simd<T, N, kPow2 + 1>;
+  using Twice = Simd<T, 2 * N, kPow2 + 1>;
 #else
   using Twice = Simd<T, 2 * N, kPow2>;
 #endif
@@ -113,27 +119,22 @@ struct ScalableTagChecker {
   static_assert(-3 <= kPow2 && kPow2 <= 3, "Fraction must be 1/8 to 8");
 #if HWY_TARGET == HWY_RVV
   // Only RVV supports register groups.
-  using type =
-      Simd<T, HWY_MAX(1, ScaleByPower(HWY_LANES(T), kPow2)), /*kPow2*/ 0>;
+  using type = Simd<T, HWY_LANES(T), kPow2>;
 #elif HWY_HAVE_SCALABLE
   // For SVE[2], only allow full or fractions.
-  using type = Simd<T, HWY_LANES(T), (kPow2 > 0 ? 0 : kPow2)>;
+  using type = Simd<T, HWY_LANES(T), HWY_MIN(kPow2, 0)>;
 #elif HWY_TARGET == HWY_SCALAR
   using type = Simd<T, /*N=*/1, 0>;
 #else
   // Only allow full or fractions.
-  using type = Simd<T, ScaleByPower(HWY_LANES(T), kPow2 <= 0 ? kPow2 : 0), 0>;
+  using type = Simd<T, ScaleByPower(HWY_LANES(T), HWY_MIN(kPow2, 0)), 0>;
 #endif
 };
 
 template <typename T, size_t kLimit>
 struct CappedTagChecker {
   static_assert(kLimit != 0, "Does not make sense to have zero lanes");
-#if HWY_TARGET == HWY_RVV
-  using type = Simd<T, HWY_MIN(kLimit, 8 * HWY_LANES(T)), 0>;
-#else
-  using type = Simd<T, HWY_MIN(kLimit, HWY_LANES(T)), 0>;
-#endif
+  using type = Simd<T, HWY_MIN(kLimit, HWY_MAX_BYTES / sizeof(T)), 0>;
 };
 
 template <typename T, size_t kNumLanes>
@@ -163,7 +164,7 @@ using ScalableTag = typename detail::ScalableTagChecker<T, kPow2>::type;
 // typically used for 1D loops with a relatively low application-defined upper
 // bound, e.g. for 8x8 DCTs. However, it is better if data structures are
 // designed to be vector-length-agnostic (e.g. a hybrid SoA where there are
-// chunks of say 256 DC components followed by 256 AC1 and finally 256 AC63;
+// chunks of `M >= MaxLanes(d)` DC components followed by M AC1, .., and M AC63;
 // this would enable vector-length-agnostic loops using ScalableTag).
 template <typename T, size_t kLimit>
 using CappedTag = typename detail::CappedTagChecker<T, kLimit>::type;
@@ -223,6 +224,12 @@ using Twice = typename D::Twice;
 #define HWY_IF_LANE_SIZE_D(D, bytes) HWY_IF_LANE_SIZE(TFromD<D>, bytes)
 #define HWY_IF_NOT_LANE_SIZE_D(D, bytes) HWY_IF_NOT_LANE_SIZE(TFromD<D>, bytes)
 
+// MSVC workaround: use kPrivateN directly instead of MaxLanes.
+#define HWY_IF_LT128_D(D) \
+  hwy::EnableIf<D::kPrivateN * sizeof(TFromD<D>) < 16>* = nullptr
+#define HWY_IF_GE128_D(D) \
+  hwy::EnableIf<D::kPrivateN * sizeof(TFromD<D>) >= 16>* = nullptr
+
 // Same, but with a vector argument.
 #define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(TFromV<V>)
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
@@ -231,17 +238,19 @@ using Twice = typename D::Twice;
 
 // For implementing functions for a specific type.
 // IsSame<...>() in template arguments is broken on MSVC2015.
-#define HWY_IF_LANES_ARE(T, V) \
-  EnableIf<IsSameT<T, TFromD<DFromV<V>>>::value>* = nullptr
+#define HWY_IF_LANES_ARE(T, V) EnableIf<IsSameT<T, TFromV<V>>::value>* = nullptr
+
+#if HWY_HAVE_SCALABLE
 
 // Upper bound on the number of lanes. Intended for template arguments and
 // reducing code size (e.g. for SSE4, we know at compile-time that vectors will
 // not exceed 16 bytes). WARNING: this may be a loose bound, use Lanes() as the
-// actual size for allocating storage.
-#if HWY_HAVE_SCALABLE
-template <typename T, size_t N, int kPow2>
-HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(Simd<T, N, kPow2>) {
-  return detail::ScaleByPower(HWY_MIN(N, HWY_MAX_BYTES / sizeof(T)), kPow2);
+// actual size for allocating storage. WARNING: MSVC might not be able to deduce
+// arguments if this is used in EnableIf. See HWY_IF_LT128_D above.
+template <class D>
+HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(D) {
+  return detail::ScaleByPower(HWY_MIN(D::kPrivateN, HWY_LANES(TFromD<D>)),
+                              D::kPrivatePow2);
 }
 
 template <typename T, size_t N, int kPow2>
@@ -249,24 +258,28 @@ HWY_INLINE HWY_MAYBE_UNUSED constexpr int Pow2(Simd<T, N, kPow2>) {
   return kPow2;
 }
 
-#else
-template <typename T, size_t N, int kPow2>
-HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(Simd<T, N, kPow2>) {
-  return N;
-}
-#endif
+#define HWY_IF_POW2_GE(D, MIN) hwy::EnableIf<Pow2(D()) >= MIN>* = nullptr
 
-// Targets with scalable vectors define this themselves.
-#if !HWY_HAVE_SCALABLE
+#else
+
+#define HWY_IF_POW2_GE(D, MIN) void* = nullptr
+
+// Workaround for MSVC 2017: T,N,kPow2 argument deduction fails, so returning N
+// is not an option, and we instead use a member enum.
+template <class D>
+HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(D) {
+  return D::kPrivateN;
+}
 
 // (Potentially) non-constant actual size of the vector at runtime, subject to
 // the limit imposed by the Simd. Useful for advancing loop counters.
+// Targets with scalable vectors define this themselves.
 template <typename T, size_t N, int kPow2>
 HWY_INLINE HWY_MAYBE_UNUSED size_t Lanes(Simd<T, N, kPow2>) {
   return N;
 }
 
-#endif
+#endif  // !HWY_HAVE_SCALABLE
 
 // NOTE: GCC generates incorrect code for vector arguments to non-inlined
 // functions in two situations:

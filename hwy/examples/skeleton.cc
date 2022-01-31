@@ -51,7 +51,7 @@ template <class DF>
 ATTR_MSAN void OneFloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
                             uint8_t* HWY_RESTRICT log2) {
   // Type tags for converting to other element types (Rebind = same count).
-  const Rebind<int32_t, DF> d32;
+  const RebindToSigned<DF> d32;
   const Rebind<uint8_t, DF> d8;
 
   const auto u8 = Load(d8, values);
@@ -75,20 +75,16 @@ void FloorLog2(const uint8_t* HWY_RESTRICT values, size_t count,
                uint8_t* HWY_RESTRICT log2) {
   CodepathDemo();
 
-  // Second argument is necessary on RVV until it supports fractional lengths.
-  const ScalableTag<float, 2> df;
-
+  const ScalableTag<float> df;
   const size_t N = Lanes(df);
   size_t i = 0;
   for (; i + N <= count; i += N) {
     OneFloorLog2(df, values + i, log2 + i);
   }
-  // TODO(janwas): implement
-#if HWY_TARGET != HWY_RVV
   for (; i < count; ++i) {
-    OneFloorLog2(HWY_CAPPED(float, 1)(), values + i, log2 + i);
+    CappedTag<float, 1> d1;
+    OneFloorLog2(d1, values + i, log2 + i);
   }
-#endif
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

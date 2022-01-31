@@ -85,8 +85,8 @@ struct TestLowerQuarter {
 };
 
 HWY_NOINLINE void TestAllLowerHalf() {
-  ForAllTypes(ForDemoteVectors<TestLowerHalf>());
-  ForAllTypes(ForDemoteVectors<TestLowerQuarter, 2>());
+  ForAllTypes(ForHalfVectors<TestLowerHalf>());
+  ForAllTypes(ForHalfVectors<TestLowerQuarter, 2>());
 }
 
 struct TestUpperHalf {
@@ -110,7 +110,7 @@ struct TestUpperHalf {
 };
 
 HWY_NOINLINE void TestAllUpperHalf() {
-  ForAllTypes(ForShrinkableVectors<TestUpperHalf>());
+  ForAllTypes(ForHalfVectors<TestUpperHalf>());
 }
 
 struct TestZeroExtendVector {
@@ -119,24 +119,23 @@ struct TestZeroExtendVector {
     const Twice<D> d2;
 
     const auto v = Iota(d, 1);
+    const size_t N = Lanes(d);
     const size_t N2 = Lanes(d2);
-    HWY_ASSERT(N2 == 2 * Lanes(d));
+    // If equal, then N was already MaxLanes(d) and it's not clear what
+    // Combine or ZeroExtendVector should return.
+    if (N2 == N) return;
+    HWY_ASSERT(N2 == 2 * N);
     auto lanes = AllocateAligned<T>(N2);
     Store(v, d, &lanes[0]);
-    Store(v, d, &lanes[N2 / 2]);
+    Store(v, d, &lanes[N]);
 
     const auto ext = ZeroExtendVector(d2, v);
     Store(ext, d2, lanes.get());
 
-    size_t i = 0;
     // Lower half is unchanged
-    for (; i < N2 / 2; ++i) {
-      HWY_ASSERT_EQ(T(1 + i), lanes[i]);
-    }
+    HWY_ASSERT_VEC_EQ(d, v, Load(d, &lanes[0]));
     // Upper half is zero
-    for (; i < N2; ++i) {
-      HWY_ASSERT_EQ(T(0), lanes[i]);
-    }
+    HWY_ASSERT_VEC_EQ(d, Zero(d), Load(d, &lanes[N]));
   }
 };
 
