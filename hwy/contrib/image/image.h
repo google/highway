@@ -33,7 +33,7 @@ namespace hwy {
 
 // Type-independent parts of Image<> - reduces code duplication and facilitates
 // moving member function implementations to cc file.
-struct HWY_DLLEXPORT ImageBase {
+struct HWY_CONTRIB_DLLEXPORT ImageBase {
   // Returns required alignment in bytes for externally allocated memory.
   static size_t VectorSize();
 
