@@ -565,7 +565,6 @@ constexpr size_t AdjustedLog2Reps(size_t max_pow2) {
 #elif HWY_IS_DEBUG_BUILD
   return HWY_MIN(max_pow2 - 1, max_pow2);
 #else
-  HWY_ASSERT(max_pow2 != 0);
   return max_pow2;
 #endif
 }
