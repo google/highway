@@ -303,10 +303,11 @@ VFromD<D> Undefined(D d) {
 }
 #else
 
-#define HWY_SVE_UNDEFINED(BASE, CHAR, BITS, HALF, NAME, OP)               \
-  template <size_t N, int kPow2>                                          \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d) { \
-    return sv##OP##_##CHAR##BITS();                                       \
+#define HWY_SVE_UNDEFINED(BASE, CHAR, BITS, HALF, NAME, OP) \
+  template <size_t N, int kPow2>                            \
+  HWY_API HWY_SVE_V(BASE, BITS)                             \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */) {       \
+    return sv##OP##_##CHAR##BITS();                         \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_UNDEFINED, Undefined, undef)
@@ -847,7 +848,7 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
 #define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, HALF, NAME, OP) \
   template <size_t N, int kPow2>                              \
   HWY_API HWY_SVE_V(BASE, BITS)                               \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,                 \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,           \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {    \
     /* All-true predicate to load all 128 bits. */            \
     return sv##OP##_##CHAR##BITS(HWY_SVE_PTRUE(8), p);        \
@@ -1395,7 +1396,7 @@ HWY_API V LowerHalf(const V v) {
 }
 
 template <class D2, class V>
-HWY_API V UpperHalf(const D2 d2, const V v) {
+HWY_API V UpperHalf(const D2 /* d2 */, const V v) {
   return detail::Splice(v, v, detail::MaskUpperHalf(Twice<D2>()));
 }
 
@@ -1905,7 +1906,8 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   template <size_t N, int kPow2>                                         \
   HWY_API HWY_SVE_V(BASE, BITS)                                          \
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d, HWY_SVE_V(BASE, BITS) v) { \
-    return Set(d, sv##OP##_##CHAR##BITS(detail::MakeMask(d), v));        \
+    return Set(d, static_cast<HWY_SVE_T(BASE, BITS)>(                    \
+                      sv##OP##_##CHAR##BITS(detail::MakeMask(d), v)));   \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_REDUCE, SumOfLanes, addv)
@@ -2214,7 +2216,7 @@ HWY_API svuint64_t CLMulUpper(const svuint64_t a, const svuint64_t b) {
 // ------------------------------ Lt128
 
 template <class D>
-HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
+HWY_INLINE svbool_t Lt128(D /* d */, const svuint64_t a, const svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
   // Truth table of Eq and Compare for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)

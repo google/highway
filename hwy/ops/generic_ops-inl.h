@@ -287,10 +287,18 @@ HWY_API V CLMulUpper(V a, V b) {
 #define HWY_NATIVE_POPCNT
 #endif
 
+#if HWY_TARGET == HWY_RVV
+#define HWY_MIN_POW2_FOR_128 1
+#else
+// All other targets except HWY_SCALAR (which is excluded by HWY_IF_GE128_D)
+// guarantee 128 bits anyway.
+#define HWY_MIN_POW2_FOR_128 0
+#endif
+
 // This algorithm requires vectors to be at least 16 bytes, which is the case
 // for LMUL >= 2. If not, use the fallback below.
 template <typename V, HWY_IF_LANES_ARE(uint8_t, V), HWY_IF_GE128_D(DFromV<V>),
-          HWY_IF_POW2_GE(DFromV<V>, 1)>
+          HWY_IF_POW2_GE(DFromV<V>, HWY_MIN_POW2_FOR_128)>
 HWY_API V PopulationCount(V v) {
   const DFromV<V> d;
   HWY_ALIGN constexpr uint8_t kLookup[16] = {

@@ -41,9 +41,11 @@ struct Simd {
   using T = Lane;
   static_assert((N & (N - 1)) == 0 && N != 0, "N must be a power of two");
 
-  // Only for use by MaxLanes, required by MSVC.
-  enum { kPrivateN = N };
-  enum { kPrivatePow2 = kPow2 };
+  // Only for use by MaxLanes, required by MSVC. Cannot be enum because GCC
+  // warns when using enums and non-enums in the same expression. Cannot be
+  // static constexpr function (another MSVC limitation).
+  static constexpr size_t kPrivateN = N;
+  static constexpr size_t kPrivatePow2 = kPow2;
 
   template <typename NewT>
   static constexpr size_t NewN() {
@@ -55,7 +57,7 @@ struct Simd {
   template <typename NewT>
   static constexpr int Pow2Ratio() {
     return (sizeof(NewT) > sizeof(T))
-               ? CeilLog2(sizeof(NewT) / sizeof(T))
+               ? static_cast<int>(CeilLog2(sizeof(NewT) / sizeof(T)))
                : -static_cast<int>(CeilLog2(sizeof(T) / sizeof(NewT)));
   }
 #endif
@@ -224,7 +226,7 @@ using Twice = typename D::Twice;
 #define HWY_IF_LANE_SIZE_D(D, bytes) HWY_IF_LANE_SIZE(TFromD<D>, bytes)
 #define HWY_IF_NOT_LANE_SIZE_D(D, bytes) HWY_IF_NOT_LANE_SIZE(TFromD<D>, bytes)
 
-// MSVC workaround: use kPrivateN directly instead of MaxLanes.
+// MSVC workaround: use PrivateN directly instead of MaxLanes.
 #define HWY_IF_LT128_D(D) \
   hwy::EnableIf<D::kPrivateN * sizeof(TFromD<D>) < 16>* = nullptr
 #define HWY_IF_GE128_D(D) \
@@ -240,6 +242,14 @@ using Twice = typename D::Twice;
 // IsSame<...>() in template arguments is broken on MSVC2015.
 #define HWY_IF_LANES_ARE(T, V) EnableIf<IsSameT<T, TFromV<V>>::value>* = nullptr
 
+template <class D>
+HWY_INLINE HWY_MAYBE_UNUSED constexpr int Pow2(D /* d */) {
+  return D::kPrivatePow2;
+}
+
+// MSVC requires the explicit <D>.
+#define HWY_IF_POW2_GE(D, MIN) hwy::EnableIf<Pow2<D>(D()) >= (MIN)>* = nullptr
+
 #if HWY_HAVE_SCALABLE
 
 // Upper bound on the number of lanes. Intended for template arguments and
@@ -253,19 +263,9 @@ HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(D) {
                               D::kPrivatePow2);
 }
 
-template <typename T, size_t N, int kPow2>
-HWY_INLINE HWY_MAYBE_UNUSED constexpr int Pow2(Simd<T, N, kPow2>) {
-  return kPow2;
-}
-
-#define HWY_IF_POW2_GE(D, MIN) hwy::EnableIf<Pow2(D()) >= MIN>* = nullptr
-
 #else
-
-#define HWY_IF_POW2_GE(D, MIN) void* = nullptr
-
 // Workaround for MSVC 2017: T,N,kPow2 argument deduction fails, so returning N
-// is not an option, and we instead use a member enum.
+// is not an option, nor does a member function work.
 template <class D>
 HWY_INLINE HWY_MAYBE_UNUSED constexpr size_t MaxLanes(D) {
   return D::kPrivateN;
