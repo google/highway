@@ -266,8 +266,7 @@ endif()
 # -------------------------------------------------------- install library
 if (HWY_ENABLE_INSTALL)
 
-install(TARGETS hwy
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install(TARGETS hwy)
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_SOURCES})
@@ -278,8 +277,7 @@ foreach (source ${HWY_SOURCES})
   endif()
 endforeach()
 
-install(TARGETS hwy_contrib
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install(TARGETS hwy_contrib)
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_CONTRIB_SOURCES})
@@ -290,8 +288,7 @@ foreach (source ${HWY_CONTRIB_SOURCES})
   endif()
 endforeach()
 
-install(TARGETS hwy_test
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install(TARGETS hwy_test)
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_TEST_SOURCES})
