@@ -242,10 +242,10 @@ namespace detail {
 // All-true mask from a macro
 #define HWY_SVE_PTRUE(BITS) svptrue_pat_b##BITS(SV_POW2)
 
-#define HWY_SVE_WRAP_PTRUE(BASE, CHAR, BITS, HALF, NAME, OP) \
-  template <size_t N, int kPow2>                             \
-  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d) { \
-    return HWY_SVE_PTRUE(BITS);                              \
+#define HWY_SVE_WRAP_PTRUE(BASE, CHAR, BITS, HALF, NAME, OP)       \
+  template <size_t N, int kPow2>                                   \
+  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */) { \
+    return HWY_SVE_PTRUE(BITS);                                    \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)  // return all-true
@@ -268,11 +268,11 @@ svbool_t MakeMask(D d) {
 
 // ------------------------------ Set
 // vector = f(d, scalar), e.g. Set
-#define HWY_SVE_SET(BASE, CHAR, BITS, HALF, NAME, OP)                      \
-  template <size_t N, int kPow2>                                           \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d, HWY_SVE_T(BASE, BITS) arg) { \
-    return sv##OP##_##CHAR##BITS(arg);                                     \
+#define HWY_SVE_SET(BASE, CHAR, BITS, HALF, NAME, OP)                         \
+  template <size_t N, int kPow2>                                              \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
+                                     HWY_SVE_T(BASE, BITS) arg) {             \
+    return sv##OP##_##CHAR##BITS(arg);                                        \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_SET, Set, dup_n)
@@ -693,10 +693,10 @@ HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE, CountTrue, cntp)
 // For 16-bit Compress: full vector, not limited to SV_POW2.
 namespace detail {
 
-#define HWY_SVE_COUNT_TRUE_FULL(BASE, CHAR, BITS, HALF, NAME, OP)      \
-  template <size_t N, int kPow2>                                       \
-  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d, svbool_t m) { \
-    return sv##OP##_b##BITS(svptrue_b##BITS(), m);                     \
+#define HWY_SVE_COUNT_TRUE_FULL(BASE, CHAR, BITS, HALF, NAME, OP)            \
+  template <size_t N, int kPow2>                                             \
+  HWY_API size_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, svbool_t m) { \
+    return sv##OP##_b##BITS(svptrue_b##BITS(), m);                           \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_COUNT_TRUE_FULL, CountTrueFull, cntp)
@@ -1161,10 +1161,10 @@ HWY_API svuint8_t U8FromU32(const svuint32_t v) {
 template <size_t N, int kPow2>
 HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint16_t v) {
   const DFromV<decltype(v)> di;
-  using TN = TFromD<decltype(dn)>;
 #if HWY_TARGET == HWY_SVE2
   const svint8_t vn = BitCast(dn, svqxtnb_s16(v));
 #else
+  using TN = TFromD<decltype(dn)>;
   const svint8_t vn = BitCast(dn, detail::SaturateI<TN>(v));
 #endif
   return svuzp1_s8(vn, vn);
@@ -1173,10 +1173,10 @@ HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint16_t v) {
 template <size_t N, int kPow2>
 HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint32_t v) {
   const DFromV<decltype(v)> di;
-  using TN = TFromD<decltype(dn)>;
 #if HWY_TARGET == HWY_SVE2
   const svint16_t vn = BitCast(dn, svqxtnb_s32(v));
 #else
+  using TN = TFromD<decltype(dn)>;
   const svint16_t vn = BitCast(dn, detail::SaturateI<TN>(v));
 #endif
   return svuzp1_s16(vn, vn);
@@ -1185,11 +1185,11 @@ HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint32_t v) {
 template <size_t N, int kPow2>
 HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint32_t v) {
   const DFromV<decltype(v)> di;
-  using TN = TFromD<decltype(dn)>;
   const RepartitionToWide<decltype(dn)> d2;
 #if HWY_TARGET == HWY_SVE2
   const svint16_t cast16 = BitCast(d2, svqxtnb_s16(svqxtnb_s32(v)));
 #else
+  using TN = TFromD<decltype(dn)>;
   const svint16_t cast16 = BitCast(d2, detail::SaturateI<TN>(v));
 #endif
   const svint8_t v2 = BitCast(dn, svuzp1_s16(cast16, cast16));
@@ -1300,11 +1300,11 @@ HWY_API VFromD<DI> NearestInt(VF v) {
 
 // ------------------------------ Iota (Add, ConvertTo)
 
-#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)                       \
-  template <size_t N, int kPow2>                                             \
-  HWY_API HWY_SVE_V(BASE, BITS)                                              \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d, HWY_SVE_T(BASE, BITS) first) { \
-    return sv##OP##_##CHAR##BITS(first, 1);                                  \
+#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)                        \
+  template <size_t N, int kPow2>                                              \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
+                                     HWY_SVE_T(BASE, BITS) first) {           \
+    return sv##OP##_##CHAR##BITS(first, 1);                                   \
   }
 
 HWY_SVE_FOREACH_UI(HWY_SVE_IOTA, Iota, index)
@@ -1655,7 +1655,7 @@ HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
 
 template <size_t kLanes, class D>
 svbool_t FirstNPerBlock(D d) {
-  const RebindToSigned<D> di;
+  const RebindToSigned<decltype(d)> di;
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
   const auto idx_mod = detail::AndN(Iota(di, 0), kLanesPerBlock - 1);
   return detail::LtN(BitCast(di, idx_mod), kLanes);

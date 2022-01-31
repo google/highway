@@ -99,7 +99,7 @@ namespace detail {
 #if HWY_HAVE_SCALABLE
 
 template <typename T, size_t N, int kPow2>
-constexpr bool IsFull(Simd<T, N, kPow2> d) {
+constexpr bool IsFull(Simd<T, N, kPow2> /* d */) {
   return N == HWY_LANES(T) && kPow2 == 0;
 }
 
