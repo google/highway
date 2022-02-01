@@ -288,7 +288,7 @@ HWY_TEST_DEPS = [
     ":math",
     ":nanobenchmark",
     ":skeleton",
-    "//third_party/highway/hwy/contrib/sort:vqsort",
+    "//hwy/contrib/sort:vqsort",
     "@com_google_googletest//:gtest_main",
 ]
 
