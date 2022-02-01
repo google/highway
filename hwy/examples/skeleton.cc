@@ -33,6 +33,8 @@
 // Optional, can instead add HWY_ATTR to all functions.
 HWY_BEFORE_NAMESPACE();
 namespace skeleton {
+// This namespace name is unique per target, which allows code for multiple
+// targets to co-exist in the same translation unit.
 namespace HWY_NAMESPACE {
 
 // Highway ops reside here; ADL does not find templates nor builtins.
@@ -92,6 +94,9 @@ void FloorLog2(const uint8_t* HWY_RESTRICT values, size_t count,
 }  // namespace skeleton
 HWY_AFTER_NAMESPACE();
 
+// The table of pointers to the various implementations in HWY_NAMESPACE must
+// be compiled only once (foreach_target #includes this file multiple times).
+// HWY_ONCE is true for only one of these 'compilation passes'.
 #if HWY_ONCE
 
 namespace skeleton {
@@ -105,6 +110,8 @@ HWY_EXPORT(FloorLog2);
 // is equivalent to inlining this function.
 void CallFloorLog2(const uint8_t* HWY_RESTRICT in, const size_t count,
                    uint8_t* HWY_RESTRICT out) {
+  // This must reside outside of HWY_NAMESPACE because it references (calls the
+  // appropriate one from) the per-target implementations there.
   return HWY_DYNAMIC_DISPATCH(FloorLog2)(in, count, out);
 }
 

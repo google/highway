@@ -206,7 +206,9 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 //------------------------------------------------------------------------------
 // Alignment
 
-// For stack-allocated partial arrays or LoadDup128.
+// Potentially useful for LoadDup128 and capped vectors. In other cases, arrays
+// should be allocated dynamically via aligned_allocator.h because Lanes() may
+// exceed the stack size.
 #if HWY_ARCH_X86
 #define HWY_ALIGN_MAX alignas(64)
 #elif HWY_ARCH_RVV && defined(__riscv_vector)

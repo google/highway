@@ -89,14 +89,14 @@ void RunBenchmark(const char* caption) {
 }
 
 void Intro() {
-  HWY_ALIGN const float in[16] = {1, 2, 3, 4, 5, 6};
-  HWY_ALIGN float out[16];
+  const float in[16] = {1, 2, 3, 4, 5, 6};
+  float out[16];
   const ScalableTag<float> d;  // largest possible vector
   for (size_t i = 0; i < 16; i += Lanes(d)) {
-    const auto vec = Load(d, in + i);  // aligned!
+    const auto vec = LoadU(d, in + i);  // no alignment requirement
     auto result = Mul(vec, vec);
     result = Add(result, result);  // can update if not const
-    Store(result, d, out + i);
+    StoreU(result, d, out + i);
   }
   printf("\nF(x)->2*x^2, F(%.0f) = %.1f\n", in[2], out[2]);
 }
