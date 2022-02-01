@@ -620,14 +620,14 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, const size_t begin,
   }
 
   if (HWY_UNLIKELY(num_left <= base_case_num)) {
-    BaseCase(d, st, keys + begin, num_left, buf);
+    BaseCase(d, st, keys + begin, static_cast<size_t>(num_left), buf);
   } else {
     const Vec<D> next_pivot = ChoosePivot(d, st, keys, begin, bound, buf, rng);
     Recurse(d, st, keys, begin, bound, next_pivot, buf, rng,
             remaining_levels - 1);
   }
   if (HWY_UNLIKELY(num_right <= base_case_num)) {
-    BaseCase(d, st, keys + bound, num_right, buf);
+    BaseCase(d, st, keys + bound, static_cast<size_t>(num_right), buf);
   } else {
     const Vec<D> next_pivot = ChoosePivot(d, st, keys, bound, end, buf, rng);
     Recurse(d, st, keys, bound, end, next_pivot, buf, rng,
@@ -688,6 +688,8 @@ template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
 #if HWY_TARGET == HWY_SCALAR
+  (void)d;
+  (void)buf;
   // PERFORMANCE WARNING: vqsort is not enabled for the non-SIMD target
   return detail::HeapSort(st, keys, num);
 #else

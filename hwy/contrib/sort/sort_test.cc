@@ -137,7 +137,8 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
         }
         InputStats<T> input_stats;
         for (size_t i = 0; i < len; ++i) {
-          keys[i] = asc ? T(i) + 1 : T(len) - i;
+          keys[i] =
+              asc ? static_cast<T>(T(i) + 1) : static_cast<T>(T(len) - T(i));
           input_stats.Notify(keys[i]);
           if (kDebug >= 2) printf("%3zu: %f\n", i, double(keys[i]));
         }
@@ -290,13 +291,11 @@ static HWY_NOINLINE void TestPartition() {
 
   const size_t N1 = st.LanesPerKey();
   for (bool in_asc : {false, true}) {
-    for (size_t left :
-         {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 15, 22, 28, 29, 30, 31}) {
-      left &= ~(N1 - 1);
+    for (int left_i : {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 15, 22, 28, 29, 30, 31}) {
+      const size_t left = static_cast<size_t>(left_i) & ~(N1 - 1);
       for (size_t ofs : {N, N + 1, N + 2, N + 3, 2 * N, 2 * N + 1, 2 * N + 2,
                          2 * N + 3, 3 * N - 1, 4 * N - 3, 4 * N - 2}) {
-        size_t len = base_case_num + ofs;
-        len &= ~(N1 - 1);
+        const size_t len = (base_case_num + ofs) & ~(N1 - 1);
         for (T pivot1 :
              {T(0), T(len / 3), T(len / 2), T(2 * len / 3), T(len)}) {
           const T pivot2[2] = {pivot1, 0};
@@ -425,7 +424,7 @@ class CompareResults {
     memcpy(copy_.data(), in, num * sizeof(T));
   }
 
-  bool Verify(const Dist dist, const T* output) {
+  bool Verify(const T* output) {
 #if HAVE_PDQSORT
     const Algo reference = Algo::kPDQ;
 #else
@@ -510,7 +509,7 @@ void TestSort(size_t num) {
         compare.SetInput(keys, num);
 
         Run<typename Traits::Order>(algo, keys, num, shared, /*thread=*/0);
-        HWY_ASSERT(compare.Verify(dist, keys));
+        HWY_ASSERT(compare.Verify(keys));
         HWY_ASSERT(VerifySort(st, input_stats, keys, num, "TestSort"));
 
         // Check red zones

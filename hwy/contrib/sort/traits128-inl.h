@@ -118,7 +118,7 @@ struct Key128 {
 
   // This is only called for 8/16 col networks (not supported).
   template <class D>
-  HWY_INLINE Vec<D> SwapAdjacentPairs(D d, const Vec<D> v) const {
+  HWY_INLINE Vec<D> SwapAdjacentPairs(D, Vec<D>) const {
     HWY_ASSERT(0);
   }
 

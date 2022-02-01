@@ -65,7 +65,9 @@ cc_library(
     deps = [
         ":vqsort",
         "//:nanobenchmark",
-        "//third_party/boost/allowed",
+        # Required for HAVE_PDQSORT, but that is unused and this is
+        # unavailable to Bazel builds, hence commented out.
+        # "//third_party/boost/allowed",
         # Avoid ips4o and thus TBB to work around hwloc build failure.
     ],
 )

@@ -75,7 +75,7 @@ class InputStats {
   void Notify(T value) {
     min_ = std::min(min_, value);
     max_ = std::max(max_, value);
-    sumf_ += value;
+    sumf_ += static_cast<double>(value);
     count_ += 1;
   }
 

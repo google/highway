@@ -71,8 +71,9 @@ namespace HWY_NAMESPACE {
 
 struct Result {
   Result() {}
-  Result(const int target, const Algo algo, Dist dist, bool is128, size_t num,
-         size_t num_threads, double sec, size_t sizeof_t, const char* type_name)
+  Result(const uint32_t target, const Algo algo, Dist dist, bool is128,
+         size_t num, size_t num_threads, double sec, size_t sizeof_t,
+         const char* type_name)
       : target(target),
         algo(algo),
         dist(dist),
@@ -84,14 +85,16 @@ struct Result {
         type_name(type_name) {}
 
   void Print() const {
-    const double bytes = num * num_threads * sizeof_t;
+    const double bytes = static_cast<double>(num) *
+                         static_cast<double>(num_threads) *
+                         static_cast<double>(sizeof_t);
     printf("%10s: %12s: %7s: %9s: %.2E %4.0f MB/s (%2zu threads)\n",
            hwy::TargetName(target), AlgoName(algo),
            is128 ? "u128" : type_name.c_str(), DistName(dist),
            static_cast<double>(num), bytes * 1E-6 / sec, num_threads);
   }
 
-  int target;
+  uint32_t target;
   Algo algo;
   Dist dist;
   bool is128;
