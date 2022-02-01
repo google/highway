@@ -680,14 +680,21 @@ HWY_API size_t PopCount(uint64_t x) {
 #endif
 }
 
+// Skip HWY_API due to GCC "function not considered for inlining". Previously
+// such errors were caused by underlying type mismatches, but it's not clear
+// what is still mismatched despite all the casts.
 template <typename TI>
-HWY_API constexpr size_t FloorLog2(TI x) {
-  return x == 1 ? 0 : FloorLog2(x >> 1) + 1;
+/*HWY_API*/ constexpr size_t FloorLog2(TI x) {
+  return x == TI{1}
+             ? 0
+             : static_cast<size_t>(FloorLog2(static_cast<TI>(x >> 1)) + 1);
 }
 
 template <typename TI>
-HWY_API constexpr size_t CeilLog2(TI x) {
-  return x == 1 ? 0 : FloorLog2(x - 1) + 1;
+/*HWY_API*/ constexpr size_t CeilLog2(TI x) {
+  return x == TI{1}
+             ? 0
+             : static_cast<size_t>(FloorLog2(static_cast<TI>(x - 1)) + 1);
 }
 
 #if HWY_COMPILER_MSVC && HWY_ARCH_X86_64

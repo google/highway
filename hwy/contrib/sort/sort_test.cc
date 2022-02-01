@@ -36,7 +36,7 @@
 #include <vector>
 
 #undef VQSORT_TEST_IMPL
-#if (HWY_TARGET == HWY_SCALAR) || (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD)
+#if (HWY_TARGET == HWY_SCALAR) || (defined(_MSC_VER) && !HWY_IS_DEBUG_BUILD)
 // Scalar does not implement these, and MSVC non-debug builds time out.
 #define VQSORT_TEST_IMPL 0
 #else
@@ -45,7 +45,7 @@
 
 #undef VQSORT_TEST_SORT
 // MSVC non-debug builds time out.
-#if HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
+#if defined(_MSC_VER) && !HWY_IS_DEBUG_BUILD
 #define VQSORT_TEST_SORT 0
 #else
 #define VQSORT_TEST_SORT 1
@@ -231,7 +231,7 @@ static HWY_NOINLINE void TestBaseCase() {
 
 HWY_NOINLINE void TestAllBaseCase() {
   // Workaround for stack overflow on MSVC debug.
-#if HWY_COMPILER_MSVC && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
+#if defined(_MSC_VER) && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
   return;
 #endif
 

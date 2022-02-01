@@ -26,6 +26,8 @@
 #include "third_party/absl/random/random.h"
 #endif
 
+#include <string.h>  // memcpy
+
 #include "hwy/cache_control.h"  // Prefetch
 #include "hwy/contrib/sort/disabled_targets.h"
 #include "hwy/contrib/sort/vqsort.h"  // Fill24Bytes
@@ -592,7 +594,8 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, const size_t begin,
     return;
   }
 
-  const size_t base_case_num = Constants::BaseCaseNum(Lanes(d));
+  const ptrdiff_t base_case_num =
+      static_cast<ptrdiff_t>(Constants::BaseCaseNum(Lanes(d)));
   const size_t bound = Partition(d, st, keys, begin, end, pivot, buf);
 
   const ptrdiff_t num_left =

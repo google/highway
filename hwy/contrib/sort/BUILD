@@ -47,8 +47,8 @@ cc_library(
     deps = [
         # Only if VQSORT_SECURE_RNG is set.
         # "//third_party/absl/random",
-        "//third_party/highway:hwy",
-        "//third_party/highway:include_farm_sve",
+        "//:hwy",
+        "//:include_farm_sve",
     ],
 )
 
@@ -64,16 +64,10 @@ cc_library(
     ],
     deps = [
         ":vqsort",
-        "//third_party/highway:nanobenchmark",
+        "//:nanobenchmark",
         "//third_party/boost/allowed",
-    ] + select({
-        "//tools/target_cpu:x86": [
-            "//third_party/ips4o",
-        ],
-        "//conditions:default": [
-            # Avoid ips4o and thus TBB to work around hwloc build failure.
-        ],
-    }),
+        # Avoid ips4o and thus TBB to work around hwloc build failure.
+    ],
 )
 
 cc_binary(
@@ -83,7 +77,7 @@ cc_binary(
     deps = [
         ":helpers",
         ":vqsort",
-        "//third_party/highway:hwy",
+        "//:hwy",
     ],
 )
 
@@ -100,9 +94,9 @@ cc_test(
         ":helpers",
         ":vqsort",
         "@com_google_googletest//:gtest_main",
-        "//third_party/highway:hwy",
-        "//third_party/highway:hwy_test_util",
-        "//third_party/highway:include_farm_sve",
+        "//:hwy",
+        "//:hwy_test_util",
+        "//:include_farm_sve",
     ],
 )
 
@@ -117,8 +111,8 @@ cc_binary(
         ":helpers",
         ":vqsort",
         "@com_google_googletest//:gtest_main",
-        "//third_party/highway:hwy",
-        "//third_party/highway:hwy_test_util",
+        "//:hwy",
+        "//:hwy_test_util",
     ],
 )
 
@@ -133,7 +127,7 @@ cc_binary(
         ":helpers",
         ":vqsort",
         "@com_google_googletest//:gtest_main",
-        "//third_party/highway:hwy",
-        "//third_party/highway:hwy_test_util",
+        "//:hwy",
+        "//:hwy_test_util",
     ],
 )

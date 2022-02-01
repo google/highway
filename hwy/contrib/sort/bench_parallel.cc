@@ -159,7 +159,7 @@ class ThreadPool {
 
   std::mutex mutex_;  // guards both cv and their variables.
   std::condition_variable workers_ready_cv_;
-  int workers_ready_ = 0;
+  size_t workers_ready_ = 0;
   std::condition_variable worker_start_cv_;
   WorkerCommand worker_start_command_;
 

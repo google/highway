@@ -137,10 +137,10 @@ void Sorter::Fill24Bytes(const void* seed_heap, size_t seed_num, void* bytes) {
   const uintptr_t bits_stack = reinterpret_cast<uintptr_t>(seed_stack);
   const uintptr_t bits_heap = reinterpret_cast<uintptr_t>(seed_heap);
   const uintptr_t bits_code = reinterpret_cast<uintptr_t>(seed_code);
-  const uint64_t bits_time = clock();
-  words[0] = bits_stack ^ bits_time;
-  words[1] = bits_heap ^ bits_time;
-  words[2] = bits_code ^ bits_time;
+  const uint64_t bits_time = static_cast<uint64_t>(clock());
+  words[0] = bits_stack ^ bits_time ^ seed_num;
+  words[1] = bits_heap ^ bits_time ^ seed_num;
+  words[2] = bits_code ^ bits_time ^ seed_num;
 }
 
 #endif  // !VQSORT_SECURE_RNG
