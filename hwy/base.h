@@ -541,6 +541,21 @@ constexpr uint64_t ExponentMask<uint64_t>() {
   return 0x7FF0000000000000ULL;
 }
 
+// Returns bitmask of the mantissa field in IEEE binary32/64.
+template <typename T>
+constexpr T MantissaMask() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return 0;
+}
+template <>
+constexpr uint32_t MantissaMask<uint32_t>() {
+  return 0x007FFFFF;
+}
+template <>
+constexpr uint64_t MantissaMask<uint64_t>() {
+  return 0x000FFFFFFFFFFFFFULL;
+}
+
 // Returns 1 << mantissa_bits as a floating-point number. All integers whose
 // absolute value are less than this can be represented exactly.
 template <typename T>

@@ -200,18 +200,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "sort",
-    compatible_with = [],
-    textual_hdrs = [
-        "hwy/contrib/sort/sort-inl.h",
-    ],
-    deps = [
-        ":hwy",
-        ":include_farm_sve",
-    ],
-)
-
 # Everything required for tests that use Highway.
 cc_library(
     name = "hwy_test_util",
@@ -269,7 +257,7 @@ HWY_TESTS = [
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
-    ("hwy/contrib/sort/", "sort_test"),
+    # contrib/sort has its own BUILD, we add it to GUITAR_TESTS.
     ("hwy/examples/", "skeleton_test"),
     ("hwy/", "nanobenchmark_test"),
     ("hwy/", "aligned_allocator_test"),
@@ -300,7 +288,7 @@ HWY_TEST_DEPS = [
     ":math",
     ":nanobenchmark",
     ":skeleton",
-    ":sort",
+    "//third_party/highway/hwy/contrib/sort:vqsort",
     "@com_google_googletest//:gtest_main",
 ]
 

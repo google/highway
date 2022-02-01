@@ -67,7 +67,32 @@ set(HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
     hwy/contrib/math/math-inl.h
-    hwy/contrib/sort/sort-inl.h
+    hwy/contrib/sort/disabled_targets.h
+    hwy/contrib/sort/shared-inl.h
+    hwy/contrib/sort/sorting_networks-inl.h
+    hwy/contrib/sort/traits-inl.h
+    hwy/contrib/sort/traits128-inl.h
+    hwy/contrib/sort/vqsort-inl.h
+    hwy/contrib/sort/vqsort.cc
+    hwy/contrib/sort/vqsort.h
+    hwy/contrib/sort/vqsort_128a.cc
+    hwy/contrib/sort/vqsort_128d.cc
+    hwy/contrib/sort/vqsort_f32a.cc
+    hwy/contrib/sort/vqsort_f32d.cc
+    hwy/contrib/sort/vqsort_f64a.cc
+    hwy/contrib/sort/vqsort_f64d.cc
+    hwy/contrib/sort/vqsort_i16a.cc
+    hwy/contrib/sort/vqsort_i16d.cc
+    hwy/contrib/sort/vqsort_i32a.cc
+    hwy/contrib/sort/vqsort_i32d.cc
+    hwy/contrib/sort/vqsort_i64a.cc
+    hwy/contrib/sort/vqsort_i64d.cc
+    hwy/contrib/sort/vqsort_u16a.cc
+    hwy/contrib/sort/vqsort_u16d.cc
+    hwy/contrib/sort/vqsort_u32a.cc
+    hwy/contrib/sort/vqsort_u32d.cc
+    hwy/contrib/sort/vqsort_u64a.cc
+    hwy/contrib/sort/vqsort_u64d.cc
 )
 
 set(HWY_SOURCES
