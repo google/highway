@@ -14,6 +14,8 @@
 
 #include "hwy/contrib/sort/vqsort.h"
 
+#include <string.h>  // memset
+
 #include "hwy/aligned_allocator.h"
 
 #undef HWY_TARGET_INCLUDE

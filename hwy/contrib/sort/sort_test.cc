@@ -230,6 +230,11 @@ static HWY_NOINLINE void TestBaseCase() {
 }
 
 HWY_NOINLINE void TestAllBaseCase() {
+  // Workaround for stack overflow on MSVC debug.
+#if HWY_COMPILER_MSVC && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
+  return;
+#endif
+
   TestBaseCase<LaneTraits<OrderAscending>, int32_t>();
   TestBaseCase<LaneTraits<OrderDescending>, int64_t>();
   TestBaseCase<Traits128<OrderAscending128>, uint64_t>();
