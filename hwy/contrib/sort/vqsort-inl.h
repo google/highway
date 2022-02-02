@@ -477,7 +477,7 @@ class Generator {
 HWY_INLINE size_t RandomChunkIndex(const uint32_t num_chunks, uint32_t bits) {
   const uint64_t chunk_index = (static_cast<uint64_t>(bits) * num_chunks) >> 32;
   HWY_DASSERT(chunk_index < num_chunks);
-  return chunk_index;
+  return static_cast<size_t>(chunk_index);
 }
 
 template <class D, class Traits, typename T>

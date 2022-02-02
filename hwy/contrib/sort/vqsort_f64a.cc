@@ -37,6 +37,9 @@ void SortF64Asc(double* HWY_RESTRICT keys, size_t num,
   detail::SharedTraits<detail::LaneTraits<detail::OrderAscending>> st;
   Sort(d, st, keys, num, buf);
 #else
+  (void)keys;
+  (void)num;
+  (void)buf;
   HWY_ASSERT(0);
 #endif
 }

@@ -4636,7 +4636,16 @@ HWY_INLINE auto FixConversionOverflow(DI di, VFromD<DF> original,
   //   ++: normal >0                       : OK
   const auto converted = VFromD<DI>{converted_raw};
   const auto sign_wrong = AndNot(BitCast(di, original), converted);
-  return BitCast(di, Xor(converted, BroadcastSignBit(sign_wrong)));
+#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+  // Critical GCC 11 compiler bug (possibly also GCC 10): omits the Xor; also
+  // Add() if using that instead. Work around with one more instruction.
+  const RebindToUnsigned<DI> du;
+  const VFromD<DI> mask = BroadcastSignBit(sign_wrong);
+  const VFromD<DI> max = BitCast(di, ShiftRight<1>(BitCast(du, mask)));
+  return IfVecThenElse(mask, max, converted);
+#else
+  return Xor(converted, BroadcastSignBit(sign_wrong));
+#endif
 }
 
 }  // namespace detail

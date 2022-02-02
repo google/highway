@@ -363,14 +363,18 @@ struct TestIntFromFloatHuge {
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
-    // Huge positive (lvalue works around GCC bug, tested with 10.2.1, where
-    // the expected i32 value is otherwise 0x80..00).
-    const auto expected_max = Set(di, LimitsMax<TI>());
-    HWY_ASSERT_VEC_EQ(di, expected_max, ConvertTo(di, Set(df, TF(1E20))));
+    // Workaround for incorrect 32-bit GCC codegen for SSSE3 - Print-ing
+    // the expected lvalue also seems to prevent the issue.
+    const size_t N = Lanes(df);
+    auto expected = AllocateAligned<TI>(N);
 
-    // Huge negative (also lvalue for safety, but GCC bug was not triggered)
-    const auto expected_min = Set(di, LimitsMin<TI>());
-    HWY_ASSERT_VEC_EQ(di, expected_min, ConvertTo(di, Set(df, TF(-1E20))));
+    // Huge positive
+    Store(Set(di, LimitsMax<TI>()), di, expected.get());
+    HWY_ASSERT_VEC_EQ(di, expected.get(), ConvertTo(di, Set(df, TF(1E20))));
+
+    // Huge negative
+    Store(Set(di, LimitsMin<TI>()), di, expected.get());
+    HWY_ASSERT_VEC_EQ(di, expected.get(), ConvertTo(di, Set(df, TF(-1E20))));
 #else
     (void)df;
 #endif
