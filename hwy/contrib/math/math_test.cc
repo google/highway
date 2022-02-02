@@ -99,23 +99,10 @@ HWY_NOINLINE void TestMath(const std::string name, T (*fx1)(T),
   HWY_ASSERT(max_ulp <= max_error_ulp);
 }
 
-// TODO(janwas): remove once RVV supports fractional LMUL
-#undef DEFINE_MATH_TEST_FUNC
-#if HWY_TARGET == HWY_RVV
-
-#define DEFINE_MATH_TEST_FUNC(NAME)                    \
-  HWY_NOINLINE void TestAll##NAME() {                  \
-    ForFloatTypes(ForShrinkableVectors<Test##NAME>()); \
-  }
-
-#else
-
 #define DEFINE_MATH_TEST_FUNC(NAME)                 \
   HWY_NOINLINE void TestAll##NAME() {               \
     ForFloatTypes(ForPartialVectors<Test##NAME>()); \
   }
-
-#endif
 
 #undef DEFINE_MATH_TEST
 #define DEFINE_MATH_TEST(NAME, F32x1, F32xN, F32_MIN, F32_MAX, F32_ERROR, \

@@ -319,8 +319,8 @@ static HWY_NOINLINE void TestPartition() {
               keys[i] = hwy::LowestValue<T>();
             }
             for (size_t i = left; i < right; ++i) {
-              keys[i] = in_asc ? T(i + 1) - static_cast<T>(left)
-                               : static_cast<T>(right) - T(i);
+              keys[i] = static_cast<T>(in_asc ? T(i + 1) - static_cast<T>(left)
+                                              : static_cast<T>(right) - T(i));
               if (kDebug >= 2) printf("%3zu: %f\n", i, double(keys[i]));
             }
             for (size_t i = right; i < total - misalign; ++i) {
