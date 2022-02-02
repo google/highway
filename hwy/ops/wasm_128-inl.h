@@ -547,6 +547,10 @@ HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
 
 // ------------------------------ Shift lanes by same variable #bits
 
+// After https://reviews.llvm.org/D108415 shift argument became unsigned.
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+
 // Unsigned
 template <size_t N>
 HWY_API Vec128<uint16_t, N> ShiftLeftSame(const Vec128<uint16_t, N> v,
@@ -639,6 +643,9 @@ HWY_API Vec128<int8_t, N> ShiftRightSame(Vec128<int8_t, N> v, const int bits) {
   const auto shifted_sign = BitCast(di, Set(du, 0x80 >> bits));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+// ignore Wsign-conversion
+HWY_DIAGNOSTICS(pop)
 
 // ------------------------------ Minimum
 
