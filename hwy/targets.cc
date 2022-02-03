@@ -348,7 +348,7 @@ uint32_t SupportedTargets() {
 }
 
 // Declared in targets.h
-ChosenTarget chosen_target;
+HWY_DLLEXPORT ChosenTarget chosen_target;
 
 void ChosenTarget::Update() {
   // The supported variable contains the current CPU supported targets shifted

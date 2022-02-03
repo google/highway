@@ -176,8 +176,9 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
   // Reshape into a matrix with kMaxRows rows, and columns limited by the
   // 1D `num`, which is upper-bounded by the vector width (see BaseCaseNum).
-  const size_t num_pow2 = 1u << (32 - Num0BitsAboveMS1Bit_Nonzero32(
-                                          static_cast<uint32_t>(num - 1)));
+  const size_t num_pow2 = size_t{1}
+                          << (32 - Num0BitsAboveMS1Bit_Nonzero32(
+                                       static_cast<uint32_t>(num - 1)));
   HWY_DASSERT(num <= num_pow2 && num_pow2 <= Constants::BaseCaseNum(N));
   const size_t cols =
       HWY_MAX(st.LanesPerKey(), num_pow2 >> Constants::kMaxRowsLog2);
