@@ -71,12 +71,12 @@ via the below email)
 ### Targets
 
 Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, AVX3_DL (~Icelake,
-requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE,
+requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE, SVE2,
 WASM SIMD.
 
-SVE is tested using farm_sve (see acknowledgments). SVE2 is implemented but not
-yet validated. A subset of RVV is implemented and tested with LLVM and QEMU.
-Work is underway to add RVV ops which were not yet supported by GCC.
+SVE was initially tested using farm_sve (see acknowledgments). A subset of RVV
+is implemented and tested with LLVM and QEMU. Work is underway to add RVV ops
+which were not yet supported by GCC.
 
 ### Versioning
 
@@ -106,7 +106,7 @@ trigonometry), and functions for computing dot products and sorting.
 
 ## Installation
 
-This project uses cmake to generate and build. In a Debian-based system you can
+This project uses CMake to generate and build. In a Debian-based system you can
 install it via:
 
 ```bash
@@ -122,7 +122,8 @@ installing gtest separately:
 sudo apt install libgtest-dev
 ```
 
-To build and test the library the standard cmake workflow can be used:
+To build Highway as a shared or static library (depending on BUILD_SHARED_LIBS),
+the standard CMake workflow can be used:
 
 ```bash
 mkdir -p build && cd build
