@@ -40,7 +40,7 @@ struct SortDescending {
 
 // Allocates O(1) space. Type-erased RAII wrapper over hwy/aligned_allocator.h.
 // This allows amortizing the allocation over multiple sorts.
-class Sorter {
+class HWY_CONTRIB_DLLEXPORT Sorter {
  public:
   Sorter();
   ~Sorter() { Delete(); }
