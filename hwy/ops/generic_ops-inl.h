@@ -53,12 +53,6 @@ HWY_API V CombineShiftRightLanes(D d, const V hi, const V lo) {
   return CombineShiftRightBytes<kBytes>(d, hi, lo);
 }
 
-// DEPRECATED
-template <size_t kLanes, class V>
-HWY_API V CombineShiftRightLanes(const V hi, const V lo) {
-  return CombineShiftRightLanes<kLanes>(DFromV<V>(), hi, lo);
-}
-
 #endif
 
 // Returns lanes with the most significant bit set and all other bits zero.

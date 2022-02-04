@@ -1371,41 +1371,6 @@ HWY_API Vec1<T> MaxOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
 }
 
-// ================================================== DEPRECATED
-
-template <typename T>
-HWY_API size_t StoreMaskBits(const Mask1<T> mask, uint8_t* bits) {
-  return StoreMaskBits(Sisd<T>(), mask, bits);
-}
-
-template <typename T>
-HWY_API bool AllTrue(const Mask1<T> mask) {
-  return AllTrue(Sisd<T>(), mask);
-}
-
-template <typename T>
-HWY_API bool AllFalse(const Mask1<T> mask) {
-  return AllFalse(Sisd<T>(), mask);
-}
-
-template <typename T>
-HWY_API size_t CountTrue(const Mask1<T> mask) {
-  return CountTrue(Sisd<T>(), mask);
-}
-
-template <typename T>
-HWY_API Vec1<T> SumOfLanes(const Vec1<T> v) {
-  return SumOfLanes(Sisd<T>(), v);
-}
-template <typename T>
-HWY_API Vec1<T> MinOfLanes(const Vec1<T> v) {
-  return MinOfLanes(Sisd<T>(), v);
-}
-template <typename T>
-HWY_API Vec1<T> MaxOfLanes(const Vec1<T> v) {
-  return MaxOfLanes(Sisd<T>(), v);
-}
-
 // ================================================== Operator wrapper
 
 template <class V>

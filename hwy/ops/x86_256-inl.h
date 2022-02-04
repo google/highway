@@ -3307,8 +3307,8 @@ HWY_API Vec256<double> SwapAdjacentBlocks(Vec256<double> v) {
 // ------------------------------ ReverseBlocks (ConcatLowerUpper)
 
 template <typename T>
-HWY_API Vec256<T> ReverseBlocks(Full256<T> /* tag */, Vec256<T> v) {
-  return ConcatLowerUpper(v, v);
+HWY_API Vec256<T> ReverseBlocks(Full256<T> d, Vec256<T> v) {
+  return ConcatLowerUpper(d, v, v);
 }
 
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
@@ -4807,101 +4807,6 @@ template <typename T>
 HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
-}
-
-// ================================================== DEPRECATED
-
-template <typename T>
-HWY_API size_t StoreMaskBits(const Mask256<T> mask, uint8_t* bits) {
-  return StoreMaskBits(Full256<T>(), mask, bits);
-}
-
-template <typename T>
-HWY_API bool AllTrue(const Mask256<T> mask) {
-  return AllTrue(Full256<T>(), mask);
-}
-
-template <typename T>
-HWY_API bool AllFalse(const Mask256<T> mask) {
-  return AllFalse(Full256<T>(), mask);
-}
-
-template <typename T>
-HWY_API size_t CountTrue(const Mask256<T> mask) {
-  return CountTrue(Full256<T>(), mask);
-}
-
-template <typename T>
-HWY_API Vec256<T> SumOfLanes(const Vec256<T> vHL) {
-  return SumOfLanes(Full256<T>(), vHL);
-}
-template <typename T>
-HWY_API Vec256<T> MinOfLanes(const Vec256<T> vHL) {
-  return MinOfLanes(Full256<T>(), vHL);
-}
-template <typename T>
-HWY_API Vec256<T> MaxOfLanes(const Vec256<T> vHL) {
-  return MaxOfLanes(Full256<T>(), vHL);
-}
-
-template <typename T>
-HWY_API Vec128<T> UpperHalf(Vec256<T> v) {
-  return UpperHalf(Full128<T>(), v);
-}
-
-template <int kBytes, typename T>
-HWY_API Vec256<T> ShiftRightBytes(const Vec256<T> v) {
-  return ShiftRightBytes<kBytes>(Full256<T>(), v);
-}
-
-template <int kLanes, typename T>
-HWY_API Vec256<T> ShiftRightLanes(const Vec256<T> v) {
-  return ShiftRightLanes<kLanes>(Full256<T>(), v);
-}
-
-template <size_t kBytes, typename T>
-HWY_API Vec256<T> CombineShiftRightBytes(Vec256<T> hi, Vec256<T> lo) {
-  return CombineShiftRightBytes<kBytes>(Full256<T>(), hi, lo);
-}
-
-template <typename T>
-HWY_API Vec256<T> InterleaveUpper(Vec256<T> a, Vec256<T> b) {
-  return InterleaveUpper(Full256<T>(), a, b);
-}
-
-template <typename T>
-HWY_API Vec256<MakeWide<T>> ZipUpper(Vec256<T> a, Vec256<T> b) {
-  return InterleaveUpper(Full256<MakeWide<T>>(), a, b);
-}
-
-template <typename T>
-HWY_API Vec256<T> Combine(Vec128<T> hi, Vec128<T> lo) {
-  return Combine(Full256<T>(), hi, lo);
-}
-
-template <typename T>
-HWY_API Vec256<T> ZeroExtendVector(Vec128<T> lo) {
-  return ZeroExtendVector(Full256<T>(), lo);
-}
-
-template <typename T>
-HWY_API Vec256<T> ConcatLowerLower(Vec256<T> hi, Vec256<T> lo) {
-  return ConcatLowerLower(Full256<T>(), hi, lo);
-}
-
-template <typename T>
-HWY_API Vec256<T> ConcatLowerUpper(Vec256<T> hi, Vec256<T> lo) {
-  return ConcatLowerUpper(Full256<T>(), hi, lo);
-}
-
-template <typename T>
-HWY_API Vec256<T> ConcatUpperLower(Vec256<T> hi, Vec256<T> lo) {
-  return ConcatUpperLower(Full256<T>(), hi, lo);
-}
-
-template <typename T>
-HWY_API Vec256<T> ConcatUpperUpper(Vec256<T> hi, Vec256<T> lo) {
-  return ConcatUpperUpper(Full256<T>(), hi, lo);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

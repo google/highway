@@ -1290,12 +1290,6 @@ HWY_API Vec128<T, N> VecFromMask(Simd<T, N, 0> /* tag */, Mask128<T, N> v) {
   return Vec128<T, N>{v.raw};
 }
 
-// DEPRECATED
-template <typename T, size_t N>
-HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
-  return Vec128<T, N>{v.raw};
-}
-
 // mask ? yes : no
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,
@@ -1885,7 +1879,7 @@ HWY_API Vec128<T, N> ShiftRightBytes(Simd<T, N, 0> /* tag */, Vec128<T, N> v) {
 template <int kLanes, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRightLanes(Simd<T, N, 0> d, const Vec128<T, N> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(d8, BitCast(d8, v)));
 }
 
 // ------------------------------ UpperHalf (ShiftRightBytes)
@@ -1904,8 +1898,9 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Half<Simd<T, N, 0>> /* tag */,
                                          Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
-  const auto vu = BitCast(RebindToUnsigned<decltype(d)>(), v);
-  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(vu));
+  const RebindToUnsigned<decltype(d)> du;
+  const auto vu = BitCast(du, v);
+  const auto upper = BitCast(d, ShiftRightBytes<N * sizeof(T) / 2>(du, vu));
   return Vec128<T, (N + 1) / 2>{upper.raw};
 }
 
@@ -2434,7 +2429,7 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatLowerLower(Simd<T, N, 0> d, const Vec128<T, N> hi,
                                       const Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(LowerHalf(d2, hi), LowerHalf(d2, lo));
+  return Combine(d, LowerHalf(d2, hi), LowerHalf(d2, lo));
 }
 
 // ------------------------------ ConcatUpperUpper
@@ -2448,7 +2443,7 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatUpperUpper(Simd<T, N, 0> d, const Vec128<T, N> hi,
                                       const Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(UpperHalf(d2, hi), UpperHalf(d2, lo));
+  return Combine(d, UpperHalf(d2, hi), UpperHalf(d2, lo));
 }
 
 // ------------------------------ ConcatLowerUpper
@@ -2462,7 +2457,7 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API Vec128<T, N> ConcatLowerUpper(Simd<T, N, 0> d, const Vec128<T, N> hi,
                                       const Vec128<T, N> lo) {
   const Half<decltype(d)> d2;
-  return Combine(LowerHalf(d2, hi), UpperHalf(d2, lo));
+  return Combine(d, LowerHalf(d2, hi), UpperHalf(d2, lo));
 }
 
 // ------------------------------ ConcatUpperLower
@@ -3117,14 +3112,14 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API bool AllFalse(Simd<T, N, 0> /* tag */, const Mask128<T, N> m) {
   // Ensure all undefined bytes are 0.
   const Mask128<T, N> mask{detail::BytesAbove<N * sizeof(T)>()};
-  return AllFalse(Mask128<T>{AndNot(mask, m).raw});
+  return AllFalse(Full128<T>(), Mask128<T>{AndNot(mask, m).raw});
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API bool AllTrue(const Simd<T, N, 0> d, const Mask128<T, N> m) {
   // Ensure all undefined bytes are FF.
   const Mask128<T, N> mask{detail::BytesAbove<N * sizeof(T)>()};
-  return AllTrue(d, Mask128<T>{Or(mask, m).raw});
+  return AllTrue(Full128<T>(), Mask128<T>{Or(mask, m).raw});
 }
 
 template <typename T, size_t N>
@@ -3823,102 +3818,6 @@ HWY_INLINE VFromD<D> Min128(D d, const VFromD<D> a, const VFromD<D> b) {
 template <class D>
 HWY_INLINE VFromD<D> Max128(D d, const VFromD<D> a, const VFromD<D> b) {
   return IfThenElse(Lt128(d, a, b), b, a);
-}
-
-// ================================================== DEPRECATED
-
-template <typename T, size_t N>
-HWY_API size_t StoreMaskBits(const Mask128<T, N> mask, uint8_t* bits) {
-  return StoreMaskBits(Simd<T, N, 0>(), mask, bits);
-}
-
-template <typename T, size_t N>
-HWY_API bool AllTrue(const Mask128<T, N> mask) {
-  return AllTrue(Simd<T, N, 0>(), mask);
-}
-
-template <typename T, size_t N>
-HWY_API bool AllFalse(const Mask128<T, N> mask) {
-  return AllFalse(Simd<T, N, 0>(), mask);
-}
-
-template <typename T, size_t N>
-HWY_API size_t CountTrue(const Mask128<T, N> mask) {
-  return CountTrue(Simd<T, N, 0>(), mask);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> SumOfLanes(const Vec128<T, N> v) {
-  return SumOfLanes(DFromV<decltype(v)>(), v);
-}
-template <typename T, size_t N>
-HWY_API Vec128<T, N> MinOfLanes(const Vec128<T, N> v) {
-  return MinOfLanes(DFromV<decltype(v)>(), v);
-}
-template <typename T, size_t N>
-HWY_API Vec128<T, N> MaxOfLanes(const Vec128<T, N> v) {
-  return MaxOfLanes(DFromV<decltype(v)>(), v);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, (N + 1) / 2> UpperHalf(Vec128<T, N> v) {
-  return UpperHalf(Half<DFromV<decltype(v)>>(), v);
-}
-
-template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftRightBytes(const Vec128<T, N> v) {
-  return ShiftRightBytes<kBytes>(DFromV<decltype(v)>(), v);
-}
-
-template <int kLanes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftRightLanes(const Vec128<T, N> v) {
-  return ShiftRightLanes<kLanes>(DFromV<decltype(v)>(), v);
-}
-
-template <size_t kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> CombineShiftRightBytes(Vec128<T, N> hi, Vec128<T, N> lo) {
-  return CombineShiftRightBytes<kBytes>(DFromV<decltype(lo)>(), hi, lo);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> InterleaveUpper(Vec128<T, N> a, Vec128<T, N> b) {
-  return InterleaveUpper(DFromV<decltype(a)>(), a, b);
-}
-
-template <class V, class D = DFromV<V>>
-HWY_API VFromD<RepartitionToWide<D>> ZipUpper(V a, V b) {
-  return InterleaveUpper(RepartitionToWide<D>(), a, b);
-}
-
-template <typename T, size_t N2>
-HWY_API Vec128<T, N2 * 2> Combine(Vec128<T, N2> hi2, Vec128<T, N2> lo2) {
-  return Combine(Simd<T, N2 * 2, 0>(), hi2, lo2);
-}
-
-template <typename T, size_t N2, HWY_IF_LE64(T, N2)>
-HWY_API Vec128<T, N2 * 2> ZeroExtendVector(Vec128<T, N2> lo) {
-  return ZeroExtendVector(Simd<T, N2 * 2, 0>(), lo);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ConcatLowerLower(Vec128<T, N> hi, Vec128<T, N> lo) {
-  return ConcatLowerLower(DFromV<decltype(lo)>(), hi, lo);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ConcatUpperUpper(Vec128<T, N> hi, Vec128<T, N> lo) {
-  return ConcatUpperUpper(DFromV<decltype(lo)>(), hi, lo);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ConcatLowerUpper(const Vec128<T, N> hi,
-                                      const Vec128<T, N> lo) {
-  return ConcatLowerUpper(DFromV<decltype(lo)>(), hi, lo);
-}
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ConcatUpperLower(Vec128<T, N> hi, Vec128<T, N> lo) {
-  return ConcatUpperLower(DFromV<decltype(lo)>(), hi, lo);
 }
 
 // ================================================== Operator wrapper

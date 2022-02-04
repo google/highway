@@ -35,7 +35,7 @@ namespace HWY_NAMESPACE {
 
 // These templates are not found via ADL.
 #if HWY_TARGET != HWY_SCALAR
-using hwy::HWY_NAMESPACE::CombineShiftRightBytes;
+using hwy::HWY_NAMESPACE::CombineShiftRightLanes;
 #endif
 
 class TwoArray {

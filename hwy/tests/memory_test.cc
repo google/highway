@@ -248,7 +248,7 @@ struct TestStream {
     std::fill(out.get(), out.get() + 2 * affected_lanes, T(0));
 
     Stream(v, d, out.get());
-    StoreFence();
+    FlushStream();
     const auto actual = Load(d, out.get());
     HWY_ASSERT_VEC_EQ(d, v, actual);
     // Ensure Stream didn't modify more memory than expected
@@ -389,7 +389,7 @@ HWY_NOINLINE void TestAllGather() {
 
 HWY_NOINLINE void TestAllCache() {
   LoadFence();
-  StoreFence();
+  FlushStream();
   int test = 0;
   Prefetch(&test);
   FlushCacheline(&test);
