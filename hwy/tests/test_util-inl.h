@@ -242,8 +242,9 @@ struct ForeachShiftR {
     if (Lanes(d) >= min_lanes) {
       Test()(T(), d);
     } else {
-      fprintf(stderr, "%zu lanes < %zu: T=%zu pow=%d\n", Lanes(d), min_lanes,
-              sizeof(T), kPow2 + kAddPow2);
+      fprintf(stderr, "%d lanes < %d: T=%d pow=%d\n",
+              static_cast<int>(Lanes(d)), static_cast<int>(min_lanes),
+              static_cast<int>(sizeof(T)), kPow2 + kAddPow2);
       HWY_ASSERT(min_lanes != 1);
     }
 

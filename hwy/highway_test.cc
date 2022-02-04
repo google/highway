@@ -69,8 +69,9 @@ HWY_NOINLINE void TestAllMaxLanes() {
     const size_t N = *MaxLanesForSize(sizeof_t);
     for (size_t i = 1; i <= N; i += i) {
       if (!NumLanesForSize(sizeof_t)->test(i)) {
-        fprintf(stderr, "T=%zu: did not visit for N=%zu, max=%zu\n", sizeof_t,
-                i, N);
+        fprintf(stderr, "T=%d: did not visit for N=%d, max=%d\n",
+                static_cast<int>(sizeof_t), static_cast<int>(i),
+                static_cast<int>(N));
         HWY_ASSERT(false);
       }
     }

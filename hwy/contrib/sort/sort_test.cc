@@ -128,8 +128,9 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
       for (size_t misalign : misalignments) {
         T* HWY_RESTRICT keys = aligned_keys.get() + misalign;
         if (kDebug) {
-          printf("============%s asc %d N1 %zu len %zu misalign %zu\n",
-                 hwy::TypeName(T(), 1).c_str(), asc, N1, len, misalign);
+          printf("============%s asc %d N1 %d len %d misalign %d\n",
+                 hwy::TypeName(T(), 1).c_str(), asc, static_cast<int>(N1),
+                 static_cast<int>(len), static_cast<int>(misalign));
         }
 
         for (size_t i = 0; i < misalign; ++i) {
@@ -158,11 +159,11 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
         HWY_ASSERT(VerifySort(st, input_stats, keys, len, "BaseAscDesc"));
         for (size_t i = 0; i < misalign; ++i) {
           if (aligned_keys[i] != hwy::LowestValue<T>())
-            HWY_ABORT("Overrun misalign at %zu\n", i);
+            HWY_ABORT("Overrun misalign at %d\n", static_cast<int>(i));
         }
         for (size_t i = len; i < base_case_num + N; ++i) {
           if (keys[i] != hwy::LowestValue<T>())
-            HWY_ABORT("Overrun right at %zu\n", i);
+            HWY_ABORT("Overrun right at %d\n", static_cast<int>(i));
         }
       }  // misalign
     }    // len
@@ -191,8 +192,8 @@ static HWY_NOINLINE void TestBaseCase01() {
 
   for (size_t len : lengths) {
     if (kDebug) {
-      printf("============%s 01 N1 %zu len %zu\n",
-             hwy::TypeName(T(), 1).c_str(), N1, len);
+      printf("============%s 01 N1 %d len %d\n", hwy::TypeName(T(), 1).c_str(),
+             static_cast<int>(N1), static_cast<int>(len));
     }
     const uint64_t kMaxBits = AdjustedLog2Reps(HWY_MIN(len, size_t{14}));
     for (uint64_t bits = 0; bits < ((1ull << kMaxBits) - 1); ++bits) {
@@ -218,7 +219,7 @@ static HWY_NOINLINE void TestBaseCase01() {
       HWY_ASSERT(VerifySort(st, input_stats, keys.get(), len, "Base01"));
       for (size_t i = len; i < base_case_num + N; ++i) {
         if (keys[i] != hwy::LowestValue<T>())
-          HWY_ABORT("Overrun right at %zu\n", i);
+          HWY_ABORT("Overrun right at %d\n", static_cast<int>(i));
       }
     }  // bits
   }    // len
@@ -259,19 +260,21 @@ static HWY_NOINLINE void VerifyPartition(Traits st, T* HWY_RESTRICT keys,
   for (size_t i = left; i < border; i += N1) {
     if (st.Compare1(pivot, keys + i)) {
       HWY_ABORT(
-          "%s: asc %d left[%zu] piv %.0f %.0f compares before %.0f %.0f "
-          "border %zu",
-          hwy::TypeName(T(), 1).c_str(), asc, i, double(pivot[1]),
-          double(pivot[0]), double(keys[i + 1]), double(keys[i + 0]), border);
+          "%s: asc %d left[%d] piv %.0f %.0f compares before %.0f %.0f "
+          "border %d",
+          hwy::TypeName(T(), 1).c_str(), asc, static_cast<int>(i),
+          double(pivot[1]), double(pivot[0]), double(keys[i + 1]),
+          double(keys[i + 0]), static_cast<int>(border));
     }
   }
   for (size_t i = border; i < right; i += N1) {
     if (!st.Compare1(pivot, keys + i)) {
       HWY_ABORT(
-          "%s: asc %d right[%zu] piv %.0f %.0f compares after %.0f %.0f "
-          "border %zu",
-          hwy::TypeName(T(), 1).c_str(), asc, i, double(pivot[1]),
-          double(pivot[0]), double(keys[i + 1]), double(keys[i]), border);
+          "%s: asc %d right[%d] piv %.0f %.0f compares after %.0f %.0f "
+          "border %d",
+          hwy::TypeName(T(), 1).c_str(), asc, static_cast<int>(i),
+          double(pivot[1]), double(pivot[0]), double(keys[i + 1]),
+          double(keys[i]), static_cast<int>(border));
     }
   }
 }
@@ -306,9 +309,9 @@ static HWY_NOINLINE void TestPartition() {
             const size_t right = left + len;
             if (kDebug) {
               printf(
-                  "============%s asc %d left %zu len %zu right %zu piv "
-                  "%.0f %.0f\n",
-                  hwy::TypeName(T(), 1).c_str(), asc, left, len, right,
+                  "=========%s asc %d left %d len %d right %d piv %.0f %.0f\n",
+                  hwy::TypeName(T(), 1).c_str(), asc, static_cast<int>(left),
+                  static_cast<int>(len), static_cast<int>(right),
                   double(pivot2[1]), double(pivot2[0]));
             }
 
@@ -343,15 +346,15 @@ static HWY_NOINLINE void TestPartition() {
             VerifyPartition(st, keys, left, border, right, N1, pivot2);
             for (size_t i = 0; i < misalign; ++i) {
               if (aligned_keys[i] != hwy::LowestValue<T>())
-                HWY_ABORT("Overrun misalign at %zu\n", i);
+                HWY_ABORT("Overrun misalign at %d\n", static_cast<int>(i));
             }
             for (size_t i = 0; i < left; ++i) {
               if (keys[i] != hwy::LowestValue<T>())
-                HWY_ABORT("Overrun left at %zu\n", i);
+                HWY_ABORT("Overrun left at %d\n", static_cast<int>(i));
             }
             for (size_t i = right; i < total - misalign; ++i) {
               if (keys[i] != hwy::LowestValue<T>())
-                HWY_ABORT("Overrun right at %zu\n", i);
+                HWY_ABORT("Overrun right at %d\n", static_cast<int>(i));
             }
           }  // misalign
         }    // pivot
@@ -437,8 +440,8 @@ class CompareResults {
 
     for (size_t i = 0; i < copy_.size(); ++i) {
       if (copy_[i] != output[i]) {
-        fprintf(stderr, "Asc %d mismatch at %zu: %A %A\n",
-                Order().IsAscending(), i, double(copy_[i]), double(output[i]));
+        fprintf(stderr, "Asc %d mismatch at %d: %A %A\n", Order().IsAscending(),
+                static_cast<int>(i), double(copy_[i]), double(output[i]));
         return false;
       }
     }
@@ -519,11 +522,11 @@ void TestSort(size_t num) {
 #endif
         for (size_t i = 0; i < misalign; ++i) {
           if (aligned[i] != hwy::LowestValue<T>())
-            HWY_ABORT("Overrun left at %zu\n", i);
+            HWY_ABORT("Overrun left at %d\n", static_cast<int>(i));
         }
         for (size_t i = num; i < num + kMaxMisalign; ++i) {
           if (keys[i] != hwy::HighestValue<T>())
-            HWY_ABORT("Overrun right at %zu\n", i);
+            HWY_ABORT("Overrun right at %d\n", static_cast<int>(i));
         }
       }  // misalign
     }    // dist

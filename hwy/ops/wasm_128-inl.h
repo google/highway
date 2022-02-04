@@ -2225,7 +2225,7 @@ HWY_API Vec128<T, N> Reverse4(Simd<T, N, 0> /* tag */, const Vec128<T, N> v) {
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T, N> Reverse4(Simd<T, N, 0> /* tag */, const Vec128<T, N> v) {
+HWY_API Vec128<T, N> Reverse4(Simd<T, N, 0> /* tag */, const Vec128<T, N>) {
   HWY_ASSERT(0);  // don't have 8 u64 lanes
 }
 
@@ -2237,7 +2237,7 @@ HWY_API Vec128<T, N> Reverse8(Simd<T, N, 0> d, const Vec128<T, N> v) {
 }
 
 template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 2)>
-HWY_API Vec128<T, N> Reverse8(Simd<T, N, 0> d, const Vec128<T, N> v) {
+HWY_API Vec128<T, N> Reverse8(Simd<T, N, 0>, const Vec128<T, N>) {
   HWY_ASSERT(0);  // don't have 8 lanes unless 16-bit
 }
 

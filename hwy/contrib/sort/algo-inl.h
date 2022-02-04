@@ -81,7 +81,8 @@ class InputStats {
 
   bool operator==(const InputStats& other) const {
     if (count_ != other.count_) {
-      HWY_ABORT("count %zu vs %zu\n", count_, other.count_);
+      HWY_ABORT("count %d vs %d\n", static_cast<int>(count_),
+                static_cast<int>(other.count_));
     }
 
     if (min_ != other.min_ || max_ != other.max_) {

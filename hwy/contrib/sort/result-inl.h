@@ -127,10 +127,12 @@ bool VerifySort(Traits st, const InputStats<T>& input_stats, const T* out,
     if (N1 == 2) output_stats.Notify(out[i + 1]);
     // Reverse order instead of checking !Compare1 so we accept equal keys.
     if (st.Compare1(out + i + N1, out + i)) {
-      printf("%s: i=%zu of %zu: N1=%zu %5.0f %5.0f vs. %5.0f %5.0f\n\n", caller,
-             i, num, N1, double(out[i + 1]), double(out[i + 0]),
-             double(out[i + N1 + 1]), double(out[i + N1]));
-      HWY_ABORT("%zu-bit sort is incorrect\n", sizeof(T) * 8 * N1);
+      printf("%s: i=%d of %d: N1=%d %5.0f %5.0f vs. %5.0f %5.0f\n\n", caller,
+             static_cast<int>(i), static_cast<int>(num), static_cast<int>(N1),
+             double(out[i + 1]), double(out[i + 0]), double(out[i + N1 + 1]),
+             double(out[i + N1]));
+      HWY_ABORT("%d-bit sort is incorrect\n",
+                static_cast<int>(sizeof(T) * 8 * N1));
     }
   }
   output_stats.Notify(out[num - N1]);
