@@ -293,7 +293,9 @@ endif()
 if (HWY_ENABLE_INSTALL)
 
 install(TARGETS hwy
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_SOURCES})
@@ -305,7 +307,9 @@ foreach (source ${HWY_SOURCES})
 endforeach()
 
 install(TARGETS hwy_contrib
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_CONTRIB_SOURCES})
@@ -317,7 +321,9 @@ foreach (source ${HWY_CONTRIB_SOURCES})
 endforeach()
 
 install(TARGETS hwy_test
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 # Install all the headers keeping the relative path to the current directory
 # when installing them.
 foreach (source ${HWY_TEST_SOURCES})
