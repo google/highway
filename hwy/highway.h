@@ -111,6 +111,7 @@ struct FunctionCache {
   template <FunctionType* const table[]>
   static RetType ChooseAndCall(Args... args) {
     // If we are running here it means we need to update the chosen target.
+    ChosenTarget& chosen_target = GetChosenTarget();
     chosen_target.Update();
     return (table[chosen_target.GetIndex()])(args...);
   }
@@ -265,7 +266,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
           HWY_CHOOSE_SCALAR(FUNC_NAME),                                    \
   }
 #define HWY_DYNAMIC_DISPATCH(FUNC_NAME) \
-  (*(HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::chosen_target.GetIndex()]))
+  (*(HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()]))
 
 #endif  // HWY_IDE || ((HWY_TARGETS & (HWY_TARGETS - 1)) == 0)
 

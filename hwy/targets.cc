@@ -216,7 +216,7 @@ void DisableTargets(uint32_t disabled_targets) {
   // We can call Update() here to initialize the mask but that will trigger a
   // call to SupportedTargets() which we use in tests to tell whether any of the
   // highway dynamic dispatch functions were used.
-  chosen_target.DeInit();
+  GetChosenTarget().DeInit();
 }
 
 void SetSupportedTargetsForTest(uint32_t targets) {
@@ -225,7 +225,7 @@ void SetSupportedTargetsForTest(uint32_t targets) {
   // if not zero.
   supported_.store(0, std::memory_order_release);
   supported_targets_for_test_ = targets;
-  chosen_target.DeInit();
+  GetChosenTarget().DeInit();
 }
 
 bool SupportedTargetsCalledForTest() {
@@ -347,8 +347,10 @@ uint32_t SupportedTargets() {
   return bits & supported_mask_;
 }
 
-// Declared in targets.h
-HWY_DLLEXPORT ChosenTarget chosen_target;
+HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
+  static ChosenTarget chosen_target;
+  return chosen_target;
+}
 
 void ChosenTarget::Update() {
   // The supported variable contains the current CPU supported targets shifted

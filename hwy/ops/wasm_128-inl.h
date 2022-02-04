@@ -3116,7 +3116,7 @@ HWY_API bool AllFalse(Simd<T, N, 0> /* tag */, const Mask128<T, N> m) {
 }
 
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API bool AllTrue(const Simd<T, N, 0> d, const Mask128<T, N> m) {
+HWY_API bool AllTrue(const Simd<T, N, 0> /* d */, const Mask128<T, N> m) {
   // Ensure all undefined bytes are FF.
   const Mask128<T, N> mask{detail::BytesAbove<N * sizeof(T)>()};
   return AllTrue(Full128<T>(), Mask128<T>{Or(mask, m).raw});

@@ -246,11 +246,12 @@ struct ChosenTarget {
   }
 
  private:
-  // Initialized to 1 so GetChosenTargetIndex() returns 0.
+  // Initialized to 1 so GetIndex() returns 0.
   std::atomic<uint32_t> mask_{1};
 };
 
-HWY_DLLEXPORT extern ChosenTarget chosen_target;
+// For internal use (e.g. by FunctionCache and DisableTargets).
+HWY_DLLEXPORT ChosenTarget& GetChosenTarget();
 
 }  // namespace hwy
 
