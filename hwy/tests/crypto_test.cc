@@ -74,7 +74,7 @@ class TestAES {
     }
 
     for (size_t i = 0; i < 256; i += N) {
-      const auto in = Iota(d, i);
+      const auto in = Iota(d, static_cast<T>(i));
       HWY_ASSERT_VEC_EQ(d, expected.get() + i, detail::SubBytes(in));
     }
   }

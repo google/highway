@@ -36,7 +36,7 @@ struct TestLoadStore {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
-    const auto hi = Iota(d, 1 + N);
+    const auto hi = Iota(d, static_cast<T>(1 + N));
     const auto lo = Iota(d, 1);
     auto lanes = AllocateAligned<T>(2 * N);
     Store(hi, d, &lanes[N]);

@@ -87,7 +87,7 @@ struct TestOddEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
-    const auto odd = Iota(d, 1 + N);
+    const auto odd = Iota(d, static_cast<T>(1 + N));
     auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>(1 + i + ((i & 1) ? N : 0));
@@ -105,7 +105,7 @@ struct TestOddEvenBlocks {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
-    const auto odd = Iota(d, 1 + N);
+    const auto odd = Iota(d, static_cast<T>(1 + N));
     auto expected = AllocateAligned<T>(N);
     for (size_t i = 0; i < N; ++i) {
       const size_t idx_block = i / (16 / sizeof(T));

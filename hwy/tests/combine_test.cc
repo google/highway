@@ -148,7 +148,7 @@ struct TestCombine {
     auto lanes = AllocateAligned<T>(N2);
 
     const auto lo = Iota(d, 1);
-    const auto hi = Iota(d, N2 / 2 + 1);
+    const auto hi = Iota(d, static_cast<T>(N2 / 2 + 1));
     const auto combined = Combine(d2, hi, lo);
     Store(combined, d2, lanes.get());
 
@@ -222,7 +222,7 @@ struct TestConcatOddEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
-    const auto hi = Iota(d, N);
+    const auto hi = Iota(d, static_cast<T>(N));
     const auto lo = Iota(d, 0);
     const auto even = Add(Iota(d, 0), Iota(d, 0));
     const auto odd = Add(even, Set(d, 1));

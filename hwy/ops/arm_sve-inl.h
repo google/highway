@@ -710,7 +710,9 @@ HWY_API bool AllTrue(D d, svbool_t m) {
 // ------------------------------ FindFirstTrue
 template <class D>
 HWY_API intptr_t FindFirstTrue(D d, svbool_t m) {
-  return AllFalse(d, m) ? -1 : CountTrue(d, svbrkb_b_z(detail::MakeMask(d), m));
+  return AllFalse(d, m) ? intptr_t{-1}
+                        : static_cast<intptr_t>(
+                              CountTrue(d, svbrkb_b_z(detail::MakeMask(d), m)));
 }
 
 // ------------------------------ IfThenElse
@@ -827,12 +829,12 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
     return sv##OP##_##CHAR##BITS(detail::MakeMask(d), p);  \
   }
 
-#define HWY_SVE_MASKED_LOAD(BASE, CHAR, BITS, HALF, NAME, OP) \
-  template <size_t N, int kPow2>                              \
-  HWY_API HWY_SVE_V(BASE, BITS)                               \
-      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) d,     \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {    \
-    return sv##OP##_##CHAR##BITS(m, p);                       \
+#define HWY_SVE_MASKED_LOAD(BASE, CHAR, BITS, HALF, NAME, OP)   \
+  template <size_t N, int kPow2>                                \
+  HWY_API HWY_SVE_V(BASE, BITS)                                 \
+      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {      \
+    return sv##OP##_##CHAR##BITS(m, p);                         \
   }
 
 #define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, HALF, NAME, OP) \
@@ -855,7 +857,7 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
 #define HWY_SVE_MASKED_STORE(BASE, CHAR, BITS, HALF, NAME, OP) \
   template <size_t N, int kPow2>                               \
   HWY_API void NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v,       \
-                    HWY_SVE_D(BASE, BITS, N, kPow2) d,         \
+                    HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,   \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {  \
     sv##OP##_##CHAR##BITS(m, p, v);                            \
   }
@@ -1092,7 +1094,6 @@ VU SaturateU(VU v) {
 // Saturates unsigned vectors to half/quarter-width TN.
 template <typename TN, class VI>
 VI SaturateI(VI v) {
-  const DFromV<VI> di;
   return detail::MinN(detail::MaxN(v, LimitsMin<TN>()), LimitsMax<TN>());
 }
 
@@ -1151,7 +1152,6 @@ HWY_API svuint8_t U8FromU32(const svuint32_t v) {
 
 template <size_t N, int kPow2>
 HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint16_t v) {
-  const DFromV<decltype(v)> di;
 #if HWY_TARGET == HWY_SVE2
   const svint8_t vn = BitCast(dn, svqxtnb_s16(v));
 #else
@@ -1163,7 +1163,6 @@ HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint16_t v) {
 
 template <size_t N, int kPow2>
 HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint32_t v) {
-  const DFromV<decltype(v)> di;
 #if HWY_TARGET == HWY_SVE2
   const svint16_t vn = BitCast(dn, svqxtnb_s32(v));
 #else
@@ -1175,7 +1174,6 @@ HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint32_t v) {
 
 template <size_t N, int kPow2>
 HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint32_t v) {
-  const DFromV<decltype(v)> di;
   const RepartitionToWide<decltype(dn)> d2;
 #if HWY_TARGET == HWY_SVE2
   const svint16_t cast16 = BitCast(d2, svqxtnb_s16(svqxtnb_s32(v)));
@@ -1245,7 +1243,7 @@ HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat32_t v) {
 }
 
 template <size_t N, int kPow2>
-HWY_API svuint16_t DemoteTo(Simd<bfloat16_t, N, kPow2> d, const svfloat32_t v) {
+HWY_API svuint16_t DemoteTo(Simd<bfloat16_t, N, kPow2> /* d */, svfloat32_t v) {
   const svuint16_t in_even = BitCast(ScalableTag<uint16_t>(), v);
   return detail::ConcatOdd(in_even, in_even);  // can ignore upper half of vec
 }
@@ -1458,6 +1456,8 @@ HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
   const auto indices = BitCast(du, vec);
 #if HWY_IS_DEBUG_BUILD
   HWY_DASSERT(AllTrue(du, detail::LtN(indices, static_cast<TI>(Lanes(d)))));
+#else
+  (void)d;
 #endif
   return indices;
 }
@@ -1770,7 +1770,6 @@ HWY_API V Broadcast(const V v) {
 
 template <size_t kLanes, class D, class V = VFromD<D>>
 HWY_API V ShiftLeftLanes(D d, const V v) {
-  const RebindToSigned<decltype(d)> di;
   const auto zero = Zero(d);
   const auto shifted = detail::Splice(v, zero, FirstN(d, kLanes));
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
@@ -1785,7 +1784,6 @@ HWY_API V ShiftLeftLanes(const V v) {
 // ------------------------------ ShiftRightLanes
 template <size_t kLanes, class D, class V = VFromD<D>>
 HWY_API V ShiftRightLanes(D d, V v) {
-  const RebindToSigned<decltype(d)> di;
   // For capped/fractional vectors, clear upper lanes so we shift in zeros.
   if (!detail::IsFull(d)) {
     v = IfThenElseZero(detail::MakeMask(d), v);

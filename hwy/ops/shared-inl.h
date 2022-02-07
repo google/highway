@@ -45,7 +45,7 @@ struct Simd {
   // warns when using enums and non-enums in the same expression. Cannot be
   // static constexpr function (another MSVC limitation).
   static constexpr size_t kPrivateN = N;
-  static constexpr size_t kPrivatePow2 = kPow2;
+  static constexpr int kPrivatePow2 = kPow2;
 
   template <typename NewT>
   static constexpr size_t NewN() {
