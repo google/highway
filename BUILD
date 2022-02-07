@@ -107,15 +107,15 @@ cc_library(
     # Normal headers with include guards
     hdrs = [
         "hwy/aligned_allocator.h",
+        "hwy/base.h",
+        "hwy/cache_control.h",
+        "hwy/detect_compiler_arch.h",  # private
         "hwy/highway_export.h",
     ],
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
-        # The following are textual because HWY_EMULATE_SVE influences them:
-        "hwy/base.h",
-        "hwy/cache_control.h",
-        "hwy/detect_compiler_arch.h",  # private
+        # These are textual because config macros influence them:
         "hwy/detect_targets.h",  # private
         "hwy/targets.h",
         # End of list
@@ -140,27 +140,6 @@ cc_library(
     }),
 )
 
-config_setting(
-    name = "emulate_sve",
-    values = {
-        "copt": "-DHWY_EMULATE_SVE",
-    },
-)
-
-# All cc files depend upon this target so they can include farm_sve.h
-# before highway.h, but without :hwy actually depending on farm_sve.
-# This is only useful for testing SVE on other platforms.
-# TODO(b/213318405): remove
-cc_library(
-    name = "include_farm_sve",
-    hdrs = ["hwy/tests/include_farm_sve.h"],
-    compatible_with = [],
-    deps = [] + select({
-        ":emulate_sve": ["//third_party/farm_sve"],
-        "//conditions:default": [],
-    }),
-)
-
 cc_library(
     name = "dot",
     compatible_with = [],
@@ -169,7 +148,6 @@ cc_library(
     ],
     deps = [
         ":hwy",
-        ":include_farm_sve",
     ],
 )
 
@@ -184,7 +162,6 @@ cc_library(
     compatible_with = [],
     deps = [
         ":hwy",
-        ":include_farm_sve",
     ],
 )
 
@@ -196,7 +173,6 @@ cc_library(
     ],
     deps = [
         ":hwy",
-        ":include_farm_sve",
     ],
 )
 
@@ -213,9 +189,6 @@ cc_library(
     # GUNIT_INTERNAL_BUILD_MODE defined by the test.
     deps = [
         ":hwy",
-        # Required so that test_util.h can compile as a standalone header -
-        # it includes highway.h, so include_farm_sve must come first.
-        ":include_farm_sve",
     ],
 )
 
@@ -242,7 +215,6 @@ cc_library(
     textual_hdrs = ["hwy/examples/skeleton-inl.h"],
     deps = [
         ":hwy",
-        ":include_farm_sve",
     ],
 )
 
@@ -283,7 +255,6 @@ HWY_TEST_DEPS = [
     ":dot",
     ":hwy",
     ":hwy_test_util",
-    ":include_farm_sve",
     ":image",
     ":math",
     ":nanobenchmark",
@@ -335,27 +306,6 @@ HWY_TEST_DEPS = [
                 "//conditions:default": [],
             }),
         ),
-
-        # Build these with --copt=-DHWY_EMULATE_SVE --copt=-mf16c \
-        # --copt=-DFARM_NB_BITS_IN_VEC=384 --copt=-frounding-math
-        cc_test(
-            name = "farm_" + test,
-            size = "medium",
-            timeout = "long",  # default moderate is not enough for math_test
-            srcs = [
-                subdir + test + ".cc",
-            ],
-            copts = COPTS + [
-                # gTest triggers this warning (which is enabled by the
-                # extra-semi in COPTS), so we need to disable it here,
-                # but it's still enabled for :hwy.
-                "-Wno-c++98-compat-extra-semi",
-            ],
-            local_defines = ["HWY_IS_TEST"],
-            # for test_suite.
-            tags = ["hwy_farm_test"],
-            deps = HWY_TEST_DEPS,
-        ),
     ]
     for subdir, test in HWY_TESTS
 ]
@@ -364,12 +314,6 @@ HWY_TEST_DEPS = [
 test_suite(
     name = "hwy_ops_tests",
     tags = ["hwy_ops_test"],
-)
-
-# For running all tests with farm_sve
-test_suite(
-    name = "hwy_farm_tests",
-    tags = ["hwy_farm_test"],
 )
 
 # Placeholder for integration test, do not remove

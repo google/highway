@@ -19,9 +19,6 @@
 #include <algorithm>
 #include <limits>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/arithmetic_test.cc"
 #include "hwy/foreach_target.h"
@@ -813,7 +810,6 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
     // negative +/- epsilon
     T(-1) + eps,
     T(-1) - eps,
-#if !defined(HWY_EMULATE_SVE)  // these are not safe to just cast to int
     // +/- huge (but still fits in float)
     T(1E34),
     T(-1E35),
@@ -822,7 +818,6 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
     -std::numeric_limits<T>::infinity(),
     // qNaN
     GetLane(NaN(d))
-#endif
   };
   const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);

@@ -17,9 +17,6 @@
 #include <algorithm>  // swap
 #include <cstddef>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/image/image.cc"
 #include "hwy/foreach_target.h"

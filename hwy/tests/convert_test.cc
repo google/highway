@@ -16,9 +16,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/convert_test.cc"
 #include "hwy/foreach_target.h"
@@ -168,8 +165,6 @@ struct TestPromoteTo {
 };
 
 HWY_NOINLINE void TestAllPromoteTo() {
-// farm_sve's promote/demote semantics are incorrect.
-#if !defined(HWY_EMULATE_SVE)
   const ForPromoteVectors<TestPromoteTo<uint16_t>, 1> to_u16div2;
   to_u16div2(uint8_t());
 
@@ -206,7 +201,6 @@ HWY_NOINLINE void TestAllPromoteTo() {
   to_f64div2(int32_t());
   to_f64div2(float());
 #endif
-#endif  // !defined(HWY_EMULATE_SVE)
 }
 
 template <typename T, HWY_IF_FLOAT(T)>
@@ -253,7 +247,7 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
 struct TestF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_HAVE_FLOAT16 && !defined(HWY_EMULATE_SVE)
+#if HWY_HAVE_FLOAT16
     size_t padded;
     auto in = F16TestCases(d32, padded);
     using TF16 = float16_t;
@@ -358,8 +352,8 @@ struct TestIntFromFloatHuge {
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
     // Still does not work, although ARMv7 manual says that float->int
     // saturates, i.e. chooses the nearest representable value. Also causes
-    // out-of-memory for MSVC, and unsafe cast in farm_sve.
-#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC && !defined(HWY_EMULATE_SVE)
+    // out-of-memory for MSVC.
+#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
@@ -422,10 +416,6 @@ class TestIntFromFloat {
           const uint64_t bits = rng();
           memcpy(&from[i], &bits, sizeof(TF));
         } while (!std::isfinite(from[i]));
-#if defined(HWY_EMULATE_SVE)
-        // farm_sve just casts, which is undefined if the value is out of range.
-        from[i] = HWY_MIN(HWY_MAX(min / 2, from[i]), max / 2);
-#endif
         if (from[i] >= max) {
           expected[i] = LimitsMax<TI>();
         } else if (from[i] <= min) {
@@ -541,7 +531,7 @@ struct TestI32F64 {
 };
 
 HWY_NOINLINE void TestAllI32F64() {
-#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
+#if HWY_HAVE_FLOAT64
   ForDemoteVectors<TestI32F64>()(double());
 #endif
 }

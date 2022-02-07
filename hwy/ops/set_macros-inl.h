@@ -203,10 +203,6 @@
 // SVE[2]
 #elif HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE
 
-#if defined(HWY_EMULATE_SVE) && !defined(__F16C__)
-#error "Disable HWY_HAVE_FLOAT16 or ensure farm_sve actually converts to f16"
-#endif
-
 // SVE only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN alignas(8)
 

@@ -16,9 +16,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/demote_test.cc"
 #include "hwy/foreach_target.h"
@@ -61,10 +58,6 @@ struct TestDemoteTo {
 
     const auto value_ok = [&](T& value) {
       if (!IsFinite(value)) return false;
-#if HWY_EMULATE_SVE
-      // farm_sve just casts, which is undefined if the value is out of range.
-      value = HWY_MIN(HWY_MAX(min, value), max);
-#endif
       return true;
     };
 
@@ -85,8 +78,6 @@ struct TestDemoteTo {
 };
 
 HWY_NOINLINE void TestAllDemoteToInt() {
-// farm_sve's promote/demote semantics are incorrect.
-#if !defined(HWY_EMULATE_SVE)
   ForDemoteVectors<TestDemoteTo<uint8_t>>()(int16_t());
   ForDemoteVectors<TestDemoteTo<uint8_t>, 2>()(int32_t());
 
@@ -98,11 +89,10 @@ HWY_NOINLINE void TestAllDemoteToInt() {
 
   const ForDemoteVectors<TestDemoteTo<int16_t>> to_i16;
   to_i16(int32_t());
-#endif  // !defined(HWY_EMULATE_SVE)
 }
 
 HWY_NOINLINE void TestAllDemoteToMixed() {
-#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
+#if HWY_HAVE_FLOAT64
   const ForDemoteVectors<TestDemoteTo<int32_t>> to_i32;
   to_i32(double());
 #endif
@@ -145,7 +135,7 @@ struct TestDemoteToFloat {
 HWY_NOINLINE void TestAllDemoteToFloat() {
   // Must test f16 separately because we can only load/store/convert them.
 
-#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
+#if HWY_HAVE_FLOAT64
   const ForDemoteVectors<TestDemoteToFloat<float>, 1> to_float;
   to_float(double());
 #endif
@@ -222,7 +212,7 @@ class TestReorderDemote2To {
  public:
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_TARGET != HWY_SCALAR && !defined(HWY_EMULATE_SVE)
+#if HWY_TARGET != HWY_SCALAR
 
     size_t padded;
     auto in = ReorderBF16TestCases(d32, padded);
@@ -298,8 +288,6 @@ struct TestI32F64 {
     HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
                       DemoteTo(di, Iota(df, -TF(N + 1) - eps)));
 
-    // farm_sve just casts, which is undefined if the value is out of range.
-#if !defined(HWY_EMULATE_SVE)
     // Huge positive float
     HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),
                       DemoteTo(di, Set(df, TF(1E12))));
@@ -307,12 +295,11 @@ struct TestI32F64 {
     // Huge negative float
     HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMin<TI>()),
                       DemoteTo(di, Set(df, TF(-1E12))));
-#endif
   }
 };
 
 HWY_NOINLINE void TestAllI32F64() {
-#if HWY_HAVE_FLOAT64 && !defined(HWY_EMULATE_SVE)
+#if HWY_HAVE_FLOAT64
   ForDemoteVectors<TestI32F64>()(double());
 #endif
 }

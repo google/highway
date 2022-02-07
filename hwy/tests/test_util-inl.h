@@ -100,7 +100,7 @@ HWY_INLINE void AssertVecEqual(D d, VecArg<V> expected, VecArg<V> actual,
 template <class D>
 HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
                                   const char* filename, int line) {
-  // lvalues prevent MSAN failure in farm_sve.
+  // lvalues prevented MSAN failure in farm_sve.
   const Vec<D> va = VecFromMask(d, a);
   const Vec<D> vb = VecFromMask(d, b);
   AssertVecEqual(d, va, vb, filename, line);

@@ -17,9 +17,6 @@
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
 #include "hwy/foreach_target.h"
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #include "hwy/contrib/sort/vqsort.h"
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"

@@ -20,9 +20,6 @@
 
 #include <random>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #include "hwy/tests/test_util-inl.h"
 
 namespace hwy {

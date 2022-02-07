@@ -23,9 +23,6 @@
 #include "hwy/foreach_target.h"
 
 // After foreach_target
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #include "hwy/contrib/sort/shared-inl.h"
 
 // Seed source for SFC generator: 1=getrandom, 2=CryptGenRandom

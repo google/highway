@@ -17,9 +17,6 @@
 #include <cfloat>  // FLT_MAX
 #include <type_traits>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"

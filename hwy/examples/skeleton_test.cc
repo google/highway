@@ -18,9 +18,6 @@
 
 #include <stdio.h>
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "examples/skeleton_test.cc"
 #include "hwy/foreach_target.h"

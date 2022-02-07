@@ -16,9 +16,6 @@
 #include <stdint.h>
 #include <string.h>  // memcpy
 
-#include "hwy/tests/include_farm_sve.h"
-// ^ must come before highway.h.
-
 #include "hwy/aligned_allocator.h"
 
 #undef HWY_TARGET_INCLUDE

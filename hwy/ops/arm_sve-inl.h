@@ -18,9 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if !defined(HWY_EMULATE_SVE)
 #include <arm_sve.h>
-#endif
 
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
@@ -296,13 +294,6 @@ VFromD<D> Zero(D d) {
 
 // ------------------------------ Undefined
 
-#if defined(HWY_EMULATE_SVE)
-template <class D>
-VFromD<D> Undefined(D d) {
-  return Zero(d);
-}
-#else
-
 #define HWY_SVE_UNDEFINED(BASE, CHAR, BITS, HALF, NAME, OP) \
   template <size_t N, int kPow2>                            \
   HWY_API HWY_SVE_V(BASE, BITS)                             \
@@ -311,7 +302,6 @@ VFromD<D> Undefined(D d) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_UNDEFINED, Undefined, undef)
-#endif
 
 // ------------------------------ BitCast
 
@@ -1756,10 +1746,6 @@ HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
 
   auto idx8 = BitCast(di8, idx);
   const auto msb = detail::LtN(idx8, 0);
-// Prevent overflow in table lookups (unnecessary if native)
-#if defined(HWY_EMULATE_SVE)
-  idx8 = IfThenZeroElse(msb, idx8);
-#endif
 
   const auto lookup = TableLookupBytes(BitCast(di8, v), idx8);
   return BitCast(d, IfThenZeroElse(msb, lookup));

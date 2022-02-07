@@ -48,7 +48,6 @@ cc_library(
         # Only if VQSORT_SECURE_RNG is set.
         # "//third_party/absl/random",
         "//:hwy",
-        "//:include_farm_sve",
     ],
 )
 
@@ -98,7 +97,6 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "//:hwy",
         "//:hwy_test_util",
-        "//:include_farm_sve",
     ],
 )
 
