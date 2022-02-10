@@ -1730,7 +1730,7 @@ HWY_API Vec128<T, N> Load(Simd<T, N, 0> /* tag */, const T* HWY_RESTRICT p) {
   CopyBytes<kSize>(p, &v);
   return Vec128<T, N>{v};
 #else
-  int32_t bits;
+  int32_t bits = 0;
   CopyBytes<kSize>(p, &bits);
   return Vec128<T, N>{_mm_cvtsi32_si128(bits)};
 #endif
