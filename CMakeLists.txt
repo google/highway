@@ -223,20 +223,28 @@ endif()  # !MSVC
 
 # By default prefer STATIC build (legacy behavior)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
-# only expose shared option to advanced users:
+option(HWY_FORCE_STATIC_LIBS "Ignore BUILD_SHARED_LIBS" OFF)
+# only expose shared/static options to advanced users:
 mark_as_advanced(BUILD_SHARED_LIBS)
+mark_as_advanced(HWY_FORCE_STATIC_LIBS)
 # Define visibility settings globally:
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 
+# Copy-cat "add_library" logic + add override.
+set(HWY_LIBRARY_TYPE "SHARED")
+if (NOT BUILD_SHARED_LIBS OR HWY_FORCE_STATIC_LIBS)
+  set(HWY_LIBRARY_TYPE "STATIC")
+endif()
+
 # This preprocessor define will drive the build, also used in the *.pc files:
-if(BUILD_SHARED_LIBS)
+if("${HWY_LIBRARY_TYPE}" STREQUAL "SHARED")
   set(DLLEXPORT_TO_DEFINE "HWY_SHARED_DEFINE")
 else()
   set(DLLEXPORT_TO_DEFINE "HWY_STATIC_DEFINE")
 endif()
 
-add_library(hwy ${HWY_SOURCES})
+add_library(hwy ${HWY_LIBRARY_TYPE} ${HWY_SOURCES})
 target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -251,7 +259,7 @@ if(UNIX AND NOT APPLE)
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
 
-add_library(hwy_contrib ${HWY_CONTRIB_SOURCES})
+add_library(hwy_contrib ${HWY_LIBRARY_TYPE} ${HWY_CONTRIB_SOURCES})
 target_link_libraries(hwy_contrib hwy)
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -259,7 +267,7 @@ set_target_properties(hwy_contrib PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSIO
 target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
 
-add_library(hwy_test ${HWY_TEST_SOURCES})
+add_library(hwy_test ${HWY_LIBRARY_TYPE} ${HWY_TEST_SOURCES})
 target_link_libraries(hwy_test hwy)
 target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_test PROPERTY POSITION_INDEPENDENT_CODE ON)
