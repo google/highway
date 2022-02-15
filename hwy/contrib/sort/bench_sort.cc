@@ -120,7 +120,7 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
     const Timestamp t0;
     for (size_t i = 0; i < kMul; ++i) {
       detail::BaseCase(d, st, keys.get(), num, buf.get());
-      sum += keys[0];
+      sum += static_cast<double>(keys[0]);
     }
     seconds.push_back(SecondsSince(t0));
     // printf("%f\n", seconds.back());
