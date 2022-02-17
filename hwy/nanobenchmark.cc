@@ -24,6 +24,7 @@
 #include <algorithm>  // sort
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <limits>
 #include <numeric>  // iota
 #include <random>
@@ -378,27 +379,32 @@ std::string BrandString() {
   return brand_string;
 }
 
-// Returns the frequency quoted inside the brand string. This does not
-// account for throttling nor Turbo Boost.
-double NominalClockRate() {
-  const std::string& brand_string = BrandString();
-  // Brand strings include the maximum configured frequency. These prefixes are
-  // defined by Intel CPUID documentation.
-  const char* prefixes[3] = {"MHz", "GHz", "THz"};
-  const double multipliers[3] = {1E6, 1E9, 1E12};
-  for (size_t i = 0; i < 3; ++i) {
-    const size_t pos_prefix = brand_string.find(prefixes[i]);
-    if (pos_prefix != std::string::npos) {
-      const size_t pos_space = brand_string.rfind(' ', pos_prefix - 1);
-      if (pos_space != std::string::npos) {
-        const std::string digits =
-            brand_string.substr(pos_space + 1, pos_prefix - pos_space - 1);
-        return std::stod(digits) * multipliers[i];
-      }
-    }
-  }
+// Measures the actual current frequency of RDTSC. We cannot rely on the nominal
+// frequency encoded in BrandString because it is misleading on M1 Rosetta, and
+// not reported by AMD. CPUID 0x15 is also not yet widely supported.
+double MeasureNominalClockRate() {
+  double max_ticks_per_sec = 0.0;
+  // Arbitrary, enough to ignore 2 outliers without excessive init time.
+  for (int rep = 0; rep < 3; ++rep) {
+    auto time0 = std::chrono::steady_clock::now();
+    using Time = decltype(time0);
+    const timer::Ticks ticks0 = timer::Start();
+    const Time time_min = time0 + std::chrono::milliseconds(10);
 
-  return 0.0;
+    Time time1;
+    timer::Ticks ticks1;
+    for (;;) {
+      time1 = std::chrono::steady_clock::now();
+      ticks1 = timer::Stop();
+      if (time1 >= time_min) break;
+    }
+
+    const double dticks = static_cast<double>(ticks1 - ticks0);
+    std::chrono::duration<double, std::ratio<1>> dtime = time1 - time0;
+    const double ticks_per_sec = dticks / dtime.count();
+    max_ticks_per_sec = std::max(max_ticks_per_sec, ticks_per_sec);
+  }
+  return max_ticks_per_sec;
 }
 
 #endif  // HWY_ARCH_X86
@@ -410,7 +416,8 @@ HWY_DLLEXPORT double InvariantTicksPerSecond() {
   return double(__ppc_get_timebase_freq());
 #elif HWY_ARCH_X86
   // We assume the TSC is invariant; it is on all recent Intel/AMD CPUs.
-  return NominalClockRate();
+  static const double freq = MeasureNominalClockRate();
+  return freq;
 #elif defined(_WIN32) || defined(_WIN64)
   LARGE_INTEGER freq;
   (void)QueryPerformanceFrequency(&freq);

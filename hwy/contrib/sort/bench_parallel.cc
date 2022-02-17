@@ -182,7 +182,7 @@ void RunWithoutVerify(const Dist dist, const size_t num, const Algo algo,
 
 void BenchParallel() {
   // Not interested in benchmark results for other targets
-  if (HWY_TARGET != HWY_AVX3) return;
+  if (HWY_TARGET != HWY_AVX2 && HWY_TARGET != HWY_AVX3) return;
 
   ThreadPool pool;
   const size_t NT = pool.NumThreads();
