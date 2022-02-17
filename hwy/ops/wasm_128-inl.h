@@ -664,11 +664,12 @@ HWY_API Vec128<uint32_t, N> Min(Vec128<uint32_t, N> a, Vec128<uint32_t, N> b) {
 }
 template <size_t N>
 HWY_API Vec128<uint64_t, N> Min(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
-  alignas(16) uint64_t min[2];
-  min[0] = HWY_MIN(wasm_u64x2_extract_lane(a.raw, 0),
-                   wasm_u64x2_extract_lane(b.raw, 0));
-  min[1] = HWY_MIN(wasm_u64x2_extract_lane(a.raw, 1),
-                   wasm_u64x2_extract_lane(b.raw, 1));
+  // Avoid wasm_u64x2_extract_lane - not all implementations have it yet.
+  const uint64_t a0 = static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 0));
+  const uint64_t b0 = static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 0));
+  const uint64_t a1 = static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 1));
+  const uint64_t b1 = static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 1));
+  alignas(16) uint64_t min[2] = {HWY_MIN(a0, b0), HWY_MIN(a1, b1)};
   return Vec128<uint64_t, N>{wasm_v128_load(min)};
 }
 
@@ -718,11 +719,12 @@ HWY_API Vec128<uint32_t, N> Max(Vec128<uint32_t, N> a, Vec128<uint32_t, N> b) {
 }
 template <size_t N>
 HWY_API Vec128<uint64_t, N> Max(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
-  alignas(16) uint64_t max[2];
-  max[0] = HWY_MAX(wasm_u64x2_extract_lane(a.raw, 0),
-                   wasm_u64x2_extract_lane(b.raw, 0));
-  max[1] = HWY_MAX(wasm_u64x2_extract_lane(a.raw, 1),
-                   wasm_u64x2_extract_lane(b.raw, 1));
+  // Avoid wasm_u64x2_extract_lane - not all implementations have it yet.
+  const uint64_t a0 = static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 0));
+  const uint64_t b0 = static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 0));
+  const uint64_t a1 = static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 1));
+  const uint64_t b1 = static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 1));
+  alignas(16) uint64_t max[2] = {HWY_MAX(a0, b0), HWY_MAX(a1, b1)};
   return Vec128<uint64_t, N>{wasm_v128_load(max)};
 }
 
