@@ -141,6 +141,17 @@ cc_library(
 )
 
 cc_library(
+    name = "algo",
+    compatible_with = [],
+    textual_hdrs = [
+        "hwy/contrib/algo/transform-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "dot",
     compatible_with = [],
     textual_hdrs = [
@@ -226,6 +237,7 @@ cc_binary(
 
 # path, name
 HWY_TESTS = [
+    ("hwy/contrib/algo/", "transform_test"),
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
@@ -252,6 +264,7 @@ HWY_TESTS = [
 ]
 
 HWY_TEST_DEPS = [
+    ":algo",
     ":dot",
     ":hwy",
     ":hwy_test_util",
