@@ -479,6 +479,9 @@ void TestSort(size_t num) {
   SharedState shared;
   SharedTraits<Traits> st;
 
+  // Round up to a whole number of keys.
+  num += (st.Is128() && (num & 1));
+
   constexpr size_t kMaxMisalign = 16;
   auto aligned = hwy::AllocateAligned<T>(kMaxMisalign + num + kMaxMisalign);
   for (Algo algo : AlgoForTest()) {
@@ -531,7 +534,7 @@ void TestSort(size_t num) {
 }
 
 void TestAllSort() {
-  const size_t num = 15 * 1000;
+  const size_t num = AdjustedReps(20 * 1000);
 
   TestSort<LaneTraits<OrderAscending>, int16_t>(num);
   TestSort<LaneTraits<OrderDescending>, uint16_t>(num);
