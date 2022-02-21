@@ -161,6 +161,7 @@ inline Ticks Start() {
   return t;
 }
 
+// WARNING: on x86, caller must check HasRDTSCP before using this!
 inline Ticks Stop() {
   uint64_t t;
 #if HWY_ARCH_PPC && defined(__GLIBC__)
@@ -395,7 +396,10 @@ double MeasureNominalClockRate() {
     timer::Ticks ticks1;
     for (;;) {
       time1 = std::chrono::steady_clock::now();
-      ticks1 = timer::Stop();
+      // Ideally this would be Stop, but that requires RDTSCP on x86. To avoid
+      // another codepath, just use Start instead. now() presumably has its own
+      // fence-like behavior.
+      ticks1 = timer::Start();  // Do not use Stop, see comment above
       if (time1 >= time_min) break;
     }
 
@@ -439,14 +443,28 @@ HWY_DLLEXPORT double Now() {
 }
 
 HWY_DLLEXPORT uint64_t TimerResolution() {
+#if HWY_ARCH_X86
+  bool can_use_stop = platform::HasRDTSCP();
+#else
+  constexpr bool can_use_stop = true;
+#endif
+
   // Nested loop avoids exceeding stack/L1 capacity.
   timer::Ticks repetitions[Params::kTimerSamples];
   for (size_t rep = 0; rep < Params::kTimerSamples; ++rep) {
     timer::Ticks samples[Params::kTimerSamples];
-    for (size_t i = 0; i < Params::kTimerSamples; ++i) {
-      const timer::Ticks t0 = timer::Start();
-      const timer::Ticks t1 = timer::Stop();
-      samples[i] = t1 - t0;
+    if (can_use_stop) {
+      for (size_t i = 0; i < Params::kTimerSamples; ++i) {
+        const timer::Ticks t0 = timer::Start();
+        const timer::Ticks t1 = timer::Stop();  // we checked HasRDTSCP above
+        samples[i] = t1 - t0;
+      }
+    } else {
+      for (size_t i = 0; i < Params::kTimerSamples; ++i) {
+        const timer::Ticks t0 = timer::Start();
+        const timer::Ticks t1 = timer::Start();  // do not use Stop, see above
+        samples[i] = t1 - t0;
+      }
     }
     repetitions[rep] = robust_statistics::Mode(samples);
   }
@@ -466,7 +484,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
   // Choose initial samples_per_eval based on a single estimated duration.
   timer::Ticks t0 = timer::Start();
   lambda();
-  timer::Ticks t1 = timer::Stop();
+  timer::Ticks t1 = timer::Stop();  // Caller checks HasRDTSCP
   timer::Ticks est = t1 - t0;
   static const double ticks_per_second = platform::InvariantTicksPerSecond();
   const size_t ticks_per_eval =
@@ -490,7 +508,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
     for (size_t i = 0; i < samples_per_eval; ++i) {
       t0 = timer::Start();
       lambda();
-      t1 = timer::Stop();
+      t1 = timer::Stop();  // Caller checks HasRDTSCP
       samples.push_back(t1 - t0);
     }
 
