@@ -190,6 +190,40 @@ HWY_NOINLINE void TestAllMaskedLoad() {
   ForAllTypes(ForPartialVectors<TestMaskedLoad>());
 }
 
+struct TestBlendedStore {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+
+    const Vec<D> v = Iota(d, T{1});
+    auto actual = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+        // Re-initialize to something distinct from v[i].
+        actual[i] = static_cast<T>(127 - (i & 127));
+        expected[i] = bool_lanes[i] ? static_cast<T>(i + 1) : actual[i];
+      }
+
+      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
+      BlendedStore(v, mask, d, actual.get());
+      HWY_ASSERT_VEC_EQ(d, expected.get(), Load(d, actual.get()));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllBlendedStore() {
+  ForAllTypes(ForPartialVectors<TestBlendedStore>());
+}
+
 struct TestAllTrueFalse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -452,6 +486,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFirstN);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskVec);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedLoad);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllBlendedStore);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllStoreMaskBits);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllCountTrue);

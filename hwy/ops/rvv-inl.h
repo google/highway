@@ -1106,18 +1106,18 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL)
 HWY_RVV_FOREACH(HWY_RVV_STORE, Store, se, _ALL)
 #undef HWY_RVV_STORE
 
-// ------------------------------ MaskedStore
+// ------------------------------ BlendedStore
 
-#define HWY_RVV_MASKED_STORE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                             SHIFT, MLEN, NAME, OP)                           \
-  template <size_t N>                                                         \
-  HWY_API void NAME(HWY_RVV_M(MLEN) m, HWY_RVV_V(BASE, SEW, LMUL) v,          \
-                    HWY_RVV_D(BASE, SEW, N, SHIFT) d,                         \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                  \
-    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));           \
+#define HWY_RVV_BLENDED_STORE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                              SHIFT, MLEN, NAME, OP)                           \
+  template <size_t N>                                                          \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,           \
+                    HWY_RVV_D(BASE, SEW, N, SHIFT) d,                          \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                   \
+    return v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));            \
   }
-HWY_RVV_FOREACH(HWY_RVV_MASKED_STORE, MaskedStore, se, _ALL)
-#undef HWY_RVV_MASKED_STORE
+HWY_RVV_FOREACH(HWY_RVV_BLENDED_STORE, BlendedStore, se, _ALL)
+#undef HWY_RVV_BLENDED_STORE
 
 namespace detail {
 

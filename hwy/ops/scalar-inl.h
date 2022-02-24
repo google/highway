@@ -883,6 +883,13 @@ HWY_API void StoreU(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT p) {
   return Store(v, d, p);
 }
 
+template <typename T>
+HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, Sisd<T> d,
+                          T* HWY_RESTRICT p) {
+  if (!m.bits) return;
+  StoreU(v, d, p);
+}
+
 // ------------------------------ StoreInterleaved3
 
 HWY_API void StoreInterleaved3(const Vec1<uint8_t> v0, const Vec1<uint8_t> v1,

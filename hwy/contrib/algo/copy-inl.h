@@ -1,0 +1,133 @@
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Per-target include guard
+#if defined(HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_) == \
+    defined(HWY_TARGET_TOGGLE)
+#ifdef HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_
+#undef HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_
+#else
+#define HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_
+#endif
+
+#include <string.h>  // memcpy
+
+#include "hwy/highway.h"
+
+HWY_BEFORE_NAMESPACE();
+namespace hwy {
+namespace HWY_NAMESPACE {
+
+// These functions avoid having to write a loop plus remainder handling in the
+// (unfortunately still common) case where arrays are not aligned/padded. If the
+// inputs are known to be aligned/padded, it is more efficient to write a single
+// loop using Load(). We do not provide a CopyAlignedPadded because it
+// would be more verbose than such a loop.
+//
+// If HWY_MEM_OPS_MIGHT_FAULT, we use scalar code instead of masking.
+
+// Copies `from`[0, `count`) to `to`, which must not overlap `from`.
+template <typename T>
+void Copy(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
+  const ScalableTag<T> d;
+  using V = Vec<decltype(d)>;
+
+  const size_t N = Lanes(d);
+
+  size_t idx = 0;
+  for (; idx + N <= count; idx += N) {
+    const V v = LoadU(d, from + idx);
+    StoreU(v, d, to + idx);
+  }
+
+  // `count` was a multiple of the vector length `N`: already done.
+  if (HWY_UNLIKELY(idx == count)) return;
+
+#if HWY_MEM_OPS_MIGHT_FAULT
+  memcpy(to, from, count * sizeof(T));
+#else
+  // Start index of the last unaligned whole vector, ending at the array end.
+  const size_t last = count - N;
+  // Number of elements before `from` or already written.
+  const size_t invalid = idx - last;
+  HWY_DASSERT(0 != invalid && invalid < N);
+  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
+
+  const V v = MaskedLoad(mask, d, from + last);
+  // It would be fine to write the overlapping elements a second time, but mask
+  // is required for avoiding changes before `to`.
+  BlendedStore(v, mask, d, to + last);
+#endif
+}
+
+// For idx in [0, count) in ascending order, appends `from[idx]` to `to` if the
+// corresponding mask element of `func(d, v)` is true. Returns the STL-style end
+// of the newly written elements in `to`.
+//
+// `func` is either a functor with a templated operator()(d, v) returning a
+// mask, or a generic lambda if using C++14. Due to apparent limitations of
+// Clang on Windows, it is currently necessary to add HWY_ATTR before the
+// opening { of the lambda to avoid errors about "function .. requires target".
+//
+// NOTE: this is only supported for 16-, 32- or 64-bit types.
+// NOTE: Func may be called a second time for elements it has already seen, but
+// these elements will not be written to `to` again.
+template <typename T, class Func>
+T* CopyIf(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
+          const Func& func) {
+  const ScalableTag<T> d;
+  using V = Vec<decltype(d)>;
+
+  const size_t N = Lanes(d);
+
+  size_t idx = 0;
+  for (; idx + N <= count; idx += N) {
+    const V v = LoadU(d, from + idx);
+    to += CompressStore(v, func(d, v), d, to);
+  }
+
+  // `count` was a multiple of the vector length `N`: already done.
+  if (HWY_UNLIKELY(idx == count)) return to;
+
+#if HWY_MEM_OPS_MIGHT_FAULT
+  // Proceed one by one.
+  const CappedTag<T, 1> d1;
+  for (; idx < count; ++idx) {
+    using V1 = Vec<decltype(d1)>;
+    const V1 v = LoadU(d1, from + idx);
+    // Avoid storing to `to` unless we know it should be kept - otherwise, we
+    // might overrun the end if it was allocated for the exact count.
+    if (CountTrue(d1, func(d1, v)) == 0) continue;
+    StoreU(v, d1, to);
+    to += 1;
+  }
+#else
+  // Start index of the last unaligned whole vector, ending at the array end.
+  const size_t last = count - N;
+  // Number of elements before `from` or already written.
+  const size_t invalid = idx - last;
+  HWY_DASSERT(0 != invalid && invalid < N);
+  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
+  const V v = MaskedLoad(mask, d, from + last);
+  to += CompressBlendedStore(v, And(mask, func(d, v)), d, to);
+#endif
+  return to;
+}
+
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
+}  // namespace hwy
+HWY_AFTER_NAMESPACE();
+
+#endif  // HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_

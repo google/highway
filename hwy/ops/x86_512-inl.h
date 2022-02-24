@@ -22,6 +22,10 @@
 
 #include "hwy/base.h"
 
+#if HWY_IS_MSAN
+#include <sanitizer/msan_interface.h>
+#endif
+
 #if defined(_MSC_VER) && defined(__clang__)
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
@@ -1806,39 +1810,38 @@ HWY_API Vec512<double> LoadU(Full512<double> /* tag */,
 
 // ------------------------------ MaskedLoad
 
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
-                             const T* HWY_RESTRICT aligned) {
-  return Vec512<T>{_mm512_maskz_load_epi32(m.raw, aligned)};
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
-                             const T* HWY_RESTRICT aligned) {
-  return Vec512<T>{_mm512_maskz_load_epi64(m.raw, aligned)};
-}
-
-HWY_API Vec512<float> MaskedLoad(Mask512<float> m, Full512<float> /* tag */,
-                                 const float* HWY_RESTRICT aligned) {
-  return Vec512<float>{_mm512_maskz_load_ps(m.raw, aligned)};
-}
-
-HWY_API Vec512<double> MaskedLoad(Mask512<double> m, Full512<double> /* tag */,
-                                  const double* HWY_RESTRICT aligned) {
-  return Vec512<double>{_mm512_maskz_load_pd(m.raw, aligned)};
-}
-
-// There is no load_epi8/16, so use loadu instead.
 template <typename T, HWY_IF_LANE_SIZE(T, 1)>
 HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
-                             const T* HWY_RESTRICT aligned) {
-  return Vec512<T>{_mm512_maskz_loadu_epi8(m.raw, aligned)};
+                             const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_maskz_loadu_epi8(m.raw, p)};
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
-                             const T* HWY_RESTRICT aligned) {
-  return Vec512<T>{_mm512_maskz_loadu_epi16(m.raw, aligned)};
+                             const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_maskz_loadu_epi16(m.raw, p)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
+                             const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_maskz_loadu_epi32(m.raw, p)};
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec512<T> MaskedLoad(Mask512<T> m, Full512<T> /* tag */,
+                             const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_maskz_loadu_epi64(m.raw, p)};
+}
+
+HWY_API Vec512<float> MaskedLoad(Mask512<float> m, Full512<float> /* tag */,
+                                 const float* HWY_RESTRICT p) {
+  return Vec512<float>{_mm512_maskz_loadu_ps(m.raw, p)};
+}
+
+HWY_API Vec512<double> MaskedLoad(Mask512<double> m, Full512<double> /* tag */,
+                                  const double* HWY_RESTRICT p) {
+  return Vec512<double>{_mm512_maskz_loadu_pd(m.raw, p)};
 }
 
 // ------------------------------ LoadDup128
@@ -1912,6 +1915,42 @@ HWY_API void StoreU(const Vec512<float> v, Full512<float> /* tag */,
 HWY_API void StoreU(const Vec512<double> v, Full512<double>,
                     double* HWY_RESTRICT p) {
   _mm512_storeu_pd(p, v.raw);
+}
+
+// ------------------------------ BlendedStore
+
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API void BlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> /* tag */,
+                          T* HWY_RESTRICT p) {
+  _mm512_mask_storeu_epi8(p, m.raw, v.raw);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API void BlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> /* tag */,
+                          T* HWY_RESTRICT p) {
+  _mm512_mask_storeu_epi16(p, m.raw, v.raw);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API void BlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> /* tag */,
+                          T* HWY_RESTRICT p) {
+  _mm512_mask_storeu_epi32(p, m.raw, v.raw);
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void BlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> /* tag */,
+                          T* HWY_RESTRICT p) {
+  _mm512_mask_storeu_epi64(p, m.raw, v.raw);
+}
+
+HWY_API void BlendedStore(Vec512<float> v, Mask512<float> m,
+                          Full512<float> /* tag */, float* HWY_RESTRICT p) {
+  _mm512_mask_storeu_ps(p, m.raw, v.raw);
+}
+
+HWY_API void BlendedStore(Vec512<double> v, Mask512<double> m,
+                          Full512<double> /* tag */, double* HWY_RESTRICT p) {
+  _mm512_mask_storeu_pd(p, m.raw, v.raw);
 }
 
 // ------------------------------ Non-temporal stores
@@ -3477,28 +3516,48 @@ template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw});
+  const size_t count = PopCount(uint64_t{mask.raw});
+// Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw});
+  const size_t count = PopCount(uint64_t{mask.raw});
+// Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 HWY_API size_t CompressStore(Vec512<float> v, Mask512<float> mask,
                              Full512<float> /* tag */,
                              float* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw});
+  const size_t count = PopCount(uint64_t{mask.raw});
+// Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(float));
+#endif
+  return count;
 }
 
 HWY_API size_t CompressStore(Vec512<double> v, Mask512<double> mask,
                              Full512<double> /* tag */,
                              double* HWY_RESTRICT unaligned) {
   _mm512_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw});
+  const size_t count = PopCount(uint64_t{mask.raw});
+// Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(double));
+#endif
+  return count;
 }
 
 // ------------------------------ CompressBlendedStore

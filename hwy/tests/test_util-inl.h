@@ -504,36 +504,63 @@ void ForAllTypes(const Func& func) {
 }
 
 template <class Func>
-void ForUIF16(const Func& func) {
+void ForUI16(const Func& func) {
   func(uint16_t());
   func(int16_t());
+}
+
+template <class Func>
+void ForUIF16(const Func& func) {
+  ForUI16(func);
 #if HWY_HAVE_FLOAT16
   func(float16_t());
 #endif
 }
 
 template <class Func>
-void ForUIF32(const Func& func) {
+void ForUI32(const Func& func) {
   func(uint32_t());
   func(int32_t());
+}
+
+template <class Func>
+void ForUIF32(const Func& func) {
+  ForUI32(func);
   func(float());
 }
 
 template <class Func>
-void ForUIF64(const Func& func) {
+void ForUI64(const Func& func) {
 #if HWY_HAVE_INTEGER64
   func(uint64_t());
   func(int64_t());
 #endif
+}
+
+template <class Func>
+void ForUIF64(const Func& func) {
+  ForUI64(func);
 #if HWY_HAVE_FLOAT64
   func(double());
 #endif
 }
 
 template <class Func>
+void ForUI3264(const Func& func) {
+  ForUI32(func);
+  ForUI64(func);
+}
+
+template <class Func>
 void ForUIF3264(const Func& func) {
   ForUIF32(func);
   ForUIF64(func);
+}
+
+template <class Func>
+void ForUI163264(const Func& func) {
+  ForUI16(func);
+  ForUI3264(func);
 }
 
 template <class Func>

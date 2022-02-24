@@ -2412,6 +2412,16 @@ HWY_API void Store(Vec128<T, N> v, Simd<T, N, 0> d, T* HWY_RESTRICT aligned) {
   StoreU(v, d, aligned);
 }
 
+template <typename T, size_t N>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
+                          T* HWY_RESTRICT p) {
+  // Treat as unsigned so that we correctly support float16.
+  const RebindToUnsigned<decltype(d)> du;
+  const auto blended =
+      IfThenElse(RebindMask(du, m), BitCast(du, v), BitCast(du, LoadU(d, p)));
+  StoreU(BitCast(d, blended), d, p);
+}
+
 // ------------------------------ Non-temporal stores
 
 // Same as aligned stores on non-x86.
@@ -5051,10 +5061,9 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   using TU = TFromD<decltype(du)>;
   const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
-  const Mask128<TU, N> store_mask = FirstN(du, count);
+  const Mask128<T, N> store_mask = RebindMask(d, FirstN(du, count));
   const Vec128<TU, N> compressed = detail::Compress(BitCast(du, v), mask_bits);
-  const Vec128<TU, N> prev = BitCast(du, LoadU(d, unaligned));
-  StoreU(BitCast(d, IfThenElse(store_mask, compressed, prev)), d, unaligned);
+  BlendedStore(BitCast(d, compressed), store_mask, d, unaligned);
   return count;
 }
 

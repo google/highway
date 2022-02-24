@@ -1762,82 +1762,81 @@ HWY_API Vec128<T, N> Iota(const Simd<T, N, 0> d, const T2 first) {
 
 #if HWY_TARGET <= HWY_AVX3
 
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
+                                const T* HWY_RESTRICT p) {
+  return Vec128<T, N>{_mm_maskz_loadu_epi8(m.raw, p)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
+                                const T* HWY_RESTRICT p) {
+  return Vec128<T, N>{_mm_maskz_loadu_epi16(m.raw, p)};
+}
+
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
-                                const T* HWY_RESTRICT aligned) {
-  return Vec128<T, N>{_mm_maskz_load_epi32(m.raw, aligned)};
+                                const T* HWY_RESTRICT p) {
+  return Vec128<T, N>{_mm_maskz_loadu_epi32(m.raw, p)};
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
-                                const T* HWY_RESTRICT aligned) {
-  return Vec128<T, N>{_mm_maskz_load_epi64(m.raw, aligned)};
+                                const T* HWY_RESTRICT p) {
+  return Vec128<T, N>{_mm_maskz_loadu_epi64(m.raw, p)};
 }
 
 template <size_t N>
 HWY_API Vec128<float, N> MaskedLoad(Mask128<float, N> m,
                                     Simd<float, N, 0> /* tag */,
-                                    const float* HWY_RESTRICT aligned) {
-  return Vec128<float, N>{_mm_maskz_load_ps(m.raw, aligned)};
+                                    const float* HWY_RESTRICT p) {
+  return Vec128<float, N>{_mm_maskz_loadu_ps(m.raw, p)};
 }
 
 template <size_t N>
 HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m,
                                      Simd<double, N, 0> /* tag */,
-                                     const double* HWY_RESTRICT aligned) {
-  return Vec128<double, N>{_mm_maskz_load_pd(m.raw, aligned)};
-}
-
-// There is no load_epi8/16, so use loadu instead.
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
-HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
-                                const T* HWY_RESTRICT aligned) {
-  return Vec128<T, N>{_mm_maskz_loadu_epi8(m.raw, aligned)};
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
-                                const T* HWY_RESTRICT aligned) {
-  return Vec128<T, N>{_mm_maskz_loadu_epi16(m.raw, aligned)};
+                                     const double* HWY_RESTRICT p) {
+  return Vec128<double, N>{_mm_maskz_loadu_pd(m.raw, p)};
 }
 
 #elif HWY_TARGET == HWY_AVX2
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
-                                const T* HWY_RESTRICT aligned) {
-  auto aligned_p = reinterpret_cast<const int*>(aligned);  // NOLINT
-  return Vec128<T, N>{_mm_maskload_epi32(aligned_p, m.raw)};
+                                const T* HWY_RESTRICT p) {
+  auto p_p = reinterpret_cast<const int*>(p);  // NOLINT
+  return Vec128<T, N>{_mm_maskload_epi32(p_p, m.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> /* tag */,
-                                const T* HWY_RESTRICT aligned) {
-  auto aligned_p = reinterpret_cast<const long long*>(aligned);  // NOLINT
-  return Vec128<T, N>{_mm_maskload_epi64(aligned_p, m.raw)};
+                                const T* HWY_RESTRICT p) {
+  auto p_p = reinterpret_cast<const long long*>(p);  // NOLINT
+  return Vec128<T, N>{_mm_maskload_epi64(p_p, m.raw)};
 }
 
 template <size_t N>
 HWY_API Vec128<float, N> MaskedLoad(Mask128<float, N> m, Simd<float, N, 0> d,
-                                    const float* HWY_RESTRICT aligned) {
+                                    const float* HWY_RESTRICT p) {
   const Vec128<int32_t, N> mi =
       BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
-  return Vec128<float, N>{_mm_maskload_ps(aligned, mi.raw)};
+  return Vec128<float, N>{_mm_maskload_ps(p, mi.raw)};
 }
 
 template <size_t N>
 HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m, Simd<double, N, 0> d,
-                                     const double* HWY_RESTRICT aligned) {
+                                     const double* HWY_RESTRICT p) {
   const Vec128<int64_t, N> mi =
       BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
-  return Vec128<double, N>{_mm_maskload_pd(aligned, mi.raw)};
+  return Vec128<double, N>{_mm_maskload_pd(p, mi.raw)};
 }
 
 // There is no maskload_epi8/16, so blend instead.
 template <typename T, size_t N, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> d,
-                                const T* HWY_RESTRICT aligned) {
-  return IfThenElseZero(m, Load(d, aligned));
+                                const T* HWY_RESTRICT p) {
+  return IfThenElseZero(m, Load(d, p));
 }
 
 #else  // <= SSE4
@@ -1845,8 +1844,8 @@ HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> d,
 // Avoid maskmov* - its nontemporal 'hint' causes it to bypass caches (slow).
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> d,
-                                const T* HWY_RESTRICT aligned) {
-  return IfThenElseZero(m, Load(d, aligned));
+                                const T* HWY_RESTRICT p) {
+  return IfThenElseZero(m, Load(d, p));
 }
 
 #endif
@@ -1923,6 +1922,99 @@ template <typename T, size_t N, HWY_IF_LE64(T, N)>
 HWY_API void StoreU(const Vec128<T, N> v, Simd<T, N, 0> d, T* HWY_RESTRICT p) {
   Store(v, d, p);
 }
+
+// ------------------------------ BlendedStore
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                          Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
+  _mm_mask_storeu_epi8(p, m.raw, v.raw);
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                          Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
+  _mm_mask_storeu_epi16(p, m.raw, v.raw);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                          Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
+  auto pi = reinterpret_cast<int*>(p);  // NOLINT
+  _mm_mask_storeu_epi32(pi, m.raw, v.raw);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                          Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
+  auto pi = reinterpret_cast<long long*>(p);  // NOLINT
+  _mm_mask_storeu_epi64(pi, m.raw, v.raw);
+}
+
+template <size_t N>
+HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
+                          Simd<float, N, 0> d, float* HWY_RESTRICT p) {
+  _mm_mask_storeu_ps(p, m.raw, v.raw);
+}
+
+template <size_t N>
+HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
+                          Simd<double, N, 0> d, double* HWY_RESTRICT p) {
+  _mm_mask_storeu_pd(p, m.raw, v.raw);
+}
+
+#elif HWY_TARGET == HWY_AVX2
+
+// There is no maskload_epi8/16, so blend instead.
+template <typename T, size_t N, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
+                          T* HWY_RESTRICT p) {
+  StoreU(IfThenElse(m, v, LoadU(d, p)), d, p);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
+                          T* HWY_RESTRICT p) {
+  auto pi = reinterpret_cast<int*>(p);  // NOLINT
+  const Vec128<int32_t, N> vi = BitCast(RebindToSigned<decltype(d)>(), v);
+  _mm_maskstore_epi32(pi, m.raw, vi.raw);
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
+                          T* HWY_RESTRICT p) {
+  auto pi = reinterpret_cast<long long*>(p);  // NOLINT
+  const Vec128<int64_t, N> vi = BitCast(RebindToSigned<decltype(d)>(), v);
+  _mm_maskstore_epi64(pi, m.raw, vi.raw);
+}
+
+template <size_t N>
+HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
+                          Simd<float, N, 0> d, float* HWY_RESTRICT p) {
+  const Vec128<int32_t, N> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  _mm_maskstore_ps(p, mi.raw, v.raw);
+}
+
+template <size_t N>
+HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
+                          Simd<double, N, 0> d, double* HWY_RESTRICT p) {
+  const Vec128<int64_t, N> mi =
+      BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
+  _mm_maskstore_pd(p, mi.raw, v.raw);
+}
+
+#else  // <= SSE4
+
+// Avoid maskmov* - its nontemporal 'hint' causes it to bypass caches (slow).
+template <typename T, size_t N>
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
+                          T* HWY_RESTRICT p) {
+  StoreU(IfThenElse(m, v, LoadU(d, p)), d, p);
+}
+
+#endif
 
 // ================================================== ARITHMETIC
 
@@ -5213,8 +5305,7 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   } else {
     const size_t count = CountTrue(d, m);
     const Vec128<T, N> compressed = Compress(v, m);
-    const Vec128<T, N> prev = LoadU(d, unaligned);
-    StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+    BlendedStore(compressed, FirstN(d, count), d, unaligned);
     return count;
   }
 }

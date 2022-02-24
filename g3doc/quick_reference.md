@@ -619,19 +619,11 @@ are naturally aligned. An unaligned access may require two load ports.
 
 #### Load
 
-Requires naturally-aligned vectors (e.g. from aligned_allocator.h):
-
 *   <code>Vec&lt;D&gt; **Load**(D, const T* aligned)</code>: returns
-    `aligned[i]`. May fault if the pointer is not aligned to the vector size.
-    Using this whenever possible improves codegen on SSSE3/SSE4: unlike `LoadU`,
-    `Load` can be fused into a memory operand, which reduces register pressure.
-
-*   <code>Vec&lt;D&gt; **MaskedLoad**(M mask, D, const T* aligned)</code>:
-    returns `aligned[i]` or zero if the `mask` governing element `i` is false.
-    May fault if the pointer is not aligned to the vector size. The alignment
-    requirement prevents differing behavior for "masked off" elements at invalid
-    addresses. Equivalent to, and potentially more efficient than,
-    `IfThenElseZero(mask, Load(D(), aligned))`.
+    `aligned[i]`. May fault if the pointer is not aligned to the vector size
+    (using aligned_allocator.h is safe). Using this whenever possible improves
+    codegen on SSSE3/SSE4: unlike `LoadU`, `Load` can be fused into a memory
+    operand, which reduces register pressure.
 
 Requires only *element-aligned* vectors (e.g. from malloc/std::vector, or
 aligned memory at indices which are not a multiple of the vector length):
@@ -642,6 +634,13 @@ aligned memory at indices which are not a multiple of the vector length):
     block loaded from `p` and broadcasted into all 128-bit block\[s\]. This may
     be faster than broadcasting single values, and is more convenient than
     preparing constants for the actual vector length.
+
+*   <code>Vec&lt;D&gt; **MaskedLoad**(M mask, D, const T* p)</code>: returns
+    `p[i]` or zero if the `mask` governing element `i` is false. May fault even
+    where `mask` is false `#if HWY_MEM_OPS_MIGHT_FAULT`. If `p` is aligned,
+    faults cannot happen unless the entire vector is inaccessible. Equivalent
+    to, and potentially more efficient than, `IfThenElseZero(mask, Load(D(),
+    aligned))`.
 
 #### Scatter/Gather
 
@@ -671,12 +670,20 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 
 #### Store
 
-*   <code>void **Store**(Vec&lt;D&gt; a, D, T* aligned)</code>: copies `a[i]`
-    into `aligned[i]`, which must be naturally aligned. Writes exactly N *
-    sizeof(T) bytes.
+*   <code>void **Store**(Vec&lt;D&gt; v, D, T* aligned)</code>: copies `v[i]`
+    into `aligned[i]`, which must be naturally aligned. Writes exactly `N *
+    sizeof(T)` bytes.
 
-*   <code>void **StoreU**(Vec&lt;D&gt; a, D, T* p)</code>: as Store, but without
-    the alignment requirement.
+*   <code>void **StoreU**(Vec&lt;D&gt; v, D, T* p)</code>: as `Store`, but
+    without the alignment requirement.
+
+*   <code>void **BlendedStore**(Vec&lt;D&gt; v, M m, D d, T* p)</code>: as
+    `StoreU`, but only updates `p` where `m` is true. May fault even where
+    `mask` is false `#if HWY_MEM_OPS_MIGHT_FAULT`. If `p` is aligned, faults
+    cannot happen unless the entire vector is inaccessible. Equivalent to, and
+    potentially more efficient than, `StoreU(IfThenElse(m, v, LoadU(d, p)), d,
+    p)`. "Blended" indicates this may not be atomic; other threads must not
+    concurrently update `[p, p + Lanes(d))` without sychronization.
 
 *   `D`: `u8` \
     <code>void **StoreInterleaved3**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1,
@@ -1110,6 +1117,13 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
 
 *   `HWY_HAVE_SCALABLE` indicates vector sizes are unknown at compile time, and
     determined by the CPU.
+
+*   `HWY_MEM_OPS_MIGHT_FAULT` is 1 iff `MaskedLoad` may trigger a (page) fault
+    when attempting to load lanes from unmapped memory, even if the
+    corresponding mask element is false. This is the case on ASAN/MSAN builds,
+    AMD x86 prior to AVX-512, and ARM NEON. If so, users can prevent faults by
+    ensuring memory addresses are naturally aligned or at least padded
+    (allocation size increased by at least `Lanes(d)`.
 
 The following were used to signal the maximum number of lanes for certain
 operations, but this is no longer necessary (nor possible on SVE/RVV), so they

@@ -1201,6 +1201,12 @@ HWY_API void StoreU(Vec256<T> v, Full256<T> d, T* HWY_RESTRICT p) {
   Store(v, d, p);
 }
 
+template <typename T>
+HWY_API void BlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                          T* HWY_RESTRICT p) {
+  StoreU(IfThenElse(m, v, LoadU(d, p)), d, p);
+}
+
 // ------------------------------ Non-temporal stores
 
 // Same as aligned stores on non-x86.

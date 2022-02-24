@@ -165,6 +165,14 @@
 #define HWY_IS_TSAN 0
 #endif
 
+// MSAN may cause lengthy build times or false positives e.g. in AVX3 DemoteTo.
+// You can disable MSAN by adding this attribute to the function that fails.
+#if HWY_IS_MSAN
+#define HWY_ATTR_NO_MSAN __attribute__((no_sanitize_memory))
+#else
+#define HWY_ATTR_NO_MSAN
+#endif
+
 // For enabling HWY_DASSERT and shortening tests in slower debug builds
 #if !defined(HWY_IS_DEBUG_BUILD)
 // Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent

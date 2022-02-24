@@ -37,18 +37,11 @@ namespace HWY_NAMESPACE {
 // Highway ops reside here; ADL does not find templates nor builtins.
 using namespace hwy::HWY_NAMESPACE;
 
-// For reasons unknown, optimized msan builds encounter long build times here;
-// work around it until a cause is found.
-#if HWY_COMPILER_CLANG && defined(MEMORY_SANITIZER) && defined(__OPTIMIZE__)
-#define ATTR_MSAN __attribute__((optnone))
-#else
-#define ATTR_MSAN
-#endif
-
 // Computes log2 by converting to a vector of floats. Compiled once per target.
 template <class DF>
-ATTR_MSAN void OneFloorLog2(const DF df, const uint8_t* HWY_RESTRICT values,
-                            uint8_t* HWY_RESTRICT log2) {
+HWY_ATTR_NO_MSAN void OneFloorLog2(const DF df,
+                                   const uint8_t* HWY_RESTRICT values,
+                                   uint8_t* HWY_RESTRICT log2) {
   // Type tags for converting to other element types (Rebind = same count).
   const RebindToSigned<DF> d32;
   const Rebind<uint8_t, DF> d8;

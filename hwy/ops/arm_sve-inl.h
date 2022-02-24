@@ -854,12 +854,12 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
     sv##OP##_##CHAR##BITS(detail::MakeMask(d), p, v);         \
   }
 
-#define HWY_SVE_MASKED_STORE(BASE, CHAR, BITS, HALF, NAME, OP) \
-  template <size_t N, int kPow2>                               \
-  HWY_API void NAME(svbool_t m, HWY_SVE_V(BASE, BITS) v,       \
-                    HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,   \
-                    HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {  \
-    sv##OP##_##CHAR##BITS(m, p, v);                            \
+#define HWY_SVE_BLENDED_STORE(BASE, CHAR, BITS, HALF, NAME, OP) \
+  template <size_t N, int kPow2>                                \
+  HWY_API void NAME(HWY_SVE_V(BASE, BITS) v, svbool_t m,        \
+                    HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,    \
+                    HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {   \
+    sv##OP##_##CHAR##BITS(m, p, v);                             \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_LOAD, Load, ld1)
@@ -867,13 +867,13 @@ HWY_SVE_FOREACH(HWY_SVE_MASKED_LOAD, MaskedLoad, ld1)
 HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDup128, ld1rq)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Store, st1)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Stream, stnt1)
-HWY_SVE_FOREACH(HWY_SVE_MASKED_STORE, MaskedStore, st1)
+HWY_SVE_FOREACH(HWY_SVE_BLENDED_STORE, BlendedStore, st1)
 
 #undef HWY_SVE_LOAD
 #undef HWY_SVE_MASKED_LOAD
 #undef HWY_SVE_LOAD_DUP128
 #undef HWY_SVE_STORE
-#undef HWY_SVE_MASKED_STORE
+#undef HWY_SVE_BLENDED_STORE
 
 // BF16 is the same as svuint16_t because BF16 is optional before v8.6.
 template <size_t N, int kPow2>
@@ -1626,7 +1626,7 @@ HWY_API size_t CompressBlendedStore(const V v, const M mask, const D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const size_t count = CountTrue(d, mask);
   const svbool_t store_mask = FirstN(d, count);
-  MaskedStore(store_mask, Compress(v, mask), d, unaligned);
+  BlendedStore(Compress(v, mask), store_mask, d, unaligned);
   return count;
 }
 
