@@ -78,6 +78,10 @@ CLANG_OR_CLANGCL_OPTS = CLANG_GCC_COPTS + [
     "-Wthread-safety-analysis",
     "-Wundefined-func-template",
     "-Wunused-comparison",
+
+    # Do not treat the third_party headers as system headers when building
+    # highway - the errors are pertinent.
+    "--no-system-header-prefix=third_party/highway",
 ]
 
 # Warnings only supported by Clang, but not Clang-cl
