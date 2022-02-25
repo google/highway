@@ -88,10 +88,10 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 // Default tag / vector width selector.
-// TODO(janwas): enable once LMUL < 1 is supported.
-#if HWY_TARGET == HWY_RVV && 0
+#if HWY_TARGET == HWY_RVV
+// Use LMUL = 1/2 whenever it exists (SEW < 64).
 template <typename T>
-using SortTag = ScalableTag<T, -1>;
+using SortTag = ScalableTag<T, sizeof(T) == 8 ? 0 : -1>;
 #else
 template <typename T>
 using SortTag = ScalableTag<T>;
