@@ -1954,13 +1954,13 @@ HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
 
 template <size_t N>
 HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
-                          Simd<float, N, 0> d, float* HWY_RESTRICT p) {
+                          Simd<float, N, 0>, float* HWY_RESTRICT p) {
   _mm_mask_storeu_ps(p, m.raw, v.raw);
 }
 
 template <size_t N>
 HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
-                          Simd<double, N, 0> d, double* HWY_RESTRICT p) {
+                          Simd<double, N, 0>, double* HWY_RESTRICT p) {
   _mm_mask_storeu_pd(p, m.raw, v.raw);
 }
 
