@@ -1206,9 +1206,6 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
   return GatherOffset(d, base, ShiftLeft<3>(index));
 }
 
-// TODO(janwas): wait for https://github.com/riscv/rvv-intrinsic-doc/issues/95
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
-
 // ------------------------------ StoreInterleaved3
 
 #define HWY_RVV_STORE3(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
@@ -1218,14 +1215,19 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
       HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_V(BASE, SEW, LMUL) v1,            \
       HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_D(BASE, SEW, N, SHIFT) d,         \
       HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned) {                         \
-    const v##BASE##SEW##LMUL##x3_t triple =                                    \
-        vcreate_##CHAR##SEW##LMUL##x3(v0, v1, v2);                             \
-    return v##OP##e8_v_##CHAR##SEW##LMUL##x3(unaligned, triple, Lanes(d));     \
+    return v##OP##e8_v_##CHAR##SEW##LMUL(unaligned, v0, v1, v2, Lanes(d));     \
   }
 // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-HWY_RVV_STORE3(uint, u, 8, m1, /*kShift=*/0, 8, StoreInterleaved3, sseg3)
-HWY_RVV_STORE3(uint, u, 8, m2, /*kShift=*/1, 4, StoreInterleaved3, sseg3)
-
+HWY_RVV_STORE3(uint, u, 8, _, _, mf8, _, _, /*kShift=*/-3, 64,
+               StoreInterleaved3, sseg3)
+HWY_RVV_STORE3(uint, u, 8, _, _, mf4, _, _, /*kShift=*/-2, 32,
+               StoreInterleaved3, sseg3)
+HWY_RVV_STORE3(uint, u, 8, _, _, mf2, _, _, /*kShift=*/-1, 16,
+               StoreInterleaved3, sseg3)
+HWY_RVV_STORE3(uint, u, 8, _, _, m1, _, _, /*kShift=*/0, 8, StoreInterleaved3,
+               sseg3)
+HWY_RVV_STORE3(uint, u, 8, _, _, m2, _, _, /*kShift=*/1, 4, StoreInterleaved3,
+               sseg3)
 #undef HWY_RVV_STORE3
 
 // ------------------------------ StoreInterleaved4
@@ -1238,17 +1240,21 @@ HWY_RVV_STORE3(uint, u, 8, m2, /*kShift=*/1, 4, StoreInterleaved3, sseg3)
       HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_V(BASE, SEW, LMUL) v3,            \
       HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                        \
       HWY_RVV_T(BASE, SEW) * HWY_RESTRICT aligned) {                           \
-    const v##BASE##SEW##LMUL##x4_t quad =                                      \
-        vcreate_##CHAR##SEW##LMUL##x4(v0, v1, v2, v3);                         \
-    return v##OP##e8_v_##CHAR##SEW##LMUL##x4(aligned, quad, Lanes(d));         \
+    return v##OP##e8_v_##CHAR##SEW##LMUL(aligned, v0, v1, v2, v3, Lanes(d));   \
   }
 // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-HWY_RVV_STORE4(uint, u, 8, m1, /*kShift=*/0, 8, StoreInterleaved4, sseg4)
-HWY_RVV_STORE4(uint, u, 8, m2, /*kShift=*/1, 4, StoreInterleaved4, sseg4)
+HWY_RVV_STORE4(uint, u, 8, _, _, mf8, _, _, /*kShift=*/-3, 64,
+               StoreInterleaved4, sseg4)
+HWY_RVV_STORE4(uint, u, 8, _, _, mf4, _, _, /*kShift=*/-2, 32,
+               StoreInterleaved4, sseg4)
+HWY_RVV_STORE4(uint, u, 8, _, _, mf2, _, _, /*kShift=*/-1, 16,
+               StoreInterleaved4, sseg4)
+HWY_RVV_STORE4(uint, u, 8, _, _, m1, _, _, /*kShift=*/0, 8, StoreInterleaved4,
+               sseg4)
+HWY_RVV_STORE4(uint, u, 8, _, _, m2, _, _, /*kShift=*/1, 4, StoreInterleaved4,
+               sseg4)
 
 #undef HWY_RVV_STORE4
-
-#endif  // GCC
 
 // ================================================== CONVERT
 
