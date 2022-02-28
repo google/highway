@@ -2190,7 +2190,6 @@ HWY_API MFromD<D> FirstN(const D d, const size_t n) {
 
 template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
 HWY_API MFromD<D> FirstN(const D d, const size_t n) {
-  // TODO(janwas): for reasons unknown, this freezes spike.
   const auto zero = Zero(d);
   const auto one = Set(d, 1);
   return Eq(detail::SlideUp(one, zero, n), one);

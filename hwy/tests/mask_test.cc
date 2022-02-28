@@ -53,26 +53,28 @@ struct TestFirstN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
-    const RebindToSigned<D> di;
-    using TI = TFromD<decltype(di)>;
-    using TN = SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(TI))>;
+    auto bool_lanes = AllocateAligned<T>(N);
+
+    using TN = SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(T))>;
     const size_t max_len = static_cast<size_t>(LimitsMax<TN>());
 
-// TODO(janwas): 8-bit FirstN (using SlideUp) causes spike to freeze.
-#if HWY_TARGET == HWY_RVV
-    if (sizeof(T) == 1) return;
-#endif
-
-    const size_t max_lanes = AdjustedReps(HWY_MIN(2 * N, size_t(64)));
+    const size_t max_lanes = HWY_MIN(2 * N, AdjustedReps(512));
     for (size_t len = 0; len <= HWY_MIN(max_lanes, max_len); ++len) {
-      const auto expected =
-          RebindMask(d, Lt(Iota(di, 0), Set(di, static_cast<TI>(len))));
-      const auto actual = FirstN(d, len);
-      HWY_ASSERT_MASK_EQ(d, expected, actual);
+      // Loop instead of Iota+Lt to avoid wraparound for 8-bit T.
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (i < len) ? T{1} : 0;
+      }
+      const auto expected = Eq(Load(d, bool_lanes.get()), Set(d, T{1}));
+      HWY_ASSERT_MASK_EQ(d, expected, FirstN(d, len));
     }
 
-    // Also ensure huge values yield all-true.
-    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), FirstN(d, max_len));
+    // Also ensure huge values yield all-true (unless the vector is actually
+    // larger than max_len).
+    for (size_t i = 0; i < N; ++i) {
+      bool_lanes[i] = (i < max_len) ? T{1} : 0;
+    }
+    const auto expected = Eq(Load(d, bool_lanes.get()), Set(d, T{1}));
+    HWY_ASSERT_MASK_EQ(d, expected, FirstN(d, max_len));
   }
 };
 
