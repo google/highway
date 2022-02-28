@@ -3573,6 +3573,10 @@ HWY_API size_t CompressBlendedStore(Vec512<T> v, Mask512<T> m, Full512<T> d,
     const Vec512<T> compressed = Compress(v, m);
     const Vec512<T> prev = LoadU(d, unaligned);
     StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+// Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+    __msan_unpoison(unaligned, count * sizeof(T));
+#endif
     return count;
   }
 }

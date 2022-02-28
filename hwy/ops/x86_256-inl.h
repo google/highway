@@ -4196,28 +4196,48 @@ template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw});
+  const size_t count = PopCount(uint64_t{mask.raw});
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw} & 0xFull);
+  const size_t count = PopCount(uint64_t{mask.raw} & 0xFull);
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 HWY_API size_t CompressStore(Vec256<float> v, Mask256<float> mask,
                              Full256<float> /* tag */,
                              float* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw});
+  const size_t count = PopCount(uint64_t{mask.raw});
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(float));
+#endif
+  return count;
 }
 
 HWY_API size_t CompressStore(Vec256<double> v, Mask256<double> mask,
                              Full256<double> /* tag */,
                              double* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw} & 0xFull);
+  const size_t count = PopCount(uint64_t{mask.raw} & 0xFull);
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(double));
+#endif
+  return count;
 }
 
 // ------------------------------ CompressBlendedStore (CompressStore)
@@ -4241,6 +4261,10 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   const size_t count = CountTrue(d, m);
   const Vec256<T> compressed = Compress(v, m);
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
   return count;
 #endif
 }

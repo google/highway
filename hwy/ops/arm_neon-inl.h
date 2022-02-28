@@ -2108,94 +2108,70 @@ HWY_API Vec64<double> LoadU(Full64<double> /* tag */,
 
 // ------------------------------ Load 32
 
-// In the following load functions, |a| is purposely undefined.
-// It is a required parameter to the intrinsic, however
-// we don't actually care what is in it, and we don't want
-// to introduce extra overhead by initializing it to something.
-
 HWY_API Vec32<uint8_t> LoadU(Full32<uint8_t> /*tag*/,
                              const uint8_t* HWY_RESTRICT p) {
-  uint32x2_t a = Undefined(Full64<uint32_t>()).raw;
-  uint32x2_t b = vld1_lane_u32(reinterpret_cast<const uint32_t*>(p), a, 0);
-  return Vec32<uint8_t>(vreinterpret_u8_u32(b));
+  uint32x2_t a = vld1_dup_u32(reinterpret_cast<const uint32_t*>(p));
+  return Vec32<uint8_t>(vreinterpret_u8_u32(a));
 }
 HWY_API Vec32<uint16_t> LoadU(Full32<uint16_t> /*tag*/,
                               const uint16_t* HWY_RESTRICT p) {
-  uint32x2_t a = Undefined(Full64<uint32_t>()).raw;
-  uint32x2_t b = vld1_lane_u32(reinterpret_cast<const uint32_t*>(p), a, 0);
-  return Vec32<uint16_t>(vreinterpret_u16_u32(b));
+  uint32x2_t a = vld1_dup_u32(reinterpret_cast<const uint32_t*>(p));
+  return Vec32<uint16_t>(vreinterpret_u16_u32(a));
 }
 HWY_API Vec32<uint32_t> LoadU(Full32<uint32_t> /*tag*/,
                               const uint32_t* HWY_RESTRICT p) {
-  uint32x2_t a = Undefined(Full64<uint32_t>()).raw;
-  uint32x2_t b = vld1_lane_u32(p, a, 0);
-  return Vec32<uint32_t>(b);
+  return Vec32<uint32_t>(vld1_dup_u32(reinterpret_cast<const uint32_t*>(p)));
 }
 HWY_API Vec32<int8_t> LoadU(Full32<int8_t> /*tag*/,
                             const int8_t* HWY_RESTRICT p) {
-  int32x2_t a = Undefined(Full64<int32_t>()).raw;
-  int32x2_t b = vld1_lane_s32(reinterpret_cast<const int32_t*>(p), a, 0);
-  return Vec32<int8_t>(vreinterpret_s8_s32(b));
+  int32x2_t a = vld1_dup_s32(reinterpret_cast<const int32_t*>(p));
+  return Vec32<int8_t>(vreinterpret_s8_s32(a));
 }
 HWY_API Vec32<int16_t> LoadU(Full32<int16_t> /*tag*/,
                              const int16_t* HWY_RESTRICT p) {
-  int32x2_t a = Undefined(Full64<int32_t>()).raw;
-  int32x2_t b = vld1_lane_s32(reinterpret_cast<const int32_t*>(p), a, 0);
-  return Vec32<int16_t>(vreinterpret_s16_s32(b));
+  int32x2_t a = vld1_dup_s32(reinterpret_cast<const int32_t*>(p));
+  return Vec32<int16_t>(vreinterpret_s16_s32(a));
 }
 HWY_API Vec32<int32_t> LoadU(Full32<int32_t> /*tag*/,
                              const int32_t* HWY_RESTRICT p) {
-  int32x2_t a = Undefined(Full64<int32_t>()).raw;
-  int32x2_t b = vld1_lane_s32(p, a, 0);
-  return Vec32<int32_t>(b);
+  return Vec32<int32_t>(vld1_dup_s32(reinterpret_cast<const int32_t*>(p)));
 }
 HWY_API Vec32<float> LoadU(Full32<float> /*tag*/, const float* HWY_RESTRICT p) {
-  float32x2_t a = Undefined(Full64<float>()).raw;
-  float32x2_t b = vld1_lane_f32(p, a, 0);
-  return Vec32<float>(b);
+  return Vec32<float>(vld1_dup_f32(p));
 }
 
 // ------------------------------ Load 16
 
 HWY_API Vec128<uint8_t, 2> LoadU(Simd<uint8_t, 2, 0> /*tag*/,
                                  const uint8_t* HWY_RESTRICT p) {
-  uint16x4_t a = Undefined(Full64<uint16_t>()).raw;
-  uint16x4_t b = vld1_lane_u16(reinterpret_cast<const uint16_t*>(p), a, 0);
-  return Vec128<uint8_t, 2>(vreinterpret_u8_u16(b));
+  uint16x4_t a = vld1_dup_u16(reinterpret_cast<const uint16_t*>(p));
+  return Vec128<uint8_t, 2>(vreinterpret_u8_u16(a));
 }
 HWY_API Vec128<uint16_t, 1> LoadU(Simd<uint16_t, 1, 0> /*tag*/,
                                   const uint16_t* HWY_RESTRICT p) {
-  uint16x4_t a = Undefined(Full64<uint16_t>()).raw;
-  uint16x4_t b = vld1_lane_u16(p, a, 0);
-  return Vec128<uint16_t, 1>(b);
+  return Vec128<uint16_t, 1>(
+      vld1_dup_u16(reinterpret_cast<const uint16_t*>(p)));
 }
 HWY_API Vec128<int8_t, 2> LoadU(Simd<int8_t, 2, 0> /*tag*/,
                                 const int8_t* HWY_RESTRICT p) {
-  int16x4_t a = Undefined(Full64<int16_t>()).raw;
-  int16x4_t b = vld1_lane_s16(reinterpret_cast<const int16_t*>(p), a, 0);
-  return Vec128<int8_t, 2>(vreinterpret_s8_s16(b));
+  int16x4_t a = vld1_dup_s16(reinterpret_cast<const int16_t*>(p));
+  return Vec128<int8_t, 2>(vreinterpret_s8_s16(a));
 }
 HWY_API Vec128<int16_t, 1> LoadU(Simd<int16_t, 1, 0> /*tag*/,
                                  const int16_t* HWY_RESTRICT p) {
-  int16x4_t a = Undefined(Full64<int16_t>()).raw;
-  int16x4_t b = vld1_lane_s16(p, a, 0);
-  return Vec128<int16_t, 1>(b);
+  return Vec128<int16_t, 1>(vld1_dup_s16(reinterpret_cast<const int16_t*>(p)));
 }
 
 // ------------------------------ Load 8
 
 HWY_API Vec128<uint8_t, 1> LoadU(Simd<uint8_t, 1, 0> d,
                                  const uint8_t* HWY_RESTRICT p) {
-  uint8x8_t a = Undefined(d).raw;
-  uint8x8_t b = vld1_lane_u8(p, a, 0);
-  return Vec128<uint8_t, 1>(b);
+  return Vec128<uint8_t, 1>(vld1_dup_u8(p));
 }
 
 HWY_API Vec128<int8_t, 1> LoadU(Simd<int8_t, 1, 0> d,
                                 const int8_t* HWY_RESTRICT p) {
-  int8x8_t a = Undefined(d).raw;
-  int8x8_t b = vld1_lane_s8(p, a, 0);
-  return Vec128<int8_t, 1>(b);
+  return Vec128<int8_t, 1>(vld1_dup_s8(p));
 }
 
 // [b]float16_t use the same Raw as uint16_t, so forward to that.

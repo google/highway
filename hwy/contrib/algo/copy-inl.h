@@ -38,16 +38,13 @@ namespace HWY_NAMESPACE {
 // If HWY_MEM_OPS_MIGHT_FAULT, we use scalar code instead of masking.
 
 // Copies `from`[0, `count`) to `to`, which must not overlap `from`.
-template <typename T>
-void Copy(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
-  const ScalableTag<T> d;
-  using V = Vec<decltype(d)>;
-
+template <class D, typename T = TFromD<D>>
+void Copy(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
   const size_t N = Lanes(d);
 
   size_t idx = 0;
   for (; idx + N <= count; idx += N) {
-    const V v = LoadU(d, from + idx);
+    const Vec<D> v = LoadU(d, from + idx);
     StoreU(v, d, to + idx);
   }
 
@@ -57,18 +54,13 @@ void Copy(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
 #if HWY_MEM_OPS_MIGHT_FAULT
   memcpy(to, from, count * sizeof(T));
 #else
-  // Start index of the last unaligned whole vector, ending at the array end.
-  const size_t last = count - N;
-  // Number of elements before `from` or already written.
-  const size_t invalid = idx - last;
-  HWY_DASSERT(0 != invalid && invalid < N);
-  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
+  const size_t remaining = count - idx;
+  HWY_DASSERT(0 != remaining && remaining < N);
+  const Mask<D> mask = FirstN(d, remaining);
 
-  const V v = MaskedLoad(mask, d, from + last);
-  // It would be fine to write the overlapping elements a second time, but mask
-  // is required for avoiding changes before `to`.
-  BlendedStore(v, mask, d, to + last);
-#endif
+  const Vec<D> v = MaskedLoad(mask, d, from + idx);
+  BlendedStore(v, mask, d, to + idx);  // Avoid overwriting past the end
+#endif  // HWY_MEM_OPS_MIGHT_FAULT
 }
 
 // For idx in [0, count) in ascending order, appends `from[idx]` to `to` if the
@@ -83,18 +75,15 @@ void Copy(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
 // NOTE: this is only supported for 16-, 32- or 64-bit types.
 // NOTE: Func may be called a second time for elements it has already seen, but
 // these elements will not be written to `to` again.
-template <typename T, class Func>
-T* CopyIf(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
+template <class D, class Func, typename T = TFromD<D>>
+T* CopyIf(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
           const Func& func) {
-  const ScalableTag<T> d;
-  using V = Vec<decltype(d)>;
-
   const size_t N = Lanes(d);
 
   size_t idx = 0;
   for (; idx + N <= count; idx += N) {
-    const V v = LoadU(d, from + idx);
-    to += CompressStore(v, func(d, v), d, to);
+    const Vec<D> v = LoadU(d, from + idx);
+    to += CompressBlendedStore(v, func(d, v), d, to);
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -118,8 +107,8 @@ T* CopyIf(const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
   // Number of elements before `from` or already written.
   const size_t invalid = idx - last;
   HWY_DASSERT(0 != invalid && invalid < N);
-  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
-  const V v = MaskedLoad(mask, d, from + last);
+  const Mask<D> mask = Not(FirstN(d, invalid));
+  const Vec<D> v = MaskedLoad(mask, d, from + last);
   to += CompressBlendedStore(v, And(mask, func(d, v)), d, to);
 #endif
   return to;

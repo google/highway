@@ -102,19 +102,18 @@ struct FMA4 {
 
 // Invokes Test (e.g. TestTransform1) with all arg combinations. T comes from
 // ForFloatTypes.
-template <template <typename> class Test>
+template <class Test>
 struct ForeachCountAndMisalign {
-  template <typename T>
-  HWY_NOINLINE void operator()(T /*unused*/) const {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
     RandomState rng;
-    const ScalableTag<T> d;
     const size_t N = Lanes(d);
     const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
 
     for (size_t count = 0; count < 2 * N; ++count) {
       for (size_t ma : misalignments) {
         for (size_t mb : misalignments) {
-          Test<T>()(count, ma, mb, rng);
+          Test()(d, count, ma, mb, rng);
         }
       }
     }
@@ -122,10 +121,11 @@ struct ForeachCountAndMisalign {
 };
 
 // Zero extra input arrays
-template <typename T>
 struct TestTransform {
-  void operator()(size_t count, size_t misalign_a, size_t /*misalign_b*/,
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
                   RandomState& rng) {
+    using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
         AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
@@ -145,7 +145,7 @@ struct TestTransform {
 #else
     const SCAL scal;
 #endif
-    Transform(a, count, scal);
+    Transform(d, a, count, scal);
 
     const auto info = hwy::detail::MakeTypeInfo<T>();
     const char* target_name = hwy::TargetName(HWY_TARGET);
@@ -155,10 +155,11 @@ struct TestTransform {
 };
 
 // One extra input array
-template <typename T>
 struct TestTransform1 {
-  void operator()(size_t count, size_t misalign_a, size_t misalign_b,
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
                   RandomState& rng) {
+    using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
         AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
@@ -181,7 +182,7 @@ struct TestTransform1 {
 #else
     const AXPY axpy;
 #endif
-    Transform1(a, count, b, axpy);
+    Transform1(d, a, count, b, axpy);
 
     const auto info = hwy::detail::MakeTypeInfo<T>();
     const char* target_name = hwy::TargetName(HWY_TARGET);
@@ -191,10 +192,11 @@ struct TestTransform1 {
 };
 
 // Two extra input arrays
-template <typename T>
 struct TestTransform2 {
-  void operator()(size_t count, size_t misalign_a, size_t misalign_b,
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
                   RandomState& rng) {
+    using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
         AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
@@ -220,7 +222,7 @@ struct TestTransform2 {
 #else
     const FMA4 fma4;
 #endif
-    Transform2(a, count, b, c, fma4);
+    Transform2(d, a, count, b, c, fma4);
 
     const auto info = hwy::detail::MakeTypeInfo<T>();
     const char* target_name = hwy::TargetName(HWY_TARGET);
@@ -230,15 +232,15 @@ struct TestTransform2 {
 };
 
 void TestAllTransform() {
-  ForFloatTypes(ForeachCountAndMisalign<TestTransform>());
+  ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestTransform>>());
 }
 
 void TestAllTransform1() {
-  ForFloatTypes(ForeachCountAndMisalign<TestTransform1>());
+  ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestTransform1>>());
 }
 
 void TestAllTransform2() {
-  ForFloatTypes(ForeachCountAndMisalign<TestTransform2>());
+  ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestTransform2>>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

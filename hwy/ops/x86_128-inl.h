@@ -5254,7 +5254,12 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
   const Vec128<uint16_t, N> cu{_mm_permutexvar_epi16(idx.raw, vu.raw)};
   StoreU(BitCast(d, cu), d, unaligned);
 #endif  // HWY_TARGET == HWY_AVX3_DL
-  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
@@ -5262,7 +5267,12 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
                              Simd<T, N, 0> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
@@ -5270,7 +5280,12 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
                              Simd<T, N, 0> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 template <size_t N, HWY_IF_LE128(float, N)>
@@ -5278,7 +5293,12 @@ HWY_API size_t CompressStore(Vec128<float, N> v, Mask128<float, N> mask,
                              Simd<float, N, 0> /* tag */,
                              float* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(float));
+#endif
+  return count;
 }
 
 template <size_t N, HWY_IF_LE128(double, N)>
@@ -5286,7 +5306,12 @@ HWY_API size_t CompressStore(Vec128<double, N> v, Mask128<double, N> mask,
                              Simd<double, N, 0> /* tag */,
                              double* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
-  return PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(double));
+#endif
+  return count;
 }
 
 // ------------------------------ CompressBlendedStore (CompressStore)
@@ -5306,6 +5331,11 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
     const size_t count = CountTrue(d, m);
     const Vec128<T, N> compressed = Compress(v, m);
     BlendedStore(compressed, FirstN(d, count), d, unaligned);
+    // Workaround: as of 2022-02-23 MSAN does not mark the output as
+    // initialized.
+#if HWY_IS_MSAN
+    __msan_unpoison(unaligned, count * sizeof(T));
+#endif
     return count;
   }
 }

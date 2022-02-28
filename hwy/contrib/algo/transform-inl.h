@@ -39,26 +39,18 @@ namespace HWY_NAMESPACE {
 // the lambda to avoid errors about "always_inline function .. requires target".
 //
 // If HWY_MEM_OPS_MIGHT_FAULT, we use scalar code instead of masking. Otherwise,
-// we 'rewind' to the array end minus the vector length, which overlaps the last
-// full vector. Because Func is generally not idempotent (applying it twice
-// might be different than doing so once - e.g. accumulating something into an
-// array), we do not overwrite the overlapping output elements, but note that
-// Func may be called for already updated, non-original elements of `inout`.
+// we used `MaskedLoad` and `BlendedStore` to read/write the final partial
+// vector.
 
 // Replaces `inout[idx]` with `func(d, inout[idx])`. Example usage: multiplying
 // array elements by a constant.
-// NOTE: Func may be called a second time for elements it has already updated,
-// but the resulting output will not be written to `inout` again.
-template <typename T, class Func>
-void Transform(T* HWY_RESTRICT inout, size_t count, const Func& func) {
-  const ScalableTag<T> d;
-  using V = Vec<decltype(d)>;
-
+template <class D, class Func, typename T = TFromD<D>>
+void Transform(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
   const size_t N = Lanes(d);
 
   size_t idx = 0;
   for (; idx + N <= count; idx += N) {
-    const V v = LoadU(d, inout + idx);
+    const Vec<D> v = LoadU(d, inout + idx);
     StoreU(func(d, v), d, inout + idx);
   }
 
@@ -74,33 +66,25 @@ void Transform(T* HWY_RESTRICT inout, size_t count, const Func& func) {
     StoreU(func(d1, v), d1, inout + idx);
   }
 #else
-  // Start index of the last unaligned whole vector, ending at the array end.
-  const size_t last = count - N;
-  // Number of elements before `from` or already written.
-  const size_t invalid = idx - last;
-  HWY_DASSERT(0 != invalid && invalid < N);
-  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
-  const V v = MaskedLoad(mask, d, inout + last);
-  BlendedStore(func(d, v), mask, d, inout + last);
+  const size_t remaining = count - idx;
+  HWY_DASSERT(0 != remaining && remaining < N);
+  const Mask<D> mask = FirstN(d, remaining);
+  const Vec<D> v = MaskedLoad(mask, d, inout + idx);
+  BlendedStore(func(d, v), mask, d, inout + idx);
 #endif
 }
 
 // Replaces `inout[idx]` with `func(d, inout[idx], in1[idx])`. Example usage:
-// multiplying array elements by those of another array. NOTE: Func may be
-// called a second time for elements it has already updated, but the resulting
-// output will not be written to `inout` again.
-template <typename T, class Func>
-void Transform1(T* HWY_RESTRICT inout, size_t count, const T* HWY_RESTRICT in1,
-                const Func& func) {
-  const ScalableTag<T> d;
-  using V = Vec<decltype(d)>;
-
+// multiplying array elements by those of another array.
+template <class D, class Func, typename T = TFromD<D>>
+void Transform1(D d, T* HWY_RESTRICT inout, size_t count,
+                const T* HWY_RESTRICT in1, const Func& func) {
   const size_t N = Lanes(d);
 
   size_t idx = 0;
   for (; idx + N <= count; idx += N) {
-    const V v = LoadU(d, inout + idx);
-    const V v1 = LoadU(d, in1 + idx);
+    const Vec<D> v = LoadU(d, inout + idx);
+    const Vec<D> v1 = LoadU(d, in1 + idx);
     StoreU(func(d, v, v1), d, inout + idx);
   }
 
@@ -117,35 +101,28 @@ void Transform1(T* HWY_RESTRICT inout, size_t count, const T* HWY_RESTRICT in1,
     StoreU(func(d1, v, v1), d1, inout + idx);
   }
 #else
-  // Start index of the last unaligned whole vector, ending at the array end.
-  const size_t last = count - N;
-  // Number of elements before `from` or already written.
-  const size_t invalid = idx - last;
-  HWY_DASSERT(0 != invalid && invalid < N);
-  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
-  const V v = MaskedLoad(mask, d, inout + last);
-  const V v1 = MaskedLoad(mask, d, in1 + last);
-  BlendedStore(func(d, v, v1), mask, d, inout + last);
+  const size_t remaining = count - idx;
+  HWY_DASSERT(0 != remaining && remaining < N);
+  const Mask<D> mask = FirstN(d, remaining);
+  const Vec<D> v = MaskedLoad(mask, d, inout + idx);
+  const Vec<D> v1 = MaskedLoad(mask, d, in1 + idx);
+  BlendedStore(func(d, v, v1), mask, d, inout + idx);
 #endif
 }
 
 // Replaces `inout[idx]` with `func(d, inout[idx], in1[idx], in2[idx])`. Example
-// usage: FMA of elements from three arrays, stored into the first array. NOTE:
-// Func may be called a second time for elements it has already updated, but the
-// resulting output will not be written to `inout` again.
-template <typename T, class Func>
-void Transform2(T* HWY_RESTRICT inout, size_t count, const T* HWY_RESTRICT in1,
-                const T* HWY_RESTRICT in2, const Func& func) {
-  const ScalableTag<T> d;
-  using V = Vec<decltype(d)>;
-
+// usage: FMA of elements from three arrays, stored into the first array.
+template <class D, class Func, typename T = TFromD<D>>
+void Transform2(D d, T* HWY_RESTRICT inout, size_t count,
+                const T* HWY_RESTRICT in1, const T* HWY_RESTRICT in2,
+                const Func& func) {
   const size_t N = Lanes(d);
 
   size_t idx = 0;
   for (; idx + N <= count; idx += N) {
-    const V v = LoadU(d, inout + idx);
-    const V v1 = LoadU(d, in1 + idx);
-    const V v2 = LoadU(d, in2 + idx);
+    const Vec<D> v = LoadU(d, inout + idx);
+    const Vec<D> v1 = LoadU(d, in1 + idx);
+    const Vec<D> v2 = LoadU(d, in2 + idx);
     StoreU(func(d, v, v1, v2), d, inout + idx);
   }
 
@@ -163,16 +140,13 @@ void Transform2(T* HWY_RESTRICT inout, size_t count, const T* HWY_RESTRICT in1,
     StoreU(func(d1, v, v1, v2), d1, inout + idx);
   }
 #else
-  // Start index of the last unaligned whole vector, ending at the array end.
-  const size_t last = count - N;
-  // Number of elements before `from` or already written.
-  const size_t invalid = idx - last;
-  HWY_DASSERT(0 != invalid && invalid < N);
-  const Mask<decltype(d)> mask = Not(FirstN(d, invalid));
-  const V v = MaskedLoad(mask, d, inout + last);
-  const V v1 = MaskedLoad(mask, d, in1 + last);
-  const V v2 = MaskedLoad(mask, d, in2 + last);
-  BlendedStore(func(d, v, v1, v2), mask, d, inout + last);
+  const size_t remaining = count - idx;
+  HWY_DASSERT(0 != remaining && remaining < N);
+  const Mask<D> mask = FirstN(d, remaining);
+  const Vec<D> v = MaskedLoad(mask, d, inout + idx);
+  const Vec<D> v1 = MaskedLoad(mask, d, in1 + idx);
+  const Vec<D> v2 = MaskedLoad(mask, d, in2 + idx);
+  BlendedStore(func(d, v, v1, v2), mask, d, inout + idx);
 #endif
 }
 
