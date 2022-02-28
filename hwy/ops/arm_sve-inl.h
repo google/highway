@@ -1013,10 +1013,6 @@ HWY_API svint32_t PromoteTo(Simd<int32_t, N, kPow2> dto, svint8_t vfrom) {
   const RepartitionToWide<DFromV<decltype(vfrom)>> d2;
   return PromoteTo(dto, PromoteTo(d2, vfrom));
 }
-template <size_t N, int kPow2>
-HWY_API svuint32_t U32FromU8(svuint8_t v) {
-  return PromoteTo(Simd<uint32_t, N, kPow2>(), v);
-}
 
 // Sign change
 template <size_t N, int kPow2>
