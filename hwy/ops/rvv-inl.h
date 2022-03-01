@@ -2206,6 +2206,19 @@ HWY_API auto LoadMaskBits(D d, const uint8_t* bits)
 HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, StoreMaskBits, vsm)
 #undef HWY_RVV_STORE_MASK_BITS
 
+// ------------------------------ CompressBits, CompressBitsStore (LoadMaskBits)
+
+template <class V>
+HWY_INLINE V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
+  return Compress(v, LoadMaskBits(DFromV<V>(), bits));
+}
+
+template <class D>
+HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
+                                 D d, TFromD<D>* HWY_RESTRICT unaligned) {
+  return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
+}
+
 // ------------------------------ FirstN (Iota0, Lt, RebindMask, SlideUp)
 
 // Disallow for 8-bit because Iota is likely to overflow.

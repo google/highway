@@ -443,8 +443,6 @@ class TestCompress {
           HWY_ASSERT_EQ(zero, actual_u[i]);
         }
 
-        // TODO(janwas): remove once implemented (cast or vse1)
-#if HWY_TARGET != HWY_RVV
         // CompressBits
         memset(actual_u, 0, N * sizeof(T));
         StoreU(CompressBits(in, bits.get()), d, actual_u);
@@ -456,7 +454,6 @@ class TestCompress {
         const size_t size3 = CompressBitsStore(in, bits.get(), d, actual_u);
         CheckStored(d, di, expected_pos, size3, in_lanes, mask_lanes, expected,
                     actual_u, __LINE__);
-#endif
       }  // rep
     }    // frac
   }      // operator()
