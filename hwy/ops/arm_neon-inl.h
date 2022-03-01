@@ -2164,12 +2164,12 @@ HWY_API Vec128<int16_t, 1> LoadU(Simd<int16_t, 1, 0> /*tag*/,
 
 // ------------------------------ Load 8
 
-HWY_API Vec128<uint8_t, 1> LoadU(Simd<uint8_t, 1, 0> d,
+HWY_API Vec128<uint8_t, 1> LoadU(Simd<uint8_t, 1, 0>,
                                  const uint8_t* HWY_RESTRICT p) {
   return Vec128<uint8_t, 1>(vld1_dup_u8(p));
 }
 
-HWY_API Vec128<int8_t, 1> LoadU(Simd<int8_t, 1, 0> d,
+HWY_API Vec128<int8_t, 1> LoadU(Simd<int8_t, 1, 0>,
                                 const int8_t* HWY_RESTRICT p) {
   return Vec128<int8_t, 1>(vld1_dup_s8(p));
 }
