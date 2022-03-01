@@ -2022,7 +2022,6 @@ HWY_API V ShiftRightBytes(const D d, const V v) {
 
 // ------------------------------ InterleaveLower
 
-// TODO(janwas): PromoteTo(LowerHalf), slide1up, add
 template <class D, class V>
 HWY_API V InterleaveLower(D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
