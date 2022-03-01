@@ -157,12 +157,19 @@ alternatives for use-cases requiring an upper bound on the lanes:
     supported `N` depends on the target, but is guaranteed to be at least
     `16/sizeof(T)`.
 
-Functions using Highway must either be inside `namespace HWY_NAMESPACE {`
-(possibly nested in one or more other namespaces defined by the project), OR
-each op must be prefixed with `hn::`, e.g. `namespace hn = hwy::HWY_NAMESPACE;
-hn::LoadDup128()`. Additionally, each function using Highway must either be
-prefixed with `HWY_ATTR`, OR reside between `HWY_BEFORE_NAMESPACE()` and
-`HWY_AFTER_NAMESPACE()`.
+Due to ADL restrictions, user code calling Highway ops must either:
+*   Reside inside `namespace hwy { namespace HWY_NAMESPACE {`; or
+*   prefix each op with an alias such as `namespace hn = hwy::HWY_NAMESPACE;
+    hn::Add()`; or
+*   add using-declarations for each op used: `using hwy::HWY_NAMESPACE::Add;`.
+
+Additionally, each function that calls Highway ops must either be prefixed with
+`HWY_ATTR`, OR reside between `HWY_BEFORE_NAMESPACE()` and
+`HWY_AFTER_NAMESPACE()`. Lambda functions currently require `HWY_ATTR` before
+their opening brace.
+
+The entry points into code using Highway differ slightly depending on whether
+they use static or dynamic dispatch.
 
 *   For static dispatch, `HWY_TARGET` will be the best available target among
     `HWY_BASELINE_TARGETS`, i.e. those allowed for use by the compiler (see
@@ -222,6 +229,17 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     this avoids the (potentially large) cost of predication or partial
     loads/stores on older targets, and does not duplicate code.
 
+*   Use the `Transform*` functions in hwy/contrib/algo/transform-inl.h. This
+    takes care of the loop and remainder handling and you simply define a
+    generic lambda function (C++14) or functor which receives the current vector
+    from the input/output array, plus optionally vectors from up to two extra
+    input arrays, and returns the value to write to the input/output array.
+
+    Here is an example implementing the BLAS function SAXPY (`alpha * x + y`):
+    `Transform1(d, x, n, y, [](auto d, const auto v, const auto v1) HWY_ATTR {
+      return MulAdd(Set(d, alpha), v, v1);
+    });``
+
 *   Process whole vectors as above, followed by a scalar loop:
 
     ```
@@ -247,10 +265,14 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     }
     ```
     Now the template parameter and third function argument can be used inside
-    `LoopBody` to 'blend' the new partial vector with previous memory contents:
-    `Store(IfThenElse(FirstN(d, N), partial, prev_full), d, aligned_pointer);`.
+    `LoopBody` to non-atomically 'blend' the first `num_remaining` lanes of `v`
+    with the previous contents of memory at subsequent locations:
+    `BlendedStore(v, FirstN(d, num_remaining), d, pointer);`. Similarly,
+    `MaskedLoad(FirstN(d, num_remaining), d, pointer)` loads the first
+    `num_remaining` elements and returns zero in other lanes.
 
-    This is a good default when it is infeasible to ensure vectors are padded.
+    This is a good default when it is infeasible to ensure vectors are padded,
+    but is only safe #if !HWY_MEM_OPS_MIGHT_FAULT!
     In contrast to the scalar loop, only a single final iteration is needed.
     The increased code size from two loop bodies is expected to be worthwhile
     because it avoids the cost of masking in all but the final iteration.
