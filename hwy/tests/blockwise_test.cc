@@ -327,28 +327,29 @@ struct TestZipLower {
     const size_t N = Lanes(d);
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
+    // At least 2 lanes for HWY_SCALAR
+    auto zip_lanes = AllocateAligned<T>(HWY_MAX(N, 2));
+    const T kMaxT = LimitsMax<T>();
     for (size_t i = 0; i < N; ++i) {
-      even_lanes[i] = static_cast<T>(2 * i + 0);
-      odd_lanes[i] = static_cast<T>(2 * i + 1);
+      even_lanes[i] = static_cast<T>((2 * i + 0) & kMaxT);
+      odd_lanes[i] = static_cast<T>((2 * i + 1) & kMaxT);
     }
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-    const Repartition<WideT, D> dw;
-    const size_t NW = Lanes(dw);
-    auto expected = AllocateAligned<WideT>(NW);
-    const size_t blockN = HWY_MIN(size_t(16) / sizeof(WideT), NW);
+    const size_t blockN = HWY_MIN(size_t(16) / sizeof(T), N);
 
-    for (size_t i = 0; i < NW; ++i) {
-      const size_t block = i / blockN;
-      // Value of least-significant lane in lo-vector.
-      const size_t lo = 2u * (i % blockN) + 4u * block * blockN;
-      const size_t kBits = sizeof(T) * 8;
-      expected[i] = static_cast<WideT>((static_cast<WideT>(lo + 1) << kBits) +
-                                       static_cast<WideT>(lo));
+    for (size_t i = 0; i < N; i += 2) {
+      const size_t base = (i / blockN) * blockN;
+      const size_t mod = i % blockN;
+      zip_lanes[i + 0] = even_lanes[mod / 2 + base];
+      zip_lanes[i + 1] = odd_lanes[mod / 2 + base];
     }
-    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(even, odd));
-    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipLower(dw, even, odd));
+    const Repartition<WideT, D> dw;
+    const auto expected =
+        Load(dw, reinterpret_cast<const WideT*>(zip_lanes.get()));
+    HWY_ASSERT_VEC_EQ(dw, expected, ZipLower(even, odd));
+    HWY_ASSERT_VEC_EQ(dw, expected, ZipLower(dw, even, odd));
   }
 };
 
@@ -362,63 +363,54 @@ struct TestZipUpper {
     if (N < 16 / sizeof(T)) return;
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
-    for (size_t i = 0; i < Lanes(d); ++i) {
-      even_lanes[i] = static_cast<T>(2 * i + 0);
-      odd_lanes[i] = static_cast<T>(2 * i + 1);
+    auto zip_lanes = AllocateAligned<T>(N);
+    const T kMaxT = LimitsMax<T>();
+    for (size_t i = 0; i < N; ++i) {
+      even_lanes[i] = static_cast<T>((2 * i + 0) & kMaxT);
+      odd_lanes[i] = static_cast<T>((2 * i + 1) & kMaxT);
     }
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
-        const Repartition<WideT, D> dw;
-    const size_t NW = Lanes(dw);
-    auto expected = AllocateAligned<WideT>(NW);
-    const size_t blockN = HWY_MIN(size_t(16) / sizeof(WideT), NW);
+    const size_t blockN = HWY_MIN(size_t(16) / sizeof(T), N);
 
-    for (size_t i = 0; i < NW; ++i) {
-      const size_t block = i / blockN;
-      const size_t lo = 2u * (i % blockN) + 4u * block * blockN;
-      const size_t kBits = sizeof(T) * 8;
-      expected[i] = static_cast<WideT>(
-          (static_cast<WideT>(lo + 2 * blockN + 1) << kBits) +
-          static_cast<WideT>(lo + 2 * blockN));
+    for (size_t i = 0; i < N; i += 2) {
+      const size_t base = (i / blockN) * blockN + blockN / 2;
+      const size_t mod = i % blockN;
+      zip_lanes[i + 0] = even_lanes[mod / 2 + base];
+      zip_lanes[i + 1] = odd_lanes[mod / 2 + base];
     }
-    HWY_ASSERT_VEC_EQ(dw, expected.get(), ZipUpper(dw, even, odd));
+    const Repartition<WideT, D> dw;
+    const auto expected =
+        Load(dw, reinterpret_cast<const WideT*>(zip_lanes.get()));
+    HWY_ASSERT_VEC_EQ(dw, expected, ZipUpper(dw, even, odd));
   }
 };
 
 HWY_NOINLINE void TestAllZip() {
   const ForDemoteVectors<TestZipLower> lower_unsigned;
-  // TODO(janwas): enable after LowerHalf available
-#if HWY_TARGET != HWY_RVV
   lower_unsigned(uint8_t());
-#endif
   lower_unsigned(uint16_t());
 #if HWY_HAVE_INTEGER64
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
   const ForDemoteVectors<TestZipLower> lower_signed;
-#if HWY_TARGET != HWY_RVV
   lower_signed(int8_t());
-#endif
   lower_signed(int16_t());
 #if HWY_HAVE_INTEGER64
   lower_signed(int32_t());  // generates i64
 #endif
 
   const ForShrinkableVectors<TestZipUpper> upper_unsigned;
-#if HWY_TARGET != HWY_RVV
   upper_unsigned(uint8_t());
-#endif
   upper_unsigned(uint16_t());
 #if HWY_HAVE_INTEGER64
   upper_unsigned(uint32_t());  // generates u64
 #endif
 
   const ForShrinkableVectors<TestZipUpper> upper_signed;
-#if HWY_TARGET != HWY_RVV
   upper_signed(int8_t());
-#endif
   upper_signed(int16_t());
 #if HWY_HAVE_INTEGER64
   upper_signed(int32_t());  // generates i64
