@@ -280,8 +280,6 @@ class TestStoreMaskBits {
  public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D /*d*/) {
-    // TODO(janwas): remove once implemented (cast or vse1)
-#if HWY_TARGET != HWY_RVV
     RandomState rng;
     using TI = MakeSigned<T>;  // For mask > 0 comparison
     const Rebind<TI, D> di;
@@ -312,12 +310,9 @@ class TestStoreMaskBits {
         HWY_ASSERT(false);
       }
 
-// TODO(janwas): enable after implemented
-#if HWY_TARGET != HWY_RVV
       // Requires at least 8 bytes, ensured above.
       const auto mask2 = LoadMaskBits(di, actual.get());
       HWY_ASSERT_MASK_EQ(di, mask, mask2);
-#endif
 
       memset(expected.get(), 0, expected_num_bytes);
       for (size_t i = 0; i < N; ++i) {
@@ -357,7 +352,6 @@ class TestStoreMaskBits {
         }
       }
     }
-#endif
   }
 };
 

@@ -2160,20 +2160,50 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
   return TableLookupLanes(loaded, idx);
 }
 
-// ------------------------------ StoreMaskBits
-#define HWY_RVV_STORE_MASK_BITS(SEW, SHIFT, MLEN, NAME, OP)                 \
-  template <class D>                                                        \
-  HWY_API size_t StoreMaskBits(D /*d*/, HWY_RVV_M(MLEN) m, uint8_t* bits) { \
-    /* LMUL=1 is always enough */                                           \
-    ScalableTag<uint8_t> d8;                                                \
-    const size_t num_bytes = (Lanes(d8) + MLEN - 1) / MLEN;                 \
-    /* TODO(janwas): how to convert vbool* to vuint?*/                      \
-    /*Store(m, d8, bits);*/                                                 \
-    (void)m;                                                                \
-    (void)bits;                                                             \
-    return num_bytes;                                                       \
+// ------------------------------ LoadMaskBits
+
+// Support all combinations of T and SHIFT(LMUL) without explicit overloads for
+// each. First overload for MLEN=1..64.
+namespace detail {
+
+// Maps D to MLEN (wrapped in SizeTag), such that #mask_bits = VLEN/MLEN. MLEN
+// increases with lane size and decreases for increasing LMUL.
+template <class D>
+using MaskTag =
+    hwy::SizeTag<detail::ScaleByPower(8 * sizeof(TFromD<D>), -Pow2(D()))>;
+
+#define HWY_RVV_LOAD_MASK_BITS(SEW, SHIFT, MLEN, NAME, OP)                \
+  HWY_INLINE HWY_RVV_M(MLEN)                                              \
+      NAME(hwy::SizeTag<MLEN> /* tag */, const uint8_t* bits, size_t N) { \
+    return OP##_v_b##MLEN(bits, N);                                       \
   }
-HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, _, _)
+HWY_RVV_FOREACH_B(HWY_RVV_LOAD_MASK_BITS, LoadMaskBits, vlm)
+#undef HWY_RVV_LOAD_MASK_BITS
+}  // namespace detail
+
+template <class D, class MT = detail::MaskTag<D>>
+HWY_API auto LoadMaskBits(D d, const uint8_t* bits)
+    -> decltype(detail::LoadMaskBits(MT(), bits, Lanes(d))) {
+  return detail::LoadMaskBits(MT(), bits, Lanes(d));
+}
+
+// ------------------------------ StoreMaskBits
+#define HWY_RVV_STORE_MASK_BITS(SEW, SHIFT, MLEN, NAME, OP)               \
+  template <class D>                                                      \
+  HWY_API size_t NAME(D d, HWY_RVV_M(MLEN) m, uint8_t* bits) {            \
+    const size_t N = Lanes(d);                                            \
+    OP##_v_b##MLEN(bits, m, N);                                           \
+    /* Non-full byte, need to clear the undefined upper bits. */          \
+    /* Use MaxLanes and sizeof(T) to move some checks to compile-time. */ \
+    constexpr bool kLessThan8 =                                           \
+        detail::ScaleByPower(16 / sizeof(TFromD<D>), Pow2(d)) < 8;        \
+    if (MaxLanes(d) < 8 || (kLessThan8 && N < 8)) {                       \
+      const int mask = (1 << N) - 1;                                      \
+      bits[0] = static_cast<uint8_t>(bits[0] & mask);                     \
+    }                                                                     \
+    return (N + 7) / 8;                                                   \
+  }
+HWY_RVV_FOREACH_B(HWY_RVV_STORE_MASK_BITS, StoreMaskBits, vsm)
 #undef HWY_RVV_STORE_MASK_BITS
 
 // ------------------------------ FirstN (Iota0, Lt, RebindMask, SlideUp)
