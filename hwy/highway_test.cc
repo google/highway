@@ -264,7 +264,7 @@ struct TestNaN {
 
     // Reduction
     HWY_ASSERT_NAN(d, SumOfLanes(d, nan));
-// TODO(janwas): re-enable after QEMU is fixed
+// TODO(janwas): re-enable after QEMU/Spike are fixed
 #if HWY_TARGET != HWY_RVV
     HWY_ASSERT_NAN(d, MinOfLanes(d, nan));
     HWY_ASSERT_NAN(d, MaxOfLanes(d, nan));

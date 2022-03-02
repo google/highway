@@ -110,8 +110,6 @@ HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
   AssertEqual(AllTrue(d, a), AllTrue(d, b), target_name, filename, line);
   AssertEqual(AllFalse(d, a), AllFalse(d, b), target_name, filename, line);
 
-  // TODO(janwas): remove RVV once implemented (cast or vse1)
-#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
   const size_t N = Lanes(d);
   const Repartition<uint8_t, D> d8;
   const size_t N8 = Lanes(d8);
@@ -147,7 +145,6 @@ HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
       hwy::Abort(filename, line, "Masks not equal");
     }
   }
-#endif
 }
 
 // Only sets valid elements (those whose index < Lanes(d)). This helps catch
