@@ -333,6 +333,38 @@ inline void PreventElision(T&& output) {
 #endif
 }
 
+// Measures the actual current frequency of Ticks. We cannot rely on the nominal
+// frequency encoded in x86 BrandString because it is misleading on M1 Rosetta,
+// and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
+// used on RISC-V.
+double MeasureNominalClockRate() {
+  double max_ticks_per_sec = 0.0;
+  // Arbitrary, enough to ignore 2 outliers without excessive init time.
+  for (int rep = 0; rep < 3; ++rep) {
+    auto time0 = std::chrono::steady_clock::now();
+    using Time = decltype(time0);
+    const timer::Ticks ticks0 = timer::Start();
+    const Time time_min = time0 + std::chrono::milliseconds(10);
+
+    Time time1;
+    timer::Ticks ticks1;
+    for (;;) {
+      time1 = std::chrono::steady_clock::now();
+      // Ideally this would be Stop, but that requires RDTSCP on x86. To avoid
+      // another codepath, just use Start instead. now() presumably has its own
+      // fence-like behavior.
+      ticks1 = timer::Start();  // Do not use Stop, see comment above
+      if (time1 >= time_min) break;
+    }
+
+    const double dticks = static_cast<double>(ticks1 - ticks0);
+    std::chrono::duration<double, std::ratio<1>> dtime = time1 - time0;
+    const double ticks_per_sec = dticks / dtime.count();
+    max_ticks_per_sec = std::max(max_ticks_per_sec, ticks_per_sec);
+  }
+  return max_ticks_per_sec;
+}
+
 #if HWY_ARCH_X86
 
 void Cpuid(const uint32_t level, const uint32_t count,
@@ -380,37 +412,6 @@ std::string BrandString() {
   return brand_string;
 }
 
-// Measures the actual current frequency of RDTSC. We cannot rely on the nominal
-// frequency encoded in BrandString because it is misleading on M1 Rosetta, and
-// not reported by AMD. CPUID 0x15 is also not yet widely supported.
-double MeasureNominalClockRate() {
-  double max_ticks_per_sec = 0.0;
-  // Arbitrary, enough to ignore 2 outliers without excessive init time.
-  for (int rep = 0; rep < 3; ++rep) {
-    auto time0 = std::chrono::steady_clock::now();
-    using Time = decltype(time0);
-    const timer::Ticks ticks0 = timer::Start();
-    const Time time_min = time0 + std::chrono::milliseconds(10);
-
-    Time time1;
-    timer::Ticks ticks1;
-    for (;;) {
-      time1 = std::chrono::steady_clock::now();
-      // Ideally this would be Stop, but that requires RDTSCP on x86. To avoid
-      // another codepath, just use Start instead. now() presumably has its own
-      // fence-like behavior.
-      ticks1 = timer::Start();  // Do not use Stop, see comment above
-      if (time1 >= time_min) break;
-    }
-
-    const double dticks = static_cast<double>(ticks1 - ticks0);
-    std::chrono::duration<double, std::ratio<1>> dtime = time1 - time0;
-    const double ticks_per_sec = dticks / dtime.count();
-    max_ticks_per_sec = std::max(max_ticks_per_sec, ticks_per_sec);
-  }
-  return max_ticks_per_sec;
-}
-
 #endif  // HWY_ARCH_X86
 
 }  // namespace
@@ -418,8 +419,8 @@ double MeasureNominalClockRate() {
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__)
   return double(__ppc_get_timebase_freq());
-#elif HWY_ARCH_X86
-  // We assume the TSC is invariant; it is on all recent Intel/AMD CPUs.
+#elif HWY_ARCH_X86 || HWY_ARCH_RVV
+  // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
   static const double freq = MeasureNominalClockRate();
   return freq;
 #elif defined(_WIN32) || defined(_WIN64)
