@@ -1762,7 +1762,29 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
 HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather, _ALL)
 #undef HWY_RVV_TABLE
 
-// ------------------------------ Reverse
+// ------------------------------ ConcatOdd (TableLookupLanes)
+template <class D, class V>
+HWY_API V ConcatOdd(D d, const V hi, const V lo) {
+  const RebindToUnsigned<decltype(d)> du;  // Iota0 is unsigned only
+  const auto iota = detail::Iota0(du);
+  const auto idx = detail::AddS(Add(iota, iota), 1);
+  const auto lo_odd = TableLookupLanes(lo, idx);
+  const auto hi_odd = TableLookupLanes(hi, idx);
+  return detail::SlideUp(lo_odd, hi_odd, Lanes(d) / 2);
+}
+
+// ------------------------------ ConcatEven (TableLookupLanes)
+template <class D, class V>
+HWY_API V ConcatEven(D d, const V hi, const V lo) {
+  const RebindToUnsigned<decltype(d)> du;  // Iota0 is unsigned only
+  const auto iota = detail::Iota0(du);
+  const auto idx = Add(iota, iota);
+  const auto lo_even = TableLookupLanes(lo, idx);
+  const auto hi_even = TableLookupLanes(hi, idx);
+  return detail::SlideUp(lo_even, hi_even, Lanes(d) / 2);
+}
+
+// ------------------------------ Reverse (TableLookupLanes)
 template <class D>
 HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
   const RebindToUnsigned<D> du;

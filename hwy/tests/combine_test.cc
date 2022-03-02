@@ -220,7 +220,7 @@ HWY_NOINLINE void TestAllConcat() {
 struct TestConcatOddEven {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
     const auto hi = Iota(d, static_cast<T>(N));
     const auto lo = Iota(d, 0);

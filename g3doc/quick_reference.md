@@ -826,12 +826,12 @@ more expensive on AVX2/AVX-512 than per-block operations.
     penalty on AVX2/3. `D` is `DFromV<V>`.
 
 *   `V`: `{u,i,f}{32,64}` \
-    <code>V **ConcatOdd**(V hi, V lo)</code>: returns the concatenation of the
-    odd lanes of `hi` and the odd lanes of `lo`.
+    <code>V **ConcatOdd**(D, V hi, V lo)</code>: returns the concatenation of
+    the odd lanes of `hi` and the odd lanes of `lo`.
 
 *   `V`: `{u,i,f}{32,64}` \
-    <code>V **ConcatEven**(V hi, V lo)</code>: returns the concatenation of the
-    even lanes of `hi` and the even lanes of `lo`.
+    <code>V **ConcatEven**(D, V hi, V lo)</code>: returns the concatenation of
+    the even lanes of `hi` and the even lanes of `lo`.
 
 ### Blockwise
 
