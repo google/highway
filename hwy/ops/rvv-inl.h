@@ -1950,24 +1950,81 @@ HWY_API V Shuffle0123(const V v) {
 
 // ------------------------------ TableLookupBytes
 
-template <class V, class VI>
-HWY_API VI TableLookupBytes(const V v, const VI idx) {
-  const DFromV<V> d;
-  const DFromV<VI> di;
-  const Repartition<uint8_t, decltype(d)> d8;
-  const auto offsets128 = detail::OffsetsOf128BitBlocks(d8, detail::Iota0(d8));
-  const auto idx8 = Add(BitCast(d8, idx), offsets128);
-  return BitCast(d, TableLookupLanes(BitCast(d8, v), idx8));
+// Extends or truncates a vector to match the given d.
+namespace detail {
+
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<Simd<T, N, kPow2 - 3>> v)
+    -> VFromD<decltype(d)> {
+  return Ext(Ext(Ext(v)));
+}
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<Simd<T, N, kPow2 - 2>> v)
+    -> VFromD<decltype(d)> {
+  return Ext(Ext(v));
+}
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<Simd<T, N, kPow2 - 1>> v)
+    -> VFromD<decltype(d)> {
+  return Ext(v);
 }
 
-template <class V, class VI>
-HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
-  const DFromV<VI> d;
-  // Mask size must match vector type, so cast everything to this type.
-  const Repartition<int8_t, decltype(d)> di8;
-  const auto lookup = TableLookupBytes(BitCast(di8, v), BitCast(di8, idx));
-  const auto msb = detail::LtS(BitCast(di8, idx), 0);
-  return BitCast(d, IfThenZeroElse(msb, lookup));
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<decltype(d)> v)
+    -> VFromD<decltype(d)> {
+  return v;
+}
+
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<Simd<T, N, kPow2 + 1>> v)
+    -> VFromD<decltype(d)> {
+  return Trunc(v);
+}
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<Simd<T, N, kPow2 + 2>> v)
+    -> VFromD<decltype(d)> {
+  return Trunc(Trunc(v));
+}
+template <typename T, size_t N, int kPow2>
+HWY_INLINE auto ChangeLMUL(Simd<T, N, kPow2> d, VFromD<Simd<T, N, kPow2 + 3>> v)
+    -> VFromD<decltype(d)> {
+  return Trunc(Trunc(Trunc(v)));
+}
+
+}  // namespace detail
+
+template <class VT, class VI>
+HWY_API VI TableLookupBytes(const VT vt, const VI vi) {
+  const DFromV<VT> dt;  // T=table, I=index.
+  const DFromV<VI> di;
+  const Repartition<uint8_t, decltype(dt)> dt8;
+  const Repartition<uint8_t, decltype(di)> di8;
+  // Required for producing half-vectors with table lookups from a full vector.
+  // If we instead run at the LMUL of the index vector, lookups into the table
+  // would be truncated. Thus we run at the larger of the two LMULs and truncate
+  // the result vector to the original index LMUL.
+  constexpr int kPow2T = Pow2(dt8);
+  constexpr int kPow2I = Pow2(di8);
+  const Simd<uint8_t, MaxLanes(di8), HWY_MAX(kPow2T, kPow2I)> dm8;  // m=max
+  const auto vmt = detail::ChangeLMUL(dm8, BitCast(dt8, vt));
+  const auto vmi = detail::ChangeLMUL(dm8, BitCast(di8, vi));
+  auto offsets = detail::OffsetsOf128BitBlocks(dm8, detail::Iota0(dm8));
+  // If the table is shorter, wrap around offsets so they do not reference
+  // undefined lanes in the newly extended vmt.
+  if (kPow2T < kPow2I) {
+    offsets = detail::AndS(offsets, Lanes(dt8) - 1);
+  }
+  const auto out = TableLookupLanes(vmt, Add(vmi, offsets));
+  return BitCast(di, detail::ChangeLMUL(di8, out));
+}
+
+template <class VT, class VI>
+HWY_API VI TableLookupBytesOr0(const VT vt, const VI idx) {
+  const DFromV<VI> di;
+  const Repartition<int8_t, decltype(di)> di8;
+  const auto idx8 = BitCast(di8, idx);
+  const auto lookup = TableLookupBytes(vt, idx8);
+  return BitCast(di, IfThenZeroElse(detail::LtS(idx8, 0), lookup));
 }
 
 // ------------------------------ Broadcast

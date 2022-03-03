@@ -185,12 +185,12 @@ struct TestTableLookupBytes {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
     RandomState rng;
+
     const typename ChooseTableSize<kFull>::template type<T, D> d_tbl;
     const Repartition<uint8_t, decltype(d_tbl)> d_tbl8;
     const size_t NT8 = Lanes(d_tbl8);
 
     const Repartition<uint8_t, D> d8;
-    const size_t N = Lanes(d);
     const size_t N8 = Lanes(d8);
 
     // Random input bytes
@@ -208,7 +208,7 @@ struct TestTableLookupBytes {
         11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
     auto index_bytes = AllocateAligned<uint8_t>(N8);
-    const size_t max_index = HWY_MIN(N8, 16) - 1;
+    const size_t max_index = HWY_MIN(NT8, 16) - 1;
     for (size_t i = 0; i < N8; ++i) {
       index_bytes[i] = (i < 64) ? index_bytes_source[i] : 0;
       // Avoid asan error for partial vectors.
@@ -216,15 +216,21 @@ struct TestTableLookupBytes {
     }
     const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
 
+    const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
     for (size_t block = 0; block < N8; block += 16) {
       for (size_t i = 0; i < 16 && (block + i) < N8; ++i) {
         const uint8_t index = index_bytes[block + i];
-        HWY_ASSERT(block + index < N8);  // indices were already capped to N8.
-        // For large vectors, the lane index may wrap around due to block.
-        expected_bytes[block + i] = in_bytes[(block & 0xFF) + index];
+        HWY_ASSERT(index <= max_index);
+        // Note that block + index may exceed NT8 on RVV, which is fine because
+        // the operation uses the larger of the table and index vector size.
+        HWY_ASSERT(block + index < HWY_MAX(N8, NT8));
+        // For large vectors, the lane index may wrap around due to block,
+        // also wrap around after 8-bit overflow.
+        expected_bytes[block + i] =
+            in_bytes[(block + index) % HWY_MIN(NT8, 256)];
       }
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices));
@@ -251,15 +257,14 @@ struct TestTableLookupBytes {
   }
 };
 
-HWY_NOINLINE void TestAllTableLookupBytes() {
+HWY_NOINLINE void TestAllTableLookupBytesSame() {
   // Partial index, same-sized table.
   ForIntegerTypes(ForPartialVectors<TestTableLookupBytes<false>>());
+}
 
-// TODO(janwas): requires LMUL trunc/ext, which is not yet implemented.
-#if HWY_TARGET != HWY_RVV
+HWY_NOINLINE void TestAllTableLookupBytesMixed() {
   // Partial index, full-size table.
   ForIntegerTypes(ForPartialVectors<TestTableLookupBytes<true>>());
-#endif
 }
 
 struct TestInterleaveLower {
@@ -614,7 +619,8 @@ HWY_BEFORE_TEST(HwyBlockwiseTest);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftBytes);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftLanes);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllBroadcast);
-HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytes);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytesSame);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytesMixed);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllInterleave);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZip);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllCombineShiftRight);
