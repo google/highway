@@ -808,13 +808,14 @@ HWY_API Vec128<double, N> IfThenZeroElse(Mask128<double, N> mask,
 // ------------------------------ Mask logical
 
 // For Clang and GCC, mask intrinsics (KORTEST) weren't added until recently.
-#if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS) &&         \
-    (HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC >= 700 || \
-     HWY_COMPILER_CLANG >= 800)
+#if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS)
+#if HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC >= 700 || \
+    HWY_COMPILER_CLANG >= 800
 #define HWY_COMPILER_HAS_MASK_INTRINSICS 1
 #else
 #define HWY_COMPILER_HAS_MASK_INTRINSICS 0
 #endif
+#endif  // HWY_COMPILER_HAS_MASK_INTRINSICS
 
 namespace detail {
 
@@ -5254,7 +5255,8 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
   const Vec128<uint16_t, N> cu{_mm_permutexvar_epi16(idx.raw, vu.raw)};
   StoreU(BitCast(d, cu), d, unaligned);
 #endif  // HWY_TARGET == HWY_AVX3_DL
-  const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
+
+  const size_t count = PopCount(mask_bits & ((1ull << N) - 1));
   // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));

@@ -3437,7 +3437,7 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
   const auto vu = BitCast(du, v);  // (required for float16_t inputs)
 
 #if HWY_TARGET == HWY_AVX3_DL  // VBMI2
-  const Vec512<uint16_t> cu{_mm512_maskz_compress_epi16(mask.raw, v.raw)};
+  const Vec512<uint16_t> cu{_mm512_maskz_compress_epi16(mask.raw, vu.raw)};
 #else
   const Repartition<int32_t, decltype(d)> dw;
   const Half<decltype(du)> duh;
@@ -3486,7 +3486,7 @@ HWY_API size_t CompressStore(Vec512<T> v, Mask512<T> mask, Full512<T> d,
   const uint64_t mask_bits{mask.raw};
 
 #if HWY_TARGET == HWY_AVX3_DL  // VBMI2
-  _mm512_mask_compressstoreu_epi16(unaligned, mask.raw, v.raw);
+  _mm512_mask_compressstoreu_epi16(unaligned, mask.raw, vu.raw);
 #else
   const Repartition<int32_t, decltype(d)> dw;
   const Half<decltype(du)> duh;

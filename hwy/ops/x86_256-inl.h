@@ -4168,7 +4168,7 @@ HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> d,
   const uint64_t mask_bits{mask.raw};
 
 #if HWY_TARGET == HWY_AVX3_DL  // VBMI2
-  _mm256_mask_compressstoreu_epi16(unaligned, mask.raw, v.raw);
+  _mm256_mask_compressstoreu_epi16(unaligned, mask.raw, vu.raw);
 #else
   // Split into halves to keep the table size manageable.
   const Half<decltype(du)> duh;
