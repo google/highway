@@ -47,7 +47,7 @@
 #include <sys/random.h>
 #elif VQSORT_SECURE_SEED == 2
 #include <windows.h>
-#pragma comment(lib, "Advapi32.lib")
+#pragma comment(lib, "advapi32.lib")
 // Must come after windows.h.
 #include <wincrypt.h>
 #endif  // VQSORT_SECURE_SEED
