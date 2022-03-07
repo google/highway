@@ -72,11 +72,9 @@ via the below email)
 
 Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, AVX3_DL (~Icelake,
 requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE, SVE2,
-WASM SIMD.
+WASM SIMD, RISC-V V.
 
-SVE was initially tested using farm_sve (see acknowledgments). A subset of RVV
-is implemented and tested with LLVM and QEMU. Work is underway to add RVV ops
-which were not yet supported by GCC.
+SVE was initially tested using farm_sve (see acknowledgments).
 
 ### Versioning
 
@@ -86,13 +84,14 @@ backward-compatible fixes. We recommend using releases (rather than the Git tip)
 because they are tested more extensively, see below.
 
 Version 0.11 is considered stable enough to use in other projects.
-Version 1.0 will signal an increased focus on backwards compatibility and will
-be reached after the RVV target is finished (planned for 2022H1).
+Version 1.0 will signal an increased focus on backwards compatibility and is
+planned for 2022H1 now that all targets are feature-complete.
 
 ### Testing
 
 Continuous integration tests build with a recent version of Clang (running on
-x86 and QEMU for ARM) and MSVC from VS2015 (running on x86).
+native x86, Spike for RVV, and QEMU for ARM) and MSVC from VS2015 (running on
+native x86).
 
 Before releases, we also test on x86 with Clang and GCC, and ARMv7/8 via
 GCC cross-compile and QEMU. See the
