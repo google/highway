@@ -85,7 +85,7 @@ HWY_NOINLINE void TestAllShiftBytes() {
   ForIntegerTypes(ForPartialVectors<TestShiftBytes>());
 }
 
-struct TestShiftLanes {
+struct TestShiftLeftLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Scalar does not define Shift*Lanes.
@@ -96,7 +96,6 @@ struct TestShiftLanes {
 
     HWY_ASSERT_VEC_EQ(d, v, ShiftLeftLanes<0>(v));
     HWY_ASSERT_VEC_EQ(d, v, ShiftLeftLanes<0>(d, v));
-    HWY_ASSERT_VEC_EQ(d, v, ShiftRightLanes<0>(d, v));
 
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
 
@@ -105,6 +104,24 @@ struct TestShiftLanes {
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftLanes<1>(v));
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftLeftLanes<1>(d, v));
+#else
+    (void)d;
+#endif  // #if HWY_TARGET != HWY_SCALAR
+  }
+};
+
+struct TestShiftRightLanes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // Scalar does not define Shift*Lanes.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+    const auto v = Iota(d, T(1));
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+
+    HWY_ASSERT_VEC_EQ(d, v, ShiftRightLanes<0>(d, v));
+
+    constexpr size_t kLanesPerBlock = 16 / sizeof(T);
 
     for (size_t i = 0; i < N; ++i) {
       const size_t mod = i % kLanesPerBlock;
@@ -117,8 +134,12 @@ struct TestShiftLanes {
   }
 };
 
-HWY_NOINLINE void TestAllShiftLanes() {
-  ForAllTypes(ForPartialVectors<TestShiftLanes>());
+HWY_NOINLINE void TestAllShiftLeftLanes() {
+  ForAllTypes(ForPartialVectors<TestShiftLeftLanes>());
+}
+
+HWY_NOINLINE void TestAllShiftRightLanes() {
+  ForAllTypes(ForPartialVectors<TestShiftRightLanes>());
 }
 
 template <typename D, int kLane>
@@ -617,7 +638,8 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyBlockwiseTest);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftBytes);
-HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftLanes);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftLeftLanes);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllShiftRightLanes);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllBroadcast);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytesSame);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytesMixed);

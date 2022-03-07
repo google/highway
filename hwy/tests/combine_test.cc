@@ -83,7 +83,13 @@ struct TestLowerQuarter {
 
 HWY_NOINLINE void TestAllLowerHalf() {
   ForAllTypes(ForHalfVectors<TestLowerHalf>());
-  ForAllTypes(ForHalfVectors<TestLowerQuarter, 2>());
+
+  // The minimum vector size is 128 bits, so there's no guarantee we can have
+  // quarters of 64-bit lanes, hence test 'all' other types.
+  ForHalfVectors<TestLowerQuarter, 2> test_quarter;
+  ForUI8(test_quarter);
+  ForUI16(test_quarter);  // exclude float16_t - cannot compare
+  ForUIF32(test_quarter);
 }
 
 struct TestUpperHalf {

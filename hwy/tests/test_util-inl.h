@@ -210,22 +210,13 @@ struct ForeachCappedR<T, 0, kMinArg, Test> {
 
 #if HWY_HAVE_SCALABLE
 
-constexpr int MinVectorSize() {
-#if HWY_TARGET == HWY_RVV
-  // Actually 16 for the application processor profile, but the intrinsics are
-  // defined as if VLEN might be only 64: there is no vuint64mf2_t.
-  return 8;
-#else
-  return 16;
-#endif
-}
-
 template <typename T>
 constexpr int MinPow2() {
   // Highway follows RVV LMUL in that the smallest fraction is 1/8th (encoded
   // as kPow2 == -3). The fraction also must not result in zero lanes for the
-  // smallest possible vector size.
-  return HWY_MAX(-3, -static_cast<int>(CeilLog2(MinVectorSize() / sizeof(T))));
+  // smallest possible vector size, which is 128 bits even on RISC-V (with the
+  // application processor profile).
+  return HWY_MAX(-3, -static_cast<int>(CeilLog2(16 / sizeof(T))));
 }
 
 // Iterates kPow2 upward through +3.
@@ -334,14 +325,14 @@ struct ForGEVectors {
                                                                      max_lanes);
 #if HWY_TARGET == HWY_RVV
     // Can be 0 (handled below) if kMinBits > 64.
-    constexpr size_t kRatio = MinVectorSize() * 8 / kMinBits;
+    constexpr size_t kRatio = 128 / kMinBits;
     constexpr int kMinPow2 =
         kRatio == 0 ? 0 : -static_cast<int>(CeilLog2(kRatio));
     // For each [kMinPow2, 3]; counter is [kMinPow2, 3].
     ForeachShiftR<T, kMinPow2, 0, Test>::Do(kMinLanes);
 #elif HWY_HAVE_SCALABLE
     // Can be 0 (handled below) if kMinBits > 128.
-    constexpr size_t kRatio = MinVectorSize() * 8 / kMinBits;
+    constexpr size_t kRatio = 128 / kMinBits;
     constexpr int kMinPow2 =
         kRatio == 0 ? 0 : -static_cast<int>(CeilLog2(kRatio));
     // For each [kMinPow2, 0]; counter is [kMinPow2 + 3, 3].
@@ -422,19 +413,14 @@ template <class Test, int kPow2 = 1>
 struct ForHalfVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
-    constexpr size_t kMinLanes = size_t{1} << kPow2;
-    constexpr size_t kMaxCapped = HWY_LANES(T);
-    // For shrinking, an upper limit is unnecessary.
-    constexpr size_t max_lanes = kMaxCapped;
-
-    (void)kMinLanes;
-    (void)max_lanes;
-    (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
     ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
 #else
-//    ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes, Test>::Do(kMinLanes,
-//                                                                  max_lanes);
+    constexpr size_t kMinLanes = size_t{1} << kPow2;
+    // For shrinking, an upper limit is unnecessary.
+    constexpr size_t kMaxCapped = HWY_LANES(T);
+    ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes, Test>::Do(kMinLanes,
+                                                                  kMaxCapped);
 
 // TODO(janwas): call Extendable if kMinLanes check not required?
 #if HWY_TARGET == HWY_RVV
@@ -498,6 +484,12 @@ template <class Func>
 void ForAllTypes(const Func& func) {
   ForIntegerTypes(func);
   ForFloatTypes(func);
+}
+
+template <class Func>
+void ForUI8(const Func& func) {
+  func(uint8_t());
+  func(int8_t());
 }
 
 template <class Func>
