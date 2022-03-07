@@ -1712,9 +1712,15 @@ namespace detail {
 // For x86-compatible behaviour mandated by Highway API: TableLookupBytes
 // offsets are implicitly relative to the start of their 128-bit block.
 template <typename T, size_t N, int kPow2>
-constexpr size_t LanesPerBlock(Simd<T, N, kPow2> /* tag */) {
-  // Also cap to the limit imposed by D (for fixed-size <= 128-bit vectors).
-  return HWY_MIN(16 / sizeof(T), N);
+size_t LanesPerBlock(Simd<T, N, kPow2> d) {
+  size_t lpb = 16 / sizeof(T);
+  if (IsFull(d)) return lpb;
+  // Also honor the user-specified (constexpr) N limit.
+  lpb = HWY_MIN(lpb, N);
+  // No fraction, we're done.
+  if (kPow2 >= 0) return lpb;
+  // Fractional LMUL: Lanes(d) may be smaller than lpb, so honor that.
+  return HWY_MIN(lpb, Lanes(d));
 }
 
 template <class D, class V>
@@ -1727,8 +1733,7 @@ template <size_t kLanes, class D>
 HWY_INLINE MFromD<D> FirstNPerBlock(D /* tag */) {
   const RebindToUnsigned<D> du;
   const RebindToSigned<D> di;
-  constexpr size_t kLanesPerBlock = LanesPerBlock(du);
-  const auto idx_mod = AndS(Iota0(du), kLanesPerBlock - 1);
+  const auto idx_mod = AndS(Iota0(du), LanesPerBlock(du) - 1);
   return LtS(BitCast(di, idx_mod), static_cast<TFromD<decltype(di)>>(kLanes));
 }
 
@@ -1899,9 +1904,9 @@ HWY_API V OddEvenBlocks(const V a, const V b) {
 template <class V>
 HWY_API V SwapAdjacentBlocks(const V v) {
   const DFromV<V> d;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
-  const V down = detail::SlideDown(v, v, kLanesPerBlock);
-  const V up = detail::SlideUp(v, v, kLanesPerBlock);
+  const size_t lpb = detail::LanesPerBlock(d);
+  const V down = detail::SlideDown(v, v, lpb);
+  const V up = detail::SlideUp(v, v, lpb);
   return OddEvenBlocks(up, down);
 }
 
@@ -2233,8 +2238,7 @@ HWY_API VI TableLookupBytesOr0(const VT vt, const VI idx) {
 template <int kLane, class V>
 HWY_API V Broadcast(const V v) {
   const DFromV<V> d;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
-  static_assert(0 <= kLane && kLane < kLanesPerBlock, "Invalid lane");
+  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
   auto idx = detail::OffsetsOf128BitBlocks(d, detail::Iota0(d));
   if (kLane != 0) {
     idx = detail::AddS(idx, kLane);
@@ -2250,8 +2254,8 @@ HWY_API V ShiftLeftLanes(const D d, const V v) {
   using TI = TFromD<decltype(di)>;
   const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::AndS(detail::Iota0(di), kLanesPerBlock - 1);
+  const auto idx_mod =
+      detail::AndS(detail::Iota0(di), detail::LanesPerBlock(di) - 1);
   const auto clear = detail::LtS(BitCast(di, idx_mod), static_cast<TI>(kLanes));
   return IfThenZeroElse(clear, shifted);
 }
@@ -2287,15 +2291,10 @@ HWY_API V ShiftRightLanes(const Simd<T, N, kPow2> d, V v) {
 
   const auto shifted = detail::SlideDown(v, v, kLanes);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
-  size_t lanes_per_block = detail::LanesPerBlock(di);
-  // Fractional LMUL may also result in fewer than 128 bits, so clamp to the
-  // actual lane count.
-  if (kPow2 < 0) {
-    lanes_per_block = HWY_MIN(lanes_per_block, Lanes(d));
-  }
-  const auto idx_mod = detail::AndS(detail::Iota0(di), lanes_per_block - 1);
-  const auto keep = detail::LtS(BitCast(di, idx_mod),
-                                static_cast<TI>(lanes_per_block - kLanes));
+  const size_t lpb = detail::LanesPerBlock(di);
+  const auto idx_mod = detail::AndS(detail::Iota0(di), lpb - 1);
+  const auto keep =
+      detail::LtS(BitCast(di, idx_mod), static_cast<TI>(lpb - kLanes));
   return IfThenElseZero(keep, shifted);
 }
 
@@ -2312,9 +2311,9 @@ template <class D, class V>
 HWY_API V InterleaveLower(D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const RebindToUnsigned<decltype(d)> du;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
   const auto i = detail::Iota0(du);
-  const auto idx_mod = ShiftRight<1>(detail::AndS(i, kLanesPerBlock - 1));
+  const auto idx_mod =
+      ShiftRight<1>(detail::AndS(i, detail::LanesPerBlock(du) - 1));
   const auto idx = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
   const auto is_even = detail::EqS(detail::AndS(i, 1), 0u);
   return IfThenElse(is_even, TableLookupLanes(a, idx),
@@ -2332,11 +2331,11 @@ template <class D, class V>
 HWY_API V InterleaveUpper(const D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const RebindToUnsigned<decltype(d)> du;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const size_t lpb = detail::LanesPerBlock(du);
   const auto i = detail::Iota0(du);
-  const auto idx_mod = ShiftRight<1>(detail::AndS(i, kLanesPerBlock - 1));
+  const auto idx_mod = ShiftRight<1>(detail::AndS(i, lpb - 1));
   const auto idx_lower = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
-  const auto idx = detail::AddS(idx_lower, kLanesPerBlock / 2);
+  const auto idx = detail::AddS(idx_lower, lpb / 2);
   const auto is_even = detail::EqS(detail::AndS(i, 1), 0u);
   return IfThenElse(is_even, TableLookupLanes(a, idx),
                     TableLookupLanes(b, idx));
@@ -2440,9 +2439,8 @@ HWY_API V PopulationCount(V v) {
 template <class D>
 HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
   const auto loaded = Load(d, p);
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   // Broadcast the first block
-  const auto idx = detail::AndS(detail::Iota0(d), kLanesPerBlock - 1);
+  const auto idx = detail::AndS(detail::Iota0(d), detail::LanesPerBlock(d) - 1);
   return TableLookupLanes(loaded, idx);
 }
 

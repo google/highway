@@ -336,8 +336,10 @@ struct TestConvertU8 {
     const Rebind<uint8_t, D> du8;
     auto lanes8 = AllocateAligned<uint8_t>(Lanes(du8));
     Store(Iota(du8, 0), du8, lanes8.get());
-    HWY_ASSERT_VEC_EQ(du8, Iota(du8, 0), U8FromU32(Iota(du32, 0)));
-    HWY_ASSERT_VEC_EQ(du8, Iota(du8, 0x7F), U8FromU32(Iota(du32, 0x7F)));
+    const auto wrap = Set(du32, 0xFF);
+    HWY_ASSERT_VEC_EQ(du8, Iota(du8, 0), U8FromU32(And(Iota(du32, 0), wrap)));
+    HWY_ASSERT_VEC_EQ(du8, Iota(du8, 0x7F),
+                      U8FromU32(And(Iota(du32, 0x7F), wrap)));
   }
 };
 
