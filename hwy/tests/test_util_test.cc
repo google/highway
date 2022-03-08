@@ -102,10 +102,4 @@ HWY_EXPORT_AND_TEST_P(TestUtilTest, TestAllName);
 HWY_EXPORT_AND_TEST_P(TestUtilTest, TestAllEqual);
 }  // namespace hwy
 
-// Ought not to be necessary, but without this, no tests run on RVV.
-int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
-
 #endif
