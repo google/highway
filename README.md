@@ -281,6 +281,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
 *   [Highway introduction (slides)](g3doc/highway_intro.pdf)
 *   [Overview of instructions per operation on different architectures](g3doc/instruction_matrix.pdf)
 *   [Design philosophy and comparison](g3doc/design_philosophy.md)
+*   [Implementation details](g3doc/impl_details.md)
 
 ## Acknowledgments
 
