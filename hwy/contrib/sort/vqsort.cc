@@ -26,12 +26,43 @@
 // After foreach_target
 #include "hwy/contrib/sort/shared-inl.h"
 
+// Check if we have sys/random.h. First skip some systems on which the check
+// itself (features.h) might be problematic.
+#if defined(ANDROID) || defined(__ANDROID__) || HWY_ARCH_RVV
+#define VQSORT_GETRANDOM 0
+#endif
+
+#if !defined(VQSORT_GETRANDOM) && (defined(linux) || defined(__linux__))
+#include <features.h>
+
+// ---- which libc
+#if defined(__UCLIBC__)
+#define VQSORT_GETRANDOM 1  // added Mar 2015, before uclibc-ng 1.0
+
+#elif defined(__GLIBC__)
+#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 25)
+#define VQSORT_GETRANDOM 1
+#else
+#define VQSORT_GETRANDOM 0
+#endif
+
+#else
+// Assume MUSL, which has getrandom since 2018. There is no macro to test, see
+// https://www.openwall.com/lists/musl/2013/03/29/13.
+#define VQSORT_GETRANDOM 1
+
+#endif  // ---- which libc
+#endif  // linux
+
+#if !defined(VQSORT_GETRANDOM)
+#define VQSORT_GETRANDOM 0
+#endif
+
 // Seed source for SFC generator: 1=getrandom, 2=CryptGenRandom
 // (not all Android support the getrandom wrapper)
 #ifndef VQSORT_SECURE_SEED
 
-#if (defined(linux) || defined(__linux__)) && \
-    !(defined(ANDROID) || defined(__ANDROID__) || HWY_ARCH_RVV)
+#if VQSORT_GETRANDOM
 #define VQSORT_SECURE_SEED 1
 #elif defined(_WIN32) || defined(_WIN64)
 #define VQSORT_SECURE_SEED 2
