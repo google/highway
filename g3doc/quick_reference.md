@@ -633,7 +633,8 @@ aligned memory at indices which are not a multiple of the vector length):
 *   <code>Vec&lt;D&gt; **LoadDup128**(D, const T* p)</code>: returns one 128-bit
     block loaded from `p` and broadcasted into all 128-bit block\[s\]. This may
     be faster than broadcasting single values, and is more convenient than
-    preparing constants for the actual vector length.
+    preparing constants for the actual vector length. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
 
 *   <code>Vec&lt;D&gt; **MaskedLoad**(M mask, D, const T* p)</code>: returns
     `p[i]` or zero if the `mask` governing element `i` is false. May fault even
@@ -775,7 +776,8 @@ if the input exceeds the destination range.
 *   `V`,`D`: (`f32,bf16`) \
     <code>Vec&lt;D&gt; **ReorderDemote2To**(D, V a, V b)</code>: as above, but
     converts two inputs, `D` and the output have twice as many lanes as `V`, and
-    the output order is some permutation of the inputs.
+    the output order is some permutation of the inputs. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
@@ -796,7 +798,8 @@ if the input exceeds the destination range.
     `Half<DFromV<V>>`.
 
 *   <code>V2 **UpperHalf**(D, V)</code>: returns upper half of the vector `V`,
-    where `D` is `Half<DFromV<V>>`.
+    where `D` is `Half<DFromV<V>>`. Only available if `HWY_TARGET !=
+    HWY_SCALAR`.
 
 *   <code>V **ZeroExtendVector**(D, V2)</code>: returns vector whose `UpperHalf`
     is zero and whose `LowerHalf` is the argument; `D` is `Twice<DFromV<V2>>`.
@@ -827,11 +830,13 @@ more expensive on AVX2/AVX-512 than per-block operations.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **ConcatOdd**(D, V hi, V lo)</code>: returns the concatenation of
-    the odd lanes of `hi` and the odd lanes of `lo`.
+    the odd lanes of `hi` and the odd lanes of `lo`. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **ConcatEven**(D, V hi, V lo)</code>: returns the concatenation of
-    the even lanes of `hi` and the even lanes of `lo`.
+    the even lanes of `hi` and the even lanes of `lo`. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
 
 ### Blockwise
 
@@ -849,7 +854,7 @@ their operands into independently processed 128-bit *blocks*.
     HWY_MIN(Lanes(DFromV<V>()), 16)`. `VI` are integers with the same bit width
     as a lane in `V`. The number of lanes in `V` and `VI` may differ, e.g. a
     full-length table vector loaded via `LoadDup128`, plus partial vector `VI`
-    of 4-bit indices.
+    of 4-bit indices. Only available if `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`: `{u,i}` \
     <code>VI **TableLookupBytesOr0**(V bytes, VI indices)</code>: returns
@@ -859,18 +864,21 @@ their operands into independently processed 128-bit *blocks*.
     zeroing behavior has zero cost on x86 and ARM. For vectors of >= 256 bytes
     (can happen on SVE and RVV), this will set all lanes after the first 128
     to 0. `VI` are integers with the same bit width as a lane in `V`. The number
-    of lanes in `V` and `VI` may differ.
+    of lanes in `V` and `VI` may differ. Only available if `HWY_TARGET !=
+    HWY_SCALAR`.
 
 #### Zip/Interleave
 
 *   <code>V **InterleaveLower**([D, ] V a, V b)</code>: returns *blocks* with
     alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
     least-significant lane). The optional `D` (provided for consistency with
-    `InterleaveUpper`) is `DFromV<V>`.
+    `InterleaveUpper`) is `DFromV<V>`. Only available if `HWY_TARGET !=
+    HWY_SCALAR`, but note that `ZipLower` works on all targets.
 
 *   <code>V **InterleaveUpper**(D, V a, V b)</code>: returns *blocks* with
     alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
-    least-significant lane). `D` is `DFromV<V>`.
+    least-significant lane). `D` is `DFromV<V>`. Only available if `HWY_TARGET
+    != HWY_SCALAR`.
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipLower**([D, ] V a, V b)</code>: returns the same bits as
@@ -882,9 +890,12 @@ their operands into independently processed 128-bit *blocks*.
     <code>Ret **ZipUpper**(D, V a, V b)</code>: returns the same bits as
     `InterleaveUpper`, but repartitioned into double-width lanes (required in
     order to use this operation with scalars). `D` is
-    `RepartitionToWide<DFromV<V>>`.
+    `RepartitionToWide<DFromV<V>>`. Only available if `HWY_TARGET !=
+    HWY_SCALAR`.
 
 #### Shift
+
+The following are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `{u,i}` \
     <code>V **ShiftLeftBytes**&lt;int&gt;([D, ] V)</code>: returns the result of
@@ -956,7 +967,7 @@ instead because they are more general:
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
     to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
-    v[i]` and `r[i - 1] == v[i]`.
+    v[i]` and `r[i - 1] == v[i]`. Only available if `HWY_TARGET != HWY_SCALAR`.
 
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
