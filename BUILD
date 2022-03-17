@@ -1,7 +1,9 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+)
 
 licenses(["notice"])
 
@@ -11,6 +13,11 @@ exports_files(["LICENSE"])
 config_setting(
     name = "compiler_clang",
     flag_values = {"@bazel_tools//tools/cpp:compiler": "clang"},
+)
+
+config_setting(
+    name = "compiler_clangcl",
+    flag_values = {"@bazel_tools//tools/cpp:compiler": "lexan"},
 )
 
 config_setting(
@@ -54,8 +61,8 @@ CLANG_GCC_COPTS = [
     "-Wunreachable-code",
 ]
 
-# Additional warnings only supported by Clang
-CLANG_ONLY_COPTS = [
+# Warnings supported by Clang and Clang-cl
+CLANG_OR_CLANGCL_OPTS = CLANG_GCC_COPTS + [
     "-Wfloat-overflow-conversion",
     "-Wfloat-zero-conversion",
     "-Wfor-loop-analysis",
@@ -73,11 +80,19 @@ CLANG_ONLY_COPTS = [
     "-Wunused-comparison",
 ]
 
+# Warnings only supported by Clang, but not Clang-cl
+CLANG_ONLY_COPTS = CLANG_OR_CLANGCL_OPTS + [
+    # Do not treat the third_party headers as system headers when building
+    # highway - the errors are pertinent.
+    "--no-system-header-prefix=third_party/highway",
+]
+
 COPTS = select({
     ":compiler_msvc": [],
     ":compiler_gcc": CLANG_GCC_COPTS,
+    ":compiler_clangcl": CLANG_OR_CLANGCL_OPTS,
     # Default to clang because compiler detection only works in Bazel
-    "//conditions:default": CLANG_GCC_COPTS + CLANG_ONLY_COPTS,
+    "//conditions:default": CLANG_ONLY_COPTS,
 }) + select({
     "@platforms//cpu:riscv64": [
         "-march=rv64gcv1p0",

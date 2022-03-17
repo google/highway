@@ -40,7 +40,7 @@ using TFromV = TFromD<DFromV<V>>;
   hwy::EnableIf<(min) <= Pow2(D()) && Pow2(D()) <= (max)>* = nullptr
 
 template <typename T, size_t N, int kPow2>
-constexpr size_t MLenFromD(Simd<T, N, kPow2> d) {
+constexpr size_t MLenFromD(Simd<T, N, kPow2> /* tag */) {
   // Returns divisor = type bits / LMUL. Folding *8 into the ScaleByPower
   // argument enables fractional LMUL < 1. Limit to 64 because that is the
   // largest value for which vbool##_t are defined.
@@ -1987,7 +1987,7 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
 // For LMUL < 1/2, we can extend and then truncate.
 template <class D, HWY_IF_LANE_SIZE_D(D, 2), HWY_RVV_IF_POW2_IN(D, -3, -2)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
-  const Twice<D> d2;
+  const Twice<decltype(d)> d2;
   const Twice<decltype(d2)> d4;
   const Repartition<uint32_t, decltype(d4)> du32;
   const auto vx = detail::Ext(d4, detail::Ext(d2, v));
@@ -2006,7 +2006,7 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
 // For fractions, we can extend and then truncate.
 template <class D, HWY_IF_LANE_SIZE_D(D, 4), HWY_RVV_IF_POW2_IN(D, -2, -1)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
-  const Twice<D> d2;
+  const Twice<decltype(d)> d2;
   const Twice<decltype(d2)> d4;
   const Repartition<uint64_t, decltype(d4)> du64;
   const auto vx = detail::Ext(d4, detail::Ext(d2, v));
@@ -2726,7 +2726,7 @@ HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
 // ------------------------------ Min128, Max128 (Lt128)
 
 template <class D>
-HWY_INLINE VFromD<D> Min128(D d, const VFromD<D> a, const VFromD<D> b) {
+HWY_INLINE VFromD<D> Min128(D /* tag */, const VFromD<D> a, const VFromD<D> b) {
   const VFromD<D> aXH = detail::Slide1Down(a);
   const VFromD<D> bXH = detail::Slide1Down(b);
   const VFromD<D> minHL = Min(a, b);
@@ -2740,7 +2740,7 @@ HWY_INLINE VFromD<D> Min128(D d, const VFromD<D> a, const VFromD<D> b) {
 }
 
 template <class D>
-HWY_INLINE VFromD<D> Max128(D d, const VFromD<D> a, const VFromD<D> b) {
+HWY_INLINE VFromD<D> Max128(D /* tag */, const VFromD<D> a, const VFromD<D> b) {
   const VFromD<D> aXH = detail::Slide1Down(a);
   const VFromD<D> bXH = detail::Slide1Down(b);
   const VFromD<D> maxHL = Max(a, b);
