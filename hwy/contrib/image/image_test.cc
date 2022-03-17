@@ -83,7 +83,7 @@ struct TestUnalignedT {
 
 // This test reads padding, which only works if it was initialized,
 // which only happens in MSAN builds.
-#if defined(MEMORY_SANITIZER) || HWY_IDE
+#if HWY_IS_MSAN || HWY_IDE
         // Initialize only the valid samples
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);

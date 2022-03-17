@@ -39,8 +39,8 @@
 #if defined(__UCLIBC__)
 #define VQSORT_GETRANDOM 1  // added Mar 2015, before uclibc-ng 1.0
 
-#elif defined(__GLIBC__)
-#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 25)
+#elif defined(__GLIBC__) && defined(__GLIBC_PREREQ)
+#if __GLIBC_PREREQ(2, 25)
 #define VQSORT_GETRANDOM 1
 #else
 #define VQSORT_GETRANDOM 0

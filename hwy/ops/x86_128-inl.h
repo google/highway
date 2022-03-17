@@ -4537,8 +4537,7 @@ HWY_API Vec128<int32_t, N> PromoteTo(Simd<int32_t, N, 0> /* tag */,
 
 // Workaround for origin tracking bug in Clang msan prior to 11.0
 // (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
-#if defined(MEMORY_SANITIZER) && \
-    (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
+#if HWY_IS_MSAN && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
 #define HWY_INLINE_F16 HWY_NOINLINE
 #else
 #define HWY_INLINE_F16 HWY_INLINE

@@ -105,7 +105,7 @@ ImageBase::ImageBase(const size_t xsize, const size_t ysize,
 }
 
 void ImageBase::InitializePadding(const size_t sizeof_t, Padding padding) {
-#if defined(MEMORY_SANITIZER) || HWY_IDE
+#if HWY_IS_MSAN || HWY_IDE
   if (xsize_ == 0 || ysize_ == 0) return;
 
   const size_t vec_size = VectorSize();  // Bytes, independent of sizeof_t!
@@ -131,7 +131,7 @@ void ImageBase::InitializePadding(const size_t sizeof_t, Padding padding) {
 #else
   (void)sizeof_t;
   (void)padding;
-#endif  // MEMORY_SANITIZER
+#endif  // HWY_IS_MSAN
 }
 
 void ImageBase::Swap(ImageBase& other) {
