@@ -467,6 +467,55 @@ HWY_NOINLINE void TestAllMulHigh() {
   test(uint16_t());
 }
 
+struct TestMulFixedPoint15 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    HWY_ASSERT_VEC_EQ(d, v0, MulFixedPoint15(v0, v0));
+    HWY_ASSERT_VEC_EQ(d, v0, MulFixedPoint15(v0, v0));
+
+    const size_t N = Lanes(d);
+    auto in1 = AllocateAligned<T>(N);
+    auto in2 = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+
+    // Random inputs in each lane
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(10000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in1[i] = static_cast<T>(Random64(&rng) & 0xFFFF);
+        in2[i] = static_cast<T>(Random64(&rng) & 0xFFFF);
+      }
+
+      for (size_t i = 0; i < N; ++i) {
+        // There are three ways to compute the results. x86 and ARM are defined
+        // using 32-bit multiplication results:
+        const int arm = (2 * in1[i] * in2[i] + 0x8000) >> 16;
+        const int x86 = (((in1[i] * in2[i]) >> 14) + 1) >> 1;
+        // On other platforms, split the result into upper and lower 16 bits.
+        const auto v1 = Set(d, in1[i]);
+        const auto v2 = Set(d, in2[i]);
+        const int hi = GetLane(MulHigh(v1, v2));
+        const int lo = GetLane(Mul(v1, v2)) & 0xFFFF;
+        const int split = 2 * hi + ((lo + 0x4000) >> 15);
+        expected[i] = static_cast<T>(arm);
+        if (in1[i] != -32768 || in2[i] != -32768) {
+          HWY_ASSERT_EQ(arm, x86);
+          HWY_ASSERT_EQ(arm, split);
+        }
+      }
+
+      const auto a = Load(d, in1.get());
+      const auto b = Load(d, in2.get());
+      HWY_ASSERT_VEC_EQ(d, expected.get(), MulFixedPoint15(a, b));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMulFixedPoint15() {
+  ForPartialVectors<TestMulFixedPoint15>()(int16_t());
+}
+
 struct TestMulEven {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -1134,6 +1183,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMul);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulHigh);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMulAdd);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllReorderWidenMulAccumulate);

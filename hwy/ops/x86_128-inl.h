@@ -2239,6 +2239,12 @@ HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{_mm_mulhi_epi16(a.raw, b.raw)};
 }
 
+template <size_t N>
+HWY_API Vec128<int16_t, N> MulFixedPoint15(const Vec128<int16_t, N> a,
+                                           const Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>{_mm_mulhrs_epi16(a.raw, b.raw)};
+}
+
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into
 // even and the upper half into its odd neighbor lane.
 template <size_t N>

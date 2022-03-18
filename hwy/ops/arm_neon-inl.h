@@ -1208,6 +1208,15 @@ HWY_API Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
   return Vec128<uint16_t, N>(vget_low_u16(vuzp2q_u16(hi_lo, hi_lo)));
 }
 
+HWY_API Vec128<int16_t> MulFixedPoint15(Vec128<int16_t> a, Vec128<int16_t> b) {
+  return Vec128<int16_t>(vqrdmulhq_s16(a.raw, b.raw));
+}
+template <size_t N, HWY_IF_LE64(int16_t, N)>
+HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
+                                           Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>(vqrdmulh_s16(a.raw, b.raw));
+}
+
 // ------------------------------ Floating-point mul / div
 
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)

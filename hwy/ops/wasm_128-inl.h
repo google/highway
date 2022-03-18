@@ -814,6 +814,23 @@ HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
       wasm_i16x8_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15)};
 }
 
+template <size_t N>
+HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
+                                           Vec128<int16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const Vec128<uint16_t, N> lo = BitCast(du, Mul(a, b));
+  const Vec128<int16_t, N> hi = MulHigh(a, b);
+  // We want (lo + 0x4000) >> 15, but that can overflow, and if it does we must
+  // carry that into the result. Instead isolate the top two bits because only
+  // they can influence the result.
+  const Vec128<uint16_t, N> lo_top2 = ShiftRight<14>(lo);
+  // Bits 11: add 2, 10: add 1, 01: add 1, 00: add 0.
+  const Vec128<uint16_t, N> rounding = ShiftRight<1>(Add(lo_top2, Set(du, 1)));
+  return Add(Add(hi, hi), BitCast(d, rounding));
+}
+
 // Multiplies even lanes (0, 2 ..) and returns the double-width result.
 template <size_t N>
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,

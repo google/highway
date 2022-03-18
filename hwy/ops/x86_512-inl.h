@@ -1137,43 +1137,39 @@ HWY_API Vec512<double> Max(const Vec512<double> a, const Vec512<double> b) {
 // ------------------------------ Integer multiplication
 
 // Unsigned
-HWY_API Vec512<uint16_t> operator*(const Vec512<uint16_t> a,
-                                   const Vec512<uint16_t> b) {
+HWY_API Vec512<uint16_t> operator*(Vec512<uint16_t> a, Vec512<uint16_t> b) {
   return Vec512<uint16_t>{_mm512_mullo_epi16(a.raw, b.raw)};
 }
-HWY_API Vec512<uint32_t> operator*(const Vec512<uint32_t> a,
-                                   const Vec512<uint32_t> b) {
+HWY_API Vec512<uint32_t> operator*(Vec512<uint32_t> a, Vec512<uint32_t> b) {
   return Vec512<uint32_t>{_mm512_mullo_epi32(a.raw, b.raw)};
 }
 
 // Signed
-HWY_API Vec512<int16_t> operator*(const Vec512<int16_t> a,
-                                  const Vec512<int16_t> b) {
+HWY_API Vec512<int16_t> operator*(Vec512<int16_t> a, Vec512<int16_t> b) {
   return Vec512<int16_t>{_mm512_mullo_epi16(a.raw, b.raw)};
 }
-HWY_API Vec512<int32_t> operator*(const Vec512<int32_t> a,
-                                  const Vec512<int32_t> b) {
+HWY_API Vec512<int32_t> operator*(Vec512<int32_t> a, Vec512<int32_t> b) {
   return Vec512<int32_t>{_mm512_mullo_epi32(a.raw, b.raw)};
 }
 
 // Returns the upper 16 bits of a * b in each lane.
-HWY_API Vec512<uint16_t> MulHigh(const Vec512<uint16_t> a,
-                                 const Vec512<uint16_t> b) {
+HWY_API Vec512<uint16_t> MulHigh(Vec512<uint16_t> a, Vec512<uint16_t> b) {
   return Vec512<uint16_t>{_mm512_mulhi_epu16(a.raw, b.raw)};
 }
-HWY_API Vec512<int16_t> MulHigh(const Vec512<int16_t> a,
-                                const Vec512<int16_t> b) {
+HWY_API Vec512<int16_t> MulHigh(Vec512<int16_t> a, Vec512<int16_t> b) {
   return Vec512<int16_t>{_mm512_mulhi_epi16(a.raw, b.raw)};
+}
+
+HWY_API Vec512<int16_t> MulFixedPoint15(Vec512<int16_t> a, Vec512<int16_t> b) {
+  return Vec512<int16_t>{_mm512_mulhrs_epi16(a.raw, b.raw)};
 }
 
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into
 // even and the upper half into its odd neighbor lane.
-HWY_API Vec512<int64_t> MulEven(const Vec512<int32_t> a,
-                                const Vec512<int32_t> b) {
+HWY_API Vec512<int64_t> MulEven(Vec512<int32_t> a, Vec512<int32_t> b) {
   return Vec512<int64_t>{_mm512_mul_epi32(a.raw, b.raw)};
 }
-HWY_API Vec512<uint64_t> MulEven(const Vec512<uint32_t> a,
-                                 const Vec512<uint32_t> b) {
+HWY_API Vec512<uint64_t> MulEven(Vec512<uint32_t> a, Vec512<uint32_t> b) {
   return Vec512<uint64_t>{_mm512_mul_epu32(a.raw, b.raw)};
 }
 

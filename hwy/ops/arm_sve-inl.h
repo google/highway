@@ -602,6 +602,26 @@ HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
 HWY_SVE_FOREACH_U64(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
 }  // namespace detail
 
+// ------------------------------ MulFixedPoint15
+HWY_API svint16_t MulFixedPoint15(svint16_t a, svint16_t b) {
+#if HWY_TARGET == HWY_SVE2
+  return svqrdmulh_s16(a, b);
+#else
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const svuint16_t lo = BitCast(du, Mul(a, b));
+  const svint16_t hi = MulHigh(a, b);
+  // We want (lo + 0x4000) >> 15, but that can overflow, and if it does we must
+  // carry that into the result. Instead isolate the top two bits because only
+  // they can influence the result.
+  const svuint16_t lo_top2 = ShiftRight<14>(lo);
+  // Bits 11: add 2, 10: add 1, 01: add 1, 00: add 0.
+  const svuint16_t rounding = ShiftRight<1>(detail::AddN(lo_top2, 1));
+  return Add(Add(hi, hi), BitCast(d, rounding));
+#endif
+}
+
 // ------------------------------ Div
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Div, div)
 

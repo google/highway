@@ -308,6 +308,12 @@ is qNaN, and NaN if both are.
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.
 
+*   `V`: `i16` \
+    <code>V **MulFixedPoint15**(V a, V b)</code>: returns the result of
+    multiplying two 1.15 fixed-point numbers. This corresponds to doubling the
+    multiplication result and storing the upper half. Results are
+    implementation-defined iff both inputs are -32768.
+
 *   `V`: `{u,i}{32},u64` \
     <code>V2 **MulEven**(V a, V b)</code>: returns double-wide result of `a[i] *
     b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper). `V2` is

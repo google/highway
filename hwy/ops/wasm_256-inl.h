@@ -591,6 +591,10 @@ HWY_API Vec256<int16_t> MulHigh(const Vec256<int16_t> a,
   return Vec256<int16_t>{wasm_i16x8_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15)};
 }
 
+HWY_API Vec256<int16_t> MulFixedPoint15(Vec256<int16_t>, Vec256<int16_t>) {
+  HWY_ASSERT(0);
+}
+
 // Multiplies even lanes (0, 2 ..) and returns the double-width result.
 HWY_API Vec256<int64_t> MulEven(const Vec256<int32_t> a,
                                 const Vec256<int32_t> b) {
