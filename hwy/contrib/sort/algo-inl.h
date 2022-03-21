@@ -310,7 +310,7 @@ struct ThreadLocal {
 struct SharedState {
 #if HAVE_PARALLEL_IPS4O
   ips4o::StdThreadPool pool{
-      HWY_MIN(16, static_cast<int>(std::thread::hardware_concurrency() / 2))};
+      static_cast<int>(std::thread::hardware_concurrency() / 2)};
 #endif
   std::vector<ThreadLocal> tls{1};
 };
@@ -340,9 +340,11 @@ void Run(Algo algo, T* HWY_RESTRICT inout, size_t num, SharedState& shared,
 #if HAVE_PARALLEL_IPS4O
     case Algo::kParallelIPS4O:
       if (Order().IsAscending()) {
-        return ips4o::parallel::sort(inout, inout + num, std::less<T>());
+        return ips4o::parallel::sort(inout, inout + num, std::less<T>(),
+                                     shared.pool);
       } else {
-        return ips4o::parallel::sort(inout, inout + num, std::greater<T>());
+        return ips4o::parallel::sort(inout, inout + num, std::greater<T>(),
+                                     shared.pool);
       }
 #endif
 
