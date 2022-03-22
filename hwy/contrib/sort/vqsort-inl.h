@@ -695,6 +695,16 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // PERFORMANCE WARNING: vqsort is not enabled for the non-SIMD target
   return detail::HeapSort(st, keys, num);
 #else
+#if !HWY_HAVE_SCALABLE
+  // On targets with fixed-size vectors, avoid _using_ the allocated memory.
+  // We avoid (potentially expensive for small input sizes) allocations on
+  // platforms where no targets are scalable. For 512-bit vectors, this fits on
+  // the stack (several KiB).
+  HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))] = {};
+  static_assert(sizeof(storage) <= 8192, "Unexpectedly large, check size");
+  buf = storage;
+#endif  // !HWY_HAVE_SCALABLE
+
   if (detail::HandleSpecialCases(d, st, keys, num, buf)) return;
 
 #if HWY_MAX_BYTES > 64
