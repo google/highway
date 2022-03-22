@@ -124,6 +124,9 @@ inline Ticks Start() {
   Ticks t;
 #if HWY_ARCH_PPC && defined(__GLIBC__)
   asm volatile("mfspr %0, %1" : "=r"(t) : "i"(268));
+#elif HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC
+  // pmccntr_el0 is privileged but cntvct_el0 is accessible in Linux and QEMU.
+  asm volatile("mrs %0, cntvct_el0" : "=r"(t));
 #elif HWY_ARCH_X86 && HWY_COMPILER_MSVC
   _ReadWriteBarrier();
   _mm_lfence();
@@ -167,6 +170,9 @@ inline Ticks Stop() {
   uint64_t t;
 #if HWY_ARCH_PPC && defined(__GLIBC__)
   asm volatile("mfspr %0, %1" : "=r"(t) : "i"(268));
+#elif HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC
+  // pmccntr_el0 is privileged but cntvct_el0 is accessible in Linux and QEMU.
+  asm volatile("mrs %0, cntvct_el0" : "=r"(t));
 #elif HWY_ARCH_X86 && HWY_COMPILER_MSVC
   _ReadWriteBarrier();
   unsigned aux;
@@ -337,7 +343,7 @@ inline void PreventElision(T&& output) {
 // Measures the actual current frequency of Ticks. We cannot rely on the nominal
 // frequency encoded in x86 BrandString because it is misleading on M1 Rosetta,
 // and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
-// used on RISC-V.
+// used on RISC-V and ARM64.
 double MeasureNominalClockRate() {
   double max_ticks_per_sec = 0.0;
   // Arbitrary, enough to ignore 2 outliers without excessive init time.
@@ -420,7 +426,7 @@ std::string BrandString() {
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__)
   return double(__ppc_get_timebase_freq());
-#elif HWY_ARCH_X86 || HWY_ARCH_RVV
+#elif HWY_ARCH_X86 || HWY_ARCH_RVV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
   static const double freq = MeasureNominalClockRate();
   return freq;
@@ -434,7 +440,6 @@ HWY_DLLEXPORT double InvariantTicksPerSecond() {
   (void)mach_timebase_info(&timebase);
   return double(timebase.denom) / timebase.numer * 1E9;
 #else
-  // TODO(janwas): ARM? Unclear how to reliably query cntvct_el0 frequency.
   return 1E9;  // Haiku and clock_gettime return nanoseconds.
 #endif
 }
