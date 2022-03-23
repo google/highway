@@ -273,11 +273,32 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
   const size_t N = Lanes(d);
 
   const auto comp = st.Compare(d, pivot, v);
+
+#if HWY_COMPRESS_PARTITION
+  // Non-native Compress (e.g. AVX2): we are able to partition a vector using
+  // a single Compress+two StoreU instead of two Compress[Blended]Store. The
+  // latter are more expensive. Because we store entire vectors, the contents
+  // between the updated writeL and writeR are ignored and will be overwritten
+  // by subsequent calls. This works because writeL and writeR are at least
+  // two vectors apart.
+  const auto mask = Not(comp);  // TODO(janwas): add NotCompare instead
+  const auto lr = Compress(v, mask);
+  const size_t num_left = CountTrue(d, mask);
+  StoreU(lr, d, keys + writeL);
+  writeL += num_left;
+  // Now write the right-side elements (if any), such that the previous writeR
+  // is one past the end of the newly written right elements, then advance.
+  StoreU(lr, d, keys + writeR - N);
+  writeR -= (N - num_left);
+#else
+  // Native Compress[Store] (e.g. AVX3), which only keep the left or right side,
+  // not both, hence we require two calls.
   const size_t num_left = CompressStore(v, Not(comp), d, keys + writeL);
   writeL += num_left;
 
   writeR -= (N - num_left);
   (void)CompressBlendedStore(v, comp, d, keys + writeR);
+#endif  // HWY_COMPRESS_PARTITION
 }
 
 template <class D, class Traits, typename T>
