@@ -273,7 +273,7 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
   const size_t N = Lanes(d);
 
   const auto comp = st.Compare(d, pivot, v);
-  const size_t num_left = CompressBlendedStore(v, Not(comp), d, keys + writeL);
+  const size_t num_left = CompressStore(v, Not(comp), d, keys + writeL);
   writeL += num_left;
 
   writeR -= (N - num_left);
