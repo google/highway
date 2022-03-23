@@ -552,6 +552,11 @@ false is zero, true has all bits set:
 
 #### Compress
 
+For targets where `HWY_COMPRESS_PARTITION` is 1, the following except
+`CompressBlendedStore` also append all lanes (in ascending index order) whose
+mask is false, after the lanes whose mask is true. This corresponds to
+partitioning according to the mask.
+
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.

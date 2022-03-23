@@ -4490,49 +4490,49 @@ HWY_INLINE Indices256<uint32_t> IndicesFromBits(Full256<T> d,
   // and unavailable in 32-bit builds. We instead compress each index into 4
   // bits, for a total of 1 KiB.
   alignas(16) constexpr uint32_t packed_array[256] = {
-      0x00000000, 0x00000000, 0x00000001, 0x00000010, 0x00000002, 0x00000020,
-      0x00000021, 0x00000210, 0x00000003, 0x00000030, 0x00000031, 0x00000310,
-      0x00000032, 0x00000320, 0x00000321, 0x00003210, 0x00000004, 0x00000040,
-      0x00000041, 0x00000410, 0x00000042, 0x00000420, 0x00000421, 0x00004210,
-      0x00000043, 0x00000430, 0x00000431, 0x00004310, 0x00000432, 0x00004320,
-      0x00004321, 0x00043210, 0x00000005, 0x00000050, 0x00000051, 0x00000510,
-      0x00000052, 0x00000520, 0x00000521, 0x00005210, 0x00000053, 0x00000530,
-      0x00000531, 0x00005310, 0x00000532, 0x00005320, 0x00005321, 0x00053210,
-      0x00000054, 0x00000540, 0x00000541, 0x00005410, 0x00000542, 0x00005420,
-      0x00005421, 0x00054210, 0x00000543, 0x00005430, 0x00005431, 0x00054310,
-      0x00005432, 0x00054320, 0x00054321, 0x00543210, 0x00000006, 0x00000060,
-      0x00000061, 0x00000610, 0x00000062, 0x00000620, 0x00000621, 0x00006210,
-      0x00000063, 0x00000630, 0x00000631, 0x00006310, 0x00000632, 0x00006320,
-      0x00006321, 0x00063210, 0x00000064, 0x00000640, 0x00000641, 0x00006410,
-      0x00000642, 0x00006420, 0x00006421, 0x00064210, 0x00000643, 0x00006430,
-      0x00006431, 0x00064310, 0x00006432, 0x00064320, 0x00064321, 0x00643210,
-      0x00000065, 0x00000650, 0x00000651, 0x00006510, 0x00000652, 0x00006520,
-      0x00006521, 0x00065210, 0x00000653, 0x00006530, 0x00006531, 0x00065310,
-      0x00006532, 0x00065320, 0x00065321, 0x00653210, 0x00000654, 0x00006540,
-      0x00006541, 0x00065410, 0x00006542, 0x00065420, 0x00065421, 0x00654210,
-      0x00006543, 0x00065430, 0x00065431, 0x00654310, 0x00065432, 0x00654320,
-      0x00654321, 0x06543210, 0x00000007, 0x00000070, 0x00000071, 0x00000710,
-      0x00000072, 0x00000720, 0x00000721, 0x00007210, 0x00000073, 0x00000730,
-      0x00000731, 0x00007310, 0x00000732, 0x00007320, 0x00007321, 0x00073210,
-      0x00000074, 0x00000740, 0x00000741, 0x00007410, 0x00000742, 0x00007420,
-      0x00007421, 0x00074210, 0x00000743, 0x00007430, 0x00007431, 0x00074310,
-      0x00007432, 0x00074320, 0x00074321, 0x00743210, 0x00000075, 0x00000750,
-      0x00000751, 0x00007510, 0x00000752, 0x00007520, 0x00007521, 0x00075210,
-      0x00000753, 0x00007530, 0x00007531, 0x00075310, 0x00007532, 0x00075320,
-      0x00075321, 0x00753210, 0x00000754, 0x00007540, 0x00007541, 0x00075410,
-      0x00007542, 0x00075420, 0x00075421, 0x00754210, 0x00007543, 0x00075430,
-      0x00075431, 0x00754310, 0x00075432, 0x00754320, 0x00754321, 0x07543210,
-      0x00000076, 0x00000760, 0x00000761, 0x00007610, 0x00000762, 0x00007620,
-      0x00007621, 0x00076210, 0x00000763, 0x00007630, 0x00007631, 0x00076310,
-      0x00007632, 0x00076320, 0x00076321, 0x00763210, 0x00000764, 0x00007640,
-      0x00007641, 0x00076410, 0x00007642, 0x00076420, 0x00076421, 0x00764210,
-      0x00007643, 0x00076430, 0x00076431, 0x00764310, 0x00076432, 0x00764320,
-      0x00764321, 0x07643210, 0x00000765, 0x00007650, 0x00007651, 0x00076510,
-      0x00007652, 0x00076520, 0x00076521, 0x00765210, 0x00007653, 0x00076530,
-      0x00076531, 0x00765310, 0x00076532, 0x00765320, 0x00765321, 0x07653210,
-      0x00007654, 0x00076540, 0x00076541, 0x00765410, 0x00076542, 0x00765420,
-      0x00765421, 0x07654210, 0x00076543, 0x00765430, 0x00765431, 0x07654310,
-      0x00765432, 0x07654320, 0x07654321, 0x76543210};
+      0x76543210, 0x76543210, 0x76543201, 0x76543210, 0x76543102, 0x76543120,
+      0x76543021, 0x76543210, 0x76542103, 0x76542130, 0x76542031, 0x76542310,
+      0x76541032, 0x76541320, 0x76540321, 0x76543210, 0x76532104, 0x76532140,
+      0x76532041, 0x76532410, 0x76531042, 0x76531420, 0x76530421, 0x76534210,
+      0x76521043, 0x76521430, 0x76520431, 0x76524310, 0x76510432, 0x76514320,
+      0x76504321, 0x76543210, 0x76432105, 0x76432150, 0x76432051, 0x76432510,
+      0x76431052, 0x76431520, 0x76430521, 0x76435210, 0x76421053, 0x76421530,
+      0x76420531, 0x76425310, 0x76410532, 0x76415320, 0x76405321, 0x76453210,
+      0x76321054, 0x76321540, 0x76320541, 0x76325410, 0x76310542, 0x76315420,
+      0x76305421, 0x76354210, 0x76210543, 0x76215430, 0x76205431, 0x76254310,
+      0x76105432, 0x76154320, 0x76054321, 0x76543210, 0x75432106, 0x75432160,
+      0x75432061, 0x75432610, 0x75431062, 0x75431620, 0x75430621, 0x75436210,
+      0x75421063, 0x75421630, 0x75420631, 0x75426310, 0x75410632, 0x75416320,
+      0x75406321, 0x75463210, 0x75321064, 0x75321640, 0x75320641, 0x75326410,
+      0x75310642, 0x75316420, 0x75306421, 0x75364210, 0x75210643, 0x75216430,
+      0x75206431, 0x75264310, 0x75106432, 0x75164320, 0x75064321, 0x75643210,
+      0x74321065, 0x74321650, 0x74320651, 0x74326510, 0x74310652, 0x74316520,
+      0x74306521, 0x74365210, 0x74210653, 0x74216530, 0x74206531, 0x74265310,
+      0x74106532, 0x74165320, 0x74065321, 0x74653210, 0x73210654, 0x73216540,
+      0x73206541, 0x73265410, 0x73106542, 0x73165420, 0x73065421, 0x73654210,
+      0x72106543, 0x72165430, 0x72065431, 0x72654310, 0x71065432, 0x71654320,
+      0x70654321, 0x76543210, 0x65432107, 0x65432170, 0x65432071, 0x65432710,
+      0x65431072, 0x65431720, 0x65430721, 0x65437210, 0x65421073, 0x65421730,
+      0x65420731, 0x65427310, 0x65410732, 0x65417320, 0x65407321, 0x65473210,
+      0x65321074, 0x65321740, 0x65320741, 0x65327410, 0x65310742, 0x65317420,
+      0x65307421, 0x65374210, 0x65210743, 0x65217430, 0x65207431, 0x65274310,
+      0x65107432, 0x65174320, 0x65074321, 0x65743210, 0x64321075, 0x64321750,
+      0x64320751, 0x64327510, 0x64310752, 0x64317520, 0x64307521, 0x64375210,
+      0x64210753, 0x64217530, 0x64207531, 0x64275310, 0x64107532, 0x64175320,
+      0x64075321, 0x64753210, 0x63210754, 0x63217540, 0x63207541, 0x63275410,
+      0x63107542, 0x63175420, 0x63075421, 0x63754210, 0x62107543, 0x62175430,
+      0x62075431, 0x62754310, 0x61075432, 0x61754320, 0x60754321, 0x67543210,
+      0x54321076, 0x54321760, 0x54320761, 0x54327610, 0x54310762, 0x54317620,
+      0x54307621, 0x54376210, 0x54210763, 0x54217630, 0x54207631, 0x54276310,
+      0x54107632, 0x54176320, 0x54076321, 0x54763210, 0x53210764, 0x53217640,
+      0x53207641, 0x53276410, 0x53107642, 0x53176420, 0x53076421, 0x53764210,
+      0x52107643, 0x52176430, 0x52076431, 0x52764310, 0x51076432, 0x51764320,
+      0x50764321, 0x57643210, 0x43210765, 0x43217650, 0x43207651, 0x43276510,
+      0x43107652, 0x43176520, 0x43076521, 0x43765210, 0x42107653, 0x42176530,
+      0x42076531, 0x42765310, 0x41076532, 0x41765320, 0x40765321, 0x47653210,
+      0x32107654, 0x32176540, 0x32076541, 0x32765410, 0x31076542, 0x31765420,
+      0x30765421, 0x37654210, 0x21076543, 0x21765430, 0x20765431, 0x27654310,
+      0x10765432, 0x17654320, 0x07654321, 0x76543210};
 
   // No need to mask because _mm256_permutevar8x32_epi32 ignores bits 3..31.
   // Just shift each copy of the 32 bit LUT to extract its 4-bit fields.
@@ -4552,13 +4552,13 @@ HWY_INLINE Indices256<uint32_t> IndicesFromBits(Full256<T> d,
   // permutevar, but there are only 4 lanes, so we can afford to skip the
   // unpacking and load the entire index vector directly.
   alignas(32) constexpr uint32_t packed_array[128] = {
-      0, 1, 0, 1, 0, 1, 0, 1, /**/ 0, 1, 0, 1, 0, 1, 0, 1,  //
-      2, 3, 0, 1, 0, 1, 0, 1, /**/ 0, 1, 2, 3, 0, 1, 0, 1,  //
-      4, 5, 0, 1, 0, 1, 0, 1, /**/ 0, 1, 4, 5, 0, 1, 0, 1,  //
-      2, 3, 4, 5, 0, 1, 0, 1, /**/ 0, 1, 2, 3, 4, 5, 0, 1,  //
-      6, 7, 0, 1, 0, 1, 0, 1, /**/ 0, 1, 6, 7, 0, 1, 0, 1,  //
-      2, 3, 6, 7, 0, 1, 0, 1, /**/ 0, 1, 2, 3, 6, 7, 0, 1,  //
-      4, 5, 6, 7, 0, 1, 0, 1, /**/ 0, 1, 4, 5, 6, 7, 0, 1,
+      0, 1, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7, /**/
+      2, 3, 0, 1, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7, /**/
+      4, 5, 0, 1, 2, 3, 6, 7, /**/ 0, 1, 4, 5, 2, 3, 6, 7, /**/
+      2, 3, 4, 5, 0, 1, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7, /**/
+      6, 7, 0, 1, 2, 3, 4, 5, /**/ 0, 1, 6, 7, 2, 3, 4, 5, /**/
+      2, 3, 6, 7, 0, 1, 4, 5, /**/ 0, 1, 2, 3, 6, 7, 4, 5, /**/
+      4, 5, 6, 7, 0, 1, 2, 3, /**/ 0, 1, 4, 5, 6, 7, 2, 3, /**/
       2, 3, 4, 5, 6, 7, 0, 1, /**/ 0, 1, 2, 3, 4, 5, 6, 7};
   return Indices256<uint32_t>{Load(d32, packed_array + 8 * mask_bits).raw};
 }
@@ -4573,53 +4573,43 @@ HWY_INLINE Vec256<T> Compress(Vec256<T> v, const uint64_t mask_bits) {
   return BitCast(d, TableLookupLanes(BitCast(du32, v), indices));
 }
 
-// LUTs are infeasible for 2^16 possible masks. Promoting to 32-bit and using
-// the native Compress is probably more efficient than 2 LUTs.
+// LUTs are infeasible for 2^16 possible masks, so splice together two
+// half-vector Compress.
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_INLINE Vec256<T> Compress(Vec256<T> v, const uint64_t mask_bits) {
-  using D = Full256<T>;
-  const Rebind<uint16_t, D> du;
-  const Repartition<int32_t, D> dw;
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du;
   const auto vu16 = BitCast(du, v);  // (required for float16_t inputs)
-  const auto promoted0 = PromoteTo(dw, LowerHalf(vu16));
-  const auto promoted1 = PromoteTo(dw, UpperHalf(Half<decltype(du)>(), vu16));
+  const Half<decltype(du)> duh;
+  const auto half0 = LowerHalf(duh, vu16);
+  const auto half1 = UpperHalf(duh, vu16);
 
   const uint64_t mask_bits0 = mask_bits & 0xFF;
   const uint64_t mask_bits1 = mask_bits >> 8;
-  const auto compressed0 = Compress(promoted0, mask_bits0);
-  const auto compressed1 = Compress(promoted1, mask_bits1);
+  const auto compressed0 = detail::CompressBits(half0, mask_bits0);
+  const auto compressed1 = detail::CompressBits(half1, mask_bits1);
 
-  const Half<decltype(du)> dh;
-  const auto demoted0 = ZeroExtendVector(du, DemoteTo(dh, compressed0));
-  const auto demoted1 = ZeroExtendVector(du, DemoteTo(dh, compressed1));
+  alignas(32) uint16_t all_true[16] = {};
+  // Store mask=true lanes, left to right.
+  const size_t num_true0 = PopCount(mask_bits0);
+  Store(compressed0, duh, all_true);
+  StoreU(compressed1, duh, all_true + num_true0);
 
-  const size_t count0 = PopCount(mask_bits0);
-  // Now combine by shifting demoted1 up. AVX2 lacks VPERMW, so start with
-  // VPERMD for shifting at 4 byte granularity.
-  alignas(32) constexpr int32_t iota4[16] = {0, 0, 0, 0, 0, 0, 0, 0,
-                                             0, 1, 2, 3, 4, 5, 6, 7};
-  const auto indices = SetTableIndices(dw, iota4 + 8 - count0 / 2);
-  const auto shift1_multiple4 =
-      BitCast(du, TableLookupLanes(BitCast(dw, demoted1), indices));
+#if HWY_COMPRESS_PARTITION
+  // Store mask=false lanes, right to left. The second vector fills the upper
+  // half with right-aligned false lanes. The first vector is shifted rightwards
+  // to overwrite the true lanes of the second.
+  alignas(32) uint16_t all_false[16] = {};
+  const size_t num_true1 = PopCount(mask_bits1);
+  Store(compressed1, duh, all_false + 8);
+  StoreU(compressed0, duh, all_false + num_true1);
 
-  // Whole-register unconditional shift by 2 bytes.
-  // TODO(janwas): slow on AMD, use 2 shifts + permq + OR instead?
-  const __m256i lo_zz = _mm256_permute2x128_si256(shift1_multiple4.raw,
-                                                  shift1_multiple4.raw, 0x08);
-  const auto shift1_multiple2 =
-      Vec256<uint16_t>{_mm256_alignr_epi8(shift1_multiple4.raw, lo_zz, 14)};
-
-  // Make the shift conditional on the lower bit of count0.
-  const auto m_odd =
-      TestBit(Set(du, static_cast<uint16_t>(count0)), Set(du, 1));
-  const auto shifted1 = IfThenElse(m_odd, shift1_multiple2, shift1_multiple4);
-
-  // Blend the lower and shifted upper parts.
-  constexpr uint16_t on = 0xFFFF;
-  alignas(32) constexpr uint16_t lower_lanes[32] = {HWY_REP4(on), HWY_REP4(on),
-                                                    HWY_REP4(on), HWY_REP4(on)};
-  const auto m_lower = MaskFromVec(LoadU(du, lower_lanes + 16 - count0));
-  return BitCast(D(), IfThenElse(m_lower, demoted0, shifted1));
+  const auto mask = FirstN(du, num_true0 + num_true1);
+  return BitCast(d, IfThenElse(mask, Load(du, all_true), Load(du, all_false)));
+#else
+  // Only care about the mask=true lanes.
+  return BitCast(d, Load(du, all_true));
+#endif
 }
 
 }  // namespace detail
