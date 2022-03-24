@@ -73,6 +73,21 @@ HWY_API Vec<D> NaN(D d) {
   return BitCast(d, Set(di, LimitsMax<TFromD<decltype(di)>>()));
 }
 
+// ------------------------------ SafeCopyN
+
+template <class D, typename T = TFromD<D>>
+HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
+                       T* HWY_RESTRICT to) {
+#if HWY_MEM_OPS_MIGHT_FAULT
+  (void)d;
+  for (size_t i = 0; i < num; ++i) {
+    to[i] = from[i];
+  }
+#else
+  BlendedStore(LoadU(d, from), FirstN(d, num), d, to);
+#endif
+}
+
 // ------------------------------ AESRound
 
 // Cannot implement on scalar: need at least 16 bytes for TableLookupBytes.

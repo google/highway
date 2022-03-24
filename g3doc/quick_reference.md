@@ -697,6 +697,13 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     p)`. "Blended" indicates this may not be atomic; other threads must not
     concurrently update `[p, p + Lanes(d))` without sychronization.
 
+*   <code>void **SafeCopyN**(size_t num, D d, const T* HWY_RESTRICT from, T*
+    HWY_RESTRICT to)</code>: Copies `from[0, num)` to `to`. If `num` exceeds
+    `Lanes(d)`, the behavior is target-dependent (either copying all, or no more
+    than one vector). Potentially more efficient than a scalar loop, but will
+    not fault, unlike `BlendedStore`. No alignment requirement. Potentially
+    non-atomic, like `BlendedStore`.
+
 *   `D`: `u8` \
     <code>void **StoreInterleaved3**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1,
     Vec&lt;D&gt; v2, D, T* p)</code>: equivalent to shuffling `v0, v1, v2`

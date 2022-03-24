@@ -83,6 +83,54 @@ HWY_NOINLINE void TestAllLoadStore() {
   ForAllTypes(ForPartialVectors<TestLoadStore>());
 }
 
+struct TestSafeCopyN {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    const auto v = Iota(d, 1);
+    auto from = AllocateAligned<T>(N + 2);
+    auto to = AllocateAligned<T>(N + 2);
+    Store(v, d, from.get());
+
+    // 0: nothing changes
+    to[0] = T();
+    SafeCopyN(0, d, from.get(), to.get());
+    HWY_ASSERT_EQ(T(), to[0]);
+
+    // 1: only first changes
+    to[1] = T();
+    SafeCopyN(1, d, from.get(), to.get());
+    HWY_ASSERT_EQ(static_cast<T>(1), to[0]);
+    HWY_ASSERT_EQ(T(), to[1]);
+
+    // N-1: last does not change
+    to[N - 1] = T();
+    SafeCopyN(N - 1, d, from.get(), to.get());
+    HWY_ASSERT_EQ(T(), to[N - 1]);
+    // Also check preceding lanes
+    to[N - 1] = static_cast<T>(N);
+    HWY_ASSERT_VEC_EQ(d, to.get(), v);
+
+    // N: all change
+    to[N] = T();
+    SafeCopyN(N, d, from.get(), to.get());
+    HWY_ASSERT_VEC_EQ(d, to.get(), v);
+    HWY_ASSERT_EQ(T(), to[N]);
+
+    // N+1: subsequent lane does not change if using masked store
+    to[N + 1] = T();
+    SafeCopyN(N + 1, d, from.get(), to.get());
+    HWY_ASSERT_VEC_EQ(d, to.get(), v);
+#if !HWY_MEM_OPS_MIGHT_FAULT
+    HWY_ASSERT_EQ(T(), to[N + 1]);
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllSafeCopyN() {
+  ForAllTypes(ForPartialVectors<TestSafeCopyN>());
+}
+
 struct TestStoreInterleaved3 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -394,6 +442,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyMemoryTest);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllSafeCopyN);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreInterleaved3);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreInterleaved4);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);

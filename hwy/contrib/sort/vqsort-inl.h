@@ -190,9 +190,8 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   for (i = 0; i + N <= num; i += N) {
     Store(LoadU(d, keys + i), d, buf + i);
   }
-  for (; i < num; ++i) {
-    buf[i] = keys[i];
-  }
+  SafeCopyN(num - i, d, keys + i, buf + i);
+  i = num;
 
   // Fill with padding - last in sort order, not copied to keys.
   const V kPadding = st.LastValue(d);
@@ -207,9 +206,7 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   for (i = 0; i + N <= num; i += N) {
     StoreU(Load(d, buf + i), d, keys + i);
   }
-  for (; i < num; ++i) {
-    keys[i] = buf[i];
-  }
+  SafeCopyN(num - i, d, buf + i, keys + i);
 }
 
 // ------------------------------ Partition
