@@ -278,7 +278,7 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
   // between the updated writeL and writeR are ignored and will be overwritten
   // by subsequent calls. This works because writeL and writeR are at least
   // two vectors apart.
-  const auto mask = Not(comp);  // TODO(janwas): add NotCompare instead
+  const auto mask = Not(comp);
   const auto lr = Compress(v, mask);
   const size_t num_left = CountTrue(d, mask);
   StoreU(lr, d, keys + writeL);
