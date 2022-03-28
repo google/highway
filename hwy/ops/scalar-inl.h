@@ -1317,6 +1317,11 @@ HWY_API intptr_t FindFirstTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
 // ------------------------------ Compress, CompressBits
 
 template <typename T>
+struct CompressIsPartition {
+  enum { value = 1 };
+};
+
+template <typename T>
 HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
   // Upper lanes are undefined, so result is the same independent of mask.
   return v;

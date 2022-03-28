@@ -2056,6 +2056,11 @@ HWY_API V ReverseBlocks(D d, V v) {
 
 // ------------------------------ Compress
 
+template <typename T>
+struct CompressIsPartition {
+  enum { value = 0 };
+};
+
 #define HWY_RVV_COMPRESS(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,     \
                          SHIFT, MLEN, NAME, OP)                               \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \

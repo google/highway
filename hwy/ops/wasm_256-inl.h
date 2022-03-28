@@ -2699,6 +2699,11 @@ HWY_INLINE Vec256<uint64_t> Compress(hwy::SizeTag<8> /*tag*/,
 }  // namespace detail
 
 template <typename T>
+struct CompressIsPartition {
+  enum { value = 1 };
+};
+
+template <typename T>
 HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   return detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits);

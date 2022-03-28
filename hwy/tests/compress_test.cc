@@ -103,21 +103,22 @@ class TestCompress {
             expected[expected_pos++] = in_lanes[i];
           }
         }
-// For non-native Compress, also check that mask=false lanes were moved
-// to the back of the vector (highest indices).
-#if HWY_COMPRESS_PARTITION
-        size_t extra = expected_pos;
-        for (size_t i = 0; i < N; ++i) {
-          if (mask_lanes[i] == 0) {
-            expected[extra++] = in_lanes[i];
+        size_t num_to_check;
+        if (CompressIsPartition<T>::value) {
+          // For non-native Compress, also check that mask=false lanes were
+          // moved to the back of the vector (highest indices).
+          size_t extra = expected_pos;
+          for (size_t i = 0; i < N; ++i) {
+            if (mask_lanes[i] == 0) {
+              expected[extra++] = in_lanes[i];
+            }
           }
+          HWY_ASSERT(extra == N);
+          num_to_check = N;
+        } else {
+          // For native Compress, only the mask=true lanes are defined.
+          num_to_check = expected_pos;
         }
-        HWY_ASSERT(extra == N);
-        const size_t num_to_check = N;
-#else
-        // For native Compress, only the mask=true lanes are defined.
-        const size_t num_to_check = expected_pos;
-#endif  // HWY_COMPRESS_PARTITION
 
         const auto in = Load(d, in_lanes.get());
         const auto mask =
@@ -133,14 +134,18 @@ class TestCompress {
         // CompressStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size1 = CompressStore(in, mask, d, actual_u);
-        CheckStored(d, di, expected_pos, size1, num_to_check, in_lanes,
+        // expected_pos instead of num_to_check because this op is not affected
+        // by CompressIsPartition.
+        CheckStored(d, di, expected_pos, size1, expected_pos, in_lanes,
                     mask_lanes, expected, actual_u, __LINE__);
 
-        // CompressBlendedStore (by definition, only check the mask=true lanes)
+        // CompressBlendedStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size2 = CompressBlendedStore(in, mask, d, actual_u);
-        CheckStored(d, di, expected_pos, size2, size2, in_lanes, mask_lanes,
-                    expected, actual_u, __LINE__);
+        // expected_pos instead of num_to_check because this op only writes the
+        // mask=true lanes.
+        CheckStored(d, di, expected_pos, size2, expected_pos, in_lanes,
+                    mask_lanes, expected, actual_u, __LINE__);
         // Subsequent lanes are untouched.
         for (size_t i = size2; i < N; ++i) {
           HWY_ASSERT_EQ(zero, actual_u[i]);
@@ -155,7 +160,9 @@ class TestCompress {
         // CompressBitsStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size3 = CompressBitsStore(in, bits.get(), d, actual_u);
-        CheckStored(d, di, expected_pos, size3, num_to_check, in_lanes,
+        // expected_pos instead of num_to_check because this op is not affected
+        // by CompressIsPartition.
+        CheckStored(d, di, expected_pos, size3, expected_pos, in_lanes,
                     mask_lanes, expected, actual_u, __LINE__);
       }  // rep
     }    // frac
@@ -246,11 +253,45 @@ void PrintCompress32x8Tables() {
     // Convert to nibbles
     uint64_t packed = 0;
     for (size_t i = 0; i < N; ++i) {
-      HWY_ASSERT(indices[i] < 16);
+      HWY_ASSERT(indices[i] < N);
       packed += indices[i] << (i * 4);
     }
 
-    HWY_ASSERT(packed < (1ull << 32));
+    HWY_ASSERT(packed < (1ull << (N * 4)));
+    printf("0x%08x,", static_cast<uint32_t>(packed));
+  }
+  printf("\n");
+}
+
+// Compressed to nibbles (for AVX3 64x4)
+void PrintCompress64x4NibbleTables() {
+  printf("======================================= 64x4Nibble\n");
+  constexpr size_t N = 4;
+  for (uint64_t code = 0; code < (1ull << N); ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Convert to nibbles
+    uint64_t packed = 0;
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT(indices[i] < N);
+      packed += indices[i] << (i * 4);
+    }
+
+    HWY_ASSERT(packed < (1ull << (N * 4)));
     printf("0x%08x,", static_cast<uint32_t>(packed));
   }
   printf("\n");
@@ -353,6 +394,7 @@ void PrintCompress64x2Tables() {
 HWY_NOINLINE void TestAllCompress() {
 #if HWY_PRINT_TABLES
   detail::PrintCompress32x8Tables();
+  detail::PrintCompress64x4NibbleTables();
   detail::PrintCompress64x4Tables();
   detail::PrintCompress32x4Tables();
   detail::PrintCompress64x2Tables();

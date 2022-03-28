@@ -4793,6 +4793,11 @@ HWY_API bool AllTrue(const Simd<T, N, 0> d, const Mask128<T, N> m) {
 
 // ------------------------------ Compress
 
+template <typename T>
+struct CompressIsPartition {
+  enum { value = 1 };
+};
+
 namespace detail {
 
 // Load 8 bytes, replicate into upper half so ZipLower can use the lower half.

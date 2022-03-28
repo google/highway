@@ -5032,6 +5032,20 @@ HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
 
 // ================================================== MISC
 
+template <typename T>
+struct CompressIsPartition {
+#if HWY_TARGET <= HWY_AVX3
+  // AVX3 supports native compress, but a table-based approach allows
+  // 'partitioning' (also moving mask=false lanes to the top), which helps
+  // vqsort. This is only feasible for eight or less lanes, i.e. sizeof(T) == 8
+  // on AVX3. For simplicity, we only use tables for 64-bit lanes (not AVX3
+  // u32x8 etc.).
+  enum { value = (sizeof(T) == 8) };
+#else
+  enum { value = 1 };
+#endif
+};
+
 #if HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ LoadMaskBits
@@ -5220,20 +5234,26 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   return Vec128<T, N>{_mm_maskz_compress_epi32(mask.raw, v.raw)};
 }
 
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  return Vec128<T, N>{_mm_maskz_compress_epi64(mask.raw, v.raw)};
-}
-
 template <size_t N>
 HWY_API Vec128<float, N> Compress(Vec128<float, N> v, Mask128<float, N> mask) {
   return Vec128<float, N>{_mm_maskz_compress_ps(mask.raw, v.raw)};
 }
 
-template <size_t N>
-HWY_API Vec128<double, N> Compress(Vec128<double, N> v,
-                                   Mask128<double, N> mask) {
-  return Vec128<double, N>{_mm_maskz_compress_pd(mask.raw, v.raw)};
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
+  HWY_DASSERT(mask.raw < 4);
+
+  // There are only 2 lanes, so we can afford to load the index vector directly.
+  alignas(16) constexpr uint8_t packed_array[64] = {
+      0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
+      0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
+      8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2,  3,  4,  5,  6,  7,
+      0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15};
+
+  const Simd<T, N, 0> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  const auto index = Load(d8, packed_array + 16 * mask.raw);
+  return BitCast(d, TableLookupBytes(BitCast(d8, v), index));
 }
 
 // ------------------------------ CompressBits (LoadMaskBits)

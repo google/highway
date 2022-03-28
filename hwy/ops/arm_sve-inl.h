@@ -1583,6 +1583,11 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
 
 // ------------------------------ Compress (PromoteTo)
 
+template <typename T>
+struct CompressIsPartition {
+  enum { value = 0 };
+};
+
 #define HWY_SVE_COMPRESS(BASE, CHAR, BITS, HALF, NAME, OP)                     \
   HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) { \
     return sv##OP##_##CHAR##BITS(mask, v);                                     \

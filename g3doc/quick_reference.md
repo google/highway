@@ -552,15 +552,13 @@ false is zero, true has all bits set:
 
 #### Compress
 
-For targets where `HWY_COMPRESS_PARTITION` is 1, the following except
-`CompressBlendedStore` also append all lanes (in ascending index order) whose
-mask is false, after the lanes whose mask is true. This corresponds to
-partitioning according to the mask.
-
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
-    Compacts lanes whose mask is true into the lower lanes; upper lanes are
+    Compacts lanes whose mask is true into the lower lanes. For targets and lane
+    type `T` where `CompressIsPartition<T>::value` is true, the upper lanes are
+    those whose mask is false (thus `Compress` corresponds to partitioning
+    according to the mask). Otherwise, the upper lanes are
     implementation-defined. Slow with 16-bit lanes. Use this form when the input
     is already a mask, e.g. returned by a comparison.
 
@@ -584,7 +582,9 @@ partitioning according to the mask.
     `bits` is as specified for `LoadMaskBits`. If called multiple times, the
     `bits` pointer passed to this function must also be marked `HWY_RESTRICT` to
     avoid repeated work. Note that if the vector has less than 8 elements,
-    incrementing `bits` will not work as intended for packed bit arrays.
+    incrementing `bits` will not work as intended for packed bit arrays. As with
+    `Compress`, `CompressIsPartition` indicates the mask=false lanes are moved
+    to the upper lanes; this op is also slow for 16-bit lanes.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>size_t **CompressBitsStore**(V v, const uint8_t* HWY_RESTRICT bits, D

@@ -4134,17 +4134,25 @@ HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> mask) {
   return Vec256<T>{_mm256_maskz_compress_epi32(mask.raw, v.raw)};
 }
 
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> mask) {
-  return Vec256<T>{_mm256_maskz_compress_epi64(mask.raw, v.raw)};
-}
-
 HWY_API Vec256<float> Compress(Vec256<float> v, Mask256<float> mask) {
   return Vec256<float>{_mm256_maskz_compress_ps(mask.raw, v.raw)};
 }
 
-HWY_API Vec256<double> Compress(Vec256<double> v, Mask256<double> mask) {
-  return Vec256<double>{_mm256_maskz_compress_pd(mask.raw, v.raw)};
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> mask) {
+  // See CompressIsPartition.
+  alignas(16) constexpr uint64_t packed_array[16] = {
+      0x3210, 0x3210, 0x3201, 0x3210, 0x3102, 0x3120, 0x3021, 0x3210,
+      0x2103, 0x2130, 0x2031, 0x2310, 0x1032, 0x1320, 0x0321, 0x3210};
+
+  // For lane i, shift the i-th 4-bit index down to bits [0, 2) -
+  // _mm256_permutexvar_epi64 will ignore the upper bits.
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du64;
+  const auto packed = Set(du64, packed_array[mask.raw]);
+  alignas(64) constexpr uint64_t shifts[4] = {0, 4, 8, 12};
+  const auto indices = Indices256<T>{(packed >> Load(du64, shifts)).raw};
+  return TableLookupLanes(v, indices);
 }
 
 // ------------------------------ CompressBits (LoadMaskBits)
@@ -4595,21 +4603,22 @@ HWY_INLINE Vec256<T> Compress(Vec256<T> v, const uint64_t mask_bits) {
   Store(compressed0, duh, all_true);
   StoreU(compressed1, duh, all_true + num_true0);
 
-#if HWY_COMPRESS_PARTITION
-  // Store mask=false lanes, right to left. The second vector fills the upper
-  // half with right-aligned false lanes. The first vector is shifted rightwards
-  // to overwrite the true lanes of the second.
-  alignas(32) uint16_t all_false[16] = {};
-  const size_t num_true1 = PopCount(mask_bits1);
-  Store(compressed1, duh, all_false + 8);
-  StoreU(compressed0, duh, all_false + num_true1);
+  if (hwy::HWY_NAMESPACE::CompressIsPartition<T>::value) {
+    // Store mask=false lanes, right to left. The second vector fills the upper
+    // half with right-aligned false lanes. The first vector is shifted
+    // rightwards to overwrite the true lanes of the second.
+    alignas(32) uint16_t all_false[16] = {};
+    const size_t num_true1 = PopCount(mask_bits1);
+    Store(compressed1, duh, all_false + 8);
+    StoreU(compressed0, duh, all_false + num_true1);
 
-  const auto mask = FirstN(du, num_true0 + num_true1);
-  return BitCast(d, IfThenElse(mask, Load(du, all_true), Load(du, all_false)));
-#else
-  // Only care about the mask=true lanes.
-  return BitCast(d, Load(du, all_true));
-#endif
+    const auto mask = FirstN(du, num_true0 + num_true1);
+    return BitCast(d,
+                   IfThenElse(mask, Load(du, all_true), Load(du, all_false)));
+  } else {
+    // Only care about the mask=true lanes.
+    return BitCast(d, Load(du, all_true));
+  }
 }
 
 }  // namespace detail
