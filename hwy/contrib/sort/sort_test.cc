@@ -55,7 +55,7 @@ namespace HWY_NAMESPACE {
 namespace {
 
 #if VQSORT_TEST_IMPL || VQSORT_TEST_SORT
-using detail::LaneTraits;
+using detail::TraitsLane;
 using detail::OrderAscending;
 using detail::OrderAscending128;
 using detail::OrderDescending;
@@ -90,7 +90,7 @@ static HWY_NOINLINE void TestMedian3() {
 }
 
 HWY_NOINLINE void TestAllMedian() {
-  TestMedian3<LaneTraits<OrderAscending> >();
+  TestMedian3<TraitsLane<OrderAscending> >();
 }
 
 template <class Traits, typename T>
@@ -235,8 +235,8 @@ HWY_NOINLINE void TestAllBaseCase() {
   return;
 #endif
 
-  TestBaseCase<LaneTraits<OrderAscending>, int32_t>();
-  TestBaseCase<LaneTraits<OrderDescending>, int64_t>();
+  TestBaseCase<TraitsLane<OrderAscending>, int32_t>();
+  TestBaseCase<TraitsLane<OrderDescending>, int64_t>();
   TestBaseCase<Traits128<OrderAscending128>, uint64_t>();
   TestBaseCase<Traits128<OrderDescending128>, uint64_t>();
 }
@@ -362,12 +362,12 @@ static HWY_NOINLINE void TestPartition() {
 }
 
 HWY_NOINLINE void TestAllPartition() {
-  TestPartition<LaneTraits<OrderAscending>, int16_t>();
-  TestPartition<LaneTraits<OrderDescending>, int32_t>();
-  TestPartition<LaneTraits<OrderAscending>, int64_t>();
-  TestPartition<LaneTraits<OrderDescending>, float>();
+  TestPartition<TraitsLane<OrderAscending>, int16_t>();
+  TestPartition<TraitsLane<OrderDescending>, int32_t>();
+  TestPartition<TraitsLane<OrderAscending>, int64_t>();
+  TestPartition<TraitsLane<OrderDescending>, float>();
 #if HWY_HAVE_FLOAT64
-  TestPartition<LaneTraits<OrderDescending>, double>();
+  TestPartition<TraitsLane<OrderDescending>, double>();
 #endif
   TestPartition<Traits128<OrderAscending128>, uint64_t>();
   TestPartition<Traits128<OrderDescending128>, uint64_t>();
@@ -537,22 +537,22 @@ void TestSort(size_t num) {
 void TestAllSort() {
   const size_t num = AdjustedReps(20 * 1000);
 
-  TestSort<LaneTraits<OrderAscending>, int16_t>(num);
-  TestSort<LaneTraits<OrderDescending>, uint16_t>(num);
+  TestSort<TraitsLane<OrderAscending>, int16_t>(num);
+  TestSort<TraitsLane<OrderDescending>, uint16_t>(num);
 
-  TestSort<LaneTraits<OrderDescending>, int32_t>(num);
-  TestSort<LaneTraits<OrderDescending>, uint32_t>(num);
+  TestSort<TraitsLane<OrderDescending>, int32_t>(num);
+  TestSort<TraitsLane<OrderDescending>, uint32_t>(num);
 
-  TestSort<LaneTraits<OrderAscending>, int64_t>(num);
-  TestSort<LaneTraits<OrderAscending>, uint64_t>(num);
+  TestSort<TraitsLane<OrderAscending>, int64_t>(num);
+  TestSort<TraitsLane<OrderAscending>, uint64_t>(num);
 
   // WARNING: for float types, SIMD comparisons will flush denormals to zero,
   // causing mismatches with scalar sorts. In this test, we avoid generating
   // denormal inputs.
-  TestSort<LaneTraits<OrderAscending>, float>(num);
+  TestSort<TraitsLane<OrderAscending>, float>(num);
 #if HWY_HAVE_FLOAT64  // protects algo-inl's GenerateRandom
   if (Sorter::HaveFloat64()) {
-    TestSort<LaneTraits<OrderDescending>, double>(num);
+    TestSort<TraitsLane<OrderDescending>, double>(num);
   }
 #endif
 

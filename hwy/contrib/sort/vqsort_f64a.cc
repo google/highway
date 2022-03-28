@@ -32,7 +32,7 @@ void SortF64Asc(double* HWY_RESTRICT keys, size_t num,
                 double* HWY_RESTRICT buf) {
 #if HWY_HAVE_FLOAT64
   SortTag<double> d;
-  detail::SharedTraits<detail::LaneTraits<detail::OrderAscending>> st;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderAscending>> st;
   Sort(d, st, keys, num, buf);
 #else
   (void)keys;

@@ -31,7 +31,7 @@ namespace HWY_NAMESPACE {
 void SortI64Desc(int64_t* HWY_RESTRICT keys, size_t num,
                  int64_t* HWY_RESTRICT buf) {
   SortTag<int64_t> d;
-  detail::SharedTraits<detail::LaneTraits<detail::OrderDescending>> st;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderDescending>> st;
   Sort(d, st, keys, num, buf);
 }
 

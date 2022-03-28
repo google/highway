@@ -319,7 +319,7 @@ template <class Order, typename T>
 void Run(Algo algo, T* HWY_RESTRICT inout, size_t num, SharedState& shared,
          size_t thread) {
   using detail::HeapSort;
-  using detail::LaneTraits;
+  using detail::TraitsLane;
   using detail::SharedTraits;
 
   switch (algo) {
@@ -378,10 +378,10 @@ void Run(Algo algo, T* HWY_RESTRICT inout, size_t num, SharedState& shared,
     case Algo::kHeap:
       HWY_ASSERT(sizeof(T) < 16);
       if (Order().IsAscending()) {
-        const SharedTraits<LaneTraits<detail::OrderAscending>> st;
+        const SharedTraits<TraitsLane<detail::OrderAscending>> st;
         return HeapSort(st, inout, num);
       } else {
-        const SharedTraits<LaneTraits<detail::OrderDescending>> st;
+        const SharedTraits<TraitsLane<detail::OrderDescending>> st;
         return HeapSort(st, inout, num);
       }
 

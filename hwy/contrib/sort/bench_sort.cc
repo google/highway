@@ -38,7 +38,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
-using detail::LaneTraits;
+using detail::TraitsLane;
 using detail::OrderAscending;
 using detail::OrderDescending;
 using detail::SharedTraits;
@@ -90,8 +90,8 @@ HWY_NOINLINE void BenchAllPartition() {
     return;
   }
 
-  BenchPartition<LaneTraits<OrderDescending>, float>();
-  BenchPartition<LaneTraits<OrderAscending>, int64_t>();
+  BenchPartition<TraitsLane<OrderDescending>, float>();
+  BenchPartition<TraitsLane<OrderAscending>, int64_t>();
   BenchPartition<Traits128<OrderDescending128>, uint64_t>();
 }
 
@@ -140,8 +140,8 @@ HWY_NOINLINE void BenchAllBase() {
   }
 
   std::vector<Result> results;
-  BenchBase<LaneTraits<OrderAscending>, float>(results);
-  BenchBase<LaneTraits<OrderDescending>, int64_t>(results);
+  BenchBase<TraitsLane<OrderAscending>, float>(results);
+  BenchBase<TraitsLane<OrderDescending>, int64_t>(results);
   BenchBase<Traits128<OrderAscending128>, uint64_t>(results);
   for (const Result& r : results) {
     r.Print();
@@ -214,14 +214,14 @@ HWY_NOINLINE void BenchAllSort() {
          AdjustedReps(1 * M),
 #endif
        }) {
-    // BenchSort<LaneTraits<OrderAscending>, float>(num);
-    // BenchSort<LaneTraits<OrderDescending>, double>(num);
-    // BenchSort<LaneTraits<OrderAscending>, int16_t>(num);
-    BenchSort<LaneTraits<OrderDescending>, int32_t>(num);
-    BenchSort<LaneTraits<OrderAscending>, int64_t>(num);
-    // BenchSort<LaneTraits<OrderDescending>, uint16_t>(num);
-    // BenchSort<LaneTraits<OrderDescending>, uint32_t>(num);
-    // BenchSort<LaneTraits<OrderAscending>, uint64_t>(num);
+    // BenchSort<TraitsLane<OrderAscending>, float>(num);
+    // BenchSort<TraitsLane<OrderDescending>, double>(num);
+    // BenchSort<TraitsLane<OrderAscending>, int16_t>(num);
+    BenchSort<TraitsLane<OrderDescending>, int32_t>(num);
+    BenchSort<TraitsLane<OrderAscending>, int64_t>(num);
+    // BenchSort<TraitsLane<OrderDescending>, uint16_t>(num);
+    // BenchSort<TraitsLane<OrderDescending>, uint32_t>(num);
+    // BenchSort<TraitsLane<OrderAscending>, uint64_t>(num);
 
     BenchSort<Traits128<OrderAscending128>, uint64_t>(num);
     // BenchSort<Traits128<OrderAscending128>, uint64_t>(num);

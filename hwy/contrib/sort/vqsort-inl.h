@@ -702,8 +702,8 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 // sampling only from the first 256 GiB.
 //
 // `d` is typically SortTag<T> (chooses between full and partial vectors).
-// `st` is SharedTraits<{LaneTraits|Traits128}<Order*>>. This abstraction layer
-//   bridges differences in sort order and single-lane vs 128-bit keys.
+// `st` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
+//   differences in sort order and single-lane vs 128-bit keys.
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {

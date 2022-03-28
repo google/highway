@@ -31,7 +31,7 @@ namespace HWY_NAMESPACE {
 void SortU32Asc(uint32_t* HWY_RESTRICT keys, size_t num,
                 uint32_t* HWY_RESTRICT buf) {
   SortTag<uint32_t> d;
-  detail::SharedTraits<detail::LaneTraits<detail::OrderAscending>> st;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderAscending>> st;
   Sort(d, st, keys, num, buf);
 }
 

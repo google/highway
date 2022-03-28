@@ -590,8 +590,8 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
 // Reshapes `buf` into a matrix, sorts columns independently, and then merges
 // into a sorted 1D array without transposing.
 //
-// `st` is SharedTraits<LaneTraits/Traits128<Order*>>. This abstraction layer
-//   bridges differences in sort order and single-lane vs 128-bit keys.
+// `st` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
+//   differences in sort order and single-lane vs 128-bit keys.
 // `buf` ensures full vectors are aligned, and enables loads/stores without
 //   bounds checks.
 //

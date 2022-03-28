@@ -189,7 +189,7 @@ void BenchParallel() {
   const size_t NT = pool.NumThreads();
 
   using T = int64_t;
-  detail::SharedTraits<detail::LaneTraits<detail::OrderAscending>> st;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderAscending>> st;
 
   size_t num = 100 * 1000 * 1000;
 

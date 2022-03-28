@@ -34,7 +34,7 @@ namespace HWY_NAMESPACE {
 void SortU16Desc(uint16_t* HWY_RESTRICT keys, size_t num,
                  uint16_t* HWY_RESTRICT buf) {
   SortTag<uint16_t> d;
-  detail::SharedTraits<detail::LaneTraits<detail::OrderDescending>> st;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderDescending>> st;
   Sort(d, st, keys, num, buf);
 }
 
