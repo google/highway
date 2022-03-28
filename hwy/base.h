@@ -21,11 +21,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <atomic>
 #include <cfloat>
 
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
+
+#if HWY_ARCH_X86
+#include <atomic>
+#endif
 
 //------------------------------------------------------------------------------
 // Compiler-specific definitions
