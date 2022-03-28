@@ -177,6 +177,47 @@ auto v = Mul4(Set(d2, 2));
 Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
 ```
 
+## Targets
+
+Let `Target` denote an instruction set, one of
+`SCALAR/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/NEON/SVE/SVE2/WASM/RVV`. Each of these is
+represented by a `HWY_Target` (for example, `HWY_SSE4`) macro which expands to a
+unique power-of-two value.
+
+Note that x86 CPUs are segmented into dozens of feature flags and capabilities,
+which are often used together because they were introduced in the same CPU
+(example: AVX2 and FMA). To keep the number of targets and thus compile time and
+code size manageable, we define targets as 'clusters' of related features. To
+use `HWY_AVX2`, it is therefore insufficient to pass -mavx2. For definitions of
+the clusters, see `kGroup*` in `targets.cc`. The corresponding Clang/GCC
+compiler options to enable them (without -m prefix) are defined by
+`HWY_TARGET_STR*` in `set_macros-inl.h`.
+
+Targets are only used if enabled (i.e. not broken nor disabled). Baseline
+targets are those for which the compiler is unconditionally allowed to generate
+instructions (implying the target CPU must support them).
+
+*   `HWY_STATIC_TARGET` is the best enabled baseline `HWY_Target`, and matches
+    `HWY_TARGET` in static dispatch mode. This is useful even in dynamic
+    dispatch mode for deducing and printing the compiler flags.
+
+*   `HWY_TARGETS` indicates which targets to generate for dynamic dispatch, and
+    which headers to include. It is determined by configuration macros and
+    always includes `HWY_STATIC_TARGET`.
+
+*   `HWY_SUPPORTED_TARGETS` is the set of targets available at runtime. Expands
+    to a literal if only a single target is enabled, or SupportedTargets().
+
+*   `HWY_TARGET`: which `HWY_Target` is currently being compiled. This is
+    initially identical to `HWY_STATIC_TARGET` and remains so in static dispatch
+    mode. For dynamic dispatch, this changes before each re-inclusion and
+    finally reverts to `HWY_STATIC_TARGET`. Can be used in `#if` expressions to
+    provide an alternative to functions which are not supported by `HWY_SCALAR`.
+
+*   `HWY_WANT_AVX3_DL`: additional opt-in for `HWY_AVX3`, which is disabled
+    unless this is defined by the app before including highway.h, OR all AVX3_DL
+    compiler flags are specified.
+
 ## Operations
 
 In the following, the argument or return type `V` denotes a vector with `N`
@@ -1102,35 +1143,6 @@ than normal SIMD operations and are typically used outside critical loops.
     used outside `HWY_NAMESPACE`.
 
 ## Advanced macros
-
-Let `Target` denote an instruction set:
-`SCALAR/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/PPC8/NEON/WASM/RVV`. Targets are only used
-if enabled (i.e. not broken nor disabled). Baseline means the compiler is
-allowed to generate such instructions (implying the target CPU would have to
-support them).
-
-*   `HWY_Target=##` are powers of two uniquely identifying `Target`.
-
-*   `HWY_STATIC_TARGET` is the best enabled baseline `HWY_Target`, and matches
-    `HWY_TARGET` in static dispatch mode. This is useful even in dynamic
-    dispatch mode for deducing and printing the compiler flags.
-
-*   `HWY_TARGETS` indicates which targets to generate for dynamic dispatch, and
-    which headers to include. It is determined by configuration macros and
-    always includes `HWY_STATIC_TARGET`.
-
-*   `HWY_SUPPORTED_TARGETS` is the set of targets available at runtime. Expands
-    to a literal if only a single target is enabled, or SupportedTargets().
-
-*   `HWY_TARGET`: which `HWY_Target` is currently being compiled. This is
-    initially identical to `HWY_STATIC_TARGET` and remains so in static dispatch
-    mode. For dynamic dispatch, this changes before each re-inclusion and
-    finally reverts to `HWY_STATIC_TARGET`. Can be used in `#if` expressions to
-    provide an alternative to functions which are not supported by HWY_SCALAR.
-
-*   `HWY_WANT_AVX3_DL`: additional opt-in for HWY_AVX3, which is disabled unless
-    this is defined by the app before including highway.h, OR all AVX3_DL
-    compiler flags are specified.
 
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
