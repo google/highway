@@ -36,8 +36,10 @@ The public headers are:
 *   hwy/nanobenchmark.h: library for precisely measuring elapsed time (under
     varying inputs) for benchmarking small/medium regions of code.
 
+*   hwy/print-inl.h: defines Print() for writing vector lanes to stderr.
+
 *   hwy/tests/test_util-inl.h: defines macros for invoking tests on all
-    available targets, plus per-target functions useful in tests (e.g. Print).
+    available targets, plus per-target functions useful in tests.
 
 SIMD implementations must be preceded and followed by the following:
 
@@ -263,7 +265,8 @@ wishes to run on all targets until that is resolved can use functions such as
 *   <code>V **Print**(D, const char* caption, V [, size_t lane][, size_t
     max_lanes])</code>: prints `caption` followed by up to `max_lanes`
     comma-separated lanes from the vector argument, starting at index `lane`.
-    Defined in test_util-inl.h.
+    Defined in hwy/print-inl.h, also available if hwy/tests/test_util-inl.h has
+    been included.
 
 ### Arithmetic
 

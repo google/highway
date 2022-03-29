@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "hwy/base.h"
+#include "hwy/print-inl.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util.h"
 
@@ -34,41 +35,6 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-
-template <typename T, HWY_IF_LANE_SIZE(T, 1)>
-HWY_NOINLINE void PrintValue(T value) {
-  uint8_t byte;
-  CopyBytes<1>(&value, &byte);  // endian-safe: we ensured sizeof(T)=1.
-  fprintf(stderr, "0x%02X,", byte);
-}
-
-#if HWY_HAVE_FLOAT16
-HWY_NOINLINE void PrintValue(float16_t value) {
-  uint16_t bits;
-  CopyBytes<2>(&value, &bits);
-  fprintf(stderr, "0x%02X,", bits);
-}
-#endif
-
-
-
-template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
-HWY_NOINLINE void PrintValue(T value) {
-  fprintf(stderr, "%g,", double(value));
-}
-
-// Prints lanes around `lane`, in memory order.
-template <class D, class V = Vec<D>>
-void Print(const D d, const char* caption, VecArg<V> v, size_t lane_u = 0,
-           size_t max_lanes = 7) {
-  using T = TFromD<D>;
-  const size_t N = Lanes(d);
-  auto lanes = AllocateAligned<T>(N);
-  Store(v, d, lanes.get());
-
-  const auto info = hwy::detail::MakeTypeInfo<T>();
-  hwy::detail::PrintArray(info, caption, lanes.get(), N, lane_u, max_lanes);
-}
 
 // Compare expected vector to vector.
 // HWY_INLINE works around a Clang SVE compiler bug where all but the first

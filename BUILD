@@ -136,6 +136,7 @@ cc_library(
         # End of list
         "hwy/highway.h",  # public
         "hwy/foreach_target.h",  # public
+        "hwy/print-inl.h",  # public
         "hwy/ops/arm_neon-inl.h",
         "hwy/ops/arm_sve-inl.h",
         "hwy/ops/generic_ops-inl.h",
