@@ -22,6 +22,7 @@
 #include <cmath>
 
 #include "hwy/base.h"
+#include "hwy/print.h"
 
 namespace hwy {
 
@@ -74,83 +75,6 @@ bool IsEqual(const TypeInfo& info, const void* expected_ptr,
               static_cast<uint64_t>(info.sizeof_t));
     return false;
   }
-}
-
-void TypeName(const TypeInfo& info, size_t N, char* string100) {
-  const char prefix = info.is_float ? 'f' : (info.is_signed ? 'i' : 'u');
-  // Omit the xN suffix for scalars.
-  if (N == 1) {
-    snprintf(string100, 64, "%c%" PRIu64, prefix,
-             static_cast<uint64_t>(info.sizeof_t * 8));
-  } else {
-    snprintf(string100, 64, "%c%" PRIu64 "x%" PRIu64, prefix,
-             static_cast<uint64_t>(info.sizeof_t * 8),
-             static_cast<uint64_t>(N));
-  }
-}
-
-void ToString(const TypeInfo& info, const void* ptr, char* string100) {
-  if (info.sizeof_t == 1) {
-    uint8_t byte;
-    CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
-    snprintf(string100, 100, "0x%02X", byte);
-  } else if (info.sizeof_t == 2) {
-    uint16_t bits;
-    CopyBytes<2>(ptr, &bits);
-    snprintf(string100, 100, "0x%04X", bits);
-  } else if (info.sizeof_t == 4) {
-    if (info.is_float) {
-      float value;
-      CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%g", double(value));
-    } else if (info.is_signed) {
-      int32_t value;
-      CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%d", value);
-    } else {
-      uint32_t value;
-      CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%u", value);
-    }
-  } else {
-    HWY_ASSERT(info.sizeof_t == 8);
-    if (info.is_float) {
-      double value;
-      CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%g", value);
-    } else if (info.is_signed) {
-      int64_t value;
-      CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%" PRIi64 "", value);
-    } else {
-      uint64_t value;
-      CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%" PRIu64 "", value);
-    }
-  }
-}
-
-void PrintArray(const TypeInfo& info, const char* caption,
-                const void* array_void, size_t N, size_t lane_u,
-                size_t max_lanes) {
-  const uint8_t* array_bytes = reinterpret_cast<const uint8_t*>(array_void);
-
-  char type_name[100];
-  TypeName(info, N, type_name);
-
-  const intptr_t lane = intptr_t(lane_u);
-  const size_t begin = static_cast<size_t>(HWY_MAX(0, lane - 2));
-  const size_t end = HWY_MIN(begin + max_lanes, N);
-  fprintf(stderr, "%s %s [%" PRIu64 "+ ->]:\n  ", type_name, caption,
-          static_cast<uint64_t>(begin));
-  for (size_t i = begin; i < end; ++i) {
-    const void* ptr = array_bytes + i * info.sizeof_t;
-    char str[100];
-    ToString(info, ptr, str);
-    fprintf(stderr, "%s,", str);
-  }
-  if (begin >= end) fprintf(stderr, "(out of bounds)");
-  fprintf(stderr, "\n");
 }
 
 HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,

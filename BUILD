@@ -117,6 +117,7 @@ cc_library(
     name = "hwy",
     srcs = [
         "hwy/aligned_allocator.cc",
+        "hwy/print.cc",
         "hwy/targets.cc",
     ],
     # Normal headers with include guards
@@ -126,6 +127,7 @@ cc_library(
         "hwy/cache_control.h",
         "hwy/detect_compiler_arch.h",  # private
         "hwy/highway_export.h",
+        "hwy/print.h",
     ],
     compatible_with = [],
     copts = COPTS,
