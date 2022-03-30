@@ -2242,11 +2242,23 @@ HWY_API void BlendedStore(Vec256<double> v, Mask256<double> m,
 //
 // Caveat: these are slow on AMD Jaguar/Bulldozer.
 
-// There is no maskstore_epi8/16, so blend instead.
 template <typename T, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
 HWY_API void BlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                           T* HWY_RESTRICT p) {
-  StoreU(IfThenElse(m, v, LoadU(d, p)), d, p);
+  // There is no maskload_epi8/16. Blending is also unsafe because loading a
+  // full vector that crosses the array end causes asan faults. Resort to scalar
+  // code; the caller should instead use memcpy, assuming m is FirstN(d, n).
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  alignas(32) TU buf[32 / sizeof(T)];
+  alignas(32) TU mask[32 / sizeof(T)];
+  Store(BitCast(du, v), du, buf);
+  Store(BitCast(du, VecFromMask(d, m)), du, mask);
+  for (size_t i = 0; i < 32 / sizeof(T); ++i) {
+    if (mask[i]) {
+      CopyBytes<sizeof(T)>(buf + i, p + i);
+    }
+  }
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
@@ -4264,8 +4276,7 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   return CompressStore(v, m, d, unaligned);  // also native
 #else
   const size_t count = CountTrue(d, m);
-  const Vec256<T> compressed = Compress(v, m);
-  BlendedStore(compressed, FirstN(d, count), d, unaligned);
+  BlendedStore(Compress(v, m), FirstN(d, count), d, unaligned);
   // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
@@ -4289,7 +4300,15 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                                     T* HWY_RESTRICT unaligned) {
   const size_t count = CountTrue(d, m);
   const Vec256<T> compressed = Compress(v, m);
+#if HWY_MEM_OPS_MIGHT_FAULT
+  // BlendedStore tests mask for each lane, but we know that the mask is
+  // FirstN, so we can just copy.
+  alignas(32) T buf[16];
+  Store(compressed, d, buf);
+  memcpy(unaligned, buf, count * sizeof(T));
+#else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
+#endif
   return count;
 }
 
@@ -4659,9 +4678,7 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                                     T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
-  const Vec256<T> compress = detail::Compress(v, mask_bits);
-  const Vec256<T> prev = LoadU(d, unaligned);
-  StoreU(IfThenElse(FirstN(d, count), compress, prev), d, unaligned);
+  BlendedStore(detail::Compress(v, mask_bits), FirstN(d, count), d, unaligned);
   return count;
 }
 

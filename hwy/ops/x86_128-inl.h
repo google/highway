@@ -18,6 +18,7 @@
 // External include guard in highway.h - see comment there.
 
 #include <emmintrin.h>
+#include <stdio.h>
 #if HWY_TARGET == HWY_SSSE3
 #include <tmmintrin.h>  // SSSE3
 #else
@@ -1927,6 +1928,29 @@ HWY_API void StoreU(const Vec128<T, N> v, Simd<T, N, 0> d, T* HWY_RESTRICT p) {
 
 // ------------------------------ BlendedStore
 
+namespace detail {
+
+// There is no maskload_epi8/16 with which we could safely implement
+// BlendedStore. Manual blending is also unsafe because loading a full vector
+// that crosses the array end causes asan faults. Resort to scalar code; the
+// caller should instead use memcpy, assuming m is FirstN(d, n).
+template <typename T, size_t N>
+HWY_API void ScalarMaskedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
+                               T* HWY_RESTRICT p) {
+  const RebindToSigned<decltype(d)> di;  // for testing mask if T=bfloat16_t.
+  using TI = TFromD<decltype(di)>;
+  alignas(16) TI buf[N];
+  alignas(16) TI mask[N];
+  Store(BitCast(di, v), di, buf);
+  Store(BitCast(di, VecFromMask(d, m)), di, mask);
+  for (size_t i = 0; i < N; ++i) {
+    if (mask[i]) {
+      CopyBytes<sizeof(T)>(buf + i, p + i);
+    }
+  }
+}
+}  // namespace detail
+
 #if HWY_TARGET <= HWY_AVX3
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
@@ -1968,24 +1992,40 @@ HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
 
 #elif HWY_TARGET == HWY_AVX2
 
-// There is no maskload_epi8/16, so blend instead.
 template <typename T, size_t N, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
 HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
                           T* HWY_RESTRICT p) {
-  StoreU(IfThenElse(m, v, LoadU(d, p)), d, p);
+  detail::ScalarMaskedStore(v, m, d, p);
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
                           T* HWY_RESTRICT p) {
+#if HWY_IS_ASAN
+  // HACK: asan raises errors for partial vectors.
+  if (N < 4) {
+    detail::ScalarMaskedStore(v, m, d, p);
+    return;
+  }
+#endif
+
+  const RebindToSigned<decltype(d)> di;
   auto pi = reinterpret_cast<int*>(p);  // NOLINT
-  const Vec128<int32_t, N> vi = BitCast(RebindToSigned<decltype(d)>(), v);
+  const Vec128<int32_t, N> vi = BitCast(di, v);
   _mm_maskstore_epi32(pi, m.raw, vi.raw);
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
                           T* HWY_RESTRICT p) {
+#if HWY_IS_ASAN
+  // HACK: asan raises errors for partial vectors.
+  if (N < 2) {
+    detail::ScalarMaskedStore(v, m, d, p);
+    return;
+  }
+#endif
+
   auto pi = reinterpret_cast<long long*>(p);  // NOLINT
   const Vec128<int64_t, N> vi = BitCast(RebindToSigned<decltype(d)>(), v);
   _mm_maskstore_epi64(pi, m.raw, vi.raw);
@@ -1994,6 +2034,14 @@ HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
 template <size_t N>
 HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
                           Simd<float, N, 0> d, float* HWY_RESTRICT p) {
+#if HWY_IS_ASAN
+  // HACK: asan raises errors for partial vectors.
+  if (N < 4) {
+    detail::ScalarMaskedStore(v, m, d, p);
+    return;
+  }
+#endif
+
   const Vec128<int32_t, N> mi =
       BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
   _mm_maskstore_ps(p, mi.raw, v.raw);
@@ -2002,6 +2050,14 @@ HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
 template <size_t N>
 HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
                           Simd<double, N, 0> d, double* HWY_RESTRICT p) {
+#if HWY_IS_ASAN
+  // HACK: asan raises errors for partial vectors.
+  if (N < 2) {
+    detail::ScalarMaskedStore(v, m, d, p);
+    return;
+  }
+#endif
+
   const Vec128<int64_t, N> mi =
       BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
   _mm_maskstore_pd(p, mi.raw, v.raw);
@@ -2009,14 +2065,14 @@ HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
 
 #else  // <= SSE4
 
-// Avoid maskmov* - its nontemporal 'hint' causes it to bypass caches (slow).
 template <typename T, size_t N>
 HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
                           T* HWY_RESTRICT p) {
-  StoreU(IfThenElse(m, v, LoadU(d, p)), d, p);
+  // Avoid maskmov* - its nontemporal 'hint' causes it to bypass caches (slow).
+  detail::ScalarMaskedStore(v, m, d, p);
 }
 
-#endif
+#endif  // SSE4
 
 // ================================================== ARITHMETIC
 
@@ -5358,7 +5414,15 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   } else {
     const size_t count = CountTrue(d, m);
     const Vec128<T, N> compressed = Compress(v, m);
+#if HWY_MEM_OPS_MIGHT_FAULT
+    // BlendedStore tests mask for each lane, but we know that the mask is
+    // FirstN, so we can just copy.
+    alignas(16) T buf[N];
+    Store(compressed, d, buf);
+    memcpy(unaligned, buf, count * sizeof(T));
+#else
     BlendedStore(compressed, FirstN(d, count), d, unaligned);
+#endif
     // Workaround: as of 2022-02-23 MSAN does not mark the output as
     // initialized.
 #if HWY_IS_MSAN
@@ -5787,9 +5851,7 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   // Avoid _mm_maskmoveu_si128 (>500 cycle latency because it bypasses caches).
   const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
-
-  const Vec128<T, N> prev = LoadU(d, unaligned);
-  StoreU(IfThenElse(FirstN(d, count), compressed, prev), d, unaligned);
+  BlendedStore(compressed, FirstN(d, count), d, unaligned);
   return count;
 }
 
