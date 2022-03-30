@@ -328,8 +328,8 @@ uint32_t SupportedTargets() {
     if (!IsBitSet(xcr0, 2)) {
       bits &= ~uint32_t(HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
     }
-    // ZMM + opmask
-    if ((xcr0 & 0x70) != 0x70) {
+    // opmask, ZMM lo/hi
+    if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
       bits &= ~uint32_t(HWY_AVX3 | HWY_AVX3_DL);
     }
   }
