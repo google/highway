@@ -39,7 +39,7 @@ HWY_PUSH_ATTRIBUTES("avx2,avx")
 #include "avx2sort.h"
 HWY_POP_ATTRIBUTES
 #endif
-#if HAVE_IPS4O
+#if HAVE_IPS4O || HAVE_PARALLEL_IPS4O
 #include "third_party/ips4o/include/ips4o.hpp"
 #include "third_party/ips4o/include/ips4o/thread_pool.hpp"
 #endif
@@ -55,7 +55,7 @@ namespace hwy {
 enum class Dist { kUniform8, kUniform16, kUniform32 };
 
 std::vector<Dist> AllDist() {
-  return {/*Dist::kUniform8,*/ Dist::kUniform16, Dist::kUniform32};
+  return {/*Dist::kUniform8, Dist::kUniform16,*/ Dist::kUniform32};
 }
 
 const char* DistName(Dist dist) {

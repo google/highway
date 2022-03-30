@@ -36,6 +36,9 @@
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
+// Defined within HWY_ONCE, used by BenchAllSort.
+extern bool first_sort_run;
+
 namespace HWY_NAMESPACE {
 namespace {
 using detail::TraitsLane;
@@ -85,8 +88,7 @@ HWY_NOINLINE void BenchPartition() {
 
 HWY_NOINLINE void BenchAllPartition() {
   // Not interested in benchmark results for these targets
-  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4 ||
-      HWY_TARGET == HWY_AVX2) {
+  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4) {
     return;
   }
 
@@ -165,8 +167,13 @@ std::vector<Algo> AlgoForBench() {
 #if HAVE_SORT512
         Algo::kSort512,
 #endif
-        // Algo::kStd,  // too slow to always benchmark
-        // Algo::kHeap,  // too slow to always benchmark
+
+// These are 10-20x slower, but that's OK for the default size when we are
+// not testing the parallel mode.
+#if !HAVE_PARALLEL_IPS4O
+        Algo::kStd, Algo::kHeap,
+#endif
+
         Algo::kVQSort,
   };
 }
@@ -177,6 +184,10 @@ HWY_NOINLINE void BenchSort(size_t num) {
   detail::SharedTraits<Traits> st;
   auto aligned = hwy::AllocateAligned<T>(num);
   for (Algo algo : AlgoForBench()) {
+    // Other algorithms don't depend on the vector instructions, so only run
+    // them once. (This flag is more future-proof than comparing HWY_TARGET.)
+    if (algo != Algo::kVQSort && !first_sort_run) continue;
+
     for (Dist dist : AllDist()) {
       std::vector<double> seconds;
       for (size_t rep = 0; rep < kReps; ++rep) {
@@ -195,6 +206,8 @@ HWY_NOINLINE void BenchSort(size_t num) {
           .Print();
     }  // dist
   }    // algo
+
+  first_sort_run = false;
 }
 
 HWY_NOINLINE void BenchAllSort() {
@@ -224,7 +237,6 @@ HWY_NOINLINE void BenchAllSort() {
     // BenchSort<TraitsLane<OrderAscending>, uint64_t>(num);
 
     BenchSort<Traits128<OrderAscending128>, uint64_t>(num);
-    // BenchSort<Traits128<OrderAscending128>, uint64_t>(num);
   }
 }
 
@@ -243,6 +255,7 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
+bool first_sort_run = true;
 namespace {
 HWY_BEFORE_TEST(BenchSort);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllPartition);
