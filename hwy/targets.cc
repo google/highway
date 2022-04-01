@@ -360,7 +360,7 @@ void ChosenTarget::Update() {
   // fallback mechanism to the baseline target.
   uint32_t supported = HWY_CHOSEN_TARGET_SHIFT(hwy::SupportedTargets()) |
                        HWY_CHOSEN_TARGET_MASK_SCALAR;
-  mask_.store(supported);
+  StoreMask(supported);
 }
 
 }  // namespace hwy

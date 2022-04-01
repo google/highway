@@ -25,6 +25,10 @@
 #include "hwy/detect_targets.h"
 #include "hwy/highway_export.h"
 
+#if !HWY_ARCH_RVV
+#include <atomic>
+#endif
+
 namespace hwy {
 
 // Returns (cached) bitfield of enabled targets that are supported on this CPU.
@@ -230,11 +234,11 @@ struct ChosenTarget {
   HWY_DLLEXPORT void Update();
 
   // Reset the ChosenTarget to the uninitialized state.
-  void DeInit() { mask_.store(1); }
+  void DeInit() { StoreMask(1); }
 
   // Whether the ChosenTarget was initialized. This is useful to know whether
   // any HWY_DYNAMIC_DISPATCH function was called.
-  bool IsInitialized() const { return mask_.load() != 1; }
+  bool IsInitialized() const { return LoadMask() != 1; }
 
   // Return the index in the dynamic dispatch table to be used by the current
   // CPU. Note that this method must be in the header file so it uses the value
@@ -242,13 +246,23 @@ struct ChosenTarget {
   // calls it, which may be different from others. This allows to only consider
   // those targets that were actually compiled in this module.
   size_t HWY_INLINE GetIndex() const {
-    return hwy::Num0BitsBelowLS1Bit_Nonzero32(mask_.load() &
+    return hwy::Num0BitsBelowLS1Bit_Nonzero32(LoadMask() &
                                               HWY_CHOSEN_TARGET_MASK_TARGETS);
   }
 
  private:
-  // Initialized to 1 so GetIndex() returns 0.
-  std::atomic<uint32_t> mask_{1};
+  // TODO(janwas): remove #if once <atomic> is available
+#if HWY_ARCH_RVV
+  uint32_t LoadMask() const { return mask_; }
+  void StoreMask(uint32_t mask) { mask_ = mask; }
+
+  uint32_t mask_{1};  // Initialized to 1 so GetIndex() returns 0.
+#else
+  uint32_t LoadMask() const { return mask_.load(); }
+  void StoreMask(uint32_t mask) { mask_.store(mask); }
+
+  std::atomic<uint32_t> mask_{1};  // Initialized to 1 so GetIndex() returns 0.
+#endif  // HWY_ARCH_RVV
 };
 
 // For internal use (e.g. by FunctionCache and DisableTargets).
