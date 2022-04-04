@@ -97,9 +97,10 @@ class InputStats {
       // precision.
       const double mul = 1E-9;  // prevent destructive cancellation
       const double err = std::abs(sumf_ * mul - other.sumf_ * mul);
-      if (err > 1E-3) {
-        HWY_ABORT("Sum mismatch %.15e %.15e (%f) min %g max %g\n", sumf_,
-                  other.sumf_, err, double(min_), double(max_));
+      const double rel = err / std::abs(sumf_);
+      if (rel > 2E-23) {
+        HWY_ABORT("Sum mismatch %.15e %.15e (%f %e) min %g max %g\n", sumf_,
+                  other.sumf_, err, rel, double(min_), double(max_));
       }
     }
 
@@ -239,9 +240,11 @@ Vec<DU64> RandomValues(DU64 du64, Vec<DU64>& s0, Vec<DU64>& s1,
   const Repartition<MakeSigned<T>, DU64> di;
 #endif
   const RebindToFloat<decltype(di)> df;
+  const RebindToUnsigned<decltype(di)> du;
+  const auto k1 = BitCast(du64, Set(df, T{1.0}));
+  const auto mantissa = BitCast(du64, Set(du, MantissaMask<MakeUnsigned<T>>()));
   // Avoid NaN/denormal by converting from (range-limited) integer.
-  const Vec<DU64> no_nan =
-      And(values, Set(du64, MantissaMask<MakeUnsigned<T>>()));
+  const Vec<DU64> no_nan = OrAnd(k1, values, mantissa);
   return BitCast(du64, ConvertTo(df, BitCast(di, no_nan)));
 }
 
