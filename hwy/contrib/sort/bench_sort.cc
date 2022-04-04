@@ -37,7 +37,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 // Defined within HWY_ONCE, used by BenchAllSort.
-extern bool first_sort_run;
+extern uint32_t first_sort_target;
 
 namespace HWY_NAMESPACE {
 namespace {
@@ -180,13 +180,15 @@ std::vector<Algo> AlgoForBench() {
 
 template <class Traits, typename T>
 HWY_NOINLINE void BenchSort(size_t num) {
+  if (first_sort_target == 0) first_sort_target = HWY_TARGET;
+
   SharedState shared;
   detail::SharedTraits<Traits> st;
   auto aligned = hwy::AllocateAligned<T>(num);
   for (Algo algo : AlgoForBench()) {
     // Other algorithms don't depend on the vector instructions, so only run
-    // them once. (This flag is more future-proof than comparing HWY_TARGET.)
-    if (algo != Algo::kVQSort && !first_sort_run) continue;
+    // them for the first target.
+    if (algo != Algo::kVQSort && HWY_TARGET != first_sort_target) continue;
 
     for (Dist dist : AllDist()) {
       std::vector<double> seconds;
@@ -206,8 +208,6 @@ HWY_NOINLINE void BenchSort(size_t num) {
           .Print();
     }  // dist
   }    // algo
-
-  first_sort_run = false;
 }
 
 HWY_NOINLINE void BenchAllSort() {
@@ -227,7 +227,7 @@ HWY_NOINLINE void BenchAllSort() {
          AdjustedReps(1 * M),
 #endif
        }) {
-    // BenchSort<TraitsLane<OrderAscending>, float>(num);
+    BenchSort<TraitsLane<OrderAscending>, float>(num);
     // BenchSort<TraitsLane<OrderDescending>, double>(num);
     // BenchSort<TraitsLane<OrderAscending>, int16_t>(num);
     BenchSort<TraitsLane<OrderDescending>, int32_t>(num);
@@ -255,7 +255,7 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-bool first_sort_run = true;
+uint32_t first_sort_target = 0;  // none run yet
 namespace {
 HWY_BEFORE_TEST(BenchSort);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllPartition);
