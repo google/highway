@@ -157,8 +157,7 @@ std::vector<Algo> AlgoForBench() {
 #endif
 #if HAVE_PARALLEL_IPS4O
         Algo::kParallelIPS4O,
-#endif
-#if HAVE_IPS4O
+#elif HAVE_IPS4O
         Algo::kIPS4O,
 #endif
 #if HAVE_PDQSORT
@@ -172,9 +171,10 @@ std::vector<Algo> AlgoForBench() {
 // not testing the parallel mode.
 #if !HAVE_PARALLEL_IPS4O
         Algo::kStd, Algo::kHeap,
+
+        Algo::kVQSort,  // only ~4x slower, but not required for Table 1a
 #endif
 
-        Algo::kVQSort,
   };
 }
 
