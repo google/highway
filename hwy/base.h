@@ -21,8 +21,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cfloat>
-
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
@@ -514,11 +512,11 @@ HWY_API constexpr T LowestValue() {
 }
 template <>
 constexpr float LowestValue<float>() {
-  return -FLT_MAX;
+  return -3.402823466e+38F;
 }
 template <>
 constexpr double LowestValue<double>() {
-  return -DBL_MAX;
+  return -1.7976931348623158e+308;
 }
 
 template <typename T>
@@ -527,11 +525,11 @@ HWY_API constexpr T HighestValue() {
 }
 template <>
 constexpr float HighestValue<float>() {
-  return FLT_MAX;
+  return 3.402823466e+38F;
 }
 template <>
 constexpr double HighestValue<double>() {
-  return DBL_MAX;
+  return 1.7976931348623158e+308;
 }
 
 // Returns bitmask of the exponent field in IEEE binary32/64.
