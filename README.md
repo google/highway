@@ -235,9 +235,12 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     input arrays, and returns the value to write to the input/output array.
 
     Here is an example implementing the BLAS function SAXPY (`alpha * x + y`):
-    `Transform1(d, x, n, y, [](auto d, const auto v, const auto v1) HWY_ATTR {
+
+    ```
+    Transform1(d, x, n, y, [](auto d, const auto v, const auto v1) HWY_ATTR {
       return MulAdd(Set(d, alpha), v, v1);
-    });``
+    });
+    ```
 
 *   Process whole vectors as above, followed by a scalar loop:
 
