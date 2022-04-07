@@ -132,7 +132,10 @@ set(HWY_TEST_SOURCES
 )
 
 if (MSVC)
-  # TODO(janwas): add flags
+  set(HWY_FLAGS
+    # fix build error C1128 in blockwise_test & rithmetic_test
+    /bigobj
+  )
 else()
   set(HWY_FLAGS
     # Avoid changing binaries based on the current time and date.
