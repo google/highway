@@ -2528,6 +2528,16 @@ HWY_API Vec128<double> UpperHalf(Full128<double> /* tag */, Vec256<double> v) {
   return Vec128<double>{_mm256_extractf128_pd(v.raw, 1)};
 }
 
+// ------------------------------ ExtractLane (Store)
+template <typename T>
+HWY_API T ExtractLane(const Vec256<T> v, size_t i) {
+  const Full256<T> d;
+  HWY_DASSERT(i < Lanes(d));
+  alignas(32) T lanes[32 / sizeof(T)];
+  Store(v, d, lanes);
+  return lanes[i];
+}
+
 // ------------------------------ GetLane (LowerHalf)
 template <typename T>
 HWY_API T GetLane(const Vec256<T> v) {

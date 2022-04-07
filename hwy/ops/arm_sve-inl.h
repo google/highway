@@ -1409,13 +1409,26 @@ HWY_API V UpperHalf(const D2 /* d2 */, const V v) {
 
 // ------------------------------ GetLane
 
-#define HWY_SVE_GET_LANE(BASE, CHAR, BITS, HALF, NAME, OP)      \
-  HWY_API HWY_SVE_T(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
-    return sv##OP##_##CHAR##BITS(detail::PFalse(), v);          \
+namespace detail {
+#define HWY_SVE_GET_LANE(BASE, CHAR, BITS, HALF, NAME, OP)                     \
+  HWY_API HWY_SVE_T(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) { \
+    return sv##OP##_##CHAR##BITS(mask, v);                                     \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLane, lasta)
 #undef HWY_SVE_GET_LANE
+}  // namespace detail
+
+template <class V>
+TFromV<V> GetLane(V v) {
+  return detail::GetLane(v, detail::PFalse());
+}
+
+// ------------------------------ ExtractLane
+template <class V>
+TFromV<V> ExtractLane(V v, size_t i) {
+  return detail::GetLane(v, FirstN(DFromV<V>(), i));
+}
 
 // ------------------------------ DupEven
 

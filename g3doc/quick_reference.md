@@ -260,6 +260,18 @@ wishes to run on all targets until that is resolved can use functions such as
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
 
+### Getting/setting lanes
+
+*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
+    extracting `SumOfLanes` results.
+
+The following may be slow on some platforms (x86) and should not be used in
+time-critical code:
+
+*   <code>T **ExtractLane**(V, size_t i)</code>: returns lane `i` within `V`.
+    `i` must be in `[0, Lanes(DFromV<V>()))`. Potentially slow, it may be better
+    to store an entire vector to an array and then operate on its elements.
+
 ### Printing
 
 *   <code>V **Print**(D, const char* caption, V [, size_t lane][, size_t
@@ -1017,9 +1029,6 @@ instead because they are more general:
     order.
 
 ### Swizzle
-
-*   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
-    extracting `SumOfLanes` results.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even

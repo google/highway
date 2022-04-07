@@ -40,6 +40,21 @@ HWY_NOINLINE void TestAllGetLane() {
   ForAllTypes(ForPartialVectors<TestGetLane>());
 }
 
+struct TestExtractLane {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v = Iota(d, T(1));
+    for (size_t i = 0; i < Lanes(d); ++i) {
+      const T actual = ExtractLane(v, i);
+      HWY_ASSERT_EQ(static_cast<T>(i + 1), actual);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllExtractLane() {
+  ForAllTypes(ForPartialVectors<TestExtractLane>());
+}
+
 struct TestDupEven {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -222,6 +237,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllGetLane);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllExtractLane);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllDupEven);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllDupOdd);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);

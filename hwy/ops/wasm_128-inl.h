@@ -1658,45 +1658,160 @@ HWY_API Vec128<T, N> GatherIndex(const Simd<T, N, 0> d,
 
 // ================================================== SWIZZLE
 
-// ------------------------------ Extract lane
+// ------------------------------ ExtractLane
 
-// Gets the single value stored in a vector/part.
-template <size_t N>
-HWY_API uint8_t GetLane(const Vec128<uint8_t, N> v) {
-  return static_cast<uint8_t>(wasm_i8x16_extract_lane(v.raw, 0));
+namespace detail {
+
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+  return static_cast<T>(wasm_i8x16_extract_lane(v.raw, kLane));
 }
-template <size_t N>
-HWY_API int8_t GetLane(const Vec128<int8_t, N> v) {
-  return static_cast<int8_t>(wasm_i8x16_extract_lane(v.raw, 0));
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+  return static_cast<T>(wasm_i16x8_extract_lane(v.raw, kLane));
 }
-template <size_t N>
-HWY_API uint16_t GetLane(const Vec128<uint16_t, N> v) {
-  return static_cast<uint16_t>(wasm_i16x8_extract_lane(v.raw, 0));
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+  return static_cast<T>(wasm_i32x4_extract_lane(v.raw, kLane));
 }
-template <size_t N>
-HWY_API int16_t GetLane(const Vec128<int16_t, N> v) {
-  return static_cast<int16_t>(wasm_i16x8_extract_lane(v.raw, 0));
-}
-template <size_t N>
-HWY_API uint32_t GetLane(const Vec128<uint32_t, N> v) {
-  return static_cast<uint32_t>(wasm_i32x4_extract_lane(v.raw, 0));
-}
-template <size_t N>
-HWY_API int32_t GetLane(const Vec128<int32_t, N> v) {
-  return static_cast<int32_t>(wasm_i32x4_extract_lane(v.raw, 0));
-}
-template <size_t N>
-HWY_API uint64_t GetLane(const Vec128<uint64_t, N> v) {
-  return static_cast<uint64_t>(wasm_i64x2_extract_lane(v.raw, 0));
-}
-template <size_t N>
-HWY_API int64_t GetLane(const Vec128<int64_t, N> v) {
-  return static_cast<int64_t>(wasm_i64x2_extract_lane(v.raw, 0));
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
+  return static_cast<T>(wasm_i64x2_extract_lane(v.raw, kLane));
 }
 
-template <size_t N>
-HWY_API float GetLane(const Vec128<float, N> v) {
-  return wasm_f32x4_extract_lane(v.raw, 0);
+template <size_t kLane, size_t N>
+HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
+  return wasm_f32x4_extract_lane(v.raw, kLane);
+}
+
+}  // namespace detail
+
+// One overload per vector length just in case *_extract_lane raise compile
+// errors if their argument is out of bounds (even if that would never be
+// reached at runtime).
+template <typename T>
+HWY_API T ExtractLane(const Vec128<T, 1> v, size_t i) {
+  HWY_DASSERT(i == 0);
+  (void)i;
+  return GetLane(v);
+}
+
+template <typename T>
+HWY_API T ExtractLane(const Vec128<T, 2> v, size_t i) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::ExtractLane<0>(v);
+      case 1:
+        return detail::ExtractLane<1>(v);
+    }
+  }
+#endif
+  alignas(16) T lanes[2];
+  Store(v, DFromV<decltype(v)>(), lanes);
+  return lanes[i];
+}
+
+template <typename T>
+HWY_API T ExtractLane(const Vec128<T, 4> v, size_t i) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::ExtractLane<0>(v);
+      case 1:
+        return detail::ExtractLane<1>(v);
+      case 2:
+        return detail::ExtractLane<2>(v);
+      case 3:
+        return detail::ExtractLane<3>(v);
+    }
+  }
+#endif
+  alignas(16) T lanes[4];
+  Store(v, DFromV<decltype(v)>(), lanes);
+  return lanes[i];
+}
+
+template <typename T>
+HWY_API T ExtractLane(const Vec128<T, 8> v, size_t i) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::ExtractLane<0>(v);
+      case 1:
+        return detail::ExtractLane<1>(v);
+      case 2:
+        return detail::ExtractLane<2>(v);
+      case 3:
+        return detail::ExtractLane<3>(v);
+      case 4:
+        return detail::ExtractLane<4>(v);
+      case 5:
+        return detail::ExtractLane<5>(v);
+      case 6:
+        return detail::ExtractLane<6>(v);
+      case 7:
+        return detail::ExtractLane<7>(v);
+    }
+  }
+#endif
+  alignas(16) T lanes[8];
+  Store(v, DFromV<decltype(v)>(), lanes);
+  return lanes[i];
+}
+
+template <typename T>
+HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::ExtractLane<0>(v);
+      case 1:
+        return detail::ExtractLane<1>(v);
+      case 2:
+        return detail::ExtractLane<2>(v);
+      case 3:
+        return detail::ExtractLane<3>(v);
+      case 4:
+        return detail::ExtractLane<4>(v);
+      case 5:
+        return detail::ExtractLane<5>(v);
+      case 6:
+        return detail::ExtractLane<6>(v);
+      case 7:
+        return detail::ExtractLane<7>(v);
+      case 8:
+        return detail::ExtractLane<8>(v);
+      case 9:
+        return detail::ExtractLane<9>(v);
+      case 10:
+        return detail::ExtractLane<10>(v);
+      case 11:
+        return detail::ExtractLane<11>(v);
+      case 12:
+        return detail::ExtractLane<12>(v);
+      case 13:
+        return detail::ExtractLane<13>(v);
+      case 14:
+        return detail::ExtractLane<14>(v);
+      case 15:
+        return detail::ExtractLane<15>(v);
+    }
+  }
+#endif
+  alignas(16) T lanes[16];
+  Store(v, DFromV<decltype(v)>(), lanes);
+  return lanes[i];
+}
+
+// ------------------------------ GetLane
+template <typename T, size_t N>
+HWY_API T GetLane(const Vec128<T, N> v) {
+  return detail::ExtractLane<0>(v);
 }
 
 // ------------------------------ LowerHalf

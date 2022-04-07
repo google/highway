@@ -2143,6 +2143,16 @@ HWY_API Vec256<double> UpperHalf(Full256<double> /* tag */, Vec512<double> v) {
   return Vec256<double>{_mm512_extractf64x4_pd(v.raw, 1)};
 }
 
+// ------------------------------ ExtractLane (Store)
+template <typename T>
+HWY_API T ExtractLane(const Vec512<T> v, size_t i) {
+  const Full512<T> d;
+  HWY_DASSERT(i < Lanes(d));
+  alignas(64) T lanes[64 / sizeof(T)];
+  Store(v, d, lanes);
+  return lanes[i];
+}
+
 // ------------------------------ GetLane (LowerHalf)
 template <typename T>
 HWY_API T GetLane(const Vec512<T> v) {

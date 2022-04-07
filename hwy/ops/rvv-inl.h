@@ -1871,6 +1871,13 @@ HWY_RVV_FOREACH_UI(HWY_RVV_GET_LANE, GetLane, mv_x, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f, _ALL)
 #undef HWY_RVV_GET_LANE
 
+// ------------------------------ ExtractLane
+
+template <class V>
+HWY_API TFromV<V> ExtractLane(const V v, size_t i) {
+  return GetLane(detail::SlideDown(v, v, i));
+}
+
 // ------------------------------ OddEven
 template <class V>
 HWY_API V OddEven(const V a, const V b) {
