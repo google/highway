@@ -765,100 +765,17 @@ Vec128<T, N> Iota(const Simd<T, N, 0> d, const T2 first) {
 // ------------------------------ GetLane
 
 namespace detail {
+#define HWY_NEON_BUILD_TPL_HWY_GET template <size_t kLane>
+#define HWY_NEON_BUILD_RET_HWY_GET(type, size) type##_t
+#define HWY_NEON_BUILD_PARAM_HWY_GET(type, size) Vec128<type##_t, size> v
+#define HWY_NEON_BUILD_ARG_HWY_GET v.raw, kLane
 
-template <size_t i>
-HWY_INLINE uint8_t GetLane(const Vec128<uint8_t> v) {
-  return vgetq_lane_u8(v.raw, i);
-}
-template <size_t i, size_t N>
-HWY_INLINE uint8_t GetLane(const Vec128<uint8_t, N> v) {
-  return vget_lane_u8(v.raw, i);
-}
+HWY_NEON_DEF_FUNCTION_ALL_TYPES(GetLane, vget, _lane_, HWY_GET)
 
-template <size_t i>
-HWY_INLINE int8_t GetLane(const Vec128<int8_t> v) {
-  return vgetq_lane_s8(v.raw, i);
-}
-template <size_t i, size_t N>
-HWY_INLINE int8_t GetLane(const Vec128<int8_t, N> v) {
-  return vget_lane_s8(v.raw, i);
-}
-
-template <size_t i>
-HWY_INLINE uint16_t GetLane(const Vec128<uint16_t> v) {
-  return vgetq_lane_u16(v.raw, i);
-}
-template <size_t i, size_t N>
-HWY_INLINE uint16_t GetLane(const Vec128<uint16_t, N> v) {
-  return vget_lane_u16(v.raw, i);
-}
-
-template <size_t i>
-HWY_INLINE int16_t GetLane(const Vec128<int16_t> v) {
-  return vgetq_lane_s16(v.raw, i);
-}
-template <size_t i, size_t N>
-HWY_INLINE int16_t GetLane(const Vec128<int16_t, N> v) {
-  return vget_lane_s16(v.raw, i);
-}
-
-template <size_t i>
-HWY_INLINE uint32_t GetLane(const Vec128<uint32_t> v) {
-  return vgetq_lane_u32(v.raw, i);
-}
-template <size_t i, size_t N>
-HWY_INLINE uint32_t GetLane(const Vec128<uint32_t, N> v) {
-  return vget_lane_u32(v.raw, i);
-}
-
-template <size_t i>
-HWY_INLINE int32_t GetLane(const Vec128<int32_t> v) {
-  return vgetq_lane_s32(v.raw, i);
-}
-template <size_t i, size_t N>
-HWY_INLINE int32_t GetLane(const Vec128<int32_t, N> v) {
-  return vget_lane_s32(v.raw, i);
-}
-
-template <size_t i>
-HWY_INLINE uint64_t GetLane(const Vec128<uint64_t> v) {
-  return vgetq_lane_u64(v.raw, i);
-}
-template <size_t i>
-HWY_INLINE uint64_t GetLane(const Vec64<uint64_t> v) {
-  return vget_lane_u64(v.raw, i);
-}
-template <size_t i>
-HWY_INLINE int64_t GetLane(const Vec128<int64_t> v) {
-  return vgetq_lane_s64(v.raw, i);
-}
-template <size_t i>
-HWY_INLINE int64_t GetLane(const Vec64<int64_t> v) {
-  return vget_lane_s64(v.raw, i);
-}
-
-template <size_t i>
-HWY_INLINE float GetLane(const Vec128<float> v) {
-  return vgetq_lane_f32(v.raw, i);
-}
-template <size_t i>
-HWY_INLINE float GetLane(const Vec64<float> v) {
-  return vget_lane_f32(v.raw, i);
-}
-template <size_t i>
-HWY_INLINE float GetLane(const Vec32<float> v) {
-  return vget_lane_f32(v.raw, i);
-}
-#if HWY_ARCH_ARM_A64
-template <size_t i>
-HWY_INLINE double GetLane(const Vec128<double> v) {
-  return vgetq_lane_f64(v.raw, i);
-}
-template <size_t i>
-HWY_INLINE double GetLane(const Vec64<double> v) {
-  return vget_lane_f64(v.raw, i);
-}
-#endif
+#undef HWY_NEON_BUILD_TPL_HWY_GET
+#undef HWY_NEON_BUILD_RET_HWY_GET
+#undef HWY_NEON_BUILD_PARAM_HWY_GET
+#undef HWY_NEON_BUILD_ARG_HWY_GET
 
 }  // namespace detail
 
@@ -988,6 +905,154 @@ HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
   alignas(16) T lanes[16];
   Store(v, DFromV<decltype(v)>(), lanes);
   return lanes[i];
+}
+
+// ------------------------------ InsertLane
+
+namespace detail {
+#define HWY_NEON_BUILD_TPL_HWY_INSERT template <size_t kLane>
+#define HWY_NEON_BUILD_RET_HWY_INSERT(type, size) Vec128<type##_t, size>
+#define HWY_NEON_BUILD_PARAM_HWY_INSERT(type, size) \
+  Vec128<type##_t, size> v, type##_t t
+#define HWY_NEON_BUILD_ARG_HWY_INSERT t, v.raw, kLane
+
+HWY_NEON_DEF_FUNCTION_ALL_TYPES(InsertLane, vset, _lane_, HWY_INSERT)
+
+#undef HWY_NEON_BUILD_TPL_HWY_INSERT
+#undef HWY_NEON_BUILD_RET_HWY_INSERT
+#undef HWY_NEON_BUILD_PARAM_HWY_INSERT
+#undef HWY_NEON_BUILD_ARG_HWY_INSERT
+
+}  // namespace detail
+
+// Requires one overload per vector length because InsertLane<3> may be a
+// compile error if it calls wasm_f64x2_replace_lane.
+
+template <typename T>
+HWY_API Vec128<T, 1> InsertLane(const Vec128<T, 1> v, size_t i, T t) {
+  HWY_DASSERT(i == 0);
+  (void)i;
+  return Set(DFromV<decltype(v)>(), t);
+}
+
+template <typename T>
+HWY_API Vec128<T, 2> InsertLane(const Vec128<T, 2> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[2];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
+template <typename T>
+HWY_API Vec128<T, 4> InsertLane(const Vec128<T, 4> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+      case 2:
+        return detail::InsertLane<2>(v, t);
+      case 3:
+        return detail::InsertLane<3>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[4];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
+template <typename T>
+HWY_API Vec128<T, 8> InsertLane(const Vec128<T, 8> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+      case 2:
+        return detail::InsertLane<2>(v, t);
+      case 3:
+        return detail::InsertLane<3>(v, t);
+      case 4:
+        return detail::InsertLane<4>(v, t);
+      case 5:
+        return detail::InsertLane<5>(v, t);
+      case 6:
+        return detail::InsertLane<6>(v, t);
+      case 7:
+        return detail::InsertLane<7>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[8];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
+template <typename T>
+HWY_API Vec128<T, 16> InsertLane(const Vec128<T, 16> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+      case 2:
+        return detail::InsertLane<2>(v, t);
+      case 3:
+        return detail::InsertLane<3>(v, t);
+      case 4:
+        return detail::InsertLane<4>(v, t);
+      case 5:
+        return detail::InsertLane<5>(v, t);
+      case 6:
+        return detail::InsertLane<6>(v, t);
+      case 7:
+        return detail::InsertLane<7>(v, t);
+      case 8:
+        return detail::InsertLane<8>(v, t);
+      case 9:
+        return detail::InsertLane<9>(v, t);
+      case 10:
+        return detail::InsertLane<10>(v, t);
+      case 11:
+        return detail::InsertLane<11>(v, t);
+      case 12:
+        return detail::InsertLane<12>(v, t);
+      case 13:
+        return detail::InsertLane<13>(v, t);
+      case 14:
+        return detail::InsertLane<14>(v, t);
+      case 15:
+        return detail::InsertLane<15>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[16];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
 }
 
 // ================================================== ARITHMETIC

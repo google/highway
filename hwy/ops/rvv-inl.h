@@ -429,6 +429,12 @@ HWY_API size_t Lanes(Simd<bfloat16_t, N, kPow2> /* tag*/) {
     return v##OP##_vv_##CHAR##SEW##LMUL(a, b, HWY_RVV_AVL(SEW, SHIFT));     \
   }
 
+// mask = f(mask)
+#define HWY_RVV_RETM_ARGM(SEW, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) {   \
+    return vm##OP##_m_b##MLEN(m, ~0ull);              \
+  }
+
 // ================================================== INIT
 
 // ------------------------------ Set
@@ -1044,16 +1050,8 @@ HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
 }
 
 // ------------------------------ Not
-
-// mask = f(mask)
-#define HWY_RVV_RETM_ARGM(SEW, SHIFT, MLEN, NAME, OP) \
-  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) {   \
-    return vm##OP##_m_b##MLEN(m, ~0ull);              \
-  }
-
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, Not, not )
 
-#undef HWY_RVV_RETM_ARGM
 
 // ------------------------------ And
 
@@ -1872,10 +1870,35 @@ HWY_RVV_FOREACH_F(HWY_RVV_GET_LANE, GetLane, fmv_f, _ALL)
 #undef HWY_RVV_GET_LANE
 
 // ------------------------------ ExtractLane
-
 template <class V>
 HWY_API TFromV<V> ExtractLane(const V v, size_t i) {
   return GetLane(detail::SlideDown(v, v, i));
+}
+
+// ------------------------------ InsertLane
+
+template <class V, HWY_IF_NOT_LANE_SIZE_V(V, 1)>
+HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;  // Iota0 is unsigned only
+  using TU = TFromD<decltype(du)>;
+  const auto is_i = detail::EqS(detail::Iota0(du), static_cast<TU>(i));
+  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
+}
+
+namespace detail {
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetOnlyFirst, sof)
+}  // namespace detail
+
+// For 8-bit lanes, Iota0 might overflow.
+template <class V, HWY_IF_LANE_SIZE_V(V, 1)>
+HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
+  const DFromV<V> d;
+  const auto zero = Zero(d);
+  const auto one = Set(d, 1);
+  const auto ge_i = Eq(detail::SlideUp(zero, one, i), one);
+  const auto is_i = detail::SetOnlyFirst(ge_i);
+  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
 // ------------------------------ OddEven
@@ -2831,6 +2854,7 @@ namespace detail {  // for code folding
 #undef HWY_RVV_FOREACH_UI3264
 #undef HWY_RVV_FOREACH_UI64
 #undef HWY_RVV_M
+#undef HWY_RVV_RETM_ARGM
 #undef HWY_RVV_RETV_ARGV
 #undef HWY_RVV_RETV_ARGVS
 #undef HWY_RVV_RETV_ARGVV

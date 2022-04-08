@@ -3627,6 +3627,222 @@ HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
   return lanes[i];
 }
 
+// ------------------------------ InsertLane (UpperHalf)
+
+namespace detail {
+
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+  static_assert(kLane < N, "Lane index out of bounds");
+#if HWY_TARGET == HWY_SSSE3
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[16];
+  Store(v, d, lanes);
+  lanes[kLane] = t;
+  return Load(d, lanes);
+#else
+  return Vec128<T, N>{_mm_insert_epi8(v.raw, t, kLane)};
+#endif
+}
+
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+  static_assert(kLane < N, "Lane index out of bounds");
+  return Vec128<T, N>{_mm_insert_epi16(v.raw, t, kLane)};
+}
+
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+  static_assert(kLane < N, "Lane index out of bounds");
+#if HWY_TARGET == HWY_SSSE3
+  alignas(16) T lanes[4];
+  const DFromV<decltype(v)> d;
+  Store(v, d, lanes);
+  lanes[kLane] = t;
+  return Load(d, lanes);
+#else
+  return Vec128<T, N>{_mm_insert_epi32(v.raw, t, kLane)};
+#endif
+}
+
+template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
+  static_assert(kLane < N, "Lane index out of bounds");
+#if HWY_TARGET == HWY_SSSE3 || HWY_ARCH_X86_32
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[2];
+  Store(v, d, lanes);
+  lanes[kLane] = t;
+  return Load(d, lanes);
+#else
+  return Vec128<T, N>{_mm_insert_epi64(v.raw, t, kLane)};
+#endif
+}
+
+template <size_t kLane, size_t N>
+HWY_INLINE Vec128<float, N> InsertLane(const Vec128<float, N> v, float t) {
+  static_assert(kLane < N, "Lane index out of bounds");
+#if HWY_TARGET == HWY_SSSE3
+  const DFromV<decltype(v)> d;
+  alignas(16) float lanes[4];
+  Store(v, d, lanes);
+  lanes[kLane] = t;
+  return Load(d, lanes);
+#else
+  return Vec128<float, N>{_mm_insert_ps(v.raw, _mm_set_ss(t), kLane << 4)};
+#endif
+}
+
+// There is no insert_pd; two overloads because there is no UpperHalf for N=1.
+template <size_t kLane>
+HWY_INLINE Vec128<double, 1> InsertLane(const Vec128<double, 1> v, double t) {
+  static_assert(kLane == 0, "Lane index out of bounds");
+  return Set(DFromV<decltype(v)>(), t);
+}
+
+template <size_t kLane>
+HWY_INLINE Vec128<double> InsertLane(const Vec128<double> v, double t) {
+  static_assert(kLane < 2, "Lane index out of bounds");
+  const DFromV<decltype(v)> d;
+  const Vec128<double> vt = Set(d, t);
+  if (kLane == 0) {
+    return Vec128<double>{_mm_shuffle_pd(vt.raw, v.raw, 2)};
+  }
+  return Vec128<double>{_mm_shuffle_pd(v.raw, vt.raw, 0)};
+}
+
+}  // namespace detail
+
+// Requires one overload per vector length because InsertLane<3> may be a
+// compile error if it calls _mm_insert_epi64.
+
+template <typename T>
+HWY_API Vec128<T, 1> InsertLane(const Vec128<T, 1> v, size_t i, T t) {
+  HWY_DASSERT(i == 0);
+  (void)i;
+  return Set(DFromV<decltype(v)>(), t);
+}
+
+template <typename T>
+HWY_API Vec128<T, 2> InsertLane(const Vec128<T, 2> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[2];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
+template <typename T>
+HWY_API Vec128<T, 4> InsertLane(const Vec128<T, 4> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+      case 2:
+        return detail::InsertLane<2>(v, t);
+      case 3:
+        return detail::InsertLane<3>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[4];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
+template <typename T>
+HWY_API Vec128<T, 8> InsertLane(const Vec128<T, 8> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+      case 2:
+        return detail::InsertLane<2>(v, t);
+      case 3:
+        return detail::InsertLane<3>(v, t);
+      case 4:
+        return detail::InsertLane<4>(v, t);
+      case 5:
+        return detail::InsertLane<5>(v, t);
+      case 6:
+        return detail::InsertLane<6>(v, t);
+      case 7:
+        return detail::InsertLane<7>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[8];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
+template <typename T>
+HWY_API Vec128<T, 16> InsertLane(const Vec128<T, 16> v, size_t i, T t) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(i)) {
+    switch (i) {
+      case 0:
+        return detail::InsertLane<0>(v, t);
+      case 1:
+        return detail::InsertLane<1>(v, t);
+      case 2:
+        return detail::InsertLane<2>(v, t);
+      case 3:
+        return detail::InsertLane<3>(v, t);
+      case 4:
+        return detail::InsertLane<4>(v, t);
+      case 5:
+        return detail::InsertLane<5>(v, t);
+      case 6:
+        return detail::InsertLane<6>(v, t);
+      case 7:
+        return detail::InsertLane<7>(v, t);
+      case 8:
+        return detail::InsertLane<8>(v, t);
+      case 9:
+        return detail::InsertLane<9>(v, t);
+      case 10:
+        return detail::InsertLane<10>(v, t);
+      case 11:
+        return detail::InsertLane<11>(v, t);
+      case 12:
+        return detail::InsertLane<12>(v, t);
+      case 13:
+        return detail::InsertLane<13>(v, t);
+      case 14:
+        return detail::InsertLane<14>(v, t);
+      case 15:
+        return detail::InsertLane<15>(v, t);
+    }
+  }
+#endif
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[16];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
 // ------------------------------ CombineShiftRightBytes
 
 template <int kBytes, typename T, class V = Vec128<T>>

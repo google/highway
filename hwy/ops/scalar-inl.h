@@ -1157,6 +1157,14 @@ HWY_API T ExtractLane(const Vec1<T> v, size_t i) {
 }
 
 template <typename T>
+HWY_API Vec1<T> InsertLane(Vec1<T> v, size_t i, T t) {
+  HWY_DASSERT(i == 0);
+  (void)i;
+  v.raw = t;
+  return v;
+}
+
+template <typename T>
 HWY_API Vec1<T> DupEven(Vec1<T> v) {
   return v;
 }

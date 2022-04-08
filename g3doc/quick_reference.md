@@ -265,12 +265,17 @@ equivalents functions such as `Eq`, `Lt`, `Add`, `Div` etc.
 *   <code>T **GetLane**(V)</code>: returns lane 0 within `V`. This is useful for
     extracting `SumOfLanes` results.
 
-The following may be slow on some platforms (x86) and should not be used in
+The following may be slow on some platforms (e.g. x86) and should not be used in
 time-critical code:
 
 *   <code>T **ExtractLane**(V, size_t i)</code>: returns lane `i` within `V`.
     `i` must be in `[0, Lanes(DFromV<V>()))`. Potentially slow, it may be better
     to store an entire vector to an array and then operate on its elements.
+
+*   <code>V **InsertLane**(V, size_t i, T t)</code>: returns a copy of V whose
+    lane `i` is set to `t`. `i` must be in `[0, Lanes(DFromV<V>()))`.
+    Potentially slow, it may be better set all elements of an aligned array and
+    then `Load` it.
 
 ### Printing
 

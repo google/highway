@@ -1410,9 +1410,10 @@ HWY_API V UpperHalf(const D2 /* d2 */, const V v) {
 // ------------------------------ GetLane
 
 namespace detail {
-#define HWY_SVE_GET_LANE(BASE, CHAR, BITS, HALF, NAME, OP)                     \
-  HWY_API HWY_SVE_T(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) { \
-    return sv##OP##_##CHAR##BITS(mask, v);                                     \
+#define HWY_SVE_GET_LANE(BASE, CHAR, BITS, HALF, NAME, OP) \
+  HWY_INLINE HWY_SVE_T(BASE, BITS)                         \
+      NAME(HWY_SVE_V(BASE, BITS) v, svbool_t mask) {       \
+    return sv##OP##_##CHAR##BITS(mask, v);                 \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLane, lasta)
@@ -1420,14 +1421,22 @@ HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLane, lasta)
 }  // namespace detail
 
 template <class V>
-TFromV<V> GetLane(V v) {
+HWY_API TFromV<V> GetLane(V v) {
   return detail::GetLane(v, detail::PFalse());
 }
 
 // ------------------------------ ExtractLane
 template <class V>
-TFromV<V> ExtractLane(V v, size_t i) {
+HWY_API TFromV<V> ExtractLane(V v, size_t i) {
   return detail::GetLane(v, FirstN(DFromV<V>(), i));
+}
+
+// ------------------------------ InsertLane (IfThenElse)
+template <class V>
+HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
+  const DFromV<V> d;
+  const auto is_i = detail::EqN(Iota(d, 0), static_cast<TFromV<V>>(i));
+  return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
 // ------------------------------ DupEven

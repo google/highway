@@ -2538,6 +2538,17 @@ HWY_API T ExtractLane(const Vec256<T> v, size_t i) {
   return lanes[i];
 }
 
+// ------------------------------ InsertLane (Store)
+template <typename T>
+HWY_API Vec256<T> InsertLane(const Vec256<T> v, size_t i, T t) {
+  const Full256<T> d;
+  HWY_DASSERT(i < Lanes(d));
+  alignas(64) T lanes[64 / sizeof(T)];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+}
+
 // ------------------------------ GetLane (LowerHalf)
 template <typename T>
 HWY_API T GetLane(const Vec256<T> v) {

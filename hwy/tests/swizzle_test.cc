@@ -55,6 +55,28 @@ HWY_NOINLINE void TestAllExtractLane() {
   ForAllTypes(ForPartialVectors<TestExtractLane>());
 }
 
+struct TestInsertLane {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using V = Vec<D>;
+    const V v = Iota(d, T(1));
+    const size_t N = Lanes(d);
+    auto lanes = AllocateAligned<T>(N);
+    Store(v, d, lanes.get());
+
+    for (size_t i = 0; i < Lanes(d); ++i) {
+      lanes[i] = T{0};
+      const V actual = InsertLane(v, i, static_cast<T>(i + 1));
+      HWY_ASSERT_VEC_EQ(d, v, actual);
+      Store(v, d, lanes.get());  // restore lane i
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllInsertLane() {
+  ForAllTypes(ForPartialVectors<TestInsertLane>());
+}
+
 struct TestDupEven {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -238,6 +260,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HwySwizzleTest);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllExtractLane);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllInsertLane);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllDupEven);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllDupOdd);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllOddEven);

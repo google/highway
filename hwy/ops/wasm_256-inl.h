@@ -1298,6 +1298,12 @@ HWY_API T ExtractLane(const Vec128<T, N> v, size_t i) {
   HWY_ASSERT(0);
 }
 
+// ------------------------------ InsertLane
+template <typename T, size_t N>
+HWY_API Vec128<T, N> InsertLane(const Vec128<T, N> v, size_t i, T t) {
+  HWY_ASSERT(0);
+}
+
 // ------------------------------ GetLane
 // Gets the single value stored in a vector/part.
 HWY_API uint8_t GetLane(const Vec256<uint8_t> v) {

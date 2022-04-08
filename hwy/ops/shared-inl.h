@@ -238,6 +238,7 @@ using Twice = typename D::Twice;
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
 #define HWY_IF_LANE_SIZE_V(V, bytes) HWY_IF_LANE_SIZE(TFromV<V>, bytes)
+#define HWY_IF_NOT_LANE_SIZE_V(V, bytes) HWY_IF_NOT_LANE_SIZE(TFromV<V>, bytes)
 
 // For implementing functions for a specific type.
 // IsSame<...>() in template arguments is broken on MSVC2015.
