@@ -244,8 +244,8 @@ code, in descending order of preference:
     especially for SIMD code residing in a header.
 
 Note that overloaded operators are not yet supported on RVV and SVE; code that
-wishes to run on all targets until that is resolved can use functions such as
-`Eq`, `Lt`, `Add`, `Div` etc.
+wishes to run on all targets until that is resolved can use the corresponding
+equivalents functions such as `Eq`, `Lt`, `Add`, `Div` etc.
 
 ### Initialization
 
@@ -283,7 +283,9 @@ time-critical code:
 ### Arithmetic
 
 *   <code>V **operator+**(V a, V b)</code>: returns `a[i] + b[i]` (mod 2^bits).
+    Currently unavailable on SVE/RVV; use the equivalent `Add` instead.
 *   <code>V **operator-**(V a, V b)</code>: returns `a[i] - b[i]` (mod 2^bits).
+    Currently unavailable on SVE/RVV; use the equivalent `Sub` instead.
 
 *   `V`: `{i,f}` \
     <code>V **Neg**(V a)</code>: returns `-a[i]`.
@@ -315,6 +317,7 @@ time-critical code:
 
 *   `V`: `{f}` \
     <code>V **operator/**(V a, V b)</code>: returns `a[i] / b[i]` in each lane.
+    Currently unavailable on SVE/RVV; use the equivalent `Div` instead.
 
 *   `V`: `{f}` \
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.
@@ -354,11 +357,12 @@ is qNaN, and NaN if both are.
 
 *   `V`: `{u,i}{16,32}` \
     <code>V <b>operator*</b>(V a, V b)</code>: returns the lower half of `a[i] *
-    b[i]` in each lane.
+    b[i]` in each lane. Currently unavailable on SVE/RVV; use the equivalent
+    `Mul` instead.
 
 *   `V`: `{f}` \
     <code>V <b>operator*</b>(V a, V b)</code>: returns `a[i] * b[i]` in each
-    lane.
+    lane. Currently unavailable on SVE/RVV; use the equivalent `Mul` instead.
 
 *   `V`: `i16` \
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
@@ -440,10 +444,12 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 
 *   `V`: `{u,i}{16,32,64}` \
-    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`.
+    <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Shl` instead.
 
 *   `V`: `{u,i}{16,32,64}` \
-    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`.
+    <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Shr` instead.
 
 #### Floating-point rounding
 
@@ -469,28 +475,24 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     <code>V **PopulationCount**(V a)</code>: returns the number of 1-bits in
     each lane, i.e. `PopCount(a[i])`.
 
-The following operate on individual bits within each lane:
+The following operate on individual bits within each lane. Note that the
+non-operator functions (`And` instead of `&`) must be used for floating-point
+types, and on SVE/RVV.
 
 *   `V`: `{u,i}` \
-    <code>V **operator&**(V a, V b)</code>: returns `a[i] & b[i]`.
+    <code>V **operator&**(V a, V b)</code>: returns `a[i] & b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `And` instead.
 
 *   `V`: `{u,i}` \
-    <code>V **operator|**(V a, V b)</code>: returns `a[i] | b[i]`.
+    <code>V **operator|**(V a, V b)</code>: returns `a[i] | b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Or` instead.
 
 *   `V`: `{u,i}` \
-    <code>V **operator^**(V a, V b)</code>: returns `a[i] ^ b[i]`.
+    <code>V **operator^**(V a, V b)</code>: returns `a[i] ^ b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Xor` instead.
 
 *   `V`: `{u,i}` \
     <code>V **Not**(V v)</code>: returns `~v[i]`.
-
-For floating-point types, builtin operators are not always available, so
-non-operator functions (also available for integers) must be used:
-
-*   <code>V **And**(V a, V b)</code>: returns `a[i] & b[i]`.
-
-*   <code>V **Or**(V a, V b)</code>: returns `a[i] | b[i]`.
-
-*   <code>V **Xor**(V a, V b)</code>: returns `a[i] ^ b[i]`.
 
 *   <code>V **AndNot**(V a, V b)</code>: returns `~a[i] & b[i]`.
 
@@ -651,18 +653,24 @@ false is zero, true has all bits set:
 
 These return a mask (see above) indicating whether the condition is true.
 
-*   <code>M **operator==**(V a, V b)</code>: returns `a[i] == b[i]`.
-*   <code>M **operator!=**(V a, V b)</code>: returns `a[i] != b[i]`.
+*   <code>M **operator==**(V a, V b)</code>: returns `a[i] == b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Eq` instead.
+*   <code>M **operator!=**(V a, V b)</code>: returns `a[i] != b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Ne` instead.
 
-*   <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`.
+*   <code>M **operator&lt;**(V a, V b)</code>: returns `a[i] < b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Lt` instead.
 
-*   <code>M **operator&gt;**(V a, V b)</code>: returns `a[i] > b[i]`.
+*   <code>M **operator&gt;**(V a, V b)</code>: returns `a[i] > b[i]`. Currently
+    unavailable on SVE/RVV; use the equivalent `Gt` instead.
 
 *   `V`: `{f}` \
     <code>M **operator&lt;=**(V a, V b)</code>: returns `a[i] <= b[i]`.
+    Currently unavailable on SVE/RVV; use the equivalent `Le` instead.
 
 *   `V`: `{f}` \
     <code>M **operator&gt;=**(V a, V b)</code>: returns `a[i] >= b[i]`.
+    Currently unavailable on SVE/RVV; use the equivalent `Ge` instead.
 
 *   `V`: `{u,i}` \
     <code>M **TestBit**(V v, V bit)</code>: returns `(v[i] & bit[i]) == bit[i]`.
