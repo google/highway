@@ -153,10 +153,10 @@ HWY_NOINLINE void TestAllSwapAdjacentBlocks() {
 struct TestTableLookupLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    using TI = MakeSigned<T>;
+    const RebindToSigned<D> di;
+    using TI = TFromD<decltype(di)>;
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
-    const Rebind<TI, D> di;
     auto idx = AllocateAligned<TI>(N);
     memset(idx.get(), 0, N * sizeof(TI));
     auto expected = AllocateAligned<T>(N);
@@ -216,7 +216,7 @@ struct TestTableLookupLanes {
     const auto v = Set(d, 1);
     const auto opaque1 = SetTableIndices(d, &index);
     HWY_ASSERT_VEC_EQ(d, v, TableLookupLanes(v, opaque1));
-    const auto opaque2 = IndicesFromVec(d, Zero(d));
+    const auto opaque2 = IndicesFromVec(d, Zero(di));
     HWY_ASSERT_VEC_EQ(d, v, TableLookupLanes(v, opaque2));
 #endif
   }

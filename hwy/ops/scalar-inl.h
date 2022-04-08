@@ -71,7 +71,7 @@ class Mask1 {
  public:
   static HWY_INLINE Mask1<T> FromBool(bool b) {
     Mask1<T> mask;
-    mask.bits = b ? ~Raw(0) : 0;
+    mask.bits = b ? static_cast<Raw>(~Raw{0}) : 0;
     return mask;
   }
 
@@ -366,11 +366,31 @@ HWY_API Vec1<T> ShiftRight(const Vec1<T> v) {
 
 // ------------------------------ RotateRight (ShiftRight)
 
+namespace detail {
+
+// For partial specialization: kBits == 0 results in an invalid shift count
+template <int kBits>
+struct RotateRight {
+  template <typename T>
+  HWY_INLINE Vec1<T> operator()(const Vec1<T> v) const {
+    return Or(ShiftRight<kBits>(v), ShiftLeft<sizeof(T) * 8 - kBits>(v));
+  }
+};
+
+template <>
+struct RotateRight<0> {
+  template <typename T>
+  HWY_INLINE Vec1<T> operator()(const Vec1<T> v) const {
+    return v;
+  }
+};
+
+}  // namespace detail
+
 template <int kBits, typename T>
 HWY_API Vec1<T> RotateRight(const Vec1<T> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  if (kBits == 0) return v;
-  return Or(ShiftRight<kBits>(v), ShiftLeft<sizeof(T) * 8 - kBits>(v));
+  return detail::RotateRight<kBits>()(v);
 }
 
 // ------------------------------ ShiftLeftSame (BroadcastSignBit)
@@ -1176,7 +1196,7 @@ HWY_API Indices1<T> IndicesFromVec(Sisd<T>, Vec1<TI> vec) {
 
 template <typename T, typename TI>
 HWY_API Indices1<T> SetTableIndices(Sisd<T> d, const TI* idx) {
-  return IndicesFromVec(d, LoadU(idx));
+  return IndicesFromVec(d, LoadU(Sisd<TI>(), idx));
 }
 
 template <typename T>
@@ -1340,7 +1360,6 @@ HWY_API Vec1<T> Compress(Vec1<T> v, const uint8_t* HWY_RESTRICT /* bits */) {
 }
 
 // ------------------------------ CompressStore
-
 template <typename T>
 HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
                              T* HWY_RESTRICT unaligned) {
@@ -1349,7 +1368,6 @@ HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
 }
 
 // ------------------------------ CompressBlendedStore
-
 template <typename T>
 HWY_API size_t CompressBlendedStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
                                     T* HWY_RESTRICT unaligned) {
@@ -1358,8 +1376,13 @@ HWY_API size_t CompressBlendedStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
   return 1;
 }
 
-// ------------------------------ CompressBitsStore
+// ------------------------------ CompressBits
+template <typename T>
+HWY_API Vec1<T> CompressBits(Vec1<T> v, const uint8_t* HWY_RESTRICT /*bits*/) {
+  return v;
+}
 
+// ------------------------------ CompressBitsStore
 template <typename T>
 HWY_API size_t CompressBitsStore(Vec1<T> v, const uint8_t* HWY_RESTRICT bits,
                                  Sisd<T> d, T* HWY_RESTRICT unaligned) {
