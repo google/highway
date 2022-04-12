@@ -588,6 +588,10 @@ HWY_NOINLINE void TestAllMulEven() {
   ForGEVectors<128, TestMulEvenOdd64>()(uint64_t());
 }
 
+#ifndef HWY_NATIVE_FMA
+#error "Bug in set_macros-inl.h, did not set HWY_NATIVE_FMA"
+#endif
+
 struct TestMulAdd {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {

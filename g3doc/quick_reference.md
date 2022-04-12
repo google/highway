@@ -1191,6 +1191,11 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
     ensuring memory addresses are naturally aligned or at least padded
     (allocation size increased by at least `Lanes(d)`.
 
+*   `HWY_NATIVE_FMA` expands to 1 if the `MulAdd` etc. ops use native fused
+    multiply-add. Otherwise, `MulAdd(f, m, a)` is implemented as
+    `Add(Mul(f, m), a)`. Checking this can be useful for increasing the
+    tolerance of expected results (around 1E-5 or 1E-6).
+
 The following were used to signal the maximum number of lanes for certain
 operations, but this is no longer necessary (nor possible on SVE/RVV), so they
 are DEPRECATED:
