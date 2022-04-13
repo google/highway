@@ -30,7 +30,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if HWY_TARGET == HWY_SCALAR
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 
 struct OrderAscending128 {
   using Order = SortAscending;
@@ -358,7 +358,7 @@ class Traits128 : public Base {
   }
 };
 
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_TARGET
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)

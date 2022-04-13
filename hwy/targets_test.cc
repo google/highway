@@ -19,9 +19,10 @@
 
 namespace fake {
 
-#define DECLARE_FUNCTION(TGT)                        \
-  namespace N_##TGT {                                \
-    uint32_t FakeFunction(int) { return HWY_##TGT; } \
+#define DECLARE_FUNCTION(TGT)                                                \
+  namespace N_##TGT {                                                        \
+    /* Function argument is just to ensure/demonstrate they are possible. */ \
+    uint32_t FakeFunction(int) { return HWY_##TGT; }                         \
   }
 
 DECLARE_FUNCTION(AVX3_DL)
@@ -36,37 +37,50 @@ DECLARE_FUNCTION(PPC8)
 DECLARE_FUNCTION(WASM)
 DECLARE_FUNCTION(RVV)
 DECLARE_FUNCTION(SCALAR)
+DECLARE_FUNCTION(EMU128)
 
 HWY_EXPORT(FakeFunction);
 
+void CallFunctionForTarget(uint32_t target, int line) {
+  if ((HWY_TARGETS & target) == 0) return;
+  hwy::SetSupportedTargetsForTest(target);
+
+  // Call Update() first to make &HWY_DYNAMIC_DISPATCH() return
+  // the pointer to the already cached function.
+  hwy::GetChosenTarget().Update();
+
+  EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+
+  // Calling DeInit() will test that the initializer function
+  // also calls the right function.
+  hwy::GetChosenTarget().DeInit();
+
+  EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+
+  // Second call uses the cached value from the previous call.
+  EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+}
+
 void CheckFakeFunction() {
-#define CHECK_ARRAY_ENTRY(TGT)                                              \
-  if ((HWY_TARGETS & HWY_##TGT) != 0) {                                     \
-    hwy::SetSupportedTargetsForTest(HWY_##TGT);                             \
-    /* Calling Update() first to make &HWY_DYNAMIC_DISPATCH() return */     \
-    /* the pointer to the already cached function. */                       \
-    hwy::GetChosenTarget().Update();                                        \
-    EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
-    /* Calling DeInit() will test that the initializer function */          \
-    /* also calls the right function. */                                    \
-    hwy::GetChosenTarget().DeInit();                                        \
-    EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
-    /* Second call uses the cached value from the previous call. */         \
-    EXPECT_EQ(uint32_t(HWY_##TGT), HWY_DYNAMIC_DISPATCH(FakeFunction)(42)); \
-  }
-  CHECK_ARRAY_ENTRY(AVX3_DL)
-  CHECK_ARRAY_ENTRY(AVX3)
-  CHECK_ARRAY_ENTRY(AVX2)
-  CHECK_ARRAY_ENTRY(SSE4)
-  CHECK_ARRAY_ENTRY(SSSE3)
-  CHECK_ARRAY_ENTRY(NEON)
-  CHECK_ARRAY_ENTRY(SVE)
-  CHECK_ARRAY_ENTRY(SVE2)
-  CHECK_ARRAY_ENTRY(PPC8)
-  CHECK_ARRAY_ENTRY(WASM)
-  CHECK_ARRAY_ENTRY(RVV)
-  CHECK_ARRAY_ENTRY(SCALAR)
-#undef CHECK_ARRAY_ENTRY
+  // When adding a target, also add to DECLARE_FUNCTION above.
+  CallFunctionForTarget(HWY_AVX3_DL, __LINE__);
+  CallFunctionForTarget(HWY_AVX3, __LINE__);
+  CallFunctionForTarget(HWY_AVX2, __LINE__);
+  CallFunctionForTarget(HWY_SSE4, __LINE__);
+  CallFunctionForTarget(HWY_SSSE3, __LINE__);
+  CallFunctionForTarget(HWY_NEON, __LINE__);
+  CallFunctionForTarget(HWY_SVE, __LINE__);
+  CallFunctionForTarget(HWY_SVE2, __LINE__);
+  CallFunctionForTarget(HWY_PPC8, __LINE__);
+  CallFunctionForTarget(HWY_WASM, __LINE__);
+  CallFunctionForTarget(HWY_RVV, __LINE__);
+  // The tables only have space for either HWY_SCALAR or HWY_EMU128; the former
+  // is opt-in only.
+#ifdef HWY_COMPILE_ONLY_SCALAR
+  CallFunctionForTarget(HWY_SCALAR, __LINE__);
+#else
+  CallFunctionForTarget(HWY_EMU128, __LINE__);
+#endif
 }
 
 }  // namespace fake

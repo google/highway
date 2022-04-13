@@ -69,6 +69,8 @@ namespace hwy {
 // defined), and can be used to deduce the return type of Choose*.
 #if HWY_STATIC_TARGET == HWY_SCALAR
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SCALAR::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_EMU128
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_EMU128::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_RVV
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_RVV::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_WASM2
@@ -127,13 +129,14 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 
 // HWY_CHOOSE_*(FUNC_NAME) expands to the function pointer for that target or
 // nullptr is that target was not compiled.
-#if HWY_TARGETS & HWY_SCALAR
-#define HWY_CHOOSE_SCALAR(FUNC_NAME) &N_SCALAR::FUNC_NAME
+#if HWY_TARGETS & HWY_EMU128
+#define HWY_CHOOSE_FALLBACK(FUNC_NAME) &N_EMU128::FUNC_NAME
+#elif HWY_TARGETS & HWY_SCALAR
+#define HWY_CHOOSE_FALLBACK(FUNC_NAME) &N_SCALAR::FUNC_NAME
 #else
-// When scalar is not present and we try to use scalar because other targets
-// were disabled at runtime we fall back to the baseline with
-// HWY_STATIC_DISPATCH()
-#define HWY_CHOOSE_SCALAR(FUNC_NAME) &HWY_STATIC_DISPATCH(FUNC_NAME)
+// When HWY_SCALAR/HWY_EMU128 are not present and other targets were disabled at
+// runtime, fall back to the baseline with HWY_STATIC_DISPATCH().
+#define HWY_CHOOSE_FALLBACK(FUNC_NAME) &HWY_STATIC_DISPATCH(FUNC_NAME)
 #endif
 
 #if HWY_TARGETS & HWY_WASM2
@@ -254,17 +257,17 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 
 #else
 
-// Dynamic dispatch case with one entry per dynamic target plus the scalar
-// mode and the initialization wrapper.
-#define HWY_EXPORT(FUNC_NAME)                                              \
-  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME))                         \
-      const HWY_DISPATCH_TABLE(FUNC_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = { \
-          /* The first entry in the table initializes the global cache and \
-           * calls the appropriate function. */                            \
-          &decltype(hwy::FunctionCacheFactory(&HWY_STATIC_DISPATCH(        \
-              FUNC_NAME)))::ChooseAndCall<HWY_DISPATCH_TABLE(FUNC_NAME)>,  \
-          HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                               \
-          HWY_CHOOSE_SCALAR(FUNC_NAME),                                    \
+// Dynamic dispatch case with one entry per dynamic target plus the fallback
+// target and the initialization wrapper.
+#define HWY_EXPORT(FUNC_NAME)                                                \
+  static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const HWY_DISPATCH_TABLE( \
+      FUNC_NAME)[HWY_MAX_DYNAMIC_TARGETS + 2] = {                            \
+      /* The first entry in the table initializes the global cache and       \
+       * calls the appropriate function. */                                  \
+      &decltype(hwy::FunctionCacheFactory(&HWY_STATIC_DISPATCH(              \
+          FUNC_NAME)))::ChooseAndCall<HWY_DISPATCH_TABLE(FUNC_NAME)>,        \
+      HWY_CHOOSE_TARGET_LIST(FUNC_NAME),                                     \
+      HWY_CHOOSE_FALLBACK(FUNC_NAME),                                        \
   }
 #define HWY_DYNAMIC_DISPATCH(FUNC_NAME) \
   (*(HWY_DISPATCH_TABLE(FUNC_NAME)[hwy::GetChosenTarget().GetIndex()]))
@@ -311,6 +314,8 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #include "hwy/ops/wasm_128-inl.h"
 #elif HWY_TARGET == HWY_RVV
 #include "hwy/ops/rvv-inl.h"
+#elif HWY_TARGET == HWY_EMU128
+#include "hwy/ops/emu128-inl.h"
 #elif HWY_TARGET == HWY_SCALAR
 #include "hwy/ops/scalar-inl.h"
 #else

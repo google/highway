@@ -149,18 +149,14 @@ There can be various reasons to avoid using vector intrinsics:
 *   We may want to estimate the speedup from the vector implementation compared
     to scalar code.
 
-Highway provides the `HWY_SCALAR` target for such use-cases. It defines a
-`Vec1<T>` wrapper class which is always a single-lane vector, and implements ops
-using standard C++ instead of intrinsics. This will be slow, but at least it
-allows checking the same code for correctness even when actual vectors are
-unavailable.
+Highway provides either the `HWY_SCALAR` or the `HWY_EMU128` target for such
+use-cases. Both implement ops using standard C++ instead of intrinsics. They
+differ in the vector size: the former always uses single-lane vectors and thus
+cannot implement ops such as `AESRound` or `TableLookupBytes`. The latter
+guarantees 16-byte vectors are available like all other Highway targets, and
+supports all ops. Both of these alternatives are slower than native vector code,
+but they allow testing your code even when actual vectors are unavailable.
 
-With hindsight, this target turns out to be less useful because it is unable to
-express some ops such as `AESRound`, `CLMulLower` or `TableLookupBytes` which
-require at least 128-bit vectors. For all other targets, Highway guarantees at
-least 128-bit vectors are supported. Thus tests and some user code may require
-`#if HWY_TARGET != HWY_SCALAR` to prevent compile errors when using this target.
-To avoid this while still enabling the three use cases above, we plan to
-introduce a `HWY_EMU128` target which is the same, except that it would always
-support `16/sizeof(T)` lanes of type T by adding loops to all the op
-implementations.
+`HWY_SCALAR` is only enabled/used `#ifdef HWY_COMPILE_ONLY_SCALAR`. Projects
+that intend to use it may require `#if HWY_TARGET != HWY_SCALAR` around the ops
+it does not support to prevent compile errors.

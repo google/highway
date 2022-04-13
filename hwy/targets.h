@@ -116,6 +116,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
       return "RVV";
 #endif
 
+    case HWY_EMU128:
+      return "Emu128";
     case HWY_SCALAR:
       return "Scalar";
 
@@ -134,16 +136,16 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 // significant bit is set when the mask is not initialized, the next
 // HWY_MAX_DYNAMIC_TARGETS more significant bits are a range of bits from the
 // HWY_TARGETS or SupportedTargets() mask for the given architecture shifted to
-// that position and the next more significant bit is used for the scalar
-// target. Because of this we need to define equivalent values for HWY_TARGETS
-// in this representation.
+// that position and the next more significant bit is used for HWY_SCALAR (if
+// HWY_COMPILE_ONLY_SCALAR is defined) or HWY_EMU128. Because of this we need to
+// define equivalent values for HWY_TARGETS in this representation.
 // This mask representation allows to use ctz() on this mask and obtain a small
 // number that's used as an index of the table for dynamic dispatch. In this
 // way the first entry is used when the mask is uninitialized, the following
 // HWY_MAX_DYNAMIC_TARGETS are for dynamic dispatch and the last one is for
 // scalar.
 
-// The HWY_SCALAR bit in the ChosenTarget mask format.
+// The HWY_SCALAR/HWY_EMU128 bit in the ChosenTarget mask format.
 #define HWY_CHOSEN_TARGET_MASK_SCALAR (1u << (HWY_MAX_DYNAMIC_TARGETS + 1))
 
 // Converts from a HWY_TARGETS mask to a ChosenTarget mask format for the
