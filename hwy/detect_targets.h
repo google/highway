@@ -93,9 +93,8 @@
 
 #define HWY_HIGHEST_TARGET_BIT_RVV 24
 
-// 0x2000000, 0x4000000, 0x8000000 reserved
+// 0x2000000, 0x4000000, 0x8000000, 0x10000000 reserved
 
-#define HWY_EMU128 0x10000000
 #define HWY_SCALAR 0x20000000
 
 #define HWY_HIGHEST_TARGET_BIT_SCALAR 29
@@ -298,17 +297,11 @@
 #define HWY_BASELINE_RVV 0
 #endif
 
-#if defined(HWY_COMPILE_ONLY_SCALAR)
-#define HWY_BASELINE_SCALAR HWY_SCALAR
-#else
-#define HWY_BASELINE_SCALAR HWY_EMU128
-#endif
-
-#define HWY_BASELINE_TARGETS                                     \
-  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | \
-   HWY_BASELINE_SVE2 | HWY_BASELINE_SVE | HWY_BASELINE_NEON |    \
-   HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 |  \
-   HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
+#define HWY_BASELINE_TARGETS                                                \
+  (HWY_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | HWY_BASELINE_SVE2 | \
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSSE3 |              \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |              \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
 
 #else
 // User already defined HWY_BASELINE_TARGETS, but we still need to define
@@ -354,9 +347,9 @@
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
-#define HWY_ATTAINABLE_TARGETS                                        \
-  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | \
-              HWY_AVX3 | HWY_CHECK_AVX3_DL)
+#define HWY_ATTAINABLE_TARGETS                                          \
+  HWY_ENABLED(HWY_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | \
+              HWY_CHECK_AVX3_DL)
 #else
 #define HWY_ATTAINABLE_TARGETS HWY_ENABLED_BASELINE
 #endif

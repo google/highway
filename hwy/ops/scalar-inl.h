@@ -1227,7 +1227,6 @@ HWY_API Vec1<T> Reverse(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
 }
 
-// Must not be called:
 template <typename T>
 HWY_API Vec1<T> Reverse2(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
@@ -1360,6 +1359,11 @@ struct CompressIsPartition {
 template <typename T>
 HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
   // Upper lanes are undefined, so result is the same independent of mask.
+  return v;
+}
+
+template <typename T>
+HWY_API Vec1<T> Compress(Vec1<T> v, const uint8_t* HWY_RESTRICT /* bits */) {
   return v;
 }
 

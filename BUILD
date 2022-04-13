@@ -141,7 +141,6 @@ cc_library(
         "hwy/print-inl.h",  # public
         "hwy/ops/arm_neon-inl.h",
         "hwy/ops/arm_sve-inl.h",
-        "hwy/ops/emu128-inl.h",
         "hwy/ops/generic_ops-inl.h",
         "hwy/ops/scalar-inl.h",
         "hwy/ops/set_macros-inl.h",

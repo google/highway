@@ -74,7 +74,6 @@
 
 // Before include guard so we redefine HWY_TARGET_STR on each include,
 // governed by the current HWY_TARGET.
-
 //-----------------------------------------------------------------------------
 // SSSE3
 #if HWY_TARGET == HWY_SSSE3
@@ -94,7 +93,6 @@
 #define HWY_CAP_GE512 0
 
 #define HWY_TARGET_STR HWY_TARGET_STR_SSSE3
-
 //-----------------------------------------------------------------------------
 // SSE4
 #elif HWY_TARGET == HWY_SSE4
@@ -333,27 +331,6 @@
 
 // HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
 // (rv64gcv is not a valid target)
-
-//-----------------------------------------------------------------------------
-// EMU128
-#elif HWY_TARGET == HWY_EMU128
-
-#define HWY_ALIGN alignas(16)
-#define HWY_MAX_BYTES 16
-#define HWY_LANES(T) (16 / sizeof(T))
-
-#define HWY_HAVE_SCALABLE 0
-#define HWY_HAVE_INTEGER64 1
-#define HWY_HAVE_FLOAT16 1
-#define HWY_HAVE_FLOAT64 1
-#define HWY_MEM_OPS_MIGHT_FAULT 1
-#define HWY_NATIVE_FMA 0
-#define HWY_CAP_GE256 0
-#define HWY_CAP_GE512 0
-
-#define HWY_NAMESPACE N_EMU128
-
-// HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
 
 //-----------------------------------------------------------------------------
 // SCALAR

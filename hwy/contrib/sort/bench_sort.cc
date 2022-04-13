@@ -46,7 +46,7 @@ using detail::OrderAscending;
 using detail::OrderDescending;
 using detail::SharedTraits;
 
-#if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
+#if HWY_TARGET != HWY_SCALAR
 using detail::OrderAscending128;
 using detail::OrderDescending128;
 using detail::Traits128;

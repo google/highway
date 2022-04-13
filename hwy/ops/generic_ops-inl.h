@@ -297,7 +297,6 @@ HWY_API V CLMulUpper(V a, V b) {
 #define HWY_NATIVE_POPCNT
 #endif
 
-#undef HWY_MIN_POW2_FOR_128
 #if HWY_TARGET == HWY_RVV
 #define HWY_MIN_POW2_FOR_128 1
 #else

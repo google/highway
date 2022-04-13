@@ -24,7 +24,7 @@
 
 #if HWY_COMPILER_MSVC
 #undef HWY_DISABLED_TARGETS
-// Either HWY_SCALAR/HWY_EMU128 remains, so we still have a valid target.
+// HWY_SCALAR remains, so there will still be a valid target to call.
 #define HWY_DISABLED_TARGETS (HWY_SSSE3 | HWY_SSE4)
 #endif  // HWY_COMPILER_MSVC
 
