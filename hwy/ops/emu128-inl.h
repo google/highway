@@ -65,7 +65,9 @@ struct Vec128 {
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Mask128 {
   using Raw = hwy::MakeUnsigned<T>;
-  static HWY_INLINE Raw FromBool(bool b) { return b ? ~Raw(0) : 0; }
+  static HWY_INLINE Raw FromBool(bool b) {
+    return b ? static_cast<Raw>(~Raw{0}) : 0;
+  }
 
   Raw bits[N];
 };
@@ -380,7 +382,7 @@ HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
     // signed shifts are still implementation-defined.
     using TU = hwy::MakeUnsigned<T>;
     for (T& lane : v.raw) {
-      const TU shifted = static_cast<TU>(lane) >> kBits;
+      const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> kBits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
       const TU upper = sign << (sizeof(TU) * 8 - 1 - kBits);
       lane = static_cast<T>(shifted | upper);
@@ -448,7 +450,7 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
     // signed shifts are still implementation-defined.
     using TU = hwy::MakeUnsigned<T>;
     for (T& lane : v.raw) {
-      const TU shifted = static_cast<TU>(lane) >> bits;
+      const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> bits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
       const TU upper = sign << (sizeof(TU) * 8 - 1 - bits);
       lane = static_cast<T>(shifted | upper);
@@ -488,7 +490,8 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
     // signed shifts are still implementation-defined.
     using TU = hwy::MakeUnsigned<T>;
     for (size_t i = 0; i < N; ++i) {
-      const TU shifted = static_cast<TU>(v.raw[i]) >> bits.raw[i];
+      const TU shifted =
+          static_cast<TU>(static_cast<TU>(v.raw[i]) >> bits.raw[i]);
       const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
       const TU upper = sign << (sizeof(TU) * 8 - 1 - bits.raw[i]);
       v.raw[i] = static_cast<T>(shifted | upper);
@@ -845,7 +848,7 @@ HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
     const T bias = v.raw[i] < T(0.0) ? T(-0.5) : T(0.5);
     const TI rounded = static_cast<TI>(v.raw[i] + bias);
     if (rounded == 0) {
-      v.raw[i] = v.raw[i] < 0 ? -0 : 0;
+      v.raw[i] = v.raw[i] < 0 ? T{-0} : T{0};
       continue;
     }
     // Round to even
