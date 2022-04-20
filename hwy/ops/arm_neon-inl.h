@@ -3159,6 +3159,12 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
 
 #endif
 
+// ------------------------------ Floating-point classification
+template <typename T, size_t N>
+HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
+  return v != v;
+}
+
 // ================================================== SWIZZLE
 
 // ------------------------------ LowerHalf

@@ -838,6 +838,12 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
   return IfThenElse(MaskFromVec(mask), yes, no);
 }
 
+// ------------------------------ IsNaN (Ne)
+template <class V>
+HWY_API svbool_t IsNaN(const V v) {
+  return Ne(v, v);
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ Load/MaskedLoad/LoadDup128/Store/Stream

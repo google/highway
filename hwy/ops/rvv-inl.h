@@ -2652,6 +2652,12 @@ HWY_API V Floor(const V v) {
   return ret;
 }
 
+// ------------------------------ IsNaN
+template <class V>
+HWY_API MFromD<DFromV<V>> IsNaN(const V v) {
+  return Ne(v, v);
+}
+
 // ------------------------------ Iota (ConvertTo)
 
 template <class D, HWY_IF_UNSIGNED_D(D)>

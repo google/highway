@@ -722,6 +722,13 @@ HWY_API Vec256<float> Floor(const Vec256<float> v) {
   return Vec256<float>{wasm_f32x4_floor(v.raw)};
 }
 
+// ------------------------------ Floating-point classification
+
+template <typename T>
+HWY_API Mask256<T> IsNaN(const Vec256<T> v) {
+  return v != v;
+}
+
 // ================================================== COMPARE
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.

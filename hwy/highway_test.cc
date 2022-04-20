@@ -176,26 +176,19 @@ HWY_NOINLINE void TestAllSignBit() {
   ForFloatTypes(ForPartialVectors<TestSignBitFloat>());
 }
 
-// std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
-template <typename TF>
-bool IsNaN(TF f) {
-  MakeUnsigned<TF> bits;
-  memcpy(&bits, &f, sizeof(TF));
-  bits += bits;
-  bits >>= 1;  // clear sign bit
-  // NaN if all exponent bits are set and the mantissa is not zero.
-  return bits > ExponentMask<decltype(bits)>();
-}
-
+// inline to work around incorrect SVE codegen (only first 128 bits used).
 template <class D, class V>
-HWY_NOINLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
+HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
   using T = TFromD<D>;
-  const T lane = GetLane(v);
-  if (!IsNaN(lane)) {
-    const std::string type_name = TypeName(T(), Lanes(d));
+  const size_t N = Lanes(d);
+  if (!AllTrue(d, IsNaN(v))) {
+    Print(d, "not all NaN", v, 0, N);
+    Print(d, "mask", VecFromMask(d, IsNaN(v)), 0, N);
+    const std::string type_name = TypeName(T(), N);
     // RVV lacks PRIu64 and MSYS still has problems with %zu, so print bytes to
     // avoid truncating doubles.
     uint8_t bytes[HWY_MAX(sizeof(T), 8)] = {0};
+    const T lane = GetLane(v);
     memcpy(bytes, &lane, sizeof(T));
     Abort(file, line,
           "Expected %s NaN, got %E (bytes %02x %02x %02x %02x %02x %02x %02x "
@@ -318,6 +311,23 @@ HWY_NOINLINE void TestAllNaN() {
   ForPartialVectors<TestF32NaN>()(float());
 }
 
+struct TestIsNaN {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v1 = Set(d, T(Unpredictable1()));
+    const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
+    HWY_ASSERT_NAN(d, nan);
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsNaN(nan));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsNaN(CopySign(nan, Set(d, T{-1}))));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(v1));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(Zero(d)));
+  }
+};
+
+HWY_NOINLINE void TestAllIsNaN() {
+  ForFloatTypes(ForPartialVectors<TestIsNaN>());
+}
+
 struct TestCopyAndAssign {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -378,6 +388,7 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllOverflow);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllClamp);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSignBit);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllNaN);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllIsNaN);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);

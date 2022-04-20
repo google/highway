@@ -1320,6 +1320,15 @@ HWY_API Vec512<double> Floor(const Vec512<double> v) {
 
 HWY_DIAGNOSTICS(pop)
 
+// ------------------------------ Floating-point classification
+
+HWY_API Mask512<float> IsNaN(const Vec512<float> v) {
+  return Mask512<float>{_mm512_cmpneq_ps_mask(v.raw, v.raw)};
+}
+HWY_API Mask512<double> IsNaN(const Vec512<double> v) {
+  return Mask512<double>{_mm512_cmpneq_pd_mask(v.raw, v.raw)};
+}
+
 // ================================================== COMPARE
 
 // Comparisons set a mask bit to 1 if the condition is true, else 0.

@@ -831,6 +831,19 @@ HWY_API Vec1<double> Floor(const Vec1<double> v) {
   return Floor<double, uint64_t, 52, 11>(v);
 }
 
+// ------------------------------ Floating-point classification
+
+template <typename T>
+HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
+  // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
+  MakeUnsigned<T> bits;
+  memcpy(&bits, &v, sizeof(v));
+  bits += bits;
+  bits >>= 1;  // clear sign bit
+  // NaN if all exponent bits are set and the mantissa is not zero.
+  return Mask1<T>::FromBool(bits > ExponentMask<decltype(bits)>());
+}
+
 // ================================================== COMPARE
 
 template <typename T>

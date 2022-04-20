@@ -150,7 +150,8 @@ the smaller types must be obtained from those of the larger type (e.g. via
 
 Vector types are unspecified and depend on the target. User code could define
 them as `auto`, but it is more readable (due to making the type visible) to use
-an alias such as `Vec<D>`, or `decltype(Zero(d))`.
+an alias such as `Vec<D>`, or `decltype(Zero(d))`. Similarly, the mask type can
+be obtained via `Mask<D>`.
 
 Vectors are sizeless types on RVV/SVE. Therefore, vectors must not be used in
 arrays/STL containers (use the lane type `T` instead), class members,
@@ -459,20 +460,26 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 #### Floating-point rounding
 
 *   `V`: `{f}` \
-    <code>V **Round**(V a)</code>: returns `a[i]` rounded towards the nearest
+    <code>V **Round**(V v)</code>: returns `v[i]` rounded towards the nearest
     integer, with ties to even.
 
 *   `V`: `{f}` \
-    <code>V **Trunc**(V a)</code>: returns `a[i]` rounded towards zero
+    <code>V **Trunc**(V v)</code>: returns `v[i]` rounded towards zero
     (truncate).
 
 *   `V`: `{f}` \
-    <code>V **Ceil**(V a)</code>: returns `a[i]` rounded towards positive
+    <code>V **Ceil**(V v)</code>: returns `v[i]` rounded towards positive
     infinity (ceiling).
 
 *   `V`: `{f}` \
-    <code>V **Floor**(V a)</code>: returns `a[i]` rounded towards negative
+    <code>V **Floor**(V v)</code>: returns `v[i]` rounded towards negative
     infinity.
+
+#### Floating-point classification
+
+*   `V`: `{f}` \
+    <code>M **IsNaN**(V v)</code>: returns mask indicating whether `v[i]` is
+    "not a number" (unordered).
 
 ### Logical
 

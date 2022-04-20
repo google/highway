@@ -5454,6 +5454,25 @@ HWY_API Vec128<double, N> Floor(const Vec128<double, N> v) {
 
 #endif  // !HWY_SSSE3
 
+// ------------------------------ Floating-point classification
+
+template <size_t N>
+HWY_API Mask128<float, N> IsNaN(const Vec128<float, N> v) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask128<float, N>{_mm_cmp_ps_mask(v.raw, v.raw, _CMP_UNORD_Q)};
+#else
+  return Mask128<float, N>{_mm_cmpneq_ps(v.raw, v.raw)};
+#endif
+}
+template <size_t N>
+HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask128<double, N>{_mm_cmp_pd_mask(v.raw, v.raw, _CMP_UNORD_Q)};
+#else
+  return Mask128<double, N>{_mm_cmpneq_pd(v.raw, v.raw)};
+#endif
+}
+
 // ================================================== CRYPTO
 
 #if !defined(HWY_DISABLE_PCLMUL_AES) && HWY_TARGET != HWY_SSSE3

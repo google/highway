@@ -2006,6 +2006,23 @@ HWY_API Vec256<double> Floor(const Vec256<double> v) {
       _mm256_round_pd(v.raw, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)};
 }
 
+// ------------------------------ Floating-point classification
+
+HWY_API Mask256<float> IsNaN(const Vec256<float> v) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask256<float>{_mm256_cmp_ps_mask(v.raw, v.raw, _CMP_UNORD_Q)};
+#else
+  return Mask256<float>{_mm256_cmp_ps(v.raw, v.raw, _CMP_UNORD_Q)};
+#endif
+}
+HWY_API Mask256<double> IsNaN(const Vec256<double> v) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask256<double>{_mm256_cmp_pd_mask(v.raw, v.raw, _CMP_UNORD_Q)};
+#else
+  return Mask256<double>{_mm256_cmp_pd(v.raw, v.raw, _CMP_UNORD_Q)};
+#endif
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ Load
