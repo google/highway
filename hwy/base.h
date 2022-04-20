@@ -725,19 +725,27 @@ HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
 #endif
 }
 
+#if HWY_COMPILER_MSVC
+#pragma intrinsic(memcpy)
+#pragma intrinsic(memset)
+#endif
+
 // The source/destination must not overlap/alias.
 template <size_t kBytes, typename From, typename To>
 HWY_API void CopyBytes(const From* from, To* to) {
 #if HWY_COMPILER_MSVC
-  const uint8_t* HWY_RESTRICT from_bytes =
-      reinterpret_cast<const uint8_t*>(from);
-  uint8_t* HWY_RESTRICT to_bytes = reinterpret_cast<uint8_t*>(to);
-  for (size_t i = 0; i < kBytes; ++i) {
-    to_bytes[i] = from_bytes[i];
-  }
+  memcpy(to, from, kBytes);
 #else
-  // Avoids horrible codegen on Clang (series of PINSRB)
   __builtin_memcpy(to, from, kBytes);
+#endif
+}
+
+template <size_t kBytes, typename To>
+HWY_API void ZeroBytes(To* to) {
+#if HWY_COMPILER_MSVC
+  memset(to, 0, kBytes);
+#else
+  __builtin_memset(to, 0, kBytes);
 #endif
 }
 

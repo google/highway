@@ -57,7 +57,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if HWY_TARGET == HWY_SCALAR
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 
 template <typename T>
 void Swap(T* a, T* b) {
@@ -690,7 +690,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   return false;  // not finished sorting
 }
 
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_TARGET
 }  // namespace detail
 
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.
@@ -707,7 +707,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
-#if HWY_TARGET == HWY_SCALAR
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
   (void)d;
   (void)buf;
   // PERFORMANCE WARNING: vqsort is not enabled for the non-SIMD target
@@ -740,7 +740,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const size_t max_levels = 2 * hwy::CeilLog2(num) + 4;
 
   detail::Recurse(d, st, keys, 0, num, pivot, buf, rng, max_levels);
-#endif  // HWY_TARGET == HWY_SCALAR
+#endif  // HWY_TARGET
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

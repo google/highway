@@ -183,9 +183,9 @@ Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
 ## Targets
 
 Let `Target` denote an instruction set, one of
-`SCALAR/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/NEON/SVE/SVE2/WASM/RVV`. Each of these is
-represented by a `HWY_Target` (for example, `HWY_SSE4`) macro which expands to a
-unique power-of-two value.
+`SCALAR/EMU128/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/NEON/SVE/SVE2/WASM/RVV`. Each of
+these is represented by a `HWY_Target` (for example, `HWY_SSE4`) macro which
+expands to a unique power-of-two value.
 
 Note that x86 CPUs are segmented into dozens of feature flags and capabilities,
 which are often used together because they were introduced in the same CPU
@@ -348,6 +348,8 @@ is qNaN, and NaN if both are.
 *   <code>V **Min**(V a, V b)</code>: returns `min(a[i], b[i])`.
 
 *   <code>V **Max**(V a, V b)</code>: returns `max(a[i], b[i])`.
+
+All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `u64` \
     <code>M **Min128**(D, V a, V b)</code>: returns the minimum of unsigned
@@ -693,6 +695,7 @@ These return a mask (see above) indicating whether the condition is true.
     lanes (e.g. indices 1,0), returns whether a[1]:a[0] concatenated to an
     unsigned 128-bit integer (least significant bits in a[0]) is less than
     b[1]:b[0]. For each pair, the mask lanes are either both true or both false.
+    Only available if `HWY_TARGET != HWY_SCALAR`.
 
 ### Memory
 
@@ -891,16 +894,17 @@ if the input exceeds the destination range.
     `V`. The optional `D` (provided for consistency with `UpperHalf`) is
     `Half<DFromV<V>>`.
 
+All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
+
 *   <code>V2 **UpperHalf**(D, V)</code>: returns upper half of the vector `V`,
-    where `D` is `Half<DFromV<V>>`. Only available if `HWY_TARGET !=
-    HWY_SCALAR`.
+    where `D` is `Half<DFromV<V>>`.
 
 *   <code>V **ZeroExtendVector**(D, V2)</code>: returns vector whose `UpperHalf`
     is zero and whose `LowerHalf` is the argument; `D` is `Twice<DFromV<V2>>`.
 
 *   <code>V **Combine**(D, V2, V2)</code>: returns vector whose `UpperHalf` is
-    the first argument and whose `LowerHalf` is the second argument. This is
-    currently only implemented for RVV, AVX2, AVX3*. `D` is `Twice<DFromV<V2>>`.
+    the first argument and whose `LowerHalf` is the second argument; `D` is
+    `Twice<DFromV<V2>>`.
 
 **Note**: the following operations cross block boundaries, which is typically
 more expensive on AVX2/AVX-512 than per-block operations.
@@ -924,13 +928,11 @@ more expensive on AVX2/AVX-512 than per-block operations.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **ConcatOdd**(D, V hi, V lo)</code>: returns the concatenation of
-    the odd lanes of `hi` and the odd lanes of `lo`. Only available if
-    `HWY_TARGET != HWY_SCALAR`.
+    the odd lanes of `hi` and the odd lanes of `lo`.
 
 *   `V`: `{u,i,f}{32,64}` \
     <code>V **ConcatEven**(D, V hi, V lo)</code>: returns the concatenation of
-    the even lanes of `hi` and the even lanes of `lo`. Only available if
-    `HWY_TARGET != HWY_SCALAR`.
+    the even lanes of `hi` and the even lanes of `lo`.
 
 ### Blockwise
 
@@ -941,6 +943,8 @@ their operands into independently processed 128-bit *blocks*.
     <code>V **Broadcast**&lt;int i&gt;(V)</code>: returns individual *blocks*,
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
 
+All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
+
 *   `V`: `{u,i}` \
     <code>VI **TableLookupBytes**(V bytes, VI indices)</code>: returns
     `bytes[indices[i]]`. Uses byte lanes regardless of the actual vector types.
@@ -948,7 +952,7 @@ their operands into independently processed 128-bit *blocks*.
     HWY_MIN(Lanes(DFromV<V>()), 16)`. `VI` are integers with the same bit width
     as a lane in `V`. The number of lanes in `V` and `VI` may differ, e.g. a
     full-length table vector loaded via `LoadDup128`, plus partial vector `VI`
-    of 4-bit indices. Only available if `HWY_TARGET != HWY_SCALAR`.
+    of 4-bit indices.
 
 *   `V`: `{u,i}` \
     <code>VI **TableLookupBytesOr0**(V bytes, VI indices)</code>: returns
@@ -958,21 +962,22 @@ their operands into independently processed 128-bit *blocks*.
     zeroing behavior has zero cost on x86 and ARM. For vectors of >= 256 bytes
     (can happen on SVE and RVV), this will set all lanes after the first 128
     to 0. `VI` are integers with the same bit width as a lane in `V`. The number
-    of lanes in `V` and `VI` may differ. Only available if `HWY_TARGET !=
-    HWY_SCALAR`.
+    of lanes in `V` and `VI` may differ.
 
-#### Zip/Interleave
+#### Interleave
+
+Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   <code>V **InterleaveLower**([D, ] V a, V b)</code>: returns *blocks* with
     alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
     least-significant lane). The optional `D` (provided for consistency with
-    `InterleaveUpper`) is `DFromV<V>`. Only available if `HWY_TARGET !=
-    HWY_SCALAR`, but note that `ZipLower` works on all targets.
+    `InterleaveUpper`) is `DFromV<V>`.
 
 *   <code>V **InterleaveUpper**(D, V a, V b)</code>: returns *blocks* with
     alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
-    least-significant lane). `D` is `DFromV<V>`. Only available if `HWY_TARGET
-    != HWY_SCALAR`.
+    least-significant lane). `D` is `DFromV<V>`.
+
+#### Zip
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
     <code>Ret **ZipLower**([D, ] V a, V b)</code>: returns the same bits as
@@ -989,7 +994,7 @@ their operands into independently processed 128-bit *blocks*.
 
 #### Shift
 
-The following are only available if `HWY_TARGET != HWY_SCALAR`:
+Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `{u,i}` \
     <code>V **ShiftLeftBytes**&lt;int&gt;([D, ] V)</code>: returns the result of
@@ -1021,6 +1026,8 @@ The following are only available if `HWY_TARGET != HWY_SCALAR`:
 
 #### Shuffle
 
+Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
+
 *   `V`: `{u,i,f}{32}` \
     <code>V **Shuffle1032**(V)</code>: returns *blocks* with 64-bit halves
     swapped.
@@ -1050,16 +1057,6 @@ instead because they are more general:
 
 ### Swizzle
 
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
-    lanes to the next higher-indexed lane. For each even lane index `i`,
-    `r[i] == v[i]` and `r[i + 1] == v[i]`.
-
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
-    to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
-    v[i]` and `r[i - 1] == v[i]`. Only available if `HWY_TARGET != HWY_SCALAR`.
-
 *   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
     taken from `a` and the even lanes from `b`.
 
@@ -1067,21 +1064,22 @@ instead because they are more general:
     blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
     vector has no more than one block (i.e. is 128 bits or scalar).
 
-*   <code>V **SwapAdjacentBlocks**(V v)</code>: returns a vector where blocks of
-    index `2*i` and `2*i+1` are swapped. Results are undefined for vectors with
-    less than two blocks; callers must first check that via `Lanes`.
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
+    lanes to the next higher-indexed lane. For each even lane index `i`,
+    `r[i] == v[i]` and `r[i + 1] == v[i]`.
 
 *   <code>V **ReverseBlocks**(V v)</code>: returns a vector with blocks in
     reversed order.
 
 *   `V`: `{u,i,f}{32,64}` \
-    <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector of
-    `a[indices[i]]`, where `unspecified` is the return value of
-    `SetTableIndices(D, &indices[0])` or `IndicesFromVec`. The indices are not
-    limited to blocks, hence this is slower than `TableLookupBytes*` on
-    AVX2/AVX-512. Results are implementation-defined unless `0 <= indices[i] <
-    Lanes(D())`. `indices` are always integers, even if `V` is a floating-point
-    type.
+    <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector
+    of `a[indices[i]]`, where `unspecified` is the return value of
+    `SetTableIndices(D, &indices[0])` or `IndicesFromVec`. The indices are
+    not limited to blocks, hence this is slower than `TableLookupBytes*` on
+    AVX2/AVX-512. Results are implementation-defined unless `0 <= indices[i]
+    < Lanes(D())`. `indices` are always integers, even if `V` is a
+    floating-point type.
 
 *   `D`: `{u,i}{32,64}` \
     <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
@@ -1113,6 +1111,17 @@ The following `ReverseN` must not be called if `Lanes(D()) > N`:
     <code>V **Reverse8**(D, V a)</code> returns a vector with each group of 8
     contiguous lanes in reversed order (`out[i] == a[i ^ 7]`).
 
+All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
+
+*   `V`: `{u,i,f}{32,64}` \
+    <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
+    to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
+    v[i]` and `r[i - 1] == v[i]`.
+
+*   <code>V **SwapAdjacentBlocks**(V v)</code>: returns a vector where blocks of
+    index `2*i` and `2*i+1` are swapped. Results are undefined for vectors with
+    less than two blocks; callers must first check that via `Lanes`.
+
 ### Reductions
 
 **Note**: these 'reduce' all lanes to a single result (e.g. sum), which is
@@ -1135,17 +1144,17 @@ than normal SIMD operations and are typically used outside critical loops.
 
 ### Crypto
 
+Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
+
 *   `V`: `u8` \
     <code>V **AESRound**(V state, V round_key)</code>: one round of AES
     encrytion: `MixColumns(SubBytes(ShiftRows(state))) ^ round_key`. This
-    matches x86 AES-NI. The latency is independent of the input values. Only
-    available if `HWY_TARGET != HWY_SCALAR`.
+    matches x86 AES-NI. The latency is independent of the input values.
 
 *   `V`: `u8` \
     <code>V **AESLastRound**(V state, V round_key)</code>: the last round of AES
     encrytion: `SubBytes(ShiftRows(state)) ^ round_key`. This matches x86
-    AES-NI. The latency is independent of the input values. Only available if
-    `HWY_TARGET != HWY_SCALAR`.
+    AES-NI. The latency is independent of the input values.
 
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the

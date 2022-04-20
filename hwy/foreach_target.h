@@ -53,6 +53,17 @@
 #error ">1 target enabled => define HWY_TARGET_INCLUDE before foreach_target.h"
 #endif
 
+#if (HWY_TARGETS & HWY_EMU128) && (HWY_STATIC_TARGET != HWY_EMU128)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_EMU128
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
+
 #if (HWY_TARGETS & HWY_SCALAR) && (HWY_STATIC_TARGET != HWY_SCALAR)
 #undef HWY_TARGET
 #define HWY_TARGET HWY_SCALAR

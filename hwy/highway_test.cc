@@ -265,7 +265,7 @@ struct TestNaN {
 #endif
 
     // Min
-#if HWY_ARCH_X86 && HWY_TARGET != HWY_SCALAR
+#if HWY_ARCH_X86 && (HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128)
     // x86 SIMD returns the second operand if any input is NaN.
     HWY_ASSERT_VEC_EQ(d, v1, Min(nan, v1));
     HWY_ASSERT_VEC_EQ(d, v1, Max(nan, v1));

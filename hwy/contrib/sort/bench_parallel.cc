@@ -46,7 +46,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-#if HWY_TARGET != HWY_SCALAR
+#if HWY_TARGET != HWY_SCALAR && HWY_TARGET != HWY_EMU128
 
 class ThreadPool {
  public:

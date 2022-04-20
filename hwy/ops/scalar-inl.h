@@ -978,7 +978,8 @@ template <typename T, typename Offset>
 HWY_API Vec1<T> GatherOffset(Sisd<T> d, const T* base,
                              const Vec1<Offset> offset) {
   static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(base) + offset.raw;
+  const intptr_t addr =
+      reinterpret_cast<intptr_t>(base) + static_cast<intptr_t>(offset.raw);
   return Load(d, reinterpret_cast<const T*>(addr));
 }
 
@@ -1240,6 +1241,7 @@ HWY_API Vec1<T> Reverse(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
 }
 
+// Must not be called:
 template <typename T>
 HWY_API Vec1<T> Reverse2(Sisd<T> /* tag */, const Vec1<T> v) {
   return v;
@@ -1372,11 +1374,6 @@ struct CompressIsPartition {
 template <typename T>
 HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
   // Upper lanes are undefined, so result is the same independent of mask.
-  return v;
-}
-
-template <typename T>
-HWY_API Vec1<T> Compress(Vec1<T> v, const uint8_t* HWY_RESTRICT /* bits */) {
   return v;
 }
 

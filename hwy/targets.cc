@@ -247,7 +247,11 @@ uint32_t SupportedTargets() {
     return supported_targets_for_test_ & supported_mask_;
   }
 
+#ifdef HWY_COMPILE_ONLY_SCALAR
   bits = HWY_SCALAR;
+#else
+  bits = HWY_EMU128;
+#endif
 
 #if HWY_ARCH_X86
   bool has_osxsave = false;
