@@ -315,17 +315,68 @@ struct TestIsNaN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v1 = Set(d, T(Unpredictable1()));
+    const auto inf = IfThenElse(Eq(v1, Set(d, T(1))), Inf(d), v1);
     const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
+    const auto neg = Set(d, T{-1});
     HWY_ASSERT_NAN(d, nan);
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(inf));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(CopySign(inf, neg)));
     HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsNaN(nan));
-    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsNaN(CopySign(nan, Set(d, T{-1}))));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsNaN(CopySign(nan, neg)));
     HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(v1));
     HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(Zero(d)));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(Set(d, hwy::LowestValue<T>())));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsNaN(Set(d, hwy::HighestValue<T>())));
   }
 };
 
 HWY_NOINLINE void TestAllIsNaN() {
   ForFloatTypes(ForPartialVectors<TestIsNaN>());
+}
+
+struct TestIsInf {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v1 = Set(d, T(Unpredictable1()));
+    const auto inf = IfThenElse(Eq(v1, Set(d, T(1))), Inf(d), v1);
+    const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
+    const auto neg = Set(d, T{-1});
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsInf(inf));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsInf(CopySign(inf, neg)));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsInf(nan));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsInf(CopySign(nan, neg)));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsInf(v1));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsInf(Zero(d)));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsInf(Set(d, hwy::LowestValue<T>())));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsInf(Set(d, hwy::HighestValue<T>())));
+  }
+};
+
+HWY_NOINLINE void TestAllIsInf() {
+  ForFloatTypes(ForPartialVectors<TestIsInf>());
+}
+
+struct TestIsFinite {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v1 = Set(d, T(Unpredictable1()));
+    const auto inf = IfThenElse(Eq(v1, Set(d, T(1))), Inf(d), v1);
+    const auto nan = IfThenElse(Eq(v1, Set(d, T(1))), NaN(d), v1);
+    const auto neg = Set(d, T{-1});
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsFinite(inf));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsFinite(CopySign(inf, neg)));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsFinite(nan));
+    HWY_ASSERT_MASK_EQ(d, MaskFalse(d), IsFinite(CopySign(nan, neg)));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsFinite(v1));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsFinite(Zero(d)));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d), IsFinite(Set(d, hwy::LowestValue<T>())));
+    HWY_ASSERT_MASK_EQ(d, MaskTrue(d),
+                       IsFinite(Set(d, hwy::HighestValue<T>())));
+  }
+};
+
+HWY_NOINLINE void TestAllIsFinite() {
+  ForFloatTypes(ForPartialVectors<TestIsFinite>());
 }
 
 struct TestCopyAndAssign {
@@ -389,6 +440,8 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllClamp);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSignBit);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllNaN);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllIsNaN);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllIsInf);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllIsFinite);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);

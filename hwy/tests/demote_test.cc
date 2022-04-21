@@ -32,12 +32,12 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 template <typename T, HWY_IF_FLOAT(T)>
-bool IsFinite(T t) {
+bool IsFiniteT(T t) {
   return std::isfinite(t);
 }
 // Wrapper avoids calling std::isfinite for integer types (ambiguous).
 template <typename T, HWY_IF_NOT_FLOAT(T)>
-bool IsFinite(T /*unused*/) {
+bool IsFiniteT(T /*unused*/) {
   return true;
 }
 
@@ -58,7 +58,7 @@ struct TestDemoteTo {
     const T max = LimitsMax<ToT>();
 
     const auto value_ok = [&](T& value) {
-      if (!IsFinite(value)) return false;
+      if (!IsFiniteT(value)) return false;
       return true;
     };
 
@@ -118,7 +118,7 @@ struct TestDemoteToFloat {
         do {
           const uint64_t bits = rng();
           memcpy(&from[i], &bits, sizeof(T));
-        } while (!IsFinite(from[i]));
+        } while (!IsFiniteT(from[i]));
         const T magn = std::abs(from[i]);
         const T max_abs = HighestValue<ToT>();
         // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see

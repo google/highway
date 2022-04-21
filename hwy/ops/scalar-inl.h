@@ -831,19 +831,6 @@ HWY_API Vec1<double> Floor(const Vec1<double> v) {
   return Floor<double, uint64_t, 52, 11>(v);
 }
 
-// ------------------------------ Floating-point classification
-
-template <typename T>
-HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
-  // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
-  MakeUnsigned<T> bits;
-  memcpy(&bits, &v, sizeof(v));
-  bits += bits;
-  bits >>= 1;  // clear sign bit
-  // NaN if all exponent bits are set and the mantissa is not zero.
-  return Mask1<T>::FromBool(bits > ExponentMask<decltype(bits)>());
-}
-
 // ================================================== COMPARE
 
 template <typename T>
@@ -878,6 +865,45 @@ HWY_API Mask1<T> operator<=(const Vec1<T> a, const Vec1<T> b) {
 template <typename T>
 HWY_API Mask1<T> operator>=(const Vec1<T> a, const Vec1<T> b) {
   return Mask1<T>::FromBool(a.raw >= b.raw);
+}
+
+// ------------------------------ Floating-point classification (==)
+
+template <typename T>
+HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
+  // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
+  MakeUnsigned<T> bits;
+  memcpy(&bits, &v, sizeof(v));
+  bits += bits;
+  bits >>= 1;  // clear sign bit
+  // NaN if all exponent bits are set and the mantissa is not zero.
+  return Mask1<T>::FromBool(bits > ExponentMask<decltype(bits)>());
+}
+
+HWY_API Mask1<float> IsInf(const Vec1<float> v) {
+  const Sisd<float> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const Vec1<uint32_t> vu = BitCast(du, v);
+  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
+  return RebindMask(d, (vu + vu) == Set(du, 0xFF000000u));
+}
+HWY_API Mask1<double> IsInf(const Vec1<double> v) {
+  const Sisd<double> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const Vec1<uint64_t> vu = BitCast(du, v);
+  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
+  return RebindMask(d, (vu + vu) == Set(du, 0xFFE0000000000000ull));
+}
+
+HWY_API Mask1<float> IsFinite(const Vec1<float> v) {
+  const Vec1<uint32_t> vu = BitCast(Sisd<uint32_t>(), v);
+  // Shift left to clear the sign bit, check whether exponent != max value.
+  return Mask1<float>::FromBool((vu.raw << 1) < 0xFF000000u);
+}
+HWY_API Mask1<double> IsFinite(const Vec1<double> v) {
+  const Vec1<uint64_t> vu = BitCast(Sisd<uint64_t>(), v);
+  // Shift left to clear the sign bit, check whether exponent != max value.
+  return Mask1<double>::FromBool((vu.raw << 1) < 0xFFE0000000000000ull);
 }
 
 // ================================================== MEMORY

@@ -2652,10 +2652,40 @@ HWY_API V Floor(const V v) {
   return ret;
 }
 
-// ------------------------------ IsNaN
+// ------------------------------ Floating-point classification (Ne)
+
+// vfclass does not help because it would require 3 instructions (to AND and
+// then compare the bits), whereas these are just 1-3 integer instructions.
+
 template <class V>
 HWY_API MFromD<DFromV<V>> IsNaN(const V v) {
   return Ne(v, v);
+}
+
+template <class V, class D = DFromV<V>>
+HWY_API MFromD<D> IsInf(const V v) {
+  const D d;
+  const RebindToSigned<decltype(d)> di;
+  using T = TFromD<D>;
+  const VFromD<decltype(di)> vi = BitCast(di, v);
+  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
+  return RebindMask(d, detail::EqS(Add(vi, vi), hwy::MaxExponentTimes2<T>()));
+}
+
+// Returns whether normal/subnormal/zero.
+template <class V, class D = DFromV<V>>
+HWY_API MFromD<D> IsFinite(const V v) {
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
+  using T = TFromD<D>;
+  const VFromD<decltype(du)> vu = BitCast(du, v);
+  // 'Shift left' to clear the sign bit, then right so we can compare with the
+  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
+  // negative and non-negative floats would be greater).
+  const VFromD<decltype(di)> exp =
+      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(Add(vu, vu)));
+  return RebindMask(d, detail::LtS(exp, hwy::MaxExponentField<T>()));
 }
 
 // ------------------------------ Iota (ConvertTo)

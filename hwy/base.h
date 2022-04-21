@@ -547,6 +547,28 @@ constexpr uint64_t ExponentMask<uint64_t>() {
   return 0x7FF0000000000000ULL;
 }
 
+// Returns width in bits of the mantissa field in IEEE binary32/64.
+template <typename T>
+constexpr int MantissaBits() {
+  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
+  return 0;
+}
+template <>
+constexpr int MantissaBits<float>() {
+  return 23;
+}
+template <>
+constexpr int MantissaBits<double>() {
+  return 52;
+}
+
+// Returns the (left-shifted by one bit) IEEE binary32/64 representation with
+// the largest possible (biased) exponent field. Used by IsInf.
+template <typename T>
+constexpr MakeSigned<T> MaxExponentTimes2() {
+  return -(MakeSigned<T>{1} << (MantissaBits<T>() + 1));
+}
+
 // Returns bitmask of the mantissa field in IEEE binary32/64.
 template <typename T>
 constexpr T MantissaMask() {
@@ -577,6 +599,15 @@ template <>
 constexpr double MantissaEnd<double>() {
   // floating point literal with p52 requires C++17.
   return 4503599627370496.0;  // 1 << 52
+}
+
+// Returns largest value of the biased exponent field in IEEE binary32/64,
+// right-shifted so that the LSB is bit zero. Example: 0xFF for float.
+// This is expressed as a signed integer for more efficient comparison.
+template <typename T>
+constexpr MakeSigned<T> MaxExponentField() {
+  // Exponent := remaining bits after deducting sign and mantissa.
+  return (MakeSigned<T>{1} << (8 * sizeof(T) - 1 - MantissaBits<T>())) - 1;
 }
 
 //------------------------------------------------------------------------------

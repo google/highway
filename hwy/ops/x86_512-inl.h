@@ -1320,15 +1320,6 @@ HWY_API Vec512<double> Floor(const Vec512<double> v) {
 
 HWY_DIAGNOSTICS(pop)
 
-// ------------------------------ Floating-point classification
-
-HWY_API Mask512<float> IsNaN(const Vec512<float> v) {
-  return Mask512<float>{_mm512_cmpneq_ps_mask(v.raw, v.raw)};
-}
-HWY_API Mask512<double> IsNaN(const Vec512<double> v) {
-  return Mask512<double>{_mm512_cmpneq_pd_mask(v.raw, v.raw)};
-}
-
 // ================================================== COMPARE
 
 // Comparisons set a mask bit to 1 if the condition is true, else 0.
@@ -1782,6 +1773,31 @@ HWY_API Vec512<int32_t> BroadcastSignBit(const Vec512<int32_t> v) {
 
 HWY_API Vec512<int64_t> BroadcastSignBit(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_srai_epi64(v.raw, 63)};
+}
+
+// ------------------------------ Floating-point classification (Not)
+
+HWY_API Mask512<float> IsNaN(const Vec512<float> v) {
+  return Mask512<float>{_mm512_fpclass_ps_mask(v.raw, 0x81)};
+}
+HWY_API Mask512<double> IsNaN(const Vec512<double> v) {
+  return Mask512<double>{_mm512_fpclass_pd_mask(v.raw, 0x81)};
+}
+
+HWY_API Mask512<float> IsInf(const Vec512<float> v) {
+  return Mask512<float>{_mm512_fpclass_ps_mask(v.raw, 0x18)};
+}
+HWY_API Mask512<double> IsInf(const Vec512<double> v) {
+  return Mask512<double>{_mm512_fpclass_pd_mask(v.raw, 0x18)};
+}
+
+// Returns whether normal/subnormal/zero. fpclass doesn't have a flag for
+// positive, so we have to check for inf/NaN and negate.
+HWY_API Mask512<float> IsFinite(const Vec512<float> v) {
+  return Not(Mask512<float>{_mm512_fpclass_ps_mask(v.raw, 0x99)});
+}
+HWY_API Mask512<double> IsFinite(const Vec512<double> v) {
+  return Not(Mask512<double>{_mm512_fpclass_pd_mask(v.raw, 0x99)});
 }
 
 // ================================================== MEMORY

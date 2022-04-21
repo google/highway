@@ -2010,18 +2010,65 @@ HWY_API Vec256<double> Floor(const Vec256<double> v) {
 
 HWY_API Mask256<float> IsNaN(const Vec256<float> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask256<float>{_mm256_cmp_ps_mask(v.raw, v.raw, _CMP_UNORD_Q)};
+  return Mask256<float>{_mm256_fpclass_ps_mask(v.raw, 0x81)};
 #else
   return Mask256<float>{_mm256_cmp_ps(v.raw, v.raw, _CMP_UNORD_Q)};
 #endif
 }
 HWY_API Mask256<double> IsNaN(const Vec256<double> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask256<double>{_mm256_cmp_pd_mask(v.raw, v.raw, _CMP_UNORD_Q)};
+  return Mask256<double>{_mm256_fpclass_pd_mask(v.raw, 0x81)};
 #else
   return Mask256<double>{_mm256_cmp_pd(v.raw, v.raw, _CMP_UNORD_Q)};
 #endif
 }
+
+#if HWY_TARGET <= HWY_AVX3
+
+HWY_API Mask256<float> IsInf(const Vec256<float> v) {
+  return Mask256<float>{_mm256_fpclass_ps_mask(v.raw, 0x18)};
+}
+HWY_API Mask256<double> IsInf(const Vec256<double> v) {
+  return Mask256<double>{_mm256_fpclass_pd_mask(v.raw, 0x18)};
+}
+
+HWY_API Mask256<float> IsFinite(const Vec256<float> v) {
+  // fpclass doesn't have a flag for positive, so we have to check for inf/NaN
+  // and negate the mask.
+  return Not(Mask256<float>{_mm256_fpclass_ps_mask(v.raw, 0x99)});
+}
+HWY_API Mask256<double> IsFinite(const Vec256<double> v) {
+  return Not(Mask256<double>{_mm256_fpclass_pd_mask(v.raw, 0x99)});
+}
+
+#else
+
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_API Mask256<T> IsInf(const Vec256<T> v) {
+  const Full256<T> d;
+  const RebindToSigned<decltype(d)> di;
+  const VFromD<decltype(di)> vi = BitCast(di, v);
+  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
+  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
+}
+
+// Returns whether normal/subnormal/zero.
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_API Mask256<T> IsFinite(const Vec256<T> v) {
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
+  const VFromD<decltype(du)> vu = BitCast(du, v);
+  // Shift left to clear the sign bit, then right so we can compare with the
+  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
+  // negative and non-negative floats would be greater). MSVC seems to generate
+  // incorrect code if we instead add vu + vu.
+  const VFromD<decltype(di)> exp =
+      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(ShiftLeft<1>(vu)));
+  return RebindMask(d, Lt(exp, Set(di, hwy::MaxExponentField<T>())));
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // ================================================== MEMORY
 

@@ -73,6 +73,16 @@ HWY_API Vec<D> NaN(D d) {
   return BitCast(d, Set(di, LimitsMax<TFromD<decltype(di)>>()));
 }
 
+// Returns positive infinity.
+template <class D>
+HWY_API Vec<D> Inf(D d) {
+  const RebindToUnsigned<D> du;
+  using T = TFromD<D>;
+  using TU = TFromD<decltype(du)>;
+  const TU max_x2 = MaxExponentTimes2<T>();
+  return BitCast(d, Set(du, max_x2 >> 1));
+}
+
 // ------------------------------ SafeFillN
 
 template <class D, typename T = TFromD<D>>

@@ -838,10 +838,37 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
   return IfThenElse(MaskFromVec(mask), yes, no);
 }
 
-// ------------------------------ IsNaN (Ne)
+// ------------------------------ Floating-point classification (Ne)
+
 template <class V>
 HWY_API svbool_t IsNaN(const V v) {
-  return Ne(v, v);
+  return Ne(v, v);  // could also use cmpuo
+}
+
+template <class V>
+HWY_API svbool_t IsInf(const V v) {
+  using T = TFromV<V>;
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const VFromD<decltype(di)> vi = BitCast(di, v);
+  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
+  return RebindMask(d, detail::EqN(Add(vi, vi), hwy::MaxExponentTimes2<T>()));
+}
+
+// Returns whether normal/subnormal/zero.
+template <class V>
+HWY_API svbool_t IsFinite(const V v) {
+  using T = TFromV<V>;
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
+  const VFromD<decltype(du)> vu = BitCast(du, v);
+  // 'Shift left' to clear the sign bit, then right so we can compare with the
+  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
+  // negative and non-negative floats would be greater).
+  const VFromD<decltype(di)> exp =
+      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(Add(vu, vu)));
+  return RebindMask(d, detail::LtN(exp, hwy::MaxExponentField<T>()));
 }
 
 // ================================================== MEMORY
