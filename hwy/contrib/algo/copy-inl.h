@@ -35,8 +35,25 @@ namespace HWY_NAMESPACE {
 // inputs are known to be aligned/padded, it is more efficient to write a single
 // loop using Load(). We do not provide a CopyAlignedPadded because it
 // would be more verbose than such a loop.
-//
-// If HWY_MEM_OPS_MIGHT_FAULT, we use scalar code instead of masking.
+
+// Fills `to`[0, `count`) with `value`.
+template <class D, typename T = TFromD<D>>
+void Fill(D d, T value, size_t count, T* HWY_RESTRICT to) {
+  const size_t N = Lanes(d);
+  const Vec<D> v = Set(d, value);
+
+  size_t idx = 0;
+  for (; idx + N <= count; idx += N) {
+    StoreU(v, d, to + idx);
+  }
+
+  // `count` was a multiple of the vector length `N`: already done.
+  if (HWY_UNLIKELY(idx == count)) return;
+
+  const size_t remaining = count - idx;
+  HWY_DASSERT(0 != remaining && remaining < N);
+  SafeFillN(remaining, value, d, to + idx);
+}
 
 // Copies `from`[0, `count`) to `to`, which must not overlap `from`.
 template <class D, typename T = TFromD<D>>
@@ -52,16 +69,9 @@ void Copy(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to) {
   // `count` was a multiple of the vector length `N`: already done.
   if (HWY_UNLIKELY(idx == count)) return;
 
-#if HWY_MEM_OPS_MIGHT_FAULT
-  memcpy(to, from, count * sizeof(T));
-#else
   const size_t remaining = count - idx;
   HWY_DASSERT(0 != remaining && remaining < N);
-  const Mask<D> mask = FirstN(d, remaining);
-
-  const Vec<D> v = MaskedLoad(mask, d, from + idx);
-  BlendedStore(v, mask, d, to + idx);  // Avoid overwriting past the end
-#endif  // HWY_MEM_OPS_MIGHT_FAULT
+  SafeCopyN(remaining, d, from + idx, to + idx);
 }
 
 // For idx in [0, count) in ascending order, appends `from[idx]` to `to` if the

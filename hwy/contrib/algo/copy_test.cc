@@ -75,6 +75,37 @@ struct ForeachCountAndMisalign {
   }
 };
 
+struct TestFill {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
+                  RandomState& rng) {
+    using T = TFromD<D>;
+    // HWY_MAX prevents error when misalign == count == 0.
+    AlignedFreeUniquePtr<T[]> pa =
+        AllocateAligned<T>(HWY_MAX(1, misalign_a + count));
+    T* expected = pa.get() + misalign_a;
+    const T value = Random7Bit<T>(rng);
+    for (size_t i = 0; i < count; ++i) {
+      expected[i] = value;
+    }
+    AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(misalign_b + count + 1);
+    T* actual = pb.get() + misalign_b;
+
+    actual[count] = T{0};  // sentinel
+    Fill(d, value, count, actual);
+    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write past end
+
+    const auto info = hwy::detail::MakeTypeInfo<T>();
+    const char* target_name = hwy::TargetName(HWY_TARGET);
+    hwy::detail::AssertArrayEqual(info, expected, actual, count, target_name,
+                                  __FILE__, __LINE__);
+  }
+};
+
+void TestAllFill() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestFill>>());
+}
+
 struct TestCopy {
   template <class D>
   void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
@@ -160,6 +191,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(CopyTest);
+HWY_EXPORT_AND_TEST_P(CopyTest, TestAllFill);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopy);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopyIf);
 }  // namespace hwy

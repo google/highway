@@ -73,6 +73,21 @@ HWY_API Vec<D> NaN(D d) {
   return BitCast(d, Set(di, LimitsMax<TFromD<decltype(di)>>()));
 }
 
+// ------------------------------ SafeFillN
+
+template <class D, typename T = TFromD<D>>
+HWY_API void SafeFillN(const size_t num, const T value, D d,
+                       T* HWY_RESTRICT to) {
+#if HWY_MEM_OPS_MIGHT_FAULT
+  (void)d;
+  for (size_t i = 0; i < num; ++i) {
+    to[i] = value;
+  }
+#else
+  BlendedStore(Set(d, value), FirstN(d, num), d, to);
+#endif
+}
+
 // ------------------------------ SafeCopyN
 
 template <class D, typename T = TFromD<D>>
@@ -84,7 +99,8 @@ HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
     to[i] = from[i];
   }
 #else
-  BlendedStore(LoadU(d, from), FirstN(d, num), d, to);
+  const Mask<D> mask = FirstN(d, num);
+  BlendedStore(MaskedLoad(mask, d, from), mask, d, to);
 #endif
 }
 
