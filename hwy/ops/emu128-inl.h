@@ -126,12 +126,27 @@ HWY_API Vec128<T, N> Undefined(Simd<T, N, 0> d) {
   return Zero(d);
 }
 
+namespace detail {
+
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_INLINE constexpr T IncrementWithWraparound(T t) {
+  return t + T{1};
+}
+
+template <typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_INLINE constexpr T IncrementWithWraparound(T t) {
+  return static_cast<T>((t + 1) & hwy::LimitsMax<MakeUnsigned<T>>());
+}
+
+}  // namespace detail
+
 template <typename T, size_t N, typename T2>
 HWY_API Vec128<T, N> Iota(const Simd<T, N, 0> /* tag */, T2 first) {
   Vec128<T, N> v;
+  T counter = static_cast<T>(first);
   for (T& lane : v.raw) {
-    lane = static_cast<T>(first);
-    first += 1;
+    lane = counter;
+    counter = detail::IncrementWithWraparound(counter);
   }
   return v;
 }
