@@ -43,6 +43,41 @@ namespace HWY_NAMESPACE {
 // we used `MaskedLoad` and `BlendedStore` to read/write the final partial
 // vector.
 
+// Fills `out[0, count)` with the vectors returned by `func(d, index_vec)`,
+// where `index_vec` is `Vec<RebindToUnsigned<D>>`. On the first call to `func`,
+// the value of its lane i is i, and increases by `Lanes(d)` after every call.
+// Note that some of these indices may be `>= count`, but the elements that
+// `func` returns in those lanes will not be written to `out`.
+template <class D, class Func, typename T = TFromD<D>>
+void Generate(D d, T* HWY_RESTRICT out, size_t count, const Func& func) {
+  const RebindToUnsigned<D> du;
+  const size_t N = Lanes(d);
+
+  size_t idx = 0;
+  Vec<decltype(du)> vidx = Iota(du, 0);
+  for (; idx + N <= count; idx += N) {
+    StoreU(func(d, vidx), d, out + idx);
+    vidx = Add(vidx, Set(du, N));
+  }
+
+  // `count` was a multiple of the vector length `N`: already done.
+  if (HWY_UNLIKELY(idx == count)) return;
+
+#if HWY_MEM_OPS_MIGHT_FAULT
+  // Proceed one by one.
+  const CappedTag<T, 1> d1;
+  const RebindToUnsigned<decltype(d1)> du1;
+  for (; idx < count; ++idx) {
+    StoreU(func(d1, Set(du1, idx)), d1, out + idx);
+  }
+#else
+  const size_t remaining = count - idx;
+  HWY_DASSERT(0 != remaining && remaining < N);
+  const Mask<D> mask = FirstN(d, remaining);
+  BlendedStore(func(d, vidx), mask, d, out + idx);
+#endif
+}
+
 // Replaces `inout[idx]` with `func(d, inout[idx])`. Example usage: multiplying
 // array elements by a constant.
 template <class D, class Func, typename T = TFromD<D>>

@@ -76,6 +76,14 @@ HWY_NOINLINE void SimpleFMA4(const T* x, const T* y, const T* z, T* out,
 // are invoked.
 #if !HWY_GENERIC_LAMBDA
 
+// Generator that returns even numbers by doubling the output indices.
+struct Gen2 {
+  template <class D, class VU>
+  Vec<D> operator()(D d, VU vidx) const {
+    return BitCast(d, Add(vidx, vidx));
+  }
+};
+
 struct SCAL {
   template <class D, class V>
   Vec<D> operator()(D d, V v) const {
@@ -118,6 +126,39 @@ struct ForeachCountAndMisalign {
         }
       }
     }
+  }
+};
+
+// Output-only, no loads
+struct TestGenerate {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
+                  RandomState& /*rng*/) {
+    using T = TFromD<D>;
+    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
+    T* actual = pa.get() + misalign_a;
+
+    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(HWY_MAX(1, count));
+    for (size_t i = 0; i < count; ++i) {
+      expected[i] = static_cast<T>(2 * i);
+    }
+
+    // TODO(janwas): can we update the apply_to in HWY_PUSH_ATTRIBUTES so that
+    // the attribute also applies to lambdas? If so, remove HWY_ATTR.
+#if HWY_GENERIC_LAMBDA
+    const auto gen2 = [](const auto d, const auto vidx)
+                          HWY_ATTR { return BitCast(d, Add(vidx, vidx)); };
+#else
+    const Gen2 gen2;
+#endif
+    actual[count] = T{0};  // sentinel
+    Generate(d, actual, count, gen2);
+    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write past end
+
+    const auto info = hwy::detail::MakeTypeInfo<T>();
+    const char* target_name = hwy::TargetName(HWY_TARGET);
+    hwy::detail::AssertArrayEqual(info, expected.get(), actual, count,
+                                  target_name, __FILE__, __LINE__);
   }
 };
 
@@ -232,6 +273,11 @@ struct TestTransform2 {
   }
 };
 
+void TestAllGenerate() {
+  // The test BitCast-s the indices, which does not work for floats.
+  ForIntegerTypes(ForPartialVectors<ForeachCountAndMisalign<TestGenerate>>());
+}
+
 void TestAllTransform() {
   ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestTransform>>());
 }
@@ -253,6 +299,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(TransformTest);
+HWY_EXPORT_AND_TEST_P(TransformTest, TestAllGenerate);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform1);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform2);
