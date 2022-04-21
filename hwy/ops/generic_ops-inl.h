@@ -59,9 +59,8 @@ HWY_API V CombineShiftRightLanes(D d, const V hi, const V lo) {
 // Returns lanes with the most significant bit set and all other bits zero.
 template <class D>
 HWY_API Vec<D> SignBit(D d) {
-  using Unsigned = MakeUnsigned<TFromD<D>>;
-  const Unsigned bit = Unsigned(1) << (sizeof(Unsigned) * 8 - 1);
-  return BitCast(d, Set(Rebind<Unsigned, D>(), bit));
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Set(du, SignMask<TFromD<D>>()));
 }
 
 // Returns quiet NaN.

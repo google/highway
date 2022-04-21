@@ -1035,8 +1035,7 @@ HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
     bits += bits;
     bits >>= 1;  // clear sign bit
     // NaN if all exponent bits are set and the mantissa is not zero.
-    ret.bits[i] =
-        Mask128<T, N>::FromBool(bits > ExponentMask<decltype(bits)>());
+    ret.bits[i] = Mask128<T, N>::FromBool(bits > ExponentMask<T>());
   }
   return ret;
 }

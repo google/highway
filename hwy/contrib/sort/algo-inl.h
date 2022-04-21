@@ -241,7 +241,7 @@ Vec<DU64> RandomValues(DU64 du64, Vec<DU64>& s0, Vec<DU64>& s1,
   const RebindToFloat<decltype(di)> df;
   const RebindToUnsigned<decltype(di)> du;
   const auto k1 = BitCast(du64, Set(df, T{1.0}));
-  const auto mantissa = BitCast(du64, Set(du, MantissaMask<MakeUnsigned<T>>()));
+  const auto mantissa = BitCast(du64, Set(du, MantissaMask<T>()));
   // Avoid NaN/denormal by converting from (range-limited) integer.
   const Vec<DU64> no_nan = OrAnd(k1, values, mantissa);
   return BitCast(du64, ConvertTo(df, BitCast(di, no_nan)));

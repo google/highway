@@ -532,21 +532,6 @@ constexpr double HighestValue<double>() {
   return 1.7976931348623158e+308;
 }
 
-// Returns bitmask of the exponent field in IEEE binary32/64.
-template <typename T>
-constexpr T ExponentMask() {
-  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
-  return 0;
-}
-template <>
-constexpr uint32_t ExponentMask<uint32_t>() {
-  return 0x7F800000;
-}
-template <>
-constexpr uint64_t ExponentMask<uint64_t>() {
-  return 0x7FF0000000000000ULL;
-}
-
 // Returns width in bits of the mantissa field in IEEE binary32/64.
 template <typename T>
 constexpr int MantissaBits() {
@@ -569,19 +554,22 @@ constexpr MakeSigned<T> MaxExponentTimes2() {
   return -(MakeSigned<T>{1} << (MantissaBits<T>() + 1));
 }
 
+// Returns bitmask of the sign bit in IEEE binary32/64.
+template <typename T>
+constexpr MakeUnsigned<T> SignMask() {
+  return MakeUnsigned<T>{1} << (sizeof(T) * 8 - 1);
+}
+
+// Returns bitmask of the exponent field in IEEE binary32/64.
+template <typename T>
+constexpr MakeUnsigned<T> ExponentMask() {
+  return (~(MakeUnsigned<T>{1} << MantissaBits<T>()) + 1) & ~SignMask<T>();
+}
+
 // Returns bitmask of the mantissa field in IEEE binary32/64.
 template <typename T>
-constexpr T MantissaMask() {
-  static_assert(sizeof(T) == 0, "Only instantiate the specializations");
-  return 0;
-}
-template <>
-constexpr uint32_t MantissaMask<uint32_t>() {
-  return 0x007FFFFF;
-}
-template <>
-constexpr uint64_t MantissaMask<uint64_t>() {
-  return 0x000FFFFFFFFFFFFFULL;
+constexpr MakeUnsigned<T> MantissaMask() {
+  return (MakeUnsigned<T>{1} << MantissaBits<T>()) - 1;
 }
 
 // Returns 1 << mantissa_bits as a floating-point number. All integers whose

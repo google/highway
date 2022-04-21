@@ -877,7 +877,7 @@ HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
   bits += bits;
   bits >>= 1;  // clear sign bit
   // NaN if all exponent bits are set and the mantissa is not zero.
-  return Mask1<T>::FromBool(bits > ExponentMask<decltype(bits)>());
+  return Mask1<T>::FromBool(bits > ExponentMask<T>());
 }
 
 HWY_API Mask1<float> IsInf(const Vec1<float> v) {
