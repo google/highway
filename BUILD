@@ -21,11 +21,6 @@ config_setting(
 )
 
 config_setting(
-    name = "compiler_msvc",
-    flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc"},
-)
-
-config_setting(
     name = "compiler_emscripten",
     values = {"cpu": "wasm32"},
 )
@@ -88,7 +83,6 @@ CLANG_ONLY_COPTS = CLANG_OR_CLANGCL_OPTS + [
 ]
 
 COPTS = select({
-    ":compiler_msvc": [],
     ":compiler_gcc": CLANG_GCC_COPTS,
     ":compiler_clangcl": CLANG_OR_CLANGCL_OPTS,
     # Default to clang because compiler detection only works in Bazel
@@ -346,7 +340,7 @@ HWY_TEST_DEPS = [
     for subdir, test in HWY_TESTS
 ]
 
-# For manually building the tests we define here (:all does not work in --config=msvc)
+# For manually building the tests we define here (:all does not work in --config=lexan)
 test_suite(
     name = "hwy_ops_tests",
     tags = ["hwy_ops_test"],
