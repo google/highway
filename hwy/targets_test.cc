@@ -76,7 +76,8 @@ void CheckFakeFunction() {
   CallFunctionForTarget(HWY_RVV, __LINE__);
   // The tables only have space for either HWY_SCALAR or HWY_EMU128; the former
   // is opt-in only.
-#ifdef HWY_COMPILE_ONLY_SCALAR
+  // TODO(janwas): remove once EMU128 is supported by JPEG XL
+#if defined(HWY_COMPILE_ONLY_SCALAR) || 1
   CallFunctionForTarget(HWY_SCALAR, __LINE__);
 #else
   CallFunctionForTarget(HWY_EMU128, __LINE__);

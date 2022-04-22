@@ -247,7 +247,8 @@ uint32_t SupportedTargets() {
     return supported_targets_for_test_ & supported_mask_;
   }
 
-#ifdef HWY_COMPILE_ONLY_SCALAR
+  // TODO(janwas): remove once EMU128 is supported by JPEG XL
+#if defined(HWY_COMPILE_ONLY_SCALAR) || 1
   bits = HWY_SCALAR;
 #else
   bits = HWY_EMU128;

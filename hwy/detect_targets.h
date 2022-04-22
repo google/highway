@@ -159,7 +159,8 @@
 
 // This will also be used to define HWY_ATTAINABLE_TARGETS, so define this even
 // if the user has already defined HWY_BASELINE_TARGETS.
-#if defined(HWY_COMPILE_ONLY_SCALAR)
+// TODO(janwas): remove once EMU128 is supported by JPEG XL
+#if defined(HWY_COMPILE_ONLY_SCALAR) || 1
 #define HWY_BASELINE_SCALAR HWY_SCALAR
 #else
 #define HWY_BASELINE_SCALAR HWY_EMU128
