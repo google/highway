@@ -1201,7 +1201,18 @@ HWY_API void BlendedStore(const Vec128<T, N> v, Mask128<T, N> m,
   }
 }
 
-// ------------------------------ StoreInterleaved3
+// ------------------------------ StoreInterleaved2/3/4
+
+template <size_t N>
+HWY_API void StoreInterleaved2(const Vec128<uint8_t, N> v0,
+                               const Vec128<uint8_t, N> v1,
+                               Simd<uint8_t, N, 0> /* tag */,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  for (size_t i = 0; i < N; ++i) {
+    *unaligned++ = v0.raw[i];
+    *unaligned++ = v1.raw[i];
+  }
+}
 
 template <size_t N>
 HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,

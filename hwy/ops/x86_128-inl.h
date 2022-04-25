@@ -6351,6 +6351,53 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
 
 #endif  // HWY_TARGET <= HWY_AVX3
 
+// ------------------------------ StoreInterleaved2
+
+// 128 bits
+HWY_API void StoreInterleaved2(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1, Full128<uint8_t> d8,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  const RepartitionToWide<decltype(d8)> d16;
+  // let a,b denote v0,v1.
+  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
+  const auto ba8 = ZipUpper(d16, v0, v1);
+  StoreU(BitCast(d8, ba0), d8, unaligned + 0 * 16);
+  StoreU(BitCast(d8, ba8), d8, unaligned + 1 * 16);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved2(const Vec64<uint8_t> in0,
+                               const Vec64<uint8_t> in1,
+                               Full64<uint8_t> /*tag*/,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  // Use full vectors to reduce the number of stores.
+  const Full128<uint8_t> d_full8;
+  const RepartitionToWide<decltype(d_full8)> d16;
+  const Vec128<uint8_t> v0{in0.raw};
+  const Vec128<uint8_t> v1{in1.raw};
+  // let a,b,c,d denote v0,v1.
+  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
+  StoreU(BitCast(d_full8, ba0), d_full8, unaligned + 0 * 16);
+}
+
+// <= 32 bits
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved2(const Vec128<uint8_t, N> in0,
+                               const Vec128<uint8_t, N> in1,
+                               Simd<uint8_t, N, 0> /*tag*/,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  // Use full vectors to reduce the number of stores.
+  const Full128<uint8_t> d_full8;
+  const RepartitionToWide<decltype(d_full8)> d16;
+  const Vec128<uint8_t> v0{in0.raw};
+  const Vec128<uint8_t> v1{in1.raw};
+  // let a,b,c,d denote v0..3.
+  const auto ba0 = ZipLower(d16, v0, v1);  // b3 a3 .. b0 a0
+  alignas(16) uint8_t buf[16];
+  StoreU(BitCast(d_full8, ba0), d_full8, buf);
+  CopyBytes<2 * N>(buf, unaligned);
+}
+
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
 // TableLookupBytes)
 

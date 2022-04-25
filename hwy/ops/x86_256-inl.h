@@ -4786,6 +4786,23 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
 
 #endif  // HWY_TARGET <= HWY_AVX3
 
+// ------------------------------ StoreInterleaved2
+
+HWY_API void StoreInterleaved2(const Vec256<uint8_t> v0,
+                               const Vec256<uint8_t> v1, Full256<uint8_t> d8,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  const RepartitionToWide<decltype(d8)> d16;
+  // let a,b denote v0,v1.
+  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
+  const auto ba8 = ZipUpper(d16, v0, v1);
+  // Write lower halves, then upper. vperm2i128 is slow on Zen1 but we can
+  // efficiently combine two lower halves into 256 bits:
+  const auto out0 = BitCast(d8, ConcatLowerLower(d16, ba8, ba0));
+  const auto out1 = BitCast(d8, ConcatUpperUpper(d16, ba8, ba0));
+  StoreU(out0, d8, unaligned + 0 * 32);
+  StoreU(out1, d8, unaligned + 1 * 32);
+}
+
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
 // TableLookupBytes, ConcatUpperLower)
 

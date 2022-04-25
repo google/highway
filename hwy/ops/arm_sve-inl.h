@@ -1009,6 +1009,20 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_INDEX, GatherIndex, ld1_gather)
 #undef HWY_SVE_GATHER_OFFSET
 #undef HWY_SVE_GATHER_INDEX
 
+// ------------------------------ StoreInterleaved2
+
+#define HWY_SVE_STORE2(BASE, CHAR, BITS, HALF, NAME, OP)                 \
+  template <size_t N, int kPow2>                                         \
+  HWY_API void NAME(HWY_SVE_V(BASE, BITS) v0, HWY_SVE_V(BASE, BITS) v1,  \
+                    HWY_SVE_D(BASE, BITS, N, kPow2) d,                   \
+                    HWY_SVE_T(BASE, BITS) * HWY_RESTRICT unaligned) {    \
+    const sv##BASE##BITS##x2_t tuple = svcreate2##_##CHAR##BITS(v0, v1); \
+    sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned, tuple);        \
+  }
+HWY_SVE_FOREACH_U08(HWY_SVE_STORE2, StoreInterleaved2, st2)
+
+#undef HWY_SVE_STORE2
+
 // ------------------------------ StoreInterleaved3
 
 #define HWY_SVE_STORE3(BASE, CHAR, BITS, HALF, NAME, OP)                      \

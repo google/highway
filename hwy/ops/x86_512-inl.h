@@ -3678,6 +3678,26 @@ HWY_API size_t CompressBitsStore(Vec512<T> v, const uint8_t* HWY_RESTRICT bits,
   return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
 }
 
+// ------------------------------ StoreInterleaved2
+
+HWY_API void StoreInterleaved2(const Vec512<uint8_t> v0,
+                               const Vec512<uint8_t> v1, Full512<uint8_t> d8,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  const RepartitionToWide<decltype(d8)> d16;
+  // let a,b denote v0,v1.
+  const auto i = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0 in lower 128 bits
+  const auto j = ZipUpper(d16, v0, v1);
+  // 2x4 transpose: interleave 128-bit blocks.
+  const __m512i j1_j0_i1_i0 = _mm512_shuffle_i64x2(i.raw, j.raw, _MM_PERM_BABA);
+  const __m512i j3_j2_i3_i2 = _mm512_shuffle_i64x2(i.raw, j.raw, _MM_PERM_DCDC);
+  const __m512i j1_i1_j0_i0 =
+      _mm512_shuffle_i64x2(j1_j0_i1_i0, j1_j0_i1_i0, _MM_PERM_DBCA);
+  const __m512i j3_i3_j2_i2 =
+      _mm512_shuffle_i64x2(j3_j2_i3_i2, j3_j2_i3_i2, _MM_PERM_DBCA);
+  StoreU(Vec512<uint8_t>{j1_i1_j0_i0}, d8, unaligned + 0 * 64);
+  StoreU(Vec512<uint8_t>{j3_i3_j2_i2}, d8, unaligned + 1 * 64);
+}
+
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
 // TableLookupBytes)
 

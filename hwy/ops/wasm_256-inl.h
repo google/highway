@@ -2808,6 +2808,14 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
   return PopCount(mask_bits);
 }
 
+// ------------------------------ StoreInterleaved2
+
+HWY_API void StoreInterleaved2(const Vec256<uint8_t> a, const Vec256<uint8_t> b,
+                               Full256<uint8_t> d,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  HWY_ASSERT(0);
+}
+
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
 // TableLookupBytes)
 

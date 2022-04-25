@@ -791,10 +791,14 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     non-atomic, like `BlendedStore`.
 
 *   `D`: `u8` \
+    <code>void **StoreInterleaved2**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1, D, T*
+    p)</code>: equivalent to shuffling `v0, v1` followed by two `StoreU()`, such
+    that `p[0] == v0[0], p[1] == v1[0]`.
+
+*   `D`: `u8` \
     <code>void **StoreInterleaved3**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1,
-    Vec&lt;D&gt; v2, D, T* p)</code>: equivalent to shuffling `v0, v1, v2`
-    followed by three `StoreU()`, such that `p[0] == v0[0], p[1] == v1[0],
-    p[2] == v1[0]`. Useful for RGB samples.
+    Vec&lt;D&gt; v2, D, T* p)</code>: as above, but for three vectors (e.g. RGB
+    samples).
 
 *   `D`: `u8` \
     <code>void **StoreInterleaved4**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1,

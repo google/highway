@@ -5334,6 +5334,37 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
   return PopCount(mask_bits);
 }
 
+// ------------------------------ StoreInterleaved2
+
+// 128 bits
+HWY_API void StoreInterleaved2(const Vec128<uint8_t> v0,
+                               const Vec128<uint8_t> v1,
+                               Full128<uint8_t> /*tag*/,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  const uint8x16x2_t pair = {{v0.raw, v1.raw}};
+  vst2q_u8(unaligned, pair);
+}
+
+// 64 bits
+HWY_API void StoreInterleaved2(const Vec64<uint8_t> v0, const Vec64<uint8_t> v1,
+                               Full64<uint8_t> /*tag*/,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  const uint8x8x2_t pair = {{v0.raw, v1.raw}};
+  vst2_u8(unaligned, pair);
+}
+
+// <= 32 bits: avoid writing more than N bytes by copying to buffer
+template <size_t N, HWY_IF_LE32(uint8_t, N)>
+HWY_API void StoreInterleaved2(const Vec128<uint8_t, N> v0,
+                               const Vec128<uint8_t, N> v1,
+                               Simd<uint8_t, N, 0> /*tag*/,
+                               uint8_t* HWY_RESTRICT unaligned) {
+  alignas(16) uint8_t buf[16];
+  const uint8x8x2_t pair = {{v0.raw, v1.raw}};
+  vst2_u8(buf, pair);
+  CopyBytes<N * 2>(buf, unaligned);
+}
+
 // ------------------------------ StoreInterleaved3
 
 // 128 bits

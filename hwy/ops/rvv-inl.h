@@ -1386,6 +1386,30 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
   return GatherOffset(d, base, ShiftLeft<3>(index));
 }
 
+// ------------------------------ StoreInterleaved2
+
+#define HWY_RVV_STORE2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                         \
+  template <size_t N>                                                          \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v0,                             \
+                    HWY_RVV_V(BASE, SEW, LMUL) v1,                             \
+                    HWY_RVV_D(BASE, SEW, N, SHIFT) d,                          \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned) {           \
+    return v##OP##e8_v_##CHAR##SEW##LMUL(unaligned, v0, v1, Lanes(d));         \
+  }
+// Segments are limited to 8 registers, so we can only go up to LMUL=2.
+HWY_RVV_STORE2(uint, u, 8, _, _, mf8, _, _, /*kShift=*/-3, 64,
+               StoreInterleaved2, sseg2)
+HWY_RVV_STORE2(uint, u, 8, _, _, mf4, _, _, /*kShift=*/-2, 32,
+               StoreInterleaved2, sseg2)
+HWY_RVV_STORE2(uint, u, 8, _, _, mf2, _, _, /*kShift=*/-1, 16,
+               StoreInterleaved2, sseg2)
+HWY_RVV_STORE2(uint, u, 8, _, _, m1, _, _, /*kShift=*/0, 8, StoreInterleaved2,
+               sseg2)
+HWY_RVV_STORE2(uint, u, 8, _, _, m2, _, _, /*kShift=*/1, 4, StoreInterleaved2,
+               sseg2)
+#undef HWY_RVV_STORE2
+
 // ------------------------------ StoreInterleaved3
 
 #define HWY_RVV_STORE3(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
