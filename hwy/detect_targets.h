@@ -340,10 +340,10 @@
 //------------------------------------------------------------------------------
 // Choose targets for dynamic dispatch according to one of four policies
 
-#if (defined(HWY_COMPILE_ONLY_SCALAR) + defined(HWY_COMPILE_ONLY_STATIC) + \
-     defined(HWY_COMPILE_ALL_ATTAINABLE)) > 1
-#error "Invalid config: can only define a single policy for targets"
+#if defined(HWY_COMPILE_ONLY_SCALAR) && defined(HWY_COMPILE_ONLY_STATIC)
+#error "Defined both HWY_COMPILE_ONLY_{SCALAR|STATIC} - bug?"
 #endif
+// Defining either HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
 
 // Further to checking for disabled/broken targets, we only use AVX3_DL after
 // explicit opt-in (via this macro OR baseline compiler flags) to avoid

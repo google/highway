@@ -1275,7 +1275,8 @@ policy for selecting `HWY_TARGETS`:
     effectively disables dynamic dispatch.
 *   `HWY_COMPILE_ALL_ATTAINABLE` selects all attainable targets (i.e. enabled
     and permitted by the compiler, independently of autovectorization), which
-    maximizes coverage in tests.
+    maximizes coverage in tests. This may also be defined even if one of
+    `HWY_COMPILE_ONLY_*` is, but will then be ignored.
 
 If none are defined, but `HWY_IS_TEST` is defined, the default is
 `HWY_COMPILE_ALL_ATTAINABLE`. Otherwise, the default is to select all attainable
