@@ -158,6 +158,15 @@ HWY_INLINE void AssertEqual(const T expected, const T actual,
   }
 }
 
+template <typename T>
+HWY_INLINE void AssertArrayEqual(const T* expected, const T* actual,
+                                 size_t count, const char* target_name,
+                                 const char* filename, int line) {
+  const auto info = hwy::detail::MakeTypeInfo<T>();
+  detail::AssertArrayEqual(info, expected, actual, count, target_name, filename,
+                           line);
+}
+
 }  // namespace hwy
 
 #endif  // HWY_TESTS_TEST_UTIL_H_

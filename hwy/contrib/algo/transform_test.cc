@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string.h>
+
 #include "hwy/aligned_allocator.h"
 
 // clang-format off
@@ -46,7 +48,9 @@ T Alpha() {
 template <typename T>
 T Random(RandomState& rng) {
   const int32_t bits = static_cast<int32_t>(Random32(&rng)) & 1023;
-  return static_cast<T>(bits - 512) * (T{1} / 64);
+  const double val = (bits - 512) / 64.0;
+  // Clamp negative to zero for unsigned types.
+  return static_cast<T>(HWY_MAX(hwy::LowestValue<T>(), val));
 }
 
 // SCAL, AXPY names are from BLAS.
@@ -165,8 +169,9 @@ struct TestGenerate {
 // Zero extra input arrays
 struct TestTransform {
   template <class D>
-  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
+  void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
                   RandomState& rng) {
+    if (misalign_b != 0) return;
     using T = TFromD<D>;
     // Prevents error if size to allocate is zero.
     AlignedFreeUniquePtr<T[]> pa =
@@ -273,6 +278,60 @@ struct TestTransform2 {
   }
 };
 
+template <typename T>
+class IfEq {
+ public:
+  IfEq(T val) : val_(val) {}
+
+  template <class D, class V>
+  Mask<D> operator()(D d, V v) const {
+    return Eq(v, Set(d, val_));
+  }
+
+ private:
+  T val_;
+};
+
+struct TestReplace {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t misalign_b,
+                  RandomState& rng) {
+    if (misalign_b != 0) return;
+    if (count == 0) return;
+    using T = TFromD<D>;
+    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count);
+    T* a = pa.get() + misalign_a;
+    for (size_t i = 0; i < count; ++i) {
+      a[i] = Random<T>(rng);
+    }
+    AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(count);
+
+    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(count);
+
+    std::vector<size_t> positions(AdjustedReps(count));
+    for (size_t& pos : positions) {
+      pos = rng() % count;
+    }
+
+    for (size_t pos = 0; pos < count; ++pos) {
+      const T old_t = a[pos];
+      const T new_t = Random<T>(rng);
+      for (size_t i = 0; i < count; ++i) {
+        expected[i] = IsEqual(a[i], old_t) ? new_t : a[i];
+      }
+
+      // Copy so ReplaceIf gets the same input (and thus also outputs expected)
+      memcpy(pb.get(), a, count * sizeof(T));
+
+      Replace(d, a, count, new_t, old_t);
+      HWY_ASSERT_ARRAY_EQ(expected.get(), a, count);
+
+      ReplaceIf(d, pb.get(), count, new_t, IfEq<T>(old_t));
+      HWY_ASSERT_ARRAY_EQ(expected.get(), pb.get(), count);
+    }
+  }
+};
+
 void TestAllGenerate() {
   // The test BitCast-s the indices, which does not work for floats.
   ForIntegerTypes(ForPartialVectors<ForeachCountAndMisalign<TestGenerate>>());
@@ -290,6 +349,10 @@ void TestAllTransform2() {
   ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestTransform2>>());
 }
 
+void TestAllReplace() {
+  ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestReplace>>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -303,6 +366,7 @@ HWY_EXPORT_AND_TEST_P(TransformTest, TestAllGenerate);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform1);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform2);
+HWY_EXPORT_AND_TEST_P(TransformTest, TestAllReplace);
 }  // namespace hwy
 
 #endif

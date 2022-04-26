@@ -139,6 +139,10 @@ HWY_INLINE Mask<D> MaskFalse(const D d) {
   hwy::AssertEqual(expected, actual, hwy::TargetName(HWY_TARGET), __FILE__, \
                    __LINE__)
 
+#define HWY_ASSERT_ARRAY_EQ(expected, actual, count)                          \
+  hwy::AssertArrayEqual(expected, actual, count, hwy::TargetName(HWY_TARGET), \
+                        __FILE__, __LINE__)
+
 #define HWY_ASSERT_STRING_EQ(expected, actual)                          \
   hwy::AssertStringEqual(expected, actual, hwy::TargetName(HWY_TARGET), \
                          __FILE__, __LINE__)
