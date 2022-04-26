@@ -432,6 +432,9 @@ endif()
 endif()  # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
+  hwy/contrib/algo/copy_test.cc
+  hwy/contrib/algo/find_test.cc
+  hwy/contrib/algo/transform_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc

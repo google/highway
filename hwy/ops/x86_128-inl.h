@@ -5627,7 +5627,7 @@ template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N, 0> /* tag */,
                                const Mask128<T, N> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(mask.raw) & ((1u << N) - 1);
-  return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
+  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
 }
 
 template <typename T, size_t N>
