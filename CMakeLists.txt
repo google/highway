@@ -48,6 +48,7 @@ set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON (requires vfpv4
 # arise due to compiler/platform changes. Enable this in CI/tests.
 set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
 
+set(HWY_ENABLE_CONTRIB ON CACHE BOOL "Include contrib/")
 set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
 
@@ -62,6 +63,7 @@ check_cxx_source_compiles(
   HWY_EMSCRIPTEN
 )
 
+if (HWY_ENABLE_CONTRIB)
 set(HWY_CONTRIB_SOURCES
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/image/image.cc
@@ -94,6 +96,7 @@ set(HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort_u64a.cc
     hwy/contrib/sort/vqsort_u64d.cc
 )
+endif()  # HWY_ENABLE_CONTRIB
 
 set(HWY_SOURCES
     hwy/aligned_allocator.cc
@@ -266,6 +269,7 @@ if(UNIX AND NOT APPLE)
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
 
+if (HWY_ENABLE_CONTRIB)
 add_library(hwy_contrib ${HWY_LIBRARY_TYPE} ${HWY_CONTRIB_SOURCES})
 target_link_libraries(hwy_contrib hwy)
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
@@ -273,6 +277,7 @@ set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy_contrib PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
 target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
+endif()  # HWY_ENABLE_CONTRIB
 
 add_library(hwy_test ${HWY_LIBRARY_TYPE} ${HWY_TEST_SOURCES})
 target_link_libraries(hwy_test hwy)
@@ -320,6 +325,7 @@ foreach (source ${HWY_SOURCES})
   endif()
 endforeach()
 
+if (HWY_ENABLE_CONTRIB)
 install(TARGETS hwy_contrib
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -333,6 +339,7 @@ foreach (source ${HWY_CONTRIB_SOURCES})
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${dirname}")
   endif()
 endforeach()
+endif()  # HWY_ENABLE_CONTRIB
 
 install(TARGETS hwy_test
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -350,13 +357,17 @@ endforeach()
 
 # Add a pkg-config file for libhwy and the contrib/test libraries.
 set(HWY_LIBRARY_VERSION "${CMAKE_PROJECT_VERSION}")
-foreach (pc libhwy.pc libhwy-contrib.pc libhwy-test.pc)
+set(HWY_PC_FILES libhwy.pc libhwy-test.pc)
+if (HWY_ENABLE_CONTRIB)
+list(APPEND HWY_PC_FILES libhwy-contrib.pc)
+endif()  # HWY_ENABLE_CONTRIB
+foreach (pc ${HWY_PC_FILES})
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${pc}.in" "${pc}" @ONLY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${pc}"
       DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 endforeach()
 
-endif() # HWY_ENABLE_INSTALL
+endif()  # HWY_ENABLE_INSTALL
 # -------------------------------------------------------- Examples
 if (HWY_ENABLE_EXAMPLES)
 
@@ -374,7 +385,7 @@ target_link_libraries(hwy_benchmark hwy)
 set_target_properties(hwy_benchmark
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
-endif() # HWY_ENABLE_EXAMPLES
+endif()  # HWY_ENABLE_EXAMPLES
 # -------------------------------------------------------- Tests
 
 include(CTest)
@@ -418,15 +429,9 @@ add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
 if (CMAKE_VERSION VERSION_LESS 2.8.11)
   include_directories("${gtest_SOURCE_DIR}/include")
 endif()
-endif() # HWY_SYSTEM_GTEST
+endif()  # HWY_SYSTEM_GTEST
 
 set(HWY_TEST_FILES
-  hwy/contrib/dot/dot_test.cc
-  hwy/contrib/image/image_test.cc
-  # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
-  # not reproducible locally. Still tested via bazel build.
-  # hwy/contrib/math/math_test.cc
-  hwy/contrib/sort/sort_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc
@@ -447,6 +452,27 @@ set(HWY_TEST_FILES
   hwy/tests/test_util_test.cc
 )
 
+set(HWY_TEST_LIBS hwy hwy_test)
+
+if (HWY_ENABLE_CONTRIB)
+list(APPEND HWY_TEST_LIBS hwy_contrib)
+
+list(APPEND HWY_TEST_FILES
+  hwy/contrib/dot/dot_test.cc
+  hwy/contrib/image/image_test.cc
+  # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
+  # not reproducible locally. Still tested via bazel build.
+  # hwy/contrib/math/math_test.cc
+  hwy/contrib/sort/sort_test.cc
+)
+endif()  # HWY_ENABLE_CONTRIB
+
+if(HWY_SYSTEM_GTEST)
+  set(HWY_GTEST_LIBS GTest::GTest GTest::Main)
+else()
+  set(HWY_GTEST_LIBS gtest gtest_main)
+endif()
+
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
 foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   # The TESTNAME is the name without the extension or directory.
@@ -459,11 +485,7 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   # that include us may set them.
   target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
 
-  if(HWY_SYSTEM_GTEST)
-    target_link_libraries(${TESTNAME} hwy hwy_contrib hwy_test GTest::GTest GTest::Main)
-  else()
-    target_link_libraries(${TESTNAME} hwy hwy_contrib hwy_test gtest gtest_main)
-  endif()
+  target_link_libraries(${TESTNAME} ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "tests")
 
@@ -481,4 +503,4 @@ endforeach ()
 # The skeleton test uses the skeleton library code.
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
-endif() # BUILD_TESTING
+endif()  # BUILD_TESTING
