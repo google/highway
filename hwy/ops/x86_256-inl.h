@@ -2945,6 +2945,21 @@ HWY_API Vec256<double> TableLookupLanes(const Vec256<double> v,
 #endif
 }
 
+// ------------------------------ SwapAdjacentBlocks
+
+template <typename T>
+HWY_API Vec256<T> SwapAdjacentBlocks(Vec256<T> v) {
+  return Vec256<T>{_mm256_permute2x128_si256(v.raw, v.raw, 0x01)};
+}
+
+HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
+  return Vec256<float>{_mm256_permute2f128_ps(v.raw, v.raw, 0x01)};
+}
+
+HWY_API Vec256<double> SwapAdjacentBlocks(Vec256<double> v) {
+  return Vec256<double>{_mm256_permute2f128_pd(v.raw, v.raw, 0x01)};
+}
+
 // ------------------------------ Reverse (RotateRight)
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
@@ -2993,7 +3008,7 @@ HWY_API Vec256<T> Reverse2(Full256<T> /* tag */, const Vec256<T> v) {
   return Shuffle01(v);
 }
 
-// ------------------------------ Reverse4
+// ------------------------------ Reverse4 (SwapAdjacentBlocks)
 
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec256<T> Reverse4(Full256<T> d, const Vec256<T> v) {
@@ -3017,10 +3032,8 @@ HWY_API Vec256<T> Reverse4(Full256<T> /* tag */, const Vec256<T> v) {
 
 template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec256<T> Reverse4(Full256<T> /* tag */, const Vec256<T> v) {
-  return Vec256<T>{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
-}
-HWY_API Vec256<double> Reverse4(Full256<double> /* tag */, Vec256<double> v) {
-  return Vec256<double>{_mm256_permute4x64_pd(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+  // Could also use _mm256_permute4x64_epi64.
+  return SwapAdjacentBlocks(Shuffle01(v));
 }
 
 // ------------------------------ Reverse8
@@ -3174,9 +3187,9 @@ HWY_API Vec256<TW> ZipUpper(Full256<TW> dw, Vec256<T> a, Vec256<T> b) {
 
 // ------------------------------ Blocks (LowerHalf, ZeroExtendVector)
 
-// _mm256_broadcastsi128_si256 has 7 cycle latency. _mm256_permute2x128_si256 is
-// slow on Zen1 (8 uops); we can avoid it for LowerLower and UpperLower, and on
-// UpperUpper at the cost of one extra cycle/instruction.
+// _mm256_broadcastsi128_si256 has 7 cycle latency on ICL.
+// _mm256_permute2x128_si256 is slow on Zen1 (8 uops), so we avoid it (at no
+// extra cost) for LowerLower and UpperLower.
 
 // hiH,hiL loH,loL |-> hiL,loL (= lower halves)
 template <typename T>
@@ -3233,10 +3246,19 @@ HWY_API Vec256<double> ConcatUpperLower(Full256<double> /* tag */,
 
 // hiH,hiL loH,loL |-> hiH,loH (= upper halves)
 template <typename T>
-HWY_API Vec256<T> ConcatUpperUpper(Full256<T> d, const Vec256<T> hi,
+HWY_API Vec256<T> ConcatUpperUpper(Full256<T> /* tag */, const Vec256<T> hi,
                                    const Vec256<T> lo) {
-  const Half<decltype(d)> d2;
-  return ConcatUpperLower(d, hi, ZeroExtendVector(d, UpperHalf(d2, lo)));
+  return Vec256<T>{_mm256_permute2x128_si256(lo.raw, hi.raw, 0x31)};
+}
+HWY_API Vec256<float> ConcatUpperUpper(Full256<float> /* tag */,
+                                       const Vec256<float> hi,
+                                       const Vec256<float> lo) {
+  return Vec256<float>{_mm256_permute2f128_ps(lo.raw, hi.raw, 0x31)};
+}
+HWY_API Vec256<double> ConcatUpperUpper(Full256<double> /* tag */,
+                                        const Vec256<double> hi,
+                                        const Vec256<double> lo) {
+  return Vec256<double>{_mm256_permute2f128_pd(lo.raw, hi.raw, 0x31)};
 }
 
 // ------------------------------ ConcatOdd
@@ -3462,25 +3484,6 @@ HWY_API Vec256<float> OddEvenBlocks(Vec256<float> odd, Vec256<float> even) {
 
 HWY_API Vec256<double> OddEvenBlocks(Vec256<double> odd, Vec256<double> even) {
   return Vec256<double>{_mm256_blend_pd(odd.raw, even.raw, 0x3u)};
-}
-
-// ------------------------------ SwapAdjacentBlocks
-
-template <typename T>
-HWY_API Vec256<T> SwapAdjacentBlocks(Vec256<T> v) {
-  return Vec256<T>{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
-}
-
-HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
-  const Full256<float> df;
-  const Full256<int32_t> di;
-  // Avoid _mm256_permute2f128_ps - slow on AMD.
-  return BitCast(df, Vec256<int32_t>{_mm256_permute4x64_epi64(
-                         BitCast(di, v).raw, _MM_SHUFFLE(1, 0, 3, 2))});
-}
-
-HWY_API Vec256<double> SwapAdjacentBlocks(Vec256<double> v) {
-  return Vec256<double>{_mm256_permute4x64_pd(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
 }
 
 // ------------------------------ ReverseBlocks (ConcatLowerUpper)
@@ -4795,8 +4798,7 @@ HWY_API void StoreInterleaved2(const Vec256<uint8_t> v0,
   // let a,b denote v0,v1.
   const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
   const auto ba8 = ZipUpper(d16, v0, v1);
-  // Write lower halves, then upper. vperm2i128 is slow on Zen1 but we can
-  // efficiently combine two lower halves into 256 bits:
+  // Write lower halves, then upper.
   const auto out0 = BitCast(d8, ConcatLowerLower(d16, ba8, ba0));
   const auto out1 = BitCast(d8, ConcatUpperUpper(d16, ba8, ba0));
   StoreU(out0, d8, unaligned + 0 * 32);
@@ -4879,8 +4881,7 @@ HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
   const auto dcba_4 = ZipUpper(d32, ba0, dc0);  // d..a17 d..a14 | d..a07 d..a04
   const auto dcba_8 = ZipLower(d32, ba8, dc8);  // d..a1B d..a18 | d..a0B d..a08
   const auto dcba_C = ZipUpper(d32, ba8, dc8);  // d..a1F d..a1C | d..a0F d..a0C
-  // Write lower halves, then upper. vperm2i128 is slow on Zen1 but we can
-  // efficiently combine two lower halves into 256 bits:
+  // Write lower halves, then upper.
   const auto out0 = BitCast(d8, ConcatLowerLower(d32, dcba_4, dcba_0));
   const auto out1 = BitCast(d8, ConcatLowerLower(d32, dcba_C, dcba_8));
   StoreU(out0, d8, unaligned + 0 * 32);
