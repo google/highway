@@ -21,8 +21,26 @@ config_setting(
 )
 
 config_setting(
-    name = "compiler_msvc",
+    name = "compiler_msvc_actual",
     flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc"},
+)
+
+# The above is insufficient for Bazel on Windows, which does not seem to
+# detect/set a compiler flag. This workaround prevents compile errors due to
+# passing clang-only warning flags to MSVC.
+config_setting(
+    name = "compiler_msvc_cpu",
+    values = {
+        "cpu": "x64_windows",
+    },
+)
+
+selects.config_setting_group(
+    name = "compiler_msvc",
+    match_any = [
+        ":compiler_msvc_actual",
+        ":compiler_msvc_cpu",
+    ],
 )
 
 config_setting(
@@ -131,6 +149,7 @@ cc_library(
     ],
     compatible_with = [],
     copts = COPTS,
+    local_defines = ["hwy_EXPORTS"],
     textual_hdrs = [
         # These are textual because config macros influence them:
         "hwy/detect_targets.h",  # private
@@ -192,6 +211,7 @@ cc_library(
         "hwy/contrib/image/image.h",
     ],
     compatible_with = [],
+    local_defines = ["hwy_contrib_EXPORTS"],
     deps = [
         ":hwy",
     ],
@@ -213,6 +233,7 @@ cc_library(
     name = "hwy_test_util",
     srcs = ["hwy/tests/test_util.cc"],
     hdrs = ["hwy/tests/test_util.h"],
+    local_defines = ["hwy_test_EXPORTS"],
     textual_hdrs = [
         "hwy/tests/test_util-inl.h",
         "hwy/tests/hwy_gtest.h",
@@ -228,6 +249,7 @@ cc_library(
     name = "nanobenchmark",
     srcs = ["hwy/nanobenchmark.cc"],
     hdrs = ["hwy/nanobenchmark.h"],
+    local_defines = ["hwy_EXPORTS"],
     deps = [":hwy"],
 )
 
@@ -244,6 +266,7 @@ cc_library(
     name = "skeleton",
     srcs = ["hwy/examples/skeleton.cc"],
     hdrs = ["hwy/examples/skeleton.h"],
+    local_defines = ["hwy_EXPORTS"],
     textual_hdrs = ["hwy/examples/skeleton-inl.h"],
     deps = [
         ":hwy",
@@ -290,6 +313,16 @@ HWY_TESTS = [
     ("hwy/tests/", "test_util_test"),
 ]
 
+HWY_TEST_COPTS = select({
+    ":compiler_msvc": [],
+    "//conditions:default": [
+        # gTest triggers this warning (which is enabled by the
+        # extra-semi in COPTS), so we need to disable it here,
+        # but it's still enabled for :hwy.
+        "-Wno-c++98-compat-extra-semi",
+    ],
+})
+
 HWY_TEST_DEPS = [
     ":algo",
     ":dot",
@@ -312,12 +345,7 @@ HWY_TEST_DEPS = [
             srcs = [
                 subdir + test + ".cc",
             ],
-            copts = COPTS + [
-                # gTest triggers this warning (which is enabled by the
-                # extra-semi in COPTS), so we need to disable it here,
-                # but it's still enabled for :hwy.
-                "-Wno-c++98-compat-extra-semi",
-            ],
+            copts = COPTS + HWY_TEST_COPTS,
             features = select({
                 "@platforms//cpu:riscv64": ["fully_static_link"],
                 "//conditions:default": [],

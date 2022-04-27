@@ -99,8 +99,9 @@ HWY_EXPORT(FloorLog2);
 // This function is optional and only needed in the case of exposing it in the
 // header file. Otherwise using HWY_DYNAMIC_DISPATCH(FloorLog2) in this module
 // is equivalent to inlining this function.
-void CallFloorLog2(const uint8_t* HWY_RESTRICT in, const size_t count,
-                   uint8_t* HWY_RESTRICT out) {
+HWY_DLLEXPORT void CallFloorLog2(const uint8_t* HWY_RESTRICT in,
+                                 const size_t count,
+                                 uint8_t* HWY_RESTRICT out) {
   // This must reside outside of HWY_NAMESPACE because it references (calls the
   // appropriate one from) the per-target implementations there.
   return HWY_DYNAMIC_DISPATCH(FloorLog2)(in, count, out);

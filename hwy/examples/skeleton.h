@@ -28,8 +28,8 @@
 namespace skeleton {
 
 // Computes base-2 logarithm by converting to float. Supports dynamic dispatch.
-void CallFloorLog2(const uint8_t* HWY_RESTRICT in, const size_t count,
-                   uint8_t* HWY_RESTRICT out);
+HWY_DLLEXPORT void CallFloorLog2(const uint8_t* HWY_RESTRICT in,
+                                 const size_t count, uint8_t* HWY_RESTRICT out);
 
 }  // namespace skeleton
 

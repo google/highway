@@ -24,7 +24,7 @@
 namespace hwy {
 namespace detail {
 
-void TypeName(const TypeInfo& info, size_t N, char* string100) {
+HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100) {
   const char prefix = info.is_float ? 'f' : (info.is_signed ? 'i' : 'u');
   // Omit the xN suffix for scalars.
   if (N == 1) {
@@ -37,7 +37,8 @@ void TypeName(const TypeInfo& info, size_t N, char* string100) {
   }
 }
 
-void ToString(const TypeInfo& info, const void* ptr, char* string100) {
+HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
+                            char* string100) {
   if (info.sizeof_t == 1) {
     uint8_t byte;
     CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
@@ -78,9 +79,9 @@ void ToString(const TypeInfo& info, const void* ptr, char* string100) {
   }
 }
 
-void PrintArray(const TypeInfo& info, const char* caption,
-                const void* array_void, size_t N, size_t lane_u,
-                size_t max_lanes) {
+HWY_DLLEXPORT void PrintArray(const TypeInfo& info, const char* caption,
+                              const void* array_void, size_t N, size_t lane_u,
+                              size_t max_lanes) {
   const uint8_t* array_bytes = reinterpret_cast<const uint8_t*>(array_void);
 
   char type_name[100];

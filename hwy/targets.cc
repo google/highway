@@ -184,7 +184,7 @@ constexpr uint64_t kGroupAVX3_DL =
 
 }  // namespace
 
-HWY_NORETURN void HWY_FORMAT(3, 4)
+HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...) {
   char buf[2000];
   va_list args;
@@ -212,7 +212,7 @@ HWY_NORETURN void HWY_FORMAT(3, 4)
 #endif
 }
 
-void DisableTargets(uint32_t disabled_targets) {
+HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets) {
   supported_mask_ = ~(disabled_targets & ~uint32_t(HWY_ENABLED_BASELINE));
   // We can call Update() here to initialize the mask but that will trigger a
   // call to SupportedTargets() which we use in tests to tell whether any of the
@@ -220,7 +220,7 @@ void DisableTargets(uint32_t disabled_targets) {
   GetChosenTarget().DeInit();
 }
 
-void SetSupportedTargetsForTest(uint32_t targets) {
+HWY_DLLEXPORT void SetSupportedTargetsForTest(uint32_t targets) {
   // Reset the cached supported_ value to 0 to force a re-evaluation in the
   // next call to SupportedTargets() which will use the mocked value set here
   // if not zero.
@@ -229,11 +229,11 @@ void SetSupportedTargetsForTest(uint32_t targets) {
   GetChosenTarget().DeInit();
 }
 
-bool SupportedTargetsCalledForTest() {
+HWY_DLLEXPORT bool SupportedTargetsCalledForTest() {
   return supported_.load(std::memory_order_acquire) != 0;
 }
 
-uint32_t SupportedTargets() {
+HWY_DLLEXPORT uint32_t SupportedTargets() {
   uint32_t bits = supported_.load(std::memory_order_acquire);
   // Already initialized?
   if (HWY_LIKELY(bits != 0)) {
@@ -357,7 +357,7 @@ HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   return chosen_target;
 }
 
-void ChosenTarget::Update() {
+HWY_DLLEXPORT void ChosenTarget::Update() {
   // The supported variable contains the current CPU supported targets shifted
   // to the location expected by the ChosenTarget mask. We enabled SCALAR
   // regardless of whether it was compiled since it is also used as the
