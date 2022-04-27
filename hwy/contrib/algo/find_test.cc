@@ -173,9 +173,10 @@ struct TestFindIf {
       found_any |= actual < count;
       not_found_any |= actual == count;
 
+      const auto pos = std::find_if(
+          in, in + count, [val](T x) { return x > static_cast<T>(val); });
       // Convert returned iterator to index.
-      const size_t expected = static_cast<size_t>(
-          std::find_if(in, in + count, [val](T x) { return x > val; }) - in);
+      const size_t expected = static_cast<size_t>(pos - in);
       if (expected != actual) {
         fprintf(stderr, "%s count %d val %d, expected %d actual %d\n",
                 hwy::TypeName(T(), Lanes(d)).c_str(), static_cast<int>(count),
