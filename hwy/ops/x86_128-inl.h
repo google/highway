@@ -5106,9 +5106,10 @@ HWY_API Vec128<int8_t, N> DemoteTo(Simd<int8_t, N, 0> /* tag */,
   return Vec128<int8_t, N>{_mm_packs_epi16(v.raw, v.raw)};
 }
 
-// Work around MSVC warning for _mm_cvtps_ph (8 is actually a valid immediate)
+// Work around MSVC warning for _mm_cvtps_ph (8 is actually a valid immediate).
+// clang-cl requires a non-empty string, so we 'ignore' the irrelevant -Wmain.
 HWY_DIAGNOSTICS(push)
-HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "")
+HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wmain")
 
 template <size_t N>
 HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N, 0> df16,
