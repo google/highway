@@ -9,11 +9,11 @@
 #ifndef HWY_DLLEXPORT_H
 #define HWY_DLLEXPORT_H
 
-#ifdef HWY_STATIC_DEFINE
+#if !defined(HWY_SHARED_DEFINE)
 #define HWY_DLLEXPORT
 #define HWY_CONTRIB_DLLEXPORT
 #define HWY_TEST_DLLEXPORT
-#else  // HWY_STATIC_DEFINE
+#else  // !HWY_SHARED_DEFINE
 
 #ifndef HWY_DLLEXPORT
 #if defined(hwy_EXPORTS)
@@ -69,6 +69,6 @@
 #endif  // defined(hwy_test_EXPORTS)
 #endif  // HWY_TEST_DLLEXPORT
 
-#endif  // HWY_STATIC_DEFINE
+#endif  // !HWY_SHARED_DEFINE
 
 #endif /* HWY_DLLEXPORT_H */

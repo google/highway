@@ -8,7 +8,11 @@ COMPAT = [
     "//buildenv/target:non_prod",  # includes mobile/vendor.
 ]
 
-COPTS = []
+COPTS = select({
+    "//third_party/highway:compiler_msvc": ["/DHWY_SHARED_DEFINE"],
+    "//third_party/highway:compiler_clangcl": ["/DHWY_SHARED_DEFINE"],
+    "//conditions:default": [],
+})
 
 cc_library(
     name = "vqsort",

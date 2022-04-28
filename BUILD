@@ -105,7 +105,11 @@ CLANG_ONLY_COPTS = CLANG_OR_CLANGCL_OPTS + [
     "--no-system-header-prefix=third_party/highway",
 ]
 
-STATIC_COPTS = []
+STATIC_COPTS = select({
+    ":compiler_msvc": ["/DHWY_SHARED_DEFINE"],
+    ":compiler_clangcl": ["/DHWY_SHARED_DEFINE"],
+    "//conditions:default": [],
+})
 
 COPTS = STATIC_COPTS + select({
     ":compiler_msvc": [],
