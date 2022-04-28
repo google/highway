@@ -82,7 +82,6 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
 #if HWY_MEM_OPS_MIGHT_FAULT
     // Scan single elements.
     const CappedTag<T, 1> d1;
-    using V1 = Vec<decltype(d1)>;
     for (; i < count; ++i) {
       if (AllTrue(d1, func(d1, LoadU(d1, in + i)))) {
         return i;

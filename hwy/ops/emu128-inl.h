@@ -923,7 +923,7 @@ HWY_API Vec128<T, N> Trunc(Vec128<T, N> v) {
     }
     const TI truncated = static_cast<TI>(v.raw[i]);
     if (truncated == 0) {
-      v.raw[i] = v.raw[i] < 0 ? -0 : 0;
+      v.raw[i] = v.raw[i] < 0 ? -T{0} : T{0};
       continue;
     }
     v.raw[i] = static_cast<T>(truncated);
@@ -2010,7 +2010,7 @@ HWY_API Mask128<T, N> LoadMaskBits(Simd<T, N, 0> /* tag */,
                                    const uint8_t* HWY_RESTRICT bits) {
   Mask128<T, N> m;
   for (size_t i = 0; i < N; ++i) {
-    const size_t bit = 1u << (i & 7);
+    const size_t bit = size_t{1} << (i & 7);
     const size_t idx_byte = i >> 3;
     m.bits[i] = Mask128<T, N>::FromBool((bits[idx_byte] & bit) != 0);
   }
@@ -2024,7 +2024,7 @@ HWY_API size_t StoreMaskBits(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask,
   bits[0] = 0;
   if (N > 8) bits[1] = 0;  // N <= 16, so max two bytes
   for (size_t i = 0; i < N; ++i) {
-    const size_t bit = 1u << (i & 7);
+    const size_t bit = size_t{1} << (i & 7);
     const size_t idx_byte = i >> 3;
     if (mask.bits[i]) bits[idx_byte] |= bit;
   }

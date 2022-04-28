@@ -5106,6 +5106,10 @@ HWY_API Vec128<int8_t, N> DemoteTo(Simd<int8_t, N, 0> /* tag */,
   return Vec128<int8_t, N>{_mm_packs_epi16(v.raw, v.raw)};
 }
 
+// Work around MSVC warning for _mm_cvtps_ph (8 is actually a valid immediate)
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "")
+
 template <size_t N>
 HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N, 0> df16,
                                       const Vec128<float, N> v) {
@@ -5140,6 +5144,8 @@ HWY_API Vec128<float16_t, N> DemoteTo(Simd<float16_t, N, 0> df16,
   return Vec128<float16_t, N>{_mm_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 #endif
 }
+
+HWY_DIAGNOSTICS(pop)
 
 template <size_t N>
 HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N, 0> dbf16,

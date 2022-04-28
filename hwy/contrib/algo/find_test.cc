@@ -57,14 +57,14 @@ T Random(RandomState& rng) {
 
 class GreaterThan {
  public:
-  GreaterThan(float val) : val_(val) {}
+  GreaterThan(int val) : val_(val) {}
   template <class D, class V>
   Mask<D> operator()(D d, V v) const {
     return Gt(v, Set(d, static_cast<TFromD<D>>(val_)));
   }
 
  private:
-  float val_;
+  int val_;
 };
 
 #endif  // !HWY_GENERIC_LAMBDA

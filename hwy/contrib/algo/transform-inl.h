@@ -57,7 +57,7 @@ void Generate(D d, T* HWY_RESTRICT out, size_t count, const Func& func) {
   Vec<decltype(du)> vidx = Iota(du, 0);
   for (; idx + N <= count; idx += N) {
     StoreU(func(d, vidx), d, out + idx);
-    vidx = Add(vidx, Set(du, N));
+    vidx = Add(vidx, Set(du, static_cast<T>(N)));
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -67,8 +67,9 @@ void Generate(D d, T* HWY_RESTRICT out, size_t count, const Func& func) {
   // Proceed one by one.
   const CappedTag<T, 1> d1;
   const RebindToUnsigned<decltype(d1)> du1;
+  using TU = TFromD<decltype(du1)>;
   for (; idx < count; ++idx) {
-    StoreU(func(d1, Set(du1, idx)), d1, out + idx);
+    StoreU(func(d1, Set(du1, static_cast<TU>(idx))), d1, out + idx);
   }
 #else
   const size_t remaining = count - idx;
