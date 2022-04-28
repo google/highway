@@ -105,7 +105,9 @@ CLANG_ONLY_COPTS = CLANG_OR_CLANGCL_OPTS + [
     "--no-system-header-prefix=third_party/highway",
 ]
 
-COPTS = select({
+STATIC_COPTS = []
+
+COPTS = STATIC_COPTS + select({
     ":compiler_msvc": [],
     ":compiler_gcc": CLANG_GCC_COPTS,
     ":compiler_clangcl": CLANG_OR_CLANGCL_OPTS,
@@ -144,7 +146,6 @@ cc_library(
         "hwy/base.h",
         "hwy/cache_control.h",
         "hwy/detect_compiler_arch.h",  # private
-        "hwy/highway_export.h",
         "hwy/print.h",
     ],
     compatible_with = [],
@@ -158,6 +159,7 @@ cc_library(
         "hwy/highway.h",  # public
         "hwy/foreach_target.h",  # public
         "hwy/print-inl.h",  # public
+        "hwy/highway_export.h",  # public
         "hwy/ops/arm_neon-inl.h",
         "hwy/ops/arm_sve-inl.h",
         "hwy/ops/emu128-inl.h",
@@ -181,6 +183,7 @@ cc_library(
 cc_library(
     name = "algo",
     compatible_with = [],
+    copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/algo/copy-inl.h",
         "hwy/contrib/algo/find-inl.h",
@@ -194,6 +197,7 @@ cc_library(
 cc_library(
     name = "dot",
     compatible_with = [],
+    copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/dot/dot-inl.h",
     ],
@@ -211,6 +215,7 @@ cc_library(
         "hwy/contrib/image/image.h",
     ],
     compatible_with = [],
+    copts = COPTS,
     local_defines = ["hwy_contrib_EXPORTS"],
     deps = [
         ":hwy",
@@ -220,6 +225,7 @@ cc_library(
 cc_library(
     name = "math",
     compatible_with = [],
+    copts = COPTS,
     textual_hdrs = [
         "hwy/contrib/math/math-inl.h",
     ],
@@ -233,6 +239,8 @@ cc_library(
     name = "hwy_test_util",
     srcs = ["hwy/tests/test_util.cc"],
     hdrs = ["hwy/tests/test_util.h"],
+    compatible_with = [],
+    copts = COPTS,
     local_defines = ["hwy_test_EXPORTS"],
     textual_hdrs = [
         "hwy/tests/test_util-inl.h",
@@ -249,6 +257,8 @@ cc_library(
     name = "nanobenchmark",
     srcs = ["hwy/nanobenchmark.cc"],
     hdrs = ["hwy/nanobenchmark.h"],
+    compatible_with = [],
+    copts = COPTS,
     local_defines = ["hwy_EXPORTS"],
     deps = [":hwy"],
 )
@@ -256,6 +266,7 @@ cc_library(
 cc_binary(
     name = "benchmark",
     srcs = ["hwy/examples/benchmark.cc"],
+    copts = COPTS,
     deps = [
         ":hwy",
         ":nanobenchmark",
@@ -266,6 +277,7 @@ cc_library(
     name = "skeleton",
     srcs = ["hwy/examples/skeleton.cc"],
     hdrs = ["hwy/examples/skeleton.h"],
+    copts = COPTS,
     local_defines = ["hwy_EXPORTS"],
     textual_hdrs = ["hwy/examples/skeleton-inl.h"],
     deps = [

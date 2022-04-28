@@ -8,6 +8,8 @@ COMPAT = [
     "//buildenv/target:non_prod",  # includes mobile/vendor.
 ]
 
+COPTS = []
+
 cc_library(
     name = "vqsort",
     srcs = [
@@ -37,6 +39,7 @@ cc_library(
         "vqsort.h",  # public interface
     ],
     compatible_with = [],
+    copts = COPTS,
     local_defines = ["hwy_contrib_EXPORTS"],
     textual_hdrs = [
         "shared-inl.h",

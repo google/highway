@@ -26,8 +26,8 @@
 
 namespace hwy {
 
-bool BytesEqual(const void* p1, const void* p2, const size_t size,
-                size_t* pos) {
+HWY_TEST_DLLEXPORT bool BytesEqual(const void* p1, const void* p2,
+                                   const size_t size, size_t* pos) {
   const uint8_t* bytes1 = reinterpret_cast<const uint8_t*>(p1);
   const uint8_t* bytes2 = reinterpret_cast<const uint8_t*>(p2);
   for (size_t i = 0; i < size; ++i) {
@@ -54,8 +54,8 @@ void AssertStringEqual(const char* expected, const char* actual,
 
 namespace detail {
 
-bool IsEqual(const TypeInfo& info, const void* expected_ptr,
-             const void* actual_ptr) {
+HWY_TEST_DLLEXPORT bool IsEqual(const TypeInfo& info, const void* expected_ptr,
+                                const void* actual_ptr) {
   if (!info.is_float) {
     return BytesEqual(expected_ptr, actual_ptr, info.sizeof_t);
   }
@@ -77,12 +77,10 @@ bool IsEqual(const TypeInfo& info, const void* expected_ptr,
   }
 }
 
-HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,
-                                        const void* expected_ptr,
-                                        const void* actual_ptr,
-                                        const char* target_name,
-                                        const char* filename, int line,
-                                        size_t lane, size_t num_lanes) {
+HWY_TEST_DLLEXPORT HWY_NORETURN void PrintMismatchAndAbort(
+    const TypeInfo& info, const void* expected_ptr, const void* actual_ptr,
+    const char* target_name, const char* filename, int line, size_t lane,
+    size_t num_lanes) {
   char type_name[100];
   TypeName(info, 1, type_name);
   char expected_str[100];
@@ -96,9 +94,11 @@ HWY_NORETURN void PrintMismatchAndAbort(const TypeInfo& info,
         static_cast<uint64_t>(lane), expected_str, actual_str);
 }
 
-void AssertArrayEqual(const TypeInfo& info, const void* expected_void,
-                      const void* actual_void, size_t N,
-                      const char* target_name, const char* filename, int line) {
+HWY_TEST_DLLEXPORT void AssertArrayEqual(const TypeInfo& info,
+                                         const void* expected_void,
+                                         const void* actual_void, size_t N,
+                                         const char* target_name,
+                                         const char* filename, int line) {
   const uint8_t* expected_array =
       reinterpret_cast<const uint8_t*>(expected_void);
   const uint8_t* actual_array = reinterpret_cast<const uint8_t*>(actual_void);
