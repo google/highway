@@ -105,13 +105,7 @@ CLANG_ONLY_COPTS = CLANG_OR_CLANGCL_OPTS + [
     "--no-system-header-prefix=third_party/highway",
 ]
 
-STATIC_COPTS = select({
-    ":compiler_msvc": ["/DHWY_SHARED_DEFINE"],
-    ":compiler_clangcl": ["/DHWY_SHARED_DEFINE"],
-    "//conditions:default": [],
-})
-
-COPTS = STATIC_COPTS + select({
+COPTS = select({
     ":compiler_msvc": [],
     ":compiler_gcc": CLANG_GCC_COPTS,
     ":compiler_clangcl": CLANG_OR_CLANGCL_OPTS,
@@ -124,6 +118,12 @@ COPTS = STATIC_COPTS + select({
     ],
     "//conditions:default": [
     ],
+})
+
+DEFINES = select({
+    ":compiler_msvc": ["HWY_SHARED_DEFINE"],
+    ":compiler_clangcl": ["HWY_SHARED_DEFINE"],
+    "//conditions:default": [],
 })
 
 # Unused on Bazel builds, where this is not defined/known; Copybara replaces
@@ -154,6 +154,7 @@ cc_library(
     ],
     compatible_with = [],
     copts = COPTS,
+    defines = DEFINES,
     local_defines = ["hwy_EXPORTS"],
     textual_hdrs = [
         # These are textual because config macros influence them:

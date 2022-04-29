@@ -8,12 +8,6 @@ COMPAT = [
     "//buildenv/target:non_prod",  # includes mobile/vendor.
 ]
 
-COPTS = select({
-    "//third_party/highway:compiler_msvc": ["/DHWY_SHARED_DEFINE"],
-    "//third_party/highway:compiler_clangcl": ["/DHWY_SHARED_DEFINE"],
-    "//conditions:default": [],
-})
-
 cc_library(
     name = "vqsort",
     srcs = [
@@ -43,7 +37,6 @@ cc_library(
         "vqsort.h",  # public interface
     ],
     compatible_with = [],
-    copts = COPTS,
     local_defines = ["hwy_contrib_EXPORTS"],
     textual_hdrs = [
         "shared-inl.h",
@@ -94,7 +87,6 @@ cc_test(
     name = "sort_test",
     size = "medium",
     srcs = ["sort_test.cc"],
-    copts = COPTS,
     features = ["fully_static_link"],
     linkstatic = True,
     local_defines = ["HWY_IS_TEST"],
@@ -113,7 +105,6 @@ cc_binary(
     name = "bench_sort",
     testonly = 1,
     srcs = ["bench_sort.cc"],
-    copts = COPTS,
     features = ["fully_static_link"],
     linkstatic = True,
     local_defines = ["HWY_IS_TEST"],
@@ -130,7 +121,6 @@ cc_binary(
     name = "bench_parallel",
     testonly = 1,
     srcs = ["bench_parallel.cc"],
-    copts = COPTS,
     features = ["fully_static_link"],
     linkstatic = True,
     local_defines = ["HWY_IS_TEST"],
