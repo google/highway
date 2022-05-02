@@ -663,7 +663,7 @@ false is zero, true has all bits set:
     d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see
     remarks there.
 
-#### Comparisons
+### Comparisons
 
 These return a mask (see above) indicating whether the condition is true.
 
