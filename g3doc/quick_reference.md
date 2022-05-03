@@ -2,15 +2,23 @@
 
 [[_TOC_]]
 
-## Usage modes
+## High-level overview
 
-Highway can compile for multiple CPU targets, choosing the best available at
-runtime (dynamic dispatch), or compile for a single CPU target without runtime
-overhead (static dispatch). Examples of both are provided in examples/.
+Highway is a collection of 'ops': platform-agnostic pure functions that operate
+on tuples (multiple values of the same type). These functions are implemented
+using platform-specific intrinsics, which map to SIMD/vector instructions.
+`hwy/contrib` also includes higher-level algorithms such as `FindIf` or `Sorter`
+implemented using these ops.
 
-Dynamic dispatch uses the same source code as static, plus `#define
-HWY_TARGET_INCLUDE`, `#include "hwy/foreach_target.h"`
-(which must come before any inclusion of highway.h) and `HWY_DYNAMIC_DISPATCH`.
+Highyway can use dynamic dispatch, which chooses the best available
+implementation at runtime, or static dispatch which has no runtime overhead.
+Dynamic dispatch works by compiling your code once per target CPU and then
+selecting (via indirect call) at runtime.
+
+Examples of both are provided in examples/. Dynamic dispatch uses the same
+source code as static, plus `#define HWY_TARGET_INCLUDE`, `#include
+"third_party/highway/hwy/foreach_target.h"` (which must come before any
+inclusion of highway.h) and `HWY_DYNAMIC_DISPATCH`.
 
 ## Headers
 
@@ -25,7 +33,7 @@ The public headers are:
 
 *   hwy/foreach_target.h: re-includes the translation unit (specified by
     `HWY_TARGET_INCLUDE`) once per enabled target to generate code from the same
-    source code. highway.h must still be included, either before or after.
+    source code. highway.h must still be included.
 
 *   hwy/aligned_allocator.h: defines functions for allocating memory with
     alignment suitable for `Load`/`Store`.
@@ -59,13 +67,14 @@ HWY_AFTER_NAMESPACE();
 
 ## Notation in this doc
 
-*   `T` denotes the type of a vector lane;
+*   `T` denotes the type of a vector lane (integer or floating-point);
 *   `N` is a size_t value that governs (but is not necessarily identical to) the
     number of lanes;
-*   `D` is shorthand for `Simd<T, N, kPow2>` (use aliases such as `ScalableTag`
-    instead of referring to this type directly);
+*   `D` is shorthand for a zero-sized tag type `Simd<T, N, kPow2>`, used to
+    select the desired overloaded function (see next section). Use aliases such
+    as `ScalableTag` instead of referring to this type directly;
 *   `d` is an lvalue of type `D`, passed as a function argument e.g. to Zero;
-*   `V` is the type of a vector.
+*   `V` is the type of a vector, which may be a class or built-in type.
 
 ## Vector and tag types
 
