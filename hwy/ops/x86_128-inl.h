@@ -1987,50 +1987,45 @@ HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
-                          T* HWY_RESTRICT p) {
-#if HWY_IS_ASAN
-  // HACK: asan raises errors for partial vectors.
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                          Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
+  // For partial vectors, avoid writing other lanes by zeroing their mask.
   if (N < 4) {
-    detail::ScalarMaskedStore(v, m, d, p);
-    return;
+    const Full128<T> df;
+    const Mask128<T> mf{m.raw};
+    m = Mask128<T, N>{And(mf, FirstN(df, N)).raw};
   }
-#endif
 
-  const RebindToSigned<decltype(d)> di;
   auto pi = reinterpret_cast<int*>(p);  // NOLINT
-  const Vec128<int32_t, N> vi = BitCast(di, v);
-  _mm_maskstore_epi32(pi, m.raw, vi.raw);
+  _mm_maskstore_epi32(pi, m.raw, v.raw);
 }
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
-                          T* HWY_RESTRICT p) {
-#if HWY_IS_ASAN
-  // HACK: asan raises errors for partial vectors.
+HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m,
+                          Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
+  // For partial vectors, avoid writing other lanes by zeroing their mask.
   if (N < 2) {
-    detail::ScalarMaskedStore(v, m, d, p);
-    return;
+    const Full128<T> df;
+    const Mask128<T> mf{m.raw};
+    m = Mask128<T, N>{And(mf, FirstN(df, N)).raw};
   }
-#endif
 
   auto pi = reinterpret_cast<long long*>(p);  // NOLINT
-  const Vec128<int64_t, N> vi = BitCast(RebindToSigned<decltype(d)>(), v);
-  _mm_maskstore_epi64(pi, m.raw, vi.raw);
+  _mm_maskstore_epi64(pi, m.raw, v.raw);
 }
 
 template <size_t N>
 HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
                           Simd<float, N, 0> d, float* HWY_RESTRICT p) {
-#if HWY_IS_ASAN
-  // HACK: asan raises errors for partial vectors.
+  using T = float;
+  // For partial vectors, avoid writing other lanes by zeroing their mask.
   if (N < 4) {
-    detail::ScalarMaskedStore(v, m, d, p);
-    return;
+    const Full128<T> df;
+    const Mask128<T> mf{m.raw};
+    m = Mask128<T, N>{And(mf, FirstN(df, N)).raw};
   }
-#endif
 
-  const Vec128<int32_t, N> mi =
+  const Vec128<MakeSigned<T>, N> mi =
       BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
   _mm_maskstore_ps(p, mi.raw, v.raw);
 }
@@ -2038,15 +2033,15 @@ HWY_API void BlendedStore(Vec128<float, N> v, Mask128<float, N> m,
 template <size_t N>
 HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
                           Simd<double, N, 0> d, double* HWY_RESTRICT p) {
-#if HWY_IS_ASAN
-  // HACK: asan raises errors for partial vectors.
+  using T = double;
+  // For partial vectors, avoid writing other lanes by zeroing their mask.
   if (N < 2) {
-    detail::ScalarMaskedStore(v, m, d, p);
-    return;
+    const Full128<T> df;
+    const Mask128<T> mf{m.raw};
+    m = Mask128<T, N>{And(mf, FirstN(df, N)).raw};
   }
-#endif
 
-  const Vec128<int64_t, N> mi =
+  const Vec128<MakeSigned<T>, N> mi =
       BitCast(RebindToSigned<decltype(d)>(), VecFromMask(d, m));
   _mm_maskstore_pd(p, mi.raw, v.raw);
 }
