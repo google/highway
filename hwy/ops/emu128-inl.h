@@ -562,7 +562,7 @@ HWY_API Vec128<T, N> operator-(Vec128<T, N> a, const Vec128<T, N> b) {
 
 template <size_t N>
 HWY_API Vec128<uint64_t, (N + 7) / 8> SumsOf8(const Vec128<uint8_t, N> v) {
-  Vec128<uint64_t, (N + 7) / 8> sums{0};
+  Vec128<uint64_t, (N + 7) / 8> sums{{0}};
   for (size_t i = 0; i < N; ++i) {
     sums.raw[i / 8] += v.raw[i];
   }
