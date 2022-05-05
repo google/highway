@@ -956,25 +956,33 @@ HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, Sisd<T> d,
 
 // ------------------------------ StoreInterleaved2/3/4
 
-HWY_API void StoreInterleaved2(const Vec1<uint8_t> v0, const Vec1<uint8_t> v1,
-                               Sisd<uint8_t> d,
-                               uint8_t* HWY_RESTRICT unaligned) {
+// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
+#ifdef HWY_NATIVE_STORE_INTERLEAVED
+#undef HWY_NATIVE_STORE_INTERLEAVED
+#else
+#define HWY_NATIVE_STORE_INTERLEAVED
+#endif
+
+template <typename T>
+HWY_API void StoreInterleaved2(const Vec1<T> v0, const Vec1<T> v1, Sisd<T> d,
+                               T* HWY_RESTRICT unaligned) {
   StoreU(v0, d, unaligned + 0);
   StoreU(v1, d, unaligned + 1);
 }
 
-HWY_API void StoreInterleaved3(const Vec1<uint8_t> v0, const Vec1<uint8_t> v1,
-                               const Vec1<uint8_t> v2, Sisd<uint8_t> d,
-                               uint8_t* HWY_RESTRICT unaligned) {
+template <typename T>
+HWY_API void StoreInterleaved3(const Vec1<T> v0, const Vec1<T> v1,
+                               const Vec1<T> v2, Sisd<T> d,
+                               T* HWY_RESTRICT unaligned) {
   StoreU(v0, d, unaligned + 0);
   StoreU(v1, d, unaligned + 1);
   StoreU(v2, d, unaligned + 2);
 }
 
-HWY_API void StoreInterleaved4(const Vec1<uint8_t> v0, const Vec1<uint8_t> v1,
-                               const Vec1<uint8_t> v2, const Vec1<uint8_t> v3,
-                               Sisd<uint8_t> d,
-                               uint8_t* HWY_RESTRICT unaligned) {
+template <typename T>
+HWY_API void StoreInterleaved4(const Vec1<T> v0, const Vec1<T> v1,
+                               const Vec1<T> v2, const Vec1<T> v3, Sisd<T> d,
+                               T* HWY_RESTRICT unaligned) {
   StoreU(v0, d, unaligned + 0);
   StoreU(v1, d, unaligned + 1);
   StoreU(v2, d, unaligned + 2);

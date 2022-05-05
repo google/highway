@@ -155,19 +155,19 @@ namespace detail {  // for code folding and Raw128
   HWY_NEON_DEF_FUNCTION(float32, 1, name, prefix, infix, f32, args)
 
 // double
+#if HWY_ARCH_ARM_A64
 #define HWY_NEON_DEF_FUNCTION_FLOAT_64(name, prefix, infix, args)      \
   HWY_NEON_DEF_FUNCTION(float64, 2, name, prefix##q, infix, f64, args) \
   HWY_NEON_DEF_FUNCTION(float64, 1, name, prefix, infix, f64, args)
+#else
+#define HWY_NEON_DEF_FUNCTION_FLOAT_64(name, prefix, infix, args)
+#endif
 
 // float and double
-#if HWY_ARCH_ARM_A64
+
 #define HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args) \
   HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)         \
   HWY_NEON_DEF_FUNCTION_FLOAT_64(name, prefix, infix, args)
-#else
-#define HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args) \
-  HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)
-#endif
 
 // Helper macros to define for more than one type.
 // uint8_t, uint16_t and uint32_t
@@ -261,6 +261,319 @@ namespace detail {  // for code folding and Raw128
 #define vzip2q_u32(x, y) vzipq_u32(x, y).val[1]
 #define vzip2q_f32(x, y) vzipq_f32(x, y).val[1]
 #endif
+
+// Wrappers over uint8x16x2_t etc. so we can define StoreInterleaved2 overloads
+// for all vector types, even those (bfloat16_t) where the underlying vector is
+// the same as others (uint16_t).
+template <typename T, size_t N>
+struct Tuple2;
+template <typename T, size_t N>
+struct Tuple3;
+template <typename T, size_t N>
+struct Tuple4;
+
+template <>
+struct Tuple2<uint8_t, 16> {
+  uint8x16x2_t raw;
+};
+template <size_t N>
+struct Tuple2<uint8_t, N> {
+  uint8x8x2_t raw;
+};
+template <>
+struct Tuple2<int8_t, 16> {
+  int8x16x2_t raw;
+};
+template <size_t N>
+struct Tuple2<int8_t, N> {
+  int8x8x2_t raw;
+};
+template <>
+struct Tuple2<uint16_t, 8> {
+  uint16x8x2_t raw;
+};
+template <size_t N>
+struct Tuple2<uint16_t, N> {
+  uint16x4x2_t raw;
+};
+template <>
+struct Tuple2<int16_t, 8> {
+  int16x8x2_t raw;
+};
+template <size_t N>
+struct Tuple2<int16_t, N> {
+  int16x4x2_t raw;
+};
+template <>
+struct Tuple2<uint32_t, 4> {
+  uint32x4x2_t raw;
+};
+template <size_t N>
+struct Tuple2<uint32_t, N> {
+  uint32x2x2_t raw;
+};
+template <>
+struct Tuple2<int32_t, 4> {
+  int32x4x2_t raw;
+};
+template <size_t N>
+struct Tuple2<int32_t, N> {
+  int32x2x2_t raw;
+};
+template <>
+struct Tuple2<uint64_t, 2> {
+  uint64x2x2_t raw;
+};
+template <size_t N>
+struct Tuple2<uint64_t, N> {
+  uint64x1x2_t raw;
+};
+template <>
+struct Tuple2<int64_t, 2> {
+  int64x2x2_t raw;
+};
+template <size_t N>
+struct Tuple2<int64_t, N> {
+  int64x1x2_t raw;
+};
+
+template <>
+struct Tuple2<float16_t, 8> {
+  uint16x8x2_t raw;
+};
+template <size_t N>
+struct Tuple2<float16_t, N> {
+  uint16x4x2_t raw;
+};
+template <>
+struct Tuple2<bfloat16_t, 8> {
+  uint16x8x2_t raw;
+};
+template <size_t N>
+struct Tuple2<bfloat16_t, N> {
+  uint16x4x2_t raw;
+};
+
+template <>
+struct Tuple2<float32_t, 4> {
+  float32x4x2_t raw;
+};
+template <size_t N>
+struct Tuple2<float32_t, N> {
+  float32x2x2_t raw;
+};
+#if HWY_ARCH_ARM_A64
+template <>
+struct Tuple2<float64_t, 2> {
+  float64x2x2_t raw;
+};
+template <size_t N>
+struct Tuple2<float64_t, N> {
+  float64x1x2_t raw;
+};
+#endif  // HWY_ARCH_ARM_A64
+
+template <>
+struct Tuple3<uint8_t, 16> {
+  uint8x16x3_t raw;
+};
+template <size_t N>
+struct Tuple3<uint8_t, N> {
+  uint8x8x3_t raw;
+};
+template <>
+struct Tuple3<int8_t, 16> {
+  int8x16x3_t raw;
+};
+template <size_t N>
+struct Tuple3<int8_t, N> {
+  int8x8x3_t raw;
+};
+template <>
+struct Tuple3<uint16_t, 8> {
+  uint16x8x3_t raw;
+};
+template <size_t N>
+struct Tuple3<uint16_t, N> {
+  uint16x4x3_t raw;
+};
+template <>
+struct Tuple3<int16_t, 8> {
+  int16x8x3_t raw;
+};
+template <size_t N>
+struct Tuple3<int16_t, N> {
+  int16x4x3_t raw;
+};
+template <>
+struct Tuple3<uint32_t, 4> {
+  uint32x4x3_t raw;
+};
+template <size_t N>
+struct Tuple3<uint32_t, N> {
+  uint32x2x3_t raw;
+};
+template <>
+struct Tuple3<int32_t, 4> {
+  int32x4x3_t raw;
+};
+template <size_t N>
+struct Tuple3<int32_t, N> {
+  int32x2x3_t raw;
+};
+template <>
+struct Tuple3<uint64_t, 2> {
+  uint64x2x3_t raw;
+};
+template <size_t N>
+struct Tuple3<uint64_t, N> {
+  uint64x1x3_t raw;
+};
+template <>
+struct Tuple3<int64_t, 2> {
+  int64x2x3_t raw;
+};
+template <size_t N>
+struct Tuple3<int64_t, N> {
+  int64x1x3_t raw;
+};
+
+template <>
+struct Tuple3<float16_t, 8> {
+  uint16x8x3_t raw;
+};
+template <size_t N>
+struct Tuple3<float16_t, N> {
+  uint16x4x3_t raw;
+};
+template <>
+struct Tuple3<bfloat16_t, 8> {
+  uint16x8x3_t raw;
+};
+template <size_t N>
+struct Tuple3<bfloat16_t, N> {
+  uint16x4x3_t raw;
+};
+
+template <>
+struct Tuple3<float32_t, 4> {
+  float32x4x3_t raw;
+};
+template <size_t N>
+struct Tuple3<float32_t, N> {
+  float32x2x3_t raw;
+};
+#if HWY_ARCH_ARM_A64
+template <>
+struct Tuple3<float64_t, 2> {
+  float64x2x3_t raw;
+};
+template <size_t N>
+struct Tuple3<float64_t, N> {
+  float64x1x3_t raw;
+};
+#endif  // HWY_ARCH_ARM_A64
+
+template <>
+struct Tuple4<uint8_t, 16> {
+  uint8x16x4_t raw;
+};
+template <size_t N>
+struct Tuple4<uint8_t, N> {
+  uint8x8x4_t raw;
+};
+template <>
+struct Tuple4<int8_t, 16> {
+  int8x16x4_t raw;
+};
+template <size_t N>
+struct Tuple4<int8_t, N> {
+  int8x8x4_t raw;
+};
+template <>
+struct Tuple4<uint16_t, 8> {
+  uint16x8x4_t raw;
+};
+template <size_t N>
+struct Tuple4<uint16_t, N> {
+  uint16x4x4_t raw;
+};
+template <>
+struct Tuple4<int16_t, 8> {
+  int16x8x4_t raw;
+};
+template <size_t N>
+struct Tuple4<int16_t, N> {
+  int16x4x4_t raw;
+};
+template <>
+struct Tuple4<uint32_t, 4> {
+  uint32x4x4_t raw;
+};
+template <size_t N>
+struct Tuple4<uint32_t, N> {
+  uint32x2x4_t raw;
+};
+template <>
+struct Tuple4<int32_t, 4> {
+  int32x4x4_t raw;
+};
+template <size_t N>
+struct Tuple4<int32_t, N> {
+  int32x2x4_t raw;
+};
+template <>
+struct Tuple4<uint64_t, 2> {
+  uint64x2x4_t raw;
+};
+template <size_t N>
+struct Tuple4<uint64_t, N> {
+  uint64x1x4_t raw;
+};
+template <>
+struct Tuple4<int64_t, 2> {
+  int64x2x4_t raw;
+};
+template <size_t N>
+struct Tuple4<int64_t, N> {
+  int64x1x4_t raw;
+};
+
+template <>
+struct Tuple4<float16_t, 8> {
+  uint16x8x4_t raw;
+};
+template <size_t N>
+struct Tuple4<float16_t, N> {
+  uint16x4x4_t raw;
+};
+template <>
+struct Tuple4<bfloat16_t, 8> {
+  uint16x8x4_t raw;
+};
+template <size_t N>
+struct Tuple4<bfloat16_t, N> {
+  uint16x4x4_t raw;
+};
+
+template <>
+struct Tuple4<float32_t, 4> {
+  float32x4x4_t raw;
+};
+template <size_t N>
+struct Tuple4<float32_t, N> {
+  float32x2x4_t raw;
+};
+#if HWY_ARCH_ARM_A64
+template <>
+struct Tuple4<float64_t, 2> {
+  float64x2x4_t raw;
+};
+template <size_t N>
+struct Tuple4<float64_t, N> {
+  float64x1x4_t raw;
+};
+#endif  // HWY_ARCH_ARM_A64
 
 template <typename T, size_t N>
 struct Raw128;
@@ -393,91 +706,57 @@ struct Raw128<double, 1> {
 
 // 32 (same as 64)
 template <>
-struct Raw128<uint8_t, 4> {
-  using type = uint8x8_t;
-};
+struct Raw128<uint8_t, 4> : public Raw128<uint8_t, 8> {};
 
 template <>
-struct Raw128<uint16_t, 2> {
-  using type = uint16x4_t;
-};
+struct Raw128<uint16_t, 2> : public Raw128<uint16_t, 4> {};
 
 template <>
-struct Raw128<uint32_t, 1> {
-  using type = uint32x2_t;
-};
+struct Raw128<uint32_t, 1> : public Raw128<uint32_t, 2> {};
 
 template <>
-struct Raw128<int8_t, 4> {
-  using type = int8x8_t;
-};
+struct Raw128<int8_t, 4> : public Raw128<int8_t, 8> {};
 
 template <>
-struct Raw128<int16_t, 2> {
-  using type = int16x4_t;
-};
+struct Raw128<int16_t, 2> : public Raw128<int16_t, 4> {};
 
 template <>
-struct Raw128<int32_t, 1> {
-  using type = int32x2_t;
-};
+struct Raw128<int32_t, 1> : public Raw128<int32_t, 2> {};
 
 template <>
-struct Raw128<float16_t, 2> {
-  using type = uint16x4_t;
-};
+struct Raw128<float16_t, 2> : public Raw128<float16_t, 4> {};
 
 template <>
-struct Raw128<bfloat16_t, 2> {
-  using type = uint16x4_t;
-};
+struct Raw128<bfloat16_t, 2> : public Raw128<bfloat16_t, 4> {};
 
 template <>
-struct Raw128<float, 1> {
-  using type = float32x2_t;
-};
+struct Raw128<float, 1> : public Raw128<float, 2> {};
 
 // 16 (same as 64)
 template <>
-struct Raw128<uint8_t, 2> {
-  using type = uint8x8_t;
-};
+struct Raw128<uint8_t, 2> : public Raw128<uint8_t, 8> {};
 
 template <>
-struct Raw128<uint16_t, 1> {
-  using type = uint16x4_t;
-};
+struct Raw128<uint16_t, 1> : public Raw128<uint16_t, 4> {};
 
 template <>
-struct Raw128<int8_t, 2> {
-  using type = int8x8_t;
-};
+struct Raw128<int8_t, 2> : public Raw128<int8_t, 8> {};
 
 template <>
-struct Raw128<int16_t, 1> {
-  using type = int16x4_t;
-};
+struct Raw128<int16_t, 1> : public Raw128<int16_t, 4> {};
 
 template <>
-struct Raw128<float16_t, 1> {
-  using type = uint16x4_t;
-};
+struct Raw128<float16_t, 1> : public Raw128<float16_t, 4> {};
 
 template <>
-struct Raw128<bfloat16_t, 1> {
-  using type = uint16x4_t;
-};
+struct Raw128<bfloat16_t, 1> : public Raw128<bfloat16_t, 4> {};
 
 // 8 (same as 64)
 template <>
-struct Raw128<uint8_t, 1> {
-  using type = uint8x8_t;
-};
+struct Raw128<uint8_t, 1> : public Raw128<uint8_t, 8> {};
 
 template <>
-struct Raw128<int8_t, 1> {
-  using type = int8x8_t;
-};
+struct Raw128<int8_t, 1> : public Raw128<int8_t, 8> {};
 
 }  // namespace detail
 
@@ -926,7 +1205,7 @@ HWY_NEON_DEF_FUNCTION_ALL_TYPES(InsertLane, vset, _lane_, HWY_INSERT)
 }  // namespace detail
 
 // Requires one overload per vector length because InsertLane<3> may be a
-// compile error if it calls wasm_f64x2_replace_lane.
+// compile error.
 
 template <typename T>
 HWY_API Vec128<T, 1> InsertLane(const Vec128<T, 1> v, size_t i, T t) {
@@ -5336,103 +5615,157 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
 
 // ------------------------------ StoreInterleaved2
 
-// 128 bits
-HWY_API void StoreInterleaved2(const Vec128<uint8_t> v0,
-                               const Vec128<uint8_t> v1,
-                               Full128<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const uint8x16x2_t pair = {{v0.raw, v1.raw}};
-  vst2q_u8(unaligned, pair);
-}
+// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
+#ifdef HWY_NATIVE_STORE_INTERLEAVED
+#undef HWY_NATIVE_STORE_INTERLEAVED
+#else
+#define HWY_NATIVE_STORE_INTERLEAVED
+#endif
 
-// 64 bits
-HWY_API void StoreInterleaved2(const Vec64<uint8_t> v0, const Vec64<uint8_t> v1,
-                               Full64<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const uint8x8x2_t pair = {{v0.raw, v1.raw}};
-  vst2_u8(unaligned, pair);
+namespace detail {
+#define HWY_NEON_BUILD_TPL_HWY_STORE_INT
+#define HWY_NEON_BUILD_RET_HWY_STORE_INT(type, size) void
+#define HWY_NEON_BUILD_ARG_HWY_STORE_INT to, tup.raw
+
+#if HWY_ARCH_ARM_A64
+#define HWY_IF_STORE_INT(T, N) HWY_IF_GE64(T, N)
+#define HWY_NEON_DEF_FUNCTION_STORE_INT HWY_NEON_DEF_FUNCTION_ALL_TYPES
+#else
+// Exclude 64x2 and f64x1, which are only supported on aarch64
+#define HWY_IF_STORE_INT(T, N) \
+  hwy::EnableIf<N * sizeof(T) >= 8 && (N == 1 || sizeof(T) < 8)>* = nullptr
+#define HWY_NEON_DEF_FUNCTION_STORE_INT(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_INT_8_16_32(name, prefix, infix, args)     \
+  HWY_NEON_DEF_FUNCTION_UINT_8_16_32(name, prefix, infix, args)    \
+  HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)        \
+  HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args)  \
+  HWY_NEON_DEF_FUNCTION(uint64, 1, name, prefix, infix, u64, args)
+#endif  // HWY_ARCH_ARM_A64
+
+#define HWY_NEON_BUILD_PARAM_HWY_STORE_INT(type, size) \
+  Tuple2<type##_t, size> tup, type##_t *to
+HWY_NEON_DEF_FUNCTION_STORE_INT(StoreInterleaved2, vst2, _, HWY_STORE_INT)
+#undef HWY_NEON_BUILD_PARAM_HWY_STORE_INT
+
+#define HWY_NEON_BUILD_PARAM_HWY_STORE_INT(type, size) \
+  Tuple3<type##_t, size> tup, type##_t *to
+HWY_NEON_DEF_FUNCTION_STORE_INT(StoreInterleaved3, vst3, _, HWY_STORE_INT)
+#undef HWY_NEON_BUILD_PARAM_HWY_STORE_INT
+
+#define HWY_NEON_BUILD_PARAM_HWY_STORE_INT(type, size) \
+  Tuple4<type##_t, size> tup, type##_t *to
+HWY_NEON_DEF_FUNCTION_STORE_INT(StoreInterleaved4, vst4, _, HWY_STORE_INT)
+#undef HWY_NEON_BUILD_PARAM_HWY_STORE_INT
+
+#undef HWY_NEON_DEF_FUNCTION_STORE_INT
+#undef HWY_NEON_BUILD_TPL_HWY_STORE_INT
+#undef HWY_NEON_BUILD_RET_HWY_STORE_INT
+#undef HWY_NEON_BUILD_ARG_HWY_STORE_INT
+}  // namespace detail
+
+template <typename T, size_t N, HWY_IF_STORE_INT(T, N)>
+HWY_API void StoreInterleaved2(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               Simd<T, N, 0> /*tag*/,
+                               T* HWY_RESTRICT unaligned) {
+  detail::Tuple2<T, N> tup = {{{v0.raw, v1.raw}}};
+  detail::StoreInterleaved2(tup, unaligned);
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <size_t N, HWY_IF_LE32(uint8_t, N)>
-HWY_API void StoreInterleaved2(const Vec128<uint8_t, N> v0,
-                               const Vec128<uint8_t, N> v1,
-                               Simd<uint8_t, N, 0> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  alignas(16) uint8_t buf[16];
-  const uint8x8x2_t pair = {{v0.raw, v1.raw}};
-  vst2_u8(buf, pair);
-  CopyBytes<N * 2>(buf, unaligned);
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API void StoreInterleaved2(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               Simd<T, N, 0> /*tag*/,
+                               T* HWY_RESTRICT unaligned) {
+  alignas(16) T buf[2 * 8 / sizeof(T)];
+  detail::Tuple2<T, N> tup = {{{v0.raw, v1.raw}}};
+  detail::StoreInterleaved2(tup, buf);
+  CopyBytes<N * 2 * sizeof(T)>(buf, unaligned);
 }
+
+#if HWY_ARCH_ARM_V7
+// 64x2: split into two 64x1
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void StoreInterleaved2(const Vec128<T> v0, const Vec128<T> v1,
+                               Full128<T> d, T* HWY_RESTRICT unaligned) {
+  const Half<decltype(d)> dh;
+  StoreInterleaved2(LowerHalf(dh, v0), LowerHalf(dh, v1), dh, unaligned);
+  StoreInterleaved2(UpperHalf(dh, v0), UpperHalf(dh, v1), dh, unaligned + 2);
+}
+#endif  // HWY_ARCH_ARM_V7
 
 // ------------------------------ StoreInterleaved3
 
-// 128 bits
-HWY_API void StoreInterleaved3(const Vec128<uint8_t> v0,
-                               const Vec128<uint8_t> v1,
-                               const Vec128<uint8_t> v2,
-                               Full128<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const uint8x16x3_t triple = {{v0.raw, v1.raw, v2.raw}};
-  vst3q_u8(unaligned, triple);
-}
-
-// 64 bits
-HWY_API void StoreInterleaved3(const Vec64<uint8_t> v0, const Vec64<uint8_t> v1,
-                               const Vec64<uint8_t> v2, Full64<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const uint8x8x3_t triple = {{v0.raw, v1.raw, v2.raw}};
-  vst3_u8(unaligned, triple);
+template <typename T, size_t N, HWY_IF_STORE_INT(T, N)>
+HWY_API void StoreInterleaved3(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               const Vec128<T, N> v2, Simd<T, N, 0> /*tag*/,
+                               T* HWY_RESTRICT unaligned) {
+  detail::Tuple3<T, N> tup = {{{v0.raw, v1.raw, v2.raw}}};
+  detail::StoreInterleaved3(tup, unaligned);
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <size_t N, HWY_IF_LE32(uint8_t, N)>
-HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
-                               const Vec128<uint8_t, N> v1,
-                               const Vec128<uint8_t, N> v2,
-                               Simd<uint8_t, N, 0> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  alignas(16) uint8_t buf[24];
-  const uint8x8x3_t triple = {{v0.raw, v1.raw, v2.raw}};
-  vst3_u8(buf, triple);
-  CopyBytes<N * 3>(buf, unaligned);
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API void StoreInterleaved3(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               const Vec128<T, N> v2, Simd<T, N, 0> /*tag*/,
+                               T* HWY_RESTRICT unaligned) {
+  alignas(16) T buf[3 * 8 / sizeof(T)];
+  detail::Tuple3<T, N> tup = {{{v0.raw, v1.raw, v2.raw}}};
+  detail::StoreInterleaved3(tup, buf);
+  CopyBytes<N * 3 * sizeof(T)>(buf, unaligned);
 }
+
+#if HWY_ARCH_ARM_V7
+// 64x2: split into two 64x1
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void StoreInterleaved3(const Vec128<T> v0, const Vec128<T> v1,
+                               const Vec128<T> v2, Full128<T> d,
+                               T* HWY_RESTRICT unaligned) {
+  const Half<decltype(d)> dh;
+  StoreInterleaved3(LowerHalf(dh, v0), LowerHalf(dh, v1), LowerHalf(dh, v2), dh,
+                    unaligned);
+  StoreInterleaved3(UpperHalf(dh, v0), UpperHalf(dh, v1), UpperHalf(dh, v2), dh,
+                    unaligned + 3);
+}
+#endif  // HWY_ARCH_ARM_V7
 
 // ------------------------------ StoreInterleaved4
 
-// 128 bits
-HWY_API void StoreInterleaved4(const Vec128<uint8_t> v0,
-                               const Vec128<uint8_t> v1,
-                               const Vec128<uint8_t> v2,
-                               const Vec128<uint8_t> v3,
-                               Full128<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const uint8x16x4_t quad = {{v0.raw, v1.raw, v2.raw, v3.raw}};
-  vst4q_u8(unaligned, quad);
-}
-
-// 64 bits
-HWY_API void StoreInterleaved4(const Vec64<uint8_t> v0, const Vec64<uint8_t> v1,
-                               const Vec64<uint8_t> v2, const Vec64<uint8_t> v3,
-                               Full64<uint8_t> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const uint8x8x4_t quad = {{v0.raw, v1.raw, v2.raw, v3.raw}};
-  vst4_u8(unaligned, quad);
+template <typename T, size_t N, HWY_IF_STORE_INT(T, N)>
+HWY_API void StoreInterleaved4(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               const Vec128<T, N> v2, const Vec128<T, N> v3,
+                               Simd<T, N, 0> /*tag*/,
+                               T* HWY_RESTRICT unaligned) {
+  detail::Tuple4<T, N> tup = {{{v0.raw, v1.raw, v2.raw, v3.raw}}};
+  detail::StoreInterleaved4(tup, unaligned);
 }
 
 // <= 32 bits: avoid writing more than N bytes by copying to buffer
-template <size_t N, HWY_IF_LE32(uint8_t, N)>
-HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> v0,
-                               const Vec128<uint8_t, N> v1,
-                               const Vec128<uint8_t, N> v2,
-                               const Vec128<uint8_t, N> v3,
-                               Simd<uint8_t, N, 0> /*tag*/,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  alignas(16) uint8_t buf[32];
-  const uint8x8x4_t quad = {{v0.raw, v1.raw, v2.raw, v3.raw}};
-  vst4_u8(buf, quad);
-  CopyBytes<N * 4>(buf, unaligned);
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API void StoreInterleaved4(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               const Vec128<T, N> v2, const Vec128<T, N> v3,
+                               Simd<T, N, 0> /*tag*/,
+                               T* HWY_RESTRICT unaligned) {
+  alignas(16) T buf[4 * 8 / sizeof(T)];
+  detail::Tuple4<T, N> tup = {{{v0.raw, v1.raw, v2.raw, v3.raw}}};
+  detail::StoreInterleaved4(tup, buf);
+  CopyBytes<N * 4 * sizeof(T)>(buf, unaligned);
 }
+
+#if HWY_ARCH_ARM_V7
+// 64x2: split into two 64x1
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void StoreInterleaved4(const Vec128<T> v0, const Vec128<T> v1,
+                               const Vec128<T> v2, const Vec128<T> v3,
+                               Full128<T> d, T* HWY_RESTRICT unaligned) {
+  const Half<decltype(d)> dh;
+  StoreInterleaved4(LowerHalf(dh, v0), LowerHalf(dh, v1), LowerHalf(dh, v2),
+                    LowerHalf(dh, v3), dh, unaligned);
+  StoreInterleaved4(UpperHalf(dh, v0), UpperHalf(dh, v1), UpperHalf(dh, v2),
+                    UpperHalf(dh, v3), dh, unaligned + 4);
+}
+#endif  // HWY_ARCH_ARM_V7
+
+#undef HWY_IF_STORE_INT
 
 // ------------------------------ Lt128
 
@@ -5619,18 +5952,19 @@ namespace detail {  // for code folding
 #undef HWY_NEON_DEF_FUNCTION
 #undef HWY_NEON_DEF_FUNCTION_ALL_FLOATS
 #undef HWY_NEON_DEF_FUNCTION_ALL_TYPES
-#undef HWY_NEON_DEF_FUNCTION_INT_8
-#undef HWY_NEON_DEF_FUNCTION_INT_16
-#undef HWY_NEON_DEF_FUNCTION_INT_32
-#undef HWY_NEON_DEF_FUNCTION_INT_8_16_32
+#undef HWY_NEON_DEF_FUNCTION_FLOAT_64
 #undef HWY_NEON_DEF_FUNCTION_INTS
 #undef HWY_NEON_DEF_FUNCTION_INTS_UINTS
+#undef HWY_NEON_DEF_FUNCTION_INT_16
+#undef HWY_NEON_DEF_FUNCTION_INT_32
+#undef HWY_NEON_DEF_FUNCTION_INT_8
+#undef HWY_NEON_DEF_FUNCTION_INT_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_TPL
-#undef HWY_NEON_DEF_FUNCTION_UINT_8
+#undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_DEF_FUNCTION_UINT_16
 #undef HWY_NEON_DEF_FUNCTION_UINT_32
+#undef HWY_NEON_DEF_FUNCTION_UINT_8
 #undef HWY_NEON_DEF_FUNCTION_UINT_8_16_32
-#undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
 }  // namespace detail
 

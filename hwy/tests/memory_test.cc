@@ -15,6 +15,7 @@
 
 // Ensure incompabilities with Windows macros (e.g. #define StoreFence) are
 // detected. Must come before Highway headers.
+#include "hwy/base.h"
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #endif
@@ -139,9 +140,9 @@ struct TestStoreInterleaved2 {
     RandomState rng;
 
     // Data to be interleaved
-    auto bytes = AllocateAligned<uint8_t>(2 * N);
+    auto bytes = AllocateAligned<T>(2 * N);
     for (size_t i = 0; i < 2 * N; ++i) {
-      bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
+      bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);
@@ -164,9 +165,15 @@ struct TestStoreInterleaved2 {
         Print(d, "in0", in0, pos / 4);
         Print(d, "in1", in1, pos / 4);
         const size_t i = pos;
-        fprintf(stderr, "interleaved %d %d %d %d  %d %d %d %d\n", actual[i],
-                actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
-                actual[i + 5], actual[i + 6], actual[i + 7]);
+        fprintf(stderr, "interleaved i=%d %f %f %f %f  %f %f %f %f\n",
+                static_cast<int>(i), static_cast<double>(actual[i]),
+                static_cast<double>(actual[i + 1]),
+                static_cast<double>(actual[i + 2]),
+                static_cast<double>(actual[i + 3]),
+                static_cast<double>(actual[i + 4]),
+                static_cast<double>(actual[i + 5]),
+                static_cast<double>(actual[i + 6]),
+                static_cast<double>(actual[i + 7]));
         HWY_ASSERT(false);
       }
     }
@@ -180,7 +187,7 @@ HWY_NOINLINE void TestAllStoreInterleaved2() {
 #else
   const ForPartialVectors<TestStoreInterleaved2> test;
 #endif
-  test(uint8_t());
+  ForAllTypes(test);
 }
 
 struct TestStoreInterleaved3 {
@@ -191,9 +198,9 @@ struct TestStoreInterleaved3 {
     RandomState rng;
 
     // Data to be interleaved
-    auto bytes = AllocateAligned<uint8_t>(3 * N);
+    auto bytes = AllocateAligned<T>(3 * N);
     for (size_t i = 0; i < 3 * N; ++i) {
-      bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
+      bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);
@@ -215,13 +222,17 @@ struct TestStoreInterleaved3 {
       StoreInterleaved3(in0, in1, in2, d, actual);
       size_t pos = 0;
       if (!BytesEqual(expected.get(), actual, 4 * N, &pos)) {
-        Print(d, "in0", in0, pos / 3);
-        Print(d, "in1", in1, pos / 3);
-        Print(d, "in2", in2, pos / 3);
-        const size_t i = pos - pos % 3;
-        fprintf(stderr, "interleaved %d %d %d  %d %d %d\n", actual[i],
-                actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
-                actual[i + 5]);
+        Print(d, "in0", in0, pos / 3, N);
+        Print(d, "in1", in1, pos / 3, N);
+        Print(d, "in2", in2, pos / 3, N);
+        const size_t i = pos;
+        fprintf(stderr, "interleaved i=%d %f %f %f  %f %f %f\n",
+                static_cast<int>(i), static_cast<double>(actual[i]),
+                static_cast<double>(actual[i + 1]),
+                static_cast<double>(actual[i + 2]),
+                static_cast<double>(actual[i + 3]),
+                static_cast<double>(actual[i + 4]),
+                static_cast<double>(actual[i + 5]));
         HWY_ASSERT(false);
       }
     }
@@ -235,7 +246,7 @@ HWY_NOINLINE void TestAllStoreInterleaved3() {
 #else
   const ForPartialVectors<TestStoreInterleaved3> test;
 #endif
-  test(uint8_t());
+  ForAllTypes(test);
 }
 
 struct TestStoreInterleaved4 {
@@ -246,9 +257,9 @@ struct TestStoreInterleaved4 {
     RandomState rng;
 
     // Data to be interleaved
-    auto bytes = AllocateAligned<uint8_t>(4 * N);
+    auto bytes = AllocateAligned<T>(4 * N);
     for (size_t i = 0; i < 4 * N; ++i) {
-      bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
+      bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);
@@ -277,9 +288,15 @@ struct TestStoreInterleaved4 {
         Print(d, "in2", in2, pos / 4);
         Print(d, "in3", in3, pos / 4);
         const size_t i = pos;
-        fprintf(stderr, "interleaved %d %d %d %d  %d %d %d %d\n", actual[i],
-                actual[i + 1], actual[i + 2], actual[i + 3], actual[i + 4],
-                actual[i + 5], actual[i + 6], actual[i + 7]);
+        fprintf(stderr, "interleaved i=%d %f %f %f %f  %f %f %f %f\n",
+                static_cast<int>(i), static_cast<double>(actual[i]),
+                static_cast<double>(actual[i + 1]),
+                static_cast<double>(actual[i + 2]),
+                static_cast<double>(actual[i + 3]),
+                static_cast<double>(actual[i + 4]),
+                static_cast<double>(actual[i + 5]),
+                static_cast<double>(actual[i + 6]),
+                static_cast<double>(actual[i + 7]));
         HWY_ASSERT(false);
       }
     }
@@ -293,7 +310,7 @@ HWY_NOINLINE void TestAllStoreInterleaved4() {
 #else
   const ForPartialVectors<TestStoreInterleaved4> test;
 #endif
-  test(uint8_t());
+  ForAllTypes(test);
 }
 
 struct TestLoadDup128 {

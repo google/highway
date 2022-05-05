@@ -2808,84 +2808,9 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
   return PopCount(mask_bits);
 }
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ StoreInterleaved2/3/4
 
-HWY_API void StoreInterleaved2(const Vec256<uint8_t> a, const Vec256<uint8_t> b,
-                               Full256<uint8_t> d,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  HWY_ASSERT(0);
-}
-
-// ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
-// TableLookupBytes)
-
-HWY_API void StoreInterleaved3(const Vec256<uint8_t> a, const Vec256<uint8_t> b,
-                               const Vec256<uint8_t> c, Full256<uint8_t> d,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const auto k5 = Set(d, 5);
-  const auto k6 = Set(d, 6);
-
-  // Shuffle (a,b,c) vector bytes to (MSB on left): r5, bgr[4:0].
-  // 0x80 so lanes to be filled from other vectors are 0 for blending.
-  alignas(32) static constexpr uint8_t tbl_r0[16] = {
-      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
-      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
-  alignas(32) static constexpr uint8_t tbl_g0[16] = {
-      0x80, 0, 0x80, 0x80, 1, 0x80,  //
-      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
-  const auto shuf_r0 = Load(d, tbl_r0);
-  const auto shuf_g0 = Load(d, tbl_g0);  // cannot reuse r0 due to 5 in MSB
-  const auto shuf_b0 = CombineShiftRightBytes<15>(d, shuf_g0, shuf_g0);
-  const auto r0 = TableLookupBytes(a, shuf_r0);  // 5..4..3..2..1..0
-  const auto g0 = TableLookupBytes(b, shuf_g0);  // ..4..3..2..1..0.
-  const auto b0 = TableLookupBytes(c, shuf_b0);  // .4..3..2..1..0..
-  const auto int0 = r0 | g0 | b0;
-  StoreU(int0, d, unaligned + 0 * 16);
-
-  // Second vector: g10,r10, bgr[9:6], b5,g5
-  const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
-  const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
-  const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
-  const auto r1 = TableLookupBytes(a, shuf_r1);
-  const auto g1 = TableLookupBytes(b, shuf_g1);
-  const auto b1 = TableLookupBytes(c, shuf_b1);
-  const auto int1 = r1 | g1 | b1;
-  StoreU(int1, d, unaligned + 1 * 16);
-
-  // Third vector: bgr[15:11], b10
-  const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
-  const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
-  const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
-  const auto r2 = TableLookupBytes(a, shuf_r2);
-  const auto g2 = TableLookupBytes(b, shuf_g2);
-  const auto b2 = TableLookupBytes(c, shuf_b2);
-  const auto int2 = r2 | g2 | b2;
-  StoreU(int2, d, unaligned + 2 * 16);
-}
-
-// ------------------------------ StoreInterleaved4
-
-HWY_API void StoreInterleaved4(const Vec256<uint8_t> v0,
-                               const Vec256<uint8_t> v1,
-                               const Vec256<uint8_t> v2,
-                               const Vec256<uint8_t> v3, Full256<uint8_t> d8,
-                               uint8_t* HWY_RESTRICT unaligned) {
-  const RepartitionToWide<decltype(d8)> d16;
-  const RepartitionToWide<decltype(d16)> d32;
-  // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(d16, v0, v1);  // b7 a7 .. b0 a0
-  const auto dc0 = ZipLower(d16, v2, v3);  // d7 c7 .. d0 c0
-  const auto ba8 = ZipUpper(d16, v0, v1);
-  const auto dc8 = ZipUpper(d16, v2, v3);
-  const auto dcba_0 = ZipLower(d32, ba0, dc0);  // d..a3 d..a0
-  const auto dcba_4 = ZipUpper(d32, ba0, dc0);  // d..a7 d..a4
-  const auto dcba_8 = ZipLower(d32, ba8, dc8);  // d..aB d..a8
-  const auto dcba_C = ZipUpper(d32, ba8, dc8);  // d..aF d..aC
-  StoreU(BitCast(d8, dcba_0), d8, unaligned + 0 * 16);
-  StoreU(BitCast(d8, dcba_4), d8, unaligned + 1 * 16);
-  StoreU(BitCast(d8, dcba_8), d8, unaligned + 2 * 16);
-  StoreU(BitCast(d8, dcba_C), d8, unaligned + 3 * 16);
-}
+// HWY_NATIVE_STORE_INTERLEAVED not set, hence defined in generic_ops-inl.h.
 
 // ------------------------------ MulEven/Odd (Load)
 

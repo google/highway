@@ -1011,6 +1011,13 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_INDEX, GatherIndex, ld1_gather)
 
 // ------------------------------ StoreInterleaved2
 
+// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
+#ifdef HWY_NATIVE_STORE_INTERLEAVED
+#undef HWY_NATIVE_STORE_INTERLEAVED
+#else
+#define HWY_NATIVE_STORE_INTERLEAVED
+#endif
+
 #define HWY_SVE_STORE2(BASE, CHAR, BITS, HALF, NAME, OP)                 \
   template <size_t N, int kPow2>                                         \
   HWY_API void NAME(HWY_SVE_V(BASE, BITS) v0, HWY_SVE_V(BASE, BITS) v1,  \
@@ -1019,7 +1026,7 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_INDEX, GatherIndex, ld1_gather)
     const sv##BASE##BITS##x2_t tuple = svcreate2##_##CHAR##BITS(v0, v1); \
     sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned, tuple);        \
   }
-HWY_SVE_FOREACH_U08(HWY_SVE_STORE2, StoreInterleaved2, st2)
+HWY_SVE_FOREACH(HWY_SVE_STORE2, StoreInterleaved2, st2)
 
 #undef HWY_SVE_STORE2
 
@@ -1034,7 +1041,7 @@ HWY_SVE_FOREACH_U08(HWY_SVE_STORE2, StoreInterleaved2, st2)
     const sv##BASE##BITS##x3_t triple = svcreate3##_##CHAR##BITS(v0, v1, v2); \
     sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned, triple);            \
   }
-HWY_SVE_FOREACH_U08(HWY_SVE_STORE3, StoreInterleaved3, st3)
+HWY_SVE_FOREACH(HWY_SVE_STORE3, StoreInterleaved3, st3)
 
 #undef HWY_SVE_STORE3
 
@@ -1050,7 +1057,7 @@ HWY_SVE_FOREACH_U08(HWY_SVE_STORE3, StoreInterleaved3, st3)
         svcreate4##_##CHAR##BITS(v0, v1, v2, v3);                       \
     sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned, quad);        \
   }
-HWY_SVE_FOREACH_U08(HWY_SVE_STORE4, StoreInterleaved4, st4)
+HWY_SVE_FOREACH(HWY_SVE_STORE4, StoreInterleaved4, st4)
 
 #undef HWY_SVE_STORE4
 

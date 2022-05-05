@@ -1203,23 +1203,27 @@ HWY_API void BlendedStore(const Vec128<T, N> v, Mask128<T, N> m,
 
 // ------------------------------ StoreInterleaved2/3/4
 
-template <size_t N>
-HWY_API void StoreInterleaved2(const Vec128<uint8_t, N> v0,
-                               const Vec128<uint8_t, N> v1,
-                               Simd<uint8_t, N, 0> /* tag */,
-                               uint8_t* HWY_RESTRICT unaligned) {
+// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
+#ifdef HWY_NATIVE_STORE_INTERLEAVED
+#undef HWY_NATIVE_STORE_INTERLEAVED
+#else
+#define HWY_NATIVE_STORE_INTERLEAVED
+#endif
+
+template <typename T, size_t N>
+HWY_API void StoreInterleaved2(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               Simd<T, N, 0> /* tag */,
+                               T* HWY_RESTRICT unaligned) {
   for (size_t i = 0; i < N; ++i) {
     *unaligned++ = v0.raw[i];
     *unaligned++ = v1.raw[i];
   }
 }
 
-template <size_t N>
-HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
-                               const Vec128<uint8_t, N> v1,
-                               const Vec128<uint8_t, N> v2,
-                               Simd<uint8_t, N, 0> /* tag */,
-                               uint8_t* HWY_RESTRICT unaligned) {
+template <typename T, size_t N>
+HWY_API void StoreInterleaved3(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               const Vec128<T, N> v2, Simd<T, N, 0> /* tag */,
+                               T* HWY_RESTRICT unaligned) {
   for (size_t i = 0; i < N; ++i) {
     *unaligned++ = v0.raw[i];
     *unaligned++ = v1.raw[i];
@@ -1227,13 +1231,11 @@ HWY_API void StoreInterleaved3(const Vec128<uint8_t, N> v0,
   }
 }
 
-template <size_t N>
-HWY_API void StoreInterleaved4(const Vec128<uint8_t, N> v0,
-                               const Vec128<uint8_t, N> v1,
-                               const Vec128<uint8_t, N> v2,
-                               const Vec128<uint8_t, N> v3,
-                               Simd<uint8_t, N, 0> /* tag */,
-                               uint8_t* HWY_RESTRICT unaligned) {
+template <typename T, size_t N>
+HWY_API void StoreInterleaved4(const Vec128<T, N> v0, const Vec128<T, N> v1,
+                               const Vec128<T, N> v2, const Vec128<T, N> v3,
+                               Simd<T, N, 0> /* tag */,
+                               T* HWY_RESTRICT unaligned) {
   for (size_t i = 0; i < N; ++i) {
     *unaligned++ = v0.raw[i];
     *unaligned++ = v1.raw[i];
