@@ -161,7 +161,7 @@ struct TestStoreInterleaved2 {
       }
       StoreInterleaved2(in0, in1, d, actual);
       size_t pos = 0;
-      if (!BytesEqual(expected.get(), actual, 3 * N, &pos)) {
+      if (!BytesEqual(expected.get(), actual, 3 * N * sizeof(T), &pos)) {
         Print(d, "in0", in0, pos / 4);
         Print(d, "in1", in1, pos / 4);
         const size_t i = pos;
@@ -221,7 +221,7 @@ struct TestStoreInterleaved3 {
       }
       StoreInterleaved3(in0, in1, in2, d, actual);
       size_t pos = 0;
-      if (!BytesEqual(expected.get(), actual, 4 * N, &pos)) {
+      if (!BytesEqual(expected.get(), actual, 4 * N * sizeof(T), &pos)) {
         Print(d, "in0", in0, pos / 3, N);
         Print(d, "in1", in1, pos / 3, N);
         Print(d, "in2", in2, pos / 3, N);
@@ -282,7 +282,7 @@ struct TestStoreInterleaved4 {
       }
       StoreInterleaved4(in0, in1, in2, in3, d, actual);
       size_t pos = 0;
-      if (!BytesEqual(expected.get(), actual, 5 * N, &pos)) {
+      if (!BytesEqual(expected.get(), actual, 5 * N * sizeof(T), &pos)) {
         Print(d, "in0", in0, pos / 4);
         Print(d, "in1", in1, pos / 4);
         Print(d, "in2", in2, pos / 4);

@@ -4959,7 +4959,7 @@ HWY_API void StoreInterleaved3(const Vec256<T> v0, const Vec256<T> v1,
                                const Vec256<T> v2, Full256<T> d,
                                T* HWY_RESTRICT unaligned) {
   const Vec256<T> i = InterleaveLower(d, v0, v1);
-  const Vec256<T> j = OddEven(v1, v2);
+  const Vec256<T> j = OddEven(v0, v2);
   const Vec256<T> k = InterleaveUpper(d, v1, v2);
   detail::StoreTransposed3(i, j, k, unaligned);
 }

@@ -326,7 +326,7 @@ HWY_API void StoreInterleaved3(const Vec128<T> v0, const Vec128<T> v1,
                                T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 2;
   const Vec128<T> v10_v00 = InterleaveLower(d, v0, v1);
-  const Vec128<T> v01_v20 = OddEven(v1, v2);
+  const Vec128<T> v01_v20 = OddEven(v0, v2);
   const Vec128<T> v21_v11 = InterleaveUpper(d, v1, v2);
   StoreU(v10_v00, d, unaligned + 0 * N);
   StoreU(v01_v20, d, unaligned + 1 * N);
@@ -422,7 +422,7 @@ HWY_API void StoreInterleaved3(const Vec64<T> part0, const Vec64<T> part1,
   // Second (HALF) vector: v2[3],v1[3],v0[3], v2[2]
   const auto shuf_B0 = shuf_A1 + k3;  // ..3.
   const auto shuf_B1 = shuf_A2 + k3;  // .3..
-  const auto shuf_B2 = shuf_B0 + k2;  // 3..2
+  const auto shuf_B2 = shuf_A0 + k2;  // 3..2
   const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
   const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
   const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
@@ -438,7 +438,7 @@ HWY_API void StoreInterleaved3(const Vec64<T> v0, const Vec64<T> v1,
   // (same code as 128-bit vector, 64-bit lanes)
   constexpr size_t N = 2;
   const Vec64<T> v10_v00 = InterleaveLower(d, v0, v1);
-  const Vec64<T> v01_v20 = OddEven(v1, v2);
+  const Vec64<T> v01_v20 = OddEven(v0, v2);
   const Vec64<T> v21_v11 = InterleaveUpper(d, v1, v2);
   StoreU(v10_v00, d, unaligned + 0 * N);
   StoreU(v01_v20, d, unaligned + 1 * N);
