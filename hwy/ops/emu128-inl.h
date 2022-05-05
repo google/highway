@@ -135,7 +135,9 @@ HWY_INLINE constexpr T IncrementWithWraparound(T t) {
 
 template <typename T, HWY_IF_NOT_FLOAT(T)>
 HWY_INLINE constexpr T IncrementWithWraparound(T t) {
-  return static_cast<T>((t + 1) & hwy::LimitsMax<MakeUnsigned<T>>());
+  using TU = MakeUnsigned<T>;
+  return static_cast<T>(static_cast<TU>(static_cast<TU>(t) + TU{1}) &
+                        hwy::LimitsMax<TU>());
 }
 
 }  // namespace detail
