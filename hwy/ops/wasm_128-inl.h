@@ -2811,27 +2811,102 @@ HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N, 0> d, const Vec128<T, N> hi,
 
 // ------------------------------ ConcatOdd
 
+// 8-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
+  return Vec128<T>{wasm_i8x16_shuffle(lo.raw, hi.raw, 1, 3, 5, 7, 9, 11, 13, 15,
+                                      17, 19, 21, 23, 25, 27, 29, 31)};
+}
+
+// 8-bit x8
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, 8> ConcatOdd(Simd<T, 8, 0> /* tag */, Vec128<T, 8> hi,
+                               Vec128<T, 8> lo) {
+  // Don't care about upper half.
+  return Vec128<T, 8>{wasm_i8x16_shuffle(lo.raw, hi.raw, 1, 3, 5, 7, 17, 19, 21,
+                                         23, 1, 3, 5, 7, 17, 19, 21, 23)};
+}
+
+// 8-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, 4> ConcatOdd(Simd<T, 4, 0> /* tag */, Vec128<T, 4> hi,
+                               Vec128<T, 4> lo) {
+  // Don't care about upper 3/4.
+  return Vec128<T, 4>{wasm_i8x16_shuffle(lo.raw, hi.raw, 1, 3, 17, 19, 1, 3, 17,
+                                         19, 1, 3, 17, 19, 1, 3, 17, 19)};
+}
+
+// 16-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
+  return Vec128<T>{
+      wasm_i16x8_shuffle(lo.raw, hi.raw, 1, 3, 5, 7, 9, 11, 13, 15)};
+}
+
+// 16-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, 4> ConcatOdd(Simd<T, 4, 0> /* tag */, Vec128<T, 4> hi,
+                               Vec128<T, 4> lo) {
+  // Don't care about upper half.
+  return Vec128<T, 4>{
+      wasm_i16x8_shuffle(lo.raw, hi.raw, 1, 3, 9, 11, 1, 3, 9, 11)};
+}
+
 // 32-bit full
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T> ConcatOdd(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
   return Vec128<T>{wasm_i32x4_shuffle(lo.raw, hi.raw, 1, 3, 5, 7)};
 }
 
-// 32-bit partial
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Vec128<T, 2> ConcatOdd(Simd<T, 2, 0> /* tag */, Vec128<T, 2> hi,
+// Any T x2
+template <typename T>
+HWY_API Vec128<T, 2> ConcatOdd(Simd<T, 2, 0> d, Vec128<T, 2> hi,
                                Vec128<T, 2> lo) {
-  return InterleaveUpper(Simd<T, 2, 0>(), lo, hi);
-}
-
-// 64-bit full - no partial because we need at least two inputs to have
-// even/odd.
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T> ConcatOdd(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
-  return InterleaveUpper(Full128<T>(), lo, hi);
+  return InterleaveUpper(d, lo, hi);
 }
 
 // ------------------------------ ConcatEven (InterleaveLower)
+
+// 8-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T> ConcatEven(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
+  return Vec128<T>{wasm_i8x16_shuffle(lo.raw, hi.raw, 0, 2, 4, 6, 8, 10, 12, 14,
+                                      16, 18, 20, 22, 24, 26, 28, 30)};
+}
+
+// 8-bit x8
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, 8> ConcatEven(Simd<T, 8, 0> /* tag */, Vec128<T, 8> hi,
+                                Vec128<T, 8> lo) {
+  // Don't care about upper half.
+  return Vec128<T, 8>{wasm_i8x16_shuffle(lo.raw, hi.raw, 0, 2, 4, 6, 16, 18, 20,
+                                         22, 0, 2, 4, 6, 16, 18, 20, 22)};
+}
+
+// 8-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, 4> ConcatEven(Simd<T, 4, 0> /* tag */, Vec128<T, 4> hi,
+                                Vec128<T, 4> lo) {
+  // Don't care about upper 3/4.
+  return Vec128<T, 4>{wasm_i8x16_shuffle(lo.raw, hi.raw, 0, 2, 16, 18, 0, 2, 16,
+                                         18, 0, 2, 16, 18, 0, 2, 16, 18)};
+}
+
+// 16-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T> ConcatEven(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
+  return Vec128<T>{
+      wasm_i16x8_shuffle(lo.raw, hi.raw, 0, 2, 4, 6, 8, 10, 12, 14)};
+}
+
+// 16-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, 4> ConcatEven(Simd<T, 4, 0> /* tag */, Vec128<T, 4> hi,
+                                Vec128<T, 4> lo) {
+  // Don't care about upper half.
+  return Vec128<T, 4>{
+      wasm_i16x8_shuffle(lo.raw, hi.raw, 0, 2, 8, 10, 0, 2, 8, 10)};
+}
 
 // 32-bit full
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
@@ -2839,18 +2914,11 @@ HWY_API Vec128<T> ConcatEven(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
   return Vec128<T>{wasm_i32x4_shuffle(lo.raw, hi.raw, 0, 2, 4, 6)};
 }
 
-// 32-bit partial
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Vec128<T, 2> ConcatEven(Simd<T, 2, 0> /* tag */, Vec128<T, 2> hi,
+// Any T x2
+template <typename T>
+HWY_API Vec128<T, 2> ConcatEven(Simd<T, 2, 0> d, Vec128<T, 2> hi,
                                 Vec128<T, 2> lo) {
-  return InterleaveLower(Simd<T, 2, 0>(), lo, hi);
-}
-
-// 64-bit full - no partial because we need at least two inputs to have
-// even/odd.
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T> ConcatEven(Full128<T> /* tag */, Vec128<T> hi, Vec128<T> lo) {
-  return InterleaveLower(Full128<T>(), lo, hi);
+  return InterleaveLower(d, lo, hi);
 }
 
 // ------------------------------ DupEven (InterleaveLower)

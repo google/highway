@@ -3263,6 +3263,45 @@ HWY_API Vec256<double> ConcatUpperUpper(Full256<double> /* tag */,
 
 // ------------------------------ ConcatOdd
 
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec256<T> ConcatOdd(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET == HWY_AVX3_DL
+  alignas(32) constexpr uint8_t kIdx[32] = {
+      1,  3,  5,  7,  9,  11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31,
+      33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63};
+  return BitCast(d, Vec256<uint16_t>{_mm256_mask2_permutex2var_epi8(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask32{0xFFFFFFFFu}, BitCast(du, hi).raw)});
+#else
+  const RepartitionToWide<decltype(du)> dw;
+  // Unsigned 8-bit shift so we can pack.
+  const Vec256<uint16_t> uH = ShiftRight<8>(BitCast(dw, hi));
+  const Vec256<uint16_t> uL = ShiftRight<8>(BitCast(dw, lo));
+  const __m256i u8 = _mm256_packus_epi16(uL.raw, uH.raw);
+  return Vec256<T>{_mm256_permute4x64_epi64(u8, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec256<T> ConcatOdd(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(32) constexpr uint16_t kIdx[16] = {1,  3,  5,  7,  9,  11, 13, 15,
+                                             17, 19, 21, 23, 25, 27, 29, 31};
+  return BitCast(d, Vec256<uint16_t>{_mm256_mask2_permutex2var_epi16(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask16{0xFFFF}, BitCast(du, hi).raw)});
+#else
+  const RepartitionToWide<decltype(du)> dw;
+  // Unsigned 16-bit shift so we can pack.
+  const Vec256<uint32_t> uH = ShiftRight<16>(BitCast(dw, hi));
+  const Vec256<uint32_t> uL = ShiftRight<16>(BitCast(dw, lo));
+  const __m256i u16 = _mm256_packus_epi32(uL.raw, uH.raw);
+  return Vec256<T>{_mm256_permute4x64_epi64(u16, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec256<T> ConcatOdd(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
@@ -3328,6 +3367,47 @@ HWY_API Vec256<double> ConcatOdd(Full256<double> d, Vec256<double> hi,
 }
 
 // ------------------------------ ConcatEven
+
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec256<T> ConcatEven(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET == HWY_AVX3_DL
+  alignas(64) constexpr uint8_t kIdx[32] = {
+      0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62};
+  return BitCast(d, Vec256<uint32_t>{_mm256_mask2_permutex2var_epi8(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask32{0xFFFFFFFFu}, BitCast(du, hi).raw)});
+#else
+  const RepartitionToWide<decltype(du)> dw;
+  // Isolate lower 8 bits per u16 so we can pack.
+  const Vec256<uint16_t> mask = Set(dw, 0x00FF);
+  const Vec256<uint16_t> uH = And(BitCast(dw, hi), mask);
+  const Vec256<uint16_t> uL = And(BitCast(dw, lo), mask);
+  const __m256i u8 = _mm256_packus_epi16(uL.raw, uH.raw);
+  return Vec256<T>{_mm256_permute4x64_epi64(u8, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec256<T> ConcatEven(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET <= HWY_AVX3
+  alignas(64) constexpr uint16_t kIdx[16] = {0,  2,  4,  6,  8,  10, 12, 14,
+                                             16, 18, 20, 22, 24, 26, 28, 30};
+  return BitCast(d, Vec256<uint32_t>{_mm256_mask2_permutex2var_epi16(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask16{0xFFFF}, BitCast(du, hi).raw)});
+#else
+  const RepartitionToWide<decltype(du)> dw;
+  // Isolate lower 16 bits per u32 so we can pack.
+  const Vec256<uint32_t> mask = Set(dw, 0x0000FFFF);
+  const Vec256<uint32_t> uH = And(BitCast(dw, hi), mask);
+  const Vec256<uint32_t> uL = And(BitCast(dw, lo), mask);
+  const __m256i u16 = _mm256_packus_epi32(uL.raw, uH.raw);
+  return Vec256<T>{_mm256_permute4x64_epi64(u16, _MM_SHUFFLE(3, 1, 2, 0))};
+#endif
+}
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec256<T> ConcatEven(Full256<T> d, Vec256<T> hi, Vec256<T> lo) {

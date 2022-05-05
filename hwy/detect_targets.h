@@ -52,9 +52,9 @@
 
 // 1,2: reserved
 
-// Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VBMI2, VAES). Later to
-// be added: BF16 (Cooper Lake). VP2INTERSECT is only in Tiger Lake? We do not
-// yet have uses for VBMI, VPOPCNTDQ, BITALG, GFNI.
+// Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VPOPCNTDQ, VBMI, VBMI2,
+// VAES, BITALG). Later to be added: BF16 (Cooper Lake). VP2INTERSECT is only in
+// Tiger Lake? We do not yet have uses for GFNI.
 #define HWY_AVX3_DL 4  // see HWY_WANT_AVX3_DL below
 #define HWY_AVX3 8
 #define HWY_AVX2 16
@@ -294,7 +294,9 @@
 
 // TODO(janwas): not yet known whether these will be set by MSVC
 #if HWY_BASELINE_AVX3 != 0 && defined(__AVXVNNI__) && defined(__VAES__) && \
-    defined(__VPCLMULQDQ__)
+    defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&                  \
+    defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) &&            \
+    defined(__AVX512BITALG__)
 #define HWY_BASELINE_AVX3_DL HWY_AVX3_DL
 #else
 #define HWY_BASELINE_AVX3_DL 0

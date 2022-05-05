@@ -115,6 +115,9 @@ class Vec128 {
 template <typename T>
 using Vec64 = Vec128<T, 8 / sizeof(T)>;
 
+template <typename T>
+using Vec32 = Vec128<T, 4 / sizeof(T)>;
+
 #if HWY_TARGET <= HWY_AVX3
 
 // Forward-declare for use by DeduceD, see below.
@@ -4454,6 +4457,62 @@ HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N, 0> d, Vec128<T, N> hi,
 
 // ------------------------------ ConcatOdd
 
+// 8-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const Repartition<uint16_t, decltype(d)> dw;
+  // Right-shift 8 bits per u16 so we can pack.
+  const Vec128<uint16_t> uH = ShiftRight<8>(BitCast(dw, hi));
+  const Vec128<uint16_t> uL = ShiftRight<8>(BitCast(dw, lo));
+  return Vec128<T>{_mm_packus_epi16(uL.raw, uH.raw)};
+}
+
+// 8-bit x8
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec64<T> ConcatOdd(Simd<T, 8, 0> d, Vec64<T> hi, Vec64<T> lo) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  // Don't care about upper half, no need to zero.
+  alignas(16) const uint8_t kCompactOddU8[8] = {1, 3, 5, 7};
+  const Vec64<T> shuf = BitCast(d, Load(Full64<uint8_t>(), kCompactOddU8));
+  const Vec64<T> L = TableLookupBytes(lo, shuf);
+  const Vec64<T> H = TableLookupBytes(hi, shuf);
+  return BitCast(d, InterleaveLower(du32, BitCast(du32, L), BitCast(du32, H)));
+}
+
+// 8-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec32<T> ConcatOdd(Simd<T, 4, 0> d, Vec32<T> hi, Vec32<T> lo) {
+  const Repartition<uint16_t, decltype(d)> du16;
+  // Don't care about upper half, no need to zero.
+  alignas(16) const uint8_t kCompactOddU8[4] = {1, 3};
+  const Vec32<T> shuf = BitCast(d, Load(Full32<uint8_t>(), kCompactOddU8));
+  const Vec32<T> L = TableLookupBytes(lo, shuf);
+  const Vec32<T> H = TableLookupBytes(hi, shuf);
+  return BitCast(d, InterleaveLower(du16, BitCast(du16, L), BitCast(du16, H)));
+}
+
+// 16-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const Repartition<uint32_t, decltype(d)> dw;
+  // Right-shift 16 bits per u32 so we can pack.
+  const Vec128<uint32_t> uH = ShiftRight<16>(BitCast(dw, hi));
+  const Vec128<uint32_t> uL = ShiftRight<16>(BitCast(dw, lo));
+  return Vec128<T>{_mm_packs_epi32(uL.raw, uH.raw)};
+}
+
+// 16-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec64<T> ConcatOdd(Simd<T, 4, 0> d, Vec64<T> hi, Vec64<T> lo) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  // Don't care about upper half, no need to zero.
+  alignas(16) const uint8_t kCompactOddU16[8] = {2, 3, 6, 7};
+  const Vec64<T> shuf = BitCast(d, Load(Full64<uint8_t>(), kCompactOddU16));
+  const Vec64<T> L = TableLookupBytes(lo, shuf);
+  const Vec64<T> H = TableLookupBytes(hi, shuf);
+  return BitCast(d, InterleaveLower(du32, BitCast(du32, L), BitCast(du32, H)));
+}
+
 // 32-bit full
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
@@ -4468,20 +4527,72 @@ HWY_API Vec128<float> ConcatOdd(Full128<float> /* tag */, Vec128<float> hi,
   return Vec128<float>{_mm_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(3, 1, 3, 1))};
 }
 
-// 32-bit partial
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Vec128<T, 2> ConcatOdd(Full64<T> d, Vec128<T, 2> hi, Vec128<T, 2> lo) {
-  return InterleaveUpper(d, lo, hi);
-}
-
-// 64-bit full - no partial because we need at least two inputs to have
-// even/odd.
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+// Any type x2
+template <typename T>
+HWY_API Vec128<T, 2> ConcatOdd(Simd<T, 2, 0> d, Vec128<T, 2> hi,
+                               Vec128<T, 2> lo) {
   return InterleaveUpper(d, lo, hi);
 }
 
 // ------------------------------ ConcatEven (InterleaveLower)
+
+// 8-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const Repartition<uint16_t, decltype(d)> dw;
+  // Isolate lower 8 bits per u16 so we can pack.
+  const Vec128<uint16_t> mask = Set(dw, 0x00FF);
+  const Vec128<uint16_t> uH = And(BitCast(dw, hi), mask);
+  const Vec128<uint16_t> uL = And(BitCast(dw, lo), mask);
+  return Vec128<T>{_mm_packus_epi16(uL.raw, uH.raw)};
+}
+
+// 8-bit x8
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec64<T> ConcatEven(Simd<T, 8, 0> d, Vec64<T> hi, Vec64<T> lo) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  // Don't care about upper half, no need to zero.
+  alignas(16) const uint8_t kCompactEvenU8[8] = {0, 2, 4, 6};
+  const Vec64<T> shuf = BitCast(d, Load(Full64<uint8_t>(), kCompactEvenU8));
+  const Vec64<T> L = TableLookupBytes(lo, shuf);
+  const Vec64<T> H = TableLookupBytes(hi, shuf);
+  return BitCast(d, InterleaveLower(du32, BitCast(du32, L), BitCast(du32, H)));
+}
+
+// 8-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec32<T> ConcatEven(Simd<T, 4, 0> d, Vec32<T> hi, Vec32<T> lo) {
+  const Repartition<uint16_t, decltype(d)> du16;
+  // Don't care about upper half, no need to zero.
+  alignas(16) const uint8_t kCompactEvenU8[4] = {0, 2};
+  const Vec32<T> shuf = BitCast(d, Load(Full32<uint8_t>(), kCompactEvenU8));
+  const Vec32<T> L = TableLookupBytes(lo, shuf);
+  const Vec32<T> H = TableLookupBytes(hi, shuf);
+  return BitCast(d, InterleaveLower(du16, BitCast(du16, L), BitCast(du16, H)));
+}
+
+// 16-bit full
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+  const Repartition<uint32_t, decltype(d)> dw;
+  // Isolate lower 16 bits per u32 so we can pack.
+  const Vec128<uint32_t> mask = Set(dw, 0x0000FFFF);
+  const Vec128<uint32_t> uH = And(BitCast(dw, hi), mask);
+  const Vec128<uint32_t> uL = And(BitCast(dw, lo), mask);
+  return Vec128<T>{_mm_packs_epi32(uL.raw, uH.raw)};
+}
+
+// 16-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec64<T> ConcatEven(Simd<T, 4, 0> d, Vec64<T> hi, Vec64<T> lo) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  // Don't care about upper half, no need to zero.
+  alignas(16) const uint8_t kCompactEvenU16[8] = {0, 1, 4, 5};
+  const Vec64<T> shuf = BitCast(d, Load(Full64<uint8_t>(), kCompactEvenU16));
+  const Vec64<T> L = TableLookupBytes(lo, shuf);
+  const Vec64<T> H = TableLookupBytes(hi, shuf);
+  return BitCast(d, InterleaveLower(du32, BitCast(du32, L), BitCast(du32, H)));
+}
 
 // 32-bit full
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
@@ -4497,16 +4608,10 @@ HWY_API Vec128<float> ConcatEven(Full128<float> /* tag */, Vec128<float> hi,
   return Vec128<float>{_mm_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(2, 0, 2, 0))};
 }
 
-// 32-bit partial
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Vec128<T, 2> ConcatEven(Full64<T> d, Vec128<T, 2> hi, Vec128<T, 2> lo) {
-  return InterleaveLower(d, lo, hi);
-}
-
-// 64-bit full - no partial because we need at least two inputs to have
-// even/odd.
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+// Any T x2
+template <typename T>
+HWY_API Vec128<T, 2> ConcatEven(Simd<T, 2, 0> d, Vec128<T, 2> hi,
+                                Vec128<T, 2> lo) {
   return InterleaveLower(d, lo, hi);
 }
 

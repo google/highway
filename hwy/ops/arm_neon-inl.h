@@ -202,6 +202,11 @@ namespace detail {  // for code folding and Raw128
   HWY_NEON_DEF_FUNCTION_INTS_UINTS(name, prefix, infix, args)      \
   HWY_NEON_DEF_FUNCTION_ALL_FLOATS(name, prefix, infix, args)
 
+#define HWY_NEON_DEF_FUNCTION_UIF81632(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_UINT_8_16_32(name, prefix, infix, args)   \
+  HWY_NEON_DEF_FUNCTION_INT_8_16_32(name, prefix, infix, args)    \
+  HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)
+
 // Emulation of some intrinsics on armv7.
 #if HWY_ARCH_ARM_V7
 #define vuzp1_s8(x, y) vuzp_s8(x, y).val[0]
@@ -4308,12 +4313,8 @@ HWY_API Vec128<T, N> ConcatLowerLower(const Simd<T, N, 0> d, Vec128<T, N> hi,
 
 namespace detail {
 #if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveEven, vtrn1, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveEven, vtrn1, _, 2)
-HWY_NEON_DEF_FUNCTION_FLOAT_32(InterleaveEven, vtrn1, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_8_16_32(InterleaveOdd, vtrn2, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_8_16_32(InterleaveOdd, vtrn2, _, 2)
-HWY_NEON_DEF_FUNCTION_FLOAT_32(InterleaveOdd, vtrn2, _, 2)
+HWY_NEON_DEF_FUNCTION_UIF81632(InterleaveEven, vtrn1, _, 2)
+HWY_NEON_DEF_FUNCTION_UIF81632(InterleaveOdd, vtrn2, _, 2)
 #else
 
 // vtrn returns a struct with even and odd result.
@@ -4424,85 +4425,69 @@ HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N, 0> d, Vec128<T, N> hi,
 
 // ------------------------------ ConcatOdd (InterleaveUpper)
 
-// 32-bit full
-HWY_API Vec128<uint32_t> ConcatOdd(Full128<uint32_t> /* tag */,
-                                   Vec128<uint32_t> hi, Vec128<uint32_t> lo) {
-  return Vec128<uint32_t>(vuzp2q_u32(lo.raw, hi.raw));
-}
-HWY_API Vec128<int32_t> ConcatOdd(Full128<int32_t> /* tag */,
-                                  Vec128<int32_t> hi, Vec128<int32_t> lo) {
-  return Vec128<int32_t>(vuzp2q_s32(lo.raw, hi.raw));
-}
-HWY_API Vec128<float> ConcatOdd(Full128<float> /* tag */, Vec128<float> hi,
-                                Vec128<float> lo) {
-  return Vec128<float>(vuzp2q_f32(lo.raw, hi.raw));
+namespace detail {
+// There is no vuzpq_u64.
+HWY_NEON_DEF_FUNCTION_UIF81632(ConcatEven, vuzp1, _, 2)
+HWY_NEON_DEF_FUNCTION_UIF81632(ConcatOdd, vuzp2, _, 2)
+}  // namespace detail
+
+// Full/half vector
+template <typename T, size_t N,
+          hwy::EnableIf<N != 2 && sizeof(T) * N >= 8>* = nullptr>
+HWY_API Vec128<T, N> ConcatOdd(Simd<T, N, 0> /* tag */, Vec128<T, N> hi,
+                               Vec128<T, N> lo) {
+  return detail::ConcatOdd(lo, hi);
 }
 
-// 32-bit partial
-template <size_t N, HWY_IF_LE64(uint32_t, N)>
-HWY_API Vec128<uint32_t, N> ConcatOdd(Simd<uint32_t, N, 0> /* tag */,
-                                      Vec128<uint32_t, N> hi,
-                                      Vec128<uint32_t, N> lo) {
-  return Vec128<uint32_t, N>(vuzp2_u32(lo.raw, hi.raw));
-}
-template <size_t N, HWY_IF_LE64(int32_t, N)>
-HWY_API Vec128<int32_t, N> ConcatOdd(Simd<int32_t, N, 0> /* tag */,
-                                     Vec128<int32_t, N> hi,
-                                     Vec128<int32_t, N> lo) {
-  return Vec128<int32_t, N>(vuzp2_s32(lo.raw, hi.raw));
-}
-template <size_t N, HWY_IF_LE64(float, N)>
-HWY_API Vec128<float, N> ConcatOdd(Simd<float, N, 0> /* tag */,
-                                   Vec128<float, N> hi, Vec128<float, N> lo) {
-  return Vec128<float, N>(vuzp2_f32(lo.raw, hi.raw));
+// 8-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, 4> ConcatOdd(Simd<T, 4, 0> d, Vec128<T, 4> hi,
+                               Vec128<T, 4> lo) {
+  const Twice<decltype(d)> d2;
+  const Repartition<uint16_t, decltype(d2)> dw2;
+  const VFromD<decltype(d2)> hi2(hi.raw);
+  const VFromD<decltype(d2)> lo2(lo.raw);
+  const VFromD<decltype(dw2)> Hx1Lx1 = BitCast(dw2, ConcatOdd(d2, hi2, lo2));
+  // Compact into two pairs of u8, skipping the invalid x lanes. Could also use
+  // vcopy_lane_u16, but that's A64-only.
+  return Vec128<T, 4>(BitCast(d2, ConcatEven(dw2, Hx1Lx1, Hx1Lx1)).raw);
 }
 
-// 64-bit full - no partial because we need at least two inputs to have
-// even/odd. ARMv7 lacks vuzpq_u64, and it's anyway the same as InterleaveUpper.
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+// Any type x2
+template <typename T>
+HWY_API Vec128<T, 2> ConcatOdd(Simd<T, 2, 0> d, Vec128<T, 2> hi,
+                               Vec128<T, 2> lo) {
   return InterleaveUpper(d, lo, hi);
 }
 
 // ------------------------------ ConcatEven (InterleaveLower)
 
-// 32-bit full
-HWY_API Vec128<uint32_t> ConcatEven(Full128<uint32_t> /* tag */,
-                                    Vec128<uint32_t> hi, Vec128<uint32_t> lo) {
-  return Vec128<uint32_t>(vuzp1q_u32(lo.raw, hi.raw));
-}
-HWY_API Vec128<int32_t> ConcatEven(Full128<int32_t> /* tag */,
-                                   Vec128<int32_t> hi, Vec128<int32_t> lo) {
-  return Vec128<int32_t>(vuzp1q_s32(lo.raw, hi.raw));
-}
-HWY_API Vec128<float> ConcatEven(Full128<float> /* tag */, Vec128<float> hi,
-                                 Vec128<float> lo) {
-  return Vec128<float>(vuzp1q_f32(lo.raw, hi.raw));
+// Full/half vector
+template <typename T, size_t N,
+          hwy::EnableIf<N != 2 && sizeof(T) * N >= 8>* = nullptr>
+HWY_API Vec128<T, N> ConcatEven(Simd<T, N, 0> /* tag */, Vec128<T, N> hi,
+                                Vec128<T, N> lo) {
+  return detail::ConcatEven(lo, hi);
 }
 
-// 32-bit partial
-template <size_t N, HWY_IF_LE64(uint32_t, N)>
-HWY_API Vec128<uint32_t, N> ConcatEven(Simd<uint32_t, N, 0> /* tag */,
-                                       Vec128<uint32_t, N> hi,
-                                       Vec128<uint32_t, N> lo) {
-  return Vec128<uint32_t, N>(vuzp1_u32(lo.raw, hi.raw));
-}
-template <size_t N, HWY_IF_LE64(int32_t, N)>
-HWY_API Vec128<int32_t, N> ConcatEven(Simd<int32_t, N, 0> /* tag */,
-                                      Vec128<int32_t, N> hi,
-                                      Vec128<int32_t, N> lo) {
-  return Vec128<int32_t, N>(vuzp1_s32(lo.raw, hi.raw));
-}
-template <size_t N, HWY_IF_LE64(float, N)>
-HWY_API Vec128<float, N> ConcatEven(Simd<float, N, 0> /* tag */,
-                                    Vec128<float, N> hi, Vec128<float, N> lo) {
-  return Vec128<float, N>(vuzp1_f32(lo.raw, hi.raw));
+// 8-bit x4
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, 4> ConcatEven(Simd<T, 4, 0> d, Vec128<T, 4> hi,
+                                Vec128<T, 4> lo) {
+  const Twice<decltype(d)> d2;
+  const Repartition<uint16_t, decltype(d2)> dw2;
+  const VFromD<decltype(d2)> hi2(hi.raw);
+  const VFromD<decltype(d2)> lo2(lo.raw);
+  const VFromD<decltype(dw2)> Hx0Lx0 = BitCast(dw2, ConcatEven(d2, hi2, lo2));
+  // Compact into two pairs of u8, skipping the invalid x lanes. Could also use
+  // vcopy_lane_u16, but that's A64-only.
+  return Vec128<T, 4>(BitCast(d2, ConcatEven(dw2, Hx0Lx0, Hx0Lx0)).raw);
 }
 
-// 64-bit full - no partial because we need at least two inputs to have
-// even/odd. ARMv7 lacks vuzpq_u64, and it's anyway the same as InterleaveUpper.
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
+// Any type x2
+template <typename T>
+HWY_API Vec128<T, 2> ConcatEven(Simd<T, 2, 0> d, Vec128<T, 2> hi,
+                                Vec128<T, 2> lo) {
   return InterleaveLower(d, lo, hi);
 }
 
@@ -5960,6 +5945,7 @@ namespace detail {  // for code folding
 #undef HWY_NEON_DEF_FUNCTION_INT_8
 #undef HWY_NEON_DEF_FUNCTION_INT_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_TPL
+#undef HWY_NEON_DEF_FUNCTION_UIF81632
 #undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_DEF_FUNCTION_UINT_16
 #undef HWY_NEON_DEF_FUNCTION_UINT_32

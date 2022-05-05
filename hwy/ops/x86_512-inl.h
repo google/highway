@@ -2782,6 +2782,44 @@ HWY_API Vec512<double> ConcatUpperLower(Full512<double> /* tag */,
 
 // ------------------------------ ConcatOdd
 
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec512<T> ConcatOdd(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET == HWY_AVX3_DL
+  alignas(64) constexpr uint8_t kIdx[64] = {
+      1,   3,   5,   7,   9,   11,  13,  15,  17,  19,  21,  23,  25,
+      27,  29,  31,  33,  35,  37,  39,  41,  43,  45,  47,  49,  51,
+      53,  55,  57,  59,  61,  63,  65,  67,  69,  71,  73,  75,  77,
+      79,  81,  83,  85,  87,  89,  91,  93,  95,  97,  99,  101, 103,
+      105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127};
+  return BitCast(d,
+                 Vec512<uint8_t>{_mm512_mask2_permutex2var_epi8(
+                     BitCast(du, lo).raw, Load(du, kIdx).raw,
+                     __mmask64{0xFFFFFFFFFFFFFFFFull}, BitCast(du, hi).raw)});
+#else
+  const RepartitionToWide<decltype(du)> dw;
+  // Right-shift 8 bits per u16 so we can pack.
+  const Vec512<uint16_t> uH = ShiftRight<8>(BitCast(dw, hi));
+  const Vec512<uint16_t> uL = ShiftRight<8>(BitCast(dw, lo));
+  const Vec512<uint64_t> u8{_mm512_packus_epi16(uL.raw, uH.raw)};
+  // Undo block interleave: lower half = even u64 lanes, upper = odd u64 lanes.
+  const Full512<uint64_t> du64;
+  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+  return BitCast(d, TableLookupLanes(u8, SetTableIndices(du64, kIdx)));
+#endif
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> ConcatOdd(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint16_t kIdx[32] = {
+      1,  3,  5,  7,  9,  11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31,
+      33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63};
+  return BitCast(d, Vec512<uint16_t>{_mm512_mask2_permutex2var_epi16(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask32{0xFFFFFFFFu}, BitCast(du, hi).raw)});
+}
+
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec512<T> ConcatOdd(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
@@ -2819,6 +2857,45 @@ HWY_API Vec512<double> ConcatOdd(Full512<double> d, Vec512<double> hi,
 }
 
 // ------------------------------ ConcatEven
+
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec512<T> ConcatEven(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_TARGET == HWY_AVX3_DL
+  alignas(64) constexpr uint8_t kIdx[64] = {
+      0,   2,   4,   6,   8,   10,  12,  14,  16,  18,  20,  22,  24,
+      26,  28,  30,  32,  34,  36,  38,  40,  42,  44,  46,  48,  50,
+      52,  54,  56,  58,  60,  62,  64,  66,  68,  70,  72,  74,  76,
+      78,  80,  82,  84,  86,  88,  90,  92,  94,  96,  98,  100, 102,
+      104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 126};
+  return BitCast(d,
+                 Vec512<uint32_t>{_mm512_mask2_permutex2var_epi8(
+                     BitCast(du, lo).raw, Load(du, kIdx).raw,
+                     __mmask64{0xFFFFFFFFFFFFFFFFull}, BitCast(du, hi).raw)});
+#else
+  const RepartitionToWide<decltype(du)> dw;
+  // Isolate lower 8 bits per u16 so we can pack.
+  const Vec512<uint16_t> mask = Set(dw, 0x00FF);
+  const Vec512<uint16_t> uH = And(BitCast(dw, hi), mask);
+  const Vec512<uint16_t> uL = And(BitCast(dw, lo), mask);
+  const Vec512<uint64_t> u8{_mm512_packus_epi16(uL.raw, uH.raw)};
+  // Undo block interleave: lower half = even u64 lanes, upper = odd u64 lanes.
+  const Full512<uint64_t> du64;
+  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+  return BitCast(d, TableLookupLanes(u8, SetTableIndices(du64, kIdx)));
+#endif
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec512<T> ConcatEven(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(64) constexpr uint16_t kIdx[32] = {
+      0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62};
+  return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi16(
+                        BitCast(du, lo).raw, Load(du, kIdx).raw,
+                        __mmask32{0xFFFFFFFFu}, BitCast(du, hi).raw)});
+}
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API Vec512<T> ConcatEven(Full512<T> d, Vec512<T> hi, Vec512<T> lo) {

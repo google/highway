@@ -166,9 +166,10 @@
 #elif HWY_TARGET == HWY_AVX3_DL
 
 #define HWY_NAMESPACE N_AVX3_DL
-#define HWY_TARGET_STR \
-  HWY_TARGET_STR_AVX3  \
-      ",vpclmulqdq,avx512vbmi2,vaes,avxvnni,avx512bitalg,avx512vpopcntdq"
+#define HWY_TARGET_STR                                            \
+  HWY_TARGET_STR_AVX3                                             \
+  ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avxvnni,avx512bitalg," \
+  "avx512vpopcntdq"
 
 #else
 #error "Logic error"

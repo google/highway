@@ -242,7 +242,7 @@ struct TestConcatOddEven {
 };
 
 HWY_NOINLINE void TestAllConcatOddEven() {
-  ForUIF3264(ForShrinkableVectors<TestConcatOddEven>());
+  ForAllTypes(ForShrinkableVectors<TestConcatOddEven>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
