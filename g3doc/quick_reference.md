@@ -82,6 +82,11 @@ Highway vectors consist of one or more 'lanes' of the same built-in type
 `uint##_t, int##_t` for `## = 8, 16, 32, 64`, plus `float##_t` for `## = 16, 32,
 64` and `bfloat16_t`.
 
+Beware that `char` may differ from these types, and is not supported directly.
+If your code loads from/stores to `char*`, use `T=uint8_t` for Highway's `d`
+tags (see below) or `T=int8_t` (which may enable faster less-than/greater-than
+comparisons), and cast your `char*` pointers to your `T*`.
+
 In Highway, `float16_t` (an IEEE binary16 half-float) and `bfloat16_t` (the
 upper 16 bits of an IEEE binary32 float) only support load, store, and
 conversion to/from `float32_t`. The behavior of infinity and NaN in `float16_t`
