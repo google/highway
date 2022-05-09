@@ -1992,6 +1992,13 @@ HWY_API Vec128<T, N> Xor(const Vec128<T, N> a, const Vec128<T, N> b) {
   return BitCast(d, BitCast(du, a) ^ BitCast(du, b));
 }
 
+// ------------------------------ Or3
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
+  return Or(o1, Or(o2, o3));
+}
+
 // ------------------------------ OrAnd
 
 template <typename T, size_t N>

@@ -430,6 +430,13 @@ HWY_API V AndNot(const V a, const V b) {
   return BitCast(df, AndNot(BitCast(du, a), BitCast(du, b)));
 }
 
+// ------------------------------ Or3
+
+template <class V>
+HWY_API V Or3(V o1, V o2, V o3) {
+  return Or(o1, Or(o2, o3));
+}
+
 // ------------------------------ OrAnd
 
 template <class V>

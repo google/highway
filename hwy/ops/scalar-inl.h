@@ -188,6 +188,13 @@ HWY_API Vec1<T> operator^(const Vec1<T> a, const Vec1<T> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ Or3
+
+template <typename T>
+HWY_API Vec1<T> Or3(Vec1<T> o1, Vec1<T> o2, Vec1<T> o3) {
+  return Or(o1, Or(o2, o3));
+}
+
 // ------------------------------ OrAnd
 
 template <typename T>

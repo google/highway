@@ -323,6 +323,22 @@ HWY_API Vec256<T> Not(const Vec256<T> v) {
 #endif
 }
 
+// ------------------------------ Or3
+
+template <typename T>
+HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
+#if HWY_TARGET <= HWY_AVX3
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m256i ret = _mm256_ternarylogic_epi64(
+      BitCast(du, o1).raw, BitCast(du, o2).raw, BitCast(du, o3).raw, 0xFE);
+  return BitCast(d, VU{ret});
+#else
+  return Or(o1, Or(o2, o3));
+#endif
+}
+
 // ------------------------------ OrAnd
 
 template <typename T>

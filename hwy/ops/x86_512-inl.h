@@ -315,6 +315,18 @@ HWY_API Vec512<double> Xor(const Vec512<double> a, const Vec512<double> b) {
   return Vec512<double>{_mm512_xor_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ Or3
+
+template <typename T>
+HWY_API Vec512<T> Or3(Vec512<T> o1, Vec512<T> o2, Vec512<T> o3) {
+  const Full512<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m512i ret = _mm512_ternarylogic_epi64(
+      BitCast(du, o1).raw, BitCast(du, o2).raw, BitCast(du, o3).raw, 0xFE);
+  return BitCast(d, VU{ret});
+}
+
 // ------------------------------ OrAnd
 
 template <typename T>

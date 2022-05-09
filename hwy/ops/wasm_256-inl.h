@@ -946,6 +946,13 @@ HWY_API Vec256<T> Xor(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{wasm_v128_xor(a.raw, b.raw)};
 }
 
+// ------------------------------ Or3
+
+template <typename T>
+HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
+  return Or(o1, Or(o2, o3));
+}
+
 // ------------------------------ OrAnd
 
 template <typename T>

@@ -778,6 +778,13 @@ HWY_API V AndNot(const V not_a, const V b) {
   return And(Not(not_a), b);
 }
 
+// ------------------------------ Or3
+
+template <class V>
+HWY_API V Or3(V o1, V o2, V o3) {
+  return Or(o1, Or(o2, o3));
+}
+
 // ------------------------------ OrAnd
 
 template <class V>

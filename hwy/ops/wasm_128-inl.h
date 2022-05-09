@@ -1266,6 +1266,13 @@ HWY_API Vec128<T, N> Xor(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{wasm_v128_xor(a.raw, b.raw)};
 }
 
+// ------------------------------ Or3
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
+  return Or(o1, Or(o2, o3));
+}
+
 // ------------------------------ OrAnd
 
 template <typename T, size_t N>
@@ -2637,6 +2644,12 @@ HWY_API Vec128<float, N> InterleaveLower(Vec128<float, N> a,
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 4, 1, 5)};
 }
 
+template <size_t N>
+HWY_API Vec128<double, N> InterleaveLower(Vec128<double, N> a,
+                                          Vec128<double, N> b) {
+  return Vec128<double, N>{wasm_i64x2_shuffle(a.raw, b.raw, 0, 2)};
+}
+
 // Additional overload for the optional tag.
 template <class V>
 HWY_API V InterleaveLower(DFromV<V> /* tag */, V a, V b) {
@@ -2700,6 +2713,12 @@ template <size_t N>
 HWY_API Vec128<float, N> InterleaveUpper(Vec128<float, N> a,
                                          Vec128<float, N> b) {
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 6, 3, 7)};
+}
+
+template <size_t N>
+HWY_API Vec128<double, N> InterleaveUpper(Vec128<double, N> a,
+                                          Vec128<double, N> b) {
+  return Vec128<double, N>{wasm_i64x2_shuffle(a.raw, b.raw, 1, 3)};
 }
 
 }  // namespace detail
