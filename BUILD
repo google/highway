@@ -313,6 +313,7 @@ HWY_TESTS = [
     ("hwy/", "targets_test"),
     ("hwy/tests/", "arithmetic_test"),
     ("hwy/tests/", "blockwise_test"),
+    ("hwy/tests/", "blockwise_shift_test"),
     ("hwy/tests/", "combine_test"),
     ("hwy/tests/", "compare_test"),
     ("hwy/tests/", "compress_test"),

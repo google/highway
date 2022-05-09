@@ -137,7 +137,7 @@ set(HWY_TEST_SOURCES
 
 if (MSVC)
   set(HWY_FLAGS
-    # fix build error C1128 in blockwise_test & rithmetic_test
+    # fix build error C1128 in blockwise*_test & arithmetic_test
     /bigobj
   )
 else()
@@ -442,6 +442,7 @@ set(HWY_TEST_FILES
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
   hwy/tests/blockwise_test.cc
+  hwy/tests/blockwise_shift_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/convert_test.cc
