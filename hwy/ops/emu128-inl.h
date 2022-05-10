@@ -476,7 +476,7 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
     for (T& lane : v.raw) {
       const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> bits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const TU upper = sign << (sizeof(TU) * 8 - 1 - bits);
+      const TU upper = static_cast<TU>(sign << (sizeof(TU) * 8 - 1 - bits));
       lane = static_cast<T>(shifted | upper);
     }
   } else {
@@ -875,12 +875,13 @@ HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
       v.raw[i] = v.raw[i] < 0 ? T{-0} : T{0};
       continue;
     }
+    const T rounded_f = static_cast<T>(rounded);
     // Round to even
-    if ((rounded & 1) && std::abs(rounded - v.raw[i]) == T(0.5)) {
+    if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
       v.raw[i] = static_cast<T>(rounded - (v.raw[i] < T(0) ? -1 : 1));
       continue;
     }
-    v.raw[i] = static_cast<T>(rounded);
+    v.raw[i] = rounded_f;
   }
   return v;
 }
@@ -911,13 +912,13 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
       ret.raw[i] = 0;
       continue;
     }
+    const T rounded_f = static_cast<T>(rounded);
     // Round to even
-    if ((rounded & 1) &&
-        std::abs(static_cast<T>(rounded) - v.raw[i]) == T(0.5)) {
-      ret.raw[i] = rounded - (signbit ? -1 : 1);
+    if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
+      ret.raw[i] = static_cast<T>(rounded - (signbit ? -1 : 1));
       continue;
     }
-    ret.raw[i] = rounded;
+    ret.raw[i] = rounded_f;
   }
   return ret;
 }
@@ -2092,7 +2093,9 @@ HWY_API size_t StoreMaskBits(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask,
   for (size_t i = 0; i < N; ++i) {
     const size_t bit = size_t{1} << (i & 7);
     const size_t idx_byte = i >> 3;
-    if (mask.bits[i]) bits[idx_byte] |= bit;
+    if (mask.bits[i]) {
+      bits[idx_byte] = static_cast<uint8_t>(bits[idx_byte] | bit);
+    }
   }
   return N > 8 ? 2 : 1;
 }

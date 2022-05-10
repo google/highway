@@ -144,13 +144,15 @@ struct TestFindIf {
   template <class D>
   void operator()(D d, size_t count, size_t misalign, RandomState& rng) {
     using T = TFromD<D>;
+    using TI = MakeSigned<T>;
     // Must allocate at least one even if count is zero.
     AlignedFreeUniquePtr<T[]> storage =
         AllocateAligned<T>(HWY_MAX(1, misalign + count));
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
       in[i] = Random<T>(rng);
-      HWY_ASSERT(in[i] < 8 && (!hwy::IsSigned<T>() || in[i] >= -8));
+      HWY_ASSERT(in[i] < 8);
+      HWY_ASSERT(!hwy::IsSigned<T>() || static_cast<TI>(in[i]) >= -8);
     }
 
     bool found_any = false;

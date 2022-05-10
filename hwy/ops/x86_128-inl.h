@@ -3751,7 +3751,9 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   lanes[kLane] = t;
   return Load(d, lanes);
 #else
-  return Vec128<T, N>{_mm_insert_epi32(v.raw, t, kLane)};
+  MakeSigned<T> ti;
+  CopyBytes<sizeof(T)>(&t, &ti);  // don't just cast because T might be float.
+  return Vec128<T, N>{_mm_insert_epi32(v.raw, ti, kLane)};
 #endif
 }
 
@@ -3765,7 +3767,9 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   lanes[kLane] = t;
   return Load(d, lanes);
 #else
-  return Vec128<T, N>{_mm_insert_epi64(v.raw, t, kLane)};
+  MakeSigned<T> ti;
+  CopyBytes<sizeof(T)>(&t, &ti);  // don't just cast because T might be float.
+  return Vec128<T, N>{_mm_insert_epi64(v.raw, ti, kLane)};
 #endif
 }
 
