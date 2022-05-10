@@ -1564,7 +1564,7 @@ HWY_API Vec128<T, N / 2> UpperHalf(Simd<T, N / 2, 0> /* tag */,
 template <typename T, size_t N>
 HWY_API Vec128<T, N> ZeroExtendVector(Simd<T, N, 0> /* tag */,
                                       Vec128<T, N / 2> v) {
-  Vec128<T, N> ret = {0};
+  Vec128<T, N> ret = {{0}};
   CopyBytes<N / 2 * sizeof(T)>(&v, &ret);
   return ret;
 }
