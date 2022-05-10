@@ -1749,12 +1749,45 @@ HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
   return detail::AndNotN(static_cast<T>(LanesPerBlock(d) - 1), iota0);
 }
 
-template <size_t kLanes, class D>
+template <size_t kLanes, class D, HWY_IF_LANE_SIZE_D(D, 1)>
 svbool_t FirstNPerBlock(D d) {
-  const RebindToSigned<decltype(d)> di;
-  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::AndN(Iota(di, 0), kLanesPerBlock - 1);
-  return detail::LtN(BitCast(di, idx_mod), kLanes);
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const svuint8_t idx_mod =
+      svdupq_n_u8(0 % kLanesPerBlock, 1 % kLanesPerBlock, 2 % kLanesPerBlock,
+                  3 % kLanesPerBlock, 4 % kLanesPerBlock, 5 % kLanesPerBlock,
+                  6 % kLanesPerBlock, 7 % kLanesPerBlock, 8 % kLanesPerBlock,
+                  9 % kLanesPerBlock, 10 % kLanesPerBlock, 11 % kLanesPerBlock,
+                  12 % kLanesPerBlock, 13 % kLanesPerBlock, 14 % kLanesPerBlock,
+                  15 % kLanesPerBlock);
+  return detail::LtN(BitCast(du, idx_mod), kLanes);
+}
+template <size_t kLanes, class D, HWY_IF_LANE_SIZE_D(D, 2)>
+svbool_t FirstNPerBlock(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const svuint16_t idx_mod =
+      svdupq_n_u16(0 % kLanesPerBlock, 1 % kLanesPerBlock, 2 % kLanesPerBlock,
+                   3 % kLanesPerBlock, 4 % kLanesPerBlock, 5 % kLanesPerBlock,
+                   6 % kLanesPerBlock, 7 % kLanesPerBlock);
+  return detail::LtN(BitCast(du, idx_mod), kLanes);
+}
+template <size_t kLanes, class D, HWY_IF_LANE_SIZE_D(D, 4)>
+svbool_t FirstNPerBlock(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const svuint32_t idx_mod =
+      svdupq_n_u32(0 % kLanesPerBlock, 1 % kLanesPerBlock, 2 % kLanesPerBlock,
+                   3 % kLanesPerBlock);
+  return detail::LtN(BitCast(du, idx_mod), kLanes);
+}
+template <size_t kLanes, class D, HWY_IF_LANE_SIZE_D(D, 8)>
+svbool_t FirstNPerBlock(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(du);
+  const svuint64_t idx_mod =
+      svdupq_n_u64(0 % kLanesPerBlock, 1 % kLanesPerBlock);
+  return detail::LtN(BitCast(du, idx_mod), kLanes);
 }
 
 }  // namespace detail
@@ -2077,9 +2110,8 @@ HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   // Replicate bytes 8x such that each byte contains the bit that governs it.
   const svuint8_t rep8 = svtbl_u8(bytes, detail::AndNotN(7, iota));
 
-  // 1, 2, 4, 8, 16, 32, 64, 128,  1, 2 ..
-  const svuint8_t bit = Shl(Set(du, 1), detail::AndN(iota, 7));
-
+  const svuint8_t bit =
+      svdupq_n_u8(1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128);
   return TestBit(rep8, bit);
 }
 
@@ -2095,9 +2127,7 @@ HWY_INLINE svbool_t LoadMaskBits(D /* tag */,
   // Replicate bytes 16x such that each lane contains the bit that governs it.
   const svuint8_t rep16 = svtbl_u8(bytes, ShiftRight<4>(Iota(du8, 0)));
 
-  // 1, 2, 4, 8, 16, 32, 64, 128,  1, 2 ..
-  const svuint16_t bit = Shl(Set(du, 1), detail::AndN(Iota(du, 0), 7));
-
+  const svuint16_t bit = svdupq_n_u16(1, 2, 4, 8, 16, 32, 64, 128);
   return TestBit(BitCast(du, rep16), bit);
 }
 
