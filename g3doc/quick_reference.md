@@ -753,11 +753,12 @@ aligned memory at indices which are not a multiple of the vector length):
     by shuffling, such that `v0[0] == p[0], v1[0] == p[1]`.
 
 *   <code>void **LoadInterleaved3**(D, const T* p, Vec&lt;D&gt;&amp; v0,
-    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2, Vec&lt;D&gt;&amp; v3)</code>: as
-    above, but for three vectors (e.g. RGB samples).
+    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2)</code>: as above, but for three
+    vectors (e.g. RGB samples).
 
 *   <code>void **LoadInterleaved4**(D, const T* p, Vec&lt;D&gt;&amp; v0,
-    Vec&lt;D&gt;&amp; v1)</code>: as above, but for four vectors (e.g. RGBA).
+    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2, Vec&lt;D&gt;&amp; v3)</code>: as
+    above, but for four vectors (e.g. RGBA).
 
 #### Scatter/Gather
 
