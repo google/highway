@@ -1423,14 +1423,62 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
   return GatherOffset(d, base, ShiftLeft<3>(index));
 }
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ LoadInterleaved2
 
-// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
-#ifdef HWY_NATIVE_STORE_INTERLEAVED
-#undef HWY_NATIVE_STORE_INTERLEAVED
+// Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
+#ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
-#define HWY_NATIVE_STORE_INTERLEAVED
+#define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
+
+#define HWY_RVV_LOAD2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
+  template <size_t N>                                                         \
+  HWY_API void NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d,                         \
+                    const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned,      \
+                    HWY_RVV_V(BASE, SEW, LMUL) & v0,                          \
+                    HWY_RVV_V(BASE, SEW, LMUL) & v1) {                        \
+    v##OP##e##SEW##_v_##CHAR##SEW##LMUL(&v0, &v1, unaligned, Lanes(d));       \
+  }
+// Segments are limited to 8 registers, so we can only go up to LMUL=2.
+HWY_RVV_FOREACH(HWY_RVV_LOAD2, LoadInterleaved2, lseg2, _LE2_VIRT)
+#undef HWY_RVV_LOAD2
+
+// ------------------------------ LoadInterleaved3
+
+#define HWY_RVV_LOAD3(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
+  template <size_t N>                                                         \
+  HWY_API void NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d,                         \
+                    const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned,      \
+                    HWY_RVV_V(BASE, SEW, LMUL) & v0,                          \
+                    HWY_RVV_V(BASE, SEW, LMUL) & v1,                          \
+                    HWY_RVV_V(BASE, SEW, LMUL) & v2) {                        \
+    v##OP##e##SEW##_v_##CHAR##SEW##LMUL(&v0, &v1, &v2, unaligned, Lanes(d));  \
+  }
+// Segments are limited to 8 registers, so we can only go up to LMUL=2.
+HWY_RVV_FOREACH(HWY_RVV_LOAD3, LoadInterleaved3, lseg3, _LE2_VIRT)
+#undef HWY_RVV_LOAD3
+
+// ------------------------------ LoadInterleaved4
+
+#define HWY_RVV_LOAD4(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                      MLEN, NAME, OP)                                         \
+  template <size_t N>                                                         \
+  HWY_API void NAME(                                                          \
+      HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                       \
+      const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT aligned,                      \
+      HWY_RVV_V(BASE, SEW, LMUL) & v0, HWY_RVV_V(BASE, SEW, LMUL) & v1,       \
+      HWY_RVV_V(BASE, SEW, LMUL) & v2, HWY_RVV_V(BASE, SEW, LMUL) & v3) {     \
+    v##OP##e##SEW##_v_##CHAR##SEW##LMUL(&v0, &v1, &v2, &v3, aligned,          \
+                                        Lanes(d));                            \
+  }
+// Segments are limited to 8 registers, so we can only go up to LMUL=2.
+HWY_RVV_FOREACH(HWY_RVV_LOAD4, LoadInterleaved4, lseg4, _LE2_VIRT)
+#undef HWY_RVV_LOAD4
+
+// ------------------------------ StoreInterleaved2
 
 #define HWY_RVV_STORE2(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
                        MLEN, NAME, OP)                                         \
@@ -1439,7 +1487,7 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
                     HWY_RVV_V(BASE, SEW, LMUL) v1,                             \
                     HWY_RVV_D(BASE, SEW, N, SHIFT) d,                          \
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned) {           \
-    return v##OP##e##SEW##_v_##CHAR##SEW##LMUL(unaligned, v0, v1, Lanes(d));   \
+    v##OP##e##SEW##_v_##CHAR##SEW##LMUL(unaligned, v0, v1, Lanes(d));          \
   }
 // Segments are limited to 8 registers, so we can only go up to LMUL=2.
 HWY_RVV_FOREACH(HWY_RVV_STORE2, StoreInterleaved2, sseg2, _LE2_VIRT)
@@ -1454,8 +1502,7 @@ HWY_RVV_FOREACH(HWY_RVV_STORE2, StoreInterleaved2, sseg2, _LE2_VIRT)
       HWY_RVV_V(BASE, SEW, LMUL) v0, HWY_RVV_V(BASE, SEW, LMUL) v1,            \
       HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_D(BASE, SEW, N, SHIFT) d,         \
       HWY_RVV_T(BASE, SEW) * HWY_RESTRICT unaligned) {                         \
-    return v##OP##e##SEW##_v_##CHAR##SEW##LMUL(unaligned, v0, v1, v2,          \
-                                               Lanes(d));                      \
+    v##OP##e##SEW##_v_##CHAR##SEW##LMUL(unaligned, v0, v1, v2, Lanes(d));      \
   }
 // Segments are limited to 8 registers, so we can only go up to LMUL=2.
 HWY_RVV_FOREACH(HWY_RVV_STORE3, StoreInterleaved3, sseg3, _LE2_VIRT)
@@ -1471,8 +1518,7 @@ HWY_RVV_FOREACH(HWY_RVV_STORE3, StoreInterleaved3, sseg3, _LE2_VIRT)
       HWY_RVV_V(BASE, SEW, LMUL) v2, HWY_RVV_V(BASE, SEW, LMUL) v3,            \
       HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                        \
       HWY_RVV_T(BASE, SEW) * HWY_RESTRICT aligned) {                           \
-    return v##OP##e##SEW##_v_##CHAR##SEW##LMUL(aligned, v0, v1, v2, v3,        \
-                                               Lanes(d));                      \
+    v##OP##e##SEW##_v_##CHAR##SEW##LMUL(aligned, v0, v1, v2, v3, Lanes(d));    \
   }
 // Segments are limited to 8 registers, so we can only go up to LMUL=2.
 HWY_RVV_FOREACH(HWY_RVV_STORE4, StoreInterleaved4, sseg4, _LE2_VIRT)

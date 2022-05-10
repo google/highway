@@ -1016,14 +1016,67 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_INDEX, GatherIndex, ld1_gather)
 #undef HWY_SVE_GATHER_OFFSET
 #undef HWY_SVE_GATHER_INDEX
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ LoadInterleaved2
 
-// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
-#ifdef HWY_NATIVE_STORE_INTERLEAVED
-#undef HWY_NATIVE_STORE_INTERLEAVED
+// Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
+#ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
-#define HWY_NATIVE_STORE_INTERLEAVED
+#define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
+
+#define HWY_SVE_LOAD2(BASE, CHAR, BITS, HALF, NAME, OP)                       \
+  template <size_t N, int kPow2>                                              \
+  HWY_API void NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,                        \
+                    const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT unaligned,     \
+                    HWY_SVE_V(BASE, BITS) & v0, HWY_SVE_V(BASE, BITS) & v1) { \
+    const sv##BASE##BITS##x2_t tuple =                                        \
+        sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned);                \
+    v0 = svget2(tuple, 0);                                                    \
+    v1 = svget2(tuple, 1);                                                    \
+  }
+HWY_SVE_FOREACH(HWY_SVE_LOAD2, LoadInterleaved2, ld2)
+
+#undef HWY_SVE_LOAD2
+
+// ------------------------------ LoadInterleaved3
+
+#define HWY_SVE_LOAD3(BASE, CHAR, BITS, HALF, NAME, OP)                     \
+  template <size_t N, int kPow2>                                            \
+  HWY_API void NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,                      \
+                    const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT unaligned,   \
+                    HWY_SVE_V(BASE, BITS) & v0, HWY_SVE_V(BASE, BITS) & v1, \
+                    HWY_SVE_V(BASE, BITS) & v2) {                           \
+    const sv##BASE##BITS##x3_t tuple =                                      \
+        sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned);              \
+    v0 = svget3(tuple, 0);                                                  \
+    v1 = svget3(tuple, 1);                                                  \
+    v2 = svget3(tuple, 2);                                                  \
+  }
+HWY_SVE_FOREACH(HWY_SVE_LOAD3, LoadInterleaved3, ld3)
+
+#undef HWY_SVE_LOAD3
+
+// ------------------------------ LoadInterleaved4
+
+#define HWY_SVE_LOAD4(BASE, CHAR, BITS, HALF, NAME, OP)                       \
+  template <size_t N, int kPow2>                                              \
+  HWY_API void NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,                        \
+                    const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT unaligned,     \
+                    HWY_SVE_V(BASE, BITS) & v0, HWY_SVE_V(BASE, BITS) & v1,   \
+                    HWY_SVE_V(BASE, BITS) & v2, HWY_SVE_V(BASE, BITS) & v3) { \
+    const sv##BASE##BITS##x4_t tuple =                                        \
+        sv##OP##_##CHAR##BITS(detail::MakeMask(d), unaligned);                \
+    v0 = svget4(tuple, 0);                                                    \
+    v1 = svget4(tuple, 1);                                                    \
+    v2 = svget4(tuple, 2);                                                    \
+    v3 = svget4(tuple, 3);                                                    \
+  }
+HWY_SVE_FOREACH(HWY_SVE_LOAD4, LoadInterleaved4, ld4)
+
+#undef HWY_SVE_LOAD4
+
+// ------------------------------ StoreInterleaved2
 
 #define HWY_SVE_STORE2(BASE, CHAR, BITS, HALF, NAME, OP)                 \
   template <size_t N, int kPow2>                                         \

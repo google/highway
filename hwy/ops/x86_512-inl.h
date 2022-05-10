@@ -2389,15 +2389,42 @@ HWY_API Vec512<double> Broadcast(const Vec512<double> v) {
 // the shuffle_abcd notation is more convenient.
 
 // Swap 32-bit halves in 64-bit halves.
-HWY_API Vec512<uint32_t> Shuffle2301(const Vec512<uint32_t> v) {
-  return Vec512<uint32_t>{_mm512_shuffle_epi32(v.raw, _MM_PERM_CDAB)};
-}
-HWY_API Vec512<int32_t> Shuffle2301(const Vec512<int32_t> v) {
-  return Vec512<int32_t>{_mm512_shuffle_epi32(v.raw, _MM_PERM_CDAB)};
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Shuffle2301(const Vec512<T> v) {
+  return Vec512<T>{_mm512_shuffle_epi32(v.raw, _MM_PERM_CDAB)};
 }
 HWY_API Vec512<float> Shuffle2301(const Vec512<float> v) {
   return Vec512<float>{_mm512_shuffle_ps(v.raw, v.raw, _MM_PERM_CDAB)};
 }
+
+namespace detail {
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Shuffle2301(const Vec512<T> a, const Vec512<T> b) {
+  const Full512<T> d;
+  const RebindToFloat<decltype(d)> df;
+  return BitCast(
+      d, Vec512<float>{_mm512_shuffle_ps(BitCast(df, a).raw, BitCast(df, b).raw,
+                                         _MM_PERM_CDAB)});
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Shuffle1230(const Vec512<T> a, const Vec512<T> b) {
+  const Full512<T> d;
+  const RebindToFloat<decltype(d)> df;
+  return BitCast(
+      d, Vec512<float>{_mm512_shuffle_ps(BitCast(df, a).raw, BitCast(df, b).raw,
+                                         _MM_PERM_BCDA)});
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec512<T> Shuffle3012(const Vec512<T> a, const Vec512<T> b) {
+  const Full512<T> d;
+  const RebindToFloat<decltype(d)> df;
+  return BitCast(
+      d, Vec512<float>{_mm512_shuffle_ps(BitCast(df, a).raw, BitCast(df, b).raw,
+                                         _MM_PERM_DABC)});
+}
+
+}  // namespace detail
 
 // Swap 64-bit halves
 HWY_API Vec512<uint32_t> Shuffle1032(const Vec512<uint32_t> v) {
@@ -3767,14 +3794,12 @@ HWY_API size_t CompressBitsStore(Vec512<T> v, const uint8_t* HWY_RESTRICT bits,
   return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
 }
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ LoadInterleaved4
 
-// Do not define HWY_NATIVE_STORE_INTERLEAVED: we implement natively for 512-bit
-// vectors but generic_ops-inl must still define these for <= 128 bit vectors.
-
+// Actually implemented in generic_ops, we just overload LoadTransposed4.
 namespace detail {
 
-// Type-safe wrapper to enable type-agnostic StoreInterleaved2.
+// Type-safe wrapper.
 template <_MM_PERM_ENUM kPerm, typename T>
 Vec512<T> Shuffle128(const Vec512<T> lo, const Vec512<T> hi) {
   return Vec512<T>{_mm512_shuffle_i64x2(lo.raw, hi.raw, kPerm)};
@@ -3788,7 +3813,63 @@ Vec512<double> Shuffle128(const Vec512<double> lo, const Vec512<double> hi) {
   return Vec512<double>{_mm512_shuffle_f64x2(lo.raw, hi.raw, kPerm)};
 }
 
+// Input (128-bit blocks):
+// 3 2 1 0 (<- first block in unaligned)
+// 7 6 5 4
+// b a 9 8
+// Output:
+// 9 6 3 0 (LSB of A)
+// a 7 4 1
+// b 8 5 2
+template <typename T>
+HWY_API void LoadTransposed3(Full512<T> d, const T* HWY_RESTRICT unaligned,
+                             Vec512<T>& A, Vec512<T>& B, Vec512<T>& C) {
+  constexpr size_t N = 64 / sizeof(T);
+  const Vec512<T> v3210 = LoadU(d, unaligned + 0 * N);
+  const Vec512<T> v7654 = LoadU(d, unaligned + 1 * N);
+  const Vec512<T> vba98 = LoadU(d, unaligned + 2 * N);
+
+  const Vec512<T> v5421 = detail::Shuffle128<_MM_PERM_BACB>(v3210, v7654);
+  const Vec512<T> va976 = detail::Shuffle128<_MM_PERM_CBDC>(v7654, vba98);
+
+  A = detail::Shuffle128<_MM_PERM_CADA>(v3210, va976);
+  B = detail::Shuffle128<_MM_PERM_DBCA>(v5421, va976);
+  C = detail::Shuffle128<_MM_PERM_DADB>(v5421, vba98);
+}
+
+// Input (128-bit blocks):
+// 3 2 1 0 (<- first block in unaligned)
+// 7 6 5 4
+// b a 9 8
+// f e d c
+// Output:
+// c 8 4 0 (LSB of A)
+// d 9 5 1
+// e a 6 2
+// f b 7 3
+template <typename T>
+HWY_API void LoadTransposed4(Full512<T> d, const T* HWY_RESTRICT unaligned,
+                             Vec512<T>& A, Vec512<T>& B, Vec512<T>& C,
+                             Vec512<T>& D) {
+  constexpr size_t N = 64 / sizeof(T);
+  const Vec512<T> v3210 = LoadU(d, unaligned + 0 * N);
+  const Vec512<T> v7654 = LoadU(d, unaligned + 1 * N);
+  const Vec512<T> vba98 = LoadU(d, unaligned + 2 * N);
+  const Vec512<T> vfedc = LoadU(d, unaligned + 3 * N);
+
+  const Vec512<T> v5410 = detail::Shuffle128<_MM_PERM_BABA>(v3210, v7654);
+  const Vec512<T> vdc98 = detail::Shuffle128<_MM_PERM_BABA>(vba98, vfedc);
+  const Vec512<T> v7632 = detail::Shuffle128<_MM_PERM_DCDC>(v3210, v7654);
+  const Vec512<T> vfeba = detail::Shuffle128<_MM_PERM_DCDC>(vba98, vfedc);
+  A = detail::Shuffle128<_MM_PERM_CACA>(v5410, vdc98);
+  B = detail::Shuffle128<_MM_PERM_DBDB>(v5410, vdc98);
+  C = detail::Shuffle128<_MM_PERM_CACA>(v7632, vfeba);
+  D = detail::Shuffle128<_MM_PERM_DBDB>(v7632, vfeba);
+}
+
 }  // namespace detail
+
+// ------------------------------ StoreInterleaved2
 
 template <typename T>
 HWY_API void StoreInterleaved2(const Vec512<T> v0, const Vec512<T> v1,

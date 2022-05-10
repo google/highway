@@ -49,12 +49,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-template <typename T>
-using Full128 = Simd<T, 16 / sizeof(T), 0>;
-
-template <typename T>
-using Full64 = Simd<T, 8 / sizeof(T), 0>;
-
 namespace detail {
 
 template <typename T>
@@ -102,6 +96,9 @@ class Vec128 {
 
 template <typename T>
 using Vec64 = Vec128<T, 8 / sizeof(T)>;
+
+template <typename T>
+using Vec32 = Vec128<T, 4 / sizeof(T)>;
 
 // FF..FF or 0.
 template <typename T, size_t N = 16 / sizeof(T)>
@@ -2417,6 +2414,68 @@ HWY_API Vec128<T, N> Shuffle2301(const Vec128<T, N> v) {
   return Vec128<T, N>{wasm_i32x4_shuffle(v.raw, v.raw, 1, 0, 3, 2)};
 }
 
+// These are used by generic_ops-inl to implement LoadInterleaved3.
+namespace detail {
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> Shuffle2301(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i8x16_shuffle(a.raw, b.raw, 1, 0, 3 + 16, 2 + 16,
+                                         0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F,
+                                         0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F)};
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Shuffle2301(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i16x8_shuffle(a.raw, b.raw, 1, 0, 3 + 8, 2 + 8,
+                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF)};
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Shuffle2301(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i32x4_shuffle(a.raw, b.raw, 1, 0, 3 + 4, 2 + 4)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> Shuffle1230(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i8x16_shuffle(a.raw, b.raw, 0, 3, 2 + 16, 1 + 16,
+                                         0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F,
+                                         0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F)};
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Shuffle1230(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i16x8_shuffle(a.raw, b.raw, 0, 3, 2 + 8, 1 + 8,
+                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF)};
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Shuffle1230(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 3, 2 + 4, 1 + 4)};
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> Shuffle3012(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i8x16_shuffle(a.raw, b.raw, 2, 1, 0 + 16, 3 + 16,
+                                         0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F,
+                                         0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F)};
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API Vec128<T, N> Shuffle3012(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i16x8_shuffle(a.raw, b.raw, 2, 1, 0 + 8, 3 + 8,
+                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF)};
+}
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec128<T, N> Shuffle3012(const Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(N == 2 || N == 4, "Does not make sense for N=1");
+  return Vec128<T, N>{wasm_i32x4_shuffle(a.raw, b.raw, 2, 1, 0 + 4, 3 + 4)};
+}
+
+}  // namespace detail
+
 // Swap 64-bit halves
 template <typename T>
 HWY_API Vec128<T> Shuffle01(const Vec128<T> v) {
@@ -3856,7 +3915,8 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
 
 // ------------------------------ StoreInterleaved2/3/4
 
-// HWY_NATIVE_STORE_INTERLEAVED not set, hence defined in generic_ops-inl.h.
+// HWY_NATIVE_LOAD_STORE_INTERLEAVED not set, hence defined in
+// generic_ops-inl.h.
 
 // ------------------------------ MulEven/Odd (Load)
 

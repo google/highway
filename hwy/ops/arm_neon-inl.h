@@ -30,15 +30,6 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-template <typename T>
-using Full128 = Simd<T, 16 / sizeof(T), 0>;
-
-template <typename T>
-using Full64 = Simd<T, 8 / sizeof(T), 0>;
-
-template <typename T>
-using Full32 = Simd<T, 4 / sizeof(T), 0>;
-
 namespace detail {  // for code folding and Raw128
 
 // Macros used to define single and double function calls for multiple types
@@ -5605,14 +5596,193 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
   return PopCount(mask_bits);
 }
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ LoadInterleaved2
 
-// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
-#ifdef HWY_NATIVE_STORE_INTERLEAVED
-#undef HWY_NATIVE_STORE_INTERLEAVED
+// Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
+#ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
-#define HWY_NATIVE_STORE_INTERLEAVED
+#define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
+
+namespace detail {
+#define HWY_NEON_BUILD_TPL_HWY_LOAD_INT
+#define HWY_NEON_BUILD_ARG_HWY_LOAD_INT from
+
+#if HWY_ARCH_ARM_A64
+#define HWY_IF_LOAD_INT(T, N) HWY_IF_GE64(T, N)
+#define HWY_NEON_DEF_FUNCTION_LOAD_INT HWY_NEON_DEF_FUNCTION_ALL_TYPES
+#else
+// Exclude 64x2 and f64x1, which are only supported on aarch64
+#define HWY_IF_LOAD_INT(T, N) \
+  hwy::EnableIf<N * sizeof(T) >= 8 && (N == 1 || sizeof(T) < 8)>* = nullptr
+#define HWY_NEON_DEF_FUNCTION_LOAD_INT(name, prefix, infix, args) \
+  HWY_NEON_DEF_FUNCTION_INT_8_16_32(name, prefix, infix, args)    \
+  HWY_NEON_DEF_FUNCTION_UINT_8_16_32(name, prefix, infix, args)   \
+  HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)       \
+  HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args) \
+  HWY_NEON_DEF_FUNCTION(uint64, 1, name, prefix, infix, u64, args)
+#endif  // HWY_ARCH_ARM_A64
+
+// Must return raw tuple because Tuple2 lack a ctor, and we cannot use
+// brace-initialization in HWY_NEON_DEF_FUNCTION because some functions return
+// void.
+#define HWY_NEON_BUILD_RET_HWY_LOAD_INT(type, size) \
+  decltype(Tuple2<type##_t, size>().raw)
+// Tuple tag arg allows overloading (cannot just overload on return type)
+#define HWY_NEON_BUILD_PARAM_HWY_LOAD_INT(type, size) \
+  const type##_t *from, Tuple2<type##_t, size>
+HWY_NEON_DEF_FUNCTION_LOAD_INT(LoadInterleaved2, vld2, _, HWY_LOAD_INT)
+#undef HWY_NEON_BUILD_RET_HWY_LOAD_INT
+#undef HWY_NEON_BUILD_PARAM_HWY_LOAD_INT
+
+#define HWY_NEON_BUILD_RET_HWY_LOAD_INT(type, size) \
+  decltype(Tuple3<type##_t, size>().raw)
+#define HWY_NEON_BUILD_PARAM_HWY_LOAD_INT(type, size) \
+  const type##_t *from, Tuple3<type##_t, size>
+HWY_NEON_DEF_FUNCTION_LOAD_INT(LoadInterleaved3, vld3, _, HWY_LOAD_INT)
+#undef HWY_NEON_BUILD_PARAM_HWY_LOAD_INT
+#undef HWY_NEON_BUILD_RET_HWY_LOAD_INT
+
+#define HWY_NEON_BUILD_RET_HWY_LOAD_INT(type, size) \
+  decltype(Tuple4<type##_t, size>().raw)
+#define HWY_NEON_BUILD_PARAM_HWY_LOAD_INT(type, size) \
+  const type##_t *from, Tuple4<type##_t, size>
+HWY_NEON_DEF_FUNCTION_LOAD_INT(LoadInterleaved4, vld4, _, HWY_LOAD_INT)
+#undef HWY_NEON_BUILD_PARAM_HWY_LOAD_INT
+#undef HWY_NEON_BUILD_RET_HWY_LOAD_INT
+
+#undef HWY_NEON_DEF_FUNCTION_LOAD_INT
+#undef HWY_NEON_BUILD_TPL_HWY_LOAD_INT
+#undef HWY_NEON_BUILD_ARG_HWY_LOAD_INT
+}  // namespace detail
+
+template <typename T, size_t N, HWY_IF_LOAD_INT(T, N)>
+HWY_API void LoadInterleaved2(Simd<T, N, 0> /*tag*/,
+                              const T* HWY_RESTRICT unaligned, Vec128<T, N>& v0,
+                              Vec128<T, N>& v1) {
+  auto raw = detail::LoadInterleaved2(unaligned, detail::Tuple2<T, N>());
+  v0 = Vec128<T, N>(raw.val[0]);
+  v1 = Vec128<T, N>(raw.val[1]);
+}
+
+// <= 32 bits: avoid loading more than N bytes by copying to buffer
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API void LoadInterleaved2(Simd<T, N, 0> /*tag*/,
+                              const T* HWY_RESTRICT unaligned, Vec128<T, N>& v0,
+                              Vec128<T, N>& v1) {
+  // The smallest vector registers are 64-bits and we want space for two.
+  alignas(16) T buf[2 * 8 / sizeof(T)] = {};
+  CopyBytes<N * 2 * sizeof(T)>(unaligned, buf);
+  auto raw = detail::LoadInterleaved2(buf, detail::Tuple2<T, N>());
+  v0 = Vec128<T, N>(raw.val[0]);
+  v1 = Vec128<T, N>(raw.val[1]);
+}
+
+#if HWY_ARCH_ARM_V7
+// 64x2: split into two 64x1
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void LoadInterleaved2(Full128<T> d, T* HWY_RESTRICT unaligned,
+                              Vec128<T>& v0, Vec128<T>& v1) {
+  const Half<decltype(d)> dh;
+  VFromD<decltype(dh)> v00, v10, v01, v11;
+  LoadInterleaved2(dh, unaligned, v00, v10);
+  LoadInterleaved2(dh, unaligned + 2, v01, v11);
+  v0 = Combine(d, v01, v00);
+  v1 = Combine(d, v11, v10);
+}
+#endif  // HWY_ARCH_ARM_V7
+
+// ------------------------------ LoadInterleaved3
+
+template <typename T, size_t N, HWY_IF_LOAD_INT(T, N)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> /*tag*/,
+                              const T* HWY_RESTRICT unaligned, Vec128<T, N>& v0,
+                              Vec128<T, N>& v1, Vec128<T, N>& v2) {
+  auto raw = detail::LoadInterleaved3(unaligned, detail::Tuple3<T, N>());
+  v0 = Vec128<T, N>(raw.val[0]);
+  v1 = Vec128<T, N>(raw.val[1]);
+  v2 = Vec128<T, N>(raw.val[2]);
+}
+
+// <= 32 bits: avoid writing more than N bytes by copying to buffer
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> /*tag*/,
+                              const T* HWY_RESTRICT unaligned, Vec128<T, N>& v0,
+                              Vec128<T, N>& v1, Vec128<T, N>& v2) {
+  // The smallest vector registers are 64-bits and we want space for three.
+  alignas(16) T buf[3 * 8 / sizeof(T)] = {};
+  CopyBytes<N * 3 * sizeof(T)>(unaligned, buf);
+  auto raw = detail::LoadInterleaved3(buf, detail::Tuple3<T, N>());
+  v0 = Vec128<T, N>(raw.val[0]);
+  v1 = Vec128<T, N>(raw.val[1]);
+  v2 = Vec128<T, N>(raw.val[2]);
+}
+
+#if HWY_ARCH_ARM_V7
+// 64x2: split into two 64x1
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void LoadInterleaved3(Full128<T> d, const T* HWY_RESTRICT unaligned,
+                              Vec128<T>& v0, Vec128<T>& v1, Vec128<T>& v2) {
+  const Half<decltype(d)> dh;
+  VFromD<decltype(dh)> v00, v10, v20, v01, v11, v21;
+  LoadInterleaved3(dh, unaligned, v00, v10, v20);
+  LoadInterleaved3(dh, unaligned + 3, v01, v11, v21);
+  v0 = Combine(d, v01, v00);
+  v1 = Combine(d, v11, v10);
+  v2 = Combine(d, v21, v20);
+}
+#endif  // HWY_ARCH_ARM_V7
+
+// ------------------------------ LoadInterleaved4
+
+template <typename T, size_t N, HWY_IF_LOAD_INT(T, N)>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> /*tag*/,
+                              const T* HWY_RESTRICT unaligned, Vec128<T, N>& v0,
+                              Vec128<T, N>& v1, Vec128<T, N>& v2,
+                              Vec128<T, N>& v3) {
+  auto raw = detail::LoadInterleaved4(unaligned, detail::Tuple4<T, N>());
+  v0 = Vec128<T, N>(raw.val[0]);
+  v1 = Vec128<T, N>(raw.val[1]);
+  v2 = Vec128<T, N>(raw.val[2]);
+  v3 = Vec128<T, N>(raw.val[3]);
+}
+
+// <= 32 bits: avoid writing more than N bytes by copying to buffer
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> /*tag*/,
+                              const T* HWY_RESTRICT unaligned, Vec128<T, N>& v0,
+                              Vec128<T, N>& v1, Vec128<T, N>& v2,
+                              Vec128<T, N>& v3) {
+  alignas(16) T buf[4 * 8 / sizeof(T)] = {};
+  CopyBytes<N * 4 * sizeof(T)>(unaligned, buf);
+  auto raw = detail::LoadInterleaved4(buf, detail::Tuple4<T, N>());
+  v0 = Vec128<T, N>(raw.val[0]);
+  v1 = Vec128<T, N>(raw.val[1]);
+  v2 = Vec128<T, N>(raw.val[2]);
+  v3 = Vec128<T, N>(raw.val[3]);
+}
+
+#if HWY_ARCH_ARM_V7
+// 64x2: split into two 64x1
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API void LoadInterleaved4(Full128<T> d, const T* HWY_RESTRICT unaligned,
+                              Vec128<T>& v0, Vec128<T>& v1, Vec128<T>& v2,
+                              Vec128<T>& v3) {
+  const Half<decltype(d)> dh;
+  VFromD<decltype(dh)> v00, v10, v20, v30, v01, v11, v21, v31;
+  LoadInterleaved4(dh, unaligned, v00, v10, v20, v30);
+  LoadInterleaved4(dh, unaligned + 4, v01, v11, v21, v31);
+  v0 = Combine(d, v01, v00);
+  v1 = Combine(d, v11, v10);
+  v2 = Combine(d, v21, v20);
+  v3 = Combine(d, v31, v30);
+}
+#endif  // HWY_ARCH_ARM_V7
+
+#undef HWY_IF_LOAD_INT
+
+// ------------------------------ StoreInterleaved2
 
 namespace detail {
 #define HWY_NEON_BUILD_TPL_HWY_STORE_INT

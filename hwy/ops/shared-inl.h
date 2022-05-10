@@ -219,6 +219,15 @@ using Half = typename D::Half;
 template <class D>
 using Twice = typename D::Twice;
 
+template <typename T>
+using Full32 = Simd<T, 4 / sizeof(T), 0>;
+
+template <typename T>
+using Full64 = Simd<T, 8 / sizeof(T), 0>;
+
+template <typename T>
+using Full128 = Simd<T, 16 / sizeof(T), 0>;
+
 // Same as base.h macros but with a Simd<T, N, kPow2> argument instead of T.
 #define HWY_IF_UNSIGNED_D(D) HWY_IF_UNSIGNED(TFromD<D>)
 #define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(TFromD<D>)

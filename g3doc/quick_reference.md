@@ -748,6 +748,17 @@ aligned memory at indices which are not a multiple of the vector length):
     to, and potentially more efficient than, `IfThenElseZero(mask, Load(D(),
     aligned))`.
 
+*   <code>void **LoadInterleaved2**(D, const T* p, Vec&lt;D&gt;&amp; v0,
+    Vec&lt;D&gt;&amp; v1)</code>: equivalent to `LoadU` into `v0, v1` followed
+    by shuffling, such that `v0[0] == p[0], v1[0] == p[1]`.
+
+*   <code>void **LoadInterleaved3**(D, const T* p, Vec&lt;D&gt;&amp; v0,
+    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2, Vec&lt;D&gt;&amp; v3)</code>: as
+    above, but for three vectors (e.g. RGB samples).
+
+*   <code>void **LoadInterleaved4**(D, const T* p, Vec&lt;D&gt;&amp; v0,
+    Vec&lt;D&gt;&amp; v1)</code>: as above, but for four vectors (e.g. RGBA).
+
 #### Scatter/Gather
 
 **Note**: Offsets/indices are of type `VI = Vec<RebindToSigned<D>>` and need not

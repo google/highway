@@ -2817,7 +2817,8 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
 
 // ------------------------------ StoreInterleaved2/3/4
 
-// HWY_NATIVE_STORE_INTERLEAVED not set, hence defined in generic_ops-inl.h.
+// HWY_NATIVE_LOAD_STORE_INTERLEAVED not set, hence defined in
+// generic_ops-inl.h.
 
 // ------------------------------ MulEven/Odd (Load)
 

@@ -113,18 +113,345 @@ HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
 #endif
 }
 
-// ------------------------------ StoreInterleaved2
-
 // "Include guard": skip if native instructions are available. The generic
-// implementation is currently only shared between x86_128 and wasm_*, but it is
-// too large to duplicate.
+// implementation is currently shared between x86_* and wasm_*, and is too large
+// to duplicate.
 
-#if (defined(HWY_NATIVE_STORE_INTERLEAVED) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_STORE_INTERLEAVED
-#undef HWY_NATIVE_STORE_INTERLEAVED
+#if (defined(HWY_NATIVE_LOAD_STORE_INTERLEAVED) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
-#define HWY_NATIVE_STORE_INTERLEAVED
+#define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
+
+// ------------------------------ LoadInterleaved2
+
+template <typename T, size_t N, class V>
+HWY_API void LoadInterleaved2(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1) {
+  const V A = LoadU(d, unaligned + 0 * N);  // v1[1] v0[1] v1[0] v0[0]
+  const V B = LoadU(d, unaligned + 1 * N);
+  v0 = ConcatEven(d, B, A);
+  v1 = ConcatOdd(d, B, A);
+}
+
+template <typename T, class V>
+HWY_API void LoadInterleaved2(Simd<T, 1, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1) {
+  v0 = LoadU(d, unaligned + 0);
+  v1 = LoadU(d, unaligned + 1);
+}
+
+// ------------------------------ LoadInterleaved3 (CombineShiftRightBytes)
+
+namespace detail {
+
+// Default for <= 128-bit vectors; x86_256 and x86_512 have their own overload.
+template <typename T, size_t N, class V, HWY_IF_LE128(T, N)>
+HWY_API void LoadTransposed3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                             V& A, V& B, V& C) {
+  A = LoadU(d, unaligned + 0 * N);
+  B = LoadU(d, unaligned + 1 * N);
+  C = LoadU(d, unaligned + 2 * N);
+}
+
+}  // namespace detail
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 16)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2) {
+  const RebindToUnsigned<decltype(d)> du;
+  // Compact notation so these fit on one line: 12 := v1[2].
+  V A;  // 05 24 14 04 23 13 03 22 12 02 21 11 01 20 10 00
+  V B;  // 1a 0a 29 19 09 28 18 08 27 17 07 26 16 06 25 15
+  V C;  // 2f 1f 0f 2e 1e 0e 2d 1d 0d 2c 1c 0c 2b 1b 0b 2a
+  detail::LoadTransposed3(d, unaligned, A, B, C);
+  // Compress all lanes belonging to v0 into consecutive lanes.
+  constexpr uint8_t Z = 0x80;
+  alignas(16) constexpr uint8_t kIdx_v0A[16] = {0, 3, 6, 9, 12, 15, Z, Z,
+                                                Z, Z, Z, Z, Z,  Z,  Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v0B[16] = {Z, Z,  Z,  Z, Z, Z, 2, 5,
+                                                8, 11, 14, Z, Z, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v0C[16] = {Z, Z, Z, Z, Z, Z, Z,  Z,
+                                                Z, Z, Z, 1, 4, 7, 10, 13};
+  alignas(16) constexpr uint8_t kIdx_v1A[16] = {1, 4, 7, 10, 13, Z, Z, Z,
+                                                Z, Z, Z, Z,  Z,  Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v1B[16] = {Z, Z,  Z,  Z, Z, 0, 3, 6,
+                                                9, 12, 15, Z, Z, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v1C[16] = {Z, Z, Z, Z, Z, Z, Z,  Z,
+                                                Z, Z, Z, 2, 5, 8, 11, 14};
+  alignas(16) constexpr uint8_t kIdx_v2A[16] = {2, 5, 8, 11, 14, Z, Z, Z,
+                                                Z, Z, Z, Z,  Z,  Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v2B[16] = {Z,  Z,  Z, Z, Z, 1, 4, 7,
+                                                10, 13, Z, Z, Z, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v2C[16] = {Z, Z, Z, Z, Z, Z, Z,  Z,
+                                                Z, Z, 0, 3, 6, 9, 12, 15};
+  const V v0L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v0A)));
+  const V v0M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v0B)));
+  const V v0U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v0C)));
+  const V v1L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v1A)));
+  const V v1M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v1B)));
+  const V v1U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v1C)));
+  const V v2L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v2A)));
+  const V v2M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v2B)));
+  const V v2U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v2C)));
+  v0 = Or3(v0L, v0M, v0U);
+  v1 = Or3(v1L, v1M, v1U);
+  v2 = Or3(v2L, v2M, v2U);
+}
+
+// 8-bit lanes x8
+template <typename T, size_t N, class V, HWY_IF_LANE_SIZE(T, 1),
+          HWY_IF_LANES_PER_BLOCK(T, N, 8)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2) {
+  const RebindToUnsigned<decltype(d)> du;
+  V A;  // v1[2] v0[2] v2[1] v1[1] v0[1] v2[0] v1[0] v0[0]
+  V B;  // v0[5] v2[4] v1[4] v0[4] v2[3] v1[3] v0[3] v2[2]
+  V C;  // v2[7] v1[7] v0[7] v2[6] v1[6] v0[6] v2[5] v1[5]
+  detail::LoadTransposed3(d, unaligned, A, B, C);
+  // Compress all lanes belonging to v0 into consecutive lanes.
+  constexpr uint8_t Z = 0x80;
+  alignas(16) constexpr uint8_t kIdx_v0A[16] = {0, 3, 6, Z, Z, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v0B[16] = {Z, Z, Z, 1, 4, 7, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v0C[16] = {Z, Z, Z, Z, Z, Z, 2, 5};
+  alignas(16) constexpr uint8_t kIdx_v1A[16] = {1, 4, 7, Z, Z, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v1B[16] = {Z, Z, Z, 2, 5, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v1C[16] = {Z, Z, Z, Z, Z, 0, 3, 6};
+  alignas(16) constexpr uint8_t kIdx_v2A[16] = {2, 5, Z, Z, Z, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v2B[16] = {Z, Z, 0, 3, 6, Z, Z, Z};
+  alignas(16) constexpr uint8_t kIdx_v2C[16] = {Z, Z, Z, Z, Z, 1, 4, 7};
+  const V v0L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v0A)));
+  const V v0M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v0B)));
+  const V v0U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v0C)));
+  const V v1L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v1A)));
+  const V v1M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v1B)));
+  const V v1U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v1C)));
+  const V v2L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v2A)));
+  const V v2M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v2B)));
+  const V v2U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v2C)));
+  v0 = Or3(v0L, v0M, v0U);
+  v1 = Or3(v1L, v1M, v1U);
+  v2 = Or3(v2L, v2M, v2U);
+}
+
+// 16-bit lanes x8
+template <typename T, size_t N, class V, HWY_IF_LANE_SIZE(T, 2),
+          HWY_IF_LANES_PER_BLOCK(T, N, 8)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2) {
+  const RebindToUnsigned<decltype(d)> du;
+  V A;  // v1[2] v0[2] v2[1] v1[1] v0[1] v2[0] v1[0] v0[0]
+  V B;  // v0[5] v2[4] v1[4] v0[4] v2[3] v1[3] v0[3] v2[2]
+  V C;  // v2[7] v1[7] v0[7] v2[6] v1[6] v0[6] v2[5] v1[5]
+  detail::LoadTransposed3(d, unaligned, A, B, C);
+  // Compress all lanes belonging to v0 into consecutive lanes. Same as above,
+  // but each element of the array contains two byte indices for a lane.
+  constexpr uint16_t Z = 0x8080;
+  alignas(16) constexpr uint16_t kIdx_v0A[8] = {0x0100, 0x0706, 0x0D0C, Z,
+                                                Z,      Z,      Z,      Z};
+  alignas(16) constexpr uint16_t kIdx_v0B[8] = {Z,      Z,      Z, 0x0302,
+                                                0x0908, 0x0F0E, Z, Z};
+  alignas(16) constexpr uint16_t kIdx_v0C[8] = {Z, Z, Z,      Z,
+                                                Z, Z, 0x0504, 0x0B0A};
+  alignas(16) constexpr uint16_t kIdx_v1A[8] = {0x0302, 0x0908, 0x0F0E, Z,
+                                                Z,      Z,      Z,      Z};
+  alignas(16) constexpr uint16_t kIdx_v1B[8] = {Z,      Z, Z, 0x0504,
+                                                0x0B0A, Z, Z, Z};
+  alignas(16) constexpr uint16_t kIdx_v1C[8] = {Z, Z,      Z,      Z,
+                                                Z, 0x0100, 0x0706, 0x0D0C};
+  alignas(16) constexpr uint16_t kIdx_v2A[8] = {0x0504, 0x0B0A, Z, Z,
+                                                Z,      Z,      Z, Z};
+  alignas(16) constexpr uint16_t kIdx_v2B[8] = {Z,      Z, 0x0100, 0x0706,
+                                                0x0D0C, Z, Z,      Z};
+  alignas(16) constexpr uint16_t kIdx_v2C[8] = {Z, Z,      Z,      Z,
+                                                Z, 0x0302, 0x0908, 0x0F0E};
+  const V v0L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v0A)));
+  const V v0M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v0B)));
+  const V v0U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v0C)));
+  const V v1L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v1A)));
+  const V v1M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v1B)));
+  const V v1U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v1C)));
+  const V v2L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v2A)));
+  const V v2M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v2B)));
+  const V v2U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v2C)));
+  v0 = Or3(v0L, v0M, v0U);
+  v1 = Or3(v1L, v1M, v1U);
+  v2 = Or3(v2L, v2M, v2U);
+}
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 4)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2) {
+  V A;  // v0[1] v2[0] v1[0] v0[0]
+  V B;  // v1[2] v0[2] v2[1] v1[1]
+  V C;  // v2[3] v1[3] v0[3] v2[2]
+  detail::LoadTransposed3(d, unaligned, A, B, C);
+
+  const V vxx_02_03_xx = OddEven(C, B);
+  v0 = detail::Shuffle1230(A, vxx_02_03_xx);
+
+  // Shuffle2301 takes the upper/lower halves of the output from one input, so
+  // we cannot just combine 13 and 10 with 12 and 11 (similar to v0/v2). Use
+  // OddEven because it may have higher throughput than Shuffle.
+  const V vxx_xx_10_11 = OddEven(A, B);
+  const V v12_13_xx_xx = OddEven(B, C);
+  v1 = detail::Shuffle2301(vxx_xx_10_11, v12_13_xx_xx);
+
+  const V vxx_20_21_xx = OddEven(B, A);
+  v2 = detail::Shuffle3012(vxx_20_21_xx, C);
+}
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 2)>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2) {
+  V A;  // v1[0] v0[0]
+  V B;  // v0[1] v2[0]
+  V C;  // v2[1] v1[1]
+  detail::LoadTransposed3(d, unaligned, A, B, C);
+  v0 = OddEven(B, A);
+  v1 = CombineShiftRightBytes<sizeof(T)>(d, C, A);
+  v2 = OddEven(C, B);
+}
+
+template <typename T, class V>
+HWY_API void LoadInterleaved3(Simd<T, 1, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2) {
+  v0 = LoadU(d, unaligned + 0);
+  v1 = LoadU(d, unaligned + 1);
+  v2 = LoadU(d, unaligned + 2);
+}
+
+// ------------------------------ LoadInterleaved4
+
+namespace detail {
+
+// Default for <= 128-bit vectors; x86_256 and x86_512 have their own overload.
+template <typename T, size_t N, class V, HWY_IF_LE128(T, N)>
+HWY_API void LoadTransposed4(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                             V& A, V& B, V& C, V& D) {
+  A = LoadU(d, unaligned + 0 * N);
+  B = LoadU(d, unaligned + 1 * N);
+  C = LoadU(d, unaligned + 2 * N);
+  D = LoadU(d, unaligned + 3 * N);
+}
+
+}  // namespace detail
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 16)>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2, V& v3) {
+  const Repartition<uint64_t, decltype(d)> d64;
+  using V64 = VFromD<decltype(d64)>;
+  // 16 lanes per block; the lowest four blocks are at the bottom of A,B,C,D.
+  // Here int[i] means the four interleaved values of the i-th 4-tuple and
+  // int[3..0] indicates four consecutive 4-tuples (0 = least-significant).
+  V A;  // int[13..10] int[3..0]
+  V B;  // int[17..14] int[7..4]
+  V C;  // int[1b..18] int[b..8]
+  V D;  // int[1f..1c] int[f..c]
+  detail::LoadTransposed4(d, unaligned, A, B, C, D);
+
+  // For brevity, the comments only list the lower block (upper = lower + 0x10)
+  const V v5140 = InterleaveLower(d, A, B);  // int[5,1,4,0]
+  const V vd9c8 = InterleaveLower(d, C, D);  // int[d,9,c,8]
+  const V v7362 = InterleaveUpper(d, A, B);  // int[7,3,6,2]
+  const V vfbea = InterleaveUpper(d, C, D);  // int[f,b,e,a]
+
+  const V v6420 = InterleaveLower(d, v5140, v7362);  // int[6,4,2,0]
+  const V veca8 = InterleaveLower(d, vd9c8, vfbea);  // int[e,c,a,8]
+  const V v7531 = InterleaveUpper(d, v5140, v7362);  // int[7,5,3,1]
+  const V vfdb9 = InterleaveUpper(d, vd9c8, vfbea);  // int[f,d,b,9]
+
+  const V64 v10L = BitCast(d64, InterleaveLower(d, v6420, v7531));  // v10[7..0]
+  const V64 v10U = BitCast(d64, InterleaveLower(d, veca8, vfdb9));  // v10[f..8]
+  const V64 v32L = BitCast(d64, InterleaveUpper(d, v6420, v7531));  // v32[7..0]
+  const V64 v32U = BitCast(d64, InterleaveUpper(d, veca8, vfdb9));  // v32[f..8]
+
+  v0 = BitCast(d, InterleaveLower(d64, v10L, v10U));
+  v1 = BitCast(d, InterleaveUpper(d64, v10L, v10U));
+  v2 = BitCast(d, InterleaveLower(d64, v32L, v32U));
+  v3 = BitCast(d, InterleaveUpper(d64, v32L, v32U));
+}
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 8)>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2, V& v3) {
+  // In the last step, we interleave by half of the block size, which is usually
+  // 8 bytes but half that for 8-bit x8 vectors.
+  using TW = hwy::UnsignedFromSize<sizeof(T) * N == 8 ? 4 : 8>;
+  const Repartition<TW, decltype(d)> dw;
+  using VW = VFromD<decltype(dw)>;
+
+  // (Comments are for 256-bit vectors.)
+  // 8 lanes per block; the lowest four blocks are at the bottom of A,B,C,D.
+  V A;  // v3210[9]v3210[8] v3210[1]v3210[0]
+  V B;  // v3210[b]v3210[a] v3210[3]v3210[2]
+  V C;  // v3210[d]v3210[c] v3210[5]v3210[4]
+  V D;  // v3210[f]v3210[e] v3210[7]v3210[6]
+  detail::LoadTransposed4(d, unaligned, A, B, C, D);
+
+  const V va820 = InterleaveLower(d, A, B);  // v3210[a,8] v3210[2,0]
+  const V vec64 = InterleaveLower(d, C, D);  // v3210[e,c] v3210[6,4]
+  const V vb931 = InterleaveUpper(d, A, B);  // v3210[b,9] v3210[3,1]
+  const V vfd75 = InterleaveUpper(d, C, D);  // v3210[f,d] v3210[7,5]
+
+  const VW v10_b830 =  // v10[b..8] v10[3..0]
+      BitCast(dw, InterleaveLower(d, va820, vb931));
+  const VW v10_fc74 =  // v10[f..c] v10[7..4]
+      BitCast(dw, InterleaveLower(d, vec64, vfd75));
+  const VW v32_b830 =  // v32[b..8] v32[3..0]
+      BitCast(dw, InterleaveUpper(d, va820, vb931));
+  const VW v32_fc74 =  // v32[f..c] v32[7..4]
+      BitCast(dw, InterleaveUpper(d, vec64, vfd75));
+
+  v0 = BitCast(d, InterleaveLower(dw, v10_b830, v10_fc74));
+  v1 = BitCast(d, InterleaveUpper(dw, v10_b830, v10_fc74));
+  v2 = BitCast(d, InterleaveLower(dw, v32_b830, v32_fc74));
+  v3 = BitCast(d, InterleaveUpper(dw, v32_b830, v32_fc74));
+}
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 4)>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2, V& v3) {
+  V A;  // v3210[4] v3210[0]
+  V B;  // v3210[5] v3210[1]
+  V C;  // v3210[6] v3210[2]
+  V D;  // v3210[7] v3210[3]
+  detail::LoadTransposed4(d, unaligned, A, B, C, D);
+  const V v10_ev = InterleaveLower(d, A, C);  // v1[6,4] v0[6,4] v1[2,0] v0[2,0]
+  const V v10_od = InterleaveLower(d, B, D);  // v1[7,5] v0[7,5] v1[3,1] v0[3,1]
+  const V v32_ev = InterleaveUpper(d, A, C);  // v3[6,4] v2[6,4] v3[2,0] v2[2,0]
+  const V v32_od = InterleaveUpper(d, B, D);  // v3[7,5] v2[7,5] v3[3,1] v2[3,1]
+
+  v0 = InterleaveLower(d, v10_ev, v10_od);
+  v1 = InterleaveUpper(d, v10_ev, v10_od);
+  v2 = InterleaveLower(d, v32_ev, v32_od);
+  v3 = InterleaveUpper(d, v32_ev, v32_od);
+}
+
+template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 2)>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2, V& v3) {
+  V A, B, C, D;
+  detail::LoadTransposed4(d, unaligned, A, B, C, D);
+  v0 = InterleaveLower(d, A, C);
+  v1 = InterleaveUpper(d, A, C);
+  v2 = InterleaveLower(d, B, D);
+  v3 = InterleaveUpper(d, B, D);
+}
+
+// Any T x1
+template <typename T, class V>
+HWY_API void LoadInterleaved4(Simd<T, 1, 0> d, const T* HWY_RESTRICT unaligned,
+                              V& v0, V& v1, V& v2, V& v3) {
+  v0 = LoadU(d, unaligned + 0);
+  v1 = LoadU(d, unaligned + 1);
+  v2 = LoadU(d, unaligned + 2);
+  v3 = LoadU(d, unaligned + 3);
+}
+
+// ------------------------------ StoreInterleaved2
 
 // 128 bit vector, 8..32 bit lanes
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 8)>
@@ -133,9 +460,9 @@ HWY_API void StoreInterleaved2(const Vec128<T> v0, const Vec128<T> v1,
   constexpr size_t N = 16 / sizeof(T);
   const RepartitionToWide<decltype(d)> dw;
   const auto v10L = BitCast(d, ZipLower(dw, v0, v1));  // .. v1[0] v0[0]
-  const auto v10H = BitCast(d, ZipUpper(dw, v0, v1));  // .. v1[N/2] v0[N/2]
+  const auto v10U = BitCast(d, ZipUpper(dw, v0, v1));  // .. v1[N/2] v0[N/2]
   StoreU(v10L, d, unaligned + 0 * N);
-  StoreU(v10H, d, unaligned + 1 * N);
+  StoreU(v10U, d, unaligned + 1 * N);
 }
 
 // 128 bit vector, 64 bit lanes
@@ -144,9 +471,9 @@ HWY_API void StoreInterleaved2(const Vec128<T> v0, const Vec128<T> v1,
                                Full128<T> d, T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 16 / sizeof(T);
   const auto v10L = InterleaveLower(d, v0, v1);
-  const auto v10H = InterleaveUpper(d, v0, v1);
+  const auto v10U = InterleaveUpper(d, v0, v1);
   StoreU(v10L, d, unaligned + 0 * N);
-  StoreU(v10H, d, unaligned + 1 * N);
+  StoreU(v10U, d, unaligned + 1 * N);
 }
 
 // 64 bits
@@ -540,13 +867,13 @@ HWY_API void StoreInterleaved4(const Vec128<T> v0, const Vec128<T> v1,
   const RepartitionToWide<decltype(d)> dw;
   const auto v10L = ZipLower(dw, v0, v1);  // .. v1[0] v0[0]
   const auto v32L = ZipLower(dw, v2, v3);
-  const auto v10H = ZipUpper(dw, v0, v1);
-  const auto v32H = ZipUpper(dw, v2, v3);
+  const auto v10U = ZipUpper(dw, v0, v1);
+  const auto v32U = ZipUpper(dw, v2, v3);
   // The interleaved vectors are A, B, C, D.
   const auto A = BitCast(d, InterleaveLower(dw, v10L, v32L));  // 3210
   const auto B = BitCast(d, InterleaveUpper(dw, v10L, v32L));
-  const auto C = BitCast(d, InterleaveLower(dw, v10H, v32H));
-  const auto D = BitCast(d, InterleaveUpper(dw, v10H, v32H));
+  const auto C = BitCast(d, InterleaveLower(dw, v10U, v32U));
+  const auto D = BitCast(d, InterleaveUpper(dw, v10U, v32U));
   StoreU(A, d, unaligned + 0 * N);
   StoreU(B, d, unaligned + 1 * N);
   StoreU(C, d, unaligned + 2 * N);
@@ -631,7 +958,7 @@ HWY_API void StoreInterleaved4(const Vec128<T, N> part0,
   CopyBytes<4 * N * sizeof(T)>(buf, unaligned);
 }
 
-#endif  // HWY_NATIVE_STORE_INTERLEAVED
+#endif  // HWY_NATIVE_LOAD_STORE_INTERLEAVED
 
 // ------------------------------ AESRound
 

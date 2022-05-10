@@ -2815,15 +2815,42 @@ HWY_API Vec256<double> Broadcast(const Vec256<double> v) {
 // the shuffle_abcd notation is more convenient.
 
 // Swap 32-bit halves in 64-bit halves.
-HWY_API Vec256<uint32_t> Shuffle2301(const Vec256<uint32_t> v) {
-  return Vec256<uint32_t>{_mm256_shuffle_epi32(v.raw, 0xB1)};
-}
-HWY_API Vec256<int32_t> Shuffle2301(const Vec256<int32_t> v) {
-  return Vec256<int32_t>{_mm256_shuffle_epi32(v.raw, 0xB1)};
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> Shuffle2301(const Vec256<T> v) {
+  return Vec256<T>{_mm256_shuffle_epi32(v.raw, 0xB1)};
 }
 HWY_API Vec256<float> Shuffle2301(const Vec256<float> v) {
   return Vec256<float>{_mm256_shuffle_ps(v.raw, v.raw, 0xB1)};
 }
+
+namespace detail {
+
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> Shuffle2301(const Vec256<T> a, const Vec256<T> b) {
+  const Full256<T> d;
+  const RebindToFloat<decltype(d)> df;
+  constexpr int m = _MM_SHUFFLE(2, 3, 0, 1);
+  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(BitCast(df, a).raw,
+                                                    BitCast(df, b).raw, m)});
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> Shuffle1230(const Vec256<T> a, const Vec256<T> b) {
+  const Full256<T> d;
+  const RebindToFloat<decltype(d)> df;
+  constexpr int m = _MM_SHUFFLE(1, 2, 3, 0);
+  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(BitCast(df, a).raw,
+                                                    BitCast(df, b).raw, m)});
+}
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_API Vec256<T> Shuffle3012(const Vec256<T> a, const Vec256<T> b) {
+  const Full256<T> d;
+  const RebindToFloat<decltype(d)> df;
+  constexpr int m = _MM_SHUFFLE(3, 0, 1, 2);
+  return BitCast(d, Vec256<float>{_mm256_shuffle_ps(BitCast(df, a).raw,
+                                                    BitCast(df, b).raw, m)});
+}
+
+}  // namespace detail
 
 // Swap 64-bit halves
 HWY_API Vec256<uint32_t> Shuffle1032(const Vec256<uint32_t> v) {
@@ -4885,10 +4912,62 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
 
 #endif  // HWY_TARGET <= HWY_AVX3
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ LoadInterleaved3/4
 
-// Do not define HWY_NATIVE_STORE_INTERLEAVED: we implement natively for 256-bit
-// vectors but generic_ops-inl must still define these for <= 128 bit vectors.
+// Implemented in generic_ops, we just overload LoadTransposed3/4.
+
+namespace detail {
+
+// Input:
+// 1 0 (<- first block of unaligned)
+// 3 2
+// 5 4
+// Output:
+// 3 0
+// 4 1
+// 5 2
+template <typename T>
+HWY_API void LoadTransposed3(Full256<T> d, const T* HWY_RESTRICT unaligned,
+                             Vec256<T>& A, Vec256<T>& B, Vec256<T>& C) {
+  constexpr size_t N = 32 / sizeof(T);
+  const Vec256<T> v10 = LoadU(d, unaligned + 0 * N);  // 1 0
+  const Vec256<T> v32 = LoadU(d, unaligned + 1 * N);
+  const Vec256<T> v54 = LoadU(d, unaligned + 2 * N);
+
+  A = ConcatUpperLower(d, v32, v10);
+  B = ConcatLowerUpper(d, v54, v10);
+  C = ConcatUpperLower(d, v54, v32);
+}
+
+// Input (128-bit blocks):
+// 1 0 (first block of unaligned)
+// 3 2
+// 5 4
+// 7 6
+// Output:
+// 4 0 (LSB of A)
+// 5 1
+// 6 2
+// 7 3
+template <typename T>
+HWY_API void LoadTransposed4(Full256<T> d, const T* HWY_RESTRICT unaligned,
+                             Vec256<T>& A, Vec256<T>& B, Vec256<T>& C,
+                             Vec256<T>& D) {
+  constexpr size_t N = 32 / sizeof(T);
+  const Vec256<T> v10 = LoadU(d, unaligned + 0 * N);
+  const Vec256<T> v32 = LoadU(d, unaligned + 1 * N);
+  const Vec256<T> v54 = LoadU(d, unaligned + 2 * N);
+  const Vec256<T> v76 = LoadU(d, unaligned + 3 * N);
+
+  A = ConcatLowerLower(d, v54, v10);
+  B = ConcatUpperUpper(d, v54, v10);
+  C = ConcatLowerLower(d, v76, v32);
+  D = ConcatUpperUpper(d, v76, v32);
+}
+
+}  // namespace detail
+
+// ------------------------------ StoreInterleaved2
 
 template <typename T>
 HWY_API void StoreInterleaved2(const Vec256<T> v0, const Vec256<T> v1,
@@ -4914,8 +4993,8 @@ namespace detail {
 // 5 2
 // Output:
 // 1 0
+// 3 2
 // 5 4
-// 9 8
 template <typename T>
 HWY_API void StoreTransposed3(const Vec256<T> i, const Vec256<T> j,
                               const Vec256<T> k, T* HWY_RESTRICT unaligned) {
@@ -5065,13 +5144,15 @@ HWY_API void StoreInterleaved3(const Vec256<T> v0, const Vec256<T> v1,
 namespace detail {
 
 // Input (128-bit blocks):
-// 3 0 (LSB of i)
-// 4 1
-// 5 2
+// 4 0 (LSB of i)
+// 5 1
+// 6 2
+// 7 3
 // Output:
 // 1 0
+// 3 2
 // 5 4
-// 9 8
+// 7 6
 template <typename T>
 HWY_API void StoreTransposed4(const Vec256<T> i, const Vec256<T> j,
                               const Vec256<T> k, const Vec256<T> l,

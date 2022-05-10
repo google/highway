@@ -1210,14 +1210,69 @@ HWY_API void BlendedStore(const Vec128<T, N> v, Mask128<T, N> m,
   }
 }
 
-// ------------------------------ StoreInterleaved2/3/4
+// ------------------------------ LoadInterleaved2/3/4
 
-// Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
-#ifdef HWY_NATIVE_STORE_INTERLEAVED
-#undef HWY_NATIVE_STORE_INTERLEAVED
+// Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
+// We implement those here because the generic_ops-inl implementation relies on
+// two 64-bit vectors fitting in Vec128, which is not true of the Vec128 here.
+// Scalar code is likely also faster than emulation via shuffles.
+#ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
-#define HWY_NATIVE_STORE_INTERLEAVED
+#define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
+
+template <typename T, size_t N>
+HWY_API void LoadInterleaved2(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              Vec128<T, N>& v0, Vec128<T, N>& v1) {
+  alignas(16) T buf0[N];
+  alignas(16) T buf1[N];
+  for (size_t i = 0; i < N; ++i) {
+    buf0[i] = *unaligned++;
+    buf1[i] = *unaligned++;
+  }
+  v0 = Load(d, buf0);
+  v1 = Load(d, buf1);
+}
+
+template <typename T, size_t N>
+HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              Vec128<T, N>& v0, Vec128<T, N>& v1,
+                              Vec128<T, N>& v2) {
+  alignas(16) T buf0[N];
+  alignas(16) T buf1[N];
+  alignas(16) T buf2[N];
+  for (size_t i = 0; i < N; ++i) {
+    buf0[i] = *unaligned++;
+    buf1[i] = *unaligned++;
+    buf2[i] = *unaligned++;
+  }
+  v0 = Load(d, buf0);
+  v1 = Load(d, buf1);
+  v2 = Load(d, buf2);
+}
+
+template <typename T, size_t N>
+HWY_API void LoadInterleaved4(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
+                              Vec128<T, N>& v0, Vec128<T, N>& v1,
+                              Vec128<T, N>& v2, Vec128<T, N>& v3) {
+  alignas(16) T buf0[N];
+  alignas(16) T buf1[N];
+  alignas(16) T buf2[N];
+  alignas(16) T buf3[N];
+  for (size_t i = 0; i < N; ++i) {
+    buf0[i] = *unaligned++;
+    buf1[i] = *unaligned++;
+    buf2[i] = *unaligned++;
+    buf3[i] = *unaligned++;
+  }
+  v0 = Load(d, buf0);
+  v1 = Load(d, buf1);
+  v2 = Load(d, buf2);
+  v3 = Load(d, buf3);
+}
+
+// ------------------------------ StoreInterleaved2/3/4
 
 template <typename T, size_t N>
 HWY_API void StoreInterleaved2(const Vec128<T, N> v0, const Vec128<T, N> v1,

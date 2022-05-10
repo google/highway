@@ -961,14 +961,41 @@ HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, Sisd<T> d,
   StoreU(v, d, p);
 }
 
-// ------------------------------ StoreInterleaved2/3/4
+// ------------------------------ LoadInterleaved2/3/4
 
 // Per-target flag to prevent generic_ops-inl.h from defining StoreInterleaved2.
-#ifdef HWY_NATIVE_STORE_INTERLEAVED
-#undef HWY_NATIVE_STORE_INTERLEAVED
+#ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
+#undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
-#define HWY_NATIVE_STORE_INTERLEAVED
+#define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
+
+template <typename T>
+HWY_API void LoadInterleaved2(Sisd<T> d, const T* HWY_RESTRICT unaligned,
+                              Vec1<T>& v0, Vec1<T>& v1) {
+  v0 = LoadU(d, unaligned + 0);
+  v1 = LoadU(d, unaligned + 1);
+}
+
+template <typename T>
+HWY_API void LoadInterleaved3(Sisd<T> d, const T* HWY_RESTRICT unaligned,
+                              Vec1<T>& v0, Vec1<T>& v1, Vec1<T>& v2) {
+  v0 = LoadU(d, unaligned + 0);
+  v1 = LoadU(d, unaligned + 1);
+  v2 = LoadU(d, unaligned + 2);
+}
+
+template <typename T>
+HWY_API void LoadInterleaved4(Sisd<T> d, const T* HWY_RESTRICT unaligned,
+                              Vec1<T>& v0, Vec1<T>& v1, Vec1<T>& v2,
+                              Vec1<T>& v3) {
+  v0 = LoadU(d, unaligned + 0);
+  v1 = LoadU(d, unaligned + 1);
+  v2 = LoadU(d, unaligned + 2);
+  v3 = LoadU(d, unaligned + 3);
+}
+
+// ------------------------------ StoreInterleaved2/3/4
 
 template <typename T>
 HWY_API void StoreInterleaved2(const Vec1<T> v0, const Vec1<T> v1, Sisd<T> d,
