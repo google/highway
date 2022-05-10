@@ -259,7 +259,9 @@ target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
-target_include_directories(hwy PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(hwy PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy PUBLIC cxx_std_11)
 set_target_properties(hwy PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
@@ -275,7 +277,9 @@ target_link_libraries(hwy_contrib hwy)
 target_compile_options(hwy_contrib PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_contrib PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy_contrib PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
-target_include_directories(hwy_contrib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(hwy_contrib PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
 endif()  # HWY_ENABLE_CONTRIB
 
@@ -284,7 +288,9 @@ target_link_libraries(hwy_test hwy)
 target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
 set_property(TARGET hwy_test PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(hwy_test PROPERTIES VERSION ${LIBRARY_VERSION} SOVERSION ${LIBRARY_SOVERSION})
-target_include_directories(hwy_test PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(hwy_test PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy_test PUBLIC cxx_std_11)
 
 # -------------------------------------------------------- hwy_list_targets
