@@ -355,7 +355,7 @@ HWY_API Vec1<T> ShiftRight(const Vec1<T> v) {
 #if __cplusplus >= 202002L
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
-  return Vec1<T>(v.raw >> kBits);
+  return Vec1<T>(static_cast<T>(v.raw >> kBits));
 #else
   if (IsSigned<T>()) {
     // Emulate arithmetic shift using only logical (unsigned) shifts, because
@@ -364,10 +364,12 @@ HWY_API Vec1<T> ShiftRight(const Vec1<T> v) {
     const Sisd<TU> du;
     const TU shifted = BitCast(du, v).raw >> kBits;
     const TU sign = BitCast(du, BroadcastSignBit(v)).raw;
-    const TU upper = sign << (sizeof(TU) * 8 - 1 - kBits);
+    const size_t sign_shift =
+        static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - kBits);
+    const TU upper = static_cast<TU>(sign << sign_shift);
     return BitCast(Sisd<T>(), Vec1<TU>(shifted | upper));
-  } else {
-    return Vec1<T>(v.raw >> kBits);  // unsigned, logical shift
+  } else {  // T is unsigned
+    return Vec1<T>(static_cast<T>(v.raw >> kBits));
   }
 #endif
 }
@@ -414,7 +416,7 @@ HWY_API Vec1<T> ShiftRightSame(const Vec1<T> v, int bits) {
 #if __cplusplus >= 202002L
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
-  return Vec1<T>(v.raw >> bits);
+  return Vec1<T>(static_cast<T>(v.raw >> bits));
 #else
   if (IsSigned<T>()) {
     // Emulate arithmetic shift using only logical (unsigned) shifts, because
@@ -423,10 +425,12 @@ HWY_API Vec1<T> ShiftRightSame(const Vec1<T> v, int bits) {
     const Sisd<TU> du;
     const TU shifted = BitCast(du, v).raw >> bits;
     const TU sign = BitCast(du, BroadcastSignBit(v)).raw;
-    const TU upper = sign << (sizeof(TU) * 8 - 1 - bits);
+    const size_t sign_shift =
+        static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - bits);
+    const TU upper = static_cast<TU>(sign << sign_shift);
     return BitCast(Sisd<T>(), Vec1<TU>(shifted | upper));
-  } else {
-    return Vec1<T>(v.raw >> bits);  // unsigned, logical shift
+  } else {  // T is unsigned
+    return Vec1<T>(static_cast<T>(v.raw >> bits));
   }
 #endif
 }
