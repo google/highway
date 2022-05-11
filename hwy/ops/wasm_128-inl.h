@@ -1855,25 +1855,29 @@ namespace detail {
 template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
-  return Vec128<T, N>{wasm_i8x16_replace_lane(v.raw, kLane, t)};
+  return Vec128<T, N>{
+      wasm_i8x16_replace_lane(v.raw, kLane, static_cast<int8_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
-  return Vec128<T, N>{wasm_i16x8_replace_lane(v.raw, kLane, t)};
+  return Vec128<T, N>{
+      wasm_i16x8_replace_lane(v.raw, kLane, static_cast<int16_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
-  return Vec128<T, N>{wasm_i32x4_replace_lane(v.raw, kLane, t)};
+  return Vec128<T, N>{
+      wasm_i32x4_replace_lane(v.raw, kLane, static_cast<int32_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
-  return Vec128<T, N>{wasm_i64x2_replace_lane(v.raw, kLane, t)};
+  return Vec128<T, N>{
+      wasm_i64x2_replace_lane(v.raw, kLane, static_cast<int64_t>(t))};
 }
 
 template <size_t kLane, size_t N>

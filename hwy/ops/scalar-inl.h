@@ -345,7 +345,8 @@ HWY_API Mask1<T> Xor(const Mask1<T> a, Mask1<T> b) {
 template <int kBits, typename T>
 HWY_API Vec1<T> ShiftLeft(const Vec1<T> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  return Vec1<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << kBits);
+  return Vec1<T>(
+      static_cast<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << kBits));
 }
 
 template <int kBits, typename T>
@@ -404,7 +405,8 @@ HWY_API Vec1<T> RotateRight(const Vec1<T> v) {
 
 template <typename T>
 HWY_API Vec1<T> ShiftLeftSame(const Vec1<T> v, int bits) {
-  return Vec1<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << bits);
+  return Vec1<T>(
+      static_cast<T>(static_cast<hwy::MakeUnsigned<T>>(v.raw) << bits));
 }
 
 template <typename T>
