@@ -344,7 +344,7 @@ inline void PreventElision(T&& output) {
 // frequency encoded in x86 BrandString because it is misleading on M1 Rosetta,
 // and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
 // used on RISC-V and ARM64.
-double MeasureNominalClockRate() {
+HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
   double max_ticks_per_sec = 0.0;
   // Arbitrary, enough to ignore 2 outliers without excessive init time.
   for (int rep = 0; rep < 3; ++rep) {

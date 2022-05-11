@@ -105,7 +105,12 @@ T* CopyIf(D d, const T* HWY_RESTRICT from, size_t count, T* HWY_RESTRICT to,
   const CappedTag<T, 1> d1;
   for (; idx < count; ++idx) {
     using V1 = Vec<decltype(d1)>;
-    const V1 v = LoadU(d1, from + idx);
+    // Workaround for -Waggressive-loop-optimizations on GCC 8
+    // (iteration 2305843009213693951 invokes undefined behavior for T=i64)
+    const uintptr_t addr = reinterpret_cast<uintptr_t>(from);
+    const T* HWY_RESTRICT from_idx =
+        reinterpret_cast<const T * HWY_RESTRICT>(addr + (idx * sizeof(T)));
+    const V1 v = LoadU(d1, from_idx);
     // Avoid storing to `to` unless we know it should be kept - otherwise, we
     // might overrun the end if it was allocated for the exact count.
     if (CountTrue(d1, func(d1, v)) == 0) continue;

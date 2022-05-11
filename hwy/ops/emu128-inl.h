@@ -408,7 +408,8 @@ HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
     for (T& lane : v.raw) {
       const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> kBits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const size_t sign_shift = sizeof(TU) * 8 - 1 - static_cast<size_t>(kBits);
+      const size_t sign_shift =
+          static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - kBits);
       const TU upper = static_cast<TU>(sign << sign_shift);
       lane = static_cast<T>(shifted | upper);
     }
@@ -477,7 +478,8 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
     for (T& lane : v.raw) {
       const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> bits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const size_t sign_shift = sizeof(TU) * 8 - 1 - static_cast<size_t>(bits);
+      const size_t sign_shift =
+          static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - bits);
       const TU upper = static_cast<TU>(sign << sign_shift);
       lane = static_cast<T>(shifted | upper);
     }
@@ -519,8 +521,8 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
       const TU shifted =
           static_cast<TU>(static_cast<TU>(v.raw[i]) >> bits.raw[i]);
       const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const size_t sign_shift =
-          sizeof(TU) * 8 - 1 - static_cast<size_t>(bits.raw[i]);
+      const size_t sign_shift = static_cast<size_t>(
+          static_cast<int>(sizeof(TU)) * 8 - 1 - bits.raw[i]);
       const TU upper = static_cast<TU>(sign << sign_shift);
       v.raw[i] = static_cast<T>(shifted | upper);
     }
@@ -617,7 +619,8 @@ template <typename T, size_t N, HWY_IF_SIGNED(T)>
 HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
   for (size_t i = 0; i < N; ++i) {
     const T s = a.raw[i];
-    a.raw[i] = (s >= 0 || s == hwy::LimitsMin<T>()) ? a.raw[i] : -s;
+    const T min = hwy::LimitsMin<T>();
+    a.raw[i] = static_cast<T>((s >= 0 || s == min) ? a.raw[i] : -s);
   }
   return a;
 }
