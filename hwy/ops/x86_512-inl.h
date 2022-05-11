@@ -3796,7 +3796,7 @@ HWY_API size_t CompressBitsStore(Vec512<T> v, const uint8_t* HWY_RESTRICT bits,
 
 // ------------------------------ LoadInterleaved4
 
-// Actually implemented in generic_ops, we just overload LoadTransposed4.
+// Actually implemented in generic_ops, we just overload LoadTransposedBlocks4.
 namespace detail {
 
 // Type-safe wrapper.
@@ -3822,8 +3822,9 @@ Vec512<double> Shuffle128(const Vec512<double> lo, const Vec512<double> hi) {
 // a 7 4 1
 // b 8 5 2
 template <typename T>
-HWY_API void LoadTransposed3(Full512<T> d, const T* HWY_RESTRICT unaligned,
-                             Vec512<T>& A, Vec512<T>& B, Vec512<T>& C) {
+HWY_API void LoadTransposedBlocks3(Full512<T> d,
+                                   const T* HWY_RESTRICT unaligned,
+                                   Vec512<T>& A, Vec512<T>& B, Vec512<T>& C) {
   constexpr size_t N = 64 / sizeof(T);
   const Vec512<T> v3210 = LoadU(d, unaligned + 0 * N);
   const Vec512<T> v7654 = LoadU(d, unaligned + 1 * N);
@@ -3848,9 +3849,10 @@ HWY_API void LoadTransposed3(Full512<T> d, const T* HWY_RESTRICT unaligned,
 // e a 6 2
 // f b 7 3
 template <typename T>
-HWY_API void LoadTransposed4(Full512<T> d, const T* HWY_RESTRICT unaligned,
-                             Vec512<T>& A, Vec512<T>& B, Vec512<T>& C,
-                             Vec512<T>& D) {
+HWY_API void LoadTransposedBlocks4(Full512<T> d,
+                                   const T* HWY_RESTRICT unaligned,
+                                   Vec512<T>& A, Vec512<T>& B, Vec512<T>& C,
+                                   Vec512<T>& D) {
   constexpr size_t N = 64 / sizeof(T);
   const Vec512<T> v3210 = LoadU(d, unaligned + 0 * N);
   const Vec512<T> v7654 = LoadU(d, unaligned + 1 * N);
@@ -3871,26 +3873,30 @@ HWY_API void LoadTransposed4(Full512<T> d, const T* HWY_RESTRICT unaligned,
 
 // ------------------------------ StoreInterleaved2
 
+// Implemented in generic_ops, we just overload StoreTransposedBlocks2/3/4.
+
+namespace detail {
+
+// Input (128-bit blocks):
+// 6 4 2 0 (LSB of i)
+// 7 5 3 1
+// Output:
+// 3 2 1 0
+// 7 6 5 4
 template <typename T>
-HWY_API void StoreInterleaved2(const Vec512<T> v0, const Vec512<T> v1,
-                               Full512<T> d, T* HWY_RESTRICT unaligned) {
-  const auto i = InterleaveLower(d, v0, v1);
-  const auto j = InterleaveUpper(d, v0, v1);
-  // 2x4 transpose: interleave 128-bit blocks.
+HWY_API void StoreTransposedBlocks2(const Vec512<T> i, const Vec512<T> j,
+                                    const Full512<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  constexpr size_t N = 64 / sizeof(T);
   const auto j1_j0_i1_i0 = detail::Shuffle128<_MM_PERM_BABA>(i, j);
   const auto j3_j2_i3_i2 = detail::Shuffle128<_MM_PERM_DCDC>(i, j);
   const auto j1_i1_j0_i0 =
       detail::Shuffle128<_MM_PERM_DBCA>(j1_j0_i1_i0, j1_j0_i1_i0);
   const auto j3_i3_j2_i2 =
       detail::Shuffle128<_MM_PERM_DBCA>(j3_j2_i3_i2, j3_j2_i3_i2);
-  StoreU(j1_i1_j0_i0, d, unaligned + 0 * (64 / sizeof(T)));
-  StoreU(j3_i3_j2_i2, d, unaligned + 1 * (64 / sizeof(T)));
+  StoreU(j1_i1_j0_i0, d, unaligned + 0 * N);
+  StoreU(j3_i3_j2_i2, d, unaligned + 1 * N);
 }
-
-// ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
-// TableLookupBytes)
-
-namespace detail {
 
 // Input (128-bit blocks):
 // 9 6 3 0 (LSB of i)
@@ -3901,10 +3907,10 @@ namespace detail {
 // 7 6 5 4
 // b a 9 8
 template <typename T>
-HWY_API void StoreTransposed3(const Vec512<T> i, const Vec512<T> j,
-                              const Vec512<T> k, T* HWY_RESTRICT unaligned) {
+HWY_API void StoreTransposedBlocks3(const Vec512<T> i, const Vec512<T> j,
+                                    const Vec512<T> k, Full512<T> d,
+                                    T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 64 / sizeof(T);
-  const Full512<T> d;
   const Vec512<T> j2_j0_i2_i0 = detail::Shuffle128<_MM_PERM_CACA>(i, j);
   const Vec512<T> i3_i1_k2_k0 = detail::Shuffle128<_MM_PERM_DBCA>(k, i);
   const Vec512<T> j3_j1_k3_k1 = detail::Shuffle128<_MM_PERM_DBDB>(k, j);
@@ -3921,141 +3927,6 @@ HWY_API void StoreTransposed3(const Vec512<T> i, const Vec512<T> j,
   StoreU(out2, d, unaligned + 2 * N);
 }
 
-}  // namespace detail
-
-template <typename T, HWY_IF_LANE_SIZE(T, 1)>
-HWY_API void StoreInterleaved3(const Vec512<T> v0, const Vec512<T> v1,
-                               const Vec512<T> v2, Full512<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const Full512<uint8_t> du;
-  const auto k5 = Set(du, 5);
-  const auto k6 = Set(du, 6);
-
-  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): r5, bgr[4:0].
-  // 0x80 so lanes to be filled from other vectors are 0 for blending.
-  alignas(16) static constexpr uint8_t tbl_r0[16] = {
-      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
-      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
-  alignas(16) static constexpr uint8_t tbl_g0[16] = {
-      0x80, 0, 0x80, 0x80, 1, 0x80,  //
-      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
-  const auto shuf_r0 = LoadDup128(du, tbl_r0);
-  const auto shuf_g0 = LoadDup128(du, tbl_g0);  // cannot reuse r0 due to 5
-  const auto shuf_b0 = CombineShiftRightBytes<15>(du, shuf_g0, shuf_g0);
-  const auto r0 = TableLookupBytes(v0, shuf_r0);  // 5..4..3..2..1..0
-  const auto g0 = TableLookupBytes(v1, shuf_g0);  // ..4..3..2..1..0.
-  const auto b0 = TableLookupBytes(v2, shuf_b0);  // .4..3..2..1..0..
-  const Vec512<T> i = BitCast(d, r0 | g0 | b0);
-
-  // Second vector: g10,r10, bgr[9:6], b5,g5
-  const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
-  const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
-  const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
-  const auto r1 = TableLookupBytes(v0, shuf_r1);
-  const auto g1 = TableLookupBytes(v1, shuf_g1);
-  const auto b1 = TableLookupBytes(v2, shuf_b1);
-  const Vec512<T> j = BitCast(d, r1 | g1 | b1);
-
-  // Third vector: bgr[15:11], b10
-  const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
-  const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
-  const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
-  const auto r2 = TableLookupBytes(v0, shuf_r2);
-  const auto g2 = TableLookupBytes(v1, shuf_g2);
-  const auto b2 = TableLookupBytes(v2, shuf_b2);
-  const Vec512<T> k = BitCast(d, r2 | g2 | b2);
-
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API void StoreInterleaved3(const Vec512<T> v0, const Vec512<T> v1,
-                               const Vec512<T> v2, Full512<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const Repartition<uint8_t, decltype(d)> du8;
-  const auto k2 = Set(du8, 2 * sizeof(T));
-  const auto k3 = Set(du8, 3 * sizeof(T));
-
-  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): gr2, bgr[1:0].
-  // 0x80 so lanes to be filled from other vectors are 0 for blending.
-  alignas(16) static constexpr uint8_t tbl_g0[16] = {
-      0x80, 0x80, 0,    1,    0x80, 0x80, 0x80, 0x80,
-      2,    3,    0x80, 0x80, 0x80, 0x80, 4,    5};
-  alignas(16) static constexpr uint8_t tbl_b0[16] = {
-      0x80, 0x80, 0x80, 0x80, 0,    1,    0x80, 0x80,
-      0x80, 0x80, 2,    3,    0x80, 0x80, 0x80, 0x80};
-
-  const auto shuf_g0 = LoadDup128(du8, tbl_g0);  // 2..1..0.
-                                                 // .2..1..0
-  const auto shuf_r0 = CombineShiftRightBytes<2>(du8, shuf_g0, shuf_g0);
-  const auto shuf_b0 = LoadDup128(du8, tbl_b0);  // ..1..0..
-
-  const auto r0 = TableLookupBytes(v0, shuf_r0);
-  const auto g0 = TableLookupBytes(v1, shuf_g0);
-  const auto b0 = TableLookupBytes(v2, shuf_b0);
-  const Vec512<T> i = BitCast(d, r0 | g0 | b0);
-
-  // Second vector: r5, bgr[4:3], b2
-  const auto shuf_r1 = shuf_g0 + k3;  // 5..4..3.
-  const auto shuf_g1 = shuf_b0 + k3;  // ..4..3..
-  const auto shuf_b1 = shuf_r0 + k2;  // .4..3..2
-  const auto r1 = TableLookupBytes(v0, shuf_r1);
-  const auto g1 = TableLookupBytes(v1, shuf_g1);
-  const auto b1 = TableLookupBytes(v2, shuf_b1);
-  const Vec512<T> j = BitCast(d, r1 | g1 | b1);
-
-  // Third vector: bgr[7:6], bg5
-  const auto shuf_r2 = shuf_g1 + k3;  // ..7..6..
-  const auto shuf_g2 = shuf_b1 + k3;  // .7..6..5
-  const auto shuf_b2 = shuf_r1 + k2;  // 7..6..5.
-  const auto r2 = TableLookupBytes(v0, shuf_r2);
-  const auto g2 = TableLookupBytes(v1, shuf_g2);
-  const auto b2 = TableLookupBytes(v2, shuf_b2);
-  const Vec512<T> k = BitCast(d, r2 | g2 | b2);
-
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API void StoreInterleaved3(const Vec512<T> v0, const Vec512<T> v1,
-                               const Vec512<T> v2, Full512<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const RepartitionToWide<decltype(d)> dw;
-
-  const Vec512<T> g0r0 = InterleaveLower(d, v0, v1);
-  const Vec512<T> r1b0 = OddEven(v0, v2);
-  const Vec512<T> i =
-      BitCast(d, InterleaveLower(dw, BitCast(dw, g0r0), BitCast(dw, r1b0)));
-
-  const Vec512<T> zzg3g2g1 = ShiftRightLanes<1>(d, v1);
-  const Vec512<T> zzzzr3r2 = ShiftRightLanes<2>(d, v0);
-  const Vec512<T> b1g1 = OddEven(v2, zzg3g2g1);
-  const Vec512<T> g2r2 = OddEven(zzg3g2g1, zzzzr3r2);
-  const Vec512<T> j =
-      BitCast(d, InterleaveLower(dw, BitCast(dw, b1g1), BitCast(dw, g2r2)));
-
-  const Vec512<T> b3g3 = OddEven(v2, zzg3g2g1);
-  const Vec512<T> r3b2 = OddEven(v0, v2);
-  const Vec512<T> k =
-      BitCast(d, InterleaveUpper(dw, BitCast(dw, r3b2), BitCast(dw, b3g3)));
-
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API void StoreInterleaved3(const Vec512<T> v0, const Vec512<T> v1,
-                               const Vec512<T> v2, Full512<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const Vec512<T> i = InterleaveLower(d, v0, v1);
-  const Vec512<T> j = OddEven(v0, v2);
-  const Vec512<T> k = InterleaveUpper(d, v1, v2);
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-// ------------------------------ StoreInterleaved4
-
-namespace detail {
-
 // Input (128-bit blocks):
 // c 8 4 0 (LSB of i)
 // d 9 5 1
@@ -4067,11 +3938,10 @@ namespace detail {
 // b a 9 8
 // f e d c
 template <typename T>
-HWY_API void StoreTransposed4(const Vec512<T> i, const Vec512<T> j,
-                              const Vec512<T> k, const Vec512<T> l,
-                              T* HWY_RESTRICT unaligned) {
+HWY_API void StoreTransposedBlocks4(const Vec512<T> i, const Vec512<T> j,
+                                    const Vec512<T> k, const Vec512<T> l,
+                                    Full512<T> d, T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 64 / sizeof(T);
-  const Full512<T> d;
   const Vec512<T> j1_j0_i1_i0 = detail::Shuffle128<_MM_PERM_BABA>(i, j);
   const Vec512<T> l1_l0_k1_k0 = detail::Shuffle128<_MM_PERM_BABA>(k, l);
   const Vec512<T> j3_j2_i3_i2 = detail::Shuffle128<_MM_PERM_DCDC>(i, j);
@@ -4091,35 +3961,6 @@ HWY_API void StoreTransposed4(const Vec512<T> i, const Vec512<T> j,
 }
 
 }  // namespace detail
-
-template <typename T, HWY_IF_NOT_LANE_SIZE(T, 8)>
-HWY_API void StoreInterleaved4(const Vec512<T> v0, const Vec512<T> v1,
-                               const Vec512<T> v2, const Vec512<T> v3,
-                               Full512<T> d, T* HWY_RESTRICT unaligned) {
-  const RepartitionToWide<decltype(d)> dw;
-  // let a,b,c,d denote v0..3.
-  const auto ba0 = ZipLower(dw, v0, v1);
-  const auto dc0 = ZipLower(dw, v2, v3);
-  const auto ba8 = ZipUpper(dw, v0, v1);
-  const auto dc8 = ZipUpper(dw, v2, v3);
-  const Vec512<T> i = BitCast(d, InterleaveLower(dw, ba0, dc0));
-  const Vec512<T> j = BitCast(d, InterleaveUpper(dw, ba0, dc0));
-  const Vec512<T> k = BitCast(d, InterleaveLower(dw, ba8, dc8));
-  const Vec512<T> l = BitCast(d, InterleaveUpper(dw, ba8, dc8));
-  detail::StoreTransposed4(i, j, k, l, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API void StoreInterleaved4(const Vec512<T> v0, const Vec512<T> v1,
-                               const Vec512<T> v2, const Vec512<T> v3,
-                               Full512<T> d, T* HWY_RESTRICT unaligned) {
-  // let a,b,c,d denote v0..3.
-  const Vec512<T> i = InterleaveLower(d, v0, v1);  // b6a6 b4a4 b2a2 b0a0
-  const Vec512<T> j = InterleaveLower(d, v2, v3);  // d6c6 d4c4 d2c2 d0c0
-  const Vec512<T> k = InterleaveUpper(d, v0, v1);  // b7a7 b5a5 b3a3 b1a1
-  const Vec512<T> l = InterleaveUpper(d, v2, v3);  // d7c7 d5c5 d3c3 d1c1
-  detail::StoreTransposed4(i, j, k, l, unaligned);
-}
 
 // ------------------------------ MulEven/Odd (Shuffle2301, InterleaveLower)
 

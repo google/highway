@@ -4914,7 +4914,7 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
 
 // ------------------------------ LoadInterleaved3/4
 
-// Implemented in generic_ops, we just overload LoadTransposed3/4.
+// Implemented in generic_ops, we just overload LoadTransposedBlocks3/4.
 
 namespace detail {
 
@@ -4927,8 +4927,9 @@ namespace detail {
 // 4 1
 // 5 2
 template <typename T>
-HWY_API void LoadTransposed3(Full256<T> d, const T* HWY_RESTRICT unaligned,
-                             Vec256<T>& A, Vec256<T>& B, Vec256<T>& C) {
+HWY_API void LoadTransposedBlocks3(Full256<T> d,
+                                   const T* HWY_RESTRICT unaligned,
+                                   Vec256<T>& A, Vec256<T>& B, Vec256<T>& C) {
   constexpr size_t N = 32 / sizeof(T);
   const Vec256<T> v10 = LoadU(d, unaligned + 0 * N);  // 1 0
   const Vec256<T> v32 = LoadU(d, unaligned + 1 * N);
@@ -4950,9 +4951,10 @@ HWY_API void LoadTransposed3(Full256<T> d, const T* HWY_RESTRICT unaligned,
 // 6 2
 // 7 3
 template <typename T>
-HWY_API void LoadTransposed4(Full256<T> d, const T* HWY_RESTRICT unaligned,
-                             Vec256<T>& A, Vec256<T>& B, Vec256<T>& C,
-                             Vec256<T>& D) {
+HWY_API void LoadTransposedBlocks4(Full256<T> d,
+                                   const T* HWY_RESTRICT unaligned,
+                                   Vec256<T>& A, Vec256<T>& B, Vec256<T>& C,
+                                   Vec256<T>& D) {
   constexpr size_t N = 32 / sizeof(T);
   const Vec256<T> v10 = LoadU(d, unaligned + 0 * N);
   const Vec256<T> v32 = LoadU(d, unaligned + 1 * N);
@@ -4967,25 +4969,28 @@ HWY_API void LoadTransposed4(Full256<T> d, const T* HWY_RESTRICT unaligned,
 
 }  // namespace detail
 
-// ------------------------------ StoreInterleaved2
+// ------------------------------ StoreInterleaved2/3/4 (ConcatUpperLower)
 
-template <typename T>
-HWY_API void StoreInterleaved2(const Vec256<T> v0, const Vec256<T> v1,
-                               Full256<T> d, T* HWY_RESTRICT unaligned) {
-  // let a,b denote v0,v1.
-  const auto baL = InterleaveLower(d, v0, v1);
-  const auto baH = InterleaveUpper(d, v0, v1);
-  // Write lower halves, then upper.
-  const auto out0 = ConcatLowerLower(d, baH, baL);
-  const auto out1 = ConcatUpperUpper(d, baH, baL);
-  StoreU(out0, d, unaligned + 0 * (32 / sizeof(T)));
-  StoreU(out1, d, unaligned + 1 * (32 / sizeof(T)));
-}
-
-// ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
-// TableLookupBytes, ConcatUpperLower)
+// Implemented in generic_ops, we just overload StoreTransposedBlocks2/3/4.
 
 namespace detail {
+
+// Input (128-bit blocks):
+// 2 0 (LSB of i)
+// 3 1
+// Output:
+// 1 0
+// 3 2
+template <typename T>
+HWY_API void StoreTransposedBlocks2(const Vec256<T> i, const Vec256<T> j,
+                                    const Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  constexpr size_t N = 32 / sizeof(T);
+  const auto out0 = ConcatLowerLower(d, j, i);
+  const auto out1 = ConcatUpperUpper(d, j, i);
+  StoreU(out0, d, unaligned + 0 * N);
+  StoreU(out1, d, unaligned + 1 * N);
+}
 
 // Input (128-bit blocks):
 // 3 0 (LSB of i)
@@ -4996,10 +5001,10 @@ namespace detail {
 // 3 2
 // 5 4
 template <typename T>
-HWY_API void StoreTransposed3(const Vec256<T> i, const Vec256<T> j,
-                              const Vec256<T> k, T* HWY_RESTRICT unaligned) {
+HWY_API void StoreTransposedBlocks3(const Vec256<T> i, const Vec256<T> j,
+                                    const Vec256<T> k, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 32 / sizeof(T);
-  const Full256<T> d;
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatUpperLower(d, i, k);
   const auto out2 = ConcatUpperUpper(d, k, j);
@@ -5007,141 +5012,6 @@ HWY_API void StoreTransposed3(const Vec256<T> i, const Vec256<T> j,
   StoreU(out1, d, unaligned + 1 * N);
   StoreU(out2, d, unaligned + 2 * N);
 }
-
-}  // namespace detail
-
-template <typename T, HWY_IF_LANE_SIZE(T, 1)>
-HWY_API void StoreInterleaved3(const Vec256<T> v0, const Vec256<T> v1,
-                               const Vec256<T> v2, Full256<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const Full256<uint8_t> du;
-  const auto k5 = Set(du, 5);
-  const auto k6 = Set(du, 6);
-
-  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): r5, bgr[4:0].
-  // 0x80 so lanes to be filled from other vectors are 0 for blending.
-  alignas(16) static constexpr uint8_t tbl_r0[16] = {
-      0, 0x80, 0x80, 1, 0x80, 0x80, 2, 0x80, 0x80,  //
-      3, 0x80, 0x80, 4, 0x80, 0x80, 5};
-  alignas(16) static constexpr uint8_t tbl_g0[16] = {
-      0x80, 0, 0x80, 0x80, 1, 0x80,  //
-      0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
-  const auto shuf_r0 = LoadDup128(du, tbl_r0);
-  const auto shuf_g0 = LoadDup128(du, tbl_g0);  // cannot reuse r0 due to 5
-  const auto shuf_b0 = CombineShiftRightBytes<15>(du, shuf_g0, shuf_g0);
-  const auto r0 = TableLookupBytes(v0, shuf_r0);  // 5..4..3..2..1..0
-  const auto g0 = TableLookupBytes(v1, shuf_g0);  // ..4..3..2..1..0.
-  const auto b0 = TableLookupBytes(v2, shuf_b0);  // .4..3..2..1..0..
-  const Vec256<T> i = BitCast(d, r0 | g0 | b0);
-
-  // Second vector: g10,r10, bgr[9:6], b5,g5
-  const auto shuf_r1 = shuf_b0 + k6;  // .A..9..8..7..6..
-  const auto shuf_g1 = shuf_r0 + k5;  // A..9..8..7..6..5
-  const auto shuf_b1 = shuf_g0 + k5;  // ..9..8..7..6..5.
-  const auto r1 = TableLookupBytes(v0, shuf_r1);
-  const auto g1 = TableLookupBytes(v1, shuf_g1);
-  const auto b1 = TableLookupBytes(v2, shuf_b1);
-  const Vec256<T> j = BitCast(d, r1 | g1 | b1);
-
-  // Third vector: bgr[15:11], b10
-  const auto shuf_r2 = shuf_b1 + k6;  // ..F..E..D..C..B.
-  const auto shuf_g2 = shuf_r1 + k5;  // .F..E..D..C..B..
-  const auto shuf_b2 = shuf_g1 + k5;  // F..E..D..C..B..A
-  const auto r2 = TableLookupBytes(v0, shuf_r2);
-  const auto g2 = TableLookupBytes(v1, shuf_g2);
-  const auto b2 = TableLookupBytes(v2, shuf_b2);
-  const Vec256<T> k = BitCast(d, r2 | g2 | b2);
-
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API void StoreInterleaved3(const Vec256<T> v0, const Vec256<T> v1,
-                               const Vec256<T> v2, Full256<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const Repartition<uint8_t, decltype(d)> du8;
-  const auto k2 = Set(du8, 2 * sizeof(T));
-  const auto k3 = Set(du8, 3 * sizeof(T));
-
-  // Shuffle (v0,v1,v2) vector bytes to (MSB on left): gr2, bgr[1:0].
-  // 0x80 so lanes to be filled from other vectors are 0 for blending.
-  alignas(16) static constexpr uint8_t tbl_g0[16] = {
-      0x80, 0x80, 0,    1,    0x80, 0x80, 0x80, 0x80,
-      2,    3,    0x80, 0x80, 0x80, 0x80, 4,    5};
-  alignas(16) static constexpr uint8_t tbl_b0[16] = {
-      0x80, 0x80, 0x80, 0x80, 0,    1,    0x80, 0x80,
-      0x80, 0x80, 2,    3,    0x80, 0x80, 0x80, 0x80};
-
-  const auto shuf_g0 = LoadDup128(du8, tbl_g0);  // 2..1..0.
-                                                 // .2..1..0
-  const auto shuf_r0 = CombineShiftRightBytes<2>(du8, shuf_g0, shuf_g0);
-  const auto shuf_b0 = LoadDup128(du8, tbl_b0);  // ..1..0..
-
-  const auto r0 = TableLookupBytes(v0, shuf_r0);
-  const auto g0 = TableLookupBytes(v1, shuf_g0);
-  const auto b0 = TableLookupBytes(v2, shuf_b0);
-  const Vec256<T> i = BitCast(d, r0 | g0 | b0);
-
-  // Second vector: r5, bgr[4:3], b2
-  const auto shuf_r1 = shuf_g0 + k3;  // 5..4..3.
-  const auto shuf_g1 = shuf_b0 + k3;  // ..4..3..
-  const auto shuf_b1 = shuf_r0 + k2;  // .4..3..2
-  const auto r1 = TableLookupBytes(v0, shuf_r1);
-  const auto g1 = TableLookupBytes(v1, shuf_g1);
-  const auto b1 = TableLookupBytes(v2, shuf_b1);
-  const Vec256<T> j = BitCast(d, r1 | g1 | b1);
-
-  // Third vector: bgr[7:6], bg5
-  const auto shuf_r2 = shuf_g1 + k3;  // ..7..6..
-  const auto shuf_g2 = shuf_b1 + k3;  // .7..6..5
-  const auto shuf_b2 = shuf_r1 + k2;  // 7..6..5.
-  const auto r2 = TableLookupBytes(v0, shuf_r2);
-  const auto g2 = TableLookupBytes(v1, shuf_g2);
-  const auto b2 = TableLookupBytes(v2, shuf_b2);
-  const Vec256<T> k = BitCast(d, r2 | g2 | b2);
-
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API void StoreInterleaved3(const Vec256<T> v0, const Vec256<T> v1,
-                               const Vec256<T> v2, Full256<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const RepartitionToWide<decltype(d)> dw;
-
-  const Vec256<T> g0r0 = InterleaveLower(d, v0, v1);
-  const Vec256<T> r1b0 = OddEven(v0, v2);
-  const Vec256<T> i =
-      BitCast(d, InterleaveLower(dw, BitCast(dw, g0r0), BitCast(dw, r1b0)));
-
-  const Vec256<T> zzg3g2g1 = ShiftRightLanes<1>(d, v1);
-  const Vec256<T> zzzzr3r2 = ShiftRightLanes<2>(d, v0);
-  const Vec256<T> b1g1 = OddEven(v2, zzg3g2g1);
-  const Vec256<T> g2r2 = OddEven(zzg3g2g1, zzzzr3r2);
-  const Vec256<T> j =
-      BitCast(d, InterleaveLower(dw, BitCast(dw, b1g1), BitCast(dw, g2r2)));
-
-  const Vec256<T> b3g3 = OddEven(v2, zzg3g2g1);
-  const Vec256<T> r3b2 = OddEven(v0, v2);
-  const Vec256<T> k =
-      BitCast(d, InterleaveUpper(dw, BitCast(dw, r3b2), BitCast(dw, b3g3)));
-
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API void StoreInterleaved3(const Vec256<T> v0, const Vec256<T> v1,
-                               const Vec256<T> v2, Full256<T> d,
-                               T* HWY_RESTRICT unaligned) {
-  const Vec256<T> i = InterleaveLower(d, v0, v1);
-  const Vec256<T> j = OddEven(v0, v2);
-  const Vec256<T> k = InterleaveUpper(d, v1, v2);
-  detail::StoreTransposed3(i, j, k, unaligned);
-}
-
-// ------------------------------ StoreInterleaved4
-
-namespace detail {
 
 // Input (128-bit blocks):
 // 4 0 (LSB of i)
@@ -5154,11 +5024,10 @@ namespace detail {
 // 5 4
 // 7 6
 template <typename T>
-HWY_API void StoreTransposed4(const Vec256<T> i, const Vec256<T> j,
-                              const Vec256<T> k, const Vec256<T> l,
-                              T* HWY_RESTRICT unaligned) {
+HWY_API void StoreTransposedBlocks4(const Vec256<T> i, const Vec256<T> j,
+                                    const Vec256<T> k, const Vec256<T> l,
+                                    Full256<T> d, T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 32 / sizeof(T);
-  const Full256<T> d;
   // Write lower halves, then upper.
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatLowerLower(d, l, k);
@@ -5171,35 +5040,6 @@ HWY_API void StoreTransposed4(const Vec256<T> i, const Vec256<T> j,
 }
 
 }  // namespace detail
-
-template <typename T, HWY_IF_NOT_LANE_SIZE(T, 8)>
-HWY_API void StoreInterleaved4(const Vec256<T> v0, const Vec256<T> v1,
-                               const Vec256<T> v2, const Vec256<T> v3,
-                               Full256<T> d, T* HWY_RESTRICT unaligned) {
-  const RepartitionToWide<decltype(d)> dw;
-  // let a,b,c,d denote v0..3.
-  const auto baL = ZipLower(dw, v0, v1);
-  const auto dcL = ZipLower(dw, v2, v3);
-  const auto baH = ZipUpper(dw, v0, v1);
-  const auto dcH = ZipUpper(dw, v2, v3);
-  const Vec256<T> i = BitCast(d, InterleaveLower(dw, baL, dcL));
-  const Vec256<T> j = BitCast(d, InterleaveUpper(dw, baL, dcL));
-  const Vec256<T> k = BitCast(d, InterleaveLower(dw, baH, dcH));
-  const Vec256<T> l = BitCast(d, InterleaveUpper(dw, baH, dcH));
-  detail::StoreTransposed4(i, j, k, l, unaligned);
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
-HWY_API void StoreInterleaved4(const Vec256<T> v0, const Vec256<T> v1,
-                               const Vec256<T> v2, const Vec256<T> v3,
-                               Full256<T> d, T* HWY_RESTRICT unaligned) {
-  // let a,b,c,d denote v0..3.
-  const Vec256<T> i = InterleaveLower(d, v0, v1);  // b2a2 b0a0
-  const Vec256<T> j = InterleaveLower(d, v2, v3);  // d2c2 d0c0
-  const Vec256<T> k = InterleaveUpper(d, v0, v1);  // b3a3 b1a1
-  const Vec256<T> l = InterleaveUpper(d, v2, v3);  // d3c3 d1c1
-  detail::StoreTransposed4(i, j, k, l, unaligned);
-}
 
 // ------------------------------ Reductions
 
