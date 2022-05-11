@@ -398,7 +398,7 @@ HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
   for (T& lane : v.raw) {
-    lane >>= kBits;
+    lane = static_cast<T>(lane >> kBits);
   }
 #else
   if (IsSigned<T>()) {
@@ -408,12 +408,13 @@ HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
     for (T& lane : v.raw) {
       const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> kBits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const TU upper = sign << (sizeof(TU) * 8 - 1 - kBits);
+      const size_t sign_shift = sizeof(TU) * 8 - 1 - static_cast<size_t>(kBits);
+      const TU upper = static_cast<TU>(sign << sign_shift);
       lane = static_cast<T>(shifted | upper);
     }
-  } else {
+  } else {  // T is unsigned
     for (T& lane : v.raw) {
-      lane >>= kBits;  // unsigned, logical shift
+      lane = static_cast<T>(lane >> kBits);
     }
   }
 #endif
@@ -466,7 +467,7 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
   for (T& lane : v.raw) {
-    lane >>= bits;
+    lane = static_cast<T>(lane >> kBits);
   }
 #else
   if (IsSigned<T>()) {
@@ -476,12 +477,13 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
     for (T& lane : v.raw) {
       const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> bits);
       const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const TU upper = static_cast<TU>(sign << (sizeof(TU) * 8 - 1 - bits));
+      const size_t sign_shift = sizeof(TU) * 8 - 1 - static_cast<size_t>(bits);
+      const TU upper = static_cast<TU>(sign << sign_shift);
       lane = static_cast<T>(shifted | upper);
     }
   } else {
     for (T& lane : v.raw) {
-      lane >>= bits;  // unsigned, logical shift
+      lane = static_cast<T>(lane >> bits);  // unsigned, logical shift
     }
   }
 #endif
@@ -506,7 +508,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] >>= bits.raw[i];
+    v.raw[i] = static_cast<T>(v.raw[i] >> bits.raw[i]);
   }
 #else
   if (IsSigned<T>()) {
@@ -517,12 +519,14 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
       const TU shifted =
           static_cast<TU>(static_cast<TU>(v.raw[i]) >> bits.raw[i]);
       const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const TU upper = sign << (sizeof(TU) * 8 - 1 - bits.raw[i]);
+      const size_t sign_shift =
+          sizeof(TU) * 8 - 1 - static_cast<size_t>(bits.raw[i]);
+      const TU upper = static_cast<TU>(sign << sign_shift);
       v.raw[i] = static_cast<T>(shifted | upper);
     }
-  } else {
+  } else {  // T is unsigned
     for (size_t i = 0; i < N; ++i) {
-      v.raw[i] >>= bits.raw[i];  // unsigned, logical shift
+      v.raw[i] = static_cast<T>(v.raw[i] >> bits.raw[i]);
     }
   }
 #endif
@@ -915,10 +919,10 @@ HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
     const T rounded_f = static_cast<T>(rounded);
     // Round to even
     if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
-      ret.raw[i] = static_cast<T>(rounded - (signbit ? -1 : 1));
+      ret.raw[i] = rounded - (signbit ? -1 : 1);
       continue;
     }
-    ret.raw[i] = rounded_f;
+    ret.raw[i] = rounded;
   }
   return ret;
 }

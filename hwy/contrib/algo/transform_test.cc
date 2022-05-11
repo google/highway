@@ -310,7 +310,7 @@ struct TestReplace {
 
     std::vector<size_t> positions(AdjustedReps(count));
     for (size_t& pos : positions) {
-      pos = rng() % count;
+      pos = static_cast<size_t>(rng()) % count;
     }
 
     for (size_t pos = 0; pos < count; ++pos) {

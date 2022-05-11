@@ -82,7 +82,7 @@ struct ForeachCountAndMisalign {
     // range without oversampling (checking every possible count).
     std::vector<size_t> counts(AdjustedReps(512));
     for (size_t& count : counts) {
-      count = rng() % (16 * N + 1);
+      count = static_cast<size_t>(rng()) % (16 * N + 1);
     }
     counts[0] = 0;  // ensure we test count=0.
 
