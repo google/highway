@@ -472,6 +472,11 @@ class Generator {
     k_ = 1;  // stream index: must be odd
   }
 
+  explicit Generator(uint64_t seed) {
+    a_ = b_ = w_ = seed;
+    k_ = 1;
+  }
+
   uint64_t operator()() {
     const uint64_t b = b_;
     w_ += k_;
