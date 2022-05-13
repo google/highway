@@ -64,7 +64,7 @@ via the below email)
 *   [iresearch database index](https://github.com/iresearch-toolkit/iresearch/blob/e7638e7a4b99136ca41f82be6edccf01351a7223/core/utils/simd_utils.hpp)
 *   [JPEG XL image codec](https://github.com/libjxl/libjxl)
 *   [Grok JPEG 2000 image codec](https://github.com/GrokImageCompression/grok)
-*   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort)
+*   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort) ([paper](https://arxiv.org/abs/2205.05982))
 
 ## Current status
 

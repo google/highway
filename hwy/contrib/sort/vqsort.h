@@ -13,7 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Interface to vectorized quicksort with dynamic dispatch.
+// Interface to vectorized quicksort with dynamic dispatch. Measurements and
+// detailed description: https://arxiv.org/abs/2205.05982 .
 
 #ifndef HIGHWAY_HWY_CONTRIB_SORT_VQSORT_H_
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_H_
