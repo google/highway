@@ -103,7 +103,7 @@ HWY_API Vec128<T, N> BitCast(Simd<T, N, 0> /* tag */, Vec128<FromT, FromN> v) {
   Vec128<T, N> to;
   static_assert(sizeof(T) * N == sizeof(FromT) * FromN,
                 "Casting does not change size");
-  CopyBytes<sizeof(T) * N>(&v, &to);
+  CopyBytes<sizeof(T) * N>(v.raw, to.raw);
   return to;
 }
 
@@ -112,7 +112,7 @@ HWY_API Vec128<T, N> BitCast(Simd<T, N, 0> /* tag */, Vec128<FromT, FromN> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Zero(Simd<T, N, 0> /* tag */) {
   Vec128<T, N> v;
-  ZeroBytes<sizeof(T) * N>(&v);
+  ZeroBytes<sizeof(T) * N>(v.raw);
   return v;
 }
 
@@ -283,10 +283,10 @@ HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
 
 template <typename TFrom, typename TTo, size_t N>
 HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N, 0> /*tag*/,
-                                   Mask128<TFrom, N> m) {
+                                   Mask128<TFrom, N> mask) {
   Mask128<TTo, N> to;
   static_assert(sizeof(TTo) * N == sizeof(TFrom) * N, "Must have same size");
-  CopyBytes<sizeof(TTo) * N>(&m, &to);
+  CopyBytes<sizeof(TTo) * N>(mask.bits, to.bits);
   return to;
 }
 
@@ -295,14 +295,14 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
   Mask128<T, N> mask;
   static_assert(sizeof(v) == sizeof(mask), "Must have same size");
-  CopyBytes<sizeof(T) * N>(&v, &mask);
+  CopyBytes<sizeof(T) * N>(v.raw, mask.bits);
   return mask;
 }
 
 template <typename T, size_t N>
 Vec128<T, N> VecFromMask(const Mask128<T, N> mask) {
   Vec128<T, N> v;
-  CopyBytes<sizeof(T) * N>(&mask, &v);
+  CopyBytes<sizeof(T) * N>(mask.bits, v.raw);
   return v;
 }
 
@@ -1166,7 +1166,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> Load(Simd<T, N, 0> /* tag */,
                           const T* HWY_RESTRICT aligned) {
   Vec128<T, N> v;
-  CopyBytes<sizeof(T) * N>(aligned, &v);
+  CopyBytes<sizeof(T) * N>(aligned, v.raw);
   return v;
 }
 
@@ -1193,7 +1193,7 @@ HWY_API Vec128<T, N> LoadDup128(Simd<T, N, 0> d,
 template <typename T, size_t N>
 HWY_API void Store(const Vec128<T, N> v, Simd<T, N, 0> /* tag */,
                    T* HWY_RESTRICT aligned) {
-  CopyBytes<sizeof(T) * N>(&v, aligned);
+  CopyBytes<sizeof(T) * N>(v.raw, aligned);
 }
 
 template <typename T, size_t N>
@@ -1596,7 +1596,7 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N / 2> LowerHalf(Vec128<T, N> v) {
   Vec128<T, N / 2> ret;
-  CopyBytes<N / 2 * sizeof(T)>(&v, &ret);
+  CopyBytes<N / 2 * sizeof(T)>(v.raw, ret.raw);
   return ret;
 }
 
@@ -1610,7 +1610,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N / 2> UpperHalf(Simd<T, N / 2, 0> /* tag */,
                                    Vec128<T, N> v) {
   Vec128<T, N / 2> ret;
-  CopyBytes<N / 2 * sizeof(T)>(&v.raw[N / 2], &ret);
+  CopyBytes<N / 2 * sizeof(T)>(&v.raw[N / 2], ret.raw);
   return ret;
 }
 
@@ -1618,7 +1618,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> ZeroExtendVector(Simd<T, N, 0> /* tag */,
                                       Vec128<T, N / 2> v) {
   Vec128<T, N> ret = {{0}};
-  CopyBytes<N / 2 * sizeof(T)>(&v, &ret);
+  CopyBytes<N / 2 * sizeof(T)>(v.raw, ret.raw);
   return ret;
 }
 
@@ -1626,8 +1626,8 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> Combine(Simd<T, N, 0> /* tag */, Vec128<T, N / 2> hi_half,
                              Vec128<T, N / 2> lo_half) {
   Vec128<T, N> ret;
-  CopyBytes<N / 2 * sizeof(T)>(&lo_half, &ret.raw[0]);
-  CopyBytes<N / 2 * sizeof(T)>(&hi_half, &ret.raw[N / 2]);
+  CopyBytes<N / 2 * sizeof(T)>(lo_half.raw, &ret.raw[0]);
+  CopyBytes<N / 2 * sizeof(T)>(hi_half.raw, &ret.raw[N / 2]);
   return ret;
 }
 
@@ -1635,8 +1635,8 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> ConcatLowerLower(Simd<T, N, 0> /* tag */, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   Vec128<T, N> ret;
-  CopyBytes<N / 2 * sizeof(T)>(&lo, &ret.raw[0]);
-  CopyBytes<N / 2 * sizeof(T)>(&hi, &ret.raw[N / 2]);
+  CopyBytes<N / 2 * sizeof(T)>(lo.raw, &ret.raw[0]);
+  CopyBytes<N / 2 * sizeof(T)>(hi.raw, &ret.raw[N / 2]);
   return ret;
 }
 
@@ -1655,7 +1655,7 @@ HWY_API Vec128<T, N> ConcatLowerUpper(Simd<T, N, 0> /* tag */,
                                       const Vec128<T, N> lo) {
   Vec128<T, N> ret;
   CopyBytes<N / 2 * sizeof(T)>(&lo.raw[N / 2], &ret.raw[0]);
-  CopyBytes<N / 2 * sizeof(T)>(&hi, &ret.raw[N / 2]);
+  CopyBytes<N / 2 * sizeof(T)>(hi.raw, &ret.raw[N / 2]);
   return ret;
 }
 
@@ -1663,7 +1663,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> ConcatUpperLower(Simd<T, N, 0> /* tag */, Vec128<T, N> hi,
                                       Vec128<T, N> lo) {
   Vec128<T, N> ret;
-  CopyBytes<N / 2 * sizeof(T)>(&lo, &ret.raw[0]);
+  CopyBytes<N / 2 * sizeof(T)>(lo.raw, &ret.raw[0]);
   CopyBytes<N / 2 * sizeof(T)>(&hi.raw[N / 2], &ret.raw[N / 2]);
   return ret;
 }
@@ -1700,10 +1700,11 @@ template <int kBytes, typename T, size_t N, class V = Vec128<T, N>>
 HWY_API V CombineShiftRightBytes(Simd<T, N, 0> /* tag */, V hi, V lo) {
   V ret;
   const uint8_t* HWY_RESTRICT lo8 =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(&lo);
-  uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
+      reinterpret_cast<const uint8_t * HWY_RESTRICT>(lo.raw);
+  uint8_t* HWY_RESTRICT ret8 =
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
   CopyBytes<sizeof(T) * N - kBytes>(lo8 + kBytes, ret8);
-  CopyBytes<kBytes>(&hi, ret8 + sizeof(T) * N - kBytes);
+  CopyBytes<kBytes>(hi.raw, ret8 + sizeof(T) * N - kBytes);
   return ret;
 }
 
@@ -1713,9 +1714,10 @@ template <int kBytes, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftLeftBytes(Simd<T, N, 0> /* tag */, Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   Vec128<T, N> ret;
-  uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
+  uint8_t* HWY_RESTRICT ret8 =
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
   ZeroBytes<kBytes>(ret8);
-  CopyBytes<sizeof(T) * N - kBytes>(&v, ret8 + kBytes);
+  CopyBytes<sizeof(T) * N - kBytes>(v.raw, ret8 + kBytes);
   return ret;
 }
 
@@ -1743,8 +1745,9 @@ HWY_API Vec128<T, N> ShiftRightBytes(Simd<T, N, 0> /* tag */, Vec128<T, N> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   Vec128<T, N> ret;
   const uint8_t* HWY_RESTRICT v8 =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(&v);
-  uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
+      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
+  uint8_t* HWY_RESTRICT ret8 =
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
   CopyBytes<sizeof(T) * N - kBytes>(v8 + kBytes, ret8);
   ZeroBytes<kBytes>(ret8 + sizeof(T) * N - kBytes);
   return ret;
@@ -1823,7 +1826,7 @@ template <typename T, size_t N, typename TI>
 HWY_API Indices128<T, N> IndicesFromVec(Simd<T, N, 0>, Vec128<TI, N> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane size");
   Indices128<T, N> ret;
-  CopyBytes<N * sizeof(T)>(&vec, &ret);
+  CopyBytes<N * sizeof(T)>(vec.raw, ret.raw);
   return ret;
 }
 
@@ -1969,9 +1972,9 @@ template <typename T, size_t N, typename TI, size_t NI>
 HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> v,
                                         const Vec128<TI, NI> indices) {
   const uint8_t* HWY_RESTRICT v_bytes =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(&v);
+      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
   const uint8_t* HWY_RESTRICT idx_bytes =
-      reinterpret_cast<const uint8_t*>(&indices);
+      reinterpret_cast<const uint8_t*>(indices.raw);
   Vec128<TI, NI> ret;
   uint8_t* HWY_RESTRICT ret_bytes =
       reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
@@ -1985,9 +1988,9 @@ template <typename T, size_t N, typename TI, size_t NI>
 HWY_API Vec128<TI, NI> TableLookupBytesOr0(const Vec128<T, N> v,
                                            const Vec128<TI, NI> indices) {
   const uint8_t* HWY_RESTRICT v_bytes =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(&v);
+      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
   const uint8_t* HWY_RESTRICT idx_bytes =
-      reinterpret_cast<const uint8_t*>(&indices);
+      reinterpret_cast<const uint8_t*>(indices.raw);
   Vec128<TI, NI> ret;
   uint8_t* HWY_RESTRICT ret_bytes =
       reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
