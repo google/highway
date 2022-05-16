@@ -592,13 +592,19 @@ constexpr double MantissaEnd<double>() {
   return 4503599627370496.0;  // 1 << 52
 }
 
+// Returns width in bits of the exponent field in IEEE binary32/64.
+template <typename T>
+constexpr int ExponentBits() {
+  // Exponent := remaining bits after deducting sign and mantissa.
+  return 8 * sizeof(T) - 1 - MantissaBits<T>();
+}
+
 // Returns largest value of the biased exponent field in IEEE binary32/64,
 // right-shifted so that the LSB is bit zero. Example: 0xFF for float.
 // This is expressed as a signed integer for more efficient comparison.
 template <typename T>
 constexpr MakeSigned<T> MaxExponentField() {
-  // Exponent := remaining bits after deducting sign and mantissa.
-  return (MakeSigned<T>{1} << (8 * sizeof(T) - 1 - MantissaBits<T>())) - 1;
+  return (MakeSigned<T>{1} << ExponentBits<T>()) - 1;
 }
 
 //------------------------------------------------------------------------------

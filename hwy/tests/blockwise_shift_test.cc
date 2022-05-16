@@ -93,6 +93,7 @@ struct TestShiftLeftLanes {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
     const auto v = Iota(d, T(1));
     const size_t N = Lanes(d);
+    if (N == 1) return;
     auto expected = AllocateAligned<T>(N);
 
     HWY_ASSERT_VEC_EQ(d, v, ShiftLeftLanes<0>(v));
@@ -118,6 +119,7 @@ struct TestShiftRightLanes {
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
     const auto v = Iota(d, T(1));
     const size_t N = Lanes(d);
+    if (N == 1) return;
     auto expected = AllocateAligned<T>(N);
 
     HWY_ASSERT_VEC_EQ(d, v, ShiftRightLanes<0>(d, v));

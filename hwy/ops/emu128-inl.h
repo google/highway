@@ -58,7 +58,13 @@ struct Vec128 {
     return *this = (*this ^ other);
   }
 
-  T raw[N];
+  // Behave like wasm128 (vectors can always hold 128 bits). generic_ops-inl.h
+  // relies on this for LoadInterleaved*. CAVEAT: this method of padding
+  // prevents using range for, especially in SumOfLanes, where it would be
+  // incorrect, but also to keep the padding uninitialized so msan will warn if
+  // it is used. Moving padding to another field would require handling the case
+  // where N = 16 / sizeof(T) (i.e. there is no padding), which is also awkward.
+  T raw[16 / sizeof(T)];
 };
 
 // 0 or FF..FF, same size as Vec128.
@@ -69,7 +75,8 @@ struct Mask128 {
     return b ? static_cast<Raw>(~Raw{0}) : 0;
   }
 
-  Raw bits[N];
+  // Must match the size of Vec128.
+  Raw bits[16 / sizeof(T)];
 };
 
 namespace detail {
@@ -95,8 +102,9 @@ using TFromV = TFromD<DFromV<V>>;
 template <typename T, size_t N, typename FromT, size_t FromN>
 HWY_API Vec128<T, N> BitCast(Simd<T, N, 0> /* tag */, Vec128<FromT, FromN> v) {
   Vec128<T, N> to;
-  static_assert(sizeof(v) == sizeof(to), "Casting does not change size");
-  CopyBytes<sizeof(v)>(&v, &to);
+  static_assert(sizeof(T) * N == sizeof(FromT) * FromN,
+                "Casting does not change size");
+  CopyBytes<sizeof(T) * N>(&v, &to);
   return to;
 }
 
@@ -105,7 +113,7 @@ HWY_API Vec128<T, N> BitCast(Simd<T, N, 0> /* tag */, Vec128<FromT, FromN> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Zero(Simd<T, N, 0> /* tag */) {
   Vec128<T, N> v;
-  ZeroBytes<sizeof(v)>(&v);
+  ZeroBytes<sizeof(T) * N>(&v);
   return v;
 }
 
@@ -115,8 +123,8 @@ using VFromD = decltype(Zero(D()));
 template <typename T, size_t N, typename T2>
 HWY_API Vec128<T, N> Set(Simd<T, N, 0> /* tag */, const T2 t) {
   Vec128<T, N> v;
-  for (T& lane : v.raw) {
-    lane = static_cast<T>(t);
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = static_cast<T>(t);
   }
   return v;
 }
@@ -146,8 +154,8 @@ template <typename T, size_t N, typename T2>
 HWY_API Vec128<T, N> Iota(const Simd<T, N, 0> /* tag */, T2 first) {
   Vec128<T, N> v;
   T counter = static_cast<T>(first);
-  for (T& lane : v.raw) {
-    lane = counter;
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = counter;
     counter = detail::IncrementWithWraparound(counter);
   }
   return v;
@@ -162,8 +170,8 @@ HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
   const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
   VFromD<decltype(du)> vu = BitCast(du, v);
-  for (auto& lane_u : vu.raw) {
-    lane_u = static_cast<TU>(~lane_u);
+  for (size_t i = 0; i < N; ++i) {
+    vu.raw[i] = static_cast<TU>(~vu.raw[i]);
   }
   return BitCast(d, vu);
 }
@@ -266,8 +274,8 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
 template <typename T, size_t N>
 HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
   // This is used inside ShiftRight, so we cannot implement in terms of it.
-  for (auto& lane : v.raw) {
-    lane = lane < 0 ? T(-1) : T(0);
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = v.raw[i] < 0 ? T(-1) : T(0);
   }
   return v;
 }
@@ -278,8 +286,8 @@ template <typename TFrom, typename TTo, size_t N>
 HWY_API Mask128<TTo, N> RebindMask(Simd<TTo, N, 0> /*tag*/,
                                    Mask128<TFrom, N> m) {
   Mask128<TTo, N> to;
-  static_assert(sizeof(m) == sizeof(to), "Must have same size");
-  CopyBytes<sizeof(to)>(&m, &to);
+  static_assert(sizeof(TTo) * N == sizeof(TFrom) * N, "Must have same size");
+  CopyBytes<sizeof(TTo) * N>(&m, &to);
   return to;
 }
 
@@ -288,14 +296,14 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> MaskFromVec(const Vec128<T, N> v) {
   Mask128<T, N> mask;
   static_assert(sizeof(v) == sizeof(mask), "Must have same size");
-  CopyBytes<sizeof(v)>(&v, &mask);
+  CopyBytes<sizeof(T) * N>(&v, &mask);
   return mask;
 }
 
 template <typename T, size_t N>
 Vec128<T, N> VecFromMask(const Mask128<T, N> mask) {
   Vec128<T, N> v;
-  CopyBytes<sizeof(v)>(&mask, &v);
+  CopyBytes<sizeof(T) * N>(&mask, &v);
   return v;
 }
 
@@ -384,9 +392,9 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
 template <int kBits, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftLeft(Vec128<T, N> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  for (T& lane : v.raw) {
-    const auto shifted = static_cast<hwy::MakeUnsigned<T>>(lane) << kBits;
-    lane = static_cast<T>(shifted);
+  for (size_t i = 0; i < N; ++i) {
+    const auto shifted = static_cast<hwy::MakeUnsigned<T>>(v.raw[i]) << kBits;
+    v.raw[i] = static_cast<T>(shifted);
   }
   return v;
 }
@@ -397,25 +405,25 @@ HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
 #if __cplusplus >= 202002L
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
-  for (T& lane : v.raw) {
-    lane = static_cast<T>(lane >> kBits);
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = static_cast<T>(v.raw[i] >> kBits);
   }
 #else
   if (IsSigned<T>()) {
     // Emulate arithmetic shift using only logical (unsigned) shifts, because
     // signed shifts are still implementation-defined.
     using TU = hwy::MakeUnsigned<T>;
-    for (T& lane : v.raw) {
-      const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> kBits);
-      const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
+    for (size_t i = 0; i < N; ++i) {
+      const TU shifted = static_cast<TU>(static_cast<TU>(v.raw[i]) >> kBits);
+      const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
       const size_t sign_shift =
           static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - kBits);
       const TU upper = static_cast<TU>(sign << sign_shift);
-      lane = static_cast<T>(shifted | upper);
+      v.raw[i] = static_cast<T>(shifted | upper);
     }
   } else {  // T is unsigned
-    for (T& lane : v.raw) {
-      lane = static_cast<T>(lane >> kBits);
+    for (size_t i = 0; i < N; ++i) {
+      v.raw[i] = static_cast<T>(v.raw[i] >> kBits);
     }
   }
 #endif
@@ -455,9 +463,9 @@ HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v, int bits) {
-  for (T& lane : v.raw) {
-    const auto shifted = static_cast<hwy::MakeUnsigned<T>>(lane) << bits;
-    lane = static_cast<T>(shifted);
+  for (size_t i = 0; i < N; ++i) {
+    const auto shifted = static_cast<hwy::MakeUnsigned<T>>(v.raw[i]) << bits;
+    v.raw[i] = static_cast<T>(shifted);
   }
   return v;
 }
@@ -467,25 +475,25 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
 #if __cplusplus >= 202002L
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
-  for (T& lane : v.raw) {
-    lane = static_cast<T>(lane >> kBits);
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = static_cast<T>(v.raw[i] >> kBits);
   }
 #else
   if (IsSigned<T>()) {
     // Emulate arithmetic shift using only logical (unsigned) shifts, because
     // signed shifts are still implementation-defined.
     using TU = hwy::MakeUnsigned<T>;
-    for (T& lane : v.raw) {
-      const TU shifted = static_cast<TU>(static_cast<TU>(lane) >> bits);
-      const TU sign = lane < 0 ? static_cast<TU>(~TU{0}) : 0;
+    for (size_t i = 0; i < N; ++i) {
+      const TU shifted = static_cast<TU>(static_cast<TU>(v.raw[i]) >> bits);
+      const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
       const size_t sign_shift =
           static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - bits);
       const TU upper = static_cast<TU>(sign << sign_shift);
-      lane = static_cast<T>(shifted | upper);
+      v.raw[i] = static_cast<T>(shifted | upper);
     }
   } else {
-    for (T& lane : v.raw) {
-      lane = static_cast<T>(lane >> bits);  // unsigned, logical shift
+    for (size_t i = 0; i < N; ++i) {
+      v.raw[i] = static_cast<T>(v.raw[i] >> bits);  // unsigned, logical shift
     }
   }
 #endif
@@ -625,11 +633,11 @@ HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
   return a;
 }
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
-  for (T& lane : a.raw) {
-    lane = std::abs(lane);
+HWY_API Vec128<T, N> Abs(Vec128<T, N> v) {
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = std::abs(v.raw[i]);
   }
-  return a;
+  return v;
 }
 
 // ------------------------------ Min/Max
@@ -801,11 +809,11 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulOdd(Vec128<uint32_t, N> a,
 
 template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocal(Vec128<float, N> v) {
-  for (float& lane : v.raw) {
+  for (size_t i = 0; i < N; ++i) {
     // Zero inputs are allowed, but callers are responsible for replacing the
     // return value with something else (typically using IfThenElse). This check
     // avoids a ubsan error. The result is arbitrary.
-    lane = (std::abs(lane) == 0.0f) ? 0.0f : 1.0f / lane;
+    v.raw[i] = (std::abs(v.raw[i]) == 0.0f) ? 0.0f : 1.0f / v.raw[i];
   }
   return v;
 }
@@ -845,23 +853,23 @@ HWY_API Vec128<T, N> NegMulSub(Vec128<T, N> mul, const Vec128<T, N> x,
 
 template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
-  for (float& f : v.raw) {
-    const float half = f * 0.5f;
+  for (size_t i = 0; i < N; ++i) {
+    const float half = v.raw[i] * 0.5f;
     uint32_t bits;
-    CopyBytes<4>(&f, &bits);
+    CopyBytes<4>(&v.raw[i], &bits);
     // Initial guess based on log2(f)
     bits = 0x5F3759DF - (bits >> 1);
-    CopyBytes<4>(&bits, &f);
+    CopyBytes<4>(&bits, &v.raw[i]);
     // One Newton-Raphson iteration
-    f = f * (1.5f - (half * f * f));
+    v.raw[i] = v.raw[i] * (1.5f - (half * v.raw[i] * v.raw[i]));
   }
   return v;
 }
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Sqrt(Vec128<T, N> v) {
-  for (T& lane : v.raw) {
-    lane = std::sqrt(lane);
+  for (size_t i = 0; i < N; ++i) {
+    v.raw[i] = std::sqrt(v.raw[i]);
   }
   return v;
 }
@@ -948,18 +956,20 @@ HWY_API Vec128<T, N> Trunc(Vec128<T, N> v) {
   return v;
 }
 
-template <typename Float, typename Bits, int kMantissaBits, int kExponentBits,
-          class V>
-V Ceiling(V v) {
-  const Bits kExponentMask = (1ull << kExponentBits) - 1;
-  const Bits kMantissaMask = (1ull << kMantissaBits) - 1;
+// Toward +infinity, aka ceiling
+template <typename Float, size_t N>
+Vec128<Float, N> Ceil(Vec128<Float, N> v) {
+  constexpr int kMantissaBits = MantissaBits<Float>();
+  using Bits = MakeUnsigned<Float>;
+  const Bits kExponentMask = MaxExponentField<Float>();
+  const Bits kMantissaMask = MantissaMask<Float>();
   const Bits kBias = kExponentMask / 2;
 
-  for (Float& f : v.raw) {
-    const bool positive = f > Float(0.0);
+  for (size_t i = 0; i < N; ++i) {
+    const bool positive = v.raw[i] > Float(0.0);
 
     Bits bits;
-    CopyBytes<sizeof(Bits)>(&f, &bits);
+    CopyBytes<sizeof(Bits)>(&v.raw[i], &bits);
 
     const int exponent =
         static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
@@ -967,7 +977,7 @@ V Ceiling(V v) {
     if (exponent >= kMantissaBits) continue;
     // |v| <= 1 => 0 or 1.
     if (exponent < 0) {
-      f = positive ? Float{1} : Float{-0.0};
+      v.raw[i] = positive ? Float{1} : Float{-0.0};
       continue;
     }
 
@@ -979,23 +989,25 @@ V Ceiling(V v) {
     if (positive) bits += (kMantissaMask + 1) >> exponent;
     bits &= ~mantissa_mask;
 
-    CopyBytes<sizeof(Bits)>(&bits, &f);
+    CopyBytes<sizeof(Bits)>(&bits, &v.raw[i]);
   }
   return v;
 }
 
-template <typename Float, typename Bits, int kMantissaBits, int kExponentBits,
-          class V>
-V Floor(V v) {
-  const Bits kExponentMask = (1ull << kExponentBits) - 1;
-  const Bits kMantissaMask = (1ull << kMantissaBits) - 1;
+// Toward -infinity, aka floor
+template <typename Float, size_t N>
+Vec128<Float, N> Floor(Vec128<Float, N> v) {
+  constexpr int kMantissaBits = MantissaBits<Float>();
+  using Bits = MakeUnsigned<Float>;
+  const Bits kExponentMask = MaxExponentField<Float>();
+  const Bits kMantissaMask = MantissaMask<Float>();
   const Bits kBias = kExponentMask / 2;
 
-  for (Float& f : v.raw) {
-    const bool negative = f < Float(0.0);
+  for (size_t i = 0; i < N; ++i) {
+    const bool negative = v.raw[i] < Float(0.0);
 
     Bits bits;
-    CopyBytes<sizeof(Bits)>(&f, &bits);
+    CopyBytes<sizeof(Bits)>(&v.raw[i], &bits);
 
     const int exponent =
         static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
@@ -1003,7 +1015,7 @@ V Floor(V v) {
     if (exponent >= kMantissaBits) continue;
     // |v| <= 1 => -1 or 0.
     if (exponent < 0) {
-      f = negative ? Float(-1.0) : Float(0.0);
+      v.raw[i] = negative ? Float(-1.0) : Float(0.0);
       continue;
     }
 
@@ -1015,29 +1027,9 @@ V Floor(V v) {
     if (negative) bits += (kMantissaMask + 1) >> exponent;
     bits &= ~mantissa_mask;
 
-    CopyBytes<sizeof(Bits)>(&bits, &f);
+    CopyBytes<sizeof(Bits)>(&bits, &v.raw[i]);
   }
   return v;
-}
-
-// Toward +infinity, aka ceiling
-template <size_t N>
-HWY_API Vec128<float, N> Ceil(Vec128<float, N> v) {
-  return Ceiling<float, uint32_t, 23, 8>(v);
-}
-template <size_t N>
-HWY_API Vec128<double, N> Ceil(Vec128<double, N> v) {
-  return Ceiling<double, uint64_t, 52, 11>(v);
-}
-
-// Toward -infinity, aka floor
-template <size_t N>
-HWY_API Vec128<float, N> Floor(Vec128<float, N> v) {
-  return Floor<float, uint32_t, 23, 8>(v);
-}
-template <size_t N>
-HWY_API Vec128<double, N> Floor(Vec128<double, N> v) {
-  return Floor<double, uint64_t, 52, 11>(v);
 }
 
 // ------------------------------ Floating-point classification
@@ -1221,9 +1213,8 @@ HWY_API void BlendedStore(const Vec128<T, N> v, Mask128<T, N> m,
 // ------------------------------ LoadInterleaved2/3/4
 
 // Per-target flag to prevent generic_ops-inl.h from defining LoadInterleaved2.
-// We implement those here because the generic_ops-inl implementation relies on
-// two 64-bit vectors fitting in Vec128, which is not true of the Vec128 here.
-// Scalar code is likely also faster than emulation via shuffles.
+// We implement those here because scalar code is likely faster than emulation
+// via shuffles.
 #ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
@@ -1712,8 +1703,8 @@ HWY_API V CombineShiftRightBytes(Simd<T, N, 0> /* tag */, V hi, V lo) {
   const uint8_t* HWY_RESTRICT lo8 =
       reinterpret_cast<const uint8_t * HWY_RESTRICT>(&lo);
   uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
-  CopyBytes<sizeof(V) - kBytes>(lo8 + kBytes, ret8);
-  CopyBytes<kBytes>(&hi, ret8 + sizeof(V) - kBytes);
+  CopyBytes<sizeof(T) * N - kBytes>(lo8 + kBytes, ret8);
+  CopyBytes<kBytes>(&hi, ret8 + sizeof(T) * N - kBytes);
   return ret;
 }
 
@@ -1725,7 +1716,7 @@ HWY_API Vec128<T, N> ShiftLeftBytes(Simd<T, N, 0> /* tag */, Vec128<T, N> v) {
   Vec128<T, N> ret;
   uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
   ZeroBytes<kBytes>(ret8);
-  CopyBytes<sizeof(v) - kBytes>(&v, ret8 + kBytes);
+  CopyBytes<sizeof(T) * N - kBytes>(&v, ret8 + kBytes);
   return ret;
 }
 
@@ -1755,8 +1746,8 @@ HWY_API Vec128<T, N> ShiftRightBytes(Simd<T, N, 0> /* tag */, Vec128<T, N> v) {
   const uint8_t* HWY_RESTRICT v8 =
       reinterpret_cast<const uint8_t * HWY_RESTRICT>(&v);
   uint8_t* HWY_RESTRICT ret8 = reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
-  CopyBytes<sizeof(v) - kBytes>(v8 + kBytes, ret8);
-  ZeroBytes<kBytes>(ret8 + sizeof(v) - kBytes);
+  CopyBytes<sizeof(T) * N - kBytes>(v8 + kBytes, ret8);
+  ZeroBytes<kBytes>(ret8 + sizeof(T) * N - kBytes);
   return ret;
 }
 
@@ -1985,7 +1976,7 @@ HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> v,
   Vec128<TI, NI> ret;
   uint8_t* HWY_RESTRICT ret_bytes =
       reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
-  for (size_t i = 0; i < sizeof(indices); ++i) {
+  for (size_t i = 0; i < NI * sizeof(TI); ++i) {
     ret_bytes[i] = v_bytes[idx_bytes[i]];
   }
   return ret;
@@ -2001,7 +1992,7 @@ HWY_API Vec128<TI, NI> TableLookupBytesOr0(const Vec128<T, N> v,
   Vec128<TI, NI> ret;
   uint8_t* HWY_RESTRICT ret_bytes =
       reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
-  for (size_t i = 0; i < sizeof(indices); ++i) {
+  for (size_t i = 0; i < NI * sizeof(TI); ++i) {
     ret_bytes[i] = idx_bytes[i] & 0x80 ? 0 : v_bytes[idx_bytes[i]];
   }
   return ret;
@@ -2212,24 +2203,24 @@ HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
 template <typename T, size_t N>
 HWY_API Vec128<T, N> SumOfLanes(Simd<T, N, 0> d, const Vec128<T, N> v) {
   T sum = T{0};
-  for (const T& lane : v.raw) {
-    sum += lane;
+  for (size_t i = 0; i < N; ++i) {
+    sum += v.raw[i];
   }
   return Set(d, sum);
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MinOfLanes(Simd<T, N, 0> d, const Vec128<T, N> v) {
   T min = HighestValue<T>();
-  for (const T& lane : v.raw) {
-    min = HWY_MIN(min, lane);
+  for (size_t i = 0; i < N; ++i) {
+    min = HWY_MIN(min, v.raw[i]);
   }
   return Set(d, min);
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MaxOfLanes(Simd<T, N, 0> d, const Vec128<T, N> v) {
   T max = LowestValue<T>();
-  for (const T& lane : v.raw) {
-    max = HWY_MAX(max, lane);
+  for (size_t i = 0; i < N; ++i) {
+    max = HWY_MAX(max, v.raw[i]);
   }
   return Set(d, max);
 }
