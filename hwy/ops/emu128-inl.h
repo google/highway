@@ -61,10 +61,9 @@ struct Vec128 {
   // Behave like wasm128 (vectors can always hold 128 bits). generic_ops-inl.h
   // relies on this for LoadInterleaved*. CAVEAT: this method of padding
   // prevents using range for, especially in SumOfLanes, where it would be
-  // incorrect, but also to keep the padding uninitialized so msan will warn if
-  // it is used. Moving padding to another field would require handling the case
+  // incorrect. Moving padding to another field would require handling the case
   // where N = 16 / sizeof(T) (i.e. there is no padding), which is also awkward.
-  T raw[16 / sizeof(T)];
+  T raw[16 / sizeof(T)] = {};
 };
 
 // 0 or FF..FF, same size as Vec128.
@@ -76,7 +75,7 @@ struct Mask128 {
   }
 
   // Must match the size of Vec128.
-  Raw bits[16 / sizeof(T)];
+  Raw bits[16 / sizeof(T)] = {};
 };
 
 namespace detail {
