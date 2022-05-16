@@ -137,7 +137,10 @@ struct ScalableTagChecker {
 template <typename T, size_t kLimit>
 struct CappedTagChecker {
   static_assert(kLimit != 0, "Does not make sense to have zero lanes");
-  using type = Simd<T, HWY_MIN(kLimit, HWY_MAX_BYTES / sizeof(T)), 0>;
+  // Safely handle non-power-of-two inputs by rounding down, which is allowed by
+  // CappedTag. Otherwise, Simd<T, 3, 0> would static_assert.
+  static constexpr size_t kLimitPow2 = size_t{1} << hwy::FloorLog2(kLimit);
+  using type = Simd<T, HWY_MIN(kLimitPow2, HWY_MAX_BYTES / sizeof(T)), 0>;
 };
 
 template <typename T, size_t kNumLanes>

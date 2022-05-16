@@ -19,6 +19,8 @@
 
 #include <bitset>
 
+#include "hwy/base.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "highway_test.cc"
 #include "hwy/foreach_target.h"
@@ -29,6 +31,38 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+
+template <size_t kLimit, typename T>
+HWY_NOINLINE void TestCappedLimit(T /* tag */) {
+  CappedTag<T, kLimit> d;
+  // Ensure two ops compile
+  HWY_ASSERT_VEC_EQ(d, Zero(d), Set(d, T{0}));
+
+  // Ensure we do not write more than kLimit lanes
+  const size_t N = Lanes(d);
+  if (kLimit < N) {
+    auto lanes = AllocateAligned<T>(N);
+    std::fill(lanes.get(), lanes.get() + N, T{0});
+    Store(Set(d, T{1}), d, lanes.get());
+    for (size_t i = kLimit; i < N; ++i) {
+      HWY_ASSERT_EQ(lanes[i], T{0});
+    }
+  }
+}
+
+// Adapter for ForAllTypes - we are constructing our own Simd<> and thus do not
+// use ForPartialVectors etc.
+struct TestCapped {
+  template <typename T>
+  void operator()(T t) const {
+    TestCappedLimit<1>(t);
+    TestCappedLimit<3>(t);
+    TestCappedLimit<5>(t);
+    TestCappedLimit<1ull << 15>(t);
+  }
+};
+
+HWY_NOINLINE void TestAllCapped() { ForAllTypes(TestCapped()); }
 
 // For testing that ForPartialVectors reaches every possible size:
 using NumLanesSet = std::bitset<HWY_MAX_BYTES + 1>;
@@ -434,6 +468,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(HighwayTest);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCapped);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllMaxLanes);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllSet);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllOverflow);
