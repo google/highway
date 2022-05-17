@@ -231,9 +231,12 @@ instructions (implying the target CPU must support them).
     finally reverts to `HWY_STATIC_TARGET`. Can be used in `#if` expressions to
     provide an alternative to functions which are not supported by `HWY_SCALAR`.
 
-*   `HWY_WANT_AVX3_DL`: additional opt-in for `HWY_AVX3`, which is disabled
-    unless this is defined by the app before including highway.h, OR all AVX3_DL
-    compiler flags are specified.
+*   `HWY_WANT_SSSE3`, `HWY_WANT_SSE4`: add SSSE3 and SSE4 to the baseline even
+    if they are not marked as available by the compiler. On MSVC, the only ways
+    to enable SSSE3 and SSE4 are defining these, or enabling AVX.
+
+*   `HWY_WANT_AVX3_DL`: opt-in for dynamic dispatch to `HWY_AVX3_DL`. This is
+    unnecessary if the baseline already includes AVX3_DL.
 
 ## Operations
 
