@@ -144,10 +144,10 @@ lane count, thus avoiding the need for a second loop to handle remainders.
 *   For applications that require fixed-size vectors: `FixedTag<T, kCount> d;`
     will select vectors where exactly `kCount` lanes have observable effects.
     These may be implemented using full vectors plus additional runtime cost for
-    masking in `Load` etc. `HWY_SCALAR` only allows `kCount=1`; other targets
-    allow any power of two `kCount <= HWY_MAX_BYTES / sizeof(T)`. This tag can
-    be used when the `HWY_SCALAR` target is anyway disabled (superseded by a
-    higher baseline) or unusable (due to use of ops such as `TableLookupBytes`).
+    masking in `Load` etc. `kCount` must be a power of two not exceeding
+    `HWY_LANES(T)`, which is one for `HWY_SCALAR`. This tag can be used when the
+    `HWY_SCALAR` target is anyway disabled (superseded by a higher baseline) or
+    unusable (due to use of ops such as `TableLookupBytes`).
 
 *   The result of `UpperHalf`/`LowerHalf` has half the lanes. To obtain a
     corresponding `d`, use `Half<decltype(d)>`; the opposite is `Twice<>`.

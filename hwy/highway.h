@@ -50,8 +50,7 @@ namespace hwy {
 #define HWY_FULL(...) HWY_CHOOSE_FULL(__VA_ARGS__())(__VA_ARGS__)
 
 // Vector of up to MAX_N lanes. It's better to use full vectors where possible.
-#define HWY_CAPPED(T, MAX_N) \
-  hwy::HWY_NAMESPACE::CappedTag<T, HWY_MIN(MAX_N, HWY_LANES(T))>
+#define HWY_CAPPED(T, MAX_N) hwy::HWY_NAMESPACE::CappedTag<T, MAX_N>
 
 //------------------------------------------------------------------------------
 // Export user functions for static/dynamic dispatch

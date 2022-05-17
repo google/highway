@@ -84,7 +84,7 @@ struct TestMaxLanes {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
-    const size_t kMax = MaxLanes(d);
+    const size_t kMax = MaxLanes(d);  // for RVV, includes LMUL
     HWY_ASSERT(N <= kMax);
     HWY_ASSERT(kMax <= (HWY_MAX_BYTES / sizeof(T)));
 

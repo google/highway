@@ -673,7 +673,8 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const bool partial_128 = N < 2 && st.Is128();
   // Partition assumes its input is at least two vectors. If vectors are huge,
   // base_case_num may actually be smaller. If so, which is only possible on
-  // RVV, pass a capped or partial d (LMUL < 1).
+  // RVV, pass a capped or partial d (LMUL < 1). Use HWY_MAX_BYTES instead of
+  // HWY_LANES to account for the largest possible LMUL.
   constexpr bool kPotentiallyHuge =
       HWY_MAX_BYTES / sizeof(T) > Constants::kMaxRows * Constants::kMaxCols;
   const bool huge_vec = kPotentiallyHuge && (2 * N > base_case_num);

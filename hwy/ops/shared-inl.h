@@ -140,17 +140,13 @@ struct CappedTagChecker {
   // Safely handle non-power-of-two inputs by rounding down, which is allowed by
   // CappedTag. Otherwise, Simd<T, 3, 0> would static_assert.
   static constexpr size_t kLimitPow2 = size_t{1} << hwy::FloorLog2(kLimit);
-  using type = Simd<T, HWY_MIN(kLimitPow2, HWY_MAX_BYTES / sizeof(T)), 0>;
+  using type = Simd<T, HWY_MIN(kLimitPow2, HWY_LANES(T)), 0>;
 };
 
 template <typename T, size_t kNumLanes>
 struct FixedTagChecker {
   static_assert(kNumLanes != 0, "Does not make sense to have zero lanes");
-  static_assert(kNumLanes * sizeof(T) <= HWY_MAX_BYTES, "Too many lanes");
-#if HWY_TARGET == HWY_SCALAR
-  // HWY_MAX_BYTES would still allow uint8x8, which is not supported.
-  static_assert(kNumLanes == 1, "Scalar only supports one lane");
-#endif
+  static_assert(kNumLanes <= HWY_LANES(T), "Too many lanes");
   using type = Simd<T, kNumLanes, 0>;
 };
 
@@ -176,8 +172,8 @@ template <typename T, size_t kLimit>
 using CappedTag = typename detail::CappedTagChecker<T, kLimit>::type;
 
 // Alias for a tag describing a vector with *exactly* kNumLanes active lanes,
-// even on targets with scalable vectors. HWY_SCALAR only supports one lane.
-// All other targets allow kNumLanes up to HWY_MAX_BYTES / sizeof(T).
+// even on targets with scalable vectors. Requires `kNumLanes` to be a power of
+// two not exceeding `HWY_LANES(T)`.
 //
 // NOTE: if the application does not need to support HWY_SCALAR (+), use this
 // instead of CappedTag to emphasize that there will be exactly kNumLanes lanes.
