@@ -1198,7 +1198,7 @@ HWY_API void Store(const Vec128<T, N> v, Simd<T, N, 0> /* tag */,
 
 template <typename T, size_t N>
 HWY_API void StoreU(const Vec128<T, N> v, Simd<T, N, 0> d, T* HWY_RESTRICT p) {
-  return Store(v, d, p);
+  Store(v, d, p);
 }
 
 template <typename T, size_t N>
@@ -1311,7 +1311,7 @@ HWY_API void StoreInterleaved4(const Vec128<T, N> v0, const Vec128<T, N> v1,
 template <typename T, size_t N>
 HWY_API void Stream(const Vec128<T, N> v, Simd<T, N, 0> d,
                     T* HWY_RESTRICT aligned) {
-  return Store(v, d, aligned);
+  Store(v, d, aligned);
 }
 
 // ------------------------------ Scatter
@@ -1977,9 +1977,11 @@ HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> v,
       reinterpret_cast<const uint8_t*>(indices.raw);
   Vec128<TI, NI> ret;
   uint8_t* HWY_RESTRICT ret_bytes =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
+      reinterpret_cast<uint8_t * HWY_RESTRICT>(ret.raw);
   for (size_t i = 0; i < NI * sizeof(TI); ++i) {
-    ret_bytes[i] = v_bytes[idx_bytes[i]];
+    const size_t idx = idx_bytes[i];
+    // Avoid out of bounds reads.
+    ret_bytes[i] = idx < sizeof(T) * N ? v_bytes[idx] : 0;
   }
   return ret;
 }
@@ -1987,17 +1989,8 @@ HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> v,
 template <typename T, size_t N, typename TI, size_t NI>
 HWY_API Vec128<TI, NI> TableLookupBytesOr0(const Vec128<T, N> v,
                                            const Vec128<TI, NI> indices) {
-  const uint8_t* HWY_RESTRICT v_bytes =
-      reinterpret_cast<const uint8_t * HWY_RESTRICT>(v.raw);
-  const uint8_t* HWY_RESTRICT idx_bytes =
-      reinterpret_cast<const uint8_t*>(indices.raw);
-  Vec128<TI, NI> ret;
-  uint8_t* HWY_RESTRICT ret_bytes =
-      reinterpret_cast<uint8_t * HWY_RESTRICT>(&ret);
-  for (size_t i = 0; i < NI * sizeof(TI); ++i) {
-    ret_bytes[i] = idx_bytes[i] & 0x80 ? 0 : v_bytes[idx_bytes[i]];
-  }
-  return ret;
+  // Same as TableLookupBytes, which already returns 0 if out of bounds.
+  return TableLookupBytes(v, indices);
 }
 
 // ------------------------------ InterleaveLower/InterleaveUpper
