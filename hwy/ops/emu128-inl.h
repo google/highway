@@ -475,7 +475,7 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = static_cast<T>(v.raw[i] >> kBits);
+    v.raw[i] = static_cast<T>(v.raw[i] >> bits);
   }
 #else
   if (IsSigned<T>()) {
