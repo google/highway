@@ -20,10 +20,12 @@
 // WARNING: most operations do not cross 128-bit block boundaries. In
 // particular, "Broadcast", pack and zip behavior may be surprising.
 
+// Must come before HWY_COMPILER_CLANGCL
 #include <immintrin.h>  // AVX2+
 
 #include "hwy/base.h"
-#if defined(_MSC_VER) && defined(__clang__)
+
+#if HWY_COMPILER_CLANGCL
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
 // including these headers when _MSC_VER is defined, like when using clang-cl.
 // Include these directly here.
@@ -34,7 +36,7 @@
 #include <f16cintrin.h>
 #include <fmaintrin.h>
 #include <smmintrin.h>
-#endif
+#endif  // HWY_COMPILER_CLANGCL
 
 #include <stddef.h>
 #include <stdint.h>

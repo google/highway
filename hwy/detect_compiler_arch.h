@@ -39,6 +39,12 @@
 #define HWY_COMPILER_MSVC 0
 #endif
 
+#if defined(_MSC_VER) && defined(__clang__)
+#define HWY_COMPILER_CLANGCL _MSC_VER
+#else
+#define HWY_COMPILER_CLANGCL 0
+#endif
+
 #ifdef __INTEL_COMPILER
 #define HWY_COMPILER_ICC __INTEL_COMPILER
 #else
@@ -81,8 +87,8 @@
 #endif
 
 // More than one may be nonzero, but we want at least one.
-#if !HWY_COMPILER_MSVC && !HWY_COMPILER_ICC && !HWY_COMPILER_GCC && \
-    !HWY_COMPILER_CLANG
+#if !HWY_COMPILER_MSVC && !HWY_COMPILER_CLANGCL && !HWY_COMPILER_ICC && \
+    !HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
 #error "Unsupported compiler"
 #endif
 
