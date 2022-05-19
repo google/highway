@@ -147,10 +147,11 @@ portability. To obtain them, pass a `ScalableTag<float>` (or equivalently
 `HWY_FULL(float)`) tag to functions such as `Zero/Set/Load`. There are two
 alternatives for use-cases requiring an upper bound on the lanes:
 
--   For up to a power of two `N`, specify `CappedTag<T, N>` (or
-    equivalently `HWY_CAPPED(T, N)`). This is useful for data structures such as
-    a narrow matrix. A loop is still required because vectors may actually have
-    fewer than `N` lanes.
+-   For up to `N` lanes, specify `CappedTag<T, N>` or the equivalent
+    `HWY_CAPPED(T, N)`. The actual number of lanes will be `N` rounded down to
+    the nearest power of two, such as 4 if `N` is 5, or 8 if `N` is 8. This is
+    useful for data structures such as a narrow matrix. A loop is still required
+    because vectors may actually have fewer than `N` lanes.
 
 -   For exactly a power of two `N` lanes, specify `FixedTag<T, N>`. The largest
     supported `N` depends on the target, but is guaranteed to be at least
@@ -247,7 +248,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     ```
     size_t i = 0;
     for (; i + N <= count; i += N) LoopBody<false>(d, i, 0);
-    for (; i < count; ++i) LoopBody<false>(HWY_CAPPED(T, 1)(), i, 0);
+    for (; i < count; ++i) LoopBody<false>(CappedTag<T, 1>(), i, 0);
     ```
     The template parameter and second function arguments are again not needed.
 
@@ -274,7 +275,7 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     `num_remaining` elements and returns zero in other lanes.
 
     This is a good default when it is infeasible to ensure vectors are padded,
-    but is only safe #if !HWY_MEM_OPS_MIGHT_FAULT!
+    but is only safe `#if !HWY_MEM_OPS_MIGHT_FAULT`!
     In contrast to the scalar loop, only a single final iteration is needed.
     The increased code size from two loop bodies is expected to be worthwhile
     because it avoids the cost of masking in all but the final iteration.

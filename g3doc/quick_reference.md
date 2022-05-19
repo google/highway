@@ -136,10 +136,11 @@ lane count, thus avoiding the need for a second loop to handle remainders.
     `Half<DLarger>`.
 
 *   Less common: `CappedTag<T, kCap> d` or the macro form `HWY_CAPPED(T, kCap)
-    d;`. These select vectors or masks where *no more than* the first `kCap` (a
-    power of two) lanes have observable effects such as loading/storing to
-    memory, or being counted by `CountTrue`. The number of lanes may also be
-    less; for the `HWY_SCALAR` target, vectors always have a single lane.
+    d;`. These select vectors or masks where *no more than* the largest power of
+    two not exceeding `kCap` lanes have observable effects such as
+    loading/storing to memory, or being counted by `CountTrue`. The number of
+    lanes may also be less; for the `HWY_SCALAR` target, vectors always have a
+    single lane. For example, `CappedTag<T, 3>` will use up to two lanes.
 
 *   For applications that require fixed-size vectors: `FixedTag<T, kCount> d;`
     will select vectors where exactly `kCount` lanes have observable effects.
