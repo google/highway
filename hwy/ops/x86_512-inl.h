@@ -25,11 +25,10 @@
 // Avoid uninitialized warnings in GCC's avx512fintrin.h - see
 // https://github.com/google/highway/issues/710)
 HWY_DIAGNOSTICS(push)
-// This one is GCC-only.
 #if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #endif
-HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 
 #include <immintrin.h>  // AVX2+
 
@@ -57,8 +56,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 #include <avx512vpopcntdqvlintrin.h>
 // clang-format on
 #endif  // HWY_COMPILER_CLANGCL
-
-HWY_DIAGNOSTICS(pop)
 
 #include <stddef.h>
 #include <stdint.h>
@@ -4137,3 +4134,7 @@ HWY_API Vec512<T> MaxOfLanes(Full512<T> d, Vec512<T> v) {
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
+
+// Note that the GCC warnings are not suppressed if we only wrap the *intrin.h -
+// the warning seems to be issued at the call site of intrinsics, i.e. our code.
+HWY_DIAGNOSTICS(pop)
