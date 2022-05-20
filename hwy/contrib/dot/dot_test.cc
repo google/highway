@@ -70,11 +70,6 @@ class TestDot {
       return static_cast<float>(bits - 512) * (1.0f / 64);
     };
 
-    const bool kIsAlignedA = (kAssumptions & Dot::kVectorAlignedA) != 0;
-    const bool kIsAlignedB = (kAssumptions & Dot::kVectorAlignedB) != 0;
-
-    HWY_ASSERT(!kIsAlignedA || misalign_a == 0);
-    HWY_ASSERT(!kIsAlignedB || misalign_b == 0);
     const size_t padded =
         (kAssumptions & Dot::kPaddedToVector) ? RoundUpTo(num, N) : num;
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + padded);
@@ -100,27 +95,11 @@ class TestDot {
     HWY_ASSERT(expected - 1E-4 <= actual && actual <= expected + 1E-4);
   }
 
-  // Runs tests with various alignments compatible with the given assumptions.
+  // Runs tests with various alignments.
   template <int kAssumptions, class D>
   void ForeachMisalign(D d, size_t num, RandomState& rng) {
-    static_assert(
-        (kAssumptions & (Dot::kVectorAlignedA | Dot::kVectorAlignedB)) == 0,
-        "Alignment must not be specified by caller");
-
     const size_t N = Lanes(d);
     const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
-
-    // Both flags, both aligned
-    Test<kAssumptions | Dot::kVectorAlignedA | Dot::kVectorAlignedB>(d, num, 0,
-                                                                     0, rng);
-
-    // One flag and aligned, other aligned/misaligned
-    for (size_t m : misalignments) {
-      Test<kAssumptions | Dot::kVectorAlignedA>(d, num, 0, m, rng);
-      Test<kAssumptions | Dot::kVectorAlignedB>(d, num, m, 0, rng);
-    }
-
-    // Neither flag, all combinations of aligned/misaligned
     for (size_t ma : misalignments) {
       for (size_t mb : misalignments) {
         Test<kAssumptions>(d, num, ma, mb, rng);
