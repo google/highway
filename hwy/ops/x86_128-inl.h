@@ -31,6 +31,10 @@
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
+#if HWY_IS_MSAN
+#include <sanitizer/msan_interface.h>
+#endif
+
 // Clang 3.9 generates VINSERTF128 instead of the desired VBROADCASTF128,
 // which would free up port5. However, inline assembly isn't supported on
 // MSVC, results in incorrect output on GCC 8.3, and raises "invalid output size
@@ -6008,7 +6012,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
 #endif  // HWY_TARGET == HWY_AVX3_DL
 
   const size_t count = PopCount(mask_bits & ((1ull << N) - 1));
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #endif
@@ -6021,7 +6025,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
                              T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #endif
@@ -6034,7 +6038,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
                              T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #endif
@@ -6047,7 +6051,7 @@ HWY_API size_t CompressStore(Vec128<float, N> v, Mask128<float, N> mask,
                              float* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(float));
 #endif
@@ -6060,7 +6064,7 @@ HWY_API size_t CompressStore(Vec128<double, N> v, Mask128<double, N> mask,
                              double* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(double));
 #endif
@@ -6499,12 +6503,18 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
 
   const uint64_t mask_bits = detail::BitsFromMask(m);
   HWY_DASSERT(mask_bits < (1ull << N));
+  const size_t count = PopCount(mask_bits);
 
   // Avoid _mm_maskmoveu_si128 (>500 cycle latency because it bypasses caches).
   const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   StoreU(compressed, d, unaligned);
-  return PopCount(mask_bits);
+  // Workaround for MSAN not marking output as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+
+  return count;
 }
 
 template <typename T, size_t N>
@@ -6521,6 +6531,10 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
+  // Workaround for MSAN not marking output as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
   return count;
 }
 
@@ -6536,12 +6550,18 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
   if (N < 8) {
     mask_bits &= (1ull << N) - 1;
   }
+  const size_t count = PopCount(mask_bits);
 
   // Avoid _mm_maskmoveu_si128 (>500 cycle latency because it bypasses caches).
   const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   StoreU(compressed, d, unaligned);
-  return PopCount(mask_bits);
+
+  // Workaround for MSAN not marking output as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3

@@ -41,6 +41,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#if HWY_IS_MSAN
+#include <sanitizer/msan_interface.h>
+#endif
+
 // For half-width vectors. Already includes base.h and shared-inl.h.
 #include "hwy/ops/x86_128-inl.h"
 
@@ -4427,7 +4431,7 @@ HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw});
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #endif
@@ -4439,7 +4443,7 @@ HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> mask, Full256<T> /* tag */,
                              T* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & 0xFull);
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #endif
@@ -4451,7 +4455,7 @@ HWY_API size_t CompressStore(Vec256<float> v, Mask256<float> mask,
                              float* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw});
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(float));
 #endif
@@ -4463,7 +4467,7 @@ HWY_API size_t CompressStore(Vec256<double> v, Mask256<double> mask,
                              double* HWY_RESTRICT unaligned) {
   _mm256_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & 0xFull);
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(double));
 #endif
@@ -4490,7 +4494,7 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
 #else
   const size_t count = CountTrue(d, m);
   BlendedStore(Compress(v, m), FirstN(d, count), d, unaligned);
-  // Workaround: as of 2022-02-23 MSAN does not mark the output as initialized.
+  // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
 #endif
@@ -4882,8 +4886,13 @@ template <typename T>
 HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                              T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(m);
+  const size_t count = PopCount(mask_bits);
   StoreU(detail::Compress(v, mask_bits), d, unaligned);
-  return PopCount(mask_bits);
+  // Workaround for MSAN not marking output as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 template <typename T>
@@ -4892,6 +4901,10 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
   BlendedStore(detail::Compress(v, mask_bits), FirstN(d, count), d, unaligned);
+  // Workaround for MSAN not marking output as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
   return count;
 }
 
@@ -4907,9 +4920,14 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
   if (N < 8) {
     mask_bits &= (1ull << N) - 1;
   }
+  const size_t count = PopCount(mask_bits);
 
   StoreU(detail::Compress(v, mask_bits), d, unaligned);
-  return PopCount(mask_bits);
+  // Workaround for MSAN not marking output as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
