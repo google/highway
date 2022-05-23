@@ -501,6 +501,15 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     <code>M **IsNaN**(V v)</code>: returns mask indicating whether `v[i]` is
     "not a number" (unordered).
 
+*   `V`: `{f}` \
+    <code>M **IsInf**(V v)</code>: returns mask indicating whether `v[i]` is
+    positive or negative infinity.
+
+*   `V`: `{f}` \
+    <code>M **IsFinite**(V v)</code>: returns mask indicating whether `v[i]` is
+    neither NaN nor infinity, i.e. normal, subnormal or zero. Equivalent to
+    `Not(Or(IsNaN(v), IsInf(v)))`.
+
 ### Logical
 
 *   `V`: `{u,i}` \
