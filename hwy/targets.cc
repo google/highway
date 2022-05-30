@@ -341,15 +341,14 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
     }
   }
 
-#else
-  // TODO(janwas): detect for other platforms
-  bits = HWY_ENABLED_BASELINE;
-#endif  // HWY_ARCH_X86
-
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
     fprintf(stderr, "WARNING: CPU supports %zx but software requires %x\n",
             size_t(bits), HWY_ENABLED_BASELINE);
   }
+#else
+  // TODO(janwas): detect for other platforms and check for baseline
+  bits |= HWY_TARGETS;
+#endif  // HWY_ARCH_X86
 
   supported_.store(bits, std::memory_order_release);
   return bits & supported_mask_;

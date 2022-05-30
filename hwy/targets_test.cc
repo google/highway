@@ -102,8 +102,13 @@ TEST_F(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
 
 TEST_F(HwyTargetsTest, DisabledTargetsTest) {
   DisableTargets(~0u);
+#if HWY_ARCH_X86
   // Check that the baseline can't be disabled.
   HWY_ASSERT(HWY_ENABLED_BASELINE == SupportedTargets());
+#else
+  // TODO(janwas): update when targets.cc changes
+  HWY_ASSERT(HWY_TARGETS == SupportedTargets());
+#endif
 
   DisableTargets(0);  // Reset the mask.
   uint32_t current_targets = SupportedTargets();
