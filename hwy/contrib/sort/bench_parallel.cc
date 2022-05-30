@@ -16,20 +16,6 @@
 // Concurrent, independent sorts for generating more memory traffic and testing
 // scalability.
 
-// clang-format off
-#include "hwy/contrib/sort/vqsort.h"
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/sort/bench_parallel.cc"
-#include "hwy/foreach_target.h"
-
-// After foreach_target
-#include "hwy/contrib/sort/algo-inl.h"
-#include "hwy/contrib/sort/result-inl.h"
-#include "hwy/aligned_allocator.h"
-// Last
-#include "hwy/tests/test_util-inl.h"
-// clang-format on
-
 #include <stdint.h>
 #include <stdio.h>
 
@@ -40,6 +26,20 @@
 #include <thread>  //NOLINT
 #include <utility>
 #include <vector>
+
+// clang-format off
+#include "hwy/contrib/sort/vqsort.h"
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/contrib/sort/bench_parallel.cc"  //NOLINT
+#include "hwy/foreach_target.h"
+
+// After foreach_target
+#include "hwy/contrib/sort/algo-inl.h"
+#include "hwy/contrib/sort/result-inl.h"
+#include "hwy/aligned_allocator.h"
+// Last
+#include "hwy/tests/test_util-inl.h"
+// clang-format on
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {

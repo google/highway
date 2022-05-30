@@ -215,7 +215,8 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 }
 
 HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets) {
-  supported_mask_ = ~(disabled_targets & ~uint32_t(HWY_ENABLED_BASELINE));
+  supported_mask_ =
+      ~(disabled_targets & ~static_cast<uint32_t>(HWY_ENABLED_BASELINE));
   // We can call Update() here to initialize the mask but that will trigger a
   // call to SupportedTargets() which we use in tests to tell whether any of the
   // highway dynamic dispatch functions were used.
@@ -326,18 +327,19 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
   // are not preserved across context switches.
   if (has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
+    const uint32_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL;
+    const uint32_t min_avx2 = HWY_AVX2 | min_avx3;
     // XMM
     if (!IsBitSet(xcr0, 1)) {
-      bits &=
-          ~uint32_t(HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
+      bits &= ~(HWY_SSSE3 | HWY_SSE4 | min_avx2);
     }
     // YMM
     if (!IsBitSet(xcr0, 2)) {
-      bits &= ~uint32_t(HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL);
+      bits &= ~min_avx2;
     }
     // opmask, ZMM lo/hi
     if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
-      bits &= ~uint32_t(HWY_AVX3 | HWY_AVX3_DL);
+      bits &= ~min_avx3;
     }
   }
 
