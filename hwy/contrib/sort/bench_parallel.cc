@@ -52,7 +52,7 @@ class ThreadPool {
  public:
   // Starts the given number of worker threads and blocks until they are ready.
   explicit ThreadPool(
-      const size_t num_threads = std::thread::hardware_concurrency() / 2)
+      const size_t num_threads = std::thread::hardware_concurrency())
       : num_threads_(num_threads) {
     HWY_ASSERT(num_threads_ > 0);
     threads_.reserve(num_threads_);
@@ -182,8 +182,10 @@ void RunWithoutVerify(const Dist dist, const size_t num, const Algo algo,
 }
 
 void BenchParallel() {
-  // Not interested in benchmark results for other targets
-  if (HWY_TARGET != HWY_AVX2 && HWY_TARGET != HWY_AVX3) return;
+  // Not interested in benchmark results for other targets on x86
+  if (HWY_ARCH_X86 && (HWY_TARGET != HWY_AVX2 && HWY_TARGET != HWY_AVX3)) {
+    return;
+  }
 
   ThreadPool pool;
   const size_t NT = pool.NumThreads();
