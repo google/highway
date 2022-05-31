@@ -2210,10 +2210,12 @@ HWY_API Vec256<T> LoadDup128(Full256<T> /* tag */, const T* HWY_RESTRICT p) {
   __m256i out;
   asm("vbroadcasti128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<T>{out};
-#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG && HWY_COMPILER_MSVC < 1931
   // Workaround for incorrect results with _mm256_broadcastsi128_si256. Note
   // that MSVC also lacks _mm256_zextsi128_si256, but cast (which leaves the
   // upper half undefined) is fine because we're overwriting that anyway.
+  // This workaround seems in turn to generate incorrect code in MSVC 2022
+  // (19.31), so use broadcastsi128 there.
   const __m128i v128 = LoadU(Full128<T>(), p).raw;
   return Vec256<T>{
       _mm256_inserti128_si256(_mm256_castsi128_si256(v128), v128, 1)};
@@ -2227,7 +2229,7 @@ HWY_API Vec256<float> LoadDup128(Full256<float> /* tag */,
   __m256 out;
   asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<float>{out};
-#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG && HWY_COMPILER_MSVC < 1931
   const __m128 v128 = LoadU(Full128<float>(), p).raw;
   return Vec256<float>{
       _mm256_insertf128_ps(_mm256_castps128_ps256(v128), v128, 1)};
@@ -2241,7 +2243,7 @@ HWY_API Vec256<double> LoadDup128(Full256<double> /* tag */,
   __m256d out;
   asm("vbroadcastf128 %1, %[reg]" : [ reg ] "=x"(out) : "m"(p[0]));
   return Vec256<double>{out};
-#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+#elif HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG && HWY_COMPILER_MSVC < 1931
   const __m128d v128 = LoadU(Full128<double>(), p).raw;
   return Vec256<double>{
       _mm256_insertf128_pd(_mm256_castpd128_pd256(v128), v128, 1)};
