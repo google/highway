@@ -349,7 +349,10 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
   }
 #else
   // TODO(janwas): detect for other platforms and check for baseline
-  bits |= HWY_TARGETS;
+  // This file is typically compiled without HWY_IS_TEST, but targets_test has
+  // it set, and will expect all of its HWY_TARGETS (= all attainable) to be
+  // supported.
+  bits |= HWY_ENABLED_BASELINE;
 #endif  // HWY_ARCH_X86
 
   supported_.store(bits, std::memory_order_release);
