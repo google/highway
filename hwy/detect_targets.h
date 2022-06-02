@@ -179,7 +179,7 @@
 #define HWY_BASELINE_WASM HWY_WASM2
 #else
 #define HWY_BASELINE_WASM HWY_WASM
-#endif // HWY_WANT_WASM2
+#endif  // HWY_WANT_WASM2
 #else
 #define HWY_BASELINE_WASM 0
 #endif

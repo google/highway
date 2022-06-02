@@ -2480,7 +2480,8 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
 template <size_t N, HWY_IF_LE64(int32_t, N)>  // N=1 or 2
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
                                              const Vec128<int32_t, N> b) {
-  return Set(Simd<int64_t, (N + 1) / 2, 0>(), int64_t(GetLane(a)) * GetLane(b));
+  return Set(Simd<int64_t, (N + 1) / 2, 0>(),
+             static_cast<int64_t>(GetLane(a)) * GetLane(b));
 }
 HWY_API Vec128<int64_t> MulEven(const Vec128<int32_t> a,
                                 const Vec128<int32_t> b) {
@@ -2490,8 +2491,8 @@ HWY_API Vec128<int64_t> MulEven(const Vec128<int32_t> a,
   Store(a, di32, a_lanes);
   Store(b, di32, b_lanes);
   alignas(16) int64_t mul[2];
-  mul[0] = int64_t(a_lanes[0]) * b_lanes[0];
-  mul[1] = int64_t(a_lanes[2]) * b_lanes[2];
+  mul[0] = static_cast<int64_t>(a_lanes[0]) * b_lanes[0];
+  mul[1] = static_cast<int64_t>(a_lanes[2]) * b_lanes[2];
   return Load(Full128<int64_t>(), mul);
 }
 
@@ -3167,7 +3168,7 @@ HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
 
 // Unfortunately the GCC/Clang intrinsics do not accept int64_t*.
-using GatherIndex64 = long long int;  // NOLINT(google-runtime-int)
+using GatherIndex64 = long long int;  // NOLINT(runtime/int)
 static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
 
 #if HWY_TARGET <= HWY_AVX3
@@ -5802,7 +5803,7 @@ HWY_API size_t StoreMaskBits(const Simd<T, N, 0> /* tag */,
   constexpr size_t kNumBytes = (N + 7) / 8;
   CopyBytes<kNumBytes>(&mask.raw, bits);
 
-    // Non-full byte, need to clear the undefined upper bits.
+  // Non-full byte, need to clear the undefined upper bits.
   if (N < 8) {
     const int mask = (1 << N) - 1;
     bits[0] = static_cast<uint8_t>(bits[0] & mask);
