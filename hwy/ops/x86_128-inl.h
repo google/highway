@@ -1688,8 +1688,47 @@ HWY_API Mask128<double, N> operator==(const Vec128<double, N> a,
 
 // ------------------------------ Inequality
 
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
-HWY_API Mask128<T, N> operator!=(const Vec128<T, N> a, const Vec128<T, N> b) {
+// This cannot have T as a template argument, otherwise it is not more 
+// specialized than rewritten operator== in C++20, leading to compile
+// errors: https://gcc.godbolt.org/z/xsrPhPvPT.
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator!=(Vec128<uint8_t, N> a,
+                                       Vec128<uint8_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator!=(Vec128<uint16_t, N> a,
+                                       Vec128<uint16_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator!=(Vec128<uint32_t, N> a,
+                                       Vec128<uint32_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator!=(Vec128<uint64_t, N> a,
+                                       Vec128<uint64_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<int8_t, N> operator!=(Vec128<int8_t, N> a,
+                                      Vec128<int8_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> operator!=(Vec128<int16_t, N> a,
+                                       Vec128<int16_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> operator!=(Vec128<int32_t, N> a,
+                                       Vec128<int32_t, N> b) {
+  return Not(a == b);
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator!=(Vec128<int64_t, N> a,
+                                       Vec128<int64_t, N> b) {
   return Not(a == b);
 }
 

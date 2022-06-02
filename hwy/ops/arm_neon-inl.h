@@ -1413,10 +1413,10 @@ HWY_API Vec128<int64_t> Neg(const Vec128<int64_t> v) {
                             prefix##infix##suffix, v.raw, HWY_MAX(1, kBits))); \
   }
 
-HWY_NEON_DEF_FUNCTION_INTS_UINTS(ShiftLeft, vshl, _n_, HWY_SHIFT)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(ShiftLeft, vshl, _n_, ignored)
 
-HWY_NEON_DEF_FUNCTION_UINTS(ShiftRight, vshr, _n_, HWY_SHIFT)
-HWY_NEON_DEF_FUNCTION_INTS(ShiftRight, vshr, _n_, HWY_SHIFT)
+HWY_NEON_DEF_FUNCTION_UINTS(ShiftRight, vshr, _n_, ignored)
+HWY_NEON_DEF_FUNCTION_INTS(ShiftRight, vshr, _n_, ignored)
 
 #pragma pop_macro("HWY_NEON_DEF_FUNCTION")
 
@@ -2308,12 +2308,6 @@ HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator==, vceq, _, HWY_COMPARE)
 HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator==, vceq, _, HWY_COMPARE)
 #endif
 
-// ------------------------------ Inequality
-template <typename T, size_t N>
-HWY_API Mask128<T, N> operator!=(const Vec128<T, N> a, const Vec128<T, N> b) {
-  return Not(a == b);
-}
-
 // ------------------------------ Strict inequality (signed, float)
 #if HWY_ARCH_ARM_A64
 HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator<, vclt, _, HWY_COMPARE)
@@ -2376,6 +2370,24 @@ HWY_API Mask128<uint64_t, N> operator<(const Vec128<uint64_t, N> a,
 }
 
 #endif
+
+// ------------------------------ operator!= (operator==)
+
+// Customize HWY_NEON_DEF_FUNCTION to call 2 functions.
+#pragma push_macro("HWY_NEON_DEF_FUNCTION")
+#undef HWY_NEON_DEF_FUNCTION
+// This cannot have _any_ template argument (in x86_128 we can at least have N
+// as an argument), otherwise it is not more specialized than rewritten
+// operator== in C++20, leading to compile errors.
+#define HWY_NEON_DEF_FUNCTION(type, size, name, prefix, infix, suffix, args) \
+  HWY_API Mask128<type##_t, size> name(Vec128<type##_t, size> a,             \
+                                       Vec128<type##_t, size> b) {           \
+    return Not(a == b);                                                      \
+  }
+
+HWY_NEON_DEF_FUNCTION_ALL_TYPES(operator!=, ignored, ignored, ignored)
+
+#pragma pop_macro("HWY_NEON_DEF_FUNCTION")
 
 // ------------------------------ Reversed comparisons
 
