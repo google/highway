@@ -54,18 +54,18 @@
 // The C99 preprocessor evaluates #if expressions using intmax_t types, so we
 // can use 32-bit literals.
 
-// 1,2: reserved
+// 1,2,4: reserved
 
 // Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VPOPCNTDQ, VBMI, VBMI2,
 // VAES, BITALG). Later to be added: BF16 (Cooper Lake). VP2INTERSECT is only in
 // Tiger Lake? We do not yet have uses for GFNI.
-#define HWY_AVX3_DL 4  // see HWY_WANT_AVX3_DL below
-#define HWY_AVX3 8
-#define HWY_AVX2 16
-// 32: reserved for AVX
-#define HWY_SSE4 64
-#define HWY_SSSE3 128
-// 0x100, 0x200: reserved for SSE3, SSE2
+#define HWY_AVX3_DL 8  // see HWY_WANT_AVX3_DL below
+#define HWY_AVX3 16
+#define HWY_AVX2 32
+// 64: reserved for AVX
+#define HWY_SSE4 128
+#define HWY_SSSE3 256
+// 512: reserved for SSE3 or SSE2
 
 // The highest bit in the HWY_TARGETS mask that a x86 target can have. Used for
 // dynamic dispatch. All x86 target bits must be lower or equal to
@@ -73,36 +73,35 @@
 // HWY_MAX_DYNAMIC_TARGETS in total.
 #define HWY_HIGHEST_TARGET_BIT_X86 9
 
-#define HWY_SVE2 0x400
-#define HWY_SVE 0x800
-// 0x1000 reserved for Helium
-#define HWY_NEON 0x2000
+// 0x400, 0x800, 0x1000, 0x2000: reserved
+#define HWY_SVE2 0x4000
+#define HWY_SVE 0x8000
+// 0x10000 reserved for Helium
+#define HWY_NEON 0x20000
 
-#define HWY_HIGHEST_TARGET_BIT_ARM 13
+#define HWY_HIGHEST_TARGET_BIT_ARM 17
 
-// 0x4000, 0x8000 reserved
-#define HWY_PPC8 0x10000  // v2.07 or 3
-// 0x20000, 0x40000 reserved for prior VSX/AltiVec
+// 0x40000 reserved
+#define HWY_PPC8 0x80000  // v2.07 or 3
+// 0x100000 reserved for prior VSX/AltiVec
 
-#define HWY_HIGHEST_TARGET_BIT_PPC 18
+#define HWY_HIGHEST_TARGET_BIT_PPC 20
 
-#define HWY_WASM2 0x80000  // Experimental
-#define HWY_WASM 0x100000
+// 0x200000, 0x400000 reserved
+#define HWY_WASM2 0x800000  // Experimental
+#define HWY_WASM 0x1000000
 
-#define HWY_HIGHEST_TARGET_BIT_WASM 20
-
-// 0x200000, 0x400000, 0x800000 reserved
-
-#define HWY_RVV 0x1000000
-
-#define HWY_HIGHEST_TARGET_BIT_RVV 24
+#define HWY_HIGHEST_TARGET_BIT_WASM 24
 
 // 0x2000000, 0x4000000, 0x8000000 reserved
+#define HWY_RVV 0x10000000
 
-#define HWY_EMU128 0x10000000
-#define HWY_SCALAR 0x20000000
+#define HWY_HIGHEST_TARGET_BIT_RVV 28
 
-#define HWY_HIGHEST_TARGET_BIT_SCALAR 29
+#define HWY_EMU128 0x20000000
+#define HWY_SCALAR 0x40000000
+
+#define HWY_HIGHEST_TARGET_BIT_SCALAR 30
 
 // Cannot use higher values, otherwise HWY_TARGETS computation might overflow.
 

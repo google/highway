@@ -172,35 +172,37 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 #define HWY_CHOOSE_TARGET_LIST(func_name)           \
   nullptr,                           /* reserved */ \
       nullptr,                       /* reserved */ \
+      nullptr,                       /* reserved */ \
       HWY_CHOOSE_AVX3_DL(func_name), /* AVX3_DL */  \
       HWY_CHOOSE_AVX3(func_name),    /* AVX3 */     \
       HWY_CHOOSE_AVX2(func_name),    /* AVX2 */     \
       nullptr,                       /* AVX */      \
       HWY_CHOOSE_SSE4(func_name),    /* SSE4 */     \
       HWY_CHOOSE_SSSE3(func_name),   /* SSSE3 */    \
-      nullptr,                       /* SSE3 */     \
-      nullptr                        /* SSE2 */
+      nullptr                        /* SSE3 or SSE2 */
 
 #elif HWY_ARCH_ARM
 // See HWY_ARCH_X86 above for details.
-#define HWY_MAX_DYNAMIC_TARGETS 4
+#define HWY_MAX_DYNAMIC_TARGETS 8
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_ARM
-#define HWY_CHOOSE_TARGET_LIST(func_name)       \
-  HWY_CHOOSE_SVE2(func_name),    /* SVE2 */     \
-      HWY_CHOOSE_SVE(func_name), /* SVE */      \
-      nullptr,                   /* reserved */ \
-      HWY_CHOOSE_NEON(func_name) /* NEON */
-
-#elif HWY_ARCH_PPC
-// See HWY_ARCH_X86 above for details.
-#define HWY_MAX_DYNAMIC_TARGETS 5
-#define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_PPC
 #define HWY_CHOOSE_TARGET_LIST(func_name)        \
   nullptr,                        /* reserved */ \
       nullptr,                    /* reserved */ \
+      nullptr,                    /* reserved */ \
+      nullptr,                    /* reserved */ \
+      HWY_CHOOSE_SVE2(func_name), /* SVE2 */     \
+      HWY_CHOOSE_SVE(func_name),  /* SVE */      \
+      nullptr,                    /* reserved */ \
+      HWY_CHOOSE_NEON(func_name)  /* NEON */
+
+#elif HWY_ARCH_PPC
+// See HWY_ARCH_X86 above for details.
+#define HWY_MAX_DYNAMIC_TARGETS 3
+#define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_PPC
+#define HWY_CHOOSE_TARGET_LIST(func_name)        \
+  nullptr,                        /* reserved */ \
       HWY_CHOOSE_PPC8(func_name), /* PPC8 */     \
-      nullptr,                    /* VSX */      \
-      nullptr                     /* AltiVec */
+      nullptr                     /* VSX or AltiVec */
 
 #elif HWY_ARCH_WASM
 // See HWY_ARCH_X86 above for details.
@@ -216,10 +218,10 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 4
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_RVV
-#define HWY_CHOOSE_TARGET_LIST(func_name)       \
-  nullptr,                       /* reserved */ \
-      nullptr,                   /* reserved */ \
-      nullptr,                   /* reserved */ \
+#define HWY_CHOOSE_TARGET_LIST(func_name)      \
+  nullptr,                      /* reserved */ \
+      nullptr,                  /* reserved */ \
+      nullptr,                  /* reserved */ \
       HWY_CHOOSE_RVV(func_name) /* RVV */
 
 #else
