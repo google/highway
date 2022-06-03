@@ -814,6 +814,9 @@ class Mask128 {
   Raw raw;
 };
 
+template <typename T>
+using Mask64 = Mask128<T, 8 / sizeof(T)>;
+
 namespace detail {
 
 // Deduce Simd<T, N, 0> from Vec128<T, N>
@@ -5038,6 +5041,34 @@ HWY_API Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d,
 
 namespace detail {
 
+// Returns mask[i]? 0xF : 0 in each nibble. This is more efficient than
+// BitsFromMask for use in (partial) CountTrue, FindFirstTrue and AllFalse.
+template <typename T>
+HWY_INLINE uint64_t NibblesFromMask(const Full128<T> d, Mask128<T> mask) {
+  const Full128<uint16_t> du16;
+  const Vec128<uint16_t> vu16 = BitCast(du16, VecFromMask(d, mask));
+  const Vec64<uint8_t> nib(vshrn_n_u16(vu16.raw, 4));
+  return GetLane(BitCast(Full64<uint64_t>(), nib));
+}
+
+template <typename T>
+HWY_INLINE uint64_t NibblesFromMask(const Full64<T> d, Mask64<T> mask) {
+  // There is no vshrn_n_u16 for uint16x4, so zero-extend.
+  const Twice<decltype(d)> d2;
+  const Vec128<T> v128 = ZeroExtendVector(d2, VecFromMask(d, mask));
+  // No need to mask, upper half is zero thanks to ZeroExtendVector.
+  return NibblesFromMask(d2, MaskFromVec(v128));
+}
+
+template <typename T, size_t N, HWY_IF_LE32(T, N)>
+HWY_INLINE uint64_t NibblesFromMask(Simd<T, N, 0> /*d*/, Mask128<T, N> mask) {
+  const Mask64<T> mask64(mask.raw);
+  const uint64_t nib = NibblesFromMask(Full64<T>(), mask64);
+  // Clear nibbles from upper half of 64-bits
+  constexpr size_t kBytes = sizeof(T) * N;
+  return nib & ((1ull << (kBytes * 4)) - 1);
+}
+
 template <typename T>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                                  const Mask128<T> mask) {
@@ -5195,6 +5226,10 @@ HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
 // Masks are either FF..FF or 0. Unfortunately there is no reduce-sub op
 // ("vsubv"). ANDing with 1 would work but requires a constant. Negating also
 // changes each lane to 1 (if mask set) or 0.
+// NOTE: PopCount also operates on vectors, so we still have to do horizontal
+// sums separately. We specialize CountTrue for full vectors (negating instead
+// of PopCount because it avoids an extra shift), and use PopCount of
+// NibblesFromMask for partial vectors.
 
 template <typename T>
 HWY_INLINE size_t CountTrue(hwy::SizeTag<1> /*tag*/, const Mask128<T> mask) {
@@ -5265,15 +5300,17 @@ HWY_API size_t CountTrue(Full128<T> /* tag */, const Mask128<T> mask) {
 
 // Partial
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API size_t CountTrue(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask) {
-  return PopCount(detail::BitsFromMask(mask));
+HWY_API size_t CountTrue(Simd<T, N, 0> d, const Mask128<T, N> mask) {
+  constexpr int kDiv = 4 * sizeof(T);
+  return PopCount(detail::NibblesFromMask(d, mask)) / kDiv;
 }
-
 template <typename T, size_t N>
-HWY_API intptr_t FindFirstTrue(const Simd<T, N, 0> /* tag */,
+HWY_API intptr_t FindFirstTrue(const Simd<T, N, 0> d,
                                const Mask128<T, N> mask) {
-  const uint64_t bits = detail::BitsFromMask(mask);
-  return bits ? static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero64(bits)) : -1;
+  const uint64_t nib = detail::NibblesFromMask(d, mask);
+  if (nib == 0) return -1;
+  constexpr int kDiv = 4 * sizeof(T);
+  return static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero64(nib) / kDiv);
 }
 
 // `p` points to at least 8 writable bytes.
@@ -5286,29 +5323,21 @@ HWY_API size_t StoreMaskBits(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask,
   return kNumBytes;
 }
 
+template <typename T, size_t N>
+HWY_API bool AllFalse(const Simd<T, N, 0> d, const Mask128<T, N> m) {
+  return detail::NibblesFromMask(d, m) == 0;
+}
+
 // Full
 template <typename T>
-HWY_API bool AllFalse(const Full128<T> d, const Mask128<T> m) {
-#if HWY_ARCH_ARM_A64
-  const Full128<uint32_t> d32;
-  const auto m32 = MaskFromVec(BitCast(d32, VecFromMask(d, m)));
-  return (vmaxvq_u32(m32.raw) == 0);
-#else
-  const auto v64 = BitCast(Full128<uint64_t>(), VecFromMask(d, m));
-  uint32x2_t a = vqmovn_u64(v64.raw);
-  return vget_lane_u64(vreinterpret_u64_u32(a), 0) == 0;
-#endif
+HWY_API bool AllTrue(const Full128<T> d, const Mask128<T> m) {
+  return detail::NibblesFromMask(d, m) == ~0ull;
 }
-
 // Partial
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
-HWY_API bool AllFalse(const Simd<T, N, 0> /* tag */, const Mask128<T, N> m) {
-  return detail::BitsFromMask(m) == 0;
-}
-
-template <typename T, size_t N>
 HWY_API bool AllTrue(const Simd<T, N, 0> d, const Mask128<T, N> m) {
-  return AllFalse(d, VecFromMask(d, m) == Zero(d));
+  constexpr size_t kBytes = sizeof(T) * N;
+  return detail::NibblesFromMask(d, m) == (1ull << (kBytes * 4)) - 1;
 }
 
 // ------------------------------ Compress
