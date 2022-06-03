@@ -24,10 +24,13 @@
 #include "hwy/ops/shared-inl.h"
 
 // If running on hardware whose vector length is known to be a power of two, we
-// can skip fixups for non-power of two sizes. This may be 1 on future
-// fixed-size SVE targets.
+// can skip fixups for non-power of two sizes.
 #ifndef HWY_SVE_IS_POW2
+#if HWY_TARGET == HWY_SVE_256  // Known vector length
+#define HWY_SVE_IS_POW2 1
+#else
 #define HWY_SVE_IS_POW2 0
+#endif
 #endif  // HWY_SVE_IS_POW2
 
 HWY_BEFORE_NAMESPACE();

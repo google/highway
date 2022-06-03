@@ -22,7 +22,7 @@
 
 #include <atomic>
 
-#include "hwy/base.h"
+#include "hwy/per_target.h"
 
 #if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
 #include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
@@ -58,7 +58,7 @@ HWY_INLINE void Cpuid(const uint32_t level, const uint32_t count,
   for (int i = 0; i < 4; ++i) {
     abcd[i] = regs[i];
   }
-#else  // HWY_COMPILER_MSVC
+#else   // HWY_COMPILER_MSVC
   uint32_t a;
   uint32_t b;
   uint32_t c;
@@ -76,7 +76,7 @@ HWY_INLINE void Cpuid(const uint32_t level, const uint32_t count,
 uint32_t ReadXCR0() {
 #if HWY_COMPILER_MSVC
   return static_cast<uint32_t>(_xgetbv(0));
-#else  // HWY_COMPILER_MSVC
+#else   // HWY_COMPILER_MSVC
   uint32_t xcr0, xcr0_high;
   const uint32_t index = 0;
   asm volatile(".byte 0x0F, 0x01, 0xD0"
@@ -87,9 +87,6 @@ uint32_t ReadXCR0() {
 }
 
 #endif  // HWY_ARCH_X86
-
-// Not function-local => no compiler-generated locking.
-std::atomic<uint32_t> supported_{0};  // Not yet initialized
 
 // When running tests, this value can be set to the mocked supported targets
 // mask. Only written to from a single thread before the test starts.
@@ -184,76 +181,14 @@ constexpr uint64_t kGroupAVX3_DL =
 
 #endif  // HWY_ARCH_X86
 
-}  // namespace
-
-HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
-    Abort(const char* file, int line, const char* format, ...) {
-  char buf[2000];
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-
-  fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
-
-// If compiled with any sanitizer, they can also print a stack trace.
-#if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
-  __sanitizer_print_stack_trace();
-#endif  // HWY_IS_*
-  fflush(stderr);
-
-// Now terminate the program:
-#if HWY_ARCH_RVV
-  exit(1);  // trap/abort just freeze Spike.
-#elif HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
-  // Facilitates breaking into a debugger, but don't use this in non-debug
-  // builds because it looks like "illegal instruction", which is misleading.
-  __builtin_trap();
-#else
-  abort();  // Compile error without this due to HWY_NORETURN.
-#endif
-}
-
-HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets) {
-  supported_mask_ =
-      ~(disabled_targets & ~static_cast<uint32_t>(HWY_ENABLED_BASELINE));
-  // We can call Update() here to initialize the mask but that will trigger a
-  // call to SupportedTargets() which we use in tests to tell whether any of the
-  // highway dynamic dispatch functions were used.
-  GetChosenTarget().DeInit();
-}
-
-HWY_DLLEXPORT void SetSupportedTargetsForTest(uint32_t targets) {
-  // Reset the cached supported_ value to 0 to force a re-evaluation in the
-  // next call to SupportedTargets() which will use the mocked value set here
-  // if not zero.
-  supported_.store(0, std::memory_order_release);
-  supported_targets_for_test_ = targets;
-  GetChosenTarget().DeInit();
-}
-
-HWY_DLLEXPORT bool SupportedTargetsCalledForTest() {
-  return supported_.load(std::memory_order_acquire) != 0;
-}
-
-HWY_DLLEXPORT uint32_t SupportedTargets() {
-  uint32_t bits = supported_.load(std::memory_order_acquire);
-  // Already initialized?
-  if (HWY_LIKELY(bits != 0)) {
-    return bits & supported_mask_;
-  }
-
-  // When running tests, this allows to mock the current supported targets.
-  if (HWY_UNLIKELY(supported_targets_for_test_ != 0)) {
-    // Store the value to signal that this was used.
-    supported_.store(supported_targets_for_test_, std::memory_order_release);
-    return supported_targets_for_test_ & supported_mask_;
-  }
-
+// Returns targets supported by the CPU, independently of DisableTargets.
+// Factored out of SupportedTargets to make its structure more obvious. Note
+// that x86 CPUID may take several hundred cycles.
+uint32_t DetectTargets() {
 #if defined(HWY_COMPILE_ONLY_SCALAR)
-  bits = HWY_SCALAR;
+  uint32_t bits = HWY_SCALAR;
 #else
-  bits = HWY_EMU128;
+  uint32_t bits = HWY_EMU128;
 #endif
 
 #if HWY_ARCH_X86
@@ -355,23 +290,86 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
   bits |= HWY_ENABLED_BASELINE;
 #endif  // HWY_ARCH_X86
 
-  supported_.store(bits, std::memory_order_release);
-  return bits & supported_mask_;
+  return bits;
+}
+
+}  // namespace
+
+HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
+    Abort(const char* file, int line, const char* format, ...) {
+  char buf[2000];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
+
+// If compiled with any sanitizer, they can also print a stack trace.
+#if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
+  __sanitizer_print_stack_trace();
+#endif  // HWY_IS_*
+  fflush(stderr);
+
+// Now terminate the program:
+#if HWY_ARCH_RVV
+  exit(1);  // trap/abort just freeze Spike.
+#elif HWY_IS_DEBUG_BUILD && !HWY_COMPILER_MSVC
+  // Facilitates breaking into a debugger, but don't use this in non-debug
+  // builds because it looks like "illegal instruction", which is misleading.
+  __builtin_trap();
+#else
+  abort();  // Compile error without this due to HWY_NORETURN.
+#endif
+}
+
+HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets) {
+  supported_mask_ = ~disabled_targets;
+  // This will take effect on the next call to SupportedTargets, which is
+  // called right before GetChosenTarget::Update. However, calling Update here
+  // would make it appear that HWY_DYNAMIC_DISPATCH was called, which we want
+  // to check in tests. We instead de-initialize such that the next
+  // HWY_DYNAMIC_DISPATCH calls GetChosenTarget::Update via FunctionCache.
+  GetChosenTarget().DeInit();
+}
+
+HWY_DLLEXPORT void SetSupportedTargetsForTest(uint32_t targets) {
+  supported_targets_for_test_ = targets;
+  GetChosenTarget().DeInit();  // see comment above
+}
+
+HWY_DLLEXPORT uint32_t SupportedTargets() {
+  uint32_t targets = supported_targets_for_test_;
+  if (HWY_LIKELY(targets == 0)) {
+    // Mock not active. Re-detect instead of caching just in case we're on a
+    // heterogeneous ISA (also requires some app support to pin threads). This
+    // is only reached on the first HWY_DYNAMIC_DISPATCH or after each call to
+    // DisableTargets or SetSupportedTargetsForTest.
+    targets = DetectTargets();
+
+    ChosenTarget& chosen = GetChosenTarget();
+
+    // VectorBytes invokes HWY_DYNAMIC_DISPATCH. To prevent infinite recursion,
+    // first set up ChosenTarget.
+    chosen.Update(targets);
+
+    // Now that we can call VectorBytes, check for targets with specific sizes.
+    const size_t vec_bytes = VectorBytes();  // uncached, see declaration
+    if (HWY_ARCH_ARM_A64 && (targets & HWY_SVE) && vec_bytes == 32) {
+      targets |= HWY_SVE_256;
+    } else {
+      targets &= ~HWY_SVE_256;
+    }
+    chosen.Update(targets);
+  }
+
+  targets &= supported_mask_;
+  return targets == 0 ? HWY_STATIC_TARGET : targets;
 }
 
 HWY_DLLEXPORT ChosenTarget& GetChosenTarget() {
   static ChosenTarget chosen_target;
   return chosen_target;
-}
-
-HWY_DLLEXPORT void ChosenTarget::Update() {
-  // The supported variable contains the current CPU supported targets shifted
-  // to the location expected by the ChosenTarget mask. We enabled SCALAR
-  // regardless of whether it was compiled since it is also used as the
-  // fallback mechanism to the baseline target.
-  uint32_t supported = HWY_CHOSEN_TARGET_SHIFT(hwy::SupportedTargets()) |
-                       HWY_CHOSEN_TARGET_MASK_SCALAR;
-  StoreMask(supported);
 }
 
 }  // namespace hwy

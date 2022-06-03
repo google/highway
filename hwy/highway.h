@@ -82,6 +82,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SVE2
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE2::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_SVE_256
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE_256::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_PPC8
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_PPC8::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SSSE3
@@ -114,7 +116,7 @@ struct FunctionCache {
   static RetType ChooseAndCall(Args... args) {
     // If we are running here it means we need to update the chosen target.
     ChosenTarget& chosen_target = GetChosenTarget();
-    chosen_target.Update();
+    chosen_target.Update(SupportedTargets());
     return (table[chosen_target.GetIndex()])(args...);
   }
 };
@@ -172,6 +174,12 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #define HWY_CHOOSE_SVE2(FUNC_NAME) &N_SVE2::FUNC_NAME
 #else
 #define HWY_CHOOSE_SVE2(FUNC_NAME) nullptr
+#endif
+
+#if HWY_TARGETS & HWY_SVE_256
+#define HWY_CHOOSE_SVE_256(FUNC_NAME) &N_SVE_256::FUNC_NAME
+#else
+#define HWY_CHOOSE_SVE_256(FUNC_NAME) nullptr
 #endif
 
 #if HWY_TARGETS & HWY_PPC8
@@ -248,10 +256,9 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 // This case still uses a table, although of a single element, to provide the
 // same compile error conditions as with the dynamic dispatch case when multiple
 // targets are being compiled.
-#define HWY_EXPORT(FUNC_NAME)                                       \
-  HWY_MAYBE_UNUSED static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) \
-      const HWY_DISPATCH_TABLE(FUNC_NAME)[1] = {                    \
-          &HWY_STATIC_DISPATCH(FUNC_NAME)}
+#define HWY_EXPORT(FUNC_NAME)                                             \
+  HWY_MAYBE_UNUSED static decltype(&HWY_STATIC_DISPATCH(FUNC_NAME)) const \
+  HWY_DISPATCH_TABLE(FUNC_NAME)[1] = {&HWY_STATIC_DISPATCH(FUNC_NAME)}
 #define HWY_DYNAMIC_DISPATCH(FUNC_NAME) HWY_STATIC_DISPATCH(FUNC_NAME)
 
 #else
@@ -305,7 +312,8 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #error "PPC is not yet supported"
 #elif HWY_TARGET == HWY_NEON
 #include "hwy/ops/arm_neon-inl.h"
-#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2
+#elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2 || \
+    HWY_TARGET == HWY_SVE_256
 #include "hwy/ops/arm_sve-inl.h"
 #elif HWY_TARGET == HWY_WASM2
 #include "hwy/ops/wasm_256-inl.h"

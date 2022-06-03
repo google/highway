@@ -53,7 +53,7 @@ class TestWithParamTarget : public testing::TestWithParam<uint32_t> {
     // was compiled with more than one target. In the single-target case only
     // static dispatch will be used anyway.
 #if (HWY_TARGETS & (HWY_TARGETS - 1)) != 0
-    EXPECT_TRUE(SupportedTargetsCalledForTest())
+    EXPECT_TRUE(GetChosenTarget().IsInitialized())
         << "This hwy target parametric test doesn't use dynamic-dispatch and "
            "doesn't need to be parametric.";
 #endif
@@ -102,7 +102,7 @@ class TestWithParamTargetAndT
     // was compiled with more than one target. In the single-target case only
     // static dispatch will be used anyway.
 #if (HWY_TARGETS & (HWY_TARGETS - 1)) != 0
-    EXPECT_TRUE(SupportedTargetsCalledForTest())
+    EXPECT_TRUE(GetChosenTarget().IsInitialized())
         << "This hwy target parametric test doesn't use dynamic-dispatch and "
            "doesn't need to be parametric.";
 #endif

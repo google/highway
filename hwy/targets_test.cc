@@ -33,6 +33,7 @@ DECLARE_FUNCTION(SSSE3)
 DECLARE_FUNCTION(NEON)
 DECLARE_FUNCTION(SVE)
 DECLARE_FUNCTION(SVE2)
+DECLARE_FUNCTION(SVE_256)
 DECLARE_FUNCTION(PPC8)
 DECLARE_FUNCTION(WASM)
 DECLARE_FUNCTION(RVV)
@@ -47,7 +48,7 @@ void CallFunctionForTarget(uint32_t target, int line) {
 
   // Call Update() first to make &HWY_DYNAMIC_DISPATCH() return
   // the pointer to the already cached function.
-  hwy::GetChosenTarget().Update();
+  hwy::GetChosenTarget().Update(hwy::SupportedTargets());
 
   EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
 
@@ -71,6 +72,7 @@ void CheckFakeFunction() {
   CallFunctionForTarget(HWY_NEON, __LINE__);
   CallFunctionForTarget(HWY_SVE, __LINE__);
   CallFunctionForTarget(HWY_SVE2, __LINE__);
+  CallFunctionForTarget(HWY_SVE_256, __LINE__);
   CallFunctionForTarget(HWY_PPC8, __LINE__);
   CallFunctionForTarget(HWY_WASM, __LINE__);
   CallFunctionForTarget(HWY_RVV, __LINE__);
@@ -102,13 +104,8 @@ TEST_F(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
 
 TEST_F(HwyTargetsTest, DisabledTargetsTest) {
   DisableTargets(~0u);
-#if HWY_ARCH_X86
-  // Check that the baseline can't be disabled.
-  HWY_ASSERT(HWY_ENABLED_BASELINE == SupportedTargets());
-#else
-  // TODO(janwas): update when targets.cc changes
-  HWY_ASSERT(HWY_TARGETS == SupportedTargets());
-#endif
+  // Check that disabling everything at least leaves the static target.
+  HWY_ASSERT(HWY_STATIC_TARGET == SupportedTargets());
 
   DisableTargets(0);  // Reset the mask.
   uint32_t current_targets = SupportedTargets();

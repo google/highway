@@ -31,10 +31,11 @@
 
 namespace hwy {
 
-// Returns (cached) bitfield of enabled targets that are supported on this CPU.
-// Implemented in targets.cc; unconditionally compiled to support the use case
-// of binary-only distributions. The HWY_SUPPORTED_TARGETS wrapper may allow
-// eliding calls to this function.
+// Returns bitfield of enabled targets that are supported on this CPU; there is
+// always at least one such target, hence the return value is never 0. The
+// targets returned may change after calling DisableTargets. This function is
+// always defined, but the HWY_SUPPORTED_TARGETS wrapper may allow eliding
+// calls to it if there is only a single target enabled.
 HWY_DLLEXPORT uint32_t SupportedTargets();
 
 // Evaluates to a function call, or literal if there is a single target.
@@ -44,25 +45,21 @@ HWY_DLLEXPORT uint32_t SupportedTargets();
 #define HWY_SUPPORTED_TARGETS hwy::SupportedTargets()
 #endif
 
-// Disable from runtime dispatch the mask of compiled in targets. Targets that
-// were not enabled at compile time are ignored. This function is useful to
-// disable a target supported by the CPU that is known to have bugs or when a
-// lower target is desired. For this reason, attempts to disable targets which
-// are in HWY_ENABLED_BASELINE have no effect so SupportedTargets() always
-// returns at least the baseline target.
+// Subsequent SupportedTargets will not return targets whose bit(s) are set in
+// `disabled_targets`. Exception: if SupportedTargets would return 0, it will
+// instead return HWY_STATIC_TARGET (there must always be one target to call).
+//
+// This function is useful for disabling targets known to be buggy, or if the
+// best available target is undesirable (perhaps due to throttling or memory
+// bandwidth limitations). Use SetSupportedTargetsForTest instead of this
+// function for iteratively enabling specific targets for testing.
 HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets);
 
-// Set the mock mask of CPU supported targets instead of the actual CPU
-// supported targets computed in SupportedTargets(). The return value of
-// SupportedTargets() will still be affected by the DisableTargets() mask
-// regardless of this mock, to prevent accidentally adding targets that are
-// known to be buggy in the current CPU. Call with a mask of 0 to disable the
-// mock and use the actual CPU supported targets instead.
+// Subsequent SupportedTargets will return the given set of targets, except
+// those disabled via DisableTargets. Call with a mask of 0 to disable the mock
+// and return to the normal SupportedTargets behavior. Used to run tests for
+// all targets.
 HWY_DLLEXPORT void SetSupportedTargetsForTest(uint32_t targets);
-
-// Returns whether the SupportedTargets() function was called since the last
-// SetSupportedTargetsForTest() call.
-HWY_DLLEXPORT bool SupportedTargetsCalledForTest();
 
 // Return the list of targets in HWY_TARGETS supported by the CPU as a list of
 // individual HWY_* target macros such as HWY_SCALAR or HWY_NEON. This list
@@ -93,6 +90,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 #endif
 
 #if HWY_ARCH_ARM
+    case HWY_SVE_256:
+      return "SVE_256";
     case HWY_SVE2:
       return "SVE2";
     case HWY_SVE:
@@ -185,15 +184,15 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 8
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_ARM
-#define HWY_CHOOSE_TARGET_LIST(func_name)        \
-  nullptr,                        /* reserved */ \
-      nullptr,                    /* reserved */ \
-      nullptr,                    /* reserved */ \
-      nullptr,                    /* reserved */ \
-      HWY_CHOOSE_SVE2(func_name), /* SVE2 */     \
-      HWY_CHOOSE_SVE(func_name),  /* SVE */      \
-      nullptr,                    /* reserved */ \
-      HWY_CHOOSE_NEON(func_name)  /* NEON */
+#define HWY_CHOOSE_TARGET_LIST(func_name)              \
+  nullptr,                           /* reserved */    \
+      nullptr,                       /* reserved */    \
+      nullptr,                       /* reserved */    \
+      HWY_CHOOSE_SVE_256(func_name), /* SVE 256-bit */ \
+      HWY_CHOOSE_SVE2(func_name),    /* SVE2 */        \
+      HWY_CHOOSE_SVE(func_name),     /* SVE */         \
+      nullptr,                       /* reserved */    \
+      HWY_CHOOSE_NEON(func_name)     /* NEON */
 
 #elif HWY_ARCH_PPC
 // See HWY_ARCH_X86 above for details.
@@ -231,23 +230,33 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_SCALAR
 #endif
 
+// Bitfield of supported and enabled targets. The format differs from that of
+// HWY_TARGETS; the lowest bit governs the first function pointer (which is
+// special in that it calls FunctionCache, then Update, then dispatches to the
+// actual implementation) in the tables created by HWY_EXPORT. Monostate (see
+// GetChosenTarget), thread-safe except on RVV.
 struct ChosenTarget {
  public:
-  // Update the ChosenTarget mask based on the current CPU supported
-  // targets.
-  HWY_DLLEXPORT void Update();
+  // Reset bits according to `targets` (typically the return value of
+  // SupportedTargets()). Postcondition: IsInitialized() == true.
+  void Update(uint32_t targets) {
+    // These are `targets` shifted downwards, see above. Also include SCALAR
+    // (corresponds to the last entry in the function table) as fallback.
+    StoreMask(HWY_CHOSEN_TARGET_SHIFT(targets) | HWY_CHOSEN_TARGET_MASK_SCALAR);
+  }
 
-  // Reset the ChosenTarget to the uninitialized state.
+  // Reset to the uninitialized state, so that FunctionCache will call Update
+  // during the next HWY_DYNAMIC_DISPATCH, and IsInitialized returns false.
   void DeInit() { StoreMask(1); }
 
-  // Whether the ChosenTarget was initialized. This is useful to know whether
-  // any HWY_DYNAMIC_DISPATCH function was called.
+  // Whether Update was called. This indicates whether any HWY_DYNAMIC_DISPATCH
+  // function was called, which we check in tests.
   bool IsInitialized() const { return LoadMask() != 1; }
 
   // Return the index in the dynamic dispatch table to be used by the current
   // CPU. Note that this method must be in the header file so it uses the value
   // of HWY_CHOSEN_TARGET_MASK_TARGETS defined in the translation unit that
-  // calls it, which may be different from others. This allows to only consider
+  // calls it, which may be different from others. This means we only enable
   // those targets that were actually compiled in this module.
   size_t HWY_INLINE GetIndex() const {
     return hwy::Num0BitsBelowLS1Bit_Nonzero32(LoadMask() &

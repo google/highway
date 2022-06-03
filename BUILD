@@ -141,6 +141,7 @@ cc_library(
     name = "hwy",
     srcs = [
         "hwy/aligned_allocator.cc",
+        "hwy/per_target.cc",
         "hwy/print.cc",
         "hwy/targets.cc",
     ],
@@ -163,6 +164,7 @@ cc_library(
         # End of list
         "hwy/highway.h",  # public
         "hwy/foreach_target.h",  # public
+        "hwy/per_target.h",  # public
         "hwy/print-inl.h",  # public
         "hwy/highway_export.h",  # public
         "hwy/ops/arm_neon-inl.h",

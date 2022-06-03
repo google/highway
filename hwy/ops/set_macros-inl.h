@@ -231,7 +231,8 @@
 
 //-----------------------------------------------------------------------------
 // SVE[2]
-#elif HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE
+#elif HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE || \
+    HWY_TARGET == HWY_SVE_256
 
 // SVE only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN alignas(8)
@@ -253,6 +254,8 @@
 
 #if HWY_TARGET == HWY_SVE2
 #define HWY_NAMESPACE N_SVE2
+#elif HWY_TARGET == HWY_SVE_256
+#define HWY_NAMESPACE N_SVE_256
 #else
 #define HWY_NAMESPACE N_SVE
 #endif
