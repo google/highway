@@ -10,7 +10,7 @@ using platform-specific intrinsics, which map to SIMD/vector instructions.
 `hwy/contrib` also includes higher-level algorithms such as `FindIf` or `Sorter`
 implemented using these ops.
 
-Highyway can use dynamic dispatch, which chooses the best available
+Highway can use dynamic dispatch, which chooses the best available
 implementation at runtime, or static dispatch which has no runtime overhead.
 Dynamic dispatch works by compiling your code once per target CPU and then
 selecting (via indirect call) at runtime.
@@ -814,7 +814,7 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     cannot happen unless the entire vector is inaccessible. Equivalent to, and
     potentially more efficient than, `StoreU(IfThenElse(m, v, LoadU(d, p)), d,
     p)`. "Blended" indicates this may not be atomic; other threads must not
-    concurrently update `[p, p + Lanes(d))` without sychronization.
+    concurrently update `[p, p + Lanes(d))` without synchronization.
 
 *   <code>void **SafeFillN**(size_t num, T value, D d, T* HWY_RESTRICT
     to)</code>: Sets `to[0, num)` to `value`. If `num` exceeds `Lanes(d)`, the
@@ -1194,19 +1194,19 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `u8` \
     <code>V **AESRound**(V state, V round_key)</code>: one round of AES
-    encrytion: `MixColumns(SubBytes(ShiftRows(state))) ^ round_key`. This
+    encryption: `MixColumns(SubBytes(ShiftRows(state))) ^ round_key`. This
     matches x86 AES-NI. The latency is independent of the input values.
 
 *   `V`: `u8` \
     <code>V **AESLastRound**(V state, V round_key)</code>: the last round of AES
-    encrytion: `SubBytes(ShiftRows(state)) ^ round_key`. This matches x86
+    encryption: `SubBytes(ShiftRows(state)) ^ round_key`. This matches x86
     AES-NI. The latency is independent of the input values.
 
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the
     lower 64 bits of each 128-bit block into a 128-bit product. The latency is
     independent of the input values (assuming that is true of normal integer
-    multiplication) so this can safely be used in cryto. Applications that wish
+    multiplication) so this can safely be used in crypto. Applications that wish
     to multiply upper with lower halves can `Shuffle01` one of the operands; on
     x86 that is expected to be latency-neutral.
 
