@@ -121,8 +121,8 @@ set(HWY_SOURCES
     hwy/ops/x86_128-inl.h
     hwy/ops/x86_256-inl.h
     hwy/ops/x86_512-inl.h
-    hwy/per_targets.cc
-    hwy/per_targets.h
+    hwy/per_target.cc
+    hwy/per_target.h
     hwy/print-inl.h
     hwy/print.cc
     hwy/print.h
