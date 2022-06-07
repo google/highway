@@ -87,8 +87,7 @@ cc_test(
     name = "sort_test",
     size = "medium",
     srcs = ["sort_test.cc"],
-    features = ["fully_static_link"],
-    linkstatic = True,
+    # Do not enable fully_static_link (pthread crash on bazel)
     local_defines = ["HWY_IS_TEST"],
     # for test_suite.
     tags = ["hwy_ops_test"],
@@ -105,8 +104,7 @@ cc_binary(
     name = "bench_sort",
     testonly = 1,
     srcs = ["bench_sort.cc"],
-    features = ["fully_static_link"],
-    linkstatic = True,
+    # Do not enable fully_static_link (pthread crash on bazel)
     local_defines = ["HWY_IS_TEST"],
     deps = [
         ":helpers",
@@ -121,8 +119,7 @@ cc_binary(
     name = "bench_parallel",
     testonly = 1,
     srcs = ["bench_parallel.cc"],
-    features = ["fully_static_link"],
-    linkstatic = True,
+    # Do not enable fully_static_link (pthread crash on bazel)
     local_defines = ["HWY_IS_TEST"],
     deps = [
         ":helpers",
