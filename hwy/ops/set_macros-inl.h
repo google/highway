@@ -285,7 +285,7 @@
 
 //-----------------------------------------------------------------------------
 // WASM2
-#elif HWY_TARGET == HWY_WASM2
+#elif HWY_TARGET == HWY_WASM_EMU256
 
 #define HWY_ALIGN alignas(32)
 #define HWY_MAX_BYTES 32
