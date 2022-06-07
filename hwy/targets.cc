@@ -356,9 +356,11 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
     // Now that we can call VectorBytes, check for targets with specific sizes.
     const size_t vec_bytes = VectorBytes();  // uncached, see declaration
     if (HWY_ARCH_ARM_A64 && (targets & HWY_SVE) && vec_bytes == 32) {
-      targets |= HWY_SVE_256;
+      targets =
+          static_cast<uint32_t>(targets | static_cast<uint32_t>(HWY_SVE_256));
     } else {
-      targets &= ~HWY_SVE_256;
+      targets =
+          static_cast<uint32_t>(targets & ~static_cast<uint32_t>(HWY_SVE_256));
     }
     chosen.Update(targets);
   }
