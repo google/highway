@@ -73,11 +73,10 @@ for the next target. This is accomplished by simply re-#including the user's
 translation unit, which may in turn `#include` one or more `-inl.h` files. As an
 exception, `hwy/ops/*-inl.h` do not require include guards because they are all
 included from highway.h, which takes care of this in a single location. Note
-that platforms such as WASM and RISC-V which currently only offer a single
-target do not require multiple compilation, but the same mechanism is used
-without actually re-#including. For both of those platforms, it is possible that
-additional targets will later be added, which means this mechanism will then be
-required.
+that platforms such as RISC-V which currently only offer a single target do not
+require multiple compilation, but the same mechanism is used without actually
+re-#including. For both of those platforms, it is possible that additional
+targets will later be added, which means this mechanism will then be required.
 
 Instead of a -inl.h file, you can also use a normal .cc/.h component, where the
 vector code is hidden inside the .cc file, and the header only declares a normal
@@ -135,6 +134,53 @@ For x86, we also avoid some duplication by implementing only once the functions
 which are shared between all targets. They reside in
 [x86_128-inl.h](../hwy/ops/x86_128-inl.h) and are also templated on the
 vector type.
+
+## Adding a new op
+
+Adding an op consists of three steps, listed below. As an example, consider
+https://github.com/google/highway/commit/6c285d64ae50e0f48866072ed3a476fc12df5ab6.
+
+1) Document the new op in `g3doc/quick_reference.md` with its function signature
+and a description of what the op does.
+
+2) Implement the op in each `ops/*-inl.h` header. There are two exceptions,
+detailed in the previous section: first, `generic_ops-inl.h` is not changed in
+the common case where the op has a unique definition for every target. Second,
+if the op's definition would be duplicated in `x86_256-inl.h` and
+`x86_512-inl.h`, it may be expressed as a template in `x86_128-inl.h` with a
+`class V` template argument, e.g. `TableLookupBytesOr0`.
+
+3) Pick the appropriate `hwy/tests/*_test.cc` and add a test. This is also a
+three step process: first define a functor that implements the test logic (e.g.
+`TestPlusMinus`), then a function (e.g. `TestAllPlusMinus`) that invokes this
+functor for all lane types the op supports, and finally a line near the end of
+the file that invokes the function for all targets:
+`HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);`. Note the naming
+convention that the function has the same name as the functor except for the
+`TestAll` prefix.
+
+## Documentation of platform-specific intrinsics
+
+When adding a new op, it is often necessary to consult the reference for each
+platform's intrinsics.
+
+For x86 targets `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`, `HWY_AVX3_DL`
+Intel provides a
+[searchable reference](https://www.intel.com/content/www/us/en/docs/intrinsics-guide).
+
+For Arm targets `HWY_NEON`, `HWY_SVE` (plus its specialization for 256-bit
+vectors `HWY_SVE_256`), `HWY_SVE2`, Arm provides a
+[searchable reference](https://developer.arm.com/architectures/instruction-sets/intrinsics).
+
+For RISC-V target `HWY_RVV`, we refer to the assembly language
+[specification](https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc)
+plus the separate
+[intrinsics specification](https://github.com/riscv-non-isa/rvv-intrinsic-doc).
+
+For WebAssembly target `HWY_WASM`, we recommend consulting the
+[intrinsics header](https://github.com/llvm/llvm-project/blob/main/clang/lib/Headers/wasm_simd128.h).
+There is also an unofficial
+[searchable list of intrinsics](https://nemequ.github.io/waspr/intrinsics).
 
 ## Why scalar target
 
