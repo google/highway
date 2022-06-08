@@ -2628,61 +2628,49 @@ HWY_API Vec64<double> LoadU(Full64<double> /* tag */,
   return Vec64<double>(vld1_f64(p));
 }
 #endif
-
 // ------------------------------ Load 32
 
-HWY_API Vec32<uint8_t> LoadU(Full32<uint8_t> /*tag*/,
-                             const uint8_t* HWY_RESTRICT p) {
-  uint32x2_t a = vld1_dup_u32(reinterpret_cast<const uint32_t*>(p));
-  return Vec32<uint8_t>(vreinterpret_u8_u32(a));
-}
-HWY_API Vec32<uint16_t> LoadU(Full32<uint16_t> /*tag*/,
-                              const uint16_t* HWY_RESTRICT p) {
-  uint32x2_t a = vld1_dup_u32(reinterpret_cast<const uint32_t*>(p));
-  return Vec32<uint16_t>(vreinterpret_u16_u32(a));
-}
+// Actual 32-bit broadcast load - used to implement the other lane types
+// because reinterpret_cast of the pointer leads to incorrect codegen on GCC.
 HWY_API Vec32<uint32_t> LoadU(Full32<uint32_t> /*tag*/,
                               const uint32_t* HWY_RESTRICT p) {
-  return Vec32<uint32_t>(vld1_dup_u32(reinterpret_cast<const uint32_t*>(p)));
-}
-HWY_API Vec32<int8_t> LoadU(Full32<int8_t> /*tag*/,
-                            const int8_t* HWY_RESTRICT p) {
-  int32x2_t a = vld1_dup_s32(reinterpret_cast<const int32_t*>(p));
-  return Vec32<int8_t>(vreinterpret_s8_s32(a));
-}
-HWY_API Vec32<int16_t> LoadU(Full32<int16_t> /*tag*/,
-                             const int16_t* HWY_RESTRICT p) {
-  int32x2_t a = vld1_dup_s32(reinterpret_cast<const int32_t*>(p));
-  return Vec32<int16_t>(vreinterpret_s16_s32(a));
+  return Vec32<uint32_t>(vld1_dup_u32(p));
 }
 HWY_API Vec32<int32_t> LoadU(Full32<int32_t> /*tag*/,
                              const int32_t* HWY_RESTRICT p) {
-  return Vec32<int32_t>(vld1_dup_s32(reinterpret_cast<const int32_t*>(p)));
+  return Vec32<int32_t>(vld1_dup_s32(p));
 }
 HWY_API Vec32<float> LoadU(Full32<float> /*tag*/, const float* HWY_RESTRICT p) {
   return Vec32<float>(vld1_dup_f32(p));
 }
 
+template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+HWY_API Vec32<T> LoadU(Full32<T> d, const T* HWY_RESTRICT p) {
+  const Repartition<uint32_t, decltype(d)> d32;
+  uint32_t buf;
+  CopyBytes<4>(p, &buf);
+  return BitCast(d, LoadU(d32, &buf));
+}
+
 // ------------------------------ Load 16
 
-HWY_API Vec128<uint8_t, 2> LoadU(Simd<uint8_t, 2, 0> /*tag*/,
-                                 const uint8_t* HWY_RESTRICT p) {
-  uint16x4_t a = vld1_dup_u16(reinterpret_cast<const uint16_t*>(p));
-  return Vec128<uint8_t, 2>(vreinterpret_u8_u16(a));
-}
+// Actual 16-bit broadcast load - used to implement the other lane types
+// because reinterpret_cast of the pointer leads to incorrect codegen on GCC.
 HWY_API Vec128<uint16_t, 1> LoadU(Simd<uint16_t, 1, 0> /*tag*/,
                                   const uint16_t* HWY_RESTRICT p) {
-  return Vec128<uint16_t, 1>(
-      vld1_dup_u16(reinterpret_cast<const uint16_t*>(p)));
-}
-HWY_API Vec128<int8_t, 2> LoadU(Simd<int8_t, 2, 0> /*tag*/,
-                                const int8_t* HWY_RESTRICT p) {
-  int16x4_t a = vld1_dup_s16(reinterpret_cast<const int16_t*>(p));
-  return Vec128<int8_t, 2>(vreinterpret_s8_s16(a));
+  return Vec128<uint16_t, 1>(vld1_dup_u16(p));
 }
 HWY_API Vec128<int16_t, 1> LoadU(Simd<int16_t, 1, 0> /*tag*/,
                                  const int16_t* HWY_RESTRICT p) {
-  return Vec128<int16_t, 1>(vld1_dup_s16(reinterpret_cast<const int16_t*>(p)));
+  return Vec128<int16_t, 1>(vld1_dup_s16(p));
+}
+
+template <typename T, HWY_IF_LANE_SIZE_LT(T, 2)>
+HWY_API Vec128<T, 2> LoadU(Simd<T, 2, 0> d, const T* HWY_RESTRICT p) {
+  const Repartition<uint16_t, decltype(d)> d16;
+  uint16_t buf;
+  CopyBytes<2>(p, &buf);
+  return BitCast(d, LoadU(d16, &buf));
 }
 
 // ------------------------------ Load 8
@@ -2824,29 +2812,9 @@ HWY_API void StoreU(const Vec64<double> v, Full64<double> /* tag */,
 
 // ------------------------------ Store 32
 
-HWY_API void StoreU(const Vec32<uint8_t> v, Full32<uint8_t>,
-                    uint8_t* HWY_RESTRICT p) {
-  uint32x2_t a = vreinterpret_u32_u8(v.raw);
-  vst1_lane_u32(reinterpret_cast<uint32_t*>(p), a, 0);
-}
-HWY_API void StoreU(const Vec32<uint16_t> v, Full32<uint16_t>,
-                    uint16_t* HWY_RESTRICT p) {
-  uint32x2_t a = vreinterpret_u32_u16(v.raw);
-  vst1_lane_u32(reinterpret_cast<uint32_t*>(p), a, 0);
-}
 HWY_API void StoreU(const Vec32<uint32_t> v, Full32<uint32_t>,
                     uint32_t* HWY_RESTRICT p) {
   vst1_lane_u32(p, v.raw, 0);
-}
-HWY_API void StoreU(const Vec32<int8_t> v, Full32<int8_t>,
-                    int8_t* HWY_RESTRICT p) {
-  int32x2_t a = vreinterpret_s32_s8(v.raw);
-  vst1_lane_s32(reinterpret_cast<int32_t*>(p), a, 0);
-}
-HWY_API void StoreU(const Vec32<int16_t> v, Full32<int16_t>,
-                    int16_t* HWY_RESTRICT p) {
-  int32x2_t a = vreinterpret_s32_s16(v.raw);
-  vst1_lane_s32(reinterpret_cast<int32_t*>(p), a, 0);
 }
 HWY_API void StoreU(const Vec32<int32_t> v, Full32<int32_t>,
                     int32_t* HWY_RESTRICT p) {
@@ -2857,25 +2825,29 @@ HWY_API void StoreU(const Vec32<float> v, Full32<float>,
   vst1_lane_f32(p, v.raw, 0);
 }
 
+template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+HWY_API void StoreU(const Vec32<T> v, Full32<T> d, T* HWY_RESTRICT p) {
+  const Repartition<uint32_t, decltype(d)> d32;
+  const uint32_t buf = GetLane(BitCast(d32, v));
+  CopyBytes<4>(&buf, p);
+}
+
 // ------------------------------ Store 16
 
-HWY_API void StoreU(const Vec128<uint8_t, 2> v, Simd<uint8_t, 2, 0>,
-                    uint8_t* HWY_RESTRICT p) {
-  uint16x4_t a = vreinterpret_u16_u8(v.raw);
-  vst1_lane_u16(reinterpret_cast<uint16_t*>(p), a, 0);
-}
 HWY_API void StoreU(const Vec128<uint16_t, 1> v, Simd<uint16_t, 1, 0>,
                     uint16_t* HWY_RESTRICT p) {
   vst1_lane_u16(p, v.raw, 0);
 }
-HWY_API void StoreU(const Vec128<int8_t, 2> v, Simd<int8_t, 2, 0>,
-                    int8_t* HWY_RESTRICT p) {
-  int16x4_t a = vreinterpret_s16_s8(v.raw);
-  vst1_lane_s16(reinterpret_cast<int16_t*>(p), a, 0);
-}
 HWY_API void StoreU(const Vec128<int16_t, 1> v, Simd<int16_t, 1, 0>,
                     int16_t* HWY_RESTRICT p) {
   vst1_lane_s16(p, v.raw, 0);
+}
+
+template <typename T, HWY_IF_LANE_SIZE_LT(T, 2)>
+HWY_API void StoreU(const Vec128<T, 2> v, Simd<T, 2, 0> d, T* HWY_RESTRICT p) {
+  const Repartition<uint16_t, decltype(d)> d16;
+  const uint16_t buf = GetLane(BitCast(d16, v));
+  CopyBytes<2>(&buf, p);
 }
 
 // ------------------------------ Store 8
