@@ -266,7 +266,7 @@ void PrintCompress32x8Tables() {
 // Compressed to nibbles (for AVX3 64x4)
 void PrintCompress64x4NibbleTables() {
   printf("======================================= 64x4Nibble\n");
-  constexpr size_t N = 4;
+  constexpr size_t N = 4;  // AVX2
   for (uint64_t code = 0; code < (1ull << N); ++code) {
     std::array<uint32_t, N> indices{0};
     size_t pos = 0;
@@ -297,12 +297,11 @@ void PrintCompress64x4NibbleTables() {
   printf("\n");
 }
 
-// Pairs of 32-bit lane indices
 void PrintCompress64x4Tables() {
-  printf("======================================= 64x4\n");
-  constexpr size_t N = 4;  // AVX2
+  printf("======================================= 64x4 uncompressed\n");
+  constexpr size_t N = 4;  // SVE_256
   for (uint64_t code = 0; code < (1ull << N); ++code) {
-    std::array<uint32_t, N> indices{0};
+    std::array<size_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
     for (size_t i = 0; i < N; ++i) {
@@ -318,8 +317,12 @@ void PrintCompress64x4Tables() {
     }
     HWY_ASSERT(pos == N);
 
+    // Store uncompressed indices because SVE TBL returns 0 if an index is out
+    // of bounds. On AVX3 we simply variable-shift because permute indices are
+    // interpreted modulo N. Compression is not worth the extra shift+AND
+    // because the table is anyway only 512 bytes.
     for (size_t i = 0; i < N; ++i) {
-      printf("%d,%d,", 2 * indices[i], 2 * indices[i] + 1);
+      printf("%d,", static_cast<int>(indices[i]));
     }
   }
   printf("\n");
