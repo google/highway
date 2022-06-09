@@ -1546,6 +1546,41 @@ HWY_API V UpperHalf(const D2 d2, const V v) {
 #endif
 }
 
+// ================================================== REDUCE
+
+// These return T, whereas the Highway op returns a broadcasted vector.
+namespace detail {
+#define HWY_SVE_REDUCE(BASE, CHAR, BITS, HALF, NAME, OP)                     \
+  HWY_API HWY_SVE_T(BASE, BITS) NAME(svbool_t pg, HWY_SVE_V(BASE, BITS) v) { \
+    return sv##OP##_##CHAR##BITS(pg, v);                                     \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_REDUCE, SumOfLanes, addv)
+HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE, MinOfLanes, minv)
+HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE, MaxOfLanes, maxv)
+// NaN if all are
+HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MinOfLanes, minnmv)
+HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanes, maxnmv)
+
+#undef HWY_SVE_REDUCE
+}  // namespace detail
+
+template <class D, class V>
+V SumOfLanes(D d, V v) {
+  return Set(d, detail::SumOfLanes(detail::MakeMask(d), v));
+}
+
+template <class D, class V>
+V MinOfLanes(D d, V v) {
+  return Set(d, detail::MinOfLanes(detail::MakeMask(d), v));
+}
+
+template <class D, class V>
+V MaxOfLanes(D d, V v) {
+  return Set(d, detail::MaxOfLanes(detail::MakeMask(d), v));
+}
+
+
 // ================================================== SWIZZLE
 
 // ------------------------------ GetLane
@@ -1795,25 +1830,21 @@ HWY_API V Compress(V v, svbool_t mask) {
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du64;
 
-  // Convert mask into bitfield by taking the horizontal sum (faster than ORV)
-  // of masked bits 1, 2, 4, 8. Pre-multiply by the vector size so we can use
-  // it as an offset for SetTableIndices. Could also use svindex + svadr, but
-  // loading might be cheaper.
-  alignas(16) constexpr uint64_t bits_times_vec_size[4] = {1 * 32, 2 * 32,
-                                                           4 * 32, 8 * 32};
+  // Convert mask into bitfield via horizontal sum (faster than ORV) of masked
+  // bits 1, 2, 4, 8. Pre-multiply by N so we can use it as an offset for
+  // SetTableIndices. Could use svindex + svadr, but loading might be cheaper.
+  alignas(16) static constexpr uint64_t bits_times_vec_size[4] = {1 * 4, 2 * 4,
+                                                                  4 * 4, 8 * 4};
   const svuint64_t bits = MaskedLoad(mask, du64, bits_times_vec_size);
-  const size_t offset = GetLane(SumOfLanes(du64, bits));
+  const size_t offset = detail::SumOfLanes(mask, bits);
 
   // See CompressIsPartition.
-  alignas(16) constexpr uint64_t table[4 * 16] = {
+  alignas(16) static constexpr uint64_t table[4 * 16] = {
       // PrintCompress64x4Tables
       0, 1, 2, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 2, 0, 1, 3, 0, 2,
       1, 3, 1, 2, 0, 3, 0, 1, 2, 3, 3, 0, 1, 2, 0, 3, 1, 2, 1, 3, 0, 2,
       0, 1, 3, 2, 2, 3, 0, 1, 0, 2, 3, 1, 1, 2, 3, 0, 0, 1, 2, 3};
-  const uintptr_t table_addr = reinterpret_cast<uintptr_t>(table);
-  const auto indices = SetTableIndices(
-      d, reinterpret_cast<const uint64_t*>(table_addr + offset));
-  return TableLookupLanes(v, indices);
+  return TableLookupLanes(v, SetTableIndices(d, table + offset));
 }
 #endif  // HWY_TARGET == HWY_SVE_256
 
@@ -1866,25 +1897,21 @@ HWY_API V CompressNot(V v, svbool_t mask) {
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du64;
 
-  // Convert mask into bitfield by taking the horizontal sum (faster than ORV)
-  // of masked bits 1, 2, 4, 8. Pre-multiply by the vector size so we can use
-  // it as an offset for SetTableIndices. Could also use svindex + svadr, but
-  // loading might be cheaper.
-  alignas(16) constexpr uint64_t bits_times_vec_size[4] = {1 * 32, 2 * 32,
-                                                           4 * 32, 8 * 32};
+  // Convert mask into bitfield via horizontal sum (faster than ORV) of masked
+  // bits 1, 2, 4, 8. Pre-multiply by N so we can use it as an offset for
+  // SetTableIndices. Could use svindex + svadr, but loading might be cheaper.
+  alignas(16) static constexpr uint64_t bits_times_vec_size[4] = {1 * 4, 2 * 4,
+                                                                  4 * 4, 8 * 4};
   const svuint64_t bits = MaskedLoad(mask, du64, bits_times_vec_size);
-  const size_t offset = GetLane(SumOfLanes(du64, bits));
+  const size_t offset = detail::SumOfLanes(mask, bits);
 
   // See CompressIsPartition.
-  alignas(16) constexpr uint64_t table[4 * 16] = {
+  alignas(16) static constexpr uint64_t table[4 * 16] = {
       // PrintCompressNot64x4Tables
       0, 1, 2, 3, 1, 2, 3, 0, 0, 2, 3, 1, 2, 3, 0, 1, 0, 1, 3, 2, 1, 3,
       0, 2, 0, 3, 1, 2, 3, 0, 1, 2, 0, 1, 2, 3, 1, 2, 0, 3, 0, 2, 1, 3,
       2, 0, 1, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
-  const uintptr_t table_addr = reinterpret_cast<uintptr_t>(table);
-  const auto indices = SetTableIndices(
-      d, reinterpret_cast<const uint64_t*>(table_addr + offset));
-  return TableLookupLanes(v, indices);
+  return TableLookupLanes(v, SetTableIndices(d, table + offset));
 #else
   return Compress(v, Not(mask));
 #endif  // HWY_TARGET == HWY_SVE_256
@@ -2199,25 +2226,6 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   static_assert(IsSame<TFromD<decltype(dn)>, TFromV<V>>(), "D/V mismatch");
   return BitCast(dw, InterleaveUpper(dn, a, b));
 }
-
-// ================================================== REDUCE
-
-#define HWY_SVE_REDUCE(BASE, CHAR, BITS, HALF, NAME, OP)                 \
-  template <size_t N, int kPow2>                                         \
-  HWY_API HWY_SVE_V(BASE, BITS)                                          \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d, HWY_SVE_V(BASE, BITS) v) { \
-    return Set(d, static_cast<HWY_SVE_T(BASE, BITS)>(                    \
-                      sv##OP##_##CHAR##BITS(detail::MakeMask(d), v)));   \
-  }
-
-HWY_SVE_FOREACH(HWY_SVE_REDUCE, SumOfLanes, addv)
-HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE, MinOfLanes, minv)
-HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE, MaxOfLanes, maxv)
-// NaN if all are
-HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MinOfLanes, minnmv)
-HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanes, maxnmv)
-
-#undef HWY_SVE_REDUCE
 
 // ================================================== Ops with dependencies
 
