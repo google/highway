@@ -459,6 +459,7 @@ set(HWY_TEST_FILES
   hwy/tests/float_test.cc
   hwy/tests/logical_test.cc
   hwy/tests/mask_test.cc
+  hwy/tests/mask_mem_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/mul_test.cc
   hwy/tests/shift_test.cc

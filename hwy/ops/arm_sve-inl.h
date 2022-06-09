@@ -224,6 +224,12 @@ HWY_INLINE size_t HardwareLanes(hwy::SizeTag<8> /* tag */) {
 
 // Returns actual number of lanes after capping by N and shifting. May return 0
 // (e.g. for "1/8th" of a u32x4 - would be 1 for 1/8th of u32x8).
+#if HWY_TARGET == HWY_SVE_256
+template <typename T, size_t N, int kPow2>
+HWY_API constexpr size_t Lanes(Simd<T, N, kPow2> /* d */) {
+  return HWY_MIN(detail::ScaleByPower(32 / sizeof(T), kPow2), N);
+}
+#else
 template <typename T, size_t N, int kPow2>
 HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
   const size_t actual = detail::HardwareLanes(hwy::SizeTag<sizeof(T)>());
@@ -231,6 +237,7 @@ HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
   if (detail::IsFull(d)) return actual;
   return HWY_MIN(detail::ScaleByPower(actual, kPow2), N);
 }
+#endif  // HWY_TARGET == HWY_SVE_256
 
 // ================================================== MASK INIT
 
@@ -1490,6 +1497,11 @@ HWY_API V ConcatLowerLower(const D d, const V hi, const V lo) {
 // ------------------------------ ConcatLowerUpper
 template <class D, class V>
 HWY_API V ConcatLowerUpper(const D d, const V hi, const V lo) {
+#if HWY_TARGET == HWY_SVE_256
+  if (detail::IsFull(d)) {
+    return detail::Ext<Lanes(d) / 2>(hi, lo);
+  }
+#endif
   return detail::Splice(hi, lo, detail::MaskUpperHalf(d));
 }
 
@@ -1526,8 +1538,12 @@ HWY_API V LowerHalf(const V v) {
 }
 
 template <class D2, class V>
-HWY_API V UpperHalf(const D2 /* d2 */, const V v) {
-  return detail::Splice(v, v, detail::MaskUpperHalf(Twice<D2>()));
+HWY_API V UpperHalf(const D2 d2, const V v) {
+#if HWY_TARGET == HWY_SVE_256
+  return detail::Ext<Lanes(d2)>(v, v);
+#else
+  return detail::Splice(v, v, detail::MaskUpperHalf(Twice<decltype(d2)>()));
+#endif
 }
 
 // ================================================== SWIZZLE
@@ -1601,13 +1617,18 @@ HWY_API V OddEven(const V odd, const V even) {
 // ------------------------------ OddEvenBlocks
 template <class V>
 HWY_API V OddEvenBlocks(const V odd, const V even) {
-  const RebindToUnsigned<DFromV<V>> du;
+  const DFromV<V> d;
+#if HWY_TARGET == HWY_SVE_256
+  return ConcatUpperLower(d, odd, even);
+#else
+  const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
   constexpr size_t kShift = CeilLog2(16 / sizeof(TU));
   const auto idx_block = ShiftRight<kShift>(Iota(du, 0));
   const auto lsb = detail::AndN(idx_block, static_cast<TU>(1));
   const svbool_t is_even = detail::EqN(lsb, static_cast<TU>(0));
   return IfThenElse(is_even, even, odd);
+#endif
 }
 
 // ------------------------------ TableLookupLanes
@@ -1657,11 +1678,15 @@ constexpr size_t LanesPerBlock(Simd<T, N, kPow2> /* tag */) {
 template <class V>
 HWY_API V SwapAdjacentBlocks(const V v) {
   const DFromV<V> d;
+#if HWY_TARGET == HWY_SVE_256
+  return ConcatLowerUpper(d, v, v);
+#else
   const RebindToUnsigned<decltype(d)> du;
   constexpr auto kLanesPerBlock =
       static_cast<TFromV<V>>(detail::LanesPerBlock(d));
   const VFromD<decltype(du)> idx = detail::XorN(Iota(du, 0), kLanesPerBlock);
   return TableLookupLanes(v, idx);
+#endif
 }
 
 // ------------------------------ Reverse
@@ -1683,17 +1708,16 @@ HWY_API V Reverse(D d, V v) {
   using T = TFromD<D>;
   const auto reversed = detail::ReverseFull(v);
   if (HWY_SVE_IS_POW2 && detail::IsFull(d)) return reversed;
-    // Shift right to remove extra (non-pow2 and remainder) lanes.
-    // TODO(janwas): on SVE2, use whilege.
-    // Avoids FirstN truncating to the return vector size. Must also avoid Not
-    // because that is limited to SV_POW2.
-    const ScalableTag<T> dfull;
-    const svbool_t all_true = detail::AllPTrue(dfull);
-    const size_t all_lanes =
-        detail::AllHardwareLanes(hwy::SizeTag<sizeof(T)>());
-    const svbool_t mask =
-        svnot_b_z(all_true, FirstN(dfull, all_lanes - Lanes(d)));
-    return detail::Splice(reversed, reversed, mask);
+  // Shift right to remove extra (non-pow2 and remainder) lanes.
+  // TODO(janwas): on SVE2, use whilege.
+  // Avoids FirstN truncating to the return vector size. Must also avoid Not
+  // because that is limited to SV_POW2.
+  const ScalableTag<T> dfull;
+  const svbool_t all_true = detail::AllPTrue(dfull);
+  const size_t all_lanes = detail::AllHardwareLanes(hwy::SizeTag<sizeof(T)>());
+  const svbool_t mask =
+      svnot_b_z(all_true, FirstN(dfull, all_lanes - Lanes(d)));
+  return detail::Splice(reversed, reversed, mask);
 }
 
 // ------------------------------ Reverse2
@@ -1721,6 +1745,10 @@ HWY_API VFromD<D> Reverse2(D /* tag */, const VFromD<D> v) {  // 3210
 // ------------------------------ Reverse4 (TableLookupLanes)
 template <class D>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  if (HWY_TARGET == HWY_SVE_256 && sizeof(TFromD<D>) == 8 &&
+      detail::IsFull(d)) {
+    return detail::ReverseFull(v);
+  }
   // TODO(janwas): is this approach faster than Shuffle0123?
   const RebindToUnsigned<decltype(d)> du;
   const auto idx = detail::XorN(Iota(du, 0), 3);
@@ -2005,6 +2033,13 @@ HWY_API V Shuffle0123(const V v) {
 // ------------------------------ ReverseBlocks (Reverse, Shuffle01)
 template <class D, class V = VFromD<D>>
 HWY_API V ReverseBlocks(D d, V v) {
+#if HWY_TARGET == HWY_SVE_256
+  if (detail::IsFull(d)) {
+    return SwapAdjacentBlocks(v);
+  } else if (detail::IsFull(Twice<D>())) {
+    return v;
+  }
+#endif
   const Repartition<uint64_t, D> du64;
   return BitCast(d, Shuffle01(Reverse(du64, BitCast(du64, v))));
 }
@@ -2350,6 +2385,7 @@ HWY_INLINE svuint64_t BitsFromBool(svuint8_t x) {
 }  // namespace detail
 
 // `p` points to at least 8 writable bytes.
+// TODO(janwas): specialize for HWY_SVE_256
 template <class D>
 HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
   svuint64_t bits_in_u64 =
@@ -2364,7 +2400,7 @@ HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
   // Non-full byte, need to clear the undefined upper bits. Can happen for
   // capped/fractional vectors or large T and small hardware vectors.
   if (num_bits < 8) {
-    const int mask = (1 << num_bits) - 1;
+    const int mask = (1ull << num_bits) - 1;
     bits[0] = static_cast<uint8_t>(bits[0] & mask);
   }
   // Else: we wrote full bytes because num_bits is a power of two >= 8.

@@ -113,7 +113,11 @@ constexpr bool IsFull(Simd<T, N, kPow2> /* d */) {
 // - [1,3]: a group of 2,4,8 [fractional] vectors;
 // - [-3,-1]: a fraction of a vector from 1/8 to 1/2.
 constexpr size_t ScaleByPower(size_t N, int pow2) {
+#if HWY_TARGET == HWY_RVV
   return pow2 >= 0 ? (N << pow2) : (N >> (-pow2));
+#else
+  return pow2 >= 0 ? N : (N >> (-pow2));
+#endif
 }
 
 // Struct wrappers enable validation of arguments via static_assert.
