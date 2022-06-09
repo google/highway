@@ -28,8 +28,8 @@ namespace hwy {
 struct SortConstants {
 // SortingNetwork reshapes its input into a matrix. This is the maximum number
 // of *keys* per vector.
-#if HWY_COMPILER_MSVC
-  static constexpr size_t kMaxCols = 8;  // avoids build timeout
+#if HWY_COMPILER_MSVC || HWY_IS_DEBUG_BUILD
+  static constexpr size_t kMaxCols = 8;  // avoid build timeout/stack overflow
 #else
   static constexpr size_t kMaxCols = 16;  // enough for u32 in 512-bit vector
 #endif

@@ -595,12 +595,14 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
 // `buf` ensures full vectors are aligned, and enables loads/stores without
 //   bounds checks.
 //
+// NOINLINE because this is large and called twice from vqsort-inl.h.
+//
 // References:
 // https://drops.dagstuhl.de/opus/volltexte/2021/13775/pdf/LIPIcs-SEA-2021-3.pdf
 // https://github.com/simd-sorting/fast-and-robust/blob/master/avx2_sort_demo/avx2sort.h
 // "Entwurf und Implementierung vektorisierter Sortieralgorithmen" (M. Blacher)
 template <class Traits, typename T>
-HWY_INLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
+HWY_NOINLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
   const CappedTag<T, Constants::kMaxCols> d;
   using V = decltype(Zero(d));
 
