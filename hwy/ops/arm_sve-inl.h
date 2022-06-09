@@ -49,6 +49,7 @@ using TFromV = TFromD<DFromV<V>>;
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
 #define HWY_IF_LANE_SIZE_V(V, bytes) HWY_IF_LANE_SIZE(TFromV<V>, bytes)
+#define HWY_IF_NOT_LANE_SIZE_V(V, bytes) HWY_IF_NOT_LANE_SIZE(TFromV<V>, bytes)
 
 // ================================================== MACROS
 
@@ -765,14 +766,14 @@ HWY_SVE_FOREACH(HWY_SVE_IF_THEN_ELSE, IfThenElse, sel)
 #undef HWY_SVE_IF_THEN_ELSE
 
 // ------------------------------ IfThenElseZero
-template <class M, class V>
-HWY_API V IfThenElseZero(const M mask, const V yes) {
+template <class V>
+HWY_API V IfThenElseZero(const svbool_t mask, const V yes) {
   return IfThenElse(mask, yes, Zero(DFromV<V>()));
 }
 
 // ------------------------------ IfThenZeroElse
-template <class M, class V>
-HWY_API V IfThenZeroElse(const M mask, const V no) {
+template <class V>
+HWY_API V IfThenZeroElse(const svbool_t mask, const V no) {
   return IfThenElse(mask, Zero(DFromV<V>()), no);
 }
 
@@ -1777,6 +1778,7 @@ HWY_API V Compress(V v, svbool_t mask) {
 
   // See CompressIsPartition.
   alignas(16) constexpr uint64_t table[4 * 16] = {
+      // PrintCompress64x4Tables
       0, 1, 2, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 2, 0, 1, 3, 0, 2,
       1, 3, 1, 2, 0, 3, 0, 1, 2, 3, 3, 0, 1, 2, 0, 3, 1, 2, 1, 3, 0, 2,
       0, 1, 3, 2, 2, 3, 0, 1, 0, 2, 3, 1, 1, 2, 3, 0, 0, 1, 2, 3};
@@ -1823,17 +1825,54 @@ HWY_API svfloat16_t Compress(svfloat16_t v, svbool_t mask16) {
   return BitCast(df, Compress(BitCast(di, v), mask16));
 }
 
+// ------------------------------ CompressNot
+
+template <class V, HWY_IF_NOT_LANE_SIZE_V(V, 8)>
+HWY_API V CompressNot(V v, const svbool_t mask) {
+  return Compress(v, Not(mask));
+}
+
+template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
+HWY_API V CompressNot(V v, svbool_t mask) {
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du64;
+
+  // Convert mask into bitfield by taking the horizontal sum (faster than ORV)
+  // of masked bits 1, 2, 4, 8. Pre-multiply by the vector size so we can use
+  // it as an offset for SetTableIndices. Could also use svindex + svadr, but
+  // loading might be cheaper.
+  alignas(16) constexpr uint64_t bits_times_vec_size[4] = {1 * 32, 2 * 32,
+                                                           4 * 32, 8 * 32};
+  const svuint64_t bits = MaskedLoad(mask, du64, bits_times_vec_size);
+  const size_t offset = GetLane(SumOfLanes(du64, bits));
+
+  // See CompressIsPartition.
+  alignas(16) constexpr uint64_t table[4 * 16] = {
+      // PrintCompressNot64x4Tables
+      0, 1, 2, 3, 1, 2, 3, 0, 0, 2, 3, 1, 2, 3, 0, 1, 0, 1, 3, 2, 1, 3,
+      0, 2, 0, 3, 1, 2, 3, 0, 1, 2, 0, 1, 2, 3, 1, 2, 0, 3, 0, 2, 1, 3,
+      2, 0, 1, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
+  const uintptr_t table_addr = reinterpret_cast<uintptr_t>(table);
+  const auto indices = SetTableIndices(
+      d, reinterpret_cast<const uint64_t*>(table_addr + offset));
+  return TableLookupLanes(v, indices);
+#else
+  return Compress(v, Not(mask));
+#endif  // HWY_TARGET == HWY_SVE_256
+}
+
 // ------------------------------ CompressStore
-template <class V, class M, class D>
-HWY_API size_t CompressStore(const V v, const M mask, const D d,
+template <class V, class D>
+HWY_API size_t CompressStore(const V v, const svbool_t mask, const D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 
 // ------------------------------ CompressBlendedStore
-template <class V, class M, class D>
-HWY_API size_t CompressBlendedStore(const V v, const M mask, const D d,
+template <class V, class D>
+HWY_API size_t CompressBlendedStore(const V v, const svbool_t mask, const D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const size_t count = CountTrue(d, mask);
   const svbool_t store_mask = FirstN(d, count);

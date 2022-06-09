@@ -2136,6 +2136,25 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
   return ret;
 }
 
+// ------------------------------ CompressNot
+template <typename T, size_t N>
+HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, const Mask128<T, N> mask) {
+  size_t count = 0;
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; ++i) {
+    if (!mask.bits[i]) {
+      ret.raw[count++] = v.raw[i];
+    }
+  }
+  for (size_t i = 0; i < N; ++i) {
+    if (mask.bits[i]) {
+      ret.raw[count++] = v.raw[i];
+    }
+  }
+  HWY_DASSERT(count == N);
+  return ret;
+}
+
 // ------------------------------ CompressBits
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,

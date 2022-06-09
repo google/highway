@@ -2190,6 +2190,12 @@ HWY_RVV_FOREACH_UI163264(HWY_RVV_COMPRESS, Compress, compress, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress, _ALL)
 #undef HWY_RVV_COMPRESS
 
+// ------------------------------ CompressNot
+template <class V, class M>
+HWY_API V CompressNot(V v, const M mask) {
+  return Compress(v, Not(mask));
+}
+
 // ------------------------------ CompressStore
 template <class V, class M, class D>
 HWY_API size_t CompressStore(const V v, const M mask, const D d,

@@ -2758,6 +2758,12 @@ HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
   return detail::Compress(hwy::SizeTag<sizeof(T)>(), v, mask_bits);
 }
 
+// ------------------------------ CompressNot
+template <typename T>
+HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
+  return Compress(v, Not(mask));
+}
+
 // ------------------------------ CompressBits
 
 template <typename T>

@@ -32,8 +32,10 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// For regenerating tables used in the implementation
+// Regenerate tables used in the implementation, instead of testing.
 #define HWY_PRINT_TABLES 0
+
+#if !HWY_PRINT_TABLES || HWY_IDE
 
 class TestCompress {
   template <class D, class DI, typename T = TFromD<D>, typename TI = TFromD<DI>>
@@ -131,6 +133,12 @@ class TestCompress {
         CheckStored(d, di, expected_pos, expected_pos, num_to_check, in_lanes,
                     mask_lanes, expected, actual_u, __LINE__);
 
+        // CompressNot
+        memset(actual_u, 0, N * sizeof(T));
+        StoreU(CompressNot(in, Not(mask)), d, actual_u);
+        CheckStored(d, di, expected_pos, expected_pos, num_to_check, in_lanes,
+                    mask_lanes, expected, actual_u, __LINE__);
+
         // CompressStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size1 = CompressStore(in, mask, d, actual_u);
@@ -169,7 +177,13 @@ class TestCompress {
   }      // operator()
 };
 
-#if HWY_PRINT_TABLES
+HWY_NOINLINE void TestAllCompress() {
+  ForUIF163264(ForPartialVectors<TestCompress>());
+}
+
+#endif  // !HWY_PRINT_TABLES
+
+#if HWY_PRINT_TABLES || HWY_IDE
 namespace detail {  // for code folding
 void PrintCompress16x8Tables() {
   printf("======================================= 16x8\n");
@@ -200,11 +214,11 @@ void PrintCompress16x8Tables() {
   printf("\n");
 }
 
-// Similar to the above, but uses native 16-bit shuffle instead of bytes.
-void PrintCompress16x16HalfTables() {
-  printf("======================================= 16x16Half\n");
-  constexpr size_t N = 8;
-  for (uint64_t code = 0; code < (1ull << N); ++code) {
+void PrintCompressNot16x8Tables() {
+  printf("======================================= Not 16x8\n");
+  constexpr size_t N = 8;  // 128-bit SIMD
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
     std::array<uint8_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -221,19 +235,54 @@ void PrintCompress16x16HalfTables() {
     }
     HWY_ASSERT(pos == N);
 
+    // Doubled (for converting lane to byte indices)
     for (size_t i = 0; i < N; ++i) {
-      printf("%d,", indices[i]);
+      printf("%d,", 2 * indices[i]);
     }
-    printf(code & 1 ? "//\n" : "/**/");
+    printf(not_code & 1 ? "//\n" : "/**/");
   }
   printf("\n");
 }
 
-// Compressed to nibbles
+// Compressed to nibbles, unpacked via variable right shift
 void PrintCompress32x8Tables() {
-  printf("======================================= 32x8\n");
-  constexpr size_t N = 8;  // AVX2
+  printf("======================================= 32/64x8\n");
+  constexpr size_t N = 8;  // AVX2 or 64-bit AVX3
   for (uint64_t code = 0; code < (1ull << N); ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Convert to nibbles
+    uint64_t packed = 0;
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT(indices[i] < N);
+      packed += indices[i] << (i * 4);
+    }
+
+    HWY_ASSERT(packed < (1ull << (N * 4)));
+    printf("0x%08x,", static_cast<uint32_t>(packed));
+  }
+  printf("\n");
+}
+
+void PrintCompressNot32x8Tables() {
+  printf("======================================= Not 32/64x8\n");
+  constexpr size_t N = 8;  // AVX2 or 64-bit AVX3
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
     std::array<uint32_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -297,6 +346,40 @@ void PrintCompress64x4NibbleTables() {
   printf("\n");
 }
 
+void PrintCompressNot64x4NibbleTables() {
+  printf("======================================= Not 64x4Nibble\n");
+  constexpr size_t N = 4;  // AVX2
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Convert to nibbles
+    uint64_t packed = 0;
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT(indices[i] < N);
+      packed += indices[i] << (i * 4);
+    }
+
+    HWY_ASSERT(packed < (1ull << (N * 4)));
+    printf("0x%08x,", static_cast<uint32_t>(packed));
+  }
+  printf("\n");
+}
+
 void PrintCompress64x4Tables() {
   printf("======================================= 64x4 uncompressed\n");
   constexpr size_t N = 4;  // SVE_256
@@ -328,12 +411,142 @@ void PrintCompress64x4Tables() {
   printf("\n");
 }
 
+void PrintCompressNot64x4Tables() {
+  printf("======================================= Not 64x4 uncompressed\n");
+  constexpr size_t N = 4;  // SVE_256
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
+    std::array<size_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Store uncompressed indices because SVE TBL returns 0 if an index is out
+    // of bounds. On AVX3 we simply variable-shift because permute indices are
+    // interpreted modulo N. Compression is not worth the extra shift+AND
+    // because the table is anyway only 512 bytes.
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d,", static_cast<int>(indices[i]));
+    }
+  }
+  printf("\n");
+}
+
+// Same as above, but prints pairs of u32 indices (for AVX2)
+void PrintCompress64x4PairTables() {
+  printf("======================================= 64x4 u32 index\n");
+  constexpr size_t N = 4;  // AVX2
+  for (uint64_t code = 0; code < (1ull << N); ++code) {
+    std::array<size_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Store uncompressed indices because SVE TBL returns 0 if an index is out
+    // of bounds. On AVX3 we simply variable-shift because permute indices are
+    // interpreted modulo N. Compression is not worth the extra shift+AND
+    // because the table is anyway only 512 bytes.
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d, %d, ", static_cast<int>(2 * indices[i] + 0),
+             static_cast<int>(2 * indices[i]) + 1);
+    }
+  }
+  printf("\n");
+}
+
+void PrintCompressNot64x4PairTables() {
+  printf("======================================= Not 64x4 u32 index\n");
+  constexpr size_t N = 4;  // AVX2
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
+    std::array<size_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Store uncompressed indices because SVE TBL returns 0 if an index is out
+    // of bounds. On AVX3 we simply variable-shift because permute indices are
+    // interpreted modulo N. Compression is not worth the extra shift+AND
+    // because the table is anyway only 512 bytes.
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d, %d, ", static_cast<int>(2 * indices[i] + 0),
+             static_cast<int>(2 * indices[i]) + 1);
+    }
+  }
+  printf("\n");
+}
+
 // 4-tuple of byte indices
 void PrintCompress32x4Tables() {
   printf("======================================= 32x4\n");
   using T = uint32_t;
   constexpr size_t N = 4;  // SSE4
   for (uint64_t code = 0; code < (1ull << N); ++code) {
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    for (size_t i = 0; i < N; ++i) {
+      for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
+        printf("%" PRIu64 ",",
+               static_cast<uint64_t>(sizeof(T) * indices[i] + idx_byte));
+      }
+    }
+  }
+  printf("\n");
+}
+
+void PrintCompressNot32x4Tables() {
+  printf("======================================= Not 32x4\n");
+  using T = uint32_t;
+  constexpr size_t N = 4;  // SSE4
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
     std::array<uint32_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -391,22 +604,62 @@ void PrintCompress64x2Tables() {
   }
   printf("\n");
 }
-}  // namespace detail
-#endif  // HWY_PRINT_TABLES
 
-HWY_NOINLINE void TestAllCompress() {
-#if HWY_PRINT_TABLES
-  detail::PrintCompress32x8Tables();
-  detail::PrintCompress64x4NibbleTables();
-  detail::PrintCompress64x4Tables();
-  detail::PrintCompress32x4Tables();
-  detail::PrintCompress64x2Tables();
-  detail::PrintCompress16x8Tables();
-  detail::PrintCompress16x16HalfTables();
-#endif
+void PrintCompressNot64x2Tables() {
+  printf("======================================= Not 64x2\n");
+  using T = uint64_t;
+  constexpr size_t N = 2;  // SSE4
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
 
-  ForUIF163264(ForPartialVectors<TestCompress>());
+    for (size_t i = 0; i < N; ++i) {
+      for (size_t idx_byte = 0; idx_byte < sizeof(T); ++idx_byte) {
+        printf("%" PRIu64 ",",
+               static_cast<uint64_t>(sizeof(T) * indices[i] + idx_byte));
+      }
+    }
+  }
+  printf("\n");
 }
+
+}  // namespace detail
+
+HWY_NOINLINE void PrintTables() {
+  // Only print once.
+#if HWY_TARGET == HWY_STATIC_TARGET
+  detail::PrintCompress32x8Tables();
+  detail::PrintCompressNot32x8Tables();
+  detail::PrintCompress64x4NibbleTables();
+  detail::PrintCompressNot64x4NibbleTables();
+  detail::PrintCompress64x4Tables();
+  detail::PrintCompressNot64x4Tables();
+  detail::PrintCompress32x4Tables();
+  detail::PrintCompressNot32x4Tables();
+  detail::PrintCompress64x2Tables();
+  detail::PrintCompressNot64x2Tables();
+  detail::PrintCompress64x4PairTables();
+  detail::PrintCompressNot64x4PairTables();
+  detail::PrintCompress16x8Tables();
+  detail::PrintCompressNot16x8Tables();
+#endif
+}
+
+#endif  // HWY_PRINT_TABLES
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -417,7 +670,12 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(HwyCompressTest);
+#if HWY_PRINT_TABLES
+// Only print instead of running tests; this will be visible in the log.
+HWY_EXPORT_AND_TEST_P(HwyCompressTest, PrintTables);
+#else
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompress);
+#endif
 }  // namespace hwy
 
 #endif

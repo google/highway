@@ -291,15 +291,15 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
     // between the updated writeL and writeR are ignored and will be overwritten
     // by subsequent calls. This works because writeL and writeR are at least
     // two vectors apart.
-    const auto mask = Not(comp);
-    const auto lr = Compress(v, mask);
-    const size_t num_left = CountTrue(d, mask);
+    const auto lr = CompressNot(v, comp);
+    const size_t num_right = CountTrue(d, comp);
+    const size_t num_left = N - num_right;
     StoreU(lr, d, keys + writeL);
     writeL += num_left;
     // Now write the right-side elements (if any), such that the previous writeR
     // is one past the end of the newly written right elements, then advance.
     StoreU(lr, d, keys + writeR - N);
-    writeR -= (N - num_left);
+    writeR -= num_right;
   } else {
     // Native Compress[Store] (e.g. AVX3), which only keep the left or right
     // side, not both, hence we require two calls.

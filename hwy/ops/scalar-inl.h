@@ -1454,7 +1454,13 @@ struct CompressIsPartition {
 
 template <typename T>
 HWY_API Vec1<T> Compress(Vec1<T> v, const Mask1<T> /* mask */) {
-  // Upper lanes are undefined, so result is the same independent of mask.
+  // A single lane is already partitioned by definition.
+  return v;
+}
+
+template <typename T>
+HWY_API Vec1<T> CompressNot(Vec1<T> v, const Mask1<T> /* mask */) {
+  // A single lane is already partitioned by definition.
   return v;
 }
 

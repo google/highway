@@ -663,6 +663,10 @@ false is zero, true has all bits set:
     is already a mask, e.g. returned by a comparison.
 
 *   `V`: `{u,i,f}{16,32,64}` \
+    <code>V **CompressNot**(V v, M m)</code>: equivalent to `Compress(v,
+    Not(m))` but possibly faster if `CompressIsPartition<T>::value` is true.
+
+*   `V`: `{u,i,f}{16,32,64}` \
     <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
     whose mask `m` is true into `p`, starting from lane 0. Returns `CountTrue(d,
     m)`, the number of valid lanes. May be implemented as `Compress` followed by
