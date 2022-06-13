@@ -34,12 +34,32 @@ config is verified, then re-launch. See IPv4 hostname in list of instances.
 
 `ssh -i /path/key.pem ec2-user@hostname`
 
+Note that the AWS CMake package is too old for llvm, so we build it first:
 ```
-sudo yum install go clang.aarch64 glibc-static.aarch64
+wget https://cmake.org/files/v3.23/cmake-3.23.2.tar.gz
+tar -xvzf cmake-3.23.2.tar.gz && cd cmake-3.23.2/
+./bootstrap -- -DCMAKE_USE_OPENSSL=OFF
+make -j8 && sudo make install
+cd ..
+```
+
+AWS clang is at version 11.1, which generates unnecessary AND instructions which
+slow down the sort by 1.15x. We tested with clang trunk as of June 13
+(which reports Git hash 8f6512fea000c3a0d394864bb94e524bee375069). To build:
+```
+git clone --depth 1 https://github.com/llvm/llvm-project.git
+cd llvm-project
+mkdir -p build && cd build
+/usr/local/bin/cmake ../llvm -DLLVM_ENABLE_PROJECTS="clang" -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" -DCMAKE_BUILD_TYPE=Release
+make -j32 && sudo make install
+```
+
+```
+sudo yum install go
 go install github.com/bazelbuild/bazelisk@latest
 git clone https://github.com/google/highway
 cd highway
-CC=clang ~/go/bin/bazelisk build -c opt --copt=-march=armv8.2-a+sve hwy/contrib/sort:all
+CC=/usr/local/bin/clang CXX=/usr/local/bin/clang++ ~/go/bin/bazelisk build -c opt --copt=-march=armv8.2-a+sve hwy/contrib/sort:all
 bazel-bin/hwy/contrib/sort/sort_test
 bazel-bin/hwy/contrib/sort/bench_sort
 ```
