@@ -198,7 +198,12 @@
 #endif
 
 #if HWY_ARCH_ARM && defined(__ARM_FEATURE_SVE)
-#define HWY_BASELINE_SVE (HWY_SVE | HWY_SVE_256)
+// Baseline targets can be used unconditionally, which does not apply to
+// HWY_SVE_256 because it requires a vector size of 256 bits. Including SVE_256
+// in the baseline would also disable all 'worse' targets (including SVE and
+// SVE2) in non-test builds. Therefore we instead add HWY_SVE_256 to
+// HWY_ATTAINABLE_TARGETS below.
+#define HWY_BASELINE_SVE HWY_SVE
 #else
 #define HWY_BASELINE_SVE 0
 #endif
@@ -351,6 +356,12 @@
 #define HWY_ATTAINABLE_AVX3_DL 0
 #endif
 
+#if HWY_ARCH_ARM_A64 && (HWY_ENABLED_BASELINE & (HWY_SVE | HWY_SVE2))
+#define HWY_ATTAINABLE_SVE_256 HWY_ENABLED(HWY_SVE_256)
+#else
+#define HWY_ATTAINABLE_SVE_256 0
+#endif
+
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
@@ -358,7 +369,7 @@
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | \
               HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL)
 #else
-#define HWY_ATTAINABLE_TARGETS HWY_ENABLED_BASELINE
+#define HWY_ATTAINABLE_TARGETS (HWY_ENABLED_BASELINE | HWY_ATTAINABLE_SVE_256)
 #endif
 
 // 1) For older compilers: disable all SIMD (could also set HWY_DISABLED_TARGETS
