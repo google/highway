@@ -30,22 +30,24 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+#if HWY_TARGET == HWY_SCALAR
 
 struct OrderAscending128 {
   using Order = SortAscending;
+  using LaneType = uint64_t;
+  using KeyType = hwy::uint128_t;
 
-  template <typename T>
-  HWY_INLINE bool Compare1(const T* a, const T* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
   }
 };
 
 struct OrderDescending128 {
   using Order = SortDescending;
+  using LaneType = uint64_t;
+  using KeyType = hwy::uint128_t;
 
-  template <typename T>
-  HWY_INLINE bool Compare1(const T* a, const T* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
   }
 };
@@ -54,6 +56,15 @@ template <class Order>
 struct Traits128 : public Order {
   constexpr bool Is128() const { return true; }
   constexpr size_t LanesPerKey() const { return 2; }
+
+  // For HeapSort
+  HWY_INLINE void Swap(uint64_t* a, uint64_t* b) const {
+    for (size_t i = 0; i < LanesPerKey(); ++i) {
+      const T temp = a[i];
+      a[i] = b[i];
+      b[i] = temp;
+    }
+  }
 };
 
 #else
@@ -63,10 +74,13 @@ struct Traits128 : public Order {
 // independent of the order.
 struct Key128 {
   constexpr size_t LanesPerKey() const { return 2; }
+  // What type bench_sort should allocate for generating inputs.
+  using LaneType = uint64_t;
+  // What type to pass to Sorter::operator().
+  using KeyType = hwy::uint128_t;
 
-  template <typename T>
-  HWY_INLINE void Swap(T* a, T* b) const {
-    const FixedTag<T, 2> d;
+  HWY_INLINE void Swap(LaneType* a, LaneType* b) const {
+    const FixedTag<LaneType, 2> d;
     const auto temp = LoadU(d, a);
     StoreU(LoadU(d, b), d, a);
     StoreU(temp, d, b);
@@ -146,8 +160,7 @@ struct Key128 {
 struct OrderAscending128 : public Key128 {
   using Order = SortAscending;
 
-  template <typename T>
-  HWY_INLINE bool Compare1(const T* a, const T* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
   }
 
@@ -211,8 +224,7 @@ struct OrderAscending128 : public Key128 {
 struct OrderDescending128 : public Key128 {
   using Order = SortDescending;
 
-  template <typename T>
-  HWY_INLINE bool Compare1(const T* a, const T* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
   }
 
@@ -358,7 +370,7 @@ class Traits128 : public Base {
   }
 };
 
-#endif  // HWY_TARGET
+#endif  // HWY_TARGET == HWY_SCALAR
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)

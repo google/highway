@@ -318,12 +318,41 @@ struct SharedState {
   std::vector<ThreadLocal> tls{1};
 };
 
-template <class Order, typename T>
-void Run(Algo algo, T* HWY_RESTRICT inout, size_t num, SharedState& shared,
-         size_t thread) {
-  using detail::HeapSort;
+// Bridge from keys (passed to Run) to lanes as expected by HeapSort. For
+// non-128-bit keys they are the same:
+template <class Order, typename KeyType, HWY_IF_NOT_LANE_SIZE(KeyType, 16)>
+void CallHeapSort(KeyType* HWY_RESTRICT keys, const size_t num_keys) {
   using detail::TraitsLane;
   using detail::SharedTraits;
+  if (Order().IsAscending()) {
+    const SharedTraits<TraitsLane<detail::OrderAscending<KeyType>>> st;
+    return detail::HeapSort(st, keys, num_keys);
+  } else {
+    const SharedTraits<TraitsLane<detail::OrderDescending<KeyType>>> st;
+    return detail::HeapSort(st, keys, num_keys);
+  }
+}
+
+template <class Order>
+void CallHeapSort(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys) {
+  using detail::SharedTraits;
+  using detail::Traits128;
+  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
+  const size_t num_lanes = num_keys * 2;
+  if (Order().IsAscending()) {
+    const SharedTraits<Traits128<detail::OrderAscending128>> st;
+    return detail::HeapSort(st, lanes, num_lanes);
+  } else {
+    const SharedTraits<Traits128<detail::OrderDescending128>> st;
+    return detail::HeapSort(st, lanes, num_lanes);
+  }
+}
+
+template <class Order, typename KeyType>
+void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
+         SharedState& shared, size_t thread) {
+  const std::less<KeyType> less;
+  const std::greater<KeyType> greater;
 
   switch (algo) {
 #if HAVE_AVX2SORT
@@ -334,20 +363,18 @@ void Run(Algo algo, T* HWY_RESTRICT inout, size_t num, SharedState& shared,
 #if HAVE_IPS4O
     case Algo::kIPS4O:
       if (Order().IsAscending()) {
-        return ips4o::sort(inout, inout + num, std::less<T>());
+        return ips4o::sort(inout, inout + num, less);
       } else {
-        return ips4o::sort(inout, inout + num, std::greater<T>());
+        return ips4o::sort(inout, inout + num, greater);
       }
 #endif
 
 #if HAVE_PARALLEL_IPS4O
     case Algo::kParallelIPS4O:
       if (Order().IsAscending()) {
-        return ips4o::parallel::sort(inout, inout + num, std::less<T>(),
-                                     shared.pool);
+        return ips4o::parallel::sort(inout, inout + num, less, shared.pool);
       } else {
-        return ips4o::parallel::sort(inout, inout + num, std::greater<T>(),
-                                     shared.pool);
+        return ips4o::parallel::sort(inout, inout + num, greater, shared.pool);
       }
 #endif
 
@@ -360,33 +387,24 @@ void Run(Algo algo, T* HWY_RESTRICT inout, size_t num, SharedState& shared,
 #if HAVE_PDQSORT
     case Algo::kPDQ:
       if (Order().IsAscending()) {
-        return boost::sort::pdqsort_branchless(inout, inout + num,
-                                               std::less<T>());
+        return boost::sort::pdqsort_branchless(inout, inout + num, less);
       } else {
-        return boost::sort::pdqsort_branchless(inout, inout + num,
-                                               std::greater<T>());
+        return boost::sort::pdqsort_branchless(inout, inout + num, greater);
       }
 #endif
 
     case Algo::kStd:
       if (Order().IsAscending()) {
-        return std::sort(inout, inout + num, std::less<T>());
+        return std::sort(inout, inout + num, less);
       } else {
-        return std::sort(inout, inout + num, std::greater<T>());
+        return std::sort(inout, inout + num, greater);
       }
 
     case Algo::kVQSort:
       return shared.tls[thread].sorter(inout, num, Order());
 
     case Algo::kHeap:
-      HWY_ASSERT(sizeof(T) < 16);
-      if (Order().IsAscending()) {
-        const SharedTraits<TraitsLane<detail::OrderAscending>> st;
-        return HeapSort(st, inout, num);
-      } else {
-        const SharedTraits<TraitsLane<detail::OrderDescending>> st;
-        return HeapSort(st, inout, num);
-      }
+      return CallHeapSort<Order>(inout, num);
 
     default:
       HWY_ABORT("Not implemented");

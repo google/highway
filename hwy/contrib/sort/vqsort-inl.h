@@ -57,59 +57,6 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
-
-template <typename T>
-void Swap(T* a, T* b) {
-  T t = *a;
-  *a = *b;
-  *b = t;
-}
-
-// Scalar version of HeapSort (see below)
-template <class Traits, typename T>
-void HeapSort(Traits st, T* HWY_RESTRICT keys, const size_t num) {
-  if (num < 2) return;
-
-  // Build heap.
-  for (size_t i = 1; i < num; i += 1) {
-    size_t j = i;
-    while (j != 0) {
-      const size_t idx_parent = ((j - 1) / 1 / 2);
-      if (!st.Compare1(keys + idx_parent, keys + j)) {
-        break;
-      }
-      Swap(keys + j, keys + idx_parent);
-      j = idx_parent;
-    }
-  }
-
-  for (size_t i = num - 1; i != 0; i -= 1) {
-    // Swap root with last
-    Swap(keys + 0, keys + i);
-
-    // Sift down the new root.
-    size_t j = 0;
-    while (j < i) {
-      const size_t left = 2 * j + 1;
-      const size_t right = 2 * j + 2;
-      if (left >= i) break;
-      size_t idx_larger = j;
-      if (st.Compare1(keys + j, keys + left)) {
-        idx_larger = left;
-      }
-      if (right < i && st.Compare1(keys + idx_larger, keys + right)) {
-        idx_larger = right;
-      }
-      if (idx_larger == j) break;
-      Swap(keys + j, keys + idx_larger);
-      j = idx_larger;
-    }
-  }
-}
-
-#else
-
 using Constants = hwy::SortConstants;
 
 // ------------------------------ HeapSort
@@ -117,29 +64,29 @@ using Constants = hwy::SortConstants;
 // Heapsort: O(1) space, O(N*logN) worst-case comparisons.
 // Based on LLVM sanitizer_common.h, licensed under Apache-2.0.
 template <class Traits, typename T>
-void HeapSort(Traits st, T* HWY_RESTRICT keys, const size_t num) {
+void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   constexpr size_t N1 = st.LanesPerKey();
   const FixedTag<T, N1> d;
 
-  if (num < 2 * N1) return;
+  if (num_lanes < 2 * N1) return;
 
   // Build heap.
-  for (size_t i = N1; i < num; i += N1) {
+  for (size_t i = N1; i < num_lanes; i += N1) {
     size_t j = i;
     while (j != 0) {
       const size_t idx_parent = ((j - N1) / N1 / 2) * N1;
-      if (AllFalse(d, st.Compare(d, st.SetKey(d, keys + idx_parent),
-                                 st.SetKey(d, keys + j)))) {
+      if (AllFalse(d, st.Compare(d, st.SetKey(d, lanes + idx_parent),
+                                 st.SetKey(d, lanes + j)))) {
         break;
       }
-      st.Swap(keys + j, keys + idx_parent);
+      st.Swap(lanes + j, lanes + idx_parent);
       j = idx_parent;
     }
   }
 
-  for (size_t i = num - N1; i != 0; i -= N1) {
+  for (size_t i = num_lanes - N1; i != 0; i -= N1) {
     // Swap root with last
-    st.Swap(keys + 0, keys + i);
+    st.Swap(lanes + 0, lanes + i);
 
     // Sift down the new root.
     size_t j = 0;
@@ -148,20 +95,23 @@ void HeapSort(Traits st, T* HWY_RESTRICT keys, const size_t num) {
       const size_t right = 2 * j + 2 * N1;
       if (left >= i) break;
       size_t idx_larger = j;
-      const auto key_j = st.SetKey(d, keys + j);
-      if (AllTrue(d, st.Compare(d, key_j, st.SetKey(d, keys + left)))) {
+      const auto key_j = st.SetKey(d, lanes + j);
+      if (AllTrue(d, st.Compare(d, key_j, st.SetKey(d, lanes + left)))) {
         idx_larger = left;
       }
-      if (right < i && AllTrue(d, st.Compare(d, st.SetKey(d, keys + idx_larger),
-                                             st.SetKey(d, keys + right)))) {
+      if (right < i &&
+          AllTrue(d, st.Compare(d, st.SetKey(d, lanes + idx_larger),
+                                st.SetKey(d, lanes + right)))) {
         idx_larger = right;
       }
       if (idx_larger == j) break;
-      st.Swap(keys + j, keys + idx_larger);
+      st.Swap(lanes + j, lanes + idx_larger);
       j = idx_larger;
     }
   }
 }
+
+#if HWY_TARGET != HWY_SCALAR
 
 // ------------------------------ BaseCase
 
@@ -709,7 +659,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   return false;  // not finished sorting
 }
 
-#endif  // HWY_TARGET
+#endif  // HWY_TARGET != HWY_SCALAR
 }  // namespace detail
 
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.
@@ -726,7 +676,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
-#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+#if HWY_TARGET == HWY_SCALAR
   (void)d;
   (void)buf;
   // PERFORMANCE WARNING: vqsort is not enabled for the non-SIMD target

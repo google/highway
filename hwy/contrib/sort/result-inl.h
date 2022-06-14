@@ -72,72 +72,72 @@ namespace HWY_NAMESPACE {
 
 struct Result {
   Result() {}
-  Result(const uint32_t target, const Algo algo, Dist dist, bool is128,
-         size_t num, size_t num_threads, double sec, size_t sizeof_t,
+  Result(const uint32_t target, const Algo algo, Dist dist, size_t num_keys,
+         size_t num_threads, double sec, size_t sizeof_key,
          const char* type_name)
       : target(target),
         algo(algo),
         dist(dist),
-        is128(is128),
-        num(num),
+        num_keys(num_keys),
         num_threads(num_threads),
         sec(sec),
-        sizeof_t(sizeof_t),
+        sizeof_key(sizeof_key),
         type_name(type_name) {}
 
   void Print() const {
-    const double bytes = static_cast<double>(num) *
+    const double bytes = static_cast<double>(num_keys) *
                          static_cast<double>(num_threads) *
-                         static_cast<double>(sizeof_t);
+                         static_cast<double>(sizeof_key);
     printf("%10s: %12s: %7s: %9s: %.2E %4.0f MB/s (%2zu threads)\n",
-           hwy::TargetName(target), AlgoName(algo),
-           is128 ? "u128" : type_name.c_str(), DistName(dist),
-           static_cast<double>(num), bytes * 1E-6 / sec, num_threads);
+           hwy::TargetName(target), AlgoName(algo), type_name.c_str(),
+           DistName(dist), static_cast<double>(num_keys), bytes * 1E-6 / sec,
+           num_threads);
   }
 
   uint32_t target;
   Algo algo;
   Dist dist;
-  bool is128;
-  size_t num = 0;
+  size_t num_keys = 0;
   size_t num_threads = 0;
   double sec = 0.0;
-  size_t sizeof_t = 0;
+  size_t sizeof_key = 0;
   std::string type_name;
 };
 
-template <typename T, class Traits>
-Result MakeResult(const Algo algo, Dist dist, Traits st, size_t num,
+template <typename KeyType>
+Result MakeResult(const Algo algo, Dist dist, size_t num_keys,
                   size_t num_threads, double sec) {
   char string100[100];
-  hwy::detail::TypeName(hwy::detail::MakeTypeInfo<T>(), 1, string100);
-  return Result(HWY_TARGET, algo, dist, st.Is128(), num, num_threads, sec,
-                sizeof(T), string100);
+  hwy::detail::TypeName(hwy::detail::MakeTypeInfo<KeyType>(), 1, string100);
+  return Result(HWY_TARGET, algo, dist, num_keys, num_threads, sec,
+                sizeof(KeyType), string100);
 }
 
-template <class Traits, typename T>
-bool VerifySort(Traits st, const InputStats<T>& input_stats, const T* out,
-                size_t num, const char* caller) {
-  constexpr size_t N1 = st.Is128() ? 2 : 1;
-  HWY_ASSERT(num >= N1);
+template <class Traits, typename LaneType>
+bool VerifySort(Traits st, const InputStats<LaneType>& input_stats,
+                const LaneType* out, size_t num_lanes, const char* caller) {
+  constexpr size_t N1 = st.LanesPerKey();
+  HWY_ASSERT(num_lanes >= N1);
 
-  InputStats<T> output_stats;
+  InputStats<LaneType> output_stats;
   // Ensure it matches the sort order
-  for (size_t i = 0; i < num - N1; i += N1) {
+  for (size_t i = 0; i < num_lanes - N1; i += N1) {
     output_stats.Notify(out[i]);
     if (N1 == 2) output_stats.Notify(out[i + 1]);
     // Reverse order instead of checking !Compare1 so we accept equal keys.
     if (st.Compare1(out + i + N1, out + i)) {
-      printf("%s: i=%d of %d: N1=%d %5.0f %5.0f vs. %5.0f %5.0f\n\n", caller,
-             static_cast<int>(i), static_cast<int>(num), static_cast<int>(N1),
-             double(out[i + 1]), double(out[i + 0]), double(out[i + N1 + 1]),
-             double(out[i + N1]));
+      printf("%s: i=%d of %d lanes: N1=%d %5.0f %5.0f vs. %5.0f %5.0f\n\n",
+             caller, static_cast<int>(i), static_cast<int>(num_lanes),
+             static_cast<int>(N1), static_cast<double>(out[i + 1]),
+             static_cast<double>(out[i + 0]),
+             static_cast<double>(out[i + N1 + 1]),
+             static_cast<double>(out[i + N1]));
       HWY_ABORT("%d-bit sort is incorrect\n",
-                static_cast<int>(sizeof(T) * 8 * N1));
+                static_cast<int>(sizeof(LaneType) * 8 * N1));
     }
   }
-  output_stats.Notify(out[num - N1]);
-  if (N1 == 2) output_stats.Notify(out[num - N1 + 1]);
+  output_stats.Notify(out[num_lanes - N1]);
+  if (N1 == 2) output_stats.Notify(out[num_lanes - N1 + 1]);
 
   return input_stats == output_stats;
 }

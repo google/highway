@@ -35,11 +35,15 @@ namespace detail {
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
 // along with an abstraction layer for single-lane vs. lane-pair, which is
 // independent of the order.
+template <typename T>
 struct KeyLane {
   constexpr size_t LanesPerKey() const { return 1; }
+  // What type bench_sort should allocate for generating inputs.
+  using LaneType = T;
+  // What type to pass to Sorter::operator().
+  using KeyType = T;
 
   // For HeapSort
-  template <typename T>
   HWY_INLINE void Swap(T* a, T* b) const {
     const T temp = *a;
     *a = *b;
@@ -48,7 +52,7 @@ struct KeyLane {
 
   // Broadcasts one key into a vector
   template <class D>
-  HWY_INLINE Vec<D> SetKey(D d, const TFromD<D>* key) const {
+  HWY_INLINE Vec<D> SetKey(D d, const T* key) const {
     return Set(d, *key);
   }
 
@@ -149,10 +153,10 @@ struct KeyLane {
 // We avoid overloaded functions because we want all functions to be callable
 // from a SortTraits without per-function wrappers. Specializing would work, but
 // we are anyway going to specialize at a higher level.
-struct OrderAscending : public KeyLane {
+template <typename T>
+struct OrderAscending : public KeyLane<T> {
   using Order = SortAscending;
 
-  template <typename T>
   HWY_INLINE bool Compare1(const T* a, const T* b) {
     return *a < *b;
   }
@@ -175,31 +179,31 @@ struct OrderAscending : public KeyLane {
 
   template <class D>
   HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
-                                 TFromD<D>* HWY_RESTRICT /* buf */) const {
+                                 T* HWY_RESTRICT /* buf */) const {
     return MinOfLanes(d, v);
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
-                                TFromD<D>* HWY_RESTRICT /* buf */) const {
+                                T* HWY_RESTRICT /* buf */) const {
     return MaxOfLanes(d, v);
   }
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, hwy::LowestValue<TFromD<D>>());
+    return Set(d, hwy::LowestValue<T>());
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, hwy::HighestValue<TFromD<D>>());
+    return Set(d, hwy::HighestValue<T>());
   }
 };
 
-struct OrderDescending : public KeyLane {
+template <typename T>
+struct OrderDescending : public KeyLane<T> {
   using Order = SortDescending;
 
-  template <typename T>
   HWY_INLINE bool Compare1(const T* a, const T* b) {
     return *b < *a;
   }
@@ -221,24 +225,24 @@ struct OrderDescending : public KeyLane {
 
   template <class D>
   HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
-                                 TFromD<D>* HWY_RESTRICT /* buf */) const {
+                                 T* HWY_RESTRICT /* buf */) const {
     return MaxOfLanes(d, v);
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
-                                TFromD<D>* HWY_RESTRICT /* buf */) const {
+                                T* HWY_RESTRICT /* buf */) const {
     return MinOfLanes(d, v);
   }
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, hwy::HighestValue<TFromD<D>>());
+    return Set(d, hwy::HighestValue<T>());
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, hwy::LowestValue<TFromD<D>>());
+    return Set(d, hwy::LowestValue<T>());
   }
 };
 

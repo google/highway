@@ -28,12 +28,11 @@ HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100) {
   const char prefix = info.is_float ? 'f' : (info.is_signed ? 'i' : 'u');
   // Omit the xN suffix for scalars.
   if (N == 1) {
-    snprintf(string100, 64, "%c%" PRIu64, prefix,
-             static_cast<uint64_t>(info.sizeof_t * 8));
+    snprintf(string100, 64, "%c%d", prefix,
+             static_cast<int>(info.sizeof_t * 8));
   } else {
-    snprintf(string100, 64, "%c%" PRIu64 "x%" PRIu64, prefix,
-             static_cast<uint64_t>(info.sizeof_t * 8),
-             static_cast<uint64_t>(N));
+    snprintf(string100, 64, "%c%dx%d", prefix,
+             static_cast<int>(info.sizeof_t * 8), static_cast<int>(N));
   }
 }
 

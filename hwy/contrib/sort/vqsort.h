@@ -28,15 +28,6 @@
 
 namespace hwy {
 
-// Aligned 128-bit type. Cannot use __int128 because clang doesn't yet align it:
-// https://reviews.llvm.org/D86310
-#pragma pack(push, 1)
-struct alignas(16) uint128_t {
-  uint64_t lo;  // little-endian layout
-  uint64_t hi;
-};
-#pragma pack(pop)
-
 // Tag arguments that determine the sort order.
 struct SortAscending {
   constexpr bool IsAscending() const { return true; }

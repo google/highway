@@ -30,7 +30,7 @@ namespace HWY_NAMESPACE {
 
 void SortF32Asc(float* HWY_RESTRICT keys, size_t num, float* HWY_RESTRICT buf) {
   SortTag<float> d;
-  detail::SharedTraits<detail::TraitsLane<detail::OrderAscending>> st;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderAscending<float>>> st;
   Sort(d, st, keys, num, buf);
 }
 

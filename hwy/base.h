@@ -257,6 +257,25 @@ struct bfloat16_t {
 using float32_t = float;
 using float64_t = double;
 
+// Aligned 128-bit type. Cannot use __int128 because clang doesn't yet align it:
+// https://reviews.llvm.org/D86310
+#pragma pack(push, 1)
+struct alignas(16) uint128_t {
+  uint64_t lo;  // little-endian layout
+  uint64_t hi;
+};
+#pragma pack(pop)
+
+static inline HWY_MAYBE_UNUSED bool operator<(const uint128_t& a,
+                                              const uint128_t& b) {
+  return (a.hi == b.hi) ? a.lo < b.lo : a.hi < b.hi;
+}
+// Required for std::greater.
+static inline HWY_MAYBE_UNUSED bool operator>(const uint128_t& a,
+                                              const uint128_t& b) {
+  return b < a;
+}
+
 //------------------------------------------------------------------------------
 // Controlling overload resolution (SFINAE)
 
@@ -481,6 +500,10 @@ HWY_API constexpr bool IsFloat() {
   // from a float, not compared.
   return IsSame<T, float>() || IsSame<T, double>();
 }
+template <>
+constexpr bool IsFloat<hwy::uint128_t>() {
+  return false;
+}
 
 template <typename T>
 HWY_API constexpr bool IsSigned() {
@@ -493,6 +516,10 @@ constexpr bool IsSigned<float16_t>() {
 template <>
 constexpr bool IsSigned<bfloat16_t>() {
   return true;
+}
+template <>
+constexpr bool IsSigned<hwy::uint128_t>() {
+  return false;
 }
 
 // Largest/smallest representable integer values.
