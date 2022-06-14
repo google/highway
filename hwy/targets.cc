@@ -347,11 +347,10 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
     // DisableTargets or SetSupportedTargetsForTest.
     targets = DetectTargets();
 
-    ChosenTarget& chosen = GetChosenTarget();
-
     // VectorBytes invokes HWY_DYNAMIC_DISPATCH. To prevent infinite recursion,
-    // first set up ChosenTarget.
-    chosen.Update(targets);
+    // first set up ChosenTarget. No need to Update() again afterwards with the
+    // final targets - that will be done by a caller of this function.
+    GetChosenTarget().Update(targets);
 
     // Now that we can call VectorBytes, check for targets with specific sizes.
     const size_t vec_bytes = VectorBytes();  // uncached, see declaration
@@ -362,7 +361,6 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
       targets =
           static_cast<uint32_t>(targets & ~static_cast<uint32_t>(HWY_SVE_256));
     }
-    chosen.Update(targets);
   }
 
   targets &= supported_mask_;
