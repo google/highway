@@ -230,9 +230,12 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets
-  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4) {
+  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4 ||
+      HWY_TARGET == HWY_NEON) {
     return;
   }
+  // Only enable EMU128 on x86 - it's slow on emulators.
+  if (!HWY_ARCH_X86 && (HWY_TARGET == HWY_EMU128)) return;
 
   constexpr size_t K = 1000;
   constexpr size_t M = K * K;
