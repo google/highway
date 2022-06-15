@@ -1347,6 +1347,10 @@ namespace detail {
   }
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEven, uzp1)
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOdd, uzp2)
+#if defined(__ARM_FEATURE_SVE_MATMUL_FP64)
+HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenBlocks, uzp1q)
+HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks, uzp2q)
+#endif
 #undef HWY_SVE_CONCAT_EVERY_SECOND
 
 // Used to slide up / shift whole register left; mask indicates which range
@@ -1459,12 +1463,69 @@ HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
 
 namespace detail {
 
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
+svbool_t MaskLowerHalf(D d) {
+  switch (Lanes(d)) {
+    case 32:
+      return svptrue_pat_b8(SV_VL16);
+    case 16:
+      return svptrue_pat_b8(SV_VL8);
+    case 8:
+      return svptrue_pat_b8(SV_VL4);
+    case 4:
+      return svptrue_pat_b8(SV_VL2);
+    default:
+      return svptrue_pat_b8(SV_VL1);
+  }
+}
+template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
+svbool_t MaskLowerHalf(D d) {
+  switch (Lanes(d)) {
+    case 16:
+      return svptrue_pat_b16(SV_VL8);
+    case 8:
+      return svptrue_pat_b16(SV_VL4);
+    case 4:
+      return svptrue_pat_b16(SV_VL2);
+    default:
+      return svptrue_pat_b16(SV_VL1);
+  }
+}
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+svbool_t MaskLowerHalf(D d) {
+  switch (Lanes(d)) {
+    case 8:
+      return svptrue_pat_b32(SV_VL4);
+    case 4:
+      return svptrue_pat_b32(SV_VL2);
+    default:
+      return svptrue_pat_b32(SV_VL1);
+  }
+}
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+svbool_t MaskLowerHalf(D d) {
+  switch (Lanes(d)) {
+    case 4:
+      return svptrue_pat_b64(SV_VL2);
+    default:
+      return svptrue_pat_b64(SV_VL1);
+  }
+}
+#else
 template <class D>
 svbool_t MaskLowerHalf(D d) {
   return FirstN(d, Lanes(d) / 2);
 }
+#endif  // HWY_TARGET == HWY_SVE_256
+
 template <class D>
 svbool_t MaskUpperHalf(D d) {
+  // TODO(janwas): WHILEGE on pow2 SVE2
+ if( HWY_SVE_IS_POW2 && IsFull(d)){
+  return Not(MaskLowerHalf(d));
+ }
+
   // For Splice to work as intended, make sure bits above Lanes(d) are zero.
   return AndNot(MaskLowerHalf(d), detail::MakeMask(d));
 }
@@ -1491,13 +1552,18 @@ HWY_API V ConcatUpperLower(const D d, const V hi, const V lo) {
 // ------------------------------ ConcatLowerLower
 template <class D, class V>
 HWY_API V ConcatLowerLower(const D d, const V hi, const V lo) {
+#if defined(__ARM_FEATURE_SVE_MATMUL_FP64) && HWY_TARGET == HWY_SVE_256
+  if (detail::IsFull(d)) {
+    return detail::ConcatEvenBlocks(hi, lo);
+  }
+#endif
   return detail::Splice(hi, lo, detail::MaskLowerHalf(d));
 }
 
 // ------------------------------ ConcatLowerUpper
 template <class D, class V>
 HWY_API V ConcatLowerUpper(const D d, const V hi, const V lo) {
-#if HWY_TARGET == HWY_SVE_256
+#if HWY_TARGET == HWY_SVE_256  // constexpr Lanes
   if (detail::IsFull(d)) {
     return detail::Ext<Lanes(d) / 2>(hi, lo);
   }
@@ -1508,6 +1574,11 @@ HWY_API V ConcatLowerUpper(const D d, const V hi, const V lo) {
 // ------------------------------ ConcatUpperUpper
 template <class D, class V>
 HWY_API V ConcatUpperUpper(const D d, const V hi, const V lo) {
+#if defined(__ARM_FEATURE_SVE_MATMUL_FP64) && HWY_TARGET == HWY_SVE_256
+  if (detail::IsFull(d)) {
+    return detail::ConcatOddBlocks(hi, lo);
+  }
+#endif
   const svbool_t mask_upper = detail::MaskUpperHalf(d);
   const V lo_upper = detail::Splice(lo, lo, mask_upper);
   return IfThenElse(mask_upper, hi, lo_upper);
@@ -1744,7 +1815,7 @@ HWY_API V Reverse(D d, V v) {
   const auto reversed = detail::ReverseFull(v);
   if (HWY_SVE_IS_POW2 && detail::IsFull(d)) return reversed;
   // Shift right to remove extra (non-pow2 and remainder) lanes.
-  // TODO(janwas): on SVE2, use whilege.
+  // TODO(janwas): on SVE2, use WHILEGE.
   // Avoids FirstN truncating to the return vector size. Must also avoid Not
   // because that is limited to SV_POW2.
   const ScalableTag<T> dfull;

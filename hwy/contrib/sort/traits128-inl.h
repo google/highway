@@ -311,7 +311,7 @@ class Traits128 : public Base {
     return V{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
 #endif
   }
-#endif
+#endif  // HWY_TARGET <= HWY_AVX2
 
  public:
   constexpr bool Is128() const { return true; }
