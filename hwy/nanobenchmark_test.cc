@@ -58,7 +58,7 @@ std::mt19937 rng;
 // A function whose runtime depends on rng.
 FuncOutput Random(const void* /*arg*/, FuncInput in) {
   const size_t r = rng() & 0xF;
-  uint32_t ret = in;
+  FuncOutput ret = static_cast<FuncOutput>(in);
   for (size_t i = 0; i < r; ++i) {
     ret /= ((rng() & 1) + 2);
   }
