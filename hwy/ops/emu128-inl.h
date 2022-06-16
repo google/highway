@@ -736,7 +736,7 @@ template <size_t N>
 HWY_API Vec128<int16_t, N> MulHigh(Vec128<int16_t, N> a,
                                    const Vec128<int16_t, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = static_cast<int16_t>((a.raw[i] * b.raw[i]) >> 16);
+    a.raw[i] = static_cast<int16_t>((int32_t{a.raw[i]} * b.raw[i]) >> 16);
   }
   return a;
 }
