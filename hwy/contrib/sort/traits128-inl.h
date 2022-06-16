@@ -288,16 +288,21 @@ struct OrderDescending128 : public Key128 {
 // Shared code that depends on Order.
 template <class Base>
 class Traits128 : public Base {
-#if HWY_TARGET <= HWY_AVX2
+  // Special case for >= 256 bit vectors
+#if HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_SVE_256
   // Returns vector with only the top u64 lane valid. Useful when the next step
   // is to replicate the mask anyway.
   template <class D>
   HWY_INLINE HWY_MAYBE_UNUSED Vec<D> CompareTop(D d, Vec<D> a, Vec<D> b) const {
     const Base* base = static_cast<const Base*>(this);
-    const Vec<D> eqHL = VecFromMask(d, Eq(a, b));
+    const Mask<D> eqHL = Eq(a, b);
     const Vec<D> ltHL = VecFromMask(d, base->CompareLanes(a, b));
+#if HWY_TARGET == HWY_SVE_256
+    return IfThenElse(eqHL, DupEven(ltHL), ltHL);
+#else
     const Vec<D> ltLX = ShiftLeftLanes<1>(ltHL);
-    return OrAnd(ltHL, eqHL, ltLX);
+    return OrAnd(ltHL, VecFromMask(d, eqHL), ltLX);
+#endif
   }
 
   // We want to swap 2 u128, i.e. 4 u64 lanes, based on the 0 or FF..FF mask in
@@ -305,13 +310,15 @@ class Traits128 : public Base {
   // replicate it 4x. Only called for >= 256-bit vectors.
   template <class V>
   HWY_INLINE V ReplicateTop4x(V v) const {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET == HWY_SVE_256
+    return svdup_lane_u64(v, 3);
+#elif HWY_TARGET <= HWY_AVX3
     return V{_mm512_permutex_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
 #else  // AVX2
     return V{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
 #endif
   }
-#endif  // HWY_TARGET <= HWY_AVX2
+#endif  // HWY_TARGET
 
  public:
   constexpr bool Is128() const { return true; }
@@ -332,7 +339,7 @@ class Traits128 : public Base {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys2(d, v);
 
-#if HWY_TARGET <= HWY_AVX2
+#if HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_SVE_256
     const Vec<D> select = ReplicateTop4x(CompareTop(d, v, swapped));
     return IfVecThenElse(select, swapped, v);
 #else

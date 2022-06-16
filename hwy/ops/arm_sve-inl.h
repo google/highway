@@ -206,19 +206,33 @@ HWY_INLINE size_t AllHardwareLanes(hwy::SizeTag<8> /* tag */) {
   return svcntd_pat(SV_ALL);
 }
 
+// All-true mask from a macro
+#define HWY_SVE_ALL_PTRUE(BITS) svptrue_pat_b##BITS(SV_ALL)
+
+#if HWY_TARGET == HWY_SVE_256
+#define HWY_SVE_PTRUE(BITS) HWY_SVE_ALL_PTRUE(BITS)
+#else
+#define HWY_SVE_PTRUE(BITS) svptrue_pat_b##BITS(SV_POW2)
+
 // Returns actual lanes of a hardware vector, rounded down to a power of two.
-HWY_INLINE size_t HardwareLanes(hwy::SizeTag<1> /* tag */) {
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE size_t HardwareLanes() {
   return svcntb_pat(SV_POW2);
 }
-HWY_INLINE size_t HardwareLanes(hwy::SizeTag<2> /* tag */) {
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE size_t HardwareLanes() {
   return svcnth_pat(SV_POW2);
 }
-HWY_INLINE size_t HardwareLanes(hwy::SizeTag<4> /* tag */) {
+template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE size_t HardwareLanes() {
   return svcntw_pat(SV_POW2);
 }
-HWY_INLINE size_t HardwareLanes(hwy::SizeTag<8> /* tag */) {
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE size_t HardwareLanes() {
   return svcntd_pat(SV_POW2);
 }
+
+#endif  // HWY_TARGET == HWY_SVE_256
 
 }  // namespace detail
 
@@ -232,7 +246,7 @@ HWY_API constexpr size_t Lanes(Simd<T, N, kPow2> /* d */) {
 #else
 template <typename T, size_t N, int kPow2>
 HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
-  const size_t actual = detail::HardwareLanes(hwy::SizeTag<sizeof(T)>());
+  const size_t actual = detail::HardwareLanes<T>();
   // Common case of full vectors: avoid any extra instructions.
   if (detail::IsFull(d)) return actual;
   return HWY_MIN(detail::ScaleByPower(actual, kPow2), N);
@@ -254,10 +268,6 @@ HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
 #undef HWY_SVE_FIRSTN
 
 namespace detail {
-
-// All-true mask from a macro
-#define HWY_SVE_PTRUE(BITS) svptrue_pat_b##BITS(SV_POW2)
-#define HWY_SVE_ALL_PTRUE(BITS) svptrue_pat_b##BITS(SV_ALL)
 
 #define HWY_SVE_WRAP_PTRUE(BASE, CHAR, BITS, HALF, NAME, OP)            \
   template <size_t N, int kPow2>                                        \
@@ -844,15 +854,21 @@ HWY_API svbool_t MaskFromVec(const V v) {
 
 // ------------------------------ VecFromMask
 
-template <class D, HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
 HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
-  const auto v0 = Zero(RebindToSigned<decltype(d)>());
-  return BitCast(d, detail::SubN(mask, v0, 1));
+  return BitCast(d, svdup_n_s8_z(mask, -1));
 }
-
-template <class D, HWY_IF_FLOAT_D(D)>
+template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
 HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
-  return BitCast(d, VecFromMask(RebindToUnsigned<D>(), mask));
+  return BitCast(d, svdup_n_s16_z(mask, -1));
+}
+template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
+  return BitCast(d, svdup_n_s32_z(mask, -1));
+}
+template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
+  return BitCast(d, svdup_n_s64_z(mask, -1));
 }
 
 // ------------------------------ IfVecThenElse (MaskFromVec, IfThenElse)
@@ -2585,27 +2601,16 @@ HWY_API svuint64_t CLMulUpper(const svuint64_t a, const svuint64_t b) {
 
 // ------------------------------ Lt128
 template <class D>
-HWY_INLINE svbool_t Lt128(D /* d */, const svuint64_t a, const svuint64_t b) {
+HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
-  // Truth table of Eq and Compare for Hi and Lo u64.
-  // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
-  // =H =L cH cL  | out = cH | (=H & cL) = IfThenElse(=H, cL, cH)
-  //  0  0  0  0  |  0
-  //  0  0  0  1  |  0
-  //  0  0  1  0  |  1
-  //  0  0  1  1  |  1
-  //  0  1  0  0  |  0
-  //  0  1  0  1  |  0
-  //  0  1  1  0  |  1
-  //  1  0  0  0  |  0
-  //  1  0  0  1  |  1
-  //  1  1  0  0  |  0
-  const svbool_t eqHL = Eq(a, b);
-  const svbool_t ltHL = Lt(a, b);
-  // trn (interleave even/odd) allow us to move and copy masks across lanes.
-  const svbool_t cmpLL = svtrn1_b64(ltHL, ltHL);
-  const svbool_t outHx = svsel_b(eqHL, cmpLL, ltHL);  // See truth table above.
-  return svtrn2_b64(outHx, outHx);                    // replicate to HH
+  const svbool_t eqHx = Eq(a, b);  // only odd lanes used
+  // Convert to vector: more pipelines can TRN* for vectors than predicates.
+  const svuint64_t ltHL = VecFromMask(d, Lt(a, b));
+  // Move into upper lane: ltL if the upper half is equal, otherwise ltH.
+  // Requires an extra IfThenElse because INSR, EXT, TRN2 are unpredicated.
+  const svuint64_t ltHx = IfThenElse(eqHx, DupEven(ltHL), ltHL);
+  // Duplicate upper lane into lower and convert back to predicate.
+  return MaskFromVec(DupOdd(ltHx));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
