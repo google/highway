@@ -175,6 +175,23 @@ HWY_NOINLINE void TestAllAbs() {
   ForFloatTypes(ForPartialVectors<TestFloatAbs>());
 }
 
+struct TestNeg {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vn = Set(d, T(-3));
+    const auto vp = Set(d, T(3));
+    HWY_ASSERT_VEC_EQ(d, v0, Neg(v0));
+    HWY_ASSERT_VEC_EQ(d, vp, Neg(vn));
+    HWY_ASSERT_VEC_EQ(d, vn, Neg(vp));
+  }
+};
+
+HWY_NOINLINE void TestAllNeg() {
+  ForSignedTypes(ForPartialVectors<TestNeg>());
+  ForFloatTypes(ForPartialVectors<TestNeg>());
+}
+
 struct TestUnsignedMinMax {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -339,151 +356,6 @@ HWY_NOINLINE void TestAllMinMax128() {
   ForGEVectors<128, TestMinMax128>()(uint64_t());
 }
 
-
-struct TestSumOfLanes {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    auto in_lanes = AllocateAligned<T>(N);
-
-    // Lane i = bit i, higher lanes 0
-    double sum = 0.0;
-    // Avoid setting sign bit and cap at double precision
-    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
-    for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
-      sum += static_cast<double>(in_lanes[i]);
-    }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
-                      SumOfLanes(d, Load(d, in_lanes.get())));
-
-    // Lane i = i (iota) to include upper lanes
-    sum = 0.0;
-    for (size_t i = 0; i < N; ++i) {
-      sum += static_cast<double>(i);
-    }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
-  }
-};
-
-HWY_NOINLINE void TestAllSumOfLanes() {
-  ForUIF3264(ForPartialVectors<TestSumOfLanes>());
-}
-
-struct TestMinOfLanes {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    auto in_lanes = AllocateAligned<T>(N);
-
-    // Lane i = bit i, higher lanes = 2 (not the minimum)
-    T min = HighestValue<T>();
-    // Avoid setting sign bit and cap at double precision
-    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
-    for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 2;
-      min = HWY_MIN(min, in_lanes[i]);
-    }
-    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
-
-    // Lane i = N - i to include upper lanes
-    min = HighestValue<T>();
-    for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(N - i);  // no 8-bit T so no wraparound
-      min = HWY_MIN(min, in_lanes[i]);
-    }
-    HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
-  }
-};
-
-struct TestMaxOfLanes {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    auto in_lanes = AllocateAligned<T>(N);
-
-    T max = LowestValue<T>();
-    // Avoid setting sign bit and cap at double precision
-    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
-    for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
-      max = HWY_MAX(max, in_lanes[i]);
-    }
-    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
-
-    // Lane i = i to include upper lanes
-    max = LowestValue<T>();
-    for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(i);  // no 8-bit T so no wraparound
-      max = HWY_MAX(max, in_lanes[i]);
-    }
-    HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
-  }
-};
-
-HWY_NOINLINE void TestAllMinMaxOfLanes() {
-  const ForPartialVectors<TestMinOfLanes> test_min;
-  const ForPartialVectors<TestMaxOfLanes> test_max;
-  ForUIF3264(test_min);
-  ForUIF3264(test_max);
-  test_min(uint16_t());
-  test_max(uint16_t());
-  test_min(int16_t());
-  test_max(int16_t());
-}
-
-struct TestSumsOf8 {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    RandomState rng;
-
-    const size_t N = Lanes(d);
-    if (N < 8) return;
-    const Repartition<uint64_t, D> du64;
-
-    auto in_lanes = AllocateAligned<T>(N);
-    auto sum_lanes = AllocateAligned<uint64_t>(N / 8);
-
-    for (size_t rep = 0; rep < 100; ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        in_lanes[i] = Random64(&rng) & 0xFF;
-      }
-
-      for (size_t idx_sum = 0; idx_sum < N / 8; ++idx_sum) {
-        uint64_t sum = 0;
-        for (size_t i = 0; i < 8; ++i) {
-          sum += in_lanes[idx_sum * 8 + i];
-        }
-        sum_lanes[idx_sum] = sum;
-      }
-
-      const Vec<D> in = Load(d, in_lanes.get());
-      HWY_ASSERT_VEC_EQ(du64, sum_lanes.get(), SumsOf8(in));
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllSumsOf8() {
-  ForGEVectors<64, TestSumsOf8>()(uint8_t());
-}
-
-struct TestNeg {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v0 = Zero(d);
-    const auto vn = Set(d, T(-3));
-    const auto vp = Set(d, T(3));
-    HWY_ASSERT_VEC_EQ(d, v0, Neg(v0));
-    HWY_ASSERT_VEC_EQ(d, vp, Neg(vn));
-    HWY_ASSERT_VEC_EQ(d, vn, Neg(vp));
-  }
-};
-
-HWY_NOINLINE void TestAllNeg() {
-  ForSignedTypes(ForPartialVectors<TestNeg>());
-  ForFloatTypes(ForPartialVectors<TestNeg>());
-}
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -495,14 +367,11 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyArithmeticTest);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatingArithmetic);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax128);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumOfLanes);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMaxOfLanes);
-HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSumsOf8);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax128);
 }  // namespace hwy
 
 #endif

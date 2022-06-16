@@ -328,6 +328,7 @@ HWY_TESTS = [
     ("hwy/tests/", "mask_mem_test"),
     ("hwy/tests/", "memory_test"),
     ("hwy/tests/", "mul_test"),
+    ("hwy/tests/", "reduction_test"),
     ("hwy/tests/", "reverse_test"),
     ("hwy/tests/", "shift_test"),
     ("hwy/tests/", "swizzle_test"),

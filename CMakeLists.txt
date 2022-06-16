@@ -446,6 +446,7 @@ set(HWY_TEST_FILES
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc
+  hwy/nanobenchmark_test.cc
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
@@ -453,6 +454,7 @@ set(HWY_TEST_FILES
   hwy/tests/blockwise_shift_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
+  hwy/tests/compress_test.cc
   hwy/tests/convert_test.cc
   hwy/tests/crypto_test.cc
   hwy/tests/demote_test.cc
@@ -462,6 +464,8 @@ set(HWY_TEST_FILES
   hwy/tests/mask_mem_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/mul_test.cc
+  hwy/tests/reduction_test.cc
+  hwy/tests/reverse_test.cc
   hwy/tests/shift_test.cc
   hwy/tests/swizzle_test.cc
   hwy/tests/test_util_test.cc
