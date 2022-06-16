@@ -733,11 +733,19 @@ These return a mask (see above) indicating whether the condition is true.
 
 Memory operands are little-endian, otherwise their order would depend on the
 lane configuration. Pointers are the addresses of `N` consecutive `T` values,
-either naturally-aligned (`aligned`) or possibly unaligned (`p`).
+either `aligned` (address is a multiple of the vector size) or possibly
+unaligned (denoted `p`).
+
+Even unaligned addresses must still be a multiple of `sizeof(T)`, otherwise
+`StoreU` may crash on some platforms (e.g. RVV and ARMv7). Note that C++ ensures
+automatic (stack) and dynamically allocated (via `new` or `malloc`) variables of
+type `T` are aligned to `sizeof(T)`, hence such addresses are suitable for
+`StoreU`. However, casting pointers to `char*` and adding arbitrary offsets (not
+a multiple of `sizeof(T)`) can violate this requirement.
 
 **Note**: computations with low arithmetic intensity (FLOP/s per memory traffic
 bytes), e.g. dot product, can be *1.5 times as fast* when the memory operands
-are naturally aligned. An unaligned access may require two load ports.
+are aligned to the vector size. An unaligned access may require two load ports.
 
 #### Load
 
@@ -806,11 +814,12 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 #### Store
 
 *   <code>void **Store**(Vec&lt;D&gt; v, D, T* aligned)</code>: copies `v[i]`
-    into `aligned[i]`, which must be naturally aligned. Writes exactly `N *
-    sizeof(T)` bytes.
+    into `aligned[i]`, which must be aligned to the vector size. Writes exactly
+    `N * sizeof(T)` bytes.
 
-*   <code>void **StoreU**(Vec&lt;D&gt; v, D, T* p)</code>: as `Store`, but
-    without the alignment requirement.
+*   <code>void **StoreU**(Vec&lt;D&gt; v, D, T* p)</code>: as `Store`, but the
+    alignment requirement is relaxed to element-aligned (multiple of
+    `sizeof(T)`).
 
 *   <code>void **BlendedStore**(Vec&lt;D&gt; v, M m, D d, T* p)</code>: as
     `StoreU`, but only updates `p` where `m` is true. May fault even where
@@ -855,8 +864,8 @@ All functions except `Stream` are defined in cache_control.h.
     write-only data; avoids cache pollution). May be implemented using a
     CPU-internal buffer. To avoid partial flushes and unpredictable interactions
     with atomics (for example, see Intel SDM Vol 4, Sec. 8.1.2.2), call this
-    consecutively for an entire naturally aligned cache line (typically 64
-    bytes). Each call may write a multiple of `HWY_STREAM_MULTIPLE` bytes, which
+    consecutively for an entire cache line (typically 64 bytes, aligned to its
+    size). Each call may write a multiple of `HWY_STREAM_MULTIPLE` bytes, which
     can exceed `Lanes(d) * sizeof(T)`. The new contents of `aligned` may not be
     visible until `FlushStream` is called.
 
@@ -1254,13 +1263,13 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
     when attempting to load lanes from unmapped memory, even if the
     corresponding mask element is false. This is the case on ASAN/MSAN builds,
     AMD x86 prior to AVX-512, and ARM NEON. If so, users can prevent faults by
-    ensuring memory addresses are naturally aligned or at least padded
+    ensuring memory addresses are aligned to the vector size or at least padded
     (allocation size increased by at least `Lanes(d)`.
 
 *   `HWY_NATIVE_FMA` expands to 1 if the `MulAdd` etc. ops use native fused
-    multiply-add. Otherwise, `MulAdd(f, m, a)` is implemented as
-    `Add(Mul(f, m), a)`. Checking this can be useful for increasing the
-    tolerance of expected results (around 1E-5 or 1E-6).
+    multiply-add. Otherwise, `MulAdd(f, m, a)` is implemented as `Add(Mul(f, m),
+    a)`. Checking this can be useful for increasing the tolerance of expected
+    results (around 1E-5 or 1E-6).
 
 The following were used to signal the maximum number of lanes for certain
 operations, but this is no longer necessary (nor possible on SVE/RVV), so they
