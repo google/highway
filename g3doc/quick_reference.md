@@ -1156,7 +1156,7 @@ instead because they are more general:
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
 
-The following `ReverseN` must not be called if `Lanes(D()) > N`:
+The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
