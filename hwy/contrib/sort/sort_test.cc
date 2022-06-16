@@ -242,6 +242,8 @@ HWY_NOINLINE void TestAllBaseCase() {
 #if defined(_MSC_VER) && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
   return;
 #endif
+  // Only enable EMU128 on x86 - it's slow on emulators.
+  if (!HWY_ARCH_X86 && (HWY_TARGET == HWY_EMU128)) return;
 
   TestBaseCase<TraitsLane<OrderAscending<int32_t> > >();
   TestBaseCase<TraitsLane<OrderDescending<int64_t> > >();
@@ -379,6 +381,9 @@ static HWY_NOINLINE void TestPartition() {
 }
 
 HWY_NOINLINE void TestAllPartition() {
+  // Only enable EMU128 on x86 - it's slow on emulators.
+  if (!HWY_ARCH_X86 && (HWY_TARGET == HWY_EMU128)) return;
+
   TestPartition<TraitsLane<OrderAscending<int16_t> > >();
   TestPartition<TraitsLane<OrderDescending<int32_t> > >();
   TestPartition<TraitsLane<OrderAscending<int64_t> > >();
@@ -509,6 +514,8 @@ void TestSort(size_t num_lanes) {
 #if defined(_MSC_VER) && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
   return;
 #endif
+  // Only enable EMU128 on x86 - it's slow on emulators.
+  if (!HWY_ARCH_X86 && (HWY_TARGET == HWY_EMU128)) return;
 
   using Order = typename Traits::Order;
   using LaneType = typename Traits::LaneType;
