@@ -52,6 +52,26 @@ struct OrderDescending128 {
   }
 };
 
+struct OrderAscendingKV128 {
+  using Order = SortAscending;
+  using LaneType = uint64_t;
+  using KeyType = K64V64;
+
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+    return a[1] < b[1];
+  }
+};
+
+struct OrderDescendingKV128 {
+  using Order = SortDescending;
+  using LaneType = uint64_t;
+  using KeyType = K64V64;
+
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+    return b[1] < a[1];
+  }
+};
+
 template <class Order>
 struct Traits128 : public Order {
   constexpr bool Is128() const { return true; }
@@ -185,30 +205,6 @@ struct OrderAscending128 : public Key128 {
     return Max128(d, a, b);
   }
 
-  template <class D>
-  HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
-                                 TFromD<D>* HWY_RESTRICT buf) const {
-    const size_t N = Lanes(d);
-    Store(v, d, buf);
-    v = SetKey(d, buf + 0);  // result must be broadcasted
-    for (size_t i = LanesPerKey(); i < N; i += LanesPerKey()) {
-      v = First(d, v, SetKey(d, buf + i));
-    }
-    return v;
-  }
-
-  template <class D>
-  HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
-                                TFromD<D>* HWY_RESTRICT buf) const {
-    const size_t N = Lanes(d);
-    Store(v, d, buf);
-    v = SetKey(d, buf + 0);  // result must be broadcasted
-    for (size_t i = LanesPerKey(); i < N; i += LanesPerKey()) {
-      v = Last(d, v, SetKey(d, buf + i));
-    }
-    return v;
-  }
-
   // Same as for regular lanes because 128-bit lanes are u64.
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
@@ -249,28 +245,84 @@ struct OrderDescending128 : public Key128 {
     return Min128(d, a, b);
   }
 
+  // Same as for regular lanes because 128-bit lanes are u64.
   template <class D>
-  HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
-                                 TFromD<D>* HWY_RESTRICT buf) const {
-    const size_t N = Lanes(d);
-    Store(v, d, buf);
-    v = SetKey(d, buf + 0);  // result must be broadcasted
-    for (size_t i = LanesPerKey(); i < N; i += LanesPerKey()) {
-      v = First(d, v, SetKey(d, buf + i));
-    }
-    return v;
+  HWY_INLINE Vec<D> FirstValue(D d) const {
+    return Set(d, hwy::HighestValue<TFromD<D> >());
   }
 
   template <class D>
-  HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
-                                TFromD<D>* HWY_RESTRICT buf) const {
-    const size_t N = Lanes(d);
-    Store(v, d, buf);
-    v = SetKey(d, buf + 0);  // result must be broadcasted
-    for (size_t i = LanesPerKey(); i < N; i += LanesPerKey()) {
-      v = Last(d, v, SetKey(d, buf + i));
-    }
-    return v;
+  HWY_INLINE Vec<D> LastValue(D d) const {
+    return Set(d, hwy::LowestValue<TFromD<D> >());
+  }
+};
+
+struct OrderAscendingKV128 : public Key128 {
+  using Order = SortAscending;
+
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+    return a[1] < b[1];
+  }
+
+  template <class D>
+  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
+    return Lt128Upper(d, a, b);
+  }
+
+  // Used by CompareTop
+  template <class V>
+  HWY_INLINE Mask<DFromV<V> > CompareLanes(V a, V b) const {
+    return Lt(a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> First(D d, const Vec<D> a, const Vec<D> b) const {
+    return Min128Upper(d, a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> Last(D d, const Vec<D> a, const Vec<D> b) const {
+    return Max128Upper(d, a, b);
+  }
+
+  // Same as for regular lanes because 128-bit lanes are u64.
+  template <class D>
+  HWY_INLINE Vec<D> FirstValue(D d) const {
+    return Set(d, hwy::LowestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastValue(D d) const {
+    return Set(d, hwy::HighestValue<TFromD<D> >());
+  }
+};
+
+struct OrderDescendingKV128 : public Key128 {
+  using Order = SortDescending;
+
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+    return b[1] < a[1];
+  }
+
+  template <class D>
+  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
+    return Lt128Upper(d, b, a);
+  }
+
+  // Used by CompareTop
+  template <class V>
+  HWY_INLINE Mask<DFromV<V> > CompareLanes(V a, V b) const {
+    return Lt(b, a);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> First(D d, const Vec<D> a, const Vec<D> b) const {
+    return Max128Upper(d, a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> Last(D d, const Vec<D> a, const Vec<D> b) const {
+    return Min128Upper(d, a, b);
   }
 
   // Same as for regular lanes because 128-bit lanes are u64.
@@ -322,6 +374,32 @@ class Traits128 : public Base {
 
  public:
   constexpr bool Is128() const { return true; }
+
+  template <class D>
+  HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
+                                 TFromD<D>* HWY_RESTRICT buf) const {
+    const Base* base = static_cast<const Base*>(this);
+    const size_t N = Lanes(d);
+    Store(v, d, buf);
+    v = base->SetKey(d, buf + 0);  // result must be broadcasted
+    for (size_t i = base->LanesPerKey(); i < N; i += base->LanesPerKey()) {
+      v = base->First(d, v, base->SetKey(d, buf + i));
+    }
+    return v;
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
+                                TFromD<D>* HWY_RESTRICT buf) const {
+    const Base* base = static_cast<const Base*>(this);
+    const size_t N = Lanes(d);
+    Store(v, d, buf);
+    v = base->SetKey(d, buf + 0);  // result must be broadcasted
+    for (size_t i = base->LanesPerKey(); i < N; i += base->LanesPerKey()) {
+      v = base->Last(d, v, base->SetKey(d, buf + i));
+    }
+    return v;
+  }
 
   template <class D>
   HWY_INLINE void Sort2(D d, Vec<D>& a, Vec<D>& b) const {

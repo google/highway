@@ -28,6 +28,15 @@
 
 namespace hwy {
 
+// 64 bit key plus 64 bit value. Faster than using uint128_t when only the key
+// field is to be compared (Lt128Upper instead of Lt128).
+#pragma pack(push, 1)
+struct alignas(16) K64V64 {
+  uint64_t value;  // little-endian layout
+  uint64_t key;
+};
+#pragma pack(pop)
+
 // Tag arguments that determine the sort order.
 struct SortAscending {
   constexpr bool IsAscending() const { return true; }
@@ -81,6 +90,9 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
 
   void operator()(uint128_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
   void operator()(uint128_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
+
+  void operator()(K64V64* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(K64V64* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
   // For internal use only
   static void Fill24Bytes(const void* seed_heap, size_t seed_num, void* bytes);

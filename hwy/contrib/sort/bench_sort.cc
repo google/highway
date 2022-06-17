@@ -52,6 +52,7 @@ using detail::SharedTraits;
 
 #if HWY_TARGET != HWY_SCALAR
 using detail::OrderAscending128;
+using detail::OrderAscendingKV128;
 using detail::OrderDescending128;
 using detail::Traits128;
 
@@ -257,6 +258,7 @@ HWY_NOINLINE void BenchAllSort() {
     // BenchSort<TraitsLane<OrderDescending<uint32_t>>>(num_keys);
     BenchSort<TraitsLane<OrderAscending<uint64_t>>>(num_keys);
     BenchSort<Traits128<OrderAscending128>>(num_keys);
+    BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
   }
 }
 
