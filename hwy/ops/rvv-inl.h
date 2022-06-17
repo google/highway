@@ -2865,7 +2865,6 @@ HWY_API auto ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
 }
 
 // ------------------------------ Lt128
-
 template <class D>
 HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
@@ -2889,6 +2888,15 @@ HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
   const VFromD<D> vecHx = OrAnd(ltHL, eqHL, ltLx);
   // Replicate H to its neighbor.
   return MaskFromVec(OddEven(vecHx, detail::Slide1Down(vecHx)));
+}
+
+// ------------------------------ Lt128Upper
+template <class D>
+HWY_INLINE MFromD<D> Lt128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const VFromD<D> ltHL = VecFromMask(d, Lt(a, b));
+  // Replicate H to its neighbor.
+  return MaskFromVec(OddEven(ltHL, detail::Slide1Down(ltHL)));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
@@ -2919,6 +2927,16 @@ HWY_INLINE VFromD<D> Max128(D /* tag */, const VFromD<D> a, const VFromD<D> b) {
   // The upper lane is just maxHL; if they are equal, we also need to use the
   // actual min of the lower lanes.
   return OddEven(maxHL, IfThenElse(eqXH, maxHL, lo));
+}
+
+template <class D>
+HWY_INLINE VFromD<D> Min128Upper(D d, VFromD<D> a, VFromD<D> b) {
+  return IfThenElse(Lt128Upper(d, a, b), a, b);
+}
+
+template <class D>
+HWY_INLINE VFromD<D> Max128Upper(D d, VFromD<D> a, VFromD<D> b) {
+  return IfThenElse(Lt128Upper(d, b, a), a, b);
 }
 
 // ================================================== END MACROS

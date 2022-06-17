@@ -6201,6 +6201,13 @@ HWY_INLINE Mask128<T, N> Lt128(Simd<T, N, 0> d, Vec128<T, N> a,
   return MaskFromVec(InterleaveUpper(d, vecHx, vecHx));
 }
 
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Mask128<T, N> Lt128Upper(Simd<T, N, 0> d, Vec128<T, N> a,
+                                    Vec128<T, N> b) {
+  const Vec128<T, N> ltHL = VecFromMask(d, Lt(a, b));
+  return MaskFromVec(InterleaveUpper(d, ltHL, ltHL));
+}
+
 // ------------------------------ Min128, Max128 (Lt128)
 
 // Without a native OddEven, it seems infeasible to go faster than Lt128.
@@ -6211,7 +6218,17 @@ HWY_INLINE VFromD<D> Min128(D d, const VFromD<D> a, const VFromD<D> b) {
 
 template <class D>
 HWY_INLINE VFromD<D> Max128(D d, const VFromD<D> a, const VFromD<D> b) {
-  return IfThenElse(Lt128(d, a, b), b, a);
+  return IfThenElse(Lt128(d, b, a), a, b);
+}
+
+template <class D>
+HWY_INLINE VFromD<D> Min128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
+  return IfThenElse(Lt128Upper(d, a, b), a, b);
+}
+
+template <class D>
+HWY_INLINE VFromD<D> Max128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
+  return IfThenElse(Lt128Upper(d, b, a), a, b);
 }
 
 // ================================================== Operator wrapper

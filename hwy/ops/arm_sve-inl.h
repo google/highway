@@ -2646,6 +2646,26 @@ HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
   return MaskFromVec(detail::Lt128Vec(d, a, b));
 }
 
+// ------------------------------ Lt128Upper
+
+namespace detail {
+#define HWY_SVE_DUP_ODD(BASE, CHAR, BITS, HALF, NAME, OP)                    \
+  template <size_t N, int kPow2>                                             \
+  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/, svbool_t m) { \
+    return sv##OP##_b##BITS(m, m);                                           \
+  }
+
+HWY_SVE_FOREACH_U(HWY_SVE_DUP_ODD, DupOdd, trn2)  // actually for bool
+#undef HWY_SVE_DUP_ODD
+}  // namespace detail
+
+template <class D>
+HWY_INLINE svbool_t Lt128Upper(D d, svuint64_t a, svuint64_t b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const svbool_t ltHL = Lt(a, b);
+  return detail::DupOdd(d, ltHL);
+}
+
 // ------------------------------ Min128, Max128 (Lt128)
 
 template <class D>
@@ -2655,7 +2675,17 @@ HWY_INLINE svuint64_t Min128(D d, const svuint64_t a, const svuint64_t b) {
 
 template <class D>
 HWY_INLINE svuint64_t Max128(D d, const svuint64_t a, const svuint64_t b) {
-  return IfVecThenElse(detail::Lt128Vec(d, a, b), b, a);
+  return IfVecThenElse(detail::Lt128Vec(d, b, a), a, b);
+}
+
+template <class D>
+HWY_INLINE svuint64_t Min128Upper(D d, const svuint64_t a, const svuint64_t b) {
+  return IfThenElse(Lt128Upper(d, a, b), a, b);
+}
+
+template <class D>
+HWY_INLINE svuint64_t Max128Upper(D d, const svuint64_t a, const svuint64_t b) {
+  return IfThenElse(Lt128Upper(d, b, a), a, b);
 }
 
 // ================================================== END MACROS

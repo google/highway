@@ -6990,11 +6990,23 @@ HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
   return InterleaveUpper(d, vecHx, vecHx);
 }
 
+template <class D, class V = VFromD<D>>
+HWY_INLINE V Lt128UpperVec(const D d, const V a, const V b) {
+  // No specialization required for AVX-512: Mask <-> Vec is fast, and
+  // copying mask bits to their neighbor seems infeasible.
+  const V ltHL = VecFromMask(d, Lt(a, b));
+  return InterleaveUpper(d, ltHL, ltHL);
+}
 }  // namespace detail
 
 template <class D, class V = VFromD<D>>
 HWY_API MFromD<D> Lt128(D d, const V a, const V b) {
   return MaskFromVec(detail::Lt128Vec(d, a, b));
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API MFromD<D> Lt128Upper(D d, const V a, const V b) {
+  return MaskFromVec(detail::Lt128UpperVec(d, a, b));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
@@ -7007,7 +7019,17 @@ HWY_API V Min128(D d, const V a, const V b) {
 
 template <class D, class V = VFromD<D>>
 HWY_API V Max128(D d, const V a, const V b) {
-  return IfVecThenElse(detail::Lt128Vec(d, a, b), b, a);
+  return IfVecThenElse(detail::Lt128Vec(d, b, a), a, b);
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API V Min128Upper(D d, const V a, const V b) {
+  return IfVecThenElse(detail::Lt128UpperVec(d, a, b), a, b);
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API V Max128Upper(D d, const V a, const V b) {
+  return IfVecThenElse(detail::Lt128UpperVec(d, b, a), a, b);
 }
 
 // ================================================== Operator wrapper

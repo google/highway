@@ -1146,6 +1146,15 @@ HWY_API Mask128<uint64_t> Lt128(Simd<uint64_t, 2, 0> /* tag */,
   return ret;
 }
 
+HWY_API Mask128<uint64_t> Lt128Upper(Simd<uint64_t, 2, 0> /* tag */,
+                                     Vec128<uint64_t> a,
+                                     const Vec128<uint64_t> b) {
+  const bool lt = a.raw[1] < b.raw[1];
+  Mask128<uint64_t> ret;
+  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(lt);
+  return ret;
+}
+
 // ------------------------------ Min128, Max128 (Lt128)
 
 template <class D, class V = VFromD<D>>
@@ -1155,7 +1164,17 @@ HWY_API V Min128(D d, const V a, const V b) {
 
 template <class D, class V = VFromD<D>>
 HWY_API V Max128(D d, const V a, const V b) {
-  return IfThenElse(Lt128(d, a, b), b, a);
+  return IfThenElse(Lt128(d, b, a), a, b);
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API V Min128Upper(D d, const V a, const V b) {
+  return IfThenElse(Lt128Upper(d, a, b), a, b);
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API V Max128Upper(D d, const V a, const V b) {
+  return IfThenElse(Lt128Upper(d, b, a), a, b);
 }
 
 // ================================================== MEMORY

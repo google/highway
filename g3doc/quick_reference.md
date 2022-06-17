@@ -379,6 +379,14 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     128-bit values, each stored as an adjacent pair of 64-bit lanes (e.g.
     indices 1 and 0, where 0 is the least-significant 64-bits).
 
+*   `V`: `u64` \
+    <code>M **Min128Upper**(D, V a, V b)</code>: for each 128-bit key-value
+    pair, returns `a` if it is considered less than `b` by Lt128Upper, else `b`.
+
+*   `V`: `u64` \
+    <code>M **Max128Upper**(D, V a, V b)</code>: for each 128-bit key-value
+    pair, returns `a` if it is considered > `b` by Lt128Upper, else `b`.
+
 #### Multiply
 
 *   `V`: `{u,i}{16,32}` \
@@ -728,6 +736,13 @@ These return a mask (see above) indicating whether the condition is true.
     unsigned 128-bit integer (least significant bits in a[0]) is less than
     b[1]:b[0]. For each pair, the mask lanes are either both true or both false.
     Only available if `HWY_TARGET != HWY_SCALAR`.
+
+*   `V`: `u64` \
+    <code>M **Lt128Upper**(D, V a, V b)</code>: for each adjacent pair of 64-bit
+    lanes (e.g. indices 1,0), returns whether a[1] is less than b[1]. For each
+    pair, the mask lanes are either both true or both false. This is useful for
+    comparing 64-bit keys alongside 64-bit values. Only available if `HWY_TARGET
+    != HWY_SCALAR`.
 
 ### Memory
 
