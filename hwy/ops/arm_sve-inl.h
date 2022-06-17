@@ -873,11 +873,34 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
 
 // ------------------------------ IfVecThenElse (MaskFromVec, IfThenElse)
 
+#if HWY_TARGET == HWY_SVE2
+
+#define HWY_SVE_IF_VEC(BASE, CHAR, BITS, HALF, NAME, OP)          \
+  HWY_API HWY_SVE_V(BASE, BITS)                                   \
+      NAME(HWY_SVE_V(BASE, BITS) mask, HWY_SVE_V(BASE, BITS) yes, \
+           HWY_SVE_V(BASE, BITS) no) {                            \
+    return sv##OP##_##CHAR##BITS(yes, no, mask);                  \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_IF_VEC, IfVecThenElse, bsl)
+#undef HWY_SVE_IF_VEC
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(
+      d, IfVecThenElse(BitCast(du, mask), BitCast(du, yes), BitCast(du, no)));
+}
+
+#else
+
 template <class V>
 HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
-  // TODO(janwas): use svbsl for SVE2
-  return IfThenElse(MaskFromVec(mask), yes, no);
+  return Or(And(mask, yes), AndNot(mask, no));
 }
+
+#endif  // HWY_TARGET == HWY_SVE2
 
 // ------------------------------ Floating-point classification (Ne)
 
@@ -1538,9 +1561,9 @@ svbool_t MaskLowerHalf(D d) {
 template <class D>
 svbool_t MaskUpperHalf(D d) {
   // TODO(janwas): WHILEGE on pow2 SVE2
- if( HWY_SVE_IS_POW2 && IsFull(d)){
-  return Not(MaskLowerHalf(d));
- }
+  if (HWY_SVE_IS_POW2 && IsFull(d)) {
+    return Not(MaskLowerHalf(d));
+  }
 
   // For Splice to work as intended, make sure bits above Lanes(d) are zero.
   return AndNot(MaskLowerHalf(d), detail::MakeMask(d));
@@ -2600,8 +2623,11 @@ HWY_API svuint64_t CLMulUpper(const svuint64_t a, const svuint64_t b) {
 #endif  // __ARM_FEATURE_SVE2_AES
 
 // ------------------------------ Lt128
+
+namespace detail {
+
 template <class D>
-HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
+HWY_INLINE svuint64_t Lt128Vec(D d, const svuint64_t a, const svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
   const svbool_t eqHx = Eq(a, b);  // only odd lanes used
   // Convert to vector: more pipelines can TRN* for vectors than predicates.
@@ -2609,20 +2635,27 @@ HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
   // Move into upper lane: ltL if the upper half is equal, otherwise ltH.
   // Requires an extra IfThenElse because INSR, EXT, TRN2 are unpredicated.
   const svuint64_t ltHx = IfThenElse(eqHx, DupEven(ltHL), ltHL);
-  // Duplicate upper lane into lower and convert back to predicate.
-  return MaskFromVec(DupOdd(ltHx));
+  // Duplicate upper lane into lower.
+  return DupOdd(ltHx);
+}
+
+}  // namespace detail
+
+template <class D>
+HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
+  return MaskFromVec(detail::Lt128Vec(d, a, b));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
 
 template <class D>
 HWY_INLINE svuint64_t Min128(D d, const svuint64_t a, const svuint64_t b) {
-  return IfThenElse(Lt128(d, a, b), a, b);
+  return IfVecThenElse(detail::Lt128Vec(d, a, b), a, b);
 }
 
 template <class D>
 HWY_INLINE svuint64_t Max128(D d, const svuint64_t a, const svuint64_t b) {
-  return IfThenElse(Lt128(d, a, b), b, a);
+  return IfVecThenElse(detail::Lt128Vec(d, a, b), b, a);
 }
 
 // ================================================== END MACROS
