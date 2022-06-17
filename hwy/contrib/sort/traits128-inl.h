@@ -96,8 +96,6 @@ struct Key128 {
   constexpr size_t LanesPerKey() const { return 2; }
   // What type bench_sort should allocate for generating inputs.
   using LaneType = uint64_t;
-  // What type to pass to Sorter::operator().
-  using KeyType = hwy::uint128_t;
 
   HWY_INLINE void Swap(LaneType* a, LaneType* b) const {
     const FixedTag<LaneType, 2> d;
@@ -179,6 +177,8 @@ struct Key128 {
 // we are anyway going to specialize at a higher level.
 struct OrderAscending128 : public Key128 {
   using Order = SortAscending;
+  // What type to pass to Sorter::operator().
+  using KeyType = hwy::uint128_t;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
@@ -219,6 +219,8 @@ struct OrderAscending128 : public Key128 {
 
 struct OrderDescending128 : public Key128 {
   using Order = SortDescending;
+  // What type to pass to Sorter::operator().
+  using KeyType = hwy::uint128_t;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
@@ -259,6 +261,8 @@ struct OrderDescending128 : public Key128 {
 
 struct OrderAscendingKV128 : public Key128 {
   using Order = SortAscending;
+  // What type to pass to Sorter::operator().
+  using KeyType = K64V64;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return a[1] < b[1];
@@ -299,6 +303,8 @@ struct OrderAscendingKV128 : public Key128 {
 
 struct OrderDescendingKV128 : public Key128 {
   using Order = SortDescending;
+  // What type to pass to Sorter::operator().
+  using KeyType = K64V64;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return b[1] < a[1];

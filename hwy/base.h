@@ -257,13 +257,22 @@ struct bfloat16_t {
 using float32_t = float;
 using float64_t = double;
 
+#pragma pack(push, 1)
+
 // Aligned 128-bit type. Cannot use __int128 because clang doesn't yet align it:
 // https://reviews.llvm.org/D86310
-#pragma pack(push, 1)
 struct alignas(16) uint128_t {
   uint64_t lo;  // little-endian layout
   uint64_t hi;
 };
+
+// 64 bit key plus 64 bit value. Faster than using uint128_t when only the key
+// field is to be compared (Lt128Upper instead of Lt128).
+struct alignas(16) K64V64 {
+  uint64_t value;  // little-endian layout
+  uint64_t key;
+};
+
 #pragma pack(pop)
 
 static inline HWY_MAYBE_UNUSED bool operator<(const uint128_t& a,
@@ -273,6 +282,16 @@ static inline HWY_MAYBE_UNUSED bool operator<(const uint128_t& a,
 // Required for std::greater.
 static inline HWY_MAYBE_UNUSED bool operator>(const uint128_t& a,
                                               const uint128_t& b) {
+  return b < a;
+}
+
+static inline HWY_MAYBE_UNUSED bool operator<(const K64V64& a,
+                                              const K64V64& b) {
+  return a.key < b.key;
+}
+// Required for std::greater.
+static inline HWY_MAYBE_UNUSED bool operator>(const K64V64& a,
+                                              const K64V64& b) {
   return b < a;
 }
 
@@ -514,6 +533,10 @@ template <>
 constexpr bool IsFloat<hwy::uint128_t>() {
   return false;
 }
+template <>
+constexpr bool IsFloat<K64V64>() {
+  return false;
+}
 
 template <typename T>
 HWY_API constexpr bool IsSigned() {
@@ -529,6 +552,10 @@ constexpr bool IsSigned<bfloat16_t>() {
 }
 template <>
 constexpr bool IsSigned<hwy::uint128_t>() {
+  return false;
+}
+template <>
+constexpr bool IsSigned<K64V64>() {
   return false;
 }
 

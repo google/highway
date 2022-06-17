@@ -28,15 +28,6 @@
 
 namespace hwy {
 
-// 64 bit key plus 64 bit value. Faster than using uint128_t when only the key
-// field is to be compared (Lt128Upper instead of Lt128).
-#pragma pack(push, 1)
-struct alignas(16) K64V64 {
-  uint64_t value;  // little-endian layout
-  uint64_t key;
-};
-#pragma pack(pop)
-
 // Tag arguments that determine the sort order.
 struct SortAscending {
   constexpr bool IsAscending() const { return true; }
