@@ -1356,6 +1356,19 @@ constant-propagation issues with Clang on ARM.
 *   `SizeTag<N>` is an empty struct, used to select overloaded functions
     appropriate for `N` bytes.
 
+*   `MakeUnsigned<T>` is an alias for an unsigned type of the same size as `T`.
+
+*   `MakeSigned<T>` is an alias for a signed type of the same size as `T`.
+
+*   `MakeFloat<T>` is an alias for a floating-point type of the same size as
+    `T`.
+
+*   `MakeWide<T>` is an alias for a type with twice the size of `T` and the same
+    category (unsigned/signed/float).
+
+*   `MakeNarrow<T>` is an alias for a type with half the size of `T` and the
+    same category (unsigned/signed/float).
+
 ## Memory allocation
 
 `AllocateAligned<T>(items)` returns a unique pointer to newly allocated memory

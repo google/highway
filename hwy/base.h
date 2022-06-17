@@ -404,6 +404,7 @@ struct Relations<uint64_t> {
   using Unsigned = uint64_t;
   using Signed = int64_t;
   using Float = double;
+  using Wide = uint128_t;
   using Narrow = uint32_t;
 };
 template <>
@@ -412,6 +413,11 @@ struct Relations<int64_t> {
   using Signed = int64_t;
   using Float = double;
   using Narrow = int32_t;
+};
+template <>
+struct Relations<uint128_t> {
+  using Unsigned = uint128_t;
+  using Narrow = uint64_t;
 };
 template <>
 struct Relations<float16_t> {
@@ -465,6 +471,10 @@ struct TypeFromSize<8> {
   using Unsigned = uint64_t;
   using Signed = int64_t;
   using Float = double;
+};
+template <>
+struct TypeFromSize<16> {
+  using Unsigned = uint128_t;
 };
 
 }  // namespace detail
@@ -669,7 +679,7 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero64(const uint64_t x) {
 #else   // HWY_ARCH_X86_64
   // _BitScanForward64 not available
   uint32_t lsb = static_cast<uint32_t>(x & 0xFFFFFFFF);
-  unsigned long index;
+  unsigned long index;  // NOLINT
   if (lsb == 0) {
     uint32_t msb = static_cast<uint32_t>(x >> 32u);
     _BitScanForward(&index, msb);
@@ -704,7 +714,7 @@ HWY_API size_t Num0BitsAboveMS1Bit_Nonzero64(const uint64_t x) {
 #else   // HWY_ARCH_X86_64
   // _BitScanReverse64 not available
   const uint32_t msb = static_cast<uint32_t>(x >> 32u);
-  unsigned long index;
+  unsigned long index;  // NOLINT
   if (msb == 0) {
     const uint32_t lsb = static_cast<uint32_t>(x & 0xFFFFFFFF);
     _BitScanReverse(&index, lsb);
@@ -729,7 +739,8 @@ HWY_API size_t PopCount(uint64_t x) {
 #elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64 && defined(__AVX__)
   return _mm_popcnt_u64(x);
 #elif HWY_COMPILER_MSVC && HWY_ARCH_X86_32 && defined(__AVX__)
-  return _mm_popcnt_u32(uint32_t(x)) + _mm_popcnt_u32(uint32_t(x >> 32));
+  return _mm_popcnt_u32(static_cast<uint32_t>(x & 0xFFFFFFFFu)) +
+         _mm_popcnt_u32(static_cast<uint32_t>(x >> 32));
 #else
   x -= ((x >> 1) & 0x5555555555555555ULL);
   x = (((x >> 2) & 0x3333333333333333ULL) + (x & 0x3333333333333333ULL));

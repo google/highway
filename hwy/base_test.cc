@@ -89,6 +89,11 @@ HWY_NOINLINE void TestAllType() {
   ForUnsignedTypes(TestIsUnsigned());
   ForSignedTypes(TestIsSigned());
   ForFloatTypes(TestIsFloat());
+
+  static_assert(!IsSigned<uint128_t>(), "");
+  static_assert(sizeof(MakeUnsigned<hwy::uint128_t>) == 16, "");
+  static_assert(sizeof(MakeWide<uint64_t>) == 16, "Expected uint128_t");
+  static_assert(sizeof(MakeNarrow<hwy::uint128_t>) == 8, "Expected uint64_t");
 }
 
 struct TestIsSame {
