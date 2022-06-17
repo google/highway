@@ -17,8 +17,10 @@
 #include "hwy/contrib/sort/vqsort.h"
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE \
-  "third_party/highway/hwy/contrib/sort/vqsort_kv128d.cc"
+// clang-format off
+// (avoid line break, which would prevent Copybara rules from matching)
+#define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqsort_kv128d.cc"
+// clang-format on
 #include "hwy/foreach_target.h"
 
 // After foreach_target
