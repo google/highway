@@ -195,6 +195,9 @@ HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
   ForAllTypes(test);
 }
 
+// Workaround for build timeout on GCC 12 aarch64, see #776
+#if HWY_COMPILER_GCC < 1200 || HWY_COMPILER_CLANG
+
 struct TestLoadStoreInterleaved3 {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -331,6 +334,8 @@ HWY_NOINLINE void TestAllLoadStoreInterleaved4() {
 #endif
   ForAllTypes(test);
 }
+
+#endif  // HWY_COMPILER_GCC < 1200 || HWY_COMPILER_CLANG
 
 struct TestLoadDup128 {
   template <class T, class D>
@@ -532,8 +537,10 @@ HWY_BEFORE_TEST(HwyMemoryTest);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllSafeCopyN);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStoreInterleaved2);
+#if HWY_COMPILER_GCC < 1200 || HWY_COMPILER_CLANG
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStoreInterleaved3);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStoreInterleaved4);
+#endif
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
