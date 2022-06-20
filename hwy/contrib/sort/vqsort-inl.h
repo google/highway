@@ -125,13 +125,13 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // _Nonzero32 requires num - 1 != 0.
   if (HWY_UNLIKELY(num <= 1)) return;
 
+
+  // Avoids excessive stack size
+#if !HWY_IS_DEBUG_BUILD
   // Full sorting network: can skip padding/copying. We still require padding
   // for partial vectors because SortingNetwork will load/store 16 full vectors.
   // Must match SortingNetwork's d (capped to kMaxCols), not ours.
   const size_t N_sn = Lanes(CappedTag<T, Constants::kMaxCols>());
-
-  // Avoids excessive stack size
-#if !HWY_IS_DEBUG_BUILD
   if (HWY_UNLIKELY(num == N_sn * Constants::kMaxRows)) {
     SortingNetwork(st, keys, HWY_MAX(st.LanesPerKey(), N_sn));
     return;
