@@ -28,9 +28,11 @@ HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100) {
   const char prefix = info.is_float ? 'f' : (info.is_signed ? 'i' : 'u');
   // Omit the xN suffix for scalars.
   if (N == 1) {
+    // NOLINTNEXTLINE
     snprintf(string100, 64, "%c%d", prefix,
              static_cast<int>(info.sizeof_t * 8));
   } else {
+    // NOLINTNEXTLINE
     snprintf(string100, 64, "%c%dx%d", prefix,
              static_cast<int>(info.sizeof_t * 8), static_cast<int>(N));
   }
@@ -41,39 +43,39 @@ HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
   if (info.sizeof_t == 1) {
     uint8_t byte;
     CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
-    snprintf(string100, 100, "0x%02X", byte);
+    snprintf(string100, 100, "0x%02X", byte);  // NOLINT
   } else if (info.sizeof_t == 2) {
     uint16_t bits;
     CopyBytes<2>(ptr, &bits);
-    snprintf(string100, 100, "0x%04X", bits);
+    snprintf(string100, 100, "0x%04X", bits);  // NOLINT
   } else if (info.sizeof_t == 4) {
     if (info.is_float) {
       float value;
       CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%g", double(value));
+      snprintf(string100, 100, "%g", static_cast<double>(value));  // NOLINT
     } else if (info.is_signed) {
       int32_t value;
       CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%d", value);
+      snprintf(string100, 100, "%d", value);  // NOLINT
     } else {
       uint32_t value;
       CopyBytes<4>(ptr, &value);
-      snprintf(string100, 100, "%u", value);
+      snprintf(string100, 100, "%u", value);  // NOLINT
     }
   } else {
     HWY_ASSERT(info.sizeof_t == 8);
     if (info.is_float) {
       double value;
       CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%g", value);
+      snprintf(string100, 100, "%g", value);  // NOLINT
     } else if (info.is_signed) {
       int64_t value;
       CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%" PRIi64 "", value);
+      snprintf(string100, 100, "%" PRIi64 "", value);  // NOLINT
     } else {
       uint64_t value;
       CopyBytes<8>(ptr, &value);
-      snprintf(string100, 100, "%" PRIu64 "", value);
+      snprintf(string100, 100, "%" PRIu64 "", value);  // NOLINT
     }
   }
 }

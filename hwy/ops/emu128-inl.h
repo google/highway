@@ -710,7 +710,7 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
 template <typename T, size_t N, HWY_IF_SIGNED(T)>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = static_cast<T>(int64_t(a.raw[i]) * b.raw[i]);
+    a.raw[i] = static_cast<T>(static_cast<int64_t>(a.raw[i]) * b.raw[i]);
   }
   return a;
 }
@@ -718,7 +718,7 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
 template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = static_cast<T>(uint64_t(a.raw[i]) * b.raw[i]);
+    a.raw[i] = static_cast<T>(static_cast<uint64_t>(a.raw[i]) * b.raw[i]);
   }
   return a;
 }

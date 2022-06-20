@@ -19,6 +19,7 @@
 // Helpers for printing vector lanes.
 
 #include <stddef.h>
+#include <stdio.h>
 
 #include "hwy/base.h"
 #include "hwy/highway_export.h"
@@ -53,6 +54,20 @@ HWY_DLLEXPORT void PrintArray(const TypeInfo& info, const char* caption,
                               size_t lane_u = 0, size_t max_lanes = 7);
 
 }  // namespace detail
+
+template <typename T>
+HWY_NOINLINE void PrintValue(T value) {
+  char str[100];
+  detail::ToString(hwy::detail::MakeTypeInfo<T>(), &value, str);
+  fprintf(stderr, "%s,", str);
+}
+
+template <typename T>
+HWY_NOINLINE void PrintArray(const T* value, size_t count) {
+  detail::PrintArray(hwy::detail::MakeTypeInfo<T>(), "", value, count, 0,
+                     count);
+}
+
 }  // namespace hwy
 
 #endif  // HWY_PRINT_H_

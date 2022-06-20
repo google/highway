@@ -1689,7 +1689,7 @@ HWY_API Mask128<double, N> operator==(const Vec128<double, N> a,
 
 // ------------------------------ Inequality
 
-// This cannot have T as a template argument, otherwise it is not more 
+// This cannot have T as a template argument, otherwise it is not more
 // specialized than rewritten operator== in C++20, leading to compile
 // errors: https://gcc.godbolt.org/z/xsrPhPvPT.
 template <size_t N>

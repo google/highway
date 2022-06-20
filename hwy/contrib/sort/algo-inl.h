@@ -55,11 +55,11 @@ namespace hwy {
 
 enum class Dist { kUniform8, kUniform16, kUniform32 };
 
-std::vector<Dist> AllDist() {
+static inline std::vector<Dist> AllDist() {
   return {/*Dist::kUniform8, Dist::kUniform16,*/ Dist::kUniform32};
 }
 
-const char* DistName(Dist dist) {
+static inline const char* DistName(Dist dist) {
   switch (dist) {
     case Dist::kUniform8:
       return "uniform8";
@@ -94,13 +94,16 @@ class InputStats {
     }
 
     if (min_ != other.min_ || max_ != other.max_) {
-      HWY_ABORT("minmax %f/%f vs %f/%f\n", double(min_), double(max_),
-                double(other.min_), double(other.max_));
+      HWY_ABORT("minmax %f/%f vs %f/%f\n", static_cast<double>(min_),
+                static_cast<double>(max_), static_cast<double>(other.min_),
+                static_cast<double>(other.max_));
     }
 
     // Sum helps detect duplicated/lost values
     if (sum_ != other.sum_) {
-      HWY_ABORT("Sum mismatch; min %g max %g\n", double(min_), double(max_));
+      HWY_ABORT("Sum mismatch %g %g; min %g max %g\n",
+                static_cast<double>(sum_), static_cast<double>(other.sum_),
+                static_cast<double>(min_), static_cast<double>(max_));
     }
 
     return true;
