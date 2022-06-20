@@ -99,14 +99,10 @@ struct Simd {
 
 namespace detail {
 
-#if HWY_HAVE_SCALABLE
-
 template <typename T, size_t N, int kPow2>
 constexpr bool IsFull(Simd<T, N, kPow2> /* d */) {
   return N == HWY_LANES(T) && kPow2 == 0;
 }
-
-#endif
 
 // Returns the number of lanes (possibly zero) after applying a shift:
 // - 0: no change;

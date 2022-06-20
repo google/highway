@@ -134,7 +134,8 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
 
     const Timestamp t0;
     for (size_t i = 0; i < kMul; ++i) {
-      detail::BaseCase(d, st, keys.get(), num_lanes, buf.get());
+      detail::BaseCase(d, st, keys.get(), keys.get() + num_lanes, num_lanes,
+                       buf.get());
       sum += static_cast<double>(keys[0]);
     }
     seconds.push_back(SecondsSince(t0));

@@ -149,7 +149,7 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
           lanes[i] = hwy::LowestValue<LaneType>();
         }
 
-        detail::BaseCase(d, st, lanes, len, buf.get());
+        detail::BaseCase(d, st, lanes, lanes + len, len, buf.get());
 
         if (kDebug >= 2) {
           printf("out>>>>>>\n");
@@ -213,7 +213,7 @@ static HWY_NOINLINE void TestBaseCase01() {
         lanes[i] = hwy::LowestValue<LaneType>();
       }
 
-      detail::BaseCase(d, st, lanes.get(), len, buf.get());
+      detail::BaseCase(d, st, lanes.get(), lanes.get() + len, len, buf.get());
 
       if (kDebug >= 2) {
         printf("out>>>>>>\n");
@@ -472,11 +472,12 @@ class CompareResults {
                   static_cast<uint64_t>(copy_[i]),
                   static_cast<uint64_t>(output[i]));
         } else {
-          fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: %A %A\n",
+          fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: ",
                   hwy::TypeName(KeyType(), 1).c_str(), Order().IsAscending(),
-                  static_cast<int>(i), static_cast<int>(copy_.size()),
-                  static_cast<double>(copy_[i]),
-                  static_cast<double>(output[i]));
+                  static_cast<int>(i), static_cast<int>(copy_.size()));
+          PrintValue(copy_[i]);
+          PrintValue(output[i]);
+          fprintf(stderr, "\n");
         }
         return false;
       }
@@ -575,28 +576,30 @@ void TestSort(size_t num_lanes) {
 }
 
 void TestAllSort() {
-  const size_t num_lanes = AdjustedReps(20 * 1000);
-  TestSort<TraitsLane<OrderAscending<int16_t> > >(num_lanes);
-  TestSort<TraitsLane<OrderDescending<uint16_t> > >(num_lanes);
+  for (int num : {129, 504, 20 * 1000, 34567}) {
+    const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
+    TestSort<TraitsLane<OrderAscending<int16_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderDescending<uint16_t> > >(num_lanes);
 
-  TestSort<TraitsLane<OrderDescending<int32_t> > >(num_lanes);
-  TestSort<TraitsLane<OrderDescending<uint32_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderDescending<int32_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderDescending<uint32_t> > >(num_lanes);
 
-  TestSort<TraitsLane<OrderAscending<int64_t> > >(num_lanes);
-  TestSort<TraitsLane<OrderAscending<uint64_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderAscending<int64_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderAscending<uint64_t> > >(num_lanes);
 
-  // WARNING: for float types, SIMD comparisons will flush denormals to zero,
-  // causing mismatches with scalar sorts. In this test, we avoid generating
-  // denormal inputs.
-  TestSort<TraitsLane<OrderAscending<float> > >(num_lanes);
+    // WARNING: for float types, SIMD comparisons will flush denormals to
+    // zero, causing mismatches with scalar sorts. In this test, we avoid
+    // generating denormal inputs.
+    TestSort<TraitsLane<OrderAscending<float> > >(num_lanes);
 #if HWY_HAVE_FLOAT64  // protects algo-inl's GenerateRandom
-  if (Sorter::HaveFloat64()) {
-    TestSort<TraitsLane<OrderDescending<double> > >(num_lanes);
-  }
+    if (Sorter::HaveFloat64()) {
+      TestSort<TraitsLane<OrderDescending<double> > >(num_lanes);
+    }
 #endif
 
-  TestSort<Traits128<OrderAscending128> >(num_lanes);
-  TestSort<Traits128<OrderDescending128> >(num_lanes);
+    TestSort<Traits128<OrderAscending128> >(num_lanes);
+    TestSort<Traits128<OrderDescending128> >(num_lanes);
+  }
 }
 
 #endif  // VQSORT_TEST_SORT

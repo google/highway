@@ -117,26 +117,14 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
 
 // Sorts `keys` within the range [0, num) via sorting network.
 template <class D, class Traits, typename T>
-HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
+                           T* HWY_RESTRICT keys_end, size_t num,
                            T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   using V = decltype(Zero(d));
 
   // _Nonzero32 requires num - 1 != 0.
   if (HWY_UNLIKELY(num <= 1)) return;
-
-  // Full sorting network: can skip padding/copying. We still require padding
-  // for partial vectors because SortingNetwork will load/store 16 full vectors.
-  // Must match SortingNetwork's d (capped to kMaxCols), not ours.
-  const size_t N_sn = Lanes(CappedTag<T, Constants::kMaxCols>());
-
-  // Avoids excessive stack size
-#if !HWY_IS_DEBUG_BUILD
-  if (HWY_UNLIKELY(num == N_sn * Constants::kMaxRows)) {
-    SortingNetwork(st, keys, HWY_MAX(st.LanesPerKey(), N_sn));
-    return;
-  }
-#endif
 
   // Reshape into a matrix with kMaxRows rows, and columns limited by the
   // 1D `num`, which is upper-bounded by the vector width (see BaseCaseNum).
@@ -147,6 +135,18 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const size_t cols =
       HWY_MAX(st.LanesPerKey(), num_pow2 >> Constants::kMaxRowsLog2);
   HWY_DASSERT(cols <= N);
+
+  // We can avoid padding and load/store directly to `keys` after checking the
+  // original input array has enough space. Except at the right border, it's OK
+  // to sort more than the current sub-array. Even if we sort across a previous
+  // partition point, we know that keys will not migrate across it. However, we
+  // must use the maximum size of the sorting network, because the StoreU of its
+  // last vector would otherwise write invalid data starting at kMaxRows * cols.
+  const size_t N_sn = Lanes(CappedTag<T, Constants::kMaxCols>());
+  if (HWY_LIKELY(keys + N_sn * Constants::kMaxRows <= keys_end)) {
+    SortingNetwork(st, keys, N_sn);
+    return;
+  }
 
   // Copy `keys` to `buf`.
   size_t i;
@@ -569,9 +569,9 @@ HWY_NOINLINE void ScanMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
 }
 
 template <class D, class Traits, typename T>
-void Recurse(D d, Traits st, T* HWY_RESTRICT keys, const size_t begin,
-             const size_t end, const Vec<D> pivot, T* HWY_RESTRICT buf,
-             Generator& rng, size_t remaining_levels) {
+void Recurse(D d, Traits st, T* HWY_RESTRICT keys, T* HWY_RESTRICT keys_end,
+             const size_t begin, const size_t end, const Vec<D> pivot,
+             T* HWY_RESTRICT buf, Generator& rng, size_t remaining_levels) {
   HWY_DASSERT(begin + 1 < end);
   const size_t num = end - begin;  // >= 2
 
@@ -603,22 +603,24 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, const size_t begin,
 
     // Separate recursion to make sure that we don't pick `last` as the
     // pivot - that would again lead to a degenerate partition.
-    Recurse(d, st, keys, begin, end, first, buf, rng, remaining_levels - 1);
+    Recurse(d, st, keys, keys_end, begin, end, first, buf, rng,
+            remaining_levels - 1);
     return;
   }
 
   if (HWY_UNLIKELY(num_left <= base_case_num)) {
-    BaseCase(d, st, keys + begin, static_cast<size_t>(num_left), buf);
+    BaseCase(d, st, keys + begin, keys_end, static_cast<size_t>(num_left), buf);
   } else {
     const Vec<D> next_pivot = ChoosePivot(d, st, keys, begin, bound, buf, rng);
-    Recurse(d, st, keys, begin, bound, next_pivot, buf, rng,
+    Recurse(d, st, keys, keys_end, begin, bound, next_pivot, buf, rng,
             remaining_levels - 1);
   }
   if (HWY_UNLIKELY(num_right <= base_case_num)) {
-    BaseCase(d, st, keys + bound, static_cast<size_t>(num_right), buf);
+    BaseCase(d, st, keys + bound, keys_end, static_cast<size_t>(num_right),
+             buf);
   } else {
     const Vec<D> next_pivot = ChoosePivot(d, st, keys, bound, end, buf, rng);
-    Recurse(d, st, keys, bound, end, next_pivot, buf, rng,
+    Recurse(d, st, keys, keys_end, bound, end, next_pivot, buf, rng,
             remaining_levels - 1);
   }
 }
@@ -633,7 +635,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // 128-bit keys require vectors with at least two u64 lanes, which is always
   // the case unless `d` requests partial vectors (e.g. fraction = 1/2) AND the
   // hardware vector width is less than 128bit / fraction.
-  const bool partial_128 = N < 2 && st.Is128();
+  const bool partial_128 = !IsFull(d) && N < 2 && st.Is128();
   // Partition assumes its input is at least two vectors. If vectors are huge,
   // base_case_num may actually be smaller. If so, which is only possible on
   // RVV, pass a capped or partial d (LMUL < 1). Use HWY_MAX_BYTES instead of
@@ -649,7 +651,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
   // Small arrays: use sorting network, no need for other checks.
   if (HWY_UNLIKELY(num <= base_case_num)) {
-    BaseCase(d, st, keys, num, buf);
+    BaseCase(d, st, keys, keys + num, num, buf);
     return true;
   }
 
@@ -708,7 +710,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // Introspection: switch to worst-case N*logN heapsort after this many.
   const size_t max_levels = 2 * hwy::CeilLog2(num) + 4;
 
-  detail::Recurse(d, st, keys, 0, num, pivot, buf, rng, max_levels);
+  detail::Recurse(d, st, keys, keys + num, 0, num, pivot, buf, rng, max_levels);
 #endif  // HWY_TARGET
 }
 
