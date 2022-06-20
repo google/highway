@@ -4505,8 +4505,6 @@ HWY_API size_t CompressStore(Vec256<double> v, Mask256<double> mask,
 
 // ------------------------------ CompressBlendedStore (CompressStore)
 
-#if HWY_TARGET <= HWY_AVX3
-
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                                     T* HWY_RESTRICT unaligned) {
@@ -4530,35 +4528,6 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   return count;
 #endif
 }
-
-#else  // AVX2
-
-template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
-HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
-                                    T* HWY_RESTRICT unaligned) {
-  const size_t count = CountTrue(m);
-  BlendedStore(FirstN(d, count), d, Compress(v, m));
-  return count;
-}
-
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
-                                    T* HWY_RESTRICT unaligned) {
-  const size_t count = CountTrue(d, m);
-  const Vec256<T> compressed = Compress(v, m);
-#if HWY_MEM_OPS_MIGHT_FAULT
-  // BlendedStore tests mask for each lane, but we know that the mask is
-  // FirstN, so we can just copy.
-  alignas(32) T buf[16];
-  Store(compressed, d, buf);
-  memcpy(unaligned, buf, count * sizeof(T));
-#else
-  BlendedStore(compressed, FirstN(d, count), d, unaligned);
-#endif
-  return count;
-}
-
-#endif  // AVX2
 
 // ------------------------------ CompressBitsStore (LoadMaskBits)
 
@@ -5028,7 +4997,7 @@ HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   return count;
 }
 
-template <typename T>
+template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
                                     T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(m);
@@ -5037,6 +5006,25 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   // Workaround for MSAN not marking output as initialized (b/233326619)
 #if HWY_IS_MSAN
   __msan_unpoison(unaligned, count * sizeof(T));
+#endif
+  return count;
+}
+
+template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
+                                    T* HWY_RESTRICT unaligned) {
+  const uint64_t mask_bits = detail::BitsFromMask(m);
+  const size_t count = PopCount(mask_bits);
+  const Vec256<T> compressed = detail::Compress(v, mask_bits);
+
+#if HWY_MEM_OPS_MIGHT_FAULT  // true if HWY_IS_MSAN
+  // BlendedStore tests mask for each lane, but we know that the mask is
+  // FirstN, so we can just copy.
+  alignas(32) T buf[16];
+  Store(compressed, d, buf);
+  memcpy(unaligned, buf, count * sizeof(T));
+#else
+  BlendedStore(compressed, FirstN(d, count), d, unaligned);
 #endif
   return count;
 }
