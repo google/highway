@@ -92,7 +92,6 @@ void SiftDown(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
 template <class Traits, typename T>
 void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   constexpr size_t N1 = st.LanesPerKey();
-  const FixedTag<T, N1> d;
 
   if (num_lanes < 2 * N1) return;
 
