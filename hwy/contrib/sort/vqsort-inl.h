@@ -61,27 +61,43 @@ using Constants = hwy::SortConstants;
 
 // ------------------------------ HeapSort
 
+template <class Traits, typename T>
+void SiftDown(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
+              size_t start) {
+  constexpr size_t N1 = st.LanesPerKey();
+  const FixedTag<T, N1> d;
+
+  while (start < num_lanes) {
+    const size_t left = 2 * start + N1;
+    const size_t right = 2 * start + 2 * N1;
+    if (left >= num_lanes) break;
+    size_t idx_larger = start;
+    const auto key_j = st.SetKey(d, lanes + start);
+    if (AllTrue(d, st.Compare(d, key_j, st.SetKey(d, lanes + left)))) {
+      idx_larger = left;
+    }
+    if (right < num_lanes &&
+        AllTrue(d, st.Compare(d, st.SetKey(d, lanes + idx_larger),
+                              st.SetKey(d, lanes + right)))) {
+      idx_larger = right;
+    }
+    if (idx_larger == start) break;
+    st.Swap(lanes + start, lanes + idx_larger);
+    start = idx_larger;
+  }
+}
+
 // Heapsort: O(1) space, O(N*logN) worst-case comparisons.
 // Based on LLVM sanitizer_common.h, licensed under Apache-2.0.
 template <class Traits, typename T>
 void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   constexpr size_t N1 = st.LanesPerKey();
-  const FixedTag<T, N1> d;
 
   if (num_lanes < 2 * N1) return;
 
   // Build heap.
-  for (size_t i = N1; i < num_lanes; i += N1) {
-    size_t j = i;
-    while (j != 0) {
-      const size_t idx_parent = ((j - N1) / N1 / 2) * N1;
-      if (AllFalse(d, st.Compare(d, st.SetKey(d, lanes + idx_parent),
-                                 st.SetKey(d, lanes + j)))) {
-        break;
-      }
-      st.Swap(lanes + j, lanes + idx_parent);
-      j = idx_parent;
-    }
+  for (size_t i = ((num_lanes - N1) / N1 / 2) * N1; i != (size_t)-N1; i -= N1) {
+    SiftDown(st, lanes, num_lanes, i);
   }
 
   for (size_t i = num_lanes - N1; i != 0; i -= N1) {
@@ -89,25 +105,7 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
     st.Swap(lanes + 0, lanes + i);
 
     // Sift down the new root.
-    size_t j = 0;
-    while (j < i) {
-      const size_t left = 2 * j + N1;
-      const size_t right = 2 * j + 2 * N1;
-      if (left >= i) break;
-      size_t idx_larger = j;
-      const auto key_j = st.SetKey(d, lanes + j);
-      if (AllTrue(d, st.Compare(d, key_j, st.SetKey(d, lanes + left)))) {
-        idx_larger = left;
-      }
-      if (right < i &&
-          AllTrue(d, st.Compare(d, st.SetKey(d, lanes + idx_larger),
-                                st.SetKey(d, lanes + right)))) {
-        idx_larger = right;
-      }
-      if (idx_larger == j) break;
-      st.Swap(lanes + j, lanes + idx_larger);
-      j = idx_larger;
-    }
+    SiftDown(st, lanes, i, 0);
   }
 }
 
