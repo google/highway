@@ -283,6 +283,8 @@ target_include_directories(hwy_contrib PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
+set_target_properties(hwy_contrib PROPERTIES
+  LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
 if(UNIX AND NOT APPLE)
   set_property(TARGET hwy_contrib APPEND_STRING PROPERTY
@@ -299,6 +301,8 @@ target_include_directories(hwy_test PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(hwy_test PUBLIC cxx_std_11)
+set_target_properties(hwy_test PROPERTIES
+  LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
 if(UNIX AND NOT APPLE)
   set_property(TARGET hwy_test APPEND_STRING PROPERTY
