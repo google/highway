@@ -287,7 +287,7 @@ InputStats<T> GenerateInput(const Dist dist, T* v, size_t num) {
   size_t i = 0;
   for (; i + N <= num; i += N) {
     const VU64 bits = RandomValues<T>(du64, s0, s1, mask);
-#if HWY_ARCH_RVV
+#if HWY_ARCH_RVV || (HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7)
     // v may not be 64-bit aligned
     StoreU(bits, du64, buf.get());
     memcpy(v + i, buf.get(), N64 * sizeof(uint64_t));

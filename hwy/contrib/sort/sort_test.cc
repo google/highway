@@ -34,8 +34,11 @@
 #include <vector>
 
 #undef VQSORT_TEST_IMPL
-#if (HWY_TARGET == HWY_SCALAR) || (defined(_MSC_VER) && !HWY_IS_DEBUG_BUILD)
-// Scalar does not implement these, and MSVC non-debug builds time out.
+#if (HWY_TARGET == HWY_SCALAR) ||                 \
+    (defined(_MSC_VER) && !HWY_IS_DEBUG_BUILD) || \
+    (HWY_IS_DEBUG_BUILD && HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7)
+// Scalar does not implement these, MSVC non-debug builds time out, and ARMv7
+// NEON debug builds time out.
 #define VQSORT_TEST_IMPL 0
 #else
 #define VQSORT_TEST_IMPL 1
