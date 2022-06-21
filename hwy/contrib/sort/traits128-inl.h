@@ -80,7 +80,7 @@ struct Traits128 : public Order {
   // For HeapSort
   HWY_INLINE void Swap(uint64_t* a, uint64_t* b) const {
     for (size_t i = 0; i < LanesPerKey(); ++i) {
-      const T temp = a[i];
+      const uint64_t temp = a[i];
       a[i] = b[i];
       b[i] = temp;
     }
