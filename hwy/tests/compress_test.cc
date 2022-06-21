@@ -37,38 +37,36 @@ namespace HWY_NAMESPACE {
 
 #if !HWY_PRINT_TABLES || HWY_IDE
 
-class TestCompress {
-  template <class D, class DI, typename T = TFromD<D>, typename TI = TFromD<DI>>
-  void CheckStored(D d, DI di, size_t expected_pos, size_t actual_pos,
-                   size_t num_to_check, const AlignedFreeUniquePtr<T[]>& in,
-                   const AlignedFreeUniquePtr<TI[]>& mask_lanes,
-                   const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
-                   int line) {
-    if (expected_pos != actual_pos) {
-      hwy::Abort(
-          __FILE__, line,
-          "Size mismatch for %s: expected %" PRIu64 ", actual %" PRIu64 "\n",
-          TypeName(T(), Lanes(d)).c_str(), static_cast<uint64_t>(expected_pos),
-          static_cast<uint64_t>(actual_pos));
-    }
-    // Modified from AssertVecEqual - we may not be checking all lanes.
-    for (size_t i = 0; i < num_to_check; ++i) {
-      if (!IsEqual(expected[i], actual_u[i])) {
-        const size_t N = Lanes(d);
-        fprintf(stderr,
-                "Mismatch at i=%" PRIu64 " of %" PRIu64 ", line %d:\n\n",
-                static_cast<uint64_t>(i), static_cast<uint64_t>(num_to_check),
-                line);
-        Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
-        Print(d, "in", Load(d, in.get()), 0, N);
-        Print(d, "expect", Load(d, expected.get()), 0, N);
-        Print(d, "actual", Load(d, actual_u), 0, N);
-        HWY_ASSERT(false);
-      }
+template <class D, class DI, typename T = TFromD<D>, typename TI = TFromD<DI>>
+void CheckStored(D d, DI di, size_t expected_pos, size_t actual_pos,
+                 size_t num_to_check, const AlignedFreeUniquePtr<T[]>& in,
+                 const AlignedFreeUniquePtr<TI[]>& mask_lanes,
+                 const AlignedFreeUniquePtr<T[]>& expected, const T* actual_u,
+                 int line) {
+  if (expected_pos != actual_pos) {
+    hwy::Abort(
+        __FILE__, line,
+        "Size mismatch for %s: expected %" PRIu64 ", actual %" PRIu64 "\n",
+        TypeName(T(), Lanes(d)).c_str(), static_cast<uint64_t>(expected_pos),
+        static_cast<uint64_t>(actual_pos));
+  }
+  // Modified from AssertVecEqual - we may not be checking all lanes.
+  for (size_t i = 0; i < num_to_check; ++i) {
+    if (!IsEqual(expected[i], actual_u[i])) {
+      const size_t N = Lanes(d);
+      fprintf(stderr, "Mismatch at i=%" PRIu64 " of %" PRIu64 ", line %d:\n\n",
+              static_cast<uint64_t>(i), static_cast<uint64_t>(num_to_check),
+              line);
+      Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
+      Print(d, "in", Load(d, in.get()), 0, N);
+      Print(d, "expect", Load(d, expected.get()), 0, N);
+      Print(d, "actual", Load(d, actual_u), 0, N);
+      HWY_ASSERT(false);
     }
   }
+}
 
- public:
+struct TestCompress {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
@@ -142,16 +140,16 @@ class TestCompress {
         // CompressStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size1 = CompressStore(in, mask, d, actual_u);
-        // expected_pos instead of num_to_check because this op is not affected
-        // by CompressIsPartition.
+        // expected_pos instead of num_to_check because this op is not
+        // affected by CompressIsPartition.
         CheckStored(d, di, expected_pos, size1, expected_pos, in_lanes,
                     mask_lanes, expected, actual_u, __LINE__);
 
         // CompressBlendedStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size2 = CompressBlendedStore(in, mask, d, actual_u);
-        // expected_pos instead of num_to_check because this op only writes the
-        // mask=true lanes.
+        // expected_pos instead of num_to_check because this op only writes
+        // the mask=true lanes.
         CheckStored(d, di, expected_pos, size2, expected_pos, in_lanes,
                     mask_lanes, expected, actual_u, __LINE__);
         // Subsequent lanes are untouched.
@@ -168,8 +166,8 @@ class TestCompress {
         // CompressBitsStore
         memset(actual_u, 0, N * sizeof(T));
         const size_t size3 = CompressBitsStore(in, bits.get(), d, actual_u);
-        // expected_pos instead of num_to_check because this op is not affected
-        // by CompressIsPartition.
+        // expected_pos instead of num_to_check because this op is not
+        // affected by CompressIsPartition.
         CheckStored(d, di, expected_pos, size3, expected_pos, in_lanes,
                     mask_lanes, expected, actual_u, __LINE__);
       }  // rep
@@ -181,10 +179,77 @@ HWY_NOINLINE void TestAllCompress() {
   ForUIF163264(ForPartialVectors<TestCompress>());
 }
 
+struct TestCompressBlocks {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET == HWY_SCALAR
+    (void)d;
+#else
+    static_assert(sizeof(T) == 8 && !IsSigned<T>(), "Should be u64");
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(d);
+
+    auto in_lanes = AllocateAligned<T>(N);
+    auto mask_lanes = AllocateAligned<TI>(N);
+    auto expected = AllocateAligned<T>(N);
+    auto actual = AllocateAligned<T>(N);
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      size_t expected_pos = 0;
+      for (size_t i = 0; i < N; i += 2) {
+        const uint64_t bits = Random32(&rng);
+        in_lanes[i + 1] = in_lanes[i] = T();  // cannot set float16_t directly.
+        CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
+        CopyBytes<sizeof(T)>(&bits, &in_lanes[i + 1]);
+        mask_lanes[i + 1] = mask_lanes[i] = TI{(Random32(&rng) & 8) ? 1 : 0};
+        if (mask_lanes[i] > 0) {
+          expected[expected_pos++] = in_lanes[i];
+          expected[expected_pos++] = in_lanes[i + 1];
+        }
+      }
+      size_t num_to_check;
+      if (CompressIsPartition<T>::value) {
+        // For non-native Compress, also check that mask=false lanes were
+        // moved to the back of the vector (highest indices).
+        size_t extra = expected_pos;
+        for (size_t i = 0; i < N; ++i) {
+          if (mask_lanes[i] == 0) {
+            expected[extra++] = in_lanes[i];
+          }
+        }
+        HWY_ASSERT(extra == N);
+        num_to_check = N;
+      } else {
+        // For native Compress, only the mask=true lanes are defined.
+        num_to_check = expected_pos;
+      }
+
+      const auto in = Load(d, in_lanes.get());
+      const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
+
+      // CompressBlocksNot
+      memset(actual.get(), 0, N * sizeof(T));
+      StoreU(CompressBlocksNot(in, Not(mask)), d, actual.get());
+      CheckStored(d, di, expected_pos, expected_pos, num_to_check, in_lanes,
+                  mask_lanes, expected, actual.get(), __LINE__);
+    }  // rep
+#endif  // HWY_TARGET == HWY_SCALAR
+  }     // operator()
+};
+
+HWY_NOINLINE void TestAllCompressBlocks() {
+  ForGE128Vectors<TestCompressBlocks>()(uint64_t());
+}
+
 #endif  // !HWY_PRINT_TABLES
 
 #if HWY_PRINT_TABLES || HWY_IDE
 namespace detail {  // for code folding
+
 void PrintCompress16x8Tables() {
   printf("======================================= 16x8\n");
   constexpr size_t N = 8;  // 128-bit SIMD
@@ -675,6 +740,7 @@ HWY_BEFORE_TEST(HwyCompressTest);
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, PrintTables);
 #else
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompress);
+HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompressBlocks);
 #endif
 }  // namespace hwy
 

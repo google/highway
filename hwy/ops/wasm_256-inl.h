@@ -2764,6 +2764,12 @@ HWY_API Vec256<T> Compress(Vec256<T> v, const Mask256<T> mask) {
   return Compress(v, Not(mask));
 }
 
+// ------------------------------ CompressBlocksNot
+HWY_API Vec256<uint64_t> CompressBlocksNot(Vec256<uint64_t> v,
+                                           Mask256<uint64_t> mask) {
+  HWY_ASSERT(0);
+}
+
 // ------------------------------ CompressBits
 
 template <typename T>

@@ -674,6 +674,12 @@ false is zero, true has all bits set:
     <code>V **CompressNot**(V v, M m)</code>: equivalent to `Compress(v,
     Not(m))` but possibly faster if `CompressIsPartition<T>::value` is true.
 
+*   `V`: `u64` \
+    <code>V **CompressBlocksNot**(V v, M m)</code>: equivalent to
+    `CompressNot(v, m)` when `m` is structured as adjacent pairs (both true or
+    false), e.g. as returned by `Lt128`. This is a no-op for 128 bit vectors.
+    Unavailable if `HWY_TARGET == HWY_SCALAR`.
+
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
     whose mask `m` is true into `p`, starting from lane 0. Returns `CountTrue(d,
@@ -735,7 +741,7 @@ These return a mask (see above) indicating whether the condition is true.
     lanes (e.g. indices 1,0), returns whether a[1]:a[0] concatenated to an
     unsigned 128-bit integer (least significant bits in a[0]) is less than
     b[1]:b[0]. For each pair, the mask lanes are either both true or both false.
-    Only available if `HWY_TARGET != HWY_SCALAR`.
+    Unavailable if `HWY_TARGET == HWY_SCALAR`.
 
 *   `V`: `u64` \
     <code>M **Lt128Upper**(D, V a, V b)</code>: for each adjacent pair of 64-bit

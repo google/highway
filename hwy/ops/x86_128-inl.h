@@ -143,7 +143,7 @@ struct RawMask128<8> {
 
 }  // namespace detail
 
-template <typename T, size_t N>
+template <typename T, size_t N = 16 / sizeof(T)>
 struct Mask128 {
   using Raw = typename detail::RawMask128<sizeof(T)>::type;
 
@@ -6032,6 +6032,12 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   return Compress(v, Not(mask));
 }
 
+// ------------------------------ CompressBlocksNot
+HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
+                                           Mask128<uint64_t> /* m */) {
+  return v;
+}
+
 // ------------------------------ CompressBits (LoadMaskBits)
 
 template <typename T, size_t N>
@@ -6746,6 +6752,12 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> m) {
     return detail::CompressBits(v, detail::BitsFromMask(Not(m)));
   }
   return detail::CompressNotBits(v, detail::BitsFromMask(m));
+}
+
+// ------------------------------ CompressBlocksNot
+HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
+                                           Mask128<uint64_t> /* m */) {
+  return v;
 }
 
 template <typename T, size_t N>

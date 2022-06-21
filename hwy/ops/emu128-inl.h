@@ -2174,6 +2174,12 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, const Mask128<T, N> mask) {
   return ret;
 }
 
+// ------------------------------ CompressBlocksNot
+HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
+                                           Mask128<uint64_t> /* m */) {
+  return v;
+}
+
 // ------------------------------ CompressBits
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,

@@ -4414,6 +4414,12 @@ HWY_API Vec256<T> CompressNot(Vec256<T> v, Mask256<T> mask) {
   return TableLookupLanes(v, indices);
 }
 
+// ------------------------------ CompressBlocksNot
+HWY_API Vec256<uint64_t> CompressBlocksNot(Vec256<uint64_t> v,
+                                           Mask256<uint64_t> mask) {
+  return CompressNot(v, mask);
+}
+
 // ------------------------------ CompressBits (LoadMaskBits)
 template <typename T>
 HWY_API Vec256<T> CompressBits(Vec256<T> v, const uint8_t* HWY_RESTRICT bits) {
@@ -4965,6 +4971,11 @@ HWY_API Vec256<T> Compress(Vec256<T> v, Mask256<T> m) {
 template <typename T>
 HWY_API Vec256<T> CompressNot(Vec256<T> v, Mask256<T> m) {
   return detail::CompressNot(v, detail::BitsFromMask(m));
+}
+
+HWY_API Vec256<uint64_t> CompressBlocksNot(Vec256<uint64_t> v,
+                                           Mask256<uint64_t> mask) {
+  return CompressNot(v, mask);
 }
 
 template <typename T>

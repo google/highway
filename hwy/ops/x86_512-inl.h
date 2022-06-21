@@ -3753,6 +3753,11 @@ HWY_API Vec512<T> CompressNot(Vec512<T> v, Mask512<T> mask) {
   return TableLookupLanes(v, indices);
 }
 
+HWY_API Vec512<uint64_t> CompressBlocksNot(Vec512<uint64_t> v,
+                                           Mask512<uint64_t> mask) {
+  return CompressNot(v, mask);
+}
+
 // ------------------------------ CompressBits
 template <typename T>
 HWY_API Vec512<T> CompressBits(Vec512<T> v, const uint8_t* HWY_RESTRICT bits) {

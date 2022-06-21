@@ -2196,6 +2196,12 @@ HWY_API V CompressNot(V v, const M mask) {
   return Compress(v, Not(mask));
 }
 
+// ------------------------------ CompressBlocksNot
+template <class V, class M>
+HWY_API V CompressBlocksNot(V v, const M mask) {
+  return CompressNot(v, mask);
+}
+
 // ------------------------------ CompressStore
 template <class V, class M, class D>
 HWY_API size_t CompressStore(const V v, const M mask, const D d,

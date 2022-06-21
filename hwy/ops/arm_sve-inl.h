@@ -2023,6 +2023,11 @@ HWY_API V CompressNot(V v, svbool_t mask) {
 #endif  // HWY_TARGET == HWY_SVE_256
 }
 
+// ------------------------------ CompressBlocksNot
+HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
+  return CompressNot(v, mask);
+}
+
 // ------------------------------ CompressStore
 template <class V, class D>
 HWY_API size_t CompressStore(const V v, const svbool_t mask, const D d,
