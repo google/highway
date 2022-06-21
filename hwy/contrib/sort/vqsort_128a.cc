@@ -24,6 +24,8 @@
 #include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 
+#if VQSORT_ENABLED
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -54,3 +56,5 @@ void Sorter::operator()(uint128_t* HWY_RESTRICT keys, size_t n,
 
 }  // namespace hwy
 #endif  // HWY_ONCE
+
+#endif  // VQSORT_ENABLED

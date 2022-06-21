@@ -109,7 +109,7 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   }
 }
 
-#if HWY_TARGET != HWY_SCALAR
+#if VQSORT_ENABLED || HWY_IDE
 
 // ------------------------------ BaseCase
 
@@ -659,7 +659,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   return false;  // not finished sorting
 }
 
-#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // VQSORT_ENABLED
 }  // namespace detail
 
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.
@@ -676,12 +676,7 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
-#if HWY_TARGET == HWY_SCALAR
-  (void)d;
-  (void)buf;
-  // PERFORMANCE WARNING: vqsort is not enabled for the non-SIMD target
-  return detail::HeapSort(st, keys, num);
-#else
+#if VQSORT_ENABLED || HWY_IDE
 #if !HWY_HAVE_SCALABLE
   // On targets with fixed-size vectors, avoid _using_ the allocated memory.
   // We avoid (potentially expensive for small input sizes) allocations on
@@ -709,7 +704,12 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const size_t max_levels = 2 * hwy::CeilLog2(num) + 4;
 
   detail::Recurse(d, st, keys, keys + num, 0, num, pivot, buf, rng, max_levels);
-#endif  // HWY_TARGET
+#else
+  (void)d;
+  (void)buf;
+  // PERFORMANCE WARNING: vqsort is not enabled for the non-SIMD target
+  return detail::HeapSort(st, keys, num);
+#endif  // VQSORT_ENABLED
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

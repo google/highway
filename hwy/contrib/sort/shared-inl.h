@@ -102,6 +102,17 @@ struct SortConstants {
 
 #include "hwy/highway.h"
 
+// vqsort isn't available on HWY_SCALAR, and builds time out on MSVC opt and
+// Arm v7 debug.
+#undef VQSORT_ENABLED
+#if (HWY_TARGET == HWY_SCALAR) ||                 \
+    (HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD) || \
+    (HWY_ARCH_ARM_V7 && HWY_IS_DEBUG_BUILD)
+#define VQSORT_ENABLED 0
+#else
+#define VQSORT_ENABLED 1
+#endif
+
 namespace hwy {
 namespace HWY_NAMESPACE {
 

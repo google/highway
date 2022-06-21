@@ -336,6 +336,7 @@ void CallHeapSort(KeyType* HWY_RESTRICT keys, const size_t num_keys) {
   }
 }
 
+#if VQSORT_ENABLED
 template <class Order>
 void CallHeapSort(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys) {
   using detail::SharedTraits;
@@ -365,6 +366,7 @@ void CallHeapSort(K64V64* HWY_RESTRICT keys, const size_t num_keys) {
     return detail::HeapSort(st, lanes, num_lanes);
   }
 }
+#endif  // VQSORT_ENABLED
 
 template <class Order, typename KeyType>
 void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,

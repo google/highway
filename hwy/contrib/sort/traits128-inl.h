@@ -22,6 +22,7 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_TRAITS128_TOGGLE
 #endif
 
+#include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/contrib/sort/vqsort.h"  // SortDescending
 #include "hwy/highway.h"
 
@@ -30,64 +31,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if HWY_TARGET == HWY_SCALAR
-
-struct OrderAscending128 {
-  using Order = SortAscending;
-  using LaneType = uint64_t;
-  using KeyType = hwy::uint128_t;
-
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
-    return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
-  }
-};
-
-struct OrderDescending128 {
-  using Order = SortDescending;
-  using LaneType = uint64_t;
-  using KeyType = hwy::uint128_t;
-
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
-    return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
-  }
-};
-
-struct OrderAscendingKV128 {
-  using Order = SortAscending;
-  using LaneType = uint64_t;
-  using KeyType = K64V64;
-
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
-    return a[1] < b[1];
-  }
-};
-
-struct OrderDescendingKV128 {
-  using Order = SortDescending;
-  using LaneType = uint64_t;
-  using KeyType = K64V64;
-
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
-    return b[1] < a[1];
-  }
-};
-
-template <class Order>
-struct Traits128 : public Order {
-  constexpr bool Is128() const { return true; }
-  constexpr size_t LanesPerKey() const { return 2; }
-
-  // For HeapSort
-  HWY_INLINE void Swap(uint64_t* a, uint64_t* b) const {
-    for (size_t i = 0; i < LanesPerKey(); ++i) {
-      const uint64_t temp = a[i];
-      a[i] = b[i];
-      b[i] = temp;
-    }
-  }
-};
-
-#else
+#if VQSORT_ENABLED || HWY_IDE
 
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
 // along with an abstraction layer for single-lane vs. lane-pair, which is
@@ -461,7 +405,7 @@ class Traits128 : public Base {
   }
 };
 
-#endif  // HWY_TARGET == HWY_SCALAR
+#endif  // VQSORT_ENABLED
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)

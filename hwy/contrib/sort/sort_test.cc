@@ -21,6 +21,7 @@
 #include "hwy/contrib/sort/vqsort.h"
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"
+#include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/result-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"  // BaseCase
 #include "hwy/tests/test_util-inl.h"
@@ -30,49 +31,23 @@
 #include <stdio.h>
 #include <string.h>  // memcpy
 
-#include <algorithm>  // std::max
 #include <vector>
-
-#undef VQSORT_TEST_IMPL
-#if (HWY_TARGET == HWY_SCALAR) ||                 \
-    (defined(_MSC_VER) && !HWY_IS_DEBUG_BUILD) || \
-    (HWY_IS_DEBUG_BUILD && HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7)
-// Scalar does not implement these, MSVC non-debug builds time out, and ARMv7
-// NEON debug builds time out.
-#define VQSORT_TEST_IMPL 0
-#else
-#define VQSORT_TEST_IMPL 1
-#endif
-
-#undef VQSORT_TEST_SORT
-// MSVC non-debug builds time out.
-#if defined(_MSC_VER) && !HWY_IS_DEBUG_BUILD
-#define VQSORT_TEST_SORT 0
-#else
-#define VQSORT_TEST_SORT 1
-#endif
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-#if VQSORT_TEST_IMPL || VQSORT_TEST_SORT
-using detail::TraitsLane;
 using detail::OrderAscending;
-using detail::OrderAscending128;
 using detail::OrderDescending;
-using detail::OrderDescending128;
 using detail::SharedTraits;
+using detail::TraitsLane;
+#if VQSORT_ENABLED || HWY_IDE
+using detail::OrderAscending128;
+using detail::OrderAscendingKV128;
+using detail::OrderDescending128;
+using detail::OrderDescendingKV128;
 using detail::Traits128;
-#endif
-
-#if !VQSORT_TEST_IMPL
-static void TestAllMedian() {}
-static void TestAllBaseCase() {}
-static void TestAllPartition() {}
-static void TestAllGenerator() {}
-#else
 
 template <class Traits>
 static HWY_NOINLINE void TestMedian3() {
@@ -242,7 +217,7 @@ static HWY_NOINLINE void TestBaseCase() {
 
 HWY_NOINLINE void TestAllBaseCase() {
   // Workaround for stack overflow on MSVC debug.
-#if defined(_MSC_VER) && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
+#if defined(_MSC_VER)
   return;
 #endif
   // Only enable EMU128 on x86 - it's slow on emulators.
@@ -435,11 +410,12 @@ HWY_NOINLINE void TestAllGenerator() {
   TestRandomGenerator<uint64_t>();
 }
 
-#endif  // VQSORT_TEST_IMPL
-
-#if !VQSORT_TEST_SORT
-static void TestAllSort() {}
 #else
+static void TestAllMedian() {}
+static void TestAllBaseCase() {}
+static void TestAllPartition() {}
+static void TestAllGenerator() {}
+#endif  // VQSORT_ENABLED
 
 // Remembers input, and compares results to that of a reference algorithm.
 template <class Traits>
@@ -515,7 +491,7 @@ void TestSort(size_t num_lanes) {
   // TODO(janwas): fix
   if (HWY_TARGET == HWY_SSSE3) return;
 // Workaround for stack overflow on clang-cl (/F 8388608 does not help).
-#if defined(_MSC_VER) && HWY_IS_DEBUG_BUILD && (HWY_TARGET == HWY_AVX3)
+#if defined(_MSC_VER)
   return;
 #endif
   // Only enable EMU128 on x86 - it's slow on emulators.
@@ -600,12 +576,16 @@ void TestAllSort() {
     }
 #endif
 
+// Our HeapSort does not support 128-bit keys.
+#if VQSORT_ENABLED
     TestSort<Traits128<OrderAscending128> >(num_lanes);
     TestSort<Traits128<OrderDescending128> >(num_lanes);
+
+    TestSort<Traits128<OrderAscendingKV128> >(num_lanes);
+    TestSort<Traits128<OrderDescendingKV128> >(num_lanes);
+#endif
   }
 }
-
-#endif  // VQSORT_TEST_SORT
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)

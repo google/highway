@@ -24,9 +24,6 @@
 #include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 
-// Workaround for build timeout
-#if !HWY_COMPILER_MSVC || HWY_IS_DEBUG_BUILD
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -56,5 +53,3 @@ void Sorter::operator()(uint16_t* HWY_RESTRICT keys, size_t n,
 
 }  // namespace hwy
 #endif  // HWY_ONCE
-
-#endif  // !HWY_COMPILER_MSVC || HWY_IS_DEBUG_BUILD

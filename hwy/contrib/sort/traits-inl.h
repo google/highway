@@ -32,6 +32,8 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
+#if VQSORT_ENABLED || HWY_IDE
+
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
 // along with an abstraction layer for single-lane vs. lane-pair, which is
 // independent of the order.
@@ -319,6 +321,57 @@ struct TraitsLane : public Base {
     return base->OddEvenQuads(d, swapped, v);
   }
 };
+
+#else
+
+template <typename T>
+struct OrderAscending {
+  using Order = SortAscending;
+  using LaneType = T;
+  using KeyType = T;
+
+  HWY_INLINE bool Compare1(const T* a, const T* b) { return *a < *b; }
+
+  template <class D>
+  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) {
+    return Lt(a, b);
+  }
+};
+
+template <typename T>
+struct OrderDescending {
+  using Order = SortDescending;
+  using LaneType = T;
+  using KeyType = T;
+
+  HWY_INLINE bool Compare1(const T* a, const T* b) { return *b < *a; }
+
+  template <class D>
+  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) {
+    return Lt(b, a);
+  }
+};
+
+template <class Order>
+struct TraitsLane : public Order {
+  constexpr bool Is128() const { return false; }
+  constexpr size_t LanesPerKey() const { return 1; }
+
+  // For HeapSort
+  template <typename T>  // MSVC doesn't find typename Order::LaneType.
+  HWY_INLINE void Swap(T* a, T* b) const {
+    const T temp = *a;
+    *a = *b;
+    *b = temp;
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> SetKey(D d, const TFromD<D>* key) const {
+    return Set(d, *key);
+  }
+};
+
+#endif  // VQSORT_ENABLED
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)

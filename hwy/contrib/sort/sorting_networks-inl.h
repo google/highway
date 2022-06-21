@@ -31,6 +31,8 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
+#if VQSORT_ENABLED
+
 using Constants = hwy::SortConstants;
 
 // ------------------------------ SharedTraits
@@ -679,6 +681,11 @@ HWY_NOINLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
   StoreU(ve, d, buf + 0xe * cols);
   StoreU(vf, d, buf + 0xf * cols);
 }
+
+#else
+template <class Base>
+struct SharedTraits : public Base {};
+#endif  // VQSORT_ENABLED
 
 }  // namespace detail
 // NOLINTNEXTLINE(google-readability-namespace-comments)
