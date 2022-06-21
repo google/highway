@@ -239,7 +239,7 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
     // between the updated writeL and writeR are ignored and will be overwritten
     // by subsequent calls. This works because writeL and writeR are at least
     // two vectors apart.
-    const auto lr = CompressNot(v, comp);
+    const auto lr = st.CompressKeys(v, comp);
     const size_t num_right = CountTrue(d, comp);
     const size_t num_left = N - num_right;
     StoreU(lr, d, keys + writeL);

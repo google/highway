@@ -52,6 +52,11 @@ struct KeyLane {
     *b = temp;
   }
 
+  template <class V, class M>
+  HWY_INLINE V CompressKeys(V keys, M mask) const {
+    return CompressNot(keys, mask);
+  }
+
   // Broadcasts one key into a vector
   template <class D>
   HWY_INLINE Vec<D> SetKey(D d, const T* key) const {

@@ -48,6 +48,11 @@ struct Key128 {
     StoreU(temp, d, b);
   }
 
+  template <class V, class M>
+  HWY_INLINE V CompressKeys(V keys, M mask) const {
+    return CompressBlocksNot(keys, mask);
+  }
+
   template <class D>
   HWY_INLINE Vec<D> SetKey(D d, const TFromD<D>* key) const {
     return LoadDup128(d, key);
