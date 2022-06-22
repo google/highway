@@ -103,6 +103,7 @@ HWY_NOINLINE void BenchAllPartition() {
   BenchPartition<TraitsLane<OrderDescending<float>>>();
   BenchPartition<TraitsLane<OrderAscending<int64_t>>>();
   BenchPartition<Traits128<OrderDescending128>>();
+  BenchPartition<Traits128<OrderAscendingKV128>>();
 }
 
 template <class Traits>
