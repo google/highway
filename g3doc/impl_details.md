@@ -169,7 +169,8 @@ Intel provides a
 [searchable reference](https://www.intel.com/content/www/us/en/docs/intrinsics-guide).
 
 For Arm targets `HWY_NEON`, `HWY_SVE` (plus its specialization for 256-bit
-vectors `HWY_SVE_256`), `HWY_SVE2`, Arm provides a
+vectors `HWY_SVE_256`), `HWY_SVE2` (plus its specialization for 128-bit vectors
+`HWY_SVE2_128`), Arm provides a
 [searchable reference](https://developer.arm.com/architectures/instruction-sets/intrinsics).
 
 For RISC-V target `HWY_RVV`, we refer to the assembly language

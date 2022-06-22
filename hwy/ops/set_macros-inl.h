@@ -232,12 +232,10 @@
 //-----------------------------------------------------------------------------
 // SVE[2]
 #elif HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE || \
-    HWY_TARGET == HWY_SVE_256
+    HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
 
 // SVE only requires lane alignment, not natural alignment of the entire vector.
 #define HWY_ALIGN alignas(8)
-
-#define HWY_MAX_BYTES 256
 
 // Value ensures MaxLanes() is the tightest possible upper bound to reduce
 // overallocation.
@@ -254,10 +252,16 @@
 
 #if HWY_TARGET == HWY_SVE2
 #define HWY_NAMESPACE N_SVE2
+#define HWY_MAX_BYTES 256
 #elif HWY_TARGET == HWY_SVE_256
 #define HWY_NAMESPACE N_SVE_256
+#define HWY_MAX_BYTES 32
+#elif HWY_TARGET == HWY_SVE2_128
+#define HWY_NAMESPACE N_SVE2_128
+#define HWY_MAX_BYTES 16
 #else
 #define HWY_NAMESPACE N_SVE
+#define HWY_MAX_BYTES 256
 #endif
 
 // HWY_TARGET_STR remains undefined

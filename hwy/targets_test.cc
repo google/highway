@@ -34,6 +34,7 @@ DECLARE_FUNCTION(NEON)
 DECLARE_FUNCTION(SVE)
 DECLARE_FUNCTION(SVE2)
 DECLARE_FUNCTION(SVE_256)
+DECLARE_FUNCTION(SVE2_128)
 DECLARE_FUNCTION(PPC8)
 DECLARE_FUNCTION(WASM)
 DECLARE_FUNCTION(RVV)
@@ -73,6 +74,7 @@ void CheckFakeFunction() {
   CallFunctionForTarget(HWY_SVE, __LINE__);
   CallFunctionForTarget(HWY_SVE2, __LINE__);
   CallFunctionForTarget(HWY_SVE_256, __LINE__);
+  CallFunctionForTarget(HWY_SVE2_128, __LINE__);
   CallFunctionForTarget(HWY_PPC8, __LINE__);
   CallFunctionForTarget(HWY_WASM, __LINE__);
   CallFunctionForTarget(HWY_RVV, __LINE__);

@@ -232,7 +232,8 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
 
   const auto comp = st.Compare(d, pivot, v);
 
-  if (hwy::HWY_NAMESPACE::CompressIsPartition<T>::value) {
+  if (hwy::HWY_NAMESPACE::CompressIsPartition<T>::value ||
+      (HWY_MAX_BYTES == 16 && st.Is128())) {
     // Non-native Compress (e.g. AVX2): we are able to partition a vector using
     // a single Compress+two StoreU instead of two Compress[Blended]Store. The
     // latter are more expensive. Because we store entire vectors, the contents

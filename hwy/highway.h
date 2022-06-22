@@ -84,6 +84,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE2::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SVE_256
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE_256::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_SVE2_128
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_SVE2_128::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_PPC8
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_PPC8::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SSSE3
@@ -180,6 +182,12 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #define HWY_CHOOSE_SVE_256(FUNC_NAME) &N_SVE_256::FUNC_NAME
 #else
 #define HWY_CHOOSE_SVE_256(FUNC_NAME) nullptr
+#endif
+
+#if HWY_TARGETS & HWY_SVE2_128
+#define HWY_CHOOSE_SVE2_128(FUNC_NAME) &N_SVE2_128::FUNC_NAME
+#else
+#define HWY_CHOOSE_SVE2_128(FUNC_NAME) nullptr
 #endif
 
 #if HWY_TARGETS & HWY_PPC8
@@ -313,7 +321,7 @@ FunctionCache<RetType, Args...> FunctionCacheFactory(RetType (*)(Args...)) {
 #elif HWY_TARGET == HWY_NEON
 #include "hwy/ops/arm_neon-inl.h"
 #elif HWY_TARGET == HWY_SVE || HWY_TARGET == HWY_SVE2 || \
-    HWY_TARGET == HWY_SVE_256
+    HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
 #include "hwy/ops/arm_sve-inl.h"
 #elif HWY_TARGET == HWY_WASM_EMU256
 #include "hwy/ops/wasm_256-inl.h"

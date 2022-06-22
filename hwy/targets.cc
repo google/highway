@@ -353,14 +353,23 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
     GetChosenTarget().Update(targets);
 
     // Now that we can call VectorBytes, check for targets with specific sizes.
-    const size_t vec_bytes = VectorBytes();  // uncached, see declaration
-    if (HWY_ARCH_ARM_A64 && (targets & HWY_SVE) && vec_bytes == 32) {
-      targets =
-          static_cast<uint32_t>(targets | static_cast<uint32_t>(HWY_SVE_256));
-    } else {
-      targets =
-          static_cast<uint32_t>(targets & ~static_cast<uint32_t>(HWY_SVE_256));
-    }
+    if (HWY_ARCH_ARM_A64) {
+      const size_t vec_bytes = VectorBytes();  // uncached, see declaration
+      if ((targets & HWY_SVE) && vec_bytes == 32) {
+        targets =
+            static_cast<uint32_t>(targets | static_cast<uint32_t>(HWY_SVE_256));
+      } else {
+        targets = static_cast<uint32_t>(targets &
+                                        ~static_cast<uint32_t>(HWY_SVE_256));
+      }
+      if ((targets & HWY_SVE2) && vec_bytes == 16) {
+        targets = static_cast<uint32_t>(targets |
+                                        static_cast<uint32_t>(HWY_SVE2_128));
+      } else {
+        targets = static_cast<uint32_t>(targets &
+                                        ~static_cast<uint32_t>(HWY_SVE2_128));
+      }
+    }  // HWY_ARCH_ARM_A64
   }
 
   targets &= supported_mask_;

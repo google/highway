@@ -90,6 +90,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 #endif
 
 #if HWY_ARCH_ARM
+    case HWY_SVE2_128:
+      return "SVE2_128";
     case HWY_SVE_256:
       return "SVE_256";
     case HWY_SVE2:
@@ -186,15 +188,15 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(uint32_t target) {
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 8
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_ARM
-#define HWY_CHOOSE_TARGET_LIST(func_name)              \
-  nullptr,                           /* reserved */    \
-      nullptr,                       /* reserved */    \
-      nullptr,                       /* reserved */    \
-      HWY_CHOOSE_SVE_256(func_name), /* SVE 256-bit */ \
-      HWY_CHOOSE_SVE2(func_name),    /* SVE2 */        \
-      HWY_CHOOSE_SVE(func_name),     /* SVE */         \
-      nullptr,                       /* reserved */    \
-      HWY_CHOOSE_NEON(func_name)     /* NEON */
+#define HWY_CHOOSE_TARGET_LIST(func_name)                \
+  nullptr,                            /* reserved */     \
+      nullptr,                        /* reserved */     \
+      HWY_CHOOSE_SVE2_128(func_name), /* SVE2 128-bit */ \
+      HWY_CHOOSE_SVE_256(func_name),  /* SVE 256-bit */  \
+      HWY_CHOOSE_SVE2(func_name),     /* SVE2 */         \
+      HWY_CHOOSE_SVE(func_name),      /* SVE */          \
+      nullptr,                        /* reserved */     \
+      HWY_CHOOSE_NEON(func_name)      /* NEON */
 
 #elif HWY_ARCH_PPC
 // See HWY_ARCH_X86 above for details.
