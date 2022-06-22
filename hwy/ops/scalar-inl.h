@@ -722,7 +722,7 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
   const TI rounded = static_cast<TI>(v.raw + bias);
   if (rounded == 0) return CopySignToAbs(Vec1<T>(0), v);
   // Round to even
-  if ((rounded & 1) && std::abs(rounded - v.raw) == T(0.5)) {
+  if ((rounded & 1) && std::abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
     return Vec1<T>(static_cast<T>(rounded - (v.raw < T(0) ? -1 : 1)));
   }
   return Vec1<T>(static_cast<T>(rounded));
