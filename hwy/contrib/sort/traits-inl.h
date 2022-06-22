@@ -338,7 +338,7 @@ struct OrderAscending {
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *a < *b; }
 
   template <class D>
-  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) {
+  HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) {
     return Lt(a, b);
   }
 };
@@ -352,7 +352,7 @@ struct OrderDescending {
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *b < *a; }
 
   template <class D>
-  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) {
+  HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) {
     return Lt(b, a);
   }
 };
