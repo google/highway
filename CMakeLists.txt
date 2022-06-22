@@ -64,7 +64,10 @@ check_cxx_source_compiles(
 )
 
 if (HWY_ENABLE_CONTRIB)
-set(HWY_CONTRIB_SOURCES
+# Glob all the traits so we don't need to modify this file when adding
+# additional special cases.
+file(GLOB HWY_CONTRIB_SOURCES "hwy/contrib/sort/vqsort_*.cc")
+list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/dot/dot-inl.h
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
@@ -77,24 +80,6 @@ set(HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort-inl.h
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
-    hwy/contrib/sort/vqsort_128a.cc
-    hwy/contrib/sort/vqsort_128d.cc
-    hwy/contrib/sort/vqsort_f32a.cc
-    hwy/contrib/sort/vqsort_f32d.cc
-    hwy/contrib/sort/vqsort_f64a.cc
-    hwy/contrib/sort/vqsort_f64d.cc
-    hwy/contrib/sort/vqsort_i16a.cc
-    hwy/contrib/sort/vqsort_i16d.cc
-    hwy/contrib/sort/vqsort_i32a.cc
-    hwy/contrib/sort/vqsort_i32d.cc
-    hwy/contrib/sort/vqsort_i64a.cc
-    hwy/contrib/sort/vqsort_i64d.cc
-    hwy/contrib/sort/vqsort_u16a.cc
-    hwy/contrib/sort/vqsort_u16d.cc
-    hwy/contrib/sort/vqsort_u32a.cc
-    hwy/contrib/sort/vqsort_u32d.cc
-    hwy/contrib/sort/vqsort_u64a.cc
-    hwy/contrib/sort/vqsort_u64d.cc
 )
 endif()  # HWY_ENABLE_CONTRIB
 
