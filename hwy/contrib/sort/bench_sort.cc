@@ -87,8 +87,8 @@ HWY_NOINLINE void BenchPartition() {
       sum += static_cast<double>(aligned.get()[num_lanes / 2]);
     }
 
-    MakeResult<KeyType>(Algo::kVQSort, dist, num_keys, 1,
-                        SummarizeMeasurements(seconds))
+    Result(Algo::kVQSort, dist, num_keys, 1, SummarizeMeasurements(seconds),
+           sizeof(KeyType), st.KeyString())
         .Print();
   }
   HWY_ASSERT(sum != 999999);  // Prevent optimizing out
@@ -145,8 +145,9 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
     HWY_ASSERT(VerifySort(st, input_stats, keys.get(), num_lanes, "BenchBase"));
   }
   HWY_ASSERT(sum < 1E99);
-  results.push_back(MakeResult<KeyType>(Algo::kVQSort, dist, num_keys * kMul, 1,
-                                        SummarizeMeasurements(seconds)));
+  results.emplace_back(Algo::kVQSort, dist, num_keys * kMul, 1,
+                       SummarizeMeasurements(seconds), sizeof(KeyType),
+                       st.KeyString());
 }
 
 HWY_NOINLINE void BenchAllBase() {
@@ -224,8 +225,8 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
         HWY_ASSERT(
             VerifySort(st, input_stats, aligned.get(), num_lanes, "BenchSort"));
       }
-      MakeResult<KeyType>(algo, dist, num_keys, 1,
-                          SummarizeMeasurements(seconds))
+      Result(algo, dist, num_keys, 1, SummarizeMeasurements(seconds),
+             sizeof(KeyType), st.KeyString())
           .Print();
     }  // dist
   }    // algo

@@ -217,7 +217,8 @@ void BenchParallel() {
       RunWithoutVerify(st, dist, num_keys, algo, shared, thread);
     });
     const double sec = SecondsSince(t0);
-    results.push_back(MakeResult<KeyType>(algo, dist, num_keys, nt, sec));
+    results.emplace_back(algo, dist, num_keys, nt, sec, sizeof(KeyType),
+                         st.KeyString());
     results.back().Print();
   }
 }

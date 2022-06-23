@@ -72,24 +72,23 @@ namespace HWY_NAMESPACE {
 
 struct Result {
   Result() {}
-  Result(const uint32_t target, const Algo algo, Dist dist, size_t num_keys,
-         size_t num_threads, double sec, size_t sizeof_key,
-         const char* type_name)
-      : target(target),
+  Result(const Algo algo, Dist dist, size_t num_keys, size_t num_threads,
+         double sec, size_t sizeof_key, const std::string& key_name)
+      : target(HWY_TARGET),
         algo(algo),
         dist(dist),
         num_keys(num_keys),
         num_threads(num_threads),
         sec(sec),
         sizeof_key(sizeof_key),
-        type_name(type_name) {}
+        key_name(key_name) {}
 
   void Print() const {
     const double bytes = static_cast<double>(num_keys) *
                          static_cast<double>(num_threads) *
                          static_cast<double>(sizeof_key);
     printf("%10s: %12s: %7s: %9s: %.2E %4.0f MB/s (%2zu threads)\n",
-           hwy::TargetName(target), AlgoName(algo), type_name.c_str(),
+           hwy::TargetName(target), AlgoName(algo), key_name.c_str(),
            DistName(dist), static_cast<double>(num_keys), bytes * 1E-6 / sec,
            num_threads);
   }
@@ -101,17 +100,8 @@ struct Result {
   size_t num_threads = 0;
   double sec = 0.0;
   size_t sizeof_key = 0;
-  std::string type_name;
+  std::string key_name;
 };
-
-template <typename KeyType>
-Result MakeResult(const Algo algo, Dist dist, size_t num_keys,
-                  size_t num_threads, double sec) {
-  char string100[100];
-  hwy::detail::TypeName(hwy::detail::MakeTypeInfo<KeyType>(), 1, string100);
-  return Result(HWY_TARGET, algo, dist, num_keys, num_threads, sec,
-                sizeof(KeyType), string100);
-}
 
 template <class Traits, typename LaneType>
 bool VerifySort(Traits st, const InputStats<LaneType>& input_stats,

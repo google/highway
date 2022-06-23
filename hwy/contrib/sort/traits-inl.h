@@ -22,9 +22,12 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_TRAITS_TOGGLE
 #endif
 
+#include <string>
+
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/contrib/sort/vqsort.h"      // SortDescending
 #include "hwy/highway.h"
+#include "hwy/print.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -38,11 +41,19 @@ namespace detail {
 // independent of the order.
 template <typename T>
 struct KeyLane {
+  constexpr bool Is128() const { return false; }
   constexpr size_t LanesPerKey() const { return 1; }
+
   // What type bench_sort should allocate for generating inputs.
   using LaneType = T;
   // What type to pass to Sorter::operator().
   using KeyType = T;
+
+  std::string KeyString() const {
+    char string100[100];
+    hwy::detail::TypeName(hwy::detail::MakeTypeInfo<KeyType>(), 1, string100);
+    return string100;
+  }
 
   // For HeapSort
   HWY_INLINE void Swap(T* a, T* b) const {
@@ -255,8 +266,6 @@ struct OrderDescending : public KeyLane<T> {
 // Shared code that depends on Order.
 template <class Base>
 struct TraitsLane : public Base {
-  constexpr bool Is128() const { return false; }
-
   // For each lane i: replaces a[i] with the first and b[i] with the second
   // according to Base.
   // Corresponds to a conditional swap, which is one "node" of a sorting
@@ -328,11 +337,25 @@ struct TraitsLane : public Base {
 
 #else
 
+// Base class shared between OrderAscending, OrderDescending.
 template <typename T>
-struct OrderAscending {
-  using Order = SortAscending;
+struct KeyLane {
+  constexpr bool Is128() const { return false; }
+  constexpr size_t LanesPerKey() const { return 1; }
+
   using LaneType = T;
   using KeyType = T;
+
+  std::string KeyString() const {
+    char string100[100];
+    hwy::detail::TypeName(hwy::detail::MakeTypeInfo<KeyType>(), 1, string100);
+    return string100;
+  }
+};
+
+template <typename T>
+struct OrderAscending : public KeyLane<T> {
+  using Order = SortAscending;
 
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *a < *b; }
 
@@ -343,10 +366,8 @@ struct OrderAscending {
 };
 
 template <typename T>
-struct OrderDescending {
+struct OrderDescending : public KeyLane<T> {
   using Order = SortDescending;
-  using LaneType = T;
-  using KeyType = T;
 
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *b < *a; }
 
@@ -358,9 +379,6 @@ struct OrderDescending {
 
 template <class Order>
 struct TraitsLane : public Order {
-  constexpr bool Is128() const { return false; }
-  constexpr size_t LanesPerKey() const { return 1; }
-
   // For HeapSort
   template <typename T>  // MSVC doesn't find typename Order::LaneType.
   HWY_INLINE void Swap(T* a, T* b) const {

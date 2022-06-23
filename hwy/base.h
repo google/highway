@@ -529,14 +529,6 @@ HWY_API constexpr bool IsFloat() {
   // from a float, not compared.
   return IsSame<T, float>() || IsSame<T, double>();
 }
-template <>
-constexpr bool IsFloat<hwy::uint128_t>() {
-  return false;
-}
-template <>
-constexpr bool IsFloat<K64V64>() {
-  return false;
-}
 
 template <typename T>
 HWY_API constexpr bool IsSigned() {
@@ -549,14 +541,6 @@ constexpr bool IsSigned<float16_t>() {
 template <>
 constexpr bool IsSigned<bfloat16_t>() {
   return true;
-}
-template <>
-constexpr bool IsSigned<hwy::uint128_t>() {
-  return false;
-}
-template <>
-constexpr bool IsSigned<K64V64>() {
-  return false;
 }
 
 // Largest/smallest representable integer values.

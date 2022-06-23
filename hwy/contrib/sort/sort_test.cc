@@ -106,9 +106,8 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
         LaneType* HWY_RESTRICT lanes = aligned_lanes.get() + misalign;
         if (kDebug) {
           printf("============%s asc %d N1 %d len %d misalign %d\n",
-                 hwy::TypeName(LaneType(), 1).c_str(), asc,
-                 static_cast<int>(N1), static_cast<int>(len),
-                 static_cast<int>(misalign));
+                 st.KeyString().c_str(), asc, static_cast<int>(N1),
+                 static_cast<int>(len), static_cast<int>(misalign));
         }
 
         for (size_t i = 0; i < misalign; ++i) {
@@ -173,9 +172,8 @@ static HWY_NOINLINE void TestBaseCase01() {
 
   for (size_t len : lengths) {
     if (kDebug) {
-      printf("============%s 01 N1 %d len %d\n",
-             hwy::TypeName(LaneType(), 1).c_str(), static_cast<int>(N1),
-             static_cast<int>(len));
+      printf("============%s 01 N1 %d len %d\n", st.KeyString().c_str(),
+             static_cast<int>(N1), static_cast<int>(len));
     }
     const uint64_t kMaxBits = AdjustedLog2Reps(HWY_MIN(len, size_t{14}));
     for (uint64_t bits = 0; bits < ((1ull << kMaxBits) - 1); ++bits) {
@@ -234,7 +232,6 @@ static HWY_NOINLINE void VerifyPartition(
     Traits st, typename Traits::LaneType* HWY_RESTRICT lanes, size_t left,
     size_t border, size_t right, const size_t N1,
     const typename Traits::LaneType* pivot) {
-  using LaneType = typename Traits::LaneType;
   /* for (size_t i = left; i < right; ++i) {
      if (i == border) printf("--\n");
      printf("%4zu: %3d\n", i, lanes[i]);
@@ -249,7 +246,7 @@ static HWY_NOINLINE void VerifyPartition(
       HWY_ABORT(
           "%s: asc %d left[%d] piv %.0f %.0f compares before %.0f %.0f "
           "border %d",
-          hwy::TypeName(LaneType(), 1).c_str(), asc, static_cast<int>(i),
+          st.KeyString().c_str(), asc, static_cast<int>(i),
           static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
           static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i + 0]),
           static_cast<int>(border));
@@ -260,7 +257,7 @@ static HWY_NOINLINE void VerifyPartition(
       HWY_ABORT(
           "%s: asc %d right[%d] piv %.0f %.0f compares after %.0f %.0f "
           "border %d",
-          hwy::TypeName(LaneType(), 1).c_str(), asc, static_cast<int>(i),
+          st.KeyString().c_str(), asc, static_cast<int>(i),
           static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
           static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i]),
           static_cast<int>(border));
@@ -301,9 +298,9 @@ static HWY_NOINLINE void TestPartition() {
             if (kDebug) {
               printf(
                   "=========%s asc %d left %d len %d right %d piv %.0f %.0f\n",
-                  hwy::TypeName(LaneType(), 1).c_str(), asc,
-                  static_cast<int>(left), static_cast<int>(len),
-                  static_cast<int>(right), static_cast<double>(pivot2[1]),
+                  st.KeyString().c_str(), asc, static_cast<int>(left),
+                  static_cast<int>(len), static_cast<int>(right),
+                  static_cast<double>(pivot2[1]),
                   static_cast<double>(pivot2[0]));
             }
 
@@ -437,7 +434,8 @@ class CompareResults {
 #endif
     SharedState shared;
     using Order = typename Traits::Order;
-    const size_t num_keys = copy_.size() / Traits().LanesPerKey();
+    const Traits st;
+    const size_t num_keys = copy_.size() / st.LanesPerKey();
     Run<Order>(reference, reinterpret_cast<KeyType*>(copy_.data()), num_keys,
                shared, /*thread=*/0);
 
@@ -446,13 +444,13 @@ class CompareResults {
         if (sizeof(KeyType) == 16) {
           fprintf(stderr,
                   "%s Asc %d mismatch at %d of %d: %" PRIu64 " %" PRIu64 "\n",
-                  hwy::TypeName(KeyType(), 1).c_str(), Order().IsAscending(),
+                  st.KeyString().c_str(), Order().IsAscending(),
                   static_cast<int>(i), static_cast<int>(copy_.size()),
                   static_cast<uint64_t>(copy_[i]),
                   static_cast<uint64_t>(output[i]));
         } else {
           fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: ",
-                  hwy::TypeName(KeyType(), 1).c_str(), Order().IsAscending(),
+                  st.KeyString().c_str(), Order().IsAscending(),
                   static_cast<int>(i), static_cast<int>(copy_.size()));
           PrintValue(copy_[i]);
           PrintValue(output[i]);

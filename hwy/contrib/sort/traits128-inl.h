@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_TRAITS128_TOGGLE
 #endif
 
+#include <string>
+
 #include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/contrib/sort/vqsort.h"  // SortDescending
 #include "hwy/highway.h"
@@ -36,10 +38,13 @@ namespace detail {
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
 // along with an abstraction layer for single-lane vs. lane-pair, which is
 // independent of the order.
-struct Key128 {
+struct KeyAny128 {
+  constexpr bool Is128() const { return true; }
   constexpr size_t LanesPerKey() const { return 2; }
+
   // What type bench_sort should allocate for generating inputs.
   using LaneType = uint64_t;
+  // KeyType and KeyString are defined by derived classes.
 
   HWY_INLINE void Swap(LaneType* a, LaneType* b) const {
     const FixedTag<LaneType, 2> d;
@@ -117,6 +122,14 @@ struct Key128 {
   }
 };
 
+// Base class shared between OrderAscending128, OrderDescending128.
+struct Key128 : public KeyAny128 {
+  // What type to pass to Sorter::operator().
+  using KeyType = hwy::uint128_t;
+
+  std::string KeyString() const { return "U128"; }
+};
+
 // Anything order-related depends on the key traits *and* the order (see
 // FirstOfLanes). We cannot implement just one Compare function because Lt128
 // only compiles if the lane type is u64. Thus we need either overloaded
@@ -126,8 +139,6 @@ struct Key128 {
 // we are anyway going to specialize at a higher level.
 struct OrderAscending128 : public Key128 {
   using Order = SortAscending;
-  // What type to pass to Sorter::operator().
-  using KeyType = hwy::uint128_t;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
@@ -168,8 +179,6 @@ struct OrderAscending128 : public Key128 {
 
 struct OrderDescending128 : public Key128 {
   using Order = SortDescending;
-  // What type to pass to Sorter::operator().
-  using KeyType = hwy::uint128_t;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
@@ -208,10 +217,16 @@ struct OrderDescending128 : public Key128 {
   }
 };
 
-struct OrderAscendingKV128 : public Key128 {
-  using Order = SortAscending;
+// Base class shared between OrderAscendingKV128, OrderDescendingKV128.
+struct KeyValue128 : public KeyAny128 {
   // What type to pass to Sorter::operator().
   using KeyType = K64V64;
+
+  std::string KeyString() const { return "KV128"; }
+};
+
+struct OrderAscendingKV128 : public KeyValue128 {
+  using Order = SortAscending;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return a[1] < b[1];
@@ -250,10 +265,8 @@ struct OrderAscendingKV128 : public Key128 {
   }
 };
 
-struct OrderDescendingKV128 : public Key128 {
+struct OrderDescendingKV128 : public KeyValue128 {
   using Order = SortDescending;
-  // What type to pass to Sorter::operator().
-  using KeyType = K64V64;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return b[1] < a[1];
@@ -328,8 +341,6 @@ class Traits128 : public Base {
 #endif  // HWY_TARGET
 
  public:
-  constexpr bool Is128() const { return true; }
-
   template <class D>
   HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
                                  TFromD<D>* HWY_RESTRICT buf) const {
