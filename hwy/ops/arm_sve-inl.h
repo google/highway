@@ -1864,14 +1864,10 @@ HWY_API V DupOdd(const V v) {
 
 // ------------------------------ OddEven
 
-namespace detail {
-HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVN, Insert, insr_n)
-}  // namespace detail
-
 template <class V>
 HWY_API V OddEven(const V odd, const V even) {
-  const auto even_in_odd = detail::Insert(even, 0);
-  return detail::InterleaveOdd(even_in_odd, odd);
+  const auto odd_in_even = detail::Ext<1>(odd, odd);
+  return detail::InterleaveEven(even, odd_in_even);
 }
 
 // ------------------------------ OddEvenBlocks
@@ -2011,8 +2007,8 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {  // 3210
   }
 #endif
   (void)d;
-  const auto even_in_odd = detail::Insert(v, 0);              // 210z
-  return detail::InterleaveOdd(v, even_in_odd);               // 2301
+  const auto odd_in_even = detail::Ext<1>(v, v);  // x321
+  return detail::InterleaveEven(odd_in_even, v);  // 2301
 }
 // ------------------------------ Reverse4 (TableLookupLanes)
 template <class D>
@@ -2767,7 +2763,17 @@ HWY_API svuint64_t CLMulUpper(const svuint64_t a, const svuint64_t b) {
 // ------------------------------ Lt128
 
 namespace detail {
+#define HWY_SVE_DUP(BASE, CHAR, BITS, HALF, NAME, OP)                        \
+  template <size_t N, int kPow2>                                             \
+  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/, svbool_t m) { \
+    return sv##OP##_b##BITS(m, m);                                           \
+  }
 
+HWY_SVE_FOREACH_U(HWY_SVE_DUP, DupEvenB, trn1)  // actually for bool
+HWY_SVE_FOREACH_U(HWY_SVE_DUP, DupOddB, trn2)   // actually for bool
+#undef HWY_SVE_DUP
+
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
 template <class D>
 HWY_INLINE svuint64_t Lt128Vec(D d, const svuint64_t a, const svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
@@ -2780,44 +2786,51 @@ HWY_INLINE svuint64_t Lt128Vec(D d, const svuint64_t a, const svuint64_t b) {
   // Duplicate upper lane into lower.
   return DupOdd(ltHx);
 }
-
+#endif
 }  // namespace detail
 
 template <class D>
 HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
+#if HWY_TARGET == HWY_SVE_256
   return MaskFromVec(detail::Lt128Vec(d, a, b));
+#else
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const svbool_t eqHx = Eq(a, b);  // only odd lanes used
+  const svbool_t ltHL = Lt(a, b);
+  // Move into upper lane: ltL if the upper half is equal, otherwise ltH.
+  const svbool_t ltHx = svsel_b(eqHx, detail::DupEvenB(d, ltHL), ltHL);
+  // Duplicate upper lane into lower.
+  return detail::DupOddB(d, ltHx);
+#endif  // HWY_TARGET != HWY_SVE_256
 }
 
 // ------------------------------ Lt128Upper
-
-namespace detail {
-#define HWY_SVE_DUP_ODD(BASE, CHAR, BITS, HALF, NAME, OP)                    \
-  template <size_t N, int kPow2>                                             \
-  HWY_API svbool_t NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/, svbool_t m) { \
-    return sv##OP##_b##BITS(m, m);                                           \
-  }
-
-HWY_SVE_FOREACH_U(HWY_SVE_DUP_ODD, DupOdd, trn2)  // actually for bool
-#undef HWY_SVE_DUP_ODD
-}  // namespace detail
 
 template <class D>
 HWY_INLINE svbool_t Lt128Upper(D d, svuint64_t a, svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
   const svbool_t ltHL = Lt(a, b);
-  return detail::DupOdd(d, ltHL);
+  return detail::DupOddB(d, ltHL);
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
 
 template <class D>
 HWY_INLINE svuint64_t Min128(D d, const svuint64_t a, const svuint64_t b) {
+#if HWY_TARGET == HWY_SVE_256
   return IfVecThenElse(detail::Lt128Vec(d, a, b), a, b);
+#else
+  return IfThenElse(Lt128(d, a, b), a, b);
+#endif
 }
 
 template <class D>
 HWY_INLINE svuint64_t Max128(D d, const svuint64_t a, const svuint64_t b) {
+#if HWY_TARGET == HWY_SVE_256
   return IfVecThenElse(detail::Lt128Vec(d, b, a), a, b);
+#else
+  return IfThenElse(Lt128(d, b, a), a, b);
+#endif
 }
 
 template <class D>
