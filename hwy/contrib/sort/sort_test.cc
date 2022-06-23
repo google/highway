@@ -488,8 +488,6 @@ std::vector<Algo> AlgoForTest() {
 
 template <class Traits>
 void TestSort(size_t num_lanes) {
-  // TODO(janwas): fix
-  if (HWY_TARGET == HWY_SSSE3) return;
 // Workaround for stack overflow on clang-cl (/F 8388608 does not help).
 #if defined(_MSC_VER)
   return;

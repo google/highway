@@ -1783,8 +1783,12 @@ template <size_t N>
 HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
                                       const Vec128<int64_t, N> b) {
 #if HWY_TARGET == HWY_SSSE3
+  // We want unsigned comparison but only for the lower 32 bits, so we cannot
+  // just cast to uint64_t. Instead flip the lower sign bit.
+  const Simd<int64_t, N, 0> d;
+  const Vec128<int64_t, N> bit31 = Set(d, 0x80000000LL);
   // If the upper half is less than or greater, this is the answer.
-  const __m128i m_gt = _mm_cmpgt_epi32(a.raw, b.raw);
+  const __m128i m_gt = _mm_cmpgt_epi32(Xor(a, bit31).raw, Xor(b, bit31).raw);
 
   // Otherwise, the lower half decides.
   const __m128i m_eq = _mm_cmpeq_epi32(a.raw, b.raw);

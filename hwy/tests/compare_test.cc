@@ -149,8 +149,21 @@ struct TestStrictInt {
   }
 };
 
+// S-SSE3 bug (#795): same upper, differing MSB in lower
+struct TestStrictInt64 {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto m0 = MaskFalse(d);
+    const auto m1 = MaskTrue(d);
+    HWY_ASSERT_MASK_EQ(d, m0, Lt(Set(d, 0x380000000LL), Set(d, 0x300000001LL)));
+    HWY_ASSERT_MASK_EQ(d, m1, Lt(Set(d, 0xF00000000LL), Set(d, 0xF80000000LL)));
+    HWY_ASSERT_MASK_EQ(d, m1, Lt(Set(d, 0xF00000000LL), Set(d, 0xF80000001LL)));
+  }
+};
+
 HWY_NOINLINE void TestAllStrictInt() {
   ForSignedTypes(ForPartialVectors<TestStrictInt>());
+  ForPartialVectors<TestStrictInt64>()(int64_t());
 }
 
 struct TestStrictFloat {
