@@ -35,7 +35,6 @@ cc_library(
         "vqsort_u64d.cc",
     ],
     hdrs = [
-        "disabled_targets.h",
         "vqsort.h",  # public interface
     ],
     compatible_with = [],

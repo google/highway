@@ -22,7 +22,6 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_SORTING_NETWORKS_TOGGLE
 #endif
 
-#include "hwy/contrib/sort/disabled_targets.h"
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/highway.h"
 

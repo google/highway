@@ -30,7 +30,6 @@
 #include <string.h>  // memcpy
 
 #include "hwy/cache_control.h"  // Prefetch
-#include "hwy/contrib/sort/disabled_targets.h"
 #include "hwy/contrib/sort/vqsort.h"  // Fill24Bytes
 
 #if HWY_IS_MSAN
