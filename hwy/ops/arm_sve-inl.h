@@ -1864,11 +1864,33 @@ HWY_API V DupOdd(const V v) {
 
 // ------------------------------ OddEven
 
+#if HWY_TARGET == HWY_SVE2_128 || HWY_TARGET == HWY_SVE2
+
+#define HWY_SVE_ODD_EVEN(BASE, CHAR, BITS, HALF, NAME, OP)          \
+  HWY_API HWY_SVE_V(BASE, BITS)                                     \
+      NAME(HWY_SVE_V(BASE, BITS) odd, HWY_SVE_V(BASE, BITS) even) { \
+    return sv##OP##_##CHAR##BITS(even, odd, /*xor=*/0);             \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_ODD_EVEN, OddEven, eortb_n)
+#undef HWY_SVE_ODD_EVEN
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V OddEven(const V odd, const V even) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, OddEven(BitCast(du, odd), BitCast(du, even)));
+}
+
+#else
+
 template <class V>
 HWY_API V OddEven(const V odd, const V even) {
   const auto odd_in_even = detail::Ext<1>(odd, odd);
   return detail::InterleaveEven(even, odd_in_even);
 }
+
+#endif  // HWY_TARGET
 
 // ------------------------------ OddEvenBlocks
 template <class V>
