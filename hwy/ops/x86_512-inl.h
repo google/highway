@@ -1894,40 +1894,19 @@ HWY_API Vec512<double> MaskedLoad(Mask512<double> m, Full512<double> /* tag */,
 template <typename T>
 HWY_API Vec512<T> LoadDup128(Full512<T> /* tag */,
                              const T* const HWY_RESTRICT p) {
-  // Clang 3.9 generates VINSERTF128 which is slower, but inline assembly leads
-  // to "invalid output size for constraint" without -mavx512:
-  // https://gcc.godbolt.org/z/-Jt_-F
-#if HWY_LOADDUP_ASM
-  __m512i out;
-  asm("vbroadcasti128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
-  return Vec512<T>{out};
-#else
   const auto x4 = LoadU(Full128<T>(), p);
   return Vec512<T>{_mm512_broadcast_i32x4(x4.raw)};
-#endif
 }
 HWY_API Vec512<float> LoadDup128(Full512<float> /* tag */,
                                  const float* const HWY_RESTRICT p) {
-#if HWY_LOADDUP_ASM
-  __m512 out;
-  asm("vbroadcastf128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
-  return Vec512<float>{out};
-#else
   const __m128 x4 = _mm_loadu_ps(p);
   return Vec512<float>{_mm512_broadcast_f32x4(x4)};
-#endif
 }
 
 HWY_API Vec512<double> LoadDup128(Full512<double> /* tag */,
                                   const double* const HWY_RESTRICT p) {
-#if HWY_LOADDUP_ASM
-  __m512d out;
-  asm("vbroadcastf128 %1, %[reg]" : [reg] "=x"(out) : "m"(p[0]));
-  return Vec512<double>{out};
-#else
   const __m128d x2 = _mm_loadu_pd(p);
   return Vec512<double>{_mm512_broadcast_f64x2(x2)};
-#endif
 }
 
 // ------------------------------ Store
