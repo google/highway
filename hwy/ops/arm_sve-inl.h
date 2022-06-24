@@ -2136,6 +2136,15 @@ HWY_API V CompressNot(V v, const svbool_t mask) {
 
 template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
 HWY_API V CompressNot(V v, svbool_t mask) {
+#if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
+  const DFromV<V> d;
+  // If mask[1] = 0 and mask[0] = 1, then swap both halves, otherwise keep
+  // unchanged. The predicate functions such as BRK do not seem to help.
+  const svbool_t maskL = svtrn1_b64(mask, mask);
+  const svbool_t maskH = svtrn2_b64(mask, mask);
+  const svbool_t swap = AndNot(maskH, maskL);  // swapped vs Compress()
+  return IfThenElse(swap, Reverse2(d, v), v);
+#endif
 #if HWY_TARGET == HWY_SVE_256 || HWY_IDE
   const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du64;
@@ -2153,9 +2162,9 @@ HWY_API V CompressNot(V v, svbool_t mask) {
       0, 2, 0, 3, 1, 2, 3, 0, 1, 2, 0, 1, 2, 3, 1, 2, 0, 3, 0, 2, 1, 3,
       2, 0, 1, 3, 0, 1, 2, 3, 1, 0, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
-#else
-  return Compress(v, Not(mask));
 #endif  // HWY_TARGET == HWY_SVE_256
+
+  return Compress(v, Not(mask));
 }
 
 // ------------------------------ CompressBlocksNot

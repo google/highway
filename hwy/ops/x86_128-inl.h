@@ -1783,21 +1783,16 @@ template <size_t N>
 HWY_API Mask128<int64_t, N> operator>(const Vec128<int64_t, N> a,
                                       const Vec128<int64_t, N> b) {
 #if HWY_TARGET == HWY_SSSE3
-  // We want unsigned comparison but only for the lower 32 bits, so we cannot
-  // just cast to uint64_t. Instead flip the lower sign bit.
+  // See https://stackoverflow.com/questions/65166174/:
   const Simd<int64_t, N, 0> d;
-  const Vec128<int64_t, N> bit31 = Set(d, 0x80000000LL);
-  // If the upper half is less than or greater, this is the answer.
-  const __m128i m_gt = _mm_cmpgt_epi32(Xor(a, bit31).raw, Xor(b, bit31).raw);
-
-  // Otherwise, the lower half decides.
-  const __m128i m_eq = _mm_cmpeq_epi32(a.raw, b.raw);
-  const __m128i lo_in_hi = _mm_shuffle_epi32(m_gt, _MM_SHUFFLE(2, 2, 0, 0));
-  const __m128i lo_gt = _mm_and_si128(m_eq, lo_in_hi);
-
-  const __m128i gt = _mm_or_si128(lo_gt, m_gt);
-  // Copy result in upper 32 bits to lower 32 bits.
-  return Mask128<int64_t, N>{_mm_shuffle_epi32(gt, _MM_SHUFFLE(3, 3, 1, 1))};
+  const RepartitionToNarrow<decltype(d)> d32;
+  const Vec128<int64_t, N> m_eq32{Eq(BitCast(d32, a), BitCast(d32, b)).raw};
+  const Vec128<int64_t, N> m_gt32{Gt(BitCast(d32, a), BitCast(d32, b)).raw};
+  // If a.upper is greater, upper := true. Otherwise, if a.upper == b.upper:
+  // upper := b-a (unsigned comparison result of lower). Otherwise: upper := 0.
+  const __m128i upper = OrAnd(m_gt32, m_eq32, Sub(b, a)).raw;
+  // Duplicate upper to lower half.
+  return Mask128<int64_t, N>{_mm_shuffle_epi32(upper, _MM_SHUFFLE(3, 3, 1, 1))};
 #else
   return Mask128<int64_t, N>{_mm_cmpgt_epi64(a.raw, b.raw)};  // SSE4.2
 #endif
