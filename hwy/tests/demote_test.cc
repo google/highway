@@ -234,11 +234,12 @@ class TestReorderDemote2To {
       const auto promoted1 = PromoteTo(d32, Load(dbf16_half, temp16.get() + N));
 
       // Smoke test: sum should be same (with tolerance for non-associativity)
-      const auto sum_expected =
+      const auto sum_expected = GetLane(SumOfLanes(d32, Add(f0, f1)));
+      const auto sum_actual =
           GetLane(SumOfLanes(d32, Add(promoted0, promoted1)));
-      const auto sum_actual = GetLane(SumOfLanes(d32, Add(f0, f1)));
-      HWY_ASSERT(sum_actual - 1E-4 <= sum_expected &&
-                 sum_expected <= sum_actual + 1E-4);
+
+      HWY_ASSERT(sum_expected - 1E-4 <= sum_actual &&
+                 sum_actual <= sum_expected + 1E-4);
 
       // Ensure values are the same after sorting to undo the Reorder
       Store(f0, d32, expected.get() + 0);
