@@ -2227,13 +2227,12 @@ HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
                                                    Vec128<bfloat16_t, 2 * N> b,
                                                    const Vec128<float, N> sum0,
                                                    Vec128<float, N>& sum1) {
-  const Repartition<uint16_t, decltype(df32)> du16;
-  const RebindToUnsigned<decltype(df32)> du32;
-  const Vec128<uint16_t, 2 * N> zero = Zero(du16);
-  const Vec128<uint32_t, N> a0 = ZipLower(du32, zero, BitCast(du16, a));
-  const Vec128<uint32_t, N> a1 = ZipUpper(du32, zero, BitCast(du16, a));
-  const Vec128<uint32_t, N> b0 = ZipLower(du32, zero, BitCast(du16, b));
-  const Vec128<uint32_t, N> b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  const Rebind<bfloat16_t, decltype(df32)> dbf16;
+  // Avoid ZipLower/Upper so this also works on big-endian systems.
+  const Vec128<float, N> a0 = PromoteTo(df32, LowerHalf(dbf16, a));
+  const Vec128<float, N> a1 = PromoteTo(df32, UpperHalf(dbf16, a));
+  const Vec128<float, N> b0 = PromoteTo(df32, LowerHalf(dbf16, b));
+  const Vec128<float, N> b1 = PromoteTo(df32, UpperHalf(dbf16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
