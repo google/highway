@@ -857,22 +857,12 @@ HWY_API svbool_t MaskFromVec(const V v) {
 }
 
 // ------------------------------ VecFromMask
-
-template <class D, HWY_IF_LANE_SIZE_D(D, 1)>
+template <class D>
 HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
-  return BitCast(d, svdup_n_s8_z(mask, -1));
-}
-template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
-HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
-  return BitCast(d, svdup_n_s16_z(mask, -1));
-}
-template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
-HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
-  return BitCast(d, svdup_n_s32_z(mask, -1));
-}
-template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
-HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
-  return BitCast(d, svdup_n_s64_z(mask, -1));
+  const RebindToSigned<D> di;
+  // This generates MOV imm, whereas svdup_n_s8_z generates MOV scalar, which
+  // requires an extra instruction plus M0 pipeline.
+  return BitCast(d, IfThenElseZero(mask, Set(di, -1)));
 }
 
 // ------------------------------ IfVecThenElse (MaskFromVec, IfThenElse)
