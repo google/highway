@@ -197,14 +197,14 @@ void BenchParallel() {
 
   detail::SharedTraits<detail::TraitsLane<detail::OrderAscending<int64_t>>> st;
   using KeyType = typename decltype(st)::KeyType;
-  const size_t num_keys = 100 * 1000 * 1000;
+  const size_t num_keys = size_t{100} * 1000 * 1000;
 
 #if HAVE_IPS4O
   const Algo algo = Algo::kIPS4O;
 #else
   const Algo algo = Algo::kVQSort;
 #endif
-  const Dist dist = Dist::kUniform16;
+  const Dist dist = Dist::kUniform32;
 
   SharedState shared;
   shared.tls.resize(NT);
