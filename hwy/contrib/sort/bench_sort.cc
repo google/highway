@@ -65,23 +65,31 @@ HWY_NOINLINE void BenchPartition() {
   const Dist dist = Dist::kUniform8;
   double sum = 0.0;
 
+  detail::Generator rng(&sum, 123);  // for ChoosePivot
+
   const size_t max_log2 = AdjustedLog2Reps(20);
   for (size_t log2 = max_log2; log2 < max_log2 + 1; ++log2) {
     const size_t num_lanes = 1ull << log2;
     const size_t num_keys = num_lanes / st.LanesPerKey();
     auto aligned = hwy::AllocateAligned<LaneType>(num_lanes);
     auto buf = hwy::AllocateAligned<LaneType>(
-        hwy::SortConstants::PartitionBufNum(Lanes(d)));
+        HWY_MAX(hwy::SortConstants::PartitionBufNum(Lanes(d)),
+                hwy::SortConstants::PivotBufNum(sizeof(LaneType), Lanes(d))));
 
     std::vector<double> seconds;
     const size_t num_reps = (1ull << (14 - log2 / 2)) * 30;
     for (size_t rep = 0; rep < num_reps; ++rep) {
       (void)GenerateInput(dist, aligned.get(), num_lanes);
 
-      const Timestamp t0;
+      // The pivot value can influence performance. Do exactly what vqsort will
+      // do so that the performance (influenced by prefetching and branch
+      // prediction) is likely to predict the actual performance inside vqsort.
+      const auto pivot = detail::ChoosePivot(d, st, aligned.get(), 0, num_lanes,
+                                             buf.get(), rng);
 
-      detail::Partition(d, st, aligned.get(), 0, num_lanes - 1,
-                        Set(d, LaneType(128)), buf.get());
+      const Timestamp t0;
+      detail::Partition(d, st, aligned.get(), 0, num_lanes - 1, pivot,
+                        buf.get());
       seconds.push_back(SecondsSince(t0));
       // 'Use' the result to prevent optimizing out the partition.
       sum += static_cast<double>(aligned.get()[num_lanes / 2]);
@@ -100,8 +108,9 @@ HWY_NOINLINE void BenchAllPartition() {
     return;
   }
 
-  BenchPartition<TraitsLane<OrderDescending<float>>>();
-  BenchPartition<TraitsLane<OrderAscending<int64_t>>>();
+  // BenchPartition<TraitsLane<OrderDescending<float>>>();
+  BenchPartition<TraitsLane<OrderDescending<int64_t>>>();
+  BenchPartition<Traits128<OrderAscending128>>();
   BenchPartition<Traits128<OrderDescending128>>();
   BenchPartition<Traits128<OrderAscendingKV128>>();
 }
