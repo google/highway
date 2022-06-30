@@ -44,12 +44,6 @@ using DFromV = typename DFromV_t<RemoveConst<V>>::type;
 template <class V>
 using TFromV = TFromD<DFromV<V>>;
 
-#define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(TFromV<V>)
-#define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
-#define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
-#define HWY_IF_LANE_SIZE_V(V, bytes) HWY_IF_LANE_SIZE(TFromV<V>, bytes)
-#define HWY_IF_NOT_LANE_SIZE_V(V, bytes) HWY_IF_NOT_LANE_SIZE(TFromV<V>, bytes)
-
 // ================================================== MACROS
 
 // Generate specializations and function definitions using X macros. Although

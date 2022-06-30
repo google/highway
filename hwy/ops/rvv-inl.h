@@ -2564,7 +2564,7 @@ HWY_API VFromD<D> MaxOfLanes(D d, const VFromD<D> v) {
 // ------------------------------ PopulationCount (ShiftRight)
 
 // Handles LMUL >= 2 or capped vectors, which generic_ops-inl cannot.
-template <typename V, class D = DFromV<V>, HWY_IF_LANES_ARE(uint8_t, V),
+template <typename V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 1),
           hwy::EnableIf<Pow2(D()) < 1 || MaxLanes(D()) < 16>* = nullptr>
 HWY_API V PopulationCount(V v) {
   // See https://arxiv.org/pdf/1611.07612.pdf, Figure 3

@@ -1192,10 +1192,11 @@ HWY_API V CLMulUpper(V a, V b) {
 
 // This algorithm requires vectors to be at least 16 bytes, which is the case
 // for LMUL >= 2. If not, use the fallback below.
-template <typename V, HWY_IF_LANES_ARE(uint8_t, V), HWY_IF_GE128_D(DFromV<V>),
-          HWY_IF_POW2_GE(DFromV<V>, HWY_MIN_POW2_FOR_128)>
+template <typename V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 1),
+          HWY_IF_GE128_D(D), HWY_IF_POW2_GE(D, HWY_MIN_POW2_FOR_128)>
 HWY_API V PopulationCount(V v) {
-  const DFromV<V> d;
+  static_assert(IsSame<TFromD<D>, uint8_t>(), "V must be u8");
+  const D d;
   HWY_ALIGN constexpr uint8_t kLookup[16] = {
       0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
   };
@@ -1208,9 +1209,10 @@ HWY_API V PopulationCount(V v) {
 // RVV has a specialization that avoids the Set().
 #if HWY_TARGET != HWY_RVV
 // Slower fallback for capped vectors.
-template <typename V, HWY_IF_LANES_ARE(uint8_t, V), HWY_IF_LT128_D(DFromV<V>)>
+template <typename V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 1), HWY_IF_LT128_D(D)>
 HWY_API V PopulationCount(V v) {
-  const DFromV<V> d;
+  static_assert(IsSame<TFromD<D>, uint8_t>(), "V must be u8");
+  const D d;
   // See https://arxiv.org/pdf/1611.07612.pdf, Figure 3
   v = Sub(v, And(ShiftRight<1>(v), Set(d, 0x55)));
   v = Add(And(ShiftRight<2>(v), Set(d, 0x33)), And(v, Set(d, 0x33)));
@@ -1218,26 +1220,29 @@ HWY_API V PopulationCount(V v) {
 }
 #endif  // HWY_TARGET != HWY_RVV
 
-template <typename V, HWY_IF_LANES_ARE(uint16_t, V)>
+template <typename V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 2)>
 HWY_API V PopulationCount(V v) {
-  const DFromV<V> d;
+  static_assert(IsSame<TFromD<D>, uint16_t>(), "V must be u16");
+  const D d;
   const Repartition<uint8_t, decltype(d)> d8;
   const auto vals = BitCast(d, PopulationCount(BitCast(d8, v)));
   return Add(ShiftRight<8>(vals), And(vals, Set(d, 0xFF)));
 }
 
-template <typename V, HWY_IF_LANES_ARE(uint32_t, V)>
+template <typename V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 4)>
 HWY_API V PopulationCount(V v) {
-  const DFromV<V> d;
+  static_assert(IsSame<TFromD<D>, uint32_t>(), "V must be u32");
+  const D d;
   Repartition<uint16_t, decltype(d)> d16;
   auto vals = BitCast(d, PopulationCount(BitCast(d16, v)));
   return Add(ShiftRight<16>(vals), And(vals, Set(d, 0xFF)));
 }
 
 #if HWY_HAVE_INTEGER64
-template <typename V, HWY_IF_LANES_ARE(uint64_t, V)>
+template <typename V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8)>
 HWY_API V PopulationCount(V v) {
-  const DFromV<V> d;
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "V must be u64");
+  const D d;
   Repartition<uint32_t, decltype(d)> d32;
   auto vals = BitCast(d, PopulationCount(BitCast(d32, v)));
   return Add(ShiftRight<32>(vals), And(vals, Set(d, 0xFF)));

@@ -241,16 +241,12 @@ using Full128 = Simd<T, 16 / sizeof(T), 0>;
 #define HWY_IF_GE128_D(D) \
   hwy::EnableIf<D::kPrivateN * sizeof(TFromD<D>) >= 16>* = nullptr
 
-// Same, but with a vector argument.
+// Same, but with a vector argument. ops/*-inl.h define their own TFromV.
 #define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(TFromV<V>)
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
 #define HWY_IF_LANE_SIZE_V(V, bytes) HWY_IF_LANE_SIZE(TFromV<V>, bytes)
 #define HWY_IF_NOT_LANE_SIZE_V(V, bytes) HWY_IF_NOT_LANE_SIZE(TFromV<V>, bytes)
-
-// For implementing functions for a specific type.
-// IsSame<...>() in template arguments is broken on MSVC2015.
-#define HWY_IF_LANES_ARE(T, V) EnableIf<IsSameT<T, TFromV<V>>::value>* = nullptr
 
 template <class D>
 HWY_INLINE HWY_MAYBE_UNUSED constexpr int Pow2(D /* d */) {
