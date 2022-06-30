@@ -2639,33 +2639,43 @@ HWY_API T GetLane(const Vec256<T> v) {
 // compiler could decide to optimize out code that relies on this.
 //
 // The newer _mm256_zextsi128_si256 intrinsic fixes this by specifying the
-// zeroing, but it is not available on MSVC nor GCC until 10.1. For older GCC,
-// we can still obtain the desired code thanks to pattern recognition; note that
-// the expensive insert instruction is not actually generated, see
-// https://gcc.godbolt.org/z/1MKGaP.
+// zeroing, but it is not available on MSVC until 15.7 nor GCC until 10.1. For
+// older GCC, we can still obtain the desired code thanks to pattern
+// recognition; note that the expensive insert instruction is not actually
+// generated, see https://gcc.godbolt.org/z/1MKGaP.
+
+#if !defined(HWY_HAVE_ZEXT)
+#if (HWY_COMPILER_MSVC && HWY_COMPILER_MSVC >= 1915) ||  \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 500) || \
+    (!HWY_COMPILER_CLANG && HWY_COMPILER_GCC && HWY_COMPILER_GCC >= 1000)
+#define HWY_HAVE_ZEXT 1
+#else
+#define HWY_HAVE_ZEXT 0
+#endif
+#endif  // defined(HWY_HAVE_ZEXT)
 
 template <typename T>
 HWY_API Vec256<T> ZeroExtendVector(Full256<T> /* tag */, Vec128<T> lo) {
-#if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
-  return Vec256<T>{_mm256_inserti128_si256(_mm256_setzero_si256(), lo.raw, 0)};
+#if HWY_HAVE_ZEXT
+return Vec256<T>{_mm256_zextsi128_si256(lo.raw)};
 #else
-  return Vec256<T>{_mm256_zextsi128_si256(lo.raw)};
+  return Vec256<T>{_mm256_inserti128_si256(_mm256_setzero_si256(), lo.raw, 0)};
 #endif
 }
 HWY_API Vec256<float> ZeroExtendVector(Full256<float> /* tag */,
                                        Vec128<float> lo) {
-#if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
-  return Vec256<float>{_mm256_insertf128_ps(_mm256_setzero_ps(), lo.raw, 0)};
-#else
+#if HWY_HAVE_ZEXT
   return Vec256<float>{_mm256_zextps128_ps256(lo.raw)};
+#else
+  return Vec256<float>{_mm256_insertf128_ps(_mm256_setzero_ps(), lo.raw, 0)};
 #endif
 }
 HWY_API Vec256<double> ZeroExtendVector(Full256<double> /* tag */,
                                         Vec128<double> lo) {
-#if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
-  return Vec256<double>{_mm256_insertf128_pd(_mm256_setzero_pd(), lo.raw, 0)};
-#else
+#if HWY_HAVE_ZEXT
   return Vec256<double>{_mm256_zextpd128_pd256(lo.raw)};
+#else
+  return Vec256<double>{_mm256_insertf128_pd(_mm256_setzero_pd(), lo.raw, 0)};
 #endif
 }
 

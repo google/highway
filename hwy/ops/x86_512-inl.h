@@ -2197,39 +2197,28 @@ HWY_API T GetLane(const Vec512<T> v) {
 
 // ------------------------------ ZeroExtendVector
 
-// Unfortunately the initial _mm512_castsi256_si512 intrinsic leaves the upper
-// bits undefined. Although it makes sense for them to be zero (EVEX encoded
-// instructions have that effect), a compiler could decide to optimize out code
-// that relies on this.
-//
-// The newer _mm512_zextsi256_si512 intrinsic fixes this by specifying the
-// zeroing, but it is not available on GCC until 10.1. For older GCC, we can
-// still obtain the desired code thanks to pattern recognition; note that the
-// expensive insert instruction is not actually generated, see
-// https://gcc.godbolt.org/z/1MKGaP.
-
 template <typename T>
 HWY_API Vec512<T> ZeroExtendVector(Full512<T> /* tag */, Vec256<T> lo) {
-#if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
-  return Vec512<T>{_mm512_inserti32x8(_mm512_setzero_si512(), lo.raw, 0)};
-#else
+#if HWY_HAVE_ZEXT  // See definition/comment in x86_256-inl.h.
   return Vec512<T>{_mm512_zextsi256_si512(lo.raw)};
+#else
+  return Vec512<T>{_mm512_inserti32x8(_mm512_setzero_si512(), lo.raw, 0)};
 #endif
 }
 HWY_API Vec512<float> ZeroExtendVector(Full512<float> /* tag */,
                                        Vec256<float> lo) {
-#if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
-  return Vec512<float>{_mm512_insertf32x8(_mm512_setzero_ps(), lo.raw, 0)};
-#else
+#if HWY_HAVE_ZEXT
   return Vec512<float>{_mm512_zextps256_ps512(lo.raw)};
+#else
+  return Vec512<float>{_mm512_insertf32x8(_mm512_setzero_ps(), lo.raw, 0)};
 #endif
 }
 HWY_API Vec512<double> ZeroExtendVector(Full512<double> /* tag */,
                                         Vec256<double> lo) {
-#if !HWY_COMPILER_CLANG && HWY_COMPILER_GCC && (HWY_COMPILER_GCC < 1000)
-  return Vec512<double>{_mm512_insertf64x4(_mm512_setzero_pd(), lo.raw, 0)};
-#else
+#if HWY_HAVE_ZEXT
   return Vec512<double>{_mm512_zextpd256_pd512(lo.raw)};
+#else
+  return Vec512<double>{_mm512_insertf64x4(_mm512_setzero_pd(), lo.raw, 0)};
 #endif
 }
 
