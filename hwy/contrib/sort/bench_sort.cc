@@ -74,7 +74,7 @@ HWY_NOINLINE void BenchPartition() {
         hwy::SortConstants::PartitionBufNum(Lanes(d)));
 
     std::vector<double> seconds;
-    const size_t num_reps = (1ull << (14 - log2 / 2)) * kReps;
+    const size_t num_reps = (1ull << (14 - log2 / 2)) * 30;
     for (size_t rep = 0; rep < num_reps; ++rep) {
       (void)GenerateInput(dist, aligned.get(), num_lanes);
 
@@ -96,7 +96,7 @@ HWY_NOINLINE void BenchPartition() {
 
 HWY_NOINLINE void BenchAllPartition() {
   // Not interested in benchmark results for these targets
-  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4) {
+  if (HWY_TARGET == HWY_SSSE3) {
     return;
   }
 
@@ -129,7 +129,7 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
   double sum = 0;                             // prevents elision
   constexpr size_t kMul = AdjustedReps(600);  // ensures long enough to measure
 
-  for (size_t rep = 0; rep < kReps; ++rep) {
+  for (size_t rep = 0; rep < 30; ++rep) {
     InputStats<LaneType> input_stats =
         GenerateInput(dist, keys.get(), num_lanes);
 
@@ -205,6 +205,9 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
   using KeyType = typename Traits::KeyType;
   const size_t num_lanes = num_keys * st.LanesPerKey();
   auto aligned = hwy::AllocateAligned<LaneType>(num_lanes);
+
+  const size_t reps = num_keys > 1000 * 1000 ? 10 : 30;
+
   for (Algo algo : AlgoForBench()) {
     // Other algorithms don't depend on the vector instructions, so only run
     // them for the first target.
@@ -212,7 +215,7 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 
     for (Dist dist : AllDist()) {
       std::vector<double> seconds;
-      for (size_t rep = 0; rep < kReps; ++rep) {
+      for (size_t rep = 0; rep < reps; ++rep) {
         InputStats<LaneType> input_stats =
             GenerateInput(dist, aligned.get(), num_lanes);
 

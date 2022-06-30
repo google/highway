@@ -34,20 +34,19 @@ struct Timestamp {
   double t;
 };
 
-double SecondsSince(const Timestamp& t0) {
+static inline double SecondsSince(const Timestamp& t0) {
   const Timestamp t1;
   return t1.t - t0.t;
 }
 
-constexpr size_t kReps = 30;
-
 // Returns trimmed mean (we don't want to run an out-of-L3-cache sort often
 // enough for the mode to be reliable).
-double SummarizeMeasurements(std::vector<double>& seconds) {
+static inline double SummarizeMeasurements(std::vector<double>& seconds) {
   std::sort(seconds.begin(), seconds.end());
   double sum = 0;
   int count = 0;
-  for (size_t i = kReps / 4; i < seconds.size() - kReps / 2; ++i) {
+  const size_t num = seconds.size();
+  for (size_t i = num / 4; i < num / 2; ++i) {
     sum += seconds[i];
     count += 1;
   }
