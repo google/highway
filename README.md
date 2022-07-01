@@ -83,19 +83,20 @@ incrementing MINOR after backward-compatible additions and PATCH after
 backward-compatible fixes. We recommend using releases (rather than the Git tip)
 because they are tested more extensively, see below.
 
-Version 0.11 is considered stable enough to use in other projects.
-Version 1.0 will signal an increased focus on backwards compatibility and is
-planned for 2022H1 now that all targets are feature-complete.
+Version 0.11 is considered stable enough to use in other projects. Version 1.0
+will signal an increased focus on backwards compatibility and is planned for
+2022H1 now that all targets are feature-complete. 2022-06-30 update: we are
+still several weeks away.
 
 ### Testing
 
 Continuous integration tests build with a recent version of Clang (running on
-native x86, Spike for RVV, and QEMU for ARM) and MSVC from VS2015 (running on
-native x86).
+native x86, or QEMU for RVV and ARM) and MSVC 2019 (v19.28, running on native
+x86).
 
-Before releases, we also test on x86 with Clang and GCC, and ARMv7/8 via
-GCC cross-compile and QEMU. See the
-[testing process](g3doc/release_testing_process.md) for details.
+Before releases, we also test on x86 with Clang and GCC, and ARMv7/8 via GCC
+cross-compile. See the [testing process](g3doc/release_testing_process.md) for
+details.
 
 ### Related modules
 
