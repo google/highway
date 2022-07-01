@@ -2087,13 +2087,13 @@ HWY_API V Compress(V v, svbool_t mask) {
 #if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
 template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
 HWY_API V Compress(V v, svbool_t mask) {
-  const DFromV<V> d;
-  // If mask[1] = 1 and mask[0] = 0, then swap both halves, otherwise keep
-  // unchanged. The predicate functions such as BRK do not seem to help.
-  const svbool_t maskL = svtrn1_b64(mask, mask);
-  const svbool_t maskH = svtrn2_b64(mask, mask);
-  const svbool_t swap = AndNot(maskL, maskH);
-  return IfThenElse(swap, Reverse2(d, v), v);
+  // If mask == 10: swap via splice. A mask of 00 or 11 leaves v unchanged, 10
+  // swaps upper/lower (the lower half is set to the upper half, and the
+  // remaining upper half is filled from the lower half of the second v), and
+  // 01 is invalid because it would ConcatLowerLower. zip1 and AndNot keep 10
+  // unchanged and map everything else to 00.
+  const svbool_t maskLL = svzip1_b64(mask, mask);  // broadcast lower lane
+  return detail::Splice(v, v, AndNot(maskLL, mask));
 }
 #endif  // HWY_TARGET == HWY_SVE_256
 
@@ -2143,13 +2143,13 @@ HWY_API V CompressNot(V v, const svbool_t mask) {
 template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
 HWY_API V CompressNot(V v, svbool_t mask) {
 #if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
-  const DFromV<V> d;
-  // If mask[1] = 0 and mask[0] = 1, then swap both halves, otherwise keep
-  // unchanged. The predicate functions such as BRK do not seem to help.
-  const svbool_t maskL = svtrn1_b64(mask, mask);
-  const svbool_t maskH = svtrn2_b64(mask, mask);
-  const svbool_t swap = AndNot(maskH, maskL);  // swapped vs Compress()
-  return IfThenElse(swap, Reverse2(d, v), v);
+  // If mask == 01: swap via splice. A mask of 00 or 11 leaves v unchanged, 10
+  // swaps upper/lower (the lower half is set to the upper half, and the
+  // remaining upper half is filled from the lower half of the second v), and
+  // 01 is invalid because it would ConcatLowerLower. zip1 and AndNot map
+  // 01 to 10, and everything else to 00.
+  const svbool_t maskLL = svzip1_b64(mask, mask);  // broadcast lower lane
+  return detail::Splice(v, v, AndNot(mask, maskLL));
 #endif
 #if HWY_TARGET == HWY_SVE_256 || HWY_IDE
   const DFromV<V> d;
