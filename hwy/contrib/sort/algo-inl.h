@@ -34,6 +34,7 @@
 #define HAVE_PARALLEL_IPS4O (HAVE_IPS4O && 1)
 #define HAVE_PDQSORT 0
 #define HAVE_SORT512 0
+#define HAVE_VXSORT 0
 
 #if HAVE_AVX2SORT
 HWY_PUSH_ATTRIBUTES("avx2,avx")
@@ -50,6 +51,47 @@ HWY_POP_ATTRIBUTES
 #if HAVE_SORT512
 #include "sort512.h"
 #endif
+
+// vxsort is difficult to compile for multiple targets because it also uses
+// .cpp files, and we'd also have to #undef its include guards. Instead, compile
+// only for AVX2 or AVX3 depending on this macro.
+#define VXSORT_AVX3 1
+#if HAVE_VXSORT
+// inlined from vxsort_targets_enable_avx512 (must close before end of header)
+#ifdef __GNUC__
+#ifdef __clang__
+#if VXSORT_AVX3
+#pragma clang attribute push(__attribute__((target("avx512f,avx512dq"))), \
+                             apply_to = any(function))
+#else
+#pragma clang attribute push(__attribute__((target("avx2"))), \
+                             apply_to = any(function))
+#endif  // VXSORT_AVX3
+
+#else
+#pragma GCC push_options
+#if VXSORT_AVX3
+#pragma GCC target("avx512f,avx512dq")
+#else
+#pragma GCC target("avx2")
+#endif  // VXSORT_AVX3
+#endif
+#endif
+
+#if VXSORT_AVX3
+#include "vxsort/machine_traits.avx512.h"
+#else
+#include "vxsort/machine_traits.avx2.h"
+#endif  // VXSORT_AVX3
+#include "vxsort/vxsort.h"
+#ifdef __GNUC__
+#ifdef __clang__
+#pragma clang attribute pop
+#else
+#pragma GCC pop_options
+#endif
+#endif
+#endif  // HAVE_VXSORT
 
 namespace hwy {
 
@@ -132,6 +174,9 @@ enum class Algo {
 #if HAVE_SORT512
   kSort512,
 #endif
+#if HAVE_VXSORT
+  kVXSort,
+#endif
   kStd,
   kVQSort,
   kHeap,
@@ -158,6 +203,10 @@ const char* AlgoName(Algo algo) {
 #if HAVE_SORT512
     case Algo::kSort512:
       return "sort512";
+#endif
+#if HAVE_VXSORT
+    case Algo::kVXSort:
+      return "vxsort";
 #endif
     case Algo::kStd:
       return "std";
@@ -412,6 +461,29 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
         return boost::sort::pdqsort_branchless(inout, inout + num, greater);
       }
 #endif
+
+#if HAVE_VXSORT
+    case Algo::kVXSort: {
+#if (VXSORT_AVX3 && HWY_TARGET != HWY_AVX3) || \
+    (!VXSORT_AVX3 && HWY_TARGET != HWY_AVX2)
+      fprintf(stderr, "Do not call for target %s\n",
+              hwy::TargetName(HWY_TARGET));
+      return;
+#else
+#if VXSORT_AVX3
+      vxsort::vxsort<KeyType, vxsort::AVX512> vx;
+#else
+      vxsort::vxsort<KeyType, vxsort::AVX2> vx;
+#endif
+      if (Order().IsAscending()) {
+        return vx.sort(inout, inout + num - 1);
+      } else {
+        fprintf(stderr, "Skipping VX - does not support descending order\n");
+        return;
+      }
+#endif  // enabled for this target
+    }
+#endif  // HAVE_VXSORT
 
     case Algo::kStd:
       if (Order().IsAscending()) {

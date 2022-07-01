@@ -190,6 +190,11 @@ std::vector<Algo> AlgoForBench() {
 #if HAVE_SORT512
         Algo::kSort512,
 #endif
+// Only include if we're compiling for the target it supports.
+#if HAVE_VXSORT && ((VXSORT_AVX3 && HWY_TARGET == HWY_AVX3) || \
+                    (!VXSORT_AVX3 && HWY_TARGET == HWY_AVX2))
+        Algo::kVXSort,
+#endif
 
 #if !HAVE_PARALLEL_IPS4O
 #if !SORT_100M
@@ -220,7 +225,11 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
   for (Algo algo : AlgoForBench()) {
     // Other algorithms don't depend on the vector instructions, so only run
     // them for the first target.
-    if (algo != Algo::kVQSort && HWY_TARGET != first_sort_target) continue;
+#if !HAVE_VXSORT
+    if (algo != Algo::kVQSort && HWY_TARGET != first_sort_target) {
+      continue;
+    }
+#endif
 
     for (Dist dist : AllDist()) {
       std::vector<double> seconds;
@@ -272,8 +281,11 @@ HWY_NOINLINE void BenchAllSort() {
     // BenchSort<TraitsLane<OrderDescending<uint16_t>>>(num_keys);
     // BenchSort<TraitsLane<OrderDescending<uint32_t>>>(num_keys);
     BenchSort<TraitsLane<OrderAscending<uint64_t>>>(num_keys);
+
+#if !HAVE_VXSORT
     BenchSort<Traits128<OrderAscending128>>(num_keys);
     BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
+#endif
   }
 }
 
