@@ -185,7 +185,7 @@ constexpr uint64_t kGroupAVX3_DL =
 // Factored out of SupportedTargets to make its structure more obvious. Note
 // that x86 CPUID may take several hundred cycles.
 uint32_t DetectTargets() {
-#if defined(HWY_COMPILE_ONLY_SCALAR)
+#if defined(HWY_COMPILE_ONLY_SCALAR) || HWY_BROKEN_EMU128
   uint32_t bits = HWY_SCALAR;
 #else
   uint32_t bits = HWY_EMU128;

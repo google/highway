@@ -204,6 +204,6 @@ guarantees 16-byte vectors are available like all other Highway targets, and
 supports all ops. Both of these alternatives are slower than native vector code,
 but they allow testing your code even when actual vectors are unavailable.
 
-`HWY_SCALAR` is only enabled/used `#ifdef HWY_COMPILE_ONLY_SCALAR`. Projects
-that intend to use it may require `#if HWY_TARGET != HWY_SCALAR` around the ops
-it does not support to prevent compile errors.
+`HWY_SCALAR` is only enabled/used `#ifdef HWY_COMPILE_ONLY_SCALAR` (or `#if
+HWY_BROKEN_EMU128`). Projects that intend to use it may require `#if HWY_TARGET
+!= HWY_SCALAR` around the ops it does not support to prevent compile errors.
