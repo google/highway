@@ -4624,10 +4624,11 @@ HWY_API Vec32<T> ConcatOdd(Simd<T, 4, 0> d, Vec32<T> hi, Vec32<T> lo) {
 // 16-bit full
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec128<T> ConcatOdd(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
-  const Repartition<uint32_t, decltype(d)> dw;
-  // Right-shift 16 bits per u32 so we can pack.
-  const Vec128<uint32_t> uH = ShiftRight<16>(BitCast(dw, hi));
-  const Vec128<uint32_t> uL = ShiftRight<16>(BitCast(dw, lo));
+  // Right-shift 16 bits per i32 - a *signed* shift of 0x8000xxxx returns
+  // 0xFFFF8000, which correctly saturates to 0x8000.
+  const Repartition<int32_t, decltype(d)> dw;
+  const Vec128<int32_t> uH = ShiftRight<16>(BitCast(dw, hi));
+  const Vec128<int32_t> uL = ShiftRight<16>(BitCast(dw, lo));
   return Vec128<T>{_mm_packs_epi32(uL.raw, uH.raw)};
 }
 
@@ -4704,12 +4705,22 @@ HWY_API Vec32<T> ConcatEven(Simd<T, 4, 0> d, Vec32<T> hi, Vec32<T> lo) {
 // 16-bit full
 template <typename T, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec128<T> ConcatEven(Full128<T> d, Vec128<T> hi, Vec128<T> lo) {
-  const Repartition<uint32_t, decltype(d)> dw;
+#if HWY_TARGET <= HWY_SSE4
   // Isolate lower 16 bits per u32 so we can pack.
+  const Repartition<uint32_t, decltype(d)> dw;
   const Vec128<uint32_t> mask = Set(dw, 0x0000FFFF);
   const Vec128<uint32_t> uH = And(BitCast(dw, hi), mask);
   const Vec128<uint32_t> uL = And(BitCast(dw, lo), mask);
-  return Vec128<T>{_mm_packs_epi32(uL.raw, uH.raw)};
+  return Vec128<T>{_mm_packus_epi32(uL.raw, uH.raw)};
+#else
+  // packs_epi32 saturates 0x8000 to 0x7FFF. Instead ConcatEven within the two
+  // inputs, then concatenate them.
+  alignas(16) const T kCompactEvenU16[8] = {0x0100, 0x0504, 0x0908, 0x0D0C};
+  const Vec128<T> shuf = BitCast(d, Load(d, kCompactEvenU16));
+  const Vec128<T> L = TableLookupBytes(lo, shuf);
+  const Vec128<T> H = TableLookupBytes(hi, shuf);
+  return ConcatLowerLower(d, H, L);
+#endif
 }
 
 // 16-bit x4
