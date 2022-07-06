@@ -63,6 +63,16 @@ check_cxx_source_compiles(
   HWY_EMSCRIPTEN
 )
 
+check_cxx_source_compiles(
+   "int main() {
+      #if !defined(__riscv)
+      static_assert(false, \"__riscv is not defined\");
+      #endif
+      return 0;
+    }"
+  HWY_RISCV
+)
+
 if (HWY_ENABLE_CONTRIB)
 # Glob all the traits so we don't need to modify this file when adding
 # additional special cases.
@@ -210,6 +220,13 @@ else()
       -mfp16-format=ieee  # required for vcvt_f32_f16
     )
   endif()  # HWY_CMAKE_ARM7
+
+  if(HWY_RISCV)
+    list(APPEND HWY_FLAGS -march=rv64gcv1p0)
+    if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+      list(APPEND HWY_FLAGS -menable-experimental-extensions)
+    endif()
+  endif()
 
   if (HWY_WARNINGS_ARE_ERRORS)
     list(APPEND HWY_FLAGS -Werror)
