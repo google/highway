@@ -349,8 +349,8 @@ HWY_NOINLINE void TestAllConvertU8() {
 
 template <typename From, typename To, class D>
 constexpr bool IsSupportedTruncation() {
-  constexpr int toPow2 = CeilLog2(sizeof(To));
-  return (sizeof(To) < sizeof(From)) && (Pow2(Rebind<To, D>()) + 3 >= toPow2);
+  return (sizeof(To) < sizeof(From)) &&
+         (Pow2(Rebind<To, D>()) + 3 >= static_cast<int>(CeilLog2(sizeof(To))));
 }
 
 struct TestTruncateTo {
