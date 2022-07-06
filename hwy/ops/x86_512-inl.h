@@ -3287,6 +3287,106 @@ HWY_API Vec128<uint8_t, 16> U8FromU32(const Vec512<uint32_t> v) {
   return LowerHalf(LowerHalf(bytes));
 }
 
+// ------------------------------ Truncations
+
+HWY_API Vec128<uint8_t, 8> TruncateTo(Simd<uint8_t, 8, 0> d,
+                                      const Vec512<uint64_t> v) {
+#if HWY_TARGET == HWY_AVX3_DL
+  (void)d;
+  const Full512<uint8_t> d8;
+  alignas(16) static constexpr uint8_t k8From64[16] = {
+    0, 8, 16, 24, 32, 40, 48, 56, 0, 8, 16, 24, 32, 40, 48, 56};
+  const Vec512<uint8_t> bytes{
+      _mm512_permutexvar_epi8(LoadDup128(d8, k8From64).raw, v.raw)};
+  return LowerHalf(LowerHalf(LowerHalf(bytes)));
+#else
+  const Full512<uint32_t> d32;
+  alignas(64) constexpr uint32_t kEven[16] = {0, 2, 4, 6, 8, 10, 12, 14,
+                                              0, 2, 4, 6, 8, 10, 12, 14};
+  const Vec512<uint32_t> even{
+      _mm512_permutexvar_epi32(Load(d32, kEven).raw, v.raw)};
+  return TruncateTo(d, LowerHalf(even));
+#endif
+}
+
+HWY_API Vec128<uint16_t, 8> TruncateTo(Simd<uint16_t, 8, 0> /* tag */,
+                                       const Vec512<uint64_t> v) {
+  const Full512<uint16_t> d16;
+  alignas(16) static constexpr uint16_t k16From64[8] = {
+      0, 4, 8, 12, 16, 20, 24, 28};
+  const Vec512<uint16_t> bytes{
+      _mm512_permutexvar_epi16(LoadDup128(d16, k16From64).raw, v.raw)};
+  return LowerHalf(LowerHalf(bytes));
+}
+
+HWY_API Vec256<uint32_t> TruncateTo(Simd<uint32_t, 8, 0> /* tag */,
+                                    const Vec512<uint64_t> v) {
+  const Full512<uint32_t> d32;
+  alignas(64) constexpr uint32_t kEven[16] = {0, 2, 4, 6, 8, 10, 12, 14,
+                                              0, 2, 4, 6, 8, 10, 12, 14};
+  const Vec512<uint32_t> even{
+      _mm512_permutexvar_epi32(Load(d32, kEven).raw, v.raw)};
+  return LowerHalf(even);
+}
+
+HWY_API Vec128<uint8_t, 16> TruncateTo(Simd<uint8_t, 16, 0> /* tag */,
+                                       const Vec512<uint32_t> v) {
+#if HWY_TARGET == HWY_AVX3_DL
+  const Full512<uint8_t> d8;
+  alignas(16) static constexpr uint8_t k8From32[16] = {
+    0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60};
+  const Vec512<uint8_t> bytes{
+      _mm512_permutexvar_epi32(LoadDup128(d8, k8From32).raw, v.raw)};
+#else
+  const Full512<uint32_t> d32;
+  // In each 128 bit block, gather the lower byte of 4 uint32_t lanes into the
+  // lowest 4 bytes.
+  alignas(16) static constexpr uint32_t k8From32[4] = {0x0C080400u, ~0u, ~0u,
+                                                       ~0u};
+  const auto quads = TableLookupBytes(v, LoadDup128(d32, k8From32));
+  // Gather the lowest 4 bytes of 4 128-bit blocks.
+  alignas(16) static constexpr uint32_t kIndex32[4] = {0, 4, 8, 12};
+  const Vec512<uint8_t> bytes{
+      _mm512_permutexvar_epi32(LoadDup128(d32, kIndex32).raw, quads.raw)};
+#endif
+  return LowerHalf(LowerHalf(bytes));
+}
+
+HWY_API Vec256<uint16_t> TruncateTo(Simd<uint16_t, 16, 0> /* tag */,
+                                    const Vec512<uint32_t> v) {
+  const Full512<uint16_t> d16;
+  alignas(64) static constexpr uint16_t k16From32[32] = {
+      0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
+  const Vec512<uint16_t> bytes{
+      _mm512_permutexvar_epi16(Load(d16, k16From32).raw, v.raw)};
+  return LowerHalf(bytes);
+}
+
+HWY_API Vec256<uint8_t> TruncateTo(Simd<uint8_t, 32, 0> /* tag */,
+                                   const Vec512<uint16_t> v) {
+#if HWY_TARGET == HWY_AVX3_DL
+  const Full512<uint8_t> d8;
+  alignas(64) static constexpr uint8_t k8From16[64] = {
+     0,  2,  4,  6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+    32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62,
+     0,  2,  4,  6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+    32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62};
+  const Vec512<uint8_t> bytes{
+      _mm512_permutexvar_epi8(Load(d8, k8From16).raw, v.raw)};
+#else
+  const Full512<uint32_t> d32;
+  alignas(16) static constexpr uint32_t k16From32[4] = {
+      0x06040200u, 0x0E0C0A08u, 0x06040200u, 0x0E0C0A08u};
+  const auto quads = TableLookupBytes(v, LoadDup128(d32, k16From32));
+  alignas(64) static constexpr uint32_t kIndex32[16] = {
+      0, 1, 4, 5, 8, 9, 12, 13, 0, 1, 4, 5, 8, 9, 12, 13};
+  const Vec512<uint8_t> bytes{
+      _mm512_permutexvar_epi32(Load(d32, kIndex32).raw, quads.raw)};
+#endif
+  return LowerHalf(bytes);
+}
+
 // ------------------------------ Convert integer <=> floating point
 
 HWY_API Vec512<float> ConvertTo(Full512<float> /* tag */,

@@ -4038,6 +4038,107 @@ HWY_API Vec128<uint8_t, 8> U8FromU32(const Vec256<uint32_t> v) {
   return BitCast(Full64<uint8_t>(), pair);
 }
 
+// ------------------------------ Truncations
+
+namespace detail {
+
+// LO and HI each hold four indices of bytes within a 128-bit block.
+template <uint32_t LO, uint32_t HI, typename T>
+HWY_INLINE Vec128<uint32_t> LookupAndConcatHalves(Vec256<T> v) {
+  const Full256<uint32_t> d32;
+
+#if HWY_TARGET <= HWY_AVX3_DL
+  alignas(32) constexpr uint32_t kMap[8] = {
+      LO, HI, 0x10101010 + LO, 0x10101010 + HI, 0, 0, 0, 0};
+  const auto result = _mm256_permutexvar_epi8(v.raw, Load(d32, kMap).raw);
+#else
+  alignas(32) static constexpr uint32_t kMap[8] = {LO,  HI,  ~0u, ~0u,
+                                                   ~0u, ~0u, LO,  HI};
+  const auto quad = TableLookupBytes(v, Load(d32, kMap));
+  const auto result = _mm256_permute4x64_epi64(quad.raw, 0xCC);
+  // Possible alternative:
+  // const auto lo = LowerHalf(quad);
+  // const auto hi = UpperHalf(Full128<uint32_t>(), quad);
+  // const auto result = lo | hi;
+#endif
+
+  return Vec128<uint32_t>{_mm256_castsi256_si128(result)};
+}
+
+// LO and HI each hold two indices of bytes within a 128-bit block.
+template <uint16_t LO, uint16_t HI, typename T>
+HWY_INLINE Vec128<uint32_t, 2> LookupAndConcatQuarters(Vec256<T> v) {
+  const Full256<uint16_t> d16;
+
+#if HWY_TARGET <= HWY_AVX3_DL
+  alignas(32) constexpr uint16_t kMap[16] = {
+      LO, HI, 0x1010 + LO, 0x1010 + HI, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  const auto result = _mm256_permutexvar_epi8(v.raw, Load(d16, kMap).raw);
+  return LowerHalf(Vec128<uint32_t>{_mm256_castsi256_si128(result)});
+#else
+  constexpr uint16_t ff = static_cast<uint16_t>(~0u);
+  alignas(32) static constexpr uint16_t kMap[16] = {
+      LO, ff, HI, ff, ff, ff, ff, ff, ff, ff, ff, ff, LO, ff, HI, ff};
+  const auto quad = TableLookupBytes(v, Load(d16, kMap));
+  const auto mixed = _mm256_permute4x64_epi64(quad.raw, 0xCC);
+  const auto half = _mm256_castsi256_si128(mixed);
+  return LowerHalf(Vec128<uint32_t>{_mm_packus_epi32(half, half)});
+#endif
+}
+
+}  // namespace detail
+
+HWY_API Vec128<uint8_t, 4> TruncateTo(Simd<uint8_t, 4, 0> /* tag */,
+                                      const Vec256<uint64_t> v) {
+  const Full256<uint32_t> d32;
+#if HWY_TARGET <= HWY_AVX3_DL
+  alignas(32) constexpr uint32_t kMap[8] = {0x18100800u, 0, 0, 0, 0, 0, 0, 0};
+  const auto result = _mm256_permutexvar_epi8(v.raw, Load(d32, kMap).raw);
+  return LowerHalf(LowerHalf(LowerHalf(Vec256<uint8_t>{result})));
+#else
+  alignas(32) static constexpr uint32_t kMap[8] = {0xFFFF0800u, ~0u, ~0u, ~0u,
+                                                   0x0800FFFFu, ~0u, ~0u, ~0u};
+  const auto quad = TableLookupBytes(v, Load(d32, kMap));
+  const auto lo = LowerHalf(quad);
+  const auto hi = UpperHalf(Full128<uint32_t>(), quad);
+  const auto result = lo | hi;
+  return LowerHalf(LowerHalf(Vec128<uint8_t>{result.raw}));
+#endif
+}
+
+HWY_API Vec128<uint16_t, 4> TruncateTo(Simd<uint16_t, 4, 0> /* tag */,
+                                       const Vec256<uint64_t> v) {
+  const auto result = detail::LookupAndConcatQuarters<0x100, 0x908>(v);
+  return Vec128<uint16_t, 4>{result.raw};
+}
+
+HWY_API Vec128<uint32_t> TruncateTo(Simd<uint32_t, 4, 0> /* tag */,
+                                    const Vec256<uint64_t> v) {
+  const Full256<uint32_t> d32;
+  alignas(32) constexpr uint32_t kEven[8] = {0, 2, 4, 6, 0, 2, 4, 6};
+  const auto v32 =
+      TableLookupLanes(BitCast(d32, v), SetTableIndices(d32, kEven));
+  return LowerHalf(Vec256<uint32_t>{v32.raw});
+}
+
+HWY_API Vec128<uint8_t, 8> TruncateTo(Simd<uint8_t, 8, 0> /* tag */,
+                                      const Vec256<uint32_t> v) {
+  const auto full = detail::LookupAndConcatQuarters<0x400, 0xC08>(v);
+  return Vec128<uint8_t, 8>{full.raw};
+}
+
+HWY_API Vec128<uint16_t> TruncateTo(Simd<uint16_t, 8, 0> /* tag */,
+                                    const Vec256<uint32_t> v) {
+  const auto full = detail::LookupAndConcatHalves<0x05040100, 0x0D0C0908>(v);
+  return Vec128<uint16_t>{full.raw};
+}
+
+HWY_API Vec128<uint8_t> TruncateTo(Simd<uint8_t, 16, 0> /* tag */,
+                                   const Vec256<uint16_t> v) {
+  const auto full = detail::LookupAndConcatHalves<0x06040200, 0x0E0C0A08>(v);
+  return Vec128<uint8_t>{full.raw};
+}
+
 // ------------------------------ Integer <=> fp (ShiftRight, OddEven)
 
 HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,
@@ -4864,7 +4965,7 @@ HWY_INLINE Indices256<uint32_t> IndicesFromNotBits(Full256<T> d,
       0x76542130, 0x76542103, 0x76543210, 0x76543021, 0x76543120, 0x76543102,
       0x76543210, 0x76543201, 0x76543210, 0x76543210};
 
-  // No need to mask because _mm256_permutevar8x32_epi32 ignores bits 3..31.
+  // No need to mask because <_mm256_permutevar8x32_epi32> ignores bits 3..31.
   // Just shift each copy of the 32 bit LUT to extract its 4-bit fields.
   // If broadcasting 32-bit from memory incurs the 3-cycle block-crossing
   // latency, it may be faster to use LoadDup128 and PSHUFB.

@@ -1690,6 +1690,249 @@ HWY_API vuint8m2_t U8FromU32(const vuint32m8_t v) {
   return vnclipu_wx_u8m2(vnclipu_wx_u16m4(v, 0, avl), 0, avl);
 }
 
+// ------------------------------ Truncations
+
+template <size_t N>
+HWY_API vuint8mf8_t TruncateTo(Simd<uint8_t, N, -3> d,
+                               const VFromD<Simd<uint64_t, N, 0>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m1_t v1 = vand(v, 0xFF, avl);
+  const vuint32mf2_t v2 = vnclipu_wx_u32mf2(v1, 0, avl);
+  const vuint16mf4_t v3 = vnclipu_wx_u16mf4(v2, 0, avl);
+  return vnclipu_wx_u8mf8(v3, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf4_t TruncateTo(Simd<uint8_t, N, -2> d,
+                               const VFromD<Simd<uint64_t, N, 1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m2_t v1 = vand(v, 0xFF, avl);
+  const vuint32m1_t v2 = vnclipu_wx_u32m1(v1, 0, avl);
+  const vuint16mf2_t v3 = vnclipu_wx_u16mf2(v2, 0, avl);
+  return vnclipu_wx_u8mf4(v3, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf2_t TruncateTo(Simd<uint8_t, N, -1> d,
+                               const VFromD<Simd<uint64_t, N, 2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m4_t v1 = vand(v, 0xFF, avl);
+  const vuint32m2_t v2 = vnclipu_wx_u32m2(v1, 0, avl);
+  const vuint16m1_t v3 = vnclipu_wx_u16m1(v2, 0, avl);
+  return vnclipu_wx_u8mf2(v3, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8m1_t TruncateTo(Simd<uint8_t, N, 0> d,
+                              const VFromD<Simd<uint64_t, N, 3>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m8_t v1 = vand(v, 0xFF, avl);
+  const vuint32m4_t v2 = vnclipu_wx_u32m4(v1, 0, avl);
+  const vuint16m2_t v3 = vnclipu_wx_u16m2(v2, 0, avl);
+  return vnclipu_wx_u8m1(v3, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16mf4_t TruncateTo(Simd<uint16_t, N, -2> d,
+                                const VFromD<Simd<uint64_t, N, 0>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m1_t v1 = vand(v, 0xFFFF, avl);
+  const vuint32mf2_t v2 = vnclipu_wx_u32mf2(v1, 0, avl);
+  return vnclipu_wx_u16mf4(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16mf2_t TruncateTo(Simd<uint16_t, N, -1> d,
+                                const VFromD<Simd<uint64_t, N, 1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m2_t v1 = vand(v, 0xFFFF, avl);
+  const vuint32m1_t v2 = vnclipu_wx_u32m1(v1, 0, avl);
+  return vnclipu_wx_u16mf2(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16m1_t TruncateTo(Simd<uint16_t, N, 0> d,
+                               const VFromD<Simd<uint64_t, N, 2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m4_t v1 = vand(v, 0xFFFF, avl);
+  const vuint32m2_t v2 = vnclipu_wx_u32m2(v1, 0, avl);
+  return vnclipu_wx_u16m1(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16m2_t TruncateTo(Simd<uint16_t, N, 1> d,
+                               const VFromD<Simd<uint64_t, N, 3>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m8_t v1 = vand(v, 0xFFFF, avl);
+  const vuint32m4_t v2 = vnclipu_wx_u32m4(v1, 0, avl);
+  return vnclipu_wx_u16m2(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint32mf2_t TruncateTo(Simd<uint32_t, N, -1> d,
+                                const VFromD<Simd<uint64_t, N, 0>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m1_t v1 = vand(v, 0xFFFFFFFFu, avl);
+  return vnclipu_wx_u32mf2(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint32m1_t TruncateTo(Simd<uint32_t, N, 0> d,
+                               const VFromD<Simd<uint64_t, N, 1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m2_t v1 = vand(v, 0xFFFFFFFFu, avl);
+  return vnclipu_wx_u32m1(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint32m2_t TruncateTo(Simd<uint32_t, N, 1> d,
+                               const VFromD<Simd<uint64_t, N, 2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m4_t v1 = vand(v, 0xFFFFFFFFu, avl);
+  return vnclipu_wx_u32m2(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint32m4_t TruncateTo(Simd<uint32_t, N, 2> d,
+                               const VFromD<Simd<uint64_t, N, 3>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m8_t v1 = vand(v, 0xFFFFFFFFu, avl);
+  return vnclipu_wx_u32m4(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf8_t TruncateTo(Simd<uint8_t, N, -3> d,
+                               const VFromD<Simd<uint32_t, N, -1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32mf2_t v1 = vand(v, 0xFF, avl);
+  const vuint16mf4_t v2 = vnclipu_wx_u16mf4(v1, 0, avl);
+  return vnclipu_wx_u8mf8(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf4_t TruncateTo(Simd<uint8_t, N, -2> d,
+                               const VFromD<Simd<uint32_t, N, 0>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m1_t v1 = vand(v, 0xFF, avl);
+  const vuint16mf2_t v2 = vnclipu_wx_u16mf2(v1, 0, avl);
+  return vnclipu_wx_u8mf4(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf2_t TruncateTo(Simd<uint8_t, N, -1> d,
+                               const VFromD<Simd<uint32_t, N, 1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m2_t v1 = vand(v, 0xFF, avl);
+  const vuint16m1_t v2 = vnclipu_wx_u16m1(v1, 0, avl);
+  return vnclipu_wx_u8mf2(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8m1_t TruncateTo(Simd<uint8_t, N, 0> d,
+                              const VFromD<Simd<uint32_t, N, 2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m4_t v1 = vand(v, 0xFF, avl);
+  const vuint16m2_t v2 = vnclipu_wx_u16m2(v1, 0, avl);
+  return vnclipu_wx_u8m1(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8m2_t TruncateTo(Simd<uint8_t, N, 1> d,
+                              const VFromD<Simd<uint32_t, N, 3>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m8_t v1 = vand(v, 0xFF, avl);
+  const vuint16m4_t v2 = vnclipu_wx_u16m4(v1, 0, avl);
+  return vnclipu_wx_u8m2(v2, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16mf4_t TruncateTo(Simd<uint16_t, N, -2> d,
+                                const VFromD<Simd<uint32_t, N, -1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32mf2_t v1 = vand(v, 0xFFFF, avl);
+  return vnclipu_wx_u16mf4(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16mf2_t TruncateTo(Simd<uint16_t, N, -1> d,
+                                const VFromD<Simd<uint32_t, N, 0>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m1_t v1 = vand(v, 0xFFFF, avl);
+  return vnclipu_wx_u16mf2(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16m1_t TruncateTo(Simd<uint16_t, N, 0> d,
+                               const VFromD<Simd<uint32_t, N, 1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m2_t v1 = vand(v, 0xFFFF, avl);
+  return vnclipu_wx_u16m1(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16m2_t TruncateTo(Simd<uint16_t, N, 1> d,
+                               const VFromD<Simd<uint32_t, N, 2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m4_t v1 = vand(v, 0xFFFF, avl);
+  return vnclipu_wx_u16m2(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint16m4_t TruncateTo(Simd<uint16_t, N, 2> d,
+                               const VFromD<Simd<uint32_t, N, 3>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32m8_t v1 = vand(v, 0xFFFF, avl);
+  return vnclipu_wx_u16m4(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf8_t TruncateTo(Simd<uint8_t, N, -3> d,
+                               const VFromD<Simd<uint16_t, N, -2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint16mf4_t v1 = vand(v, 0xFF, avl);
+  return vnclipu_wx_u8mf8(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf4_t TruncateTo(Simd<uint8_t, N, -2> d,
+                               const VFromD<Simd<uint16_t, N, -1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint16mf2_t v1 = vand(v, 0xFF, avl);
+  return vnclipu_wx_u8mf4(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8mf2_t TruncateTo(Simd<uint8_t, N, -1> d,
+                               const VFromD<Simd<uint16_t, N, 0>> v) {
+  const size_t avl = Lanes(d);
+  const vuint16m1_t v1 = vand(v, 0xFF, avl);
+  return vnclipu_wx_u8mf2(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8m1_t TruncateTo(Simd<uint8_t, N, 0> d,
+                              const VFromD<Simd<uint16_t, N, 1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint16m2_t v1 = vand(v, 0xFF, avl);
+  return vnclipu_wx_u8m1(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8m2_t TruncateTo(Simd<uint8_t, N, 1> d,
+                              const VFromD<Simd<uint16_t, N, 2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint16m4_t v1 = vand(v, 0xFF, avl);
+  return vnclipu_wx_u8m2(v1, 0, avl);
+}
+
+template <size_t N>
+HWY_API vuint8m4_t TruncateTo(Simd<uint8_t, N, 2> d,
+                              const VFromD<Simd<uint16_t, N, 3>> v) {
+  const size_t avl = Lanes(d);
+  const vuint16m8_t v1 = vand(v, 0xFF, avl);
+  return vnclipu_wx_u8m4(v1, 0, avl);
+}
+
 // ------------------------------ DemoteTo I
 
 HWY_RVV_FOREACH_I16(HWY_RVV_DEMOTE, DemoteTo, vnclip_wx_, _DEMOTE_VIRT)

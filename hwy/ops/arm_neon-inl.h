@@ -4607,6 +4607,73 @@ HWY_API Vec128<float, N> PromoteTo(Simd<float, N, 0> df32,
   return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
 }
 
+// ------------------------------ Truncations
+
+template <typename From, typename To, HWY_IF_UNSIGNED(From),
+          HWY_IF_UNSIGNED(To),
+          hwy::EnableIf<(sizeof(To) < sizeof(From))>* = nullptr>
+HWY_API Vec128<To, 1> TruncateTo(Simd<To, 1, 0> /* tag */,
+                                 const Vec128<From, 1> v) {
+  const Repartition<To, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  return Vec128<To, 1>{v1.raw};
+}
+
+HWY_API Vec128<uint8_t, 2> TruncateTo(Simd<uint8_t, 2, 0> /* tag */,
+                                      const Vec128<uint64_t, 2> v) {
+  const Repartition<uint8_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = detail::ConcatEven(v1, v1);
+  const auto v3 = detail::ConcatEven(v2, v2);
+  const auto v4 = detail::ConcatEven(v3, v3);
+  return LowerHalf(LowerHalf(LowerHalf(v4)));
+}
+
+HWY_API Vec32<uint16_t> TruncateTo(Simd<uint16_t, 2, 0> /* tag */,
+                                   const Vec128<uint64_t, 2> v) {
+  const Repartition<uint16_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = detail::ConcatEven(v1, v1);
+  const auto v3 = detail::ConcatEven(v2, v2);
+  return LowerHalf(LowerHalf(v3));
+}
+
+HWY_API Vec64<uint32_t> TruncateTo(Simd<uint32_t, 2, 0> /* tag */,
+                                   const Vec128<uint64_t, 2> v) {
+  const Repartition<uint32_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = detail::ConcatEven(v1, v1);
+  return LowerHalf(v2);
+}
+
+template <size_t N, hwy::EnableIf<N >= 2>* = nullptr>
+HWY_API Vec128<uint8_t, N> TruncateTo(Simd<uint8_t, N, 0> /* tag */,
+                                      const Vec128<uint32_t, N> v) {
+  const Repartition<uint8_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = detail::ConcatEven(v1, v1);
+  const auto v3 = detail::ConcatEven(v2, v2);
+  return LowerHalf(LowerHalf(v3));
+}
+
+template <size_t N, hwy::EnableIf<N >= 2>* = nullptr>
+HWY_API Vec128<uint16_t, N> TruncateTo(Simd<uint16_t, N, 0> /* tag */,
+                                       const Vec128<uint32_t, N> v) {
+  const Repartition<uint16_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = detail::ConcatEven(v1, v1);
+  return LowerHalf(v2);
+}
+
+template <size_t N, hwy::EnableIf<N >= 2>* = nullptr>
+HWY_API Vec128<uint8_t, N> TruncateTo(Simd<uint8_t, N, 0> /* tag */,
+                                      const Vec128<uint16_t, N> v) {
+  const Repartition<uint8_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = detail::ConcatEven(v1, v1);
+  return LowerHalf(v2);
+}
+
 // ------------------------------ MulEven (ConcatEven)
 
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into

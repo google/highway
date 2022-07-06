@@ -1224,6 +1224,38 @@ HWY_API Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
   return DemoteTo(Sisd<uint8_t>(), v);
 }
 
+// ------------------------------ Truncations
+
+HWY_API Vec1<uint8_t> TruncateTo(Sisd<uint8_t> /* tag */,
+                                 const Vec1<uint64_t> v) {
+  return Vec1<uint8_t>{static_cast<uint8_t>(v.raw & 0xFF)};
+}
+
+HWY_API Vec1<uint16_t> TruncateTo(Sisd<uint16_t> /* tag */,
+                                  const Vec1<uint64_t> v) {
+  return Vec1<uint16_t>{static_cast<uint16_t>(v.raw & 0xFFFF)};
+}
+
+HWY_API Vec1<uint32_t> TruncateTo(Sisd<uint32_t> /* tag */,
+                                  const Vec1<uint64_t> v) {
+  return Vec1<uint32_t>{static_cast<uint32_t>(v.raw & 0xFFFFFFFFu)};
+}
+
+HWY_API Vec1<uint8_t> TruncateTo(Sisd<uint8_t> /* tag */,
+                                 const Vec1<uint32_t> v) {
+  return Vec1<uint8_t>{static_cast<uint8_t>(v.raw & 0xFF)};
+}
+
+HWY_API Vec1<uint16_t> TruncateTo(Sisd<uint16_t> /* tag */,
+                                  const Vec1<uint32_t> v) {
+  return Vec1<uint16_t>{static_cast<uint16_t>(v.raw & 0xFFFF)};
+}
+
+HWY_API Vec1<uint8_t> TruncateTo(Sisd<uint8_t> /* tag */,
+                                 const Vec1<uint16_t> v) {
+  return Vec1<uint8_t>{static_cast<uint8_t>(v.raw & 0xFF)};
+}
+
 // ================================================== COMBINE
 // UpperHalf, ZeroExtendVector, Combine, Concat* are unsupported.
 

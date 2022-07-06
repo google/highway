@@ -3296,6 +3296,54 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
       wasm_u8x16_narrow_i16x8(intermediate, intermediate)};
 }
 
+// ------------------------------ Truncations
+
+HWY_API Vec128<uint8_t, 2> TruncateTo(Simd<uint8_t, 2, 0> /* tag */,
+                                      const Vec128<uint64_t> v) {
+  const Full128<uint8_t> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = ConcatEven(d, v1, v1);
+  const auto v4 = ConcatEven(d, v2, v2);
+  return LowerHalf(LowerHalf(LowerHalf(ConcatEven(d, v4, v4))));
+}
+
+HWY_API Vec128<uint16_t, 2> TruncateTo(Simd<uint16_t, 2, 0> /* tag */,
+                                       const Vec128<uint64_t> v) {
+  const Full128<uint16_t> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = ConcatEven(d, v1, v1);
+  return LowerHalf(LowerHalf(ConcatEven(d, v2, v2)));
+}
+
+HWY_API Vec128<uint32_t, 2> TruncateTo(Simd<uint32_t, 2, 0> /* tag */,
+                                       const Vec128<uint64_t> v) {
+  const Full128<uint32_t> d;
+  const auto v1 = BitCast(d, v);
+  return LowerHalf(ConcatEven(d, v1, v1));
+}
+
+HWY_API Vec128<uint8_t, 4> TruncateTo(Simd<uint8_t, 4, 0> /* tag */,
+                                      const Vec128<uint32_t> v) {
+  const Full128<uint8_t> d;
+  const auto v1 = BitCast(d, v);
+  const auto v2 = ConcatEven(d, v1, v1);
+  return LowerHalf(LowerHalf(ConcatEven(d, v2, v2)));
+}
+
+HWY_API Vec128<uint16_t, 4> TruncateTo(Simd<uint16_t, 4, 0> /* tag */,
+                                       const Vec128<uint32_t> v) {
+  const Full128<uint16_t> d;
+  const auto v1 = BitCast(d, v);
+  return LowerHalf(ConcatEven(d, v1, v1));
+}
+
+HWY_API Vec128<uint8_t, 8> TruncateTo(Simd<uint8_t, 8, 0> /* tag */,
+                                      const Vec128<uint16_t> v) {
+  const Full128<uint8_t> d;
+  const auto v1 = BitCast(d, v);
+  return LowerHalf(ConcatEven(d, v1, v1));
+}
+
 // ------------------------------ Convert i32 <=> f32 (Round)
 
 template <size_t N>

@@ -2304,6 +2304,50 @@ HWY_API Vec256<uint8_t> U8FromU32(const Vec256<uint32_t> v) {
   return Vec256<uint8_t>{wasm_u8x16_narrow_i16x8(intermediate, intermediate)};
 }
 
+// ------------------------------ Truncations
+
+HWY_API Vec256<uint8_t, 4> TruncateTo(Simd<uint8_t, 4, 0> /* tag */,
+                                      const Vec256<uint64_t> v) {
+  return Vec256<uint8_t, 4>{wasm_i8x16_shuffle(v.v0.raw, v.v1.raw, 0, 8, 16, 24,
+                                               0, 8, 16, 24, 0, 8, 16, 24, 0, 8,
+                                               16, 24)};
+}
+
+HWY_API Vec256<uint16_t, 4> TruncateTo(Simd<uint16_t, 4, 0> /* tag */,
+                                       const Vec256<uint64_t> v) {
+  return Vec256<uint16_t, 4>{wasm_i8x16_shuffle(v.v0.raw, v.v1.raw, 0, 1, 8, 9,
+                                                16, 17, 24, 25, 0, 1, 8, 9, 16,
+                                                17, 24, 25)};
+}
+
+HWY_API Vec256<uint32_t, 4> TruncateTo(Simd<uint32_t, 4, 0> /* tag */,
+                                       const Vec256<uint64_t> v) {
+  return Vec256<uint32_t, 4>{wasm_i8x16_shuffle(v.v0.raw, v.v1.raw, 0, 1, 2, 3,
+                                                8, 9, 10, 11, 16, 17, 18, 19,
+                                                24, 25, 26, 27)};
+}
+
+HWY_API Vec256<uint8_t, 8> TruncateTo(Simd<uint8_t, 8, 0> /* tag */,
+                                      const Vec256<uint32_t> v) {
+  return Vec256<uint8_t, 8>{wasm_i8x16_shuffle(v.v0.raw, v.v1.raw, 0, 4, 8, 12,
+                                               16, 20, 24, 28, 0, 4, 8, 12, 16,
+                                               20, 24, 28)};
+}
+
+HWY_API Vec256<uint16_t, 8> TruncateTo(Simd<uint16_t, 8, 0> /* tag */,
+                                       const Vec256<uint32_t> v) {
+  return Vec256<uint16_t, 8>{wasm_i8x16_shuffle(v.v0.raw, v.v1.raw, 0, 1, 4, 5,
+                                                8, 9, 12, 13, 16, 17, 20, 21,
+                                                24, 25, 28, 29)};
+}
+
+HWY_API Vec256<uint8_t, 16> TruncateTo(Simd<uint8_t, 16, 0> /* tag */,
+                                       const Vec256<uint16_t> v) {
+  return Vec256<uint8_t, 16>{wasm_i8x16_shuffle(v.v0.raw, v.v1.raw, 0, 2, 4, 6,
+                                                8, 10, 12, 14, 16, 18, 20, 22,
+                                                24, 26, 28, 30)};
+}
+
 // ------------------------------ Convert i32 <=> f32 (Round)
 
 HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,

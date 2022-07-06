@@ -1322,6 +1322,60 @@ HWY_API svuint8_t U8FromU32(const svuint32_t v) {
   return svuzp1_u8(cast8, cast8);
 }
 
+// ------------------------------ Truncations
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t TruncateTo(Simd<uint8_t, N, kPow2> /* tag */,
+                             const svuint64_t v) {
+  const DFromV<svuint8_t> d;
+  const svuint8_t v1 = BitCast(d, v);
+  const svuint8_t v2 = svuzp1_u8(v1, v1);
+  const svuint8_t v3 = svuzp1_u8(v2, v2);
+  return svuzp1_u8(v3, v3);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t TruncateTo(Simd<uint16_t, N, kPow2> /* tag */,
+                              const svuint64_t v) {
+  const DFromV<svuint16_t> d;
+  const svuint16_t v1 = BitCast(d, v);
+  const svuint16_t v2 = svuzp1_u16(v1, v1);
+  return svuzp1_u16(v2, v2);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint32_t TruncateTo(Simd<uint32_t, N, kPow2> /* tag */,
+                              const svuint64_t v) {
+  const DFromV<svuint32_t> d;
+  const svuint32_t v1 = BitCast(d, v);
+  return svuzp1_u32(v1, v1);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t TruncateTo(Simd<uint8_t, N, kPow2> /* tag */,
+                             const svuint32_t v) {
+  const DFromV<svuint8_t> d;
+  const svuint8_t v1 = BitCast(d, v);
+  const svuint8_t v2 = svuzp1_u8(v1, v1);
+  return svuzp1_u8(v2, v2);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t TruncateTo(Simd<uint16_t, N, kPow2> /* tag */,
+                              const svuint32_t v) {
+  const DFromV<svuint16_t> d;
+  const svuint16_t v1 = BitCast(d, v);
+  return svuzp1_u16(v1, v1);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t TruncateTo(Simd<uint8_t, N, kPow2> /* tag */,
+                             const svuint16_t v) {
+  const DFromV<svuint8_t> d;
+  const svuint8_t v1 = BitCast(d, v);
+  return svuzp1_u8(v1, v1);
+}
+
 // ------------------------------ DemoteTo I
 
 template <size_t N, int kPow2>

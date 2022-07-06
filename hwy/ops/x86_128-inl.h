@@ -5468,6 +5468,65 @@ HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
   return LowerHalf(LowerHalf(BitCast(d8, quad)));
 }
 
+// ------------------------------ Truncations
+
+template <typename From, typename To, HWY_IF_UNSIGNED(From),
+          HWY_IF_UNSIGNED(To),
+          hwy::EnableIf<(sizeof(To) < sizeof(From))>* = nullptr>
+HWY_API Vec128<To, 1> TruncateTo(Simd<To, 1, 0> /* tag */,
+                                 const Vec128<From, 1> v) {
+  const Repartition<To, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  return Vec128<To, 1>{v1.raw};
+}
+
+HWY_API Vec128<uint8_t, 2> TruncateTo(Simd<uint8_t, 2, 0> /* tag */,
+                                      const Vec128<uint64_t, 2> v) {
+  const Full128<uint8_t> d8;
+  alignas(16) static constexpr uint8_t kMap[16] = {0, 8, 0, 8, 0, 8, 0, 8,
+                                                   0, 8, 0, 8, 0, 8, 0, 8};
+  return LowerHalf(LowerHalf(LowerHalf(TableLookupBytes(v, Load(d8, kMap)))));
+}
+
+HWY_API Vec128<uint16_t, 2> TruncateTo(Simd<uint16_t, 2, 0> /* tag */,
+                                       const Vec128<uint64_t, 2> v) {
+  const Full128<uint16_t> d16;
+  alignas(16) static constexpr uint16_t kMap[8] = {
+      0x100u, 0x908u, 0x100u, 0x908u, 0x100u, 0x908u, 0x100u, 0x908u};
+  return LowerHalf(LowerHalf(TableLookupBytes(v, Load(d16, kMap))));
+}
+
+HWY_API Vec128<uint32_t, 2> TruncateTo(Simd<uint32_t, 2, 0> /* tag */,
+                                       const Vec128<uint64_t, 2> v) {
+  return Vec128<uint32_t, 2>{_mm_shuffle_epi32(v.raw, 0x88)};
+}
+
+template <size_t N, hwy::EnableIf<N >= 2>* = nullptr>
+HWY_API Vec128<uint8_t, N> TruncateTo(Simd<uint8_t, N, 0> /* tag */,
+                                      const Vec128<uint32_t, N> v) {
+  const Repartition<uint8_t, DFromV<decltype(v)>> d;
+  alignas(16) static constexpr uint8_t kMap[16] = {
+      0x0u, 0x4u, 0x8u, 0xCu, 0x0u, 0x4u, 0x8u, 0xCu,
+      0x0u, 0x4u, 0x8u, 0xCu, 0x0u, 0x4u, 0x8u, 0xCu};
+  return LowerHalf(LowerHalf(TableLookupBytes(v, Load(d, kMap))));
+}
+
+template <size_t N, hwy::EnableIf<N >= 2>* = nullptr>
+HWY_API Vec128<uint16_t, N> TruncateTo(Simd<uint16_t, N, 0> /* tag */,
+                                       const Vec128<uint32_t, N> v) {
+  const Repartition<uint16_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  return LowerHalf(ConcatEven(d, v1, v1));
+}
+
+template <size_t N, hwy::EnableIf<N >= 2>* = nullptr>
+HWY_API Vec128<uint8_t, N> TruncateTo(Simd<uint8_t, N, 0> /* tag */,
+                                      const Vec128<uint16_t, N> v) {
+  const Repartition<uint8_t, DFromV<decltype(v)>> d;
+  const auto v1 = BitCast(d, v);
+  return LowerHalf(ConcatEven(d, v1, v1));
+}
+
 // ------------------------------ Integer <=> fp (ShiftRight, OddEven)
 
 template <size_t N>
