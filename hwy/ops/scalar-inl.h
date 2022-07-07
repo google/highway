@@ -128,6 +128,9 @@ HWY_API Vec1<T> Iota(const Sisd<T> /* tag */, const T2 first) {
   return Vec1<T>(static_cast<T>(first));
 }
 
+template <class D>
+using VFromD = decltype(Zero(D()));
+
 // ================================================== LOGICAL
 
 // ------------------------------ Not
