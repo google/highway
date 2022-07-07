@@ -147,7 +147,7 @@
 #define HWY_ARCH_ARM_A64 0
 #endif
 
-#if defined(__arm__) || defined(_M_ARM)
+#if (defined(__ARM_ARCH) && __ARM_ARCH == 7) || (defined(_M_ARM) && _M_ARM == 7)
 #define HWY_ARCH_ARM_V7 1
 #else
 #define HWY_ARCH_ARM_V7 0
@@ -157,10 +157,18 @@
 #error "Cannot have both A64 and V7"
 #endif
 
+// Any *supported* version of Arm, i.e. 7 or later
 #if HWY_ARCH_ARM_A64 || HWY_ARCH_ARM_V7
 #define HWY_ARCH_ARM 1
 #else
 #define HWY_ARCH_ARM 0
+#endif
+
+// Older than v7 (e.g. armel aka Arm v5), in which case we do not support SIMD.
+#if (defined(__arm__) || defined(_M_ARM)) && !HWY_ARCH_ARM
+#define HWY_ARCH_ARM_OLD 1
+#else
+#define HWY_ARCH_ARM_OLD 0
 #endif
 
 #if defined(__EMSCRIPTEN__) || defined(__wasm__) || defined(__WASM__)
@@ -177,8 +185,8 @@
 
 // It is an error to detect multiple architectures at the same time, but OK to
 // detect none of the above.
-#if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_WASM + \
-     HWY_ARCH_RVV) > 1
+#if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_ARM_OLD + \
+     HWY_ARCH_WASM + HWY_ARCH_RVV) > 1
 #error "Must not detect more than one architecture"
 #endif
 

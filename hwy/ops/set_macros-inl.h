@@ -233,7 +233,7 @@
 #define HWY_TARGET_STR "+neon-vfpv4"
 #else
 #define HWY_TARGET_STR "+crypto"
-#endif  // HWY_ARCH_ARM*
+#endif  // HWY_ARCH_ARM_V7
 #else
 // HWY_TARGET_STR remains undefined
 #endif
