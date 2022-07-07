@@ -26,17 +26,22 @@
 #include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 
-#if VQSORT_ENABLED
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
 void SortKV128Desc(uint64_t* HWY_RESTRICT keys, size_t num,
                    uint64_t* HWY_RESTRICT buf) {
+#if VQSORT_ENABLED
   SortTag<uint64_t> d;
   detail::SharedTraits<detail::Traits128<detail::OrderDescendingKV128>> st;
   Sort(d, st, keys, num, buf);
+#else
+  (void) keys;
+  (void) num;
+  (void) buf;
+  HWY_ASSERT(0);
+#endif
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -58,5 +63,3 @@ void Sorter::operator()(K64V64* HWY_RESTRICT keys, size_t n,
 
 }  // namespace hwy
 #endif  // HWY_ONCE
-
-#endif  // VQSORT_ENABLED
