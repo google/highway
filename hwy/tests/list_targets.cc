@@ -58,7 +58,7 @@ int main() {
 #endif
 
   fprintf(stderr,
-          "Config: emu128:%d scalar%d static%d all_attain%d is_test%d\n",
+          "Config: emu128:%d scalar:%d static:%d all_attain:%d is_test:%d\n",
           only_emu128, only_scalar, only_static, all_attain, is_test);
   PrintTargets("Compiled HWY_TARGETS:  ", HWY_TARGETS);
   PrintTargets("HWY_ATTAINABLE_TARGETS:", HWY_ATTAINABLE_TARGETS);
