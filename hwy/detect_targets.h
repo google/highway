@@ -79,7 +79,7 @@
 #define HWY_SVE2 0x4000
 #define HWY_SVE 0x8000
 // 0x10000 reserved for Helium
-#define HWY_NEON 0x20000
+#define HWY_NEON 0x20000  // On A64, includes/requires AES
 
 #define HWY_HIGHEST_TARGET_BIT_ARM 17
 
@@ -357,10 +357,20 @@
 //------------------------------------------------------------------------------
 // Choose targets for dynamic dispatch according to one of four policies
 
-#if defined(HWY_COMPILE_ONLY_SCALAR) && defined(HWY_COMPILE_ONLY_STATIC)
-#error "Defined both HWY_COMPILE_ONLY_{SCALAR|STATIC} - bug?"
+#if 1 < (defined(HWY_COMPILE_ONLY_SCALAR) + defined(HWY_COMPILE_ONLY_EMU128) + \
+         defined(HWY_COMPILE_ONLY_STATIC))
+#error "Can only define one of HWY_COMPILE_ONLY_{SCALAR|EMU128|STATIC} - bug?"
 #endif
-// Defining either HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
+// Defining one of HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
+
+// x86 compilers generally allow runtime dispatch. On Arm, currently only GCC
+// does, and we require Linux to detect CPU capabilities.
+#if HWY_ARCH_X86 || \
+    (HWY_ARCH_ARM && HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && HWY_OS_LINUX)
+#define HWY_HAVE_RUNTIME_DISPATCH 1
+#else
+#define HWY_HAVE_RUNTIME_DISPATCH 0
+#endif
 
 // AVX3_DL is not widely available yet. To reduce code size and compile time,
 // only include it in the set of attainable targets (for dynamic dispatch) if
@@ -371,16 +381,18 @@
 #define HWY_ATTAINABLE_AVX3_DL 0
 #endif
 
-#if HWY_ARCH_ARM_A64 && (HWY_ENABLED_BASELINE & HWY_SVE)
-#define HWY_ATTAINABLE_SVE_256 HWY_ENABLED(HWY_SVE_256)
+#if HWY_ARCH_ARM_A64 && \
+    ((HWY_ENABLED_BASELINE & HWY_SVE) || HWY_HAVE_RUNTIME_DISPATCH)
+#define HWY_ATTAINABLE_SVE HWY_ENABLED(HWY_SVE | HWY_SVE_256)
 #else
-#define HWY_ATTAINABLE_SVE_256 0
+#define HWY_ATTAINABLE_SVE 0
 #endif
 
-#if HWY_ARCH_ARM_A64 && (HWY_ENABLED_BASELINE & HWY_SVE2)
-#define HWY_ATTAINABLE_SVE2_128 HWY_ENABLED(HWY_SVE2_128)
+#if HWY_ARCH_ARM_A64 && \
+    ((HWY_ENABLED_BASELINE & HWY_SVE2) || HWY_HAVE_RUNTIME_DISPATCH)
+#define HWY_ATTAINABLE_SVE2 HWY_ENABLED(HWY_SVE2 | HWY_SVE2_128)
 #else
-#define HWY_ATTAINABLE_SVE2_128 0
+#define HWY_ATTAINABLE_SVE2 0
 #endif
 
 // Attainable means enabled and the compiler allows intrinsics (even when not
@@ -389,14 +401,25 @@
 #define HWY_ATTAINABLE_TARGETS                                        \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | \
               HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL)
+#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+#define HWY_ATTAINABLE_TARGETS                                      \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_NEON | HWY_ATTAINABLE_SVE | \
+              HWY_ATTAINABLE_SVE2)
 #else
 #define HWY_ATTAINABLE_TARGETS \
-  (HWY_ENABLED_BASELINE | HWY_ATTAINABLE_SVE_256 | HWY_ATTAINABLE_SVE2_128)
+  (HWY_ENABLED_BASELINE | HWY_ATTAINABLE_SVE | HWY_ATTAINABLE_SVE2)
 #endif
 
-// 1) For older compilers: disable all SIMD (could also set HWY_DISABLED_TARGETS
-// to ~HWY_SCALAR, but this is more explicit).
-#if defined(HWY_COMPILE_ONLY_SCALAR)
+// 1) For older compilers: avoid SIMD intrinsics, but still support all ops.
+#if defined(HWY_COMPILE_ONLY_EMU128) && !HWY_BROKEN_EMU128
+#undef HWY_STATIC_TARGET
+#define HWY_STATIC_TARGET HWY_EMU128  // override baseline
+#define HWY_TARGETS HWY_EMU128
+
+// 1b) HWY_SCALAR is less capable than HWY_EMU128 (which supports all ops), but
+// we currently still support it for backwards compatibility.
+#elif defined(HWY_COMPILE_ONLY_SCALAR) || \
+    (defined(HWY_COMPILE_ONLY_EMU128) && HWY_BROKEN_EMU128)
 #undef HWY_STATIC_TARGET
 #define HWY_STATIC_TARGET HWY_SCALAR  // override baseline
 #define HWY_TARGETS HWY_SCALAR

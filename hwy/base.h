@@ -229,7 +229,7 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
 // by concatenating base type and bits.
 
-#if HWY_ARCH_ARM && (__ARM_FP & 2)
+#if HWY_ARCH_ARM_A64 && (__ARM_FP & 2)
 #define HWY_NATIVE_FLOAT16 1
 #else
 #define HWY_NATIVE_FLOAT16 0

@@ -1353,13 +1353,19 @@ as an expression, e.g. `-DHWY_DISABLED_TARGETS=(HWY_SSE4|HWY_AVX3)`.
 Zero or one of the following macros may be defined to replace the default
 policy for selecting `HWY_TARGETS`:
 
-*   `HWY_COMPILE_ONLY_SCALAR` selects only `HWY_SCALAR`, which disables SIMD.
+*   `HWY_COMPILE_ONLY_EMU128` selects only `HWY_EMU128`, which avoids intrinsics
+    but implements all ops using standard C++.
+*   `HWY_COMPILE_ONLY_SCALAR` selects only `HWY_SCALAR`, which implements
+    single-lane-only ops using standard C++.
 *   `HWY_COMPILE_ONLY_STATIC` selects only `HWY_STATIC_TARGET`, which
     effectively disables dynamic dispatch.
 *   `HWY_COMPILE_ALL_ATTAINABLE` selects all attainable targets (i.e. enabled
     and permitted by the compiler, independently of autovectorization), which
-    maximizes coverage in tests. This may also be defined even if one of
-    `HWY_COMPILE_ONLY_*` is, but will then be ignored.
+    maximizes coverage in tests.
+
+At most one `HWY_COMPILE_ONLY_*` may be defined. `HWY_COMPILE_ALL_ATTAINABLE`
+may also be defined even if one of `HWY_COMPILE_ONLY_*` is, but will then be
+ignored.
 
 If none are defined, but `HWY_IS_TEST` is defined, the default is
 `HWY_COMPILE_ALL_ATTAINABLE`. Otherwise, the default is to select all attainable

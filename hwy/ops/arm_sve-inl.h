@@ -1813,12 +1813,24 @@ HWY_API V UpperHalf(const D2 d2, const V v) {
 
 // These return T, whereas the Highway op returns a broadcasted vector.
 namespace detail {
+#define HWY_SVE_REDUCE_ADD(BASE, CHAR, BITS, HALF, NAME, OP)                   \
+  HWY_API HWY_SVE_T(BASE, BITS) NAME(svbool_t pg, HWY_SVE_V(BASE, BITS) v) {   \
+    /* The intrinsic returns [u]int64_t; truncate to T so we can broadcast. */ \
+    using T = HWY_SVE_T(BASE, BITS);                                           \
+    using TU = MakeUnsigned<T>;                                                \
+    constexpr uint64_t kMask = LimitsMax<TU>();                                \
+    return static_cast<T>(static_cast<TU>(                                     \
+        static_cast<uint64_t>(sv##OP##_##CHAR##BITS(pg, v)) & kMask));         \
+  }
+
 #define HWY_SVE_REDUCE(BASE, CHAR, BITS, HALF, NAME, OP)                     \
   HWY_API HWY_SVE_T(BASE, BITS) NAME(svbool_t pg, HWY_SVE_V(BASE, BITS) v) { \
     return sv##OP##_##CHAR##BITS(pg, v);                                     \
   }
 
-HWY_SVE_FOREACH(HWY_SVE_REDUCE, SumOfLanes, addv)
+HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE_ADD, SumOfLanes, addv)
+HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, SumOfLanes, addv)
+
 HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE, MinOfLanes, minv)
 HWY_SVE_FOREACH_UI(HWY_SVE_REDUCE, MaxOfLanes, maxv)
 // NaN if all are
@@ -1826,6 +1838,7 @@ HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MinOfLanes, minnmv)
 HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanes, maxnmv)
 
 #undef HWY_SVE_REDUCE
+#undef HWY_SVE_REDUCE_ADD
 }  // namespace detail
 
 template <class D, class V>
@@ -2800,7 +2813,9 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
 
 // ------------------------------ AESRound / CLMul
 
-#if defined(__ARM_FEATURE_SVE2_AES)
+#if defined(__ARM_FEATURE_SVE2_AES) ||                         \
+    ((HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128) && \
+     HWY_HAVE_RUNTIME_DISPATCH)
 
 // Per-target flag to prevent generic_ops-inl.h from defining AESRound.
 #ifdef HWY_NATIVE_AES

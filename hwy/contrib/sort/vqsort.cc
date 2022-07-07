@@ -42,7 +42,7 @@
 #define VQSORT_GETRANDOM 0
 #endif
 
-#if !defined(VQSORT_GETRANDOM) && (defined(linux) || defined(__linux__))
+#if !defined(VQSORT_GETRANDOM) && HWY_OS_LINUX
 #include <features.h>
 
 // ---- which libc

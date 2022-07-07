@@ -37,7 +37,11 @@
 #else  // !HWY_COMPILER_MSVC
 #include <cpuid.h>
 #endif  // HWY_COMPILER_MSVC
-#endif  // HWY_ARCH_X86
+
+#elif HWY_ARCH_ARM && HWY_OS_LINUX
+#include <asm/hwcap.h>
+#include <sys/auxv.h>
+#endif  // HWY_ARCH_*
 
 namespace hwy {
 namespace {
@@ -282,7 +286,51 @@ uint32_t DetectTargets() {
     fprintf(stderr, "WARNING: CPU supports %zx but software requires %x\n",
             size_t(bits), HWY_ENABLED_BASELINE);
   }
-#else
+
+#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+  using CapBits = unsigned long;  // NOLINT
+  const CapBits hw = getauxval(AT_HWCAP);
+  (void)hw;
+
+#if HWY_ARCH_ARM_A64
+
+#if defined(HWCAP_AES)
+  // aarch64 always has NEON and VFPv4, but not necessarily AES, which we
+  // require and thus must still check for.
+  if (hw & HWCAP_AES) {
+    bits |= HWY_NEON;
+  }
+#endif  // HWCAP_AES
+
+#if defined(HWCAP_SVE)
+  if (hw & HWCAP_SVE) {
+    bits |= HWY_SVE;
+  }
+#endif
+
+#if defined(HWCAP2_SVE2) && defined(HWCAP2_SVEAES)
+  const CapBits hw2 = getauxval(AT_HWCAP2);
+  if ((hw2 & HWCAP2_SVE2) && (hw2 & HWCAP2_SVEAES)) {
+    bits |= HWY_SVE2;
+  }
+#endif
+
+#else  // HWY_ARCH_ARM_A64
+
+// Some old auxv.h / hwcap.h do not define these. If not, treat as unsupported.
+// Note that AES has a different HWCAP bit compared to aarch64.
+#if defined(HWCAP_NEON) && defined(HWCAP_VFPv4)
+  if ((hw & HWCAP_NEON) && (hw & HWCAP_VFPv4)) {
+    bits |= HWY_NEON;
+  }
+#endif
+
+#endif  // HWY_ARCH_ARM_A64
+  if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
+    fprintf(stderr, "WARNING: CPU supports %zx but software requires %x\n",
+            size_t(bits), HWY_ENABLED_BASELINE);
+  }
+#else   // HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
   // TODO(janwas): detect for other platforms and check for baseline
   // This file is typically compiled without HWY_IS_TEST, but targets_test has
   // it set, and will expect all of its HWY_TARGETS (= all attainable) to be

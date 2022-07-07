@@ -19,11 +19,16 @@
 // ARM NEON intrinsics are documented at:
 // https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]
 
-#include <arm_neon.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hwy/base.h"
+#include "hwy/base.h"  // before HWY_DIAGNOSTICS
+
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+#include <arm_neon.h>
+HWY_DIAGNOSTICS(pop)
+
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -4562,7 +4567,8 @@ HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
 
 // ================================================== CRYPTO
 
-#if defined(__ARM_FEATURE_AES)
+#if defined(__ARM_FEATURE_AES) || \
+    (HWY_HAVE_RUNTIME_DISPATCH && HWY_ARCH_ARM_A64)
 
 // Per-target flag to prevent generic_ops-inl.h from defining AESRound.
 #ifdef HWY_NATIVE_AES

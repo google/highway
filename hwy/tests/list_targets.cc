@@ -31,8 +31,41 @@ void PrintTargets(const char* msg, uint32_t targets) {
 }
 
 int main() {
-  PrintTargets("Compiled HWY_TARGETS:", HWY_TARGETS);
-  PrintTargets("HWY_BASELINE_TARGETS:", HWY_BASELINE_TARGETS);
-  PrintTargets("Current CPU supports:", hwy::SupportedTargets());
+#ifdef HWY_COMPILE_ONLY_EMU128
+  const int only_emu128 = 1;
+#else
+  const int only_emu128 = 0;
+#endif
+#ifdef HWY_COMPILE_ONLY_SCALAR
+  const int only_scalar = 1;
+#else
+  const int only_scalar = 0;
+#endif
+#ifdef HWY_COMPILE_ONLY_STATIC
+  const int only_static = 1;
+#else
+  const int only_static = 0;
+#endif
+#ifdef HWY_COMPILE_ALL_ATTAINABLE
+  const int all_attain = 1;
+#else
+  const int all_attain = 0;
+#endif
+#ifdef HWY_IS_TEST
+  const int is_test = 1;
+#else
+  const int is_test = 0;
+#endif
+
+  fprintf(stderr,
+          "Config: emu128:%d scalar%d static%d all_attain%d is_test%d\n",
+          only_emu128, only_scalar, only_static, all_attain, is_test);
+  PrintTargets("Compiled HWY_TARGETS:  ", HWY_TARGETS);
+  PrintTargets("HWY_ATTAINABLE_TARGETS:", HWY_ATTAINABLE_TARGETS);
+  PrintTargets("HWY_BASELINE_TARGETS:  ", HWY_BASELINE_TARGETS);
+  PrintTargets("HWY_STATIC_TARGET:     ", HWY_STATIC_TARGET);
+  PrintTargets("HWY_BROKEN_TARGETS:    ", HWY_BROKEN_TARGETS);
+  PrintTargets("HWY_DISABLED_TARGETS:  ", HWY_DISABLED_TARGETS);
+  PrintTargets("Current CPU supports:  ", hwy::SupportedTargets());
   return 0;
 }

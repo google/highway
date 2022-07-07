@@ -227,7 +227,16 @@
 
 #define HWY_NAMESPACE N_NEON
 
-// HWY_TARGET_STR remains undefined so HWY_ATTR is a no-op.
+// Can use pragmas instead of -march compiler flag
+#if HWY_HAVE_RUNTIME_DISPATCH
+#if HWY_ARCH_ARM_V7
+#define HWY_TARGET_STR "+neon-vfpv4"
+#else
+#define HWY_TARGET_STR "+crypto"
+#endif  // HWY_ARCH_ARM*
+#else
+// HWY_TARGET_STR remains undefined
+#endif
 
 //-----------------------------------------------------------------------------
 // SVE[2]
@@ -264,7 +273,16 @@
 #define HWY_MAX_BYTES 256
 #endif
 
+// Can use pragmas instead of -march compiler flag
+#if HWY_HAVE_RUNTIME_DISPATCH
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+#define HWY_TARGET_STR "+sve2-aes"
+#else
+#define HWY_TARGET_STR "+sve"
+#endif
+#else
 // HWY_TARGET_STR remains undefined
+#endif
 
 //-----------------------------------------------------------------------------
 // WASM

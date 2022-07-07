@@ -182,4 +182,10 @@
 #error "Must not detect more than one architecture"
 #endif
 
+#if defined(linux) || defined(__linux__)
+#define HWY_OS_LINUX 1
+#else
+#define HWY_OS_LINUX 0
+#endif
+
 #endif  // HIGHWAY_HWY_DETECT_COMPILER_ARCH_H_
