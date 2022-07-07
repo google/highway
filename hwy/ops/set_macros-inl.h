@@ -349,7 +349,7 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
-#if defined(__riscv_zfh)
+#if defined(__riscv_zvfh)
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
