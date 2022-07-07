@@ -50,7 +50,7 @@ using detail::OrderAscending;
 using detail::OrderDescending;
 using detail::SharedTraits;
 
-#if HWY_TARGET != HWY_SCALAR
+#if VQSORT_ENABLED || HWY_IDE
 using detail::OrderAscending128;
 using detail::OrderAscendingKV128;
 using detail::OrderDescending128;
@@ -174,6 +174,11 @@ HWY_NOINLINE void BenchAllBase() {
   }
 }
 
+#else
+void BenchAllPartition() {}
+void BenchAllBase() {}
+#endif  // VQSORT_ENABLED
+
 std::vector<Algo> AlgoForBench() {
   return {
 #if HAVE_AVX2SORT
@@ -282,18 +287,12 @@ HWY_NOINLINE void BenchAllSort() {
     // BenchSort<TraitsLane<OrderDescending<uint32_t>>>(num_keys);
     BenchSort<TraitsLane<OrderAscending<uint64_t>>>(num_keys);
 
-#if !HAVE_VXSORT
+#if !HAVE_VXSORT && VQSORT_ENABLED
     BenchSort<Traits128<OrderAscending128>>(num_keys);
     BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
 #endif
   }
 }
-
-#else
-void BenchAllPartition() {}
-void BenchAllBase() {}
-void BenchAllSort() {}
-#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)

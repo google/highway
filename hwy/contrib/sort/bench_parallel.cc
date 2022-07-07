@@ -46,8 +46,6 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace {
 
-#if HWY_TARGET != HWY_SCALAR
-
 class ThreadPool {
  public:
   // Starts the given number of worker threads and blocks until they are ready.
@@ -222,10 +220,6 @@ void BenchParallel() {
     results.back().Print();
   }
 }
-
-#else
-void BenchParallel() {}
-#endif  // HWY_TARGET != HWY_SCALAR
 
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
