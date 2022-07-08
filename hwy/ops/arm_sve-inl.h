@@ -2246,6 +2246,18 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
   (void)mask;
   return v;
 #endif
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+  uint64_t bits = 0;  // predicate reg is 32-bit
+  CopyBytes<4>(&mask, &bits);
+  // Concatenate LSB for upper and lower blocks, pre-scale by 4 for table idx.
+  const size_t offset = ((bits & 1) ? 4 : 0) + ((bits & 0x10000) ? 8 : 0);
+  // See CompressIsPartition. Manually generated; flip halves if mask = [0, 1].
+  alignas(16) static constexpr uint64_t table[4 * 4] = {0, 1, 2, 3, 2, 3, 0, 1,
+                                                        0, 1, 2, 3, 0, 1, 2, 3};
+  const ScalableTag<uint64_t> d;
+  return TableLookupLanes(v, SetTableIndices(d, table + offset));
+#endif
+
   return CompressNot(v, mask);
 }
 
