@@ -1118,12 +1118,8 @@ HWY_API Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
 }
 
 HWY_API Vec1<float> PromoteTo(Sisd<float> /* tag */, const Vec1<float16_t> v) {
-#if HWY_NATIVE_FLOAT16
   uint16_t bits16;
   CopyBytes<2>(&v.raw, &bits16);
-#else
-  const uint16_t bits16 = v.raw.bits;
-#endif
   const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
   const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
   const uint32_t mantissa = bits16 & 0x3FF;
@@ -1161,12 +1157,8 @@ HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
   // Tiny or zero => zero.
   Vec1<float16_t> out;
   if (exp < -24) {
-#if HWY_NATIVE_FLOAT16
     const uint16_t zero = 0;
     CopyBytes<2>(&zero, &out.raw);
-#else
-    out.raw.bits = 0;
-#endif
     return out;
   }
 
@@ -1189,12 +1181,8 @@ HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
   HWY_DASSERT(mantissa16 < 1024);
   const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
   HWY_DASSERT(bits16 < 0x10000);
-#if HWY_NATIVE_FLOAT16
   const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
   CopyBytes<2>(&narrowed, &out.raw);
-#else
-  out.raw.bits = static_cast<uint16_t>(bits16);
-#endif
   return out;
 }
 

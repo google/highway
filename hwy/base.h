@@ -229,23 +229,24 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
 // by concatenating base type and bits.
 
-#if HWY_ARCH_ARM_A64 && (__ARM_FP & 2)
-#define HWY_NATIVE_FLOAT16 1
-#else
-#define HWY_NATIVE_FLOAT16 0
-#endif
-
 #pragma pack(push, 1)
 
-#if HWY_NATIVE_FLOAT16
+// ACLE for aarch64 (https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html),
+// also required for SVE.
+#if (HWY_ARCH_ARM_A64)
 using float16_t = __fp16;
-// Clang does not allow __fp16 arguments, but scalar.h requires LaneType
-// arguments, so use a wrapper.
-// TODO(janwas): replace with _Float16 when that is supported?
-#else
+// Emulate for MSVC or Arm v7 without explicit -mfp16-format or RISC-V GCC or
+// Android (x86) or clang-cl or WebAssembly
+#elif HWY_COMPILER_MSVC || (HWY_ARCH_ARM_V7 && !(__ARM_FP & 2)) ||     \
+    (HWY_ARCH_RVV && HWY_COMPILER_GCC && !HWY_COMPILER_CLANG) ||       \
+    (defined(__ANDROID__) && !HWY_ARCH_ARM) || HWY_COMPILER_CLANGCL || \
+    HWY_ARCH_WASM
 struct float16_t {
   uint16_t bits;
 };
+// Preferred default from ISO/IEC TS 18661-3:2015
+#else
+using float16_t = _Float16;
 #endif
 
 struct bfloat16_t {

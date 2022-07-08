@@ -1463,21 +1463,13 @@ namespace detail {
 
 HWY_INLINE void StoreU16ToF16(const uint16_t val,
                               hwy::float16_t* HWY_RESTRICT to) {
-#if HWY_NATIVE_FLOAT16
   CopyBytes<2>(&val, to);
-#else
-  to->bits = val;
-#endif
 }
 
 HWY_INLINE uint16_t U16FromF16(const hwy::float16_t* HWY_RESTRICT from) {
-#if HWY_NATIVE_FLOAT16
   uint16_t bits16;
   CopyBytes<2>(from, &bits16);
   return bits16;
-#else
-  return from->bits;
-#endif
 }
 
 }  // namespace detail
