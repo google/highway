@@ -2066,7 +2066,8 @@ template <size_t kLanes, class D>
 HWY_INLINE MFromD<D> FirstNPerBlock(D /* tag */) {
   const RebindToUnsigned<D> du;
   const RebindToSigned<D> di;
-  const auto idx_mod = AndS(Iota0(du), LanesPerBlock(du) - 1);
+  using TU = TFromD<decltype(du)>;
+  const auto idx_mod = AndS(Iota0(du), static_cast<TU>(LanesPerBlock(du) - 1));
   return LtS(BitCast(di, idx_mod), static_cast<TFromD<decltype(di)>>(kLanes));
 }
 
@@ -2601,7 +2602,7 @@ HWY_API VI TableLookupBytes(const VT vt, const VI vi) {
   // If the table is shorter, wrap around offsets so they do not reference
   // undefined lanes in the newly extended vmt.
   if (kPow2T < kPow2I) {
-    offsets = detail::AndS(offsets, Lanes(dt8) - 1);
+    offsets = detail::AndS(offsets, static_cast<uint8_t>(Lanes(dt8) - 1));
   }
   const auto out = TableLookupLanes(vmt, Add(vmi, offsets));
   return BitCast(di, detail::ChangeLMUL(di8, out));
@@ -2636,8 +2637,8 @@ HWY_API V ShiftLeftLanes(const D d, const V v) {
   using TI = TFromD<decltype(di)>;
   const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
-  const auto idx_mod =
-      detail::AndS(detail::Iota0(di), detail::LanesPerBlock(di) - 1);
+  const auto idx_mod = detail::AndS(
+      detail::Iota0(di), static_cast<TI>(detail::LanesPerBlock(di) - 1));
   const auto clear = detail::LtS(BitCast(di, idx_mod), static_cast<TI>(kLanes));
   return IfThenZeroElse(clear, shifted);
 }
@@ -2674,7 +2675,8 @@ HWY_API V ShiftRightLanes(const Simd<T, N, kPow2> d, V v) {
   const auto shifted = detail::SlideDown(v, v, kLanes);
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
   const size_t lpb = detail::LanesPerBlock(di);
-  const auto idx_mod = detail::AndS(detail::Iota0(di), lpb - 1);
+  const auto idx_mod =
+      detail::AndS(detail::Iota0(di), static_cast<TI>(lpb - 1));
   const auto keep =
       detail::LtS(BitCast(di, idx_mod), static_cast<TI>(lpb - kLanes));
   return IfThenElseZero(keep, shifted);
@@ -2693,9 +2695,10 @@ template <class D, class V>
 HWY_API V InterleaveLower(D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
   const auto i = detail::Iota0(du);
-  const auto idx_mod =
-      ShiftRight<1>(detail::AndS(i, detail::LanesPerBlock(du) - 1));
+  const auto idx_mod = ShiftRight<1>(
+      detail::AndS(i, static_cast<TU>(detail::LanesPerBlock(du) - 1)));
   const auto idx = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
   const auto is_even = detail::EqS(detail::AndS(i, 1), 0u);
   return IfThenElse(is_even, TableLookupLanes(a, idx),
@@ -2713,11 +2716,12 @@ template <class D, class V>
 HWY_API V InterleaveUpper(const D d, const V a, const V b) {
   static_assert(IsSame<TFromD<D>, TFromV<V>>(), "D/V mismatch");
   const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
   const size_t lpb = detail::LanesPerBlock(du);
   const auto i = detail::Iota0(du);
-  const auto idx_mod = ShiftRight<1>(detail::AndS(i, lpb - 1));
+  const auto idx_mod = ShiftRight<1>(detail::AndS(i, static_cast<TU>(lpb - 1)));
   const auto idx_lower = Add(idx_mod, detail::OffsetsOf128BitBlocks(d, i));
-  const auto idx = detail::AddS(idx_lower, lpb / 2);
+  const auto idx = detail::AddS(idx_lower, static_cast<TU>(lpb / 2));
   const auto is_even = detail::EqS(detail::AndS(i, 1), 0u);
   return IfThenElse(is_even, TableLookupLanes(a, idx),
                     TableLookupLanes(b, idx));
@@ -2818,11 +2822,12 @@ HWY_API V PopulationCount(V v) {
 
 // ------------------------------ LoadDup128
 
-template <class D>
-HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadDup128(D d, const T* const HWY_RESTRICT p) {
   const auto loaded = Load(d, p);
   // Broadcast the first block
-  const auto idx = detail::AndS(detail::Iota0(d), detail::LanesPerBlock(d) - 1);
+  const auto idx = detail::AndS(detail::Iota0(d),
+                                static_cast<T>(detail::LanesPerBlock(d) - 1));
   return TableLookupLanes(loaded, idx);
 }
 

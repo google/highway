@@ -44,7 +44,8 @@ struct TestLeftShifts {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
 
-    const auto values = Iota(d, kSigned ? -TI(N) : TI(0));  // value to shift
+    // Values to shift
+    const auto values = Iota(d, static_cast<T>(kSigned ? -TI(N) : TI(0)));
     constexpr size_t kMaxShift = (sizeof(T) * 8) - 1;
 
     // 0
