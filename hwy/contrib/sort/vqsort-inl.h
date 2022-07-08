@@ -29,7 +29,7 @@
 
 #include <string.h>  // memcpy
 
-#include "hwy/cache_control.h"  // Prefetch
+#include "hwy/cache_control.h"        // Prefetch
 #include "hwy/contrib/sort/vqsort.h"  // Fill24Bytes
 
 #if HWY_IS_MSAN
@@ -226,11 +226,12 @@ HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
 template <class D, class Traits, typename T>
 HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
                                const Vec<D> pivot, T* HWY_RESTRICT keys,
-                               size_t& writeL, size_t& writeR) {
+                               size_t& writeL, size_t& remaining) {
   const size_t N = Lanes(d);
 
   const auto comp = st.Compare(d, pivot, v);
 
+  remaining -= N;
   if (hwy::HWY_NAMESPACE::CompressIsPartition<T>::value ||
       (HWY_MAX_BYTES == 16 && st.Is128())) {
     // Non-native Compress (e.g. AVX2): we are able to partition a vector using
@@ -240,22 +241,19 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
     // by subsequent calls. This works because writeL and writeR are at least
     // two vectors apart.
     const auto lr = st.CompressKeys(v, comp);
-    const size_t num_right = CountTrue(d, comp);
-    const size_t num_left = N - num_right;
+    const size_t num_left = N - CountTrue(d, comp);
     StoreU(lr, d, keys + writeL);
-    writeL += num_left;
     // Now write the right-side elements (if any), such that the previous writeR
     // is one past the end of the newly written right elements, then advance.
-    StoreU(lr, d, keys + writeR - N);
-    writeR -= num_right;
+    StoreU(lr, d, keys + remaining + writeL);
+    writeL += num_left;
   } else {
     // Native Compress[Store] (e.g. AVX3), which only keep the left or right
     // side, not both, hence we require two calls.
     const size_t num_left = CompressStore(v, Not(comp), d, keys + writeL);
     writeL += num_left;
 
-    writeR -= (N - num_left);
-    (void)CompressBlendedStore(v, comp, d, keys + writeR);
+    (void)CompressBlendedStore(v, comp, d, keys + remaining + writeL);
   }
 }
 
@@ -264,11 +262,11 @@ HWY_INLINE void StoreLeftRight4(D d, Traits st, const Vec<D> v0,
                                 const Vec<D> v1, const Vec<D> v2,
                                 const Vec<D> v3, const Vec<D> pivot,
                                 T* HWY_RESTRICT keys, size_t& writeL,
-                                size_t& writeR) {
-  StoreLeftRight(d, st, v0, pivot, keys, writeL, writeR);
-  StoreLeftRight(d, st, v1, pivot, keys, writeL, writeR);
-  StoreLeftRight(d, st, v2, pivot, keys, writeL, writeR);
-  StoreLeftRight(d, st, v3, pivot, keys, writeL, writeR);
+                                size_t& remaining) {
+  StoreLeftRight(d, st, v0, pivot, keys, writeL, remaining);
+  StoreLeftRight(d, st, v1, pivot, keys, writeL, remaining);
+  StoreLeftRight(d, st, v2, pivot, keys, writeL, remaining);
+  StoreLeftRight(d, st, v3, pivot, keys, writeL, remaining);
 }
 
 // Moves "<= pivot" keys to the front, and others to the back. pivot is
@@ -293,9 +291,39 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
   PartitionToMultipleOfUnroll(d, st, keys, left, right, pivot, buf);
   constexpr size_t kUnroll = Constants::kPartitionUnroll;
 
-  // Invariant: [left, writeL) and [writeR, right) are already partitioned.
+  // Partition splits the vector into 3 sections, left to right: Elements
+  // smaller or equal to the pivot, unpartitioned elements and elements larger 
+  // than the pivot. To write elements unconditionally on the loop body without
+  // overwriting existing data, we maintain two regions of the loop where all
+  // elements have been copied elsewhere (e.g. vector registers.). I call these
+  // bufferL and bufferR, for left and right respectively.
+  //
+  // These regions are tracked by the indices (writeL, writeR, left, right) as
+  // presented in the diagram below.
+  //
+  //              writeL                                  writeR
+  //               \/                                       \/
+  //  |  <= pivot   | bufferL |   unpartitioned   | bufferR |   > pivot   |
+  //                          \/                  \/
+  //                         left                 right
+  //
+  // In the main loop body below we choose a side, load some elements out of the
+  // vector and move either `left` or `right`. Next we call into StoreLeftRight
+  // to partition the data, and the partitioned elements will be written either
+  // to writeR or writeL and the corresponding index will be moved accordingly.
+  //
+  // Note that writeR is not explicitly tracked as an optimization for platforms
+  // with conditional operations. Instead we track writeL and the number of
+  // elements left to process (`remaining`). From the diagram above we can see
+  // that:
+  //    writeR - writeL = remaining => writeR = remaining + writeL
+  //
+  // Tracking `remaining` is advantageous because each iteration reduces the
+  // number of unpartitioned elements by a fixed amount, so we can compute
+  // `remaining` without data dependencies.
+  //
   size_t writeL = left;
-  size_t writeR = right;
+  size_t remaining = right - left;
 
   const size_t num = right - left;
   // Cannot load if there were fewer than 2 * kUnroll * N.
@@ -319,12 +347,33 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
     while (left != right) {
       V v0, v1, v2, v3;
 
-      // Free up capacity for writing by loading from the side that has less.
       // Data-dependent but branching is faster than forcing branch-free.
       const size_t capacityL = left - writeL;
-      const size_t capacityR = writeR - right;
-      HWY_DASSERT(capacityL <= num && capacityR <= num);  // >= 0
-      if (capacityR < capacityL) {
+      HWY_DASSERT(capacityL <= num);  // >= 0
+      // Load data from the end of the vector with less data (front or back).
+      // The next paragraphs explain how this works.
+      //
+      // let block_size = (kUnroll * N)
+      // On the loop prelude we load block_size elements from the front of the
+      // vector and an additional block_size elements from the back. On each
+      // iteration k elements are written to the front of the vector and
+      // (block_size - k) to the back.
+      //
+      // This creates a loop invariant where the capacity on the front
+      // (capacityL) and on the back (capacityR) always add to 2 * block_size.
+      // In other words:
+      //    capacityL + capacityR = 2 * block_size
+      //    capacityR = 2 * block_size - capacityL
+      //
+      // This means that:
+      //    capacityL < capacityR <=>
+      //    capacityL < 2 * block_size - capacityL <=>
+      //    2 * capacityL < 2 * block_size <=>
+      //    capacityL < block_size
+      //
+      // Thus the check on the next line is equivalent to capacityL > capacityR.
+      //
+      if (kUnroll * N < capacityL) {
         right -= kUnroll * N;
         v0 = LoadU(d, keys + right + 0 * N);
         v1 = LoadU(d, keys + right + 1 * N);
@@ -340,16 +389,16 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
         hwy::Prefetch(keys + left + 3 * kUnroll * N);
       }
 
-      StoreLeftRight4(d, st, v0, v1, v2, v3, pivot, keys, writeL, writeR);
+      StoreLeftRight4(d, st, v0, v1, v2, v3, pivot, keys, writeL, remaining);
     }
 
     // Now finish writing the initial left/right to the middle.
-    StoreLeftRight4(d, st, vL0, vL1, vL2, vL3, pivot, keys, writeL, writeR);
-    StoreLeftRight4(d, st, vR0, vR1, vR2, vR3, pivot, keys, writeL, writeR);
+    StoreLeftRight4(d, st, vL0, vL1, vL2, vL3, pivot, keys, writeL, remaining);
+    StoreLeftRight4(d, st, vR0, vR1, vR2, vR3, pivot, keys, writeL, remaining);
   }
 
   // We have partitioned [left, right) such that writeL is the boundary.
-  HWY_DASSERT(writeL == writeR);
+  HWY_DASSERT(remaining == 0);
   // Make space for inserting vlast: move up to N of the first right-side keys
   // into the unused space starting at last. If we have fewer, ensure they are
   // the last items in that vector by subtracting from the *load* address,
