@@ -20,10 +20,19 @@
 // WARNING: most operations do not cross 128-bit block boundaries. In
 // particular, "Broadcast", pack and zip behavior may be surprising.
 
+// Must come before HWY_DIAGNOSTICS and HWY_COMPILER_CLANGCL
+#include "hwy/base.h"
+
+// Avoid uninitialized warnings in GCC's avx512fintrin.h - see
+// https://github.com/google/highway/issues/710)
+HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
+#endif
+
 // Must come before HWY_COMPILER_CLANGCL
 #include <immintrin.h>  // AVX2+
-
-#include "hwy/base.h"
 
 #if HWY_COMPILER_CLANGCL
 // Including <immintrin.h> should be enough, but Clang's headers helpfully skip
@@ -5385,3 +5394,7 @@ HWY_API Vec256<T> MaxOfLanes(Full256<T> d, const Vec256<T> vHL) {
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
+
+// Note that the GCC warnings are not suppressed if we only wrap the *intrin.h -
+// the warning seems to be issued at the call site of intrinsics, i.e. our code.
+HWY_DIAGNOSTICS(pop)
