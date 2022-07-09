@@ -238,7 +238,7 @@ using float16_t = __fp16;
 // Emulate for MSVC or Arm v7 without explicit -mfp16-format or RISC-V GCC or
 // Android (x86) or clang-cl or WebAssembly
 #elif HWY_COMPILER_MSVC || (HWY_ARCH_ARM_V7 && !(__ARM_FP & 2)) ||     \
-    (HWY_ARCH_RVV && HWY_COMPILER_GCC && !HWY_COMPILER_CLANG) ||       \
+    (!HWY_ARCH_RVV && HWY_COMPILER_GCC && !HWY_COMPILER_CLANG) ||       \
     (defined(__ANDROID__) && !HWY_ARCH_ARM) || HWY_COMPILER_CLANGCL || \
     HWY_ARCH_WASM
 struct float16_t {
