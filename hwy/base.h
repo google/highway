@@ -231,22 +231,19 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 
 #pragma pack(push, 1)
 
-// ACLE for aarch64 (https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html),
-// also required for SVE.
-#if (HWY_ARCH_ARM_A64)
+// ACLE (https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html):
+// always supported on aarch64, for v7 only if -mfp16-format is given.
+#if ((HWY_ARCH_ARM_A64 || (__ARM_FP & 2)) && HWY_COMPILER_GCC)
 using float16_t = __fp16;
-// Emulate for MSVC or Arm v7 without explicit -mfp16-format or RISC-V GCC or
-// Android (x86) or clang-cl or WebAssembly
-#elif HWY_COMPILER_MSVC || (HWY_ARCH_ARM_V7 && !(__ARM_FP & 2)) ||     \
-    (HWY_ARCH_RVV && HWY_COMPILER_GCC && !HWY_COMPILER_CLANG) ||       \
-    (defined(__ANDROID__) && !HWY_ARCH_ARM) || HWY_COMPILER_CLANGCL || \
-    HWY_ARCH_WASM
+// C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
+// Required for Clang RVV if the float16 extension is used.
+#elif HWY_ARCH_RVV && HWY_COMPILER_CLANG && defined(__riscv_zvfh)
+using float16_t = _Float16;
+// Otherwise emulate
+#else
 struct float16_t {
   uint16_t bits;
 };
-// Preferred default from ISO/IEC TS 18661-3:2015
-#else
-using float16_t = _Float16;
 #endif
 
 struct bfloat16_t {
