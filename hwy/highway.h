@@ -40,7 +40,7 @@ namespace hwy {
 // registers in the group, and is ignored on targets that do not support groups.
 #define HWY_FULL1(T) hwy::HWY_NAMESPACE::ScalableTag<T>
 #define HWY_FULL2(T, LMUL) \
-  hwy::HWY_NAMESPACE::ScalableTag<T, CeilLog2(HWY_MAX(0, LMUL))>
+  hwy::HWY_NAMESPACE::ScalableTag<T, hwy::CeilLog2(HWY_MAX(0, LMUL))>
 #define HWY_3TH_ARG(arg1, arg2, arg3, ...) arg3
 // Workaround for MSVC grouping __VA_ARGS__ into a single argument
 #define HWY_FULL_RECOMPOSER(args_with_paren) HWY_3TH_ARG args_with_paren
