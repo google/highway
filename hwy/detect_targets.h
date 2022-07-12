@@ -435,7 +435,7 @@
 // 4) Default: attainable WITHOUT non-best baseline. This reduces code size by
 // excluding superseded targets, in particular scalar.
 #else
-#define HWY_TARGETS (HWY_ATTAINABLE_TARGETS & (2 * HWY_STATIC_TARGET - 1))
+#define HWY_TARGETS (HWY_ATTAINABLE_TARGETS & (2ULL * HWY_STATIC_TARGET - 1))
 
 #endif  // target policy
 
