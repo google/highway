@@ -262,9 +262,10 @@ code, in descending order of preference:
 -   `using hwy::HWY_NAMESPACE;` directive. This is generally discouraged,
     especially for SIMD code residing in a header.
 
-Note that overloaded operators are not yet supported on RVV and SVE; code that
-wishes to run on all targets until that is resolved can use the corresponding
-equivalents functions such as `Eq`, `Lt`, `Add`, `Div` etc.
+Note that overloaded operators are not yet supported on RVV and SVE. Until that
+is resolved, code that wishes to run on all targets must use the corresponding
+equivalents mentioned in the description of each overloaded operator, for
+example `Lt` instead of `operator<`.
 
 ### Initialization
 
