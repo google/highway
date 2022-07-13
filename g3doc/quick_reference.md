@@ -103,9 +103,22 @@ of type `D` and return an actual vector of unspecified type.
 The actual lane count (used to increment loop counters etc.) can be obtained via
 `Lanes(d)`. This value might not be known at compile time, thus storage for
 vectors should be dynamically allocated, e.g. via `AllocateAligned(Lanes(d))`.
-Note that `Lanes(d)` could potentially change at runtime, upon user request via
-special CPU instructions. Thus we discourage caching the result; it is typically
-used inside a function or basic block.
+
+Note that `Lanes(d)` could potentially change at runtime. This is currently
+unlikely, and will not be initiated by Highway without user action, but could
+still happen in other circumstances:
+
+*   upon user request in future via special CPU instructions (switching to
+    'streaming SVE' mode for Arm SME), or
+*   via system software (`prctl(PR_SVE_SET_VL` on Linux for Arm SVE). When the
+    vector length is changed using this mechanism, all but the lower 128 bits of
+    vector registers are invalidated.
+
+Thus we discourage caching the result; it is typically used inside a function or
+basic block. If the application anticipates that one of the above circumstances
+could happen, it should ensure by some out-of-band mechanism that such changes
+will not happen during the critical section (the vector code which uses the
+result of the previously obtained `Lanes(d)`).
 
 `MaxLanes(d)` returns a (potentially loose) upper bound on `Lanes(d)`, and is
 implemented as a constexpr function.
@@ -1312,10 +1325,11 @@ are DEPRECATED:
 
 ## Detecting supported targets
 
-`SupportedTargets()` returns a cached (initialized on-demand) bitfield of the
-targets supported on the current CPU, detected using CPUID on x86 or equivalent.
-This may include targets that are not in `HWY_TARGETS`, and vice versa. If
-there is no overlap the binary will likely crash. This can only happen if:
+`SupportedTargets()` returns a non-cached (re-initialized on each call) bitfield
+of the targets supported on the current CPU, detected using CPUID on x86 or
+equivalent. This may include targets that are not in `HWY_TARGETS`, and vice
+versa. If there is no overlap the binary will likely crash. This can only happen
+if:
 
 *   the specified baseline is not supported by the current CPU, which
     contradicts the definition of baseline, so the configuration is invalid; or
