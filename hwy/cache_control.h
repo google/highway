@@ -77,7 +77,7 @@ template <typename T>
 HWY_INLINE HWY_ATTR_CACHE void Prefetch(const T* p) {
 #if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
   _mm_prefetch(reinterpret_cast<const char*>(p), _MM_HINT_T0);
-#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+#elif HWY_COMPILER_GCC  // includes clang
   // Hint=0 (NTA) behavior differs, but skipping outer caches is probably not
   // desirable, so use the default 3 (keep in caches).
   __builtin_prefetch(p, /*write=*/0, /*hint=*/3);

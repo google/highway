@@ -804,7 +804,7 @@ HWY_API Vec128<double, N> IfThenZeroElse(Mask128<double, N> mask,
 
 // For Clang and GCC, mask intrinsics (KORTEST) weren't added until recently.
 #if !defined(HWY_COMPILER_HAS_MASK_INTRINSICS)
-#if HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC >= 700 || \
+#if HWY_COMPILER_MSVC != 0 || HWY_COMPILER_GCC_ACTUAL >= 700 || \
     HWY_COMPILER_CLANG >= 800
 #define HWY_COMPILER_HAS_MASK_INTRINSICS 1
 #else
@@ -5435,7 +5435,7 @@ HWY_INLINE auto FixConversionOverflow(DI di, VFromD<DF> original,
   //   ++: normal >0                       : OK
   const auto converted = VFromD<DI>{converted_raw};
   const auto sign_wrong = AndNot(BitCast(di, original), converted);
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+#if HWY_COMPILER_GCC_ACTUAL
   // Critical GCC 11 compiler bug (possibly also GCC 10): omits the Xor; also
   // Add() if using that instead. Work around with one more instruction.
   const RebindToUnsigned<DI> du;

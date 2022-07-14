@@ -145,8 +145,8 @@
 #define HWY_BROKEN_TARGETS (HWY_NEON)
 
 // SVE[2] require recent clang or gcc versions.
-#elif (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) ||\
-(!HWY_COMPILER_CLANG && HWY_COMPILER_GCC && HWY_COMPILER_GCC < 1000)
+#elif (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000)
 #define HWY_BROKEN_TARGETS (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
 
 #else
@@ -165,8 +165,7 @@
 // be enabled. If 1, we instead choose HWY_SCALAR even without
 // HWY_COMPILE_ONLY_SCALAR being set.
 #if !defined(HWY_BROKEN_EMU128)  // allow overriding
-#if HWY_ARCH_ARM_V7 && HWY_COMPILER_GCC && HWY_COMPILER_GCC < 1140 && \
-    !HWY_COMPILER_CLANG
+#if HWY_ARCH_ARM_V7 && HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1140
 #define HWY_BROKEN_EMU128 1
 #else
 #define HWY_BROKEN_EMU128 0
@@ -231,7 +230,7 @@
 #endif
 
 // Special handling for MSVC because it has fewer predefined macros:
-#if HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG
+#if HWY_COMPILER_MSVC
 
 // 1) We can only be sure SSSE3/SSE4 are enabled if AVX is:
 //    https://stackoverflow.com/questions/18563978/.
@@ -365,8 +364,7 @@
 
 // x86 compilers generally allow runtime dispatch. On Arm, currently only GCC
 // does, and we require Linux to detect CPU capabilities.
-#if HWY_ARCH_X86 || \
-    (HWY_ARCH_ARM && HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && HWY_OS_LINUX)
+#if HWY_ARCH_X86 || (HWY_ARCH_ARM && HWY_COMPILER_GCC_ACTUAL && HWY_OS_LINUX)
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0

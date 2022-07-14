@@ -739,7 +739,7 @@ HWY_API size_t Num0BitsAboveMS1Bit_Nonzero64(const uint64_t x) {
 }
 
 HWY_API size_t PopCount(uint64_t x) {
-#if HWY_COMPILER_CLANG || HWY_COMPILER_GCC
+#if HWY_COMPILER_GCC  // includes clang
   return static_cast<size_t>(__builtin_popcountll(x));
   // This instruction has a separate feature flag, but is often called from
   // non-SIMD code, so we don't want to require dynamic dispatch. It was first

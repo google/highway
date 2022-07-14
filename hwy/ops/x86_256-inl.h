@@ -26,7 +26,7 @@
 // Avoid uninitialized warnings in GCC's avx512fintrin.h - see
 // https://github.com/google/highway/issues/710)
 HWY_DIAGNOSTICS(push)
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+#if HWY_COMPILER_GCC_ACTUAL
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #endif
@@ -2215,7 +2215,7 @@ HWY_API Vec256<double> MaskedLoad(Mask256<double> m, Full256<double> d,
 // 3-cycle cost of moving data between 128-bit halves and avoids port 5.
 template <typename T>
 HWY_API Vec256<T> LoadDup128(Full256<T> /* tag */, const T* HWY_RESTRICT p) {
-#if HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG && HWY_COMPILER_MSVC < 1931
+#if HWY_COMPILER_MSVC && HWY_COMPILER_MSVC < 1931
   // Workaround for incorrect results with _mm256_broadcastsi128_si256. Note
   // that MSVC also lacks _mm256_zextsi128_si256, but cast (which leaves the
   // upper half undefined) is fine because we're overwriting that anyway.
@@ -2230,7 +2230,7 @@ HWY_API Vec256<T> LoadDup128(Full256<T> /* tag */, const T* HWY_RESTRICT p) {
 }
 HWY_API Vec256<float> LoadDup128(Full256<float> /* tag */,
                                  const float* const HWY_RESTRICT p) {
-#if HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG && HWY_COMPILER_MSVC < 1931
+#if HWY_COMPILER_MSVC && HWY_COMPILER_MSVC < 1931
   const __m128 v128 = LoadU(Full128<float>(), p).raw;
   return Vec256<float>{
       _mm256_insertf128_ps(_mm256_castps128_ps256(v128), v128, 1)};
@@ -2240,7 +2240,7 @@ HWY_API Vec256<float> LoadDup128(Full256<float> /* tag */,
 }
 HWY_API Vec256<double> LoadDup128(Full256<double> /* tag */,
                                   const double* const HWY_RESTRICT p) {
-#if HWY_COMPILER_MSVC && !HWY_COMPILER_CLANG && HWY_COMPILER_MSVC < 1931
+#if HWY_COMPILER_MSVC && HWY_COMPILER_MSVC < 1931
   const __m128d v128 = LoadU(Full128<double>(), p).raw;
   return Vec256<double>{
       _mm256_insertf128_pd(_mm256_castpd128_pd256(v128), v128, 1)};
@@ -2656,7 +2656,7 @@ HWY_API T GetLane(const Vec256<T> v) {
 #if !defined(HWY_HAVE_ZEXT)
 #if (HWY_COMPILER_MSVC && HWY_COMPILER_MSVC >= 1915) ||  \
     (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 500) || \
-    (!HWY_COMPILER_CLANG && HWY_COMPILER_GCC && HWY_COMPILER_GCC >= 1000)
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1000)
 #define HWY_HAVE_ZEXT 1
 #else
 #define HWY_HAVE_ZEXT 0

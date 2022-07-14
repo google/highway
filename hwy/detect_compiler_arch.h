@@ -30,9 +30,8 @@
 //------------------------------------------------------------------------------
 // Compiler
 
-// clang-cl defines _MSC_VER but doesn't behave like MSVC in other aspects like
-// used in HWY_DIAGNOSTICS(). We include a check that we are not clang for that
-// purpose.
+// Actual MSVC, not clang-cl, which defines _MSC_VER but doesn't behave like
+// MSVC in other aspects (e.g. HWY_DIAGNOSTICS).
 #if defined(_MSC_VER) && !defined(__clang__)
 #define HWY_COMPILER_MSVC _MSC_VER
 #else
@@ -59,7 +58,7 @@
 #define HWY_COMPILER_GCC 0
 #endif
 
-// Clang can masquerade as MSVC/GCC, in which case both are set.
+// Clang or clang-cl, not GCC.
 #ifdef __clang__
 #ifdef __APPLE__
 // Apple LLVM version is unrelated to the actual Clang version, which we need
@@ -88,10 +87,23 @@
 #define HWY_COMPILER_CLANG 0
 #endif
 
+#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+#define HWY_COMPILER_GCC_ACTUAL HWY_COMPILER_GCC
+#else
+#define HWY_COMPILER_GCC_ACTUAL 0
+#endif
+
 // More than one may be nonzero, but we want at least one.
-#if !HWY_COMPILER_MSVC && !HWY_COMPILER_CLANGCL && !HWY_COMPILER_ICC && \
-    !HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+#if 0 == (HWY_COMPILER_MSVC + HWY_COMPILER_CLANGCL + HWY_COMPILER_ICC + \
+          HWY_COMPILER_GCC + HWY_COMPILER_CLANG)
 #error "Unsupported compiler"
+#endif
+
+// We should only detect one of these (only clang/clangcl overlap)
+#if 1 <                                                                     \
+    (!!HWY_COMPILER_MSVC + !!HWY_COMPILER_ICC + !!HWY_COMPILER_GCC_ACTUAL + \
+     !!(HWY_COMPILER_CLANGCL | HWY_COMPILER_CLANG))
+#error "Detected multiple compilers"
 #endif
 
 #ifdef __has_builtin
@@ -190,6 +202,12 @@
 #if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_ARM_OLD + \
      HWY_ARCH_WASM + HWY_ARCH_RVV) > 1
 #error "Must not detect more than one architecture"
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+#define HWY_OS_WIN 1
+#else
+#define HWY_OS_WIN 0
 #endif
 
 #if defined(linux) || defined(__linux__)

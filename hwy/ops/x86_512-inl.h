@@ -25,7 +25,7 @@
 // Avoid uninitialized warnings in GCC's avx512fintrin.h - see
 // https://github.com/google/highway/issues/710)
 HWY_DIAGNOSTICS(push)
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG
+#if HWY_COMPILER_GCC_ACTUAL
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #endif

@@ -297,8 +297,7 @@ HWY_INLINE HWY_MAYBE_UNUSED size_t Lanes(Simd<T, N, kPow2>) {
 // We therefore pass by const& only on GCC and (Windows or ARM64). This alias
 // must be used for all vector/mask parameters of functions marked HWY_NOINLINE,
 // and possibly also other functions that are not inlined.
-#if HWY_COMPILER_GCC && !HWY_COMPILER_CLANG && \
-    ((defined(_WIN32) || defined(_WIN64)) || HWY_ARCH_ARM_A64)
+#if HWY_COMPILER_GCC_ACTUAL && (HWY_OS_WIN || HWY_ARCH_ARM_A64)
 template <class V>
 using VecArg = const V&;
 #else
