@@ -57,7 +57,11 @@ void CallFunctionForTarget(uint32_t target, int line) {
   // also calls the right function.
   hwy::GetChosenTarget().DeInit();
 
+#if HWY_DISPATCH_WORKAROUND
+  EXPECT_EQ(HWY_STATIC_TARGET, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+#else
   EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+#endif
 
   // Second call uses the cached value from the previous call.
   EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
