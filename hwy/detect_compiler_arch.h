@@ -60,11 +60,15 @@
 
 // Clang or clang-cl, not GCC.
 #ifdef __clang__
-#ifdef __APPLE__
-// Apple LLVM version is unrelated to the actual Clang version, which we need
-// for enabling workarounds. Use the presence of warning flags to deduce it.
+// In case of Apple LLVM (whose version number is unrelated to that of LLVM) or
+// an invalid version number, deduce it from the presence of warnings.
 // Adapted from https://github.com/simd-everywhere/simde/ simde-detect-clang.h.
-#if __has_warning("-Wformat-insufficient-args")
+#if defined(__APPLE__) || __clang_major__ >= 999
+#if __has_warning("-Wbitwise-instead-of-logical")
+#define HWY_COMPILER_CLANG 1400
+#elif __has_warning("-Wreserved-identifier")
+#define HWY_COMPILER_CLANG 1300
+#elif __has_warning("-Wformat-insufficient-args")
 #define HWY_COMPILER_CLANG 1200
 #elif __has_warning("-Wimplicit-const-int-float-conversion")
 #define HWY_COMPILER_CLANG 1100
@@ -80,7 +84,7 @@
 #else  // Anything older than 7.0 is not recommended for Highway.
 #define HWY_COMPILER_CLANG 600
 #endif  // __has_warning chain
-#else   // Non-Apple: normal version
+#else   // use normal version
 #define HWY_COMPILER_CLANG (__clang_major__ * 100 + __clang_minor__)
 #endif
 #else  // Not clang
