@@ -248,25 +248,54 @@ struct TestZipLower {
     const auto even = Load(d, even_lanes.get());
     const auto odd = Load(d, odd_lanes.get());
 
+    const Repartition<WideT, D> dw;
+#if HWY_TARGET == HWY_SCALAR
+    // Safely handle big-endian
+    const auto expected = Set(dw, static_cast<WideT>(1ULL << (sizeof(T) * 8)));
+#else
     const size_t blockN = HWY_MIN(size_t(16) / sizeof(T), N);
-
     for (size_t i = 0; i < N; i += 2) {
       const size_t base = (i / blockN) * blockN;
       const size_t mod = i % blockN;
       zip_lanes[i + 0] = even_lanes[mod / 2 + base];
       zip_lanes[i + 1] = odd_lanes[mod / 2 + base];
     }
-    const Repartition<WideT, D> dw;
     const auto expected =
         Load(dw, reinterpret_cast<const WideT*>(zip_lanes.get()));
+#endif  // HWY_TARGET == HWY_SCALAR
     HWY_ASSERT_VEC_EQ(dw, expected, ZipLower(even, odd));
     HWY_ASSERT_VEC_EQ(dw, expected, ZipLower(dw, even, odd));
   }
 };
 
+HWY_NOINLINE void TestAllZipLower() {
+  const ForDemoteVectors<TestZipLower> lower_unsigned;
+  lower_unsigned(uint8_t());
+  lower_unsigned(uint16_t());
+#if HWY_HAVE_INTEGER64
+  lower_unsigned(uint32_t());  // generates u64
+#endif
+
+  const ForDemoteVectors<TestZipLower> lower_signed;
+  lower_signed(int8_t());
+  lower_signed(int16_t());
+#if HWY_HAVE_INTEGER64
+  lower_signed(int32_t());  // generates i64
+#endif
+
+  // No float - concatenating f32 does not result in a f64
+}
+
+// Remove this test (so it does not show as having run) if the only target is
+// HWY_SCALAR, which does not support this op.
+#if HWY_TARGETS != HWY_SCALAR
+
 struct TestZipUpper {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET == HWY_SCALAR
+    (void)d;
+#else
     using WideT = MakeWide<T>;
     static_assert(sizeof(T) * 2 == sizeof(WideT), "Must be double-width");
     static_assert(IsSigned<T>() == IsSigned<WideT>(), "Must have same sign");
@@ -295,24 +324,11 @@ struct TestZipUpper {
     const auto expected =
         Load(dw, reinterpret_cast<const WideT*>(zip_lanes.get()));
     HWY_ASSERT_VEC_EQ(dw, expected, ZipUpper(dw, even, odd));
+#endif  // HWY_TARGET == HWY_SCALAR
   }
 };
 
-HWY_NOINLINE void TestAllZip() {
-  const ForDemoteVectors<TestZipLower> lower_unsigned;
-  lower_unsigned(uint8_t());
-  lower_unsigned(uint16_t());
-#if HWY_HAVE_INTEGER64
-  lower_unsigned(uint32_t());  // generates u64
-#endif
-
-  const ForDemoteVectors<TestZipLower> lower_signed;
-  lower_signed(int8_t());
-  lower_signed(int16_t());
-#if HWY_HAVE_INTEGER64
-  lower_signed(int32_t());  // generates i64
-#endif
-
+HWY_NOINLINE void TestAllZipUpper() {
   const ForShrinkableVectors<TestZipUpper> upper_unsigned;
   upper_unsigned(uint8_t());
   upper_unsigned(uint16_t());
@@ -329,6 +345,8 @@ HWY_NOINLINE void TestAllZip() {
 
   // No float - concatenating f32 does not result in a f64
 }
+
+#endif  // HWY_TARGETS != HWY_SCALAR
 
 class TestSpecialShuffle32 {
  public:
@@ -424,7 +442,10 @@ HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllBroadcast);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytesSame);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllTableLookupBytesMixed);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllInterleave);
-HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZip);
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZipLower);
+#if HWY_TARGETS != HWY_SCALAR
+HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZipUpper);
+#endif
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllSpecialShuffles);
 }  // namespace hwy
 
