@@ -2943,8 +2943,6 @@ HWY_INLINE svuint64_t Max128Upper(D d, const svuint64_t a, const svuint64_t b) {
 namespace detail {  // for code folding
 #undef HWY_IF_FLOAT_V
 #undef HWY_IF_LANE_SIZE_V
-#undef HWY_IF_SIGNED_V
-#undef HWY_IF_UNSIGNED_V
 #undef HWY_SVE_ALL_PTRUE
 #undef HWY_SVE_D
 #undef HWY_SVE_FOREACH

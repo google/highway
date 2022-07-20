@@ -379,12 +379,16 @@ struct Relations<uint8_t> {
   using Unsigned = uint8_t;
   using Signed = int8_t;
   using Wide = uint16_t;
+  enum { is_signed = 0 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<int8_t> {
   using Unsigned = uint8_t;
   using Signed = int8_t;
   using Wide = int16_t;
+  enum { is_signed = 1 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<uint16_t> {
@@ -392,6 +396,8 @@ struct Relations<uint16_t> {
   using Signed = int16_t;
   using Wide = uint32_t;
   using Narrow = uint8_t;
+  enum { is_signed = 0 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<int16_t> {
@@ -399,6 +405,8 @@ struct Relations<int16_t> {
   using Signed = int16_t;
   using Wide = int32_t;
   using Narrow = int8_t;
+  enum { is_signed = 1 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<uint32_t> {
@@ -407,6 +415,8 @@ struct Relations<uint32_t> {
   using Float = float;
   using Wide = uint64_t;
   using Narrow = uint16_t;
+  enum { is_signed = 0 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<int32_t> {
@@ -415,6 +425,8 @@ struct Relations<int32_t> {
   using Float = float;
   using Wide = int64_t;
   using Narrow = int16_t;
+  enum { is_signed = 1 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<uint64_t> {
@@ -423,6 +435,8 @@ struct Relations<uint64_t> {
   using Float = double;
   using Wide = uint128_t;
   using Narrow = uint32_t;
+  enum { is_signed = 0 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<int64_t> {
@@ -430,11 +444,15 @@ struct Relations<int64_t> {
   using Signed = int64_t;
   using Float = double;
   using Narrow = int32_t;
+  enum { is_signed = 1 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<uint128_t> {
   using Unsigned = uint128_t;
   using Narrow = uint64_t;
+  enum { is_signed = 0 };
+  enum { is_float = 0 };
 };
 template <>
 struct Relations<float16_t> {
@@ -442,12 +460,16 @@ struct Relations<float16_t> {
   using Signed = int16_t;
   using Float = float16_t;
   using Wide = float;
+  enum { is_signed = 1 };
+  enum { is_float = 1 };
 };
 template <>
 struct Relations<bfloat16_t> {
   using Unsigned = uint16_t;
   using Signed = int16_t;
   using Wide = float;
+  enum { is_signed = 1 };
+  enum { is_float = 1 };
 };
 template <>
 struct Relations<float> {
@@ -456,6 +478,8 @@ struct Relations<float> {
   using Float = float;
   using Wide = double;
   using Narrow = float16_t;
+  enum { is_signed = 1 };
+  enum { is_float = 1 };
 };
 template <>
 struct Relations<double> {
@@ -463,6 +487,8 @@ struct Relations<double> {
   using Signed = int64_t;
   using Float = double;
   using Narrow = float;
+  enum { is_signed = 1 };
+  enum { is_float = 1 };
 };
 
 template <size_t N>
@@ -517,6 +543,24 @@ template <size_t N>
 using SignedFromSize = typename detail::TypeFromSize<N>::Signed;
 template <size_t N>
 using FloatFromSize = typename detail::TypeFromSize<N>::Float;
+
+// Avoid confusion with SizeTag where the parameter is a lane size.
+using UnsignedTag = SizeTag<0>;
+using SignedTag = SizeTag<0x100>;  // integer
+using FloatTag = SizeTag<0x200>;
+
+template <typename T, class R = detail::Relations<T>>
+constexpr auto TypeTag() -> hwy::SizeTag<(R::is_signed + R::is_float) << 8> {
+  return hwy::SizeTag<(R::is_signed + R::is_float) << 8>();
+}
+
+// For when we only want to distinguish FloatTag from everything else.
+using NonFloatTag = SizeTag<0x400>;
+
+template <typename T, class R = detail::Relations<T>>
+constexpr auto IsFloatTag() -> hwy::SizeTag<R::is_float ? 0x200 : 0x400> {
+  return hwy::SizeTag < R::is_float ? 0x200 : 0x400 > ();
+}
 
 //------------------------------------------------------------------------------
 // Type traits

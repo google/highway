@@ -135,13 +135,13 @@ HWY_API Vec128<T, N> Undefined(Simd<T, N, 0> d) {
 
 namespace detail {
 
-template <typename T, HWY_IF_FLOAT(T)>
-HWY_INLINE constexpr T IncrementWithWraparound(T t) {
+template <typename T>
+HWY_INLINE constexpr T IncrementWithWraparound(hwy::FloatTag /*tag*/, T t) {
   return t + T{1};
 }
 
-template <typename T, HWY_IF_NOT_FLOAT(T)>
-HWY_INLINE constexpr T IncrementWithWraparound(T t) {
+template <typename T>
+HWY_INLINE constexpr T IncrementWithWraparound(hwy::NonFloatTag /*tag*/, T t) {
   using TU = MakeUnsigned<T>;
   return static_cast<T>(static_cast<TU>(static_cast<TU>(t) + TU{1}) &
                         hwy::LimitsMax<TU>());
@@ -155,7 +155,7 @@ HWY_API Vec128<T, N> Iota(const Simd<T, N, 0> /* tag */, T2 first) {
   T counter = static_cast<T>(first);
   for (size_t i = 0; i < N; ++i) {
     v.raw[i] = counter;
-    counter = detail::IncrementWithWraparound(counter);
+    counter = detail::IncrementWithWraparound(hwy::IsFloatTag<T>(), counter);
   }
   return v;
 }
@@ -544,8 +544,12 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
 
 // ================================================== ARITHMETIC
 
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec128<T, N> operator+(Vec128<T, N> a, Vec128<T, N> b) {
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Add(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+                            Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     const uint64_t a64 = static_cast<uint64_t>(a.raw[i]);
     const uint64_t b64 = static_cast<uint64_t>(b.raw[i]);
@@ -553,16 +557,9 @@ HWY_API Vec128<T, N> operator+(Vec128<T, N> a, Vec128<T, N> b) {
   }
   return a;
 }
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> operator+(Vec128<T, N> a, const Vec128<T, N> b) {
-  for (size_t i = 0; i < N; ++i) {
-    a.raw[i] += b.raw[i];
-  }
-  return a;
-}
-
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec128<T, N> operator-(Vec128<T, N> a, Vec128<T, N> b) {
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Sub(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+                            Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     const uint64_t a64 = static_cast<uint64_t>(a.raw[i]);
     const uint64_t b64 = static_cast<uint64_t>(b.raw[i]);
@@ -570,12 +567,34 @@ HWY_API Vec128<T, N> operator-(Vec128<T, N> a, Vec128<T, N> b) {
   }
   return a;
 }
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> operator-(Vec128<T, N> a, const Vec128<T, N> b) {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Add(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
+  for (size_t i = 0; i < N; ++i) {
+    a.raw[i] += b.raw[i];
+  }
+  return a;
+}
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Sub(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] -= b.raw[i];
   }
   return a;
+}
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> operator-(Vec128<T, N> a, const Vec128<T, N> b) {
+  return detail::Sub(hwy::IsFloatTag<T>(), a, b);
+}
+template <typename T, size_t N>
+HWY_API Vec128<T, N> operator+(Vec128<T, N> a, const Vec128<T, N> b) {
+  return detail::Add(hwy::IsFloatTag<T>(), a, b);
 }
 
 // ------------------------------ SumsOf8
@@ -612,8 +631,9 @@ HWY_API Vec128<T, N> SaturatedSub(Vec128<T, N> a, const Vec128<T, N> b) {
 }
 
 // ------------------------------ AverageRound
-template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
+template <typename T, size_t N>
 HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, const Vec128<T, N> b) {
+  static_assert(!IsSigned<T>(), "Only for unsigned");
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = static_cast<T>((a.raw[i] + b.raw[i] + 1) / 2);
   }
@@ -622,8 +642,11 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, const Vec128<T, N> b) {
 
 // ------------------------------ Abs
 
-template <typename T, size_t N, HWY_IF_SIGNED(T)>
-HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Abs(SignedTag /*tag*/, Vec128<T, N> a) {
   for (size_t i = 0; i < N; ++i) {
     const T s = a.raw[i];
     const T min = hwy::LimitsMin<T>();
@@ -631,26 +654,47 @@ HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
   }
   return a;
 }
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Abs(Vec128<T, N> v) {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Abs(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
   for (size_t i = 0; i < N; ++i) {
     v.raw[i] = std::abs(v.raw[i]);
   }
   return v;
 }
 
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
+  return detail::Abs(hwy::TypeTag<T>(), a);
+}
+
 // ------------------------------ Min/Max
 
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec128<T, N> Min(Vec128<T, N> a, const Vec128<T, N> b) {
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Min(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = HWY_MIN(a.raw[i], b.raw[i]);
   }
   return a;
 }
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Max(hwy::NonFloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
+  for (size_t i = 0; i < N; ++i) {
+    a.raw[i] = HWY_MAX(a.raw[i], b.raw[i]);
+  }
+  return a;
+}
 
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Min(Vec128<T, N> a, const Vec128<T, N> b) {
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Min(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     if (std::isnan(a.raw[i])) {
       a.raw[i] = b.raw[i];
@@ -662,17 +706,9 @@ HWY_API Vec128<T, N> Min(Vec128<T, N> a, const Vec128<T, N> b) {
   }
   return a;
 }
-
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec128<T, N> Max(Vec128<T, N> a, const Vec128<T, N> b) {
-  for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = HWY_MAX(a.raw[i], b.raw[i]);
-  }
-  return a;
-}
-
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Max(Vec128<T, N> a, const Vec128<T, N> b) {
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Max(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     if (std::isnan(a.raw[i])) {
       a.raw[i] = b.raw[i];
@@ -685,42 +721,77 @@ HWY_API Vec128<T, N> Max(Vec128<T, N> a, const Vec128<T, N> b) {
   return a;
 }
 
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Min(Vec128<T, N> a, const Vec128<T, N> b) {
+  return detail::Min(hwy::IsFloatTag<T>(), a, b);
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Max(Vec128<T, N> a, const Vec128<T, N> b) {
+  return detail::Max(hwy::IsFloatTag<T>(), a, b);
+}
+
 // ------------------------------ Neg
 
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Neg(Vec128<T, N> v) {
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Neg(hwy::NonFloatTag /*tag*/, Vec128<T, N> v) {
+  return Zero(Simd<T, N, 0>()) - v;
+}
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Neg(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
   return Xor(v, SignBit(Simd<T, N, 0>()));
 }
 
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T)>
+}  // namespace detail
+
+template <typename T, size_t N>
 HWY_API Vec128<T, N> Neg(Vec128<T, N> v) {
-  return Zero(Simd<T, N, 0>()) - v;
+  return detail::Neg(hwy::IsFloatTag<T>(), v);
 }
 
 // ------------------------------ Mul/Div
 
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Mul(hwy::FloatTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] *= b.raw[i];
   }
   return a;
 }
 
-template <typename T, size_t N, HWY_IF_SIGNED(T)>
-HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Mul(SignedTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = static_cast<T>(static_cast<int64_t>(a.raw[i]) * b.raw[i]);
   }
   return a;
 }
 
-template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
-HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Mul(UnsignedTag /*tag*/, Vec128<T, N> a,
+                            const Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = static_cast<T>(static_cast<uint64_t>(a.raw[i]) * b.raw[i]);
   }
   return a;
+}
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> operator*(Vec128<T, N> a, const Vec128<T, N> b) {
+  return detail::Mul(hwy::TypeTag<T>(), a, b);
 }
 
 template <typename T, size_t N>
@@ -1048,8 +1119,9 @@ HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
   return ret;
 }
 
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
+template <typename T, size_t N>
 HWY_API Mask128<T, N> IsInf(const Vec128<T, N> v) {
+  static_assert(IsFloat<T>(), "Only for float");
   const Simd<T, N, 0> d;
   const RebindToSigned<decltype(d)> di;
   const VFromD<decltype(di)> vi = BitCast(di, v);
@@ -1058,8 +1130,9 @@ HWY_API Mask128<T, N> IsInf(const Vec128<T, N> v) {
 }
 
 // Returns whether normal/subnormal/zero.
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
+template <typename T, size_t N>
 HWY_API Mask128<T, N> IsFinite(const Vec128<T, N> v) {
+  static_assert(IsFloat<T>(), "Only for float");
   const Simd<T, N, 0> d;
   const RebindToUnsigned<decltype(d)> du;
   const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
@@ -1566,8 +1639,12 @@ HWY_API Vec128<bfloat16_t, N> DemoteTo(Simd<bfloat16_t, N, 0> /* tag */,
   return ret;
 }
 
-template <typename FromT, typename ToT, size_t N, HWY_IF_FLOAT(FromT)>
-HWY_API Vec128<ToT, N> ConvertTo(Simd<ToT, N, 0> /* tag */,
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename FromT, typename ToT, size_t N>
+HWY_API Vec128<ToT, N> ConvertTo(hwy::FloatTag /*tag*/,
+                                 Simd<ToT, N, 0> /* tag */,
                                  Vec128<FromT, N> from) {
   static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
   Vec128<ToT, N> ret;
@@ -1586,8 +1663,9 @@ HWY_API Vec128<ToT, N> ConvertTo(Simd<ToT, N, 0> /* tag */,
   return ret;
 }
 
-template <typename FromT, typename ToT, size_t N, HWY_IF_NOT_FLOAT(FromT)>
-HWY_API Vec128<ToT, N> ConvertTo(Simd<ToT, N, 0> /* tag */,
+template <typename FromT, typename ToT, size_t N>
+HWY_API Vec128<ToT, N> ConvertTo(hwy::NonFloatTag /*tag*/,
+                                 Simd<ToT, N, 0> /* tag */,
                                  Vec128<FromT, N> from) {
   static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
   Vec128<ToT, N> ret;
@@ -1596,6 +1674,13 @@ HWY_API Vec128<ToT, N> ConvertTo(Simd<ToT, N, 0> /* tag */,
     ret.raw[i] = static_cast<ToT>(from.raw[i]);
   }
   return ret;
+}
+
+}  // namespace detail
+
+template <typename FromT, typename ToT, size_t N>
+HWY_API Vec128<ToT, N> ConvertTo(Simd<ToT, N, 0> d, Vec128<FromT, N> from) {
+  return detail::ConvertTo(hwy::IsFloatTag<FromT>(), d, from);
 }
 
 template <size_t N>
@@ -1982,15 +2067,17 @@ HWY_API Vec128<T, N> Reverse8(Simd<T, N, 0> /* tag */, const Vec128<T, N> v) {
 // ------------------------------ Shuffle*
 
 // Swap 32-bit halves in 64-bit halves.
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+template <typename T, size_t N>
 HWY_API Vec128<T, N> Shuffle2301(const Vec128<T, N> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit");
   static_assert(N == 2 || N == 4, "Does not make sense for N=1");
   return Reverse2(DFromV<decltype(v)>(), v);
 }
 
 // Swap 64-bit halves
-template <typename T, HWY_IF_LANE_SIZE(T, 4)>
+template <typename T>
 HWY_API Vec128<T> Shuffle1032(const Vec128<T> v) {
+  static_assert(sizeof(T) == 4, "Only for 32-bit");
   Vec128<T> ret;
   ret.raw[3] = v.raw[1];
   ret.raw[2] = v.raw[0];
@@ -1998,8 +2085,9 @@ HWY_API Vec128<T> Shuffle1032(const Vec128<T> v) {
   ret.raw[0] = v.raw[2];
   return ret;
 }
-template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+template <typename T>
 HWY_API Vec128<T> Shuffle01(const Vec128<T> v) {
+  static_assert(sizeof(T) == 8, "Only for 64-bit");
   return Reverse2(DFromV<decltype(v)>(), v);
 }
 

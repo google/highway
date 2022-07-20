@@ -604,8 +604,9 @@ HWY_API Vec256<double> IfThenZeroElse(Mask256<double> mask, Vec256<double> no) {
   return Vec256<double>{_mm256_mask_xor_pd(no.raw, mask.raw, no.raw, no.raw)};
 }
 
-template <typename T, HWY_IF_FLOAT(T)>
+template <typename T>
 HWY_API Vec256<T> ZeroIfNegative(const Vec256<T> v) {
+  static_assert(IsSigned<T>(), "Only for float");
   // AVX3 MaskFromVec only looks at the MSB
   return IfThenZeroElse(MaskFromVec(v), v);
 }
@@ -842,8 +843,9 @@ HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
   return AndNot(VecFromMask(Full256<T>(), mask), no);
 }
 
-template <typename T, HWY_IF_FLOAT(T)>
+template <typename T>
 HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
+  static_assert(IsSigned<T>(), "Only for float");
   const auto zero = Zero(Full256<T>());
   // AVX2 IfThenElse only looks at the MSB for 32/64-bit lanes
   return IfThenElse(MaskFromVec(v), zero, v);
@@ -1144,11 +1146,10 @@ HWY_API Mask256<double> operator==(const Vec256<double> a,
 
 // ------------------------------ Inequality
 
-template <typename T, HWY_IF_NOT_FLOAT(T)>
+template <typename T>
 HWY_API Mask256<T> operator!=(const Vec256<T> a, const Vec256<T> b) {
   return Not(a == b);
 }
-
 HWY_API Mask256<float> operator!=(const Vec256<float> a,
                                   const Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_NEQ_OQ)};
@@ -1160,6 +1161,9 @@ HWY_API Mask256<double> operator!=(const Vec256<double> a,
 
 // ------------------------------ Strict inequality
 
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
 // Pre-9.3 GCC immintrin.h uses char, which may be unsigned, causing cmpgt_epi8
 // to perform an unsigned comparison instead of the intended signed. Workaround
 // is to cast to an explicitly signed type. See https://godbolt.org/z/PL7Ujy
@@ -1169,7 +1173,8 @@ HWY_API Mask256<double> operator!=(const Vec256<double> a,
 #define HWY_AVX2_GCC_CMPGT8_WORKAROUND 0
 #endif
 
-HWY_API Mask256<int8_t> operator>(Vec256<int8_t> a, Vec256<int8_t> b) {
+HWY_API Mask256<int8_t> Gt(hwy::SignedTag /*tag*/, Vec256<int8_t> a,
+                           Vec256<int8_t> b) {
 #if HWY_AVX2_GCC_CMPGT8_WORKAROUND
   using i8x32 = signed char __attribute__((__vector_size__(32)));
   return Mask256<int8_t>{static_cast<__m256i>(reinterpret_cast<i8x32>(a.raw) >
@@ -1178,32 +1183,41 @@ HWY_API Mask256<int8_t> operator>(Vec256<int8_t> a, Vec256<int8_t> b) {
   return Mask256<int8_t>{_mm256_cmpgt_epi8(a.raw, b.raw)};
 #endif
 }
-HWY_API Mask256<int16_t> operator>(const Vec256<int16_t> a,
-                                   const Vec256<int16_t> b) {
+HWY_API Mask256<int16_t> Gt(hwy::SignedTag /*tag*/, Vec256<int16_t> a,
+                            Vec256<int16_t> b) {
   return Mask256<int16_t>{_mm256_cmpgt_epi16(a.raw, b.raw)};
 }
-HWY_API Mask256<int32_t> operator>(const Vec256<int32_t> a,
-                                   const Vec256<int32_t> b) {
+HWY_API Mask256<int32_t> Gt(hwy::SignedTag /*tag*/, Vec256<int32_t> a,
+                            Vec256<int32_t> b) {
   return Mask256<int32_t>{_mm256_cmpgt_epi32(a.raw, b.raw)};
 }
-HWY_API Mask256<int64_t> operator>(const Vec256<int64_t> a,
-                                   const Vec256<int64_t> b) {
+HWY_API Mask256<int64_t> Gt(hwy::SignedTag /*tag*/, Vec256<int64_t> a,
+                            Vec256<int64_t> b) {
   return Mask256<int64_t>{_mm256_cmpgt_epi64(a.raw, b.raw)};
 }
 
-template <typename T, HWY_IF_UNSIGNED(T)>
-HWY_API Mask256<T> operator>(const Vec256<T> a, const Vec256<T> b) {
+template <typename T>
+HWY_INLINE Mask256<T> Gt(hwy::UnsignedTag /*tag*/, Vec256<T> a, Vec256<T> b) {
   const Full256<T> du;
   const RebindToSigned<decltype(du)> di;
   const Vec256<T> msb = Set(du, (LimitsMax<T>() >> 1) + 1);
   return RebindMask(du, BitCast(di, Xor(a, msb)) > BitCast(di, Xor(b, msb)));
 }
 
-HWY_API Mask256<float> operator>(const Vec256<float> a, const Vec256<float> b) {
+HWY_API Mask256<float> Gt(hwy::FloatTag /*tag*/, Vec256<float> a,
+                          Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GT_OQ)};
 }
-HWY_API Mask256<double> operator>(Vec256<double> a, Vec256<double> b) {
+HWY_API Mask256<double> Gt(hwy::FloatTag /*tag*/, Vec256<double> a,
+                           Vec256<double> b) {
   return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GT_OQ)};
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Mask256<T> operator>(Vec256<T> a, Vec256<T> b) {
+  return detail::Gt(hwy::TypeTag<T>(), a, b);
 }
 
 // ------------------------------ Weak inequality
@@ -1866,14 +1880,25 @@ HWY_API Vec256<int8_t> ShiftRightSame(Vec256<int8_t> v, const int bits) {
 
 // ------------------------------ Neg (Xor, Sub)
 
-template <typename T, HWY_IF_FLOAT(T)>
-HWY_API Vec256<T> Neg(const Vec256<T> v) {
+// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
+namespace detail {
+
+template <typename T>
+HWY_INLINE Vec256<T> Neg(hwy::FloatTag /*tag*/, const Vec256<T> v) {
   return Xor(v, SignBit(Full256<T>()));
 }
 
-template <typename T, HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec256<T> Neg(const Vec256<T> v) {
+// Not floating-point
+template <typename T>
+HWY_INLINE Vec256<T> Neg(hwy::NonFloatTag /*tag*/, const Vec256<T> v) {
   return Zero(Full256<T>()) - v;
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Vec256<T> Neg(const Vec256<T> v) {
+  return detail::Neg(hwy::IsFloatTag<T>(), v);
 }
 
 // ------------------------------ Floating-point mul / div
@@ -2074,8 +2099,9 @@ HWY_API Mask256<double> IsFinite(const Vec256<double> v) {
 
 #else
 
-template <typename T, HWY_IF_FLOAT(T)>
+template <typename T>
 HWY_API Mask256<T> IsInf(const Vec256<T> v) {
+  static_assert(IsFloat<T>(), "Only for float");
   const Full256<T> d;
   const RebindToSigned<decltype(d)> di;
   const VFromD<decltype(di)> vi = BitCast(di, v);
@@ -2084,8 +2110,9 @@ HWY_API Mask256<T> IsInf(const Vec256<T> v) {
 }
 
 // Returns whether normal/subnormal/zero.
-template <typename T, HWY_IF_FLOAT(T)>
+template <typename T>
 HWY_API Mask256<T> IsFinite(const Vec256<T> v) {
+  static_assert(IsFloat<T>(), "Only for float");
   const Full256<T> d;
   const RebindToUnsigned<decltype(d)> du;
   const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
@@ -3664,12 +3691,14 @@ HWY_API Vec256<TI> TableLookupBytes(const Vec128<T, N> bytes,
 
 // ------------------------------ Shl (Mul, ZipLower)
 
-#if HWY_TARGET > HWY_AVX3  // AVX2 or older
 namespace detail {
 
+#if HWY_TARGET > HWY_AVX3  // AVX2 or older
+
 // Returns 2^v for use as per-lane multipliers to emulate 16-bit shifts.
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
+template <typename T>
 HWY_INLINE Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
+  static_assert(sizeof(T) == 2, "Only for 16-bit");
   const Full256<T> d;
   const RepartitionToWide<decltype(d)> dw;
   const Rebind<float, decltype(dw)> df;
@@ -3687,63 +3716,66 @@ HWY_INLINE Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
   return Vec256<MakeUnsigned<T>>{_mm256_packus_epi32(bits0.raw, bits1.raw)};
 }
 
-}  // namespace detail
 #endif  // HWY_TARGET > HWY_AVX3
 
-HWY_API Vec256<uint16_t> operator<<(const Vec256<uint16_t> v,
-                                    const Vec256<uint16_t> bits) {
+HWY_INLINE Vec256<uint16_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> v,
+                                Vec256<uint16_t> bits) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec256<uint16_t>{_mm256_sllv_epi16(v.raw, bits.raw)};
 #else
-  return v * detail::Pow2(bits);
+  return v * Pow2(bits);
 #endif
 }
 
-HWY_API Vec256<uint32_t> operator<<(const Vec256<uint32_t> v,
-                                    const Vec256<uint32_t> bits) {
+HWY_INLINE Vec256<uint32_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint32_t> v,
+                                Vec256<uint32_t> bits) {
   return Vec256<uint32_t>{_mm256_sllv_epi32(v.raw, bits.raw)};
 }
 
-HWY_API Vec256<uint64_t> operator<<(const Vec256<uint64_t> v,
-                                    const Vec256<uint64_t> bits) {
+HWY_INLINE Vec256<uint64_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint64_t> v,
+                                Vec256<uint64_t> bits) {
   return Vec256<uint64_t>{_mm256_sllv_epi64(v.raw, bits.raw)};
 }
 
-// Signed left shift is the same as unsigned.
-template <typename T, HWY_IF_SIGNED(T)>
-HWY_API Vec256<T> operator<<(const Vec256<T> v, const Vec256<T> bits) {
+template <typename T>
+HWY_INLINE Vec256<T> Shl(hwy::SignedTag /*tag*/, Vec256<T> v, Vec256<T> bits) {
+  // Signed left shifts are the same as unsigned.
   const Full256<T> di;
   const Full256<MakeUnsigned<T>> du;
-  return BitCast(di, BitCast(du, v) << BitCast(du, bits));
+  return BitCast(di,
+                 Shl(hwy::UnsignedTag(), BitCast(du, v), BitCast(du, bits)));
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Vec256<T> operator<<(Vec256<T> v, Vec256<T> bits) {
+  return detail::Shl(hwy::TypeTag<T>(), v, bits);
 }
 
 // ------------------------------ Shr (MulHigh, IfThenElse, Not)
 
-HWY_API Vec256<uint16_t> operator>>(const Vec256<uint16_t> v,
-                                    const Vec256<uint16_t> bits) {
+HWY_API Vec256<uint16_t> operator>>(Vec256<uint16_t> v, Vec256<uint16_t> bits) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec256<uint16_t>{_mm256_srlv_epi16(v.raw, bits.raw)};
 #else
-  const Full256<uint16_t> d;
+  Full256<uint16_t> d;
   // For bits=0, we cannot mul by 2^16, so fix the result later.
-  const auto out = MulHigh(v, detail::Pow2(Set(d, 16) - bits));
+  auto out = MulHigh(v, detail::Pow2(Set(d, 16) - bits));
   // Replace output with input where bits == 0.
   return IfThenElse(bits == Zero(d), v, out);
 #endif
 }
 
-HWY_API Vec256<uint32_t> operator>>(const Vec256<uint32_t> v,
-                                    const Vec256<uint32_t> bits) {
+HWY_API Vec256<uint32_t> operator>>(Vec256<uint32_t> v, Vec256<uint32_t> bits) {
   return Vec256<uint32_t>{_mm256_srlv_epi32(v.raw, bits.raw)};
 }
 
-HWY_API Vec256<uint64_t> operator>>(const Vec256<uint64_t> v,
-                                    const Vec256<uint64_t> bits) {
+HWY_API Vec256<uint64_t> operator>>(Vec256<uint64_t> v, Vec256<uint64_t> bits) {
   return Vec256<uint64_t>{_mm256_srlv_epi64(v.raw, bits.raw)};
 }
 
-HWY_API Vec256<int16_t> operator>>(const Vec256<int16_t> v,
-                                   const Vec256<int16_t> bits) {
+HWY_API Vec256<int16_t> operator>>(Vec256<int16_t> v, Vec256<int16_t> bits) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec256<int16_t>{_mm256_srav_epi16(v.raw, bits.raw)};
 #else
@@ -3751,13 +3783,11 @@ HWY_API Vec256<int16_t> operator>>(const Vec256<int16_t> v,
 #endif
 }
 
-HWY_API Vec256<int32_t> operator>>(const Vec256<int32_t> v,
-                                   const Vec256<int32_t> bits) {
+HWY_API Vec256<int32_t> operator>>(Vec256<int32_t> v, Vec256<int32_t> bits) {
   return Vec256<int32_t>{_mm256_srav_epi32(v.raw, bits.raw)};
 }
 
-HWY_API Vec256<int64_t> operator>>(const Vec256<int64_t> v,
-                                   const Vec256<int64_t> bits) {
+HWY_API Vec256<int64_t> operator>>(Vec256<int64_t> v, Vec256<int64_t> bits) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec256<int64_t>{_mm256_srav_epi64(v.raw, bits.raw)};
 #else
