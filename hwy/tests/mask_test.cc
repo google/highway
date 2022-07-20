@@ -83,53 +83,6 @@ HWY_NOINLINE void TestAllFirstN() {
   ForAllTypes(ForPartialVectors<TestFirstN>());
 }
 
-struct TestIfThenElse {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    RandomState rng;
-
-    using TI = MakeSigned<T>;  // For mask > 0 comparison
-    const Rebind<TI, D> di;
-    const size_t N = Lanes(d);
-    auto in1 = AllocateAligned<T>(N);
-    auto in2 = AllocateAligned<T>(N);
-    auto bool_lanes = AllocateAligned<TI>(N);
-    auto expected = AllocateAligned<T>(N);
-
-    // Each lane should have a chance of having mask=true.
-    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
-      for (size_t i = 0; i < N; ++i) {
-        in1[i] = static_cast<T>(Random32(&rng));
-        in2[i] = static_cast<T>(Random32(&rng));
-        bool_lanes[i] = (Random32(&rng) & 16) ? TI(1) : TI(0);
-      }
-
-      const auto v1 = Load(d, in1.get());
-      const auto v2 = Load(d, in2.get());
-      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
-
-      for (size_t i = 0; i < N; ++i) {
-        expected[i] = bool_lanes[i] ? in1[i] : in2[i];
-      }
-      HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElse(mask, v1, v2));
-
-      for (size_t i = 0; i < N; ++i) {
-        expected[i] = bool_lanes[i] ? in1[i] : T(0);
-      }
-      HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElseZero(mask, v1));
-
-      for (size_t i = 0; i < N; ++i) {
-        expected[i] = bool_lanes[i] ? T(0) : in2[i];
-      }
-      HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenZeroElse(mask, v2));
-    }
-  }
-};
-
-HWY_NOINLINE void TestAllIfThenElse() {
-  ForAllTypes(ForPartialVectors<TestIfThenElse>());
-}
-
 struct TestMaskVec {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -258,8 +211,8 @@ struct TestFindFirstTrue {
         bool_lanes[i] = (code & (1ull << i)) ? TI(1) : TI(0);
       }
 
-      const intptr_t expected =
-          static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero32(uint32_t(code)));
+      const intptr_t expected = static_cast<intptr_t>(
+          Num0BitsBelowLS1Bit_Nonzero32(static_cast<uint32_t>(code)));
       const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
       const intptr_t actual = FindFirstTrue(d, mask);
       HWY_ASSERT_EQ(expected, actual);
@@ -326,7 +279,6 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyMaskTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFromVec);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFirstN);
-HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskVec);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllCountTrue);

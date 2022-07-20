@@ -323,6 +323,8 @@ HWY_TESTS = [
     ("hwy/tests/", "crypto_test"),
     ("hwy/tests/", "demote_test"),
     ("hwy/tests/", "float_test"),
+    ("hwy/tests/", "if_test"),
+    ("hwy/tests/", "interleaved_test"),
     ("hwy/tests/", "logical_test"),
     ("hwy/tests/", "mask_test"),
     ("hwy/tests/", "mask_mem_test"),
