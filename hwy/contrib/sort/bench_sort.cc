@@ -36,7 +36,7 @@
 
 // Mode for larger sorts because M1 is able to access more than the per-core
 // share of L2, so 1M elements might still be in cache.
-#define SORT_100M 1
+#define SORT_100M 0
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -261,7 +261,7 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets
   if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4 ||
-      HWY_TARGET == HWY_NEON) {
+      HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_EMU128) {
     return;
   }
   // Only enable EMU128 on x86 - it's slow on emulators.
@@ -278,18 +278,18 @@ HWY_NOINLINE void BenchAllSort() {
         1 * M,
 #endif
        }) {
-    // BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
+    BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
     // BenchSort<TraitsLane<OrderDescending<double>>>(num_keys);
     // BenchSort<TraitsLane<OrderAscending<int16_t>>>(num_keys);
-    // BenchSort<TraitsLane<OrderDescending<int32_t>>>(num_keys);
-    // BenchSort<TraitsLane<OrderAscending<int64_t>>>(num_keys);
+    BenchSort<TraitsLane<OrderDescending<int32_t>>>(num_keys);
+    BenchSort<TraitsLane<OrderAscending<int64_t>>>(num_keys);
     // BenchSort<TraitsLane<OrderDescending<uint16_t>>>(num_keys);
     // BenchSort<TraitsLane<OrderDescending<uint32_t>>>(num_keys);
-    BenchSort<TraitsLane<OrderAscending<uint64_t>>>(num_keys);
+    // BenchSort<TraitsLane<OrderAscending<uint64_t>>>(num_keys);
 
 #if !HAVE_VXSORT && VQSORT_ENABLED
     BenchSort<Traits128<OrderAscending128>>(num_keys);
-    BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
+    // BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
 #endif
   }
 }
