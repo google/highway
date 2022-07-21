@@ -51,10 +51,10 @@ namespace hwy {
 #define HWY_ATTR_CACHE
 #endif
 
-// Delays subsequent loads until prior loads are visible. On Intel CPUs, also
-// serves as a full fence (waits for all prior instructions to complete).
-// No effect on non-x86.
-// DEPRECATED due to differing behavior across architectures AND vendors.
+// Delays subsequent loads until prior loads are visible. Beware of potentially
+// differing behavior across architectures and vendors: on Intel but not
+// AMD CPUs, also serves as a full fence (waits for all prior instructions to
+// complete).
 HWY_INLINE HWY_ATTR_CACHE void LoadFence() {
 #if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
   _mm_lfence();
