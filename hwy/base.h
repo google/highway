@@ -550,16 +550,16 @@ using SignedTag = SizeTag<0x100>;  // integer
 using FloatTag = SizeTag<0x200>;
 
 template <typename T, class R = detail::Relations<T>>
-constexpr auto TypeTag() -> hwy::SizeTag<(R::is_signed + R::is_float) << 8> {
-  return hwy::SizeTag<(R::is_signed + R::is_float) << 8>();
+constexpr auto TypeTag() -> hwy::SizeTag<((R::is_signed + R::is_float) << 8)> {
+  return hwy::SizeTag<((R::is_signed + R::is_float) << 8)>();
 }
 
 // For when we only want to distinguish FloatTag from everything else.
 using NonFloatTag = SizeTag<0x400>;
 
 template <typename T, class R = detail::Relations<T>>
-constexpr auto IsFloatTag() -> hwy::SizeTag<R::is_float ? 0x200 : 0x400> {
-  return hwy::SizeTag < R::is_float ? 0x200 : 0x400 > ();
+constexpr auto IsFloatTag() -> hwy::SizeTag<(R::is_float ? 0x200 : 0x400)> {
+  return hwy::SizeTag<(R::is_float ? 0x200 : 0x400)>();
 }
 
 //------------------------------------------------------------------------------
