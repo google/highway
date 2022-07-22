@@ -25,7 +25,7 @@
 #include <algorithm>  // sort
 #include <array>
 #include <atomic>
-#include <chrono>
+#include <chrono>  //NOLINT
 #include <limits>
 #include <numeric>  // iota
 #include <random>
@@ -311,7 +311,8 @@ T MedianAbsoluteDeviation(const T* values, const size_t num_values,
   std::vector<T> abs_deviations;
   abs_deviations.reserve(num_values);
   for (size_t i = 0; i < num_values; ++i) {
-    const int64_t abs = std::abs(int64_t(values[i]) - int64_t(median));
+    const int64_t abs = std::abs(static_cast<int64_t>(values[i]) -
+                                 static_cast<int64_t>(median));
     abs_deviations.push_back(static_cast<T>(abs));
   }
   return Median(abs_deviations.data(), num_values);
@@ -425,7 +426,7 @@ std::string BrandString() {
 
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__)
-  return double(__ppc_get_timebase_freq());
+  return static_cast<double>(__ppc_get_timebase_freq());
 #elif HWY_ARCH_X86 || HWY_ARCH_RVV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
   static const double freq = MeasureNominalClockRate();
@@ -433,12 +434,12 @@ HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #elif defined(_WIN32) || defined(_WIN64)
   LARGE_INTEGER freq;
   (void)QueryPerformanceFrequency(&freq);
-  return double(freq.QuadPart);
+  return static_cast<double>(freq.QuadPart);
 #elif defined(__APPLE__)
   // https://developer.apple.com/library/mac/qa/qa1398/_index.html
   mach_timebase_info_data_t timebase;
   (void)mach_timebase_info(&timebase);
-  return double(timebase.denom) / timebase.numer * 1E9;
+  return static_cast<double>(timebase.denom) / timebase.numer * 1E9;
 #else
   return 1E9;  // Haiku and clock_gettime return nanoseconds.
 #endif
