@@ -19,8 +19,8 @@
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/algo/transform_test.cc"
-#include "hwy/foreach_target.h"
+#define HWY_TARGET_INCLUDE "hwy/contrib/algo/transform_test.cc"  //NOLINT
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 #include "hwy/contrib/algo/transform-inl.h"
 #include "hwy/tests/test_util-inl.h"

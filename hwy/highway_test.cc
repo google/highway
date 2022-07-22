@@ -23,7 +23,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "highway_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"    // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/test_util-inl.h"

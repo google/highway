@@ -15,14 +15,7 @@
 
 #include "hwy/contrib/image/image.h"
 
-#include <cstddef>
-
-#include "hwy/base.h"
-
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/image/image_test.cc"
-#include "hwy/foreach_target.h"
-
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +23,11 @@
 #include <random>
 #include <utility>
 
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/contrib/image/image_test.cc"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
+
+// After foreach_target:
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 

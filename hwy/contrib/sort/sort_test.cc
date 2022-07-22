@@ -13,10 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>  // memcpy
+
+#include <vector>
+
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 #include "hwy/contrib/sort/vqsort.h"
 // After foreach_target
@@ -26,12 +32,6 @@
 #include "hwy/contrib/sort/vqsort-inl.h"  // BaseCase
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
-
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>  // memcpy
-
-#include <vector>
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {

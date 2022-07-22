@@ -28,10 +28,9 @@
 #include <vector>
 
 // clang-format off
-#include "hwy/contrib/sort/vqsort.h"
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/bench_parallel.cc"  //NOLINT
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"

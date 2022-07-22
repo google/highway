@@ -21,7 +21,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "examples/skeleton_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // Must come after foreach_target.h to avoid redefinition errors.
 #include "hwy/highway.h"
@@ -35,13 +35,13 @@ HWY_BEFORE_NAMESPACE();
 namespace skeleton {
 namespace HWY_NAMESPACE {
 
-using namespace hwy::HWY_NAMESPACE;
+namespace hn = hwy::HWY_NAMESPACE;
 
 // Calls function defined in skeleton.cc.
 struct TestFloorLog2 {
   template <class T, class DF>
   HWY_NOINLINE void operator()(T /*unused*/, DF df) {
-    const size_t count = 5 * Lanes(df);
+    const size_t count = 5 * hn::Lanes(df);
     auto in = hwy::AllocateAligned<uint8_t>(count);
     auto expected = hwy::AllocateAligned<uint8_t>(count);
 
@@ -71,7 +71,7 @@ struct TestSumMulAdd {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     hwy::RandomState rng;
     const size_t count = 4096;
-    EXPECT_TRUE(count % Lanes(d) == 0);
+    EXPECT_EQ(0, count % hn::Lanes(d));
     auto mul = hwy::AllocateAligned<T>(count);
     auto x = hwy::AllocateAligned<T>(count);
     auto add = hwy::AllocateAligned<T>(count);

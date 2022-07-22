@@ -60,7 +60,7 @@ struct Raw128<float> {
   using type = __f32x4;
 };
 
-} // namespace detail
+}  // namespace detail
 
 template <typename T, size_t N = 16 / sizeof(T)>
 class Vec128 {

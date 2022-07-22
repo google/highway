@@ -18,9 +18,9 @@
 #undef HWY_TARGET_INCLUDE
 // clang-format off
 // (avoid line break, which would prevent Copybara rules from matching)
-#define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqsort_kv128a.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqsort_kv128a.cc"  //NOLINT
 // clang-format on
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // After foreach_target
 #include "hwy/contrib/sort/traits128-inl.h"

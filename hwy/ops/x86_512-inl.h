@@ -467,7 +467,7 @@ namespace detail {
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
   Mask512<T> m;
-  const uint32_t all = ~uint32_t(0);
+  const uint32_t all = ~uint32_t{0};
   // BZHI only looks at the lower 8 bits of n!
   m.raw = static_cast<decltype(m.raw)>((n > 255) ? all : _bzhi_u32(all, n));
   return m;
@@ -475,7 +475,7 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
 
 template <typename T, HWY_IF_LANE_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
-  const uint64_t bits = n < 64 ? ((1ULL << n) - 1) : ~uint64_t(0);
+  const uint64_t bits = n < 64 ? ((1ULL << n) - 1) : ~uint64_t{0};
   return Mask512<T>{static_cast<__mmask64>(bits)};
 }
 
@@ -486,7 +486,7 @@ template <typename T>
 HWY_API Mask512<T> FirstN(const Full512<T> /*tag*/, size_t n) {
 #if HWY_ARCH_X86_64
   Mask512<T> m;
-  const uint64_t all = ~uint64_t(0);
+  const uint64_t all = ~uint64_t{0};
   // BZHI only looks at the lower 8 bits of n!
   m.raw = static_cast<decltype(m.raw)>((n > 255) ? all : _bzhi_u64(all, n));
   return m;

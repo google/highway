@@ -1087,8 +1087,8 @@ HWY_API auto TestBit(const V a, const V bit) -> decltype(Eq(a, bit)) {
 }
 
 // ------------------------------ Not
+// NOLINTNEXTLINE
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, Not, not )
-
 
 // ------------------------------ And
 

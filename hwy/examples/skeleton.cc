@@ -23,7 +23,7 @@
 // __FILE__ is not reliable) so that foreach_target.h can re-include it.
 #define HWY_TARGET_INCLUDE "hwy/examples/skeleton.cc"
 // Generates code for each enabled target by re-including this source file.
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // Must come after foreach_target.h to avoid redefinition errors.
 #include "hwy/highway.h"
@@ -36,7 +36,7 @@ namespace skeleton {
 namespace HWY_NAMESPACE {
 
 // Highway ops reside here; ADL does not find templates nor builtins.
-using namespace hwy::HWY_NAMESPACE;
+namespace hn = hwy::HWY_NAMESPACE;
 
 // Computes log2 by converting to a vector of floats. Compiled once per target.
 template <class DF>
@@ -44,13 +44,13 @@ HWY_ATTR_NO_MSAN void OneFloorLog2(const DF df,
                                    const uint8_t* HWY_RESTRICT values,
                                    uint8_t* HWY_RESTRICT log2) {
   // Type tags for converting to other element types (Rebind = same count).
-  const RebindToSigned<DF> d32;
-  const Rebind<uint8_t, DF> d8;
+  const hn::RebindToSigned<DF> d32;
+  const hn::Rebind<uint8_t, DF> d8;
 
-  const auto u8 = Load(d8, values);
-  const auto bits = BitCast(d32, ConvertTo(df, PromoteTo(d32, u8)));
-  const auto exponent = Sub(ShiftRight<23>(bits), Set(d32, 127));
-  Store(DemoteTo(d8, exponent), d8, log2);
+  const auto u8 = hn::Load(d8, values);
+  const auto bits = hn::BitCast(d32, hn::ConvertTo(df, hn::PromoteTo(d32, u8)));
+  const auto exponent = hn::Sub(hn::ShiftRight<23>(bits), hn::Set(d32, 127));
+  hn::Store(hn::DemoteTo(d8, exponent), d8, log2);
 }
 
 void CodepathDemo() {
@@ -68,14 +68,14 @@ void FloorLog2(const uint8_t* HWY_RESTRICT values, size_t count,
                uint8_t* HWY_RESTRICT log2) {
   CodepathDemo();
 
-  const ScalableTag<float> df;
-  const size_t N = Lanes(df);
+  const hn::ScalableTag<float> df;
+  const size_t N = hn::Lanes(df);
   size_t i = 0;
   for (; i + N <= count; i += N) {
     OneFloorLog2(df, values + i, log2 + i);
   }
   for (; i < count; ++i) {
-    CappedTag<float, 1> d1;
+    hn::CappedTag<float, 1> d1;
     OneFloorLog2(d1, values + i, log2 + i);
   }
 }

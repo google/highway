@@ -19,7 +19,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/blockwise_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -147,7 +147,7 @@ struct TestTableLookupBytes {
       const uint8_t prev_index = index_bytes[i];
       expected_bytes[i] = 0;
 
-      const int idx = 0x80 + (int(Random32(&rng) & 7) << 4);
+      const int idx = 0x80 + (static_cast<int>(Random32(&rng) & 7) << 4);
       HWY_ASSERT(0x80 <= idx && idx < 256);
       index_bytes[i] = static_cast<uint8_t>(idx);
 
