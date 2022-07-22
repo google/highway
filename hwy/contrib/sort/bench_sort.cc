@@ -40,7 +40,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 // Defined within HWY_ONCE, used by BenchAllSort.
-extern uint32_t first_sort_target;
+extern int64_t first_sort_target;
 
 namespace HWY_NAMESPACE {
 namespace {
@@ -301,7 +301,7 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 
 namespace hwy {
-uint32_t first_sort_target = 0;  // none run yet
+int64_t first_sort_target = 0;  // none run yet
 namespace {
 HWY_BEFORE_TEST(BenchSort);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllPartition);

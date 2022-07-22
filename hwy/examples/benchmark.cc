@@ -235,7 +235,7 @@ namespace hwy {
 HWY_EXPORT(RunBenchmarks);
 
 void Run() {
-  for (uint32_t target : SupportedAndGeneratedTargets()) {
+  for (int64_t target : SupportedAndGeneratedTargets()) {
     SetSupportedTargetsForTest(target);
     HWY_DYNAMIC_DISPATCH(RunBenchmarks)();
   }

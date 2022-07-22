@@ -51,59 +51,67 @@
 // All values are unconditionally defined so we can test HWY_TARGETS without
 // first checking the HWY_ARCH_*.
 //
-// The C99 preprocessor evaluates #if expressions using intmax_t types, so we
-// can use 32-bit literals.
+// The C99 preprocessor evaluates #if expressions using intmax_t types. This
+// holds at least 64 bits in practice (verified 2022-07-18 via Godbolt on
+// 32-bit clang/GCC/MSVC compilers for x86/Arm7/AArch32/RISC-V/WASM). We can
+// thus use 63 bits (avoids overflow when computing HWY_TARGETS).
 
-// 1,2,4: reserved
-
+// --------------------------- x86: 15 targets (+ one fallback)
+// Bits 0..6 reserved (7 targets)
 // Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VPOPCNTDQ, VBMI, VBMI2,
 // VAES, BITALG). Later to be added: BF16 (Cooper Lake). VP2INTERSECT is only in
 // Tiger Lake? We do not yet have uses for GFNI.
-#define HWY_AVX3_DL 8  // see HWY_WANT_AVX3_DL below
-#define HWY_AVX3 16
-#define HWY_AVX2 32
-// 64: reserved for AVX
-#define HWY_SSE4 128
-#define HWY_SSSE3 256
-// 512: reserved for SSE3 or SSE2
-
+#define HWY_AVX3_DL (1LL << 7)  // see HWY_WANT_AVX3_DL below
+#define HWY_AVX3 (1LL << 8)
+#define HWY_AVX2 (1LL << 9)
+// Bit 10: reserved for AVX
+#define HWY_SSE4 (1LL << 11)
+#define HWY_SSSE3 (1LL << 12)
+// Bits 13..14 reserved for SSE3 or SSE2 (2 targets)
 // The highest bit in the HWY_TARGETS mask that a x86 target can have. Used for
 // dynamic dispatch. All x86 target bits must be lower or equal to
 // (1 << HWY_HIGHEST_TARGET_BIT_X86) and they can only use
 // HWY_MAX_DYNAMIC_TARGETS in total.
-#define HWY_HIGHEST_TARGET_BIT_X86 9
+#define HWY_HIGHEST_TARGET_BIT_X86 14
 
-// 0x400, 0x800: reserved
-#define HWY_SVE2_128 0x1000  // specialized target (e.g. Arm N2)
-#define HWY_SVE_256 0x2000  // specialized target (e.g. Arm V1)
-#define HWY_SVE2 0x4000
-#define HWY_SVE 0x8000
-// 0x10000 reserved for Helium
-#define HWY_NEON 0x20000  // On A64, includes/requires AES
+// --------------------------- Arm: 15 targets (+ one fallback)
+// Bits 15..23 reserved (9 targets)
+#define HWY_SVE2_128 (1LL << 24)  // specialized target (e.g. Arm N2)
+#define HWY_SVE_256 (1LL << 25)   // specialized target (e.g. Arm V1)
+#define HWY_SVE2 (1LL << 26)
+#define HWY_SVE (1LL << 27)
+#define HWY_NEON (1LL << 28)  // On A64, includes/requires AES
+// Bit 29 reserved (Helium?)
+#define HWY_HIGHEST_TARGET_BIT_ARM 29
 
-#define HWY_HIGHEST_TARGET_BIT_ARM 17
+// --------------------------- RISC-V: 9 targets (+ one fallback)
+// Bits 30..36 reserved (7 targets)
+#define HWY_RVV (1LL << 37)
+// Bit 38 reserved
+#define HWY_HIGHEST_TARGET_BIT_RVV 38
 
-// 0x40000 reserved
-#define HWY_PPC8 0x80000  // v2.07 or 3
-// 0x100000 reserved for prior VSX/AltiVec
+// --------------------------- Future expansion: 4 targets
+// Bits 39..42 reserved
 
-#define HWY_HIGHEST_TARGET_BIT_PPC 20
 
-// 0x200000, 0x400000 reserved
-#define HWY_WASM_EMU256 0x800000  // Experimental
-#define HWY_WASM 0x1000000
+// --------------------------- IBM Power: 9 targets (+ one fallback)
+// Bits 43..48 reserved (6 targets)
+#define HWY_PPC8 (1LL << 49)  // v2.07 or 3
+// Bits 50..51 reserved for prior VSX/AltiVec (2 targets)
+#define HWY_HIGHEST_TARGET_BIT_PPC 51
 
-#define HWY_HIGHEST_TARGET_BIT_WASM 24
+// --------------------------- WebAssembly: 9 targets (+ one fallback)
+// Bits 52..57 reserved (6 targets)
+#define HWY_WASM_EMU256 (1LL << 58)  // Experimental
+#define HWY_WASM (1LL << 59)
+// Bits 60 reserved
+#define HWY_HIGHEST_TARGET_BIT_WASM 60
 
-// 0x2000000, 0x4000000, 0x8000000 reserved
-#define HWY_RVV 0x10000000
 
-#define HWY_HIGHEST_TARGET_BIT_RVV 28
 
-#define HWY_EMU128 0x20000000
-#define HWY_SCALAR 0x40000000
-
-#define HWY_HIGHEST_TARGET_BIT_SCALAR 30
+#define HWY_EMU128 (1LL << 61)
+#define HWY_SCALAR (1LL << 62)
+#define HWY_HIGHEST_TARGET_BIT_SCALAR 62
 
 // Cannot use higher values, otherwise HWY_TARGETS computation might overflow.
 

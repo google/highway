@@ -15,6 +15,7 @@
 
 #include "hwy/targets.h"
 
+#include <inttypes.h>  // PRIx64
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -94,10 +95,10 @@ uint32_t ReadXCR0() {
 
 // When running tests, this value can be set to the mocked supported targets
 // mask. Only written to from a single thread before the test starts.
-uint32_t supported_targets_for_test_ = 0;
+int64_t supported_targets_for_test_ = 0;
 
 // Mask of targets disabled at runtime with DisableTargets.
-uint32_t supported_mask_{LimitsMax<uint32_t>()};
+int64_t supported_mask_ = LimitsMax<int64_t>();
 
 #if HWY_ARCH_X86
 // Arbritrary bit indices indicating which instruction set extensions are
@@ -188,11 +189,11 @@ constexpr uint64_t kGroupAVX3_DL =
 // Returns targets supported by the CPU, independently of DisableTargets.
 // Factored out of SupportedTargets to make its structure more obvious. Note
 // that x86 CPUID may take several hundred cycles.
-uint32_t DetectTargets() {
+int64_t DetectTargets() {
 #if defined(HWY_COMPILE_ONLY_SCALAR) || HWY_BROKEN_EMU128
-  uint32_t bits = HWY_SCALAR;
+  int64_t bits = HWY_SCALAR;
 #else
-  uint32_t bits = HWY_EMU128;
+  int64_t bits = HWY_EMU128;
 #endif
 
 #if HWY_ARCH_X86
@@ -283,8 +284,10 @@ uint32_t DetectTargets() {
   }
 
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
-    fprintf(stderr, "WARNING: CPU supports %zx but software requires %x\n",
-            size_t(bits), HWY_ENABLED_BASELINE);
+    fprintf(stderr,
+            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
+            "\n",
+            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
   }
 
 #elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
@@ -327,8 +330,10 @@ uint32_t DetectTargets() {
 
 #endif  // HWY_ARCH_ARM_A64
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
-    fprintf(stderr, "WARNING: CPU supports %zx but software requires %x\n",
-            size_t(bits), HWY_ENABLED_BASELINE);
+    fprintf(stderr,
+            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
+            "\n",
+            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
   }
 #else   // HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
   // TODO(janwas): detect for other platforms and check for baseline
@@ -371,8 +376,8 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #endif
 }
 
-HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets) {
-  supported_mask_ = ~disabled_targets;
+HWY_DLLEXPORT void DisableTargets(int64_t disabled_targets) {
+  supported_mask_ = static_cast<int64_t>(~disabled_targets);
   // This will take effect on the next call to SupportedTargets, which is
   // called right before GetChosenTarget::Update. However, calling Update here
   // would make it appear that HWY_DYNAMIC_DISPATCH was called, which we want
@@ -381,13 +386,13 @@ HWY_DLLEXPORT void DisableTargets(uint32_t disabled_targets) {
   GetChosenTarget().DeInit();
 }
 
-HWY_DLLEXPORT void SetSupportedTargetsForTest(uint32_t targets) {
+HWY_DLLEXPORT void SetSupportedTargetsForTest(int64_t targets) {
   supported_targets_for_test_ = targets;
   GetChosenTarget().DeInit();  // see comment above
 }
 
-HWY_DLLEXPORT uint32_t SupportedTargets() {
-  uint32_t targets = supported_targets_for_test_;
+HWY_DLLEXPORT int64_t SupportedTargets() {
+  int64_t targets = supported_targets_for_test_;
   if (HWY_LIKELY(targets == 0)) {
     // Mock not active. Re-detect instead of caching just in case we're on a
     // heterogeneous ISA (also requires some app support to pin threads). This
@@ -404,18 +409,14 @@ HWY_DLLEXPORT uint32_t SupportedTargets() {
     if (HWY_ARCH_ARM_A64) {
       const size_t vec_bytes = VectorBytes();  // uncached, see declaration
       if ((targets & HWY_SVE) && vec_bytes == 32) {
-        targets =
-            static_cast<uint32_t>(targets | static_cast<uint32_t>(HWY_SVE_256));
+        targets = static_cast<int64_t>(targets | HWY_SVE_256);
       } else {
-        targets = static_cast<uint32_t>(targets &
-                                        ~static_cast<uint32_t>(HWY_SVE_256));
+        targets = static_cast<int64_t>(targets & ~HWY_SVE_256);
       }
       if ((targets & HWY_SVE2) && vec_bytes == 16) {
-        targets = static_cast<uint32_t>(targets |
-                                        static_cast<uint32_t>(HWY_SVE2_128));
+        targets = static_cast<int64_t>(targets | HWY_SVE2_128);
       } else {
-        targets = static_cast<uint32_t>(targets &
-                                        ~static_cast<uint32_t>(HWY_SVE2_128));
+        targets = static_cast<int64_t>(targets & ~HWY_SVE2_128);
       }
     }  // HWY_ARCH_ARM_A64
   }

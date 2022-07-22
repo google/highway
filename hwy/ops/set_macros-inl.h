@@ -306,7 +306,7 @@
 #define HWY_TARGET_STR "simd128"
 
 //-----------------------------------------------------------------------------
-// WASM2
+// WASM_EMU256
 #elif HWY_TARGET == HWY_WASM_EMU256
 
 #define HWY_ALIGN alignas(32)
@@ -322,7 +322,7 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
-#define HWY_NAMESPACE N_WASM2
+#define HWY_NAMESPACE N_WASM_EMU256
 
 #define HWY_TARGET_STR "simd128"
 

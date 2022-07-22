@@ -20,10 +20,10 @@
 
 #include "hwy/highway.h"
 
-void PrintTargets(const char* msg, uint32_t targets) {
+void PrintTargets(const char* msg, int64_t targets) {
   fprintf(stderr, "%s", msg);
   // For each bit:
-  for (uint32_t x = targets; x != 0; x = x & (x - 1)) {
+  for (int64_t x = targets; x != 0; x = x & (x - 1)) {
     // Extract value of least-significant bit.
     fprintf(stderr, " %s", hwy::TargetName(x & (~x + 1)));
   }

@@ -44,7 +44,7 @@ namespace hwy {
 //   };
 //   HWY_TARGET_INSTANTIATE_TEST_SUITE_P(MyTestSuite);
 //   TEST_P(MyTestSuite, MyTest) { ... }
-class TestWithParamTarget : public testing::TestWithParam<uint32_t> {
+class TestWithParamTarget : public testing::TestWithParam<int64_t> {
  protected:
   void SetUp() override { SetSupportedTargetsForTest(GetParam()); }
 
@@ -64,7 +64,7 @@ class TestWithParamTarget : public testing::TestWithParam<uint32_t> {
 // Function to convert the test parameter of a TestWithParamTarget for
 // displaying it in the gtest test name.
 static inline std::string TestParamTargetName(
-    const testing::TestParamInfo<uint32_t>& info) {
+    const testing::TestParamInfo<int64_t>& info) {
   return TargetName(info.param);
 }
 
@@ -85,7 +85,7 @@ static inline std::string TestParamTargetName(
 //   TEST_P(MyTestSuite, MyTest) { ... GetParam() .... }
 template <typename T>
 class TestWithParamTargetAndT
-    : public ::testing::TestWithParam<std::tuple<uint32_t, T>> {
+    : public ::testing::TestWithParam<std::tuple<int64_t, T>> {
  public:
   // Expose the parametric type here so it can be used by the
   // HWY_TARGET_INSTANTIATE_TEST_SUITE_P_T macro.
@@ -94,7 +94,7 @@ class TestWithParamTargetAndT
  protected:
   void SetUp() override {
     SetSupportedTargetsForTest(std::get<0>(
-        ::testing::TestWithParam<std::tuple<uint32_t, T>>::GetParam()));
+        ::testing::TestWithParam<std::tuple<int64_t, T>>::GetParam()));
   }
 
   void TearDown() override {
@@ -111,13 +111,13 @@ class TestWithParamTargetAndT
 
   T GetParam() {
     return std::get<1>(
-        ::testing::TestWithParam<std::tuple<uint32_t, T>>::GetParam());
+        ::testing::TestWithParam<std::tuple<int64_t, T>>::GetParam());
   }
 };
 
 template <typename T>
 std::string TestParamTargetNameAndT(
-    const testing::TestParamInfo<std::tuple<uint32_t, T>>& info) {
+    const testing::TestParamInfo<std::tuple<int64_t, T>>& info) {
   return std::string(TargetName(std::get<0>(info.param))) + "_" +
          ::testing::PrintToString(std::get<1>(info.param));
 }

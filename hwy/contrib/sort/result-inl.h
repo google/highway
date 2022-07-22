@@ -92,7 +92,7 @@ struct Result {
            num_threads);
   }
 
-  uint32_t target;
+  int64_t target;
   Algo algo;
   Dist dist;
   size_t num_keys = 0;
