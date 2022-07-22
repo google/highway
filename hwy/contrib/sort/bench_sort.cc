@@ -108,11 +108,12 @@ HWY_NOINLINE void BenchAllPartition() {
     return;
   }
 
-  // BenchPartition<TraitsLane<OrderDescending<float>>>();
+  BenchPartition<TraitsLane<OrderDescending<float>>>();
+  BenchPartition<TraitsLane<OrderDescending<int32_t>>>();
   BenchPartition<TraitsLane<OrderDescending<int64_t>>>();
   BenchPartition<Traits128<OrderAscending128>>();
-  BenchPartition<Traits128<OrderDescending128>>();
-  BenchPartition<Traits128<OrderAscendingKV128>>();
+  // BenchPartition<Traits128<OrderDescending128>>();
+  // BenchPartition<Traits128<OrderAscendingKV128>>();
 }
 
 template <class Traits>
@@ -261,7 +262,7 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets
   if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4 ||
-      HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_EMU128) {
+      HWY_TARGET == HWY_EMU128) {
     return;
   }
   // Only enable EMU128 on x86 - it's slow on emulators.
