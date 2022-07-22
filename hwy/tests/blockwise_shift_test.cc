@@ -19,7 +19,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/blockwise_shift_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -226,7 +226,8 @@ struct TestCombineShiftRight {
   HWY_NOINLINE void operator()(T t, D d) {
 // Scalar does not define CombineShiftRightBytes.
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
-    constexpr int kMaxBytes = HWY_MIN(16, int(MaxLanes(d) * sizeof(T)));
+    constexpr int kMaxBytes =
+        HWY_MIN(16, static_cast<int>(MaxLanes(d) * sizeof(T)));
     constexpr int kMaxLanes = kMaxBytes / static_cast<int>(sizeof(T));
     TestCombineShiftRightBytes<kMaxBytes - 1>()(t, d);
     TestCombineShiftRightBytes<HWY_MAX(kMaxBytes / 2, 1)>()(t, d);

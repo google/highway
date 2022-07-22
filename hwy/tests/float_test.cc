@@ -24,7 +24,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/float_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -222,7 +222,7 @@ struct TestNearestInt {
       if (std::isnan(in[i])) {
         // We replace NaN with 0 below (no_nan)
         expected[i] = 0;
-      } else if (std::isinf(in[i]) || double(std::abs(in[i])) >= max) {
+      } else if (std::isinf(in[i]) || double{std::abs(in[i])} >= max) {
         // Avoid undefined result for lrintf
         expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
       } else {

@@ -19,7 +19,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/mul_test.cc"
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -59,7 +59,7 @@ struct TestUnsignedMul {
 
     const size_t bits = sizeof(T) * 8;
     const uint64_t mask = (1ull << bits) - 1;
-    const T max2 = (uint64_t(max) * max) & mask;
+    const T max2 = (static_cast<uint64_t>(max) * max) & mask;
     HWY_ASSERT_VEC_EQ(d, Set(d, max2), Mul(vmax, vmax));
   }
 };

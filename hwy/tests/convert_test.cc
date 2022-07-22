@@ -20,8 +20,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/convert_test.cc"
-#include "hwy/foreach_target.h"
-
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -425,7 +424,7 @@ class TestIntFromFloat {
     for (int sign = 0; sign < 2; ++sign) {
       for (size_t shift = 0; shift < kBits - 1; ++shift) {
         for (int64_t ofs : ofs_table) {
-          const int64_t mag = (int64_t(1) << shift) + ofs;
+          const int64_t mag = (int64_t{1} << shift) + ofs;
           const int64_t val = sign ? mag : -mag;
           HWY_ASSERT_VEC_EQ(di, Set(di, static_cast<TI>(val)),
                             ConvertTo(di, Set(df, static_cast<TF>(val))));

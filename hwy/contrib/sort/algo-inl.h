@@ -38,7 +38,7 @@
 
 #if HAVE_AVX2SORT
 HWY_PUSH_ATTRIBUTES("avx2,avx")
-#include "avx2sort.h"
+#include "avx2sort.h"  //NOLINT
 HWY_POP_ATTRIBUTES
 #endif
 #if HAVE_IPS4O || HAVE_PARALLEL_IPS4O
@@ -49,7 +49,7 @@ HWY_POP_ATTRIBUTES
 #include "third_party/boost/allowed/sort/sort.hpp"
 #endif
 #if HAVE_SORT512
-#include "sort512.h"
+#include "sort512.h"  //NOLINT
 #endif
 
 // vxsort is difficult to compile for multiple targets because it also uses
@@ -182,7 +182,7 @@ enum class Algo {
   kHeap,
 };
 
-const char* AlgoName(Algo algo) {
+static inline const char* AlgoName(Algo algo) {
   switch (algo) {
 #if HAVE_AVX2SORT
     case Algo::kSEA:

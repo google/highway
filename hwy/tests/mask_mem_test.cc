@@ -20,8 +20,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/mask_mem_test.cc"
-#include "hwy/foreach_target.h"
-
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
 
@@ -134,7 +133,8 @@ class TestStoreMaskBits {
 
       memset(expected.get(), 0, expected_num_bytes);
       for (size_t i = 0; i < N; ++i) {
-        expected[i / 8] = uint8_t(expected[i / 8] | (bool_lanes[i] << (i % 8)));
+        expected[i / 8] =
+            static_cast<uint8_t>(expected[i / 8] | (bool_lanes[i] << (i % 8)));
       }
 
       size_t i = 0;
@@ -144,7 +144,7 @@ class TestStoreMaskBits {
         if (is_set != bool_lanes[i]) {
           fprintf(stderr, "%s lane %" PRIu64 ": expected %d, actual %d\n",
                   TypeName(T(), N).c_str(), static_cast<uint64_t>(i),
-                  int(bool_lanes[i]), int(is_set));
+                  static_cast<int>(bool_lanes[i]), static_cast<int>(is_set));
           Print(di, "bools", bools, 0, N);
           Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
                 expected_num_bytes);

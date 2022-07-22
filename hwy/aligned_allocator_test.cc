@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "hwy/base.h"
 
 namespace {
 

@@ -13,26 +13,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// clang-format off
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/sort/bench_sort.cc"
-#include "hwy/foreach_target.h"
-
-// After foreach_target
-#include "hwy/contrib/sort/algo-inl.h"
-#include "hwy/contrib/sort/result-inl.h"
-#include "hwy/contrib/sort/vqsort.h"
-#include "hwy/contrib/sort/sorting_networks-inl.h"  // SharedTraits
-#include "hwy/contrib/sort/traits-inl.h"
-#include "hwy/contrib/sort/traits128-inl.h"
-#include "hwy/tests/test_util-inl.h"
-// clang-format on
-
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>  // memcpy
 
 #include <vector>
+
+// clang-format off
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "hwy/contrib/sort/bench_sort.cc"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
+
+// After foreach_target
+#include "hwy/contrib/sort/algo-inl.h"
+#include "hwy/contrib/sort/result-inl.h"
+#include "hwy/contrib/sort/sorting_networks-inl.h"  // SharedTraits
+#include "hwy/contrib/sort/traits-inl.h"
+#include "hwy/contrib/sort/traits128-inl.h"
+#include "hwy/tests/test_util-inl.h"
+// clang-format on
 
 // Mode for larger sorts because M1 is able to access more than the per-core
 // share of L2, so 1M elements might still be in cache.
@@ -52,8 +51,6 @@ using detail::SharedTraits;
 
 #if VQSORT_ENABLED || HWY_IDE
 using detail::OrderAscending128;
-using detail::OrderAscendingKV128;
-using detail::OrderDescending128;
 using detail::Traits128;
 
 template <class Traits>
