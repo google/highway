@@ -232,6 +232,12 @@ else()
     list(APPEND HWY_FLAGS -Werror)
   endif()
 
+  # Prevent "wasm-ld: error: --shared-memory is disallowed by targets.cc.o
+  # because it was not compiled with 'atomics' or 'bulk-memory' features."
+  if (HWY_EMSCRIPTEN)
+    list(APPEND HWY_FLAGS -matomics)
+  endif()
+
 endif()  # !MSVC
 
 # By default prefer STATIC build (legacy behavior)
