@@ -107,9 +107,11 @@
 // Bits 60 reserved
 #define HWY_HIGHEST_TARGET_BIT_WASM 60
 
-
+// --------------------------- Emulation: 2 targets
 
 #define HWY_EMU128 (1LL << 61)
+// Only used if HWY_COMPILE_ONLY_SCALAR, which disables the 2LL *
+// HWY_STATIC_TARGET case, so int64_t overflow will not occur.
 #define HWY_SCALAR (1LL << 62)
 #define HWY_HIGHEST_TARGET_BIT_SCALAR 62
 
@@ -441,7 +443,7 @@
 // 4) Default: attainable WITHOUT non-best baseline. This reduces code size by
 // excluding superseded targets, in particular scalar.
 #else
-#define HWY_TARGETS (HWY_ATTAINABLE_TARGETS & (2ULL * HWY_STATIC_TARGET - 1))
+#define HWY_TARGETS (HWY_ATTAINABLE_TARGETS & (2LL * HWY_STATIC_TARGET - 1LL))
 
 #endif  // target policy
 
