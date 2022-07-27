@@ -114,15 +114,17 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
   HWY_ASSERT(HWY_STATIC_TARGET == SupportedTargets());
 
   DisableTargets(0);  // Reset the mask.
-  int64_t current_targets = SupportedTargets();
-  if ((current_targets & ~static_cast<int64_t>(HWY_ENABLED_BASELINE)) == 0) {
+  const int64_t current_targets = SupportedTargets();
+  const int64_t enabled_baseline = static_cast<int64_t>(HWY_ENABLED_BASELINE);
+  // Exclude these two because they are always returned by SupportedTargets.
+  const int64_t fallback = HWY_SCALAR | HWY_EMU128;
+  if ((current_targets & ~enabled_baseline & ~fallback) == 0) {
     // We can't test anything else if the only compiled target is the baseline.
     return;
   }
+
   // Get the lowest bit in the mask (the best target) and disable that one.
-  int64_t best_target = current_targets & (~current_targets + 1);
-  // The lowest target shouldn't be one in the baseline.
-  HWY_ASSERT((best_target & ~static_cast<int64_t>(HWY_ENABLED_BASELINE)) != 0);
+  const int64_t best_target = current_targets & (~current_targets + 1);
   DisableTargets(best_target);
 
   // Check that the other targets are still enabled.

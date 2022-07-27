@@ -190,11 +190,9 @@ constexpr uint64_t kGroupAVX3_DL =
 // Factored out of SupportedTargets to make its structure more obvious. Note
 // that x86 CPUID may take several hundred cycles.
 int64_t DetectTargets() {
-#if defined(HWY_COMPILE_ONLY_SCALAR) || HWY_BROKEN_EMU128
-  int64_t bits = HWY_SCALAR;
-#else
-  int64_t bits = HWY_EMU128;
-#endif
+  // Apps will use only one of these (the default is EMU128), but compile flags
+  // for this TU may differ from that of the app, so allow both.
+  int64_t bits = HWY_SCALAR | HWY_EMU128;
 
 #if HWY_ARCH_X86
   bool has_osxsave = false;
