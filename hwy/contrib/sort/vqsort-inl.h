@@ -95,7 +95,7 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   if (num_lanes < 2 * N1) return;
 
   // Build heap.
-  for (size_t i = ((num_lanes - N1) / N1 / 2) * N1; i != (size_t)-N1; i -= N1) {
+  for (size_t i = ((num_lanes - N1) / N1 / 2) * N1; i != (~N1 + 1); i -= N1) {
     SiftDown(st, lanes, num_lanes, i);
   }
 
