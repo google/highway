@@ -1,3 +1,18 @@
+highway (1.0.0-1) UNRELEASED; urgency=medium
+
+* ABI change: 64-bit target values, more room for expansion
+* Add CompressBlocksNot, CompressNot, Lt128Upper, Min/Max128Upper, TruncateTo
+* Add HWY_SVE2_128 target
+* Sort speedups especially for 128-bit
+* Documentation clarifications
+* Faster NEON CountTrue/FindFirstTrue/AllFalse/AllTrue
+* Improved SVE codegen
+* Fix u16x8 ConcatEven/Odd, SSSE3 i64 Lt
+* MSVC 2017 workarounds
+* Support for runtime dispatch on Arm/GCC/Linux
+
+ -- Jan Wassenberg <janwas@google.com>  Wed, 27 Jul 2022 10:00:00 +0200
+
 highway (0.17.0-1) UNRELEASED; urgency=medium
 
 * Add ExtractLane, InsertLane, IsInf, IsFinite, IsNaN

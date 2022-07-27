@@ -83,10 +83,9 @@ incrementing MINOR after backward-compatible additions and PATCH after
 backward-compatible fixes. We recommend using releases (rather than the Git tip)
 because they are tested more extensively, see below.
 
-Version 0.11 is considered stable enough to use in other projects. Version 1.0
-will signal an increased focus on backwards compatibility and is planned for
-2022H1 now that all targets are feature-complete. 2022-06-30 update: we are
-still several weeks away.
+The current version 1.0 signals an increased focus on backwards compatibility.
+Applications using documented functionality will remain compatible with future
+updates that have the same major version number.
 
 ### Testing
 

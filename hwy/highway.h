@@ -27,8 +27,8 @@
 namespace hwy {
 
 // API version (https://semver.org/); keep in sync with CMakeLists.txt.
-#define HWY_MAJOR 0
-#define HWY_MINOR 17
+#define HWY_MAJOR 1
+#define HWY_MINOR 0
 #define HWY_PATCH 0
 
 //------------------------------------------------------------------------------
