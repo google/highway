@@ -3153,6 +3153,24 @@ HWY_INLINE MFromD<D> Lt128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
   return MaskFromVec(OddEven(ltHL, detail::Slide1Down(ltHL)));
 }
 
+// ------------------------------ Eq128
+template <class D>
+HWY_INLINE MFromD<D> Eq128(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const VFromD<D> eqHL = VecFromMask(d, Eq(a, b));
+  const VFromD<D> eqLH = Reverse2(d, eqHL);
+  return MaskFromVec(And(eqHL, eqLH));
+}
+
+// ------------------------------ Eq128Upper
+template <class D>
+HWY_INLINE MFromD<D> Eq128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const VFromD<D> eqHL = VecFromMask(d, Eq(a, b));
+  // Replicate H to its neighbor.
+  return MaskFromVec(OddEven(eqHL, detail::Slide1Down(eqHL)));
+}
+
 // ------------------------------ Min128, Max128 (Lt128)
 
 template <class D>

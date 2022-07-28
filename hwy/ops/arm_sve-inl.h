@@ -2874,7 +2874,8 @@ template <class D>
 HWY_INLINE svuint64_t Lt128Vec(D d, const svuint64_t a, const svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
   const svbool_t eqHx = Eq(a, b);  // only odd lanes used
-  // Convert to vector: more pipelines can TRN* for vectors than predicates.
+  // Convert to vector: more pipelines can execute vector TRN* instructions
+  // than the predicate version.
   const svuint64_t ltHL = VecFromMask(d, Lt(a, b));
   // Move into upper lane: ltL if the upper half is equal, otherwise ltH.
   // Requires an extra IfThenElse because INSR, EXT, TRN2 are unpredicated.
@@ -2907,6 +2908,46 @@ HWY_INLINE svbool_t Lt128Upper(D d, svuint64_t a, svuint64_t b) {
   static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
   const svbool_t ltHL = Lt(a, b);
   return detail::DupOddB(d, ltHL);
+}
+
+// ------------------------------ Eq128
+
+#if HWY_TARGET == HWY_SVE_256 || HWY_IDE
+namespace detail {
+template <class D>
+HWY_INLINE svuint64_t Eq128Vec(D d, const svuint64_t a, const svuint64_t b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  // Convert to vector: more pipelines can execute vector TRN* instructions
+  // than the predicate version.
+  const svuint64_t eqHL = VecFromMask(d, Eq(a, b));
+  // Duplicate upper and lower.
+  const svuint64_t eqHH = DupOdd(eqHL);
+  const svuint64_t eqLL = DupEven(eqHL);
+  return And(eqLL, eqHH);
+}
+}  // namespace detail
+#endif
+
+template <class D>
+HWY_INLINE svbool_t Eq128(D d, const svuint64_t a, const svuint64_t b) {
+#if HWY_TARGET == HWY_SVE_256
+  return MaskFromVec(detail::Eq128Vec(d, a, b));
+#else
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const svbool_t eqHL = Eq(a, b);
+  const svbool_t eqHH = detail::DupOddB(d, eqHL);
+  const svbool_t eqLL = detail::DupEvenB(d, eqHL);
+  return And(eqLL, eqHH);
+#endif  // HWY_TARGET != HWY_SVE_256
+}
+
+// ------------------------------ Eq128Upper
+
+template <class D>
+HWY_INLINE svbool_t Eq128Upper(D d, svuint64_t a, svuint64_t b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const svbool_t eqHL = Eq(a, b);
+  return detail::DupOddB(d, eqHL);
 }
 
 // ------------------------------ Min128, Max128 (Lt128)

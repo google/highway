@@ -7167,12 +7167,29 @@ HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
   return InterleaveUpper(d, vecHx, vecHx);
 }
 
+// Returns vector-mask for Eq128. Also used by x86_256/x86_512.
+template <class D, class V = VFromD<D>>
+HWY_INLINE V Eq128Vec(const D d, const V a, const V b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  const auto eqHL = VecFromMask(d, Eq(a, b));
+  const auto eqLH = Reverse2(d, eqHL);
+  return And(eqHL, eqLH);
+}
+
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Lt128UpperVec(const D d, const V a, const V b) {
   // No specialization required for AVX-512: Mask <-> Vec is fast, and
   // copying mask bits to their neighbor seems infeasible.
   const V ltHL = VecFromMask(d, Lt(a, b));
   return InterleaveUpper(d, ltHL, ltHL);
+}
+
+template <class D, class V = VFromD<D>>
+HWY_INLINE V Eq128UpperVec(const D d, const V a, const V b) {
+  // No specialization required for AVX-512: Mask <-> Vec is fast, and
+  // copying mask bits to their neighbor seems infeasible.
+  const V eqHL = VecFromMask(d, Eq(a, b));
+  return InterleaveUpper(d, eqHL, eqHL);
 }
 
 }  // namespace detail
@@ -7183,8 +7200,18 @@ HWY_API MFromD<D> Lt128(D d, const V a, const V b) {
 }
 
 template <class D, class V = VFromD<D>>
+HWY_API MFromD<D> Eq128(D d, const V a, const V b) {
+  return MaskFromVec(detail::Eq128Vec(d, a, b));
+}
+
+template <class D, class V = VFromD<D>>
 HWY_API MFromD<D> Lt128Upper(D d, const V a, const V b) {
   return MaskFromVec(detail::Lt128UpperVec(d, a, b));
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API MFromD<D> Eq128Upper(D d, const V a, const V b) {
+  return MaskFromVec(detail::Eq128UpperVec(d, a, b));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)

@@ -4423,6 +4423,23 @@ HWY_INLINE Mask128<T, N> Lt128Upper(Simd<T, N, 0> d, Vec128<T, N> a,
   return MaskFromVec(InterleaveUpper(d, ltHL, ltHL));
 }
 
+// ------------------------------ Eq128
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Mask128<T, N> Eq128(Simd<T, N, 0> d, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+  const Vec128<T, N> eqHL = VecFromMask(d, Eq(a, b));
+  return MaskFromVec(And(Reverse2(d, eqHL), eqHL));
+}
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Mask128<T, N> Eq128Upper(Simd<T, N, 0> d, Vec128<T, N> a,
+                                    Vec128<T, N> b) {
+  const Vec128<T, N> eqHL = VecFromMask(d, Eq(a, b));
+  return MaskFromVec(InterleaveUpper(d, eqHL, eqHL));
+}
+
 // ------------------------------ Min128, Max128 (Lt128)
 
 // Without a native OddEven, it seems infeasible to go faster than Lt128.

@@ -752,14 +752,28 @@ These return a mask (see above) indicating whether the condition is true.
 
 *   `V`: `u64` \
     <code>M **Lt128**(D, V a, V b)</code>: for each adjacent pair of 64-bit
-    lanes (e.g. indices 1,0), returns whether a[1]:a[0] concatenated to an
-    unsigned 128-bit integer (least significant bits in a[0]) is less than
-    b[1]:b[0]. For each pair, the mask lanes are either both true or both false.
-    Unavailable if `HWY_TARGET == HWY_SCALAR`.
+    lanes (e.g. indices 1,0), returns whether `a[1]:a[0]` concatenated to an
+    unsigned 128-bit integer (least significant bits in `a[0]`) is less than
+    `b[1]:b[0]`. For each pair, the mask lanes are either both true or both
+    false. Unavailable if `HWY_TARGET == HWY_SCALAR`.
 
 *   `V`: `u64` \
     <code>M **Lt128Upper**(D, V a, V b)</code>: for each adjacent pair of 64-bit
-    lanes (e.g. indices 1,0), returns whether a[1] is less than b[1]. For each
+    lanes (e.g. indices 1,0), returns whether `a[1]` is less than `b[1]`. For
+    each pair, the mask lanes are either both true or both false. This is useful
+    for comparing 64-bit keys alongside 64-bit values. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
+
+*   `V`: `u64` \
+    <code>M **Eq128**(D, V a, V b)</code>: for each adjacent pair of 64-bit
+    lanes (e.g. indices 1,0), returns whether `a[1]:a[0]` concatenated to an
+    unsigned 128-bit integer (least significant bits in `a[0]`) equals
+    `b[1]:b[0]`. For each pair, the mask lanes are either both true or both
+    false. Unavailable if `HWY_TARGET == HWY_SCALAR`.
+
+*   `V`: `u64` \
+    <code>M **Eq128Upper**(D, V a, V b)</code>: for each adjacent pair of 64-bit
+    lanes (e.g. indices 1,0), returns whether `a[1]` equals `b[1]`. For each
     pair, the mask lanes are either both true or both false. This is useful for
     comparing 64-bit keys alongside 64-bit values. Only available if `HWY_TARGET
     != HWY_SCALAR`.
