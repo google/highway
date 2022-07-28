@@ -19,9 +19,11 @@
 #include <stdint.h>
 
 #include "hwy/base.h"
-#include "hwy/print-inl.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util.h"
+
+// After test_util (also includes highway.h)
+#include "hwy/print-inl.h"
 
 // Per-target include guard
 #if defined(HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_) == \

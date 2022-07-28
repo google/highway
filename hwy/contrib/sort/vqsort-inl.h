@@ -17,6 +17,10 @@
 #ifndef HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
+#ifndef VQSORT_PRINT
+#define VQSORT_PRINT 0
+#endif
+
 // Makes it harder for adversaries to predict our sampling locations, at the
 // cost of 1-2% increased runtime.
 #ifndef VQSORT_SECURE_RNG
@@ -25,6 +29,10 @@
 
 #if VQSORT_SECURE_RNG
 #include "third_party/absl/random/random.h"
+#endif
+
+#if VQSORT_PRINT
+#include <stdio.h>
 #endif
 
 #include <string.h>  // memcpy
@@ -45,6 +53,10 @@
 #undef HIGHWAY_HWY_CONTRIB_SORT_VQSORT_TOGGLE
 #else
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_TOGGLE
+#endif
+
+#if VQSORT_PRINT
+#include "hwy/print-inl.h"
 #endif
 
 #include "hwy/contrib/sort/shared-inl.h"
@@ -582,9 +594,17 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
     const V medians2 = MedianOf3(st, v6, v7, v8);
     Store(medians2, d, buf + i + lanes_per_chunk * 2);
   }
-
-  return RecursiveMedianOf3(d, st, buf, 3 * lanes_per_chunk,
-                            buf + 3 * lanes_per_chunk);
+#if VQSORT_PRINT
+  for (size_t i = 0; i < 3 * lanes_per_chunk; i += N) {
+    Print(d, "", Load(d, buf + i), 0, N);
+  }
+#endif
+  const Vec<D> pivot = RecursiveMedianOf3(d, st, buf, 3 * lanes_per_chunk,
+                                          buf + 3 * lanes_per_chunk);
+#if VQSORT_PRINT
+  fprintf(stderr, "  Pivot %.0f\n", static_cast<double>(GetLane(pivot)));
+#endif
+  return pivot;
 }
 
 // Compute exact min/max to detect all-equal partitions. Only called after a
@@ -621,10 +641,17 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, T* HWY_RESTRICT keys_end,
              T* HWY_RESTRICT buf, Generator& rng, size_t remaining_levels) {
   HWY_DASSERT(begin + 1 < end);
   const size_t num = end - begin;  // >= 2
+#if VQSORT_PRINT
+  fprintf(stderr, "Recurse remaining %zu [%zu %zu) len %zu\n", remaining_levels,
+          begin, end, num);
+#endif
 
   // Too many degenerate partitions. This is extremely unlikely to happen
   // because we select pivots from large (though still O(1)) samples.
   if (HWY_UNLIKELY(remaining_levels == 0)) {
+#if VQSORT_PRINT
+    fprintf(stderr, "HeapSort reached, size=%zu\n", num);
+#endif
     HeapSort(st, keys + begin, num);  // Slow but N*logN.
     return;
   }
@@ -646,7 +673,16 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, T* HWY_RESTRICT keys_end,
     // the partitions might not actually include that key.
     Vec<D> first, last;
     ScanMinMax(d, st, keys + begin, num, buf, first, last);
-    if (AllTrue(d, Eq(first, last))) return;
+    const bool all_eq = AllTrue(d, Eq(first, last));
+#if VQSORT_PRINT
+    fprintf(stderr, "  Degenerate partition len %zu\n", num);
+    if (!all_eq) {
+      Print(d, "pivot", pivot, 0, 1);
+      Print(d, "first", first, 0, 1);
+      Print(d, "last", last, 0, 1);
+    }
+#endif
+    if (all_eq) return;
 
     // Separate recursion to make sure that we don't pick `last` as the
     // pivot - that would again lead to a degenerate partition.
@@ -725,6 +761,10 @@ bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
+#if VQSORT_PRINT
+  fprintf(stderr, "=============== Sort num %zu\n", num);
+#endif
+
 #if VQSORT_ENABLED || HWY_IDE
 #if !HWY_HAVE_SCALABLE
   // On targets with fixed-size vectors, avoid _using_ the allocated memory.
