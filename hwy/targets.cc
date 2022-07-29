@@ -265,8 +265,8 @@ int64_t DetectTargets() {
   // are not preserved across context switches.
   if (has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
-    const uint32_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL;
-    const uint32_t min_avx2 = HWY_AVX2 | min_avx3;
+    const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL;
+    const int64_t min_avx2 = HWY_AVX2 | min_avx3;
     // XMM
     if (!IsBitSet(xcr0, 1)) {
       bits &= ~(HWY_SSSE3 | HWY_SSE4 | min_avx2);
