@@ -69,8 +69,8 @@ class FakeAllocator {
   void Free(void* memory) {
     if (!memory) return;
     EXPECT_NE(allocs_.end(), allocs_.find(memory));
-    free(memory);
     allocs_.erase(memory);
+    free(memory);
   }
 
   std::set<void*> allocs_;
