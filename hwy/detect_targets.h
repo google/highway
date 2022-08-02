@@ -53,8 +53,9 @@
 //
 // The C99 preprocessor evaluates #if expressions using intmax_t types. This
 // holds at least 64 bits in practice (verified 2022-07-18 via Godbolt on
-// 32-bit clang/GCC/MSVC compilers for x86/Arm7/AArch32/RISC-V/WASM). We can
-// thus use 63 bits (avoids overflow when computing HWY_TARGETS).
+// 32-bit clang/GCC/MSVC compilers for x86/Arm7/AArch32/RISC-V/WASM). We now
+// avoid overflow when computing HWY_TARGETS (subtracting one instead of
+// left-shifting 2^62), but still do not use bit 63 because it is the sign bit.
 
 // --------------------------- x86: 15 targets (+ one fallback)
 // Bits 0..6 reserved (7 targets)
@@ -110,12 +111,11 @@
 // --------------------------- Emulation: 2 targets
 
 #define HWY_EMU128 (1LL << 61)
-// Only used if HWY_COMPILE_ONLY_SCALAR, which disables the 2LL *
-// HWY_STATIC_TARGET case, so int64_t overflow will not occur.
+// We do not add/left-shift, so this will not overflow to a negative number.
 #define HWY_SCALAR (1LL << 62)
 #define HWY_HIGHEST_TARGET_BIT_SCALAR 62
 
-// Cannot use higher values, otherwise HWY_TARGETS computation might overflow.
+// Do not use bit 63 - would be confusing to have negative numbers.
 
 //------------------------------------------------------------------------------
 // Set default blocklists
@@ -441,9 +441,12 @@
 #define HWY_TARGETS HWY_ATTAINABLE_TARGETS
 
 // 4) Default: attainable WITHOUT non-best baseline. This reduces code size by
-// excluding superseded targets, in particular scalar.
+// excluding superseded targets, in particular scalar. Note: HWY_STATIC_TARGET
+// may be 2^62 (HWY_SCALAR), so we must not left-shift/add it. Subtracting one
+// sets all lower bits (better targets), then we also include the static target.
 #else
-#define HWY_TARGETS (HWY_ATTAINABLE_TARGETS & (2LL * HWY_STATIC_TARGET - 1LL))
+#define HWY_TARGETS \
+  (HWY_ATTAINABLE_TARGETS & ((HWY_STATIC_TARGET - 1LL) | HWY_STATIC_TARGET))
 
 #endif  // target policy
 
