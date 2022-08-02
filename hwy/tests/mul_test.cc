@@ -115,7 +115,8 @@ struct TestMulHigh {
     auto expected_lanes = AllocateAligned<T>(N);
 
     const auto vi = Iota(d, 1);
-    const auto vni = Iota(d, -T(N));  // no i8 supported, so no wraparound
+    // no i8 supported, so no wraparound
+    const auto vni = Iota(d, T(static_cast<T>(~N + 1)));
 
     const auto v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d, v0, MulHigh(v0, v0));

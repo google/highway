@@ -2019,7 +2019,7 @@ HWY_API V SwapAdjacentBlocks(const V v) {
 #else
   const RebindToUnsigned<decltype(d)> du;
   constexpr auto kLanesPerBlock =
-      static_cast<TFromV<V>>(detail::LanesPerBlock(d));
+      static_cast<TFromD<decltype(du)>>(detail::LanesPerBlock(d));
   const VFromD<decltype(du)> idx = detail::XorN(Iota(du, 0), kLanesPerBlock);
   return TableLookupLanes(v, idx);
 #endif
@@ -2746,7 +2746,7 @@ HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
   // Non-full byte, need to clear the undefined upper bits. Can happen for
   // capped/fractional vectors or large T and small hardware vectors.
   if (num_bits < 8) {
-    const int mask = (1ull << num_bits) - 1;
+    const int mask = static_cast<int>((1ull << num_bits) - 1);
     bits[0] = static_cast<uint8_t>(bits[0] & mask);
   }
   // Else: we wrote full bytes because num_bits is a power of two >= 8.
