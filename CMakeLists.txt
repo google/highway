@@ -274,8 +274,10 @@ target_include_directories(hwy PUBLIC
 target_compile_features(hwy PUBLIC cxx_std_11)
 set_target_properties(hwy PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
-# not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
 if(UNIX AND NOT APPLE)
+  # For GCC __atomic_store_8, see #887
+  target_link_libraries(hwy atomic)
+  # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
   set_property(TARGET hwy APPEND_STRING PROPERTY
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
