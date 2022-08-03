@@ -128,6 +128,15 @@ struct Key128 : public KeyAny128 {
   using KeyType = hwy::uint128_t;
 
   std::string KeyString() const { return "U128"; }
+
+  template <class D>
+  HWY_INLINE Mask<D> EqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
+    return Eq128(a, b);
+  }
+
+  HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) {
+    return a[0] == b[0] && a[1] == b[1];
+  }
 };
 
 // Anything order-related depends on the key traits *and* the order (see
@@ -223,6 +232,15 @@ struct KeyValue128 : public KeyAny128 {
   using KeyType = K64V64;
 
   std::string KeyString() const { return "KV128"; }
+
+  template <class D>
+  HWY_INLINE Mask<D> EqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
+    return Eq128Upper(a, b);
+  }
+
+  HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) {
+    return a[1] == b[1];
+  }
 };
 
 struct OrderAscendingKV128 : public KeyValue128 {

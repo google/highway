@@ -74,6 +74,13 @@ struct KeyLane {
   }
 
   template <class D>
+  HWY_INLINE Mask<D> EqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
+    return Eq(a, b);
+  }
+
+  HWY_INLINE bool Equal1(const T* a, const T* b) { return *a == *b; }
+
+  template <class D>
   HWY_INLINE Vec<D> ReverseKeys(D d, Vec<D> v) const {
     return Reverse(d, v);
   }
