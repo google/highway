@@ -59,7 +59,13 @@
 #else
 
 #define HWY_RESTRICT __restrict__
+// force inlining without optimization enabled creates very inefficient code
+// that can cause compiler timeout
+#ifdef __OPTIMIZE__
 #define HWY_INLINE inline __attribute__((always_inline))
+#else
+#define HWY_INLINE inline
+#endif
 #define HWY_NOINLINE __attribute__((noinline))
 #define HWY_FLATTEN __attribute__((flatten))
 #define HWY_NORETURN __attribute__((noreturn))
