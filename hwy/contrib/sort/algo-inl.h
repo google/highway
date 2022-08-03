@@ -258,12 +258,11 @@ class Xorshift128Plus {
   }
 
   // Need to pass in the state because vector cannot be class members.
-  template <class DU64>
-  static Vec<DU64> RandomBits(DU64 /* tag */, Vec<DU64>& state0,
-                              Vec<DU64>& state1) {
-    Vec<DU64> s1 = state0;
-    Vec<DU64> s0 = state1;
-    const Vec<DU64> bits = Add(s1, s0);
+  template <class VU64>
+  static VU64 RandomBits(VU64& state0, VU64& state1) {
+    VU64 s1 = state0;
+    VU64 s0 = state1;
+    const VU64 bits = Add(s1, s0);
     state0 = s0;
     s1 = Xor(s1, ShiftLeft<23>(s1));
     state1 = Xor(s1, Xor(s0, Xor(ShiftRight<18>(s1), ShiftRight<5>(s0))));
@@ -271,32 +270,34 @@ class Xorshift128Plus {
   }
 };
 
-template <typename T, class DU64, HWY_IF_NOT_FLOAT(T)>
-Vec<DU64> RandomValues(DU64 du64, Vec<DU64>& s0, Vec<DU64>& s1,
-                       const Vec<DU64> mask) {
-  const Vec<DU64> bits = Xorshift128Plus::RandomBits(du64, s0, s1);
-  return And(bits, mask);
+template <class D, class VU64, HWY_IF_NOT_FLOAT_D(D)>
+Vec<D> RandomValues(D d, VU64& s0, VU64& s1, const VU64 mask) {
+  const VU64 bits = Xorshift128Plus::RandomBits(s0, s1);
+  return BitCast(d, And(bits, mask));
 }
 
-// Important to avoid denormals, which are flushed to zero by SIMD but not
+// It is important to avoid denormals, which are flushed to zero by SIMD but not
 // scalar sorts, and NaN, which may be ordered differently in scalar vs. SIMD.
-template <typename T, class DU64, HWY_IF_FLOAT(T)>
-Vec<DU64> RandomValues(DU64 du64, Vec<DU64>& s0, Vec<DU64>& s1,
-                       const Vec<DU64> mask) {
-  const Vec<DU64> bits = Xorshift128Plus::RandomBits(du64, s0, s1);
-  const Vec<DU64> values = And(bits, mask);
-#if HWY_TARGET == HWY_SCALAR  // Cannot repartition u64 to i32
-  const RebindToSigned<DU64> di;
+template <class DF, class VU64, HWY_IF_FLOAT_D(DF)>
+Vec<DF> RandomValues(DF df, VU64& s0, VU64& s1, const VU64 mask) {
+  using TF = TFromD<DF>;
+  const RebindToUnsigned<decltype(df)> du;
+  using VU = Vec<decltype(du)>;
+
+  const VU64 bits64 = And(Xorshift128Plus::RandomBits(s0, s1), mask);
+
+#if HWY_TARGET == HWY_SCALAR  // Cannot repartition u64 to smaller types
+  using TU = MakeUnsigned<TF>;
+  const VU bits = Set(du, static_cast<TU>(GetLane(bits64) & LimitsMax<TU>()));
 #else
-  const Repartition<MakeSigned<T>, DU64> di;
+  const VU bits = BitCast(du, bits64);
 #endif
-  const RebindToFloat<decltype(di)> df;
-  const RebindToUnsigned<decltype(di)> du;
-  const auto k1 = BitCast(du64, Set(df, T{1.0}));
-  const auto mantissa = BitCast(du64, Set(du, MantissaMask<T>()));
-  // Avoid NaN/denormal by converting from (range-limited) integer.
-  const Vec<DU64> no_nan = OrAnd(k1, values, mantissa);
-  return BitCast(du64, ConvertTo(df, BitCast(di, no_nan)));
+  // Avoid NaN/denormal by only generating values in [1, 2), i.e. random
+  // mantissas with the exponent taken from the representation of 1.0.
+  const VU k1 = BitCast(du, Set(df, TF{1.0}));
+  const VU mantissa_mask = Set(du, MantissaMask<TF>());
+  const VU representation = OrAnd(k1, bits, mantissa_mask);
+  return BitCast(df, representation);
 }
 
 template <class DU64>
@@ -324,29 +325,29 @@ InputStats<T> GenerateInput(const Dist dist, T* v, size_t num) {
   SortTag<uint64_t> du64;
   using VU64 = Vec<decltype(du64)>;
   const size_t N64 = Lanes(du64);
-  auto buf = hwy::AllocateAligned<uint64_t>(2 * N64);
-  Xorshift128Plus::GenerateSeeds(du64, buf.get());
-  auto s0 = Load(du64, buf.get());
-  auto s1 = Load(du64, buf.get() + N64);
+  auto seeds = hwy::AllocateAligned<uint64_t>(2 * N64);
+  Xorshift128Plus::GenerateSeeds(du64, seeds.get());
+  VU64 s0 = Load(du64, seeds.get());
+  VU64 s1 = Load(du64, seeds.get() + N64);
 
-  const VU64 mask = MaskForDist(du64, dist, sizeof(T));
-
+#if HWY_TARGET == HWY_SCALAR
+  const Sisd<T> d;
+#else
   const Repartition<T, decltype(du64)> d;
+#endif
+  using V = Vec<decltype(d)>;
   const size_t N = Lanes(d);
+  const VU64 mask = MaskForDist(du64, dist, sizeof(T));
+  auto buf = hwy::AllocateAligned<T>(N);
+
   size_t i = 0;
   for (; i + N <= num; i += N) {
-    const VU64 bits = RandomValues<T>(du64, s0, s1, mask);
-#if HWY_ARCH_RVV || (HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7)
-    // v may not be 64-bit aligned
-    StoreU(bits, du64, buf.get());
-    memcpy(v + i, buf.get(), N64 * sizeof(uint64_t));
-#else
-    StoreU(bits, du64, reinterpret_cast<uint64_t*>(v + i));
-#endif
+    const V values = RandomValues(d, s0, s1, mask);
+    StoreU(values, d, v + i);
   }
   if (i < num) {
-    const VU64 bits = RandomValues<T>(du64, s0, s1, mask);
-    StoreU(bits, du64, buf.get());
+    const V values = RandomValues(d, s0, s1, mask);
+    StoreU(values, d, buf.get());
     memcpy(v + i, buf.get(), (num - i) * sizeof(T));
   }
 
