@@ -1030,6 +1030,9 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> Undefined(Simd<T, N, 0> /*d*/) {
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+#if HWY_COMPILER_GCC_ACTUAL
+  HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
+#endif
   typename detail::Raw128<T, N>::type a;
   return Vec128<T, N>(a);
   HWY_DIAGNOSTICS(pop)
