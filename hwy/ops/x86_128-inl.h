@@ -17,6 +17,12 @@
 // operations when compiling for those targets.
 // External include guard in highway.h - see comment there.
 
+// Avoid uninitialized warnings in GCC's emmintrin.h/xmmintrin.h
+HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_GCC_ACTUAL
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
+#endif
 #include <emmintrin.h>
 #include <stdio.h>
 #if HWY_TARGET == HWY_SSSE3
@@ -7299,3 +7305,5 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
+
+HWY_DIAGNOSTICS(pop)
