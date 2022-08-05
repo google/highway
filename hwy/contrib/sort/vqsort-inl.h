@@ -839,8 +839,7 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, T* HWY_RESTRICT keys_end,
 
 // Returns true if sorting is finished.
 template <class D, class Traits, typename T>
-bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-                        T* HWY_RESTRICT buf) {
+bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num) {
   const size_t N = Lanes(d);
   const size_t base_case_num = Constants::BaseCaseNum(N);
 
@@ -904,7 +903,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   buf = storage;
 #endif  // !HWY_HAVE_SCALABLE
 
-  if (detail::HandleSpecialCases(d, st, keys, num, buf)) return;
+  if (detail::HandleSpecialCases(d, st, keys, num)) return;
 
 #if HWY_MAX_BYTES > 64
   // sorting_networks-inl and traits assume no more than 512 bit vectors.
