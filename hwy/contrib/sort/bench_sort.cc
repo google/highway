@@ -51,6 +51,7 @@ using detail::SharedTraits;
 
 #if VQSORT_ENABLED || HWY_IDE
 using detail::OrderAscending128;
+using detail::OrderAscendingKV128;
 using detail::Traits128;
 
 template <class Traits>
@@ -111,7 +112,7 @@ HWY_NOINLINE void BenchAllPartition() {
   BenchPartition<TraitsLane<OrderDescending<int64_t>>>();
   BenchPartition<Traits128<OrderAscending128>>();
   // BenchPartition<Traits128<OrderDescending128>>();
-  // BenchPartition<Traits128<OrderAscendingKV128>>();
+  BenchPartition<Traits128<OrderAscendingKV128>>();
 }
 
 template <class Traits>
@@ -259,12 +260,9 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets
-  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4 ||
-      HWY_TARGET == HWY_EMU128) {
+  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4) {
     return;
   }
-  // Only enable EMU128 on x86 - it's slow on emulators.
-  if (!HWY_ARCH_X86 && (HWY_TARGET == HWY_EMU128)) return;
 
   constexpr size_t K = 1000;
   constexpr size_t M = K * K;
@@ -288,7 +286,7 @@ HWY_NOINLINE void BenchAllSort() {
 
 #if !HAVE_VXSORT && VQSORT_ENABLED
     BenchSort<Traits128<OrderAscending128>>(num_keys);
-    // BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
+    BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
 #endif
   }
 }
