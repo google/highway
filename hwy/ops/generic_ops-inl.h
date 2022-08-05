@@ -1249,6 +1249,46 @@ HWY_API V PopulationCount(V v) {
 }
 #endif
 
+#ifndef HWY_NATIVE_I64MULLO
+
+HWY_API Vec128<int64_t> operator*(Vec128<int64_t> x, Vec128<int64_t> y) {
+  Vec128<int32_t> x32 = BitCast(Simd<int32_t,4,0>(), x);
+  Vec128<int32_t> y32 = BitCast(Simd<int32_t,4,0>(), y);
+  Vec128<int64_t> lolo = BitCast(Simd<int64_t,2,0>(), MulEven(x32, y32));
+  Vec128<int32_t> lohi = BitCast(Simd<int32_t,4,0>(), MulEven(x32, BitCast(Simd<int32_t,4,0>(), ShiftRight<32>(y))));
+  Vec128<int32_t> hilo = BitCast(Simd<int32_t,4,0>(), MulEven(BitCast(Simd<int32_t,4,0>(), ShiftRight<32>(x)), x32));
+  return lolo + ShiftLeft<32>(BitCast(Simd<int64_t,2,0>(), lohi + hilo));
+}
+
+HWY_API Vec128<uint64_t> operator*(Vec128<uint64_t> x, Vec128<uint64_t> y) {
+  Vec128<uint32_t> x32 = BitCast(Simd<uint32_t,4,0>(), x);
+  Vec128<uint32_t> y32 = BitCast(Simd<uint32_t,4,0>(), y);
+  Vec128<uint64_t> lolo = BitCast(Simd<uint64_t,2,0>(), MulEven(x32, y32));
+  Vec128<uint32_t> lohi = BitCast(Simd<uint32_t,4,0>(), MulEven(x32, BitCast(Simd<uint32_t,4,0>(), ShiftRight<32>(y))));
+  Vec128<uint32_t> hilo = BitCast(Simd<uint32_t,4,0>(), MulEven(BitCast(Simd<uint32_t,4,0>(), ShiftRight<32>(x)), x32));
+  return lolo + ShiftLeft<32>(BitCast(Simd<uint64_t,2,0>(), lohi + hilo));
+}
+#if HWY_TARGET == HWY_AVX2
+HWY_API Vec256<int64_t> operator*(Vec256<int64_t> x, Vec256<int64_t> y) {
+  Vec256<int32_t> x32 = BitCast(Simd<int32_t,8,0>(), x);
+  Vec256<int32_t> y32 = BitCast(Simd<int32_t,8,0>(), y);
+  Vec256<int64_t> lolo = BitCast(Simd<int64_t,4,0>(), MulEven(x32, y32));
+  Vec256<int32_t> lohi = BitCast(Simd<int32_t,8,0>(), MulEven(x32, BitCast(Simd<int32_t,8,0>(), ShiftRight<32>(y))));
+  Vec256<int32_t> hilo = BitCast(Simd<int32_t,8,0>(), MulEven(BitCast(Simd<int32_t,8,0>(), ShiftRight<32>(x)), x32));
+  return lolo + ShiftLeft<32>(BitCast(Simd<int64_t,4,0>(), lohi + hilo));
+}
+
+HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> x, Vec256<uint64_t> y) {
+  Vec256<uint32_t> x32 = BitCast(Simd<uint32_t,8,0>(), x);
+  Vec256<uint32_t> y32 = BitCast(Simd<uint32_t,8,0>(), y);
+  Vec256<uint64_t> lolo = BitCast(Simd<uint64_t,4,0>(), MulEven(x32, y32));
+  Vec256<uint32_t> lohi = BitCast(Simd<uint32_t,8,0>(), MulEven(x32, BitCast(Simd<uint32_t,8,0>(), ShiftRight<32>(y))));
+  Vec256<uint32_t> hilo = BitCast(Simd<uint32_t,8,0>(), MulEven(BitCast(Simd<uint32_t,8,0>(), ShiftRight<32>(x)), x32));
+  return lolo + ShiftLeft<32>(BitCast(Simd<uint64_t,4,0>(), lohi + hilo));
+}
+#endif 
+#endif // HWY_NATIVE_I64MULLO
+
 #endif  // HWY_NATIVE_POPCNT
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

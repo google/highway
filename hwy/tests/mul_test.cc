@@ -97,13 +97,13 @@ HWY_NOINLINE void TestAllMul() {
   // No u8.
   test_unsigned(uint16_t());
   test_unsigned(uint32_t());
-  // No u64.
+  test_unsigned(uint64_t());
 
   const ForPartialVectors<TestSignedMul> test_signed;
   // No i8.
   test_signed(int16_t());
   test_signed(int32_t());
-  // No i64.
+  test_signed(int64_t());
 }
 
 struct TestMulHigh {

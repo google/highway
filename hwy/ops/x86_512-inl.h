@@ -1164,13 +1164,20 @@ HWY_API Vec512<uint16_t> operator*(Vec512<uint16_t> a, Vec512<uint16_t> b) {
 HWY_API Vec512<uint32_t> operator*(Vec512<uint32_t> a, Vec512<uint32_t> b) {
   return Vec512<uint32_t>{_mm512_mullo_epi32(a.raw, b.raw)};
 }
-
+HWY_API Vec512<uint64_t> operator*(Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  return Vec512<uint64_t>{_mm512_mullo_epi64(a.raw, b.raw)};
+}
+#define HWY_NATIVE_I64MULLO
+    
 // Signed
 HWY_API Vec512<int16_t> operator*(Vec512<int16_t> a, Vec512<int16_t> b) {
   return Vec512<int16_t>{_mm512_mullo_epi16(a.raw, b.raw)};
 }
 HWY_API Vec512<int32_t> operator*(Vec512<int32_t> a, Vec512<int32_t> b) {
   return Vec512<int32_t>{_mm512_mullo_epi32(a.raw, b.raw)};
+}
+HWY_API Vec512<int64_t> operator*(Vec512<int64_t> a, Vec512<int64_t> b) {
+  return Vec512<int64_t>{_mm512_mullo_epi64(a.raw, b.raw)};
 }
 
 // Returns the upper 16 bits of a * b in each lane.
