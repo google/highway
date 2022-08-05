@@ -39,7 +39,7 @@ namespace detail {
 // along with an abstraction layer for single-lane vs. lane-pair, which is
 // independent of the order.
 struct KeyAny128 {
-  constexpr bool Is128() const { return true; }
+  static constexpr bool Is128() { return true; }
   constexpr size_t LanesPerKey() const { return 2; }
 
   // What type bench_sort should allocate for generating inputs.

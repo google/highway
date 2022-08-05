@@ -41,7 +41,7 @@ namespace detail {
 // independent of the order.
 template <typename T>
 struct KeyLane {
-  constexpr bool Is128() const { return false; }
+  static constexpr bool Is128() { return false; }
   constexpr size_t LanesPerKey() const { return 1; }
 
   // What type bench_sort should allocate for generating inputs.
