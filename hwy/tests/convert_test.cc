@@ -390,7 +390,7 @@ struct TestIntFromFloatHuge {
     // Still does not work, although ARMv7 manual says that float->int
     // saturates, i.e. chooses the nearest representable value. Also causes
     // out-of-memory for MSVC.
-#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC
+#if !HWY_COMPILER_MSVC
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
