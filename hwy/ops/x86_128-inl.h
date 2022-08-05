@@ -17,6 +17,16 @@
 // operations when compiling for those targets.
 // External include guard in highway.h - see comment there.
 
+// Must come before HWY_DIAGNOSTICS and HWY_COMPILER_GCC_ACTUAL
+#include "hwy/base.h"
+
+// Avoid uninitialized warnings in GCC's emmintrin.h - see
+// https://github.com/google/highway/issues/710 and pull/902)
+HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_GCC_ACTUAL
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+#endif
+
 #include <emmintrin.h>
 #include <stdio.h>
 #if HWY_TARGET == HWY_SSSE3
@@ -28,7 +38,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 #if HWY_IS_MSAN
@@ -7299,3 +7308,7 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
+
+// Note that the GCC warnings are not suppressed if we only wrap the *intrin.h -
+// the warning seems to be issued at the call site of intrinsics, i.e. our code.
+HWY_DIAGNOSTICS(pop)
