@@ -89,6 +89,9 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort-inl.h
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
+    hwy/contrib/algo/copy-inl.h
+    hwy/contrib/algo/find-inl.h
+    hwy/contrib/algo/transform-inl.h
 )
 endif()  # HWY_ENABLE_CONTRIB
 
