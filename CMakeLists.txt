@@ -93,7 +93,6 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/algo/find-inl.h
     hwy/contrib/algo/transform-inl.h
 )
-
 endif()  # HWY_ENABLE_CONTRIB
 
 set(HWY_SOURCES
