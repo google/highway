@@ -16,6 +16,7 @@
 // Target-independent types/functions defined after target-specific ops.
 
 // Relies on the external include guard in highway.h.
+#include <cstdint>
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -1248,6 +1249,13 @@ HWY_API V PopulationCount(V v) {
   return Add(ShiftRight<32>(vals), And(vals, Set(d, 0xFF)));
 }
 #endif
+
+HWY_API Vec128<int64_t,1> operator*(Vec128<int64_t,1> x, Vec128<int64_t,1> y) {
+    return Set(Simd<int64_t,1,0>(), GetLane(x)*GetLane(y));
+}
+HWY_API Vec128<uint64_t,1> operator*(Vec128<uint64_t,1> x, Vec128<uint64_t,1> y) {
+    return Set(Simd<uint64_t,1,0>(), GetLane(x)*GetLane(y));
+}
 
 #ifndef HWY_NATIVE_I64MULLO
 
