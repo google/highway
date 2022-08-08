@@ -1272,7 +1272,7 @@ HWY_API V operator*(V x, V y) {
 template <class V, typename T = LaneType<V>, HWY_IF_LANE_SIZE(T, 8), HWY_IF_SIGNED(T)>
 HWY_API V operator*(V x, V y) {
   DFromV<V> di64;
-  RebindToUnsigned<decltype(di64)> du64
+  RebindToUnsigned<decltype(di64)> du64;
   return BitCast(di64, BitCast(du64, x) * BitCast(du64, y));
 }
 
