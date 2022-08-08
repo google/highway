@@ -4231,14 +4231,22 @@ HWY_API Vec512<float> MinOfLanes(Full512<float> d, Vec512<float> v) {
 HWY_API Vec512<double> MinOfLanes(Full512<double> d, Vec512<double> v) {
   return Set(d, _mm512_reduce_min_pd(v.raw));
 }
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec512<T> MinOfLanes(Full512<T> d, Vec512<T> v) {
-  const Repartition<int32_t, decltype(d)> d32;
+HWY_API Vec512<uint16_t> MinOfLanes(Full512<uint16_t> d, Vec512<uint16_t> v) {
+  const RepartitionToWide<decltype(d)> d32;
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
   const auto min = MinOfLanes(d32, Min(even, odd));
   // Also broadcast into odd lanes.
-  return BitCast(d, Or(min, ShiftLeft<16>(min)));
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+}
+HWY_API Vec512<int16_t> MinOfLanes(Full512<int16_t> d, Vec512<int16_t> v) {
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MinOfLanes(d32, Min(even, odd));
+  // Also broadcast into odd lanes.
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
 }
 
 // Returns the maximum in each lane.
@@ -4260,14 +4268,22 @@ HWY_API Vec512<float> MaxOfLanes(Full512<float> d, Vec512<float> v) {
 HWY_API Vec512<double> MaxOfLanes(Full512<double> d, Vec512<double> v) {
   return Set(d, _mm512_reduce_max_pd(v.raw));
 }
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec512<T> MaxOfLanes(Full512<T> d, Vec512<T> v) {
-  const Repartition<int32_t, decltype(d)> d32;
+HWY_API Vec512<uint16_t> MaxOfLanes(Full512<uint16_t> d, Vec512<uint16_t> v) {
+  const RepartitionToWide<decltype(d)> d32;
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
   const auto min = MaxOfLanes(d32, Max(even, odd));
   // Also broadcast into odd lanes.
-  return BitCast(d, Or(min, ShiftLeft<16>(min)));
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+}
+HWY_API Vec512<int16_t> MaxOfLanes(Full512<int16_t> d, Vec512<int16_t> v) {
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MaxOfLanes(d32, Max(even, odd));
+  // Also broadcast into odd lanes.
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

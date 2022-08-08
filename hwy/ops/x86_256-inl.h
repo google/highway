@@ -5381,24 +5381,48 @@ HWY_INLINE Vec256<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
   return Max(v10, v01);
 }
 
-// u16/i16
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec256<T> MinOfLanes(hwy::SizeTag<2> /* tag */, Vec256<T> v) {
-  const Repartition<int32_t, Full256<T>> d32;
+HWY_API Vec256<uint16_t> MinOfLanes(hwy::SizeTag<2> /* tag */,
+                                    Vec256<uint16_t> v) {
+  const Full256<uint16_t> d;
+  const RepartitionToWide<decltype(d)> d32;
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(d32, Min(even, odd));
+  const auto min = MinOfLanes(hwy::SizeTag<4>(), Min(even, odd));
   // Also broadcast into odd lanes.
-  return BitCast(Full256<T>(), Or(min, ShiftLeft<16>(min)));
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
 }
-template <typename T, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec256<T> MaxOfLanes(hwy::SizeTag<2> /* tag */, Vec256<T> v) {
-  const Repartition<int32_t, Full256<T>> d32;
+HWY_API Vec256<int16_t> MinOfLanes(hwy::SizeTag<2> /* tag */,
+                                   Vec256<int16_t> v) {
+  const Full256<int16_t> d;
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MinOfLanes(hwy::SizeTag<4>(), Min(even, odd));
+  // Also broadcast into odd lanes.
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+}
+
+HWY_API Vec256<uint16_t> MaxOfLanes(hwy::SizeTag<2> /* tag */,
+                                    Vec256<uint16_t> v) {
+  const Full256<uint16_t> d;
+  const RepartitionToWide<decltype(d)> d32;
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(d32, Max(even, odd));
+  const auto min = MaxOfLanes(hwy::SizeTag<4>(), Max(even, odd));
   // Also broadcast into odd lanes.
-  return BitCast(Full256<T>(), Or(min, ShiftLeft<16>(min)));
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+}
+HWY_API Vec256<int16_t> MaxOfLanes(hwy::SizeTag<2> /* tag */,
+                                   Vec256<int16_t> v) {
+  const Full256<int16_t> d;
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto min = MaxOfLanes(hwy::SizeTag<4>(), Max(even, odd));
+  // Also broadcast into odd lanes.
+  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
 }
 
 }  // namespace detail
