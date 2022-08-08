@@ -426,7 +426,7 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(HwyMulTest);
-HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMul);
+// HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMul);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulHigh);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulEven);
