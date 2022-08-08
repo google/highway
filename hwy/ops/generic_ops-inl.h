@@ -1258,9 +1258,6 @@ HWY_API Vec128<uint64_t,1> operator*(Vec128<uint64_t,1> x, Vec128<uint64_t,1> y)
 
 #ifndef HWY_NATIVE_I64MULLO
 
-using V64 = Vec128<uint64_t>;
-using V32 = Vec128<uint32_t>;
-
 template <class V, typename T = LaneType<V>, HWY_IF_LANE_SIZE(T, 8), HWY_IF_UNSIGNED(T)>
 HWY_API V operator*(V x, V y) {
   DFromV<V> d64;
