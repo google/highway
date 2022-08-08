@@ -16,7 +16,6 @@
 // Target-independent types/functions defined after target-specific ops.
 
 // Relies on the external include guard in highway.h.
-#include <cstdint>
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -1259,32 +1258,27 @@ HWY_API Vec128<uint64_t,1> operator*(Vec128<uint64_t,1> x, Vec128<uint64_t,1> y)
 
 #ifndef HWY_NATIVE_I64MULLO
 
+using V64 = Vec128<uint64_t>;
+using V32 = Vec128<uint32_t>;
 
-HWY_API Vec128<uint64_t> operator*(Vec128<uint64_t> x, Vec128<uint64_t> y) {
-  Vec128<uint32_t> x32 = BitCast(Simd<uint32_t,4,0>(), x);
-  Vec128<uint32_t> y32 = BitCast(Simd<uint32_t,4,0>(), y);
-  Vec128<uint64_t> lolo = MulEven(x32, y32);
-  Vec128<uint32_t> lohi = BitCast(Simd<uint32_t,4,0>(), MulEven(x32, BitCast(Simd<uint32_t,4,0>(), ShiftRight<32>(y))));
-  Vec128<uint32_t> hilo = BitCast(Simd<uint32_t,4,0>(), MulEven(BitCast(Simd<uint32_t,4,0>(), ShiftRight<32>(x)), y32));
-  return lolo + ShiftLeft<32>(BitCast(Simd<uint64_t,2,0>(), lohi + hilo));
+template <class V, typename T = LaneType<V>, HWY_IF_LANE_SIZE(T, 8), HWY_IF_UNSIGNED(T)>
+HWY_API V operator*(V x, V y) {
+  DFromV<V> d64;
+  RepartitionToNarrow<decltype(d64)> d32;
+  auto x32 = BitCast(d32, x);
+  auto y32 = BitCast(d32, y);
+  V lolo = MulEven(x32, y32);
+  auto lohi = BitCast(d32, MulEven(x32, BitCast(d32, ShiftRight<32>(y))));
+  auto hilo = BitCast(d32, MulEven(BitCast(d32, ShiftRight<32>(x)), y32));
+  return lolo + ShiftLeft<32>(BitCast(d64, lohi + hilo));
 }
-HWY_API Vec128<int64_t> operator*(Vec128<int64_t> x, Vec128<int64_t> y) {
-  return BitCast(Simd<int64_t,2,0>(), BitCast(Simd<uint64_t,2,0>(), x) * BitCast(Simd<uint64_t,2,0>(), y));
+template <class V, typename T = LaneType<V>, HWY_IF_LANE_SIZE(T, 8), HWY_IF_SIGNED(T)>
+HWY_API V operator*(V x, V y) {
+  DFromV<V> di64;
+  Repartition<uint64_t, decltype(di64)> du64;
+  return BitCast(di64, BitCast(du64, x) * BitCast(du64, y));
 }
-#if HWY_TARGET == HWY_AVX2
 
-HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> x, Vec256<uint64_t> y) {
-  Vec256<uint32_t> x32 = BitCast(Simd<uint32_t,8,0>(), x);
-  Vec256<uint32_t> y32 = BitCast(Simd<uint32_t,8,0>(), y);
-  Vec256<uint64_t> lolo = MulEven(x32, y32);
-  Vec256<uint32_t> lohi = BitCast(Simd<uint32_t,8,0>(), MulEven(x32, BitCast(Simd<uint32_t,8,0>(), ShiftRight<32>(y))));
-  Vec256<uint32_t> hilo = BitCast(Simd<uint32_t,8,0>(), MulEven(BitCast(Simd<uint32_t,8,0>(), ShiftRight<32>(x)), y32));
-  return lolo + ShiftLeft<32>(BitCast(Simd<uint64_t,4,0>(), lohi + hilo));
-}
-HWY_API Vec256<int64_t> operator*(Vec256<int64_t> x, Vec256<int64_t> y) {
-  return BitCast(Simd<int64_t,4,0>(), BitCast(Simd<uint64_t,4,0>(), x) * BitCast(Simd<uint64_t,4,0>(), y));
-}
-#endif 
 #endif // HWY_NATIVE_I64MULLO
 
 #endif  // HWY_NATIVE_POPCNT

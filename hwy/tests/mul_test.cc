@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -59,7 +58,7 @@ struct TestUnsignedMul {
     HWY_ASSERT_VEC_EQ(d, vmax, Mul(v1, vmax));
 
     const size_t bits = sizeof(T) * 8;
-    const uint64_t mask = bits==64 ? uint64_t(-1) : (1ull << bits) - 1;
+    const uint64_t mask = bits==64 ? (~uint64_t{0}) : (1ull << bits) - 1;
     const T max2 = (static_cast<uint64_t>(max) * max) & mask;
     HWY_ASSERT_VEC_EQ(d, Set(d, max2), Mul(vmax, vmax));
   }
