@@ -1249,6 +1249,35 @@ HWY_API V PopulationCount(V v) {
 }
 #endif
 
+template <class V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8),
+          HWY_IF_LT128_D(D)>
+HWY_API V operator*(V x, V y) {
+  return Set(D(), GetLane(x) * GetLane(y));
+}
+
+#ifndef HWY_NATIVE_I64MULLO
+
+template <class V, class D64 = DFromV<V>, typename T = LaneType<V>,
+	  HWY_IF_LANE_SIZE(T, 8), HWY_IF_UNSIGNED(T), HWY_IF_GE128_D(D64)>
+HWY_API V operator*(V x, V y) {
+  RepartitionToNarrow<D64> d32;
+  auto x32 = BitCast(d32, x);
+  auto y32 = BitCast(d32, y);
+  auto lolo = BitCast(d32, MulEven(x32, y32));
+  auto lohi = BitCast(d32, MulEven(x32, BitCast(d32, ShiftRight<32>(y))));
+  auto hilo = BitCast(d32, MulEven(BitCast(d32, ShiftRight<32>(x)), y32));
+  auto hi = BitCast(d32, ShiftLeft<32>(BitCast(D64{}, lohi + hilo)));
+  return BitCast(D64{}, lolo + hi);
+}
+template <class V, class DI64 = DFromV<V>, typename T = LaneType<V>,
+	  HWY_IF_LANE_SIZE(T, 8), HWY_IF_SIGNED(T), HWY_IF_GE128_D(DI64)>
+HWY_API V operator*(V x, V y) {
+  RebindToUnsigned<DI64> du64;
+  return BitCast(DI64{}, BitCast(du64, x) * BitCast(du64, y));
+}
+
+#endif // HWY_NATIVE_I64MULLO
+
 #endif  // HWY_NATIVE_POPCNT
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
