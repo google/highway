@@ -1263,10 +1263,11 @@ HWY_API V operator*(V x, V y) {
   RepartitionToNarrow<D64> d32;
   auto x32 = BitCast(d32, x);
   auto y32 = BitCast(d32, y);
-  V lolo = MulEven(x32, y32);
+  auto lolo = BitCast(d32, MulEven(x32, y32));
   auto lohi = BitCast(d32, MulEven(x32, BitCast(d32, ShiftRight<32>(y))));
   auto hilo = BitCast(d32, MulEven(BitCast(d32, ShiftRight<32>(x)), y32));
-  return lolo + ShiftLeft<32>(BitCast(D64{}, lohi + hilo));
+  auto hi = BitCast(d32, ShiftLeft<32>(BitCast(D64{}, lohi + hilo)));
+  return BitCast(D64{}, lolo + hi);
 }
 template <class V, class DI64 = DFromV<V>, typename T = LaneType<V>,
 	  HWY_IF_LANE_SIZE(T, 8), HWY_IF_SIGNED(T), HWY_IF_GE128_D(DI64)>
