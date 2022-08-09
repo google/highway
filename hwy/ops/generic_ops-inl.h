@@ -1249,11 +1249,10 @@ HWY_API V PopulationCount(V v) {
 }
 #endif
 
-HWY_API Vec128<int64_t,1> operator*(Vec128<int64_t,1> x, Vec128<int64_t,1> y) {
-    return Set(Simd<int64_t,1,0>(), GetLane(x)*GetLane(y));
-}
-HWY_API Vec128<uint64_t,1> operator*(Vec128<uint64_t,1> x, Vec128<uint64_t,1> y) {
-    return Set(Simd<uint64_t,1,0>(), GetLane(x)*GetLane(y));
+template <class V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8),
+          HWY_IF_LT128_D(D)>
+HWY_API V operator*(V x, V y) {
+  return Set(D(), GetLane(x) * GetLane(y));
 }
 
 #ifndef HWY_NATIVE_I64MULLO
