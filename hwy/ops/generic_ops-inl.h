@@ -1250,7 +1250,7 @@ HWY_API V PopulationCount(V v) {
 #endif
 
 template <class V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8),
-          HWY_IF_LT128_D(D), HWY_IF_NOT_FLOAT(D)>
+          HWY_IF_LT128_D(D)>
 HWY_API V operator*(V x, V y) {
   return Set(D(), GetLane(x) * GetLane(y));
 }
