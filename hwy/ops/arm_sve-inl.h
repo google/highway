@@ -629,6 +629,13 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MaxN, max_n)
 HWY_SVE_FOREACH_UI16(HWY_SVE_RETV_ARGPVV, Mul, mul)
 HWY_SVE_FOREACH_UIF3264(HWY_SVE_RETV_ARGPVV, Mul, mul)
 
+// Per-target flag to prevent generic_ops-inl.h from defining i64 operator*.
+#ifdef HWY_NATIVE_I64MULLO
+#undef HWY_NATIVE_I64MULLO
+#else
+#define HWY_NATIVE_I64MULLO
+#endif
+
 // ------------------------------ MulHigh
 HWY_SVE_FOREACH_UI16(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
 namespace detail {

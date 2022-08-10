@@ -4489,62 +4489,6 @@ HWY_INLINE VFromD<D> Max128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
   return IfThenElse(Lt128Upper(d, b, a), a, b);
 }
 
-// ================================================== Operator wrapper
-
-template <class V>
-HWY_API V Add(V a, V b) {
-  return a + b;
-}
-template <class V>
-HWY_API V Sub(V a, V b) {
-  return a - b;
-}
-
-template <class V>
-HWY_API V Mul(V a, V b) {
-  return a * b;
-}
-template <class V>
-HWY_API V Div(V a, V b) {
-  return a / b;
-}
-
-template <class V>
-V Shl(V a, V b) {
-  return a << b;
-}
-template <class V>
-V Shr(V a, V b) {
-  return a >> b;
-}
-
-template <class V>
-HWY_API auto Eq(V a, V b) -> decltype(a == b) {
-  return a == b;
-}
-template <class V>
-HWY_API auto Ne(V a, V b) -> decltype(a == b) {
-  return a != b;
-}
-template <class V>
-HWY_API auto Lt(V a, V b) -> decltype(a == b) {
-  return a < b;
-}
-
-template <class V>
-HWY_API auto Gt(V a, V b) -> decltype(a == b) {
-  return a > b;
-}
-template <class V>
-HWY_API auto Ge(V a, V b) -> decltype(a == b) {
-  return a >= b;
-}
-
-template <class V>
-HWY_API auto Le(V a, V b) -> decltype(a == b) {
-  return a <= b;
-}
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

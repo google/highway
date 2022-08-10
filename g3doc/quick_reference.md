@@ -403,7 +403,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 #### Multiply
 
-*   `V`: `{u,i}{16,32}` \
+*   `V`: `{u,i}{16,32,64}` \
     <code>V <b>operator*</b>(V a, V b)</code>: returns the lower half of `a[i] *
     b[i]` in each lane. Currently unavailable on SVE/RVV; use the equivalent
     `Mul` instead.
