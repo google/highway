@@ -630,9 +630,9 @@ HWY_INLINE bool ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
 
 // Returns key prior to reference in sort order.
 template <class D, class Traits, typename T>
-HWY_INLINE Vec<D> ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
-                              size_t num, Vec<D> reference,
-                              T* HWY_RESTRICT buf) {
+HWY_NOINLINE Vec<D> ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
+                                size_t num, Vec<D> reference,
+                                T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
 
