@@ -161,7 +161,10 @@ lane count, thus avoiding the need for a second loop to handle remainders.
     masking in `Load` etc. `kCount` must be a power of two not exceeding
     `HWY_LANES(T)`, which is one for `HWY_SCALAR`. This tag can be used when the
     `HWY_SCALAR` target is anyway disabled (superseded by a higher baseline) or
-    unusable (due to use of ops such as `TableLookupBytes`).
+    unusable (due to use of ops such as `TableLookupBytes`). As a convenience,
+    we also provide `Full128<T>`, `Full64<T>` and `Full32<T>` aliases which are
+    equivalent to `FixedTag<T, 16 / sizeof(T)>`, `FixedTag<T, 8 / sizeof(T)>`
+    and `FixedTag<T, 4 / sizeof(T)>`.
 
 *   The result of `UpperHalf`/`LowerHalf` has half the lanes. To obtain a
     corresponding `d`, use `Half<decltype(d)>`; the opposite is `Twice<>`.
