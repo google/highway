@@ -5593,6 +5593,12 @@ HWY_API Vec128<float, N> ConvertTo(Simd<float, N, 0> /* tag */,
 }
 
 template <size_t N>
+HWY_API Vec128<float, N> ConvertTo(Simd<float, N, 0> /* tag */,
+                                   const Vec128<uint32_t, N> v) {
+  return Vec128<float, N>{_mm_cvtepu32_ps(v.raw)};
+}
+
+template <size_t N>
 HWY_API Vec128<double, N> ConvertTo(Simd<double, N, 0> dd,
                                     const Vec128<int64_t, N> v) {
 #if HWY_TARGET <= HWY_AVX3
@@ -5613,6 +5619,20 @@ HWY_API Vec128<double, N> ConvertTo(Simd<double, N, 0> dd,
 
   const auto k84_63_52 = BitCast(dd, Set(d64, 0x4530000080100000ULL));
   return (v_upper - k84_63_52) + v_lower;  // order matters!
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<double, N> ConvertTo(Simd<double, N, 0> dd,
+                                    const Vec128<uint64_t, N> v) {
+#if HWY_TARGET <= HWY_AVX3
+  (void)dd;
+  return Vec128<double, N>{_mm_cvtepu64_pd(v.raw)};
+#else
+  // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
+  const Repartition<uint32_t, decltype(dd)> d32;
+  const Repartition<uint64_t, decltype(dd)> d64;
+
 #endif
 }
 

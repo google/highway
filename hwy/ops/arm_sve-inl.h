@@ -1502,6 +1502,11 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(int, BITS) v) { \
     return sv##OP##_##CHAR##BITS##_s##BITS##_x(HWY_SVE_PTRUE(BITS), v);       \
   }                                                                           \
+  template <size_t N, int kPow2>                                              \
+  HWY_API HWY_SVE_V(BASE, BITS)                                               \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(int, BITS) v) { \
+    return sv##OP##_##CHAR##BITS##_u##BITS##_x(HWY_SVE_PTRUE(BITS), v);       \
+  }                                                                           \
   /* Truncates (rounds toward zero). */                                       \
   template <size_t N, int kPow2>                                              \
   HWY_API HWY_SVE_V(int, BITS)                                                \

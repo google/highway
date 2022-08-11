@@ -3367,6 +3367,11 @@ HWY_API Vec128<float, N> ConvertTo(Simd<float, N, 0> /* tag */,
                                    const Vec128<int32_t, N> v) {
   return Vec128<float, N>{wasm_f32x4_convert_i32x4(v.raw)};
 }
+template <size_t N>
+HWY_API Vec128<float, N> ConvertTo(Simd<float, N, 0> /* tag */,
+                                   const Vec128<uint32_t, N> v) {
+  return Vec128<float, N>{wasm_f32x4_convert_u32x4(v.raw)};
+}
 // Truncates (rounds toward zero).
 template <size_t N>
 HWY_API Vec128<int32_t, N> ConvertTo(Simd<int32_t, N, 0> /* tag */,

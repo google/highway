@@ -1174,7 +1174,7 @@ HWY_API Vec128<uint64_t> operator*(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return Vec128<uint64_t>{_mm_mullo_epi64(a.raw, b.raw)};
 }
 #define HWY_NATIVE_I64MULLO
-    
+
 // Signed
 HWY_API Vec512<int16_t> operator*(Vec512<int16_t> a, Vec512<int16_t> b) {
   return Vec512<int16_t>{_mm512_mullo_epi16(a.raw, b.raw)};
@@ -3415,6 +3415,16 @@ HWY_API Vec512<float> ConvertTo(Full512<float> /* tag */,
 HWY_API Vec512<double> ConvertTo(Full512<double> /* tag */,
                                  const Vec512<int64_t> v) {
   return Vec512<double>{_mm512_cvtepi64_pd(v.raw)};
+}
+
+HWY_API Vec512<float> ConvertTo(Full512<float> /* tag*/,
+                                const Vec512<uint32_t> v) {
+  return Vec512<float>{_mm512_cvtepu32_ps(v.raw)};
+}
+
+HWY_API Vec512<double> ConvertTo(Full512<double> /* tag*/,
+                                const Vec512<uint64_t> v) {
+  return Vec512<double>{_mm512_cvtepu64_pd(v.raw)};
 }
 
 // Truncates (rounds toward zero).

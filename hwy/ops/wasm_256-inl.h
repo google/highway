@@ -2354,6 +2354,10 @@ HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,
                                 const Vec256<int32_t> v) {
   return Vec256<float>{wasm_f32x4_convert_i32x4(v.raw)};
 }
+HWY_API Vec256<float> ConvertTo(Full256<float> /* tag */,
+                                const Vec256<uint32_t> v) {
+  return Vec256<float>{wasm_f32x4_convert_u32x4(v.raw)};
+}
 // Truncates (rounds toward zero).
 HWY_API Vec256<int32_t> ConvertTo(Full256<int32_t> /* tag */,
                                   const Vec256<float> v) {
