@@ -5648,10 +5648,10 @@ HWY_API Vec128<double, N> ConvertTo(HWY_MAYBE_UNUSED Simd<double, N, 0> dd,
   const auto v_lo = And(v, msk_lo); /* Extract the 32 lowest significant bits of v */
   const auto v_hi = ShiftRight<32>(v);
 
-  auto uint64_to_double128_fast = [&dd](auto w)
+  using vec_type = typename std::decay<decltype(v_lo)>::type;
+  auto uint64_to_double128_fast = [&dd](vec_type w)
   {
-    using w_type = std::decay_t<decltype(w)>;
-    w = Or(w, w_type{detail::BitCastToInteger(Set(dd, 0x0010000000000000).raw)});
+    w = Or(w, vec_type{detail::BitCastToInteger(Set(dd, 0x0010000000000000).raw)});
     return BitCast(dd, w) - Set(dd, 0x0010000000000000);
   };
 
