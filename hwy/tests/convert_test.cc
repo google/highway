@@ -541,7 +541,7 @@ struct TestFloatFromUint {
     // Integer positive
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TI(4))));
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(65535.0)), ConvertTo(df, Iota(du, 65535))); // 2^16 - 1
-    if constexpr ( sizeof(TF) > 4 )
+    if ( sizeof(TF) > 4 )
     {
       HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)), ConvertTo(df, Iota(du, 4294967295))); // 2^32 - 1
     }
