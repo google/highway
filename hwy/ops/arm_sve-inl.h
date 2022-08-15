@@ -1504,13 +1504,13 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
 // ------------------------------ ConvertTo F
 
 #define HWY_SVE_CONVERT(BASE, CHAR, BITS, HALF, NAME, OP)                     \
-  /* signed integers */
+  /* signed integers */                                                       \
   template <size_t N, int kPow2>                                              \
   HWY_API HWY_SVE_V(BASE, BITS)                                               \
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(int, BITS) v) { \
     return sv##OP##_##CHAR##BITS##_s##BITS##_x(HWY_SVE_PTRUE(BITS), v);       \
   }                                                                           \
-  /* unsigned integers */
+  /* unsigned integers */                                                     \
   template <size_t N, int kPow2>                                              \
   HWY_API HWY_SVE_V(BASE, BITS)                                               \
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(uint, BITS) v) { \
