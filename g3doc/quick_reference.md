@@ -248,6 +248,12 @@ instructions (implying the target CPU must support them).
     finally reverts to `HWY_STATIC_TARGET`. Can be used in `#if` expressions to
     provide an alternative to functions which are not supported by `HWY_SCALAR`.
 
+    In particular, for x86 we sometimes wish to specialize functions for AVX-512
+    because it provides many new instructions. This can be accomplished via `#if
+    HWY_TARGET <= HWY_AVX3`, which means AVX-512 or better (e.g. `HWY_AVX3_DL`).
+    This is because numerically lower targets are better, and no other platform
+    has targets numerically less than those of x86.
+
 *   `HWY_WANT_SSSE3`, `HWY_WANT_SSE4`: add SSSE3 and SSE4 to the baseline even
     if they are not marked as available by the compiler. On MSVC, the only ways
     to enable SSSE3 and SSE4 are defining these, or enabling AVX.
