@@ -617,7 +617,9 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllTruncate);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
+#if !HWY_COMPILER_MSVC
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);
+#endif // !HWY_COMPILER_MSVC
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 }  // namespace hwy
 
