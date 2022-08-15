@@ -4207,20 +4207,23 @@ HWY_API Vec256<double> ConvertTo(Full256<double> dd, const Vec256<int64_t> v) {
 #endif
 }
 
-HWY_API Vec256<float> ConvertTo(HWY_MAYBE_UNUSED Full256<float> dd,
+HWY_API Vec256<float> ConvertTo(HWY_MAYBE_UNUSED Full256<float> df,
                                 const Vec256<uint32_t> v) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec256<float>{_mm256_cvtepu32_ps(v.raw)};
 #else
   // Based on wim's approach (https://stackoverflow.com/questions/34066228/)
-  const Repartition<uint32_t, decltype(dd)> du32;
-  const Repartition<int32_t, decltype(dd)> d32;
+  const RebindToUnsigned<decltype(df)> du32;
+  const RebindToSigned<decltype(df)> d32;
 
   const auto msk_lo = Set(du32, 0xFFFF);
-  const auto cnst2_16_flt = Set(dd, 65536.0f); /* 2^16 */
-  const auto v_lo = BitCast(d32, And(v, msk_lo)); /* Extract the 16 lowest significant bits of v and cast to signed int */
+  const auto cnst2_16_flt = Set(df, 65536.0f); // 2^16
+
+  // Extract the 16 lowest/highest significant bits of v and cast to signed int
+  const auto v_lo = BitCast(d32, And(v, msk_lo));
   const auto v_hi = BitCast(d32, ShiftRight<16>(v));
-  return MulAdd(cnst2_16_flt, ConvertTo(dd, v_hi), ConvertTo(dd, v_lo));
+
+  return MulAdd(cnst2_16_flt, ConvertTo(df, v_hi), ConvertTo(df, v_lo));
 #endif
 }
 
@@ -4230,12 +4233,15 @@ HWY_API Vec256<double> ConvertTo(HWY_MAYBE_UNUSED Full256<double> dd,
   return Vec256<double>{_mm256_cvtepu64_pd(v.raw)};
 #else
   // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
-  const Repartition<uint64_t, decltype(dd)> d64;
+  const RebindToUnsigned<decltype(dd)> d64;
+  using VU = VFromD<decltype(d64)>;
 
-  const auto msk_lo = Set(d64, 0xFFFFFFFF);
-  const auto cnst2_32_dbl = Set(dd, 4294967296.0); /* 2^32 */
-  const auto v_lo = And(v, msk_lo); /* Extract the 32 lowest significant bits of v */
-  const auto v_hi = ShiftRight<32>(v);
+  const VU msk_lo = Set(d64, 0xFFFFFFFF);
+  const auto cnst2_32_dbl = Set(dd, 4294967296.0); // 2^32
+
+   // Extract the 32 lowest significant bits of v
+  const VU v_lo = And(v, msk_lo);
+  const VU v_hi = ShiftRight<32>(v);
 
   auto uint64_to_double256_fast = [&dd](Vec256<uint64_t> w) -> Vec256<double>
   {

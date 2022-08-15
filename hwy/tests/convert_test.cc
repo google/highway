@@ -535,7 +535,7 @@ HWY_NOINLINE void TestAllFloatFromInt() {
 struct TestFloatFromUint {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
-    using TI = MakeSigned<TF>;
+    using TI = MakeUnsigned<TF>;
     const RebindToUnsigned<DF> du;
 
     // Integer positive
