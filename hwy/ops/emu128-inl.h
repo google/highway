@@ -1110,7 +1110,7 @@ HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
   for (size_t i = 0; i < N; ++i) {
     // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
     MakeUnsigned<T> bits;
-    memcpy(&bits, &v.raw[i], sizeof(T));
+    CopyBytes<sizeof(T)>(&v.raw[i], &bits);
     bits += bits;
     bits >>= 1;  // clear sign bit
     // NaN if all exponent bits are set and the mantissa is not zero.

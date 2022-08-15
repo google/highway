@@ -24,6 +24,9 @@
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
+#if HWY_COMPILER_MSVC
+#include <string.h>  // memcpy
+#endif
 #if HWY_ARCH_X86
 #include <atomic>
 #endif

@@ -889,7 +889,7 @@ template <typename T>
 HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
   // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
   MakeUnsigned<T> bits;
-  memcpy(&bits, &v, sizeof(v));
+  CopyBytes<sizeof(v)>(&v, &bits);
   bits += bits;
   bits >>= 1;  // clear sign bit
   // NaN if all exponent bits are set and the mantissa is not zero.
