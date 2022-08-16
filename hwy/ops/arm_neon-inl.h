@@ -3288,6 +3288,16 @@ HWY_API Vec128<float, N> ConvertTo(Simd<float, N, 0> /* tag */,
   return Vec128<float, N>(vcvt_f32_s32(v.raw));
 }
 
+HWY_API Vec128<float> ConvertTo(Full128<float> /* tag */,
+                                const Vec128<uint32_t> v) {
+  return Vec128<float>(vcvtq_f32_u32(v.raw));
+}
+template <size_t N, HWY_IF_LE64(uint32_t, N)>
+HWY_API Vec128<float, N> ConvertTo(Simd<float, N, 0> /* tag */,
+                                   const Vec128<uint32_t, N> v) {
+  return Vec128<float, N>(vcvt_f32_u32(v.raw));
+}
+
 // Truncates (rounds toward zero).
 HWY_API Vec128<int32_t> ConvertTo(Full128<int32_t> /* tag */,
                                   const Vec128<float> v) {
@@ -3308,6 +3318,15 @@ HWY_API Vec128<double> ConvertTo(Full128<double> /* tag */,
 HWY_API Vec64<double> ConvertTo(Full64<double> /* tag */,
                                 const Vec64<int64_t> v) {
   return Vec64<double>(vcvt_f64_s64(v.raw));
+}
+
+HWY_API Vec128<double> ConvertTo(Full128<double> /* tag */,
+                                 const Vec128<uint64_t> v) {
+  return Vec128<double>(vcvtq_f64_u64(v.raw));
+}
+HWY_API Vec64<double> ConvertTo(Full64<double> /* tag */,
+                                const Vec64<uint64_t> v) {
+  return Vec64<double>(vcvt_f64_u64(v.raw));
 }
 
 // Truncates (rounds toward zero).

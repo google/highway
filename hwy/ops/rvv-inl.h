@@ -2019,6 +2019,11 @@ HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
       HWY_RVV_D(BASE, SEW, N, SHIFT) d, HWY_RVV_V(int, SEW, LMUL) v) {         \
     return vfcvt_f_x_v_f##SEW##LMUL(v, Lanes(d));                              \
   }                                                                            \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL) ConvertTo(                                \
+      HWY_RVV_D(BASE, SEW, N, SHIFT) d, HWY_RVV_V(uint, SEW, LMUL) v) {\
+    return vfcvt_f_xu_v_f##SEW##LMUL(v, Lanes(d));                             \
+  }                                                                            \
   /* Truncates (rounds toward zero). */                                        \
   template <size_t N>                                                          \
   HWY_API HWY_RVV_V(int, SEW, LMUL) ConvertTo(HWY_RVV_D(int, SEW, N, SHIFT) d, \

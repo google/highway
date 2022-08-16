@@ -3423,6 +3423,16 @@ HWY_API Vec512<double> ConvertTo(Full512<double> /* tag */,
   return Vec512<double>{_mm512_cvtepi64_pd(v.raw)};
 }
 
+HWY_API Vec512<float> ConvertTo(Full512<float> /* tag*/,
+                                const Vec512<uint32_t> v) {
+  return Vec512<float>{_mm512_cvtepu32_ps(v.raw)};
+}
+
+HWY_API Vec512<double> ConvertTo(Full512<double> /* tag*/,
+                                const Vec512<uint64_t> v) {
+  return Vec512<double>{_mm512_cvtepu64_pd(v.raw)};
+}
+
 // Truncates (rounds toward zero).
 HWY_API Vec512<int32_t> ConvertTo(Full512<int32_t> d, const Vec512<float> v) {
   return detail::FixConversionOverflow(d, v, _mm512_cvttps_epi32(v.raw));
