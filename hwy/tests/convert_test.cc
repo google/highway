@@ -535,19 +535,21 @@ HWY_NOINLINE void TestAllFloatFromInt() {
 struct TestFloatFromUint {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
-    using TI = MakeUnsigned<TF>;
+    using TU = MakeUnsigned<TF>;
     const RebindToUnsigned<DF> du;
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TI(4))));
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(65535.0)), ConvertTo(df, Iota(du, 65535))); // 2^16 - 1
-    if ( sizeof(TF) > 4 )
-    {
-      HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)), ConvertTo(df, Iota(du, 4294967295))); // 2^32 - 1
+    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TU(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(65535.0)),
+                      ConvertTo(df, Iota(du, 65535)));  // 2^16-1
+    if (sizeof(TF) > 4) {
+      HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)),
+                        ConvertTo(df, Iota(du, 4294967295ULL)));  // 2^32-1
     }
 
     // Max positive
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())), ConvertTo(df, Set(du, LimitsMax<TI>())));
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TU>())),
+                      ConvertTo(df, Set(du, LimitsMax<TU>())));
 
     // Zero
     HWY_ASSERT_VEC_EQ(df, Zero(df), ConvertTo(df, Zero(du)));
@@ -617,9 +619,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllTruncate);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
-#if !HWY_COMPILER_MSVC
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);
-#endif // !HWY_COMPILER_MSVC
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 }  // namespace hwy
 
