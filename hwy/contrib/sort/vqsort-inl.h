@@ -573,9 +573,17 @@ HWY_NOINLINE void ScanMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
 }
 #endif  // VQSORT_PRINT
 
+template <class V>
+V OrXor(const V o, const V x1, const V x2) {
+  // TODO(janwas): ternlog?
+  return Or(o, Xor(x1, x2));
+}
+
+// Returns a lower bound on the index of the first difference, or `num` if all
+// are equal.
 template <class D, class Traits, typename T>
-HWY_INLINE bool ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
-                          size_t num) {
+HWY_INLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
+                            size_t num) {
   using V = Vec<decltype(d)>;
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
@@ -587,59 +595,78 @@ HWY_INLINE bool ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
   V diff0 = zero;
   V diff1 = zero;
 
+  size_t i = 0;
+
+  // Vector-align keys + i.
+  const size_t misalign =
+      (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (N - 1);
+  if (HWY_LIKELY(misalign != 0)) {
+    HWY_DASSERT(misalign % st.LanesPerKey() == 0);
+    const size_t consume = N - misalign;
+    const auto mask = FirstN(d, consume);
+    const V v0 = MaskedLoad(mask, d, keys);
+    diff0 = OrXor(diff0, v0, IfThenElseZero(mask, reference));
+    if (!AllTrue(d, Eq(diff0, zero))) {
+      return i;
+    }
+    i = consume;
+  }
+  HWY_DASSERT(((reinterpret_cast<uintptr_t>(keys + i) / sizeof(T)) & (N - 1)) ==
+              0);
+
   // We want to stop once a difference has been found, but without slowing down
   // the loop by comparing during each iteration. The compromise is to compare
   // after a 'group', which consists of kLoops times two vectors.
   constexpr size_t kLoops = 4;
   const size_t lanes_per_group = kLoops * 2 * N;
-  size_t i = 0;
+
   for (; i + lanes_per_group <= num; i += lanes_per_group) {
+#pragma unroll
     for (size_t loop = 0; loop < kLoops; ++loop) {
-      const V v0 = LoadU(d, keys + i + loop * 2 * N);
-      const V v1 = LoadU(d, keys + i + loop * 2 * N + N);
-      // TODO(janwas): ternlog
-      diff0 = Or(diff0, Xor(v0, reference));
-      diff1 = Or(diff1, Xor(v1, reference));
+      const V v0 = Load(d, keys + i + loop * 2 * N);
+      const V v1 = Load(d, keys + i + loop * 2 * N + N);
+      diff0 = OrXor(diff0, v0, reference);
+      diff1 = OrXor(diff1, v1, reference);
     }
     diff0 = Or(diff0, diff1);
     if (!AllTrue(d, Eq(diff0, zero))) {
-      return false;
+      return i;
     }
   }
   // Whole vectors, no unrolling
   for (; i + N <= num; i += N) {
     const V v0 = LoadU(d, keys + i);
-    // TODO(janwas): ternlog
-    diff0 = Or(diff0, Xor(v0, reference));
+    diff0 = OrXor(diff0, v0, reference);
     if (!AllTrue(d, Eq(diff0, zero))) {
-      return false;
+      return i;
     }
   }
   // If there are remainders, re-check the last whole vector.
   if (HWY_LIKELY(i != num)) {
     const V v0 = LoadU(d, keys + num - N);
-    // TODO(janwas): ternlog
-    diff0 = Or(diff0, Xor(v0, reference));
+    diff0 = OrXor(diff0, v0, reference);
     if (!AllTrue(d, Eq(diff0, zero))) {
-      return false;
+      return i;
     }
   }
 
-  return true;
+  return num;
 }
 
-// Returns key prior to reference in sort order.
+// Returns key prior to reference in sort order. Starts scanning at index
+// `start`, which is less than `num`.
 template <class D, class Traits, typename T>
 HWY_INLINE Vec<D> ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
-                              size_t num, Vec<D> reference,
+                              size_t num, size_t start, Vec<D> reference,
                               T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
+  HWY_DASSERT(start < num);
 
   Vec<D> prev = st.FirstValue(d);
   Mask<D> any_found = st.Compare(d, prev, prev);  // false
 
-  size_t i = 0;
+  size_t i = start;
   // Whole vectors, no unrolling
   for (; i + N <= num; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
@@ -759,7 +786,8 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
 
   // All samples are equal.
   if (st.Equal1(buf, buf + kSampleLanes - N1)) {
-    const bool all_eq = ScanEqual(d, st, keys, num);
+    const size_t idx_diff = ScanEqual(d, st, keys, num);
+    const bool all_eq = idx_diff == num;
 #if VQSORT_PRINT
     fprintf(stderr, "Pivot num=%zu all eq samples, keys also: %d\n", num,
             all_eq);
@@ -777,7 +805,7 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
     // precede the most common key.
     result = PivotResult::kNormal;
     const V reference = st.SetKey(d, buf);
-    const V pivot = ScanForPrev(d, st, keys, num, reference, buf);
+    const V pivot = ScanForPrev(d, st, keys, num, idx_diff, reference, buf);
 #if VQSORT_PRINT
     Print(d, "PREV pivot", pivot, 0, st.LanesPerKey());
 #endif
@@ -795,9 +823,10 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
 }
 
 template <class D, class Traits, typename T>
-void Recurse(D d, Traits st, T* HWY_RESTRICT keys, T* HWY_RESTRICT keys_end,
-             const size_t begin, const size_t end, T* HWY_RESTRICT buf,
-             Generator& rng, size_t remaining_levels) {
+HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
+                          T* HWY_RESTRICT keys_end, const size_t begin,
+                          const size_t end, T* HWY_RESTRICT buf, Generator& rng,
+                          size_t remaining_levels) {
   HWY_DASSERT(begin + 1 < end);
   const size_t num = end - begin;  // >= 2
 #if VQSORT_PRINT
@@ -839,7 +868,8 @@ void Recurse(D d, Traits st, T* HWY_RESTRICT keys, T* HWY_RESTRICT keys_end,
 
 // Returns true if sorting is finished.
 template <class D, class Traits, typename T>
-bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys, size_t num) {
+HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
+                                   size_t num) {
   const size_t N = Lanes(d);
   const size_t base_case_num = Constants::BaseCaseNum(N);
 
