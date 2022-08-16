@@ -155,7 +155,7 @@ struct TestPromoteTo {
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         const uint64_t bits = rng();
-        CopyBytes<sizeof(T)>(&bits, &from[i]);
+        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
         expected[i] = from[i];
       }
 
@@ -451,7 +451,7 @@ class TestIntFromFloat {
       for (size_t i = 0; i < N; ++i) {
         do {
           const uint64_t bits = rng();
-          CopyBytes<sizeof(TF)>(&bits, &from[i]);
+          CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
         } while (!std::isfinite(from[i]));
         if (from[i] >= max) {
           expected[i] = LimitsMax<TI>();

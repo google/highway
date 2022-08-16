@@ -2255,7 +2255,7 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
 #endif
 #if HWY_TARGET == HWY_SVE_256 || HWY_IDE
   uint64_t bits = 0;  // predicate reg is 32-bit
-  CopyBytes<4>(&mask, &bits);
+  CopyBytes<4>(&mask, &bits);  // not same size - 64-bit more efficient
   // Concatenate LSB for upper and lower blocks, pre-scale by 4 for table idx.
   const size_t offset = ((bits & 1) ? 4 : 0) + ((bits & 0x10000) ? 8 : 0);
   // See CompressIsPartition. Manually generated; flip halves if mask = [0, 1].
@@ -2687,7 +2687,7 @@ HWY_INLINE svbool_t LoadMaskBits(D /* tag */,
   // Max 2048 bits = 32 lanes = 32 input bits; replicate those into each lane.
   // The "at least 8 byte" guarantee in quick_reference ensures this is safe.
   uint32_t mask_bits;
-  CopyBytes<4>(bits, &mask_bits);
+  CopyBytes<4>(bits, &mask_bits);  // copy from bytes
   const auto vbits = Set(du, mask_bits);
 
   // 2 ^ {0,1, .., 31}, will not have more lanes than that.

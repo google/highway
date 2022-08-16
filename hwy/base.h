@@ -870,6 +870,13 @@ HWY_API void CopyBytes(const From* from, To* to) {
 #endif
 }
 
+// Same as CopyBytes, but for same-sized objects; avoids a size argument.
+template <typename From, typename To>
+HWY_API void CopySameSize(const From* HWY_RESTRICT from, To* HWY_RESTRICT to) {
+  static_assert(sizeof(From) == sizeof(To), "");
+  CopyBytes<sizeof(From)>(from, to);
+}
+
 template <size_t kBytes, typename To>
 HWY_API void ZeroBytes(To* to) {
 #if HWY_COMPILER_MSVC
@@ -883,13 +890,13 @@ HWY_API float F32FromBF16(bfloat16_t bf) {
   uint32_t bits = bf.bits;
   bits <<= 16;
   float f;
-  CopyBytes<4>(&bits, &f);
+  CopySameSize(&bits, &f);
   return f;
 }
 
 HWY_API bfloat16_t BF16FromF32(float f) {
   uint32_t bits;
-  CopyBytes<4>(&f, &bits);
+  CopySameSize(&f, &bits);
   bfloat16_t bf;
   bf.bits = static_cast<uint16_t>(bits >> 16);
   return bf;

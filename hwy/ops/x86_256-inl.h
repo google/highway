@@ -2369,7 +2369,7 @@ HWY_API void BlendedStore(Vec256<T> v, Mask256<T> m, Full256<T> d,
   Store(BitCast(du, VecFromMask(d, m)), du, mask);
   for (size_t i = 0; i < 32 / sizeof(T); ++i) {
     if (mask[i]) {
-      CopyBytes<sizeof(T)>(buf + i, p + i);
+      CopySameSize(buf + i, p + i);
     }
   }
 }

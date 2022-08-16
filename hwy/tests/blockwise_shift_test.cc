@@ -170,6 +170,7 @@ struct TestCombineShiftRightBytes {
         lo_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
       }
       for (size_t i = 0; i < N8; i += kBlockSize) {
+        // Arguments are not the same size.
         CopyBytes<kBlockSize>(&lo_bytes[i], combined);
         CopyBytes<kBlockSize>(&hi_bytes[i], combined + kBlockSize);
         CopyBytes<kBlockSize>(combined + kBytes, &expected_bytes[i]);
@@ -205,6 +206,7 @@ struct TestCombineShiftRightLanes {
         lo_bytes[i] = static_cast<uint8_t>(Random64(&rng) & 0xFF);
       }
       for (size_t i = 0; i < N8; i += kBlockSize) {
+        // Arguments are not the same size.
         CopyBytes<kBlockSize>(&lo_bytes[i], combined);
         CopyBytes<kBlockSize>(&hi_bytes[i], combined + kBlockSize);
         CopyBytes<kBlockSize>(combined + kLanes * sizeof(T),

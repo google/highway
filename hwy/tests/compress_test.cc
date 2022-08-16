@@ -97,7 +97,7 @@ struct TestCompress {
         for (size_t i = 0; i < N; ++i) {
           const uint64_t bits = Random32(&rng);
           in_lanes[i] = T();  // cannot initialize float16_t directly.
-          CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
+          CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);  // not same size
           mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
           if (mask_lanes[i] > 0) {
             expected[expected_pos++] = in_lanes[i];
@@ -203,8 +203,8 @@ struct TestCompressBlocks {
       for (size_t i = 0; i < N; i += 2) {
         const uint64_t bits = Random32(&rng);
         in_lanes[i + 1] = in_lanes[i] = T();  // cannot set float16_t directly.
-        CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);
-        CopyBytes<sizeof(T)>(&bits, &in_lanes[i + 1]);
+        CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);      // not same size
+        CopyBytes<sizeof(T)>(&bits, &in_lanes[i + 1]);  // not same size
         mask_lanes[i + 1] = mask_lanes[i] = TI{(Random32(&rng) & 8) ? 1 : 0};
         if (mask_lanes[i] > 0) {
           expected[expected_pos++] = in_lanes[i];

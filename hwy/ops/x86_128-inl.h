@@ -1921,7 +1921,7 @@ template <typename T>
 HWY_API Vec64<T> Load(Full64<T> /* tag */, const T* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
   __m128i v = _mm_setzero_si128();
-  CopyBytes<8>(p, &v);
+  CopyBytes<8>(p, &v);  // not same size
   return Vec64<T>{v};
 #else
   return Vec64<T>{_mm_loadl_epi64(reinterpret_cast<const __m128i*>(p))};
@@ -1932,7 +1932,7 @@ HWY_API Vec128<float, 2> Load(Full64<float> /* tag */,
                               const float* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
   __m128 v = _mm_setzero_ps();
-  CopyBytes<8>(p, &v);
+  CopyBytes<8>(p, &v);  // not same size
   return Vec128<float, 2>{v};
 #else
   const __m128 hi = _mm_setzero_ps();
@@ -1944,7 +1944,7 @@ HWY_API Vec64<double> Load(Full64<double> /* tag */,
                            const double* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
   __m128d v = _mm_setzero_pd();
-  CopyBytes<8>(p, &v);
+  CopyBytes<8>(p, &v);  // not same size
   return Vec64<double>{v};
 #else
   return Vec64<double>{_mm_load_sd(p)};
@@ -1955,7 +1955,7 @@ HWY_API Vec128<float, 1> Load(Full32<float> /* tag */,
                               const float* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
   __m128 v = _mm_setzero_ps();
-  CopyBytes<4>(p, &v);
+  CopyBytes<4>(p, &v);  // not same size
   return Vec128<float, 1>{v};
 #else
   return Vec128<float, 1>{_mm_load_ss(p)};
@@ -1968,11 +1968,11 @@ HWY_API Vec128<T, N> Load(Simd<T, N, 0> /* tag */, const T* HWY_RESTRICT p) {
   constexpr size_t kSize = sizeof(T) * N;
 #if HWY_SAFE_PARTIAL_LOAD_STORE
   __m128 v = _mm_setzero_ps();
-  CopyBytes<kSize>(p, &v);
+  CopyBytes<kSize>(p, &v);  // not same size
   return Vec128<T, N>{v};
 #else
   int32_t bits = 0;
-  CopyBytes<kSize>(p, &bits);
+  CopyBytes<kSize>(p, &bits);  // not same size
   return Vec128<T, N>{_mm_cvtsi32_si128(bits)};
 #endif
 }
@@ -2122,7 +2122,7 @@ HWY_API void StoreU(const Vec128<double> v, Full128<double> /* tag */,
 template <typename T>
 HWY_API void Store(Vec64<T> v, Full64<T> /* tag */, T* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  CopyBytes<8>(&v, p);
+  CopyBytes<8>(&v, p);  // not same size
 #else
   _mm_storel_epi64(reinterpret_cast<__m128i*>(p), v.raw);
 #endif
@@ -2130,7 +2130,7 @@ HWY_API void Store(Vec64<T> v, Full64<T> /* tag */, T* HWY_RESTRICT p) {
 HWY_API void Store(const Vec128<float, 2> v, Full64<float> /* tag */,
                    float* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  CopyBytes<8>(&v, p);
+  CopyBytes<8>(&v, p);  // not same size
 #else
   _mm_storel_pi(reinterpret_cast<__m64*>(p), v.raw);
 #endif
@@ -2138,7 +2138,7 @@ HWY_API void Store(const Vec128<float, 2> v, Full64<float> /* tag */,
 HWY_API void Store(const Vec64<double> v, Full64<double> /* tag */,
                    double* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  CopyBytes<8>(&v, p);
+  CopyBytes<8>(&v, p);  // not same size
 #else
   _mm_storel_pd(p, v.raw);
 #endif
@@ -2147,12 +2147,12 @@ HWY_API void Store(const Vec64<double> v, Full64<double> /* tag */,
 // Any <= 32 bit except <float, 1>
 template <typename T, size_t N, HWY_IF_LE32(T, N)>
 HWY_API void Store(Vec128<T, N> v, Simd<T, N, 0> /* tag */, T* HWY_RESTRICT p) {
-  CopyBytes<sizeof(T) * N>(&v, p);
+  CopyBytes<sizeof(T) * N>(&v, p);  // not same size
 }
 HWY_API void Store(const Vec128<float, 1> v, Full32<float> /* tag */,
                    float* HWY_RESTRICT p) {
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  CopyBytes<4>(&v, p);
+  CopyBytes<4>(&v, p);  // not same size
 #else
   _mm_store_ss(p, v.raw);
 #endif
@@ -2183,7 +2183,7 @@ HWY_API void ScalarMaskedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
   Store(BitCast(di, VecFromMask(d, m)), di, mask);
   for (size_t i = 0; i < N; ++i) {
     if (mask[i]) {
-      CopyBytes<sizeof(T)>(buf + i, p + i);
+      CopySameSize(buf + i, p + i);
     }
   }
 }
@@ -3646,9 +3646,9 @@ HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
   return lanes[kLane];
 #else
   // Bug in the intrinsic, returns int but should be float.
-  const int bits = _mm_extract_ps(v.raw, kLane);
+  const int32_t bits = _mm_extract_ps(v.raw, kLane);
   float ret;
-  CopyBytes<4>(&bits, &ret);
+  CopySameSize(&bits, &ret);
   return ret;
 #endif
 }
@@ -3825,7 +3825,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   return Load(d, lanes);
 #else
   MakeSigned<T> ti;
-  CopyBytes<sizeof(T)>(&t, &ti);  // don't just cast because T might be float.
+  CopySameSize(&t, &ti);  // don't just cast because T might be float.
   return Vec128<T, N>{_mm_insert_epi32(v.raw, ti, kLane)};
 #endif
 }
@@ -3841,7 +3841,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   return Load(d, lanes);
 #else
   MakeSigned<T> ti;
-  CopyBytes<sizeof(T)>(&t, &ti);  // don't just cast because T might be float.
+  CopySameSize(&t, &ti);  // don't just cast because T might be float.
   return Vec128<T, N>{_mm_insert_epi64(v.raw, ti, kLane)};
 #endif
 }

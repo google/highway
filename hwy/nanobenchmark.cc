@@ -413,7 +413,7 @@ std::string BrandString() {
 
   for (size_t i = 0; i < 3; ++i) {
     Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd.data());
-    CopyBytes<sizeof(abcd)>(abcd.data(), brand_string + i * 16);
+    CopyBytes<sizeof(abcd)>(&abcd[0], brand_string + i * 16);  // not same size
   }
   brand_string[48] = 0;
   return brand_string;
