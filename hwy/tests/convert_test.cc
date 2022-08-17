@@ -387,10 +387,13 @@ HWY_NOINLINE void TestAllTruncate() {
 struct TestIntFromFloatHuge {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
-    // Still does not work, although ARMv7 manual says that float->int
-    // saturates, i.e. chooses the nearest representable value. Also causes
-    // out-of-memory for MSVC.
-#if HWY_TARGET != HWY_NEON && !HWY_COMPILER_MSVC
+    // The ARMv7 manual says that float->int saturates, i.e. chooses the
+    // nearest representable value. This works correctly on armhf with GCC, but
+    // not android arm32 with clang. For reasons unknown, MSVC also runs into an
+    // out-of-memory here.
+#if (HWY_ARCH_ARM_V7 && HWY_COMPILER_CLANG) || HWY_COMPILER_MSVC
+    (void)df;
+#else
     using TI = MakeSigned<TF>;
     const Rebind<TI, DF> di;
 
@@ -406,8 +409,6 @@ struct TestIntFromFloatHuge {
     // Huge negative
     Store(Set(di, LimitsMin<TI>()), di, expected.get());
     HWY_ASSERT_VEC_EQ(di, expected.get(), ConvertTo(di, Set(df, TF(-1E20))));
-#else
-    (void)df;
 #endif
   }
 };
