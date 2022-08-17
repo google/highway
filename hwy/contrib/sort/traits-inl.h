@@ -130,7 +130,7 @@ struct KeyLane {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
 #else
-    const RepartitionToWide<RebindToUnsigned<D>> dw;
+    const RepartitionToWide<RebindToUnsigned<D> > dw;
 #endif
     return BitCast(d, SwapAdjacentPairs(dw, BitCast(dw, v)));
   }
@@ -146,7 +146,7 @@ struct KeyLane {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
 #else
-    const RepartitionToWide<RebindToUnsigned<D>> dw;
+    const RepartitionToWide<RebindToUnsigned<D> > dw;
 #endif
     return BitCast(d, OddEven(BitCast(dw, odd), BitCast(dw, even)));
   }
@@ -160,7 +160,7 @@ struct KeyLane {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
 #else
-    const RepartitionToWide<RebindToUnsigned<D>> dw;
+    const RepartitionToWide<RebindToUnsigned<D> > dw;
 #endif
     return BitCast(d, OddEvenPairs(dw, BitCast(dw, odd), BitCast(dw, even)));
   }
@@ -181,9 +181,7 @@ template <typename T>
 struct OrderAscending : public KeyLane<T> {
   using Order = SortAscending;
 
-  HWY_INLINE bool Compare1(const T* a, const T* b) {
-    return *a < *b;
-  }
+  HWY_INLINE bool Compare1(const T* a, const T* b) { return *a < *b; }
 
   template <class D>
   HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) const {
@@ -228,9 +226,7 @@ template <typename T>
 struct OrderDescending : public KeyLane<T> {
   using Order = SortDescending;
 
-  HWY_INLINE bool Compare1(const T* a, const T* b) {
-    return *b < *a;
-  }
+  HWY_INLINE bool Compare1(const T* a, const T* b) { return *b < *a; }
 
   template <class D>
   HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) const {

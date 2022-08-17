@@ -61,6 +61,7 @@
 
 #include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/contrib/sort/sorting_networks-inl.h"
+// Placeholder for internal instrumentation. Do not remove.
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
