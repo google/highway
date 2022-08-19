@@ -138,8 +138,11 @@
 // nielskm: GCC does not support '#pragma GCC unroll' without the factor.
 #define HWY_UNROLL(factor) HWY_PRAGMA(GCC unroll factor)
 #define HWY_DEFAULT_UNROLL HWY_UNROLL(4)
-#else
+#elif HWY_COMPILER_CLANG || HWY_COMPILER_ICC || HWY_COMPILER_ICX
 #define HWY_UNROLL(factor) HWY_PRAGMA(unroll factor)
+#define HWY_DEFAULT_UNROLL HWY_UNROLL()
+#else
+#define HWY_UNROLL(factor)
 #define HWY_DEFAULT_UNROLL HWY_UNROLL()
 #endif
 
