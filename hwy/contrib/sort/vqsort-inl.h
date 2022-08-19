@@ -580,12 +580,13 @@ V OrXor(const V o, const V x1, const V x2) {
   return Or(o, Xor(x1, x2));
 }
 
-// Returns a lower bound on the index of the first difference, or `num` if all
+// Returns a lower bound on the index of the first mismatch, or `num` if all
 // are equal. `num` is const to ensure we don't change it, which would lead to
 // bugs because the caller will check whether we return the original value.
 template <class D, class Traits, typename T>
-HWY_NOINLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
-                              const size_t num) {
+HWY_NOINLINE size_t LowerBoundOfMismatch(D d, Traits st,
+                                         const T* HWY_RESTRICT keys,
+                                         const size_t num) {
   using V = Vec<decltype(d)>;
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
@@ -654,54 +655,78 @@ HWY_NOINLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
   return num;  // all equal
 }
 
-// Returns false if `reference` is already the first key in sort order.
-// Otherwise, sets `prev_out` to the key prior to `reference` in sort order.
-// Starts scanning before index `start`, which is less than `num`.
+enum class PivotResult {
+  kAllEqual,  // stop without partitioning
+  kNormal,    // partition and recurse left and right
+  kIsFirst,   // partition but skip left recursion
+  kWasLast,   // partition but skip right recursion
+};
+
+// Classifies (and possibly modifies) `pivot` by scanning for the first/last
+// key from index `idx_diff`, which is less than `num`.
 template <class D, class Traits, typename T>
-HWY_NOINLINE bool ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
-                              size_t num, size_t start, Vec<D> reference,
-                              Vec<D>* HWY_RESTRICT prev_out,
-                              T* HWY_RESTRICT buf) {
+HWY_NOINLINE PivotResult CheckFirstLast(D d, Traits st,
+                                        const T* HWY_RESTRICT keys, size_t num,
+                                        size_t idx_diff,
+                                        Vec<D>* HWY_RESTRICT pivot,
+                                        T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
-  HWY_DASSERT(start < num);
+  HWY_DASSERT(idx_diff < num);
 
-  const Vec<D> first = st.FirstValue(d);
-  Vec<D> prev = first;
+  Vec<D> first = st.LastValue(d);
+  Vec<D> last = st.FirstValue(d);
+  // Early out for mostly-0 arrays, where pivot is often FirstValue.
+  if (AllTrue(d, st.EqualKeys(d, *pivot, last))) {
+    return PivotResult::kIsFirst;
+  }
 
-  // The value before the first difference might be the desired prev (if it is
-  // equal to the reference in ScanEqual), so start one vector before.
+  // We know keys[0, idx_diff) are equal, but they might be the first/last, so
+  // start scanning one vector before.
   size_t i = static_cast<size_t>(
-      HWY_MAX(static_cast<intptr_t>(start) - static_cast<intptr_t>(N), 0));
+      HWY_MAX(static_cast<intptr_t>(idx_diff) - static_cast<intptr_t>(N), 0));
+
+  constexpr size_t kLoops = 4;
+  const size_t lanes_per_group = kLoops * N;
+
+  // Whole group, unrolled
+  for (; i + lanes_per_group <= num; i += lanes_per_group) {
+    HWY_DEFAULT_UNROLL
+    for (size_t loop = 0; loop < kLoops; ++loop) {
+      const Vec<D> curr = LoadU(d, keys + i + loop * N);
+      first = st.First(d, first, curr);
+      last = st.Last(d, last, curr);
+    }
+  }
   // Whole vectors, no unrolling
   for (; i + N <= num; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
-    const Mask<D> is_before = st.Compare(d, curr, reference);
-    prev = IfThenElse(is_before, st.Last(d, prev, curr), prev);
+    first = st.First(d, first, curr);
+    last = st.Last(d, last, curr);
   }
   // If there are remainders, re-check the last whole vector.
   if (HWY_LIKELY(i != num)) {
     const Vec<D> curr = LoadU(d, keys + num - N);
-    const Mask<D> is_before = st.Compare(d, curr, reference);
-    prev = IfThenElse(is_before, st.Last(d, prev, curr), prev);
+    first = st.First(d, first, curr);
+    last = st.Last(d, last, curr);
   }
 
-  prev = st.LastOfLanes(d, prev, buf);
-  // If prev has not changed, then no `curr` came before `reference`, hence
-  // `reference` is the first (perhaps even the first possible, i.e. `first`).
-  if (AllTrue(d, st.EqualKeys(d, prev, first))) {
-    *prev_out = reference;
-    return false;
+  first = st.FirstOfLanes(d, first, buf);
+  last = st.LastOfLanes(d, last, buf);
+
+  if (AllTrue(d, st.EqualKeys(d, first, *pivot))) {
+    return PivotResult::kIsFirst;
   }
-  *prev_out = prev;
-  return true;
+  // Fixup required because keys equal to the pivot go to the left partition,
+  // and the pivot is the last, so Partition would not change anything.
+  // Instead use the previous value in sort order, which is not necessarily an
+  // actual key.
+  if (AllTrue(d, st.EqualKeys(d, last, *pivot))) {
+    *pivot = st.PrevValue(d, *pivot);
+    return PivotResult::kWasLast;
+  }
+  return PivotResult::kNormal;
 }
-
-enum class PivotResult {
-  kNormal,    // use partition
-  kAllEqual,  // already done
-  kIsFirst,   // can skip left recursion
-};
 
 // Writes samples from `keys[0, num)` into `buf`.
 template <class D, class Traits, typename T>
@@ -795,7 +820,7 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
 
   // All samples are equal.
   if (st.Equal1(buf, buf + kSampleLanes - N1)) {
-    const size_t idx_diff = ScanEqual(d, st, keys, num);
+    const size_t idx_diff = LowerBoundOfMismatch(d, st, keys, num);
     const bool all_eq = idx_diff == num;
 #if VQSORT_PRINT
     fprintf(stderr, "Pivot num=%zu samplesEq, idxDiff %zu keysEq: %d\n", num,
@@ -806,21 +831,11 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
       return Zero(d);
     }
 
-    // If the sample is indeed the most common key and it is the largest, then
-    // the right partition will be empty. Prevent this by replacing the pivot
-    // with the previous key in sort order. By contrast, selecting the first key
-    // in sort order would guarantee (minimal) progress. We instead do a full
-    // scan to maximize load balance in case there are numerous keys that
-    // precede the most common key. This also tells us whether the pivot is the
-    // first in sort order; if so, we can skip the left recursion.
-    const V reference = st.SetKey(d, buf);
-    V pivot;
-    result = ScanForPrev(d, st, keys, num, idx_diff, reference, &pivot, buf)
-                 ? PivotResult::kNormal
-                 : PivotResult::kIsFirst;
+    V pivot = st.SetKey(d, buf);  // the single unique sample
+    result = CheckFirstLast(d, st, keys, num, idx_diff, &pivot, buf);
 #if VQSORT_PRINT
-    Print(d, "Using PREV as pivot", pivot, 0, st.LanesPerKey());
-    fprintf(stderr, "IsMin %d\n", result == PivotResult::kIsFirst);
+    fprintf(stderr, "PivotResult %d\n", static_cast<int>(result));
+    Print(d, "Adjusted pivot", pivot, 0, st.LanesPerKey());
 #endif
     return pivot;
   }
@@ -874,14 +889,17 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   }
 
   const size_t bound = Partition(d, st, keys, begin, end, pivot, buf);
-  // ChoosePivot ensures pivot != largest key, so the right partition is never
-  // empty; nor is the left, because the pivot is one of the keys.
+  // ChoosePivot ensures pivot != last key, so the right partition is never
+  // empty. Nor is the left, because the pivot is either one of the keys, or
+  // the value prior to the last (which is not the only value).
   HWY_ASSERT(begin != bound && bound != end);
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
     Recurse(d, st, keys, keys_end, begin, bound, buf, rng,
             remaining_levels - 1);
   }
-  Recurse(d, st, keys, keys_end, bound, end, buf, rng, remaining_levels - 1);
+  if (HWY_LIKELY(result != PivotResult::kWasLast)) {
+    Recurse(d, st, keys, keys_end, bound, end, buf, rng, remaining_levels - 1);
+  }
 }
 
 // Returns true if sorting is finished.

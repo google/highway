@@ -220,6 +220,11 @@ struct OrderAscending : public KeyLane<T> {
   HWY_INLINE Vec<D> LastValue(D d) const {
     return Set(d, hwy::HighestValue<T>());
   }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    return Sub(v, Set(d, 1));
+  }
 };
 
 template <typename T>
@@ -263,6 +268,11 @@ struct OrderDescending : public KeyLane<T> {
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
     return Set(d, hwy::LowestValue<T>());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    return Add(v, Set(d, 1));
   }
 };
 

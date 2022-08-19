@@ -184,6 +184,12 @@ struct OrderAscending128 : public Key128 {
   HWY_INLINE Vec<D> LastValue(D d) const {
     return Set(d, hwy::HighestValue<TFromD<D> >());
   }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    const Vec<D> k1 = OddEven(Zero(d), Set(d, 1));
+    return Sub(v, k1);
+  }
 };
 
 struct OrderDescending128 : public Key128 {
@@ -223,6 +229,12 @@ struct OrderDescending128 : public Key128 {
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
     return Set(d, hwy::LowestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    const Vec<D> k1 = OddEven(Zero(d), Set(d, 1));
+    return Add(v, k1);
   }
 };
 
@@ -281,6 +293,12 @@ struct OrderAscendingKV128 : public KeyValue128 {
   HWY_INLINE Vec<D> LastValue(D d) const {
     return Set(d, hwy::HighestValue<TFromD<D> >());
   }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    const Vec<D> k1 = OddEven(Zero(d), Set(d, 1));
+    return Sub(v, k1);
+  }
 };
 
 struct OrderDescendingKV128 : public KeyValue128 {
@@ -320,6 +338,12 @@ struct OrderDescendingKV128 : public KeyValue128 {
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
     return Set(d, hwy::LowestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    const Vec<D> k1 = OddEven(Zero(d), Set(d, 1));
+    return Add(v, k1);
   }
 };
 
