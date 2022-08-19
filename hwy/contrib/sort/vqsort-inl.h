@@ -584,8 +584,8 @@ V OrXor(const V o, const V x1, const V x2) {
 // are equal. `num` is const to ensure we don't change it, which would lead to
 // bugs because the caller will check whether we return the original value.
 template <class D, class Traits, typename T>
-HWY_INLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
-                            const size_t num) {
+HWY_NOINLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
+                              const size_t num) {
   using V = Vec<decltype(d)>;
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
@@ -654,20 +654,20 @@ HWY_INLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
   return num;  // all equal
 }
 
-// Returns key prior to reference in sort order. Starts scanning at index
-// `start`, which is less than `num`.
+// Returns false if `reference` is already the first key in sort order.
+// Otherwise, sets `prev_out` to the key prior to `reference` in sort order.
+// Starts scanning before index `start`, which is less than `num`.
 template <class D, class Traits, typename T>
-HWY_INLINE Vec<D> ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
+HWY_NOINLINE bool ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
                               size_t num, size_t start, Vec<D> reference,
+                              Vec<D>* HWY_RESTRICT prev_out,
                               T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
   HWY_DASSERT(start < num);
 
-  Vec<D> prev = st.FirstValue(d);
-  // We want to reduce a mask but that is currently only supported for vectors,
-  // so use a vector as a sticky accumulator of mask results.
-  Vec<D> found_any_lanes = Zero(d);
+  const Vec<D> first = st.FirstValue(d);
+  Vec<D> prev = first;
 
   // The value before the first difference might be the desired prev (if it is
   // equal to the reference in ScanEqual), so start one vector before.
@@ -676,32 +676,31 @@ HWY_INLINE Vec<D> ScanForPrev(D d, Traits st, const T* HWY_RESTRICT keys,
   // Whole vectors, no unrolling
   for (; i + N <= num; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
-    const Vec<D> is_before = VecFromMask(d, st.Compare(d, curr, reference));
-    found_any_lanes = Or(found_any_lanes, is_before);
-    prev = IfVecThenElse(is_before, st.Last(d, prev, curr), prev);
+    const Mask<D> is_before = st.Compare(d, curr, reference);
+    prev = IfThenElse(is_before, st.Last(d, prev, curr), prev);
   }
   // If there are remainders, re-check the last whole vector.
   if (HWY_LIKELY(i != num)) {
     const Vec<D> curr = LoadU(d, keys + num - N);
-    const Vec<D> is_before = VecFromMask(d, st.Compare(d, curr, reference));
-    found_any_lanes = Or(found_any_lanes, is_before);
-    prev = IfVecThenElse(is_before, st.Last(d, prev, curr), prev);
+    const Mask<D> is_before = st.Compare(d, curr, reference);
+    prev = IfThenElse(is_before, st.Last(d, prev, curr), prev);
   }
 
-  const Vec<D> candidate = st.LastOfLanes(d, prev, buf);
-  // If we didn't find any key less than reference, we're still stuck with
-  // FirstValue; replace that with reference. (We cannot compare directly to
-  // FirstValue because that might be the desired value of prev.) The min
-  // reduction of a signed integer is -1 (true) everywhere if any lane is -1.
-  const RebindToSigned<D> di;
-  const Vec<D> found_any =
-      BitCast(d, MinOfLanes(di, BitCast(di, found_any_lanes)));
-  return IfVecThenElse(found_any, candidate, reference);
+  prev = st.LastOfLanes(d, prev, buf);
+  // If prev has not changed, then no `curr` came before `reference`, hence
+  // `reference` is the first (perhaps even the first possible, i.e. `first`).
+  if (AllTrue(d, st.EqualKeys(d, prev, first))) {
+    *prev_out = reference;
+    return false;
+  }
+  *prev_out = prev;
+  return true;
 }
 
 enum class PivotResult {
   kNormal,    // use partition
   kAllEqual,  // already done
+  kIsFirst,   // can skip left recursion
 };
 
 // Writes samples from `keys[0, num)` into `buf`.
@@ -812,12 +811,16 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
     // with the previous key in sort order. By contrast, selecting the first key
     // in sort order would guarantee (minimal) progress. We instead do a full
     // scan to maximize load balance in case there are numerous keys that
-    // precede the most common key.
-    result = PivotResult::kNormal;
+    // precede the most common key. This also tells us whether the pivot is the
+    // first in sort order; if so, we can skip the left recursion.
     const V reference = st.SetKey(d, buf);
-    const V pivot = ScanForPrev(d, st, keys, num, idx_diff, reference, buf);
+    V pivot;
+    result = ScanForPrev(d, st, keys, num, idx_diff, reference, &pivot, buf)
+                 ? PivotResult::kNormal
+                 : PivotResult::kIsFirst;
 #if VQSORT_PRINT
     Print(d, "Using PREV as pivot", pivot, 0, st.LanesPerKey());
+    fprintf(stderr, "IsMin %d\n", result == PivotResult::kIsFirst);
 #endif
     return pivot;
   }
@@ -856,7 +859,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   }
   PivotResult result;
   Vec<D> pivot = ChoosePivot(d, st, keys + begin, num, buf, rng, result);
-  if (result == PivotResult::kAllEqual) {
+  if (HWY_UNLIKELY(result == PivotResult::kAllEqual)) {
     return;
   }
 
@@ -874,7 +877,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // ChoosePivot ensures pivot != largest key, so the right partition is never
   // empty; nor is the left, because the pivot is one of the keys.
   HWY_ASSERT(begin != bound && bound != end);
-  Recurse(d, st, keys, keys_end, begin, bound, buf, rng, remaining_levels - 1);
+  if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
+    Recurse(d, st, keys, keys_end, begin, bound, buf, rng,
+            remaining_levels - 1);
+  }
   Recurse(d, st, keys, keys_end, bound, end, buf, rng, remaining_levels - 1);
 }
 

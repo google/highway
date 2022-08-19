@@ -130,8 +130,8 @@ struct Key128 : public KeyAny128 {
   std::string KeyString() const { return "U128"; }
 
   template <class D>
-  HWY_INLINE Mask<D> EqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
-    return Eq128(a, b);
+  HWY_INLINE Mask<D> EqualKeys(D d, Vec<D> a, Vec<D> b) const {
+    return Eq128(d, a, b);
   }
 
   HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) {
@@ -234,8 +234,8 @@ struct KeyValue128 : public KeyAny128 {
   std::string KeyString() const { return "KV128"; }
 
   template <class D>
-  HWY_INLINE Mask<D> EqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
-    return Eq128Upper(a, b);
+  HWY_INLINE Mask<D> EqualKeys(D d, Vec<D> a, Vec<D> b) const {
+    return Eq128Upper(d, a, b);
   }
 
   HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) {
