@@ -134,6 +134,19 @@
 #define HWY_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define HWY_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+#if HWY_COMPILER_GCC_ACTUAL
+// nielskm: GCC does not support '#pragma GCC unroll' without the factor.
+#define HWY_UNROLL(factor) HWY_PRAGMA(GCC unroll factor)
+#define HWY_DEFAULT_UNROLL HWY_UNROLL(4)
+#elif HWY_COMPILER_CLANG || HWY_COMPILER_ICC || HWY_COMPILER_ICX
+#define HWY_UNROLL(factor) HWY_PRAGMA(unroll factor)
+#define HWY_DEFAULT_UNROLL HWY_UNROLL()
+#else
+#define HWY_UNROLL(factor)
+#define HWY_DEFAULT_UNROLL HWY_UNROLL()
+#endif
+
+
 // Compile-time fence to prevent undesirable code reordering. On Clang x86, the
 // typical asm volatile("" : : : "memory") has no effect, whereas atomic fence
 // does, without generating code.
