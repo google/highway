@@ -624,11 +624,7 @@ HWY_INLINE size_t ScanEqual(D d, Traits st, const T* HWY_RESTRICT keys,
   const size_t lanes_per_group = kLoops * 2 * N;
 
   for (; i + lanes_per_group <= num; i += lanes_per_group) {
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC unroll 4
-#else
-#pragma unroll
-#endif
+    HWY_DEFAULT_UNROLL
     for (size_t loop = 0; loop < kLoops; ++loop) {
       const V v0 = Load(d, keys + i + loop * 2 * N);
       const V v1 = Load(d, keys + i + loop * 2 * N + N);
