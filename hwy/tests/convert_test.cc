@@ -405,9 +405,9 @@ struct TestIntFromFloatHuge {
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
     // The ARMv7 manual says that float->int saturates, i.e. chooses the
     // nearest representable value. This works correctly on armhf with GCC, but
-    // not android arm32 with clang. For reasons unknown, MSVC also runs into an
-    // out-of-memory here.
-#if (HWY_ARCH_ARM_V7 && HWY_COMPILER_CLANG) || HWY_COMPILER_MSVC
+    // not with clang. For reasons unknown, MSVC also runs into an out-of-memory
+    // error here.
+#if HWY_COMPILER_CLANG || HWY_COMPILER_MSVC
     (void)df;
 #else
     using TI = MakeSigned<TF>;
