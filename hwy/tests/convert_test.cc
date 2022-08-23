@@ -16,6 +16,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
+#include <cmath>  // std::isfinite
+
 #include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE
@@ -235,13 +238,19 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
       -2.00390625f, -3.99609375f,
       // No infinity/NaN - implementation-defined due to ARM.
   };
-  const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
+  constexpr size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
+  HWY_ASSERT(N != 0);
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
   auto in = AllocateAligned<float>(padded);
   auto expected = AllocateAligned<float>(padded);
-  std::copy(test_cases, test_cases + kNumTestCases, in.get());
-  std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
+  size_t i = 0;
+  for (; i < kNumTestCases; ++i) {
+    in[i] = test_cases[i];
+  }
+  for (; i < padded; ++i) {
+    in[i] = 0.0f;
+  }
   return in;
 }
 
@@ -250,10 +259,11 @@ struct TestF16 {
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
 #if HWY_HAVE_FLOAT16
     size_t padded;
+    const size_t N = Lanes(d32);  // same count for f16
+    HWY_ASSERT(N != 0);
     auto in = F16TestCases(d32, padded);
     using TF16 = float16_t;
     const Rebind<TF16, DF32> d16;
-    const size_t N = Lanes(d32);  // same count for f16
     auto temp16 = AllocateAligned<TF16>(N);
 
     for (size_t i = 0; i < padded; i += N) {
@@ -289,13 +299,19 @@ AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
       // negative +/- delta
       -2.015625f, -3.984375f,
   };
-  const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
+  constexpr size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
+  HWY_ASSERT(N != 0);
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
   auto in = AllocateAligned<float>(padded);
   auto expected = AllocateAligned<float>(padded);
-  std::copy(test_cases, test_cases + kNumTestCases, in.get());
-  std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
+  size_t i = 0;
+  for (; i < kNumTestCases; ++i) {
+    in[i] = test_cases[i];
+  }
+  for (; i < padded; ++i) {
+    in[i] = 0.0f;
+  }
   return in;
 }
 
