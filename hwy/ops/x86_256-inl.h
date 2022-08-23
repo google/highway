@@ -4445,8 +4445,8 @@ HWY_API size_t StoreMaskBits(const Full256<T> /* tag */, const Mask256<T> mask,
 
   // Non-full byte, need to clear the undefined upper bits.
   if (N < 8) {
-    const int mask = static_cast<int>((1ull << N) - 1);
-    bits[0] = static_cast<uint8_t>(bits[0] & mask);
+    const int mask_bits = static_cast<int>((1ull << N) - 1);
+    bits[0] = static_cast<uint8_t>(bits[0] & mask_bits);
   }
   return kNumBytes;
 }
