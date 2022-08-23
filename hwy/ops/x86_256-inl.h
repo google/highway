@@ -4244,8 +4244,7 @@ HWY_API Vec256<double> ConvertTo(HWY_MAYBE_UNUSED Full256<double> dd,
   const VU v_lo = And(v, msk_lo);
   const VU v_hi = ShiftRight<32>(v);
 
-  auto uint64_to_double256_fast = [&dd](Vec256<uint64_t> w)
-                                      HWY_ATTR -> Vec256<double> {
+  auto uint64_to_double256_fast = [&dd](Vec256<uint64_t> w) HWY_ATTR {
     w = Or(w, Vec256<uint64_t>{
                   detail::BitCastToInteger(Set(dd, 0x0010000000000000).raw)});
     return BitCast(dd, w) - Set(dd, 0x0010000000000000);
