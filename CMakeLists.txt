@@ -225,8 +225,11 @@ else()
   endif()  # HWY_CMAKE_ARM7
 
   if(HWY_RISCV)
-    list(APPEND HWY_FLAGS -march=rv64gcv1p0)
     if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+      # Not yet supported by GCC. When runtime dispatch is supported and
+      # implemented, we will remove v from the required flags. Until then, using
+      # clang for RISC-V will require the CPU to support the V extension (1.0).
+      list(APPEND HWY_FLAGS -march=rv64gcv1p0)
       list(APPEND HWY_FLAGS -menable-experimental-extensions)
     endif()
   endif()
