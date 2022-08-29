@@ -281,8 +281,8 @@ target_compile_features(hwy PUBLIC cxx_std_11)
 set_target_properties(hwy PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 if(UNIX AND NOT APPLE)
-  if(NOT HWY_EMSCRIPTEN)
-    # For GCC __atomic_store_8, see #887
+  # For GCC __atomic_store_8, see #887
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT HWY_EMSCRIPTEN)
     target_link_libraries(hwy atomic)
   endif()
   # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
