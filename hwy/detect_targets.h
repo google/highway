@@ -169,13 +169,13 @@
 #define HWY_ENABLED(targets) \
   ((targets) & ~((HWY_DISABLED_TARGETS) | (HWY_BROKEN_TARGETS)))
 
-// Opt-out for EMU128 (affected by a GCC <12 bug on ARMv7: see
+// Opt-out for EMU128 (affected by a GCC bug on ARMv7, fixed in 12.3: see
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106187). This is separate from
 // HWY_BROKEN_TARGETS because it affects the fallback target, which must always
 // be enabled. If 1, we instead choose HWY_SCALAR even without
 // HWY_COMPILE_ONLY_SCALAR being set.
 #if !defined(HWY_BROKEN_EMU128)  // allow overriding
-#if HWY_ARCH_ARM_V7 && HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1140
+#if HWY_ARCH_ARM_V7 && HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1203
 #define HWY_BROKEN_EMU128 1
 #else
 #define HWY_BROKEN_EMU128 0
