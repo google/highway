@@ -2885,11 +2885,18 @@ HWY_API void StoreU(Vec128<bfloat16_t, N> v, Simd<bfloat16_t, N, 0> d,
   return StoreU(Vec128<uint16_t, N>(v.raw), du16, pu16);
 }
 
+HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_GCC_ACTUAL
+  HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
+#endif
+
 // On ARM, Store is the same as StoreU.
 template <typename T, size_t N>
 HWY_API void Store(Vec128<T, N> v, Simd<T, N, 0> d, T* HWY_RESTRICT aligned) {
   StoreU(v, d, aligned);
 }
+
+HWY_DIAGNOSTICS(pop)
 
 template <typename T, size_t N>
 HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
