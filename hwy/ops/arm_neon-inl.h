@@ -1025,18 +1025,20 @@ HWY_API Vec128<bfloat16_t, N> Zero(Simd<bfloat16_t, N, 0> /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
-// Returns a vector with uninitialized elements.
-template <typename T, size_t N>
-HWY_API Vec128<T, N> Undefined(Simd<T, N, 0> /*d*/) {
-  HWY_DIAGNOSTICS(push)
-  HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 #if HWY_COMPILER_GCC_ACTUAL
   HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
 #endif
+
+// Returns a vector with uninitialized elements.
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Undefined(Simd<T, N, 0> /*d*/) {
   typename detail::Raw128<T, N>::type a;
   return Vec128<T, N>(a);
-  HWY_DIAGNOSTICS(pop)
 }
+
+HWY_DIAGNOSTICS(pop)
 
 // Returns a vector with lane i=[0, N) set to "first" + i.
 template <typename T, size_t N, typename T2>
