@@ -3672,7 +3672,9 @@ template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec512<T> Compress(Vec512<T> v, Mask512<T> mask) {
   // See CompressIsPartition. u64 is faster than u32.
   alignas(16) constexpr uint64_t packed_array[256] = {
-      // PrintCompress32x8Tables
+      // From PrintCompress32x8Tables, without the FirstN extension (there is
+      // no benefit to including them because 64-bit CompressStore is anyway
+      // masked, but also no harm because TableLookupLanes ignores the MSB).
       0x76543210, 0x76543210, 0x76543201, 0x76543210, 0x76543102, 0x76543120,
       0x76543021, 0x76543210, 0x76542103, 0x76542130, 0x76542031, 0x76542310,
       0x76541032, 0x76541320, 0x76540321, 0x76543210, 0x76532104, 0x76532140,
@@ -3781,7 +3783,7 @@ HWY_API Vec512<T> Compress(Vec512<T> v, const Mask512<T> mask) {
       0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
       16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
-  const auto idx = LoadU(du, iota + 32 - num0);
+  const Vec512<uint16_t> idx = LoadU(du, iota + 32 - num0);
   const Vec512<uint16_t> cu{_mm512_mask_permutexvar_epi16(
       demoted0.raw, m_upper, idx.raw, demoted1.raw)};
 #endif  // HWY_TARGET == HWY_AVX3_DL
@@ -3800,7 +3802,9 @@ template <typename T, HWY_IF_LANE_SIZE(T, 8)>
 HWY_API Vec512<T> CompressNot(Vec512<T> v, Mask512<T> mask) {
   // See CompressIsPartition. u64 is faster than u32.
   alignas(16) constexpr uint64_t packed_array[256] = {
-      // PrintCompressNot32x8Tables
+      // From PrintCompressNot32x8Tables, without the FirstN extension (there is
+      // no benefit to including them because 64-bit CompressStore is anyway
+      // masked, but also no harm because TableLookupLanes ignores the MSB).
       0x76543210, 0x07654321, 0x17654320, 0x10765432, 0x27654310, 0x20765431,
       0x21765430, 0x21076543, 0x37654210, 0x30765421, 0x31765420, 0x31076542,
       0x32765410, 0x32076541, 0x32176540, 0x32107654, 0x47653210, 0x40765321,

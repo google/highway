@@ -305,11 +305,13 @@ void PrintCompressNot16x8Tables() {
   printf("\n");
 }
 
-// Compressed to nibbles, unpacked via variable right shift
+// Compressed to nibbles, unpacked via variable right shift. Also includes
+// FirstN bits in the nibble MSB.
 void PrintCompress32x8Tables() {
   printf("======================================= 32/64x8\n");
   constexpr size_t N = 8;  // AVX2 or 64-bit AVX3
   for (uint64_t code = 0; code < (1ull << N); ++code) {
+    const size_t count = PopCount(code);
     std::array<uint32_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -330,6 +332,10 @@ void PrintCompress32x8Tables() {
     uint64_t packed = 0;
     for (size_t i = 0; i < N; ++i) {
       HWY_ASSERT(indices[i] < N);
+      if (i < count) {
+        indices[i] |= N;
+        HWY_ASSERT(indices[i] < 0x10);
+      }
       packed += indices[i] << (i * 4);
     }
 
@@ -344,6 +350,7 @@ void PrintCompressNot32x8Tables() {
   constexpr size_t N = 8;  // AVX2 or 64-bit AVX3
   for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
     const uint64_t code = ~not_code;
+    const size_t count = PopCount(code);
     std::array<uint32_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -364,6 +371,10 @@ void PrintCompressNot32x8Tables() {
     uint64_t packed = 0;
     for (size_t i = 0; i < N; ++i) {
       HWY_ASSERT(indices[i] < N);
+      if (i < count) {
+        indices[i] |= N;
+        HWY_ASSERT(indices[i] < 0x10);
+      }
       packed += indices[i] << (i * 4);
     }
 
@@ -504,11 +515,13 @@ void PrintCompressNot64x4Tables() {
   printf("\n");
 }
 
-// Same as above, but prints pairs of u32 indices (for AVX2)
+// Same as above, but prints pairs of u32 indices (for AVX2). Also includes
+// FirstN bits in the nibble MSB.
 void PrintCompress64x4PairTables() {
   printf("======================================= 64x4 u32 index\n");
   constexpr size_t N = 4;  // AVX2
   for (uint64_t code = 0; code < (1ull << N); ++code) {
+    const size_t count = PopCount(code);
     std::array<size_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -530,8 +543,10 @@ void PrintCompress64x4PairTables() {
     // interpreted modulo N. Compression is not worth the extra shift+AND
     // because the table is anyway only 512 bytes.
     for (size_t i = 0; i < N; ++i) {
-      printf("%d, %d, ", static_cast<int>(2 * indices[i] + 0),
-             static_cast<int>(2 * indices[i]) + 1);
+      const int first_n_bit = i < count ? 8 : 0;
+      const int low = static_cast<int>(2 * indices[i]) + first_n_bit;
+      HWY_ASSERT(low < 0x10);
+      printf("%d, %d, ", low, low + 1);
     }
   }
   printf("\n");
@@ -542,6 +557,7 @@ void PrintCompressNot64x4PairTables() {
   constexpr size_t N = 4;  // AVX2
   for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
     const uint64_t code = ~not_code;
+    const size_t count = PopCount(code);
     std::array<size_t, N> indices{0};
     size_t pos = 0;
     // All lanes where mask = true
@@ -563,8 +579,10 @@ void PrintCompressNot64x4PairTables() {
     // interpreted modulo N. Compression is not worth the extra shift+AND
     // because the table is anyway only 512 bytes.
     for (size_t i = 0; i < N; ++i) {
-      printf("%d, %d, ", static_cast<int>(2 * indices[i] + 0),
-             static_cast<int>(2 * indices[i]) + 1);
+      const int first_n_bit = i < count ? 8 : 0;
+      const int low = static_cast<int>(2 * indices[i]) + first_n_bit;
+      HWY_ASSERT(low < 0x10);
+      printf("%d, %d, ", low, low + 1);
     }
   }
   printf("\n");
