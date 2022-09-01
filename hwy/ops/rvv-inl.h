@@ -2642,9 +2642,10 @@ HWY_API V ShiftLeftLanes(const D d, const V v) {
   using TI = TFromD<decltype(di)>;
   const auto shifted = detail::SlideUp(v, v, kLanes);
   // Match x86 semantics by zeroing lower lanes in 128-bit blocks
-  const auto idx_mod = detail::AndS(
-      detail::Iota0(di), static_cast<TI>(detail::LanesPerBlock(di) - 1));
-  const auto clear = detail::LtS(BitCast(di, idx_mod), static_cast<TI>(kLanes));
+  const auto idx_mod =
+      detail::AndS(BitCast(di, detail::Iota0(di)),
+                   static_cast<TI>(detail::LanesPerBlock(di) - 1));
+  const auto clear = detail::LtS(idx_mod, static_cast<TI>(kLanes));
   return IfThenZeroElse(clear, shifted);
 }
 
@@ -2681,9 +2682,8 @@ HWY_API V ShiftRightLanes(const Simd<T, N, kPow2> d, V v) {
   // Match x86 semantics by zeroing upper lanes in 128-bit blocks
   const size_t lpb = detail::LanesPerBlock(di);
   const auto idx_mod =
-      detail::AndS(detail::Iota0(di), static_cast<TI>(lpb - 1));
-  const auto keep =
-      detail::LtS(BitCast(di, idx_mod), static_cast<TI>(lpb - kLanes));
+      detail::AndS(BitCast(di, detail::Iota0(di)), static_cast<TI>(lpb - 1));
+  const auto keep = detail::LtS(idx_mod, static_cast<TI>(lpb - kLanes));
   return IfThenElseZero(keep, shifted);
 }
 
@@ -2831,7 +2831,7 @@ template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> LoadDup128(D d, const T* const HWY_RESTRICT p) {
   const auto loaded = Load(d, p);
   // Broadcast the first block
-  const auto idx = detail::AndS(detail::Iota0(d),
+  const auto idx = detail::AndS(BitCast(d, detail::Iota0(d)),
                                 static_cast<T>(detail::LanesPerBlock(d) - 1));
   return TableLookupLanes(loaded, idx);
 }
