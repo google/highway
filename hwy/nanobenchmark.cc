@@ -149,11 +149,8 @@ inline Ticks Start() {
       // "memory" avoids reordering. rdx = TSC >> 32.
       // "cc" = flags modified by SHL.
       : "rdx", "memory", "cc");
-  // TODO(janwas): the cycle counter and even the timer CSR are no longer in the
-  // base spec and are part of the Zicntr extension, which is not yet ratified
-  // as of 2022-09
-#elif HWY_ARCH_RVV && defined(__riscv_zicntr)
-  asm volatile("rdcycle %0" : "=r"(t));
+#elif HWY_ARCH_RVV
+  asm volatile("rdtime %0" : "=r"(t));
 #elif defined(_WIN32) || defined(_WIN64)
   LARGE_INTEGER counter;
   (void)QueryPerformanceCounter(&counter);
@@ -432,8 +429,7 @@ std::string BrandString() {
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
 #if HWY_ARCH_PPC && defined(__GLIBC__)
   return static_cast<double>(__ppc_get_timebase_freq());
-#elif HWY_ARCH_X86 || (HWY_ARCH_RVV && defined(__riscv_zicntr)) || \
-    (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
+#elif HWY_ARCH_X86 || HWY_ARCH_RVV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
   static const double freq = MeasureNominalClockRate();
   return freq;
