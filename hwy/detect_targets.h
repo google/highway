@@ -372,10 +372,16 @@
 #endif
 // Defining one of HWY_COMPILE_ONLY_* will trump HWY_COMPILE_ALL_ATTAINABLE.
 
-// x86 compilers generally allow runtime dispatch. On Arm, currently only GCC
-// does, and we require Linux to detect CPU capabilities.
-#if HWY_ARCH_X86 || (HWY_ARCH_ARM && HWY_COMPILER_GCC_ACTUAL && HWY_OS_LINUX)
+// Clang, GCC and MSVC allow runtime dispatch on x86.
+#if HWY_ARCH_X86
 #define HWY_HAVE_RUNTIME_DISPATCH 1
+// On Arm, currently only GCC does, and we require Linux to detect CPU
+// capabilities.
+// TODO(janwas): GCC 10.4 has an issue with Arm7 vst1q_u64 (#834), so we
+// currently only allow runtime dispatch for A64. Re-enable v7 once it is clear
+// which GCC versions allow that.
+#elif HWY_ARCH_ARM_A64 && HWY_COMPILER_GCC_ACTUAL && HWY_OS_LINUX
+define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0
 #endif
