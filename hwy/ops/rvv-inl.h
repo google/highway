@@ -2827,12 +2827,14 @@ HWY_API V PopulationCount(V v) {
 
 // ------------------------------ LoadDup128
 
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> LoadDup128(D d, const T* const HWY_RESTRICT p) {
-  const auto loaded = Load(d, p);
-  // Broadcast the first block
-  const auto idx = detail::AndS(BitCast(d, detail::Iota0(d)),
-                                static_cast<T>(detail::LanesPerBlock(d) - 1));
+template <class D>
+HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
+  const VFromD<D> loaded = Load(d, p);
+  // idx must be unsigned for TableLookupLanes.
+  using TU = MakeUnsigned<TFromD<D>>;
+  const TU mask = static_cast<TU>(detail::LanesPerBlock(d) - 1);
+  // Broadcast the first block.
+  const VFromD<RebindToUnsigned<D>> idx = detail::AndS(detail::Iota0(d), mask);
   return TableLookupLanes(loaded, idx);
 }
 
