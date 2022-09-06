@@ -22,16 +22,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "hwy/base.h"  // before HWY_DIAGNOSTICS
+#include "hwy/ops/shared-inl.h"
 
+HWY_BEFORE_NAMESPACE();
+
+// Must come after HWY_BEFORE_NAMESPACE so that the intrinsics are compiled with
+// the same target attribute as our code, see #834.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
 #include <arm_neon.h>
 HWY_DIAGNOSTICS(pop)
 
-#include "hwy/ops/shared-inl.h"
-
-HWY_BEFORE_NAMESPACE();
+// Must come after arm_neon.h.
 namespace hwy {
 namespace HWY_NAMESPACE {
 
