@@ -265,6 +265,9 @@ HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
 HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
 #undef HWY_SVE_FIRSTN
 
+template <class D>
+using MFromD = decltype(FirstN(D(), 0));
+
 namespace detail {
 
 #define HWY_SVE_WRAP_PTRUE(BASE, CHAR, BITS, HALF, NAME, OP)            \
@@ -320,7 +323,9 @@ using VFromD = decltype(Set(D(), TFromD<D>()));
 
 template <class D>
 VFromD<D> Zero(D d) {
-  return Set(d, 0);
+  // Cast to support bfloat16_t.
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Set(du, 0));
 }
 
 // ------------------------------ Undefined
@@ -1814,12 +1819,17 @@ HWY_API V LowerHalf(const V v) {
   return v;
 }
 
-template <class D2, class V>
-HWY_API V UpperHalf(const D2 d2, const V v) {
+template <class DH, class V>
+HWY_API V UpperHalf(const DH dh, const V v) {
+  const Twice<decltype(dh)> d;
+  // Cast so that we support bfloat16_t.
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> vu = BitCast(du, v);
 #if HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128  // constexpr Lanes
-  return detail::Ext<Lanes(d2)>(v, v);
+  return BitCast(d, detail::Ext<Lanes(dh)>(vu, vu));
 #else
-  return detail::Splice(v, v, detail::MaskUpperHalf(Twice<decltype(d2)>()));
+  const MFromD<decltype(du)> mask = detail::MaskUpperHalf(du);
+  return BitCast(d, detail::Splice(vu, vu, mask));
 #endif
 }
 
@@ -2589,6 +2599,7 @@ HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> df32,
 }
 
 // ------------------------------ ReorderDemote2To (OddEven)
+
 template <size_t N, int kPow2>
 HWY_API svuint16_t ReorderDemote2To(Simd<bfloat16_t, N, kPow2> dbf16,
                                     svfloat32_t a, svfloat32_t b) {
@@ -2596,6 +2607,21 @@ HWY_API svuint16_t ReorderDemote2To(Simd<bfloat16_t, N, kPow2> dbf16,
   const Repartition<uint32_t, decltype(dbf16)> du32;
   const svuint32_t b_in_even = ShiftRight<16>(BitCast(du32, b));
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+}
+
+template <size_t N, int kPow2>
+HWY_API svint16_t ReorderDemote2To(Simd<int16_t, N, kPow2> d16, svint32_t a,
+                                   svint32_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d16;
+  const svint16_t a_in_even = svqxtnb_s32(a);
+  return svqxtnt_s32(a_in_even, b);
+#else
+  const Half<decltype(d16)> dh;
+  const svint16_t a16 = BitCast(dh, detail::SaturateI<int16_t>(a));
+  const svint16_t b16 = BitCast(dh, detail::SaturateI<int16_t>(b));
+  return detail::InterleaveEven(a16, b16);
+#endif
 }
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
@@ -2820,6 +2846,7 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
 template <size_t N, int kPow2>
 HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
                                               svuint16_t a, svuint16_t b,
@@ -2835,6 +2862,33 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
   const svuint32_t b1 = ZipUpper(du32, zero, BitCast(du16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+}
+
+template <size_t N, int kPow2>
+HWY_API svint32_t ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32,
+                                            svint16_t a, svint16_t b,
+                                            const svint32_t sum0,
+                                            svint32_t& sum1) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d32;
+  sum1 = svmlalt_s32(sum1, a, b);
+  return svmlalb_s32(sum0, a, b);
+#else
+  const svbool_t pg = detail::PTrue(d32);
+  const svint32_t a0 = svunpklo_s32(a);
+  const svint32_t b0 = svunpklo_s32(b);
+  svint32_t a1, b1;
+  if (detail::IsFull(d32)) {
+    a1 = svunpkhi_s32(a);
+    b1 = svunpkhi_s32(b);
+  } else {
+    const Rebind<int16_t, decltype(d32)> d16h;
+    a1 = svunpklo_s32(UpperHalf(d16h, a));
+    b1 = svunpklo_s32(UpperHalf(d16h, b));
+  }
+  sum1 = svmla_s32_x(pg, sum1, a1, b1);
+  return svmla_s32_x(pg, sum0, a0, b0);
+#endif
 }
 
 // ------------------------------ AESRound / CLMul

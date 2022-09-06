@@ -3536,6 +3536,11 @@ HWY_API Vec64<double> LowerHalf(const Vec128<double> v) {
   return Vec64<double>(vget_low_f64(v.raw));
 }
 #endif
+HWY_API Vec64<bfloat16_t> LowerHalf(const Vec128<bfloat16_t> v) {
+  const Full128<uint16_t> du;
+  const Full64<bfloat16_t> dbh;
+  return BitCast(dbh, LowerHalf(BitCast(du, v)));
+}
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N / 2> LowerHalf(Simd<T, N / 2, 0> /* tag */,
@@ -3735,6 +3740,13 @@ HWY_API Vec64<double> UpperHalf(Full64<double> /* tag */,
   return Vec64<double>(vget_high_f64(v.raw));
 }
 #endif
+
+HWY_API Vec64<bfloat16_t> UpperHalf(Full64<bfloat16_t> dbh,
+                                    const Vec128<bfloat16_t> v) {
+  const RebindToUnsigned<decltype(dbh)> duh;
+  const Twice<decltype(duh)> du;
+  return BitCast(dbh, UpperHalf(duh, BitCast(du, v)));
+}
 
 // Partial
 template <typename T, size_t N, HWY_IF_LE64(T, N)>
@@ -4252,6 +4264,48 @@ HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
+HWY_API Vec128<int32_t> ReorderWidenMulAccumulate(Full128<int32_t> /*d32*/,
+                                                  Vec128<int16_t> a,
+                                                  Vec128<int16_t> b,
+                                                  const Vec128<int32_t> sum0,
+                                                  Vec128<int32_t>& sum1) {
+#if HWY_ARCH_ARM_A64
+  sum1 = Vec128<int32_t>(vmlal_high_s16(sum1.raw, a.raw, b.raw));
+#else
+  const Full64<int16_t> dh;
+  sum1 = Vec128<int32_t>(
+      vmlal_s16(sum1.raw, UpperHalf(dh, a).raw, UpperHalf(dh, b).raw));
+#endif
+  return Vec128<int32_t>(
+      vmlal_s16(sum0.raw, LowerHalf(a).raw, LowerHalf(b).raw));
+}
+
+HWY_API Vec64<int32_t> ReorderWidenMulAccumulate(Full64<int32_t> d32,
+                                                 Vec64<int16_t> a,
+                                                 Vec64<int16_t> b,
+                                                 const Vec64<int32_t> sum0,
+                                                 Vec64<int32_t>& sum1) {
+  // vmlal writes into the upper half, which the caller cannot use, so
+  // split into two halves.
+  const Vec128<int32_t> mul_3210(vmull_s16(a.raw, b.raw));
+  const Vec64<int32_t> mul_32 = UpperHalf(d32, mul_3210);
+  sum1 += mul_32;
+  return sum0 + LowerHalf(mul_3210);
+}
+
+HWY_API Vec32<int32_t> ReorderWidenMulAccumulate(Full32<int32_t> d32,
+                                                 Vec32<int16_t> a,
+                                                 Vec32<int16_t> b,
+                                                 const Vec32<int32_t> sum0,
+                                                 Vec32<int32_t>& sum1) {
+  const Vec128<int32_t> mul_xx10(vmull_s16(a.raw, b.raw));
+  const Vec64<int32_t> mul_10(LowerHalf(mul_xx10));
+  const Vec32<int32_t> mul0 = LowerHalf(d32, mul_10);
+  const Vec32<int32_t> mul1 = UpperHalf(d32, mul_10);
+  sum1 += mul1;
+  return sum0 + mul0;
+}
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)
@@ -4594,6 +4648,32 @@ HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
   const Repartition<uint32_t, decltype(dbf16)> du32;
   const Vec128<uint32_t, N> b_in_even = ShiftRight<16>(BitCast(du32, b));
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+}
+
+HWY_API Vec128<int16_t> ReorderDemote2To(Full128<int16_t> d16,
+                                         Vec128<int32_t> a, Vec128<int32_t> b) {
+  const Vec64<int16_t> a16(vqmovn_s32(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d16;
+  return Vec128<int16_t>(vqmovn_high_s32(a16.raw, b.raw));
+#else
+  const Vec64<int16_t> b16(vqmovn_s32(b.raw));
+  return Combine(d16, a16, b16);
+#endif
+}
+
+HWY_API Vec64<int16_t> ReorderDemote2To(Full64<int16_t> /*d16*/,
+                                        Vec64<int32_t> a, Vec64<int32_t> b) {
+  const Full128<int32_t> d32;
+  const Vec128<int32_t> ab = Combine(d32, a, b);
+  return Vec64<int16_t>(vqmovn_s32(ab.raw));
+}
+
+HWY_API Vec32<int16_t> ReorderDemote2To(Full32<int16_t> /*d16*/,
+                                        Vec32<int32_t> a, Vec32<int32_t> b) {
+  const Full128<int32_t> d32;
+  const Vec64<int32_t> ab(vzip1_s32(a.raw, b.raw));
+  return Vec32<int16_t>(vqmovn_s32(Combine(d32, ab, ab).raw));
 }
 
 // ================================================== CRYPTO

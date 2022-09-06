@@ -496,7 +496,9 @@ using VFromD = decltype(Set(D(), TFromD<D>()));
 
 template <typename T, size_t N, int kPow2>
 HWY_API VFromD<Simd<T, N, kPow2>> Zero(Simd<T, N, kPow2> d) {
-  return Set(d, T(0));
+  // Cast to support bfloat16_t.
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Set(du, 0));
 }
 
 // ------------------------------ Undefined
@@ -3088,7 +3090,7 @@ HWY_INLINE V MulOdd(const V a, const V b) {
   return OddEven(hi, detail::Slide1Down(lo));
 }
 
-// ------------------------------ ReorderDemote2To (OddEven)
+// ------------------------------ ReorderDemote2To (OddEven, Combine)
 
 template <size_t N, int kPow2>
 HWY_API VFromD<Simd<uint16_t, N, kPow2>> ReorderDemote2To(
@@ -3101,28 +3103,105 @@ HWY_API VFromD<Simd<uint16_t, N, kPow2>> ReorderDemote2To(
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
+// If LMUL is not the max, Combine first to avoid another DemoteTo.
+template <size_t N, int kPow2, hwy::EnableIf<(kPow2 < 3)>* = nullptr,
+          class D32 = RepartitionToWide<Simd<int16_t, N, kPow2>>>
+HWY_API VFromD<Simd<int16_t, N, kPow2>> ReorderDemote2To(
+    Simd<int16_t, N, kPow2> d16, VFromD<D32> a, VFromD<D32> b) {
+  const Twice<D32> d32t;
+  const VFromD<decltype(d32t)> ab = Combine(d32t, a, b);
+  return DemoteTo(d16, ab);
+}
+
+// Max LMUL: must DemoteTo first, then Combine.
+template <size_t N, class V32 = VFromD<RepartitionToWide<Simd<int16_t, N, 3>>>>
+HWY_API VFromD<Simd<int16_t, N, 3>> ReorderDemote2To(Simd<int16_t, N, 3> d16,
+                                                     V32 a, V32 b) {
+  const Half<decltype(d16)> d16h;
+  const VFromD<decltype(d16h)> a16 = DemoteTo(d16h, a);
+  const VFromD<decltype(d16h)> b16 = DemoteTo(d16h, b);
+  return Combine(d16, a16, b16);
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
-template <class DF>
-using DU16FromDF = RepartitionToNarrow<RebindToUnsigned<DF>>;
+namespace detail {
 
-template <size_t N, int kPow2>
-HWY_API auto ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
-                                       VFromD<DU16FromDF<decltype(df32)>> a,
-                                       VFromD<DU16FromDF<decltype(df32)>> b,
-                                       const VFromD<decltype(df32)> sum0,
-                                       VFromD<decltype(df32)>& sum1)
-    -> VFromD<decltype(df32)> {
-  const DU16FromDF<decltype(df32)> du16;
-  const RebindToUnsigned<decltype(df32)> du32;
+// Non-overloaded wrapper function so we can define DF32 in template args.
+template <
+    size_t N, int kPow2, class DF32 = Simd<float, N, kPow2>,
+    class VF32 = VFromD<DF32>,
+    class DU16 = RepartitionToNarrow<RebindToUnsigned<Simd<float, N, kPow2>>>>
+HWY_API VF32 ReorderWidenMulAccumulateBF16(Simd<float, N, kPow2> df32,
+                                           VFromD<DU16> a, VFromD<DU16> b,
+                                           const VF32 sum0, VF32& sum1) {
+  const DU16 du16;
+  const RebindToUnsigned<DF32> du32;
   using VU32 = VFromD<decltype(du32)>;
-  const VFromD<decltype(du16)> zero = Zero(du16);
+  const VFromD<DU16> zero = Zero(du16);
   const VU32 a0 = ZipLower(du32, zero, BitCast(du16, a));
   const VU32 a1 = ZipUpper(du32, zero, BitCast(du16, a));
   const VU32 b0 = ZipLower(du32, zero, BitCast(du16, b));
   const VU32 b1 = ZipUpper(du32, zero, BitCast(du16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+}
+
+#define HWY_RVV_WIDEN_MACC(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,    \
+                           SHIFT, MLEN, NAME, OP)                              \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(BASE, SEWD, LMULD) NAME(                                   \
+      HWY_RVV_D(BASE, SEWD, N, SHIFT + 1) d, HWY_RVV_V(BASE, SEWD, LMULD) sum, \
+      HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {            \
+    return OP##CHAR##SEWD##LMULD(sum, a, b, Lanes(d));                         \
+  }
+
+HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MACC, WidenMulAcc, vwmacc_vv_, _EXT_VIRT)
+#undef HWY_RVV_WIDEN_MACC
+
+// If LMUL is not the max, we can WidenMul first (3 instructions).
+template <size_t N, int kPow2, hwy::EnableIf<(kPow2 < 3)>* = nullptr,
+          class D32 = Simd<int32_t, N, kPow2>, class V32 = VFromD<D32>,
+          class D16 = RepartitionToNarrow<D32>>
+HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(Simd<int32_t, N, kPow2> d32,
+                                                 VFromD<D16> a, VFromD<D16> b,
+                                                 const V32 sum0, V32& sum1) {
+  const Twice<decltype(d32)> d32t;
+  using V32T = VFromD<decltype(d32t)>;
+  V32T sum = Combine(d32t, sum0, sum1);
+  sum = detail::WidenMulAcc(d32t, sum, a, b);
+  sum1 = UpperHalf(d32, sum);
+  return LowerHalf(d32, sum);
+}
+
+// Max LMUL: must LowerHalf first (4 instructions).
+template <size_t N, class D32 = Simd<int32_t, N, 3>, class V32 = VFromD<D32>,
+          class D16 = RepartitionToNarrow<D32>>
+HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(Simd<int32_t, N, 3> d32,
+                                                 VFromD<D16> a, VFromD<D16> b,
+                                                 const V32 sum0, V32& sum1) {
+  const Half<D16> d16h;
+  using V16H = VFromD<decltype(d16h)>;
+  const V16H a0 = LowerHalf(d16h, a);
+  const V16H a1 = UpperHalf(d16h, a);
+  const V16H b0 = LowerHalf(d16h, b);
+  const V16H b1 = UpperHalf(d16h, b);
+  sum1 = detail::WidenMulAcc(d32, sum1, a1, b1);
+  return detail::WidenMulAcc(d32, sum0, a0, b0);
+}
+
+}  // namespace detail
+
+template <size_t N, int kPow2, class VN, class VW>
+HWY_API VW ReorderWidenMulAccumulate(Simd<float, N, kPow2> d32, VN a, VN b,
+                                     const VW sum0, VW& sum1) {
+  return detail::ReorderWidenMulAccumulateBF16(d32, a, b, sum0, sum1);
+}
+
+template <size_t N, int kPow2, class VN, class VW>
+HWY_API VW ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32, VN a, VN b,
+                                     const VW sum0, VW& sum1) {
+  return detail::ReorderWidenMulAccumulateI16(d32, a, b, sum0, sum1);
 }
 
 // ------------------------------ Lt128

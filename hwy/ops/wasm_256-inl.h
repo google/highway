@@ -2917,6 +2917,13 @@ HWY_API Vec256<float> ReorderWidenMulAccumulate(Full256<float> df32,
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
+HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(Full256<int32_t> /*d32*/,
+                                                  Vec256<int16_t> a,
+                                                  Vec256<int16_t> b,
+                                                  const Vec256<int32_t> sum0,
+                                                  Vec256<int32_t>& sum1) {
+  HWY_ASSERT(0);
+}
 
 // ------------------------------ Reductions
 

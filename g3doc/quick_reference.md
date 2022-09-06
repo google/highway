@@ -442,7 +442,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.
 
-*   `V`: `bf16`; `D`: `f32` \
+*   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
     <code>Vec<D> **ReorderWidenMulAccumulate**(D d, V a, V b, Vec<D> sum0,
     Vec<D>& sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] *
     b[i]` to either `sum1[j]` or lane `j` of the return value, where `j = P(i)`
@@ -999,7 +999,7 @@ if the input exceeds the destination range.
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half (for
     bf16, it is unspecified whether this truncates or rounds).
 
-*   `V`,`D`: (`f32,bf16`) \
+*   `D`: `{bf,i}16`, `V`: `RepartitionToWide<D>` \
     <code>Vec&lt;D&gt; **ReorderDemote2To**(D, V a, V b)</code>: as above, but
     converts two inputs, `D` and the output have twice as many lanes as `V`, and
     the output order is some permutation of the inputs. Only available if

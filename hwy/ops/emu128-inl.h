@@ -1548,6 +1548,22 @@ HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
   return BitCast(dbf16, IfVecThenElse(a_mask, BitCast(du32, a), b_in_lower));
 }
 
+template <size_t N>
+HWY_API Vec128<int16_t, 2 * N> ReorderDemote2To(Simd<int16_t, 2 * N, 0> /*d16*/,
+                                                Vec128<int32_t, N> a,
+                                                Vec128<int32_t, N> b) {
+  const int16_t min = LimitsMin<int16_t>();
+  const int16_t max = LimitsMax<int16_t>();
+  Vec128<int16_t, 2 * N> ret;
+  for (size_t i = 0; i < N; ++i) {
+    ret.raw[i] = HWY_MIN(HWY_MAX(min, a.raw[i]), max);
+  }
+  for (size_t i = 0; i < N; ++i) {
+    ret.raw[N + i] = HWY_MIN(HWY_MAX(min, b.raw[i]), max);
+  }
+  return ret;
+}
+
 namespace detail {
 
 HWY_INLINE void StoreU16ToF16(const uint16_t val,
@@ -2379,6 +2395,7 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
+
 template <size_t N>
 HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
                                                    Vec128<bfloat16_t, 2 * N> a,
@@ -2393,6 +2410,20 @@ HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
   const Vec128<float, N> b1 = PromoteTo(df32, UpperHalf(dbf16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> ReorderWidenMulAccumulate(
+    Simd<int32_t, N, 0> d32, Vec128<int16_t, 2 * N> a, Vec128<int16_t, 2 * N> b,
+    const Vec128<int32_t, N> sum0, Vec128<int32_t, N>& sum1) {
+  const Rebind<int16_t, decltype(d32)> d16;
+  // Avoid ZipLower/Upper so this also works on big-endian systems.
+  const Vec128<int32_t, N> a0 = PromoteTo(d32, LowerHalf(d16, a));
+  const Vec128<int32_t, N> a1 = PromoteTo(d32, UpperHalf(d16, a));
+  const Vec128<int32_t, N> b0 = PromoteTo(d32, LowerHalf(d16, b));
+  const Vec128<int32_t, N> b1 = PromoteTo(d32, UpperHalf(d16, b));
+  sum1 = MulAdd(BitCast(d32, a1), BitCast(d32, b1), sum1);
+  return MulAdd(BitCast(d32, a0), BitCast(d32, b0), sum0);
 }
 
 // ================================================== REDUCTIONS

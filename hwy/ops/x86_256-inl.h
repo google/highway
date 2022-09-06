@@ -3873,6 +3873,14 @@ HWY_API Vec256<float> ReorderWidenMulAccumulate(Full256<float> df32,
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
 
+HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(Full256<int32_t> /*d32*/,
+                                                  Vec256<int16_t> a,
+                                                  Vec256<int16_t> b,
+                                                  const Vec256<int32_t> sum0,
+                                                  Vec256<int32_t>& /*sum1*/) {
+  return sum0 + Vec256<int32_t>{_mm256_madd_epi16(a.raw, b.raw)};
+}
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
@@ -4051,6 +4059,11 @@ HWY_API Vec256<bfloat16_t> ReorderDemote2To(Full256<bfloat16_t> dbf16,
   const Repartition<uint32_t, decltype(dbf16)> du32;
   const Vec256<uint32_t> b_in_even = ShiftRight<16>(BitCast(du32, b));
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+}
+
+HWY_API Vec256<int16_t> ReorderDemote2To(Full256<int16_t> /*d16*/,
+                                         Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Vec256<int16_t>{_mm256_packs_epi32(a.raw, b.raw)};
 }
 
 HWY_API Vec128<float> DemoteTo(Full128<float> /* tag */,

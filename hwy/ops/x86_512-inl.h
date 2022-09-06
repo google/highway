@@ -3285,6 +3285,11 @@ HWY_API Vec512<bfloat16_t> ReorderDemote2To(Full512<bfloat16_t> dbf16,
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
+HWY_API Vec512<int16_t> ReorderDemote2To(Full512<int16_t> /*d16*/,
+                                         Vec512<int32_t> a, Vec512<int32_t> b) {
+  return Vec512<int16_t>{_mm512_packs_epi32(a.raw, b.raw)};
+}
+
 HWY_API Vec256<float> DemoteTo(Full256<float> /* tag */,
                                const Vec512<double> v) {
   return Vec256<float>{_mm512_cvtpd_ps(v.raw)};
@@ -4226,6 +4231,14 @@ HWY_API Vec512<float> ReorderWidenMulAccumulate(Full512<float> df32,
   const Vec512<uint32_t> b1 = ZipUpper(du32, zero, BitCast(du16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+}
+
+HWY_API Vec512<int32_t> ReorderWidenMulAccumulate(Full512<int32_t> /*d32*/,
+                                                  Vec512<int16_t> a,
+                                                  Vec512<int16_t> b,
+                                                  const Vec512<int32_t> sum0,
+                                                  Vec512<int32_t>& /*sum1*/) {
+  return sum0 + Vec512<int32_t>{_mm512_madd_epi16(a.raw, b.raw)};
 }
 
 // ------------------------------ Reductions

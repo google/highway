@@ -1530,6 +1530,14 @@ HWY_API Vec1<float> ReorderWidenMulAccumulate(Sisd<float> /* tag */,
                 Vec1<float>(F32FromBF16(b.raw)), sum0);
 }
 
+HWY_API Vec1<int32_t> ReorderWidenMulAccumulate(Sisd<int32_t> /* tag */,
+                                                Vec1<int16_t> a,
+                                                Vec1<int16_t> b,
+                                                const Vec1<int32_t> sum0,
+                                                Vec1<int32_t>& /* sum1 */) {
+  return Vec1<int32_t>(a.raw * b.raw + sum0.raw);
+}
+
 // ================================================== REDUCTIONS
 
 // Sum of all lanes, i.e. the only one.
