@@ -1556,10 +1556,10 @@ HWY_API Vec128<int16_t, 2 * N> ReorderDemote2To(Simd<int16_t, 2 * N, 0> /*d16*/,
   const int16_t max = LimitsMax<int16_t>();
   Vec128<int16_t, 2 * N> ret;
   for (size_t i = 0; i < N; ++i) {
-    ret.raw[i] = HWY_MIN(HWY_MAX(min, a.raw[i]), max);
+    ret.raw[i] = static_cast<int16_t>(HWY_MIN(HWY_MAX(min, a.raw[i]), max));
   }
   for (size_t i = 0; i < N; ++i) {
-    ret.raw[N + i] = HWY_MIN(HWY_MAX(min, b.raw[i]), max);
+    ret.raw[N + i] = static_cast<int16_t>(HWY_MIN(HWY_MAX(min, b.raw[i]), max));
   }
   return ret;
 }
