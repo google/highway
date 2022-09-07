@@ -2249,9 +2249,8 @@ HWY_API bool AllFalse(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask) {
 
 template <typename T, size_t N>
 HWY_API bool AllTrue(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask) {
-  using Bits = typename Mask128<T, N>::Raw;
-  constexpr Bits kAll = static_cast<Bits>(~Bits{0});
-  Bits and_sum = kAll;
+  constexpr uint64_t kAll = LimitsMax<typename Mask128<T, N>::Raw>();
+  uint64_t and_sum = kAll;
   for (size_t i = 0; i < N; ++i) {
     and_sum &= mask.bits[i];
   }
