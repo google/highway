@@ -276,6 +276,113 @@ struct OrderDescending : public KeyLane<T> {
   }
 };
 
+struct OrderAscendingKV64 : public KeyLane<uint64_t> {
+  using Order = SortAscending;
+
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+    return (*a >> 32) < (*b >> 32);
+  }
+
+  template <class D>
+  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
+    return Lt(ShiftRight<32>(a), ShiftRight<32>(b));
+  }
+
+  // Not required to be stable (preserving the order of equivalent keys), so
+  // we can include the value in the comparison.
+  template <class D>
+  HWY_INLINE Vec<D> First(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+    return Min(a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> Last(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+    return Max(a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
+                                 uint64_t* HWY_RESTRICT /* buf */) const {
+    return MinOfLanes(d, v);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
+                                uint64_t* HWY_RESTRICT /* buf */) const {
+    return MaxOfLanes(d, v);
+  }
+
+  // Same as for regular lanes.
+  template <class D>
+  HWY_INLINE Vec<D> FirstValue(D d) const {
+    return Set(d, hwy::LowestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastValue(D d) const {
+    return Set(d, hwy::HighestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    const Vec<D> k1 = Set(d, 1);
+    return Sub(v, k1);
+  }
+};
+
+struct OrderDescendingKV64 : public KeyLane<uint64_t> {
+  using Order = SortDescending;
+
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+    return (*b >> 32) < (*a >> 32);
+  }
+
+  template <class D>
+  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
+    return Lt(ShiftRight<32>(b), ShiftRight<32>(a));
+  }
+
+  // Not required to be stable (preserving the order of equivalent keys), so
+  // we can include the value in the comparison.
+  template <class D>
+  HWY_INLINE Vec<D> First(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+    return Max(a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> Last(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+    return Min(a, b);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
+                                 uint64_t* HWY_RESTRICT /* buf */) const {
+    return MaxOfLanes(d, v);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastOfLanes(D d, Vec<D> v,
+                                uint64_t* HWY_RESTRICT /* buf */) const {
+    return MinOfLanes(d, v);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> FirstValue(D d) const {
+    return Set(d, hwy::HighestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastValue(D d) const {
+    return Set(d, hwy::LowestValue<TFromD<D> >());
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
+    const Vec<D> k1 = Set(d, 1);
+    return Add(v, k1);
+  }
+};
+
 // Shared code that depends on Order.
 template <class Base>
 struct TraitsLane : public Base {

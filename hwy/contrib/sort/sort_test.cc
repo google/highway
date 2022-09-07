@@ -49,8 +49,10 @@ using detail::TraitsLane;
 #if VQSORT_ENABLED || HWY_IDE
 using detail::OrderAscending128;
 using detail::OrderAscendingKV128;
+using detail::OrderAscendingKV64;
 using detail::OrderDescending128;
 using detail::OrderDescendingKV128;
+using detail::OrderDescendingKV64;
 using detail::Traits128;
 
 template <class Traits>
@@ -571,6 +573,9 @@ void TestAllSort() {
 #if VQSORT_ENABLED
     TestSort<Traits128<OrderAscending128> >(num_lanes);
     TestSort<Traits128<OrderDescending128> >(num_lanes);
+
+    TestSort<TraitsLane<OrderAscendingKV64> >(num_lanes);
+    TestSort<TraitsLane<OrderDescendingKV64> >(num_lanes);
 
     TestSort<Traits128<OrderAscendingKV128> >(num_lanes);
     TestSort<Traits128<OrderDescendingKV128> >(num_lanes);

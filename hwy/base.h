@@ -293,6 +293,13 @@ struct alignas(16) K64V64 {
   uint64_t key;
 };
 
+// 32 bit key plus 32 bit value. Allows vqsort recursions to terminate earlier
+// than when considering both to be a 64-bit key.
+struct alignas(8) K32V32 {
+  uint32_t value;  // little-endian layout
+  uint32_t key;
+};
+
 #pragma pack(pop)
 
 static inline HWY_MAYBE_UNUSED bool operator<(const uint128_t& a,
@@ -312,6 +319,16 @@ static inline HWY_MAYBE_UNUSED bool operator<(const K64V64& a,
 // Required for std::greater.
 static inline HWY_MAYBE_UNUSED bool operator>(const K64V64& a,
                                               const K64V64& b) {
+  return b < a;
+}
+
+static inline HWY_MAYBE_UNUSED bool operator<(const K32V32& a,
+                                              const K32V32& b) {
+  return a.key < b.key;
+}
+// Required for std::greater.
+static inline HWY_MAYBE_UNUSED bool operator>(const K32V32& a,
+                                              const K32V32& b) {
   return b < a;
 }
 
