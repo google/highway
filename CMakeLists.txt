@@ -520,7 +520,11 @@ list(APPEND HWY_TEST_FILES
 endif()  # HWY_ENABLE_CONTRIB
 
 if(HWY_SYSTEM_GTEST)
-  set(HWY_GTEST_LIBS GTest::GTest GTest::Main)
+  if (CMAKE_VERSION VERSION_LESS 3.20)
+    set(HWY_GTEST_LIBS GTest::GTest GTest::Main)
+  else()
+    set(HWY_GTEST_LIBS GTest::gtest GTest::gtest_main)
+  endif()
 else()
   set(HWY_GTEST_LIBS gtest gtest_main)
 endif()
