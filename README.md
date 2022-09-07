@@ -142,6 +142,9 @@ A [quick-reference page](g3doc/quick_reference.md) briefly lists all operations
 and their parameters, and the [instruction_matrix](g3doc/instruction_matrix.pdf)
 indicates the number of instructions per operation.
 
+The [FAQ](g3doc/faq.md) answers questions about portability, API design and
+where to find more information.
+
 We recommend using full SIMD vectors whenever possible for maximum performance
 portability. To obtain them, pass a `ScalableTag<float>` (or equivalently
 `HWY_FULL(float)`) tag to functions such as `Zero/Set/Load`. There are two
