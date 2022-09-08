@@ -284,19 +284,19 @@ struct OrderAscendingKV64 : public KeyLane<uint64_t> {
   }
 
   template <class D>
-  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
+  HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) const {
     return Lt(ShiftRight<32>(a), ShiftRight<32>(b));
   }
 
   // Not required to be stable (preserving the order of equivalent keys), so
   // we can include the value in the comparison.
   template <class D>
-  HWY_INLINE Vec<D> First(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+  HWY_INLINE Vec<D> First(D /* tag */, const Vec<D> a, const Vec<D> b) const {
     return Min(a, b);
   }
 
   template <class D>
-  HWY_INLINE Vec<D> Last(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+  HWY_INLINE Vec<D> Last(D /* tag */, const Vec<D> a, const Vec<D> b) const {
     return Max(a, b);
   }
 
@@ -338,19 +338,19 @@ struct OrderDescendingKV64 : public KeyLane<uint64_t> {
   }
 
   template <class D>
-  HWY_INLINE Mask<D> Compare(D d, Vec<D> a, Vec<D> b) const {
+  HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) const {
     return Lt(ShiftRight<32>(b), ShiftRight<32>(a));
   }
 
   // Not required to be stable (preserving the order of equivalent keys), so
   // we can include the value in the comparison.
   template <class D>
-  HWY_INLINE Vec<D> First(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+  HWY_INLINE Vec<D> First(D /* tag */, const Vec<D> a, const Vec<D> b) const {
     return Max(a, b);
   }
 
   template <class D>
-  HWY_INLINE Vec<D> Last(D /*d*/, const Vec<D> a, const Vec<D> b) const {
+  HWY_INLINE Vec<D> Last(D /* tag */, const Vec<D> a, const Vec<D> b) const {
     return Min(a, b);
   }
 
