@@ -856,8 +856,16 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           const size_t end, T* HWY_RESTRICT buf, Generator& rng,
                           size_t remaining_levels) {
   const size_t num = end - begin;  // >= 1
+  HWY_DASSERT(begin < end);
+
+  if (HWY_UNLIKELY(num <= Constants::BaseCaseNum(Lanes(d)))) {
+    BaseCase(d, st, keys + begin, keys_end, num, buf);
+    return;
+  }
+
 #if VQSORT_PRINT
-  fprintf(stderr, "- Recurse remaining %zu [%zu %zu) len %zu\n",
+  // Move after BaseCase so we skip printing for small subarrays.
+  fprintf(stderr, "\n\n=== Recurse remaining %zu [%zu %zu) len %zu\n",
           remaining_levels, begin, end, num);
   Vec<D> first, last;
   if (num >= Lanes(d)) {
@@ -866,12 +874,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   Print(d, "first", first, 0, st.LanesPerKey());
   Print(d, "last", last, 0, st.LanesPerKey());
 #endif
-  HWY_DASSERT(begin < end);
 
-  if (HWY_UNLIKELY(num <= Constants::BaseCaseNum(Lanes(d)))) {
-    BaseCase(d, st, keys + begin, keys_end, num, buf);
-    return;
-  }
   PivotResult result;
   Vec<D> pivot = ChoosePivot(d, st, keys + begin, num, buf, rng, result);
   if (HWY_UNLIKELY(result == PivotResult::kAllEqual)) {
@@ -892,6 +895,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // ChoosePivot ensures pivot != last key, so the right partition is never
   // empty. Nor is the left, because the pivot is either one of the keys, or
   // the value prior to the last (which is not the only value).
+#if VQSORT_PRINT >= 2
+  fprintf(stderr, "begin %zu bound %zu end %zu (%zu %zu)\n", begin, bound, end,
+          bound - begin, end - bound);
+#endif
   HWY_ASSERT(begin != bound && bound != end);
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
     Recurse(d, st, keys, keys_end, begin, bound, buf, rng,
