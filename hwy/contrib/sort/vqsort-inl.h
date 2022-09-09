@@ -428,7 +428,7 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
   return writeL;
 }
 
-// ------------------------------ Pivot
+// ------------------------------ Pivot sampling
 
 template <class Traits, class V>
 HWY_INLINE V MedianOf3(Traits st, V v0, V v1, V v2) {
@@ -493,8 +493,78 @@ HWY_INLINE size_t RandomChunkIndex(const uint32_t num_chunks, uint32_t bits) {
   return static_cast<size_t>(chunk_index);
 }
 
-template <class Traits, typename T>
-HWY_INLINE void SortSamples(Traits st, T* HWY_RESTRICT buf) {
+// Writes samples from `keys[0, num)` into `buf`.
+template <class D, class Traits, typename T>
+HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+                            T* HWY_RESTRICT buf, Generator& rng) {
+  using V = decltype(Zero(d));
+  const size_t N = Lanes(d);
+
+  if (VQSORT_PRINT >= 2) {
+    fprintf(stderr, "DrawSamples num %zu:\n", num);
+  }
+
+  // Power of two
+  const size_t lanes_per_chunk = Constants::LanesPerChunk(sizeof(T), N);
+
+  // Align start of keys to chunks. We always have at least 2 chunks because the
+  // base case would have handled anything up to 16 vectors, i.e. >= 4 chunks.
+  HWY_DASSERT(num >= 2 * lanes_per_chunk);
+  const size_t misalign =
+      (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (lanes_per_chunk - 1);
+  if (misalign != 0) {
+    const size_t consume = lanes_per_chunk - misalign;
+    keys += consume;
+    num -= consume;
+  }
+
+  // Generate enough random bits for 9 uint32
+  uint64_t* bits64 = reinterpret_cast<uint64_t*>(buf);
+  for (size_t i = 0; i < 5; ++i) {
+    bits64[i] = rng();
+  }
+  const uint32_t* bits = reinterpret_cast<const uint32_t*>(buf);
+
+  const uint32_t lpc32 = static_cast<uint32_t>(lanes_per_chunk);
+  // Avoid division
+  const size_t log2_lpc = Num0BitsBelowLS1Bit_Nonzero32(lpc32);
+  const size_t num_chunks64 = num >> log2_lpc;
+  // Clamp to uint32 for RandomChunkIndex
+  const uint32_t num_chunks =
+      static_cast<uint32_t>(HWY_MIN(num_chunks64, 0xFFFFFFFFull));
+
+  const size_t offset0 = RandomChunkIndex(num_chunks, bits[0]) << log2_lpc;
+  const size_t offset1 = RandomChunkIndex(num_chunks, bits[1]) << log2_lpc;
+  const size_t offset2 = RandomChunkIndex(num_chunks, bits[2]) << log2_lpc;
+  const size_t offset3 = RandomChunkIndex(num_chunks, bits[3]) << log2_lpc;
+  const size_t offset4 = RandomChunkIndex(num_chunks, bits[4]) << log2_lpc;
+  const size_t offset5 = RandomChunkIndex(num_chunks, bits[5]) << log2_lpc;
+  const size_t offset6 = RandomChunkIndex(num_chunks, bits[6]) << log2_lpc;
+  const size_t offset7 = RandomChunkIndex(num_chunks, bits[7]) << log2_lpc;
+  const size_t offset8 = RandomChunkIndex(num_chunks, bits[8]) << log2_lpc;
+  for (size_t i = 0; i < lanes_per_chunk; i += N) {
+    const V v0 = Load(d, keys + offset0 + i);
+    const V v1 = Load(d, keys + offset1 + i);
+    const V v2 = Load(d, keys + offset2 + i);
+    const V medians0 = MedianOf3(st, v0, v1, v2);
+    Store(medians0, d, buf + i);
+
+    const V v3 = Load(d, keys + offset3 + i);
+    const V v4 = Load(d, keys + offset4 + i);
+    const V v5 = Load(d, keys + offset5 + i);
+    const V medians1 = MedianOf3(st, v3, v4, v5);
+    Store(medians1, d, buf + i + lanes_per_chunk);
+
+    const V v6 = Load(d, keys + offset6 + i);
+    const V v7 = Load(d, keys + offset7 + i);
+    const V v8 = Load(d, keys + offset8 + i);
+    const V medians2 = MedianOf3(st, v6, v7, v8);
+    Store(medians2, d, buf + i + lanes_per_chunk * 2);
+  }
+}
+
+template <class D, class Traits, typename T>
+HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
   // buf contains 192 bytes, so 16 128-bit vectors are necessary and sufficient.
   constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
   const CappedTag<T, 16 / sizeof(T)> d128;
@@ -511,7 +581,23 @@ HWY_INLINE void SortSamples(Traits st, T* HWY_RESTRICT buf) {
   }
 
   SortingNetwork(st, buf, kCols);
+
+#if VQSORT_PRINT >= 2  // Print is only defined #if
+  const size_t N = Lanes(d);
+  for (size_t i = 0; i < kSampleLanes; i += N) {
+    Print(d, "", Load(d, buf + i), 0, N);
+  }
+#endif
 }
+
+// ------------------------------ Pivot selection
+
+enum class PivotResult {
+  kAllEqual,  // stop without partitioning
+  kNormal,    // partition and recurse left and right
+  kIsFirst,   // partition but skip left recursion
+  kWasLast,   // partition but skip right recursion
+};
 
 template <class Traits, typename T>
 HWY_INLINE size_t PivotRank(Traits st, T* HWY_RESTRICT buf) {
@@ -545,34 +631,18 @@ HWY_INLINE size_t PivotRank(Traits st, T* HWY_RESTRICT buf) {
   return excess_if_median < excess_if_prev ? kRankMid : rank_prev;
 }
 
-#if VQSORT_PRINT
-// Compute exact min/max.
 template <class D, class Traits, typename T>
-HWY_NOINLINE void ScanMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
-                             size_t num, T* HWY_RESTRICT buf, Vec<D>& first,
-                             Vec<D>& last) {
-  const size_t N = Lanes(d);
-
-  first = st.LastValue(d);
-  last = st.FirstValue(d);
-
-  size_t i = 0;
-  for (; i + N <= num; i += N) {
-    const Vec<D> v = LoadU(d, keys + i);
-    first = st.First(d, v, first);
-    last = st.Last(d, v, last);
+HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st, T* HWY_RESTRICT keys,
+                                    T* HWY_RESTRICT buf, PivotResult& result) {
+  const size_t pivot_rank = PivotRank(st, buf);
+  const Vec<D> pivot = st.SetKey(d, buf + pivot_rank);
+  if (VQSORT_PRINT >= 2) {
+    fprintf(stderr, "  Pivot rank %zu = %.0f\n", pivot_rank,
+            static_cast<double>(GetLane(pivot)));
   }
-  if (HWY_LIKELY(i != num)) {
-    HWY_DASSERT(num >= N);  // See HandleSpecialCases
-    const Vec<D> v = LoadU(d, keys + num - N);
-    first = st.First(d, v, first);
-    last = st.Last(d, v, last);
-  }
-
-  first = st.FirstOfLanes(d, first, buf);
-  last = st.LastOfLanes(d, last, buf);
+  result = PivotResult::kNormal;
+  return pivot;
 }
-#endif  // VQSORT_PRINT
 
 template <class V>
 V OrXor(const V o, const V x1, const V x2) {
@@ -655,13 +725,6 @@ HWY_NOINLINE size_t LowerBoundOfMismatch(D d, Traits st,
   return num;  // all equal
 }
 
-enum class PivotResult {
-  kAllEqual,  // stop without partitioning
-  kNormal,    // partition and recurse left and right
-  kIsFirst,   // partition but skip left recursion
-  kWasLast,   // partition but skip right recursion
-};
-
 // Classifies (and possibly modifies) `pivot` by scanning for the first/last
 // key from index `idx_diff`, which is less than `num`.
 template <class D, class Traits, typename T>
@@ -728,70 +791,38 @@ HWY_NOINLINE PivotResult CheckFirstLast(D d, Traits st,
   return PivotResult::kNormal;
 }
 
-// Writes samples from `keys[0, num)` into `buf`.
+template <class Traits, typename T>
+HWY_INLINE bool SortedSampleEqual(Traits st, T* HWY_RESTRICT sorted_samples) {
+  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
+  constexpr size_t N1 = st.LanesPerKey();
+  return st.Equal1(sorted_samples, sorted_samples + kSampleLanes - N1);
+}
+
 template <class D, class Traits, typename T>
-HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-                            T* HWY_RESTRICT buf, Generator& rng) {
+HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
+                                             T* HWY_RESTRICT keys, size_t num,
+                                             T* HWY_RESTRICT sorted_samples,
+                                             PivotResult& result) {
   using V = decltype(Zero(d));
-  const size_t N = Lanes(d);
 
-  // Power of two
-  const size_t lanes_per_chunk = Constants::LanesPerChunk(sizeof(T), N);
-
-  // Align start of keys to chunks. We always have at least 2 chunks because the
-  // base case would have handled anything up to 16 vectors, i.e. >= 4 chunks.
-  HWY_DASSERT(num >= 2 * lanes_per_chunk);
-  const size_t misalign =
-      (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (lanes_per_chunk - 1);
-  if (misalign != 0) {
-    const size_t consume = lanes_per_chunk - misalign;
-    keys += consume;
-    num -= consume;
+  const size_t idx_diff = LowerBoundOfMismatch(d, st, keys, num);
+  const bool all_eq = idx_diff == num;
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "Samples all equal, idxDiff %zu keysEq: %d\n", idx_diff,
+            all_eq);
+  }
+  if (all_eq) {
+    result = PivotResult::kAllEqual;
+    return Zero(d);
   }
 
-  // Generate enough random bits for 9 uint32
-  uint64_t* bits64 = reinterpret_cast<uint64_t*>(buf);
-  for (size_t i = 0; i < 5; ++i) {
-    bits64[i] = rng();
-  }
-  const uint32_t* bits = reinterpret_cast<const uint32_t*>(buf);
-
-  const uint32_t lpc32 = static_cast<uint32_t>(lanes_per_chunk);
-  // Avoid division
-  const size_t log2_lpc = Num0BitsBelowLS1Bit_Nonzero32(lpc32);
-  const size_t num_chunks64 = num >> log2_lpc;
-  // Clamp to uint32 for RandomChunkIndex
-  const uint32_t num_chunks =
-      static_cast<uint32_t>(HWY_MIN(num_chunks64, 0xFFFFFFFFull));
-
-  const size_t offset0 = RandomChunkIndex(num_chunks, bits[0]) << log2_lpc;
-  const size_t offset1 = RandomChunkIndex(num_chunks, bits[1]) << log2_lpc;
-  const size_t offset2 = RandomChunkIndex(num_chunks, bits[2]) << log2_lpc;
-  const size_t offset3 = RandomChunkIndex(num_chunks, bits[3]) << log2_lpc;
-  const size_t offset4 = RandomChunkIndex(num_chunks, bits[4]) << log2_lpc;
-  const size_t offset5 = RandomChunkIndex(num_chunks, bits[5]) << log2_lpc;
-  const size_t offset6 = RandomChunkIndex(num_chunks, bits[6]) << log2_lpc;
-  const size_t offset7 = RandomChunkIndex(num_chunks, bits[7]) << log2_lpc;
-  const size_t offset8 = RandomChunkIndex(num_chunks, bits[8]) << log2_lpc;
-  for (size_t i = 0; i < lanes_per_chunk; i += N) {
-    const V v0 = Load(d, keys + offset0 + i);
-    const V v1 = Load(d, keys + offset1 + i);
-    const V v2 = Load(d, keys + offset2 + i);
-    const V medians0 = MedianOf3(st, v0, v1, v2);
-    Store(medians0, d, buf + i);
-
-    const V v3 = Load(d, keys + offset3 + i);
-    const V v4 = Load(d, keys + offset4 + i);
-    const V v5 = Load(d, keys + offset5 + i);
-    const V medians1 = MedianOf3(st, v3, v4, v5);
-    Store(medians1, d, buf + i + lanes_per_chunk);
-
-    const V v6 = Load(d, keys + offset6 + i);
-    const V v7 = Load(d, keys + offset7 + i);
-    const V v8 = Load(d, keys + offset8 + i);
-    const V medians2 = MedianOf3(st, v6, v7, v8);
-    Store(medians2, d, buf + i + lanes_per_chunk * 2);
-  }
+  V pivot = st.SetKey(d, sorted_samples);  // the single unique sample
+  result = CheckFirstLast(d, st, keys, num, idx_diff, &pivot, sorted_samples);
+#if VQSORT_PRINT >= 2  // Print is only defined #if
+  fprintf(stderr, "  PivotResult %d\n", static_cast<int>(result));
+  Print(d, "Adjusted pivot", pivot, 0, st.LanesPerKey());
+#endif
+  return pivot;
 }
 
 // Returns pivot chosen from `keys[0, num)`. It will never be the largest key
@@ -800,55 +831,49 @@ template <class D, class Traits, typename T>
 HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
                                 const size_t num, T* HWY_RESTRICT buf,
                                 Generator& rng, PivotResult& result) {
-  using V = decltype(Zero(d));
-
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
-  constexpr size_t N1 = st.LanesPerKey();
-
-#if VQSORT_PRINT
-  fprintf(stderr, "\nChoosePivot num %zu:\n", num);
-#endif
   DrawSamples(d, st, keys, num, buf, rng);
+  SortSamples(d, st, buf);
 
-  SortSamples(st, buf);
-#if VQSORT_PRINT
-  const size_t N = Lanes(d);
-  for (size_t i = 0; i < kSampleLanes; i += N) {
-    Print(d, "", Load(d, buf + i), 0, N);
-  }
-#endif
-
-  // All samples are equal.
-  if (st.Equal1(buf, buf + kSampleLanes - N1)) {
-    const size_t idx_diff = LowerBoundOfMismatch(d, st, keys, num);
-    const bool all_eq = idx_diff == num;
-#if VQSORT_PRINT
-    fprintf(stderr, "Pivot num=%zu samplesEq, idxDiff %zu keysEq: %d\n", num,
-            idx_diff, all_eq);
-#endif
-    if (all_eq) {
-      result = PivotResult::kAllEqual;
-      return Zero(d);
-    }
-
-    V pivot = st.SetKey(d, buf);  // the single unique sample
-    result = CheckFirstLast(d, st, keys, num, idx_diff, &pivot, buf);
-#if VQSORT_PRINT
-    fprintf(stderr, "PivotResult %d\n", static_cast<int>(result));
-    Print(d, "Adjusted pivot", pivot, 0, st.LanesPerKey());
-#endif
-    return pivot;
+  if (HWY_UNLIKELY(SortedSampleEqual(st, buf))) {
+    return ChoosePivotForEqualSamples(d, st, keys, num, buf, result);
   }
 
-  const size_t pivot_rank = PivotRank(st, buf);
-  const Vec<D> pivot = st.SetKey(d, buf + pivot_rank);
-#if VQSORT_PRINT
-  fprintf(stderr, "  Pivot rank %zu = %.0f\n", pivot_rank,
-          static_cast<double>(GetLane(pivot)));
-#endif
-  result = PivotResult::kNormal;
-  return pivot;
+  return ChoosePivotByRank(d, st, keys, buf, result);
 }
+
+// ------------------------------ Quicksort recursion
+
+#if VQSORT_PRINT >= 2 || HWY_IDE
+
+template <class D, class Traits, typename T>
+HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
+                              size_t num, T* HWY_RESTRICT buf) {
+  const size_t N = Lanes(d);
+  if (num < Lanes(d)) return;
+
+  Vec<D> first = st.LastValue(d);
+  Vec<D> last = st.FirstValue(d);
+
+  size_t i = 0;
+  for (; i + N <= num; i += N) {
+    const Vec<D> v = LoadU(d, keys + i);
+    first = st.First(d, v, first);
+    last = st.Last(d, v, last);
+  }
+  if (HWY_LIKELY(i != num)) {
+    HWY_DASSERT(num >= N);  // See HandleSpecialCases
+    const Vec<D> v = LoadU(d, keys + num - N);
+    first = st.First(d, v, first);
+    last = st.Last(d, v, last);
+  }
+
+  first = st.FirstOfLanes(d, first, buf);
+  last = st.LastOfLanes(d, last, buf);
+  Print(d, "first", first, 0, st.LanesPerKey());
+  Print(d, "last", last, 0, st.LanesPerKey());
+}
+
+#endif  // VQSORT_PRINT >= 2
 
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
@@ -863,16 +888,13 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     return;
   }
 
-#if VQSORT_PRINT
   // Move after BaseCase so we skip printing for small subarrays.
-  fprintf(stderr, "\n\n=== Recurse remaining %zu [%zu %zu) len %zu\n",
-          remaining_levels, begin, end, num);
-  Vec<D> first, last;
-  if (num >= Lanes(d)) {
-    ScanMinMax(d, st, keys + begin, num, buf, first, last);
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "\n\n=== Recurse remaining %zu [%zu %zu) len %zu\n",
+            remaining_levels, begin, end, num);
   }
-  Print(d, "first", first, 0, st.LanesPerKey());
-  Print(d, "last", last, 0, st.LanesPerKey());
+#if VQSORT_PRINT >= 2  // function only defined #if
+  PrintMinMax(d, st, keys + begin, num, buf);
 #endif
 
   PivotResult result;
@@ -884,9 +906,9 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // Too many recursions. This is unlikely to happen because we select pivots
   // from large (though still O(1)) samples.
   if (HWY_UNLIKELY(remaining_levels == 0)) {
-#if VQSORT_PRINT
-    fprintf(stderr, "HeapSort reached, size=%zu\n", num);
-#endif
+    if (VQSORT_PRINT) {
+      fprintf(stderr, "HeapSort reached, size=%zu\n", num);
+    }
     HeapSort(st, keys + begin, num);  // Slow but N*logN.
     return;
   }
@@ -895,10 +917,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // ChoosePivot ensures pivot != last key, so the right partition is never
   // empty. Nor is the left, because the pivot is either one of the keys, or
   // the value prior to the last (which is not the only value).
-#if VQSORT_PRINT >= 2
-  fprintf(stderr, "begin %zu bound %zu end %zu (%zu %zu)\n", begin, bound, end,
-          bound - begin, end - bound);
-#endif
+  if (VQSORT_PRINT >= 2) {
+    fprintf(stderr, "begin %zu bound %zu end %zu (%zu %zu)\n", begin, bound,
+            end, bound - begin, end - bound);
+  }
   HWY_ASSERT(begin != bound && bound != end);
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
     Recurse(d, st, keys, keys_end, begin, bound, buf, rng,
@@ -928,10 +950,10 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
       HWY_MAX_BYTES / sizeof(T) > Constants::kMaxRows * Constants::kMaxCols;
   const bool huge_vec = kPotentiallyHuge && (2 * N > base_case_num);
   if (partial_128 || huge_vec) {
-#if VQSORT_PRINT
-    fprintf(stderr, "WARNING: using slow HeapSort: partial %d huge %d\n",
-            partial_128, huge_vec);
-#endif
+    if (VQSORT_PRINT) {
+      fprintf(stderr, "WARNING: using slow HeapSort: partial %d huge %d\n",
+              partial_128, huge_vec);
+    }
     HeapSort(st, keys, num);
     return true;
   }
@@ -961,9 +983,9 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
-#if VQSORT_PRINT
-  fprintf(stderr, "=============== Sort num %zu\n", num);
-#endif
+  if (VQSORT_PRINT) {
+    fprintf(stderr, "=============== Sort num %zu\n", num);
+  }
 
 #if VQSORT_ENABLED || HWY_IDE
 #if !HWY_HAVE_SCALABLE
@@ -993,9 +1015,9 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 #else
   (void)d;
   (void)buf;
-#if VQSORT_PRINT
-  fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
-#endif
+  if (VQSORT_PRINT) {
+    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
+  }
   return detail::HeapSort(st, keys, num);
 #endif  // VQSORT_ENABLED
 }
