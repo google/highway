@@ -587,6 +587,8 @@ HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
   for (size_t i = 0; i < kSampleLanes; i += N) {
     Print(d, "", Load(d, buf + i), 0, N);
   }
+#else
+  (void)d;
 #endif
 }
 
@@ -632,8 +634,8 @@ HWY_INLINE size_t PivotRank(Traits st, T* HWY_RESTRICT buf) {
 }
 
 template <class D, class Traits, typename T>
-HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st, T* HWY_RESTRICT keys,
-                                    T* HWY_RESTRICT buf, PivotResult& result) {
+HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st, T* HWY_RESTRICT buf,
+                                    PivotResult& result) {
   const size_t pivot_rank = PivotRank(st, buf);
   const Vec<D> pivot = st.SetKey(d, buf + pivot_rank);
   if (VQSORT_PRINT >= 2) {
@@ -838,7 +840,7 @@ HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
     return ChoosePivotForEqualSamples(d, st, keys, num, buf, result);
   }
 
-  return ChoosePivotByRank(d, st, keys, buf, result);
+  return ChoosePivotByRank(d, st, buf, result);
 }
 
 // ------------------------------ Quicksort recursion
