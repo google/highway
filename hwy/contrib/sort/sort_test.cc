@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>  // memcpy
 
+#include <map>
 #include <vector>
 
 // clang-format off
@@ -233,7 +234,7 @@ HWY_NOINLINE void TestAllBaseCase() {
 template <class Traits>
 static HWY_NOINLINE void VerifyPartition(
     Traits st, typename Traits::LaneType* HWY_RESTRICT lanes, size_t left,
-    size_t border, size_t right, const size_t N1,
+    size_t endL, size_t beginR, size_t right, const size_t N1,
     const typename Traits::LaneType* pivot) {
   /* for (size_t i = left; i < right; ++i) {
      if (i == border) printf("--\n");
@@ -241,29 +242,41 @@ static HWY_NOINLINE void VerifyPartition(
    }*/
 
   HWY_ASSERT(left % N1 == 0);
-  HWY_ASSERT(border % N1 == 0);
+  HWY_ASSERT(endL % N1 == 0);
+  HWY_ASSERT(beginR % N1 == 0);
   HWY_ASSERT(right % N1 == 0);
   const bool asc = typename Traits::Order().IsAscending();
-  for (size_t i = left; i < border; i += N1) {
+  for (size_t i = left; i < endL; i += N1) {
     if (st.Compare1(pivot, lanes + i)) {
       HWY_ABORT(
           "%s: asc %d left[%d] piv %.0f %.0f compares before %.0f %.0f "
-          "border %d",
+          "endL %d",
           st.KeyString().c_str(), asc, static_cast<int>(i),
           static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
           static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i + 0]),
-          static_cast<int>(border));
+          static_cast<int>(endL));
     }
   }
-  for (size_t i = border; i < right; i += N1) {
-    if (!st.Compare1(pivot, lanes + i)) {
+  for (size_t i = endL; i < beginR; i += N1) {
+    if (!st.Equal1(pivot, lanes + i)) {
       HWY_ABORT(
-          "%s: asc %d right[%d] piv %.0f %.0f compares after %.0f %.0f "
-          "border %d",
+          "%s: asc %d mid[%d] piv %.0f %.0f not equal %.0f %.0f "
+          "endL %d beginR %d",
           st.KeyString().c_str(), asc, static_cast<int>(i),
           static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
           static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i]),
-          static_cast<int>(border));
+          static_cast<int>(endL), static_cast<int>(beginR));
+    }
+  }
+  for (size_t i = beginR; i < right; i += N1) {
+    if (!st.Compare1(pivot, lanes + i)) {
+      HWY_ABORT(
+          "%s: asc %d right[%d] piv %.0f %.0f compares after %.0f %.0f "
+          "beginR %d",
+          st.KeyString().c_str(), asc, static_cast<int>(i),
+          static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
+          static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i]),
+          static_cast<int>(beginR));
     }
   }
 }
@@ -313,10 +326,12 @@ static HWY_NOINLINE void TestPartition() {
             for (size_t i = 0; i < left; ++i) {
               lanes[i] = hwy::LowestValue<LaneType>();
             }
+            std::map<LaneType, int> counts;
             for (size_t i = left; i < right; ++i) {
               lanes[i] = static_cast<LaneType>(
                   in_asc ? LaneType(i + 1) - static_cast<LaneType>(left)
                          : static_cast<LaneType>(right) - LaneType(i));
+              ++counts[lanes[i]];
               if (kDebug >= 2) {
                 printf("%3zu: %f\n", i, static_cast<double>(lanes[i]));
               }
@@ -325,8 +340,9 @@ static HWY_NOINLINE void TestPartition() {
               lanes[i] = hwy::LowestValue<LaneType>();
             }
 
-            size_t border =
-                detail::Partition(d, st, lanes, left, right, pivot, buf.get());
+            size_t endL, beginR;
+            detail::Partition3::Partition(d, st, lanes, left, right, pivot,
+                                          buf.get(), endL, beginR);
 
             if (kDebug >= 2) {
               printf("out>>>>>>\n");
@@ -338,7 +354,17 @@ static HWY_NOINLINE void TestPartition() {
               }
             }
 
-            VerifyPartition(st, lanes, left, border, right, N1, pivot2);
+            for (size_t i = left; i < right; ++i) {
+              --counts[lanes[i]];
+            }
+            for (auto kv : counts) {
+              if (kv.second != 0) {
+                PrintValue(kv.first);
+                HWY_ABORT("Incorrect count %d\n", kv.second);
+              }
+            }
+
+            VerifyPartition(st, lanes, left, endL, beginR, right, N1, pivot2);
             for (size_t i = 0; i < misalign; ++i) {
               if (aligned_lanes[i] != hwy::LowestValue<LaneType>())
                 HWY_ABORT("Overrun misalign at %d\n", static_cast<int>(i));
@@ -438,6 +464,14 @@ class CompareResults {
     const size_t num_keys = copy_.size() / st.LanesPerKey();
     Run<Order>(reference, reinterpret_cast<KeyType*>(copy_.data()), num_keys,
                shared, /*thread=*/0);
+
+#if VQSORT_PRINT >= 3
+    fprintf(stderr, "\nExpected:\n");
+    for (size_t i = 0; i < copy_.size(); ++i) {
+      PrintValue(copy_[i]);
+    }
+    fprintf(stderr, "\n");
+#endif
 
     for (size_t i = 0; i < copy_.size(); ++i) {
       if (copy_[i] != output[i]) {
@@ -548,8 +582,9 @@ void TestSort(size_t num_lanes) {
 }
 
 void TestAllSort() {
-  for (int num : {129, 504, 20 * 1000, 34567}) {
+  for (int num : {129, 504, 3 * 1000, 34567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
+
     TestSort<TraitsLane<OrderAscending<int16_t> > >(num_lanes);
     TestSort<TraitsLane<OrderDescending<uint16_t> > >(num_lanes);
 
