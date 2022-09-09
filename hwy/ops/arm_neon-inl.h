@@ -4983,7 +4983,8 @@ namespace detail {
 
 // N=1 for any T: no-op
 template <typename T>
-HWY_INLINE Vec128<T, 1> SumOfLanes(const Vec128<T, 1> v) {
+HWY_INLINE Vec128<T, 1> SumOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
+                                   const Vec128<T, 1> v) {
   return v;
 }
 template <typename T>
@@ -4999,7 +5000,8 @@ HWY_INLINE Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
 
 // u32/i32/f32: N=2
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>
-HWY_INLINE Vec128<T, 2> SumOfLanes(const Vec128<T, 2> v10) {
+HWY_INLINE Vec128<T, 2> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                   const Vec128<T, 2> v10) {
   return v10 + Shuffle2301(v10);
 }
 template <typename T>
@@ -5015,48 +5017,59 @@ HWY_INLINE Vec128<T, 2> MaxOfLanes(hwy::SizeTag<4> /* tag */,
 
 // full vectors
 #if HWY_ARCH_ARM_A64
-HWY_INLINE Vec128<uint32_t> SumOfLanes(const Vec128<uint32_t> v) {
+HWY_INLINE Vec128<uint32_t> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                       const Vec128<uint32_t> v) {
   return Vec128<uint32_t>(vdupq_n_u32(vaddvq_u32(v.raw)));
 }
-HWY_INLINE Vec128<int32_t> SumOfLanes(const Vec128<int32_t> v) {
+HWY_INLINE Vec128<int32_t> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                      const Vec128<int32_t> v) {
   return Vec128<int32_t>(vdupq_n_s32(vaddvq_s32(v.raw)));
 }
-HWY_INLINE Vec128<float> SumOfLanes(const Vec128<float> v) {
+HWY_INLINE Vec128<float> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                    const Vec128<float> v) {
   return Vec128<float>(vdupq_n_f32(vaddvq_f32(v.raw)));
 }
-HWY_INLINE Vec128<uint64_t> SumOfLanes(const Vec128<uint64_t> v) {
+HWY_INLINE Vec128<uint64_t> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                       const Vec128<uint64_t> v) {
   return Vec128<uint64_t>(vdupq_n_u64(vaddvq_u64(v.raw)));
 }
-HWY_INLINE Vec128<int64_t> SumOfLanes(const Vec128<int64_t> v) {
+HWY_INLINE Vec128<int64_t> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                      const Vec128<int64_t> v) {
   return Vec128<int64_t>(vdupq_n_s64(vaddvq_s64(v.raw)));
 }
-HWY_INLINE Vec128<double> SumOfLanes(const Vec128<double> v) {
+HWY_INLINE Vec128<double> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                     const Vec128<double> v) {
   return Vec128<double>(vdupq_n_f64(vaddvq_f64(v.raw)));
 }
 #else
 // ARMv7 version for everything except doubles.
-HWY_INLINE Vec128<uint32_t> SumOfLanes(const Vec128<uint32_t> v) {
+HWY_INLINE Vec128<uint32_t> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                       const Vec128<uint32_t> v) {
   uint32x4x2_t v0 = vuzpq_u32(v.raw, v.raw);
   uint32x4_t c0 = vaddq_u32(v0.val[0], v0.val[1]);
   uint32x4x2_t v1 = vuzpq_u32(c0, c0);
   return Vec128<uint32_t>(vaddq_u32(v1.val[0], v1.val[1]));
 }
-HWY_INLINE Vec128<int32_t> SumOfLanes(const Vec128<int32_t> v) {
+HWY_INLINE Vec128<int32_t> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                      const Vec128<int32_t> v) {
   int32x4x2_t v0 = vuzpq_s32(v.raw, v.raw);
   int32x4_t c0 = vaddq_s32(v0.val[0], v0.val[1]);
   int32x4x2_t v1 = vuzpq_s32(c0, c0);
   return Vec128<int32_t>(vaddq_s32(v1.val[0], v1.val[1]));
 }
-HWY_INLINE Vec128<float> SumOfLanes(const Vec128<float> v) {
+HWY_INLINE Vec128<float> SumOfLanes(hwy::SizeTag<4> /* tag */,
+                                    const Vec128<float> v) {
   float32x4x2_t v0 = vuzpq_f32(v.raw, v.raw);
   float32x4_t c0 = vaddq_f32(v0.val[0], v0.val[1]);
   float32x4x2_t v1 = vuzpq_f32(c0, c0);
   return Vec128<float>(vaddq_f32(v1.val[0], v1.val[1]));
 }
-HWY_INLINE Vec128<uint64_t> SumOfLanes(const Vec128<uint64_t> v) {
+HWY_INLINE Vec128<uint64_t> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                       const Vec128<uint64_t> v) {
   return v + Shuffle01(v);
 }
-HWY_INLINE Vec128<int64_t> SumOfLanes(const Vec128<int64_t> v) {
+HWY_INLINE Vec128<int64_t> SumOfLanes(hwy::SizeTag<8> /* tag */,
+                                      const Vec128<int64_t> v) {
   return v + Shuffle01(v);
 }
 #endif
@@ -5090,6 +5103,30 @@ HWY_INLINE Vec128<T> MaxOfLanes(hwy::SizeTag<8> /* tag */,
                                 const Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return Max(v10, v01);
+}
+
+template <size_t N, HWY_IF_GE32(uint16_t, N)>
+HWY_API Vec128<uint16_t, N> SumOfLanes(hwy::SizeTag<2> /* tag */,
+                                       Vec128<uint16_t, N> v) {
+  const Simd<uint16_t, N, 0> d;
+  const RepartitionToWide<decltype(d)> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto sum = SumOfLanes(hwy::SizeTag<4>(), even + odd);
+  // Also broadcast into odd lanes.
+  return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
+}
+template <size_t N, HWY_IF_GE32(int16_t, N)>
+HWY_API Vec128<int16_t, N> SumOfLanes(hwy::SizeTag<2> /* tag */,
+                                      Vec128<int16_t, N> v) {
+  const Simd<int16_t, N, 0> d;
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto sum = SumOfLanes(hwy::SizeTag<4>(), even + odd);
+  // Also broadcast into odd lanes.
+  return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
 }
 
 template <size_t N, HWY_IF_GE32(uint16_t, N)>
@@ -5144,7 +5181,7 @@ HWY_API Vec128<int16_t, N> MaxOfLanes(hwy::SizeTag<2> /* tag */,
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> SumOfLanes(Simd<T, N, 0> /* tag */, const Vec128<T, N> v) {
-  return detail::SumOfLanes(v);
+  return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), v);
 }
 template <typename T, size_t N>
 HWY_API Vec128<T, N> MinOfLanes(Simd<T, N, 0> /* tag */, const Vec128<T, N> v) {
