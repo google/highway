@@ -161,6 +161,8 @@ cc_library(
         # These are textual because config macros influence them:
         "hwy/detect_targets.h",  # private
         "hwy/targets.h",
+        # This .cc file #includes itself through foreach_target.h
+        "hwy/per_target.cc",
         # End of list
         "hwy/highway.h",  # public
         "hwy/foreach_target.h",  # public
