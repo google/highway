@@ -3288,6 +3288,31 @@ HWY_API Vec128<bfloat16_t, 2 * N> ReorderDemote2To(
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
+// Specializations for partial vectors because i16x8_narrow_i32x4 sets lanes
+// above 2*N.
+HWY_API Vec128<int16_t, 2> ReorderDemote2To(Simd<int16_t, 2, 0> dn,
+                                            Vec128<int32_t, 1> a,
+                                            Vec128<int32_t, 1> b) {
+  const Half<decltype(dn)> dnh;
+  // Pretend the result has twice as many lanes so we can InterleaveLower.
+  const Vec128<int16_t, 2> an{DemoteTo(dnh, a).raw};
+  const Vec128<int16_t, 2> bn{DemoteTo(dnh, b).raw};
+  return InterleaveLower(an, bn);
+}
+HWY_API Vec128<int16_t, 4> ReorderDemote2To(Simd<int16_t, 4, 0> dn,
+                                            Vec128<int32_t, 2> a,
+                                            Vec128<int32_t, 2> b) {
+  const Half<decltype(dn)> dnh;
+  // Pretend the result has twice as many lanes so we can InterleaveLower.
+  const Vec128<int16_t, 4> an{DemoteTo(dnh, a).raw};
+  const Vec128<int16_t, 4> bn{DemoteTo(dnh, b).raw};
+  return InterleaveLower(an, bn);
+}
+HWY_API Vec128<int16_t> ReorderDemote2To(Full128<int16_t> /*d16*/,
+                                         Vec128<int32_t> a, Vec128<int32_t> b) {
+  return Vec128<int16_t>{wasm_i16x8_narrow_i32x4(a.raw, b.raw)};
+}
+
 // For already range-limited input [0, 255].
 template <size_t N>
 HWY_API Vec128<uint8_t, N> U8FromU32(const Vec128<uint32_t, N> v) {
@@ -4263,6 +4288,16 @@ HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
   const Vec128<uint32_t, N> b1 = ZipUpper(du32, zero, BitCast(du16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+}
+
+// Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
+// safe.
+template <size_t N>
+HWY_API Vec128<int32_t, N> ReorderWidenMulAccumulate(
+    Simd<int32_t, N, 0> /*d32*/, Vec128<int16_t, 2 * N> a,
+    Vec128<int16_t, 2 * N> b, const Vec128<int32_t, N> sum0,
+    Vec128<int32_t, N>& /*sum1*/) {
+  return sum0 + Vec128<int32_t, N>{wasm_i32x4_dot_i16x8(a.raw, b.raw)};
 }
 
 // ------------------------------ Reductions

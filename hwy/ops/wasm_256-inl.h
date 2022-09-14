@@ -2298,6 +2298,11 @@ HWY_API Vec128<bfloat16_t> ReorderDemote2To(Full128<bfloat16_t> dbf16,
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
+HWY_API Vec512<int16_t> ReorderDemote2To(Full512<int16_t> /*d16*/,
+                                         Vec512<int32_t> a, Vec512<int32_t> b) {
+  return Vec512<int16_t>{wasm_i16x8_narrow_i32x4(a.raw, b.raw)};
+}
+
 // For already range-limited input [0, 255].
 HWY_API Vec256<uint8_t> U8FromU32(const Vec256<uint32_t> v) {
   const auto intermediate = wasm_i16x8_narrow_i32x4(v.raw, v.raw);
@@ -2917,12 +2922,13 @@ HWY_API Vec256<float> ReorderWidenMulAccumulate(Full256<float> df32,
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }
+
 HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(Full256<int32_t> /*d32*/,
                                                   Vec256<int16_t> a,
                                                   Vec256<int16_t> b,
                                                   const Vec256<int32_t> sum0,
-                                                  Vec256<int32_t>& sum1) {
-  HWY_ASSERT(0);
+                                                  Vec256<int32_t>& /*sum1*/) {
+  return sum0 + Vec256<int32_t>{wasm_i32x4_dot_i16x8(a.raw, b.raw)};
 }
 
 // ------------------------------ Reductions
