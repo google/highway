@@ -233,6 +233,8 @@ HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
   memcpy(keys + right, buf, bufR * sizeof(T));
 }
 
+// Note: we could track the OrXor of v and pivot to see if the entire left
+// partition is equal, but that happens rarely and thus is a net loss.
 template <class D, class Traits, typename T>
 HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
                                const Vec<D> pivot, T* HWY_RESTRICT keys,
@@ -892,9 +894,16 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
     (void)PartitionTwoValue(d, st, keys, 0, num, first, last,
                             /*buf=*/sorted_samples);
     result = PivotResult::kDone;
+    if (VQSORT_PRINT >= 2) {
+      fprintf(stderr, "  2val\n");
+    }
     return pivot;
   }
   if (AllTrue(d, st.EqualKeys(d, first, pivot))) {
+    // We could consider a special partition mode that only reads from and
+    // writes to the right side, and later fills in the left side, which we know
+    // is equal to the pivot. However, that leads to more cache misses if the
+    // array is large, and doesn't save much, hence is a net loss.
     result = PivotResult::kIsFirst;
     return pivot;
   }
@@ -907,11 +916,13 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
     return st.PrevValue(d, pivot);
   }
 
+  // `pivot` is very common but not the first/last. It is tempting to do a
+  // 3-way partition (to avoid moving the =pivot keys a second time), but that
+  // is a net loss due to the extra comparisons.
   result = PivotResult::kNormal;
-#if VQSORT_PRINT >= 2  // Print is only defined #if
-  fprintf(stderr, "  PivotResult %s\n", PivotResultString(result));
-  Print(d, "Adjusted pivot", pivot, 0, st.LanesPerKey());
-#endif
+  if (VQSORT_PRINT >= 2) {
+    fprintf(stderr, "  sample eq but not minmax; normal\n");
+  }
   return pivot;
 }
 
@@ -1084,11 +1095,10 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // We avoid (potentially expensive for small input sizes) allocations on
   // platforms where no targets are scalable. For 512-bit vectors, this fits on
   // the stack (several KiB).
-  HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))]
-#if HWY_IS_MSAN
-      = {};  // otherwise error in sorting_networks-inl.h
+#if HWY_IS_MSAN  // otherwise error in sorting_networks-inl.h
+  HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))] = {};
 #else
-      ;
+  HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))];
 #endif
   static_assert(sizeof(storage) <= 8192, "Unexpectedly large, check size");
   buf = storage;
