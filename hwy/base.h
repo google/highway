@@ -653,6 +653,20 @@ constexpr double HighestValue<double>() {
   return 1.7976931348623158e+308;
 }
 
+// Difference between 1.0 and the next representable value.
+template <typename T>
+HWY_API constexpr T Epsilon() {
+  return 1;
+}
+template <>
+constexpr float Epsilon<float>() {
+  return 1.192092896e-7f;
+}
+template <>
+constexpr double Epsilon<double>() {
+  return 2.2204460492503131e-16;
+}
+
 // Returns width in bits of the mantissa field in IEEE binary32/64.
 template <typename T>
 constexpr int MantissaBits() {

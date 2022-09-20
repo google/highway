@@ -564,10 +564,6 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   using V = decltype(Zero(d));
   const size_t N = Lanes(d);
 
-  if (VQSORT_PRINT >= 2) {
-    fprintf(stderr, "DrawSamples num %zu:\n", num);
-  }
-
   // Power of two
   const size_t lanes_per_chunk = Constants::LanesPerChunk(sizeof(T), N);
 
@@ -648,6 +644,7 @@ HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
 
 #if VQSORT_PRINT >= 2  // Print is only defined #if
   const size_t N = Lanes(d);
+  fprintf(stderr, "Samples:\n");
   for (size_t i = 0; i < kSampleLanes; i += N) {
     Print(d, "", Load(d, buf + i), 0, N);
   }
@@ -679,7 +676,7 @@ HWY_INLINE const char* PivotResultString(PivotResult result) {
 }
 
 template <class Traits, typename T>
-HWY_INLINE size_t PivotRank(Traits st, T* HWY_RESTRICT buf) {
+HWY_INLINE size_t PivotRank(Traits st, const T* HWY_RESTRICT samples) {
   constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
   constexpr size_t N1 = st.LanesPerKey();
 
@@ -688,13 +685,13 @@ HWY_INLINE size_t PivotRank(Traits st, T* HWY_RESTRICT buf) {
 
   // Find the previous value not equal to the median.
   size_t rank_prev = kRankMid - N1;
-  for (; st.Equal1(buf + rank_prev, buf + kRankMid); rank_prev -= N1) {
+  for (; st.Equal1(samples + rank_prev, samples + kRankMid); rank_prev -= N1) {
     // All previous samples are equal to the median.
     if (rank_prev == 0) return 0;
   }
 
   size_t rank_next = rank_prev + N1;
-  for (; st.Equal1(buf + rank_next, buf + kRankMid); rank_next += N1) {
+  for (; st.Equal1(samples + rank_next, samples + kRankMid); rank_next += N1) {
     // The median is also the largest sample. If it is also the largest key,
     // we'd end up with an empty right partition, so choose the previous key.
     if (rank_next == kSampleLanes - N1) return rank_prev;
@@ -710,10 +707,13 @@ HWY_INLINE size_t PivotRank(Traits st, T* HWY_RESTRICT buf) {
   return excess_if_median < excess_if_prev ? kRankMid : rank_prev;
 }
 
+// Returns pivot chosen from `samples`. It will never be the largest key
+// (thus the right partition will never be empty).
 template <class D, class Traits, typename T>
-HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st, T* HWY_RESTRICT buf) {
-  const size_t pivot_rank = PivotRank(st, buf);
-  const Vec<D> pivot = st.SetKey(d, buf + pivot_rank);
+HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
+                                    const T* HWY_RESTRICT samples) {
+  const size_t pivot_rank = PivotRank(st, samples);
+  const Vec<D> pivot = st.SetKey(d, samples + pivot_rank);
   if (VQSORT_PRINT >= 2) {
     fprintf(stderr, "  Pivot rank %zu = %.0f\n", pivot_rank,
             static_cast<double>(GetLane(pivot)));
@@ -780,7 +780,10 @@ HWY_NOINLINE size_t LowerBoundOfMismatch(D d, Traits st,
       diff1 = OrXor(diff1, v1, reference);
     }
     diff0 = Or(diff0, diff1);
-    if (!AllTrue(d, Eq(diff0, zero))) {
+
+    // Must avoid floating-point comparisons (for -0)
+    const RebindToUnsigned<D> du;
+    if (!AllTrue(du, Eq(BitCast(du, diff0), Zero(du)))) {
       return i;  // not equal
     }
   }
@@ -851,48 +854,36 @@ HWY_NOINLINE void ScanFirstLast(D d, Traits st, const T* HWY_RESTRICT keys,
   *out_last = st.LastOfLanes(d, last, buf);
 }
 
-template <class Traits, typename T>
-HWY_INLINE bool SortedSampleEqual(Traits st, T* HWY_RESTRICT sorted_samples) {
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
-  constexpr size_t N1 = st.LanesPerKey();
-  return st.Equal1(sorted_samples, sorted_samples + kSampleLanes - N1);
-}
-
+// Returns pivot chosen from `keys[0, num)`. It will never be the largest key
+// (thus the right partition will never be empty).
 template <class D, class Traits, typename T>
 HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
                                              T* HWY_RESTRICT keys, size_t num,
-                                             T* HWY_RESTRICT sorted_samples,
+                                             size_t idx_diff,
+                                             T* HWY_RESTRICT samples,
                                              PivotResult& result) {
   using V = decltype(Zero(d));
 
-  V pivot = st.SetKey(d, sorted_samples);  // the single unique sample
-
-  const size_t idx_diff = LowerBoundOfMismatch(d, st, keys, num);
-  const bool all_eq = idx_diff == num;
-  if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "Samples all equal, idxDiff %zu keysEq: %d\n", idx_diff,
-            all_eq);
-  }
-  if (HWY_UNLIKELY(all_eq)) {
-    result = PivotResult::kDone;
-    return pivot;
-  }
+  V pivot = st.SetKey(d, samples);  // the single unique sample
 
   // Early out for mostly-0 arrays, where pivot is often FirstValue.
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.FirstValue(d))))) {
     result = PivotResult::kIsFirst;
     return pivot;
   }
+  if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.LastValue(d))))) {
+    result = PivotResult::kWasLast;
+    return st.PrevValue(d, pivot);
+  }
 
   V first, last;
-  ScanFirstLast(d, st, keys, num, idx_diff, /*buf=*/sorted_samples, &first,
-                &last);
+  ScanFirstLast(d, st, keys, num, idx_diff, /*buf=*/samples, &first, &last);
 
   const Vec<D> prev_last = st.PrevValue(d, last);
   // All keys are in [x, x+1], or [x+1, x] if descending order.
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, first, prev_last)))) {
     (void)PartitionTwoValue(d, st, keys, 0, num, first, last,
-                            /*buf=*/sorted_samples);
+                            /*buf=*/samples);
     result = PivotResult::kDone;
     if (VQSORT_PRINT >= 2) {
       fprintf(stderr, "  2val\n");
@@ -921,26 +912,10 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
   // is a net loss due to the extra comparisons.
   result = PivotResult::kNormal;
   if (VQSORT_PRINT >= 2) {
-    fprintf(stderr, "  sample eq but not minmax; normal\n");
+    fprintf(stderr, "  Pivot %.0f not minmax; normal\n",
+            static_cast<double>(GetLane(pivot)));
   }
   return pivot;
-}
-
-// Returns pivot chosen from `keys[0, num)`. It will never be the largest key
-// (thus the right partition will never be empty).
-template <class D, class Traits, typename T>
-HWY_NOINLINE Vec<D> ChoosePivot(D d, Traits st, T* HWY_RESTRICT keys,
-                                const size_t num, T* HWY_RESTRICT buf,
-                                Generator& rng, PivotResult& result) {
-  DrawSamples(d, st, keys, num, buf, rng);
-  SortSamples(d, st, buf);
-
-  if (HWY_UNLIKELY(SortedSampleEqual(st, buf))) {
-    return ChoosePivotForEqualSamples(d, st, keys, num, buf, result);
-  }
-
-  result = PivotResult::kNormal;
-  return ChoosePivotByRank(d, st, buf);
 }
 
 // ------------------------------ Quicksort recursion
@@ -977,6 +952,32 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
 
 #endif  // VQSORT_PRINT >= 2
 
+// For detecting inputs where (almost) all keys are equal.
+template <class D, class Traits>
+HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
+                                    const TFromD<D>* HWY_RESTRICT samples) {
+  constexpr size_t kSampleLanes = 3 * 64 / sizeof(TFromD<D>);
+  const size_t N = Lanes(d);
+  using V = Vec<D>;
+
+  const V first = st.SetKey(d, samples);
+  // OR of XOR-difference may be faster than comparison.
+  V diff = Zero(d);
+  size_t i = 0;
+  for (; i + N <= kSampleLanes; i += N) {
+    const V v = Load(d, samples + i);
+    diff = OrXor(diff, first, Load(d, samples + i));
+  }
+  // Remainder, if any.
+  const V v = Load(d, samples + i);
+  const auto valid = FirstN(d, kSampleLanes - i);
+  diff = IfThenElse(valid, OrXor(diff, first, v), diff);
+
+  // Must avoid floating-point comparisons (for -0)
+  const RebindToUnsigned<D> du;
+  return AllTrue(du, Eq(BitCast(du, diff), Zero(du)));
+}
+
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           T* HWY_RESTRICT keys_end, const size_t begin,
@@ -999,10 +1000,32 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   PrintMinMax(d, st, keys + begin, num, buf);
 #endif
 
-  PivotResult result;
-  Vec<D> pivot = ChoosePivot(d, st, keys + begin, num, buf, rng, result);
-  if (HWY_UNLIKELY(result == PivotResult::kDone)) {
-    return;
+  DrawSamples(d, st, keys + begin, num, buf, rng);
+
+  Vec<D> pivot;
+  PivotResult result = PivotResult::kNormal;
+  size_t idx_diff = 0;
+  if (HWY_UNLIKELY(UnsortedSampleEqual(d, st, buf))) {
+    idx_diff = LowerBoundOfMismatch(d, st, keys + begin, num);
+    // All keys are equal; done.
+    if (HWY_UNLIKELY(idx_diff == num)) {
+      if (VQSORT_PRINT >= 1) {
+        fprintf(stderr, "All keys equal\n");
+      }
+      return;
+    }
+
+    if (VQSORT_PRINT >= 1) {
+      fprintf(stderr, "Samples all equal %.0f, diff at %zu\n",
+              static_cast<double>(GetLane(st.SetKey(d, buf))), idx_diff);
+    }
+    pivot = ChoosePivotForEqualSamples(d, st, keys + begin, num, idx_diff, buf,
+                                       result);
+    // TODO(janwas): inline this, move the 2-valued partition here.
+    if (result == PivotResult::kDone) return;
+  } else {
+    SortSamples(d, st, buf);
+    pivot = ChoosePivotByRank(d, st, buf);
   }
 
   // Too many recursions. This is unlikely to happen because we select pivots

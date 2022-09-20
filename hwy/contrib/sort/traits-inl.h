@@ -223,7 +223,7 @@ struct OrderAscending : public KeyLane<T> {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Sub(v, Set(d, 1));
+    return Sub(v, Set(d, hwy::Epsilon<T>()));
   }
 };
 
@@ -272,7 +272,7 @@ struct OrderDescending : public KeyLane<T> {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Add(v, Set(d, 1));
+    return Add(v, Set(d, hwy::Epsilon<T>()));
   }
 };
 
@@ -325,8 +325,7 @@ struct OrderAscendingKV64 : public KeyLane<uint64_t> {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    const Vec<D> k1 = Set(d, 1);
-    return Sub(v, k1);
+    return Sub(v, Set(d, 1));
   }
 };
 
@@ -378,8 +377,7 @@ struct OrderDescendingKV64 : public KeyLane<uint64_t> {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    const Vec<D> k1 = Set(d, 1);
-    return Add(v, k1);
+    return Add(v, Set(d, 1));
   }
 };
 
