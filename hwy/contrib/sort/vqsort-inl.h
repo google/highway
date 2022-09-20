@@ -362,7 +362,8 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
       V v0, v1, v2, v3;
 
       // Data-dependent but branching is faster than forcing branch-free.
-      const size_t capacityL = (readL - keys) - writeL;
+      const size_t capacityL =
+          static_cast<size_t>((readL - keys) - static_cast<ptrdiff_t>(writeL));
       HWY_DASSERT(capacityL <= num);  // >= 0
       // Load data from the end of the vector with less data (front or back).
       // The next paragraphs explain how this works.
@@ -966,7 +967,7 @@ HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
   size_t i = 0;
   for (; i + N <= kSampleLanes; i += N) {
     const V v = Load(d, samples + i);
-    diff = OrXor(diff, first, Load(d, samples + i));
+    diff = OrXor(diff, first, v);
   }
   // Remainder, if any.
   const V v = Load(d, samples + i);
