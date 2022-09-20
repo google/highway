@@ -311,6 +311,10 @@ static inline HWY_MAYBE_UNUSED bool operator>(const uint128_t& a,
                                               const uint128_t& b) {
   return b < a;
 }
+static inline HWY_MAYBE_UNUSED bool operator==(const uint128_t& a,
+                                               const uint128_t& b) {
+  return a.lo == b.lo && a.hi == b.hi;
+}
 
 static inline HWY_MAYBE_UNUSED bool operator<(const K64V64& a,
                                               const K64V64& b) {
