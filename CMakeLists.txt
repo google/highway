@@ -51,6 +51,7 @@ set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
 set(HWY_ENABLE_CONTRIB ON CACHE BOOL "Include contrib/")
 set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
+set(HWY_ENABLE_TESTS ON CACHE BOOL "Enable HWY tests")
 
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
@@ -444,7 +445,7 @@ endif()  # HWY_ENABLE_EXAMPLES
 
 include(CTest)
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND HWY_ENABLE_TESTS)
 enable_testing()
 include(GoogleTest)
 
