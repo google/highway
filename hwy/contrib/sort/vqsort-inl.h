@@ -233,6 +233,12 @@ HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
   memcpy(keys + right, buf, bufR * sizeof(T));
 }
 
+template <class V>
+V OrXor(const V o, const V x1, const V x2) {
+  // TODO(janwas): add op so we can benefit from AVX-512 ternlog?
+  return Or(o, Xor(x1, x2));
+}
+
 // Note: we could track the OrXor of v and pivot to see if the entire left
 // partition is equal, but that happens rarely and thus is a net loss.
 template <class D, class Traits, typename T>
@@ -430,67 +436,133 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
   return writeL;
 }
 
+// Returns true and partitions if [keys, keys + num) contains only {valueL,
+// valueR}. Otherwise, keys may have been modified and a regular Partition is
+// still necessary.
 template <class D, class Traits, typename T>
-HWY_INLINE void StoreLeftRightTwoValue(D d, Traits st, const Vec<D> v,
-                                       const Vec<D> pivot, T* HWY_RESTRICT keys,
-                                       size_t& writeL) {
-  // We only have two values. Equality comparison is slightly cheaper than
-  // Compare for 128-bit keys.
-  const auto eqL = st.EqualKeys(d, pivot, v);
-
-  // No need to Compress because we know the only value in the left partition
-  // (`pivot`). It's fine to store an entire vector because CompressStore has
-  // the same latitude.
-  StoreU(v, d, keys + writeL);
-  writeL += CountTrue(d, eqL);
-  // To avoid an extra parameter for the R value, and allow writing in
-  // ascending address order, we write the right partition later.
-}
-
-template <class D, class Traits, typename T>
-HWY_INLINE void StoreLeftRightTwoValue4(D d, Traits st, const Vec<D> v0,
-                                        const Vec<D> v1, const Vec<D> v2,
-                                        const Vec<D> v3, const Vec<D> pivot,
-                                        T* HWY_RESTRICT keys, size_t& writeL) {
-  StoreLeftRightTwoValue(d, st, v0, pivot, keys, writeL);
-  StoreLeftRightTwoValue(d, st, v1, pivot, keys, writeL);
-  StoreLeftRightTwoValue(d, st, v2, pivot, keys, writeL);
-  StoreLeftRightTwoValue(d, st, v3, pivot, keys, writeL);
-}
-
-template <class D, class Traits, typename T>
-HWY_NOINLINE size_t PartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
-                                      size_t left, size_t right,
-                                      const Vec<D> pivot, const Vec<D> valueR,
-                                      T* HWY_RESTRICT buf) {
-  using V = decltype(Zero(d));
+HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
+                                         size_t num, const Vec<D> valueL,
+                                         const Vec<D> valueR,
+                                         T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
 
-  PartitionToMultipleOfUnroll(d, st, keys, left, right, pivot, buf);
-  constexpr size_t kUnroll = Constants::kPartitionUnroll;
+  size_t i = 0;
+  size_t writeL = 0;
 
-  const T* HWY_RESTRICT readL = keys + left;
-  HWY_DASSERT(((right - left) & (kUnroll * N - 1)) == 0);
-
-  size_t writeL = left;
-
-  while (readL != keys + right) {
-    V v0 = LoadU(d, readL + 0 * N);
-    V v1 = LoadU(d, readL + 1 * N);
-    V v2 = LoadU(d, readL + 2 * N);
-    V v3 = LoadU(d, readL + 3 * N);
-    readL += kUnroll * N;
-
-    StoreLeftRightTwoValue4(d, st, v0, v1, v2, v3, pivot, keys, writeL);
+  // As long as all lanes are equal to L or R, we can overwrite with valueL.
+  // This is faster than first counting, then backtracking to fill L and R.
+  for (; i + N <= num; i += N) {
+    const Vec<D> v = LoadU(d, keys + i);
+    // It is not clear how to apply OrXor here - that can check if *both*
+    // comparisons are true, but here we want *either*. Comparing the unsigned
+    // min of differences to zero works, but is expensive for u64 prior to AVX3.
+    const Mask<D> eqL = Eq(v, valueL);
+    const Mask<D> eqR = Eq(v, valueR);
+    // At least one other value present; will require a regular partition.
+    // On AVX-512, Or + AllTrue are folded into a single kortest.
+    if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
+      if (VQSORT_PRINT >= 2) {
+        fprintf(stderr, "found 3rd value at %zu; writeL %zu\n", i, writeL);
+      }
+      // 'Undo' what we did by filling the remainder of what we read with R.
+      for (; writeL + N <= i; writeL += N) {
+        StoreU(valueR, d, keys + writeL);
+      }
+      BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
+      return false;
+    }
+    StoreU(valueL, d, keys + writeL);
+    writeL += CountTrue(d, eqL);
   }
 
-  size_t i = writeL;
-  for (; i + N <= right; i += N) {
+  // Final vector, masked comparison (no effect if i == num)
+  const size_t remaining = num - i;
+  SafeCopyN(remaining, d, keys + i, buf);
+  const Vec<D> v = Load(d, buf);
+  const Mask<D> valid = FirstN(d, remaining);
+  const Mask<D> eqL = And(Eq(v, valueL), valid);
+  const Mask<D> eqR = Eq(v, valueR);
+  // Invalid lanes are considered equal.
+  const Mask<D> eq = Or(Or(eqL, eqR), Not(valid));
+  // At least one other value present; will require a regular partition.
+  if (HWY_UNLIKELY(!AllTrue(d, eq))) {
+    if (VQSORT_PRINT >= 2) {
+      fprintf(stderr, "found 3rd value at partial %zu; writeL %zu\n", i,
+              writeL);
+    }
+    // 'Undo' what we did by filling the remainder of what we read with R.
+    for (; writeL + N <= i; writeL += N) {
+      StoreU(valueR, d, keys + writeL);
+    }
+    BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
+    return false;
+  }
+  BlendedStore(valueL, valid, d, keys + writeL);
+  writeL += CountTrue(d, eqL);
+
+  // Fill right side
+  i = writeL;
+  for (; i + N <= num; i += N) {
     StoreU(valueR, d, keys + i);
   }
-  BlendedStore(valueR, FirstN(d, right - i), d, keys + i);
+  BlendedStore(valueR, FirstN(d, num - i), d, keys + i);
 
-  return writeL;
+  if (VQSORT_PRINT >= 2) {
+    fprintf(stderr, "Successful MaybePartitionTwoValue\n");
+  }
+  return true;
+}
+
+// `idx_second` is `first_mismatch` from `AllEqual` and thus the index of the
+// second key. This is the first path into `MaybePartitionTwoValue`, called
+// when all samples are equal.
+template <class D, class Traits, typename T>
+HWY_INLINE bool PartitionIfTwoKeys(D d, Traits st, const Vec<D> pivot,
+                                   T* HWY_RESTRICT keys, size_t num,
+                                   size_t idx_second, T* HWY_RESTRICT buf) {
+  const Vec<D> second = st.SetKey(d, keys + idx_second);
+  // True if second comes before pivot.
+  const bool is_pivotR = AllFalse(d, st.Compare(d, pivot, second));
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "Samples all equal, diff at %zu, isPivotR %d\n", idx_second,
+            is_pivotR);
+#if VQSORT_PRINT >= 2  // Print is only defined #if
+    Print(d, "pivot", pivot, 0, st.LanesPerKey());
+    Print(d, "second", second, 0, st.LanesPerKey());
+#endif
+  }
+  HWY_DASSERT(AllFalse(d, st.EqualKeys(d, second, pivot)));
+
+  // If pivot is L, we scanned up to idx_second and can leave those in place.
+  // Otherwise, we'd have to restart from the beginning, and fill most keys
+  // with L, then overwrite most with R, which is not worthwhile.
+  if (is_pivotR) return false;
+  return MaybePartitionTwoValue(d, st, keys + idx_second, num - idx_second,
+                                pivot, second, buf);
+}
+
+// Second path into `MaybePartitionTwoValue`, called when not all samples are
+// equal. `samples` is sorted.
+template <class D, class Traits, typename T>
+HWY_INLINE bool PartitionIfTwoSamples(D d, Traits st, T* HWY_RESTRICT keys,
+                                      size_t num, T* HWY_RESTRICT samples) {
+  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
+  constexpr size_t N1 = st.LanesPerKey();
+  const Vec<D> valueL = st.SetKey(d, samples);
+  const Vec<D> valueR = st.SetKey(d, samples + kSampleLanes - N1);
+  HWY_DASSERT(AllTrue(d, st.Compare(d, valueL, valueR)));
+  HWY_DASSERT(AllFalse(d, st.EqualKeys(d, valueL, valueR)));
+  const Vec<D> prev = st.PrevValue(d, valueR);
+  // If the sample has more than two values, then the keys have at least that
+  // many, and thus this special case is inapplicable.
+  if (HWY_UNLIKELY(!AllTrue(d, st.EqualKeys(d, valueL, prev)))) {
+    return false;
+  }
+
+  // Must not overwrite samples because if this returns false, caller wants to
+  // read the original samples again.
+  T* HWY_RESTRICT buf = samples + kSampleLanes;
+  return MaybePartitionTwoValue(d, st, keys, num, valueL, valueR, buf);
 }
 
 // ------------------------------ Pivot sampling
@@ -624,6 +696,32 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   }
 }
 
+// For detecting inputs where (almost) all keys are equal.
+template <class D, class Traits>
+HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
+                                    const TFromD<D>* HWY_RESTRICT samples) {
+  constexpr size_t kSampleLanes = 3 * 64 / sizeof(TFromD<D>);
+  const size_t N = Lanes(d);
+  using V = Vec<D>;
+
+  const V first = st.SetKey(d, samples);
+  // OR of XOR-difference may be faster than comparison.
+  V diff = Zero(d);
+  size_t i = 0;
+  for (; i + N <= kSampleLanes; i += N) {
+    const V v = Load(d, samples + i);
+    diff = OrXor(diff, first, v);
+  }
+  // Remainder, if any.
+  const V v = Load(d, samples + i);
+  const auto valid = FirstN(d, kSampleLanes - i);
+  diff = IfThenElse(valid, OrXor(diff, first, v), diff);
+
+  // Must avoid floating-point comparisons (for -0)
+  const RebindToUnsigned<D> du;
+  return AllTrue(du, Eq(BitCast(du, diff), Zero(du)));
+}
+
 template <class D, class Traits, typename T>
 HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
   // buf contains 192 bytes, so 16 128-bit vectors are necessary and sufficient.
@@ -722,111 +820,121 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
   return pivot;
 }
 
-template <class V>
-V OrXor(const V o, const V x1, const V x2) {
-  // TODO(janwas): ternlog?
-  return Or(o, Xor(x1, x2));
-}
-
-// Returns a lower bound on the index of the first mismatch, or `num` if all
-// are equal. `num` is const to ensure we don't change it, which would lead to
-// bugs because the caller will check whether we return the original value.
+// Returns true if all keys equal `pivot`, otherwise returns false and sets
+// `*first_mismatch' to the index of the first differing key.
 template <class D, class Traits, typename T>
-HWY_NOINLINE size_t LowerBoundOfMismatch(D d, Traits st,
-                                         const T* HWY_RESTRICT keys,
-                                         const size_t num) {
-  using V = Vec<decltype(d)>;
+HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
+                           const T* HWY_RESTRICT keys, size_t num,
+                           size_t* HWY_RESTRICT first_mismatch) {
   const size_t N = Lanes(d);
-  HWY_DASSERT(num >= N);  // See HandleSpecialCases
-  const V reference = st.SetKey(d, keys);
-  const V zero = Zero(d);
-
-  size_t i = 0;
+  // Ensures we can use overlapping loads for the tail; see HandleSpecialCases.
+  HWY_DASSERT(num >= N);
+  const Vec<D> zero = Zero(d);
 
   // Vector-align keys + i.
   const size_t misalign =
       (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (N - 1);
-  if (HWY_LIKELY(misalign != 0)) {
-    HWY_DASSERT(misalign % st.LanesPerKey() == 0);
-    const size_t consume = N - misalign;
-    const auto mask = FirstN(d, consume);
-    const V v0 = LoadU(d, keys);
-    // Only check masked lanes; consider others to be equal to the reference.
-    if (!AllTrue(d, Or(Not(mask), Eq(v0, reference)))) {
-      return 0;  // not equal
+  HWY_DASSERT(misalign % st.LanesPerKey() == 0);
+  const size_t consume = N - misalign;
+  {
+    const Vec<D> v = LoadU(d, keys);
+    // Only check masked lanes; consider others to be equal.
+    const Mask<D> diff = And(FirstN(d, consume), Ne(v, pivot));
+    if (HWY_UNLIKELY(!AllFalse(d, diff))) {
+      const intptr_t lane = FindFirstTrue(d, diff);
+      HWY_DASSERT(lane >= 0);
+      *first_mismatch = static_cast<size_t>(lane);
+      return false;
     }
-    i = consume;
   }
+  size_t i = consume;
   HWY_DASSERT(((reinterpret_cast<uintptr_t>(keys + i) / sizeof(T)) & (N - 1)) ==
               0);
 
   // Sticky bits registering any difference between `keys` and the first key.
   // We use vector XOR because it may be cheaper than comparisons, especially
   // for 128-bit. 2x unrolled for more ILP.
-  V diff0 = zero;
-  V diff1 = zero;
+  Vec<D> diff0 = zero;
+  Vec<D> diff1 = zero;
 
-  // We want to stop once a difference has been found, but without slowing down
-  // the loop by comparing during each iteration. The compromise is to compare
-  // after a 'group', which consists of kLoops times two vectors.
-  constexpr size_t kLoops = 4;
+  // We want to stop once a difference has been found, but without slowing
+  // down the loop by comparing during each iteration. The compromise is to
+  // compare after a 'group', which consists of kLoops times two vectors.
+  constexpr size_t kLoops = 8;
   const size_t lanes_per_group = kLoops * 2 * N;
 
   for (; i + lanes_per_group <= num; i += lanes_per_group) {
     HWY_DEFAULT_UNROLL
     for (size_t loop = 0; loop < kLoops; ++loop) {
-      const V v0 = Load(d, keys + i + loop * 2 * N);
-      const V v1 = Load(d, keys + i + loop * 2 * N + N);
-      diff0 = OrXor(diff0, v0, reference);
-      diff1 = OrXor(diff1, v1, reference);
+      const Vec<D> v0 = Load(d, keys + i + loop * 2 * N);
+      const Vec<D> v1 = Load(d, keys + i + loop * 2 * N + N);
+      diff0 = OrXor(diff0, v0, pivot);
+      diff1 = OrXor(diff1, v1, pivot);
     }
     diff0 = Or(diff0, diff1);
 
-    // Must avoid floating-point comparisons (for -0)
+    // If there was a difference in the entire group: (use du because we must
+    // avoid floating-point comparisons for -0)
     const RebindToUnsigned<D> du;
-    if (!AllTrue(du, Eq(BitCast(du, diff0), Zero(du)))) {
-      return i;  // not equal
+    if (HWY_UNLIKELY(!AllTrue(du, Eq(BitCast(du, diff0), Zero(du))))) {
+      // .. then loop until the first one, with termination guarantee.
+      for (;; i += N) {
+        const Vec<D> v = Load(d, keys + i);
+        const Mask<D> diff = Ne(v, pivot);
+        if (HWY_UNLIKELY(!AllFalse(d, diff))) {
+          const intptr_t lane = FindFirstTrue(d, diff);
+          HWY_DASSERT(lane >= 0);
+          *first_mismatch = i + static_cast<size_t>(lane);
+          return false;
+        }
+      }
     }
   }
+
   // Whole vectors, no unrolling, compare directly
   for (; i + N <= num; i += N) {
-    const V v0 = Load(d, keys + i);
-    if (!AllTrue(d, Eq(v0, reference))) {
-      return i;  // not equal
+    const Vec<D> v = Load(d, keys + i);
+    const Mask<D> diff = Ne(v, pivot);
+    if (HWY_UNLIKELY(!AllFalse(d, diff))) {
+      const intptr_t lane = FindFirstTrue(d, diff);
+      HWY_DASSERT(lane >= 0);
+      *first_mismatch = i + static_cast<size_t>(lane);
+      return false;
     }
   }
-  // If there are remainders, re-check the last whole vector.
-  if (HWY_LIKELY(i != num)) {
-    const V v0 = LoadU(d, keys + num - N);
-    if (!AllTrue(d, Eq(v0, reference))) {
-      return i;  // not equal
-    }
+  // Always re-check the last (unaligned) vector to reduce branching.
+  i = num - N;
+  const Vec<D> v = LoadU(d, keys + i);
+  const Mask<D> diff = Ne(v, pivot);
+  if (HWY_UNLIKELY(!AllFalse(d, diff))) {
+    const intptr_t lane = FindFirstTrue(d, diff);
+    HWY_DASSERT(lane >= 0);
+    *first_mismatch = i + static_cast<size_t>(lane);
+    return false;
   }
 
-  return num;  // all equal
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "All keys equal\n");
+  }
+  return true;  // all equal
 }
 
-// Classifies (and possibly modifies) `pivot` by scanning for the first/last
-// key from index `idx_diff`, which is less than `num`.
+// Scans for the first/last key from index `first_mismatch`.
 template <class D, class Traits, typename T>
 HWY_NOINLINE void ScanFirstLast(D d, Traits st, const T* HWY_RESTRICT keys,
-                                size_t num, size_t idx_diff,
+                                size_t num, const Vec<D> pivot,
                                 T* HWY_RESTRICT buf,
                                 Vec<D>* HWY_RESTRICT out_first,
                                 Vec<D>* HWY_RESTRICT out_last) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
-  HWY_DASSERT(idx_diff < num);
 
   Vec<D> first = st.LastValue(d);
   Vec<D> last = st.FirstValue(d);
 
-  // We know keys[0, idx_diff) are equal, but they might be the first/last, so
-  // start scanning one vector before.
-  size_t i = static_cast<size_t>(
-      HWY_MAX(static_cast<intptr_t>(idx_diff) - static_cast<intptr_t>(N), 0));
+  size_t i = 0;
 
-  constexpr size_t kLoops = 4;
+  constexpr size_t kLoops = 16;
   const size_t lanes_per_group = kLoops * N;
 
   // Whole group, unrolled
@@ -836,6 +944,17 @@ HWY_NOINLINE void ScanFirstLast(D d, Traits st, const T* HWY_RESTRICT keys,
       const Vec<D> curr = LoadU(d, keys + i + loop * N);
       first = st.First(d, first, curr);
       last = st.Last(d, last, curr);
+    }
+
+    // We only care whether pivot is the first or last. If neither, i.e. there
+    // are key(s) before and after pivot, we can stop scanning immediately.
+    const Mask<D> before = st.Compare(d, first, pivot);
+    const Mask<D> after = st.Compare(d, pivot, last);
+    if (HWY_UNLIKELY(!AllFalse(d, And(before, after)))) {
+      if (VQSORT_PRINT >= 2) {
+        fprintf(stderr, "Stopped scanning at %zu\n", i + lanes_per_group);
+      }
+      goto DONE;
     }
   }
   // Whole vectors, no unrolling
@@ -851,8 +970,14 @@ HWY_NOINLINE void ScanFirstLast(D d, Traits st, const T* HWY_RESTRICT keys,
     last = st.Last(d, last, curr);
   }
 
+DONE:
   *out_first = st.FirstOfLanes(d, first, buf);
   *out_last = st.LastOfLanes(d, last, buf);
+
+#if VQSORT_PRINT >= 2
+  Print(d, "first", *out_first, 0, st.LanesPerKey());
+  Print(d, "last", *out_last, 0, st.LanesPerKey());
+#endif
 }
 
 // Returns pivot chosen from `keys[0, num)`. It will never be the largest key
@@ -860,12 +985,9 @@ HWY_NOINLINE void ScanFirstLast(D d, Traits st, const T* HWY_RESTRICT keys,
 template <class D, class Traits, typename T>
 HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
                                              T* HWY_RESTRICT keys, size_t num,
-                                             size_t idx_diff,
                                              T* HWY_RESTRICT samples,
                                              PivotResult& result) {
-  using V = decltype(Zero(d));
-
-  V pivot = st.SetKey(d, samples);  // the single unique sample
+  const Vec<D> pivot = st.SetKey(d, samples);  // the single unique sample
 
   // Early out for mostly-0 arrays, where pivot is often FirstValue.
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.FirstValue(d))))) {
@@ -877,20 +999,13 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
     return st.PrevValue(d, pivot);
   }
 
-  V first, last;
-  ScanFirstLast(d, st, keys, num, idx_diff, /*buf=*/samples, &first, &last);
+  Vec<D> first, last;
+  ScanFirstLast(d, st, keys, num, pivot, /*buf=*/samples, &first, &last);
 
-  const Vec<D> prev_last = st.PrevValue(d, last);
-  // All keys are in [x, x+1], or [x+1, x] if descending order.
-  if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, first, prev_last)))) {
-    (void)PartitionTwoValue(d, st, keys, 0, num, first, last,
-                            /*buf=*/samples);
-    result = PivotResult::kDone;
-    if (VQSORT_PRINT >= 2) {
-      fprintf(stderr, "  2val\n");
-    }
-    return pivot;
-  }
+  // We only reach here if !AllEqual. Note that first might equal Prev(last)
+  // because the 2-value special case is conditional and may be skipped.
+  HWY_DASSERT(AllFalse(d, st.EqualKeys(d, first, last)));
+
   if (AllTrue(d, st.EqualKeys(d, first, pivot))) {
     // We could consider a special partition mode that only reads from and
     // writes to the right side, and later fills in the left side, which we know
@@ -927,7 +1042,7 @@ template <class D, class Traits, typename T>
 HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
                               size_t num, T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
-  if (num < Lanes(d)) return;
+  if (num < N) return;
 
   Vec<D> first = st.LastValue(d);
   Vec<D> last = st.FirstValue(d);
@@ -952,32 +1067,6 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
 }
 
 #endif  // VQSORT_PRINT >= 2
-
-// For detecting inputs where (almost) all keys are equal.
-template <class D, class Traits>
-HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
-                                    const TFromD<D>* HWY_RESTRICT samples) {
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(TFromD<D>);
-  const size_t N = Lanes(d);
-  using V = Vec<D>;
-
-  const V first = st.SetKey(d, samples);
-  // OR of XOR-difference may be faster than comparison.
-  V diff = Zero(d);
-  size_t i = 0;
-  for (; i + N <= kSampleLanes; i += N) {
-    const V v = Load(d, samples + i);
-    diff = OrXor(diff, first, v);
-  }
-  // Remainder, if any.
-  const V v = Load(d, samples + i);
-  const auto valid = FirstN(d, kSampleLanes - i);
-  diff = IfThenElse(valid, OrXor(diff, first, v), diff);
-
-  // Must avoid floating-point comparisons (for -0)
-  const RebindToUnsigned<D> du;
-  return AllTrue(du, Eq(BitCast(du, diff), Zero(du)));
-}
 
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
@@ -1005,27 +1094,28 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
 
   Vec<D> pivot;
   PivotResult result = PivotResult::kNormal;
-  size_t idx_diff = 0;
   if (HWY_UNLIKELY(UnsortedSampleEqual(d, st, buf))) {
-    idx_diff = LowerBoundOfMismatch(d, st, keys + begin, num);
-    // All keys are equal; done.
-    if (HWY_UNLIKELY(idx_diff == num)) {
-      if (VQSORT_PRINT >= 1) {
-        fprintf(stderr, "All keys equal\n");
-      }
+    pivot = st.SetKey(d, buf);
+    size_t idx_second = 0;
+    if (HWY_UNLIKELY(AllEqual(d, st, pivot, keys + begin, num, &idx_second))) {
       return;
     }
 
-    if (VQSORT_PRINT >= 1) {
-      fprintf(stderr, "Samples all equal %.0f, diff at %zu\n",
-              static_cast<double>(GetLane(st.SetKey(d, buf))), idx_diff);
+    if (HWY_UNLIKELY(PartitionIfTwoKeys(d, st, pivot, keys + begin, num,
+                                        idx_second, buf))) {
+      return;  // Done, skip recursion because each side has all-equal keys.
     }
-    pivot = ChoosePivotForEqualSamples(d, st, keys + begin, num, idx_diff, buf,
-                                       result);
-    // TODO(janwas): inline this, move the 2-valued partition here.
-    if (result == PivotResult::kDone) return;
+
+    // We can no longer start scanning from idx_second because
+    // PartitionIfTwoKeys may have reordered keys.
+    pivot = ChoosePivotForEqualSamples(d, st, keys + begin, num, buf, result);
   } else {
     SortSamples(d, st, buf);
+
+    if (HWY_UNLIKELY(PartitionIfTwoSamples(d, st, keys + begin, num, buf))) {
+      return;
+    }
+
     pivot = ChoosePivotByRank(d, st, buf);
   }
 
