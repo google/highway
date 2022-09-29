@@ -1235,12 +1235,29 @@ HWY_API Mask128<uint64_t> Eq128(Simd<uint64_t, 2, 0> /* tag */,
   return ret;
 }
 
+HWY_API Mask128<uint64_t> Ne128(Simd<uint64_t, 2, 0> /* tag */,
+                                Vec128<uint64_t> a, const Vec128<uint64_t> b) {
+  const bool ne = a.raw[1] != b.raw[1] || a.raw[0] != b.raw[0];
+  Mask128<uint64_t> ret;
+  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(ne);
+  return ret;
+}
+
 HWY_API Mask128<uint64_t> Eq128Upper(Simd<uint64_t, 2, 0> /* tag */,
                                      Vec128<uint64_t> a,
                                      const Vec128<uint64_t> b) {
   const bool eq = a.raw[1] == b.raw[1];
   Mask128<uint64_t> ret;
   ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(eq);
+  return ret;
+}
+
+HWY_API Mask128<uint64_t> Ne128Upper(Simd<uint64_t, 2, 0> /* tag */,
+                                     Vec128<uint64_t> a,
+                                     const Vec128<uint64_t> b) {
+  const bool ne = a.raw[1] != b.raw[1];
+  Mask128<uint64_t> ret;
+  ret.bits[0] = ret.bits[1] = Mask128<uint64_t>::FromBool(ne);
   return ret;
 }
 

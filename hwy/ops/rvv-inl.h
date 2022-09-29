@@ -3207,7 +3207,8 @@ HWY_API VW ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32, VN a, VN b,
 // ------------------------------ Lt128
 template <class D>
 HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
   // Truth table of Eq and Compare for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -3233,7 +3234,8 @@ HWY_INLINE MFromD<D> Lt128(D d, const VFromD<D> a, const VFromD<D> b) {
 // ------------------------------ Lt128Upper
 template <class D>
 HWY_INLINE MFromD<D> Lt128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
   const VFromD<D> ltHL = VecFromMask(d, Lt(a, b));
   // Replicate H to its neighbor.
   return MaskFromVec(OddEven(ltHL, detail::Slide1Down(ltHL)));
@@ -3242,7 +3244,8 @@ HWY_INLINE MFromD<D> Lt128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
 // ------------------------------ Eq128
 template <class D>
 HWY_INLINE MFromD<D> Eq128(D d, const VFromD<D> a, const VFromD<D> b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
   const VFromD<D> eqHL = VecFromMask(d, Eq(a, b));
   const VFromD<D> eqLH = Reverse2(d, eqHL);
   return MaskFromVec(And(eqHL, eqLH));
@@ -3251,10 +3254,31 @@ HWY_INLINE MFromD<D> Eq128(D d, const VFromD<D> a, const VFromD<D> b) {
 // ------------------------------ Eq128Upper
 template <class D>
 HWY_INLINE MFromD<D> Eq128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
   const VFromD<D> eqHL = VecFromMask(d, Eq(a, b));
   // Replicate H to its neighbor.
   return MaskFromVec(OddEven(eqHL, detail::Slide1Down(eqHL)));
+}
+
+// ------------------------------ Ne128
+template <class D>
+HWY_INLINE MFromD<D> Ne128(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
+  const VFromD<D> neHL = VecFromMask(d, Ne(a, b));
+  const VFromD<D> neLH = Reverse2(d, neHL);
+  return MaskFromVec(Or(neHL, neLH));
+}
+
+// ------------------------------ Ne128Upper
+template <class D>
+HWY_INLINE MFromD<D> Ne128Upper(D d, const VFromD<D> a, const VFromD<D> b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
+  const VFromD<D> neHL = VecFromMask(d, Ne(a, b));
+  // Replicate H to its neighbor.
+  return MaskFromVec(OddEven(neHL, detail::Slide1Down(neHL)));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)

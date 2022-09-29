@@ -6462,7 +6462,7 @@ HWY_API void StoreInterleaved4(const Vec128<T> v0, const Vec128<T> v1,
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_INLINE Mask128<T, N> Lt128(Simd<T, N, 0> d, Vec128<T, N> a,
                                Vec128<T, N> b) {
-  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "T must be u64");
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -6499,7 +6499,7 @@ HWY_INLINE Mask128<T, N> Lt128Upper(Simd<T, N, 0> d, Vec128<T, N> a,
 template <typename T, size_t N, HWY_IF_LE128(T, N)>
 HWY_INLINE Mask128<T, N> Eq128(Simd<T, N, 0> d, Vec128<T, N> a,
                                Vec128<T, N> b) {
-  static_assert(!IsSigned<T>() && sizeof(T) == 8, "Use u64");
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "T must be u64");
   const Vec128<T, N> eqHL = VecFromMask(d, Eq(a, b));
   return MaskFromVec(And(Reverse2(d, eqHL), eqHL));
 }
@@ -6509,6 +6509,23 @@ HWY_INLINE Mask128<T, N> Eq128Upper(Simd<T, N, 0> d, Vec128<T, N> a,
                                     Vec128<T, N> b) {
   const Vec128<T, N> eqHL = VecFromMask(d, Eq(a, b));
   return MaskFromVec(InterleaveUpper(d, eqHL, eqHL));
+}
+
+// ------------------------------ Ne128
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Mask128<T, N> Ne128(Simd<T, N, 0> d, Vec128<T, N> a,
+                               Vec128<T, N> b) {
+  static_assert(!IsSigned<T>() && sizeof(T) == 8, "T must be u64");
+  const Vec128<T, N> neHL = VecFromMask(d, Ne(a, b));
+  return MaskFromVec(Or(Reverse2(d, neHL), neHL));
+}
+
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_INLINE Mask128<T, N> Ne128Upper(Simd<T, N, 0> d, Vec128<T, N> a,
+                                    Vec128<T, N> b) {
+  const Vec128<T, N> neHL = VecFromMask(d, Ne(a, b));
+  return MaskFromVec(InterleaveUpper(d, neHL, neHL));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)

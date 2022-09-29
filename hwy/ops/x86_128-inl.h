@@ -7289,7 +7289,8 @@ namespace detail {
 // Returns vector-mask for Lt128. Also used by x86_256/x86_512.
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -7313,10 +7314,20 @@ HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
 // Returns vector-mask for Eq128. Also used by x86_256/x86_512.
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Eq128Vec(const D d, const V a, const V b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8, "Use u64");
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
   const auto eqHL = VecFromMask(d, Eq(a, b));
   const auto eqLH = Reverse2(d, eqHL);
   return And(eqHL, eqLH);
+}
+
+template <class D, class V = VFromD<D>>
+HWY_INLINE V Ne128Vec(const D d, const V a, const V b) {
+  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
+                "D must be u64");
+  const auto neHL = VecFromMask(d, Ne(a, b));
+  const auto neLH = Reverse2(d, neHL);
+  return Or(neHL, neLH);
 }
 
 template <class D, class V = VFromD<D>>
@@ -7335,6 +7346,14 @@ HWY_INLINE V Eq128UpperVec(const D d, const V a, const V b) {
   return InterleaveUpper(d, eqHL, eqHL);
 }
 
+template <class D, class V = VFromD<D>>
+HWY_INLINE V Ne128UpperVec(const D d, const V a, const V b) {
+  // No specialization required for AVX-512: Mask <-> Vec is fast, and
+  // copying mask bits to their neighbor seems infeasible.
+  const V neHL = VecFromMask(d, Ne(a, b));
+  return InterleaveUpper(d, neHL, neHL);
+}
+
 }  // namespace detail
 
 template <class D, class V = VFromD<D>>
@@ -7348,6 +7367,11 @@ HWY_API MFromD<D> Eq128(D d, const V a, const V b) {
 }
 
 template <class D, class V = VFromD<D>>
+HWY_API MFromD<D> Ne128(D d, const V a, const V b) {
+  return MaskFromVec(detail::Ne128Vec(d, a, b));
+}
+
+template <class D, class V = VFromD<D>>
 HWY_API MFromD<D> Lt128Upper(D d, const V a, const V b) {
   return MaskFromVec(detail::Lt128UpperVec(d, a, b));
 }
@@ -7355,6 +7379,11 @@ HWY_API MFromD<D> Lt128Upper(D d, const V a, const V b) {
 template <class D, class V = VFromD<D>>
 HWY_API MFromD<D> Eq128Upper(D d, const V a, const V b) {
   return MaskFromVec(detail::Eq128UpperVec(d, a, b));
+}
+
+template <class D, class V = VFromD<D>>
+HWY_API MFromD<D> Ne128Upper(D d, const V a, const V b) {
+  return MaskFromVec(detail::Ne128UpperVec(d, a, b));
 }
 
 // ------------------------------ Min128, Max128 (Lt128)
