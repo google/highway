@@ -78,6 +78,11 @@ struct KeyLane {
     return Eq(a, b);
   }
 
+  template <class D>
+  HWY_INLINE Mask<D> NotEqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
+    return Ne(a, b);
+  }
+
   HWY_INLINE bool Equal1(const T* a, const T* b) { return *a == *b; }
 
   template <class D>

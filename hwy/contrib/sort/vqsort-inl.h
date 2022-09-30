@@ -456,8 +456,8 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
     // It is not clear how to apply OrXor here - that can check if *both*
     // comparisons are true, but here we want *either*. Comparing the unsigned
     // min of differences to zero works, but is expensive for u64 prior to AVX3.
-    const Mask<D> eqL = Eq(v, valueL);
-    const Mask<D> eqR = Eq(v, valueR);
+    const Mask<D> eqL = st.EqualKeys(d, v, valueL);
+    const Mask<D> eqR = st.EqualKeys(d, v, valueR);
     // At least one other value present; will require a regular partition.
     // On AVX-512, Or + AllTrue are folded into a single kortest.
     if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
@@ -480,8 +480,8 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
   SafeCopyN(remaining, d, keys + i, buf);
   const Vec<D> v = Load(d, buf);
   const Mask<D> valid = FirstN(d, remaining);
-  const Mask<D> eqL = And(Eq(v, valueL), valid);
-  const Mask<D> eqR = Eq(v, valueR);
+  const Mask<D> eqL = And(st.EqualKeys(d, v, valueL), valid);
+  const Mask<D> eqR = st.EqualKeys(d, v, valueR);
   // Invalid lanes are considered equal.
   const Mask<D> eq = Or(Or(eqL, eqR), Not(valid));
   // At least one other value present; will require a regular partition.
@@ -839,7 +839,7 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   {
     const Vec<D> v = LoadU(d, keys);
     // Only check masked lanes; consider others to be equal.
-    const Mask<D> diff = And(FirstN(d, consume), Ne(v, pivot));
+    const Mask<D> diff = And(FirstN(d, consume), st.NotEqualKeys(d, v, pivot));
     if (HWY_UNLIKELY(!AllFalse(d, diff))) {
       const intptr_t lane = FindFirstTrue(d, diff);
       HWY_DASSERT(lane >= 0);
@@ -880,7 +880,7 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
       // .. then loop until the first one, with termination guarantee.
       for (;; i += N) {
         const Vec<D> v = Load(d, keys + i);
-        const Mask<D> diff = Ne(v, pivot);
+        const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
         if (HWY_UNLIKELY(!AllFalse(d, diff))) {
           const intptr_t lane = FindFirstTrue(d, diff);
           HWY_DASSERT(lane >= 0);
@@ -894,7 +894,7 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   // Whole vectors, no unrolling, compare directly
   for (; i + N <= num; i += N) {
     const Vec<D> v = Load(d, keys + i);
-    const Mask<D> diff = Ne(v, pivot);
+    const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
     if (HWY_UNLIKELY(!AllFalse(d, diff))) {
       const intptr_t lane = FindFirstTrue(d, diff);
       HWY_DASSERT(lane >= 0);
@@ -905,7 +905,7 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   // Always re-check the last (unaligned) vector to reduce branching.
   i = num - N;
   const Vec<D> v = LoadU(d, keys + i);
-  const Mask<D> diff = Ne(v, pivot);
+  const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
   if (HWY_UNLIKELY(!AllFalse(d, diff))) {
     const intptr_t lane = FindFirstTrue(d, diff);
     HWY_DASSERT(lane >= 0);
@@ -1100,6 +1100,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     if (HWY_UNLIKELY(AllEqual(d, st, pivot, keys + begin, num, &idx_second))) {
       return;
     }
+    HWY_DASSERT(idx_second % st.LanesPerKey() == 0);
 
     if (HWY_UNLIKELY(PartitionIfTwoKeys(d, st, pivot, keys + begin, num,
                                         idx_second, buf))) {
