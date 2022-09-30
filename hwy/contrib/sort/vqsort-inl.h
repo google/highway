@@ -18,7 +18,7 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
 #ifndef VQSORT_PRINT
-#define VQSORT_PRINT 0
+#define VQSORT_PRINT 2
 #endif
 
 // Makes it harder for adversaries to predict our sampling locations, at the
@@ -67,6 +67,22 @@ namespace HWY_NAMESPACE {
 namespace detail {
 
 using Constants = hwy::SortConstants;
+
+// Wrappers to avoid #if in user code (interferes with code folding)
+
+HWY_INLINE void UnpoisonIfMemorySanitizer(void* p, size_t bytes) {
+#if HWY_IS_MSAN
+  __msan_unpoison(p, bytes);
+#endif
+}
+
+template <class D>
+HWY_INLINE void MaybePrintVector(D d, const char* label, Vec<D> v,
+                                 size_t start = 0, size_t max_lanes = 16) {
+#if VQSORT_PRINT >= 2  // Print is only defined #if
+  Print(d, label, v, start, max_lanes);
+#endif
+}
 
 // ------------------------------ HeapSort
 
@@ -218,9 +234,7 @@ HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
   }
 
   // MSAN seems not to understand CompressStore. buf[0, bufR) are valid.
-#if HWY_IS_MSAN
-  __msan_unpoison(buf, bufR * sizeof(T));
-#endif
+  UnpoisonIfMemorySanitizer(buf, bufR * sizeof(T));
 
   // Everything we loaded was put into buf, or behind the new `left`, after
   // which there is space for bufR items. First move items from `right` to
@@ -526,10 +540,8 @@ HWY_INLINE bool PartitionIfTwoKeys(D d, Traits st, const Vec<D> pivot,
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "Samples all equal, diff at %zu, isPivotR %d\n", idx_second,
             is_pivotR);
-#if VQSORT_PRINT >= 2  // Print is only defined #if
-    Print(d, "pivot", pivot, 0, st.LanesPerKey());
-    Print(d, "second", second, 0, st.LanesPerKey());
-#endif
+    MaybePrintVector(d, "pivot", pivot, 0, st.LanesPerKey());
+    MaybePrintVector(d, "second", second, 0, st.LanesPerKey());
   }
   HWY_DASSERT(AllFalse(d, st.EqualKeys(d, second, pivot)));
 
@@ -741,15 +753,13 @@ HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
 
   SortingNetwork(st, buf, kCols);
 
-#if VQSORT_PRINT >= 2  // Print is only defined #if
-  const size_t N = Lanes(d);
-  fprintf(stderr, "Samples:\n");
-  for (size_t i = 0; i < kSampleLanes; i += N) {
-    Print(d, "", Load(d, buf + i), 0, N);
+  if (VQSORT_PRINT >= 2) {
+    const size_t N = Lanes(d);
+    fprintf(stderr, "Samples:\n");
+    for (size_t i = 0; i < kSampleLanes; i += N) {
+      MaybePrintVector(d, "", Load(d, buf + i), 0, N);
+    }
   }
-#else
-  (void)d;
-#endif
 }
 
 // ------------------------------ Pivot selection
@@ -974,10 +984,8 @@ DONE:
   *out_first = st.FirstOfLanes(d, first, buf);
   *out_last = st.LastOfLanes(d, last, buf);
 
-#if VQSORT_PRINT >= 2
-  Print(d, "first", *out_first, 0, st.LanesPerKey());
-  Print(d, "last", *out_last, 0, st.LanesPerKey());
-#endif
+  MaybePrintVector(d, "first", *out_first, 0, st.LanesPerKey());
+  MaybePrintVector(d, "last", *out_last, 0, st.LanesPerKey());
 }
 
 // Returns pivot chosen from `keys[0, num)`. It will never be the largest key
@@ -1036,37 +1044,35 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
 
 // ------------------------------ Quicksort recursion
 
-#if VQSORT_PRINT >= 2 || HWY_IDE
-
 template <class D, class Traits, typename T>
 HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
                               size_t num, T* HWY_RESTRICT buf) {
-  const size_t N = Lanes(d);
-  if (num < N) return;
+  if (VQSORT_PRINT >= 2) {
+    const size_t N = Lanes(d);
+    if (num < N) return;
 
-  Vec<D> first = st.LastValue(d);
-  Vec<D> last = st.FirstValue(d);
+    Vec<D> first = st.LastValue(d);
+    Vec<D> last = st.FirstValue(d);
 
-  size_t i = 0;
-  for (; i + N <= num; i += N) {
-    const Vec<D> v = LoadU(d, keys + i);
-    first = st.First(d, v, first);
-    last = st.Last(d, v, last);
+    size_t i = 0;
+    for (; i + N <= num; i += N) {
+      const Vec<D> v = LoadU(d, keys + i);
+      first = st.First(d, v, first);
+      last = st.Last(d, v, last);
+    }
+    if (HWY_LIKELY(i != num)) {
+      HWY_DASSERT(num >= N);  // See HandleSpecialCases
+      const Vec<D> v = LoadU(d, keys + num - N);
+      first = st.First(d, v, first);
+      last = st.Last(d, v, last);
+    }
+
+    first = st.FirstOfLanes(d, first, buf);
+    last = st.LastOfLanes(d, last, buf);
+    MaybePrintVector(d, "first", first, 0, st.LanesPerKey());
+    MaybePrintVector(d, "last", last, 0, st.LanesPerKey());
   }
-  if (HWY_LIKELY(i != num)) {
-    HWY_DASSERT(num >= N);  // See HandleSpecialCases
-    const Vec<D> v = LoadU(d, keys + num - N);
-    first = st.First(d, v, first);
-    last = st.Last(d, v, last);
-  }
-
-  first = st.FirstOfLanes(d, first, buf);
-  last = st.LastOfLanes(d, last, buf);
-  Print(d, "first", first, 0, st.LanesPerKey());
-  Print(d, "last", last, 0, st.LanesPerKey());
 }
-
-#endif  // VQSORT_PRINT >= 2
 
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
@@ -1085,10 +1091,8 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "\n\n=== Recurse remaining %zu [%zu %zu) len %zu\n",
             remaining_levels, begin, end, num);
+    PrintMinMax(d, st, keys + begin, num, buf);
   }
-#if VQSORT_PRINT >= 2  // function only defined #if
-  PrintMinMax(d, st, keys + begin, num, buf);
-#endif
 
   DrawSamples(d, st, keys + begin, num, buf, rng);
 
@@ -1210,11 +1214,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // We avoid (potentially expensive for small input sizes) allocations on
   // platforms where no targets are scalable. For 512-bit vectors, this fits on
   // the stack (several KiB).
-#if HWY_IS_MSAN  // otherwise error in sorting_networks-inl.h
   HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))] = {};
-#else
-  HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))];
-#endif
   static_assert(sizeof(storage) <= 8192, "Unexpectedly large, check size");
   buf = storage;
 #endif  // !HWY_HAVE_SCALABLE
