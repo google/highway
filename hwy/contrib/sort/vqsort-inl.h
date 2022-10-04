@@ -18,7 +18,7 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
 #ifndef VQSORT_PRINT
-#define VQSORT_PRINT 2
+#define VQSORT_PRINT 0
 #endif
 
 // Makes it harder for adversaries to predict our sampling locations, at the
