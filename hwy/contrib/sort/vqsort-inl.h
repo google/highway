@@ -73,6 +73,9 @@ using Constants = hwy::SortConstants;
 HWY_INLINE void UnpoisonIfMemorySanitizer(void* p, size_t bytes) {
 #if HWY_IS_MSAN
   __msan_unpoison(p, bytes);
+#else
+  (void)p;
+  (void)bytes;
 #endif
 }
 
@@ -81,6 +84,12 @@ HWY_INLINE void MaybePrintVector(D d, const char* label, Vec<D> v,
                                  size_t start = 0, size_t max_lanes = 16) {
 #if VQSORT_PRINT >= 2  // Print is only defined #if
   Print(d, label, v, start, max_lanes);
+#else
+  (void)d;
+  (void)label;
+  (void)v;
+  (void)start;
+  (void)max_lanes;
 #endif
 }
 
