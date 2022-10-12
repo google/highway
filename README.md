@@ -55,7 +55,8 @@ layouts, and aligned/padded allocations.
 
 Online demos using Compiler Explorer:
 
--   [generating code for multiple targets](https://gcc.godbolt.org/z/n6rx6xK5h) (recommended)
+-   [multiple targets with dynamic dispatch](https://gcc.godbolt.org/z/zP7MYe9Yf)
+    (recommended)
 -   [single target using -m flags](https://gcc.godbolt.org/z/rGnjMevKG)
 
 Projects using Highway: (to add yours, feel free to raise an issue or contact us
