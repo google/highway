@@ -1775,6 +1775,43 @@ HWY_INLINE Mask512<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask512<T> a,
 #endif
 }
 
+template <typename T>
+HWY_INLINE Mask512<T> ExclusiveNeither(hwy::SizeTag<1> /*tag*/,
+                                       const Mask512<T> a, const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask512<T>{_kxnor_mask64(a.raw, b.raw)};
+#else
+  return Mask512<T>{~(a.raw ^ b.raw)};
+#endif
+}
+template <typename T>
+HWY_INLINE Mask512<T> ExclusiveNeither(hwy::SizeTag<2> /*tag*/,
+                                       const Mask512<T> a, const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask512<T>{_kxnor_mask32(a.raw, b.raw)};
+#else
+  return Mask512<T>{static_cast<__mmask32>(~(a.raw ^ b.raw) & 0xFFFFFFFF)};
+#endif
+}
+template <typename T>
+HWY_INLINE Mask512<T> ExclusiveNeither(hwy::SizeTag<4> /*tag*/,
+                                       const Mask512<T> a, const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask512<T>{_kxnor_mask16(a.raw, b.raw)};
+#else
+  return Mask512<T>{static_cast<__mmask16>(~(a.raw ^ b.raw) & 0xFFFF)};
+#endif
+}
+template <typename T>
+HWY_INLINE Mask512<T> ExclusiveNeither(hwy::SizeTag<8> /*tag*/,
+                                       const Mask512<T> a, const Mask512<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask512<T>{_kxnor_mask8(a.raw, b.raw)};
+#else
+  return Mask512<T>{static_cast<__mmask8>(~(a.raw ^ b.raw) & 0xFF)};
+#endif
+}
+
 }  // namespace detail
 
 template <typename T>
@@ -1800,6 +1837,11 @@ HWY_API Mask512<T> Or(const Mask512<T> a, Mask512<T> b) {
 template <typename T>
 HWY_API Mask512<T> Xor(const Mask512<T> a, Mask512<T> b) {
   return detail::Xor(hwy::SizeTag<sizeof(T)>(), a, b);
+}
+
+template <typename T>
+HWY_API Mask512<T> ExclusiveNeither(const Mask512<T> a, Mask512<T> b) {
+  return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)

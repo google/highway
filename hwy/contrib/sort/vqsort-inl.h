@@ -482,10 +482,16 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
     const Mask<D> eqL = st.EqualKeys(d, v, valueL);
     const Mask<D> eqR = st.EqualKeys(d, v, valueR);
     // At least one other value present; will require a regular partition.
-    // On AVX-512, Or + AllTrue are folded into a single kortest, but not if
-    // `Or(eqL, eqR)` is an lvalue.
+    // On AVX-512, Or + AllTrue are folded into a single kortest if we are
+    // careful with the FindFirstTrue argument, see below.
     if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
-      const intptr_t lane = FindFirstTrue(d, Not(Or(eqL, eqR)));
+      // If we repeat Or(eqL, eqR) here, the compiler will hoist it into the
+      // loop, which is a pessimization because this if-true branch is cold.
+      // We can defeat this via Not(Xor), which is equivalent because eqL and
+      // eqR cannot be true at the same time. Can we elide the additional Not?
+      // FindFirstFalse instructions are generally unavailable, but we can
+      // fuse Not and Xor/Or into one ExclusiveNeither.
+      const intptr_t lane = FindFirstTrue(d, ExclusiveNeither(eqL, eqR));
       HWY_DASSERT(lane >= 0);
       third = st.SetKey(d, keys + i + static_cast<size_t>(lane));
       if (VQSORT_PRINT >= 2) {
@@ -566,13 +572,10 @@ HWY_NOINLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
     const Mask<D> eqL = st.EqualKeys(d, v, valueL);
     const Mask<D> eqR = st.EqualKeys(d, v, valueR);
     // If there is a third value, stop and undo what we've done. On AVX-512,
-    // Or + AllTrue are folded into a single kortest, but not if `Or(eqL, eqR)
-    // is an lvalue.
+    // Or + AllTrue are folded into a single kortest, but only if we are
+    // careful with the FindFirstTrue argument - see prior comment on that.
     if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
-      // We want Not(Or(eqL, eqR)), which is equivalent to AndNot(eqL,
-      // Not(eqR)); the latter helps the compiler generate kortest above.
-      // TODO(janwas): add FindFirstFalse.
-      const intptr_t lane = FindFirstTrue(d, AndNot(eqL, Not(eqR)));
+      const intptr_t lane = FindFirstTrue(d, ExclusiveNeither(eqL, eqR));
       HWY_DASSERT(lane >= 0);
       third = st.SetKey(d, keys + pos + static_cast<size_t>(lane));
       if (VQSORT_PRINT >= 2) {

@@ -237,6 +237,11 @@ struct TestLogicalMask {
     HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
     HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
 
+    Print(d, ".", VecFromMask(d, ExclusiveNeither(m0, m0)));
+    HWY_ASSERT_MASK_EQ(d, m_all, ExclusiveNeither(m0, m0));
+    HWY_ASSERT_MASK_EQ(d, m0, ExclusiveNeither(m_all, m0));
+    HWY_ASSERT_MASK_EQ(d, m0, ExclusiveNeither(m0, m_all));
+
     // For all combinations of zero/nonzero state of subset of lanes:
     const size_t max_lanes = AdjustedLog2Reps(HWY_MIN(N, size_t(6)));
     for (size_t code = 0; code < (1ull << max_lanes); ++code) {

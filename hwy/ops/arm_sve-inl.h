@@ -736,6 +736,10 @@ HWY_API svbool_t Xor(svbool_t a, svbool_t b) {
   return svsel_b(a, svnand_b_z(a, a, b), b);  // a ? !(a & b) : b.
 }
 
+HWY_API svbool_t ExclusiveNeither(svbool_t a, svbool_t b) {
+  return svnor_b_z(HWY_SVE_PTRUE(8), a, b);  // !a && !b, undefined if a && b.
+}
+
 // ------------------------------ CountTrue
 
 #define HWY_SVE_COUNT_TRUE(BASE, CHAR, BITS, HALF, NAME, OP)           \

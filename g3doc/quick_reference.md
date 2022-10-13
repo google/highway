@@ -673,13 +673,19 @@ false is zero, true has all bits set:
     whether both input mask elements were true.
 
 *   <code>M **AndNot**(M not_a, M b)</code>: returns mask of elements indicating
-    whether not_a is false and b is true.
+    whether `not_a` is false and `b` is true.
 
 *   <code>M **Or**(M a, M b)</code>: returns mask of elements indicating whether
     either input mask element was true.
 
 *   <code>M **Xor**(M a, M b)</code>: returns mask of elements indicating
     whether exactly one input mask element was true.
+
+*   <code>M **ExclusiveNeither**(M a, M b)</code>: returns mask of elements
+    indicating `a` is false and `b` is false. Undefined if both are true. We
+    choose not to provide NotOr/NotXor because x86 and SVE only define one of
+    these operations. This op is for situations where the inputs are known to be
+    mutually exclusive.
 
 #### Compress
 

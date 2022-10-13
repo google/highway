@@ -983,6 +983,47 @@ HWY_INLINE Mask128<T, N> Xor(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> a,
 #endif
 }
 
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<1> /*tag*/,
+                                          const Mask128<T, N> a,
+                                          const Mask128<T, N> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask128<T, N>{_kxnor_mask16(a.raw, b.raw)};
+#else
+  return Mask128<T, N>{static_cast<__mmask16>(~(a.raw ^ b.raw) & 0xFFFF)};
+#endif
+}
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<2> /*tag*/,
+                                          const Mask128<T, N> a,
+                                          const Mask128<T, N> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask128<T, N>{_kxnor_mask8(a.raw, b.raw)};
+#else
+  return Mask128<T, N>{static_cast<__mmask8>(~(a.raw ^ b.raw) & 0xFF)};
+#endif
+}
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<4> /*tag*/,
+                                          const Mask128<T, N> a,
+                                          const Mask128<T, N> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask128<T, N>{static_cast<__mmask8>(_kxnor_mask8(a.raw, b.raw) & 0xF)};
+#else
+  return Mask128<T, N>{static_cast<__mmask8>(~(a.raw ^ b.raw) & 0xF)};
+#endif
+}
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<8> /*tag*/,
+                                          const Mask128<T, N> a,
+                                          const Mask128<T, N> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask128<T, N>{static_cast<__mmask8>(_kxnor_mask8(a.raw, b.raw) & 0x3)};
+#else
+  return Mask128<T, N>{static_cast<__mmask8>(~(a.raw ^ b.raw) & 0x3)};
+#endif
+}
+
 }  // namespace detail
 
 template <typename T, size_t N>
@@ -1010,6 +1051,11 @@ HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
   // Flip only the valid bits.
   // TODO(janwas): use _knot intrinsics if N >= 8.
   return Xor(m, Mask128<T, N>::FromBits((1ull << N) - 1));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> ExclusiveNeither(const Mask128<T, N> a, Mask128<T, N> b) {
+  return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 #else  // AVX2 or below
@@ -1107,6 +1153,12 @@ template <typename T, size_t N>
 HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
   const Simd<T, N, 0> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> ExclusiveNeither(const Mask128<T, N> a, Mask128<T, N> b) {
+  const Simd<T, N, 0> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), Not(VecFromMask(d, b))));
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3

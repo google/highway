@@ -341,6 +341,12 @@ HWY_API Mask1<T> Xor(const Mask1<T> a, Mask1<T> b) {
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
+template <typename T>
+HWY_API Mask1<T> ExclusiveNeither(const Mask1<T> a, Mask1<T> b) {
+  const Sisd<T> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), Not(VecFromMask(d, b))));
+}
+
 // ================================================== SHIFTS
 
 // ------------------------------ ShiftLeft/ShiftRight (BroadcastSignBit)

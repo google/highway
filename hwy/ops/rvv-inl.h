@@ -1111,6 +1111,9 @@ HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Or, or)
 // ------------------------------ Xor
 HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, Xor, xor)
 
+// ------------------------------ ExclusiveNeither
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGMM, ExclusiveNeither, xnor)
+
 #undef HWY_RVV_RETM_ARGMM
 
 // ------------------------------ IfThenElse

@@ -764,6 +764,43 @@ HWY_INLINE Mask256<T> Xor(hwy::SizeTag<8> /*tag*/, const Mask256<T> a,
 #endif
 }
 
+template <typename T>
+HWY_INLINE Mask256<T> ExclusiveNeither(hwy::SizeTag<1> /*tag*/,
+                                       const Mask256<T> a, const Mask256<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask256<T>{_kxnor_mask32(a.raw, b.raw)};
+#else
+  return Mask256<T>{static_cast<__mmask32>(~(a.raw ^ b.raw) & 0xFFFFFFFF)};
+#endif
+}
+template <typename T>
+HWY_INLINE Mask256<T> ExclusiveNeither(hwy::SizeTag<2> /*tag*/,
+                                       const Mask256<T> a, const Mask256<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask256<T>{_kxnor_mask16(a.raw, b.raw)};
+#else
+  return Mask256<T>{static_cast<__mmask16>(~(a.raw ^ b.raw) & 0xFFFF)};
+#endif
+}
+template <typename T>
+HWY_INLINE Mask256<T> ExclusiveNeither(hwy::SizeTag<4> /*tag*/,
+                                       const Mask256<T> a, const Mask256<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask256<T>{_kxnor_mask8(a.raw, b.raw)};
+#else
+  return Mask256<T>{static_cast<__mmask8>(~(a.raw ^ b.raw) & 0xFF)};
+#endif
+}
+template <typename T>
+HWY_INLINE Mask256<T> ExclusiveNeither(hwy::SizeTag<8> /*tag*/,
+                                       const Mask256<T> a, const Mask256<T> b) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask256<T>{static_cast<__mmask8>(_kxnor_mask8(a.raw, b.raw) & 0xF)};
+#else
+  return Mask256<T>{static_cast<__mmask8>(~(a.raw ^ b.raw) & 0xF)};
+#endif
+}
+
 }  // namespace detail
 
 template <typename T>
@@ -791,6 +828,11 @@ HWY_API Mask256<T> Not(const Mask256<T> m) {
   // Flip only the valid bits.
   constexpr size_t N = 32 / sizeof(T);
   return Xor(m, Mask256<T>::FromBits((1ull << N) - 1));
+}
+
+template <typename T>
+HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
+  return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
 #else  // AVX2
@@ -881,6 +923,12 @@ template <typename T>
 HWY_API Mask256<T> Xor(const Mask256<T> a, Mask256<T> b) {
   const Full256<T> d;
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
+}
+
+template <typename T>
+HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
+  const Full256<T> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), Not(VecFromMask(d, b))));
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3

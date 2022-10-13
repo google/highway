@@ -1084,6 +1084,12 @@ HWY_API Mask256<T> Xor(const Mask256<T> a, Mask256<T> b) {
   return MaskFromVec(Xor(VecFromMask(d, a), VecFromMask(d, b)));
 }
 
+template <typename T>
+HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
+  const Full256<T> d;
+  return MaskFromVec(AndNot(VecFromMask(d, a), Not(VecFromMask(d, b))));
+}
+
 // ------------------------------ Shl (BroadcastSignBit, IfThenElse)
 
 // The x86 multiply-by-Pow2() trick will not work because WASM saturates
