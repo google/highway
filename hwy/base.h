@@ -143,7 +143,7 @@
 #define HWY_DEFAULT_UNROLL HWY_UNROLL()
 #else
 #define HWY_UNROLL(factor)
-#define HWY_DEFAULT_UNROLL HWY_UNROLL()
+#define HWY_DEFAULT_UNROLL
 #endif
 
 

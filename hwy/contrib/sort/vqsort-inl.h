@@ -908,6 +908,7 @@ HWY_INLINE const char* PivotResultString(PivotResult result) {
     case PivotResult::kWasLast:
       return "last";
   }
+  return "unknown";
 }
 
 template <class Traits, typename T>
