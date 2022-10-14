@@ -6121,6 +6121,13 @@ HWY_API size_t CountTrue(const Simd<T, N, 0> /* tag */,
 }
 
 template <typename T, size_t N>
+HWY_API size_t FindKnownFirstTrue(const Simd<T, N, 0> /* tag */,
+                                  const Mask128<T, N> mask) {
+  const uint32_t mask_bits = static_cast<uint32_t>(mask.raw) & ((1u << N) - 1);
+  return Num0BitsBelowLS1Bit_Nonzero32(mask_bits);
+}
+
+template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N, 0> /* tag */,
                                const Mask128<T, N> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(mask.raw) & ((1u << N) - 1);
@@ -6583,6 +6590,13 @@ template <typename T, size_t N>
 HWY_API size_t CountTrue(const Simd<T, N, 0> /* tag */,
                          const Mask128<T, N> mask) {
   return PopCount(detail::BitsFromMask(mask));
+}
+
+template <typename T, size_t N>
+HWY_API size_t FindKnownFirstTrue(const Simd<T, N, 0> /* tag */,
+                                  const Mask128<T, N> mask) {
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  return Num0BitsBelowLS1Bit_Nonzero64(mask_bits);
 }
 
 template <typename T, size_t N>

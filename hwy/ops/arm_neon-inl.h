@@ -5533,6 +5533,15 @@ HWY_API size_t CountTrue(Simd<T, N, 0> d, const Mask128<T, N> mask) {
   constexpr int kDiv = 4 * sizeof(T);
   return PopCount(detail::NibblesFromMask(d, mask)) / kDiv;
 }
+
+template <typename T, size_t N>
+HWY_API size_t FindKnownFirstTrue(const Simd<T, N, 0> d,
+                                  const Mask128<T, N> mask) {
+  const uint64_t nib = detail::NibblesFromMask(d, mask);
+  constexpr size_t kDiv = 4 * sizeof(T);
+  return Num0BitsBelowLS1Bit_Nonzero64(nib) / kDiv;
+}
+
 template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N, 0> d,
                                const Mask128<T, N> mask) {

@@ -3715,6 +3715,13 @@ HWY_API bool AllTrue(const Simd<T, N, 0> /* d */, const Mask128<T, N> m) {
 }
 
 template <typename T, size_t N>
+HWY_API size_t FindKnownFirstTrue(const Simd<T, N, 0> /* tag */,
+                                  const Mask128<T, N> mask) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  return Num0BitsBelowLS1Bit_Nonzero64(bits);
+}
+
+template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(const Simd<T, N, 0> /* tag */,
                                const Mask128<T, N> mask) {
   const uint64_t bits = detail::BitsFromMask(mask);

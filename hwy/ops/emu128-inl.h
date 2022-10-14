@@ -2319,6 +2319,16 @@ HWY_API size_t CountTrue(Simd<T, N, 0> /* tag */, const Mask128<T, N> mask) {
 }
 
 template <typename T, size_t N>
+HWY_API size_t FindKnownFirstTrue(Simd<T, N, 0> /* tag */,
+                               const Mask128<T, N> mask) {
+  for (size_t i = 0; i < N; ++i) {
+    if (mask.bits[i] != 0) return i;
+  }
+  HWY_DASSERT(false);
+  return 0;
+}
+
+template <typename T, size_t N>
 HWY_API intptr_t FindFirstTrue(Simd<T, N, 0> /* tag */,
                                const Mask128<T, N> mask) {
   for (size_t i = 0; i < N; ++i) {

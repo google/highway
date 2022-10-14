@@ -483,7 +483,7 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
     const Mask<D> eqR = st.EqualKeys(d, v, valueR);
     // At least one other value present; will require a regular partition.
     // On AVX-512, Or + AllTrue are folded into a single kortest if we are
-    // careful with the FindFirstTrue argument, see below.
+    // careful with the FindKnownFirstTrue argument, see below.
     if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
       // If we repeat Or(eqL, eqR) here, the compiler will hoist it into the
       // loop, which is a pessimization because this if-true branch is cold.
@@ -491,9 +491,8 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
       // eqR cannot be true at the same time. Can we elide the additional Not?
       // FindFirstFalse instructions are generally unavailable, but we can
       // fuse Not and Xor/Or into one ExclusiveNeither.
-      const intptr_t lane = FindFirstTrue(d, ExclusiveNeither(eqL, eqR));
-      HWY_DASSERT(lane >= 0);
-      third = st.SetKey(d, keys + i + static_cast<size_t>(lane));
+      const size_t lane = FindKnownFirstTrue(d, ExclusiveNeither(eqL, eqR));
+      third = st.SetKey(d, keys + i + lane);
       if (VQSORT_PRINT >= 2) {
         fprintf(stderr, "found 3rd value at vec %zu; writeL %zu\n", i, writeL);
       }
@@ -519,9 +518,8 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
   const Mask<D> eq = Or(Or(eqL, eqR), Not(valid));
   // At least one other value present; will require a regular partition.
   if (HWY_UNLIKELY(!AllTrue(d, eq))) {
-    const intptr_t lane = FindFirstTrue(d, Not(eq));
-    HWY_DASSERT(lane >= 0);
-    third = st.SetKey(d, keys + i + static_cast<size_t>(lane));
+    const size_t lane = FindKnownFirstTrue(d, Not(eq));
+    third = st.SetKey(d, keys + i + lane);
     if (VQSORT_PRINT >= 2) {
       fprintf(stderr, "found 3rd value at partial vec %zu; writeL %zu\n", i,
               writeL);
@@ -573,11 +571,10 @@ HWY_NOINLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
     const Mask<D> eqR = st.EqualKeys(d, v, valueR);
     // If there is a third value, stop and undo what we've done. On AVX-512,
     // Or + AllTrue are folded into a single kortest, but only if we are
-    // careful with the FindFirstTrue argument - see prior comment on that.
+    // careful with the FindKnownFirstTrue argument - see prior comment on that.
     if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
-      const intptr_t lane = FindFirstTrue(d, ExclusiveNeither(eqL, eqR));
-      HWY_DASSERT(lane >= 0);
-      third = st.SetKey(d, keys + pos + static_cast<size_t>(lane));
+      const size_t lane = FindKnownFirstTrue(d, ExclusiveNeither(eqL, eqR));
+      third = st.SetKey(d, keys + pos + lane);
       if (VQSORT_PRINT >= 2) {
         fprintf(stderr, "found 3rd value at vec %zu; countR %zu\n", pos,
                 countR);
@@ -609,9 +606,8 @@ HWY_NOINLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
   const Mask<D> eq = Or(Or(eqL, eqR), Not(valid));
   // At least one other value present; will require a regular partition.
   if (HWY_UNLIKELY(!AllTrue(d, eq))) {
-    const intptr_t lane = FindFirstTrue(d, Not(eq));
-    HWY_DASSERT(lane >= 0);
-    third = st.SetKey(d, keys + static_cast<size_t>(lane));
+    const size_t lane = FindKnownFirstTrue(d, Not(eq));
+    third = st.SetKey(d, keys + lane);
     if (VQSORT_PRINT >= 2) {
       fprintf(stderr, "found 3rd value at partial vec %zu; writeR %zu\n", pos,
               countR);
@@ -978,9 +974,8 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
     // Only check masked lanes; consider others to be equal.
     const Mask<D> diff = And(FirstN(d, consume), st.NotEqualKeys(d, v, pivot));
     if (HWY_UNLIKELY(!AllFalse(d, diff))) {
-      const intptr_t lane = FindFirstTrue(d, diff);
-      HWY_DASSERT(lane >= 0);
-      *first_mismatch = static_cast<size_t>(lane);
+      const size_t lane = FindKnownFirstTrue(d, diff);
+      *first_mismatch = lane;
       return false;
     }
   }
@@ -1019,9 +1014,8 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
         const Vec<D> v = Load(d, keys + i);
         const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
         if (HWY_UNLIKELY(!AllFalse(d, diff))) {
-          const intptr_t lane = FindFirstTrue(d, diff);
-          HWY_DASSERT(lane >= 0);
-          *first_mismatch = i + static_cast<size_t>(lane);
+          const size_t lane = FindKnownFirstTrue(d, diff);
+          *first_mismatch = i + lane;
           return false;
         }
       }
@@ -1033,9 +1027,8 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
     const Vec<D> v = Load(d, keys + i);
     const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
     if (HWY_UNLIKELY(!AllFalse(d, diff))) {
-      const intptr_t lane = FindFirstTrue(d, diff);
-      HWY_DASSERT(lane >= 0);
-      *first_mismatch = i + static_cast<size_t>(lane);
+      const size_t lane = FindKnownFirstTrue(d, diff);
+      *first_mismatch = i + lane;
       return false;
     }
   }
@@ -1044,9 +1037,8 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   const Vec<D> v = LoadU(d, keys + i);
   const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
   if (HWY_UNLIKELY(!AllFalse(d, diff))) {
-    const intptr_t lane = FindFirstTrue(d, diff);
-    HWY_DASSERT(lane >= 0);
-    *first_mismatch = i + static_cast<size_t>(lane);
+    const size_t lane = FindKnownFirstTrue(d, diff);
+    *first_mismatch = i + lane;
     return false;
   }
 

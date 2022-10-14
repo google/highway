@@ -785,6 +785,12 @@ HWY_API intptr_t FindFirstTrue(D d, svbool_t m) {
                               CountTrue(d, svbrkb_b_z(detail::MakeMask(d), m)));
 }
 
+// ------------------------------ FindKnownFirstTrue
+template <class D>
+HWY_API size_t FindKnownFirstTrue(D d, svbool_t m) {
+  return CountTrue(d, svbrkb_b_z(detail::MakeMask(d), m));
+}
+
 // ------------------------------ IfThenElse
 #define HWY_SVE_IF_THEN_ELSE(BASE, CHAR, BITS, HALF, NAME, OP)                \
   HWY_API HWY_SVE_V(BASE, BITS)                                               \

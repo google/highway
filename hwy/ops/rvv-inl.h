@@ -1224,14 +1224,19 @@ HWY_API V IfNegativeThenElse(V v, V yes, V no) {
 
 // ------------------------------ FindFirstTrue
 
-#define HWY_RVV_FIND_FIRST_TRUE(SEW, SHIFT, MLEN, NAME, OP) \
-  template <class D>                                        \
-  HWY_API intptr_t FindFirstTrue(D d, HWY_RVV_M(MLEN) m) {  \
-    static_assert(MLenFromD(d) == MLEN, "Type mismatch");   \
-    return vfirst_m_b##MLEN(m, Lanes(d));                   \
+#define HWY_RVV_FIND_FIRST_TRUE(SEW, SHIFT, MLEN, NAME, OP)    \
+  template <class D>                                           \
+  HWY_API intptr_t FindFirstTrue(D d, HWY_RVV_M(MLEN) m) {     \
+    static_assert(MLenFromD(d) == MLEN, "Type mismatch");      \
+    return vfirst_m_b##MLEN(m, Lanes(d));                      \
+  }                                                            \
+  template <class D>                                           \
+  HWY_API size_t FindKnownFirstTrue(D d, HWY_RVV_M(MLEN) m) {  \
+    static_assert(MLenFromD(d) == MLEN, "Type mismatch");      \
+    return static_cast<size_t>(vfirst_m_b##MLEN(m, Lanes(d))); \
   }
 
-HWY_RVV_FOREACH_B(HWY_RVV_FIND_FIRST_TRUE, _, _)
+HWY_RVV_FOREACH_B(HWY_RVV_FIND_FIRST_TRUE, , _)
 #undef HWY_RVV_FIND_FIRST_TRUE
 
 // ------------------------------ AllFalse

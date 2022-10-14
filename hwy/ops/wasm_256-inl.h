@@ -2578,6 +2578,13 @@ HWY_API bool AllTrue(const Full256<T> /* tag */, const Mask128<T> m) {
 }
 
 template <typename T>
+HWY_API size_t FindKnownFirstTrue(const Full256<T> /* tag */,
+                                  const Mask256<T> mask) {
+  const uint64_t bits = detail::BitsFromMask(mask);
+  return Num0BitsBelowLS1Bit_Nonzero64(bits);
+}
+
+template <typename T>
 HWY_API intptr_t FindFirstTrue(const Full256<T> /* tag */,
                                const Mask256<T> mask) {
   const uint64_t bits = detail::BitsFromMask(mask);

@@ -3693,15 +3693,21 @@ HWY_API size_t CountTrue(const Full512<T> /* tag */, const Mask512<T> mask) {
 }
 
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 1)>
-HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
-                               const Mask512<T> mask) {
-  return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask.raw)) : -1;
+HWY_API size_t FindKnownFirstTrue(const Full512<T> /* tag */,
+                                  const Mask512<T> mask) {
+  return Num0BitsBelowLS1Bit_Nonzero32(mask.raw);
 }
 
 template <typename T, HWY_IF_LANE_SIZE(T, 1)>
-HWY_API intptr_t FindFirstTrue(const Full512<T> /* tag */,
-                               const Mask512<T> mask) {
-  return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask.raw)) : -1;
+HWY_API size_t FindKnownFirstTrue(const Full512<T> /* tag */,
+                                  const Mask512<T> mask) {
+  return Num0BitsBelowLS1Bit_Nonzero64(mask.raw);
+}
+
+template <typename T>
+HWY_API intptr_t FindFirstTrue(const Full512<T> d, const Mask512<T> mask) {
+  return mask.raw ? static_cast<intptr_t>(FindKnownFirstTrue(d, mask))
+                  : intptr_t{-1};
 }
 
 // ------------------------------ Compress

@@ -646,6 +646,11 @@ encoding depends on the platform).
 *   <code>intptr_t **FindFirstTrue**(D, M m)</code>: returns the index of the
     first (i.e. lowest index) `m[i]` that is true, or -1 if none are.
 
+*   <code>size_t **FindKnownFirstTrue**(D, M m)</code>: returns the index of the
+    first (i.e. lowest index) `m[i]` that is true. Requires `!AllFalse(d, m)`,
+    otherwise results are undefined. This is typically more efficient than
+    `FindFirstTrue`.
+
 #### Ternary operator
 
 For `IfThen*`, masks must adhere to the invariant established by `MaskFromVec`:

@@ -4519,9 +4519,15 @@ HWY_API size_t CountTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
 }
 
 template <typename T>
-HWY_API intptr_t FindFirstTrue(const Full256<T> /* tag */,
-                               const Mask256<T> mask) {
-  return mask.raw ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask.raw)) : -1;
+HWY_API size_t FindKnownFirstTrue(const Full256<T> /* tag */,
+                                  const Mask256<T> mask) {
+  return Num0BitsBelowLS1Bit_Nonzero32(mask.raw);
+}
+
+template <typename T>
+HWY_API intptr_t FindFirstTrue(const Full256<T> d, const Mask256<T> mask) {
+  return mask.raw ? static_cast<intptr_t>(FindKnownFirstTrue(d, mask))
+                  : intptr_t{-1};
 }
 
 // Beware: the suffix indicates the number of mask bits, not lane size!
@@ -4962,6 +4968,13 @@ HWY_API size_t CountTrue(const Full256<T> d, const Mask256<T> mask) {
 template <typename T, HWY_IF_NOT_LANE_SIZE(T, 2)>
 HWY_API size_t CountTrue(const Full256<T> /* tag */, const Mask256<T> mask) {
   return PopCount(detail::BitsFromMask(mask));
+}
+
+template <typename T>
+HWY_API size_t FindKnownFirstTrue(const Full256<T> /* tag */,
+                                  const Mask256<T> mask) {
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  return Num0BitsBelowLS1Bit_Nonzero64(mask_bits);
 }
 
 template <typename T>

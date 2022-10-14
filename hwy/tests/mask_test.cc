@@ -189,7 +189,7 @@ HWY_NOINLINE void TestAllCountTrue() {
   ForAllTypes(ForPartialVectors<TestCountTrue>());
 }
 
-struct TestFindFirstTrue {
+struct TestFindFirstTrue {  // Also FindKnownFirstTrue
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     using TI = MakeSigned<T>;  // For mask > 0 comparison
@@ -203,17 +203,18 @@ struct TestFindFirstTrue {
 
     HWY_ASSERT_EQ(intptr_t(-1), FindFirstTrue(d, MaskFalse(d)));
     HWY_ASSERT_EQ(intptr_t(0), FindFirstTrue(d, MaskTrue(d)));
+    HWY_ASSERT_EQ(size_t(0), FindKnownFirstTrue(d, MaskTrue(d)));
 
     for (size_t code = 1; code < (1ull << max_lanes); ++code) {
       for (size_t i = 0; i < max_lanes; ++i) {
         bool_lanes[i] = (code & (1ull << i)) ? TI(1) : TI(0);
       }
 
-      const intptr_t expected = static_cast<intptr_t>(
-          Num0BitsBelowLS1Bit_Nonzero32(static_cast<uint32_t>(code)));
+      const size_t expected =
+          Num0BitsBelowLS1Bit_Nonzero32(static_cast<uint32_t>(code));
       const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
-      const intptr_t actual = FindFirstTrue(d, mask);
-      HWY_ASSERT_EQ(expected, actual);
+      HWY_ASSERT_EQ(static_cast<intptr_t>(expected), FindFirstTrue(d, mask));
+      HWY_ASSERT_EQ(expected, FindKnownFirstTrue(d, mask));
     }
   }
 };

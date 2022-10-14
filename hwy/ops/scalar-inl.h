@@ -1474,6 +1474,11 @@ HWY_API intptr_t FindFirstTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
   return mask.bits == 0 ? -1 : 0;
 }
 
+template <typename T>
+HWY_API size_t FindKnownFirstTrue(Sisd<T> /* tag */, const Mask1<T> /* m */) {
+  return 0;  // There is only one lane and we know it is true.
+}
+
 // ------------------------------ Compress, CompressBits
 
 template <typename T>
