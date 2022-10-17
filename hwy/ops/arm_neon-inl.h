@@ -4666,14 +4666,14 @@ HWY_API Vec128<int16_t> ReorderDemote2To(Full128<int16_t> d16,
   return Vec128<int16_t>(vqmovn_high_s32(a16.raw, b.raw));
 #else
   const Vec64<int16_t> b16(vqmovn_s32(b.raw));
-  return Combine(d16, a16, b16);
+  return Combine(d16, b16, a16);
 #endif
 }
 
 HWY_API Vec64<int16_t> ReorderDemote2To(Full64<int16_t> /*d16*/,
                                         Vec64<int32_t> a, Vec64<int32_t> b) {
   const Full128<int32_t> d32;
-  const Vec128<int32_t> ab = Combine(d32, a, b);
+  const Vec128<int32_t> ab = Combine(d32, b, a);
   return Vec64<int16_t>(vqmovn_s32(ab.raw));
 }
 
