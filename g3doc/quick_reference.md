@@ -49,7 +49,9 @@ The public headers are:
 *   hwy/tests/test_util-inl.h: defines macros for invoking tests on all
     available targets, plus per-target functions useful in tests.
 
-SIMD implementations must be preceded and followed by the following:
+Highway provides helper macros to simplify your vector code and ensure support
+for dynamic dispatch. To use these, add the following to the start and end of
+any vector code:
 
 ```
 #include "hwy/highway.h"
@@ -64,6 +66,10 @@ namespace HWY_NAMESPACE {
 }  // namespace project - optional
 HWY_AFTER_NAMESPACE();
 ```
+
+If you choose not to use the `BEFORE/AFTER` lines, you must prefix any function
+that calls Highway ops such as `Load` with `HWY_ATTR`. You can omit the
+`HWY_NAMESPACE` lines if not using dynamic dispatch.
 
 ## Notation in this doc
 
