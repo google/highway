@@ -1138,15 +1138,15 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 #### Zip
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
-    <code>Ret **ZipLower**([D, ] V a, V b)</code>: returns the same bits as
+    <code>Ret **ZipLower**([DW, ] V a, V b)</code>: returns the same bits as
     `InterleaveLower`, but repartitioned into double-width lanes (required in
-    order to use this operation with scalars). The optional `D` (provided for
+    order to use this operation with scalars). The optional `DW` (provided for
     consistency with `ZipUpper`) is `RepartitionToWide<DFromV<V>>`.
 
 *   `Ret`: `MakeWide<T>`; `V`: `{u,i}{8,16,32}` \
-    <code>Ret **ZipUpper**(D, V a, V b)</code>: returns the same bits as
+    <code>Ret **ZipUpper**(DW, V a, V b)</code>: returns the same bits as
     `InterleaveUpper`, but repartitioned into double-width lanes (required in
-    order to use this operation with scalars). `D` is
+    order to use this operation with scalars). `DW` is
     `RepartitionToWide<DFromV<V>>`. Only available if `HWY_TARGET !=
     HWY_SCALAR`.
 
