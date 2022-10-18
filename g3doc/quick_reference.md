@@ -1450,6 +1450,14 @@ target-specific attributes introduced via #pragma. Function using SIMD must
 reside between `HWY_BEFORE_NAMESPACE` and `HWY_AFTER_NAMESPACE`. Alternatively,
 individual functions or lambdas may be prefixed with `HWY_ATTR`.
 
+If you know the SVE vector width and are using static dispatch, you can specify
+`-march=armv9-a+sve2-aes -msve-vector-bits=128` and Highway will then use
+`HWY_SVE2_128` as the baseline. Similarly, `-march=armv8.2-a+sve
+-msve-vector-bits=256` enables the `HWY_SVE_256` specialization for Neoverse V1.
+Note that these flags are unnecessary when using dynamic dispatch. Highway will
+automatically detect and dispatch to the best available target, including
+`HWY_SVE2_128` or `HWY_SVE_256`.
+
 Immediates (compile-time constants) are specified as template arguments to avoid
 constant-propagation issues with Clang on ARM.
 
