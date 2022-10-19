@@ -329,7 +329,8 @@ static HWY_NOINLINE void TestPartition() {
             }
 
             size_t border =
-                detail::Partition(d, st, lanes, left, right, pivot, buf.get());
+                left + detail::Partition(d, st, lanes + left, right - left,
+                                         pivot, buf.get());
 
             if (kDebug >= 2) {
               printf("out>>>>>>\n");

@@ -206,19 +206,19 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
 
 // ------------------------------ Partition
 
-// Consumes from `left` until a multiple of kUnroll*N remains.
-// Temporarily stores the right side into `buf`, then moves behind `right`.
+// Consumes from `keys` until a multiple of kUnroll*N remains.
+// Temporarily stores the right side into `buf`, then moves behind `num`.
+// Returns the number of keys consumed from the left side.
 template <class D, class Traits, class T>
-HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
-                                              T* HWY_RESTRICT keys,
-                                              size_t& left, size_t& right,
-                                              const Vec<D> pivot,
-                                              T* HWY_RESTRICT buf) {
+HWY_NOINLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
+                                                T* HWY_RESTRICT keys,
+                                                size_t& num, const Vec<D> pivot,
+                                                T* HWY_RESTRICT buf) {
   constexpr size_t kUnroll = Constants::kPartitionUnroll;
   const size_t N = Lanes(d);
-  size_t readL = left;
+  size_t readL = 0;
+  T* HWY_RESTRICT posL = keys;
   size_t bufR = 0;
-  const size_t num = right - left;
   // Partition requires both a multiple of kUnroll*N and at least
   // 2*kUnroll*N for the initial loads. If less, consume all here.
   const size_t num_rem =
@@ -229,7 +229,7 @@ HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
     readL += N;
 
     const auto comp = st.Compare(d, pivot, vL);
-    left += CompressBlendedStore(vL, Not(comp), d, keys + left);
+    posL += CompressBlendedStore(vL, Not(comp), d, posL);
     bufR += CompressStore(vL, comp, d, buf + bufR);
   }
   // Last iteration: only use valid lanes.
@@ -238,22 +238,23 @@ HWY_NOINLINE void PartitionToMultipleOfUnroll(D d, Traits st,
     const Vec<D> vL = LoadU(d, keys + readL);
 
     const auto comp = st.Compare(d, pivot, vL);
-    left += CompressBlendedStore(vL, AndNot(comp, mask), d, keys + left);
+    posL += CompressBlendedStore(vL, AndNot(comp, mask), d, posL);
     bufR += CompressStore(vL, And(comp, mask), d, buf + bufR);
   }
 
   // MSAN seems not to understand CompressStore. buf[0, bufR) are valid.
   UnpoisonIfMemorySanitizer(buf, bufR * sizeof(T));
 
-  // Everything we loaded was put into buf, or behind the new `left`, after
-  // which there is space for bufR items. First move items from `right` to
-  // `left` to free up space, then copy `buf` into the vacated `right`.
+  // Everything we loaded was put into buf, or behind the current `posL`, after
+  // which there is space for bufR items. First move items from `keys + num` to
+  // `posL` to free up space, then copy `buf` into the vacated `keys + num`.
   // A loop with masked loads from `buf` is insufficient - we would also need to
-  // mask from `right`. Combining a loop with memcpy for the remainders is
+  // mask from `keys + num`. Combining a loop with memcpy for the remainders is
   // slower than just memcpy, so we use that for simplicity.
-  right -= bufR;
-  memcpy(keys + left, keys + right, bufR * sizeof(T));
-  memcpy(keys + right, buf, bufR * sizeof(T));
+  num -= bufR;
+  memcpy(posL, keys + num, bufR * sizeof(T));
+  memcpy(keys + num, buf, bufR * sizeof(T));
+  return posL - keys;  // caller will shrink num by this.
 }
 
 template <class V>
@@ -315,21 +316,24 @@ HWY_INLINE void StoreLeftRight4(D d, Traits st, const Vec<D> v0,
 //
 // Aligned loads do not seem to be worthwhile (not bottlenecked by load ports).
 template <class D, class Traits, typename T>
-HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
-                              size_t right, const Vec<D> pivot,
-                              T* HWY_RESTRICT buf) {
+HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+                              const Vec<D> pivot, T* HWY_RESTRICT buf) {
   using V = decltype(Zero(d));
   const size_t N = Lanes(d);
 
   // StoreLeftRight will CompressBlendedStore ending at `writeR`. Unless all
   // lanes happen to be in the right-side partition, this will overrun `keys`,
   // which triggers asan errors. Avoid by special-casing the last vector.
-  HWY_DASSERT(right - left > 2 * N);  // ensured by HandleSpecialCases
-  right -= N;
-  const size_t last = right;
+  HWY_DASSERT(num > 2 * N);  // ensured by HandleSpecialCases
+  num -= N;
+  size_t last = num;
   const V vlast = LoadU(d, keys + last);
 
-  PartitionToMultipleOfUnroll(d, st, keys, left, right, pivot, buf);
+  const size_t consumedL =
+      PartitionToMultipleOfUnroll(d, st, keys, num, pivot, buf);
+  keys += consumedL;
+  last -= consumedL;
+  num -= consumedL;
   constexpr size_t kUnroll = Constants::kPartitionUnroll;
 
   // Partition splits the vector into 3 sections, left to right: Elements
@@ -363,12 +367,11 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
   // number of unpartitioned elements by a fixed amount, so we can compute
   // `remaining` without data dependencies.
   //
-  size_t writeL = left;
-  size_t remaining = right - left;
+  size_t writeL = 0;
+  size_t remaining = num;
 
-  const T* HWY_RESTRICT readL = keys + left;
-  const T* HWY_RESTRICT readR = keys + right;
-  const size_t num = right - left;
+  const T* HWY_RESTRICT readL = keys;
+  const T* HWY_RESTRICT readR = keys + num;
   // Cannot load if there were fewer than 2 * kUnroll * N.
   if (HWY_LIKELY(num != 0)) {
     HWY_DASSERT(num >= 2 * kUnroll * N);
@@ -456,7 +459,7 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t left,
   writeL += CompressBlendedStore(vlast, Not(comp), d, keys + writeL);
   (void)CompressBlendedStore(vlast, comp, d, keys + writeL);
 
-  return writeL;
+  return consumedL + writeL;
 }
 
 // Returns true and partitions if [keys, keys + num) contains only {valueL,
@@ -947,7 +950,7 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
   const size_t pivot_rank = PivotRank(st, samples);
   const Vec<D> pivot = st.SetKey(d, samples + pivot_rank);
   if (VQSORT_PRINT >= 2) {
-    fprintf(stderr, "  Pivot rank %zu = %.0f\n", pivot_rank,
+    fprintf(stderr, "  Pivot rank %zu = %f\n", pivot_rank,
             static_cast<double>(GetLane(pivot)));
   }
   return pivot;
@@ -1253,59 +1256,60 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
   }
 }
 
+// keys_end is the end of the entire user input, not just the current subarray
+// [keys, keys + num).
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
-                          T* HWY_RESTRICT keys_end, const size_t begin,
-                          const size_t end, T* HWY_RESTRICT buf, Generator& rng,
+                          T* HWY_RESTRICT keys_end, const size_t num,
+                          T* HWY_RESTRICT buf, Generator& rng,
                           size_t remaining_levels) {
-  const size_t num = end - begin;  // >= 1
-  HWY_DASSERT(begin < end);
+  HWY_DASSERT(num != 0);
 
   if (HWY_UNLIKELY(num <= Constants::BaseCaseNum(Lanes(d)))) {
-    BaseCase(d, st, keys + begin, keys_end, num, buf);
+    BaseCase(d, st, keys, keys_end, num, buf);
     return;
   }
 
   // Move after BaseCase so we skip printing for small subarrays.
   if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "\n\n=== Recurse remaining %zu [%zu %zu) len %zu\n",
-            remaining_levels, begin, end, num);
-    PrintMinMax(d, st, keys + begin, num, buf);
+    fprintf(stderr, "\n\n=== Recurse depth=%zu len=%zu\n", remaining_levels,
+            num);
+    PrintMinMax(d, st, keys, num, buf);
   }
 
-  DrawSamples(d, st, keys + begin, num, buf, rng);
+  DrawSamples(d, st, keys, num, buf, rng);
 
   Vec<D> pivot;
   PivotResult result = PivotResult::kNormal;
   if (HWY_UNLIKELY(UnsortedSampleEqual(d, st, buf))) {
     pivot = st.SetKey(d, buf);
     size_t idx_second = 0;
-    if (HWY_UNLIKELY(AllEqual(d, st, pivot, keys + begin, num, &idx_second))) {
+    if (HWY_UNLIKELY(AllEqual(d, st, pivot, keys, num, &idx_second))) {
       return;
     }
     HWY_DASSERT(idx_second % st.LanesPerKey() == 0);
     // Must capture the value before PartitionIfTwoKeys may overwrite it.
-    const Vec<D> second = st.SetKey(d, keys + begin + idx_second);
+    const Vec<D> second = st.SetKey(d, keys + idx_second);
     MaybePrintVector(d, "pivot", pivot, 0, st.LanesPerKey());
     MaybePrintVector(d, "second", second, 0, st.LanesPerKey());
 
     Vec<D> third;
-    if (HWY_UNLIKELY(PartitionIfTwoKeys(d, st, pivot, keys + begin, num,
-                                        idx_second, second, third, buf))) {
+    if (HWY_UNLIKELY(PartitionIfTwoKeys(d, st, pivot, keys, num, idx_second,
+                                        second, third, buf))) {
       return;  // Done, skip recursion because each side has all-equal keys.
     }
 
     // We can no longer start scanning from idx_second because
     // PartitionIfTwoKeys may have reordered keys.
-    pivot = ChoosePivotForEqualSamples(d, st, keys + begin, num, buf, second,
-                                       third, result);
+    pivot = ChoosePivotForEqualSamples(d, st, keys, num, buf, second, third,
+                                       result);
     // If kNormal, `pivot` is very common but not the first/last. It is
     // tempting to do a 3-way partition (to avoid moving the =pivot keys a
     // second time), but that is a net loss due to the extra comparisons.
   } else {
     SortSamples(d, st, buf);
 
-    if (HWY_UNLIKELY(PartitionIfTwoSamples(d, st, keys + begin, num, buf))) {
+    if (HWY_UNLIKELY(PartitionIfTwoSamples(d, st, keys, num, buf))) {
       return;
     }
 
@@ -1318,25 +1322,25 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     if (VQSORT_PRINT >= 1) {
       fprintf(stderr, "HeapSort reached, size=%zu\n", num);
     }
-    HeapSort(st, keys + begin, num);  // Slow but N*logN.
+    HeapSort(st, keys, num);  // Slow but N*logN.
     return;
   }
 
-  const size_t bound = Partition(d, st, keys, begin, end, pivot, buf);
+  const size_t bound = Partition(d, st, keys, num, pivot, buf);
   if (VQSORT_PRINT >= 2) {
-    fprintf(stderr, "begin %zu bound %zu end %zu (%zu %zu) result %s\n", begin,
-            bound, end, bound - begin, end - bound, PivotResultString(result));
+    fprintf(stderr, "bound %zu num %zu result %s\n", bound, num,
+            PivotResultString(result));
   }
-  // ChoosePivot ensures pivot != last key, so the right partition is never
-  // empty. Nor is the left, because the pivot is either one of the keys, or
-  // the value prior to the last (which is not the only value).
-  HWY_DASSERT(begin != bound && bound != end);
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
-    Recurse(d, st, keys, keys_end, begin, bound, buf, rng,
-            remaining_levels - 1);
+    // The left partition is not empty because the pivot is one of the keys.
+    HWY_DASSERT(0 != bound && bound != num);
+    Recurse(d, st, keys, keys_end, bound, buf, rng, remaining_levels - 1);
   }
   if (HWY_LIKELY(result != PivotResult::kWasLast)) {
-    Recurse(d, st, keys, keys_end, bound, end, buf, rng, remaining_levels - 1);
+    // ChoosePivot* ensure pivot != last, so the right partition is never empty.
+    HWY_DASSERT(bound != num);
+    Recurse(d, st, keys + bound, keys_end, num - bound, buf, rng,
+            remaining_levels - 1);
   }
 }
 
@@ -1420,7 +1424,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
   // Introspection: switch to worst-case N*logN heapsort after this many.
   const size_t max_levels = 2 * hwy::CeilLog2(num) + 4;
-  detail::Recurse(d, st, keys, keys + num, 0, num, buf, rng, max_levels);
+  detail::Recurse(d, st, keys, keys + num, num, buf, rng, max_levels);
 #else
   (void)d;
   (void)buf;
