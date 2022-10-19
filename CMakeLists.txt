@@ -27,6 +27,10 @@ set(LIBRARY_SOVERSION ${hwy_VERSION_MAJOR})
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+# Search for Atomics implementation:
+find_package(Atomics REQUIRED)
+
 # Enabled PIE binaries by default if supported.
 include(CheckPIESupported OPTIONAL RESULT_VARIABLE CHECK_PIE_SUPPORTED)
 if(CHECK_PIE_SUPPORTED)
@@ -282,11 +286,9 @@ target_include_directories(hwy PUBLIC
 target_compile_features(hwy PUBLIC cxx_std_11)
 set_target_properties(hwy PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
+# For GCC __atomic_store_8, see #887
+target_link_libraries(hwy PRIVATE ${ATOMICS_LIBRARIES})
 if(UNIX AND NOT APPLE)
-  # For GCC __atomic_store_8, see #887
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT HWY_EMSCRIPTEN)
-    target_link_libraries(hwy atomic)
-  endif()
   # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
   set_property(TARGET hwy APPEND_STRING PROPERTY
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
