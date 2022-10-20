@@ -254,7 +254,7 @@ HWY_NOINLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
   num -= bufR;
   memcpy(posL, keys + num, bufR * sizeof(T));
   memcpy(keys + num, buf, bufR * sizeof(T));
-  return posL - keys;  // caller will shrink num by this.
+  return static_cast<size_t>(posL - keys);  // caller will shrink num by this.
 }
 
 template <class V>
