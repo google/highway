@@ -19,7 +19,7 @@ run_tests.bat
 #### JPEG XL clang (debug, asan, msan)
 
 ```
-for VER in 7 8 9 10 11; do
+for VER in 9 10 11 12 13; do
   rm -rf build_debug$VER && CC=clang-$VER CXX=clang++-$VER BUILD_DIR=build_debug$VER SKIP_TEST=1 ./ci.sh debug && ./ci.sh test -R PassesTest && rm -rf build_debug$VER
   rm -rf build_asan$VER  && CC=clang-$VER CXX=clang++-$VER BUILD_DIR=build_asan$VER  ./ci.sh asan  && rm -rf build_asan$VER
   rm -rf build_msan$VER  && CC=clang-$VER CXX=clang++-$VER BUILD_DIR=build_msan$VER  ./ci.sh msan  && rm -rf build_msan$VER
