@@ -19,6 +19,12 @@ if(POLICY CMP0083)
   cmake_policy(SET CMP0083 NEW)
 endif()
 
+# Workaround for 3.19 raising error 'IMPORTED_LOCATION not set for imported
+# target "GTest::gtest_main"'.
+if(POLICY CMP0111)
+  cmake_policy(SET CMP0111 OLD)
+endif()
+
 project(hwy VERSION 1.0.1)  # Keep in sync with highway.h version
 
 # Directly define the ABI version from the cmake project() version values:
@@ -553,7 +559,7 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   # that include us may set them.
   target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
 
-  target_link_libraries(${TESTNAME} PRIVATE ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
+  target_link_libraries(${TESTNAME} ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "tests")
 
