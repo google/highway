@@ -325,6 +325,10 @@ static inline HWY_MAYBE_UNUSED bool operator>(const K64V64& a,
                                               const K64V64& b) {
   return b < a;
 }
+static inline HWY_MAYBE_UNUSED bool operator==(const K64V64& a,
+                                               const K64V64& b) {
+  return a.key == b.key;
+}
 
 static inline HWY_MAYBE_UNUSED bool operator<(const K32V32& a,
                                               const K32V32& b) {
@@ -334,6 +338,10 @@ static inline HWY_MAYBE_UNUSED bool operator<(const K32V32& a,
 static inline HWY_MAYBE_UNUSED bool operator>(const K32V32& a,
                                               const K32V32& b) {
   return b < a;
+}
+static inline HWY_MAYBE_UNUSED bool operator==(const K32V32& a,
+                                               const K32V32& b) {
+  return a.key == b.key;
 }
 
 //------------------------------------------------------------------------------

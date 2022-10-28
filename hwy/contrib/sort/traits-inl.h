@@ -42,6 +42,9 @@ namespace detail {
 template <typename T>
 struct KeyLane {
   static constexpr bool Is128() { return false; }
+  // False indicates the entire key (i.e. lane) should be compared. KV stands
+  // for key-value.
+  static constexpr bool IsKV() { return false; }
   constexpr size_t LanesPerKey() const { return 1; }
 
   // What type bench_sort should allocate for generating inputs.
@@ -83,7 +86,15 @@ struct KeyLane {
     return Ne(a, b);
   }
 
-  HWY_INLINE bool Equal1(const T* a, const T* b) { return *a == *b; }
+  // For keys=lanes, any difference counts.
+  template <class D>
+  HWY_INLINE bool NoKeyDifference(D /*tag*/, Vec<D> diff) const {
+    // Must avoid floating-point comparisons (for -0)
+    const RebindToUnsigned<D> du;
+    return AllTrue(du, Eq(BitCast(du, diff), Zero(du)));
+  }
+
+  HWY_INLINE bool Equal1(const T* a, const T* b) const { return *a == *b; }
 
   template <class D>
   HWY_INLINE Vec<D> ReverseKeys(D d, Vec<D> v) const {
@@ -281,7 +292,37 @@ struct OrderDescending : public KeyLane<T> {
   }
 };
 
-struct OrderAscendingKV64 : public KeyLane<uint64_t> {
+struct KeyValue64 : public KeyLane<uint64_t> {
+  // True indicates only part of the key (i.e. lane) should be compared. KV
+  // stands for key-value.
+  static constexpr bool IsKV() { return true; }
+
+  template <class D>
+  HWY_INLINE Mask<D> EqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
+    return Eq(ShiftRight<32>(a), ShiftRight<32>(b));
+  }
+
+  template <class D>
+  HWY_INLINE Mask<D> NotEqualKeys(D /*tag*/, Vec<D> a, Vec<D> b) const {
+    return Ne(ShiftRight<32>(a), ShiftRight<32>(b));
+  }
+
+  HWY_INLINE bool Equal1(const uint64_t* a, const uint64_t* b) const {
+    return (*a >> 32) == (*b >> 32);
+  }
+
+  // Only count differences in the actual key, not the value.
+  template <class D>
+  HWY_INLINE bool NoKeyDifference(D /*tag*/, Vec<D> diff) const {
+    // Must avoid floating-point comparisons (for -0)
+    const RebindToUnsigned<D> du;
+    const Vec<decltype(du)> zero = Zero(du);
+    const Vec<decltype(du)> keys = ShiftRight<32>(diff);  // clear values
+    return AllTrue(du, Eq(BitCast(du, keys), zero));
+  }
+};
+
+struct OrderAscendingKV64 : public KeyValue64 {
   using Order = SortAscending;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
@@ -334,7 +375,7 @@ struct OrderAscendingKV64 : public KeyLane<uint64_t> {
   }
 };
 
-struct OrderDescendingKV64 : public KeyLane<uint64_t> {
+struct OrderDescendingKV64 : public KeyValue64 {
   using Order = SortDescending;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {

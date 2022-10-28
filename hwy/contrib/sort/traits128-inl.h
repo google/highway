@@ -124,6 +124,9 @@ struct KeyAny128 {
 
 // Base class shared between OrderAscending128, OrderDescending128.
 struct Key128 : public KeyAny128 {
+  // False indicates the entire key should be compared. KV means key-value.
+  static constexpr bool IsKV() { return false; }
+
   // What type to pass to Sorter::operator().
   using KeyType = hwy::uint128_t;
 
@@ -139,7 +142,15 @@ struct Key128 : public KeyAny128 {
     return Ne128(d, a, b);
   }
 
-  HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) {
+  // For keys=entire 128 bits, any difference counts.
+  template <class D>
+  HWY_INLINE bool NoKeyDifference(D /*tag*/, Vec<D> diff) const {
+    // Must avoid floating-point comparisons (for -0)
+    const RebindToUnsigned<D> du;
+    return AllTrue(du, Eq(BitCast(du, diff), Zero(du)));
+  }
+
+  HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) const {
     return a[0] == b[0] && a[1] == b[1];
   }
 };
@@ -253,6 +264,10 @@ struct OrderDescending128 : public Key128 {
 
 // Base class shared between OrderAscendingKV128, OrderDescendingKV128.
 struct KeyValue128 : public KeyAny128 {
+  // True indicates only part of the key (the more significant lane) should be
+  // compared. KV stands for key-value.
+  static constexpr bool IsKV() { return true; }
+
   // What type to pass to Sorter::operator().
   using KeyType = K64V64;
 
@@ -268,7 +283,17 @@ struct KeyValue128 : public KeyAny128 {
     return Ne128Upper(d, a, b);
   }
 
-  HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) {
+  // Only count differences in the actual key, not the value.
+  template <class D>
+  HWY_INLINE bool NoKeyDifference(D /*tag*/, Vec<D> diff) const {
+    // Must avoid floating-point comparisons (for -0)
+    const RebindToUnsigned<D> du;
+    const Vec<decltype(du)> zero = Zero(du);
+    const Vec<decltype(du)> keys = OddEven(diff, zero);  // clear values
+    return AllTrue(du, Eq(BitCast(du, keys), zero));
+  }
+
+  HWY_INLINE bool Equal1(const LaneType* a, const LaneType* b) const {
     return a[1] == b[1];
   }
 };

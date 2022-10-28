@@ -854,9 +854,7 @@ HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
   const auto valid = FirstN(d, kSampleLanes - i);
   diff = IfThenElse(valid, OrXor(diff, first, v), diff);
 
-  // Must avoid floating-point comparisons (for -0)
-  const RebindToUnsigned<D> du;
-  return AllTrue(du, Eq(BitCast(du, diff), Zero(du)));
+  return st.NoKeyDifference(d, diff);
 }
 
 template <class D, class Traits, typename T>
@@ -953,6 +951,13 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
     fprintf(stderr, "  Pivot rank %zu = %f\n", pivot_rank,
             static_cast<double>(GetLane(pivot)));
   }
+  // Verify pivot is not equal to the last sample.
+  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
+  constexpr size_t N1 = st.LanesPerKey();
+  const Vec<D> last = st.SetKey(d, samples + kSampleLanes - N1);
+  const bool all_neq = AllTrue(d, st.NotEqualKeys(d, pivot, last));
+  (void)all_neq;
+  HWY_DASSERT(all_neq);
   return pivot;
 }
 
@@ -1006,12 +1011,9 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
       diff0 = OrXor(diff0, v0, pivot);
       diff1 = OrXor(diff1, v1, pivot);
     }
-    diff0 = Or(diff0, diff1);
 
-    // If there was a difference in the entire group: (use du because we must
-    // avoid floating-point comparisons for -0)
-    const RebindToUnsigned<D> du;
-    if (HWY_UNLIKELY(!AllTrue(du, Eq(BitCast(du, diff0), Zero(du))))) {
+    // If there was a difference in the entire group:
+    if (HWY_UNLIKELY(!st.NoKeyDifference(d, Or(diff0, diff1)))) {
       // .. then loop until the first one, with termination guarantee.
       for (;; i += N) {
         const Vec<D> v = Load(d, keys + i);
@@ -1185,34 +1187,63 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
     return st.PrevValue(d, pivot);
   }
 
-  // Check if pivot is between two known values. If so, it is not the first nor
-  // the last and we can avoid scanning.
-  st.Sort2(d, second, third);
-  HWY_DASSERT(AllTrue(d, st.Compare(d, second, third)));
-  const bool before = !AllFalse(d, st.Compare(d, second, pivot));
-  const bool after = !AllFalse(d, st.Compare(d, pivot, third));
-  // Only reached if there are three keys, which means pivot is either first,
-  // last, or in between. Thus there is another key that comes before or after.
-  HWY_DASSERT(before || after);
-  if (HWY_UNLIKELY(before)) {
-    // Neither first nor last.
-    if (HWY_UNLIKELY(after || ExistsAnyAfter(d, st, keys, num, pivot))) {
+  // If key-value, we didn't run PartitionIfTwo* and thus `third` is unknown and
+  // cannot be used.
+  if (st.IsKV()) {
+    // If true, pivot is either middle or last.
+    const bool before = !AllFalse(d, st.Compare(d, second, pivot));
+    if (HWY_UNLIKELY(before)) {
+      // Not last, so middle.
+      if (HWY_UNLIKELY(ExistsAnyAfter(d, st, keys, num, pivot))) {
+        result = PivotResult::kNormal;
+        return pivot;
+      }
+
+      // We didn't find anything after pivot, so it is the last. Because keys
+      // equal to the pivot go to the left partition, the right partition would
+      // be empty and Partition will not have changed anything. Instead use the
+      // previous value in sort order, which is not necessarily an actual key.
+      result = PivotResult::kWasLast;
+      return st.PrevValue(d, pivot);
+    }
+
+    // Otherwise, pivot is first or middle. Rule out it being first:
+    if (HWY_UNLIKELY(ExistsAnyBefore(d, st, keys, num, pivot))) {
       result = PivotResult::kNormal;
       return pivot;
     }
+    // It is first: fall through to shared code below.
+  } else {
+    // Check if pivot is between two known values. If so, it is not the first
+    // nor the last and we can avoid scanning.
+    st.Sort2(d, second, third);
+    HWY_DASSERT(AllTrue(d, st.Compare(d, second, third)));
+    const bool before = !AllFalse(d, st.Compare(d, second, pivot));
+    const bool after = !AllFalse(d, st.Compare(d, pivot, third));
+    // Only reached if there are three keys, which means pivot is either first,
+    // last, or in between. Thus there is another key that comes before or
+    // after.
+    HWY_DASSERT(before || after);
+    if (HWY_UNLIKELY(before)) {
+      // Neither first nor last.
+      if (HWY_UNLIKELY(after || ExistsAnyAfter(d, st, keys, num, pivot))) {
+        result = PivotResult::kNormal;
+        return pivot;
+      }
 
-    // We didn't find anything after pivot, so it is the last. Because keys
-    // equal to the pivot go to the left partition, the right partition would be
-    // empty and Partition will not have changed anything. Instead use the
-    // previous value in sort order, which is not necessarily an actual key.
-    result = PivotResult::kWasLast;
-    return st.PrevValue(d, pivot);
-  }
+      // We didn't find anything after pivot, so it is the last. Because keys
+      // equal to the pivot go to the left partition, the right partition would
+      // be empty and Partition will not have changed anything. Instead use the
+      // previous value in sort order, which is not necessarily an actual key.
+      result = PivotResult::kWasLast;
+      return st.PrevValue(d, pivot);
+    }
 
-  // Has after, and we found one before: in the middle.
-  if (HWY_UNLIKELY(ExistsAnyBefore(d, st, keys, num, pivot))) {
-    result = PivotResult::kNormal;
-    return pivot;
+    // Has after, and we found one before: in the middle.
+    if (HWY_UNLIKELY(ExistsAnyBefore(d, st, keys, num, pivot))) {
+      result = PivotResult::kNormal;
+      return pivot;
+    }
   }
 
   // Pivot is first. We could consider a special partition mode that only
@@ -1262,7 +1293,7 @@ template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           T* HWY_RESTRICT keys_end, const size_t num,
                           T* HWY_RESTRICT buf, Generator& rng,
-                          size_t remaining_levels) {
+                          const size_t remaining_levels) {
   HWY_DASSERT(num != 0);
 
   if (HWY_UNLIKELY(num <= Constants::BaseCaseNum(Lanes(d)))) {
@@ -1294,7 +1325,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     MaybePrintVector(d, "second", second, 0, st.LanesPerKey());
 
     Vec<D> third;
-    if (HWY_UNLIKELY(PartitionIfTwoKeys(d, st, pivot, keys, num, idx_second,
+    // Not supported for key-value types because two 'keys' may be equivalent
+    // but not interchangeable (their values may differ).
+    if (HWY_UNLIKELY(!st.IsKV() &&
+                     PartitionIfTwoKeys(d, st, pivot, keys, num, idx_second,
                                         second, third, buf))) {
       return;  // Done, skip recursion because each side has all-equal keys.
     }
@@ -1309,7 +1343,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   } else {
     SortSamples(d, st, buf);
 
-    if (HWY_UNLIKELY(PartitionIfTwoSamples(d, st, keys, num, buf))) {
+    // Not supported for key-value types because two 'keys' may be equivalent
+    // but not interchangeable (their values may differ).
+    if (HWY_UNLIKELY(!st.IsKV() &&
+                     PartitionIfTwoSamples(d, st, keys, num, buf))) {
       return;
     }
 
@@ -1331,14 +1368,18 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     fprintf(stderr, "bound %zu num %zu result %s\n", bound, num,
             PivotResultString(result));
   }
+  // The left partition is not empty because the pivot is one of the keys
+  // (unless kWasLast, in which case the pivot is PrevValue, but we still
+  // have at least one value <= pivot because AllEqual ruled out the case of
+  // only one unique value, and there is exactly one value after pivot).
+  HWY_DASSERT(bound != 0);
+  // ChoosePivot* ensure pivot != last, so the right partition is never empty.
+  HWY_DASSERT(bound != num);
+
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
-    // The left partition is not empty because the pivot is one of the keys.
-    HWY_DASSERT(0 != bound && bound != num);
     Recurse(d, st, keys, keys_end, bound, buf, rng, remaining_levels - 1);
   }
   if (HWY_LIKELY(result != PivotResult::kWasLast)) {
-    // ChoosePivot* ensure pivot != last, so the right partition is never empty.
-    HWY_DASSERT(bound != num);
     Recurse(d, st, keys + bound, keys_end, num - bound, buf, rng,
             remaining_levels - 1);
   }
