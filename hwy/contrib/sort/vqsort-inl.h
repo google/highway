@@ -149,9 +149,9 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
 
 // Sorts `keys` within the range [0, num) via sorting network.
 template <class D, class Traits, typename T>
-HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
-                           T* HWY_RESTRICT keys_end, size_t num,
-                           T* HWY_RESTRICT buf) {
+HWY_INLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
+                         T* HWY_RESTRICT keys_end, size_t num,
+                         T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
   using V = decltype(Zero(d));
 
@@ -210,10 +210,10 @@ HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
 // Temporarily stores the right side into `buf`, then moves behind `num`.
 // Returns the number of keys consumed from the left side.
 template <class D, class Traits, class T>
-HWY_NOINLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
-                                                T* HWY_RESTRICT keys,
-                                                size_t& num, const Vec<D> pivot,
-                                                T* HWY_RESTRICT buf) {
+HWY_INLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
+                                              T* HWY_RESTRICT keys, size_t& num,
+                                              const Vec<D> pivot,
+                                              T* HWY_RESTRICT buf) {
   constexpr size_t kUnroll = Constants::kPartitionUnroll;
   const size_t N = Lanes(d);
   size_t readL = 0;
@@ -316,8 +316,8 @@ HWY_INLINE void StoreLeftRight4(D d, Traits st, const Vec<D> v0,
 //
 // Aligned loads do not seem to be worthwhile (not bottlenecked by load ports).
 template <class D, class Traits, typename T>
-HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-                              const Vec<D> pivot, T* HWY_RESTRICT buf) {
+HWY_INLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+                            const Vec<D> pivot, T* HWY_RESTRICT buf) {
   using V = decltype(Zero(d));
   const size_t N = Lanes(d);
 
@@ -465,6 +465,7 @@ HWY_NOINLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 // Returns true and partitions if [keys, keys + num) contains only {valueL,
 // valueR}. Otherwise, sets third to the first differing value; keys may have
 // been reordered and a regular Partition is still necessary.
+// Called from two locations, hence NOINLINE.
 template <class D, class Traits, typename T>
 HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
                                          size_t num, const Vec<D> valueL,
@@ -552,10 +553,10 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
 
 // Same as above, except that the pivot equals valueR, so scan right to left.
 template <class D, class Traits, typename T>
-HWY_NOINLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
-                                          size_t num, const Vec<D> valueL,
-                                          const Vec<D> valueR, Vec<D>& third,
-                                          T* HWY_RESTRICT buf) {
+HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
+                                        size_t num, const Vec<D> valueL,
+                                        const Vec<D> valueR, Vec<D>& third,
+                                        T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
 
   HWY_DASSERT(num >= N);
@@ -775,15 +776,15 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const size_t N = Lanes(d);
 
   // Power of two
-  const size_t lanes_per_chunk = Constants::LanesPerChunk(sizeof(T), N);
+  constexpr size_t kLanesPerChunk = Constants::LanesPerChunk(sizeof(T));
 
   // Align start of keys to chunks. We always have at least 2 chunks because the
   // base case would have handled anything up to 16 vectors, i.e. >= 4 chunks.
-  HWY_DASSERT(num >= 2 * lanes_per_chunk);
+  HWY_DASSERT(num >= 2 * kLanesPerChunk);
   const size_t misalign =
-      (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (lanes_per_chunk - 1);
+      (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (kLanesPerChunk - 1);
   if (misalign != 0) {
-    const size_t consume = lanes_per_chunk - misalign;
+    const size_t consume = kLanesPerChunk - misalign;
     keys += consume;
     num -= consume;
   }
@@ -795,24 +796,21 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   }
   const uint32_t* bits = reinterpret_cast<const uint32_t*>(buf);
 
-  const uint32_t lpc32 = static_cast<uint32_t>(lanes_per_chunk);
-  // Avoid division
-  const size_t log2_lpc = Num0BitsBelowLS1Bit_Nonzero32(lpc32);
-  const size_t num_chunks64 = num >> log2_lpc;
+  const size_t num_chunks64 = num / kLanesPerChunk;
   // Clamp to uint32 for RandomChunkIndex
   const uint32_t num_chunks =
       static_cast<uint32_t>(HWY_MIN(num_chunks64, 0xFFFFFFFFull));
 
-  const size_t offset0 = RandomChunkIndex(num_chunks, bits[0]) << log2_lpc;
-  const size_t offset1 = RandomChunkIndex(num_chunks, bits[1]) << log2_lpc;
-  const size_t offset2 = RandomChunkIndex(num_chunks, bits[2]) << log2_lpc;
-  const size_t offset3 = RandomChunkIndex(num_chunks, bits[3]) << log2_lpc;
-  const size_t offset4 = RandomChunkIndex(num_chunks, bits[4]) << log2_lpc;
-  const size_t offset5 = RandomChunkIndex(num_chunks, bits[5]) << log2_lpc;
-  const size_t offset6 = RandomChunkIndex(num_chunks, bits[6]) << log2_lpc;
-  const size_t offset7 = RandomChunkIndex(num_chunks, bits[7]) << log2_lpc;
-  const size_t offset8 = RandomChunkIndex(num_chunks, bits[8]) << log2_lpc;
-  for (size_t i = 0; i < lanes_per_chunk; i += N) {
+  const size_t offset0 = RandomChunkIndex(num_chunks, bits[0]) * kLanesPerChunk;
+  const size_t offset1 = RandomChunkIndex(num_chunks, bits[1]) * kLanesPerChunk;
+  const size_t offset2 = RandomChunkIndex(num_chunks, bits[2]) * kLanesPerChunk;
+  const size_t offset3 = RandomChunkIndex(num_chunks, bits[3]) * kLanesPerChunk;
+  const size_t offset4 = RandomChunkIndex(num_chunks, bits[4]) * kLanesPerChunk;
+  const size_t offset5 = RandomChunkIndex(num_chunks, bits[5]) * kLanesPerChunk;
+  const size_t offset6 = RandomChunkIndex(num_chunks, bits[6]) * kLanesPerChunk;
+  const size_t offset7 = RandomChunkIndex(num_chunks, bits[7]) * kLanesPerChunk;
+  const size_t offset8 = RandomChunkIndex(num_chunks, bits[8]) * kLanesPerChunk;
+  for (size_t i = 0; i < kLanesPerChunk; i += N) {
     const V v0 = Load(d, keys + offset0 + i);
     const V v1 = Load(d, keys + offset1 + i);
     const V v2 = Load(d, keys + offset2 + i);
@@ -823,13 +821,13 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     const V v4 = Load(d, keys + offset4 + i);
     const V v5 = Load(d, keys + offset5 + i);
     const V medians1 = MedianOf3(st, v3, v4, v5);
-    Store(medians1, d, buf + i + lanes_per_chunk);
+    Store(medians1, d, buf + i + kLanesPerChunk);
 
     const V v6 = Load(d, keys + offset6 + i);
     const V v7 = Load(d, keys + offset7 + i);
     const V v8 = Load(d, keys + offset8 + i);
     const V medians2 = MedianOf3(st, v6, v7, v8);
-    Store(medians2, d, buf + i + lanes_per_chunk * 2);
+    Store(medians2, d, buf + i + kLanesPerChunk * 2);
   }
 }
 
@@ -964,9 +962,9 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
 // Returns true if all keys equal `pivot`, otherwise returns false and sets
 // `*first_mismatch' to the index of the first differing key.
 template <class D, class Traits, typename T>
-HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
-                           const T* HWY_RESTRICT keys, size_t num,
-                           size_t* HWY_RESTRICT first_mismatch) {
+HWY_INLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
+                         const T* HWY_RESTRICT keys, size_t num,
+                         size_t* HWY_RESTRICT first_mismatch) {
   const size_t N = Lanes(d);
   // Ensures we can use overlapping loads for the tail; see HandleSpecialCases.
   HWY_DASSERT(num >= N);
@@ -1053,9 +1051,10 @@ HWY_NOINLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   return true;  // all equal
 }
 
+// Called from 'two locations', but only one is active (IsKV is constexpr).
 template <class D, class Traits, typename T>
-HWY_NOINLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
-                                  size_t num, const Vec<D> pivot) {
+HWY_INLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
+                                size_t num, const Vec<D> pivot) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
 
@@ -1110,9 +1109,10 @@ HWY_NOINLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
   return false;  // pivot is the first
 }
 
+// Called from 'two locations', but only one is active (IsKV is constexpr).
 template <class D, class Traits, typename T>
-HWY_NOINLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
-                                 size_t num, const Vec<D> pivot) {
+HWY_INLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
+                               size_t num, const Vec<D> pivot) {
   const size_t N = Lanes(d);
   HWY_DASSERT(num >= N);  // See HandleSpecialCases
 
