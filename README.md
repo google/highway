@@ -135,6 +135,10 @@ Or you can run `run_tests.sh` (`run_tests.bat` on Windows).
 
 Bazel is also supported for building, but it is not as widely used/tested.
 
+When building for Arm v7, a limitation of current compilers requires you to add
+`-DHWY_CMAKE_ARM7:BOOL=ON` to the CMake command line; see #834 and #1032. We
+understand that work is underway to remove this limitation.
+
 ## Quick start
 
 You can use the `benchmark` inside examples/ as a starting point.
