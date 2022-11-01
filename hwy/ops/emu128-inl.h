@@ -18,6 +18,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <cmath>  // std::abs, std::isnan
 
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"

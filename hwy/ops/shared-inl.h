@@ -15,7 +15,7 @@
 
 // Per-target definitions shared by ops/*.h and user code.
 
-#include <cmath>
+#include <math.h>
 
 #include "hwy/base.h"
 
