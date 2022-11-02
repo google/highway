@@ -49,6 +49,11 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+#if HWY_TARGET == HWY_WASM_EMU256
+template <typename T>
+using Full256 = Simd<T, 32 / sizeof(T), 0>;
+#endif
+
 namespace detail {
 
 template <typename T>
@@ -106,6 +111,12 @@ struct Mask128 {
   typename detail::Raw128<T>::type raw;
 };
 
+#if HWY_TARGET == HWY_WASM_EMU256
+// Forward-declare for use by DeduceD, see below.
+template <typename T>
+class Vec256;
+#endif
+
 namespace detail {
 
 // Deduce Simd<T, N, 0> from Vec128<T, N>
@@ -114,6 +125,13 @@ struct DeduceD {
   Simd<T, N, 0> operator()(Vec128<T, N>) const {
     return Simd<T, N, 0>();
   }
+
+#if HWY_TARGET == HWY_WASM_EMU256
+  template <typename T>
+  Full256<T> operator()(const hwy::HWY_NAMESPACE::Vec256<T>*) const {
+    return Full256<T>();
+  }
+#endif
 };
 
 }  // namespace detail
