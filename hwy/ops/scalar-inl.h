@@ -19,8 +19,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cmath>  // std::abs
-
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
@@ -568,13 +566,38 @@ HWY_API Vec1<T> Abs(const Vec1<T> a) {
   return (i >= 0 || i == hwy::LimitsMin<T>()) ? a : Vec1<T>(-i);
 }
 HWY_API Vec1<float> Abs(const Vec1<float> a) {
-  return Vec1<float>(std::abs(a.raw));
+  return Vec1<float>(fabsf(a.raw));
 }
 HWY_API Vec1<double> Abs(const Vec1<double> a) {
-  return Vec1<double>(std::abs(a.raw));
+  return Vec1<double>(fabs(a.raw));
 }
 
-// ------------------------------ min/max
+// ------------------------------ Min/Max
+
+// <cmath> may be unavailable, so implement type-safe libc wrappers
+namespace detail {
+
+static inline bool IsInf(float f) { return isinff(f) == 1; }
+static inline bool IsInf(double f) { return isinf(f) == 1; }
+
+static inline bool IsNaN(float f) { return isnanf(f) == 1; }
+static inline bool IsNaN(double f) { return isnan(f) == 1; }
+
+static inline float Abs(float f) { return fabsf(f); }
+static inline double Abs(double f) { return fabs(f); }
+
+static inline bool SignBit(float f) {
+  uint32_t i;
+  CopyBytes<4>(&f, &i);
+  return (i >> 31) != 0;
+}
+static inline bool SignBit(double f) {
+  uint64_t i;
+  CopyBytes<8>(&f, &i);
+  return (i >> 63) != 0;
+}
+
+}  // namespace detail
 
 template <typename T, HWY_IF_NOT_FLOAT(T)>
 HWY_API Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
@@ -583,8 +606,8 @@ HWY_API Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
-  if (std::isnan(a.raw)) return b;
-  if (std::isnan(b.raw)) return a;
+  if (detail::IsNaN(a.raw)) return b;
+  if (detail::IsNaN(b.raw)) return a;
   return Vec1<T>(HWY_MIN(a.raw, b.raw));
 }
 
@@ -595,8 +618,8 @@ HWY_API Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
-  if (std::isnan(a.raw)) return b;
-  if (std::isnan(b.raw)) return a;
+  if (detail::IsNaN(a.raw)) return b;
+  if (detail::IsNaN(b.raw)) return a;
   return Vec1<T>(HWY_MAX(a.raw, b.raw));
 }
 
@@ -715,10 +738,10 @@ HWY_API Vec1<float> ApproximateReciprocalSqrt(const Vec1<float> v) {
 
 // Square root
 HWY_API Vec1<float> Sqrt(const Vec1<float> v) {
-  return Vec1<float>(std::sqrt(v.raw));
+  return Vec1<float>(sqrtf(v.raw));
 }
 HWY_API Vec1<double> Sqrt(const Vec1<double> v) {
-  return Vec1<double>(std::sqrt(v.raw));
+  return Vec1<double>(sqrt(v.raw));
 }
 
 // ------------------------------ Floating-point rounding
@@ -733,7 +756,7 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
   const TI rounded = static_cast<TI>(v.raw + bias);
   if (rounded == 0) return CopySignToAbs(Vec1<T>(0), v);
   // Round to even
-  if ((rounded & 1) && std::abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
+  if ((rounded & 1) && detail::Abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
     return Vec1<T>(static_cast<T>(rounded - (v.raw < T(0) ? -1 : 1)));
   }
   return Vec1<T>(static_cast<T>(rounded));
@@ -745,12 +768,12 @@ HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
   using TI = int32_t;
 
   const T abs = Abs(v).raw;
-  const bool signbit = std::signbit(v.raw);
+  const bool is_sign = detail::SignBit(v.raw);
 
   if (!(abs < MantissaEnd<T>())) {  // Huge or NaN
     // Check if too large to cast or NaN
     if (!(abs <= static_cast<T>(LimitsMax<TI>()))) {
-      return Vec1<TI>(signbit ? LimitsMin<TI>() : LimitsMax<TI>());
+      return Vec1<TI>(is_sign ? LimitsMin<TI>() : LimitsMax<TI>());
     }
     return Vec1<int32_t>(static_cast<TI>(v.raw));
   }
@@ -758,8 +781,8 @@ HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
   const TI rounded = static_cast<TI>(v.raw + bias);
   if (rounded == 0) return Vec1<int32_t>(0);
   // Round to even
-  if ((rounded & 1) && std::abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
-    return Vec1<TI>(rounded - (signbit ? -1 : 1));
+  if ((rounded & 1) && detail::Abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
+    return Vec1<TI>(rounded - (is_sign ? -1 : 1));
   }
   return Vec1<TI>(rounded);
 }
@@ -1098,19 +1121,19 @@ HWY_API Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
 // so we overload for FromT=double and ToT={float,int32_t}.
 HWY_API Vec1<float> DemoteTo(Sisd<float> /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting float to narrower integer/float
-  if (std::isinf(from.raw) ||
-      std::fabs(from.raw) > static_cast<double>(HighestValue<float>())) {
-    return Vec1<float>(std::signbit(from.raw) ? LowestValue<float>()
-                                              : HighestValue<float>());
+  if (isinff(from.raw) ||
+      fabs(from.raw) > static_cast<double>(HighestValue<float>())) {
+    return Vec1<float>(detail::SignBit(from.raw) ? LowestValue<float>()
+                                                 : HighestValue<float>());
   }
   return Vec1<float>(static_cast<float>(from.raw));
 }
 HWY_API Vec1<int32_t> DemoteTo(Sisd<int32_t> /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting int32_t to narrower integer/int32_t
-  if (std::isinf(from.raw) ||
-      std::fabs(from.raw) > static_cast<double>(HighestValue<int32_t>())) {
-    return Vec1<int32_t>(std::signbit(from.raw) ? LowestValue<int32_t>()
-                                                : HighestValue<int32_t>());
+  if (isinf(from.raw) ||
+      fabs(from.raw) > static_cast<double>(HighestValue<int32_t>())) {
+    return Vec1<int32_t>(detail::SignBit(from.raw) ? LowestValue<int32_t>()
+                                                   : HighestValue<int32_t>());
   }
   return Vec1<int32_t>(static_cast<int32_t>(from.raw));
 }
@@ -1204,10 +1227,10 @@ HWY_API Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   // float## -> int##: return closest representable value. We cannot exactly
   // represent LimitsMax<ToT> in FromT, so use double.
   const double f = static_cast<double>(from.raw);
-  if (std::isinf(from.raw) ||
-      std::fabs(f) > static_cast<double>(LimitsMax<ToT>())) {
-    return Vec1<ToT>(std::signbit(from.raw) ? LimitsMin<ToT>()
-                                            : LimitsMax<ToT>());
+  if (detail::IsInf(from.raw) ||
+      fabs(f) > static_cast<double>(LimitsMax<ToT>())) {
+    return Vec1<ToT>(detail::SignBit(from.raw) ? LimitsMin<ToT>()
+                                               : LimitsMax<ToT>());
   }
   return Vec1<ToT>(static_cast<ToT>(from.raw));
 }
