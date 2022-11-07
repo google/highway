@@ -181,7 +181,10 @@ cc_library(
         "hwy/ops/x86_512-inl.h",
         # Select avoids recompiling native arch if only non-native changed
     ] + select({
-        ":compiler_emscripten": ["hwy/ops/wasm_128-inl.h"],
+        ":compiler_emscripten": [
+            "hwy/ops/wasm_128-inl.h",
+            "hwy/ops/wasm_256-inl.h",
+        ],
         "//conditions:default": [],
     }) + select({
         "@platforms//cpu:riscv64": ["hwy/ops/rvv-inl.h"],

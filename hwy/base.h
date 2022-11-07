@@ -398,6 +398,8 @@ HWY_API constexpr bool IsSame() {
   hwy::EnableIf<sizeof(T) != (bytes)>* = nullptr
 #define HWY_IF_LANE_SIZE_LT(T, bytes) \
   hwy::EnableIf<sizeof(T) < (bytes)>* = nullptr
+#define HWY_IF_LANE_SIZE_GE(T, bytes) \
+  hwy::EnableIf<sizeof(T) >= (bytes)>* = nullptr
 
 #define HWY_IF_LANES_PER_BLOCK(T, N, LANES) \
   hwy::EnableIf<HWY_MIN(sizeof(T) * N, 16) / sizeof(T) == (LANES)>* = nullptr
