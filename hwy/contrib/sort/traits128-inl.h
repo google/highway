@@ -204,7 +204,7 @@ struct OrderAscending128 : public Key128 {
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
     const Vec<D> k0 = Zero(d);
-    const Vec<D> k1 = OddEven(k0, Set(d, 1));
+    const Vec<D> k1 = OddEven(k0, Set(d, uint64_t{1}));
     const Mask<D> borrow = Eq(v, k0);  // don't-care, lo == 0
     // lo == 0? 1 : 0, 0
     const Vec<D> adjust = ShiftLeftLanes<1>(IfThenElseZero(borrow, k1));
@@ -253,7 +253,7 @@ struct OrderDescending128 : public Key128 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    const Vec<D> k1 = OddEven(Zero(d), Set(d, 1));
+    const Vec<D> k1 = OddEven(Zero(d), Set(d, uint64_t{1}));
     const Vec<D> added = Add(v, k1);
     const Mask<D> overflowed = Lt(added, v);  // false, overflowed
     // overflowed? 1 : 0, 0
@@ -339,7 +339,7 @@ struct OrderAscendingKV128 : public KeyValue128 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    const Vec<D> k1 = OddEven(Set(d, 1), Zero(d));
+    const Vec<D> k1 = OddEven(Set(d, uint64_t{1}), Zero(d));
     return Sub(v, k1);
   }
 };
@@ -385,7 +385,7 @@ struct OrderDescendingKV128 : public KeyValue128 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    const Vec<D> k1 = OddEven(Set(d, 1), Zero(d));
+    const Vec<D> k1 = OddEven(Set(d, uint64_t{1}), Zero(d));
     return Add(v, k1);
   }
 };

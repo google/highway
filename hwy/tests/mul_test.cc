@@ -382,14 +382,14 @@ struct TestReorderWidenMulAccumulate {
 
     // delta[p] := 1, all others zero. For each p: Dot(delta, all-ones) == 1.
     auto delta_w = AllocateAligned<TW>(NN);
-    for (size_t i = 0; i < NN; ++i) {
-      delta_w[i] = TW{0};
-    }
     for (size_t p = 0; p < NN; ++p) {
-      delta_w[p] = TW{1};
+      // Workaround for incorrect Clang wasm codegen: re-initialize the entire
+      // array rather than zero-initialize once and then toggle lane p.
+      for (size_t i = 0; i < NN; ++i) {
+        delta_w[i] = static_cast<TW>(i == p);
+      }
       const VW delta0 = Load(dw, delta_w.get());
       const VW delta1 = Load(dw, delta_w.get() + NN / 2);
-      delta_w[p] = TW{0};
       const VN delta = ReorderDemote2To(dn, delta0, delta1);
 
       {

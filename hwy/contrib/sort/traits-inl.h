@@ -371,7 +371,7 @@ struct OrderAscendingKV64 : public KeyValue64 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Sub(v, Set(d, 1));
+    return Sub(v, Set(d, uint64_t{1}));
   }
 };
 
@@ -423,7 +423,7 @@ struct OrderDescendingKV64 : public KeyValue64 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Add(v, Set(d, 1));
+    return Add(v, Set(d, uint64_t{1}));
   }
 };
 

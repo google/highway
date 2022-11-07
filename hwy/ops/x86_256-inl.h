@@ -2914,6 +2914,7 @@ HWY_API Vec256<float> Shuffle2301(const Vec256<float> v) {
   return Vec256<float>{_mm256_shuffle_ps(v.raw, v.raw, 0xB1)};
 }
 
+// Used by generic_ops-inl.h
 namespace detail {
 
 template <typename T, HWY_IF_LANE_SIZE(T, 4)>

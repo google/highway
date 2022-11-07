@@ -1004,15 +1004,13 @@ All functions except `Stream` are defined in cache_control.h.
     <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8` conversion when
     all lanes of `V` are already clamped to `[0, 256)`.
 
-*   `D`,`V`: (`u64,u32`), (`u64,u16`), (`u64,u8`), (`u32,u16`), (`u32,u8`), \
-    (`u16,u8`) <code>Vec&lt;D&gt; **TruncateTo**(D, V v)</code>: returns `v[i]`
-    truncated to the smaller type indicated by `T = TFromD<D>`, with the same
-    result as if the more-signficant input bits that do not fit in `T` had been
-    zero. Example: ```
-ScalableTag<uint32_t> du32;
-Rebind<uint8_t> du8;
-TruncateTo(du8, Set(du32, 0xF08F))
-    ``` is the same as `Set(du8, 0x8F)`.
+*   `V`,`D`: (`u64,u32`), (`u64,u16`), (`u64,u8`), (`u32,u16`), (`u32,u8`), \
+    (`u16,u8`) \
+    <code>Vec&lt;D&gt; **TruncateTo**(D, V v)</code>: returns `v[i]` truncated
+    to the smaller type indicated by `T = TFromD<D>`, with the same result as if
+    the more-significant input bits that do not fit in `T` had been zero.
+    Example: `ScalableTag<uint32_t> du32; Rebind<uint8_t> du8; TruncateTo(du8,
+    Set(du32, 0xF08F))` is the same as `Set(du8, 0x8F)`.
 
 `DemoteTo` and float-to-int `ConvertTo` return the closest representable value
 if the input exceeds the destination range.

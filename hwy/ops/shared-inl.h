@@ -219,6 +219,9 @@ template <class D>
 using Twice = typename D::Twice;
 
 template <typename T>
+using Full16 = Simd<T, 2 / sizeof(T), 0>;
+
+template <typename T>
 using Full32 = Simd<T, 4 / sizeof(T), 0>;
 
 template <typename T>
