@@ -91,7 +91,7 @@ template <typename T, typename T2>
 HWY_API Vec256<T> Set(Full256<T> d, const T2 t) {
   const Half<decltype(d)> dh;
   Vec256<T> ret;
-  ret.v0 = ret.v1 = Set(dh, t);
+  ret.v0 = ret.v1 = Set(dh, static_cast<T>(t));
   return ret;
 }
 
@@ -108,7 +108,7 @@ Vec256<T> Iota(const Full256<T> d, const T2 first) {
   const Half<decltype(d)> dh;
   Vec256<T> ret;
   ret.v0 = Iota(dh, first);
-  ret.v1 = Iota(dh, first + Lanes(dh));
+  ret.v1 = Iota(dh, first + static_cast<T2>(Lanes(dh)));
   return ret;
 }
 
@@ -1661,8 +1661,8 @@ HWY_API intptr_t FindFirstTrue(const Full256<T> d, const Mask256<T> mask) {
   const intptr_t lo = FindFirstTrue(dh, mask.m0);
   const intptr_t hi = FindFirstTrue(dh, mask.m1);
   if (lo < 0 && hi < 0) return lo;
-  constexpr size_t kLanesPerHalf = 16 / sizeof(T);
-  return lo >= 0 ? lo : kLanesPerHalf + hi;
+  constexpr int kLanesPerHalf = 16 / sizeof(T);
+  return lo >= 0 ? lo : hi + kLanesPerHalf;
 }
 
 // ------------------------------ CompressStore
