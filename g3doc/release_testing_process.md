@@ -16,6 +16,8 @@ run_tests.bat
 ./run_tests.sh
 ```
 
+Manual test of WASM and WASM_EMU256 targets.
+
 #### JPEG XL clang (debug, asan, msan)
 
 ```
