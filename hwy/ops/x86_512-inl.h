@@ -113,6 +113,9 @@ class Vec512 {
   using Raw = typename detail::Raw512<T>::type;
 
  public:
+  using PrivateT = T;                                  // only for DFromV
+  static constexpr size_t kPrivateN = 64 / sizeof(T);  // only for DFromV
+
   // Compound assignment. Only usable if there is a corresponding non-member
   // binary operator overload. For example, only f32 and f64 support division.
   HWY_INLINE Vec512& operator*=(const Vec512 other) {
@@ -145,6 +148,9 @@ template <typename T>
 struct Mask512 {
   typename detail::RawMask512<sizeof(T)>::type raw;
 };
+
+template <typename T>
+using Full512 = Simd<T, 64 / sizeof(T), 0>;
 
 // ------------------------------ BitCast
 
@@ -4206,7 +4212,7 @@ HWY_API void StoreTransposedBlocks4(const Vec512<T> i, const Vec512<T> j,
 
 HWY_INLINE Vec512<uint64_t> MulEven(const Vec512<uint64_t> a,
                                     const Vec512<uint64_t> b) {
-  const DFromV<decltype(a)> du64;
+  const Full512<uint64_t> du64;
   const RepartitionToNarrow<decltype(du64)> du32;
   const auto maskL = Set(du64, 0xFFFFFFFFULL);
   const auto a32 = BitCast(du32, a);
@@ -4235,7 +4241,7 @@ HWY_INLINE Vec512<uint64_t> MulEven(const Vec512<uint64_t> a,
 
 HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
                                    const Vec512<uint64_t> b) {
-  const DFromV<decltype(a)> du64;
+  const Full512<uint64_t> du64;
   const RepartitionToNarrow<decltype(du64)> du32;
   const auto maskL = Set(du64, 0xFFFFFFFFULL);
   const auto a32 = BitCast(du32, a);
@@ -4260,27 +4266,7 @@ HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
   return InterleaveUpper(du64, mulL, mulH);
 }
 
-// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
-
-HWY_API Vec512<float> ReorderWidenMulAccumulate(Full512<float> df32,
-                                                Vec512<bfloat16_t> a,
-                                                Vec512<bfloat16_t> b,
-                                                const Vec512<float> sum0,
-                                                Vec512<float>& sum1) {
-  // TODO(janwas): _mm512_dpbf16_ps when available
-  const Repartition<uint16_t, decltype(df32)> du16;
-  const RebindToUnsigned<decltype(df32)> du32;
-  const Vec512<uint16_t> zero = Zero(du16);
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo.
-  const Vec512<uint32_t> a0 = ZipLower(du32, zero, BitCast(du16, a));
-  const Vec512<uint32_t> a1 = ZipUpper(du32, zero, BitCast(du16, a));
-  const Vec512<uint32_t> b0 = ZipLower(du32, zero, BitCast(du16, b));
-  const Vec512<uint32_t> b1 = ZipUpper(du32, zero, BitCast(du16, b));
-  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
-  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
-}
-
+// ------------------------------ ReorderWidenMulAccumulate
 HWY_API Vec512<int32_t> ReorderWidenMulAccumulate(Full512<int32_t> /*d32*/,
                                                   Vec512<int16_t> a,
                                                   Vec512<int16_t> b,

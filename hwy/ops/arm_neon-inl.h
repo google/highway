@@ -768,6 +768,9 @@ class Vec128 {
   using Raw = typename detail::Raw128<T, N>::type;
 
  public:
+  using PrivateT = T;                     // only for DFromV
+  static constexpr size_t kPrivateN = N;  // only for DFromV
+
   HWY_INLINE Vec128() {}
   Vec128(const Vec128&) = default;
   Vec128& operator=(const Vec128&) = default;
@@ -824,23 +827,11 @@ class Mask128 {
 template <typename T>
 using Mask64 = Mask128<T, 8 / sizeof(T)>;
 
-namespace detail {
-
-// Deduce Simd<T, N, 0> from Vec128<T, N>
-struct DeduceD {
-  template <typename T, size_t N>
-  Simd<T, N, 0> operator()(Vec128<T, N>) const {
-    return Simd<T, N, 0>();
-  }
-};
-
-}  // namespace detail
+template <class V>
+using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
 
 template <class V>
-using DFromV = decltype(detail::DeduceD()(V()));
-
-template <class V>
-using TFromV = TFromD<DFromV<V>>;
+using TFromV = typename V::PrivateT;
 
 // ------------------------------ BitCast
 

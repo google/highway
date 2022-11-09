@@ -26,6 +26,9 @@ namespace HWY_NAMESPACE {
 template <typename T>
 class Vec256 {
  public:
+  using PrivateT = T;                                  // only for DFromV
+  static constexpr size_t kPrivateN = 32 / sizeof(T);  // only for DFromV
+
   // Compound assignment. Only usable if there is a corresponding non-member
   // binary operator overload. For example, only f32 and f64 support division.
   HWY_INLINE Vec256& operator*=(const Vec256 other) {

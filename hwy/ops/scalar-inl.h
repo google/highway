@@ -33,6 +33,9 @@ using Sisd = Simd<T, 1, 0>;
 // (Wrapper class required for overloading comparison operators.)
 template <typename T>
 struct Vec1 {
+  using PrivateT = T;                     // only for DFromV
+  static constexpr size_t kPrivateN = 1;  // only for DFromV
+
   HWY_INLINE Vec1() = default;
   Vec1(const Vec1&) = default;
   Vec1& operator=(const Vec1&) = default;
@@ -78,23 +81,11 @@ class Mask1 {
   Raw bits;
 };
 
-namespace detail {
-
-// Deduce Sisd<T> from Vec1<T>
-struct Deduce1 {
-  template <typename T>
-  Sisd<T> operator()(Vec1<T>) const {
-    return Sisd<T>();
-  }
-};
-
-}  // namespace detail
+template <class V>
+using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
 
 template <class V>
-using DFromV = decltype(detail::Deduce1()(V()));
-
-template <class V>
-using TFromV = TFromD<DFromV<V>>;
+using TFromV = typename V::PrivateT;
 
 // ------------------------------ BitCast
 

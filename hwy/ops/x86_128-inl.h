@@ -49,17 +49,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-
-#if HWY_TARGET <= HWY_AVX2
-template <typename T>
-using Full256 = Simd<T, 32 / sizeof(T), 0>;
-#endif
-
-#if HWY_TARGET <= HWY_AVX3
-template <typename T>
-using Full512 = Simd<T, 64 / sizeof(T), 0>;
-#endif
-
 namespace detail {
 
 template <typename T>
@@ -82,6 +71,9 @@ class Vec128 {
   using Raw = typename detail::Raw128<T>::type;
 
  public:
+  using PrivateT = T;                     // only for DFromV
+  static constexpr size_t kPrivateN = N;  // only for DFromV
+
   // Compound assignment. Only usable if there is a corresponding non-member
   // binary operator overload. For example, only f32 and f64 support division.
   HWY_INLINE Vec128& operator*=(const Vec128 other) {
@@ -116,10 +108,6 @@ template <typename T>
 using Vec32 = Vec128<T, 4 / sizeof(T)>;
 
 #if HWY_TARGET <= HWY_AVX3
-
-// Forward-declare for use by DeduceD, see below.
-template <typename T>
-class Vec512;
 
 namespace detail {
 
@@ -166,49 +154,11 @@ struct Mask128 {
 
 #endif  // HWY_TARGET <= HWY_AVX3
 
-#if HWY_TARGET <= HWY_AVX2
-// Forward-declare for use by DeduceD, see below.
-template <typename T>
-class Vec256;
-#endif
-
-namespace detail {
-
-// Deduce Simd<T, N, 0> from Vec*<T, N> (pointers because Vec256/512 may be
-// incomplete types at this point; this is simpler than avoiding multiple
-// definitions of DFromV via #if)
-struct DeduceD {
-  template <typename T, size_t N>
-  Simd<T, N, 0> operator()(const Vec128<T, N>*) const {
-    return Simd<T, N, 0>();
-  }
-#if HWY_TARGET <= HWY_AVX2
-  template <typename T>
-  Full256<T> operator()(const hwy::HWY_NAMESPACE::Vec256<T>*) const {
-    return Full256<T>();
-  }
-#endif
-#if HWY_TARGET <= HWY_AVX3
-  template <typename T>
-  Full512<T> operator()(const hwy::HWY_NAMESPACE::Vec512<T>*) const {
-    return Full512<T>();
-  }
-#endif
-};
-
-// Workaround for MSVC v19.14: alias with a dependent type fails to specialize.
 template <class V>
-struct ExpandDFromV {
-  using type = decltype(DeduceD()(static_cast<V*>(nullptr)));
-};
-
-}  // namespace detail
+using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
 
 template <class V>
-using DFromV = typename detail::ExpandDFromV<V>::type;
-
-template <class V>
-using TFromV = TFromD<DFromV<V>>;
+using TFromV = typename V::PrivateT;
 
 // ------------------------------ BitCast
 
@@ -5222,22 +5172,20 @@ HWY_INLINE Vec128<uint64_t> MulOdd(const Vec128<uint64_t> a,
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
-template <size_t N>
-HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
-                                                   Vec128<bfloat16_t, 2 * N> a,
-                                                   Vec128<bfloat16_t, 2 * N> b,
-                                                   const Vec128<float, N> sum0,
-                                                   Vec128<float, N>& sum1) {
+template <class V, size_t N, class D16 = Simd<bfloat16_t, 2 * N, 0>>
+HWY_API V ReorderWidenMulAccumulate(Simd<float, N, 0> df32, VFromD<D16> a,
+                                    VFromD<D16> b, const V sum0, V& sum1) {
   // TODO(janwas): _mm_dpbf16_ps when available
   const Repartition<uint16_t, decltype(df32)> du16;
   const RebindToUnsigned<decltype(df32)> du32;
-  const Vec128<uint16_t, 2 * N> zero = Zero(du16);
+  const auto zero = Zero(du16);
   // Lane order within sum0/1 is undefined, hence we can avoid the
   // longer-latency lane-crossing PromoteTo.
-  const Vec128<uint32_t, N> a0 = ZipLower(du32, zero, BitCast(du16, a));
-  const Vec128<uint32_t, N> a1 = ZipUpper(du32, zero, BitCast(du16, a));
-  const Vec128<uint32_t, N> b0 = ZipLower(du32, zero, BitCast(du16, b));
-  const Vec128<uint32_t, N> b1 = ZipUpper(du32, zero, BitCast(du16, b));
+  using VU32 = VFromD<RebindToUnsigned<decltype(df32)>>;
+  const VU32 a0 = ZipLower(du32, zero, BitCast(du16, a));
+  const VU32 a1 = ZipUpper(du32, zero, BitCast(du16, a));
+  const VU32 b0 = ZipLower(du32, zero, BitCast(du16, b));
+  const VU32 b1 = ZipUpper(du32, zero, BitCast(du16, b));
   sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
   return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
 }

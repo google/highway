@@ -15,6 +15,12 @@
 
 // Target-independent types/functions defined after target-specific ops.
 
+#include "hwy/base.h"
+// Provides definitions of detail::Shuffle1230 etc.
+#if HWY_IDE
+#include "hwy/ops/x86_128-inl.h"
+#endif
+
 // Relies on the external include guard in highway.h.
 HWY_BEFORE_NAMESPACE();
 namespace hwy {

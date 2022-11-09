@@ -33,6 +33,9 @@ using Full128 = Simd<T, 16 / sizeof(T), 0>;
 // (Wrapper class required for overloading comparison operators.)
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Vec128 {
+  using PrivateT = T;                     // only for DFromV
+  static constexpr size_t kPrivateN = N;  // only for DFromV
+
   HWY_INLINE Vec128() = default;
   Vec128(const Vec128&) = default;
   Vec128& operator=(const Vec128&) = default;
@@ -79,23 +82,11 @@ struct Mask128 {
   Raw bits[16 / sizeof(T)] = {};
 };
 
-namespace detail {
-
-// Deduce Simd<T, N, 0> from Vec128<T, N>
-struct Deduce128 {
-  template <typename T, size_t N>
-  Simd<T, N, 0> operator()(Vec128<T, N>) const {
-    return Simd<T, N, 0>();
-  }
-};
-
-}  // namespace detail
+template <class V>
+using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
 
 template <class V>
-using DFromV = decltype(detail::Deduce128()(V()));
-
-template <class V>
-using TFromV = TFromD<DFromV<V>>;
+using TFromV = typename V::PrivateT;
 
 // ------------------------------ BitCast
 

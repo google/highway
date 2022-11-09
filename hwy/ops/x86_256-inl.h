@@ -83,6 +83,9 @@ class Vec256 {
   using Raw = typename detail::Raw256<T>::type;
 
  public:
+  using PrivateT = T;                                  // only for DFromV
+  static constexpr size_t kPrivateN = 32 / sizeof(T);  // only for DFromV
+
   // Compound assignment. Only usable if there is a corresponding non-member
   // binary operator overload. For example, only f32 and f64 support division.
   HWY_INLINE Vec256& operator*=(const Vec256 other) {
@@ -156,6 +159,9 @@ struct Mask256 {
 };
 
 #endif  // HWY_TARGET <= HWY_AVX3
+
+template <typename T>
+using Full256 = Simd<T, 32 / sizeof(T), 0>;
 
 // ------------------------------ BitCast
 
@@ -3743,7 +3749,7 @@ HWY_API Vec256<TI> TableLookupBytes(const Vec128<T, N> bytes,
 
 namespace detail {
 
-#if HWY_TARGET > HWY_AVX3  // AVX2 or older
+#if HWY_TARGET > HWY_AVX3 && !HWY_IDE  // AVX2 or older
 
 // Returns 2^v for use as per-lane multipliers to emulate 16-bit shifts.
 template <typename T>
@@ -3770,7 +3776,7 @@ HWY_INLINE Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
 
 HWY_INLINE Vec256<uint16_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> v,
                                 Vec256<uint16_t> bits) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 || HWY_IDE
   return Vec256<uint16_t>{_mm256_sllv_epi16(v.raw, bits.raw)};
 #else
   return v * Pow2(bits);
@@ -3806,7 +3812,7 @@ HWY_API Vec256<T> operator<<(Vec256<T> v, Vec256<T> bits) {
 // ------------------------------ Shr (MulHigh, IfThenElse, Not)
 
 HWY_API Vec256<uint16_t> operator>>(Vec256<uint16_t> v, Vec256<uint16_t> bits) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 || HWY_IDE
   return Vec256<uint16_t>{_mm256_srlv_epi16(v.raw, bits.raw)};
 #else
   Full256<uint16_t> d;
@@ -3847,7 +3853,7 @@ HWY_API Vec256<int64_t> operator>>(Vec256<int64_t> v, Vec256<int64_t> bits) {
 
 HWY_INLINE Vec256<uint64_t> MulEven(const Vec256<uint64_t> a,
                                     const Vec256<uint64_t> b) {
-  const DFromV<decltype(a)> du64;
+  const Full256<uint64_t> du64;
   const RepartitionToNarrow<decltype(du64)> du32;
   const auto maskL = Set(du64, 0xFFFFFFFFULL);
   const auto a32 = BitCast(du32, a);
@@ -3876,7 +3882,7 @@ HWY_INLINE Vec256<uint64_t> MulEven(const Vec256<uint64_t> a,
 
 HWY_INLINE Vec256<uint64_t> MulOdd(const Vec256<uint64_t> a,
                                    const Vec256<uint64_t> b) {
-  const DFromV<decltype(a)> du64;
+  const Full256<uint64_t> du64;
   const RepartitionToNarrow<decltype(du64)> du32;
   const auto maskL = Set(du64, 0xFFFFFFFFULL);
   const auto a32 = BitCast(du32, a);
@@ -3901,27 +3907,7 @@ HWY_INLINE Vec256<uint64_t> MulOdd(const Vec256<uint64_t> a,
   return InterleaveUpper(du64, mulL, mulH);
 }
 
-// ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
-
-HWY_API Vec256<float> ReorderWidenMulAccumulate(Full256<float> df32,
-                                                Vec256<bfloat16_t> a,
-                                                Vec256<bfloat16_t> b,
-                                                const Vec256<float> sum0,
-                                                Vec256<float>& sum1) {
-  // TODO(janwas): _mm256_dpbf16_ps when available
-  const Repartition<uint16_t, decltype(df32)> du16;
-  const RebindToUnsigned<decltype(df32)> du32;
-  const Vec256<uint16_t> zero = Zero(du16);
-  // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo.
-  const Vec256<uint32_t> a0 = ZipLower(du32, zero, BitCast(du16, a));
-  const Vec256<uint32_t> a1 = ZipUpper(du32, zero, BitCast(du16, a));
-  const Vec256<uint32_t> b0 = ZipLower(du32, zero, BitCast(du16, b));
-  const Vec256<uint32_t> b1 = ZipUpper(du32, zero, BitCast(du16, b));
-  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
-  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
-}
-
+// ------------------------------ ReorderWidenMulAccumulate
 HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(Full256<int32_t> /*d32*/,
                                                   Vec256<int16_t> a,
                                                   Vec256<int16_t> b,

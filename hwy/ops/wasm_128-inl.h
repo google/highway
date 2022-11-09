@@ -72,6 +72,9 @@ class Vec128 {
   using Raw = typename detail::Raw128<T>::type;
 
  public:
+  using PrivateT = T;                     // only for DFromV
+  static constexpr size_t kPrivateN = N;  // only for DFromV
+
   // Compound assignment. Only usable if there is a corresponding non-member
   // binary operator overload. For example, only f32 and f64 support division.
   HWY_INLINE Vec128& operator*=(const Vec128 other) {
@@ -114,36 +117,11 @@ struct Mask128 {
   typename detail::Raw128<T>::type raw;
 };
 
-#if HWY_TARGET == HWY_WASM_EMU256
-// Forward-declare for use by DeduceD, see below.
-template <typename T>
-class Vec256;
-#endif
-
-namespace detail {
-
-// Deduce Simd<T, N, 0> from Vec128<T, N>
-struct DeduceD {
-  template <typename T, size_t N>
-  Simd<T, N, 0> operator()(Vec128<T, N>) const {
-    return Simd<T, N, 0>();
-  }
-
-#if HWY_TARGET == HWY_WASM_EMU256
-  template <typename T>
-  Full256<T> operator()(Vec256<T>) const {
-    return Full256<T>();
-  }
-#endif
-};
-
-}  // namespace detail
+template <class V>
+using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
 
 template <class V>
-using DFromV = decltype(detail::DeduceD()(V()));
-
-template <class V>
-using TFromV = TFromD<DFromV<V>>;
+using TFromV = typename V::PrivateT;
 
 // ------------------------------ BitCast
 

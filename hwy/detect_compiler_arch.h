@@ -21,7 +21,8 @@
 
 // Add to #if conditions to prevent IDE from graying out code.
 #if (defined __CDT_PARSER__) || (defined __INTELLISENSE__) || \
-    (defined Q_CREATOR_RUN) || (defined(__CLANGD__))
+    (defined Q_CREATOR_RUN) || (defined __CLANGD__) ||        \
+    (defined GROK_ELLIPSIS_BUILD)
 #define HWY_IDE 1
 #else
 #define HWY_IDE 0
