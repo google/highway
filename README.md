@@ -75,6 +75,10 @@ Supported targets: scalar, S-SSE3, SSE4, AVX2, AVX-512, AVX3_DL (~Icelake,
 requires opt-in by defining `HWY_WANT_AVX3_DL`), NEON (ARMv7 and v8), SVE, SVE2,
 WASM SIMD, RISC-V V.
 
+`HWY_WASM_EMU256` is a 2x unrolled version of wasm128 and is enabled if
+`HWY_WANT_WASM2` is defined. This will remain supported until it is potentially
+superseded by a future version of WASM.
+
 SVE was initially tested using farm_sve (see acknowledgments).
 
 ### Versioning
