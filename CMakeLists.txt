@@ -294,8 +294,8 @@ set_target_properties(hwy PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
 # For GCC __atomic_store_8, see #887
 target_link_libraries(hwy PRIVATE ${ATOMICS_LIBRARIES})
+# not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
 if(UNIX AND NOT APPLE)
-  # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
   set_property(TARGET hwy APPEND_STRING PROPERTY
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
@@ -559,7 +559,9 @@ foreach (TESTFILE IN LISTS HWY_TEST_FILES)
   # that include us may set them.
   target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
 
-  target_link_libraries(${TESTNAME} ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
+  target_link_libraries(${TESTNAME} PRIVATE ${HWY_TEST_LIBS} ${HWY_GTEST_LIBS})
+  # For GCC __atomic_store_8, see #887
+  target_link_libraries(${TESTNAME} PRIVATE ${ATOMICS_LIBRARIES})
   # Output test targets in the test directory.
   set_target_properties(${TESTNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "tests")
 
