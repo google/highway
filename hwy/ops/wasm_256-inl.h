@@ -1158,11 +1158,7 @@ HWY_API Vec256<T> InterleaveLower(Vec256<T> a, Vec256<T> b) {
   return a;
 }
 
-// Additional overload for the optional tag.
-template <typename T, class V = Vec256<T>>
-HWY_API V InterleaveLower(Full256<T> /* tag */, V a, V b) {
-  return InterleaveLower(a, b);
-}
+// wasm_128 already defines a template with D, V, V args.
 
 // ------------------------------ InterleaveUpper (UpperHalf)
 
