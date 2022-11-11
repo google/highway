@@ -494,8 +494,8 @@ using VFromD = decltype(Set(D(), TFromD<D>()));
 
 // ------------------------------ Zero
 
-template <typename T, size_t N, int kPow2>
-HWY_API VFromD<Simd<T, N, kPow2>> Zero(Simd<T, N, kPow2> d) {
+template <class D>
+HWY_API VFromD<D> Zero(D d) {
   // Cast to support bfloat16_t.
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, Set(du, 0));

@@ -16,10 +16,10 @@
 // Target-independent types/functions defined after target-specific ops.
 
 #include "hwy/base.h"
-// Provides definitions of detail::Shuffle1230 etc.
 #if HWY_IDE
+// Define detail::Shuffle1230 etc.
 #include "hwy/ops/x86_128-inl.h"
-#endif
+#endif  // HWY_IDE
 
 // Relies on the external include guard in highway.h.
 HWY_BEFORE_NAMESPACE();
@@ -482,31 +482,15 @@ HWY_API void StoreInterleaved2(const V v0, const V v1, Simd<T, N, 0> d,
   detail::StoreTransposedBlocks2(v10L, v10U, d, unaligned);
 }
 
-// 64 bits
-template <typename T>
-HWY_API void StoreInterleaved2(const Vec64<T> part0, const Vec64<T> part1,
-                               Full64<T> /*tag*/, T* HWY_RESTRICT unaligned) {
-  // Use full vectors to reduce the number of stores.
-  const Full128<T> d_full;
-  const Vec128<T> v0{part0.raw};
-  const Vec128<T> v1{part1.raw};
-  const auto v10 = InterleaveLower(d_full, v0, v1);
-  StoreU(v10, d_full, unaligned);
-}
-
-// <= 32 bits
-template <typename T, size_t N, HWY_IF_LE32(T, N)>
-HWY_API void StoreInterleaved2(const Vec128<T, N> part0,
-                               const Vec128<T, N> part1, Simd<T, N, 0> /*tag*/,
+// <= 64 bits
+template <class V, typename T, size_t N, HWY_IF_LE64(T, N)>
+HWY_API void StoreInterleaved2(const V part0, const V part1, Simd<T, N, 0> d,
                                T* HWY_RESTRICT unaligned) {
-  // Use full vectors to reduce the number of stores.
-  const Full128<T> d_full;
-  const Vec128<T> v0{part0.raw};
-  const Vec128<T> v1{part1.raw};
-  const auto v10 = InterleaveLower(d_full, v0, v1);
-  alignas(16) T buf[16 / sizeof(T)];
-  StoreU(v10, d_full, buf);
-  CopyBytes<2 * N * sizeof(T)>(buf, unaligned);
+  const Twice<decltype(d)> d2;
+  const auto v0 = ZeroExtendVector(d2, part0);
+  const auto v1 = ZeroExtendVector(d2, part1);
+  const auto v10 = InterleaveLower(d2, v0, v1);
+  StoreU(v10, d2, unaligned);
 }
 
 // ------------------------------ StoreInterleaved3 (CombineShiftRightBytes,
@@ -673,10 +657,9 @@ HWY_API void StoreInterleaved3(const V v0, const V v1, const V v2,
 }
 
 // 64-bit vector, 8-bit lanes
-template <typename T, HWY_IF_LANE_SIZE(T, 1)>
-HWY_API void StoreInterleaved3(const Vec64<T> part0, const Vec64<T> part1,
-                               const Vec64<T> part2, Full64<T> d,
-                               T* HWY_RESTRICT unaligned) {
+template <class V, typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API void StoreInterleaved3(const V part0, const V part1, const V part2,
+                               Full64<T> d, T* HWY_RESTRICT unaligned) {
   constexpr size_t N = 16 / sizeof(T);
   // Use full vectors for the shuffles and first result.
   const Full128<uint8_t> du;
@@ -715,7 +698,7 @@ HWY_API void StoreInterleaved3(const Vec64<T> part0, const Vec64<T> part1,
   const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
   const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
   const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
-  const Vec64<T> B{(B0 | B1 | B2).raw};
+  const V B{(B0 | B1 | B2).raw};
   StoreU(B, d, unaligned + 1 * N);
 }
 

@@ -15,6 +15,16 @@
 
 // Per-target definitions shared by ops/*.h and user code.
 
+// We are covered by the highway.h include guard, but generic_ops-inl.h
+// includes this again #if HWY_IDE.
+#if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == \
+    defined(HWY_TARGET_TOGGLE)
+#ifdef HIGHWAY_HWY_OPS_SHARED_TOGGLE
+#undef HIGHWAY_HWY_OPS_SHARED_TOGGLE
+#else
+#define HIGHWAY_HWY_OPS_SHARED_TOGGLE
+#endif
+
 #include <math.h>
 
 #include "hwy/base.h"
@@ -312,3 +322,5 @@ using VecArg = V;
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
+
+#endif  // HIGHWAY_HWY_OPS_SHARED_TOGGLE
