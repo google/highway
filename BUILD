@@ -207,6 +207,18 @@ cc_library(
 )
 
 cc_library(
+    name = "bit_pack",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/bit_pack/bit_pack-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
     name = "dot",
     compatible_with = [],
     copts = COPTS,
@@ -308,6 +320,7 @@ HWY_TESTS = [
     ("hwy/contrib/algo/", "copy_test"),
     ("hwy/contrib/algo/", "find_test"),
     ("hwy/contrib/algo/", "transform_test"),
+    ("hwy/contrib/bit_pack/", "bit_pack_test"),
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
@@ -354,6 +367,7 @@ HWY_TEST_COPTS = select({
 
 HWY_TEST_DEPS = [
     ":algo",
+    ":bit_pack",
     ":dot",
     ":hwy",
     ":hwy_test_util",
