@@ -21,7 +21,7 @@
 #include "hwy/base.h"
 
 // Avoid uninitialized warnings in GCC's emmintrin.h - see
-// https://github.com/google/highway/issues/710 and pull/902)
+// https://github.com/google/highway/issues/710 and pull/902
 HWY_DIAGNOSTICS(push)
 #if HWY_COMPILER_GCC_ACTUAL
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")

@@ -16,9 +16,11 @@
 // Target-independent types/functions defined after target-specific ops.
 
 #include "hwy/base.h"
-#if HWY_IDE
-// Define detail::Shuffle1230 etc.
-#include "hwy/ops/x86_128-inl.h"
+
+// Define detail::Shuffle1230 etc, but only when viewing the current header;
+// normally this is included via highway.h, which includes ops/*.h.
+#if HWY_IDE && !defined(HWY_HIGHWAY_INCLUDED)
+#include "hwy/ops/emu128-inl.h"
 #endif  // HWY_IDE
 
 // Relies on the external include guard in highway.h.

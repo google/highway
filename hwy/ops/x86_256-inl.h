@@ -4266,7 +4266,7 @@ HWY_API Vec256<float> ConvertTo(HWY_MAYBE_UNUSED Full256<float> df,
   const RebindToSigned<decltype(df)> d32;
 
   const auto msk_lo = Set(du32, 0xFFFF);
-  const auto cnst2_16_flt = Set(df, 65536.0f); // 2^16
+  const auto cnst2_16_flt = Set(df, 65536.0f);  // 2^16
 
   // Extract the 16 lowest/highest significant bits of v and cast to signed int
   const auto v_lo = BitCast(d32, And(v, msk_lo));
@@ -4286,9 +4286,9 @@ HWY_API Vec256<double> ConvertTo(HWY_MAYBE_UNUSED Full256<double> dd,
   using VU = VFromD<decltype(d64)>;
 
   const VU msk_lo = Set(d64, 0xFFFFFFFFULL);
-  const auto cnst2_32_dbl = Set(dd, 4294967296.0); // 2^32
+  const auto cnst2_32_dbl = Set(dd, 4294967296.0);  // 2^32
 
-   // Extract the 32 lowest significant bits of v
+  // Extract the 32 lowest significant bits of v
   const VU v_lo = And(v, msk_lo);
   const VU v_hi = ShiftRight<32>(v);
 
