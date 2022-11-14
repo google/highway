@@ -59,42 +59,53 @@ class Checker {
   size_t num_verified_ = 0;
 };
 
-template <size_t kBits>
+template <class PackT>
 struct TestPack {
   template <typename T, class D>
   void operator()(T /* t */, D d) {
     const size_t N = Lanes(d);
     RandomState rng(N * 129);
-    const size_t num = N * detail::Pack8<kBits>::kRawVectors;
-    const size_t packed_size = N * detail::Pack8<kBits>::kPackedVectors;
+    const size_t num = N * PackT::kRawVectors;
+    const size_t packed_size = N * PackT::kPackedVectors;
     Checker<T> checker(num);
     AlignedFreeUniquePtr<T[]> raw = hwy::AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> raw2 = hwy::AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> packed = hwy::AllocateAligned<T>(packed_size);
 
     for (size_t i = 0; i < num; ++i) {
-      raw[i] = Random<kBits, T>(rng);
+      raw[i] = Random<PackT::kBits, T>(rng);
       checker.NotifyRaw(raw[i]);
     }
 
-    detail::Pack8<kBits>().Pack(d, raw.get(), packed.get());
-    detail::Pack8<kBits>().Unpack(d, packed.get(), raw2.get());
+    PackT().Pack(d, raw.get(), packed.get());
+    PackT().Unpack(d, packed.get(), raw2.get());
 
     for (size_t i = 0; i < num; ++i) {
-      checker.NotifyRawOutput(kBits, raw2[i]);
+      checker.NotifyRawOutput(PackT::kBits, raw2[i]);
     }
   }
 };
 
-void TestAllPack() {
-  ForShrinkableVectors<TestPack<1>>()(uint8_t());
-  ForShrinkableVectors<TestPack<2>>()(uint8_t());
-  ForShrinkableVectors<TestPack<3>>()(uint8_t());
-  ForShrinkableVectors<TestPack<4>>()(uint8_t());
-  ForShrinkableVectors<TestPack<5>>()(uint8_t());
-  ForShrinkableVectors<TestPack<6>>()(uint8_t());
-  ForShrinkableVectors<TestPack<7>>()(uint8_t());
-  ForShrinkableVectors<TestPack<8>>()(uint8_t());
+void TestAllPack8() {
+  ForShrinkableVectors<TestPack<detail::Pack8<1>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<2>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<3>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<4>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<5>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<6>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<7>>>()(uint8_t());
+  ForShrinkableVectors<TestPack<detail::Pack8<8>>>()(uint8_t());
+}
+
+void TestAllPack16() {
+  ForShrinkableVectors<TestPack<detail::Pack16<1>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<2>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<3>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<4>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<5>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<6>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<7>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<8>>>()(uint16_t());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -106,7 +117,8 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 HWY_BEFORE_TEST(BitPackTest);
-HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack);
+HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack8);
+HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack16);
 }  // namespace hwy
 
 #endif
