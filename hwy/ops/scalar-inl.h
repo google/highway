@@ -554,7 +554,7 @@ HWY_API Vec1<uint16_t> AverageRound(const Vec1<uint16_t> a,
 template <typename T>
 HWY_API Vec1<T> Abs(const Vec1<T> a) {
   const T i = a.raw;
-  return (i >= 0 || i == hwy::LimitsMin<T>()) ? a : Vec1<T>(-i);
+  return (i >= 0 || i == hwy::LimitsMin<T>()) ? a : Vec1<T>(static_cast<T>(-i));
 }
 HWY_API Vec1<float> Abs(const Vec1<float> a) {
   return Vec1<float>(fabsf(a.raw));
