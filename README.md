@@ -126,6 +126,9 @@ installing gtest separately:
 sudo apt install libgtest-dev
 ```
 
+Running cross-compiled tests requires support from the OS, which on Debian is
+provided by the `qemu-user-binfmt` package.
+
 To build Highway as a shared or static library (depending on BUILD_SHARED_LIBS),
 the standard CMake workflow can be used:
 
