@@ -161,9 +161,9 @@ void TestAllPack16() {
   ForShrinkableVectors<TestPack<detail::Pack16<8>>>()(uint16_t());
   ForShrinkableVectors<TestPack<detail::Pack16<9>>>()(uint16_t());
   ForShrinkableVectors<TestPack<detail::Pack16<10>>>()(uint16_t());
-  // ForShrinkableVectors<TestPack<detail::Pack16<11>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<11>>>()(uint16_t());
   ForShrinkableVectors<TestPack<detail::Pack16<12>>>()(uint16_t());
-  // ForShrinkableVectors<TestPack<detail::Pack16<13>>>()(uint16_t());
+  ForShrinkableVectors<TestPack<detail::Pack16<13>>>()(uint16_t());
   ForShrinkableVectors<TestPack<detail::Pack16<14>>>()(uint16_t());
   ForShrinkableVectors<TestPack<detail::Pack16<15>>>()(uint16_t());
   ForShrinkableVectors<TestPack<detail::Pack16<16>>>()(uint16_t());

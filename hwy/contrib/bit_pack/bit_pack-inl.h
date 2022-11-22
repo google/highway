@@ -1698,6 +1698,173 @@ struct Pack16<10> {
 };  // Pack16<10>
 
 template <>
+struct Pack16<11> {
+  static constexpr size_t kBits = 11;
+  static constexpr size_t kRawVectors = 16;
+  static constexpr size_t kPackedVectors = 11;
+
+  template <class D>
+  HWY_INLINE void Pack(D d, const uint16_t* HWY_RESTRICT raw,
+                       uint16_t* HWY_RESTRICT packed_out) {
+    using VU16 = Vec<decltype(d)>;
+    const size_t N = Lanes(d);
+    const VU16 raw0 = LoadU(d, raw + 0 * N);
+    const VU16 raw1 = LoadU(d, raw + 1 * N);
+    const VU16 raw2 = LoadU(d, raw + 2 * N);
+    const VU16 raw3 = LoadU(d, raw + 3 * N);
+    const VU16 raw4 = LoadU(d, raw + 4 * N);
+    const VU16 raw5 = LoadU(d, raw + 5 * N);
+    const VU16 raw6 = LoadU(d, raw + 6 * N);
+    const VU16 raw7 = LoadU(d, raw + 7 * N);
+    const VU16 raw8 = LoadU(d, raw + 8 * N);
+    const VU16 raw9 = LoadU(d, raw + 9 * N);
+    const VU16 rawA = LoadU(d, raw + 0xA * N);
+    const VU16 rawB = LoadU(d, raw + 0xB * N);
+    const VU16 rawC = LoadU(d, raw + 0xC * N);
+    const VU16 rawD = LoadU(d, raw + 0xD * N);
+    const VU16 rawE = LoadU(d, raw + 0xE * N);
+    const VU16 rawF = LoadU(d, raw + 0xF * N);
+    // It is not obvious what the optimal partitioning looks like. To reduce the
+    // number of constants, we want to minimize the number of distinct bit
+    // lengths. 11+5 also requires 6-bit remnants with 4-bit leftovers.
+    // 8+3 seems better: it is easier to scatter 3 bits into the MSBs.
+    const VU16 lo8 = Set(d, 0xFFu);
+
+    // Lower 8 bits of all raw
+    const VU16 packed0 = OrAnd(ShiftLeft<8>(raw1), raw0, lo8);
+    const VU16 packed1 = OrAnd(ShiftLeft<8>(raw3), raw2, lo8);
+    const VU16 packed2 = OrAnd(ShiftLeft<8>(raw5), raw4, lo8);
+    const VU16 packed3 = OrAnd(ShiftLeft<8>(raw7), raw6, lo8);
+    const VU16 packed4 = OrAnd(ShiftLeft<8>(raw9), raw8, lo8);
+    const VU16 packed5 = OrAnd(ShiftLeft<8>(rawB), rawA, lo8);
+    const VU16 packed6 = OrAnd(ShiftLeft<8>(rawD), rawC, lo8);
+    const VU16 packed7 = OrAnd(ShiftLeft<8>(rawF), rawE, lo8);
+    StoreU(packed0, d, packed_out + 0 * N);
+    StoreU(packed1, d, packed_out + 1 * N);
+    StoreU(packed2, d, packed_out + 2 * N);
+    StoreU(packed3, d, packed_out + 3 * N);
+    StoreU(packed4, d, packed_out + 4 * N);
+    StoreU(packed5, d, packed_out + 5 * N);
+    StoreU(packed6, d, packed_out + 6 * N);
+    StoreU(packed7, d, packed_out + 7 * N);
+
+    // Three vectors, five 3bit remnants each, plus one 3bit in their MSB.
+    const VU16 top0 = ShiftRight<8>(raw0);
+    const VU16 top1 = ShiftRight<8>(raw1);
+    const VU16 top2 = ShiftRight<8>(raw2);
+    // Insert top raw bits into 3-bit groups within packed8..A. Moving the
+    // mask along avoids masking each of raw0..E and enables OrAnd.
+    VU16 next = Set(d, 0x38u);  // 0x7 << 3
+    VU16 packed8 = OrAnd(top0, ShiftRight<5>(raw3), next);
+    VU16 packed9 = OrAnd(top1, ShiftRight<5>(raw4), next);
+    VU16 packedA = OrAnd(top2, ShiftRight<5>(raw5), next);
+    next = ShiftLeft<3>(next);
+    packed8 = OrAnd(packed8, ShiftRight<2>(raw6), next);
+    packed9 = OrAnd(packed9, ShiftRight<2>(raw7), next);
+    packedA = OrAnd(packedA, ShiftRight<2>(raw8), next);
+    next = ShiftLeft<3>(next);
+    packed8 = OrAnd(packed8, Add(raw9, raw9), next);
+    packed9 = OrAnd(packed9, Add(rawA, rawA), next);
+    packedA = OrAnd(packedA, Add(rawB, rawB), next);
+    next = ShiftLeft<3>(next);
+    packed8 = OrAnd(packed8, ShiftLeft<4>(rawC), next);
+    packed9 = OrAnd(packed9, ShiftLeft<4>(rawD), next);
+    packedA = OrAnd(packedA, ShiftLeft<4>(rawE), next);
+
+    // Scatter upper 3 bits of rawF into the upper bits.
+    next = ShiftLeft<3>(next);  // = 0x8000u
+    packed8 = OrAnd(packed8, ShiftLeft<7>(rawF), next);
+    packed9 = OrAnd(packed9, ShiftLeft<6>(rawF), next);
+    packedA = OrAnd(packedA, ShiftLeft<5>(rawF), next);
+
+    StoreU(packed8, d, packed_out + 8 * N);
+    StoreU(packed9, d, packed_out + 9 * N);
+    StoreU(packedA, d, packed_out + 0xA * N);
+  }
+
+  template <class D>
+  HWY_INLINE void Unpack(D d, const uint16_t* HWY_RESTRICT packed_in,
+                         uint16_t* HWY_RESTRICT raw) {
+    using VU16 = Vec<decltype(d)>;
+    const size_t N = Lanes(d);
+
+    VU16 packed0 = BitCast(d, LoadU(d, packed_in + 0 * N));
+    VU16 packed1 = BitCast(d, LoadU(d, packed_in + 1 * N));
+    VU16 packed2 = BitCast(d, LoadU(d, packed_in + 2 * N));
+    VU16 packed3 = BitCast(d, LoadU(d, packed_in + 3 * N));
+    VU16 packed4 = BitCast(d, LoadU(d, packed_in + 4 * N));
+    VU16 packed5 = BitCast(d, LoadU(d, packed_in + 5 * N));
+    VU16 packed6 = BitCast(d, LoadU(d, packed_in + 6 * N));
+    VU16 packed7 = BitCast(d, LoadU(d, packed_in + 7 * N));
+    const VU16 packed8 = BitCast(d, LoadU(d, packed_in + 8 * N));
+    const VU16 packed9 = BitCast(d, LoadU(d, packed_in + 9 * N));
+    const VU16 packedA = BitCast(d, LoadU(d, packed_in + 0xA * N));
+    // We extract the lowest eight bits and shift right.
+    const VU16 mask8 = Set(d, 0xFFu);
+    const VU16 low0 = And(packed0, mask8);
+    packed0 = ShiftRight<8>(packed0);
+    const VU16 low2 = And(packed1, mask8);
+    packed1 = ShiftRight<8>(packed1);
+    const VU16 low4 = And(packed2, mask8);
+    packed2 = ShiftRight<8>(packed2);
+    const VU16 low6 = And(packed3, mask8);
+    packed3 = ShiftRight<8>(packed3);
+    const VU16 low8 = And(packed4, mask8);
+    packed4 = ShiftRight<8>(packed4);
+    const VU16 lowA = And(packed5, mask8);
+    packed5 = ShiftRight<8>(packed5);
+    const VU16 lowC = And(packed6, mask8);
+    packed6 = ShiftRight<8>(packed6);
+    const VU16 lowE = And(packed7, mask8);
+    packed7 = ShiftRight<8>(packed7);
+
+    // Three bits from packed8..A, eight bits alternating from low and packed.
+    const VU16 top3 = Set(d, 0x700u);
+    const VU16 raw0 = OrAnd(low0, ShiftLeft<8>(packed8), top3);
+    const VU16 raw1 = OrAnd(packed0, ShiftLeft<8>(packed9), top3);
+    const VU16 raw2 = OrAnd(low2, ShiftLeft<8>(packedA), top3);
+
+    const VU16 raw3 = OrAnd(packed1, ShiftLeft<5>(packed8), top3);
+    const VU16 raw4 = OrAnd(low4, ShiftLeft<5>(packed9), top3);
+    const VU16 raw5 = OrAnd(packed2, ShiftLeft<5>(packedA), top3);
+
+    const VU16 raw6 = OrAnd(low6, ShiftLeft<2>(packed8), top3);
+    const VU16 raw7 = OrAnd(packed3, ShiftLeft<2>(packed9), top3);
+    const VU16 raw8 = OrAnd(low8, ShiftLeft<2>(packedA), top3);
+
+    const VU16 raw9 = OrAnd(packed4, ShiftRight<1>(packed8), top3);
+    const VU16 rawA = OrAnd(lowA, ShiftRight<1>(packed9), top3);
+    const VU16 rawB = OrAnd(packed5, ShiftRight<1>(packedA), top3);
+
+    const VU16 rawC = OrAnd(lowC, ShiftRight<4>(packed8), top3);
+    const VU16 rawD = OrAnd(packed6, ShiftRight<4>(packed9), top3);
+    const VU16 rawE = OrAnd(lowE, ShiftRight<4>(packedA), top3);
+
+    // Shift MSB into the top 3-of-11 and mask.
+    VU16 rawF = OrAnd(packed7, ShiftRight<7>(packed8), top3);
+    rawF = OrAnd(rawF, ShiftRight<6>(packed9), top3);
+    rawF = OrAnd(rawF, ShiftRight<5>(packedA), top3);
+
+    StoreU(raw0, d, raw + 0 * N);
+    StoreU(raw1, d, raw + 1 * N);
+    StoreU(raw2, d, raw + 2 * N);
+    StoreU(raw3, d, raw + 3 * N);
+    StoreU(raw4, d, raw + 4 * N);
+    StoreU(raw5, d, raw + 5 * N);
+    StoreU(raw6, d, raw + 6 * N);
+    StoreU(raw7, d, raw + 7 * N);
+    StoreU(raw8, d, raw + 8 * N);
+    StoreU(raw9, d, raw + 9 * N);
+    StoreU(rawA, d, raw + 0xA * N);
+    StoreU(rawB, d, raw + 0xB * N);
+    StoreU(rawC, d, raw + 0xC * N);
+    StoreU(rawD, d, raw + 0xD * N);
+    StoreU(rawE, d, raw + 0xE * N);
+    StoreU(rawF, d, raw + 0xF * N);
+  }
+};  // Pack16<11>
+
+template <>
 struct Pack16<12> {
   static constexpr size_t kBits = 12;
   static constexpr size_t kRawVectors = 16;
@@ -1828,6 +1995,175 @@ struct Pack16<12> {
     StoreU(rawF, d, raw + 0xF * N);
   }
 };  // Pack16<12>
+
+template <>
+struct Pack16<13> {
+  static constexpr size_t kBits = 13;
+  static constexpr size_t kRawVectors = 16;
+  static constexpr size_t kPackedVectors = 13;
+
+  template <class D>
+  HWY_INLINE void Pack(D d, const uint16_t* HWY_RESTRICT raw,
+                       uint16_t* HWY_RESTRICT packed_out) {
+    using VU16 = Vec<decltype(d)>;
+    const size_t N = Lanes(d);
+    const VU16 raw0 = LoadU(d, raw + 0 * N);
+    const VU16 raw1 = LoadU(d, raw + 1 * N);
+    const VU16 raw2 = LoadU(d, raw + 2 * N);
+    const VU16 raw3 = LoadU(d, raw + 3 * N);
+    const VU16 raw4 = LoadU(d, raw + 4 * N);
+    const VU16 raw5 = LoadU(d, raw + 5 * N);
+    const VU16 raw6 = LoadU(d, raw + 6 * N);
+    const VU16 raw7 = LoadU(d, raw + 7 * N);
+    const VU16 raw8 = LoadU(d, raw + 8 * N);
+    const VU16 raw9 = LoadU(d, raw + 9 * N);
+    const VU16 rawA = LoadU(d, raw + 0xA * N);
+    const VU16 rawB = LoadU(d, raw + 0xB * N);
+    const VU16 rawC = LoadU(d, raw + 0xC * N);
+    const VU16 rawD = LoadU(d, raw + 0xD * N);
+    const VU16 rawE = LoadU(d, raw + 0xE * N);
+    const VU16 rawF = LoadU(d, raw + 0xF * N);
+    // As with 11 bits, it is not obvious what the optimal partitioning looks
+    // like. We similarly go with an 8+5 split.
+    const VU16 lo8 = Set(d, 0xFFu);
+
+    // Lower 8 bits of all raw
+    const VU16 packed0 = OrAnd(ShiftLeft<8>(raw1), raw0, lo8);
+    const VU16 packed1 = OrAnd(ShiftLeft<8>(raw3), raw2, lo8);
+    const VU16 packed2 = OrAnd(ShiftLeft<8>(raw5), raw4, lo8);
+    const VU16 packed3 = OrAnd(ShiftLeft<8>(raw7), raw6, lo8);
+    const VU16 packed4 = OrAnd(ShiftLeft<8>(raw9), raw8, lo8);
+    const VU16 packed5 = OrAnd(ShiftLeft<8>(rawB), rawA, lo8);
+    const VU16 packed6 = OrAnd(ShiftLeft<8>(rawD), rawC, lo8);
+    const VU16 packed7 = OrAnd(ShiftLeft<8>(rawF), rawE, lo8);
+    StoreU(packed0, d, packed_out + 0 * N);
+    StoreU(packed1, d, packed_out + 1 * N);
+    StoreU(packed2, d, packed_out + 2 * N);
+    StoreU(packed3, d, packed_out + 3 * N);
+    StoreU(packed4, d, packed_out + 4 * N);
+    StoreU(packed5, d, packed_out + 5 * N);
+    StoreU(packed6, d, packed_out + 6 * N);
+    StoreU(packed7, d, packed_out + 7 * N);
+
+    // Five vectors, three 5bit remnants each, plus one 5bit in their MSB.
+    const VU16 top0 = ShiftRight<8>(raw0);
+    const VU16 top1 = ShiftRight<8>(raw1);
+    const VU16 top2 = ShiftRight<8>(raw2);
+    const VU16 top3 = ShiftRight<8>(raw3);
+    const VU16 top4 = ShiftRight<8>(raw4);
+    // Insert top raw bits into 5-bit groups within packed8..C. Moving the
+    // mask along avoids masking each of raw0..E and enables OrAnd.
+    VU16 next = Set(d, 0x3E0u);  // 0x1F << 5
+    VU16 packed8 = OrAnd(top0, ShiftRight<3>(raw5), next);
+    VU16 packed9 = OrAnd(top1, ShiftRight<3>(raw6), next);
+    VU16 packedA = OrAnd(top2, ShiftRight<3>(raw7), next);
+    VU16 packedB = OrAnd(top3, ShiftRight<3>(raw8), next);
+    VU16 packedC = OrAnd(top4, ShiftRight<3>(raw9), next);
+    next = ShiftLeft<5>(next);
+    packed8 = OrAnd(packed8, ShiftLeft<2>(rawA), next);
+    packed9 = OrAnd(packed9, ShiftLeft<2>(rawB), next);
+    packedA = OrAnd(packedA, ShiftLeft<2>(rawC), next);
+    packedB = OrAnd(packedB, ShiftLeft<2>(rawD), next);
+    packedC = OrAnd(packedC, ShiftLeft<2>(rawE), next);
+
+    // Scatter upper 5 bits of rawF into the upper bits.
+    next = ShiftLeft<3>(next);  // = 0x8000u
+    packed8 = OrAnd(packed8, ShiftLeft<7>(rawF), next);
+    packed9 = OrAnd(packed9, ShiftLeft<6>(rawF), next);
+    packedA = OrAnd(packedA, ShiftLeft<5>(rawF), next);
+    packedB = OrAnd(packedB, ShiftLeft<4>(rawF), next);
+    packedC = OrAnd(packedC, ShiftLeft<3>(rawF), next);
+
+    StoreU(packed8, d, packed_out + 8 * N);
+    StoreU(packed9, d, packed_out + 9 * N);
+    StoreU(packedA, d, packed_out + 0xA * N);
+    StoreU(packedB, d, packed_out + 0xB * N);
+    StoreU(packedC, d, packed_out + 0xC * N);
+  }
+
+  template <class D>
+  HWY_INLINE void Unpack(D d, const uint16_t* HWY_RESTRICT packed_in,
+                         uint16_t* HWY_RESTRICT raw) {
+    using VU16 = Vec<decltype(d)>;
+    const size_t N = Lanes(d);
+
+    VU16 packed0 = BitCast(d, LoadU(d, packed_in + 0 * N));
+    VU16 packed1 = BitCast(d, LoadU(d, packed_in + 1 * N));
+    VU16 packed2 = BitCast(d, LoadU(d, packed_in + 2 * N));
+    VU16 packed3 = BitCast(d, LoadU(d, packed_in + 3 * N));
+    VU16 packed4 = BitCast(d, LoadU(d, packed_in + 4 * N));
+    VU16 packed5 = BitCast(d, LoadU(d, packed_in + 5 * N));
+    VU16 packed6 = BitCast(d, LoadU(d, packed_in + 6 * N));
+    VU16 packed7 = BitCast(d, LoadU(d, packed_in + 7 * N));
+    const VU16 packed8 = BitCast(d, LoadU(d, packed_in + 8 * N));
+    const VU16 packed9 = BitCast(d, LoadU(d, packed_in + 9 * N));
+    const VU16 packedA = BitCast(d, LoadU(d, packed_in + 0xA * N));
+    const VU16 packedB = BitCast(d, LoadU(d, packed_in + 0xB * N));
+    const VU16 packedC = BitCast(d, LoadU(d, packed_in + 0xC * N));
+    // We extract the lowest eight bits and shift right.
+    const VU16 mask8 = Set(d, 0xFFu);
+    const VU16 low0 = And(packed0, mask8);
+    packed0 = ShiftRight<8>(packed0);
+    const VU16 low2 = And(packed1, mask8);
+    packed1 = ShiftRight<8>(packed1);
+    const VU16 low4 = And(packed2, mask8);
+    packed2 = ShiftRight<8>(packed2);
+    const VU16 low6 = And(packed3, mask8);
+    packed3 = ShiftRight<8>(packed3);
+    const VU16 low8 = And(packed4, mask8);
+    packed4 = ShiftRight<8>(packed4);
+    const VU16 lowA = And(packed5, mask8);
+    packed5 = ShiftRight<8>(packed5);
+    const VU16 lowC = And(packed6, mask8);
+    packed6 = ShiftRight<8>(packed6);
+    const VU16 lowE = And(packed7, mask8);
+    packed7 = ShiftRight<8>(packed7);
+
+    // Five bits from packed8..C, eight bits alternating from low and packed.
+    const VU16 top5 = Set(d, 0x1F00u);
+    const VU16 raw0 = OrAnd(low0, ShiftLeft<8>(packed8), top5);
+    const VU16 raw1 = OrAnd(packed0, ShiftLeft<8>(packed9), top5);
+    const VU16 raw2 = OrAnd(low2, ShiftLeft<8>(packedA), top5);
+    const VU16 raw3 = OrAnd(packed1, ShiftLeft<8>(packedB), top5);
+    const VU16 raw4 = OrAnd(low4, ShiftLeft<8>(packedC), top5);
+
+    const VU16 raw5 = OrAnd(packed2, ShiftLeft<3>(packed8), top5);
+    const VU16 raw6 = OrAnd(low6, ShiftLeft<3>(packed9), top5);
+    const VU16 raw7 = OrAnd(packed3, ShiftLeft<3>(packedA), top5);
+    const VU16 raw8 = OrAnd(low8, ShiftLeft<3>(packed9), top5);
+    const VU16 raw9 = OrAnd(packed4, ShiftLeft<3>(packedA), top5);
+
+    const VU16 rawA = OrAnd(lowA, ShiftRight<2>(packed8), top5);
+    const VU16 rawB = OrAnd(packed5, ShiftRight<2>(packed9), top5);
+    const VU16 rawC = OrAnd(lowC, ShiftRight<2>(packedA), top5);
+    const VU16 rawD = OrAnd(packed6, ShiftRight<2>(packed9), top5);
+    const VU16 rawE = OrAnd(lowE, ShiftRight<2>(packedA), top5);
+
+    // Shift MSB into the top 5-of-11 and mask.
+    VU16 rawF = OrAnd(packed7, ShiftRight<7>(packed8), top5);
+    rawF = OrAnd(rawF, ShiftRight<6>(packed9), top5);
+    rawF = OrAnd(rawF, ShiftRight<5>(packedA), top5);
+    rawF = OrAnd(rawF, ShiftRight<4>(packedB), top5);
+    rawF = OrAnd(rawF, ShiftRight<3>(packedC), top5);
+
+    StoreU(raw0, d, raw + 0 * N);
+    StoreU(raw1, d, raw + 1 * N);
+    StoreU(raw2, d, raw + 2 * N);
+    StoreU(raw3, d, raw + 3 * N);
+    StoreU(raw4, d, raw + 4 * N);
+    StoreU(raw5, d, raw + 5 * N);
+    StoreU(raw6, d, raw + 6 * N);
+    StoreU(raw7, d, raw + 7 * N);
+    StoreU(raw8, d, raw + 8 * N);
+    StoreU(raw9, d, raw + 9 * N);
+    StoreU(rawA, d, raw + 0xA * N);
+    StoreU(rawB, d, raw + 0xB * N);
+    StoreU(rawC, d, raw + 0xC * N);
+    StoreU(rawD, d, raw + 0xD * N);
+    StoreU(rawE, d, raw + 0xE * N);
+    StoreU(rawF, d, raw + 0xF * N);
+  }
+};  // Pack16<13>
 
 template <>
 struct Pack16<14> {
