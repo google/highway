@@ -3126,7 +3126,7 @@ template <size_t N, int kPow2, hwy::EnableIf<(kPow2 < 3)>* = nullptr,
 HWY_API VFromD<Simd<int16_t, N, kPow2>> ReorderDemote2To(
     Simd<int16_t, N, kPow2> d16, VFromD<D32> a, VFromD<D32> b) {
   const Twice<D32> d32t;
-  const VFromD<decltype(d32t)> ab = Combine(d32t, a, b);
+  const VFromD<decltype(d32t)> ab = Combine(d32t, b, a);
   return DemoteTo(d16, ab);
 }
 
@@ -3137,7 +3137,7 @@ HWY_API VFromD<Simd<int16_t, N, 3>> ReorderDemote2To(Simd<int16_t, N, 3> d16,
   const Half<decltype(d16)> d16h;
   const VFromD<decltype(d16h)> a16 = DemoteTo(d16h, a);
   const VFromD<decltype(d16h)> b16 = DemoteTo(d16h, b);
-  return Combine(d16, a16, b16);
+  return Combine(d16, b16, a16);
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
