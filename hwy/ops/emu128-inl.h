@@ -222,6 +222,13 @@ HWY_API Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
   return Xor(a, b);
 }
 
+// ------------------------------ Xor3
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
+  return Xor(x1, Xor(x2, x3));
+}
+
 // ------------------------------ Or3
 
 template <typename T, size_t N>

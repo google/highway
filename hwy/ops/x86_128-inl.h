@@ -408,7 +408,6 @@ HWY_API Vec128<double, N> Xor(const Vec128<double, N> a,
 }
 
 // ------------------------------ Not
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
@@ -422,8 +421,22 @@ HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
 #endif
 }
 
-// ------------------------------ Or3
+// ------------------------------ Xor3
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
+#if HWY_TARGET <= HWY_AVX3
+  const DFromV<decltype(x1)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m128i ret = _mm_ternarylogic_epi64(
+      BitCast(du, x1).raw, BitCast(du, x2).raw, BitCast(du, x3).raw, 0x96);
+  return BitCast(d, VU{ret});
+#else
+  return Xor(x1, Xor(x2, x3));
+#endif
+}
 
+// ------------------------------ Or3
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
 #if HWY_TARGET <= HWY_AVX3
@@ -439,7 +452,6 @@ HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
 }
 
 // ------------------------------ OrAnd
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
 #if HWY_TARGET <= HWY_AVX3
@@ -455,7 +467,6 @@ HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
 }
 
 // ------------------------------ IfVecThenElse
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfVecThenElse(Vec128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {

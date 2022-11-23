@@ -204,9 +204,9 @@ HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
   const V v2L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v2A)));
   const V v2M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v2B)));
   const V v2U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v2C)));
-  v0 = Or3(v0L, v0M, v0U);
-  v1 = Or3(v1L, v1M, v1U);
-  v2 = Or3(v2L, v2M, v2U);
+  v0 = Xor3(v0L, v0M, v0U);
+  v1 = Xor3(v1L, v1M, v1U);
+  v2 = Xor3(v2L, v2M, v2U);
 }
 
 // 8-bit lanes x8
@@ -239,9 +239,9 @@ HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
   const V v2L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v2A)));
   const V v2M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v2B)));
   const V v2U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v2C)));
-  v0 = Or3(v0L, v0M, v0U);
-  v1 = Or3(v1L, v1M, v1U);
-  v2 = Or3(v2L, v2M, v2U);
+  v0 = Xor3(v0L, v0M, v0U);
+  v1 = Xor3(v1L, v1M, v1U);
+  v2 = Xor3(v2L, v2M, v2U);
 }
 
 // 16-bit lanes x8
@@ -284,9 +284,9 @@ HWY_API void LoadInterleaved3(Simd<T, N, 0> d, const T* HWY_RESTRICT unaligned,
   const V v2L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v2A)));
   const V v2M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v2B)));
   const V v2U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v2C)));
-  v0 = Or3(v0L, v0M, v0U);
-  v1 = Or3(v1L, v1M, v1U);
-  v2 = Or3(v2L, v2M, v2U);
+  v0 = Xor3(v0L, v0M, v0U);
+  v1 = Xor3(v1L, v1M, v1U);
+  v2 = Xor3(v2L, v2M, v2U);
 }
 
 template <typename T, size_t N, class V, HWY_IF_LANES_PER_BLOCK(T, N, 4)>

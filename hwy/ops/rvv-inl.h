@@ -774,21 +774,24 @@ HWY_API V Xor(const V a, const V b) {
 }
 
 // ------------------------------ AndNot
-
 template <class V>
 HWY_API V AndNot(const V not_a, const V b) {
   return And(Not(not_a), b);
 }
 
-// ------------------------------ Or3
+// ------------------------------ Xor3
+template <class V>
+HWY_API V Xor3(V x1, V x2, V x3) {
+  return Xor(x1, Xor(x2, x3));
+}
 
+// ------------------------------ Or3
 template <class V>
 HWY_API V Or3(V o1, V o2, V o3) {
   return Or(o1, Or(o2, o3));
 }
 
 // ------------------------------ OrAnd
-
 template <class V>
 HWY_API V OrAnd(const V o, const V a1, const V a2) {
   return Or(o, And(a1, a2));

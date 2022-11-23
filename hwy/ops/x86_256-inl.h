@@ -332,7 +332,6 @@ HWY_API Vec256<double> Xor(const Vec256<double> a, const Vec256<double> b) {
 }
 
 // ------------------------------ Not
-
 template <typename T>
 HWY_API Vec256<T> Not(const Vec256<T> v) {
   using TU = MakeUnsigned<T>;
@@ -345,8 +344,22 @@ HWY_API Vec256<T> Not(const Vec256<T> v) {
 #endif
 }
 
-// ------------------------------ Or3
+// ------------------------------ Xor3
+template <typename T>
+HWY_API Vec256<T> Xor3(Vec256<T> x1, Vec256<T> x2, Vec256<T> x3) {
+#if HWY_TARGET <= HWY_AVX3
+  const Full256<T> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const __m256i ret = _mm256_ternarylogic_epi64(
+      BitCast(du, x1).raw, BitCast(du, x2).raw, BitCast(du, x3).raw, 0x96);
+  return BitCast(d, VU{ret});
+#else
+  return Xor(x1, Xor(x2, x3));
+#endif
+}
 
+// ------------------------------ Or3
 template <typename T>
 HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
 #if HWY_TARGET <= HWY_AVX3
@@ -362,7 +375,6 @@ HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
 }
 
 // ------------------------------ OrAnd
-
 template <typename T>
 HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
 #if HWY_TARGET <= HWY_AVX3
@@ -378,7 +390,6 @@ HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
 }
 
 // ------------------------------ IfVecThenElse
-
 template <typename T>
 HWY_API Vec256<T> IfVecThenElse(Vec256<T> mask, Vec256<T> yes, Vec256<T> no) {
 #if HWY_TARGET <= HWY_AVX3

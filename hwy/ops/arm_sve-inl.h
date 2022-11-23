@@ -181,6 +181,13 @@ HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
     return sv##OP##_##CHAR##BITS(a, b);                        \
   }
 
+#define HWY_SVE_RETV_ARGVVV(BASE, CHAR, BITS, HALF, NAME, OP) \
+  HWY_API HWY_SVE_V(BASE, BITS)                               \
+      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b,  \
+           HWY_SVE_V(BASE, BITS) c) {                         \
+    return sv##OP##_##CHAR##BITS(a, b, c);                    \
+  }
+
 // ------------------------------ Lanes
 
 namespace detail {
@@ -463,6 +470,26 @@ HWY_API V AndNot(const V a, const V b) {
   const RebindToUnsigned<decltype(df)> du;
   return BitCast(df, AndNot(BitCast(du, a), BitCast(du, b)));
 }
+
+// ------------------------------ Xor3
+
+#if HWY_TARGET == HWY_SVE2_128 || HWY_TARGET == HWY_SVE2
+
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGVVV, Xor3, eor3)
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V Xor3(const V x1, const V x2, const V x3) {
+  const DFromV<V> df;
+  const RebindToUnsigned<decltype(df)> du;
+  return BitCast(df, Xor3(BitCast(du, x1), BitCast(du, x2), BitCast(du, x3)));
+}
+
+#else
+template <class V>
+HWY_API V Xor3(V x1, V x2, V x3) {
+  return Xor(x1, Xor(x2, x3));
+}
+#endif
 
 // ------------------------------ Or3
 template <class V>
@@ -3140,6 +3167,7 @@ namespace detail {  // for code folding
 #undef HWY_SVE_RETV_ARGV
 #undef HWY_SVE_RETV_ARGVN
 #undef HWY_SVE_RETV_ARGVV
+#undef HWY_SVE_RETV_ARGVVV
 #undef HWY_SVE_T
 #undef HWY_SVE_UNDEFINED
 #undef HWY_SVE_V

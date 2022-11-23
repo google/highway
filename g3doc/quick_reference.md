@@ -577,7 +577,12 @@ types, and on SVE/RVV.
 The following three-argument functions may be more efficient than assembling
 them from 2-argument functions:
 
+*   <code>V **Xor3**(V x1, V x2, V x3)</code>: returns `x1[i] ^ x2[i] ^ x3[i]`.
+    This is more efficient than `Or3` on some targets. When inputs are disjoint
+    (no bit is set in more than one argument), `Xor3` and `Or3` are equivalent
+    and you should use the former.
 *   <code>V **Or3**(V o1, V o2, V o3)</code>: returns `o1[i] | o2[i] | o3[i]`.
+    This is less efficient than `Xor3` on some targets; use that where possible.
 *   <code>V **OrAnd**(V o, V a1, V a2)</code>: returns `o[i] | (a1[i] & a2[i])`.
 
 Special functions for signed types:

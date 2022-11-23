@@ -205,6 +205,17 @@ namespace detail {  // for code folding and Raw128
   HWY_NEON_DEF_FUNCTION_INT_8_16_32(name, prefix, infix, args)    \
   HWY_NEON_DEF_FUNCTION_FLOAT_32(name, prefix, infix, args)
 
+// For eor3q, which is only defined for full vectors.
+#define HWY_NEON_DEF_FUNCTION_FULL_UI(name, prefix, infix, args)      \
+  HWY_NEON_DEF_FUNCTION(uint8, 16, name, prefix##q, infix, u8, args)  \
+  HWY_NEON_DEF_FUNCTION(uint16, 8, name, prefix##q, infix, u16, args) \
+  HWY_NEON_DEF_FUNCTION(uint32, 4, name, prefix##q, infix, u32, args) \
+  HWY_NEON_DEF_FUNCTION(uint64, 2, name, prefix##q, infix, u64, args) \
+  HWY_NEON_DEF_FUNCTION(int8, 16, name, prefix##q, infix, s8, args)   \
+  HWY_NEON_DEF_FUNCTION(int16, 8, name, prefix##q, infix, s16, args)  \
+  HWY_NEON_DEF_FUNCTION(int32, 4, name, prefix##q, infix, s32, args)  \
+  HWY_NEON_DEF_FUNCTION(int64, 2, name, prefix##q, infix, s64, args)
+
 // Emulation of some intrinsics on armv7.
 #if HWY_ARCH_ARM_V7
 #define vuzp1_s8(x, y) vuzp_s8(x, y).val[0]
@@ -1988,6 +1999,32 @@ HWY_API Vec128<T, N> Xor(const Vec128<T, N> a, const Vec128<T, N> b) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, BitCast(du, a) ^ BitCast(du, b));
 }
+
+// ------------------------------ Xor3
+#if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_SHA3)
+HWY_NEON_DEF_FUNCTION_FULL_UI(Xor3, veor3, _, 3)
+
+// Half vectors are not natively supported. Two Xor are likely more efficient
+// than Combine to 128-bit.
+template <typename T, size_t N, HWY_IF_LE64(T, N), HWY_IF_NOT_FLOAT(T)>
+HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
+  return Xor(x1, Xor(x2, x3));
+}
+
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> Xor3(const Vec128<T, N> x1, const Vec128<T, N> x2,
+                          const Vec128<T, N> x3) {
+  const DFromV<decltype(x1)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Xor3(BitCast(du, x1), BitCast(du, x2), BitCast(du, x3)));
+}
+
+#else
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
+  return Xor(x1, Xor(x2, x3));
+}
+#endif
 
 // ------------------------------ Or3
 
@@ -6633,19 +6670,20 @@ namespace detail {  // for code folding
 #undef HWY_NEON_DEF_FUNCTION_ALL_FLOATS
 #undef HWY_NEON_DEF_FUNCTION_ALL_TYPES
 #undef HWY_NEON_DEF_FUNCTION_FLOAT_64
-#undef HWY_NEON_DEF_FUNCTION_INTS
-#undef HWY_NEON_DEF_FUNCTION_INTS_UINTS
+#undef HWY_NEON_DEF_FUNCTION_FULL_UI
 #undef HWY_NEON_DEF_FUNCTION_INT_16
 #undef HWY_NEON_DEF_FUNCTION_INT_32
 #undef HWY_NEON_DEF_FUNCTION_INT_8
 #undef HWY_NEON_DEF_FUNCTION_INT_8_16_32
+#undef HWY_NEON_DEF_FUNCTION_INTS
+#undef HWY_NEON_DEF_FUNCTION_INTS_UINTS
 #undef HWY_NEON_DEF_FUNCTION_TPL
 #undef HWY_NEON_DEF_FUNCTION_UIF81632
-#undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_DEF_FUNCTION_UINT_16
 #undef HWY_NEON_DEF_FUNCTION_UINT_32
 #undef HWY_NEON_DEF_FUNCTION_UINT_8
 #undef HWY_NEON_DEF_FUNCTION_UINT_8_16_32
+#undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
 }  // namespace detail
 

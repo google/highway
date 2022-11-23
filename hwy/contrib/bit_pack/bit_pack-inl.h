@@ -60,7 +60,7 @@ struct Pack8<1> {
     const VU16 packed54 = Or(ShiftLeft<5>(raw5), ShiftLeft<4>(raw4));
     const VU16 packed32 = Or(ShiftLeft<3>(raw3), ShiftLeft<2>(raw2));
     const VU16 packed10 = Or(ShiftLeft<1>(raw1), raw0);
-    const VU16 packed = Or3(Or(packed76, packed54), packed32, packed10);
+    const VU16 packed = Xor3(Or(packed76, packed54), packed32, packed10);
     StoreU(BitCast(d8, packed), d8, packed_out);
   }
 
@@ -126,10 +126,10 @@ struct Pack8<2> {
     const VU16 raw6 = BitCast(d16, LoadU(d8, raw + 6 * N8));
     const VU16 raw7 = BitCast(d16, LoadU(d8, raw + 7 * N8));
 
-    const VU16 packed0 = Or3(ShiftLeft<6>(raw6), ShiftLeft<4>(raw4),
-                             Or(ShiftLeft<2>(raw2), raw0));
-    const VU16 packed1 = Or3(ShiftLeft<6>(raw7), ShiftLeft<4>(raw5),
-                             Or(ShiftLeft<2>(raw3), raw1));
+    const VU16 packed0 = Xor3(ShiftLeft<6>(raw6), ShiftLeft<4>(raw4),
+                              Or(ShiftLeft<2>(raw2), raw0));
+    const VU16 packed1 = Xor3(ShiftLeft<6>(raw7), ShiftLeft<4>(raw5),
+                              Or(ShiftLeft<2>(raw3), raw1));
     StoreU(BitCast(d8, packed0), d8, packed_out + 0 * N8);
     StoreU(BitCast(d8, packed1), d8, packed_out + 1 * N8);
   }
@@ -688,17 +688,17 @@ struct Pack16<1> {
     const VU16 rawE = LoadU(d, raw + 0xE * N);
     const VU16 rawF = LoadU(d, raw + 0xF * N);
 
-    const VU16 p0 = Or3(ShiftLeft<2>(raw2), Add(raw1, raw1), raw0);
+    const VU16 p0 = Xor3(ShiftLeft<2>(raw2), Add(raw1, raw1), raw0);
     const VU16 p1 =
-        Or3(ShiftLeft<5>(raw5), ShiftLeft<4>(raw4), ShiftLeft<3>(raw3));
+        Xor3(ShiftLeft<5>(raw5), ShiftLeft<4>(raw4), ShiftLeft<3>(raw3));
     const VU16 p2 =
-        Or3(ShiftLeft<8>(raw8), ShiftLeft<7>(raw7), ShiftLeft<6>(raw6));
+        Xor3(ShiftLeft<8>(raw8), ShiftLeft<7>(raw7), ShiftLeft<6>(raw6));
     const VU16 p3 =
-        Or3(ShiftLeft<0xB>(rawB), ShiftLeft<0xA>(rawA), ShiftLeft<9>(raw9));
+        Xor3(ShiftLeft<0xB>(rawB), ShiftLeft<0xA>(rawA), ShiftLeft<9>(raw9));
     const VU16 p4 =
-        Or3(ShiftLeft<0xE>(rawE), ShiftLeft<0xD>(rawD), ShiftLeft<0xC>(rawC));
-    const VU16 p5 = Or3(p1, p0, ShiftLeft<0xF>(rawF));
-    const VU16 p6 = Or3(p2, p3, p4);
+        Xor3(ShiftLeft<0xE>(rawE), ShiftLeft<0xD>(rawD), ShiftLeft<0xC>(rawC));
+    const VU16 p5 = Xor3(p1, p0, ShiftLeft<0xF>(rawF));
+    const VU16 p6 = Xor3(p2, p3, p4);
     const VU16 packed = Or(p5, p6);
     StoreU(packed, d, packed_out);
   }
@@ -802,13 +802,13 @@ struct Pack16<2> {
     const VU16 rawE = LoadU(d, raw + 0xE * N);
     const VU16 rawF = LoadU(d, raw + 0xF * N);
 
-    VU16 packed0 = Or3(ShiftLeft<4>(raw4), ShiftLeft<2>(raw2), raw0);
-    VU16 packed1 = Or3(ShiftLeft<4>(raw5), ShiftLeft<2>(raw3), raw1);
-    packed0 = Or3(packed0, ShiftLeft<8>(raw8), ShiftLeft<6>(raw6));
-    packed1 = Or3(packed1, ShiftLeft<8>(raw9), ShiftLeft<6>(raw7));
+    VU16 packed0 = Xor3(ShiftLeft<4>(raw4), ShiftLeft<2>(raw2), raw0);
+    VU16 packed1 = Xor3(ShiftLeft<4>(raw5), ShiftLeft<2>(raw3), raw1);
+    packed0 = Xor3(packed0, ShiftLeft<8>(raw8), ShiftLeft<6>(raw6));
+    packed1 = Xor3(packed1, ShiftLeft<8>(raw9), ShiftLeft<6>(raw7));
 
-    packed0 = Or3(packed0, ShiftLeft<12>(rawC), ShiftLeft<10>(rawA));
-    packed1 = Or3(packed1, ShiftLeft<12>(rawD), ShiftLeft<10>(rawB));
+    packed0 = Xor3(packed0, ShiftLeft<12>(rawC), ShiftLeft<10>(rawA));
+    packed1 = Xor3(packed1, ShiftLeft<12>(rawD), ShiftLeft<10>(rawB));
 
     packed0 = Or(packed0, ShiftLeft<14>(rawE));
     packed1 = Or(packed1, ShiftLeft<14>(rawF));
@@ -918,14 +918,14 @@ struct Pack16<3> {
     const VU16 rawF = LoadU(d, raw + 0xF * N);
 
     // We can fit 15 raw vectors in three packed vectors (five each).
-    const VU16 raw630 = Or3(ShiftLeft<6>(raw6), ShiftLeft<3>(raw3), raw0);
-    const VU16 raw741 = Or3(ShiftLeft<6>(raw7), ShiftLeft<3>(raw4), raw1);
-    const VU16 raw852 = Or3(ShiftLeft<6>(raw8), ShiftLeft<3>(raw5), raw2);
+    const VU16 raw630 = Xor3(ShiftLeft<6>(raw6), ShiftLeft<3>(raw3), raw0);
+    const VU16 raw741 = Xor3(ShiftLeft<6>(raw7), ShiftLeft<3>(raw4), raw1);
+    const VU16 raw852 = Xor3(ShiftLeft<6>(raw8), ShiftLeft<3>(raw5), raw2);
 
     // rawF will be scattered into the upper bits of these three.
-    VU16 packed0 = Or3(raw630, ShiftLeft<12>(rawC), ShiftLeft<9>(raw9));
-    VU16 packed1 = Or3(raw741, ShiftLeft<12>(rawD), ShiftLeft<9>(rawA));
-    VU16 packed2 = Or3(raw852, ShiftLeft<12>(rawE), ShiftLeft<9>(rawB));
+    VU16 packed0 = Xor3(raw630, ShiftLeft<12>(rawC), ShiftLeft<9>(raw9));
+    VU16 packed1 = Xor3(raw741, ShiftLeft<12>(rawD), ShiftLeft<9>(rawA));
+    VU16 packed2 = Xor3(raw852, ShiftLeft<12>(rawE), ShiftLeft<9>(rawB));
 
     const VU16 hi1 = Set(d, 0x8000u);
     packed0 = Or(packed0, ShiftLeft<15>(rawF));  // MSB only, no mask
@@ -1011,7 +1011,7 @@ struct Pack16<3> {
     // rawF is the concatenation of the lower bit of packed0..2. No masking is
     // required because we have shifted that bit downward from the MSB.
     const VU16 rawF =
-        Or3(ShiftLeft<2>(packed2), Add(packed1, packed1), packed0);
+        Xor3(ShiftLeft<2>(packed2), Add(packed1, packed1), packed0);
     StoreU(rawF, d, raw + 0xF * N);
   }
 };  // Pack16<3>
@@ -1040,12 +1040,12 @@ struct Pack16<4> {
     const VU16 rawE = LoadU(d, raw + 0xE * N);
     const VU16 rawF = LoadU(d, raw + 0xF * N);
 
-    VU16 packed0 = Or3(ShiftLeft<8>(raw4), ShiftLeft<4>(raw2), raw0);
-    VU16 packed1 = Or3(ShiftLeft<8>(raw5), ShiftLeft<4>(raw3), raw1);
+    VU16 packed0 = Xor3(ShiftLeft<8>(raw4), ShiftLeft<4>(raw2), raw0);
+    VU16 packed1 = Xor3(ShiftLeft<8>(raw5), ShiftLeft<4>(raw3), raw1);
     packed0 = Or(packed0, ShiftLeft<12>(raw6));
     packed1 = Or(packed1, ShiftLeft<12>(raw7));
-    VU16 packed2 = Or3(ShiftLeft<8>(rawC), ShiftLeft<4>(rawA), raw8);
-    VU16 packed3 = Or3(ShiftLeft<8>(rawD), ShiftLeft<4>(rawB), raw9);
+    VU16 packed2 = Xor3(ShiftLeft<8>(rawC), ShiftLeft<4>(rawA), raw8);
+    VU16 packed3 = Xor3(ShiftLeft<8>(rawD), ShiftLeft<4>(rawB), raw9);
     packed2 = Or(packed2, ShiftLeft<12>(rawE));
     packed3 = Or(packed3, ShiftLeft<12>(rawF));
     StoreU(packed0, d, packed_out + 0 * N);
@@ -1154,11 +1154,11 @@ struct Pack16<5> {
     const VU16 rawF = LoadU(d, raw + 0xF * N);
 
     // We can fit 15 raw vectors in five packed vectors (three each).
-    const VU16 rawA50 = Or3(ShiftLeft<10>(rawA), ShiftLeft<5>(raw5), raw0);
-    const VU16 rawB61 = Or3(ShiftLeft<10>(rawB), ShiftLeft<5>(raw6), raw1);
-    const VU16 rawC72 = Or3(ShiftLeft<10>(rawC), ShiftLeft<5>(raw7), raw2);
-    const VU16 rawD83 = Or3(ShiftLeft<10>(rawD), ShiftLeft<5>(raw8), raw3);
-    const VU16 rawE94 = Or3(ShiftLeft<10>(rawE), ShiftLeft<5>(raw9), raw4);
+    const VU16 rawA50 = Xor3(ShiftLeft<10>(rawA), ShiftLeft<5>(raw5), raw0);
+    const VU16 rawB61 = Xor3(ShiftLeft<10>(rawB), ShiftLeft<5>(raw6), raw1);
+    const VU16 rawC72 = Xor3(ShiftLeft<10>(rawC), ShiftLeft<5>(raw7), raw2);
+    const VU16 rawD83 = Xor3(ShiftLeft<10>(rawD), ShiftLeft<5>(raw8), raw3);
+    const VU16 rawE94 = Xor3(ShiftLeft<10>(rawE), ShiftLeft<5>(raw9), raw4);
 
     // rawF will be scattered into the upper bits of these five.
     const VU16 hi1 = Set(d, 0x8000u);
@@ -1251,8 +1251,8 @@ struct Pack16<5> {
 
     // rawF is the concatenation of the lower bit of packed0..4. No masking is
     // required because we have shifted that bit downward from the MSB.
-    const VU16 p0 = Or3(ShiftLeft<2>(packed2), Add(packed1, packed1), packed0);
-    const VU16 rawF = Or3(ShiftLeft<4>(packed4), ShiftLeft<3>(packed3), p0);
+    const VU16 p0 = Xor3(ShiftLeft<2>(packed2), Add(packed1, packed1), packed0);
+    const VU16 rawF = Xor3(ShiftLeft<4>(packed4), ShiftLeft<3>(packed3), p0);
     StoreU(rawF, d, raw + 0xF * N);
   }
 };  // Pack16<5>
@@ -1285,10 +1285,10 @@ struct Pack16<6> {
     const VU16 packed7 = Or(ShiftLeft<6>(rawF), rawB);
     // Three vectors, two 6-bit raw each; packed3 (12 bits) is spread over the
     // four remainder bits at the top of each vector.
-    const VU16 packed0 = Or3(ShiftLeft<12>(packed3), ShiftLeft<6>(raw4), raw0);
+    const VU16 packed0 = Xor3(ShiftLeft<12>(packed3), ShiftLeft<6>(raw4), raw0);
     VU16 packed1 = Or(ShiftLeft<6>(raw5), raw1);
     VU16 packed2 = Or(ShiftLeft<6>(raw6), raw2);
-    const VU16 packed4 = Or3(ShiftLeft<12>(packed7), ShiftLeft<6>(rawC), raw8);
+    const VU16 packed4 = Xor3(ShiftLeft<12>(packed7), ShiftLeft<6>(rawC), raw8);
     VU16 packed5 = Or(ShiftLeft<6>(rawD), raw9);
     VU16 packed6 = Or(ShiftLeft<6>(rawE), rawA);
 
@@ -1369,8 +1369,8 @@ struct Pack16<6> {
     StoreU(rawE, d, raw + 0xE * N);
 
     // packed3 is the concatenation of the four bits in packed0..2.
-    VU16 packed3 = Or3(ShiftLeft<8>(packed2), ShiftLeft<4>(packed1), packed0);
-    VU16 packed7 = Or3(ShiftLeft<8>(packed6), ShiftLeft<4>(packed5), packed4);
+    VU16 packed3 = Xor3(ShiftLeft<8>(packed2), ShiftLeft<4>(packed1), packed0);
+    VU16 packed7 = Xor3(ShiftLeft<8>(packed6), ShiftLeft<4>(packed5), packed4);
     const VU16 raw3 = And(packed3, mask);
     packed3 = ShiftRight<6>(packed3);
     StoreU(raw3, d, raw + 3 * N);
@@ -1414,7 +1414,7 @@ struct Pack16<7> {
     const VU16 packed7 = Or(ShiftLeft<7>(rawF), raw7);
     // Seven vectors, two 7-bit raw each; packed7 (14 bits) is spread over the
     // two remainder bits at the top of each vector.
-    const VU16 packed0 = Or3(ShiftLeft<14>(packed7), ShiftLeft<7>(raw8), raw0);
+    const VU16 packed0 = Xor3(ShiftLeft<14>(packed7), ShiftLeft<7>(raw8), raw0);
     VU16 packed1 = Or(ShiftLeft<7>(raw9), raw1);
     VU16 packed2 = Or(ShiftLeft<7>(rawA), raw2);
     VU16 packed3 = Or(ShiftLeft<7>(rawB), raw3);
@@ -1512,10 +1512,10 @@ struct Pack16<7> {
     StoreU(rawE, d, raw + 0xE * N);
 
     // packed7 is the concatenation of the two bits in packed0..6.
-    const VU16 p0 = Or3(ShiftLeft<4>(packed2), ShiftLeft<2>(packed1), packed0);
-    const VU16 p1 = Or3(ShiftLeft<10>(packed5), ShiftLeft<8>(packed4),
-                        ShiftLeft<6>(packed3));
-    VU16 packed7 = Or3(ShiftLeft<12>(packed6), p1, p0);
+    const VU16 p0 = Xor3(ShiftLeft<4>(packed2), ShiftLeft<2>(packed1), packed0);
+    const VU16 p1 = Xor3(ShiftLeft<10>(packed5), ShiftLeft<8>(packed4),
+                         ShiftLeft<6>(packed3));
+    VU16 packed7 = Xor3(ShiftLeft<12>(packed6), p1, p0);
     const VU16 raw7 = And(packed7, mask);
     packed7 = ShiftRight<7>(packed7);
     StoreU(raw7, d, raw + 7 * N);
@@ -1678,7 +1678,7 @@ struct Pack16<9> {
 
     // We could shift down, OR and shift up, but two shifts are typically more
     // expensive than AND, shift into position, and OR (which can be further
-    // reduced via Or3).
+    // reduced via Xor3).
     const VU16 mid2 = Set(d, 0x180u);  // top 2 in lower 9
     const VU16 part8 = ShiftRight<7>(And(raw8, mid2));
     const VU16 part9 = ShiftRight<5>(And(raw9, mid2));
@@ -1688,10 +1688,10 @@ struct Pack16<9> {
     const VU16 partD = ShiftLeft<3>(And(rawD, mid2));
     const VU16 partE = ShiftLeft<5>(And(rawE, mid2));
     const VU16 partF = ShiftLeft<7>(And(rawF, mid2));
-    const VU16 partA8 = Or3(part8, part9, partA);
-    const VU16 partDB = Or3(partB, partC, partD);
+    const VU16 partA8 = Xor3(part8, part9, partA);
+    const VU16 partDB = Xor3(partB, partC, partD);
     const VU16 partFE = Or(partE, partF);
-    const VU16 packed8 = Or3(partA8, partDB, partFE);
+    const VU16 packed8 = Xor3(partA8, partDB, partFE);
     StoreU(packed0, d, packed_out + 0 * N);
     StoreU(packed1, d, packed_out + 1 * N);
     StoreU(packed2, d, packed_out + 2 * N);
@@ -1810,7 +1810,7 @@ struct Pack16<10> {
 
     // We could shift down, OR and shift up, but two shifts are typically more
     // expensive than AND, shift into position, and OR (which can be further
-    // reduced via Or3).
+    // reduced via Xor3).
     const VU16 mid4 = Set(d, 0x3C0u);  // top 4 in lower 10
     const VU16 part8 = ShiftRight<6>(And(raw8, mid4));
     const VU16 part9 = ShiftRight<2>(And(raw9, mid4));
@@ -1820,8 +1820,8 @@ struct Pack16<10> {
     const VU16 partD = ShiftRight<2>(And(rawD, mid4));
     const VU16 partE = ShiftLeft<2>(And(rawE, mid4));
     const VU16 partF = ShiftLeft<6>(And(rawF, mid4));
-    const VU16 partA8 = Or3(part8, part9, partA);
-    const VU16 partEC = Or3(partC, partD, partE);
+    const VU16 partA8 = Xor3(part8, part9, partA);
+    const VU16 partEC = Xor3(partC, partD, partE);
     const VU16 packed8 = Or(partA8, partB);
     const VU16 packed9 = Or(partEC, partF);
     StoreU(packed0, d, packed_out + 0 * N);
@@ -2503,16 +2503,16 @@ struct Pack16<14> {
     StoreU(rawD, d, raw + 0xD * N);
 
     // rawE is the concatenation of the top two bits in packed0..6.
-    const VU16 E0 = Or3(ShiftRight<14>(packed0), ShiftRight<12>(packed1),
-                        ShiftRight<10>(packed2));
-    const VU16 E1 = Or3(ShiftRight<8>(packed3), ShiftRight<6>(packed4),
-                        ShiftRight<4>(packed5));
-    const VU16 rawE = Or3(E0, E1, ShiftRight<2>(packed6));
-    const VU16 F0 = Or3(ShiftRight<14>(packed7), ShiftRight<12>(packed8),
-                        ShiftRight<10>(packed9));
-    const VU16 F1 = Or3(ShiftRight<8>(packedA), ShiftRight<6>(packedB),
-                        ShiftRight<4>(packedC));
-    const VU16 rawF = Or3(F0, F1, ShiftRight<2>(packedD));
+    const VU16 E0 = Xor3(ShiftRight<14>(packed0), ShiftRight<12>(packed1),
+                         ShiftRight<10>(packed2));
+    const VU16 E1 = Xor3(ShiftRight<8>(packed3), ShiftRight<6>(packed4),
+                         ShiftRight<4>(packed5));
+    const VU16 rawE = Xor3(E0, E1, ShiftRight<2>(packed6));
+    const VU16 F0 = Xor3(ShiftRight<14>(packed7), ShiftRight<12>(packed8),
+                         ShiftRight<10>(packed9));
+    const VU16 F1 = Xor3(ShiftRight<8>(packedA), ShiftRight<6>(packedB),
+                         ShiftRight<4>(packedC));
+    const VU16 rawF = Xor3(F0, F1, ShiftRight<2>(packedD));
     StoreU(rawE, d, raw + 0xE * N);
     StoreU(rawF, d, raw + 0xF * N);
   }
@@ -2664,17 +2664,17 @@ struct Pack16<15> {
     StoreU(rawE, d, raw + 0xE * N);
 
     // rawF is the concatenation of the top bit in packed0..E.
-    const VU16 F0 = Or3(ShiftRight<15>(packed0), ShiftRight<14>(packed1),
-                        ShiftRight<13>(packed2));
-    const VU16 F1 = Or3(ShiftRight<12>(packed3), ShiftRight<11>(packed4),
-                        ShiftRight<10>(packed5));
-    const VU16 F2 = Or3(ShiftRight<9>(packed6), ShiftRight<8>(packed7),
-                        ShiftRight<7>(packed8));
-    const VU16 F3 = Or3(ShiftRight<6>(packed9), ShiftRight<5>(packedA),
-                        ShiftRight<4>(packedB));
-    const VU16 F4 = Or3(ShiftRight<3>(packedC), ShiftRight<2>(packedD),
-                        ShiftRight<1>(packedE));
-    const VU16 rawF = Or3(F0, F1, Or3(F2, F3, F4));
+    const VU16 F0 = Xor3(ShiftRight<15>(packed0), ShiftRight<14>(packed1),
+                         ShiftRight<13>(packed2));
+    const VU16 F1 = Xor3(ShiftRight<12>(packed3), ShiftRight<11>(packed4),
+                         ShiftRight<10>(packed5));
+    const VU16 F2 = Xor3(ShiftRight<9>(packed6), ShiftRight<8>(packed7),
+                         ShiftRight<7>(packed8));
+    const VU16 F3 = Xor3(ShiftRight<6>(packed9), ShiftRight<5>(packedA),
+                         ShiftRight<4>(packedB));
+    const VU16 F4 = Xor3(ShiftRight<3>(packedC), ShiftRight<2>(packedD),
+                         ShiftRight<1>(packedE));
+    const VU16 rawF = Xor3(F0, F1, Xor3(F2, F3, F4));
     StoreU(rawF, d, raw + 0xF * N);
   }
 };  // Pack16<15>
