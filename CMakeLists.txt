@@ -258,6 +258,12 @@ else()
 
 endif()  # !MSVC
 
+include(CheckIncludeFile)
+check_include_file(sys/auxv.h  HAVE_SYS_AUXV_H)
+if (NOT HAVE_SYS_AUXV_H)
+  list(APPEND HWY_FLAGS -DTOOLCHAIN_MISS_SYS_AUXV_H=1)
+endif()
+
 # By default prefer STATIC build (legacy behavior)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(HWY_FORCE_STATIC_LIBS "Ignore BUILD_SHARED_LIBS" OFF)
