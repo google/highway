@@ -78,15 +78,18 @@ template <template <size_t> class PackT, size_t kVectors, size_t kBits>
 struct TestPack {
   template <typename T, class D>
   void operator()(T /* t */, D d) {
+    constexpr size_t kLoops = 16;  // working set slightly larger than L1
     const size_t N = Lanes(d);
     RandomState rng(N * 129);
     static_assert(kBits <= kVectors, "");
-    const size_t num = N * kVectors;
-    const size_t packed_size = N * kBits;
+    const size_t num_per_loop = N * kVectors;
+    const size_t num = num_per_loop * kLoops;
+    const size_t num_packed_per_loop = N * kBits;
+    const size_t num_packed = num_packed_per_loop * kLoops;
     Checker<T> checker(num);
     AlignedFreeUniquePtr<T[]> raw = hwy::AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> raw2 = hwy::AllocateAligned<T>(num);
-    AlignedFreeUniquePtr<T[]> packed = hwy::AllocateAligned<T>(packed_size);
+    AlignedFreeUniquePtr<T[]> packed = hwy::AllocateAligned<T>(num_packed);
 
     for (size_t i = 0; i < num; ++i) {
       raw[i] = Random<kBits, T>(rng);
@@ -112,8 +115,15 @@ struct TestPack {
       p.target_rel_mad = 0.002;
       const size_t num_results = MeasureClosure(
           [&](FuncInput) HWY_ATTR {
-            func.Pack(d, raw.get(), packed.get());
-            func.Unpack(d, packed.get(), raw2.get());
+            for (size_t i = 0, pi = 0; i < num;
+                 i += num_per_loop, pi += num_packed_per_loop) {
+              func.Pack(d, raw.get() + i, packed.get() + pi);
+            }
+            packed.get()[Random32(&rng) % num_packed] += Unpredictable1() - 1;
+            for (size_t i = 0, pi = 0; i < num;
+                 i += num_per_loop, pi += num_packed_per_loop) {
+              func.Unpack(d, packed.get() + pi, raw2.get() + i);
+            }
             return raw2[Random32(&rng) % num];
           },
           inputs, kNumInputs, results, p);
@@ -121,18 +131,26 @@ struct TestPack {
         fprintf(stderr, "MeasureClosure failed.\n");
         return;
       }
-      // Print cycles per element
+      // Print throughput for pack+unpack round trip
       for (size_t i = 0; i < num_results; ++i) {
-        const double cycles_per_item =
-            results[i].ticks / static_cast<double>(results[i].input);
-        const double mad = results[i].variability * cycles_per_item;
-        printf("Bits:%2d elements:%3d cyc/elt:%6.3f (+/- %5.3f)\n",
+        const size_t bytes_per_element = (kBits + 7) / 8;
+        const double bytes = results[i].input * bytes_per_element;
+        const double seconds =
+            results[i].ticks / platform::InvariantTicksPerSecond();
+        printf("Bits:%2d elements:%3d GB/s:%4.1f (+/-%3.1f%%)\n",
                static_cast<int>(kBits), static_cast<int>(results[i].input),
-               cycles_per_item, mad);
+               1E-9 * bytes / seconds, results[i].variability * 100.0);
       }
     } else {
-      func.Pack(d, raw.get(), packed.get());
-      func.Unpack(d, packed.get(), raw2.get());
+      for (size_t i = 0, pi = 0; i < num;
+           i += num_per_loop, pi += num_packed_per_loop) {
+        func.Pack(d, raw.get() + i, packed.get() + pi);
+      }
+      packed.get()[Random32(&rng) % num_packed] += Unpredictable1() - 1;
+      for (size_t i = 0, pi = 0; i < num;
+           i += num_per_loop, pi += num_packed_per_loop) {
+        func.Unpack(d, packed.get() + pi, raw2.get() + i);
+      }
     }
 
     for (size_t i = 0; i < num; ++i) {
