@@ -448,11 +448,11 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.
 
-*   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
-    <code>Vec<D> **ReorderWidenMulAccumulate**(D d, V a, V b, Vec<D> sum0,
-    Vec<D>& sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] *
-    b[i]` to either `sum1[j]` or lane `j` of the return value, where `j = P(i)`
-    and `P` is a permutation. The only guarantee is that `SumOfLanes(d,
+*   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
+    <code>VW **ReorderWidenMulAccumulate**(D d, V a, V b, VW sum0, VW&
+    sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] * b[i]` to
+    either `sum1[j]` or lane `j` of the return value, where `j = P(i)` and `P`
+    is a permutation. The only guarantee is that `SumOfLanes(d,
     Add(return_value, sum1))` is the sum of all `a[i] * b[i]`. This is useful
     for computing dot products and the L2 norm.
 
