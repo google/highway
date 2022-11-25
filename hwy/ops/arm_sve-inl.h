@@ -473,7 +473,7 @@ HWY_API V AndNot(const V a, const V b) {
 
 // ------------------------------ Xor3
 
-#if HWY_TARGET == HWY_SVE2_128 || HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGVVV, Xor3, eor3)
 
@@ -676,7 +676,7 @@ HWY_SVE_FOREACH_U64(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
 
 // ------------------------------ MulFixedPoint15
 HWY_API svint16_t MulFixedPoint15(svint16_t a, svint16_t b) {
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
   return svqrdmulh_s16(a, b);
 #else
   const DFromV<decltype(a)> d;
@@ -909,7 +909,7 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
 
 // ------------------------------ IfVecThenElse (MaskFromVec, IfThenElse)
 
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 
 #define HWY_SVE_IF_VEC(BASE, CHAR, BITS, HALF, NAME, OP)          \
   HWY_API HWY_SVE_V(BASE, BITS)                                   \
@@ -936,7 +936,7 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
   return Or(And(mask, yes), AndNot(mask, no));
 }
 
-#endif  // HWY_TARGET == HWY_SVE2
+#endif  // HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 
 // ------------------------------ Floating-point classification (Ne)
 
@@ -1429,7 +1429,7 @@ HWY_API svuint8_t TruncateTo(Simd<uint8_t, N, kPow2> /* tag */,
 
 template <size_t N, int kPow2>
 HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint16_t v) {
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
   const svint8_t vn = BitCast(dn, svqxtnb_s16(v));
 #else
   using TN = TFromD<decltype(dn)>;
@@ -1440,7 +1440,7 @@ HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint16_t v) {
 
 template <size_t N, int kPow2>
 HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint32_t v) {
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
   const svint16_t vn = BitCast(dn, svqxtnb_s32(v));
 #else
   using TN = TFromD<decltype(dn)>;
@@ -1452,7 +1452,7 @@ HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint32_t v) {
 template <size_t N, int kPow2>
 HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint32_t v) {
   const RepartitionToWide<decltype(dn)> d2;
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
   const svint16_t cast16 = BitCast(d2, svqxtnb_s16(svqxtnb_s32(v)));
 #else
   using TN = TFromD<decltype(dn)>;
@@ -1980,7 +1980,7 @@ HWY_API V DupOdd(const V v) {
 
 // ------------------------------ OddEven
 
-#if HWY_TARGET == HWY_SVE2_128 || HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 
 #define HWY_SVE_ODD_EVEN(BASE, CHAR, BITS, HALF, NAME, OP)          \
   HWY_API HWY_SVE_V(BASE, BITS)                                     \
@@ -2690,7 +2690,7 @@ HWY_API V IfNegativeThenElse(V v, V yes, V no) {
 
 // ------------------------------ AverageRound (ShiftRight)
 
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 HWY_SVE_FOREACH_U08(HWY_SVE_RETV_ARGPVV, AverageRound, rhadd)
 HWY_SVE_FOREACH_U16(HWY_SVE_RETV_ARGPVV, AverageRound, rhadd)
 #else
@@ -2698,7 +2698,7 @@ template <class V>
 V AverageRound(const V a, const V b) {
   return ShiftRight<1>(detail::AddN(Add(a, b), 1));
 }
-#endif  // HWY_TARGET == HWY_SVE2
+#endif  // HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 
 // ------------------------------ LoadMaskBits (TestBit)
 
@@ -2850,7 +2850,7 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
 // ------------------------------ MulEven (InterleaveEven)
 
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
 namespace detail {
 #define HWY_SVE_MUL_EVEN(BASE, CHAR, BITS, HALF, NAME, OP)     \
   HWY_API HWY_SVE_V(BASE, BITS)                                \
@@ -2865,7 +2865,7 @@ HWY_SVE_FOREACH_UI64(HWY_SVE_MUL_EVEN, MulEvenNative, mullb)
 
 template <class V, class DW = RepartitionToWide<DFromV<V>>>
 HWY_API VFromD<DW> MulEven(const V a, const V b) {
-#if HWY_TARGET == HWY_SVE2
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
   return BitCast(DW(), detail::MulEvenNative(a, b));
 #else
   const auto lo = Mul(a, b);
