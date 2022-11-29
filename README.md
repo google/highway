@@ -108,6 +108,16 @@ The `contrib` directory contains SIMD-related utilities: an image class with
 aligned rows, a math library (16 functions already implemented, mostly
 trigonometry), and functions for computing dot products and sorting.
 
+### Other libraries
+
+If you only require x86 support, you may also use Agner Fog's
+[VCL vector class library](https://github.com/vectorclass). It includes many
+functions including a complete math library.
+
+If you have existing code using x86/NEON intrinsics, you may be interested in
+[SIMDe](https://github.com/simd-everywhere/simde), which emulates those
+intrinsics using other platforms' intrinsics or autovectorization.
+
 ## Installation
 
 This project uses CMake to generate and build. In a Debian-based system you can
