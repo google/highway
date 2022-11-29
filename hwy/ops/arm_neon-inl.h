@@ -4289,15 +4289,16 @@ HWY_API Vec128<float, N> ReorderWidenMulAccumulate(Simd<float, N, 0> df32,
                                                    Vec128<bfloat16_t, 2 * N> b,
                                                    const Vec128<float, N> sum0,
                                                    Vec128<float, N>& sum1) {
-  const Repartition<uint16_t, decltype(df32)> du16;
-  const RebindToUnsigned<decltype(df32)> du32;
-  const Vec128<uint16_t, 2 * N> zero = Zero(du16);
-  const Vec128<uint32_t, N> a0 = ZipLower(du32, zero, BitCast(du16, a));
-  const Vec128<uint32_t, N> a1 = ZipUpper(du32, zero, BitCast(du16, a));
-  const Vec128<uint32_t, N> b0 = ZipLower(du32, zero, BitCast(du16, b));
-  const Vec128<uint32_t, N> b1 = ZipUpper(du32, zero, BitCast(du16, b));
-  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
-  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+  const Rebind<uint32_t, decltype(df32)> du32;
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
+  // Avoid ZipLower/Upper so this also works on big-endian systems.
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
+  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
 }
 
 HWY_API Vec128<int32_t> ReorderWidenMulAccumulate(Full128<int32_t> /*d32*/,
@@ -4402,6 +4403,42 @@ HWY_API Vec128<T, N> Combine(Simd<T, N, 0> d, Vec128<T, N / 2> hi,
   // Repartition to two unsigned lanes (each the size of the valid input).
   const Simd<UnsignedFromSize<N * sizeof(T) / 2>, 2, 0> du;
   return BitCast(d, InterleaveLower(BitCast(du, lo2), BitCast(du, hi2)));
+}
+
+// ------------------------------ RearrangeToOddPlusEven (Combine)
+
+template <size_t N>
+HWY_API Vec128<float, N> RearrangeToOddPlusEven(const Vec128<float, N> sum0,
+                                                const Vec128<float, N> sum1) {
+  return Add(sum0, sum1);
+}
+
+HWY_API Vec128<int32_t> RearrangeToOddPlusEven(const Vec128<int32_t> sum0,
+                                               const Vec128<int32_t> sum1) {
+// vmlal_s16 multiplied the lower half into sum0 and upper into sum1.
+#if HWY_ARCH_ARM_A64  // pairwise sum is available and what we want
+  return Vec128<int32_t>(vpaddq_s32(sum0.raw, sum1.raw));
+#else
+  const Full128<int32_t> d;
+  const Half<decltype(d)> d64;
+  const Vec64<int32_t> hi(
+      vpadd_s32(LowerHalf(d64, sum1).raw, UpperHalf(d64, sum1).raw));
+  const Vec64<int32_t> lo(
+      vpadd_s32(LowerHalf(d64, sum0).raw, UpperHalf(d64, sum0).raw));
+  return Combine(Full128<int32_t>(), hi, lo);
+#endif
+}
+
+HWY_API Vec64<int32_t> RearrangeToOddPlusEven(const Vec64<int32_t> sum0,
+                                              const Vec64<int32_t> sum1) {
+  // vmlal_s16 multiplied the lower half into sum0 and upper into sum1.
+  return Vec64<int32_t>(vpadd_s32(sum0.raw, sum1.raw));
+}
+
+HWY_API Vec32<int32_t> RearrangeToOddPlusEven(const Vec32<int32_t> sum0,
+                                              const Vec32<int32_t> sum1) {
+  // Only one widened sum per register, so add them for sum of odd and even.
+  return sum0 + sum1;
 }
 
 // ------------------------------ ZeroExtendVector (Combine)

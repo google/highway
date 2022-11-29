@@ -3927,6 +3927,12 @@ HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(Full256<int32_t> /*d32*/,
   return sum0 + Vec256<int32_t>{_mm256_madd_epi16(a.raw, b.raw)};
 }
 
+// ------------------------------ RearrangeToOddPlusEven
+HWY_API Vec256<int32_t> RearrangeToOddPlusEven(const Vec256<int32_t> sum0,
+                                               Vec256<int32_t> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)

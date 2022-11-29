@@ -5187,18 +5187,18 @@ template <class V, size_t N, class D16 = Simd<bfloat16_t, 2 * N, 0>>
 HWY_API V ReorderWidenMulAccumulate(Simd<float, N, 0> df32, VFromD<D16> a,
                                     VFromD<D16> b, const V sum0, V& sum1) {
   // TODO(janwas): _mm_dpbf16_ps when available
-  const Repartition<uint16_t, decltype(df32)> du16;
   const RebindToUnsigned<decltype(df32)> du32;
-  const auto zero = Zero(du16);
   // Lane order within sum0/1 is undefined, hence we can avoid the
-  // longer-latency lane-crossing PromoteTo.
-  using VU32 = VFromD<RebindToUnsigned<decltype(df32)>>;
-  const VU32 a0 = ZipLower(du32, zero, BitCast(du16, a));
-  const VU32 a1 = ZipUpper(du32, zero, BitCast(du16, a));
-  const VU32 b0 = ZipLower(du32, zero, BitCast(du16, b));
-  const VU32 b1 = ZipUpper(du32, zero, BitCast(du16, b));
-  sum1 = MulAdd(BitCast(df32, a1), BitCast(df32, b1), sum1);
-  return MulAdd(BitCast(df32, a0), BitCast(df32, b0), sum0);
+  // longer-latency lane-crossing PromoteTo. Using shift/and instead of Zip
+  // leads to the odd/even order that RearrangeToOddPlusEven prefers.
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
+  return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
 }
 
 // Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
@@ -5208,6 +5208,18 @@ HWY_API Vec128<int32_t, N> ReorderWidenMulAccumulate(
     Vec128<int16_t, 2 * N> b, const Vec128<int32_t, N> sum0,
     Vec128<int32_t, N>& /*sum1*/) {
   return sum0 + Vec128<int32_t, N>{_mm_madd_epi16(a.raw, b.raw)};
+}
+
+// ------------------------------ RearrangeToOddPlusEven
+template <size_t N>
+HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(const Vec128<int32_t, N> sum0,
+                                                  Vec128<int32_t, N> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+template <class VW>
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
+  return Add(sum0, sum1);
 }
 
 // ================================================== CONVERT

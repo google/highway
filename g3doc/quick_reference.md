@@ -456,6 +456,17 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     Add(return_value, sum1))` is the sum of all `a[i] * b[i]`. This is useful
     for computing dot products and the L2 norm.
 
+*   `VW`: `{f,i}32` \
+    <code>VW **RearrangeToOddPlusEven**(VW sum0, VW sum1)</code>: returns in
+    each 32-bit lane with index `i` `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`.
+    `sum0` must be the return value of a prior `ReorderWidenMulAccumulate`, and
+    `sum1` must be its last (output) argument. In other words, this strengthens
+    the invariant of `ReorderWidenMulAccumulate` such that each 32-bit lane is
+    the sum of the widened products whose 16-bit inputs came from the top and
+    bottom halves of the 32-bit lane. This is typically called after a series of
+    calls to `ReorderWidenMulAccumulate`, as opposed to after each one.
+    Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`.
+
 #### Fused multiply-add
 
 When implemented using special instructions, these functions are more precise

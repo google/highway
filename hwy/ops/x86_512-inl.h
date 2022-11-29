@@ -4283,6 +4283,11 @@ HWY_API Vec512<int32_t> ReorderWidenMulAccumulate(Full512<int32_t> /*d32*/,
   return sum0 + Vec512<int32_t>{_mm512_madd_epi16(a.raw, b.raw)};
 }
 
+HWY_API Vec512<int32_t> RearrangeToOddPlusEven(const Vec512<int32_t> sum0,
+                                               Vec512<int32_t> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
 // ------------------------------ Reductions
 
 // Returns the sum in each lane.

@@ -1577,6 +1577,13 @@ HWY_API Vec1<int32_t> ReorderWidenMulAccumulate(Sisd<int32_t> /* tag */,
   return Vec1<int32_t>(a.raw * b.raw + sum0.raw);
 }
 
+// ------------------------------ RearrangeToOddPlusEven
+template <typename TW>
+HWY_API Vec1<TW> RearrangeToOddPlusEven(const Vec1<TW> sum0,
+                                        Vec1<TW> /* sum1 */) {
+  return sum0;  // invariant already holds
+}
+
 // ================================================== REDUCTIONS
 
 // Sum of all lanes, i.e. the only one.
