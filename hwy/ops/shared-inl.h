@@ -25,7 +25,9 @@
 #define HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #endif
 
+#ifndef HWY_NO_LIBCXX
 #include <math.h>
+#endif
 
 #include "hwy/base.h"
 
