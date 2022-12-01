@@ -4327,8 +4327,15 @@ HWY_API Vec128<int32_t, N> ReorderWidenMulAccumulate(
 }
 
 // ------------------------------ RearrangeToOddPlusEven
-template <class VW>
-HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
+template <size_t N>
+HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(
+    const Vec128<int32_t, N> sum0, const Vec128<int32_t, N> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+template <size_t N>
+HWY_API Vec128<float, N> RearrangeToOddPlusEven(const Vec128<float, N> sum0,
+                                                const Vec128<float, N> sum1) {
   return Add(sum0, sum1);
 }
 
