@@ -5660,7 +5660,7 @@ HWY_API Vec128<float, N> ConvertTo(HWY_MAYBE_UNUSED Simd<float, N, 0> df,
   const RebindToSigned<decltype(df)> d32;
 
   const auto msk_lo = Set(du32, 0xFFFF);
-  const auto cnst2_16_flt = Set(df, 65536.0f); // 2^16
+  const auto cnst2_16_flt = Set(df, 65536.0f);  // 2^16
 
   // Extract the 16 lowest/highest significant bits of v and cast to signed int
   const auto v_lo = BitCast(d32, And(v, msk_lo));
@@ -5704,7 +5704,7 @@ HWY_API Vec128<double, N> ConvertTo(HWY_MAYBE_UNUSED Simd<double, N, 0> dd,
   using VU = VFromD<decltype(d64)>;
 
   const VU msk_lo = Set(d64, 0xFFFFFFFF);
-  const auto cnst2_32_dbl = Set(dd, 4294967296.0); // 2^32
+  const auto cnst2_32_dbl = Set(dd, 4294967296.0);  // 2^32
 
   // Extract the 32 lowest/highest significant bits of v
   const VU v_lo = And(v, msk_lo);

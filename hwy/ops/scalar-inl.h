@@ -643,17 +643,17 @@ HWY_API Vec1<T> Neg(const Vec1<T> v) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(static_cast<T>(double(a.raw) * b.raw));
+  return Vec1<T>(static_cast<T>(double{a.raw} * b.raw));
 }
 
 template <typename T, HWY_IF_SIGNED(T)>
 HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(static_cast<T>(int64_t(a.raw) * b.raw));
+  return Vec1<T>(static_cast<T>(int64_t{a.raw} * b.raw));
 }
 
 template <typename T, HWY_IF_UNSIGNED(T)>
 HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(static_cast<T>(uint64_t(a.raw) * b.raw));
+  return Vec1<T>(static_cast<T>(uint64_t{a.raw} * b.raw));
 }
 
 template <typename T>
@@ -1441,24 +1441,24 @@ HWY_API Vec1<TI> TableLookupBytesOr0(const Vec1<T> in, const Vec1<TI> indices) {
 // ------------------------------ ZipLower
 
 HWY_API Vec1<uint16_t> ZipLower(const Vec1<uint8_t> a, const Vec1<uint8_t> b) {
-  return Vec1<uint16_t>(static_cast<uint16_t>((uint32_t(b.raw) << 8) + a.raw));
+  return Vec1<uint16_t>(static_cast<uint16_t>((uint32_t{b.raw} << 8) + a.raw));
 }
 HWY_API Vec1<uint32_t> ZipLower(const Vec1<uint16_t> a,
                                 const Vec1<uint16_t> b) {
-  return Vec1<uint32_t>((uint32_t(b.raw) << 16) + a.raw);
+  return Vec1<uint32_t>((uint32_t{b.raw} << 16) + a.raw);
 }
 HWY_API Vec1<uint64_t> ZipLower(const Vec1<uint32_t> a,
                                 const Vec1<uint32_t> b) {
-  return Vec1<uint64_t>((uint64_t(b.raw) << 32) + a.raw);
+  return Vec1<uint64_t>((uint64_t{b.raw} << 32) + a.raw);
 }
 HWY_API Vec1<int16_t> ZipLower(const Vec1<int8_t> a, const Vec1<int8_t> b) {
-  return Vec1<int16_t>(static_cast<int16_t>((int32_t(b.raw) << 8) + a.raw));
+  return Vec1<int16_t>(static_cast<int16_t>((int32_t{b.raw} << 8) + a.raw));
 }
 HWY_API Vec1<int32_t> ZipLower(const Vec1<int16_t> a, const Vec1<int16_t> b) {
-  return Vec1<int32_t>((int32_t(b.raw) << 16) + a.raw);
+  return Vec1<int32_t>((int32_t{b.raw} << 16) + a.raw);
 }
 HWY_API Vec1<int64_t> ZipLower(const Vec1<int32_t> a, const Vec1<int32_t> b) {
-  return Vec1<int64_t>((int64_t(b.raw) << 32) + a.raw);
+  return Vec1<int64_t>((int64_t{b.raw} << 32) + a.raw);
 }
 
 template <typename T, typename TW = MakeWide<T>, class VW = Vec1<TW>>

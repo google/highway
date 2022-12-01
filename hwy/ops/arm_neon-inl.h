@@ -30,7 +30,7 @@ HWY_BEFORE_NAMESPACE();
 // the same target attribute as our code, see #834.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
-#include <arm_neon.h>
+#include <arm_neon.h>  // NOLINT(build/include_order)
 HWY_DIAGNOSTICS(pop)
 
 // Must come after arm_neon.h.
