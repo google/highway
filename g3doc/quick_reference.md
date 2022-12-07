@@ -1523,3 +1523,36 @@ of the new array using the passed constructor parameters, returning a unique
 pointer to the array. Note that only the first element is guaranteed to be
 aligned to the vector size; because there is no padding between elements,
 the alignment of the remaining elements depends on the size of `T`.
+
+## Speeding up code for older x86 platforms
+
+Thanks to @dzaima for inspiring this section.
+
+It is possible to improve the performance of your code on older x86 CPUs while
+remaining portable to all platforms. These older CPUs might indeed be the ones
+for which optimization is most impactful, because modern CPUs are usually faster
+and thus likelier to meet performance expectations.
+
+For those without AVX3, preferably avoid `Scatter*`; some algorithms can be
+reformulated to use `Gather*` instead. For pre-AVX2, it is also important to
+avoid `Gather*`.
+
+It is typically much more efficient to pad arrays and use `Load` instead of
+`MaskedLoad` and `Store` instead of `BlendedStore`.
+
+If possible, use signed 8..32 bit types instead of unsigned types for
+comparisons and `Min`/`Max`.
+
+Other ops which are considerably more expensive especially on SSSE3, and
+preferably avoided if possible: `MulEven`, i32 `Mul`, `Shl`/`Shr`,
+`Round`/`Trunc`/`Ceil`/`Floor`, float16 `PromoteTo`/`DemoteTo`, `AESRound`.
+
+Ops which are moderately more expensive on older CPUs: 64-bit
+`Abs`/`ShiftRight`/`ConvertTo`, i32->u16 `DemoteTo`, u32->f32 `ConvertTo`,
+`Not`, `IfThenElse`, `RotateRight`, `OddEven`, `BroadcastSignBit`.
+
+It is likely difficult to avoid all of these ops (about a fifth of the total).
+Apps usually also cannot more efficiently achieve the same result as any op
+without using it - this is an explicit design goal of Highway. However,
+sometimes it is possible to restructure your code to avoid `Not`, e.g. by
+hoisting it outside the SIMD code, or fusing with `AndNot` or `CompressNot`.
