@@ -2690,7 +2690,7 @@ HWY_API Vec32<float> LoadU(Full32<float> /*tag*/, const float* HWY_RESTRICT p) {
   return Vec32<float>(vld1_dup_f32(p));
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x6)>  // 1 or 2 bytes
 HWY_API Vec32<T> LoadU(Full32<T> d, const T* HWY_RESTRICT p) {
   const Repartition<uint32_t, decltype(d)> d32;
   uint32_t buf;
@@ -2711,7 +2711,7 @@ HWY_API Vec128<int16_t, 1> LoadU(Simd<int16_t, 1, 0> /*tag*/,
   return Vec128<int16_t, 1>(vld1_dup_s16(p));
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 2)>
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
 HWY_API Vec128<T, 2> LoadU(Simd<T, 2, 0> d, const T* HWY_RESTRICT p) {
   const Repartition<uint16_t, decltype(d)> d16;
   uint16_t buf;
@@ -2871,7 +2871,7 @@ HWY_API void StoreU(const Vec32<float> v, Full32<float>,
   vst1_lane_f32(p, v.raw, 0);
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x6)>  // 1 or 2 bytes
 HWY_API void StoreU(const Vec32<T> v, Full32<T> d, T* HWY_RESTRICT p) {
   const Repartition<uint32_t, decltype(d)> d32;
   const uint32_t buf = GetLane(BitCast(d32, v));
@@ -2889,7 +2889,7 @@ HWY_API void StoreU(const Vec128<int16_t, 1> v, Simd<int16_t, 1, 0>,
   vst1_lane_s16(p, v.raw, 0);
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 2)>
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
 HWY_API void StoreU(const Vec128<T, 2> v, Simd<T, 2, 0> d, T* HWY_RESTRICT p) {
   const Repartition<uint16_t, decltype(d)> d16;
   const uint16_t buf = GetLane(BitCast(d16, v));
@@ -5647,7 +5647,7 @@ HWY_API bool AllTrue(const Simd<T, N, 0> d, const Mask128<T, N> m) {
 
 template <typename T>
 struct CompressIsPartition {
-  enum { value = 1 };
+  enum { value = (sizeof(T) != 1) };
 };
 
 namespace detail {
@@ -6107,8 +6107,8 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case
-template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 8)>
+// General case, 2 or 4 byte lanes
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, const Mask128<T, N> mask) {
   return detail::Compress(v, detail::BitsFromMask(mask));
 }
@@ -6131,8 +6131,8 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case
-template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 8)>
+// General case, 2 or 4 byte lanes
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
@@ -6150,7 +6150,7 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
 
 // ------------------------------ CompressBits
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
                                      const uint8_t* HWY_RESTRICT bits) {
   uint64_t mask_bits = 0;
@@ -6164,7 +6164,7 @@ HWY_INLINE Vec128<T, N> CompressBits(Vec128<T, N> v,
 }
 
 // ------------------------------ CompressStore
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
@@ -6173,7 +6173,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
 }
 
 // ------------------------------ CompressBlendedStore
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
                                     Simd<T, N, 0> d,
                                     T* HWY_RESTRICT unaligned) {
@@ -6189,7 +6189,7 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
 
 // ------------------------------ CompressBitsStore
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBitsStore(Vec128<T, N> v,
                                  const uint8_t* HWY_RESTRICT bits,
                                  Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {

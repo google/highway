@@ -4150,7 +4150,7 @@ struct CompressIsPartition {
 #if HWY_TARGET == HWY_WASM_EMU256
   enum { value = 0 };
 #else
-  enum { value = 1 };
+  enum { value = (sizeof(T) != 1) };
 #endif
 };
 
@@ -4172,8 +4172,8 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case
-template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 8)>
+// General case, 2 or 4 byte lanes
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   return detail::Compress(v, detail::BitsFromMask(mask));
 }
@@ -4196,8 +4196,8 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case
-template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 8)>
+// General case, 2 or 4 byte lanes
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
@@ -4206,6 +4206,7 @@ HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   }
   return detail::CompressNot(v, detail::BitsFromMask(mask));
 }
+
 // ------------------------------ CompressBlocksNot
 HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
                                            Mask128<uint64_t> /* m */) {
@@ -4213,8 +4214,7 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
 }
 
 // ------------------------------ CompressBits
-
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
                                   const uint8_t* HWY_RESTRICT bits) {
   uint64_t mask_bits = 0;
@@ -4228,7 +4228,7 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
 }
 
 // ------------------------------ CompressStore
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
                              Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
@@ -4238,7 +4238,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, const Mask128<T, N> mask,
 }
 
 // ------------------------------ CompressBlendedStore
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
                                     Simd<T, N, 0> d,
                                     T* HWY_RESTRICT unaligned) {
@@ -4254,7 +4254,7 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
 
 // ------------------------------ CompressBitsStore
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBitsStore(Vec128<T, N> v,
                                  const uint8_t* HWY_RESTRICT bits,
                                  Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {

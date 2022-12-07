@@ -716,18 +716,16 @@ false is zero, true has all bits set:
 
 #### Compress
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
+*   <code>V **Compress**(V v, M m)</code>: returns `r` such that `r[n]` is
     `v[i]`, with `i` the n-th lane index (starting from 0) where `m[i]` is true.
     Compacts lanes whose mask is true into the lower lanes. For targets and lane
     type `T` where `CompressIsPartition<T>::value` is true, the upper lanes are
     those whose mask is false (thus `Compress` corresponds to partitioning
     according to the mask). Otherwise, the upper lanes are
-    implementation-defined. Slow with 16-bit lanes. Use this form when the input
-    is already a mask, e.g. returned by a comparison.
+    implementation-defined. Potentially slow with 8 and 16-bit lanes. Use this
+    form when the input is already a mask, e.g. returned by a comparison.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **CompressNot**(V v, M m)</code>: equivalent to `Compress(v,
+*   <code>V **CompressNot**(V v, M m)</code>: equivalent to `Compress(v,
     Not(m))` but possibly faster if `CompressIsPartition<T>::value` is true.
 
 *   `V`: `u64` \
@@ -736,32 +734,28 @@ false is zero, true has all bits set:
     false), e.g. as returned by `Lt128`. This is a no-op for 128 bit vectors.
     Unavailable if `HWY_TARGET == HWY_SCALAR`.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
+*   <code>size_t **CompressStore**(V v, M m, D d, T* p)</code>: writes lanes
     whose mask `m` is true into `p`, starting from lane 0. Returns `CountTrue(d,
     m)`, the number of valid lanes. May be implemented as `Compress` followed by
-    `StoreU`; lanes after the valid ones may still be overwritten! Slower for
-    16-bit lanes.
+    `StoreU`; lanes after the valid ones may still be overwritten! Potentially
+    slow with 8 and 16-bit lanes.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>size_t **CompressBlendedStore**(V v, M m, D d, T* p)</code>: writes
+*   <code>size_t **CompressBlendedStore**(V v, M m, D d, T* p)</code>: writes
     only lanes whose mask `m` is true into `p`, starting from lane 0. Returns
     `CountTrue(d, m)`, the number of lanes written. Does not modify subsequent
     lanes, but there is no guarantee of atomicity because this may be
     implemented as `Compress, LoadU, IfThenElse(FirstN), StoreU`.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **CompressBits**(V v, const uint8_t* HWY_RESTRICT bits)</code>:
+*   <code>V **CompressBits**(V v, const uint8_t* HWY_RESTRICT bits)</code>:
     Equivalent to, but often faster than `Compress(v, LoadMaskBits(d, bits))`.
     `bits` is as specified for `LoadMaskBits`. If called multiple times, the
     `bits` pointer passed to this function must also be marked `HWY_RESTRICT` to
     avoid repeated work. Note that if the vector has less than 8 elements,
     incrementing `bits` will not work as intended for packed bit arrays. As with
     `Compress`, `CompressIsPartition` indicates the mask=false lanes are moved
-    to the upper lanes; this op is also slow for 16-bit lanes.
+    to the upper lanes. Potentially slow with 8 and 16-bit lanes.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>size_t **CompressBitsStore**(V v, const uint8_t* HWY_RESTRICT bits, D
+*   <code>size_t **CompressBitsStore**(V v, const uint8_t* HWY_RESTRICT bits, D
     d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see
     remarks there.
 

@@ -1146,7 +1146,7 @@ HWY_API Vec256<T> Reverse8(Full256<T> d, const Vec256<T> v) {
   return ret;
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x6)>  // 1 or 2 bytes
 HWY_API Vec256<T> Reverse8(Full256<T> d, Vec256<T> v) {
   const Half<decltype(d)> dh;
   v.v0 = Reverse8(dh, v.v0);
@@ -1576,7 +1576,7 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
 // ------------------------------ LoadMaskBits (TestBit)
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
-template <typename T, HWY_IF_LANE_SIZE_GE(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x110)>  // 4 or 8 bytes
 HWY_API Mask256<T> LoadMaskBits(Full256<T> d,
                                 const uint8_t* HWY_RESTRICT bits) {
   const Half<decltype(d)> dh;
@@ -1590,7 +1590,7 @@ HWY_API Mask256<T> LoadMaskBits(Full256<T> d,
   return ret;
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x6)>  // 1 or 2 bytes
 HWY_API Mask256<T> LoadMaskBits(Full256<T> d,
                                 const uint8_t* HWY_RESTRICT bits) {
   const Half<decltype(d)> dh;
@@ -1606,7 +1606,7 @@ HWY_API Mask256<T> LoadMaskBits(Full256<T> d,
 // ------------------------------ Mask
 
 // `p` points to at least 8 writable bytes.
-template <typename T, HWY_IF_LANE_SIZE_GE(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x110)>  // 4 or 8 bytes
 HWY_API size_t StoreMaskBits(const Full256<T> d, const Mask256<T> mask,
                              uint8_t* bits) {
   const Half<decltype(d)> dh;
@@ -1620,7 +1620,7 @@ HWY_API size_t StoreMaskBits(const Full256<T> d, const Mask256<T> mask,
   return (kBitsPerHalf * 2 + 7) / 8;
 }
 
-template <typename T, HWY_IF_LANE_SIZE_LT(T, 4)>
+template <typename T, HWY_IF_LANE_SIZE_ONE_OF(T, 0x6)>  // 1 or 2 bytes
 HWY_API size_t StoreMaskBits(const Full256<T> d, const Mask256<T> mask,
                              uint8_t* bits) {
   const Half<decltype(d)> dh;

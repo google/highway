@@ -2436,6 +2436,13 @@ HWY_API V ReverseBlocks(D d, V v) {
 
 // ------------------------------ Compress
 
+// RVV supports all lane types natively.
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
+
 template <typename T>
 struct CompressIsPartition {
   enum { value = 0 };
@@ -2448,8 +2455,7 @@ struct CompressIsPartition {
     return v##OP##_vm_##CHAR##SEW##LMUL(mask, v, v, HWY_RVV_AVL(SEW, SHIFT)); \
   }
 
-HWY_RVV_FOREACH_UI163264(HWY_RVV_COMPRESS, Compress, compress, _ALL)
-HWY_RVV_FOREACH_F(HWY_RVV_COMPRESS, Compress, compress, _ALL)
+HWY_RVV_FOREACH(HWY_RVV_COMPRESS, Compress, compress, _ALL)
 #undef HWY_RVV_COMPRESS
 
 // ------------------------------ CompressNot

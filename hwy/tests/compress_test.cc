@@ -57,8 +57,8 @@ void CheckStored(D d, DI di, const char* op, size_t expected_pos,
               static_cast<int>(i), static_cast<int>(num_to_check), line);
       Print(di, "mask", Load(di, mask_lanes.get()), 0, N);
       Print(d, "in", Load(d, in.get()), 0, N);
-      Print(d, "expect", Load(d, expected.get()), 0, N);
-      Print(d, "actual", Load(d, actual_u), 0, N);
+      Print(d, "expect", Load(d, expected.get()), 0, num_to_check);
+      Print(d, "actual", Load(d, actual_u), 0, num_to_check);
       HWY_ASSERT(false);
     }
   }
@@ -178,7 +178,7 @@ struct TestCompress {
 };
 
 HWY_NOINLINE void TestAllCompress() {
-  ForUIF163264(ForPartialVectors<TestCompress>());
+  ForAllTypes(ForPartialVectors<TestCompress>());
 }
 
 struct TestCompressBlocks {
@@ -252,6 +252,34 @@ HWY_NOINLINE void TestAllCompressBlocks() {
 
 #if HWY_PRINT_TABLES || HWY_IDE
 namespace detail {  // for code folding
+
+void PrintCompress8x8Tables() {
+  printf("======================================= 8x8\n");
+  constexpr size_t N = 8;
+  for (uint64_t code = 0; code < (1ull << N); ++code) {
+    std::array<uint8_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    for (size_t i = 0; i < N; ++i) {
+      printf("%d,", indices[i]);
+    }
+    printf(code & 1 ? "//\n" : "/**/");
+  }
+  printf("\n");
+}
 
 void PrintCompress16x8Tables() {
   printf("======================================= 16x8\n");
@@ -428,6 +456,40 @@ void PrintCompress64x4NibbleTables() {
 void PrintCompressNot64x4NibbleTables() {
   printf("======================================= Not 64x4Nibble\n");
   constexpr size_t N = 4;  // AVX2
+  for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
+    const uint64_t code = ~not_code;
+    std::array<uint32_t, N> indices{0};
+    size_t pos = 0;
+    // All lanes where mask = true
+    for (size_t i = 0; i < N; ++i) {
+      if (code & (1ull << i)) {
+        indices[pos++] = i;
+      }
+    }
+    // All lanes where mask = false
+    for (size_t i = 0; i < N; ++i) {
+      if (!(code & (1ull << i))) {
+        indices[pos++] = i;
+      }
+    }
+    HWY_ASSERT(pos == N);
+
+    // Convert to nibbles
+    uint64_t packed = 0;
+    for (size_t i = 0; i < N; ++i) {
+      HWY_ASSERT(indices[i] < N);
+      packed += indices[i] << (i * 4);
+    }
+
+    HWY_ASSERT(packed < (1ull << (N * 4)));
+    printf("0x%08x,", static_cast<uint32_t>(packed));
+  }
+  printf("\n");
+}
+
+void PrintCompressNot64x2NibbleTables() {
+  printf("======================================= Not 64x2Nibble\n");
+  constexpr size_t N = 2;  // 128-bit
   for (uint64_t not_code = 0; not_code < (1ull << N); ++not_code) {
     const uint64_t code = ~not_code;
     std::array<uint32_t, N> indices{0};
@@ -728,6 +790,7 @@ HWY_NOINLINE void PrintTables() {
   detail::PrintCompressNot32x8Tables();
   detail::PrintCompress64x4NibbleTables();
   detail::PrintCompressNot64x4NibbleTables();
+  detail::PrintCompressNot64x2NibbleTables();
   detail::PrintCompress64x4Tables();
   detail::PrintCompressNot64x4Tables();
   detail::PrintCompress32x4Tables();
@@ -737,6 +800,7 @@ HWY_NOINLINE void PrintTables() {
   detail::PrintCompress64x4PairTables();
   detail::PrintCompressNot64x4PairTables();
   detail::PrintCompress16x8Tables();
+  detail::PrintCompress8x8Tables();
   detail::PrintCompressNot16x8Tables();
 #endif
 }

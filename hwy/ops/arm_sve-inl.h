@@ -2215,6 +2215,7 @@ HWY_API V Compress(V v, svbool_t mask) {
       0, 1, 3, 2, 2, 3, 0, 1, 0, 2, 3, 1, 1, 2, 3, 0, 0, 1, 2, 3};
   return TableLookupLanes(v, SetTableIndices(d, table + offset));
 }
+
 #endif  // HWY_TARGET == HWY_SVE_256
 #if HWY_TARGET == HWY_SVE2_128 || HWY_IDE
 template <class V, HWY_IF_LANE_SIZE_V(V, 8)>
@@ -2227,7 +2228,8 @@ HWY_API V Compress(V v, svbool_t mask) {
   const svbool_t maskLL = svzip1_b64(mask, mask);  // broadcast lower lane
   return detail::Splice(v, v, AndNot(maskLL, mask));
 }
-#endif  // HWY_TARGET == HWY_SVE_256
+
+#endif  // HWY_TARGET == HWY_SVE2_128
 
 template <class V, HWY_IF_LANE_SIZE_V(V, 2)>
 HWY_API V Compress(V v, svbool_t mask16) {
@@ -2267,7 +2269,8 @@ HWY_API svfloat16_t Compress(svfloat16_t v, svbool_t mask16) {
 
 // ------------------------------ CompressNot
 
-template <class V, HWY_IF_NOT_LANE_SIZE_V(V, 8)>
+// 2 or 4 bytes
+template <class V, typename T = TFromV<V>, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API V CompressNot(V v, const svbool_t mask) {
   return Compress(v, Not(mask));
 }
@@ -2327,7 +2330,7 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
 }
 
 // ------------------------------ CompressStore
-template <class V, class D>
+template <class V, class D, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
 HWY_API size_t CompressStore(const V v, const svbool_t mask, const D d,
                              TFromD<D>* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
@@ -2335,7 +2338,7 @@ HWY_API size_t CompressStore(const V v, const svbool_t mask, const D d,
 }
 
 // ------------------------------ CompressBlendedStore
-template <class V, class D>
+template <class V, class D, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
 HWY_API size_t CompressBlendedStore(const V v, const svbool_t mask, const D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
   const size_t count = CountTrue(d, mask);
@@ -2836,13 +2839,13 @@ HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
 }
 
 // ------------------------------ CompressBits (LoadMaskBits)
-template <class V>
+template <class V, class D = DFromV<V>, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
 HWY_INLINE V CompressBits(V v, const uint8_t* HWY_RESTRICT bits) {
-  return Compress(v, LoadMaskBits(DFromV<V>(), bits));
+  return Compress(v, LoadMaskBits(D(), bits));
 }
 
 // ------------------------------ CompressBitsStore (LoadMaskBits)
-template <class D>
+template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);

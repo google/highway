@@ -642,6 +642,21 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
 
 // ================================================== MASK
 
+namespace detail {
+
+template <typename T>
+HWY_INLINE void MaybeUnpoison(T* HWY_RESTRICT unaligned, size_t count) {
+  // Workaround for MSAN not marking compressstore as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#else
+  (void)unaligned;
+  (void)count;
+#endif
+}
+
+}  // namespace detail
+
 #if HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ IfThenElse
@@ -2087,7 +2102,7 @@ HWY_API Vec128<double, N> MaskedLoad(Mask128<double, N> m, Simd<double, N, 0> d,
 }
 
 // There is no maskload_epi8/16, so blend instead.
-template <typename T, size_t N, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 6)>  // 1 or 2 bytes
 HWY_API Vec128<T, N> MaskedLoad(Mask128<T, N> m, Simd<T, N, 0> d,
                                 const T* HWY_RESTRICT p) {
   return IfThenElseZero(m, Load(d, p));
@@ -2243,7 +2258,7 @@ HWY_API void BlendedStore(Vec128<double, N> v, Mask128<double, N> m,
 
 #elif HWY_TARGET == HWY_AVX2
 
-template <typename T, size_t N, hwy::EnableIf<sizeof(T) <= 2>* = nullptr>
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 6)>  // 1 or 2 bytes
 HWY_API void BlendedStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
                           T* HWY_RESTRICT p) {
   detail::ScalarMaskedStore(v, m, d, p);
@@ -6030,6 +6045,80 @@ HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
 
 // ================================================== MISC
 
+// ------------------------------ LoadMaskBits (TestBit)
+
+#if HWY_TARGET > HWY_AVX3
+namespace detail {
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  // Easier than Set(), which would require an >8-bit type, which would not
+  // compile for T=uint8_t, N=1.
+  const Vec128<T, N> vbits{_mm_cvtsi32_si128(static_cast<int>(mask_bits))};
+
+  // Replicate bytes 8x such that each byte contains the bit that governs it.
+  alignas(16) constexpr uint8_t kRep8[16] = {0, 0, 0, 0, 0, 0, 0, 0,
+                                             1, 1, 1, 1, 1, 1, 1, 1};
+  const auto rep8 = TableLookupBytes(vbits, Load(du, kRep8));
+
+  alignas(16) constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
+                                            1, 2, 4, 8, 16, 32, 64, 128};
+  return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  const auto vmask_bits = Set(du, static_cast<uint16_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
+  const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
+  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
+HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) constexpr uint64_t kBit[8] = {1, 2};
+  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET > HWY_AVX3
+
+// `p` points to at least 8 readable bytes, not all of which need be valid.
+template <typename T, size_t N, HWY_IF_LE128(T, N)>
+HWY_API Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d,
+                                   const uint8_t* HWY_RESTRICT bits) {
+#if HWY_TARGET <= HWY_AVX3
+  (void)d;
+  uint64_t mask_bits = 0;
+  constexpr size_t kNumBytes = (N + 7) / 8;
+  CopyBytes<kNumBytes>(bits, &mask_bits);
+  if (N < 8) {
+    mask_bits &= (1ull << N) - 1;
+  }
+
+  return Mask128<T, N>::FromBits(mask_bits);
+#else
+  uint64_t mask_bits = 0;
+  constexpr size_t kNumBytes = (N + 7) / 8;
+  CopyBytes<kNumBytes>(bits, &mask_bits);
+  if (N < 8) {
+    mask_bits &= (1ull << N) - 1;
+  }
+
+  return detail::LoadMaskBits(d, mask_bits);
+#endif
+}
+
 template <typename T>
 struct CompressIsPartition {
 #if HWY_TARGET <= HWY_AVX3
@@ -6040,27 +6129,12 @@ struct CompressIsPartition {
   // u32x8 etc.).
   enum { value = (sizeof(T) == 8) };
 #else
-  enum { value = 1 };
+  // generic_ops-inl does not guarantee IsPartition for 8-bit.
+  enum { value = (sizeof(T) != 1) };
 #endif
 };
 
 #if HWY_TARGET <= HWY_AVX3
-
-// ------------------------------ LoadMaskBits
-
-// `p` points to at least 8 readable bytes, not all of which need be valid.
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API Mask128<T, N> LoadMaskBits(Simd<T, N, 0> /* tag */,
-                                   const uint8_t* HWY_RESTRICT bits) {
-  uint64_t mask_bits = 0;
-  constexpr size_t kNumBytes = (N + 7) / 8;
-  CopyBytes<kNumBytes>(bits, &mask_bits);
-  if (N < 8) {
-    mask_bits &= (1ull << N) - 1;
-  }
-
-  return Mask128<T, N>::FromBits(mask_bits);
-}
 
 // ------------------------------ StoreMaskBits
 
@@ -6120,129 +6194,12 @@ HWY_API bool AllTrue(const Simd<T, N, 0> /* tag */, const Mask128<T, N> mask) {
 
 // ------------------------------ Compress
 
-#if HWY_TARGET != HWY_AVX3_DL
-namespace detail {
-
-// Returns permutevar_epi16 indices for 16-bit Compress. Also used by x86_256.
-HWY_INLINE Vec128<uint16_t> IndicesForCompress16(uint64_t mask_bits) {
-  Full128<uint16_t> du16;
-  // Table of u16 indices packed into bytes to reduce L1 usage. Will be unpacked
-  // to u16. Ideally we would broadcast 8*3 (half of the 8 bytes currently used)
-  // bits into each lane and then varshift, but that does not fit in 16 bits.
-  Rebind<uint8_t, decltype(du16)> du8;
-  alignas(16) constexpr uint8_t tbl[2048] = {
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-      1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 2,
-      0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0,
-      0, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 2, 3, 0, 0,
-      0, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 1, 2, 3, 0,
-      0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 0,
-      0, 0, 0, 1, 4, 0, 0, 0, 0, 0, 2, 4, 0, 0, 0, 0, 0, 0, 0, 2, 4, 0, 0, 0, 0,
-      0, 1, 2, 4, 0, 0, 0, 0, 0, 0, 1, 2, 4, 0, 0, 0, 0, 3, 4, 0, 0, 0, 0, 0, 0,
-      0, 3, 4, 0, 0, 0, 0, 0, 1, 3, 4, 0, 0, 0, 0, 0, 0, 1, 3, 4, 0, 0, 0, 0, 2,
-      3, 4, 0, 0, 0, 0, 0, 0, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 1,
-      2, 3, 4, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 1, 5, 0,
-      0, 0, 0, 0, 0, 0, 1, 5, 0, 0, 0, 0, 0, 2, 5, 0, 0, 0, 0, 0, 0, 0, 2, 5, 0,
-      0, 0, 0, 0, 1, 2, 5, 0, 0, 0, 0, 0, 0, 1, 2, 5, 0, 0, 0, 0, 3, 5, 0, 0, 0,
-      0, 0, 0, 0, 3, 5, 0, 0, 0, 0, 0, 1, 3, 5, 0, 0, 0, 0, 0, 0, 1, 3, 5, 0, 0,
-      0, 0, 2, 3, 5, 0, 0, 0, 0, 0, 0, 2, 3, 5, 0, 0, 0, 0, 1, 2, 3, 5, 0, 0, 0,
-      0, 0, 1, 2, 3, 5, 0, 0, 0, 4, 5, 0, 0, 0, 0, 0, 0, 0, 4, 5, 0, 0, 0, 0, 0,
-      1, 4, 5, 0, 0, 0, 0, 0, 0, 1, 4, 5, 0, 0, 0, 0, 2, 4, 5, 0, 0, 0, 0, 0, 0,
-      2, 4, 5, 0, 0, 0, 0, 1, 2, 4, 5, 0, 0, 0, 0, 0, 1, 2, 4, 5, 0, 0, 0, 3, 4,
-      5, 0, 0, 0, 0, 0, 0, 3, 4, 5, 0, 0, 0, 0, 1, 3, 4, 5, 0, 0, 0, 0, 0, 1, 3,
-      4, 5, 0, 0, 0, 2, 3, 4, 5, 0, 0, 0, 0, 0, 2, 3, 4, 5, 0, 0, 0, 1, 2, 3, 4,
-      5, 0, 0, 0, 0, 1, 2, 3, 4, 5, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0,
-      0, 0, 0, 1, 6, 0, 0, 0, 0, 0, 0, 0, 1, 6, 0, 0, 0, 0, 0, 2, 6, 0, 0, 0, 0,
-      0, 0, 0, 2, 6, 0, 0, 0, 0, 0, 1, 2, 6, 0, 0, 0, 0, 0, 0, 1, 2, 6, 0, 0, 0,
-      0, 3, 6, 0, 0, 0, 0, 0, 0, 0, 3, 6, 0, 0, 0, 0, 0, 1, 3, 6, 0, 0, 0, 0, 0,
-      0, 1, 3, 6, 0, 0, 0, 0, 2, 3, 6, 0, 0, 0, 0, 0, 0, 2, 3, 6, 0, 0, 0, 0, 1,
-      2, 3, 6, 0, 0, 0, 0, 0, 1, 2, 3, 6, 0, 0, 0, 4, 6, 0, 0, 0, 0, 0, 0, 0, 4,
-      6, 0, 0, 0, 0, 0, 1, 4, 6, 0, 0, 0, 0, 0, 0, 1, 4, 6, 0, 0, 0, 0, 2, 4, 6,
-      0, 0, 0, 0, 0, 0, 2, 4, 6, 0, 0, 0, 0, 1, 2, 4, 6, 0, 0, 0, 0, 0, 1, 2, 4,
-      6, 0, 0, 0, 3, 4, 6, 0, 0, 0, 0, 0, 0, 3, 4, 6, 0, 0, 0, 0, 1, 3, 4, 6, 0,
-      0, 0, 0, 0, 1, 3, 4, 6, 0, 0, 0, 2, 3, 4, 6, 0, 0, 0, 0, 0, 2, 3, 4, 6, 0,
-      0, 0, 1, 2, 3, 4, 6, 0, 0, 0, 0, 1, 2, 3, 4, 6, 0, 0, 5, 6, 0, 0, 0, 0, 0,
-      0, 0, 5, 6, 0, 0, 0, 0, 0, 1, 5, 6, 0, 0, 0, 0, 0, 0, 1, 5, 6, 0, 0, 0, 0,
-      2, 5, 6, 0, 0, 0, 0, 0, 0, 2, 5, 6, 0, 0, 0, 0, 1, 2, 5, 6, 0, 0, 0, 0, 0,
-      1, 2, 5, 6, 0, 0, 0, 3, 5, 6, 0, 0, 0, 0, 0, 0, 3, 5, 6, 0, 0, 0, 0, 1, 3,
-      5, 6, 0, 0, 0, 0, 0, 1, 3, 5, 6, 0, 0, 0, 2, 3, 5, 6, 0, 0, 0, 0, 0, 2, 3,
-      5, 6, 0, 0, 0, 1, 2, 3, 5, 6, 0, 0, 0, 0, 1, 2, 3, 5, 6, 0, 0, 4, 5, 6, 0,
-      0, 0, 0, 0, 0, 4, 5, 6, 0, 0, 0, 0, 1, 4, 5, 6, 0, 0, 0, 0, 0, 1, 4, 5, 6,
-      0, 0, 0, 2, 4, 5, 6, 0, 0, 0, 0, 0, 2, 4, 5, 6, 0, 0, 0, 1, 2, 4, 5, 6, 0,
-      0, 0, 0, 1, 2, 4, 5, 6, 0, 0, 3, 4, 5, 6, 0, 0, 0, 0, 0, 3, 4, 5, 6, 0, 0,
-      0, 1, 3, 4, 5, 6, 0, 0, 0, 0, 1, 3, 4, 5, 6, 0, 0, 2, 3, 4, 5, 6, 0, 0, 0,
-      0, 2, 3, 4, 5, 6, 0, 0, 1, 2, 3, 4, 5, 6, 0, 0, 0, 1, 2, 3, 4, 5, 6, 0, 7,
-      0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 1, 7, 0, 0, 0, 0, 0, 0, 0, 1,
-      7, 0, 0, 0, 0, 0, 2, 7, 0, 0, 0, 0, 0, 0, 0, 2, 7, 0, 0, 0, 0, 0, 1, 2, 7,
-      0, 0, 0, 0, 0, 0, 1, 2, 7, 0, 0, 0, 0, 3, 7, 0, 0, 0, 0, 0, 0, 0, 3, 7, 0,
-      0, 0, 0, 0, 1, 3, 7, 0, 0, 0, 0, 0, 0, 1, 3, 7, 0, 0, 0, 0, 2, 3, 7, 0, 0,
-      0, 0, 0, 0, 2, 3, 7, 0, 0, 0, 0, 1, 2, 3, 7, 0, 0, 0, 0, 0, 1, 2, 3, 7, 0,
-      0, 0, 4, 7, 0, 0, 0, 0, 0, 0, 0, 4, 7, 0, 0, 0, 0, 0, 1, 4, 7, 0, 0, 0, 0,
-      0, 0, 1, 4, 7, 0, 0, 0, 0, 2, 4, 7, 0, 0, 0, 0, 0, 0, 2, 4, 7, 0, 0, 0, 0,
-      1, 2, 4, 7, 0, 0, 0, 0, 0, 1, 2, 4, 7, 0, 0, 0, 3, 4, 7, 0, 0, 0, 0, 0, 0,
-      3, 4, 7, 0, 0, 0, 0, 1, 3, 4, 7, 0, 0, 0, 0, 0, 1, 3, 4, 7, 0, 0, 0, 2, 3,
-      4, 7, 0, 0, 0, 0, 0, 2, 3, 4, 7, 0, 0, 0, 1, 2, 3, 4, 7, 0, 0, 0, 0, 1, 2,
-      3, 4, 7, 0, 0, 5, 7, 0, 0, 0, 0, 0, 0, 0, 5, 7, 0, 0, 0, 0, 0, 1, 5, 7, 0,
-      0, 0, 0, 0, 0, 1, 5, 7, 0, 0, 0, 0, 2, 5, 7, 0, 0, 0, 0, 0, 0, 2, 5, 7, 0,
-      0, 0, 0, 1, 2, 5, 7, 0, 0, 0, 0, 0, 1, 2, 5, 7, 0, 0, 0, 3, 5, 7, 0, 0, 0,
-      0, 0, 0, 3, 5, 7, 0, 0, 0, 0, 1, 3, 5, 7, 0, 0, 0, 0, 0, 1, 3, 5, 7, 0, 0,
-      0, 2, 3, 5, 7, 0, 0, 0, 0, 0, 2, 3, 5, 7, 0, 0, 0, 1, 2, 3, 5, 7, 0, 0, 0,
-      0, 1, 2, 3, 5, 7, 0, 0, 4, 5, 7, 0, 0, 0, 0, 0, 0, 4, 5, 7, 0, 0, 0, 0, 1,
-      4, 5, 7, 0, 0, 0, 0, 0, 1, 4, 5, 7, 0, 0, 0, 2, 4, 5, 7, 0, 0, 0, 0, 0, 2,
-      4, 5, 7, 0, 0, 0, 1, 2, 4, 5, 7, 0, 0, 0, 0, 1, 2, 4, 5, 7, 0, 0, 3, 4, 5,
-      7, 0, 0, 0, 0, 0, 3, 4, 5, 7, 0, 0, 0, 1, 3, 4, 5, 7, 0, 0, 0, 0, 1, 3, 4,
-      5, 7, 0, 0, 2, 3, 4, 5, 7, 0, 0, 0, 0, 2, 3, 4, 5, 7, 0, 0, 1, 2, 3, 4, 5,
-      7, 0, 0, 0, 1, 2, 3, 4, 5, 7, 0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 6, 7, 0, 0, 0,
-      0, 0, 1, 6, 7, 0, 0, 0, 0, 0, 0, 1, 6, 7, 0, 0, 0, 0, 2, 6, 7, 0, 0, 0, 0,
-      0, 0, 2, 6, 7, 0, 0, 0, 0, 1, 2, 6, 7, 0, 0, 0, 0, 0, 1, 2, 6, 7, 0, 0, 0,
-      3, 6, 7, 0, 0, 0, 0, 0, 0, 3, 6, 7, 0, 0, 0, 0, 1, 3, 6, 7, 0, 0, 0, 0, 0,
-      1, 3, 6, 7, 0, 0, 0, 2, 3, 6, 7, 0, 0, 0, 0, 0, 2, 3, 6, 7, 0, 0, 0, 1, 2,
-      3, 6, 7, 0, 0, 0, 0, 1, 2, 3, 6, 7, 0, 0, 4, 6, 7, 0, 0, 0, 0, 0, 0, 4, 6,
-      7, 0, 0, 0, 0, 1, 4, 6, 7, 0, 0, 0, 0, 0, 1, 4, 6, 7, 0, 0, 0, 2, 4, 6, 7,
-      0, 0, 0, 0, 0, 2, 4, 6, 7, 0, 0, 0, 1, 2, 4, 6, 7, 0, 0, 0, 0, 1, 2, 4, 6,
-      7, 0, 0, 3, 4, 6, 7, 0, 0, 0, 0, 0, 3, 4, 6, 7, 0, 0, 0, 1, 3, 4, 6, 7, 0,
-      0, 0, 0, 1, 3, 4, 6, 7, 0, 0, 2, 3, 4, 6, 7, 0, 0, 0, 0, 2, 3, 4, 6, 7, 0,
-      0, 1, 2, 3, 4, 6, 7, 0, 0, 0, 1, 2, 3, 4, 6, 7, 0, 5, 6, 7, 0, 0, 0, 0, 0,
-      0, 5, 6, 7, 0, 0, 0, 0, 1, 5, 6, 7, 0, 0, 0, 0, 0, 1, 5, 6, 7, 0, 0, 0, 2,
-      5, 6, 7, 0, 0, 0, 0, 0, 2, 5, 6, 7, 0, 0, 0, 1, 2, 5, 6, 7, 0, 0, 0, 0, 1,
-      2, 5, 6, 7, 0, 0, 3, 5, 6, 7, 0, 0, 0, 0, 0, 3, 5, 6, 7, 0, 0, 0, 1, 3, 5,
-      6, 7, 0, 0, 0, 0, 1, 3, 5, 6, 7, 0, 0, 2, 3, 5, 6, 7, 0, 0, 0, 0, 2, 3, 5,
-      6, 7, 0, 0, 1, 2, 3, 5, 6, 7, 0, 0, 0, 1, 2, 3, 5, 6, 7, 0, 4, 5, 6, 7, 0,
-      0, 0, 0, 0, 4, 5, 6, 7, 0, 0, 0, 1, 4, 5, 6, 7, 0, 0, 0, 0, 1, 4, 5, 6, 7,
-      0, 0, 2, 4, 5, 6, 7, 0, 0, 0, 0, 2, 4, 5, 6, 7, 0, 0, 1, 2, 4, 5, 6, 7, 0,
-      0, 0, 1, 2, 4, 5, 6, 7, 0, 3, 4, 5, 6, 7, 0, 0, 0, 0, 3, 4, 5, 6, 7, 0, 0,
-      1, 3, 4, 5, 6, 7, 0, 0, 0, 1, 3, 4, 5, 6, 7, 0, 2, 3, 4, 5, 6, 7, 0, 0, 0,
-      2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 1, 2, 3, 4, 5, 6, 7};
-  return PromoteTo(du16, Load(du8, tbl + mask_bits * 8));
-}
-
-}  // namespace detail
-#endif  // HWY_TARGET != HWY_AVX3_DL
+// 8-16 bit Compress, CompressStore defined in x86_512 because they use Vec512.
 
 // Single lane: no-op
 template <typename T>
 HWY_API Vec128<T, 1> Compress(Vec128<T, 1> v, Mask128<T, 1> /*m*/) {
   return v;
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  const Simd<T, N, 0> d;
-  const Rebind<uint16_t, decltype(d)> du;
-  const auto vu = BitCast(du, v);  // (required for float16_t inputs)
-
-#if HWY_TARGET == HWY_AVX3_DL  // VBMI2
-  const Vec128<uint16_t, N> cu{_mm_maskz_compress_epi16(mask.raw, vu.raw)};
-#else
-  const auto idx = detail::IndicesForCompress16(uint64_t{mask.raw});
-  const Vec128<uint16_t, N> cu{_mm_permutexvar_epi16(idx.raw, vu.raw)};
-#endif  // HWY_TARGET != HWY_AVX3_DL
-  return BitCast(d, cu);
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
-HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
-  return Vec128<T, N>{_mm_maskz_compress_epi32(mask.raw, v.raw)};
 }
 
 template <size_t N, HWY_IF_GE64(float, N)>
@@ -6275,9 +6232,20 @@ HWY_API Vec128<T, 1> CompressNot(Vec128<T, 1> v, Mask128<T, 1> /*m*/) {
   return v;
 }
 
-template <typename T, size_t N>
-HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
-  return Compress(v, Not(mask));
+template <typename T, HWY_IF_LANE_SIZE(T, 8)>
+HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
+  // See CompressIsPartition, PrintCompressNot64x2NibbleTables
+  alignas(16) constexpr uint64_t packed_array[16] = {0x00000010, 0x00000001,
+                                                     0x00000010, 0x00000010};
+
+  // For lane i, shift the i-th 4-bit index down to bits [0, 2) -
+  // _mm_permutexvar_epi64 will ignore the upper bits.
+  const Full128<T> d;
+  const RebindToUnsigned<decltype(d)> du64;
+  const auto packed = Set(du64, packed_array[mask.raw]);
+  alignas(16) constexpr uint64_t shifts[2] = {0, 4};
+  const auto indices = Indices128<T>{(packed >> Load(du64, shifts)).raw};
+  return TableLookupLanes(v, indices);
 }
 
 // ------------------------------ CompressBlocksNot
@@ -6286,39 +6254,7 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
   return v;
 }
 
-// ------------------------------ CompressBits (LoadMaskBits)
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
-                                  const uint8_t* HWY_RESTRICT bits) {
-  return Compress(v, LoadMaskBits(Simd<T, N, 0>(), bits));
-}
-
 // ------------------------------ CompressStore
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
-                             Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {
-  const Rebind<uint16_t, decltype(d)> du;
-  const auto vu = BitCast(du, v);  // (required for float16_t inputs)
-
-  const uint64_t mask_bits{mask.raw};
-
-#if HWY_TARGET == HWY_AVX3_DL  // VBMI2
-  _mm_mask_compressstoreu_epi16(unaligned, mask.raw, vu.raw);
-#else
-  const auto idx = detail::IndicesForCompress16(mask_bits);
-  const Vec128<uint16_t, N> cu{_mm_permutexvar_epi16(idx.raw, vu.raw)};
-  StoreU(BitCast(d, cu), d, unaligned);
-#endif  // HWY_TARGET == HWY_AVX3_DL
-
-  const size_t count = PopCount(mask_bits & ((1ull << N) - 1));
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#endif
-  return count;
-}
 
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
 HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
@@ -6326,10 +6262,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
                              T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi32(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#endif
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 
@@ -6339,10 +6272,7 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> mask,
                              T* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_epi64(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#endif
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 
@@ -6352,10 +6282,7 @@ HWY_API size_t CompressStore(Vec128<float, N> v, Mask128<float, N> mask,
                              float* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_ps(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(float));
-#endif
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 
@@ -6365,15 +6292,12 @@ HWY_API size_t CompressStore(Vec128<double, N> v, Mask128<double, N> mask,
                              double* HWY_RESTRICT unaligned) {
   _mm_mask_compressstoreu_pd(unaligned, mask.raw, v.raw);
   const size_t count = PopCount(uint64_t{mask.raw} & ((1ull << N) - 1));
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(double));
-#endif
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 
 // ------------------------------ CompressBlendedStore (CompressStore)
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
                                     Simd<T, N, 0> d,
                                     T* HWY_RESTRICT unaligned) {
@@ -6397,18 +6321,14 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
 #else
     BlendedStore(compressed, FirstN(d, count), d, unaligned);
 #endif
-    // Workaround: as of 2022-02-23 MSAN does not mark the output as
-    // initialized.
-#if HWY_IS_MSAN
-    __msan_unpoison(unaligned, count * sizeof(T));
-#endif
+    detail::MaybeUnpoison(unaligned, count);
     return count;
   }
 }
 
 // ------------------------------ CompressBitsStore (LoadMaskBits)
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBitsStore(Vec128<T, N> v,
                                  const uint8_t* HWY_RESTRICT bits,
                                  Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {
@@ -6416,66 +6336,6 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
 }
 
 #else  // AVX2 or below
-
-// ------------------------------ LoadMaskBits (TestBit)
-
-namespace detail {
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
-  const RebindToUnsigned<decltype(d)> du;
-  // Easier than Set(), which would require an >8-bit type, which would not
-  // compile for T=uint8_t, N=1.
-  const Vec128<T, N> vbits{_mm_cvtsi32_si128(static_cast<int>(mask_bits))};
-
-  // Replicate bytes 8x such that each byte contains the bit that governs it.
-  alignas(16) constexpr uint8_t kRep8[16] = {0, 0, 0, 0, 0, 0, 0, 0,
-                                             1, 1, 1, 1, 1, 1, 1, 1};
-  const auto rep8 = TableLookupBytes(vbits, Load(du, kRep8));
-
-  alignas(16) constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
-                                            1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
-  const RebindToUnsigned<decltype(d)> du;
-  alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
-  const auto vmask_bits = Set(du, static_cast<uint16_t>(mask_bits));
-  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 4)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
-  const RebindToUnsigned<decltype(d)> du;
-  alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
-  const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
-  return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
-}
-
-template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 8)>
-HWY_INLINE Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d, uint64_t mask_bits) {
-  const RebindToUnsigned<decltype(d)> du;
-  alignas(16) constexpr uint64_t kBit[8] = {1, 2};
-  return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
-}
-
-}  // namespace detail
-
-// `p` points to at least 8 readable bytes, not all of which need be valid.
-template <typename T, size_t N, HWY_IF_LE128(T, N)>
-HWY_API Mask128<T, N> LoadMaskBits(Simd<T, N, 0> d,
-                                   const uint8_t* HWY_RESTRICT bits) {
-  uint64_t mask_bits = 0;
-  constexpr size_t kNumBytes = (N + 7) / 8;
-  CopyBytes<kNumBytes>(bits, &mask_bits);
-  if (N < 8) {
-    mask_bits &= (1ull << N) - 1;
-  }
-
-  return detail::LoadMaskBits(d, mask_bits);
-}
 
 // ------------------------------ StoreMaskBits
 
@@ -6972,7 +6832,7 @@ HWY_INLINE Vec128<T, N> IndicesFromNotBits(Simd<T, N, 0> d,
   return BitCast(d, Load(d8, u8_indices + 16 * mask_bits));
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v, uint64_t mask_bits) {
   const Simd<T, N, 0> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -6982,7 +6842,7 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v, uint64_t mask_bits) {
   return BitCast(d, TableLookupBytes(BitCast(du, v), indices));
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressNotBits(Vec128<T, N> v, uint64_t mask_bits) {
   const Simd<T, N, 0> d;
   const RebindToUnsigned<decltype(d)> du;
@@ -7012,8 +6872,8 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case
-template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 8)>
+// General case, 2 or 4 bytes
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   return detail::CompressBits(v, detail::BitsFromMask(mask));
 }
@@ -7036,8 +6896,8 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
-// General case
-template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 8)>
+// General case, 2 or 4 bytes
+template <typename T, size_t N, HWY_IF_LANE_SIZE_ONE_OF(T, 0x14)>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
   // For partial vectors, we cannot pull the Not() into the table because
   // BitsFromMask clears the upper bits.
@@ -7053,7 +6913,7 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
   return v;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
                                   const uint8_t* HWY_RESTRICT bits) {
   uint64_t mask_bits = 0;
@@ -7068,7 +6928,7 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
 
 // ------------------------------ CompressStore, CompressBitsStore
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
                              T* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
@@ -7081,15 +6941,11 @@ HWY_API size_t CompressStore(Vec128<T, N> v, Mask128<T, N> m, Simd<T, N, 0> d,
   const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   StoreU(compressed, d, unaligned);
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#endif
-
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
                                     Simd<T, N, 0> d,
                                     T* HWY_RESTRICT unaligned) {
@@ -7103,14 +6959,11 @@ HWY_API size_t CompressBlendedStore(Vec128<T, N> v, Mask128<T, N> m,
   const auto indices = BitCast(du, detail::IndicesFromBits(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#endif
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_NOT_LANE_SIZE(T, 1)>
 HWY_API size_t CompressBitsStore(Vec128<T, N> v,
                                  const uint8_t* HWY_RESTRICT bits,
                                  Simd<T, N, 0> d, T* HWY_RESTRICT unaligned) {
@@ -7129,10 +6982,7 @@ HWY_API size_t CompressBitsStore(Vec128<T, N> v,
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
   StoreU(compressed, d, unaligned);
 
-  // Workaround for MSAN not marking output as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#endif
+  detail::MaybeUnpoison(unaligned, count);
   return count;
 }
 

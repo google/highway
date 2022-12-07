@@ -2340,7 +2340,7 @@ HWY_API intptr_t FindFirstTrue(Simd<T, N, 0> /* tag */,
 
 template <typename T>
 struct CompressIsPartition {
-  enum { value = 1 };
+  enum { value = (sizeof(T) != 1) };
 };
 
 template <typename T, size_t N>
