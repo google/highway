@@ -70,6 +70,12 @@ struct Vec128 {
   T raw[16 / sizeof(T)] = {};
 };
 
+template <typename T>
+using Vec64 = Vec128<T, 8 / sizeof(T)>;
+
+template <typename T>
+using Vec32 = Vec128<T, 4 / sizeof(T)>;
+
 // 0 or FF..FF, same size as Vec128.
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Mask128 {
