@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+permissions: read-all
 name: Build / test
 on: [push, pull_request]
 jobs:
@@ -32,7 +33,12 @@ jobs:
             cxx_compiler: clang++-6.0
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Harden Runner
+        uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5 # v2.0.0
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+      - uses: actions/checkout@dc323e67f16fb5f7663d20ff7941f27f5809e9b6 # v2.6.0
 
       - name: Install deps
         run: sudo apt-get install ${{ matrix.extra_deps }}
@@ -48,9 +54,14 @@ jobs:
   bazel:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: bazelbuild/setup-bazelisk@v1
-      - uses: actions/cache@v2
+      - name: Harden Runner
+        uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5 # v2.0.0
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+      - uses: actions/checkout@dc323e67f16fb5f7663d20ff7941f27f5809e9b6 # v2.6.0
+      - uses: bazelbuild/setup-bazelisk@2351cf5a7584ce72638fbce7c22e5128a5fcd5b2 # v1.0.1
+      - uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v2.1.7
         with:
           path: ~/.cache/bazel
           key: bazel-${{ runner.os }}
