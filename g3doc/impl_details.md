@@ -168,6 +168,36 @@ the file that invokes the function for all targets:
 convention that the function has the same name as the functor except for the
 `TestAll` prefix.
 
+## Reducing the number of overloads via templates
+
+Most ops are supported for many types. Often it is possible to reuse the same
+implementation. When this works for every possible type, we simply use a
+template. C++ provides several mechanisms for constraining the types:
+
+*   We can extend templates with SFINAE. Highway provides some internal-only
+    `HWY_IF_*` macros for this, e.g. `template <typename T, HWY_IF_FLOAT(T)>
+    bool IsFiniteT(T t) {`. Variants of these with `_D` and `_V` suffixes exist
+    for when the argument is a tag or vector type. Although convenient and
+    fairly readable, this style sometimes encounters limits in compiler support,
+    especially with older MSVC.
+
+*   When the implementation is lengthy and only a few types are supported, it
+    can make sense to move the implementation into namespace detail and provide
+    one non-template overload for each type; each calls the implementation.
+
+*   When the implementation only depends on the size in bits of the lane type
+    (instead of whether it is signed/float), we sometimes add overloads with an
+    additional `SizeTag` argument to namespace detail, and call those from the
+    user-visible template. This may avoid compiler limitations relating to the
+    otherwise equivalent `HWY_IF_LANE_SIZE(T, 1)`.
+
+For functions that take a `d` argument such as `Load`, you can also choose
+whether to deduce its type as a `D` class, or to deduce the arguments to
+`Simd<>`, for example `template <typename T, size_t N, int kPow2> void F(Simd<T,
+N, kPow2> d) {`. The latter makes sense if you are anyway going to reference the
+`T`, `N` and `kPow2` in your implementation. However, they can also be obtained
+from `D` via `TFromD<D>`, `MaxLanes(d)` and `Pow2(d)`.
+
 ## Documentation of platform-specific intrinsics
 
 When adding a new op, it is often necessary to consult the reference for each

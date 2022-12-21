@@ -185,10 +185,13 @@ the smaller types must be obtained from those of the larger type (e.g. via
 
 ## Using unspecified vector types
 
-Vector types are unspecified and depend on the target. User code could define
-them as `auto`, but it is more readable (due to making the type visible) to use
-an alias such as `Vec<D>`, or `decltype(Zero(d))`. Similarly, the mask type can
-be obtained via `Mask<D>`.
+Vector types are unspecified and depend on the target. Your code could define
+vector variables using `auto`, but it is more readable (due to making the type
+visible) to use an alias such as `Vec<D>`, or `decltype(Zero(d))`. Similarly,
+the mask type can be obtained via `Mask<D>`. Often your code will first define a
+`d` lvalue using `ScalableTag<T>`. You may wish to define an alias for your
+vector types such as `using VecT = Vec<decltype(d)>`. Do not use undocumented
+types such as `Vec128`; these may work on most targets, but not all (e.g. SVE).
 
 Vectors are sizeless types on RVV/SVE. Therefore, vectors must not be used in
 arrays/STL containers (use the lane type `T` instead), class members,
@@ -206,8 +209,8 @@ lack the limit on `N` established by the original `D`. However, `Vec<DV>` is the
 same as `V`.
 
 Thus a template argument `V` suffices for generic functions that do not load
-from/store to memory: `template<class V> V Mul4(V v) { return v *
-Set(DFromV<V>(), 4); }`.
+from/store to memory: `template<class V> V Mul4(V v) { return Mul(v,
+Set(DFromV<V>(), 4)); }`.
 
 Example of mixing partial vectors with generic functions:
 
