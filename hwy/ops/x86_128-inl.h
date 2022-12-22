@@ -7105,6 +7105,82 @@ HWY_API Vec128<int16_t, N> SumOfLanes(hwy::SizeTag<2> /* tag */,
   return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
 }
 
+// u8, N=8, N=16:
+HWY_API Vec64<uint8_t> SumOfLanes(hwy::SizeTag<1> /* tag */, Vec64<uint8_t> v) {
+  return Set(DFromV<decltype(v)>(), GetLane(SumsOf8(v)));
+}
+HWY_API Vec128<uint8_t> SumOfLanes(hwy::SizeTag<1> /* tag */,
+                                   Vec128<uint8_t> v) {
+  Vec128<uint64_t, 2> sums = SumOfLanes(hwy::SizeTag<8>(), SumsOf8(v));
+  return Set(DFromV<decltype(v)>(), GetLane(sums));
+}
+
+template <size_t N, HWY_IF_GE64(int8_t, N)>
+HWY_API Vec128<int8_t, N> SumOfLanes(hwy::SizeTag<1> /* tag */,
+                                     const Vec128<int8_t, N> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto is_neg = v < Zero(d);
+
+  // Sum positive and negative lanes separately, then combine to get the result.
+  const auto positive = SumsOf8(BitCast(du, IfThenZeroElse(is_neg, v)));
+  const auto negative = SumsOf8(BitCast(du, IfThenElseZero(is_neg, Abs(v))));
+  return Set(d, GetLane(SumOfLanes(hwy::SizeTag<8>(), positive - negative)));
+}
+
+#if HWY_TARGET <= HWY_SSE4
+HWY_API Vec128<uint16_t> MinOfLanes(hwy::SizeTag<2> /* tag */,
+                                    Vec128<uint16_t> v) {
+  using V = decltype(v);
+  return Broadcast<0>(V{_mm_minpos_epu16(v.raw)});
+}
+HWY_API Vec64<uint8_t> MinOfLanes(hwy::SizeTag<1> /* tag */, Vec64<uint8_t> v) {
+  const Full64<uint8_t> d;
+  const Full128<uint16_t> d16;
+  return TruncateTo(d, MinOfLanes(hwy::SizeTag<2>(), PromoteTo(d16, v)));
+}
+HWY_API Vec128<uint8_t> MinOfLanes(hwy::SizeTag<1> tag,
+                                   Vec128<uint8_t> v) {
+  const Half<DFromV<decltype(v)>> d;
+  Vec64<uint8_t> result =
+      Min(MinOfLanes(tag, UpperHalf(d, v)), MinOfLanes(tag, LowerHalf(d, v)));
+  return Combine(DFromV<decltype(v)>(), result, result);
+}
+
+HWY_API Vec128<uint16_t> MaxOfLanes(hwy::SizeTag<2> tag, Vec128<uint16_t> v) {
+  const Vec128<uint16_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint16_t>()));
+  return m - MinOfLanes(tag, m - v);
+}
+HWY_API Vec64<uint8_t> MaxOfLanes(hwy::SizeTag<1> tag, Vec64<uint8_t> v) {
+  const Vec64<uint8_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint8_t>()));
+  return m - MinOfLanes(tag, m - v);
+}
+HWY_API Vec128<uint8_t> MaxOfLanes(hwy::SizeTag<1> tag, Vec128<uint8_t> v) {
+  const Vec128<uint8_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint8_t>()));
+  return m - MinOfLanes(tag, m - v);
+}
+
+// Implement min/max of i8 in terms of u8 by toggling the sign bit.
+template <size_t N, HWY_IF_GE64(int8_t, N)>
+HWY_API Vec128<int8_t, N> MinOfLanes(hwy::SizeTag<1> tag,
+                                     const Vec128<int8_t, N> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto mask = SignBit(du);
+  const auto vu = Xor(BitCast(du, v), mask);
+  return BitCast(d, Xor(MinOfLanes(tag, vu), mask));
+}
+template <size_t N, HWY_IF_GE64(int8_t, N)>
+HWY_API Vec128<int8_t, N> MaxOfLanes(hwy::SizeTag<1> tag,
+                                     const Vec128<int8_t, N> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto mask = SignBit(du);
+  const auto vu = Xor(BitCast(du, v), mask);
+  return BitCast(d, Xor(MaxOfLanes(tag, vu), mask));
+}
+#endif
+
 template <size_t N, HWY_IF_GE32(uint16_t, N)>
 HWY_API Vec128<uint16_t, N> MinOfLanes(hwy::SizeTag<2> /* tag */,
                                        Vec128<uint16_t, N> v) {
