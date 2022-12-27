@@ -563,11 +563,19 @@ HWY_API Vec1<T> Abs(const Vec1<T> a) {
   const T i = a.raw;
   return (i >= 0 || i == hwy::LimitsMin<T>()) ? a : Vec1<T>(static_cast<T>(-i));
 }
-HWY_API Vec1<float> Abs(const Vec1<float> a) {
-  return Vec1<float>(fabsf(a.raw));
+HWY_API Vec1<float> Abs(Vec1<float> a) {
+  int32_t i;
+  CopyBytes<sizeof(i)>(&a.raw, &i);
+  i &= 0x7FFFFFFF;
+  CopyBytes<sizeof(i)>(&i, &a.raw);
+  return a;
 }
-HWY_API Vec1<double> Abs(const Vec1<double> a) {
-  return Vec1<double>(fabs(a.raw));
+HWY_API Vec1<double> Abs(Vec1<double> a) {
+  int64_t i;
+  CopyBytes<sizeof(i)>(&a.raw, &i);
+  i &= 0x7FFFFFFFFFFFFFFFL;
+  CopyBytes<sizeof(i)>(&i, &a.raw);
+  return a;
 }
 
 // ------------------------------ Min/Max
@@ -742,10 +750,18 @@ HWY_API Vec1<float> ApproximateReciprocalSqrt(const Vec1<float> v) {
 
 // Square root
 HWY_API Vec1<float> Sqrt(const Vec1<float> v) {
+#if HWY_COMPILER_GCC && defined(HWY_NO_LIBCXX)
+  return Vec1<float>(__builtin_sqrt(v.raw));
+#else
   return Vec1<float>(sqrtf(v.raw));
+#endif
 }
 HWY_API Vec1<double> Sqrt(const Vec1<double> v) {
+#if HWY_COMPILER_GCC && defined(HWY_NO_LIBCXX)
+  return Vec1<float>(__builtin_sqrt(v.raw));
+#else
   return Vec1<double>(sqrt(v.raw));
+#endif
 }
 
 // ------------------------------ Floating-point rounding
@@ -1125,8 +1141,8 @@ HWY_API Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
 // so we overload for FromT=double and ToT={float,int32_t}.
 HWY_API Vec1<float> DemoteTo(Sisd<float> /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting float to narrower integer/float
-  if (isinf(from.raw) ||
-      fabs(from.raw) > static_cast<double>(HighestValue<float>())) {
+  if (IsInf(from).bits ||
+      Abs(from).raw > static_cast<double>(HighestValue<float>())) {
     return Vec1<float>(detail::SignBit(from.raw) ? LowestValue<float>()
                                                  : HighestValue<float>());
   }
@@ -1134,8 +1150,8 @@ HWY_API Vec1<float> DemoteTo(Sisd<float> /* tag */, Vec1<double> from) {
 }
 HWY_API Vec1<int32_t> DemoteTo(Sisd<int32_t> /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting int32_t to narrower integer/int32_t
-  if (isinf(from.raw) ||
-      fabs(from.raw) > static_cast<double>(HighestValue<int32_t>())) {
+  if (IsInf(from).bits ||
+      Abs(from).raw > static_cast<double>(HighestValue<int32_t>())) {
     return Vec1<int32_t>(detail::SignBit(from.raw) ? LowestValue<int32_t>()
                                                    : HighestValue<int32_t>());
   }
@@ -1231,7 +1247,8 @@ HWY_API Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
   // float## -> int##: return closest representable value. We cannot exactly
   // represent LimitsMax<ToT> in FromT, so use double.
   const double f = static_cast<double>(from.raw);
-  if (isinf(from.raw) || fabs(f) > static_cast<double>(LimitsMax<ToT>())) {
+  if (IsInf(from).bits ||
+      Abs(Vec1<double>(f)).raw > static_cast<double>(LimitsMax<ToT>())) {
     return Vec1<ToT>(detail::SignBit(from.raw) ? LimitsMin<ToT>()
                                                : LimitsMax<ToT>());
   }
