@@ -6,9 +6,9 @@ load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 maybe(
     http_archive,
     name = "com_google_googletest",
-    urls = ["https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip"],
-    sha256 = "5cf189eb6847b4f8fc603a3ffff3b0771c08eec7dd4bd961bfd45477dd13eb73",
-    strip_prefix = "googletest-609281088cfefc76f9d0ce82e1ff6c30cc3591e5",
+    urls = ["https://github.com/google/googletest/archive/e2239ee6043f73722e7aa812a459f54a28552929.zip"],
+    sha256 = "8daa1a71395892f7c1ec5f7cb5b099a02e606be720d62f1a6a98f8f8898ec826",
+    strip_prefix = "googletest-e2239ee6043f73722e7aa812a459f54a28552929",
 )
 
 # See https://google.github.io/googletest/quickstart-bazel.html
