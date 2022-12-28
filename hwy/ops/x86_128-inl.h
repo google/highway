@@ -7107,12 +7107,14 @@ HWY_API Vec128<int16_t, N> SumOfLanes(hwy::SizeTag<2> /* tag */,
 
 // u8, N=8, N=16:
 HWY_API Vec64<uint8_t> SumOfLanes(hwy::SizeTag<1> /* tag */, Vec64<uint8_t> v) {
-  return Set(DFromV<decltype(v)>(), GetLane(SumsOf8(v)));
+  const Full64<uint8_t> d;
+  return Set(d, static_cast<uint8_t>(GetLane(SumsOf8(v)) & 0xFF));
 }
 HWY_API Vec128<uint8_t> SumOfLanes(hwy::SizeTag<1> /* tag */,
                                    Vec128<uint8_t> v) {
-  Vec128<uint64_t, 2> sums = SumOfLanes(hwy::SizeTag<8>(), SumsOf8(v));
-  return Set(DFromV<decltype(v)>(), GetLane(sums));
+  const Full128<uint8_t> d;
+  Vec128<uint64_t> sums = SumOfLanes(hwy::SizeTag<8>(), SumsOf8(v));
+  return Set(d, static_cast<uint8_t>(GetLane(sums) & 0xFF));
 }
 
 template <size_t N, HWY_IF_GE64(int8_t, N)>
