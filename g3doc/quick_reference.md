@@ -1299,6 +1299,8 @@ broadcasted to all lanes. To obtain a scalar, you can call `GetLane`.
 Being a horizontal operation (across lanes of the same vector), these are slower
 than normal SIMD operations and are typically used outside critical loops.
 
+There are additional `{u,i}{8}` implementations on SSE4.1+ and NEON.
+
 *   `V`: `{u,i,f}{32,64},{u,i}{16}` \
     <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
     lane.
