@@ -146,6 +146,31 @@
 #define HWY_DEFAULT_UNROLL
 #endif
 
+// Tell a compiler that the expression always evaluates to true.
+// The expression should be free from any side effects.
+// Some older compilers may have trouble with complex expressions, therefore
+// it is advisable to split multiple conditions into separate assume statements,
+// and manually check the generated code.
+// OK but could fail:
+//   HWY_ASSUME(x == 2 && y == 3);
+// Better:
+//   HWY_ASSUME(x == 2);
+//   HWY_ASSUME(y == 3);
+#if defined(__has_cpp_attribute) && __has_cpp_attribute(assume)
+#define HWY_ASSUME(expr) [[assume(expr)]]
+#elif HWY_COMPILER_MSVC || HWY_COMPILER_ICC
+#define HWY_ASSUME(expr) __assume(expr)
+// __builtin_assume() was added in clang 3.6.
+#elif HWY_COMPILER_CLANG && HWY_HAS_BUILTIN(__builtin_assume)
+#define HWY_ASSUME(expr) __builtin_assume(expr)
+// __builtin_unreachable() was added in GCC 4.5, but __has_builtin() was added
+// later, so check for the compiler version directly.
+#elif HWY_COMPILER_GCC_ACTUAL >= 405
+#define HWY_ASSUME(expr) \
+  ((expr) ? static_cast<void>(0) : __builtin_unreachable())
+#else
+#define HWY_ASSUME(expr) static_cast<void>(0)
+#endif
 
 // Compile-time fence to prevent undesirable code reordering. On Clang x86, the
 // typical asm volatile("" : : : "memory") has no effect, whereas atomic fence
