@@ -457,7 +457,12 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     either `sum1[j]` or lane `j` of the return value, where `j = P(i)` and `P`
     is a permutation. The only guarantee is that `SumOfLanes(d,
     Add(return_value, sum1))` is the sum of all `a[i] * b[i]`. This is useful
-    for computing dot products and the L2 norm.
+    for computing dot products and the L2 norm. The initial value of `sum1`
+    before any call to `ReorderWidenMulAccumulate` must be zero (because it is
+    unused on some platforms). It is safe to set the initial value of `sum0` to
+    any vector `v`; this has the effect of increasing the total sum by
+    `GetLane(SumOfLanes(d, v))` and may be slightly more efficient than later
+    adding `v` to `sum0`.
 
 *   `VW`: `{f,i}32` \
     <code>VW **RearrangeToOddPlusEven**(VW sum0, VW sum1)</code>: returns in
@@ -468,7 +473,9 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     the sum of the widened products whose 16-bit inputs came from the top and
     bottom halves of the 32-bit lane. This is typically called after a series of
     calls to `ReorderWidenMulAccumulate`, as opposed to after each one.
-    Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`.
+    Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`. Note that the
+    initial value of `sum1` must be zero, see `ReorderWidenMulAccumulate`.
+
 
 #### Fused multiply-add
 
