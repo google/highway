@@ -4310,6 +4310,19 @@ HWY_API Vec128<T, N> Reverse(Simd<T, N, 0> d, const Vec128<T, N> v) {
 
 // ------------------------------ Reverse2
 
+// Single lane: no change
+template <typename T>
+HWY_API Vec128<T, 1> Reverse2(Simd<T, 1, 0> /* tag */, const Vec128<T, 1> v) {
+  return v;
+}
+
+template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 1)>
+HWY_API Vec128<T, N> Reverse2(Simd<T, N, 0> d, const Vec128<T, N> v) {
+  alignas(16) const T kShuffle[16] = {1, 0, 3,  2,  5,  4,  7,  6,
+                                      9, 8, 11, 10, 13, 12, 15, 14};
+  return TableLookupBytes(v, Load(d, kShuffle));
+}
+
 template <typename T, size_t N, HWY_IF_LANE_SIZE(T, 2)>
 HWY_API Vec128<T, N> Reverse2(Simd<T, N, 0> d, const Vec128<T, N> v) {
   const Repartition<uint32_t, decltype(d)> du32;
@@ -7161,6 +7174,39 @@ HWY_API Vec128<uint8_t> MaxOfLanes(hwy::SizeTag<1> tag, Vec128<uint8_t> v) {
   const Vec128<uint8_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint8_t>()));
   return m - MinOfLanes(tag, m - v);
 }
+#elif HWY_TARGET == HWY_SSSE3
+template <size_t N, HWY_IF_GE64(uint8_t, N)>
+HWY_API Vec128<uint8_t, N> MaxOfLanes(hwy::SizeTag<1> /* tag */,
+                                      const Vec128<uint8_t, N> v) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
+  Vec128<uint8_t, N> vm = Max(v, Reverse2(d, v));
+  vm = Max(vm, BitCast(d, Reverse2(d16, BitCast(d16, vm))));
+  vm = Max(vm, BitCast(d, Reverse2(d32, BitCast(d32, vm))));
+  if (N > 8) {
+    const RepartitionToWide<decltype(d32)> d64;
+    vm = Max(vm, BitCast(d, Reverse2(d64, BitCast(d64, vm))));
+  }
+  return vm;
+}
+
+template <size_t N, HWY_IF_GE64(uint8_t, N)>
+HWY_API Vec128<uint8_t, N> MinOfLanes(hwy::SizeTag<1> /* tag */,
+                                      const Vec128<uint8_t, N> v) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
+  Vec128<uint8_t, N> vm = Min(v, Reverse2(d, v));
+  vm = Min(vm, BitCast(d, Reverse2(d16, BitCast(d16, vm))));
+  vm = Min(vm, BitCast(d, Reverse2(d32, BitCast(d32, vm))));
+  if (N > 8) {
+    const RepartitionToWide<decltype(d32)> d64;
+    vm = Min(vm, BitCast(d, Reverse2(d64, BitCast(d64, vm))));
+  }
+  return vm;
+}
+#endif
 
 // Implement min/max of i8 in terms of u8 by toggling the sign bit.
 template <size_t N, HWY_IF_GE64(int8_t, N)>
@@ -7181,7 +7227,6 @@ HWY_API Vec128<int8_t, N> MaxOfLanes(hwy::SizeTag<1> tag,
   const auto vu = Xor(BitCast(du, v), mask);
   return BitCast(d, Xor(MaxOfLanes(tag, vu), mask));
 }
-#endif
 
 template <size_t N, HWY_IF_GE32(uint16_t, N)>
 HWY_API Vec128<uint16_t, N> MinOfLanes(hwy::SizeTag<2> /* tag */,
