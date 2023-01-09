@@ -7140,7 +7140,9 @@ HWY_API Vec128<int8_t, N> SumOfLanes(hwy::SizeTag<1> /* tag */,
   // Sum positive and negative lanes separately, then combine to get the result.
   const auto positive = SumsOf8(BitCast(du, IfThenZeroElse(is_neg, v)));
   const auto negative = SumsOf8(BitCast(du, IfThenElseZero(is_neg, Abs(v))));
-  return Set(d, GetLane(SumOfLanes(hwy::SizeTag<8>(), positive - negative)));
+  return Set(d, static_cast<int8_t>(GetLane(
+                    SumOfLanes(hwy::SizeTag<8>(), positive - negative)) &
+                    0xFF));
 }
 
 #if HWY_TARGET <= HWY_SSE4
