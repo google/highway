@@ -123,11 +123,29 @@ HWY_API Vec128<T, N> Undefined(Simd<T, N, 0> d) {
   return Zero(d);
 }
 
+namespace detail {
+
+template <typename T>
+HWY_INLINE constexpr T IncrementWithWraparound(hwy::FloatTag /*tag*/, T t) {
+  return t + T{1};
+}
+
+template <typename T>
+HWY_INLINE constexpr T IncrementWithWraparound(hwy::NonFloatTag /*tag*/, T t) {
+  using TU = MakeUnsigned<T>;
+  return static_cast<T>(static_cast<TU>(static_cast<TU>(t) + TU{1}) &
+                        hwy::LimitsMax<TU>());
+}
+
+}  // namespace detail
+
 template <typename T, size_t N, typename T2>
 HWY_API Vec128<T, N> Iota(const Simd<T, N, 0> /* tag */, T2 first) {
   Vec128<T, N> v;
+  T counter = static_cast<T>(first);
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = AddWithWraparound(hwy::IsFloatTag<T>(), first, i);
+    v.raw[i] = counter;
+    counter = detail::IncrementWithWraparound(hwy::IsFloatTag<T>(), counter);
   }
   return v;
 }
