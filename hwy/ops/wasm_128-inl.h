@@ -696,7 +696,9 @@ HWY_API Vec128<int64_t, N> Min(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 // Float
 template <size_t N>
 HWY_API Vec128<float, N> Min(Vec128<float, N> a, Vec128<float, N> b) {
-  return Vec128<float, N>{wasm_f32x4_min(a.raw, b.raw)};
+  // Equivalent to a < b ? a : b (taking into account our swapped arg order,
+  // so that Min(NaN, x) is x to match x86).
+  return Vec128<float, N>{wasm_f32x4_pmin(b.raw, a.raw)};
 }
 
 // ------------------------------ Maximum
@@ -751,7 +753,9 @@ HWY_API Vec128<int64_t, N> Max(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 // Float
 template <size_t N>
 HWY_API Vec128<float, N> Max(Vec128<float, N> a, Vec128<float, N> b) {
-  return Vec128<float, N>{wasm_f32x4_max(a.raw, b.raw)};
+  // Equivalent to b < a ? a : b (taking into account our swapped arg order,
+  // so that Max(NaN, x) is x to match x86).
+  return Vec128<float, N>{wasm_f32x4_pmax(b.raw, a.raw)};
 }
 
 // ------------------------------ Integer multiplication
