@@ -560,8 +560,9 @@ struct TestFloatFromUint {
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(65535.0)),
                       ConvertTo(df, Iota(du, 65535)));  // 2^16-1
     if (sizeof(TF) > 4) {
-      HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)),
-                        ConvertTo(df, Iota(du, 4294967295ULL)));  // 2^32-1
+      HWY_ASSERT_VEC_EQ(
+          df, Iota(df, TF(4294967295.0)),
+          ConvertTo(df, Iota(du, uint64_t{4294967295ULL})));  // 2^32-1
     }
 
     // Max positive

@@ -2022,7 +2022,7 @@ template <typename T, size_t N, typename T2, HWY_IF_LE128(T, N)>
 HWY_API Vec128<T, N> Iota(const Simd<T, N, 0> d, const T2 first) {
   HWY_ALIGN T lanes[16 / sizeof(T)];
   for (size_t i = 0; i < 16 / sizeof(T); ++i) {
-    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+    lanes[i] = AddWithWraparound(hwy::IsFloatTag<T>(), first, i);
   }
   return Load(d, lanes);
 }
