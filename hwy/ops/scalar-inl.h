@@ -656,12 +656,14 @@ HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
 
 template <typename T, HWY_IF_SIGNED(T)>
 HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(static_cast<T>(int64_t{a.raw} * b.raw));
+  return Vec1<T>(static_cast<T>(static_cast<uint64_t>(a.raw) *
+                                static_cast<uint64_t>(b.raw)));
 }
 
 template <typename T, HWY_IF_UNSIGNED(T)>
 HWY_API Vec1<T> operator*(const Vec1<T> a, const Vec1<T> b) {
-  return Vec1<T>(static_cast<T>(uint64_t{a.raw} * b.raw));
+  return Vec1<T>(static_cast<T>(static_cast<uint64_t>(a.raw) *
+                                static_cast<uint64_t>(b.raw)));
 }
 
 template <typename T>

@@ -99,6 +99,23 @@ struct TestSignedMul {
   }
 };
 
+struct TestMulOverflow {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto vMax = Set(d, LimitsMax<T>());
+    HWY_ASSERT_VEC_EQ(d, Mul(vMax, vMax), Mul(vMax, vMax));
+  }
+};
+
+struct TestDivOverflow {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto vZero = Set(d, T(0));
+    const auto v1 = Set(d, T(1));
+    HWY_ASSERT_VEC_EQ(d, Div(v1, vZero), Div(v1, vZero));
+  }
+};
+
 HWY_NOINLINE void TestAllMul() {
   const ForPartialVectors<TestUnsignedMul> test_unsigned;
   // No u8.
@@ -111,6 +128,19 @@ HWY_NOINLINE void TestAllMul() {
   test_signed(int16_t());
   test_signed(int32_t());
   test_signed(int64_t());
+
+  const ForPartialVectors<TestMulOverflow> test_mul_overflow;
+  test_mul_overflow(int16_t());
+  test_mul_overflow(int32_t());
+#if HWY_HAVE_INTEGER64
+  test_mul_overflow(int64_t());
+#endif
+
+  const ForPartialVectors<TestDivOverflow> test_div_overflow;
+  test_div_overflow(float());
+#if HWY_HAVE_FLOAT64
+  test_div_overflow(double());
+#endif
 }
 
 struct TestMulHigh {
