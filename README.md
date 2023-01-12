@@ -275,6 +275,17 @@ Highway offers several ways to express loops where `N` need not divide `count`:
     this avoids the (potentially large) cost of predication or partial
     loads/stores on older targets, and does not duplicate code.
 
+*   Process whole vectors and include previously processed elements
+    in the last vector:
+    ```
+    for (size_t i = 0; i < count; i += N) LoopBody<false>(d, HWY_MIN(i, count - N), 0);
+    ```
+
+    This is the second preferred option provided that `count >= N`
+    and `LoopBody` is idempotent. Some elements might be processed twice, but
+    a single code path and full vectorization is usually worth it. Even if
+    `count < N`, it usually makes sense to pad inputs/outputs up to `N`.
+
 *   Use the `Transform*` functions in hwy/contrib/algo/transform-inl.h. This
     takes care of the loop and remainder handling and you simply define a
     generic lambda function (C++14) or functor which receives the current vector
