@@ -3589,7 +3589,8 @@ template <typename T, typename T2>
 Vec512<T> Iota(const Full512<T> d, const T2 first) {
   HWY_ALIGN T lanes[64 / sizeof(T)];
   for (size_t i = 0; i < 64 / sizeof(T); ++i) {
-    lanes[i] = static_cast<T>(first + static_cast<T2>(i));
+    lanes[i] =
+        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
   }
   return Load(d, lanes);
 }

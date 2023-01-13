@@ -111,7 +111,9 @@ Vec256<T> Iota(const Full256<T> d, const T2 first) {
   const Half<decltype(d)> dh;
   Vec256<T> ret;
   ret.v0 = Iota(dh, first);
-  ret.v1 = Iota(dh, first + static_cast<T2>(Lanes(dh)));
+  // NB: for floating types the gap between parts might be a bit uneven.
+  ret.v1 = Iota(dh, AddWithWraparound(hwy::IsFloatTag<T>(),
+                                      static_cast<T>(first), Lanes(dh)));
   return ret;
 }
 

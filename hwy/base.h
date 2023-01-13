@@ -902,6 +902,20 @@ template <typename TI>
              : static_cast<size_t>(FloorLog2(static_cast<TI>(x - 1)) + 1);
 }
 
+template <typename T>
+HWY_INLINE constexpr T AddWithWraparound(hwy::FloatTag /*tag*/, T t, size_t n) {
+  return t + static_cast<T>(n);
+}
+
+template <typename T>
+HWY_INLINE constexpr T AddWithWraparound(hwy::NonFloatTag /*tag*/, T t,
+                                         size_t n) {
+  using TU = MakeUnsigned<T>;
+  return static_cast<T>(
+      static_cast<TU>(static_cast<TU>(t) + static_cast<TU>(n)) &
+      hwy::LimitsMax<TU>());
+}
+
 #if HWY_COMPILER_MSVC && HWY_ARCH_X86_64
 #pragma intrinsic(_umul128)
 #endif
