@@ -436,7 +436,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `i16` \
     <code>V **MulFixedPoint15**(V a, V b)</code>: returns the result of
-    multiplying two 1.15 fixed-point numbers. This corresponds to doubling the
+    multiplying two Q1.15 fixed-point numbers. This corresponds to doubling the
     multiplication result and storing the upper half. Results are
     implementation-defined iff both inputs are -32768.
 

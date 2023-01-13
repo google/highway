@@ -789,13 +789,8 @@ HWY_API Vec128<int32_t, N> operator*(const Vec128<int32_t, N> a,
 template <size_t N>
 HWY_API Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
                                     const Vec128<uint16_t, N> b) {
-  // TODO(eustas): replace, when implemented in WASM.
-  const auto al = wasm_u32x4_extend_low_u16x8(a.raw);
-  const auto ah = wasm_u32x4_extend_high_u16x8(a.raw);
-  const auto bl = wasm_u32x4_extend_low_u16x8(b.raw);
-  const auto bh = wasm_u32x4_extend_high_u16x8(b.raw);
-  const auto l = wasm_i32x4_mul(al, bl);
-  const auto h = wasm_i32x4_mul(ah, bh);
+  const auto l = wasm_u32x4_extmul_low_u16x8(a.raw, b.raw);
+  const auto h = wasm_u32x4_extmul_high_u16x8(a.raw, b.raw);
   // TODO(eustas): shift-right + narrow?
   return Vec128<uint16_t, N>{
       wasm_i16x8_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15)};
@@ -803,13 +798,8 @@ HWY_API Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
 template <size_t N>
 HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
                                    const Vec128<int16_t, N> b) {
-  // TODO(eustas): replace, when implemented in WASM.
-  const auto al = wasm_i32x4_extend_low_i16x8(a.raw);
-  const auto ah = wasm_i32x4_extend_high_i16x8(a.raw);
-  const auto bl = wasm_i32x4_extend_low_i16x8(b.raw);
-  const auto bh = wasm_i32x4_extend_high_i16x8(b.raw);
-  const auto l = wasm_i32x4_mul(al, bl);
-  const auto h = wasm_i32x4_mul(ah, bh);
+  const auto l = wasm_i32x4_extmul_low_i16x8(a.raw, b.raw);
+  const auto h = wasm_i32x4_extmul_high_i16x8(a.raw, b.raw);
   // TODO(eustas): shift-right + narrow?
   return Vec128<int16_t, N>{
       wasm_i16x8_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15)};
@@ -818,25 +808,13 @@ HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
 template <size_t N>
 HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
                                            Vec128<int16_t, N> b) {
-  const DFromV<decltype(a)> d;
-  const RebindToUnsigned<decltype(d)> du;
-
-  const Vec128<uint16_t, N> lo = BitCast(du, Mul(a, b));
-  const Vec128<int16_t, N> hi = MulHigh(a, b);
-  // We want (lo + 0x4000) >> 15, but that can overflow, and if it does we must
-  // carry that into the result. Instead isolate the top two bits because only
-  // they can influence the result.
-  const Vec128<uint16_t, N> lo_top2 = ShiftRight<14>(lo);
-  // Bits 11: add 2, 10: add 1, 01: add 1, 00: add 0.
-  const Vec128<uint16_t, N> rounding = ShiftRight<1>(Add(lo_top2, Set(du, 1)));
-  return Add(Add(hi, hi), BitCast(d, rounding));
+  return Vec128<int16_t, N>{wasm_i16x8_q15mulr_sat(a.raw, b.raw)};
 }
 
 // Multiplies even lanes (0, 2 ..) and returns the double-width result.
 template <size_t N>
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
                                              const Vec128<int32_t, N> b) {
-  // TODO(eustas): replace, when implemented in WASM.
   const auto kEvenMask = wasm_i32x4_make(-1, 0, -1, 0);
   const auto ae = wasm_v128_and(a.raw, kEvenMask);
   const auto be = wasm_v128_and(b.raw, kEvenMask);
@@ -845,7 +823,6 @@ HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
 template <size_t N>
 HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
                                               const Vec128<uint32_t, N> b) {
-  // TODO(eustas): replace, when implemented in WASM.
   const auto kEvenMask = wasm_i32x4_make(-1, 0, -1, 0);
   const auto ae = wasm_v128_and(a.raw, kEvenMask);
   const auto be = wasm_v128_and(b.raw, kEvenMask);
@@ -910,8 +887,6 @@ template <size_t N>
 HWY_API Vec128<float, N> MulAdd(const Vec128<float, N> mul,
                                 const Vec128<float, N> x,
                                 const Vec128<float, N> add) {
-  // TODO(eustas): replace, when implemented in WASM.
-  // TODO(eustas): is it wasm_f32x4_qfma?
   return mul * x + add;
 }
 
@@ -920,7 +895,6 @@ template <size_t N>
 HWY_API Vec128<float, N> NegMulAdd(const Vec128<float, N> mul,
                                    const Vec128<float, N> x,
                                    const Vec128<float, N> add) {
-  // TODO(eustas): replace, when implemented in WASM.
   return add - mul * x;
 }
 
@@ -929,8 +903,6 @@ template <size_t N>
 HWY_API Vec128<float, N> MulSub(const Vec128<float, N> mul,
                                 const Vec128<float, N> x,
                                 const Vec128<float, N> sub) {
-  // TODO(eustas): replace, when implemented in WASM.
-  // TODO(eustas): is it wasm_f32x4_qfms?
   return mul * x - sub;
 }
 
@@ -939,7 +911,6 @@ template <size_t N>
 HWY_API Vec128<float, N> NegMulSub(const Vec128<float, N> mul,
                                    const Vec128<float, N> x,
                                    const Vec128<float, N> sub) {
-  // TODO(eustas): replace, when implemented in WASM.
   return Neg(mul) * x - sub;
 }
 
