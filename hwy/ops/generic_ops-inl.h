@@ -1246,9 +1246,16 @@ HWY_API V PopulationCount(V v) {
 #endif  // HWY_NATIVE_POPCNT
 
 template <class V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8),
-          HWY_IF_LT128_D(D)>
+          HWY_IF_LT128_D(D), HWY_IF_FLOAT_D(D)>
 HWY_API V operator*(V x, V y) {
   return Set(D(), GetLane(x) * GetLane(y));
+}
+
+template <class V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8),
+          HWY_IF_LT128_D(D), HWY_IF_NOT_FLOAT_D(D)>
+HWY_API V operator*(V x, V y) {
+  using TU = MakeUnsigned<TFromV<V>>;
+  return Set(D(), static_cast<TU>(GetLane(x)) * static_cast<TU>(GetLane(y)));
 }
 
 // "Include guard": skip if native 64-bit mul instructions are available.
