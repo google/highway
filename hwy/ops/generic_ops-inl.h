@@ -1254,8 +1254,12 @@ HWY_API V operator*(V x, V y) {
 template <class V, class D = DFromV<V>, HWY_IF_LANE_SIZE_D(D, 8),
           HWY_IF_LT128_D(D), HWY_IF_NOT_FLOAT_D(D)>
 HWY_API V operator*(V x, V y) {
-  using TU = MakeUnsigned<TFromV<V>>;
-  return Set(D(), static_cast<TU>(GetLane(x)) * static_cast<TU>(GetLane(y)));
+  const DFromV<V> d;
+  using T = TFromD<decltype(d)>;
+  using TU = MakeUnsigned<T>;
+  const TU xu = static_cast<TU>(GetLane(x));
+  const TU yu = static_cast<TU>(GetLane(y));
+  return Set(d, static_cast<T>(xu * yu));
 }
 
 // "Include guard": skip if native 64-bit mul instructions are available.
