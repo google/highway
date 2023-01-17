@@ -366,7 +366,7 @@ endif()
 # -------------------------------------------------------- install library
 if (HWY_ENABLE_INSTALL)
 
-install(TARGETS hwy
+install(TARGETS hwy EXPORT hwy_targets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
@@ -381,7 +381,7 @@ foreach (source ${HWY_SOURCES})
 endforeach()
 
 if (HWY_ENABLE_CONTRIB)
-install(TARGETS hwy_contrib
+install(TARGETS hwy_contrib EXPORT hwy_targets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
@@ -396,7 +396,7 @@ foreach (source ${HWY_CONTRIB_SOURCES})
 endforeach()
 endif()  # HWY_ENABLE_CONTRIB
 
-install(TARGETS hwy_test
+install(TARGETS hwy_test EXPORT hwy_targets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
@@ -571,3 +571,9 @@ endforeach ()
 target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
 endif()  # BUILD_TESTING
+
+# write HWYConfig file:
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" COMPATIBILITY SameMajorVersion)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
+install(EXPORT hwy_targets FILE HWYConfig.cmake DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
