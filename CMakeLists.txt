@@ -306,21 +306,6 @@ if(UNIX AND NOT APPLE)
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
 
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "unknown")
-  # uname -p is broken on this system.  Try uname -m
-  EXECUTE_PROCESS( COMMAND uname -m
-		   OUTPUT_STRIP_TRAILING_WHITESPACE
-		   ERROR_QUIET
-		   OUTPUT_VARIABLE HWY_ARCH)
-else (CMAKE_SYSTEM_PROCESSOR MATCHES "unknown")
-  set(HWY_ARCH ${CMAKE_SYSTEM_PROCESSOR})
-endif (CMAKE_SYSTEM_PROCESSOR MATCHES "unknown")
-message(STATUS "Architecture: " ${HWY_ARCH})
-if (HWY_ARCH MATCHES "mips")
-  target_link_options(hwy PUBLIC "LINKER:-z,noexecstack")
-endif (HWY_ARCH MATCHES "mips")
-
-
 if (HWY_ENABLE_CONTRIB)
 add_library(hwy_contrib ${HWY_LIBRARY_TYPE} ${HWY_CONTRIB_SOURCES})
 target_link_libraries(hwy_contrib hwy)
