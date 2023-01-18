@@ -1308,7 +1308,7 @@ HWY_API size_t CompressBitsStore(V v, const uint8_t* HWY_RESTRICT bits, D d,
   const Simd<T, HWY_MIN(MaxLanes(d), 8), 0> d8;
   T* HWY_RESTRICT pos = unaligned;
 
-  HWY_ALIGN constexpr T table[256 * 8] = {
+  HWY_ALIGN constexpr T table[2048] = {
       0, 1, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
       1, 0, 2, 3, 4, 5, 6, 7, /**/ 0, 1, 2, 3, 4, 5, 6, 7,  //
       2, 0, 1, 3, 4, 5, 6, 7, /**/ 0, 2, 1, 3, 4, 5, 6, 7,  //
