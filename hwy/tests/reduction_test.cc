@@ -35,17 +35,17 @@ struct TestSumOfLanes {
   template <typename T, size_t N, int P,
             hwy::EnableIf<IsSigned<T>() && ((N & 1) == 0)>* = nullptr>
   HWY_NOINLINE void SignedEvenLengthVectorTests(Simd<T, N, P> d) {
-    const T pairs = static_cast<T>(Lanes(d)) / static_cast<T>(2);
+    const T pairs = static_cast<T>(Lanes(d)) / T{2};
 
     // Lanes are the repeated sequence -2, 1, [...]; each pair sums to -1,
     // so the eventual total is just -(N/2).
     Vec<decltype(d)> v =
-        InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, static_cast<T>(1)));
-    HWY_ASSERT_VEC_EQ(d, Set(d, pairs * static_cast<T>(-1)), SumOfLanes(d, v));
+        InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, T{1}));
+    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(-pairs)), SumOfLanes(d, v));
 
     // Similar test with a positive result.
-    v = InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, static_cast<T>(4)));
-    HWY_ASSERT_VEC_EQ(d, Set(d, pairs * static_cast<T>(2)), SumOfLanes(d, v));
+    v = InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, T{4}));
+    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(pairs * 2)), SumOfLanes(d, v));
   }
 
   template <typename T, class D>
