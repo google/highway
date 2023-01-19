@@ -35,7 +35,7 @@ struct TestSumOfLanes {
   template <typename T, size_t N, int P,
             hwy::EnableIf<IsSigned<T>() && ((N & 1) == 0)>* = nullptr>
   HWY_NOINLINE void SignedEvenLengthVectorTests(Simd<T, N, P> d) {
-    const T pairs = static_cast<T>(Lanes(d)) / T{2};
+    const T pairs = static_cast<T>(Lanes(d) / 2);
 
     // Lanes are the repeated sequence -2, 1, [...]; each pair sums to -1,
     // so the eventual total is just -(N/2).
