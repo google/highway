@@ -574,6 +574,6 @@ endif()  # BUILD_TESTING
 
 # write HWYConfig file:
 include(CMakePackageConfigHelpers)
-write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" COMPATIBILITY SameMajorVersion)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" COMPATIBILITY AnyNewerVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
 install(EXPORT hwy_targets FILE HWYConfig.cmake DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
