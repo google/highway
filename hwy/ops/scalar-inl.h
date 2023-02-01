@@ -93,7 +93,7 @@ template <typename T, typename FromT>
 HWY_API Vec1<T> BitCast(Sisd<T> /* tag */, Vec1<FromT> v) {
   static_assert(sizeof(T) <= sizeof(FromT), "Promoting is undefined");
   T to;
-  CopyBytes<sizeof(FromT)>(&v.raw, &to);  // not same size - ok to shrink
+  CopyBytes<sizeof(T)>(&v.raw, &to);  // not same size - ok to shrink
   return Vec1<T>(to);
 }
 
