@@ -752,19 +752,37 @@ HWY_API Vec1<float> ApproximateReciprocalSqrt(const Vec1<float> v) {
 }
 
 // Square root
-HWY_API Vec1<float> Sqrt(const Vec1<float> v) {
-#if HWY_COMPILER_GCC && defined(HWY_NO_LIBCXX)
+HWY_API Vec1<float> Sqrt(Vec1<float> v) {
+#if defined(HWY_NO_LIBCXX)
+#if HWY_COMPILER_GCC_ACTUAL
   return Vec1<float>(__builtin_sqrt(v.raw));
+#else
+  uint32_t bits;
+  CopyBytes<sizeof(bits)>(&v, &bits);
+  // Coarse approximation, letting the exponent LSB leak into the mantissa
+  bits = (1 << 29) + (bits >> 1) - (1 << 22);
+  CopyBytes<sizeof(bits)>(&bits, &v);
+  return v;
+#endif  // !HWY_COMPILER_GCC_ACTUAL
 #else
   return Vec1<float>(sqrtf(v.raw));
-#endif
+#endif  // !HWY_NO_LIBCXX
 }
-HWY_API Vec1<double> Sqrt(const Vec1<double> v) {
-#if HWY_COMPILER_GCC && defined(HWY_NO_LIBCXX)
-  return Vec1<float>(__builtin_sqrt(v.raw));
+HWY_API Vec1<double> Sqrt(Vec1<double> v) {
+#if defined(HWY_NO_LIBCXX)
+#if HWY_COMPILER_GCC_ACTUAL
+  return Vec1<double>(__builtin_sqrt(v.raw));
+#else
+  uint64_t bits;
+  CopyBytes<sizeof(bits)>(&v, &bits);
+  // Coarse approximation, letting the exponent LSB leak into the mantissa
+  bits = (1ULL << 61) + (bits >> 1) - (1ULL << 51);
+  CopyBytes<sizeof(bits)>(&bits, &v);
+  return v;
+#endif  // !HWY_COMPILER_GCC_ACTUAL
 #else
   return Vec1<double>(sqrt(v.raw));
-#endif
+#endif  // HWY_NO_LIBCXX
 }
 
 // ------------------------------ Floating-point rounding
