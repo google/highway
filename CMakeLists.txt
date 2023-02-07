@@ -26,6 +26,8 @@ if(POLICY CMP0111)
 endif()
 
 project(hwy VERSION 1.0.3)  # Keep in sync with highway.h version
+# `hwy` is lowercase to handle find_package() in Config mode:
+set(namespace "${PROJECT_NAME}::")
 
 # Directly define the ABI version from the cmake project() version values:
 set(LIBRARY_VERSION "${hwy_VERSION}")
@@ -572,8 +574,8 @@ target_sources(skeleton_test PRIVATE hwy/examples/skeleton.cc)
 
 endif()  # BUILD_TESTING
 
-# write HWYConfig file:
+# write hwy-config file to handle `Config` mode
 include(CMakePackageConfigHelpers)
-write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" COMPATIBILITY SameMajorVersion)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/HWYConfigVersion.cmake" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
-install(EXPORT hwy_targets FILE HWYConfig.cmake DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/hwy-config-version.cmake" COMPATIBILITY SameMajorVersion)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/hwy-config-version.cmake" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
+install(EXPORT hwy_targets NAMESPACE "${namespace}" FILE hwy-config.cmake DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/hwy")
