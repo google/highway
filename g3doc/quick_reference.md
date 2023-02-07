@@ -879,8 +879,8 @@ aligned memory at indices which are not a multiple of the vector length):
     `p[i]` or zero if the `mask` governing element `i` is false. May fault even
     where `mask` is false `#if HWY_MEM_OPS_MIGHT_FAULT`. If `p` is aligned,
     faults cannot happen unless the entire vector is inaccessible. Equivalent
-    to, and potentially more efficient than, `IfThenElseZero(mask, Load(D(),
-    aligned))`.
+    to, and potentially more efficient than, `IfThenElseZero(mask, LoadU(D(),
+    p))`.
 
 *   <code>void **LoadInterleaved2**(D, const T* p, Vec&lt;D&gt;&amp; v0,
     Vec&lt;D&gt;&amp; v1)</code>: equivalent to `LoadU` into `v0, v1` followed

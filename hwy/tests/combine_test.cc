@@ -102,7 +102,8 @@ struct TestUpperHalf {
 #if HWY_TARGET != HWY_SCALAR
     const Half<D> d2;
     const size_t N2 = Lanes(d2);
-    HWY_ASSERT(N2 * 2 == Lanes(d));
+    if (N2 < 2) return;
+    HWY_ASSERT_EQ(N2 * 2, Lanes(d));
     auto expected = AllocateAligned<T>(N2);
     size_t i = 0;
     for (; i < N2; ++i) {
@@ -135,7 +136,7 @@ struct TestZeroExtendVector {
     Store(v, d, &lanes[0]);
     Store(v, d, &lanes[N]);
 
-    const auto ext = ZeroExtendVector(d2, v);
+    const VFromD<decltype(d2)> ext = ZeroExtendVector(d2, v);
     Store(ext, d2, lanes.get());
 
     // Lower half is unchanged
@@ -154,14 +155,15 @@ struct TestCombine {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Twice<D> d2;
     const size_t N2 = Lanes(d2);
+    if (N2 < 2) return;
     auto lanes = AllocateAligned<T>(N2);
 
-    const auto lo = Iota(d, 1);
-    const auto hi = Iota(d, static_cast<T>(N2 / 2 + 1));
-    const auto combined = Combine(d2, hi, lo);
+    const Vec<D> lo = Iota(d, 1);
+    const Vec<D> hi = Iota(d, static_cast<T>(N2 / 2 + 1));
+    const Vec<decltype(d2)> combined = Combine(d2, hi, lo);
     Store(combined, d2, lanes.get());
 
-    const auto expected = Iota(d2, 1);
+    const Vec<decltype(d2)> expected = Iota(d2, 1);
     HWY_ASSERT_VEC_EQ(d2, expected, combined);
   }
 };
