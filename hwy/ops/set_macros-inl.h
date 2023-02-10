@@ -230,7 +230,12 @@
 // Can use pragmas instead of -march compiler flag
 #if HWY_HAVE_RUNTIME_DISPATCH
 #if HWY_ARCH_ARM_V7
+#if HWY_COMPILER_GCC_ACTUAL >= 800
+// The __attribute__((target(+neon-vfpv4)) was introduced in gcc >= 8.
+// In case we have a gcc < 8, we can still compile by keeping
+// HWY_TARGET_STR undefined.
 #define HWY_TARGET_STR "+neon-vfpv4"
+#endif
 #else
 #define HWY_TARGET_STR "+crypto"
 #endif  // HWY_ARCH_ARM_V7
