@@ -154,6 +154,12 @@ lane count, thus avoiding the need for a second loop to handle remainders.
     sizes of the largest and smallest type, and smaller `d` to be obtained via
     `Half<DLarger>`.
 
+    For other targets, `kPow2` must lie within [HWY_MIN_POW2, HWY_MAX_POW2]. The
+    `*Tag` aliases clamp to the upper bound but your code should ensure the
+    lower bound is not exceeded, typically by specializing compile-time
+    recursions for `kPow2` = `HWY_MIN_POW2` (this avoids compile errors when
+    `kPow2` is low enough that it is no longer a valid shift count).
+
 *   Less common: `CappedTag<T, kCap> d` or the macro form `HWY_CAPPED(T, kCap)
     d;`. These select vectors or masks where *no more than* the largest power of
     two not exceeding `kCap` lanes have observable effects such as

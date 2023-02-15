@@ -80,13 +80,7 @@ struct TestLoadStoreInterleaved2 {
 };
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
-#if HWY_TARGET == HWY_RVV
-  // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-  const ForExtendableVectors<TestLoadStoreInterleaved2, 2> test;
-#else
-  const ForPartialVectors<TestLoadStoreInterleaved2> test;
-#endif
-  ForAllTypes(test);
+  ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved2>());
 }
 
 // Workaround for build timeout on GCC 12 aarch64, see #776
@@ -154,13 +148,7 @@ struct TestLoadStoreInterleaved3 {
 };
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved3() {
-#if HWY_TARGET == HWY_RVV
-  // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-  const ForExtendableVectors<TestLoadStoreInterleaved3, 2> test;
-#else
-  const ForPartialVectors<TestLoadStoreInterleaved3> test;
-#endif
-  ForAllTypes(test);
+  ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved3>());
 }
 
 struct TestLoadStoreInterleaved4 {
@@ -226,13 +214,7 @@ struct TestLoadStoreInterleaved4 {
 };
 
 HWY_NOINLINE void TestAllLoadStoreInterleaved4() {
-#if HWY_TARGET == HWY_RVV
-  // Segments are limited to 8 registers, so we can only go up to LMUL=2.
-  const ForExtendableVectors<TestLoadStoreInterleaved4, 2> test;
-#else
-  const ForPartialVectors<TestLoadStoreInterleaved4> test;
-#endif
-  ForAllTypes(test);
+  ForAllTypes(ForMaxPow2<TestLoadStoreInterleaved4>());
 }
 
 #endif  // !HWY_BROKEN_LOAD34

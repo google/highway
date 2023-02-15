@@ -42,6 +42,33 @@
 #undef HWY_CAP_GE256
 #undef HWY_CAP_GE512
 
+// For internal use (clamping/validating N for Simd<>)
+#undef HWY_MAX_N
+#if HWY_TARGET == HWY_SCALAR
+#define HWY_MAX_N 1
+#else
+#define HWY_MAX_N 65536
+#endif
+
+// For internal use (clamping kPow2 for Simd<>)
+#undef HWY_MAX_POW2
+// For HWY_TARGET == HWY_RVV, LMUL <= 8. Even on other targets, we want to
+// support say Rebind<uint64_t, Simd<uint8_t, 1, 0>> d; whose kPow2 is also 3.
+// However, those other targets do not actually support multiple vectors, and
+// thus Lanes(d) must not exceed Lanes(ScalableTag<T>()).
+#define HWY_MAX_POW2 3
+
+// User-visible. Loose lower bound that guarantees HWY_MAX_BYTES >>
+// (-HWY_MIN_POW2) <= 1. Useful for terminating compile-time recursions.
+#undef HWY_MIN_POW2
+#if HWY_TARGET == HWY_RVV
+#define HWY_MIN_POW2 -16
+#else
+// Tighter bound for other targets, whose vectors are smaller, to potentially
+// save compile time.
+#define HWY_MIN_POW2 -8
+#endif  // HWY_TARGET == HWY_RVV
+
 #undef HWY_TARGET_STR
 
 #if defined(HWY_DISABLE_PCLMUL_AES)
@@ -255,7 +282,6 @@
 // overallocation.
 #define HWY_LANES(T) ((HWY_MAX_BYTES) / sizeof(T))
 
-#define HWY_HAVE_SCALABLE 1
 #define HWY_HAVE_INTEGER64 1
 #define HWY_HAVE_FLOAT16 1
 #define HWY_HAVE_FLOAT64 1
@@ -267,15 +293,19 @@
 #if HWY_TARGET == HWY_SVE2
 #define HWY_NAMESPACE N_SVE2
 #define HWY_MAX_BYTES 256
+#define HWY_HAVE_SCALABLE 1
 #elif HWY_TARGET == HWY_SVE_256
 #define HWY_NAMESPACE N_SVE_256
 #define HWY_MAX_BYTES 32
+#define HWY_HAVE_SCALABLE 0
 #elif HWY_TARGET == HWY_SVE2_128
 #define HWY_NAMESPACE N_SVE2_128
 #define HWY_MAX_BYTES 16
+#define HWY_HAVE_SCALABLE 0
 #else
 #define HWY_NAMESPACE N_SVE
 #define HWY_MAX_BYTES 256
+#define HWY_HAVE_SCALABLE 1
 #endif
 
 // Can use pragmas instead of -march compiler flag

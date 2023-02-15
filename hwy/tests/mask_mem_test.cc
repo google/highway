@@ -50,7 +50,13 @@ struct TestMaskedLoad {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
       }
 
-      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
+      const auto mask_i = Load(di, bool_lanes.get());
+#if HWY_TARGET == HWY_RVV
+      // Somehow this works around incorrect clang codegen where mask=0 lanes
+      // are the unmasked values instead of zero.
+      fprintf(stderr, "N %zu pow2 %d\n", d.MaxLanes(), d.Pow2());
+#endif
+      const auto mask = RebindMask(d, Gt(mask_i, Zero(di)));
       const auto expected = IfThenElseZero(mask, Load(d, lanes.get()));
       const auto actual = MaskedLoad(mask, d, lanes.get());
       HWY_ASSERT_VEC_EQ(d, expected, actual);

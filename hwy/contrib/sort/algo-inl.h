@@ -374,7 +374,7 @@ struct SharedState {
 
 // Bridge from keys (passed to Run) to lanes as expected by HeapSort. For
 // non-128-bit keys they are the same:
-template <class Order, typename KeyType, HWY_IF_NOT_LANE_SIZE(KeyType, 16)>
+template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
 void CallHeapSort(KeyType* HWY_RESTRICT keys, const size_t num_keys) {
   using detail::TraitsLane;
   using detail::SharedTraits;

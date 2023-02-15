@@ -189,14 +189,33 @@ template. C++ provides several mechanisms for constraining the types:
     (instead of whether it is signed/float), we sometimes add overloads with an
     additional `SizeTag` argument to namespace detail, and call those from the
     user-visible template. This may avoid compiler limitations relating to the
-    otherwise equivalent `HWY_IF_LANE_SIZE(T, 1)`.
+    otherwise equivalent `HWY_IF_T_SIZE(T, 1)`.
 
-For functions that take a `d` argument such as `Load`, you can also choose
-whether to deduce its type as a `D` class, or to deduce the arguments to
-`Simd<>`, for example `template <typename T, size_t N, int kPow2> void F(Simd<T,
-N, kPow2> d) {`. The latter makes sense if you are anyway going to reference the
-`T`, `N` and `kPow2` in your implementation. However, they can also be obtained
-from `D` via `TFromD<D>`, `MaxLanes(d)` and `Pow2(d)`.
+## Deducing the Simd<> argument type
+
+For functions that take a `d` argument such as `Load`, we usually deduce it as a
+`class D` template argument rather than deducing the individual `T`, `N`,
+`kPow2` arguments to `Simd`. To obtain `T` e.g. for the pointer argument to
+`Load`, use `TFromD<D>`. Rather than `N`, e.g. for stack-allocated arrays on
+targets where `!HWY_HAVE_SCALABLE`, use `MaxLanes(d)`, or where no `d` lvalue is
+available, `HWY_MAX_LANES_D(D)`.
+
+When there are constraints, such as "only enable when the `D` is exactly 128
+bits", be careful not to use `Full128<T>` as the function argument type, because
+this will not match `Simd<T, 8 / sizeof(T), 1>`, i.e. twice a half-vector.
+Instead use `HWY_IF_V_SIZE_D(D, 16)`.
+
+We could perhaps skip the `HWY_IF_V_SIZE_D` if fixed-size vector or mask
+arguments are present, because they already have the same effect of overload
+resolution. For example, when the arguments are `Vec256` the overload defined in
+x86_256 will be selected. However, also verifying the `D` matches the other
+arguments helps prevent erroneous or questionable code from compiling. For
+example, passing a different `D` to `Store` than the one used to create the
+vector argument might point to an error; both should match.
+
+For functions that accept multiple vector types (these are mainly in x86_128,
+and avoid duplicating those functions in x86_256 and x86_512), we use
+`VFrom<D>`.
 
 ## Documentation of platform-specific intrinsics
 

@@ -89,38 +89,41 @@ using TFromV = typename V::PrivateT;
 
 // ------------------------------ BitCast
 
-template <typename T, typename FromT>
-HWY_API Vec1<T> BitCast(Sisd<T> /* tag */, Vec1<FromT> v) {
-  static_assert(sizeof(T) <= sizeof(FromT), "Promoting is undefined");
-  T to;
-  CopyBytes<sizeof(T)>(&v.raw, &to);  // not same size - ok to shrink
-  return Vec1<T>(to);
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
+HWY_API Vec1<TTo> BitCast(DTo /* tag */, Vec1<TFrom> v) {
+  static_assert(sizeof(TTo) <= sizeof(TFrom), "Promoting is undefined");
+  TTo to;
+  CopyBytes<sizeof(TTo)>(&v.raw, &to);  // not same size - ok to shrink
+  return Vec1<TTo>(to);
 }
 
-// ------------------------------ Set
+// ------------------------------ Zero
 
-template <typename T>
-HWY_API Vec1<T> Zero(Sisd<T> /* tag */) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Vec1<T> Zero(D /* tag */) {
   return Vec1<T>(T(0));
-}
-
-template <typename T, typename T2>
-HWY_API Vec1<T> Set(Sisd<T> /* tag */, const T2 t) {
-  return Vec1<T>(static_cast<T>(t));
-}
-
-template <typename T>
-HWY_API Vec1<T> Undefined(Sisd<T> d) {
-  return Zero(d);
-}
-
-template <typename T, typename T2>
-HWY_API Vec1<T> Iota(const Sisd<T> /* tag */, const T2 first) {
-  return Vec1<T>(static_cast<T>(first));
 }
 
 template <class D>
 using VFromD = decltype(Zero(D()));
+
+// ------------------------------ Set
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>, typename T2>
+HWY_API Vec1<T> Set(D /* tag */, const T2 t) {
+  return Vec1<T>(static_cast<T>(t));
+}
+
+// ------------------------------ Undefined
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Vec1<T> Undefined(D d) {
+  return Zero(d);
+}
+
+// ------------------------------ Iota
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>, typename T2>
+HWY_API Vec1<T> Iota(const D /* tag */, const T2 first) {
+  return Vec1<T>(static_cast<T>(first));
+}
 
 // ================================================== LOGICAL
 
@@ -248,8 +251,8 @@ HWY_API Vec1<T> PopulationCount(Vec1<T> v) {
 
 // ------------------------------ Mask
 
-template <typename TFrom, typename TTo>
-HWY_API Mask1<TTo> RebindMask(Sisd<TTo> /*tag*/, Mask1<TFrom> m) {
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
+HWY_API Mask1<TTo> RebindMask(DTo /*tag*/, Mask1<TFrom> m) {
   static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
   return Mask1<TTo>{m.bits};
 }
@@ -269,15 +272,15 @@ Vec1<T> VecFromMask(const Mask1<T> mask) {
   return v;
 }
 
-template <typename T>
-Vec1<T> VecFromMask(Sisd<T> /* tag */, const Mask1<T> mask) {
+template <class D, typename T = TFromD<D>>
+Vec1<T> VecFromMask(D /* tag */, const Mask1<T> mask) {
   Vec1<T> v;
   CopySameSize(&mask, &v);
   return v;
 }
 
-template <typename T>
-HWY_API Mask1<T> FirstN(Sisd<T> /*tag*/, size_t n) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Mask1<T> FirstN(D /*tag*/, size_t n) {
   return Mask1<T>::FromBool(n != 0);
 }
 
@@ -998,46 +1001,43 @@ HWY_API Mask1<double> IsFinite(const Vec1<double> v) {
 
 // ------------------------------ Load
 
-template <typename T>
-HWY_API Vec1<T> Load(Sisd<T> /* tag */, const T* HWY_RESTRICT aligned) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Vec1<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
   T t;
   CopySameSize(aligned, &t);
   return Vec1<T>(t);
 }
 
-template <typename T>
-HWY_API Vec1<T> MaskedLoad(Mask1<T> m, Sisd<T> d,
-                           const T* HWY_RESTRICT aligned) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> MaskedLoad(Mask1<T> m, D d, const T* HWY_RESTRICT aligned) {
   return IfThenElseZero(m, Load(d, aligned));
 }
 
-template <typename T>
-HWY_API Vec1<T> LoadU(Sisd<T> d, const T* HWY_RESTRICT p) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Vec1<T> LoadU(D d, const T* HWY_RESTRICT p) {
   return Load(d, p);
 }
 
 // In some use cases, "load single lane" is sufficient; otherwise avoid this.
-template <typename T>
-HWY_API Vec1<T> LoadDup128(Sisd<T> d, const T* HWY_RESTRICT aligned) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Vec1<T> LoadDup128(D d, const T* HWY_RESTRICT aligned) {
   return Load(d, aligned);
 }
 
 // ------------------------------ Store
 
-template <typename T>
-HWY_API void Store(const Vec1<T> v, Sisd<T> /* tag */,
-                   T* HWY_RESTRICT aligned) {
+template <class D, typename T = TFromD<D>>
+HWY_API void Store(const Vec1<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
   CopySameSize(&v.raw, aligned);
 }
 
-template <typename T>
-HWY_API void StoreU(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT p) {
+template <class D, typename T = TFromD<D>>
+HWY_API void StoreU(const Vec1<T> v, D d, T* HWY_RESTRICT p) {
   return Store(v, d, p);
 }
 
-template <typename T>
-HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, Sisd<T> d,
-                          T* HWY_RESTRICT p) {
+template <class D, typename T = TFromD<D>>
+HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, D d, T* HWY_RESTRICT p) {
   if (!m.bits) return;
   StoreU(v, d, p);
 }
@@ -1051,25 +1051,24 @@ HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, Sisd<T> d,
 #define HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #endif
 
-template <typename T>
-HWY_API void LoadInterleaved2(Sisd<T> d, const T* HWY_RESTRICT unaligned,
-                              Vec1<T>& v0, Vec1<T>& v1) {
+template <class D, typename T = TFromD<D>>
+HWY_API void LoadInterleaved2(D d, const T* HWY_RESTRICT unaligned, Vec1<T>& v0,
+                              Vec1<T>& v1) {
   v0 = LoadU(d, unaligned + 0);
   v1 = LoadU(d, unaligned + 1);
 }
 
-template <typename T>
-HWY_API void LoadInterleaved3(Sisd<T> d, const T* HWY_RESTRICT unaligned,
-                              Vec1<T>& v0, Vec1<T>& v1, Vec1<T>& v2) {
+template <class D, typename T = TFromD<D>>
+HWY_API void LoadInterleaved3(D d, const T* HWY_RESTRICT unaligned, Vec1<T>& v0,
+                              Vec1<T>& v1, Vec1<T>& v2) {
   v0 = LoadU(d, unaligned + 0);
   v1 = LoadU(d, unaligned + 1);
   v2 = LoadU(d, unaligned + 2);
 }
 
-template <typename T>
-HWY_API void LoadInterleaved4(Sisd<T> d, const T* HWY_RESTRICT unaligned,
-                              Vec1<T>& v0, Vec1<T>& v1, Vec1<T>& v2,
-                              Vec1<T>& v3) {
+template <class D, typename T = TFromD<D>>
+HWY_API void LoadInterleaved4(D d, const T* HWY_RESTRICT unaligned, Vec1<T>& v0,
+                              Vec1<T>& v1, Vec1<T>& v2, Vec1<T>& v3) {
   v0 = LoadU(d, unaligned + 0);
   v1 = LoadU(d, unaligned + 1);
   v2 = LoadU(d, unaligned + 2);
@@ -1078,25 +1077,25 @@ HWY_API void LoadInterleaved4(Sisd<T> d, const T* HWY_RESTRICT unaligned,
 
 // ------------------------------ StoreInterleaved2/3/4
 
-template <typename T>
-HWY_API void StoreInterleaved2(const Vec1<T> v0, const Vec1<T> v1, Sisd<T> d,
+template <class D, typename T = TFromD<D>>
+HWY_API void StoreInterleaved2(const Vec1<T> v0, const Vec1<T> v1, D d,
                                T* HWY_RESTRICT unaligned) {
   StoreU(v0, d, unaligned + 0);
   StoreU(v1, d, unaligned + 1);
 }
 
-template <typename T>
+template <class D, typename T = TFromD<D>>
 HWY_API void StoreInterleaved3(const Vec1<T> v0, const Vec1<T> v1,
-                               const Vec1<T> v2, Sisd<T> d,
+                               const Vec1<T> v2, D d,
                                T* HWY_RESTRICT unaligned) {
   StoreU(v0, d, unaligned + 0);
   StoreU(v1, d, unaligned + 1);
   StoreU(v2, d, unaligned + 2);
 }
 
-template <typename T>
+template <class D, typename T = TFromD<D>>
 HWY_API void StoreInterleaved4(const Vec1<T> v0, const Vec1<T> v1,
-                               const Vec1<T> v2, const Vec1<T> v3, Sisd<T> d,
+                               const Vec1<T> v2, const Vec1<T> v3, D d,
                                T* HWY_RESTRICT unaligned) {
   StoreU(v0, d, unaligned + 0);
   StoreU(v1, d, unaligned + 1);
@@ -1106,43 +1105,40 @@ HWY_API void StoreInterleaved4(const Vec1<T> v0, const Vec1<T> v1,
 
 // ------------------------------ Stream
 
-template <typename T>
-HWY_API void Stream(const Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT aligned) {
+template <class D, typename T = TFromD<D>>
+HWY_API void Stream(const Vec1<T> v, D d, T* HWY_RESTRICT aligned) {
   return Store(v, d, aligned);
 }
 
 // ------------------------------ Scatter
 
-template <typename T, typename Offset>
-HWY_API void ScatterOffset(Vec1<T> v, Sisd<T> d, T* base,
-                           const Vec1<Offset> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API void ScatterOffset(Vec1<T> v, D d, T* base, Vec1<TI> offset) {
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
   uint8_t* const base8 = reinterpret_cast<uint8_t*>(base) + offset.raw;
   return Store(v, d, reinterpret_cast<T*>(base8));
 }
 
-template <typename T, typename Index>
-HWY_API void ScatterIndex(Vec1<T> v, Sisd<T> d, T* HWY_RESTRICT base,
-                          const Vec1<Index> index) {
-  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API void ScatterIndex(Vec1<T> v, D d, T* HWY_RESTRICT base,
+                          Vec1<TI> index) {
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
   return Store(v, d, base + index.raw);
 }
 
 // ------------------------------ Gather
 
-template <typename T, typename Offset>
-HWY_API Vec1<T> GatherOffset(Sisd<T> d, const T* base,
-                             const Vec1<Offset> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "Must match for portability");
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API Vec1<T> GatherOffset(D d, const T* base, Vec1<TI> offset) {
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
   const intptr_t addr =
       reinterpret_cast<intptr_t>(base) + static_cast<intptr_t>(offset.raw);
   return Load(d, reinterpret_cast<const T*>(addr));
 }
 
-template <typename T, typename Index>
-HWY_API Vec1<T> GatherIndex(Sisd<T> d, const T* HWY_RESTRICT base,
-                            const Vec1<Index> index) {
-  static_assert(sizeof(T) == sizeof(Index), "Must match for portability");
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API Vec1<T> GatherIndex(D d, const T* HWY_RESTRICT base, Vec1<TI> index) {
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
   return Load(d, base + index.raw);
 }
 
@@ -1151,16 +1147,17 @@ HWY_API Vec1<T> GatherIndex(Sisd<T> d, const T* HWY_RESTRICT base,
 // ConvertTo and DemoteTo with floating-point input and integer output truncate
 // (rounding toward zero).
 
-template <typename FromT, typename ToT>
-HWY_API Vec1<ToT> PromoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
-  static_assert(sizeof(ToT) > sizeof(FromT), "Not promoting");
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
+HWY_API Vec1<TTo> PromoteTo(DTo /* tag */, Vec1<TFrom> from) {
+  static_assert(sizeof(TTo) > sizeof(TFrom), "Not promoting");
   // For bits Y > X, floatX->floatY and intX->intY are always representable.
-  return Vec1<ToT>(static_cast<ToT>(from.raw));
+  return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
-// MSVC 19.10 cannot deduce the argument type if HWY_IF_FLOAT(FromT) is here,
-// so we overload for FromT=double and ToT={float,int32_t}.
-HWY_API Vec1<float> DemoteTo(Sisd<float> /* tag */, Vec1<double> from) {
+// MSVC 19.10 cannot deduce the argument type if HWY_IF_FLOAT(TFrom) is here,
+// so we overload for TFrom=double and TTo={float,int32_t}.
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec1<float> DemoteTo(D /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting float to narrower integer/float
   if (IsInf(from).bits ||
       Abs(from).raw > static_cast<double>(HighestValue<float>())) {
@@ -1169,7 +1166,8 @@ HWY_API Vec1<float> DemoteTo(Sisd<float> /* tag */, Vec1<double> from) {
   }
   return Vec1<float>(static_cast<float>(from.raw));
 }
-HWY_API Vec1<int32_t> DemoteTo(Sisd<int32_t> /* tag */, Vec1<double> from) {
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec1<int32_t> DemoteTo(D /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting int32_t to narrower integer/int32_t
   if (IsInf(from).bits ||
       Abs(from).raw > static_cast<double>(HighestValue<int32_t>())) {
@@ -1179,17 +1177,18 @@ HWY_API Vec1<int32_t> DemoteTo(Sisd<int32_t> /* tag */, Vec1<double> from) {
   return Vec1<int32_t>(static_cast<int32_t>(from.raw));
 }
 
-template <typename FromT, typename ToT>
-HWY_API Vec1<ToT> DemoteTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
-  static_assert(!IsFloat<FromT>(), "FromT=double are handled above");
-  static_assert(sizeof(ToT) < sizeof(FromT), "Not demoting");
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
+HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
+  static_assert(!IsFloat<TFrom>(), "TFrom=double are handled above");
+  static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
 
-  // Int to int: choose closest value in ToT to `from` (avoids UB)
-  from.raw = HWY_MIN(HWY_MAX(LimitsMin<ToT>(), from.raw), LimitsMax<ToT>());
-  return Vec1<ToT>(static_cast<ToT>(from.raw));
+  // Int to int: choose closest value in TTo to `from` (avoids UB)
+  from.raw = HWY_MIN(HWY_MAX(LimitsMin<TTo>(), from.raw), LimitsMax<TTo>());
+  return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
-HWY_API Vec1<float> PromoteTo(Sisd<float> /* tag */, const Vec1<float16_t> v) {
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec1<float> PromoteTo(D /* tag */, const Vec1<float16_t> v) {
   uint16_t bits16;
   CopySameSize(&v.raw, &bits16);
   const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
@@ -1212,12 +1211,13 @@ HWY_API Vec1<float> PromoteTo(Sisd<float> /* tag */, const Vec1<float16_t> v) {
   return Vec1<float>(out);
 }
 
-HWY_API Vec1<float> PromoteTo(Sisd<float> d, const Vec1<bfloat16_t> v) {
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec1<float> PromoteTo(D d, const Vec1<bfloat16_t> v) {
   return Set(d, F32FromBF16(v.raw));
 }
 
-HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
-                                 const Vec1<float> v) {
+template <class D, HWY_IF_F16_D(D)>
+HWY_API Vec1<float16_t> DemoteTo(D /* tag */, const Vec1<float> v) {
   uint32_t bits32;
   CopySameSize(&v.raw, &bits32);
   const uint32_t sign = bits32 >> 31;
@@ -1258,64 +1258,67 @@ HWY_API Vec1<float16_t> DemoteTo(Sisd<float16_t> /* tag */,
   return out;
 }
 
-HWY_API Vec1<bfloat16_t> DemoteTo(Sisd<bfloat16_t> d, const Vec1<float> v) {
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API Vec1<bfloat16_t> DemoteTo(D d, const Vec1<float> v) {
   return Set(d, BF16FromF32(v.raw));
 }
 
-template <typename FromT, typename ToT, HWY_IF_FLOAT(FromT)>
-HWY_API Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
-  static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
+          HWY_IF_FLOAT(TFrom)>
+HWY_API Vec1<TTo> ConvertTo(DTo /* tag */, Vec1<TFrom> from) {
+  static_assert(sizeof(TTo) == sizeof(TFrom), "Should have same size");
   // float## -> int##: return closest representable value. We cannot exactly
-  // represent LimitsMax<ToT> in FromT, so use double.
+  // represent LimitsMax<TTo> in TFrom, so use double.
   const double f = static_cast<double>(from.raw);
   if (IsInf(from).bits ||
-      Abs(Vec1<double>(f)).raw > static_cast<double>(LimitsMax<ToT>())) {
-    return Vec1<ToT>(detail::SignBit(from.raw) ? LimitsMin<ToT>()
-                                               : LimitsMax<ToT>());
+      Abs(Vec1<double>(f)).raw > static_cast<double>(LimitsMax<TTo>())) {
+    return Vec1<TTo>(detail::SignBit(from.raw) ? LimitsMin<TTo>()
+                                               : LimitsMax<TTo>());
   }
-  return Vec1<ToT>(static_cast<ToT>(from.raw));
+  return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
-template <typename FromT, typename ToT, HWY_IF_NOT_FLOAT(FromT)>
-HWY_API Vec1<ToT> ConvertTo(Sisd<ToT> /* tag */, Vec1<FromT> from) {
-  static_assert(sizeof(ToT) == sizeof(FromT), "Should have same size");
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
+          HWY_IF_NOT_FLOAT(TFrom)>
+HWY_API Vec1<TTo> ConvertTo(DTo /* tag */, Vec1<TFrom> from) {
+  static_assert(sizeof(TTo) == sizeof(TFrom), "Should have same size");
   // int## -> float##: no check needed
-  return Vec1<ToT>(static_cast<ToT>(from.raw));
+  return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
 HWY_API Vec1<uint8_t> U8FromU32(const Vec1<uint32_t> v) {
   return DemoteTo(Sisd<uint8_t>(), v);
 }
 
-// ------------------------------ Truncations
+// ------------------------------ TruncateTo
 
-HWY_API Vec1<uint8_t> TruncateTo(Sisd<uint8_t> /* tag */,
-                                 const Vec1<uint64_t> v) {
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec1<uint8_t> TruncateTo(D /* tag */, Vec1<uint64_t> v) {
   return Vec1<uint8_t>{static_cast<uint8_t>(v.raw & 0xFF)};
 }
 
-HWY_API Vec1<uint16_t> TruncateTo(Sisd<uint16_t> /* tag */,
-                                  const Vec1<uint64_t> v) {
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec1<uint16_t> TruncateTo(D /* tag */, Vec1<uint64_t> v) {
   return Vec1<uint16_t>{static_cast<uint16_t>(v.raw & 0xFFFF)};
 }
 
-HWY_API Vec1<uint32_t> TruncateTo(Sisd<uint32_t> /* tag */,
-                                  const Vec1<uint64_t> v) {
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec1<uint32_t> TruncateTo(D /* tag */, Vec1<uint64_t> v) {
   return Vec1<uint32_t>{static_cast<uint32_t>(v.raw & 0xFFFFFFFFu)};
 }
 
-HWY_API Vec1<uint8_t> TruncateTo(Sisd<uint8_t> /* tag */,
-                                 const Vec1<uint32_t> v) {
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec1<uint8_t> TruncateTo(D /* tag */, Vec1<uint32_t> v) {
   return Vec1<uint8_t>{static_cast<uint8_t>(v.raw & 0xFF)};
 }
 
-HWY_API Vec1<uint16_t> TruncateTo(Sisd<uint16_t> /* tag */,
-                                  const Vec1<uint32_t> v) {
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec1<uint16_t> TruncateTo(D /* tag */, Vec1<uint32_t> v) {
   return Vec1<uint16_t>{static_cast<uint16_t>(v.raw & 0xFFFF)};
 }
 
-HWY_API Vec1<uint8_t> TruncateTo(Sisd<uint8_t> /* tag */,
-                                 const Vec1<uint16_t> v) {
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec1<uint8_t> TruncateTo(D /* tag */, Vec1<uint16_t> v) {
   return Vec1<uint8_t>{static_cast<uint8_t>(v.raw & 0xFF)};
 }
 
@@ -1327,8 +1330,8 @@ HWY_API Vec1<T> LowerHalf(Vec1<T> v) {
   return v;
 }
 
-template <typename T>
-HWY_API Vec1<T> LowerHalf(Sisd<T> /* tag */, Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> LowerHalf(D /* tag */, Vec1<T> v) {
   return v;
 }
 
@@ -1385,15 +1388,15 @@ struct Indices1 {
   MakeSigned<T> raw;
 };
 
-template <typename T, typename TI>
-HWY_API Indices1<T> IndicesFromVec(Sisd<T>, Vec1<TI> vec) {
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API Indices1<T> IndicesFromVec(D, Vec1<TI> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane size");
   HWY_DASSERT(vec.raw == 0);
   return Indices1<T>{vec.raw};
 }
 
-template <typename T, typename TI>
-HWY_API Indices1<T> SetTableIndices(Sisd<T> d, const TI* idx) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>, typename TI>
+HWY_API Indices1<T> SetTableIndices(D d, const TI* idx) {
   return IndicesFromVec(d, LoadU(Sisd<TI>(), idx));
 }
 
@@ -1405,31 +1408,31 @@ HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
 // ------------------------------ ReverseBlocks
 
 // Single block: no change
-template <typename T>
-HWY_API Vec1<T> ReverseBlocks(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> ReverseBlocks(D /* tag */, const Vec1<T> v) {
   return v;
 }
 
 // ------------------------------ Reverse
 
-template <typename T>
-HWY_API Vec1<T> Reverse(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> Reverse(D /* tag */, const Vec1<T> v) {
   return v;
 }
 
 // Must not be called:
-template <typename T>
-HWY_API Vec1<T> Reverse2(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> Reverse2(D /* tag */, const Vec1<T> v) {
   return v;
 }
 
-template <typename T>
-HWY_API Vec1<T> Reverse4(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> Reverse4(D /* tag */, const Vec1<T> v) {
   return v;
 }
 
-template <typename T>
-HWY_API Vec1<T> Reverse8(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> Reverse8(D /* tag */, const Vec1<T> v) {
   return v;
 }
 
@@ -1478,70 +1481,67 @@ HWY_API Vec1<TI> TableLookupBytesOr0(const Vec1<T> in, const Vec1<TI> indices) {
 
 // ------------------------------ ZipLower
 
-HWY_API Vec1<uint16_t> ZipLower(const Vec1<uint8_t> a, const Vec1<uint8_t> b) {
+HWY_API Vec1<uint16_t> ZipLower(Vec1<uint8_t> a, Vec1<uint8_t> b) {
   return Vec1<uint16_t>(static_cast<uint16_t>((uint32_t{b.raw} << 8) + a.raw));
 }
-HWY_API Vec1<uint32_t> ZipLower(const Vec1<uint16_t> a,
-                                const Vec1<uint16_t> b) {
+HWY_API Vec1<uint32_t> ZipLower(Vec1<uint16_t> a, Vec1<uint16_t> b) {
   return Vec1<uint32_t>((uint32_t{b.raw} << 16) + a.raw);
 }
-HWY_API Vec1<uint64_t> ZipLower(const Vec1<uint32_t> a,
-                                const Vec1<uint32_t> b) {
+HWY_API Vec1<uint64_t> ZipLower(Vec1<uint32_t> a, Vec1<uint32_t> b) {
   return Vec1<uint64_t>((uint64_t{b.raw} << 32) + a.raw);
 }
-HWY_API Vec1<int16_t> ZipLower(const Vec1<int8_t> a, const Vec1<int8_t> b) {
+HWY_API Vec1<int16_t> ZipLower(Vec1<int8_t> a, Vec1<int8_t> b) {
   return Vec1<int16_t>(static_cast<int16_t>((int32_t{b.raw} << 8) + a.raw));
 }
-HWY_API Vec1<int32_t> ZipLower(const Vec1<int16_t> a, const Vec1<int16_t> b) {
+HWY_API Vec1<int32_t> ZipLower(Vec1<int16_t> a, Vec1<int16_t> b) {
   return Vec1<int32_t>((int32_t{b.raw} << 16) + a.raw);
 }
-HWY_API Vec1<int64_t> ZipLower(const Vec1<int32_t> a, const Vec1<int32_t> b) {
+HWY_API Vec1<int64_t> ZipLower(Vec1<int32_t> a, Vec1<int32_t> b) {
   return Vec1<int64_t>((int64_t{b.raw} << 32) + a.raw);
 }
 
-template <typename T, typename TW = MakeWide<T>, class VW = Vec1<TW>>
-HWY_API VW ZipLower(Sisd<TW> /* tag */, Vec1<T> a, Vec1<T> b) {
-  return VW(static_cast<TW>((TW{b.raw} << (sizeof(T) * 8)) + a.raw));
+template <class DW, typename TW = TFromD<DW>, typename TN = MakeNarrow<TW>>
+HWY_API Vec1<TW> ZipLower(DW /* tag */, Vec1<TN> a, Vec1<TN> b) {
+  return Vec1<TW>(static_cast<TW>((TW{b.raw} << (sizeof(TN) * 8)) + a.raw));
 }
 
 // ================================================== MASK
 
-template <typename T>
-HWY_API bool AllFalse(Sisd<T> /* tag */, const Mask1<T> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API bool AllFalse(D /* tag */, const Mask1<T> mask) {
   return mask.bits == 0;
 }
 
-template <typename T>
-HWY_API bool AllTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API bool AllTrue(D /* tag */, const Mask1<T> mask) {
   return mask.bits != 0;
 }
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
-template <typename T>
-HWY_API Mask1<T> LoadMaskBits(Sisd<T> /* tag */,
-                              const uint8_t* HWY_RESTRICT bits) {
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Mask1<T> LoadMaskBits(D /* tag */, const uint8_t* HWY_RESTRICT bits) {
   return Mask1<T>::FromBool((bits[0] & 1) != 0);
 }
 
 // `p` points to at least 8 writable bytes.
-template <typename T>
-HWY_API size_t StoreMaskBits(Sisd<T> d, const Mask1<T> mask, uint8_t* bits) {
+template <class D, typename T = TFromD<D>>
+HWY_API size_t StoreMaskBits(D d, const Mask1<T> mask, uint8_t* bits) {
   *bits = AllTrue(d, mask);
   return 1;
 }
 
-template <typename T>
-HWY_API size_t CountTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API size_t CountTrue(D /* tag */, const Mask1<T> mask) {
   return mask.bits == 0 ? 0 : 1;
 }
 
-template <typename T>
-HWY_API intptr_t FindFirstTrue(Sisd<T> /* tag */, const Mask1<T> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindFirstTrue(D /* tag */, const Mask1<T> mask) {
   return mask.bits == 0 ? -1 : 0;
 }
 
-template <typename T>
-HWY_API size_t FindKnownFirstTrue(Sisd<T> /* tag */, const Mask1<T> /* m */) {
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownFirstTrue(D /* tag */, const Mask1<T> /* m */) {
   return 0;  // There is only one lane and we know it is true.
 }
 
@@ -1565,16 +1565,16 @@ HWY_API Vec1<T> CompressNot(Vec1<T> v, const Mask1<T> /* mask */) {
 }
 
 // ------------------------------ CompressStore
-template <typename T>
-HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
+template <class D, typename T = TFromD<D>>
+HWY_API size_t CompressStore(Vec1<T> v, const Mask1<T> mask, D d,
                              T* HWY_RESTRICT unaligned) {
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
 }
 
 // ------------------------------ CompressBlendedStore
-template <typename T>
-HWY_API size_t CompressBlendedStore(Vec1<T> v, const Mask1<T> mask, Sisd<T> d,
+template <class D, typename T = TFromD<D>>
+HWY_API size_t CompressBlendedStore(Vec1<T> v, const Mask1<T> mask, D d,
                                     T* HWY_RESTRICT unaligned) {
   if (!mask.bits) return 0;
   StoreU(v, d, unaligned);
@@ -1588,9 +1588,9 @@ HWY_API Vec1<T> CompressBits(Vec1<T> v, const uint8_t* HWY_RESTRICT /*bits*/) {
 }
 
 // ------------------------------ CompressBitsStore
-template <typename T>
+template <class D, typename T = TFromD<D>>
 HWY_API size_t CompressBitsStore(Vec1<T> v, const uint8_t* HWY_RESTRICT bits,
-                                 Sisd<T> d, T* HWY_RESTRICT unaligned) {
+                                 D d, T* HWY_RESTRICT unaligned) {
   const Mask1<T> mask = LoadMaskBits(d, bits);
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
@@ -1598,8 +1598,8 @@ HWY_API size_t CompressBitsStore(Vec1<T> v, const uint8_t* HWY_RESTRICT bits,
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
-HWY_API Vec1<float> ReorderWidenMulAccumulate(Sisd<float> /* tag */,
-                                              Vec1<bfloat16_t> a,
+template <class D32, HWY_IF_F32_D(D32)>
+HWY_API Vec1<float> ReorderWidenMulAccumulate(D32 /* tag */, Vec1<bfloat16_t> a,
                                               Vec1<bfloat16_t> b,
                                               const Vec1<float> sum0,
                                               Vec1<float>& /* sum1 */) {
@@ -1607,8 +1607,8 @@ HWY_API Vec1<float> ReorderWidenMulAccumulate(Sisd<float> /* tag */,
                 Vec1<float>(F32FromBF16(b.raw)), sum0);
 }
 
-HWY_API Vec1<int32_t> ReorderWidenMulAccumulate(Sisd<int32_t> /* tag */,
-                                                Vec1<int16_t> a,
+template <class D32, HWY_IF_I32_D(D32)>
+HWY_API Vec1<int32_t> ReorderWidenMulAccumulate(D32 /* tag */, Vec1<int16_t> a,
                                                 Vec1<int16_t> b,
                                                 const Vec1<int32_t> sum0,
                                                 Vec1<int32_t>& /* sum1 */) {
@@ -1617,24 +1617,23 @@ HWY_API Vec1<int32_t> ReorderWidenMulAccumulate(Sisd<int32_t> /* tag */,
 
 // ------------------------------ RearrangeToOddPlusEven
 template <typename TW>
-HWY_API Vec1<TW> RearrangeToOddPlusEven(const Vec1<TW> sum0,
-                                        Vec1<TW> /* sum1 */) {
+HWY_API Vec1<TW> RearrangeToOddPlusEven(Vec1<TW> sum0, Vec1<TW> /* sum1 */) {
   return sum0;  // invariant already holds
 }
 
 // ================================================== REDUCTIONS
 
 // Sum of all lanes, i.e. the only one.
-template <typename T>
-HWY_API Vec1<T> SumOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> SumOfLanes(D /* tag */, const Vec1<T> v) {
   return v;
 }
-template <typename T>
-HWY_API Vec1<T> MinOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> MinOfLanes(D /* tag */, const Vec1<T> v) {
   return v;
 }
-template <typename T>
-HWY_API Vec1<T> MaxOfLanes(Sisd<T> /* tag */, const Vec1<T> v) {
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> MaxOfLanes(D /* tag */, const Vec1<T> v) {
   return v;
 }
 

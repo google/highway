@@ -128,11 +128,18 @@ HWY_INLINE Mask<D> MaskTrue(const D d) {
   return FirstN(d, Lanes(d));
 }
 
+// Defined in rvv-inl.h for slightly better codegen.
+#if HWY_TARGET != HWY_RVV
+
 template <class D>
 HWY_INLINE Mask<D> MaskFalse(const D d) {
-  const auto zero = Zero(RebindToSigned<D>());
+  // Signed comparisons are cheaper on x86.
+  const RebindToSigned<D> di;
+  const Vec<decltype(di)> zero = Zero(di);
   return RebindMask(d, Lt(zero, zero));
 }
+
+#endif  // HWY_TARGET != HWY_RVV
 
 #ifndef HWY_ASSERT_EQ
 
@@ -164,10 +171,10 @@ namespace detail {
 // and the resulting Lanes() is in [min_lanes, max_lanes]. The upper bound
 // is required to ensure capped vectors remain extendable. Implemented by
 // recursively halving kMul until it is zero.
-template <typename T, size_t kMul, size_t kMinArg, class Test>
+template <typename T, size_t kMul, size_t kMinArg, class Test, int kPow2 = 0>
 struct ForeachCappedR {
   static void Do(size_t min_lanes, size_t max_lanes) {
-    const CappedTag<T, kMul * kMinArg> d;
+    const CappedTag<T, kMul * kMinArg, kPow2> d;
 
     // If we already don't have enough lanes, stop.
     const size_t lanes = Lanes(d);
@@ -176,13 +183,13 @@ struct ForeachCappedR {
     if (lanes <= max_lanes) {
       Test()(T(), d);
     }
-    ForeachCappedR<T, kMul / 2, kMinArg, Test>::Do(min_lanes, max_lanes);
+    ForeachCappedR<T, kMul / 2, kMinArg, Test, kPow2>::Do(min_lanes, max_lanes);
   }
 };
 
 // Base case to stop the recursion.
-template <typename T, size_t kMinArg, class Test>
-struct ForeachCappedR<T, 0, kMinArg, Test> {
+template <typename T, size_t kMinArg, class Test, int kPow2>
+struct ForeachCappedR<T, 0, kMinArg, Test, kPow2> {
   static void Do(size_t, size_t) {}
 };
 
@@ -237,7 +244,42 @@ struct ForeachShiftR<T, 4, kAddPow2, Test> {
 // that operator() is called to prevent such bugs. Note that this is not
 // thread-safe, but that is fine because C are typically local variables.
 
-// Calls Test for all power of two N in [1, Lanes(d) >> kPow2]. This is for
+// Calls Test for all powers of two in [1, Lanes(d) * (RVV? 2 : 1) ]. For
+// interleaved_test; RVV segments are limited to 8 registers, so we can only go
+// up to LMUL=2.
+template <class Test>
+class ForMaxPow2 {
+  mutable bool called_ = false;
+
+ public:
+  ~ForMaxPow2() {
+    if (!called_) {
+      HWY_ABORT("Test is incorrect, ensure operator() is called");
+    }
+  }
+
+  template <typename T>
+  void operator()(T /*unused*/) const {
+    called_ = true;
+
+#if HWY_TARGET == HWY_SCALAR
+    detail::ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
+#else
+    detail::ForeachCappedR<T, HWY_LANES(T), 1, Test>::Do(
+        1, Lanes(ScalableTag<T>()));
+
+#if HWY_TARGET == HWY_RVV
+    // For each [MinPow2, 1]; counter is [MinPow2 + 2, 3].
+    detail::ForeachShiftR<T, detail::MinPow2<T>() + 2, -2, Test>::Do(1);
+#elif HWY_HAVE_SCALABLE
+    // For each [MinPow2, 0]; counter is [MinPow2, 3].
+    detail::ForeachShiftR<T, detail::MinPow2<T>() + 3, -3, Test>::Do(1);
+#endif
+#endif  // HWY_TARGET == HWY_SCALAR
+  }
+};
+
+// Calls Test for all powers of two in [1, Lanes(d) >> kPow2]. This is for
 // ops that widen their input, e.g. Combine (not supported by HWY_SCALAR).
 template <class Test, int kPow2 = 1>
 class ForExtendableVectors {
@@ -261,7 +303,8 @@ class ForExtendableVectors {
 #if HWY_TARGET == HWY_SCALAR
     // not supported
 #else
-    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test>::Do(1, max_lanes);
+    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), size_t{1} << kPow2, Test,
+                           -kPow2>::Do(1, max_lanes);
 #if HWY_TARGET == HWY_RVV
     // For each [MinPow2, 3 - kPow2]; counter is [MinPow2 + kPow2, 3].
     detail::ForeachShiftR<T, detail::MinPow2<T>() + kPow2, -kPow2, Test>::Do(1);
@@ -309,8 +352,8 @@ class ForShrinkableVectors {
         kMinLanes);
 #elif HWY_HAVE_SCALABLE
     // For each [MinPow2 + kPow2, 0]; counter is [MinPow2 + kPow2 + 3, 3].
-    detail::ForeachShiftR<T, detail::MinPow2<T>() + kPow2 + 3, -3, Test>::Do(
-        kMinLanes);
+    detail::ForeachShiftR<T, HWY_MIN(3, detail::MinPow2<T>() + kPow2 + 3), -3,
+                          Test>::Do(kMinLanes);
 #endif
 #endif  // HWY_TARGET == HWY_SCALAR
   }
@@ -393,8 +436,8 @@ class ForPromoteVectors {
     detail::ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
 #else
     // TODO(janwas): call Extendable if kMinLanes check not required?
-    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test>::Do(kMinLanes,
-                                                                  max_lanes);
+    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test, -kPow2>::Do(
+        kMinLanes, max_lanes);
 #if HWY_TARGET == HWY_RVV
     // For each [MinPow2, 3 - kPow2]; counter is [MinPow2 + kPow2, 3].
     detail::ForeachShiftR<T, detail::MinPow2<T>() + kPow2, -kPow2, Test>::Do(

@@ -201,8 +201,8 @@ struct TestFloatAbs {
     const auto v0 = Zero(d);
     const auto vp1 = Set(d, T{1});
     const auto vn1 = Set(d, T{-1});
-    const auto vp2 = Set(d, T{0.01});
-    const auto vn2 = Set(d, T{-0.01});
+    const auto vp2 = Set(d, static_cast<T>(0.01));
+    const auto vn2 = Set(d, static_cast<T>(-0.01));
 
     HWY_ASSERT_VEC_EQ(d, v0, Abs(v0));
     HWY_ASSERT_VEC_EQ(d, vp1, Abs(vp1));
@@ -311,8 +311,8 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
 
     const auto v0 = Zero(d);
-    const auto vmin = Set(d, T{-1E30});
-    const auto vmax = Set(d, T{1E30});
+    const auto vmin = Set(d, static_cast<T>(-1E30));
+    const auto vmax = Set(d, static_cast<T>(1E30));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(v0, vmin));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, v0));
     HWY_ASSERT_VEC_EQ(d, v0, Max(v0, vmin));

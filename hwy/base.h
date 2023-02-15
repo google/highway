@@ -398,34 +398,45 @@ HWY_API constexpr bool IsSame() {
 }
 
 // Insert into template/function arguments to enable this overload only for
-// vectors of AT MOST this many bits.
+// vectors of exactly, at most (LE), or more than (GT) this many bytes.
 //
-// Note that enabling for exactly 128 bits is unnecessary because a function can
-// simply be overloaded with Vec128<T> and/or Full128<T> tag. Enabling for other
-// sizes (e.g. 64 bit) can be achieved via Simd<T, 8 / sizeof(T), 0>.
-#define HWY_IF_LE128(T, N) hwy::EnableIf<N * sizeof(T) <= 16>* = nullptr
-#define HWY_IF_LE64(T, N) hwy::EnableIf<N * sizeof(T) <= 8>* = nullptr
-#define HWY_IF_LE32(T, N) hwy::EnableIf<N * sizeof(T) <= 4>* = nullptr
-#define HWY_IF_GE32(T, N) hwy::EnableIf<N * sizeof(T) >= 4>* = nullptr
-#define HWY_IF_GE64(T, N) hwy::EnableIf<N * sizeof(T) >= 8>* = nullptr
-#define HWY_IF_GE128(T, N) hwy::EnableIf<N * sizeof(T) >= 16>* = nullptr
-#define HWY_IF_GT128(T, N) hwy::EnableIf<(N * sizeof(T) > 16)>* = nullptr
+// As an example, checking for a total size of 16 bytes will match both
+// Simd<uint8_t, 16, 0> and Simd<uint8_t, 8, 1>.
+#define HWY_IF_V_SIZE(T, kN, bytes) \
+  hwy::EnableIf<kN * sizeof(T) == bytes>* = nullptr
+#define HWY_IF_V_SIZE_LE(T, kN, bytes) \
+  hwy::EnableIf<kN * sizeof(T) <= bytes>* = nullptr
+#define HWY_IF_V_SIZE_GT(T, kN, bytes) \
+  hwy::EnableIf<(kN * sizeof(T) > bytes)>* = nullptr
+
+#define HWY_IF_LANES(kN, lanes) hwy::EnableIf<(kN == lanes)>* = nullptr
+#define HWY_IF_LANES_GE(kN, lanes) hwy::EnableIf<(kN >= lanes)>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
 #define HWY_IF_SIGNED(T) \
   hwy::EnableIf<IsSigned<T>() && !IsFloat<T>()>* = nullptr
 #define HWY_IF_FLOAT(T) hwy::EnableIf<hwy::IsFloat<T>()>* = nullptr
 #define HWY_IF_NOT_FLOAT(T) hwy::EnableIf<!hwy::IsFloat<T>()>* = nullptr
+#define HWY_IF_SPECIAL_FLOAT(T) \
+  hwy::EnableIf<hwy::IsSpecialFloat<T>()>* = nullptr
+#define HWY_IF_NOT_SPECIAL_FLOAT(T) \
+  hwy::EnableIf<!hwy::IsSpecialFloat<T>()>* = nullptr
 
-#define HWY_IF_LANE_SIZE(T, bytes) \
-  hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
-#define HWY_IF_NOT_LANE_SIZE(T, bytes) \
+#define HWY_IF_T_SIZE(T, bytes) hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
+#define HWY_IF_NOT_T_SIZE(T, bytes) \
   hwy::EnableIf<sizeof(T) != (bytes)>* = nullptr
 // bit_array = 0x102 means 1 or 8 bytes. There is no NONE_OF because it sounds
 // too similar. If you want the opposite of this (2 or 4 bytes), ask for those
 // bits explicitly (0x14) instead of attempting to 'negate' 0x102.
-#define HWY_IF_LANE_SIZE_ONE_OF(T, bit_array) \
+#define HWY_IF_T_SIZE_ONE_OF(T, bit_array) \
   hwy::EnableIf<((size_t{1} << sizeof(T)) & (bit_array)) != 0>* = nullptr
+
+// Use instead of HWY_IF_T_SIZE to avoid ambiguity with float/double
+// overloads.
+#define HWY_IF_UI32(T) \
+  hwy::EnableIf<IsSame<T, uint32_t>() || IsSame<T, int32_t>()>* = nullptr
+#define HWY_IF_UI64(T) \
+  hwy::EnableIf<IsSame<T, uint64_t>() || IsSame<T, int64_t>()>* = nullptr
 
 #define HWY_IF_LANES_PER_BLOCK(T, N, LANES) \
   hwy::EnableIf<HWY_MIN(sizeof(T) * N, 16) / sizeof(T) == (LANES)>* = nullptr
@@ -636,6 +647,12 @@ HWY_API constexpr bool IsFloat() {
   // Cannot use T(1.25) != T(1) for float16_t, which can only be converted to or
   // from a float, not compared.
   return IsSame<T, float>() || IsSame<T, double>();
+}
+
+// These types are often special-cased and not supported in all ops.
+template <typename T>
+HWY_API constexpr bool IsSpecialFloat() {
+  return IsSame<T, float16_t>() || IsSame<T, bfloat16_t>();
 }
 
 template <typename T>

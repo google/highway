@@ -127,21 +127,21 @@ struct KeyLane {
     return OddEven(odd, even);
   }
 
-  template <class D, HWY_IF_LANE_SIZE_D(D, 2)>
+  template <class D, HWY_IF_T_SIZE_D(D, 2)>
   HWY_INLINE Vec<D> SwapAdjacentPairs(D d, const Vec<D> v) const {
     const Repartition<uint32_t, D> du32;
     return BitCast(d, Shuffle2301(BitCast(du32, v)));
   }
-  template <class D, HWY_IF_LANE_SIZE_D(D, 4)>
+  template <class D, HWY_IF_T_SIZE_D(D, 4)>
   HWY_INLINE Vec<D> SwapAdjacentPairs(D /* tag */, const Vec<D> v) const {
     return Shuffle1032(v);
   }
-  template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> SwapAdjacentPairs(D /* tag */, const Vec<D> v) const {
     return SwapAdjacentBlocks(v);
   }
 
-  template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_NOT_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> SwapAdjacentQuads(D d, const Vec<D> v) const {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
@@ -150,13 +150,13 @@ struct KeyLane {
 #endif
     return BitCast(d, SwapAdjacentPairs(dw, BitCast(dw, v)));
   }
-  template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> SwapAdjacentQuads(D d, const Vec<D> v) const {
     // Assumes max vector size = 512
     return ConcatLowerUpper(d, v, v);
   }
 
-  template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_NOT_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> OddEvenPairs(D d, const Vec<D> odd,
                                  const Vec<D> even) const {
 #if HWY_HAVE_FLOAT64  // in case D is float32
@@ -166,12 +166,12 @@ struct KeyLane {
 #endif
     return BitCast(d, OddEven(BitCast(dw, odd), BitCast(dw, even)));
   }
-  template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> OddEvenPairs(D /* tag */, Vec<D> odd, Vec<D> even) const {
     return OddEvenBlocks(odd, even);
   }
 
-  template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_NOT_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> OddEvenQuads(D d, Vec<D> odd, Vec<D> even) const {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
@@ -180,7 +180,7 @@ struct KeyLane {
 #endif
     return BitCast(d, OddEvenPairs(dw, BitCast(dw, odd), BitCast(dw, even)));
   }
-  template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> OddEvenQuads(D d, Vec<D> odd, Vec<D> even) const {
     return ConcatUpperLower(d, odd, even);
   }
@@ -454,7 +454,7 @@ struct TraitsLane : public Base {
   }
 
   // Conditionally swaps even-numbered lanes with their odd-numbered neighbor.
-  template <class D, HWY_IF_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> SortPairsDistance1(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys2(d, v);
@@ -470,7 +470,7 @@ struct TraitsLane : public Base {
   }
 
   // (See above - we use Sort2 for non-64-bit types.)
-  template <class D, HWY_IF_NOT_LANE_SIZE_D(D, 8)>
+  template <class D, HWY_IF_NOT_T_SIZE_D(D, 8)>
   HWY_INLINE Vec<D> SortPairsDistance1(D d, Vec<D> v) const {
     const Base* base = static_cast<const Base*>(this);
     Vec<D> swapped = base->ReverseKeys2(d, v);

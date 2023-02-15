@@ -49,7 +49,7 @@ struct Dot {
   // Returns sum{pa[i] * pb[i]} for float or double inputs. Aligning the
   // pointers to a multiple of N elements is helpful but not required.
   template <int kAssumptions, class D, typename T = TFromD<D>,
-            HWY_IF_NOT_LANE_SIZE_D(D, 2)>
+            HWY_IF_NOT_T_SIZE_D(D, 2)>
   static HWY_INLINE T Compute(const D d, const T* const HWY_RESTRICT pa,
                               const T* const HWY_RESTRICT pb,
                               const size_t num_elements) {
