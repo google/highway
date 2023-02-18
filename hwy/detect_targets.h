@@ -96,8 +96,10 @@
 
 
 // --------------------------- IBM Power: 9 targets (+ one fallback)
-// Bits 43..48 reserved (6 targets)
-#define HWY_PPC8 (1LL << 49)  // v2.07 or 3
+// Bits 43..46 reserved (4 targets)
+#define HWY_PPC10 (1LL << 47) // v3.1
+#define HWY_PPC9 (1LL << 48)  // v3.0
+#define HWY_PPC8 (1LL << 49)  // v2.07
 // Bits 50..51 reserved for prior VSX/AltiVec (2 targets)
 #define HWY_HIGHEST_TARGET_BIT_PPC 51
 
@@ -159,6 +161,14 @@
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000)
 #define HWY_BROKEN_TARGETS (HWY_SVE | HWY_SVE2 | HWY_SVE_256 | HWY_SVE2_128)
 
+// HWY_PPC8, HWY_PPC9, and HWY_PPC10 are currently broken on big-endian
+#elif HWY_ARCH_PPC && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define HWY_BROKEN_TARGETS 0
+#else
+#define HWY_BROKEN_TARGETS (HWY_PPC8 | HWY_PPC9 | HWY_PPC10)
+#endif
+
 #else
 #define HWY_BROKEN_TARGETS 0
 #endif
@@ -209,12 +219,32 @@
 #define HWY_BASELINE_WASM 0
 #endif
 
-// Avoid choosing the PPC target until we have an implementation.
-#if HWY_ARCH_PPC && defined(__VSX__) && 0
+#if HWY_ARCH_PPC && (HWY_COMPILER_GCC || HWY_COMPILER_CLANG)
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+    defined(__ALTIVEC__) && defined(__VSX__) && defined(__POWER8_VECTOR__) && \
+    (defined(__CRYPTO__) || defined(HWY_DISABLE_PPC8_CRYPTO))
 #define HWY_BASELINE_PPC8 HWY_PPC8
 #else
 #define HWY_BASELINE_PPC8 0
 #endif
+
+#if HWY_BASELINE_PPC8 != 0 && defined(__POWER9_VECTOR__)
+#define HWY_BASELINE_PPC9 HWY_PPC9
+#else
+#define HWY_BASELINE_PPC9 0
+#endif
+
+#if HWY_BASELINE_PPC9 != 0 && \
+    (defined(_ARCH_PWR10) || defined(__POWER10_VECTOR__))
+#define HWY_BASELINE_PPC10 HWY_PPC10
+#else
+#define HWY_BASELINE_PPC10 0
+#endif
+#else  // Non-PPC target or non-GCC/Clang compiler
+#define HWY_BASELINE_PPC8 0
+#define HWY_BASELINE_PPC9 0
+#define HWY_BASELINE_PPC10 0
+#endif  // HWY_ARCH_PPC && HWY_COMPILER_GCC
 
 #define HWY_BASELINE_SVE2 0
 #define HWY_BASELINE_SVE 0
@@ -356,9 +386,10 @@
 #ifndef HWY_BASELINE_TARGETS
 #define HWY_BASELINE_TARGETS                                     \
   (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | \
-   HWY_BASELINE_SVE2 | HWY_BASELINE_SVE | HWY_BASELINE_NEON |    \
-   HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 |  \
-   HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 | \
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSSE3 | \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 | \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -393,7 +424,8 @@
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 // On Arm, currently only GCC does, and we require Linux to detect CPU
 // capabilities.
-#elif HWY_ARCH_ARM && HWY_COMPILER_GCC_ACTUAL && HWY_OS_LINUX && !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_COMPILER_GCC_ACTUAL && \
+      HWY_OS_LINUX && !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0

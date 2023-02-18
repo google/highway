@@ -113,6 +113,10 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 #if HWY_ARCH_PPC
     case HWY_PPC8:
       return "PPC8";
+    case HWY_PPC9:
+      return "PPC9";
+    case HWY_PPC10:
+      return "PPC10";
 #endif
 
 #if HWY_ARCH_WASM
@@ -237,16 +241,16 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 9
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_PPC
-#define HWY_CHOOSE_TARGET_LIST(func_name)                         \
-  nullptr,                        /* reserved */                  \
-      nullptr,                    /* reserved */                  \
-      nullptr,                    /* reserved */                  \
-      nullptr,                    /* reserved */                  \
-      nullptr,                    /* reserved */                  \
-      nullptr,                    /* reserved */                  \
-      HWY_CHOOSE_PPC8(func_name), /* PPC8 */                      \
-      nullptr,                    /* reserved (VSX or AltiVec) */ \
-      nullptr                     /* reserved (VSX or AltiVec) */
+#define HWY_CHOOSE_TARGET_LIST(func_name)                          \
+  nullptr,                         /* reserved */                  \
+      nullptr,                     /* reserved */                  \
+      nullptr,                     /* reserved */                  \
+      nullptr,                     /* reserved */                  \
+      HWY_CHOOSE_PPC10(func_name), /* PPC10 */                     \
+      HWY_CHOOSE_PPC9(func_name),  /* PPC9 */                      \
+      HWY_CHOOSE_PPC8(func_name),  /* PPC8 */                      \
+      nullptr,                     /* reserved (VSX or AltiVec) */ \
+      nullptr                      /* reserved (VSX or AltiVec) */
 
 #elif HWY_ARCH_WASM
 // See HWY_ARCH_X86 above for details.
