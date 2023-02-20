@@ -85,25 +85,25 @@ class TestAES {
   HWY_NOINLINE void operator()(T t, D d) {
     // Test vector (after first KeyAddition) from
     // https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/AES_Core128.pdf
-    alignas(16) constexpr uint8_t test_lanes[16] = {
+    alignas(16) static constexpr uint8_t test_lanes[16] = {
         0x40, 0xBF, 0xAB, 0xF4, 0x06, 0xEE, 0x4D, 0x30,
         0x42, 0xCA, 0x6B, 0x99, 0x7A, 0x5C, 0x58, 0x16};
     const auto test = LoadDup128(d, test_lanes);
 
     // = ShiftRow result
-    alignas(16) constexpr uint8_t expected_sr_lanes[16] = {
+    alignas(16) static constexpr uint8_t expected_sr_lanes[16] = {
         0x09, 0x28, 0x7F, 0x47, 0x6F, 0x74, 0x6A, 0xBF,
         0x2C, 0x4A, 0x62, 0x04, 0xDA, 0x08, 0xE3, 0xEE};
     const auto expected_sr = LoadDup128(d, expected_sr_lanes);
 
     // = MixColumn result
-    alignas(16) constexpr uint8_t expected_mc_lanes[16] = {
+    alignas(16) static constexpr uint8_t expected_mc_lanes[16] = {
         0x52, 0x9F, 0x16, 0xC2, 0x97, 0x86, 0x15, 0xCA,
         0xE0, 0x1A, 0xAE, 0x54, 0xBA, 0x1A, 0x26, 0x59};
     const auto expected_mc = LoadDup128(d, expected_mc_lanes);
 
     // = KeyAddition result
-    alignas(16) constexpr uint8_t expected_lanes[16] = {
+    alignas(16) static constexpr uint8_t expected_lanes[16] = {
         0xF2, 0x65, 0xE8, 0xD5, 0x1F, 0xD2, 0x39, 0x7B,
         0xC3, 0xB9, 0x97, 0x6D, 0x90, 0x76, 0x50, 0x5C};
     const auto expected = LoadDup128(d, expected_lanes);

@@ -179,24 +179,24 @@ HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
   detail::LoadTransposedBlocks3(d, unaligned, A, B, C);
   // Compress all lanes belonging to v0 into consecutive lanes.
   constexpr uint8_t Z = 0x80;
-  alignas(16) constexpr uint8_t kIdx_v0A[16] = {0, 3, 6, 9, 12, 15, Z, Z,
-                                                Z, Z, Z, Z, Z,  Z,  Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v0B[16] = {Z, Z,  Z,  Z, Z, Z, 2, 5,
-                                                8, 11, 14, Z, Z, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v0C[16] = {Z, Z, Z, Z, Z, Z, Z,  Z,
-                                                Z, Z, Z, 1, 4, 7, 10, 13};
-  alignas(16) constexpr uint8_t kIdx_v1A[16] = {1, 4, 7, 10, 13, Z, Z, Z,
-                                                Z, Z, Z, Z,  Z,  Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v1B[16] = {Z, Z,  Z,  Z, Z, 0, 3, 6,
-                                                9, 12, 15, Z, Z, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v1C[16] = {Z, Z, Z, Z, Z, Z, Z,  Z,
-                                                Z, Z, Z, 2, 5, 8, 11, 14};
-  alignas(16) constexpr uint8_t kIdx_v2A[16] = {2, 5, 8, 11, 14, Z, Z, Z,
-                                                Z, Z, Z, Z,  Z,  Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v2B[16] = {Z,  Z,  Z, Z, Z, 1, 4, 7,
-                                                10, 13, Z, Z, Z, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v2C[16] = {Z, Z, Z, Z, Z, Z, Z,  Z,
-                                                Z, Z, 0, 3, 6, 9, 12, 15};
+  alignas(16) static constexpr uint8_t kIdx_v0A[16] = {
+      0, 3, 6, 9, 12, 15, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v0B[16] = {
+      Z, Z, Z, Z, Z, Z, 2, 5, 8, 11, 14, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v0C[16] = {
+      Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, 1, 4, 7, 10, 13};
+  alignas(16) static constexpr uint8_t kIdx_v1A[16] = {
+      1, 4, 7, 10, 13, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v1B[16] = {
+      Z, Z, Z, Z, Z, 0, 3, 6, 9, 12, 15, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v1C[16] = {
+      Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, 2, 5, 8, 11, 14};
+  alignas(16) static constexpr uint8_t kIdx_v2A[16] = {
+      2, 5, 8, 11, 14, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v2B[16] = {
+      Z, Z, Z, Z, Z, 1, 4, 7, 10, 13, Z, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v2C[16] = {
+      Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, 0, 3, 6, 9, 12, 15};
   const V v0L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v0A)));
   const V v0M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v0B)));
   const V v0U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v0C)));
@@ -223,15 +223,15 @@ HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
   detail::LoadTransposedBlocks3(d, unaligned, A, B, C);
   // Compress all lanes belonging to v0 into consecutive lanes.
   constexpr uint8_t Z = 0x80;
-  alignas(16) constexpr uint8_t kIdx_v0A[16] = {0, 3, 6, Z, Z, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v0B[16] = {Z, Z, Z, 1, 4, 7, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v0C[16] = {Z, Z, Z, Z, Z, Z, 2, 5};
-  alignas(16) constexpr uint8_t kIdx_v1A[16] = {1, 4, 7, Z, Z, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v1B[16] = {Z, Z, Z, 2, 5, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v1C[16] = {Z, Z, Z, Z, Z, 0, 3, 6};
-  alignas(16) constexpr uint8_t kIdx_v2A[16] = {2, 5, Z, Z, Z, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v2B[16] = {Z, Z, 0, 3, 6, Z, Z, Z};
-  alignas(16) constexpr uint8_t kIdx_v2C[16] = {Z, Z, Z, Z, Z, 1, 4, 7};
+  alignas(16) static constexpr uint8_t kIdx_v0A[16] = {0, 3, 6, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v0B[16] = {Z, Z, Z, 1, 4, 7, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v0C[16] = {Z, Z, Z, Z, Z, Z, 2, 5};
+  alignas(16) static constexpr uint8_t kIdx_v1A[16] = {1, 4, 7, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v1B[16] = {Z, Z, Z, 2, 5, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v1C[16] = {Z, Z, Z, Z, Z, 0, 3, 6};
+  alignas(16) static constexpr uint8_t kIdx_v2A[16] = {2, 5, Z, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v2B[16] = {Z, Z, 0, 3, 6, Z, Z, Z};
+  alignas(16) static constexpr uint8_t kIdx_v2C[16] = {Z, Z, Z, Z, Z, 1, 4, 7};
   const V v0L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v0A)));
   const V v0M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v0B)));
   const V v0U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v0C)));
@@ -259,24 +259,24 @@ HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
   // Compress all lanes belonging to v0 into consecutive lanes. Same as above,
   // but each element of the array contains two byte indices for a lane.
   constexpr uint16_t Z = 0x8080;
-  alignas(16) constexpr uint16_t kIdx_v0A[8] = {0x0100, 0x0706, 0x0D0C, Z,
-                                                Z,      Z,      Z,      Z};
-  alignas(16) constexpr uint16_t kIdx_v0B[8] = {Z,      Z,      Z, 0x0302,
-                                                0x0908, 0x0F0E, Z, Z};
-  alignas(16) constexpr uint16_t kIdx_v0C[8] = {Z, Z, Z,      Z,
-                                                Z, Z, 0x0504, 0x0B0A};
-  alignas(16) constexpr uint16_t kIdx_v1A[8] = {0x0302, 0x0908, 0x0F0E, Z,
-                                                Z,      Z,      Z,      Z};
-  alignas(16) constexpr uint16_t kIdx_v1B[8] = {Z,      Z, Z, 0x0504,
-                                                0x0B0A, Z, Z, Z};
-  alignas(16) constexpr uint16_t kIdx_v1C[8] = {Z, Z,      Z,      Z,
-                                                Z, 0x0100, 0x0706, 0x0D0C};
-  alignas(16) constexpr uint16_t kIdx_v2A[8] = {0x0504, 0x0B0A, Z, Z,
-                                                Z,      Z,      Z, Z};
-  alignas(16) constexpr uint16_t kIdx_v2B[8] = {Z,      Z, 0x0100, 0x0706,
-                                                0x0D0C, Z, Z,      Z};
-  alignas(16) constexpr uint16_t kIdx_v2C[8] = {Z, Z,      Z,      Z,
-                                                Z, 0x0302, 0x0908, 0x0F0E};
+  alignas(16) static constexpr uint16_t kIdx_v0A[8] = {
+      0x0100, 0x0706, 0x0D0C, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint16_t kIdx_v0B[8] = {
+      Z, Z, Z, 0x0302, 0x0908, 0x0F0E, Z, Z};
+  alignas(16) static constexpr uint16_t kIdx_v0C[8] = {Z, Z, Z,      Z,
+                                                       Z, Z, 0x0504, 0x0B0A};
+  alignas(16) static constexpr uint16_t kIdx_v1A[8] = {
+      0x0302, 0x0908, 0x0F0E, Z, Z, Z, Z, Z};
+  alignas(16) static constexpr uint16_t kIdx_v1B[8] = {Z,      Z, Z, 0x0504,
+                                                       0x0B0A, Z, Z, Z};
+  alignas(16) static constexpr uint16_t kIdx_v1C[8] = {
+      Z, Z, Z, Z, Z, 0x0100, 0x0706, 0x0D0C};
+  alignas(16) static constexpr uint16_t kIdx_v2A[8] = {0x0504, 0x0B0A, Z, Z,
+                                                       Z,      Z,      Z, Z};
+  alignas(16) static constexpr uint16_t kIdx_v2B[8] = {
+      Z, Z, 0x0100, 0x0706, 0x0D0C, Z, Z, Z};
+  alignas(16) static constexpr uint16_t kIdx_v2C[8] = {
+      Z, Z, Z, Z, Z, 0x0302, 0x0908, 0x0F0E};
   const V v0L = BitCast(d, TableLookupBytesOr0(A, LoadDup128(du, kIdx_v0A)));
   const V v0M = BitCast(d, TableLookupBytesOr0(B, LoadDup128(du, kIdx_v0B)));
   const V v0U = BitCast(d, TableLookupBytesOr0(C, LoadDup128(du, kIdx_v0C)));

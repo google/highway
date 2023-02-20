@@ -3989,11 +3989,11 @@ HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
 #else
   const Repartition<uint8_t, decltype(d)> d8;
   using V8 = VFromD<decltype(d8)>;
-  alignas(16) constexpr uint8_t kByteOffsets[16] = {0, 1, 2, 3, 0, 1, 2, 3,
-                                                    0, 1, 2, 3, 0, 1, 2, 3};
+  alignas(16) static constexpr uint8_t kByteOffsets[16] = {
+      0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3};
 
   // Broadcast each lane index to all 4 bytes of T
-  alignas(16) constexpr uint8_t kBroadcastLaneBytes[16] = {
+  alignas(16) static constexpr uint8_t kBroadcastLaneBytes[16] = {
       0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12};
   const V8 lane_indices = TableLookupBytes(vec, Load(d8, kBroadcastLaneBytes));
 
@@ -4145,7 +4145,7 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
   }
   const RebindToSigned<decltype(d)> di;
   using VI = VFromD<decltype(di)>;
-  alignas(16) constexpr int16_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+  alignas(16) static constexpr int16_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
   const VI idx = Load(di, kReverse + (kN == 8 ? 0 : 4));
   return BitCast(d, VI{_mm_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
 #else
@@ -4207,7 +4207,7 @@ HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
   }
 
 #if HWY_TARGET <= HWY_AVX3
-  alignas(16) constexpr int16_t kReverse4[8] = {3, 2, 1, 0, 7, 6, 5, 4};
+  alignas(16) static constexpr int16_t kReverse4[8] = {3, 2, 1, 0, 7, 6, 5, 4};
   const Vec128<int16_t, kN> idx = Load(di, kReverse4);
   return BitCast(d, Vec128<int16_t, kN>{
                         _mm_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
@@ -4235,8 +4235,8 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
 #if HWY_TARGET <= HWY_AVX3
   const RebindToSigned<decltype(d)> di;
   using VI = VFromD<decltype(di)>;
-  alignas(32) constexpr int16_t kReverse8[16] = {7,  6,  5,  4,  3,  2,  1, 0,
-                                                 15, 14, 13, 12, 11, 10, 9, 8};
+  alignas(32) static constexpr int16_t kReverse8[16] = {
+      7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
   const VI idx = Load(di, kReverse8);
   return BitCast(d, VI{_mm_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
 #else
@@ -4731,8 +4731,8 @@ template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
 HWY_INLINE Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
   const DFromV<decltype(a)> d;
   const Repartition<uint8_t, decltype(d)> d8;
-  alignas(16) constexpr uint8_t mask[16] = {0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0,
-                                            0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0};
+  alignas(16) static constexpr uint8_t mask[16] = {
+      0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0};
   return IfThenElse(MaskFromVec(BitCast(d, Load(d8, mask))), b, a);
 }
 
@@ -4741,8 +4741,8 @@ HWY_INLINE Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
 #if HWY_TARGET == HWY_SSSE3
   const DFromV<decltype(a)> d;
   const Repartition<uint8_t, decltype(d)> d8;
-  alignas(16) constexpr uint8_t mask[16] = {0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0,
-                                            0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0};
+  alignas(16) static constexpr uint8_t mask[16] = {
+      0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0};
   return IfThenElse(MaskFromVec(BitCast(d, Load(d8, mask))), b, a);
 #else
   return Vec128<T, N>{_mm_blend_epi16(a.raw, b.raw, 0x55)};
@@ -5258,7 +5258,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
   const auto too_big = VecFromMask(di32, Gt(v, Set(di32, 0xFFFF)));
   const auto clamped = Or(zero_if_neg, too_big);
   // Lower 2 bytes from each 32-bit lane; same as return type for fewer casts.
-  alignas(16) constexpr uint16_t kLower2Bytes[16] = {
+  alignas(16) static constexpr uint16_t kLower2Bytes[16] = {
       0x0100, 0x0504, 0x0908, 0x0D0C, 0x8080, 0x8080, 0x8080, 0x8080};
   const auto lo2 = Load(du16, kLower2Bytes);
   return VFromD<D>{TableLookupBytes(BitCast(du16, clamped), lo2).raw};
@@ -5895,19 +5895,19 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
   const VFromD<D> vbits{_mm_cvtsi32_si128(static_cast<int>(mask_bits))};
 
   // Replicate bytes 8x such that each byte contains the bit that governs it.
-  alignas(16) constexpr uint8_t kRep8[16] = {0, 0, 0, 0, 0, 0, 0, 0,
-                                             1, 1, 1, 1, 1, 1, 1, 1};
+  alignas(16) static constexpr uint8_t kRep8[16] = {0, 0, 0, 0, 0, 0, 0, 0,
+                                                    1, 1, 1, 1, 1, 1, 1, 1};
   const auto rep8 = TableLookupBytes(vbits, Load(du, kRep8));
 
-  alignas(16) constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
-                                            1, 2, 4, 8, 16, 32, 64, 128};
+  alignas(16) static constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
+                                                   1, 2, 4, 8, 16, 32, 64, 128};
   return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(16) constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+  alignas(16) static constexpr uint16_t kBit[8] = {1, 2, 4, 8, 16, 32, 64, 128};
   const auto vmask_bits = Set(du, static_cast<uint16_t>(mask_bits));
   return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
@@ -5915,7 +5915,7 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(16) constexpr uint32_t kBit[8] = {1, 2, 4, 8};
+  alignas(16) static constexpr uint32_t kBit[8] = {1, 2, 4, 8};
   const auto vmask_bits = Set(du, static_cast<uint32_t>(mask_bits));
   return RebindMask(d, TestBit(vmask_bits, Load(du, kBit)));
 }
@@ -5923,7 +5923,7 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(16) constexpr uint64_t kBit[8] = {1, 2};
+  alignas(16) static constexpr uint64_t kBit[8] = {1, 2};
   return RebindMask(d, TestBit(Set(du, mask_bits), Load(du, kBit)));
 }
 
@@ -6051,7 +6051,7 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
   HWY_DASSERT(mask.raw < 4);
 
   // There are only 2 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t u8_indices[64] = {
+  alignas(16) static constexpr uint8_t u8_indices[64] = {
       0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
       0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
       8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2,  3,  4,  5,  6,  7,
@@ -6074,15 +6074,15 @@ HWY_API Vec128<T, 1> CompressNot(Vec128<T, 1> v, Mask128<T, 1> /*m*/) {
 template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   // See CompressIsPartition, PrintCompressNot64x2NibbleTables
-  alignas(16) constexpr uint64_t packed_array[16] = {0x00000010, 0x00000001,
-                                                     0x00000010, 0x00000010};
+  alignas(16) static constexpr uint64_t packed_array[16] = {
+      0x00000010, 0x00000001, 0x00000010, 0x00000010};
 
   // For lane i, shift the i-th 4-bit index down to bits [0, 2) -
   // _mm_permutexvar_epi64 will ignore the upper bits.
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du64;
   const auto packed = Set(du64, packed_array[mask.raw]);
-  alignas(16) constexpr uint64_t shifts[2] = {0, 4};
+  alignas(16) static constexpr uint64_t shifts[2] = {0, 4};
   const auto indices = Indices128<T>{(packed >> Load(du64, shifts)).raw};
   return TableLookupLanes(v, indices);
 }
@@ -6241,7 +6241,7 @@ HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
   // indices (total 1 KiB), broadcasts them into each 32-bit lane and shifts.
   // Here, 16-bit lanes are too narrow to hold all bits, and unpacking nibbles
   // is likely more costly than the higher cache footprint from storing bytes.
-  alignas(16) constexpr uint8_t table[2048] = {
+  alignas(16) static constexpr uint8_t table[2048] = {
       // PrintCompress16x8Tables
       0,  2,  4,  6,  8,  10, 12, 14, /**/ 0, 2,  4,  6,  8,  10, 12, 14,  //
       2,  0,  4,  6,  8,  10, 12, 14, /**/ 0, 2,  4,  6,  8,  10, 12, 14,  //
@@ -6392,7 +6392,7 @@ HWY_INLINE VFromD<D> IndicesFromNotBits128(D d, uint64_t mask_bits) {
   // indices (total 1 KiB), broadcasts them into each 32-bit lane and shifts.
   // Here, 16-bit lanes are too narrow to hold all bits, and unpacking nibbles
   // is likely more costly than the higher cache footprint from storing bytes.
-  alignas(16) constexpr uint8_t table[2048] = {
+  alignas(16) static constexpr uint8_t table[2048] = {
       // PrintCompressNot16x8Tables
       0, 2,  4,  6,  8,  10, 12, 14, /**/ 2,  4,  6,  8,  10, 12, 14, 0,   //
       0, 4,  6,  8,  10, 12, 14, 2,  /**/ 4,  6,  8,  10, 12, 14, 0,  2,   //
@@ -6533,7 +6533,7 @@ HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 16);
 
   // There are only 4 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t u8_indices[256] = {
+  alignas(16) static constexpr uint8_t u8_indices[256] = {
       // PrintCompress32x4Tables
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,  //
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,  //
@@ -6561,7 +6561,7 @@ HWY_INLINE VFromD<D> IndicesFromNotBits128(D d, uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 16);
 
   // There are only 4 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t u8_indices[256] = {
+  alignas(16) static constexpr uint8_t u8_indices[256] = {
       // PrintCompressNot32x4Tables
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 4,  5,
       6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 0,  1,  2,  3,  0,  1,  2,  3,
@@ -6588,7 +6588,7 @@ HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 4);
 
   // There are only 2 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t u8_indices[64] = {
+  alignas(16) static constexpr uint8_t u8_indices[64] = {
       // PrintCompress64x2Tables
       0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
       0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
@@ -6604,7 +6604,7 @@ HWY_INLINE VFromD<D> IndicesFromNotBits128(D d, uint64_t mask_bits) {
   HWY_DASSERT(mask_bits < 4);
 
   // There are only 2 lanes, so we can afford to load the index vector directly.
-  alignas(16) constexpr uint8_t u8_indices[64] = {
+  alignas(16) static constexpr uint8_t u8_indices[64] = {
       // PrintCompressNot64x2Tables
       0, 1, 2,  3,  4,  5,  6,  7,  8, 9, 10, 11, 12, 13, 14, 15,
       8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2,  3,  4,  5,  6,  7,

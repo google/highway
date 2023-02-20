@@ -2575,7 +2575,7 @@ HWY_API Vec512<double> TableLookupLanes(Vec512<double> v,
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
   const RebindToSigned<decltype(d)> di;
-  alignas(64) constexpr int16_t kReverse[32] = {
+  alignas(64) static constexpr int16_t kReverse[32] = {
       31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
       15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0};
   const Vec512<int16_t> idx = Load(di, kReverse);
@@ -2585,14 +2585,14 @@ HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
-  alignas(64) constexpr int32_t kReverse[16] = {15, 14, 13, 12, 11, 10, 9, 8,
-                                                7,  6,  5,  4,  3,  2,  1, 0};
+  alignas(64) static constexpr int32_t kReverse[16] = {
+      15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
-  alignas(64) constexpr int64_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+  alignas(64) static constexpr int64_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 
@@ -2603,7 +2603,7 @@ HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec512<T> Reverse4(D d, const Vec512<T> v) {
   const RebindToSigned<decltype(d)> di;
-  alignas(64) constexpr int16_t kReverse4[32] = {
+  alignas(64) static constexpr int16_t kReverse4[32] = {
       3,  2,  1,  0,  7,  6,  5,  4,  11, 10, 9,  8,  15, 14, 13, 12,
       19, 18, 17, 16, 23, 22, 21, 20, 27, 26, 25, 24, 31, 30, 29, 28};
   const Vec512<int16_t> idx = Load(di, kReverse4);
@@ -2627,7 +2627,7 @@ HWY_API Vec512<double> Reverse4(D /* tag */, Vec512<double> v) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec512<T> Reverse8(D d, const Vec512<T> v) {
   const RebindToSigned<decltype(d)> di;
-  alignas(64) constexpr int16_t kReverse8[32] = {
+  alignas(64) static constexpr int16_t kReverse8[32] = {
       7,  6,  5,  4,  3,  2,  1,  0,  15, 14, 13, 12, 11, 10, 9,  8,
       23, 22, 21, 20, 19, 18, 17, 16, 31, 30, 29, 28, 27, 26, 25, 24};
   const Vec512<int16_t> idx = Load(di, kReverse8);
@@ -2638,8 +2638,8 @@ HWY_API Vec512<T> Reverse8(D d, const Vec512<T> v) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec512<T> Reverse8(D d, const Vec512<T> v) {
   const RebindToSigned<decltype(d)> di;
-  alignas(64) constexpr int32_t kReverse8[16] = {7,  6,  5,  4,  3,  2,  1, 0,
-                                                 15, 14, 13, 12, 11, 10, 9, 8};
+  alignas(64) static constexpr int32_t kReverse8[16] = {
+      7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
   const Vec512<int32_t> idx = Load(di, kReverse8);
   return BitCast(d, Vec512<int32_t>{
                         _mm512_permutexvar_epi32(idx.raw, BitCast(di, v).raw)});
@@ -2837,7 +2837,7 @@ template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
 #if HWY_TARGET <= HWY_AVX3_DL
-  alignas(64) constexpr uint8_t kIdx[64] = {
+  alignas(64) static constexpr uint8_t kIdx[64] = {
       1,   3,   5,   7,   9,   11,  13,  15,  17,  19,  21,  23,  25,
       27,  29,  31,  33,  35,  37,  39,  41,  43,  45,  47,  49,  51,
       53,  55,  57,  59,  61,  63,  65,  67,  69,  71,  73,  75,  77,
@@ -2855,7 +2855,7 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const Vec512<uint64_t> u8{_mm512_packus_epi16(uL.raw, uH.raw)};
   // Undo block interleave: lower half = even u64 lanes, upper = odd u64 lanes.
   const Full512<uint64_t> du64;
-  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+  alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
   return BitCast(d, TableLookupLanes(u8, SetTableIndices(du64, kIdx)));
 #endif
 }
@@ -2863,7 +2863,7 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint16_t kIdx[32] = {
+  alignas(64) static constexpr uint16_t kIdx[32] = {
       1,  3,  5,  7,  9,  11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31,
       33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63};
   return BitCast(d, Vec512<uint16_t>{_mm512_mask2_permutex2var_epi16(
@@ -2874,8 +2874,8 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint32_t kIdx[16] = {1,  3,  5,  7,  9,  11, 13, 15,
-                                             17, 19, 21, 23, 25, 27, 29, 31};
+  alignas(64) static constexpr uint32_t kIdx[16] = {
+      1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
   return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi32(
                         BitCast(du, lo).raw, Load(du, kIdx).raw,
                         __mmask16{0xFFFF}, BitCast(du, hi).raw)});
@@ -2884,8 +2884,8 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D>
 HWY_API Vec512<float> ConcatOdd(D d, Vec512<float> hi, Vec512<float> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint32_t kIdx[16] = {1,  3,  5,  7,  9,  11, 13, 15,
-                                             17, 19, 21, 23, 25, 27, 29, 31};
+  alignas(64) static constexpr uint32_t kIdx[16] = {
+      1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
   return Vec512<float>{_mm512_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
                                                     __mmask16{0xFFFF}, hi.raw)};
 }
@@ -2893,7 +2893,7 @@ HWY_API Vec512<float> ConcatOdd(D d, Vec512<float> hi, Vec512<float> lo) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  alignas(64) static constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
   return BitCast(d, Vec512<uint64_t>{_mm512_mask2_permutex2var_epi64(
                         BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
                         BitCast(du, hi).raw)});
@@ -2902,7 +2902,7 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D>
 HWY_API Vec512<double> ConcatOdd(D d, Vec512<double> hi, Vec512<double> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+  alignas(64) static constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
   return Vec512<double>{_mm512_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
                                                      __mmask8{0xFF}, hi.raw)};
 }
@@ -2913,7 +2913,7 @@ template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
 #if HWY_TARGET <= HWY_AVX3_DL
-  alignas(64) constexpr uint8_t kIdx[64] = {
+  alignas(64) static constexpr uint8_t kIdx[64] = {
       0,   2,   4,   6,   8,   10,  12,  14,  16,  18,  20,  22,  24,
       26,  28,  30,  32,  34,  36,  38,  40,  42,  44,  46,  48,  50,
       52,  54,  56,  58,  60,  62,  64,  66,  68,  70,  72,  74,  76,
@@ -2932,7 +2932,7 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const Vec512<uint64_t> u8{_mm512_packus_epi16(uL.raw, uH.raw)};
   // Undo block interleave: lower half = even u64 lanes, upper = odd u64 lanes.
   const Full512<uint64_t> du64;
-  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+  alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
   return BitCast(d, TableLookupLanes(u8, SetTableIndices(du64, kIdx)));
 #endif
 }
@@ -2940,7 +2940,7 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint16_t kIdx[32] = {
+  alignas(64) static constexpr uint16_t kIdx[32] = {
       0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
       32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62};
   return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi16(
@@ -2951,8 +2951,8 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint32_t kIdx[16] = {0,  2,  4,  6,  8,  10, 12, 14,
-                                             16, 18, 20, 22, 24, 26, 28, 30};
+  alignas(64) static constexpr uint32_t kIdx[16] = {
+      0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
   return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi32(
                         BitCast(du, lo).raw, Load(du, kIdx).raw,
                         __mmask16{0xFFFF}, BitCast(du, hi).raw)});
@@ -2961,8 +2961,8 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D>
 HWY_API Vec512<float> ConcatEven(D d, Vec512<float> hi, Vec512<float> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint32_t kIdx[16] = {0,  2,  4,  6,  8,  10, 12, 14,
-                                             16, 18, 20, 22, 24, 26, 28, 30};
+  alignas(64) static constexpr uint32_t kIdx[16] = {
+      0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
   return Vec512<float>{_mm512_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
                                                     __mmask16{0xFFFF}, hi.raw)};
 }
@@ -2970,7 +2970,7 @@ HWY_API Vec512<float> ConcatEven(D d, Vec512<float> hi, Vec512<float> lo) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+  alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
   return BitCast(d, Vec512<uint64_t>{_mm512_mask2_permutex2var_epi64(
                         BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
                         BitCast(du, hi).raw)});
@@ -2979,7 +2979,7 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
 template <class D>
 HWY_API Vec512<double> ConcatEven(D d, Vec512<double> hi, Vec512<double> lo) {
   const RebindToUnsigned<decltype(d)> du;
-  alignas(64) constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+  alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
   return Vec512<double>{_mm512_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
                                                      __mmask8{0xFF}, hi.raw)};
 }
@@ -3357,8 +3357,8 @@ HWY_API Vec64<uint8_t> TruncateTo(D d, const Vec512<uint64_t> v) {
   return LowerHalf(LowerHalf(LowerHalf(bytes)));
 #else
   const Full512<uint32_t> d32;
-  alignas(64) constexpr uint32_t kEven[16] = {0, 2, 4, 6, 8, 10, 12, 14,
-                                              0, 2, 4, 6, 8, 10, 12, 14};
+  alignas(64) static constexpr uint32_t kEven[16] = {0, 2, 4, 6, 8, 10, 12, 14,
+                                                     0, 2, 4, 6, 8, 10, 12, 14};
   const Vec512<uint32_t> even{
       _mm512_permutexvar_epi32(Load(d32, kEven).raw, v.raw)};
   return TruncateTo(d, LowerHalf(even));
@@ -3378,8 +3378,8 @@ HWY_API Vec128<uint16_t> TruncateTo(D /* tag */, const Vec512<uint64_t> v) {
 template <class D, HWY_IF_U32_D(D)>
 HWY_API Vec256<uint32_t> TruncateTo(D /* tag */, const Vec512<uint64_t> v) {
   const Full512<uint32_t> d32;
-  alignas(64) constexpr uint32_t kEven[16] = {0, 2, 4, 6, 8, 10, 12, 14,
-                                              0, 2, 4, 6, 8, 10, 12, 14};
+  alignas(64) static constexpr uint32_t kEven[16] = {0, 2, 4, 6, 8, 10, 12, 14,
+                                                     0, 2, 4, 6, 8, 10, 12, 14};
   const Vec512<uint32_t> even{
       _mm512_permutexvar_epi32(Load(d32, kEven).raw, v.raw)};
   return LowerHalf(even);
@@ -4004,7 +4004,7 @@ HWY_API V Compress(V v, const M mask) {
 template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> Compress(Vec512<T> v, Mask512<T> mask) {
   // See CompressIsPartition. u64 is faster than u32.
-  alignas(16) constexpr uint64_t packed_array[256] = {
+  alignas(16) static constexpr uint64_t packed_array[256] = {
       // From PrintCompress32x8Tables, without the FirstN extension (there is
       // no benefit to including them because 64-bit CompressStore is anyway
       // masked, but also no harm because TableLookupLanes ignores the MSB).
@@ -4057,7 +4057,8 @@ HWY_API Vec512<T> Compress(Vec512<T> v, Mask512<T> mask) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du64;
   const auto packed = Set(du64, packed_array[mask.raw]);
-  alignas(64) constexpr uint64_t shifts[8] = {0, 4, 8, 12, 16, 20, 24, 28};
+  alignas(64) static constexpr uint64_t shifts[8] = {0,  4,  8,  12,
+                                                     16, 20, 24, 28};
   const auto indices = Indices512<T>{(packed >> Load(du64, shifts)).raw};
   return TableLookupLanes(v, indices);
 }
@@ -4072,7 +4073,7 @@ HWY_API V CompressNot(V v, const M mask) {
 template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> CompressNot(Vec512<T> v, Mask512<T> mask) {
   // See CompressIsPartition. u64 is faster than u32.
-  alignas(16) constexpr uint64_t packed_array[256] = {
+  alignas(16) static constexpr uint64_t packed_array[256] = {
       // From PrintCompressNot32x8Tables, without the FirstN extension (there is
       // no benefit to including them because 64-bit CompressStore is anyway
       // masked, but also no harm because TableLookupLanes ignores the MSB).
@@ -4125,7 +4126,8 @@ HWY_API Vec512<T> CompressNot(Vec512<T> v, Mask512<T> mask) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du64;
   const auto packed = Set(du64, packed_array[mask.raw]);
-  alignas(64) constexpr uint64_t shifts[8] = {0, 4, 8, 12, 16, 20, 24, 28};
+  alignas(64) static constexpr uint64_t shifts[8] = {0,  4,  8,  12,
+                                                     16, 20, 24, 28};
   const auto indices = Indices512<T>{(packed >> Load(du64, shifts)).raw};
   return TableLookupLanes(v, indices);
 }
