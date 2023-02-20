@@ -154,6 +154,16 @@
      (defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN))
 #define HWY_BROKEN_TARGETS (HWY_NEON)
 
+// armv7-a without a detected vfpv4 is not supported
+// (for example Cortex-A8, Cortex-A9)
+// vfpv4 always have neon half-float _and_ FMA.
+#elif HWY_ARCH_ARM_V7 && \
+    (__ARM_ARCH_PROFILE == 'A') && \
+    !defined(__ARM_VFPV4__) && \
+        !((__ARM_NEON_FP & 0x2 /* half-float */) && \
+          (__ARM_FEATURE_FMA == 1))
+#define HWY_BROKEN_TARGETS (HWY_NEON)
+
 // SVE[2] require recent clang or gcc versions.
 #elif (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1000)
