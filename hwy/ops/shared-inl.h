@@ -376,7 +376,8 @@ using Twice = typename D::Twice;
   HWY_IF_T_SIZE_ONE_OF(TFromD<D>, bit_array)
 
 #define HWY_IF_LANES_D(D, lanes) HWY_IF_LANES(HWY_MAX_LANES_D(D), lanes)
-#define HWY_IF_LANES_GE_D(D, lanes) HWY_IF_LANES_GE(HWY_MAX_LANES_D(D), lanes)
+#define HWY_IF_LANES_LE_D(D, lanes) HWY_IF_LANES_LE(HWY_MAX_LANES_D(D), lanes)
+#define HWY_IF_LANES_GT_D(D, lanes) HWY_IF_LANES_GT(HWY_MAX_LANES_D(D), lanes)
 #define HWY_IF_LANES_PER_BLOCK_D(D, lanes) \
   HWY_IF_LANES_PER_BLOCK(                  \
       TFromD<D>, HWY_MIN(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>)), lanes)

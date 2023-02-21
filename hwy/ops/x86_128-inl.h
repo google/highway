@@ -155,6 +155,28 @@ struct Mask128 {
   typename detail::Raw128<T>::type raw;
 };
 
+#endif  // AVX2 or below
+
+namespace detail {
+
+// Returns the lowest N of the _mm_movemask* bits.
+template <typename T, size_t N>
+constexpr uint64_t OnlyActive(uint64_t mask_bits) {
+  return ((N * sizeof(T)) == 16) ? mask_bits : mask_bits & ((1ull << N) - 1);
+}
+
+}  // namespace detail
+
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+// Used by Expand() emulation, which is required for both AVX3 and AVX2.
+template <typename T, size_t N>
+HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
+  return OnlyActive<T, N>(mask.raw);
+}
+
+}  // namespace detail
 #endif  // HWY_TARGET <= HWY_AVX3
 
 template <class V>
@@ -6169,12 +6191,6 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T, N> mask) {
   return U64FromInt(_mm_movemask_pd(sign_bits.raw));
 }
 
-// Returns the lowest N of the _mm_movemask* bits.
-template <typename T, size_t N>
-constexpr uint64_t OnlyActive(uint64_t mask_bits) {
-  return ((N * sizeof(T)) == 16) ? mask_bits : mask_bits & ((1ull << N) - 1);
-}
-
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
   return OnlyActive<T, N>(BitsFromMask(hwy::SizeTag<sizeof(T)>(), mask));
@@ -6767,6 +6783,131 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
   detail::MaybeUnpoison(unaligned, count);
   return count;
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
+// ------------------------------ Expand
+
+// Otherwise, use the generic_ops-inl.h fallback.
+#if HWY_TARGET <= HWY_AVX3 || HWY_IDE
+
+// The native instructions for 8/16-bit actually require VBMI2 (HWY_AVX3_DL),
+// but we still want to override generic_ops-inl's table-based implementation
+// whenever we have the 32-bit expand provided by AVX3.
+#ifdef HWY_NATIVE_EXPAND
+#undef HWY_NATIVE_EXPAND
+#else
+#define HWY_NATIVE_EXPAND
+#endif
+
+namespace detail {
+
+#if HWY_TARGET <= HWY_AVX3_DL || HWY_IDE  // VBMI2
+
+template <size_t N>
+HWY_INLINE Vec128<uint8_t, N> NativeExpand(Vec128<uint8_t, N> v,
+                                           Mask128<uint8_t, N> mask) {
+  return Vec128<uint8_t, N>{_mm_maskz_expand_epi8(mask.raw, v.raw)};
+}
+
+template <size_t N>
+HWY_INLINE Vec128<uint16_t, N> NativeExpand(Vec128<uint16_t, N> v,
+                                            Mask128<uint16_t, N> mask) {
+  return Vec128<uint16_t, N>{_mm_maskz_expand_epi16(mask.raw, v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint8_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_maskz_expandloadu_epi8(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint16_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_maskz_expandloadu_epi16(mask.raw, unaligned)};
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
+template <size_t N>
+HWY_INLINE Vec128<uint32_t, N> NativeExpand(Vec128<uint32_t, N> v,
+                                            Mask128<uint32_t, N> mask) {
+  return Vec128<uint32_t, N>{_mm_maskz_expand_epi32(mask.raw, v.raw)};
+}
+
+template <size_t N>
+HWY_INLINE Vec128<uint64_t, N> NativeExpand(Vec128<uint64_t, N> v,
+                                            Mask128<uint64_t, N> mask) {
+  return Vec128<uint64_t, N>{_mm_maskz_expand_epi64(mask.raw, v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint32_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_maskz_expandloadu_epi32(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint64_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm_maskz_expandloadu_epi64(mask.raw, unaligned)};
+}
+
+}  // namespace detail
+
+// Otherwise, 8/16-bit are implemented in x86_512 using PromoteTo.
+#if HWY_TARGET <= HWY_AVX3_DL || HWY_IDE  // VBMI2
+
+template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeExpand(BitCast(du, v), mu));
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
+template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 4) | (1 << 8))>
+HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeExpand(BitCast(du, v), mu));
+}
+
+// ------------------------------ LoadExpand
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI2
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
+#else
+  return Expand(LoadU(d, unaligned), mask);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
+#else
+  return Expand(LoadU(d, unaligned), mask);
+#endif
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3

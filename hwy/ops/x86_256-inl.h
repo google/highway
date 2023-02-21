@@ -158,6 +158,18 @@ struct Mask256 {
   typename detail::Raw256<T>::type raw;
 };
 
+#endif  // AVX2
+
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+// Used by Expand() emulation, which is required for both AVX3 and AVX2.
+template <typename T>
+HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
+  return mask.raw;
+}
+
+}  // namespace detail
 #endif  // HWY_TARGET <= HWY_AVX3
 
 template <typename T>
@@ -5157,6 +5169,257 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
+
+// ------------------------------ Expand
+
+// Always define Expand/LoadExpand because generic_ops only does so for Vec128.
+
+namespace detail {
+
+#if HWY_TARGET <= HWY_AVX3_DL || HWY_IDE  // VBMI2
+
+HWY_INLINE Vec256<uint8_t> NativeExpand(Vec256<uint8_t> v,
+                                        Mask256<uint8_t> mask) {
+  return Vec256<uint8_t>{_mm256_maskz_expand_epi8(mask.raw, v.raw)};
+}
+
+HWY_INLINE Vec256<uint16_t> NativeExpand(Vec256<uint16_t> v,
+                                         Mask256<uint16_t> mask) {
+  return Vec256<uint16_t>{_mm256_maskz_expand_epi16(mask.raw, v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
+HWY_INLINE Vec256<uint8_t> NativeLoadExpand(
+    Mask256<uint8_t> mask, D /* d */, const uint8_t* HWY_RESTRICT unaligned) {
+  return Vec256<uint8_t>{_mm256_maskz_expandloadu_epi8(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_INLINE Vec256<uint16_t> NativeLoadExpand(
+    Mask256<uint16_t> mask, D /* d */, const uint16_t* HWY_RESTRICT unaligned) {
+  return Vec256<uint16_t>{_mm256_maskz_expandloadu_epi16(mask.raw, unaligned)};
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+#if HWY_TARGET <= HWY_AVX3 || HWY_IDE
+
+HWY_INLINE Vec256<uint32_t> NativeExpand(Vec256<uint32_t> v,
+                                         Mask256<uint32_t> mask) {
+  return Vec256<uint32_t>{_mm256_maskz_expand_epi32(mask.raw, v.raw)};
+}
+
+HWY_INLINE Vec256<uint64_t> NativeExpand(Vec256<uint64_t> v,
+                                         Mask256<uint64_t> mask) {
+  return Vec256<uint64_t>{_mm256_maskz_expand_epi64(mask.raw, v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_INLINE Vec256<uint32_t> NativeLoadExpand(
+    Mask256<uint32_t> mask, D /* d */, const uint32_t* HWY_RESTRICT unaligned) {
+  return Vec256<uint32_t>{_mm256_maskz_expandloadu_epi32(mask.raw, unaligned)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
+HWY_INLINE Vec256<uint64_t> NativeLoadExpand(
+    Mask256<uint64_t> mask, D /* d */, const uint64_t* HWY_RESTRICT unaligned) {
+  return Vec256<uint64_t>{_mm256_maskz_expandloadu_epi64(mask.raw, unaligned)};
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3
+
+}  // namespace detail
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> Expand(Vec256<T> v, Mask256<T> mask) {
+  const DFromV<decltype(v)> d;
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI2
+  const RebindToUnsigned<decltype(d)> du;
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeExpand(BitCast(du, v), mu));
+#else
+  // LUTs are infeasible for so many mask combinations, so Combine two
+  // half-vector Expand.
+  const Half<decltype(d)> dh;
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  constexpr size_t N = 32 / sizeof(T);
+  const size_t countL = PopCount(mask_bits & ((1 << (N / 2)) - 1));
+  const Mask128<T> maskL = MaskFromVec(LowerHalf(VecFromMask(d, mask)));
+  const Vec128<T> expandL = Expand(LowerHalf(v), maskL);
+  // We have to shift the input by a variable number of bytes, but there isn't
+  // a table-driven option for that until VBMI, and CPUs with that likely also
+  // have VBMI2 and thus native Expand.
+  alignas(32) T lanes[N];
+  Store(v, d, lanes);
+  const Mask128<T> maskH = MaskFromVec(UpperHalf(dh, VecFromMask(d, mask)));
+  const Vec128<T> expandH = Expand(LoadU(dh, lanes + countL), maskH);
+  return Combine(d, expandH, expandL);
+#endif
+}
+
+// If AVX3, this is already implemented by x86_512.
+#if HWY_TARGET != HWY_AVX3
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec256<T> Expand(Vec256<T> v, Mask256<T> mask) {
+  const Full256<T> d;
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI2
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, detail::NativeExpand(BitCast(du, v), RebindMask(du, mask)));
+#else   // AVX2
+  // LUTs are infeasible for 2^16 possible masks, so splice together two
+  // half-vector Expand.
+  const Half<decltype(d)> dh;
+  const Mask128<T> maskL = MaskFromVec(LowerHalf(VecFromMask(d, mask)));
+  const Vec128<T> expandL = Expand(LowerHalf(v), maskL);
+  // We have to shift the input by a variable number of u16. permutevar_epi16
+  // requires AVX3 and if we had that, we'd use native u32 Expand. The only
+  // alternative is re-loading, which incurs a store to load forwarding stall.
+  alignas(32) T lanes[32 / sizeof(T)];
+  Store(v, d, lanes);
+  const Vec128<T> vH = LoadU(dh, lanes + CountTrue(dh, maskL));
+  const Mask128<T> maskH = MaskFromVec(UpperHalf(dh, VecFromMask(d, mask)));
+  const Vec128<T> expandH = Expand(vH, maskH);
+  return Combine(d, expandH, expandL);
+#endif  // AVX2
+}
+
+#endif  // HWY_TARGET != HWY_AVX3
+
+template <typename T, HWY_IF_T_SIZE(T, 4)>
+HWY_API Vec256<T> Expand(Vec256<T> v, Mask256<T> mask) {
+  const Full256<T> d;
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeExpand(BitCast(du, v), mu));
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+
+  alignas(16) constexpr uint32_t packed_array[256] = {
+      // PrintExpand32x8Nibble.
+      0xffffffff, 0xfffffff0, 0xffffff0f, 0xffffff10, 0xfffff0ff, 0xfffff1f0,
+      0xfffff10f, 0xfffff210, 0xffff0fff, 0xffff1ff0, 0xffff1f0f, 0xffff2f10,
+      0xffff10ff, 0xffff21f0, 0xffff210f, 0xffff3210, 0xfff0ffff, 0xfff1fff0,
+      0xfff1ff0f, 0xfff2ff10, 0xfff1f0ff, 0xfff2f1f0, 0xfff2f10f, 0xfff3f210,
+      0xfff10fff, 0xfff21ff0, 0xfff21f0f, 0xfff32f10, 0xfff210ff, 0xfff321f0,
+      0xfff3210f, 0xfff43210, 0xff0fffff, 0xff1ffff0, 0xff1fff0f, 0xff2fff10,
+      0xff1ff0ff, 0xff2ff1f0, 0xff2ff10f, 0xff3ff210, 0xff1f0fff, 0xff2f1ff0,
+      0xff2f1f0f, 0xff3f2f10, 0xff2f10ff, 0xff3f21f0, 0xff3f210f, 0xff4f3210,
+      0xff10ffff, 0xff21fff0, 0xff21ff0f, 0xff32ff10, 0xff21f0ff, 0xff32f1f0,
+      0xff32f10f, 0xff43f210, 0xff210fff, 0xff321ff0, 0xff321f0f, 0xff432f10,
+      0xff3210ff, 0xff4321f0, 0xff43210f, 0xff543210, 0xf0ffffff, 0xf1fffff0,
+      0xf1ffff0f, 0xf2ffff10, 0xf1fff0ff, 0xf2fff1f0, 0xf2fff10f, 0xf3fff210,
+      0xf1ff0fff, 0xf2ff1ff0, 0xf2ff1f0f, 0xf3ff2f10, 0xf2ff10ff, 0xf3ff21f0,
+      0xf3ff210f, 0xf4ff3210, 0xf1f0ffff, 0xf2f1fff0, 0xf2f1ff0f, 0xf3f2ff10,
+      0xf2f1f0ff, 0xf3f2f1f0, 0xf3f2f10f, 0xf4f3f210, 0xf2f10fff, 0xf3f21ff0,
+      0xf3f21f0f, 0xf4f32f10, 0xf3f210ff, 0xf4f321f0, 0xf4f3210f, 0xf5f43210,
+      0xf10fffff, 0xf21ffff0, 0xf21fff0f, 0xf32fff10, 0xf21ff0ff, 0xf32ff1f0,
+      0xf32ff10f, 0xf43ff210, 0xf21f0fff, 0xf32f1ff0, 0xf32f1f0f, 0xf43f2f10,
+      0xf32f10ff, 0xf43f21f0, 0xf43f210f, 0xf54f3210, 0xf210ffff, 0xf321fff0,
+      0xf321ff0f, 0xf432ff10, 0xf321f0ff, 0xf432f1f0, 0xf432f10f, 0xf543f210,
+      0xf3210fff, 0xf4321ff0, 0xf4321f0f, 0xf5432f10, 0xf43210ff, 0xf54321f0,
+      0xf543210f, 0xf6543210, 0x0fffffff, 0x1ffffff0, 0x1fffff0f, 0x2fffff10,
+      0x1ffff0ff, 0x2ffff1f0, 0x2ffff10f, 0x3ffff210, 0x1fff0fff, 0x2fff1ff0,
+      0x2fff1f0f, 0x3fff2f10, 0x2fff10ff, 0x3fff21f0, 0x3fff210f, 0x4fff3210,
+      0x1ff0ffff, 0x2ff1fff0, 0x2ff1ff0f, 0x3ff2ff10, 0x2ff1f0ff, 0x3ff2f1f0,
+      0x3ff2f10f, 0x4ff3f210, 0x2ff10fff, 0x3ff21ff0, 0x3ff21f0f, 0x4ff32f10,
+      0x3ff210ff, 0x4ff321f0, 0x4ff3210f, 0x5ff43210, 0x1f0fffff, 0x2f1ffff0,
+      0x2f1fff0f, 0x3f2fff10, 0x2f1ff0ff, 0x3f2ff1f0, 0x3f2ff10f, 0x4f3ff210,
+      0x2f1f0fff, 0x3f2f1ff0, 0x3f2f1f0f, 0x4f3f2f10, 0x3f2f10ff, 0x4f3f21f0,
+      0x4f3f210f, 0x5f4f3210, 0x2f10ffff, 0x3f21fff0, 0x3f21ff0f, 0x4f32ff10,
+      0x3f21f0ff, 0x4f32f1f0, 0x4f32f10f, 0x5f43f210, 0x3f210fff, 0x4f321ff0,
+      0x4f321f0f, 0x5f432f10, 0x4f3210ff, 0x5f4321f0, 0x5f43210f, 0x6f543210,
+      0x10ffffff, 0x21fffff0, 0x21ffff0f, 0x32ffff10, 0x21fff0ff, 0x32fff1f0,
+      0x32fff10f, 0x43fff210, 0x21ff0fff, 0x32ff1ff0, 0x32ff1f0f, 0x43ff2f10,
+      0x32ff10ff, 0x43ff21f0, 0x43ff210f, 0x54ff3210, 0x21f0ffff, 0x32f1fff0,
+      0x32f1ff0f, 0x43f2ff10, 0x32f1f0ff, 0x43f2f1f0, 0x43f2f10f, 0x54f3f210,
+      0x32f10fff, 0x43f21ff0, 0x43f21f0f, 0x54f32f10, 0x43f210ff, 0x54f321f0,
+      0x54f3210f, 0x65f43210, 0x210fffff, 0x321ffff0, 0x321fff0f, 0x432fff10,
+      0x321ff0ff, 0x432ff1f0, 0x432ff10f, 0x543ff210, 0x321f0fff, 0x432f1ff0,
+      0x432f1f0f, 0x543f2f10, 0x432f10ff, 0x543f21f0, 0x543f210f, 0x654f3210,
+      0x3210ffff, 0x4321fff0, 0x4321ff0f, 0x5432ff10, 0x4321f0ff, 0x5432f1f0,
+      0x5432f10f, 0x6543f210, 0x43210fff, 0x54321ff0, 0x54321f0f, 0x65432f10,
+      0x543210ff, 0x654321f0, 0x6543210f, 0x76543210,
+  };
+
+  // For lane i, shift the i-th 4-bit index down to bits [0, 3).
+  const Vec256<uint32_t> packed = Set(du, packed_array[mask_bits]);
+  alignas(32) constexpr uint32_t shifts[8] = {0, 4, 8, 12, 16, 20, 24, 28};
+  // TableLookupLanes ignores upper bits; avoid bounds-check in IndicesFromVec.
+  const Indices256<uint32_t> indices{(packed >> Load(du, shifts)).raw};
+  const Vec256<uint32_t> expand = TableLookupLanes(BitCast(du, v), indices);
+  // TableLookupLanes cannot also zero masked-off lanes, so do that now.
+  return IfThenElseZero(mask, BitCast(d, expand));
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec256<T> Expand(Vec256<T> v, Mask256<T> mask) {
+  const Full256<T> d;
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeExpand(BitCast(du, v), mu));
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+
+  alignas(16) constexpr uint64_t packed_array[16] = {
+      // PrintExpand64x4Nibble.
+      0x0000ffff, 0x0000fff0, 0x0000ff0f, 0x0000ff10, 0x0000f0ff, 0x0000f1f0,
+      0x0000f10f, 0x0000f210, 0x00000fff, 0x00001ff0, 0x00001f0f, 0x00002f10,
+      0x000010ff, 0x000021f0, 0x0000210f, 0x00003210};
+
+  // For lane i, shift the i-th 4-bit index down to bits [0, 2).
+  const Vec256<uint64_t> packed = Set(du, packed_array[mask_bits]);
+  alignas(32) constexpr uint64_t shifts[8] = {0, 4, 8, 12, 16, 20, 24, 28};
+#if HWY_TARGET <= HWY_AVX3  // native 64-bit TableLookupLanes
+  // TableLookupLanes ignores upper bits; avoid bounds-check in IndicesFromVec.
+  const Indices256<uint64_t> indices{(packed >> Load(du, shifts)).raw};
+#else
+  // 64-bit TableLookupLanes on AVX2 requires IndicesFromVec, which checks
+  // bounds, so clear the upper bits.
+  const Vec256<uint64_t> masked = And(packed >> Load(du, shifts), Set(du, 3));
+  const Indices256<uint64_t> indices = IndicesFromVec(du, masked);
+#endif
+  const Vec256<uint64_t> expand = TableLookupLanes(BitCast(du, v), indices);
+  // TableLookupLanes cannot also zero masked-off lanes, so do that now.
+  return IfThenElseZero(mask, BitCast(d, expand));
+#endif
+}
+
+// ------------------------------ LoadExpand
+
+template <class D, HWY_IF_V_SIZE_D(D, 32),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3_DL  // VBMI2
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
+#else
+  return Expand(LoadU(d, unaligned), mask);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+#if HWY_TARGET <= HWY_AVX3
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const TU* HWY_RESTRICT pu = reinterpret_cast<const TU*>(unaligned);
+  const MFromD<decltype(du)> mu = RebindMask(du, mask);
+  return BitCast(d, detail::NativeLoadExpand(mu, du, pu));
+#else
+  return Expand(LoadU(d, unaligned), mask);
+#endif
+}
 
 // ------------------------------ LoadInterleaved3/4
 

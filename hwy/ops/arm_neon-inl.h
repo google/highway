@@ -4808,7 +4808,7 @@ HWY_API Vec64<uint32_t> TruncateTo(D /* tag */, Vec128<uint64_t> v) {
   return LowerHalf(v2);
 }
 
-template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GE_D(D, 2)>
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
   const Repartition<uint8_t, DFromV<decltype(v)>> d;
   const auto v1 = BitCast(d, v);
@@ -4817,7 +4817,7 @@ HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
   return LowerHalf(LowerHalf(v3));
 }
 
-template <class D, HWY_IF_U16_D(D), HWY_IF_LANES_GE_D(D, 2)>
+template <class D, HWY_IF_U16_D(D), HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
   const Repartition<uint16_t, DFromV<decltype(v)>> d;
   const auto v1 = BitCast(d, v);
@@ -4825,7 +4825,7 @@ HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
   return LowerHalf(v2);
 }
 
-template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GE_D(D, 2)>
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
   const Repartition<uint8_t, DFromV<decltype(v)>> d;
   const auto v1 = BitCast(d, v);

@@ -2313,6 +2313,47 @@ HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
   return ret;
 }
 
+// ------------------------------ Expand
+
+// Could also just allow generic_ops-inl.h to implement these, but use our
+// simple implementation below to ensure the test is correct.
+#ifdef HWY_NATIVE_EXPAND
+#undef HWY_NATIVE_EXPAND
+#else
+#define HWY_NATIVE_EXPAND
+#endif
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Expand(Vec128<T, N> v, const Mask128<T, N> mask) {
+  size_t in_pos = 0;
+  Vec128<T, N> ret;
+  for (size_t i = 0; i < N; ++i) {
+    if (mask.bits[i]) {
+      ret.raw[i] = v.raw[in_pos++];
+    } else {
+      ret.raw[i] = T();  // zero, also works for float16_t
+    }
+  }
+  return ret;
+}
+
+// ------------------------------ LoadExpand
+
+template <class D>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+  size_t in_pos = 0;
+  VFromD<D> ret;
+  for (size_t i = 0; i < Lanes(d); ++i) {
+    if (mask.bits[i]) {
+      ret.raw[i] = unaligned[in_pos++];
+    } else {
+      ret.raw[i] = TFromD<D>();  // zero, also works for float16_t
+    }
+  }
+  return ret;
+}
+
 // ------------------------------ CompressNot
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {

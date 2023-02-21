@@ -775,6 +775,19 @@ false is zero, true has all bits set:
     d, T* p)</code>: combination of `CompressStore` and `CompressBits`, see
     remarks there.
 
+#### Expand
+
+*   <code>V **Expand**(V v, M m)</code>: returns `r` such that `r[i]` is zero
+    where `m[i]` is false, and otherwise `v[s]`, where `s` is the number of
+    `m[0, i)` which are true. Scatters inputs in ascending index order to the
+    lanes whose mask is true and zeros all other lanes. Potentially slow with 8
+    and 16-bit lanes.
+
+*   <code>V **LoadExpand**(M m, D d, const T* p)</code>: returns `r` such that
+    `r[i]` is zero where `m[i]` is false, and otherwise `p[s]`, where `s` is the
+    number of `m[0, i)` which are true. May be implemented as `LoadU` followed
+    by `Expand`. Potentially slow with 8 and 16-bit lanes.
+
 ### Comparisons
 
 These return a mask (see above) indicating whether the condition is true.

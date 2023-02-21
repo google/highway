@@ -1586,7 +1586,6 @@ HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
 }
 
 // ------------------------------ Compress
-
 template <typename T>
 HWY_API Vec256<T> Compress(const Vec256<T> v, const Mask256<T> mask) {
   const DFromV<decltype(v)> d;
@@ -1611,11 +1610,30 @@ HWY_API Vec256<uint64_t> CompressBlocksNot(Vec256<uint64_t> v,
 }
 
 // ------------------------------ CompressBits
-
 template <typename T>
 HWY_API Vec256<T> CompressBits(Vec256<T> v, const uint8_t* HWY_RESTRICT bits) {
   const Mask256<T> m = LoadMaskBits(DFromV<decltype(v)>(), bits);
   return Compress(v, m);
+}
+
+// ------------------------------ Expand
+template <typename T>
+HWY_API Vec256<T> Expand(const Vec256<T> v, const Mask256<T> mask) {
+  Vec256<T> ret;
+  const Full256<T> d;
+  const Half<decltype(d)> dh;
+  alignas(32) T lanes[32 / sizeof(T)] = {};
+  Store(v, d, lanes);
+  ret.v0 = Expand(v.v0, mask.m0);
+  ret.v1 = Expand(LoadU(dh, lanes + CountTrue(dh, mask.m0)), mask.m1);
+  return ret;
+}
+
+// ------------------------------ LoadExpand
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+  return Expand(LoadU(d, unaligned), mask);
 }
 
 // ------------------------------ LoadInterleaved3/4

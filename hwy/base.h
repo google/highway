@@ -410,7 +410,8 @@ HWY_API constexpr bool IsSame() {
   hwy::EnableIf<(kN * sizeof(T) > bytes)>* = nullptr
 
 #define HWY_IF_LANES(kN, lanes) hwy::EnableIf<(kN == lanes)>* = nullptr
-#define HWY_IF_LANES_GE(kN, lanes) hwy::EnableIf<(kN >= lanes)>* = nullptr
+#define HWY_IF_LANES_LE(kN, lanes) hwy::EnableIf<(kN <= lanes)>* = nullptr
+#define HWY_IF_LANES_GT(kN, lanes) hwy::EnableIf<(kN > lanes)>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
 #define HWY_IF_SIGNED(T) \

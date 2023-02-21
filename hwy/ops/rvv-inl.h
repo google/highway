@@ -711,6 +711,18 @@ namespace detail {
 HWY_RVV_FOREACH_U(HWY_RVV_IOTA, Iota0, id_v, _ALL_VIRT)
 #undef HWY_RVV_IOTA
 
+// Used by Expand.
+#define HWY_RVV_MASKED_IOTA(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                            SHIFT, MLEN, NAME, OP)                           \
+  template <size_t N>                                                        \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
+      NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, HWY_RVV_M(MLEN) mask) {         \
+    return __riscv_v##OP##_##CHAR##SEW##LMUL(mask, Lanes(d));                \
+  }
+
+HWY_RVV_FOREACH_U(HWY_RVV_MASKED_IOTA, MaskedIota, iota_m, _ALL_VIRT)
+#undef HWY_RVV_MASKED_IOTA
+
 }  // namespace detail
 
 // ================================================== LOGICAL
@@ -2360,6 +2372,36 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
 HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather, _ALL)
 #undef HWY_RVV_TABLE
 
+// Used by Expand.
+namespace detail {
+
+#define HWY_RVV_MASKED_TABLE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
+                             SHIFT, MLEN, NAME, OP)                            \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) mask, HWY_RVV_V(BASE, SEW, LMUL) maskedoff,         \
+           HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(uint, SEW, LMUL) idx) {     \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(mask, maskedoff, v, idx,  \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+
+HWY_RVV_FOREACH(HWY_RVV_MASKED_TABLE, MaskedTableLookupLanes, rgather, _ALL)
+#undef HWY_RVV_MASKED_TABLE
+
+#define HWY_RVV_MASKED_TABLE16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,       \
+                               LMULH, SHIFT, MLEN, NAME, OP)                   \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) mask, HWY_RVV_V(BASE, SEW, LMUL) maskedoff,         \
+           HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(uint, SEWD, LMULD) idx) {   \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(mask, maskedoff, v, idx,  \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+
+HWY_RVV_FOREACH_UI08(HWY_RVV_MASKED_TABLE16, MaskedTableLookupLanes16,
+                     rgatherei16, _EXT)
+#undef HWY_RVV_MASKED_TABLE16
+
+}  // namespace detail
+
 // ------------------------------ ConcatOdd (TableLookupLanes)
 template <class D, class V>
 HWY_API V ConcatOdd(D d, const V hi, const V lo) {
@@ -2491,6 +2533,60 @@ struct CompressIsPartition {
 
 HWY_RVV_FOREACH(HWY_RVV_COMPRESS, Compress, compress, _ALL)
 #undef HWY_RVV_COMPRESS
+
+// ------------------------------ Expand
+
+#ifdef HWY_NATIVE_EXPAND
+#undef HWY_NATIVE_EXPAND
+#else
+#define HWY_NATIVE_EXPAND
+#endif
+
+// >= 2-byte lanes: idx lanes will not overflow.
+template <class V, class M, HWY_IF_NOT_T_SIZE_V(V, 1)>
+HWY_API V Expand(V v, const M mask) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto idx = detail::MaskedIota(du, RebindMask(du, mask));
+  const V zero = Zero(d);
+  return detail::MaskedTableLookupLanes(mask, zero, v, idx);
+}
+
+// 1-byte lanes, LMUL < 8: promote idx to u16.
+template <class V, class M, HWY_IF_T_SIZE_V(V, 1), class D = DFromV<V>,
+          HWY_IF_POW2_LE_D(D, 2)>
+HWY_API V Expand(V v, const M mask) {
+  const D d;
+  const Rebind<uint16_t, decltype(d)> du16;
+  const auto idx = detail::MaskedIota(du16, RebindMask(du16, mask));
+  const V zero = Zero(d);
+  return detail::MaskedTableLookupLanes16(mask, zero, v, idx);
+}
+
+// 1-byte lanes, max LMUL: unroll 2x.
+template <class V, class M, HWY_IF_T_SIZE_V(V, 1), class D = DFromV<V>,
+          HWY_IF_POW2_GT_D(DFromV<V>, 2)>
+HWY_API V Expand(V v, const M mask) {
+  const D d;
+  const Half<D> dh;
+  const auto v0 = LowerHalf(dh, v);
+  // TODO(janwas): skip vec<->mask if we can cast masks.
+  const V vmask = VecFromMask(d, mask);
+  const auto m0 = MaskFromVec(LowerHalf(dh, vmask));
+
+  // Cannot just use UpperHalf, must shift by the number of inputs consumed.
+  const size_t count = CountTrue(dh, m0);
+  const auto v1 = detail::Trunc(detail::SlideDown(v, count));
+  const auto m1 = MaskFromVec(UpperHalf(dh, vmask));
+  return Combine(d, Expand(v1, m1), Expand(v0, m0));
+}
+
+// ------------------------------ LoadExpand
+template <class D>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+  return Expand(LoadU(d, unaligned), mask);
+}
 
 // ------------------------------ CompressNot
 template <class V, class M>
@@ -3150,19 +3246,18 @@ HWY_API VFromD<Simd<uint16_t, N, kPow2>> ReorderDemote2To(
 }
 
 // If LMUL is not the max, Combine first to avoid another DemoteTo.
-template <size_t N, int kPow2, hwy::EnableIf<(kPow2 < 3)>* = nullptr,
-          class D32 = RepartitionToWide<Simd<int16_t, N, kPow2>>>
-HWY_API VFromD<Simd<int16_t, N, kPow2>> ReorderDemote2To(
-    Simd<int16_t, N, kPow2> d16, VFromD<D32> a, VFromD<D32> b) {
+template <class D, HWY_IF_I16_D(D), HWY_IF_POW2_LE_D(D, 2),
+          class D32 = RepartitionToWide<D>>
+HWY_API VFromD<D> ReorderDemote2To(D d16, VFromD<D32> a, VFromD<D32> b) {
   const Twice<D32> d32t;
   const VFromD<decltype(d32t)> ab = Combine(d32t, b, a);
   return DemoteTo(d16, ab);
 }
 
 // Max LMUL: must DemoteTo first, then Combine.
-template <size_t N, class V32 = VFromD<RepartitionToWide<Simd<int16_t, N, 3>>>>
-HWY_API VFromD<Simd<int16_t, N, 3>> ReorderDemote2To(Simd<int16_t, N, 3> d16,
-                                                     V32 a, V32 b) {
+template <class D, HWY_IF_I16_D(D), HWY_IF_POW2_GT_D(D, 2),
+          class V32 = VFromD<RepartitionToWide<D>>>
+HWY_API VFromD<D> ReorderDemote2To(D d16, V32 a, V32 b) {
   const Half<decltype(d16)> d16h;
   const VFromD<decltype(d16h)> a16 = DemoteTo(d16h, a);
   const VFromD<decltype(d16h)> b16 = DemoteTo(d16h, b);
@@ -3207,12 +3302,11 @@ HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmacc_vv_, _EXT_VIRT)
 #undef HWY_RVV_WIDEN_MACC
 
 // If LMUL is not the max, we can WidenMul first (3 instructions).
-template <size_t N, int kPow2, hwy::EnableIf<(kPow2 < 3)>* = nullptr,
-          class D32 = Simd<int32_t, N, kPow2>, class V32 = VFromD<D32>,
+template <class D32, HWY_IF_POW2_LE_D(D32, 2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(Simd<int32_t, N, kPow2> d32,
-                                                 VFromD<D16> a, VFromD<D16> b,
-                                                 const V32 sum0, V32& sum1) {
+HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
+                                                 VFromD<D16> b, const V32 sum0,
+                                                 V32& sum1) {
   const Twice<decltype(d32)> d32t;
   using V32T = VFromD<decltype(d32t)>;
   V32T sum = Combine(d32t, sum1, sum0);
@@ -3222,11 +3316,11 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(Simd<int32_t, N, kPow2> d32,
 }
 
 // Max LMUL: must LowerHalf first (4 instructions).
-template <size_t N, class D32 = Simd<int32_t, N, 3>, class V32 = VFromD<D32>,
+template <class D32, HWY_IF_POW2_GT_D(D32, 2), class V32 = VFromD<D32>,
           class D16 = RepartitionToNarrow<D32>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(Simd<int32_t, N, 3> d32,
-                                                 VFromD<D16> a, VFromD<D16> b,
-                                                 const V32 sum0, V32& sum1) {
+HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
+                                                 VFromD<D16> b, const V32 sum0,
+                                                 V32& sum1) {
   const Half<D16> d16h;
   using V16H = VFromD<decltype(d16h)>;
   const V16H a0 = LowerHalf(d16h, a);

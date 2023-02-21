@@ -206,6 +206,44 @@ HWY_API Vec1<T> OrAnd(const Vec1<T> o, const Vec1<T> a1, const Vec1<T> a2) {
   return Or(o, And(a1, a2));
 }
 
+// ------------------------------ Mask
+
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
+HWY_API Mask1<TTo> RebindMask(DTo /*tag*/, Mask1<TFrom> m) {
+  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+  return Mask1<TTo>{m.bits};
+}
+
+// v must be 0 or FF..FF.
+template <typename T>
+HWY_API Mask1<T> MaskFromVec(const Vec1<T> v) {
+  Mask1<T> mask;
+  CopySameSize(&v, &mask);
+  return mask;
+}
+
+template <class D>
+using MFromD = decltype(MaskFromVec(VFromD<D>()));
+
+template <typename T>
+Vec1<T> VecFromMask(const Mask1<T> mask) {
+  Vec1<T> v;
+  CopySameSize(&mask, &v);
+  return v;
+}
+
+template <class D, typename T = TFromD<D>>
+Vec1<T> VecFromMask(D /* tag */, const Mask1<T> mask) {
+  Vec1<T> v;
+  CopySameSize(&mask, &v);
+  return v;
+}
+
+template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API Mask1<T> FirstN(D /*tag*/, size_t n) {
+  return Mask1<T>::FromBool(n != 0);
+}
+
 // ------------------------------ IfVecThenElse
 
 template <typename T>
@@ -249,40 +287,7 @@ HWY_API Vec1<T> PopulationCount(Vec1<T> v) {
   return Vec1<T>(static_cast<T>(PopCount(v.raw)));
 }
 
-// ------------------------------ Mask
-
-template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
-HWY_API Mask1<TTo> RebindMask(DTo /*tag*/, Mask1<TFrom> m) {
-  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask1<TTo>{m.bits};
-}
-
-// v must be 0 or FF..FF.
-template <typename T>
-HWY_API Mask1<T> MaskFromVec(const Vec1<T> v) {
-  Mask1<T> mask;
-  CopySameSize(&v, &mask);
-  return mask;
-}
-
-template <typename T>
-Vec1<T> VecFromMask(const Mask1<T> mask) {
-  Vec1<T> v;
-  CopySameSize(&mask, &v);
-  return v;
-}
-
-template <class D, typename T = TFromD<D>>
-Vec1<T> VecFromMask(D /* tag */, const Mask1<T> mask) {
-  Vec1<T> v;
-  CopySameSize(&mask, &v);
-  return v;
-}
-
-template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
-HWY_API Mask1<T> FirstN(D /*tag*/, size_t n) {
-  return Mask1<T>::FromBool(n != 0);
-}
+// ------------------------------ IfThenElse
 
 // Returns mask ? yes : no.
 template <typename T>
@@ -1594,6 +1599,27 @@ HWY_API size_t CompressBitsStore(Vec1<T> v, const uint8_t* HWY_RESTRICT bits,
   const Mask1<T> mask = LoadMaskBits(d, bits);
   StoreU(Compress(v, mask), d, unaligned);
   return CountTrue(d, mask);
+}
+
+// ------------------------------ Expand
+
+// generic_ops-inl.h requires Vec64/128, so implement [Load]Expand here.
+#ifdef HWY_NATIVE_EXPAND
+#undef HWY_NATIVE_EXPAND
+#else
+#define HWY_NATIVE_EXPAND
+#endif
+
+template <typename T>
+HWY_API Vec1<T> Expand(Vec1<T> v, const Mask1<T> mask) {
+  return IfThenElseZero(mask, v);
+}
+
+// ------------------------------ LoadExpand
+template <class D>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+  return MaskedLoad(mask, d, unaligned);
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
