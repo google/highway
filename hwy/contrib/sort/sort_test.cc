@@ -113,7 +113,7 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
         LaneType* HWY_RESTRICT lanes = aligned_lanes.get() + misalign;
         if (kDebug) {
           printf("============%s asc %d N1 %d len %d misalign %d\n",
-                 st.KeyString().c_str(), asc, static_cast<int>(N1),
+                 st.KeyString(), asc, static_cast<int>(N1),
                  static_cast<int>(len), static_cast<int>(misalign));
         }
 
@@ -179,7 +179,7 @@ static HWY_NOINLINE void TestBaseCase01() {
 
   for (size_t len : lengths) {
     if (kDebug) {
-      printf("============%s 01 N1 %d len %d\n", st.KeyString().c_str(),
+      printf("============%s 01 N1 %d len %d\n", st.KeyString(),
              static_cast<int>(N1), static_cast<int>(len));
     }
     const uint64_t kMaxBits = AdjustedLog2Reps(HWY_MIN(len, size_t{14}));
@@ -250,7 +250,7 @@ static HWY_NOINLINE void VerifyPartition(
       HWY_ABORT(
           "%s: asc %d left[%d] piv %.0f %.0f compares before %.0f %.0f "
           "border %d",
-          st.KeyString().c_str(), asc, static_cast<int>(i),
+          st.KeyString(), asc, static_cast<int>(i),
           static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
           static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i + 0]),
           static_cast<int>(border));
@@ -261,7 +261,7 @@ static HWY_NOINLINE void VerifyPartition(
       HWY_ABORT(
           "%s: asc %d right[%d] piv %.0f %.0f compares after %.0f %.0f "
           "border %d",
-          st.KeyString().c_str(), asc, static_cast<int>(i),
+          st.KeyString(), asc, static_cast<int>(i),
           static_cast<double>(pivot[1]), static_cast<double>(pivot[0]),
           static_cast<double>(lanes[i + 1]), static_cast<double>(lanes[i]),
           static_cast<int>(border));
@@ -302,7 +302,7 @@ static HWY_NOINLINE void TestPartition() {
             if (kDebug) {
               printf(
                   "=========%s asc %d left %d len %d right %d piv %.0f %.0f\n",
-                  st.KeyString().c_str(), asc, static_cast<int>(left),
+                  st.KeyString(), asc, static_cast<int>(left),
                   static_cast<int>(len), static_cast<int>(right),
                   static_cast<double>(pivot2[1]),
                   static_cast<double>(pivot2[0]));
@@ -465,14 +465,15 @@ class CompareResults {
         if (sizeof(KeyType) == 16) {
           fprintf(stderr,
                   "%s Asc %d mismatch at %d of %d: %" PRIu64 " %" PRIu64 "\n",
-                  st.KeyString().c_str(), Order().IsAscending(),
-                  static_cast<int>(i), static_cast<int>(copy_.size()),
+                  st.KeyString(), Order().IsAscending(), static_cast<int>(i),
+                  static_cast<int>(copy_.size()),
                   static_cast<uint64_t>(copy_[i]),
                   static_cast<uint64_t>(output[i]));
         } else {
-          fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: ",
-                  st.KeyString().c_str(), Order().IsAscending(),
-                  static_cast<int>(i), static_cast<int>(copy_.size()));
+          fprintf(stderr,
+                  "Type %s Asc %d mismatch at %d of %d: ", st.KeyString(),
+                  Order().IsAscending(), static_cast<int>(i),
+                  static_cast<int>(copy_.size()));
           PrintValue(copy_[i]);
           PrintValue(output[i]);
           fprintf(stderr, "\n");

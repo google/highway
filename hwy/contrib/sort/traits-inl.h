@@ -22,8 +22,6 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_TRAITS_TOGGLE
 #endif
 
-#include <string>
-
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/contrib/sort/vqsort.h"      // SortDescending
 #include "hwy/highway.h"
@@ -34,17 +32,10 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 namespace detail {
 
-#if VQSORT_ENABLED || HWY_IDE
-
-// Highway does not provide a lane type for 128-bit keys, so we use uint64_t
-// along with an abstraction layer for single-lane vs. lane-pair, which is
-// independent of the order.
+// Base class of both KeyLane (with or without VQSORT_ENABLED)
 template <typename T>
-struct KeyLane {
+struct KeyLaneBase {
   static constexpr bool Is128() { return false; }
-  // False indicates the entire key (i.e. lane) should be compared. KV stands
-  // for key-value.
-  static constexpr bool IsKV() { return false; }
   constexpr size_t LanesPerKey() const { return 1; }
 
   // What type bench_sort should allocate for generating inputs.
@@ -52,11 +43,29 @@ struct KeyLane {
   // What type to pass to Sorter::operator().
   using KeyType = T;
 
-  std::string KeyString() const {
-    char string100[100];
-    hwy::detail::TypeName(hwy::detail::MakeTypeInfo<KeyType>(), 1, string100);
-    return string100;
+  const char* KeyString() const {
+    return IsSame<T, float>()      ? "f32"
+           : IsSame<T, double>()   ? "f64"
+           : IsSame<T, int16_t>()  ? "i16"
+           : IsSame<T, int32_t>()  ? "i32"
+           : IsSame<T, int64_t>()  ? "i64"
+           : IsSame<T, uint16_t>() ? "u32"
+           : IsSame<T, uint32_t>() ? "u32"
+           : IsSame<T, uint64_t>() ? "u64"
+                                   : "?";
   }
+};
+
+#if VQSORT_ENABLED || HWY_IDE
+
+// Highway does not provide a lane type for 128-bit keys, so we use uint64_t
+// along with an abstraction layer for single-lane vs. lane-pair, which is
+// independent of the order.
+template <typename T>
+struct KeyLane : public KeyLaneBase<T> {
+  // False indicates the entire key (i.e. lane) should be compared. KV stands
+  // for key-value.
+  static constexpr bool IsKV() { return false; }
 
   // For HeapSort
   HWY_INLINE void Swap(T* a, T* b) const {
@@ -501,24 +510,8 @@ struct TraitsLane : public Base {
 
 #else
 
-// Base class shared between OrderAscending, OrderDescending.
 template <typename T>
-struct KeyLane {
-  constexpr bool Is128() const { return false; }
-  constexpr size_t LanesPerKey() const { return 1; }
-
-  using LaneType = T;
-  using KeyType = T;
-
-  std::string KeyString() const {
-    char string100[100];
-    hwy::detail::TypeName(hwy::detail::MakeTypeInfo<KeyType>(), 1, string100);
-    return string100;
-  }
-};
-
-template <typename T>
-struct OrderAscending : public KeyLane<T> {
+struct OrderAscending : public KeyLaneBase<T> {
   using Order = SortAscending;
 
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *a < *b; }
@@ -530,7 +523,7 @@ struct OrderAscending : public KeyLane<T> {
 };
 
 template <typename T>
-struct OrderDescending : public KeyLane<T> {
+struct OrderDescending : public KeyLaneBase<T> {
   using Order = SortDescending;
 
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *b < *a; }

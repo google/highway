@@ -27,7 +27,7 @@
 #if HWY_COMPILER_MSVC
 #include <string.h>  // memcpy
 #endif
-#if HWY_ARCH_X86
+#if HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)
 #include <atomic>
 #endif
 
@@ -175,7 +175,7 @@
 // Compile-time fence to prevent undesirable code reordering. On Clang x86, the
 // typical asm volatile("" : : : "memory") has no effect, whereas atomic fence
 // does, without generating code.
-#if HWY_ARCH_X86
+#if HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)
 #define HWY_FENCE std::atomic_thread_fence(std::memory_order_acq_rel)
 #else
 // TODO(janwas): investigate alternatives. On ARM, the above generates barriers.

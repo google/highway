@@ -72,7 +72,7 @@ namespace HWY_NAMESPACE {
 struct Result {
   Result() {}
   Result(const Algo algo, Dist dist, size_t num_keys, size_t num_threads,
-         double sec, size_t sizeof_key, const std::string& key_name)
+         double sec, size_t sizeof_key, const char* key_name)
       : target(HWY_TARGET),
         algo(algo),
         dist(dist),

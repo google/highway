@@ -130,7 +130,7 @@ struct Key128 : public KeyAny128 {
   // What type to pass to Sorter::operator().
   using KeyType = hwy::uint128_t;
 
-  std::string KeyString() const { return "U128"; }
+  const char* KeyString() const { return "U128"; }
 
   template <class D>
   HWY_INLINE Mask<D> EqualKeys(D d, Vec<D> a, Vec<D> b) const {
@@ -271,7 +271,7 @@ struct KeyValue128 : public KeyAny128 {
   // What type to pass to Sorter::operator().
   using KeyType = K64V64;
 
-  std::string KeyString() const { return "KV128"; }
+  const char* KeyString() const { return "KV128"; }
 
   template <class D>
   HWY_INLINE Mask<D> EqualKeys(D d, Vec<D> a, Vec<D> b) const {
