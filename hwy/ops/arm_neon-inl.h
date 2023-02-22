@@ -2708,7 +2708,7 @@ HWY_API Vec32<float> LoadU(D /*tag*/, const float* HWY_RESTRICT p) {
   return Vec32<float>(vld1_dup_f32(p));
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 4),
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_NOT_SPECIAL_FLOAT_D(D),
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
 HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   const Repartition<uint32_t, decltype(d)> d32;
@@ -3774,7 +3774,7 @@ HWY_API Vec64<bfloat16_t> UpperHalf(D dbh, Vec128<bfloat16_t> v) {
 }
 
 // Partial
-template <class DH, HWY_IF_V_SIZE_LE_D(DH, 8)>
+template <class DH, HWY_IF_V_SIZE_LE_D(DH, 4)>
 HWY_API VFromD<DH> UpperHalf(DH dh, VFromD<Twice<DH>> v) {
   const Twice<DH> d;
   const RebindToUnsigned<decltype(d)> du;

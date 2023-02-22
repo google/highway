@@ -3146,7 +3146,7 @@ HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
     // instruction for variable-shift-reg, but we can splice.
     const V vH = detail::Splice(v, v, next);
     input_consumed += PopCount(mask_bits);
-    next = detail::GeN(iota, input_consumed);
+    next = detail::GeN(iota, static_cast<TFromV<V>>(input_consumed));
 
     const auto idx = detail::LaneIndicesFromByteIndices(
         d, detail::IndicesForExpandFromBits(mask_bits));
@@ -3170,7 +3170,9 @@ HWY_API V Expand(V v, svbool_t mask) {
   // We want to skip past the v bytes already consumed by expandL. There is no
   // instruction for shift-reg by variable bytes, but we can splice. Instead of
   // GeN, Not(FirstN()) would also work.
-  const V vH = detail::Splice(v, v, detail::GeN(Iota(d, 0), PopCount(maskL)));
+  using T = TFromV<V>;
+  const T countL = static_cast<T>(PopCount(maskL));
+  const V vH = detail::Splice(v, v, detail::GeN(Iota(d, 0), countL));
 
   const svuint8_t idxL = detail::IndicesForExpandFromBits(maskL);
   const svuint8_t idxH = detail::IndicesForExpandFromBits(maskH);
