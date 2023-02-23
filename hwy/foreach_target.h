@@ -229,6 +229,28 @@
 #endif
 #endif
 
+#if (HWY_TARGETS & HWY_PPC9) && (HWY_STATIC_TARGET != HWY_PPC9)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_PPC9
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
+
+#if (HWY_TARGETS & HWY_PPC10) && (HWY_STATIC_TARGET != HWY_PPC10)
+#undef HWY_TARGET
+#define HWY_TARGET HWY_PPC10
+#include HWY_TARGET_INCLUDE
+#ifdef HWY_TARGET_TOGGLE
+#undef HWY_TARGET_TOGGLE
+#else
+#define HWY_TARGET_TOGGLE
+#endif
+#endif
+
 #endif  // !HWY_IDE && (HWY_TARGETS != HWY_STATIC_TARGET)
 
 // Now that all but the static target have been generated, re-enable HWY_EXPORT.

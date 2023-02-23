@@ -707,7 +707,7 @@ HWY_API void StoreInterleaved3(V part0, V part1, V part2, D d,
   const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
   const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
   const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
-  const V B{(B0 | B1 | B2).raw};
+  const V B{BitCast(d_full, B0 | B1 | B2).raw};
   StoreU(B, d, unaligned + 1 * kFullN);
 }
 
