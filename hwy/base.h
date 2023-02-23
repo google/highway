@@ -414,14 +414,17 @@ HWY_API constexpr bool IsSame() {
 #define HWY_IF_LANES_GT(kN, lanes) hwy::EnableIf<(kN > lanes)>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!IsSigned<T>()>* = nullptr
-#define HWY_IF_SIGNED(T) \
-  hwy::EnableIf<IsSigned<T>() && !IsFloat<T>()>* = nullptr
+#define HWY_IF_SIGNED(T)                                                   \
+  hwy::EnableIf<IsSigned<T>() && !IsFloat<T>() && !IsSpecialFloat<T>()>* = \
+      nullptr
 #define HWY_IF_FLOAT(T) hwy::EnableIf<hwy::IsFloat<T>()>* = nullptr
 #define HWY_IF_NOT_FLOAT(T) hwy::EnableIf<!hwy::IsFloat<T>()>* = nullptr
 #define HWY_IF_SPECIAL_FLOAT(T) \
   hwy::EnableIf<hwy::IsSpecialFloat<T>()>* = nullptr
 #define HWY_IF_NOT_SPECIAL_FLOAT(T) \
   hwy::EnableIf<!hwy::IsSpecialFloat<T>()>* = nullptr
+#define HWY_IF_NOT_FLOAT_NOR_SPECIAL(T) \
+  hwy::EnableIf<!hwy::IsFloat<T>() && !hwy::IsSpecialFloat<T>()>* = nullptr
 
 #define HWY_IF_T_SIZE(T, bytes) hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
 #define HWY_IF_NOT_T_SIZE(T, bytes) \

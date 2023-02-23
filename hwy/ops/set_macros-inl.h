@@ -219,8 +219,9 @@
 #endif  // HWY_TARGET == HWY_AVX3_DL
 
 //-----------------------------------------------------------------------------
-// PPC8
-#elif HWY_TARGET == HWY_PPC8
+// PPC8, PPC9, PPC10
+#elif HWY_TARGET == HWY_PPC8 || HWY_TARGET == HWY_PPC9 || \
+    HWY_TARGET == HWY_PPC10
 
 #define HWY_ALIGN alignas(16)
 #define HWY_MAX_BYTES 16
@@ -235,51 +236,18 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
+#if HWY_TARGET == HWY_PPC8
 #define HWY_NAMESPACE N_PPC8
-
 #define HWY_TARGET_STR HWY_TARGET_STR_PPC8
-
-//-----------------------------------------------------------------------------
-// PPC9
 #elif HWY_TARGET == HWY_PPC9
-
-#define HWY_ALIGN alignas(16)
-#define HWY_MAX_BYTES 16
-#define HWY_LANES(T) (16 / sizeof(T))
-
-#define HWY_HAVE_SCALABLE 0
-#define HWY_HAVE_INTEGER64 1
-#define HWY_HAVE_FLOAT16 0
-#define HWY_HAVE_FLOAT64 1
-#define HWY_MEM_OPS_MIGHT_FAULT 1
-#define HWY_NATIVE_FMA 1
-#define HWY_CAP_GE256 0
-#define HWY_CAP_GE512 0
-
 #define HWY_NAMESPACE N_PPC9
-
 #define HWY_TARGET_STR HWY_TARGET_STR_PPC9
-
-//-----------------------------------------------------------------------------
-// PPC10
 #elif HWY_TARGET == HWY_PPC10
-
-#define HWY_ALIGN alignas(16)
-#define HWY_MAX_BYTES 16
-#define HWY_LANES(T) (16 / sizeof(T))
-
-#define HWY_HAVE_SCALABLE 0
-#define HWY_HAVE_INTEGER64 1
-#define HWY_HAVE_FLOAT16 0
-#define HWY_HAVE_FLOAT64 1
-#define HWY_MEM_OPS_MIGHT_FAULT 1
-#define HWY_NATIVE_FMA 1
-#define HWY_CAP_GE256 0
-#define HWY_CAP_GE512 0
-
 #define HWY_NAMESPACE N_PPC10
-
 #define HWY_TARGET_STR HWY_TARGET_STR_PPC10
+#else
+#error "Logic error"
+#endif
 
 //-----------------------------------------------------------------------------
 // NEON

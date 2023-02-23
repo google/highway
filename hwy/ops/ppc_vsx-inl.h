@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC
+// Copyright 2023 Google LLC
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,6 @@
 #pragma pop_macro("pixel")
 #pragma pop_macro("bool")
 
-#include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>  // memcpy
@@ -58,9 +57,9 @@ struct Raw128;
 // - AlignedLoadStoreRawVectType:
 //   the GCC/Clang vector type that is used for an aligned load of a full
 //   16-byte vector
-// - AlignedLoadStoreRawVectType:
+// - UnalignedLoadStoreRawVectType:
 //   the GCC/Clang vector type that is used for an unaligned load of a full
-//   16-bit vector
+//   16-byte vector
 #define HWY_VSX_RAW128_SPECIALIZE(LANE_TYPE, RAW_VECT_LANE_TYPE, \
                                   RAW_BOOL_VECT_LANE_TYPE) \
 template<> \
@@ -325,6 +324,9 @@ HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
 
 // ================================================== MEMORY (1)
 
+// Note: type punning is safe because the types are tagged with may_alias.
+// (https://godbolt.org/z/fqrWjfjsP)
+
 // ------------------------------ Load
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
@@ -453,11 +455,8 @@ HWY_API Vec128<int64_t, N> BroadcastSignBit(Vec128<int64_t, N> v) {
 
 // ------------------------------ ShiftLeftSame
 
-template <typename T, size_t N,
-          hwy::EnableIf<!hwy::IsFloat<T>() &&
-                        !hwy::IsSpecialFloat<T>()>* = nullptr>
-HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v,
-                                   const int bits) {
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v, const int bits) {
   using UnsignedLaneT =
     typename detail::Raw128<MakeUnsigned<T>>::RawVectLaneType;
   return Vec128<T, N>{vec_sl(v.raw, vec_splats(
@@ -475,12 +474,8 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v,
     static_cast<UnsignedLaneT>(bits)))};
 }
 
-template <typename T, size_t N,
-          hwy::EnableIf<hwy::IsSigned<T>() &&
-                        !hwy::IsFloat<T>() &&
-                        !hwy::IsSpecialFloat<T>()>* = nullptr>
-HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v,
-                                    const int bits) {
+template <typename T, size_t N, HWY_IF_SIGNED(T)>
+HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, const int bits) {
   using UnsignedLaneT =
     typename detail::Raw128<MakeUnsigned<T>>::RawVectLaneType;
   return Vec128<T, N>{vec_sra(v.raw, vec_splats(
@@ -489,9 +484,7 @@ HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v,
 
 // ------------------------------ ShiftLeft
 
-template <int kBits, typename T, size_t N,
-          hwy::EnableIf<!hwy::IsFloat<T>() &&
-                        !hwy::IsSpecialFloat<T>()>* = nullptr>
+template <int kBits, typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> ShiftLeft(Vec128<T, N> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
   return ShiftLeftSame(v, kBits);
@@ -499,9 +492,7 @@ HWY_API Vec128<T, N> ShiftLeft(Vec128<T, N> v) {
 
 // ------------------------------ ShiftRight
 
-template <int kBits, typename T, size_t N,
-          hwy::EnableIf<!hwy::IsFloat<T>() &&
-                        !hwy::IsSpecialFloat<T>()>* = nullptr>
+template <int kBits, typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
   return ShiftRightSame(v, kBits);
@@ -1407,12 +1398,9 @@ HWY_API Vec128<T, N> InsertLane(Vec128<T, N> v, size_t i, T t) {
 
 // ------------------------------ CombineShiftRightBytes
 
-// NOTE: The ShiftRightLanes operation below moves the elements of lo to the
-// left by kBytes bytes and moves the elements of hi right by
-// (d.MaxBytes() - kBytes) bytes on both little-endian and big-endian
-// PPC targets
-// (same behavior as the CombineShiftRightBytes operation on both little-endian
-// and big-endian targets)
+// NOTE: The CombineShiftRightBytes operation below moves the elements of lo to
+// the left by kBytes bytes and moves the elements of hi right by (d.MaxBytes()
+// - kBytes) bytes on both little-endian and big-endian PPC targets.
 
 template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> CombineShiftRightBytes(D /*d*/, Vec128<T> hi, Vec128<T> lo) {
@@ -2102,7 +2090,7 @@ HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a,
 #endif
 #else
   alignas(16) uint64_t mul[2];
-  const Half<Full128<uint64_t>> d2;
+  const Full64<uint64_t> d2;
   mul[0] =
       Mul128(GetLane(UpperHalf(d2, a)), GetLane(UpperHalf(d2, b)), &mul[1]);
   return Load(Full128<uint64_t>(), mul);
@@ -2130,7 +2118,7 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
   return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
 }
 
-// Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
+// Even if N=1, the input is always at least 2 lanes, hence vec_msum is safe.
 template <class D32, HWY_IF_I32_D(D32),
           class V16 = VFromD<RepartitionToNarrow<D32>>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 /* tag */, V16 a, V16 b,
@@ -2254,14 +2242,13 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
 
 template <class D, class FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
           hwy::EnableIf<(sizeof(FromT) >= sizeof(TFromD<D>) * 2)>* = nullptr,
-          HWY_IF_LANES(HWY_MAX_LANES_D(D), 1)>
+          HWY_IF_LANES_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, Vec128<FromT, 1> v) {
   return VFromD<D>{(typename detail::Raw128<TFromD<D>>::type)v.raw};
 }
 
 template <class D, class FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
-          HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2),
-          HWY_IF_LANES_GE(HWY_MAX_LANES_D(D), 2)>
+          HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2), HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */,
                              Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   return VFromD<D>{vec_pack(v.raw, v.raw)};
@@ -2269,7 +2256,7 @@ HWY_API VFromD<D> TruncateTo(D /* tag */,
 
 template <class D, class FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
           hwy::EnableIf<(sizeof(FromT) >= sizeof(TFromD<D>) * 4)>* = nullptr,
-          HWY_IF_LANES_GE(HWY_MAX_LANES_D(D), 2)>
+          HWY_IF_LANES_GT_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D d,
                              Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   const Rebind<MakeNarrow<FromT>, decltype(d)> d2;
@@ -2278,34 +2265,23 @@ HWY_API VFromD<D> TruncateTo(D d,
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
-template <class D, class FromT, HWY_IF_V_SIZE_LE_D(D, 8),
-          HWY_IF_UNSIGNED_D(D), HWY_IF_T_SIZE_ONE_OF_D(D, 0x6),
-          hwy::EnableIf<hwy::IsSigned<FromT>() &&
-                        !hwy::IsFloat<FromT>() &&
-                        !hwy::IsSpecialFloat<FromT>()>* = nullptr,
+template <class D, class FromT, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_UNSIGNED_D(D),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)), HWY_IF_SIGNED(FromT),
           HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2)>
 HWY_API VFromD<D> DemoteTo(D /* tag */,
                            Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   return VFromD<D>{vec_packsu(v.raw, v.raw)};
 }
 
-template <class D, class FromT, HWY_IF_V_SIZE_LE_D(D, 8),
-          hwy::EnableIf<hwy::IsSigned<TFromD<D>>() &&
-                        !hwy::IsFloat<TFromD<D>>() &&
-                        !hwy::IsSpecialFloat<TFromD<D>>()>* = nullptr,
-          HWY_IF_T_SIZE_ONE_OF_D(D, 0x6),
-          hwy::EnableIf<hwy::IsSigned<FromT>() &&
-                        !hwy::IsFloat<FromT>() &&
-                        !hwy::IsSpecialFloat<FromT>()>* = nullptr,
+template <class D, class FromT, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_SIGNED_D(D),
+          HWY_IF_SIGNED(FromT), HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
           HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2)>
 HWY_API VFromD<D> DemoteTo(D /* tag */,
                            Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   return VFromD<D>{vec_packs(v.raw, v.raw)};
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4),
-          hwy::EnableIf<IsSame<TFromD<D>, uint8_t>() ||
-                        IsSame<TFromD<D>, int8_t>()>* = nullptr>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int32_t, D>> v) {
   const Rebind<int16_t, decltype(d)> di16;
   return DemoteTo(d, DemoteTo(di16, v));
@@ -2668,7 +2644,7 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
 }
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
-template <class D, hwy::EnableIf<(HWY_MAX_LANES_D(D) <= 8)>* = nullptr>
+template <class D, HWY_IF_LANES_LE_D(D, 8)>
 HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   // If there are 8 or fewer lanes, simply convert bits[0] to a uint64_t
   uint64_t mask_bits = bits[0];
@@ -2838,7 +2814,7 @@ HWY_INLINE uint64_t BitsFromMask(Mask128<T, N> mask) {
 }  // namespace detail
 
 // `p` points to at least 8 writable bytes.
-template <class D, hwy::EnableIf<(HWY_MAX_LANES_D(D) <= 8)>* = nullptr>
+template <class D, HWY_IF_LANES_LE_D(D, 8)>
 HWY_API size_t StoreMaskBits(D /*d*/, MFromD<D> mask, uint8_t* bits) {
   // For vectors with 8 or fewer lanes, simply cast the result of BitsFromMask
   // to an uint8_t and store the result in bits[0].
@@ -2941,14 +2917,9 @@ HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
   const Twice<decltype(d8)> d8t;
   const RebindToUnsigned<decltype(d)> du;
 
-  // compress_epi16 requires VBMI2 and there is no permutevar_epi16, so we need
-  // byte indices for PSHUFB (one vector's worth for each of 256 combinations of
-  // 8 mask bits). Loading them directly would require 4 KiB. We can instead
-  // store lane indices and convert to byte indices (2*lane + 0..1), with the
-  // doubling baked into the table. AVX2 Compress32 stores eight 4-bit lane
-  // indices (total 1 KiB), broadcasts them into each 32-bit lane and shifts.
-  // Here, 16-bit lanes are too narrow to hold all bits, and unpacking nibbles
-  // is likely more costly than the higher cache footprint from storing bytes.
+  // To reduce cache footprint, store lane indices and convert to byte indices
+  // (2*lane + 0..1), with the doubling baked into the table. It's not clear
+  // that the additional cost of unpacking nibbles is worthwhile.
   alignas(16) static constexpr uint8_t table[2048] = {
       // PrintCompress16x8Tables
       0,  2,  4,  6,  8,  10, 12, 14, /**/ 0, 2,  4,  6,  8,  10, 12, 14,  //
@@ -3098,14 +3069,9 @@ HWY_INLINE VFromD<D> IndicesFromNotBits128(D d, uint64_t mask_bits) {
   const Twice<decltype(d8)> d8t;
   const RebindToUnsigned<decltype(d)> du;
 
-  // compress_epi16 requires VBMI2 and there is no permutevar_epi16, so we need
-  // byte indices for PSHUFB (one vector's worth for each of 256 combinations of
-  // 8 mask bits). Loading them directly would require 4 KiB. We can instead
-  // store lane indices and convert to byte indices (2*lane + 0..1), with the
-  // doubling baked into the table. AVX2 Compress32 stores eight 4-bit lane
-  // indices (total 1 KiB), broadcasts them into each 32-bit lane and shifts.
-  // Here, 16-bit lanes are too narrow to hold all bits, and unpacking nibbles
-  // is likely more costly than the higher cache footprint from storing bytes.
+  // To reduce cache footprint, store lane indices and convert to byte indices
+  // (2*lane + 0..1), with the doubling baked into the table. It's not clear
+  // that the additional cost of unpacking nibbles is worthwhile.
   alignas(16) static constexpr uint8_t table[2048] = {
       // PrintCompressNot16x8Tables
       0, 2,  4,  6,  8,  10, 12, 14, /**/ 2,  4,  6,  8,  10, 12, 14, 0,   //
