@@ -97,9 +97,9 @@
 
 // --------------------------- IBM Power: 9 targets (+ one fallback)
 // Bits 43..46 reserved (4 targets)
-#define HWY_PPC10 (1LL << 47) // v3.1
-#define HWY_PPC9 (1LL << 48)  // v3.0
-#define HWY_PPC8 (1LL << 49)  // v2.07
+#define HWY_PPC10 (1LL << 47)  // v3.1
+#define HWY_PPC9 (1LL << 48)   // v3.0
+#define HWY_PPC8 (1LL << 49)   // v2.07
 // Bits 50..51 reserved for prior VSX/AltiVec (2 targets)
 #define HWY_HIGHEST_TARGET_BIT_PPC 51
 
