@@ -2843,10 +2843,9 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
       53,  55,  57,  59,  61,  63,  65,  67,  69,  71,  73,  75,  77,
       79,  81,  83,  85,  87,  89,  91,  93,  95,  97,  99,  101, 103,
       105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127};
-  return BitCast(d,
-                 Vec512<uint8_t>{_mm512_mask2_permutex2var_epi8(
-                     BitCast(du, lo).raw, Load(du, kIdx).raw,
-                     __mmask64{0xFFFFFFFFFFFFFFFFull}, BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint8_t>{_mm512_permutex2var_epi8(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 #else
   const RepartitionToWide<decltype(du)> dw;
   // Right-shift 8 bits per u16 so we can pack.
@@ -2866,9 +2865,9 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   alignas(64) static constexpr uint16_t kIdx[32] = {
       1,  3,  5,  7,  9,  11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31,
       33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63};
-  return BitCast(d, Vec512<uint16_t>{_mm512_mask2_permutex2var_epi16(
-                        BitCast(du, lo).raw, Load(du, kIdx).raw,
-                        __mmask32{0xFFFFFFFFu}, BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint16_t>{_mm512_permutex2var_epi16(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
@@ -2876,9 +2875,9 @@ HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint32_t kIdx[16] = {
       1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
-  return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi32(
-                        BitCast(du, lo).raw, Load(du, kIdx).raw,
-                        __mmask16{0xFFFF}, BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint32_t>{_mm512_permutex2var_epi32(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 }
 
 template <class D>
@@ -2886,25 +2885,25 @@ HWY_API Vec512<float> ConcatOdd(D d, Vec512<float> hi, Vec512<float> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint32_t kIdx[16] = {
       1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
-  return Vec512<float>{_mm512_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
-                                                    __mmask16{0xFFFF}, hi.raw)};
+  return Vec512<float>{
+      _mm512_permutex2var_ps(lo.raw, Load(du, kIdx).raw, hi.raw)};
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> ConcatOdd(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
-  return BitCast(d, Vec512<uint64_t>{_mm512_mask2_permutex2var_epi64(
-                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
-                        BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint64_t>{_mm512_permutex2var_epi64(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 }
 
 template <class D>
 HWY_API Vec512<double> ConcatOdd(D d, Vec512<double> hi, Vec512<double> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint64_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
-  return Vec512<double>{_mm512_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
-                                                     __mmask8{0xFF}, hi.raw)};
+  return Vec512<double>{
+      _mm512_permutex2var_pd(lo.raw, Load(du, kIdx).raw, hi.raw)};
 }
 
 // ------------------------------ ConcatEven
@@ -2919,10 +2918,9 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
       52,  54,  56,  58,  60,  62,  64,  66,  68,  70,  72,  74,  76,
       78,  80,  82,  84,  86,  88,  90,  92,  94,  96,  98,  100, 102,
       104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 126};
-  return BitCast(d,
-                 Vec512<uint32_t>{_mm512_mask2_permutex2var_epi8(
-                     BitCast(du, lo).raw, Load(du, kIdx).raw,
-                     __mmask64{0xFFFFFFFFFFFFFFFFull}, BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint32_t>{_mm512_permutex2var_epi8(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 #else
   const RepartitionToWide<decltype(du)> dw;
   // Isolate lower 8 bits per u16 so we can pack.
@@ -2943,9 +2941,9 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   alignas(64) static constexpr uint16_t kIdx[32] = {
       0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
       32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62};
-  return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi16(
-                        BitCast(du, lo).raw, Load(du, kIdx).raw,
-                        __mmask32{0xFFFFFFFFu}, BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint32_t>{_mm512_permutex2var_epi16(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
@@ -2953,9 +2951,9 @@ HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint32_t kIdx[16] = {
       0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-  return BitCast(d, Vec512<uint32_t>{_mm512_mask2_permutex2var_epi32(
-                        BitCast(du, lo).raw, Load(du, kIdx).raw,
-                        __mmask16{0xFFFF}, BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint32_t>{_mm512_permutex2var_epi32(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 }
 
 template <class D>
@@ -2963,25 +2961,25 @@ HWY_API Vec512<float> ConcatEven(D d, Vec512<float> hi, Vec512<float> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint32_t kIdx[16] = {
       0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-  return Vec512<float>{_mm512_mask2_permutex2var_ps(lo.raw, Load(du, kIdx).raw,
-                                                    __mmask16{0xFFFF}, hi.raw)};
+  return Vec512<float>{
+      _mm512_permutex2var_ps(lo.raw, Load(du, kIdx).raw, hi.raw)};
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec512<T> ConcatEven(D d, Vec512<T> hi, Vec512<T> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
-  return BitCast(d, Vec512<uint64_t>{_mm512_mask2_permutex2var_epi64(
-                        BitCast(du, lo).raw, Load(du, kIdx).raw, __mmask8{0xFF},
-                        BitCast(du, hi).raw)});
+  return BitCast(
+      d, Vec512<uint64_t>{_mm512_permutex2var_epi64(
+             BitCast(du, lo).raw, Load(du, kIdx).raw, BitCast(du, hi).raw)});
 }
 
 template <class D>
 HWY_API Vec512<double> ConcatEven(D d, Vec512<double> hi, Vec512<double> lo) {
   const RebindToUnsigned<decltype(d)> du;
   alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
-  return Vec512<double>{_mm512_mask2_permutex2var_pd(lo.raw, Load(du, kIdx).raw,
-                                                     __mmask8{0xFF}, hi.raw)};
+  return Vec512<double>{
+      _mm512_permutex2var_pd(lo.raw, Load(du, kIdx).raw, hi.raw)};
 }
 
 // ------------------------------ DupEven (InterleaveLower)
