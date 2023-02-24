@@ -83,10 +83,8 @@ export QEMU_LD_PREFIX=/usr/powerpc64le-linux-gnu
 rm -rf build_ppc8
 mkdir build_ppc8
 cd build_ppc8
-CC=powerpc64le-linux-gnu-gcc-12 CXX=powerpc64le-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64le-static -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_C_FLAGS='-mcpu=power9 -mno-power9-vector -mpower8-vector -DHWY_DISABLED_TARGETS=6917951240106147840' -DCMAKE_CXX_FLAGS='-mcpu=power9 -mno-power9-vector -mpower8-vector -DHWY_DISABLED_TARGETS=6917951240106147840' -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
-make -j
-ctest
-cd ..
+CC=powerpc64le-linux-gnu-gcc-12 CXX=powerpc64le-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64le-static -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_C_FLAGS='-mcpu=power9 -mno-power9-vector -mpower8-vector -DHWY_DISABLED_TARGETS=6917951240106147840' -DCMAKE_CXX_FLAGS='-mcpu=power9 -mno-power9-vector -mpower8-vector -DHWY_DISABLED_TARGETS=6917951240106147840'
+make -j && ctest && cd ..
 rm -rf build_ppc8
 
 #######################################
@@ -96,9 +94,7 @@ rm -rf build_ppc9
 mkdir build_ppc9
 cd build_ppc9
 CC=clang-15 CXX=clang++-15 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_C_FLAGS='-mcpu=power9 -DHWY_DISABLED_TARGETS=6918232715082858496' -DCMAKE_CXX_FLAGS='-mcpu=power9 -DHWY_DISABLED_TARGETS=6918232715082858496'
-make -j
-ctest
-cd ..
+make -j && ctest && cd ..
 rm -rf build_ppc9
 
 
