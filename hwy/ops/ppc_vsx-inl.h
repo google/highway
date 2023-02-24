@@ -1971,7 +1971,6 @@ HWY_INLINE Vec128<T, N> OddEven(Vec128<T, N> a, Vec128<T, N> b) {
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE Vec128<T, N> OddEven(Vec128<T, N> a, Vec128<T, N> b) {
-  const DFromV<decltype(a)> d;
   const __vector unsigned char mask = {0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0,
                                        0xFF, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0};
   return IfVecThenElse(BitCast(Simd<T, N, 0>(), Vec128<uint8_t, N * 2>{mask}),
@@ -1980,7 +1979,6 @@ HWY_INLINE Vec128<T, N> OddEven(Vec128<T, N> a, Vec128<T, N> b) {
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_INLINE Vec128<T, N> OddEven(Vec128<T, N> a, Vec128<T, N> b) {
-  const DFromV<decltype(a)> d;
   const __vector unsigned char mask = {0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0,
                                        0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0};
   return IfVecThenElse(BitCast(Simd<T, N, 0>(), Vec128<uint8_t, N * 4>{mask}),
@@ -1991,7 +1989,6 @@ template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
 HWY_INLINE Vec128<T, N> OddEven(Vec128<T, N> a, Vec128<T, N> b) {
   // Same as ConcatUpperLower for full vectors; do not call that because this
   // is more efficient for 64x1 vectors.
-  const DFromV<decltype(a)> d;
   const __vector unsigned char mask = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0, 0, 0, 0, 0, 0, 0, 0};
