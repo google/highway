@@ -95,6 +95,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "AVX3";
     case HWY_AVX3_DL:
       return "AVX3_DL";
+    case HWY_AVX3_ZEN4:
+      return "AVX3_ZEN4";
 #endif
 
 #if HWY_ARCH_ARM
@@ -184,22 +186,22 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
 // HWY_MAX_DYNAMIC_TARGETS) bit. This list must contain exactly
 // HWY_MAX_DYNAMIC_TARGETS elements and does not include SCALAR. The first entry
 // corresponds to the best target. Don't include a "," at the end of the list.
-#define HWY_CHOOSE_TARGET_LIST(func_name)                   \
-  nullptr,                           /* reserved */         \
-      nullptr,                       /* reserved */         \
-      nullptr,                       /* reserved */         \
-      nullptr,                       /* reserved */         \
-      nullptr,                       /* reserved */         \
-      nullptr,                       /* reserved */         \
-      nullptr,                       /* reserved */         \
-      HWY_CHOOSE_AVX3_DL(func_name), /* AVX3_DL */          \
-      HWY_CHOOSE_AVX3(func_name),    /* AVX3 */             \
-      HWY_CHOOSE_AVX2(func_name),    /* AVX2 */             \
-      nullptr,                       /* AVX */              \
-      HWY_CHOOSE_SSE4(func_name),    /* SSE4 */             \
-      HWY_CHOOSE_SSSE3(func_name),   /* SSSE3 */            \
-      nullptr ,                       /* reserved - SSE3? */ \
-      nullptr                        /* reserved - SSE2? */
+#define HWY_CHOOSE_TARGET_LIST(func_name)                     \
+  nullptr,                             /* reserved */         \
+      nullptr,                         /* reserved */         \
+      nullptr,                         /* reserved */         \
+      nullptr,                         /* reserved */         \
+      nullptr,                         /* reserved */         \
+      nullptr,                         /* reserved */         \
+      HWY_CHOOSE_AVX3_ZEN4(func_name), /* AVX3_ZEN4 */        \
+      HWY_CHOOSE_AVX3_DL(func_name),   /* AVX3_DL */          \
+      HWY_CHOOSE_AVX3(func_name),      /* AVX3 */             \
+      HWY_CHOOSE_AVX2(func_name),      /* AVX2 */             \
+      nullptr,                         /* AVX */              \
+      HWY_CHOOSE_SSE4(func_name),      /* SSE4 */             \
+      HWY_CHOOSE_SSSE3(func_name),     /* SSSE3 */            \
+      nullptr,                         /* reserved - SSE3? */ \
+      nullptr                          /* reserved - SSE2? */
 
 #elif HWY_ARCH_ARM
 // See HWY_ARCH_X86 above for details.

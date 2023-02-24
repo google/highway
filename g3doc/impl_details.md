@@ -222,8 +222,8 @@ and avoid duplicating those functions in x86_256 and x86_512), we use
 When adding a new op, it is often necessary to consult the reference for each
 platform's intrinsics.
 
-For x86 targets `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`, `HWY_AVX3_DL`
-Intel provides a
+For x86 targets `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`, `HWY_AVX3_DL`,
+`HWY_AVX3_ZEN4` Intel provides a
 [searchable reference](https://www.intel.com/content/www/us/en/docs/intrinsics-guide).
 
 For Arm targets `HWY_NEON`, `HWY_SVE` (plus its specialization for 256-bit

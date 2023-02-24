@@ -98,6 +98,10 @@
   HWY_TARGET_STR_SSE4 ",avx,avx2" HWY_TARGET_STR_BMI2_FMA HWY_TARGET_STR_F16C
 #define HWY_TARGET_STR_AVX3 \
   HWY_TARGET_STR_AVX2 ",avx512f,avx512vl,avx512dq,avx512bw"
+#define HWY_TARGET_STR_AVX3_DL                                    \
+  HWY_TARGET_STR_AVX3                                             \
+  ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avxvnni,avx512bitalg," \
+  "avx512vpopcntdq"
 
 #if defined(HWY_DISABLE_PPC8_CRYPTO)
 #define HWY_TARGET_STR_PPC8_CRYPTO ""
@@ -186,7 +190,8 @@
 
 //-----------------------------------------------------------------------------
 // AVX3[_DL]
-#elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL
+#elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL || \
+    HWY_TARGET == HWY_AVX3_ZEN4
 
 #define HWY_ALIGN alignas(64)
 #define HWY_MAX_BYTES 64
@@ -209,10 +214,13 @@
 #elif HWY_TARGET == HWY_AVX3_DL
 
 #define HWY_NAMESPACE N_AVX3_DL
-#define HWY_TARGET_STR                                            \
-  HWY_TARGET_STR_AVX3                                             \
-  ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avxvnni,avx512bitalg," \
-  "avx512vpopcntdq"
+#define HWY_TARGET_STR HWY_TARGET_STR_AVX3_DL
+
+#elif HWY_TARGET == HWY_AVX3_ZEN4
+
+#define HWY_NAMESPACE N_AVX3_ZEN4
+// Currently the same as HWY_AVX3_DL: both support Icelake.
+#define HWY_TARGET_STR HWY_TARGET_STR_AVX3_DL
 
 #else
 #error "Logic error"

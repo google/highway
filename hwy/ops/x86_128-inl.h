@@ -6123,7 +6123,8 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     T* HWY_RESTRICT unaligned) {
   // AVX-512 already does the blending at no extra cost (latency 11,
   // rthroughput 2 - same as compress plus store).
-  if (HWY_TARGET <= HWY_AVX3_DL || sizeof(T) > 2) {
+  if (HWY_TARGET == HWY_AVX3_DL ||
+      (HWY_TARGET != HWY_AVX3_ZEN4 && sizeof(T) > 2)) {
     // We're relying on the mask to blend. Clear the undefined upper bits.
     constexpr size_t kN = MaxLanes(d);
     if (kN != 16 / sizeof(T)) {

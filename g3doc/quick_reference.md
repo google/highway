@@ -229,9 +229,9 @@ Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
 ## Targets
 
 Let `Target` denote an instruction set, one of
-`SCALAR/EMU128/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/NEON/SVE/SVE2/WASM/RVV`. Each of
-these is represented by a `HWY_Target` (for example, `HWY_SSE4`) macro which
-expands to a unique power-of-two value.
+`SCALAR/EMU128/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/AVX3_ZEN4/NEON/SVE/SVE2/WASM/RVV`.
+Each of these is represented by a `HWY_Target` (for example, `HWY_SSE4`) macro
+which expands to a unique power-of-two value.
 
 Note that x86 CPUs are segmented into dozens of feature flags and capabilities,
 which are often used together because they were introduced in the same CPU

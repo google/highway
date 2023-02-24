@@ -226,12 +226,15 @@ int64_t DetectTargets() {
 
 #if HWY_ARCH_X86
   bool has_osxsave = false;
+  bool is_amd = false;
   {  // ensures we do not accidentally use flags outside this block
     uint64_t flags = 0;
     uint32_t abcd[4];
 
     Cpuid(0, 0, abcd);
     const uint32_t max_level = abcd[0];
+    is_amd = max_level >= 1 && abcd[1] == 0x68747541 && abcd[2] == 0x444d4163 &&
+             abcd[3] == 0x69746e65;
 
     // Standard feature flags
     Cpuid(1, 0, abcd);
@@ -309,6 +312,12 @@ int64_t DetectTargets() {
     if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
       bits &= ~min_avx3;
     }
+  }
+
+  // This is mainly to work around the slow Zen4 CompressStore. It's unclear
+  // whether subsequent AMD models will be affected; assume yes.
+  if ((bits & HWY_AVX3_DL) && is_amd) {
+    bits |= HWY_AVX3_ZEN4;
   }
 
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {

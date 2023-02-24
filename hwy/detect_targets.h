@@ -58,7 +58,10 @@
 // left-shifting 2^62), but still do not use bit 63 because it is the sign bit.
 
 // --------------------------- x86: 15 targets (+ one fallback)
-// Bits 0..6 reserved (7 targets)
+// Bits 0..5 reserved (6 targets)
+// Currently HWY_AVX3_DL plus a special case for CompressStore (10x as fast).
+// We may later also use VPCONFLICT.
+#define HWY_AVX3_ZEN4 (1LL << 6)
 // Currently satisfiable by Ice Lake (VNNI, VPCLMULQDQ, VPOPCNTDQ, VBMI, VBMI2,
 // VAES, BITALG). Later to be added: BF16 (Cooper Lake). VP2INTERSECT is only in
 // Tiger Lake? We do not yet have uses for GFNI.
@@ -135,7 +138,8 @@
 // x86 clang-6: we saw multiple AVX2/3 compile errors and in one case invalid
 // SSE4 codegen (possibly only for msan), so disable all those targets.
 #if HWY_ARCH_X86 && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700)
-#define HWY_BROKEN_TARGETS (HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL)
+#define HWY_BROKEN_TARGETS \
+  (HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4)
 // This entails a major speed reduction, so warn unless the user explicitly
 // opts in to scalar-only.
 #if !defined(HWY_COMPILE_ONLY_SCALAR)
@@ -144,11 +148,11 @@
 
 // 32-bit may fail to compile AVX2/3.
 #elif HWY_ARCH_X86_32
-#define HWY_BROKEN_TARGETS (HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL)
+#define HWY_BROKEN_TARGETS (HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4)
 
 // MSVC AVX3 support is buggy: https://github.com/Mysticial/Flops/issues/16
 #elif HWY_COMPILER_MSVC != 0
-#define HWY_BROKEN_TARGETS (HWY_AVX3 | HWY_AVX3_DL)
+#define HWY_BROKEN_TARGETS (HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4)
 
 // armv7be has not been tested and is not yet supported.
 #elif HWY_ARCH_ARM_V7 &&          \
@@ -382,8 +386,10 @@
     defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) &&            \
     defined(__AVX512BITALG__)
 #define HWY_BASELINE_AVX3_DL HWY_AVX3_DL
+#define HWY_BASELINE_AVX3_ZEN4 HWY_AVX3_ZEN4
 #else
 #define HWY_BASELINE_AVX3_DL 0
+#define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
 #if HWY_ARCH_RVV && defined(__riscv_vector)
@@ -396,10 +402,10 @@
 #ifndef HWY_BASELINE_TARGETS
 #define HWY_BASELINE_TARGETS                                     \
   (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | \
-   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 | \
-   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSSE3 | \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 | \
-   HWY_BASELINE_AVX3_DL | HWY_BASELINE_RVV)
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 |  \
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSSE3 |   \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |   \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_RVV)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -469,7 +475,7 @@
 #if HWY_ARCH_X86
 #define HWY_ATTAINABLE_TARGETS                                        \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | \
-              HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL)
+              HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4)
 #elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
 #define HWY_ATTAINABLE_TARGETS                                      \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_NEON | HWY_ATTAINABLE_SVE | \
