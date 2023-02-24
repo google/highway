@@ -241,6 +241,10 @@ For WebAssembly target `HWY_WASM`, we recommend consulting the
 There is also an unofficial
 [searchable list of intrinsics](https://nemequ.github.io/waspr/intrinsics).
 
+For POWER8/9/10, there is [documentation of intrinsics](https://files.openpower.foundation/s/9nRDmJgfjM8MpR7),
+the [ISA](https://files.openpower.foundation/s/dAYSdGzTfW4j2r2), plus a
+[searchable reference](https://www.ibm.com/docs/en/openxl-c-and-cpp-aix/17.1.1?).
+
 ## Why scalar target
 
 There can be various reasons to avoid using vector intrinsics:
