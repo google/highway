@@ -1538,6 +1538,10 @@ HWY_API Vec256<uint64_t> SumsOf8(Vec256<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
 }
 
+HWY_API Vec256<uint64_t> SumsOf8AbsDiff(Vec256<uint8_t> a, Vec256<uint8_t> b) {
+  return Vec256<uint64_t>{_mm256_sad_epu8(a.raw, b.raw)};
+}
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.

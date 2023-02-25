@@ -3089,7 +3089,7 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Abs, fsgnjx, _ALL)
 #undef HWY_RVV_RETV_ARGV2
 
 // ------------------------------ AbsDiff (Abs, Sub)
-template <class V>
+template <class V, HWY_IF_FLOAT_V(V)>
 HWY_API V AbsDiff(const V a, const V b) {
   return Abs(Sub(a, b));
 }

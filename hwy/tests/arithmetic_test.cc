@@ -478,6 +478,58 @@ HWY_NOINLINE void TestAllMinMax128Upper() {
   ForGEVectors<128, TestMinMax128Upper>()(uint64_t());
 }
 
+struct TestIntegerAbsDiff {
+  template<typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
+  static inline T ScalarAbsDiff(T a, T b) {
+    using TW = MakeSigned<MakeWide<T>>;
+    const auto diff = static_cast<TW>(a) - static_cast<TW>(b);
+    return static_cast<T>((diff >= 0) ? diff : -diff);
+  }
+  template<typename T, HWY_IF_T_SIZE(T, 8)>
+  static inline T ScalarAbsDiff(T a, T b) {
+    using TU = MakeUnsigned<T>;
+    const auto diff = static_cast<TU>(a) - static_cast<TU>(b);
+    return static_cast<T>((a >= b) ? diff : -diff);
+  }
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto in_lanes_a = AllocateAligned<T>(N);
+    auto in_lanes_b = AllocateAligned<T>(N);
+    auto out_lanes = AllocateAligned<T>(N);
+    constexpr size_t shift_amt_mask = sizeof(T) * 8 - 1;
+    for (size_t i = 0; i < N; ++i) {
+      // Need to mask out shift_amt as i can be greater than or equal to
+      // the number of bits in T if T is int8_t, uint8_t, int16_t, or uint16_t.
+      const auto shift_amt = i & shift_amt_mask;
+      in_lanes_a[i] =
+        static_cast<T>((static_cast<uint64_t>(i) ^ 1u) << shift_amt);
+      in_lanes_b[i] =
+        static_cast<T>(static_cast<uint64_t>(i) << shift_amt);
+      out_lanes[i] = ScalarAbsDiff(in_lanes_a[i], in_lanes_b[i]);
+    }
+    const auto a = Load(d, in_lanes_a.get());
+    const auto b = Load(d, in_lanes_b.get());
+    const auto expected = Load(d, out_lanes.get());
+    HWY_ASSERT_VEC_EQ(d, expected, AbsDiff(a, b));
+    HWY_ASSERT_VEC_EQ(d, expected, AbsDiff(b, a));
+  }
+};
+
+HWY_NOINLINE void TestAllIntegerAbsDiff() {
+  ForPartialVectors<TestIntegerAbsDiff>()(int8_t());
+  ForPartialVectors<TestIntegerAbsDiff>()(uint8_t());
+  ForPartialVectors<TestIntegerAbsDiff>()(int16_t());
+  ForPartialVectors<TestIntegerAbsDiff>()(uint16_t());
+  ForPartialVectors<TestIntegerAbsDiff>()(int32_t());
+  ForPartialVectors<TestIntegerAbsDiff>()(uint32_t());
+#if HWY_HAVE_INTEGER64
+  ForPartialVectors<TestIntegerAbsDiff>()(int64_t());
+  ForPartialVectors<TestIntegerAbsDiff>()(uint64_t());
+#endif
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -495,6 +547,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax128);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllMinMax128Upper);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerAbsDiff);
 }  // namespace hwy
 
 #endif

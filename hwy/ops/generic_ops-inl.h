@@ -963,6 +963,37 @@ HWY_API void StoreInterleaved4(V part0, V part1, V part2, V part3, D d,
 
 #endif  // HWY_NATIVE_LOAD_STORE_INTERLEAVED
 
+// ------------------------------ Integer AbsDiff and SumsOf8AbsDiff
+
+#if (defined(HWY_NATIVE_INTEGER_ABS_DIFF) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INTEGER_ABS_DIFF
+#undef HWY_NATIVE_INTEGER_ABS_DIFF
+#else
+#define HWY_NATIVE_INTEGER_ABS_DIFF
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V AbsDiff(V a, V b) {
+  return Sub(Max(a, b), Min(a, b));
+}
+
+#endif  // HWY_NATIVE_INTEGER_ABS_DIFF
+
+#if (defined(HWY_NATIVE_SUMS_OF_8_ABS_DIFF) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+#undef HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+#else
+#define HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+#endif
+
+template <class V, HWY_IF_U8_D(DFromV<V>),
+          HWY_IF_V_SIZE_GT_D(DFromV<V>, (HWY_TARGET == HWY_SCALAR ? 0 : 4))>
+HWY_API Vec<Repartition<uint64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
+  return SumsOf8(AbsDiff(a, b));
+}
+
+#endif  // HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+
 // ------------------------------ AESRound
 
 // Cannot implement on scalar: need at least 16 bytes for TableLookupBytes.

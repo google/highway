@@ -1800,6 +1800,78 @@ HWY_API Vec128<float, N> AbsDiff(const Vec128<float, N> a,
   return Vec128<float, N>(vabd_f32(a.raw, b.raw));
 }
 
+#ifdef HWY_NATIVE_INTEGER_ABS_DIFF
+#undef HWY_NATIVE_INTEGER_ABS_DIFF
+#else
+#define HWY_NATIVE_INTEGER_ABS_DIFF
+#endif
+
+HWY_API Vec128<int8_t> AbsDiff(const Vec128<int8_t> a,
+                               const Vec128<int8_t> b) {
+  return Vec128<int8_t>(vabdq_s8(a.raw, b.raw));
+}
+
+HWY_API Vec128<uint8_t> AbsDiff(const Vec128<uint8_t> a,
+                                const Vec128<uint8_t> b) {
+  return Vec128<uint8_t>(vabdq_u8(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(uint8_t, N, 8)>
+HWY_API Vec128<int8_t, N> AbsDiff(const Vec128<int8_t, N> a,
+                                  const Vec128<int8_t, N> b) {
+  return Vec128<int8_t, N>(vabd_s8(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(uint8_t, N, 8)>
+HWY_API Vec128<uint8_t, N> AbsDiff(const Vec128<uint8_t, N> a,
+                                   const Vec128<uint8_t, N> b) {
+  return Vec128<uint8_t, N>(vabd_u8(a.raw, b.raw));
+}
+
+HWY_API Vec128<int16_t> AbsDiff(const Vec128<int16_t> a,
+                                const Vec128<int16_t> b) {
+  return Vec128<int16_t>(vabdq_s16(a.raw, b.raw));
+}
+
+HWY_API Vec128<uint16_t> AbsDiff(const Vec128<uint16_t> a,
+                                 const Vec128<uint16_t> b) {
+  return Vec128<uint16_t>(vabdq_u16(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(uint16_t, N, 8)>
+HWY_API Vec128<int16_t, N> AbsDiff(const Vec128<int16_t, N> a,
+                                   const Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>(vabd_s16(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(uint16_t, N, 8)>
+HWY_API Vec128<uint16_t, N> AbsDiff(const Vec128<uint16_t, N> a,
+                                    const Vec128<uint16_t, N> b) {
+  return Vec128<uint16_t, N>(vabd_u16(a.raw, b.raw));
+}
+
+HWY_API Vec128<int32_t> AbsDiff(const Vec128<int32_t> a,
+                                const Vec128<int32_t> b) {
+  return Vec128<int32_t>(vabdq_s32(a.raw, b.raw));
+}
+
+HWY_API Vec128<uint32_t> AbsDiff(const Vec128<uint32_t> a,
+                                 const Vec128<uint32_t> b) {
+  return Vec128<uint32_t>(vabdq_u32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(uint32_t, N, 8)>
+HWY_API Vec128<int32_t, N> AbsDiff(const Vec128<int32_t, N> a,
+                                   const Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>(vabd_s32(a.raw, b.raw));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(uint32_t, N, 8)>
+HWY_API Vec128<uint32_t, N> AbsDiff(const Vec128<uint32_t, N> a,
+                                    const Vec128<uint32_t, N> b) {
+  return Vec128<uint32_t, N>(vabd_u32(a.raw, b.raw));
+}
+
 // ------------------------------ Floating-point multiply-add variants
 
 // Returns add + mul * x
@@ -2073,6 +2145,20 @@ HWY_API Vec128<T, N> operator|(const Vec128<T, N> a, const Vec128<T, N> b) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
   return Xor(a, b);
+}
+
+// ------------------------------ I64/U64 AbsDiff
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> AbsDiff(const Vec128<int64_t, N> a,
+                                   const Vec128<int64_t, N> b) {
+  return Max(a, b) - Min(a, b);
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> AbsDiff(const Vec128<uint64_t, N> a,
+                                    const Vec128<uint64_t, N> b) {
+  return Or(detail::SaturatedSub(a, b), detail::SaturatedSub(b, a));
 }
 
 // ------------------------------ PopulationCount

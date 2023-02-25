@@ -2440,6 +2440,18 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
   return Vec128<uint64_t, N / 8>{_mm_sad_epu8(v.raw, _mm_setzero_si128())};
 }
 
+#ifdef HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+#undef HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+#else
+#define HWY_NATIVE_SUMS_OF_8_ABS_DIFF
+#endif
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N / 8> SumsOf8AbsDiff(const Vec128<uint8_t, N> a,
+                                               const Vec128<uint8_t, N> b) {
+  return Vec128<uint64_t, N / 8>{_mm_sad_epu8(a.raw, b.raw)};
+}
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.

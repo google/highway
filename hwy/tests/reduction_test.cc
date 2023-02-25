@@ -244,6 +244,49 @@ HWY_NOINLINE void TestAllSumsOf8() {
   ForGEVectors<64, TestSumsOf8>()(uint8_t());
 }
 
+struct TestSumsOf8AbsDiff {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    const size_t N = Lanes(d);
+    if (N < 8) return;
+    const Repartition<uint64_t, D> du64;
+
+    auto in_lanes_a = AllocateAligned<T>(N);
+    auto in_lanes_b = AllocateAligned<T>(N);
+    auto sum_lanes = AllocateAligned<uint64_t>(N / 8);
+
+    for (size_t rep = 0; rep < 100; ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        uint64_t rand64_val = Random64(&rng);
+        in_lanes_a[i] = rand64_val & 0xFF;
+        in_lanes_b[i] = (rand64_val >> 8) & 0xFF;
+      }
+
+      for (size_t idx_sum = 0; idx_sum < N / 8; ++idx_sum) {
+        uint64_t sum = 0;
+        for (size_t i = 0; i < 8; ++i) {
+          const auto lane_diff =
+            static_cast<int16_t>(in_lanes_a[idx_sum * 8 + i]) -
+            static_cast<int16_t>(in_lanes_b[idx_sum * 8 + i]);
+          sum +=
+            static_cast<uint64_t>((lane_diff >= 0) ? lane_diff : -lane_diff);
+        }
+        sum_lanes[idx_sum] = sum;
+      }
+
+      const Vec<D> a = Load(d, in_lanes_a.get());
+      const Vec<D> b = Load(d, in_lanes_b.get());
+      HWY_ASSERT_VEC_EQ(du64, sum_lanes.get(), SumsOf8AbsDiff(a, b));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllSumsOf8AbsDiff() {
+  ForGEVectors<64, TestSumsOf8AbsDiff>()(uint8_t());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -256,6 +299,7 @@ HWY_BEFORE_TEST(HwyReductionTest);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf8);
+HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf8AbsDiff);
 }  // namespace hwy
 
 #endif
