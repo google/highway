@@ -21,6 +21,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <utility>
 
 #include "hwy/highway_export.h"
 
