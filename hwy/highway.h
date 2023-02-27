@@ -167,7 +167,7 @@ namespace hwy {
 #endif
 
 #if HWY_TARGETS & HWY_PPC8
-#define HWY_CHOOSE_PCC8(FUNC_NAME) &N_PPC8::FUNC_NAME
+#define HWY_CHOOSE_PPC8(FUNC_NAME) &N_PPC8::FUNC_NAME
 #else
 #define HWY_CHOOSE_PPC8(FUNC_NAME) nullptr
 #endif

@@ -224,7 +224,7 @@
 
 #else
 #error "Logic error"
-#endif  // HWY_TARGET == HWY_AVX3_DL
+#endif  // HWY_TARGET == HWY_AVX3_ZEN4
 
 //-----------------------------------------------------------------------------
 // PPC8, PPC9, PPC10
@@ -245,17 +245,23 @@
 #define HWY_CAP_GE512 0
 
 #if HWY_TARGET == HWY_PPC8
+
 #define HWY_NAMESPACE N_PPC8
 #define HWY_TARGET_STR HWY_TARGET_STR_PPC8
+
 #elif HWY_TARGET == HWY_PPC9
+
 #define HWY_NAMESPACE N_PPC9
 #define HWY_TARGET_STR HWY_TARGET_STR_PPC9
+
 #elif HWY_TARGET == HWY_PPC10
+
 #define HWY_NAMESPACE N_PPC10
 #define HWY_TARGET_STR HWY_TARGET_STR_PPC10
+
 #else
 #error "Logic error"
-#endif
+#endif  // HWY_TARGET == HWY_PPC10
 
 //-----------------------------------------------------------------------------
 // NEON
