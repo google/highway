@@ -3717,8 +3717,7 @@ HWY_SVE_FOREACH_U(HWY_SVE_DUP, DupOddB, trn2)   // actually for bool
 #if HWY_TARGET == HWY_SVE_256 || HWY_IDE
 template <class D>
 HWY_INLINE svuint64_t Lt128Vec(D d, const svuint64_t a, const svuint64_t b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t eqHx = Eq(a, b);  // only odd lanes used
   // Convert to vector: more pipelines can execute vector TRN* instructions
   // than the predicate version.
@@ -3737,8 +3736,7 @@ HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
 #if HWY_TARGET == HWY_SVE_256
   return MaskFromVec(detail::Lt128Vec(d, a, b));
 #else
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t eqHx = Eq(a, b);  // only odd lanes used
   const svbool_t ltHL = Lt(a, b);
   // Move into upper lane: ltL if the upper half is equal, otherwise ltH.
@@ -3752,8 +3750,7 @@ HWY_INLINE svbool_t Lt128(D d, const svuint64_t a, const svuint64_t b) {
 
 template <class D>
 HWY_INLINE svbool_t Lt128Upper(D d, svuint64_t a, svuint64_t b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t ltHL = Lt(a, b);
   return detail::DupOddB(d, ltHL);
 }
@@ -3765,8 +3762,7 @@ namespace detail {
 
 template <class D>
 HWY_INLINE svuint64_t Eq128Vec(D d, const svuint64_t a, const svuint64_t b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   // Convert to vector: more pipelines can execute vector TRN* instructions
   // than the predicate version.
   const svuint64_t eqHL = VecFromMask(d, Eq(a, b));
@@ -3778,8 +3774,7 @@ HWY_INLINE svuint64_t Eq128Vec(D d, const svuint64_t a, const svuint64_t b) {
 
 template <class D>
 HWY_INLINE svuint64_t Ne128Vec(D d, const svuint64_t a, const svuint64_t b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   // Convert to vector: more pipelines can execute vector TRN* instructions
   // than the predicate version.
   const svuint64_t neHL = VecFromMask(d, Ne(a, b));
@@ -3797,8 +3792,7 @@ HWY_INLINE svbool_t Eq128(D d, const svuint64_t a, const svuint64_t b) {
 #if HWY_TARGET == HWY_SVE_256
   return MaskFromVec(detail::Eq128Vec(d, a, b));
 #else
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t eqHL = Eq(a, b);
   const svbool_t eqHH = detail::DupOddB(d, eqHL);
   const svbool_t eqLL = detail::DupEvenB(d, eqHL);
@@ -3811,8 +3805,7 @@ HWY_INLINE svbool_t Ne128(D d, const svuint64_t a, const svuint64_t b) {
 #if HWY_TARGET == HWY_SVE_256
   return MaskFromVec(detail::Ne128Vec(d, a, b));
 #else
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t neHL = Ne(a, b);
   const svbool_t neHH = detail::DupOddB(d, neHL);
   const svbool_t neLL = detail::DupEvenB(d, neHL);
@@ -3824,16 +3817,14 @@ HWY_INLINE svbool_t Ne128(D d, const svuint64_t a, const svuint64_t b) {
 
 template <class D>
 HWY_INLINE svbool_t Eq128Upper(D d, svuint64_t a, svuint64_t b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t eqHL = Eq(a, b);
   return detail::DupOddB(d, eqHL);
 }
 
 template <class D>
 HWY_INLINE svbool_t Ne128Upper(D d, svuint64_t a, svuint64_t b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const svbool_t neHL = Ne(a, b);
   return detail::DupOddB(d, neHL);
 }

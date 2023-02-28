@@ -7494,8 +7494,7 @@ namespace detail {
 // Returns vector-mask for Lt128. Also used by x86_256/x86_512.
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -7519,8 +7518,7 @@ HWY_INLINE V Lt128Vec(const D d, const V a, const V b) {
 // Returns vector-mask for Eq128. Also used by x86_256/x86_512.
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Eq128Vec(const D d, const V a, const V b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const auto eqHL = VecFromMask(d, Eq(a, b));
   const auto eqLH = Reverse2(d, eqHL);
   return And(eqHL, eqLH);
@@ -7528,8 +7526,7 @@ HWY_INLINE V Eq128Vec(const D d, const V a, const V b) {
 
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Ne128Vec(const D d, const V a, const V b) {
-  static_assert(!IsSigned<TFromD<D>>() && sizeof(TFromD<D>) == 8,
-                "D must be u64");
+  static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
   const auto neHL = VecFromMask(d, Ne(a, b));
   const auto neLH = Reverse2(d, neHL);
   return Or(neHL, neLH);
