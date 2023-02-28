@@ -89,6 +89,8 @@
 #define HWY_TARGET_STR_F16C ",f16c"
 #endif
 
+#define HWY_TARGET_STR_SSE2 "sse2"
+
 #define HWY_TARGET_STR_SSSE3 "sse2,ssse3"
 
 #define HWY_TARGET_STR_SSE4 \
@@ -123,8 +125,27 @@
 // governed by the current HWY_TARGET.
 
 //-----------------------------------------------------------------------------
+// SSE2
+#if HWY_TARGET == HWY_SSE2
+
+#define HWY_NAMESPACE N_SSE2
+#define HWY_ALIGN alignas(16)
+#define HWY_MAX_BYTES 16
+#define HWY_LANES(T) (16 / sizeof(T))
+
+#define HWY_HAVE_SCALABLE 0
+#define HWY_HAVE_INTEGER64 1
+#define HWY_HAVE_FLOAT16 1
+#define HWY_HAVE_FLOAT64 1
+#define HWY_MEM_OPS_MIGHT_FAULT 1
+#define HWY_NATIVE_FMA 0
+#define HWY_CAP_GE256 0
+#define HWY_CAP_GE512 0
+
+#define HWY_TARGET_STR HWY_TARGET_STR_SSE2
+//-----------------------------------------------------------------------------
 // SSSE3
-#if HWY_TARGET == HWY_SSSE3
+#elif HWY_TARGET == HWY_SSSE3
 
 #define HWY_NAMESPACE N_SSSE3
 #define HWY_ALIGN alignas(16)

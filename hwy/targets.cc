@@ -174,6 +174,9 @@ HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
   return 1ull << static_cast<size_t>(index);
 }
 
+constexpr uint64_t kGroupSSE2 =
+    Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2);
+
 constexpr uint64_t kGroupSSSE3 =
     Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2) |
     Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3);
@@ -228,6 +231,10 @@ int64_t DetectTargets() {
   bool has_osxsave = false;
   bool is_amd = false;
   {  // ensures we do not accidentally use flags outside this block
+#if HWY_ARCH_X86_64
+    bits |= HWY_SSE2;
+#endif
+
     uint64_t flags = 0;
     uint32_t abcd[4];
 
@@ -292,24 +299,25 @@ int64_t DetectTargets() {
     if ((flags & kGroupSSSE3) == kGroupSSSE3) {
       bits |= HWY_SSSE3;
     }
+#if HWY_ARCH_X86_32
+    if ((flags & kGroupSSE2) == kGroupSSE2) {
+      bits |= HWY_SSE2;
+    }
+#endif
   }
 
-  // Clear bits if the OS does not support XSAVE - otherwise, registers
-  // are not preserved across context switches.
+  // Clear AVX2/AVX3 bits if the OS does not support XSAVE - otherwise,
+  // registers are not preserved across context switches.
   if (has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
     const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL;
     const int64_t min_avx2 = HWY_AVX2 | min_avx3;
-    // XMM
-    if (!IsBitSet(xcr0, 1)) {
-      bits &= ~(HWY_SSSE3 | HWY_SSE4 | min_avx2);
-    }
-    // YMM
-    if (!IsBitSet(xcr0, 2)) {
+    // XMM, YMM
+    if((xcr0 & 0x06) != 0x06) {
       bits &= ~min_avx2;
     }
     // opmask, ZMM lo/hi
-    if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
+    if((xcr0 & 0xE0) != 0xE0) {
       bits &= ~min_avx3;
     }
   }

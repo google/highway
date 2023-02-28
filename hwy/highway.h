@@ -92,6 +92,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_PPC9::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_PPC10
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_PPC10::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_SSE2
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_SSE2::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SSSE3
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_SSSE3::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_SSE4
@@ -182,6 +184,12 @@ namespace hwy {
 #define HWY_CHOOSE_PPC10(FUNC_NAME) &N_PPC10::FUNC_NAME
 #else
 #define HWY_CHOOSE_PPC10(FUNC_NAME) nullptr
+#endif
+
+#if HWY_TARGETS & HWY_SSE2
+#define HWY_CHOOSE_SSE2(FUNC_NAME) &N_SSE2::FUNC_NAME
+#else
+#define HWY_CHOOSE_SSE2(FUNC_NAME) nullptr
 #endif
 
 #if HWY_TARGETS & HWY_SSSE3
@@ -370,7 +378,8 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 #endif
 
 // These define ops inside namespace hwy::HWY_NAMESPACE.
-#if HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
+#if HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || \
+    HWY_TARGET == HWY_SSE4
 #include "hwy/ops/x86_128-inl.h"
 #elif HWY_TARGET == HWY_AVX2
 #include "hwy/ops/x86_256-inl.h"
