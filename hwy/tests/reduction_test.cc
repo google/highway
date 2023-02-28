@@ -58,7 +58,7 @@ struct TestSumOfLanes {
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
+      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(0);
       sum += static_cast<double>(in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
@@ -97,7 +97,7 @@ struct TestMinOfLanes {
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 2;
+      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(2);
       min = HWY_MIN(min, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
@@ -151,7 +151,7 @@ struct TestMaxOfLanes {
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : 0;
+      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(0);
       max = HWY_MAX(max, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
