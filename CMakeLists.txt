@@ -528,6 +528,7 @@ list(APPEND HWY_TEST_FILES
   # not reproducible locally. Still tested via bazel build.
   # hwy/contrib/math/math_test.cc
   hwy/contrib/sort/sort_test.cc
+  hwy/contrib/sort/bench_sort.cc
 )
 endif()  # HWY_ENABLE_CONTRIB
 
