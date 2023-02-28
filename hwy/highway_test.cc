@@ -135,9 +135,13 @@ struct TestSet {
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), vi);
 
-    // Undefined
+    // Undefined. This may result in a 'using uninitialized memory' warning
+    // here, even though we already suppress warnings in Undefined.
+    HWY_DIAGNOSTICS(push)
+    HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
     const Vec<D> vu = Undefined(d);
     Store(vu, d, expected.get());
+    HWY_DIAGNOSTICS(pop)
   }
 };
 
