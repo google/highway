@@ -24,6 +24,7 @@ hwy_public = [
   "$_hwy/ops/arm_sve-inl.h",
   "$_hwy/ops/emu128-inl.h",
   "$_hwy/ops/generic_ops-inl.h",
+  "$_hwy/ops/ppc_vsx-inl.h",
   "$_hwy/ops/scalar-inl.h",
   "$_hwy/ops/set_macros-inl.h",
   "$_hwy/ops/shared-inl.h",
