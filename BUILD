@@ -180,6 +180,7 @@ cc_library(
         "hwy/ops/arm_sve-inl.h",
         "hwy/ops/emu128-inl.h",
         "hwy/ops/generic_ops-inl.h",
+        "hwy/ops/ppc_vsx-inl.h",
         "hwy/ops/scalar-inl.h",
         "hwy/ops/set_macros-inl.h",
         "hwy/ops/shared-inl.h",
