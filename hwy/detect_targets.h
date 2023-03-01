@@ -381,7 +381,7 @@
 #endif
 
 // TODO(janwas): not yet known whether these will be set by MSVC
-#if HWY_BASELINE_AVX3 != 0 && defined(__AVXVNNI__) && defined(__VAES__) && \
+#if HWY_BASELINE_AVX3 != 0 && defined(__AVX512VNNI__) && defined(__VAES__) && \
     defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&                  \
     defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) &&            \
     defined(__AVX512BITALG__)
