@@ -3079,6 +3079,13 @@ HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D d,
 
 template <class D>
 HWY_API void Stream(const VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
+#if HWY_ARCH_ARM_A64
+#if HWY_COMPILER_GCC
+  __builtin_prefetch(aligned, 1, 0);
+#elif HWY_COMPILER_MSVC
+  __prefetch2(aligned, 0x11);
+#endif
+#endif
   Store(v, d, aligned);
 }
 
