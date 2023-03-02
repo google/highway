@@ -260,8 +260,10 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 }
 
 HWY_NOINLINE void BenchAllSort() {
-  // Not interested in benchmark results for these targets
-  if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4) {
+  // Not interested in benchmark results for these targets. Note that SSE4 is
+  // numerically less.
+  if ((HWY_SSE4 <= HWY_TARGET && HWY_TARGET <= HWY_SSE2) ||
+      (HWY_ARCH_X86 && HWY_TARGET == HWY_EMU128)) {
     return;
   }
 
@@ -273,7 +275,7 @@ HWY_NOINLINE void BenchAllSort() {
 #if HAVE_PARALLEL_IPS4O || SORT_100M
          100 * M,
 #else
-        1 * M,
+        100 * K,
 #endif
        }) {
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
