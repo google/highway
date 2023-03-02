@@ -329,15 +329,39 @@ HWY_API Vec128<T, N> Abs(Vec128<T, N> v) {
 
 // ------------------------------ CopySign
 
-template <typename T, size_t N>
-HWY_API Vec128<T, N> CopySign(Vec128<T, N> magn, Vec128<T, N> sign) {
-  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  return Vec128<T, N>{vec_cpsgn(sign.raw, magn.raw)};
+template <size_t N>
+HWY_API Vec128<float, N> CopySign(Vec128<float, N> magn, Vec128<float, N> sign) {
+  // Work around compiler bugs that are there with vec_cpsgn on older versions
+  // of GCC/Clang
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200
+  return Vec128<float, N>{__builtin_vec_copysign(magn.raw, sign.raw)};
+#elif HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200 && \
+      HWY_HAS_BUILTIN(__builtin_vsx_xvcpsgnsp)
+  return Vec128<float, N>{__builtin_vsx_xvcpsgnsp(magn.raw, sign.raw)};
+#else
+  return Vec128<float, N>{vec_cpsgn(sign.raw, magn.raw)};
+#endif
+}
+
+template <size_t N>
+HWY_API Vec128<double, N> CopySign(Vec128<double, N> magn,
+                                   Vec128<double, N> sign) {
+  // Work around compiler bugs that are there with vec_cpsgn on older versions
+  // of GCC/Clang
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200
+  return Vec128<double, N>{__builtin_vec_copysign(magn.raw, sign.raw)};
+#elif HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200 && \
+      HWY_HAS_BUILTIN(__builtin_vsx_xvcpsgndp)
+  return Vec128<double, N>{__builtin_vsx_xvcpsgndp(magn.raw, sign.raw)};
+#else
+  return Vec128<double, N>{vec_cpsgn(sign.raw, magn.raw)};
+#endif
 }
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
   // PPC8 can also handle abs < 0, so no extra action needed.
+  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
   return CopySign(abs, sign);
 }
 
@@ -1049,8 +1073,14 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Multiplication
 
-template <typename T, size_t N, hwy::EnableIf<(IsFloat<T>() ||
-  (!IsSpecialFloat<T>() && (sizeof(T) == 2 || sizeof(T) == 4)))>* = nullptr>
+#ifdef HWY_NATIVE_I64MULLO
+#undef HWY_NATIVE_I64MULLO
+#else
+#define HWY_NATIVE_I64MULLO
+#endif
+
+template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4) | (1 << 8))>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a,
                                Vec128<T, N> b) {
   return Vec128<T, N>{a.raw * b.raw};
@@ -1825,7 +1855,12 @@ template <class D, typename FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
           hwy::EnableIf<(sizeof(FromT) >= sizeof(TFromD<D>) * 2)>* = nullptr,
           HWY_IF_LANES_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, Vec128<FromT, 1> v) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return VFromD<D>{(typename detail::Raw128<TFromD<D>>::type)v.raw};
+#else
+  return VFromD<D>{(typename detail::Raw128<TFromD<D>>::type)
+    vec_sld(v.raw, v.raw, sizeof(FromT) - sizeof(TFromD<D>))};
+#endif
 }
 
 namespace detail {
@@ -2401,8 +2436,15 @@ template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
 HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
   const Repartition<uint32_t, decltype(dbf16)> du32;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  const auto a_in_odd = a;
   const auto b_in_even = ShiftRight<16>(BitCast(du32, b));
-  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+#else
+  const auto a_in_odd = ShiftRight<16>(BitCast(du32, a));
+  const auto b_in_even = b;
+#endif
+  return BitCast(dbf16, OddEven(BitCast(du16, a_in_odd),
+                                BitCast(du16, b_in_even)));
 }
 
 // Specializations for partial vectors because packs_epi32 sets lanes above 2*N.
@@ -2635,9 +2677,19 @@ HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
   const DFromV<decltype(a)> d;
   const auto zero = Zero(d);
 
-  return Vec128<uint64_t, N>{(typename detail::Raw128<uint64_t>::type)
-    vec_pmsum_be(vec_mergeh(a.raw, zero.raw),
-                 vec_mergeh(b.raw, zero.raw))};
+  const __vector unsigned long long pmsum_result =
+    (__vector unsigned long long)
+    vec_pmsum_be(vec_mergeh(a.raw, zero.raw), vec_mergeh(b.raw, zero.raw));
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return Vec128<uint64_t, N>{pmsum_result};
+#else
+  // Need to swap the two halves of pmsum_result on big-endian targets as
+  // the upper 64 bits of the carryless multiplication result are in lane 0 of
+  // pmsum_result and the lower 64 bits of the carryless multiplication result
+  // are in lane 1 of mul128_result
+  return Vec128<uint64_t, N>{vec_sld(pmsum_result, pmsum_result, 8)};
+#endif
 }
 
 template <size_t N>
@@ -2651,9 +2703,19 @@ HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
   const DFromV<decltype(a)> d;
   const auto zero = Zero(d);
 
-  return Vec128<uint64_t, N>{(typename detail::Raw128<uint64_t>::type)
-    vec_pmsum_be(vec_mergel(zero.raw, a.raw),
-                 vec_mergel(zero.raw, b.raw))};
+  const __vector unsigned long long pmsum_result =
+    (__vector unsigned long long)
+    vec_pmsum_be(vec_mergel(zero.raw, a.raw), vec_mergel(zero.raw, b.raw));
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return Vec128<uint64_t, N>{pmsum_result};
+#else
+  // Need to swap the two halves of pmsum_result on big-endian targets as
+  // the upper 64 bits of the carryless multiplication result are in lane 0 of
+  // pmsum_result and the lower 64 bits of the carryless multiplication result
+  // are in lane 1 of mul128_result
+  return Vec128<uint64_t, N>{vec_sld(pmsum_result, pmsum_result, 8)};
+#endif
 }
 
 #endif  // !defined(HWY_DISABLE_PPC8_CRYPTO)
@@ -2671,10 +2733,14 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
       BitCast(du8, Set(du16, static_cast<uint16_t>(mask_bits)));
 
   // Replicate bytes 8x such that each byte contains the bit that governs it.
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const __vector unsigned char kRep8 = {0, 0, 0, 0, 0, 0, 0, 0,
                                         1, 1, 1, 1, 1, 1, 1, 1};
+#else
+  const __vector unsigned char kRep8 = {1, 1, 1, 1, 1, 1, 1, 1,
+                                        0, 0, 0, 0, 0, 0, 0, 0};
+#endif
   const Vec128<uint8_t> rep8{vec_perm(vbits.raw, vbits.raw, kRep8)};
-
   const __vector unsigned char kBit = {1, 2, 4, 8, 16, 32, 64, 128,
                                        1, 2, 4, 8, 16, 32, 64, 128};
   return MFromD<D>{TestBit(rep8, Vec128<uint8_t>{kBit}).raw};
@@ -3425,9 +3491,9 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
 template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
                                   const uint8_t* HWY_RESTRICT bits) {
-  uint64_t mask_bits = 0;
-  constexpr size_t kNumBytes = (N + 7) / 8;
-  CopyBytes<kNumBytes>(bits, &mask_bits);
+  // As there are at most 8 lanes in v if sizeof(TFromD<D>) > 1, simply
+  // convert bits[0] to a uint64_t
+  uint64_t mask_bits = bits[0];
   if (N < 8) {
     mask_bits &= (1ull << N) - 1;
   }
@@ -3472,10 +3538,10 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
                                  D d, TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
 
-  uint64_t mask_bits = 0;
+  // As there are at most 8 lanes in v if sizeof(TFromD<D>) > 1, simply
+  // convert bits[0] to a uint64_t
+  uint64_t mask_bits = bits[0];
   constexpr size_t kN = MaxLanes(d);
-  constexpr size_t kNumBytes = (kN + 7) / 8;
-  CopyBytes<kNumBytes>(bits, &mask_bits);
   if (kN < 8) {
     mask_bits &= (1ull << kN) - 1;
   }
@@ -3919,44 +3985,67 @@ template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
 HWY_API Vec128<uint16_t, N> MinOfLanes(Vec128<uint16_t, N> v) {
   const Simd<uint16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
+#else
+  const auto even = ShiftRight<16>(BitCast(d32, v));
+  const auto odd = And(BitCast(d32, v), Set(d32, 0xFFFF));
+#endif
   const auto min = MinOfLanes(Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+  // Also broadcast into odd lanes on little-endian and into even lanes
+  // on big-endian
+  return Vec128<uint16_t, N>{vec_pack(min.raw, min.raw)};
 }
 template <size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
 HWY_API Vec128<int16_t, N> MinOfLanes(Vec128<int16_t, N> v) {
   const Simd<int16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
   // Sign-extend
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
+#else
+  const auto even = ShiftRight<16>(BitCast(d32, v));
+  const auto odd = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+#endif
   const auto min = MinOfLanes(Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+  // Also broadcast into odd lanes on little-endian and into even lanes
+  // on big-endian
+  return Vec128<int16_t, N>{vec_pack(min.raw, min.raw)};
 }
 
 template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
 HWY_API Vec128<uint16_t, N> MaxOfLanes(Vec128<uint16_t, N> v) {
   const Simd<uint16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(Max(even, odd));
+#else
+  const auto even = ShiftRight<16>(BitCast(d32, v));
+  const auto odd = And(BitCast(d32, v), Set(d32, 0xFFFF));
+#endif
+  const auto max = MaxOfLanes(Max(even, odd));
   // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+  return Vec128<uint16_t, N>{vec_pack(max.raw, max.raw)};
 }
 template <size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
 HWY_API Vec128<int16_t, N> MaxOfLanes(Vec128<int16_t, N> v) {
   const Simd<int16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
   // Sign-extend
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
+#else
+  const auto even = ShiftRight<16>(BitCast(d32, v));
+  const auto odd = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+#endif
+  const auto max = MaxOfLanes(Max(even, odd));
+  // Also broadcast into odd lanes on little-endian and into even lanes
+  // on big-endian
+  return Vec128<int16_t, N>{vec_pack(max.raw, max.raw)};
 }
 
 }  // namespace detail
