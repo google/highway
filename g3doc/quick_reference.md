@@ -356,12 +356,17 @@ time-critical code:
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
-*   `V`: `f32` \
+*   `V`: `{u,i}{8,16,32,64},f32` \
     <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
 *   `V`: `u8` \
     <code>VU64 **SumsOf8**(V v)</code> returns the sums of 8 consecutive u8
     lanes, zero-extending each sum into a u64 lane. This is slower on RVV/WASM.
+
+*   `V`: `u8` \
+    <code>VU64 **SumsOf8AbsDiff**(V a, V b)</code> returns the same result as
+    `SumsOf8(AbsDiff(a, b))` but `SumsOf8AbsDiff(a, b)` is more efficient than
+    `SumsOf8(AbsDiff(a, b))` on SSSE3/SSE4/AVX2/AVX3.
 
 *   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to

@@ -1219,6 +1219,33 @@ HWY_API Vec128<T, N> Max(Vec128<T, N> a,
   return Vec128<T, N>{vec_max(a.raw, b.raw)};
 }
 
+// ------------------------------- Integer AbsDiff for PPC9/PPC10
+
+#if HWY_TARGET <= HWY_PPC9
+#ifdef HWY_NATIVE_INTEGER_ABS_DIFF
+#undef HWY_NATIVE_INTEGER_ABS_DIFF
+#else
+#define HWY_NATIVE_INTEGER_ABS_DIFF
+#endif
+
+template <class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API V AbsDiff(const V a, const V b) {
+  return V{vec_absd(a.raw, b.raw)};
+}
+
+template <class V, HWY_IF_U64_D(DFromV<V>)>
+HWY_API V AbsDiff(const V a, const V b) {
+  return Sub(Max(a, b), Min(a, b));
+}
+
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V AbsDiff(const V a, const V b) {
+  return Sub(Max(a, b), Min(a, b));
+}
+
+#endif  // HWY_TARGET <= HWY_PPC9
+
 // ================================================== MEMORY (3)
 
 // ------------------------------ Non-temporal stores

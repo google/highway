@@ -423,6 +423,7 @@ using Twice = typename D::Twice;
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
 #define HWY_IF_NOT_FLOAT_V(V) HWY_IF_NOT_FLOAT(TFromV<V>)
+#define HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V) HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromV<V>)
 #define HWY_IF_T_SIZE_V(V, bytes) HWY_IF_T_SIZE(TFromV<V>, bytes)
 #define HWY_IF_NOT_T_SIZE_V(V, bytes) HWY_IF_NOT_T_SIZE(TFromV<V>, bytes)
 #define HWY_IF_T_SIZE_ONE_OF_V(V, bit_array) \

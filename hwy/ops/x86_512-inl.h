@@ -760,6 +760,11 @@ HWY_API Vec512<uint64_t> SumsOf8(const Vec512<uint8_t> v) {
   return Vec512<uint64_t>{_mm512_sad_epu8(v.raw, _mm512_setzero_si512())};
 }
 
+HWY_API Vec512<uint64_t> SumsOf8AbsDiff(const Vec512<uint8_t> a,
+                                        const Vec512<uint8_t> b) {
+  return Vec512<uint64_t>{_mm512_sad_epu8(a.raw, b.raw)};
+}
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.

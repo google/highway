@@ -569,7 +569,13 @@ HWY_SVE_FOREACH_UI08(HWY_SVE_RETV_ARGVV, SaturatedSub, qsub)
 HWY_SVE_FOREACH_UI16(HWY_SVE_RETV_ARGVV, SaturatedSub, qsub)
 
 // ------------------------------ AbsDiff
-HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPVV, AbsDiff, abd)
+#ifdef HWY_NATIVE_INTEGER_ABS_DIFF
+#undef HWY_NATIVE_INTEGER_ABS_DIFF
+#else
+#define HWY_NATIVE_INTEGER_ABS_DIFF
+#endif
+
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGPVV, AbsDiff, abd)
 
 // ------------------------------ ShiftLeft[Same]
 
