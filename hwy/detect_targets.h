@@ -71,7 +71,8 @@
 // Bit 10: reserved for AVX
 #define HWY_SSE4 (1LL << 11)
 #define HWY_SSSE3 (1LL << 12)
-// Bits 13..14 reserved for SSE3 or SSE2 (2 targets)
+// Bit 13: reserved for SSE3
+#define HWY_SSE2 (1LL << 14)
 // The highest bit in the HWY_TARGETS mask that a x86 target can have. Used for
 // dynamic dispatch. All x86 target bits must be lower or equal to
 // (1 << HWY_HIGHEST_TARGET_BIT_X86) and they can only use
@@ -302,6 +303,18 @@
 // Special handling for MSVC because it has fewer predefined macros:
 #if HWY_COMPILER_MSVC
 
+#if HWY_ARCH_X86_32
+#if _M_IX86_FP >= 2
+#define HWY_CHECK_SSE2 1
+#else
+#define HWY_CHECK_SSE2 0
+#endif
+#elif HWY_ARCH_X86_64
+#define HWY_CHECK_SSE2 1
+#else
+#define HWY_CHECK_SSE2 0
+#endif
+
 // 1) We can only be sure SSSE3/SSE4 are enabled if AVX is:
 //    https://stackoverflow.com/questions/18563978/.
 #if defined(__AVX__)
@@ -319,6 +332,12 @@
 #define HWY_CHECK_F16C 1
 
 #else  // non-MSVC
+
+#if defined(__SSE2__)
+#define HWY_CHECK_SSE2 1
+#else
+#define HWY_CHECK_SSE2 0
+#endif
 
 #if defined(__SSSE3__)
 #define HWY_CHECK_SSSE3 1
@@ -352,6 +371,12 @@
 #endif
 
 #endif  // non-MSVC
+
+#if HWY_ARCH_X86 && (HWY_WANT_SSE2 || HWY_CHECK_SSE2)
+#define HWY_BASELINE_SSE2 HWY_SSE2
+#else
+#define HWY_BASELINE_SSE2 0
+#endif
 
 #if HWY_ARCH_X86 && (HWY_WANT_SSSE3 || HWY_CHECK_SSSE3)
 #define HWY_BASELINE_SSSE3 HWY_SSSE3
@@ -403,9 +428,10 @@
 #define HWY_BASELINE_TARGETS                                     \
   (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | \
    HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 |  \
-   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSSE3 |   \
-   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |   \
-   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_RVV)
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | \
+   HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | \
+   HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | \
+   HWY_BASELINE_RVV)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -474,8 +500,8 @@
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
 #define HWY_ATTAINABLE_TARGETS                                        \
-  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSSE3 | HWY_SSE4 | HWY_AVX2 | \
-              HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4)
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | \
+              HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4)
 #elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
 #define HWY_ATTAINABLE_TARGETS                                      \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_NEON | HWY_ATTAINABLE_SVE | \

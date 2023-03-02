@@ -31,6 +31,7 @@ DECLARE_FUNCTION(AVX3)
 DECLARE_FUNCTION(AVX2)
 DECLARE_FUNCTION(SSE4)
 DECLARE_FUNCTION(SSSE3)
+DECLARE_FUNCTION(SSE2)
 DECLARE_FUNCTION(NEON)
 DECLARE_FUNCTION(SVE)
 DECLARE_FUNCTION(SVE2)
@@ -79,6 +80,7 @@ void CheckFakeFunction() {
   CallFunctionForTarget(HWY_AVX2, __LINE__);
   CallFunctionForTarget(HWY_SSE4, __LINE__);
   CallFunctionForTarget(HWY_SSSE3, __LINE__);
+  CallFunctionForTarget(HWY_SSE2, __LINE__);
   CallFunctionForTarget(HWY_NEON, __LINE__);
   CallFunctionForTarget(HWY_SVE, __LINE__);
   CallFunctionForTarget(HWY_SVE2, __LINE__);
