@@ -2628,7 +2628,7 @@ HWY_API Mask128<T, N> IsFinite(Vec128<T, N> v) {
 #endif
 
 namespace detail {
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1600
 using CipherTag = Full128<uint64_t>;
 #else
 using CipherTag = Full128<uint8_t>;
