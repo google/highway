@@ -330,7 +330,8 @@ HWY_API Vec128<T, N> Abs(Vec128<T, N> v) {
 // ------------------------------ CopySign
 
 template <size_t N>
-HWY_API Vec128<float, N> CopySign(Vec128<float, N> magn, Vec128<float, N> sign) {
+HWY_API Vec128<float, N> CopySign(Vec128<float, N> magn,
+                                  Vec128<float, N> sign) {
   // Work around compiler bugs that are there with vec_cpsgn on older versions
   // of GCC/Clang
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200
