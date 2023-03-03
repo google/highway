@@ -32,6 +32,11 @@ jobs:
             c_compiler: clang-6.0
             cxx_compiler: clang++-6.0
 
+          - name: Clang-10
+            extra_deps: clang-10
+            c_compiler: clang-10
+            cxx_compiler: clang++-10
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5 # v2.0.0
