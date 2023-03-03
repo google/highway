@@ -1544,7 +1544,7 @@ HWY_INLINE Vec128<uint8_t, N> IndicesForExpandFromBits(uint64_t mask_bits) {
   static_assert(N <= 8, "Should only be called for half-vectors");
   const Simd<uint8_t, N, 0> du8;
   HWY_DASSERT(mask_bits < 0x100);
-  alignas(16) static constexpr uint8_t table[8 * 256] = {
+  alignas(16) static constexpr uint8_t table[2048] = {
       // PrintExpand8x8Tables
       128, 128, 128, 128, 128, 128, 128, 128,  //
       0,   128, 128, 128, 128, 128, 128, 128,  //
@@ -1834,10 +1834,10 @@ HWY_API Vec128<T> Expand(Vec128<T> v, Mask128<T> mask) {
   // but would involve a store-load forwarding stall. We instead shuffle using
   // loaded indices. multishift_epi64_epi8 would also help, but if we have that,
   // we probably also have native 8-bit Expand.
-  alignas(16) uint8_t iota[16 * 2] = {0,   1,   2,   3,   4,   5,   6,   7,
-                                      8,   9,   10,  11,  12,  13,  14,  15,
-                                      128, 128, 128, 128, 128, 128, 128, 128,
-                                      128, 128, 128, 128, 128, 128, 128, 128};
+  alignas(16)
+      uint8_t iota[32] = {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
+                          11,  12,  13,  14,  15,  128, 128, 128, 128, 128, 128,
+                          128, 128, 128, 128, 128, 128, 128, 128, 128, 128};
   const Vec128<uint8_t> shift = LoadU(du, iota + PopCount(maskL));
   const Vec64<uint8_t> vL = LowerHalf(vu);
   const Vec64<uint8_t> vH = LowerHalf(TableLookupBytesOr0(vu, shift));
@@ -1860,7 +1860,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
 
   // Storing as 8-bit reduces table size from 4 KiB to 2 KiB. We cannot apply
   // the nibble trick used below because not all indices fit within one lane.
-  alignas(16) static constexpr uint8_t table[8 * 256] = {
+  alignas(16) static constexpr uint8_t table[2048] = {
       // PrintExpand16x8ByteTables
       128, 128, 128, 128, 128, 128, 128, 128,  //
       0,   128, 128, 128, 128, 128, 128, 128,  //

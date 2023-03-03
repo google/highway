@@ -4176,9 +4176,9 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   const Mask256<T> maskH{static_cast<Bits>(mask.raw >> (N / 2))};
   // In AVX3 we can permutevar, which avoids a potential store to load
   // forwarding stall vs. reloading the input.
-  alignas(64) uint16_t iota[32 * 2] = {
-      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
-      16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+  alignas(64) uint16_t iota[64] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
+                                   11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                   22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
   const Vec512<uint16_t> indices = LoadU(du, iota + CountTrue(dh, maskL));
   const Vec512<uint16_t> shifted{_mm512_permutexvar_epi16(indices.raw, vu.raw)};
   const Vec256<T> expandL = Expand(LowerHalf(v), maskL);
