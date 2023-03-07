@@ -3883,10 +3883,12 @@ HWY_API Vec16<uint8_t> SumOfLanes(Vec16<uint8_t> v) {
   constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
   const Full16<uint8_t> du8;
   const Full16<uint16_t> du16;
+  const Twice<decltype(du8)> dt_u8;
+  const Twice<decltype(du16)> dt_u16;
   const Full128<uint32_t> du32;
-  return Broadcast<kSumLaneIdx>(AltivecVsum4ubs(
-      du8, BitCast(du8, InterleaveLower(BitCast(du16, v), Zero(du16))).raw,
-      Zero(du32).raw));
+  return LowerHalf(Broadcast<kSumLaneIdx>(AltivecVsum4ubs(
+      dt_u8, BitCast(dt_u8, Combine(dt_u16, Zero(du16), BitCast(du16, v))).raw,
+      Zero(du32).raw)));
 }
 
 HWY_API Vec32<uint8_t> SumOfLanes(Vec32<uint8_t> v) {
