@@ -59,13 +59,28 @@ Online demos using Compiler Explorer:
     (recommended)
 -   [single target using -m flags](https://gcc.godbolt.org/z/rGnjMevKG)
 
-Projects using Highway: (to add yours, feel free to raise an issue or contact us
-via the below email)
+We observe that Highway is referenced in the following open source projects,
+found via sourcegraph.com. Most are Github repositories. If you would like to
+add your project or link to it directly, feel free to raise an issue or contact
+us via the below email.
 
-*   [iresearch database index](https://github.com/iresearch-toolkit/iresearch/blob/e7638e7a4b99136ca41f82be6edccf01351a7223/core/utils/simd_utils.hpp)
-*   [JPEG XL image codec](https://github.com/libjxl/libjxl)
-*   [Grok JPEG 2000 image codec](https://github.com/GrokImageCompression/grok)
+*   Browsers: Chromium (+Vivaldi), Firefox (+floorp / foxhound / librewolf / Waterfox)
+*   Cryptography: google/distributed_point_functions
+*   Image codecs: eustas/2im, [Grok JPEG 2000](https://github.com/GrokImageCompression/grok), [JPEG XL](https://github.com/libjxl/libjxl), OpenHTJ2K
+*   Image processing: cloudinary/ssimulacra2, m-ab-s/media-autobuild_suite
+*   Image viewers: AlienCowEatCake/ImageViewer, mirillis/jpegxl-wic
+*   Information retrieval: [iresearch database index](https://github.com/iresearch-toolkit/iresearch/blob/e7638e7a4b99136ca41f82be6edccf01351a7223/core/utils/simd_utils.hpp), michaeljclark/zvec
+
+Other
+
+*   [zimt](https://github.com/kfjahnke/zimt): C++11 template library to process n-dimensional arrays with multi-threaded SIMD code
 *   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort) ([paper](https://arxiv.org/abs/2205.05982))
+
+If you'd like to get Highway, in addition to cloning from this Github repository
+or using it as a Git submodule, you can also find it in the following package
+managers or repositories: alpinelinux, conan-io, conda-forge, DragonFlyBSD,
+freebsd, ghostbsd, microsoft/vcpkg, MidnightBSD, NetBSD, openSUSE, opnsense,
+Xilinx/Vitis_Libraries.
 
 ## Current status
 
