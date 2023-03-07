@@ -1247,7 +1247,7 @@ namespace detail {
 // Pre-9.3 GCC immintrin.h uses char, which may be unsigned, causing cmpgt_epi8
 // to perform an unsigned comparison instead of the intended signed. Workaround
 // is to cast to an explicitly signed type. See https://godbolt.org/z/PL7Ujy
-#if HWY_COMPILER_GCC != 0 && HWY_COMPILER_GCC < 930
+#if HWY_COMPILER_GCC_ACTUAL != 0 && HWY_COMPILER_GCC_ACTUAL < 903
 #define HWY_AVX2_GCC_CMPGT8_WORKAROUND 1
 #else
 #define HWY_AVX2_GCC_CMPGT8_WORKAROUND 0
