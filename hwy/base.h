@@ -156,7 +156,7 @@
 // Better:
 //   HWY_ASSUME(x == 2);
 //   HWY_ASSUME(y == 3);
-#if defined(__has_cpp_attribute) && __has_cpp_attribute(assume)
+#if HWY_HAS_CPP_ATTRIBUTE(assume)
 #define HWY_ASSUME(expr) [[assume(expr)]]
 #elif HWY_COMPILER_MSVC || HWY_COMPILER_ICC
 #define HWY_ASSUME(expr) __assume(expr)
