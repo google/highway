@@ -47,25 +47,23 @@ struct Raw128;
 // Each Raw128 specialization defines the following typedefs:
 // - type:
 //   the backing Altivec/VSX raw vector type of the Vec128<T, N> type
-// - RawBoolVectType:
+// - RawBoolVec:
 //   the backing Altivec/VSX raw __bool vector type of the Mask128<T, N> type
-// - RawVectLaneType:
-//   the lane type of Raw128<T>::type
-// - AlignedLoadStoreRawVectType:
-//   the GCC/Clang vector type that is used for an aligned load of a full
-//   16-byte vector
-// - UnalignedLoadStoreRawVectType:
-//   the GCC/Clang vector type that is used for an unaligned load of a full
-//   16-byte vector
+// - RawT:
+//   the lane type for intrinsics, in particular vec_splat
+// - AlignedRawVec:
+//   the 128-bit GCC/Clang vector type for aligned loads/stores
+// - UnalignedRawVec:
+//   the 128-bit GCC/Clang vector type for unaligned loads/stores
 #define HWY_VSX_RAW128(LANE_TYPE, RAW_VECT_LANE_TYPE, RAW_BOOL_VECT_LANE_TYPE) \
   template <>                                                                  \
   struct Raw128<LANE_TYPE> {                                                   \
     using type = __vector RAW_VECT_LANE_TYPE;                                  \
-    using RawBoolVectType = __vector __bool RAW_BOOL_VECT_LANE_TYPE;           \
-    using RawVectLaneType = RAW_VECT_LANE_TYPE;                                \
-    typedef LANE_TYPE AlignedLoadStoreRawVectType                              \
+    using RawBoolVec = __vector __bool RAW_BOOL_VECT_LANE_TYPE;                \
+    using RawT = RAW_VECT_LANE_TYPE;                                           \
+    typedef LANE_TYPE AlignedRawVec                                            \
         __attribute__((__vector_size__(16), __aligned__(16), __may_alias__));  \
-    typedef LANE_TYPE UnalignedLoadStoreRawVectType __attribute__((            \
+    typedef LANE_TYPE UnalignedRawVec __attribute__((                          \
         __vector_size__(16), __aligned__(alignof(LANE_TYPE)), __may_alias__)); \
   };
 
@@ -137,7 +135,7 @@ using Vec16 = Vec128<T, 2 / sizeof(T)>;
 // FF..FF or 0.
 template <typename T, size_t N = 16 / sizeof(T)>
 struct Mask128 {
-  typename detail::Raw128<T>::RawBoolVectType raw;
+  typename detail::Raw128<T>::RawBoolVec raw;
 
   using PrivateT = T;                     // only for DFromM
   static constexpr size_t kPrivateN = N;  // only for DFromM
@@ -184,7 +182,7 @@ HWY_API VFromD<D> BitCast(D /*d*/,
 // Returns a vector/part with all lanes set to "t".
 template <class D, HWY_IF_NOT_SPECIAL_FLOAT(TFromD<D>)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
-  using RawLane = typename detail::Raw128<TFromD<D>>::RawVectLaneType;
+  using RawLane = typename detail::Raw128<TFromD<D>>::RawT;
   return VFromD<D>{vec_splats(static_cast<RawLane>(t))};
 }
 
@@ -371,7 +369,7 @@ HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
-  using LoadRaw = typename detail::Raw128<T>::AlignedLoadStoreRawVectType;
+  using LoadRaw = typename detail::Raw128<T>::AlignedRawVec;
   const LoadRaw* HWY_RESTRICT p = reinterpret_cast<const LoadRaw*>(aligned);
   using ResultRaw = typename detail::Raw128<T>::type;
   return Vec128<T>{reinterpret_cast<ResultRaw>(*p)};
@@ -395,7 +393,7 @@ HWY_API VFromD<D> Load(D d, const T* HWY_RESTRICT p) {
 // Mask and Vec are both backed by vector types (true = FF..FF).
 template <typename T, size_t N>
 HWY_API Mask128<T, N> MaskFromVec(Vec128<T, N> v) {
-  using Raw = typename detail::Raw128<T>::RawBoolVectType;
+  using Raw = typename detail::Raw128<T>::RawBoolVec;
   return Mask128<T, N>{reinterpret_cast<Raw>(v.raw)};
 }
 
@@ -502,7 +500,7 @@ HWY_API Vec128<int64_t, N> BroadcastSignBit(Vec128<int64_t, N> v) {
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v, const int bits) {
-  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawVectLaneType;
+  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawT;
   return Vec128<T, N>{vec_sl(v.raw, vec_splats(static_cast<TU>(bits)))};
 }
 
@@ -511,13 +509,13 @@ HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v, const int bits) {
 template <typename T, size_t N, HWY_IF_UNSIGNED(T)>
 HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v,
                                     const int bits) {
-  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawVectLaneType;
+  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawT;
   return Vec128<T, N>{vec_sr(v.raw, vec_splats(static_cast<TU>(bits)))};
 }
 
 template <typename T, size_t N, HWY_IF_SIGNED(T)>
 HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, const int bits) {
-  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawVectLaneType;
+  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawT;
   return Vec128<T, N>{vec_sra(v.raw, vec_splats(static_cast<TU>(bits)))};
 }
 
@@ -813,7 +811,7 @@ HWY_API Mask128<T, N> operator<=(Vec128<T, N> a, Vec128<T, N> b) {
 // ------------------------------ Load
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> LoadU(D /* tag */, const T* HWY_RESTRICT p) {
-  using LoadRaw = typename detail::Raw128<T>::UnalignedLoadStoreRawVectType;
+  using LoadRaw = typename detail::Raw128<T>::UnalignedRawVec;
   const LoadRaw* HWY_RESTRICT praw = reinterpret_cast<const LoadRaw*>(p);
   using ResultRaw = typename detail::Raw128<T>::type;
   return Vec128<T>{reinterpret_cast<ResultRaw>(*praw)};
@@ -862,13 +860,13 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT p) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API void Store(Vec128<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
-  using StoreRaw = typename detail::Raw128<T>::AlignedLoadStoreRawVectType;
+  using StoreRaw = typename detail::Raw128<T>::AlignedRawVec;
   *reinterpret_cast<StoreRaw*>(aligned) = reinterpret_cast<StoreRaw>(v.raw);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API void StoreU(Vec128<T> v, D /* tag */, T* HWY_RESTRICT p) {
-  using StoreRaw = typename detail::Raw128<T>::UnalignedLoadStoreRawVectType;
+  using StoreRaw = typename detail::Raw128<T>::UnalignedRawVec;
   *reinterpret_cast<StoreRaw*>(p) = reinterpret_cast<StoreRaw>(v.raw);
 }
 
@@ -1086,8 +1084,10 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a,
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 2), HWY_IF_NOT_FLOAT(T)>
 HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a,
                              Vec128<T, N> b) {
-  const auto p1 = vec_mule(a.raw, b.raw);
-  const auto p2 = vec_mulo(a.raw, b.raw);
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const VFromD<decltype(dw)> p1{vec_mule(a.raw, b.raw)};
+  const VFromD<decltype(dw)> p2{vec_mulo(a.raw, b.raw)};
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const __vector unsigned char kShuffle =
     {2, 3, 18, 19, 6, 7, 22, 23, 10, 11, 26, 27, 14, 15, 30, 31};
@@ -1095,8 +1095,7 @@ HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a,
   const __vector unsigned char kShuffle =
     {0, 1, 16, 17, 4, 5, 20, 21, 8, 9, 24, 25, 12, 13, 28, 29};
 #endif
-  return Vec128<T, N>{(typename detail::Raw128<T>::type)
-    vec_perm(p1, p2, kShuffle)};
+  return BitCast(d, VFromD<decltype(dw)>{vec_perm(p1.raw, p2.raw, kShuffle)});
 }
 
 template <size_t N>
@@ -1598,8 +1597,9 @@ HWY_API Indices128<TFromD<D>, HWY_MAX_LANES_D(D)> SetTableIndices(
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
-  return TableLookupBytes(v, Vec128<T, N>{
-    (typename detail::Raw128<T>::type)idx.raw});
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> d8;
+  return BitCast(d, TableLookupBytes(v, VFromD<decltype(d8)>{idx.raw}));
 }
 
 // Single lane: no change
@@ -1771,8 +1771,9 @@ HWY_API VFromD<D> Combine(D d, VH hi_half, VH lo_half) {
   const Half<decltype(d)> dh;
   // Treat half-width input as one lane, and expand to two lanes.
   using VU = Vec128<UnsignedFromSize<dh.MaxBytes()>, 2>;
-  const VU lo{(typename detail::Raw128<TFromV<VU>>::type)lo_half.raw};
-  const VU hi{(typename detail::Raw128<TFromV<VU>>::type)hi_half.raw};
+  using Raw = typename detail::Raw128<TFromV<VU>>::type;
+  const VU lo{reinterpret_cast<Raw>(lo_half.raw)};
+  const VU hi{reinterpret_cast<Raw>(hi_half.raw)};
   return BitCast(d, InterleaveLower(lo, hi));
 }
 
@@ -2260,14 +2261,18 @@ template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
           HWY_IF_NOT_FLOAT_D(D), HWY_IF_UNSIGNED(FromT)>
 HWY_API VFromD<D> PromoteTo(D /* d */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
-  const DFromV<decltype(v)> dn;
-  const auto zero = Zero(dn);
+  // First pretend the input has twice the lanes - the upper half will be
+  // ignored by ZipLower.
+  const Rebind<FromT, Twice<D>> d2;
+  const VFromD<decltype(d2)> twice{v.raw};
+  // Then cast to narrow as expected by ZipLower, in case the sign of FromT
+  // differs from that of D.
+  const RepartitionToNarrow<D> dn;
 
-  using Raw = typename detail::Raw128<TFromD<D>>::type;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  return VFromD<D>{(Raw)vec_mergeh(v.raw, zero.raw)};
+  return ZipLower(BitCast(dn, twice), Zero(dn));
 #else
-  return VFromD<D>{(Raw)vec_mergeh(zero.raw, v.raw)};
+  return ZipLower(Zero(dn), BitCast(dn, twice));
 #endif
 }
 
@@ -2277,7 +2282,7 @@ template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
 HWY_API VFromD<D> PromoteTo(D /* d */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   using Raw = typename detail::Raw128<TFromD<D>>::type;
-  return VFromD<D>{(Raw)vec_unpackh(v.raw)};
+  return VFromD<D>{reinterpret_cast<Raw>(vec_unpackh(v.raw))};
 }
 
 // 8-bit to 32-bit: First, promote to 16-bit, and then convert to 32-bit.
@@ -2331,7 +2336,7 @@ HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
-  const __vector float raw_v = vec_mergeh(v.raw, v.raw);
+  const __vector float raw_v = InterleaveLower(v, v).raw;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return VFromD<D>{vec_doubleo(raw_v)};
 #else
@@ -2341,7 +2346,7 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
-  const __vector signed int raw_v = vec_mergeh(v.raw, v.raw);
+  const __vector signed int raw_v = InterleaveLower(v, v).raw;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return VFromD<D>{vec_doubleo(raw_v)};
 #else
@@ -2519,7 +2524,9 @@ template <class D, typename FromT, HWY_IF_F32_D(D), HWY_IF_NOT_FLOAT(FromT),
 HWY_API VFromD<D> ConvertTo(D /* tag */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
+#endif
   return VFromD<D>{vec_ctf(v.raw, 0)};
   HWY_DIAGNOSTICS(pop)
 }
@@ -2537,7 +2544,9 @@ template <class D, typename FromT, HWY_IF_SIGNED_D(D), HWY_IF_FLOAT(FromT),
 HWY_API VFromD<D> ConvertTo(D /* tag */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
+#endif
   return VFromD<D>{vec_cts(v.raw, 0)};
   HWY_DIAGNOSTICS(pop)
 }
@@ -2547,7 +2556,9 @@ template <class D, typename FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_FLOAT(FromT),
 HWY_API VFromD<D> ConvertTo(D /* tag */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
+#endif
   return VFromD<D>{vec_ctu(v.raw, 0)};
   HWY_DIAGNOSTICS(pop)
 }
@@ -2555,7 +2566,9 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 template <size_t N>
 HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
   HWY_DIAGNOSTICS(push)
+#if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
+#endif
   return Vec128<int32_t, N>{vec_cts(vec_round(v.raw), 0)};
   HWY_DIAGNOSTICS(pop)
 }
@@ -2687,7 +2700,7 @@ HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
 
   using VU64 = __vector unsigned long long;
   const VU64 pmsum_result = reinterpret_cast<VU64>(
-      vec_pmsum_be(vec_mergeh(a.raw, zero.raw), vec_mergeh(b.raw, zero.raw)));
+      vec_pmsum_be(InterleaveLower(a, zero).raw, InterleaveLower(b, zero).raw));
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return Vec128<uint64_t, N>{pmsum_result};
@@ -2831,6 +2844,21 @@ struct CompressIsPartition {
 
 namespace detail {
 
+#if HWY_TARGET > HWY_PPC10  // fallback for missing vec_extractm
+
+template <size_t N>
+HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
+                                    __vector unsigned char bit_shuffle) {
+  // clang POWER8 and 9 targets appear to differ in their return type of
+  // vec_vbpermq: unsigned or signed, so cast to avoid a warning.
+  using VU64 = detail::Raw128<uint64_t>::type;
+  const Vec128<uint64_t> extracted{
+      reinterpret_cast<VU64>(vec_vbpermq(sign_bits.raw, bit_shuffle))};
+  return extracted.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
+}
+
+#endif  // HWY_TARGET > HWY_PPC10
+
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
                                  Mask128<T, N> mask) {
@@ -2843,9 +2871,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   const __vector unsigned char kBitShuffle = {
     120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0
   };
-  const Vec128<uint64_t> extracted_bits{
-      vec_vbpermq(sign_bits.raw, kBitShuffle)};
-  return extracted_bits.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
+  return ExtractSignBits(sign_bits, kBitShuffle);
 #endif  // HWY_TARGET <= HWY_PPC10
 }
 
@@ -2867,9 +2893,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
   const __vector unsigned char kBitShuffle = {
     128, 128, 128, 128, 128, 128, 128, 128, 112, 96, 80, 64, 48, 32, 16, 0};
 #endif
-  const Vec128<uint64_t> extracted_bits{
-      vec_vbpermq(sign_bits.raw, kBitShuffle)};
-  return extracted_bits.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
+  return ExtractSignBits(sign_bits, kBitShuffle);
 #endif  // HWY_TARGET <= HWY_PPC10
 }
 
@@ -2890,9 +2914,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   const __vector unsigned char kBitShuffle = {
      128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 96, 64, 32, 0};
 #endif
-  const Vec128<uint64_t> extracted_bits{
-      vec_vbpermq(sign_bits.raw, kBitShuffle)};
-  return extracted_bits.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
+  return ExtractSignBits(sign_bits, kBitShuffle);
 #endif  // HWY_TARGET <= HWY_PPC10
 }
 
@@ -2915,10 +2937,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
                                               128, 128, 128, 128, 128, 128,
                                               128, 128, 64,  0};
 #endif
-
-  const Vec128<uint64_t> extracted_bits{
-      vec_vbpermq(sign_bits.raw, kBitShuffle)};
-  return extracted_bits.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
+  return ExtractSignBits(sign_bits, kBitShuffle);
 #endif  // HWY_TARGET <= HWY_PPC10
 }
 
@@ -3677,11 +3696,10 @@ HWY_INLINE VFromD<D> AltivecVsum4shs(D d, __vector signed short a,
     const int32_t sign1 = static_cast<int32_t>(sum1 >> 63);
     const int32_t sign2 = static_cast<int32_t>(sum2 >> 63);
     const int32_t sign3 = static_cast<int32_t>(sum3 >> 63);
-    using LoadI32VectType =
-      typename detail::Raw128<int32_t>::AlignedLoadStoreRawVectType;
+    using Raw = typename detail::Raw128<int32_t>::type;
     return BitCast(
         d,
-        VFromD<decltype(di32)>{(__vector signed int)((LoadI32VectType){
+        VFromD<decltype(di32)>{Raw{
             (sign0 == (sum0 >> 31)) ? static_cast<int32_t>(sum0)
                                     : static_cast<int32_t>(sign0 ^ 0x7FFFFFFF),
             (sign1 == (sum1 >> 31)) ? static_cast<int32_t>(sum1)
@@ -3690,7 +3708,7 @@ HWY_INLINE VFromD<D> AltivecVsum4shs(D d, __vector signed short a,
                                     : static_cast<int32_t>(sign2 ^ 0x7FFFFFFF),
             (sign3 == (sum3 >> 31))
                 ? static_cast<int32_t>(sum3)
-                : static_cast<int32_t>(sign3 ^ 0x7FFFFFFF)})});
+                : static_cast<int32_t>(sign3 ^ 0x7FFFFFFF)}});
   } else  // NOLINT
 #endif
   {
@@ -3738,12 +3756,10 @@ HWY_INLINE VFromD<D> AltivecVsum4sbs(D d, __vector signed char a,
     const int32_t sign1 = static_cast<int32_t>(sum1 >> 63);
     const int32_t sign2 = static_cast<int32_t>(sum2 >> 63);
     const int32_t sign3 = static_cast<int32_t>(sum3 >> 63);
-    using LoadI32VectType =
-      typename detail::Raw128<int32_t>::AlignedLoadStoreRawVectType;
+    using Raw = typename detail::Raw128<int32_t>::type;
     return BitCast(
         d,
-        VFromD<decltype(di32)>{reinterpret_cast<__vector signed int>((
-            LoadI32VectType){
+        VFromD<decltype(di32)>{Raw{
             (sign0 == (sum0 >> 31)) ? static_cast<int32_t>(sum0)
                                     : static_cast<int32_t>(sign0 ^ 0x7FFFFFFF),
             (sign1 == (sum1 >> 31)) ? static_cast<int32_t>(sum1)
@@ -3752,7 +3768,7 @@ HWY_INLINE VFromD<D> AltivecVsum4sbs(D d, __vector signed char a,
                                     : static_cast<int32_t>(sign2 ^ 0x7FFFFFFF),
             (sign3 == (sum3 >> 31))
                 ? static_cast<int32_t>(sum3)
-                : static_cast<int32_t>(sign3 ^ 0x7FFFFFFF)})});
+                : static_cast<int32_t>(sign3 ^ 0x7FFFFFFF)}});
   } else  // NOLINT
 #endif
   {
@@ -3869,8 +3885,7 @@ HWY_API Vec16<uint8_t> SumOfLanes(Vec16<uint8_t> v) {
   const Full16<uint16_t> du16;
   const Full128<uint32_t> du32;
   return Broadcast<kSumLaneIdx>(AltivecVsum4ubs(
-      du8,
-      (__vector unsigned char)vec_mergeh(BitCast(du16, v).raw, Zero(du16).raw),
+      du8, BitCast(du8, InterleaveLower(BitCast(du16, v), Zero(du16))).raw,
       Zero(du32).raw));
 }
 
@@ -4092,25 +4107,22 @@ HWY_INLINE V Lt128Vec(D d, V a, V b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
 #if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
   (void)d;
-
+  using VU64 = __vector unsigned long long;
+  using VU128 = __vector unsigned __int128;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  const __vector unsigned __int128 a_u128 =
-    (__vector unsigned __int128)a.raw;
-  const __vector unsigned __int128 b_u128 =
-    (__vector unsigned __int128)b.raw;
+  const VU128 a_u128 = reinterpret_cast<VU128>(a.raw);
+  const VU128 b_u128 = reinterpret_cast<VU128>(b.raw);
 #else
   // NOTE: Need to swap the halves of both a and b on big-endian targets
   // as the upper 64 bits of a and b are in lane 1 and the lower 64 bits
   // of a and b are in lane 0 whereas the vec_cmplt operation below expects
   // the upper 64 bits in lane 0 and the lower 64 bits in lane 1 on
   // big-endian PPC targets.
-  const __vector unsigned __int128 a_u128 =
-    (__vector unsigned __int128)vec_sld(a.raw, a.raw, 8);
-  const __vector unsigned __int128 b_u128 =
-    (__vector unsigned __int128)vec_sld(b.raw, b.raw, 8);
+  const VU128 a_u128 = reinterpret_cast<VU128>(vec_sld(a.raw, a.raw, 8));
+  const VU128 b_u128 = reinterpret_cast<VU128>(vec_sld(b.raw, b.raw, 8));
 #endif
-  return V{(__vector unsigned long long)vec_cmplt(a_u128, b_u128)};
-#else
+  return V{reinterpret_cast<VU64>(vec_cmplt(a_u128, b_u128))};
+#else  // HWY_TARGET > HWY_PPC10
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -4138,9 +4150,10 @@ HWY_INLINE V Eq128Vec(D d, V a, V b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
 #if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
   (void)d;
-  return V{(__vector unsigned long long)vec_cmpeq(
-             (__vector unsigned __int128)a.raw,
-             (__vector unsigned __int128)b.raw)};
+  using VU64 = __vector unsigned long long;
+  using VU128 = __vector unsigned __int128;
+  return V{reinterpret_cast<VU64>(vec_cmpeq(reinterpret_cast<VU128>(a.raw),
+                                            reinterpret_cast<VU128>(b.raw)))};
 #else
   const auto eqHL = VecFromMask(d, Eq(a, b));
   const auto eqLH = Reverse2(d, eqHL);
@@ -4153,9 +4166,10 @@ HWY_INLINE V Ne128Vec(D d, V a, V b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
 #if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
   (void)d;
-  return V{(__vector unsigned long long)vec_cmpne(
-             (__vector unsigned __int128)a.raw,
-             (__vector unsigned __int128)b.raw)};
+  using VU64 = __vector unsigned long long;
+  using VU128 = __vector unsigned __int128;
+  return V{reinterpret_cast<VU64>(vec_cmpne(reinterpret_cast<VU128>(a.raw),
+                                            reinterpret_cast<VU128>(b.raw)))};
 #else
   const auto neHL = VecFromMask(d, Ne(a, b));
   const auto neLH = Reverse2(d, neHL);

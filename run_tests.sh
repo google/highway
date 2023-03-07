@@ -80,22 +80,26 @@ rm -rf build_arm8
 #######################################
 echo POWER8 GCC
 export QEMU_LD_PREFIX=/usr/powerpc64le-linux-gnu
-rm -rf build_ppc8
-mkdir build_ppc8
-cd build_ppc8
-CC=powerpc64le-linux-gnu-gcc-12 CXX=powerpc64le-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64le-static -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CXX_FLAGS='-mcpu=power9 -mno-power9-vector -mpower8-vector'
+rm -rf build_ppc8 && mkdir build_ppc8 && cd build_ppc8
+CC=powerpc64le-linux-gnu-gcc-12 CXX=powerpc64le-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64le-static -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CXX_FLAGS='-mcpu=power9 -mno-power9-vector -mpower8-vector'
 clear && make -j && ctest && cd ..
 rm -rf build_ppc8
 
 #######################################
-echo POWER9 clang - no HWY_WARNINGS_ARE_ERRORS - vec_ctf triggers warnings
+echo POWER9 clang
 export QEMU_LD_PREFIX=/usr/powerpc64le-linux-gnu
-rm -rf build_ppc9
-mkdir build_ppc9
-cd build_ppc9
-CC=clang-15 CXX=clang++-15 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CXX_FLAGS='-mcpu=power9'
+rm -rf build_ppc9 && mkdir build_ppc9 && cd build_ppc9
+CC=clang-15 CXX=clang++-15 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CXX_FLAGS='-mcpu=power9'
 clear && make -j && ctest && cd ..
 rm -rf build_ppc9
+
+#######################################
+echo POWER10 requires new QEMU and gcc because clang 15 crashes
+export QEMU_LD_PREFIX=/usr/powerpc64le-linux-gnu
+rm -rf build_ppc10 && mkdir build_ppc10 && cd build_ppc10
+CC=powerpc64le-linux-gnu-gcc-12 CXX=powerpc64le-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CXX_FLAGS='-mcpu=power10'
+clear && make -j && ctest && cd ..
+rm -rf build_ppc10
 
 
 echo Success
