@@ -171,7 +171,7 @@
 #define HWY_ARCH_X86 0
 #endif
 
-#if defined(__powerpc64__) || defined(_M_PPC)
+#if defined(__powerpc64__) || defined(_M_PPC) || defined(__powerpc__)
 #define HWY_ARCH_PPC 1
 #else
 #define HWY_ARCH_PPC 0
