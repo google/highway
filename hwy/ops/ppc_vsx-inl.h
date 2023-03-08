@@ -2844,8 +2844,8 @@ struct CompressIsPartition {
 
 namespace detail {
 
-#if HWY_TARGET > HWY_PPC10  // fallback for missing vec_extractm
-
+#if HWY_TARGET > HWY_PPC10 || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+// fallback for missing vec_extractm
 template <size_t N>
 HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
                                     __vector unsigned char bit_shuffle) {
@@ -2865,7 +2865,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_TARGET <= HWY_PPC10
+#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return static_cast<uint64_t>(vec_extractm(sign_bits.raw));
 #else
   const __vector unsigned char kBitShuffle = {
@@ -2882,7 +2882,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
-#if HWY_TARGET <= HWY_PPC10
+#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
@@ -2903,7 +2903,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_TARGET <= HWY_PPC10
+#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
@@ -2924,7 +2924,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_TARGET <= HWY_PPC10
+#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
