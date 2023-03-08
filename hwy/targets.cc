@@ -44,6 +44,9 @@
 
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_OS_LINUX && \
       !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
+// sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
+// still include this directly. See #1199.
+#include <asm/hwcap.h>
 #include <sys/auxv.h>
 
 #if HWY_ARCH_PPC
@@ -405,14 +408,14 @@ int64_t DetectTargets() {
   constexpr CapBits kGroupPPC8 =
     PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
 #endif
-  if((hw & (PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX)) ==
-     (PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX)) {
+  if ((hw & (PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX)) ==
+      (PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX)) {
     const CapBits hw2 = getauxval(AT_HWCAP2);
-    if((hw2 & kGroupPPC8) == kGroupPPC8) {
+    if ((hw2 & kGroupPPC8) == kGroupPPC8) {
       bits |= HWY_PPC8;
-      if((hw2 & PPC_FEATURE2_ARCH_3_00) == PPC_FEATURE2_ARCH_3_00) {
+      if ((hw2 & PPC_FEATURE2_ARCH_3_00) == PPC_FEATURE2_ARCH_3_00) {
         bits |= HWY_PPC9;
-        if((hw2 & PPC_FEATURE2_ARCH_3_1) == PPC_FEATURE2_ARCH_3_1) {
+        if ((hw2 & PPC_FEATURE2_ARCH_3_1) == PPC_FEATURE2_ARCH_3_1) {
           bits |= HWY_PPC10;
         }
       }
