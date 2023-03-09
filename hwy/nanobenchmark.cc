@@ -52,7 +52,7 @@
 #endif
 
 #include "hwy/base.h"
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if (HWY_ARCH_PPC && defined(__GLIBC__)) || NO_WARN_X86_INTRINSICS
 #include <sys/platform/ppc.h>  // NOLINT __ppc_get_timebase_freq
 #elif HWY_ARCH_X86
 
@@ -125,7 +125,7 @@ using Ticks = uint64_t;
 // divide by InvariantTicksPerSecond.
 inline Ticks Start() {
   Ticks t;
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if (HWY_ARCH_PPC && defined(__GLIBC__)) || NO_WARN_X86_INTRINSICS
   asm volatile("mfspr %0, %1" : "=r"(t) : "i"(268));
 #elif HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC
   // pmccntr_el0 is privileged but cntvct_el0 is accessible in Linux and QEMU.
@@ -171,7 +171,7 @@ inline Ticks Start() {
 // WARNING: on x86, caller must check HasRDTSCP before using this!
 inline Ticks Stop() {
   uint64_t t;
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if (HWY_ARCH_PPC && defined(__GLIBC__)) || NO_WARN_X86_INTRINSICS
   asm volatile("mfspr %0, %1" : "=r"(t) : "i"(268));
 #elif HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC
   // pmccntr_el0 is privileged but cntvct_el0 is accessible in Linux and QEMU.
@@ -373,7 +373,11 @@ void Cpuid(const uint32_t level, const uint32_t count,
   uint32_t b;
   uint32_t c;
   uint32_t d;
+#ifdef NO_WARN_X86_INTRINSICS
+  a= b=c= d=0;
+#else
   __cpuid_count(level, count, a, b, c, d);
+#endif
   abcd[0] = a;
   abcd[1] = b;
   abcd[2] = c;
@@ -410,7 +414,7 @@ std::string BrandString() {
 }  // namespace
 
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if (HWY_ARCH_PPC && defined(__GLIBC__)) || NO_WARN_X86_INTRINSICS
   return static_cast<double>(__ppc_get_timebase_freq());
 #elif HWY_ARCH_X86 || HWY_ARCH_RVV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
@@ -436,7 +440,7 @@ HWY_DLLEXPORT double Now() {
 }
 
 HWY_DLLEXPORT uint64_t TimerResolution() {
-#if HWY_ARCH_X86
+#if HWY_ARCH_X86 && !NO_WARN_X86_INTRINSICS
   bool can_use_stop = platform::HasRDTSCP();
 #else
   constexpr bool can_use_stop = true;
@@ -681,7 +685,7 @@ HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
                              Result* results, const Params& p) {
   NANOBENCHMARK_CHECK(num_inputs != 0);
 
-#if HWY_ARCH_X86
+#if HWY_ARCH_X86 && !NO_WARN_X86_INTRINSICS
   if (!platform::HasRDTSCP()) {
     fprintf(stderr, "CPU '%s' does not support RDTSCP, skipping benchmark.\n",
             platform::BrandString().c_str());

@@ -36,7 +36,7 @@
 #if HWY_COMPILER_MSVC
 #include <intrin.h>
 #else  // !HWY_COMPILER_MSVC
-#include <cpuid.h>
+//#include <cpuid.h>
 #endif  // HWY_COMPILER_MSVC
 
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_OS_LINUX
@@ -79,7 +79,11 @@ HWY_INLINE void Cpuid(const uint32_t level, const uint32_t count,
   uint32_t b;
   uint32_t c;
   uint32_t d;
+#ifdef NO_WARN_X86_INTRINSICS
+  a= b= c= d=0;
+#else
   __cpuid_count(level, count, a, b, c, d);
+#endif
   abcd[0] = a;
   abcd[1] = b;
   abcd[2] = c;
@@ -254,6 +258,8 @@ int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 #if HWY_ARCH_X86_64
   bits |= HWY_SSE2;  // always present in x64
+  bits |= HWY_SSSE3;  // always present in x64
+  bits |= HWY_SSE4;  // always present in x64
 #endif
 
   const uint64_t flags = FlagsFromCPUID();

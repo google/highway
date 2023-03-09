@@ -89,21 +89,45 @@
 #define HWY_TARGET_STR_F16C ",f16c"
 #endif
 
+#ifndef NO_WARN_X86_INTRINSICS
 #define HWY_TARGET_STR_SSE2 "sse2"
+#else
+#define HWY_TARGET_STR_SSE2 ""
+#endif
 
+#ifndef NO_WARN_X86_INTRINSICS
 #define HWY_TARGET_STR_SSSE3 "sse2,ssse3"
+#else
+#define HWY_TARGET_STR_SSSE3 ""
+#endif
 
+#ifndef NO_WARN_X86_INTRINSICS
 #define HWY_TARGET_STR_SSE4 \
   HWY_TARGET_STR_SSSE3 ",sse4.1,sse4.2" HWY_TARGET_STR_PCLMUL_AES
+#else
+#define HWY_TARGET_STR_SSE4 ""
+#endif
 // Include previous targets, which are the half-vectors of the next target.
+#ifndef NO_WARN_X86_INTRINSICS
 #define HWY_TARGET_STR_AVX2 \
   HWY_TARGET_STR_SSE4 ",avx,avx2" HWY_TARGET_STR_BMI2_FMA HWY_TARGET_STR_F16C
+#else
+#define HWY_TARGET_STR_AVX2 ""
+#endif
+#ifndef NO_WARN_X86_INTRINSICS
 #define HWY_TARGET_STR_AVX3 \
   HWY_TARGET_STR_AVX2 ",avx512f,avx512vl,avx512dq,avx512bw"
+#else
+#define HWY_TARGET_STR_AVX3 ""
+#endif
+#ifndef NO_WARN_X86_INTRINSICS
 #define HWY_TARGET_STR_AVX3_DL                                    \
   HWY_TARGET_STR_AVX3                                             \
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
   "avx512vpopcntdq"
+#else
+#define HWY_TARGET_STR_AVX3_DL                                    ""
+#endif
 
 #if defined(HWY_DISABLE_PPC8_CRYPTO)
 #define HWY_TARGET_STR_PPC8_CRYPTO ""

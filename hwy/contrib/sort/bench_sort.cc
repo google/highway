@@ -121,9 +121,11 @@ HWY_NOINLINE void BenchAllPartition() {
 template <class Traits>
 HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
   // Not interested in benchmark results for these targets
+#ifndef NO_WARN_X86_INTRINSICS
   if (HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4) {
     return;
   }
+#endif
 
   using LaneType = typename Traits::LaneType;
   using KeyType = typename Traits::KeyType;
@@ -164,9 +166,11 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
 
 HWY_NOINLINE void BenchAllBase() {
   // Not interested in benchmark results for these targets
+#ifndef NO_WARN_X86_INTRINSICS
   if (HWY_TARGET == HWY_SSSE3) {
     return;
   }
+#endif
 
   std::vector<Result> results;
   BenchBase<TraitsLane<OrderAscending<float>>>(results);
@@ -262,9 +266,11 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets. Note that SSE4 is
   // numerically less than SSE2, hence it is the lower bound.
+#ifndef NO_WARN_X86_INTRINSICS
   if (HWY_SSE4 <= HWY_TARGET && HWY_TARGET <= HWY_SSE2) {
     return;
   }
+#endif
 
   constexpr size_t K = 1000;
   constexpr size_t M = K * K;

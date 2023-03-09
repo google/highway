@@ -551,9 +551,14 @@
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
+#ifdef NO_WARN_X86_INTRINSICS
+#define HWY_ATTAINABLE_TARGETS                                        \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4  )  
+#else
 #define HWY_ATTAINABLE_TARGETS                                        \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | \
               HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4)
+#endif
 #elif HWY_ARCH_ARM
 #define HWY_ATTAINABLE_TARGETS                                                 \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_NEON | HWY_ATTAINABLE_SVE | \

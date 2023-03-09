@@ -3941,7 +3941,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 template <size_t kLane, size_t N>
 HWY_INLINE Vec128<float, N> InsertLane(const Vec128<float, N> v, float t) {
   static_assert(kLane < N, "Lane index out of bounds");
-#if HWY_TARGET >= HWY_SSSE3
+#if HWY_TARGET >= HWY_SSSE3 || NO_WARN_X86_INTRINSICS
   const DFromV<decltype(v)> d;
   alignas(16) float lanes[4];
   Store(v, d, lanes);

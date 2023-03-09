@@ -155,7 +155,7 @@
 #define HWY_ARCH_X86_32 0
 #endif
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__x86_64__) || defined(_M_X64) || NO_WARN_X86_INTRINSICS
 #define HWY_ARCH_X86_64 1
 #else
 #define HWY_ARCH_X86_64 0
@@ -165,13 +165,13 @@
 #error "Cannot have both x86-32 and x86-64"
 #endif
 
-#if HWY_ARCH_X86_32 || HWY_ARCH_X86_64
+#if HWY_ARCH_X86_32 || HWY_ARCH_X86_64 || NO_WARN_X86_INTRINSICS
 #define HWY_ARCH_X86 1
 #else
 #define HWY_ARCH_X86 0
 #endif
 
-#if defined(__powerpc64__) || defined(_M_PPC) || defined(__powerpc__)
+#if (defined(__powerpc64__) || defined(_M_PPC) || defined(__powerpc__)) && !NO_WARN_X86_INTRINSICS
 #define HWY_ARCH_PPC 1
 #else
 #define HWY_ARCH_PPC 0
