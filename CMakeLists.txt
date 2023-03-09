@@ -263,6 +263,10 @@ endif()  # !MSVC
 
 include(CheckIncludeFile)
 check_include_file(sys/auxv.h  HAVE_SYS_AUXV_H)
+check_include_file(asm/hwcap.h HAVE_ASM_HWCAP_H)
+if (NOT HAVE_ASM_HWCAP_H)
+  list(APPEND HWY_FLAGS -DTOOLCHAIN_MISS_ASM_HWCAP_H)
+endif()
 
 # By default prefer STATIC build (legacy behavior)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
