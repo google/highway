@@ -42,12 +42,15 @@
 #include <cpuid.h>
 #endif  // HWY_COMPILER_MSVC
 
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_OS_LINUX && \
-      !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_OS_LINUX
 // sys/auxv.h does not always include asm/hwcap.h, or define HWCAP*, hence we
 // still include this directly. See #1199.
+#ifndef TOOLCHAIN_MISS_ASM_HWCAP_H
 #include <asm/hwcap.h>
+#endif
+#ifndef TOOLCHAIN_MISS_SYS_AUXV_H
 #include <sys/auxv.h>
+#endif
 
 #if HWY_ARCH_PPC
 #ifndef PPC_FEATURE_HAS_ALTIVEC
