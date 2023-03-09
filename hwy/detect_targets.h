@@ -208,13 +208,24 @@
 #define HWY_BROKEN_RVV 0
 #endif
 
+// There are GCC/Clang compiler bugs on big-endian PPC with the -mcpu=power10
+// option if optimizations are enabled
+#if HWY_ARCH_PPC && defined(__BYTE_ORDER__) && \
+    defined(__ORDER_LITTLE_ENDIAN__) &&        \
+    __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#define HWY_BROKEN_PPC10 HWY_PPC10
+#else
+#define HWY_BROKEN_PPC10 0
+#endif
+
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                  \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC | \
-   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_ARM7_BIG_ENDIAN |   \
-   HWY_BROKEN_ARM7_WITHOUT_VFP4 | HWY_BROKEN_SVE | HWY_BROKEN_RVV)
+#define HWY_BROKEN_TARGETS                                          \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |         \
+   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_ARM7_BIG_ENDIAN |           \
+   HWY_BROKEN_ARM7_WITHOUT_VFP4 | HWY_BROKEN_SVE | HWY_BROKEN_RVV | \
+   HWY_BROKEN_PPC10)
 
 #endif  // HWY_BROKEN_TARGETS
 
