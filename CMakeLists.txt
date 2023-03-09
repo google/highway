@@ -289,7 +289,7 @@ endif()
 
 add_library(hwy ${HWY_LIBRARY_TYPE} ${HWY_SOURCES})
 if(NOT HAVE_SYS_AUXV_H)
-  target_compile_options(hwy PUBLIC TOOLCHAIN_MISS_SYS_AUXV_H)
+  target_compile_definitions(hwy PUBLIC TOOLCHAIN_MISS_SYS_AUXV_H)
 endif()
 target_compile_definitions(hwy PUBLIC "${DLLEXPORT_TO_DEFINE}")
 target_compile_options(hwy PRIVATE ${HWY_FLAGS})
