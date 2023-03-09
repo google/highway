@@ -316,8 +316,9 @@ cc_library(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "list_targets",
+    size = "small",
     srcs = ["hwy/tests/list_targets.cc"],
     deps = [":hwy"],
 )
