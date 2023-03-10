@@ -27,7 +27,7 @@ namespace hwy {
 // changed without also changing the associated code.
 struct SortConstants {
 // SortingNetwork reshapes its input into a matrix. This is the maximum number
-// of *keys* per vector.
+// of *lanes* per vector.
 #if HWY_COMPILER_MSVC || HWY_IS_DEBUG_BUILD
   static constexpr size_t kMaxCols = 8;  // avoid build timeout/stack overflow
 #else

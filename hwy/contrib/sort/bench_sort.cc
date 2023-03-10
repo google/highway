@@ -262,8 +262,7 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets. Note that SSE4 is
   // numerically less than SSE2, hence it is the lower bound.
-  if ((HWY_SSE4 <= HWY_TARGET && HWY_TARGET <= HWY_SSE2) ||
-      (HWY_ARCH_X86 && HWY_TARGET == HWY_EMU128)) {
+  if (HWY_SSE4 <= HWY_TARGET && HWY_TARGET <= HWY_SSE2) {
     return;
   }
 
