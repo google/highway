@@ -3126,7 +3126,7 @@ template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE svuint8_t LaneIndicesFromByteIndices(D, svuint8_t idx) {
   return idx;
 }
-template <class D, class DU = RebindToUnsigned<D>, HWY_IF_NOT_LANE_SIZE_D(D, 1)>
+template <class D, class DU = RebindToUnsigned<D>, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_INLINE VFromD<DU> LaneIndicesFromByteIndices(D, svuint8_t idx) {
   return PromoteTo(DU(), idx);
 }

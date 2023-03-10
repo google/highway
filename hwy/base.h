@@ -461,6 +461,18 @@ struct RemoveConstT<const T> {
 template <class T>
 using RemoveConst = typename RemoveConstT<T>::type;
 
+template <class T>
+struct RemoveRefT {
+  using type = T;
+};
+template <class T>
+struct RemoveRefT<T&> {
+  using type = T;
+};
+
+template <class T>
+using RemoveRef = typename RemoveRefT<T>::type;
+
 //------------------------------------------------------------------------------
 // Type relations
 
@@ -1011,6 +1023,24 @@ HWY_API bfloat16_t BF16FromF32(float f) {
 
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...);
+
+// Prevents the compiler from eliding the computations that led to "output".
+template <class T>
+HWY_API void PreventElision(T&& output) {
+#if HWY_COMPILER_MSVC
+  // MSVC does not support inline assembly anymore (and never supported GCC's
+  // RTL constraints). Self-assignment with #pragma optimize("off") might be
+  // expected to prevent elision, but it does not with MSVC 2015. Type-punning
+  // with volatile pointers generates inefficient code on MSVC 2017.
+  static std::atomic<RemoveRef<T>> dummy;
+  dummy.store(output, std::memory_order_relaxed);
+#else
+  // Works by indicating to the compiler that "output" is being read and
+  // modified. The +r constraint avoids unnecessary writes to memory, but only
+  // works for built-in types (typically FuncOutput).
+  asm volatile("" : "+r"(output) : : "memory");
+#endif
+}
 
 }  // namespace hwy
 

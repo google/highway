@@ -261,9 +261,11 @@ struct TestZipLower {
       const size_t mod = i % blockN;
       zip_lanes[i + 0] = even_lanes[mod / 2 + base];
       zip_lanes[i + 1] = odd_lanes[mod / 2 + base];
+      // Without this, `expected` is incorrect with Clang and 512-bit SVE: the
+      // first byte of the second block is 0x10 instead of 0x20 as it should be.
+      PreventElision(zip_lanes[i + 0]);
     }
-    const auto expected =
-        Load(dw, reinterpret_cast<const WideT*>(zip_lanes.get()));
+    const Vec<decltype(dw)> expected = BitCast(dw, Load(d, zip_lanes.get()));
 #endif  // HWY_TARGET == HWY_SCALAR
     HWY_ASSERT_VEC_EQ(dw, expected, ZipLower(even, odd));
     HWY_ASSERT_VEC_EQ(dw, expected, ZipLower(dw, even, odd));
@@ -321,10 +323,11 @@ struct TestZipUpper {
       const size_t mod = i % blockN;
       zip_lanes[i + 0] = even_lanes[mod / 2 + base];
       zip_lanes[i + 1] = odd_lanes[mod / 2 + base];
+      // See comment at previous call to PreventElision.
+      PreventElision(zip_lanes[i + 0]);
     }
     const Repartition<WideT, D> dw;
-    const auto expected =
-        Load(dw, reinterpret_cast<const WideT*>(zip_lanes.get()));
+    const Vec<decltype(dw)> expected = BitCast(dw, Load(d, zip_lanes.get()));
     HWY_ASSERT_VEC_EQ(dw, expected, ZipUpper(dw, even, odd));
 #endif  // HWY_TARGET == HWY_SCALAR
   }
