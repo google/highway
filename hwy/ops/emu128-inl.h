@@ -788,7 +788,7 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] /= b.raw[i];
+    a.raw[i] = (b.raw[i] == T{0}) ? 0 : a.raw[i] / b.raw[i];
   }
   return a;
 }
