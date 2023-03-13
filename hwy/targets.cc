@@ -361,10 +361,10 @@ int64_t DetectTargets() {
   (void)hw;
 
 #if HWY_ARCH_ARM_A64
+  bits |= HWY_NEON_WITHOUT_AES;  // aarch64 always has NEON and VFPv4..
 
+// .. but not necessarily AES, which is required for HWY_NEON.
 #if defined(HWCAP_AES)
-  // aarch64 always has NEON and VFPv4, but not necessarily AES, which we
-  // require and thus must still check for.
   if (hw & HWCAP_AES) {
     bits |= HWY_NEON;
   }
@@ -383,15 +383,18 @@ int64_t DetectTargets() {
   }
 #endif
 
-#else  // HWY_ARCH_ARM_A64
+#else  // !HWY_ARCH_ARM_A64
 
 // Some old auxv.h / hwcap.h do not define these. If not, treat as unsupported.
-// Note that AES has a different HWCAP bit compared to aarch64.
 #if defined(HWCAP_NEON) && defined(HWCAP_VFPv4)
   if ((hw & HWCAP_NEON) && (hw & HWCAP_VFPv4)) {
-    bits |= HWY_NEON;
+    bits |= HWY_NEON_WITHOUT_AES;
   }
 #endif
+
+  // aarch32 would check getauxval(AT_HWCAP2) & HWCAP2_AES, but we do not yet
+  // support that platform, and Arm v7 lacks AES entirely. Because HWY_NEON
+  // requires native AES instructions, we do not enable that target here.
 
 #endif  // HWY_ARCH_ARM_A64
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {

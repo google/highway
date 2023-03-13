@@ -177,6 +177,7 @@
 #define HWY_ARCH_PPC 0
 #endif
 
+// aarch32 is currently not supported; please raise an issue if you want it.
 #if defined(__ARM_ARCH_ISA_A64) || defined(__aarch64__) || defined(_M_ARM64)
 #define HWY_ARCH_ARM_A64 1
 #else

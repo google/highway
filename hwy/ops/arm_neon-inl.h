@@ -4819,10 +4819,10 @@ HWY_API Vec32<int16_t> ReorderDemote2To(D /*d16*/, Vec32<int32_t> a,
 
 // ================================================== CRYPTO
 
-#if defined(__ARM_FEATURE_AES) || \
-    (HWY_HAVE_RUNTIME_DISPATCH && HWY_ARCH_ARM_A64)
+// (aarch64 or Arm7) and (__ARM_FEATURE_AES or HWY_HAVE_RUNTIME_DISPATCH).
+// Otherwise, rely on generic_ops-inl.h to emulate AESRound / CLMul*.
+#if HWY_TARGET == HWY_NEON
 
-// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
 #ifdef HWY_NATIVE_AES
 #undef HWY_NATIVE_AES
 #else
@@ -4853,7 +4853,7 @@ HWY_API Vec128<uint64_t> CLMulUpper(Vec128<uint64_t> a, Vec128<uint64_t> b) {
       (uint64x2_t)vmull_high_p64((poly64x2_t)a.raw, (poly64x2_t)b.raw));
 }
 
-#endif  // __ARM_FEATURE_AES
+#endif  // HWY_TARGET == HWY_NEON
 
 // ================================================== MISC
 

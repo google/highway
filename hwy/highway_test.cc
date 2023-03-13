@@ -310,7 +310,7 @@ struct TestNaN {
     HWY_ASSERT_VEC_EQ(d, v1, Max(nan, v1));
     HWY_ASSERT_NAN(d, Min(v1, nan));
     HWY_ASSERT_NAN(d, Max(v1, nan));
-#elif HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7
+#elif HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
     // ARMv7 NEON returns NaN if any input is NaN.
     HWY_ASSERT_NAN(d, Min(v1, nan));
     HWY_ASSERT_NAN(d, Max(v1, nan));

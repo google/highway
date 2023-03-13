@@ -81,7 +81,8 @@ HWY_NOINLINE void TestAllSumOfLanes() {
   ForUIF3264(ForPartialVectors<TestSumOfLanes>());
   ForUI16(ForPartialVectors<TestSumOfLanes>());
 
-#if HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_SSE4 || HWY_TARGET == HWY_SSSE3
+// UI8 is only implemented for some targets.
+#if HWY_MAX_BYTES == 16 && (HWY_ARCH_ARM || HWY_ARCH_X86)
   ForUI8(ForGEVectors<64, TestSumOfLanes>());
 #endif
 }
@@ -203,7 +204,8 @@ HWY_NOINLINE void TestAllMinMaxOfLanes() {
   ForUI16(test_min);
   ForUI16(test_max);
 
-#if HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_SSE4 || HWY_TARGET == HWY_SSSE3
+// UI8 is only implemented for some targets.
+#if HWY_MAX_BYTES == 16 && (HWY_ARCH_ARM || HWY_ARCH_X86)
   ForUI8(ForGEVectors<64, TestMinOfLanes>());
   ForUI8(ForGEVectors<64, TestMaxOfLanes>());
 #endif

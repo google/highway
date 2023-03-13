@@ -222,13 +222,13 @@ and avoid duplicating those functions in x86_256 and x86_512), we use
 When adding a new op, it is often necessary to consult the reference for each
 platform's intrinsics.
 
-For x86 targets `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`, `HWY_AVX3_DL`,
-`HWY_AVX3_ZEN4` Intel provides a
+For x86 targets `HWY_SSE2`, `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`,
+`HWY_AVX3_DL`, `HWY_AVX3_ZEN4` Intel provides a
 [searchable reference](https://www.intel.com/content/www/us/en/docs/intrinsics-guide).
 
-For Arm targets `HWY_NEON`, `HWY_SVE` (plus its specialization for 256-bit
-vectors `HWY_SVE_256`), `HWY_SVE2` (plus its specialization for 128-bit vectors
-`HWY_SVE2_128`), Arm provides a
+For Arm targets `HWY_NEON`, `HWY_NEON_WITHOUT_AES`, `HWY_SVE` (plus its
+specialization for 256-bit vectors `HWY_SVE_256`), `HWY_SVE2` (plus its
+specialization for 128-bit vectors `HWY_SVE2_128`), Arm provides a
 [searchable reference](https://developer.arm.com/architectures/instruction-sets/intrinsics).
 
 For RISC-V target `HWY_RVV`, we refer to the assembly language
@@ -241,7 +241,8 @@ For WebAssembly target `HWY_WASM`, we recommend consulting the
 There is also an unofficial
 [searchable list of intrinsics](https://nemequ.github.io/waspr/intrinsics).
 
-For POWER8/9/10, there is [documentation of intrinsics](https://files.openpower.foundation/s/9nRDmJgfjM8MpR7),
+For POWER targets `HWY_PPC8`, `HWY_PPC9`, `HWY_PPC10`, there is
+[documentation of intrinsics](https://files.openpower.foundation/s/9nRDmJgfjM8MpR7),
 the [ISA](https://files.openpower.foundation/s/dAYSdGzTfW4j2r2), plus a
 [searchable reference](https://www.ibm.com/docs/en/openxl-c-and-cpp-aix/17.1.1?).
 

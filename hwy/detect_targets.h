@@ -85,8 +85,8 @@
 #define HWY_SVE_256 (1LL << 25)   // specialized target (e.g. Arm V1)
 #define HWY_SVE2 (1LL << 26)
 #define HWY_SVE (1LL << 27)
-#define HWY_NEON (1LL << 28)  // On A64, includes/requires AES
-// Bit 29 reserved (Helium?)
+#define HWY_NEON (1LL << 28)  // Implies support for AES
+#define HWY_NEON_WITHOUT_AES (1LL << 29)
 #define HWY_HIGHEST_TARGET_BIT_ARM 29
 
 // --------------------------- RISC-V: 9 targets (+ one fallback)
@@ -176,7 +176,7 @@
 #if HWY_ARCH_ARM_V7 &&            \
     (defined(__ARM_BIG_ENDIAN) || \
      (defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN))
-#define HWY_BROKEN_ARM7_BIG_ENDIAN (HWY_NEON)
+#define HWY_BROKEN_ARM7_BIG_ENDIAN (HWY_NEON | HWY_NEON_WITHOUT_AES)
 #else
 #define HWY_BROKEN_ARM7_BIG_ENDIAN 0
 #endif
@@ -187,7 +187,7 @@
 #if HWY_ARCH_ARM_V7 && (__ARM_ARCH_PROFILE == 'A') && \
     !defined(__ARM_VFPV4__) &&                        \
     !((__ARM_NEON_FP & 0x2 /* half-float */) && (__ARM_FEATURE_FMA == 1))
-#define HWY_BROKEN_ARM7_WITHOUT_VFP4 (HWY_NEON)
+#define HWY_BROKEN_ARM7_WITHOUT_VFP4 (HWY_NEON | HWY_NEON_WITHOUT_AES)
 #else
 #define HWY_BROKEN_ARM7_WITHOUT_VFP4 0
 #endif
@@ -333,7 +333,11 @@
 // GCC 4.5.4 only defines __ARM_NEON__; 5.4 defines both.
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
 #undef HWY_BASELINE_NEON
-#define HWY_BASELINE_NEON HWY_NEON
+#if defined(__ARM_FEATURE_AES)
+#define HWY_BASELINE_NEON (HWY_NEON | HWY_NEON_WITHOUT_AES)
+#else
+#define HWY_BASELINE_NEON (HWY_NEON_WITHOUT_AES)
+#endif
 #endif
 
 #endif  // HWY_ARCH_ARM
@@ -502,7 +506,7 @@
 // Clang, GCC and MSVC allow runtime dispatch on x86.
 #if HWY_ARCH_X86
 #define HWY_HAVE_RUNTIME_DISPATCH 1
-// On Arm, currently only GCC does, and we require Linux to detect CPU
+// On Arm/PPC, currently only GCC does, and we require Linux to detect CPU
 // capabilities.
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_COMPILER_GCC_ACTUAL && \
       HWY_OS_LINUX && !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
@@ -520,6 +524,14 @@
 #define HWY_ATTAINABLE_AVX3_DL 0
 #endif
 
+#if HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+#define HWY_ATTAINABLE_NEON HWY_ENABLED(HWY_NEON | HWY_NEON_WITHOUT_AES)
+#elif HWY_ARCH_ARM  // static only
+#define HWY_ATTAINABLE_NEON HWY_ENABLED(HWY_BASELINE_NEON)
+#else
+#define HWY_ATTAINABLE_NEON 0
+#endif
+
 #if HWY_ARCH_ARM_A64 && (HWY_HAVE_RUNTIME_DISPATCH || \
                          (HWY_ENABLED_BASELINE & (HWY_SVE | HWY_SVE_256)))
 #define HWY_ATTAINABLE_SVE HWY_ENABLED(HWY_SVE | HWY_SVE_256)
@@ -534,20 +546,27 @@
 #define HWY_ATTAINABLE_SVE2 0
 #endif
 
+#if HWY_ARCH_PPC && !HWY_DISABLE_PPC8_CRYPTO
+#define HWY_ATTAINABLE_PPC (HWY_PPC8 | HWY_PPC9 | HWY_PPC10)
+#else
+#define HWY_ATTAINABLE_PPC 0
+#endif
+
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
 #define HWY_ATTAINABLE_TARGETS                                        \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | \
               HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4)
-#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
-#define HWY_ATTAINABLE_TARGETS                                      \
-  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_NEON | HWY_ATTAINABLE_SVE | \
+#elif HWY_ARCH_ARM
+#define HWY_ATTAINABLE_TARGETS                                                 \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_NEON | HWY_ATTAINABLE_SVE | \
               HWY_ATTAINABLE_SVE2)
+#elif HWY_ARCH_PPC
+#define HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_PPC)
 #else
-#define HWY_ATTAINABLE_TARGETS \
-  (HWY_ENABLED_BASELINE | HWY_ATTAINABLE_SVE | HWY_ATTAINABLE_SVE2)
-#endif
+#define HWY_ATTAINABLE_TARGETS (HWY_ENABLED_BASELINE)
+#endif  // HWY_ARCH_*
 
 // 1) For older compilers: avoid SIMD intrinsics, but still support all ops.
 #if defined(HWY_COMPILE_ONLY_EMU128) && !HWY_BROKEN_EMU128

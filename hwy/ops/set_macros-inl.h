@@ -286,7 +286,7 @@
 
 //-----------------------------------------------------------------------------
 // NEON
-#elif HWY_TARGET == HWY_NEON
+#elif HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES
 
 #define HWY_ALIGN alignas(16)
 #define HWY_MAX_BYTES 16
@@ -313,21 +313,33 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
+#if HWY_TARGET == HWY_NEON_WITHOUT_AES
+#define HWY_NAMESPACE N_NEON_WITHOUT_AES
+#else
 #define HWY_NAMESPACE N_NEON
+#endif
 
 // Can use pragmas instead of -march compiler flag
 #if HWY_HAVE_RUNTIME_DISPATCH
 #if HWY_ARCH_ARM_V7
-#if HWY_COMPILER_GCC_ACTUAL >= 800
+
 // The __attribute__((target(+neon-vfpv4)) was introduced in gcc >= 8.
-// In case we have a gcc < 8, we can still compile by keeping
-// HWY_TARGET_STR undefined.
+#if HWY_COMPILER_GCC_ACTUAL >= 800
 #define HWY_TARGET_STR "+neon-vfpv4"
-#endif
+#else   // GCC < 7
+// Do not define HWY_TARGET_STR (no pragma).
+#endif  // HWY_COMPILER_GCC_ACTUAL
+
+#else  // !HWY_ARCH_ARM_V7
+
+#if HWY_TARGET == HWY_NEON_WITHOUT_AES
+// Do not define HWY_TARGET_STR (no pragma).
 #else
 #define HWY_TARGET_STR "+crypto"
+#endif  // HWY_TARGET == HWY_NEON_WITHOUT_AES
+
 #endif  // HWY_ARCH_ARM_V7
-#else
+#else   // !HWY_HAVE_RUNTIME_DISPATCH
 // HWY_TARGET_STR remains undefined
 #endif
 

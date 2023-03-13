@@ -80,7 +80,7 @@ HWY_NOINLINE void TestMath(const std::string name, T (*fx1)(T),
       const T expected = fx1(value);
 
       // Skip small inputs and outputs on armv7, it flushes subnormals to zero.
-#if HWY_TARGET == HWY_NEON && HWY_ARCH_ARM_V7
+#if HWY_TARGET <= HWY_NEON_WITHOUT_AES && HWY_ARCH_ARM_V7
       if ((std::abs(value) < 1e-37f) || (std::abs(expected) < 1e-37f)) {
         continue;
       }
