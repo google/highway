@@ -2166,18 +2166,25 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 
 // ------------------------------ FirstN (Iota, Lt)
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API MFromD<D> FirstN(D d, size_t num) {
+template <class D, class M = MFromD<D>, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API M FirstN(D d, size_t num) {
 #if HWY_TARGET <= HWY_AVX3
-  const uint64_t all = (1ull << MaxLanes(d)) - 1;
-  // BZHI only looks at the lower 8 bits of num!
-  const uint64_t bits = (num > 255) ? all : _bzhi_u64(all, num);
-  return MFromD<D>::FromBits(bits);
+  constexpr size_t kN = MaxLanes(d);
+#if HWY_ARCH_X86_64
+  const uint64_t all = (1ull << kN) - 1;
+  // BZHI only looks at the lower 8 bits of n!
+  return M::FromBits((num > 255) ? all : _bzhi_u64(all, num));
 #else
+  const uint32_t all = static_cast<uint32_t>((1ull << kN) - 1);
+  // BZHI only looks at the lower 8 bits of n!
+  return M::FromBits((num > 255) ? all
+                                 : _bzhi_u32(all, static_cast<uint32_t>(num)));
+#endif  // HWY_ARCH_X86_64
+#else   // HWY_TARGET > HWY_AVX3
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
   return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
-#endif
+#endif  // HWY_TARGET <= HWY_AVX3
 }
 
 // ================================================== MEMORY (2)
