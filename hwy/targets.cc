@@ -18,21 +18,18 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS  // before inttypes.h
 #endif
-#include <inttypes.h>  // PRIx64
+#include <inttypes.h>  // IWYU pragma: keep (PRIx64)
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#include <atomic>
+#include <stdlib.h>  // abort / exit
 
 #include "hwy/per_target.h"  // VectorBytes
 
 #if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
 #include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
 #endif
-
-#include <stdlib.h>  // abort / exit
 
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
@@ -52,42 +49,20 @@
 #include <sys/auxv.h>
 #endif
 
-#if HWY_ARCH_PPC
-#ifndef PPC_FEATURE_HAS_ALTIVEC
-#define PPC_FEATURE_HAS_ALTIVEC 0x10000000
-#endif
-
-#ifndef PPC_FEATURE_HAS_VSX
-#define PPC_FEATURE_HAS_VSX 0x00000080
-#endif
-
-#ifndef PPC_FEATURE2_ARCH_2_07
-#define PPC_FEATURE2_ARCH_2_07 0x80000000
-#endif
-
-#ifndef PPC_FEATURE2_VEC_CRYPTO
-#define PPC_FEATURE2_VEC_CRYPTO 0x02000000
-#endif
-
-#ifndef PPC_FEATURE2_ARCH_3_00
-#define PPC_FEATURE2_ARCH_3_00 0x00800000
-#endif
-
-#ifndef PPC_FEATURE2_ARCH_3_1
-#define PPC_FEATURE2_ARCH_3_1 0x00040000
-#endif
-#endif  // HWY_ARCH_PPC
-
 #endif  // HWY_ARCH_*
 
 namespace hwy {
 namespace {
 
-#if HWY_ARCH_X86
+// When running tests, this value can be set to the mocked supported targets
+// mask. Only written to from a single thread before the test starts.
+int64_t supported_targets_for_test_ = 0;
 
-HWY_INLINE bool IsBitSet(const uint32_t reg, const int index) {
-  return (reg & (1U << index)) != 0;
-}
+// Mask of targets disabled at runtime with DisableTargets.
+int64_t supported_mask_ = LimitsMax<int64_t>();
+
+#if HWY_ARCH_X86
+namespace x86 {
 
 // Calls CPUID instruction with eax=level and ecx=count and returns the result
 // in abcd array where abcd = {eax, ebx, ecx, edx} (hence the name abcd).
@@ -112,6 +87,10 @@ HWY_INLINE void Cpuid(const uint32_t level, const uint32_t count,
 #endif  // HWY_COMPILER_MSVC
 }
 
+HWY_INLINE bool IsBitSet(const uint32_t reg, const int index) {
+  return (reg & (1U << index)) != 0;
+}
+
 // Returns the lower 32 bits of extended control register 0.
 // Requires CPU support for "OSXSAVE" (see below).
 uint32_t ReadXCR0() {
@@ -127,16 +106,14 @@ uint32_t ReadXCR0() {
 #endif  // HWY_COMPILER_MSVC
 }
 
-#endif  // HWY_ARCH_X86
+bool IsAMD() {
+  uint32_t abcd[4];
+  Cpuid(0, 0, abcd);
+  const uint32_t max_level = abcd[0];
+  return max_level >= 1 && abcd[1] == 0x68747541 && abcd[2] == 0x444d4163 &&
+         abcd[3] == 0x69746e65;
+}
 
-// When running tests, this value can be set to the mocked supported targets
-// mask. Only written to from a single thread before the test starts.
-int64_t supported_targets_for_test_ = 0;
-
-// Mask of targets disabled at runtime with DisableTargets.
-int64_t supported_mask_ = LimitsMax<int64_t>();
-
-#if HWY_ARCH_X86
 // Arbitrary bit indices indicating which instruction set extensions are
 // supported. Use enum to ensure values are distinct.
 enum class FeatureIndex : uint32_t {
@@ -180,6 +157,56 @@ HWY_INLINE constexpr uint64_t Bit(FeatureIndex index) {
   return 1ull << static_cast<size_t>(index);
 }
 
+// Returns bit array of FeatureIndex from CPUID feature flags.
+uint64_t FlagsFromCPUID() {
+  uint64_t flags = 0;  // return value
+  uint32_t abcd[4];
+  Cpuid(0, 0, abcd);
+  const uint32_t max_level = abcd[0];
+
+  // Standard feature flags
+  Cpuid(1, 0, abcd);
+  flags |= IsBitSet(abcd[3], 25) ? Bit(FeatureIndex::kSSE) : 0;
+  flags |= IsBitSet(abcd[3], 26) ? Bit(FeatureIndex::kSSE2) : 0;
+  flags |= IsBitSet(abcd[2], 0) ? Bit(FeatureIndex::kSSE3) : 0;
+  flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kCLMUL) : 0;
+  flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kSSSE3) : 0;
+  flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kFMA) : 0;
+  flags |= IsBitSet(abcd[2], 19) ? Bit(FeatureIndex::kSSE41) : 0;
+  flags |= IsBitSet(abcd[2], 20) ? Bit(FeatureIndex::kSSE42) : 0;
+  flags |= IsBitSet(abcd[2], 25) ? Bit(FeatureIndex::kAES) : 0;
+  flags |= IsBitSet(abcd[2], 28) ? Bit(FeatureIndex::kAVX) : 0;
+  flags |= IsBitSet(abcd[2], 29) ? Bit(FeatureIndex::kF16C) : 0;
+
+  // Extended feature flags
+  Cpuid(0x80000001U, 0, abcd);
+  flags |= IsBitSet(abcd[2], 5) ? Bit(FeatureIndex::kLZCNT) : 0;
+
+  // Extended features
+  if (max_level >= 7) {
+    Cpuid(7, 0, abcd);
+    flags |= IsBitSet(abcd[1], 3) ? Bit(FeatureIndex::kBMI) : 0;
+    flags |= IsBitSet(abcd[1], 5) ? Bit(FeatureIndex::kAVX2) : 0;
+    flags |= IsBitSet(abcd[1], 8) ? Bit(FeatureIndex::kBMI2) : 0;
+
+    flags |= IsBitSet(abcd[1], 16) ? Bit(FeatureIndex::kAVX512F) : 0;
+    flags |= IsBitSet(abcd[1], 17) ? Bit(FeatureIndex::kAVX512DQ) : 0;
+    flags |= IsBitSet(abcd[1], 30) ? Bit(FeatureIndex::kAVX512BW) : 0;
+    flags |= IsBitSet(abcd[1], 31) ? Bit(FeatureIndex::kAVX512VL) : 0;
+
+    flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kVBMI) : 0;
+    flags |= IsBitSet(abcd[2], 6) ? Bit(FeatureIndex::kVBMI2) : 0;
+    flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kVAES) : 0;
+    flags |= IsBitSet(abcd[2], 10) ? Bit(FeatureIndex::kVPCLMULQDQ) : 0;
+    flags |= IsBitSet(abcd[2], 11) ? Bit(FeatureIndex::kVNNI) : 0;
+    flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kBITALG) : 0;
+    flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
+  }
+
+  return flags;
+}
+
+// Each Highway target requires a 'group' of multiple features/flags.
 constexpr uint64_t kGroupSSE2 =
     Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2);
 
@@ -223,97 +250,40 @@ constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
     Bit(FeatureIndex::kBITALG) | kGroupAVX3;
 
-#endif  // HWY_ARCH_X86
-
-// Returns targets supported by the CPU, independently of DisableTargets.
-// Factored out of SupportedTargets to make its structure more obvious. Note
-// that x86 CPUID may take several hundred cycles.
 int64_t DetectTargets() {
-  // Apps will use only one of these (the default is EMU128), but compile flags
-  // for this TU may differ from that of the app, so allow both.
-  int64_t bits = HWY_SCALAR | HWY_EMU128;
-
-#if HWY_ARCH_X86
-  bool has_osxsave = false;
-  bool is_amd = false;
-  {  // ensures we do not accidentally use flags outside this block
+  int64_t bits = 0;  // return value of supported targets.
 #if HWY_ARCH_X86_64
-    bits |= HWY_SSE2;
+  bits |= HWY_SSE2;  // always present in x64
 #endif
 
-    uint64_t flags = 0;
-    uint32_t abcd[4];
-
-    Cpuid(0, 0, abcd);
-    const uint32_t max_level = abcd[0];
-    is_amd = max_level >= 1 && abcd[1] == 0x68747541 && abcd[2] == 0x444d4163 &&
-             abcd[3] == 0x69746e65;
-
-    // Standard feature flags
-    Cpuid(1, 0, abcd);
-    flags |= IsBitSet(abcd[3], 25) ? Bit(FeatureIndex::kSSE) : 0;
-    flags |= IsBitSet(abcd[3], 26) ? Bit(FeatureIndex::kSSE2) : 0;
-    flags |= IsBitSet(abcd[2], 0) ? Bit(FeatureIndex::kSSE3) : 0;
-    flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kCLMUL) : 0;
-    flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kSSSE3) : 0;
-    flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kFMA) : 0;
-    flags |= IsBitSet(abcd[2], 19) ? Bit(FeatureIndex::kSSE41) : 0;
-    flags |= IsBitSet(abcd[2], 20) ? Bit(FeatureIndex::kSSE42) : 0;
-    flags |= IsBitSet(abcd[2], 25) ? Bit(FeatureIndex::kAES) : 0;
-    flags |= IsBitSet(abcd[2], 28) ? Bit(FeatureIndex::kAVX) : 0;
-    flags |= IsBitSet(abcd[2], 29) ? Bit(FeatureIndex::kF16C) : 0;
-    has_osxsave = IsBitSet(abcd[2], 27);
-
-    // Extended feature flags
-    Cpuid(0x80000001U, 0, abcd);
-    flags |= IsBitSet(abcd[2], 5) ? Bit(FeatureIndex::kLZCNT) : 0;
-
-    // Extended features
-    if (max_level >= 7) {
-      Cpuid(7, 0, abcd);
-      flags |= IsBitSet(abcd[1], 3) ? Bit(FeatureIndex::kBMI) : 0;
-      flags |= IsBitSet(abcd[1], 5) ? Bit(FeatureIndex::kAVX2) : 0;
-      flags |= IsBitSet(abcd[1], 8) ? Bit(FeatureIndex::kBMI2) : 0;
-
-      flags |= IsBitSet(abcd[1], 16) ? Bit(FeatureIndex::kAVX512F) : 0;
-      flags |= IsBitSet(abcd[1], 17) ? Bit(FeatureIndex::kAVX512DQ) : 0;
-      flags |= IsBitSet(abcd[1], 30) ? Bit(FeatureIndex::kAVX512BW) : 0;
-      flags |= IsBitSet(abcd[1], 31) ? Bit(FeatureIndex::kAVX512VL) : 0;
-
-      flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kVBMI) : 0;
-      flags |= IsBitSet(abcd[2], 6) ? Bit(FeatureIndex::kVBMI2) : 0;
-      flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kVAES) : 0;
-      flags |= IsBitSet(abcd[2], 10) ? Bit(FeatureIndex::kVPCLMULQDQ) : 0;
-      flags |= IsBitSet(abcd[2], 11) ? Bit(FeatureIndex::kVNNI) : 0;
-      flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kBITALG) : 0;
-      flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
-    }
-
-    // Set target bit(s) if all their group's flags are all set.
-    if ((flags & kGroupAVX3_DL) == kGroupAVX3_DL) {
-      bits |= HWY_AVX3_DL;
-    }
-    if ((flags & kGroupAVX3) == kGroupAVX3) {
-      bits |= HWY_AVX3;
-    }
-    if ((flags & kGroupAVX2) == kGroupAVX2) {
-      bits |= HWY_AVX2;
-    }
-    if ((flags & kGroupSSE4) == kGroupSSE4) {
-      bits |= HWY_SSE4;
-    }
-    if ((flags & kGroupSSSE3) == kGroupSSSE3) {
-      bits |= HWY_SSSE3;
-    }
-#if HWY_ARCH_X86_32
-    if ((flags & kGroupSSE2) == kGroupSSE2) {
-      bits |= HWY_SSE2;
-    }
-#endif
+  const uint64_t flags = FlagsFromCPUID();
+  // Set target bit(s) if all their group's flags are all set.
+  if ((flags & kGroupAVX3_DL) == kGroupAVX3_DL) {
+    bits |= HWY_AVX3_DL;
   }
+  if ((flags & kGroupAVX3) == kGroupAVX3) {
+    bits |= HWY_AVX3;
+  }
+  if ((flags & kGroupAVX2) == kGroupAVX2) {
+    bits |= HWY_AVX2;
+  }
+  if ((flags & kGroupSSE4) == kGroupSSE4) {
+    bits |= HWY_SSE4;
+  }
+  if ((flags & kGroupSSSE3) == kGroupSSSE3) {
+    bits |= HWY_SSSE3;
+  }
+#if HWY_ARCH_X86_32
+  if ((flags & kGroupSSE2) == kGroupSSE2) {
+    bits |= HWY_SSE2;
+  }
+#endif
 
   // Clear bits if the OS does not support XSAVE - otherwise, registers
   // are not preserved across context switches.
+  uint32_t abcd[4];
+  Cpuid(1, 0, abcd);
+  const bool has_osxsave = IsBitSet(abcd[2], 27);
   if (has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
     const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL;
@@ -340,22 +310,22 @@ int64_t DetectTargets() {
     if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
       bits &= ~min_avx3;
     }
-  }
+  }  // has_osxsave
 
   // This is mainly to work around the slow Zen4 CompressStore. It's unclear
   // whether subsequent AMD models will be affected; assume yes.
-  if ((bits & HWY_AVX3_DL) && is_amd) {
+  if ((bits & HWY_AVX3_DL) && IsAMD()) {
     bits |= HWY_AVX3_ZEN4;
   }
 
-  if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
-    fprintf(stderr,
-            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
-            "\n",
-            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
-  }
+  return bits;
+}
 
-#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+}  // namespace x86
+#elif HWY_ARCH_ARM
+namespace arm {
+int64_t DetectTargets() {
+  int64_t bits = 0;               // return value of supported targets.
   using CapBits = unsigned long;  // NOLINT
   const CapBits hw = getauxval(AT_HWCAP);
   (void)hw;
@@ -363,7 +333,7 @@ int64_t DetectTargets() {
 #if HWY_ARCH_ARM_A64
   bits |= HWY_NEON_WITHOUT_AES;  // aarch64 always has NEON and VFPv4..
 
-// .. but not necessarily AES, which is required for HWY_NEON.
+  // .. but not necessarily AES, which is required for HWY_NEON.
 #if defined(HWCAP_AES)
   if (hw & HWCAP_AES) {
     bits |= HWY_NEON;
@@ -397,50 +367,98 @@ int64_t DetectTargets() {
   // requires native AES instructions, we do not enable that target here.
 
 #endif  // HWY_ARCH_ARM_A64
-  if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
-    fprintf(stderr,
-            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
-            "\n",
-            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
-  }
-#elif HWY_ARCH_PPC && HWY_HAVE_RUNTIME_DISPATCH
-  using CapBits = unsigned long;  // NOLINT
-  const CapBits hw = getauxval(AT_HWCAP);
-  (void)hw;
+  return bits;
+}
+}  // namespace arm
+#elif HWY_ARCH_PPC
+namespace ppc {
+
+#ifndef PPC_FEATURE_HAS_ALTIVEC
+#define PPC_FEATURE_HAS_ALTIVEC 0x10000000
+#endif
+
+#ifndef PPC_FEATURE_HAS_VSX
+#define PPC_FEATURE_HAS_VSX 0x00000080
+#endif
+
+#ifndef PPC_FEATURE2_ARCH_2_07
+#define PPC_FEATURE2_ARCH_2_07 0x80000000
+#endif
+
+#ifndef PPC_FEATURE2_VEC_CRYPTO
+#define PPC_FEATURE2_VEC_CRYPTO 0x02000000
+#endif
+
+#ifndef PPC_FEATURE2_ARCH_3_00
+#define PPC_FEATURE2_ARCH_3_00 0x00800000
+#endif
+
+#ifndef PPC_FEATURE2_ARCH_3_1
+#define PPC_FEATURE2_ARCH_3_1 0x00040000
+#endif
+
+// For AT_HWCAP, the others are for AT_HWCAP2
+constexpr CapBits kGroupVSX = PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
 
 #if defined(HWY_DISABLE_PPC8_CRYPTO)
-  constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07;
+constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07;
 #else
-  constexpr CapBits kGroupPPC8 =
-    PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
+constexpr CapBits kGroupPPC8 = PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_VEC_CRYPTO;
 #endif
-  if ((hw & (PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX)) ==
-      (PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX)) {
+constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
+constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
+
+int64_t DetectTargets() {
+  int64_t bits = 0;               // return value of supported targets.
+  using CapBits = unsigned long;  // NOLINT
+  const CapBits hw = getauxval(AT_HWCAP);
+
+  if ((hw & kGroupVSX) == kGroupVSX) {
     const CapBits hw2 = getauxval(AT_HWCAP2);
     if ((hw2 & kGroupPPC8) == kGroupPPC8) {
       bits |= HWY_PPC8;
-      if ((hw2 & PPC_FEATURE2_ARCH_3_00) == PPC_FEATURE2_ARCH_3_00) {
-        bits |= HWY_PPC9;
-        if ((hw2 & PPC_FEATURE2_ARCH_3_1) == PPC_FEATURE2_ARCH_3_1) {
-          bits |= HWY_PPC10;
-        }
-      }
     }
-  }
+    if ((hw2 & kGroupPPC9) == kGroupPPC9) {
+      bits |= HWY_PPC9;
+    }
+    if ((hw2 & kGroupPPC10) == kGroupPPC10) {
+      bits |= HWY_PPC10;
+    }
+  }  // VSX
+  return bits;
+}
+}  // namespace ppc
+#endif  // HWY_ARCH_X86
 
-  if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
-    fprintf(stderr,
-            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
-            "\n",
-            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
-  }
-#else   // HWY_ARCH_PPC && HWY_HAVE_RUNTIME_DISPATCH
-  // TODO(janwas): detect for other platforms and check for baseline
+// Returns targets supported by the CPU, independently of DisableTargets.
+// Factored out of SupportedTargets to make its structure more obvious. Note
+// that x86 CPUID may take several hundred cycles.
+int64_t DetectTargets() {
+  // Apps will use only one of these (the default is EMU128), but compile flags
+  // for this TU may differ from that of the app, so allow both.
+  int64_t bits = HWY_SCALAR | HWY_EMU128;
+
+#if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= x86::DetectTargets();
+#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= arm::DetectTargets();
+#elif HWY_ARCH_PPC && HWY_HAVE_RUNTIME_DISPATCH
+  bits |= ppc::DetectTargets();
+
+#else
+  // TODO(janwas): detect support for WASM/RVV.
   // This file is typically compiled without HWY_IS_TEST, but targets_test has
   // it set, and will expect all of its HWY_TARGETS (= all attainable) to be
   // supported.
   bits |= HWY_ENABLED_BASELINE;
-#endif  // HWY_ARCH_X86
+#endif  // HWY_ARCH_*
+
+  if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
+    fprintf(stderr,
+            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
+            "\n",
+            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
+  }
 
   return bits;
 }
