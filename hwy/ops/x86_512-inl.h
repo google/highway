@@ -855,7 +855,14 @@ HWY_API Vec512<float> Abs(const Vec512<float> v) {
   return Vec512<float>{_mm512_abs_ps(v.raw)};
 }
 HWY_API Vec512<double> Abs(const Vec512<double> v) {
+// Workaround: _mm512_abs_pd expects __m512, so implement it ourselves.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 803
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return And(v, BitCast(d, Set(du, 0x7FFFFFFFFFFFFFFFULL)));
+#else
   return Vec512<double>{_mm512_abs_pd(v.raw)};
+#endif
 }
 // ------------------------------ ShiftLeft
 
