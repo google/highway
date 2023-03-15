@@ -61,7 +61,7 @@ int64_t supported_targets_for_test_ = 0;
 // Mask of targets disabled at runtime with DisableTargets.
 int64_t supported_mask_ = LimitsMax<int64_t>();
 
-#if HWY_ARCH_X86
+#if HWY_ARCH_X86 && HWY_HAVE_RUNTIME_DISPATCH
 namespace x86 {
 
 // Calls CPUID instruction with eax=level and ecx=count and returns the result
@@ -322,7 +322,7 @@ int64_t DetectTargets() {
 }
 
 }  // namespace x86
-#elif HWY_ARCH_ARM
+#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
 namespace arm {
 int64_t DetectTargets() {
   int64_t bits = 0;               // return value of supported targets.
@@ -370,7 +370,7 @@ int64_t DetectTargets() {
   return bits;
 }
 }  // namespace arm
-#elif HWY_ARCH_PPC
+#elif HWY_ARCH_PPC && HWY_HAVE_RUNTIME_DISPATCH
 namespace ppc {
 
 #ifndef PPC_FEATURE_HAS_ALTIVEC
