@@ -322,7 +322,7 @@ int64_t DetectTargets() {
 }
 
 }  // namespace x86
-#elif HWY_ARCH_ARM && HWY_HAVE_RUNTIME_DISPATCH
+#elif HWY_ARCH_ARM  // temporarily remove HAVE_RUNTIME_DISPATCH for testing
 namespace arm {
 int64_t DetectTargets() {
   int64_t bits = 0;               // return value of supported targets.
