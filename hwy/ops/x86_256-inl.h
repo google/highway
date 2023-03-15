@@ -1857,26 +1857,56 @@ HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
 
 HWY_API Vec256<uint16_t> ShiftLeftSame(const Vec256<uint16_t> v,
                                        const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<uint16_t>{_mm256_slli_epi16(v.raw, bits)};
+  }
+#endif
   return Vec256<uint16_t>{_mm256_sll_epi16(v.raw, _mm_cvtsi32_si128(bits))};
 }
 HWY_API Vec256<uint32_t> ShiftLeftSame(const Vec256<uint32_t> v,
                                        const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<uint32_t>{_mm256_slli_epi32(v.raw, bits)};
+  }
+#endif
   return Vec256<uint32_t>{_mm256_sll_epi32(v.raw, _mm_cvtsi32_si128(bits))};
 }
 HWY_API Vec256<uint64_t> ShiftLeftSame(const Vec256<uint64_t> v,
                                        const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<uint64_t>{_mm256_slli_epi64(v.raw, bits)};
+  }
+#endif
   return Vec256<uint64_t>{_mm256_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
 HWY_API Vec256<int16_t> ShiftLeftSame(const Vec256<int16_t> v, const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<int16_t>{_mm256_slli_epi16(v.raw, bits)};
+  }
+#endif
   return Vec256<int16_t>{_mm256_sll_epi16(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
 HWY_API Vec256<int32_t> ShiftLeftSame(const Vec256<int32_t> v, const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<int32_t>{_mm256_slli_epi32(v.raw, bits)};
+  }
+#endif
   return Vec256<int32_t>{_mm256_sll_epi32(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
 HWY_API Vec256<int64_t> ShiftLeftSame(const Vec256<int64_t> v, const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<int64_t>{_mm256_slli_epi64(v.raw, bits)};
+  }
+#endif
   return Vec256<int64_t>{_mm256_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
@@ -1892,14 +1922,29 @@ HWY_API Vec256<T> ShiftLeftSame(const Vec256<T> v, const int bits) {
 
 HWY_API Vec256<uint16_t> ShiftRightSame(const Vec256<uint16_t> v,
                                         const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<uint16_t>{_mm256_srli_epi16(v.raw, bits)};
+  }
+#endif
   return Vec256<uint16_t>{_mm256_srl_epi16(v.raw, _mm_cvtsi32_si128(bits))};
 }
 HWY_API Vec256<uint32_t> ShiftRightSame(const Vec256<uint32_t> v,
                                         const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<uint32_t>{_mm256_srli_epi32(v.raw, bits)};
+  }
+#endif
   return Vec256<uint32_t>{_mm256_srl_epi32(v.raw, _mm_cvtsi32_si128(bits))};
 }
 HWY_API Vec256<uint64_t> ShiftRightSame(const Vec256<uint64_t> v,
                                         const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<uint64_t>{_mm256_srli_epi64(v.raw, bits)};
+  }
+#endif
   return Vec256<uint64_t>{_mm256_srl_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
@@ -1912,16 +1957,31 @@ HWY_API Vec256<uint8_t> ShiftRightSame(Vec256<uint8_t> v, const int bits) {
 
 HWY_API Vec256<int16_t> ShiftRightSame(const Vec256<int16_t> v,
                                        const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<int16_t>{_mm256_srai_epi16(v.raw, bits)};
+  }
+#endif
   return Vec256<int16_t>{_mm256_sra_epi16(v.raw, _mm_cvtsi32_si128(bits))};
 }
 
 HWY_API Vec256<int32_t> ShiftRightSame(const Vec256<int32_t> v,
                                        const int bits) {
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<int32_t>{_mm256_srai_epi32(v.raw, bits)};
+  }
+#endif
   return Vec256<int32_t>{_mm256_sra_epi32(v.raw, _mm_cvtsi32_si128(bits))};
 }
 HWY_API Vec256<int64_t> ShiftRightSame(const Vec256<int64_t> v,
                                        const int bits) {
 #if HWY_TARGET <= HWY_AVX3
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(bits)) {
+    return Vec256<int64_t>{_mm256_srai_epi64(v.raw, bits)};
+  }
+#endif
   return Vec256<int64_t>{_mm256_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
 #else
   const Full256<int64_t> di;
