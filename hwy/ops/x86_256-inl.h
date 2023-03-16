@@ -1979,7 +1979,8 @@ HWY_API Vec256<int64_t> ShiftRightSame(const Vec256<int64_t> v,
 #if HWY_TARGET <= HWY_AVX3
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec256<int64_t>{_mm256_srai_epi64(v.raw, bits)};
+    return Vec256<int64_t>{
+        _mm256_srai_epi64(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec256<int64_t>{_mm256_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
