@@ -335,7 +335,11 @@
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 // Do not define HWY_TARGET_STR (no pragma).
 #else
+#if HWY_COMPILER_GCC_ACTUAL
+#define HWY_TARGET_STR "fpu=crypto-neon-fp-armv8"
+#else  // clang
 #define HWY_TARGET_STR "+crypto"
+#endif  // HWY_COMPILER_*
 #endif  // HWY_TARGET == HWY_NEON_WITHOUT_AES
 
 #endif  // HWY_ARCH_ARM_V7
