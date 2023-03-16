@@ -975,7 +975,8 @@ HWY_API Vec512<uint16_t> ShiftLeftSame(const Vec512<uint16_t> v,
                                        const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<uint16_t>{_mm512_slli_epi16(v.raw, bits)};
+    return Vec512<uint16_t>{
+        _mm512_slli_epi16(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<uint16_t>{_mm512_sll_epi16(v.raw, _mm_cvtsi32_si128(bits))};
@@ -984,7 +985,8 @@ HWY_API Vec512<uint32_t> ShiftLeftSame(const Vec512<uint32_t> v,
                                        const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<uint32_t>{_mm512_slli_epi32(v.raw, bits)};
+    return Vec512<uint32_t>{
+        _mm512_slli_epi32(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<uint32_t>{_mm512_sll_epi32(v.raw, _mm_cvtsi32_si128(bits))};
@@ -993,7 +995,8 @@ HWY_API Vec512<uint64_t> ShiftLeftSame(const Vec512<uint64_t> v,
                                        const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<uint64_t>{_mm512_slli_epi64(v.raw, bits)};
+    return Vec512<uint64_t>{
+        _mm512_slli_epi64(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<uint64_t>{_mm512_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1002,7 +1005,8 @@ HWY_API Vec512<uint64_t> ShiftLeftSame(const Vec512<uint64_t> v,
 HWY_API Vec512<int16_t> ShiftLeftSame(const Vec512<int16_t> v, const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<int16_t>{_mm512_slli_epi16(v.raw, bits)};
+    return Vec512<int16_t>{
+        _mm512_slli_epi16(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<int16_t>{_mm512_sll_epi16(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1011,7 +1015,8 @@ HWY_API Vec512<int16_t> ShiftLeftSame(const Vec512<int16_t> v, const int bits) {
 HWY_API Vec512<int32_t> ShiftLeftSame(const Vec512<int32_t> v, const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<int32_t>{_mm512_slli_epi32(v.raw, bits)};
+    return Vec512<int32_t>{
+        _mm512_slli_epi32(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<int32_t>{_mm512_sll_epi32(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1020,7 +1025,8 @@ HWY_API Vec512<int32_t> ShiftLeftSame(const Vec512<int32_t> v, const int bits) {
 HWY_API Vec512<int64_t> ShiftLeftSame(const Vec512<int64_t> v, const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<int64_t>{_mm512_slli_epi64(v.raw, bits)};
+    return Vec512<int64_t>{
+        _mm512_slli_epi64(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<int64_t>{_mm512_sll_epi64(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1040,7 +1046,8 @@ HWY_API Vec512<uint16_t> ShiftRightSame(const Vec512<uint16_t> v,
                                         const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<uint16_t>{_mm512_srli_epi16(v.raw, bits)};
+    return Vec512<uint16_t>{
+        _mm512_srli_epi16(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<uint16_t>{_mm512_srl_epi16(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1049,7 +1056,8 @@ HWY_API Vec512<uint32_t> ShiftRightSame(const Vec512<uint32_t> v,
                                         const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<uint32_t>{_mm512_srli_epi32(v.raw, bits)};
+    return Vec512<uint32_t>{
+        _mm512_srli_epi32(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<uint32_t>{_mm512_srl_epi32(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1058,7 +1066,8 @@ HWY_API Vec512<uint64_t> ShiftRightSame(const Vec512<uint64_t> v,
                                         const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<uint64_t>{_mm512_srli_epi64(v.raw, bits)};
+    return Vec512<uint64_t>{
+        _mm512_srli_epi64(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<uint64_t>{_mm512_srl_epi64(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1075,7 +1084,8 @@ HWY_API Vec512<int16_t> ShiftRightSame(const Vec512<int16_t> v,
                                        const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<int16_t>{_mm512_srai_epi16(v.raw, bits)};
+    return Vec512<int16_t>{
+        _mm512_srai_epi16(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<int16_t>{_mm512_sra_epi16(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1085,7 +1095,8 @@ HWY_API Vec512<int32_t> ShiftRightSame(const Vec512<int32_t> v,
                                        const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<int32_t>{_mm512_srai_epi32(v.raw, bits)};
+    return Vec512<int32_t>{
+        _mm512_srai_epi32(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<int32_t>{_mm512_sra_epi32(v.raw, _mm_cvtsi32_si128(bits))};
@@ -1094,7 +1105,8 @@ HWY_API Vec512<int64_t> ShiftRightSame(const Vec512<int64_t> v,
                                        const int bits) {
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec512<int64_t>{_mm512_srai_epi64(v.raw, bits)};
+    return Vec512<int64_t>{
+        _mm512_srai_epi64(v.raw, static_cast<unsigned int>(bits))};
   }
 #endif
   return Vec512<int64_t>{_mm512_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
