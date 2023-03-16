@@ -203,7 +203,7 @@
 // RVV compiles with current clang but not GCC.
 // TODO(janwas): re-enable for new GCC once the required version is known.
 #if HWY_COMPILER_GCC_ACTUAL
-#define HWY_BROKEN_RVV HWY_RVV
+#define HWY_BROKEN_RVV (HWY_RVV)
 #else
 #define HWY_BROKEN_RVV 0
 #endif
@@ -213,7 +213,7 @@
 #if HWY_ARCH_PPC && defined(__BYTE_ORDER__) && \
     defined(__ORDER_LITTLE_ENDIAN__) &&        \
     __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-#define HWY_BROKEN_PPC10 HWY_PPC10
+#define HWY_BROKEN_PPC10 (HWY_PPC10)
 #else
 #define HWY_BROKEN_PPC10 0
 #endif
@@ -273,8 +273,9 @@
 #define HWY_BASELINE_WASM 0
 #endif
 
-#if HWY_ARCH_PPC && (HWY_COMPILER_GCC || HWY_COMPILER_CLANG)
-#if defined(__ALTIVEC__) && defined(__VSX__) && defined(__POWER8_VECTOR__) && \
+// GCC or Clang.
+#if HWY_ARCH_PPC && HWY_COMPILER_GCC && defined(__ALTIVEC__) && \
+    defined(__VSX__) && defined(__POWER8_VECTOR__) &&           \
     (defined(__CRYPTO__) || defined(HWY_DISABLE_PPC8_CRYPTO))
 #define HWY_BASELINE_PPC8 HWY_PPC8
 #else
@@ -293,11 +294,6 @@
 #else
 #define HWY_BASELINE_PPC10 0
 #endif
-#else  // Non-PPC target or non-GCC/Clang compiler
-#define HWY_BASELINE_PPC8 0
-#define HWY_BASELINE_PPC9 0
-#define HWY_BASELINE_PPC10 0
-#endif  // HWY_ARCH_PPC && HWY_COMPILER_GCC
 
 #define HWY_BASELINE_SVE2 0
 #define HWY_BASELINE_SVE 0
@@ -519,29 +515,29 @@
 // only include it in the set of attainable targets (for dynamic dispatch) if
 // the user opts in, OR it is in the baseline (we check whether enabled below).
 #if defined(HWY_WANT_AVX3_DL) || (HWY_BASELINE & HWY_AVX3_DL)
-#define HWY_ATTAINABLE_AVX3_DL HWY_AVX3_DL
+#define HWY_ATTAINABLE_AVX3_DL (HWY_AVX3_DL)
 #else
 #define HWY_ATTAINABLE_AVX3_DL 0
 #endif
 
 #if HWY_ARCH_ARM_A64 && HWY_HAVE_RUNTIME_DISPATCH
-#define HWY_ATTAINABLE_NEON HWY_ENABLED(HWY_NEON | HWY_NEON_WITHOUT_AES)
+#define HWY_ATTAINABLE_NEON (HWY_NEON | HWY_NEON_WITHOUT_AES)
 #elif HWY_ARCH_ARM  // static dispatch, or HWY_ARCH_ARM_V7
-#define HWY_ATTAINABLE_NEON HWY_ENABLED(HWY_BASELINE_NEON)
+#define HWY_ATTAINABLE_NEON (HWY_BASELINE_NEON)
 #else
 #define HWY_ATTAINABLE_NEON 0
 #endif
 
 #if HWY_ARCH_ARM_A64 && (HWY_HAVE_RUNTIME_DISPATCH || \
                          (HWY_ENABLED_BASELINE & (HWY_SVE | HWY_SVE_256)))
-#define HWY_ATTAINABLE_SVE HWY_ENABLED(HWY_SVE | HWY_SVE_256)
+#define HWY_ATTAINABLE_SVE (HWY_SVE | HWY_SVE_256)
 #else
 #define HWY_ATTAINABLE_SVE 0
 #endif
 
 #if HWY_ARCH_ARM_A64 && (HWY_HAVE_RUNTIME_DISPATCH || \
                          (HWY_ENABLED_BASELINE & (HWY_SVE2 | HWY_SVE2_128)))
-#define HWY_ATTAINABLE_SVE2 HWY_ENABLED(HWY_SVE2 | HWY_SVE2_128)
+#define HWY_ATTAINABLE_SVE2 (HWY_SVE2 | HWY_SVE2_128)
 #else
 #define HWY_ATTAINABLE_SVE2 0
 #endif

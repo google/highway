@@ -397,6 +397,8 @@ namespace ppc {
 #define PPC_FEATURE2_ARCH_3_1 0x00040000
 #endif
 
+using CapBits = unsigned long;  // NOLINT
+
 // For AT_HWCAP, the others are for AT_HWCAP2
 constexpr CapBits kGroupVSX = PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_VSX;
 
@@ -409,8 +411,7 @@ constexpr CapBits kGroupPPC9 = kGroupPPC8 | PPC_FEATURE2_ARCH_3_00;
 constexpr CapBits kGroupPPC10 = kGroupPPC9 | PPC_FEATURE2_ARCH_3_1;
 
 int64_t DetectTargets() {
-  int64_t bits = 0;               // return value of supported targets.
-  using CapBits = unsigned long;  // NOLINT
+  int64_t bits = 0;  // return value of supported targets.
   const CapBits hw = getauxval(AT_HWCAP);
 
   if ((hw & kGroupVSX) == kGroupVSX) {

@@ -36,6 +36,24 @@
 
 #include "hwy/ops/shared-inl.h"
 
+// clang's altivec.h gates some intrinsics behind #ifdef __POWER10_VECTOR__.
+// This means we can only use POWER10-specific intrinsics in static dispatch
+// mode (where the -mpower10-vector compiler flag is passed). Same for PPC9.
+// On other compilers, the usual target check is sufficient.
+#if (HWY_COMPILER_CLANG && defined(__POWER9_VECTOR__)) || \
+    (!HWY_COMPILER_CLANG && HWY_TARGET <= HWY_PPC9)
+#define HWY_PPC_HAVE_9 1
+#else
+#define HWY_PPC_HAVE_9 0
+#endif
+
+#if (HWY_COMPILER_CLANG && defined(__POWER10_VECTOR__)) || \
+    (!HWY_COMPILER_CLANG && HWY_TARGET <= HWY_PPC10)
+#define HWY_PPC_HAVE_10 1
+#else
+#define HWY_PPC_HAVE_10 0
+#endif
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -705,7 +723,7 @@ HWY_API Mask128<T, N> operator==(Vec128<T, N> a,
 template <size_t N>
 HWY_API Mask128<uint8_t, N> operator!=(Vec128<uint8_t, N> a,
                                        Vec128<uint8_t, N> b) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   return Mask128<uint8_t, N>{vec_cmpne(a.raw, b.raw)};
 #else
   return Not(a == b);
@@ -714,7 +732,7 @@ HWY_API Mask128<uint8_t, N> operator!=(Vec128<uint8_t, N> a,
 template <size_t N>
 HWY_API Mask128<uint16_t, N> operator!=(Vec128<uint16_t, N> a,
                                         Vec128<uint16_t, N> b) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   return Mask128<uint16_t, N>{vec_cmpne(a.raw, b.raw)};
 #else
   return Not(a == b);
@@ -723,7 +741,7 @@ HWY_API Mask128<uint16_t, N> operator!=(Vec128<uint16_t, N> a,
 template <size_t N>
 HWY_API Mask128<uint32_t, N> operator!=(Vec128<uint32_t, N> a,
                                         Vec128<uint32_t, N> b) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   return Mask128<uint32_t, N>{vec_cmpne(a.raw, b.raw)};
 #else
   return Not(a == b);
@@ -737,7 +755,7 @@ HWY_API Mask128<uint64_t, N> operator!=(Vec128<uint64_t, N> a,
 template <size_t N>
 HWY_API Mask128<int8_t, N> operator!=(Vec128<int8_t, N> a,
                                       Vec128<int8_t, N> b) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   return Mask128<int8_t, N>{vec_cmpne(a.raw, b.raw)};
 #else
   return Not(a == b);
@@ -746,7 +764,7 @@ HWY_API Mask128<int8_t, N> operator!=(Vec128<int8_t, N> a,
 template <size_t N>
 HWY_API Mask128<int16_t, N> operator!=(Vec128<int16_t, N> a,
                                        Vec128<int16_t, N> b) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   return Mask128<int16_t, N>{vec_cmpne(a.raw, b.raw)};
 #else
   return Not(a == b);
@@ -755,7 +773,7 @@ HWY_API Mask128<int16_t, N> operator!=(Vec128<int16_t, N> a,
 template <size_t N>
 HWY_API Mask128<int32_t, N> operator!=(Vec128<int32_t, N> a,
                                        Vec128<int32_t, N> b) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   return Mask128<int32_t, N>{vec_cmpne(a.raw, b.raw)};
 #else
   return Not(a == b);
@@ -1246,7 +1264,7 @@ HWY_API Vec128<T, N> Max(Vec128<T, N> a,
 
 // ------------------------------- Integer AbsDiff for PPC9/PPC10
 
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
 #ifdef HWY_NATIVE_INTEGER_ABS_DIFF
 #undef HWY_NATIVE_INTEGER_ABS_DIFF
 #else
@@ -1269,7 +1287,7 @@ HWY_API V AbsDiff(const V a, const V b) {
   return Sub(Max(a, b), Min(a, b));
 }
 
-#endif  // HWY_TARGET <= HWY_PPC9
+#endif  // HWY_PPC_HAVE_9
 
 // ================================================== MEMORY (3)
 
@@ -2170,7 +2188,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, Vec128<T, N> bits) {
 
 HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a,
                                     Vec128<uint64_t> b) {
-#if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
+#if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   using VU64 = __vector unsigned long long;
   const VU64 mul128_result = reinterpret_cast<VU64>(vec_mule(a.raw, b.raw));
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -2190,7 +2208,7 @@ HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a,
 
 HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a,
                                    Vec128<uint64_t> b) {
-#if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
+#if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   using VU64 = __vector unsigned long long;
   const VU64 mul128_result = reinterpret_cast<VU64>(vec_mulo(a.raw, b.raw));
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -2304,7 +2322,7 @@ HWY_API VFromD<D> PromoteTo(D d32,
 #endif
 template <class D, HWY_IF_F32_D(D)>
 HWY_INLINE_F16 VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
-#if HWY_TARGET <= HWY_PPC9
+#if HWY_PPC_HAVE_9
   (void)df32;
   return VFromD<D>{vec_extract_fp32_from_shorth(v.raw)};
 #else
@@ -2380,7 +2398,7 @@ HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int32_t, D>> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
 HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
-#if HWY_TARGET <= HWY_PPC9 && HWY_COMPILER_GCC_ACTUAL
+#if HWY_PPC_HAVE_9 && HWY_COMPILER_GCC_ACTUAL
   // Do not use vec_pack_to_short_fp32 on clang as there is a bug in the clang
   // version of vec_pack_to_short_fp32
   (void)df16;
@@ -2388,7 +2406,7 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 #else
   const Rebind<uint32_t, decltype(df16)> du;
   const RebindToUnsigned<decltype(df16)> du16;
-#if HWY_TARGET <= HWY_PPC9 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
+#if HWY_PPC_HAVE_9 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
   // Work around bug in the clang implementation of vec_pack_to_short_fp32
   // by using the __builtin_vsx_xvcvsphp builtin on PPC9/PPC10 targets
   // if the __builtin_vsx_xvcvsphp intrinsic is available
@@ -2417,9 +2435,9 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
   const auto sign16 = ShiftLeft<15>(sign);
   const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
   const auto bits16 = IfThenZeroElse(RebindMask(du, is_tiny), normal16);
-#endif  // HWY_TARGET <= HWY_PPC9 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
+#endif  // HWY_PPC_HAVE_9 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
   return BitCast(df16, TruncateTo(du16, bits16));
-#endif  // HWY_TARGET <= HWY_PPC9 && HWY_COMPILER_GCC_ACTUAL
+#endif  // HWY_PPC_HAVE_9 && HWY_COMPILER_GCC_ACTUAL
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
@@ -2844,7 +2862,7 @@ struct CompressIsPartition {
 
 namespace detail {
 
-#if HWY_TARGET > HWY_PPC10 || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#if !HWY_PPC_HAVE_10 || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 // fallback for missing vec_extractm
 template <size_t N>
 HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
@@ -2857,7 +2875,7 @@ HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
   return extracted.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
 }
 
-#endif  // HWY_TARGET > HWY_PPC10
+#endif  // !HWY_PPC_HAVE_10
 
 template <typename T, size_t N>
 HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
@@ -2865,14 +2883,14 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/,
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return static_cast<uint64_t>(vec_extractm(sign_bits.raw));
 #else
   const __vector unsigned char kBitShuffle = {
     120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0
   };
   return ExtractSignBits(sign_bits, kBitShuffle);
-#endif  // HWY_TARGET <= HWY_PPC10
+#endif  // HWY_PPC_HAVE_10
 }
 
 template <typename T, size_t N>
@@ -2882,7 +2900,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
-#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
@@ -2894,7 +2912,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/,
     128, 128, 128, 128, 128, 128, 128, 128, 112, 96, 80, 64, 48, 32, 16, 0};
 #endif
   return ExtractSignBits(sign_bits, kBitShuffle);
-#endif  // HWY_TARGET <= HWY_PPC10
+#endif  // HWY_PPC_HAVE_10
 }
 
 template <typename T, size_t N>
@@ -2903,7 +2921,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
@@ -2915,7 +2933,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/,
      128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 96, 64, 32, 0};
 #endif
   return ExtractSignBits(sign_bits, kBitShuffle);
-#endif  // HWY_TARGET <= HWY_PPC10
+#endif  // HWY_PPC_HAVE_10
 }
 
 template <typename T, size_t N>
@@ -2924,7 +2942,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_TARGET <= HWY_PPC10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
@@ -2938,7 +2956,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/,
                                               128, 128, 64,  0};
 #endif
   return ExtractSignBits(sign_bits, kBitShuffle);
-#endif  // HWY_TARGET <= HWY_PPC10
+#endif  // HWY_PPC_HAVE_10
 }
 
 // Returns the lowest N of the mask bits.
@@ -4107,7 +4125,7 @@ namespace detail {
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Lt128Vec(D d, V a, V b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
-#if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
+#if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   (void)d;
   using VU64 = __vector unsigned long long;
   using VU128 = __vector unsigned __int128;
@@ -4124,7 +4142,7 @@ HWY_INLINE V Lt128Vec(D d, V a, V b) {
   const VU128 b_u128 = reinterpret_cast<VU128>(vec_sld(b.raw, b.raw, 8));
 #endif
   return V{reinterpret_cast<VU64>(vec_cmplt(a_u128, b_u128))};
-#else  // HWY_TARGET > HWY_PPC10
+#else  // !HWY_PPC_HAVE_10
   // Truth table of Eq and Lt for Hi and Lo u64.
   // (removed lines with (=H && cH) or (=L && cL) - cannot both be true)
   // =H =L cH cL  | out = cH | (=H & cL)
@@ -4150,7 +4168,7 @@ HWY_INLINE V Lt128Vec(D d, V a, V b) {
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Eq128Vec(D d, V a, V b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
-#if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
+#if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   (void)d;
   using VU64 = __vector unsigned long long;
   using VU128 = __vector unsigned __int128;
@@ -4166,7 +4184,7 @@ HWY_INLINE V Eq128Vec(D d, V a, V b) {
 template <class D, class V = VFromD<D>>
 HWY_INLINE V Ne128Vec(D d, V a, V b) {
   static_assert(IsSame<TFromD<D>, uint64_t>(), "D must be u64");
-#if HWY_TARGET <= HWY_PPC10 && defined(__SIZEOF_INT128__)
+#if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   (void)d;
   using VU64 = __vector unsigned long long;
   using VU128 = __vector unsigned __int128;
@@ -4251,6 +4269,9 @@ template <class D, class V = VFromD<D>>
 HWY_API V Max128Upper(D d, const V a, const V b) {
   return IfVecThenElse(detail::Lt128UpperVec(d, b, a), a, b);
 }
+
+#undef HWY_PPC_HAVE_9
+#undef HWY_PPC_HAVE_10
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
