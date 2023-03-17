@@ -336,7 +336,7 @@
 // Do not define HWY_TARGET_STR (no pragma).
 #else
 #if HWY_COMPILER_GCC_ACTUAL
-#define HWY_TARGET_STR "fpu=crypto-neon-fp-armv8"
+#define HWY_TARGET_STR "arch=armv8-a+crypto"
 #else  // clang
 #define HWY_TARGET_STR "+crypto"
 #endif  // HWY_COMPILER_*
