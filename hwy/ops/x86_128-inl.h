@@ -2811,10 +2811,20 @@ HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
 #endif
 }
 
+// GCC and older Clang do not follow the Intel documentation for AVX-512VL
+// srli_epi64: the count should be unsigned int. Note that this is not the same
+// as the Shift3264Count in x86_512-inl.h.
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200) || HWY_COMPILER_GCC_ACTUAL
+using Shift64Count = int;
+#else
+// Assume documented behavior. Clang 12 and MSVC 14.28.29910 match this.
+using Shift64Count = unsigned int;
+#endif
+
 template <int kBits, size_t N>
 HWY_API Vec128<int64_t, N> ShiftRight(const Vec128<int64_t, N> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, kBits)};
+  return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, static_cast<Shift64Count>(kBits))};
 #else
   const DFromV<decltype(v)> di;
   const RebindToUnsigned<decltype(di)> du;
@@ -3016,7 +3026,7 @@ HWY_API Vec128<int64_t, N> ShiftRightSame(const Vec128<int64_t, N> v,
 #if HWY_TARGET <= HWY_AVX3
 #if HWY_COMPILER_GCC
   if (__builtin_constant_p(bits)) {
-    return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, bits)};
+    return Vec128<int64_t, N>{_mm_srai_epi64(v.raw, static_cast<Shift64Count>(bits))};
   }
 #endif
   return Vec128<int64_t, N>{_mm_sra_epi64(v.raw, _mm_cvtsi32_si128(bits))};
