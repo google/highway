@@ -34,7 +34,9 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #include <tmmintrin.h>  // SSSE3
 #elif HWY_TARGET <= HWY_SSE4
 #include <smmintrin.h>  // SSE4
+#ifndef HWY_DISABLE_PCLMUL_AES
 #include <wmmintrin.h>  // CLMUL
+#endif
 #endif
 #include <stddef.h>
 #include <stdint.h>
