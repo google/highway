@@ -807,9 +807,13 @@ HWY_INLINE Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
 // ------------------------------ Weak inequality
 
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Mask128<T, N> operator>=(Vec128<T, N> a,
-                                 Vec128<T, N> b) {
+HWY_API Mask128<T, N> operator>=(Vec128<T, N> a, Vec128<T, N> b) {
   return Mask128<T, N>{vec_cmpge(a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Mask128<T, N> operator>=(Vec128<T, N> a, Vec128<T, N> b) {
+  return Not(b > a);
 }
 
 // ------------------------------ Reversed comparisons

@@ -808,12 +808,10 @@ These return a mask (see above) indicating whether the condition is true.
 *   <code>M **operator&gt;**(V a, V b)</code>: returns `a[i] > b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Gt` instead.
 
-*   `V`: `{f}` \
-    <code>M **operator&lt;=**(V a, V b)</code>: returns `a[i] <= b[i]`.
+*   <code>M **operator&lt;=**(V a, V b)</code>: returns `a[i] <= b[i]`.
     Currently unavailable on SVE/RVV; use the equivalent `Le` instead.
 
-*   `V`: `{f}` \
-    <code>M **operator&gt;=**(V a, V b)</code>: returns `a[i] >= b[i]`.
+*   <code>M **operator&gt;=**(V a, V b)</code>: returns `a[i] >= b[i]`.
     Currently unavailable on SVE/RVV; use the equivalent `Ge` instead.
 
 *   `V`: `{u,i}` \

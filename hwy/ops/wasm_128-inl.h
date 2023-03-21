@@ -1172,16 +1172,58 @@ HWY_API Mask128<T, N> operator<(const Vec128<T, N> a, const Vec128<T, N> b) {
 
 // ------------------------------ Weak inequality
 
-// Float <= >=
-template <size_t N>
-HWY_API Mask128<float, N> operator<=(const Vec128<float, N> a,
-                                     const Vec128<float, N> b) {
-  return Mask128<float, N>{wasm_f32x4_le(a.raw, b.raw)};
-}
+// Float >=
 template <size_t N>
 HWY_API Mask128<float, N> operator>=(const Vec128<float, N> a,
                                      const Vec128<float, N> b) {
   return Mask128<float, N>{wasm_f32x4_ge(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Mask128<int8_t, N> operator>=(const Vec128<int8_t, N> a,
+                                      const Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{wasm_i8x16_ge(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> operator>=(const Vec128<int16_t, N> a,
+                                       const Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{wasm_i16x8_ge(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> operator>=(const Vec128<int32_t, N> a,
+                                       const Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{wasm_i32x4_ge(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator>=(const Vec128<int64_t, N> a,
+                                       const Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{wasm_i64x2_ge(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator>=(const Vec128<uint8_t, N> a,
+                                       const Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{wasm_u8x16_ge(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator>=(const Vec128<uint16_t, N> a,
+                                        const Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{wasm_u16x8_ge(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator>=(const Vec128<uint32_t, N> a,
+                                        const Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{wasm_u32x4_ge(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator>=(const Vec128<uint64_t, N> a,
+                                        const Vec128<uint64_t, N> b) {
+  return Not(b > a);
+}
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator<=(const Vec128<T, N> a, const Vec128<T, N> b) {
+  return operator>=(b, a);
 }
 
 // ------------------------------ FirstN (Iota, Lt)

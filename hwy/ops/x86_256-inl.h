@@ -1105,6 +1105,35 @@ HWY_API Mask256<double> operator>=(Vec256<double> a, Vec256<double> b) {
   return Mask256<double>{_mm256_cmp_pd_mask(a.raw, b.raw, _CMP_GE_OQ)};
 }
 
+HWY_API Mask256<int8_t> operator>=(Vec256<int8_t> a, Vec256<int8_t> b) {
+  return Mask256<int8_t>{_mm256_cmpge_epi8_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<int16_t> operator>=(Vec256<int16_t> a, Vec256<int16_t> b) {
+  return Mask256<int16_t>{_mm256_cmpge_epi16_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<int32_t> operator>=(Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Mask256<int32_t>{_mm256_cmpge_epi32_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<int64_t> operator>=(Vec256<int64_t> a, Vec256<int64_t> b) {
+  return Mask256<int64_t>{_mm256_cmpge_epi64_mask(a.raw, b.raw)};
+}
+
+HWY_API Mask256<uint8_t> operator>=(Vec256<uint8_t> a, Vec256<uint8_t> b) {
+  return Mask256<uint8_t>{_mm256_cmpge_epu8_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<uint16_t> operator>=(const Vec256<uint16_t> a,
+                                     const Vec256<uint16_t> b) {
+  return Mask256<uint16_t>{_mm256_cmpge_epu16_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<uint32_t> operator>=(const Vec256<uint32_t> a,
+                                     const Vec256<uint32_t> b) {
+  return Mask256<uint32_t>{_mm256_cmpge_epu32_mask(a.raw, b.raw)};
+}
+HWY_API Mask256<uint64_t> operator>=(const Vec256<uint64_t> a,
+                                     const Vec256<uint64_t> b) {
+  return Mask256<uint64_t>{_mm256_cmpge_epu64_mask(a.raw, b.raw)};
+}
+
 // ------------------------------ Mask
 
 namespace detail {
@@ -1302,13 +1331,32 @@ HWY_API Mask256<T> operator>(Vec256<T> a, Vec256<T> b) {
 
 // ------------------------------ Weak inequality
 
-HWY_API Mask256<float> operator>=(const Vec256<float> a,
-                                  const Vec256<float> b) {
+namespace detail {
+
+template <typename T>
+HWY_INLINE Mask256<T> Ge(hwy::SignedTag tag, Vec256<T> a, Vec256<T> b) {
+  return Not(Gt(tag, b, a));
+}
+
+template <typename T>
+HWY_INLINE Mask256<T> Ge(hwy::UnsignedTag tag, Vec256<T> a, Vec256<T> b) {
+  return Not(Gt(tag, b, a));
+}
+
+HWY_INLINE Mask256<float> Ge(hwy::FloatTag /*tag*/, Vec256<float> a,
+                             Vec256<float> b) {
   return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_GE_OQ)};
 }
-HWY_API Mask256<double> operator>=(const Vec256<double> a,
-                                   const Vec256<double> b) {
+HWY_INLINE Mask256<double> Ge(hwy::FloatTag /*tag*/, Vec256<double> a,
+                              Vec256<double> b) {
   return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_GE_OQ)};
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API Mask256<T> operator>=(Vec256<T> a, Vec256<T> b) {
+  return detail::Ge(hwy::TypeTag<T>(), a, b);
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
