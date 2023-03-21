@@ -71,7 +71,11 @@
 // an invalid version number, deduce it from the presence of warnings.
 // Adapted from https://github.com/simd-everywhere/simde/ simde-detect-clang.h.
 #if defined(__apple_build_version__) || __clang_major__ >= 999
-#if __has_warning("-Wbitwise-instead-of-logical")
+#if __has_attribute(nouwtable)  // no new warnings in 16.0
+#define HWY_COMPILER_CLANG 1600
+#elif __has_warning("-Warray-parameter")
+#define HWY_COMPILER_CLANG 1500
+#elif __has_warning("-Wbitwise-instead-of-logical")
 #define HWY_COMPILER_CLANG 1400
 #elif __has_warning("-Wreserved-identifier")
 #define HWY_COMPILER_CLANG 1300
