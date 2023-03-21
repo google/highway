@@ -3286,6 +3286,19 @@ template <class D, HWY_IF_I8_D(D)>
 HWY_API Vec64<int8_t> DemoteTo(D /* tag */, Vec128<int16_t> v) {
   return Vec64<int8_t>(vqmovn_s16(v.raw));
 }
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec64<uint16_t> DemoteTo(D /* tag */, Vec128<uint32_t> v) {
+  return Vec64<uint16_t>(vqmovn_u32(v.raw));
+}
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec128<uint32_t> v) {
+  const uint16x4_t a = vqmovn_u32(v.raw);
+  return Vec32<uint8_t>(vqmovn_u16(vcombine_u16(a, a)));
+}
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec64<uint8_t> DemoteTo(D /* tag */, Vec128<uint16_t> v) {
+  return Vec64<uint8_t>(vqmovn_u16(v.raw));
+}
 
 // From half vector to partial half
 template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_U16_D(D)>
@@ -3313,6 +3326,81 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_I8_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int16_t, D>> v) {
   return VFromD<D>(vqmovn_s16(vcombine_s16(v.raw, v.raw)));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+  return VFromD<D>(vqmovn_u32(vcombine_u32(v.raw, v.raw)));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 2), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+  const uint16x4_t a = vqmovn_u32(vcombine_u32(v.raw, v.raw));
+  return VFromD<D>(vqmovn_u16(vcombine_u16(a, a)));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
+  return VFromD<D>(vqmovn_u16(vcombine_u16(v.raw, v.raw)));
+}
+
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<int64_t> v) {
+  return Vec64<int32_t>(vqmovn_s64(v.raw));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<int64_t> v) {
+return Vec64<uint32_t>(vqmovun_s64(v.raw));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<uint64_t> v) {
+  return Vec64<uint32_t>(vqmovn_u64(v.raw));
+}
+template<class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+                  HWY_IF_SIGNED_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, Vec128<uint64_t> v) {
+  const Rebind<int32_t, D> di32;
+  return DemoteTo(d, DemoteTo(di32, v));
+}
+template<class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+                  HWY_IF_UNSIGNED_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, Vec128<int64_t> v) {
+  const Rebind<uint32_t, D> du32;
+  return DemoteTo(d, DemoteTo(du32, v));
+}
+template<class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+                  HWY_IF_UNSIGNED_D(D)>
+HWY_API VFromD<D> DemoteTo(D d, Vec128<uint64_t> v) {
+  const Rebind<uint32_t, D> du32;
+  return DemoteTo(d, DemoteTo(du32, v));
+}
+
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<int64_t> v) {
+  return Vec32<int32_t>(vqmovn_s64(vcombine_s64(v.raw, v.raw)));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<int64_t> v) {
+return Vec32<uint32_t>(vqmovun_s64(vcombine_s64(v.raw, v.raw)));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<uint64_t> v) {
+  return Vec32<uint32_t>(vqmovn_u64(vcombine_u64(v.raw, v.raw)));
+}
+template<class D, HWY_IF_SIGNED_D(D),
+                  HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> DemoteTo(D d, Vec64<int64_t> v) {
+  const Rebind<int32_t, D> di32;
+  return DemoteTo(d, DemoteTo(di32, v));
+}
+template<class D, HWY_IF_UNSIGNED_D(D),
+                  HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> DemoteTo(D d, Vec64<int64_t> v) {
+  const Rebind<uint32_t, D> du32;
+  return DemoteTo(d, DemoteTo(du32, v));
+}
+template<class D, HWY_IF_LANES_D(D, 1), HWY_IF_UNSIGNED_D(D),
+                  HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> DemoteTo(D d, Vec64<uint64_t> v) {
+  const Rebind<uint32_t, D> du32;
+  return DemoteTo(d, DemoteTo(du32, v));
 }
 
 #if __ARM_FP & 2
@@ -4783,9 +4871,67 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_BF16_D(D),
           class V32 = VFromD<Repartition<float, D>>>
 HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
-  const Repartition<uint32_t, decltype(dbf16)> du32;
-  const VFromD<decltype(du32)> b_in_even = ShiftRight<16>(BitCast(du32, b));
-  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+  return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
+}
+
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec128<int32_t> ReorderDemote2To(D d32, Vec128<int64_t> a,
+                                        Vec128<int64_t> b) {
+  const Vec64<int32_t> a32(vqmovn_s64(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d32;
+  return Vec128<int32_t>(vqmovn_high_s64(a32.raw, b.raw));
+#else
+  const Vec64<int32_t> b32(vqmovn_s64(b.raw));
+  return Combine(d32, b32, a32);
+#endif
+}
+
+template <class D, HWY_IF_I32_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ReorderDemote2To(D d32, VFromD<Repartition<int64_t, D>> a,
+                                   VFromD<Repartition<int64_t, D>> b) {
+  const Rebind<int64_t, decltype(d32)> dt;
+  return DemoteTo(d32, Combine(dt, b, a));
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> ReorderDemote2To(D d32, Vec128<int64_t> a,
+                                         Vec128<int64_t> b) {
+  const Vec64<uint32_t> a32(vqmovun_s64(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d32;
+  return Vec128<uint32_t>(vqmovun_high_s64(a32.raw, b.raw));
+#else
+  const Vec64<uint32_t> b32(vqmovun_s64(b.raw));
+  return Combine(d32, b32, a32);
+#endif
+}
+
+template <class D, HWY_IF_U32_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ReorderDemote2To(D d32, VFromD<Repartition<int64_t, D>> a,
+                                   VFromD<Repartition<int64_t, D>> b) {
+  const Rebind<int64_t, decltype(d32)> dt;
+  return DemoteTo(d32, Combine(dt, b, a));
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> ReorderDemote2To(D d32, Vec128<uint64_t> a,
+                                         Vec128<uint64_t> b) {
+  const Vec64<uint32_t> a32(vqmovn_u64(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d32;
+  return Vec128<uint32_t>(vqmovn_high_u64(a32.raw, b.raw));
+#else
+  const Vec64<uint32_t> b32(vqmovn_u64(b.raw));
+  return Combine(d32, b32, a32);
+#endif
+}
+
+template <class D, HWY_IF_U32_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ReorderDemote2To(D d32, VFromD<Repartition<uint64_t, D>> a,
+                                   VFromD<Repartition<uint64_t, D>> b) {
+  const Rebind<uint64_t, decltype(d32)> dt;
+  return DemoteTo(d32, Combine(dt, b, a));
 }
 
 template <class D, HWY_IF_I16_D(D)>
@@ -4815,6 +4961,137 @@ HWY_API Vec32<int16_t> ReorderDemote2To(D /*d16*/, Vec32<int32_t> a,
   const Full128<int32_t> d32;
   const Vec64<int32_t> ab(vzip1_s32(a.raw, b.raw));
   return Vec32<int16_t>(vqmovn_s32(Combine(d32, ab, ab).raw));
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> ReorderDemote2To(D d16, Vec128<int32_t> a,
+                                          Vec128<int32_t> b) {
+  const Vec64<uint16_t> a16(vqmovun_s32(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d16;
+  return Vec128<uint16_t>(vqmovun_high_s32(a16.raw, b.raw));
+#else
+  const Vec64<uint16_t> b16(vqmovun_s32(b.raw));
+  return Combine(d16, b16, a16);
+#endif
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec64<uint16_t> ReorderDemote2To(D /*d16*/, Vec64<int32_t> a,
+                                         Vec64<int32_t> b) {
+  const Full128<int32_t> d32;
+  const Vec128<int32_t> ab = Combine(d32, b, a);
+  return Vec64<uint16_t>(vqmovun_s32(ab.raw));
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec32<uint16_t> ReorderDemote2To(D /*d16*/, Vec32<int32_t> a,
+                                         Vec32<int32_t> b) {
+  const Full128<int32_t> d32;
+  const Vec64<int32_t> ab(vzip1_s32(a.raw, b.raw));
+  return Vec32<uint16_t>(vqmovun_s32(Combine(d32, ab, ab).raw));
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> ReorderDemote2To(D d16, Vec128<uint32_t> a,
+                                          Vec128<uint32_t> b) {
+  const Vec64<uint16_t> a16(vqmovn_u32(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d16;
+  return Vec128<uint16_t>(vqmovn_high_u32(a16.raw, b.raw));
+#else
+  const Vec64<uint16_t> b16(vqmovn_u32(b.raw));
+  return Combine(d16, b16, a16);
+#endif
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec64<uint16_t> ReorderDemote2To(D /*d16*/, Vec64<uint32_t> a,
+                                         Vec64<uint32_t> b) {
+  const Full128<uint32_t> d32;
+  const Vec128<uint32_t> ab = Combine(d32, b, a);
+  return Vec64<uint16_t>(vqmovn_u32(ab.raw));
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec32<uint16_t> ReorderDemote2To(D /*d16*/, Vec32<uint32_t> a,
+                                         Vec32<uint32_t> b) {
+  const Full128<uint32_t> d32;
+  const Vec64<uint32_t> ab(vzip1_u32(a.raw, b.raw));
+  return Vec32<uint16_t>(vqmovn_u32(Combine(d32, ab, ab).raw));
+}
+
+template <class D, HWY_IF_I8_D(D)>
+HWY_API Vec128<int8_t> ReorderDemote2To(D d8, Vec128<int16_t> a,
+                                        Vec128<int16_t> b) {
+  const Vec64<int8_t> a8(vqmovn_s16(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d8;
+  return Vec128<int8_t>(vqmovn_high_s16(a8.raw, b.raw));
+#else
+  const Vec64<int8_t> b8(vqmovn_s16(b.raw));
+  return Combine(d8, b8, a8);
+#endif
+}
+
+template <class D, HWY_IF_I8_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ReorderDemote2To(D d8, VFromD<Repartition<int16_t, D>> a,
+                                   VFromD<Repartition<int16_t, D>> b) {
+  const Rebind<int16_t, decltype(d8)> dt;
+  return DemoteTo(d8, Combine(dt, b, a));
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> ReorderDemote2To(D d8, Vec128<int16_t> a,
+                                         Vec128<int16_t> b) {
+  const Vec64<uint8_t> a8(vqmovun_s16(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d8;
+  return Vec128<uint8_t>(vqmovun_high_s16(a8.raw, b.raw));
+#else
+  const Vec64<uint8_t> b8(vqmovun_s16(b.raw));
+  return Combine(d8, b8, a8);
+#endif
+}
+
+template <class D, HWY_IF_U8_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ReorderDemote2To(D d8, VFromD<Repartition<int16_t, D>> a,
+                                   VFromD<Repartition<int16_t, D>> b) {
+  const Rebind<int16_t, decltype(d8)> dt;
+  return DemoteTo(d8, Combine(dt, b, a));
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> ReorderDemote2To(D d8, Vec128<uint16_t> a,
+                                         Vec128<uint16_t> b) {
+  const Vec64<uint8_t> a8(vqmovn_u16(a.raw));
+#if HWY_ARCH_ARM_A64
+  (void)d8;
+  return Vec128<uint8_t>(vqmovn_high_u16(a8.raw, b.raw));
+#else
+  const Vec64<uint8_t> b8(vqmovn_u16(b.raw));
+  return Combine(d8, b8, a8);
+#endif
+}
+
+template <class D, HWY_IF_U8_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ReorderDemote2To(D d8, VFromD<Repartition<uint16_t, D>> a,
+                                   VFromD<Repartition<uint16_t, D>> b) {
+  const Rebind<uint16_t, decltype(d8)> dt;
+  return DemoteTo(d8, Combine(dt, b, a));
+}
+
+template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  return ReorderDemote2To(d, a, b);
+}
+
+template <class D, HWY_IF_BF16_D(D),
+          class V32 = VFromD<Repartition<float, D>>>
+HWY_API VFromD<D> OrderedDemote2To(D dbf16, V32 a, V32 b) {
+  return ReorderDemote2To(dbf16, a, b);
 }
 
 // ================================================== CRYPTO

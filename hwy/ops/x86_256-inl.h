@@ -4039,6 +4039,13 @@ HWY_API Vec128<uint16_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(u16, 0x88))};
 }
 
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> DemoteTo(D dn, Vec256<uint32_t> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFu))));
+}
+
 template <class D, HWY_IF_I16_D(D)>
 HWY_API Vec128<int16_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
   const __m256i i16 = _mm256_packs_epi32(v.raw, v.raw);
@@ -4048,14 +4055,23 @@ HWY_API Vec128<int16_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
 
 template <class D, HWY_IF_U8_D(D)>
 HWY_API Vec64<uint8_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
-  const __m256i u16_blocks = _mm256_packus_epi32(v.raw, v.raw);
+  const __m256i i16_blocks = _mm256_packs_epi32(v.raw, v.raw);
   // Concatenate lower 64 bits of each 128-bit block
-  const __m256i u16_concat = _mm256_permute4x64_epi64(u16_blocks, 0x88);
-  const __m128i u16 = _mm256_castsi256_si128(u16_concat);
-  // packus treats the input as signed; we want unsigned. Clear the MSB to get
-  // unsigned saturation to u8.
-  const __m128i i16 = _mm_and_si128(u16, _mm_set1_epi16(0x7FFF));
+  const __m256i i16_concat = _mm256_permute4x64_epi64(i16_blocks, 0x88);
+  const __m128i i16 = _mm256_castsi256_si128(i16_concat);
   return Vec64<uint8_t>{_mm_packus_epi16(i16, i16)};
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec64<uint8_t> DemoteTo(D dn, Vec256<uint32_t> v) {
+#if HWY_TARGET <= HWY_AVX3
+  (void)dn;
+  return Vec64<uint8_t>{_mm256_cvtusepi32_epi8(v.raw)};
+#else
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFu))));
+#endif
 }
 
 template <class D, HWY_IF_U8_D(D)>
@@ -4063,6 +4079,13 @@ HWY_API Vec128<uint8_t> DemoteTo(D /* tag */, Vec256<int16_t> v) {
   const __m256i u8 = _mm256_packus_epi16(v.raw, v.raw);
   return Vec128<uint8_t>{
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(u8, 0x88))};
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> DemoteTo(D dn, Vec256<uint16_t> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFu))));
 }
 
 template <class D, HWY_IF_I8_D(D)>
@@ -4080,6 +4103,65 @@ HWY_API Vec128<int8_t> DemoteTo(D /* tag */, Vec256<int16_t> v) {
   return Vec128<int8_t>{
       _mm256_castsi256_si128(_mm256_permute4x64_epi64(i8, 0x88))};
 }
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec128<int32_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  return Vec128<int32_t>{_mm256_cvtsepi64_epi32(v.raw)};
+}
+template <class D, HWY_IF_I16_D(D)>
+HWY_API Vec64<int16_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  return Vec64<int16_t>{_mm256_cvtsepi64_epi16(v.raw)};
+}
+template <class D, HWY_IF_I8_D(D)>
+HWY_API Vec32<int8_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  return Vec32<int8_t>{_mm256_cvtsepi64_epi8(v.raw)};
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return Vec128<uint32_t>{_mm256_maskz_cvtusepi64_epi32(non_neg_mask, v.raw)};
+}
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec64<uint16_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return Vec64<uint16_t>{_mm256_maskz_cvtusepi64_epi16(non_neg_mask, v.raw)};
+}
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return Vec32<uint8_t>{_mm256_maskz_cvtusepi64_epi8(non_neg_mask, v.raw)};
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
+  return Vec128<uint32_t>{_mm256_cvtusepi64_epi32(v.raw)};
+}
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec64<uint16_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
+  return Vec64<uint16_t>{_mm256_cvtusepi64_epi16(v.raw)};
+}
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
+  return Vec32<uint8_t>{_mm256_cvtusepi64_epi8(v.raw)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
   // Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
   // 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
@@ -4145,6 +4227,112 @@ template <class D, HWY_IF_I16_D(D)>
 HWY_API Vec256<int16_t> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
                                          Vec256<int32_t> b) {
   return Vec256<int16_t>{_mm256_packs_epi32(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec256<uint16_t> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
+                                          Vec256<int32_t> b) {
+  return Vec256<uint16_t>{_mm256_packus_epi32(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec256<uint16_t> ReorderDemote2To(D dn, Vec256<uint32_t> a,
+                                          Vec256<uint32_t> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const auto max_i32 = Set(d, 0x7FFFFFFFu);
+  return ReorderDemote2To(dn, BitCast(di, Min(a, max_i32)),
+                              BitCast(di, Min(b, max_i32)));
+}
+
+template <class D, HWY_IF_I8_D(D)>
+HWY_API Vec256<int8_t> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
+                                        Vec256<int16_t> b) {
+  return Vec256<int8_t>{_mm256_packs_epi16(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec256<uint8_t> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
+                                         Vec256<int16_t> b) {
+  return Vec256<uint8_t>{_mm256_packus_epi16(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec256<uint8_t> ReorderDemote2To(D dn, Vec256<uint16_t> a,
+                                         Vec256<uint16_t> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const auto max_i16 = Set(d, 0x7FFFu);
+  return ReorderDemote2To(dn, BitCast(di, Min(a, max_i16)),
+                              BitCast(di, Min(b, max_i16)));
+}
+
+#if HWY_TARGET > HWY_AVX3
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API Vec256<int32_t> ReorderDemote2To(D dn, Vec256<int64_t> a,
+                                         Vec256<int64_t> b) {
+  const DFromV<decltype(a)> di64;
+  const RebindToUnsigned<decltype(di64)> du64;
+  const Half<decltype(dn)> dnh;
+  const Repartition<float, decltype(dn)> dn_f;
+
+  // Negative values are saturated by first saturating their bitwise inverse
+  // and then inverting the saturation result
+  const auto invert_mask_a = BitCast(du64, BroadcastSignBit(a));
+  const auto invert_mask_b = BitCast(du64, BroadcastSignBit(b));
+  const auto saturated_a = Xor(invert_mask_a,
+    detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_a, BitCast(du64, a))));
+  const auto saturated_b = Xor(invert_mask_b,
+    detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_b, BitCast(du64, b))));
+
+  return BitCast(dn, Vec256<float>{_mm256_shuffle_ps(
+    BitCast(dn_f, saturated_a).raw, BitCast(dn_f, saturated_b).raw,
+    _MM_SHUFFLE(2, 0, 2, 0))});
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<int64_t> a,
+                                          Vec256<int64_t> b) {
+  const DFromV<decltype(a)> di64;
+  const RebindToUnsigned<decltype(di64)> du64;
+  const Half<decltype(dn)> dnh;
+  const Repartition<float, decltype(dn)> dn_f;
+
+  const auto saturated_a = detail::DemoteFromU64Saturate(dnh,
+    BitCast(du64, AndNot(BroadcastSignBit(a), a)));
+  const auto saturated_b = detail::DemoteFromU64Saturate(dnh,
+    BitCast(du64, AndNot(BroadcastSignBit(b), b)));
+
+  return BitCast(dn, Vec256<float>{_mm256_shuffle_ps(
+    BitCast(dn_f, saturated_a).raw, BitCast(dn_f, saturated_b).raw,
+    _MM_SHUFFLE(2, 0, 2, 0))});
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<uint64_t> a,
+                                          Vec256<uint64_t> b) {
+  const Half<decltype(dn)> dnh;
+  const Repartition<float, decltype(dn)> dn_f;
+
+  const auto saturated_a = detail::DemoteFromU64Saturate(dnh, a);
+  const auto saturated_b = detail::DemoteFromU64Saturate(dnh, b);
+
+  return BitCast(dn, Vec256<float>{_mm256_shuffle_ps(
+    BitCast(dn_f, saturated_a).raw, BitCast(dn_f, saturated_b).raw,
+    _MM_SHUFFLE(2, 0, 2, 0))});
+}
+#endif  // HWY_TARGET > HWY_AVX3
+
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_V_SIZE_D(D, 32),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4) |
+                                    ((HWY_TARGET > HWY_AVX3) ? (1 << 8) : 0))>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  return VFromD<D>{_mm256_permute4x64_epi64(
+    ReorderDemote2To(d, a, b).raw, _MM_SHUFFLE(3, 1, 2, 0))};
 }
 
 template <class D, HWY_IF_F32_D(D)>

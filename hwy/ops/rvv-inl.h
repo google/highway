@@ -945,6 +945,15 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT_II, Shr, sra, _ALL)
 
 // ------------------------------ Min
 
+namespace detail {
+
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVS, MinS, minu_vx, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVS, MinS, min_vx, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVS, MinS, fmin_vf, _ALL)
+
+}  // namespace detail
+
+
 HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Min, minu, _ALL)
 HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Min, min, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Min, fmin, _ALL)
@@ -1670,18 +1679,12 @@ HWY_API auto PromoteTo(Simd<float32_t, N, kPow2> d,
   HWY_API HWY_RVV_V(BASE, SEWH, LMULH) NAME(                                   \
       HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, HWY_RVV_V(BASE, SEW, LMUL) v) {   \
     return __riscv_v##OP##CHAR##SEWH##LMULH(v, 0, Lanes(d));                   \
-  }                                                                            \
-  template <size_t N>                                                          \
-  HWY_API HWY_RVV_V(BASE, SEWH, LMULH) NAME##Shr16(                            \
-      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, HWY_RVV_V(BASE, SEW, LMUL) v) {   \
-    return __riscv_v##OP##CHAR##SEWH##LMULH(v, 16, Lanes(d));                  \
   }
 
-// Unsigned -> unsigned (also used for bf16)
-namespace detail {
+// Unsigned -> unsigned
 HWY_RVV_FOREACH_U16(HWY_RVV_DEMOTE, DemoteTo, nclipu_wx_, _DEMOTE_VIRT)
 HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE, DemoteTo, nclipu_wx_, _DEMOTE_VIRT)
-}  // namespace detail
+HWY_RVV_FOREACH_U64(HWY_RVV_DEMOTE, DemoteTo, nclipu_wx_, _DEMOTE_VIRT)
 
 // SEW is for the source so we can use _DEMOTE.
 #define HWY_RVV_DEMOTE_I_TO_U(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
@@ -1691,8 +1694,9 @@ HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE, DemoteTo, nclipu_wx_, _DEMOTE_VIRT)
       HWY_RVV_D(uint, SEWH, N, SHIFT - 1) dn, HWY_RVV_V(int, SEW, LMUL) v) {   \
     const HWY_RVV_D(uint, SEW, N, SHIFT) du;                                   \
     /* First clamp negative numbers to zero to match x86 packus. */            \
-    return detail::DemoteTo(dn, BitCast(du, detail::MaxS(v, 0)));              \
+    return DemoteTo(dn, BitCast(du, detail::MaxS(v, 0)));                      \
   }
+HWY_RVV_FOREACH_I64(HWY_RVV_DEMOTE_I_TO_U, DemoteTo, _, _DEMOTE_VIRT)
 HWY_RVV_FOREACH_I32(HWY_RVV_DEMOTE_I_TO_U, DemoteTo, _, _DEMOTE_VIRT)
 HWY_RVV_FOREACH_I16(HWY_RVV_DEMOTE_I_TO_U, DemoteTo, _, _DEMOTE_VIRT)
 #undef HWY_RVV_DEMOTE_I_TO_U
@@ -1721,6 +1725,56 @@ template <size_t N>
 HWY_API vuint8m2_t DemoteTo(Simd<uint8_t, N, 1> d, const vint32m8_t v) {
   return __riscv_vnclipu_wx_u8m2(DemoteTo(Simd<uint16_t, N, 2>(), v), 0,
                                  Lanes(d));
+}
+
+template <size_t N>
+HWY_API vuint8mf8_t DemoteTo(Simd<uint8_t, N, -3> d, const vuint32mf2_t v) {
+  return __riscv_vnclipu_wx_u8mf8(DemoteTo(Simd<uint16_t, N, -2>(), v), 0,
+                                  Lanes(d));
+}
+template <size_t N>
+HWY_API vuint8mf4_t DemoteTo(Simd<uint8_t, N, -2> d, const vuint32m1_t v) {
+  return __riscv_vnclipu_wx_u8mf4(DemoteTo(Simd<uint16_t, N, -1>(), v), 0,
+                                  Lanes(d));
+}
+template <size_t N>
+HWY_API vuint8mf2_t DemoteTo(Simd<uint8_t, N, -1> d, const vuint32m2_t v) {
+  return __riscv_vnclipu_wx_u8mf2(DemoteTo(Simd<uint16_t, N, 0>(), v), 0,
+                                  Lanes(d));
+}
+template <size_t N>
+HWY_API vuint8m1_t DemoteTo(Simd<uint8_t, N, 0> d, const vuint32m4_t v) {
+  return __riscv_vnclipu_wx_u8m1(DemoteTo(Simd<uint16_t, N, 1>(), v), 0,
+                                 Lanes(d));
+}
+template <size_t N>
+HWY_API vuint8m2_t DemoteTo(Simd<uint8_t, N, 1> d, const vuint32m8_t v) {
+  return __riscv_vnclipu_wx_u8m2(DemoteTo(Simd<uint16_t, N, 2>(), v), 0,
+                                 Lanes(d));
+}
+
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<uint8_t, N, kPow2>> DemoteTo(
+    Simd<uint8_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 3>> v) {
+  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 2>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<uint8_t, N, kPow2>> DemoteTo(
+    Simd<uint8_t, N, kPow2> d, VFromD<Simd<uint64_t, N, kPow2 + 3>> v) {
+  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 2>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
+    Simd<uint16_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 2>> v) {
+  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 1>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
+    Simd<uint16_t, N, kPow2> d, VFromD<Simd<uint64_t, N, kPow2 + 2>> v) {
+  return DemoteTo(d, DemoteTo(Simd<uint32_t, N, kPow2 + 1>(), v));
 }
 
 HWY_API vuint8mf8_t U8FromU32(const vuint32mf2_t v) {
@@ -1991,6 +2045,7 @@ HWY_API vuint8m4_t TruncateTo(Simd<uint8_t, N, 2> d,
 
 HWY_RVV_FOREACH_I16(HWY_RVV_DEMOTE, DemoteTo, nclip_wx_, _DEMOTE_VIRT)
 HWY_RVV_FOREACH_I32(HWY_RVV_DEMOTE, DemoteTo, nclip_wx_, _DEMOTE_VIRT)
+HWY_RVV_FOREACH_I64(HWY_RVV_DEMOTE, DemoteTo, nclip_wx_, _DEMOTE_VIRT)
 
 template <size_t N>
 HWY_API vint8mf8_t DemoteTo(Simd<int8_t, N, -3> d, const vint32mf2_t v) {
@@ -2011,6 +2066,18 @@ HWY_API vint8m1_t DemoteTo(Simd<int8_t, N, 0> d, const vint32m4_t v) {
 template <size_t N>
 HWY_API vint8m2_t DemoteTo(Simd<int8_t, N, 1> d, const vint32m8_t v) {
   return DemoteTo(d, DemoteTo(Simd<int16_t, N, 2>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<int8_t, N, kPow2>> DemoteTo(
+    Simd<int8_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 3>> v) {
+  return DemoteTo(d, DemoteTo(Simd<int32_t, N, kPow2 + 2>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<int16_t, N, kPow2>> DemoteTo(
+    Simd<int16_t, N, kPow2> d, VFromD<Simd<int64_t, N, kPow2 + 2>> v) {
+  return DemoteTo(d, DemoteTo(Simd<int32_t, N, kPow2 + 1>(), v));
 }
 
 #undef HWY_RVV_DEMOTE
@@ -2053,6 +2120,20 @@ template <size_t N>
 HWY_API vint32m4_t DemoteTo(Simd<int32_t, N, 2> d, const vfloat64m8_t v) {
   return __riscv_vfncvt_rtz_x_f_w_i32m4(v, Lanes(d));
 }
+
+// SEW is for the source so we can use _DEMOTE_TO_SHR_16.
+#define HWY_RVV_DEMOTE_TO_SHR_16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,     \
+                                 LMULH, SHIFT, MLEN, NAME, OP)                 \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(BASE, SEWH, LMULH) NAME(                                   \
+      HWY_RVV_D(BASE, SEWH, N, SHIFT - 1) d, HWY_RVV_V(BASE, SEW, LMUL) v) {   \
+    return __riscv_v##OP##CHAR##SEWH##LMULH(v, 16, Lanes(d));                  \
+  }
+namespace detail {
+HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE_TO_SHR_16, DemoteToShr16, nclipu_wx_,
+                    _DEMOTE_VIRT)
+}
+#undef HWY_RVV_DEMOTE_TO_SHR_16
 
 template <size_t N, int kPow2>
 HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
@@ -3246,22 +3327,91 @@ HWY_API VFromD<Simd<uint16_t, N, kPow2>> ReorderDemote2To(
 }
 
 // If LMUL is not the max, Combine first to avoid another DemoteTo.
-template <class D, HWY_IF_I16_D(D), HWY_IF_POW2_LE_D(D, 2),
-          class D32 = RepartitionToWide<D>>
-HWY_API VFromD<D> ReorderDemote2To(D d16, VFromD<D32> a, VFromD<D32> b) {
-  const Twice<D32> d32t;
-  const VFromD<decltype(d32t)> ab = Combine(d32t, b, a);
-  return DemoteTo(d16, ab);
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
+          HWY_IF_POW2_LE_D(DN, 2),
+          class V, HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  const VFromD<decltype(dt)> ab = Combine(dt, b, a);
+  return DemoteTo(dn, ab);
+}
+
+template <class DN, HWY_IF_UNSIGNED_D(DN),
+          HWY_IF_POW2_LE_D(DN, 2),
+          class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  const VFromD<decltype(dt)> ab = Combine(dt, b, a);
+  return DemoteTo(dn, ab);
 }
 
 // Max LMUL: must DemoteTo first, then Combine.
-template <class D, HWY_IF_I16_D(D), HWY_IF_POW2_GT_D(D, 2),
-          class V32 = VFromD<RepartitionToWide<D>>>
-HWY_API VFromD<D> ReorderDemote2To(D d16, V32 a, V32 b) {
-  const Half<decltype(d16)> d16h;
-  const VFromD<decltype(d16h)> a16 = DemoteTo(d16h, a);
-  const VFromD<decltype(d16h)> b16 = DemoteTo(d16h, b);
-  return Combine(d16, b16, a16);
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
+          HWY_IF_POW2_GT_D(DN, 2),
+          class V, HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  const VFromD<decltype(dnh)> demoted_a = DemoteTo(dnh, a);
+  const VFromD<decltype(dnh)> demoted_b = DemoteTo(dnh, b);
+  return Combine(dn, demoted_b, demoted_a);
+}
+
+template <class DN, HWY_IF_UNSIGNED_D(DN),
+          HWY_IF_POW2_GT_D(DN, 2),
+          class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  const VFromD<decltype(dnh)> demoted_a = DemoteTo(dnh, a);
+  const VFromD<decltype(dnh)> demoted_b = DemoteTo(dnh, b);
+  return Combine(dn, demoted_b, demoted_a);
+}
+
+// If LMUL is not the max, Combine first to avoid another DemoteTo.
+template <class DN, HWY_IF_BF16_D(DN),
+          HWY_IF_POW2_LE_D(DN, 2),
+          class V, HWY_IF_F32_D(DFromV<V>),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
+  const Rebind<TFromV<V>, DN> dt;
+  const VFromD<decltype(dt)> ab = Combine(dt, b, a);
+  return DemoteTo(dn, ab);
+}
+
+// Max LMUL: must DemoteTo first, then Combine.
+template <class DN, HWY_IF_BF16_D(DN),
+          HWY_IF_POW2_GT_D(DN, 2),
+          class V, HWY_IF_F32_D(DFromV<V>),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+  const RebindToUnsigned<decltype(dnh)> dnh_u;
+  const auto demoted_a = BitCast(dnh_u, DemoteTo(dnh, a));
+  const auto demoted_b = BitCast(dnh_u, DemoteTo(dnh, b));
+  return BitCast(dn, Combine(dn_u, demoted_b, demoted_a));
+}
+
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          hwy::EnableIf<DFromV<V>().Pow2() == DFromV<V2>().Pow2()>* = nullptr>
+HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
+  return ReorderDemote2To(dn, a, b);
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)

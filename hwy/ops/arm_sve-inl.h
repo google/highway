@@ -1320,6 +1320,9 @@ VI SaturateI(VI v) {
 
 template <size_t N, int kPow2>
 HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svint16_t v) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint8_t vn = BitCast(dn, svqxtunb_s16(v));
+#else
   const DFromV<decltype(v)> di;
   const RebindToUnsigned<decltype(di)> du;
   using TN = TFromD<decltype(dn)>;
@@ -1327,11 +1330,15 @@ HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svint16_t v) {
   const svuint16_t clamped = BitCast(du, detail::MaxN(v, 0));
   // Saturate to unsigned-max and halve the width.
   const svuint8_t vn = BitCast(dn, detail::SaturateU<TN>(clamped));
+#endif
   return svuzp1_u8(vn, vn);
 }
 
 template <size_t N, int kPow2>
 HWY_API svuint16_t DemoteTo(Simd<uint16_t, N, kPow2> dn, const svint32_t v) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint16_t vn = BitCast(dn, svqxtunb_s32(v));
+#else
   const DFromV<decltype(v)> di;
   const RebindToUnsigned<decltype(di)> du;
   using TN = TFromD<decltype(dn)>;
@@ -1339,6 +1346,7 @@ HWY_API svuint16_t DemoteTo(Simd<uint16_t, N, kPow2> dn, const svint32_t v) {
   const svuint32_t clamped = BitCast(du, detail::MaxN(v, 0));
   // Saturate to unsigned-max and halve the width.
   const svuint16_t vn = BitCast(dn, detail::SaturateU<TN>(clamped));
+#endif
   return svuzp1_u16(vn, vn);
 }
 
@@ -1347,11 +1355,15 @@ HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svint32_t v) {
   const DFromV<decltype(v)> di;
   const RebindToUnsigned<decltype(di)> du;
   const RepartitionToNarrow<decltype(du)> d2;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint16_t cast16 = BitCast(d2, svqxtnb_u16(svqxtunb_s32(v)));
+#else
   using TN = TFromD<decltype(dn)>;
   // First clamp negative numbers to zero and cast to unsigned.
   const svuint32_t clamped = BitCast(du, detail::MaxN(v, 0));
   // Saturate to unsigned-max and quarter the width.
   const svuint16_t cast16 = BitCast(d2, detail::SaturateU<TN>(clamped));
+#endif
   const svuint8_t x2 = BitCast(dn, svuzp1_u16(cast16, cast16));
   return svuzp1_u8(x2, x2);
 }
@@ -1365,6 +1377,34 @@ HWY_API svuint8_t U8FromU32(const svuint32_t v) {
   const svuint16_t x2 = svuzp1_u16(cast16, cast16);
   const svuint8_t cast8 = BitCast(du8, x2);
   return svuzp1_u8(cast8, cast8);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svuint16_t v) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint8_t vn = BitCast(dn, svqxtnb_u16(v));
+#else
+  using TN = TFromD<decltype(dn)>;
+  const svuint8_t vn = BitCast(dn, detail::SaturateU<TN>(v));
+#endif
+  return svuzp1_u8(vn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t DemoteTo(Simd<uint16_t, N, kPow2> dn, const svuint32_t v) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint16_t vn = BitCast(dn, svqxtnb_u32(v));
+#else
+  using TN = TFromD<decltype(dn)>;
+  const svuint16_t vn = BitCast(dn, detail::SaturateU<TN>(v));
+#endif
+  return svuzp1_u16(vn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svuint32_t v) {
+  using TN = TFromD<decltype(dn)>;
+  return U8FromU32(detail::SaturateU<TN>(v));
 }
 
 // ------------------------------ Truncations
@@ -1456,6 +1496,116 @@ HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint32_t v) {
 #endif
   const svint8_t v2 = BitCast(dn, svuzp1_s16(cast16, cast16));
   return BitCast(dn, svuzp1_s8(v2, v2));
+}
+
+// ------------------------------ I64/U64 DemoteTo
+
+template <size_t N, int kPow2>
+HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> dn, const svint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint64_t vn = BitCast(du64, svqxtnb_s64(v));
+#else
+  using TN = TFromD<decltype(dn)>;
+  const svuint64_t vn = BitCast(du64, detail::SaturateI<TN>(v));
+#endif
+  return BitCast(dn, TruncateTo(dn_u, vn));
+}
+
+template <size_t N, int kPow2>
+HWY_API svint16_t DemoteTo(Simd<int16_t, N, kPow2> dn, const svint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint64_t vn = BitCast(du64, svqxtnb_s32(svqxtnb_s64(v)));
+#else
+  using TN = TFromD<decltype(dn)>;
+  const svuint64_t vn = BitCast(du64, detail::SaturateI<TN>(v));
+#endif
+  return BitCast(dn, TruncateTo(dn_u, vn));
+}
+
+template <size_t N, int kPow2>
+HWY_API svint8_t DemoteTo(Simd<int8_t, N, kPow2> dn, const svint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+  using TN = TFromD<decltype(dn)>;
+  const svuint64_t vn = BitCast(du64, detail::SaturateI<TN>(v));
+  return BitCast(dn, TruncateTo(dn_u, vn));
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint32_t DemoteTo(Simd<uint32_t, N, kPow2> dn, const svint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint64_t vn = BitCast(du64, svqxtunb_s64(v));
+#else
+  using TN = TFromD<decltype(dn)>;
+  // First clamp negative numbers to zero and cast to unsigned.
+  const svuint64_t clamped = BitCast(du64, detail::MaxN(v, 0));
+  // Saturate to unsigned-max
+  const svuint64_t vn = detail::SaturateU<TN>(clamped);
+#endif
+  return TruncateTo(dn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t DemoteTo(Simd<uint16_t, N, kPow2> dn, const svint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint64_t vn = BitCast(du64, svqxtnb_u32(svqxtunb_s64(v)));
+#else
+  using TN = TFromD<decltype(dn)>;
+  // First clamp negative numbers to zero and cast to unsigned.
+  const svuint64_t clamped = BitCast(du64, detail::MaxN(v, 0));
+  // Saturate to unsigned-max
+  const svuint64_t vn = detail::SaturateU<TN>(clamped);
+#endif
+  return TruncateTo(dn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+  using TN = TFromD<decltype(dn)>;
+  // First clamp negative numbers to zero and cast to unsigned.
+  const svuint64_t clamped = BitCast(du64, detail::MaxN(v, 0));
+  // Saturate to unsigned-max
+  const svuint64_t vn = detail::SaturateU<TN>(clamped);
+  return TruncateTo(dn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint32_t DemoteTo(Simd<uint32_t, N, kPow2> dn, const svuint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint64_t vn = BitCast(du64, svqxtnb_u64(v));
+#else
+  using TN = TFromD<decltype(dn)>;
+  const svuint64_t vn = BitCast(du64, detail::SaturateU<TN>(v));
+#endif
+  return TruncateTo(dn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t DemoteTo(Simd<uint16_t, N, kPow2> dn, const svuint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  const svuint64_t vn = BitCast(du64, svqxtnb_u32(svqxtnb_u64(v)));
+#else
+  using TN = TFromD<decltype(dn)>;
+  const svuint64_t vn = BitCast(du64, detail::SaturateU<TN>(v));
+#endif
+  return TruncateTo(dn, vn);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svuint64_t v) {
+  const Rebind<uint64_t, decltype(dn)> du64;
+  using TN = TFromD<decltype(dn)>;
+  const svuint64_t vn = BitCast(du64, detail::SaturateU<TN>(v));
+  return TruncateTo(dn, vn);
 }
 
 // ------------------------------ ConcatEven/ConcatOdd
@@ -2659,11 +2809,151 @@ HWY_API svint16_t ReorderDemote2To(Simd<int16_t, N, kPow2> d16, svint32_t a,
   const svint16_t a_in_even = svqxtnb_s32(a);
   return svqxtnt_s32(a_in_even, b);
 #else
-  const Half<decltype(d16)> dh;
-  const svint16_t a16 = BitCast(dh, detail::SaturateI<int16_t>(a));
-  const svint16_t b16 = BitCast(dh, detail::SaturateI<int16_t>(b));
+  const svint16_t a16 = BitCast(d16, detail::SaturateI<int16_t>(a));
+  const svint16_t b16 = BitCast(d16, detail::SaturateI<int16_t>(b));
   return detail::InterleaveEven(a16, b16);
 #endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t ReorderDemote2To(Simd<uint16_t, N, kPow2> d16, svint32_t a,
+                                    svint32_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d16;
+  const svuint16_t a_in_even = svqxtunb_s32(a);
+  return svqxtunt_s32(a_in_even, b);
+#else
+  const Repartition<uint32_t, decltype(d16)> du32;
+  const svuint32_t clamped_a = BitCast(du32, detail::MaxN(a, 0));
+  const svuint32_t clamped_b = BitCast(du32, detail::MaxN(b, 0));
+  const svuint16_t a16 = BitCast(d16, detail::SaturateU<uint16_t>(clamped_a));
+  const svuint16_t b16 = BitCast(d16, detail::SaturateU<uint16_t>(clamped_b));
+  return detail::InterleaveEven(a16, b16);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint16_t ReorderDemote2To(Simd<uint16_t, N, kPow2> d16, svuint32_t a,
+                                    svuint32_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d16;
+  const svuint16_t a_in_even = svqxtnb_u32(a);
+  return svqxtnt_u32(a_in_even, b);
+#else
+  const svuint16_t a16 = BitCast(d16, detail::SaturateU<uint16_t>(a));
+  const svuint16_t b16 = BitCast(d16, detail::SaturateU<uint16_t>(b));
+  return detail::InterleaveEven(a16, b16);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svint8_t ReorderDemote2To(Simd<int8_t, N, kPow2> d8, svint16_t a,
+                                  svint16_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d8;
+  const svint8_t a_in_even = svqxtnb_s16(a);
+  return svqxtnt_s16(a_in_even, b);
+#else
+  const svint8_t a8 = BitCast(d8, detail::SaturateI<int8_t>(a));
+  const svint8_t b8 = BitCast(d8, detail::SaturateI<int8_t>(b));
+  return detail::InterleaveEven(a8, b8);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t ReorderDemote2To(Simd<uint8_t, N, kPow2> d8, svint16_t a,
+                                   svint16_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d8;
+  const svuint8_t a_in_even = svqxtunb_s16(a);
+  return svqxtunt_s16(a_in_even, b);
+#else
+  const Repartition<uint16_t, decltype(d8)> du16;
+  const svuint16_t clamped_a = BitCast(du16, detail::MaxN(a, 0));
+  const svuint16_t clamped_b = BitCast(du16, detail::MaxN(b, 0));
+  const svuint8_t a8 = BitCast(d8, detail::SaturateU<uint8_t>(clamped_a));
+  const svuint8_t b8 = BitCast(d8, detail::SaturateU<uint8_t>(clamped_b));
+  return detail::InterleaveEven(a8, b8);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint8_t ReorderDemote2To(Simd<uint8_t, N, kPow2> d8, svuint16_t a,
+                                   svuint16_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d8;
+  const svuint8_t a_in_even = svqxtnb_u16(a);
+  return svqxtnt_u16(a_in_even, b);
+#else
+  const svuint8_t a8 = BitCast(d8, detail::SaturateU<uint8_t>(a));
+  const svuint8_t b8 = BitCast(d8, detail::SaturateU<uint8_t>(b));
+  return detail::InterleaveEven(a8, b8);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svint32_t ReorderDemote2To(Simd<int32_t, N, kPow2> d32, svint64_t a,
+                                   svint64_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d32;
+  const svint32_t a_in_even = svqxtnb_s64(a);
+  return svqxtnt_s64(a_in_even, b);
+#else
+  const svint32_t a32 = BitCast(d32, detail::SaturateI<int32_t>(a));
+  const svint32_t b32 = BitCast(d32, detail::SaturateI<int32_t>(b));
+  return detail::InterleaveEven(a32, b32);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint32_t ReorderDemote2To(Simd<uint32_t, N, kPow2> d32, svint64_t a,
+                                    svint64_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d32;
+  const svuint32_t a_in_even = svqxtunb_s64(a);
+  return svqxtunt_s64(a_in_even, b);
+#else
+  const Repartition<uint64_t, decltype(d32)> du64;
+  const svuint64_t clamped_a = BitCast(du64, detail::MaxN(a, 0));
+  const svuint64_t clamped_b = BitCast(du64, detail::MaxN(b, 0));
+  const svuint32_t a32 = BitCast(d32, detail::SaturateU<uint32_t>(clamped_a));
+  const svuint32_t b32 = BitCast(d32, detail::SaturateU<uint32_t>(clamped_b));
+  return detail::InterleaveEven(a32, b32);
+#endif
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint32_t ReorderDemote2To(Simd<uint32_t, N, kPow2> d32, svuint64_t a,
+                                    svuint64_t b) {
+#if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+  (void)d32;
+  const svuint32_t a_in_even = svqxtnb_u64(a);
+  return svqxtnt_u64(a_in_even, b);
+#else
+  const svuint32_t a32 = BitCast(d32, detail::SaturateU<uint32_t>(a));
+  const svuint32_t b32 = BitCast(d32, detail::SaturateU<uint32_t>(b));
+  return detail::InterleaveEven(a32, b32);
+#endif
+}
+
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2)>
+HWY_API VFromD<D> OrderedDemote2To(D dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  const auto demoted_a = DemoteTo(dnh, a);
+  const auto demoted_b = DemoteTo(dnh, b);
+  return Combine(dn, demoted_b, demoted_a);
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API svuint16_t OrderedDemote2To(D dn, svfloat32_t a, svfloat32_t b) {
+  const Half<decltype(dn)> dnh;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+  const RebindToUnsigned<decltype(dnh)> dnh_u;
+  const auto demoted_a = DemoteTo(dnh, a);
+  const auto demoted_b = DemoteTo(dnh, b);
+  return Combine(dn_u, BitCast(dnh_u, demoted_b), BitCast(dnh_u, demoted_a));
 }
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)

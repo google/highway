@@ -2374,26 +2374,55 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
-template <class D, typename FromT, HWY_IF_V_SIZE_LE_D(D, 8),
-          HWY_IF_UNSIGNED_D(D), HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+template <class D, typename FromT, HWY_IF_UNSIGNED_D(D),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
           HWY_IF_SIGNED(FromT), HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2)>
 HWY_API VFromD<D> DemoteTo(D /* tag */,
                            Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   return VFromD<D>{vec_packsu(v.raw, v.raw)};
 }
 
-template <class D, typename FromT, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_SIGNED_D(D),
-          HWY_IF_SIGNED(FromT), HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+template <class D, typename FromT, HWY_IF_SIGNED_D(D), HWY_IF_SIGNED(FromT),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
           HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2)>
 HWY_API VFromD<D> DemoteTo(D /* tag */,
                            Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   return VFromD<D>{vec_packs(v.raw, v.raw)};
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_T_SIZE_D(D, 1)>
-HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<int32_t, D>> v) {
-  const Rebind<int16_t, decltype(d)> di16;
-  return DemoteTo(d, DemoteTo(di16, v));
+template <class D, typename FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE(FromT, sizeof(TFromD<D>) * 2)>
+HWY_API VFromD<D> DemoteTo(D /* tag */,
+                           Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
+  return VFromD<D>{vec_packs(v.raw, v.raw)};
+}
+
+template <class D, class FromT, HWY_IF_SIGNED_D(D), HWY_IF_SIGNED(FromT),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          hwy::EnableIf<(sizeof(FromT) >= sizeof(TFromD<D>) * 4)>* = nullptr>
+HWY_API VFromD<D> DemoteTo(D d,
+                           Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
+  const Rebind<MakeNarrow<FromT>, D> d2;
+  return DemoteTo(d, DemoteTo(d2, v));
+}
+
+template <class D, class FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          hwy::EnableIf<(sizeof(FromT) >= sizeof(TFromD<D>) * 4)>* = nullptr>
+HWY_API VFromD<D> DemoteTo(D d,
+                           Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
+  const Rebind<MakeNarrow<FromT>, D> d2;
+  return DemoteTo(d, DemoteTo(d2, v));
+}
+
+template <class D, class FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_SIGNED(FromT),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          hwy::EnableIf<(sizeof(FromT) >= sizeof(TFromD<D>) * 4)>* = nullptr>
+HWY_API VFromD<D> DemoteTo(D d,
+                           Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
+  const Rebind<MakeUnsigned<MakeNarrow<FromT>>, D> d2;
+  return DemoteTo(d, DemoteTo(d2, v));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
@@ -2463,29 +2492,114 @@ HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
                                 BitCast(du16, b_in_even)));
 }
 
-// Specializations for partial vectors because packs_epi32 sets lanes above 2*N.
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec32<int16_t> ReorderDemote2To(D dn, Vec32<int32_t> a,
-                                        Vec32<int32_t> b) {
-  const Half<decltype(dn)> dnh;
-  // Pretend the result has twice as many lanes so we can InterleaveLower.
-  const Vec32<int16_t> an{DemoteTo(dnh, a).raw};
-  const Vec32<int16_t> bn{DemoteTo(dnh, b).raw};
-  return InterleaveLower(an, bn);
+// Specializations for partial vectors because vec_packs sets lanes above 2*N.
+template <class DN, typename V, HWY_IF_V_SIZE_LE_D(DN, 4),
+          HWY_IF_SIGNED_D(DN), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return DemoteTo(dn, Combine(dt, b, a));
 }
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec64<int16_t> ReorderDemote2To(D dn, Vec64<int32_t> a,
-                                        Vec64<int32_t> b) {
-  const Half<decltype(dn)> dnh;
-  // Pretend the result has twice as many lanes so we can InterleaveLower.
-  const Vec64<int16_t> an{DemoteTo(dnh, a).raw};
-  const Vec64<int16_t> bn{DemoteTo(dnh, b).raw};
-  return InterleaveLower(an, bn);
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 8),
+          HWY_IF_SIGNED_D(DN), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Twice<decltype(dn)> dn_full;
+  const Repartition<uint32_t, decltype(dn_full)> du32_full;
+
+  const VFromD<decltype(dn_full)> v_full{vec_packs(a.raw, b.raw)};
+  const auto vu32_full = BitCast(du32_full, v_full);
+  return LowerHalf(BitCast(dn_full,
+                           ConcatEven(du32_full, vu32_full, vu32_full)));
 }
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> ReorderDemote2To(D /* tag */, Vec128<int32_t> a,
-                                         Vec128<int32_t> b) {
-  return Vec128<int16_t>{vec_packs(a.raw, b.raw)};
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 16),
+          HWY_IF_SIGNED_D(DN), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN /*dn*/, V a, V b) {
+  return VFromD<DN>{vec_packs(a.raw, b.raw)};
+}
+
+template <class DN, typename V, HWY_IF_V_SIZE_LE_D(DN, 4),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return DemoteTo(dn, Combine(dt, b, a));
+}
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 8),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Twice<decltype(dn)> dn_full;
+  const Repartition<uint32_t, decltype(dn_full)> du32_full;
+
+  const VFromD<decltype(dn_full)> v_full{vec_packsu(a.raw, b.raw)};
+  const auto vu32_full = BitCast(du32_full, v_full);
+  return LowerHalf(BitCast(dn_full,
+                           ConcatEven(du32_full, vu32_full, vu32_full)));
+}
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 16),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN /*dn*/, V a, V b) {
+  return VFromD<DN>{vec_packsu(a.raw, b.raw)};
+}
+
+template <class DN, typename V, HWY_IF_V_SIZE_LE_D(DN, 4),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return DemoteTo(dn, Combine(dt, b, a));
+}
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 8),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Twice<decltype(dn)> dn_full;
+  const Repartition<uint32_t, decltype(dn_full)> du32_full;
+
+  const VFromD<decltype(dn_full)> v_full{vec_packs(a.raw, b.raw)};
+  const auto vu32_full = BitCast(du32_full, v_full);
+  return LowerHalf(BitCast(dn_full,
+                           ConcatEven(du32_full, vu32_full, vu32_full)));
+}
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 16),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN /*dn*/, V a, V b) {
+  return VFromD<DN>{vec_packs(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  return ReorderDemote2To(d, a, b);
+}
+
+template <class D, HWY_IF_BF16_D(D),
+          class V32 = VFromD<Repartition<float, D>>>
+HWY_API VFromD<D> OrderedDemote2To(D dbf16, V32 a, V32 b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
+#else
+  return BitCast(dbf16, ConcatEven(du16, BitCast(du16, b), BitCast(du16, a)));
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>

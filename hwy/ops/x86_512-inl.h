@@ -3321,6 +3321,13 @@ HWY_API Vec256<uint16_t> DemoteTo(D /* tag */, Vec512<int32_t> v) {
   return LowerHalf(even);
 }
 
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec256<uint16_t> DemoteTo(D dn, Vec512<uint32_t> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFu))));
+}
+
 template <class D, HWY_IF_I16_D(D)>
 HWY_API Vec256<int16_t> DemoteTo(D /* tag */, Vec512<int32_t> v) {
   const Full512<uint64_t> du64;
@@ -3334,19 +3341,20 @@ HWY_API Vec256<int16_t> DemoteTo(D /* tag */, Vec512<int32_t> v) {
 }
 
 template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec128<uint8_t, 16> DemoteTo(D /* tag */, Vec512<int32_t> v) {
+HWY_API Vec128<uint8_t> DemoteTo(D /* tag */, Vec512<int32_t> v) {
   const Full512<uint32_t> du32;
-  const Vec512<uint16_t> u16{_mm512_packus_epi32(v.raw, v.raw)};
-  // packus treats the input as signed; we want unsigned. Clear the MSB to get
-  // unsigned saturation to u8.
-  const Vec512<int16_t> i16{
-      _mm512_and_si512(u16.raw, _mm512_set1_epi16(0x7FFF))};
+  const Vec512<int16_t> i16{_mm512_packs_epi32(v.raw, v.raw)};
   const Vec512<uint8_t> u8{_mm512_packus_epi16(i16.raw, i16.raw)};
 
   alignas(16) static constexpr uint32_t kLanes[4] = {0, 4, 8, 12};
   const auto idx32 = LoadDup128(du32, kLanes);
   const Vec512<uint8_t> fixed{_mm512_permutexvar_epi32(idx32.raw, u8.raw)};
   return LowerHalf(LowerHalf(fixed));
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> DemoteTo(D /* tag */, Vec512<uint32_t> v) {
+  return Vec128<uint8_t>{_mm512_cvtusepi32_epi8(v.raw)};
 }
 
 template <class D, HWY_IF_U8_D(D)>
@@ -3359,6 +3367,13 @@ HWY_API Vec256<uint8_t> DemoteTo(D /* tag */, Vec512<int16_t> v) {
   const auto idx64 = Load(du64, kLanes);
   const Vec512<uint8_t> even{_mm512_permutexvar_epi64(idx64.raw, u8.raw)};
   return LowerHalf(even);
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec256<uint8_t> DemoteTo(D dn, Vec512<uint16_t> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFu))));
 }
 
 template <class D, HWY_IF_I8_D(D)>
@@ -3384,6 +3399,63 @@ HWY_API Vec256<int8_t> DemoteTo(D /* tag */, Vec512<int16_t> v) {
   const auto idx64 = Load(du64, kLanes);
   const Vec512<int8_t> even{_mm512_permutexvar_epi64(idx64.raw, u8.raw)};
   return LowerHalf(even);
+}
+
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec256<int32_t> DemoteTo(D /* tag */, Vec512<int64_t> v) {
+  return Vec256<int32_t>{_mm512_cvtsepi64_epi32(v.raw)};
+}
+template <class D, HWY_IF_I16_D(D)>
+HWY_API Vec128<int16_t> DemoteTo(D /* tag */, Vec512<int64_t> v) {
+  return Vec128<int16_t>{_mm512_cvtsepi64_epi16(v.raw)};
+}
+template <class D, HWY_IF_I8_D(D)>
+HWY_API Vec64<int8_t> DemoteTo(D /* tag */, Vec512<int64_t> v) {
+  return Vec64<int8_t>{_mm512_cvtsepi64_epi8(v.raw)};
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec256<uint32_t> DemoteTo(D /* tag */, Vec512<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return Vec256<uint32_t>{_mm512_maskz_cvtusepi64_epi32(non_neg_mask, v.raw)};
+}
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> DemoteTo(D /* tag */, Vec512<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return Vec128<uint16_t>{_mm512_maskz_cvtusepi64_epi16(non_neg_mask, v.raw)};
+}
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec64<uint8_t> DemoteTo(D /* tag */, Vec512<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return Vec64<uint8_t>{_mm512_maskz_cvtusepi64_epi8(non_neg_mask, v.raw)};
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec256<uint32_t> DemoteTo(D /* tag */, Vec512<uint64_t> v) {
+  return Vec256<uint32_t>{_mm512_cvtusepi64_epi32(v.raw)};
+}
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> DemoteTo(D /* tag */, Vec512<uint64_t> v) {
+  return Vec128<uint16_t>{_mm512_cvtusepi64_epi16(v.raw)};
+}
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec64<uint8_t> DemoteTo(D /* tag */, Vec512<uint64_t> v) {
+  return Vec64<uint8_t>{_mm512_cvtusepi64_epi8(v.raw)};
 }
 
 template <class D, HWY_IF_F16_D(D)>
@@ -3419,6 +3491,84 @@ template <class D, HWY_IF_I16_D(D)>
 HWY_API Vec512<int16_t> ReorderDemote2To(D /* tag */, Vec512<int32_t> a,
                                          Vec512<int32_t> b) {
   return Vec512<int16_t>{_mm512_packs_epi32(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec512<uint16_t> ReorderDemote2To(D /* tag */, Vec512<int32_t> a,
+                                          Vec512<int32_t> b) {
+  return Vec512<uint16_t>{_mm512_packus_epi32(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec512<uint16_t> ReorderDemote2To(D dn, Vec512<uint32_t> a,
+                                          Vec512<uint32_t> b) {
+  const DFromV<decltype(a)> du32;
+  const RebindToSigned<decltype(du32)> di32;
+  const auto max_i32 = Set(du32, 0x7FFFFFFFu);
+
+  return ReorderDemote2To(dn, BitCast(di32, Min(a, max_i32)),
+                              BitCast(di32, Min(b, max_i32)));
+}
+
+template <class D, HWY_IF_I8_D(D)>
+HWY_API Vec512<int8_t> ReorderDemote2To(D /* tag */, Vec512<int16_t> a,
+                                        Vec512<int16_t> b) {
+  return Vec512<int8_t>{_mm512_packs_epi16(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec512<uint8_t> ReorderDemote2To(D /* tag */, Vec512<int16_t> a,
+                                         Vec512<int16_t> b) {
+  return Vec512<uint8_t>{_mm512_packus_epi16(a.raw, b.raw)};
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec512<uint8_t> ReorderDemote2To(D dn, Vec512<uint16_t> a,
+                                         Vec512<uint16_t> b) {
+  const DFromV<decltype(a)> du16;
+  const RebindToSigned<decltype(du16)> di16;
+  const auto max_i16 = Set(du16, 0x7FFFu);
+
+  return ReorderDemote2To(dn, BitCast(di16, Min(a, max_i16)),
+                              BitCast(di16, Min(b, max_i16)));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, Vec512<int64_t> a,
+                                   Vec512<int64_t> b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec512<uint32_t> ReorderDemote2To(D dn, Vec512<uint64_t> a,
+                                          Vec512<uint64_t> b) {
+  const Half<decltype(dn)> dnh;
+  return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
+}
+
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_V_SIZE_D(D, 64),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  const Full512<uint64_t> du64;
+  alignas(64) static constexpr uint64_t kIdx[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+  return BitCast(d, TableLookupLanes(BitCast(du64, ReorderDemote2To(d, a, b)),
+                                     SetTableIndices(du64, kIdx)));
+}
+
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_V_SIZE_GT_D(D, 16),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
+          HWY_IF_T_SIZE_V(V, 8)>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  return ReorderDemote2To(d, a, b);
 }
 
 template <class D, HWY_IF_F32_D(D)>

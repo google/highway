@@ -1182,13 +1182,26 @@ HWY_API Vec1<int32_t> DemoteTo(D /* tag */, Vec1<double> from) {
   return Vec1<int32_t>(static_cast<int32_t>(from.raw));
 }
 
-template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
+          HWY_IF_SIGNED(TFrom),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DTo>)>
 HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
   static_assert(!IsFloat<TFrom>(), "TFrom=double are handled above");
   static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
 
   // Int to int: choose closest value in TTo to `from` (avoids UB)
   from.raw = HWY_MIN(HWY_MAX(LimitsMin<TTo>(), from.raw), LimitsMax<TTo>());
+  return Vec1<TTo>(static_cast<TTo>(from.raw));
+}
+
+template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
+          HWY_IF_UNSIGNED(TFrom), HWY_IF_UNSIGNED_D(DTo)>
+HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
+  static_assert(!IsFloat<TFrom>(), "TFrom=double are handled above");
+  static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
+
+  // Int to int: choose closest value in TTo to `from` (avoids UB)
+  from.raw = HWY_MIN(from.raw, LimitsMax<TTo>());
   return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 

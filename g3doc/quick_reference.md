@@ -1059,8 +1059,11 @@ All functions except `Stream` are defined in cache_control.h.
 `DemoteTo` and float-to-int `ConvertTo` return the closest representable value
 if the input exceeds the destination range.
 
-*   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i32,i16`), (`i16,u8`), (`i32,u8`),
-    (`i32,u16`), (`f64,f32`) \
+*   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i64,i8`), (`i32,i16`), (`i64,i16`),
+    (`i64,i32`), (`u16,i8`), (`u32,i8`), (`u64,i8`), (`u32,i16`), (`u64,i16`),
+    (`u64,i32`), (`i16,u8`), (`i32,u8`), (`i64,u8`), (`i32,u16`), (`i64,u16`),
+    (`i64,u32`), (`u16,u8`), (`u32,u8`), (`u64,u8`), (`u32,u16`), (`u64,u16`),
+    (`u64,u32`), (`f64,f32`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: returns `a[i]` after packing
     with signed/unsigned saturation to `MakeNarrow<T>`.
 
@@ -1072,11 +1075,26 @@ if the input exceeds the destination range.
     <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half (for
     bf16, it is unspecified whether this truncates or rounds).
 
-*   `D`: `{bf,i}16`, `V`: `RepartitionToWide<D>` \
+*   `V`,`D`: (`i16,i8`), (`i32,i16`), (`i64,i32`), (`u16,i8`), (`u32,i16`),
+    (`u64,i32`), (`i16,u8`), (`i32,u16`), (`i64,u32`), (`u16,u8`), (`u32,u16`),
+    (`u64,u32`), (`f32,bf16`) \
     <code>Vec&lt;D&gt; **ReorderDemote2To**(D, V a, V b)</code>: as above, but
     converts two inputs, `D` and the output have twice as many lanes as `V`, and
     the output order is some permutation of the inputs. Only available if
     `HWY_TARGET != HWY_SCALAR`.
+
+*   `V`,`D`: (`i16,i8`), (`i32,i16`), (`i64,i32`), (`u16,i8`), (`u32,i16`),
+    (`u64,i32`), (`i16,u8`), (`i32,u16`), (`i64,u32`), (`u16,u8`), (`u32,u16`),
+    (`u64,u32`), (`f32,bf16`) \
+    <code>Vec&lt;D&gt; **OrderedDemote2To**(D d, V a, V b)</code>: as above, but
+    converts two inputs, `D` and the output have twice as many lanes as `V`, and
+    the output order is the result of demoting the elements of ```a``` in the lower
+    half of the result followed by the result of demoting the elements of ```b```
+    in the upper half of the result. ```OrderedDemote2To(d, a, b)``` is equivalent
+    to ```Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))```, but
+    ```OrderedDemote2To(d, a, b)``` is typically more efficient than
+    ```Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))```.
+    Only available if `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
