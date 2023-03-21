@@ -297,7 +297,7 @@ int64_t DetectTargets() {
       // preserved across context switches on x86_64
 
       // Only clear the AVX2/AVX3 bits on x86_64 if bit 1 of XCR0 is not set
-      bits &= min_avx2;
+      bits &= ~min_avx2;
 #else
       bits &= ~(HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | min_avx2);
 #endif
