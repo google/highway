@@ -200,12 +200,12 @@
 #define HWY_BROKEN_SVE 0
 #endif
 
-// RVV compiles with current clang but not GCC.
-// TODO(janwas): re-enable for new GCC once the required version is known.
-#if HWY_COMPILER_GCC_ACTUAL
-#define HWY_BROKEN_RVV (HWY_RVV)
+// RVV requires intrinsics 0.11 or later, see #1156.
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1300) || \
+    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1600)
+#define HWY_BROKEN_RVV 0  // note positive criteria, rather than assume yes.
 #else
-#define HWY_BROKEN_RVV 0
+#define HWY_BROKEN_RVV (HWY_RVV)
 #endif
 
 // There are GCC/Clang compiler bugs on big-endian PPC with the -mcpu=power10
