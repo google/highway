@@ -2815,8 +2815,8 @@ HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
 
 // GCC and older Clang do not follow the Intel documentation for AVX-512VL
 // srli_epi64: the count should be unsigned int. Note that this is not the same
-// as the Shift3264Count in x86_512-inl.h.
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200) || HWY_COMPILER_GCC_ACTUAL
+// as the Shift3264Count in x86_512-inl.h (GCC also requires int).
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || HWY_COMPILER_GCC_ACTUAL
 using Shift64Count = int;
 #else
 // Assume documented behavior. Clang 12 and MSVC 14.28.29910 match this.
