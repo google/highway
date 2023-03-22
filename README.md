@@ -97,7 +97,9 @@ Highway supports 17 targets, listed in alphabetical order of platform:
     enabled if `HWY_WANT_WASM2` is defined. This will remain supported until it
     is potentially superseded by a future version of WASM.);
 -   x86: `AVX2`, `AVX3` (AVX-512), `AVX3_DL` (~Icelake, requires opt-in by
-    defining `HWY_WANT_AVX3_DL`), `AVX3_ZEN4`, `SSE2`, `SSSE3`, `SSE4`.
+    defining `HWY_WANT_AVX3_DL` unless compiling for static dispatch),
+    `AVX3_ZEN4` (requires opt-in by defining `HWY_WANT_AVX3_ZEN4` if compiling
+    for static dispatch), `SSE2`, `SSSE3`, `SSE4`.
 
 SVE was initially tested using farm_sve (see acknowledgments).
 
