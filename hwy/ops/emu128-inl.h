@@ -1521,7 +1521,8 @@ HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<double, D>> from) {
   return ret;
 }
 
-template <class DTo, typename TFrom, size_t N, HWY_IF_NOT_FLOAT(TFrom)>
+template <class DTo, typename TFrom, size_t N, HWY_IF_SIGNED(TFrom),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DTo>)>
 HWY_API VFromD<DTo> DemoteTo(DTo /* tag */, Vec128<TFrom, N> from) {
   using TTo = TFromD<DTo>;
   static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
@@ -1536,6 +1537,21 @@ HWY_API VFromD<DTo> DemoteTo(DTo /* tag */, Vec128<TFrom, N> from) {
   return ret;
 }
 
+template <class DTo, typename TFrom, size_t N, HWY_IF_UNSIGNED(TFrom),
+          HWY_IF_UNSIGNED_D(DTo)>
+HWY_API VFromD<DTo> DemoteTo(DTo /* tag */, Vec128<TFrom, N> from) {
+  using TTo = TFromD<DTo>;
+  static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
+
+  VFromD<DTo> ret;
+  for (size_t i = 0; i < N; ++i) {
+    // Int to int: choose closest value in ToT to `from` (avoids UB)
+    from.raw[i] = HWY_MIN(from.raw[i], LimitsMax<TTo>());
+    ret.raw[i] = static_cast<TTo>(from.raw[i]);
+  }
+  return ret;
+}
+
 template <class DBF16, HWY_IF_BF16_D(DBF16), class VF32>
 HWY_API VFromD<DBF16> ReorderDemote2To(DBF16 dbf16, VF32 a, VF32 b) {
   const Repartition<uint32_t, decltype(dbf16)> du32;
@@ -1545,21 +1561,73 @@ HWY_API VFromD<DBF16> ReorderDemote2To(DBF16 dbf16, VF32 a, VF32 b) {
   return BitCast(dbf16, IfVecThenElse(a_mask, BitCast(du32, a), b_in_lower));
 }
 
-template <class DI16, HWY_IF_I16_D(DI16), class VI32>
-HWY_API VFromD<DI16> ReorderDemote2To(DI16 di16, VI32 a, VI32 b) {
-  const RepartitionToWide<decltype(di16)> di32;
-  const size_t N32 = Lanes(di32);
-  const int16_t min = LimitsMin<int16_t>();
-  const int16_t max = LimitsMax<int16_t>();
-  VFromD<DI16> ret;
-  for (size_t i = 0; i < N32; ++i) {
-    ret.raw[i] = static_cast<int16_t>(HWY_MIN(HWY_MAX(min, a.raw[i]), max));
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
+          class V, HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const RepartitionToWide<decltype(dn)> dw;
+  const size_t NW = Lanes(dw);
+  using TN = TFromD<DN>;
+  const TN min = LimitsMin<TN>();
+  const TN max = LimitsMax<TN>();
+  VFromD<DN> ret;
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[i] = static_cast<TN>(HWY_MIN(HWY_MAX(min, a.raw[i]), max));
   }
-  for (size_t i = 0; i < N32; ++i) {
-    ret.raw[N32 + i] =
-        static_cast<int16_t>(HWY_MIN(HWY_MAX(min, b.raw[i]), max));
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[NW + i] =
+        static_cast<TN>(HWY_MIN(HWY_MAX(min, b.raw[i]), max));
   }
   return ret;
+}
+
+template <class DN, HWY_IF_UNSIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const RepartitionToWide<decltype(dn)> dw;
+  const size_t NW = Lanes(dw);
+  using TN = TFromD<DN>;
+  const TN max = LimitsMax<TN>();
+  VFromD<DN> ret;
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[i] = static_cast<TN>(HWY_MIN(a.raw[i], max));
+  }
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[NW + i] =
+        static_cast<TN>(HWY_MIN(b.raw[i], max));
+  }
+  return ret;
+}
+
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
+          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
+  return ReorderDemote2To(dn, a, b);
+}
+
+template <class DN, HWY_IF_BF16_D(DN),
+          class V, HWY_IF_F32_D(DFromV<V>),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
+  const RebindToUnsigned<DFromV<decltype(a)>> du32;
+  const size_t NW = Lanes(du32);
+  VFromD<Repartition<uint16_t, DN>> ret;
+
+  const auto a_bits = BitCast(du32, a);
+  const auto b_bits = BitCast(du32, b);
+
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[i] = static_cast<uint16_t>(a_bits.raw[i] >> 16);
+  }
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[NW + i] = static_cast<uint16_t>(b_bits.raw[i] >> 16);
+  }
+  return BitCast(dn, ret);
 }
 
 namespace detail {

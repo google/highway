@@ -1002,6 +1002,55 @@ HWY_API Vec<Repartition<uint64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
 
 #endif  // HWY_NATIVE_SUMS_OF_8_ABS_DIFF
 
+// ------------------------------ Unsigned to signed demotions
+
+template <class DN, HWY_IF_SIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          class V2 = VFromD<Rebind<TFromV<V>, DN>>,
+          hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr,
+          HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_D(DFromV<V2>))>
+HWY_API VFromD<DN> DemoteTo(DN dn, V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+
+  // First, do a signed to signed demotion. This will convert any values
+  // that are greater than hwy::HighestValue<MakeSigned<TFromV<V>>>() to a
+  // negative value.
+  const auto i2i_demote_result = DemoteTo(dn, BitCast(di, v));
+
+  // Second, convert any negative values to hwy::HighestValue<TFromD<DN>>()
+  // using an unsigned Min operation.
+  const auto max_signed_val = Set(dn, hwy::HighestValue<TFromD<DN>>());
+
+  return BitCast(dn, Min(BitCast(dn_u, i2i_demote_result),
+                         BitCast(dn_u, max_signed_val)));
+}
+
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+template <class DN, HWY_IF_SIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          class V2 = VFromD<Repartition<TFromV<V>, DN>>,
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_D(DFromV<V2>))>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(dn)> dn_u;
+
+  // First, do a signed to signed demotion. This will convert any values
+  // that are greater than hwy::HighestValue<MakeSigned<TFromV<V>>>() to a
+  // negative value.
+  const auto i2i_demote_result =
+    ReorderDemote2To(dn, BitCast(di, a), BitCast(di, b));
+
+  // Second, convert any negative values to hwy::HighestValue<TFromD<DN>>()
+  // using an unsigned Min operation.
+  const auto max_signed_val = Set(dn, hwy::HighestValue<TFromD<DN>>());
+
+  return BitCast(dn, Min(BitCast(dn_u, i2i_demote_result),
+                         BitCast(dn_u, max_signed_val)));
+}
+#endif
+
 // ------------------------------ AESRound
 
 // Cannot implement on scalar: need at least 16 bytes for TableLookupBytes.

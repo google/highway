@@ -1433,13 +1433,27 @@ HWY_API Vec256<bfloat16_t> ReorderDemote2To(DBF16 dbf16, Vec256<float> a,
   return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
 }
 
-template <class DI16, HWY_IF_I16_D(DI16)>
-HWY_API Vec256<int16_t> ReorderDemote2To(DI16 d16, Vec256<int32_t> a,
-                                         Vec256<int32_t> b) {
-  const Half<decltype(d16)> d16h;
-  Vec256<int16_t> demoted;
-  demoted.v0 = DemoteTo(d16h, a);
-  demoted.v1 = DemoteTo(d16h, b);
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 32),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  VFromD<DN> demoted;
+  demoted.v0 = DemoteTo(dnh, a);
+  demoted.v1 = DemoteTo(dnh, b);
+  return demoted;
+}
+
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 32),
+          HWY_IF_UNSIGNED_D(DN), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
+HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
+  const Half<decltype(dn)> dnh;
+  VFromD<DN> demoted;
+  demoted.v0 = DemoteTo(dnh, a);
+  demoted.v1 = DemoteTo(dnh, b);
   return demoted;
 }
 
