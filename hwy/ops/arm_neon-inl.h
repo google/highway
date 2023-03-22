@@ -2464,6 +2464,12 @@ HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator<, vclt, _, HWY_COMPARE)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<, vclt, _, HWY_COMPARE)
 
 // ------------------------------ Weak inequality (float)
+#if HWY_ARCH_ARM_A64
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(operator<=, vcle, _, HWY_COMPARE)
+#else
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator<=, vcle, _, HWY_COMPARE)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator<=, vcle, _, HWY_COMPARE)
+#endif
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<=, vcle, _, HWY_COMPARE)
 
 #undef HWY_NEON_BUILD_TPL_HWY_COMPARE
@@ -2513,6 +2519,18 @@ HWY_API Mask128<uint64_t, N> operator<(const Vec128<uint64_t, N> a,
   const RebindToSigned<decltype(du)> di;
   const Vec128<uint64_t, N> msb = AndNot(a, b) | AndNot(a ^ b, a - b);
   return MaskFromVec(BitCast(du, BroadcastSignBit(BitCast(di, msb))));
+}
+
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator<=(const Vec128<int64_t, N> a,
+                                       const Vec128<int64_t, N> b) {
+  return Not(b < a);
+}
+
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator<=(const Vec128<uint64_t, N> a,
+                                        const Vec128<uint64_t, N> b) {
+  return Not(b < a);
 }
 
 #endif

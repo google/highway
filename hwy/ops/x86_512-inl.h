@@ -1626,6 +1626,32 @@ HWY_API Mask512<double> operator>=(Vec512<double> a, Vec512<double> b) {
   return Mask512<double>{_mm512_cmp_pd_mask(a.raw, b.raw, _CMP_GE_OQ)};
 }
 
+HWY_API Mask512<uint8_t> operator>=(Vec512<uint8_t> a, Vec512<uint8_t> b) {
+  return Mask512<uint8_t>{_mm512_cmpge_epu8_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<uint16_t> operator>=(Vec512<uint16_t> a, Vec512<uint16_t> b) {
+  return Mask512<uint16_t>{_mm512_cmpge_epu16_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<uint32_t> operator>=(Vec512<uint32_t> a, Vec512<uint32_t> b) {
+  return Mask512<uint32_t>{_mm512_cmpge_epu32_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<uint64_t> operator>=(Vec512<uint64_t> a, Vec512<uint64_t> b) {
+  return Mask512<uint64_t>{_mm512_cmpge_epu64_mask(a.raw, b.raw)};
+}
+
+HWY_API Mask512<int8_t> operator>=(Vec512<int8_t> a, Vec512<int8_t> b) {
+  return Mask512<int8_t>{_mm512_cmpge_epi8_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<int16_t> operator>=(Vec512<int16_t> a, Vec512<int16_t> b) {
+  return Mask512<int16_t>{_mm512_cmpge_epi16_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<int32_t> operator>=(Vec512<int32_t> a, Vec512<int32_t> b) {
+  return Mask512<int32_t>{_mm512_cmpge_epi32_mask(a.raw, b.raw)};
+}
+HWY_API Mask512<int64_t> operator>=(Vec512<int64_t> a, Vec512<int64_t> b) {
+  return Mask512<int64_t>{_mm512_cmpge_epi64_mask(a.raw, b.raw)};
+}
+
 // ------------------------------ Reversed comparisons
 
 template <typename T>

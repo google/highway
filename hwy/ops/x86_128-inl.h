@@ -1914,6 +1914,47 @@ HWY_API Mask128<double, N> operator>=(Vec128<double, N> a,
   return Mask128<double, N>{_mm_cmp_pd_mask(a.raw, b.raw, _CMP_GE_OQ)};
 }
 
+template <size_t N>
+HWY_API Mask128<int8_t, N> operator>=(Vec128<int8_t, N> a, Vec128<int8_t, N> b) {
+  return Mask128<int8_t, N>{_mm_cmpge_epi8_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int16_t, N> operator>=(Vec128<int16_t, N> a,
+                                       Vec128<int16_t, N> b) {
+  return Mask128<int16_t, N>{_mm_cmpge_epi16_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int32_t, N> operator>=(Vec128<int32_t, N> a,
+                                       Vec128<int32_t, N> b) {
+  return Mask128<int32_t, N>{_mm_cmpge_epi32_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<int64_t, N> operator>=(Vec128<int64_t, N> a,
+                                       Vec128<int64_t, N> b) {
+  return Mask128<int64_t, N>{_mm_cmpge_epi64_mask(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Mask128<uint8_t, N> operator>=(Vec128<uint8_t, N> a,
+                                       Vec128<uint8_t, N> b) {
+  return Mask128<uint8_t, N>{_mm_cmpge_epu8_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint16_t, N> operator>=(Vec128<uint16_t, N> a,
+                                        Vec128<uint16_t, N> b) {
+  return Mask128<uint16_t, N>{_mm_cmpge_epu16_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint32_t, N> operator>=(Vec128<uint32_t, N> a,
+                                        Vec128<uint32_t, N> b) {
+  return Mask128<uint32_t, N>{_mm_cmpge_epu32_mask(a.raw, b.raw)};
+}
+template <size_t N>
+HWY_API Mask128<uint64_t, N> operator>=(Vec128<uint64_t, N> a,
+                                        Vec128<uint64_t, N> b) {
+  return Mask128<uint64_t, N>{_mm_cmpge_epu64_mask(a.raw, b.raw)};
+}
+
 #else  // AVX2 or below
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
@@ -2128,15 +2169,35 @@ HWY_INLINE Mask128<T, N> operator>(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Weak inequality
 
+namespace detail {
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> Ge(hwy::SignedTag tag,
+                            Vec128<T, N> a, Vec128<T, N> b) {
+  return Not(Gt(tag, b, a));
+}
+
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> Ge(hwy::UnsignedTag tag,
+                            Vec128<T, N> a, Vec128<T, N> b) {
+  return Not(Gt(tag, b, a));
+}
+
 template <size_t N>
-HWY_API Mask128<float, N> operator>=(const Vec128<float, N> a,
-                                     const Vec128<float, N> b) {
+HWY_INLINE Mask128<float, N> Ge(hwy::FloatTag /*tag*/, Vec128<float, N> a,
+                                Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmpge_ps(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Mask128<double, N> operator>=(const Vec128<double, N> a,
-                                      const Vec128<double, N> b) {
+HWY_INLINE Mask128<double, N> Ge(hwy::FloatTag /*tag*/, Vec128<double, N> a,
+                                 Vec128<double, N> b) {
   return Mask128<double, N>{_mm_cmpge_pd(a.raw, b.raw)};
+}
+
+}  // namespace detail
+
+template <typename T, size_t N>
+HWY_API Mask128<T, N> operator>=(Vec128<T, N> a, Vec128<T, N> b) {
+  return detail::Ge(hwy::TypeTag<T>(), a, b);
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3

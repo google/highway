@@ -852,7 +852,7 @@ HWY_SVE_FOREACH(HWY_SVE_COMPARE_N, LtN, cmplt_n)
 }  // namespace detail
 
 // ------------------------------ Le
-HWY_SVE_FOREACH_F(HWY_SVE_COMPARE, Le, cmple)
+HWY_SVE_FOREACH(HWY_SVE_COMPARE, Le, cmple)
 namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_COMPARE_N, LeN, cmple_n)
 }  // namespace detail
