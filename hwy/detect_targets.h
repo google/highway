@@ -521,7 +521,7 @@
 // AVX3_DL is not widely available yet. To reduce code size and compile time,
 // only include it in the set of attainable targets (for dynamic dispatch) if
 // the user opts in, OR it is in the baseline (we check whether enabled below).
-#if defined(HWY_WANT_AVX3_DL) || (HWY_BASELINE & HWY_AVX3_DL)
+#if defined(HWY_WANT_AVX3_DL) || (HWY_BASELINE_TARGETS & HWY_AVX3_DL)
 #define HWY_ATTAINABLE_AVX3_DL (HWY_AVX3_DL)
 #else
 #define HWY_ATTAINABLE_AVX3_DL 0
