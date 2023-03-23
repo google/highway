@@ -64,7 +64,6 @@ struct TestDemoteTo {
         CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
         expected[i] = static_cast<ToT>(HWY_MIN(HWY_MAX(min, from[i]), max));
       }
-
       const auto in = Load(from_d, from.get());
       HWY_ASSERT_VEC_EQ(to_d, expected.get(), DemoteTo(to_d, in));
     }
@@ -74,8 +73,9 @@ struct TestDemoteTo {
         const uint64_t bits = rng();
         CopyBytes<sizeof(ToT)>(&bits, &expected[i]);  // not same size
 
-        if(!IsSigned<T>() && IsSigned<ToT>())
+        if (!IsSigned<T>() && IsSigned<ToT>()) {
           expected[i] &= static_cast<ToT>(max);
+        }
 
         from[i] = static_cast<T>(expected[i]);
       }
@@ -104,19 +104,11 @@ HWY_NOINLINE void TestAllDemoteToInt() {
   from_i32_to_i8(uint32_t());
 
 #if HWY_HAVE_INTEGER64
-#if HWY_HAVE_SCALABLE
-  const ForDemoteVectors<TestDemoteTo<uint8_t>> from_i64_to_u8;
-#else
   const ForDemoteVectors<TestDemoteTo<uint8_t>, 3> from_i64_to_u8;
-#endif
   from_i64_to_u8(int64_t());
   from_i64_to_u8(uint64_t());
 
-#if HWY_HAVE_SCALABLE
-  const ForDemoteVectors<TestDemoteTo<int8_t>> from_i64_to_i8;
-#else
   const ForDemoteVectors<TestDemoteTo<int8_t>, 3> from_i64_to_i8;
-#endif
   from_i64_to_i8(int64_t());
   from_i64_to_i8(uint64_t());
 #endif
@@ -130,19 +122,11 @@ HWY_NOINLINE void TestAllDemoteToInt() {
   from_i32_to_i16(uint32_t());
 
 #if HWY_HAVE_INTEGER64
-#if HWY_HAVE_SCALABLE
-  const ForDemoteVectors<TestDemoteTo<uint16_t>> from_i64_to_u16;
-#else
   const ForDemoteVectors<TestDemoteTo<uint16_t>, 2> from_i64_to_u16;
-#endif
   from_i64_to_u16(int64_t());
   from_i64_to_u16(uint64_t());
 
-#if HWY_HAVE_SCALABLE
-  const ForDemoteVectors<TestDemoteTo<int16_t>> from_i64_to_i16;
-#else
   const ForDemoteVectors<TestDemoteTo<int16_t>, 2> from_i64_to_i16;
-#endif
   from_i64_to_i16(int64_t());
   from_i64_to_i16(uint64_t());
 
@@ -249,14 +233,15 @@ struct TestDemoteToBF16 {
 
       // max_diff_from_expected is equal to (low_f32_bits == 0 ? 0 : 1)
       const auto max_diff_from_expected =
-        Add(VecFromMask(du16, Eq(low_f32_bits, u16_zero_vect)), u16_one_vect);
+          Add(VecFromMask(du16, Eq(low_f32_bits, u16_zero_vect)), u16_one_vect);
 
-      // expected_adj is equal to
-      // (actual_bits - expected_bits == 1 && max_diff_from_expected != 0) ? 1 : 0,
-      // where actual_bits is the bits of actual and expected_bits is the bits of
-      // expected
-      auto expected_adj = And(max_diff_from_expected,
-        VecFromMask(du16, Eq(Sub(BitCast(du16, actual), expected_vect), u16_one_vect)));
+      // expected_adj is equal to (actual_bits - expected_bits == 1 &&
+      // max_diff_from_expected != 0) ? 1 : 0, where actual_bits is the bits of
+      // actual and expected_bits is the bits of expected.
+      auto expected_adj =
+          And(max_diff_from_expected,
+              VecFromMask(du16, Eq(Sub(BitCast(du16, actual), expected_vect),
+                                   u16_one_vect)));
 
       // Increment expected_vect by expected_adj
       expected_vect = Add(expected_vect, expected_adj);
@@ -391,9 +376,10 @@ class TestReorderDemote2To {
 
 class TestIntegerReorderDemote2To {
 #if HWY_TARGET != HWY_SCALAR
-private:
+
+ private:
   // In-place N^2 selection sort to avoid dependencies
-  template<class T>
+  template <class T>
   static void Sort(T* p, size_t count) {
     for (size_t i = 0; i < count - 1; ++i) {
       // Find min_element
@@ -411,7 +397,7 @@ private:
     }
   }
 
-  template<class T, class D, class DN>
+  template <class T, class D, class DN>
   static void DoIntegerReorderDemote2ToTest(DN dn, T /* t */, D d) {
     using TN = TFromD<DN>;
 
@@ -446,8 +432,9 @@ private:
       for (size_t i = 0; i < twiceN; ++i) {
         const uint64_t bits = rng();
         CopyBytes<sizeof(TN)>(&bits, &expected[i]);  // not same size
-        if(!IsSigned<T>() && IsSigned<TN>())
+        if (!IsSigned<T>() && IsSigned<TN>()) {
           expected[i] &= static_cast<TN>(max);
+        }
 
         from[i] = static_cast<T>(expected[i]);
       }
@@ -462,7 +449,8 @@ private:
     }
   }
 #endif
-public:
+
+ public:
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -479,15 +467,8 @@ public:
 };
 
 HWY_NOINLINE void TestAllReorderDemote2To() {
+  ForUI163264(ForShrinkableVectors<TestIntegerReorderDemote2To>());
   ForShrinkableVectors<TestReorderDemote2To>()(float());
-  ForShrinkableVectors<TestIntegerReorderDemote2To>()(int16_t());
-  ForShrinkableVectors<TestIntegerReorderDemote2To>()(uint16_t());
-  ForShrinkableVectors<TestIntegerReorderDemote2To>()(int32_t());
-  ForShrinkableVectors<TestIntegerReorderDemote2To>()(uint32_t());
-#if HWY_HAVE_INTEGER64
-  ForShrinkableVectors<TestIntegerReorderDemote2To>()(int64_t());
-  ForShrinkableVectors<TestIntegerReorderDemote2To>()(uint64_t());
-#endif
 }
 
 struct TestFloatOrderedDemote2To {
@@ -512,13 +493,13 @@ struct TestFloatOrderedDemote2To {
         do {
           const uint64_t bits = rng();
           CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
-        } while(!IsFiniteT(from[i]));
+        } while (!IsFiniteT(from[i]));
 
         uint32_t u32Bits;
         CopyBytes<sizeof(uint32_t)>(&from[i], &u32Bits);
 
         const uint16_t expected_bf16_bits =
-          static_cast<uint16_t>(u32Bits >> 16);
+            static_cast<uint16_t>(u32Bits >> 16);
 
         CopyBytes<sizeof(bfloat16_t)>(&expected_bf16_bits, &expected[i]);
       }
@@ -532,18 +513,19 @@ struct TestFloatOrderedDemote2To {
       auto expected_vect = BitCast(du16, Load(dbf16, expected.get()));
 
       const auto low_f32_bits =
-        Combine(du16, TruncateTo(du16_half, BitCast(du32, in_2)),
-                      TruncateTo(du16_half, BitCast(du32, in_1)));
+          Combine(du16, TruncateTo(du16_half, BitCast(du32, in_2)),
+                  TruncateTo(du16_half, BitCast(du32, in_1)));
       // max_diff_from_expected is equal to (low_f32_bits == 0 ? 0 : 1)
       const auto max_diff_from_expected =
-        Add(VecFromMask(du16, Eq(low_f32_bits, u16_zero_vect)), u16_one_vect);
+          Add(VecFromMask(du16, Eq(low_f32_bits, u16_zero_vect)), u16_one_vect);
 
-      // expected_adj is equal to
-      // (actual_bits - expected_bits == 1 && max_diff_from_expected != 0) ? 1 : 0,
-      // where actual_bits is the bits of actual and expected_bits is the bits of
-      // expected
-      auto expected_adj = And(max_diff_from_expected,
-        VecFromMask(du16, Eq(Sub(BitCast(du16, actual), expected_vect), u16_one_vect)));
+      // expected_adj is equal to (actual_bits - expected_bits == 1 &&
+      // max_diff_from_expected != 0) ? 1 : 0, where actual_bits is the bits of
+      // actual and expected_bits is the bits of expected.
+      auto expected_adj =
+          And(max_diff_from_expected,
+              VecFromMask(du16, Eq(Sub(BitCast(du16, actual), expected_vect),
+                                   u16_one_vect)));
 
       // Increment expected_vect by expected_adj
       expected_vect = Add(expected_vect, expected_adj);
@@ -561,8 +543,9 @@ struct TestFloatOrderedDemote2To {
 
 class TestIntegerOrderedDemote2To {
 #if HWY_TARGET != HWY_SCALAR
-private:
-  template<class T, class D, class DN>
+
+ private:
+  template <class T, class D, class DN>
   static void DoIntegerOrderedDemote2ToTest(DN dn, T /*t*/, D d) {
     using TN = TFromD<DN>;
 
@@ -593,8 +576,9 @@ private:
       for (size_t i = 0; i < twiceN; ++i) {
         const uint64_t bits = rng();
         CopyBytes<sizeof(TN)>(&bits, &expected[i]);  // not same size
-        if(!IsSigned<T>() && IsSigned<TN>())
+        if (!IsSigned<T>() && IsSigned<TN>()) {
           expected[i] &= static_cast<TN>(max);
+        }
 
         from[i] = static_cast<T>(expected[i]);
       }
@@ -606,7 +590,8 @@ private:
     }
   }
 #endif
-public:
+
+ public:
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*t*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
@@ -623,14 +608,7 @@ public:
 };
 
 HWY_NOINLINE void TestAllOrderedDemote2To() {
-  ForShrinkableVectors<TestIntegerOrderedDemote2To>()(int16_t());
-  ForShrinkableVectors<TestIntegerOrderedDemote2To>()(uint16_t());
-  ForShrinkableVectors<TestIntegerOrderedDemote2To>()(int32_t());
-  ForShrinkableVectors<TestIntegerOrderedDemote2To>()(uint32_t());
-#if HWY_HAVE_INTEGER64
-  ForShrinkableVectors<TestIntegerOrderedDemote2To>()(int64_t());
-  ForShrinkableVectors<TestIntegerOrderedDemote2To>()(uint64_t());
-#endif
+  ForUI163264(ForShrinkableVectors<TestIntegerOrderedDemote2To>());
   ForShrinkableVectors<TestFloatOrderedDemote2To>()(float());
 }
 
