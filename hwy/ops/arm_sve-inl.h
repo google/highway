@@ -209,11 +209,12 @@ HWY_INLINE size_t AllHardwareLanes() {
 }
 
 // All-true mask from a macro
-#define HWY_SVE_ALL_PTRUE(BITS) svptrue_pat_b##BITS(SV_ALL)
 
 #if HWY_SVE_IS_POW2
-#define HWY_SVE_PTRUE(BITS) HWY_SVE_ALL_PTRUE(BITS)
+#define HWY_SVE_ALL_PTRUE(BITS) svptrue_b##BITS()
+#define HWY_SVE_PTRUE(BITS) svptrue_b##BITS()
 #else
+#define HWY_SVE_ALL_PTRUE(BITS) svptrue_pat_b##BITS(SV_ALL)
 #define HWY_SVE_PTRUE(BITS) svptrue_pat_b##BITS(SV_POW2)
 #endif  // HWY_SVE_IS_POW2
 
