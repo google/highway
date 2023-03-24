@@ -19,7 +19,8 @@ Q1.3: Where do I find documentation for each **platform's intrinsics**? A: See
 [Intel](https://www.intel.com/content/www/us/en/docs/intrinsics-guide),
 [Arm NEON and SVE](https://developer.arm.com/architectures/instruction-sets/intrinsics),
 [RISC-V V](https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc),
-[WebAssembly](https://nemequ.github.io/waspr/intrinsics).
+[WebAssembly](https://nemequ.github.io/waspr/intrinsics), PPC [ISA](https://openpowerfoundation.org/specifications/isa/)
+and [intrinsics](https://openpowerfoundation.org/specifications/vectorintrinsicprogrammingreference/).
 
 Q1.4: Where do I find **instruction latency/throughput**? A: For x86, a
 combination of [uops.info](https://www.uops.info/table.html) and
@@ -121,7 +122,7 @@ happy to discuss via Github issue. The general guideline is that there should be
 concrete plans to use the op, and it should be efficiently implementable on all
 platforms without major performance cliffs. In particular, each implementation
 should be at least as efficient as what is achievable on any platform using
-portable code without the op.
+portable code without the op. See also the [wishlist for ops](op_wishlist.md).
 
 Q3.4: `auto` is discouraged, **what vector type** should we use? A: You can use
 `Vec<D>` or `Mask<D>`, where `D` is the type of `d` (in fact we often use
@@ -287,8 +288,8 @@ much larger than the impact of throttling. For JPEG XL image decompression and
 vectorized Quicksort, we observe a 1.4-1.6x end to end speedup from AVX-512 vs
 AVX2, even on multiple cores of a Xeon Gold. Note that throttling is
 [no longer a concern on recent Intel](https://travisdowns.github.io/blog/2020/08/19/icl-avx512-freq.html#summary)
-implementations of AVX-512 (Icelake and Rocket Lake client), nor have AMD CPUs
-required throttling for AVX2.
+implementations of AVX-512 (Icelake and Rocket Lake client), and AMD CPUs do not
+throttle AVX2 or AVX-512.
 
 Q6.4: Why does my CPU sometimes only execute **one vector instruction per
 cycle** even though the specs say it could do 2-4? A: CPUs and fast food
