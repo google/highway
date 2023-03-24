@@ -493,12 +493,55 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
   return m;
 }
 
-template <typename T, HWY_IF_T_SIZE(T, 1)>
+#if HWY_COMPILER_MSVC >= 1920 || HWY_COMPILER_GCC_ACTUAL >= 900 || \
+    HWY_COMPILER_CLANG || HWY_COMPILER_ICC
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+HWY_INLINE Mask512<T> FirstN(size_t n) {
+  uint32_t loMask;
+  uint32_t hiMask;
+  uint32_t hiMaskOutLen;
+#if HWY_COMPILER_GCC
+  if (__builtin_constant_p(n >= 32) && n >= 32) {
+    if (__builtin_constant_p(n >= 64) && n >= 64) {
+      hiMaskOutLen = 32u;
+    } else {
+      hiMaskOutLen = ((n <= 287) ? static_cast<uint32_t>(n) : 287u) - 32u;
+    }
+    loMask = hiMask = 0xFFFFFFFFu;
+  } else
+#endif
+  {
+    const uint32_t maskOutLen = (n <= 255) ? static_cast<uint32_t>(n) : 255u;
+    loMask = _bzhi_u32(0xFFFFFFFFu, maskOutLen);
+
+#if HWY_COMPILER_GCC
+    if (__builtin_constant_p(maskOutLen <= 32) && maskOutLen <= 32) {
+      return Mask512<T>{static_cast<__mmask64>(loMask)};
+    }
+#endif
+
+    _addcarry_u32(_subborrow_u32(0, maskOutLen, 32u, &hiMaskOutLen),
+                  0xFFFFFFFFu, 0u, &hiMask);
+  }
+  hiMask = _bzhi_u32(hiMask, hiMaskOutLen);
+#if HWY_COMPILER_GCC && !HWY_COMPILER_ICC
+  if (__builtin_constant_p((static_cast<uint64_t>(hiMask) << 32) | loMask))
+#endif
+    return Mask512<T>{
+        static_cast<__mmask64>((static_cast<uint64_t>(hiMask) << 32) | loMask)};
+#if HWY_COMPILER_GCC && !HWY_COMPILER_ICC
+  else
+    return Mask512<T>{_mm512_kunpackd(static_cast<__mmask64>(hiMask),
+                                      static_cast<__mmask64>(loMask))};
+#endif
+}
+#else
+template <typename T, HWY_IF_LANE_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
   const uint64_t bits = n < 64 ? ((1ULL << n) - 1) : ~uint64_t{0};
   return Mask512<T>{static_cast<__mmask64>(bits)};
 }
-
+#endif
 }  // namespace detail
 #endif  // HWY_ARCH_X86_32
 
