@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 // Per-target
 #if defined(HIGHWAY_HWY_CONTRIB_SORT_SORTING_NETWORKS_TOGGLE) == \
     defined(HWY_TARGET_TOGGLE)
@@ -597,7 +599,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
 // References:
 // https://drops.dagstuhl.de/opus/volltexte/2021/13775/pdf/LIPIcs-SEA-2021-3.pdf
 // https://github.com/simd-sorting/fast-and-robust/blob/master/avx2_sort_demo/avx2sort.h
-// "Entwurf und Implementierung vektorisierter Sortieralgorithmen" (M. Blacher)
+// M. Blacher's thesis: https://github.com/mark-blacher/masterthesis
 template <class Traits, class V>
 HWY_INLINE void SortingNetwork(Traits st, size_t cols, V& v0, V& v1, V& v2,
                                V& v3, V& v4, V& v5, V& v6, V& v7, V& v8, V& v9,
