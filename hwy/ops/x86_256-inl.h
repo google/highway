@@ -4371,13 +4371,13 @@ HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<uint64_t> a,
 }
 #endif  // HWY_TARGET > HWY_AVX3
 
-template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
-          HWY_IF_V_SIZE_D(D, 32),
-          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
           HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
-          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4) |
-                                    ((HWY_TARGET > HWY_AVX3) ? (1 << 8) : 0))>
+          HWY_IF_T_SIZE_ONE_OF_V(V,
+                                 (1 << 1) | (1 << 2) | (1 << 4) |
+                                     ((HWY_TARGET > HWY_AVX3) ? (1 << 8) : 0))>
 HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
   return VFromD<D>{_mm256_permute4x64_epi64(
     ReorderDemote2To(d, a, b).raw, _MM_SHUFFLE(3, 1, 2, 0))};
