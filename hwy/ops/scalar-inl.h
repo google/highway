@@ -19,6 +19,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef HWY_NO_LIBCXX
+#include <math.h>  // sqrtf
+#endif
+
 #include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 

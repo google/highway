@@ -508,7 +508,7 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
       hiMaskOutLen = ((n <= 287) ? static_cast<uint32_t>(n) : 287u) - 32u;
     }
     loMask = hiMask = 0xFFFFFFFFu;
-  } else
+  } else  // NOLINT(readability/braces)
 #endif
   {
     const uint32_t maskOutLen = (n <= 255) ? static_cast<uint32_t>(n) : 255u;
@@ -3617,9 +3617,8 @@ HWY_API Vec512<uint32_t> ReorderDemote2To(D dn, Vec512<uint64_t> a,
   return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
 }
 
-template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
-          HWY_IF_V_SIZE_D(D, 64),
-          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
           HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2),
           HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4))>
