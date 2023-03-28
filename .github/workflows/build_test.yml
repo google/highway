@@ -18,15 +18,10 @@ on: [push, pull_request]
 jobs:
   cmake:
     name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         include:
-          - name: Clang-5.0
-            extra_deps: clang-5.0
-            c_compiler: clang-5.0
-            cxx_compiler: clang++-5.0
-
           - name: Clang-6.0
             extra_deps: clang-6.0
             c_compiler: clang-6.0
@@ -37,6 +32,10 @@ jobs:
             c_compiler: clang-10
             cxx_compiler: clang++-10
 
+          - name: Clang-12
+            extra_deps: clang-12
+            c_compiler: clang-12
+            cxx_compiler: clang++-12
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5 # v2.0.0
