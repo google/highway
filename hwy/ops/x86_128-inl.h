@@ -1405,8 +1405,9 @@ HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> bytes,
 #if HWY_TARGET == HWY_SSE2
 #if HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
   typedef uint8_t GccU8RawVectType __attribute__((__vector_size__(16)));
-  return Vec128<TI, NI>{(typename detail::Raw128<TI>::type)
-    __builtin_shuffle((GccU8RawVectType)bytes.raw, (GccU8RawVectType)from.raw)};
+  return Vec128<TI, NI>{reinterpret_cast<typename detail::Raw128<TI>::type>(
+    __builtin_shuffle(reinterpret_cast<GccU8RawVectType>(bytes.raw),
+                      reinterpret_cast<GccU8RawVectType>(from.raw)))};
 #else
   const DFromV<decltype(from)> d;
   const Repartition<uint8_t, decltype(d)> du8;
@@ -1496,8 +1497,8 @@ HWY_API Vec64<T> Shuffle2301(const Vec64<T> a, const Vec64<T> b) {
 #if HWY_TARGET == HWY_SSE2
   Vec64<uint32_t> ba_shuffled{
     _mm_shuffle_epi32(ba.raw, _MM_SHUFFLE(3, 0, 3, 0))};
-  return BitCast(d, Or(ShiftLeft<16>(ba_shuffled),
-                       ShiftRight<16>(ba_shuffled)));
+  return Vec64<T>{
+    _mm_shufflelo_epi16(ba_shuffled.raw, _MM_SHUFFLE(2, 3, 0, 1))};
 #else
   alignas(16) const T kShuffle[8] = {0x0302, 0x0100, 0x0f0e, 0x0d0c};
   return Vec64<T>{TableLookupBytes(ba, Load(d2, kShuffle)).raw};
@@ -4338,6 +4339,12 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
   const Vec128<float, N> perm{_mm_permutevar_ps(BitCast(df, v).raw, idx.raw)};
   return BitCast(d, perm);
 #elif HWY_TARGET == HWY_SSE2
+#if HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
+  typedef uint32_t GccU32RawVectType __attribute__((__vector_size__(16)));
+  return Vec128<T, N>{reinterpret_cast<typename detail::Raw128<T>::type>(
+    __builtin_shuffle(reinterpret_cast<GccU32RawVectType>(v.raw),
+                      reinterpret_cast<GccU32RawVectType>(idx.raw)))};
+#else
   const Full128<T> d_full;
   alignas(16) T src_lanes[4];
   alignas(16) uint32_t indices[4];
@@ -4351,6 +4358,7 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
   }
 
   return Vec128<T, N>{Load(d_full, result_lanes).raw};
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
 #else
   return TableLookupBytes(v, Vec128<T, N>{idx.raw});
 #endif
@@ -4497,9 +4505,15 @@ HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
-#if HWY_TARGET <= HWY_AVX3 || HWY_TARGET == HWY_SSE2
+#if HWY_TARGET <= HWY_AVX3
   const Repartition<uint32_t, decltype(d)> du32;
   return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+#elif HWY_TARGET == HWY_SSE2
+  constexpr size_t kN = MaxLanes(d);
+  __m128i shuf_result = _mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(2, 3, 0, 1));
+  if(kN > 4)
+    shuf_result = _mm_shufflehi_epi16(shuf_result, _MM_SHUFFLE(2, 3, 0, 1));
+  return VFromD<D>{shuf_result};
 #else
   const RebindToSigned<decltype(d)> di;
   alignas(16) static constexpr int16_t kShuffle[8] = {
@@ -5402,7 +5416,7 @@ HWY_API Vec128<int16_t, 1> operator>>(Vec128<int16_t, 1> v,
 template <size_t N>
 HWY_API Vec128<int32_t, N> operator>>(Vec128<int32_t, N> v,
                                       Vec128<int32_t, N> bits) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX2
   return Vec128<int32_t, N>{_mm_srav_epi32(v.raw, bits.raw)};
 #else
   const DFromV<decltype(v)> d;
