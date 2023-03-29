@@ -2435,6 +2435,9 @@ HWY_API Vec256<T> LoadDup128(D /* tag */, const T* HWY_RESTRICT p) {
   return Vec256<T>{
       _mm256_inserti128_si256(_mm256_castsi128_si256(v128), v128, 1)};
 #else
+  // The preferred path. This is perhaps surprising, because vbroadcasti128
+  // with xmm input has 7 cycle latency on Intel, but Clang >= 7 is able to
+  // pattern-match this to vbroadcastf128 with a memory operand as desired.
   return Vec256<T>{_mm256_broadcastsi128_si256(LoadU(d128, p).raw)};
 #endif
 }
