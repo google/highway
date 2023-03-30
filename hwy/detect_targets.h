@@ -200,14 +200,6 @@
 #define HWY_BROKEN_SVE 0
 #endif
 
-// RVV requires intrinsics 0.11 or later, see #1156.
-#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1300) || \
-    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 1600)
-#define HWY_BROKEN_RVV 0  // note positive criteria, rather than assume yes.
-#else
-#define HWY_BROKEN_RVV (HWY_RVV)
-#endif
-
 // There are GCC/Clang compiler bugs on big-endian PPC with the -mcpu=power10
 // option if optimizations are enabled
 #if HWY_ARCH_PPC && defined(__BYTE_ORDER__) && \
@@ -221,11 +213,10 @@
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                          \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |         \
-   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_ARM7_BIG_ENDIAN |           \
-   HWY_BROKEN_ARM7_WITHOUT_VFP4 | HWY_BROKEN_SVE | HWY_BROKEN_RVV | \
-   HWY_BROKEN_PPC10)
+#define HWY_BROKEN_TARGETS                                  \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC | \
+   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_ARM7_BIG_ENDIAN |   \
+   HWY_BROKEN_ARM7_WITHOUT_VFP4 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10)
 
 #endif  // HWY_BROKEN_TARGETS
 
@@ -462,7 +453,8 @@
 #define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
-#if HWY_ARCH_RVV && defined(__riscv_vector)
+// RVV requires intrinsics 0.11 or later, see #1156.
+#if HWY_ARCH_RVV && defined(__riscv_v_intrinsic) && __riscv_v_intrinsic >= 11000
 #define HWY_BASELINE_RVV HWY_RVV
 #else
 #define HWY_BASELINE_RVV 0
