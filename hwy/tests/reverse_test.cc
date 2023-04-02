@@ -104,6 +104,116 @@ struct TestReverse8 {
   }
 };
 
+static HWY_INLINE uint8_t ReverseBytesOfValue(uint8_t val) { return val; }
+
+static HWY_INLINE uint16_t ReverseBytesOfValue(uint16_t val) {
+  const uint32_t u32_val = val;
+  return static_cast<uint16_t>(((u32_val << 8) & 0xFF00u) |
+                               ((u32_val >> 8) & 0x00FFu));
+}
+
+static HWY_INLINE uint32_t ReverseBytesOfValue(uint32_t val) {
+  return static_cast<uint32_t>(
+      ((val << 24) & 0xFF000000u) | ((val << 8) & 0x00FF0000u) |
+      ((val >> 8) & 0x0000FF00u) | ((val >> 24) & 0x000000FFu));
+}
+
+static HWY_INLINE uint64_t ReverseBytesOfValue(uint64_t val) {
+  return static_cast<uint64_t>(
+      ((val << 56) & 0xFF00000000000000u) |
+      ((val << 40) & 0x00FF000000000000u) |
+      ((val << 24) & 0x0000FF0000000000u) | ((val << 8) & 0x000000FF00000000u) |
+      ((val >> 8) & 0x00000000FF000000u) | ((val >> 24) & 0x0000000000FF0000u) |
+      ((val >> 40) & 0x000000000000FF00u) |
+      ((val >> 56) & 0x00000000000000FFu));
+}
+
+template <class T, HWY_IF_SIGNED(T)>
+static HWY_INLINE T ReverseBytesOfValue(T val) {
+  using TU = MakeUnsigned<T>;
+  return static_cast<T>(ReverseBytesOfValue(static_cast<TU>(val)));
+}
+
+struct TestReverseLaneBytes {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto in = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+
+    const auto v_iota = Iota(d, 0);
+    for (size_t i = 0; i < N; i++) {
+      expected[i] = ReverseBytesOfValue(static_cast<T>(i));
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseLaneBytes(v_iota));
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(10000); ++rep) {
+      for (size_t i = 0; i < N; i++) {
+        in[i] = static_cast<T>(Random64(&rng));
+        expected[i] = ReverseBytesOfValue(in[i]);
+      }
+
+      const auto v = Load(d, in.get());
+      HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseLaneBytes(v));
+    }
+  }
+};
+
+class TestReverseBits {
+ private:
+  template <class T>
+  static HWY_INLINE T ReverseBitsOfEachByte(T val) {
+    using TU = MakeUnsigned<T>;
+    constexpr TU kMaxUnsignedVal{LimitsMax<TU>()};
+    constexpr TU kShrMask1 =
+        static_cast<TU>(0x5555555555555555u & kMaxUnsignedVal);
+    constexpr TU kShrMask2 =
+        static_cast<TU>(0x3333333333333333u & kMaxUnsignedVal);
+    constexpr TU kShrMask3 =
+        static_cast<TU>(0x0F0F0F0F0F0F0F0Fu & kMaxUnsignedVal);
+
+    constexpr TU kShlMask1 = static_cast<TU>(~kShrMask1);
+    constexpr TU kShlMask2 = static_cast<TU>(~kShrMask2);
+    constexpr TU kShlMask3 = static_cast<TU>(~kShrMask3);
+
+    TU result = static_cast<TU>(val);
+    result = ((result << 1) & kShlMask1) | ((result >> 1) & kShrMask1);
+    result = ((result << 2) & kShlMask2) | ((result >> 2) & kShrMask2);
+    result = ((result << 4) & kShlMask3) | ((result >> 4) & kShrMask3);
+    return static_cast<T>(result);
+  }
+  template <class T>
+  static HWY_INLINE T ReverseBitsOfValue(T val) {
+    return ReverseBytesOfValue(ReverseBitsOfEachByte(val));
+  }
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto in = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+
+    const auto v_iota = Iota(d, 0);
+    for (size_t i = 0; i < N; i++) {
+      expected[i] = ReverseBitsOfValue(static_cast<T>(i));
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseBits(v_iota));
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(10000); ++rep) {
+      for (size_t i = 0; i < N; i++) {
+        in[i] = static_cast<T>(Random64(&rng));
+        expected[i] = ReverseBitsOfValue(in[i]);
+      }
+
+      const auto v = Load(d, in.get());
+      HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseBits(v));
+    }
+  }
+};
+
 HWY_NOINLINE void TestAllReverse() {
   // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
   // which requires 16 bits.
@@ -137,6 +247,14 @@ HWY_NOINLINE void TestAllReverse8() {
   ForUIF64(ForGEVectors<512, TestReverse8>());
   ForUIF32(ForGEVectors<256, TestReverse8>());
   ForUIF16(ForGEVectors<128, TestReverse8>());
+}
+
+HWY_NOINLINE void TestAllReverseLaneBytes() {
+  ForUI163264(ForPartialVectors<TestReverseLaneBytes>());
+}
+
+HWY_NOINLINE void TestAllReverseBits() {
+  ForIntegerTypes(ForPartialVectors<TestReverseBits>());
 }
 
 struct TestReverseBlocks {
@@ -180,6 +298,8 @@ HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverse);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverse2);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverse4);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverse8);
+HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverseLaneBytes);
+HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverseBits);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverseBlocks);
 }  // namespace hwy
 

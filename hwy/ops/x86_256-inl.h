@@ -3245,9 +3245,12 @@ HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
   return BitCast(d, Vec256<int16_t>{
                         _mm256_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
 #else
-  const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
-  const Vec256<uint32_t> rev32 = Reverse(du32, BitCast(du32, v));
-  return BitCast(d, RotateRight<16>(rev32));
+  const RebindToSigned<decltype(d)> di;
+  alignas(16) static constexpr int16_t kShuffle[8] = {
+      0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
+  const auto rev128 = TableLookupBytes(v, LoadDup128(di, kShuffle));
+  return Vec256<T>{
+      _mm256_permute4x64_epi64(rev128.raw, _MM_SHUFFLE(1, 0, 3, 2))};
 #endif
 }
 
@@ -3257,17 +3260,10 @@ HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec256<T> Reverse4(D d, const Vec256<T> v) {
-#if HWY_TARGET <= HWY_AVX3
   const RebindToSigned<decltype(d)> di;
-  alignas(32) static constexpr int16_t kReverse4[16] = {
-      3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12};
-  const Vec256<int16_t> idx = Load(di, kReverse4);
-  return BitCast(d, Vec256<int16_t>{
-                        _mm256_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
-#else
-  const RepartitionToWide<decltype(d)> dw;
-  return Reverse2(d, BitCast(d, Shuffle2301(BitCast(dw, v))));
-#endif
+  alignas(16) static constexpr int16_t kShuffle[8] = {
+      0x0706, 0x0504, 0x0302, 0x0100, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908};
+  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
 }
 
 // 32 bit Reverse4 defined in x86_128.
@@ -3282,17 +3278,10 @@ HWY_API Vec256<T> Reverse4(D /* tag */, const Vec256<T> v) {
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec256<T> Reverse8(D d, const Vec256<T> v) {
-#if HWY_TARGET <= HWY_AVX3
   const RebindToSigned<decltype(d)> di;
-  alignas(32) static constexpr int16_t kReverse8[16] = {
-      7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
-  const Vec256<int16_t> idx = Load(di, kReverse8);
-  return BitCast(d, Vec256<int16_t>{
-                        _mm256_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
-#else
-  const RepartitionToWide<decltype(d)> dw;
-  return Reverse2(d, BitCast(d, Shuffle0123(BitCast(dw, v))));
-#endif
+  alignas(16) static constexpr int16_t kShuffle[8] = {
+      0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
+  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
@@ -3304,6 +3293,17 @@ template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec256<T> Reverse8(D /* tag */, const Vec256<T> /* v */) {
   HWY_ASSERT(0);  // AVX2 does not have 8 64-bit lanes
 }
+
+// ------------------------------ ReverseBits
+
+#if HWY_TARGET <= HWY_AVX3_DL
+template <class V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+HWY_API V ReverseBits(V v) {
+  const Full256<uint64_t> du64;
+  const auto affine_matrix = Set(du64, 0x8040201008040201u);
+  return V{_mm256_gf2p8affine_epi64_epi8(v.raw, affine_matrix.raw, 0)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ------------------------------ InterleaveLower
 
@@ -4214,8 +4214,8 @@ HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
-  // Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
-  // 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
+// Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
+// 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wsign-conversion")
 
@@ -4293,7 +4293,7 @@ HWY_API Vec256<uint16_t> ReorderDemote2To(D dn, Vec256<uint32_t> a,
   const RebindToSigned<decltype(d)> di;
   const auto max_i32 = Set(d, 0x7FFFFFFFu);
   return ReorderDemote2To(dn, BitCast(di, Min(a, max_i32)),
-                              BitCast(di, Min(b, max_i32)));
+                          BitCast(di, Min(b, max_i32)));
 }
 
 template <class D, HWY_IF_I8_D(D)>
@@ -4315,7 +4315,7 @@ HWY_API Vec256<uint8_t> ReorderDemote2To(D dn, Vec256<uint16_t> a,
   const RebindToSigned<decltype(d)> di;
   const auto max_i16 = Set(d, 0x7FFFu);
   return ReorderDemote2To(dn, BitCast(di, Min(a, max_i16)),
-                              BitCast(di, Min(b, max_i16)));
+                          BitCast(di, Min(b, max_i16)));
 }
 
 #if HWY_TARGET > HWY_AVX3
@@ -4331,14 +4331,17 @@ HWY_API Vec256<int32_t> ReorderDemote2To(D dn, Vec256<int64_t> a,
   // and then inverting the saturation result
   const auto invert_mask_a = BitCast(du64, BroadcastSignBit(a));
   const auto invert_mask_b = BitCast(du64, BroadcastSignBit(b));
-  const auto saturated_a = Xor(invert_mask_a,
-    detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_a, BitCast(du64, a))));
-  const auto saturated_b = Xor(invert_mask_b,
-    detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_b, BitCast(du64, b))));
+  const auto saturated_a = Xor(
+      invert_mask_a,
+      detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_a, BitCast(du64, a))));
+  const auto saturated_b = Xor(
+      invert_mask_b,
+      detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_b, BitCast(du64, b))));
 
-  return BitCast(dn, Vec256<float>{_mm256_shuffle_ps(
-    BitCast(dn_f, saturated_a).raw, BitCast(dn_f, saturated_b).raw,
-    _MM_SHUFFLE(2, 0, 2, 0))});
+  return BitCast(dn,
+                 Vec256<float>{_mm256_shuffle_ps(BitCast(dn_f, saturated_a).raw,
+                                                 BitCast(dn_f, saturated_b).raw,
+                                                 _MM_SHUFFLE(2, 0, 2, 0))});
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
@@ -4349,14 +4352,15 @@ HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<int64_t> a,
   const Half<decltype(dn)> dnh;
   const Repartition<float, decltype(dn)> dn_f;
 
-  const auto saturated_a = detail::DemoteFromU64Saturate(dnh,
-    BitCast(du64, AndNot(BroadcastSignBit(a), a)));
-  const auto saturated_b = detail::DemoteFromU64Saturate(dnh,
-    BitCast(du64, AndNot(BroadcastSignBit(b), b)));
+  const auto saturated_a = detail::DemoteFromU64Saturate(
+      dnh, BitCast(du64, AndNot(BroadcastSignBit(a), a)));
+  const auto saturated_b = detail::DemoteFromU64Saturate(
+      dnh, BitCast(du64, AndNot(BroadcastSignBit(b), b)));
 
-  return BitCast(dn, Vec256<float>{_mm256_shuffle_ps(
-    BitCast(dn_f, saturated_a).raw, BitCast(dn_f, saturated_b).raw,
-    _MM_SHUFFLE(2, 0, 2, 0))});
+  return BitCast(dn,
+                 Vec256<float>{_mm256_shuffle_ps(BitCast(dn_f, saturated_a).raw,
+                                                 BitCast(dn_f, saturated_b).raw,
+                                                 _MM_SHUFFLE(2, 0, 2, 0))});
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
@@ -4368,9 +4372,10 @@ HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<uint64_t> a,
   const auto saturated_a = detail::DemoteFromU64Saturate(dnh, a);
   const auto saturated_b = detail::DemoteFromU64Saturate(dnh, b);
 
-  return BitCast(dn, Vec256<float>{_mm256_shuffle_ps(
-    BitCast(dn_f, saturated_a).raw, BitCast(dn_f, saturated_b).raw,
-    _MM_SHUFFLE(2, 0, 2, 0))});
+  return BitCast(dn,
+                 Vec256<float>{_mm256_shuffle_ps(BitCast(dn_f, saturated_a).raw,
+                                                 BitCast(dn_f, saturated_b).raw,
+                                                 _MM_SHUFFLE(2, 0, 2, 0))});
 }
 #endif  // HWY_TARGET > HWY_AVX3
 
@@ -4382,8 +4387,8 @@ template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
                                  (1 << 1) | (1 << 2) | (1 << 4) |
                                      ((HWY_TARGET > HWY_AVX3) ? (1 << 8) : 0))>
 HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
-  return VFromD<D>{_mm256_permute4x64_epi64(
-    ReorderDemote2To(d, a, b).raw, _MM_SHUFFLE(3, 1, 2, 0))};
+  return VFromD<D>{_mm256_permute4x64_epi64(ReorderDemote2To(d, a, b).raw,
+                                            _MM_SHUFFLE(3, 1, 2, 0))};
 }
 
 template <class D, HWY_IF_F32_D(D)>
@@ -4424,7 +4429,7 @@ HWY_INLINE Vec128<uint32_t> LookupAndConcatHalves(Vec256<T> v) {
 #if HWY_TARGET <= HWY_AVX3_DL
   alignas(32) static constexpr uint32_t kMap[8] = {
       LO, HI, 0x10101010 + LO, 0x10101010 + HI, 0, 0, 0, 0};
-  const auto result = _mm256_permutexvar_epi8(v.raw, Load(d32, kMap).raw);
+  const auto result = _mm256_permutexvar_epi8(Load(d32, kMap).raw, v.raw);
 #else
   alignas(32) static constexpr uint32_t kMap[8] = {LO,  HI,  ~0u, ~0u,
                                                    ~0u, ~0u, LO,  HI};
@@ -4447,7 +4452,7 @@ HWY_INLINE Vec128<uint32_t, 2> LookupAndConcatQuarters(Vec256<T> v) {
 #if HWY_TARGET <= HWY_AVX3_DL
   alignas(32) static constexpr uint16_t kMap[16] = {
       LO, HI, 0x1010 + LO, 0x1010 + HI, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  const auto result = _mm256_permutexvar_epi8(v.raw, Load(d16, kMap).raw);
+  const auto result = _mm256_permutexvar_epi8(Load(d16, kMap).raw, v.raw);
   return LowerHalf(Vec128<uint32_t>{_mm256_castsi256_si128(result)});
 #else
   constexpr uint16_t ff = static_cast<uint16_t>(~0u);
@@ -4468,7 +4473,7 @@ HWY_API Vec32<uint8_t> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
 #if HWY_TARGET <= HWY_AVX3_DL
   alignas(32) static constexpr uint32_t kMap[8] = {0x18100800u, 0, 0, 0,
                                                    0,           0, 0, 0};
-  const auto result = _mm256_permutexvar_epi8(v.raw, Load(d32, kMap).raw);
+  const auto result = _mm256_permutexvar_epi8(Load(d32, kMap).raw, v.raw);
   return LowerHalf(LowerHalf(LowerHalf(Vec256<uint8_t>{result})));
 #else
   alignas(32) static constexpr uint32_t kMap[8] = {0xFFFF0800u, ~0u, ~0u, ~0u,
@@ -5980,6 +5985,20 @@ HWY_API Vec256<T> MaxOfLanes(D d, const Vec256<T> vHL) {
   const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
 }
+
+// -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
+
+#if HWY_TARGET <= HWY_AVX3
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+HWY_API V LeadingZeroCount(V v) {
+  return V{_mm256_lzcnt_epi32(v.raw)};
+}
+
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+HWY_API V LeadingZeroCount(V v) {
+  return V{_mm256_lzcnt_epi64(v.raw)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

@@ -435,6 +435,52 @@ HWY_NOINLINE void TestAllTruncate() {
   ForUnsignedTypes(ForPartialVectors<TestTruncateTo>());
 }
 
+struct TestOrderedTruncate2To {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*t*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    const Repartition<MakeNarrow<T>, decltype(d)> dn;
+    using TN = TFromD<decltype(dn)>;
+
+    const size_t N = Lanes(d);
+    const size_t twiceN = N * 2;
+    auto from = AllocateAligned<T>(twiceN);
+    auto expected = AllocateAligned<TN>(twiceN);
+
+    const T max = LimitsMax<TN>();
+
+    constexpr uint32_t iota_base = 0xFA578D00;
+    const auto src_iota_a = Iota(d, static_cast<T>(iota_base));
+    const auto src_iota_b = Iota(d, static_cast<T>(iota_base + N));
+    const auto expected_iota_trunc_result =
+        Iota(dn, static_cast<TN>(iota_base));
+    const auto actual_iota_trunc_result =
+        OrderedTruncate2To(dn, src_iota_a, src_iota_b);
+    HWY_ASSERT_VEC_EQ(dn, expected_iota_trunc_result, actual_iota_trunc_result);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < twiceN; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
+        expected[i] = static_cast<TN>(from[i] & max);
+      }
+
+      const auto in_1 = Load(d, from.get());
+      const auto in_2 = Load(d, from.get() + N);
+      const auto actual = OrderedTruncate2To(dn, in_1, in_2);
+      HWY_ASSERT_VEC_EQ(dn, expected.get(), actual);
+    }
+#else
+    (void)d;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllOrderedTruncate2To() {
+  ForU163264(ForShrinkableVectors<TestOrderedTruncate2To>());
+}
+
 // Separate function to attempt to work around a compiler bug on ARM: when this
 // is merged with TestIntFromFloat, outputs match a previous Iota(-(N+1)) input.
 struct TestIntFromFloatHuge {
@@ -655,7 +701,6 @@ HWY_NOINLINE void TestAllI32F64() {
 #endif
 }
 
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -672,6 +717,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllTruncate);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllOrderedTruncate2To);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);

@@ -1643,25 +1643,21 @@ HWY_SVE_FOREACH(HWY_SVE_SPLICE, Splice, splice)
 template <class D>
 HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
 #if HWY_SVE_IS_POW2
-  (void)d;
-  return detail::ConcatOddFull(hi, lo);
-#else
+  if (detail::IsFull(d)) return detail::ConcatOddFull(hi, lo);
+#endif
   const VFromD<D> hi_odd = detail::ConcatOddFull(hi, hi);
   const VFromD<D> lo_odd = detail::ConcatOddFull(lo, lo);
   return detail::Splice(hi_odd, lo_odd, FirstN(d, Lanes(d) / 2));
-#endif
 }
 
 template <class D>
 HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 #if HWY_SVE_IS_POW2
-  (void)d;
-  return detail::ConcatEvenFull(hi, lo);
-#else
+  if (detail::IsFull(d)) return detail::ConcatEvenFull(hi, lo);
+#endif
   const VFromD<D> hi_odd = detail::ConcatEvenFull(hi, hi);
   const VFromD<D> lo_odd = detail::ConcatEvenFull(lo, lo);
   return detail::Splice(hi_odd, lo_odd, FirstN(d, Lanes(d) / 2));
-#endif
 }
 
 // ------------------------------ DemoteTo F
@@ -1695,24 +1691,24 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
 
 // ------------------------------ ConvertTo F
 
-#define HWY_SVE_CONVERT(BASE, CHAR, BITS, HALF, NAME, OP)                     \
-  /* signed integers */                                                       \
-  template <size_t N, int kPow2>                                              \
-  HWY_API HWY_SVE_V(BASE, BITS)                                               \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(int, BITS) v) { \
-    return sv##OP##_##CHAR##BITS##_s##BITS##_x(HWY_SVE_PTRUE(BITS), v);       \
-  }                                                                           \
-  /* unsigned integers */                                                     \
-  template <size_t N, int kPow2>                                              \
-  HWY_API HWY_SVE_V(BASE, BITS)                                               \
+#define HWY_SVE_CONVERT(BASE, CHAR, BITS, HALF, NAME, OP)                      \
+  /* signed integers */                                                        \
+  template <size_t N, int kPow2>                                               \
+  HWY_API HWY_SVE_V(BASE, BITS)                                                \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(int, BITS) v) {  \
+    return sv##OP##_##CHAR##BITS##_s##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
+  }                                                                            \
+  /* unsigned integers */                                                      \
+  template <size_t N, int kPow2>                                               \
+  HWY_API HWY_SVE_V(BASE, BITS)                                                \
       NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(uint, BITS) v) { \
-    return sv##OP##_##CHAR##BITS##_u##BITS##_x(HWY_SVE_PTRUE(BITS), v);       \
-  }                                                                           \
-  /* Truncates (rounds toward zero). */                                       \
-  template <size_t N, int kPow2>                                              \
-  HWY_API HWY_SVE_V(int, BITS)                                                \
-      NAME(HWY_SVE_D(int, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) { \
-    return sv##OP##_s##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);       \
+    return sv##OP##_##CHAR##BITS##_u##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
+  }                                                                            \
+  /* Truncates (rounds toward zero). */                                        \
+  template <size_t N, int kPow2>                                               \
+  HWY_API HWY_SVE_V(int, BITS)                                                 \
+      NAME(HWY_SVE_D(int, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) {  \
+    return sv##OP##_s##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }
 
 // API only requires f32 but we provide f64 for use by Iota.
@@ -2068,7 +2064,6 @@ V MaxOfLanes(D d, V v) {
   return Set(d, detail::MaxOfLanesM(detail::MakeMask(d), v));
 }
 
-
 // ================================================== SWIZZLE
 
 // ------------------------------ GetLane
@@ -2318,6 +2313,48 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   return TableLookupLanes(v, idx);
 }
 
+// ------------------------------- ReverseBits
+
+#ifdef HWY_NATIVE_REVERSE_BITS_UI8
+#undef HWY_NATIVE_REVERSE_BITS_UI8
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI8
+#endif
+
+#ifdef HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#undef HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#endif
+
+#define HWY_SVE_REVERSE_BITS(BASE, CHAR, BITS, HALF, NAME, OP)  \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) { \
+    const DFromV<decltype(v)> d;                                \
+    return sv##OP##_##CHAR##BITS##_x(detail::PTrue(d), v);      \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
+#undef HWY_SVE_REVERSE_BITS
+
+// ------------------------------- ReverseLaneBytes
+
+#ifdef HWY_NATIVE_REVERSE_LANE_BYTES
+#undef HWY_NATIVE_REVERSE_LANE_BYTES
+#else
+#define HWY_NATIVE_REVERSE_LANE_BYTES
+#endif
+
+#define HWY_SVE_REVERSE_LANE_BYTES(BASE, CHAR, BITS, HALF, NAME, OP) \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {      \
+    const DFromV<decltype(v)> d;                                     \
+    return sv##OP##_##CHAR##BITS##_x(detail::PTrue(d), v);           \
+  }
+
+HWY_SVE_FOREACH_UI16(HWY_SVE_REVERSE_LANE_BYTES, ReverseLaneBytes, revb)
+HWY_SVE_FOREACH_UI32(HWY_SVE_REVERSE_LANE_BYTES, ReverseLaneBytes, revb)
+HWY_SVE_FOREACH_UI64(HWY_SVE_REVERSE_LANE_BYTES, ReverseLaneBytes, revb)
+#undef HWY_SVE_REVERSE_LANE_BYTES
+
 // ------------------------------ Compress (PromoteTo)
 
 template <typename T>
@@ -2464,7 +2501,7 @@ HWY_API svuint64_t CompressBlocksNot(svuint64_t v, svbool_t mask) {
   return v;
 #endif
 #if HWY_TARGET == HWY_SVE_256 || HWY_IDE
-  uint64_t bits = 0;  // predicate reg is 32-bit
+  uint64_t bits = 0;           // predicate reg is 32-bit
   CopyBytes<4>(&mask, &bits);  // not same size - 64-bit more efficient
   // Concatenate LSB for upper and lower blocks, pre-scale by 4 for table idx.
   const size_t offset = ((bits & 1) ? 4u : 0u) + ((bits & 0x10000) ? 8u : 0u);
@@ -2937,8 +2974,8 @@ HWY_API svuint32_t ReorderDemote2To(Simd<uint32_t, N, kPow2> d32, svuint64_t a,
 #endif
 }
 
-template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
-          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2)>
 HWY_API VFromD<D> OrderedDemote2To(D dn, V a, V b) {
   const Half<decltype(dn)> dnh;
@@ -4154,6 +4191,35 @@ HWY_INLINE svuint64_t Min128Upper(D d, const svuint64_t a, const svuint64_t b) {
 template <class D>
 HWY_INLINE svuint64_t Max128Upper(D d, const svuint64_t a, const svuint64_t b) {
   return IfThenElse(Lt128Upper(d, b, a), a, b);
+}
+
+// -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
+
+#ifdef HWY_NATIVE_LEADING_ZERO_COUNT
+#undef HWY_NATIVE_LEADING_ZERO_COUNT
+#else
+#define HWY_NATIVE_LEADING_ZERO_COUNT
+#endif
+
+#define HWY_SVE_LEADING_ZERO_COUNT(BASE, CHAR, BITS, HALF, NAME, OP)   \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {        \
+    const DFromV<decltype(v)> d;                                       \
+    return BitCast(d, sv##OP##_##CHAR##BITS##_x(detail::PTrue(d), v)); \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_LEADING_ZERO_COUNT, LeadingZeroCount, clz)
+#undef HWY_SVE_LEADING_ZERO_COUNT
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V TrailingZeroCount(V v) {
+  return LeadingZeroCount(ReverseBits(v));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V HighestSetBitIndex(V v) {
+  const DFromV<decltype(v)> d;
+  using T = TFromD<decltype(d)>;
+  return BitCast(d, Sub(Set(d, T{sizeof(T) * 8 - 1}), LeadingZeroCount(v)));
 }
 
 // ================================================== END MACROS

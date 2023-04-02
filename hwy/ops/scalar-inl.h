@@ -1187,8 +1187,7 @@ HWY_API Vec1<int32_t> DemoteTo(D /* tag */, Vec1<double> from) {
 }
 
 template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
-          HWY_IF_SIGNED(TFrom),
-          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DTo>)>
+          HWY_IF_SIGNED(TFrom), HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DTo>)>
 HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
   static_assert(!IsFloat<TFrom>(), "TFrom=double are handled above");
   static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
@@ -1456,6 +1455,103 @@ HWY_API Vec1<T> Reverse4(D /* tag */, const Vec1<T> v) {
 template <class D, typename T = TFromD<D>>
 HWY_API Vec1<T> Reverse8(D /* tag */, const Vec1<T> v) {
   return v;
+}
+
+// ------------------------------ ReverseLaneBytes
+
+#ifdef HWY_NATIVE_REVERSE_LANE_BYTES
+#undef HWY_NATIVE_REVERSE_LANE_BYTES
+#else
+#define HWY_NATIVE_REVERSE_LANE_BYTES
+#endif
+
+HWY_API Vec1<uint16_t> ReverseLaneBytes(Vec1<uint16_t> v) {
+  const uint32_t val{v.raw};
+  return Vec1<uint16_t>(
+      static_cast<uint16_t>(((val << 8) & 0xFF00u) | ((val >> 8) & 0x00FFu)));
+}
+
+HWY_API Vec1<uint32_t> ReverseLaneBytes(Vec1<uint32_t> v) {
+  const uint32_t val = v.raw;
+  return Vec1<uint32_t>(static_cast<uint32_t>(
+      ((val << 24) & 0xFF000000u) | ((val << 8) & 0x00FF0000u) |
+      ((val >> 8) & 0x0000FF00u) | ((val >> 24) & 0x000000FFu)));
+}
+
+HWY_API Vec1<uint64_t> ReverseLaneBytes(Vec1<uint64_t> v) {
+  const uint64_t val = v.raw;
+  return Vec1<uint64_t>(static_cast<uint64_t>(
+      ((val << 56) & 0xFF00000000000000u) |
+      ((val << 40) & 0x00FF000000000000u) |
+      ((val << 24) & 0x0000FF0000000000u) | ((val << 8) & 0x000000FF00000000u) |
+      ((val >> 8) & 0x00000000FF000000u) | ((val >> 24) & 0x0000000000FF0000u) |
+      ((val >> 40) & 0x000000000000FF00u) |
+      ((val >> 56) & 0x00000000000000FFu)));
+}
+
+template <class V, HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8))>
+HWY_API V ReverseLaneBytes(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, ReverseLaneBytes(BitCast(du, v)));
+}
+
+// ------------------------------ ReverseBits
+#ifdef HWY_NATIVE_REVERSE_BITS_UI8
+#undef HWY_NATIVE_REVERSE_BITS_UI8
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI8
+#endif
+
+#ifdef HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#undef HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#endif
+
+namespace detail {
+
+template <class T>
+HWY_INLINE T ReverseBitsOfEachByte(T val) {
+  using TU = MakeUnsigned<T>;
+  constexpr TU kMaxUnsignedVal{LimitsMax<TU>()};
+  constexpr TU kShrMask1 =
+      static_cast<TU>(0x5555555555555555u & kMaxUnsignedVal);
+  constexpr TU kShrMask2 =
+      static_cast<TU>(0x3333333333333333u & kMaxUnsignedVal);
+  constexpr TU kShrMask3 =
+      static_cast<TU>(0x0F0F0F0F0F0F0F0Fu & kMaxUnsignedVal);
+
+  constexpr TU kShlMask1 = static_cast<TU>(~kShrMask1);
+  constexpr TU kShlMask2 = static_cast<TU>(~kShrMask2);
+  constexpr TU kShlMask3 = static_cast<TU>(~kShrMask3);
+
+  TU result = static_cast<TU>(val);
+  result = ((result << 1) & kShlMask1) | ((result >> 1) & kShrMask1);
+  result = ((result << 2) & kShlMask2) | ((result >> 2) & kShrMask2);
+  result = ((result << 4) & kShlMask3) | ((result >> 4) & kShrMask3);
+  return static_cast<T>(result);
+}
+
+}  // namespace detail
+
+template <class V, HWY_IF_UNSIGNED_V(V), HWY_IF_T_SIZE_V(V, 1)>
+HWY_API V ReverseBits(V v) {
+  return V(detail::ReverseBitsOfEachByte(v.raw));
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8))>
+HWY_API V ReverseBits(V v) {
+  return ReverseLaneBytes(V(detail::ReverseBitsOfEachByte(v.raw)));
+}
+
+template <class V, HWY_IF_SIGNED_V(V)>
+HWY_API V ReverseBits(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, ReverseBits(BitCast(du, v)));
 }
 
 // ================================================== BLOCKWISE

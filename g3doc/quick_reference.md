@@ -585,6 +585,25 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     <code>V **PopulationCount**(V a)</code>: returns the number of 1-bits in
     each lane, i.e. `PopCount(a[i])`.
 
+*   `V`: `{u,i}` \
+    <code>V **LeadingZeroCount**(V a)</code>: returns the number of
+    leading zeros in each lane. For any lanes where ```a[i]``` is zero,
+    ```sizeof(TFromV<V>) * 8``` is returned in the corresponding result lanes.
+
+*   `V`: `{u,i}` \
+    <code>V **TrailingZeroCount**(V a)</code>: returns the number of
+    trailing zeros in each lane. For any lanes where ```a[i]``` is zero,
+    ```sizeof(TFromV<V>) * 8``` is returned in the corresponding result lanes.
+
+*   `V`: `{u,i}` \
+    <code>V **HighestSetBitIndex**(V a)</code>: returns the index of
+    the highest set bit of each lane. For any lanes of a signed vector type
+    where ```a[i]``` is zero, an unspecified negative value is returned in the
+    corresponding result lanes. For any lanes of an unsigned vector type
+    where ```a[i]``` is zero, an unspecified value that is greater than
+    ```HighestValue<MakeSigned<TFromV<V>>>()``` is returned in the
+    corresponding result lanes.
+
 The following operate on individual bits within each lane. Note that the
 non-operator functions (`And` instead of `&`) must be used for floating-point
 types, and on SVE/RVV.
@@ -1094,6 +1113,17 @@ if the input exceeds the destination range.
     ```Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))```.
     Only available if `HWY_TARGET != HWY_SCALAR`.
 
+*   `V`,`D`: (`u16,u8`), (`u32,u16`), (`u64,u32`), \
+    <code>Vec&lt;D&gt; **OrderedTruncate2To**(D d, V a, V b)</code>: as above, but
+    converts two inputs, `D` and the output have twice as many lanes as `V`, and
+    the output order is the result of truncating the elements of ```a``` in the
+    lower half of the result followed by the result of truncating the elements of
+    ```b``` in the upper half of the result. ```OrderedTruncate2To(d, a, b)``` is
+    equivalent to ```Combine(d, TruncateTo(Half<D>(), b), TruncateTo(Half<D>(), a))```,
+    but ```OrderedTruncate2To(d, a, b)``` is typically more efficient than
+    ```Combine(d, TruncateTo(Half<D>(), b), TruncateTo(Half<D>(), a))```.
+    Only available if `HWY_TARGET != HWY_SCALAR`.
+
 *   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
     same-sized floating point.
@@ -1312,6 +1342,14 @@ instead because they are more general:
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
+
+*   `V`: `{u,i}{16,32,64}` \
+    <code>V **ReverseLaneBytes**(V a)</code> returns a vector where the bytes of
+    each lane are swapped.
+
+*   `V`: `{u,i}{8,16,32,64}` \
+    <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
+    lane are reversed.
 
 The following `ReverseN` must not be called if `Lanes(D()) < N`:
 

@@ -240,6 +240,29 @@ struct TestConcatOddEven {
     HWY_ASSERT_VEC_EQ(d, odd, ConcatOdd(d, hi, lo));
     HWY_ASSERT_VEC_EQ(d, even, ConcatEven(d, hi, lo));
 
+    const auto v_1 = Set(d, T{1});
+    const auto v_2 = Set(d, T{2});
+    const auto v_3 = Set(d, T{3});
+    const auto v_4 = Set(d, T{4});
+
+    const Half<decltype(d)> dh;
+    const auto v_12 = InterleaveLower(v_1, v_2); /* {1, 2, 1, 2, ...} */
+    const auto v_34 = InterleaveLower(v_3, v_4); /* {3, 4, 3, 4, ...} */
+    const auto v_13 =
+        ConcatLowerLower(d, v_3, v_1); /* {1, 1, ..., 3, 3, ...} */
+    const auto v_24 =
+        ConcatLowerLower(d, v_4, v_2); /* {2, 2, ..., 4, 4, ...} */
+
+    const auto concat_even_1234_result = ConcatEven(d, v_34, v_12);
+    const auto concat_odd_1234_result = ConcatOdd(d, v_34, v_12);
+
+    HWY_ASSERT_VEC_EQ(d, v_13, concat_even_1234_result);
+    HWY_ASSERT_VEC_EQ(d, v_24, concat_odd_1234_result);
+    HWY_ASSERT_VEC_EQ(dh, LowerHalf(dh, v_3),
+                      UpperHalf(dh, concat_even_1234_result));
+    HWY_ASSERT_VEC_EQ(dh, LowerHalf(dh, v_4),
+                      UpperHalf(dh, concat_odd_1234_result));
+
     // This test catches inadvertent saturation.
     const auto min = Set(d, LowestValue<T>());
     const auto max = Set(d, HighestValue<T>());
