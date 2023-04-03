@@ -65,7 +65,7 @@ jobs:
 
       - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - uses: bazelbuild/setup-bazelisk@95c9bf48d0c570bb3e28e57108f3450cd67c1a44 # v2.0.0
-      - uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v2.1.7
+      - uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
         with:
           path: ~/.cache/bazel
           key: bazel-${{ runner.os }}
