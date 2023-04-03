@@ -249,7 +249,7 @@ namespace hwy {
 
 #if HWY_ARCH_X86
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 64;  // AVX-512
-#elif HWY_ARCH_RVV && defined(__riscv_vector)
+#elif HWY_ARCH_RVV && defined(__riscv_v_intrinsic) && __riscv_v_intrinsic >= 11000
 // Not actually an upper bound on the size.
 static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 4096;
 #else
@@ -264,7 +264,7 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // exceed the stack size.
 #if HWY_ARCH_X86
 #define HWY_ALIGN_MAX alignas(64)
-#elif HWY_ARCH_RVV && defined(__riscv_vector)
+#elif HWY_ARCH_RVV && defined(__riscv_v_intrinsic) && __riscv_v_intrinsic >= 11000
 #define HWY_ALIGN_MAX alignas(8)  // only elements need be aligned
 #else
 #define HWY_ALIGN_MAX alignas(16)
