@@ -45,16 +45,6 @@ using Vec = decltype(Zero(D()));
 template <class D>
 using Mask = decltype(MaskFromVec(Zero(D())));
 
-namespace detail {
-#if HWY_TARGET == HWY_RVV
-template <class T>
-using LargestVecScalableTag = ScalableTag<T, HWY_MAX_POW2>;
-#else
-template <class T>
-using LargestVecScalableTag = ScalableTag<T>;
-#endif
-}  // namespace detail
-
 // Returns the closest value to v within [lo, hi].
 template <class V>
 HWY_API V Clamp(const V v, const V lo, const V hi) {
@@ -1098,6 +1088,20 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 #if HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE2
   const RebindToSigned<decltype(d)> di;
   const Repartition<int16_t, decltype(d)> di16;
+
+  // On SSE2/SSSE3/SSE4/AVX2, do an int32_t to float conversion, followed
+  // by a unsigned right shift of the uint32_t bit representation of the
+  // floating point values by 23, followed by an int16_t Min
+  // operation as we are only interested in the biased exponent that would
+  // result from a uint32_t to float conversion.
+
+  // An int32_t to float vector conversion is also much more efficient on
+  // SSE2/SSSE3/SSE4/AVX2 than an uint32_t vector to float vector conversion
+  // as an uint32_t vector to float vector conversion on SSE2/SSSE3/SSE4/AVX2
+  // requires multiple instructions whereas an int32_t to float vector
+  // conversion can be carried out using a single instruction on
+  // SSE2/SSSE3/SSE4/AVX2.
+
   const auto f32_bits = BitCast(d, ConvertTo(df, BitCast(di, v)));
   return BitCast(d, Min(BitCast(di16, ShiftRight<23>(f32_bits)),
                         BitCast(di16, Set(d, 158))));
@@ -1123,8 +1127,7 @@ HWY_INLINE V I32RangeU32ToF32BiasedExp(V v) {
 }
 
 template <class D, HWY_IF_U16_D(D),
-          HWY_IF_LANES_LE_D(D,
-                            HWY_MAX_LANES_D(LargestVecScalableTag<uint32_t>))>
+          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Rebind<uint32_t, decltype(d)> du32;
   const auto f32_biased_exp_as_u32 =
@@ -1134,8 +1137,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 
 #if HWY_TARGET != HWY_SCALAR
 template <class D, HWY_IF_U16_D(D),
-          HWY_IF_LANES_GT_D(D,
-                            HWY_MAX_LANES_D(LargestVecScalableTag<uint32_t>))>
+          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
   const Rebind<uint32_t, decltype(dh)> du32;
@@ -1145,7 +1147,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 
   const auto lo_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(lo_u32);
   const auto hi_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(hi_u32);
-#if HWY_TARGET >= HWY_AVX3_ZEN4 && HWY_TARGET <= HWY_SSE2
+#if HWY_TARGET <= HWY_SSE2
   const RebindToSigned<decltype(du32)> di32;
   const RebindToSigned<decltype(d)> di;
   return BitCast(d,
@@ -1159,8 +1161,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 #endif  // HWY_TARGET != HWY_SCALAR
 
 template <class D, HWY_IF_U8_D(D),
-          HWY_IF_LANES_LE_D(D,
-                            HWY_MAX_LANES_D(LargestVecScalableTag<uint32_t>))>
+          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Rebind<uint32_t, decltype(d)> du32;
   const auto f32_biased_exp_as_u32 =
@@ -1169,10 +1170,9 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 }
 
 #if HWY_TARGET != HWY_SCALAR
-template <
-    class D, HWY_IF_U8_D(D),
-    HWY_IF_LANES_GT_D(D, HWY_MAX_LANES_D(LargestVecScalableTag<uint32_t>)),
-    HWY_IF_LANES_LE_D(D, HWY_MAX_LANES_D(LargestVecScalableTag<uint16_t>))>
+template <class D, HWY_IF_U8_D(D),
+          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4),
+          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 2)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
   const Rebind<uint32_t, decltype(dh)> du32;
@@ -1184,7 +1184,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const auto lo_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(lo_u32);
   const auto hi_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(hi_u32);
 
-#if HWY_TARGET >= HWY_AVX3_ZEN4 && HWY_TARGET <= HWY_SSE2
+#if HWY_TARGET <= HWY_SSE2
   const RebindToSigned<decltype(du32)> di32;
   const RebindToSigned<decltype(du16)> di16;
   const auto f32_biased_exp_as_i16 =
@@ -1199,8 +1199,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 }
 
 template <class D, HWY_IF_U8_D(D),
-          HWY_IF_LANES_GT_D(D,
-                            HWY_MAX_LANES_D(LargestVecScalableTag<uint16_t>))>
+          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 2)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
   const Half<decltype(dh)> dq;
@@ -1220,7 +1219,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const auto f32_biased_exp_as_u32_q2 = I32RangeU32ToF32BiasedExp(u32_q2);
   const auto f32_biased_exp_as_u32_q3 = I32RangeU32ToF32BiasedExp(u32_q3);
 
-#if HWY_TARGET >= HWY_AVX3_ZEN4 && HWY_TARGET <= HWY_SSE2
+#if HWY_TARGET <= HWY_SSE2
   const RebindToSigned<decltype(du32)> di32;
   const RebindToSigned<decltype(du16)> di16;
 
@@ -2574,6 +2573,15 @@ HWY_API V ReverseLaneBytes(V v) {
 #endif  // HWY_NATIVE_REVERSE_LANE_BYTES
 
 // ------------------------------ ReverseBits
+
+#undef HWY_REVERSE_BITS_MIN_BYTES
+#if ((HWY_TARGET >= HWY_AVX3 && HWY_TARGET <= HWY_SSE2) || \
+     HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_WASM_EMU256)
+#define HWY_REVERSE_BITS_MIN_BYTES 2
+#else
+#define HWY_REVERSE_BITS_MIN_BYTES 1
+#endif
+
 #if (defined(HWY_NATIVE_REVERSE_BITS_UI8) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_REVERSE_BITS_UI8
 #undef HWY_NATIVE_REVERSE_BITS_UI8
@@ -2584,16 +2592,11 @@ HWY_API V ReverseLaneBytes(V v) {
 namespace detail {
 
 template <int kShiftAmt, int kShrResultMask, class V,
-          HWY_IF_V_SIZE_GT_D(DFromV<V>, ((HWY_TARGET >= HWY_AVX3 &&
-                                          HWY_TARGET <= HWY_SSE2) ||
-                                         HWY_TARGET == HWY_WASM ||
-                                         HWY_TARGET == HWY_WASM_EMU256)
-                                            ? 1 : 0)>
+          HWY_IF_V_SIZE_GT_D(DFromV<V>, HWY_REVERSE_BITS_MIN_BYTES - 1)>
 HWY_INLINE V UI8ReverseBitsStep(V v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
-#if ((HWY_TARGET >= HWY_AVX3 && HWY_TARGET <= HWY_SSE2) || \
-     HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_WASM_EMU256)
+#if HWY_REVERSE_BITS_MIN_BYTES == 2
   const Repartition<uint16_t, decltype(d)> d_shift;
 #else
   const RebindToUnsigned<decltype(d)> d_shift;
@@ -2608,8 +2611,7 @@ HWY_INLINE V UI8ReverseBitsStep(V v) {
             AndNot(shr_result_mask, shl_result));
 }
 
-#if ((HWY_TARGET >= HWY_AVX3 && HWY_TARGET <= HWY_SSE2) || \
-     HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_WASM_EMU256)
+#if HWY_REVERSE_BITS_MIN_BYTES == 2
 template <int kShiftAmt, int kShrResultMask, class V,
           HWY_IF_V_SIZE_D(DFromV<V>, 1)>
 HWY_INLINE V UI8ReverseBitsStep(V v) {
