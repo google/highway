@@ -539,7 +539,7 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
 #endif
 }
 #else
-template <typename T, HWY_IF_LANE_SIZE(T, 1)>
+template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
   const uint64_t bits = n < 64 ? ((1ULL << n) - 1) : ~uint64_t{0};
   return Mask512<T>{static_cast<__mmask64>(bits)};
