@@ -263,28 +263,21 @@ HWY_API void LoadInterleaved3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
   alignas(16) static constexpr uint8_t kIdx_v0A[16] = {
       0x00, 0x01, 0x06, 0x07, 0x0C, 0x0D, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z};
   alignas(16) static constexpr uint8_t kIdx_v0B[16] = {
-      Z,    Z,    Z,    Z,    Z, Z, 0x02, 0x03,
-      0x08, 0x09, 0x0E, 0x0F, Z, Z, Z,    Z};
+      Z, Z, Z, Z, Z, Z, 0x02, 0x03, 0x08, 0x09, 0x0E, 0x0F, Z, Z, Z, Z};
   alignas(16) static constexpr uint8_t kIdx_v0C[16] = {
-      Z, Z, Z, Z, Z,    Z,    Z,    Z,
-      Z, Z, Z, Z, 0x04, 0x05, 0x0A, 0x0B};
+      Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, 0x04, 0x05, 0x0A, 0x0B};
   alignas(16) static constexpr uint8_t kIdx_v1A[16] = {
       0x02, 0x03, 0x08, 0x09, 0x0E, 0x0F, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z};
   alignas(16) static constexpr uint8_t kIdx_v1B[16] = {
-      Z,    Z,    Z, Z, Z, Z, 0x04, 0x05,
-      0x0A, 0x0B, Z, Z, Z, Z, Z,    Z};
+      Z, Z, Z, Z, Z, Z, 0x04, 0x05, 0x0A, 0x0B, Z, Z, Z, Z, Z, Z};
   alignas(16) static constexpr uint8_t kIdx_v1C[16] = {
-      Z, Z, Z,    Z,    Z,    Z,    Z,    Z,
-      Z, Z, 0x00, 0x01, 0x06, 0x07, 0x0C, 0x0D};
+      Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, 0x00, 0x01, 0x06, 0x07, 0x0C, 0x0D};
   alignas(16) static constexpr uint8_t kIdx_v2A[16] = {
-      0x04, 0x05, 0x0A, 0x0B, Z, Z, Z, Z,
-      Z,    Z,    Z,    Z,    Z, Z, Z, Z};
+      0x04, 0x05, 0x0A, 0x0B, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, Z};
   alignas(16) static constexpr uint8_t kIdx_v2B[16] = {
-      Z,    Z,    Z, Z, 0x00, 0x01, 0x06, 0x07,
-      0x0C, 0x0D, Z, Z, Z,    Z,    Z,    Z};
+      Z, Z, Z, Z, 0x00, 0x01, 0x06, 0x07, 0x0C, 0x0D, Z, Z, Z, Z, Z, Z};
   alignas(16) static constexpr uint8_t kIdx_v2C[16] = {
-      Z, Z, Z,    Z,    Z,    Z,    Z,    Z,
-      Z, Z, 0x02, 0x03, 0x08, 0x09, 0x0E, 0x0F};
+      Z, Z, Z, Z, Z, Z, Z, Z, Z, Z, 0x02, 0x03, 0x08, 0x09, 0x0E, 0x0F};
   const V v0L = TableLookupBytesOr0(A, BitCast(d, LoadDup128(du8, kIdx_v0A)));
   const V v0M = TableLookupBytesOr0(B, BitCast(d, LoadDup128(du8, kIdx_v0B)));
   const V v0U = TableLookupBytesOr0(C, BitCast(d, LoadDup128(du8, kIdx_v0C)));
@@ -1126,8 +1119,7 @@ HWY_INLINE V I32RangeU32ToF32BiasedExp(V v) {
   return ShiftRight<23>(f32_bits);
 }
 
-template <class D, HWY_IF_U16_D(D),
-          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
+template <class D, HWY_IF_U16_D(D), HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Rebind<uint32_t, decltype(d)> du32;
   const auto f32_biased_exp_as_u32 =
@@ -1136,8 +1128,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 }
 
 #if HWY_TARGET != HWY_SCALAR
-template <class D, HWY_IF_U16_D(D),
-          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4)>
+template <class D, HWY_IF_U16_D(D), HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
   const Rebind<uint32_t, decltype(dh)> du32;
@@ -1160,8 +1151,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 }
 #endif  // HWY_TARGET != HWY_SCALAR
 
-template <class D, HWY_IF_U8_D(D),
-          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Rebind<uint32_t, decltype(d)> du32;
   const auto f32_biased_exp_as_u32 =
@@ -1170,8 +1160,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 }
 
 #if HWY_TARGET != HWY_SCALAR
-template <class D, HWY_IF_U8_D(D),
-          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4),
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4),
           HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 2)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
@@ -1198,8 +1187,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 #endif
 }
 
-template <class D, HWY_IF_U8_D(D),
-          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 2)>
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 2)>
 HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
   const Half<decltype(d)> dh;
   const Half<decltype(dh)> dq;
@@ -2574,6 +2562,11 @@ HWY_API V ReverseLaneBytes(V v) {
 
 // ------------------------------ ReverseBits
 
+// On these targets, we emulate 8-bit shifts using 16-bit shifts and therefore
+// require at least two lanes to BitCast to 16-bit. We avoid Highway's 8-bit
+// shifts because those would add extra masking already taken care of by
+// UI8ReverseBitsStep. Note that AVX3_DL/AVX3_ZEN4 support GFNI and use it to
+// implement ReverseBits, so this code is not used there.
 #undef HWY_REVERSE_BITS_MIN_BYTES
 #if ((HWY_TARGET >= HWY_AVX3 && HWY_TARGET <= HWY_SSE2) || \
      HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_WASM_EMU256)

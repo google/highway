@@ -3791,8 +3791,8 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
   Store(v, DFromV<decltype(v)>(), lanes);
   return lanes[kLane];
 #elif HWY_TARGET >= HWY_SSSE3
-  return static_cast<T>(_mm_cvtsi128_si64(
-    (kLane == 0) ? v.raw : _mm_shuffle_epi32(v.raw, 0xEE)));
+  return static_cast<T>(
+      _mm_cvtsi128_si64((kLane == 0) ? v.raw : _mm_shuffle_epi32(v.raw, 0xEE)));
 #else
   return static_cast<T>(_mm_extract_epi64(v.raw, kLane));
 #endif

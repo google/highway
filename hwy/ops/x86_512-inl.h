@@ -4473,7 +4473,7 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   Store(v, d, lanes);
   using Bits = typename Mask256<T>::Raw;
   const Mask256<T> maskL{
-      static_cast<Bits>(mask.raw & Bits{(1ULL << (N / 2)) - 1})};
+      static_cast<Bits>(mask.raw& Bits{(1ULL << (N / 2)) - 1})};
   const Mask256<T> maskH{static_cast<Bits>(mask.raw >> (N / 2))};
   const size_t countL = CountTrue(dh, maskL);
   const Vec256<T> expandL = Expand(LowerHalf(v), maskL);
@@ -4496,7 +4496,7 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   constexpr size_t N = 64 / sizeof(T);
   using Bits = typename Mask256<T>::Raw;
   const Mask256<T> maskL{
-      static_cast<Bits>(mask.raw & Bits{(1ULL << (N / 2)) - 1})};
+      static_cast<Bits>(mask.raw& Bits{(1ULL << (N / 2)) - 1})};
   const Mask256<T> maskH{static_cast<Bits>(mask.raw >> (N / 2))};
   // In AVX3 we can permutevar, which avoids a potential store to load
   // forwarding stall vs. reloading the input.
@@ -5190,7 +5190,8 @@ HWY_API V HighestSetBitIndex(V v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
-  return BitCast(d, Set(du, TU{31}) - detail::Lzcnt32ForU8OrU16(BitCast(du, v)));
+  return BitCast(d,
+                 Set(du, TU{31}) - detail::Lzcnt32ForU8OrU16(BitCast(du, v)));
 }
 
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),

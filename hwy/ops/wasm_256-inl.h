@@ -1445,8 +1445,8 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
   return demoted;
 }
 
-template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 32),
-          HWY_IF_UNSIGNED_D(DN), HWY_IF_UNSIGNED_V(V),
+template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 32), HWY_IF_UNSIGNED_D(DN),
+          HWY_IF_UNSIGNED_V(V),
           HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2)>
 HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {

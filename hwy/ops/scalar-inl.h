@@ -574,7 +574,7 @@ template <typename T>
 HWY_API Vec1<T> Abs(const Vec1<T> a) {
   const T i = a.raw;
   if (i >= 0 || i == hwy::LimitsMin<T>()) return a;
-  return Vec1<T>(static_cast<T>(-i & T{-1}));
+  return Vec1<T>(static_cast<T>(-i& T{-1}));
 }
 HWY_API Vec1<float> Abs(Vec1<float> a) {
   int32_t i;

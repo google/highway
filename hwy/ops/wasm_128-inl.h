@@ -3305,8 +3305,8 @@ HWY_API Vec64<int16_t> ReorderDemote2To(D dn, Vec64<int32_t> a,
 
   const Vec128<int16_t> v_full{wasm_i16x8_narrow_i32x4(a.raw, b.raw)};
   const auto vu32_full = BitCast(du32_full, v_full);
-  return LowerHalf(BitCast(dn_full,
-                           ConcatEven(du32_full, vu32_full, vu32_full)));
+  return LowerHalf(
+      BitCast(dn_full, ConcatEven(du32_full, vu32_full, vu32_full)));
 }
 template <class D, HWY_IF_I16_D(D)>
 HWY_API Vec128<int16_t> ReorderDemote2To(D /* tag */, Vec128<int32_t> a,
@@ -3329,8 +3329,8 @@ HWY_API Vec64<uint16_t> ReorderDemote2To(D dn, Vec64<int32_t> a,
 
   const Vec128<int16_t> v_full{wasm_u16x8_narrow_i32x4(a.raw, b.raw)};
   const auto vu32_full = BitCast(du32_full, v_full);
-  return LowerHalf(BitCast(dn_full,
-                           ConcatEven(du32_full, vu32_full, vu32_full)));
+  return LowerHalf(
+      BitCast(dn_full, ConcatEven(du32_full, vu32_full, vu32_full)));
 }
 template <class D, HWY_IF_U16_D(D)>
 HWY_API Vec128<uint16_t> ReorderDemote2To(D /* tag */, Vec128<int32_t> a,
@@ -3338,9 +3338,9 @@ HWY_API Vec128<uint16_t> ReorderDemote2To(D /* tag */, Vec128<int32_t> a,
   return Vec128<uint16_t>{wasm_u16x8_narrow_i32x4(a.raw, b.raw)};
 }
 
-template<class D, HWY_IF_U16_D(D)>
+template <class D, HWY_IF_U16_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D dn, Vec128<uint32_t> a,
-                                         Vec128<uint32_t> b) {
+                                   Vec128<uint32_t> b) {
   const DFromV<decltype(a)> du32;
   const RebindToSigned<decltype(du32)> di32;
   const auto max_i32 = Set(du32, 0x7FFFFFFFu);
@@ -3349,7 +3349,7 @@ HWY_API VFromD<D> ReorderDemote2To(D dn, Vec128<uint32_t> a,
   const auto clamped_b = BitCast(di32, Min(b, max_i32));
   return ReorderDemote2To(dn, clamped_a, clamped_b);
 }
-template<class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<uint32_t, D>> a,
                                    VFromD<Repartition<uint32_t, D>> b) {
   const DFromV<decltype(a)> d;
@@ -3368,14 +3368,14 @@ HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<int16_t, D>> a,
 }
 template <class D, HWY_IF_I8_D(D)>
 HWY_API Vec64<int8_t> ReorderDemote2To(D dn, Vec64<int16_t> a,
-                                        Vec64<int16_t> b) {
+                                       Vec64<int16_t> b) {
   const Twice<decltype(dn)> dn_full;
   const Repartition<uint32_t, decltype(dn_full)> du32_full;
 
   const Vec128<int8_t> v_full{wasm_i8x16_narrow_i16x8(a.raw, b.raw)};
   const auto vu32_full = BitCast(du32_full, v_full);
-  return LowerHalf(BitCast(dn_full,
-                           ConcatEven(du32_full, vu32_full, vu32_full)));
+  return LowerHalf(
+      BitCast(dn_full, ConcatEven(du32_full, vu32_full, vu32_full)));
 }
 template <class D, HWY_IF_I8_D(D)>
 HWY_API Vec128<int8_t> ReorderDemote2To(D /* tag */, Vec128<int16_t> a,
@@ -3398,8 +3398,8 @@ HWY_API Vec64<uint8_t> ReorderDemote2To(D dn, Vec64<int16_t> a,
 
   const Vec128<uint8_t> v_full{wasm_u8x16_narrow_i16x8(a.raw, b.raw)};
   const auto vu32_full = BitCast(du32_full, v_full);
-  return LowerHalf(BitCast(dn_full,
-                           ConcatEven(du32_full, vu32_full, vu32_full)));
+  return LowerHalf(
+      BitCast(dn_full, ConcatEven(du32_full, vu32_full, vu32_full)));
 }
 template <class D, HWY_IF_U8_D(D)>
 HWY_API Vec128<uint8_t> ReorderDemote2To(D /* tag */, Vec128<int16_t> a,
@@ -3407,9 +3407,9 @@ HWY_API Vec128<uint8_t> ReorderDemote2To(D /* tag */, Vec128<int16_t> a,
   return Vec128<uint8_t>{wasm_u8x16_narrow_i16x8(a.raw, b.raw)};
 }
 
-template<class D, HWY_IF_U8_D(D)>
+template <class D, HWY_IF_U8_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D dn, Vec128<uint16_t> a,
-                                         Vec128<uint16_t> b) {
+                                   Vec128<uint16_t> b) {
   const DFromV<decltype(a)> du16;
   const RebindToSigned<decltype(du16)> di16;
   const auto max_i16 = Set(du16, 0x7FFFu);
@@ -3418,7 +3418,7 @@ HWY_API VFromD<D> ReorderDemote2To(D dn, Vec128<uint16_t> a,
   const auto clamped_b = BitCast(di16, Min(b, max_i16));
   return ReorderDemote2To(dn, clamped_a, clamped_b);
 }
-template<class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U8_D(D)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U8_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<uint16_t, D>> a,
                                    VFromD<Repartition<uint16_t, D>> b) {
   const DFromV<decltype(a)> d;
@@ -3497,7 +3497,7 @@ HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
 namespace detail {
 template <class D, HWY_IF_UNSIGNED_D(D)>
 HWY_INLINE VFromD<Rebind<uint64_t, D>> DemoteFromU64MaskOutResult(
-  D /*dn*/, VFromD<Rebind<uint64_t, D>> v) {
+    D /*dn*/, VFromD<Rebind<uint64_t, D>> v) {
   return v;
 }
 
@@ -3506,7 +3506,7 @@ HWY_INLINE VFromD<Rebind<uint64_t, D>> DemoteFromU64MaskOutResult(
     D /*dn*/, VFromD<Rebind<uint64_t, D>> v) {
   const DFromV<decltype(v)> du64;
   return And(v,
-    Set(du64, static_cast<uint64_t>(hwy::HighestValue<TFromD<D>>())));
+             Set(du64, static_cast<uint64_t>(hwy::HighestValue<TFromD<D>>())));
 }
 
 template <class D>
@@ -3514,11 +3514,12 @@ HWY_INLINE VFromD<Rebind<uint64_t, D>> DemoteFromU64Saturate(
     D dn, VFromD<Rebind<uint64_t, D>> v) {
   const Rebind<uint64_t, D> du64;
   const RebindToSigned<decltype(du64)> di64;
-  constexpr int kShiftAmt = static_cast<int>(sizeof(TFromD<D>) * 8)
-                            - static_cast<int>(hwy::IsSigned<TFromD<D>>());
+  constexpr int kShiftAmt = static_cast<int>(sizeof(TFromD<D>) * 8) -
+                            static_cast<int>(hwy::IsSigned<TFromD<D>>());
 
-  const auto too_big = BitCast(du64, VecFromMask(di64,
-    Gt(BitCast(di64, ShiftRight<kShiftAmt>(v)), Zero(di64))));
+  const auto too_big = BitCast(
+      du64, VecFromMask(
+                di64, Gt(BitCast(di64, ShiftRight<kShiftAmt>(v)), Zero(di64))));
   return DemoteFromU64MaskOutResult(dn, Or(v, too_big));
 }
 
@@ -3530,7 +3531,7 @@ HWY_INLINE VFromD<D> ReorderDemote2From64To32Combine(D dn, V a, V b) {
 }  // namespace detail
 
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
-                   HWY_IF_SIGNED_D(D)>
+          HWY_IF_SIGNED_D(D)>
 HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<int64_t, D>> v) {
   const DFromV<decltype(v)> di64;
   const RebindToUnsigned<decltype(di64)> du64;
@@ -3539,13 +3540,14 @@ HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<int64_t, D>> v) {
   // Negative values are saturated by first saturating their bitwise inverse
   // and then inverting the saturation result
   const auto invert_mask = BitCast(du64, BroadcastSignBit(v));
-  const auto saturated_vals = Xor(invert_mask,
-    detail::DemoteFromU64Saturate(dn, Xor(invert_mask, BitCast(du64, v))));
+  const auto saturated_vals = Xor(
+      invert_mask,
+      detail::DemoteFromU64Saturate(dn, Xor(invert_mask, BitCast(du64, v))));
   return BitCast(dn, TruncateTo(dn_u, saturated_vals));
 }
 
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
-                   HWY_IF_UNSIGNED_D(D)>
+          HWY_IF_UNSIGNED_D(D)>
 HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<int64_t, D>> v) {
   const DFromV<decltype(v)> di64;
   const RebindToUnsigned<decltype(di64)> du64;
@@ -3555,16 +3557,15 @@ HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<int64_t, D>> v) {
 }
 
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
-                   HWY_IF_UNSIGNED_D(D)>
+          HWY_IF_UNSIGNED_D(D)>
 HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<uint64_t, D>> v) {
   return TruncateTo(dn, detail::DemoteFromU64Saturate(dn, v));
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8),
-                   HWY_IF_T_SIZE_D(D, 4),
-                   HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_T_SIZE_D(D, 4),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>)>
 HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<int64_t, D>> a,
-                                         VFromD<Repartition<int64_t, D>> b) {
+                                   VFromD<Repartition<int64_t, D>> b) {
   const DFromV<decltype(a)> d;
   const Twice<decltype(d)> dt;
   return DemoteTo(dn, Combine(dt, b, a));
@@ -3572,7 +3573,7 @@ HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<int64_t, D>> a,
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<uint64_t, D>> a,
-                                         VFromD<Repartition<uint64_t, D>> b) {
+                                   VFromD<Repartition<uint64_t, D>> b) {
   const DFromV<decltype(a)> d;
   const Twice<decltype(d)> dt;
   return DemoteTo(dn, Combine(dt, b, a));
@@ -3589,10 +3590,12 @@ HWY_API Vec128<int32_t> ReorderDemote2To(D dn, Vec128<int64_t> a,
   // and then inverting the saturation result
   const auto invert_mask_a = BitCast(du64, BroadcastSignBit(a));
   const auto invert_mask_b = BitCast(du64, BroadcastSignBit(b));
-  const auto saturated_a = Xor(invert_mask_a,
-    detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_a, BitCast(du64, a))));
-  const auto saturated_b = Xor(invert_mask_b,
-    detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_b, BitCast(du64, b))));
+  const auto saturated_a = Xor(
+      invert_mask_a,
+      detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_a, BitCast(du64, a))));
+  const auto saturated_b = Xor(
+      invert_mask_b,
+      detail::DemoteFromU64Saturate(dnh, Xor(invert_mask_b, BitCast(du64, b))));
 
   return ConcatEven(dn, BitCast(dn, saturated_b), BitCast(dn, saturated_a));
 }
@@ -3604,10 +3607,10 @@ HWY_API Vec128<uint32_t> ReorderDemote2To(D dn, Vec128<int64_t> a,
   const RebindToUnsigned<decltype(di64)> du64;
   const Half<decltype(dn)> dnh;
 
-  const auto saturated_a = detail::DemoteFromU64Saturate(dnh,
-    BitCast(du64, AndNot(BroadcastSignBit(a), a)));
-  const auto saturated_b = detail::DemoteFromU64Saturate(dnh,
-    BitCast(du64, AndNot(BroadcastSignBit(b), b)));
+  const auto saturated_a = detail::DemoteFromU64Saturate(
+      dnh, BitCast(du64, AndNot(BroadcastSignBit(a), a)));
+  const auto saturated_b = detail::DemoteFromU64Saturate(
+      dnh, BitCast(du64, AndNot(BroadcastSignBit(b), b)));
 
   return ConcatEven(dn, BitCast(dn, saturated_b), BitCast(dn, saturated_a));
 }
@@ -3623,16 +3626,15 @@ HWY_API Vec128<uint32_t> ReorderDemote2To(D dn, Vec128<uint64_t> a,
   return ConcatEven(dn, BitCast(dn, saturated_b), BitCast(dn, saturated_a));
 }
 
-template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),
-          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>), class V,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
           HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
   return ReorderDemote2To(d, a, b);
 }
 
-template <class D, HWY_IF_BF16_D(D),
-          class V32 = VFromD<Repartition<float, D>>>
+template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
 HWY_API VFromD<D> OrderedDemote2To(D dbf16, V32 a, V32 b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
   return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
@@ -3828,15 +3830,15 @@ constexpr __i8x16 BytesAbove() {
       : (N == 10) ? wasm_i16x8_make(0, 0, 0, 0, 0, -1, -1, -1)
       : (N == 14) ? wasm_i16x8_make(0, 0, 0, 0, 0, 0, 0, -1)
       : (N == 1)  ? wasm_i8x16_make(0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-                                   -1, -1, -1, -1, -1)
+                                    -1, -1, -1, -1, -1)
       : (N == 3)  ? wasm_i8x16_make(0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-                                   -1, -1, -1, -1)
+                                    -1, -1, -1, -1)
       : (N == 5)  ? wasm_i8x16_make(0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1,
-                                   -1, -1, -1, -1)
+                                    -1, -1, -1, -1)
       : (N == 7)  ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1,
-                                   -1, -1, -1)
+                                    -1, -1, -1)
       : (N == 9)  ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1,
-                                   -1, -1, -1)
+                                    -1, -1, -1)
       : (N == 11)
           ? wasm_i8x16_make(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1)
       : (N == 13)
