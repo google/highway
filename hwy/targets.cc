@@ -137,6 +137,7 @@ enum class FeatureIndex : uint32_t {
 
   kAVX512F,
   kAVX512VL,
+  kAVX512CD,
   kAVX512DQ,
   kAVX512BW,
 
@@ -147,6 +148,7 @@ enum class FeatureIndex : uint32_t {
   kVAES,
   kPOPCNTDQ,
   kBITALG,
+  kGFNI,
 
   kSentinel
 };
@@ -191,11 +193,13 @@ uint64_t FlagsFromCPUID() {
 
     flags |= IsBitSet(abcd[1], 16) ? Bit(FeatureIndex::kAVX512F) : 0;
     flags |= IsBitSet(abcd[1], 17) ? Bit(FeatureIndex::kAVX512DQ) : 0;
+    flags |= IsBitSet(abcd[1], 28) ? Bit(FeatureIndex::kAVX512CD) : 0;
     flags |= IsBitSet(abcd[1], 30) ? Bit(FeatureIndex::kAVX512BW) : 0;
     flags |= IsBitSet(abcd[1], 31) ? Bit(FeatureIndex::kAVX512VL) : 0;
 
     flags |= IsBitSet(abcd[2], 1) ? Bit(FeatureIndex::kVBMI) : 0;
     flags |= IsBitSet(abcd[2], 6) ? Bit(FeatureIndex::kVBMI2) : 0;
+    flags |= IsBitSet(abcd[2], 8) ? Bit(FeatureIndex::kGFNI) : 0;
     flags |= IsBitSet(abcd[2], 9) ? Bit(FeatureIndex::kVAES) : 0;
     flags |= IsBitSet(abcd[2], 10) ? Bit(FeatureIndex::kVPCLMULQDQ) : 0;
     flags |= IsBitSet(abcd[2], 11) ? Bit(FeatureIndex::kVNNI) : 0;
@@ -211,8 +215,7 @@ constexpr uint64_t kGroupSSE2 =
     Bit(FeatureIndex::kSSE) | Bit(FeatureIndex::kSSE2);
 
 constexpr uint64_t kGroupSSSE3 =
-    Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3) |
-    kGroupSSE2;
+    Bit(FeatureIndex::kSSE3) | Bit(FeatureIndex::kSSSE3) | kGroupSSE2;
 
 constexpr uint64_t kGroupSSE4 =
     Bit(FeatureIndex::kSSE41) | Bit(FeatureIndex::kSSE42) |
@@ -242,13 +245,14 @@ constexpr uint64_t kGroupAVX2 =
 
 constexpr uint64_t kGroupAVX3 =
     Bit(FeatureIndex::kAVX512F) | Bit(FeatureIndex::kAVX512VL) |
-    Bit(FeatureIndex::kAVX512DQ) | Bit(FeatureIndex::kAVX512BW) | kGroupAVX2;
+    Bit(FeatureIndex::kAVX512DQ) | Bit(FeatureIndex::kAVX512BW) |
+    Bit(FeatureIndex::kAVX512CD) | kGroupAVX2;
 
 constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVNNI) | Bit(FeatureIndex::kVPCLMULQDQ) |
     Bit(FeatureIndex::kVBMI) | Bit(FeatureIndex::kVBMI2) |
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
-    Bit(FeatureIndex::kBITALG) | kGroupAVX3;
+    Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) | kGroupAVX3;
 
 int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.

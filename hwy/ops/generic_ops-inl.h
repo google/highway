@@ -1022,8 +1022,8 @@ HWY_API VFromD<DN> DemoteTo(DN dn, V v) {
   // using an unsigned Min operation.
   const auto max_signed_val = Set(dn, hwy::HighestValue<TFromD<DN>>());
 
-  return BitCast(dn, Min(BitCast(dn_u, i2i_demote_result),
-                         BitCast(dn_u, max_signed_val)));
+  return BitCast(
+      dn, Min(BitCast(dn_u, i2i_demote_result), BitCast(dn_u, max_signed_val)));
 }
 
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
@@ -1040,16 +1040,323 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
   // that are greater than hwy::HighestValue<MakeSigned<TFromV<V>>>() to a
   // negative value.
   const auto i2i_demote_result =
-    ReorderDemote2To(dn, BitCast(di, a), BitCast(di, b));
+      ReorderDemote2To(dn, BitCast(di, a), BitCast(di, b));
 
   // Second, convert any negative values to hwy::HighestValue<TFromD<DN>>()
   // using an unsigned Min operation.
   const auto max_signed_val = Set(dn, hwy::HighestValue<TFromD<DN>>());
 
-  return BitCast(dn, Min(BitCast(dn_u, i2i_demote_result),
-                         BitCast(dn_u, max_signed_val)));
+  return BitCast(
+      dn, Min(BitCast(dn_u, i2i_demote_result), BitCast(dn_u, max_signed_val)));
 }
 #endif
+
+// ------------------------------ OrderedTruncate2To
+
+#if (defined(HWY_NATIVE_ORDERED_TRUNCATE_2_TO) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+#undef HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+#else
+#define HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+#endif
+
+// (Must come after HWY_TARGET_TOGGLE, else we don't reset it for scalar)
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+template <class DN, HWY_IF_UNSIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DFromV<VFromD<DN>>, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<DN> OrderedTruncate2To(DN dn, V a, V b) {
+  return ConcatEven(dn, BitCast(dn, b), BitCast(dn, a));
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+
+// -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
+
+#if (defined(HWY_NATIVE_LEADING_ZERO_COUNT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_LEADING_ZERO_COUNT
+#undef HWY_NATIVE_LEADING_ZERO_COUNT
+#else
+#define HWY_NATIVE_LEADING_ZERO_COUNT
+#endif
+
+namespace detail {
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+  const RebindToFloat<decltype(d)> df;
+#if HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE2
+  const RebindToSigned<decltype(d)> di;
+  const Repartition<int16_t, decltype(d)> di16;
+
+  // On SSE2/SSSE3/SSE4/AVX2, do an int32_t to float conversion, followed
+  // by a unsigned right shift of the uint32_t bit representation of the
+  // floating point values by 23, followed by an int16_t Min
+  // operation as we are only interested in the biased exponent that would
+  // result from a uint32_t to float conversion.
+
+  // An int32_t to float vector conversion is also much more efficient on
+  // SSE2/SSSE3/SSE4/AVX2 than an uint32_t vector to float vector conversion
+  // as an uint32_t vector to float vector conversion on SSE2/SSSE3/SSE4/AVX2
+  // requires multiple instructions whereas an int32_t to float vector
+  // conversion can be carried out using a single instruction on
+  // SSE2/SSSE3/SSE4/AVX2.
+
+  const auto f32_bits = BitCast(d, ConvertTo(df, BitCast(di, v)));
+  return BitCast(d, Min(BitCast(di16, ShiftRight<23>(f32_bits)),
+                        BitCast(di16, Set(d, 158))));
+#else
+  const auto f32_bits = BitCast(d, ConvertTo(df, v));
+  return BitCast(d, ShiftRight<23>(f32_bits));
+#endif
+}
+
+template <class V, HWY_IF_U32_D(DFromV<V>)>
+HWY_INLINE V I32RangeU32ToF32BiasedExp(V v) {
+  // I32RangeU32ToF32BiasedExp is similar to UIntToF32BiasedExp, but
+  // I32RangeU32ToF32BiasedExp assumes that v[i] is between 0 and 2147483647.
+  const DFromV<decltype(v)> d;
+  const RebindToFloat<decltype(d)> df;
+#if HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE2
+  const RebindToSigned<decltype(d)> d_src;
+#else
+  const RebindToUnsigned<decltype(d)> d_src;
+#endif
+  const auto f32_bits = BitCast(d, ConvertTo(df, BitCast(d_src, v)));
+  return ShiftRight<23>(f32_bits);
+}
+
+template <class D, HWY_IF_U16_D(D),
+          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+  const Rebind<uint32_t, decltype(d)> du32;
+  const auto f32_biased_exp_as_u32 =
+      I32RangeU32ToF32BiasedExp(PromoteTo(du32, v));
+  return TruncateTo(d, f32_biased_exp_as_u32);
+}
+
+#if HWY_TARGET != HWY_SCALAR
+template <class D, HWY_IF_U16_D(D),
+          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const Rebind<uint32_t, decltype(dh)> du32;
+
+  const auto lo_u32 = PromoteTo(du32, LowerHalf(dh, v));
+  const auto hi_u32 = PromoteTo(du32, UpperHalf(dh, v));
+
+  const auto lo_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(lo_u32);
+  const auto hi_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(hi_u32);
+#if HWY_TARGET <= HWY_SSE2
+  const RebindToSigned<decltype(du32)> di32;
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d,
+                 OrderedDemote2To(di, BitCast(di32, lo_f32_biased_exp_as_u32),
+                                  BitCast(di32, hi_f32_biased_exp_as_u32)));
+#else
+  return OrderedTruncate2To(d, lo_f32_biased_exp_as_u32,
+                            hi_f32_biased_exp_as_u32);
+#endif
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+template <class D, HWY_IF_U8_D(D),
+          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 4)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+  const Rebind<uint32_t, decltype(d)> du32;
+  const auto f32_biased_exp_as_u32 =
+      I32RangeU32ToF32BiasedExp(PromoteTo(du32, v));
+  return U8FromU32(f32_biased_exp_as_u32);
+}
+
+#if HWY_TARGET != HWY_SCALAR
+template <class D, HWY_IF_U8_D(D),
+          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 4),
+          HWY_IF_LANES_LE_D(D, HWY_MAX_BYTES / 2)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const Rebind<uint32_t, decltype(dh)> du32;
+  const Repartition<uint16_t, decltype(du32)> du16;
+
+  const auto lo_u32 = PromoteTo(du32, LowerHalf(dh, v));
+  const auto hi_u32 = PromoteTo(du32, UpperHalf(dh, v));
+
+  const auto lo_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(lo_u32);
+  const auto hi_f32_biased_exp_as_u32 = I32RangeU32ToF32BiasedExp(hi_u32);
+
+#if HWY_TARGET <= HWY_SSE2
+  const RebindToSigned<decltype(du32)> di32;
+  const RebindToSigned<decltype(du16)> di16;
+  const auto f32_biased_exp_as_i16 =
+      OrderedDemote2To(di16, BitCast(di32, lo_f32_biased_exp_as_u32),
+                       BitCast(di32, hi_f32_biased_exp_as_u32));
+  return DemoteTo(d, f32_biased_exp_as_i16);
+#else
+  const auto f32_biased_exp_as_u16 = OrderedTruncate2To(
+      du16, lo_f32_biased_exp_as_u32, hi_f32_biased_exp_as_u32);
+  return TruncateTo(d, f32_biased_exp_as_u16);
+#endif
+}
+
+template <class D, HWY_IF_U8_D(D),
+          HWY_IF_LANES_GT_D(D, HWY_MAX_BYTES / 2)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const Half<decltype(dh)> dq;
+  const Rebind<uint32_t, decltype(dq)> du32;
+  const Repartition<uint16_t, decltype(du32)> du16;
+
+  const auto lo_half = LowerHalf(dh, v);
+  const auto hi_half = UpperHalf(dh, v);
+
+  const auto u32_q0 = PromoteTo(du32, LowerHalf(dq, lo_half));
+  const auto u32_q1 = PromoteTo(du32, UpperHalf(dq, lo_half));
+  const auto u32_q2 = PromoteTo(du32, LowerHalf(dq, hi_half));
+  const auto u32_q3 = PromoteTo(du32, UpperHalf(dq, hi_half));
+
+  const auto f32_biased_exp_as_u32_q0 = I32RangeU32ToF32BiasedExp(u32_q0);
+  const auto f32_biased_exp_as_u32_q1 = I32RangeU32ToF32BiasedExp(u32_q1);
+  const auto f32_biased_exp_as_u32_q2 = I32RangeU32ToF32BiasedExp(u32_q2);
+  const auto f32_biased_exp_as_u32_q3 = I32RangeU32ToF32BiasedExp(u32_q3);
+
+#if HWY_TARGET <= HWY_SSE2
+  const RebindToSigned<decltype(du32)> di32;
+  const RebindToSigned<decltype(du16)> di16;
+
+  const auto lo_f32_biased_exp_as_i16 =
+      OrderedDemote2To(di16, BitCast(di32, f32_biased_exp_as_u32_q0),
+                       BitCast(di32, f32_biased_exp_as_u32_q1));
+  const auto hi_f32_biased_exp_as_i16 =
+      OrderedDemote2To(di16, BitCast(di32, f32_biased_exp_as_u32_q2),
+                       BitCast(di32, f32_biased_exp_as_u32_q3));
+  return OrderedDemote2To(d, lo_f32_biased_exp_as_i16,
+                          hi_f32_biased_exp_as_i16);
+#else
+  const auto lo_f32_biased_exp_as_u16 = OrderedTruncate2To(
+      du16, f32_biased_exp_as_u32_q0, f32_biased_exp_as_u32_q1);
+  const auto hi_f32_biased_exp_as_u16 = OrderedTruncate2To(
+      du16, f32_biased_exp_as_u32_q2, f32_biased_exp_as_u32_q3);
+  return OrderedTruncate2To(d, lo_f32_biased_exp_as_u16,
+                            hi_f32_biased_exp_as_u16);
+#endif
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+#if HWY_TARGET == HWY_SCALAR
+template <class D>
+using F32ExpLzcntMinMaxRepartition = RebindToUnsigned<D>;
+#elif HWY_TARGET >= HWY_SSSE3 && HWY_TARGET <= HWY_SSE2
+template <class D>
+using F32ExpLzcntMinMaxRepartition = Repartition<uint8_t, D>;
+#else
+template <class D>
+using F32ExpLzcntMinMaxRepartition =
+    Repartition<UnsignedFromSize<HWY_MIN(sizeof(TFromD<D>), 4)>, D>;
+#endif
+
+template <class V>
+using F32ExpLzcntMinMaxCmpV = VFromD<F32ExpLzcntMinMaxRepartition<DFromV<V>>>;
+
+template <class V>
+HWY_INLINE F32ExpLzcntMinMaxCmpV<V> F32ExpLzcntMinMaxBitCast(V v) {
+  const DFromV<decltype(v)> d;
+  const F32ExpLzcntMinMaxRepartition<decltype(d)> d2;
+  return BitCast(d2, v);
+}
+
+template <class D, HWY_IF_U64_D(D)>
+HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
+#if HWY_TARGET == HWY_SCALAR
+  const uint64_t u64_val = GetLane(v);
+  const float f32_val = static_cast<float>(u64_val);
+  uint32_t f32_bits;
+  CopySameSize(&f32_val, &f32_bits);
+  return Set(d, static_cast<uint64_t>(f32_bits >> 23));
+#else
+  const Repartition<uint32_t, decltype(d)> du32;
+  const auto f32_biased_exp = UIntToF32BiasedExp(du32, BitCast(du32, v));
+  const auto f32_biased_exp_adj =
+      IfThenZeroElse(Eq(f32_biased_exp, Zero(du32)),
+                     BitCast(du32, Set(d, 0x0000002000000000u)));
+  const auto adj_f32_biased_exp = Add(f32_biased_exp, f32_biased_exp_adj);
+
+  return ShiftRight<32>(BitCast(
+      d, Max(F32ExpLzcntMinMaxBitCast(adj_f32_biased_exp),
+             F32ExpLzcntMinMaxBitCast(Reverse2(du32, adj_f32_biased_exp)))));
+#endif
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V)>
+HWY_INLINE V UIntToF32BiasedExp(V v) {
+  const DFromV<decltype(v)> d;
+  return UIntToF32BiasedExp(d, v);
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_INLINE V NormalizeForUIntTruncConvToF32(V v) {
+  return v;
+}
+
+template <class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 4) | (1 << 8))>
+HWY_INLINE V NormalizeForUIntTruncConvToF32(V v) {
+  // If v[i] >= 16777216 is true, make sure that the bit at
+  // HighestSetBitIndex(v[i]) - 24 is zeroed out to ensure that any inexact
+  // conversion to single-precision floating point is rounded down.
+
+  // This zeroing-out can be accomplished through the AndNot operation below.
+  return AndNot(ShiftRight<24>(v), v);
+}
+
+}  // namespace detail
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V HighestSetBitIndex(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  const auto f32_biased_exp = detail::UIntToF32BiasedExp(
+      detail::NormalizeForUIntTruncConvToF32(BitCast(du, v)));
+  return BitCast(d, Sub(f32_biased_exp, Set(du, TU{127})));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V LeadingZeroCount(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  constexpr TU kNumOfBitsInT{sizeof(TU) * 8};
+  const auto f32_biased_exp = detail::UIntToF32BiasedExp(
+      detail::NormalizeForUIntTruncConvToF32(BitCast(du, v)));
+  const auto lz_count = Sub(Set(du, TU{kNumOfBitsInT + 126}), f32_biased_exp);
+
+  return BitCast(d,
+                 Min(detail::F32ExpLzcntMinMaxBitCast(lz_count),
+                     detail::F32ExpLzcntMinMaxBitCast(Set(du, kNumOfBitsInT))));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V TrailingZeroCount(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;
+  using TU = TFromD<decltype(du)>;
+
+  const auto vi = BitCast(di, v);
+  const auto lowest_bit = BitCast(du, And(vi, Neg(vi)));
+
+  constexpr TU kNumOfBitsInT{sizeof(TU) * 8};
+  const auto f32_biased_exp = detail::UIntToF32BiasedExp(lowest_bit);
+  const auto tz_count = Sub(f32_biased_exp, Set(du, TU{127}));
+
+  return BitCast(d,
+                 Min(detail::F32ExpLzcntMinMaxBitCast(tz_count),
+                     detail::F32ExpLzcntMinMaxBitCast(Set(du, kNumOfBitsInT))));
+}
+#endif  // HWY_NATIVE_LEADING_ZERO_COUNT
 
 // ------------------------------ AESRound
 
@@ -2226,6 +2533,120 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 }
 
 #endif  // HWY_NATIVE_EXPAND
+
+// ------------------------------ ReverseLaneBytes
+
+#if (defined(HWY_NATIVE_REVERSE_LANE_BYTES) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REVERSE_LANE_BYTES
+#undef HWY_NATIVE_REVERSE_LANE_BYTES
+#else
+#define HWY_NATIVE_REVERSE_LANE_BYTES
+#endif
+
+template <class V, HWY_IF_T_SIZE_V(V, 2), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V ReverseLaneBytes(V v) {
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14};
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+}
+
+template <class V, HWY_IF_T_SIZE_V(V, 4), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V ReverseLaneBytes(V v) {
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12};
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+}
+
+template <class V, HWY_IF_T_SIZE_V(V, 8), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V ReverseLaneBytes(V v) {
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+}
+
+#endif  // HWY_NATIVE_REVERSE_LANE_BYTES
+
+// ------------------------------ ReverseBits
+
+#undef HWY_REVERSE_BITS_MIN_BYTES
+#if ((HWY_TARGET >= HWY_AVX3 && HWY_TARGET <= HWY_SSE2) || \
+     HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_WASM_EMU256)
+#define HWY_REVERSE_BITS_MIN_BYTES 2
+#else
+#define HWY_REVERSE_BITS_MIN_BYTES 1
+#endif
+
+#if (defined(HWY_NATIVE_REVERSE_BITS_UI8) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REVERSE_BITS_UI8
+#undef HWY_NATIVE_REVERSE_BITS_UI8
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI8
+#endif
+
+namespace detail {
+
+template <int kShiftAmt, int kShrResultMask, class V,
+          HWY_IF_V_SIZE_GT_D(DFromV<V>, HWY_REVERSE_BITS_MIN_BYTES - 1)>
+HWY_INLINE V UI8ReverseBitsStep(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_REVERSE_BITS_MIN_BYTES == 2
+  const Repartition<uint16_t, decltype(d)> d_shift;
+#else
+  const RebindToUnsigned<decltype(d)> d_shift;
+#endif
+
+  const auto v_to_shift = BitCast(d_shift, v);
+  const auto shl_result = BitCast(d, ShiftLeft<kShiftAmt>(v_to_shift));
+  const auto shr_result = BitCast(d, ShiftRight<kShiftAmt>(v_to_shift));
+  const auto shr_result_mask =
+      BitCast(d, Set(du, static_cast<uint8_t>(kShrResultMask)));
+  return Or(And(shr_result, shr_result_mask),
+            AndNot(shr_result_mask, shl_result));
+}
+
+#if HWY_REVERSE_BITS_MIN_BYTES == 2
+template <int kShiftAmt, int kShrResultMask, class V,
+          HWY_IF_V_SIZE_D(DFromV<V>, 1)>
+HWY_INLINE V UI8ReverseBitsStep(V v) {
+  return V{UI8ReverseBitsStep<kShiftAmt, kShrResultMask>(Vec128<uint8_t>{v.raw})
+               .raw};
+}
+#endif
+
+}  // namespace detail
+
+template <class V, HWY_IF_T_SIZE_V(V, 1)>
+HWY_API V ReverseBits(V v) {
+  auto result = detail::UI8ReverseBitsStep<1, 0x55>(v);
+  result = detail::UI8ReverseBitsStep<2, 0x33>(result);
+  result = detail::UI8ReverseBitsStep<4, 0x0F>(result);
+  return result;
+}
+
+#endif  // HWY_NATIVE_REVERSE_BITS_UI8
+
+#if (defined(HWY_NATIVE_REVERSE_BITS_UI16_32_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#undef HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI16_32_64
+#endif
+
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V ReverseBits(V v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return ReverseLaneBytes(BitCast(d, ReverseBits(BitCast(du8, v))));
+}
+#endif  // HWY_NATIVE_REVERSE_BITS_UI16_32_64
 
 // ================================================== Operator wrapper
 

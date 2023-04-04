@@ -18,6 +18,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <cmath>  // std::abs, std::isnan
 
 #include "hwy/base.h"
@@ -1561,9 +1562,8 @@ HWY_API VFromD<DBF16> ReorderDemote2To(DBF16 dbf16, VF32 a, VF32 b) {
   return BitCast(dbf16, IfVecThenElse(a_mask, BitCast(du32, a), b_in_lower));
 }
 
-template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
-          class V, HWY_IF_SIGNED_V(V),
-          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>), class V,
+          HWY_IF_SIGNED_V(V), HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
           HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
   const RepartitionToWide<decltype(dn)> dw;
@@ -1576,8 +1576,7 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
     ret.raw[i] = static_cast<TN>(HWY_MIN(HWY_MAX(min, a.raw[i]), max));
   }
   for (size_t i = 0; i < NW; ++i) {
-    ret.raw[NW + i] =
-        static_cast<TN>(HWY_MIN(HWY_MAX(min, b.raw[i]), max));
+    ret.raw[NW + i] = static_cast<TN>(HWY_MIN(HWY_MAX(min, b.raw[i]), max));
   }
   return ret;
 }
@@ -1595,23 +1594,20 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
     ret.raw[i] = static_cast<TN>(HWY_MIN(a.raw[i], max));
   }
   for (size_t i = 0; i < NW; ++i) {
-    ret.raw[NW + i] =
-        static_cast<TN>(HWY_MIN(b.raw[i], max));
+    ret.raw[NW + i] = static_cast<TN>(HWY_MIN(b.raw[i], max));
   }
   return ret;
 }
 
-template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>),
-          class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>), class V,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
           HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   return ReorderDemote2To(dn, a, b);
 }
 
-template <class DN, HWY_IF_BF16_D(DN),
-          class V, HWY_IF_F32_D(DFromV<V>),
-          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+template <class DN, HWY_IF_BF16_D(DN), class V, HWY_IF_F32_D(DFromV<V>),
           HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   const RebindToUnsigned<DFromV<decltype(a)>> du32;
@@ -1736,12 +1732,13 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec128<float, N> v) {
 // Tag dispatch instead of SFINAE for MSVC 2017 compatibility
 namespace detail {
 
-template <typename TFrom, typename ToT, size_t N, int kPow2>
-HWY_API Vec128<ToT, N> ConvertTo(hwy::FloatTag /*tag*/,
-                                 Simd<ToT, N, kPow2> /* tag */,
-                                 Vec128<TFrom, N> from) {
+template <typename TFrom, typename DTo>
+HWY_API VFromD<DTo> ConvertTo(hwy::FloatTag /*tag*/, DTo /*tag*/,
+                              Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
+  using ToT = TFromD<DTo>;
   static_assert(sizeof(ToT) == sizeof(TFrom), "Should have same size");
-  Vec128<ToT, N> ret;
+  VFromD<DTo> ret;
+  constexpr size_t N = HWY_MAX_LANES_D(DTo);
   for (size_t i = 0; i < N; ++i) {
     // float## -> int##: return closest representable value. We cannot exactly
     // represent LimitsMax<ToT> in TFrom, so use double.
@@ -1757,12 +1754,13 @@ HWY_API Vec128<ToT, N> ConvertTo(hwy::FloatTag /*tag*/,
   return ret;
 }
 
-template <typename TFrom, typename ToT, size_t N, int kPow2>
-HWY_API Vec128<ToT, N> ConvertTo(hwy::NonFloatTag /*tag*/,
-                                 Simd<ToT, N, kPow2> /* tag */,
-                                 Vec128<TFrom, N> from) {
+template <typename TFrom, typename DTo>
+HWY_API VFromD<DTo> ConvertTo(hwy::NonFloatTag /*tag*/, DTo /* tag */,
+                              Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
+  using ToT = TFromD<DTo>;
   static_assert(sizeof(ToT) == sizeof(TFrom), "Should have same size");
-  Vec128<ToT, N> ret;
+  VFromD<DTo> ret;
+  constexpr size_t N = HWY_MAX_LANES_D(DTo);
   for (size_t i = 0; i < N; ++i) {
     // int## -> float##: no check needed
     ret.raw[i] = static_cast<ToT>(from.raw[i]);
@@ -1772,8 +1770,8 @@ HWY_API Vec128<ToT, N> ConvertTo(hwy::NonFloatTag /*tag*/,
 
 }  // namespace detail
 
-template <class DTo, typename TFrom, size_t N>
-HWY_API VFromD<DTo> ConvertTo(DTo d, Vec128<TFrom, N> from) {
+template <class DTo, typename TFrom>
+HWY_API VFromD<DTo> ConvertTo(DTo d, Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
   return detail::ConvertTo(hwy::IsFloatTag<TFrom>(), d, from);
 }
 
@@ -1834,6 +1832,32 @@ HWY_API VFromD<D> TruncateTo(D /* tag */, Vec128<uint16_t, N> v) {
   VFromD<D> ret;
   for (size_t i = 0; i < N; ++i) {
     ret.raw[i] = static_cast<uint8_t>(v.raw[i] & 0xFF);
+  }
+  return ret;
+}
+
+#ifdef HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+#undef HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+#else
+#define HWY_NATIVE_ORDERED_TRUNCATE_2_TO
+#endif
+
+template <class DN, HWY_IF_UNSIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+          HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<DN> OrderedTruncate2To(DN dn, V a, V b) {
+  const RepartitionToWide<decltype(dn)> dw;
+  const size_t NW = Lanes(dw);
+  using TW = TFromD<decltype(dw)>;
+  using TN = TFromD<decltype(dn)>;
+  VFromD<DN> ret;
+  constexpr TW max_val{LimitsMax<TN>()};
+
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[i] = static_cast<TN>(a.raw[i] & max_val);
+  }
+  for (size_t i = 0; i < NW; ++i) {
+    ret.raw[NW + i] = static_cast<TN>(b.raw[i] & max_val);
   }
   return ret;
 }
