@@ -117,30 +117,12 @@ struct TestDivOverflow {
 };
 
 HWY_NOINLINE void TestAllMul() {
-  const ForPartialVectors<TestUnsignedMul> test_unsigned;
-  // No u8.
-  test_unsigned(uint16_t());
-  test_unsigned(uint32_t());
-  test_unsigned(uint64_t());
+  ForUnsignedTypes(ForPartialVectors<TestUnsignedMul>());
+  ForSignedTypes(ForPartialVectors<TestSignedMul>());
 
-  const ForPartialVectors<TestSignedMul> test_signed;
-  // No i8.
-  test_signed(int16_t());
-  test_signed(int32_t());
-  test_signed(int64_t());
+  ForSignedTypes(ForPartialVectors<TestMulOverflow>());
 
-  const ForPartialVectors<TestMulOverflow> test_mul_overflow;
-  test_mul_overflow(int16_t());
-  test_mul_overflow(int32_t());
-#if HWY_HAVE_INTEGER64
-  test_mul_overflow(int64_t());
-#endif
-
-  const ForPartialVectors<TestDivOverflow> test_div_overflow;
-  test_div_overflow(float());
-#if HWY_HAVE_FLOAT64
-  test_div_overflow(double());
-#endif
+  ForFloatTypes(ForPartialVectors<TestDivOverflow>());
 }
 
 struct TestMulHigh {
@@ -318,10 +300,15 @@ HWY_NOINLINE void TestAllMulEven() {
 struct TestMulAdd {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto k0 = Zero(d);
-    const auto kNeg0 = Set(d, T(-0.0));
-    const auto v1 = Iota(d, 1);
-    const auto v2 = Iota(d, 2);
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+
+    // Unlike RebindToSigned, we want to leave floating-point unchanged.
+    // This allows Neg for unsigned types.
+    const Rebind<If<IsFloat<T>(), T, MakeSigned<T>>, D> di;
+    const Vec<D> neg_v2 = BitCast(d, Neg(BitCast(di, v2)));
+
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT_VEC_EQ(d, k0, MulAdd(k0, k0, k0));
@@ -336,20 +323,32 @@ struct TestMulAdd {
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v2, v1, k0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v1, v2, k0));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(Neg(v2), v1, k0));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v1, Neg(v2), k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(neg_v2, v1, k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v1, neg_v2, k0));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((i + 2) * (i + 2) + (i + 1));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v2, v2, v1));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(Neg(v2), v2, v1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(neg_v2, v2, v1));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] =
           T(-T(i + 2u) * static_cast<T>(i + 2) + static_cast<T>(1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v2, v2, v1));
+  }
+};
+
+struct TestMulSub {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> kNeg0 = Set(d, T(-0.0));
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
 
     HWY_ASSERT_VEC_EQ(d, k0, MulSub(k0, k0, k0));
     HWY_ASSERT_VEC_EQ(d, kNeg0, NegMulSub(k0, k0, k0));
@@ -379,7 +378,8 @@ struct TestMulAdd {
 };
 
 HWY_NOINLINE void TestAllMulAdd() {
-  ForFloatTypes(ForPartialVectors<TestMulAdd>());
+  ForAllTypes(ForPartialVectors<TestMulAdd>());
+  ForFloatTypes(ForPartialVectors<TestMulSub>());
 }
 
 struct TestReorderWidenMulAccumulate {

@@ -781,6 +781,18 @@ HWY_INLINE Vec128<T, N> Mul(UnsignedTag /*tag*/, Vec128<T, N> a,
 
 }  // namespace detail
 
+// Per-target flags to prevent generic_ops-inl.h defining 8/64-bit operator*.
+#ifdef HWY_NATIVE_MUL_8
+#undef HWY_NATIVE_MUL_8
+#else
+#define HWY_NATIVE_MUL_8
+#endif
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
+#else
+#define HWY_NATIVE_MUL_64
+#endif
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
   return detail::Mul(hwy::TypeTag<T>(), a, b);

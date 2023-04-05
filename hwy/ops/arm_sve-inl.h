@@ -640,15 +640,20 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MaxN, max_n)
 }  // namespace detail
 
 // ------------------------------ Mul
-HWY_SVE_FOREACH_UI16(HWY_SVE_RETV_ARGPVV, Mul, mul)
-HWY_SVE_FOREACH_UIF3264(HWY_SVE_RETV_ARGPVV, Mul, mul)
 
-// Per-target flag to prevent generic_ops-inl.h from defining i64 operator*.
-#ifdef HWY_NATIVE_I64MULLO
-#undef HWY_NATIVE_I64MULLO
+// Per-target flags to prevent generic_ops-inl.h defining 8/64-bit operator*.
+#ifdef HWY_NATIVE_MUL_8
+#undef HWY_NATIVE_MUL_8
 #else
-#define HWY_NATIVE_I64MULLO
+#define HWY_NATIVE_MUL_8
 #endif
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
+#else
+#define HWY_NATIVE_MUL_64
+#endif
+
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGPVV, Mul, mul)
 
 // ------------------------------ MulHigh
 HWY_SVE_FOREACH_UI16(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
@@ -689,6 +694,14 @@ HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPV, Sqrt, sqrt)
 HWY_SVE_FOREACH_F32(HWY_SVE_RETV_ARGV, ApproximateReciprocalSqrt, rsqrte)
 
 // ------------------------------ MulAdd
+
+// Per-target flag to prevent generic_ops-inl.h from defining int MulAdd.
+#ifdef HWY_NATIVE_INT_FMA
+#undef HWY_NATIVE_INT_FMA
+#else
+#define HWY_NATIVE_INT_FMA
+#endif
+
 #define HWY_SVE_FMA(BASE, CHAR, BITS, HALF, NAME, OP)                   \
   HWY_API HWY_SVE_V(BASE, BITS)                                         \
       NAME(HWY_SVE_V(BASE, BITS) mul, HWY_SVE_V(BASE, BITS) x,          \
@@ -696,10 +709,10 @@ HWY_SVE_FOREACH_F32(HWY_SVE_RETV_ARGV, ApproximateReciprocalSqrt, rsqrte)
     return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), x, mul, add); \
   }
 
-HWY_SVE_FOREACH_F(HWY_SVE_FMA, MulAdd, mad)
+HWY_SVE_FOREACH(HWY_SVE_FMA, MulAdd, mad)
 
 // ------------------------------ NegMulAdd
-HWY_SVE_FOREACH_F(HWY_SVE_FMA, NegMulAdd, msb)
+HWY_SVE_FOREACH(HWY_SVE_FMA, NegMulAdd, msb)
 
 // ------------------------------ MulSub
 HWY_SVE_FOREACH_F(HWY_SVE_FMA, MulSub, nmsb)

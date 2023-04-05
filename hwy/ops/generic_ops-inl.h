@@ -1547,6 +1547,8 @@ HWY_API V CLMulUpper(V a, V b) {
 #endif  // HWY_NATIVE_AES
 #endif  // HWY_TARGET != HWY_SCALAR
 
+// ------------------------------ PopulationCount
+
 // "Include guard": skip if native POPCNT-related instructions are available.
 #if (defined(HWY_NATIVE_POPCNT) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_POPCNT
@@ -1623,6 +1625,49 @@ HWY_API V PopulationCount(V v) {
 
 #endif  // HWY_NATIVE_POPCNT
 
+// ------------------------------ 8-bit multiplication
+
+// "Include guard": skip if native 8-bit mul instructions are available.
+#if (defined(HWY_NATIVE_MUL_8) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_8
+#undef HWY_NATIVE_MUL_8
+#else
+#define HWY_NATIVE_MUL_8
+#endif
+
+// 8 bit and fits in wider reg: promote
+template <class V, HWY_IF_T_SIZE_V(V, 1),
+          HWY_IF_V_SIZE_LE_V(V, HWY_MAX_BYTES / 2)>
+HWY_API V operator*(const V a, const V b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<TFromV<V>>, decltype(d)> dw;
+  const RebindToUnsigned<decltype(d)> du;    // TruncateTo result
+  const RebindToUnsigned<decltype(dw)> dwu;  // TruncateTo input
+  const VFromD<decltype(dw)> mul = PromoteTo(dw, a) * PromoteTo(dw, b);
+  // TruncateTo is cheaper than ConcatEven.
+  return BitCast(d, TruncateTo(du, BitCast(dwu, mul)));
+}
+
+// 8 bit full reg: promote halves
+template <class V, HWY_IF_T_SIZE_V(V, 1),
+          HWY_IF_V_SIZE_GT_V(V, HWY_MAX_BYTES / 2)>
+HWY_API V operator*(const V a, const V b) {
+  const DFromV<decltype(a)> d;
+  const Half<decltype(d)> dh;
+  const Twice<RepartitionToWide<decltype(dh)>> dw;
+  const VFromD<decltype(dw)> a0 = PromoteTo(dw, LowerHalf(dh, a));
+  const VFromD<decltype(dw)> a1 = PromoteTo(dw, UpperHalf(dh, a));
+  const VFromD<decltype(dw)> b0 = PromoteTo(dw, LowerHalf(dh, b));
+  const VFromD<decltype(dw)> b1 = PromoteTo(dw, UpperHalf(dh, b));
+  const VFromD<decltype(dw)> m0 = a0 * b0;
+  const VFromD<decltype(dw)> m1 = a1 * b1;
+  return ConcatEven(d, BitCast(d, m1), BitCast(d, m0));
+}
+
+#endif  // HWY_NATIVE_MUL_8
+
+// ------------------------------ 64-bit multiplication
+
 // Single-lane f64
 template <class V, HWY_IF_V_SIZE_V(V, 8), HWY_IF_F64_D(DFromV<V>)>
 HWY_API V operator*(V x, V y) {
@@ -1642,11 +1687,11 @@ HWY_API V operator*(V x, V y) {
 }
 
 // "Include guard": skip if native 64-bit mul instructions are available.
-#if (defined(HWY_NATIVE_I64MULLO) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_I64MULLO
-#undef HWY_NATIVE_I64MULLO
+#if (defined(HWY_NATIVE_MUL_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
 #else
-#define HWY_NATIVE_I64MULLO
+#define HWY_NATIVE_MUL_64
 #endif
 
 template <class V, class D64 = DFromV<V>, HWY_IF_U64_D(D64),
@@ -1668,7 +1713,31 @@ HWY_API V operator*(V x, V y) {
   return BitCast(DI64{}, BitCast(du64, x) * BitCast(du64, y));
 }
 
-#endif  // HWY_NATIVE_I64MULLO
+#endif  // HWY_NATIVE_MUL_64
+
+// ------------------------------ MulAdd / NegMulAdd
+
+// "Include guard": skip if native int MulAdd instructions are available.
+#if (defined(HWY_NATIVE_INT_FMA) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INT_FMA
+#undef HWY_NATIVE_INT_FMA
+#else
+#define HWY_NATIVE_INT_FMA
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_V(V)>
+HWY_API V MulAdd(V mul, V x, V add) {
+  return Add(Mul(mul, x), add);
+}
+
+template <class V, HWY_IF_NOT_FLOAT_V(V)>
+HWY_API V NegMulAdd(V mul, V x, V add) {
+  return Sub(add, Mul(mul, x));
+}
+
+#endif  // HWY_NATIVE_INT_FMA
+
+// ------------------------------ Compress*
 
 // "Include guard": skip if native 8-bit compress instructions are available.
 #if (defined(HWY_NATIVE_COMPRESS8) == defined(HWY_TARGET_TOGGLE))

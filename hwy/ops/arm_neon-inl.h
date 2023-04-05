@@ -1665,45 +1665,21 @@ HWY_API Vec128<T, N> ShiftRightSame(const Vec128<T, N> v, int bits) {
   return v >> Set(DFromV<decltype(v)>(), static_cast<T>(bits));
 }
 
+// ------------------------------ Int/float multiplication
+
+// Per-target flag to prevent generic_ops-inl.h from defining 8-bit operator*.
+#ifdef HWY_NATIVE_MUL_8
+#undef HWY_NATIVE_MUL_8
+#else
+#define HWY_NATIVE_MUL_8
+#endif
+
+// All except ui64
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(operator*, vmul, _, 2)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(operator*, vmul, _, 2)
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)
+
 // ------------------------------ Integer multiplication
-
-// Unsigned
-HWY_API Vec128<uint16_t> operator*(Vec128<uint16_t> a, Vec128<uint16_t> b) {
-  return Vec128<uint16_t>(vmulq_u16(a.raw, b.raw));
-}
-HWY_API Vec128<uint32_t> operator*(Vec128<uint32_t> a, Vec128<uint32_t> b) {
-  return Vec128<uint32_t>(vmulq_u32(a.raw, b.raw));
-}
-
-template <size_t N, HWY_IF_V_SIZE_LE(uint16_t, N, 8)>
-HWY_API Vec128<uint16_t, N> operator*(Vec128<uint16_t, N> a,
-                                      Vec128<uint16_t, N> b) {
-  return Vec128<uint16_t, N>(vmul_u16(a.raw, b.raw));
-}
-template <size_t N, HWY_IF_V_SIZE_LE(uint32_t, N, 8)>
-HWY_API Vec128<uint32_t, N> operator*(Vec128<uint32_t, N> a,
-                                      Vec128<uint32_t, N> b) {
-  return Vec128<uint32_t, N>(vmul_u32(a.raw, b.raw));
-}
-
-// Signed
-HWY_API Vec128<int16_t> operator*(Vec128<int16_t> a, Vec128<int16_t> b) {
-  return Vec128<int16_t>(vmulq_s16(a.raw, b.raw));
-}
-HWY_API Vec128<int32_t> operator*(Vec128<int32_t> a, Vec128<int32_t> b) {
-  return Vec128<int32_t>(vmulq_s32(a.raw, b.raw));
-}
-
-template <size_t N, HWY_IF_V_SIZE_LE(uint16_t, N, 8)>
-HWY_API Vec128<int16_t, N> operator*(Vec128<int16_t, N> a,
-                                     Vec128<int16_t, N> b) {
-  return Vec128<int16_t, N>(vmul_s16(a.raw, b.raw));
-}
-template <size_t N, HWY_IF_V_SIZE_LE(int32_t, N, 8)>
-HWY_API Vec128<int32_t, N> operator*(Vec128<int32_t, N> a,
-                                     Vec128<int32_t, N> b) {
-  return Vec128<int32_t, N>(vmul_s32(a.raw, b.raw));
-}
 
 // Returns the upper 16 bits of a * b in each lane.
 HWY_API Vec128<int16_t> MulHigh(Vec128<int16_t> a, Vec128<int16_t> b) {
@@ -1748,9 +1724,7 @@ HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
   return Vec128<int16_t, N>(vqrdmulh_s16(a.raw, b.raw));
 }
 
-// ------------------------------ Floating-point mul / div
-
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)
+// ------------------------------ Floating-point division
 
 // Approximate reciprocal
 HWY_API Vec128<float> ApproximateReciprocal(const Vec128<float> v) {
@@ -1871,10 +1845,53 @@ HWY_API Vec128<uint32_t, N> AbsDiff(const Vec128<uint32_t, N> a,
   return Vec128<uint32_t, N>(vabd_u32(a.raw, b.raw));
 }
 
+// ------------------------------ Integer multiply-add
+
+// Per-target flag to prevent generic_ops-inl.h from defining int MulAdd.
+#ifdef HWY_NATIVE_INT_FMA
+#undef HWY_NATIVE_INT_FMA
+#else
+#define HWY_NATIVE_INT_FMA
+#endif
+
+// Wrappers for changing argument order to what intrinsics expect.
+namespace detail {
+// All except ui64
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(MulAdd, vmla, _, 3)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(MulAdd, vmla, _, 3)
+HWY_NEON_DEF_FUNCTION_UINT_8_16_32(NegMulAdd, vmls, _, 3)
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(NegMulAdd, vmls, _, 3)
+}  // namespace detail
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T), HWY_IF_NOT_T_SIZE(T, 8)>
+HWY_API Vec128<T, N> MulAdd(Vec128<T, N> mul, Vec128<T, N> x,
+                            Vec128<T, N> add) {
+  return detail::MulAdd(add, mul, x);
+}
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T), HWY_IF_NOT_T_SIZE(T, 8)>
+HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
+                               Vec128<T, N> add) {
+  return detail::NegMulAdd(add, mul, x);
+}
+
+// 64-bit integer
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T), HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec128<T, N> MulAdd(Vec128<T, N> mul, Vec128<T, N> x,
+                            Vec128<T, N> add) {
+  return Add(Mul(mul, x), add);
+}
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT(T), HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
+                               Vec128<T, N> add) {
+  return Sub(add, Mul(mul, x));
+}
+
 // ------------------------------ Floating-point multiply-add variants
 
-// Returns add + mul * x
 #if defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
+
 template <size_t N, HWY_IF_V_SIZE_LE(float, N, 8)>
 HWY_API Vec128<float, N> MulAdd(Vec128<float, N> mul, Vec128<float, N> x,
                                 Vec128<float, N> add) {
@@ -1884,28 +1901,7 @@ HWY_API Vec128<float> MulAdd(Vec128<float> mul, Vec128<float> x,
                              Vec128<float> add) {
   return Vec128<float>(vfmaq_f32(add.raw, mul.raw, x.raw));
 }
-#else
-// Emulate FMA for floats.
-template <size_t N>
-HWY_API Vec128<float, N> MulAdd(Vec128<float, N> mul, Vec128<float, N> x,
-                                Vec128<float, N> add) {
-  return mul * x + add;
-}
-#endif
 
-#if HWY_ARCH_ARM_A64
-HWY_API Vec64<double> MulAdd(Vec64<double> mul, Vec64<double> x,
-                             Vec64<double> add) {
-  return Vec64<double>(vfma_f64(add.raw, mul.raw, x.raw));
-}
-HWY_API Vec128<double> MulAdd(Vec128<double> mul, Vec128<double> x,
-                              Vec128<double> add) {
-  return Vec128<double>(vfmaq_f64(add.raw, mul.raw, x.raw));
-}
-#endif
-
-// Returns add - mul * x
-#if defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
 template <size_t N, HWY_IF_V_SIZE_LE(float, N, 8)>
 HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> mul, Vec128<float, N> x,
                                    Vec128<float, N> add) {
@@ -1915,16 +1911,34 @@ HWY_API Vec128<float> NegMulAdd(Vec128<float> mul, Vec128<float> x,
                                 Vec128<float> add) {
   return Vec128<float>(vfmsq_f32(add.raw, mul.raw, x.raw));
 }
-#else
-// Emulate FMA for floats.
+
+#else  // emulate
+
+template <size_t N>
+HWY_API Vec128<float, N> MulAdd(Vec128<float, N> mul, Vec128<float, N> x,
+                                Vec128<float, N> add) {
+  return mul * x + add;
+}
+
 template <size_t N>
 HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> mul, Vec128<float, N> x,
                                    Vec128<float, N> add) {
   return add - mul * x;
 }
-#endif
+
+#endif  // defined(__ARM_VFPV4__) || HWY_ARCH_ARM_A64
 
 #if HWY_ARCH_ARM_A64
+
+HWY_API Vec64<double> MulAdd(Vec64<double> mul, Vec64<double> x,
+                             Vec64<double> add) {
+  return Vec64<double>(vfma_f64(add.raw, mul.raw, x.raw));
+}
+HWY_API Vec128<double> MulAdd(Vec128<double> mul, Vec128<double> x,
+                              Vec128<double> add) {
+  return Vec128<double>(vfmaq_f64(add.raw, mul.raw, x.raw));
+}
+
 HWY_API Vec64<double> NegMulAdd(Vec64<double> mul, Vec64<double> x,
                                 Vec64<double> add) {
   return Vec64<double>(vfms_f64(add.raw, mul.raw, x.raw));
@@ -1933,34 +1947,20 @@ HWY_API Vec128<double> NegMulAdd(Vec128<double> mul, Vec128<double> x,
                                  Vec128<double> add) {
   return Vec128<double>(vfmsq_f64(add.raw, mul.raw, x.raw));
 }
-#endif
 
-// Returns mul * x - sub
-template <size_t N>
-HWY_API Vec128<float, N> MulSub(Vec128<float, N> mul, Vec128<float, N> x,
-                                Vec128<float, N> sub) {
+#endif  // HWY_ARCH_ARM_A64
+
+template <typename T, size_t N>
+HWY_API Vec128<T, N> MulSub(Vec128<T, N> mul, Vec128<T, N> x,
+                            Vec128<T, N> sub) {
   return MulAdd(mul, x, Neg(sub));
 }
 
-// Returns -mul * x - sub
-template <size_t N>
-HWY_API Vec128<float, N> NegMulSub(Vec128<float, N> mul, Vec128<float, N> x,
-                                   Vec128<float, N> sub) {
+template <typename T, size_t N>
+HWY_API Vec128<T, N> NegMulSub(Vec128<T, N> mul, Vec128<T, N> x,
+                               Vec128<T, N> sub) {
   return Neg(MulAdd(mul, x, sub));
 }
-
-#if HWY_ARCH_ARM_A64
-template <size_t N>
-HWY_API Vec128<double, N> MulSub(Vec128<double, N> mul, Vec128<double, N> x,
-                                 Vec128<double, N> sub) {
-  return MulAdd(mul, x, Neg(sub));
-}
-template <size_t N>
-HWY_API Vec128<double, N> NegMulSub(Vec128<double, N> mul, Vec128<double, N> x,
-                                    Vec128<double, N> sub) {
-  return Neg(MulAdd(mul, x, sub));
-}
-#endif
 
 // ------------------------------ Floating-point square root (IfThenZeroElse)
 

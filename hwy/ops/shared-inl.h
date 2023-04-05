@@ -421,12 +421,19 @@ using Twice = typename D::Twice;
 #define HWY_IF_NOT_FLOAT_V(V) HWY_IF_NOT_FLOAT(TFromV<V>)
 #define HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V) \
   HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromV<V>)
+
 #define HWY_IF_T_SIZE_V(V, bytes) HWY_IF_T_SIZE(TFromV<V>, bytes)
 #define HWY_IF_NOT_T_SIZE_V(V, bytes) HWY_IF_NOT_T_SIZE(TFromV<V>, bytes)
 #define HWY_IF_T_SIZE_ONE_OF_V(V, bit_array) \
   HWY_IF_T_SIZE_ONE_OF(TFromV<V>, bit_array)
+
+#define HWY_MAX_LANES_V(V) HWY_MAX_LANES_D(DFromV<V>)
 #define HWY_IF_V_SIZE_V(V, bytes) \
-  HWY_IF_V_SIZE(TFromV<V>, HWY_MAX_LANES_D(DFromV<V>), bytes)
+  HWY_IF_V_SIZE(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
+#define HWY_IF_V_SIZE_LE_V(V, bytes) \
+  HWY_IF_V_SIZE_LE(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
+#define HWY_IF_V_SIZE_GT_V(V, bytes) \
+  HWY_IF_V_SIZE_GT(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
 
 // Old names (deprecated)
 #define HWY_IF_LANE_SIZE_D(D, bytes) HWY_IF_T_SIZE_D(D, bytes)

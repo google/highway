@@ -397,6 +397,19 @@ HWY_API constexpr bool IsSame() {
   return IsSameT<T, U>::value;
 }
 
+template <bool Condition, typename Then, typename Else>
+struct IfT {
+  using type = Then;
+};
+
+template <class Then, class Else>
+struct IfT<false, Then, Else> {
+  using type = Else;
+};
+
+template <bool Condition, typename Then, typename Else>
+using If = typename IfT<Condition, Then, Else>::type;
+
 // Insert into template/function arguments to enable this overload only for
 // vectors of exactly, at most (LE), or more than (GT) this many bytes.
 //

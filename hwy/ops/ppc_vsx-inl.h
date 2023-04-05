@@ -1077,10 +1077,16 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Multiplication
 
-#ifdef HWY_NATIVE_I64MULLO
-#undef HWY_NATIVE_I64MULLO
+// Per-target flags to prevent generic_ops-inl.h defining 8/64-bit operator*.
+#ifdef HWY_NATIVE_MUL_8
+#undef HWY_NATIVE_MUL_8
 #else
-#define HWY_NATIVE_I64MULLO
+#define HWY_NATIVE_MUL_8
+#endif
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
+#else
+#define HWY_NATIVE_MUL_64
 #endif
 
 template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T),

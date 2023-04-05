@@ -432,14 +432,9 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 #### Multiply
 
-*   `V`: `{u,i}{16,32,64}` \
-    <code>V <b>operator*</b>(V a, V b)</code>: returns the lower half of `a[i] *
-    b[i]` in each lane. Currently unavailable on SVE/RVV; use the equivalent
-    `Mul` instead.
-
-*   `V`: `{f}` \
-    <code>V <b>operator*</b>(V a, V b)</code>: returns `a[i] * b[i]` in each
-    lane. Currently unavailable on SVE/RVV; use the equivalent `Mul` instead.
+*   <code>V <b>operator*</b>(V a, V b)</code>: returns `r[i] = a[i] * b[i]`,
+    truncating it to the lower half for integer inputs. Currently unavailable on
+    SVE/RVV; use the equivalent `Mul` instead.
 
 *   `V`: `i16` \
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
@@ -487,19 +482,16 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`. Note that the
     initial value of `sum1` must be zero, see `ReorderWidenMulAccumulate`.
 
-
 #### Fused multiply-add
 
 When implemented using special instructions, these functions are more precise
 and faster than separate multiplication followed by addition. The `*Sub`
-variants are somewhat slower on ARM; it is preferable to replace them with
-`MulAdd` using a negated constant.
+variants are somewhat slower on ARM, and unavailable for integer inputs; if the
+`c` argument is a constant, it would be better to negate it and use `MulAdd`.
 
-*   `V`: `{f}` \
-    <code>V **MulAdd**(V a, V b, V c)</code>: returns `a[i] * b[i] + c[i]`.
+*   <code>V **MulAdd**(V a, V b, V c)</code>: returns `a[i] * b[i] + c[i]`.
 
-*   `V`: `{f}` \
-    <code>V **NegMulAdd**(V a, V b, V c)</code>: returns `-a[i] * b[i] + c[i]`.
+*   <code>V **NegMulAdd**(V a, V b, V c)</code>: returns `-a[i] * b[i] + c[i]`.
 
 *   `V`: `{f}` \
     <code>V **MulSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`.
@@ -1464,9 +1456,9 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
     (allocation size increased by at least `Lanes(d)`.
 
 *   `HWY_NATIVE_FMA` expands to 1 if the `MulAdd` etc. ops use native fused
-    multiply-add. Otherwise, `MulAdd(f, m, a)` is implemented as `Add(Mul(f, m),
-    a)`. Checking this can be useful for increasing the tolerance of expected
-    results (around 1E-5 or 1E-6).
+    multiply-add for floating-point inputs. Otherwise, `MulAdd(f, m, a)` is
+    implemented as `Add(Mul(f, m), a)`. Checking this can be useful for
+    increasing the tolerance of expected results (around 1E-5 or 1E-6).
 
 The following were used to signal the maximum number of lanes for certain
 operations, but this is no longer necessary (nor possible on SVE/RVV), so they

@@ -1323,6 +1323,13 @@ HWY_API Vec512<double> Max(const Vec512<double> a, const Vec512<double> b) {
 
 // ------------------------------ Integer multiplication
 
+// Per-target flag to prevent generic_ops-inl.h from defining 64-bit operator*.
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
+#else
+#define HWY_NATIVE_MUL_64
+#endif
+
 // Unsigned
 HWY_API Vec512<uint16_t> operator*(Vec512<uint16_t> a, Vec512<uint16_t> b) {
   return Vec512<uint16_t>{_mm512_mullo_epi16(a.raw, b.raw)};
@@ -1339,13 +1346,6 @@ HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 HWY_API Vec128<uint64_t> operator*(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return Vec128<uint64_t>{_mm_mullo_epi64(a.raw, b.raw)};
 }
-
-// Per-target flag to prevent generic_ops-inl.h from defining i64 operator*.
-#ifdef HWY_NATIVE_I64MULLO
-#undef HWY_NATIVE_I64MULLO
-#else
-#define HWY_NATIVE_I64MULLO
-#endif
 
 // Signed
 HWY_API Vec512<int16_t> operator*(Vec512<int16_t> a, Vec512<int16_t> b) {
