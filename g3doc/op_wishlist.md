@@ -9,12 +9,16 @@ freshness: { owner: 'janwas' reviewed: '2023-03-24' }
 
 ## Wishlist
 
-### `LeadingZeroCount`
-LZCNT is included in avx512cd. For bit packing/array.
-janwas will likely implement this, please raise an issue if you'd like to.
-
 ### Shl for 8-bit
 janwas will likely implement this, please raise an issue if you'd like to.
+
+### Shr for 8-bit
+
+Can use the GFNI instructions added in #1276.
+
+### Slide1Up/Down
+
+Potentially useful for comparing neighbors e.g. for RLE.
 
 ### RVV codegen
 * `OddEven` for <64bit lanes: use Set of wider constant 0_1, compare that to 1
@@ -88,51 +92,54 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 
 ## Done
 
-* ~~Signbit~~
-* ~~ConvertF64<->I32~~ (math-inl)
-* ~~Copysign~~ (math)
-* ~~CopySignToAbs~~ (math)
-* ~~Neg~~
-* ~~Compress~~
-* ~~Mask ops~~ (math)
-* ~~RebindMask~~
-* ~~Not~~
-* ~~FP16 conversions~~
-* ~~Scatter~~
-* ~~Gather~~
-* ~~Pause~~
-* ~~Abs i64~~
-* ~~FirstN~~
-* ~~Compare i64~~
-* ~~AESRound~~
-* ~~CLMul~~ (GCM)
-* ~~TableLookupBytesOr0~~ (AES)
-* ~~FindFirstTrue~~ (strlen)
-* ~~NE~~
-* ~~Combine partial~~
-* ~~LoadMaskBits~~ (FirstN)
-* ~~MaskedLoad~~
-* ~~Bf16 promote2~~
-* ~~ConcatOdd/Even~~
-* ~~SwapAdjacentBlocks~~
-* ~~OddEvenBlocks~~
-* ~~CompressBlendedStore~~
-* ~~RotateRight~~ (Reverse2 i16)
-* ~~Compare128~~
-* ~~OrAnd~~
-* ~~IfNegativeThenElse~~
-* ~~MulFixedPoint15~~ (codec)
-* ~~Insert/ExtractLane~~
-* ~~IsNan~~
-* ~~IsFinite~~
-* ~~StoreInterleaved~~
-* ~~LoadInterleaved~~ (codec)
-* ~~Or3/Xor3~~
-* ~~NotXor~~ (sort)
-* ~~FindKnownFirstTrue~~ (sort)
-* ~~CompressStore~~ 8-bit
-* ~~ExpandLoad~~ (hash)
-* ~~Zen4 target~~ (sort)
-* ~~SSE2 target~~ - by johnplatts
-* ~~AbsDiff int~~ - by johnplatts
-* ~~Le integer~~ - by johnplatts
+*   ~~Signbit~~
+*   ~~ConvertF64<->I32~~ (math-inl)
+*   ~~Copysign~~ (math)
+*   ~~CopySignToAbs~~ (math)
+*   ~~Neg~~
+*   ~~Compress~~
+*   ~~Mask ops~~ (math)
+*   ~~RebindMask~~
+*   ~~Not~~
+*   ~~FP16 conversions~~
+*   ~~Scatter~~
+*   ~~Gather~~
+*   ~~Pause~~
+*   ~~Abs i64~~
+*   ~~FirstN~~
+*   ~~Compare i64~~
+*   ~~AESRound~~
+*   ~~CLMul~~ (GCM)
+*   ~~TableLookupBytesOr0~~ (AES)
+*   ~~FindFirstTrue~~ (strlen)
+*   ~~NE~~
+*   ~~Combine partial~~
+*   ~~LoadMaskBits~~ (FirstN)
+*   ~~MaskedLoad~~
+*   ~~Bf16 promote2~~
+*   ~~ConcatOdd/Even~~
+*   ~~SwapAdjacentBlocks~~
+*   ~~OddEvenBlocks~~
+*   ~~CompressBlendedStore~~
+*   ~~RotateRight~~ (Reverse2 i16)
+*   ~~Compare128~~
+*   ~~OrAnd~~
+*   ~~IfNegativeThenElse~~
+*   ~~MulFixedPoint15~~ (codec)
+*   ~~Insert/ExtractLane~~
+*   ~~IsNan~~
+*   ~~IsFinite~~
+*   ~~StoreInterleaved~~
+*   ~~LoadInterleaved~~ (codec)
+*   ~~Or3/Xor3~~
+*   ~~NotXor~~ (sort)
+*   ~~FindKnownFirstTrue~~ (sort)
+*   ~~CompressStore~~ 8-bit
+*   ~~ExpandLoad~~ (hash)
+*   ~~Zen4 target~~ (sort)
+*   ~~SSE2 target~~ - by johnplatts
+*   ~~AbsDiff int~~ - by johnplatts
+*   ~~Le integer~~ - by johnplatts
+*   ~~LeadingZeroCount~~ - by johnplatts in #1276
+*   ~~8-bit Mul~~
+*   ~~(Neg)MulAdd for integer~~
