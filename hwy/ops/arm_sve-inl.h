@@ -4030,12 +4030,27 @@ HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
 
 HWY_API svuint8_t AESRound(svuint8_t state, svuint8_t round_key) {
   // It is not clear whether E and MC fuse like they did on NEON.
-  const svuint8_t zero = svdup_n_u8(0);
-  return Xor(svaesmc_u8(svaese_u8(state, zero)), round_key);
+  return Xor(svaesmc_u8(svaese_u8(state, svdup_n_u8(0))), round_key);
 }
 
 HWY_API svuint8_t AESLastRound(svuint8_t state, svuint8_t round_key) {
   return Xor(svaese_u8(state, svdup_n_u8(0)), round_key);
+}
+
+HWY_API svuint8_t AESInverseMixColumns(svuint8_t state) {
+  return svaesimc_u8(state);
+}
+
+HWY_API svuint8_t AESInverseLastRound(svuint8_t state, svuint8_t round_key) {
+  return Xor(svaesd_u8(state, svdup_n_u8(0)), round_key);
+}
+
+HWY_API svuint8_t AESInverseRound(svuint8_t state, svuint8_t round_key) {
+  return svaesimc_u8(AESInverseLastRound(state, round_key));
+}
+
+HWY_API svuint8_t AESEquivInvCipherRound(svuint8_t state, svuint8_t round_key) {
+  return Xor(svaesimc_u8(svaesd_u8(state, svdup_n_u8(0))), round_key);
 }
 
 HWY_API svuint64_t CLMulLower(const svuint64_t a, const svuint64_t b) {

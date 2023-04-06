@@ -6850,6 +6850,25 @@ HWY_API Vec128<uint8_t> AESLastRound(Vec128<uint8_t> state,
   return Vec128<uint8_t>{_mm_aesenclast_si128(state.raw, round_key.raw)};
 }
 
+HWY_API Vec128<uint8_t> AESInverseMixColumns(Vec128<uint8_t> state) {
+  return Vec128<uint8_t>{_mm_aesimc_si128(state.raw)};
+}
+
+HWY_API Vec128<uint8_t> AESEquivInvCipherRound(Vec128<uint8_t> state,
+                                               Vec128<uint8_t> round_key) {
+  return Vec128<uint8_t>{_mm_aesdec_si128(state.raw, round_key.raw)};
+}
+
+template <class V, HWY_IF_U8_D(DFromV<V>), HWY_IF_V_SIZE_GT_D(DFromV<V>, 8)>
+HWY_API V AESInverseRound(V state, V round_key) {
+  return AESEquivInvCipherRound(state, AESInverseMixColumns(round_key));
+}
+
+HWY_API Vec128<uint8_t> AESInverseLastRound(Vec128<uint8_t> state,
+                                            Vec128<uint8_t> round_key) {
+  return Vec128<uint8_t>{_mm_aesdeclast_si128(state.raw, round_key.raw)};
+}
+
 template <size_t N>
 HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
                                        Vec128<uint64_t, N> b) {

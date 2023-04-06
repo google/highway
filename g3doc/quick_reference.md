@@ -1404,6 +1404,29 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     encryption: `SubBytes(ShiftRows(state)) ^ round_key`. This matches x86
     AES-NI. The latency is independent of the input values.
 
+*   `V`: `u8` \
+    <code>V **AESInverseRound**(V state, V round_key)</code>: one round of AES
+    decryption: `InvMixColumns(InvSubBytes(InvShiftRows(state)) ^ round_key)`.
+    This matches PPC8/PPC9/PPC10. The latency is independent of the input
+    values.
+
+*   `V`: `u8` \
+    <code>V **AESEquivInvCipherRound**(V state, V round_key)</code>: one round of AES
+    decryption using the Equivalent Inverse Cipher:
+    `InvMixColumns(InvSubBytes(InvShiftRows(state))) ^ round_key`.
+    This matches x86 AES-NI. The latency is independent of the input values.
+
+*   `V`: `u8` \
+    <code>V **AESInverseLastRound**(V state, V round_key)</code>: the last round
+    of AES decryption: `InvSubBytes(InvShiftRows(state)) ^ round_key`.
+    This matches x86 AES-NI. The latency is independent of the input values.
+    Also used for the last round of AES decryption using the
+    Equivalent Inverse Cipher.
+
+*   `V`: `u8` \
+    <code>V **AESInverseMixColumns**(V state)</code>: the InvMixColumns operation
+    of the AES decryption algorithm.
+
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the
     lower 64 bits of each 128-bit block into a 128-bit product. The latency is

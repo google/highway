@@ -4686,13 +4686,6 @@ HWY_API Vec256<float> PromoteTo(D df32, Vec128<bfloat16_t> v) {
 
 #if !defined(HWY_DISABLE_PCLMUL_AES)
 
-// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
-#ifdef HWY_NATIVE_AES
-#undef HWY_NATIVE_AES
-#else
-#define HWY_NATIVE_AES
-#endif
-
 HWY_API Vec256<uint8_t> AESRound(Vec256<uint8_t> state,
                                  Vec256<uint8_t> round_key) {
 #if HWY_TARGET <= HWY_AVX3_DL
@@ -4715,6 +4708,39 @@ HWY_API Vec256<uint8_t> AESLastRound(Vec256<uint8_t> state,
   return Combine(d,
                  AESLastRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
                  AESLastRound(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+HWY_API Vec256<uint8_t> AESInverseMixColumns(Vec256<uint8_t> state) {
+  const Full256<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d, AESInverseMixColumns(UpperHalf(d2, state)),
+                 AESInverseMixColumns(LowerHalf(d2, state)));
+}
+
+HWY_API Vec256<uint8_t> AESEquivInvCipherRound(Vec256<uint8_t> state,
+                                               Vec256<uint8_t> round_key) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec256<uint8_t>{_mm256_aesdec_epi128(state.raw, round_key.raw)};
+#else
+  const Full256<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(
+      d, AESEquivInvCipherRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+      AESEquivInvCipherRound(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+HWY_API Vec256<uint8_t> AESInverseLastRound(Vec256<uint8_t> state,
+                                            Vec256<uint8_t> round_key) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec256<uint8_t>{_mm256_aesdeclast_epi128(state.raw, round_key.raw)};
+#else
+  const Full256<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(
+      d, AESInverseLastRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+      AESInverseLastRound(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
 
