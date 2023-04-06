@@ -1344,8 +1344,8 @@ HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> a, Vec256<uint64_t> b) {
   return Vec256<uint64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<uint64_t> operator*(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t>{_mm_mullo_epi64(a.raw, b.raw)};
+HWY_API Vec128<uint64_t, N> operator*(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
 }
 
 // Signed
