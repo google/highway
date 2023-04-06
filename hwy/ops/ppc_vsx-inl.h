@@ -1089,8 +1089,7 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
 #define HWY_NATIVE_MUL_64
 #endif
 
-template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T),
-          HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4) | (1 << 8))>
+template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{a.raw * b.raw};
 }
