@@ -1668,11 +1668,13 @@ HWY_API V operator*(const V a, const V b) {
 
 // ------------------------------ 64-bit multiplication
 
-// Single-lane f64
-template <class V, HWY_IF_V_SIZE_V(V, 8), HWY_IF_F64_D(DFromV<V>)>
-HWY_API V operator*(V x, V y) {
-  return Set(DFromV<V>(), GetLane(x) * GetLane(y));
-}
+// "Include guard": skip if native 64-bit mul instructions are available.
+#if (defined(HWY_NATIVE_MUL_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MUL_64
+#undef HWY_NATIVE_MUL_64
+#else
+#define HWY_NATIVE_MUL_64
+#endif
 
 // Single-lane i64 or u64
 template <class V, HWY_IF_T_SIZE_V(V, 8), HWY_IF_V_SIZE_V(V, 8),
@@ -1685,14 +1687,6 @@ HWY_API V operator*(V x, V y) {
   const TU yu = static_cast<TU>(GetLane(y));
   return Set(d, static_cast<T>(xu * yu));
 }
-
-// "Include guard": skip if native 64-bit mul instructions are available.
-#if (defined(HWY_NATIVE_MUL_64) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_MUL_64
-#undef HWY_NATIVE_MUL_64
-#else
-#define HWY_NATIVE_MUL_64
-#endif
 
 template <class V, class D64 = DFromV<V>, HWY_IF_U64_D(D64),
           HWY_IF_V_SIZE_GT_D(D64, 8)>

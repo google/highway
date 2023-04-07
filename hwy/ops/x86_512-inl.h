@@ -1343,8 +1343,9 @@ HWY_API Vec512<uint64_t> operator*(Vec512<uint64_t> a, Vec512<uint64_t> b) {
 HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> a, Vec256<uint64_t> b) {
   return Vec256<uint64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
 }
-HWY_API Vec128<uint64_t> operator*(Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  return Vec128<uint64_t>{_mm_mullo_epi64(a.raw, b.raw)};
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator*(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
+  return Vec128<uint64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
 }
 
 // Signed
@@ -1360,8 +1361,9 @@ HWY_API Vec512<int64_t> operator*(Vec512<int64_t> a, Vec512<int64_t> b) {
 HWY_API Vec256<int64_t> operator*(Vec256<int64_t> a, Vec256<int64_t> b) {
   return Vec256<int64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
 }
-HWY_API Vec128<int64_t> operator*(Vec128<int64_t> a, Vec128<int64_t> b) {
-  return Vec128<int64_t>{_mm_mullo_epi64(a.raw, b.raw)};
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator*(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
+  return Vec128<int64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
 }
 // Returns the upper 16 bits of a * b in each lane.
 HWY_API Vec512<uint16_t> MulHigh(Vec512<uint16_t> a, Vec512<uint16_t> b) {
