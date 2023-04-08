@@ -6500,7 +6500,7 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> ConvertTo(D /*dd*/, VFromD<Rebind<uint64_t, D>> v) {
   return VFromD<D>{_mm_cvtepu64_pd(v.raw)};
 }
-#else  // AVX2 or below
+#else   // AVX2 or below
 template <class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> ConvertTo(D df, VFromD<Rebind<uint32_t, D>> v) {
   // Based on wim's approach (https://stackoverflow.com/questions/34066228/)
@@ -6600,12 +6600,17 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   using VU = VFromD<decltype(du)>;
   const Repartition<int32_t, decltype(di)> di32;
   const Repartition<uint16_t, decltype(di)> du16;
-  const VI k1075 = Set(di, 1075);
+  const VI k1075 = Set(di, 1075); /* biased exponent of 2^52 */
 
   // Exponent indicates whether the number can be represented as int64_t.
   const VU biased_exp = ShiftRight<52>(BitCast(du, v)) & Set(du, 0x7FF);
-  const auto in_range = MaskFromVec(BitCast(di,
-    VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) < Set(di32, 1086))));
+#if HWY_TARGET <= HWY_SSE4
+  const auto in_range = biased_exp < Set(di, 1086);
+#else
+  const auto in_range = MaskFromVec(BitCast(
+      di,
+      VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) < Set(di32, 1086))));
+#endif
 
   // If we were to cap the exponent at 51 and add 2^52, the number would be in
   // [2^52, 2^53) and mantissa bits could be read out directly. We need to
@@ -6613,14 +6618,32 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   // compiler reordering bug: https://gcc.godbolt.org/z/4hKj6c6qc . We instead
   // manually shift the mantissa into place (we already have many of the
   // inputs anyway).
-  const VU shift_mnt =
-    BitCast(du, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
-  const VU shift_int =
-    BitCast(du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
+
+  // Use 16-bit saturated unsigned subtraction to compute shift_mnt and
+  // shift_int since biased_exp[i] is a non-negative integer that is less than
+  // or equal to 2047.
+
+  // 16-bit saturated unsigned subtraction is also more efficient than a
+  // 64-bit subtraction followed by a 64-bit signed Max operation on
+  // SSE2/SSSE3/SSE4/AVX2.
+
+  // The upper 48 bits of both shift_mnt and shift_int are guaranteed to be
+  // zero as the upper 48 bits of both k1075 and biased_exp are zero.
+
+  const VU shift_mnt = BitCast(
+      du, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
+  const VU shift_int = BitCast(
+      du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
   const VU mantissa = BitCast(du, v) & Set(du, (1ULL << 52) - 1);
   // Include implicit 1-bit
   const VU int53 = (mantissa | Set(du, 1ULL << 52)) >> shift_mnt;
+
   // For inputs larger than 2^53 - 1, insert zeros at the bottom.
+
+  // For inputs less than 2^63, the implicit 1-bit is guaranteed not to be
+  // shifted out of the left shift result below as shift_int[i] <= 10 is true
+  // for any inputs that are less than 2^63.
+
   const VU shifted = int53 << shift_int;
 
   // Saturate to LimitsMin (unchanged when negating below) or LimitsMax.
