@@ -6598,15 +6598,15 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   using VI = VFromD<decltype(di)>;
   const RebindToUnsigned<decltype(di)> du;
   using VU = VFromD<decltype(du)>;
-  const Repartition<int32_t, decltype(di)> di32;
   const Repartition<uint16_t, decltype(di)> du16;
   const VI k1075 = Set(di, 1075); /* biased exponent of 2^52 */
 
   // Exponent indicates whether the number can be represented as int64_t.
   const VU biased_exp = ShiftRight<52>(BitCast(du, v)) & Set(du, 0x7FF);
 #if HWY_TARGET <= HWY_SSE4
-  const auto in_range = biased_exp < Set(di, 1086);
+  const auto in_range = BitCast(di, biased_exp) < Set(di, 1086);
 #else
+  const Repartition<int32_t, decltype(di)> di32;
   const auto in_range = MaskFromVec(BitCast(
       di,
       VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) < Set(di32, 1086))));
