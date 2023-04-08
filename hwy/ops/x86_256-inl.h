@@ -4526,77 +4526,22 @@ HWY_API Vec256<float> ConvertTo(D /* tag */, Vec256<int32_t> v) {
   return Vec256<float>{_mm256_cvtepi32_ps(v.raw)};
 }
 
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConvertTo(D dd, const Vec256<int64_t> v) {
 #if HWY_TARGET <= HWY_AVX3
-  (void)dd;
-  return Vec256<double>{_mm256_cvtepi64_pd(v.raw)};
-#else
-  // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
-  const Repartition<uint32_t, decltype(dd)> d32;
-  const Repartition<uint64_t, decltype(dd)> d64;
-
-  // Toggle MSB of lower 32-bits and insert exponent for 2^84 + 2^63
-  const auto k84_63 = Set(d64, 0x4530000080000000ULL);
-  const auto v_upper = BitCast(dd, ShiftRight<32>(BitCast(d64, v)) ^ k84_63);
-
-  // Exponent is 2^52, lower 32 bits from v (=> 32-bit OddEven)
-  const auto k52 = Set(d32, 0x43300000);
-  const auto v_lower = BitCast(dd, OddEven(k52, BitCast(d32, v)));
-
-  const auto k84_63_52 = BitCast(dd, Set(d64, 0x4530000080100000ULL));
-  return (v_upper - k84_63_52) + v_lower;  // order matters!
-#endif
-}
-
 template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConvertTo(D df, Vec256<uint32_t> v) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)df;
+HWY_API Vec256<float> ConvertTo(D /*df*/, Vec256<uint32_t> v) {
   return Vec256<float>{_mm256_cvtepu32_ps(v.raw)};
-#else
-  // Based on wim's approach (https://stackoverflow.com/questions/34066228/)
-  const RebindToUnsigned<decltype(df)> du32;
-  const RebindToSigned<decltype(df)> d32;
-
-  const auto msk_lo = Set(du32, 0xFFFF);
-  const auto cnst2_16_flt = Set(df, 65536.0f);  // 2^16
-
-  // Extract the 16 lowest/highest significant bits of v and cast to signed int
-  const auto v_lo = BitCast(d32, And(v, msk_lo));
-  const auto v_hi = BitCast(d32, ShiftRight<16>(v));
-
-  return MulAdd(cnst2_16_flt, ConvertTo(df, v_hi), ConvertTo(df, v_lo));
-#endif
 }
 
 template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConvertTo(D dd, Vec256<uint64_t> v) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)dd;
-  return Vec256<double>{_mm256_cvtepu64_pd(v.raw)};
-#else
-  // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
-  const RebindToUnsigned<decltype(dd)> d64;
-  using VU = VFromD<decltype(d64)>;
-
-  const VU msk_lo = Set(d64, 0xFFFFFFFFULL);
-  const auto cnst2_32_dbl = Set(dd, 4294967296.0);  // 2^32
-
-  // Extract the 32 lowest significant bits of v
-  const VU v_lo = And(v, msk_lo);
-  const VU v_hi = ShiftRight<32>(v);
-
-  auto uint64_to_double256_fast = [&dd](Vec256<uint64_t> w) HWY_ATTR {
-    w = Or(w, Vec256<uint64_t>{
-                  detail::BitCastToInteger(Set(dd, 0x0010000000000000).raw)});
-    return BitCast(dd, w) - Set(dd, 0x0010000000000000);
-  };
-
-  const auto v_lo_dbl = uint64_to_double256_fast(v_lo);
-  return MulAdd(cnst2_32_dbl, uint64_to_double256_fast(v_hi), v_lo_dbl);
-#endif
+HWY_API Vec256<double> ConvertTo(D /*dd*/, Vec256<int64_t> v) {
+  return Vec256<double>{_mm256_cvtepi64_pd(v.raw)};
 }
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec256<double> ConvertTo(D /*dd*/, Vec256<uint64_t> v) {
+  return Vec256<double>{_mm256_cvtepu64_pd(v.raw)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // Truncates (rounds toward zero).
 template <class D, HWY_IF_I32_D(D)>
@@ -4604,46 +4549,12 @@ HWY_API Vec256<int32_t> ConvertTo(D d, Vec256<float> v) {
   return detail::FixConversionOverflow(d, v, _mm256_cvttps_epi32(v.raw));
 }
 
+#if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_I64_D(D)>
 HWY_API Vec256<int64_t> ConvertTo(D di, Vec256<double> v) {
-#if HWY_TARGET <= HWY_AVX3
   return detail::FixConversionOverflow(di, v, _mm256_cvttpd_epi64(v.raw));
-#else
-  using VI = decltype(Zero(di));
-  const VI k0 = Zero(di);
-  const VI k1 = Set(di, 1);
-  const VI k51 = Set(di, 51);
-
-  // Exponent indicates whether the number can be represented as int64_t.
-  const VI biased_exp = ShiftRight<52>(BitCast(di, v)) & Set(di, 0x7FF);
-  const VI exp = biased_exp - Set(di, 0x3FF);
-  const auto in_range = exp < Set(di, 63);
-
-  // If we were to cap the exponent at 51 and add 2^52, the number would be in
-  // [2^52, 2^53) and mantissa bits could be read out directly. We need to
-  // round-to-0 (truncate), but changing rounding mode in MXCSR hits a
-  // compiler reordering bug: https://gcc.godbolt.org/z/4hKj6c6qc . We instead
-  // manually shift the mantissa into place (we already have many of the
-  // inputs anyway).
-  const VI shift_mnt = Max(k51 - exp, k0);
-  const VI shift_int = Max(exp - k51, k0);
-  const VI mantissa = BitCast(di, v) & Set(di, (1ULL << 52) - 1);
-  // Include implicit 1-bit; shift by one more to ensure it's in the mantissa.
-  const VI int52 = (mantissa | Set(di, 1ULL << 52)) >> (shift_mnt + k1);
-  // For inputs larger than 2^52, insert zeros at the bottom.
-  const VI shifted = int52 << shift_int;
-  // Restore the one bit lost when shifting in the implicit 1-bit.
-  const VI restored = shifted | ((mantissa & k1) << (shift_int - k1));
-
-  // Saturate to LimitsMin (unchanged when negating below) or LimitsMax.
-  const VI sign_mask = BroadcastSignBit(BitCast(di, v));
-  const VI limit = Set(di, LimitsMax<int64_t>()) - sign_mask;
-  const VI magnitude = IfThenElse(in_range, restored, limit);
-
-  // If the input was negative, negate the integer (two's complement).
-  return (magnitude ^ sign_mask) - sign_mask;
-#endif
 }
+#endif
 
 HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
   const Full256<int32_t> di;

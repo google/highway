@@ -6485,12 +6485,24 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
   return VFromD<D>{_mm_cvtepi32_ps(v.raw)};
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConvertTo(D df, VFromD<Rebind<uint32_t, D>> v) {
 #if HWY_TARGET <= HWY_AVX3
-  (void)df;
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /*df*/, VFromD<Rebind<uint32_t, D>> v) {
   return VFromD<D>{_mm_cvtepu32_ps(v.raw)};
-#else
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> ConvertTo(D /*dd*/, VFromD<Rebind<int64_t, D>> v) {
+  return VFromD<D>{_mm_cvtepi64_pd(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> ConvertTo(D /*dd*/, VFromD<Rebind<uint64_t, D>> v) {
+  return VFromD<D>{_mm_cvtepu64_pd(v.raw)};
+}
+#else  // AVX2 or below
+template <class D, HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConvertTo(D df, VFromD<Rebind<uint32_t, D>> v) {
   // Based on wim's approach (https://stackoverflow.com/questions/34066228/)
   const RebindToUnsigned<decltype(df)> du32;
   const RebindToSigned<decltype(df)> d32;
@@ -6502,15 +6514,10 @@ HWY_API VFromD<D> ConvertTo(D df, VFromD<Rebind<uint32_t, D>> v) {
   const auto v_lo = BitCast(d32, And(v, msk_lo));
   const auto v_hi = BitCast(d32, ShiftRight<16>(v));
   return MulAdd(cnst2_16_flt, ConvertTo(df, v_hi), ConvertTo(df, v_lo));
-#endif
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<int64_t, D>> v) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)dd;
-  return VFromD<D>{_mm_cvtepi64_pd(v.raw)};
-#else
   // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
   const Repartition<uint32_t, decltype(dd)> d32;
   const Repartition<uint64_t, decltype(dd)> d64;
@@ -6525,15 +6532,20 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<int64_t, D>> v) {
 
   const auto k84_63_52 = BitCast(dd, Set(d64, 0x4530000080100000ULL));
   return (v_upper - k84_63_52) + v_lower;  // order matters!
-#endif
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+namespace detail {
+template <class VW>
+HWY_INLINE VFromD<Rebind<double, DFromV<VW>>> U64ToF64VecFast(VW w) {
+  const DFromV<decltype(w)> d64;
+  const RebindToFloat<decltype(d64)> dd;
+  const auto cnst2_52_dbl = Set(dd, 0x0010000000000000);  // 2^52
+  return BitCast(dd, Or(w, BitCast(d64, cnst2_52_dbl))) - cnst2_52_dbl;
+}
+}  // namespace detail
+
+template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<uint64_t, D>> v) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)dd;
-  return VFromD<D>{_mm_cvtepu64_pd(v.raw)};
-#else
   // Based on wim's approach (https://stackoverflow.com/questions/41144668/)
   const RebindToUnsigned<decltype(dd)> d64;
   using VU = VFromD<decltype(d64)>;
@@ -6545,15 +6557,10 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<uint64_t, D>> v) {
   const VU v_lo = And(v, msk_lo);
   const VU v_hi = ShiftRight<32>(v);
 
-  auto uint64_to_double128_fast = [&dd](VU w) HWY_ATTR {
-    w = Or(w, VU{detail::BitCastToInteger(Set(dd, 0x0010000000000000).raw)});
-    return BitCast(dd, w) - Set(dd, 0x0010000000000000);
-  };
-
-  const auto v_lo_dbl = uint64_to_double128_fast(v_lo);
-  return MulAdd(cnst2_32_dbl, uint64_to_double128_fast(v_hi), v_lo_dbl);
-#endif
+  const auto v_lo_dbl = detail::U64ToF64VecFast(v_lo);
+  return MulAdd(cnst2_32_dbl, detail::U64ToF64VecFast(v_hi), v_lo_dbl);
 }
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // Truncates (rounds toward zero).
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
@@ -6561,26 +6568,44 @@ HWY_API VFromD<D> ConvertTo(D di, VFromD<Rebind<float, D>> v) {
   return detail::FixConversionOverflow(di, v, _mm_cvttps_epi32(v.raw));
 }
 
-// Full (partial handled below)
-template <class DI>
-HWY_API Vec128<int64_t> ConvertTo(DI di, const Vec128<double> v) {
-#if HWY_TARGET <= HWY_AVX3 && HWY_ARCH_X86_64
+#if HWY_TARGET <= HWY_AVX3
+template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   return detail::FixConversionOverflow(di, v, _mm_cvttpd_epi64(v.raw));
-#elif HWY_ARCH_X86_64
+}
+
+#else  // AVX2 or below
+
+#if HWY_ARCH_X86_64
+template <class DI, HWY_IF_V_SIZE_D(DI, 8), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertTo(DI di, Vec64<double> v) {
+  const Vec64<int64_t> i0{_mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw))};
+  return detail::FixConversionOverflow(di, v, i0.raw);
+}
+template <class DI, HWY_IF_V_SIZE_D(DI, 16), HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertTo(DI di, Vec128<double> v) {
   const __m128i i0 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw));
   const Full64<double> dd2;
   const __m128i i1 = _mm_cvtsi64_si128(_mm_cvttsd_si64(UpperHalf(dd2, v).raw));
   return detail::FixConversionOverflow(di, v, _mm_unpacklo_epi64(i0, i1));
-#else
+}
+#endif  // HWY_ARCH_X86_64
+
+#if !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
+template <class DI, HWY_IF_V_SIZE_GT_D(DI, (HWY_ARCH_X86_64 ? 16 : 0)),
+          HWY_IF_I64_D(DI)>
+HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   using VI = VFromD<decltype(di)>;
-  const VI k0 = Zero(di);
-  const VI k1 = Set(di, 1);
-  const VI k51 = Set(di, 51);
+  const RebindToUnsigned<decltype(di)> du;
+  using VU = VFromD<decltype(du)>;
+  const Repartition<int32_t, decltype(di)> di32;
+  const Repartition<uint16_t, decltype(di)> du16;
+  const VI k1075 = Set(di, 1075);
 
   // Exponent indicates whether the number can be represented as int64_t.
-  const VI biased_exp = ShiftRight<52>(BitCast(di, v)) & Set(di, 0x7FF);
-  const VI exp = biased_exp - Set(di, 0x3FF);
-  const auto in_range = exp < Set(di, 63);
+  const VU biased_exp = ShiftRight<52>(BitCast(du, v)) & Set(du, 0x7FF);
+  const auto in_range = MaskFromVec(BitCast(di,
+    VecFromMask(di32, DupEven(BitCast(di32, biased_exp)) < Set(di32, 1086))));
 
   // If we were to cap the exponent at 51 and add 2^52, the number would be in
   // [2^52, 2^53) and mantissa bits could be read out directly. We need to
@@ -6588,36 +6613,26 @@ HWY_API Vec128<int64_t> ConvertTo(DI di, const Vec128<double> v) {
   // compiler reordering bug: https://gcc.godbolt.org/z/4hKj6c6qc . We instead
   // manually shift the mantissa into place (we already have many of the
   // inputs anyway).
-  const VI shift_mnt = Max(k51 - exp, k0);
-  const VI shift_int = Max(exp - k51, k0);
-  const VI mantissa = BitCast(di, v) & Set(di, (1ULL << 52) - 1);
-  // Include implicit 1-bit; shift by one more to ensure it's in the mantissa.
-  const VI int52 = (mantissa | Set(di, 1ULL << 52)) >> (shift_mnt + k1);
-  // For inputs larger than 2^52, insert zeros at the bottom.
-  const VI shifted = int52 << shift_int;
-  // Restore the one bit lost when shifting in the implicit 1-bit.
-  const VI restored = shifted | ((mantissa & k1) << (shift_int - k1));
+  const VU shift_mnt =
+    BitCast(du, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
+  const VU shift_int =
+    BitCast(du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
+  const VU mantissa = BitCast(du, v) & Set(du, (1ULL << 52) - 1);
+  // Include implicit 1-bit
+  const VU int53 = (mantissa | Set(du, 1ULL << 52)) >> shift_mnt;
+  // For inputs larger than 2^53 - 1, insert zeros at the bottom.
+  const VU shifted = int53 << shift_int;
 
   // Saturate to LimitsMin (unchanged when negating below) or LimitsMax.
   const VI sign_mask = BroadcastSignBit(BitCast(di, v));
   const VI limit = Set(di, LimitsMax<int64_t>()) - sign_mask;
-  const VI magnitude = IfThenElse(in_range, restored, limit);
+  const VI magnitude = IfThenElse(in_range, BitCast(di, shifted), limit);
 
   // If the input was negative, negate the integer (two's complement).
   return (magnitude ^ sign_mask) - sign_mask;
-#endif
 }
-template <class D>
-HWY_API Vec64<int64_t> ConvertTo(D di, const Vec64<double> v) {
-  // Only need to specialize for non-AVX3, 64-bit (single scalar op)
-#if HWY_TARGET > HWY_AVX3 && HWY_ARCH_X86_64
-  const Vec64<int64_t> i0{_mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw))};
-  return detail::FixConversionOverflow(di, v, i0.raw);
-#else
-  const Twice<decltype(di)> dit;
-  return LowerHalf(ConvertTo(dit, Vec128<double>{v.raw}));
-#endif
-}
+#endif  // !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
+#endif  // HWY_TARGET <= HWY_AVX3
 
 template <size_t N>
 HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
