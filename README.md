@@ -178,6 +178,14 @@ When building for Arm v7, a limitation of current compilers requires you to add
 `-DHWY_CMAKE_ARM7:BOOL=ON` to the CMake command line; see #834 and #1032. We
 understand that work is underway to remove this limitation.
 
+Building on 32-bit x86 is not officially supported, and AVX2/3 are disabled by
+default there. Note that johnplatts has successfully built and run the Highway
+tests on 32-bit x86, including AVX2/3, on GCC 7/8 and Clang 8/11/12. On Ubuntu
+22.04, Clang 11 and 12, but not later versions, require extra compiler flags
+`-m32 -isystem /usr/i686-linux-gnu/include`. Clang 10 and earlier require the
+above plus `-isystem /usr/i686-linux-gnu/include/c++/12/i686-linux-gnu`. See
+#1279.
+
 ## Quick start
 
 You can use the `benchmark` inside examples/ as a starting point.
