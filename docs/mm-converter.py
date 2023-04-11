@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 
-# mm-converter
-# 
-# # MarkMin Converter
-#
-# Usage: run it in a working folder and it will convert all the contained *.mm files to standard .md (MarkDown) files. 
-#           Then it uses Pandoc on the md files in order to obtain .rst (reStructuredText) + html files
-#
-# note that :cite, :inxx and internal anchors are simply deleted
-# # nicozanf@gmail.com 2020.10.18
+# set correct links (pandoc did not deal with github links properly)
 
 import os
 import re
