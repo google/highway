@@ -18,11 +18,9 @@ import sys
 # -- Project information -----------------------------------------------------
 
 project = 'HIGHWAY'
-copyright = '2020, BSD-3-Clause License'
-author = 'Massimo DiPierro'
 
 # The full version, including alpha/beta/rc tags
-release = '1.20210407.1'
+release = 'nightly'
 
 
 # -- General configuration ---------------------------------------------------
@@ -154,7 +152,7 @@ html_context['downloads'].append( ('epub', '/' +REPO_NAME+ '/' +current_language
 ##########################
  
 html_context['display_github'] = True
-html_context['github_user'] = 'eric-lyun'
+html_context['github_user'] = 'google'
 html_context['github_repo'] = REPO_NAME
 html_context['github_version'] = 'master/docs/'
  
