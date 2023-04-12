@@ -5208,6 +5208,25 @@ HWY_API Vec128<uint8_t> AESLastRound(Vec128<uint8_t> state,
   return Vec128<uint8_t>(vaeseq_u8(state.raw, vdupq_n_u8(0))) ^ round_key;
 }
 
+HWY_API Vec128<uint8_t> AESInvMixColumns(Vec128<uint8_t> state) {
+  return Vec128<uint8_t>{vaesimcq_u8(state.raw)};
+}
+
+HWY_API Vec128<uint8_t> AESRoundInv(Vec128<uint8_t> state,
+                                    Vec128<uint8_t> round_key) {
+  // NOTE: it is important that AESD and AESIMC be consecutive instructions so
+  // they can be fused. AESD includes AddRoundKey, which is a different ordering
+  // than the AES-NI semantics we adopted, so XOR by 0 and later with the actual
+  // round key (the compiler will hopefully optimize this for multiple rounds).
+  return Vec128<uint8_t>(vaesimcq_u8(vaesdq_u8(state.raw, vdupq_n_u8(0)))) ^
+         round_key;
+}
+
+HWY_API Vec128<uint8_t> AESLastRoundInv(Vec128<uint8_t> state,
+                                        Vec128<uint8_t> round_key) {
+  return Vec128<uint8_t>(vaesdq_u8(state.raw, vdupq_n_u8(0))) ^ round_key;
+}
+
 HWY_API Vec128<uint64_t> CLMulLower(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return Vec128<uint64_t>((uint64x2_t)vmull_p64(GetLane(a), GetLane(b)));
 }

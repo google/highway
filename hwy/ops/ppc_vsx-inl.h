@@ -2837,6 +2837,50 @@ HWY_API Vec128<uint8_t> AESLastRound(Vec128<uint8_t> state,
 #endif
 }
 
+HWY_API Vec128<uint8_t> AESRoundInv(Vec128<uint8_t> state,
+                                    Vec128<uint8_t> round_key) {
+  const detail::CipherTag dc;
+  const Full128<uint8_t> du8;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return Xor(Reverse(du8, BitCast(du8, detail::CipherVec{vec_ncipher_be(
+                                           BitCast(dc, Reverse(du8, state)).raw,
+                                           Zero(dc).raw)})),
+             round_key);
+#else
+  return Xor(BitCast(du8, detail::CipherVec{vec_ncipher_be(
+                              BitCast(dc, state).raw, Zero(dc).raw)}),
+             round_key);
+#endif
+}
+
+HWY_API Vec128<uint8_t> AESLastRoundInv(Vec128<uint8_t> state,
+                                        Vec128<uint8_t> round_key) {
+  const detail::CipherTag dc;
+  const Full128<uint8_t> du8;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return Reverse(du8,
+                 BitCast(du8, detail::CipherVec{vec_ncipherlast_be(
+                                  BitCast(dc, Reverse(du8, state)).raw,
+                                  BitCast(dc, Reverse(du8, round_key)).raw)}));
+#else
+  return BitCast(du8, detail::CipherVec{vec_ncipherlast_be(
+                          BitCast(dc, state).raw, BitCast(dc, round_key).raw)});
+#endif
+}
+
+HWY_API Vec128<uint8_t> AESInvMixColumns(Vec128<uint8_t> state) {
+  const Full128<uint8_t> du8;
+  const auto zero = Zero(du8);
+
+  // PPC8/PPC9/PPC10 does not have a single instruction for the AES
+  // InvMixColumns operation like ARM Crypto, SVE2 Crypto, or AES-NI do.
+
+  // The AESInvMixColumns operation can be carried out on PPC8/PPC9/PPC10
+  // by doing an AESLastRound operation with a zero round_key followed by an
+  // AESRoundInv operation with a zero round_key.
+  return AESRoundInv(AESLastRound(state, zero), zero);
+}
+
 template <size_t N>
 HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
                                        Vec128<uint64_t, N> b) {

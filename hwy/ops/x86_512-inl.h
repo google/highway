@@ -3821,13 +3821,6 @@ HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
 
 #if !defined(HWY_DISABLE_PCLMUL_AES)
 
-// Per-target flag to prevent generic_ops-inl.h from defining AESRound.
-#ifdef HWY_NATIVE_AES
-#undef HWY_NATIVE_AES
-#else
-#define HWY_NATIVE_AES
-#endif
-
 HWY_API Vec512<uint8_t> AESRound(Vec512<uint8_t> state,
                                  Vec512<uint8_t> round_key) {
 #if HWY_TARGET <= HWY_AVX3_DL
@@ -3850,6 +3843,31 @@ HWY_API Vec512<uint8_t> AESLastRound(Vec512<uint8_t> state,
   return Combine(d,
                  AESLastRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
                  AESLastRound(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+HWY_API Vec512<uint8_t> AESRoundInv(Vec512<uint8_t> state,
+                                    Vec512<uint8_t> round_key) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<uint8_t>{_mm512_aesdec_epi128(state.raw, round_key.raw)};
+#else
+  const Full512<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(d, AESRoundInv(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+                 AESRoundInv(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+HWY_API Vec512<uint8_t> AESLastRoundInv(Vec512<uint8_t> state,
+                                        Vec512<uint8_t> round_key) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<uint8_t>{_mm512_aesdeclast_epi128(state.raw, round_key.raw)};
+#else
+  const Full512<uint8_t> d;
+  const Half<decltype(d)> d2;
+  return Combine(
+      d, AESLastRoundInv(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+      AESLastRoundInv(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
 
@@ -4475,7 +4493,7 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   Store(v, d, lanes);
   using Bits = typename Mask256<T>::Raw;
   const Mask256<T> maskL{
-      static_cast<Bits>(mask.raw& Bits{(1ULL << (N / 2)) - 1})};
+      static_cast<Bits>(mask.raw & Bits{(1ULL << (N / 2)) - 1})};
   const Mask256<T> maskH{static_cast<Bits>(mask.raw >> (N / 2))};
   const size_t countL = CountTrue(dh, maskL);
   const Vec256<T> expandL = Expand(LowerHalf(v), maskL);
@@ -4498,7 +4516,7 @@ HWY_API Vec512<T> Expand(Vec512<T> v, const Mask512<T> mask) {
   constexpr size_t N = 64 / sizeof(T);
   using Bits = typename Mask256<T>::Raw;
   const Mask256<T> maskL{
-      static_cast<Bits>(mask.raw& Bits{(1ULL << (N / 2)) - 1})};
+      static_cast<Bits>(mask.raw & Bits{(1ULL << (N / 2)) - 1})};
   const Mask256<T> maskH{static_cast<Bits>(mask.raw >> (N / 2))};
   // In AVX3 we can permutevar, which avoids a potential store to load
   // forwarding stall vs. reloading the input.
