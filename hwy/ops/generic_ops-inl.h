@@ -15,6 +15,9 @@
 
 // Target-independent types/functions defined after target-specific ops.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hwy/base.h"
 
 // Define detail::Shuffle1230 etc, but only when viewing the current header;
@@ -1576,8 +1579,8 @@ HWY_API V AESInvMixColumns(V state) {
 
 template <class V>  // u8
 HWY_API V AESRoundInv(V state, const V round_key) {
-  state = detail::InvShiftRows(state);
   state = detail::InvSubBytes(state);
+  state = detail::InvShiftRows(state);
   state = detail::InvMixColumns(state);
   state = Xor(state, round_key);  // AddRoundKey
   return state;
@@ -1586,8 +1589,8 @@ HWY_API V AESRoundInv(V state, const V round_key) {
 template <class V>  // u8
 HWY_API V AESLastRoundInv(V state, const V round_key) {
   // Like AESRoundInv, but without InvMixColumns.
-  state = detail::InvShiftRows(state);
   state = detail::InvSubBytes(state);
+  state = detail::InvShiftRows(state);
   state = Xor(state, round_key);  // AddRoundKey
   return state;
 }
