@@ -1570,21 +1570,12 @@ HWY_API V AESLastRound(V state, const V round_key) {
 }
 
 template <class V>
-HWY_API V AESInverseMixColumns(V state) {
+HWY_API V AESInvMixColumns(V state) {
   return detail::InvMixColumns(state);
 }
 
 template <class V>  // u8
-HWY_API V AESInverseRound(V state, const V round_key) {
-  state = detail::InvShiftRows(state);
-  state = detail::InvSubBytes(state);
-  state = Xor(state, round_key);  // AddRoundKey
-  state = detail::InvMixColumns(state);
-  return state;
-}
-
-template <class V>  // u8
-HWY_API V AESEquivInvCipherRound(V state, const V round_key) {
+HWY_API V AESRoundInv(V state, const V round_key) {
   state = detail::InvShiftRows(state);
   state = detail::InvSubBytes(state);
   state = detail::InvMixColumns(state);
@@ -1593,8 +1584,8 @@ HWY_API V AESEquivInvCipherRound(V state, const V round_key) {
 }
 
 template <class V>  // u8
-HWY_API V AESInverseLastRound(V state, const V round_key) {
-  // LIke AESInverseRound, but without MixColumns.
+HWY_API V AESLastRoundInv(V state, const V round_key) {
+  // Like AESRoundInv, but without InvMixColumns.
   state = detail::InvShiftRows(state);
   state = detail::InvSubBytes(state);
   state = Xor(state, round_key);  // AddRoundKey

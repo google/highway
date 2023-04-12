@@ -1405,27 +1405,20 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     AES-NI. The latency is independent of the input values.
 
 *   `V`: `u8` \
-    <code>V **AESInverseRound**(V state, V round_key)</code>: one round of AES
-    decryption: `InvMixColumns(InvSubBytes(InvShiftRows(state)) ^ round_key)`.
-    This matches PPC8/PPC9/PPC10. The latency is independent of the input
-    values.
-
-*   `V`: `u8` \
-    <code>V **AESEquivInvCipherRound**(V state, V round_key)</code>: one round of AES
-    decryption using the Equivalent Inverse Cipher:
+    <code>V **AESRoundInv**(V state, V round_key)</code>: one round of AES
+    decryption using the AES Equivalent Inverse Cipher:
     `InvMixColumns(InvSubBytes(InvShiftRows(state))) ^ round_key`.
     This matches x86 AES-NI. The latency is independent of the input values.
 
 *   `V`: `u8` \
-    <code>V **AESInverseLastRound**(V state, V round_key)</code>: the last round
+    <code>V **AESLastRoundInv**(V state, V round_key)</code>: the last round
     of AES decryption: `InvSubBytes(InvShiftRows(state)) ^ round_key`.
     This matches x86 AES-NI. The latency is independent of the input values.
-    Also used for the last round of AES decryption using the
-    Equivalent Inverse Cipher.
 
 *   `V`: `u8` \
-    <code>V **AESInverseMixColumns**(V state)</code>: the InvMixColumns operation
-    of the AES decryption algorithm.
+    <code>V **AESInvMixColumns**(V state)</code>: the InvMixColumns operation
+    of the AES decryption algorithm. AESInvMixColumns is used in the key
+    expansion step of the AES Equivalent Inverse Cipher algorithm.
 
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the

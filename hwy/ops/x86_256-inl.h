@@ -4711,36 +4711,48 @@ HWY_API Vec256<uint8_t> AESLastRound(Vec256<uint8_t> state,
 #endif
 }
 
-HWY_API Vec256<uint8_t> AESInverseMixColumns(Vec256<uint8_t> state) {
-  const Full256<uint8_t> d;
-  const Half<decltype(d)> d2;
-  return Combine(d, AESInverseMixColumns(UpperHalf(d2, state)),
-                 AESInverseMixColumns(LowerHalf(d2, state)));
-}
-
-HWY_API Vec256<uint8_t> AESEquivInvCipherRound(Vec256<uint8_t> state,
-                                               Vec256<uint8_t> round_key) {
+HWY_API Vec256<uint8_t> AESRoundInv(Vec256<uint8_t> state,
+                                    Vec256<uint8_t> round_key) {
 #if HWY_TARGET <= HWY_AVX3_DL
   return Vec256<uint8_t>{_mm256_aesdec_epi128(state.raw, round_key.raw)};
 #else
   const Full256<uint8_t> d;
   const Half<decltype(d)> d2;
-  return Combine(
-      d, AESEquivInvCipherRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
-      AESEquivInvCipherRound(LowerHalf(state), LowerHalf(round_key)));
+  return Combine(d, AESRoundInv(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+                 AESRoundInv(LowerHalf(state), LowerHalf(round_key)));
 #endif
 }
 
-HWY_API Vec256<uint8_t> AESInverseLastRound(Vec256<uint8_t> state,
-                                            Vec256<uint8_t> round_key) {
+HWY_API Vec256<uint8_t> AESLastRoundInv(Vec256<uint8_t> state,
+                                        Vec256<uint8_t> round_key) {
 #if HWY_TARGET <= HWY_AVX3_DL
   return Vec256<uint8_t>{_mm256_aesdeclast_epi128(state.raw, round_key.raw)};
 #else
   const Full256<uint8_t> d;
   const Half<decltype(d)> d2;
   return Combine(
-      d, AESInverseLastRound(UpperHalf(d2, state), UpperHalf(d2, round_key)),
-      AESInverseLastRound(LowerHalf(state), LowerHalf(round_key)));
+      d, AESLastRoundInv(UpperHalf(d2, state), UpperHalf(d2, round_key)),
+      AESLastRoundInv(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+template <class V, HWY_IF_V_SIZE_GT_V(V, 16), HWY_IF_U8_D(DFromV<V>)>
+HWY_API V AESInvMixColumns(V state) {
+  const DFromV<decltype(state)> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  // On AVX3_DL, it is more efficient to do an InvMixColumns operation for a
+  // 256-bit or 512-bit vector by doing a AESLastRound operation
+  // (_mm256_aesenclast_epi128/_mm512_aesenclast_epi128) followed by a
+  // AESRoundInv operation (_mm256_aesdec_epi128/_mm512_aesdec_epi128) than to
+  // split the vector into 128-bit vectors, carrying out multiple
+  // _mm_aesimc_si128 operations, and then combining the _mm_aesimc_si128
+  // results back into a 256-bit or 512-bit vector.
+  const auto zero = Zero(d);
+  return AESRoundInv(AESLastRound(state, zero), zero);
+#else
+  const Half<decltype(d)> dh;
+  return Combine(d, AESInvMixColumns(UpperHalf(dh, state)),
+                 AESInvMixColumns(LowerHalf(dh, state)));
 #endif
 }
 
