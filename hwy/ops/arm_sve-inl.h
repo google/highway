@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// ARM SVE[2] vectors (length not known at compile time).
+// Arm SVE[2] vectors (length not known at compile time).
 // External include guard in highway.h - see comment there.
 
 #include <arm_sve.h>
@@ -742,7 +742,7 @@ HWY_API svbool_t RebindMask(const D /*d*/, const MFrom mask) {
 HWY_API svbool_t Not(svbool_t m) {
   // We don't know the lane type, so assume 8-bit. For larger types, this will
   // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
-  // correspond to the lowest byte in the lane. Per ARM, such bits are ignored.
+  // correspond to the lowest byte in the lane. Arm says such bits are ignored.
   return svnot_b_z(HWY_SVE_PTRUE(8), m);
 }
 HWY_API svbool_t And(svbool_t a, svbool_t b) {

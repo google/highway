@@ -89,7 +89,7 @@ Xilinx/Vitis_Libraries.
 Highway supports 17 targets, listed in alphabetical order of platform:
 
 -   Any: `EMU128`, `SCALAR`;
--   Arm: `NEON` (ARMv7 and v8), `SVE`, `SVE2`;
+-   Arm: `NEON` (Armv7+), `SVE`, `SVE2`;
 -   POWER: `PPC8` (v2.07), `PPC9` (v3.0), `PPC10` (v3.1B, not yet supported
     due to compiler bugs, see #1207; also requires QEMU 7.2);
 -   RISC-V: `RVV` (1.0);
@@ -117,10 +117,10 @@ updates that have the same major version number.
 ### Testing
 
 Continuous integration tests build with a recent version of Clang (running on
-native x86, or QEMU for RVV and ARM) and MSVC 2019 (v19.28, running on native
+native x86, or QEMU for RISC-V and Arm) and MSVC 2019 (v19.28, running on native
 x86).
 
-Before releases, we also test on x86 with Clang and GCC, and ARMv7/8 via GCC
+Before releases, we also test on x86 with Clang and GCC, and Armv7/8 via GCC
 cross-compile. See the [testing process](g3doc/release_testing_process.md) for
 details.
 
@@ -174,7 +174,7 @@ Or you can run `run_tests.sh` (`run_tests.bat` on Windows).
 
 Bazel is also supported for building, but it is not as widely used/tested.
 
-When building for Arm v7, a limitation of current compilers requires you to add
+When building for Armv7, a limitation of current compilers requires you to add
 `-DHWY_CMAKE_ARM7:BOOL=ON` to the CMake command line; see #834 and #1032. We
 understand that work is underway to remove this limitation.
 

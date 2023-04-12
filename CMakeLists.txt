@@ -55,7 +55,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # The following is only required with GCC < 6.1.0 or CLANG < 16.0
-set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for ARMv7 with NEON (requires vfpv4)?")
+set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for Armv7 with NEON (requires vfpv4)?")
 
 # Unconditionally adding -Werror risks breaking the build when new warnings
 # arise due to compiler/platform changes. Enable this in CI/tests.

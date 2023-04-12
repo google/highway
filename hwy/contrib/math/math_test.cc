@@ -155,7 +155,7 @@ DEFINE_MATH_TEST(Acosh,
   std::acosh, CallAcosh, +1.0f,      +FLT_MAX,    ACosh32ULP(),
   std::acosh, CallAcosh, +1.0,       +DBL_MAX,    3)
 DEFINE_MATH_TEST(Asin,
-  std::asin,  CallAsin,  -1.0f,      +1.0f,       4,  // ARMv7 is 4 instead of 2
+  std::asin,  CallAsin,  -1.0f,      +1.0f,       4,  // 4 ulp on Armv7, not 2
   std::asin,  CallAsin,  -1.0,       +1.0,        2)
 DEFINE_MATH_TEST(Asinh,
   std::asinh, CallAsinh, -FLT_MAX,   +FLT_MAX,    3,

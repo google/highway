@@ -38,10 +38,10 @@ namespace HWY_NAMESPACE {
 // functions in two situations:
 // - on Windows and GCC 10.3, passing by value crashes due to unaligned loads:
 //   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412.
-// - on ARM64 and GCC 9.3.0 or 11.2.1, passing by value causes many (but not
+// - on aarch64 and GCC 9.3.0 or 11.2.1, passing by value causes many (but not
 //   all) tests to fail.
 //
-// We therefore pass by const& only on GCC and (Windows or ARM64). This alias
+// We therefore pass by const& only on GCC and (Windows or aarch64). This alias
 // must be used for all vector/mask parameters of functions marked HWY_NOINLINE,
 // and possibly also other functions that are not inlined.
 #if HWY_COMPILER_GCC_ACTUAL && (HWY_OS_WIN || HWY_ARCH_ARM_A64)

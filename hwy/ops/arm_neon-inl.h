@@ -13,10 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// 128-bit ARM64 NEON vectors and operations.
+// 128-bit Arm NEON vectors and operations.
 // External include guard in highway.h - see comment there.
 
-// ARM NEON intrinsics are documented at:
+// Arm NEON intrinsics are documented at:
 // https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]
 
 #include <stddef.h>
@@ -826,7 +826,7 @@ using Vec16 = Vec128<T, 2 / sizeof(T)>;
 // FF..FF or 0.
 template <typename T, size_t N = 16 / sizeof(T)>
 class Mask128 {
-  // ARM C Language Extensions return and expect unsigned type.
+  // Arm C Language Extensions return and expect unsigned type.
   using Raw = typename detail::Raw128<MakeUnsigned<T>, N>::type;
 
  public:
@@ -1496,7 +1496,7 @@ HWY_API Vec128<uint64_t, N> RotateRight(const Vec128<uint64_t, N> v) {
 }
 
 // NOTE: vxarq_u64 can be applied to uint64_t, but we do not yet have a
-// mechanism for checking for extensions to ARMv8.
+// mechanism for checking for extensions to Armv8.
 
 // ------------------------------ Shl
 
@@ -2182,7 +2182,7 @@ HWY_INLINE Vec128<T, N> PopulationCount(hwy::SizeTag<1> /* tag */,
   return Vec128<T, N>(vcnt_u8(BitCast(d8, v).raw));
 }
 
-// ARM lacks popcount for lane sizes > 1, so take pairwise sums of the bytes.
+// NEON lacks popcount for lane sizes > 1, so take pairwise sums of the bytes.
 template <typename T>
 HWY_INLINE Vec128<T> PopulationCount(hwy::SizeTag<2> /* tag */, Vec128<T> v) {
   const Full128<uint8_t> d8;
@@ -2476,7 +2476,7 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator<=, vcle, _, HWY_COMPARE)
 #undef HWY_NEON_BUILD_PARAM_HWY_COMPARE
 #undef HWY_NEON_BUILD_ARG_HWY_COMPARE
 
-// ------------------------------ ARMv7 i64 compare (Shuffle2301, Eq)
+// ------------------------------ Armv7 i64 compare (Shuffle2301, Eq)
 
 #if HWY_ARCH_ARM_V7
 
@@ -2868,7 +2868,7 @@ HWY_API VFromD<D> LoadU(D d, const bfloat16_t* HWY_RESTRICT p) {
   return VFromD<D>(LoadU(du16, pu16).raw);
 }
 
-// On ARM, Load is the same as LoadU.
+// On Arm, Load is the same as LoadU.
 template <class D>
 HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
   return LoadU(d, p);
@@ -3072,7 +3072,7 @@ HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
 #endif
 
-// On ARM, Store is the same as StoreU.
+// On Arm, Store is the same as StoreU.
 template <class D>
 HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
   StoreU(v, d, aligned);
@@ -3592,7 +3592,7 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Floor, vrndm, _, 1)
 
 // ------------------------------ Trunc
 
-// ARMv7 only supports truncation to integer. We can either convert back to
+// Armv7 only supports truncation to integer. We can either convert back to
 // float (3 floating-point and 2 logic operations) or manipulate the binary32
 // representation, clearing the lowest 23-exp mantissa bits. This requires 9
 // integer operations and 3 constants, which is likely more expensive.
@@ -3623,7 +3623,7 @@ template <size_t N>
 HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
   const DFromV<decltype(v)> df;
 
-  // ARMv7 also lacks a native NearestInt, but we can instead rely on rounding
+  // Armv7 also lacks a native NearestInt, but we can instead rely on rounding
   // (we assume the current mode is nearest-even) after addition with a large
   // value such that no mantissa bits remain. We may need a compiler flag for
   // precise floating-point to prevent this from being "optimized" out.
@@ -4434,7 +4434,7 @@ HWY_API Vec128<double> InterleaveLower(Vec128<double> a, Vec128<double> b) {
   return Vec128<double>(vzip1q_f64(a.raw, b.raw));
 }
 #else
-// ARMv7 emulation.
+// Emulated version for Armv7.
 template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec128<T> InterleaveLower(Vec128<T> a, Vec128<T> b) {
   const DFromV<decltype(a)> d;
@@ -4484,7 +4484,7 @@ HWY_API Vec128<double> InterleaveUpper(Vec128<double> a, Vec128<double> b) {
   return Vec128<double>(vzip2q_f64(a.raw, b.raw));
 }
 #else
-// ARMv7 emulation.
+// Emulated version for Armv7.
 template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec128<T> InterleaveUpper(Vec128<T> a, Vec128<T> b) {
   const DFromV<decltype(a)> d;
@@ -5413,7 +5413,7 @@ HWY_API Vec128<TI, NI> TableLookupBytes(Vec128<T, N> bytes,
   return BitCast(d_idx, v8);
 }
 
-// For all vector widths; ARM anyway zeroes if >= 0x10.
+// For all vector widths; Arm anyway zeroes if >= 0x10.
 template <class V, class VI>
 HWY_API VI TableLookupBytesOr0(V bytes, VI from) {
   return TableLookupBytes(bytes, from);
@@ -5573,7 +5573,7 @@ HWY_INLINE Vec128<T, 2> MaxOfLanes(hwy::SizeTag<4> /* tag */,
   return Max(v10, Shuffle2301(v10));
 }
 
-// ARMv7 version for everything except doubles.
+// Armv7 version for everything except doubles.
 HWY_INLINE Vec128<uint32_t> SumOfLanes(hwy::SizeTag<4> /* tag */,
                                        Vec128<uint32_t> v) {
   uint32x4x2_t v0 = vuzpq_u32(v.raw, v.raw);
@@ -6175,7 +6175,7 @@ HWY_INLINE Vec128<T, N> IdxFromBits(hwy::SizeTag<2> /*tag*/,
   const Repartition<uint8_t, decltype(d)> d8;
   const Simd<uint16_t, N, 0> du;
 
-  // ARM does not provide an equivalent of AVX2 permutevar, so we need byte
+  // NEON does not provide an equivalent of AVX2 permutevar, so we need byte
   // indices for VTBL (one vector's worth for each of 256 combinations of
   // 8 mask bits). Loading them directly would require 4 KiB. We can instead
   // store lane indices and convert to byte indices (2*lane + 0..1), with the
@@ -6327,7 +6327,7 @@ HWY_INLINE Vec128<T, N> IdxFromNotBits(hwy::SizeTag<2> /*tag*/,
   const Repartition<uint8_t, decltype(d)> d8;
   const Simd<uint16_t, N, 0> du;
 
-  // ARM does not provide an equivalent of AVX2 permutevar, so we need byte
+  // NEON does not provide an equivalent of AVX2 permutevar, so we need byte
   // indices for VTBL (one vector's worth for each of 256 combinations of
   // 8 mask bits). Loading them directly would require 4 KiB. We can instead
   // store lane indices and convert to byte indices (2*lane + 0..1), with the

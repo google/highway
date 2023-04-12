@@ -34,14 +34,14 @@ for VER in 10 11 12; do
 done
 
 #######################################
-echo ARMv7 GCC
+echo Armv7 GCC
 export QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf
 rm -rf build_arm7 && mkdir build_arm7 && cd build_arm7
 CC=arm-linux-gnueabihf-gcc-11 CXX=arm-linux-gnueabihf-g++-11 cmake .. -DHWY_CMAKE_ARM7:BOOL=ON -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
 make -j && ctest -j && cd .. && rm -rf build_arm7
 
 #######################################
-echo ARMv8 GCC
+echo Armv8 GCC
 export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
 rm -rf build_arm8 && mkdir build_arm8 && cd build_arm8
 CC=aarch64-linux-gnu-gcc-11 CXX=aarch64-linux-gnu-g++-11 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON

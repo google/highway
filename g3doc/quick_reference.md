@@ -96,7 +96,7 @@ comparisons), and cast your `char*` pointers to your `T*`.
 In Highway, `float16_t` (an IEEE binary16 half-float) and `bfloat16_t` (the
 upper 16 bits of an IEEE binary32 float) only support load, store, and
 conversion to/from `float32_t`. The behavior of infinity and NaN in `float16_t`
-is implementation-defined due to ARMv7.
+is implementation-defined due to Armv7.
 
 On RVV/SVE, vectors are sizeless and cannot be wrapped inside a class. The
 Highway API allows using built-in types as vectors because operations are
@@ -392,7 +392,7 @@ time-critical code:
 *   `V`: `f32` \
     <code>V **ApproximateReciprocalSqrt**(V a)</code>: returns an approximation
     of `1.0 / sqrt(a[i])`. `sqrt(a) ~= ApproximateReciprocalSqrt(a) * a`. x86
-    and PPC provide 12-bit approximations but the error on ARM is closer to 1%.
+    and PPC provide 12-bit approximations but the error on Arm is closer to 1%.
 
 *   `V`: `f32` \
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
@@ -401,7 +401,7 @@ time-critical code:
 #### Min/Max
 
 **Note**: Min/Max corner cases are target-specific and may change. If either
-argument is qNaN, x86 SIMD returns the second argument, ARMv7 Neon returns NaN,
+argument is qNaN, x86 SIMD returns the second argument, Armv7 Neon returns NaN,
 Wasm is supposed to return NaN but does not always, but other targets actually
 uphold IEEE 754-2019 minimumNumber: returning the other argument if exactly one
 is qNaN, and NaN if both are.
@@ -486,7 +486,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 When implemented using special instructions, these functions are more precise
 and faster than separate multiplication followed by addition. The `*Sub`
-variants are somewhat slower on ARM, and unavailable for integer inputs; if the
+variants are somewhat slower on Arm, and unavailable for integer inputs; if the
 `c` argument is a constant, it would be better to negate it and use `MulAdd`.
 
 *   <code>V **MulAdd**(V a, V b, V c)</code>: returns `a[i] * b[i] + c[i]`.
@@ -879,7 +879,7 @@ either `aligned` (address is a multiple of the vector size) or possibly
 unaligned (denoted `p`).
 
 Even unaligned addresses must still be a multiple of `sizeof(T)`, otherwise
-`StoreU` may crash on some platforms (e.g. RVV and ARMv7). Note that C++ ensures
+`StoreU` may crash on some platforms (e.g. RVV and Armv7). Note that C++ ensures
 automatic (stack) and dynamically allocated (via `new` or `malloc`) variables of
 type `T` are aligned to `sizeof(T)`, hence such addresses are suitable for
 `StoreU`. However, casting pointers to `char*` and adding arbitrary offsets (not
@@ -1197,7 +1197,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `bytes[indices[i]]`, or 0 if `indices[i] & 0x80`. Uses byte lanes regardless
     of the actual vector types. Results are implementation-defined for
     `indices[i] < 0` or in `[HWY_MIN(Lanes(DFromV<V>()), 16), 0x80)`. The
-    zeroing behavior has zero cost on x86 and ARM. For vectors of >= 256 bytes
+    zeroing behavior has zero cost on x86 and Arm. For vectors of >= 256 bytes
     (can happen on SVE and RVV), this will set all lanes after the first 128
     to 0. `VI` are integers, possibly of a different type than those in `V`. The
     number of lanes in `V` and `VI` may differ.
@@ -1468,7 +1468,7 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
 *   `HWY_MEM_OPS_MIGHT_FAULT` is 1 iff `MaskedLoad` may trigger a (page) fault
     when attempting to load lanes from unmapped memory, even if the
     corresponding mask element is false. This is the case on ASAN/MSAN builds,
-    AMD x86 prior to AVX-512, and ARM NEON. If so, users can prevent faults by
+    AMD x86 prior to AVX-512, and Arm NEON. If so, users can prevent faults by
     ensuring memory addresses are aligned to the vector size or at least padded
     (allocation size increased by at least `Lanes(d)`.
 
@@ -1566,7 +1566,7 @@ automatically detect and dispatch to the best available target, including
 `HWY_SVE2_128` or `HWY_SVE_256`.
 
 Immediates (compile-time constants) are specified as template arguments to avoid
-constant-propagation issues with Clang on ARM.
+constant-propagation issues with Clang on Arm.
 
 ## Type traits
 

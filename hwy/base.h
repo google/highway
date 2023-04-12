@@ -178,7 +178,7 @@
 #if HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)
 #define HWY_FENCE std::atomic_thread_fence(std::memory_order_acq_rel)
 #else
-// TODO(janwas): investigate alternatives. On ARM, the above generates barriers.
+// TODO(janwas): investigate alternatives. On Arm, the above generates barriers.
 #define HWY_FENCE
 #endif
 
@@ -279,7 +279,7 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #pragma pack(push, 1)
 
 // ACLE (https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html):
-// always supported on aarch64, for v7 only if -mfp16-format is given.
+// always supported on Armv8, for Armv7 only if -mfp16-format is given.
 #if ((HWY_ARCH_ARM_A64 || (__ARM_FP & 2)) && HWY_COMPILER_GCC)
 using float16_t = __fp16;
 // C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.

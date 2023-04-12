@@ -21,7 +21,7 @@
     during initial development. Analysis tools can warn about some potential
     inefficiencies, but likely not all. We instead provide [a carefully chosen
     set of vector types and operations that are efficient on all target
-    platforms](instruction_matrix.pdf) (PPC8, SSE4/AVX2+, ARMv8).
+    platforms](instruction_matrix.pdf) (PPC8, SSE4/AVX2+, Armv8).
 
 *   Future SIMD hardware features are difficult to predict. For example, AVX2
     came with surprising semantics (almost no interaction between 128-bit
@@ -32,14 +32,14 @@
 
 *   Masking/predication differs between platforms, and it is not clear how
     important the use cases are beyond the ternary operator `IfThenElse`.
-    AVX-512/ARM SVE zeromasks are useful, but not supported by P0214R5. We
+    AVX-512/Arm SVE zeromasks are useful, but not supported by P0214R5. We
     provide `IfThen[Zero]Else[Zero]` variants.
 
 *   "Width-agnostic" SIMD is more future-proof than user-specified fixed sizes.
     For example, valarray-like code can iterate over a 1D array with a
     library-specified vector width. This will result in better code when vector
     sizes increase, and matches the direction taken by
-    [ARM SVE](https://alastairreid.github.io/papers/sve-ieee-micro-2017.pdf) and
+    [Arm SVE](https://alastairreid.github.io/papers/sve-ieee-micro-2017.pdf) and
     RiscV V as well as Agner Fog's
     [ForwardCom instruction set proposal](https://goo.gl/CFizWu). However, some
     applications may require fixed sizes, so we also guarantee support for <=
@@ -47,9 +47,9 @@
 
 *   The API and its implementation should be usable and efficient with commonly
     used compilers, including MSVC. For example, we write `ShiftLeft<3>(v)`
-    instead of `v << 3` because MSVC 2017 (ARM64) does not propagate the literal
-    (https://godbolt.org/g/rKx5Ga). Highway requires function-specific target
-    attributes, supported by GCC 4.9 / Clang 3.9 / MSVC 2015.
+    instead of `v << 3` because MSVC 2017 (aarch64) does not propagate the
+    literal (https://godbolt.org/g/rKx5Ga). Highway requires function-specific
+    target attributes, supported by GCC 4.9 / Clang 3.9 / MSVC 2015.
 
 *   Efficient and safe runtime dispatch is important. Modules such as image or
     video codecs are typically embedded into larger applications such as
@@ -75,8 +75,8 @@
     to allow utilizing specialized platform-specific functionality, and simplify
     incremental porting of existing code.
 
-*   The core API should be compact and easy to learn; we provide a [concise
-    reference](quick_reference.md).
+*   The core API should be compact and easy to learn; we provide a
+    [concise reference](quick_reference.md).
 
 ## Prior API designs
 
@@ -91,7 +91,7 @@ runtime dispatch.
 
 ## Overloaded function API
 
-Most C++ vector APIs rely on class templates. However, the ARM SVE vector type
+Most C++ vector APIs rely on class templates. However, the Arm SVE vector type
 is sizeless and cannot be wrapped in a class. We instead rely on overloaded
 functions. Overloading based on vector types is also undesirable because SVE
 vectors cannot be default-constructed. We instead use a dedicated tag type
@@ -118,7 +118,7 @@ set, we provide a special `ZeroIfNegative` function.
 
 1.  Allowing the use of built-in vector types by relying on non-member
     functions. By contrast, P0214R5 requires a wrapper class, which does not
-    work for sizeless vector types currently used by ARM SVE and Risc-V.
+    work for sizeless vector types currently used by Arm SVE and Risc-V.
 
 1.  Adding widely used and portable operations such as `AndNot`, `AverageRound`,
     bit-shift by immediates and `IfThenElse`.
@@ -129,7 +129,7 @@ set, we provide a special `ZeroIfNegative` function.
 1.  Avoiding the need for non-native vectors. By contrast, P0214R5's `simd_cast`
     returns `fixed_size<>` vectors which are more expensive to access because
     they reside on the stack. We can avoid this plus additional overhead on
-    ARM/AVX2 by defining width-expanding operations as functions of a vector
+    Arm/AVX2 by defining width-expanding operations as functions of a vector
     part, e.g. promoting half a vector of `uint8_t` lanes to one full vector of
     `uint16_t`, or demoting full vectors to half vectors with half-width lanes.
 
@@ -156,8 +156,8 @@ set, we provide a special `ZeroIfNegative` function.
 
 1.  Ensuring signed integer overflow has well-defined semantics (wraparound).
 
-1.  Simple header-only implementation and a fraction of the size of the
-    Vc library from which P0214 was derived (39K, vs. 92K lines in
+1.  Simple header-only implementation and a fraction of the size of the Vc
+    library from which P0214 was derived (39K, vs. 92K lines in
     https://github.com/VcDevel/Vc according to the gloc Chrome extension).
 
 1.  Avoiding hidden performance costs. P0214R5 allows implicit conversions from
