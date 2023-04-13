@@ -2380,23 +2380,7 @@ HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
 template <typename T, size_t N, typename TI, size_t NI>
 HWY_API Vec128<TI, NI> TableLookupBytes(const Vec128<T, N> bytes,
                                         const Vec128<TI, NI> from) {
-// Not yet available in all engines, see
-// https://github.com/WebAssembly/simd/blob/bdcc304b2d379f4601c2c44ea9b44ed9484fde7e/proposals/simd/ImplementationStatus.md
-// V8 implementation of this had a bug, fixed on 2021-04-03:
-// https://chromium-review.googlesource.com/c/v8/v8/+/2822951
-#if 0
   return Vec128<TI, NI>{wasm_i8x16_swizzle(bytes.raw, from.raw)};
-#else
-  alignas(16) uint8_t control[16];
-  alignas(16) uint8_t input[16];
-  alignas(16) uint8_t output[16];
-  wasm_v128_store(control, from.raw);
-  wasm_v128_store(input, bytes.raw);
-  for (size_t i = 0; i < 16; ++i) {
-    output[i] = control[i] < 16 ? input[control[i]] : 0;
-  }
-  return Vec128<TI, NI>{wasm_v128_load(output)};
-#endif
 }
 
 template <typename T, size_t N, typename TI, size_t NI>
@@ -3903,16 +3887,8 @@ HWY_API size_t CountTrue(D d, MFromD<D> m) {
 // Full vector
 template <class D, HWY_IF_V_SIZE_D(D, 16)>
 HWY_API bool AllFalse(D d, const MFromD<D> m) {
-#if 0
-  // Casting followed by wasm_i8x16_any_true results in wasm error:
-  // i32.eqz[0] expected type i32, found i8x16.popcnt of type s128
   const auto v8 = BitCast(Full128<int8_t>(), VecFromMask(d, m));
   return !wasm_i8x16_any_true(v8.raw);
-#else
-  (void)d;
-  return (wasm_i64x2_extract_lane(m.raw, 0) |
-          wasm_i64x2_extract_lane(m.raw, 1)) == 0;
-#endif
 }
 
 // Full vector
