@@ -13,16 +13,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Main header required before using vector types.
+
+// IWYU pragma: begin_exports
+// Export does not seem to be recursive, so re-export these (also in base.h)
+#include <stddef.h>
+#include <stdint.h>
+
+#include "hwy/base.h"
+#include "hwy/detect_compiler_arch.h"
+#include "hwy/highway_export.h"
+#include "hwy/targets.h"
+// IWYU pragma: end_exports
+
 // This include guard is checked by foreach_target, so avoid the usual _H_
 // suffix to prevent copybara from renaming it. NOTE: ops/*-inl.h are included
 // after/outside this include guard.
 #ifndef HWY_HIGHWAY_INCLUDED
 #define HWY_HIGHWAY_INCLUDED
-
-// Main header required before using vector types.
-
-#include "hwy/base.h"
-#include "hwy/targets.h"
 
 namespace hwy {
 

@@ -19,9 +19,6 @@
 // Arm NEON intrinsics are documented at:
 // https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiessimdisa=[Neon]
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();

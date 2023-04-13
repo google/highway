@@ -16,12 +16,8 @@
 // Single-element vectors and operations.
 // External include guard in highway.h - see comment there.
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include <cmath>  // std::abs, std::isnan
 
-#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();

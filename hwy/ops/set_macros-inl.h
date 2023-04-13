@@ -26,6 +26,7 @@
 
 #endif  // HWY_SET_MACROS_PER_TARGET
 
+#include "hwy/detect_compiler_arch.h"
 #include "hwy/detect_targets.h"
 
 #undef HWY_NAMESPACE

@@ -13,10 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stddef.h>
-
-#include "hwy/base.h"
-
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/reverse_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep

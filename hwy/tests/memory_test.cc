@@ -20,9 +20,6 @@
 #include <windows.h>
 #endif
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include <algorithm>  // std::fill
 
 #undef HWY_TARGET_INCLUDE

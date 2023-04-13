@@ -15,6 +15,12 @@
 
 // Per-target definitions shared by ops/*.h and user code.
 
+// Export does not seem to be recursive, so re-export these (also in base.h)
+#include <stddef.h>  // IWYU pragma: export
+#include <stdint.h>  // IWYU pragma: export
+
+#include "hwy/base.h"  // IWYU pragma: export
+
 // We are covered by the highway.h include guard, but generic_ops-inl.h
 // includes this again #if HWY_IDE.
 #if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == \
@@ -24,8 +30,6 @@
 #else
 #define HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #endif
-
-#include "hwy/base.h"
 
 // Separate header because foreach_target.h re-enables its include guard.
 #include "hwy/ops/set_macros-inl.h"

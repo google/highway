@@ -16,8 +16,6 @@
 // 128-bit WASM vectors and operations.
 // External include guard in highway.h - see comment there.
 
-#include <stddef.h>
-#include <stdint.h>
 #include <wasm_simd128.h>
 
 #include "hwy/base.h"

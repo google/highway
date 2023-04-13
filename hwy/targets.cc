@@ -20,11 +20,10 @@
 #endif
 #include <inttypes.h>  // IWYU pragma: keep (PRIx64)
 #include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>  // abort / exit
 
+#include "hwy/highway.h"
 #include "hwy/per_target.h"  // VectorBytes
 
 #if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN

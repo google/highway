@@ -18,15 +18,13 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS  // before inttypes.h
 #endif
-#include <inttypes.h>
-#include <stddef.h>
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>    // clock_gettime
 
 #include <algorithm>  // std::sort, std::find_if
 #include <array>
-#include <atomic>
 #include <chrono>  //NOLINT
 #include <limits>
 #include <numeric>  // std::iota

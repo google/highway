@@ -38,8 +38,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #include <wmmintrin.h>  // CLMUL
 #endif
 #endif
-#include <stddef.h>
-#include <stdint.h>
 #include <string.h>  // memcpy
 
 #include "hwy/ops/shared-inl.h"

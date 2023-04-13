@@ -15,14 +15,12 @@
 
 // Target-independent types/functions defined after target-specific ops.
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include "hwy/base.h"
 
 // Define detail::Shuffle1230 etc, but only when viewing the current header;
 // normally this is included via highway.h, which includes ops/*.h.
 #if HWY_IDE && !defined(HWY_HIGHWAY_INCLUDED)
+#include "hwy/detect_targets.h"
 #include "hwy/ops/emu128-inl.h"
 #endif  // HWY_IDE
 
@@ -2816,11 +2814,14 @@ HWY_API V ReverseBits(V v) {
 
 // ================================================== Operator wrapper
 
-// These targets currently cannot define operators and have already defined
+// SVE* and RVV currently cannot define operators and have already defined
 // (only) the corresponding functions such as Add.
-#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SVE &&      \
-    HWY_TARGET != HWY_SVE2 && HWY_TARGET != HWY_SVE_256 && \
-    HWY_TARGET != HWY_SVE2_128
+#if (defined(HWY_NATIVE_OPERATOR_REPLACEMENTS) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_OPERATOR_REPLACEMENTS
+#undef HWY_NATIVE_OPERATOR_REPLACEMENTS
+#else
+#define HWY_NATIVE_OPERATOR_REPLACEMENTS
+#endif
 
 template <class V>
 HWY_API V Add(V a, V b) {
@@ -2876,7 +2877,7 @@ HWY_API auto Le(V a, V b) -> decltype(a == b) {
   return a <= b;
 }
 
-#endif  // HWY_TARGET for operators
+#endif  // HWY_NATIVE_OPERATOR_REPLACEMENTS
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

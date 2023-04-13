@@ -30,8 +30,6 @@
 #pragma pop_macro("pixel")
 #pragma pop_macro("bool")
 
-#include <stddef.h>
-#include <stdint.h>
 #include <string.h>  // memcpy
 
 #include "hwy/ops/shared-inl.h"

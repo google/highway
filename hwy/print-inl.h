@@ -15,8 +15,6 @@
 
 // Print() function
 
-#include <stdint.h>
-
 #include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
 #include "hwy/print.h"

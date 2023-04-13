@@ -68,9 +68,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 // clang-format on
 #endif  // HWY_COMPILER_CLANGCL
 
-#include <stddef.h>
-#include <stdint.h>
-
 #if HWY_IS_MSAN
 #include <sanitizer/msan_interface.h>
 #endif
@@ -1344,7 +1341,8 @@ HWY_API Vec256<uint64_t> operator*(Vec256<uint64_t> a, Vec256<uint64_t> b) {
   return Vec256<uint64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<uint64_t, N> operator*(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
+HWY_API Vec128<uint64_t, N> operator*(Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
   return Vec128<uint64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
 }
 
@@ -1362,7 +1360,8 @@ HWY_API Vec256<int64_t> operator*(Vec256<int64_t> a, Vec256<int64_t> b) {
   return Vec256<int64_t>{_mm256_mullo_epi64(a.raw, b.raw)};
 }
 template <size_t N>
-HWY_API Vec128<int64_t, N> operator*(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
+HWY_API Vec128<int64_t, N> operator*(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
   return Vec128<int64_t, N>{_mm_mullo_epi64(a.raw, b.raw)};
 }
 // Returns the upper 16 bits of a * b in each lane.

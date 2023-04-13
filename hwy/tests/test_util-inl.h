@@ -15,17 +15,24 @@
 
 // Target-specific helper functions for use by *_test.cc.
 
-#include <stdint.h>
+#include <stdio.h>
+#include <string.h>  // memset
 
+// IWYU pragma: begin_exports
+#include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
+#include "hwy/detect_targets.h"
+#include "hwy/targets.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util.h"
+// IWYU pragma: end_exports
 
 // After test_util (also includes highway.h)
 #include "hwy/print-inl.h"
 
 // Per-target include guard
-#if defined(HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_) == \
+    defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
 #undef HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
 #else

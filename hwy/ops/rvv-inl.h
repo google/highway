@@ -17,10 +17,7 @@
 // External include guard in highway.h - see comment there.
 
 #include <riscv_vector.h>
-#include <stddef.h>
-#include <stdint.h>
 
-#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -816,6 +813,13 @@ HWY_API V CopySignToAbs(const V abs, const V sign) {
 }
 
 // ================================================== ARITHMETIC
+
+// Per-target flags to prevent generic_ops-inl.h defining Add etc.
+#ifdef HWY_NATIVE_OPERATOR_REPLACEMENTS
+#undef HWY_NATIVE_OPERATOR_REPLACEMENTS
+#else
+#define HWY_NATIVE_OPERATOR_REPLACEMENTS
+#endif
 
 // ------------------------------ Add
 

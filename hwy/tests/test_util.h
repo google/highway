@@ -18,17 +18,12 @@
 
 // Target-independent helper functions for use by *_test.cc.
 
-#include <stddef.h>
-#include <stdint.h>
 #include <string.h>
 
 #include <cmath>  // std::isnan
 #include <string>
 
-#include "hwy/aligned_allocator.h"
-#include "hwy/base.h"
 #include "hwy/highway.h"
-#include "hwy/highway_export.h"
 #include "hwy/print.h"
 
 namespace hwy {
