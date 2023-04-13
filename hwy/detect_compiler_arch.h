@@ -205,7 +205,7 @@
 #define HWY_ARCH_ARM 0
 #endif
 
-// Older than v7 (e.g. armel aka Arm v5), in which case we do not support SIMD.
+// Older than Armv7 (e.g. armel aka Armv5) => we do not support SIMD.
 #if (defined(__arm__) || defined(_M_ARM)) && !HWY_ARCH_ARM
 #define HWY_ARCH_ARM_OLD 1
 #else

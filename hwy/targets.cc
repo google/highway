@@ -367,7 +367,7 @@ int64_t DetectTargets() {
 #endif
 
   // aarch32 would check getauxval(AT_HWCAP2) & HWCAP2_AES, but we do not yet
-  // support that platform, and Arm v7 lacks AES entirely. Because HWY_NEON
+  // support that platform, and Armv7 lacks AES entirely. Because HWY_NEON
   // requires native AES instructions, we do not enable that target here.
 
 #endif  // HWY_ARCH_ARM_A64
