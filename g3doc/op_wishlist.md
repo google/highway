@@ -16,6 +16,14 @@ janwas will likely implement this, please raise an issue if you'd like to.
 
 Can use the GFNI instructions added in #1276.
 
+### Vector tuple type
+
+Vec2, Create/Get functions, add second Load/StoreInterleaved interface.
+
+### 52x52=104-bit multiply
+
+For crypto. Native on Icelake+.
+
 ### Slide1Up/Down
 
 Potentially useful for comparing neighbors e.g. for RLE.
@@ -143,3 +151,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~LeadingZeroCount~~ - by johnplatts in #1276
 *   ~~8-bit Mul~~
 *   ~~(Neg)MulAdd for integer~~
+*   ~~AESRoundInv etc~~ - by johnplatts in #1286
