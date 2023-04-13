@@ -259,8 +259,7 @@ HWY_INLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
 
 template <class V>
 V OrXor(const V o, const V x1, const V x2) {
-  // TODO(janwas): add op so we can benefit from AVX-512 ternlog?
-  return Or(o, Xor(x1, x2));
+  return Or(o, Xor(x1, x2));  // ternlog on AVX3
 }
 
 // Note: we could track the OrXor of v and pivot to see if the entire left
