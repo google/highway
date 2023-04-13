@@ -4945,9 +4945,10 @@ HWY_API Vec128<T, N> SwapAdjacentBlocks(Vec128<T, N> v) {
 }
 
 // ------------------------------ ReverseBlocks
-template <class D, typename T = TFromD<D>>
-HWY_API Vec128<T> ReverseBlocks(D /* tag */, Vec128<T> v) {
-  return v;  // Single block: no change
+// Single block: no change
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ReverseBlocks(D /* tag */, VFromD<D> v) {
+  return v;
 }
 
 // ------------------------------ ReorderDemote2To (OddEven)
