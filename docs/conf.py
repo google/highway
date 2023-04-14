@@ -21,6 +21,7 @@ project = 'HIGHWAY'
 
 # The full version, including alpha/beta/rc tags
 release = 'nightly'
+copyright = 'Apache 2'
 
 
 # -- General configuration ---------------------------------------------------
