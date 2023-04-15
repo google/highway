@@ -162,7 +162,7 @@ static HWY_INLINE T TestEndianGetIntegerVal(T val) {
                 "sizeof(T) == sizeof(TU) must be true");
 
   uint8_t result_bytes[sizeof(T)];
-  const TU val_u = static_cast<T>(val);
+  const TU val_u = static_cast<TU>(val);
 
   for (size_t i = 0; i < sizeof(T); i++) {
 #if HWY_IS_BIG_ENDIAN
