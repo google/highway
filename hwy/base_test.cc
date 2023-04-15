@@ -182,7 +182,7 @@ template <class T, class... Bytes>
 static HWY_INLINE T TestEndianCreateValueFromBytes(Bytes&&... bytes) {
   static_assert(sizeof(T) > 0, "sizeof(T) > 0 must be true");
   static_assert(sizeof...(Bytes) == sizeof(T),
-                "sizeof...(Bytes) == sizeof(T) is true");
+                "sizeof...(Bytes) == sizeof(T) must be true");
 
   const uint8_t src_bytes[sizeof(T)]{static_cast<uint8_t>(bytes)...};
 
