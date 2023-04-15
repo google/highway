@@ -5312,9 +5312,9 @@ HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
   const Vec128<T> idx_vec{idx.raw};
   const auto sel_hi_mask =
       RebindMask(d, BitCast(di, idx_vec) > Set(di, int16_t{7}));
-  const auto lo_lookup_result = TableLookupBytes(a, idx_vec);
-  const auto hi_lookup_result = TableLookupBytes(b, idx_vec);
-  return IfVecThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+  const auto lo_lookup_result = TableLookupLanes(a, idx);
+  const auto hi_lookup_result = TableLookupLanes(b, idx);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
 #else
   const DFromV<decltype(a)> d;
   const Repartition<uint8_t, decltype(d)> du8;

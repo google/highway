@@ -2720,7 +2720,7 @@ HWY_API Indices512<T> IndicesFromVec(D /* tag */, Vec512<TI> vec) {
 #if HWY_IS_DEBUG_BUILD
   const DFromV<decltype(vec)> di;
   const RebindToUnsigned<decltype(di)> du;
-  using TU = RebindToUnsigned<T>;
+  using TU = MakeUnsigned<T>;
   const auto vec_u = BitCast(du, vec);
   HWY_DASSERT(
       AllTrue(du, Lt(vec_u, Set(du, static_cast<TU>(128 / sizeof(T))))));
