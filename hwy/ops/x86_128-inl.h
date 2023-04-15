@@ -4278,13 +4278,60 @@ struct Indices128 {
 };
 
 template <class D, typename T = TFromD<D>, typename TI, size_t kN,
+          HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE(T, 1)>
+HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+#if HWY_IS_DEBUG_BUILD
+  const Rebind<TI, decltype(d)> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, kN * 2))));
+#endif
+
+  // No change as byte indices are always used for 8-bit lane types
+  (void)d;
+  return Indices128<T, kN>{vec.raw};
+}
+
+template <class D, typename T = TFromD<D>, typename TI, size_t kN,
+          HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE(T, 2)>
+HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+#if HWY_IS_DEBUG_BUILD
+  const Rebind<TI, decltype(d)> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, kN * 2))));
+#endif
+
+#if HWY_TARGET <= HWY_AVX3 || HWY_TARGET == HWY_SSE2
+  (void)d;
+  return Indices128<T, kN>{vec.raw};
+#else   // SSSE3, SSE4, or AVX2
+  const Repartition<uint8_t, decltype(d)> d8;
+  using V8 = VFromD<decltype(d8)>;
+  alignas(16) static constexpr uint8_t kByteOffsets[16] = {
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+
+  // Broadcast each lane index to all 4 bytes of T
+  alignas(16) static constexpr uint8_t kBroadcastLaneBytes[16] = {
+      0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14};
+  const V8 lane_indices = TableLookupBytes(vec, Load(d8, kBroadcastLaneBytes));
+
+  // Shift to bytes
+  const Repartition<uint16_t, decltype(d)> d16;
+  const V8 byte_indices = BitCast(d8, ShiftLeft<1>(BitCast(d16, lane_indices)));
+
+  return Indices128<T, kN>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
+#endif  // HWY_TARGET <= HWY_AVX3 || HWY_TARGET == HWY_SSE2
+}
+
+template <class D, typename T = TFromD<D>, typename TI, size_t kN,
           HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE(T, 4)>
 HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const Rebind<TI, decltype(d)> di;
   HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, kN))));
+              AllTrue(di, Lt(vec, Set(di, kN * 2))));
 #endif
 
 #if HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_SSE2
@@ -4316,7 +4363,7 @@ HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
 #if HWY_IS_DEBUG_BUILD
   const Rebind<TI, decltype(d)> di;
   HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(kN)))));
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(kN * 2)))));
 #else
   (void)d;
 #endif
@@ -4330,6 +4377,41 @@ HWY_API Indices128<TFromD<D>, HWY_MAX_LANES_D(D)> SetTableIndices(
     D d, const TI* idx) {
   const Rebind<TI, decltype(d)> di;
   return IndicesFromVec(d, LoadU(di, idx));
+}
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
+  return TableLookupBytes(v, Vec128<T, N>{idx.raw});
+}
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return {_mm_permutexvar_epi16(idx.raw, v.raw)};
+#elif HWY_TARGET == HWY_SSE2
+#if HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
+  typedef uint16_t GccU16RawVectType __attribute__((__vector_size__(16)));
+  return Vec128<T, N>{reinterpret_cast<typename detail::Raw128<T>::type>(
+      __builtin_shuffle(reinterpret_cast<GccU16RawVectType>(v.raw),
+                        reinterpret_cast<GccU16RawVectType>(idx.raw)))};
+#else
+  const Full128<T> d_full;
+  alignas(16) T src_lanes[8];
+  alignas(16) uint16_t indices[8];
+  alignas(16) T result_lanes[8];
+
+  Store(Vec128<T>{v.raw}, d_full, src_lanes);
+  _mm_store_si128(reinterpret_cast<__m128i*>(indices), idx.raw);
+
+  for (int i = 0; i < 8; i++) {
+    result_lanes[i] = src_lanes[indices[i] & 7u];
+  }
+
+  return Vec128<T, N>{Load(d_full, result_lanes).raw};
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
+#else
+  return TableLookupBytes(v, Vec128<T, N>{idx.raw});
+#endif
 }
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
@@ -4360,7 +4442,7 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
 
   return Vec128<T, N>{Load(d_full, result_lanes).raw};
 #endif  // HWY_COMPILER_GCC_ACTUAL && HWY_HAS_BUILTIN(__builtin_shuffle)
-#else
+#else   // SSSE3 or SSE4
   return TableLookupBytes(v, Vec128<T, N>{idx.raw});
 #endif
 }
@@ -4371,14 +4453,14 @@ HWY_API Vec128<float, N> TableLookupLanes(Vec128<float, N> v,
                                           Indices128<float, N> idx) {
 #if HWY_TARGET <= HWY_AVX2
   return Vec128<float, N>{_mm_permutevar_ps(v.raw, idx.raw)};
-#else
+#else   // SSSE3 or SSE4
   const DFromV<decltype(v)> df;
   const RebindToSigned<decltype(df)> di;
   return BitCast(df,
                  TableLookupBytes(BitCast(di, v), Vec128<int32_t, N>{idx.raw}));
-#endif
+#endif  // HWY_TARGET <= HWY_AVX2
 }
-#endif
+#endif  // HWY_TARGET <= HWY_SSSE3
 
 // Single lane: no change
 template <typename T>
@@ -5175,6 +5257,181 @@ HWY_API Vec128<float, N> DupOdd(Vec128<float, N> v) {
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
 HWY_API Vec128<T, N> DupOdd(const Vec128<T, N> v) {
   return InterleaveUpper(DFromV<decltype(v)>(), v, v);
+}
+
+// ------------------------------ TwoTablesLookupLanes (DupEven)
+
+template <typename T, size_t N, HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Vec128<T, N> TwoTablesLookupLanes(Vec128<T, N> a, Vec128<T, N> b,
+                                          Indices128<T, N> idx) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(
+      d, TableLookupLanes(Combine(dt, b, a), Indices128<T, N * 2>{idx.raw}));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
+                                       Indices128<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec128<T>{_mm_permutex2var_epi8(a.raw, idx.raw, b.raw)};
+#else  // AVX3 or below
+  const DFromV<decltype(a)> d;
+  const Vec128<T> idx_vec{idx.raw};
+
+#if HWY_TARGET <= HWY_SSE4
+  const Repartition<uint16_t, decltype(d)> du16;
+  const auto sel_hi_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, idx_vec))));
+#else
+  const RebindToSigned<decltype(d)> di;
+  const auto sel_hi_mask =
+      RebindMask(d, BitCast(di, idx_vec) > Set(di, int8_t{15}));
+#endif
+
+  const auto lo_lookup_result = TableLookupBytes(a, idx_vec);
+#if HWY_TARGET <= HWY_AVX3
+  const Vec128<T> lookup_result{_mm_mask_shuffle_epi8(
+      lo_lookup_result.raw, sel_hi_mask.raw, b.raw, idx_vec.raw)};
+  return lookup_result;
+#else
+  const auto hi_lookup_result = TableLookupBytes(b, idx_vec);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#endif  // HWY_TARGET <= HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
+                                       Indices128<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<T>{_mm_permutex2var_epi16(a.raw, idx.raw, b.raw)};
+#elif HWY_TARGET == HWY_SSE2
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const Vec128<T> idx_vec{idx.raw};
+  const auto sel_hi_mask =
+      RebindMask(d, BitCast(di, idx_vec) > Set(di, int16_t{7}));
+  const auto lo_lookup_result = TableLookupBytes(a, idx_vec);
+  const auto hi_lookup_result = TableLookupBytes(b, idx_vec);
+  return IfVecThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#else
+  const DFromV<decltype(a)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, a), BitCast(du8, b),
+                                         Indices128<uint8_t>{idx.raw}));
+#endif
+}
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
+                                       Indices128<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<T>{_mm_permutex2var_epi32(a.raw, idx.raw, b.raw)};
+#else  // AVX2 or below
+  const DFromV<decltype(a)> d;
+
+#if HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_SSE2
+  const Vec128<T> idx_vec{idx.raw};
+
+#if HWY_TARGET <= HWY_AVX2
+  const RebindToFloat<decltype(d)> d_sel;
+  const auto sel_hi_mask = MaskFromVec(BitCast(d_sel, ShiftLeft<29>(idx_vec)));
+#else
+  const RebindToSigned<decltype(d)> d_sel;
+  const auto sel_hi_mask = BitCast(d_sel, idx_vec) > Set(d_sel, int32_t{3});
+#endif
+
+  const auto lo_lookup_result = BitCast(d_sel, TableLookupLanes(a, idx));
+  const auto hi_lookup_result = BitCast(d_sel, TableLookupLanes(b, idx));
+  return BitCast(d,
+                 IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result));
+#else   // SSSE3 or SSE4
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, a), BitCast(du8, b),
+                                         Indices128<uint8_t>{idx.raw}));
+#endif  // HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_SSE2
+#endif  // HWY_TARGET <= HWY_AVX3
+}
+
+HWY_API Vec128<float> TwoTablesLookupLanes(Vec128<float> a, Vec128<float> b,
+                                           Indices128<float> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<float>{_mm_permutex2var_ps(a.raw, idx.raw, b.raw)};
+#elif HWY_TARGET <= HWY_AVX2 || HWY_TARGET == HWY_SSE2
+  const DFromV<decltype(a)> d;
+
+#if HWY_TARGET <= HWY_AVX2
+  const auto sel_hi_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<29>(Vec128<int32_t>{idx.raw})));
+#else
+  const RebindToSigned<decltype(d)> di;
+  const auto sel_hi_mask =
+      RebindMask(d, Vec128<int32_t>{idx.raw} > Set(di, int32_t{3}));
+#endif
+
+  const auto lo_lookup_result = TableLookupLanes(a, idx);
+  const auto hi_lookup_result = TableLookupLanes(b, idx);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#else  // SSSE3 or SSE4
+  const DFromV<decltype(a)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, a), BitCast(du8, b),
+                                         Indices128<uint8_t>{idx.raw}));
+#endif
+}
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
+                                       Indices128<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<T>{_mm_permutex2var_epi64(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const Vec128<T> idx_vec{idx.raw};
+  const Indices128<T> idx_mod{And(idx_vec, Set(d, T{1})).raw};
+
+#if HWY_TARGET <= HWY_SSE4
+  const RebindToFloat<decltype(d)> d_sel;
+  const auto sel_hi_mask = MaskFromVec(BitCast(d_sel, ShiftLeft<62>(idx_vec)));
+#else   // SSE2 or SSSE3
+  const Repartition<int32_t, decltype(d)> di32;
+  const RebindToSigned<decltype(d)> d_sel;
+  const auto sel_hi_mask = MaskFromVec(
+      BitCast(d_sel, VecFromMask(di32, DupEven(BitCast(di32, idx_vec)) >
+                                           Set(di32, int32_t{1}))));
+#endif  // HWY_TARGET <= HWY_SSE4
+
+  const auto lo_lookup_result = BitCast(d_sel, TableLookupLanes(a, idx_mod));
+  const auto hi_lookup_result = BitCast(d_sel, TableLookupLanes(b, idx_mod));
+  return BitCast(d,
+                 IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result));
+#endif  // HWY_TARGET <= HWY_AVX3
+}
+
+HWY_API Vec128<double> TwoTablesLookupLanes(Vec128<double> a, Vec128<double> b,
+                                            Indices128<double> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<double>{_mm_permutex2var_pd(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const Vec128<int64_t> idx_vec{idx.raw};
+  const Indices128<double> idx_mod{And(idx_vec, Set(di, int64_t{1})).raw};
+
+#if HWY_TARGET <= HWY_SSE4
+  const auto sel_hi_mask = MaskFromVec(BitCast(d, ShiftLeft<62>(idx_vec)));
+#else   // SSE2 or SSSE3
+  const Repartition<int32_t, decltype(d)> di32;
+  const auto sel_hi_mask =
+      MaskFromVec(BitCast(d, VecFromMask(di32, DupEven(BitCast(di32, idx_vec)) >
+                                                   Set(di32, int32_t{1}))));
+#endif  // HWY_TARGET <= HWY_SSE4
+
+  const auto lo_lookup_result = TableLookupLanes(a, idx_mod);
+  const auto hi_lookup_result = TableLookupLanes(b, idx_mod);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#endif  // HWY_TARGET <= HWY_AVX3
 }
 
 // ------------------------------ OddEven (IfThenElse)

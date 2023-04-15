@@ -3130,6 +3130,52 @@ struct Indices256 {
   __m256i raw;
 };
 
+// 8-bit lanes: indices remain unchanged
+template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 1)>
+HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+#if HWY_IS_DEBUG_BUILD
+  const Full256<TI> di;
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
+#endif
+  return Indices256<T>{vec.raw};
+}
+
+// 16-bit lanes: convert indices to 32x8 unless AVX3 is available
+template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 2)>
+HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
+  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+  const Full256<TI> di;
+#if HWY_IS_DEBUG_BUILD
+  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
+#endif
+
+#if HWY_TARGET <= HWY_AVX3
+  (void)di;
+  return Indices256<T>{vec.raw};
+#else
+  const Repartition<uint8_t, decltype(di)> d8;
+  using V8 = VFromD<decltype(d8)>;
+  alignas(32) static constexpr uint8_t kByteOffsets[32] = {
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+
+  // Broadcast each lane index to all 4 bytes of T
+  alignas(32) static constexpr uint8_t kBroadcastLaneBytes[32] = {
+      0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14,
+      0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14};
+  const V8 lane_indices = TableLookupBytes(vec, Load(d8, kBroadcastLaneBytes));
+
+  // Shift to bytes
+  const Repartition<uint16_t, decltype(di)> d16;
+  const V8 byte_indices = BitCast(d8, ShiftLeft<1>(BitCast(d16, lane_indices)));
+
+  return Indices256<T>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
+#endif  // HWY_TARGET <= HWY_AVX3
+}
+
 // Native 8x32 instruction: indices remain unchanged
 template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 4)>
 HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
@@ -3137,7 +3183,7 @@ HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
 #if HWY_IS_DEBUG_BUILD
   const Full256<TI> di;
   HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(32 / sizeof(T))))));
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
 #endif
   return Indices256<T>{vec.raw};
 }
@@ -3150,7 +3196,7 @@ HWY_API Indices256<T> IndicesFromVec(D d, Vec256<TI> idx64) {
   (void)di;  // potentially unused
 #if HWY_IS_DEBUG_BUILD
   HWY_DASSERT(AllFalse(di, Lt(idx64, Zero(di))) &&
-              AllTrue(di, Lt(idx64, Set(di, static_cast<TI>(32 / sizeof(T))))));
+              AllTrue(di, Lt(idx64, Set(di, static_cast<TI>(64 / sizeof(T))))));
 #endif
 
 #if HWY_TARGET <= HWY_AVX3
@@ -3171,6 +3217,43 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>, typename TI>
 HWY_API Indices256<T> SetTableIndices(D d, const TI* idx) {
   const Rebind<TI, decltype(d)> di;
   return IndicesFromVec(d, LoadU(di, idx));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec256<T>{_mm256_permutexvar_epi8(idx.raw, v.raw)};
+#else
+  const Vec256<T> idx_vec{idx.raw};
+  const DFromV<decltype(v)> d;
+  const Repartition<uint16_t, decltype(d)> du16;
+  const auto sel_hi_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, idx_vec))));
+
+  const Vec256<T> a{_mm256_permute2x128_si256(v.raw, v.raw, 0x00)};
+  const Vec256<T> b{_mm256_permute2x128_si256(v.raw, v.raw, 0x11)};
+  const auto lo_lookup_result = TableLookupBytes(a, idx_vec);
+
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<T>{_mm256_mask_shuffle_epi8(
+      lo_lookup_result.raw, sel_hi_mask.raw, b.raw, idx_vec.raw)};
+#else
+  const auto hi_lookup_result = TableLookupBytes(b, idx_vec);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#endif  // HWY_TARGET <= HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<T>{_mm256_permutexvar_epi16(idx.raw, v.raw)};
+#else
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(
+      d, TableLookupLanes(BitCast(du8, v), Indices256<uint8_t>{idx.raw}));
+#endif
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 4)>
@@ -3201,6 +3284,91 @@ HWY_API Vec256<double> TableLookupLanes(const Vec256<double> v,
   const Full256<uint64_t> du;
   return BitCast(df, Vec256<uint64_t>{_mm256_permutevar8x32_epi32(
                          BitCast(du, v).raw, idx.raw)});
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> TwoTablesLookupLanes(Vec256<T> a, Vec256<T> b,
+                                       Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec256<T>{_mm256_permutex2var_epi8(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const auto sel_hi_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<2>(Vec256<uint16_t>{idx.raw})));
+  const auto lo_lookup_result = TableLookupLanes(a, idx);
+  const auto hi_lookup_result = TableLookupLanes(b, idx);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec256<T> TwoTablesLookupLanes(Vec256<T> a, Vec256<T> b,
+                                       Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<T>{_mm256_permutex2var_epi16(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du8, a), BitCast(du8, b),
+                                         Indices256<uint8_t>{idx.raw}));
+#endif
+}
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec256<T> TwoTablesLookupLanes(Vec256<T> a, Vec256<T> b,
+                                       Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<T>{_mm256_permutex2var_epi32(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const RebindToFloat<decltype(d)> df;
+  const Vec256<T> idx_vec{idx.raw};
+
+  const auto sel_hi_mask = MaskFromVec(BitCast(df, ShiftLeft<28>(idx_vec)));
+  const auto lo_lookup_result = BitCast(df, TableLookupLanes(a, idx));
+  const auto hi_lookup_result = BitCast(df, TableLookupLanes(b, idx));
+  return BitCast(d,
+                 IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result));
+#endif
+}
+
+HWY_API Vec256<float> TwoTablesLookupLanes(Vec256<float> a, Vec256<float> b,
+                                           Indices256<float> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<float>{_mm256_permutex2var_ps(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const auto sel_hi_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<28>(Vec256<uint32_t>{idx.raw})));
+  const auto lo_lookup_result = TableLookupLanes(a, idx);
+  const auto hi_lookup_result = TableLookupLanes(b, idx);
+  return IfThenElse(sel_hi_mask, hi_lookup_result, lo_lookup_result);
+#endif
+}
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> TwoTablesLookupLanes(Vec256<T> a, Vec256<T> b,
+                                       Indices256<T> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<T>{_mm256_permutex2var_epi64(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const Repartition<uint32_t, decltype(d)> du32;
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du32, a), BitCast(du32, b),
+                                         Indices256<uint32_t>{idx.raw}));
+#endif
+}
+
+HWY_API Vec256<double> TwoTablesLookupLanes(Vec256<double> a, Vec256<double> b,
+                                            Indices256<double> idx) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<double>{_mm256_permutex2var_pd(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const Repartition<uint32_t, decltype(d)> du32;
+  return BitCast(d, TwoTablesLookupLanes(BitCast(du32, a), BitCast(du32, b),
+                                         Indices256<uint32_t>{idx.raw}));
 #endif
 }
 

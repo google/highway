@@ -2197,7 +2197,12 @@ HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
   const RebindToUnsigned<D> du;
   const auto indices = BitCast(du, vec);
 #if HWY_IS_DEBUG_BUILD
-  HWY_DASSERT(AllTrue(du, detail::LtN(indices, static_cast<TI>(Lanes(d)))));
+  using TU = MakeUnsigned<TI>;
+  const size_t twice_max_lanes = Lanes(d) * 2;
+  HWY_DASSERT(AllTrue(
+      du,
+      detail::Eq(indices,
+                 detail::AndN(indices, static_cast<TU>(twice_max_lanes - 1)))));
 #else
   (void)d;
 #endif
@@ -2210,7 +2215,6 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
   return IndicesFromVec(d, LoadU(Rebind<TI, D>(), idx));
 }
 
-// <32bit are not part of Highway API, but used in Broadcast.
 #define HWY_SVE_TABLE(BASE, CHAR, BITS, HALF, NAME, OP)          \
   HWY_API HWY_SVE_V(BASE, BITS)                                  \
       NAME(HWY_SVE_V(BASE, BITS) v, HWY_SVE_V(uint, BITS) idx) { \
@@ -2219,6 +2223,28 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
 
 HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
 #undef HWY_SVE_TABLE
+
+template <class D>
+HWY_API VFromD<D> TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b,
+                                       VFromD<RebindToUnsigned<D>> idx) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  const size_t num_of_lanes = Lanes(d);
+  const auto idx_mod = detail::AndN(idx, static_cast<TU>(num_of_lanes - 1));
+  const auto sel_a_mask = Eq(idx, idx_mod);
+
+  const auto a_lookup_result = TableLookupLanes(a, idx_mod);
+  const auto b_lookup_result = TableLookupLanes(b, idx_mod);
+  return IfThenElse(sel_a_mask, a_lookup_result, b_lookup_result);
+}
+
+template <class V>
+HWY_API V TwoTablesLookupLanes(V a, V b,
+                               VFromD<RebindToUnsigned<DFromV<V>>> idx) {
+  const DFromV<decltype(a)> d;
+  return TwoTablesLookupLanes(d, a, b, idx);
+}
 
 // ------------------------------ SwapAdjacentBlocks (TableLookupLanes)
 

@@ -570,7 +570,7 @@ template <typename T>
 HWY_API Vec1<T> Abs(const Vec1<T> a) {
   const T i = a.raw;
   if (i >= 0 || i == hwy::LimitsMin<T>()) return a;
-  return Vec1<T>(static_cast<T>(-i& T{-1}));
+  return Vec1<T>(static_cast<T>(-i & T{-1}));
 }
 HWY_API Vec1<float> Abs(Vec1<float> a) {
   int32_t i;
@@ -1414,8 +1414,8 @@ struct Indices1 {
 template <class D, typename T = TFromD<D>, typename TI>
 HWY_API Indices1<T> IndicesFromVec(D, Vec1<TI> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane size");
-  HWY_DASSERT(vec.raw == 0);
-  return Indices1<T>{vec.raw};
+  HWY_DASSERT(vec.raw <= 1);
+  return Indices1<T>{static_cast<MakeSigned<T>>(vec.raw)};
 }
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>, typename TI>
@@ -1426,6 +1426,12 @@ HWY_API Indices1<T> SetTableIndices(D d, const TI* idx) {
 template <typename T>
 HWY_API Vec1<T> TableLookupLanes(const Vec1<T> v, const Indices1<T> /* idx */) {
   return v;
+}
+
+template <typename T>
+HWY_API Vec1<T> TwoTablesLookupLanes(const Vec1<T> a, const Vec1<T> b,
+                                     const Indices1<T> idx) {
+  return (idx.raw == 0) ? a : b;
 }
 
 // ------------------------------ ReverseBlocks

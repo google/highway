@@ -2449,7 +2449,11 @@ HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
   const RebindToUnsigned<decltype(d)> du;  // instead of <D>: avoids unused d.
   const auto indices = BitCast(du, vec);
 #if HWY_IS_DEBUG_BUILD
-  HWY_DASSERT(AllTrue(du, detail::LtS(indices, Lanes(d))));
+  using TU = TFromD<decltype(du)>;
+  const size_t twice_num_of_lanes = Lanes(d) * 2;
+  HWY_DASSERT(AllTrue(
+      du, Eq(indices,
+             detail::AndS(indices, static_cast<TU>(twice_num_of_lanes - 1)))));
 #endif
   return indices;
 }
@@ -2860,6 +2864,40 @@ HWY_API VI TableLookupBytesOr0(const VT vt, const VI idx) {
   const auto idx8 = BitCast(di8, idx);
   const auto lookup = TableLookupBytes(vt, idx8);
   return BitCast(di, IfThenZeroElse(detail::LtS(idx8, 0), lookup));
+}
+
+// ------------------------------ TwoTablesLookupLanes
+
+template <class D, HWY_IF_POW2_LE_D(D, 2)>
+HWY_API VFromD<D> TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b,
+                                       VFromD<RebindToUnsigned<D>> idx) {
+  const Twice<decltype(d)> dt;
+  const RebindToUnsigned<decltype(dt)> dt_u;
+  const auto combined_tbl = Combine(dt, b, a);
+  const auto combined_idx = Combine(dt_u, idx, idx);
+  return LowerHalf(d, TableLookupLanes(combined_tbl, combined_idx));
+}
+
+template <class D, HWY_IF_POW2_GT_D(D, 2)>
+HWY_API VFromD<D> TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b,
+                                       VFromD<RebindToUnsigned<D>> idx) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  const size_t num_of_lanes = Lanes(d);
+  const auto idx_mod = detail::AndS(idx, static_cast<TU>(num_of_lanes - 1));
+  const auto sel_a_mask = Eq(idx, idx_mod);
+
+  const auto a_lookup_result = TableLookupLanes(a, idx_mod);
+  const auto b_lookup_result = TableLookupLanes(b, idx_mod);
+  return IfThenElse(sel_a_mask, a_lookup_result, b_lookup_result);
+}
+
+template <class V>
+HWY_API V TwoTablesLookupLanes(V a, V b,
+                               VFromD<RebindToUnsigned<DFromV<V>>> idx) {
+  const DFromV<decltype(a)> d;
+  return TwoTablesLookupLanes(d, a, b, idx);
 }
 
 // ------------------------------ Broadcast

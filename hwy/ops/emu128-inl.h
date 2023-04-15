@@ -2120,6 +2120,21 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
   return ret;
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> TwoTablesLookupLanes(Vec128<T, N> a, Vec128<T, N> b,
+                                          Indices128<T, N> idx) {
+  using TI = MakeSigned<T>;
+  Vec128<T, N> ret;
+  constexpr TI kVecLaneIdxMask = static_cast<TI>(N - 1);
+  for (size_t i = 0; i < N; ++i) {
+    const auto src_idx = idx.raw[i];
+    const auto masked_src_lane_idx = src_idx & kVecLaneIdxMask;
+    ret.raw[i] = (src_idx < static_cast<TI>(N)) ? a.raw[masked_src_lane_idx]
+                                                : b.raw[masked_src_lane_idx];
+  }
+  return ret;
+}
+
 // ------------------------------ ReverseBlocks
 template <class D>
 HWY_API VFromD<D> ReverseBlocks(D /* tag */, VFromD<D> v) {
