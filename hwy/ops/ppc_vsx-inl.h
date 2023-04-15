@@ -667,7 +667,7 @@ HWY_API Vec128<T> Shuffle01(Vec128<T> v) {
 // Rotate right 32 bits
 template <class T, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T> Shuffle0321(Vec128<T> v) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<T>{vec_sld(v.raw, v.raw, 12)};
 #else
   return Vec128<T>{vec_sld(v.raw, v.raw, 4)};
@@ -676,7 +676,7 @@ HWY_API Vec128<T> Shuffle0321(Vec128<T> v) {
 // Rotate left 32 bits
 template <class T, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T> Shuffle2103(Vec128<T> v) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<T>{vec_sld(v.raw, v.raw, 4)};
 #else
   return Vec128<T>{vec_sld(v.raw, v.raw, 12)};
@@ -993,8 +993,7 @@ HWY_INLINE VFromD<D> AltivecVsum2sws(D d, __vector signed int a,
   const Repartition<int32_t, D> di32;
 #ifdef __OPTIMIZE__
   const Repartition<uint64_t, D> du64;
-  constexpr int kDestLaneOffset =
-      __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 1;
+  constexpr int kDestLaneOffset = HWY_IS_BIG_ENDIAN;
   if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
       __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
       __builtin_constant_p(b[kDestLaneOffset]) &&
@@ -1099,7 +1098,7 @@ HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a, Vec128<T, N> b) {
   const RepartitionToWide<decltype(d)> dw;
   const VFromD<decltype(dw)> p1{vec_mule(a.raw, b.raw)};
   const VFromD<decltype(dw)> p2{vec_mulo(a.raw, b.raw)};
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kShuffle = {2,  3,  18, 19, 6,  7,  22, 23,
                                            10, 11, 26, 27, 14, 15, 30, 31};
 #else
@@ -1378,7 +1377,7 @@ HWY_API VFromD<D> ShiftLeftBytes(D d, VFromD<D> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   if (kBytes == 0) return v;
   const auto zeros = Zero(d);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{vec_sld(v.raw, zeros.raw, kBytes)};
 #else
   return VFromD<D>{vec_sld(zeros.raw, v.raw, (-kBytes) & 15)};
@@ -1430,7 +1429,7 @@ HWY_API VFromD<D> ShiftRightBytes(D d, VFromD<D> v) {
   }
 
   const auto zeros = Zero(d);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{vec_sld(zeros.raw, v.raw, (-kBytes) & 15)};
 #else
   return VFromD<D>{vec_sld(v.raw, zeros.raw, kBytes)};
@@ -1485,7 +1484,7 @@ template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> CombineShiftRightBytes(D /*d*/, Vec128<T> hi, Vec128<T> lo) {
   constexpr size_t kSize = 16;
   static_assert(0 < kBytes && kBytes < kSize, "kBytes invalid");
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<T>{vec_sld(hi.raw, lo.raw, (-kBytes) & 15)};
 #else
   return Vec128<T>{vec_sld(lo.raw, hi.raw, kBytes)};
@@ -1539,7 +1538,7 @@ HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
                                                0, 1, 2, 3, 0, 1, 2, 3};
 
   // Broadcast each lane index to all 4 bytes of T
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kBroadcastLaneBytes = {
       0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12};
 #else
@@ -1572,7 +1571,7 @@ HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
                                                0, 1, 2, 3, 4, 5, 6, 7};
 
   // Broadcast each lane index to all 8 bytes of T
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kBroadcastLaneBytes = {0, 0, 0, 0, 0, 0, 0, 0,
                                                       8, 8, 8, 8, 8, 8, 8, 8};
 #else
@@ -1867,7 +1866,7 @@ template <class D, typename FromT, HWY_IF_UNSIGNED_D(D), HWY_IF_UNSIGNED(FromT),
           HWY_IF_LANES_D(D, 1)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, Vec128<FromT, 1> v) {
   using Raw = typename detail::Raw128<TFromD<D>>::type;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{reinterpret_cast<Raw>(v.raw)};
 #else
   return VFromD<D>{reinterpret_cast<Raw>(
@@ -1910,7 +1909,7 @@ template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec128<T> ConcatOdd(D d, Vec128<T> hi, Vec128<T> lo) {
   const Repartition<uint16_t, decltype(d)> dw;
   const RebindToUnsigned<decltype(d)> du;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   // Right-shift 8 bits per u16 so we can pack.
   const Vec128<uint16_t> uH = ShiftRight<8>(BitCast(dw, hi));
   const Vec128<uint16_t> uL = ShiftRight<8>(BitCast(dw, lo));
@@ -1942,7 +1941,7 @@ template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec128<T> ConcatOdd(D d, Vec128<T> hi, Vec128<T> lo) {
   const Repartition<uint32_t, decltype(d)> dw;
   const RebindToUnsigned<decltype(d)> du;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const Vec128<uint32_t> uH = ShiftRight<16>(BitCast(dw, hi));
   const Vec128<uint32_t> uL = ShiftRight<16>(BitCast(dw, lo));
 #else
@@ -1963,7 +1962,7 @@ HWY_API Vec64<T> ConcatOdd(D /*d*/, Vec64<T> hi, Vec64<T> lo) {
 // 32-bit full
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T> ConcatOdd(D d, Vec128<T> hi, Vec128<T> lo) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   (void)d;
   const __vector unsigned char kShuffle = {4,  5,  6,  7,  12, 13, 14, 15,
                                            20, 21, 22, 23, 28, 29, 30, 31};
@@ -1988,7 +1987,7 @@ template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec128<T> ConcatEven(D d, Vec128<T> hi, Vec128<T> lo) {
   const Repartition<uint16_t, decltype(d)> dw;
   const RebindToUnsigned<decltype(d)> du;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const Vec128<uint16_t> uH = BitCast(dw, hi);
   const Vec128<uint16_t> uL = BitCast(dw, lo);
 #else
@@ -2021,7 +2020,7 @@ HWY_API Vec128<T> ConcatEven(D d, Vec128<T> hi, Vec128<T> lo) {
   // Isolate lower 16 bits per u32 so we can pack.
   const Repartition<uint32_t, decltype(d)> dw;
   const RebindToUnsigned<decltype(d)> du;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const Vec128<uint32_t> uH = BitCast(dw, hi);
   const Vec128<uint32_t> uL = BitCast(dw, lo);
 #else
@@ -2042,7 +2041,7 @@ HWY_API Vec64<T> ConcatEven(D /*d*/, Vec64<T> hi, Vec64<T> lo) {
 // 32-bit full
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T> ConcatEven(D d, Vec128<T> hi, Vec128<T> lo) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const Repartition<uint64_t, decltype(d)> dw;
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, detail::Truncate2To(du, BitCast(dw, lo), BitCast(dw, hi)));
@@ -2071,7 +2070,7 @@ template <class D, HWY_IF_UNSIGNED_D(D), class V, HWY_IF_UNSIGNED_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
           HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<D> OrderedTruncate2To(D d, V a, V b) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return ConcatEven(d, BitCast(d, b), BitCast(d, a));
 #else
   return ConcatOdd(d, BitCast(d, b), BitCast(d, a));
@@ -2207,7 +2206,7 @@ HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 #if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   using VU64 = __vector unsigned long long;
   const VU64 mul128_result = reinterpret_cast<VU64>(vec_mule(a.raw, b.raw));
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<uint64_t>{mul128_result};
 #else
   // Need to swap the two halves of mul128_result on big-endian targets as
@@ -2226,7 +2225,7 @@ HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 #if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
   using VU64 = __vector unsigned long long;
   const VU64 mul128_result = reinterpret_cast<VU64>(vec_mulo(a.raw, b.raw));
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<uint64_t>{mul128_result};
 #else
   // Need to swap the two halves of mul128_result on big-endian targets as
@@ -2302,7 +2301,7 @@ HWY_API VFromD<D> PromoteTo(D /* d */,
   // differs from that of D.
   const RepartitionToNarrow<D> dn;
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return ZipLower(BitCast(dn, twice), Zero(dn));
 #else
   return ZipLower(Zero(dn), BitCast(dn, twice));
@@ -2370,7 +2369,7 @@ HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
 template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   const __vector float raw_v = InterleaveLower(v, v).raw;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{vec_doubleo(raw_v)};
 #else
   return VFromD<D>{vec_doublee(raw_v)};
@@ -2380,7 +2379,7 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
 template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
   const __vector signed int raw_v = InterleaveLower(v, v).raw;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return VFromD<D>{vec_doubleo(raw_v)};
 #else
   return VFromD<D>{vec_doublee(raw_v)};
@@ -2496,7 +2495,7 @@ template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
 HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
   const Repartition<uint32_t, decltype(dbf16)> du32;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const auto a_in_odd = a;
   const auto b_in_even = ShiftRight<16>(BitCast(du32, b));
 #else
@@ -2609,7 +2608,7 @@ HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
 template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
 HWY_API VFromD<D> OrderedDemote2To(D dbf16, V32 a, V32 b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
 #else
   return BitCast(dbf16, ConcatEven(du16, BitCast(du16, b), BitCast(du16, a)));
@@ -2623,7 +2622,7 @@ HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<double> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API Vec64<float> DemoteTo(D d, Vec128<double> v) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const Vec128<float> f64_to_f32{vec_floate(v.raw)};
 #else
   const Vec128<float> f64_to_f32{vec_floato(v.raw)};
@@ -2642,7 +2641,7 @@ HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<double> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I32_D(D)>
 HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const Vec128<int32_t> f64_to_i32{vec_signede(v.raw)};
 #else
   const Vec128<int32_t> f64_to_i32{vec_signedo(v.raw)};
@@ -2809,7 +2808,7 @@ HWY_API Vec128<uint8_t> AESRound(Vec128<uint8_t> state,
                                  Vec128<uint8_t> round_key) {
   const detail::CipherTag dc;
   const Full128<uint8_t> du8;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Reverse(du8,
                  BitCast(du8, detail::CipherVec{vec_cipher_be(
                                   BitCast(dc, Reverse(du8, state)).raw,
@@ -2824,7 +2823,7 @@ HWY_API Vec128<uint8_t> AESLastRound(Vec128<uint8_t> state,
                                      Vec128<uint8_t> round_key) {
   const detail::CipherTag dc;
   const Full128<uint8_t> du8;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Reverse(du8,
                  BitCast(du8, detail::CipherVec{vec_cipherlast_be(
                                   BitCast(dc, Reverse(du8, state)).raw,
@@ -2839,7 +2838,7 @@ HWY_API Vec128<uint8_t> AESRoundInv(Vec128<uint8_t> state,
                                     Vec128<uint8_t> round_key) {
   const detail::CipherTag dc;
   const Full128<uint8_t> du8;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Xor(Reverse(du8, BitCast(du8, detail::CipherVec{vec_ncipher_be(
                                            BitCast(dc, Reverse(du8, state)).raw,
                                            Zero(dc).raw)})),
@@ -2855,7 +2854,7 @@ HWY_API Vec128<uint8_t> AESLastRoundInv(Vec128<uint8_t> state,
                                         Vec128<uint8_t> round_key) {
   const detail::CipherTag dc;
   const Full128<uint8_t> du8;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Reverse(du8,
                  BitCast(du8, detail::CipherVec{vec_ncipherlast_be(
                                   BitCast(dc, Reverse(du8, state)).raw,
@@ -2894,7 +2893,7 @@ HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
   const VU64 pmsum_result = reinterpret_cast<VU64>(
       vec_pmsum_be(InterleaveLower(a, zero).raw, InterleaveLower(b, zero).raw));
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<uint64_t, N>{pmsum_result};
 #else
   // Need to swap the two halves of pmsum_result on big-endian targets as
@@ -2920,7 +2919,7 @@ HWY_API Vec128<uint64_t, N> CLMulUpper(Vec128<uint64_t, N> a,
   const VU64 pmsum_result = reinterpret_cast<VU64>(
       vec_pmsum_be(vec_mergel(zero.raw, a.raw), vec_mergel(zero.raw, b.raw)));
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return Vec128<uint64_t, N>{pmsum_result};
 #else
   // Need to swap the two halves of pmsum_result on big-endian targets as
@@ -2947,7 +2946,7 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
       BitCast(du8, Set(du16, static_cast<uint16_t>(mask_bits)));
 
   // Replicate bytes 8x such that each byte contains the bit that governs it.
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kRep8 = {0, 0, 0, 0, 0, 0, 0, 0,
                                         1, 1, 1, 1, 1, 1, 1, 1};
 #else
@@ -3008,7 +3007,7 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   uint16_t u16_mask_bits;
   CopyBytes<sizeof(uint16_t)>(bits, &u16_mask_bits);
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   return detail::LoadMaskBits128(d, u16_mask_bits);
 #else
   // On big-endian targets, u16_mask_bits need to be byte swapped as bits
@@ -3036,7 +3035,7 @@ struct CompressIsPartition {
 
 namespace detail {
 
-#if !HWY_PPC_HAVE_10 || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#if !HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN
 // fallback for missing vec_extractm
 template <size_t N>
 HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
@@ -3046,7 +3045,7 @@ HWY_INLINE uint64_t ExtractSignBits(Vec128<uint8_t, N> sign_bits,
   using VU64 = detail::Raw128<uint64_t>::type;
   const Vec128<uint64_t> extracted{
       reinterpret_cast<VU64>(vec_vbpermq(sign_bits.raw, bit_shuffle))};
-  return extracted.raw[__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__];
+  return extracted.raw[HWY_IS_LITTLE_ENDIAN];
 }
 
 #endif  // !HWY_PPC_HAVE_10
@@ -3056,7 +3055,7 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<1> /*tag*/, Mask128<T, N> mask) {
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
   return static_cast<uint64_t>(vec_extractm(sign_bits.raw));
 #else
   const __vector unsigned char kBitShuffle = {120, 112, 104, 96, 88, 80, 72, 64,
@@ -3071,11 +3070,11 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<2> /*tag*/, Mask128<T, N> mask) {
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
 
-#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kBitShuffle = {
       112, 96, 80, 64, 48, 32, 16, 0, 128, 128, 128, 128, 128, 128, 128, 128};
 #else
@@ -3091,11 +3090,11 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<4> /*tag*/, Mask128<T, N> mask) {
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kBitShuffle = {96,  64,  32,  0,   128, 128,
                                               128, 128, 128, 128, 128, 128,
                                               128, 128, 128, 128};
@@ -3113,11 +3112,11 @@ HWY_INLINE uint64_t BitsFromMask(hwy::SizeTag<8> /*tag*/, Mask128<T, N> mask) {
   const DFromM<decltype(mask)> d;
   const Repartition<uint8_t, decltype(d)> du8;
   const VFromD<decltype(du8)> sign_bits = BitCast(du8, VecFromMask(d, mask));
-#if HWY_PPC_HAVE_10 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_PPC_HAVE_10 && HWY_IS_LITTLE_ENDIAN
   const RebindToUnsigned<decltype(d)> du;
   return static_cast<uint64_t>(vec_extractm(BitCast(du, sign_bits).raw));
 #else
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const __vector unsigned char kBitShuffle = {64,  0,   128, 128, 128, 128,
                                               128, 128, 128, 128, 128, 128,
                                               128, 128, 128, 128};
@@ -3162,7 +3161,7 @@ HWY_API size_t StoreMaskBits(D /*d*/, MFromD<D> mask, uint8_t* bits) {
   // Converting mask_bits to a uint16_t first will also ensure that
   // the lower 16 bits of mask_bits are stored instead of the upper 16 bits
   // of mask_bits on big-endian PPC targets.
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const uint16_t u16_mask_bits = static_cast<uint16_t>(mask_bits);
 #else
   // On big-endian targets, the bytes of mask_bits need to be swapped
@@ -3382,7 +3381,7 @@ HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
   const VFromD<decltype(d8t)> byte_idx{Load(d8, table + mask_bits * 8).raw};
   const VFromD<decltype(du)> pairs = ZipLower(byte_idx, byte_idx);
   constexpr uint16_t kPairIndexIncrement =
-      __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0x0100 : 0x0001;
+      HWY_IS_LITTLE_ENDIAN ? 0x0100 : 0x0001;
 
   return BitCast(d, pairs + Set(du, kPairIndexIncrement));
 }
@@ -3531,7 +3530,7 @@ HWY_INLINE VFromD<D> IndicesFromNotBits128(D d, uint64_t mask_bits) {
   const VFromD<decltype(d8t)> byte_idx{Load(d8, table + mask_bits * 8).raw};
   const VFromD<decltype(du)> pairs = ZipLower(byte_idx, byte_idx);
   constexpr uint16_t kPairIndexIncrement =
-      __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0x0100 : 0x0001;
+      HWY_IS_LITTLE_ENDIAN ? 0x0100 : 0x0001;
 
   return BitCast(d, pairs + Set(du, kPairIndexIncrement));
 }
@@ -3967,8 +3966,7 @@ HWY_INLINE VFromD<D> AltivecVsumsws(D d, __vector signed int a,
                                     __vector signed int b) {
   const Repartition<int32_t, D> di32;
 #ifdef __OPTIMIZE__
-  constexpr int kDestLaneOffset =
-      __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kDestLaneOffset = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
       __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
       __builtin_constant_p(b[kDestLaneOffset])) {
@@ -3977,7 +3975,7 @@ HWY_INLINE VFromD<D> AltivecVsumsws(D d, __vector signed int a,
         static_cast<int64_t>(a[2]) + static_cast<int64_t>(a[3]) +
         static_cast<int64_t>(b[kDestLaneOffset]);
     const int32_t sign = static_cast<int32_t>(sum >> 63);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
     return BitCast(
         d, VFromD<decltype(di32)>{(__vector signed int){
                (sign == (sum >> 31)) ? static_cast<int32_t>(sum)
@@ -4014,13 +4012,13 @@ HWY_INLINE Vec128<int32_t, N / 2> AltivecU16SumsOf2(Vec128<uint16_t, N> v) {
 }
 
 HWY_API Vec32<uint16_t> SumOfLanes(Vec32<uint16_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 1;
+  constexpr int kSumLaneIdx = HWY_IS_BIG_ENDIAN;
   DFromV<decltype(v)> du16;
   return Broadcast<kSumLaneIdx>(BitCast(du16, AltivecU16SumsOf2(v)));
 }
 
 HWY_API Vec64<uint16_t> SumOfLanes(Vec64<uint16_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full64<uint16_t> du16;
   const auto zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(
@@ -4028,7 +4026,7 @@ HWY_API Vec64<uint16_t> SumOfLanes(Vec64<uint16_t> v) {
 }
 
 HWY_API Vec128<uint16_t> SumOfLanes(Vec128<uint16_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 7;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
   const Full128<uint16_t> du16;
   const auto zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(
@@ -4036,14 +4034,14 @@ HWY_API Vec128<uint16_t> SumOfLanes(Vec128<uint16_t> v) {
 }
 
 HWY_API Vec32<int16_t> SumOfLanes(Vec32<int16_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 1;
+  constexpr int kSumLaneIdx = HWY_IS_BIG_ENDIAN;
   const Full32<int16_t> di16;
   const auto zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(AltivecVsum4shs(di16, v.raw, zero.raw));
 }
 
 HWY_API Vec64<int16_t> SumOfLanes(Vec64<int16_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full128<int32_t> di32;
   const Full64<int16_t> di16;
   const auto zero = Zero(di32);
@@ -4052,7 +4050,7 @@ HWY_API Vec64<int16_t> SumOfLanes(Vec64<int16_t> v) {
 }
 
 HWY_API Vec128<int16_t> SumOfLanes(Vec128<int16_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 7;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
   const Full128<int16_t> di16;
   const Full128<int32_t> di32;
   const auto zero = Zero(di32);
@@ -4062,7 +4060,7 @@ HWY_API Vec128<int16_t> SumOfLanes(Vec128<int16_t> v) {
 
 // u8, N=2, N=4, N=8, N=16:
 HWY_API Vec16<uint8_t> SumOfLanes(Vec16<uint8_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full16<uint8_t> du8;
   const Full16<uint16_t> du16;
   const Twice<decltype(du8)> dt_u8;
@@ -4074,21 +4072,20 @@ HWY_API Vec16<uint8_t> SumOfLanes(Vec16<uint8_t> v) {
 }
 
 HWY_API Vec32<uint8_t> SumOfLanes(Vec32<uint8_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full128<uint32_t> du32;
   const Full32<uint8_t> du8;
   return Broadcast<kSumLaneIdx>(AltivecVsum4ubs(du8, v.raw, Zero(du32).raw));
 }
 
 HWY_API Vec64<uint8_t> SumOfLanes(Vec64<uint8_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 7;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
   const Full64<uint8_t> du8;
   return Broadcast<kSumLaneIdx>(BitCast(du8, SumsOf8(v)));
 }
 
 HWY_API Vec128<uint8_t> SumOfLanes(Vec128<uint8_t> v) {
-  constexpr int kSumLaneIdx =
-      __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 15;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 15;
 
   const Full128<uint32_t> du32;
   const RebindToSigned<decltype(du32)> di32;
@@ -4100,7 +4097,7 @@ HWY_API Vec128<uint8_t> SumOfLanes(Vec128<uint8_t> v) {
 }
 
 HWY_API Vec16<int8_t> SumOfLanes(Vec16<int8_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
 
   const Full128<uint16_t> du16;
   const Repartition<int32_t, decltype(du16)> di32;
@@ -4113,14 +4110,14 @@ HWY_API Vec16<int8_t> SumOfLanes(Vec16<int8_t> v) {
 }
 
 HWY_API Vec32<int8_t> SumOfLanes(Vec32<int8_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 3;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full32<int8_t> di8;
   const Vec128<int32_t> zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(AltivecVsum4sbs(di8, v.raw, zero.raw));
 }
 
 HWY_API Vec64<int8_t> SumOfLanes(Vec64<int8_t> v) {
-  constexpr int kSumLaneIdx = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 7;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
   const Full128<int32_t> di32;
   const Vec128<int32_t> zero = Zero(di32);
   const Full64<int8_t> di8;
@@ -4129,8 +4126,7 @@ HWY_API Vec64<int8_t> SumOfLanes(Vec64<int8_t> v) {
 }
 
 HWY_API Vec128<int8_t> SumOfLanes(Vec128<int8_t> v) {
-  constexpr int kSumLaneIdx =
-      __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0 : 15;
+  constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 15;
   const Full128<int8_t> di8;
   const Full128<int32_t> di32;
   const Vec128<int32_t> zero = Zero(di32);
@@ -4202,7 +4198,7 @@ template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
 HWY_API Vec128<uint16_t, N> MinOfLanes(Vec128<uint16_t, N> v) {
   const Simd<uint16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
 #else
@@ -4219,7 +4215,7 @@ HWY_API Vec128<int16_t, N> MinOfLanes(Vec128<int16_t, N> v) {
   const Simd<int16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
   // Sign-extend
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
 #else
@@ -4236,7 +4232,7 @@ template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
 HWY_API Vec128<uint16_t, N> MaxOfLanes(Vec128<uint16_t, N> v) {
   const Simd<uint16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
 #else
@@ -4252,7 +4248,7 @@ HWY_API Vec128<int16_t, N> MaxOfLanes(Vec128<int16_t, N> v) {
   const Simd<int16_t, N, 0> d;
   const RepartitionToWide<decltype(d)> d32;
   // Sign-extend
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
   const auto odd = ShiftRight<16>(BitCast(d32, v));
 #else
@@ -4293,7 +4289,7 @@ HWY_INLINE V Lt128Vec(D d, V a, V b) {
   (void)d;
   using VU64 = __vector unsigned long long;
   using VU128 = __vector unsigned __int128;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if HWY_IS_LITTLE_ENDIAN
   const VU128 a_u128 = reinterpret_cast<VU128>(a.raw);
   const VU128 b_u128 = reinterpret_cast<VU128>(b.raw);
 #else
