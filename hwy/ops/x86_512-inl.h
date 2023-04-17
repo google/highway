@@ -3992,6 +3992,22 @@ HWY_API intptr_t FindFirstTrue(D d, Mask512<T> mask) {
                   : intptr_t{-1};
 }
 
+template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_API size_t FindKnownLastTrue(D /* tag */, Mask512<T> mask) {
+  return 31 - Num0BitsAboveMS1Bit_Nonzero32(mask.raw);
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API size_t FindKnownLastTrue(D /* tag */, Mask512<T> mask) {
+  return 63 - Num0BitsAboveMS1Bit_Nonzero64(mask.raw);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D d, Mask512<T> mask) {
+  return mask.raw ? static_cast<intptr_t>(FindKnownLastTrue(d, mask))
+                  : intptr_t{-1};
+}
+
 // ------------------------------ Compress
 
 // Always implement 8-bit here even if we lack VBMI2 because we can do better

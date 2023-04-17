@@ -1653,6 +1653,16 @@ HWY_API size_t FindKnownFirstTrue(D /* tag */, const Mask1<T> /* m */) {
   return 0;  // There is only one lane and we know it is true.
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D /* tag */, const Mask1<T> mask) {
+  return mask.bits == 0 ? -1 : 0;
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownLastTrue(D /* tag */, const Mask1<T> /* m */) {
+  return 0;  // There is only one lane and we know it is true.
+}
+
 // ------------------------------ Compress, CompressBits
 
 template <typename T>

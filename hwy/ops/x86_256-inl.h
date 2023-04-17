@@ -4799,6 +4799,17 @@ HWY_API intptr_t FindFirstTrue(D d, Mask256<T> mask) {
                   : intptr_t{-1};
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownLastTrue(D /* tag */, Mask256<T> mask) {
+  return 31 - Num0BitsAboveMS1Bit_Nonzero32(mask.raw);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D d, Mask256<T> mask) {
+  return mask.raw ? static_cast<intptr_t>(FindKnownLastTrue(d, mask))
+                  : intptr_t{-1};
+}
+
 // Beware: the suffix indicates the number of mask bits, not lane size!
 
 namespace detail {
@@ -5115,14 +5126,27 @@ HWY_API size_t CountTrue(D /* tag */, const Mask256<T> mask) {
 
 template <class D, typename T = TFromD<D>>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, Mask256<T> mask) {
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
-  return Num0BitsBelowLS1Bit_Nonzero64(mask_bits);
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return Num0BitsBelowLS1Bit_Nonzero32(mask_bits);
 }
 
 template <class D, typename T = TFromD<D>>
 HWY_API intptr_t FindFirstTrue(D /* tag */, Mask256<T> mask) {
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
-  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask_bits)) : -1;
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownLastTrue(D /* tag */, Mask256<T> mask) {
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return 31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D /* tag */, Mask256<T> mask) {
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return mask_bits ? intptr_t(31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits))
+                   : -1;
 }
 
 // ------------------------------ Compress, CompressBits

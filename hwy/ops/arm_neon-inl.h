@@ -6092,8 +6092,24 @@ template <class D>
 HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
   const uint64_t nib = detail::NibblesFromMask(d, mask);
   if (nib == 0) return -1;
-  constexpr int kDiv = 4 * sizeof(TFromD<D>);
+  constexpr size_t kDiv = 4 * sizeof(TFromD<D>);
   return static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero64(nib) / kDiv);
+}
+
+template <class D>
+HWY_API size_t FindKnownLastTrue(D d, MFromD<D> mask) {
+  const uint64_t nib = detail::NibblesFromMask(d, mask);
+  constexpr size_t kDiv = 4 * sizeof(TFromD<D>);
+  return (63 - Num0BitsAboveMS1Bit_Nonzero64(nib)) / kDiv;
+}
+
+template <class D>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
+  const uint64_t nib = detail::NibblesFromMask(d, mask);
+  if (nib == 0) return -1;
+  constexpr size_t kDiv = 4 * sizeof(TFromD<D>);
+  return static_cast<intptr_t>((63 - Num0BitsAboveMS1Bit_Nonzero64(nib)) /
+                               kDiv);
 }
 
 // `p` points to at least 8 writable bytes.
