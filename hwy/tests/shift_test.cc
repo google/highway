@@ -156,9 +156,9 @@ struct TestRotateRight {
     auto expected = AllocateAligned<T>(N);
 
     constexpr size_t kBits = sizeof(T) * 8;
-    const auto mask_shift = Set(d, T{kBits});
+    const Vec<D> mask_shift = Set(d, T{kBits});
     // Cover as many bit positions as possible to test shifting out
-    const auto values = Shl(Set(d, T{1}), And(Iota(d, 0), mask_shift));
+    const Vec<D> values = Shl(Set(d, T{1}), And(Iota(d, 0), mask_shift));
 
     // Rotate by 0
     HWY_ASSERT_VEC_EQ(d, values, RotateRight<0>(values));
@@ -166,21 +166,24 @@ struct TestRotateRight {
     // Rotate by 1
     Store(values, d, expected.get());
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (expected[i] >> 1) | (expected[i] << (kBits - 1));
+      expected[i] =
+          static_cast<T>((expected[i] >> 1) | (expected[i] << (kBits - 1)));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), RotateRight<1>(values));
 
     // Rotate by half
     Store(values, d, expected.get());
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (expected[i] >> (kBits / 2)) | (expected[i] << (kBits / 2));
+      expected[i] = static_cast<T>((expected[i] >> (kBits / 2)) |
+                                   (expected[i] << (kBits / 2)));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), RotateRight<kBits / 2>(values));
 
     // Rotate by max
     Store(values, d, expected.get());
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (expected[i] >> (kBits - 1)) | (expected[i] << 1);
+      expected[i] =
+          static_cast<T>((expected[i] >> (kBits - 1)) | (expected[i] << 1));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), RotateRight<kBits - 1>(values));
   }
