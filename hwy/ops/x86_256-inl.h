@@ -3230,8 +3230,8 @@ HWY_API Vec256<T> TableLookupLanes(Vec256<T> v, Indices256<T> idx) {
   const auto sel_hi_mask =
       MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, idx_vec))));
 
-  const Vec256<T> a{_mm256_permute2x128_si256(v.raw, v.raw, 0x00)};
-  const Vec256<T> b{_mm256_permute2x128_si256(v.raw, v.raw, 0x11)};
+  const auto a = ConcatLowerLower(v, v);
+  const auto b = ConcatUpperUpper(v, v);
   const auto lo_lookup_result = TableLookupBytes(a, idx_vec);
 
 #if HWY_TARGET <= HWY_AVX3
