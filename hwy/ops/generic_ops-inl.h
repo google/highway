@@ -126,7 +126,8 @@ HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
 // implementation is currently shared between x86_* and wasm_*, and is too large
 // to duplicate.
 
-#if (defined(HWY_NATIVE_LOAD_STORE_INTERLEAVED) == defined(HWY_TARGET_TOGGLE))
+#if HWY_IDE || \
+    (defined(HWY_NATIVE_LOAD_STORE_INTERLEAVED) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #undef HWY_NATIVE_LOAD_STORE_INTERLEAVED
 #else
@@ -1047,7 +1048,9 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
 
 // ------------------------------ OrderedTruncate2To
 
-#if (defined(HWY_NATIVE_ORDERED_TRUNCATE_2_TO) == defined(HWY_TARGET_TOGGLE))
+#if HWY_IDE || \
+    (defined(HWY_NATIVE_ORDERED_TRUNCATE_2_TO) == defined(HWY_TARGET_TOGGLE))
+
 #ifdef HWY_NATIVE_ORDERED_TRUNCATE_2_TO
 #undef HWY_NATIVE_ORDERED_TRUNCATE_2_TO
 #else
@@ -1736,7 +1739,7 @@ HWY_API V PopulationCount(V v) {
 // ------------------------------ 8-bit multiplication
 
 // "Include guard": skip if native 8-bit mul instructions are available.
-#if (defined(HWY_NATIVE_MUL_8) == defined(HWY_TARGET_TOGGLE))
+#if (defined(HWY_NATIVE_MUL_8) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE
 #ifdef HWY_NATIVE_MUL_8
 #undef HWY_NATIVE_MUL_8
 #else
@@ -1777,7 +1780,7 @@ HWY_API V operator*(const V a, const V b) {
 // ------------------------------ 64-bit multiplication
 
 // "Include guard": skip if native 64-bit mul instructions are available.
-#if (defined(HWY_NATIVE_MUL_64) == defined(HWY_TARGET_TOGGLE))
+#if (defined(HWY_NATIVE_MUL_64) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE
 #ifdef HWY_NATIVE_MUL_64
 #undef HWY_NATIVE_MUL_64
 #else
@@ -2693,6 +2696,66 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 
 #endif  // HWY_NATIVE_EXPAND
 
+// ------------------------------ Reverse2, Reverse4, Reverse8 (8-bit)
+
+#if (defined(HWY_NATIVE_REVERSE2_8) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE
+#ifdef HWY_NATIVE_REVERSE2_8
+#undef HWY_NATIVE_REVERSE2_8
+#else
+#define HWY_NATIVE_REVERSE2_8
+#endif
+
+#undef HWY_PREFER_ROTATE
+// Platforms on which RotateRight is likely faster than TableLookupBytes.
+// RVV and SVE anyway have their own implementation of this.
+#if HWY_TARGET == HWY_SSE2 || HWY_TARGET <= HWY_AVX3 || \
+    HWY_TARGET == HWY_WASM || HWY_TARGET == HWY_PPC8
+#define HWY_PREFER_ROTATE 1
+#else
+#define HWY_PREFER_ROTATE 0
+#endif
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
+  // Exclude AVX3 because its 16-bit RotateRight is actually 3 instructions.
+#if HWY_PREFER_ROTATE && HWY_TARGET > HWY_AVX3
+  const Repartition<uint16_t, decltype(d)> du16;
+  return BitCast(d, RotateRight<8>(BitCast(du16, v)));
+#else
+  alignas(16) static constexpr TFromD<D> kShuffle[16] = {
+      1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14};
+  return TableLookupBytes(v, LoadDup128(d, kShuffle));
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
+#if HWY_PREFER_ROTATE
+  const Repartition<uint16_t, decltype(d)> du16;
+  return BitCast(d, Reverse2(du16, BitCast(du16, Reverse2(d, v))));
+#else
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12};
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
+#if HWY_PREFER_ROTATE
+  const Repartition<uint32_t, D> du32;
+  return BitCast(d, Reverse2(du32, BitCast(du32, Reverse4(d, v))));
+#else
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
+  const Repartition<uint8_t, decltype(d)> du8;
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+#endif
+}
+
+#endif  // HWY_NATIVE_REVERSE2_8
+
 // ------------------------------ ReverseLaneBytes
 
 #if (defined(HWY_NATIVE_REVERSE_LANE_BYTES) == defined(HWY_TARGET_TOGGLE))
@@ -2702,31 +2765,25 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 #define HWY_NATIVE_REVERSE_LANE_BYTES
 #endif
 
-template <class V, HWY_IF_T_SIZE_V(V, 2), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+template <class V, HWY_IF_T_SIZE_V(V, 2)>
 HWY_API V ReverseLaneBytes(V v) {
-  alignas(16) static constexpr uint8_t kShuffle[16] = {
-      1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14};
-  const DFromV<decltype(v)> d;
+  const DFromV<V> d;
   const Repartition<uint8_t, decltype(d)> du8;
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+  return BitCast(d, Reverse2(du8, BitCast(du8, v)));
 }
 
-template <class V, HWY_IF_T_SIZE_V(V, 4), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+template <class V, HWY_IF_T_SIZE_V(V, 4)>
 HWY_API V ReverseLaneBytes(V v) {
-  alignas(16) static constexpr uint8_t kShuffle[16] = {
-      3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12};
-  const DFromV<decltype(v)> d;
+  const DFromV<V> d;
   const Repartition<uint8_t, decltype(d)> du8;
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+  return BitCast(d, Reverse4(du8, BitCast(du8, v)));
 }
 
-template <class V, HWY_IF_T_SIZE_V(V, 8), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_API V ReverseLaneBytes(V v) {
-  alignas(16) static constexpr uint8_t kShuffle[16] = {
-      7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
-  const DFromV<decltype(v)> d;
+  const DFromV<V> d;
   const Repartition<uint8_t, decltype(d)> du8;
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du8, kShuffle)));
+  return BitCast(d, Reverse8(du8, BitCast(du8, v)));
 }
 
 #endif  // HWY_NATIVE_REVERSE_LANE_BYTES

@@ -1125,21 +1125,13 @@ HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulEven(Vec128<T, N> a,
 }
 
 // ------------------------------ RotateRight
-
-template <int kBits, size_t N>
-HWY_API Vec128<uint32_t, N> RotateRight(Vec128<uint32_t, N> v) {
-  static_assert(0 <= kBits && kBits < 32, "Invalid shift count");
+template <int kBits, typename T, size_t N>
+HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  constexpr size_t kSizeInBits = sizeof(T) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
   if (kBits == 0) return v;
-  return Vec128<uint32_t, N>{
-      vec_rl(v.raw, vec_splats(static_cast<unsigned>(32 - kBits)))};
-}
-
-template <int kBits, size_t N>
-HWY_API Vec128<uint64_t, N> RotateRight(Vec128<uint64_t, N> v) {
-  static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
-  if (kBits == 0) return v;
-  return Vec128<uint64_t, N>{
-      vec_rl(v.raw, vec_splats(static_cast<unsigned long long>(64 - kBits)))};
+  return Vec128<T, N>{vec_rl(v.raw, Set(d, kSizeInBits - kBits).raw)};
 }
 
 // ------------------------------ ZeroIfNegative (BroadcastSignBit)
@@ -1647,19 +1639,57 @@ HWY_API Vec32<T> Reverse(D d, Vec32<T> v) {
   return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
 }
 
-// ------------------------------ Reverse2 (for all vector sizes)
+// ------------------------------- ReverseLaneBytes
+
+#if HWY_PPC_HAVE_9 && \
+    (HWY_COMPILER_GCC_ACTUAL >= 710 || HWY_COMPILER_CLANG >= 400)
+
+// Per-target flag to prevent generic_ops-inl.h defining 8-bit ReverseLaneBytes.
+#ifdef HWY_NATIVE_REVERSE_LANE_BYTES
+#undef HWY_NATIVE_REVERSE_LANE_BYTES
+#else
+#define HWY_NATIVE_REVERSE_LANE_BYTES
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8))>
+HWY_API V ReverseLaneBytes(V v) {
+  return V{vec_revb(v.raw)};
+}
+
+// Per-target flag to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.
+#ifdef HWY_NATIVE_REVERSE2_8
+#undef HWY_NATIVE_REVERSE2_8
+#else
+#define HWY_NATIVE_REVERSE2_8
+#endif
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
+  const Repartition<uint16_t, decltype(d)> du16;
+  return BitCast(d, ReverseLaneBytes(BitCast(du16, v)));
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  return BitCast(d, ReverseLaneBytes(BitCast(du32, v)));
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  return BitCast(d, ReverseLaneBytes(BitCast(du64, v)));
+}
+
+#endif  // HWY_PPC_HAVE_9
+
+// ------------------------------ Reverse2
 
 // Single lane: no change
 template <class D, typename T = TFromD<D>, HWY_IF_LANES_D(D, 1)>
 HWY_API Vec128<T, 1> Reverse2(D /* tag */, Vec128<T, 1> v) {
   return v;
-}
-
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
-HWY_API VFromD<D> Reverse2(D /*d*/, VFromD<D> v) {
-  const __vector unsigned char kShuffle = {1, 0, 3,  2,  5,  4,  7,  6,
-                                           9, 8, 11, 10, 13, 12, 15, 14};
-  return VFromD<D>{vec_perm(v.raw, v.raw, kShuffle)};
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
@@ -1669,8 +1699,9 @@ HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
-HWY_API VFromD<D> Reverse2(D /* tag */, VFromD<D> v) {
-  return Shuffle2301(v);
+HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  return BitCast(d, RotateRight<32>(BitCast(du64, v)));
 }
 
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
@@ -1687,10 +1718,9 @@ HWY_API VFromD<D> Reverse4(D /*d*/, VFromD<D> v) {
   return VFromD<D>{vec_perm(v.raw, v.raw, kShuffle)};
 }
 
-// 32-bit, any vector size: use Shuffle0123
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
-HWY_API VFromD<D> Reverse4(D /* tag */, VFromD<D> v) {
-  return Shuffle0123(v);
+HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
+  return Reverse(d, v);
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
@@ -1705,29 +1735,10 @@ HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
   return Reverse(d, v);
 }
 
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 2)>
-HWY_API VFromD<D> Reverse8(D /*d*/, VFromD<D> /*v*/) {
-  HWY_ASSERT(0);  // don't have 8 lanes unless 16-bit
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API VFromD<D> Reverse8(D /* tag */, VFromD<D> /* v */) {
+  HWY_ASSERT(0);  // don't have 8 lanes if larger than 16-bit
 }
-
-// ------------------------------- ReverseLaneBytes
-
-#if HWY_PPC_HAVE_9 && \
-    (HWY_COMPILER_GCC_ACTUAL >= 710 || HWY_COMPILER_CLANG >= 400)
-
-#ifdef HWY_NATIVE_REVERSE_LANE_BYTES
-#undef HWY_NATIVE_REVERSE_LANE_BYTES
-#else
-#define HWY_NATIVE_REVERSE_LANE_BYTES
-#endif
-
-template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
-          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 2) | (1 << 4) | (1 << 8))>
-HWY_API V ReverseLaneBytes(V v) {
-  return V{vec_revb(v.raw)};
-}
-
-#endif  // HWY_PPC_HAVE_9
 
 // ------------------------------ InterleaveLower
 
@@ -2455,7 +2466,7 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
   // by using the __builtin_vsx_xvcvsphp builtin on PPC9/PPC10 targets
   // if the __builtin_vsx_xvcvsphp intrinsic is available
   const VFromD<decltype(du)> bits16{
-      (__vector unsigned int)__builtin_vsx_xvcvsphp(v.raw)};
+      reinterpret_cast<__vector unsigned int>(__builtin_vsx_xvcvsphp(v.raw))};
 #else
   const RebindToSigned<decltype(du)> di;
   const auto bits32 = BitCast(du, v);

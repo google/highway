@@ -522,7 +522,8 @@ HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
   constexpr size_t kSizeInBits = sizeof(T) * 8;
   static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
   if (kBits == 0) return v;
-  return Or(ShiftRight<kBits>(v), ShiftLeft<kSizeInBits - kBits>(v));
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
 }
 
 // ------------------------------ Shift lanes by same variable #bits
@@ -1438,6 +1439,27 @@ HWY_API Mask128<T, N> ExclusiveNeither(const Mask128<T, N> a, Mask128<T, N> b) {
 // stall when loading the result vector. We instead test bits of the shift
 // count to "predicate" a shift of the entire vector by a constant.
 
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const DFromV<decltype(v)> d;
+  Mask128<T, N> mask;
+  // Need a signed type for BroadcastSignBit.
+  auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
+  // Move the highest valid bit of the shift count into the sign bit.
+  test = ShiftLeft<5>(test);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<4>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftLeft<2>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  return IfThenElse(mask, ShiftLeft<1>(v), v);
+}
+
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
@@ -1505,6 +1527,27 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
 }
 
 // ------------------------------ Shr (BroadcastSignBit, IfThenElse)
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const DFromV<decltype(v)> d;
+  Mask128<T, N> mask;
+  // Need a signed type for BroadcastSignBit.
+  auto test = BitCast(RebindToSigned<decltype(d)>(), bits);
+  // Move the highest valid bit of the shift count into the sign bit.
+  test = ShiftLeft<5>(test);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<4>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  test = ShiftLeft<1>(test);  // next bit (descending order)
+  v = IfThenElse(mask, ShiftRight<2>(v), v);
+
+  mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
+  return IfThenElse(mask, ShiftRight<1>(v), v);
+}
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
@@ -2605,8 +2648,8 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
-  const RepartitionToWide<RebindToUnsigned<decltype(d)>> du32;
-  return BitCast(d, RotateRight<16>(BitCast(du32, v)));
+  const RepartitionToWide<RebindToUnsigned<decltype(d)>> dw;
+  return BitCast(d, RotateRight<16>(BitCast(dw, v)));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
@@ -2643,9 +2686,9 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   return Reverse(d, v);
 }
 
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 2)>
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
 HWY_API VFromD<D> Reverse8(D /* tag */, const VFromD<D>) {
-  HWY_ASSERT(0);  // don't have 8 lanes unless 16-bit
+  HWY_ASSERT(0);  // don't have 8 lanes for > 16-bit lanes
 }
 
 // ------------------------------ InterleaveLower

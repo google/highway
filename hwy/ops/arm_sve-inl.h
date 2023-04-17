@@ -611,7 +611,8 @@ HWY_API V RotateRight(const V v) {
   constexpr size_t kSizeInBits = sizeof(TFromV<V>) * 8;
   static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
   if (kBits == 0) return v;
-  return Or(ShiftRight<kBits>(v), ShiftLeft<kSizeInBits - kBits>(v));
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
 }
 
 // ------------------------------ Shl/r
@@ -2284,6 +2285,20 @@ HWY_API V Reverse(D d, V v) {
 
 // ------------------------------ Reverse2
 
+// Per-target flag to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.
+#ifdef HWY_NATIVE_REVERSE2_8
+#undef HWY_NATIVE_REVERSE2_8
+#else
+#define HWY_NATIVE_REVERSE2_8
+#endif
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+  return BitCast(d, svrevb_u16_x(detail::PTrue(d), BitCast(dw, v)));
+}
+
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
@@ -2309,11 +2324,37 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {  // 3210
   const auto odd_in_even = detail::Ext<1>(v, v);  // x321
   return detail::InterleaveEven(odd_in_even, v);  // 2301
 }
+
 // ------------------------------ Reverse4 (TableLookupLanes)
-template <class D>
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
-  if (HWY_TARGET == HWY_SVE_256 && sizeof(TFromD<D>) == 8 &&
-      detail::IsFull(d)) {
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<RepartitionToWide<decltype(du)>> du32;
+  return BitCast(d, svrevb_u32_x(detail::PTrue(d), BitCast(du32, v)));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<RepartitionToWide<decltype(du)>> du64;
+  return BitCast(d, svrevh_u64_x(detail::PTrue(d), BitCast(du64, v)));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  if (HWY_TARGET == HWY_SVE2_128 && detail::IsFull(d)) {
+    return detail::ReverseFull(v);
+  }
+  // TODO(janwas): is this approach faster than Shuffle0123?
+  const RebindToUnsigned<decltype(d)> du;
+  const auto idx = detail::XorN(Iota(du, 0), 3);
+  return TableLookupLanes(v, idx);
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  if (HWY_TARGET == HWY_SVE_256 && detail::IsFull(d)) {
     return detail::ReverseFull(v);
   }
   // TODO(janwas): is this approach faster than Shuffle0123?
@@ -2323,7 +2364,14 @@ HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
 }
 
 // ------------------------------ Reverse8 (TableLookupLanes)
-template <class D>
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> du64;
+  return BitCast(d, svrevb_u64_x(detail::PTrue(d), BitCast(du64, v)));
+}
+
+template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
   const auto idx = detail::XorN(Iota(du, 0), 7);
@@ -2352,25 +2400,6 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
 
 HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
 #undef HWY_SVE_REVERSE_BITS
-
-// ------------------------------- ReverseLaneBytes
-
-#ifdef HWY_NATIVE_REVERSE_LANE_BYTES
-#undef HWY_NATIVE_REVERSE_LANE_BYTES
-#else
-#define HWY_NATIVE_REVERSE_LANE_BYTES
-#endif
-
-#define HWY_SVE_REVERSE_LANE_BYTES(BASE, CHAR, BITS, HALF, NAME, OP) \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {      \
-    const DFromV<decltype(v)> d;                                     \
-    return sv##OP##_##CHAR##BITS##_x(detail::PTrue(d), v);           \
-  }
-
-HWY_SVE_FOREACH_UI16(HWY_SVE_REVERSE_LANE_BYTES, ReverseLaneBytes, revb)
-HWY_SVE_FOREACH_UI32(HWY_SVE_REVERSE_LANE_BYTES, ReverseLaneBytes, revb)
-HWY_SVE_FOREACH_UI64(HWY_SVE_REVERSE_LANE_BYTES, ReverseLaneBytes, revb)
-#undef HWY_SVE_REVERSE_LANE_BYTES
 
 // ------------------------------ Compress (PromoteTo)
 

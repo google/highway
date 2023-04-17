@@ -371,38 +371,25 @@ HWY_NOINLINE void TestAllShifts() {
 }
 
 HWY_NOINLINE void TestAllVariableShifts() {
-  const ForPartialVectors<TestLeftShifts</*kSigned=*/false>> shl_u;
+  ForUnsignedTypes(ForPartialVectors<TestLeftShifts</*kSigned=*/false>>());
+  ForUnsignedTypes(ForPartialVectors<TestUnsignedRightShifts>());
+
   const ForPartialVectors<TestLeftShifts</*kSigned=*/true>> shl_s;
-  const ForPartialVectors<TestUnsignedRightShifts> shr_u;
   const ForPartialVectors<TestSignedRightShifts> shr_s;
-
-  shl_u(uint16_t());
-  shr_u(uint16_t());
-
-  shl_u(uint32_t());
-  shr_u(uint32_t());
 
   shl_s(int16_t());
   shr_s(int16_t());
-
   shl_s(int32_t());
   shr_s(int32_t());
 
 #if HWY_HAVE_INTEGER64
-  shl_u(uint64_t());
-  shr_u(uint64_t());
-
   shl_s(int64_t());
   shr_s(int64_t());
 #endif
 }
 
 HWY_NOINLINE void TestAllRotateRight() {
-  const ForPartialVectors<TestRotateRight> test;
-  test(uint32_t());
-#if HWY_HAVE_INTEGER64
-  test(uint64_t());
-#endif
+  ForUnsignedTypes(ForPartialVectors<TestRotateRight>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

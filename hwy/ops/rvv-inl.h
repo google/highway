@@ -914,7 +914,8 @@ HWY_API V RotateRight(const V v) {
   constexpr size_t kSizeInBits = sizeof(TFromV<V>) * 8;
   static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
   if (kBits == 0) return v;
-  return Or(ShiftRight<kBits>(v), ShiftLeft<kSizeInBits - kBits>(v));
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
 }
 
 // ------------------------------ Shl
@@ -2538,8 +2539,31 @@ HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
 
 // ------------------------------ Reverse2 (RotateRight, OddEven)
 
+// Per-target flags to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.
+#ifdef HWY_NATIVE_REVERSE2_8
+#undef HWY_NATIVE_REVERSE2_8
+#else
+#define HWY_NATIVE_REVERSE2_8
+#endif
+
 // Shifting and adding requires fewer instructions than blending, but casting to
 // u32 only works for LMUL in [1/2, 8].
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_RVV_IF_POW2_IN(D, -2, 3)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const Repartition<uint16_t, D> du16;
+  return BitCast(d, RotateRight<8>(BitCast(du16, v)));
+}
+// For LMUL < 1/4, we can extend and then truncate.
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_RVV_IF_POW2_IN(D, -3, -3)>
+HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
+  const Twice<decltype(d)> d2;
+  const Repartition<uint16_t, decltype(d2)> du16;
+  const auto vx = detail::Ext(d2, v);
+  const auto rx = BitCast(d2, RotateRight<8>(BitCast(du16, vx)));
+  return detail::Trunc(rx);
+}
+
 template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_RVV_IF_POW2_IN(D, -1, 3)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Repartition<uint32_t, D> du32;
@@ -2583,7 +2607,14 @@ HWY_API V Reverse2(D /* tag */, const V v) {
 }
 
 // ------------------------------ Reverse4 (TableLookupLanes)
-template <class D>
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
+  const Repartition<uint16_t, D> du16;
+  return BitCast(d, Reverse2(du16, BitCast(du16, Reverse2(d, v))));
+}
+
+template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToUnsigned<D> du;
   const auto idx = detail::XorS(detail::Iota0(du), 3);
@@ -2591,7 +2622,14 @@ HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
 }
 
 // ------------------------------ Reverse8 (TableLookupLanes)
-template <class D>
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
+  const Repartition<uint32_t, D> du32;
+  return BitCast(d, Reverse2(du32, BitCast(du32, Reverse4(d, v))));
+}
+
+template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   const RebindToUnsigned<D> du;
   const auto idx = detail::XorS(detail::Iota0(du), 7);

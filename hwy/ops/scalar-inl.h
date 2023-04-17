@@ -390,32 +390,13 @@ HWY_API Vec1<T> ShiftRight(const Vec1<T> v) {
 }
 
 // ------------------------------ RotateRight (ShiftRight)
-
-namespace detail {
-
-// For partial specialization: kBits == 0 results in an invalid shift count
-template <int kBits>
-struct RotateRight {
-  template <typename T>
-  HWY_INLINE Vec1<T> operator()(const Vec1<T> v) const {
-    return Or(ShiftRight<kBits>(v), ShiftLeft<sizeof(T) * 8 - kBits>(v));
-  }
-};
-
-template <>
-struct RotateRight<0> {
-  template <typename T>
-  HWY_INLINE Vec1<T> operator()(const Vec1<T> v) const {
-    return v;
-  }
-};
-
-}  // namespace detail
-
 template <int kBits, typename T>
 HWY_API Vec1<T> RotateRight(const Vec1<T> v) {
-  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  return detail::RotateRight<kBits>()(v);
+  constexpr size_t kSizeInBits = sizeof(T) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
 }
 
 // ------------------------------ ShiftLeftSame (BroadcastSignBit)
@@ -1442,6 +1423,13 @@ template <class D, typename T = TFromD<D>>
 HWY_API Vec1<T> Reverse(D /* tag */, const Vec1<T> v) {
   return v;
 }
+
+// Per-target flag to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.
+#ifdef HWY_NATIVE_REVERSE2_8
+#undef HWY_NATIVE_REVERSE2_8
+#else
+#define HWY_NATIVE_REVERSE2_8
+#endif
 
 // Must not be called:
 template <class D, typename T = TFromD<D>>

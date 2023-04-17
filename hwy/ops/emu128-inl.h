@@ -415,32 +415,13 @@ HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
 }
 
 // ------------------------------ RotateRight (ShiftRight)
-
-namespace detail {
-
-// For partial specialization: kBits == 0 results in an invalid shift count
-template <int kBits>
-struct RotateRight {
-  template <typename T, size_t N>
-  HWY_INLINE Vec128<T, N> operator()(Vec128<T, N> v) const {
-    return Or(ShiftRight<kBits>(v), ShiftLeft<sizeof(T) * 8 - kBits>(v));
-  }
-};
-
-template <>
-struct RotateRight<0> {
-  template <typename T, size_t N>
-  HWY_INLINE Vec128<T, N> operator()(Vec128<T, N> v) const {
-    return v;
-  }
-};
-
-}  // namespace detail
-
 template <int kBits, typename T, size_t N>
-HWY_API Vec128<T, N> RotateRight(Vec128<T, N> v) {
-  static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-  return detail::RotateRight<kBits>()(v);
+HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
+  constexpr size_t kSizeInBits = sizeof(T) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+  if (kBits == 0) return v;
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
 }
 
 // ------------------------------ ShiftLeftSame
@@ -2136,6 +2117,13 @@ HWY_API VFromD<D> Reverse(D d, VFromD<D> v) {
   }
   return ret;
 }
+
+// Per-target flag to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.
+#ifdef HWY_NATIVE_REVERSE2_8
+#undef HWY_NATIVE_REVERSE2_8
+#else
+#define HWY_NATIVE_REVERSE2_8
+#endif
 
 template <class D>
 HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {

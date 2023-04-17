@@ -1801,6 +1801,16 @@ HWY_API Vec256<int8_t> ShiftRight(Vec256<int8_t> v) {
 
 // ------------------------------ RotateRight
 
+template <int kBits, typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec256<T> RotateRight(const Vec256<T> v) {
+  constexpr size_t kSizeInBits = sizeof(T) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+  if (kBits == 0) return v;
+  // AVX3 does not support 8/16-bit.
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
+}
+
 template <int kBits>
 HWY_API Vec256<uint32_t> RotateRight(const Vec256<uint32_t> v) {
   static_assert(0 <= kBits && kBits < 32, "Invalid shift count");
@@ -3869,6 +3879,34 @@ HWY_INLINE Vec256<uint16_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> v,
 #endif
 }
 
+// 8-bit: may use the Shl overload for uint16_t.
+HWY_API Vec256<uint8_t> Shl(hwy::UnsignedTag tag, Vec256<uint8_t> v,
+                            Vec256<uint8_t> bits) {
+  const DFromV<decltype(v)> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  (void)tag;
+  // kMask[i] = 0xFF >> i
+  alignas(16) static constexpr uint8_t kMasks[16] = {
+      0xFF, 0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00};
+  // kShl[i] = 1 << i
+  alignas(16) static constexpr uint8_t kShl[16] = {1,    2,    4,    8,   0x10,
+                                                   0x20, 0x40, 0x80, 0x00};
+  v = And(v, TableLookupBytes(LoadDup128(d, kMasks), bits));
+  const VFromD<decltype(d)> mul = TableLookupBytes(LoadDup128(d, kShl), bits);
+  return VFromD<decltype(d)>{_mm256_gf2p8mul_epi8(v.raw, mul.raw)};
+#else
+  const Repartition<uint16_t, decltype(d)> dw;
+  using VW = VFromD<decltype(dw)>;
+  const VW mask = Set(dw, 0x00FF);
+  const VW vw = BitCast(dw, v);
+  const VW bits16 = BitCast(dw, bits);
+  const VW evens = Shl(tag, And(vw, mask), And(bits16, mask));
+  // Shift odd lanes in-place
+  const VW odds = Shl(tag, vw, ShiftRight<8>(bits16));
+  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+#endif
+}
+
 HWY_INLINE Vec256<uint32_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint32_t> v,
                                 Vec256<uint32_t> bits) {
   return Vec256<uint32_t>{_mm256_sllv_epi32(v.raw, bits.raw)};
@@ -3907,6 +3945,20 @@ HWY_API Vec256<uint16_t> operator>>(Vec256<uint16_t> v, Vec256<uint16_t> bits) {
   // Replace output with input where bits == 0.
   return IfThenElse(bits == Zero(d), v, out);
 #endif
+}
+
+// 8-bit uses 16-bit shifts.
+HWY_API Vec256<uint8_t> operator>>(Vec256<uint8_t> v, Vec256<uint8_t> bits) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  using VW = VFromD<decltype(dw)>;
+  const VW mask = Set(dw, 0x00FF);
+  const VW vw = BitCast(dw, v);
+  const VW bits16 = BitCast(dw, bits);
+  const VW evens = And(vw, mask) >> And(bits16, mask);
+  // Shift odd lanes in-place
+  const VW odds = vw >> ShiftRight<8>(bits16);
+  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
 }
 
 HWY_API Vec256<uint32_t> operator>>(Vec256<uint32_t> v, Vec256<uint32_t> bits) {

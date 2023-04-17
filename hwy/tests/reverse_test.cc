@@ -217,32 +217,24 @@ HWY_NOINLINE void TestAllReverse() {
 }
 
 HWY_NOINLINE void TestAllReverse2() {
-  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
-  // which requires 16 bits.
   ForUIF64(ForGEVectors<128, TestReverse2>());
   ForUIF32(ForGEVectors<64, TestReverse2>());
   ForUIF16(ForGEVectors<32, TestReverse2>());
-
-#if HWY_TARGET == HWY_SSSE3
-  // Implemented mainly for internal use.
-  ForUI8(ForPartialVectors<TestReverse2>());
-#endif
+  ForUI8(ForGEVectors<16, TestReverse2>());
 }
 
 HWY_NOINLINE void TestAllReverse4() {
-  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
-  // which requires 16 bits.
   ForUIF64(ForGEVectors<256, TestReverse4>());
   ForUIF32(ForGEVectors<128, TestReverse4>());
   ForUIF16(ForGEVectors<64, TestReverse4>());
+  ForUI8(ForGEVectors<32, TestReverse4>());
 }
 
 HWY_NOINLINE void TestAllReverse8() {
-  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
-  // which requires 16 bits.
   ForUIF64(ForGEVectors<512, TestReverse8>());
   ForUIF32(ForGEVectors<256, TestReverse8>());
   ForUIF16(ForGEVectors<128, TestReverse8>());
+  ForUI8(ForGEVectors<64, TestReverse8>());
 }
 
 HWY_NOINLINE void TestAllReverseLaneBytes() {

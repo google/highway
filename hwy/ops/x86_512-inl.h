@@ -1000,15 +1000,27 @@ HWY_API Vec512<int8_t> ShiftRight(const Vec512<int8_t> v) {
 
 // ------------------------------ RotateRight
 
+template <int kBits, typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec512<T> RotateRight(const Vec512<T> v) {
+  constexpr size_t kSizeInBits = sizeof(T) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+  if (kBits == 0) return v;
+  // AVX3 does not support 8/16-bit.
+  return Or(ShiftRight<kBits>(v),
+            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
+}
+
 template <int kBits>
 HWY_API Vec512<uint32_t> RotateRight(const Vec512<uint32_t> v) {
   static_assert(0 <= kBits && kBits < 32, "Invalid shift count");
+  if (kBits == 0) return v;
   return Vec512<uint32_t>{_mm512_ror_epi32(v.raw, kBits)};
 }
 
 template <int kBits>
 HWY_API Vec512<uint64_t> RotateRight(const Vec512<uint64_t> v) {
   static_assert(0 <= kBits && kBits < 64, "Invalid shift count");
+  if (kBits == 0) return v;
   return Vec512<uint64_t>{_mm512_ror_epi64(v.raw, kBits)};
 }
 
@@ -1177,63 +1189,6 @@ HWY_API Vec512<int8_t> ShiftRightSame(Vec512<int8_t> v, const int bits) {
   const auto shifted_sign =
       BitCast(di, Set(du, static_cast<uint8_t>(0x80 >> bits)));
   return (shifted ^ shifted_sign) - shifted_sign;
-}
-
-// ------------------------------ Shl
-
-HWY_API Vec512<uint16_t> operator<<(const Vec512<uint16_t> v,
-                                    const Vec512<uint16_t> bits) {
-  return Vec512<uint16_t>{_mm512_sllv_epi16(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<uint32_t> operator<<(const Vec512<uint32_t> v,
-                                    const Vec512<uint32_t> bits) {
-  return Vec512<uint32_t>{_mm512_sllv_epi32(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<uint64_t> operator<<(const Vec512<uint64_t> v,
-                                    const Vec512<uint64_t> bits) {
-  return Vec512<uint64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
-}
-
-// Signed left shift is the same as unsigned.
-template <typename T, HWY_IF_SIGNED(T)>
-HWY_API Vec512<T> operator<<(const Vec512<T> v, const Vec512<T> bits) {
-  const DFromV<decltype(v)> di;
-  const RebindToUnsigned<decltype(di)> du;
-  return BitCast(di, BitCast(du, v) << BitCast(du, bits));
-}
-
-// ------------------------------ Shr
-
-HWY_API Vec512<uint16_t> operator>>(const Vec512<uint16_t> v,
-                                    const Vec512<uint16_t> bits) {
-  return Vec512<uint16_t>{_mm512_srlv_epi16(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
-                                    const Vec512<uint32_t> bits) {
-  return Vec512<uint32_t>{_mm512_srlv_epi32(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<uint64_t> operator>>(const Vec512<uint64_t> v,
-                                    const Vec512<uint64_t> bits) {
-  return Vec512<uint64_t>{_mm512_srlv_epi64(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<int16_t> operator>>(const Vec512<int16_t> v,
-                                   const Vec512<int16_t> bits) {
-  return Vec512<int16_t>{_mm512_srav_epi16(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<int32_t> operator>>(const Vec512<int32_t> v,
-                                   const Vec512<int32_t> bits) {
-  return Vec512<int32_t>{_mm512_srav_epi32(v.raw, bits.raw)};
-}
-
-HWY_API Vec512<int64_t> operator>>(const Vec512<int64_t> v,
-                                   const Vec512<int64_t> bits) {
-  return Vec512<int64_t>{_mm512_srav_epi64(v.raw, bits.raw)};
 }
 
 // ------------------------------ Minimum
@@ -3205,7 +3160,7 @@ HWY_API Vec512<T> DupOdd(const Vec512<T> v) {
   return InterleaveUpper(d, v, v);
 }
 
-// ------------------------------ OddEven
+// ------------------------------ OddEven (IfThenElse)
 
 template <typename T>
 HWY_API Vec512<T> OddEven(const Vec512<T> a, const Vec512<T> b) {
@@ -4911,6 +4866,103 @@ HWY_API void StoreTransposedBlocks4(const Vec512<T> i, const Vec512<T> j,
 }
 
 }  // namespace detail
+
+// ------------------------------ Shl (LoadDup128)
+
+HWY_API Vec512<uint16_t> operator<<(Vec512<uint16_t> v, Vec512<uint16_t> bits) {
+  return Vec512<uint16_t>{_mm512_sllv_epi16(v.raw, bits.raw)};
+}
+
+// 8-bit: may use the << overload for uint16_t.
+HWY_API Vec512<uint8_t> operator<<(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
+  const DFromV<decltype(v)> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  // kMask[i] = 0xFF >> i
+  alignas(16) static constexpr uint8_t kMasks[16] = {
+      0xFF, 0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00};
+  // kShl[i] = 1 << i
+  alignas(16) static constexpr uint8_t kShl[16] = {0x01, 0x02, 0x04, 0x08,
+                                                   0x10, 0x20, 0x40, 0x80};
+  v = And(v, TableLookupBytes(LoadDup128(d, kMasks), bits));
+  const VFromD<decltype(d)> mul = TableLookupBytes(LoadDup128(d, kShl), bits);
+  return VFromD<decltype(d)>{_mm512_gf2p8mul_epi8(v.raw, mul.raw)};
+#else
+  const Repartition<uint16_t, decltype(d)> dw;
+  using VW = VFromD<decltype(dw)>;
+  const VW mask = Set(dw, 0x00FF);
+  const VW vw = BitCast(dw, v);
+  const VW bits16 = BitCast(dw, bits);
+  const VW evens = And(vw, mask) << And(bits16, mask);
+  // Shift odd lanes in-place
+  const VW odds = vw << ShiftRight<8>(bits16);
+  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+#endif
+}
+
+HWY_API Vec512<uint32_t> operator<<(const Vec512<uint32_t> v,
+                                    const Vec512<uint32_t> bits) {
+  return Vec512<uint32_t>{_mm512_sllv_epi32(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<uint64_t> operator<<(const Vec512<uint64_t> v,
+                                    const Vec512<uint64_t> bits) {
+  return Vec512<uint64_t>{_mm512_sllv_epi64(v.raw, bits.raw)};
+}
+
+// Signed left shift is the same as unsigned.
+template <typename T, HWY_IF_SIGNED(T)>
+HWY_API Vec512<T> operator<<(const Vec512<T> v, const Vec512<T> bits) {
+  const DFromV<decltype(v)> di;
+  const RebindToUnsigned<decltype(di)> du;
+  return BitCast(di, BitCast(du, v) << BitCast(du, bits));
+}
+
+// ------------------------------ Shr (IfVecThenElse)
+
+HWY_API Vec512<uint16_t> operator>>(const Vec512<uint16_t> v,
+                                    const Vec512<uint16_t> bits) {
+  return Vec512<uint16_t>{_mm512_srlv_epi16(v.raw, bits.raw)};
+}
+
+// 8-bit uses 16-bit shifts.
+template <size_t N>
+HWY_API Vec512<uint8_t> operator>>(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  using VW = VFromD<decltype(dw)>;
+  const VW mask = Set(dw, 0x00FF);
+  const VW vw = BitCast(dw, v);
+  const VW bits16 = BitCast(dw, bits);
+  const VW evens = And(vw, mask) >> And(bits16, mask);
+  // Shift odd lanes in-place
+  const VW odds = vw >> ShiftRight<8>(bits16);
+  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+}
+
+HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
+                                    const Vec512<uint32_t> bits) {
+  return Vec512<uint32_t>{_mm512_srlv_epi32(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<uint64_t> operator>>(const Vec512<uint64_t> v,
+                                    const Vec512<uint64_t> bits) {
+  return Vec512<uint64_t>{_mm512_srlv_epi64(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<int16_t> operator>>(const Vec512<int16_t> v,
+                                   const Vec512<int16_t> bits) {
+  return Vec512<int16_t>{_mm512_srav_epi16(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<int32_t> operator>>(const Vec512<int32_t> v,
+                                   const Vec512<int32_t> bits) {
+  return Vec512<int32_t>{_mm512_srav_epi32(v.raw, bits.raw)};
+}
+
+HWY_API Vec512<int64_t> operator>>(const Vec512<int64_t> v,
+                                   const Vec512<int64_t> bits) {
+  return Vec512<int64_t>{_mm512_srav_epi64(v.raw, bits.raw)};
+}
 
 // ------------------------------ MulEven/Odd (Shuffle2301, InterleaveLower)
 

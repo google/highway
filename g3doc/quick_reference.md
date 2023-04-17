@@ -516,7 +516,7 @@ lane sizes, and `RotateRight` is often emulated with shifts:
 *   `V`: `{u,i}` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
-*   `V`: `{u}{32,64}` \
+*   `V`: `{u}` \
     <code>V **RotateRight**&lt;int&gt;(V a)</code> returns `(a[i] >> int) |
     (a[i] << (sizeof(T)*8 - int))`.
 
@@ -530,11 +530,11 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 
 Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 
-*   `V`: `{u,i}{16,32,64}` \
+*   `V`: `{u}, {i}{16,32,64}` \
     <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shl` instead.
 
-*   `V`: `{u,i}{16,32,64}` \
+*   `V`: `{u}, {i}{16,32,64}` \
     <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shr` instead.
 
@@ -1345,16 +1345,13 @@ instead because they are more general:
 
 The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
+*   <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
     contiguous lanes in reversed order (`out[i] == a[i ^ 1]`).
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **Reverse4**(D, V a)</code> returns a vector with each group of 4
+*   <code>V **Reverse4**(D, V a)</code> returns a vector with each group of 4
     contiguous lanes in reversed order (`out[i] == a[i ^ 3]`).
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **Reverse8**(D, V a)</code> returns a vector with each group of 8
+*   <code>V **Reverse8**(D, V a)</code> returns a vector with each group of 8
     contiguous lanes in reversed order (`out[i] == a[i ^ 7]`).
 
 All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
