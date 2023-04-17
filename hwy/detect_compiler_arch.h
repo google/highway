@@ -243,4 +243,33 @@
 #define HWY_OS_LINUX 0
 #endif
 
+//------------------------------------------------------------------------------
+// Endianness
+
+#if HWY_COMPILER_MSVC
+#if HWY_ARCH_PPC && defined(_XBOX_VER) && _XBOX_VER >= 200
+// XBox 360 is big-endian
+#define HWY_IS_LITTLE_ENDIAN 0
+#define HWY_IS_BIG_ENDIAN 1
+#else
+// All other targets supported by MSVC are little-endian
+#define HWY_IS_LITTLE_ENDIAN 1
+#define HWY_IS_BIG_ENDIAN 0
+#endif  // HWY_ARCH_PPC && defined(_XBOX_VER) && _XBOX_VER >= 200
+#elif defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+    __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define HWY_IS_LITTLE_ENDIAN 1
+#define HWY_IS_BIG_ENDIAN 0
+#elif defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && \
+    __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define HWY_IS_LITTLE_ENDIAN 0
+#define HWY_IS_BIG_ENDIAN 1
+#else
+#error "Unable to detect endianness or unsupported byte order"
+#endif
+
+#if (HWY_IS_LITTLE_ENDIAN + HWY_IS_BIG_ENDIAN) != 1
+#error "Must only detect one byte order"
+#endif
+
 #endif  // HIGHWAY_HWY_DETECT_COMPILER_ARCH_H_

@@ -1474,6 +1474,12 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
     implemented as `Add(Mul(f, m), a)`. Checking this can be useful for
     increasing the tolerance of expected results (around 1E-5 or 1E-6).
 
+*   `HWY_IS_LITTLE_ENDIAN` expands to 1 on little-endian targets and to 0 on
+    big-endian targets.
+
+*   `HWY_IS_BIG_ENDIAN` expands to 0 on big-endian targets and to 1 on
+    little-endian targets.
+
 The following were used to signal the maximum number of lanes for certain
 operations, but this is no longer necessary (nor possible on SVE/RVV), so they
 are DEPRECATED:

@@ -98,7 +98,6 @@
 // --------------------------- Future expansion: 4 targets
 // Bits 39..42 reserved
 
-
 // --------------------------- IBM Power: 9 targets (+ one fallback)
 // Bits 43..46 reserved (4 targets)
 #define HWY_PPC10 (1LL << 47)  // v3.1
@@ -173,9 +172,7 @@
 #endif
 
 // armv7be has not been tested and is not yet supported.
-#if HWY_ARCH_ARM_V7 &&            \
-    (defined(__ARM_BIG_ENDIAN) || \
-     (defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN))
+#if HWY_ARCH_ARM_V7 && HWY_IS_BIG_ENDIAN
 #define HWY_BROKEN_ARM7_BIG_ENDIAN (HWY_NEON | HWY_NEON_WITHOUT_AES)
 #else
 #define HWY_BROKEN_ARM7_BIG_ENDIAN 0
@@ -202,9 +199,7 @@
 
 // There are GCC/Clang compiler bugs on big-endian PPC with the -mcpu=power10
 // option if optimizations are enabled
-#if HWY_ARCH_PPC && defined(__BYTE_ORDER__) && \
-    defined(__ORDER_LITTLE_ENDIAN__) &&        \
-    __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#if HWY_ARCH_PPC && HWY_IS_BIG_ENDIAN
 #define HWY_BROKEN_PPC10 (HWY_PPC10)
 #else
 #define HWY_BROKEN_PPC10 0
@@ -436,8 +431,8 @@
 
 // TODO(janwas): not yet known whether these will be set by MSVC
 #if HWY_BASELINE_AVX3 != 0 && defined(__AVX512VNNI__) && defined(__VAES__) && \
-    defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&                  \
-    defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) &&            \
+    defined(__VPCLMULQDQ__) && defined(__AVX512VBMI__) &&                     \
+    defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__) &&               \
     defined(__AVX512BITALG__)
 #define HWY_BASELINE_AVX3_DL HWY_AVX3_DL
 #else
@@ -462,11 +457,11 @@
 
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
-#define HWY_BASELINE_TARGETS                                     \
-  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 | \
-   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 |  \
-   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | \
-   HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | \
+#define HWY_BASELINE_TARGETS                                           \
+  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |       \
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 |        \
+   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE2 |          \
+   HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 |        \
    HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | \
    HWY_BASELINE_RVV)
 #endif  // HWY_BASELINE_TARGETS
@@ -504,7 +499,7 @@
 // On Arm/PPC, currently only GCC does, and we require Linux to detect CPU
 // capabilities.
 #elif (HWY_ARCH_ARM || HWY_ARCH_PPC) && HWY_COMPILER_GCC_ACTUAL && \
-      HWY_OS_LINUX && !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
+    HWY_OS_LINUX && !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 #else
 #define HWY_HAVE_RUNTIME_DISPATCH 0
