@@ -9,13 +9,6 @@ freshness: { owner: 'janwas' reviewed: '2023-03-24' }
 
 ## Wishlist
 
-### Shl for 8-bit
-janwas will likely implement this, please raise an issue if you'd like to.
-
-### Shr for 8-bit
-
-Can use the GFNI instructions added in #1276.
-
 ### Vector tuple type
 
 Vec2, Create/Get functions, add second Load/StoreInterleaved interface.
@@ -29,8 +22,10 @@ For crypto. Native on Icelake+.
 Potentially useful for comparing neighbors e.g. for RLE.
 
 ### RVV codegen
-* `OddEven` for <64bit lanes: use Set of wider constant 0_1, compare that to 1
-* `rgather_vx` for broadcasting redsum result?
+
+*   `rgather_vx` for broadcasting redsum result?
+*   Fix remaining 8-bit table lookups for large vectors (`Broadcast`,
+    `Interleave`, `LoadDup128`): use 64-bit for initial shuffle
 
 ### SVE codegen
 * SVE2: use XAR for `RotateRight`
@@ -50,15 +45,6 @@ Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
 * Min/Max/IdxMin
 * CountIf (https://en.algorithmica.org/hpc/simd/masking/)
 
-### Faster `Reverse2` 16-bit
-Avoid `RotateRight` - slow for non-avx3; if we had that, could already permute.
-
-### Add `Reverse2` for 8-bit
-Use `TableLookupBytes`.
-
-### Add `TableLookupLanes` for 16-bit
-`#751`
-
 ### `SumOfLanes` returning scalar
 Avoids extra broadcast.
 
@@ -74,9 +60,6 @@ For hash tables. Use VPCONFLICT on ZEN4.
 ### `PromoteToEven`
 For `WidenMul`, `MinOfLanes`.
 
-### `TwoTablesLookupLanes`
-Cross-lane semantics. Mainly target avx3, also sve/rvv (2 rgather). #982.
-
 ### `PromoteTo` for all types
 For orthogonality.
 
@@ -85,9 +68,6 @@ Use in `MinOfLanes` (helps NEON).
 
 ### Masked add/sub
 For tolower (subtract if in range) or hash table probing.
-
-### `FindLastTrue`
-Similar to `FindFirstTrue`.
 
 ### `AddSub`
 Interval arithmetic?
@@ -152,3 +132,11 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~8-bit Mul~~
 *   ~~(Neg)MulAdd for integer~~
 *   ~~AESRoundInv etc~~ - by johnplatts in #1286
+*   ~~`OddEven` for <64bit lanes: use Set of wider constant 0_1~~
+*   ~~Shl for 8-bit~~
+*   ~~Shr for 8-bit~~
+*   ~~Faster `Reverse2` 16-bit~~
+*   ~~Add `Reverse2` for 8-bit~~
+*   ~~`TwoTablesLookupLanes`~~ - by johnplatts in #1303
+*   ~~Add 8/16-bit `TableLookupLanes`~~ - by johnplatts in #1303
+*   ~~`FindLastTrue`~~ - by johnplatts in #1308
