@@ -1605,7 +1605,8 @@ HWY_API Indices128<TFromD<D>, MaxLanes(D())> IndicesFromVec(
 #if HWY_IS_DEBUG_BUILD
   const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
-  HWY_DASSERT(AllTrue(du, Lt(vec, Set(du, static_cast<TU>(MaxLanes(d) * 2)))));
+  HWY_DASSERT(AllTrue(
+      du, Lt(BitCast(du, vec), Set(du, static_cast<TU>(MaxLanes(d) * 2)))));
 #endif
 
   const Repartition<uint8_t, decltype(d)> d8;
@@ -1621,7 +1622,8 @@ HWY_API Indices128<TFromD<D>, MaxLanes(D())> IndicesFromVec(
 #if HWY_IS_DEBUG_BUILD
   const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
-  HWY_DASSERT(AllTrue(du, Lt(vec, Set(du, static_cast<TU>(MaxLanes(d) * 2)))));
+  HWY_DASSERT(AllTrue(
+      du, Lt(BitCast(du, vec), Set(du, static_cast<TU>(MaxLanes(d) * 2)))));
 #endif
 
   const Repartition<uint8_t, decltype(d)> d8;
