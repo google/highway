@@ -32,10 +32,6 @@ using DFromV = typename DFromV_t<RemoveConst<V>>::type;
 template <class V>
 using TFromV = TFromD<DFromV<V>>;
 
-// Enables the overload if Pow2 is in [min, max].
-#define HWY_RVV_IF_POW2_IN(D, min, max) \
-  hwy::EnableIf<(min) <= D().Pow2() && D().Pow2() <= (max)>* = nullptr
-
 template <typename T, size_t N, int kPow2>
 constexpr size_t MLenFromD(Simd<T, N, kPow2> /* tag */) {
   // Returns divisor = type bits / LMUL. Folding *8 into the ScaleByPower
@@ -2558,13 +2554,13 @@ HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
 // Shifting and adding requires fewer instructions than blending, but casting to
 // u32 only works for LMUL in [1/2, 8].
 
-template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_RVV_IF_POW2_IN(D, -2, 3)>
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_POW2_GT_D(D, -3)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Repartition<uint16_t, D> du16;
   return BitCast(d, RotateRight<8>(BitCast(du16, v)));
 }
 // For LMUL < 1/4, we can extend and then truncate.
-template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_RVV_IF_POW2_IN(D, -3, -3)>
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_POW2_LE_D(D, -3)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Twice<decltype(d)> d2;
   const Repartition<uint16_t, decltype(d2)> du16;
@@ -2573,13 +2569,13 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   return detail::Trunc(rx);
 }
 
-template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_RVV_IF_POW2_IN(D, -1, 3)>
+template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_POW2_GT_D(D, -2)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Repartition<uint32_t, D> du32;
   return BitCast(d, RotateRight<16>(BitCast(du32, v)));
 }
 // For LMUL < 1/2, we can extend and then truncate.
-template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_RVV_IF_POW2_IN(D, -3, -2)>
+template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_POW2_LE_D(D, -2)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Twice<decltype(d)> d2;
   const Twice<decltype(d2)> d4;
@@ -2591,14 +2587,14 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
 
 // Shifting and adding requires fewer instructions than blending, but casting to
 // u64 does not work for LMUL < 1.
-template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_RVV_IF_POW2_IN(D, 0, 3)>
+template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_IF_POW2_GT_D(D, -1)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Repartition<uint64_t, decltype(d)> du64;
   return BitCast(d, RotateRight<32>(BitCast(du64, v)));
 }
 
 // For fractions, we can extend and then truncate.
-template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_RVV_IF_POW2_IN(D, -2, -1)>
+template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_IF_POW2_LE_D(D, -1)>
 HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {
   const Twice<decltype(d)> d2;
   const Twice<decltype(d2)> d4;
@@ -2785,7 +2781,7 @@ HWY_RVV_FOREACH_U32(HWY_RVV_NARROW, Narrow, nsrl, _EXT)
 }  // namespace detail
 
 // Casting to wider and narrowing is the fastest for < 64-bit lanes.
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 8), HWY_RVV_IF_POW2_IN(D, -3, 2)>
+template <class D, HWY_IF_NOT_T_SIZE_D(D, 8), HWY_IF_POW2_LE_D(D, 2)>
 HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   constexpr size_t kBits = sizeof(TFromD<D>) * 8;
   const Twice<decltype(d)> dt;
@@ -2795,7 +2791,7 @@ HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 // 64-bit: Combine+Compress.
-template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_RVV_IF_POW2_IN(D, -3, 2)>
+template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_POW2_LE_D(D, 2)>
 HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const Twice<decltype(d)> dt;
   const VFromD<decltype(dt)> hl = Combine(dt, hi, lo);
@@ -2803,7 +2799,7 @@ HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 // Any type, max LMUL: Compress both, then Combine.
-template <class D, HWY_RVV_IF_POW2_IN(D, 3, 3)>
+template <class D, HWY_IF_POW2_GT_D(D, 2)>
 HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const Half<decltype(d)> dh;
   const MFromD<D> is_odd = detail::IsOdd(d);
@@ -2815,7 +2811,7 @@ HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
 // ------------------------------ ConcatEven (Compress)
 
 // Casting to wider and narrowing is the fastest for < 64-bit lanes.
-template <class D, HWY_IF_NOT_T_SIZE_D(D, 8), HWY_RVV_IF_POW2_IN(D, -3, 2)>
+template <class D, HWY_IF_NOT_T_SIZE_D(D, 8), HWY_IF_POW2_LE_D(D, 2)>
 HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   const Twice<decltype(d)> dt;
   const RepartitionToWide<RebindToUnsigned<decltype(dt)>> dtuw;
@@ -2824,7 +2820,7 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 // 64-bit: Combine+Compress.
-template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_RVV_IF_POW2_IN(D, -3, 2)>
+template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_POW2_LE_D(D, 2)>
 HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   const Twice<decltype(d)> dt;
   const VFromD<decltype(dt)> hl = Combine(dt, hi, lo);
@@ -2832,7 +2828,7 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 // Any type, max LMUL: Compress both, then Combine.
-template <class D, HWY_RVV_IF_POW2_IN(D, 3, 3)>
+template <class D, HWY_IF_POW2_GT_D(D, 2)>
 HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   const Half<decltype(d)> dh;
   const MFromD<D> is_even = detail::IsEven(d);
