@@ -7346,6 +7346,21 @@ HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API size_t FindKnownLastTrue(D d, MFromD<D> mask) {
+  constexpr size_t kN = MaxLanes(d);
+  const uint32_t mask_bits = uint32_t{mask.raw} & ((1u << kN) - 1);
+  return 31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
+  constexpr size_t kN = MaxLanes(d);
+  const uint32_t mask_bits = uint32_t{mask.raw} & ((1u << kN) - 1);
+  return mask_bits ? intptr_t(31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits))
+                   : -1;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API bool AllFalse(D d, MFromD<D> mask) {
   constexpr size_t kN = MaxLanes(d);
   const uint64_t mask_bits = uint64_t{mask.raw} & ((1ull << kN) - 1);
@@ -7536,13 +7551,27 @@ HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
-  return Num0BitsBelowLS1Bit_Nonzero64(detail::BitsFromMask(mask));
+  return Num0BitsBelowLS1Bit_Nonzero32(
+      static_cast<uint32_t>(detail::BitsFromMask(mask)));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API intptr_t FindFirstTrue(D /* tag */, MFromD<D> mask) {
-  const uint64_t mask_bits = detail::BitsFromMask(mask);
-  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask_bits)) : -1;
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
+  return 31 - Num0BitsAboveMS1Bit_Nonzero32(
+                  static_cast<uint32_t>(detail::BitsFromMask(mask)));
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
+  const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return mask_bits ? intptr_t(31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits))
+                   : -1;
 }
 
 // ------------------------------ Compress, CompressBits

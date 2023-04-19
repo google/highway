@@ -2391,6 +2391,23 @@ HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
   return intptr_t{-1};
 }
 
+template <class D>
+HWY_API size_t FindKnownLastTrue(D d, MFromD<D> mask) {
+  for (intptr_t i = static_cast<intptr_t>(MaxLanes(d) - 1); i >= 0; i--) {
+    if (mask.bits[i] != 0) return static_cast<size_t>(i);
+  }
+  HWY_DASSERT(false);
+  return 0;
+}
+
+template <class D>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
+  for (intptr_t i = static_cast<intptr_t>(MaxLanes(d) - 1); i >= 0; i--) {
+    if (mask.bits[i] != 0) return i;
+  }
+  return intptr_t{-1};
+}
+
 // ------------------------------ Compress
 
 template <typename T>

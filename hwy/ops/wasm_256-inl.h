@@ -1578,10 +1578,28 @@ template <class D, typename T = TFromD<D>>
 HWY_API intptr_t FindFirstTrue(D d, const Mask256<T> mask) {
   const Half<decltype(d)> dh;
   const intptr_t lo = FindFirstTrue(dh, mask.m0);
-  const intptr_t hi = FindFirstTrue(dh, mask.m1);
-  if (lo < 0 && hi < 0) return lo;
   constexpr int kLanesPerHalf = 16 / sizeof(T);
-  return lo >= 0 ? lo : hi + kLanesPerHalf;
+  if (lo >= 0) return lo;
+
+  const intptr_t hi = FindFirstTrue(dh, mask.m1);
+  return hi + (hi >= 0 ? kLanesPerHalf : 0);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownLastTrue(D d, const Mask256<T> mask) {
+  const Half<decltype(d)> dh;
+  const intptr_t hi = FindLastTrue(dh, mask.m1);  // not known
+  constexpr size_t kLanesPerHalf = 16 / sizeof(T);
+  return hi >= 0 ? kLanesPerHalf + static_cast<size_t>(hi)
+                 : FindKnownLastTrue(dh, mask.m0);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D d, const Mask256<T> mask) {
+  const Half<decltype(d)> dh;
+  constexpr int kLanesPerHalf = 16 / sizeof(T);
+  const intptr_t hi = FindLastTrue(dh, mask.m1);
+  return hi >= 0 ? kLanesPerHalf + hi : FindLastTrue(dh, mask.m0);
 }
 
 // ------------------------------ CompressStore

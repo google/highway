@@ -705,6 +705,14 @@ encoding depends on the platform).
     otherwise results are undefined. This is typically more efficient than
     `FindFirstTrue`.
 
+*   <code>intptr_t **FindLastTrue**(D, M m)</code>: returns the index of the
+    last (i.e. highest index) `m[i]` that is true, or -1 if none are.
+
+*   <code>size_t **FindKnownLastTrue**(D, M m)</code>: returns the index of the
+    last (i.e. highest index) `m[i]` that is true. Requires `!AllFalse(d, m)`,
+    otherwise results are undefined. This is typically more efficient than
+    `FindLastTrue`.
+
 #### Ternary operator
 
 For `IfThen*`, masks must adhere to the invariant established by `MaskFromVec`:

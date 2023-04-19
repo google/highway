@@ -2505,9 +2505,21 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
 HWY_RVV_FOREACH(HWY_RVV_TABLE, TableLookupLanes, rgather, _ALL)
 #undef HWY_RVV_TABLE
 
-// Used by Expand.
 namespace detail {
 
+// Used by I8/U8 Reverse
+#define HWY_RVV_TABLE16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,     \
+                        SHIFT, MLEN, NAME, OP)                               \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(uint, SEWD, LMULD) idx) { \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL(v, idx,                      \
+                                                HWY_RVV_AVL(SEW, SHIFT));    \
+  }
+
+HWY_RVV_FOREACH_UI08(HWY_RVV_TABLE16, TableLookupLanes16, rgatherei16, _EXT)
+#undef HWY_RVV_TABLE16
+
+// Used by Expand.
 #define HWY_RVV_MASKED_TABLE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,  \
                              SHIFT, MLEN, NAME, OP)                            \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
@@ -2536,7 +2548,28 @@ HWY_RVV_FOREACH_UI08(HWY_RVV_MASKED_TABLE16, MaskedTableLookupLanes16,
 }  // namespace detail
 
 // ------------------------------ Reverse (TableLookupLanes)
-template <class D>
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_POW2_LE_D(D, 2)>
+HWY_API VFromD<D> Reverse(D d, VFromD<D> v) {
+  const Rebind<uint16_t, decltype(d)> du16;
+  const size_t N = Lanes(d);
+  const auto idx =
+      detail::ReverseSubS(detail::Iota0(du16), static_cast<uint16_t>(N - 1));
+  return detail::TableLookupLanes16(v, idx);
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_POW2_GT_D(D, 2)>
+HWY_API VFromD<D> Reverse(D d, VFromD<D> v) {
+  const Half<decltype(d)> dh;
+  const Rebind<uint16_t, decltype(dh)> du16;
+  const size_t half_n = Lanes(dh);
+  const auto idx = detail::ReverseSubS(detail::Iota0(du16),
+                                       static_cast<uint16_t>(half_n - 1));
+  const auto reversed_lo = detail::TableLookupLanes16(LowerHalf(dh, v), idx);
+  const auto reversed_hi = detail::TableLookupLanes16(UpperHalf(dh, v), idx);
+  return Combine(d, reversed_lo, reversed_hi);
+}
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 2) | (1 << 4) | (1 << 8))>
 HWY_API VFromD<D> Reverse(D /* tag */, VFromD<D> v) {
   const RebindToUnsigned<D> du;
   using TU = TFromD<decltype(du)>;
@@ -2763,6 +2796,28 @@ HWY_API size_t CompressBlendedStore(const V v, const M mask, const D d,
   const size_t count = CountTrue(d, mask);
   detail::StoreN(count, Compress(v, mask), d, unaligned);
   return count;
+}
+
+// ================================================== COMPARE (2)
+
+// ------------------------------ FindLastTrue
+
+template <class D>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> m) {
+  const RebindToSigned<decltype(d)> di;
+  const intptr_t fft_rev_idx =
+      FindFirstTrue(d, MaskFromVec(Reverse(di, VecFromMask(di, m))));
+  return (fft_rev_idx >= 0)
+             ? (static_cast<intptr_t>(Lanes(d) - 1) - fft_rev_idx)
+             : intptr_t{-1};
+}
+
+template <class D>
+HWY_API size_t FindKnownLastTrue(D d, MFromD<D> m) {
+  const RebindToSigned<decltype(d)> di;
+  const size_t fft_rev_idx =
+      FindKnownFirstTrue(d, MaskFromVec(Reverse(di, VecFromMask(di, m))));
+  return Lanes(d) - 1 - fft_rev_idx;
 }
 
 // ------------------------------ ConcatOdd (Compress)

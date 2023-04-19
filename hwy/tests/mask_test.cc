@@ -223,6 +223,40 @@ HWY_NOINLINE void TestAllFindFirstTrue() {
   ForAllTypes(ForPartialVectors<TestFindFirstTrue>());
 }
 
+struct TestFindLastTrue {  // Also FindKnownLastTrue
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(di);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    memset(bool_lanes.get(), 0, N * sizeof(TI));
+
+    // For all combinations of zero/nonzero state of subset of lanes:
+    const size_t max_lanes = AdjustedLog2Reps(HWY_MIN(N, size_t(9)));
+
+    HWY_ASSERT_EQ(intptr_t(-1), FindLastTrue(d, MaskFalse(d)));
+    HWY_ASSERT_EQ(intptr_t(Lanes(d) - 1), FindLastTrue(d, MaskTrue(d)));
+    HWY_ASSERT_EQ(size_t(Lanes(d) - 1), FindKnownLastTrue(d, MaskTrue(d)));
+
+    for (size_t code = 1; code < (1ull << max_lanes); ++code) {
+      for (size_t i = 0; i < max_lanes; ++i) {
+        bool_lanes[i] = (code & (1ull << i)) ? TI(1) : TI(0);
+      }
+
+      const size_t expected =
+          31 - Num0BitsAboveMS1Bit_Nonzero32(static_cast<uint32_t>(code));
+      const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
+      HWY_ASSERT_EQ(static_cast<intptr_t>(expected), FindLastTrue(d, mask));
+      HWY_ASSERT_EQ(expected, FindKnownLastTrue(d, mask));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFindLastTrue() {
+  ForAllTypes(ForPartialVectors<TestFindLastTrue>());
+}
+
 struct TestLogicalMask {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -287,6 +321,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskVec);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllAllTrueFalse);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllCountTrue);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFindFirstTrue);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllFindLastTrue);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllLogicalMask);
 }  // namespace hwy
 

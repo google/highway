@@ -2094,6 +2094,7 @@ namespace detail {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_GET_LANE, GetLaneM, lasta)
+HWY_SVE_FOREACH(HWY_SVE_GET_LANE, ExtractLastMatchingLaneM, lastb)
 #undef HWY_SVE_GET_LANE
 }  // namespace detail
 
@@ -2603,6 +2604,23 @@ HWY_API size_t CompressBlendedStore(const V v, const svbool_t mask, const D d,
   const svbool_t store_mask = FirstN(d, count);
   BlendedStore(Compress(v, mask), store_mask, d, unaligned);
   return count;
+}
+
+// ================================================== MASK (2)
+
+// ------------------------------ FindKnownLastTrue
+template <class D>
+HWY_API size_t FindKnownLastTrue(D d, svbool_t m) {
+  const RebindToUnsigned<decltype(d)> du;
+  return static_cast<size_t>(detail::ExtractLastMatchingLaneM(
+      Iota(du, 0), And(m, detail::MakeMask(d))));
+}
+
+// ------------------------------ FindLastTrue
+template <class D>
+HWY_API intptr_t FindLastTrue(D d, svbool_t m) {
+  return AllFalse(d, m) ? intptr_t{-1}
+                        : static_cast<intptr_t>(FindKnownLastTrue(d, m));
 }
 
 // ================================================== BLOCKWISE

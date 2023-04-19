@@ -3318,6 +3318,17 @@ HWY_API intptr_t FindFirstTrue(D /* tag */, MFromD<D> mask) {
   return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask_bits)) : -1;
 }
 
+template <class D>
+HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
+  return 63 - Num0BitsAboveMS1Bit_Nonzero64(detail::BitsFromMask(mask));
+}
+
+template <class D>
+HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
+  const uint64_t mask_bits = detail::BitsFromMask(mask);
+  return mask_bits ? intptr_t(63 - Num0BitsAboveMS1Bit_Nonzero64(mask_bits)) : -1;
+}
+
 // ------------------------------ Compress, CompressBits
 
 namespace detail {

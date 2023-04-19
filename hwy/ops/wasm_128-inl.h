@@ -4073,14 +4073,28 @@ HWY_API bool AllTrue(D d, const MFromD<D> m) {
 
 template <class D>
 HWY_API size_t FindKnownFirstTrue(D /* tag */, const MFromD<D> mask) {
-  const uint64_t bits = detail::BitsFromMask(mask);
-  return Num0BitsBelowLS1Bit_Nonzero64(bits);
+  const uint32_t bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return Num0BitsBelowLS1Bit_Nonzero32(bits);
 }
 
 template <class D>
 HWY_API intptr_t FindFirstTrue(D /* tag */, const MFromD<D> mask) {
-  const uint64_t bits = detail::BitsFromMask(mask);
-  return bits ? static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero64(bits)) : -1;
+  const uint32_t bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return bits ? static_cast<intptr_t>(Num0BitsBelowLS1Bit_Nonzero32(bits)) : -1;
+}
+
+template <class D>
+HWY_API size_t FindKnownLastTrue(D /* tag */, const MFromD<D> mask) {
+  const uint32_t bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return 31 - Num0BitsAboveMS1Bit_Nonzero32(bits);
+}
+
+template <class D>
+HWY_API intptr_t FindLastTrue(D /* tag */, const MFromD<D> mask) {
+  const uint32_t bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
+  return bits
+             ? (31 - static_cast<intptr_t>(Num0BitsAboveMS1Bit_Nonzero32(bits)))
+             : -1;
 }
 
 // ------------------------------ Compress
