@@ -2674,8 +2674,11 @@ HWY_API Indices512<T> IndicesFromVec(D /* tag */, Vec512<TI> vec) {
   static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const DFromV<decltype(vec)> di;
-  HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
+  const RebindToUnsigned<decltype(di)> du;
+  using TU = MakeUnsigned<T>;
+  const auto vec_u = BitCast(du, vec);
+  HWY_DASSERT(
+      AllTrue(du, Lt(vec_u, Set(du, static_cast<TU>(128 / sizeof(T))))));
 #endif
   return Indices512<T>{vec.raw};
 }
@@ -2684,6 +2687,40 @@ template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>, typename TI>
 HWY_API Indices512<T> SetTableIndices(D d, const TI* idx) {
   const Rebind<TI, decltype(d)> di;
   return IndicesFromVec(d, LoadU(di, idx));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<T>{_mm512_permutexvar_epi8(idx.raw, v.raw)};
+#else
+  const DFromV<decltype(v)> d;
+  const Repartition<uint16_t, decltype(d)> du16;
+  const Vec512<T> idx_vec{idx.raw};
+
+  const auto bd_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<3>(BitCast(du16, idx_vec))));
+  const auto cd_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<2>(BitCast(du16, idx_vec))));
+
+  const Vec512<T> v_a{_mm512_shuffle_i32x4(v.raw, v.raw, 0x00)};
+  const Vec512<T> v_b{_mm512_shuffle_i32x4(v.raw, v.raw, 0x55)};
+  const Vec512<T> v_c{_mm512_shuffle_i32x4(v.raw, v.raw, 0xAA)};
+  const Vec512<T> v_d{_mm512_shuffle_i32x4(v.raw, v.raw, 0xFF)};
+
+  const auto shuf_a = TableLookupBytes(v_a, idx_vec);
+  const auto shuf_c = TableLookupBytes(v_c, idx_vec);
+  const Vec512<T> shuf_ab{_mm512_mask_shuffle_epi8(shuf_a.raw, bd_sel_mask.raw,
+                                                   v_b.raw, idx_vec.raw)};
+  const Vec512<T> shuf_cd{_mm512_mask_shuffle_epi8(shuf_c.raw, bd_sel_mask.raw,
+                                                   v_d.raw, idx_vec.raw)};
+  return IfThenElse(cd_sel_mask, shuf_cd, shuf_ab);
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec512<T> TableLookupLanes(Vec512<T> v, Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutexvar_epi16(idx.raw, v.raw)};
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 4)>
@@ -2703,6 +2740,48 @@ HWY_API Vec512<float> TableLookupLanes(Vec512<float> v, Indices512<float> idx) {
 HWY_API Vec512<double> TableLookupLanes(Vec512<double> v,
                                         Indices512<double> idx) {
   return Vec512<double>{_mm512_permutexvar_pd(idx.raw, v.raw)};
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<T>{_mm512_permutex2var_epi8(a.raw, idx.raw, b.raw)};
+#else
+  const DFromV<decltype(a)> d;
+  const auto b_sel_mask =
+      MaskFromVec(BitCast(d, ShiftLeft<1>(Vec512<uint16_t>{idx.raw})));
+  return IfThenElse(b_sel_mask, TableLookupLanes(b, idx),
+                    TableLookupLanes(a, idx));
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutex2var_epi16(a.raw, idx.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutex2var_epi32(a.raw, idx.raw, b.raw)};
+}
+
+HWY_API Vec512<float> TwoTablesLookupLanes(Vec512<float> a, Vec512<float> b,
+                                           Indices512<float> idx) {
+  return Vec512<float>{_mm512_permutex2var_ps(a.raw, idx.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec512<T> TwoTablesLookupLanes(Vec512<T> a, Vec512<T> b,
+                                       Indices512<T> idx) {
+  return Vec512<T>{_mm512_permutex2var_epi64(a.raw, idx.raw, b.raw)};
+}
+
+HWY_API Vec512<double> TwoTablesLookupLanes(Vec512<double> a, Vec512<double> b,
+                                            Indices512<double> idx) {
+  return Vec512<double>{_mm512_permutex2var_pd(a.raw, idx.raw, b.raw)};
 }
 
 // ------------------------------ Reverse

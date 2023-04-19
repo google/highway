@@ -2696,6 +2696,23 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 
 #endif  // HWY_NATIVE_EXPAND
 
+// ------------------------------ TwoTablesLookupLanes
+
+template <class D>
+using IndicesFromD = decltype(IndicesFromVec(D(), Zero(RebindToUnsigned<D>())));
+
+// RVV/SVE have their own implementations of
+// TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b, IndicesFromD<D> idx)
+#if HWY_TARGET != HWY_RVV && HWY_TARGET != HWY_SVE &&      \
+    HWY_TARGET != HWY_SVE2 && HWY_TARGET != HWY_SVE_256 && \
+    HWY_TARGET != HWY_SVE2_128
+template <class D>
+HWY_API VFromD<D> TwoTablesLookupLanes(D /*d*/, VFromD<D> a, VFromD<D> b,
+                                       IndicesFromD<D> idx) {
+  return TwoTablesLookupLanes(a, b, idx);
+}
+#endif
+
 // ------------------------------ Reverse2, Reverse4, Reverse8 (8-bit)
 
 #if (defined(HWY_NATIVE_REVERSE2_8) == defined(HWY_TARGET_TOGGLE)) || HWY_IDE

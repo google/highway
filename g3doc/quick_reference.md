@@ -1310,8 +1310,7 @@ instead because they are more general:
 *   <code>V **ReverseBlocks**(V v)</code>: returns a vector with blocks in
     reversed order.
 
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector
+*   <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector
     of `a[indices[i]]`, where `unspecified` is the return value of
     `SetTableIndices(D, &indices[0])` or `IndicesFromVec`. The indices are
     not limited to blocks, hence this is slower than `TableLookupBytes*` on
@@ -1319,17 +1318,38 @@ instead because they are more general:
     < Lanes(D())`. `indices` are always integers, even if `V` is a
     floating-point type.
 
-*   `D`: `{u,i}{32,64}` \
-    <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
+*   <code>V **TwoTablesLookupLanes**(D d, V a, V b, unspecified)</code>
+    returns a vector of `indices[i] < N ? a[indices[i]] : b[indices[i] - N]`,
+    where  `unspecified` is the return value of
+    `SetTableIndices(d, &indices[0])` or `IndicesFromVec` and `N` is equal to
+    `Lanes(d)`. The indices are not limited to blocks. Results are
+    implementation-defined unless `0 <= indices[i] < 2 * Lanes(d)`. `indices`
+    are always integers, even if `V` is a floating-point type.
+
+*   <code>V **TwoTablesLookupLanes**(V a, V b, unspecified)</code>
+    returns a vector of `indices[i] < N ? a[indices[i]] : b[indices[i] - N]`,
+    where  `unspecified` is the return value of
+    `SetTableIndices(D, &indices[0])` or `IndicesFromVec` and `N` is equal to
+    `Lanes(DFromV<V>())`.  The indices are not limited to blocks. Results are
+    implementation-defined unless `0 <= indices[i] < 2 * Lanes(DFromV<V>())`.
+    `indices` are always integers, even if `V` is a floating-point type.
+
+    ```TwoTablesLookupLanes(a, b, indices)``` is equivalent to
+    ```TwoTablesLookupLanes(DFromV<V>(), a, b, indices)```.
+
+    The results of ```TwoTablesLookupLanes(d, a, b, indices)``` can differ
+    from ```TwoTablesLookupLanes(a, b, indices)``` on RVV/SVE if
+    ```Lanes(d)``` is less than ```Lanes(DFromV<V>())```.
+
+*   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
     `TableLookupLanes` with integer indices in `idx`, which must be the same bit
-    width as `TFromD<D>` and in the range `[0, Lanes(d))`, but need not be
+    width as `TFromD<D>` and in the range `[0, 2 * Lanes(d))`, but need not be
     unique.
 
-*   `D`: `{u,i}{32,64}` \
-    <code>unspecified **SetTableIndices**(D d, TI* idx)</code> prepares for
+*   <code>unspecified **SetTableIndices**(D d, TI* idx)</code> prepares for
     `TableLookupLanes` by loading `Lanes(d)` integer indices from `idx`, which
-    must be in the range `[0, Lanes(d))` but need not be unique. The index type
-    `TI` must be an integer of the same size as `TFromD<D>`.
+    must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
+    type `TI` must be an integer of the same size as `TFromD<D>`.
 
 *   `V`: `{u,i,f}{16,32,64}` \
     <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
