@@ -15,11 +15,14 @@
 
 // Per-target definitions shared by ops/*.h and user code.
 
+// IWYU pragma: begin_exports
 // Export does not seem to be recursive, so re-export these (also in base.h)
-#include <stddef.h>  // IWYU pragma: export
-#include <stdint.h>  // IWYU pragma: export
+#include <stddef.h>
+#include <stdint.h>  // IWYU pragma: keep
 
-#include "hwy/base.h"  // IWYU pragma: export
+#include "hwy/base.h"
+#include "hwy/detect_compiler_arch.h"
+// IWYU pragma: end_exports
 
 // We are covered by the highway.h include guard, but generic_ops-inl.h
 // includes this again #if HWY_IDE.

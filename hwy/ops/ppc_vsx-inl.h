@@ -3326,7 +3326,8 @@ HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
 template <class D>
 HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
   const uint64_t mask_bits = detail::BitsFromMask(mask);
-  return mask_bits ? intptr_t(63 - Num0BitsAboveMS1Bit_Nonzero64(mask_bits)) : -1;
+  return mask_bits ? intptr_t(63 - Num0BitsAboveMS1Bit_Nonzero64(mask_bits))
+                   : -1;
 }
 
 // ------------------------------ Compress, CompressBits

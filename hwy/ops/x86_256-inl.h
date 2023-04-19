@@ -53,7 +53,9 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #include <sanitizer/msan_interface.h>
 #endif
 
-// For half-width vectors. Already includes base.h and shared-inl.h.
+// For half-width vectors. Already includes base.h.
+#include "hwy/ops/shared-inl.h"
+// Already included by shared-inl, but do it again to avoid IDE warnings.
 #include "hwy/ops/x86_128-inl.h"
 
 HWY_BEFORE_NAMESPACE();
