@@ -25,7 +25,8 @@ Potentially useful for comparing neighbors e.g. for RLE.
 
 *   `rgather_vx` for broadcasting redsum result?
 *   Fix remaining 8-bit table lookups for large vectors (`Broadcast`,
-    `Interleave`, `LoadDup128`): use 64-bit for initial shuffle
+    `Interleave`, `LoadDup128`): use 64-bit for initial shuffle. For
+    `TwoTablesLookupLanes`, use 16-bit indices.
 
 ### SVE codegen
 * SVE2: use XAR for `RotateRight`

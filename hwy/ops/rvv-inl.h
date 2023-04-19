@@ -3042,6 +3042,7 @@ HWY_API VI TableLookupBytesOr0(const VT vt, const VI idx) {
 
 // ------------------------------ TwoTablesLookupLanes
 
+// TODO(janwas): special-case 8-bit lanes to safely handle VL >= 256
 template <class D, HWY_IF_POW2_LE_D(D, 2)>
 HWY_API VFromD<D> TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b,
                                        VFromD<RebindToUnsigned<D>> idx) {
@@ -3060,11 +3061,11 @@ HWY_API VFromD<D> TwoTablesLookupLanes(D d, VFromD<D> a, VFromD<D> b,
 
   const size_t num_of_lanes = Lanes(d);
   const auto idx_mod = detail::AndS(idx, static_cast<TU>(num_of_lanes - 1));
-  const auto sel_a_mask = Eq(idx, idx_mod);
+  const auto sel_a_mask = Ne(idx, idx_mod);  // FALSE if a
 
   const auto a_lookup_result = TableLookupLanes(a, idx_mod);
-  const auto b_lookup_result = TableLookupLanes(b, idx_mod);
-  return IfThenElse(sel_a_mask, a_lookup_result, b_lookup_result);
+  return detail::MaskedTableLookupLanes(sel_a_mask, a_lookup_result, b,
+                                        idx_mod);
 }
 
 template <class V>

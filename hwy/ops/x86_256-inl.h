@@ -3172,7 +3172,7 @@ HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
       0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
       0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
 
-  // Broadcast each lane index to all 4 bytes of T
+  // Broadcast each lane index to all 2 bytes of T
   alignas(32) static constexpr uint8_t kBroadcastLaneBytes[32] = {
       0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14,
       0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14};
