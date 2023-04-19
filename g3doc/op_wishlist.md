@@ -60,9 +60,6 @@ Potentially useful for comparing neighbors e.g. for RLE.
 ### Add emu256 target
 Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
 
-### `SumOfLanes` returning scalar
-Avoids extra broadcast.
-
 ### Reductions for 8-bit
 For orthogonality; already done for x86+NEON.
 

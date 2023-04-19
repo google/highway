@@ -5208,31 +5208,57 @@ HWY_API Vec512<int32_t> RearrangeToOddPlusEven(const Vec512<int32_t> sum0,
 
 // ------------------------------ Reductions
 
+template <class D>
+HWY_API int32_t SumOfLanesVal(D, Vec512<int32_t> v) {
+  return _mm512_reduce_add_epi32(v.raw);
+}
+template <class D>
+HWY_API int64_t SumOfLanesVal(D, Vec512<int64_t> v) {
+  return _mm512_reduce_add_epi64(v.raw);
+}
+template <class D>
+HWY_API uint32_t SumOfLanesVal(D, Vec512<uint32_t> v) {
+  return static_cast<uint32_t>(_mm512_reduce_add_epi32(v.raw));
+}
+template <class D>
+HWY_API uint64_t SumOfLanesVal(D, Vec512<uint64_t> v) {
+  return static_cast<uint64_t>(_mm512_reduce_add_epi64(v.raw));
+}
+template <class D>
+HWY_API float SumOfLanesVal(D, Vec512<float> v) {
+  return _mm512_reduce_add_ps(v.raw);
+}
+template <class D>
+HWY_API double SumOfLanesVal(D, Vec512<double> v) {
+  return  _mm512_reduce_add_pd(v.raw);
+}
+
 // Returns the sum in each lane.
 template <class D>
 HWY_API Vec512<int32_t> SumOfLanes(D d, Vec512<int32_t> v) {
-  return Set(d, _mm512_reduce_add_epi32(v.raw));
+  return Set(d, SumOfLanesVal(d, v));
 }
 template <class D>
 HWY_API Vec512<int64_t> SumOfLanes(D d, Vec512<int64_t> v) {
-  return Set(d, _mm512_reduce_add_epi64(v.raw));
+  return Set(d, SumOfLanesVal(d, v));
 }
 template <class D>
 HWY_API Vec512<uint32_t> SumOfLanes(D d, Vec512<uint32_t> v) {
-  return Set(d, static_cast<uint32_t>(_mm512_reduce_add_epi32(v.raw)));
+  return Set(d, SumOfLanesVal(d, v));
 }
 template <class D>
 HWY_API Vec512<uint64_t> SumOfLanes(D d, Vec512<uint64_t> v) {
-  return Set(d, static_cast<uint64_t>(_mm512_reduce_add_epi64(v.raw)));
+  return Set(d, SumOfLanesVal(d, v));
 }
 template <class D>
 HWY_API Vec512<float> SumOfLanes(D d, Vec512<float> v) {
-  return Set(d, _mm512_reduce_add_ps(v.raw));
+  return Set(d, SumOfLanesVal(d, v));
 }
 template <class D>
 HWY_API Vec512<double> SumOfLanes(D d, Vec512<double> v) {
-  return Set(d, _mm512_reduce_add_pd(v.raw));
+  return Set(d, SumOfLanesVal(d, v));
 }
+
 template <class D>
 HWY_API Vec512<uint16_t> SumOfLanes(D d, Vec512<uint16_t> v) {
   const RepartitionToWide<decltype(d)> d32;
@@ -5243,6 +5269,14 @@ HWY_API Vec512<uint16_t> SumOfLanes(D d, Vec512<uint16_t> v) {
   return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
 }
 template <class D>
+HWY_API uint16_t SumOfLanesVal(D d, Vec512<uint16_t> v) {
+  const RepartitionToWide<decltype(d)> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto sum = SumOfLanesVal(d32, even + odd);
+  return static_cast<uint16_t>(sum);
+}
+template <class D>
 HWY_API Vec512<int16_t> SumOfLanes(D d, Vec512<int16_t> v) {
   const RepartitionToWide<decltype(d)> d32;
   // Sign-extend
@@ -5251,6 +5285,15 @@ HWY_API Vec512<int16_t> SumOfLanes(D d, Vec512<int16_t> v) {
   const auto sum = SumOfLanes(d32, even + odd);
   // Also broadcast into odd lanes.
   return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
+}
+template <class D>
+HWY_API int16_t SumOfLanesVal(D d, Vec512<int16_t> v) {
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto sum = SumOfLanesVal(d32, even + odd);
+  return static_cast<int16_t>(sum);
 }
 
 // Returns the minimum in each lane.

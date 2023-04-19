@@ -3128,17 +3128,35 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
                    v, v0, Lanes(d))));                                         \
   }
 
+#define HWY_RVV_REDUCE_VAL(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
+                       MLEN, NAME, OP)                                             \
+  template <class D>                                                               \
+  HWY_API TFromD<D>                                                                \
+      NAME(D d, HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, m1) v0) {       \
+    return GetLane(__riscv_v##OP##_vs_##CHAR##SEW##LMUL##_##CHAR##SEW##m1(     \
+                   v, v0, Lanes(d)));                                             \
+  }
+
+
 // ------------------------------ SumOfLanes
 
 namespace detail {
 HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredusum, _ALL)
+HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE_VAL, RedSumVal, redsum, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE_VAL, RedSumVal, fredusum, _ALL)
 }  // namespace detail
 
 template <class D>
 HWY_API VFromD<D> SumOfLanes(D d, const VFromD<D> v) {
   const auto v0 = Zero(ScalableTag<TFromD<D>>());  // always m1
   return detail::RedSum(d, v, v0);
+}
+
+template <class D>
+HWY_API TFromD<D> SumOfLanesVal(D d, const VFromD<D> v) {
+  const auto v0 = Zero(ScalableTag<TFromD<D>>());  // always m1
+  return detail::RedSumVal(d, v, v0);
 }
 
 // ------------------------------ MinOfLanes

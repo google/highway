@@ -3932,6 +3932,10 @@ HWY_INLINE Vec128<T, 1> SumOfLanes(Vec128<T, 1> v) {
   return v;
 }
 template <typename T>
+HWY_INLINE T SumOfLanesVal(Vec128<T, 1> v) {
+  return GetLane(v);
+}
+template <typename T>
 HWY_INLINE Vec128<T, 1> MinOfLanes(Vec128<T, 1> v) {
   return v;
 }
@@ -3948,6 +3952,9 @@ HWY_INLINE Vec128<T, 2> SumOfLanes(Vec128<T, 2> v10) {
   // NOTE: AltivecVsum2sws cannot be used here as AltivecVsum2sws
   // computes the signed saturated sum of the lanes.
   return v10 + Shuffle2301(v10);
+}
+HWY_INLINE T SumOfLanesVal(Vec128<T, 2> v10) {
+  return GetLane(SumOfLanes(v10));
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
 HWY_INLINE Vec128<T, 2> MinOfLanes(Vec128<T, 2> v10) {
@@ -3967,6 +3974,10 @@ HWY_INLINE Vec128<T> SumOfLanes(Vec128<T> v3210) {
   const Vec128<T> v31_20_31_20 = v3210 + v1032;
   const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
   return v20_31_20_31 + v31_20_31_20;
+}
+template <typename T, HWY_IF_T_SIZE(T, 4)>
+HWY_INLINE T SumOfLanesVal(Vec128<T> v3210) {
+  return GetLane(SumOfLanes(v3210));
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
 HWY_INLINE Vec128<T> MinOfLanes(Vec128<T> v3210) {
@@ -3990,6 +4001,10 @@ template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_INLINE Vec128<T> SumOfLanes(Vec128<T> v10) {
   const Vec128<T> v01 = Shuffle01(v10);
   return v10 + v01;
+}
+template <typename T, HWY_IF_T_SIZE(T, 8)>
+HWY_INLINE Vec128<T> SumOfLanesVal(Vec128<T> v10) {
+  return GetLane(SumOfLanes(v10));
 }
 template <typename T, HWY_IF_T_SIZE(T, 8)>
 HWY_INLINE Vec128<T> MinOfLanes(Vec128<T> v10) {
@@ -4163,12 +4178,20 @@ HWY_API Vec32<uint16_t> SumOfLanes(Vec32<uint16_t> v) {
   return Broadcast<kSumLaneIdx>(BitCast(du16, AltivecU16SumsOf2(v)));
 }
 
+HWY_API uint16_t SumOfLanesVal(Vec32<uint16_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec64<uint16_t> SumOfLanes(Vec64<uint16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full64<uint16_t> du16;
   const auto zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(
       AltivecVsum2sws(du16, AltivecU16SumsOf2(v).raw, zero.raw));
+}
+
+HWY_API uint16_t SumOfLanesVal(Vec64<uint16_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 HWY_API Vec128<uint16_t> SumOfLanes(Vec128<uint16_t> v) {
@@ -4179,11 +4202,19 @@ HWY_API Vec128<uint16_t> SumOfLanes(Vec128<uint16_t> v) {
       AltivecVsumsws(du16, AltivecU16SumsOf2(v).raw, zero.raw));
 }
 
+HWY_API uint16_t SumOfLanesVal(Vec128<uint16_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec32<int16_t> SumOfLanes(Vec32<int16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_BIG_ENDIAN;
   const Full32<int16_t> di16;
   const auto zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(AltivecVsum4shs(di16, v.raw, zero.raw));
+}
+
+HWY_API int16_t SumOfLanesVal(Vec32<int16_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 HWY_API Vec64<int16_t> SumOfLanes(Vec64<int16_t> v) {
@@ -4195,6 +4226,10 @@ HWY_API Vec64<int16_t> SumOfLanes(Vec64<int16_t> v) {
       di16, AltivecVsum4shs(di32, v.raw, zero.raw).raw, zero.raw));
 }
 
+HWY_API int16_t SumOfLanes(Vec64<int16_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec128<int16_t> SumOfLanes(Vec128<int16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
   const Full128<int16_t> di16;
@@ -4202,6 +4237,10 @@ HWY_API Vec128<int16_t> SumOfLanes(Vec128<int16_t> v) {
   const auto zero = Zero(di32);
   return Broadcast<kSumLaneIdx>(AltivecVsumsws(
       di16, AltivecVsum4shs(di32, v.raw, zero.raw).raw, zero.raw));
+}
+
+HWY_API int16_t SumOfLanesVal(Vec128<int16_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 // u8, N=2, N=4, N=8, N=16:
@@ -4217,6 +4256,10 @@ HWY_API Vec16<uint8_t> SumOfLanes(Vec16<uint8_t> v) {
       Zero(du32).raw)));
 }
 
+HWY_API uint8_t SumOfLanesVal(Vec16<uint8_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec32<uint8_t> SumOfLanes(Vec32<uint8_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full128<uint32_t> du32;
@@ -4224,10 +4267,18 @@ HWY_API Vec32<uint8_t> SumOfLanes(Vec32<uint8_t> v) {
   return Broadcast<kSumLaneIdx>(AltivecVsum4ubs(du8, v.raw, Zero(du32).raw));
 }
 
+HWY_API uint8_t SumOfLanesVal(Vec32<uint8_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec64<uint8_t> SumOfLanes(Vec64<uint8_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 7;
   const Full64<uint8_t> du8;
   return Broadcast<kSumLaneIdx>(BitCast(du8, SumsOf8(v)));
+}
+
+HWY_API uint8_t SumOfLanesVal(Vec64<uint8_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 HWY_API Vec128<uint8_t> SumOfLanes(Vec128<uint8_t> v) {
@@ -4240,6 +4291,10 @@ HWY_API Vec128<uint8_t> SumOfLanes(Vec128<uint8_t> v) {
   return Broadcast<kSumLaneIdx>(
       AltivecVsumsws(du8, AltivecVsum4ubs(di32, v.raw, zero.raw).raw,
                      BitCast(di32, zero).raw));
+}
+
+HWY_API uint8_t SumOfLanesVal(Vec128<uint8_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 HWY_API Vec16<int8_t> SumOfLanes(Vec16<int8_t> v) {
@@ -4255,11 +4310,19 @@ HWY_API Vec16<int8_t> SumOfLanes(Vec16<int8_t> v) {
           .raw};
 }
 
+HWY_API int8_t SumOfLanesVal(Vec16<int8_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec32<int8_t> SumOfLanes(Vec32<int8_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full32<int8_t> di8;
   const Vec128<int32_t> zero = Zero(Full128<int32_t>());
   return Broadcast<kSumLaneIdx>(AltivecVsum4sbs(di8, v.raw, zero.raw));
+}
+
+HWY_API int8_t SumOfLanesVal(Vec32<int8_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 HWY_API Vec64<int8_t> SumOfLanes(Vec64<int8_t> v) {
@@ -4271,6 +4334,10 @@ HWY_API Vec64<int8_t> SumOfLanes(Vec64<int8_t> v) {
       di8, AltivecVsum4sbs(di32, v.raw, zero.raw).raw, zero.raw));
 }
 
+HWY_API int8_t SumOfLanesVal(Vec64<int8_t> v) {
+  return GetLane(SumOfLanes(v));
+}
+
 HWY_API Vec128<int8_t> SumOfLanes(Vec128<int8_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 15;
   const Full128<int8_t> di8;
@@ -4278,6 +4345,10 @@ HWY_API Vec128<int8_t> SumOfLanes(Vec128<int8_t> v) {
   const Vec128<int32_t> zero = Zero(di32);
   return Broadcast<kSumLaneIdx>(AltivecVsumsws(
       di8, AltivecVsum4sbs(di32, v.raw, zero.raw).raw, zero.raw));
+}
+
+HWY_API int8_t SumOfLanesVal(Vec128<int8_t> v) {
+  return GetLane(SumOfLanes(v));
 }
 
 template <size_t N, HWY_IF_V_SIZE_GT(uint8_t, N, 4)>
@@ -4413,6 +4484,10 @@ HWY_API Vec128<int16_t, N> MaxOfLanes(Vec128<int16_t, N> v) {
 template <class D>
 HWY_API VFromD<D> SumOfLanes(D /* tag */, VFromD<D> v) {
   return detail::SumOfLanes(v);
+}
+template <class D>
+HWY_API TFromD<D> SumOfLanesVal(D /* tag */, VFromD<D> v) {
+  return detail::SumOfLanesVal(v);
 }
 template <class D>
 HWY_API VFromD<D> MinOfLanes(D /* tag */, VFromD<D> v) {

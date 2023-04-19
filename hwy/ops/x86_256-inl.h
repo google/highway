@@ -6157,6 +6157,11 @@ HWY_INLINE Vec256<T> SumOfLanes(hwy::SizeTag<8> /* tag */,
   return v10 + v01;
 }
 template <typename T>
+HWY_INLINE T SumOfLanesVal(hwy::SizeTag<8> /* tag */,
+                                const Vec256<T> v10) {
+  return GetLane(SumOfLanes(hwy::SizeTag<8>(), v10));
+}
+template <typename T>
 HWY_INLINE Vec256<T> MinOfLanes(hwy::SizeTag<8> /* tag */,
                                 const Vec256<T> v10) {
   const auto v01 = Shuffle01(v10);
@@ -6179,6 +6184,15 @@ HWY_API Vec256<uint16_t> SumOfLanes(hwy::SizeTag<2> /* tag */,
   // Also broadcast into odd lanes.
   return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
 }
+HWY_API uint16_t SumOfLanesVal(hwy::SizeTag<2> /* tag */,
+                                    Vec256<uint16_t> v) {
+  const Full256<uint16_t> d;
+  const RepartitionToWide<decltype(d)> d32;
+  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto sum = SumOfLanesVal(hwy::SizeTag<4>(), even + odd);
+  return static_cast<uint16_t>(sum);
+}
 HWY_API Vec256<int16_t> SumOfLanes(hwy::SizeTag<2> /* tag */,
                                    Vec256<int16_t> v) {
   const Full256<int16_t> d;
@@ -6189,6 +6203,16 @@ HWY_API Vec256<int16_t> SumOfLanes(hwy::SizeTag<2> /* tag */,
   const auto sum = SumOfLanes(hwy::SizeTag<4>(), even + odd);
   // Also broadcast into odd lanes.
   return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
+}
+HWY_API int16_t SumOfLanesVal(hwy::SizeTag<2> /* tag */,
+                                   Vec256<int16_t> v) {
+  const Full256<int16_t> d;
+  const RepartitionToWide<decltype(d)> d32;
+  // Sign-extend
+  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
+  const auto odd = ShiftRight<16>(BitCast(d32, v));
+  const auto sum = SumOfLanesVal(hwy::SizeTag<4>(), even + odd);
+  return static_cast<int16_t>(sum);
 }
 
 HWY_API Vec256<uint16_t> MinOfLanes(hwy::SizeTag<2> /* tag */,
@@ -6241,6 +6265,11 @@ template <class D, typename T = TFromD<D>>
 HWY_API Vec256<T> SumOfLanes(D /*d*/, const Vec256<T> vHL) {
   const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
   return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), vLH + vHL);
+}
+template <class D, typename T = TFromD<D>>
+HWY_API Vec256<T> SumOfLanesVal(D /*d*/, const Vec256<T> vHL) {
+  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
+  return detail::SumOfLanesVal(hwy::SizeTag<sizeof(T)>(), vLH + vHL);
 }
 template <class D, typename T = TFromD<D>>
 HWY_API Vec256<T> MinOfLanes(D /*d*/, const Vec256<T> vHL) {

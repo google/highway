@@ -1437,6 +1437,9 @@ There are additional `{u,i}{8}` implementations on SSE4.1+ and NEON.
     <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
     lane.
 
+*   `T`: `{u,i,f}{32,64},{u,i}{16}` \
+    <code>T **SumOfLanesVal**(D, V v)</code>: returns the sum of all lanes.
+
 *   `V`: `{u,i,f}{32,64},{u,i}{16}` \
     <code>V **MinOfLanes**(D, V v)</code>: returns the minimum-valued lane in
     each lane.
