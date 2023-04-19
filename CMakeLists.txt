@@ -499,12 +499,13 @@ set(HWY_TEST_FILES
   hwy/targets_test.cc
   hwy/examples/skeleton_test.cc
   hwy/tests/arithmetic_test.cc
-  hwy/tests/blockwise_test.cc
   hwy/tests/blockwise_shift_test.cc
+  hwy/tests/blockwise_test.cc
   hwy/tests/combine_test.cc
   hwy/tests/compare_test.cc
   hwy/tests/compress_test.cc
   hwy/tests/convert_test.cc
+  hwy/tests/count_test.cc
   hwy/tests/crypto_test.cc
   hwy/tests/demote_test.cc
   hwy/tests/expand_test.cc
@@ -512,8 +513,8 @@ set(HWY_TEST_FILES
   hwy/tests/if_test.cc
   hwy/tests/interleaved_test.cc
   hwy/tests/logical_test.cc
-  hwy/tests/mask_test.cc
   hwy/tests/mask_mem_test.cc
+  hwy/tests/mask_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/mul_test.cc
   hwy/tests/reduction_test.cc

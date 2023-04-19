@@ -3931,7 +3931,7 @@ HWY_API size_t CountTrue(D d, MFromD<D> m) {
 template <class D, HWY_IF_V_SIZE_D(D, 16)>
 HWY_API bool AllFalse(D d, const MFromD<D> m) {
   const auto v8 = BitCast(Full128<int8_t>(), VecFromMask(d, m));
-  return !wasm_i8x16_any_true(v8.raw);
+  return !wasm_v128_any_true(v8.raw);
 }
 
 // Full vector
