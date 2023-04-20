@@ -522,6 +522,7 @@ set(HWY_TEST_FILES
   hwy/tests/shift_test.cc
   hwy/tests/swizzle_test.cc
   hwy/tests/test_util_test.cc
+  hwy/tests/tuple_test.cc
 )
 
 set(HWY_TEST_LIBS hwy hwy_test)

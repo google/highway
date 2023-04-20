@@ -181,6 +181,9 @@ HWY_API Vec128<T, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
+// ------------------------------ Tuple (VFromD)
+#include "hwy/ops/tuple-inl.h"
+
 // ------------------------------ BitCast
 
 template <class D, typename FromT>
@@ -600,51 +603,51 @@ HWY_API Vec128<T, N> Shuffle2301(Vec128<T, N> v) {
 namespace detail {
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec32<T> Shuffle2301(Vec32<T> a, Vec32<T> b) {
+HWY_API Vec32<T> ShuffleTwo2301(Vec32<T> a, Vec32<T> b) {
   const __vector unsigned char kShuffle16 = {1, 0, 19, 18};
   return Vec32<T>{vec_perm(a.raw, b.raw, kShuffle16)};
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec64<T> Shuffle2301(Vec64<T> a, Vec64<T> b) {
+HWY_API Vec64<T> ShuffleTwo2301(Vec64<T> a, Vec64<T> b) {
   const __vector unsigned char kShuffle = {2, 3, 0, 1, 22, 23, 20, 21};
   return Vec64<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T> Shuffle2301(Vec128<T> a, Vec128<T> b) {
+HWY_API Vec128<T> ShuffleTwo2301(Vec128<T> a, Vec128<T> b) {
   const __vector unsigned char kShuffle = {4,  5,  6,  7,  0,  1,  2,  3,
                                            28, 29, 30, 31, 24, 25, 26, 27};
   return Vec128<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec32<T> Shuffle1230(Vec32<T> a, Vec32<T> b) {
+HWY_API Vec32<T> ShuffleTwo1230(Vec32<T> a, Vec32<T> b) {
   const __vector unsigned char kShuffle = {0, 3, 18, 17};
   return Vec32<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec64<T> Shuffle1230(Vec64<T> a, Vec64<T> b) {
+HWY_API Vec64<T> ShuffleTwo1230(Vec64<T> a, Vec64<T> b) {
   const __vector unsigned char kShuffle = {0, 1, 6, 7, 20, 21, 18, 19};
   return Vec64<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T> Shuffle1230(Vec128<T> a, Vec128<T> b) {
+HWY_API Vec128<T> ShuffleTwo1230(Vec128<T> a, Vec128<T> b) {
   const __vector unsigned char kShuffle = {0,  1,  2,  3,  12, 13, 14, 15,
                                            24, 25, 26, 27, 20, 21, 22, 23};
   return Vec128<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec32<T> Shuffle3012(Vec32<T> a, Vec32<T> b) {
+HWY_API Vec32<T> ShuffleTwo3012(Vec32<T> a, Vec32<T> b) {
   const __vector unsigned char kShuffle = {2, 1, 16, 19};
   return Vec32<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec64<T> Shuffle3012(Vec64<T> a, Vec64<T> b) {
+HWY_API Vec64<T> ShuffleTwo3012(Vec64<T> a, Vec64<T> b) {
   const __vector unsigned char kShuffle = {4, 5, 2, 3, 16, 17, 22, 23};
   return Vec64<T>{vec_perm(a.raw, b.raw, kShuffle)};
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T> Shuffle3012(Vec128<T> a, Vec128<T> b) {
+HWY_API Vec128<T> ShuffleTwo3012(Vec128<T> a, Vec128<T> b) {
   const __vector unsigned char kShuffle = {8,  9,  10, 11, 4,  5,  6,  7,
                                            16, 17, 18, 19, 28, 29, 30, 31};
   return Vec128<T>{vec_perm(a.raw, b.raw, kShuffle)};

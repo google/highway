@@ -46,6 +46,8 @@ using TFromV = TFromD<DFromV<V>>;
 
 namespace detail {  // for code folding
 
+// Args: BASE, CHAR, BITS, HALF, NAME, OP
+
 // Unsigned:
 #define HWY_SVE_FOREACH_U08(X_MACRO, NAME, OP) X_MACRO(uint, u, 8, 8, NAME, OP)
 #define HWY_SVE_FOREACH_U16(X_MACRO, NAME, OP) X_MACRO(uint, u, 16, 8, NAME, OP)
@@ -127,6 +129,7 @@ namespace detail {  // for code folding
 #define HWY_SVE_T(BASE, BITS) BASE##BITS##_t
 #define HWY_SVE_D(BASE, BITS, N, POW2) Simd<HWY_SVE_T(BASE, BITS), N, POW2>
 #define HWY_SVE_V(BASE, BITS) sv##BASE##BITS##_t
+#define HWY_SVE_TUPLE(BASE, BITS, MUL) sv##BASE##BITS##x##MUL##_t
 
 }  // namespace detail
 
@@ -367,6 +370,61 @@ template <class D, class FromV>
 HWY_API VFromD<D> BitCast(D d, FromV v) {
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
+
+// ------------------------------ Tuple
+
+// tuples = f(d, v..), e.g. Create2
+#define HWY_SVE_CREATE(BASE, CHAR, BITS, HALF, NAME, OP)                 \
+  template <size_t N, int kPow2>                                         \
+  HWY_API HWY_SVE_TUPLE(BASE, BITS, 2)                                   \
+      NAME##2(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,                   \
+              HWY_SVE_V(BASE, BITS) v0, HWY_SVE_V(BASE, BITS) v1) {      \
+    return sv##OP##2_##CHAR##BITS(v0, v1);                               \
+  }                                                                      \
+  template <size_t N, int kPow2>                                         \
+  HWY_API HWY_SVE_TUPLE(BASE, BITS, 3) NAME##3(                          \
+      HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v0, \
+      HWY_SVE_V(BASE, BITS) v1, HWY_SVE_V(BASE, BITS) v2) {              \
+    return sv##OP##3_##CHAR##BITS(v0, v1, v2);                           \
+  }                                                                      \
+  template <size_t N, int kPow2>                                         \
+  HWY_API HWY_SVE_TUPLE(BASE, BITS, 4)                                   \
+      NAME##4(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,                   \
+              HWY_SVE_V(BASE, BITS) v0, HWY_SVE_V(BASE, BITS) v1,        \
+              HWY_SVE_V(BASE, BITS) v2, HWY_SVE_V(BASE, BITS) v3) {      \
+    return sv##OP##4_##CHAR##BITS(v0, v1, v2, v3);                       \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_CREATE, Create, create)
+// bfloat16 is not included in FOREACH.
+HWY_SVE_CREATE(bfloat, bf, 16, 8, Create, create)
+#undef HWY_SVE_CREATE
+
+template <class D>
+using Vec2 = decltype(Create2(D(), Zero(D()), Zero(D())));
+template <class D>
+using Vec3 = decltype(Create3(D(), Zero(D()), Zero(D()), Zero(D())));
+template <class D>
+using Vec4 = decltype(Create4(D(), Zero(D()), Zero(D()), Zero(D()), Zero(D())));
+
+#define HWY_SVE_GET(BASE, CHAR, BITS, HALF, NAME, OP)                         \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME##2(HWY_SVE_TUPLE(BASE, BITS, 2) tuple) { \
+    return sv##OP##2_##CHAR##BITS(tuple, kIndex);                             \
+  }                                                                           \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME##3(HWY_SVE_TUPLE(BASE, BITS, 3) tuple) { \
+    return sv##OP##3_##CHAR##BITS(tuple, kIndex);                             \
+  }                                                                           \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME##4(HWY_SVE_TUPLE(BASE, BITS, 4) tuple) { \
+    return sv##OP##4_##CHAR##BITS(tuple, kIndex);                             \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_GET, Get, get)
+// bfloat16 is not included in FOREACH.
+HWY_SVE_GET(bfloat, bf, 16, 8, Get, get)
+#undef HWY_SVE_GET
 
 // ================================================== LOGICAL
 

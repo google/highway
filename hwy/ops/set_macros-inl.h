@@ -35,6 +35,7 @@
 #undef HWY_LANES
 
 #undef HWY_HAVE_SCALABLE
+#undef HWY_HAVE_TUPLE
 #undef HWY_HAVE_INTEGER64
 #undef HWY_HAVE_FLOAT16
 #undef HWY_HAVE_FLOAT64
@@ -42,6 +43,14 @@
 #undef HWY_NATIVE_FMA
 #undef HWY_CAP_GE256
 #undef HWY_CAP_GE512
+
+// Supported on all targets except RVV (requires GCC 14 or upcoming Clang)
+#if HWY_TARGET == HWY_RVV && \
+    (HWY_COMPILER_GCC_ACTUAL < 1400 || HWY_COMPILER_CLANG)
+#define HWY_HAVE_TUPLE 0
+#else
+#define HWY_HAVE_TUPLE 1
+#endif
 
 // For internal use (clamping/validating N for Simd<>)
 #undef HWY_MAX_N

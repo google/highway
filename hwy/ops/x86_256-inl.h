@@ -3054,7 +3054,7 @@ HWY_API Vec256<float> Shuffle2301(const Vec256<float> v) {
 namespace detail {
 
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Shuffle2301(const Vec256<T> a, const Vec256<T> b) {
+HWY_API Vec256<T> ShuffleTwo2301(const Vec256<T> a, const Vec256<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   constexpr int m = _MM_SHUFFLE(2, 3, 0, 1);
@@ -3062,7 +3062,7 @@ HWY_API Vec256<T> Shuffle2301(const Vec256<T> a, const Vec256<T> b) {
                                                     BitCast(df, b).raw, m)});
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Shuffle1230(const Vec256<T> a, const Vec256<T> b) {
+HWY_API Vec256<T> ShuffleTwo1230(const Vec256<T> a, const Vec256<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   constexpr int m = _MM_SHUFFLE(1, 2, 3, 0);
@@ -3070,7 +3070,7 @@ HWY_API Vec256<T> Shuffle1230(const Vec256<T> a, const Vec256<T> b) {
                                                     BitCast(df, b).raw, m)});
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Shuffle3012(const Vec256<T> a, const Vec256<T> b) {
+HWY_API Vec256<T> ShuffleTwo3012(const Vec256<T> a, const Vec256<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   constexpr int m = _MM_SHUFFLE(3, 0, 1, 2);

@@ -939,6 +939,9 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
   return Load(d, lanes);
 }
 
+// ------------------------------ Tuple (VFromD)
+#include "hwy/ops/tuple-inl.h"
+
 // ------------------------------ BitCast
 
 namespace detail {

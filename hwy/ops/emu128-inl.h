@@ -97,6 +97,9 @@ HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
+// ------------------------------ Tuple (VFromD)
+#include "hwy/ops/tuple-inl.h"
+
 // ------------------------------ BitCast
 
 template <class D, class VFrom>

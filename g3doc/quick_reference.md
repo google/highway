@@ -342,6 +342,32 @@ time-critical code:
     Defined in hwy/print-inl.h, also available if hwy/tests/test_util-inl.h has
     been included.
 
+### Tuples
+
+As a partial workaround to the "no vectors as class members" compiler limitation
+mentioned in "Using unspecified vector types", we provide special types able to
+carry 2, 3 or 4 vectors, denoted `Tuple{2-4}` below. Their type is unspecified,
+potentially built-in, so use the aliases `Vec{2-4}&lt;D&gt;`. These can (only)
+be passed as arguments or returned from functions, and created/accessed using
+the functions in this section.
+
+*   <code>Tuple2 **Create2**(D, V v0, V v1)</code>: returns tuple such that
+    `Get2<1>(tuple)` returns `v1`.
+*   <code>Tuple3 **Create3**(D, V v0, V v1, V v2)</code>: returns tuple such
+    that `Get3<2>(tuple)` returns `v2`.
+*   <code>Tuple4 **Create4**(D, V v0, V v1, V v2, V v3)</code>: returns tuple
+    such that `Get4<3>(tuple)` returns `v3`.
+
+The following take a `size_t` template argument indicating the zero-based index,
+from left to right, of the arguments passed to `Create{2-4}`.
+
+*   <code>V **Get2&lt;size_t&gt;**(Tuple2)</code>: returns the i-th vector
+    passed to `Create2`.
+*   <code>V **Get3&lt;size_t&gt;**(Tuple3)</code>: returns the i-th vector
+    passed to `Create3`.
+*   <code>V **Get4&lt;size_t&gt;**(Tuple4)</code>: returns the i-th vector
+    passed to `Create4`.
+
 ### Arithmetic
 
 *   <code>V **operator+**(V a, V b)</code>: returns `a[i] + b[i]` (mod 2^bits).
@@ -1489,6 +1515,11 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
 
 *   `HWY_HAVE_SCALABLE` indicates vector sizes are unknown at compile time, and
     determined by the CPU.
+
+*   `HWY_HAVE_TUPLE` indicates `Vec{2-4}`, `Create{2-4}` and `Get{2-4}` are
+    usable. This is already true `#if !HWY_HAVE_SCALABLE`, and for SVE targets,
+    and the RVV target when using Clang 16. We anticipate it will also become,
+    and then remain, true starting with GCC 14.
 
 *   `HWY_MEM_OPS_MIGHT_FAULT` is 1 iff `MaskedLoad` may trigger a (page) fault
     when attempting to load lanes from unmapped memory, even if the

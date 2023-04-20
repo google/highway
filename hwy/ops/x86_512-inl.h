@@ -2581,7 +2581,7 @@ HWY_API Vec512<float> Shuffle2301(const Vec512<float> v) {
 namespace detail {
 
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec512<T> Shuffle2301(const Vec512<T> a, const Vec512<T> b) {
+HWY_API Vec512<T> ShuffleTwo2301(const Vec512<T> a, const Vec512<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   return BitCast(
@@ -2589,7 +2589,7 @@ HWY_API Vec512<T> Shuffle2301(const Vec512<T> a, const Vec512<T> b) {
                                          _MM_PERM_CDAB)});
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec512<T> Shuffle1230(const Vec512<T> a, const Vec512<T> b) {
+HWY_API Vec512<T> ShuffleTwo1230(const Vec512<T> a, const Vec512<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   return BitCast(
@@ -2597,7 +2597,7 @@ HWY_API Vec512<T> Shuffle1230(const Vec512<T> a, const Vec512<T> b) {
                                          _MM_PERM_BCDA)});
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec512<T> Shuffle3012(const Vec512<T> a, const Vec512<T> b) {
+HWY_API Vec512<T> ShuffleTwo3012(const Vec512<T> a, const Vec512<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   return BitCast(

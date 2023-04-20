@@ -183,6 +183,7 @@ cc_library(
         "hwy/ops/scalar-inl.h",
         "hwy/ops/set_macros-inl.h",
         "hwy/ops/shared-inl.h",
+        "hwy/ops/tuple-inl.h",
         "hwy/ops/x86_128-inl.h",
         "hwy/ops/x86_256-inl.h",
         "hwy/ops/x86_512-inl.h",
@@ -364,6 +365,7 @@ HWY_TESTS = [
     ("hwy/tests/", "shift_test"),
     ("hwy/tests/", "swizzle_test"),
     ("hwy/tests/", "test_util_test"),
+    ("hwy/tests/", "tuple_test"),
 ]
 
 HWY_TEST_COPTS = select({

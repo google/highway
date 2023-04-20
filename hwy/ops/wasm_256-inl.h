@@ -919,21 +919,21 @@ HWY_API Vec256<T> Shuffle0123(Vec256<T> v) {
 namespace detail {
 
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Shuffle2301(Vec256<T> a, const Vec256<T> b) {
-  a.v0 = Shuffle2301(a.v0, b.v0);
-  a.v1 = Shuffle2301(a.v1, b.v1);
+HWY_API Vec256<T> ShuffleTwo2301(Vec256<T> a, const Vec256<T> b) {
+  a.v0 = ShuffleTwo2301(a.v0, b.v0);
+  a.v1 = ShuffleTwo2301(a.v1, b.v1);
   return a;
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Shuffle1230(Vec256<T> a, const Vec256<T> b) {
-  a.v0 = Shuffle1230(a.v0, b.v0);
-  a.v1 = Shuffle1230(a.v1, b.v1);
+HWY_API Vec256<T> ShuffleTwo1230(Vec256<T> a, const Vec256<T> b) {
+  a.v0 = ShuffleTwo1230(a.v0, b.v0);
+  a.v1 = ShuffleTwo1230(a.v1, b.v1);
   return a;
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Shuffle3012(Vec256<T> a, const Vec256<T> b) {
-  a.v0 = Shuffle3012(a.v0, b.v0);
-  a.v1 = Shuffle3012(a.v1, b.v1);
+HWY_API Vec256<T> ShuffleTwo3012(Vec256<T> a, const Vec256<T> b) {
+  a.v0 = ShuffleTwo3012(a.v0, b.v0);
+  a.v1 = ShuffleTwo3012(a.v1, b.v1);
   return a;
 }
 

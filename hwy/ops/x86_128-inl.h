@@ -206,6 +206,9 @@ HWY_API Vec128<double, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 template <class D>
 using VFromD = decltype(Zero(D()));
 
+// ------------------------------ Tuple (VFromD)
+#include "hwy/ops/tuple-inl.h"
+
 // ------------------------------ BitCast
 
 namespace detail {
@@ -1474,7 +1477,7 @@ HWY_API Vec128<float, N> Shuffle2301(const Vec128<float, N> v) {
 namespace detail {
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec32<T> Shuffle2301(const Vec32<T> a, const Vec32<T> b) {
+HWY_API Vec32<T> ShuffleTwo2301(const Vec32<T> a, const Vec32<T> b) {
   const DFromV<decltype(a)> d;
   const Twice<decltype(d)> d2;
   const auto ba = Combine(d2, b, a);
@@ -1488,7 +1491,7 @@ HWY_API Vec32<T> Shuffle2301(const Vec32<T> a, const Vec32<T> b) {
 #endif
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec64<T> Shuffle2301(const Vec64<T> a, const Vec64<T> b) {
+HWY_API Vec64<T> ShuffleTwo2301(const Vec64<T> a, const Vec64<T> b) {
   const DFromV<decltype(a)> d;
   const Twice<decltype(d)> d2;
   const auto ba = Combine(d2, b, a);
@@ -1503,7 +1506,7 @@ HWY_API Vec64<T> Shuffle2301(const Vec64<T> a, const Vec64<T> b) {
 #endif
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T> Shuffle2301(const Vec128<T> a, const Vec128<T> b) {
+HWY_API Vec128<T> ShuffleTwo2301(const Vec128<T> a, const Vec128<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   constexpr int m = _MM_SHUFFLE(2, 3, 0, 1);
@@ -1512,7 +1515,7 @@ HWY_API Vec128<T> Shuffle2301(const Vec128<T> a, const Vec128<T> b) {
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec32<T> Shuffle1230(const Vec32<T> a, const Vec32<T> b) {
+HWY_API Vec32<T> ShuffleTwo1230(const Vec32<T> a, const Vec32<T> b) {
   const DFromV<decltype(a)> d;
 #if HWY_TARGET == HWY_SSE2
   const auto zero = Zero(d);
@@ -1531,7 +1534,7 @@ HWY_API Vec32<T> Shuffle1230(const Vec32<T> a, const Vec32<T> b) {
 #endif
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec64<T> Shuffle1230(const Vec64<T> a, const Vec64<T> b) {
+HWY_API Vec64<T> ShuffleTwo1230(const Vec64<T> a, const Vec64<T> b) {
   const DFromV<decltype(a)> d;
 #if HWY_TARGET == HWY_SSE2
   const Vec32<T> a_shuffled{
@@ -1547,7 +1550,7 @@ HWY_API Vec64<T> Shuffle1230(const Vec64<T> a, const Vec64<T> b) {
 #endif
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T> Shuffle1230(const Vec128<T> a, const Vec128<T> b) {
+HWY_API Vec128<T> ShuffleTwo1230(const Vec128<T> a, const Vec128<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   constexpr int m = _MM_SHUFFLE(1, 2, 3, 0);
@@ -1556,7 +1559,7 @@ HWY_API Vec128<T> Shuffle1230(const Vec128<T> a, const Vec128<T> b) {
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec32<T> Shuffle3012(const Vec32<T> a, const Vec32<T> b) {
+HWY_API Vec32<T> ShuffleTwo3012(const Vec32<T> a, const Vec32<T> b) {
   const DFromV<decltype(a)> d;
 #if HWY_TARGET == HWY_SSE2
   const auto zero = Zero(d);
@@ -1575,7 +1578,7 @@ HWY_API Vec32<T> Shuffle3012(const Vec32<T> a, const Vec32<T> b) {
 #endif
 }
 template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec64<T> Shuffle3012(const Vec64<T> a, const Vec64<T> b) {
+HWY_API Vec64<T> ShuffleTwo3012(const Vec64<T> a, const Vec64<T> b) {
   const DFromV<decltype(a)> d;
 #if HWY_TARGET == HWY_SSE2
   const Vec32<T> a_shuffled{
@@ -1591,7 +1594,7 @@ HWY_API Vec64<T> Shuffle3012(const Vec64<T> a, const Vec64<T> b) {
 #endif
 }
 template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T> Shuffle3012(const Vec128<T> a, const Vec128<T> b) {
+HWY_API Vec128<T> ShuffleTwo3012(const Vec128<T> a, const Vec128<T> b) {
   const DFromV<decltype(a)> d;
   const RebindToFloat<decltype(d)> df;
   constexpr int m = _MM_SHUFFLE(3, 0, 1, 2);
