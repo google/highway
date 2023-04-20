@@ -4229,7 +4229,7 @@ HWY_API Indices128<TFromD<D>, MaxLanes(D())> IndicesFromVec(
 #endif
 
   (void)d;
-  return Indices128<TFromD<D>, MaxLanes(D())>{vec.raw};
+  return Indices128<TFromD<D>, MaxLanes(D())>{BitCast(d, vec).raw};
 }
 
 template <class D, typename TI,
@@ -4382,7 +4382,7 @@ HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec128<T> Reverse2(D d, Vec128<T> v) {
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Vec128<uint16_t>(vrev16q_u8(BitCast(du, v).raw)));
+  return BitCast(d, Vec128<uint8_t>(vrev16q_u8(BitCast(du, v).raw)));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_V_SIZE_LE_D(D, 8)>
@@ -4422,7 +4422,7 @@ HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec128<T> Reverse4(D d, Vec128<T> v) {
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Vec128<uint16_t>(vrev32q_u8(BitCast(du, v).raw)));
+  return BitCast(d, Vec128<uint8_t>(vrev32q_u8(BitCast(du, v).raw)));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_V_SIZE_LE_D(D, 8)>
@@ -4456,7 +4456,7 @@ HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec128<T> Reverse8(D d, Vec128<T> v) {
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Vec128<uint16_t>(vrev64q_u8(BitCast(du, v).raw)));
+  return BitCast(d, Vec128<uint8_t>(vrev64q_u8(BitCast(du, v).raw)));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
