@@ -66,7 +66,7 @@ static HWY_INLINE T LeadingZeroCountOfValue(T val) {
 
 struct TestLeadingZeroCount {
   template <class T, class D>
-  HWY_ATTR_NO_MSAN HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
     using TU = MakeUnsigned<T>;
     const RebindToUnsigned<decltype(d)> du;
@@ -139,7 +139,7 @@ static HWY_INLINE T TrailingZeroCountOfValue(T val) {
 
 struct TestTrailingZeroCount {
   template <class T, class D>
-  HWY_ATTR_NO_MSAN HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
     using TU = MakeUnsigned<T>;
     const RebindToUnsigned<decltype(d)> du;
@@ -208,7 +208,7 @@ class TestHighestSetBitIndex {
 
  public:
   template <class T, class D>
-  HWY_ATTR_NO_MSAN HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
     using TU = MakeUnsigned<T>;
     const RebindToUnsigned<decltype(d)> du;
