@@ -158,15 +158,15 @@ namespace detail {
 
 #if HWY_IDE
 template <class V>
-V ShuffleTwo1230(V a, V /* b */) {
+HWY_INLINE V ShuffleTwo1230(V a, V /* b */) {
   return a;
 }
 template <class V>
-V ShuffleTwo2301(V a, V /* b */) {
+HWY_INLINE V ShuffleTwo2301(V a, V /* b */) {
   return a;
 }
 template <class V>
-V ShuffleTwo3012(V a, V /* b */) {
+HWY_INLINE V ShuffleTwo3012(V a, V /* b */) {
   return a;
 }
 #endif  // HWY_IDE
@@ -698,9 +698,9 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
   const auto k5 = Set(du, uint8_t{5});
   const auto k6 = Set(du, uint8_t{6});
 
-  const Vec128<TFromD<D>> v0{part0.raw};
-  const Vec128<TFromD<D>> v1{part1.raw};
-  const Vec128<TFromD<D>> v2{part2.raw};
+  const VFromD<decltype(d_full)> v0{part0.raw};
+  const VFromD<decltype(d_full)> v1{part1.raw};
+  const VFromD<decltype(d_full)> v2{part2.raw};
 
   // Interleave (v0,v1,v2) to (MSB on left, lane 0 on right):
   // v1[2],v0[2], v2[1],v1[1],v0[1], v2[0],v1[0],v0[0]. 0x80 so lanes to be
@@ -2075,6 +2075,13 @@ HWY_API V CompressNot(V v, M mask) {
 #endif
 
 namespace detail {
+
+#if HWY_IDE
+template <class M>
+HWY_INLINE uint64_t BitsFromMask(M /* mask */) {
+  return 0;
+}
+#endif  // HWY_IDE
 
 template <size_t N>
 HWY_INLINE Vec128<uint8_t, N> IndicesForExpandFromBits(uint64_t mask_bits) {
