@@ -15,13 +15,15 @@
 
 #include <string.h>  // memcpy
 
+#include <vector>
+
 #include "hwy/aligned_allocator.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/algo/transform_test.cc"  //NOLINT
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-
+#include "hwy/highway.h"
 #include "hwy/contrib/algo/transform-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on

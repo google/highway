@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdio.h>
+
 #include <algorithm>  // std::find_if
 #include <vector>
 
@@ -24,7 +26,7 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/algo/find_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-
+#include "hwy/highway.h"
 #include "hwy/contrib/algo/find-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on

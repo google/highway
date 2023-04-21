@@ -25,7 +25,7 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/bit_pack/bit_pack_test.cc"  // NOLINT
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-
+#include "hwy/highway.h"
 #include "hwy/contrib/bit_pack/bit_pack-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on

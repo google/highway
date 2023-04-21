@@ -26,8 +26,8 @@
 
 #endif  // HWY_SET_MACROS_PER_TARGET
 
-#include "hwy/detect_compiler_arch.h"
-#include "hwy/detect_targets.h"
+#include "hwy/detect_compiler_arch.h"  // IWYU: export
+#include "hwy/detect_targets.h"        // IWYU: export
 
 #undef HWY_NAMESPACE
 #undef HWY_ALIGN

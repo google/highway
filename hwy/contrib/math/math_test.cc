@@ -16,18 +16,17 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS  // before inttypes.h
 #endif
-#include <inttypes.h>
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stdio.h>
 
 #include <cfloat>  // FLT_MAX
 #include <cmath>   // std::abs
-#include <type_traits>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/math/math_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-
+#include "hwy/highway.h"
 #include "hwy/contrib/math/math-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
@@ -45,7 +44,7 @@ inline Out BitCast(const In& in) {
 }
 
 template <class T, class D>
-HWY_NOINLINE void TestMath(const std::string name, T (*fx1)(T),
+HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
                            Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
                            uint64_t max_error_ulp) {
   using UintT = MakeUnsigned<T>;
@@ -91,14 +90,14 @@ HWY_NOINLINE void TestMath(const std::string name, T (*fx1)(T),
       if (ulp > max_error_ulp) {
         fprintf(stderr,
                 "%s: %s(%f) expected %f actual %f ulp %" PRIu64 " max ulp %u\n",
-                hwy::TypeName(T(), Lanes(d)).c_str(), name.c_str(), value,
-                expected, actual, static_cast<uint64_t>(ulp),
+                hwy::TypeName(T(), Lanes(d)).c_str(), name, value, expected,
+                actual, static_cast<uint64_t>(ulp),
                 static_cast<uint32_t>(max_error_ulp));
       }
     }
   }
   fprintf(stderr, "%s: %s max_ulp %" PRIu64 "\n",
-          hwy::TypeName(T(), Lanes(d)).c_str(), name.c_str(), max_ulp);
+          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_ulp);
   HWY_ASSERT(max_ulp <= max_error_ulp);
 }
 
