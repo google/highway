@@ -4,6 +4,8 @@
 
 Highway is a C++ library that provides portable SIMD/vector intrinsics.
 
+[Documentation](https://google.github.io/highway/en/master/)
+
 ## Why
 
 We are passionate about high-performance software. We see major untapped
