@@ -243,7 +243,7 @@ HWY_INLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
   }
 
   // MSAN seems not to understand CompressStore. buf[0, bufR) are valid.
-  UnpoisonIfMemorySanitizer(buf, bufR * sizeof(T));
+  detail::MaybeUnpoison(buf, bufR);
 
   // Everything we loaded was put into buf, or behind the current `posL`, after
   // which there is space for bufR items. First move items from `keys + num` to

@@ -68,10 +68,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 // clang-format on
 #endif  // HWY_COMPILER_CLANGCL
 
-#if HWY_IS_MSAN
-#include <sanitizer/msan_interface.h>
-#endif
-
 // For half-width vectors. Already includes base.h and shared-inl.h.
 #include "hwy/ops/x86_256-inl.h"
 

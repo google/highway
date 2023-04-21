@@ -24,6 +24,10 @@
 #include "hwy/detect_compiler_arch.h"
 // IWYU pragma: end_exports
 
+#if HWY_IS_MSAN
+#include <sanitizer/msan_interface.h>
+#endif
+
 // We are covered by the highway.h include guard, but generic_ops-inl.h
 // includes this again #if HWY_IDE.
 #if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == \
@@ -60,11 +64,23 @@ using VecArg = V;
 #endif
 
 namespace detail {
+
 // Returns N * 2^pow2. N is the number of lanes in a full vector and pow2 the
 // desired fraction or multiple of it, see Simd<>. `pow2` is most often in
 // [-3, 3] but can also be lower for user-specified fractions.
 constexpr size_t ScaleByPower(size_t N, int pow2) {
   return pow2 >= 0 ? (N << pow2) : (N >> (-pow2));
+}
+
+template <typename T>
+HWY_INLINE void MaybeUnpoison(T* HWY_RESTRICT unaligned, size_t count) {
+  // Workaround for MSAN not marking compressstore as initialized (b/233326619)
+#if HWY_IS_MSAN
+  __msan_unpoison(unaligned, count * sizeof(T));
+#else
+  (void)unaligned;
+  (void)count;
+#endif
 }
 
 }  // namespace detail

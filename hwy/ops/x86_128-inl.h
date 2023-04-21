@@ -42,10 +42,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 
 #include "hwy/ops/shared-inl.h"
 
-#if HWY_IS_MSAN
-#include <sanitizer/msan_interface.h>
-#endif
-
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
@@ -622,21 +618,6 @@ HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
 }
 
 // ================================================== MASK
-
-namespace detail {
-
-template <typename T>
-HWY_INLINE void MaybeUnpoison(T* HWY_RESTRICT unaligned, size_t count) {
-  // Workaround for MSAN not marking compressstore as initialized (b/233326619)
-#if HWY_IS_MSAN
-  __msan_unpoison(unaligned, count * sizeof(T));
-#else
-  (void)unaligned;
-  (void)count;
-#endif
-}
-
-}  // namespace detail
 
 #if HWY_TARGET <= HWY_AVX3
 
@@ -1300,10 +1281,14 @@ HWY_API Vec32<float> Load(D /* tag */, const float* HWY_RESTRICT p) {
 // Any <= 32 bit except <float, 1>
 template <class D, HWY_IF_V_SIZE_LE_D(D, 4), typename T = TFromD<D>>
 HWY_API VFromD<D> Load(D d, const T* HWY_RESTRICT p) {
+  // Clang ArgumentPromotionPass seems to break this code. We can unpoison
+  // before SetTableIndices -> LoadU -> Load and the memory is poisoned again.
+  detail::MaybeUnpoison(p, Lanes(d));
+
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  __m128 raw = _mm_setzero_ps();
-  CopyBytes<d.MaxBytes()>(p, &raw);  // not same size as VFromD
-  return VFromD<D>{raw};
+  Vec128<T> v = Zero(Full128<T>());
+  CopyBytes<d.MaxBytes()>(p, &v.raw);  // not same size as VFromD
+  return VFromD<D>{v.raw};
 #else
   int32_t bits = 0;
   CopyBytes<d.MaxBytes()>(p, &bits);  // not same size as VFromD
@@ -4389,6 +4374,7 @@ HWY_API Indices128<T, kN> IndicesFromVec(D d, Vec128<TI, kN> vec) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename TI>
 HWY_API Indices128<TFromD<D>, HWY_MAX_LANES_D(D)> SetTableIndices(
     D d, const TI* idx) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
   const Rebind<TI, decltype(d)> di;
   return IndicesFromVec(d, LoadU(di, idx));
 }
@@ -5233,8 +5219,16 @@ HWY_API Vec128<T, N> TwoTablesLookupLanes(Vec128<T, N> a, Vec128<T, N> b,
                                           Indices128<T, N> idx) {
   const DFromV<decltype(a)> d;
   const Twice<decltype(d)> dt;
-  return LowerHalf(
-      d, TableLookupLanes(Combine(dt, b, a), Indices128<T, N * 2>{idx.raw}));
+// TableLookupLanes currently requires table and index vectors to be the same
+// size, though a half-length index vector would be sufficient here.
+#if HWY_IS_MSAN
+  const Vec128<T, N> idx_vec{idx.raw};
+  const Indices128<T, N * 2> idx2{Combine(dt, idx_vec, idx_vec).raw};
+#else
+  // We only keep LowerHalf of the result, which is valid in idx.
+  const Indices128<T, N * 2> idx2{idx.raw};
+#endif
+  return LowerHalf(d, TableLookupLanes(Combine(dt, b, a), idx2));
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 1)>

@@ -49,10 +49,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 
 #include <string.h>  // memcpy
 
-#if HWY_IS_MSAN
-#include <sanitizer/msan_interface.h>
-#endif
-
 // For half-width vectors. Already includes base.h.
 #include "hwy/ops/shared-inl.h"
 // Already included by shared-inl, but do it again to avoid IDE warnings.

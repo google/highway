@@ -1668,9 +1668,18 @@ HWY_API Vec128<T, N> TwoTablesLookupLanes(Vec128<T, N> a, Vec128<T, N> b,
   const DFromV<decltype(a)> d;
   const Twice<decltype(d)> dt;
   const Repartition<uint8_t, decltype(dt)> dt_u8;
+// TableLookupLanes currently requires table and index vectors to be the same
+// size, though a half-length index vector would be sufficient here.
+#if HWY_IS_MSAN
+  const Vec128<T, N> idx_vec{idx.raw};
+  const Indices128<T, N * 2> idx2{Combine(dt, idx_vec, idx_vec).raw};
+#else
+  // We only keep LowerHalf of the result, which is valid in idx.
+  const Indices128<T, N * 2> idx2{idx.raw};
+#endif
   return LowerHalf(
       d, TableLookupBytes(Combine(dt, b, a),
-                          BitCast(dt, VFromD<decltype(dt_u8)>{idx.raw})));
+                          BitCast(dt, VFromD<decltype(dt_u8)>{idx2.raw})));
 }
 
 template <typename T>
