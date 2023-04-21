@@ -2,16 +2,31 @@
 
 <!--*
 # Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'janwas' reviewed: '2023-03-24' }
+freshness: { owner: 'janwas' reviewed: '2023-04-21' }
 *-->
 
 [TOC]
 
 ## Wishlist
 
-### Vector tuple type
+### Remaining math functions for hwy/contrib/math
 
-Vec2, Create/Get functions, add second Load/StoreInterleaved interface.
+atan2, cbrt, cosh, erf, exp2, fmod, hypot, ilogb, lgamma, logb, modf, nextafter,
+nexttoward, pow, scalbn, tan, tgamma
+
+### Remaining STL functions for hwy/contrib/algo
+
+*   Min/MaxValue
+*   IndexOfMin/Max
+*   AllOf / AnyOf / NoneOf
+*   Count(If) (https://en.algorithmica.org/hpc/simd/masking/)
+*   EqualSpan
+*   ReverseSpan
+*   ShuffleSpan
+*   IsSorted
+*   Reduce
+
+### float64 support for WASM
 
 ### 52x52=104-bit multiply
 
@@ -23,12 +38,14 @@ Potentially useful for comparing neighbors e.g. for RLE.
 
 ### RVV codegen
 
+*   New tuple interface for segment load/store
 *   `rgather_vx` for broadcasting redsum result?
 *   Fix remaining 8-bit table lookups for large vectors (`Broadcast`,
     `Interleave`, `LoadDup128`): use 64-bit for initial shuffle. For
     `TwoTablesLookupLanes`, use 16-bit indices.
 
 ### SVE codegen
+
 * SVE2: use XAR for `RotateRight`
 * `CombineShiftRightBytes` use `TableLookupLanes` instead?
 * `Shuffle*`: use `TableLookupLanes` instead?
@@ -36,15 +53,11 @@ Potentially useful for comparing neighbors e.g. for RLE.
   SCLAMP/UCLAMP, 128-bit TRN/UZP/ZIP (also in F64MM)
 
 ### emu128 codegen
+
 * `#pragma unroll(1)` in all loops to enable autovectorization
 
 ### Add emu256 target
 Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
-
-### Extend contrib/algo
-* Reduce
-* Min/Max/IdxMin
-* CountIf (https://en.algorithmica.org/hpc/simd/masking/)
 
 ### `SumOfLanes` returning scalar
 Avoids extra broadcast.
@@ -61,7 +74,8 @@ For hash tables. Use VPCONFLICT on ZEN4.
 ### `PromoteToEven`
 For `WidenMul`, `MinOfLanes`.
 
-### `PromoteTo` for all types
+### `PromoteTo` for all types (#915)
+
 For orthogonality.
 
 ### Add `DupEven` for 16-bit
@@ -141,3 +155,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~`TwoTablesLookupLanes`~~ - by johnplatts in #1303
 *   ~~Add 8/16-bit `TableLookupLanes`~~ - by johnplatts in #1303
 *   ~~`FindLastTrue`~~ - by johnplatts in #1308
+*   ~~Vec2, Create/Get functions~~
