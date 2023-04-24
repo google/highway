@@ -1069,7 +1069,7 @@ All functions except `Stream` are defined in cache_control.h.
     of `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
     resized vector reinterpreted as type `Vec<D>`.
 
-    If `Vec<D>` is a larger vector than `V`, then the contents of any bytes of
+    If `Vec<D>` is a larger vector than `V`, then the contents of any bytes
     past the first `Lanes(DFromV<V>()) * sizeof(TFromV<V>)` bytes of the result
     vector is unspecified.
 
