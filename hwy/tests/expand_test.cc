@@ -62,6 +62,7 @@ struct TestExpand {
     using TI = MakeSigned<T>;  // Used for mask > 0 comparison.
     const Rebind<TI, D> di;
     const size_t N = Lanes(d);
+    const size_t bits_size = RoundUpTo((N + 7) / 8, 8);
 
     for (int frac : {0, 2, 3}) {
       // For LoadExpand
@@ -71,10 +72,10 @@ struct TestExpand {
       auto mask_lanes = AllocateAligned<TI>(N);
       auto expected = AllocateAligned<T>(N);
       auto actual_a = AllocateAligned<T>(misalign + N);
-      T* actual_u = actual_a.get() + misalign;
-
-      const size_t bits_size = RoundUpTo((N + 7) / 8, 8);
       auto bits = AllocateAligned<uint8_t>(bits_size);
+      HWY_ASSERT(in_lanes && mask_lanes && expected && actual_a && bits);
+
+      T* actual_u = actual_a.get() + misalign;
       memset(bits.get(), 0, bits_size);  // Prevents MSAN error.
 
       // Random input vector, used in all iterations.

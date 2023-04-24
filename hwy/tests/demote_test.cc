@@ -50,6 +50,7 @@ struct TestDemoteTo {
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N);
+    HWY_ASSERT(from && expected);
 
     // Narrower range in the wider type, for clamping before we cast
     const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<ToT>() : ToT{0});
@@ -157,6 +158,7 @@ struct TestDemoteToFloat {
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N);
+    HWY_ASSERT(from && expected);
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
@@ -201,6 +203,7 @@ struct TestDemoteToBF16 {
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<bfloat16_t>(N);
+    HWY_ASSERT(from && expected);
 
     const auto u16_zero_vect = Zero(du16);
     const auto u16_one_vect = Set(du16, 1);
@@ -301,6 +304,7 @@ AlignedFreeUniquePtr<float[]> ReorderBF16TestCases(D d, size_t& padded) {
   padded = RoundUpTo(kNumTestCases, 2 * N);  // allow loading pairs of vectors
   auto in = AllocateAligned<float>(padded);
   auto expected = AllocateAligned<float>(padded);
+  HWY_ASSERT(in && expected);
   std::copy(test_cases, test_cases + kNumTestCases, in.get());
   std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
   return in;
@@ -339,6 +343,7 @@ class TestReorderDemote2To {
     auto temp16 = AllocateAligned<TBF16>(2 * N);
     auto expected = AllocateAligned<float>(2 * N);
     auto actual = AllocateAligned<float>(2 * N);
+    HWY_ASSERT(temp16 && expected && actual);
 
     for (size_t i = 0; i < padded; i += 2 * N) {
       const auto f0 = Load(d32, &in[i + 0]);
@@ -404,6 +409,7 @@ class TestIntegerReorderDemote2To {
     auto from = AllocateAligned<T>(twiceN);
     auto expected = AllocateAligned<TN>(twiceN);
     auto actual = AllocateAligned<TN>(twiceN);
+    HWY_ASSERT(from && expected && actual);
 
     // Narrower range in the wider type, for clamping before we cast
     const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
@@ -481,6 +487,7 @@ struct TestFloatOrderedDemote2To {
     const size_t twiceN = N * 2;
     auto from = AllocateAligned<TF>(twiceN);
     auto expected = AllocateAligned<bfloat16_t>(twiceN);
+    HWY_ASSERT(from && expected);
 
     const auto u16_zero_vect = Zero(du16);
     const auto u16_one_vect = Set(du16, 1);
@@ -551,6 +558,7 @@ class TestIntegerOrderedDemote2To {
     const size_t twiceN = N * 2;
     auto from = AllocateAligned<T>(twiceN);
     auto expected = AllocateAligned<TN>(twiceN);
+    HWY_ASSERT(from && expected);
 
     // Narrower range in the wider type, for clamping before we cast
     const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});

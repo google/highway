@@ -26,6 +26,10 @@
 #endif
 
 #include "hwy/detect_compiler_arch.h"
+
+// Separate header because foreach_target.h re-enables its include guard.
+#include "hwy/ops/set_macros-inl.h"
+
 // IWYU pragma: end_exports
 
 #if HWY_IS_MSAN
@@ -41,9 +45,6 @@
 #else
 #define HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #endif
-
-// Separate header because foreach_target.h re-enables its include guard.
-#include "hwy/ops/set_macros-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {

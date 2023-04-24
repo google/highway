@@ -49,6 +49,7 @@ struct TestSumOfLanes {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto in_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes);
 
     // Lane i = bit i, higher lanes 0
     double sum = 0.0;

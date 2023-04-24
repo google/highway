@@ -36,6 +36,7 @@ struct TestLeftShifts {
     using TU = MakeUnsigned<T>;
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     // Values to shift
     const auto values = Iota(d, static_cast<T>(kSigned ? -TI(N) : TI(0)));
@@ -76,6 +77,7 @@ struct TestVariableLeftShifts {
     using TU = MakeUnsigned<T>;
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     const auto v0 = Zero(d);
     const auto v1 = Set(d, 1);
@@ -123,6 +125,7 @@ struct TestUnsignedRightShifts {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     const auto values = Iota(d, 0);
 
@@ -154,6 +157,7 @@ struct TestRotateRight {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     constexpr size_t kBits = sizeof(T) * 8;
     const Vec<D> mask_shift = Set(d, T{kBits});
@@ -194,6 +198,7 @@ struct TestVariableUnsignedRightShifts {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     const auto v0 = Zero(d);
     const auto v1 = Set(d, 1);
@@ -258,6 +263,7 @@ class TestSignedRightShifts {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     constexpr T kMin = LimitsMin<T>();
     constexpr T kMax = LimitsMax<T>();
     constexpr size_t kMaxShift = (sizeof(T) * 8) - 1;
@@ -311,6 +317,7 @@ struct TestVariableSignedRightShifts {
     using TU = MakeUnsigned<T>;
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     constexpr T kMin = LimitsMin<T>();
     constexpr T kMax = LimitsMax<T>();

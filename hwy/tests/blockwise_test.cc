@@ -35,6 +35,8 @@ struct TestBroadcastR {
     const size_t N = Lanes(d);
     if (kLane >= N) return;
     auto in_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes && expected);
     std::fill(in_lanes.get(), in_lanes.get() + N, T(0));
     const size_t blockN = HWY_MIN(N * sizeof(T), 16) / sizeof(T);
     // Need to set within each 128-bit block
@@ -42,7 +44,6 @@ struct TestBroadcastR {
       in_lanes[block + kLane] = static_cast<T>(block + 1);
     }
     const auto in = Load(d, in_lanes.get());
-    auto expected = AllocateAligned<T>(N);
     for (size_t block = 0; block < N; block += blockN) {
       for (size_t i = 0; i < blockN; ++i) {
         expected[block + i] = T(block + 1);
@@ -94,13 +95,17 @@ struct TestTableLookupBytes {
 
     const typename ChooseTableSize<kFull>::template type<T, D> d_tbl;
     const Repartition<uint8_t, decltype(d_tbl)> d_tbl8;
-    const size_t NT8 = Lanes(d_tbl8);
-
     const Repartition<uint8_t, D> d8;
+    const size_t N = Lanes(d);
+    const size_t NT8 = Lanes(d_tbl8);
     const size_t N8 = Lanes(d8);
 
-    // Random input bytes
     auto in_bytes = AllocateAligned<uint8_t>(NT8);
+    auto index_bytes = AllocateAligned<uint8_t>(N8);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in_bytes && index_bytes && expected);
+
+    // Random input bytes
     for (size_t i = 0; i < NT8; ++i) {
       in_bytes[i] = Random32(&rng) & 0xFF;
     }
@@ -113,7 +118,6 @@ struct TestTableLookupBytes {
         0,  2,  1, 2, 15, 12, 13, 14, 6,  7,  8,  5,  4,  3,  10, 11,
         11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
-    auto index_bytes = AllocateAligned<uint8_t>(N8);
     const size_t max_index = HWY_MIN(NT8, 16) - 1;
     for (size_t i = 0; i < N8; ++i) {
       index_bytes[i] = (i < 64) ? index_bytes_source[i] : 0;
@@ -122,8 +126,6 @@ struct TestTableLookupBytes {
     }
     const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
 
-    const size_t N = Lanes(d);
-    auto expected = AllocateAligned<T>(N);
     uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
     for (size_t block = 0; block < N8; block += 16) {
@@ -181,6 +183,7 @@ struct TestInterleaveLower {
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && expected);
     for (size_t i = 0; i < N; ++i) {
       even_lanes[i] = static_cast<T>(2 * i + 0);
       odd_lanes[i] = static_cast<T>(2 * i + 1);
@@ -207,6 +210,7 @@ struct TestInterleaveUpper {
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && expected);
     for (size_t i = 0; i < N; ++i) {
       even_lanes[i] = static_cast<T>(2 * i + 0);
       odd_lanes[i] = static_cast<T>(2 * i + 1);
@@ -240,6 +244,7 @@ struct TestZipLower {
     auto odd_lanes = AllocateAligned<T>(N);
     // At least 2 lanes for HWY_SCALAR
     auto zip_lanes = AllocateAligned<T>(HWY_MAX(N, 2));
+    HWY_ASSERT(even_lanes && odd_lanes && zip_lanes);
     const T kMaxT = LimitsMax<T>();
     for (size_t i = 0; i < N; ++i) {
       even_lanes[i] = static_cast<T>((2 * i + 0) & kMaxT);
@@ -306,6 +311,7 @@ struct TestZipUpper {
     auto even_lanes = AllocateAligned<T>(N);
     auto odd_lanes = AllocateAligned<T>(N);
     auto zip_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && zip_lanes);
     const T kMaxT = LimitsMax<T>();
     for (size_t i = 0; i < N; ++i) {
       even_lanes[i] = static_cast<T>((2 * i + 0) & kMaxT);
@@ -376,6 +382,7 @@ class TestSpecialShuffle32 {
     const size_t N = Lanes(d);
     if (N < 4) return;
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t block = 0; block < N; block += kBlockN) {
       expected[block + 3] = static_cast<T>(block + i3);
       expected[block + 2] = static_cast<T>(block + i2);
@@ -406,6 +413,7 @@ class TestSpecialShuffle64 {
     const size_t N = Lanes(d);
     if (N < 2) return;
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t block = 0; block < N; block += kBlockN) {
       expected[block + 1] = static_cast<T>(block + i1);
       expected[block + 0] = static_cast<T>(block + i0);

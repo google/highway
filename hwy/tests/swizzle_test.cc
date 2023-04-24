@@ -59,6 +59,7 @@ struct TestInsertLane {
     const V v = Iota(d, T(1));
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes);
     Store(v, d, lanes.get());
 
     for (size_t i = 0; i < Lanes(d); ++i) {
@@ -79,6 +80,7 @@ struct TestDupEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((static_cast<int>(i) & ~1) + 1);
     }
@@ -96,6 +98,7 @@ struct TestDupOdd {
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>((static_cast<int>(i) & ~1) + 2);
     }
@@ -117,6 +120,7 @@ struct TestOddEven {
     const auto even = Iota(d, 1);
     const auto odd = Iota(d, static_cast<T>(1 + N));
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
       expected[i] = static_cast<T>(1 + i + ((i & 1) ? N : 0));
     }
@@ -135,6 +139,7 @@ struct TestOddEvenBlocks {
     const auto even = Iota(d, 1);
     const auto odd = Iota(d, static_cast<T>(1 + N));
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
       const size_t idx_block = i / (16 / sizeof(T));
       expected[i] = static_cast<T>(1 + i + ((idx_block & 1) ? N : 0));
@@ -155,6 +160,7 @@ struct TestSwapAdjacentBlocks {
     if (N < 2 * kLanesPerBlock) return;
     const auto vi = Iota(d, 1);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
       const size_t idx_block = i / kLanesPerBlock;
       const size_t base = (idx_block ^ 1) * kLanesPerBlock;
@@ -177,8 +183,9 @@ struct TestTableLookupLanes {
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
     auto idx = AllocateAligned<TI>(N);
-    memset(idx.get(), 0, N * sizeof(TI));
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(idx && expected);
+    memset(idx.get(), 0, N * sizeof(TI));
     const auto v = Iota(d, 1);
 
     if (N <= 8) {  // Test all permutations
@@ -254,8 +261,9 @@ struct TestTwoTablesLookupLanes {
     const size_t N = Lanes(d);
     const size_t twiceN = N * 2;
     auto idx = AllocateAligned<TU>(twiceN);
-    memset(idx.get(), 0, twiceN * sizeof(TU));
     auto expected = AllocateAligned<T>(twiceN);
+    HWY_ASSERT(idx && expected);
+    memset(idx.get(), 0, twiceN * sizeof(TU));
     const auto a = Iota(d, 1);
     const auto b = Add(a, Set(d, static_cast<T>(N)));
 

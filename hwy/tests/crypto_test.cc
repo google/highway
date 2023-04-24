@@ -63,6 +63,7 @@ class TestAES {
     const size_t N = Lanes(d);
     const size_t padded = RoundUpTo(256, N);
     auto expected = AllocateAligned<T>(padded);
+    HWY_ASSERT(expected);
     // Must wrap around to match the input (Iota).
     for (size_t pos = 0; pos < padded;) {
       const size_t remaining = HWY_MIN(padded - pos, size_t(256));
@@ -155,6 +156,7 @@ class TestAESInverse {
     const size_t N = Lanes(d);
     const size_t padded = RoundUpTo(256, N);
     auto expected = AllocateAligned<T>(padded);
+    HWY_ASSERT(expected);
     // Must wrap around to match the input (Iota).
     for (size_t pos = 0; pos < padded;) {
       const size_t remaining = HWY_MIN(padded - pos, size_t(256));
@@ -266,6 +268,7 @@ struct TestCLMul {
 
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2);
 
     constexpr size_t kCLMulNum = 512;
     // Depends on rng!
@@ -619,6 +622,7 @@ struct TestCLMul {
     const size_t padded = RoundUpTo(kCLMulNum, N);
     auto expected_lower = AllocateAligned<T>(padded);
     auto expected_upper = AllocateAligned<T>(padded);
+    HWY_ASSERT(expected_lower && expected_upper);
     CopyBytes<kCLMulNum * sizeof(T)>(kCLMulLower, expected_lower.get());
     CopyBytes<kCLMulNum * sizeof(T)>(kCLMulUpper, expected_upper.get());
     const size_t padding_size = (padded - kCLMulNum) * sizeof(T);

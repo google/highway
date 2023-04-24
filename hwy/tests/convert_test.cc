@@ -79,6 +79,7 @@ struct TestBitCast {
     // Must return the same bits
     auto from_lanes = AllocateAligned<T>(Lanes(d));
     auto to_lanes = AllocateAligned<ToT>(Lanes(dto));
+    HWY_ASSERT(from_lanes && to_lanes);
     Store(vf, d, from_lanes.get());
     Store(vt, dto, to_lanes.get());
     HWY_ASSERT(

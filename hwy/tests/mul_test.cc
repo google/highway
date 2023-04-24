@@ -41,6 +41,7 @@ struct TestUnsignedMul {
     const auto vj = Iota(d, 3);
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
 
     HWY_ASSERT_VEC_EQ(d, v0, Mul(v0, v0));
     HWY_ASSERT_VEC_EQ(d, v1, Mul(v1, v1));

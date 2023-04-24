@@ -16,8 +16,7 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS  // before inttypes.h
 #endif
-#include <inttypes.h>
-#include <stdint.h>
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stdio.h>
 #include <string.h>  // memcpy
 
@@ -28,7 +27,7 @@
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-
+#include "hwy/highway.h"
 #include "hwy/contrib/sort/vqsort.h"
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"
@@ -90,6 +89,7 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
   constexpr int kDebug = 0;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(N + base_case_num + N);
   auto buf = hwy::AllocateAligned<LaneType>(base_case_num + 2 * N);
+  HWY_ASSERT(aligned_lanes && buf);
 
   std::vector<size_t> lengths;
   lengths.push_back(HWY_MAX(1, N1));
@@ -168,6 +168,7 @@ static HWY_NOINLINE void TestBaseCase01() {
   constexpr int kDebug = 0;
   auto lanes = hwy::AllocateAligned<LaneType>(base_case_num + N);
   auto buf = hwy::AllocateAligned<LaneType>(base_case_num + 2 * N);
+  HWY_ASSERT(lanes && buf);
 
   std::vector<size_t> lengths;
   lengths.push_back(HWY_MAX(1, N1));
@@ -282,6 +283,7 @@ static HWY_NOINLINE void TestPartition() {
   const size_t total = 32 + (base_case_num + 4 * HWY_MAX(N, 4)) + 2 * N;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(total);
   auto buf = hwy::AllocateAligned<LaneType>(SortConstants::PartitionBufNum(N));
+  HWY_ASSERT(aligned_lanes && buf);
 
   const size_t N1 = st.LanesPerKey();
   for (bool in_asc : {false, true}) {
@@ -525,6 +527,7 @@ void TestSort(size_t num_lanes) {
   constexpr size_t kMaxMisalign = 16;
   auto aligned =
       hwy::AllocateAligned<LaneType>(kMaxMisalign + num_lanes + kMaxMisalign);
+  HWY_ASSERT(aligned);
   for (Algo algo : AlgoForTest()) {
     for (Dist dist : AllDist()) {
       for (size_t misalign : {size_t{0}, size_t{st.LanesPerKey()},

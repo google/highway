@@ -74,6 +74,7 @@ class TestDot {
         (kAssumptions & Dot::kPaddedToVector) ? RoundUpTo(num, N) : num;
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + padded);
     AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(misalign_b + padded);
+    HWY_ASSERT(pa && pb);
     T* a = pa.get() + misalign_a;
     T* b = pb.get() + misalign_b;
     size_t i = 0;

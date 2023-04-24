@@ -30,9 +30,10 @@ struct TestReverse {
     const RebindToUnsigned<D> du;  // Iota does not support float16_t.
     const auto v = BitCast(d, Iota(du, 1));
     auto expected = AllocateAligned<T>(N);
+    auto copy = AllocateAligned<T>(N);
+    HWY_ASSERT(expected && copy);
 
     // Can't set float16_t value directly, need to permute in memory.
-    auto copy = AllocateAligned<T>(N);
     Store(v, d, copy.get());
     for (size_t i = 0; i < N; ++i) {
       expected[i] = copy[N - 1 - i];
@@ -48,6 +49,8 @@ struct TestReverse2 {
     const RebindToUnsigned<D> du;  // Iota does not support float16_t.
     const auto v = BitCast(d, Iota(du, 1));
     auto expected = AllocateAligned<T>(N);
+    auto copy = AllocateAligned<T>(N);
+    HWY_ASSERT(expected && copy);
     if (N == 1) {
       Store(v, d, expected.get());
       HWY_ASSERT_VEC_EQ(d, expected.get(), Reverse2(d, v));
@@ -55,7 +58,6 @@ struct TestReverse2 {
     }
 
     // Can't set float16_t value directly, need to permute in memory.
-    auto copy = AllocateAligned<T>(N);
     Store(v, d, copy.get());
     for (size_t i = 0; i < N; ++i) {
       expected[i] = copy[i ^ 1];
@@ -71,9 +73,10 @@ struct TestReverse4 {
     const RebindToUnsigned<D> du;  // Iota does not support float16_t.
     const auto v = BitCast(d, Iota(du, 1));
     auto expected = AllocateAligned<T>(N);
+    auto copy = AllocateAligned<T>(N);
+    HWY_ASSERT(expected && copy);
 
     // Can't set float16_t value directly, need to permute in memory.
-    auto copy = AllocateAligned<T>(N);
     Store(v, d, copy.get());
     for (size_t i = 0; i < N; ++i) {
       expected[i] = copy[i ^ 3];
@@ -89,9 +92,10 @@ struct TestReverse8 {
     const RebindToUnsigned<D> du;  // Iota does not support float16_t.
     const auto v = BitCast(d, Iota(du, 1));
     auto expected = AllocateAligned<T>(N);
+    auto copy = AllocateAligned<T>(N);
+    HWY_ASSERT(expected && copy);
 
     // Can't set float16_t value directly, need to permute in memory.
-    auto copy = AllocateAligned<T>(N);
     Store(v, d, copy.get());
     for (size_t i = 0; i < N; ++i) {
       expected[i] = copy[i ^ 7];
@@ -136,6 +140,7 @@ struct TestReverseLaneBytes {
     const size_t N = Lanes(d);
     auto in = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in && expected);
 
     const auto v_iota = Iota(d, 0);
     for (size_t i = 0; i < N; i++) {
@@ -190,6 +195,7 @@ class TestReverseBits {
     const size_t N = Lanes(d);
     auto in = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in && expected);
 
     const auto v_iota = Iota(d, 0);
     for (size_t i = 0; i < N; i++) {
@@ -252,13 +258,14 @@ struct TestReverseBlocks {
     const RebindToUnsigned<D> du;  // Iota does not support float16_t.
     const auto v = BitCast(d, Iota(du, 1));
     auto expected = AllocateAligned<T>(N);
+    auto copy = AllocateAligned<T>(N);
+    HWY_ASSERT(expected && copy);
 
     constexpr size_t kLanesPerBlock = 16 / sizeof(T);
     const size_t num_blocks = N / kLanesPerBlock;
     HWY_ASSERT(num_blocks != 0);
 
     // Can't set float16_t value directly, need to permute in memory.
-    auto copy = AllocateAligned<T>(N);
     Store(v, d, copy.get());
     for (size_t i = 0; i < N; ++i) {
       const size_t idx_block = i / kLanesPerBlock;

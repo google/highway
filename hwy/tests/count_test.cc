@@ -30,6 +30,7 @@ struct TestPopulationCount {
     size_t N = Lanes(d);
     auto data = AllocateAligned<T>(N);
     auto popcnt = AllocateAligned<T>(N);
+    HWY_ASSERT(data && popcnt);
     for (size_t i = 0; i < AdjustedReps(1 << 18) / N; i++) {
       for (size_t j = 0; j < N; j++) {
         data[j] = static_cast<T>(rng());

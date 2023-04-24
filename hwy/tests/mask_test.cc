@@ -33,6 +33,7 @@ struct TestFromVec {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes);
 
     memset(lanes.get(), 0, N * sizeof(T));
     const auto actual_false = MaskFromVec(Load(d, lanes.get()));
@@ -53,6 +54,7 @@ struct TestFirstN {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     auto bool_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes);
 
     using TN = SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(T))>;
     const size_t max_len = static_cast<size_t>(LimitsMax<TN>());
@@ -90,6 +92,7 @@ struct TestMaskVec {
     const Rebind<TI, D> di;
     const size_t N = Lanes(d);
     auto bool_lanes = AllocateAligned<TI>(N);
+    HWY_ASSERT(bool_lanes);
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -121,6 +124,7 @@ struct TestAllTrueFalse {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes);
     std::fill(lanes.get(), lanes.get() + N, T(0));
 
     HWY_ASSERT(AllTrue(d, Eq(v, zero)));
@@ -164,6 +168,7 @@ struct TestCountTrue {
     const Rebind<TI, D> di;
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
+    HWY_ASSERT(bool_lanes);
     memset(bool_lanes.get(), 0, N * sizeof(TI));
 
     // For all combinations of zero/nonzero state of subset of lanes:
@@ -196,6 +201,7 @@ struct TestFindFirstTrue {  // Also FindKnownFirstTrue
     const Rebind<TI, D> di;
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
+    HWY_ASSERT(bool_lanes);
     memset(bool_lanes.get(), 0, N * sizeof(TI));
 
     // For all combinations of zero/nonzero state of subset of lanes:
@@ -230,6 +236,7 @@ struct TestFindLastTrue {  // Also FindKnownLastTrue
     const Rebind<TI, D> di;
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
+    HWY_ASSERT(bool_lanes);
     memset(bool_lanes.get(), 0, N * sizeof(TI));
 
     // For all combinations of zero/nonzero state of subset of lanes:
@@ -267,6 +274,7 @@ struct TestLogicalMask {
     const Rebind<TI, D> di;
     const size_t N = Lanes(di);
     auto bool_lanes = AllocateAligned<TI>(N);
+    HWY_ASSERT(bool_lanes);
     memset(bool_lanes.get(), 0, N * sizeof(TI));
 
     HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));

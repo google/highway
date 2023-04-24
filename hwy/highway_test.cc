@@ -40,6 +40,7 @@ HWY_NOINLINE void TestCappedLimit(T /* tag */) {
   const size_t N = Lanes(d);
   if (kLimit < N) {
     auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes);
     std::fill(lanes.get(), lanes.get() + N, T{0});
     Store(Set(d, T{1}), d, lanes.get());
     for (size_t i = kLimit; i < N; ++i) {
@@ -116,6 +117,7 @@ struct TestSet {
     const Vec<D> v0 = Zero(d);
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
     std::fill(expected.get(), expected.get() + N, T{0});
     HWY_ASSERT_VEC_EQ(d, expected.get(), v0);
 

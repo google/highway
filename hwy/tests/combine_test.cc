@@ -35,6 +35,7 @@ struct TestLowerHalf {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     auto lanes2 = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes && lanes2);
     std::fill(lanes.get(), lanes.get() + N, T(0));
     std::fill(lanes2.get(), lanes2.get() + N, T(0));
     const auto v = Iota(d, 1);
@@ -62,6 +63,7 @@ struct TestLowerQuarter {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     auto lanes2 = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes && lanes2);
     std::fill(lanes.get(), lanes.get() + N, T(0));
     std::fill(lanes2.get(), lanes2.get() + N, T(0));
     const auto v = Iota(d, 1);
@@ -103,6 +105,7 @@ struct TestUpperHalf {
     if (N2 < 2) return;
     HWY_ASSERT_EQ(N2 * 2, Lanes(d));
     auto expected = AllocateAligned<T>(N2);
+    HWY_ASSERT(expected);
     size_t i = 0;
     for (; i < N2; ++i) {
       expected[i] = static_cast<T>(N2 + 1 + i);
@@ -131,6 +134,7 @@ struct TestZeroExtendVector {
     if (N2 == N) return;
     HWY_ASSERT(N2 == 2 * N);
     auto lanes = AllocateAligned<T>(N2);
+    HWY_ASSERT(lanes);
     Store(v, d, &lanes[0]);
     Store(v, d, &lanes[N]);
 
@@ -155,6 +159,7 @@ struct TestCombine {
     const size_t N2 = Lanes(d2);
     if (N2 < 2) return;
     auto lanes = AllocateAligned<T>(N2);
+    HWY_ASSERT(lanes);
 
     const Vec<D> lo = Iota(d, 1);
     const Vec<D> hi = Iota(d, static_cast<T>(N2 / 2 + 1));
@@ -180,6 +185,7 @@ struct TestConcat {
     auto hi = AllocateAligned<T>(N);
     auto lo = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(hi && lo && expected);
     RandomState rng;
     for (size_t rep = 0; rep < 10; ++rep) {
       for (size_t i = 0; i < N; ++i) {

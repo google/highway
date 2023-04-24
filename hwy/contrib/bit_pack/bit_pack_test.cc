@@ -90,6 +90,7 @@ struct TestPack {
     AlignedFreeUniquePtr<T[]> raw = hwy::AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> raw2 = hwy::AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> packed = hwy::AllocateAligned<T>(num_packed);
+    HWY_ASSERT(raw && raw2 && packed);
 
     for (size_t i = 0; i < num; ++i) {
       raw[i] = Random<kBits, T>(rng);

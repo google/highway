@@ -32,6 +32,7 @@ struct TestPlusMinus {
 
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes);
     for (size_t i = 0; i < N; ++i) {
       lanes[i] = static_cast<T>((2 + i) + (3 + i));
     }

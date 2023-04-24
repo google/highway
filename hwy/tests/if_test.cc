@@ -35,6 +35,7 @@ struct TestIfThenElse {
     auto in2 = AllocateAligned<T>(N);
     auto bool_lanes = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2 && bool_lanes && expected);
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -82,6 +83,7 @@ struct TestIfVecThenElse {
     auto in2 = AllocateAligned<T>(N);
     auto vec_lanes = AllocateAligned<TU>(N);
     auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2 && vec_lanes && expected);
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {

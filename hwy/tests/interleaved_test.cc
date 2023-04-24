@@ -31,19 +31,20 @@ struct TestLoadStoreInterleaved2 {
     const size_t N = Lanes(d);
 
     RandomState rng;
+    auto bytes = AllocateAligned<T>(2 * N);
+    // Interleave here, ensure vector results match scalar
+    auto expected = AllocateAligned<T>(3 * N);
+    // Ensure unaligned; 2 stored vectors, one zero vector.
+    auto actual_aligned = AllocateAligned<T>(3 * N + 1);
+    HWY_ASSERT(bytes && expected && actual_aligned);
 
     // Data to be interleaved
-    auto bytes = AllocateAligned<T>(2 * N);
     for (size_t i = 0; i < 2 * N; ++i) {
       bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);
 
-    // Interleave here, ensure vector results match scalar
-    auto expected = AllocateAligned<T>(3 * N);
-    // Ensure unaligned; 2 stored vectors, one zero vector.
-    auto actual_aligned = AllocateAligned<T>(3 * N + 1);
     T* actual = actual_aligned.get() + 1;
 
     for (size_t rep = 0; rep < 100; ++rep) {
@@ -92,9 +93,14 @@ struct TestLoadStoreInterleaved3 {
     const size_t N = Lanes(d);
 
     RandomState rng;
+    auto bytes = AllocateAligned<T>(3 * N);
+    // Interleave here, ensure vector results match scalar
+    auto expected = AllocateAligned<T>(4 * N);
+    // Ensure unaligned; 3 stored vectors, one zero vector.
+    auto actual_aligned = AllocateAligned<T>(4 * N + 1);
+    HWY_ASSERT(bytes && expected && actual_aligned);
 
     // Data to be interleaved
-    auto bytes = AllocateAligned<T>(3 * N);
     for (size_t i = 0; i < 3 * N; ++i) {
       bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
     }
@@ -102,10 +108,6 @@ struct TestLoadStoreInterleaved3 {
     const auto in1 = Load(d, &bytes[1 * N]);
     const auto in2 = Load(d, &bytes[2 * N]);
 
-    // Interleave here, ensure vector results match scalar
-    auto expected = AllocateAligned<T>(4 * N);
-    // Ensure unaligned; 3 stored vectors, one zero vector.
-    auto actual_aligned = AllocateAligned<T>(4 * N + 1);
     T* actual = actual_aligned.get() + 1;
 
     for (size_t rep = 0; rep < 100; ++rep) {
@@ -151,6 +153,11 @@ struct TestLoadStoreInterleaved4 {
 
     // Data to be interleaved
     auto bytes = AllocateAligned<T>(4 * N);
+    // Interleave here, ensure vector results match scalar
+    auto expected = AllocateAligned<T>(5 * N);
+    // Ensure unaligned; 4 stored vectors, one zero vector.
+    auto actual_aligned = AllocateAligned<T>(5 * N + 1);
+    HWY_ASSERT(bytes && expected && actual_aligned);
 
     for (size_t i = 0; i < 4 * N; ++i) {
       bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
@@ -160,10 +167,6 @@ struct TestLoadStoreInterleaved4 {
     const auto in2 = Load(d, &bytes[2 * N]);
     const auto in3 = Load(d, &bytes[3 * N]);
 
-    // Interleave here, ensure vector results match scalar
-    auto expected = AllocateAligned<T>(5 * N);
-    // Ensure unaligned; 4 stored vectors, one zero vector.
-    auto actual_aligned = AllocateAligned<T>(5 * N + 1);
     T* actual = actual_aligned.get() + 1;
 
     for (size_t rep = 0; rep < 100; ++rep) {
