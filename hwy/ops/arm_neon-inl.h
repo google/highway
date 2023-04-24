@@ -1096,6 +1096,42 @@ HWY_API VFromD<D> BitCast(D d,
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
+// ------------------------------ ResizeBitCast
+
+// <= 8 byte vector to <= 8 byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 8),
+          HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, VFromD<decltype(du8)>{detail::BitCastToByte(v).raw});
+}
+
+// 16-byte vector to 16-byte vector: same as BitCast
+template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, v);
+}
+
+// 16-byte vector to <= 8-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 16),
+          HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const DFromV<decltype(v)> d_from;
+  const Half<decltype(d_from)> dh_from;
+  return ResizeBitCast(d, LowerHalf(dh_from, v));
+}
+
+// <= 8-bit vector to 16-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 8),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Full64<TFromV<FromV>> d_full64_from;
+  const Full128<TFromV<FromV>> d_full128_from;
+  return BitCast(d, Combine(d_full128_from, Zero(d_full64_from),
+                            ResizeBitCast(d_full64_from, v)));
+}
+
 // ------------------------------ GetLane
 
 namespace detail {

@@ -1065,6 +1065,36 @@ All functions except `Stream` are defined in cache_control.h.
 *   <code>Vec&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
     reinterpreted as type `Vec<D>`.
 
+*   <code>Vec&lt;D&gt; **ResizeBitCast**(D, V)</code>: resizes `V` to a vector
+    of `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
+    resized vector reinterpreted as type `Vec<D>`.
+
+    If `Vec<D>` is a larger vector than `V`, then the contents of any bytes of
+    past the first `Lanes(DFromV<V>()) * sizeof(TFromV<V>)` bytes of the result
+    vector is unspecified.
+
+*   <code>Vec&lt;DTo&gt; **ZeroExtendResizeBitCast**(DTo, DFrom, V)</code>:
+    resizes `V`, which is a vector of type `Vec<DFrom>`, to a vector of
+    `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
+    resized vector reinterpreted as type `Vec<DTo>`.
+
+    If `Lanes(DTo()) * sizeof(TFromD<DTo>)` is greater than
+    `Lanes(DFrom()) * sizeof(TFromD<DFrom>)`, then any bytes past the first
+    `Lanes(DFrom()) * sizeof(TFromD<DFrom>)` bytes of the result vector are
+    zeroed out.
+
+*   <code>Vec&lt;D&gt; **ZeroExtendResizeBitCast**(D, V)</code>:
+    resizes `V` to a vector of `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then
+    returns the bits of the resized vector reinterpreted as type `Vec<D>`.
+
+    If `Lanes(DTo()) * sizeof(TFromD<DTo>)` is greater than
+    `Lanes(DFromV<V>()) * sizeof(TFromV<V>)`, then any bytes past the first
+    `Lanes(DFromV<V>()) * sizeof(TFromV<V>)` bytes of the result vector are
+    zeroed out.
+
+    `ZeroExtendResizeBitCast(d, v)` is equivalent to
+    `ZeroExtendResizeBitCast(d, DFromV<decltype(v)>(), v)`.
+
 *   `V`,`D`: (`u8,u16`), (`u16,u32`), (`u8,u32`), (`u32,u64`), (`u8,i16`), \
     (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`)
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-

@@ -432,6 +432,14 @@ HWY_SVE_FOREACH(HWY_SVE_GET, Get, get)
 HWY_SVE_GET(bfloat, bf, 16, 8, Get, get)
 #undef HWY_SVE_GET
 
+// ------------------------------ ResizeBitCast
+
+// Same as BitCast on SVE
+template <class D, class FromV>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, v);
+}
+
 // ================================================== LOGICAL
 
 // detail::*N() functions accept a scalar argument to avoid extra Set().
