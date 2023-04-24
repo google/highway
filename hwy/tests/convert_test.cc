@@ -186,6 +186,7 @@ struct TestResizeBitCastToOneLaneVect {
     }
 
     auto from_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(from_lanes);
     auto v = Iota(d, 1);
     Store(v, d, from_lanes.get());
 
