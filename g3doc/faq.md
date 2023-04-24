@@ -2,6 +2,61 @@
 
 [[TOC]]
 
+## Getting started
+
+Q0.0: How do I **get the Highway library**?
+
+A: Highway is available in numerous package managers, e.g. under the name
+libhwy-dev. After installing, you can add it to your CMake-based build via
+`find_package(HWY 1.0.4)` and `target_link_libraries(your_project PRIVATE hwy)`.
+
+Alternatively, if using Git for version control, you can use Highway as a
+'submodule' by adding the following to .gitmodules:
+
+```
+[submodule "highway"]
+    path = highway
+    url = https://github.com/google/highway
+```
+
+Then, anyone who runs `git clone --recursive` on your repository will also get
+Highway. If not using Git, you can also manually download the
+[Highway code](https://github.com/google/highway/releases) and add it to your
+source tree.
+
+For building Highway yourself, the two best-supported build systems are CMake
+and Bazel. For the former, insert `add_subdirectory(highway)` into your
+CMakeLists.txt. For the latter, we provide a BUILD file and your project can
+reference it by adding `deps = ["//path/highway:hwy"]`.
+
+If you use another build system, add `hwy/per_target.cc` and `hwy/targets.cc` to
+your list of files to compile and link. As of writing, all other files are
+headers typically included via highway.h.
+
+If you are interested in a single-header version of Highway, please raise an
+issue so we can understand your use-case.
+
+Q0.1: What's the **easiest way to start using Highway**?
+
+A: Copy an existing file such as `hwy/examples/benchmark.cc` or `skeleton.cc` or
+another source already using Highway.
+This ensures that the 'boilerplate' (namespaces, include order) are correct.
+
+Then, in the function `RunBenchmarks` (for benchmark.cc) or `FloorLog2` (for
+skeleton.cc), you can insert your own code. For starters it can be written
+entirely in normal C++. This can still be beneficial because your code will be
+compiled with the appropriate flags for SIMD, which may allow the compiler to
+autovectorize your C++ code especially if it is straightforward integer code
+without conditional statements/branches.
+
+Next, you can wrap your code in `#if HWY_TARGET == HWY_SCALAR || HWY_TARGET ==
+HWY_EMU128` and into the `#else` branch, put a vectorized version of your code
+using the Highway intrinsics (see Documentation section below). If you also
+create a test by copying one of the source files in `hwy/tests/`, the Highway
+infrastructure will run your test for all supported targets. Because one of the
+targets SCALAR or EMU128 are always supported, this will ensure that your vector
+code behaves the same as your original code.
+
 ## Documentation
 
 Q1.1: How do I **find the Highway op name** corresponding to an existing
