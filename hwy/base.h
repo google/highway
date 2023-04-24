@@ -25,8 +25,9 @@
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
-#if (HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)) || HWY_COMPILER_MSVC
-#include <atomic>  // IWYU pragma: keep
+// "IWYU pragma: keep" does not work for this include, so hide it from the IDE.
+#if ((HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)) || HWY_COMPILER_MSVC) && !HWY_IDE
+#include <atomic>
 #endif
 // IWYU pragma: end_exports
 

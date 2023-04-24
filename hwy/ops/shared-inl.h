@@ -18,9 +18,13 @@
 // IWYU pragma: begin_exports
 // Export does not seem to be recursive, so re-export these (also in base.h)
 #include <stddef.h>
-#include <stdint.h>  // IWYU pragma: keep
 
 #include "hwy/base.h"
+// "IWYU pragma: keep" does not work for this include, so hide it from the IDE.
+#if !HWY_IDE
+#include <stdint.h>
+#endif
+
 #include "hwy/detect_compiler_arch.h"
 // IWYU pragma: end_exports
 
