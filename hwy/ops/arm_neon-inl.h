@@ -4373,6 +4373,29 @@ HWY_API VFromD<D> Reverse(D d, VFromD<D> v) {
   return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
 }
 
+// 8-bit
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> Reverse(D d, VFromD<D> v) {
+  switch (Lanes(d)) {
+    case 8:
+      return Reverse8(d, v);
+    case 4:
+      return Reverse4(d, v);
+    case 2:
+      return Reverse2(d, v);
+  }
+  return v;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> Reverse(D d, VFromD<D> v) {
+  RebindToUnsigned<decltype(d)> du;
+  // Reverse bytes in each 64-bit half then swap halves.
+  uint16x8_t result = vrev64q_u8(BitCast(du, v).raw);
+  result = vcombine_u8(vget_high_u8(result), vget_low_u8(result));
+  return BitCast(d, VFromD<decltype(du)>(result));
+}
+
 // ------------------------------ Reverse2
 
 // Per-target flag to prevent generic_ops-inl.h defining 8-bit Reverse2/4/8.

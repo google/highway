@@ -3431,6 +3431,14 @@ HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
 #endif
 }
 
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
+  alignas(32) static constexpr uint8_t kReverse[32] = {
+      31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
+      15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0};
+  return TableLookupLanes(v, SetTableIndices(d, kReverse));
+}
+
 // ------------------------------ Reverse2 (in x86_128)
 
 // ------------------------------ Reverse4 (SwapAdjacentBlocks)

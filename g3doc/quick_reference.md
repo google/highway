@@ -1385,8 +1385,7 @@ instead because they are more general:
     must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
     type `TI` must be an integer of the same size as `TFromD<D>`.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
+*   <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
 
 *   `V`: `{u,i}{16,32,64}` \

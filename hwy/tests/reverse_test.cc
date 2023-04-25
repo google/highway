@@ -217,9 +217,7 @@ class TestReverseBits {
 };
 
 HWY_NOINLINE void TestAllReverse() {
-  // 8-bit is not supported because Risc-V uses rgather of Lanes - Iota,
-  // which requires 16 bits.
-  ForUIF163264(ForPartialVectors<TestReverse>());
+  ForAllTypes(ForPartialVectors<TestReverse>());
 }
 
 HWY_NOINLINE void TestAllReverse2() {
