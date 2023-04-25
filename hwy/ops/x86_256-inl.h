@@ -3384,15 +3384,18 @@ HWY_API Vec256<double> TwoTablesLookupLanes(Vec256<double> a, Vec256<double> b,
 
 template <typename T>
 HWY_API Vec256<T> SwapAdjacentBlocks(Vec256<T> v) {
-  return Vec256<T>{_mm256_permute2x128_si256(v.raw, v.raw, 0x01)};
-}
-
-HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
-  return Vec256<float>{_mm256_permute2f128_ps(v.raw, v.raw, 0x01)};
+  return Vec256<T>{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
 }
 
 HWY_API Vec256<double> SwapAdjacentBlocks(Vec256<double> v) {
-  return Vec256<double>{_mm256_permute2f128_pd(v.raw, v.raw, 0x01)};
+  return Vec256<double>{_mm256_permute4x64_pd(v.raw, _MM_SHUFFLE(1, 0, 3, 2))};
+}
+
+HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
+  // Assume no domain-crossing penalty between float/double (true on SKX).
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return BitCast(d, SwapAdjacentBlocks(BitCast(dw, v)));
 }
 
 // ------------------------------ Reverse (RotateRight)
@@ -3969,11 +3972,11 @@ HWY_API Vec256<double> OddEvenBlocks(Vec256<double> odd, Vec256<double> even) {
   return Vec256<double>{_mm256_blend_pd(odd.raw, even.raw, 0x3u)};
 }
 
-// ------------------------------ ReverseBlocks (ConcatLowerUpper)
+// ------------------------------ ReverseBlocks (SwapAdjacentBlocks)
 
 template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> ReverseBlocks(D d, Vec256<T> v) {
-  return ConcatLowerUpper(d, v, v);
+HWY_API Vec256<T> ReverseBlocks(D /*d*/, Vec256<T> v) {
+  return SwapAdjacentBlocks(v);
 }
 
 // ------------------------------ TableLookupBytes (ZeroExtendVector)
@@ -6160,18 +6163,18 @@ HWY_API Vec256<int16_t> MaxOfLanes(hwy::SizeTag<2> /* tag */,
 
 // Supported for {uif}{32,64},{ui}16. Returns the broadcasted result.
 template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> SumOfLanes(D d, const Vec256<T> vHL) {
-  const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
+HWY_API Vec256<T> SumOfLanes(D /*d*/, const Vec256<T> vHL) {
+  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
   return detail::SumOfLanes(hwy::SizeTag<sizeof(T)>(), vLH + vHL);
 }
 template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MinOfLanes(D d, const Vec256<T> vHL) {
-  const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
+HWY_API Vec256<T> MinOfLanes(D /*d*/, const Vec256<T> vHL) {
+  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
   return detail::MinOfLanes(hwy::SizeTag<sizeof(T)>(), Min(vLH, vHL));
 }
 template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MaxOfLanes(D d, const Vec256<T> vHL) {
-  const Vec256<T> vLH = ConcatLowerUpper(d, vHL, vHL);
+HWY_API Vec256<T> MaxOfLanes(D /*d*/, const Vec256<T> vHL) {
+  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(T)>(), Max(vLH, vHL));
 }
 
