@@ -1770,6 +1770,21 @@ HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
 
 #endif  // HWY_PPC_HAVE_9
 
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec16<T> Reverse(D d, Vec16<T> v) {
+  return Reverse2(d, v);
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec32<T> Reverse(D d, Vec32<T> v) {
+  return Reverse4(d, v);
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec64<T> Reverse(D d, Vec64<T> v) {
+  return Reverse8(d, v);
+}
+
 // ------------------------------ Reverse2
 
 // Single lane: no change
