@@ -127,7 +127,7 @@ struct Key128 : public KeyAny128 {
   // False indicates the entire key should be compared. KV means key-value.
   static constexpr bool IsKV() { return false; }
 
-  // What type to pass to Sorter::operator().
+  // What type to pass to VQSort.
   using KeyType = hwy::uint128_t;
 
   const char* KeyString() const { return "U128"; }
@@ -282,7 +282,7 @@ struct KeyValue128 : public KeyAny128 {
   // compared. KV stands for key-value.
   static constexpr bool IsKV() { return true; }
 
-  // What type to pass to Sorter::operator().
+  // What type to pass to VQSort.
   using KeyType = K64V64;
 
   const char* KeyString() const { return "KV128"; }

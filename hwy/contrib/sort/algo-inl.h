@@ -364,17 +364,12 @@ InputStats<T> GenerateInput(const Dist dist, T* v, size_t num) {
   return input_stats;
 }
 
-struct ThreadLocal {
-  Sorter sorter;
-};
-
 struct SharedState {
 #if HAVE_PARALLEL_IPS4O
   const unsigned max_threads = hwy::LimitsMax<unsigned>();  // 16 for Table 1a
   ips4o::StdThreadPool pool{static_cast<int>(
       HWY_MIN(max_threads, std::thread::hardware_concurrency() / 2))};
 #endif
-  std::vector<ThreadLocal> tls{1};
 };
 
 // Bridge from keys (passed to Run) to lanes as expected by HeapSort. For
@@ -500,7 +495,7 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
       }
 
     case Algo::kVQSort:
-      return shared.tls[thread].sorter(inout, num, Order());
+      return VQSort(inout, num, Order());
 
     case Algo::kHeap:
       return CallHeapSort<Order>(inout, num);
