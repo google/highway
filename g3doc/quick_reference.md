@@ -1472,8 +1472,8 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     independent of the input values.
 
 *   `V`: `u8` \
-    <code>V **AESKeyGenAssist**&lt;uint8_t&gt;(V v)</code>: AES key generation
-    assist operation
+    <code>V **AESKeyGenAssist**&lt;uint8_t kRcon&gt;(V v)</code>: AES key
+    generation assist operation
 
     The AESKeyGenAssist operation is equivalent to doing the following, which
     matches the behavior of the x86 AES-NI AESKEYGENASSIST instruction:
