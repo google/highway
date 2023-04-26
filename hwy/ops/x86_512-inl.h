@@ -3918,6 +3918,25 @@ HWY_API Vec512<uint8_t> AESLastRoundInv(Vec512<uint8_t> state,
 #endif
 }
 
+template <uint8_t kRoundConstant>
+HWY_API Vec512<uint8_t> AESKeyGenAssist(Vec512<uint8_t> v) {
+  const Full512<uint8_t> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  alignas(16) static constexpr uint8_t kRconXorMask[16] = {
+      0, kRoundConstant, 0, 0, 0, 0, 0, 0, 0, kRoundConstant, 0, 0, 0, 0, 0, 0};
+  alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
+      0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
+  const Repartition<uint32_t, decltype(d)> du32;
+  const auto w13 = BitCast(d, DupOdd(BitCast(du32, v)));
+  const auto sub_word_result = AESLastRound(w13, Load(d, kRconXorMask));
+  return TableLookupBytes(sub_word_result, Load(d, kRotWordShuffle));
+#else
+  const Half<decltype(d)> d2;
+  return Combine(d, AESKeyGenAssist<kRoundConstant>(UpperHalf(d2, v)),
+                 AESKeyGenAssist<kRoundConstant>(LowerHalf(v)));
+#endif
+}
+
 HWY_API Vec512<uint64_t> CLMulLower(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
 #if HWY_TARGET <= HWY_AVX3_DL
   return Vec512<uint64_t>{_mm512_clmulepi64_epi128(va.raw, vb.raw, 0x00)};

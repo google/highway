@@ -253,6 +253,37 @@ HWY_NOINLINE void TestAllAESInverse() {
   ForGEVectors<128, TestAESInverse>()(uint8_t());
 }
 
+struct TestAESKeyGenAssist {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*t*/, D d) {
+    alignas(16) static constexpr uint8_t kTestVect1[16] = {
+        0x27, 0xCF, 0x73, 0xC3, 0x27, 0xCF, 0x73, 0xC3,
+        0x74, 0x01, 0x90, 0x5A, 0x74, 0x01, 0x90, 0x5A};
+    alignas(16) static constexpr uint8_t kExpectedResult1[16] = {
+        0xCC, 0x8A, 0x8F, 0x2E, 0xAA, 0x8F, 0x2E, 0xCC,
+        0x92, 0x7C, 0x60, 0xBE, 0x5C, 0x60, 0xBE, 0x92};
+
+    const auto expected_1 = LoadDup128(d, kExpectedResult1);
+    const auto actual_1 = AESKeyGenAssist<0x20>(LoadDup128(d, kTestVect1));
+    HWY_ASSERT_VEC_EQ(d, expected_1, actual_1);
+
+    alignas(16) static constexpr uint8_t kTestVect2[16] = {
+        0xD0, 0x14, 0xF9, 0xA8, 0x57, 0x5C, 0x00, 0x6E,
+        0xE1, 0x3F, 0x0C, 0xC8, 0xC9, 0xEE, 0x25, 0x89};
+    alignas(16) static constexpr uint8_t kExpectedResult2[16] = {
+        0x5B, 0x4A, 0x63, 0x9F, 0x7C, 0x63, 0x9F, 0x5B,
+        0xDD, 0x28, 0x3F, 0xA7, 0x1E, 0x3F, 0xA7, 0xDD};
+
+    const auto expected_2 = LoadDup128(d, kExpectedResult2);
+    const auto actual_2 = AESKeyGenAssist<0x36>(LoadDup128(d, kTestVect2));
+    HWY_ASSERT_VEC_EQ(d, expected_2, actual_2);
+  }
+};
+
+HWY_NOINLINE void TestAllAESKeyGenAssist() {
+  ForGEVectors<128, TestAESKeyGenAssist>()(uint8_t());
+}
+
 #else
 HWY_NOINLINE void TestAllAES() {}
 HWY_NOINLINE void TestAllAESInverse() {}
