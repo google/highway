@@ -295,11 +295,8 @@ class TestTruncatingResizeBitCast {
     const VFromD<DTo> actual_1 = ResizeBitCast(d_to, v);
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_1);
 
-    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, v);
+    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, d_from, v);
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
-
-    const VFromD<DTo> actual_3 = ZeroExtendResizeBitCast(d_to, d_from, v);
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_3);
   }
 #endif  // HWY_TARGET != HWY_SCALAR
  public:
@@ -312,8 +309,6 @@ class TestTruncatingResizeBitCast {
     const auto v_full = Iota(d, 1);
     const VFromD<decltype(dh)> expected_full_to_half = LowerHalf(dh, v_full);
     HWY_ASSERT_VEC_EQ(dh, expected_full_to_half, ResizeBitCast(dh, v_full));
-    HWY_ASSERT_VEC_EQ(dh, expected_full_to_half,
-                      ZeroExtendResizeBitCast(dh, v_full));
     HWY_ASSERT_VEC_EQ(dh, expected_full_to_half,
                       ZeroExtendResizeBitCast(dh, d, v_full));
 
@@ -369,18 +364,11 @@ class TestExtendingResizeBitCast {
     const VFromD<DFrom> v = Iota(d_from, 1);
 
     const VFromD<DTo> actual_1 = ResizeBitCast(d_to, v);
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
-    const VFromD<DTo> actual_2 =
-        IfThenElseZero(active_elements_mask, ZeroExtendResizeBitCast(d_to, v));
-#else
-    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, v);
-#endif
-    const VFromD<DTo> actual_3 = ZeroExtendResizeBitCast(d_to, d_from, v);
+    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, d_from, v);
 
     HWY_ASSERT_VEC_EQ(d_to, expected,
                       IfThenElseZero(active_elements_mask, actual_1));
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_3);
   }
   template <class DFrom>
   static HWY_INLINE void DoExtResizeBitCastToTwiceDTest(DFrom d_from) {
@@ -392,18 +380,11 @@ class TestExtendingResizeBitCast {
     const VFromD<DTo> expected = ZeroExtendVector(d_to, v);
 
     const VFromD<DTo> actual_1 = ResizeBitCast(d_to, v);
-    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, v);
-    const VFromD<DTo> actual_3 = ZeroExtendResizeBitCast(d_to, d_from, v);
+    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, d_from, v);
 
     HWY_ASSERT_VEC_EQ(d_from, v, LowerHalf(d_from, actual_1));
     HWY_ASSERT_VEC_EQ(d_from, v, LowerHalf(d_from, actual_2));
-    HWY_ASSERT_VEC_EQ(d_from, v, LowerHalf(d_from, actual_3));
-
-#if !HWY_HAVE_SCALABLE && HWY_TARGET != HWY_SVE_256 && \
-    HWY_TARGET != HWY_SVE2_128
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
-#endif
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_3);
   }
 #endif  // HWY_TARGET != HWY_SCALAR
  public:

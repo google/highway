@@ -159,16 +159,9 @@ HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
 template <class DTo, class DFrom>
 HWY_API VFromD<DTo> ZeroExtendResizeBitCast(DTo d_to, DFrom d_from,
                                             VFromD<DFrom> v) {
-  using TFrom = TFromD<DFrom>;
-  using TTo = TFromD<DTo>;
-  return detail::ZeroExtendResizeBitCast(
-      hwy::SizeTag<HWY_MAX_LANES_D(DFrom) * sizeof(TFrom)>(),
-      hwy::SizeTag<HWY_MAX_LANES_D(DTo) * sizeof(TTo)>(), d_to, d_from, v);
-}
-
-template <class DTo, class FromV>
-HWY_API VFromD<DTo> ZeroExtendResizeBitCast(DTo d_to, FromV v) {
-  return ZeroExtendResizeBitCast(d_to, DFromV<decltype(v)>(), v);
+  return detail::ZeroExtendResizeBitCast(hwy::SizeTag<d_from.MaxBytes()>(),
+                                         hwy::SizeTag<d_to.MaxBytes()>(), d_to,
+                                         d_from, v);
 }
 
 // ------------------------------ SafeFillN

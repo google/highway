@@ -208,17 +208,10 @@ struct TestResizeBitCastToOneLaneVect {
     const auto v_active_bits_mask = Set(d_to, active_bits_int_mask);
 
     const auto actual_1 = And(v_active_bits_mask, ResizeBitCast(d_to, v));
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
-    const auto actual_2 =
-        And(v_active_bits_mask, ZeroExtendResizeBitCast(d_to, v));
-#else
-    const auto actual_2 = ZeroExtendResizeBitCast(d_to, v);
-#endif
-    const auto actual_3 = ZeroExtendResizeBitCast(d_to, d, v);
+    const auto actual_2 = ZeroExtendResizeBitCast(d_to, d, v);
 
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_1);
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_3);
   }
 };
 
@@ -240,12 +233,10 @@ struct TestSameSizeResizeBitCast {
     const auto expected = BitCast(dto, v);
 
     const VFromD<decltype(dto)> actual_1 = ResizeBitCast(dto, v);
-    const VFromD<decltype(dto)> actual_2 = ZeroExtendResizeBitCast(dto, v);
-    const VFromD<decltype(dto)> actual_3 = ZeroExtendResizeBitCast(dto, d, v);
+    const VFromD<decltype(dto)> actual_2 = ZeroExtendResizeBitCast(dto, d, v);
 
     HWY_ASSERT_VEC_EQ(dto, expected, actual_1);
     HWY_ASSERT_VEC_EQ(dto, expected, actual_2);
-    HWY_ASSERT_VEC_EQ(dto, expected, actual_3);
   }
 };
 
