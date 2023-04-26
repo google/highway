@@ -2387,8 +2387,9 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
   return IndicesFromVec(d, LoadU(Rebind<TI, D>(), idx));
 }
 
-// <32bit are not part of Highway API, but used in Broadcast. This limits VLMAX
-// to 2048! We could instead use vrgatherei16.
+// TODO(janwas): avoid using this for 8-bit; wrap in detail namespace.
+// For large 8-bit vectors, index overflow will lead to incorrect results.
+// Reverse already uses TableLookupLanes16 to prevent this.
 #define HWY_RVV_TABLE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
                       MLEN, NAME, OP)                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
