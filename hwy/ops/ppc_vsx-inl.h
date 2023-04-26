@@ -1781,6 +1781,21 @@ HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
 
 #endif  // HWY_PPC_HAVE_9
 
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec16<T> Reverse(D d, Vec16<T> v) {
+  return Reverse2(d, v);
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec32<T> Reverse(D d, Vec32<T> v) {
+  return Reverse4(d, v);
+}
+
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec64<T> Reverse(D d, Vec64<T> v) {
+  return Reverse8(d, v);
+}
+
 // ------------------------------ Reverse2
 
 // Single lane: no change
@@ -2985,6 +3000,21 @@ HWY_API Vec128<uint8_t> AESInvMixColumns(Vec128<uint8_t> state) {
   // by doing an AESLastRound operation with a zero round_key followed by an
   // AESRoundInv operation with a zero round_key.
   return AESRoundInv(AESLastRound(state, zero), zero);
+}
+
+template <uint8_t kRcon>
+HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
+  constexpr __vector unsigned char kRconXorMask = {
+      0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0};
+  constexpr __vector unsigned char kRotWordShuffle = {
+      4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12};
+  const detail::CipherTag dc;
+  const Full128<uint8_t> du8;
+  const auto sub_word_result =
+      BitCast(du8, detail::CipherVec{vec_sbox_be(BitCast(dc, v).raw)});
+  const auto rot_word_result =
+      TableLookupBytes(sub_word_result, Vec128<uint8_t>{kRotWordShuffle});
+  return Xor(rot_word_result, Vec128<uint8_t>{kRconXorMask});
 }
 
 template <size_t N>

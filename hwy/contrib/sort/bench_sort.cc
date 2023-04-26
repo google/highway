@@ -25,6 +25,7 @@
 
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"
+#include "hwy/contrib/sort/vqsort.h"
 #include "hwy/contrib/sort/result-inl.h"
 #include "hwy/contrib/sort/sorting_networks-inl.h"  // SharedTraits
 #include "hwy/contrib/sort/traits-inl.h"
@@ -67,16 +68,15 @@ HWY_NOINLINE void BenchPartition() {
   const Dist dist = Dist::kUniform8;
   double sum = 0.0;
 
-  detail::Generator rng(&sum, 123);  // for ChoosePivot
+  HWY_ALIGN LaneType
+      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES) / sizeof(LaneType)];
+  uint64_t* HWY_RESTRICT state = GetGeneratorState();
 
   const size_t max_log2 = AdjustedLog2Reps(20);
   for (size_t log2 = max_log2; log2 < max_log2 + 1; ++log2) {
     const size_t num_lanes = 1ull << log2;
     const size_t num_keys = num_lanes / st.LanesPerKey();
     auto aligned = hwy::AllocateAligned<LaneType>(num_lanes);
-    auto buf = hwy::AllocateAligned<LaneType>(
-        HWY_MAX(hwy::SortConstants::PartitionBufNum(Lanes(d)),
-                hwy::SortConstants::PivotBufNum(sizeof(LaneType), Lanes(d))));
 
     std::vector<double> seconds;
     const size_t num_reps = (1ull << (14 - log2 / 2)) * 30;
@@ -86,12 +86,12 @@ HWY_NOINLINE void BenchPartition() {
       // The pivot value can influence performance. Do exactly what vqsort will
       // do so that the performance (influenced by prefetching and branch
       // prediction) is likely to predict the actual performance inside vqsort.
-      detail::DrawSamples(d, st, aligned.get(), num_lanes, buf.get(), rng);
-      detail::SortSamples(d, st, buf.get());
-      auto pivot = detail::ChoosePivotByRank(d, st, buf.get());
+      detail::DrawSamples(d, st, aligned.get(), num_lanes, buf, state);
+      detail::SortSamples(d, st, buf);
+      auto pivot = detail::ChoosePivotByRank(d, st, buf);
 
       const Timestamp t0;
-      detail::Partition(d, st, aligned.get(), num_lanes - 1, pivot, buf.get());
+      detail::Partition(d, st, aligned.get(), num_lanes - 1, pivot, buf);
       seconds.push_back(SecondsSince(t0));
       // 'Use' the result to prevent optimizing out the partition.
       sum += static_cast<double>(aligned.get()[num_lanes / 2]);
@@ -274,7 +274,7 @@ HWY_NOINLINE void BenchAllSort() {
 #if HAVE_PARALLEL_IPS4O || SORT_100M
          100 * M,
 #else
-        100 * K,
+        size_t{100}, 100 * K
 #endif
        }) {
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);

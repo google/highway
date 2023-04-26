@@ -2862,6 +2862,24 @@ HWY_API Vec512<double> TwoTablesLookupLanes(Vec512<double> a, Vec512<double> b,
 
 // ------------------------------ Reverse
 
+template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  const RebindToSigned<decltype(d)> di;
+  alignas(64) static constexpr int8_t kReverse[64] = {
+      63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48,
+      47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32,
+      31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
+      15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0};
+  const Vec512<int8_t> idx = Load(di, kReverse);
+  return BitCast(
+      d, Vec512<int8_t>{_mm512_permutexvar_epi8(idx.raw, BitCast(di, v).raw)});
+#else
+  const RepartitionToWide<decltype(d)> d16;
+  return BitCast(d, Reverse(d16, RotateRight<8>(BitCast(d16, v))));
+#endif
+}
+
 template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec512<T> Reverse(D d, const Vec512<T> v) {
   const RebindToSigned<decltype(d)> di;
@@ -3977,6 +3995,25 @@ HWY_API Vec512<uint8_t> AESLastRoundInv(Vec512<uint8_t> state,
   return Combine(
       d, AESLastRoundInv(UpperHalf(d2, state), UpperHalf(d2, round_key)),
       AESLastRoundInv(LowerHalf(state), LowerHalf(round_key)));
+#endif
+}
+
+template <uint8_t kRcon>
+HWY_API Vec512<uint8_t> AESKeyGenAssist(Vec512<uint8_t> v) {
+  const Full512<uint8_t> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  alignas(16) static constexpr uint8_t kRconXorMask[16] = {
+      0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0};
+  alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
+      0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
+  const Repartition<uint32_t, decltype(d)> du32;
+  const auto w13 = BitCast(d, DupOdd(BitCast(du32, v)));
+  const auto sub_word_result = AESLastRound(w13, Load(d, kRconXorMask));
+  return TableLookupBytes(sub_word_result, Load(d, kRotWordShuffle));
+#else
+  const Half<decltype(d)> d2;
+  return Combine(d, AESKeyGenAssist<kRcon>(UpperHalf(d2, v)),
+                 AESKeyGenAssist<kRcon>(LowerHalf(v)));
 #endif
 }
 

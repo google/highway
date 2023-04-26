@@ -1403,8 +1403,7 @@ instead because they are more general:
     must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
     type `TI` must be an integer of the same size as `TFromD<D>`.
 
-*   `V`: `{u,i,f}{16,32,64}` \
-    <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
+*   <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).
 
 *   `V`: `{u,i}{16,32,64}` \
@@ -1489,6 +1488,24 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     the AES decryption algorithm. AESInvMixColumns is used in the key expansion
     step of the AES Equivalent Inverse Cipher algorithm. The latency is
     independent of the input values.
+
+*   `V`: `u8` \
+    <code>V **AESKeyGenAssist**&lt;uint8_t kRcon&gt;(V v)</code>: AES key
+    generation assist operation
+
+    The AESKeyGenAssist operation is equivalent to doing the following, which
+    matches the behavior of the x86 AES-NI AESKEYGENASSIST instruction:
+    *  Applying the AES SubBytes operation to each byte of `v`.
+    *  Doing a TableLookupBytes operation on each 128-bit block of the
+       result of the `SubBytes(v)` operation with the following indices
+       (which is broadcast to each 128-bit block in the case of vectors with 32
+       or more lanes):
+       `{4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12}`
+    *  Doing a bitwise XOR operation with the following vector (where `kRcon`
+       is the rounding constant that is the first template argument of the
+       AESKeyGenAssist function and where the below vector is broadcasted to
+       each 128-bit block in the case of vectors with 32 or more lanes):
+       `{0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0}`
 
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the

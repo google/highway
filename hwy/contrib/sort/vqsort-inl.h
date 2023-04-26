@@ -17,28 +17,14 @@
 #ifndef HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
-#ifndef VQSORT_PRINT
-#define VQSORT_PRINT 0
-#endif
-
-// Makes it harder for adversaries to predict our sampling locations, at the
-// cost of 1-2% increased runtime.
-#ifndef VQSORT_SECURE_RNG
-#define VQSORT_SECURE_RNG 0
-#endif
-
-#if VQSORT_SECURE_RNG
-#include "third_party/absl/random/random.h"
-#endif
-
 #include <stdio.h>  // unconditional #include so we can use if(VQSORT_PRINT).
 #include <string.h>  // memcpy
 
 #include "hwy/cache_control.h"        // Prefetch
 #include "hwy/contrib/sort/vqsort.h"  // Fill24Bytes
 
-#if HWY_IS_MSAN
-#include <sanitizer/msan_interface.h>
+#ifndef VQSORT_PRINT
+#define VQSORT_PRINT 0
 #endif
 
 #endif  // HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
@@ -68,17 +54,7 @@ namespace detail {
 
 using Constants = hwy::SortConstants;
 
-// Wrappers to avoid #if in user code (interferes with code folding)
-
-HWY_INLINE void UnpoisonIfMemorySanitizer(void* p, size_t bytes) {
-#if HWY_IS_MSAN
-  __msan_unpoison(p, bytes);
-#else
-  (void)p;
-  (void)bytes;
-#endif
-}
-
+// Wrapper avoids #if in user code (interferes with code folding)
 template <class D>
 HWY_INLINE void MaybePrintVector(D d, const char* label, Vec<D> v,
                                  size_t start = 0, size_t max_lanes = 16) {
@@ -722,42 +698,18 @@ HWY_INLINE V MedianOf3(Traits st, V v0, V v1, V v2) {
   return v1;
 }
 
-#if VQSORT_SECURE_RNG
-using Generator = absl::BitGen;
-#else
 // Based on https://github.com/numpy/numpy/issues/16313#issuecomment-641897028
-#pragma pack(push, 1)
-class Generator {
- public:
-  Generator(const void* heap, size_t num) {
-    Sorter::Fill24Bytes(heap, num, &a_);
-    k_ = 1;  // stream index: must be odd
-  }
-
-  explicit Generator(uint64_t seed) {
-    a_ = b_ = w_ = seed;
-    k_ = 1;
-  }
-
-  uint64_t operator()() {
-    const uint64_t b = b_;
-    w_ += k_;
-    const uint64_t next = a_ ^ w_;
-    a_ = (b + (b << 3)) ^ (b >> 11);
-    const uint64_t rot = (b << 24) | (b >> 40);
-    b_ = rot + next;
-    return next;
-  }
-
- private:
-  uint64_t a_;
-  uint64_t b_;
-  uint64_t w_;
-  uint64_t k_;  // increment
-};
-#pragma pack(pop)
-
-#endif  // !VQSORT_SECURE_RNG
+HWY_INLINE uint64_t RandomBits(uint64_t* HWY_RESTRICT state) {
+  const uint64_t a = state[0];
+  const uint64_t b = state[1];
+  const uint64_t w = state[2] + 1;
+  const uint64_t next = a ^ w;
+  state[0] = (b + (b << 3)) ^ (b >> 11);
+  const uint64_t rot = (b << 24) | (b >> 40);
+  state[1] = rot + next;
+  state[2] = w;
+  return next;
+}
 
 // Returns slightly biased random index of a chunk in [0, num_chunks).
 // See https://www.pcg-random.org/posts/bounded-rands.html.
@@ -770,7 +722,7 @@ HWY_INLINE size_t RandomChunkIndex(const uint32_t num_chunks, uint32_t bits) {
 // Writes samples from `keys[0, num)` into `buf`.
 template <class D, class Traits, typename T>
 HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-                            T* HWY_RESTRICT buf, Generator& rng) {
+                            T* HWY_RESTRICT buf, uint64_t* HWY_RESTRICT state) {
   using V = decltype(Zero(d));
   const size_t N = Lanes(d);
 
@@ -789,11 +741,11 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   }
 
   // Generate enough random bits for 9 uint32
-  uint64_t* bits64 = reinterpret_cast<uint64_t*>(buf);
-  for (size_t i = 0; i < 5; ++i) {
-    bits64[i] = rng();
+  uint32_t bits[10];
+  for (size_t i = 0; i < 10; i += 2) {
+    const uint64_t bits64 = RandomBits(state);
+    CopyBytes<8>(&bits64, bits + i);
   }
-  const uint32_t* bits = reinterpret_cast<const uint32_t*>(buf);
 
   const size_t num_chunks64 = num / kLanesPerChunk;
   // Clamp to uint32 for RandomChunkIndex
@@ -856,19 +808,31 @@ HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
 
 template <class D, class Traits, typename T>
 HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
-  // buf contains 192 bytes, so 16 128-bit vectors are necessary and sufficient.
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
-  const CappedTag<T, 16 / sizeof(T)> d128;
-  const size_t N128 = Lanes(d128);
-  constexpr size_t kCols = HWY_MIN(16 / sizeof(T), Constants::kMaxCols);
-  constexpr size_t kBytes = kCols * Constants::kMaxRows * sizeof(T);
-  static_assert(192 <= kBytes, "");
-  // Fill with padding - last in sort order.
-  const auto kPadding = st.LastValue(d128);
+  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);  // valid samples
+  // 16 rows x 16 bytes of columns is the smallest matrix that will cover the
+  // valid samples. We assume the network is big enough for that.
+  constexpr size_t kCols = 16 / sizeof(T);
+  static_assert(kCols <= Constants::kMaxCols, "kMaxCols too small");
+
+  // SortingNetwork is going to load 16 of these vectors, which may be larger
+  // than d, but they overlap so we do not have to initialize all of them.
+  const CappedTag<T, Constants::kMaxCols> d_max;
+#if HWY_IS_MSAN
+  // Ensure the last capped vector we load is fully initialized.
+  const size_t bytes_to_fill = ((15 * kCols) + Lanes(d_max)) * sizeof(T);
+#else
+  // Only initialize the lanes that will actually be merged.
+  const size_t bytes_to_fill = 16 * kCols * sizeof(T);
+#endif
+  HWY_DASSERT(192 <= bytes_to_fill && bytes_to_fill < 16 * 64);
+
+  // Pad after the valid samples, with the value that is last in sort order.
+  const auto kPadding = st.LastValue(d_max);
   // Initialize an extra vector because SortingNetwork loads full vectors,
   // which may exceed cols*kMaxRows.
-  for (size_t i = kSampleLanes; i <= kBytes / sizeof(T); i += N128) {
-    StoreU(kPadding, d128, buf + i);
+  for (size_t i = kSampleLanes; i <= bytes_to_fill / sizeof(T);
+       i += Lanes(d_max)) {
+    StoreU(kPadding, d_max, buf + i);
   }
 
   SortingNetwork(st, buf, kCols);
@@ -1291,7 +1255,7 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           T* HWY_RESTRICT keys_end, const size_t num,
-                          T* HWY_RESTRICT buf, Generator& rng,
+                          T* HWY_RESTRICT buf, uint64_t* HWY_RESTRICT state,
                           const size_t remaining_levels) {
   HWY_DASSERT(num != 0);
 
@@ -1307,7 +1271,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     PrintMinMax(d, st, keys, num, buf);
   }
 
-  DrawSamples(d, st, keys, num, buf, rng);
+  DrawSamples(d, st, keys, num, buf, state);
 
   Vec<D> pivot;
   PivotResult result = PivotResult::kNormal;
@@ -1372,14 +1336,16 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // have at least one value <= pivot because AllEqual ruled out the case of
   // only one unique value, and there is exactly one value after pivot).
   HWY_DASSERT(bound != 0);
-  // ChoosePivot* ensure pivot != last, so the right partition is never empty.
-  HWY_DASSERT(bound != num);
+  // ChoosePivot* ensure pivot != last, so the right partition is never empty
+  // except in the rare case of the pivot matching the last-in-sort-order value,
+  // which implies we anyway skip the right partition due to kWasLast.
+  HWY_DASSERT(bound != num || result == PivotResult::kWasLast);
 
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
-    Recurse(d, st, keys, keys_end, bound, buf, rng, remaining_levels - 1);
+    Recurse(d, st, keys, keys_end, bound, buf, state, remaining_levels - 1);
   }
   if (HWY_LIKELY(result != PivotResult::kWasLast)) {
-    Recurse(d, st, keys + bound, keys_end, num - bound, buf, rng,
+    Recurse(d, st, keys + bound, keys_end, num - bound, buf, state,
             remaining_levels - 1);
   }
 }
@@ -1387,9 +1353,19 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
 // Returns true if sorting is finished.
 template <class D, class Traits, typename T>
 HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
-                                   size_t num) {
+                                   size_t num, T* HWY_RESTRICT buf) {
+  // Already sorted.
+  if (HWY_UNLIKELY(num <= 1)) return true;
+
   const size_t N = Lanes(d);
   const size_t base_case_num = Constants::BaseCaseNum(N);
+
+  // Recurse will also check this, but doing so here first avoids setting up
+  // the random generator state.
+  if (HWY_UNLIKELY(num <= base_case_num)) {
+    BaseCase(d, st, keys, keys + num, num, buf);
+    return true;
+  }
 
   // 128-bit keys require vectors with at least two u64 lanes, which is always
   // the case unless `d` requests partial vectors (e.g. fraction = 1/2) AND the
@@ -1422,6 +1398,41 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 #endif  // VQSORT_ENABLED
 }  // namespace detail
 
+// Old interface with user-specified buffer, retained for compatibility.
+// `buf` must be vector-aligned and hold at least
+// SortConstants::BufBytes(HWY_MAX_BYTES).
+template <class D, class Traits, typename T>
+void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+          T* HWY_RESTRICT buf) {
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "=============== Sort num %zu\n", num);
+  }
+
+#if VQSORT_ENABLED || HWY_IDE
+  if (detail::HandleSpecialCases(d, st, keys, num, buf)) return;
+
+#if HWY_MAX_BYTES > 64
+  // sorting_networks-inl and traits assume no more than 512 bit vectors.
+  if (HWY_UNLIKELY(Lanes(d) > 64 / sizeof(T))) {
+    return Sort(CappedTag<T, 64 / sizeof(T)>(), st, keys, num, buf);
+  }
+#endif  // HWY_MAX_BYTES > 64
+
+  uint64_t* HWY_RESTRICT state = GetGeneratorState();
+  // Introspection: switch to worst-case N*logN heapsort after this many.
+  // Should never be reached, so computing log2 exactly does not help.
+  const size_t max_levels = 50;
+  detail::Recurse(d, st, keys, keys + num, num, buf, state, max_levels);
+#else   // !VQSORT_ENABLED
+  (void)d;
+  (void)buf;
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
+  }
+  return detail::HeapSort(st, keys, num);
+#endif  // VQSORT_ENABLED
+}
+
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.
 // In-place i.e. O(1) additional storage. Worst-case N*logN comparisons.
 // Non-stable (order of equal keys may change), except for the common case where
@@ -1434,45 +1445,9 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 // `st` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
 //   differences in sort order and single-lane vs 128-bit keys.
 template <class D, class Traits, typename T>
-void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-          T* HWY_RESTRICT buf) {
-  if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "=============== Sort num %zu\n", num);
-  }
-
-#if VQSORT_ENABLED || HWY_IDE
-#if !HWY_HAVE_SCALABLE
-  // On targets with fixed-size vectors, avoid _using_ the allocated memory.
-  // We avoid (potentially expensive for small input sizes) allocations on
-  // platforms where no targets are scalable. For 512-bit vectors, this fits on
-  // the stack (several KiB).
-  HWY_ALIGN T storage[SortConstants::BufNum<T>(HWY_LANES(T))] = {};
-  static_assert(sizeof(storage) <= 8192, "Unexpectedly large, check size");
-  buf = storage;
-#endif  // !HWY_HAVE_SCALABLE
-
-  if (detail::HandleSpecialCases(d, st, keys, num)) return;
-
-#if HWY_MAX_BYTES > 64
-  // sorting_networks-inl and traits assume no more than 512 bit vectors.
-  if (HWY_UNLIKELY(Lanes(d) > 64 / sizeof(T))) {
-    return Sort(CappedTag<T, 64 / sizeof(T)>(), st, keys, num, buf);
-  }
-#endif  // HWY_MAX_BYTES > 64
-
-  detail::Generator rng(keys, num);
-
-  // Introspection: switch to worst-case N*logN heapsort after this many.
-  const size_t max_levels = 2 * hwy::CeilLog2(num) + 4;
-  detail::Recurse(d, st, keys, keys + num, num, buf, rng, max_levels);
-#else
-  (void)d;
-  (void)buf;
-  if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
-  }
-  return detail::HeapSort(st, keys, num);
-#endif  // VQSORT_ENABLED
+HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num) {
+  HWY_ALIGN T buf[SortConstants::BufBytes<T>(HWY_MAX_BYTES) / sizeof(T)];
+  return Sort(d, st, keys, num, buf);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

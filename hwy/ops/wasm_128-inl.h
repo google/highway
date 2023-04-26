@@ -2768,6 +2768,16 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
   return BitCast(d, RotateRight<16>(Reverse(du32, BitCast(du32, v))));
 }
 
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
+  static constexpr int kN = 16 + Lanes(d);
+  return VFromD<D>{wasm_i8x16_shuffle(
+      v.raw, v.raw,
+      // kN is adjusted to ensure we have valid indices for all lengths.
+      kN - 1, kN - 2, kN - 3, kN - 4, kN - 5, kN - 6, kN - 7, kN - 8, kN - 9,
+      kN - 10, kN - 11, kN - 12, kN - 13, kN - 14, kN - 15, kN - 16)};
+}
+
 // ------------------------------ Reverse2
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>

@@ -39,6 +39,7 @@ Potentially useful for comparing neighbors e.g. for RLE.
 ### RVV codegen
 
 *   New tuple interface for segment load/store
+*   Use new mask<->vec cast instruction, possibly for OddEven, ExpandLoad
 *   `rgather_vx` for broadcasting redsum result?
 *   Fix remaining 8-bit table lookups for large vectors (`Broadcast`,
     `Interleave`, `LoadDup128`): use 64-bit for initial shuffle. For

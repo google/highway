@@ -602,6 +602,7 @@ template <class Traits, class V>
 HWY_INLINE void SortingNetwork(Traits st, size_t cols, V& v0, V& v1, V& v2,
                                V& v3, V& v4, V& v5, V& v6, V& v7, V& v8, V& v9,
                                V& va, V& vb, V& vc, V& vd, V& ve, V& vf) {
+  // traits*-inl assume 'full' vectors (but still capped to kMaxCols).
   const CappedTag<typename Traits::LaneType, Constants::kMaxCols> d;
 
   HWY_DASSERT(cols <= Constants::kMaxCols);
@@ -647,6 +648,9 @@ HWY_INLINE void SortingNetwork(Traits st, size_t cols, V& v0, V& v1, V& v2,
 // NOINLINE because this is large and called twice from vqsort-inl.h.
 template <class Traits, typename T>
 HWY_NOINLINE void SortingNetwork(Traits st, T* HWY_RESTRICT buf, size_t cols) {
+  // traits*-inl assume 'full' vectors (but still capped to kMaxCols).
+  // However, for smaller arrays and sub-maximal `cols` we have overlapping
+  // loads where only the lowest `cols` are valid, and we skip Merge16 etc.
   const CappedTag<T, Constants::kMaxCols> d;
   using V = decltype(Zero(d));
 

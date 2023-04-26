@@ -282,8 +282,8 @@ static HWY_NOINLINE void TestPartition() {
   // left + len + align
   const size_t total = 32 + (base_case_num + 4 * HWY_MAX(N, 4)) + 2 * N;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(total);
-  auto buf = hwy::AllocateAligned<LaneType>(SortConstants::PartitionBufNum(N));
-  HWY_ASSERT(aligned_lanes && buf);
+  HWY_ALIGN LaneType
+      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES) / sizeof(LaneType)];
 
   const size_t N1 = st.LanesPerKey();
   for (bool in_asc : {false, true}) {
@@ -330,9 +330,8 @@ static HWY_NOINLINE void TestPartition() {
               lanes[i] = hwy::LowestValue<LaneType>();
             }
 
-            size_t border =
-                left + detail::Partition(d, st, lanes + left, right - left,
-                                         pivot, buf.get());
+            size_t border = left + detail::Partition(d, st, lanes + left,
+                                                     right - left, pivot, buf);
 
             if (kDebug >= 2) {
               printf("out>>>>>>\n");
@@ -394,7 +393,18 @@ static HWY_NOINLINE void TestRandomGenerator() {
   SortTag<TU> du;
   const size_t N = Lanes(du);
 
-  detail::Generator rng(&N, N);
+  uint64_t* state = GetGeneratorState();
+
+  // Ensure lower and upper 32 bits are uniformly distributed.
+  uint64_t sum_lo = 0, sum_hi = 0;
+  for (size_t i = 0; i < 1000; ++i) {
+    const uint64_t bits = detail::RandomBits(state);
+    sum_lo += bits & 0xFFFFFFFF;
+    sum_hi += bits >> 32;
+  }
+  const double expected = 1000 * (1ULL << 31);
+  HWY_ASSERT(0.9 * expected <= sum_lo && sum_lo <= 1.1 * expected);
+  HWY_ASSERT(0.9 * expected <= sum_hi && sum_hi <= 1.1 * expected);
 
   const size_t lanes_per_block = HWY_MAX(64 / sizeof(TU), N);  // power of two
 
@@ -404,7 +414,7 @@ static HWY_NOINLINE void TestRandomGenerator() {
     uint64_t sum = 0;
     constexpr size_t kReps = 10000;
     for (size_t rep = 0; rep < kReps; ++rep) {
-      const uint32_t bits = rng() & 0xFFFFFFFF;
+      const uint32_t bits = detail::RandomBits(state) & 0xFFFFFFFF;
       const size_t index = detail::RandomChunkIndex(num_blocks, bits);
       HWY_ASSERT(((index + 1) * lanes_per_block) <=
                  num_blocks * lanes_per_block);
@@ -589,7 +599,7 @@ void TestAllSort() {
     // generating denormal inputs.
     TestSort<TraitsLane<OrderAscending<float> > >(num_lanes);
 #if HWY_HAVE_FLOAT64  // protects algo-inl's GenerateRandom
-    if (Sorter::HaveFloat64()) {
+    if (HWY_HAVE_FLOAT64) {
       TestSort<TraitsLane<OrderDescending<double> > >(num_lanes);
     }
 #endif

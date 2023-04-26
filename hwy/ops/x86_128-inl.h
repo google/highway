@@ -4576,6 +4576,24 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
 #endif
 }
 
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN == 1) return v;
+#if HWY_TARGET <= HWY_SSE3
+  // NOTE: Lanes with negative shuffle control mask values are set to zero.
+  alignas(16) constexpr int8_t kReverse[16] = {
+      kN - 1, kN - 2,  kN - 3,  kN - 4,  kN - 5,  kN - 6,  kN - 7,  kN - 8,
+      kN - 9, kN - 10, kN - 11, kN - 12, kN - 13, kN - 14, kN - 15, kN - 16};
+  const RebindToSigned<decltype(d)> di;
+  const VFromD<decltype(di)> idx = Load(di, kReverse);
+  return VFromD<D>{_mm_shuffle_epi8(BitCast(di, v).raw, idx.raw)};
+#else
+  const RepartitionToWide<decltype(d)> d16;
+  return BitCast(d, Reverse(d16, RotateRight<8>(BitCast(d16, v))));
+#endif
+}
+
 // ------------------------------ Reverse2
 
 // Single lane: no change
@@ -7188,6 +7206,11 @@ HWY_API Vec128<uint8_t> AESRoundInv(Vec128<uint8_t> state,
 HWY_API Vec128<uint8_t> AESLastRoundInv(Vec128<uint8_t> state,
                                         Vec128<uint8_t> round_key) {
   return Vec128<uint8_t>{_mm_aesdeclast_si128(state.raw, round_key.raw)};
+}
+
+template <uint8_t kRcon>
+HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
+  return Vec128<uint8_t>{_mm_aeskeygenassist_si128(v.raw, kRcon)};
 }
 
 template <size_t N>

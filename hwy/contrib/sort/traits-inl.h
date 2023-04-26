@@ -40,7 +40,7 @@ struct KeyLaneBase {
 
   // What type bench_sort should allocate for generating inputs.
   using LaneType = T;
-  // What type to pass to Sorter::operator().
+  // What type to pass to VQSort.
   using KeyType = T;
 
   const char* KeyString() const {

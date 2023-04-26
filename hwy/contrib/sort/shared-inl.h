@@ -26,8 +26,9 @@ namespace hwy {
 // Internal constants - these are to avoid magic numbers/literals and cannot be
 // changed without also changing the associated code.
 struct SortConstants {
-// SortingNetwork reshapes its input into a matrix. This is the maximum number
-// of *lanes* per vector.
+  // SortingNetwork reshapes its input into a matrix. This is the maximum number
+  // of *lanes* per vector. Must be at least 8 because SortSamples assumes the
+  // sorting network is at least 128-bit and the smallest lane is 16-bit.
 #if HWY_COMPILER_MSVC || HWY_IS_DEBUG_BUILD
   static constexpr size_t kMaxCols = 8;  // avoid build timeout/stack overflow
 #else
@@ -53,6 +54,14 @@ struct SortConstants {
   // To change, must also update left + 3 * N etc. in the loop.
   static constexpr size_t kPartitionUnroll = 4;
 
+  // Chunk := group of keys loaded for sampling a pivot. Matches the typical
+  // cache line size of 64 bytes to get maximum benefit per L2 miss. Sort()
+  // ensures vectors are no larger than that, so this can be independent of the
+  // vector size and thus constexpr.
+  static constexpr HWY_INLINE size_t LanesPerChunk(size_t sizeof_t) {
+    return 64 / sizeof_t;
+  }
+
   static constexpr HWY_INLINE size_t PartitionBufNum(size_t N) {
     // The main loop reads kPartitionUnroll vectors, and first loads from
     // both left and right beforehand, so it requires min = 2 *
@@ -62,19 +71,12 @@ struct SortConstants {
     return (2 * kPartitionUnroll + 1) * N;
   }
 
-  // Chunk := group of keys loaded for sampling a pivot. Matches the typical
-  // cache line size of 64 bytes to get maximum benefit per L2 miss. Sort()
-  // ensures vectors are no larger than that, so this can be independent of the
-  // vector size and thus constexpr.
-  static constexpr HWY_INLINE size_t LanesPerChunk(size_t sizeof_t) {
-    return 64 / sizeof_t;
-  }
-
   static constexpr HWY_INLINE size_t PivotBufNum(size_t sizeof_t, size_t N) {
     // 3 chunks of medians, 1 chunk of median medians plus two padding vectors.
     return (3 + 1) * LanesPerChunk(sizeof_t) + 2 * N;
   }
 
+  // Max across the three buffer usages.
   template <typename T>
   static constexpr HWY_INLINE size_t BufNum(size_t N) {
     // One extra for padding plus another for full-vector loads.
@@ -82,11 +84,21 @@ struct SortConstants {
                    HWY_MAX(PartitionBufNum(N), PivotBufNum(sizeof(T), N)));
   }
 
+  // Translates vector_size to lanes and returns size in bytes.
   template <typename T>
   static constexpr HWY_INLINE size_t BufBytes(size_t vector_size) {
-    return sizeof(T) * BufNum<T>(vector_size / sizeof(T));
+    return BufNum<T>(vector_size / sizeof(T)) * sizeof(T);
+  }
+
+  // Returns max for any type.
+  static constexpr HWY_INLINE size_t MaxBufBytes(size_t vector_size) {
+    return HWY_MAX(BufBytes<uint16_t>(vector_size),
+                   HWY_MAX(BufBytes<uint32_t>(vector_size),
+                           BufBytes<uint64_t>(vector_size)));
   }
 };
+
+static_assert(SortConstants::MaxBufBytes(64) <= 1280, "Unexpectedly high");
 
 }  // namespace hwy
 
