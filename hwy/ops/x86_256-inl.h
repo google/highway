@@ -4902,6 +4902,25 @@ HWY_API V AESInvMixColumns(V state) {
 #endif
 }
 
+template <uint8_t kRcon>
+HWY_API Vec256<uint8_t> AESKeyGenAssist(Vec256<uint8_t> v) {
+  const Full256<uint8_t> d;
+#if HWY_TARGET <= HWY_AVX3_DL
+  alignas(16) static constexpr uint8_t kRconXorMask[16] = {
+      0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0};
+  alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
+      0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
+  const Repartition<uint32_t, decltype(d)> du32;
+  const auto w13 = BitCast(d, DupOdd(BitCast(du32, v)));
+  const auto sub_word_result = AESLastRound(w13, Load(d, kRconXorMask));
+  return TableLookupBytes(sub_word_result, Load(d, kRotWordShuffle));
+#else
+  const Half<decltype(d)> d2;
+  return Combine(d, AESKeyGenAssist<kRcon>(UpperHalf(d2, v)),
+                 AESKeyGenAssist<kRcon>(LowerHalf(v)));
+#endif
+}
+
 HWY_API Vec256<uint64_t> CLMulLower(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 #if HWY_TARGET <= HWY_AVX3_DL
   return Vec256<uint64_t>{_mm256_clmulepi64_epi128(a.raw, b.raw, 0x00)};

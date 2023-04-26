@@ -7199,6 +7199,11 @@ HWY_API Vec128<uint8_t> AESLastRoundInv(Vec128<uint8_t> state,
   return Vec128<uint8_t>{_mm_aesdeclast_si128(state.raw, round_key.raw)};
 }
 
+template <uint8_t kRcon>
+HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
+  return Vec128<uint8_t>{_mm_aeskeygenassist_si128(v.raw, kRcon)};
+}
+
 template <size_t N>
 HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
                                        Vec128<uint64_t, N> b) {

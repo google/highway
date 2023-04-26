@@ -1471,6 +1471,24 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     step of the AES Equivalent Inverse Cipher algorithm. The latency is
     independent of the input values.
 
+*   `V`: `u8` \
+    <code>V **AESKeyGenAssist**&lt;uint8_t kRcon&gt;(V v)</code>: AES key
+    generation assist operation
+
+    The AESKeyGenAssist operation is equivalent to doing the following, which
+    matches the behavior of the x86 AES-NI AESKEYGENASSIST instruction:
+    *  Applying the AES SubBytes operation to each byte of `v`.
+    *  Doing a TableLookupBytes operation on each 128-bit block of the
+       result of the `SubBytes(v)` operation with the following indices
+       (which is broadcast to each 128-bit block in the case of vectors with 32
+       or more lanes):
+       `{4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12}`
+    *  Doing a bitwise XOR operation with the following vector (where `kRcon`
+       is the rounding constant that is the first template argument of the
+       AESKeyGenAssist function and where the below vector is broadcasted to
+       each 128-bit block in the case of vectors with 32 or more lanes):
+       `{0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0}`
+
 *   `V`: `u64` \
     <code>V **CLMulLower**(V a, V b)</code>: carryless multiplication of the
     lower 64 bits of each 128-bit block into a 128-bit product. The latency is

@@ -2991,6 +2991,21 @@ HWY_API Vec128<uint8_t> AESInvMixColumns(Vec128<uint8_t> state) {
   return AESRoundInv(AESLastRound(state, zero), zero);
 }
 
+template <uint8_t kRcon>
+HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
+  constexpr __vector unsigned char kRconXorMask = {
+      0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0};
+  constexpr __vector unsigned char kRotWordShuffle = {
+      4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12};
+  const detail::CipherTag dc;
+  const Full128<uint8_t> du8;
+  const auto sub_word_result =
+      BitCast(du8, detail::CipherVec{vec_sbox_be(BitCast(dc, v).raw)});
+  const auto rot_word_result =
+      TableLookupBytes(sub_word_result, Vec128<uint8_t>{kRotWordShuffle});
+  return Xor(rot_word_result, Vec128<uint8_t>{kRconXorMask});
+}
+
 template <size_t N>
 HWY_API Vec128<uint64_t, N> CLMulLower(Vec128<uint64_t, N> a,
                                        Vec128<uint64_t, N> b) {
