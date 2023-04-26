@@ -1615,10 +1615,10 @@ HWY_API V AESLastRoundInv(V state, const V round_key) {
   return state;
 }
 
-template <uint8_t kRoundConstant, class V>  // u8
+template <uint8_t kRcon, class V, HWY_IF_U8_D(DFromV<V>)>
 HWY_API V AESKeyGenAssist(V v) {
   alignas(16) static constexpr uint8_t kRconXorMask[16] = {
-      0, 0, 0, 0, kRoundConstant, 0, 0, 0, 0, 0, 0, 0, kRoundConstant, 0, 0, 0};
+      0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0};
   alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
       4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12};
   const DFromV<decltype(v)> d;

@@ -2976,10 +2976,10 @@ HWY_API Vec128<uint8_t> AESInvMixColumns(Vec128<uint8_t> state) {
   return AESRoundInv(AESLastRound(state, zero), zero);
 }
 
-template <uint8_t kRoundConstant>
+template <uint8_t kRcon>
 HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
   constexpr __vector unsigned char kRconXorMask = {
-      0, 0, 0, 0, kRoundConstant, 0, 0, 0, 0, 0, 0, 0, kRoundConstant, 0, 0, 0};
+      0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0};
   constexpr __vector unsigned char kRotWordShuffle = {
       4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12};
   const detail::CipherTag dc;

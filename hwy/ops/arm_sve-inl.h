@@ -4206,10 +4206,10 @@ HWY_API svuint8_t AESLastRoundInv(svuint8_t state, svuint8_t round_key) {
   return Xor(svaesd_u8(state, svdup_n_u8(0)), round_key);
 }
 
-template <uint8_t kRoundConstant>
+template <uint8_t kRcon>
 HWY_API svuint8_t AESKeyGenAssist(svuint8_t v) {
   alignas(16) static constexpr uint8_t kRconXorMask[16] = {
-      0, kRoundConstant, 0, 0, 0, 0, 0, 0, 0, kRoundConstant, 0, 0, 0, 0, 0, 0};
+      0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0};
   alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
       0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
   const DFromV<decltype(v)> d;

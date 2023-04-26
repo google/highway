@@ -5560,10 +5560,10 @@ HWY_API VI TableLookupBytesOr0(V bytes, VI from) {
 // ---------------------------- AESKeyGenAssist (AESLastRound, TableLookupBytes)
 
 #if HWY_TARGET == HWY_NEON
-template <uint8_t kRoundConstant>
+template <uint8_t kRcon>
 HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
   alignas(16) static constexpr uint8_t kRconXorMask[16] = {
-      0, kRoundConstant, 0, 0, 0, 0, 0, 0, 0, kRoundConstant, 0, 0, 0, 0, 0, 0};
+      0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0};
   alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
       0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
   const DFromV<decltype(v)> d;
