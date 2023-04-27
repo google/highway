@@ -200,6 +200,10 @@ std::vector<Algo> AlgoForBench() {
                     (!VXSORT_AVX3 && HWY_TARGET == HWY_AVX2))
         Algo::kVXSort,
 #endif
+// Only include if we're compiling for the target it supports.
+#if HAVE_INTEL && HWY_TARGET <= HWY_AVX3
+        Algo::kIntel,
+#endif
 
 #if !HAVE_PARALLEL_IPS4O
 #if !SORT_100M
@@ -259,6 +263,14 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
   }    // algo
 }
 
+#if HAVE_INTEL  // only supports ascending order
+template <typename T>
+using OtherOrder = OrderAscending<T>;
+#else
+template <typename T>
+using OtherOrder = OrderDescending<T>;
+#endif
+
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets. Note that SSE4 is
   // numerically less than SSE2, hence it is the lower bound.
@@ -278,15 +290,15 @@ HWY_NOINLINE void BenchAllSort() {
 #endif
        }) {
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
-    // BenchSort<TraitsLane<OrderDescending<double>>>(num_keys);
+    // BenchSort<TraitsLane<OtherOrder<double>>>(num_keys);
     // BenchSort<TraitsLane<OrderAscending<int16_t>>>(num_keys);
-    BenchSort<TraitsLane<OrderDescending<int32_t>>>(num_keys);
+    BenchSort<TraitsLane<OtherOrder<int32_t>>>(num_keys);
     BenchSort<TraitsLane<OrderAscending<int64_t>>>(num_keys);
-    // BenchSort<TraitsLane<OrderDescending<uint16_t>>>(num_keys);
-    // BenchSort<TraitsLane<OrderDescending<uint32_t>>>(num_keys);
+    // BenchSort<TraitsLane<OtherOrder<uint16_t>>>(num_keys);
+    // BenchSort<TraitsLane<OtherOrder<uint32_t>>>(num_keys);
     // BenchSort<TraitsLane<OrderAscending<uint64_t>>>(num_keys);
 
-#if !HAVE_VXSORT && VQSORT_ENABLED
+#if !HAVE_VXSORT && !HAVE_INTEL && VQSORT_ENABLED
     BenchSort<Traits128<OrderAscending128>>(num_keys);
     BenchSort<Traits128<OrderAscendingKV128>>(num_keys);
 #endif

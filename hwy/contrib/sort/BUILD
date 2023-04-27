@@ -12,6 +12,19 @@ COMPAT = [
 ]
 
 # cc_library(
+#     name = "intel",
+#     hdrs = [
+#         "avx512-16bit-common.h",
+#         "avx512-16bit-qsort.hpp",
+#         "avx512-32bit-qsort.hpp",
+#         "avx512-64bit-common.h",
+#         "avx512-64bit-qsort.hpp",
+#         "avx512-common-qsort.h",
+#     ],
+#     compatible_with = [],
+# )
+
+# cc_library(
 #     name = "vxsort",
 #     srcs = [
 #         "vxsort/isa_detection.cpp",
@@ -107,10 +120,9 @@ cc_library(
         # Placeholder for internal instrumentation. Do not remove.
     ],
     deps = [
-        # Only if VQSORT_SECURE_RNG is set.
-        # "//third_party/absl/random",
-        "//:hwy",
+        # ":intel",  # required if HAVE_INTEL
         # ":vxsort",  # required if HAVE_VXSORT
+        "//:hwy",
     ],
 )
 
