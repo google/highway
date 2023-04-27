@@ -423,6 +423,7 @@ HWY_TEST_DEPS = [
                 "//conditions:default": False,
             }),
             local_defines = ["HWY_IS_TEST"],
+            malloc = "//base:system_malloc",  # See b/231409187
             # for test_suite.
             tags = ["hwy_ops_test"],
             deps = HWY_TEST_DEPS + select({
