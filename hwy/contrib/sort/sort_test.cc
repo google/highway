@@ -403,8 +403,10 @@ static HWY_NOINLINE void TestRandomGenerator() {
     sum_hi += bits >> 32;
   }
   const double expected = 1000 * (1ULL << 31);
-  HWY_ASSERT(0.9 * expected <= sum_lo && sum_lo <= 1.1 * expected);
-  HWY_ASSERT(0.9 * expected <= sum_hi && sum_hi <= 1.1 * expected);
+  HWY_ASSERT(0.9 * expected <= static_cast<double>(sum_lo) &&
+             static_cast<double>(sum_lo) <= 1.1 * expected);
+  HWY_ASSERT(0.9 * expected <= static_cast<double>(sum_hi) &&
+             static_cast<double>(sum_hi) <= 1.1 * expected);
 
   const size_t lanes_per_block = HWY_MAX(64 / sizeof(TU), N);  // power of two
 

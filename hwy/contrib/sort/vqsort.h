@@ -95,8 +95,8 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
   // Move-only
   Sorter(const Sorter&) = delete;
   Sorter& operator=(const Sorter&) = delete;
-  Sorter(Sorter&& other) {}
-  Sorter& operator=(Sorter&& other) { return *this; }
+  Sorter(Sorter&& /*other*/) {}
+  Sorter& operator=(Sorter&& /*other*/) { return *this; }
 
   void operator()(uint16_t* HWY_RESTRICT keys, size_t n,
                   SortAscending tag) const {
@@ -203,11 +203,18 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
     return nullptr;
   }
 
+#if HWY_COMPILER_CLANG
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wunused-private-field")
+#endif
   void* unused_ = nullptr;
+#if HWY_COMPILER_CLANG
+  HWY_DIAGNOSTICS(pop)
+#endif
 };
 
 // Internal use only
-HWY_CONTRIB_DLLEXPORT uint64_t* HWY_RESTRICT GetGeneratorState();
+HWY_CONTRIB_DLLEXPORT uint64_t* GetGeneratorState();
 
 }  // namespace hwy
 

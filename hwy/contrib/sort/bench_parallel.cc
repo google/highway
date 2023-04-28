@@ -205,7 +205,6 @@ void BenchParallel() {
   const Dist dist = Dist::kUniform32;
 
   SharedState shared;
-  shared.tls.resize(NT);
 
   std::vector<Result> results;
   for (size_t nt = 1; nt < NT; nt += HWY_MAX(1, NT / 16)) {

@@ -37,6 +37,7 @@
 #define HAVE_PDQSORT 0
 #define HAVE_SORT512 0
 #define HAVE_VXSORT 0
+#define HAVE_INTEL 0
 
 #if HAVE_AVX2SORT
 HWY_PUSH_ATTRIBUTES("avx2,avx")
@@ -165,6 +166,9 @@ class InputStats {
 };
 
 enum class Algo {
+#if HAVE_INTEL
+  kIntel,
+#endif
 #if HAVE_AVX2SORT
   kSEA,
 #endif
@@ -190,6 +194,10 @@ enum class Algo {
 
 static inline const char* AlgoName(Algo algo) {
   switch (algo) {
+#if HAVE_INTEL
+    case Algo::kIntel:
+      return "intel";
+#endif
 #if HAVE_AVX2SORT
     case Algo::kSEA:
       return "sea";
@@ -242,6 +250,13 @@ static inline const char* AlgoName(Algo algo) {
 #include "hwy/tests/test_util-inl.h"
 
 HWY_BEFORE_NAMESPACE();
+
+// Requires target pragma set by HWY_BEFORE_NAMESPACE
+#if HAVE_INTEL && HWY_TARGET <= HWY_AVX3
+#include "avx512-32bit-qsort.hpp"
+#include "avx512-64bit-qsort.hpp"
+#endif
+
 namespace hwy {
 namespace HWY_NAMESPACE {
 
@@ -421,11 +436,20 @@ void CallHeapSort(K64V64* HWY_RESTRICT keys, const size_t num_keys) {
 
 template <class Order, typename KeyType>
 void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
-         SharedState& shared, size_t thread) {
+         SharedState& shared, size_t /*thread*/) {
   const std::less<KeyType> less;
   const std::greater<KeyType> greater;
 
+#if !HAVE_PARALLEL_IPS4O
+  (void)shared;
+#endif
+
   switch (algo) {
+#if HAVE_INTEL && HWY_TARGET <= HWY_AVX3
+    case Algo::kIntel:
+      return avx512_qsort<KeyType>(inout, static_cast<int64_t>(num));
+#endif
+
 #if HAVE_AVX2SORT
     case Algo::kSEA:
       return avx2::quicksort(inout, static_cast<int>(num));
