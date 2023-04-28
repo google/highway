@@ -1129,6 +1129,15 @@ HWY_API void StoreU(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
   Store(v, d, p);
 }
 
+// ------------------------------ MaskedLoadOr
+
+// SVE MaskedLoad hard-codes zero, so this requires an extra blend.
+template <class D>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
+                               const TFromD<D>* HWY_RESTRICT p) {
+  return IfThenElse(m, MaskedLoad(m, d, p), v);
+}
+
 // ------------------------------ ScatterOffset/Index
 
 #define HWY_SVE_SCATTER_OFFSET(BASE, CHAR, BITS, HALF, NAME, OP)             \

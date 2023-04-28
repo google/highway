@@ -439,21 +439,21 @@ is qNaN, and NaN if both are.
 All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
 *   `V`: `u64` \
-    <code>M **Min128**(D, V a, V b)</code>: returns the minimum of unsigned
+    <code>V **Min128**(D, V a, V b)</code>: returns the minimum of unsigned
     128-bit values, each stored as an adjacent pair of 64-bit lanes (e.g.
     indices 1 and 0, where 0 is the least-significant 64-bits).
 
 *   `V`: `u64` \
-    <code>M **Max128**(D, V a, V b)</code>: returns the maximum of unsigned
+    <code>V **Max128**(D, V a, V b)</code>: returns the maximum of unsigned
     128-bit values, each stored as an adjacent pair of 64-bit lanes (e.g.
     indices 1 and 0, where 0 is the least-significant 64-bits).
 
 *   `V`: `u64` \
-    <code>M **Min128Upper**(D, V a, V b)</code>: for each 128-bit key-value
+    <code>V **Min128Upper**(D, V a, V b)</code>: for each 128-bit key-value
     pair, returns `a` if it is considered less than `b` by Lt128Upper, else `b`.
 
 *   `V`: `u64` \
-    <code>M **Max128Upper**(D, V a, V b)</code>: for each 128-bit key-value
+    <code>V **Max128Upper**(D, V a, V b)</code>: for each 128-bit key-value
     pair, returns `a` if it is considered > `b` by Lt128Upper, else `b`.
 
 #### Multiply
@@ -942,50 +942,15 @@ aligned memory at indices which are not a multiple of the vector length):
     preparing constants for the actual vector length. Only available if
     `HWY_TARGET != HWY_SCALAR`.
 
-*   <code>Vec&lt;D&gt; **MaskedLoad**(M mask, D, const T* p)</code>: returns
-    `p[i]` or zero if the `mask` governing element `i` is false. May fault even
-    where `mask` is false `#if HWY_MEM_OPS_MIGHT_FAULT`. If `p` is aligned,
-    faults cannot happen unless the entire vector is inaccessible. Equivalent
-    to, and potentially more efficient than, `IfThenElseZero(mask, LoadU(D(),
-    p))`.
+*   <code>Vec&lt;D&gt; **MaskedLoadOr**(V no, M mask, D, const T* p)</code>:
+    returns `mask[i] ? p[i] : no[i]`. May fault even where `mask` is false `#if
+    HWY_MEM_OPS_MIGHT_FAULT`. If `p` is aligned, faults cannot happen unless the
+    entire vector is inaccessible. Assuming no faults, this is equivalent to,
+    and potentially more efficient than, `IfThenElse(mask, LoadU(D(), p), no)`.
 
-*   <code>void **LoadInterleaved2**(D, const T* p, Vec&lt;D&gt;&amp; v0,
-    Vec&lt;D&gt;&amp; v1)</code>: equivalent to `LoadU` into `v0, v1` followed
-    by shuffling, such that `v0[0] == p[0], v1[0] == p[1]`.
-
-*   <code>void **LoadInterleaved3**(D, const T* p, Vec&lt;D&gt;&amp; v0,
-    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2)</code>: as above, but for three
-    vectors (e.g. RGB samples).
-
-*   <code>void **LoadInterleaved4**(D, const T* p, Vec&lt;D&gt;&amp; v0,
-    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2, Vec&lt;D&gt;&amp; v3)</code>: as
-    above, but for four vectors (e.g. RGBA).
-
-#### Scatter/Gather
-
-**Note**: Offsets/indices are of type `VI = Vec<RebindToSigned<D>>` and need not
-be unique. The results are implementation-defined if any are negative.
-
-**Note**: Where possible, applications should `Load/Store/TableLookup*` entire
-vectors, which is much faster than `Scatter/Gather`. Otherwise, code of the form
-`dst[tbl[i]] = F(src[i])` should when possible be transformed to `dst[i] =
-F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
-
-*   `D`: `{u,i,f}{32,64}` \
-    <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, const T* base, VI
-    offsets)</code>: stores `v[i]` to the base address plus *byte* `offsets[i]`.
-
-*   `D`: `{u,i,f}{32,64}` \
-    <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, const T* base, VI
-    indices)</code>: stores `v[i]` to `base[indices[i]]`.
-
-*   `D`: `{u,i,f}{32,64}` \
-    <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>:
-    returns elements of base selected by *byte* `offsets[i]`.
-
-*   `D`: `{u,i,f}{32,64}` \
-    <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>:
-    returns vector of `base[indices[i]]`.
+*   <code>Vec&lt;D&gt; **MaskedLoad**(M mask, D d, const T* p)</code>:
+    equivalent to `MaskedLoadOr(Zero(d), mask, d, p)`, but potentially slightly
+    more efficient.
 
 #### Store
 
@@ -1019,6 +984,20 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     not fault, unlike `BlendedStore`. No alignment requirement. Potentially
     non-atomic, like `BlendedStore`.
 
+#### Interleaved
+
+*   <code>void **LoadInterleaved2**(D, const T* p, Vec&lt;D&gt;&amp; v0,
+    Vec&lt;D&gt;&amp; v1)</code>: equivalent to `LoadU` into `v0, v1` followed
+    by shuffling, such that `v0[0] == p[0], v1[0] == p[1]`.
+
+*   <code>void **LoadInterleaved3**(D, const T* p, Vec&lt;D&gt;&amp; v0,
+    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2)</code>: as above, but for three
+    vectors (e.g. RGB samples).
+
+*   <code>void **LoadInterleaved4**(D, const T* p, Vec&lt;D&gt;&amp; v0,
+    Vec&lt;D&gt;&amp; v1, Vec&lt;D&gt;&amp; v2, Vec&lt;D&gt;&amp; v3)</code>: as
+    above, but for four vectors (e.g. RGBA).
+
 *   <code>void **StoreInterleaved2**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1, D, T*
     p)</code>: equivalent to shuffling `v0, v1` followed by two `StoreU()`, such
     that `p[0] == v0[0], p[1] == v1[0]`.
@@ -1030,6 +1009,32 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 *   <code>void **StoreInterleaved4**(Vec&lt;D&gt; v0, Vec&lt;D&gt; v1,
     Vec&lt;D&gt; v2, Vec&lt;D&gt; v3, D, T* p)</code>: as above, but for four
     vectors (e.g. RGBA samples).
+
+#### Scatter/Gather
+
+**Note**: Offsets/indices are of type `VI = Vec<RebindToSigned<D>>` and need not
+be unique. The results are implementation-defined if any are negative.
+
+**Note**: Where possible, applications should `Load/Store/TableLookup*` entire
+vectors, which is much faster than `Scatter/Gather`. Otherwise, code of the form
+`dst[tbl[i]] = F(src[i])` should when possible be transformed to `dst[i] =
+F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, const T* base, VI
+    offsets)</code>: stores `v[i]` to the base address plus *byte* `offsets[i]`.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, const T* base, VI
+    indices)</code>: stores `v[i]` to `base[indices[i]]`.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>:
+    returns elements of base selected by *byte* `offsets[i]`.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>:
+    returns vector of `base[indices[i]]`.
 
 ### Cache control
 

@@ -2874,6 +2874,12 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d,
   return IfThenElseZero(m, Load(d, aligned));
 }
 
+template <class D>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
+                               const TFromD<D>* HWY_RESTRICT aligned) {
+  return IfThenElse(m, Load(d, aligned), v);
+}
+
 // 128-bit SIMD => nothing to duplicate, same as an unaligned load.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {

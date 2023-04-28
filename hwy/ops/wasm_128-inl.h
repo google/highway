@@ -1640,6 +1640,12 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT aligned) {
   return IfThenElseZero(m, Load(d, aligned));
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
+                               const T* HWY_RESTRICT aligned) {
+  return IfThenElse(m, Load(d, aligned), v);
+}
+
 // ------------------------------ Store
 
 template <class D, HWY_IF_V_SIZE_D(D, 16)>

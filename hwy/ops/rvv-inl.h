@@ -1374,8 +1374,17 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
       NAME(HWY_RVV_M(MLEN) m, HWY_RVV_D(BASE, SEW, N, SHIFT) d,              \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                    \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, Lanes(d));     \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(m, Zero(d), p,      \
+                                                         Lanes(d));          \
+  }                                                                          \
+  template <size_t N>                                                        \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
+      NAME##Or(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,              \
+               HWY_RVV_D(BASE, SEW, N, SHIFT) d,                             \
+               const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(m, v, p, Lanes(d)); \
   }
+
 HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL_VIRT)
 #undef HWY_RVV_MASKED_LOAD
 

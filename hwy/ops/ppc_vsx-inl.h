@@ -870,10 +870,16 @@ HWY_API MFromD<D> FirstN(D d, size_t num) {
 }
 
 // ------------------------------ MaskedLoad
-
 template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT p) {
   return IfThenElseZero(m, Load(d, p));
+}
+
+// ------------------------------ MaskedLoadOr
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
+                               const T* HWY_RESTRICT p) {
+  return IfThenElse(m, Load(d, p), v);
 }
 
 // ------------------------------ Store

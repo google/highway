@@ -2381,6 +2381,46 @@ HWY_API Vec256<double> MaskedLoad(Mask256<double> m, D /* tag */,
   return Vec256<double>{_mm256_maskz_loadu_pd(m.raw, p)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>,
+          HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec256<T> MaskedLoadOr(VFromD<D> v, Mask256<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec256<T>{_mm256_mask_loadu_epi8(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>,
+          HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec256<T> MaskedLoadOr(VFromD<D> v, Mask256<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec256<T>{_mm256_mask_loadu_epi16(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>,
+          HWY_IF_UI32(T)>
+HWY_API Vec256<T> MaskedLoadOr(VFromD<D> v, Mask256<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec256<T>{_mm256_mask_loadu_epi32(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>,
+          HWY_IF_UI64(T)>
+HWY_API Vec256<T> MaskedLoadOr(VFromD<D> v, Mask256<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec256<T>{_mm256_mask_loadu_epi64(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API Vec256<float> MaskedLoadOr(VFromD<D> v, Mask256<float> m, D /* tag */,
+                                   const float* HWY_RESTRICT p) {
+  return Vec256<float>{_mm256_mask_loadu_ps(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API Vec256<double> MaskedLoadOr(VFromD<D> v, Mask256<double> m, D /* tag */,
+                                    const double* HWY_RESTRICT p) {
+  return Vec256<double>{_mm256_mask_loadu_pd(v.raw, m.raw, p)};
+}
+
 #else  //  AVX2
 
 // There is no maskload_epi8/16, so blend instead.

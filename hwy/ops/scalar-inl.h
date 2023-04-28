@@ -1008,6 +1008,12 @@ HWY_API Vec1<T> MaskedLoad(Mask1<T> m, D d, const T* HWY_RESTRICT aligned) {
   return IfThenElseZero(m, Load(d, aligned));
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> MaskedLoadOr(Vec1<T> v, Mask1<T> m, D d,
+                             const T* HWY_RESTRICT aligned) {
+  return IfThenElse(m, Load(d, aligned), v);
+}
+
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
 HWY_API Vec1<T> LoadU(D d, const T* HWY_RESTRICT p) {
   return Load(d, p);

@@ -1289,6 +1289,12 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d,
 }
 
 template <class D>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
+                               const TFromD<D>* HWY_RESTRICT p) {
+  return IfThenElse(m, LoadU(d, p), v);
+}
+
+template <class D>
 HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   return Load(d, p);
 }

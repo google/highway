@@ -2281,6 +2281,42 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D /* tag */,
   return VFromD<D>{_mm_maskz_loadu_pd(m.raw, p)};
 }
 
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D /* tag */,
+                               const TFromD<D>* HWY_RESTRICT p) {
+  return VFromD<D>{_mm_mask_loadu_epi8(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D /* tag */,
+                               const TFromD<D>* HWY_RESTRICT p) {
+  return VFromD<D>{_mm_mask_loadu_epi16(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D /* tag */,
+                               const TFromD<D>* HWY_RESTRICT p) {
+  return VFromD<D>{_mm_mask_loadu_epi32(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI64_D(D)>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D /* tag */,
+                               const TFromD<D>* HWY_RESTRICT p) {
+  return VFromD<D>{_mm_mask_loadu_epi64(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D /* tag */,
+                               const float* HWY_RESTRICT p) {
+  return VFromD<D>{_mm_mask_loadu_ps(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D /* tag */,
+                               const double* HWY_RESTRICT p) {
+  return VFromD<D>{_mm_mask_loadu_pd(v.raw, m.raw, p)};
+}
+
 #elif HWY_TARGET == HWY_AVX2
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI32_D(D)>
@@ -2326,6 +2362,19 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT p) {
 }
 
 #endif
+
+// ------------------------------ MaskedLoadOr
+
+#if HWY_TARGET > HWY_AVX3  // else: native
+
+// For all vector widths
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
+                               const T* HWY_RESTRICT p) {
+  return IfThenElse(m, Load(d, p), v);
+}
+
+#endif  // HWY_TARGET > HWY_AVX3
 
 // ------------------------------ BlendedStore
 

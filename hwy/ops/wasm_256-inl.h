@@ -683,6 +683,12 @@ HWY_API Vec256<T> MaskedLoad(Mask256<T> m, D d, const T* HWY_RESTRICT aligned) {
   return IfThenElseZero(m, Load(d, aligned));
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API Vec256<T> MaskedLoadOr(Vec256<T> v, Mask256<T> m, D d,
+                               const T* HWY_RESTRICT aligned) {
+  return IfThenElse(m, Load(d, aligned), v);
+}
+
 // LoadU == Load.
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
 HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
