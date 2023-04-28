@@ -436,9 +436,13 @@ void CallHeapSort(K64V64* HWY_RESTRICT keys, const size_t num_keys) {
 
 template <class Order, typename KeyType>
 void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
-         SharedState& shared, size_t thread) {
+         SharedState& shared, size_t /*thread*/) {
   const std::less<KeyType> less;
   const std::greater<KeyType> greater;
+
+#if !HAVE_PARALLEL_IPS4O
+  (void)shared;
+#endif
 
   switch (algo) {
 #if HAVE_INTEL && HWY_TARGET <= HWY_AVX3

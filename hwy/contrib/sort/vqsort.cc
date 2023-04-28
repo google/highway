@@ -111,7 +111,7 @@ void Fill16Bytes(void* bytes) {
 
 }  // namespace
 
-uint64_t* HWY_RESTRICT GetGeneratorState() {
+uint64_t* GetGeneratorState() {
   thread_local uint64_t state[3] = {0};
   // This is a counter; zero indicates not yet initialized.
   if (HWY_UNLIKELY(state[2] == 0)) {
