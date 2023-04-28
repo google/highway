@@ -2134,6 +2134,48 @@ HWY_API Vec512<double> MaskedLoad(Mask512<double> m, D /* tag */,
   return Vec512<double>{_mm512_maskz_loadu_pd(m.raw, p)};
 }
 
+// ------------------------------ MaskedLoadOr
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> MaskedLoadOr(VFromD<D> v, Mask512<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_mask_loadu_epi8(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec512<T> MaskedLoadOr(VFromD<D> v, Mask512<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_mask_loadu_epi16(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_UI32(T)>
+HWY_API Vec512<T> MaskedLoadOr(VFromD<D> v, Mask512<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_mask_loadu_epi32(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_UI64(T)>
+HWY_API Vec512<T> MaskedLoadOr(VFromD<D> v, Mask512<T> m, D /* tag */,
+                               const T* HWY_RESTRICT p) {
+  return Vec512<T>{_mm512_mask_loadu_epi64(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API Vec512<float> MaskedLoadOr(VFromD<D> v, Mask512<float> m, D /* tag */,
+                                   const float* HWY_RESTRICT p) {
+  return Vec512<float>{_mm512_mask_loadu_ps(v.raw, m.raw, p)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API Vec512<double> MaskedLoadOr(VFromD<D> v, Mask512<double> m, D /* tag */,
+                                    const double* HWY_RESTRICT p) {
+  return Vec512<double>{_mm512_mask_loadu_pd(v.raw, m.raw, p)};
+}
+
 // ------------------------------ LoadDup128
 
 // Loads 128 bit and duplicates into both 128-bit halves. This avoids the

@@ -42,7 +42,9 @@ struct TestMaskedLoad {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes);
 
-    Store(Iota(d, T{1}), d, lanes.get());
+    const Vec<D> v = Iota(d, T{1});
+    const Vec<D> v2 = Iota(d, T{2});
+    Store(v, d, lanes.get());
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -53,13 +55,11 @@ struct TestMaskedLoad {
       const auto mask_i = Load(di, bool_lanes.get());
       const auto mask = RebindMask(d, Gt(mask_i, Zero(di)));
       const auto expected = IfThenElseZero(mask, Load(d, lanes.get()));
+      const auto expected2 = IfThenElse(mask, Load(d, lanes.get()), v2);
       const auto actual = MaskedLoad(mask, d, lanes.get());
-#if HWY_TARGET == HWY_RVV
-      // Somehow this works around incorrect clang codegen where mask=0 lanes
-      // are the unmasked values instead of zero.
-      Print(d, "actual", actual, 0, N);
-#endif
+      const auto actual2 = MaskedLoadOr(v2, mask, d, lanes.get());
       HWY_ASSERT_VEC_EQ(d, expected, actual);
+      HWY_ASSERT_VEC_EQ(d, expected2, actual2);
     }
   }
 };
