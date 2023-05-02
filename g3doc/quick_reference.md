@@ -81,6 +81,8 @@ that calls Highway ops such as `Load` with `HWY_ATTR`. You can omit the
     as `ScalableTag` instead of referring to this type directly;
 *   `d` is an lvalue of type `D`, passed as a function argument e.g. to Zero;
 *   `V` is the type of a vector, which may be a class or built-in type.
+*   `v[i]` is analogous to C++ array notation, with zero-based index `i` from
+    the starting address of the vector `v`.
 
 ## Vector and tag types
 
@@ -1070,33 +1072,30 @@ All functions except `Stream` are defined in cache_control.h.
 *   <code>Vec&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
     reinterpreted as type `Vec<D>`.
 
-*   `V`,`D`: (`u8,u16`), (`u16,u32`), (`u8,u32`), (`u32,u64`), (`u8,i16`), \
-    (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`)
-    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
-    or sign-extended to the integer type `MakeWide<T>`.
-
-*   `V`,`D`: (`f16,f32`), (`bf16,f32`), (`f32,f64`) \
-    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
-    widened to the floating-point type `MakeWide<T>`.
-
-*   `V`,`D`: \
-    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
-    converted to 64-bit floating point.
-
-*   `V`,`D`: (`bf16,f32`) <code>Vec&lt;D&gt; **PromoteLowerTo**(D, V v)</code>:
-    returns `v[i]` widened to `MakeWide<T>`, for i in `[0, Lanes(D()))`. Note
-    that `V` has twice as many lanes as `D` and the return value.
-
-*   `V`,`D`: (`bf16,f32`) <code>Vec&lt;D&gt; **PromoteUpperTo**(D, V v)</code>:
-    returns `v[i]` widened to `MakeWide<T>`, for i in `[Lanes(D()), 2 *
-    Lanes(D()))`. Note that `V` has twice as many lanes as `D` and the return
-    value.
-
 *   `V`,`V8`: (`u32,u8`) \
     <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8` conversion when
     all lanes of `V` are already clamped to `[0, 256)`.
 
-*   `V`,`D`: (`u64,u32`), (`u64,u16`), (`u64,u8`), (`u32,u16`), (`u32,u8`), \
+*   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
+    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
+    same-sized floating point.
+
+*   `V`,`D`: (`f32`,`i32`), (`f64`,`i64`) \
+    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: rounds floating point towards
+    zero and converts the value to same-sized integer. Returns the closest
+    representable value if the input exceeds the destination range.
+
+*   `V`: `f32`; `Ret`: `i32` \
+    <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
+    results are undefined for NaN.
+
+#### Single vector demotion
+
+These functions demote a full vector (or parts thereof) into a vector of half
+the size. Use `Rebind<MakeNarrow<T>, D>` or `Half<RepartitionToNarrow<D>>` to
+obtain the `D` that describes the return type.
+
+*   `V`,`D`: (`u64,u32`), (`u64,u16`), (`u64,u8`), (`u32,u16`), (`u32,u8`),
     (`u16,u8`) \
     <code>Vec&lt;D&gt; **TruncateTo**(D, V v)</code>: returns `v[i]` truncated
     to the smaller type indicated by `T = TFromD<D>`, with the same result as if
@@ -1104,24 +1103,49 @@ All functions except `Stream` are defined in cache_control.h.
     Example: `ScalableTag<uint32_t> du32; Rebind<uint8_t> du8; TruncateTo(du8,
     Set(du32, 0xF08F))` is the same as `Set(du8, 0x8F)`.
 
-`DemoteTo` and float-to-int `ConvertTo` return the closest representable value
-if the input exceeds the destination range.
-
 *   `V`,`D`: (`i16,i8`), (`i32,i8`), (`i64,i8`), (`i32,i16`), (`i64,i16`),
     (`i64,i32`), (`u16,i8`), (`u32,i8`), (`u64,i8`), (`u32,i16`), (`u64,i16`),
     (`u64,i32`), (`i16,u8`), (`i32,u8`), (`i64,u8`), (`i32,u16`), (`i64,u16`),
     (`i64,u32`), (`u16,u8`), (`u32,u8`), (`u64,u8`), (`u32,u16`), (`u64,u16`),
     (`u64,u32`), (`f64,f32`) \
-    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: returns `a[i]` after packing
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: returns `v[i]` after packing
     with signed/unsigned saturation to `MakeNarrow<T>`.
 
 *   `V`,`D`: `f64,i32` \
-    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: rounds floating point
-    towards zero and converts the value to 32-bit integers.
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: rounds floating point
+    towards zero and converts the value to 32-bit integers. Returns the closest
+    representable value if the input exceeds the destination range.
 
 *   `V`,`D`: (`f32,f16`), (`f32,bf16`) \
-    <code>Vec&lt;D&gt; **DemoteTo**(D, V a)</code>: narrows float to half (for
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: narrows float to half (for
     bf16, it is unspecified whether this truncates or rounds).
+
+#### Single vector promotion
+
+These functions promote a half vector to a full vector. To obtain halves, use
+`LowerHalf` or `UpperHalf`, or load them using a half-sized `D`.
+
+*   `V`,`D`: (`u8,u16`), (`u16,u32`), (`u8,u32`), (`u32,u64`), (`u8,i16`),
+    (`u8,i32`), (`u16,i32`), (`i8,i16`), (`i8,i32`), (`i16,i32`), (`i32,i64`),
+    (`f16,f32`), (`bf16,f32`), (`f32,f64`) \
+    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
+    or sign-extended to the integer type `MakeWide<T>`, or widened to the
+    floating-point type `MakeWide<T>`.
+
+The following may be more convenient or efficient than also calling `LowerHalf`
+/ `UpperHalf`:
+
+*   `V`,`D`: (`bf16,f32`) \
+    <code>Vec&lt;D&gt; **PromoteLowerTo**(D, V v)</code>: returns `v[i]` widened
+    to `MakeWide<T>`, for i in `[0, Lanes(D()))`. Note that `V` has twice as
+    many lanes as `D` and the return value.
+
+*   `V`,`D`: (`bf16,f32`) \
+    <code>Vec&lt;D&gt; **PromoteUpperTo**(D, V v)</code>: returns `v[i]` widened
+    to `MakeWide<T>`, for i in `[Lanes(D()), 2 * Lanes(D()))`. Note that `V` has
+    twice as many lanes as `D` and the return value.
+
+#### Two-vector demotion
 
 *   `V`,`D`: (`i16,i8`), (`i32,i16`), (`i64,i32`), (`u16,i8`), (`u32,i16`),
     (`u64,i32`), (`i16,u8`), (`i32,u16`), (`i64,u32`), (`u16,u8`), (`u32,u16`),
@@ -1136,36 +1160,24 @@ if the input exceeds the destination range.
     (`u64,u32`), (`f32,bf16`) \
     <code>Vec&lt;D&gt; **OrderedDemote2To**(D d, V a, V b)</code>: as above, but
     converts two inputs, `D` and the output have twice as many lanes as `V`, and
-    the output order is the result of demoting the elements of ```a``` in the lower
-    half of the result followed by the result of demoting the elements of ```b```
-    in the upper half of the result. ```OrderedDemote2To(d, a, b)``` is equivalent
-    to ```Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))```, but
-    ```OrderedDemote2To(d, a, b)``` is typically more efficient than
-    ```Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))```.
-    Only available if `HWY_TARGET != HWY_SCALAR`.
+    the output order is the result of demoting the elements of `a` in the lower
+    half of the result followed by the result of demoting the elements of `b` in
+    the upper half of the result. `OrderedDemote2To(d, a, b)` is equivalent to
+    `Combine(d, DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))`, but
+    `OrderedDemote2To(d, a, b)` is typically more efficient than `Combine(d,
+    DemoteTo(Half<D>(), b), DemoteTo(Half<D>(), a))`. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
 
 *   `V`,`D`: (`u16,u8`), (`u32,u16`), (`u64,u32`), \
-    <code>Vec&lt;D&gt; **OrderedTruncate2To**(D d, V a, V b)</code>: as above, but
-    converts two inputs, `D` and the output have twice as many lanes as `V`, and
-    the output order is the result of truncating the elements of ```a``` in the
-    lower half of the result followed by the result of truncating the elements of
-    ```b``` in the upper half of the result. ```OrderedTruncate2To(d, a, b)``` is
-    equivalent to ```Combine(d, TruncateTo(Half<D>(), b), TruncateTo(Half<D>(), a))```,
-    but ```OrderedTruncate2To(d, a, b)``` is typically more efficient than
-    ```Combine(d, TruncateTo(Half<D>(), b), TruncateTo(Half<D>(), a))```.
-    Only available if `HWY_TARGET != HWY_SCALAR`.
-
-*   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
-    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
-    same-sized floating point.
-
-*   `V`,`D`: (`f32`,`i32`), (`f64`,`i64`) \
-    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: rounds floating point towards
-    zero and converts the value to same-sized integer.
-
-*   `V`: `f32`; `Ret`: `i32` \
-    <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
-    results are undefined for NaN.
+    <code>Vec&lt;D&gt; **OrderedTruncate2To**(D d, V a, V b)</code>: as above,
+    but converts two inputs, `D` and the output have twice as many lanes as `V`,
+    and the output order is the result of truncating the elements of `a` in the
+    lower half of the result followed by the result of truncating the elements
+    of `b` in the upper half of the result. `OrderedTruncate2To(d, a, b)` is
+    equivalent to `Combine(d, TruncateTo(Half<D>(), b), TruncateTo(Half<D>(),
+    a))`, but `OrderedTruncate2To(d, a, b)` is typically more efficient than
+    `Combine(d, TruncateTo(Half<D>(), b), TruncateTo(Half<D>(), a))`. Only
+    available if `HWY_TARGET != HWY_SCALAR`.
 
 ### Combine
 
