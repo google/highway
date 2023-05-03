@@ -1837,6 +1837,12 @@ HWY_API Vec256<T> SumOfLanes(D d, const Vec256<T> v) {
 }
 
 template <class D, typename T = TFromD<D>>
+HWY_API T ReduceSum(D d, const Vec256<T> v) {
+  const Half<decltype(d)> dh;
+  return ReduceSum(dh, Add(v.v0, v.v1));
+}
+
+template <class D, typename T = TFromD<D>>
 HWY_API Vec256<T> MinOfLanes(D d, const Vec256<T> v) {
   const Half<decltype(d)> dh;
   const Vec128<T> lo = MinOfLanes(dh, Min(v.v0, v.v1));

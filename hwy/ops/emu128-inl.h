@@ -2595,6 +2595,14 @@ HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
   return Set(d, sum);
 }
 template <class D, typename T = TFromD<D>>
+HWY_API T ReduceSum(D d, VFromD<D> v) {
+  T sum = T{0};
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    sum += v.raw[i];
+  }
+  return sum;
+}
+template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
   T min = HighestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {

@@ -4415,6 +4415,10 @@ HWY_API VFromD<D> SumOfLanes(D /* tag */, VFromD<D> v) {
   return detail::SumOfLanes(v);
 }
 template <class D>
+HWY_API TFromD<D> ReduceSum(D /* tag */, VFromD<D> v) {
+  return GetLane(detail::SumOfLanes(v));
+}
+template <class D>
 HWY_API VFromD<D> MinOfLanes(D /* tag */, VFromD<D> v) {
   return detail::MinOfLanes(v);
 }

@@ -4846,7 +4846,6 @@ HWY_API Vec128<int16_t, N> SumOfLanes(hwy::SizeTag<2> /* tag */,
   // Also broadcast into odd lanes.
   return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
 }
-
 template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
 HWY_API Vec128<uint16_t, N> MinOfLanes(hwy::SizeTag<2> /* tag */,
                                        Vec128<uint16_t, N> v) {
@@ -4901,6 +4900,10 @@ HWY_API Vec128<int16_t, N> MaxOfLanes(hwy::SizeTag<2> /* tag */,
 template <class D>
 HWY_API VFromD<D> SumOfLanes(D /* tag */, const VFromD<D> v) {
   return detail::SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v);
+}
+template <class D>
+HWY_API TFromD<D> ReduceSum(D /* tag */, const VFromD<D> v) {
+  return GetLane(SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v));
 }
 template <class D>
 HWY_API VFromD<D> MinOfLanes(D /* tag */, const VFromD<D> v) {

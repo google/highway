@@ -3141,6 +3141,11 @@ HWY_API VFromD<D> SumOfLanes(D d, const VFromD<D> v) {
   return detail::RedSum(d, v, v0);
 }
 
+template <class D>
+HWY_API TFromD<D> ReduceSum(D d, const VFromD<D> v) {
+  return GetLane(SumOfLanes(d, v));
+}
+
 // ------------------------------ MinOfLanes
 namespace detail {
 HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMin, redminu, _ALL)
