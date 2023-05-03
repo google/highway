@@ -26,7 +26,15 @@ nexttoward, pow, scalbn, tan, tgamma
 *   IsSorted
 *   Reduce
 
+### Range coder
+
+Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
+
 ### float64 support for WASM
+
+### AfterN
+
+= Not(FirstN()), replaces several instances. WHILEGE on SVE.
 
 ### 52x52=104-bit multiply
 
