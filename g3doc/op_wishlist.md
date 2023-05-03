@@ -26,7 +26,15 @@ nexttoward, pow, scalbn, tan, tgamma
 *   IsSorted
 *   Reduce
 
+### Range coder
+
+Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
+
 ### float64 support for WASM
+
+### AfterN
+
+= Not(FirstN()), replaces several instances. WHILEGE on SVE.
 
 ### 52x52=104-bit multiply
 
@@ -60,7 +68,7 @@ Potentially useful for comparing neighbors e.g. for RLE.
 ### Add emu256 target
 Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
 
-### `SumOfLanes` returning scalar
+### `MaxOfLanes, MinOfLanes` returning scalar
 Avoids extra broadcast.
 
 ### Reductions for 8-bit

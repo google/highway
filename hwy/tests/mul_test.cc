@@ -423,27 +423,27 @@ struct TestReorderWidenMulAccumulate {
       {
         sum1 = f0;
         const VW sum0 = ReorderWidenMulAccumulate(dw, delta, bf1, f0, sum1);
-        HWY_ASSERT_EQ(TW{1}, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+        HWY_ASSERT_EQ(TW{1}, ReduceSum(dw, Add(sum0, sum1)));
       }
       // Swapped arg order
       {
         sum1 = f0;
         const VW sum0 = ReorderWidenMulAccumulate(dw, bf1, delta, f0, sum1);
-        HWY_ASSERT_EQ(TW{1}, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+        HWY_ASSERT_EQ(TW{1}, ReduceSum(dw, Add(sum0, sum1)));
       }
       // Start with nonzero sum0 or sum1
       {
         VW sum0 = PromoteTo(dw, LowerHalf(dnh, delta));
         sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
         sum0 = ReorderWidenMulAccumulate(dw, delta, bf1, sum0, sum1);
-        HWY_ASSERT_EQ(TW{2}, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+        HWY_ASSERT_EQ(TW{2}, ReduceSum(dw, Add(sum0, sum1)));
       }
       // Start with nonzero sum0 or sum1, and swap arg order
       {
         VW sum0 = PromoteTo(dw, LowerHalf(dnh, delta));
         sum1 = PromoteTo(dw, UpperHalf(dnh, delta));
         sum0 = ReorderWidenMulAccumulate(dw, bf1, delta, sum0, sum1);
-        HWY_ASSERT_EQ(TW{2}, GetLane(SumOfLanes(dw, Add(sum0, sum1))));
+        HWY_ASSERT_EQ(TW{2}, ReduceSum(dw, Add(sum0, sum1)));
       }
     }
   }

@@ -144,7 +144,7 @@ class BenchmarkDot : public TwoArray {
     sum2 = Add(sum2, sum3);
     sum0 = Add(sum0, sum2);
     // Remember to store the result in `dot_` for verification; see `Verify`.
-    dot_ = GetLane(SumOfLanes(d, sum0));
+    dot_ = ReduceSum(d, sum0);
     // Return the result so that the benchmarking framework can ensure that the
     // computation is not elided by the compiler.
     return static_cast<FuncOutput>(dot_);

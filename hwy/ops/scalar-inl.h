@@ -1809,6 +1809,10 @@ HWY_API Vec1<T> SumOfLanes(D /* tag */, const Vec1<T> v) {
   return v;
 }
 template <class D, typename T = TFromD<D>>
+HWY_API T ReduceSum(D /* tag */, const Vec1<T> v) {
+  return GetLane(v);
+}
+template <class D, typename T = TFromD<D>>
 HWY_API Vec1<T> MinOfLanes(D /* tag */, const Vec1<T> v) {
   return v;
 }

@@ -39,10 +39,12 @@ struct TestSumOfLanes {
     Vec<decltype(d)> v =
         InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, T{1}));
     HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(-pairs)), SumOfLanes(d, v));
+    HWY_ASSERT_EQ(static_cast<T>(-pairs), ReduceSum(d, v));
 
     // Similar test with a positive result.
     v = InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, T{4}));
     HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(pairs * 2)), SumOfLanes(d, v));
+    HWY_ASSERT_EQ(static_cast<T>(pairs * 2), ReduceSum(d, v));
   }
 
   template <typename T, class D>
@@ -61,13 +63,14 @@ struct TestSumOfLanes {
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
                       SumOfLanes(d, Load(d, in_lanes.get())));
-
+    HWY_ASSERT_EQ(T(sum), ReduceSum(d, Load(d, in_lanes.get())));
     // Lane i = i (iota) to include upper lanes
     sum = 0.0;
     for (size_t i = 0; i < N; ++i) {
       sum += static_cast<double>(i);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
+    HWY_ASSERT_EQ(T(sum), ReduceSum(d, Iota(d, 0)));
 
     // Run more tests only for signed types with even vector lengths. Some of
     // this code may not otherwise compile, so put it in a templated function.

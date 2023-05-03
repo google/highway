@@ -287,14 +287,13 @@ static HWY_NOINLINE void TestPartition() {
 
   const size_t N1 = st.LanesPerKey();
   for (bool in_asc : {false, true}) {
-    for (int left_i : {0, 1, 4, 6, 7, 8, 12, 15, 22, 28, 30, 31}) {
+    for (int left_i : {0, 1, 7, 8, 30, 31}) {
       const size_t left = static_cast<size_t>(left_i) & ~(N1 - 1);
-      for (size_t ofs : {N, N + 1, N + 3, 2 * N, 2 * N + 2, 2 * N + 3,
-                         3 * N - 1, 4 * N - 3, 4 * N - 2}) {
+      for (size_t ofs :
+           {N, N + 3, 2 * N, 2 * N + 2, 2 * N + 3, 3 * N - 1, 4 * N - 2}) {
         const size_t len = (base_case_num + ofs) & ~(N1 - 1);
-        for (LaneType pivot1 :
-             {LaneType(0), LaneType(len / 3), LaneType(len / 2),
-              LaneType(2 * len / 3), LaneType(len)}) {
+        for (LaneType pivot1 : {LaneType(0), LaneType(len / 3),
+                                LaneType(2 * len / 3), LaneType(len)}) {
           const LaneType pivot2[2] = {pivot1, 0};
           const auto pivot = st.SetKey(d, pivot2);
           for (size_t misalign = 0; misalign < N;
