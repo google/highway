@@ -51,20 +51,25 @@ HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
 #include <avx512vlbwintrin.h>
 #include <avx512dqintrin.h>
 #include <avx512vldqintrin.h>
-#include <avx512bitalgintrin.h>
-#include <avx512vlbitalgintrin.h>
 #include <avx512cdintrin.h>
 #include <avx512vlcdintrin.h>
+
+#if HWY_TARGET <= HWY_AVX3_DL
+#include <avx512bitalgintrin.h>
+#include <avx512vlbitalgintrin.h>
 #include <avx512vbmiintrin.h>
 #include <avx512vbmivlintrin.h>
 #include <avx512vbmi2intrin.h>
 #include <avx512vlvbmi2intrin.h>
 #include <avx512vpopcntdqintrin.h>
 #include <avx512vpopcntdqvlintrin.h>
+#include <avx512vnniintrin.h>
+#include <avx512vlvnniintrin.h>
 // Must come after avx512fintrin, else will not define 512-bit intrinsics.
 #include <vaesintrin.h>
 #include <vpclmulqdqintrin.h>
 #include <gfniintrin.h>
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 // clang-format on
 #endif  // HWY_COMPILER_CLANGCL
 
@@ -5198,7 +5203,11 @@ HWY_API Vec512<int32_t> ReorderWidenMulAccumulate(D /*d32*/, Vec512<int16_t> a,
                                                   Vec512<int16_t> b,
                                                   const Vec512<int32_t> sum0,
                                                   Vec512<int32_t>& /*sum1*/) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec512<int32_t>{_mm512_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
+#else
   return sum0 + Vec512<int32_t>{_mm512_madd_epi16(a.raw, b.raw)};
+#endif
 }
 
 HWY_API Vec512<int32_t> RearrangeToOddPlusEven(const Vec512<int32_t> sum0,

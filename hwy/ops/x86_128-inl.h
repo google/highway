@@ -5889,7 +5889,11 @@ template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
 HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 /* tag */, V16 a, V16 b,
                                               const VFromD<D32> sum0,
                                               VFromD<D32>& /*sum1*/) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return VFromD<D32>{_mm_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
+#else
   return sum0 + VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
+#endif
 }
 
 // ------------------------------ RearrangeToOddPlusEven

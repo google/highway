@@ -4278,7 +4278,11 @@ HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(D /*d32*/, Vec256<int16_t> a,
                                                   Vec256<int16_t> b,
                                                   const Vec256<int32_t> sum0,
                                                   Vec256<int32_t>& /*sum1*/) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  return Vec256<int32_t>{_mm256_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
+#else
   return sum0 + Vec256<int32_t>{_mm256_madd_epi16(a.raw, b.raw)};
+#endif
 }
 
 // ------------------------------ RearrangeToOddPlusEven
