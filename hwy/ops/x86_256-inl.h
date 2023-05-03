@@ -1606,6 +1606,30 @@ HWY_API Vec256<int16_t> SaturatedAdd(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{_mm256_adds_epi16(a.raw, b.raw)};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<int32_t> SaturatedAdd(Vec256<int32_t> a, Vec256<int32_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto sum = a + b;
+  const auto overflow_mask = MaskFromVec(
+      Vec256<int32_t>{_mm256_ternarylogic_epi32(a.raw, b.raw, sum.raw, 0x42)});
+  const auto i32_max = Set(d, LimitsMax<int32_t>());
+  const Vec256<int32_t> overflow_result{_mm256_mask_ternarylogic_epi32(
+      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, sum);
+}
+
+HWY_API Vec256<int64_t> SaturatedAdd(Vec256<int64_t> a, Vec256<int64_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto sum = a + b;
+  const auto overflow_mask = MaskFromVec(
+      Vec256<int64_t>{_mm256_ternarylogic_epi64(a.raw, b.raw, sum.raw, 0x42)});
+  const auto i64_max = Set(d, LimitsMax<int64_t>());
+  const Vec256<int64_t> overflow_result{_mm256_mask_ternarylogic_epi64(
+      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, sum);
+}
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
@@ -1625,6 +1649,30 @@ HWY_API Vec256<int8_t> SaturatedSub(Vec256<int8_t> a, Vec256<int8_t> b) {
 HWY_API Vec256<int16_t> SaturatedSub(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{_mm256_subs_epi16(a.raw, b.raw)};
 }
+
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<int32_t> SaturatedSub(Vec256<int32_t> a, Vec256<int32_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto diff = a - b;
+  const auto overflow_mask = MaskFromVec(
+      Vec256<int32_t>{_mm256_ternarylogic_epi32(a.raw, b.raw, diff.raw, 0x18)});
+  const auto i32_max = Set(d, LimitsMax<int32_t>());
+  const Vec256<int32_t> overflow_result{_mm256_mask_ternarylogic_epi32(
+      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, diff);
+}
+
+HWY_API Vec256<int64_t> SaturatedSub(Vec256<int64_t> a, Vec256<int64_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto diff = a - b;
+  const auto overflow_mask = MaskFromVec(
+      Vec256<int64_t>{_mm256_ternarylogic_epi64(a.raw, b.raw, diff.raw, 0x18)});
+  const auto i64_max = Set(d, LimitsMax<int64_t>());
+  const Vec256<int64_t> overflow_result{_mm256_mask_ternarylogic_epi64(
+      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, diff);
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Average
 
