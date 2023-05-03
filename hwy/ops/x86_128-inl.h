@@ -4001,15 +4001,27 @@ HWY_API T ExtractLane(const Vec128<T, 16> v, size_t i) {
 
 namespace detail {
 
+template <class V>
+HWY_INLINE V InsertLaneUsingBroadcastAndBlend(V v, size_t i, TFromV<V> t) {
+  const DFromV<decltype(v)> d;
+
+#if HWY_TARGET <= HWY_AVX3
+  using RawMask = decltype(MaskFromVec(VFromD<decltype(d)>()).raw);
+  const auto mask = MFromD<decltype(d)>{static_cast<RawMask>(uint64_t{1} << i)};
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const auto mask = RebindMask(d, Iota(du, 0) == Set(du, static_cast<TU>(i)));
+#endif
+
+  return IfThenElse(mask, Set(d, t), v);
+}
+
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
-  const DFromV<decltype(v)> d;
-  alignas(16) T lanes[16];
-  Store(v, d, lanes);
-  lanes[kLane] = t;
-  return Load(d, lanes);
+  return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
 #else
   return Vec128<T, N>{_mm_insert_epi8(v.raw, t, kLane)};
 #endif
@@ -4025,11 +4037,7 @@ template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
-  alignas(16) T lanes[4];
-  const DFromV<decltype(v)> d;
-  Store(v, d, lanes);
-  lanes[kLane] = t;
-  return Load(d, lanes);
+  return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
 #else
   MakeSigned<T> ti;
   CopySameSize(&t, &ti);  // don't just cast because T might be float.
@@ -4042,10 +4050,14 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3 || HWY_ARCH_X86_32
   const DFromV<decltype(v)> d;
-  alignas(16) T lanes[2];
-  Store(v, d, lanes);
-  lanes[kLane] = t;
-  return Load(d, lanes);
+  const RebindToFloat<decltype(d)> df;
+  const auto vt = BitCast(df, Set(d, t));
+  if (kLane == 0) {
+    return BitCast(
+        d, Vec128<double, N>{_mm_shuffle_pd(vt.raw, BitCast(df, v).raw, 2)});
+  }
+  return BitCast(
+      d, Vec128<double, N>{_mm_shuffle_pd(BitCast(df, v).raw, vt.raw, 0)});
 #else
   MakeSigned<T> ti;
   CopySameSize(&t, &ti);  // don't just cast because T might be float.
@@ -4057,11 +4069,7 @@ template <size_t kLane, size_t N>
 HWY_INLINE Vec128<float, N> InsertLane(const Vec128<float, N> v, float t) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
-  const DFromV<decltype(v)> d;
-  alignas(16) float lanes[4];
-  Store(v, d, lanes);
-  lanes[kLane] = t;
-  return Load(d, lanes);
+  return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
 #else
   return Vec128<float, N>{_mm_insert_ps(v.raw, _mm_set_ss(t), kLane << 4)};
 #endif
@@ -4109,11 +4117,7 @@ HWY_API Vec128<T, 2> InsertLane(const Vec128<T, 2> v, size_t i, T t) {
     }
   }
 #endif
-  const DFromV<decltype(v)> d;
-  alignas(16) T lanes[2];
-  Store(v, d, lanes);
-  lanes[i] = t;
-  return Load(d, lanes);
+  return detail::InsertLaneUsingBroadcastAndBlend(v, i, t);
 }
 
 template <typename T>
@@ -4132,11 +4136,7 @@ HWY_API Vec128<T, 4> InsertLane(const Vec128<T, 4> v, size_t i, T t) {
     }
   }
 #endif
-  const DFromV<decltype(v)> d;
-  alignas(16) T lanes[4];
-  Store(v, d, lanes);
-  lanes[i] = t;
-  return Load(d, lanes);
+  return detail::InsertLaneUsingBroadcastAndBlend(v, i, t);
 }
 
 template <typename T>
@@ -4163,11 +4163,7 @@ HWY_API Vec128<T, 8> InsertLane(const Vec128<T, 8> v, size_t i, T t) {
     }
   }
 #endif
-  const DFromV<decltype(v)> d;
-  alignas(16) T lanes[8];
-  Store(v, d, lanes);
-  lanes[i] = t;
-  return Load(d, lanes);
+  return detail::InsertLaneUsingBroadcastAndBlend(v, i, t);
 }
 
 template <typename T>
@@ -4210,11 +4206,7 @@ HWY_API Vec128<T, 16> InsertLane(const Vec128<T, 16> v, size_t i, T t) {
     }
   }
 #endif
-  const DFromV<decltype(v)> d;
-  alignas(16) T lanes[16];
-  Store(v, d, lanes);
-  lanes[i] = t;
-  return Load(d, lanes);
+  return detail::InsertLaneUsingBroadcastAndBlend(v, i, t);
 }
 
 // ------------------------------ CombineShiftRightBytes
