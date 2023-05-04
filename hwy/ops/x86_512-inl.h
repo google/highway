@@ -5442,16 +5442,24 @@ HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
   return InterleaveUpper(du64, mulL, mulH);
 }
 
+// ------------------------------ WidenMulPairwiseAdd
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec512<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec512<int16_t> a,
+                                                  Vec512<int16_t> b) {
+  return Vec512<int32_t>{_mm512_madd_epi16(a.raw, b.raw)};
+}
+
 // ------------------------------ ReorderWidenMulAccumulate
 template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec512<int32_t> ReorderWidenMulAccumulate(D /*d32*/, Vec512<int16_t> a,
+HWY_API Vec512<int32_t> ReorderWidenMulAccumulate(D d, Vec512<int16_t> a,
                                                   Vec512<int16_t> b,
                                                   const Vec512<int32_t> sum0,
                                                   Vec512<int32_t>& /*sum1*/) {
+  (void)d;
 #if HWY_TARGET <= HWY_AVX3_DL
   return Vec512<int32_t>{_mm512_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
 #else
-  return sum0 + Vec512<int32_t>{_mm512_madd_epi16(a.raw, b.raw)};
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
 #endif
 }
 

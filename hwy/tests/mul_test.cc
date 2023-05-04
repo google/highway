@@ -380,6 +380,57 @@ HWY_NOINLINE void TestAllMulAdd() {
   ForFloatTypes(ForPartialVectors<TestMulSub>());
 }
 
+struct TestWidenMulPairwiseAdd {
+  template <typename TN, class DN>
+  HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
+    using TW = MakeWide<TN>;
+    const RepartitionToWide<DN> dw;
+    using VW = Vec<decltype(dw)>;
+    using VN = Vec<decltype(dn)>;
+    const size_t NN = Lanes(dn);
+
+    const VW f0 = Zero(dw);
+    const VW f1 = Set(dw, TW{1});
+    const VN bf0 = Zero(dn);
+    // Cannot Set() bfloat16_t directly.
+    const VN bf1 = ReorderDemote2To(dn, f1, f1);
+
+    // Any input zero => both outputs zero
+    HWY_ASSERT_VEC_EQ(dw, f0, WidenMulPairwiseAdd(dw, bf0, bf0));
+    HWY_ASSERT_VEC_EQ(dw, f0, WidenMulPairwiseAdd(dw, bf0, bf1));
+    HWY_ASSERT_VEC_EQ(dw, f0, WidenMulPairwiseAdd(dw, bf1, bf0));
+
+    // delta[p] := p all others zero.
+    auto delta_w = AllocateAligned<TW>(NN);
+    for (size_t p = 0; p < NN; ++p) {
+      // Workaround for incorrect Clang wasm codegen: re-initialize the entire
+      // array rather than zero-initialize once and then set lane p to p.
+      for (size_t i = 0; i < NN; ++i) {
+        delta_w[i] = static_cast<TW>((i == p) ? p : 0);
+      }
+      const VW delta0 = Load(dw, delta_w.get());
+      const VW delta1 = Load(dw, delta_w.get() + NN / 2);
+      const VN delta = OrderedDemote2To(dn, delta0, delta1);
+
+      VW ref = InsertLane(f0, p / 2, static_cast<TW>(p));
+      {
+        const VW res = WidenMulPairwiseAdd(dw, delta, bf1);
+        HWY_ASSERT_VEC_EQ(dw, res, ref);
+      }
+      // Swapped arg order
+      {
+        const VW res = WidenMulPairwiseAdd(dw, bf1, delta);
+        HWY_ASSERT_VEC_EQ(dw, res, ref);
+      }
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllWidenMulPairwiseAdd() {
+  ForShrinkableVectors<TestWidenMulPairwiseAdd>()(bfloat16_t());
+  ForShrinkableVectors<TestWidenMulPairwiseAdd>()(int16_t());
+}
+
 struct TestReorderWidenMulAccumulate {
   template <typename TN, class DN>
   HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
@@ -516,6 +567,7 @@ HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulHigh);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulAdd);
+HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllReorderWidenMulAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllRearrangeToOddPlusEven);
 
