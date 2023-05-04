@@ -276,7 +276,7 @@ struct TestConcatOddEven {
     HWY_ASSERT_VEC_EQ(d, min, ConcatEven(d, min, min));
 #else
     (void)d;
-#endif
+#endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
@@ -343,6 +343,8 @@ class TestTruncatingResizeBitCast {
         DoTruncResizeBitCastTest(d_eighth, d);
       }
     }
+#else
+    (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
@@ -421,6 +423,8 @@ class TestExtendingResizeBitCast {
         DoExtResizeBitCastTest(d_octuple, d);
       }
     }
+#else
+    (void)d;
 #endif  // HWY_TARGET != HWY_SCALAR
   }
 };
