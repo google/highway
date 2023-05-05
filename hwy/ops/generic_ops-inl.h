@@ -122,6 +122,21 @@ HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
 #endif
 }
 
+// ------------------------------ BitwiseIfThenElse
+#if (defined(HWY_NATIVE_BITWISE_IF_THEN_ELSE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#undef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#else
+#define HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#endif
+
+template <class V>
+HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
+  return Or(And(mask, yes), AndNot(mask, no));
+}
+
+#endif  // HWY_NATIVE_BITWISE_IF_THEN_ELSE
+
 // "Include guard": skip if native instructions are available. The generic
 // implementation is currently shared between x86_* and wasm_*, and is too large
 // to duplicate.
