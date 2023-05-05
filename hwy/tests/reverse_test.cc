@@ -179,11 +179,15 @@ class TestReverseBits {
     constexpr TU kShlMask3 = static_cast<TU>(~kShrMask3);
 
     TU result = static_cast<TU>(val);
-    result = ((result << 1) & kShlMask1) | ((result >> 1) & kShrMask1);
-    result = ((result << 2) & kShlMask2) | ((result >> 2) & kShrMask2);
-    result = ((result << 4) & kShlMask3) | ((result >> 4) & kShrMask3);
+    result = static_cast<TU>(((result << 1) & kShlMask1) |
+                             ((result >> 1) & kShrMask1));
+    result = static_cast<TU>(((result << 2) & kShlMask2) |
+                             ((result >> 2) & kShrMask2));
+    result = static_cast<TU>(((result << 4) & kShlMask3) |
+                             ((result >> 4) & kShrMask3));
     return static_cast<T>(result);
   }
+
   template <class T>
   static HWY_INLINE T ReverseBitsOfValue(T val) {
     return ReverseBytesOfValue(ReverseBitsOfEachByte(val));
