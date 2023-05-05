@@ -46,7 +46,7 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@128a63446a954579617e875aaab7d2978154e969 # v2.4.0
         with:
-          egress-policy: block
+          egress-policy: audit  # cannot be block - runner does git checkout
 
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
 
@@ -67,7 +67,7 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@128a63446a954579617e875aaab7d2978154e969 # v2.4.0
         with:
-          egress-policy: block
+          egress-policy: audit  # cannot be block - runner does git checkout
 
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
       - uses: bazelbuild/setup-bazelisk@95c9bf48d0c570bb3e28e57108f3450cd67c1a44 # v2.0.0
