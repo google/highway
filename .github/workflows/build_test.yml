@@ -36,11 +36,17 @@ jobs:
             extra_deps: clang-12
             c_compiler: clang-12
             cxx_compiler: clang++-12
+
+          - name: GCC-10
+            extra_deps: g++-10
+            c_compiler: gcc-10
+            cxx_compiler: g++-10
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@03bee3930647ebbf994244c21ddbc0d4933aab4f # v2.3.0
         with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+          egress-policy: block
 
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
 
@@ -61,7 +67,7 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@03bee3930647ebbf994244c21ddbc0d4933aab4f # v2.3.0
         with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+          egress-policy: block
 
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
       - uses: bazelbuild/setup-bazelisk@95c9bf48d0c570bb3e28e57108f3450cd67c1a44 # v2.0.0
