@@ -207,10 +207,9 @@ std::vector<Algo> AlgoForBench() {
 
 #if !HAVE_PARALLEL_IPS4O
 #if !SORT_100M
-        // These are 10-20x slower, but that's OK for the default size when we
-        // are not testing the parallel nor 100M modes.
+        // 10-20x slower, but that's OK for the default size when we are not
+        // testing the parallel nor 100M modes.
         Algo::kStd,
-    // Algo::kHeap,  // uncompetitive
 #endif
 
         Algo::kVQSort,  // only ~4x slower, but not required for Table 1a
@@ -271,25 +270,49 @@ template <typename T>
 using OtherOrder = OrderDescending<T>;
 #endif
 
+enum class BenchmarkModes { kDefault, kAllSmall, kLog10 };
+
+std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
+  std::vector<size_t> sizes;
+  switch (mode) {
+    default:
+    case BenchmarkModes::kDefault:
+#if HAVE_PARALLEL_IPS4O || SORT_100M
+      sizes.push_back(100 * 1000 * size_t{1000});
+#else
+      sizes.push_back(100);
+      sizes.push_back(100 * 1000);
+#endif
+      break;
+    case BenchmarkModes::kAllSmall:
+      sizes.reserve(128);
+      for (size_t i = 1; i <= 128; ++i) {
+        sizes.push_back(i);
+      }
+      break;
+    case BenchmarkModes::kLog10:
+      for (size_t size = 10; size <= 100 * 1000; size *= 10) {
+        sizes.push_back(size);
+      }
+      break;
+  }
+  return sizes;
+}
+
 HWY_NOINLINE void BenchAllSort() {
   // Not interested in benchmark results for these targets. Note that SSE4 is
   // numerically less than SSE2, hence it is the lower bound.
   if (HWY_SSE4 <= HWY_TARGET && HWY_TARGET <= HWY_SSE2) {
     return;
   }
-
-  constexpr size_t K = 1000;
-  constexpr size_t M = K * K;
-  (void)K;
-  (void)M;
-  for (size_t num_keys : {
-#if HAVE_PARALLEL_IPS4O || SORT_100M
-         100 * M,
-#else
-        size_t{100}, 100 * K
+#if HAVE_INTEL
+  if (HWY_TARGET > HWY_AVX3) return;
 #endif
-       }) {
+
+  for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kDefault)) {
+#if !HAVE_INTEL
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
+#endif
     // BenchSort<TraitsLane<OtherOrder<double>>>(num_keys);
     // BenchSort<TraitsLane<OrderAscending<int16_t>>>(num_keys);
     BenchSort<TraitsLane<OtherOrder<int32_t>>>(num_keys);

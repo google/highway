@@ -11,18 +11,21 @@ COMPAT = [
     "//buildenv/target:non_prod",  # includes mobile/vendor.
 ]
 
-# cc_library(
-#     name = "intel",
-#     hdrs = [
-#         "avx512-16bit-common.h",
-#         "avx512-16bit-qsort.hpp",
-#         "avx512-32bit-qsort.hpp",
-#         "avx512-64bit-common.h",
-#         "avx512-64bit-qsort.hpp",
-#         "avx512-common-qsort.h",
-#     ],
-#     compatible_with = [],
-# )
+cc_library(
+    name = "intel",
+    # hdrs = select({
+    #     "//third_party/bazel_platforms/cpu:x86_64": [
+    #         "avx512-16bit-common.h",
+    #         "avx512-16bit-qsort.hpp",
+    #         "avx512-32bit-qsort.hpp",
+    #         "avx512-64bit-common.h",
+    #         "avx512-64bit-qsort.hpp",
+    #         "avx512-common-qsort.h",
+    #     ],
+    #     "//conditions:default": [],
+    # }),
+    compatible_with = [],
+)
 
 # cc_library(
 #     name = "vxsort",
@@ -120,7 +123,7 @@ cc_library(
         # Placeholder for internal instrumentation. Do not remove.
     ],
     deps = [
-        # ":intel",  # required if HAVE_INTEL
+        ":intel",  # required if HAVE_INTEL
         # ":vxsort",  # required if HAVE_VXSORT
         "//:hwy",
     ],

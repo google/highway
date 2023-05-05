@@ -37,7 +37,11 @@
 #define HAVE_PDQSORT 0
 #define HAVE_SORT512 0
 #define HAVE_VXSORT 0
+#if HWY_ARCH_X86
 #define HAVE_INTEL 0
+#else
+#define HAVE_INTEL 0
+#endif
 
 #if HAVE_AVX2SORT
 HWY_PUSH_ATTRIBUTES("avx2,avx")
