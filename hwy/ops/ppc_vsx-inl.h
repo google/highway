@@ -1054,9 +1054,20 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8(Vec128<uint8_t, N> v) {
 
 // Returns a + b clamped to the destination range.
 
-// Unsigned
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T),
-          HWY_IF_T_SIZE_ONE_OF(T, 0x6)>
+#ifdef HWY_NATIVE_I32_SATURATED_ADDSUB
+#undef HWY_NATIVE_I32_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_I32_SATURATED_ADDSUB
+#endif
+
+#ifdef HWY_NATIVE_U32_SATURATED_ADDSUB
+#undef HWY_NATIVE_U32_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_U32_SATURATED_ADDSUB
+#endif
+
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> SaturatedAdd(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{vec_adds(a.raw, b.raw)};
 }
@@ -1065,8 +1076,8 @@ HWY_API Vec128<T, N> SaturatedAdd(Vec128<T, N> a, Vec128<T, N> b) {
 
 // Returns a - b clamped to the destination range.
 
-template <typename T, size_t N, HWY_IF_NOT_FLOAT(T),
-          HWY_IF_T_SIZE_ONE_OF(T, 0x6)>
+template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> SaturatedSub(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{vec_subs(a.raw, b.raw)};
 }

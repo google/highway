@@ -140,19 +140,9 @@ struct TestSaturatingArithmeticOverflow {
 };
 
 HWY_NOINLINE void TestAllSaturatingArithmetic() {
-  const ForPartialVectors<TestUnsignedSaturatingArithmetic> test_unsigned;
-  test_unsigned(uint8_t());
-  test_unsigned(uint16_t());
-
-  const ForPartialVectors<TestSignedSaturatingArithmetic> test_signed;
-  test_signed(int8_t());
-  test_signed(int16_t());
-
-  const ForPartialVectors<TestSaturatingArithmeticOverflow> test_overflow;
-  test_overflow(int8_t());
-  test_overflow(uint8_t());
-  test_overflow(int16_t());
-  test_overflow(uint16_t());
+  ForUnsignedTypes(ForPartialVectors<TestUnsignedSaturatingArithmetic>());
+  ForSignedTypes(ForPartialVectors<TestSignedSaturatingArithmetic>());
+  ForIntegerTypes(ForPartialVectors<TestSaturatingArithmeticOverflow>());
 }
 
 struct TestAverage {

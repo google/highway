@@ -578,23 +578,27 @@ HWY_API Vec128<uint64_t, (N + 7) / 8> SumsOf8(Vec128<uint8_t, N> v) {
 }
 
 // ------------------------------ SaturatedAdd
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> SaturatedAdd(Vec128<T, N> a, Vec128<T, N> b) {
+  using TW = MakeSigned<MakeWide<T>>;
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = static_cast<T>(
-        HWY_MIN(HWY_MAX(hwy::LowestValue<T>(), a.raw[i] + b.raw[i]),
-                hwy::HighestValue<T>()));
+    a.raw[i] = static_cast<T>(HWY_MIN(
+        HWY_MAX(hwy::LowestValue<T>(), static_cast<TW>(a.raw[i]) + b.raw[i]),
+        hwy::HighestValue<T>()));
   }
   return a;
 }
 
 // ------------------------------ SaturatedSub
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> SaturatedSub(Vec128<T, N> a, Vec128<T, N> b) {
+  using TW = MakeSigned<MakeWide<T>>;
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = static_cast<T>(
-        HWY_MIN(HWY_MAX(hwy::LowestValue<T>(), a.raw[i] - b.raw[i]),
-                hwy::HighestValue<T>()));
+    a.raw[i] = static_cast<T>(HWY_MIN(
+        HWY_MAX(hwy::LowestValue<T>(), static_cast<TW>(a.raw[i]) - b.raw[i]),
+        hwy::HighestValue<T>()));
   }
   return a;
 }

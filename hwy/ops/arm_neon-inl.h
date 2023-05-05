@@ -1407,30 +1407,38 @@ HWY_API Vec64<uint64_t> SumsOf8(const Vec64<uint8_t> v) {
 }
 
 // ------------------------------ SaturatedAdd
-// Only defined for uint8_t, uint16_t and their signed versions, as in other
-// architectures.
+
+#ifdef HWY_NATIVE_I32_SATURATED_ADDSUB
+#undef HWY_NATIVE_I32_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_I32_SATURATED_ADDSUB
+#endif
+
+#ifdef HWY_NATIVE_U32_SATURATED_ADDSUB
+#undef HWY_NATIVE_U32_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_U32_SATURATED_ADDSUB
+#endif
+
+#ifdef HWY_NATIVE_I64_SATURATED_ADDSUB
+#undef HWY_NATIVE_I64_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_I64_SATURATED_ADDSUB
+#endif
+
+#ifdef HWY_NATIVE_U64_SATURATED_ADDSUB
+#undef HWY_NATIVE_U64_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_U64_SATURATED_ADDSUB
+#endif
 
 // Returns a + b clamped to the destination range.
-HWY_NEON_DEF_FUNCTION_INT_8(SaturatedAdd, vqadd, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_16(SaturatedAdd, vqadd, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_8(SaturatedAdd, vqadd, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_16(SaturatedAdd, vqadd, _, 2)
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(SaturatedAdd, vqadd, _, 2)
 
 // ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
-HWY_NEON_DEF_FUNCTION_INT_8(SaturatedSub, vqsub, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_16(SaturatedSub, vqsub, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_8(SaturatedSub, vqsub, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_16(SaturatedSub, vqsub, _, 2)
-
-// Not part of API, used in implementation.
-namespace detail {
-HWY_NEON_DEF_FUNCTION_UINT_32(SaturatedSub, vqsub, _, 2)
-HWY_NEON_DEF_FUNCTION_UINT_64(SaturatedSub, vqsub, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_32(SaturatedSub, vqsub, _, 2)
-HWY_NEON_DEF_FUNCTION_INT_64(SaturatedSub, vqsub, _, 2)
-}  // namespace detail
+HWY_NEON_DEF_FUNCTION_INTS_UINTS(SaturatedSub, vqsub, _, 2)
 
 // ------------------------------ Average
 
@@ -2151,7 +2159,7 @@ HWY_API Vec128<int64_t, N> AbsDiff(const Vec128<int64_t, N> a,
 template <size_t N>
 HWY_API Vec128<uint64_t, N> AbsDiff(const Vec128<uint64_t, N> a,
                                     const Vec128<uint64_t, N> b) {
-  return Or(detail::SaturatedSub(a, b), detail::SaturatedSub(b, a));
+  return Or(SaturatedSub(a, b), SaturatedSub(b, a));
 }
 
 // ------------------------------ PopulationCount
@@ -2628,7 +2636,7 @@ HWY_API Vec128<uint64_t, N> Min(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
 #else
   const DFromV<decltype(a)> du;
   const RebindToSigned<decltype(du)> di;
-  return BitCast(du, BitCast(di, a) - BitCast(di, detail::SaturatedSub(a, b)));
+  return BitCast(du, BitCast(di, a) - BitCast(di, SaturatedSub(a, b)));
 #endif
 }
 
@@ -2640,7 +2648,7 @@ HWY_API Vec128<int64_t, N> Min(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 #if HWY_ARCH_ARM_A64
   return IfThenElse(b < a, b, a);
 #else
-  const Vec128<int64_t, N> sign = detail::SaturatedSub(a, b);
+  const Vec128<int64_t, N> sign = SaturatedSub(a, b);
   return IfThenElse(MaskFromVec(BroadcastSignBit(sign)), a, b);
 #endif
 }
@@ -2664,7 +2672,7 @@ HWY_API Vec128<uint64_t, N> Max(Vec128<uint64_t, N> a, Vec128<uint64_t, N> b) {
 #else
   const DFromV<decltype(a)> du;
   const RebindToSigned<decltype(du)> di;
-  return BitCast(du, BitCast(di, b) + BitCast(di, detail::SaturatedSub(a, b)));
+  return BitCast(du, BitCast(di, b) + BitCast(di, SaturatedSub(a, b)));
 #endif
 }
 
@@ -2676,7 +2684,7 @@ HWY_API Vec128<int64_t, N> Max(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 #if HWY_ARCH_ARM_A64
   return IfThenElse(b < a, a, b);
 #else
-  const Vec128<int64_t, N> sign = detail::SaturatedSub(a, b);
+  const Vec128<int64_t, N> sign = SaturatedSub(a, b);
   return IfThenElse(MaskFromVec(BroadcastSignBit(sign)), b, a);
 #endif
 }

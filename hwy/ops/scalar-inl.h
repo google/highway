@@ -493,8 +493,8 @@ HWY_API Vec1<uint8_t> SaturatedAdd(const Vec1<uint8_t> a,
 }
 HWY_API Vec1<uint16_t> SaturatedAdd(const Vec1<uint16_t> a,
                                     const Vec1<uint16_t> b) {
-  return Vec1<uint16_t>(
-      static_cast<uint16_t>(HWY_MIN(HWY_MAX(0, a.raw + b.raw), 65535)));
+  return Vec1<uint16_t>(static_cast<uint16_t>(
+      HWY_MIN(HWY_MAX(0, static_cast<int32_t>(a.raw) + b.raw), 65535)));
 }
 
 // Signed
@@ -504,8 +504,8 @@ HWY_API Vec1<int8_t> SaturatedAdd(const Vec1<int8_t> a, const Vec1<int8_t> b) {
 }
 HWY_API Vec1<int16_t> SaturatedAdd(const Vec1<int16_t> a,
                                    const Vec1<int16_t> b) {
-  return Vec1<int16_t>(
-      static_cast<int16_t>(HWY_MIN(HWY_MAX(-32768, a.raw + b.raw), 32767)));
+  return Vec1<int16_t>(static_cast<int16_t>(
+      HWY_MIN(HWY_MAX(-32768, static_cast<int32_t>(a.raw) + b.raw), 32767)));
 }
 
 // ------------------------------ Saturating subtraction
@@ -520,8 +520,8 @@ HWY_API Vec1<uint8_t> SaturatedSub(const Vec1<uint8_t> a,
 }
 HWY_API Vec1<uint16_t> SaturatedSub(const Vec1<uint16_t> a,
                                     const Vec1<uint16_t> b) {
-  return Vec1<uint16_t>(
-      static_cast<uint16_t>(HWY_MIN(HWY_MAX(0, a.raw - b.raw), 65535)));
+  return Vec1<uint16_t>(static_cast<uint16_t>(
+      HWY_MIN(HWY_MAX(0, static_cast<int32_t>(a.raw) - b.raw), 65535)));
 }
 
 // Signed
@@ -531,8 +531,8 @@ HWY_API Vec1<int8_t> SaturatedSub(const Vec1<int8_t> a, const Vec1<int8_t> b) {
 }
 HWY_API Vec1<int16_t> SaturatedSub(const Vec1<int16_t> a,
                                    const Vec1<int16_t> b) {
-  return Vec1<int16_t>(
-      static_cast<int16_t>(HWY_MIN(HWY_MAX(-32768, a.raw - b.raw), 32767)));
+  return Vec1<int16_t>(static_cast<int16_t>(
+      HWY_MIN(HWY_MAX(-32768, static_cast<int32_t>(a.raw) - b.raw), 32767)));
 }
 
 // ------------------------------ Average

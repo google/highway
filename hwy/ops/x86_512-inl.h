@@ -4019,6 +4019,54 @@ HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
 
 // ================================================== MISC
 
+// ------------------------------ I32/I64 SaturatedAdd (MaskFromVec)
+
+HWY_API Vec512<int32_t> SaturatedAdd(Vec512<int32_t> a, Vec512<int32_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto sum = a + b;
+  const auto overflow_mask = MaskFromVec(
+      Vec512<int32_t>{_mm512_ternarylogic_epi32(a.raw, b.raw, sum.raw, 0x42)});
+  const auto i32_max = Set(d, LimitsMax<int32_t>());
+  const Vec512<int32_t> overflow_result{_mm512_mask_ternarylogic_epi32(
+      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, sum);
+}
+
+HWY_API Vec512<int64_t> SaturatedAdd(Vec512<int64_t> a, Vec512<int64_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto sum = a + b;
+  const auto overflow_mask = MaskFromVec(
+      Vec512<int64_t>{_mm512_ternarylogic_epi64(a.raw, b.raw, sum.raw, 0x42)});
+  const auto i64_max = Set(d, LimitsMax<int64_t>());
+  const Vec512<int64_t> overflow_result{_mm512_mask_ternarylogic_epi64(
+      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, sum);
+}
+
+// ------------------------------ I32/I64 SaturatedSub (MaskFromVec)
+
+HWY_API Vec512<int32_t> SaturatedSub(Vec512<int32_t> a, Vec512<int32_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto diff = a - b;
+  const auto overflow_mask = MaskFromVec(
+      Vec512<int32_t>{_mm512_ternarylogic_epi32(a.raw, b.raw, diff.raw, 0x18)});
+  const auto i32_max = Set(d, LimitsMax<int32_t>());
+  const Vec512<int32_t> overflow_result{_mm512_mask_ternarylogic_epi32(
+      i32_max.raw, MaskFromVec(a).raw, i32_max.raw, i32_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, diff);
+}
+
+HWY_API Vec512<int64_t> SaturatedSub(Vec512<int64_t> a, Vec512<int64_t> b) {
+  const DFromV<decltype(a)> d;
+  const auto diff = a - b;
+  const auto overflow_mask = MaskFromVec(
+      Vec512<int64_t>{_mm512_ternarylogic_epi64(a.raw, b.raw, diff.raw, 0x18)});
+  const auto i64_max = Set(d, LimitsMax<int64_t>());
+  const Vec512<int64_t> overflow_result{_mm512_mask_ternarylogic_epi64(
+      i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
+  return IfThenElse(overflow_mask, overflow_result, diff);
+}
+
 // ------------------------------ Mask testing
 
 // Beware: the suffix indicates the number of mask bits, not lane size!
