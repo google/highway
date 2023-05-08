@@ -283,17 +283,23 @@ ensure proper VEX code generation for AVX2 targets.
 
 ## Strip-mining loops
 
-To vectorize a loop, "strip-mining" transforms it into an outer loop and inner
-loop with number of iterations matching the preferred vector width.
+When vectorizing a loop, an important question is whether and how to deal with
+a number of iterations ('trip count', denoted `count`) that does not evenly
+divide the vector size `N = Lanes(d)`. For example, it may be necessary to avoid
+writing past the end of an array.
 
-In this section, let `T` denote the element type, `d = ScalableTag<T>`, `count`
-the number of elements to process, and `N = Lanes(d)` the number of lanes in a
-full vector. Assume the loop body is given as a function `template<bool partial,
-class D> void LoopBody(D d, size_t index, size_t max_n)`.
+In this section, let `T` denote the element type and `d = ScalableTag<T>`.
+Assume the loop body is given as a function `template<bool partial, class D>
+void LoopBody(D d, size_t index, size_t max_n)`.
 
-Highway offers several ways to express loops where `N` need not divide `count`:
+"Strip-mining" is a technique for vectorizing a loop by transforming it into an
+outer loop and inner loop, such that the number of iterations in the inner loop
+matches the vector width. Then, the inner loop is replaced with vector
+operations.
 
-*   Ensure all inputs/outputs are padded. Then the loop is simply
+Highway offers several strategies for loop vectorization:
+
+*   Ensure all inputs/outputs are padded. Then the (outer) loop is simply
 
     ```
     for (size_t i = 0; i < count; i += N) LoopBody<false>(d, i, 0);

@@ -2366,7 +2366,7 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16),
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2))>
 HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d,
                              const TFromD<D>* HWY_RESTRICT p) {
-  return IfThenElseZero(m, Load(d, p));
+  return IfThenElseZero(m, LoadU(d, p));
 }
 
 #else  // <= SSE4
@@ -2374,7 +2374,7 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d,
 // Avoid maskmov* - its nontemporal 'hint' causes it to bypass caches (slow).
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>>
 HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT p) {
-  return IfThenElseZero(m, Load(d, p));
+  return IfThenElseZero(m, LoadU(d, p));
 }
 
 #endif
@@ -2387,7 +2387,7 @@ HWY_API VFromD<D> MaskedLoad(MFromD<D> m, D d, const T* HWY_RESTRICT p) {
 template <class D, typename T = TFromD<D>>
 HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
                                const T* HWY_RESTRICT p) {
-  return IfThenElse(m, Load(d, p), v);
+  return IfThenElse(m, LoadU(d, p), v);
 }
 
 #endif  // HWY_TARGET > HWY_AVX3
