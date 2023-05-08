@@ -65,7 +65,7 @@ clear && make -j && ctest -j && cd .. && rm -rf build_ppc9
 echo POWER9 big endian GCC
 export QEMU_LD_PREFIX=/usr/powerpc64-linux-gnu
 rm -rf build_ppc9be && mkdir build_ppc9be && cd build_ppc9be
-CC=powerpc64-linux-gnu-gcc-12 CXX=powerpc64-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64 -DCMAKE_C_COMPILER_TARGET="powerpc64-linux-musl" -DCMAKE_CXX_COMPILER_TARGET="powerpc64-linux-musl" -DCMAKE_CROSSCOMPILING=true  -DCMAKE_CXX_FLAGS='-mcpu=power9'
+CC=powerpc64-linux-gnu-gcc-11 CXX=powerpc64-linux-gnu-g++-11 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-ppc64 -DCMAKE_C_COMPILER_TARGET="powerpc64-linux-musl" -DCMAKE_CXX_COMPILER_TARGET="powerpc64-linux-musl" -DCMAKE_CROSSCOMPILING=true  -DCMAKE_CXX_FLAGS='-mcpu=power9'
 clear && make -j && ctest -j && cd .. && rm -rf build_ppc9be
 
 #######################################
