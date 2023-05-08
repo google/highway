@@ -38,9 +38,10 @@
 // AVX2 target for VMs which support AVX2 but not the other instruction sets)
 // #define HWY_DISABLE_BMI2_FMA
 
-// Uncomment to enable SSSE3/SSE4 on MSVC even if AVX is not enabled
-// #define HWY_WANT_SSSE3
-// #define HWY_WANT_SSE4
+// Uncomment to enable these on MSVC even if the predefined macros are not set.
+// #define HWY_WANT_SSE2 1
+// #define HWY_WANT_SSSE3 1
+// #define HWY_WANT_SSE4 1
 
 //------------------------------------------------------------------------------
 // Targets
