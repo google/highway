@@ -207,12 +207,18 @@ HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
 
 // Returns a vector with uninitialized elements.
 template <class D>
-HWY_API VFromD<D> Undefined(D /*d*/) {
+HWY_API VFromD<D> Undefined(D d) {
+#if HWY_COMPILER_GCC_ACTUAL
+  // Suppressing maybe-uninitialized both here and at the caller does not work,
+  // so initialize.
+  return Zero(d);
+#else
   HWY_DIAGNOSTICS(push)
   HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
-  typename detail::Raw128<TFromD<D>>::type raw = raw;
-  return VFromD<D>{raw};
+  typename detail::Raw128<TFromD<D>>::type raw;
+  return VFromD<decltype(d)>{raw};
   HWY_DIAGNOSTICS(pop)
+#endif
 }
 
 // ------------------------------ GetLane

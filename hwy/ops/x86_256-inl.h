@@ -27,8 +27,9 @@
 // https://github.com/google/highway/issues/710)
 HWY_DIAGNOSTICS(push)
 #if HWY_COMPILER_GCC_ACTUAL
-HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
-HWY_DIAGNOSTICS_OFF(disable : 4703 6001 26494, ignored "-Wmaybe-uninitialized")
+HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
+HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
+                    ignored "-Wmaybe-uninitialized")
 #endif
 
 // Must come before HWY_COMPILER_CLANGCL

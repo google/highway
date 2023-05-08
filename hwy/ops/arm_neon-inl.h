@@ -916,7 +916,7 @@ HWY_API VFromD<D> Zero(D d) {
 }
 
 HWY_DIAGNOSTICS(push)
-HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wuninitialized")
+HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 #if HWY_COMPILER_GCC_ACTUAL
 HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
 #endif

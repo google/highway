@@ -139,6 +139,9 @@ struct TestSet {
     // here, even though we already suppress warnings in Undefined.
     HWY_DIAGNOSTICS(push)
     HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
+#if HWY_COMPILER_GCC_ACTUAL
+    HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
+#endif
     const Vec<D> vu = Undefined(d);
     Store(vu, d, expected.get());
     HWY_DIAGNOSTICS(pop)
