@@ -1031,6 +1031,19 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
 
 #endif  // HWY_SVE_HAVE_2
 
+// ------------------------------ BitwiseIfThenElse
+
+#ifdef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#undef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#else
+#define HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#endif
+
+template <class V>
+HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
+  return IfVecThenElse(mask, yes, no);
+}
+
 // ------------------------------ Floating-point classification (Ne)
 
 template <class V>

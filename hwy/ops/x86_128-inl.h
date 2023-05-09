@@ -479,6 +479,22 @@ HWY_API Vec128<T, N> IfVecThenElse(Vec128<T, N> mask, Vec128<T, N> yes,
 #endif
 }
 
+// ------------------------------ BitwiseIfThenElse
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#undef HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#else
+#define HWY_NATIVE_BITWISE_IF_THEN_ELSE
+#endif
+
+template <class V>
+HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
+  return IfVecThenElse(mask, yes, no);
+}
+
+#endif
+
 // ------------------------------ Operator overloads (internal-only if float)
 
 template <typename T, size_t N>
