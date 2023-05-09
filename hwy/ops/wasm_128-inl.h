@@ -4902,8 +4902,8 @@ HWY_API VFromD<D> SumOfLanes(D /* tag */, const VFromD<D> v) {
   return detail::SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v);
 }
 template <class D>
-HWY_API TFromD<D> ReduceSum(D /* tag */, const VFromD<D> v) {
-  return GetLane(SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v));
+HWY_API TFromD<D> ReduceSum(D d, const VFromD<D> v) {
+  return GetLane(SumOfLanes(d, v));
 }
 template <class D>
 HWY_API VFromD<D> MinOfLanes(D /* tag */, const VFromD<D> v) {
