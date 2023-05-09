@@ -5647,18 +5647,23 @@ HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base, VI index) {
 
 namespace detail {
 
-// full vectors
-#if HWY_ARCH_ARM_A64
 // N=1 for any T: no-op
+template <typename T>
+HWY_INLINE T ReduceMin(hwy::SizeTag<sizeof(T)> /* tag */, Vec128<T, 1> v) {
+  return GetLane(v);
+}
+template <typename T>
+HWY_INLINE T ReduceMax(hwy::SizeTag<sizeof(T)> /* tag */, Vec128<T, 1> v) {
+  return GetLane(v);
+}
+template <typename T>
+HWY_INLINE T ReduceSum(hwy::SizeTag<sizeof(T)> /* tag */, Vec128<T, 1> v) {
+  return GetLane(v);
+}
 template <typename T>
 HWY_INLINE Vec128<T, 1> SumOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
                                    Vec128<T, 1> v) {
   return v;
-}
-template <typename T>
-HWY_INLINE T ReduceSum(hwy::SizeTag<sizeof(T)> /* tag */,
-                                   Vec128<T, 1> v) {
-  return GetLane(v);
 }
 template <typename T>
 HWY_INLINE Vec128<T, 1> MinOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
@@ -5670,6 +5675,9 @@ HWY_INLINE Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
                                    Vec128<T, 1> v) {
   return v;
 }
+
+// full vectors
+#if HWY_ARCH_ARM_A64
 
 #define HWY_NEON_DEF_REDUCTION(type, size, name, prefix, infix, suffix) \
   HWY_API type##_t name(hwy::SizeTag<sizeof(type##_t)>,                 \
@@ -5730,42 +5738,69 @@ HWY_API V SumOfLanes(hwy::SizeTag<N> tag, V v) {
 
 #else
 
+// For arm7, we implement reductions using a series of pairwise operations. This
+// produces the full vector result, so we express Reduce* in terms of *OfLanes.
 #define HWY_NEON_BUILD_TYPE_T(type, size) type##x##size##_t
 #define HWY_NEON_BUILD_RET_PAIRWISE_REDUCTION(type, size) Vec128<type##_t, size>
 #define HWY_NEON_DEF_PAIRWISE_REDUCTION(type, size, name, prefix, suffix)    \
-  HWY_API type##_t                  \
-      name(hwy::SizeTag<sizeof(type##_t)>, Vec128<type##_t, size> v) {       \
+  HWY_API HWY_NEON_BUILD_RET_PAIRWISE_REDUCTION(type, size) name##OfLanes(   \
+      hwy::SizeTag<sizeof(type##_t)>, Vec128<type##_t, size> v) {            \
     HWY_NEON_BUILD_TYPE_T(type, size) tmp = prefix##_##suffix(v.raw, v.raw); \
     if ((size / 2) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
     if ((size / 4) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    return vget_lane_##suffix(tmp, 0); \
+    return HWY_NEON_BUILD_RET_PAIRWISE_REDUCTION(type, size)(tmp);           \
+  }                                                                          \
+  HWY_API type##_t Reduce##name(hwy::SizeTag<sizeof(type##_t)> tag,          \
+                                Vec128<type##_t, size> v) {                  \
+    return GetLane(name##OfLanes(tag, v));                                   \
   }
+
+// For the wide versions, the pairwise operations produce a half-length vector.
+// We produce that value with a Reduce*Vector helper method, and express Reduce*
+// and *OfLanes in terms of the helper.
 #define HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(type, size, half, name, prefix, \
                                              suffix)                         \
-  HWY_API type##_t                  \
-      name(hwy::SizeTag<sizeof(type##_t)>, Vec128<type##_t, size> v) {       \
+  HWY_API HWY_NEON_BUILD_TYPE_T(type, half)                                  \
+      Reduce##name##Vector(Vec128<type##_t, size> v) {                       \
     HWY_NEON_BUILD_TYPE_T(type, half) tmp;                                   \
     tmp = prefix##_##suffix(vget_high_##suffix(v.raw),                       \
                             vget_low_##suffix(v.raw));                       \
     if ((size / 2) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
     if ((size / 4) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
     if ((size / 8) > 1) tmp = prefix##_##suffix(tmp, tmp);                   \
-    return vget_lane_##suffix(tmp, 0); \
+    return tmp;                                                              \
+  }                                                                          \
+  HWY_API type##_t Reduce##name(hwy::SizeTag<sizeof(type##_t)>,              \
+                                Vec128<type##_t, size> v) {                  \
+    const HWY_NEON_BUILD_TYPE_T(type, half) tmp = Reduce##name##Vector(v);   \
+    return HWY_NEON_EVAL(vget_lane_##suffix, tmp, 0);                        \
+  }                                                                          \
+  HWY_API HWY_NEON_BUILD_RET_PAIRWISE_REDUCTION(type, size) name##OfLanes(   \
+      hwy::SizeTag<sizeof(type##_t)>, Vec128<type##_t, size> v) {            \
+    const HWY_NEON_BUILD_TYPE_T(type, half) tmp = Reduce##name##Vector(v);   \
+    return HWY_NEON_BUILD_RET_PAIRWISE_REDUCTION(                            \
+        type, size)(vcombine_##suffix(tmp, tmp));                            \
   }
 
 #define HWY_NEON_DEF_PAIRWISE_REDUCTIONS(name, prefix)                  \
+  HWY_NEON_DEF_PAIRWISE_REDUCTION(uint32, 2, name, prefix, u32)         \
   HWY_NEON_DEF_PAIRWISE_REDUCTION(uint16, 4, name, prefix, u16)         \
   HWY_NEON_DEF_PAIRWISE_REDUCTION(uint8, 8, name, prefix, u8)           \
+  HWY_NEON_DEF_PAIRWISE_REDUCTION(int32, 2, name, prefix, s32)          \
   HWY_NEON_DEF_PAIRWISE_REDUCTION(int16, 4, name, prefix, s16)          \
   HWY_NEON_DEF_PAIRWISE_REDUCTION(int8, 8, name, prefix, s8)            \
+  HWY_NEON_DEF_PAIRWISE_REDUCTION(float32, 2, name, prefix, f32)        \
+  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(uint32, 4, 2, name, prefix, u32) \
   HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(uint16, 8, 4, name, prefix, u16) \
   HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(uint8, 16, 8, name, prefix, u8)  \
+  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int32, 4, 2, name, prefix, s32)  \
   HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int16, 8, 4, name, prefix, s16)  \
-  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int8, 16, 8, name, prefix, s8)
+  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(int8, 16, 8, name, prefix, s8)   \
+  HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION(float32, 4, 2, name, prefix, f32)
 
-HWY_NEON_DEF_PAIRWISE_REDUCTIONS(SumOfLanes, vpadd)
-HWY_NEON_DEF_PAIRWISE_REDUCTIONS(MinOfLanes, vpmin)
-HWY_NEON_DEF_PAIRWISE_REDUCTIONS(MaxOfLanes, vpmax)
+HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Sum, vpadd)
+HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Min, vpmin)
+HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Max, vpmax)
 
 #undef HWY_NEON_DEF_PAIRWISE_REDUCTIONS
 #undef HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION
@@ -5773,9 +5808,9 @@ HWY_NEON_DEF_PAIRWISE_REDUCTIONS(MaxOfLanes, vpmax)
 #undef HWY_NEON_BUILD_RET_PAIRWISE_REDUCTION
 #undef HWY_NEON_BUILD_TYPE_T
 
-// Need fallback min/max implementations for [ui]64x2.
-#define HWY_IF_SUM_REDUCTION(T) HWY_IF_T_SIZE_ONE_OF(T, 0)
-#define HWY_IF_MINMAX_REDUCTION(T) HWY_IF_T_SIZE_ONE_OF(T, 1 << 8)
+// Need fallback min/max implementations for [ui]64x2 and [ui]16x2.
+#define HWY_IF_SUM_REDUCTION(T) HWY_IF_T_SIZE_ONE_OF(T, 1 << 2 | 1 << 8)
+#define HWY_IF_MINMAX_REDUCTION(T) HWY_IF_T_SIZE_ONE_OF(T, 1 << 2 | 1 << 8)
 
 #endif
 
@@ -5783,32 +5818,27 @@ HWY_NEON_DEF_PAIRWISE_REDUCTIONS(MaxOfLanes, vpmax)
 
 // [ui]16/[ui]64: N=2 -- special case for pairs of very small or large lanes
 template <class D, typename T, HWY_IF_SUM_REDUCTION(T)>
-HWY_API Vec128<T, 2> SumOfLanes(D /* tag */,
-                                Vec128<T, 2> v10) {
+HWY_API Vec128<T, 2> SumOfLanes(D /* tag */, Vec128<T, 2> v10) {
   return v10 + Reverse2(Simd<T, 2, 0>(), v10);
 }
 
 template <class D, typename T, HWY_IF_SUM_REDUCTION(T)>
-HWY_API T ReduceSum(D d,
-                                Vec128<T, 2> v10) {
+HWY_API T ReduceSum(D d, Vec128<T, 2> v10) {
   return GetLane(SumOfLanes(d, v10));
 }
 
 template <class D, typename T, HWY_IF_MINMAX_REDUCTION(T)>
-HWY_API Vec128<T, 2> MinOfLanes(D /* tag */,
-                                Vec128<T, 2> v10) {
+HWY_API Vec128<T, 2> MinOfLanes(D /* tag */, Vec128<T, 2> v10) {
   return Min(v10, Reverse2(Simd<T, 2, 0>(), v10));
 }
 template <class D, typename T, HWY_IF_MINMAX_REDUCTION(T)>
-HWY_API Vec128<T, 2> MaxOfLanes(D /* tag */,
-                                Vec128<T, 2> v10) {
+HWY_API Vec128<T, 2> MaxOfLanes(D /* tag */, Vec128<T, 2> v10) {
   return Max(v10, Reverse2(Simd<T, 2, 0>(), v10));
 }
 
 #undef HWY_IF_SUM_REDUCTION
 #undef HWY_IF_MINMAX_REDUCTION
 
-#if HWY_ARCH_ARM_A64
 template <class D>
 HWY_API VFromD<D> SumOfLanes(D /* tag */, VFromD<D> v) {
   return detail::SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v);
@@ -5825,199 +5855,6 @@ template <class D>
 HWY_API VFromD<D> MaxOfLanes(D /* tag */, VFromD<D> v) {
   return detail::MaxOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v);
 }
-#else
-// Armv7 version for everything except doubles.
-
-// N=1 for any T: no-op
-template <class D, typename T>
-HWY_INLINE Vec128<T, 1> SumOfLanes(D /* tag */,
-                                   Vec128<T, 1> v) {
-  return v;
-}
-template <class D, typename T>
-HWY_INLINE T ReduceSum(D /* tag */,
-                                   Vec128<T, 1> v) {
-  return GetLane(v);
-}
-template <class D, typename T>
-HWY_INLINE Vec128<T, 1> MinOfLanes(D /* tag */,
-                                   Vec128<T, 1> v) {
-  return v;
-}
-template <class D, typename T>
-HWY_INLINE Vec128<T, 1> MaxOfLanes(D /* tag */,
-                                   Vec128<T, 1> v) {
-  return v;
-}
-
-// u32/i32/f32: N=2
-template <class D, typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T, 2> SumOfLanes(D /* tag */,
-                                   Vec128<T, 2> v10) {
-  return v10 + Shuffle2301(v10);
-}
-template <class D, typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T, 2> MinOfLanes(D /* tag */,
-                                   Vec128<T, 2> v10) {
-  return Min(v10, Shuffle2301(v10));
-}
-template <class D, typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T, 2> MaxOfLanes(D /* tag */,
-                                   Vec128<T, 2> v10) {
-  return Max(v10, Shuffle2301(v10));
-}
-
-template <class D>
-HWY_INLINE Vec128<uint32_t> SumOfLanes(D /* tag */,
-                                       Vec128<uint32_t, 4> v) {
-  uint32x4x2_t v0 = vuzpq_u32(v.raw, v.raw);
-  uint32x4_t c0 = vaddq_u32(v0.val[0], v0.val[1]);
-  uint32x4x2_t v1 = vuzpq_u32(c0, c0);
-  return Vec128<uint32_t>(vaddq_u32(v1.val[0], v1.val[1]));
-}
-
-template <class D>
-HWY_INLINE Vec128<int32_t> SumOfLanes(D /* tag */,
-                                      Vec128<int32_t, 4> v) {
-  int32x4x2_t v0 = vuzpq_s32(v.raw, v.raw);
-  int32x4_t c0 = vaddq_s32(v0.val[0], v0.val[1]);
-  int32x4x2_t v1 = vuzpq_s32(c0, c0);
-  return Vec128<int32_t>(vaddq_s32(v1.val[0], v1.val[1]));
-}
-
-template <class D>
-HWY_INLINE Vec128<float> SumOfLanes(D, /* tag */
-                                    Vec128<float, 4> v) {
-  float32x4x2_t v0 = vuzpq_f32(v.raw, v.raw);
-  float32x4_t c0 = vaddq_f32(v0.val[0], v0.val[1]);
-  float32x4x2_t v1 = vuzpq_f32(c0, c0);
-  return Vec128<float>(vaddq_f32(v1.val[0], v1.val[1]));
-}
-
-template <class D, size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_API Vec128<uint16_t, N> SumOfLanes(D /* tag */,
-                                       Vec128<uint16_t, N> v) {
-  const Simd<uint16_t, N, 0> d;
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto sum = SumOfLanes(hwy::SizeTag<4>(), even + odd);
-  return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
-}
-template <class D, size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
-HWY_API Vec128<int16_t, N> SumOfLanes(D /* tag */,
-                                      Vec128<int16_t, N> v) {
-  const Simd<int16_t, N, 0> d;
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto sum = SumOfLanes(hwy::SizeTag<4>(), even + odd);
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(sum)), BitCast(d, sum));
-}
-
-template <class D, size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_API Vec128<uint16_t, N> MinOfLanes(D /* tag */,
-                                       Vec128<uint16_t, N> v) {
-  const Simd<uint16_t, N, 0> d;
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(hwy::SizeTag<4>(), Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-template <class D, size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
-HWY_API Vec128<int16_t, N> MinOfLanes(D /* tag */,
-                                      Vec128<int16_t, N> v) {
-  const Simd<int16_t, N, 0> d;
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(hwy::SizeTag<4>(), Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-
-template <class D, size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_API Vec128<uint16_t, N> MaxOfLanes(D /* tag */,
-                                       Vec128<uint16_t, N> v) {
-  const Simd<uint16_t, N, 0> d;
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto max = MaxOfLanes(hwy::SizeTag<4>(), Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(max)), BitCast(d, max));
-}
-template <class D, size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
-HWY_API Vec128<int16_t, N> MaxOfLanes(D /* tag */,
-                                      Vec128<int16_t, N> v) {
-  const Simd<int16_t, N, 0> d;
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto max = MaxOfLanes(hwy::SizeTag<4>(), Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(max)), BitCast(d, max));
-}
-
-template <class D>
-HWY_INLINE Vec128<uint64_t, 2> SumOfLanes(D /* tag */,
-                                       Vec128<uint64_t, 2> v) {
-  return v + Shuffle01(v);
-}
-
-template <class D>
-HWY_INLINE Vec128<int64_t, 2> SumOfLanes(D /* tag */,
-                                      Vec128<int64_t, 2> v) {
-  return v + Shuffle01(v);
-}
-
-template <class D, typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T> MinOfLanes(D /* tag */, Vec128<T> v3210) {
-  const Vec128<T> v1032 = Shuffle1032(v3210);
-  const Vec128<T> v31_20_31_20 = Min(v3210, v1032);
-  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return Min(v20_31_20_31, v31_20_31_20);
-}
-template <class D, typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T> MaxOfLanes(D /* tag */, Vec128<T> v3210) {
-  const Vec128<T> v1032 = Shuffle1032(v3210);
-  const Vec128<T> v31_20_31_20 = Max(v3210, v1032);
-  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return Max(v20_31_20_31, v31_20_31_20);
-}
-
-template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)), HWY_IF_LANES_GT_D(D, 2)>
-HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
-  return Set(d, detail::SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v));
-}
-template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)), HWY_IF_LANES_GT_D(D, 2)>
-HWY_API TFromD<D> ReduceSum(D /* tag */, VFromD<D> v) {
-  return detail::SumOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v);
-}
-template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)), HWY_IF_LANES_LE_D(D, 2)>
-HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
-  return GetLane(SumOfLanes(d, v));
-}
-template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
-HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
-  return GetLane(SumOfLanes(d, v));
-}
-template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)), HWY_IF_LANES_GT_D(D, 2)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, detail::MinOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v));
-}
-template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)), HWY_IF_LANES_GT_D(D, 2)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, detail::MaxOfLanes(hwy::SizeTag<sizeof(TFromD<D>)>(), v));
-}
-
-#endif
 
 // ------------------------------ LoadMaskBits (TestBit)
 
