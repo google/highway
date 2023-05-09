@@ -164,8 +164,13 @@ HWY_INLINE void Sort0To8(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
     const size_t remaining = num_lanes - i;
     HWY_ASSUME(remaining < 256);  // helps FirstN
     mask = FirstN(dmax, remaining);
+#if HWY_MEM_OPS_MIGHT_FAULT
+    SafeCopyN(remaining, dmax, keys + i, buf + i);
+    i = num_lanes;
+#else
     Store(MaskedLoadOr(kPadding, mask, dmax, keys + i), dmax, buf + i);
-
+    i += Nmax;
+#endif  // HWY_MEM_OPS_MIGHT_FAULT
     // If `d` is for exactly one key, we initialize 8 * kLPK lanes, and not just
     // for MSAN: padding prevents invalid values from influencing the sort.
     // But for 16-bit keys, loading a single lane may be inefficient, so we
@@ -173,8 +178,8 @@ HWY_INLINE void Sort0To8(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
     // next lane is usually loaded from the next valid keys, but we require one
     // more padding for the last vector loaded.
     constexpr size_t extra = sizeof(T) == 2 ? 1 : 0;
-    for (i += Nmax; i < 8 * kLPK + extra; i += Nmax) {
-      Store(kPadding, dmax, buf + i);
+    for (; i < 8 * kLPK + extra; i += Nmax) {
+      StoreU(kPadding, dmax, buf + i);  // unaligned if HWY_MEM_OPS_MIGHT_FAULT
     }
   }
 
