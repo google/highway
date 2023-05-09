@@ -558,7 +558,7 @@ HWY_INLINE void Sort65To128(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 #endif  // HWY_MEM_OPS_MIGHT_FAULT
 }
 
-#if !HWY_COMPILER_MSVC
+#if !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
 
 template <class Traits, typename T>
 HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
@@ -653,7 +653,7 @@ HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 #endif  // HWY_MEM_OPS_MIGHT_FAULT
 }
 
-#endif  // HWY_COMPILER_MSVC
+#endif  // !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
 
 // Sorts `keys` within the range [0, num_lanes) via sorting network. We know
 // that num_lanes <= kMaxRows * kMaxCols.
@@ -683,7 +683,7 @@ HWY_INLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
     return Sort65To128(st, keys, num_lanes, buf);
   }
 
-#if !HWY_COMPILER_MSVC
+#if !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
   if (kMaxLanes >= 16) {
     Sort129To256(st, keys, num_lanes, buf);
   }

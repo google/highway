@@ -178,14 +178,14 @@ template <class D, class Traits, class V = Vec<D>>
 HWY_INLINE void Merge2(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
                        V& v6, V& v7, V& v8, V& v9, V& va, V& vb, V& vc, V& vd,
                        V& ve, V& vf) {
-  v8 = st.ReverseKeys2(d, v8);
-  v9 = st.ReverseKeys2(d, v9);
-  va = st.ReverseKeys2(d, va);
-  vb = st.ReverseKeys2(d, vb);
-  vc = st.ReverseKeys2(d, vc);
-  vd = st.ReverseKeys2(d, vd);
-  ve = st.ReverseKeys2(d, ve);
   vf = st.ReverseKeys2(d, vf);
+  ve = st.ReverseKeys2(d, ve);
+  vd = st.ReverseKeys2(d, vd);
+  vc = st.ReverseKeys2(d, vc);
+  vb = st.ReverseKeys2(d, vb);
+  va = st.ReverseKeys2(d, va);
+  v9 = st.ReverseKeys2(d, v9);
+  v8 = st.ReverseKeys2(d, v8);
   st.Sort2(d, v0, vf);
   st.Sort2(d, v1, ve);
   st.Sort2(d, v2, vd);
@@ -194,30 +194,32 @@ HWY_INLINE void Merge2(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, v5, va);
   st.Sort2(d, v6, v9);
   st.Sort2(d, v7, v8);
-  v4 = st.ReverseKeys2(d, v4);
-  vc = st.ReverseKeys2(d, vc);
+
+  v7 = st.ReverseKeys2(d, v7);
+  v6 = st.ReverseKeys2(d, v6);
   v5 = st.ReverseKeys2(d, v5);
+  v4 = st.ReverseKeys2(d, v4);
+  vf = st.ReverseKeys2(d, vf);
+  ve = st.ReverseKeys2(d, ve);
   vd = st.ReverseKeys2(d, vd);
-  v6 = st.ReverseKeys2(d, v6);
-  ve = st.ReverseKeys2(d, ve);
-  v7 = st.ReverseKeys2(d, v7);
-  vf = st.ReverseKeys2(d, vf);
+  vc = st.ReverseKeys2(d, vc);
   st.Sort2(d, v0, v7);
-  st.Sort2(d, v8, vf);
   st.Sort2(d, v1, v6);
-  st.Sort2(d, v9, ve);
   st.Sort2(d, v2, v5);
-  st.Sort2(d, va, vd);
   st.Sort2(d, v3, v4);
+  st.Sort2(d, v8, vf);
+  st.Sort2(d, v9, ve);
+  st.Sort2(d, va, vd);
   st.Sort2(d, vb, vc);
-  v2 = st.ReverseKeys2(d, v2);
+
   v3 = st.ReverseKeys2(d, v3);
-  v6 = st.ReverseKeys2(d, v6);
+  v2 = st.ReverseKeys2(d, v2);
   v7 = st.ReverseKeys2(d, v7);
-  va = st.ReverseKeys2(d, va);
+  v6 = st.ReverseKeys2(d, v6);
   vb = st.ReverseKeys2(d, vb);
-  ve = st.ReverseKeys2(d, ve);
+  va = st.ReverseKeys2(d, va);
   vf = st.ReverseKeys2(d, vf);
+  ve = st.ReverseKeys2(d, ve);
   st.Sort2(d, v0, v3);
   st.Sort2(d, v1, v2);
   st.Sort2(d, v4, v7);
@@ -226,6 +228,7 @@ HWY_INLINE void Merge2(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, v9, va);
   st.Sort2(d, vc, vf);
   st.Sort2(d, vd, ve);
+
   v1 = st.ReverseKeys2(d, v1);
   v3 = st.ReverseKeys2(d, v3);
   v5 = st.ReverseKeys2(d, v5);
@@ -242,6 +245,7 @@ HWY_INLINE void Merge2(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, va, vb);
   st.Sort2(d, vc, vd);
   st.Sort2(d, ve, vf);
+
   v0 = st.SortPairsDistance1(d, v0);
   v1 = st.SortPairsDistance1(d, v1);
   v2 = st.SortPairsDistance1(d, v2);
@@ -264,14 +268,14 @@ template <class D, class Traits, class V = Vec<D>>
 HWY_INLINE void Merge4(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
                        V& v6, V& v7, V& v8, V& v9, V& va, V& vb, V& vc, V& vd,
                        V& ve, V& vf) {
-  v8 = st.ReverseKeys4(d, v8);
-  v9 = st.ReverseKeys4(d, v9);
-  va = st.ReverseKeys4(d, va);
-  vb = st.ReverseKeys4(d, vb);
-  vc = st.ReverseKeys4(d, vc);
-  vd = st.ReverseKeys4(d, vd);
-  ve = st.ReverseKeys4(d, ve);
   vf = st.ReverseKeys4(d, vf);
+  ve = st.ReverseKeys4(d, ve);
+  vd = st.ReverseKeys4(d, vd);
+  vc = st.ReverseKeys4(d, vc);
+  vb = st.ReverseKeys4(d, vb);
+  va = st.ReverseKeys4(d, va);
+  v9 = st.ReverseKeys4(d, v9);
+  v8 = st.ReverseKeys4(d, v8);
   st.Sort2(d, v0, vf);
   st.Sort2(d, v1, ve);
   st.Sort2(d, v2, vd);
@@ -280,30 +284,32 @@ HWY_INLINE void Merge4(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, v5, va);
   st.Sort2(d, v6, v9);
   st.Sort2(d, v7, v8);
-  v4 = st.ReverseKeys4(d, v4);
-  vc = st.ReverseKeys4(d, vc);
+
+  v7 = st.ReverseKeys4(d, v7);
+  v6 = st.ReverseKeys4(d, v6);
   v5 = st.ReverseKeys4(d, v5);
+  v4 = st.ReverseKeys4(d, v4);
+  vf = st.ReverseKeys4(d, vf);
+  ve = st.ReverseKeys4(d, ve);
   vd = st.ReverseKeys4(d, vd);
-  v6 = st.ReverseKeys4(d, v6);
-  ve = st.ReverseKeys4(d, ve);
-  v7 = st.ReverseKeys4(d, v7);
-  vf = st.ReverseKeys4(d, vf);
+  vc = st.ReverseKeys4(d, vc);
   st.Sort2(d, v0, v7);
-  st.Sort2(d, v8, vf);
   st.Sort2(d, v1, v6);
-  st.Sort2(d, v9, ve);
   st.Sort2(d, v2, v5);
-  st.Sort2(d, va, vd);
   st.Sort2(d, v3, v4);
+  st.Sort2(d, v8, vf);
+  st.Sort2(d, v9, ve);
+  st.Sort2(d, va, vd);
   st.Sort2(d, vb, vc);
-  v2 = st.ReverseKeys4(d, v2);
+
   v3 = st.ReverseKeys4(d, v3);
-  v6 = st.ReverseKeys4(d, v6);
+  v2 = st.ReverseKeys4(d, v2);
   v7 = st.ReverseKeys4(d, v7);
-  va = st.ReverseKeys4(d, va);
+  v6 = st.ReverseKeys4(d, v6);
   vb = st.ReverseKeys4(d, vb);
-  ve = st.ReverseKeys4(d, ve);
+  va = st.ReverseKeys4(d, va);
   vf = st.ReverseKeys4(d, vf);
+  ve = st.ReverseKeys4(d, ve);
   st.Sort2(d, v0, v3);
   st.Sort2(d, v1, v2);
   st.Sort2(d, v4, v7);
@@ -312,6 +318,7 @@ HWY_INLINE void Merge4(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, v9, va);
   st.Sort2(d, vc, vf);
   st.Sort2(d, vd, ve);
+
   v1 = st.ReverseKeys4(d, v1);
   v3 = st.ReverseKeys4(d, v3);
   v5 = st.ReverseKeys4(d, v5);
@@ -328,6 +335,7 @@ HWY_INLINE void Merge4(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, va, vb);
   st.Sort2(d, vc, vd);
   st.Sort2(d, ve, vf);
+
   v0 = st.SortPairsReverse4(d, v0);
   v1 = st.SortPairsReverse4(d, v1);
   v2 = st.SortPairsReverse4(d, v2);
@@ -344,6 +352,7 @@ HWY_INLINE void Merge4(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   vd = st.SortPairsReverse4(d, vd);
   ve = st.SortPairsReverse4(d, ve);
   vf = st.SortPairsReverse4(d, vf);
+
   v0 = st.SortPairsDistance1(d, v0);
   v1 = st.SortPairsDistance1(d, v1);
   v2 = st.SortPairsDistance1(d, v2);
@@ -366,14 +375,14 @@ template <class D, class Traits, class V = Vec<D>>
 HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
                        V& v6, V& v7, V& v8, V& v9, V& va, V& vb, V& vc, V& vd,
                        V& ve, V& vf) {
-  v8 = st.ReverseKeys8(d, v8);
-  v9 = st.ReverseKeys8(d, v9);
-  va = st.ReverseKeys8(d, va);
-  vb = st.ReverseKeys8(d, vb);
-  vc = st.ReverseKeys8(d, vc);
-  vd = st.ReverseKeys8(d, vd);
-  ve = st.ReverseKeys8(d, ve);
   vf = st.ReverseKeys8(d, vf);
+  ve = st.ReverseKeys8(d, ve);
+  vd = st.ReverseKeys8(d, vd);
+  vc = st.ReverseKeys8(d, vc);
+  vb = st.ReverseKeys8(d, vb);
+  va = st.ReverseKeys8(d, va);
+  v9 = st.ReverseKeys8(d, v9);
+  v8 = st.ReverseKeys8(d, v8);
   st.Sort2(d, v0, vf);
   st.Sort2(d, v1, ve);
   st.Sort2(d, v2, vd);
@@ -382,30 +391,32 @@ HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, v5, va);
   st.Sort2(d, v6, v9);
   st.Sort2(d, v7, v8);
-  v4 = st.ReverseKeys8(d, v4);
-  vc = st.ReverseKeys8(d, vc);
+
+  v7 = st.ReverseKeys8(d, v7);
+  v6 = st.ReverseKeys8(d, v6);
   v5 = st.ReverseKeys8(d, v5);
+  v4 = st.ReverseKeys8(d, v4);
+  vf = st.ReverseKeys8(d, vf);
+  ve = st.ReverseKeys8(d, ve);
   vd = st.ReverseKeys8(d, vd);
-  v6 = st.ReverseKeys8(d, v6);
-  ve = st.ReverseKeys8(d, ve);
-  v7 = st.ReverseKeys8(d, v7);
-  vf = st.ReverseKeys8(d, vf);
+  vc = st.ReverseKeys8(d, vc);
   st.Sort2(d, v0, v7);
-  st.Sort2(d, v8, vf);
   st.Sort2(d, v1, v6);
-  st.Sort2(d, v9, ve);
   st.Sort2(d, v2, v5);
-  st.Sort2(d, va, vd);
   st.Sort2(d, v3, v4);
+  st.Sort2(d, v8, vf);
+  st.Sort2(d, v9, ve);
+  st.Sort2(d, va, vd);
   st.Sort2(d, vb, vc);
-  v2 = st.ReverseKeys8(d, v2);
+
   v3 = st.ReverseKeys8(d, v3);
-  v6 = st.ReverseKeys8(d, v6);
+  v2 = st.ReverseKeys8(d, v2);
   v7 = st.ReverseKeys8(d, v7);
-  va = st.ReverseKeys8(d, va);
+  v6 = st.ReverseKeys8(d, v6);
   vb = st.ReverseKeys8(d, vb);
-  ve = st.ReverseKeys8(d, ve);
+  va = st.ReverseKeys8(d, va);
   vf = st.ReverseKeys8(d, vf);
+  ve = st.ReverseKeys8(d, ve);
   st.Sort2(d, v0, v3);
   st.Sort2(d, v1, v2);
   st.Sort2(d, v4, v7);
@@ -414,6 +425,7 @@ HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, v9, va);
   st.Sort2(d, vc, vf);
   st.Sort2(d, vd, ve);
+
   v1 = st.ReverseKeys8(d, v1);
   v3 = st.ReverseKeys8(d, v3);
   v5 = st.ReverseKeys8(d, v5);
@@ -430,6 +442,7 @@ HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   st.Sort2(d, va, vb);
   st.Sort2(d, vc, vd);
   st.Sort2(d, ve, vf);
+
   v0 = st.SortPairsReverse8(d, v0);
   v1 = st.SortPairsReverse8(d, v1);
   v2 = st.SortPairsReverse8(d, v2);
@@ -446,6 +459,7 @@ HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   vd = st.SortPairsReverse8(d, vd);
   ve = st.SortPairsReverse8(d, ve);
   vf = st.SortPairsReverse8(d, vf);
+
   v0 = st.SortPairsDistance2(d, v0);
   v1 = st.SortPairsDistance2(d, v1);
   v2 = st.SortPairsDistance2(d, v2);
@@ -462,6 +476,7 @@ HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
   vd = st.SortPairsDistance2(d, vd);
   ve = st.SortPairsDistance2(d, ve);
   vf = st.SortPairsDistance2(d, vf);
+
   v0 = st.SortPairsDistance1(d, v0);
   v1 = st.SortPairsDistance1(d, v1);
   v2 = st.SortPairsDistance1(d, v2);
@@ -481,20 +496,20 @@ HWY_INLINE void Merge8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
 }
 
 // Unused on MSVC, see below
-#if !HWY_COMPILER_MSVC
+#if !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
 
 template <class D, class Traits, class V = Vec<D>>
 HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
                         V& v5, V& v6, V& v7, V& v8, V& v9, V& va, V& vb, V& vc,
                         V& vd, V& ve, V& vf) {
-  v8 = st.ReverseKeys16(d, v8);
-  v9 = st.ReverseKeys16(d, v9);
-  va = st.ReverseKeys16(d, va);
-  vb = st.ReverseKeys16(d, vb);
-  vc = st.ReverseKeys16(d, vc);
-  vd = st.ReverseKeys16(d, vd);
-  ve = st.ReverseKeys16(d, ve);
   vf = st.ReverseKeys16(d, vf);
+  ve = st.ReverseKeys16(d, ve);
+  vd = st.ReverseKeys16(d, vd);
+  vc = st.ReverseKeys16(d, vc);
+  vb = st.ReverseKeys16(d, vb);
+  va = st.ReverseKeys16(d, va);
+  v9 = st.ReverseKeys16(d, v9);
+  v8 = st.ReverseKeys16(d, v8);
   st.Sort2(d, v0, vf);
   st.Sort2(d, v1, ve);
   st.Sort2(d, v2, vd);
@@ -503,30 +518,32 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   st.Sort2(d, v5, va);
   st.Sort2(d, v6, v9);
   st.Sort2(d, v7, v8);
-  v4 = st.ReverseKeys16(d, v4);
-  vc = st.ReverseKeys16(d, vc);
+
+  v7 = st.ReverseKeys16(d, v7);
+  v6 = st.ReverseKeys16(d, v6);
   v5 = st.ReverseKeys16(d, v5);
+  v4 = st.ReverseKeys16(d, v4);
+  vf = st.ReverseKeys16(d, vf);
+  ve = st.ReverseKeys16(d, ve);
   vd = st.ReverseKeys16(d, vd);
-  v6 = st.ReverseKeys16(d, v6);
-  ve = st.ReverseKeys16(d, ve);
-  v7 = st.ReverseKeys16(d, v7);
-  vf = st.ReverseKeys16(d, vf);
+  vc = st.ReverseKeys16(d, vc);
   st.Sort2(d, v0, v7);
-  st.Sort2(d, v8, vf);
   st.Sort2(d, v1, v6);
-  st.Sort2(d, v9, ve);
   st.Sort2(d, v2, v5);
-  st.Sort2(d, va, vd);
   st.Sort2(d, v3, v4);
+  st.Sort2(d, v8, vf);
+  st.Sort2(d, v9, ve);
+  st.Sort2(d, va, vd);
   st.Sort2(d, vb, vc);
-  v2 = st.ReverseKeys16(d, v2);
+
   v3 = st.ReverseKeys16(d, v3);
-  v6 = st.ReverseKeys16(d, v6);
+  v2 = st.ReverseKeys16(d, v2);
   v7 = st.ReverseKeys16(d, v7);
-  va = st.ReverseKeys16(d, va);
+  v6 = st.ReverseKeys16(d, v6);
   vb = st.ReverseKeys16(d, vb);
-  ve = st.ReverseKeys16(d, ve);
+  va = st.ReverseKeys16(d, va);
   vf = st.ReverseKeys16(d, vf);
+  ve = st.ReverseKeys16(d, ve);
   st.Sort2(d, v0, v3);
   st.Sort2(d, v1, v2);
   st.Sort2(d, v4, v7);
@@ -535,6 +552,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   st.Sort2(d, v9, va);
   st.Sort2(d, vc, vf);
   st.Sort2(d, vd, ve);
+
   v1 = st.ReverseKeys16(d, v1);
   v3 = st.ReverseKeys16(d, v3);
   v5 = st.ReverseKeys16(d, v5);
@@ -551,6 +569,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   st.Sort2(d, va, vb);
   st.Sort2(d, vc, vd);
   st.Sort2(d, ve, vf);
+
   v0 = st.SortPairsReverse16(d, v0);
   v1 = st.SortPairsReverse16(d, v1);
   v2 = st.SortPairsReverse16(d, v2);
@@ -567,6 +586,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   vd = st.SortPairsReverse16(d, vd);
   ve = st.SortPairsReverse16(d, ve);
   vf = st.SortPairsReverse16(d, vf);
+
   v0 = st.SortPairsDistance4(d, v0);
   v1 = st.SortPairsDistance4(d, v1);
   v2 = st.SortPairsDistance4(d, v2);
@@ -583,6 +603,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   vd = st.SortPairsDistance4(d, vd);
   ve = st.SortPairsDistance4(d, ve);
   vf = st.SortPairsDistance4(d, vf);
+
   v0 = st.SortPairsDistance2(d, v0);
   v1 = st.SortPairsDistance2(d, v1);
   v2 = st.SortPairsDistance2(d, v2);
@@ -599,6 +620,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   vd = st.SortPairsDistance2(d, vd);
   ve = st.SortPairsDistance2(d, ve);
   vf = st.SortPairsDistance2(d, vf);
+
   v0 = st.SortPairsDistance1(d, v0);
   v1 = st.SortPairsDistance1(d, v1);
   v2 = st.SortPairsDistance1(d, v2);
@@ -617,7 +639,7 @@ HWY_INLINE void Merge16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   vf = st.SortPairsDistance1(d, vf);
 }
 
-#endif  // !HWY_COMPILER_MSVC
+#endif  // !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
 
 // Reshapes `buf` into a matrix, sorts columns independently, and then merges
 // into a sorted 1D array without transposing.
