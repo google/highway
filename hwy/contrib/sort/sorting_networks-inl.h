@@ -72,6 +72,37 @@ struct SharedTraits : public Base {
 
 // ------------------------------ Sorting network
 
+// Sorting network for independent columns in 8 vectors.
+// https://bertdobbelaere.github.io/sorting_networks.html
+template <class D, class Traits, class V = Vec<D>>
+HWY_INLINE void Sort8(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
+                      V& v6, V& v7) {
+  st.Sort2(d, v0, v2);
+  st.Sort2(d, v1, v3);
+  st.Sort2(d, v4, v6);
+  st.Sort2(d, v5, v7);
+
+  st.Sort2(d, v0, v4);
+  st.Sort2(d, v1, v5);
+  st.Sort2(d, v2, v6);
+  st.Sort2(d, v3, v7);
+
+  st.Sort2(d, v0, v1);
+  st.Sort2(d, v2, v3);
+  st.Sort2(d, v4, v5);
+  st.Sort2(d, v6, v7);
+
+  st.Sort2(d, v2, v4);
+  st.Sort2(d, v3, v5);
+
+  st.Sort2(d, v1, v4);
+  st.Sort2(d, v3, v6);
+
+  st.Sort2(d, v1, v2);
+  st.Sort2(d, v3, v4);
+  st.Sort2(d, v5, v6);
+}
+
 // (Green's irregular) sorting network for independent columns in 16 vectors.
 template <class D, class Traits, class V = Vec<D>>
 HWY_INLINE void Sort16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,

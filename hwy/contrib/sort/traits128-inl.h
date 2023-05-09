@@ -413,29 +413,43 @@ struct OrderDescendingKV128 : public KeyValue128 {
   }
 };
 
-// Shared code that depends on Order.
-template <class Base>
-class Traits128 : public Base {
-  // We want to swap 2 u128, i.e. 4 u64 lanes, based on the 0 or FF..FF mask in
-  // the most-significant of those lanes (the result of CompareTop), so
-  // replicate it 4x. Only called for >= 256-bit vectors.
-  template <class V>
-  HWY_INLINE V ReplicateTop4x(V v) const {
+// We want to swap 2 u128, i.e. 4 u64 lanes, based on the 0 or FF..FF mask in
+// the most-significant of those lanes (the result of CompareTop), so
+// replicate it 4x. Only called for >= 256-bit vectors.
+
+#if HWY_TARGET <= HWY_AVX3
+template <class V, HWY_IF_V_SIZE_V(V, 64)>
+HWY_INLINE V ReplicateTop4x(V v) {
+  return V{_mm512_permutex_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
+}
+#endif  // HWY_TARGET <= HWY_AVX3
+
+#if HWY_TARGET <= HWY_AVX2
+
+template <class V, HWY_IF_V_SIZE_V(V, 32)>
+HWY_INLINE V ReplicateTop4x(V v) {
+  return V{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
+}
+
+#else  // HWY_TARGET > HWY_AVX2
+
+template <class V>
+HWY_INLINE V ReplicateTop4x(V v) {
 #if HWY_TARGET == HWY_SVE_256
-    return svdup_lane_u64(v, 3);
-#elif HWY_TARGET <= HWY_AVX3
-    return V{_mm512_permutex_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
-#elif HWY_TARGET == HWY_AVX2
-    return V{_mm256_permute4x64_epi64(v.raw, _MM_SHUFFLE(3, 3, 3, 3))};
+  return svdup_lane_u64(v, 3);
 #else
     alignas(64) static constexpr uint64_t kIndices[8] = {3, 3, 3, 3,
                                                          7, 7, 7, 7};
     const ScalableTag<uint64_t> d;
     return TableLookupLanes(v, SetTableIndices(d, kIndices));
 #endif
-  }
+}
 
- public:
+#endif  // HWY_TARGET <= HWY_AVX2
+
+// Shared code that depends on Order.
+template <class Base>
+struct Traits128 : public Base {
   template <class D>
   HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
                                  TFromD<D>* HWY_RESTRICT buf) const {

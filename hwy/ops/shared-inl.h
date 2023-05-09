@@ -297,6 +297,18 @@ using ScalableTag = typename detail::ScalableTagChecker<T, kPow2>::type;
 template <typename T, size_t kLimit, int kPow2 = 0>
 using CappedTag = typename detail::CappedTagChecker<T, kLimit, kPow2>::type;
 
+#if !HWY_HAVE_SCALABLE
+// If the vector size is known, and the app knows it does not want more than
+// kLimit lanes, then capping can be beneficial. For example, AVX-512 has lower
+// IPC and potentially higher costs for unaligned load/store vs. 256-bit AVX2.
+template <typename T, size_t kLimit, int kPow2 = 0>
+using CappedTagIfFixed = CappedTag<T, kLimit, kPow2>;
+#else  // HWY_HAVE_SCALABLE
+// .. whereas on RVV/SVE, the cost of clamping Lanes() may exceed the benefit.
+template <typename T, size_t kLimit, int kPow2 = 0>
+using CappedTagIfFixed = ScalableTag<T, kPow2>;
+#endif
+
 // Alias for a tag describing a vector with *exactly* kNumLanes active lanes,
 // even on targets with scalable vectors. Requires `kNumLanes` to be a power of
 // two not exceeding `HWY_LANES(T)`.
