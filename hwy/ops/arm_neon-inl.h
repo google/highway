@@ -5671,77 +5671,62 @@ HWY_INLINE Vec128<T, 1> MaxOfLanes(hwy::SizeTag<sizeof(T)> /* tag */,
   return v;
 }
 
-#define HWY_NEON_BUILD_RET_REDUCTION(type, size) Vec128<type##_t, size>
-#define HWY_NEON_DEF_REDUCTION(type, size, name, prefix, infix, suffix, dup)   \
-  HWY_API HWY_NEON_BUILD_RET_REDUCTION(type, size)                             \
-      name(hwy::SizeTag<sizeof(type##_t)>, Vec128<type##_t, size> v) {         \
-    return HWY_NEON_BUILD_RET_REDUCTION(                                       \
-        type, size)(dup##suffix(HWY_NEON_EVAL(prefix##infix##suffix, v.raw))); \
+#define HWY_NEON_DEF_REDUCTION(type, size, name, prefix, infix, suffix) \
+  HWY_API type##_t name(hwy::SizeTag<sizeof(type##_t)>,                 \
+                        Vec128<type##_t, size> v) {                     \
+    return HWY_NEON_EVAL(prefix##infix##suffix, v.raw);                 \
   }
 
-#define HWY_NEON_DEF_REDUCTION_CORE_TYPES(name, prefix)                 \
-  HWY_NEON_DEF_REDUCTION(uint8, 8, name, prefix, _, u8, vdup_n_)        \
-  HWY_NEON_DEF_REDUCTION(uint8, 16, name, prefix##q, _, u8, vdupq_n_)   \
-  HWY_NEON_DEF_REDUCTION(uint16, 4, name, prefix, _, u16, vdup_n_)      \
-  HWY_NEON_DEF_REDUCTION(uint16, 8, name, prefix##q, _, u16, vdupq_n_)  \
-  HWY_NEON_DEF_REDUCTION(uint32, 2, name, prefix, _, u32, vdup_n_)      \
-  HWY_NEON_DEF_REDUCTION(uint32, 4, name, prefix##q, _, u32, vdupq_n_)  \
-  HWY_NEON_DEF_REDUCTION(int8, 8, name, prefix, _, s8, vdup_n_)         \
-  HWY_NEON_DEF_REDUCTION(int8, 16, name, prefix##q, _, s8, vdupq_n_)    \
-  HWY_NEON_DEF_REDUCTION(int16, 4, name, prefix, _, s16, vdup_n_)       \
-  HWY_NEON_DEF_REDUCTION(int16, 8, name, prefix##q, _, s16, vdupq_n_)   \
-  HWY_NEON_DEF_REDUCTION(int32, 2, name, prefix, _, s32, vdup_n_)       \
-  HWY_NEON_DEF_REDUCTION(int32, 4, name, prefix##q, _, s32, vdupq_n_)   \
-  HWY_NEON_DEF_REDUCTION(float32, 2, name, prefix, _, f32, vdup_n_)     \
-  HWY_NEON_DEF_REDUCTION(float32, 4, name, prefix##q, _, f32, vdupq_n_) \
-  HWY_NEON_DEF_REDUCTION(float64, 2, name, prefix##q, _, f64, vdupq_n_)
+// Note that u64/s64 don't have horizontal min/max for some reason.
+#define HWY_NEON_DEF_REDUCTION_CORE_TYPES(name, prefix)       \
+  HWY_NEON_DEF_REDUCTION(uint8, 8, name, prefix, _, u8)       \
+  HWY_NEON_DEF_REDUCTION(uint8, 16, name, prefix##q, _, u8)   \
+  HWY_NEON_DEF_REDUCTION(uint16, 4, name, prefix, _, u16)     \
+  HWY_NEON_DEF_REDUCTION(uint16, 8, name, prefix##q, _, u16)  \
+  HWY_NEON_DEF_REDUCTION(uint32, 2, name, prefix, _, u32)     \
+  HWY_NEON_DEF_REDUCTION(uint32, 4, name, prefix##q, _, u32)  \
+  HWY_NEON_DEF_REDUCTION(int8, 8, name, prefix, _, s8)        \
+  HWY_NEON_DEF_REDUCTION(int8, 16, name, prefix##q, _, s8)    \
+  HWY_NEON_DEF_REDUCTION(int16, 4, name, prefix, _, s16)      \
+  HWY_NEON_DEF_REDUCTION(int16, 8, name, prefix##q, _, s16)   \
+  HWY_NEON_DEF_REDUCTION(int32, 2, name, prefix, _, s32)      \
+  HWY_NEON_DEF_REDUCTION(int32, 4, name, prefix##q, _, s32)   \
+  HWY_NEON_DEF_REDUCTION(float32, 2, name, prefix, _, f32)    \
+  HWY_NEON_DEF_REDUCTION(float32, 4, name, prefix##q, _, f32) \
+  HWY_NEON_DEF_REDUCTION(float64, 2, name, prefix##q, _, f64)
 
-HWY_NEON_DEF_REDUCTION_CORE_TYPES(MinOfLanes, vminv)
-HWY_NEON_DEF_REDUCTION_CORE_TYPES(MaxOfLanes, vmaxv)
+HWY_NEON_DEF_REDUCTION_CORE_TYPES(ReduceMin, vminv)
+HWY_NEON_DEF_REDUCTION_CORE_TYPES(ReduceMax, vmaxv)
 
 // u64/s64 don't have horizontal min/max for some reason, but do have add.
-#define HWY_NEON_DEF_REDUCTION_ALL_TYPES(name, prefix)                 \
-  HWY_NEON_DEF_REDUCTION_CORE_TYPES(name, prefix)                      \
-  HWY_NEON_DEF_REDUCTION(uint64, 2, name, prefix##q, _, u64, vdupq_n_) \
-  HWY_NEON_DEF_REDUCTION(int64, 2, name, prefix##q, _, s64, vdupq_n_)
+#define HWY_NEON_DEF_REDUCTION_ALL_TYPES(name, prefix)       \
+  HWY_NEON_DEF_REDUCTION_CORE_TYPES(name, prefix)            \
+  HWY_NEON_DEF_REDUCTION(uint64, 2, name, prefix##q, _, u64) \
+  HWY_NEON_DEF_REDUCTION(int64, 2, name, prefix##q, _, s64)
 
-HWY_NEON_DEF_REDUCTION_ALL_TYPES(SumOfLanes, vaddv)
-
-#define HWY_NEON_DEF_REDUCTION_VAL(type, size, name, prefix, infix, suffix)   \
-HWY_API type##_t name(hwy::SizeTag<sizeof(type##_t)>, Vec128<type##_t, size> v) {      \
-  return HWY_NEON_EVAL(prefix##infix##suffix, v.raw); \
-}
-
-#define HWY_NEON_DEF_REDUCTION_VAL_ALL_TYPES(name, prefix)         \
-  HWY_NEON_DEF_REDUCTION_VAL(uint8, 8, name, prefix, _, u8)        \
-  HWY_NEON_DEF_REDUCTION_VAL(uint8, 16, name, prefix##q, _, u8)    \
-  HWY_NEON_DEF_REDUCTION_VAL(uint16, 4, name, prefix, _, u16)      \
-  HWY_NEON_DEF_REDUCTION_VAL(uint16, 8, name, prefix##q, _, u16)   \
-  HWY_NEON_DEF_REDUCTION_VAL(uint32, 2, name, prefix, _, u32)      \
-  HWY_NEON_DEF_REDUCTION_VAL(uint32, 4, name, prefix##q, _, u32)   \
-  HWY_NEON_DEF_REDUCTION_VAL(uint64, 2, name, prefix##q, _, u64)   \
-  HWY_NEON_DEF_REDUCTION_VAL(int8, 8, name, prefix, _, s8)         \
-  HWY_NEON_DEF_REDUCTION_VAL(int8, 16, name, prefix##q, _, s8)     \
-  HWY_NEON_DEF_REDUCTION_VAL(int16, 4, name, prefix, _, s16)       \
-  HWY_NEON_DEF_REDUCTION_VAL(int16, 8, name, prefix##q, _, s16)    \
-  HWY_NEON_DEF_REDUCTION_VAL(int32, 2, name, prefix, _, s32)       \
-  HWY_NEON_DEF_REDUCTION_VAL(int32, 4, name, prefix##q, _, s32)    \
-  HWY_NEON_DEF_REDUCTION_VAL(int64, 2, name, prefix##q, _, s64)    \
-  HWY_NEON_DEF_REDUCTION_VAL(float32, 2, name, prefix, _, f32)     \
-  HWY_NEON_DEF_REDUCTION_VAL(float32, 4, name, prefix##q, _, f32)  \
-  HWY_NEON_DEF_REDUCTION_VAL(float64, 2, name, prefix##q, _, f64)
-
-HWY_NEON_DEF_REDUCTION_VAL_ALL_TYPES(ReduceSum, vaddv)
+HWY_NEON_DEF_REDUCTION_ALL_TYPES(ReduceSum, vaddv)
 
 #undef HWY_NEON_DEF_REDUCTION_ALL_TYPES
-#undef HWY_NEON_DEF_REDUCTION_VAL_ALL_TYPES
 #undef HWY_NEON_DEF_REDUCTION_CORE_TYPES
 #undef HWY_NEON_DEF_REDUCTION
-#undef HWY_NEON_BUILD_RET_REDUCTION
 
 // Need some fallback implementations for [ui]64x2 and [ui]16x2.
 #define HWY_IF_SUM_REDUCTION(T) HWY_IF_T_SIZE_ONE_OF(T, 1 << 2)
 #define HWY_IF_MINMAX_REDUCTION(T) HWY_IF_T_SIZE_ONE_OF(T, (1 << 8) | (1 << 2))
+
+// Implement Min/Max/SumOfLanes in terms of the corresponding reduction.
+template <size_t N, typename V>
+HWY_API V MinOfLanes(hwy::SizeTag<N> tag, V v) {
+  return Set(DFromV<decltype(v)>(), ReduceMin(tag, v));
+}
+template <size_t N, typename V>
+HWY_API V MaxOfLanes(hwy::SizeTag<N> tag, V v) {
+  return Set(DFromV<decltype(v)>(), ReduceMax(tag, v));
+}
+template <size_t N, typename V>
+HWY_API V SumOfLanes(hwy::SizeTag<N> tag, V v) {
+  return Set(DFromV<decltype(v)>(), ReduceSum(tag, v));
+}
 
 #else
 
