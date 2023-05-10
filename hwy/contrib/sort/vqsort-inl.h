@@ -186,7 +186,6 @@ HWY_INLINE void Sort0To8(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
   // One key per vector (32.. 2x64 bit), or two for 16-bit (see above).
   const CappedTag<T, HWY_MAX(kLPK, 4 / sizeof(T))> d;
   using V = Vec<decltype(d)>;
-  using M = Mask<decltype(d)>;
 
   V v0 = LoadU(d, in_out + 0x0 * kLPK);
   V v1 = LoadU(d, in_out + 0x1 * kLPK);
@@ -664,7 +663,7 @@ HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 // that num_lanes <= kMaxRows * kMaxCols.
 template <class D, class Traits, typename T>
 HWY_INLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
-                         T* HWY_RESTRICT keys_end, size_t num_lanes,
+                         T* HWY_RESTRICT /*keys_end*/, size_t num_lanes,
                          T* HWY_RESTRICT buf) {
   constexpr size_t kMaxLanes = MaxLanes(d);
   constexpr size_t kLPK = st.LanesPerKey();
