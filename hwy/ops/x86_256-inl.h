@@ -4360,26 +4360,23 @@ template <class D, HWY_IF_U32_D(D)>
 HWY_API Vec256<uint32_t> PromoteTo(D /* tag */, Vec128<uint8_t, 8> v) {
   return Vec256<uint32_t>{_mm256_cvtepu8_epi32(v.raw)};
 }
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec256<int16_t> PromoteTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec256<int16_t>{_mm256_cvtepu8_epi16(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<uint8_t, 8> v) {
-  return Vec256<int32_t>{_mm256_cvtepu8_epi32(v.raw)};
-}
 template <class D, HWY_IF_U32_D(D)>
 HWY_API Vec256<uint32_t> PromoteTo(D /* tag */, Vec128<uint16_t> v) {
   return Vec256<uint32_t>{_mm256_cvtepu16_epi32(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<uint16_t> v) {
-  return Vec256<int32_t>{_mm256_cvtepu16_epi32(v.raw)};
 }
 template <class D, HWY_IF_U64_D(D)>
 HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec128<uint32_t> v) {
   return Vec256<uint64_t>{_mm256_cvtepu32_epi64(v.raw)};
 }
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec64<uint16_t> v) {
+  return Vec256<uint64_t>{_mm256_cvtepu16_epi64(v.raw)};
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec32<uint8_t> v) {
+  return Vec256<uint64_t>{_mm256_cvtepu8_epi64(v.raw)};
+}
+
 
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
@@ -4400,6 +4397,14 @@ HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<int16_t> v) {
 template <class D, HWY_IF_I64_D(D)>
 HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec128<int32_t> v) {
   return Vec256<int64_t>{_mm256_cvtepi32_epi64(v.raw)};
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec64<int16_t> v) {
+  return Vec256<int64_t>{_mm256_cvtepi16_epi64(v.raw)};
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec32<int8_t> v) {
+  return Vec256<int64_t>{_mm256_cvtepi8_epi64(v.raw)};
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)

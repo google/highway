@@ -6025,20 +6025,42 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
   return VFromD<D>{_mm_cvtepu8_epi32(v.raw)};
 #endif
 }
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint8_t, D>> v) {
+#if HWY_TARGET > HWY_SSSE3
+  const Rebind<uint32_t, decltype(d)> du32;
+  return PromoteTo(d, PromoteTo(du32, v));
+#elif HWY_TARGET == HWY_SSSE3
+  alignas(16) static constexpr int8_t kShuffle[16] = {
+      0, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1};
+  const Repartition<int8_t, decltype(d)> di8;
+  return TableLookupBytesOr0(v, BitCast(d, Load(di8, kShuffle)));
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepu8_epi64(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint16_t, D>> v) {
+#if HWY_TARGET > HWY_SSSE3
+  const Rebind<uint32_t, decltype(d)> du32;
+  return PromoteTo(d, PromoteTo(du32, v));
+#elif HWY_TARGET == HWY_SSSE3
+  alignas(16) static constexpr int8_t kShuffle[16] = {
+      0, 1, -1, -1, -1, -1, -1, -1, 2, 3, -1, -1, -1, -1, -1, -1};
+  const Repartition<int8_t, decltype(d)> di8;
+  return TableLookupBytesOr0(v, BitCast(d, Load(di8, kShuffle)));
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepu16_epi64(v.raw)};
+#endif
+}
 
 // Unsigned to signed: same plus cast.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> PromoteTo(D di, VFromD<Rebind<uint8_t, D>> v) {
-  const RebindToUnsigned<decltype(di)> du;
-  return BitCast(di, PromoteTo(du, v));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> PromoteTo(D di, VFromD<Rebind<uint16_t, D>> v) {
-  const RebindToUnsigned<decltype(di)> du;
-  return BitCast(di, PromoteTo(du, v));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> PromoteTo(D di, VFromD<Rebind<uint8_t, D>> v) {
+template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_LANES_GT(sizeof(TFromD<D>), sizeof(TFromV<V>)),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V))>
+HWY_API VFromD<D> PromoteTo(D di, V v) {
   const RebindToUnsigned<decltype(di)> du;
   return BitCast(di, PromoteTo(du, v));
 }
@@ -6076,6 +6098,34 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int8_t, D>> v) {
   return ShiftRight<24>(VFromD<D>{x4});
 #else
   return VFromD<D>{_mm_cvtepi8_epi32(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int8_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const Repartition<int32_t, decltype(d)> di32;
+  const Half<decltype(di32)> dh_i32;
+  const VFromD<decltype(di32)> x4{PromoteTo(dh_i32, v).raw};
+  const VFromD<decltype(di32)> s4{
+      _mm_shufflelo_epi16(x4.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  return ZipLower(d, x4, s4);
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepi8_epi64(v.raw)};
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int16_t, D>> v) {
+#if HWY_TARGET >= HWY_SSSE3
+  const Repartition<int32_t, decltype(d)> di32;
+  const Half<decltype(di32)> dh_i32;
+  const VFromD<decltype(di32)> x2{PromoteTo(dh_i32, v).raw};
+  const VFromD<decltype(di32)> s2{
+      _mm_shufflelo_epi16(x2.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+  return ZipLower(d, x2, s2);
+#else
+  (void)d;
+  return VFromD<D>{_mm_cvtepi16_epi64(v.raw)};
 #endif
 }
 
