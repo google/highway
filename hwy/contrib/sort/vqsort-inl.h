@@ -246,7 +246,7 @@ HWY_INLINE void CopyHalfToPaddedBuf(D d, Traits st, T* HWY_RESTRICT keys,
   // Ensure buf contains all we will read, and perhaps more before.
   ptrdiff_t end = static_cast<ptrdiff_t>(num_lanes);
   do {
-    end -= Nmax;
+    end -= static_cast<ptrdiff_t>(Nmax);
     StoreU(LoadU(dmax, keys + end), dmax, buf + end);
   } while (end > static_cast<ptrdiff_t>(8 * kLanesPerRow));
 }
