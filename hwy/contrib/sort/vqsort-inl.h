@@ -411,6 +411,8 @@ HWY_INLINE void Sort33To64(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
   V ve = LoadU(d, buf + 0xe * kLanesPerRow);
   V vf = LoadU(d, buf + 0xf * kLanesPerRow);
 #else   // !HWY_MEM_OPS_MIGHT_FAULT
+  (void)buf;
+
   // To prevent reading past the end, only activate the lanes corresponding to
   // the first four keys (other lanes' masks will be false).
   const V vnum_lanes = IfThenElseZero(FirstN(d, kLanesPerRow),
@@ -504,6 +506,8 @@ HWY_INLINE void Sort65To128(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
   V ve = LoadU(d, buf + 0xe * kLanesPerRow);
   V vf = LoadU(d, buf + 0xf * kLanesPerRow);
 #else
+  (void)buf;
+
   // All lanes are now valid, so no need for FirstN.
   const V vnum_lanes = Set(d, static_cast<T>(num_lanes));
   const V kIota = Iota(d, T{64 * kLPK});
@@ -597,6 +601,8 @@ HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
   V ve = LoadU(d, buf + 0xe * kLanesPerRow);
   V vf = LoadU(d, buf + 0xf * kLanesPerRow);
 #else
+  (void)buf;
+
   // All lanes are now valid, so no need for FirstN.
   const V vnum_lanes = Set(d, static_cast<T>(num_lanes));
   const V kIota = Iota(d, T{128 * kLPK});
