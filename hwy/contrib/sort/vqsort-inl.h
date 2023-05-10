@@ -273,7 +273,11 @@ HWY_INLINE void SafeStore(D d, Vec<D> v8, Vec<D> v9, Vec<D> va, Vec<D> vb,
   // The first eight vectors have already been stored unconditionally into
   // `keys`, so we do not copy them.
   size_t i = 8 * kLanesPerRow;
+#if HWY_COMPILER_CLANG
 #pragma unroll(1)
+#elif HWY_COMPILER_GCC_ACTUAL
+#pragma GCC unroll 1
+#endif
   for (; i + Nmax <= num_lanes; i += Nmax) {
     StoreU(LoadU(dmax, buf + i), dmax, keys + i);
   }
