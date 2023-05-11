@@ -4633,7 +4633,11 @@ HWY_API V HighestSetBitIndex(V v) {
 #if HWY_PPC_HAVE_9
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
 HWY_API V TrailingZeroCount(V v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
   return V{vec_vctz(v.raw)};
+#else
+  return V{vec_cnttz(v.raw)};
+#endif
 }
 #else
 template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
