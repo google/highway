@@ -283,22 +283,141 @@ HWY_API Vec128<T, N> Not(Vec128<T, N> v) {
   return BitCast(d, VU{vec_nor(BitCast(du, v).raw, BitCast(du, v).raw)});
 }
 
+// ------------------------------ IsConstantRawAltivecVect
+namespace detail {
+
+template <class RawV>
+static HWY_INLINE bool IsConstantRawAltivecVect(
+    hwy::SizeTag<1> /* lane_size_tag */, RawV v) {
+  return __builtin_constant_p(v[0]) && __builtin_constant_p(v[1]) &&
+         __builtin_constant_p(v[2]) && __builtin_constant_p(v[3]) &&
+         __builtin_constant_p(v[4]) && __builtin_constant_p(v[5]) &&
+         __builtin_constant_p(v[6]) && __builtin_constant_p(v[7]) &&
+         __builtin_constant_p(v[8]) && __builtin_constant_p(v[9]) &&
+         __builtin_constant_p(v[10]) && __builtin_constant_p(v[11]) &&
+         __builtin_constant_p(v[12]) && __builtin_constant_p(v[13]) &&
+         __builtin_constant_p(v[14]) && __builtin_constant_p(v[15]);
+}
+
+template <class RawV>
+static HWY_INLINE bool IsConstantRawAltivecVect(
+    hwy::SizeTag<2> /* lane_size_tag */, RawV v) {
+  return __builtin_constant_p(v[0]) && __builtin_constant_p(v[1]) &&
+         __builtin_constant_p(v[2]) && __builtin_constant_p(v[3]) &&
+         __builtin_constant_p(v[4]) && __builtin_constant_p(v[5]) &&
+         __builtin_constant_p(v[6]) && __builtin_constant_p(v[7]);
+}
+
+template <class RawV>
+static HWY_INLINE bool IsConstantRawAltivecVect(
+    hwy::SizeTag<4> /* lane_size_tag */, RawV v) {
+  return __builtin_constant_p(v[0]) && __builtin_constant_p(v[1]) &&
+         __builtin_constant_p(v[2]) && __builtin_constant_p(v[3]);
+}
+
+template <class RawV>
+static HWY_INLINE bool IsConstantRawAltivecVect(
+    hwy::SizeTag<8> /* lane_size_tag */, RawV v) {
+  return __builtin_constant_p(v[0]) && __builtin_constant_p(v[1]);
+}
+
+template <class RawV>
+static HWY_INLINE bool IsConstantRawAltivecVect(RawV v) {
+  return IsConstantRawAltivecVect(hwy::SizeTag<sizeof(decltype(v[0]))>(), v);
+}
+
+}  // namespace detail
+
+// ------------------------------ TernaryLogic
+#if HWY_PPC_HAVE_10
+namespace detail {
+
+// NOTE: the kTernLogOp bits of the PPC10 TernaryLogic operation are in reverse
+// order of the kTernLogOp bits of AVX3
+// _mm_ternarylogic_epi64(a, b, c, kTernLogOp)
+template <uint8_t kTernLogOp, class V>
+HWY_INLINE V TernaryLogic(V a, V b, V c) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const auto a_raw = BitCast(du, a).raw;
+  const auto b_raw = BitCast(du, b).raw;
+  const auto c_raw = BitCast(du, c).raw;
+
+#if HWY_COMPILER_GCC_ACTUAL
+  // Use inline assembly on GCC to work around GCC compiler bug
+  typename detail::Raw128<TFromV<VU>>::type raw_ternlog_result;
+  __asm__("xxeval %x0,%x1,%x2,%x3,%4"
+          : "=wa"(raw_ternlog_result)
+          : "wa"(a_raw), "wa"(b_raw), "wa"(c_raw), "n"(kTernLogOp)
+          :);
+#else
+  const auto raw_ternlog_result =
+      vec_ternarylogic(a_raw, b_raw, c_raw, kTernLogOp);
+#endif
+
+  return BitCast(d, VU{raw_ternlog_result});
+}
+
+}  // namespace detail
+#endif  // HWY_PPC_HAVE_10
+
 // ------------------------------ Xor3
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
+#if HWY_PPC_HAVE_10
+#if defined(__OPTIMIZE__)
+  if (static_cast<int>(detail::IsConstantRawAltivecVect(x1.raw)) +
+          static_cast<int>(detail::IsConstantRawAltivecVect(x2.raw)) +
+          static_cast<int>(detail::IsConstantRawAltivecVect(x3.raw)) >=
+      2) {
+    return Xor(x1, Xor(x2, x3));
+  } else  // NOLINT
+#endif
+  {
+    return detail::TernaryLogic<0x69>(x1, x2, x3);
+  }
+#else
   return Xor(x1, Xor(x2, x3));
+#endif
 }
 
 // ------------------------------ Or3
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
+#if HWY_PPC_HAVE_10
+#if defined(__OPTIMIZE__)
+  if (static_cast<int>(detail::IsConstantRawAltivecVect(o1.raw)) +
+          static_cast<int>(detail::IsConstantRawAltivecVect(o2.raw)) +
+          static_cast<int>(detail::IsConstantRawAltivecVect(o3.raw)) >=
+      2) {
+    return Or(o1, Or(o2, o3));
+  } else  // NOLINT
+#endif
+  {
+    return detail::TernaryLogic<0x7F>(o1, o2, o3);
+  }
+#else
   return Or(o1, Or(o2, o3));
+#endif
 }
 
 // ------------------------------ OrAnd
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
+#if HWY_PPC_HAVE_10
+#if defined(__OPTIMIZE__)
+  if (detail::IsConstantRawAltivecVect(a1.raw) &&
+      detail::IsConstantRawAltivecVect(a2.raw)) {
+    return Or(o, And(a1, a2));
+  } else  // NOLINT
+#endif
+  {
+    return detail::TernaryLogic<0x1F>(o, a1, a2);
+  }
+#else
   return Or(o, And(a1, a2));
+#endif
 }
 
 // ------------------------------ IfVecThenElse
@@ -883,9 +1002,9 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 
 template <class D>
 HWY_API MFromD<D> FirstN(D d, size_t num) {
-  const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
-  using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return RebindMask(d, Iota(du, 0) < Set(du, static_cast<TU>(num)));
 }
 
 // ------------------------------ MaskedLoad
@@ -973,16 +1092,7 @@ HWY_INLINE VFromD<D> AltivecVsum4ubs(D d, __vector unsigned char a,
                                      __vector unsigned int b) {
   const Repartition<uint32_t, D> du32;
 #ifdef __OPTIMIZE__
-  if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
-      __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
-      __builtin_constant_p(a[4]) && __builtin_constant_p(a[5]) &&
-      __builtin_constant_p(a[6]) && __builtin_constant_p(a[7]) &&
-      __builtin_constant_p(a[8]) && __builtin_constant_p(a[9]) &&
-      __builtin_constant_p(a[10]) && __builtin_constant_p(a[11]) &&
-      __builtin_constant_p(a[12]) && __builtin_constant_p(a[13]) &&
-      __builtin_constant_p(a[14]) && __builtin_constant_p(a[15]) &&
-      __builtin_constant_p(b[0]) && __builtin_constant_p(b[1]) &&
-      __builtin_constant_p(b[2]) && __builtin_constant_p(b[3])) {
+  if (IsConstantRawAltivecVect(a) && IsConstantRawAltivecVect(b)) {
     const uint64_t sum0 =
         static_cast<uint64_t>(a[0]) + static_cast<uint64_t>(a[1]) +
         static_cast<uint64_t>(a[2]) + static_cast<uint64_t>(a[3]) +
@@ -1022,9 +1132,7 @@ HWY_INLINE VFromD<D> AltivecVsum2sws(D d, __vector signed int a,
 #ifdef __OPTIMIZE__
   const Repartition<uint64_t, D> du64;
   constexpr int kDestLaneOffset = HWY_IS_BIG_ENDIAN;
-  if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
-      __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
-      __builtin_constant_p(b[kDestLaneOffset]) &&
+  if (IsConstantRawAltivecVect(a) && __builtin_constant_p(b[kDestLaneOffset]) &&
       __builtin_constant_p(b[kDestLaneOffset + 2])) {
     const int64_t sum0 = static_cast<int64_t>(a[0]) +
                          static_cast<int64_t>(a[1]) +
@@ -1091,6 +1199,27 @@ HWY_API Vec128<T, N> SaturatedAdd(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{vec_adds(a.raw, b.raw)};
 }
 
+#if HWY_PPC_HAVE_10
+
+#ifdef HWY_NATIVE_I64_SATURATED_ADDSUB
+#undef HWY_NATIVE_I64_SATURATED_ADDSUB
+#else
+#define HWY_NATIVE_I64_SATURATED_ADDSUB
+#endif
+
+template <class V, HWY_IF_I64_D(DFromV<V>)>
+HWY_API V SaturatedAdd(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const auto sum = Add(a, b);
+  const auto overflow_mask =
+      MaskFromVec(BroadcastSignBit(detail::TernaryLogic<0x42>(a, b, sum)));
+  const auto overflow_result =
+      Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
+  return IfThenElse(overflow_mask, overflow_result, sum);
+}
+
+#endif  // HWY_PPC_HAVE_10
+
 // ------------------------------ SaturatedSub
 
 // Returns a - b clamped to the destination range.
@@ -1100,6 +1229,21 @@ template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
 HWY_API Vec128<T, N> SaturatedSub(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{vec_subs(a.raw, b.raw)};
 }
+
+#if HWY_PPC_HAVE_10
+
+template <class V, HWY_IF_I64_D(DFromV<V>)>
+HWY_API V SaturatedSub(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const auto diff = Sub(a, b);
+  const auto overflow_mask =
+      MaskFromVec(BroadcastSignBit(detail::TernaryLogic<0x18>(a, b, diff)));
+  const auto overflow_result =
+      Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
+  return IfThenElse(overflow_mask, overflow_result, diff);
+}
+
+#endif  // HWY_PPC_HAVE_10
 
 // ------------------------------ AverageRound
 
@@ -3029,8 +3173,8 @@ HWY_API Vec128<uint8_t> AESInvMixColumns(Vec128<uint8_t> state) {
 
 template <uint8_t kRcon>
 HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
-  constexpr __vector unsigned char kRconXorMask = {
-      0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0};
+  constexpr __vector unsigned char kRconXorMask = {0, 0, 0, 0, kRcon, 0, 0, 0,
+                                                   0, 0, 0, 0, kRcon, 0, 0, 0};
   constexpr __vector unsigned char kRotWordShuffle = {
       4, 5, 6, 7, 5, 6, 7, 4, 12, 13, 14, 15, 13, 14, 15, 12};
   const detail::CipherTag dc;
@@ -3104,6 +3248,16 @@ namespace detail {
 
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
+#if HWY_PPC_HAVE_10
+  const Vec128<uint8_t> mask_vec{vec_genbm(mask_bits)};
+
+#if HWY_IS_LITTLE_ENDIAN
+  return MFromD<D>{MaskFromVec(mask_vec).raw};
+#else
+  return MFromD<D>{MaskFromVec(Reverse(Full128<uint8_t>(), mask_vec)).raw};
+#endif  // HWY_IS_LITTLE_ENDIAN
+
+#else  // PPC9 or earlier
   const Full128<uint8_t> du8;
   const Full128<uint16_t> du16;
   const Vec128<uint8_t> vbits =
@@ -3116,35 +3270,70 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
 #else
   const __vector unsigned char kRep8 = {1, 1, 1, 1, 1, 1, 1, 1,
                                         0, 0, 0, 0, 0, 0, 0, 0};
-#endif
+#endif  // HWY_IS_LITTLE_ENDIAN
+
   const Vec128<uint8_t> rep8{vec_perm(vbits.raw, vbits.raw, kRep8)};
   const __vector unsigned char kBit = {1, 2, 4, 8, 16, 32, 64, 128,
                                        1, 2, 4, 8, 16, 32, 64, 128};
   return MFromD<D>{TestBit(rep8, Vec128<uint8_t>{kBit}).raw};
+#endif  // HWY_PPC_HAVE_10
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
+#if HWY_PPC_HAVE_10
+  const Vec128<uint16_t> mask_vec{vec_genhm(mask_bits)};
+
+#if HWY_IS_LITTLE_ENDIAN
+  return MFromD<D>{MaskFromVec(mask_vec).raw};
+#else
+  return MFromD<D>{MaskFromVec(Reverse(Full128<uint16_t>(), mask_vec)).raw};
+#endif  // HWY_IS_LITTLE_ENDIAN
+
+#else   // PPC9 or earlier
   const __vector unsigned short kBit = {1, 2, 4, 8, 16, 32, 64, 128};
   const auto vmask_bits =
       Set(Full128<uint16_t>(), static_cast<uint16_t>(mask_bits));
   return MFromD<D>{TestBit(vmask_bits, Vec128<uint16_t>{kBit}).raw};
+#endif  // HWY_PPC_HAVE_10
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
+#if HWY_PPC_HAVE_10
+  const Vec128<uint32_t> mask_vec{vec_genwm(mask_bits)};
+
+#if HWY_IS_LITTLE_ENDIAN
+  return MFromD<D>{MaskFromVec(mask_vec).raw};
+#else
+  return MFromD<D>{MaskFromVec(Reverse(Full128<uint32_t>(), mask_vec)).raw};
+#endif  // HWY_IS_LITTLE_ENDIAN
+
+#else   // PPC9 or earlier
   const __vector unsigned int kBit = {1, 2, 4, 8};
   const auto vmask_bits =
       Set(Full128<uint32_t>(), static_cast<uint32_t>(mask_bits));
   return MFromD<D>{TestBit(vmask_bits, Vec128<uint32_t>{kBit}).raw};
+#endif  // HWY_PPC_HAVE_10
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
 HWY_INLINE MFromD<D> LoadMaskBits128(D /*d*/, uint64_t mask_bits) {
+#if HWY_PPC_HAVE_10
+  const Vec128<uint64_t> mask_vec{vec_gendm(mask_bits)};
+
+#if HWY_IS_LITTLE_ENDIAN
+  return MFromD<D>{MaskFromVec(mask_vec).raw};
+#else
+  return MFromD<D>{MaskFromVec(Reverse(Full128<uint64_t>(), mask_vec)).raw};
+#endif  // HWY_IS_LITTLE_ENDIAN
+
+#else   // PPC9 or earlier
   const __vector unsigned long long kBit = {1, 2};
   const auto vmask_bits =
       Set(Full128<uint64_t>(), static_cast<uint64_t>(mask_bits));
   return MFromD<D>{TestBit(vmask_bits, Vec128<uint64_t>{kBit}).raw};
+#endif  // HWY_PPC_HAVE_10
 }
 
 }  // namespace detail
@@ -4038,12 +4227,7 @@ HWY_INLINE VFromD<D> AltivecVsum4shs(D d, __vector signed short a,
                                      __vector signed int b) {
   const Repartition<int32_t, D> di32;
 #ifdef __OPTIMIZE__
-  if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
-      __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
-      __builtin_constant_p(a[4]) && __builtin_constant_p(a[5]) &&
-      __builtin_constant_p(a[6]) && __builtin_constant_p(a[7]) &&
-      __builtin_constant_p(b[0]) && __builtin_constant_p(b[1]) &&
-      __builtin_constant_p(b[2]) && __builtin_constant_p(b[3])) {
+  if (IsConstantRawAltivecVect(a) && IsConstantRawAltivecVect(b)) {
     const int64_t sum0 = static_cast<int64_t>(a[0]) +
                          static_cast<int64_t>(a[1]) +
                          static_cast<int64_t>(b[0]);
@@ -4086,16 +4270,7 @@ HWY_INLINE VFromD<D> AltivecVsum4sbs(D d, __vector signed char a,
                                      __vector signed int b) {
   const Repartition<int32_t, D> di32;
 #ifdef __OPTIMIZE__
-  if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
-      __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
-      __builtin_constant_p(a[4]) && __builtin_constant_p(a[5]) &&
-      __builtin_constant_p(a[6]) && __builtin_constant_p(a[7]) &&
-      __builtin_constant_p(a[8]) && __builtin_constant_p(a[9]) &&
-      __builtin_constant_p(a[10]) && __builtin_constant_p(a[11]) &&
-      __builtin_constant_p(a[12]) && __builtin_constant_p(a[13]) &&
-      __builtin_constant_p(a[14]) && __builtin_constant_p(a[15]) &&
-      __builtin_constant_p(b[0]) && __builtin_constant_p(b[1]) &&
-      __builtin_constant_p(b[2]) && __builtin_constant_p(b[3])) {
+  if (IsConstantRawAltivecVect(a) && IsConstantRawAltivecVect(b)) {
     const int64_t sum0 =
         static_cast<int64_t>(a[0]) + static_cast<int64_t>(a[1]) +
         static_cast<int64_t>(a[2]) + static_cast<int64_t>(a[3]) +
@@ -4143,9 +4318,7 @@ HWY_INLINE VFromD<D> AltivecVsumsws(D d, __vector signed int a,
   const Repartition<int32_t, D> di32;
 #ifdef __OPTIMIZE__
   constexpr int kDestLaneOffset = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
-  if (__builtin_constant_p(a[0]) && __builtin_constant_p(a[1]) &&
-      __builtin_constant_p(a[2]) && __builtin_constant_p(a[3]) &&
-      __builtin_constant_p(b[kDestLaneOffset])) {
+  if (IsConstantRawAltivecVect(a) && __builtin_constant_p(b[kDestLaneOffset])) {
     const int64_t sum =
         static_cast<int64_t>(a[0]) + static_cast<int64_t>(a[1]) +
         static_cast<int64_t>(a[2]) + static_cast<int64_t>(a[3]) +
