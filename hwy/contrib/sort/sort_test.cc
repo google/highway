@@ -83,8 +83,8 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
   SharedTraits<Traits> st;
   const SortTag<LaneType> d;
   const size_t N = Lanes(d);
-  const size_t base_case_num = SortConstants::BaseCaseNum(N);
-  const size_t N1 = st.LanesPerKey();
+  constexpr size_t N1 = st.LanesPerKey();
+  const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
 
   constexpr int kDebug = 0;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(N + base_case_num + N);
@@ -162,8 +162,8 @@ static HWY_NOINLINE void TestBaseCase01() {
   SharedTraits<Traits> st;
   const SortTag<LaneType> d;
   const size_t N = Lanes(d);
-  const size_t base_case_num = SortConstants::BaseCaseNum(N);
-  const size_t N1 = st.LanesPerKey();
+  constexpr size_t N1 = st.LanesPerKey();
+  const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
 
   constexpr int kDebug = 0;
   auto lanes = hwy::AllocateAligned<LaneType>(base_case_num + N);
@@ -278,14 +278,14 @@ static HWY_NOINLINE void TestPartition() {
   const bool asc = typename Traits::Order().IsAscending();
   const size_t N = Lanes(d);
   constexpr int kDebug = 0;
-  const size_t base_case_num = SortConstants::BaseCaseNum(N);
+  constexpr size_t N1 = st.LanesPerKey();
+  const size_t base_case_num = SortConstants::BaseCaseNumLanes<N1>(N);
   // left + len + align
   const size_t total = 32 + (base_case_num + 4 * HWY_MAX(N, 4)) + 2 * N;
   auto aligned_lanes = hwy::AllocateAligned<LaneType>(total);
-  HWY_ALIGN LaneType
-      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES) / sizeof(LaneType)];
+  HWY_ALIGN LaneType buf[SortConstants::BufBytes<LaneType, N1>(HWY_MAX_BYTES) /
+                         sizeof(LaneType)];
 
-  const size_t N1 = st.LanesPerKey();
   for (bool in_asc : {false, true}) {
     for (int left_i : {0, 1, 7, 8, 30, 31}) {
       const size_t left = static_cast<size_t>(left_i) & ~(N1 - 1);

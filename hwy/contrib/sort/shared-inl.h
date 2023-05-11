@@ -40,11 +40,14 @@ struct SortConstants {
   // code size reasonable (7 KiB for AVX-512 and 16 cols), and minimizing the
   // extra logN factor for larger networks (for which only loose upper bounds
   // on size are known).
-  static constexpr size_t kMaxRowsLog2 = 4;
-  static constexpr size_t kMaxRows = size_t{1} << kMaxRowsLog2;
+  static constexpr size_t kMaxRows = 16;
 
-  static constexpr HWY_INLINE size_t BaseCaseNum(size_t N) {
-    return kMaxRows * HWY_MIN(N, kMaxCols);
+  // Template argument ensures there is no actual division instruction.
+  template <size_t kLPK>
+  static constexpr HWY_INLINE size_t BaseCaseNumLanes(size_t N) {
+    // We use 8, 8x2, 8x4, and 16x{4..} networks, in units of keys. For N/kLPK
+    // < 4, we cannot use the 16-row networks.
+    return (((N / kLPK) >= 4) ? kMaxRows : 8) * HWY_MIN(N, kMaxCols);
   }
 
   // Unrolling is important (pipelining and amortizing branch mispredictions);
@@ -66,7 +69,7 @@ struct SortConstants {
     // The main loop reads kPartitionUnroll vectors, and first loads from
     // both left and right beforehand, so it requires min = 2 *
     // kPartitionUnroll vectors. To handle smaller amounts (only guaranteed
-    // >= BaseCaseNum), we partition the right side into a buffer. We need
+    // >= BaseCaseNumLanes), we partition the right side into a buffer. We need
     // another vector at the end so CompressStore does not overwrite anything.
     return (2 * kPartitionUnroll + 1) * N;
   }
@@ -77,28 +80,30 @@ struct SortConstants {
   }
 
   // Max across the three buffer usages.
-  template <typename T>
+  template <typename T, size_t kLPK>
   static constexpr HWY_INLINE size_t BufNum(size_t N) {
     // One extra for padding plus another for full-vector loads.
-    return HWY_MAX(BaseCaseNum(N) + 2 * N,
+    return HWY_MAX(BaseCaseNumLanes<kLPK>(N) + 2 * N,
                    HWY_MAX(PartitionBufNum(N), PivotBufNum(sizeof(T), N)));
   }
 
   // Translates vector_size to lanes and returns size in bytes.
-  template <typename T>
+  template <typename T, size_t kLPK>
   static constexpr HWY_INLINE size_t BufBytes(size_t vector_size) {
-    return BufNum<T>(vector_size / sizeof(T)) * sizeof(T);
+    return BufNum<T, kLPK>(vector_size / sizeof(T)) * sizeof(T);
   }
 
   // Returns max for any type.
+  template <size_t kLPK>
   static constexpr HWY_INLINE size_t MaxBufBytes(size_t vector_size) {
-    return HWY_MAX(BufBytes<uint16_t>(vector_size),
-                   HWY_MAX(BufBytes<uint32_t>(vector_size),
-                           BufBytes<uint64_t>(vector_size)));
+    return HWY_MAX((BufBytes<uint16_t, kLPK>(vector_size)),
+                   HWY_MAX((BufBytes<uint32_t, kLPK>(vector_size)),
+                           (BufBytes<uint64_t, kLPK>(vector_size))));
   }
 };
 
-static_assert(SortConstants::MaxBufBytes(64) <= 1280, "Unexpectedly high");
+static_assert(SortConstants::MaxBufBytes<1>(64) <= 1280, "Unexpectedly high");
+static_assert(SortConstants::MaxBufBytes<2>(64) <= 1280, "Unexpectedly high");
 
 }  // namespace hwy
 

@@ -68,14 +68,16 @@ HWY_NOINLINE void BenchPartition() {
   const Dist dist = Dist::kUniform8;
   double sum = 0.0;
 
+  constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN LaneType
-      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES) / sizeof(LaneType)];
+      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES, kLPK) /
+          sizeof(LaneType)];
   uint64_t* HWY_RESTRICT state = GetGeneratorState();
 
   const size_t max_log2 = AdjustedLog2Reps(20);
   for (size_t log2 = max_log2; log2 < max_log2 + 1; ++log2) {
     const size_t num_lanes = 1ull << log2;
-    const size_t num_keys = num_lanes / st.LanesPerKey();
+    const size_t num_keys = num_lanes / kLPK;
     auto aligned = hwy::AllocateAligned<LaneType>(num_lanes);
 
     std::vector<double> seconds;
@@ -132,8 +134,9 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
   const Dist dist = Dist::kUniform32;
 
   const size_t N = Lanes(d);
-  const size_t num_lanes = SortConstants::BaseCaseNum(N);
-  const size_t num_keys = num_lanes / st.LanesPerKey();
+  constexpr size_t kLPK = st.LanesPerKey();
+  const size_t num_lanes = SortConstants::BaseCaseNumLanes<kLPK>(N);
+  const size_t num_keys = num_lanes / kLPK;
   auto keys = hwy::AllocateAligned<LaneType>(num_lanes);
   auto buf = hwy::AllocateAligned<LaneType>(num_lanes + N);
 
@@ -270,7 +273,7 @@ template <typename T>
 using OtherOrder = OrderDescending<T>;
 #endif
 
-enum class BenchmarkModes { kDefault, kAllSmall, kLog10 };
+enum class BenchmarkModes { kDefault, kAllSmall, kPow2, kPow10 };
 
 std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
   std::vector<size_t> sizes;
@@ -290,7 +293,12 @@ std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
         sizes.push_back(i);
       }
       break;
-    case BenchmarkModes::kLog10:
+    case BenchmarkModes::kPow2:
+      for (size_t size = 1; size <= 1024; size *= 2) {
+        sizes.push_back(size);
+      }
+      break;
+    case BenchmarkModes::kPow10:
       for (size_t size = 10; size <= 100 * 1000; size *= 10) {
         sizes.push_back(size);
       }
@@ -309,7 +317,7 @@ HWY_NOINLINE void BenchAllSort() {
   if (HWY_TARGET > HWY_AVX3) return;
 #endif
 
-  for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kDefault)) {
+  for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kPow2)) {
 #if !HAVE_INTEL
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
 #endif
