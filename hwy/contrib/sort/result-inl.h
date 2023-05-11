@@ -86,7 +86,7 @@ struct Result {
     const double bytes = static_cast<double>(num_keys) *
                          static_cast<double>(num_threads) *
                          static_cast<double>(sizeof_key);
-    printf("%10s: %12s: %7s: %9s: %03g %4.0f MB/s (%2zu threads)\n",
+    printf("%10s: %12s: %7s: %9s: %05g %4.0f MB/s (%2zu threads)\n",
            hwy::TargetName(target), AlgoName(algo), key_name.c_str(),
            DistName(dist), static_cast<double>(num_keys), bytes * 1E-6 / sec,
            num_threads);

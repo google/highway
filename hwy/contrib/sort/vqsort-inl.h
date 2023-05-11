@@ -749,15 +749,22 @@ HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 
 #endif  // !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
 
-// Sorts `keys` within the range [0, num_lanes) via sorting network. We know
-// that num_lanes <= kMaxRows * kMaxCols.
+// Sorts `keys` within the range [0, num_lanes) via sorting network.
+// Reshapes into a matrix, sorts columns independently, and then merges
+// into a sorted 1D array without transposing.
+//
+// `st` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
+//   differences in sort order and single-lane vs 128-bit keys.
+//
+// See M. Blacher's thesis: https://github.com/mark-blacher/masterthesis
 template <class D, class Traits, typename T>
-HWY_INLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
-                         T* HWY_RESTRICT keys_end, size_t num_lanes,
-                         T* HWY_RESTRICT buf) {
+HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
+                           T* HWY_RESTRICT keys_end, size_t num_lanes,
+                           T* HWY_RESTRICT buf) {
   constexpr size_t kLPK = st.LanesPerKey();
+  HWY_DASSERT(num_lanes <= Constants::BaseCaseNumLanes<kLPK>(Lanes(d)));
+  // Checking kMaxKeys avoids generating unreachable HWY_ASSERT codepaths.
   constexpr size_t kMaxKeys = MaxLanes(d) / kLPK;
-  HWY_DASSERT(num_lanes * sizeof(T) <= 16 * HWY_MAX_BYTES);
   const size_t num_keys = num_lanes / kLPK;
   HWY_DASSERT(num_keys != 0);  // HandleSpecialCases already handled 0
 
@@ -1277,7 +1284,7 @@ HWY_INLINE bool PartitionIfTwoKeys(D d, Traits st, const Vec<D> pivot,
 template <class D, class Traits, typename T>
 HWY_INLINE bool PartitionIfTwoSamples(D d, Traits st, T* HWY_RESTRICT keys,
                                       size_t num, T* HWY_RESTRICT samples) {
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
+  constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
   constexpr size_t N1 = st.LanesPerKey();
   const Vec<D> valueL = st.SetKey(d, samples);
   const Vec<D> valueR = st.SetKey(d, samples + kSampleLanes - N1);
@@ -1348,9 +1355,9 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // Power of two
   constexpr size_t kLanesPerChunk = Constants::LanesPerChunk(sizeof(T));
 
-  // Align start of keys to chunks. We always have at least 2 chunks because the
-  // base case would have handled anything up to 16 vectors, i.e. >= 4 chunks.
-  HWY_DASSERT(num >= 2 * kLanesPerChunk);
+  // Align start of keys to chunks. We have at least 2 chunks (x 64 bytes)
+  // because the base case handles anything up to 8 vectors (x 16 bytes).
+  HWY_DASSERT(num >= Constants::SampleLanes<T>());
   const size_t misalign =
       (reinterpret_cast<uintptr_t>(keys) / sizeof(T)) & (kLanesPerChunk - 1);
   if (misalign != 0) {
@@ -1359,9 +1366,9 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     num -= consume;
   }
 
-  // Generate enough random bits for 9 uint32
-  uint32_t bits[10];
-  for (size_t i = 0; i < 10; i += 2) {
+  // Generate enough random bits for 6 uint32
+  uint32_t bits[6];
+  for (size_t i = 0; i < 6; i += 2) {
     const uint64_t bits64 = RandomBits(state);
     CopyBytes<8>(&bits64, bits + i);
   }
@@ -1377,9 +1384,6 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   const size_t offset3 = RandomChunkIndex(num_chunks, bits[3]) * kLanesPerChunk;
   const size_t offset4 = RandomChunkIndex(num_chunks, bits[4]) * kLanesPerChunk;
   const size_t offset5 = RandomChunkIndex(num_chunks, bits[5]) * kLanesPerChunk;
-  const size_t offset6 = RandomChunkIndex(num_chunks, bits[6]) * kLanesPerChunk;
-  const size_t offset7 = RandomChunkIndex(num_chunks, bits[7]) * kLanesPerChunk;
-  const size_t offset8 = RandomChunkIndex(num_chunks, bits[8]) * kLanesPerChunk;
   for (size_t i = 0; i < kLanesPerChunk; i += N) {
     const V v0 = Load(d, keys + offset0 + i);
     const V v1 = Load(d, keys + offset1 + i);
@@ -1392,12 +1396,6 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     const V v5 = Load(d, keys + offset5 + i);
     const V medians1 = MedianOf3(st, v3, v4, v5);
     Store(medians1, d, buf + i + kLanesPerChunk);
-
-    const V v6 = Load(d, keys + offset6 + i);
-    const V v7 = Load(d, keys + offset7 + i);
-    const V v8 = Load(d, keys + offset8 + i);
-    const V medians2 = MedianOf3(st, v6, v7, v8);
-    Store(medians2, d, buf + i + kLanesPerChunk * 2);
   }
 }
 
@@ -1405,59 +1403,33 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 template <class D, class Traits>
 HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
                                     const TFromD<D>* HWY_RESTRICT samples) {
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(TFromD<D>);
+  constexpr size_t kSampleLanes = Constants::SampleLanes<TFromD<D>>();
   const size_t N = Lanes(d);
+  // Both are powers of two, so there will be no remainders.
+  HWY_DASSERT(N < kSampleLanes);
   using V = Vec<D>;
 
   const V first = st.SetKey(d, samples);
   // OR of XOR-difference may be faster than comparison.
   V diff = Zero(d);
-  size_t i = 0;
-  for (; i + N <= kSampleLanes; i += N) {
+  for (size_t i = 0; i < kSampleLanes; i += N) {
     const V v = Load(d, samples + i);
     diff = OrXor(diff, first, v);
   }
-  // Remainder, if any.
-  const V v = Load(d, samples + i);
-  const auto valid = FirstN(d, kSampleLanes - i);
-  diff = IfThenElse(valid, OrXor(diff, first, v), diff);
 
   return st.NoKeyDifference(d, diff);
 }
 
 template <class D, class Traits, typename T>
 HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);  // valid samples
-  // 16 rows x 16 bytes of columns is the smallest matrix that will cover the
-  // valid samples. We assume the network is big enough for that.
-  constexpr size_t kCols = 16 / sizeof(T);
-  static_assert(kCols <= Constants::kMaxCols, "kMaxCols too small");
+  const size_t N = Lanes(d);
+  constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
+  // Network must be large enough to sort two chunks.
+  HWY_DASSERT(Constants::BaseCaseNumLanes<st.LanesPerKey()>(N) >= kSampleLanes);
 
-  // SortingNetwork is going to load 16 of these vectors, which may be larger
-  // than d, but they overlap so we do not have to initialize all of them.
-  const CappedTag<T, Constants::kMaxCols> d_max;
-#if HWY_IS_MSAN
-  // Ensure the last capped vector we load is fully initialized.
-  const size_t bytes_to_fill = ((15 * kCols) + Lanes(d_max)) * sizeof(T);
-#else
-  // Only initialize the lanes that will actually be merged.
-  const size_t bytes_to_fill = 16 * kCols * sizeof(T);
-#endif
-  HWY_DASSERT(192 <= bytes_to_fill && bytes_to_fill < 16 * 64);
-
-  // Pad after the valid samples, with the value that is last in sort order.
-  const auto kPadding = st.LastValue(d_max);
-  // Initialize an extra vector because SortingNetwork loads full vectors,
-  // which may exceed cols*kMaxRows.
-  for (size_t i = kSampleLanes; i <= bytes_to_fill / sizeof(T);
-       i += Lanes(d_max)) {
-    StoreU(kPadding, d_max, buf + i);
-  }
-
-  SortingNetwork(st, buf, kCols);
+  BaseCase(d, st, buf, buf + kSampleLanes, kSampleLanes, buf + kSampleLanes);
 
   if (VQSORT_PRINT >= 2) {
-    const size_t N = Lanes(d);
     fprintf(stderr, "Samples:\n");
     for (size_t i = 0; i < kSampleLanes; i += N) {
       MaybePrintVector(d, "", Load(d, buf + i), 0, N);
@@ -1490,7 +1462,7 @@ HWY_INLINE const char* PivotResultString(PivotResult result) {
 
 template <class Traits, typename T>
 HWY_INLINE size_t PivotRank(Traits st, const T* HWY_RESTRICT samples) {
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
+  constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
   constexpr size_t N1 = st.LanesPerKey();
 
   constexpr size_t kRankMid = kSampleLanes / 2;
@@ -1532,7 +1504,7 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
             static_cast<double>(GetLane(pivot)));
   }
   // Verify pivot is not equal to the last sample.
-  constexpr size_t kSampleLanes = 3 * 64 / sizeof(T);
+  constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
   constexpr size_t N1 = st.LanesPerKey();
   const Vec<D> last = st.SetKey(d, samples + kSampleLanes - N1);
   const bool all_neq = AllTrue(d, st.NotEqualKeys(d, pivot, last));

@@ -257,12 +257,21 @@ HWY_BEFORE_NAMESPACE();
 
 // Requires target pragma set by HWY_BEFORE_NAMESPACE
 #if HAVE_INTEL && HWY_TARGET <= HWY_AVX3
+// #include "avx512-16bit-qsort.hpp"  // requires vbmi2
 #include "avx512-32bit-qsort.hpp"
 #include "avx512-64bit-qsort.hpp"
 #endif
 
 namespace hwy {
 namespace HWY_NAMESPACE {
+
+#if HAVE_INTEL  // only supports ascending order
+template <typename T>
+using OtherOrder = detail::OrderAscending<T>;
+#else
+template <typename T>
+using OtherOrder = detail::OrderDescending<T>;
+#endif
 
 class Xorshift128Plus {
   static HWY_INLINE uint64_t SplitMix64(uint64_t z) {

@@ -28,7 +28,8 @@ namespace hwy {
 struct SortConstants {
   // SortingNetwork reshapes its input into a matrix. This is the maximum number
   // of *lanes* per vector. Must be at least 8 because SortSamples assumes the
-  // sorting network is at least 128-bit and the smallest lane is 16-bit.
+  // sorting network can handle 128 bytes with 8 rows, so 16 bytes per vector,
+  // which means 8 lanes for 16-bit types.
 #if HWY_COMPILER_MSVC || HWY_IS_DEBUG_BUILD
   static constexpr size_t kMaxCols = 8;  // avoid build timeout/stack overflow
 #else
@@ -37,9 +38,8 @@ struct SortConstants {
 
   // 16 rows is a compromise between using the 32 AVX-512/SVE/RVV registers,
   // fitting within 16 AVX2 registers with only a few spills, keeping BaseCase
-  // code size reasonable (7 KiB for AVX-512 and 16 cols), and minimizing the
-  // extra logN factor for larger networks (for which only loose upper bounds
-  // on size are known).
+  // code size reasonable, and minimizing the extra logN factor for larger
+  // networks (for which only loose upper bounds on size are known).
   static constexpr size_t kMaxRows = 16;
 
   // Template argument ensures there is no actual division instruction.
@@ -65,6 +65,11 @@ struct SortConstants {
     return 64 / sizeof_t;
   }
 
+  template <typename T>
+  static constexpr HWY_INLINE size_t SampleLanes() {
+    return 2 * LanesPerChunk(sizeof(T));  // Stored samples
+  }
+
   static constexpr HWY_INLINE size_t PartitionBufNum(size_t N) {
     // The main loop reads kPartitionUnroll vectors, and first loads from
     // both left and right beforehand, so it requires min = 2 *
@@ -74,17 +79,13 @@ struct SortConstants {
     return (2 * kPartitionUnroll + 1) * N;
   }
 
-  static constexpr HWY_INLINE size_t PivotBufNum(size_t sizeof_t, size_t N) {
-    // 3 chunks of medians, 1 chunk of median medians plus two padding vectors.
-    return (3 + 1) * LanesPerChunk(sizeof_t) + 2 * N;
-  }
-
   // Max across the three buffer usages.
   template <typename T, size_t kLPK>
   static constexpr HWY_INLINE size_t BufNum(size_t N) {
-    // One extra for padding plus another for full-vector loads.
-    return HWY_MAX(BaseCaseNumLanes<kLPK>(N) + 2 * N,
-                   HWY_MAX(PartitionBufNum(N), PivotBufNum(sizeof(T), N)));
+    // BaseCase may write one padding vector, and SortSamples uses the space
+    // after samples as the buffer.
+    return HWY_MAX(SampleLanes<T>() + BaseCaseNumLanes<kLPK>(N) + N,
+                   PartitionBufNum(N));
   }
 
   // Translates vector_size to lanes and returns size in bytes.
@@ -96,9 +97,11 @@ struct SortConstants {
   // Returns max for any type.
   template <size_t kLPK>
   static constexpr HWY_INLINE size_t MaxBufBytes(size_t vector_size) {
-    return HWY_MAX((BufBytes<uint16_t, kLPK>(vector_size)),
-                   HWY_MAX((BufBytes<uint32_t, kLPK>(vector_size)),
-                           (BufBytes<uint64_t, kLPK>(vector_size))));
+    // If 2 lanes per key, it's a 128-bit key with u64 lanes.
+    return kLPK == 2 ? BufBytes<uint64_t, 2>(vector_size)
+                     : HWY_MAX((BufBytes<uint16_t, 1>(vector_size)),
+                               HWY_MAX((BufBytes<uint32_t, 1>(vector_size)),
+                                       (BufBytes<uint64_t, 1>(vector_size))));
   }
 };
 
