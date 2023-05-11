@@ -208,12 +208,11 @@
        (HWY_COMPILER_CLANG == 1600 && HWY_COMPILER_CLANG_PATCHLEVEL < 1))) || \
      (HWY_COMPILER_GCC_ACTUAL >= 1200 && HWY_COMPILER_GCC_ACTUAL <= 1203) ||  \
      (HWY_COMPILER_GCC_ACTUAL >= 1300 && HWY_COMPILER_GCC_ACTUAL <= 1301))
-// GCC 12.0.0 through 12.0.3 and GCC 13.0.0 through 13.0.1 have a compiler bug
-// where the vsldoi instruction is incorrectly optimized out (and this causes
-// some of the Highway unit tests to fail on big-endian PPC10). Details about
-// this compiler bug can be found at
-// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109069, and this bug will be
-// fixed in the upcoming GCC 12.0.4 and 13.0.2 releases.
+// GCC 12.0 through 12.3 and GCC 13.0 through 13.1 have a compiler bug where the
+// vsldoi instruction is incorrectly optimized out (and this causes some of the
+// Highway unit tests to fail on big-endian PPC10). Details about this compiler
+// bug can be found at https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109069, and
+// this bug will be fixed in the upcoming GCC 12.4 and 13.2 releases.
 
 // Clang 16.0.0 and earlier (but not Clang 16.0.1 and later) have a compiler
 // bug in the LLVM DAGCombiner that causes a zero-extend followed by an
