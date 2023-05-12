@@ -109,6 +109,37 @@ HWY_API VFromD<D> BitCast(D /* tag */, VFrom v) {
   return to;
 }
 
+// ------------------------------ ResizeBitCast
+
+template <class D, class VFrom>
+HWY_API VFromD<D> ResizeBitCast(D d, VFrom v) {
+  using DFrom = DFromV<VFrom>;
+  using TFrom = TFromD<DFrom>;
+  using TTo = TFromD<D>;
+
+  constexpr size_t kFromByteLen = sizeof(TFrom) * HWY_MAX_LANES_D(DFrom);
+  constexpr size_t kToByteLen = sizeof(TTo) * HWY_MAX_LANES_D(D);
+  constexpr size_t kCopyByteLen = HWY_MIN(kFromByteLen, kToByteLen);
+
+  VFromD<D> to = Zero(d);
+  CopyBytes<kCopyByteLen>(&v, &to);
+  return to;
+}
+
+namespace detail {
+
+// ResizeBitCast on the HWY_EMU128 target has zero-extending semantics if
+// VFromD<DTo> is a larger vector than FromV
+template <class FromSizeTag, class ToSizeTag, class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(FromSizeTag /* from_size_tag */,
+                                               ToSizeTag /* to_size_tag */,
+                                               DTo d_to, DFrom /* d_from */,
+                                               VFromD<DFrom> v) {
+  return ResizeBitCast(d_to, v);
+}
+
+}  // namespace detail
+
 // ------------------------------ Set
 template <class D, typename T2>
 HWY_API VFromD<D> Set(D d, const T2 t) {

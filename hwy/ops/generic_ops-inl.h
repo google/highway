@@ -91,6 +91,79 @@ HWY_API Vec<D> Inf(D d) {
   return BitCast(d, Set(du, max_x2 >> 1));
 }
 
+// ------------------------------ ZeroExtendResizeBitCast
+
+// The implementation of detail::ZeroExtendResizeBitCast for the HWY_EMU128
+// target is in emu128-inl.h, and the implementation of
+// detail::ZeroExtendResizeBitCast for the HWY_SCALAR target is in scalar-inl.h
+#if HWY_TARGET != HWY_EMU128 && HWY_TARGET != HWY_SCALAR
+namespace detail {
+
+#if HWY_HAVE_SCALABLE
+template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<kFromVectSize> /* from_size_tag */,
+    hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom d_from,
+    VFromD<DFrom> v) {
+  using TFrom = TFromD<DFrom>;
+  using TTo = TFromD<DTo>;
+  using TResize = UnsignedFromSize<HWY_MIN(sizeof(TFrom), sizeof(TTo))>;
+
+  const Repartition<TResize, decltype(d_from)> d_resize_from;
+  const Repartition<TResize, decltype(d_to)> d_resize_to;
+  return BitCast(d_to, IfThenElseZero(FirstN(d_resize_to, Lanes(d_resize_from)),
+                                      ResizeBitCast(d_resize_to, v)));
+}
+#else   // target that uses fixed-size vectors
+// Truncating or same-size resizing cast: same as ResizeBitCast
+template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom,
+          HWY_IF_LANES_LE(kToVectSize, kFromVectSize)>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<kFromVectSize> /* from_size_tag */,
+    hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom /*d_from*/,
+    VFromD<DFrom> v) {
+  return ResizeBitCast(d_to, v);
+}
+
+// Resizing cast to vector that has twice the number of lanes of the source
+// vector
+template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom,
+          HWY_IF_LANES(kToVectSize, kFromVectSize * 2)>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<kFromVectSize> /* from_size_tag */,
+    hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom d_from,
+    VFromD<DFrom> v) {
+  const Twice<decltype(d_from)> dt_from;
+  return BitCast(d_to, ZeroExtendVector(dt_from, v));
+}
+
+// Resizing cast to vector that has more than twice the number of lanes of the
+// source vector
+template <size_t kFromVectSize, size_t kToVectSize, class DTo, class DFrom,
+          HWY_IF_LANES_GT(kToVectSize, kFromVectSize * 2)>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<kFromVectSize> /* from_size_tag */,
+    hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom /*d_from*/,
+    VFromD<DFrom> v) {
+  using TFrom = TFromD<DFrom>;
+  constexpr size_t kNumOfFromLanes = kFromVectSize / sizeof(TFrom);
+  const Repartition<TFrom, decltype(d_to)> d_resize_to;
+  return BitCast(d_to, IfThenElseZero(FirstN(d_resize_to, kNumOfFromLanes),
+                                      ResizeBitCast(d_resize_to, v)));
+}
+#endif  // HWY_HAVE_SCALABLE
+
+}  // namespace detail
+#endif  // HWY_TARGET != HWY_EMU128 && HWY_TARGET != HWY_SCALAR
+
+template <class DTo, class DFrom>
+HWY_API VFromD<DTo> ZeroExtendResizeBitCast(DTo d_to, DFrom d_from,
+                                            VFromD<DFrom> v) {
+  return detail::ZeroExtendResizeBitCast(hwy::SizeTag<d_from.MaxBytes()>(),
+                                         hwy::SizeTag<d_to.MaxBytes()>(), d_to,
+                                         d_from, v);
+}
+
 // ------------------------------ SafeFillN
 
 template <class D, typename T = TFromD<D>>

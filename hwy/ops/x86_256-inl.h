@@ -276,6 +276,42 @@ HWY_API Vec256<double> Undefined(D /* tag */) {
 
 HWY_DIAGNOSTICS(pop)
 
+// ------------------------------ ResizeBitCast
+
+// 32-byte vector to 32-byte vector (or 64-byte vector to 64-byte vector on
+// AVX3)
+template <class D, class FromV, HWY_IF_V_SIZE_GT_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, HWY_MAX_LANES_V(FromV) * sizeof(TFromV<FromV>))>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, v);
+}
+
+// 32-byte vector to 16-byte vector (or 64-byte vector to 32-byte vector on
+// AVX3)
+template <class D, class FromV, HWY_IF_V_SIZE_GT_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D,
+                          (HWY_MAX_LANES_V(FromV) * sizeof(TFromV<FromV>)) / 2)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const DFromV<decltype(v)> d_from;
+  const Half<decltype(d_from)> dh_from;
+  return BitCast(d, LowerHalf(dh_from, v));
+}
+
+// 32-byte vector (or 64-byte vector on AVX3) to <= 8-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_GT_V(FromV, 16),
+          HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
+  return VFromD<D>{ResizeBitCast(Full128<TFromD<D>>(), v).raw};
+}
+
+// <= 16-byte vector to 32-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, Vec256<uint8_t>{_mm256_castsi128_si256(
+                        ResizeBitCast(Full128<uint8_t>(), v).raw)});
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ And
@@ -2981,6 +3017,21 @@ HWY_API Vec256<double> ZeroExtendVector(D /* tag */, Vec128<double> lo) {
 #endif
 }
 
+// ------------------------------ ZeroExtendResizeBitCast
+
+namespace detail {
+
+template <class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<8> /* from_size_tag */, hwy::SizeTag<32> /* to_size_tag */,
+    DTo d_to, DFrom d_from, VFromD<DFrom> v) {
+  const Twice<decltype(d_from)> dt_from;
+  const Twice<decltype(dt_from)> dq_from;
+  return BitCast(d_to, ZeroExtendVector(dq_from, ZeroExtendVector(dt_from, v)));
+}
+
+}  // namespace detail
+
 // ------------------------------ Combine
 
 template <class D, typename T = TFromD<D>>
@@ -4360,26 +4411,23 @@ template <class D, HWY_IF_U32_D(D)>
 HWY_API Vec256<uint32_t> PromoteTo(D /* tag */, Vec128<uint8_t, 8> v) {
   return Vec256<uint32_t>{_mm256_cvtepu8_epi32(v.raw)};
 }
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec256<int16_t> PromoteTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec256<int16_t>{_mm256_cvtepu8_epi16(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<uint8_t, 8> v) {
-  return Vec256<int32_t>{_mm256_cvtepu8_epi32(v.raw)};
-}
 template <class D, HWY_IF_U32_D(D)>
 HWY_API Vec256<uint32_t> PromoteTo(D /* tag */, Vec128<uint16_t> v) {
   return Vec256<uint32_t>{_mm256_cvtepu16_epi32(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<uint16_t> v) {
-  return Vec256<int32_t>{_mm256_cvtepu16_epi32(v.raw)};
 }
 template <class D, HWY_IF_U64_D(D)>
 HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec128<uint32_t> v) {
   return Vec256<uint64_t>{_mm256_cvtepu32_epi64(v.raw)};
 }
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec64<uint16_t> v) {
+  return Vec256<uint64_t>{_mm256_cvtepu16_epi64(v.raw)};
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec32<uint8_t> v) {
+  return Vec256<uint64_t>{_mm256_cvtepu8_epi64(v.raw)};
+}
+
 
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
@@ -4400,6 +4448,14 @@ HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<int16_t> v) {
 template <class D, HWY_IF_I64_D(D)>
 HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec128<int32_t> v) {
   return Vec256<int64_t>{_mm256_cvtepi32_epi64(v.raw)};
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec64<int16_t> v) {
+  return Vec256<int64_t>{_mm256_cvtepi16_epi64(v.raw)};
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec32<int8_t> v) {
+  return Vec256<int64_t>{_mm256_cvtepi8_epi64(v.raw)};
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)

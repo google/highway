@@ -128,6 +128,32 @@ HWY_API Vec1<T> Iota(const D /* tag */, const T2 first) {
   return Vec1<T>(static_cast<T>(first));
 }
 
+// ------------------------------ ResizeBitCast
+
+template <class D, typename FromV>
+HWY_API VFromD<D> ResizeBitCast(D /* tag */, FromV v) {
+  using TFrom = TFromV<FromV>;
+  using TTo = TFromD<D>;
+  constexpr size_t kCopyLen = HWY_MIN(sizeof(TFrom), sizeof(TTo));
+  TTo to = TTo{0};
+  CopyBytes<kCopyLen>(&v.raw, &to);
+  return VFromD<D>(to);
+}
+
+namespace detail {
+
+// ResizeBitCast on the HWY_SCALAR target has zero-extending semantics if
+// sizeof(TFromD<DTo>) is greater than sizeof(TFromV<FromV>)
+template <class FromSizeTag, class ToSizeTag, class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    FromSizeTag /* from_size_tag */, ToSizeTag /* to_size_tag */, DTo d_to, DFrom /*d_from*/,
+    VFromD<DFrom> v) {
+  return ResizeBitCast(d_to, v);
+}
+
+}  // namespace scalar
+
+
 // ================================================== LOGICAL
 
 // ------------------------------ Not

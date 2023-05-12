@@ -1561,22 +1561,53 @@ HWY_RVV_FOREACH_F32(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_, _EXT_VIRT)
   HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m4, m2, 1, 1)   \
   HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m8, m4, 2, 1)
 
-#define HWY_RVV_PROMOTE_X4(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN)         \
-  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, mf2, mf8, -3, 2) \
-  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m1, mf4, -2, 2)  \
-  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m2, mf2, -1, 2)  \
-  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m4, m1, 0, 2)    \
+#define HWY_RVV_PROMOTE_X4(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN)        \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m1, mf4, -2, 2) \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m2, mf2, -1, 2) \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m4, m1, 0, 2)   \
   HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m8, m2, 1, 2)
 
-HWY_RVV_PROMOTE_X4(zext_vf4_, uint, u, 32, uint, 8)
-HWY_RVV_PROMOTE_X4(sext_vf4_, int, i, 32, int, 8)
+#define HWY_RVV_PROMOTE_X4_FROM_U8(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN) \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, mf2, mf8, -3, 2) \
+  HWY_RVV_PROMOTE_X4(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN)
+
+#define HWY_RVV_PROMOTE_X8(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN)        \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m1, mf8, -3, 3) \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m2, mf4, -2, 3) \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m4, mf2, -1, 3) \
+  HWY_RVV_PROMOTE(OP, BASE, CHAR, BITS, BASE_IN, BITS_IN, m8, m1, 0, 3)
+
+HWY_RVV_PROMOTE_X8(zext_vf8_, uint, u, 64, uint, 8)
+HWY_RVV_PROMOTE_X8(sext_vf8_, int, i, 64, int, 8)
+
+HWY_RVV_PROMOTE_X4_FROM_U8(zext_vf4_, uint, u, 32, uint, 8)
+HWY_RVV_PROMOTE_X4_FROM_U8(sext_vf4_, int, i, 32, int, 8)
+HWY_RVV_PROMOTE_X4(zext_vf4_, uint, u, 64, uint, 16)
+HWY_RVV_PROMOTE_X4(sext_vf4_, int, i, 64, int, 16)
 
 // i32 to f64
 HWY_RVV_PROMOTE_X2(fwcvt_f_x_v_, float, f, 64, int, 32)
 
+#undef HWY_RVV_PROMOTE_X8
+#undef HWY_RVV_PROMOTE_X4_FROM_U8
 #undef HWY_RVV_PROMOTE_X4
 #undef HWY_RVV_PROMOTE_X2
 #undef HWY_RVV_PROMOTE
+
+// I16->I64 or U16->U64 PromoteTo with virtual LMUL
+template <size_t N>
+HWY_API auto PromoteTo(Simd<int64_t, N, -1> d,
+                       VFromD<Rebind<int16_t, decltype(d)>> v)
+    -> VFromD<decltype(d)> {
+  return PromoteTo(ScalableTag<int64_t>(), v);
+}
+
+template <size_t N>
+HWY_API auto PromoteTo(Simd<uint64_t, N, -1> d,
+                       VFromD<Rebind<uint16_t, decltype(d)>> v)
+    -> VFromD<decltype(d)> {
+  return PromoteTo(ScalableTag<uint64_t>(), v);
+}
 
 // Unsigned to signed: cast for unsigned promote.
 template <size_t N, int kPow2>
@@ -1596,6 +1627,27 @@ HWY_API auto PromoteTo(Simd<int32_t, N, kPow2> d,
 template <size_t N, int kPow2>
 HWY_API auto PromoteTo(Simd<int32_t, N, kPow2> d,
                        VFromD<Rebind<uint16_t, decltype(d)>> v)
+    -> VFromD<decltype(d)> {
+  return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API auto PromoteTo(Simd<int64_t, N, kPow2> d,
+                       VFromD<Rebind<uint32_t, decltype(d)>> v)
+    -> VFromD<decltype(d)> {
+  return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API auto PromoteTo(Simd<int64_t, N, kPow2> d,
+                       VFromD<Rebind<uint16_t, decltype(d)>> v)
+    -> VFromD<decltype(d)> {
+  return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
+}
+
+template <size_t N, int kPow2>
+HWY_API auto PromoteTo(Simd<int64_t, N, kPow2> d,
+                       VFromD<Rebind<uint8_t, decltype(d)>> v)
     -> VFromD<decltype(d)> {
   return BitCast(d, PromoteTo(RebindToUnsigned<decltype(d)>(), v));
 }
@@ -2896,35 +2948,43 @@ HWY_API V Shuffle0123(const V v) {
 // Extends or truncates a vector to match the given d.
 namespace detail {
 
-template <class D, HWY_IF_POW2_GT_D(D, -1)>
-HWY_INLINE VFromD<D> ChangeLMUL(D d, VFromD<Half<Half<Half<D>>>> v) {
-  return Ext(d, Ext(Half<D>(), Ext(Half<Half<D>>(), v)));
-}
-template <class D, HWY_IF_POW2_GT_D(D, -2)>
-HWY_INLINE VFromD<D> ChangeLMUL(D d, VFromD<Half<Half<D>>> v) {
-  return Ext(d, Ext(Half<D>(), v));
-}
-template <class D, HWY_IF_POW2_GT_D(D, -3)>
-HWY_INLINE VFromD<D> ChangeLMUL(D d, VFromD<Half<D>> v) {
-  return Ext(d, v);
-}
-
 template <class D>
 HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<D> v) {
   return v;
 }
 
-template <class D, HWY_IF_POW2_LE_D(D, 2)>
-HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<Twice<D>> v) {
-  return Trunc(v);
+// LMUL of VFromD<D> < LMUL of V: need to truncate v
+template <class D, class V,
+          hwy::EnableIf<IsSame<TFromD<D>, TFromV<V>>()>* = nullptr,
+          HWY_IF_POW2_LE_D(DFromV<VFromD<D>>, DFromV<V>().Pow2() - 1)>
+HWY_INLINE VFromD<D> ChangeLMUL(D d, V v) {
+  const DFromV<decltype(v)> d_from;
+  const Half<decltype(d_from)> dh_from;
+  static_assert(
+      DFromV<VFromD<decltype(dh_from)>>().Pow2() < DFromV<V>().Pow2(),
+      "The LMUL of VFromD<decltype(dh_from)> must be less than the LMUL of V");
+  static_assert(
+      DFromV<VFromD<D>>().Pow2() <= DFromV<VFromD<decltype(dh_from)>>().Pow2(),
+      "The LMUL of VFromD<D> must be less than or equal to the LMUL of "
+      "VFromD<decltype(dh_from)>");
+  return ChangeLMUL(d, Trunc(v));
 }
-template <class D, HWY_IF_POW2_LE_D(D, 1)>
-HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<Twice<Twice<D>>> v) {
-  return Trunc(Trunc(v));
-}
-template <class D, HWY_IF_POW2_LE_D(D, 0)>
-HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<Twice<Twice<Twice<D>>>> v) {
-  return Trunc(Trunc(Trunc(v)));
+
+// LMUL of VFromD<D> > LMUL of V: need to extend v
+template <class D, class V,
+          hwy::EnableIf<IsSame<TFromD<D>, TFromV<V>>()>* = nullptr,
+          HWY_IF_POW2_GT_D(DFromV<VFromD<D>>, DFromV<V>().Pow2())>
+HWY_INLINE VFromD<D> ChangeLMUL(D d, V v) {
+  const DFromV<decltype(v)> d_from;
+  const Twice<decltype(d_from)> dt_from;
+  static_assert(DFromV<VFromD<decltype(dt_from)>>().Pow2() > DFromV<V>().Pow2(),
+                "The LMUL of VFromD<decltype(dt_from)> must be greater than "
+                "the LMUL of V");
+  static_assert(
+      DFromV<VFromD<D>>().Pow2() >= DFromV<VFromD<decltype(dt_from)>>().Pow2(),
+      "The LMUL of VFromD<D> must be greater than or equal to the LMUL of "
+      "VFromD<decltype(dt_from)>");
+  return ChangeLMUL(d, Ext(dt_from, v));
 }
 
 }  // namespace detail
@@ -3420,6 +3480,17 @@ HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
 }
 
 #endif  // HWY_HAVE_TUPLE
+
+// ------------------------------ ResizeBitCast
+
+template <class D, class FromV>
+HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
+  const DFromV<decltype(v)> d_from;
+  const Repartition<uint8_t, decltype(d_from)> du8_from;
+  const DFromV<VFromD<D>> d_to;
+  const Repartition<uint8_t, decltype(d_to)> du8_to;
+  return BitCast(d_to, detail::ChangeLMUL(du8_to, BitCast(du8_from, v)));
+}
 
 // ------------------------------ PopulationCount (ShiftRight)
 

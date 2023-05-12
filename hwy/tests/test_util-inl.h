@@ -31,8 +31,7 @@
 #include "hwy/print-inl.h"
 
 // Per-target include guard
-#if defined(HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
 #undef HIGHWAY_HWY_TESTS_TEST_UTIL_INL_H_
 #else
@@ -438,20 +437,21 @@ class ForPromoteVectors {
     constexpr size_t kFactor = size_t{1} << kPow2;
     static_assert(kFactor >= 2 && kFactor * sizeof(T) <= sizeof(uint64_t), "");
     constexpr size_t kMaxCapped = HWY_LANES(T);
-    constexpr size_t kMinLanes = kFactor;
     // Skip CappedTag that are already full vectors.
     const size_t max_lanes = Lanes(ScalableTag<T>()) >> kPow2;
     (void)kMaxCapped;
-    (void)kMinLanes;
     (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
     detail::ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
 #else
-    // TODO(janwas): call Extendable if kMinLanes check not required?
-    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), 1, Test, -kPow2>::Do(
-        kMinLanes, max_lanes);
+    using DLargestFrom = CappedTag<T, (kMaxCapped >> kPow2) * kFactor, -kPow2>;
+    static_assert(HWY_MAX_LANES_D(DLargestFrom) <= (kMaxCapped >> kPow2),
+                  "HWY_MAX_LANES_D(DLargestFrom) must be less than or equal to "
+                  "(kMaxCapped >> kPow2)");
+    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), kFactor, Test, -kPow2>::Do(
+        1, max_lanes);
 #if HWY_HAVE_SCALABLE
-    detail::ForeachPow2Trim<T, 0, kPow2, Test>::Do(kMinLanes);
+    detail::ForeachPow2Trim<T, 0, kPow2, Test>::Do(1);
 #endif
 #endif  // HWY_SCALAR
   }

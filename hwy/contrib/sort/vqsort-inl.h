@@ -758,9 +758,8 @@ HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 //
 // See M. Blacher's thesis: https://github.com/mark-blacher/masterthesis
 template <class D, class Traits, typename T>
-HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
-                           T* HWY_RESTRICT keys_end, size_t num_lanes,
-                           T* HWY_RESTRICT buf) {
+HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, T* keys_end,
+                           size_t num_lanes, T* buf) {
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_DASSERT(num_lanes <= Constants::BaseCaseNumLanes<kLPK>(Lanes(d)));
   // Checking kMaxKeys avoids generating unreachable HWY_ASSERT codepaths.

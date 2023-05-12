@@ -1078,6 +1078,24 @@ All functions except `Stream` are defined in cache_control.h.
 *   <code>Vec&lt;D&gt; **BitCast**(D, V)</code>: returns the bits of `V`
     reinterpreted as type `Vec<D>`.
 
+*   <code>Vec&lt;D&gt; **ResizeBitCast**(D, V)</code>: resizes `V` to a vector
+    of `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
+    resized vector reinterpreted as type `Vec<D>`.
+
+    If `Vec<D>` is a larger vector than `V`, then the contents of any bytes
+    past the first `Lanes(DFromV<V>()) * sizeof(TFromV<V>)` bytes of the result
+    vector is unspecified.
+
+*   <code>Vec&lt;DTo&gt; **ZeroExtendResizeBitCast**(DTo, DFrom, V)</code>:
+    resizes `V`, which is a vector of type `Vec<DFrom>`, to a vector of
+    `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
+    resized vector reinterpreted as type `Vec<DTo>`.
+
+    If `Lanes(DTo()) * sizeof(TFromD<DTo>)` is greater than
+    `Lanes(DFrom()) * sizeof(TFromD<DFrom>)`, then any bytes past the first
+    `Lanes(DFrom()) * sizeof(TFromD<DFrom>)` bytes of the result vector are
+    zeroed out.
+
 *   `V`,`V8`: (`u32,u8`) \
     <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8` conversion when
     all lanes of `V` are already clamped to `[0, 256)`.
