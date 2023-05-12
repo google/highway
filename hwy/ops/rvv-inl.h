@@ -2175,14 +2175,20 @@ namespace detail {
 // offsets are implicitly relative to the start of their 128-bit block.
 template <typename T, size_t N, int kPow2>
 size_t LanesPerBlock(Simd<T, N, kPow2> d) {
-  size_t lpb = 16 / sizeof(T);
-  if (IsFull(d)) return lpb;
-  // Also honor the user-specified (constexpr) N limit.
-  lpb = HWY_MIN(lpb, N);
-  // No fraction, we're done.
-  if (kPow2 >= 0) return lpb;
-  // Fractional LMUL: Lanes(d) may be smaller than lpb, so honor that.
-  return HWY_MIN(lpb, Lanes(d));
+  // kMinVecBytes is the minimum size of VFromD<decltype(d)> in bytes
+  constexpr size_t kMinVecBytes =
+      ScaleByPower(16, HWY_MAX(HWY_MIN(kPow2, 3), -3));
+  // kMinVecLanes is the minimum number of lanes in VFromD<decltype(d)>
+  constexpr size_t kMinVecLanes = (kMinVecBytes + sizeof(T) - 1) / sizeof(T);
+  // kMaxLpb is the maximum number of lanes per block
+  constexpr size_t kMaxLpb = HWY_MIN(16 / sizeof(T), MaxLanes(d));
+
+  // If kMaxLpb <= kMinVecLanes is true, then kMaxLpb <= Lanes(d) is true
+  if (kMaxLpb <= kMinVecLanes) return kMaxLpb;
+
+  // Fractional LMUL: Lanes(d) may be smaller than kMaxLpb, so honor that.
+  const size_t lanes_per_vec = Lanes(d);
+  return HWY_MIN(lanes_per_vec, kMaxLpb);
 }
 
 template <class D, class V>
@@ -3509,7 +3515,25 @@ HWY_API V PopulationCount(V v) {
 template <class D>
 HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
-  const VFromD<D> loaded = Load(d, p);
+
+  // Make sure that no more than 16 bytes are loaded from p
+  constexpr int kLoadPow2 = d.Pow2();
+  constexpr size_t kMaxLanesToLoad =
+      HWY_MIN(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>));
+  constexpr size_t kLoadN = D::template NewN<kLoadPow2, kMaxLanesToLoad>();
+  const Simd<TFromD<D>, kLoadN, kLoadPow2> d_load;
+  static_assert(d_load.MaxBytes() <= 16,
+                "d_load.MaxBytes() <= 16 must be true");
+  static_assert((d.MaxBytes() < 16) || (d_load.MaxBytes() == 16),
+                "d_load.MaxBytes() == 16 must be true if d.MaxBytes() >= 16 is "
+                "true");
+  static_assert((d.MaxBytes() >= 16) || (d_load.MaxBytes() == d.MaxBytes()),
+                "d_load.MaxBytes() == d.MaxBytes() must be true if "
+                "d.MaxBytes() < 16 is true");
+
+  const VFromD<D> loaded = Load(d_load, p);
+  if (d.MaxBytes() <= 16) return loaded;
+
   // idx must be unsigned for TableLookupLanes.
   using TU = TFromD<decltype(du)>;
   const TU mask = static_cast<TU>(detail::LanesPerBlock(d) - 1);

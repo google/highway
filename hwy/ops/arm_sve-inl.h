@@ -1132,10 +1132,15 @@ HWY_API svbool_t IsFinite(const V v) {
 
 HWY_SVE_FOREACH(HWY_SVE_LOAD, Load, ld1)
 HWY_SVE_FOREACH(HWY_SVE_MASKED_LOAD, MaskedLoad, ld1)
-HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDup128, ld1rq)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Store, st1)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Stream, stnt1)
 HWY_SVE_FOREACH(HWY_SVE_BLENDED_STORE, BlendedStore, st1)
+
+#if HWY_TARGET != HWY_SVE2_128
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDupFull128, ld1rq)
+}  // namespace detail
+#endif  // HWY_TARGET != HWY_SVE2_128
 
 #undef HWY_SVE_LOAD
 #undef HWY_SVE_MASKED_LOAD
@@ -1150,6 +1155,36 @@ HWY_API svuint16_t Load(Simd<bfloat16_t, N, kPow2> d,
   return Load(RebindToUnsigned<decltype(d)>(),
               reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
 }
+
+#if HWY_TARGET == HWY_SVE2_128
+// On the HWY_SVE2_128 target, LoadDup128 is the same as Load since vectors
+// cannot exceed 16 bytes on the HWY_SVE2_128 target.
+template <class D>
+HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
+  return Load(d, p);
+}
+#else
+// If D().MaxBytes() <= 16 is true, simply do a Load operation.
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
+  return Load(d, p);
+}
+
+// If D().MaxBytes() > 16 is true, need to load the vector using ld1rq
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16),
+          hwy::EnableIf<!IsSame<TFromD<D>, bfloat16_t>()>* = nullptr>
+HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
+  return detail::LoadDupFull128(d, p);
+}
+
+// BF16 is the same as svuint16_t because BF16 is optional before v8.6.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16), HWY_IF_BF16_D(D)>
+HWY_API svuint16_t LoadDup128(D d, const bfloat16_t* HWY_RESTRICT p) {
+  return detail::LoadDupFull128(
+      RebindToUnsigned<decltype(d)>(),
+      reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
+}
+#endif  // HWY_TARGET != HWY_SVE2_128
 
 template <size_t N, int kPow2>
 HWY_API void Store(svuint16_t v, Simd<bfloat16_t, N, kPow2> d,
@@ -2397,9 +2432,9 @@ HWY_API V TwoTablesLookupLanes(V a, V b,
 namespace detail {
 
 template <typename T, size_t N, int kPow2>
-constexpr size_t LanesPerBlock(Simd<T, N, kPow2> /* tag */) {
+constexpr size_t LanesPerBlock(Simd<T, N, kPow2> d) {
   // We might have a capped vector smaller than a block, so honor that.
-  return HWY_MIN(16 / sizeof(T), detail::ScaleByPower(N, kPow2));
+  return HWY_MIN(16 / sizeof(T), MaxLanes(d));
 }
 
 }  // namespace detail
