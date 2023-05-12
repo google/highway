@@ -84,6 +84,33 @@ HWY_API VFromD<D> BitCast(D d, Vec256<TFrom> v) {
   return ret;
 }
 
+// ------------------------------ ResizeBitCast
+
+// 32-byte vector to 32-byte vector: Same as BitCast
+template <class D, typename FromV, HWY_IF_V_SIZE_V(FromV, 32),
+          HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, v);
+}
+
+// <= 16-byte vector to 32-byte vector
+template <class D, typename FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = ResizeBitCast(dh, v);
+  ret.v1 = Zero(dh);
+  return ret;
+}
+
+// 32-byte vector to <= 16-byte vector
+template <class D, typename FromV, HWY_IF_V_SIZE_V(FromV, 32),
+          HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return ResizeBitCast(d, v.v0);
+}
+
 // ------------------------------ Set
 template <class D, HWY_IF_V_SIZE_D(D, 32), typename T2>
 HWY_API VFromD<D> Set(D d, const T2 t) {
@@ -1120,6 +1147,22 @@ HWY_API Vec256<T> ZeroExtendVector(D d, Vec128<T> lo) {
   const Half<decltype(d)> dh;
   return Combine(d, Zero(dh), lo);
 }
+
+// ------------------------------ ZeroExtendResizeBitCast
+
+namespace detail {
+
+template <size_t kFromVectSize, class DTo, class DFrom,
+          HWY_IF_LANES_LE(kFromVectSize, 8)>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<kFromVectSize> /* from_size_tag */,
+    hwy::SizeTag<32> /* to_size_tag */, DTo d_to, DFrom d_from,
+    VFromD<DFrom> v) {
+  const Half<decltype(d_to)> dh_to;
+  return ZeroExtendVector(d_to, ZeroExtendResizeBitCast(dh_to, d_from, v));
+}
+
+}  // namespace detail
 
 // ------------------------------ ConcatLowerLower
 template <class D, typename T = TFromD<D>>

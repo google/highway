@@ -267,6 +267,32 @@ HWY_API Vec512<double> Undefined(D /* tag */) {
 
 HWY_DIAGNOSTICS(pop)
 
+// ------------------------------ ResizeBitCast
+
+// 64-byte vector to 16-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 64),
+          HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, Vec128<uint8_t>{_mm512_castsi512_si128(
+                        BitCast(Full512<uint8_t>(), v).raw)});
+}
+
+// <= 16-byte vector to 64-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, Vec512<uint8_t>{_mm512_castsi128_si512(
+                        ResizeBitCast(Full128<uint8_t>(), v).raw)});
+}
+
+// 32-byte vector to 64-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_V(FromV, 32),
+          HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, Vec512<uint8_t>{_mm512_castsi256_si512(
+                        BitCast(Full256<uint8_t>(), v).raw)});
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ Not
@@ -2462,6 +2488,60 @@ HWY_API Vec512<double> ZeroExtendVector(D /* tag */, Vec256<double> lo) {
   return Vec512<double>{_mm512_insertf64x4(_mm512_setzero_pd(), lo.raw, 0)};
 #endif
 }
+
+// ------------------------------ ZeroExtendResizeBitCast
+
+namespace detail {
+
+template <class DTo, class DFrom, HWY_IF_NOT_FLOAT_D(DTo)>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<16> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
+    DTo /*d_to*/, DFrom d_from, VFromD<DFrom> v) {
+  const Repartition<uint8_t, decltype(d_from)> du8_from;
+  const auto vu8 = BitCast(du8_from, v);
+#if HWY_HAVE_ZEXT
+  return VFromD<DTo>{_mm512_zextsi128_si512(vu8.raw)};
+#else
+  return VFromD<DTo>{_mm512_inserti32x4(_mm512_setzero_si512(), vu8.raw, 0)};
+#endif
+}
+
+template <class DTo, class DFrom, HWY_IF_F32_D(DTo)>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<16> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
+    DTo /* d_to */, DFrom d_from, VFromD<DFrom> v) {
+  const Repartition<float, decltype(d_from)> df32_from;
+  const auto vf32 = BitCast(df32_from, v);
+#if HWY_HAVE_ZEXT
+  return Vec512<float>{_mm512_zextps128_ps512(vf32.raw)};
+#else
+  return Vec512<float>{_mm512_insertf32x4(_mm512_setzero_ps(), vf32.raw, 0)};
+#endif
+}
+
+template <class DTo, class DFrom, HWY_IF_F64_D(DTo)>
+HWY_INLINE Vec512<double> ZeroExtendResizeBitCast(
+    hwy::SizeTag<16> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
+    DTo /* d_to */, DFrom d_from, VFromD<DFrom> v) {
+  const Repartition<double, decltype(d_from)> df64_from;
+  const auto vf64 = BitCast(df64_from, v);
+#if HWY_HAVE_ZEXT
+  return Vec512<double>{_mm512_zextpd128_pd512(vf64.raw)};
+#else
+  return Vec512<double>{_mm512_insertf64x2(_mm512_setzero_pd(), vf64.raw, 0)};
+#endif
+}
+
+template <class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<8> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
+    DTo d_to, DFrom d_from, VFromD<DFrom> v) {
+  const Twice<decltype(d_from)> dt_from;
+  return ZeroExtendResizeBitCast(hwy::SizeTag<16>(), hwy::SizeTag<64>(), d_to,
+                                 dt_from, ZeroExtendVector(dt_from, v));
+}
+
+}  // namespace detail
 
 // ------------------------------ Combine
 

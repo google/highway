@@ -185,6 +185,15 @@ HWY_API VFromD<D> BitCast(D d,
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
+// ------------------------------ ResizeBitCast
+
+template <class D, typename FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
+          HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Repartition<uint8_t, decltype(d)> du8_to;
+  return BitCast(d, VFromD<decltype(du8_to)>{detail::BitCastToInteger(v.raw)});
+}
+
 // ------------------------------ Set
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>

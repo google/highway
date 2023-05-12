@@ -276,6 +276,42 @@ HWY_API Vec256<double> Undefined(D /* tag */) {
 
 HWY_DIAGNOSTICS(pop)
 
+// ------------------------------ ResizeBitCast
+
+// 32-byte vector to 32-byte vector (or 64-byte vector to 64-byte vector on
+// AVX3)
+template <class D, class FromV, HWY_IF_V_SIZE_GT_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, HWY_MAX_LANES_V(FromV) * sizeof(TFromV<FromV>))>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, v);
+}
+
+// 32-byte vector to 16-byte vector (or 64-byte vector to 32-byte vector on
+// AVX3)
+template <class D, class FromV, HWY_IF_V_SIZE_GT_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D,
+                          (HWY_MAX_LANES_V(FromV) * sizeof(TFromV<FromV>)) / 2)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const DFromV<decltype(v)> d_from;
+  const Half<decltype(d_from)> dh_from;
+  return BitCast(d, LowerHalf(dh_from, v));
+}
+
+// 32-byte vector (or 64-byte vector on AVX3) to <= 8-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_GT_V(FromV, 16),
+          HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
+  return VFromD<D>{ResizeBitCast(Full128<TFromD<D>>(), v).raw};
+}
+
+// <= 16-byte vector to 32-byte vector
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
+          HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  return BitCast(d, Vec256<uint8_t>{_mm256_castsi128_si256(
+                        ResizeBitCast(Full128<uint8_t>(), v).raw)});
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ And
@@ -2980,6 +3016,21 @@ HWY_API Vec256<double> ZeroExtendVector(D /* tag */, Vec128<double> lo) {
   return Vec256<double>{_mm256_insertf128_pd(_mm256_setzero_pd(), lo.raw, 0)};
 #endif
 }
+
+// ------------------------------ ZeroExtendResizeBitCast
+
+namespace detail {
+
+template <class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
+    hwy::SizeTag<8> /* from_size_tag */, hwy::SizeTag<32> /* to_size_tag */,
+    DTo d_to, DFrom d_from, VFromD<DFrom> v) {
+  const Twice<decltype(d_from)> dt_from;
+  const Twice<decltype(dt_from)> dq_from;
+  return BitCast(d_to, ZeroExtendVector(dq_from, ZeroExtendVector(dt_from, v)));
+}
+
+}  // namespace detail
 
 // ------------------------------ Combine
 

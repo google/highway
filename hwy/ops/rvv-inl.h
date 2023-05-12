@@ -2896,35 +2896,43 @@ HWY_API V Shuffle0123(const V v) {
 // Extends or truncates a vector to match the given d.
 namespace detail {
 
-template <class D, HWY_IF_POW2_GT_D(D, -1)>
-HWY_INLINE VFromD<D> ChangeLMUL(D d, VFromD<Half<Half<Half<D>>>> v) {
-  return Ext(d, Ext(Half<D>(), Ext(Half<Half<D>>(), v)));
-}
-template <class D, HWY_IF_POW2_GT_D(D, -2)>
-HWY_INLINE VFromD<D> ChangeLMUL(D d, VFromD<Half<Half<D>>> v) {
-  return Ext(d, Ext(Half<D>(), v));
-}
-template <class D, HWY_IF_POW2_GT_D(D, -3)>
-HWY_INLINE VFromD<D> ChangeLMUL(D d, VFromD<Half<D>> v) {
-  return Ext(d, v);
-}
-
 template <class D>
 HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<D> v) {
   return v;
 }
 
-template <class D, HWY_IF_POW2_LE_D(D, 2)>
-HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<Twice<D>> v) {
-  return Trunc(v);
+// LMUL of VFromD<D> < LMUL of V: need to truncate v
+template <class D, class V,
+          hwy::EnableIf<IsSame<TFromD<D>, TFromV<V>>()>* = nullptr,
+          HWY_IF_POW2_LE_D(DFromV<VFromD<D>>, DFromV<V>().Pow2() - 1)>
+HWY_INLINE VFromD<D> ChangeLMUL(D d, V v) {
+  const DFromV<decltype(v)> d_from;
+  const Half<decltype(d_from)> dh_from;
+  static_assert(
+      DFromV<VFromD<decltype(dh_from)>>().Pow2() < DFromV<V>().Pow2(),
+      "The LMUL of VFromD<decltype(dh_from)> must be less than the LMUL of V");
+  static_assert(
+      DFromV<VFromD<D>>().Pow2() <= DFromV<VFromD<decltype(dh_from)>>().Pow2(),
+      "The LMUL of VFromD<D> must be less than or equal to the LMUL of "
+      "VFromD<decltype(dh_from)>");
+  return ChangeLMUL(d, Trunc(v));
 }
-template <class D, HWY_IF_POW2_LE_D(D, 1)>
-HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<Twice<Twice<D>>> v) {
-  return Trunc(Trunc(v));
-}
-template <class D, HWY_IF_POW2_LE_D(D, 0)>
-HWY_INLINE VFromD<D> ChangeLMUL(D /* d */, VFromD<Twice<Twice<Twice<D>>>> v) {
-  return Trunc(Trunc(Trunc(v)));
+
+// LMUL of VFromD<D> > LMUL of V: need to extend v
+template <class D, class V,
+          hwy::EnableIf<IsSame<TFromD<D>, TFromV<V>>()>* = nullptr,
+          HWY_IF_POW2_GT_D(DFromV<VFromD<D>>, DFromV<V>().Pow2())>
+HWY_INLINE VFromD<D> ChangeLMUL(D d, V v) {
+  const DFromV<decltype(v)> d_from;
+  const Twice<decltype(d_from)> dt_from;
+  static_assert(DFromV<VFromD<decltype(dt_from)>>().Pow2() > DFromV<V>().Pow2(),
+                "The LMUL of VFromD<decltype(dt_from)> must be greater than "
+                "the LMUL of V");
+  static_assert(
+      DFromV<VFromD<D>>().Pow2() >= DFromV<VFromD<decltype(dt_from)>>().Pow2(),
+      "The LMUL of VFromD<D> must be greater than or equal to the LMUL of "
+      "VFromD<decltype(dt_from)>");
+  return ChangeLMUL(d, Ext(dt_from, v));
 }
 
 }  // namespace detail
@@ -3420,6 +3428,17 @@ HWY_API void StoreInterleaved4(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2,
 }
 
 #endif  // HWY_HAVE_TUPLE
+
+// ------------------------------ ResizeBitCast
+
+template <class D, class FromV>
+HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
+  const DFromV<decltype(v)> d_from;
+  const Repartition<uint8_t, decltype(d_from)> du8_from;
+  const DFromV<VFromD<D>> d_to;
+  const Repartition<uint8_t, decltype(d_to)> du8_to;
+  return BitCast(d_to, detail::ChangeLMUL(du8_to, BitCast(du8_from, v)));
+}
 
 // ------------------------------ PopulationCount (ShiftRight)
 

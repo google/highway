@@ -196,6 +196,17 @@ HWY_API VFromD<D> BitCast(D /*d*/,
       reinterpret_cast<typename detail::Raw128<TFromD<D>>::type>(v.raw)};
 }
 
+// ------------------------------ ResizeBitCast
+
+template <class D, typename FromV>
+HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
+  // C-style casts are not sufficient when compiling with
+  // -fno-lax-vector-conversions, which will be the future default in Clang,
+  // but reinterpret_cast is.
+  return VFromD<D>{
+      reinterpret_cast<typename detail::Raw128<TFromD<D>>::type>(v.raw)};
+}
+
 // ------------------------------ Set
 
 // Returns a vector/part with all lanes set to "t".

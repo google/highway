@@ -331,6 +331,15 @@ HWY_API double GetLane(const Vec128<double, N> v) {
   return _mm_cvtsd_f64(v.raw);
 }
 
+// ------------------------------ ResizeBitCast
+
+template <class D, class FromV, HWY_IF_V_SIZE_LE_V(FromV, 16),
+          HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(d, VFromD<decltype(du8)>{detail::BitCastToInteger(v.raw)});
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ And
