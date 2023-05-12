@@ -103,9 +103,10 @@
 #define HWY_COMPILER_CLANG 600
 #endif  // __has_warning chain
 #define HWY_COMPILER3_CLANG (HWY_COMPILER_CLANG * 100)
-#else   // use normal version
+#else  // use normal version
 #define HWY_COMPILER_CLANG (__clang_major__ * 100 + __clang_minor__)
-#define HWY_COMPILER3_CLANG (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
+#define HWY_COMPILER3_CLANG \
+  (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
 #endif
 #else  // Not clang
 #define HWY_COMPILER_CLANG 0
