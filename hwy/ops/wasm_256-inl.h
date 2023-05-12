@@ -1303,6 +1303,10 @@ template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec128<int32_t> PromoteUpperTo(D /* tag */, Vec128<uint16_t> v) {
   return Vec128<int32_t>{wasm_u32x4_extend_high_u16x8(v.raw)};
 }
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec128<int64_t> PromoteUpperTo(D /* tag */, Vec128<uint32_t> v) {
+  return Vec128<int64_t>{wasm_u64x2_extend_high_u32x4(v.raw)};
+}
 
 // Signed: replicate sign bit.
 template <class D, HWY_IF_I16_D(D)>
@@ -1359,7 +1363,8 @@ HWY_API Vec128<float> PromoteUpperTo(D df32, Vec128<bfloat16_t> v) {
 
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), typename TN>
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename TN,
+          HWY_IF_T_SIZE_D(D, sizeof(TN) * 2)>
 HWY_API VFromD<D> PromoteTo(D d, Vec128<TN> v) {
   const Half<decltype(d)> dh;
   VFromD<D> ret;
@@ -1368,15 +1373,33 @@ HWY_API VFromD<D> PromoteTo(D d, Vec128<TN> v) {
   return ret;
 }
 
-// This is the only 4x promotion from 8 to 32-bit.
-template <class DW, HWY_IF_T_SIZE_D(DW, 4), typename TN, HWY_IF_T_SIZE(TN, 1)>
+// 4x promotion: 8-bit to 32-bit or 16-bit to 64-bit
+template <class DW, HWY_IF_V_SIZE_D(DW, 32),
+          HWY_IF_T_SIZE_ONE_OF_D(DW, (1 << 4) | (1 << 8)),
+          HWY_IF_NOT_FLOAT_D(DW), typename TN,
+          HWY_IF_T_SIZE_D(DW, sizeof(TN) * 4),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TN)>
 HWY_API Vec256<TFromD<DW>> PromoteTo(DW d, Vec64<TN> v) {
   const Half<decltype(d)> dh;
-  const Rebind<MakeWide<TN>, decltype(d)> d2;  // 16-bit lanes
-  const auto v16 = PromoteTo(d2, v);
+  // 16-bit lanes for UI8->UI32, 32-bit lanes for UI16->UI64
+  const Rebind<MakeWide<TN>, decltype(d)> d2;
+  const auto v_2x = PromoteTo(d2, v);
   Vec256<TFromD<DW>> ret;
-  ret.v0 = PromoteTo(dh, LowerHalf(v16));
-  ret.v1 = detail::PromoteUpperTo(dh, v16);
+  ret.v0 = PromoteTo(dh, LowerHalf(v_2x));
+  ret.v1 = detail::PromoteUpperTo(dh, v_2x);
+  return ret;
+}
+
+// 8x promotion: 8-bit to 64-bit
+template <class DW, HWY_IF_V_SIZE_D(DW, 32), HWY_IF_T_SIZE_D(DW, 8),
+          HWY_IF_NOT_FLOAT_D(DW), typename TN, HWY_IF_T_SIZE(TN, 1)>
+HWY_API Vec256<TFromD<DW>> PromoteTo(DW d, Vec32<TN> v) {
+  const Half<decltype(d)> dh;
+  const Repartition<MakeWide<MakeWide<TN>>, decltype(dh)> d4;  // 32-bit lanes
+  const auto v32 = PromoteTo(d4, v);
+  Vec256<TFromD<DW>> ret;
+  ret.v0 = PromoteTo(dh, LowerHalf(v32));
+  ret.v1 = detail::PromoteUpperTo(dh, v32);
   return ret;
 }
 

@@ -2487,6 +2487,17 @@ HWY_API VFromD<D> PromoteTo(D d32,
   return PromoteTo(d32, PromoteTo(d16, v));
 }
 
+// 8-bit or 16-bit to 64-bit: First, promote to MakeWide<FromT>, and then
+// convert to 64-bit.
+template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 8), HWY_IF_NOT_FLOAT_D(D),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(FromT),
+          HWY_IF_T_SIZE_ONE_OF(FromT, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> PromoteTo(D d64,
+                            Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
+  const Rebind<MakeWide<FromT>, decltype(d64)> dw;
+  return PromoteTo(d64, PromoteTo(dw, v));
+}
+
 // Workaround for origin tracking bug in Clang msan prior to 11.0
 // (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
 #if HWY_IS_MSAN && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)

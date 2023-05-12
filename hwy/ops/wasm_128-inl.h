@@ -3292,11 +3292,25 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
   return VFromD<D>{wasm_u32x4_extend_low_u16x8(v.raw)};
 }
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+  return VFromD<D>{wasm_u64x2_extend_low_u32x4(v.raw)};
+}
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
   return VFromD<D>{
       wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(v.raw))};
+}
+
+// U8/U16 to U64/I64: First, zero-extend to U32, and then zero-extend to
+// TFromD<D>
+template <class D, class V, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI64_D(D),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V)), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> PromoteTo(D d, V v) {
+  const Rebind<uint32_t, decltype(d)> du32;
+  return PromoteTo(d, PromoteTo(du32, v));
 }
 
 // Signed: replicate sign bit.
@@ -3317,6 +3331,15 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int8_t, D>> v) {
   return VFromD<D>{
       wasm_i32x4_extend_low_i16x8(wasm_i16x8_extend_low_i8x16(v.raw))};
+}
+
+// I8/I16 to I64: First, promote to I32, and then promote to I64
+template <class D, class V, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V)), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> PromoteTo(D d, V v) {
+  const Rebind<int32_t, decltype(d)> di32;
+  return PromoteTo(d, PromoteTo(di32, v));
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>

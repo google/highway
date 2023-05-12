@@ -384,6 +384,21 @@ HWY_NOINLINE void TestAllPromoteTo() {
 
   const ForPromoteVectors<TestPromoteTo<int64_t>, 1> to_i64div2;
   to_i64div2(int32_t());
+  to_i64div2(uint32_t());
+
+  const ForPromoteVectors<TestPromoteTo<uint64_t>, 2> to_u64div4;
+  to_u64div4(uint16_t());
+
+  const ForPromoteVectors<TestPromoteTo<int64_t>, 2> to_i64div4;
+  to_i64div4(int16_t());
+  to_i64div4(uint16_t());
+
+  const ForPromoteVectors<TestPromoteTo<uint64_t>, 3> to_u64div8;
+  to_u64div8(uint8_t());
+
+  const ForPromoteVectors<TestPromoteTo<int64_t>, 3> to_i64div8;
+  to_i64div8(int8_t());
+  to_i64div8(uint8_t());
 #endif
 
 #if HWY_HAVE_FLOAT64

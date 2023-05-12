@@ -3198,6 +3198,10 @@ template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec128<int32_t> PromoteTo(D d, Vec64<uint16_t> v) {
   return BitCast(d, Vec128<uint32_t>(vmovl_u16(v.raw)));
 }
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec128<int64_t> PromoteTo(D d, Vec64<uint32_t> v) {
+  return BitCast(d, Vec128<uint64_t>(vmovl_u32(v.raw)));
+}
 
 // Unsigned: zero-extend to half vector.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
@@ -3229,6 +3233,21 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint8_t, D>> v) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
   return VFromD<D>(vget_low_s32(vreinterpretq_s32_u32(vmovl_u16(v.raw))));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<uint32_t, D>> v) {
+  using DU = RebindToUnsigned<D>;
+  return BitCast(d, VFromD<DU>(vget_low_u64(vmovl_u32(v.raw))));
+}
+
+// U8/U16 to U64/I64: First, zero-extend to U32, and then zero-extend to
+// TFromD<D>
+template <class D, class V, HWY_IF_UI64_D(D),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V)), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> PromoteTo(D d, V v) {
+  const Rebind<uint32_t, decltype(d)> du32;
+  return PromoteTo(d, PromoteTo(du32, v));
 }
 
 // Signed: replicate sign bit to full vector.
@@ -3266,6 +3285,15 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int16_t, D>> v) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
   return VFromD<D>(vget_low_s64(vmovl_s32(v.raw)));
+}
+
+// I8/I16 to I64: First, promote to I32, and then promote to I64
+template <class D, class V, HWY_IF_I64_D(D),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V)), HWY_IF_SIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API VFromD<D> PromoteTo(D d, V v) {
+  const Rebind<int32_t, decltype(d)> di32;
+  return PromoteTo(d, PromoteTo(di32, v));
 }
 
 #if __ARM_FP & 2

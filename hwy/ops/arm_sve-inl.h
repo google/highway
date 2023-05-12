@@ -1362,31 +1362,37 @@ HWY_API svint32_t PromoteTo(Simd<int32_t, N, kPow2> dto, svint8_t vfrom) {
   const RepartitionToWide<DFromV<decltype(vfrom)>> d2;
   return PromoteTo(dto, PromoteTo(d2, vfrom));
 }
+template <size_t N, int kPow2>
+HWY_API svuint64_t PromoteTo(Simd<uint64_t, N, kPow2> dto, svuint16_t vfrom) {
+  const RepartitionToWide<DFromV<decltype(vfrom)>> d2;
+  return PromoteTo(dto, PromoteTo(d2, vfrom));
+}
+template <size_t N, int kPow2>
+HWY_API svint64_t PromoteTo(Simd<int64_t, N, kPow2> dto, svint16_t vfrom) {
+  const RepartitionToWide<DFromV<decltype(vfrom)>> d2;
+  return PromoteTo(dto, PromoteTo(d2, vfrom));
+}
 
-// 3x for LaneIndicesFromByteIndices u64
+// 3x
 template <size_t N, int kPow2>
 HWY_API svuint64_t PromoteTo(Simd<uint64_t, N, kPow2> dto, svuint8_t vfrom) {
   const RepartitionToNarrow<decltype(dto)> d4;
   const RepartitionToNarrow<decltype(d4)> d2;
   return PromoteTo(dto, PromoteTo(d4, PromoteTo(d2, vfrom)));
 }
+template <size_t N, int kPow2>
+HWY_API svint64_t PromoteTo(Simd<int64_t, N, kPow2> dto, svint8_t vfrom) {
+  const RepartitionToNarrow<decltype(dto)> d4;
+  const RepartitionToNarrow<decltype(d4)> d2;
+  return PromoteTo(dto, PromoteTo(d4, PromoteTo(d2, vfrom)));
+}
 
 // Sign change
-template <size_t N, int kPow2>
-HWY_API svint16_t PromoteTo(Simd<int16_t, N, kPow2> dto, svuint8_t vfrom) {
-  const RebindToUnsigned<decltype(dto)> du;
-  return BitCast(dto, PromoteTo(du, vfrom));
-}
-template <size_t N, int kPow2>
-HWY_API svint32_t PromoteTo(Simd<int32_t, N, kPow2> dto, svuint16_t vfrom) {
-  const RebindToUnsigned<decltype(dto)> du;
-  return BitCast(dto, PromoteTo(du, vfrom));
-}
-template <size_t N, int kPow2>
-HWY_API svint32_t PromoteTo(Simd<int32_t, N, kPow2> dto, svuint8_t vfrom) {
-  const Repartition<uint16_t, DFromV<decltype(vfrom)>> du16;
-  const Repartition<int16_t, decltype(du16)> di16;
-  return PromoteTo(dto, BitCast(di16, PromoteTo(du16, vfrom)));
+template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_LANES_GT(sizeof(TFromD<D>), sizeof(TFromV<V>))>
+HWY_API VFromD<D> PromoteTo(D di, V v) {
+  const RebindToUnsigned<decltype(di)> du;
+  return BitCast(di, PromoteTo(du, v));
 }
 
 // ------------------------------ PromoteTo F
