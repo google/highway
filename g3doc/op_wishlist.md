@@ -83,10 +83,6 @@ For hash tables. Use VPCONFLICT on ZEN4.
 ### `PromoteToEven`
 For `WidenMul`, `MinOfLanes`.
 
-### `PromoteTo` for all types (#915)
-
-For orthogonality.
-
 ### Add `DupEven` for 16-bit
 Use in `MinOfLanes` (helps NEON).
 
@@ -165,3 +161,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Add 8/16-bit `TableLookupLanes`~~ - by johnplatts in #1303
 *   ~~`FindLastTrue`~~ - by johnplatts in #1308
 *   ~~Vec2, Create/Get functions~~
+*   ~~`PromoteTo` for all types (#915)~~ - by johnplatts in #1387
