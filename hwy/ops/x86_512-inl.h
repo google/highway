@@ -293,6 +293,83 @@ HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
                         BitCast(Full256<uint8_t>(), v).raw)});
 }
 
+// ----------------------------- Iota
+
+namespace detail {
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm512_set_epi8(
+      static_cast<char>(63), static_cast<char>(62), static_cast<char>(61),
+      static_cast<char>(60), static_cast<char>(59), static_cast<char>(58),
+      static_cast<char>(57), static_cast<char>(56), static_cast<char>(55),
+      static_cast<char>(54), static_cast<char>(53), static_cast<char>(52),
+      static_cast<char>(51), static_cast<char>(50), static_cast<char>(49),
+      static_cast<char>(48), static_cast<char>(47), static_cast<char>(46),
+      static_cast<char>(45), static_cast<char>(44), static_cast<char>(43),
+      static_cast<char>(42), static_cast<char>(41), static_cast<char>(40),
+      static_cast<char>(39), static_cast<char>(38), static_cast<char>(37),
+      static_cast<char>(36), static_cast<char>(35), static_cast<char>(34),
+      static_cast<char>(33), static_cast<char>(32), static_cast<char>(31),
+      static_cast<char>(30), static_cast<char>(29), static_cast<char>(28),
+      static_cast<char>(27), static_cast<char>(26), static_cast<char>(25),
+      static_cast<char>(24), static_cast<char>(23), static_cast<char>(22),
+      static_cast<char>(21), static_cast<char>(20), static_cast<char>(19),
+      static_cast<char>(18), static_cast<char>(17), static_cast<char>(16),
+      static_cast<char>(15), static_cast<char>(14), static_cast<char>(13),
+      static_cast<char>(12), static_cast<char>(11), static_cast<char>(10),
+      static_cast<char>(9), static_cast<char>(8), static_cast<char>(7),
+      static_cast<char>(6), static_cast<char>(5), static_cast<char>(4),
+      static_cast<char>(3), static_cast<char>(2), static_cast<char>(1),
+      static_cast<char>(0))};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2),
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm512_set_epi16(
+      int16_t{31}, int16_t{30}, int16_t{29}, int16_t{28}, int16_t{27},
+      int16_t{26}, int16_t{25}, int16_t{24}, int16_t{23}, int16_t{22},
+      int16_t{21}, int16_t{20}, int16_t{19}, int16_t{18}, int16_t{17},
+      int16_t{16}, int16_t{15}, int16_t{14}, int16_t{13}, int16_t{12},
+      int16_t{11}, int16_t{10}, int16_t{9}, int16_t{8}, int16_t{7}, int16_t{6},
+      int16_t{5}, int16_t{4}, int16_t{3}, int16_t{2}, int16_t{1}, int16_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm512_set_epi32(
+      int32_t{15}, int32_t{14}, int32_t{13}, int32_t{12}, int32_t{11},
+      int32_t{10}, int32_t{9}, int32_t{8}, int32_t{7}, int32_t{6}, int32_t{5},
+      int32_t{4}, int32_t{3}, int32_t{2}, int32_t{1}, int32_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm512_set_epi64(int64_t{7}, int64_t{6}, int64_t{5},
+                                    int64_t{4}, int64_t{3}, int64_t{2},
+                                    int64_t{1}, int64_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm512_set_ps(15.0f, 14.0f, 13.0f, 12.0f, 11.0f, 10.0f, 9.0f,
+                                 8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f,
+                                 0.0f)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm512_set_pd(7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0)};
+}
+
+}  // namespace detail
+
+template <class D, typename T2, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> Iota(D d, const T2 first) {
+  return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ Not
