@@ -278,6 +278,32 @@ instructions (implying the target CPU must support them).
 *   `HWY_WANT_AVX3_DL`: opt-in for dynamic dispatch to `HWY_AVX3_DL`. This is
     unnecessary if the baseline already includes AVX3_DL.
 
+You can detect and influence the set of supported targets:
+
+*   `TargetName(t)` returns a string literal identifying the single target `t`,
+    where `t` is typically `HWY_TARGET`.
+
+*   `SupportedTargets()` returns an int64_t bitfield of enabled targets that are
+    supported on this CPU. The return value may change after calling
+    `DisableTargets`, but will never be zero.
+
+*   `HWY_SUPPORTED_TARGETS` is equivalent to `SupportedTargets()` but more
+    efficient if only a single target is enabled.
+
+*   `DisableTargets(b)` causes subsequent `SupportedTargets()` to not return
+    target(s) whose bits are set in `b`. This is useful for disabling specific
+    targets if they are unhelpful or undesirable, e.g. due to memory bandwidth
+    limitations. The effect is not cumulative; each call overrides the effect of
+    all previous calls. Calling with `b == 0` restores the original behavior.
+    Use `SetSupportedTargetsForTest` instead of this function for iteratively
+    enabling specific targets for testing.
+
+*   `SetSupportedTargetsForTest(b)` causes subsequent `SupportedTargets` to
+    return `b`, minus those disabled via `DisableTargets`. `b` is typically
+    derived from a subset of `SupportedTargets()`, e.g. each individual bit in
+    order to test each supported target. Calling with `b == 0` restores the
+    normal `SupportedTargets` behavior.
+
 ## Operations
 
 In the following, the argument or return type `V` denotes a vector with `N`
