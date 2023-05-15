@@ -2339,7 +2339,7 @@ HWY_API M FirstN(D d, size_t num) {
 #else   // HWY_TARGET > HWY_AVX3
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
+  return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(num)));
 #endif  // HWY_TARGET <= HWY_AVX3
 }
 

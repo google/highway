@@ -2800,7 +2800,7 @@ template <class D>
 HWY_API MFromD<D> FirstN(D d, size_t num) {
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
+  return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(num)));
 }
 
 // ------------------------------ TestBit (Eq)

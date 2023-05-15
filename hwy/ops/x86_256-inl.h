@@ -1592,7 +1592,7 @@ HWY_API M FirstN(const D d, size_t n) {
 #else
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(n)));
+  return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(n)));
 #endif
 }
 
