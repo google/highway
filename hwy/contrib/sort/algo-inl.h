@@ -22,7 +22,6 @@
 
 #include <algorithm>   // std::sort, std::min, std::max
 #include <functional>  // std::less, std::greater
-#include <thread>      // NOLINT
 #include <vector>
 
 #include "hwy/base.h"
@@ -41,6 +40,10 @@
 #define HAVE_INTEL 0
 #else
 #define HAVE_INTEL 0
+#endif
+
+#if HAVE_PARALLEL_IPS4O
+#include <thread>  // NOLINT
 #endif
 
 #if HAVE_AVX2SORT

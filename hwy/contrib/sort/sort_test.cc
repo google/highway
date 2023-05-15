@@ -134,7 +134,7 @@ static HWY_NOINLINE void TestBaseCaseAscDesc() {
           lanes[i] = hwy::LowestValue<LaneType>();
         }
 
-        detail::BaseCase(d, st, lanes, lanes + len, len, buf.get());
+        detail::BaseCase(d, st, lanes, len, buf.get());
 
         if (kDebug >= 2) {
           printf("out>>>>>>\n");
@@ -198,7 +198,7 @@ static HWY_NOINLINE void TestBaseCase01() {
         lanes[i] = hwy::LowestValue<LaneType>();
       }
 
-      detail::BaseCase(d, st, lanes.get(), lanes.get() + len, len, buf.get());
+      detail::BaseCase(d, st, lanes.get(), len, buf.get());
 
       if (kDebug >= 2) {
         printf("out>>>>>>\n");

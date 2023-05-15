@@ -758,51 +758,36 @@ HWY_INLINE void Sort129To256(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 //
 // See M. Blacher's thesis: https://github.com/mark-blacher/masterthesis
 template <class D, class Traits, typename T>
-HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys, T* keys_end,
+HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
                            size_t num_lanes, T* buf) {
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_DASSERT(num_lanes <= Constants::BaseCaseNumLanes<kLPK>(Lanes(d)));
   // Checking kMaxKeys avoids generating unreachable HWY_ASSERT codepaths.
   constexpr size_t kMaxKeys = MaxLanes(d) / kLPK;
   const size_t num_keys = num_lanes / kLPK;
-  HWY_DASSERT(num_keys != 0);  // HandleSpecialCases already handled 0
 
-  // TODO(janwas): jump table using Num0BitsAboveMS1Bit_Nonzero32?
-  if (num_keys <= 8 * 1) {
-    return Sort0To8(st, keys, num_lanes, buf);
-  }
-  if (num_keys <= 8 * 2 && kMaxKeys >= 2) {
-    return Sort9To16(st, keys, num_lanes, buf);
-  }
-  if (num_keys <= 8 * 4 && kMaxKeys >= 4) {
-    return Sort17To32(st, keys, num_lanes, buf);
-  }
-  if (num_keys <= 16 * 4 && kMaxKeys >= 4) {
-    return Sort33To64(st, keys, num_lanes, buf);
-  }
-  if (num_keys <= 16 * 8 && kMaxKeys >= 8) {
-    return Sort65To128(st, keys, num_lanes, buf);
-  }
+  // Can be zero when called through HandleSpecialCases, but also 1 (in which
+  // case the array is already sorted). Also ensures num_lanes - 1 != 0.
+  if (HWY_UNLIKELY(num_keys <= 1)) return;
 
+  const size_t ceil_log2 =
+      32 - Num0BitsAboveMS1Bit_Nonzero32(static_cast<uint32_t>(num_keys - 1));
+  using FuncPtr = decltype(&Sort0To8<Traits, T>);
+  const FuncPtr funcs[9] = {
+    /* <= 1 */ nullptr,  // We ensured num_keys > 1.
+    /* <= 2 */ &Sort0To8<Traits, T>,
+    /* <= 4 */ &Sort0To8<Traits, T>,
+    /* <= 8 */ &Sort0To8<Traits, T>,
+    /* <= 16 */ kMaxKeys >= 2 ? &Sort9To16<Traits, T> : nullptr,
+    // 4 because this is an 8x4 network; everything after is 16x4..
+    /* <= 32 */ kMaxKeys >= 4 ? &Sort17To32<Traits, T> : nullptr,
+    /* <= 64 */ kMaxKeys >= 4 ? &Sort33To64<Traits, T> : nullptr,
+    /* <= 128 */ kMaxKeys >= 8 ? &Sort65To128<Traits, T> : nullptr,
 #if !HWY_COMPILER_MSVC && !HWY_IS_DEBUG_BUILD
-  if (kMaxKeys >= 16) {
-    return Sort129To256(st, keys, num_lanes, buf);
-  }
+    /* <= 256 */ kMaxKeys >= 16 ? &Sort129To256<Traits, T> : nullptr,
 #endif
-
-  // Should not get here because callers check BaseCaseNumLanes.
-  HWY_DASSERT(false);
-
-  // TODO(janwas): avoid masking if in-bounds
-  (void)keys_end;
-  // We can avoid padding and load/store directly to `keys` after checking the
-  // original input array has enough space. Except at the right border, it's OK
-  // to sort more than the current sub-array. Even if we sort across a previous
-  // partition point, we know that keys will not migrate across it. However, we
-  // must use the maximum size of the sorting network, because the StoreU of its
-  // last vector would otherwise write invalid data starting at kMaxRows * cols.
-  // const size_t N_sn = Lanes(CappedTag<T, Constants::kMaxCols>());
-  // if (HWY_LIKELY(keys + N_sn * Constants::kMaxRows <= keys_end)) {
+  };
+  funcs[ceil_log2](st, keys, num_lanes, buf);
 }
 
 // ------------------------------ Partition
@@ -1426,7 +1411,7 @@ HWY_INLINE void SortSamples(D d, Traits st, T* HWY_RESTRICT buf) {
   // Network must be large enough to sort two chunks.
   HWY_DASSERT(Constants::BaseCaseNumLanes<st.LanesPerKey()>(N) >= kSampleLanes);
 
-  BaseCase(d, st, buf, buf + kSampleLanes, kSampleLanes, buf + kSampleLanes);
+  BaseCase(d, st, buf, kSampleLanes, buf + kSampleLanes);
 
   if (VQSORT_PRINT >= 2) {
     fprintf(stderr, "Samples:\n");
@@ -1459,6 +1444,7 @@ HWY_INLINE const char* PivotResultString(PivotResult result) {
   return "unknown";
 }
 
+// (Could vectorize, but only 0.2% of total time)
 template <class Traits, typename T>
 HWY_INLINE size_t PivotRank(Traits st, const T* HWY_RESTRICT samples) {
   constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
@@ -1840,19 +1826,17 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
   }
 }
 
-// keys_end is the end of the entire user input, not just the current subarray
-// [keys, keys + num).
 template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
-                          T* HWY_RESTRICT keys_end, const size_t num,
-                          T* HWY_RESTRICT buf, uint64_t* HWY_RESTRICT state,
+                          const size_t num, T* HWY_RESTRICT buf,
+                          uint64_t* HWY_RESTRICT state,
                           const size_t remaining_levels) {
   HWY_DASSERT(num != 0);
 
   const size_t N = Lanes(d);
   constexpr size_t kLPK = st.LanesPerKey();
   if (HWY_UNLIKELY(num <= Constants::BaseCaseNumLanes<kLPK>(N))) {
-    BaseCase(d, st, keys, keys_end, num, buf);
+    BaseCase(d, st, keys, num, buf);
     return;
   }
 
@@ -1934,11 +1918,10 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   HWY_DASSERT(bound != num || result == PivotResult::kWasLast);
 
   if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
-    Recurse(d, st, keys, keys_end, bound, buf, state, remaining_levels - 1);
+    Recurse(d, st, keys, bound, buf, state, remaining_levels - 1);
   }
   if (HWY_LIKELY(result != PivotResult::kWasLast)) {
-    Recurse(d, st, keys + bound, keys_end, num - bound, buf, state,
-            remaining_levels - 1);
+    Recurse(d, st, keys + bound, num - bound, buf, state, remaining_levels - 1);
   }
 }
 
@@ -1946,9 +1929,6 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
 template <class D, class Traits, typename T>
 HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
                                    size_t num, T* HWY_RESTRICT buf) {
-  // Already sorted.
-  if (HWY_UNLIKELY(num <= 1)) return true;
-
   const size_t N = Lanes(d);
   constexpr size_t kLPK = st.LanesPerKey();
   const size_t base_case_num = Constants::BaseCaseNumLanes<kLPK>(N);
@@ -1956,7 +1936,7 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
   // Recurse will also check this, but doing so here first avoids setting up
   // the random generator state.
   if (HWY_UNLIKELY(num <= base_case_num)) {
-    BaseCase(d, st, keys, keys + num, num, buf);
+    BaseCase(d, st, keys, num, buf);
     return true;
   }
 
@@ -2013,7 +1993,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   // Introspection: switch to worst-case N*logN heapsort after this many.
   // Should never be reached, so computing log2 exactly does not help.
   const size_t max_levels = 50;
-  detail::Recurse(d, st, keys, keys + num, num, buf, state, max_levels);
+  detail::Recurse(d, st, keys, num, buf, state, max_levels);
 #else   // !VQSORT_ENABLED
   (void)d;
   (void)buf;

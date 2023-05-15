@@ -265,7 +265,14 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
   }    // algo
 }
 
-enum class BenchmarkModes { kDefault, kAllSmall, kPow4, kPow10 };
+enum class BenchmarkModes {
+  kDefault,
+  k1M,
+  kAllSmall,
+  kSmallPow2,
+  kPow4,
+  kPow10
+};
 
 std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
   std::vector<size_t> sizes;
@@ -279,10 +286,19 @@ std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
       sizes.push_back(100 * 1000);
 #endif
       break;
+    case BenchmarkModes::k1M:
+      sizes.push_back(1000 * 1000);
+      break;
+
     case BenchmarkModes::kAllSmall:
       sizes.reserve(128);
       for (size_t i = 1; i <= 128; ++i) {
         sizes.push_back(i);
+      }
+      break;
+    case BenchmarkModes::kSmallPow2:
+      for (size_t size = 2; size <= 128; size *= 2) {
+        sizes.push_back(size);
       }
       break;
     case BenchmarkModes::kPow4:
@@ -309,7 +325,7 @@ HWY_NOINLINE void BenchAllSort() {
   if (HWY_TARGET > HWY_AVX3) return;
 #endif
 
-  for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kPow4)) {
+  for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kSmallPow2)) {
 #if !HAVE_INTEL
     BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
 #endif
