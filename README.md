@@ -89,20 +89,27 @@ Xilinx/Vitis_Libraries.
 
 ### Targets
 
-Highway supports 17 targets, listed in alphabetical order of platform:
+Highway supports 19 targets, listed in alphabetical order of platform:
 
 -   Any: `EMU128`, `SCALAR`;
--   Arm: `NEON` (Armv7+), `SVE`, `SVE2`;
+-   Arm: `NEON` (Armv7+), `SVE`, `SVE2`, `SVE_256`, `SVE2_128`;
 -   POWER: `PPC8` (v2.07), `PPC9` (v3.0), `PPC10` (v3.1B, not yet supported
     due to compiler bugs, see #1207; also requires QEMU 7.2);
 -   RISC-V: `RVV` (1.0);
 -   WebAssembly: `WASM`, `WASM_EMU256` (a 2x unrolled version of wasm128,
     enabled if `HWY_WANT_WASM2` is defined. This will remain supported until it
     is potentially superseded by a future version of WASM.);
--   x86: `AVX2`, `AVX3` (AVX-512), `AVX3_DL` (~Icelake, requires opt-in by
-    defining `HWY_WANT_AVX3_DL` unless compiling for static dispatch),
-    `AVX3_ZEN4` (requires opt-in by defining `HWY_WANT_AVX3_ZEN4` if compiling
-    for static dispatch), `SSE2`, `SSSE3`, `SSE4`.
+-   x86:
+    -   `SSE2`
+    -   `SSSE3` (~Intel Core)
+    -   `SSE4` (~Nehalem, also includes AES + CLMUL).
+    -   `AVX2` (~Haswell, also includes BMI2 + F16 + FMA)
+    -   `AVX3` (~Skylake, AVX-512F/BW/CD/DQ/VL)
+    -   `AVX3_DL` (~Icelake, includes BitAlg + CLMUL + GFNI + VAES + VBMI +
+        VBMI2 + VNNI + VPOPCNT; requires opt-in by defining `HWY_WANT_AVX3_DL`
+        unless compiling for static dispatch),
+    -   `AVX3_ZEN4` (like AVX3_DL but optimized for AMD Zen4; requires opt-in by
+        defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch)
 
 SVE was initially tested using farm_sve (see acknowledgments).
 

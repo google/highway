@@ -230,10 +230,9 @@ Store(v, d2, ptr);  // Use d2, NOT DFromV<decltype(v)>()
 
 ## Targets
 
-Let `Target` denote an instruction set, one of
-`SCALAR/EMU128/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/AVX3_ZEN4/NEON/SVE/SVE2/WASM/RVV`.
-Each of these is represented by a `HWY_Target` (for example, `HWY_SSE4`) macro
-which expands to a unique power-of-two value.
+Let `Target` denote an instruction set, one of `SCALAR/EMU128`, `RVV`,
+`SSE2/SSSE3/SSE4/AVX2/AVX3/AVX3_DL/AVX3_ZEN4` (x86), `PPC8/PPC9/PPC10` (POWER),
+`NEON/SVE/SVE2/SVE_256/SVE2_128` (Arm), `WASM/WASM_EMU256`.
 
 Note that x86 CPUs are segmented into dozens of feature flags and capabilities,
 which are often used together because they were introduced in the same CPU
@@ -242,7 +241,8 @@ code size manageable, we define targets as 'clusters' of related features. To
 use `HWY_AVX2`, it is therefore insufficient to pass -mavx2. For definitions of
 the clusters, see `kGroup*` in `targets.cc`. The corresponding Clang/GCC
 compiler options to enable them (without -m prefix) are defined by
-`HWY_TARGET_STR*` in `set_macros-inl.h`.
+`HWY_TARGET_STR*` in `set_macros-inl.h`, and also listed as comments in
+https://gcc.godbolt.org/z/rGnjMevKG.
 
 Targets are only used if enabled (i.e. not broken nor disabled). Baseline
 targets are those for which the compiler is unconditionally allowed to generate
