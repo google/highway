@@ -1116,7 +1116,6 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 #else
   return result_iota;
 #endif
-  return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
 }
 
 // ------------------------------ Tuple (VFromD)
