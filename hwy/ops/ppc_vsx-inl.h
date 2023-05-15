@@ -999,14 +999,50 @@ HWY_API VFromD<D> LoadDup128(D d, const T* HWY_RESTRICT p) {
 }
 
 // Returns a vector with lane i=[0, N) set to "first" + i.
-template <class D, typename T = TFromD<D>, typename T2>
+namespace detail {
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  constexpr __vector unsigned char kU8Iota0 = {0, 1, 2,  3,  4,  5,  6,  7,
+                                               8, 9, 10, 11, 12, 13, 14, 15};
+  return BitCast(d, VFromD<RebindToUnsigned<D>>{kU8Iota0});
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  constexpr __vector unsigned short kU16Iota0 = {0, 1, 2, 3, 4, 5, 6, 7};
+  return BitCast(d, VFromD<RebindToUnsigned<D>>{kU16Iota0});
+}
+
+template <class D, HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  constexpr __vector unsigned int kU32Iota0 = {0, 1, 2, 3};
+  return BitCast(d, VFromD<RebindToUnsigned<D>>{kU32Iota0});
+}
+
+template <class D, HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  constexpr __vector unsigned long long kU64Iota0 = {0, 1};
+  return BitCast(d, VFromD<RebindToUnsigned<D>>{kU64Iota0});
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  constexpr __vector float kF32Iota0 = {0.0f, 1.0f, 2.0f, 3.0f};
+  return VFromD<D>{kF32Iota0};
+}
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  constexpr __vector double kF64Iota0 = {0.0, 1.0};
+  return VFromD<D>{kF64Iota0};
+}
+
+}  // namespace detail
+
+template <class D, typename T2>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
-  HWY_ALIGN T lanes[MaxLanes(d)];
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    lanes[i] =
-        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
-  }
-  return Load(d, lanes);
+  return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
 }
 
 // ------------------------------ FirstN (Iota, Lt)

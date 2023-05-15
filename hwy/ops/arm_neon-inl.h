@@ -929,14 +929,193 @@ HWY_API VFromD<D> Undefined(D /*tag*/) {
 
 HWY_DIAGNOSTICS(pop)
 
-template <class D, typename T = TFromD<D>, typename T2>
+namespace detail {
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint8_t GccU8RawVectType __attribute__((__vector_size__(8)));
+  constexpr GccU8RawVectType kU8Iota0 = {0, 1, 2, 3, 4, 5, 6, 7};
+  const VFromD<decltype(du)> vu8_iota0(reinterpret_cast<uint8x8_t>(kU8Iota0));
+#else
+  alignas(8) static constexpr uint8_t kU8Iota0[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+  const VFromD<decltype(du)> vu8_iota0(
+      Load(Full64<TFromD<decltype(du)>>(), kU8Iota0).raw);
+#endif
+  return BitCast(d, vu8_iota0);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint8_t GccU8RawVectType __attribute__((__vector_size__(16)));
+  constexpr GccU8RawVectType kU8Iota0 = {0, 1, 2,  3,  4,  5,  6,  7,
+                                         8, 9, 10, 11, 12, 13, 14, 15};
+  const VFromD<decltype(du)> vu8_iota0(reinterpret_cast<uint8x16_t>(kU8Iota0));
+#else
+  alignas(16) static constexpr uint8_t kU8Iota0[16] = {
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  const auto vu8_iota0 = Load(du, kU8Iota0);
+#endif
+  return BitCast(d, vu8_iota0);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_T_SIZE_D(D, 2),
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint16_t GccU16RawVectType __attribute__((__vector_size__(8)));
+  constexpr GccU16RawVectType kU16Iota0 = {0, 1, 2, 3};
+  const VFromD<decltype(du)> vu16_iota0(
+      reinterpret_cast<uint16x4_t>(kU16Iota0));
+#else
+  alignas(8) static constexpr uint16_t kU16Iota0[4] = {0, 1, 2, 3};
+  const VFromD<decltype(du)> vu16_iota0{
+      Load(Full64<TFromD<decltype(du)>>(), kU16Iota0).raw};
+#endif
+  return BitCast(d, vu16_iota0);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_T_SIZE_D(D, 2),
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint16_t GccU16RawVectType __attribute__((__vector_size__(16)));
+  constexpr GccU16RawVectType kU16Iota0 = {0, 1, 2, 3, 4, 5, 6, 7};
+  const VFromD<decltype(du)> vu16_iota0(
+      reinterpret_cast<uint16x8_t>(kU16Iota0));
+#else
+  alignas(16) static constexpr uint16_t kU16Iota0[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+  const auto vu16_iota0 = Load(du, kU16Iota0);
+#endif
+  return BitCast(d, vu16_iota0);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint32_t GccU32RawVectType __attribute__((__vector_size__(8)));
+  constexpr GccU32RawVectType kU32Iota0 = {0, 1};
+  const VFromD<decltype(du)> vu32_iota0(
+      reinterpret_cast<uint32x2_t>(kU32Iota0));
+#else
+  alignas(8) static constexpr uint32_t kU32Iota0[2] = {0, 1};
+  const VFromD<decltype(du)> vu32_iota0{
+      Load(Full64<TFromD<decltype(du)>>(), kU32Iota0).raw};
+#endif
+  return BitCast(d, vu32_iota0);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint32_t GccU32RawVectType __attribute__((__vector_size__(16)));
+  constexpr GccU32RawVectType kU32Iota0 = {0, 1, 2, 3};
+  const VFromD<decltype(du)> vu32_iota0(
+      reinterpret_cast<uint32x4_t>(kU32Iota0));
+#else
+  alignas(16) static constexpr uint32_t kU32Iota0[4] = {0, 1, 2, 3};
+  const auto vu32_iota0 = Load(du, kU32Iota0);
+#endif
+  return BitCast(d, vu32_iota0);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef float GccF32RawVectType __attribute__((__vector_size__(8)));
+  constexpr GccF32RawVectType kF32Iota0 = {0.0f, 1.0f};
+  return VFromD<decltype(d)>(reinterpret_cast<float32x2_t>(kF32Iota0));
+#else
+  alignas(8) static constexpr float kF32Iota0[2] = {0.0f, 1.0f};
+  return VFromD<decltype(d)>{
+      Load(Full64<TFromD<decltype(d)>>(), kF32Iota0).raw};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef float GccF32RawVectType __attribute__((__vector_size__(16)));
+  constexpr GccF32RawVectType kF32Iota0 = {0.0f, 1.0f, 2.0f, 3.0f};
+  return VFromD<decltype(d)>(reinterpret_cast<float32x4_t>(kF32Iota0));
+#else
+  alignas(16) static constexpr float kF32Iota0[4] = {0.0f, 1.0f, 2.0f, 3.0f};
+  return Load(d, kF32Iota0);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_T_SIZE_D(D, 8)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  return Zero(d);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+  const RebindToUnsigned<decltype(d)> du;
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef uint64_t GccU64RawVectType __attribute__((__vector_size__(16)));
+  constexpr GccU64RawVectType kU64Iota0 = {0, 1};
+  const VFromD<decltype(du)> vu64_iota0(
+      reinterpret_cast<uint64x2_t>(kU64Iota0));
+#else
+  alignas(16) static constexpr uint64_t kU64Iota0[4] = {0, 1};
+  const auto vu64_iota0 = Load(du, kU64Iota0);
+#endif
+  return BitCast(d, vu64_iota0);
+}
+
+#if HWY_ARCH_ARM_A64
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D d) {
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
+  typedef double GccF64RawVectType __attribute__((__vector_size__(16)));
+  constexpr GccF64RawVectType kF64Iota0 = {0.0, 1.0};
+  return VFromD<decltype(d)>(reinterpret_cast<float64x2_t>(kF64Iota0));
+#else
+  alignas(16) static constexpr double kF64Iota0[4] = {0.0, 1.0};
+  return Load(d, kF64Iota0);
+#endif
+}
+#endif  // HWY_ARCH_ARM_A64
+
+#if HWY_COMPILER_MSVC
+template <class V, HWY_IF_V_SIZE_LE_V(V, 4)>
+static HWY_INLINE V MaskOutIota(V v) {
+  constexpr size_t kVecSizeInBytes = HWY_MAX_LANES_V(V) * sizeof(TFromV<V>);
+  constexpr uint64_t kU64MaskOutMask =
+      hwy::LimitsMax<hwy::UnsignedFromSize<kVecSizeInBytes>>();
+
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  using VU8 = VFromD<decltype(du8)>;
+  const auto mask_out_mask =
+      BitCast(d, VU8(vreinterpret_u8_u64(vdup_n_u64(kU64MaskOutMask))));
+  return v & mask_out_mask;
+}
+template <class V, HWY_IF_V_SIZE_GT_V(V, 4)>
+static HWY_INLINE V MaskOutIota(V v) {
+  return v;
+}
+#endif
+
+}  // namespace detail
+
+template <class D, typename T2>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
-  HWY_ALIGN T lanes[MaxLanes(d)];
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    lanes[i] =
-        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
-  }
-  return Load(d, lanes);
+  const auto result_iota =
+      detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+#if HWY_COMPILER_MSVC
+  return detail::MaskOutIota(result_iota);
+#else
+  return result_iota;
+#endif
 }
 
 // ------------------------------ Tuple (VFromD)
@@ -2620,7 +2799,7 @@ template <class D>
 HWY_API MFromD<D> FirstN(D d, size_t num) {
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
+  return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(num)));
 }
 
 // ------------------------------ TestBit (Eq)

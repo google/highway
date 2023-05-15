@@ -2231,15 +2231,93 @@ HWY_API Mask128<T, N> operator<=(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Iota (Load)
 
-// For all vector sizes.
-template <class D, typename T = TFromD<D>, typename T2>
+namespace detail {
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm_set_epi8(
+      static_cast<char>(15), static_cast<char>(14), static_cast<char>(13),
+      static_cast<char>(12), static_cast<char>(11), static_cast<char>(10),
+      static_cast<char>(9), static_cast<char>(8), static_cast<char>(7),
+      static_cast<char>(6), static_cast<char>(5), static_cast<char>(4),
+      static_cast<char>(3), static_cast<char>(2), static_cast<char>(1),
+      static_cast<char>(0))};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2),
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm_set_epi16(int16_t{7}, int16_t{6}, int16_t{5}, int16_t{4},
+                                 int16_t{3}, int16_t{2}, int16_t{1},
+                                 int16_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{
+      _mm_set_epi32(int32_t{3}, int32_t{2}, int32_t{1}, int32_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm_set_epi64x(int64_t{1}, int64_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm_set_pd(1.0, 0.0)};
+}
+
+#if HWY_COMPILER_MSVC
+template <class V, HWY_IF_V_SIZE_V(V, 1)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  const V mask_out_mask{_mm_set_epi32(0, 0, 0, 0xFF)};
+  return v & mask_out_mask;
+}
+template <class V, HWY_IF_V_SIZE_V(V, 2)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+#if HWY_TARGET <= HWY_SSE4
+  return V{_mm_blend_epi16(v.raw, _mm_setzero_si128(), 0xFE)};
+#else
+  const V mask_out_mask{_mm_set_epi32(0, 0, 0, 0xFFFF)};
+  return v & mask_out_mask;
+#endif
+}
+template <class V, HWY_IF_V_SIZE_V(V, 4)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<float, decltype(d)> df;
+  using VF = VFromD<decltype(df)>;
+  return BitCast(d, VF{_mm_move_ss(_mm_setzero_ps(), BitCast(df, v).raw)});
+}
+template <class V, HWY_IF_V_SIZE_V(V, 8)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  return BitCast(d, VU{_mm_move_epi64(BitCast(du, v).raw)});
+}
+template <class V, HWY_IF_V_SIZE_GT_V(V, 8)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  return v;
+}
+#endif
+
+}  // namespace detail
+
+template <class D, typename T2, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
-  HWY_ALIGN T lanes[MaxLanes(d)];
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    lanes[i] =
-        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
-  }
-  return Load(d, lanes);
+  const auto result_iota = detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+#if HWY_COMPILER_MSVC
+  return detail::MaskOutVec128Iota(result_iota);
+#else
+  return result_iota;
+#endif
 }
 
 // ------------------------------ FirstN (Iota, Lt)
@@ -2261,7 +2339,7 @@ HWY_API M FirstN(D d, size_t num) {
 #else   // HWY_TARGET > HWY_AVX3
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(num)));
+  return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(num)));
 #endif  // HWY_TARGET <= HWY_AVX3
 }
 

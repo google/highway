@@ -1512,6 +1512,66 @@ HWY_API Vec256<double> Max(const Vec256<double> a, const Vec256<double> b) {
   return Vec256<double>{_mm256_max_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ Iota
+
+namespace detail {
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm256_set_epi8(
+      static_cast<char>(31), static_cast<char>(30), static_cast<char>(29),
+      static_cast<char>(28), static_cast<char>(27), static_cast<char>(26),
+      static_cast<char>(25), static_cast<char>(24), static_cast<char>(23),
+      static_cast<char>(22), static_cast<char>(21), static_cast<char>(20),
+      static_cast<char>(19), static_cast<char>(18), static_cast<char>(17),
+      static_cast<char>(16), static_cast<char>(15), static_cast<char>(14),
+      static_cast<char>(13), static_cast<char>(12), static_cast<char>(11),
+      static_cast<char>(10), static_cast<char>(9), static_cast<char>(8),
+      static_cast<char>(7), static_cast<char>(6), static_cast<char>(5),
+      static_cast<char>(4), static_cast<char>(3), static_cast<char>(2),
+      static_cast<char>(1), static_cast<char>(0))};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2),
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm256_set_epi16(
+      int16_t{15}, int16_t{14}, int16_t{13}, int16_t{12}, int16_t{11},
+      int16_t{10}, int16_t{9}, int16_t{8}, int16_t{7}, int16_t{6}, int16_t{5},
+      int16_t{4}, int16_t{3}, int16_t{2}, int16_t{1}, int16_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm256_set_epi32(int32_t{7}, int32_t{6}, int32_t{5},
+                                    int32_t{4}, int32_t{3}, int32_t{2},
+                                    int32_t{1}, int32_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{
+      _mm256_set_epi64x(int64_t{3}, int64_t{2}, int64_t{1}, int64_t{0})};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{
+      _mm256_set_ps(7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f, 0.0f)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm256_set_pd(3.0, 2.0, 1.0, 0.0)};
+}
+
+}  // namespace detail
+
+template <class D, typename T2, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Iota(D d, const T2 first) {
+  return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+}
+
 // ------------------------------ FirstN (Iota, Lt)
 
 template <class D, class M = MFromD<D>, HWY_IF_V_SIZE_D(D, 32)>
@@ -1532,7 +1592,7 @@ HWY_API M FirstN(const D d, size_t n) {
 #else
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
   using TI = TFromD<decltype(di)>;
-  return RebindMask(d, Iota(di, 0) < Set(di, static_cast<TI>(n)));
+  return RebindMask(d, detail::Iota0(di) < Set(di, static_cast<TI>(n)));
 #endif
 }
 
