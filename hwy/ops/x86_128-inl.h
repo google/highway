@@ -2273,11 +2273,51 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
   return VFromD<D>{_mm_set_pd(1.0, 0.0)};
 }
 
+#if HWY_COMPILER_MSVC
+template <class V, HWY_IF_V_SIZE_V(V, 1)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  const V mask_out_mask{_mm_set_epi32(0, 0, 0, 0xFF)};
+  return v & mask_out_mask;
+}
+template <class V, HWY_IF_V_SIZE_V(V, 2)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+#if HWY_TARGET <= HWY_SSE4
+  return V{_mm_blend_epi16(v.raw, _mm_setzero_si128(), 0xFE)};
+#else
+  const V mask_out_mask{_mm_set_epi32(0, 0, 0, 0xFFFF)};
+  return v & mask_out_mask;
+#endif
+}
+template <class V, HWY_IF_V_SIZE_V(V, 4)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<float, decltype(d)> df;
+  using VF = VFromD<decltype(df)>;
+  return BitCast(d, VF{_mm_move_ss(_mm_setzero_ps(), BitCast(df, v).raw)});
+}
+template <class V, HWY_IF_V_SIZE_V(V, 8)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  return BitCast(d, VU{_mm_move_epi64(BitCast(du, v).raw)});
+}
+template <class V, HWY_IF_V_SIZE_GT_V(V, 8)>
+static HWY_INLINE V MaskOutVec128Iota(V v) {
+  return v;
+}
+#endif
+
 }  // namespace detail
 
 template <class D, typename T2, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
-  return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+  const auto result_iota = detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+#if HWY_COMPILER_MSVC
+  return detail::MaskOutVec128Iota(result_iota);
+#else
+  return result_iota;
+#endif
 }
 
 // ------------------------------ FirstN (Iota, Lt)

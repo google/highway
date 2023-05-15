@@ -1085,10 +1085,37 @@ HWY_INLINE VFromD<D> Iota0(D d) {
 }
 #endif  // HWY_ARCH_ARM_A64
 
+#if HWY_COMPILER_MSVC
+template <class V, HWY_IF_V_SIZE_LE_V(V, 4)>
+static HWY_INLINE V MaskOutIota(V v) {
+  constexpr size_t kVecSizeInBytes = HWY_MAX_LANES_V(V) * sizeof(TFromV<V>);
+  constexpr uint64_t kU64MaskOutMask =
+      hwy::LimitsMax<hwy::UnsignedFromSize<kVecSizeInBytes>>();
+
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  using VU8 = VFromD<decltype(du8)>;
+  const auto mask_out_mask =
+      BitCast(d, VU8(vreinterpret_u8_u64(vdup_n_u64(kU64MaskOutMask))));
+  return v & mask_out_mask;
+}
+template <class V, HWY_IF_V_SIZE_GT_V(V, 4)>
+static HWY_INLINE V MaskOutIota(V v) {
+  return v;
+}
+#endif
+
 }  // namespace detail
 
 template <class D, typename T2>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
+  const auto result_iota =
+      detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+#if HWY_COMPILER_MSVC
+  return detail::MaskOutIota(result_iota);
+#else
+  return result_iota;
+#endif
   return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
 }
 
