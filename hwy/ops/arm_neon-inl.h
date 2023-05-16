@@ -2881,12 +2881,42 @@ HWY_API Vec128<int64_t, N> Min(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 #endif
 }
 
-// Float: IEEE minimumNumber on v8, otherwise NaN if any is NaN.
+// Float: IEEE minimumNumber on v8
 #if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vminnm, _, 2)
+
+HWY_NEON_DEF_FUNCTION_FLOAT_32(Min, vminnm, _, 2)
+
+// GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic, so define
+// in terms of the 128-bit intrinsic.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+namespace detail {
+
+template <class V, HWY_IF_V_SIZE_V(V, 8), HWY_IF_T_SIZE_V(V, 8)>
+HWY_INLINE V F64Vec64Min(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(d, Min(ZeroExtendVector(dt, a), ZeroExtendVector(dt, b)));
+}
+
+}  // namespace detail
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+
+HWY_API Vec64<double> Min(Vec64<double> a, Vec64<double> b) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  return detail::F64Vec64Min(a, b);
 #else
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vmin, _, 2)
+  return Vec64<double>(vminnm_f64(a.raw, b.raw));
 #endif
+}
+
+HWY_API Vec128<double> Min(Vec128<double> a, Vec128<double> b) {
+  return Vec128<double>(vminnmq_f64(a.raw, b.raw));
+}
+
+#else
+// Armv7: NaN if any is NaN.
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Min, vmin, _, 2)
+#endif  // HWY_ARCH_ARM_A64
 
 // ------------------------------ Max (IfThenElse, BroadcastSignBit)
 
@@ -2917,12 +2947,42 @@ HWY_API Vec128<int64_t, N> Max(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 #endif
 }
 
-// Float: IEEE maximumNumber on v8, otherwise NaN if any is NaN.
+// Float: IEEE minimumNumber on v8
 #if HWY_ARCH_ARM_A64
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmaxnm, _, 2)
+
+HWY_NEON_DEF_FUNCTION_FLOAT_32(Max, vmaxnm, _, 2)
+
+// GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic, so define
+// in terms of the 128-bit intrinsic.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+namespace detail {
+
+template <class V, HWY_IF_V_SIZE_V(V, 8), HWY_IF_T_SIZE_V(V, 8)>
+HWY_INLINE V F64Vec64Max(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(d, Max(ZeroExtendVector(dt, a), ZeroExtendVector(dt, b)));
+}
+
+}  // namespace detail
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+
+HWY_API Vec64<double> Max(Vec64<double> a, Vec64<double> b) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  return detail::F64Vec64Max(a, b);
 #else
-HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
+  return Vec64<double>(vmaxnm_f64(a.raw, b.raw));
 #endif
+}
+
+HWY_API Vec128<double> Max(Vec128<double> a, Vec128<double> b) {
+  return Vec128<double>(vmaxnmq_f64(a.raw, b.raw));
+}
+
+#else
+// Armv7: NaN if any is NaN.
+HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Max, vmax, _, 2)
+#endif  // HWY_ARCH_ARM_A64
 
 // ================================================== MEMORY
 
