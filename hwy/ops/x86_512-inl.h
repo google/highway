@@ -204,21 +204,6 @@ HWY_API Vec512<T> BitCast(D d, Vec512<FromT> v) {
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
-// ------------------------------ Zero
-
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_D(D)>
-HWY_API Vec512<TFromD<D>> Zero(D /* tag */) {
-  return Vec512<TFromD<D>>{_mm512_setzero_si512()};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API Vec512<float> Zero(D /* tag */) {
-  return Vec512<float>{_mm512_setzero_ps()};
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API Vec512<double> Zero(D /* tag */) {
-  return Vec512<double>{_mm512_setzero_pd()};
-}
-
 // ------------------------------ Set
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
@@ -245,6 +230,35 @@ template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
 HWY_API Vec512<double> Set(D /* tag */, double t) {
   return Vec512<double>{_mm512_set1_pd(t)};
 }
+
+// ------------------------------ Zero (Set)
+
+// GCC pre-9.1 lacked setzero, so use Set instead.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
+
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API Vec512<TFromD<D>> Zero(D d) {
+  return Set(d, TFromD<D>{0});
+}
+
+#else
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_D(D)>
+HWY_API Vec512<TFromD<D>> Zero(D /* tag */) {
+  return Vec512<TFromD<D>>{_mm512_setzero_si512()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API Vec512<float> Zero(D /* tag */) {
+  return Vec512<float>{_mm512_setzero_ps()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API Vec512<double> Zero(D /* tag */) {
+  return Vec512<double>{_mm512_setzero_pd()};
+}
+
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
+
+// ------------------------------ Undefined
 
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
@@ -298,7 +312,17 @@ HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
 namespace detail {
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 1)>
-HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+HWY_INLINE VFromD<D> Iota0(D d) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
+  // Missing set_epi8/16.
+  alignas(64) static constexpr TFromD<D> kIota[64] = {
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+      16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+      32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+      48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63};
+  return Load(d, kIota);
+#else
+  (void)d;
   return VFromD<D>{_mm512_set_epi8(
       static_cast<char>(63), static_cast<char>(62), static_cast<char>(61),
       static_cast<char>(60), static_cast<char>(59), static_cast<char>(58),
@@ -322,11 +346,19 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
       static_cast<char>(6), static_cast<char>(5), static_cast<char>(4),
       static_cast<char>(3), static_cast<char>(2), static_cast<char>(1),
       static_cast<char>(0))};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2),
           HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
+  // Missing set_epi8/16.
+  alignas(64) static constexpr TFromD<D> kIota[32] = {
+      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+      16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+  return Load(d, kIota);
+#else
   return VFromD<D>{_mm512_set_epi16(
       int16_t{31}, int16_t{30}, int16_t{29}, int16_t{28}, int16_t{27},
       int16_t{26}, int16_t{25}, int16_t{24}, int16_t{23}, int16_t{22},
@@ -334,6 +366,7 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
       int16_t{16}, int16_t{15}, int16_t{14}, int16_t{13}, int16_t{12},
       int16_t{11}, int16_t{10}, int16_t{9}, int16_t{8}, int16_t{7}, int16_t{6},
       int16_t{5}, int16_t{4}, int16_t{3}, int16_t{2}, int16_t{1}, int16_t{0})};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_UI32_D(D)>
@@ -905,7 +938,8 @@ HWY_API Vec512<double> operator-(const Vec512<double> a,
 
 // ------------------------------ SumsOf8
 HWY_API Vec512<uint64_t> SumsOf8(const Vec512<uint8_t> v) {
-  return Vec512<uint64_t>{_mm512_sad_epu8(v.raw, _mm512_setzero_si512())};
+  const Full512<uint8_t> d;
+  return Vec512<uint64_t>{_mm512_sad_epu8(v.raw, Zero(d).raw)};
 }
 
 HWY_API Vec512<uint64_t> SumsOf8AbsDiff(const Vec512<uint8_t> a,
@@ -2542,27 +2576,30 @@ HWY_API T GetLane(const Vec512<T> v) {
 // ------------------------------ ZeroExtendVector
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
-HWY_API Vec512<T> ZeroExtendVector(D /* tag */, Vec256<T> lo) {
+HWY_API Vec512<T> ZeroExtendVector(D d, Vec256<T> lo) {
 #if HWY_HAVE_ZEXT  // See definition/comment in x86_256-inl.h.
+  (void)d;
   return Vec512<T>{_mm512_zextsi256_si512(lo.raw)};
 #else
-  return Vec512<T>{_mm512_inserti32x8(_mm512_setzero_si512(), lo.raw, 0)};
+  return Vec512<T>{_mm512_inserti32x8(Zero(d).raw, lo.raw, 0)};
 #endif
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API Vec512<float> ZeroExtendVector(D /* tag */, Vec256<float> lo) {
+HWY_API Vec512<float> ZeroExtendVector(D d, Vec256<float> lo) {
 #if HWY_HAVE_ZEXT
+  (void)d;
   return Vec512<float>{_mm512_zextps256_ps512(lo.raw)};
 #else
-  return Vec512<float>{_mm512_insertf32x8(_mm512_setzero_ps(), lo.raw, 0)};
+  return Vec512<float>{_mm512_insertf32x8(Zero(d).raw, lo.raw, 0)};
 #endif
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API Vec512<double> ZeroExtendVector(D /* tag */, Vec256<double> lo) {
+HWY_API Vec512<double> ZeroExtendVector(D d, Vec256<double> lo) {
 #if HWY_HAVE_ZEXT
+  (void)d;
   return Vec512<double>{_mm512_zextpd256_pd512(lo.raw)};
 #else
-  return Vec512<double>{_mm512_insertf64x4(_mm512_setzero_pd(), lo.raw, 0)};
+  return Vec512<double>{_mm512_insertf64x4(Zero(d).raw, lo.raw, 0)};
 #endif
 }
 
@@ -2573,39 +2610,42 @@ namespace detail {
 template <class DTo, class DFrom, HWY_IF_NOT_FLOAT_D(DTo)>
 HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
     hwy::SizeTag<16> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
-    DTo /*d_to*/, DFrom d_from, VFromD<DFrom> v) {
+    DTo d_to, DFrom d_from, VFromD<DFrom> v) {
   const Repartition<uint8_t, decltype(d_from)> du8_from;
   const auto vu8 = BitCast(du8_from, v);
 #if HWY_HAVE_ZEXT
+  (void)d_to;
   return VFromD<DTo>{_mm512_zextsi128_si512(vu8.raw)};
 #else
-  return VFromD<DTo>{_mm512_inserti32x4(_mm512_setzero_si512(), vu8.raw, 0)};
+  return VFromD<DTo>{_mm512_inserti32x4(Zero(d_to).raw, vu8.raw, 0)};
 #endif
 }
 
 template <class DTo, class DFrom, HWY_IF_F32_D(DTo)>
 HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
     hwy::SizeTag<16> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
-    DTo /* d_to */, DFrom d_from, VFromD<DFrom> v) {
+    DTo d_to, DFrom d_from, VFromD<DFrom> v) {
   const Repartition<float, decltype(d_from)> df32_from;
   const auto vf32 = BitCast(df32_from, v);
 #if HWY_HAVE_ZEXT
+  (void)d_to;
   return Vec512<float>{_mm512_zextps128_ps512(vf32.raw)};
 #else
-  return Vec512<float>{_mm512_insertf32x4(_mm512_setzero_ps(), vf32.raw, 0)};
+  return Vec512<float>{_mm512_insertf32x4(Zero(d_to).raw, vf32.raw, 0)};
 #endif
 }
 
 template <class DTo, class DFrom, HWY_IF_F64_D(DTo)>
 HWY_INLINE Vec512<double> ZeroExtendResizeBitCast(
     hwy::SizeTag<16> /* from_size_tag */, hwy::SizeTag<64> /* to_size_tag */,
-    DTo /* d_to */, DFrom d_from, VFromD<DFrom> v) {
+    DTo d_to, DFrom d_from, VFromD<DFrom> v) {
   const Repartition<double, decltype(d_from)> df64_from;
   const auto vf64 = BitCast(df64_from, v);
 #if HWY_HAVE_ZEXT
+  (void)d_to;
   return Vec512<double>{_mm512_zextpd128_pd512(vf64.raw)};
 #else
-  return Vec512<double>{_mm512_insertf64x2(_mm512_setzero_pd(), vf64.raw, 0)};
+  return Vec512<double>{_mm512_insertf64x2(Zero(d_to).raw, vf64.raw, 0)};
 #endif
 }
 
