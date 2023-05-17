@@ -233,7 +233,6 @@ HWY_NOINLINE void Sort8Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 
   const CappedTag<T, kLanesPerRow> d;
   using V = Vec<decltype(d)>;
-  const V kPadding = st.LastValue(d);  // Not copied to keys.
   V v4, v5, v6, v7;
 
   // At least half the kRows are valid, otherwise a different function would
@@ -263,6 +262,7 @@ HWY_NOINLINE void Sort8Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
   const M m6 = Gt(vnum_lanes, Add(kIota, k2));
   const M m7 = Gt(vnum_lanes, Add(kIota, Add(k2, k1)));
 
+  const V kPadding = st.LastValue(d);  // Not copied to keys.
   v4 = MaskedLoadOr(kPadding, m4, d, keys + 0x4 * kLanesPerRow);
   v5 = MaskedLoadOr(kPadding, m5, d, keys + 0x5 * kLanesPerRow);
   v6 = MaskedLoadOr(kPadding, m6, d, keys + 0x6 * kLanesPerRow);
@@ -326,7 +326,6 @@ HWY_NOINLINE void Sort16Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 
   const CappedTag<T, kLanesPerRow> d;
   using V = Vec<decltype(d)>;
-  const V kPadding = st.LastValue(d);  // Not copied to keys.
   V v8, v9, va, vb, vc, vd, ve, vf;
 
   // At least half the kRows are valid, otherwise a different function would
@@ -370,6 +369,7 @@ HWY_NOINLINE void Sort16Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
   const M me = Gt(vnum_lanes, Add(kIota, Add(k4, k2)));
   const M mf = Gt(vnum_lanes, Add(kIota, Sub(k8, k1)));
 
+  const V kPadding = st.LastValue(d);  // Not copied to keys.
   v8 = MaskedLoadOr(kPadding, m8, d, keys + 0x8 * kLanesPerRow);
   v9 = MaskedLoadOr(kPadding, m9, d, keys + 0x9 * kLanesPerRow);
   va = MaskedLoadOr(kPadding, ma, d, keys + 0xa * kLanesPerRow);
