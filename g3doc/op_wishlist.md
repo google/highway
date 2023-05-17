@@ -89,6 +89,10 @@ Use in `MinOfLanes` (helps NEON).
 ### Masked add/sub
 For tolower (subtract if in range) or hash table probing.
 
+### Div (integer division) and Mod
+
+Issue 633.
+
 ### `AddSub`
 Interval arithmetic?
 
