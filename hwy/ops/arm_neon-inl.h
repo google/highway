@@ -1121,6 +1121,63 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 // ------------------------------ Tuple (VFromD)
 #include "hwy/ops/tuple-inl.h"
 
+// ------------------------------ Combine
+
+// Full result
+template <class D, HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> Combine(D /* tag */, Vec64<uint8_t> hi,
+                                Vec64<uint8_t> lo) {
+  return Vec128<uint8_t>(vcombine_u8(lo.raw, hi.raw));
+}
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> Combine(D /* tag */, Vec64<uint16_t> hi,
+                                 Vec64<uint16_t> lo) {
+  return Vec128<uint16_t>(vcombine_u16(lo.raw, hi.raw));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> Combine(D /* tag */, Vec64<uint32_t> hi,
+                                 Vec64<uint32_t> lo) {
+  return Vec128<uint32_t>(vcombine_u32(lo.raw, hi.raw));
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec128<uint64_t> Combine(D /* tag */, Vec64<uint64_t> hi,
+                                 Vec64<uint64_t> lo) {
+  return Vec128<uint64_t>(vcombine_u64(lo.raw, hi.raw));
+}
+
+template <class D, HWY_IF_I8_D(D)>
+HWY_API Vec128<int8_t> Combine(D /* tag */, Vec64<int8_t> hi,
+                               Vec64<int8_t> lo) {
+  return Vec128<int8_t>(vcombine_s8(lo.raw, hi.raw));
+}
+template <class D, HWY_IF_I16_D(D)>
+HWY_API Vec128<int16_t> Combine(D /* tag */, Vec64<int16_t> hi,
+                                Vec64<int16_t> lo) {
+  return Vec128<int16_t>(vcombine_s16(lo.raw, hi.raw));
+}
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec128<int32_t> Combine(D /* tag */, Vec64<int32_t> hi,
+                                Vec64<int32_t> lo) {
+  return Vec128<int32_t>(vcombine_s32(lo.raw, hi.raw));
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec128<int64_t> Combine(D /* tag */, Vec64<int64_t> hi,
+                                Vec64<int64_t> lo) {
+  return Vec128<int64_t>(vcombine_s64(lo.raw, hi.raw));
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> Combine(D /* tag */, Vec64<float> hi, Vec64<float> lo) {
+  return Vec128<float>(vcombine_f32(lo.raw, hi.raw));
+}
+#if HWY_ARCH_ARM_A64
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> Combine(D /* tag */, Vec64<double> hi,
+                               Vec64<double> lo) {
+  return Vec128<double>(vcombine_f64(lo.raw, hi.raw));
+}
+#endif
+
 // ------------------------------ BitCast
 
 namespace detail {
@@ -2559,7 +2616,7 @@ HWY_API MFromD<DTo> RebindMask(DTo /* tag */, Mask128<TFrom, NFrom> m) {
   return MFromD<DTo>(m.raw);
 }
 
-// ------------------------------ IfThenElse(mask, yes, no) = mask ? b : a.
+// ------------------------------ IfThenElse
 
 #define HWY_NEON_BUILD_TPL_HWY_IF
 #define HWY_NEON_BUILD_RET_HWY_IF(type, size) Vec128<type##_t, size>
@@ -3404,7 +3461,83 @@ HWY_API void Stream(const VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
 
 // ================================================== CONVERT
 
-// ------------------------------ Promotions (part w/ narrow lanes -> full)
+// ------------------------------ ConvertTo
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> ConvertTo(D /* tag */, Vec128<int32_t> v) {
+  return Vec128<float>(vcvtq_f32_s32(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToSigned<D>> v) {
+  return VFromD<D>(vcvt_f32_s32(v.raw));
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> ConvertTo(D /* tag */, Vec128<uint32_t> v) {
+  return Vec128<float>(vcvtq_f32_u32(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToUnsigned<D>> v) {
+  return VFromD<D>(vcvt_f32_u32(v.raw));
+}
+
+// Truncates (rounds toward zero).
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec128<int32_t> ConvertTo(D /* tag */, Vec128<float> v) {
+  return Vec128<int32_t>(vcvtq_s32_f32(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
+  return VFromD<D>(vcvt_s32_f32(v.raw));
+}
+
+#if HWY_ARCH_ARM_A64
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<int64_t> v) {
+  return Vec128<double>(vcvtq_f64_s64(v.raw));
+}
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<int64_t> v) {
+// GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  return Set(Full64<double>(), static_cast<double>(GetLane(v)));
+#else
+  return Vec64<double>(vcvt_f64_s64(v.raw));
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+}
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<uint64_t> v) {
+  return Vec128<double>(vcvtq_f64_u64(v.raw));
+}
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<uint64_t> v) {
+  return Vec64<double>(vcvt_f64_u64(v.raw));
+}
+
+// Truncates (rounds toward zero).
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec128<int64_t> ConvertTo(D /* tag */, Vec128<double> v) {
+  return Vec128<int64_t>(vcvtq_s64_f64(v.raw));
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec64<int64_t> ConvertTo(D di, Vec64<double> v) {
+  // GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic. Use the
+  // 128-bit version to avoid UB from casting double -> int64_t.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  const Full128<double> ddt;
+  const Twice<decltype(di)> dit;
+  return LowerHalf(di, ConvertTo(dit, Combine(ddt, v, v)));
+#else
+  (void)di;
+  return Vec64<int64_t>(vcvt_s64_f64(v.raw));
+#endif
+}
+
+#endif
+
+// ------------------------------ PromoteTo (ConvertTo)
 
 // Unsigned: zero-extend to full vector.
 template <class D, HWY_IF_U16_D(D)>
@@ -3591,14 +3724,13 @@ HWY_API Vec128<double> PromoteTo(D /* tag */, Vec64<int32_t> v) {
 }
 
 template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec64<double> PromoteTo(D /* tag */, Vec32<int32_t> v) {
-  const int64x1_t i64 = vget_low_s64(vmovl_s32(v.raw));
-  return Vec64<double>(vcvt_f64_s64(i64));
+HWY_API Vec64<double> PromoteTo(D d, Vec32<int32_t> v) {
+  return ConvertTo(d, Vec64<int64_t>(vget_low_s64(vmovl_s32(v.raw))));
 }
 
 #endif
 
-// ------------------------------ Demotions (full -> part w/ narrow lanes)
+// ------------------------------ DemoteTo (ConvertTo)
 
 // From full vector to half or quarter
 template <class D, HWY_IF_U16_D(D)>
@@ -3816,10 +3948,11 @@ HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
 }
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<double> v) {
-  const int64x1_t i64 = vcvt_s64_f64(v.raw);
-  // There is no i64x1 -> i32x1 narrow, so expand to int64x2_t first.
-  const int64x2_t i64x2 = vcombine_s64(i64, i64);
-  return Vec32<int32_t>(vqmovn_s64(i64x2));
+  // There is no i64x1 -> i32x1 narrow, so Combine to 128-bit. Do so with the
+  // f64 input already to also avoid the missing vcvt_s64_f64 in GCC 6.4.
+  const Full128<double> ddt;
+  const Full128<int64_t> dit;
+  return Vec32<int32_t>(vqmovn_s64(ConvertTo(dit, Combine(ddt, v, v)).raw));
 }
 
 #endif
@@ -3835,68 +3968,6 @@ HWY_API Vec128<uint8_t, N> U8FromU32(Vec128<uint32_t, N> v) {
   const uint8x8_t w = vuzp1_u8(org_v, org_v);
   return Vec128<uint8_t, N>(vuzp1_u8(w, w));
 }
-
-// ------------------------------ Convert integer <=> floating-point
-
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec128<float> ConvertTo(D /* tag */, Vec128<int32_t> v) {
-  return Vec128<float>(vcvtq_f32_s32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToSigned<D>> v) {
-  return VFromD<D>(vcvt_f32_s32(v.raw));
-}
-
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec128<float> ConvertTo(D /* tag */, Vec128<uint32_t> v) {
-  return Vec128<float>(vcvtq_f32_u32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToUnsigned<D>> v) {
-  return VFromD<D>(vcvt_f32_u32(v.raw));
-}
-
-// Truncates (rounds toward zero).
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> ConvertTo(D /* tag */, Vec128<float> v) {
-  return Vec128<int32_t>(vcvtq_s32_f32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
-  return VFromD<D>(vcvt_s32_f32(v.raw));
-}
-
-#if HWY_ARCH_ARM_A64
-
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<int64_t> v) {
-  return Vec128<double>(vcvtq_f64_s64(v.raw));
-}
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<int64_t> v) {
-  return Vec64<double>(vcvt_f64_s64(v.raw));
-}
-
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<uint64_t> v) {
-  return Vec128<double>(vcvtq_f64_u64(v.raw));
-}
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<uint64_t> v) {
-  return Vec64<double>(vcvt_f64_u64(v.raw));
-}
-
-// Truncates (rounds toward zero).
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec128<int64_t> ConvertTo(D /* tag */, Vec128<double> v) {
-  return Vec128<int64_t>(vcvtq_s64_f64(v.raw));
-}
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec64<int64_t> ConvertTo(D /* tag */, Vec64<double> v) {
-  return Vec64<int64_t>(vcvt_s64_f64(v.raw));
-}
-
-#endif
 
 // ------------------------------ Round (IfThenElse, mask, logical)
 
@@ -5035,65 +5106,7 @@ HWY_API Vec32<int32_t> ReorderWidenMulAccumulate(D d32, Vec32<int16_t> a,
   return sum0 + mul0;
 }
 
-// ================================================== COMBINE
-
-// ------------------------------ Combine (InterleaveLower)
-
-// Full result
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec128<uint8_t> Combine(D /* tag */, Vec64<uint8_t> hi,
-                                Vec64<uint8_t> lo) {
-  return Vec128<uint8_t>(vcombine_u8(lo.raw, hi.raw));
-}
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> Combine(D /* tag */, Vec64<uint16_t> hi,
-                                 Vec64<uint16_t> lo) {
-  return Vec128<uint16_t>(vcombine_u16(lo.raw, hi.raw));
-}
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> Combine(D /* tag */, Vec64<uint32_t> hi,
-                                 Vec64<uint32_t> lo) {
-  return Vec128<uint32_t>(vcombine_u32(lo.raw, hi.raw));
-}
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec128<uint64_t> Combine(D /* tag */, Vec64<uint64_t> hi,
-                                 Vec64<uint64_t> lo) {
-  return Vec128<uint64_t>(vcombine_u64(lo.raw, hi.raw));
-}
-
-template <class D, HWY_IF_I8_D(D)>
-HWY_API Vec128<int8_t> Combine(D /* tag */, Vec64<int8_t> hi,
-                               Vec64<int8_t> lo) {
-  return Vec128<int8_t>(vcombine_s8(lo.raw, hi.raw));
-}
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> Combine(D /* tag */, Vec64<int16_t> hi,
-                                Vec64<int16_t> lo) {
-  return Vec128<int16_t>(vcombine_s16(lo.raw, hi.raw));
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> Combine(D /* tag */, Vec64<int32_t> hi,
-                                Vec64<int32_t> lo) {
-  return Vec128<int32_t>(vcombine_s32(lo.raw, hi.raw));
-}
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec128<int64_t> Combine(D /* tag */, Vec64<int64_t> hi,
-                                Vec64<int64_t> lo) {
-  return Vec128<int64_t>(vcombine_s64(lo.raw, hi.raw));
-}
-
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec128<float> Combine(D /* tag */, Vec64<float> hi, Vec64<float> lo) {
-  return Vec128<float>(vcombine_f32(lo.raw, hi.raw));
-}
-#if HWY_ARCH_ARM_A64
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec128<double> Combine(D /* tag */, Vec64<double> hi,
-                               Vec64<double> lo) {
-  return Vec128<double>(vcombine_f64(lo.raw, hi.raw));
-}
-#endif
-
+// ------------------------------ Combine partial (InterleaveLower)
 // < 64bit input, <= 64 bit result
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_API VFromD<D> Combine(D d, VFromD<Half<D>> hi, VFromD<Half<D>> lo) {
