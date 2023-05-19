@@ -5443,23 +5443,23 @@ HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
 
 template <typename T, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
-#if HWY_ARCH_X86_64
+#if !defined(HWY_DISABLE_BMI2_FMA) && !defined(HWY_DISABLE_PEXT_ON_AVX2)
   const Full256<T> d;
   const Full256<uint8_t> d8;
   const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
   const uint64_t sign_bits8 = BitsFromMask(mask8);
   // Skip the bits from the lower byte of each u16 (better not to use the
   // same packs_epi16 as SSE4, because that requires an extra swizzle here).
-  return _pext_u64(sign_bits8, 0xAAAAAAAAull);
+  return _pext_u32(static_cast<uint32_t>(sign_bits8), 0xAAAAAAAAu);
 #else
-  // Slow workaround for 32-bit builds, which lack _pext_u64.
+  // Slow workaround for when BMI2 is disabled
   // Remove useless lower half of each u16 while preserving the sign bit.
   // Bytes [0, 8) and [16, 24) have the same sign bits as the input lanes.
   const auto sign_bits = _mm256_packs_epi16(mask.raw, _mm256_setzero_si256());
   // Move odd qwords (value zero) to top so they don't affect the mask value.
-  const auto compressed =
-      _mm256_permute4x64_epi64(sign_bits, _MM_SHUFFLE(3, 1, 2, 0));
-  return static_cast<unsigned>(_mm256_movemask_epi8(compressed));
+  const auto compressed = _mm256_castsi256_si128(
+      _mm256_permute4x64_epi64(sign_bits, _MM_SHUFFLE(3, 1, 2, 0)));
+  return static_cast<unsigned>(_mm_movemask_epi8(compressed));
 #endif  // HWY_ARCH_X86_64
 }
 
