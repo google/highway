@@ -7,18 +7,55 @@
 Highway is a collection of 'ops': platform-agnostic pure functions that operate
 on tuples (multiple values of the same type). These functions are implemented
 using platform-specific intrinsics, which map to SIMD/vector instructions.
-`hwy/contrib` also includes higher-level algorithms such as `FindIf` or `Sorter`
-implemented using these ops.
 
-Highway can use dynamic dispatch, which chooses the best available
-implementation at runtime, or static dispatch which has no runtime overhead.
-Dynamic dispatch works by compiling your code once per target CPU and then
-selecting (via indirect call) at runtime.
+Your code calls these ops and uses them to implement the desired algorithm.
+Alternatively, `hwy/contrib` also includes higher-level algorithms such as
+`FindIf` or `VQSort` implemented using these ops.
 
-Examples of both are provided in examples/. Dynamic dispatch uses the same
-source code as static, plus `#define HWY_TARGET_INCLUDE`, `#include
-"third_party/highway/hwy/foreach_target.h"` (which must come before any
-inclusion of highway.h) and `HWY_DYNAMIC_DISPATCH`.
+## Static vs. dynamic dispatch
+
+Highway supports two ways of deciding which instruction sets to use: static or
+dynamic dispatch.
+
+Static means targeting a single instruction set, typically the best one enabled
+by the given compiler flags. This has no runtime overhead and only compiles your
+code once, but because compiler flags are typically conservative, you will not
+benefit from more recent instruction sets. Conversely, if you run the binary on
+a CPU that does not support this instruction set, it will crash.
+
+Dynamic dispatch means compiling your code multiple times and choosing the best
+available implementation at runtime. Highway supports three ways of doing this:
+
+*   Highway can take care of everything including compilation (by re-#including
+    your code), setting the required compiler #pragmas, and dispatching to the
+    best available implementation. The only changes to your code relative to
+    static dispatch are adding `#define HWY_TARGET_INCLUDE`, `#include
+    "third_party/highway/hwy/foreach_target.h"` (which must come before any
+    inclusion of highway.h) and calling `HWY_DYNAMIC_DISPATCH` instead of
+    `HWY_STATIC_DISPATCH`.
+
+*   Some build systems (e.g. Apple) support the concept of 'fat' binaries which
+    contain code for multiple architectures or instruction sets. Then, the
+    operating system or loader typically takes care of calling the appropriate
+    code. Highway interoperates with this by using the instruction set requested
+    by the current compiler flags during each compilation pass. Your code is the
+    same as with static dispatch.
+
+    Note that this method replicates the entire binary, whereas the
+    Highway-assisted dynamic dispatch method only replicates your SIMD code,
+    which is typically a small fraction of the total size.
+
+*   Because Highway is a library (as opposed to a code generator or compiler),
+    the dynamic dispatch method can be inspected, and made to interoperate with
+    existing systems. For compilation, you can replace foreach_target.h if your
+    build system supports compiling for multiple targets. For choosing the best
+    available target, you can replace Highway's CPU detection and decision with
+    your own. `HWY_DYNAMIC_DISPATCH` calls into a table of function pointers
+    with a zero-based index indicating the desired target, and you can instead
+    do so directly with your own choice of index, or even call
+    `N_AVX2::YourFunction` directly.
+
+Examples of both static and dynamic dispatch are provided in examples/.
 
 ## Headers
 
@@ -68,8 +105,12 @@ HWY_AFTER_NAMESPACE();
 ```
 
 If you choose not to use the `BEFORE/AFTER` lines, you must prefix any function
-that calls Highway ops such as `Load` with `HWY_ATTR`. You can omit the
-`HWY_NAMESPACE` lines if not using dynamic dispatch.
+that calls Highway ops such as `Load` with `HWY_ATTR`. Either of these will set
+the compiler #pragma required to generate vector code.
+
+The `HWY_NAMESPACE` lines ensure each instantiation of your code (one per
+target) resides in a unique namespace, thus preventing ODR violations. You can
+omit this if your code will only ever use static dispatch.
 
 ## Notation in this doc
 
