@@ -1874,6 +1874,16 @@ HWY_API void StoreTransposedBlocks4(Vec256<T> i, Vec256<T> j, Vec256<T> k,
 
 }  // namespace detail
 
+// ------------------------------ WidenMulPairwiseAdd
+template <class D32, typename T16, typename T32 = TFromD<D32>>
+HWY_API Vec256<T32> WidenMulPairwiseAdd(D32 d32, Vec256<T16> a,
+                                             Vec256<T16> b) {
+  const Half<decltype(d32)> d32h;
+  sum0.v0 = WidenMulPairwiseAdd(d32h, a.v0, b.v0);
+  sum0.v1 = WidenMulPairwiseAdd(d32h, a.v1, b.v1);
+  return sum0;
+}
+
 // ------------------------------ ReorderWidenMulAccumulate
 template <class D32, typename T16, typename T32 = TFromD<D32>>
 HWY_API Vec256<T32> ReorderWidenMulAccumulate(D32 d32, Vec256<T16> a,

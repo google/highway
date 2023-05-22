@@ -6024,6 +6024,35 @@ HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   return Load(d, mul);
 }
 
+// ------------------------------ WidenMulPairwiseAdd
+
+// Generic for all vector lengths.
+template <class D32, HWY_IF_F32_D(D32),
+          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
+  // TODO(janwas): _mm_dpbf16_ps when available
+  const RebindToUnsigned<decltype(df32)> du32;
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo. Using shift/and instead of Zip
+  // leads to the odd/even order that RearrangeToOddPlusEven prefers.
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
+            Mul(BitCast(df32, ao), BitCast(df32, bo)));
+}
+
+// Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
+template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
+  return VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
+}
+
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ShiftLeft)
 
 // Generic for all vector lengths.
@@ -6050,13 +6079,14 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
 // Even if N=1, the input is always at least 2 lanes, hence madd_epi16 is safe.
 template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
           class V16 = VFromD<RepartitionToNarrow<D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 /* tag */, V16 a, V16 b,
+HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
                                               const VFromD<D32> sum0,
                                               VFromD<D32>& /*sum1*/) {
+  (void)d;
 #if HWY_TARGET <= HWY_AVX3_DL
   return VFromD<D32>{_mm_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
 #else
-  return sum0 + VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
 #endif
 }
 

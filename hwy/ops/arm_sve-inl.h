@@ -4221,6 +4221,42 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
   return detail::InterleaveOdd(lo, hi);
 }
 
+// ------------------------------ WidenMulPairwiseAdd
+template <size_t N, int kPow2>
+HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32,
+                                              svuint16_t a, svuint16_t b) {
+  // TODO(janwas): svbfmlalb_f32 if __ARM_FEATURE_SVE_BF16.
+  const RebindToUnsigned<decltype(df32)> du32;
+  // Using shift/and instead of Zip leads to the odd/even order that
+  // RearrangeToOddPlusEven prefers.
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
+            Mul(BitCast(df32, ao), BitCast(df32, bo)));
+}
+
+template <size_t N, int kPow2>
+HWY_API svint32_t WidenMulPairwiseAdd(Simd<int32_t, N, kPow2> d32,
+                                            svint16_t a, svint16_t b) {
+#if HWY_SVE_HAVE_2
+  (void)d32;
+  return svmlalt_s32(svmullb_s32(a, b), a, b);
+#else
+  const svbool_t pg = detail::PTrue(d32);
+  // Shifting extracts the odd lanes as RearrangeToOddPlusEven prefers.
+  // Fortunately SVE has sign-extension for the even lanes.
+  const svint32_t ae = svexth_s32_x(pg, BitCast(d32, a));
+  const svint32_t be = svexth_s32_x(pg, BitCast(d32, b));
+  const svint32_t ao = ShiftRight<16>(BitCast(d32, a));
+  const svint32_t bo = ShiftRight<16>(BitCast(d32, b));
+  return svmla_s32_x(pg, svmul_s32_x(pg, ao, bo), ae, be);
+#endif
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <size_t N, int kPow2>

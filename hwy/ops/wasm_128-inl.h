@@ -4728,6 +4728,21 @@ HWY_INLINE Vec128<uint64_t> MulOdd(const Vec128<uint64_t> a,
 // Generic for all vector lengths.
 template <class D32, HWY_IF_F32_D(D32),
           class V16 = VFromD<Repartition<bfloat16_t, D32>>>
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
+  const Rebind<uint32_t, decltype(df32)> du32;
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
+  // Using shift/and instead of Zip leads to the odd/even order that
+  // RearrangeToOddPlusEven prefers.
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  return Mul(BitCast(df32, ae), BitCast(df32, be)) + Mul(BitCast(df32, ao), BitCast(df32, bo));
+}
+
+template <class D32, HWY_IF_F32_D(D32),
+          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
 HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
                                               const VFromD<D32> sum0,
                                               VFromD<D32>& sum1) {
@@ -4748,10 +4763,18 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 df32, V16 a, V16 b,
 // safe.
 template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
           class V16 = VFromD<RepartitionToNarrow<D32>>>
-HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 /* tag */, V16 a, V16 b,
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
+  return VFromD<D32>{wasm_i32x4_dot_i16x8(a.raw, b.raw)};
+}
+
+// Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
+// safe.
+template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
                                               const VFromD<D32> sum0,
                                               VFromD<D32>& /*sum1*/) {
-  return sum0 + VFromD<D32>{wasm_i32x4_dot_i16x8(a.raw, b.raw)};
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
 }
 
 // ------------------------------ RearrangeToOddPlusEven

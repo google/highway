@@ -2582,6 +2582,31 @@ HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
 #endif
 }
 
+// ------------------------------ WidenMulPairwiseAdd
+
+template <class D32, HWY_IF_F32_D(D32),
+          class V16 = VFromD<Repartition<bfloat16_t, D32>>>
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
+  const RebindToUnsigned<decltype(df32)> du32;
+  // Lane order within sum0/1 is undefined, hence we can avoid the
+  // longer-latency lane-crossing PromoteTo. Using shift/and instead of Zip
+  // leads to the odd/even order that RearrangeToOddPlusEven prefers.
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  return Mul(BitCast(df32, ae), BitCast(df32, be)) + Mul(BitCast(df32, ao), BitCast(df32, bo));
+}
+
+// Even if N=1, the input is always at least 2 lanes, hence vec_msum is safe.
+template <class D32, HWY_IF_I32_D(D32),
+          class V16 = VFromD<RepartitionToNarrow<D32>>>
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
+  return VFromD<D32>{a * b};
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <class D32, HWY_IF_F32_D(D32),

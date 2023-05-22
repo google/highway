@@ -552,6 +552,10 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.
 
+*   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
+    <code>Vec&lt;D&gt; **WidenMulPairwiseAdd**(D d, V a, V b,)</code>: widens `a`
+    and `b` to `TFromD<D>` and computes `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`.
+
 *   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
     <code>VW **ReorderWidenMulAccumulate**(D d, V a, V b, VW sum0, VW&
     sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] * b[i]` to

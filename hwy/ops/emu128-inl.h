@@ -2581,6 +2581,32 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
   return CountTrue(d, mask);
 }
 
+// ------------------------------ WidenMulPairwiseAdd
+
+template <class D, HWY_IF_F32_D(D), class VBF16>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D df32, VBF16 a, VBF16 b) {
+  const Rebind<uint32_t, decltype(df32)> du32;
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 odd = Set(du32, 0xFFFF0000u);  // bfloat16 is the upper half of f32
+  // Avoid ZipLower/Upper so this also works on big-endian systems.
+  const VU32 ae = ShiftLeft<16>(BitCast(du32, a));
+  const VU32 ao = And(BitCast(du32, a), odd);
+  const VU32 be = ShiftLeft<16>(BitCast(du32, b));
+  const VU32 bo = And(BitCast(du32, b), odd);
+  return Mul(BitCast(df32, ae), BitCast(df32, be)) + Mul(BitCast(df32, ao), BitCast(df32, bo));
+}
+
+template <class D, HWY_IF_I32_D(D), class VI16>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
+  using VI32 = VFromD<decltype(d32)>;
+  // Manual sign extension requires two shifts for even lanes.
+  const VI32 ae = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, a)));
+  const VI32 be = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, b)));
+  const VI32 ao = ShiftRight<16>(BitCast(d32, a));
+  const VI32 bo = ShiftRight<16>(BitCast(d32, b));
+  return Add(Mul(ae, be), Mul(ao, bo));
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <class D, HWY_IF_F32_D(D), size_t N, class VBF16>
