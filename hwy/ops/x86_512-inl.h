@@ -351,7 +351,7 @@ HWY_INLINE VFromD<D> Iota0(D d) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 2),
           HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+HWY_INLINE VFromD<D> Iota0(D d) {
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
   // Missing set_epi8/16.
   alignas(64) static constexpr TFromD<D> kIota[32] = {
@@ -359,6 +359,7 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
       16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
   return Load(d, kIota);
 #else
+  (void)d;
   return VFromD<D>{_mm512_set_epi16(
       int16_t{31}, int16_t{30}, int16_t{29}, int16_t{28}, int16_t{27},
       int16_t{26}, int16_t{25}, int16_t{24}, int16_t{23}, int16_t{22},
