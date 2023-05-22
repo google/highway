@@ -192,20 +192,32 @@ HWY_INLINE void Sort16(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4, V& v5,
 // loaded from the stack. The kKeysPerVector allows calling from generic code
 // but skipping the functions when vectors have too few lanes for
 // st.SortPairsDistance1 to compile. `if constexpr` in the caller would also
-// work, but is not available in C++11.
+// work, but is not available in C++11. We write out the (unused) argument types
+// rather than `...` because GCC 9 (but not 10) fails to compile with `...`.
 
-template <size_t kKeysPerVector, HWY_IF_LANES_LE(kKeysPerVector, 1)>
-HWY_INLINE void Merge8x2(...) {}
-template <size_t kKeysPerVector, HWY_IF_LANES_LE(kKeysPerVector, 2)>
-HWY_INLINE void Merge8x4(...) {}
-template <size_t kKeysPerVector, HWY_IF_LANES_LE(kKeysPerVector, 1)>
-HWY_INLINE void Merge16x2(...) {}
-template <size_t kKeysPerVector, HWY_IF_LANES_LE(kKeysPerVector, 2)>
-HWY_INLINE void Merge16x4(...) {}
-template <size_t kKeysPerVector, HWY_IF_LANES_LE(kKeysPerVector, 4)>
-HWY_INLINE void Merge16x8(...) {}
-template <size_t kKeysPerVector, HWY_IF_LANES_LE(kKeysPerVector, 8)>
-HWY_INLINE void Merge16x16(...) {}
+template <size_t kKeysPerVector, class D, class Traits, class V,
+          HWY_IF_LANES_LE(kKeysPerVector, 1)>
+HWY_INLINE void Merge8x2(D, Traits, V, V, V, V, V, V, V, V) {}
+template <size_t kKeysPerVector, class D, class Traits, class V,
+          HWY_IF_LANES_LE(kKeysPerVector, 2)>
+HWY_INLINE void Merge8x4(D, Traits, V, V, V, V, V, V, V, V) {}
+
+template <size_t kKeysPerVector, class D, class Traits, class V,
+          HWY_IF_LANES_LE(kKeysPerVector, 1)>
+HWY_INLINE void Merge16x2(D, Traits, V, V, V, V, V, V, V, V, V, V, V, V, V, V,
+                          V, V) {}
+template <size_t kKeysPerVector, class D, class Traits, class V,
+          HWY_IF_LANES_LE(kKeysPerVector, 2)>
+HWY_INLINE void Merge16x4(D, Traits, V, V, V, V, V, V, V, V, V, V, V, V, V, V,
+                          V, V) {}
+template <size_t kKeysPerVector, class D, class Traits, class V,
+          HWY_IF_LANES_LE(kKeysPerVector, 4)>
+HWY_INLINE void Merge16x8(D, Traits, V, V, V, V, V, V, V, V, V, V, V, V, V, V,
+                          V, V) {}
+template <size_t kKeysPerVector, class D, class Traits, class V,
+          HWY_IF_LANES_LE(kKeysPerVector, 8)>
+HWY_INLINE void Merge16x16(D, Traits, V, V, V, V, V, V, V, V, V, V, V, V, V, V,
+                           V, V) {}
 
 template <size_t kKeysPerVector, class D, class Traits, class V = Vec<D>,
           HWY_IF_LANES_GT(kKeysPerVector, 1)>
