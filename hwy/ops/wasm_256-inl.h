@@ -1879,9 +1879,9 @@ template <class D32, typename T16, typename T32 = TFromD<D32>>
 HWY_API Vec256<T32> WidenMulPairwiseAdd(D32 d32, Vec256<T16> a,
                                              Vec256<T16> b) {
   const Half<decltype(d32)> d32h;
-  sum0.v0 = WidenMulPairwiseAdd(d32h, a.v0, b.v0);
-  sum0.v1 = WidenMulPairwiseAdd(d32h, a.v1, b.v1);
-  return sum0;
+  a.v0 = WidenMulPairwiseAdd(d32h, a.v0, b.v0);
+  a.v1 = WidenMulPairwiseAdd(d32h, a.v1, b.v1);
+  return a;
 }
 
 // ------------------------------ ReorderWidenMulAccumulate
