@@ -3903,7 +3903,7 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
             Mul(BitCast(df32, ao), BitCast(df32, bo)));
 }
 
-template <class D, HWY_IF_I32_D(D), size_t N, class VI16>
+template <class D, HWY_IF_I32_D(D), class VI16>
 HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
   using VI32 = VFromD<decltype(d32)>;
   // Manual sign extension requires two shifts for even lanes.
@@ -3913,7 +3913,6 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
   const VI32 bo = ShiftRight<16>(BitCast(d32, b));
   return Add(Mul(ae, be), Mul(ao, bo));
 }
-
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
