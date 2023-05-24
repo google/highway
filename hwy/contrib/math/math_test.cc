@@ -13,10 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS  // before inttypes.h
-#endif
-#include <inttypes.h>  // IWYU pragma: keep
 #include <stdio.h>
 
 #include <cfloat>  // FLT_MAX
@@ -88,16 +84,15 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
       const auto ulp = hwy::detail::ComputeUlpDelta(actual, expected);
       max_ulp = HWY_MAX(max_ulp, ulp);
       if (ulp > max_error_ulp) {
-        fprintf(stderr,
-                "%s: %s(%f) expected %f actual %f ulp %" PRIu64 " max ulp %u\n",
+        fprintf(stderr, "%s: %s(%f) expected %f actual %f ulp %g max ulp %u\n",
                 hwy::TypeName(T(), Lanes(d)).c_str(), name, value, expected,
-                actual, static_cast<uint64_t>(ulp),
+                actual, static_cast<double>(ulp),
                 static_cast<uint32_t>(max_error_ulp));
       }
     }
   }
-  fprintf(stderr, "%s: %s max_ulp %" PRIu64 "\n",
-          hwy::TypeName(T(), Lanes(d)).c_str(), name, max_ulp);
+  fprintf(stderr, "%s: %s max_ulp %g\n", hwy::TypeName(T(), Lanes(d)).c_str(),
+          name, static_cast<double>(max_ulp));
   HWY_ASSERT(max_ulp <= max_error_ulp);
 }
 
@@ -286,7 +281,12 @@ struct TestAtan2 {
     for (size_t i = 0; i < padded; i += N) {
       const Vec<D> y = Load(d, &in_y[i]);
       const Vec<D> x = Load(d, &in_x[i]);
+#if HWY_ARCH_ARM_A64
+      // inline to work around incorrect SVE codegen (only first 128 bits used).
+      const Vec<D> actual = Atan2(d, y, x);
+#else
       const Vec<D> actual = CallAtan2(d, y, x);
+#endif
       const Vec<D> vexpected = Load(d, &expected[i]);
 
       const Mask<D> exp_nan = IsNaN(vexpected);
