@@ -253,7 +253,8 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{_mm_set1_epi8(static_cast<char>(t))};  // NOLINT
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2),
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{_mm_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
@@ -272,6 +273,16 @@ HWY_API VFromD<D> Set(D /* tag */, float t) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, double t) {
   return VFromD<D>{_mm_set1_pd(t)};
+}
+
+// Generic for all vector lengths.
+template <class D, HWY_IF_SPECIAL_FLOAT_D(D)>
+HWY_API VFromD<D> Set(D df, TFromD<D> t) {
+  const RebindToUnsigned<decltype(df)> du;
+  static_assert(sizeof(TFromD<D>) == 2, "Expecting [b]f16");
+  uint16_t bits;
+  CopyBytes<2>(&t, &bits);
+  return BitCast(df, Set(du, bits));
 }
 
 // ------------------------------ Undefined

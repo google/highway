@@ -405,6 +405,7 @@ using Twice = typename D::Twice;
 #define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(TFromD<D>)
 #define HWY_IF_FLOAT_D(D) HWY_IF_FLOAT(TFromD<D>)
 #define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(TFromD<D>)
+#define HWY_IF_SPECIAL_FLOAT_D(D) HWY_IF_SPECIAL_FLOAT(TFromD<D>)
 #define HWY_IF_NOT_SPECIAL_FLOAT_D(D) HWY_IF_NOT_SPECIAL_FLOAT(TFromD<D>)
 
 #define HWY_IF_T_SIZE_D(D, bytes) HWY_IF_T_SIZE(TFromD<D>, bytes)
