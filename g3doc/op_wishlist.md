@@ -9,9 +9,11 @@ freshness: { owner: 'janwas' reviewed: '2023-04-21' }
 
 ## Wishlist
 
+### Clear lowest mask bit
+
 ### Remaining math functions for hwy/contrib/math
 
-atan2, cbrt, cosh, erf, exp2, fmod, hypot, ilogb, lgamma, logb, modf, nextafter,
+cbrt, cosh, erf, exp2, fmod, hypot, ilogb, lgamma, logb, modf, nextafter,
 nexttoward, pow, scalbn, tan, tgamma
 
 ### Remaining STL functions for hwy/contrib/algo
@@ -73,9 +75,6 @@ Avoids extra broadcast.
 
 ### Reductions for 8-bit
 For orthogonality; already done for x86+NEON.
-
-### Clear lowest mask bit
-For iterating in hash table.
 
 ### Conflict detection
 For hash tables. Use VPCONFLICT on ZEN4.
@@ -166,3 +165,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~`FindLastTrue`~~ - by johnplatts in #1308
 *   ~~Vec2, Create/Get functions~~
 *   ~~`PromoteTo` for all types (#915)~~ - by johnplatts in #1387
+*   ~~atan2~~
