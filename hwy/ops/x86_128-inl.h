@@ -2323,7 +2323,8 @@ static HWY_INLINE V MaskOutVec128Iota(V v) {
 
 template <class D, typename T2, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
-  const auto result_iota = detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+  const auto result_iota =
+      detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
 #if HWY_COMPILER_MSVC
   return detail::MaskOutVec128Iota(result_iota);
 #else
@@ -3106,13 +3107,14 @@ HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
 #endif
 }
 
-// GCC and older Clang do not follow the Intel documentation for AVX-512VL
+// GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512VL
 // srli_epi64: the count should be unsigned int. Note that this is not the same
 // as the Shift3264Count in x86_512-inl.h (GCC also requires int).
-#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || HWY_COMPILER_GCC_ACTUAL
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100) || \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400)
 using Shift64Count = int;
 #else
-// Assume documented behavior. Clang 12 and MSVC 14.28.29910 match this.
+// Assume documented behavior. Clang 12, GCC 14 and MSVC 14.28.29910 match this.
 using Shift64Count = unsigned int;
 #endif
 

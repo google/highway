@@ -1167,17 +1167,17 @@ HWY_API Vec512<uint64_t> RotateRight(const Vec512<uint64_t> v) {
 
 // ------------------------------ ShiftLeftSame
 
-// GCC and older Clang do not follow the Intel documentation for AVX-512
+// GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512
 // shift-with-immediate: the counts should all be unsigned int.
 #if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1100
 using Shift16Count = int;
 using Shift3264Count = int;
-#elif HWY_COMPILER_GCC_ACTUAL
+#elif HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400
 // GCC 11.0 requires these, prior versions used a macro+cast and don't care.
 using Shift16Count = int;
 using Shift3264Count = unsigned int;
 #else
-// Assume documented behavior. Clang 11 and MSVC 14.28.29910 match this.
+// Assume documented behavior. Clang 11, GCC 14 and MSVC 14.28.29910 match this.
 using Shift16Count = unsigned int;
 using Shift3264Count = unsigned int;
 #endif
