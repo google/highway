@@ -13,6 +13,7 @@ hwy_public = [
   "$_hwy/highway_export.h",
   "$_hwy/highway.h",
   "$_hwy/print-inl.h",
+  "$_hwy/timer-inl.h",
 
   # Private
   "$_hwy/detect_compiler_arch.h",

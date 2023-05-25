@@ -292,6 +292,9 @@ cc_library(
     compatible_with = [],
     copts = COPTS,
     local_defines = ["hwy_EXPORTS"],
+    textual_hdrs = [
+        "hwy/timer-inl.h",
+    ],
     deps = [":hwy"],
 )
 

@@ -142,6 +142,7 @@ set(HWY_SOURCES
     hwy/print.h
     hwy/targets.cc
     hwy/targets.h
+    hwy/timer-inl.h
 )
 
 set(HWY_TEST_SOURCES
