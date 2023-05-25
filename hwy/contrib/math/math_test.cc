@@ -208,39 +208,52 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
   const T n0 = static_cast<T>(-0.0);
   const T inf = GetLane(Inf(d));
   const T nan = GetLane(NaN(d));
+
   const T pi = static_cast<T>(3.141592653589793238);
-  const YX test_cases[] = {// y = ±0, x < 0 or -0
-                           {T{0}, T{-1}, pi},
-                           {n0, T{-2}, -pi},
-                           // y = ±0, x > 0 or +0
-                           {T{0}, T{2}, T{0}},
-                           {n0, T{2}, n0},
-                           // y = ±∞, x finite
-                           {inf, T{3}, pi / 2},
-                           {-inf, T{3}, -pi / 2},
-                           // y = ±∞, x = -∞
-                           {inf, -inf, 3 * pi / 4},
-                           {-inf, -inf, -3 * pi / 4},
-                           // y = ±∞, x = +∞
-                           {inf, inf, pi / 4},
-                           {-inf, inf, -pi / 4},
-                           // y < 0, x = ±0
-                           {T{-2}, T{0}, -pi / 2},
-                           {T{-1}, n0, -pi / 2},
-                           // y > 0, x = ±0
-                           {pos, T{0}, pi / 2},
-                           {T{4}, n0, pi / 2},
-                           // finite y > 0, x = -∞
-                           {pos, -inf, pi},
-                           // finite y < 0, x = -∞
-                           {neg, -inf, -pi},
-                           // finite y > 0, x = +∞
-                           {pos, inf, T{0}},
-                           // finite y < 0, x = +∞
-                           {neg, inf, n0},
-                           // y NaN xor x NaN
-                           {nan, T{0}, nan},
-                           {pos, nan, nan}};
+  const YX test_cases[] = {
+
+      // 8 points of the compass
+      {T{0.0}, T{1.0}, T{0}},           // E
+      {T{-1.0}, T{1.0}, -pi / 4},       // SE
+      {T{-1.0}, T{0.0}, -pi / 2},       // S
+      {T{-1.0}, T{-1.0}, -3 * pi / 4},  // SW
+      {T{0.0}, T{-1.0}, pi},            // W
+      {T{1.0}, T{-1.0}, 3 * pi / 4},    // NW
+      {T{1.0}, T{0.0}, pi / 2},         // N
+      {T{1.0}, T{1.0}, pi / 4},         // NE
+
+      // y = ±0, x < 0 or -0
+      {T{0}, T{-1}, pi},
+      {n0, T{-2}, -pi},
+      // y = ±0, x > 0 or +0
+      {T{0}, T{2}, T{0}},
+      {n0, T{2}, n0},
+      // y = ±∞, x finite
+      {inf, T{3}, pi / 2},
+      {-inf, T{3}, -pi / 2},
+      // y = ±∞, x = -∞
+      {inf, -inf, 3 * pi / 4},
+      {-inf, -inf, -3 * pi / 4},
+      // y = ±∞, x = +∞
+      {inf, inf, pi / 4},
+      {-inf, inf, -pi / 4},
+      // y < 0, x = ±0
+      {T{-2}, T{0}, -pi / 2},
+      {T{-1}, n0, -pi / 2},
+      // y > 0, x = ±0
+      {pos, T{0}, pi / 2},
+      {T{4}, n0, pi / 2},
+      // finite y > 0, x = -∞
+      {pos, -inf, pi},
+      // finite y < 0, x = -∞
+      {neg, -inf, -pi},
+      // finite y > 0, x = +∞
+      {pos, inf, T{0}},
+      // finite y < 0, x = +∞
+      {neg, inf, n0},
+      // y NaN xor x NaN
+      {nan, T{0}, nan},
+      {pos, nan, nan}};
   const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
@@ -271,11 +284,10 @@ struct TestAtan2 {
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
     const Vec<D> tolerance = Set(d, 1E-5);
-    auto lanes = AllocateAligned<T>(N);
 
     for (size_t i = 0; i < padded; ++i) {
       const T actual = atan2(in_y[i], in_x[i]);
-      // fprintf(stderr, "%zu exp %f act %f\n", i, expected[i], actual);
+      // fprintf(stderr, "%zu: table %f atan2 %f\n", i, expected[i], actual);
       HWY_ASSERT_EQ(expected[i], actual);
     }
     for (size_t i = 0; i < padded; i += N) {
@@ -300,10 +312,9 @@ struct TestAtan2 {
       if (!AllTrue(d, ok)) {
         const size_t mismatch =
             static_cast<size_t>(FindKnownFirstTrue(d, Not(ok)));
-        Store(actual, d, &lanes[0]);
         fprintf(stderr, "Mismatch for i=%d expected %f actual %f\n",
                 static_cast<int>(i + mismatch), expected[i + mismatch],
-                lanes[mismatch]);
+                ExtractLane(actual, mismatch));
         HWY_ABORT("");
       }
     }

@@ -134,11 +134,9 @@ HWY_NOINLINE V CallAtanh(const D d, VecArg<V> x) {
 template <class D, class V = VFromD<D>, class M = MFromD<D>,
           typename T = TFromD<D>>
 HWY_INLINE V Atan2(const D d, V y, V x) {
+  const V kHalf = Set(d, static_cast<T>(+0.5));
   const V kPi = Set(d, static_cast<T>(+3.14159265358979323846264));
-  const V kPi2 = Set(d, static_cast<T>(+1.570796326794897));
-  const V kPi4 = Set(d, static_cast<T>(+0.785398163397448));
-  const V xs_pi4 = CopySignToAbs(kPi4, x);
-  const V xs_pi2 = Add(xs_pi4, xs_pi4);
+  const V kPi2 = Mul(kPi, kHalf);
 
   const V k0 = Zero(d);
   const M y_0 = Eq(y, k0);
@@ -148,11 +146,18 @@ HWY_INLINE V Atan2(const D d, V y, V x) {
   const M x_inf = IsInf(x);
   const M nan = Or(IsNaN(y), IsNaN(x));
 
-  // Atan may return negative, so cannot use CopySignToAbs.
-  V t = CopySign(Atan(d, Abs(Div(y, x))), x);
-  t = IfThenElse(Or(x_inf, x_0), Sub(kPi2, IfThenElseZero(x_inf, xs_pi2)), t);
-  t = IfThenElse(y_inf, Sub(kPi2, IfThenElseZero(x_inf, xs_pi4)), t);
-  t = IfThenElse(y_0, IfThenElseZero(x_neg, kPi), t);
+  const V if_xneg_pi = IfThenElseZero(x_neg, kPi);
+  // x= +inf: pi/4; -inf: 3*pi/4; else: pi/2
+  const V if_yinf = Mul(kHalf, IfThenElse(x_inf, Add(kPi2, if_xneg_pi), kPi));
+
+  V t = Atan(d, Div(y, x));
+  // Disambiguate between quadrants 1/3 and 2/4 by adding (Q2: Pi; Q3: -Pi).
+  t = Add(t, CopySignToAbs(if_xneg_pi, y));
+  // Special cases for 0 and infinity:
+  t = IfThenElse(x_inf, if_xneg_pi, t);
+  t = IfThenElse(x_0, kPi2, t);
+  t = IfThenElse(y_inf, if_yinf, t);
+  t = IfThenElse(y_0, if_xneg_pi, t);
   // Any input NaN => NaN, otherwise fix sign.
   return IfThenElse(nan, NaN(d), CopySign(t, y));
 }
