@@ -5281,7 +5281,7 @@ HWY_API Mask512<T> SetBeforeFirst(Mask512<T> mask) {
 #if HWY_ARCH_X86_64
   return Mask512<T>{static_cast<__mmask64>(_blsi_u64(mask.raw) - 1)};
 #else
-  return Mask512<T>{static_cast<__mmask64>(~(mask.raw | (-mask.raw)))};
+  return Mask512<T>{static_cast<__mmask64>(~(mask.raw | (0ULL - mask.raw)))};
 #endif
 }
 template <class T, HWY_IF_NOT_T_SIZE(T, 1)>
