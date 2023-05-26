@@ -1939,12 +1939,12 @@ HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
 
 // ------------------------------ WidenMulPairwiseAdd
 template <class D32, typename T16, typename T32 = TFromD<D32>>
-HWY_API Vec256<T32> WidenMulPairwiseAdd(D32 d32, Vec256<T16> a,
-                                             Vec256<T16> b) {
+HWY_API Vec256<T32> WidenMulPairwiseAdd(D32 d32, Vec256<T16> a, Vec256<T16> b) {
   const Half<decltype(d32)> d32h;
-  a.v0 = WidenMulPairwiseAdd(d32h, a.v0, b.v0);
-  a.v1 = WidenMulPairwiseAdd(d32h, a.v1, b.v1);
-  return a;
+  Vec256<T32> result;
+  result.v0 = WidenMulPairwiseAdd(d32h, a.v0, b.v0);
+  result.v1 = WidenMulPairwiseAdd(d32h, a.v1, b.v1);
+  return result;
 }
 
 // ------------------------------ ReorderWidenMulAccumulate

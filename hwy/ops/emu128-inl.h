@@ -2648,7 +2648,8 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D df32, VBF16 a, VBF16 b) {
   const VU32 ao = And(BitCast(du32, a), odd);
   const VU32 be = ShiftLeft<16>(BitCast(du32, b));
   const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) + Mul(BitCast(df32, ao), BitCast(df32, bo));
+  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
+         Mul(BitCast(df32, ao), BitCast(df32, bo));
 }
 
 template <class D, HWY_IF_I32_D(D), class VI16>
