@@ -2597,14 +2597,15 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
   const VU32 ao = And(BitCast(du32, a), odd);
   const VU32 be = ShiftLeft<16>(BitCast(du32, b));
   const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) + Mul(BitCast(df32, ao), BitCast(df32, bo));
+  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
+         Mul(BitCast(df32, ao), BitCast(df32, bo));
 }
 
 // Even if N=1, the input is always at least 2 lanes, hence vec_msum is safe.
 template <class D32, HWY_IF_I32_D(D32),
           class V16 = VFromD<RepartitionToNarrow<D32>>>
-HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
-  return VFromD<D32>{a * b};
+HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 d32, V16 a, V16 b) {
+  return VFromD<D32>{vec_msum(a.raw, b.raw, Zero(d32).raw)};
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
