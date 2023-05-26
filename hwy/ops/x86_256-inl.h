@@ -4389,7 +4389,7 @@ HWY_INLINE Vec256<uint64_t> MulOdd(const Vec256<uint64_t> a,
 // ------------------------------ WidenMulPairwiseAdd
 template <class D, HWY_IF_SIGNED_D(D)>
 HWY_API Vec256<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec256<int16_t> a,
-                                                  Vec256<int16_t> b) {
+                                            Vec256<int16_t> b) {
   return Vec256<int32_t>{_mm256_madd_epi16(a.raw, b.raw)};
 }
 
