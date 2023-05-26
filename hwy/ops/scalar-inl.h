@@ -274,29 +274,28 @@ HWY_API Mask1<T> FirstN(D /*tag*/, size_t n) {
 }
 
 // ------------------------------ IfVecThenElse
-
 template <typename T>
 HWY_API Vec1<T> IfVecThenElse(Vec1<T> mask, Vec1<T> yes, Vec1<T> no) {
   return IfThenElse(MaskFromVec(mask), yes, no);
 }
 
 // ------------------------------ CopySign
-
 template <typename T>
 HWY_API Vec1<T> CopySign(const Vec1<T> magn, const Vec1<T> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  const auto msb = SignBit(Sisd<T>());
-  return Or(AndNot(msb, magn), And(msb, sign));
+  const DFromV<decltype(magn)> d;
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
 }
 
+// ------------------------------ CopySignToAbs
 template <typename T>
 HWY_API Vec1<T> CopySignToAbs(const Vec1<T> abs, const Vec1<T> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  return Or(abs, And(SignBit(Sisd<T>()), sign));
+  const Sisd<T> d;
+  return OrAnd(abs, SignBit(d), sign);
 }
 
 // ------------------------------ BroadcastSignBit
-
 template <typename T>
 HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
   // This is used inside ShiftRight, so we cannot implement in terms of it.

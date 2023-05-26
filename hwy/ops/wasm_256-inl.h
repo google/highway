@@ -562,18 +562,19 @@ HWY_API Vec256<T> operator^(const Vec256<T> a, const Vec256<T> b) {
 }
 
 // ------------------------------ CopySign
-
 template <typename T>
 HWY_API Vec256<T> CopySign(const Vec256<T> magn, const Vec256<T> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  const auto msb = SignBit(DFromV<decltype(magn)>());
-  return Or(AndNot(msb, magn), And(msb, sign));
+  const DFromV<decltype(magn)> d;
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
 }
 
+// ------------------------------ CopySignToAbs
 template <typename T>
 HWY_API Vec256<T> CopySignToAbs(const Vec256<T> abs, const Vec256<T> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  return Or(abs, And(SignBit(DFromV<decltype(sign)>()), sign));
+  const DFromV<decltype(sign)> d;
+  return OrAnd(abs, SignBit(d), sign);
 }
 
 // ------------------------------ Mask

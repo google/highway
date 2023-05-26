@@ -573,20 +573,6 @@ HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Neg, neg)
 // ------------------------------ Abs
 HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Abs, abs)
 
-// ------------------------------ CopySign[ToAbs]
-
-template <class V>
-HWY_API V CopySign(const V magn, const V sign) {
-  const auto msb = SignBit(DFromV<V>());
-  return Or(AndNot(msb, magn), And(msb, sign));
-}
-
-template <class V>
-HWY_API V CopySignToAbs(const V abs, const V sign) {
-  const auto msb = SignBit(DFromV<V>());
-  return Or(abs, And(msb, sign));
-}
-
 // ================================================== ARITHMETIC
 
 // Per-target flags to prevent generic_ops-inl.h defining Add etc.
@@ -1050,6 +1036,24 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
 template <class V>
 HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
   return IfVecThenElse(mask, yes, no);
+}
+
+// ------------------------------ CopySign (BitwiseIfThenElse)
+template <class V>
+HWY_API V CopySign(const V magn, const V sign) {
+  const DFromV<decltype(magn)> d;
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
+}
+
+// ------------------------------ CopySignToAbs
+template <class V>
+HWY_API V CopySignToAbs(const V abs, const V sign) {
+#if HWY_SVE_HAVE_2  // CopySign is more efficient than OrAnd
+  return CopySign(abs, sign);
+#else
+  const DFromV<V> d;
+  return OrAnd(abs, SignBit(d), sign);
+#endif
 }
 
 // ------------------------------ Floating-point classification (Ne)

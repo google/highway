@@ -576,39 +576,6 @@ HWY_API Vec512<T> PopulationCount(Vec512<T> v) {
 
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
-// ================================================== SIGN
-
-// ------------------------------ CopySign
-
-template <typename T>
-HWY_API Vec512<T> CopySign(const Vec512<T> magn, const Vec512<T> sign) {
-  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-
-  const DFromV<decltype(magn)> d;
-  const auto msb = SignBit(d);
-
-  const RebindToUnsigned<decltype(d)> du;
-  // Truth table for msb, magn, sign | bitwise msb ? sign : mag
-  //                  0    0     0   |  0
-  //                  0    0     1   |  0
-  //                  0    1     0   |  1
-  //                  0    1     1   |  1
-  //                  1    0     0   |  0
-  //                  1    0     1   |  1
-  //                  1    1     0   |  0
-  //                  1    1     1   |  1
-  // The lane size does not matter because we are not using predication.
-  const __m512i out = _mm512_ternarylogic_epi32(
-      BitCast(du, msb).raw, BitCast(du, magn).raw, BitCast(du, sign).raw, 0xAC);
-  return BitCast(d, decltype(Zero(du)){out});
-}
-
-template <typename T>
-HWY_API Vec512<T> CopySignToAbs(const Vec512<T> abs, const Vec512<T> sign) {
-  // AVX3 can also handle abs < 0, so no extra action needed.
-  return CopySign(abs, sign);
-}
-
 // ================================================== MASK
 
 // ------------------------------ FirstN

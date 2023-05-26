@@ -1331,20 +1331,21 @@ HWY_API Vec128<T, N> operator^(const Vec128<T, N> a, const Vec128<T, N> b) {
 }
 
 // ------------------------------ CopySign
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySign(const Vec128<T, N> magn,
                               const Vec128<T, N> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  const auto msb = SignBit(DFromV<decltype(magn)>());
-  return Or(AndNot(msb, magn), And(msb, sign));
+  const DFromV<decltype(magn)> d;
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
 }
 
+// ------------------------------ CopySignToAbs
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
                                    const Vec128<T, N> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  return Or(abs, And(SignBit(DFromV<decltype(abs)>()), sign));
+  const DFromV<decltype(abs)> d;
+  return OrAnd(abs, SignBit(d), sign);
 }
 
 // ------------------------------ BroadcastSignBit (compare)

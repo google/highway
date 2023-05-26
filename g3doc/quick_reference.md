@@ -727,11 +727,9 @@ them from 2-argument functions:
     This is less efficient than `Xor3` on some targets; use that where possible.
 *   <code>V **OrAnd**(V o, V a1, V a2)</code>: returns `o[i] | (a1[i] & a2[i])`.
 *   <code>V **BitwiseIfThenElse**(V mask, V yes, V no)</code>: returns
-    `((mask[i] & yes[i]) | (~mask[i] & no[i]))`. `BitwiseIfThenElse` is more
-    efficient than `Or(And(mask, yes), AndNot(mask, no))` on some targets.
-
-    `BitwiseIfThenElse(mask, yes, no)` is guaranteed to return the same result
-    as `Or(And(mask, yes), AndNot(mask, no))` on all targets
+    `((mask[i] & yes[i]) | (~mask[i] & no[i]))`. `BitwiseIfThenElse` is
+    equivalent to, but potentially more efficient than `Or(And(mask, yes),
+    AndNot(mask, no))`.
 
 Special functions for signed types:
 

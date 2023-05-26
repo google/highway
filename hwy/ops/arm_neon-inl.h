@@ -2566,18 +2566,19 @@ HWY_API Vec64<double> Abs(const Vec64<double> v) {
 #endif
 
 // ------------------------------ CopySign
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySign(Vec128<T, N> magn, Vec128<T, N> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  const auto msb = SignBit(DFromV<decltype(magn)>());
-  return Or(AndNot(msb, magn), And(msb, sign));
+  const DFromV<decltype(magn)> d;
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
 }
 
+// ------------------------------ CopySignToAbs
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
-  return Or(abs, And(SignBit(DFromV<decltype(abs)>()), sign));
+  const DFromV<decltype(abs)> d;
+  return OrAnd(abs, SignBit(d), sign);
 }
 
 // ------------------------------ BroadcastSignBit

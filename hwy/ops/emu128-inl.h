@@ -270,15 +270,15 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySign(Vec128<T, N> magn, Vec128<T, N> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
   const DFromV<decltype(magn)> d;
-  const auto msb = SignBit(d);
-  return Or(AndNot(msb, magn), And(msb, sign));
+  return BitwiseIfThenElse(SignBit(d), sign, magn);
 }
 
+// ------------------------------ CopySignToAbs
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
   static_assert(IsFloat<T>(), "Only makes sense for floating-point");
   const DFromV<decltype(abs)> d;
-  return Or(abs, And(SignBit(d), sign));
+  return OrAnd(abs, SignBit(d), sign);
 }
 
 // ------------------------------ BroadcastSignBit

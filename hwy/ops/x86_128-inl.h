@@ -614,17 +614,14 @@ HWY_API Vec128<double, N> Abs(const Vec128<double, N> v) {
 }
 
 // ------------------------------ CopySign
-
-template <typename T, size_t N>
-HWY_API Vec128<T, N> CopySign(const Vec128<T, N> magn,
-                              const Vec128<T, N> sign) {
-  static_assert(IsFloat<T>(), "Only makes sense for floating-point");
+// Generic for all vector lengths.
+template <class V>
+HWY_API V CopySign(const V magn, const V sign) {
+  static_assert(IsFloat<TFromV<V>>(), "Only makes sense for floating-point");
 
   const DFromV<decltype(magn)> d;
   const auto msb = SignBit(d);
 
-#if HWY_TARGET <= HWY_AVX3
-  const RebindToUnsigned<decltype(d)> du;
   // Truth table for msb, magn, sign | bitwise msb ? sign : mag
   //                  0    0     0   |  0
   //                  0    0     1   |  0
@@ -634,24 +631,15 @@ HWY_API Vec128<T, N> CopySign(const Vec128<T, N> magn,
   //                  1    0     1   |  1
   //                  1    1     0   |  0
   //                  1    1     1   |  1
-  // The lane size does not matter because we are not using predication.
-  const __m128i out = _mm_ternarylogic_epi32(
-      BitCast(du, msb).raw, BitCast(du, magn).raw, BitCast(du, sign).raw, 0xAC);
-  return BitCast(d, VFromD<decltype(du)>{out});
-#else
-  return Or(AndNot(msb, magn), And(msb, sign));
-#endif
+  return BitwiseIfThenElse(msb, sign, magn);
 }
 
-template <typename T, size_t N>
-HWY_API Vec128<T, N> CopySignToAbs(const Vec128<T, N> abs,
-                                   const Vec128<T, N> sign) {
-#if HWY_TARGET <= HWY_AVX3
-  // AVX3 can also handle abs < 0, so no extra action needed.
-  return CopySign(abs, sign);
-#else
-  return Or(abs, And(SignBit(DFromV<decltype(abs)>()), sign));
-#endif
+// ------------------------------ CopySignToAbs
+// Generic for all vector lengths.
+template <class V>
+HWY_API V CopySignToAbs(const V abs, const V sign) {
+  const DFromV<decltype(abs)> d;
+  return OrAnd(abs, SignBit(d), sign);
 }
 
 // ================================================== MASK
