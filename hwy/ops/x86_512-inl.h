@@ -5256,6 +5256,60 @@ HWY_API void StoreTransposedBlocks4(const Vec512<T> i, const Vec512<T> j,
 
 }  // namespace detail
 
+// ------------------------------ Additional mask logical operations
+
+template <class T, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetAtOrAfterFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(0u - _blsi_u32(mask.raw))};
+}
+template <class T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetAtOrAfterFirst(Mask512<T> mask) {
+#if HWY_ARCH_X86_64
+  return Mask512<T>{static_cast<__mmask64>(0ULL - _blsi_u64(mask.raw))};
+#else
+  return Mask512<T>{static_cast<__mmask64>(mask.raw | (0ULL - mask.raw))};
+#endif
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetBeforeFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(_blsi_u32(mask.raw) - 1)};
+}
+template <class T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetBeforeFirst(Mask512<T> mask) {
+#if HWY_ARCH_X86_64
+  return Mask512<T>{static_cast<__mmask64>(_blsi_u64(mask.raw) - 1)};
+#else
+  return Mask512<T>{static_cast<__mmask64>(~(mask.raw | (-mask.raw)))};
+#endif
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetAtOrBeforeFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(_blsmsk_u32(mask.raw))};
+}
+template <class T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetAtOrBeforeFirst(Mask512<T> mask) {
+#if HWY_ARCH_X86_64
+  return Mask512<T>{static_cast<__mmask64>(_blsmsk_u64(mask.raw))};
+#else
+  return Mask512<T>{static_cast<__mmask64>(mask.raw ^ (mask.raw - 1))};
+#endif
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetOnlyFirst(Mask512<T> mask) {
+  return Mask512<T>{static_cast<typename Mask512<T>::Raw>(_blsi_u32(mask.raw))};
+}
+template <class T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Mask512<T> SetOnlyFirst(Mask512<T> mask) {
+#if HWY_ARCH_X86_64
+  return Mask512<T>{static_cast<__mmask64>(_blsi_u64(mask.raw))};
+#else
+  return Mask512<T>{static_cast<__mmask64>(mask.raw & (0ULL - mask.raw))};
+#endif
+}
+
 // ------------------------------ Shl (LoadDup128)
 
 HWY_API Vec512<uint16_t> operator<<(Vec512<uint16_t> v, Vec512<uint16_t> bits) {

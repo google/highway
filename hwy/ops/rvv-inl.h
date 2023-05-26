@@ -2350,6 +2350,20 @@ HWY_API TFromV<V> ExtractLane(const V v, size_t i) {
   return GetLane(detail::SlideDown(v, i));
 }
 
+// ------------------------------ Additional mask logical operations
+
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetOnlyFirst, sof)
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetBeforeFirst, sbf)
+HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetAtOrBeforeFirst, sif)
+
+#define HWY_RVV_SET_AT_OR_AFTER_FIRST(SEW, SHIFT, MLEN, NAME, OP) \
+  HWY_API HWY_RVV_M(MLEN) SetAtOrAfterFirst(HWY_RVV_M(MLEN) m) {  \
+    return Not(SetBeforeFirst(m));                                \
+  }
+
+HWY_RVV_FOREACH_B(HWY_RVV_SET_AT_OR_AFTER_FIRST, _, _)
+#undef HWY_RVV_SET_AT_OR_AFTER_FIRST
+
 // ------------------------------ InsertLane
 
 template <class V, HWY_IF_NOT_T_SIZE_V(V, 1)>
@@ -2361,10 +2375,6 @@ HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
   return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
-namespace detail {
-HWY_RVV_FOREACH_B(HWY_RVV_RETM_ARGM, SetOnlyFirst, sof)
-}  // namespace detail
-
 // For 8-bit lanes, Iota0 might overflow.
 template <class V, HWY_IF_T_SIZE_V(V, 1)>
 HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
@@ -2372,7 +2382,7 @@ HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
   const auto zero = Zero(d);
   const auto one = Set(d, 1);
   const auto ge_i = Eq(detail::SlideUp(zero, one, i), one);
-  const auto is_i = detail::SetOnlyFirst(ge_i);
+  const auto is_i = SetOnlyFirst(ge_i);
   return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
