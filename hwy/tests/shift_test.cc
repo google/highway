@@ -354,8 +354,9 @@ struct TestVariableSignedRightShifts {
 
     // Test varying negative to shift
     for (size_t i = 0; i < N; ++i) {
+      const auto val = static_cast<T>(static_cast<TU>(kMin) + i);
       expected[i] =
-          RightShiftNegative<1>(static_cast<T>(static_cast<TU>(kMin) + i));
+          (val < 0) ? RightShiftNegative<1>(val) : static_cast<T>(val >> 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(negative, Set(d, 1)));
 
