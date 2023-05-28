@@ -5278,13 +5278,14 @@ HWY_API Vec512<uint8_t> operator<<(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
 #else
   const Repartition<uint16_t, decltype(d)> dw;
   using VW = VFromD<decltype(dw)>;
-  const VW mask = Set(dw, 0x00FF);
+  const VW even_mask = Set(dw, 0x00FF);
+  const VW odd_mask = Set(dw, 0xFF00);
   const VW vw = BitCast(dw, v);
   const VW bits16 = BitCast(dw, bits);
-  const VW evens = And(vw, mask) << And(bits16, mask);
-  // Shift odd lanes in-place
-  const VW odds = vw << ShiftRight<8>(bits16);
-  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+  // Shift even lanes in-place
+  const VW evens = vw << And(bits16, even_mask);
+  const VW odds = And(vw, odd_mask) << ShiftRight<8>(bits16);
+  return BitCast(d, IfVecThenElse(odd_mask, odds, evens));
 #endif
 }
 
@@ -5314,7 +5315,6 @@ HWY_API Vec512<uint16_t> operator>>(const Vec512<uint16_t> v,
 }
 
 // 8-bit uses 16-bit shifts.
-template <size_t N>
 HWY_API Vec512<uint8_t> operator>>(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
   const DFromV<decltype(v)> d;
   const RepartitionToWide<decltype(d)> dw;
@@ -5341,6 +5341,22 @@ HWY_API Vec512<uint64_t> operator>>(const Vec512<uint64_t> v,
 HWY_API Vec512<int16_t> operator>>(const Vec512<int16_t> v,
                                    const Vec512<int16_t> bits) {
   return Vec512<int16_t>{_mm512_srav_epi16(v.raw, bits.raw)};
+}
+
+// 8-bit uses 16-bit shifts.
+HWY_API Vec512<int8_t> operator>>(Vec512<int8_t> v, Vec512<int8_t> bits) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const RebindToUnsigned<decltype(dw)> dw_u;
+  using VW = VFromD<decltype(dw)>;
+  const VW mask = Set(dw, 0x00FF);
+  const VW vw = BitCast(dw, v);
+  const VW bits16 = BitCast(dw, bits);
+  const VW evens = ShiftRight<8>(ShiftLeft<8>(vw)) >> And(bits16, mask);
+  // Shift odd lanes in-place
+  const VW odds = vw >> BitCast(dw, ShiftRight<8>(BitCast(dw_u, bits16)));
+  return BitCast(
+      d, IfVecThenElse(Set(dw, static_cast<int16_t>(0xFF00)), odds, evens));
 }
 
 HWY_API Vec512<int32_t> operator>>(const Vec512<int32_t> v,
