@@ -2064,6 +2064,50 @@ HWY_API V NegMulAdd(V mul, V x, V add) {
 
 #endif  // HWY_NATIVE_INT_FMA
 
+// ------------------------------ F64 ApproximateReciprocal
+
+#if (defined(HWY_NATIVE_F64_APPROX_RECIP) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_F64_APPROX_RECIP
+#undef HWY_NATIVE_F64_APPROX_RECIP
+#else
+#define HWY_NATIVE_F64_APPROX_RECIP
+#endif
+
+#if HWY_HAVE_FLOAT64
+template <class V, HWY_IF_F64_D(DFromV<V>)>
+HWY_API V ApproximateReciprocal(V v) {
+  const DFromV<decltype(v)> d;
+  return Div(Set(d, 1.0), v);
+}
+#endif  // HWY_HAVE_FLOAT64
+
+#endif  // HWY_NATIVE_F64_APPROX_RECIP
+
+// ------------------------------ F64 ApproximateReciprocalSqrt
+
+#if (defined(HWY_NATIVE_F64_APPROX_RSQRT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_F64_APPROX_RSQRT
+#undef HWY_NATIVE_F64_APPROX_RSQRT
+#else
+#define HWY_NATIVE_F64_APPROX_RSQRT
+#endif
+
+#if HWY_HAVE_FLOAT64
+template <class V, HWY_IF_F64_D(DFromV<V>)>
+HWY_API V ApproximateReciprocalSqrt(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto half = Mul(v, Set(d, 0.5));
+  // Initial guess based on log2(f)
+  const auto guess = BitCast(d, Sub(Set(du, uint64_t{0x5FE6EB50C7B537A9u}),
+                                    ShiftRight<1>(BitCast(du, v))));
+  // One Newton-Raphson iteration
+  return Mul(guess, NegMulAdd(Mul(half, guess), guess, Set(d, 1.5)));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+#endif  // HWY_NATIVE_F64_APPROX_RSQRT
+
 // ------------------------------ Compress*
 
 // "Include guard": skip if native 8-bit compress instructions are available.

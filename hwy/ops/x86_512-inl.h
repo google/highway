@@ -1485,6 +1485,10 @@ HWY_API Vec512<float> ApproximateReciprocal(const Vec512<float> v) {
   return Vec512<float>{_mm512_rcp14_ps(v.raw)};
 }
 
+HWY_API Vec512<double> ApproximateReciprocal(Vec512<double> v) {
+  return Vec512<double>{_mm512_rcp14_pd(v.raw)};
+}
+
 // Absolute value of difference.
 HWY_API Vec512<float> AbsDiff(const Vec512<float> a, const Vec512<float> b) {
   return Abs(a - b);
@@ -1547,6 +1551,10 @@ HWY_API Vec512<double> Sqrt(const Vec512<double> v) {
 // Approximate reciprocal square root
 HWY_API Vec512<float> ApproximateReciprocalSqrt(const Vec512<float> v) {
   return Vec512<float>{_mm512_rsqrt14_ps(v.raw)};
+}
+
+HWY_API Vec512<double> ApproximateReciprocalSqrt(Vec512<double> v) {
+  return Vec512<double>{_mm512_rsqrt14_pd(v.raw)};
 }
 
 // ------------------------------ Floating-point rounding

@@ -3382,6 +3382,21 @@ HWY_API Vec128<float, 1> ApproximateReciprocal(const Vec128<float, 1> v) {
   return Vec128<float, 1>{_mm_rcp_ss(v.raw)};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+#ifdef HWY_NATIVE_F64_APPROX_RECIP
+#undef HWY_NATIVE_F64_APPROX_RECIP
+#else
+#define HWY_NATIVE_F64_APPROX_RECIP
+#endif
+
+HWY_API Vec128<double> ApproximateReciprocal(Vec128<double> v) {
+  return Vec128<double>{_mm_rcp14_pd(v.raw)};
+}
+HWY_API Vec64<double> ApproximateReciprocal(Vec64<double> v) {
+  return Vec64<double>{_mm_rcp14_sd(v.raw, v.raw)};
+}
+#endif
+
 // Absolute value of difference.
 template <size_t N>
 HWY_API Vec128<float, N> AbsDiff(Vec128<float, N> a, Vec128<float, N> b) {
@@ -3496,6 +3511,27 @@ HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
 HWY_API Vec128<float, 1> ApproximateReciprocalSqrt(Vec128<float, 1> v) {
   return Vec128<float, 1>{_mm_rsqrt_ss(v.raw)};
 }
+
+#if HWY_TARGET <= HWY_AVX3
+#ifdef HWY_NATIVE_F64_APPROX_RSQRT
+#undef HWY_NATIVE_F64_APPROX_RSQRT
+#else
+#define HWY_NATIVE_F64_APPROX_RSQRT
+#endif
+
+HWY_API Vec64<double> ApproximateReciprocalSqrt(Vec64<double> v) {
+  return Vec64<double>{_mm_rsqrt14_sd(v.raw, v.raw)};
+}
+HWY_API Vec128<double> ApproximateReciprocalSqrt(Vec128<double> v) {
+#if HWY_COMPILER_MSVC
+  const DFromV<decltype(v)> d;
+  return Vec128<double>{_mm_mask_rsqrt14_pd(
+      Undefined(d).raw, static_cast<__mmask8>(0xFF), v.raw)};
+#else
+  return Vec128<double>{_mm_rsqrt14_pd(v.raw)};
+#endif
+}
+#endif
 
 // ------------------------------ Min (Gt, IfThenElse)
 
