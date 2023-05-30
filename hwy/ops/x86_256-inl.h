@@ -42,6 +42,7 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <avxintrin.h>
 // avxintrin defines __m256i and must come before avx2intrin.
 #include <avx2intrin.h>
+#include <bmiintrin.h>
 #include <bmi2intrin.h>  // _pext_u64
 #include <f16cintrin.h>
 #include <fmaintrin.h>
