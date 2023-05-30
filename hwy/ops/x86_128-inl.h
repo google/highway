@@ -5874,7 +5874,7 @@ HWY_API Vec128<uint8_t, N> Shl(hwy::UnsignedTag tag, Vec128<uint8_t, N> v,
   // Shift even lanes in-place
   const VW evens = Shl(tag, vw, And(bits16, even_mask));
   const VW odds = Shl(tag, And(vw, odd_mask), ShiftRight<8>(bits16));
-  return BitCast(d, IfVecThenElse(odd_mask, odds, evens));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 #endif
 }
 HWY_API Vec128<uint8_t, 1> Shl(hwy::UnsignedTag /*tag*/, Vec128<uint8_t, 1> v,

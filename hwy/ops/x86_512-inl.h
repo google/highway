@@ -5285,7 +5285,7 @@ HWY_API Vec512<uint8_t> operator<<(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
   // Shift even lanes in-place
   const VW evens = vw << And(bits16, even_mask);
   const VW odds = And(vw, odd_mask) << ShiftRight<8>(bits16);
-  return BitCast(d, IfVecThenElse(odd_mask, odds, evens));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 #endif
 }
 
@@ -5325,7 +5325,7 @@ HWY_API Vec512<uint8_t> operator>>(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
   const VW evens = And(vw, mask) >> And(bits16, mask);
   // Shift odd lanes in-place
   const VW odds = vw >> ShiftRight<8>(bits16);
-  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 }
 
 HWY_API Vec512<uint32_t> operator>>(const Vec512<uint32_t> v,
@@ -5355,8 +5355,7 @@ HWY_API Vec512<int8_t> operator>>(Vec512<int8_t> v, Vec512<int8_t> bits) {
   const VW evens = ShiftRight<8>(ShiftLeft<8>(vw)) >> And(bits16, mask);
   // Shift odd lanes in-place
   const VW odds = vw >> BitCast(dw, ShiftRight<8>(BitCast(dw_u, bits16)));
-  return BitCast(
-      d, IfVecThenElse(Set(dw, static_cast<int16_t>(0xFF00)), odds, evens));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 }
 
 HWY_API Vec512<int32_t> operator>>(const Vec512<int32_t> v,
