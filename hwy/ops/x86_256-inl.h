@@ -2208,12 +2208,6 @@ HWY_API Vec256<float> ApproximateReciprocal(Vec256<float> v) {
 }
 
 #if HWY_TARGET <= HWY_AVX3
-#ifdef HWY_NATIVE_F64_APPROX_RECIP
-#undef HWY_NATIVE_F64_APPROX_RECIP
-#else
-#define HWY_NATIVE_F64_APPROX_RECIP
-#endif
-
 HWY_API Vec256<double> ApproximateReciprocal(Vec256<double> v) {
   return Vec256<double>{_mm256_rcp14_pd(v.raw)};
 }
