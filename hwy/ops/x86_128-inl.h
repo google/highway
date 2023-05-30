@@ -8575,28 +8575,72 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 // ------------------------------ Additional mask logical operations
 
 #if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+template <class T, HWY_IF_LANES_LE(sizeof(T), 4)>
+static HWY_INLINE uint32_t AVX3Blsi(T x) {
+  using TU = MakeUnsigned<T>;
+  const auto u32_val = static_cast<uint32_t>(static_cast<TU>(x));
+#if HWY_COMPILER_CLANGCL
+  return static_cast<uint32_t>(u32_val & (0u - u32_val));
+#else
+  return static_cast<uint32_t>(_blsi_u32(u32_val));
+#endif
+}
+template <class T, HWY_IF_T_SIZE(T, 8)>
+static HWY_INLINE uint64_t AVX3Blsi(T x) {
+  const auto u64_val = static_cast<uint64_t>(x);
+#if HWY_COMPILER_CLANGCL || HWY_ARCH_X86_32
+  return static_cast<uint64_t>(u64_val & (0ULL - u64_val));
+#else
+  return static_cast<uint64_t>(_blsi_u64(u64_val));
+#endif
+}
+
+template <class T, HWY_IF_LANES_LE(sizeof(T), 4)>
+static HWY_INLINE uint32_t AVX3Blsmsk(T x) {
+  using TU = MakeUnsigned<T>;
+  const auto u32_val = static_cast<uint32_t>(static_cast<TU>(x));
+#if HWY_COMPILER_CLANGCL
+  return static_cast<uint32_t>(u32_val ^ (u32_val - 1u));
+#else
+  return static_cast<uint32_t>(_blsmsk_u32(u32_val));
+#endif
+}
+template <class T, HWY_IF_T_SIZE(T, 8)>
+static HWY_INLINE uint64_t AVX3Blsmsk(T x) {
+  const auto u64_val = static_cast<uint64_t>(x);
+#if HWY_COMPILER_CLANGCL || HWY_ARCH_X86_32
+  return static_cast<uint64_t>(u64_val ^ (u64_val - 1ULL));
+#else
+  return static_cast<uint64_t>(_blsmsk_u64(u64_val));
+#endif
+}
+
+}  // namespace detail
+
 template <class T, size_t N>
 HWY_API Mask128<T, N> SetAtOrAfterFirst(Mask128<T, N> mask) {
   constexpr uint32_t kActiveElemMask = (uint32_t{1} << N) - 1;
   return Mask128<T, N>{static_cast<typename Mask128<T, N>::Raw>(
-      (0u - _blsi_u32(mask.raw)) & kActiveElemMask)};
+      (0u - detail::AVX3Blsi(mask.raw)) & kActiveElemMask)};
 }
 template <class T, size_t N>
 HWY_API Mask128<T, N> SetBeforeFirst(Mask128<T, N> mask) {
   constexpr uint32_t kActiveElemMask = (uint32_t{1} << N) - 1;
   return Mask128<T, N>{static_cast<typename Mask128<T, N>::Raw>(
-      (_blsi_u32(mask.raw) - 1) & kActiveElemMask)};
+      (detail::AVX3Blsi(mask.raw) - 1u) & kActiveElemMask)};
 }
 template <class T, size_t N>
 HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
   constexpr uint32_t kActiveElemMask = (uint32_t{1} << N) - 1;
   return Mask128<T, N>{static_cast<typename Mask128<T, N>::Raw>(
-      _blsmsk_u32(mask.raw) & kActiveElemMask)};
+      detail::AVX3Blsmsk(mask.raw) & kActiveElemMask)};
 }
 template <class T, size_t N>
 HWY_API Mask128<T, N> SetOnlyFirst(Mask128<T, N> mask) {
   return Mask128<T, N>{
-      static_cast<typename Mask128<T, N>::Raw>(_blsi_u32(mask.raw))};
+      static_cast<typename Mask128<T, N>::Raw>(detail::AVX3Blsi(mask.raw))};
 }
 #else   // AVX2 or below
 template <class T>

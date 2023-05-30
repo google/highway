@@ -42,7 +42,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <avxintrin.h>
 // avxintrin defines __m256i and must come before avx2intrin.
 #include <avx2intrin.h>
-#include <bmiintrin.h>
 #include <bmi2intrin.h>  // _pext_u64
 #include <f16cintrin.h>
 #include <fmaintrin.h>
@@ -4456,7 +4455,6 @@ HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec32<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_cvtepu8_epi64(v.raw)};
 }
 
-
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then ZipUpper/lo followed by
@@ -6260,7 +6258,7 @@ HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
-      (0u - _blsi_u32(mask.raw)) & kActiveElemMask)};
+      (0u - detail::AVX3Blsi(mask.raw)) & kActiveElemMask)};
 }
 template <class T>
 HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
@@ -6268,7 +6266,7 @@ HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
-      (_blsi_u32(mask.raw) - 1) & kActiveElemMask)};
+      (detail::AVX3Blsi(mask.raw) - 1u) & kActiveElemMask)};
 }
 template <class T>
 HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
@@ -6276,11 +6274,12 @@ HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
-      _blsmsk_u32(mask.raw) & kActiveElemMask)};
+      detail::AVX3Blsmsk(mask.raw) & kActiveElemMask)};
 }
 template <class T>
 HWY_API Mask256<T> SetOnlyFirst(Mask256<T> mask) {
-  return Mask256<T>{static_cast<typename Mask256<T>::Raw>(_blsi_u32(mask.raw))};
+  return Mask256<T>{
+      static_cast<typename Mask256<T>::Raw>(detail::AVX3Blsi(mask.raw))};
 }
 #else   // AVX2
 template <class T>
