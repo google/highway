@@ -58,6 +58,7 @@ using detail::SharedTraits;
 using detail::OrderAscending128;
 using detail::OrderAscendingKV128;
 using detail::Traits128;
+#endif  // VQSORT_ENABLED
 
 HWY_NOINLINE void BenchAllColdSort() {
   // Only run the best(first) enabled target
@@ -74,8 +75,10 @@ HWY_NOINLINE void BenchAllColdSort() {
   }
 
   // Initialize random seeds
+#if VQSORT_ENABLED
   HWY_ASSERT(GetGeneratorState() != nullptr);  // vqsort
-  RandomState rng;                             // this test
+#endif
+  RandomState rng;  // this test
 
   using T = uint64_t;
   constexpr size_t kSize = 10 * 1000;
@@ -83,7 +86,12 @@ HWY_NOINLINE void BenchAllColdSort() {
   items[Random32(&rng) % kSize] = static_cast<T>(Unpredictable1());
 
   const timer::Ticks t0 = timer::Start();
+#if VQSORT_ENABLED
   VQSort(items.data(), kSize, SortAscending());
+#else
+  SharedState shared;
+  Run<SortAscending>(Algo::kStd, items.data(), kSize, shared, /*thread=*/0);
+#endif
   const timer::Ticks t1 = timer::Stop();
 
   const double ticks = static_cast<double>(t1 - t0);
@@ -93,7 +101,6 @@ HWY_NOINLINE void BenchAllColdSort() {
   fprintf(stderr, "N=%zu GB/s=%.2f ticks=%g random output: %g\n", kSize, GBps,
           ticks, static_cast<double>(items[Random32(&rng) % kSize]));
 }
-#endif  // VQSORT_ENABLED
 
 #if (VQSORT_ENABLED && SORT_BENCH_BASE_AND_PARTITION) || HWY_IDE
 
