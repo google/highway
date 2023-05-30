@@ -857,21 +857,22 @@ false is zero, true has all bits set:
     these operations. This op is for situations where the inputs are known to be
     mutually exclusive.
 
-*   <code>M **SetOnlyFirst**(M m)</code>: returns mask that has only lane `k`
-    set to true if any lanes are set in `m` and all other lanes set to false,
-    where `k` is the index of the first (i.e. lowest index) `m[i]` that is
-    true or the number of lanes in `m` if none of `m[i]` are true.
+*   <code>M **SetOnlyFirst**(M m)</code>: If none of `m[i]` are true, returns
+    all-false. Otherwise, only lane `k` is true, where `k` is equal to
+    `FindKnownFirstTrue(m)`. In other words, sets to false any lanes with index
+    greater than the first true lane, if it exists.
 
-*   <code>M **SetBeforeFirst**(M m)</code>: returns mask with the first `N`
-    lanes set to true and any remaining lanes set to false, where `N` is equal
-    to the index of the first `m[i]` that is true or the number of lanes in `m`
-    if none of `m[i]` are true.
+*   <code>M **SetBeforeFirst**(M m)</code>: If none of `m[i]` are true, returns
+    all-true. Otherwise, returns mask with the first `k` lanes true and all
+    remaining lanes false, where `k` is equal to `FindKnownFirstTrue(m)`. In
+    other words, if at least one of `m[i]` is true, sets to true any lanes with
+    index less than the first true lane and all remaining lanes to false.
 
-**  <code>M **SetAtOrBeforeFirst**(M m)</code>: equivalent to
+*   <code>M **SetAtOrBeforeFirst**(M m)</code>: equivalent to
     `Or(SetBeforeFirst(m), SetOnlyFirst(m))`, but `SetAtOrBeforeFirst(m)` is
     usually more efficient than `Or(SetBeforeFirst(m), SetOnlyFirst(m))`.
 
-**  <code>M **SetAtOrAfterFirst**(M m)</code>: equivalent to
+*   <code>M **SetAtOrAfterFirst**(M m)</code>: equivalent to
     `Not(SetBeforeFirst(m))`.
 
 #### Compress
