@@ -552,6 +552,38 @@ class ForPartialVectors {
   }
 };
 
+// ForPartialFixedOrFullScalableVectors calls Test for each D where
+// MaxLanes(D()) == MaxLanes(DFromV<VFromD<D>>())
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+template <class Test>
+class ForPartialFixedOrFullScalableVectors {
+  mutable bool called_ = false;
+
+ public:
+  ~ForPartialFixedOrFullScalableVectors() {
+    if (!called_) {
+      HWY_ABORT("Test is incorrect, ensure operator() is called");
+    }
+  }
+
+  template <typename T>
+  void operator()(T /*t*/) const {
+    called_ = true;
+#if HWY_TARGET == HWY_RVV
+    constexpr int kMinPow2 = -3 + static_cast<int>(CeilLog2(sizeof(T)));
+    constexpr int kMaxPow2 = 3;
+#else
+    constexpr int kMinPow2 = 0;
+    constexpr int kMaxPow2 = 0;
+#endif
+    detail::ForeachPow2<T, kMinPow2, kMaxPow2, true, Test>::Do(1);
+  }
+};
+#else
+template <class Test>
+using ForPartialFixedOrFullScalableVectors = ForPartialVectors<Test>;
+#endif
+
 // Type lists to shorten call sites:
 
 template <class Func>

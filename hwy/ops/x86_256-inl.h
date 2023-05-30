@@ -4180,6 +4180,101 @@ HWY_API Vec256<TI> TableLookupBytes(Vec128<T, N> bytes, Vec256<TI> from) {
 
 // Partial both are handled by x86_128.
 
+// ------------------------------ Per4LaneBlockShuffle
+
+namespace detail {
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class T>
+HWY_INLINE Vec256<T> AVX2Per4LaneBlockShuf32(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                             hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                             hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                             hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                             Vec256<T> v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return Vec256<T>{_mm256_shuffle_epi32(v.raw, kShuffle)};
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3>
+HWY_INLINE Vec256<float> AVX2Per4LaneBlockShuf32(
+    hwy::SizeTag<kIdx0> /*idx_0_tag*/, hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+    hwy::SizeTag<kIdx2> /*idx_2_tag*/, hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+    Vec256<float> v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return Vec256<float>{_mm256_shuffle_ps(v.raw, v.raw, kShuffle)};
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag,
+                                  hwy::SizeTag<4> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  return AVX2Per4LaneBlockShuf32(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag, v);
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class T>
+HWY_INLINE Vec256<T> AVX2Per4LaneBlockShuf64(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                             hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                             hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                             hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                             Vec256<T> v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return Vec256<T>{_mm256_permute4x64_epi64(v.raw, kShuffle)};
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3>
+HWY_INLINE Vec256<double> AVX2Per4LaneBlockShuf64(
+    hwy::SizeTag<kIdx0> /*idx_0_tag*/, hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+    hwy::SizeTag<kIdx2> /*idx_2_tag*/, hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+    Vec256<double> v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return Vec256<double>{_mm256_permute4x64_pd(v.raw, kShuffle)};
+}
+
+template <class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0> /*idx_0_tag*/,
+                                  hwy::SizeTag<1> /*idx_1_tag*/,
+                                  hwy::SizeTag<0> /*idx_2_tag*/,
+                                  hwy::SizeTag<1> /*idx_3_tag*/,
+                                  hwy::SizeTag<8> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return ConcatLowerLower(d, v, v);
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag,
+                                  hwy::SizeTag<8> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  return AVX2Per4LaneBlockShuf64(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag, v);
+}
+
+}  // namespace detail
+
 // ------------------------------ Shl (Mul, ZipLower)
 
 namespace detail {

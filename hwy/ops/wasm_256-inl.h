@@ -1267,6 +1267,89 @@ HWY_API Vec256<T> ReverseBlocks(D /* tag */, const Vec256<T> v) {
   return SwapAdjacentBlocks(v);  // 2 blocks, so Swap = Reverse
 }
 
+// ------------------------------ Per4LaneBlockShuffle
+namespace detail {
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                  hwy::SizeTag<1> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  using VH = VFromD<decltype(dh)>;
+
+  V ret;
+  ret.v0 = VH{wasm_i8x16_shuffle(
+      v.v0.raw, v.v0.raw, kIdx0, kIdx1, kIdx2, kIdx3, kIdx0 + 4, kIdx1 + 4,
+      kIdx2 + 4, kIdx3 + 4, kIdx0 + 8, kIdx1 + 8, kIdx2 + 8, kIdx3 + 8,
+      kIdx0 + 12, kIdx1 + 12, kIdx2 + 12, kIdx3 + 12)};
+  ret.v1 = VH{wasm_i8x16_shuffle(
+      v.v1.raw, v.v1.raw, kIdx0, kIdx1, kIdx2, kIdx3, kIdx0 + 4, kIdx1 + 4,
+      kIdx2 + 4, kIdx3 + 4, kIdx0 + 8, kIdx1 + 8, kIdx2 + 8, kIdx3 + 8,
+      kIdx0 + 12, kIdx1 + 12, kIdx2 + 12, kIdx3 + 12)};
+  return ret;
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                  hwy::SizeTag<2> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  using VH = VFromD<decltype(dh)>;
+
+  V ret;
+  ret.v0 = VH{wasm_i16x8_shuffle(v.v0.raw, v.v0.raw, kIdx0, kIdx1, kIdx2, kIdx3,
+                                 kIdx0 + 4, kIdx1 + 4, kIdx2 + 4, kIdx3 + 4)};
+  ret.v1 = VH{wasm_i16x8_shuffle(v.v1.raw, v.v1.raw, kIdx0, kIdx1, kIdx2, kIdx3,
+                                 kIdx0 + 4, kIdx1 + 4, kIdx2 + 4, kIdx3 + 4)};
+  return ret;
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                  hwy::SizeTag<4> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  using VH = VFromD<decltype(dh)>;
+
+  V ret;
+  ret.v0 =
+      VH{wasm_i32x4_shuffle(v.v0.raw, v.v0.raw, kIdx0, kIdx1, kIdx2, kIdx3)};
+  ret.v1 =
+      VH{wasm_i32x4_shuffle(v.v1.raw, v.v1.raw, kIdx0, kIdx1, kIdx2, kIdx3)};
+  return ret;
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                  hwy::SizeTag<8> /*lane_size_tag*/,
+                                  hwy::SizeTag<32> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  using VH = VFromD<decltype(dh)>;
+
+  V ret;
+  ret.v0 = VH{wasm_i64x2_shuffle(v.v0.raw, v.v1.raw, kIdx0, kIdx1)};
+  ret.v1 = VH{wasm_i64x2_shuffle(v.v0.raw, v.v1.raw, kIdx2, kIdx3)};
+  return ret;
+}
+
+}  // namespace detail
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)

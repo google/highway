@@ -5049,6 +5049,134 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
+// ------------------------------ Per4LaneBlockShuffle
+namespace detail {
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                  hwy::SizeTag<2> /*lane_size_tag*/,
+                                  hwy::SizeTag<8> /*vect_size_tag*/, V v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return V{_mm_shufflelo_epi16(v.raw, kShuffle)};
+}
+
+#if HWY_TARGET == HWY_SSE2
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                  hwy::SizeTag<2> /*lane_size_tag*/,
+                                  hwy::SizeTag<16> /*vect_size_tag*/, V v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return V{_mm_shufflehi_epi16(_mm_shufflelo_epi16(v.raw, kShuffle), kShuffle)};
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3,
+          size_t kVectSize, class V,
+          hwy::EnableIf<(kVectSize == 4 || kVectSize == 8)>* = nullptr>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag,
+                                  hwy::SizeTag<1> /*lane_size_tag*/,
+                                  hwy::SizeTag<kVectSize> /*vect_size_tag*/,
+                                  V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const Rebind<uint16_t, decltype(d)> du16;
+  const RebindToSigned<decltype(du16)> di16;
+
+  const auto vu16 = PromoteTo(du16, BitCast(du, v));
+  const auto shuf16_result = Per4LaneBlockShuffle(
+      idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag, hwy::SizeTag<2>(),
+      hwy::SizeTag<kVectSize * 2>(), vu16);
+  return BitCast(d, DemoteTo(du, BitCast(di16, shuf16_result)));
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3,
+          size_t kVectSize, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag,
+                                  hwy::SizeTag<1> /*lane_size_tag*/,
+                                  hwy::SizeTag<16> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const Repartition<uint16_t, decltype(d)> du16;
+  const RebindToSigned<decltype(du16)> di16;
+
+  const auto zero = Zero(d);
+  const auto v_lo16 = BitCast(du16, InterleaveLower(d, v, zero));
+  const auto v_hi16 = BitCast(du16, InterleaveUpper(d, v, zero));
+
+  const auto lo_shuf_result =
+      Per4LaneBlockShuffle(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag,
+                           hwy::SizeTag<2>(), hwy::SizeTag<16>(), v_lo16);
+  const auto hi_shuf_result =
+      Per4LaneBlockShuffle(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag,
+                           hwy::SizeTag<2>(), hwy::SizeTag<16>(), v_hi16);
+
+  return BitCast(d, OrderedDemote2To(du, BitCast(di16, lo_shuf_result),
+                                     BitCast(di16, hi_shuf_result)));
+}
+#endif
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class T>
+HWY_INLINE Vec128<T> SSE2Per4LaneBlockShuf32(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                             hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                             hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                             hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+                                             Vec128<T> v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return Vec128<T>{_mm_shuffle_epi32(v.raw, kShuffle)};
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3>
+HWY_INLINE Vec128<float> SSE2Per4LaneBlockShuf32(
+    hwy::SizeTag<kIdx0> /*idx_0_tag*/, hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+    hwy::SizeTag<kIdx2> /*idx_2_tag*/, hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+    Vec128<float> v) {
+  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
+  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
+  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
+  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
+  constexpr int kShuffle =
+      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
+  return Vec128<float>{_mm_shuffle_ps(v.raw, v.raw, kShuffle)};
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag,
+                                  hwy::SizeTag<4> /*lane_size_tag*/,
+                                  hwy::SizeTag<16> /*vect_size_tag*/, V v) {
+  return SSE2Per4LaneBlockShuf32(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag, v);
+}
+
+}  // namespace detail
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)
@@ -5412,22 +5540,103 @@ HWY_API Vec128<T, 2> ConcatEven(D d, Vec128<T, 2> hi, Vec128<T, 2> lo) {
 
 // ------------------------------ DupEven (InterleaveLower)
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
-  return Vec128<T, N>{_mm_shuffle_epi32(v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
-}
-template <size_t N>
-HWY_API Vec128<float, N> DupEven(Vec128<float, N> v) {
-  return Vec128<float, N>{
-      _mm_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+template <typename T>
+HWY_API Vec128<T, 1> DupEven(const Vec128<T, 1> v) {
+  return v;
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
-HWY_API Vec128<T, N> DupEven(const Vec128<T, N> v) {
+template <typename T>
+HWY_API Vec128<T, 2> DupEven(const Vec128<T, 2> v) {
   return InterleaveLower(DFromV<decltype(v)>(), v, v);
 }
 
+template <typename V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_GT_V(V, 2)>
+HWY_API V DupEven(V v) {
+  const DFromV<decltype(v)> d;
+
+#if HWY_TARGET <= HWY_SSSE3
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14};
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+#else
+  const Repartition<uint16_t, decltype(d)> du16;
+  return IfVecThenElse(BitCast(d, Set(du16, uint16_t{0xFF00})),
+                       BitCast(d, ShiftLeft<8>(BitCast(du16, v))), v);
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec64<T> DupEven(const Vec64<T> v) {
+  return Vec64<T>{_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+
+template <typename V, HWY_IF_T_SIZE_V(V, 2), HWY_IF_V_SIZE_GT_V(V, 8)>
+HWY_API V DupEven(V v) {
+#if HWY_TARGET <= HWY_SSSE3
+  alignas(16) static constexpr uint16_t kShuffle[8] = {
+      0x0100, 0x0100, 0x0504, 0x0504, 0x0908, 0x0908, 0x0d0c, 0x0d0c};
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+#else
+  return V{
+      _mm_shufflehi_epi16(_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(2, 2, 0, 0)),
+                          _MM_SHUFFLE(2, 2, 0, 0))};
+#endif
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 4)>
+HWY_API Vec128<T> DupEven(Vec128<T> v) {
+  return Vec128<T>{_mm_shuffle_epi32(v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+
+HWY_API Vec128<float> DupEven(Vec128<float> v) {
+  return Vec128<float>{_mm_shuffle_ps(v.raw, v.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+
 // ------------------------------ DupOdd (InterleaveUpper)
+
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, 1> DupOdd(Vec128<T, 1> v) {
+  return v;
+}
+
+template <typename V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_GT_V(V, 1)>
+HWY_API V DupOdd(V v) {
+  const DFromV<decltype(v)> d;
+
+#if HWY_TARGET <= HWY_SSSE3
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13, 15, 15};
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+#else
+  const Repartition<uint16_t, decltype(d)> du16;
+  return IfVecThenElse(BitCast(d, Set(du16, uint16_t{0x00FF})),
+                       BitCast(d, ShiftRight<8>(BitCast(du16, v))), v);
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2), HWY_IF_LANES_LE(N, 4)>
+HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {
+  return Vec128<T, N>{_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+}
+
+template <typename V, HWY_IF_T_SIZE_V(V, 2), HWY_IF_V_SIZE_GT_V(V, 8)>
+HWY_API V DupOdd(V v) {
+#if HWY_TARGET <= HWY_SSSE3
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  alignas(16) static constexpr uint16_t kShuffle[8] = {
+      0x0302, 0x0302, 0x0706, 0x0706, 0x0b0a, 0x0b0a, 0x0f0e, 0x0f0e};
+  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+#else
+  return V{
+      _mm_shufflehi_epi16(_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(3, 3, 1, 1)),
+                          _MM_SHUFFLE(3, 3, 1, 1))};
+#endif
+}
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {

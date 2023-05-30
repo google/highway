@@ -3117,6 +3117,321 @@ HWY_API V ReverseBits(V v) {
 }
 #endif  // HWY_NATIVE_REVERSE_BITS_UI16_32_64
 
+// ------------------------------ Per4LaneBlockShuffle
+
+#if HWY_TARGET != HWY_SCALAR
+namespace detail {
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 1)>
+HWY_INLINE V Per2LaneBlockShuffle(hwy::SizeTag<0> /*idx_0_tag*/,
+                                  hwy::SizeTag<0> /*idx_1_tag*/, V v) {
+  return DupEven(v);
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 1)>
+HWY_INLINE V Per2LaneBlockShuffle(hwy::SizeTag<1> /*idx_0_tag*/,
+                                  hwy::SizeTag<1> /*idx_1_tag*/, V v) {
+  return DupOdd(v);
+}
+
+template <size_t kIdx0, class V, HWY_IF_LANES_GT_D(DFromV<V>, 1)>
+HWY_INLINE V Per2LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<0> /*idx_1_tag*/, V v) {
+  static_assert(kIdx0 != 0, "kIdx0 != 0 should be true");
+  const DFromV<decltype(v)> d;
+  return Reverse2(d, v);
+}
+
+template <size_t kIdx0, size_t kIdx1, class V>
+HWY_INLINE V Per2LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/, V v) {
+  static_assert(
+      HWY_MAX_LANES_V(V) <= 1 || kIdx1 != 0,
+      "kIdx1 != 0 should be true if HWY_MAX_LANES_V(V) is greater than 1");
+  static_assert(HWY_MAX_LANES_V(V) <= 1 || kIdx0 != 1 || kIdx1 != 1,
+                "kIdx0 != 1 or kIdx1 != 1 should be true if HWY_MAX_LANES_V(V) "
+                "is greater than 1");
+  return v;
+}
+
+template <size_t kLaneSize, class VT, class VI>
+HWY_INLINE VT Per4LaneBlockShufTblLookup(
+    hwy::SizeTag<kLaneSize> /* lane_size_tag */, VT vt, VI vi) {
+  return TableLookupBytes(vt, vi);
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class D>
+HWY_INLINE VFromD<D> Per4LaneBlockShufIdx(hwy::SizeTag<1> /* lane_size_tag */,
+                                          D d,
+                                          hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                          hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                          hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                          hwy::SizeTag<kIdx3> /*idx_3_tag*/) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      static_cast<uint8_t>(kIdx0),      static_cast<uint8_t>(kIdx1),
+      static_cast<uint8_t>(kIdx2),      static_cast<uint8_t>(kIdx3),
+      static_cast<uint8_t>(kIdx0 + 4),  static_cast<uint8_t>(kIdx1 + 4),
+      static_cast<uint8_t>(kIdx2 + 4),  static_cast<uint8_t>(kIdx3 + 4),
+      static_cast<uint8_t>(kIdx0 + 8),  static_cast<uint8_t>(kIdx1 + 8),
+      static_cast<uint8_t>(kIdx2 + 8),  static_cast<uint8_t>(kIdx3 + 8),
+      static_cast<uint8_t>(kIdx0 + 12), static_cast<uint8_t>(kIdx1 + 12),
+      static_cast<uint8_t>(kIdx2 + 12), static_cast<uint8_t>(kIdx3 + 12)};
+  return BitCast(d, LoadDup128(du8, kShuffle));
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class D>
+HWY_INLINE VFromD<D> Per4LaneBlockShufIdx(hwy::SizeTag<2> /* lane_size_tag */,
+                                          D d,
+                                          hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                          hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                          hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                          hwy::SizeTag<kIdx3> /*idx_3_tag*/) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      static_cast<uint8_t>(kIdx0 * 2),     static_cast<uint8_t>(kIdx0 * 2 + 1),
+      static_cast<uint8_t>(kIdx1 * 2),     static_cast<uint8_t>(kIdx1 * 2 + 1),
+      static_cast<uint8_t>(kIdx2 * 2),     static_cast<uint8_t>(kIdx2 * 2 + 1),
+      static_cast<uint8_t>(kIdx3 * 2),     static_cast<uint8_t>(kIdx3 * 2 + 1),
+      static_cast<uint8_t>(kIdx0 * 2 + 8), static_cast<uint8_t>(kIdx0 * 2 + 9),
+      static_cast<uint8_t>(kIdx1 * 2 + 8), static_cast<uint8_t>(kIdx1 * 2 + 9),
+      static_cast<uint8_t>(kIdx2 * 2 + 8), static_cast<uint8_t>(kIdx2 * 2 + 9),
+      static_cast<uint8_t>(kIdx3 * 2 + 8), static_cast<uint8_t>(kIdx3 * 2 + 9)};
+  return BitCast(d, LoadDup128(du8, kShuffle));
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class D>
+HWY_INLINE VFromD<D> Per4LaneBlockShufIdx(hwy::SizeTag<4> /* lane_size_tag */,
+                                          D d,
+                                          hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+                                          hwy::SizeTag<kIdx1> /*idx_1_tag*/,
+                                          hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                          hwy::SizeTag<kIdx3> /*idx_3_tag*/) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  alignas(16) static constexpr uint8_t kShuffle[16] = {
+      static_cast<uint8_t>(kIdx0 * 4),     static_cast<uint8_t>(kIdx0 * 4 + 1),
+      static_cast<uint8_t>(kIdx0 * 4 + 2), static_cast<uint8_t>(kIdx0 * 4 + 3),
+      static_cast<uint8_t>(kIdx1 * 4),     static_cast<uint8_t>(kIdx1 * 4 + 1),
+      static_cast<uint8_t>(kIdx1 * 4 + 2), static_cast<uint8_t>(kIdx1 * 4 + 3),
+      static_cast<uint8_t>(kIdx2 * 4),     static_cast<uint8_t>(kIdx2 * 4 + 1),
+      static_cast<uint8_t>(kIdx2 * 4 + 2), static_cast<uint8_t>(kIdx2 * 4 + 3),
+      static_cast<uint8_t>(kIdx3 * 4),     static_cast<uint8_t>(kIdx3 * 4 + 1),
+      static_cast<uint8_t>(kIdx3 * 4 + 2), static_cast<uint8_t>(kIdx3 * 4 + 3)};
+  return BitCast(d, LoadDup128(du8, kShuffle));
+}
+
+#if HWY_HAVE_INTEGER64 && HWY_MAX_BYTES >= 32
+template <class VT, class VI>
+HWY_INLINE VT Per4LaneBlockShufTblLookup(hwy::SizeTag<8> /* lane_size_tag */,
+                                         VT vt, VI vi) {
+  return TableLookupLanes(vt, vi);
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class D>
+HWY_INLINE IndicesFromD<D> Per4LaneBlockShufIdx(
+    hwy::SizeTag<8> /* lane_size_tag */, D d, hwy::SizeTag<kIdx0> /*idx_0_tag*/,
+    hwy::SizeTag<kIdx1> /*idx_1_tag*/, hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+    hwy::SizeTag<kIdx3> /*idx_3_tag*/) {
+  const RebindToUnsigned<decltype(d)> du;
+
+  alignas(32) static constexpr uint64_t kShuffle[4] = {
+      static_cast<uint64_t>(kIdx0), static_cast<uint64_t>(kIdx1),
+      static_cast<uint64_t>(kIdx2), static_cast<uint64_t>(kIdx3)};
+
+  constexpr int kLoadPow2 = d.Pow2();
+  constexpr size_t kMaxLanesToLoad = HWY_MIN(HWY_MAX_LANES_D(D), 4);
+  constexpr size_t kLoadN = D::template NewN<kLoadPow2, kMaxLanesToLoad>();
+  const Simd<uint64_t, kLoadN, kLoadPow2> d_load;
+  static_assert(d_load.MaxLanes() <= 4, "MaxLanes(d_load) <= 4 must be true");
+
+  const auto loaded_idx_vect = ResizeBitCast(du, Load(d_load, kShuffle));
+#if HWY_MAX_BYTES == 32
+  return IndicesFromVec(d, loaded_idx_vect);
+#else
+  const auto iota0 = Iota(du, uint64_t{0});
+  const auto block_offset =
+      And(iota0, Set(du, static_cast<uint64_t>(~uint64_t{3})));
+  const auto broadcast_idx =
+      IndicesFromVec(du, And(iota0, Set(du, uint64_t{3})));
+  return IndicesFromVec(
+      d, Add(TableLookupLanes(loaded_idx_vect, broadcast_idx), block_offset));
+#endif
+}
+#endif  // HWY_HAVE_INTEGER64 && HWY_MAX_BYTES >= 32
+
+// The detail::Per4LaneBlockShuffle overloads that have the extra lane_size_tag
+// and vect_size_tag parameters are only called for vectors that have at
+// least 4 lanes (or scalable vectors that might possibly have 4 or more lanes)
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3,
+          size_t kLaneSize, size_t kVectSize, class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag,
+                                  hwy::SizeTag<kLaneSize> lane_size_tag,
+                                  hwy::SizeTag<kVectSize> /*vect_size_tag*/,
+                                  V v) {
+  const DFromV<decltype(v)> d;
+  const auto idx = Per4LaneBlockShufIdx(lane_size_tag, d, idx_0_tag, idx_1_tag,
+                                        idx_2_tag, idx_3_tag);
+  return Per4LaneBlockShufTblLookup(lane_size_tag, v, idx);
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V,
+          HWY_IF_LANES_LE_D(DFromV<V>, 2)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/, V v) {
+  return Per2LaneBlockShuffle(idx_0_tag, idx_1_tag, v);
+}
+
+template <size_t kIdx0, size_t kIdx1, class V, HWY_IF_LANES_GT_D(DFromV<V>, 2)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx0 + 2> /*idx_2_tag*/,
+                                  hwy::SizeTag<kIdx1 + 2> /*idx_3_tag*/, V v) {
+  return Per2LaneBlockShuffle(idx_0_tag, idx_1_tag, v);
+}
+
+#if HWY_HAVE_FLOAT64
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> Per4LaneBlockShufCastToWide(
+    hwy::FloatTag /* type_tag */, hwy::SizeTag<4> /* lane_size_tag */, V v) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return BitCast(dw, v);
+}
+#endif
+
+template <size_t kLaneSize, class V>
+HWY_INLINE VFromD<RepartitionToWide<RebindToUnsigned<DFromV<V>>>>
+Per4LaneBlockShufCastToWide(hwy::FloatTag /* type_tag */,
+                            hwy::SizeTag<kLaneSize> /* lane_size_tag */, V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+  return BitCast(dw, v);
+}
+
+template <size_t kLaneSize, class V>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> Per4LaneBlockShufCastToWide(
+    hwy::NonFloatTag /* type_tag */,
+    hwy::SizeTag<kLaneSize> /* lane_size_tag */, V v) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return BitCast(dw, v);
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 2),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) |
+                                        (HWY_HAVE_INTEGER64 ? (1 << 4) : 0))>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0> /*idx_0_tag*/,
+                                  hwy::SizeTag<1> /*idx_1_tag*/,
+                                  hwy::SizeTag<0> /*idx_2_tag*/,
+                                  hwy::SizeTag<1> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const auto vw = Per4LaneBlockShufCastToWide(
+      hwy::IsFloatTag<TFromV<V>>(), hwy::SizeTag<sizeof(TFromV<V>)>(), v);
+  return BitCast(d, DupEven(vw));
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 2),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) |
+                                        (HWY_HAVE_INTEGER64 ? (1 << 4) : 0))>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<2> /*idx_0_tag*/,
+                                  hwy::SizeTag<3> /*idx_1_tag*/,
+                                  hwy::SizeTag<0> /*idx_2_tag*/,
+                                  hwy::SizeTag<1> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const auto vw = Per4LaneBlockShufCastToWide(
+      hwy::IsFloatTag<TFromV<V>>(), hwy::SizeTag<sizeof(TFromV<V>)>(), v);
+  const DFromV<decltype(vw)> dw;
+  return BitCast(d, Reverse2(dw, vw));
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 2),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) |
+                                        (HWY_HAVE_INTEGER64 ? (1 << 4) : 0))>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<2> /*idx_0_tag*/,
+                                  hwy::SizeTag<3> /*idx_1_tag*/,
+                                  hwy::SizeTag<2> /*idx_2_tag*/,
+                                  hwy::SizeTag<3> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const auto vw = Per4LaneBlockShufCastToWide(
+      hwy::IsFloatTag<TFromV<V>>(), hwy::SizeTag<sizeof(TFromV<V>)>(), v);
+  return BitCast(d, DupOdd(vw));
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 2)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<3> /*idx_0_tag*/,
+                                  hwy::SizeTag<2> /*idx_1_tag*/,
+                                  hwy::SizeTag<1> /*idx_2_tag*/,
+                                  hwy::SizeTag<0> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return Reverse4(d, v);
+}
+
+template <class V, HWY_IF_LANES_D(DFromV<V>, 4),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0> /*idx_0_tag*/,
+                                  hwy::SizeTag<0> /*idx_1_tag*/,
+                                  hwy::SizeTag<1> /*idx_2_tag*/,
+                                  hwy::SizeTag<1> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return InterleaveLower(d, v, v);
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 2), HWY_IF_T_SIZE_V(V, 4)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0> /*idx_0_tag*/,
+                                  hwy::SizeTag<0> /*idx_1_tag*/,
+                                  hwy::SizeTag<1> /*idx_2_tag*/,
+                                  hwy::SizeTag<1> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return InterleaveLower(d, v, v);
+}
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 2), HWY_IF_T_SIZE_V(V, 4)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<2> /*idx_0_tag*/,
+                                  hwy::SizeTag<2> /*idx_1_tag*/,
+                                  hwy::SizeTag<3> /*idx_2_tag*/,
+                                  hwy::SizeTag<3> /*idx_3_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return InterleaveUpper(d, v, v);
+}
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V,
+          HWY_IF_LANES_GT_D(DFromV<V>, 2),
+          hwy::EnableIf<(kIdx2 != kIdx0 + 2 || kIdx3 != kIdx1 + 2)>* = nullptr>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
+                                  hwy::SizeTag<kIdx1> idx_1_tag,
+                                  hwy::SizeTag<kIdx2> idx_2_tag,
+                                  hwy::SizeTag<kIdx3> idx_3_tag, V v) {
+  const DFromV<decltype(v)> d;
+  return Per4LaneBlockShuffle(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag,
+                              hwy::SizeTag<sizeof(TFromV<V>)>(),
+                              hwy::SizeTag<d.MaxBytes()>(), v);
+}
+
+}  // namespace detail
+#endif  // HWY_TARGET != HWY_SCALAR
+
+template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
+HWY_API V Per4LaneBlockShuffle(V v) {
+  static_assert(kIdx0 <= 3, "kIdx0 <= 3 must be true");
+  static_assert(kIdx1 <= 3, "kIdx1 <= 3 must be true");
+  static_assert(kIdx2 <= 3, "kIdx2 <= 3 must be true");
+  static_assert(kIdx3 <= 3, "kIdx3 <= 3 must be true");
+
+#if HWY_TARGET == HWY_SCALAR
+  return v;
+#else
+  return detail::Per4LaneBlockShuffle(
+      hwy::SizeTag<kIdx0>(), hwy::SizeTag<kIdx1>(), hwy::SizeTag<kIdx2>(),
+      hwy::SizeTag<kIdx3>(), v);
+#endif
+}
+
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined

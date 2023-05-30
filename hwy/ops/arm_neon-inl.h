@@ -5047,6 +5047,22 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
+// ------------------------------ Per4LaneBlockShuffle
+namespace detail {
+
+template <class V>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<2> /*idx_0_tag*/,
+                                  hwy::SizeTag<2> /*idx_1_tag*/,
+                                  hwy::SizeTag<3> /*idx_2_tag*/,
+                                  hwy::SizeTag<3> /*idx_3_tag*/,
+                                  hwy::SizeTag<2> /*lane_size_tag*/,
+                                  hwy::SizeTag<8> /*vect_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return InterleaveUpper(d, v, v);
+}
+
+}  // namespace detail
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <class D32, HWY_IF_F32_D(D32),
@@ -5392,7 +5408,8 @@ HWY_API Vec128<T, 2> ConcatEven(D d, Vec128<T, 2> hi, Vec128<T, 2> lo) {
 
 // ------------------------------ DupEven (InterleaveLower)
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+template <typename T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
 #if HWY_ARCH_ARM_A64
   return detail::InterleaveEven(v, v);
@@ -5408,7 +5425,8 @@ HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
 
 // ------------------------------ DupOdd (InterleaveUpper)
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+template <typename T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {
 #if HWY_ARCH_ARM_A64
   return detail::InterleaveOdd(v, v);
