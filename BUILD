@@ -287,8 +287,15 @@ cc_library(
 
 cc_library(
     name = "nanobenchmark",
-    srcs = ["hwy/nanobenchmark.cc"],
-    hdrs = ["hwy/nanobenchmark.h"],
+    srcs = [
+        "hwy/nanobenchmark.cc",
+        "hwy/timer.cc",
+    ],
+    hdrs = [
+        "hwy/nanobenchmark.h",
+        "hwy/robust_statistics.h",
+        "hwy/timer.h",
+    ],
     compatible_with = [],
     copts = COPTS,
     local_defines = ["hwy_EXPORTS"],

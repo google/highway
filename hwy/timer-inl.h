@@ -24,6 +24,7 @@
 #endif
 
 #include "hwy/highway.h"
+#include "hwy/timer.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #ifndef NOMINMAX

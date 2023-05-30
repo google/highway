@@ -49,6 +49,7 @@
 #include <stdint.h>
 
 #include "hwy/highway_export.h"
+#include "hwy/timer.h"
 
 // Enables sanity checks that verify correct operation at the cost of
 // longer benchmark runs.
@@ -70,25 +71,6 @@
 
 namespace hwy {
 
-namespace platform {
-
-// Returns tick rate, useful for converting measurements to seconds. Invariant
-// means the tick counter frequency is independent of CPU throttling or sleep.
-// This call may be expensive, callers should cache the result.
-HWY_DLLEXPORT double InvariantTicksPerSecond();
-
-// Returns current timestamp [in seconds] relative to an unspecified origin.
-// Features: monotonic (no negative elapsed time), steady (unaffected by system
-// time changes), high-resolution (on the order of microseconds).
-HWY_DLLEXPORT double Now();
-
-// Returns ticks elapsed in back to back timer calls, i.e. a function of the
-// timer resolution (minimum measurable difference) and overhead.
-// This call is expensive, callers should cache the result.
-HWY_DLLEXPORT uint64_t TimerResolution();
-
-}  // namespace platform
-
 // Returns 1, but without the compiler knowing what the value is. This prevents
 // optimizing out code.
 HWY_DLLEXPORT int Unpredictable1();
@@ -106,11 +88,6 @@ using Func = FuncOutput (*)(const void*, FuncInput);
 
 // Internal parameters that determine precision/resolution/measuring time.
 struct Params {
-  // For measuring timer overhead/resolution. Used in a nested loop =>
-  // quadratic time, acceptable because we know timer overhead is "low".
-  // constexpr because this is used to define array bounds.
-  static constexpr size_t kTimerSamples = 256;
-
   // Best-case precision, expressed as a divisor of the timer resolution.
   // Larger => more calls to Func and higher precision.
   size_t precision_divisor = 1024;

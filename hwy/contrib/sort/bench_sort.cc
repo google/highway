@@ -31,6 +31,8 @@
 #include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/tests/test_util-inl.h"
+#include "hwy/timer-inl.h"
+#include "hwy/timer.h"
 // clang-format on
 
 // Mode for larger sorts because M1 is able to access more than the per-core
@@ -43,6 +45,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 // Defined within HWY_ONCE, used by BenchAllSort.
 extern int64_t first_sort_target;
+extern int64_t first_cold_target;  // for BenchAllColdSort
 
 namespace HWY_NAMESPACE {
 namespace {
@@ -55,7 +58,42 @@ using detail::SharedTraits;
 using detail::OrderAscending128;
 using detail::OrderAscendingKV128;
 using detail::Traits128;
-#endif
+
+HWY_NOINLINE void BenchAllColdSort() {
+  // Only run the best(first) enabled target
+  if (first_cold_target == 0) first_cold_target = HWY_TARGET;
+  if (HWY_TARGET != first_cold_target) {
+    return;
+  }
+
+  char cpu100[100];
+  if (!platform::HaveTimerStop(cpu100)) {
+    fprintf(stderr, "CPU '%s' does not support RDTSCP, skipping benchmark.\n",
+            cpu100);
+    return;
+  }
+
+  // Initialize random seeds
+  HWY_ASSERT(GetGeneratorState() != nullptr);  // vqsort
+  RandomState rng;                             // this test
+
+  using T = uint64_t;
+  constexpr size_t kSize = 10 * 1000;
+  std::vector<T> items(kSize);
+  items[Random32(&rng) % kSize] = static_cast<T>(Unpredictable1());
+
+  const timer::Ticks t0 = timer::Start();
+  VQSort(items.data(), kSize, SortAscending());
+  const timer::Ticks t1 = timer::Stop();
+
+  const double ticks = static_cast<double>(t1 - t0);
+  const double elapsed = ticks / platform::InvariantTicksPerSecond();
+  const double GBps = kSize * sizeof(T) * 1E-9 / elapsed;
+
+  fprintf(stderr, "N=%zu GB/s=%.2f ticks=%g random output: %g\n", kSize, GBps,
+          ticks, static_cast<double>(items[Random32(&rng) % kSize]));
+}
+#endif  // VQSORT_ENABLED
 
 #if (VQSORT_ENABLED && SORT_BENCH_BASE_AND_PARTITION) || HWY_IDE
 
@@ -354,8 +392,10 @@ HWY_AFTER_NAMESPACE();
 
 namespace hwy {
 int64_t first_sort_target = 0;  // none run yet
+int64_t first_cold_target = 0;  // none run yet
 namespace {
 HWY_BEFORE_TEST(BenchSort);
+HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllColdSort);
 #if SORT_BENCH_BASE_AND_PARTITION
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllPartition);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllBase);
