@@ -5256,6 +5256,29 @@ HWY_API void StoreTransposedBlocks4(const Vec512<T> i, const Vec512<T> j,
 
 }  // namespace detail
 
+// ------------------------------ Additional mask logical operations
+
+template <class T>
+HWY_API Mask512<T> SetAtOrAfterFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(0u - detail::AVX3Blsi(mask.raw))};
+}
+template <class T>
+HWY_API Mask512<T> SetBeforeFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(detail::AVX3Blsi(mask.raw) - 1u)};
+}
+template <class T>
+HWY_API Mask512<T> SetAtOrBeforeFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(detail::AVX3Blsmsk(mask.raw))};
+}
+template <class T>
+HWY_API Mask512<T> SetOnlyFirst(Mask512<T> mask) {
+  return Mask512<T>{
+      static_cast<typename Mask512<T>::Raw>(detail::AVX3Blsi(mask.raw))};
+}
+
 // ------------------------------ Shl (LoadDup128)
 
 HWY_API Vec512<uint16_t> operator<<(Vec512<uint16_t> v, Vec512<uint16_t> bits) {

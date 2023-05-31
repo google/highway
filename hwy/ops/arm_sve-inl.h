@@ -920,6 +920,27 @@ HWY_API V IfThenZeroElse(const svbool_t mask, const V no) {
   return IfThenElse(mask, Zero(DFromV<V>()), no);
 }
 
+// ------------------------------ Additional mask logical operations
+HWY_API svbool_t SetBeforeFirst(svbool_t m) {
+  // We don't know the lane type, so assume 8-bit. For larger types, this will
+  // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
+  // correspond to the lowest byte in the lane. Arm says such bits are ignored.
+  return svbrkb_b_z(HWY_SVE_PTRUE(8), m);
+}
+
+HWY_API svbool_t SetAtOrBeforeFirst(svbool_t m) {
+  // We don't know the lane type, so assume 8-bit. For larger types, this will
+  // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
+  // correspond to the lowest byte in the lane. Arm says such bits are ignored.
+  return svbrka_b_z(HWY_SVE_PTRUE(8), m);
+}
+
+HWY_API svbool_t SetOnlyFirst(svbool_t m) { return svbrka_b_z(m, m); }
+
+HWY_API svbool_t SetAtOrAfterFirst(svbool_t m) {
+  return Not(SetBeforeFirst(m));
+}
+
 // ================================================== COMPARE
 
 // mask = f(vector, vector)

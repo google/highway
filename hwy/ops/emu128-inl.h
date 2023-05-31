@@ -2581,6 +2581,61 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
   return CountTrue(d, mask);
 }
 
+// ------------------------------ Additional mask logical operations
+template <class T>
+HWY_API Mask128<T, 1> SetAtOrAfterFirst(Mask128<T, 1> mask) { return mask; }
+
+template <class T, size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Mask128<T, N> SetAtOrAfterFirst(Mask128<T, N> mask) {
+  using TU = hwy::MakeUnsigned<T>;
+
+  Mask128<T, N> result;
+  TU result_lane_mask{0};
+  for (size_t i = 0; i < N; i++) {
+    result_lane_mask = static_cast<TU>(result_lane_mask | mask.bits[i]);
+    result.bits[i] = result_lane_mask;
+  }
+  return result;
+}
+
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetBeforeFirst(Mask128<T, N> mask) {
+  return Not(SetAtOrAfterFirst(mask));
+}
+
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetOnlyFirst(Mask128<T, N> mask) {
+  using TU = hwy::MakeUnsigned<T>;
+  using TI = hwy::MakeSigned<T>;
+
+  Mask128<T, N> result;
+  TU result_lane_mask = static_cast<TU>(~TU{0});
+  for (size_t i = 0; i < N; i++) {
+    const auto curr_lane_mask_bits = mask.bits[i];
+    result.bits[i] = static_cast<TU>(curr_lane_mask_bits & result_lane_mask);
+    result_lane_mask =
+        static_cast<TU>(result_lane_mask &
+                        static_cast<TU>(-static_cast<TI>(mask.bits[i] == 0)));
+  }
+  return result;
+}
+
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
+  using TU = hwy::MakeUnsigned<T>;
+  using TI = hwy::MakeSigned<T>;
+
+  Mask128<T, N> result;
+  TU result_lane_mask = static_cast<TU>(~TU{0});
+  for (size_t i = 0; i < N; i++) {
+    result.bits[i] = result_lane_mask;
+    result_lane_mask =
+        static_cast<TU>(result_lane_mask &
+                        static_cast<TU>(-static_cast<TI>(mask.bits[i] == 0)));
+  }
+  return result;
+}
+
 // ------------------------------ WidenMulPairwiseAdd
 
 template <class D, HWY_IF_F32_D(D), class VBF16>

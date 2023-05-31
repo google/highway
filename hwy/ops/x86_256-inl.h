@@ -4455,7 +4455,6 @@ HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec32<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_cvtepu8_epi64(v.raw)};
 }
 
-
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then ZipUpper/lo followed by
@@ -6249,6 +6248,107 @@ HWY_API void StoreTransposedBlocks4(Vec256<T> i, Vec256<T> j, Vec256<T> k,
   StoreU(out3, d, unaligned + 3 * N);
 }
 }  // namespace detail
+
+// ------------------------------ Additional mask logical operations
+
+#if HWY_TARGET <= HWY_AVX3
+template <class T>
+HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
+  constexpr size_t N = 32 / sizeof(T);
+  constexpr uint32_t kActiveElemMask =
+      static_cast<uint32_t>((uint64_t{1} << N) - 1);
+  return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
+      (0u - detail::AVX3Blsi(mask.raw)) & kActiveElemMask)};
+}
+template <class T>
+HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
+  constexpr size_t N = 32 / sizeof(T);
+  constexpr uint32_t kActiveElemMask =
+      static_cast<uint32_t>((uint64_t{1} << N) - 1);
+  return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
+      (detail::AVX3Blsi(mask.raw) - 1u) & kActiveElemMask)};
+}
+template <class T>
+HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
+  constexpr size_t N = 32 / sizeof(T);
+  constexpr uint32_t kActiveElemMask =
+      static_cast<uint32_t>((uint64_t{1} << N) - 1);
+  return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
+      detail::AVX3Blsmsk(mask.raw) & kActiveElemMask)};
+}
+template <class T>
+HWY_API Mask256<T> SetOnlyFirst(Mask256<T> mask) {
+  return Mask256<T>{
+      static_cast<typename Mask256<T>::Raw>(detail::AVX3Blsi(mask.raw))};
+}
+#else   // AVX2
+template <class T>
+HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
+  const Full256<T> d;
+  const Repartition<int64_t, decltype(d)> di64;
+  const Repartition<float, decltype(d)> df32;
+  const Repartition<int32_t, decltype(d)> di32;
+  const Half<decltype(di64)> dh_i64;
+  const Half<decltype(di32)> dh_i32;
+  using VF32 = VFromD<decltype(df32)>;
+
+  auto vmask = BitCast(di64, VecFromMask(d, mask));
+  vmask = Or(vmask, Neg(vmask));
+
+  // Copy the sign bit of the even int64_t lanes to the odd int64_t lanes
+  const auto vmask2 = BitCast(
+      di32, VF32{_mm256_shuffle_ps(Zero(df32).raw, BitCast(df32, vmask).raw,
+                                   _MM_SHUFFLE(1, 1, 0, 0))});
+  vmask = Or(vmask, BitCast(di64, BroadcastSignBit(vmask2)));
+
+  // Copy the sign bit of the lower 128-bit half to the upper 128-bit half
+  const auto vmask3 =
+      BroadcastSignBit(Broadcast<3>(BitCast(dh_i32, LowerHalf(dh_i64, vmask))));
+  vmask = Or(vmask, BitCast(di64, Combine(di32, vmask3, Zero(dh_i32))));
+  return MaskFromVec(BitCast(d, vmask));
+}
+
+template <class T>
+HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
+  return Not(SetAtOrAfterFirst(mask));
+}
+
+template <class T>
+HWY_API Mask256<T> SetOnlyFirst(Mask256<T> mask) {
+  const Full256<T> d;
+  const RebindToSigned<decltype(d)> di;
+  const Repartition<int64_t, decltype(d)> di64;
+  const Half<decltype(di64)> dh_i64;
+
+  const auto zero = Zero(di64);
+  const auto vmask = BitCast(di64, VecFromMask(d, mask));
+
+  const auto vmask_eq_0 = VecFromMask(di64, vmask == zero);
+  auto vmask2_lo = LowerHalf(dh_i64, vmask_eq_0);
+  auto vmask2_hi = UpperHalf(dh_i64, vmask_eq_0);
+
+  vmask2_lo = And(vmask2_lo, InterleaveLower(vmask2_lo, vmask2_lo));
+  vmask2_hi = And(ConcatLowerUpper(dh_i64, vmask2_hi, vmask2_lo),
+                  InterleaveUpper(dh_i64, vmask2_lo, vmask2_lo));
+  vmask2_lo = InterleaveLower(Set(dh_i64, int64_t{-1}), vmask2_lo);
+
+  const auto vmask2 = Combine(di64, vmask2_hi, vmask2_lo);
+  const auto only_first_vmask = Neg(BitCast(di, And(vmask, Neg(vmask))));
+  return MaskFromVec(BitCast(d, And(only_first_vmask, BitCast(di, vmask2))));
+}
+
+template <class T>
+HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
+  const Full256<T> d;
+  constexpr size_t kLanesPerBlock = MaxLanes(d) / 2;
+
+  const auto vmask = VecFromMask(d, mask);
+  const auto vmask_lo = ConcatLowerLower(d, vmask, Zero(d));
+  return SetBeforeFirst(
+      MaskFromVec(CombineShiftRightBytes<(kLanesPerBlock - 1) * sizeof(T)>(
+          d, vmask, vmask_lo)));
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Reductions
 

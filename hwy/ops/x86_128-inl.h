@@ -8572,6 +8572,170 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 // HWY_NATIVE_LOAD_STORE_INTERLEAVED not set, hence defined in
 // generic_ops-inl.h.
 
+// ------------------------------ Additional mask logical operations
+
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+template <class T, HWY_IF_LANES_LE(sizeof(T), 4)>
+static HWY_INLINE uint32_t AVX3Blsi(T x) {
+  using TU = MakeUnsigned<T>;
+  const auto u32_val = static_cast<uint32_t>(static_cast<TU>(x));
+#if HWY_COMPILER_CLANGCL
+  return static_cast<uint32_t>(u32_val & (0u - u32_val));
+#else
+  return static_cast<uint32_t>(_blsi_u32(u32_val));
+#endif
+}
+template <class T, HWY_IF_T_SIZE(T, 8)>
+static HWY_INLINE uint64_t AVX3Blsi(T x) {
+  const auto u64_val = static_cast<uint64_t>(x);
+#if HWY_COMPILER_CLANGCL || HWY_ARCH_X86_32
+  return static_cast<uint64_t>(u64_val & (0ULL - u64_val));
+#else
+  return static_cast<uint64_t>(_blsi_u64(u64_val));
+#endif
+}
+
+template <class T, HWY_IF_LANES_LE(sizeof(T), 4)>
+static HWY_INLINE uint32_t AVX3Blsmsk(T x) {
+  using TU = MakeUnsigned<T>;
+  const auto u32_val = static_cast<uint32_t>(static_cast<TU>(x));
+#if HWY_COMPILER_CLANGCL
+  return static_cast<uint32_t>(u32_val ^ (u32_val - 1u));
+#else
+  return static_cast<uint32_t>(_blsmsk_u32(u32_val));
+#endif
+}
+template <class T, HWY_IF_T_SIZE(T, 8)>
+static HWY_INLINE uint64_t AVX3Blsmsk(T x) {
+  const auto u64_val = static_cast<uint64_t>(x);
+#if HWY_COMPILER_CLANGCL || HWY_ARCH_X86_32
+  return static_cast<uint64_t>(u64_val ^ (u64_val - 1ULL));
+#else
+  return static_cast<uint64_t>(_blsmsk_u64(u64_val));
+#endif
+}
+
+}  // namespace detail
+
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetAtOrAfterFirst(Mask128<T, N> mask) {
+  constexpr uint32_t kActiveElemMask = (uint32_t{1} << N) - 1;
+  return Mask128<T, N>{static_cast<typename Mask128<T, N>::Raw>(
+      (0u - detail::AVX3Blsi(mask.raw)) & kActiveElemMask)};
+}
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetBeforeFirst(Mask128<T, N> mask) {
+  constexpr uint32_t kActiveElemMask = (uint32_t{1} << N) - 1;
+  return Mask128<T, N>{static_cast<typename Mask128<T, N>::Raw>(
+      (detail::AVX3Blsi(mask.raw) - 1u) & kActiveElemMask)};
+}
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
+  constexpr uint32_t kActiveElemMask = (uint32_t{1} << N) - 1;
+  return Mask128<T, N>{static_cast<typename Mask128<T, N>::Raw>(
+      detail::AVX3Blsmsk(mask.raw) & kActiveElemMask)};
+}
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetOnlyFirst(Mask128<T, N> mask) {
+  return Mask128<T, N>{
+      static_cast<typename Mask128<T, N>::Raw>(detail::AVX3Blsi(mask.raw))};
+}
+#else   // AVX2 or below
+template <class T>
+HWY_API Mask128<T, 1> SetAtOrAfterFirst(Mask128<T, 1> mask) {
+  return mask;
+}
+template <class T>
+HWY_API Mask128<T, 2> SetAtOrAfterFirst(Mask128<T, 2> mask) {
+  const FixedTag<T, 2> d;
+  const auto vmask = VecFromMask(d, mask);
+  return MaskFromVec(Or(vmask, InterleaveLower(vmask, vmask)));
+}
+template <class T, size_t N, HWY_IF_LANES_GT(N, 2), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> SetAtOrAfterFirst(Mask128<T, N> mask) {
+  const Simd<T, N, 0> d;
+  const auto vmask = VecFromMask(d, mask);
+  const auto neg_vmask =
+      ResizeBitCast(d, Neg(ResizeBitCast(Full64<int64_t>(), vmask)));
+  return MaskFromVec(Or(vmask, neg_vmask));
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 8)>
+HWY_API Mask128<T> SetAtOrAfterFirst(Mask128<T> mask) {
+  const Full128<T> d;
+  const Repartition<int64_t, decltype(d)> di64;
+  const Repartition<float, decltype(d)> df32;
+  const Repartition<int32_t, decltype(d)> di32;
+  using VF = VFromD<decltype(df32)>;
+
+  auto vmask = BitCast(di64, VecFromMask(d, mask));
+  vmask = Or(vmask, Neg(vmask));
+
+  // Copy the sign bit of the first int64_t lane to the second int64_t lane
+  const auto vmask2 = BroadcastSignBit(
+      BitCast(di32, VF{_mm_shuffle_ps(Zero(df32).raw, BitCast(df32, vmask).raw,
+                                      _MM_SHUFFLE(1, 1, 0, 0))}));
+  return MaskFromVec(BitCast(d, Or(vmask, BitCast(di64, vmask2))));
+}
+
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetBeforeFirst(Mask128<T, N> mask) {
+  return Not(SetAtOrAfterFirst(mask));
+}
+
+template <class T>
+HWY_API Mask128<T, 1> SetOnlyFirst(Mask128<T, 1> mask) {
+  return mask;
+}
+template <class T>
+HWY_API Mask128<T, 2> SetOnlyFirst(Mask128<T, 2> mask) {
+  const FixedTag<T, 2> d;
+  const RebindToSigned<decltype(d)> di;
+
+  const auto vmask = BitCast(di, VecFromMask(d, mask));
+  const auto zero = Zero(di);
+  const auto vmask2 = VecFromMask(di, InterleaveLower(zero, vmask) == zero);
+  return MaskFromVec(BitCast(d, And(vmask, vmask2)));
+}
+template <class T, size_t N, HWY_IF_LANES_GT(N, 2), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> SetOnlyFirst(Mask128<T, N> mask) {
+  const Simd<T, N, 0> d;
+  const RebindToSigned<decltype(d)> di;
+
+  const auto vmask = ResizeBitCast(Full64<int64_t>(), VecFromMask(d, mask));
+  const auto only_first_vmask =
+      BitCast(d, Neg(ResizeBitCast(di, And(vmask, Neg(vmask)))));
+  return MaskFromVec(only_first_vmask);
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 8)>
+HWY_API Mask128<T> SetOnlyFirst(Mask128<T> mask) {
+  const Full128<T> d;
+  const RebindToSigned<decltype(d)> di;
+  const Repartition<int64_t, decltype(d)> di64;
+
+  const auto zero = Zero(di64);
+  const auto vmask = BitCast(di64, VecFromMask(d, mask));
+  const auto vmask2 = VecFromMask(di64, InterleaveLower(zero, vmask) == zero);
+  const auto only_first_vmask = Neg(BitCast(di, And(vmask, Neg(vmask))));
+  return MaskFromVec(BitCast(d, And(only_first_vmask, BitCast(di, vmask2))));
+}
+
+template <class T>
+HWY_API Mask128<T, 1> SetAtOrBeforeFirst(Mask128<T, 1> /*mask*/) {
+  const FixedTag<T, 1> d;
+  const RebindToSigned<decltype(d)> di;
+  using TI = MakeSigned<T>;
+
+  return RebindMask(d, MaskFromVec(Set(di, TI(-1))));
+}
+template <class T, size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
+  const Simd<T, N, 0> d;
+  return SetBeforeFirst(MaskFromVec(ShiftLeftLanes<1>(VecFromMask(d, mask))));
+}
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ------------------------------ Reductions
 
 namespace detail {
