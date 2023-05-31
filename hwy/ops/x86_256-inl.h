@@ -2207,6 +2207,12 @@ HWY_API Vec256<float> ApproximateReciprocal(Vec256<float> v) {
   return Vec256<float>{_mm256_rcp_ps(v.raw)};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<double> ApproximateReciprocal(Vec256<double> v) {
+  return Vec256<double>{_mm256_rcp14_pd(v.raw)};
+}
+#endif
+
 // Absolute value of difference.
 HWY_API Vec256<float> AbsDiff(Vec256<float> a, Vec256<float> b) {
   return Abs(a - b);
@@ -2300,6 +2306,18 @@ HWY_API Vec256<double> Sqrt(Vec256<double> v) {
 HWY_API Vec256<float> ApproximateReciprocalSqrt(Vec256<float> v) {
   return Vec256<float>{_mm256_rsqrt_ps(v.raw)};
 }
+
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<double> ApproximateReciprocalSqrt(Vec256<double> v) {
+#if HWY_COMPILER_MSVC
+  const DFromV<decltype(v)> d;
+  return Vec256<double>{_mm256_mask_rsqrt14_pd(
+      Undefined(d).raw, static_cast<__mmask8>(0xFF), v.raw)};
+#else
+  return Vec256<double>{_mm256_rsqrt14_pd(v.raw)};
+#endif
+}
+#endif
 
 // ------------------------------ Floating-point rounding
 

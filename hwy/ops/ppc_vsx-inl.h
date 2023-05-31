@@ -1429,9 +1429,16 @@ HWY_API Vec128<T, N> NegMulSub(Vec128<T, N> mul, Vec128<T, N> x,
 
 // ------------------------------ Floating-point div
 // Approximate reciprocal
-template <size_t N>
-HWY_API Vec128<float, N> ApproximateReciprocal(Vec128<float, N> v) {
-  return Vec128<float, N>{vec_re(v.raw)};
+
+#ifdef HWY_NATIVE_F64_APPROX_RECIP
+#undef HWY_NATIVE_F64_APPROX_RECIP
+#else
+#define HWY_NATIVE_F64_APPROX_RECIP
+#endif
+
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> ApproximateReciprocal(Vec128<T, N> v) {
+  return Vec128<T, N>{vec_re(v.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
@@ -1441,10 +1448,16 @@ HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Floating-point square root
 
+#ifdef HWY_NATIVE_F64_APPROX_RSQRT
+#undef HWY_NATIVE_F64_APPROX_RSQRT
+#else
+#define HWY_NATIVE_F64_APPROX_RSQRT
+#endif
+
 // Approximate reciprocal square root
-template <size_t N>
-HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
-  return Vec128<float, N>{vec_rsqrte(v.raw)};
+template <class T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> ApproximateReciprocalSqrt(Vec128<T, N> v) {
+  return Vec128<T, N>{vec_rsqrte(v.raw)};
 }
 
 // Full precision square root

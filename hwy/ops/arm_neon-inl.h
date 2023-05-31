@@ -2010,6 +2010,29 @@ HWY_API Vec128<float, N> ApproximateReciprocal(const Vec128<float, N> v) {
 }
 
 #if HWY_ARCH_ARM_A64
+#ifdef HWY_NATIVE_F64_APPROX_RECIP
+#undef HWY_NATIVE_F64_APPROX_RECIP
+#else
+#define HWY_NATIVE_F64_APPROX_RECIP
+#endif
+
+HWY_API Vec128<double> ApproximateReciprocal(Vec128<double> v) {
+  return Vec128<double>(vrecpeq_f64(v.raw));
+}
+
+template <class V, HWY_IF_F64_D(DFromV<V>), HWY_IF_LANES_D(DFromV<V>, 1)>
+HWY_API V ApproximateReciprocal(V v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  const DFromV<decltype(v)> d;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(d, ApproximateReciprocal(Combine(dt, v, v)));
+#else
+  return V(vrecpe_f64(v.raw));
+#endif
+}
+#endif
+
+#if HWY_ARCH_ARM_A64
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator/, vdiv, _, 2)
 #else
 // Not defined on armv7: approximate
@@ -2246,6 +2269,29 @@ template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocalSqrt(const Vec128<float, N> v) {
   return Vec128<float, N>(vrsqrte_f32(v.raw));
 }
+
+#if HWY_ARCH_ARM_A64
+#ifdef HWY_NATIVE_F64_APPROX_RSQRT
+#undef HWY_NATIVE_F64_APPROX_RSQRT
+#else
+#define HWY_NATIVE_F64_APPROX_RSQRT
+#endif
+
+HWY_API Vec128<double> ApproximateReciprocalSqrt(Vec128<double> v) {
+  return Vec128<double>(vrsqrteq_f64(v.raw));
+}
+
+template <class V, HWY_IF_F64_D(DFromV<V>), HWY_IF_LANES_D(DFromV<V>, 1)>
+HWY_API V ApproximateReciprocalSqrt(V v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 490
+  const DFromV<decltype(v)> d;
+  const Twice<decltype(d)> dt;
+  return LowerHalf(d, ApproximateReciprocalSqrt(Combine(dt, v, v)));
+#else
+  return V(vrsqrte_f64(v.raw));
+#endif
+}
+#endif
 
 // Full precision square root
 #if HWY_ARCH_ARM_A64

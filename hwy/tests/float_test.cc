@@ -88,7 +88,7 @@ struct TestApproximateReciprocal {
 };
 
 HWY_NOINLINE void TestAllApproximateReciprocal() {
-  ForPartialVectors<TestApproximateReciprocal>()(float());
+  ForFloatTypes(ForPartialVectors<TestApproximateReciprocal>());
 }
 
 struct TestSquareRoot {
@@ -106,13 +106,13 @@ HWY_NOINLINE void TestAllSquareRoot() {
 struct TestReciprocalSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Set(d, 123.0f);
+    const auto v = Set(d, T(123.0f));
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
     Store(ApproximateReciprocalSqrt(v), d, lanes.get());
     for (size_t i = 0; i < N; ++i) {
-      float err = lanes[i] - 0.090166f;
+      T err = lanes[i] - 0.090166f;
       if (err < 0.0f) err = -err;
       if (err >= 4E-4f) {
         HWY_ABORT("Lane %d (%d): actual %f err %f\n", static_cast<int>(i),
@@ -123,7 +123,7 @@ struct TestReciprocalSquareRoot {
 };
 
 HWY_NOINLINE void TestAllReciprocalSquareRoot() {
-  ForPartialVectors<TestReciprocalSquareRoot>()(float());
+  ForFloatTypes(ForPartialVectors<TestReciprocalSquareRoot>());
 }
 
 template <typename T, class D>
