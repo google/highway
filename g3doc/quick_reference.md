@@ -629,11 +629,11 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 
 Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 
-*   `V`: `{u}, {i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shl` instead.
 
-*   `V`: `{u}, {i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shr` instead.
 

@@ -667,7 +667,7 @@ HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
 }
 
 // ------------------------------ Shl (BroadcastSignBit, IfThenElse)
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> operator<<(Vec256<T> v, const Vec256<T> bits) {
   v.v0 = operator<<(v.v0, bits.v0);
   v.v1 = operator<<(v.v1, bits.v1);
@@ -675,7 +675,7 @@ HWY_API Vec256<T> operator<<(Vec256<T> v, const Vec256<T> bits) {
 }
 
 // ------------------------------ Shr (BroadcastSignBit, IfThenElse)
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> operator>>(Vec256<T> v, const Vec256<T> bits) {
   v.v0 = operator>>(v.v0, bits.v0);
   v.v1 = operator>>(v.v1, bits.v1);

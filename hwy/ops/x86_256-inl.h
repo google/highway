@@ -4203,36 +4203,26 @@ HWY_API Vec256<TI> TableLookupBytes(Vec128<T, N> bytes, Vec256<TI> from) {
 namespace detail {
 
 #if HWY_TARGET > HWY_AVX3 && !HWY_IDE  // AVX2 or older
-
-// Returns 2^v for use as per-lane multipliers to emulate 16-bit shifts.
-template <typename T>
-HWY_INLINE Vec256<MakeUnsigned<T>> Pow2(const Vec256<T> v) {
-  static_assert(sizeof(T) == 2, "Only for 16-bit");
+template <class V>
+HWY_INLINE V AVX2ShlU16Vec256(V v, V bits) {
   const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> dw;
-  const Rebind<float, decltype(dw)> df;
-  const auto zero = Zero(d);
-  // Move into exponent (this u16 will become the upper half of an f32)
-  const auto exp = ShiftLeft<23 - 16>(v);
-  const auto upper = exp + Set(d, 0x3F80);  // upper half of 1.0f
-  // Insert 0 into lower halves for reinterpreting as binary32.
-  const auto f0 = ZipLower(dw, zero, upper);
-  const auto f1 = ZipUpper(dw, zero, upper);
-  // Do not use ConvertTo because it checks for overflow, which is redundant
-  // because we only care about v in [0, 16).
-  const Vec256<int32_t> bits0{_mm256_cvttps_epi32(BitCast(df, f0).raw)};
-  const Vec256<int32_t> bits1{_mm256_cvttps_epi32(BitCast(df, f1).raw)};
-  return Vec256<MakeUnsigned<T>>{_mm256_packus_epi32(bits0.raw, bits1.raw)};
-}
+  const Half<decltype(d)> dh;
+  const Rebind<uint32_t, decltype(dh)> du32;
 
-#endif  // HWY_TARGET > HWY_AVX3
+  const auto lo_shl_result = PromoteTo(du32, LowerHalf(dh, v))
+                             << PromoteTo(du32, LowerHalf(dh, bits));
+  const auto hi_shl_result = PromoteTo(du32, UpperHalf(dh, v))
+                             << PromoteTo(du32, UpperHalf(dh, bits));
+  return ConcatEven(d, BitCast(d, hi_shl_result), BitCast(d, lo_shl_result));
+}
+#endif
 
 HWY_INLINE Vec256<uint16_t> Shl(hwy::UnsignedTag /*tag*/, Vec256<uint16_t> v,
                                 Vec256<uint16_t> bits) {
 #if HWY_TARGET <= HWY_AVX3 || HWY_IDE
   return Vec256<uint16_t>{_mm256_sllv_epi16(v.raw, bits.raw)};
 #else
-  return v * Pow2(bits);
+  return AVX2ShlU16Vec256(v, bits);
 #endif
 }
 
@@ -4254,13 +4244,14 @@ HWY_API Vec256<uint8_t> Shl(hwy::UnsignedTag tag, Vec256<uint8_t> v,
 #else
   const Repartition<uint16_t, decltype(d)> dw;
   using VW = VFromD<decltype(dw)>;
-  const VW mask = Set(dw, 0x00FF);
+  const VW even_mask = Set(dw, 0x00FF);
+  const VW odd_mask = Set(dw, 0xFF00);
   const VW vw = BitCast(dw, v);
   const VW bits16 = BitCast(dw, bits);
-  const VW evens = Shl(tag, And(vw, mask), And(bits16, mask));
-  // Shift odd lanes in-place
-  const VW odds = Shl(tag, vw, ShiftRight<8>(bits16));
-  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+  // Shift even lanes in-place
+  const VW evens = Shl(tag, vw, And(bits16, even_mask));
+  const VW odds = Shl(tag, And(vw, odd_mask), ShiftRight<8>(bits16));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 #endif
 }
 
@@ -4292,15 +4283,32 @@ HWY_API Vec256<T> operator<<(Vec256<T> v, Vec256<T> bits) {
 
 // ------------------------------ Shr (MulHigh, IfThenElse, Not)
 
+#if HWY_TARGET > HWY_AVX3  // AVX2
+namespace detail {
+
+template <class V>
+HWY_INLINE V AVX2ShrU16Vec256(V v, V bits) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  const Rebind<int32_t, decltype(dh)> di32;
+  const Rebind<uint32_t, decltype(dh)> du32;
+
+  const auto lo_shr_result =
+      PromoteTo(du32, LowerHalf(dh, v)) >> PromoteTo(du32, LowerHalf(dh, bits));
+  const auto hi_shr_result =
+      PromoteTo(du32, UpperHalf(dh, v)) >> PromoteTo(du32, UpperHalf(dh, bits));
+  return OrderedDemote2To(d, BitCast(di32, lo_shr_result),
+                          BitCast(di32, hi_shr_result));
+}
+
+}  // namespace detail
+#endif
+
 HWY_API Vec256<uint16_t> operator>>(Vec256<uint16_t> v, Vec256<uint16_t> bits) {
-#if HWY_TARGET <= HWY_AVX3 || HWY_IDE
+#if HWY_TARGET <= HWY_AVX3
   return Vec256<uint16_t>{_mm256_srlv_epi16(v.raw, bits.raw)};
 #else
-  Full256<uint16_t> d;
-  // For bits=0, we cannot mul by 2^16, so fix the result later.
-  auto out = MulHigh(v, detail::Pow2(Set(d, 16) - bits));
-  // Replace output with input where bits == 0.
-  return IfThenElse(bits == Zero(d), v, out);
+  return detail::AVX2ShrU16Vec256(v, bits);
 #endif
 }
 
@@ -4315,7 +4323,7 @@ HWY_API Vec256<uint8_t> operator>>(Vec256<uint8_t> v, Vec256<uint8_t> bits) {
   const VW evens = And(vw, mask) >> And(bits16, mask);
   // Shift odd lanes in-place
   const VW odds = vw >> ShiftRight<8>(bits16);
-  return BitCast(d, IfVecThenElse(Set(dw, 0xFF00), odds, evens));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 }
 
 HWY_API Vec256<uint32_t> operator>>(Vec256<uint32_t> v, Vec256<uint32_t> bits) {
@@ -4326,13 +4334,46 @@ HWY_API Vec256<uint64_t> operator>>(Vec256<uint64_t> v, Vec256<uint64_t> bits) {
   return Vec256<uint64_t>{_mm256_srlv_epi64(v.raw, bits.raw)};
 }
 
+#if HWY_TARGET > HWY_AVX3  // AVX2
+namespace detail {
+
+template <class V>
+HWY_INLINE V AVX2ShrI16Vec256(V v, V bits) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  const Rebind<int32_t, decltype(dh)> di32;
+
+  const auto lo_shr_result =
+      PromoteTo(di32, LowerHalf(dh, v)) >> PromoteTo(di32, LowerHalf(dh, bits));
+  const auto hi_shr_result =
+      PromoteTo(di32, UpperHalf(dh, v)) >> PromoteTo(di32, UpperHalf(dh, bits));
+  return OrderedDemote2To(d, lo_shr_result, hi_shr_result);
+}
+
+}  // namespace detail
+#endif
+
 HWY_API Vec256<int16_t> operator>>(Vec256<int16_t> v, Vec256<int16_t> bits) {
 #if HWY_TARGET <= HWY_AVX3
   return Vec256<int16_t>{_mm256_srav_epi16(v.raw, bits.raw)};
 #else
-  const DFromV<decltype(v)> d;
-  return detail::SignedShr(d, v, bits);
+  return detail::AVX2ShrI16Vec256(v, bits);
 #endif
+}
+
+// 8-bit uses 16-bit shifts.
+HWY_API Vec256<int8_t> operator>>(Vec256<int8_t> v, Vec256<int8_t> bits) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const RebindToUnsigned<decltype(dw)> dw_u;
+  using VW = VFromD<decltype(dw)>;
+  const VW mask = Set(dw, 0x00FF);
+  const VW vw = BitCast(dw, v);
+  const VW bits16 = BitCast(dw, bits);
+  const VW evens = ShiftRight<8>(ShiftLeft<8>(vw)) >> And(bits16, mask);
+  // Shift odd lanes in-place
+  const VW odds = vw >> BitCast(dw, ShiftRight<8>(BitCast(dw_u, bits16)));
+  return OddEven(BitCast(d, odds), BitCast(d, evens));
 }
 
 HWY_API Vec256<int32_t> operator>>(Vec256<int32_t> v, Vec256<int32_t> bits) {

@@ -1473,7 +1473,8 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1498,7 +1499,7 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+template <typename T, size_t N, HWY_IF_UI32(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1527,16 +1528,18 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
+template <typename T, size_t N, HWY_IF_UI64(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
-  alignas(16) T lanes[2];
-  alignas(16) T bits_lanes[2];
-  Store(v, d, lanes);
-  Store(bits, d, bits_lanes);
-  lanes[0] <<= bits_lanes[0];
-  lanes[1] <<= bits_lanes[1];
-  return Load(d, lanes);
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = MakeUnsigned<T>;
+  alignas(16) TU lanes[2] = {};
+  alignas(16) TU bits_lanes[2] = {};
+  Store(BitCast(du, v), du, lanes);
+  Store(BitCast(du, bits), du, bits_lanes);
+  lanes[0] <<= (bits_lanes[0] & 63);
+  lanes[1] <<= (bits_lanes[1] & 63);
+  return BitCast(d, Load(du, lanes));
 }
 
 // ------------------------------ Shr (BroadcastSignBit, IfThenElse)
@@ -1562,7 +1565,8 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftRight<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1587,7 +1591,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftRight<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+template <typename T, size_t N, HWY_IF_UI32(T)>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1614,6 +1618,18 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
 
   mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
   return IfThenElse(mask, ShiftRight<1>(v), v);
+}
+
+template <typename T, size_t N, HWY_IF_UI64(T)>
+HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[2] = {};
+  alignas(16) T bits_lanes[2] = {};
+  Store(v, d, lanes);
+  Store(bits, d, bits_lanes);
+  lanes[0] >>= (bits_lanes[0] & 63);
+  lanes[1] >>= (bits_lanes[1] & 63);
+  return Load(d, lanes);
 }
 
 // ================================================== MEMORY
