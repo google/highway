@@ -35,11 +35,20 @@
 #include "hwy/timer.h"
 // clang-format on
 
+#if HWY_OS_LINUX
+#include <unistd.h>  // usleep
+#endif
+
 // Mode for larger sorts because M1 is able to access more than the per-core
 // share of L2, so 1M elements might still be in cache.
 #define SORT_100M 0
 
-#define SORT_BENCH_BASE_AND_PARTITION 0
+#ifndef SORT_ONLY_COLD
+#define SORT_ONLY_COLD 0
+#endif
+#ifndef SORT_BENCH_BASE_AND_PARTITION
+#define SORT_BENCH_BASE_AND_PARTITION (!SORT_ONLY_COLD && 0)
+#endif
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -78,19 +87,41 @@ HWY_NOINLINE void BenchAllColdSort() {
 #if VQSORT_ENABLED
   HWY_ASSERT(GetGeneratorState() != nullptr);  // vqsort
 #endif
-  RandomState rng;  // this test
+  RandomState rng(Unpredictable1() * 129);  // this test
 
   using T = uint64_t;
   constexpr size_t kSize = 10 * 1000;
-  std::vector<T> items(kSize);
-  items[Random32(&rng) % kSize] = static_cast<T>(Unpredictable1());
+  alignas(64) T items[kSize];
+
+  // Initialize array
+#if 0  // optional: deliberate AVX-512 to verify VQSort performance improves
+  const ScalableTag<T> d;
+  const RebindToSigned<decltype(d)> di;
+  const size_t N = Lanes(d);
+  size_t i = 0;
+  for (; i + N <= kSize; i += N) {
+    // Super-slow scatter so that we spend enough time to warm up SKX.
+    const Vec<decltype(d)> val = Set(d, static_cast<T>(Unpredictable1()));
+    const Vec<decltype(di)> idx =
+        Iota(di, static_cast<T>(Unpredictable1() - 1));
+    ScatterIndex(val, d, items + i, idx);
+  }
+  for (; i < kSize; ++i) {
+    items[i] = static_cast<T>(Unpredictable1());
+  }
+#else  // scalar-only, verified with clang-16
+  for (size_t i = 0; i < kSize; ++i) {
+    items[i] = static_cast<T>(Unpredictable1());
+  }
+#endif
+  items[Random32(&rng) % kSize] = static_cast<T>(Unpredictable1() + 1);
 
   const timer::Ticks t0 = timer::Start();
-#if VQSORT_ENABLED
-  VQSort(items.data(), kSize, SortAscending());
+#if VQSORT_ENABLED && 1  // change to && 0 to switch to std::sort.
+  VQSort(items, kSize, SortAscending());
 #else
   SharedState shared;
-  Run<SortAscending>(Algo::kStd, items.data(), kSize, shared, /*thread=*/0);
+  Run<SortAscending>(Algo::kStd, items, kSize, shared, /*thread=*/0);
 #endif
   const timer::Ticks t1 = timer::Stop();
 
@@ -98,8 +129,15 @@ HWY_NOINLINE void BenchAllColdSort() {
   const double elapsed = ticks / platform::InvariantTicksPerSecond();
   const double GBps = kSize * sizeof(T) * 1E-9 / elapsed;
 
-  fprintf(stderr, "N=%zu GB/s=%.2f ticks=%g random output: %g\n", kSize, GBps,
-          ticks, static_cast<double>(items[Random32(&rng) % kSize]));
+  fprintf(stderr, "N=%zu GB/s=%.2f ns=%.1f random output: %g\n", kSize, GBps,
+          elapsed * 1E9, static_cast<double>(items[Random32(&rng) % kSize]));
+
+#if SORT_ONLY_COLD
+#if HWY_OS_LINUX
+  // Long enough for the CPU to switch off AVX-512 mode before the next run.
+  usleep(100 * 1000);  // NOLINT
+#endif
+#endif
 }
 
 #if (VQSORT_ENABLED && SORT_BENCH_BASE_AND_PARTITION) || HWY_IDE
@@ -115,7 +153,7 @@ HWY_NOINLINE void BenchPartition() {
 
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN LaneType
-      buf[SortConstants::BufBytes<LaneType>(HWY_MAX_BYTES, kLPK) /
+      buf[SortConstants::BufBytes<LaneType, kLPK>(HWY_MAX_BYTES) /
           sizeof(LaneType)];
   uint64_t* HWY_RESTRICT state = GetGeneratorState();
 
@@ -195,8 +233,7 @@ HWY_NOINLINE void BenchBase(std::vector<Result>& results) {
 
     const Timestamp t0;
     for (size_t i = 0; i < kMul; ++i) {
-      detail::BaseCase(d, st, keys.get(), keys.get() + num_lanes, num_lanes,
-                       buf.get());
+      detail::BaseCase(d, st, keys.get(), num_lanes, buf.get());
       sum += static_cast<double>(keys[0]);
     }
     seconds.push_back(SecondsSince(t0));
@@ -407,7 +444,10 @@ HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllColdSort);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllPartition);
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllBase);
 #endif
+
+#if !SORT_ONLY_COLD  // skip (warms up vector unit for next run)
 HWY_EXPORT_AND_TEST_P(BenchSort, BenchAllSort);
+#endif
 }  // namespace
 }  // namespace hwy
 
