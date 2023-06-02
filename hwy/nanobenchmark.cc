@@ -15,297 +15,26 @@
 
 #include "hwy/nanobenchmark.h"
 
+#include "hwy/timer.h"
+
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS  // before inttypes.h
 #endif
 #include <inttypes.h>  // IWYU pragma: keep
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>    // clock_gettime
 
-#include <algorithm>  // std::sort, std::find_if
-#include <array>
-#include <chrono>  //NOLINT
-#include <limits>
+#include <algorithm>  // std::sort
 #include <numeric>  // std::iota
 #include <random>
-#include <string>
-#include <utility>  // std::pair
 #include <vector>
 
+#include "hwy/robust_statistics.h"
 #include "hwy/timer-inl.h"
-
-#if HWY_ARCH_X86 && !HWY_COMPILER_MSVC
-#include <cpuid.h>  // NOLINT
-#endif
 
 namespace hwy {
 namespace {
 namespace timer = hwy::HWY_NAMESPACE::timer;
-
-namespace robust_statistics {
-
-// Sorts integral values in ascending order (e.g. for Mode). About 3x faster
-// than std::sort for input distributions with very few unique values.
-template <class T>
-void CountingSort(T* values, size_t num_values) {
-  // Unique values and their frequency (similar to flat_map).
-  using Unique = std::pair<T, int>;
-  std::vector<Unique> unique;
-  for (size_t i = 0; i < num_values; ++i) {
-    const T value = values[i];
-    const auto pos =
-        std::find_if(unique.begin(), unique.end(),
-                     [value](const Unique u) { return u.first == value; });
-    if (pos == unique.end()) {
-      unique.push_back(std::make_pair(value, 1));
-    } else {
-      ++pos->second;
-    }
-  }
-
-  // Sort in ascending order of value (pair.first).
-  std::sort(unique.begin(), unique.end());
-
-  // Write that many copies of each unique value to the array.
-  T* HWY_RESTRICT p = values;
-  for (const auto& value_count : unique) {
-    std::fill(p, p + value_count.second, value_count.first);
-    p += value_count.second;
-  }
-  NANOBENCHMARK_CHECK(p == values + num_values);
-}
-
-// @return i in [idx_begin, idx_begin + half_count) that minimizes
-// sorted[i + half_count] - sorted[i].
-template <typename T>
-size_t MinRange(const T* const HWY_RESTRICT sorted, const size_t idx_begin,
-                const size_t half_count) {
-  T min_range = std::numeric_limits<T>::max();
-  size_t min_idx = 0;
-
-  for (size_t idx = idx_begin; idx < idx_begin + half_count; ++idx) {
-    NANOBENCHMARK_CHECK(sorted[idx] <= sorted[idx + half_count]);
-    const T range = sorted[idx + half_count] - sorted[idx];
-    if (range < min_range) {
-      min_range = range;
-      min_idx = idx;
-    }
-  }
-
-  return min_idx;
-}
-
-// Returns an estimate of the mode by calling MinRange on successively
-// halved intervals. "sorted" must be in ascending order. This is the
-// Half Sample Mode estimator proposed by Bickel in "On a fast, robust
-// estimator of the mode", with complexity O(N log N). The mode is less
-// affected by outliers in highly-skewed distributions than the median.
-// The averaging operation below assumes "T" is an unsigned integer type.
-template <typename T>
-T ModeOfSorted(const T* const HWY_RESTRICT sorted, const size_t num_values) {
-  size_t idx_begin = 0;
-  size_t half_count = num_values / 2;
-  while (half_count > 1) {
-    idx_begin = MinRange(sorted, idx_begin, half_count);
-    half_count >>= 1;
-  }
-
-  const T x = sorted[idx_begin + 0];
-  if (half_count == 0) {
-    return x;
-  }
-  NANOBENCHMARK_CHECK(half_count == 1);
-  const T average = (x + sorted[idx_begin + 1] + 1) / 2;
-  return average;
-}
-
-// Returns the mode. Side effect: sorts "values".
-template <typename T>
-T Mode(T* values, const size_t num_values) {
-  CountingSort(values, num_values);
-  return ModeOfSorted(values, num_values);
-}
-
-template <typename T, size_t N>
-T Mode(T (&values)[N]) {
-  return Mode(&values[0], N);
-}
-
-// Returns the median value. Side effect: sorts "values".
-template <typename T>
-T Median(T* values, const size_t num_values) {
-  NANOBENCHMARK_CHECK(!values->empty());
-  std::sort(values, values + num_values);
-  const size_t half = num_values / 2;
-  // Odd count: return middle
-  if (num_values % 2) {
-    return values[half];
-  }
-  // Even count: return average of middle two.
-  return (values[half] + values[half - 1] + 1) / 2;
-}
-
-// Returns a robust measure of variability.
-template <typename T>
-T MedianAbsoluteDeviation(const T* values, const size_t num_values,
-                          const T median) {
-  NANOBENCHMARK_CHECK(num_values != 0);
-  std::vector<T> abs_deviations;
-  abs_deviations.reserve(num_values);
-  for (size_t i = 0; i < num_values; ++i) {
-    const int64_t abs = std::abs(static_cast<int64_t>(values[i]) -
-                                 static_cast<int64_t>(median));
-    abs_deviations.push_back(static_cast<T>(abs));
-  }
-  return Median(abs_deviations.data(), num_values);
-}
-
-}  // namespace robust_statistics
-}  // namespace
-namespace platform {
-namespace {
-
-// Measures the actual current frequency of Ticks. We cannot rely on the nominal
-// frequency encoded in x86 BrandString because it is misleading on M1 Rosetta,
-// and not reported by AMD. CPUID 0x15 is also not yet widely supported. Also
-// used on RISC-V and aarch64.
-HWY_MAYBE_UNUSED double MeasureNominalClockRate() {
-  double max_ticks_per_sec = 0.0;
-  // Arbitrary, enough to ignore 2 outliers without excessive init time.
-  for (int rep = 0; rep < 3; ++rep) {
-    auto time0 = std::chrono::steady_clock::now();
-    using Time = decltype(time0);
-    const timer::Ticks ticks0 = timer::Start();
-    const Time time_min = time0 + std::chrono::milliseconds(10);
-
-    Time time1;
-    timer::Ticks ticks1;
-    for (;;) {
-      time1 = std::chrono::steady_clock::now();
-      // Ideally this would be Stop, but that requires RDTSCP on x86. To avoid
-      // another codepath, just use Start instead. now() presumably has its own
-      // fence-like behavior.
-      ticks1 = timer::Start();  // Do not use Stop, see comment above
-      if (time1 >= time_min) break;
-    }
-
-    const double dticks = static_cast<double>(ticks1 - ticks0);
-    std::chrono::duration<double, std::ratio<1>> dtime = time1 - time0;
-    const double ticks_per_sec = dticks / dtime.count();
-    max_ticks_per_sec = std::max(max_ticks_per_sec, ticks_per_sec);
-  }
-  return max_ticks_per_sec;
-}
-
-#if HWY_ARCH_X86
-
-void Cpuid(const uint32_t level, const uint32_t count,
-           uint32_t* HWY_RESTRICT abcd) {
-#if HWY_COMPILER_MSVC
-  int regs[4];
-  __cpuidex(regs, level, count);
-  for (int i = 0; i < 4; ++i) {
-    abcd[i] = regs[i];
-  }
-#else
-  uint32_t a;
-  uint32_t b;
-  uint32_t c;
-  uint32_t d;
-  __cpuid_count(level, count, a, b, c, d);
-  abcd[0] = a;
-  abcd[1] = b;
-  abcd[2] = c;
-  abcd[3] = d;
-#endif
-}
-
-bool HasRDTSCP() {
-  uint32_t abcd[4];
-  Cpuid(0x80000001U, 0, abcd);         // Extended feature flags
-  return (abcd[3] & (1u << 27)) != 0;  // RDTSCP
-}
-
-std::string BrandString() {
-  char brand_string[49];
-  std::array<uint32_t, 4> abcd;
-
-  // Check if brand string is supported (it is on all reasonable Intel/AMD)
-  Cpuid(0x80000000U, 0, abcd.data());
-  if (abcd[0] < 0x80000004U) {
-    return std::string();
-  }
-
-  for (size_t i = 0; i < 3; ++i) {
-    Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd.data());
-    CopyBytes<sizeof(abcd)>(&abcd[0], brand_string + i * 16);  // not same size
-  }
-  brand_string[48] = 0;
-  return brand_string;
-}
-
-#endif  // HWY_ARCH_X86
-
-}  // namespace
-
-HWY_DLLEXPORT double InvariantTicksPerSecond() {
-#if HWY_ARCH_PPC && defined(__GLIBC__)
-  return static_cast<double>(__ppc_get_timebase_freq());
-#elif HWY_ARCH_X86 || HWY_ARCH_RVV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
-  // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
-  static const double freq = MeasureNominalClockRate();
-  return freq;
-#elif defined(_WIN32) || defined(_WIN64)
-  LARGE_INTEGER freq;
-  (void)QueryPerformanceFrequency(&freq);
-  return static_cast<double>(freq.QuadPart);
-#elif defined(__APPLE__)
-  // https://developer.apple.com/library/mac/qa/qa1398/_index.html
-  mach_timebase_info_data_t timebase;
-  (void)mach_timebase_info(&timebase);
-  return static_cast<double>(timebase.denom) / timebase.numer * 1E9;
-#else
-  return 1E9;  // Haiku and clock_gettime return nanoseconds.
-#endif
-}
-
-HWY_DLLEXPORT double Now() {
-  static const double mul = 1.0 / InvariantTicksPerSecond();
-  return static_cast<double>(timer::Start()) * mul;
-}
-
-HWY_DLLEXPORT uint64_t TimerResolution() {
-#if HWY_ARCH_X86
-  bool can_use_stop = platform::HasRDTSCP();
-#else
-  constexpr bool can_use_stop = true;
-#endif
-
-  // Nested loop avoids exceeding stack/L1 capacity.
-  timer::Ticks repetitions[Params::kTimerSamples];
-  for (size_t rep = 0; rep < Params::kTimerSamples; ++rep) {
-    timer::Ticks samples[Params::kTimerSamples];
-    if (can_use_stop) {
-      for (size_t i = 0; i < Params::kTimerSamples; ++i) {
-        const timer::Ticks t0 = timer::Start();
-        const timer::Ticks t1 = timer::Stop();  // we checked HasRDTSCP above
-        samples[i] = t1 - t0;
-      }
-    } else {
-      for (size_t i = 0; i < Params::kTimerSamples; ++i) {
-        const timer::Ticks t0 = timer::Start();
-        const timer::Ticks t1 = timer::Start();  // do not use Stop, see above
-        samples[i] = t1 - t0;
-      }
-    }
-    repetitions[rep] = robust_statistics::Mode(samples);
-  }
-  return robust_statistics::Mode(repetitions);
-}
-
-}  // namespace platform
-namespace {
 
 static const timer::Ticks timer_resolution = platform::TimerResolution();
 
@@ -317,7 +46,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
   // Choose initial samples_per_eval based on a single estimated duration.
   timer::Ticks t0 = timer::Start();
   lambda();
-  timer::Ticks t1 = timer::Stop();  // Caller checks HasRDTSCP
+  timer::Ticks t1 = timer::Stop();  // Caller checks HaveTimerStop
   timer::Ticks est = t1 - t0;
   static const double ticks_per_second = platform::InvariantTicksPerSecond();
   const size_t ticks_per_eval =
@@ -341,7 +70,7 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
     for (size_t i = 0; i < samples_per_eval; ++i) {
       t0 = timer::Start();
       lambda();
-      t1 = timer::Stop();  // Caller checks HasRDTSCP
+      t1 = timer::Stop();  // Caller checks HaveTimerStop
       samples.push_back(t1 - t0);
     }
 
@@ -521,13 +250,12 @@ HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
                              Result* results, const Params& p) {
   NANOBENCHMARK_CHECK(num_inputs != 0);
 
-#if HWY_ARCH_X86
-  if (!platform::HasRDTSCP()) {
+  char cpu100[100];
+  if (!platform::HaveTimerStop(cpu100)) {
     fprintf(stderr, "CPU '%s' does not support RDTSCP, skipping benchmark.\n",
-            platform::BrandString().c_str());
+            cpu100);
     return 0;
   }
-#endif
 
   const InputVec& unique = UniqueInputs(inputs, num_inputs);
 

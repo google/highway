@@ -310,6 +310,7 @@ HWY_INLINE void Merge8x4(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,
   v7 = st.SortPairsDistance1(d, v7);
 }
 
+// Only used by the now-deprecated SortingNetwork().
 template <size_t kKeysPerVector, class D, class Traits, class V = Vec<D>,
           HWY_IF_LANES_GT(kKeysPerVector, 1)>
 HWY_INLINE void Merge16x2(D d, Traits st, V& v0, V& v1, V& v2, V& v3, V& v4,

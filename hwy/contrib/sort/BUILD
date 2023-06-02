@@ -191,6 +191,7 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "//:hwy",
         "//:hwy_test_util",
+        "//:nanobenchmark",
     ],
 )
 

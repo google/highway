@@ -770,13 +770,25 @@ HWY_API svint16_t MulFixedPoint15(svint16_t a, svint16_t b) {
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Div, div)
 
 // ------------------------------ ApproximateReciprocal
-HWY_SVE_FOREACH_F32(HWY_SVE_RETV_ARGV, ApproximateReciprocal, recpe)
+#ifdef HWY_NATIVE_F64_APPROX_RECIP
+#undef HWY_NATIVE_F64_APPROX_RECIP
+#else
+#define HWY_NATIVE_F64_APPROX_RECIP
+#endif
+
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocal, recpe)
 
 // ------------------------------ Sqrt
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPV, Sqrt, sqrt)
 
 // ------------------------------ ApproximateReciprocalSqrt
-HWY_SVE_FOREACH_F32(HWY_SVE_RETV_ARGV, ApproximateReciprocalSqrt, rsqrte)
+#ifdef HWY_NATIVE_F64_APPROX_RSQRT
+#undef HWY_NATIVE_F64_APPROX_RSQRT
+#else
+#define HWY_NATIVE_F64_APPROX_RSQRT
+#endif
+
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGV, ApproximateReciprocalSqrt, rsqrte)
 
 // ------------------------------ MulAdd
 
@@ -918,6 +930,27 @@ HWY_API V IfThenElseZero(const svbool_t mask, const V yes) {
 template <class V>
 HWY_API V IfThenZeroElse(const svbool_t mask, const V no) {
   return IfThenElse(mask, Zero(DFromV<V>()), no);
+}
+
+// ------------------------------ Additional mask logical operations
+HWY_API svbool_t SetBeforeFirst(svbool_t m) {
+  // We don't know the lane type, so assume 8-bit. For larger types, this will
+  // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
+  // correspond to the lowest byte in the lane. Arm says such bits are ignored.
+  return svbrkb_b_z(HWY_SVE_PTRUE(8), m);
+}
+
+HWY_API svbool_t SetAtOrBeforeFirst(svbool_t m) {
+  // We don't know the lane type, so assume 8-bit. For larger types, this will
+  // de-canonicalize the predicate, i.e. set bits to 1 even though they do not
+  // correspond to the lowest byte in the lane. Arm says such bits are ignored.
+  return svbrka_b_z(HWY_SVE_PTRUE(8), m);
+}
+
+HWY_API svbool_t SetOnlyFirst(svbool_t m) { return svbrka_b_z(m, m); }
+
+HWY_API svbool_t SetAtOrAfterFirst(svbool_t m) {
+  return Not(SetBeforeFirst(m));
 }
 
 // ================================================== COMPARE

@@ -381,6 +381,26 @@ HWY_API Mask1<T> ExclusiveNeither(const Mask1<T> a, Mask1<T> b) {
   return MaskFromVec(AndNot(VecFromMask(d, a), Not(VecFromMask(d, b))));
 }
 
+template <class T>
+HWY_API Mask1<T> SetAtOrAfterFirst(Mask1<T> mask) {
+  return mask;
+}
+
+template <class T>
+HWY_API Mask1<T> SetBeforeFirst(Mask1<T> mask) {
+  return Not(mask);
+}
+
+template <class T>
+HWY_API Mask1<T> SetOnlyFirst(Mask1<T> mask) {
+  return mask;
+}
+
+template <class T>
+HWY_API Mask1<T> SetAtOrBeforeFirst(Mask1<T> /*mask*/) {
+  return Mask1<T>::FromBool(true);
+}
+
 // ================================================== SHIFTS
 
 // ------------------------------ ShiftLeft/ShiftRight (BroadcastSignBit)

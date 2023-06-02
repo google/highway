@@ -1473,7 +1473,8 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1498,7 +1499,7 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+template <typename T, size_t N, HWY_IF_UI32(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1527,16 +1528,18 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftLeft<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
+template <typename T, size_t N, HWY_IF_UI64(T)>
 HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
-  alignas(16) T lanes[2];
-  alignas(16) T bits_lanes[2];
-  Store(v, d, lanes);
-  Store(bits, d, bits_lanes);
-  lanes[0] <<= bits_lanes[0];
-  lanes[1] <<= bits_lanes[1];
-  return Load(d, lanes);
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = MakeUnsigned<T>;
+  alignas(16) TU lanes[2] = {};
+  alignas(16) TU bits_lanes[2] = {};
+  Store(BitCast(du, v), du, lanes);
+  Store(BitCast(du, bits), du, bits_lanes);
+  lanes[0] <<= (bits_lanes[0] & 63);
+  lanes[1] <<= (bits_lanes[1] & 63);
+  return BitCast(d, Load(du, lanes));
 }
 
 // ------------------------------ Shr (BroadcastSignBit, IfThenElse)
@@ -1562,7 +1565,8 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftRight<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1587,7 +1591,7 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   return IfThenElse(mask, ShiftRight<1>(v), v);
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+template <typename T, size_t N, HWY_IF_UI32(T)>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
   const DFromV<decltype(v)> d;
   Mask128<T, N> mask;
@@ -1614,6 +1618,18 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
 
   mask = RebindMask(d, MaskFromVec(BroadcastSignBit(test)));
   return IfThenElse(mask, ShiftRight<1>(v), v);
+}
+
+template <typename T, size_t N, HWY_IF_UI64(T)>
+HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
+  const DFromV<decltype(v)> d;
+  alignas(16) T lanes[2] = {};
+  alignas(16) T bits_lanes[2] = {};
+  Store(v, d, lanes);
+  Store(bits, d, bits_lanes);
+  lanes[0] >>= (bits_lanes[0] & 63);
+  lanes[1] >>= (bits_lanes[1] & 63);
+  return Load(d, lanes);
 }
 
 // ================================================== MEMORY
@@ -4773,6 +4789,94 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
 // HWY_NATIVE_LOAD_STORE_INTERLEAVED not set, hence defined in
 // generic_ops-inl.h.
+
+// ------------------------------ Additional mask logical operations
+template <class T>
+HWY_API Mask128<T, 1> SetAtOrAfterFirst(Mask128<T, 1> mask) {
+  return mask;
+}
+template <class T>
+HWY_API Mask128<T, 2> SetAtOrAfterFirst(Mask128<T, 2> mask) {
+  const FixedTag<T, 2> d;
+  const auto vmask = VecFromMask(d, mask);
+  return MaskFromVec(Or(vmask, InterleaveLower(vmask, vmask)));
+}
+template <class T, size_t N, HWY_IF_LANES_GT(N, 2), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> SetAtOrAfterFirst(Mask128<T, N> mask) {
+  const Simd<T, N, 0> d;
+  const auto vmask = VecFromMask(d, mask);
+  const auto neg_vmask =
+      ResizeBitCast(d, Neg(ResizeBitCast(Full64<int64_t>(), vmask)));
+  return MaskFromVec(Or(vmask, neg_vmask));
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 8)>
+HWY_API Mask128<T> SetAtOrAfterFirst(Mask128<T> mask) {
+  const Full128<T> d;
+  const Repartition<int64_t, decltype(d)> di64;
+
+  auto vmask = BitCast(di64, VecFromMask(d, mask));
+  vmask = Or(vmask, Neg(vmask));
+
+  // Copy the sign bit of the first int64_t lane to the second int64_t lane
+  const auto vmask2 = BroadcastSignBit(InterleaveLower(Zero(di64), vmask));
+  return MaskFromVec(BitCast(d, Or(vmask, vmask2)));
+}
+
+template <class T, size_t N>
+HWY_API Mask128<T, N> SetBeforeFirst(Mask128<T, N> mask) {
+  return Not(SetAtOrAfterFirst(mask));
+}
+
+template <class T>
+HWY_API Mask128<T, 1> SetOnlyFirst(Mask128<T, 1> mask) {
+  return mask;
+}
+template <class T>
+HWY_API Mask128<T, 2> SetOnlyFirst(Mask128<T, 2> mask) {
+  const FixedTag<T, 2> d;
+  const RebindToSigned<decltype(d)> di;
+
+  const auto vmask = BitCast(di, VecFromMask(d, mask));
+  const auto zero = Zero(di);
+  const auto vmask2 = VecFromMask(di, InterleaveLower(zero, vmask) == zero);
+  return MaskFromVec(BitCast(d, And(vmask, vmask2)));
+}
+template <class T, size_t N, HWY_IF_LANES_GT(N, 2), HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Mask128<T, N> SetOnlyFirst(Mask128<T, N> mask) {
+  const Simd<T, N, 0> d;
+  const RebindToSigned<decltype(d)> di;
+
+  const auto vmask = ResizeBitCast(Full64<int64_t>(), VecFromMask(d, mask));
+  const auto only_first_vmask =
+      BitCast(d, Neg(ResizeBitCast(di, And(vmask, Neg(vmask)))));
+  return MaskFromVec(only_first_vmask);
+}
+template <class T, HWY_IF_NOT_T_SIZE(T, 8)>
+HWY_API Mask128<T> SetOnlyFirst(Mask128<T> mask) {
+  const Full128<T> d;
+  const RebindToSigned<decltype(d)> di;
+  const Repartition<int64_t, decltype(d)> di64;
+
+  const auto zero = Zero(di64);
+  const auto vmask = BitCast(di64, VecFromMask(d, mask));
+  const auto vmask2 = VecFromMask(di64, InterleaveLower(zero, vmask) == zero);
+  const auto only_first_vmask = Neg(BitCast(di, And(vmask, Neg(vmask))));
+  return MaskFromVec(BitCast(d, And(only_first_vmask, BitCast(di, vmask2))));
+}
+
+template <class T>
+HWY_API Mask128<T, 1> SetAtOrBeforeFirst(Mask128<T, 1> /*mask*/) {
+  const FixedTag<T, 1> d;
+  const RebindToSigned<decltype(d)> di;
+  using TI = MakeSigned<T>;
+
+  return RebindMask(d, MaskFromVec(Set(di, TI(-1))));
+}
+template <class T, size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
+  const Simd<T, N, 0> d;
+  return SetBeforeFirst(MaskFromVec(ShiftLeftLanes<1>(VecFromMask(d, mask))));
+}
 
 // ------------------------------ MulEven/Odd (Load)
 

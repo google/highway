@@ -667,7 +667,7 @@ HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
 }
 
 // ------------------------------ Shl (BroadcastSignBit, IfThenElse)
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> operator<<(Vec256<T> v, const Vec256<T> bits) {
   v.v0 = operator<<(v.v0, bits.v0);
   v.v1 = operator<<(v.v1, bits.v1);
@@ -675,7 +675,7 @@ HWY_API Vec256<T> operator<<(Vec256<T> v, const Vec256<T> bits) {
 }
 
 // ------------------------------ Shr (BroadcastSignBit, IfThenElse)
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> operator>>(Vec256<T> v, const Vec256<T> bits) {
   v.v0 = operator>>(v.v0, bits.v0);
   v.v1 = operator>>(v.v1, bits.v1);
@@ -1965,6 +1965,68 @@ HWY_API void StoreTransposedBlocks4(Vec256<T> i, Vec256<T> j, Vec256<T> k,
 }
 
 }  // namespace detail
+
+// ------------------------------ Additional mask logical operations
+
+template <class T>
+HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
+  const Full256<T> d;
+  const Half<decltype(d)> dh;
+  const Repartition<int64_t, decltype(dh)> dh_i64;
+
+  Mask256<T> result;
+  result.m0 = SetAtOrAfterFirst(mask.m0);
+  result.m1 = SetAtOrAfterFirst(mask.m1);
+
+  // Copy the sign bit of the lower 128-bit half to the upper 128-bit half
+  const auto vmask_lo = BitCast(dh_i64, VecFromMask(dh, result.m0));
+  result.m1 =
+      Or(result.m1, MaskFromVec(BitCast(dh, BroadcastSignBit(InterleaveUpper(
+                                                dh_i64, vmask_lo, vmask_lo)))));
+
+  return result;
+}
+
+template <class T>
+HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
+  return Not(SetAtOrAfterFirst(mask));
+}
+
+template <class T>
+HWY_API Mask256<T> SetOnlyFirst(Mask256<T> mask) {
+  const Full256<T> d;
+  const RebindToSigned<decltype(d)> di;
+  const Repartition<int64_t, decltype(d)> di64;
+  const Half<decltype(di64)> dh_i64;
+
+  const auto zero = Zero(di64);
+  const auto vmask = BitCast(di64, VecFromMask(d, mask));
+
+  const auto vmask_eq_0 = VecFromMask(di64, vmask == zero);
+  auto vmask2_lo = LowerHalf(dh_i64, vmask_eq_0);
+  auto vmask2_hi = UpperHalf(dh_i64, vmask_eq_0);
+
+  vmask2_lo = And(vmask2_lo, InterleaveLower(vmask2_lo, vmask2_lo));
+  vmask2_hi = And(ConcatLowerUpper(dh_i64, vmask2_hi, vmask2_lo),
+                  InterleaveUpper(dh_i64, vmask2_lo, vmask2_lo));
+  vmask2_lo = InterleaveLower(Set(dh_i64, int64_t{-1}), vmask2_lo);
+
+  const auto vmask2 = Combine(di64, vmask2_hi, vmask2_lo);
+  const auto only_first_vmask = Neg(BitCast(di, And(vmask, Neg(vmask))));
+  return MaskFromVec(BitCast(d, And(only_first_vmask, BitCast(di, vmask2))));
+}
+
+template <class T>
+HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
+  const Full256<T> d;
+  constexpr size_t kLanesPerBlock = MaxLanes(d) / 2;
+
+  const auto vmask = VecFromMask(d, mask);
+  const auto vmask_lo = ConcatLowerLower(d, vmask, Zero(d));
+  return SetBeforeFirst(
+      MaskFromVec(CombineShiftRightBytes<(kLanesPerBlock - 1) * sizeof(T)>(
+          d, vmask, vmask_lo)));
+}
 
 // ------------------------------ WidenMulPairwiseAdd
 template <class D32, typename T16, typename T32 = TFromD<D32>>

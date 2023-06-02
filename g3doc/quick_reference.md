@@ -484,12 +484,12 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   `V`: `{f}` \
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.
 
-*   `V`: `f32` \
+*   `V`: `{f}` \
     <code>V **ApproximateReciprocalSqrt**(V a)</code>: returns an approximation
     of `1.0 / sqrt(a[i])`. `sqrt(a) ~= ApproximateReciprocalSqrt(a) * a`. x86
     and PPC provide 12-bit approximations but the error on Arm is closer to 1%.
 
-*   `V`: `f32` \
+*   `V`: `{f}` \
     <code>V **ApproximateReciprocal**(V a)</code>: returns an approximation of
     `1.0 / a[i]`.
 
@@ -629,11 +629,11 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 
 Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 
-*   `V`: `{u}, {i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **operator<<**(V a, V b)</code> returns `a[i] << b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shl` instead.
 
-*   `V`: `{u}, {i}{16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shr` instead.
 
@@ -856,6 +856,24 @@ false is zero, true has all bits set:
     choose not to provide NotOr/NotXor because x86 and SVE only define one of
     these operations. This op is for situations where the inputs are known to be
     mutually exclusive.
+
+*   <code>M **SetOnlyFirst**(M m)</code>: If none of `m[i]` are true, returns
+    all-false. Otherwise, only lane `k` is true, where `k` is equal to
+    `FindKnownFirstTrue(m)`. In other words, sets to false any lanes with index
+    greater than the first true lane, if it exists.
+
+*   <code>M **SetBeforeFirst**(M m)</code>: If none of `m[i]` are true, returns
+    all-true. Otherwise, returns mask with the first `k` lanes true and all
+    remaining lanes false, where `k` is equal to `FindKnownFirstTrue(m)`. In
+    other words, if at least one of `m[i]` is true, sets to true any lanes with
+    index less than the first true lane and all remaining lanes to false.
+
+*   <code>M **SetAtOrBeforeFirst**(M m)</code>: equivalent to
+    `Or(SetBeforeFirst(m), SetOnlyFirst(m))`, but `SetAtOrBeforeFirst(m)` is
+    usually more efficient than `Or(SetBeforeFirst(m), SetOnlyFirst(m))`.
+
+*   <code>M **SetAtOrAfterFirst**(M m)</code>: equivalent to
+    `Not(SetBeforeFirst(m))`.
 
 #### Compress
 
