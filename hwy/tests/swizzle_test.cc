@@ -401,7 +401,7 @@ class TestPer4LaneBlockShuffle {
 
 #if HWY_TARGET != HWY_SCALAR
   template <class D>
-  static HWY_NOINLINE void TestTblLookupPer4LaneBlkShufIdx(
+  static HWY_NOINLINE void TestTblLookupPer4LaneBlkShuf(
       D d, const size_t N, const TFromD<D>* HWY_RESTRICT src_lanes,
       TFromD<D>* HWY_RESTRICT expected) {
     const auto v = Load(d, src_lanes);
@@ -435,7 +435,7 @@ class TestPer4LaneBlockShuffle {
       TFromD<D>* HWY_RESTRICT expected) {
     Store(v, d, src_lanes);
 #if HWY_TARGET != HWY_SCALAR
-    TestTblLookupPer4LaneBlkShufIdx(d, N, src_lanes, expected);
+    TestTblLookupPer4LaneBlkShuf(d, N, src_lanes, expected);
 #endif
     DoTestPer4LaneBlkShuffle<0, 1, 2, 3>(d, N, v, src_lanes, expected);
     DoTestPer4LaneBlkShuffle<0, 1, 3, 2>(d, N, v, src_lanes, expected);
