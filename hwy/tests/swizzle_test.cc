@@ -359,8 +359,8 @@ class TestPer4LaneBlockShuffle {
 #endif
   template <class D>
   static HWY_INLINE Mask<D> Per4LaneBlockShufValidMask(D d, const size_t N,
-                                                       const size_t idx0,
-                                                       const size_t idx1) {
+                                                       const size_t idx1,
+                                                       const size_t idx0) {
     if (N < 4) {
       const RebindToSigned<decltype(d)> di;
       using TI = TFromD<decltype(di)>;
@@ -378,32 +378,87 @@ class TestPer4LaneBlockShuffle {
     return FirstN(d, N);
   }
 
-  template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class D>
-  static HWY_INLINE void DoTestPer4LaneBlkShuf(
+  template <class D>
+  static HWY_NOINLINE void DoCheckPer4LaneBlkShufResult(
+      D d, const size_t N, VecArg<VFromD<D>> actual,
+      const TFromD<D>* HWY_RESTRICT src_lanes, TFromD<D>* HWY_RESTRICT expected,
+      size_t idx3, size_t idx2, size_t idx1, size_t idx0) {
+    for (size_t i = 0; i < N; i += 4) {
+      expected[i] = src_lanes[i + idx0];
+      expected[i + 1] = src_lanes[i + idx1];
+      expected[i + 2] = src_lanes[i + idx2];
+      expected[i + 3] = src_lanes[i + idx3];
+    }
+
+    if (N < 4) {
+      if (idx0 >= N) expected[0] = TFromD<D>{0};
+      if (idx1 >= N) expected[1] = TFromD<D>{0};
+    }
+
+    const auto valid_lanes_mask = Per4LaneBlockShufValidMask(d, N, idx1, idx0);
+    HWY_ASSERT_VEC_EQ(d, expected, IfThenElseZero(valid_lanes_mask, actual));
+  }
+
+#if HWY_TARGET != HWY_SCALAR
+  template <class D>
+  static HWY_NOINLINE void TestTblLookupPer4LaneBlkShufIdx(
+      D d, const size_t N, const TFromD<D>* HWY_RESTRICT src_lanes,
+      TFromD<D>* HWY_RESTRICT expected) {
+    const auto v = Load(d, src_lanes);
+    for (size_t idx3210 = 0; idx3210 <= 0xFF; idx3210++) {
+      const size_t idx3 = (idx3210 >> 6) & 3;
+      const size_t idx2 = (idx3210 >> 4) & 3;
+      const size_t idx1 = (idx3210 >> 2) & 3;
+      const size_t idx0 = idx3210 & 3;
+
+      const auto actual = detail::TblLookupPer4LaneBlkShuf(v, idx3210);
+      DoCheckPer4LaneBlkShufResult(d, N, actual, src_lanes, expected, idx3,
+                                   idx2, idx1, idx0);
+    }
+  }
+#endif
+
+  template <size_t kIdx3, size_t kIdx2, size_t kIdx1, size_t kIdx0, class D>
+  static HWY_INLINE void DoTestPer4LaneBlkShuffle(
       D d, const size_t N, const VFromD<D> v,
       const TFromD<D>* HWY_RESTRICT src_lanes,
       TFromD<D>* HWY_RESTRICT expected) {
-    for (size_t i = 0; i < N; i += 4) {
-      expected[i] = src_lanes[i + kIdx0];
-      expected[i + 1] = src_lanes[i + kIdx1];
-      expected[i + 2] = src_lanes[i + kIdx2];
-      expected[i + 3] = src_lanes[i + kIdx3];
-    }
+    const auto actual = Per4LaneBlockShuffle<kIdx3, kIdx2, kIdx1, kIdx0>(v);
+    DoCheckPer4LaneBlkShufResult(d, N, actual, src_lanes, expected, kIdx3,
+                                 kIdx2, kIdx1, kIdx0);
+  }
 
-    if (N < 4) {
-      if (kIdx0 >= N) expected[0] = TFromD<D>{0};
-      if (kIdx1 >= N) expected[1] = TFromD<D>{0};
-    }
-
-    const auto actual = Per4LaneBlockShuffle<kIdx0, kIdx1, kIdx2, kIdx3>(v);
-    const auto valid_mask = Per4LaneBlockShufValidMask(d, N, kIdx0, kIdx1);
-    HWY_ASSERT_VEC_EQ(d, expected, IfThenElseZero(valid_mask, actual));
-
-    if (N < 4) {
-      if (kIdx0 >= N) expected[0] = src_lanes[0];
-      if (kIdx1 >= N) expected[1] = src_lanes[1];
-      HWY_ASSERT_VEC_EQ(d, expected, IfThenElse(valid_mask, actual, v));
-    }
+  template <class D>
+  static HWY_NOINLINE void DoTestPer4LaneBlkShuffles(
+      D d, const size_t N, const VecArg<VFromD<D>> v,
+      TFromD<D>* HWY_RESTRICT src_lanes,
+      TFromD<D>* HWY_RESTRICT expected) {
+    Store(v, d, src_lanes);
+#if HWY_TARGET != HWY_SCALAR
+    TestTblLookupPer4LaneBlkShufIdx(d, N, src_lanes, expected);
+#endif
+    DoTestPer4LaneBlkShuffle<0, 1, 2, 3>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<0, 1, 3, 2>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<0, 2, 3, 1>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<0, 3, 0, 2>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<1, 0, 1, 0>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<1, 0, 3, 1>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<1, 0, 3, 2>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<1, 2, 0, 3>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<1, 2, 1, 3>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<1, 1, 0, 0>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<2, 0, 1, 3>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<2, 1, 2, 0>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<2, 2, 0, 0>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<2, 3, 0, 1>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<2, 3, 3, 0>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 0, 2, 1>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 1, 0, 3>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 2, 1, 0>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 2, 3, 2>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 3, 0, 1>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 3, 1, 1>(d, N, v, src_lanes, expected);
+    DoTestPer4LaneBlkShuffle<3, 3, 2, 2>(d, N, v, src_lanes, expected);
   }
 
   template <class D>
@@ -431,27 +486,6 @@ class TestPer4LaneBlockShuffle {
     const auto int_iota =
         And(GenerateTestVect(hwy::NonFloatTag(), du), Set(du, kIntBitsMask));
     return Or(flt_iota, BitCast(d, int_iota));
-  }
-
-  template <class D>
-  static HWY_INLINE void DoTestPer4LaneBlkShuffles(
-      D d, const size_t N, const VFromD<D> v, TFromD<D>* HWY_RESTRICT src_lanes,
-      TFromD<D>* HWY_RESTRICT expected) {
-    Store(v, d, src_lanes);
-    DoTestPer4LaneBlkShuf<0, 0, 0, 0>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<0, 0, 2, 2>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<0, 1, 2, 3>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<1, 0, 3, 2>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<1, 1, 3, 3>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<3, 2, 1, 0>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<2, 3, 0, 1>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<0, 1, 0, 1>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<2, 3, 2, 3>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<0, 0, 1, 1>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<2, 2, 3, 3>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<3, 0, 2, 1>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<1, 1, 3, 0>(d, N, v, src_lanes, expected);
-    DoTestPer4LaneBlkShuf<0, 1, 3, 2>(d, N, v, src_lanes, expected);
   }
 
  public:

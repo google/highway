@@ -3572,92 +3572,49 @@ HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
 
 namespace detail {
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class T>
-HWY_INLINE Vec512<T> AVX3Per4LaneBlockShuf32(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
-                                             hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-                                             hwy::SizeTag<kIdx2> /*idx_2_tag*/,
-                                             hwy::SizeTag<kIdx3> /*idx_3_tag*/,
-                                             Vec512<T> v) {
-  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
-  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
-  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
-  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
-  constexpr _MM_PERM_ENUM kShuffle = static_cast<_MM_PERM_ENUM>(
-      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0));
-  return Vec512<T>{_mm512_shuffle_epi32(v.raw, kShuffle)};
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
+                                                const uint32_t x2,
+                                                const uint32_t x1,
+                                                const uint32_t x0) {
+  return BitCast(d, Vec512<uint32_t>{_mm512_set_epi32(
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0),
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0),
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0),
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0))});
 }
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3>
-HWY_INLINE Vec512<float> AVX3Per4LaneBlockShuf32(
-    hwy::SizeTag<kIdx0> /*idx_0_tag*/, hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-    hwy::SizeTag<kIdx2> /*idx_2_tag*/, hwy::SizeTag<kIdx3> /*idx_3_tag*/,
-    Vec512<float> v) {
-  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
-  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
-  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
-  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
-  constexpr int kShuffle =
-      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
-  return Vec512<float>{_mm512_shuffle_ps(v.raw, v.raw, kShuffle)};
-}
-
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
-                                  hwy::SizeTag<kIdx1> idx_1_tag,
-                                  hwy::SizeTag<kIdx2> idx_2_tag,
-                                  hwy::SizeTag<kIdx3> idx_3_tag,
+template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<64> /*vect_size_tag*/, V v) {
-  return AVX3Per4LaneBlockShuf32(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag, v);
+  return V{
+      _mm512_shuffle_epi32(v.raw, static_cast<_MM_PERM_ENUM>(kIdx3210 & 0xFF))};
 }
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class T>
-HWY_INLINE Vec512<T> AVX3Per4LaneBlockShuf64(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
-                                             hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-                                             hwy::SizeTag<kIdx2> /*idx_2_tag*/,
-                                             hwy::SizeTag<kIdx3> /*idx_3_tag*/,
-                                             Vec512<T> v) {
-  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
-  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
-  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
-  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
-  constexpr int kShuffle =
-      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
-  return Vec512<T>{_mm512_permutex_epi64(v.raw, kShuffle)};
+template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+                                  hwy::SizeTag<4> /*lane_size_tag*/,
+                                  hwy::SizeTag<64> /*vect_size_tag*/, V v) {
+  return V{_mm512_shuffle_ps(v.raw, v.raw, static_cast<int>(kIdx3210 & 0xFF))};
 }
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3>
-HWY_INLINE Vec512<double> AVX3Per4LaneBlockShuf64(
-    hwy::SizeTag<kIdx0> /*idx_0_tag*/, hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-    hwy::SizeTag<kIdx2> /*idx_2_tag*/, hwy::SizeTag<kIdx3> /*idx_3_tag*/,
-    Vec512<double> v) {
-  constexpr int kShufIdx0 = static_cast<int>(kIdx0 & 3);
-  constexpr int kShufIdx1 = static_cast<int>(kIdx1 & 3);
-  constexpr int kShufIdx2 = static_cast<int>(kIdx2 & 3);
-  constexpr int kShufIdx3 = static_cast<int>(kIdx3 & 3);
-  constexpr int kShuffle =
-      _MM_SHUFFLE(kShufIdx3, kShufIdx2, kShufIdx1, kShufIdx0);
-  return Vec512<double>{_mm512_permutex_pd(v.raw, kShuffle)};
-}
-
-template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<2> /*idx_0_tag*/,
-                                  hwy::SizeTag<3> /*idx_1_tag*/,
-                                  hwy::SizeTag<0> /*idx_2_tag*/,
-                                  hwy::SizeTag<1> /*idx_3_tag*/,
+template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<8> /*lane_size_tag*/,
                                   hwy::SizeTag<64> /*vect_size_tag*/, V v) {
-  return SwapAdjacentBlocks(v);
+  return V{_mm512_permutex_epi64(v.raw, static_cast<int>(kIdx3210 & 0xFF))};
 }
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3, class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> idx_0_tag,
-                                  hwy::SizeTag<kIdx1> idx_1_tag,
-                                  hwy::SizeTag<kIdx2> idx_2_tag,
-                                  hwy::SizeTag<kIdx3> idx_3_tag,
+template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<8> /*lane_size_tag*/,
                                   hwy::SizeTag<64> /*vect_size_tag*/, V v) {
-  return AVX3Per4LaneBlockShuf64(idx_0_tag, idx_1_tag, idx_2_tag, idx_3_tag, v);
+  return V{_mm512_permutex_pd(v.raw, static_cast<int>(kIdx3210 & 0xFF))};
 }
 
 }  // namespace detail
@@ -5555,7 +5512,7 @@ HWY_API float ReduceSum(D, Vec512<float> v) {
 }
 template <class D>
 HWY_API double ReduceSum(D, Vec512<double> v) {
-  return  _mm512_reduce_add_pd(v.raw);
+  return _mm512_reduce_add_pd(v.raw);
 }
 template <class D>
 HWY_API uint16_t ReduceSum(D d, Vec512<uint16_t> v) {

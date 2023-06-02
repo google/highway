@@ -1504,16 +1504,16 @@ instead because they are more general:
     <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
     lane are reversed.
 
-*   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx0, size_t kIdx1,
-    size_t kIdx2, size_t kIdx3&gt;(V v)</code> does a per 4-lane block shuffle
+*   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2,
+    size_t kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle
     of `v` if `Lanes(DFromV<V>())` is greater than or equal to 4 or a shuffle of
     the full vector if `Lanes(DFromV<V>())` is less than 4.
 
     `kIdx0`, `kIdx1`, `kIdx2`, and `kIdx3` must all be between 0 and 3.
 
     Per4LaneBlockShuffle is equivalent to doing a TableLookupLanes with the
-    following indices (but Per4LaneBlockShuffle is usually more efficient than
-    TableLookupLanes):
+    following indices (but Per4LaneBlockShuffle is more efficient than
+    TableLookupLanes on some platforms):
     `{kIdx0, kIdx1, kIdx2, kIdx3, kIdx0+4, kIdx1+4, kIdx2+4, kIdx3+4, ...}`
 
     If `Lanes(DFromV<V>())` is less than 4 and `kIdx0 >= Lanes(DFromV<V>())` is

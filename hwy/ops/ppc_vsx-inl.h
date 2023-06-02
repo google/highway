@@ -2119,6 +2119,28 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
+// ------------------------------ Per4LaneBlkShufDupSet4xU32
+
+// Used by hwy/ops/generic_ops-inl.h to implement Per4LaneBlockShuffle
+namespace detail {
+
+#ifdef HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#undef HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#else
+#define HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#endif
+
+template <class D>
+HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
+                                                const uint32_t x2,
+                                                const uint32_t x1,
+                                                const uint32_t x0) {
+  const __vector unsigned int raw = {x0, x1, x2, x3};
+  return ResizeBitCast(d, Vec128<uint32_t>{raw});
+}
+
+}  // namespace detail
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)

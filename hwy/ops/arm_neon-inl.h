@@ -5050,11 +5050,37 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 // ------------------------------ Per4LaneBlockShuffle
 namespace detail {
 
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+
+#ifdef HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#undef HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#else
+#define HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t /*x3*/,
+                                                const uint32_t /*x2*/,
+                                                const uint32_t x1,
+                                                const uint32_t x0) {
+  typedef uint32_t GccU32RawVectType __attribute__((__vector_size__(8)));
+  const GccU32RawVectType raw = {x0, x1};
+  return ResizeBitCast(d, Vec64<uint32_t>(reinterpret_cast<uint32x2_t>(raw)));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16)>
+HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
+                                                const uint32_t x2,
+                                                const uint32_t x1,
+                                                const uint32_t x0) {
+  typedef uint32_t GccU32RawVectType __attribute__((__vector_size__(16)));
+  const GccU32RawVectType raw = {x0, x1, x2, x3};
+  return ResizeBitCast(d, Vec128<uint32_t>(reinterpret_cast<uint32x4_t>(raw)));
+}
+#endif  // HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+
 template <class V>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<2> /*idx_0_tag*/,
-                                  hwy::SizeTag<2> /*idx_1_tag*/,
-                                  hwy::SizeTag<3> /*idx_2_tag*/,
-                                  hwy::SizeTag<3> /*idx_3_tag*/,
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xFA> /*idx_3210_tag*/,
                                   hwy::SizeTag<2> /*lane_size_tag*/,
                                   hwy::SizeTag<8> /*vect_size_tag*/, V v) {
   const DFromV<decltype(v)> d;

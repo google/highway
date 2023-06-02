@@ -3000,43 +3000,46 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 // ------------------------------ Per4LaneBlockShuffle
 namespace detail {
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3,
-          size_t kVectSize, class V, HWY_IF_LANES_LE(kVectSize, 16)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
-                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
-                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+template <size_t kIdx3210, size_t kVectSize, class V,
+          HWY_IF_LANES_LE(kVectSize, 16)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<1> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
+  constexpr int kIdx3 = static_cast<int>((kIdx3210 >> 6) & 3);
+  constexpr int kIdx2 = static_cast<int>((kIdx3210 >> 4) & 3);
+  constexpr int kIdx1 = static_cast<int>((kIdx3210 >> 2) & 3);
+  constexpr int kIdx0 = static_cast<int>(kIdx3210 & 3);
   return V{wasm_i8x16_shuffle(v.raw, v.raw, kIdx0, kIdx1, kIdx2, kIdx3,
                               kIdx0 + 4, kIdx1 + 4, kIdx2 + 4, kIdx3 + 4,
                               kIdx0 + 8, kIdx1 + 8, kIdx2 + 8, kIdx3 + 8,
                               kIdx0 + 12, kIdx1 + 12, kIdx2 + 12, kIdx3 + 12)};
 }
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3,
-          size_t kVectSize, class V, HWY_IF_LANES_LE(kVectSize, 16)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
-                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
-                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+template <size_t kIdx3210, size_t kVectSize, class V,
+          HWY_IF_LANES_LE(kVectSize, 16)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<2> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
+  constexpr int kIdx3 = static_cast<int>((kIdx3210 >> 6) & 3);
+  constexpr int kIdx2 = static_cast<int>((kIdx3210 >> 4) & 3);
+  constexpr int kIdx1 = static_cast<int>((kIdx3210 >> 2) & 3);
+  constexpr int kIdx0 = static_cast<int>(kIdx3210 & 3);
   return V{wasm_i16x8_shuffle(v.raw, v.raw, kIdx0, kIdx1, kIdx2, kIdx3,
                               kIdx0 + 4, kIdx1 + 4, kIdx2 + 4, kIdx3 + 4)};
 }
 
-template <size_t kIdx0, size_t kIdx1, size_t kIdx2, size_t kIdx3,
-          size_t kVectSize, class V, HWY_IF_LANES_LE(kVectSize, 16)>
-HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx0> /*idx_0_tag*/,
-                                  hwy::SizeTag<kIdx1> /*idx_1_tag*/,
-                                  hwy::SizeTag<kIdx2> /*idx_2_tag*/,
-                                  hwy::SizeTag<kIdx3> /*idx_3_tag*/,
+template <size_t kIdx3210, size_t kVectSize, class V,
+          HWY_IF_LANES_LE(kVectSize, 16)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
                                   hwy::SizeTag<4> /*lane_size_tag*/,
                                   hwy::SizeTag<kVectSize> /*vect_size_tag*/,
                                   V v) {
+  constexpr int kIdx3 = static_cast<int>((kIdx3210 >> 6) & 3);
+  constexpr int kIdx2 = static_cast<int>((kIdx3210 >> 4) & 3);
+  constexpr int kIdx1 = static_cast<int>((kIdx3210 >> 2) & 3);
+  constexpr int kIdx0 = static_cast<int>(kIdx3210 & 3);
   return V{wasm_i32x4_shuffle(v.raw, v.raw, kIdx0, kIdx1, kIdx2, kIdx3)};
 }
 
