@@ -5558,7 +5558,7 @@ HWY_API float ReduceSum(D, Vec512<float> v) {
 }
 template <class D>
 HWY_API double ReduceSum(D, Vec512<double> v) {
-  return _mm512_reduce_add_pd(v.raw);
+  return  _mm512_reduce_add_pd(v.raw);
 }
 template <class D>
 HWY_API uint16_t ReduceSum(D d, Vec512<uint16_t> v) {
