@@ -3523,6 +3523,12 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x50> /*idx_3210_tag*/, V v) {
   return InterleaveLower(d, v, v);
 }
 
+template <class V, HWY_IF_LANES_D(DFromV<V>, 4)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x88> /*idx_3210_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return ConcatEven(d, v, v);
+}
+
 template <class V>
 HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xA0> /*idx_3210_tag*/, V v) {
   return DupEven(v);
@@ -3532,6 +3538,12 @@ template <class V>
 HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xB1> /*idx_3210_tag*/, V v) {
   const DFromV<decltype(v)> d;
   return Reverse2(d, v);
+}
+
+template <class V, HWY_IF_LANES_D(DFromV<V>, 4)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xDD> /*idx_3210_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  return ConcatOdd(d, v, v);
 }
 
 template <class V>

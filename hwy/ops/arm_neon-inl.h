@@ -5125,6 +5125,34 @@ HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
 }
 #endif  // HWY_COMPILER_GCC || HWY_COMPILER_CLANG
 
+template <size_t kLaneSize, size_t kVectSize, class V,
+          HWY_IF_LANES_GT_D(DFromV<V>, 4)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x88> /*idx_3210_tag*/,
+                                  hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
+                                  hwy::SizeTag<kVectSize> /*vect_size_tag*/,
+                                  V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+
+  const auto evens = BitCast(dw, ConcatEven(d, v, v));
+  return BitCast(d, InterleaveLower(dw, evens, evens));
+}
+
+template <size_t kLaneSize, size_t kVectSize, class V,
+          HWY_IF_LANES_GT_D(DFromV<V>, 4)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xDD> /*idx_3210_tag*/,
+                                  hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
+                                  hwy::SizeTag<kVectSize> /*vect_size_tag*/,
+                                  V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+
+  const auto odds = BitCast(dw, ConcatOdd(d, v, v));
+  return BitCast(d, InterleaveLower(dw, odds, odds));
+}
+
 template <class V>
 HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xFA> /*idx_3210_tag*/,
                                   hwy::SizeTag<2> /*lane_size_tag*/,

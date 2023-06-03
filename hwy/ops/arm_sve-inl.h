@@ -2015,6 +2015,40 @@ HWY_API V InterleaveUpper(D d, const V a, const V b) {
   return InterleaveUpper(DFromV<V>(), a, b);
 }
 
+// ------------------------------ Per4LaneBlockShuffle
+
+namespace detail {
+
+template <size_t kLaneSize, size_t kVectSize, class V,
+          HWY_IF_NOT_T_SIZE_V(V, 8)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0x88> /*idx_3210_tag*/,
+                                  hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
+                                  hwy::SizeTag<kVectSize> /*vect_size_tag*/,
+                                  V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+
+  const auto evens = BitCast(dw, ConcatEvenFull(v, v));
+  return BitCast(d, ZipLowerSame(evens, evens));
+}
+
+template <size_t kLaneSize, size_t kVectSize, class V,
+          HWY_IF_NOT_T_SIZE_V(V, 8)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<0xDD> /*idx_3210_tag*/,
+                                  hwy::SizeTag<kLaneSize> /*lane_size_tag*/,
+                                  hwy::SizeTag<kVectSize> /*vect_size_tag*/,
+                                  V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(du)> dw;
+
+  const auto odds = BitCast(dw, ConcatOddFull(v, v));
+  return BitCast(d, ZipLowerSame(odds, odds));
+}
+
+}  // namespace detail
+
 // ================================================== COMBINE
 
 namespace detail {
