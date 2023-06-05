@@ -554,7 +554,7 @@ class ForPartialVectors {
 
 // ForPartialFixedOrFullScalableVectors calls Test for each D where
 // MaxLanes(D()) == MaxLanes(DFromV<VFromD<D>>())
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+#if HWY_HAVE_SCALABLE
 template <class Test>
 class ForPartialFixedOrFullScalableVectors {
   mutable bool called_ = false;
@@ -579,6 +579,10 @@ class ForPartialFixedOrFullScalableVectors {
     detail::ForeachPow2<T, kMinPow2, kMaxPow2, true, Test>::Do(1);
   }
 };
+#elif HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+template <class Test>
+using ForPartialFixedOrFullScalableVectors =
+    ForGEVectors<HWY_MAX_BYTES * 8, Test>;
 #else
 template <class Test>
 using ForPartialFixedOrFullScalableVectors = ForPartialVectors<Test>;
