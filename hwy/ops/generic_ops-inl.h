@@ -3402,12 +3402,10 @@ HWY_INLINE IndicesFromD<D> TblLookupPer4LaneBlkShufIdx(D d, const uint32_t idx3,
   using TU = TFromD<decltype(du)>;
   auto idx_in_blk = TblLookupPer4LaneBlkIdxInBlk(du, idx3, idx2, idx1, idx0);
 
-#if HWY_TARGET == HWY_EMU128 || HWY_TARGET <= HWY_AVX3
   constexpr size_t kN = HWY_MAX_LANES_D(D);
   if (kN < 4) {
     idx_in_blk = And(idx_in_blk, Set(du, static_cast<TU>(kN - 1)));
   }
-#endif
 
 #if HWY_TARGET == HWY_RVV
   const auto blk_offsets = AndS(Iota0(du), static_cast<TU>(~TU{3}));
