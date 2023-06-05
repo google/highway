@@ -87,7 +87,7 @@ HWY_NOINLINE void BenchAllColdSort() {
 #if VQSORT_ENABLED
   HWY_ASSERT(GetGeneratorState() != nullptr);  // vqsort
 #endif
-  RandomState rng(Unpredictable1() * 129);  // this test
+  RandomState rng(static_cast<uint64_t>(Unpredictable1() * 129));  // this test
 
   using T = uint64_t;
   constexpr size_t kSize = 10 * 1000;
