@@ -415,10 +415,19 @@ time-critical code:
     `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
 
 *   <code>V **InsertBlock**&lt;int kBlock&gt;(V v, Vec<BlockDFromD<DFromV<V>>>
-    blk_to_insert)</code>: Inserts `blk_to_insert` at lane offset
-    `kBlock * (16 / sizeof(TFromV<V>))`.
+    blk_to_insert)</code>: Inserts `blk_to_insert`, with `blk_to_insert[i]`
+    inserted into lane `kBlock * (16 / sizeof(TFromV<V>)) + i` of the result
+    vector, if `kBlock * 16 < Lanes(DFromV<V>()) * sizeof(TFromV<V>)` is true.
+
+    Otherwise, returns `v` if `kBlock * 16` is greater than or equal to
+    `Lanes(DFromV<V>()) * sizeof(TFromV<V>)`.
 
     `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
+
+*   <code>size_t **NumOfBlocks**(D d)</code>: Returns the number of 16-byte
+    blocks if `Lanes(d) * sizeof(TFromD<D>)` is greater than or equal to 16.
+
+    Otherwise, returns 1 if `Lanes(d) * sizeof(TFromD<D>)` is less than 16.
 
 ### Printing
 
@@ -1529,8 +1538,9 @@ instead because they are more general:
 
 *   <code>V **BroadcastBlock**&lt;int kBlock&gt;(V v)</code>: broadcasts the
     16-byte block of vector `v` at index `kBlock` to all of the blocks of the
-    result vector if `Lanes(DFromV<V>()) > (16 / TFromV<V>)` is true.
-    Otherwise, if `Lanes(DFromV<V>()) <= (16 / TFromV<V>)` is true, returns `v`.
+    result vector if `Lanes(DFromV<V>()) * sizeof(TFromV<V>) > 16` is true.
+    Otherwise, if `Lanes(DFromV<V>()) * sizeof(TFromV<V>) <= 16` is true,
+    returns `v`.
 
     `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
 
