@@ -292,9 +292,9 @@ std::vector<Algo> AlgoForBench() {
 
 #if !HAVE_PARALLEL_IPS4O
 #if !SORT_100M
-        // 10-20x slower, but that's OK for the default size when we are not
-        // testing the parallel nor 100M modes.
-        Algo::kStd,
+    // 10-20x slower, but that's OK for the default size when we are not
+    // testing the parallel nor 100M modes.
+    // Algo::kStd,
 #endif
 
         Algo::kVQSort,  // only ~4x slower, but not required for Table 1a
@@ -350,8 +350,10 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
 enum class BenchmarkModes {
   kDefault,
   k1M,
+  k10K,
   kAllSmall,
   kSmallPow2,
+  kSmallPow2Between,  // includes padding
   kPow4,
   kPow10
 };
@@ -371,6 +373,9 @@ std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
     case BenchmarkModes::k1M:
       sizes.push_back(1000 * 1000);
       break;
+    case BenchmarkModes::k10K:
+      sizes.push_back(10 * 1000);
+      break;
 
     case BenchmarkModes::kAllSmall:
       sizes.reserve(128);
@@ -383,6 +388,12 @@ std::vector<size_t> SizesToBenchmark(BenchmarkModes mode) {
         sizes.push_back(size);
       }
       break;
+    case BenchmarkModes::kSmallPow2Between:
+      for (size_t size = 2; size <= 128; size *= 2) {
+        sizes.push_back(3 * size / 2);
+      }
+      break;
+
     case BenchmarkModes::kPow4:
       for (size_t size = 4; size <= 256 * 1024; size *= 4) {
         sizes.push_back(size);

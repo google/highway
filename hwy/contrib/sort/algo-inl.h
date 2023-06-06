@@ -268,7 +268,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-#if HAVE_INTEL  // only supports ascending order
+#if HAVE_INTEL || HAVE_VXSORT  // only supports ascending order
 template <typename T>
 using OtherOrder = detail::OrderAscending<T>;
 #else
