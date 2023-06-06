@@ -168,6 +168,7 @@ struct Simd {
 
   constexpr size_t MaxLanes() const { return kPrivateLanes; }
   constexpr size_t MaxBytes() const { return kPrivateLanes * sizeof(Lane); }
+  constexpr size_t MaxBlocks() const { return (MaxBytes() + 15) / 16; }
   // For SFINAE on RVV.
   constexpr int Pow2() const { return kPow2; }
 

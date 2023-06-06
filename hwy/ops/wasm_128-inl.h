@@ -2431,6 +2431,14 @@ HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
 
 // ------------------------------ Broadcast/splat any lane
 
+template <int kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<T, N>{wasm_i8x16_shuffle(
+      v.raw, v.raw, kLane, kLane, kLane, kLane, kLane, kLane, kLane, kLane,
+      kLane, kLane, kLane, kLane, kLane, kLane, kLane, kLane)};
+}
+
 template <int kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");

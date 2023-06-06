@@ -527,6 +527,239 @@ HWY_NOINLINE void TestAllPer4LaneBlockShuffle() {
   ForAllTypes(ForPartialFixedOrFullScalableVectors<TestPer4LaneBlockShuffle>());
 }
 
+class TestInsertBlock {
+ private:
+  template <int kBlock, class D,
+            HWY_IF_V_SIZE_GT_D(D, static_cast<size_t>(kBlock) * 16)>
+  static HWY_INLINE void DoTestInsertBlock(D d, const size_t N,
+                                           TFromD<D>* HWY_RESTRICT expected) {
+    // kBlock * 16 < D.MaxBytes() is true
+    using T = TFromD<D>;
+    using TI = MakeSigned<T>;
+    using TU = MakeUnsigned<T>;
+
+    const RebindToUnsigned<decltype(d)> du;
+    const BlockDFromD<decltype(d)> d_block;
+    const RebindToUnsigned<decltype(d_block)> du_block;
+    using V = Vec<D>;
+    using VB = Vec<decltype(d_block)>;
+    constexpr TU kPositiveMask = static_cast<TU>(LimitsMax<TI>());
+    constexpr TU kSignBit = static_cast<TU>(~kPositiveMask);
+
+    for (size_t i = 0; i < N; i++) {
+      const T val = static_cast<T>(i);
+      TU val_bits;
+      CopySameSize(&val, &val_bits);
+      val_bits &= kPositiveMask;
+      CopySameSize(&val_bits, &expected[i]);
+    }
+
+    constexpr size_t kLanesPer16ByteBlk = 16 / sizeof(T);
+    constexpr size_t kBlkLaneOffset =
+        static_cast<size_t>(kBlock) * kLanesPer16ByteBlk;
+    if (kBlkLaneOffset < N) {
+      const size_t num_of_lanes_in_blk =
+          HWY_MIN(N - kBlkLaneOffset, kLanesPer16ByteBlk);
+      for (size_t i = 0; i < num_of_lanes_in_blk; i++) {
+        const T val =
+            static_cast<T>(static_cast<TU>(i) + static_cast<TU>(kBlock));
+        TU val_bits;
+        CopySameSize(&val, &val_bits);
+        val_bits |= kSignBit;
+        CopySameSize(&val_bits, &expected[kBlkLaneOffset + i]);
+      }
+    }
+
+    const V v = And(Iota(d, T{0}), BitCast(d, Set(du, kPositiveMask)));
+    const VB blk_to_insert = Or(Iota(d_block, static_cast<TU>(kBlock)),
+                                BitCast(d_block, Set(du_block, kSignBit)));
+    const V actual = InsertBlock<kBlock>(v, blk_to_insert);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
+  }
+  template <int kBlock, class D,
+            HWY_IF_V_SIZE_LE_D(D, static_cast<size_t>(kBlock) * 16)>
+  static HWY_INLINE void DoTestInsertBlock(
+      D /*d*/, const size_t /*N*/, TFromD<D>* HWY_RESTRICT /*expected*/) {
+    // If kBlock * 16 >= D.MaxBytes() is true, do nothing
+  }
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
+
+    DoTestInsertBlock<0>(d, N, expected.get());
+    DoTestInsertBlock<1>(d, N, expected.get());
+    DoTestInsertBlock<2>(d, N, expected.get());
+    DoTestInsertBlock<3>(d, N, expected.get());
+  }
+};
+
+HWY_NOINLINE void TestAllInsertBlock() {
+  ForAllTypes(ForPartialFixedOrFullScalableVectors<TestInsertBlock>());
+}
+
+class TestExtractBlock {
+ private:
+  template <int kBlock, class D,
+            HWY_IF_V_SIZE_GT_D(D, static_cast<size_t>(kBlock) * 16)>
+  static HWY_INLINE void DoTestExtractBlock(D d, const size_t N,
+                                            TFromD<D>* HWY_RESTRICT expected) {
+    // kBlock * 16 < D.MaxBytes() is true
+    using T = TFromD<D>;
+
+    constexpr size_t kLanesPer16ByteBlk = 16 / sizeof(T);
+    constexpr size_t kBlkLaneOffset =
+        static_cast<size_t>(kBlock) * kLanesPer16ByteBlk;
+    if (kBlkLaneOffset >= N) return;
+
+    const BlockDFromD<decltype(d)> d_block;
+    static_assert(d_block.MaxLanes() <= kLanesPer16ByteBlk,
+                  "d_block.MaxLanes() <= kLanesPer16ByteBlk must be true");
+
+    for (size_t i = 0; i < kLanesPer16ByteBlk; i++) {
+      expected[i] = static_cast<T>(kBlkLaneOffset + i);
+    }
+
+    const auto v = Iota(d, T{0});
+    const Vec<BlockDFromD<decltype(d_block)>> actual = ExtractBlock<kBlock>(v);
+    HWY_ASSERT_VEC_EQ(d_block, expected, actual);
+  }
+  template <int kBlock, class D,
+            HWY_IF_V_SIZE_LE_D(D, static_cast<size_t>(kBlock) * 16)>
+  static HWY_INLINE void DoTestExtractBlock(
+      D /*d*/, const size_t /*N*/, TFromD<D>* HWY_RESTRICT /*expected*/) {
+    // If kBlock * 16 >= D.MaxBytes() is true, do nothing
+  }
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    constexpr size_t kLanesPer16ByteBlk = 16 / sizeof(T);
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(kLanesPer16ByteBlk);
+    HWY_ASSERT(expected);
+
+    DoTestExtractBlock<0>(d, N, expected.get());
+    DoTestExtractBlock<1>(d, N, expected.get());
+    DoTestExtractBlock<2>(d, N, expected.get());
+    DoTestExtractBlock<3>(d, N, expected.get());
+  }
+};
+
+HWY_NOINLINE void TestAllExtractBlock() {
+  ForAllTypes(ForPartialFixedOrFullScalableVectors<TestExtractBlock>());
+}
+
+class TestBroadcastBlock {
+ private:
+  template <int kBlock, class D,
+            HWY_IF_V_SIZE_GT_D(D, static_cast<size_t>(kBlock) * 16)>
+  static HWY_INLINE void DoTestBroadcastBlock(
+      D d, const size_t N, TFromD<D>* HWY_RESTRICT expected) {
+    // kBlock * 16 < D.MaxBytes() is true
+    using T = TFromD<D>;
+
+    constexpr size_t kLanesPer16ByteBlk = 16 / sizeof(T);
+    constexpr size_t kBlkLaneOffset =
+        static_cast<size_t>(kBlock) * kLanesPer16ByteBlk;
+    if (kBlkLaneOffset >= N) return;
+
+    for (size_t i = 0; i < N; i++) {
+      const size_t idx_in_blk = i & (kLanesPer16ByteBlk - 1);
+      expected[i] =
+          static_cast<T>(kBlkLaneOffset + kLanesPer16ByteBlk + idx_in_blk);
+    }
+
+    const auto v = Iota(d, static_cast<T>(kLanesPer16ByteBlk));
+    const auto actual = BroadcastBlock<kBlock>(v);
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
+  }
+  template <int kBlock, class D,
+            HWY_IF_V_SIZE_LE_D(D, static_cast<size_t>(kBlock) * 16)>
+  static HWY_INLINE void DoTestBroadcastBlock(
+      D /*d*/, const size_t /*N*/, TFromD<D>* HWY_RESTRICT /*expected*/) {
+    // If kBlock * 16 >= D.MaxBytes() is true, do nothing
+  }
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
+
+    DoTestBroadcastBlock<0>(d, N, expected.get());
+    DoTestBroadcastBlock<1>(d, N, expected.get());
+    DoTestBroadcastBlock<2>(d, N, expected.get());
+    DoTestBroadcastBlock<3>(d, N, expected.get());
+  }
+};
+
+HWY_NOINLINE void TestAllBroadcastBlock() {
+  ForAllTypes(ForPartialFixedOrFullScalableVectors<TestBroadcastBlock>());
+}
+
+class TestBroadcastLane {
+ private:
+  template <int kLane, class D,
+            HWY_IF_LANES_GT_D(D, static_cast<size_t>(kLane))>
+  static HWY_INLINE void DoTestBroadcastLane(D d, const size_t N) {
+    using T = TFromD<D>;
+    using TU = MakeUnsigned<T>;
+    // kLane < HWY_MAX_LANES_D(D) is true
+    if (kLane >= N) return;
+
+    constexpr T kExpectedVal = static_cast<T>(static_cast<TU>(kLane) + 1u);
+    const auto expected = Set(d, kExpectedVal);
+
+    const BlockDFromD<decltype(d)> d_block;
+    static_assert(d_block.MaxLanes() <= d.MaxLanes(),
+                  "d_block.MaxLanes() <= d.MaxLanes() must be true");
+    constexpr size_t kLanesPer16ByteBlk = 16 / sizeof(T);
+    constexpr int kBlockIdx = kLane / static_cast<int>(kLanesPer16ByteBlk);
+    constexpr int kLaneInBlkIdx =
+        kLane & static_cast<int>(kLanesPer16ByteBlk - 1);
+
+    const Vec<D> v = Iota(d, T{1});
+    const Vec<D> actual = BroadcastLane<kLane>(v);
+    const Vec<decltype(d_block)> actual_block =
+        ExtractBlock<kBlockIdx>(Broadcast<kLaneInBlkIdx>(v));
+
+    HWY_ASSERT_VEC_EQ(d, expected, actual);
+    HWY_ASSERT_VEC_EQ(d_block, ResizeBitCast(d_block, expected), actual_block);
+  }
+  template <int kLane, class D,
+            HWY_IF_LANES_LE_D(D, static_cast<size_t>(kLane))>
+  static HWY_INLINE void DoTestBroadcastLane(D /*d*/, const size_t /*N*/) {
+    // If kLane >= HWY_MAX_LANES_D(D) is true, do nothing
+  }
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto N = Lanes(d);
+
+    DoTestBroadcastLane<0>(d, N);
+    DoTestBroadcastLane<1>(d, N);
+    DoTestBroadcastLane<2>(d, N);
+    DoTestBroadcastLane<3>(d, N);
+    DoTestBroadcastLane<6>(d, N);
+    DoTestBroadcastLane<14>(d, N);
+    DoTestBroadcastLane<29>(d, N);
+    DoTestBroadcastLane<53>(d, N);
+    DoTestBroadcastLane<115>(d, N);
+    DoTestBroadcastLane<251>(d, N);
+    DoTestBroadcastLane<257>(d, N);
+  }
+};
+
+HWY_NOINLINE void TestAllBroadcastLane() {
+  ForAllTypes(ForPartialFixedOrFullScalableVectors<TestBroadcastLane>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -547,6 +780,10 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllSwapAdjacentBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTableLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllTwoTablesLookupLanes);
 HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllPer4LaneBlockShuffle);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllInsertBlock);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllExtractBlock);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllBroadcastBlock);
+HWY_EXPORT_AND_TEST_P(HwySwizzleTest, TestAllBroadcastLane);
 }  // namespace hwy
 
 #endif

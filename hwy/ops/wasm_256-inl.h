@@ -780,6 +780,37 @@ HWY_API Vec256<T> InsertLane(const Vec256<T> v, size_t i, T t) {
   return Load(d, lanes);
 }
 
+// ------------------------------ ExtractBlock
+template <int kBlockIdx, class T>
+HWY_API Vec128<T> ExtractBlock(Vec256<T> v) {
+  static_assert(kBlockIdx == 0 || kBlockIdx == 1, "Invalid block index");
+  return (kBlockIdx == 0) ? v.v0 : v.v1;
+}
+
+// ------------------------------ InsertBlock
+template <int kBlockIdx, class T>
+HWY_API Vec256<T> InsertBlock(Vec256<T> v, Vec128<T> blk_to_insert) {
+  static_assert(kBlockIdx == 0 || kBlockIdx == 1, "Invalid block index");
+  Vec256<T> result;
+  if (kBlockIdx == 0) {
+    result.v0 = blk_to_insert;
+    result.v1 = v.v1;
+  } else {
+    result.v0 = v.v0;
+    result.v1 = blk_to_insert;
+  }
+  return result;
+}
+
+// ------------------------------ BroadcastBlock
+template <int kBlockIdx, class T>
+HWY_API Vec256<T> BroadcastBlock(Vec256<T> v) {
+  static_assert(kBlockIdx == 0 || kBlockIdx == 1, "Invalid block index");
+  Vec256<T> result;
+  result.v0 = result.v1 = (kBlockIdx == 0 ? v.v0 : v.v1);
+  return result;
+}
+
 // ------------------------------ LowerHalf
 
 template <class D, typename T = TFromD<D>>
@@ -865,6 +896,17 @@ HWY_API Vec256<T> Broadcast(const Vec256<T> v) {
   Vec256<T> ret;
   ret.v0 = Broadcast<kLane>(v.v0);
   ret.v1 = Broadcast<kLane>(v.v1);
+  return ret;
+}
+
+template <int kLane, typename T>
+HWY_API Vec256<T> BroadcastLane(const Vec256<T> v) {
+  constexpr int kLanesPerBlock = static_cast<int>(16 / sizeof(T));
+  static_assert(0 <= kLane && kLane < kLanesPerBlock * 2, "Invalid lane");
+  constexpr int kLaneInBlkIdx = kLane & (kLanesPerBlock - 1);
+  Vec256<T> ret;
+  ret.v0 = ret.v1 =
+      Broadcast<kLaneInBlkIdx>(kLane >= kLanesPerBlock ? v.v1 : v.v0);
   return ret;
 }
 

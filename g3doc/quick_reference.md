@@ -224,6 +224,9 @@ lane count, thus avoiding the need for a second loop to handle remainders.
 *   The result of `UpperHalf`/`LowerHalf` has half the lanes. To obtain a
     corresponding `d`, use `Half<decltype(d)>`; the opposite is `Twice<>`.
 
+*   `BlockDFromD<D>` returns a `d` with a lane type of `TFromD<D>` and
+    `HWY_MIN(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>))` lanes.
+
 User-specified lane counts or tuples of vectors could cause spills on targets
 with fewer or smaller vectors. By contrast, Highway encourages vector-length
 agnostic code, which is more performance-portable.
@@ -402,6 +405,20 @@ time-critical code:
     lane `i` is set to `t`. `i` must be in `[0, Lanes(DFromV<V>()))`.
     Potentially slow, it may be better set all elements of an aligned array and
     then `Load` it.
+
+### Getting/setting blocks
+
+*   <code>Vec<BlockDFromD<DFromV<V>>> **ExtractBlock**&lt;int kBlock&gt;(V)
+    </code>: returns block `kBlock` of V, where `kBlock` is an index to a block
+    that is `HWY_MIN(DFromV<V>().MaxBytes(), 16)` bytes.
+
+    `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
+
+*   <code>V **InsertBlock**&lt;int kBlock&gt;(V v, Vec<BlockDFromD<DFromV<V>>>
+    blk_to_insert)</code>: Inserts `blk_to_insert` at lane offset
+    `kBlock * (16 / sizeof(TFromV<V>))`.
+
+    `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
 
 ### Printing
 
@@ -1338,8 +1355,7 @@ more expensive on AVX2/AVX-512 than per-block operations.
 **Note**: if vectors are larger than 128 bits, the following operations split
 their operands into independently processed 128-bit *blocks*.
 
-*   `V`: `{u,i}{16,32,64}, {f}` \
-    <code>V **Broadcast**&lt;int i&gt;(V)</code>: returns individual *blocks*,
+*   <code>V **Broadcast**&lt;int i&gt;(V)</code>: returns individual *blocks*,
     each with lanes set to `input_block[i]`, `i = [0, 16/sizeof(T))`.
 
 All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
@@ -1510,6 +1526,18 @@ instead because they are more general:
     `TableLookupLanes` by loading `Lanes(d)` integer indices from `idx`, which
     must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
     type `TI` must be an integer of the same size as `TFromD<D>`.
+
+*   <code>V **BroadcastBlock**&lt;int kBlock&gt;(V v)</code>: broadcasts the
+    16-byte block of vector `v` at index `kBlock` to all of the blocks of the
+    result vector if `Lanes(DFromV<V>()) > (16 / TFromV<V>)` is true.
+    Otherwise, if `Lanes(DFromV<V>()) <= (16 / TFromV<V>)` is true, returns `v`.
+
+    `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
+
+*   <code>V **BroadcastLane**&lt;int kLane&gt;(V v)</code>: returns a vector
+    with all of the lanes set to `v[kLane]`.
+
+    `kLane` must be in `[0, MaxLanes(DFromV<V>()))`.
 
 *   <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
     order (`out[i] == a[Lanes(D()) - 1 - i]`).

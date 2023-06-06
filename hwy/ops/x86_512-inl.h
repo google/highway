@@ -2538,10 +2538,79 @@ HWY_API T ExtractLane(const Vec512<T> v, size_t i) {
   return lanes[i];
 }
 
+// ------------------------------ ExtractBlock
+template <int kBlockIdx, class T, hwy::EnableIf<(kBlockIdx <= 1)>* = nullptr>
+HWY_API Vec128<T> ExtractBlock(Vec512<T> v) {
+  const DFromV<decltype(v)> d;
+  const Half<decltype(d)> dh;
+  return ExtractBlock<kBlockIdx>(LowerHalf(dh, v));
+}
+
+template <int kBlockIdx, class T, hwy::EnableIf<(kBlockIdx > 1)>* = nullptr>
+HWY_API Vec128<T> ExtractBlock(Vec512<T> v) {
+  static_assert(kBlockIdx <= 3, "Invalid block index");
+  return Vec128<T>{_mm512_extracti32x4_epi32(v.raw, kBlockIdx)};
+}
+
+template <int kBlockIdx, hwy::EnableIf<(kBlockIdx > 1)>* = nullptr>
+HWY_API Vec128<float> ExtractBlock(Vec512<float> v) {
+  static_assert(kBlockIdx <= 3, "Invalid block index");
+  return Vec128<float>{_mm512_extractf32x4_ps(v.raw, kBlockIdx)};
+}
+
+template <int kBlockIdx, hwy::EnableIf<(kBlockIdx > 1)>* = nullptr>
+HWY_API Vec128<double> ExtractBlock(Vec512<double> v) {
+  static_assert(kBlockIdx <= 3, "Invalid block index");
+  return Vec128<double>{_mm512_extractf64x2_pd(v.raw, kBlockIdx)};
+}
+
 // ------------------------------ InsertLane (Store)
 template <typename T>
 HWY_API Vec512<T> InsertLane(const Vec512<T> v, size_t i, T t) {
   return detail::InsertLaneUsingBroadcastAndBlend(v, i, t);
+}
+
+// ------------------------------ InsertBlock
+namespace detail {
+
+template <typename T>
+HWY_INLINE Vec512<T> InsertBlock(hwy::SizeTag<0> /* blk_idx_tag */, Vec512<T> v,
+                                 Vec128<T> blk_to_insert) {
+  const DFromV<decltype(v)> d;
+  const auto insert_mask = FirstN(d, 16 / sizeof(T));
+  return IfThenElse(insert_mask, ResizeBitCast(d, blk_to_insert), v);
+}
+
+template <size_t kBlockIdx, typename T>
+HWY_INLINE Vec512<T> InsertBlock(hwy::SizeTag<kBlockIdx> /* blk_idx_tag */,
+                                 Vec512<T> v, Vec128<T> blk_to_insert) {
+  return Vec512<T>{_mm512_inserti32x4(v.raw, blk_to_insert.raw,
+                                      static_cast<int>(kBlockIdx & 3))};
+}
+
+template <size_t kBlockIdx, hwy::EnableIf<kBlockIdx != 0>* = nullptr>
+HWY_INLINE Vec512<float> InsertBlock(hwy::SizeTag<kBlockIdx> /* blk_idx_tag */,
+                                     Vec512<float> v,
+                                     Vec128<float> blk_to_insert) {
+  return Vec512<float>{_mm512_insertf32x4(v.raw, blk_to_insert.raw,
+                                          static_cast<int>(kBlockIdx & 3))};
+}
+
+template <size_t kBlockIdx, hwy::EnableIf<kBlockIdx != 0>* = nullptr>
+HWY_INLINE Vec512<double> InsertBlock(hwy::SizeTag<kBlockIdx> /* blk_idx_tag */,
+                                      Vec512<double> v,
+                                      Vec128<double> blk_to_insert) {
+  return Vec512<double>{_mm512_insertf64x2(v.raw, blk_to_insert.raw,
+                                           static_cast<int>(kBlockIdx & 3))};
+}
+
+}  // namespace detail
+
+template <int kBlockIdx, class T>
+HWY_API Vec512<T> InsertBlock(Vec512<T> v, Vec128<T> blk_to_insert) {
+  static_assert(0 <= kBlockIdx && kBlockIdx <= 3, "Invalid block index");
+  return detail::InsertBlock(hwy::SizeTag<static_cast<size_t>(kBlockIdx)>(), v,
+                             blk_to_insert);
 }
 
 // ------------------------------ GetLane (LowerHalf)
@@ -2772,6 +2841,84 @@ HWY_API Vec512<double> Broadcast(const Vec512<double> v) {
   static_assert(0 <= kLane && kLane < 2, "Invalid lane");
   constexpr _MM_PERM_ENUM perm = static_cast<_MM_PERM_ENUM>(0xFF * kLane);
   return Vec512<double>{_mm512_shuffle_pd(v.raw, v.raw, perm)};
+}
+
+// ------------------------------ BroadcastBlock
+template <int kBlockIdx, class T>
+HWY_API Vec512<T> BroadcastBlock(Vec512<T> v) {
+  static_assert(0 <= kBlockIdx && kBlockIdx <= 3, "Invalid block index");
+  return Vec512<T>{_mm512_shuffle_i32x4(v.raw, v.raw, 0x55 * kBlockIdx)};
+}
+
+template <int kBlockIdx>
+HWY_API Vec512<float> BroadcastBlock(Vec512<float> v) {
+  static_assert(0 <= kBlockIdx && kBlockIdx <= 3, "Invalid block index");
+  return Vec512<float>{_mm512_shuffle_f32x4(v.raw, v.raw, 0x55 * kBlockIdx)};
+}
+
+template <int kBlockIdx>
+HWY_API Vec512<double> BroadcastBlock(Vec512<double> v) {
+  static_assert(0 <= kBlockIdx && kBlockIdx <= 3, "Invalid block index");
+  return Vec512<double>{_mm512_shuffle_f64x2(v.raw, v.raw, 0x55 * kBlockIdx)};
+}
+
+// ------------------------------ BroadcastLane
+
+namespace detail {
+
+template <class T, HWY_IF_T_SIZE(T, 1)>
+HWY_INLINE Vec512<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+                                   Vec512<T> v) {
+  return Vec512<T>{_mm512_broadcastb_epi8(ResizeBitCast(Full128<T>(), v).raw)};
+}
+
+template <class T, HWY_IF_T_SIZE(T, 2)>
+HWY_INLINE Vec512<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+                                   Vec512<T> v) {
+  return Vec512<T>{_mm512_broadcastw_epi16(ResizeBitCast(Full128<T>(), v).raw)};
+}
+
+template <class T, HWY_IF_UI32(T)>
+HWY_INLINE Vec512<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+                                   Vec512<T> v) {
+  return Vec512<T>{_mm512_broadcastd_epi32(ResizeBitCast(Full128<T>(), v).raw)};
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_INLINE Vec512<T> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+                                   Vec512<T> v) {
+  return Vec512<T>{_mm512_broadcastq_epi64(ResizeBitCast(Full128<T>(), v).raw)};
+}
+
+HWY_INLINE Vec512<float> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+                                       Vec512<float> v) {
+  return Vec512<float>{
+      _mm512_broadcastss_ps(ResizeBitCast(Full128<float>(), v).raw)};
+}
+
+HWY_INLINE Vec512<double> BroadcastLane(hwy::SizeTag<0> /* lane_idx_tag */,
+                                        Vec512<double> v) {
+  return Vec512<double>{
+      _mm512_broadcastsd_pd(ResizeBitCast(Full128<double>(), v).raw)};
+}
+
+template <size_t kLaneIdx, class T, hwy::EnableIf<kLaneIdx != 0>* = nullptr>
+HWY_INLINE Vec512<T> BroadcastLane(hwy::SizeTag<kLaneIdx> /* lane_idx_tag */,
+                                   Vec512<T> v) {
+  constexpr size_t kLanesPerBlock = 16 / sizeof(T);
+  constexpr int kBlockIdx = static_cast<int>(kLaneIdx / kLanesPerBlock);
+  constexpr int kLaneInBlkIdx =
+      static_cast<int>(kLaneIdx) & (kLanesPerBlock - 1);
+  return Broadcast<kLaneInBlkIdx>(BroadcastBlock<kBlockIdx>(v));
+}
+
+}  // namespace detail
+
+template <int kLaneIdx, class T>
+HWY_API Vec512<T> BroadcastLane(Vec512<T> v) {
+  static_assert(0 <= kLaneIdx, "Invalid lane");
+  return detail::BroadcastLane(hwy::SizeTag<static_cast<size_t>(kLaneIdx)>(),
+                               v);
 }
 
 // ------------------------------ Hard-coded shuffles
@@ -3575,6 +3722,14 @@ HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
 }
 
 // Partial both are handled by x86_128/256.
+
+// ------------------------------ I8/U8 Broadcast (TableLookupBytes)
+
+template <int kLane, class T, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec512<T> Broadcast(const Vec512<T> v) {
+  static_assert(0 <= kLane && kLane < 16, "Invalid lane");
+  return TableLookupBytes(v, Set(Full512<T>(), static_cast<T>(kLane)));
+}
 
 // ------------------------------ Per4LaneBlockShuffle
 

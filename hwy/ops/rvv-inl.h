@@ -855,6 +855,10 @@ HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Add, add, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Add, fadd, _ALL)
 
 // ------------------------------ Sub
+namespace detail {
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, SubS, sub_vx, _ALL)
+}  // namespace detail
+
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Sub, sub, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Sub, fsub, _ALL)
 
@@ -3092,6 +3096,150 @@ HWY_API V Broadcast(const V v) {
     idx = detail::AddS(idx, kLane);
   }
   return TableLookupLanes(v, idx);
+}
+
+// ------------------------------ BroadcastLane
+#ifdef HWY_NATIVE_BROADCASTLANE
+#undef HWY_NATIVE_BROADCASTLANE
+#else
+#define HWY_NATIVE_BROADCASTLANE
+#endif
+
+template <int kLane, class V,
+          hwy::EnableIf<(sizeof(TFromV<V>) != 1 || kLane <= 255)>* = nullptr>
+HWY_API V BroadcastLane(V v) {
+  static_assert(0 <= kLane && kLane < HWY_MAX_LANES_V(V), "Invalid lane");
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return TableLookupLanes(v, Set(du, static_cast<TU>(kLane)));
+}
+
+template <int kLane, class V, HWY_IF_T_SIZE_V(V, 1),
+          hwy::EnableIf<(kLane > 255)>* = nullptr,
+          HWY_IF_POW2_LE_D(DFromV<V>, 2)>
+HWY_API V BroadcastLane(V v) {
+  static_assert(kLane < HWY_MAX_LANES_V(V), "Invalid lane");
+  const DFromV<V> d;
+  const Rebind<uint16_t, decltype(d)> du16;
+  return detail::TableLookupLanes16(v, Set(du16, static_cast<uint16_t>(kLane)));
+}
+
+template <int kLane, class V, HWY_IF_T_SIZE_V(V, 1),
+          hwy::EnableIf<(kLane > 255)>* = nullptr,
+          HWY_IF_POW2_GT_D(DFromV<V>, 2)>
+HWY_API V BroadcastLane(V v) {
+  static_assert(kLane < HWY_MAX_LANES_V(V), "Invalid lane");
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return TableLookupLanes(detail::SlideDown(v, static_cast<size_t>(kLane)),
+                          Zero(du));
+}
+
+// ------------------------------ InsertBlock
+
+#ifdef HWY_NATIVE_BLOCKDFROMD
+#undef HWY_NATIVE_BLOCKDFROMD
+#else
+#define HWY_NATIVE_BLOCKDFROMD
+#endif
+
+namespace detail {
+
+template <class D>
+class BlockDFromD_t {};
+
+template <typename T, size_t N, int kPow2>
+class BlockDFromD_t<Simd<T, N, kPow2>> {
+  using D = Simd<T, N, kPow2>;
+  static constexpr int kNewPow2 = HWY_MIN(kPow2, 0);
+  static constexpr size_t kMaxLpb = HWY_MIN(16 / sizeof(T), HWY_MAX_LANES_D(D));
+  static constexpr size_t kNewN = D::template NewN<kNewPow2, kMaxLpb>();
+
+ public:
+  using type = Simd<T, kNewN, kNewPow2>;
+};
+
+}  // namespace detail
+
+template <class D>
+using BlockDFromD = typename detail::BlockDFromD_t<RemoveConst<D>>::type;
+
+#ifdef HWY_NATIVE_BLK_INSERT_EXTRACT
+#undef HWY_NATIVE_BLK_INSERT_EXTRACT
+#else
+#define HWY_NATIVE_BLK_INSERT_EXTRACT
+#endif
+
+template <int kBlockIdx, class V>
+HWY_API V InsertBlock(V v, VFromD<BlockDFromD<DFromV<V>>> blk_to_insert) {
+  const DFromV<decltype(v)> d;
+  using TU = If<(sizeof(TFromV<V>) == 1 && DFromV<V>().Pow2() >= -2), uint16_t,
+                MakeUnsigned<TFromV<V>>>;
+  using TIdx = If<sizeof(TU) == 1, uint16_t, TU>;
+
+  const Repartition<TU, decltype(d)> du;
+  const Rebind<TIdx, decltype(du)> d_idx;
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
+  constexpr size_t kMaxLanesPerBlock = 16 / sizeof(TU);
+
+  constexpr size_t kBlkByteOffset =
+      static_cast<size_t>(kBlockIdx) * kMaxLanesPerBlock;
+  const auto vu = BitCast(du, v);
+  const auto vblk = ResizeBitCast(du, blk_to_insert);
+  const auto vblk_shifted = detail::SlideUp(vblk, vblk, kBlkByteOffset);
+  const auto insert_mask = RebindMask(du, detail::LtS(
+      detail::SubS(detail::Iota0(d_idx), static_cast<TIdx>(kBlkByteOffset)),
+      static_cast<TIdx>(kMaxLanesPerBlock)));
+
+  return BitCast(d, IfThenElse(insert_mask, vblk_shifted, vu));
+}
+
+// ------------------------------ BroadcastBlock
+template <int kBlockIdx, class V, HWY_IF_POW2_LE_D(DFromV<V>, -3)>
+HWY_API V BroadcastBlock(V v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  const Rebind<uint16_t, decltype(d)> du16;
+
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
+
+  const auto idx = detail::AddS(detail::AndS(detail::Iota0(du16), uint16_t{15}),
+                                static_cast<uint16_t>(kBlockIdx * 16));
+  return BitCast(d, detail::TableLookupLanes16(BitCast(du8, v), idx));
+}
+
+template <int kBlockIdx, class V, HWY_IF_POW2_GT_D(DFromV<V>, -3)>
+HWY_API V BroadcastBlock(V v) {
+  const DFromV<decltype(v)> d;
+  using TU = If<sizeof(TFromV<V>) == 1, uint16_t, MakeUnsigned<TFromV<V>>>;
+  const Repartition<TU, decltype(d)> du;
+
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
+  constexpr size_t kMaxLanesPerBlock = 16 / sizeof(TU);
+
+  const auto idx = detail::AddS(
+      detail::AndS(detail::Iota0(du), static_cast<TU>(kMaxLanesPerBlock - 1)),
+      static_cast<TU>(static_cast<size_t>(kBlockIdx) * kMaxLanesPerBlock));
+  return BitCast(d, TableLookupLanes(BitCast(du, v), idx));
+}
+
+// ------------------------------ ExtractBlock
+template <int kBlockIdx, class V>
+HWY_API VFromD<BlockDFromD<DFromV<V>>> ExtractBlock(V v) {
+  const DFromV<decltype(v)> d;
+  const BlockDFromD<decltype(d)> d_block;
+
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
+  constexpr size_t kMaxLanesPerBlock = 16 / sizeof(TFromD<decltype(d)>);
+  constexpr size_t kBlkByteOffset =
+      static_cast<size_t>(kBlockIdx) * kMaxLanesPerBlock;
+
+  return ResizeBitCast(d_block, detail::SlideDown(v, kBlkByteOffset));
 }
 
 // ------------------------------ ShiftLeftLanes

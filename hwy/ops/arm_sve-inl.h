@@ -2678,6 +2678,92 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
 HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
 #undef HWY_SVE_REVERSE_BITS
 
+// ------------------------------ Block insert/extract/broadcast ops
+#ifdef HWY_NATIVE_BLOCKDFROMD
+#undef HWY_NATIVE_BLOCKDFROMD
+#else
+#define HWY_NATIVE_BLOCKDFROMD
+#endif
+
+template <class D>
+using BlockDFromD =
+    FixedTag<TFromD<D>, HWY_MIN(16 / sizeof(TFromD<D>), HWY_MAX_LANES_D(D))>;
+
+#if HWY_TARGET != HWY_SVE2_128
+
+#ifdef HWY_NATIVE_BLK_INSERT_EXTRACT
+#undef HWY_NATIVE_BLK_INSERT_EXTRACT
+#else
+#define HWY_NATIVE_BLK_INSERT_EXTRACT
+#endif
+
+template <int kBlockIdx, class V>
+HWY_API V InsertBlock(V v, V blk_to_insert) {
+  const DFromV<decltype(v)> d;
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(), "Invalid block index");
+
+#if HWY_TARGET == HWY_SVE_256
+  return (kBlockIdx == 0) ? ConcatUpperLower(d, v, blk_to_insert)
+                          : ConcatLowerLower(d, blk_to_insert, v);
+#else
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
+
+  constexpr size_t kBlockOffset =
+      static_cast<size_t>(kBlockIdx) * kLanesPerBlock;
+  const auto splice_mask = FirstN(d, kBlockOffset);
+  const auto sel_lo_mask = FirstN(d, kBlockOffset + kLanesPerBlock);
+
+  const auto splice_result = detail::Splice(blk_to_insert, v, splice_mask);
+  return IfThenElse(sel_lo_mask, splice_result, v);
+#endif
+}
+
+template <int kBlockIdx, class V>
+HWY_API V ExtractBlock(V v) {
+  const DFromV<decltype(v)> d;
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(), "Invalid block index");
+
+  if (kBlockIdx == 0) return v;
+
+#if HWY_TARGET == HWY_SVE_256
+  return UpperHalf(Half<decltype(d)>(), v);
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
+  constexpr size_t kBlockOffset =
+      static_cast<size_t>(kBlockIdx) * kLanesPerBlock;
+  const auto splice_mask =
+      RebindMask(d, detail::LtN(Iota(du, static_cast<TU>(0u - kBlockOffset)),
+                                static_cast<TU>(kLanesPerBlock)));
+  return detail::Splice(v, v, splice_mask);
+#endif
+}
+
+template <int kBlockIdx, class V>
+HWY_API V BroadcastBlock(V v) {
+  const DFromV<decltype(v)> d;
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(), "Invalid block index");
+
+#if HWY_TARGET == HWY_SVE_256
+  return (kBlockIdx == 0) ? ConcatLowerLower(d, v, v)
+                          : ConcatUpperUpper(d, v, v);
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
+  constexpr size_t kBlockOffset =
+      static_cast<size_t>(kBlockIdx) * kLanesPerBlock;
+
+  const auto idx = detail::AddN(
+      detail::AndN(Iota(du, TU{0}), static_cast<TU>(kLanesPerBlock - 1)),
+      static_cast<TU>(kBlockOffset));
+  return TableLookupLanes(v, idx);
+#endif
+}
+
+#endif  // HWY_TARGET != HWY_SVE2_128
+
 // ------------------------------ Compress (PromoteTo)
 
 template <typename T>
@@ -3050,7 +3136,12 @@ HWY_API VI TableLookupBytesOr0(const V v, const VI idx) {
 
 // ------------------------------ Broadcast
 
-#if HWY_TARGET == HWY_SVE2_128
+#ifdef HWY_NATIVE_BROADCASTLANE
+#undef HWY_NATIVE_BROADCASTLANE
+#else
+#define HWY_NATIVE_BROADCASTLANE
+#endif
+
 namespace detail {
 #define HWY_SVE_BROADCAST(BASE, CHAR, BITS, HALF, NAME, OP)        \
   template <int kLane>                                             \
@@ -3061,7 +3152,6 @@ namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_BROADCAST, BroadcastLane, dup_lane)
 #undef HWY_SVE_BROADCAST
 }  // namespace detail
-#endif
 
 template <int kLane, class V>
 HWY_API V Broadcast(const V v) {
@@ -3078,6 +3168,12 @@ HWY_API V Broadcast(const V v) {
   }
   return TableLookupLanes(v, idx);
 #endif
+}
+
+template <int kLane, class V>
+HWY_API V BroadcastLane(const V v) {
+  static_assert(0 <= kLane && kLane < HWY_MAX_LANES_V(V), "Invalid lane");
+  return detail::BroadcastLane<kLane>(v);
 }
 
 // ------------------------------ ShiftLeftLanes
