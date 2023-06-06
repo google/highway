@@ -3576,6 +3576,57 @@ HWY_API Vec512<TI> TableLookupBytes(Vec256<T> bytes, Vec512<TI> from) {
 
 // Partial both are handled by x86_128/256.
 
+// ------------------------------ Per4LaneBlockShuffle
+
+namespace detail {
+
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
+                                                const uint32_t x2,
+                                                const uint32_t x1,
+                                                const uint32_t x0) {
+  return BitCast(d, Vec512<uint32_t>{_mm512_set_epi32(
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0),
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0),
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0),
+                        static_cast<int32_t>(x3), static_cast<int32_t>(x2),
+                        static_cast<int32_t>(x1), static_cast<int32_t>(x0))});
+}
+
+template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+                                  hwy::SizeTag<4> /*lane_size_tag*/,
+                                  hwy::SizeTag<64> /*vect_size_tag*/, V v) {
+  return V{
+      _mm512_shuffle_epi32(v.raw, static_cast<_MM_PERM_ENUM>(kIdx3210 & 0xFF))};
+}
+
+template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+                                  hwy::SizeTag<4> /*lane_size_tag*/,
+                                  hwy::SizeTag<64> /*vect_size_tag*/, V v) {
+  return V{_mm512_shuffle_ps(v.raw, v.raw, static_cast<int>(kIdx3210 & 0xFF))};
+}
+
+template <size_t kIdx3210, class V, HWY_IF_NOT_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+                                  hwy::SizeTag<8> /*lane_size_tag*/,
+                                  hwy::SizeTag<64> /*vect_size_tag*/, V v) {
+  return V{_mm512_permutex_epi64(v.raw, static_cast<int>(kIdx3210 & 0xFF))};
+}
+
+template <size_t kIdx3210, class V, HWY_IF_FLOAT(TFromV<V>)>
+HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
+                                  hwy::SizeTag<8> /*lane_size_tag*/,
+                                  hwy::SizeTag<64> /*vect_size_tag*/, V v) {
+  return V{_mm512_permutex_pd(v.raw, static_cast<int>(kIdx3210 & 0xFF))};
+}
+
+}  // namespace detail
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)

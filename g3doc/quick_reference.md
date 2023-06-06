@@ -1463,8 +1463,7 @@ instead because they are more general:
     blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
     vector has no more than one block (i.e. is 128 bits or scalar).
 
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
+*   <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
     lanes to the next higher-indexed lane. For each even lane index `i`,
     `r[i] == v[i]` and `r[i + 1] == v[i]`.
 
@@ -1523,6 +1522,28 @@ instead because they are more general:
     <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
     lane are reversed.
 
+*   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2,
+    size_t kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle
+    of `v` if `Lanes(DFromV<V>())` is greater than or equal to 4 or a shuffle of
+    the full vector if `Lanes(DFromV<V>())` is less than 4.
+
+    `kIdx0`, `kIdx1`, `kIdx2`, and `kIdx3` must all be between 0 and 3.
+
+    Per4LaneBlockShuffle is equivalent to doing a TableLookupLanes with the
+    following indices (but Per4LaneBlockShuffle is more efficient than
+    TableLookupLanes on some platforms):
+    `{kIdx0, kIdx1, kIdx2, kIdx3, kIdx0+4, kIdx1+4, kIdx2+4, kIdx3+4, ...}`
+
+    If `Lanes(DFromV<V>())` is less than 4 and `kIdx0 >= Lanes(DFromV<V>())` is
+    true, Per4LaneBlockShuffle returns an unspecified value in the first lane of
+    the result. Otherwise, Per4LaneBlockShuffle returns `v[kIdx0]` in the first
+    lane of the result.
+
+    If `Lanes(DFromV<V>())` is equal to 2 and `kIdx1 >= 2` is true,
+    Per4LaneBlockShuffle returns an unspecified value in the second lane of the
+    result. Otherwise, Per4LaneBlockShuffle returns `v[kIdx1]` in the first lane
+    of the result.
+
 The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
 *   <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
@@ -1536,8 +1557,7 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
 All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
-*   `V`: `{u,i,f}{32,64}` \
-    <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
+*   <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
     to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
     v[i]` and `r[i - 1] == v[i]`.
 

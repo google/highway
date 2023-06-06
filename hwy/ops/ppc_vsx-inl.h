@@ -2132,6 +2132,28 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
   return BitCast(dw, InterleaveUpper(D(), a, b));
 }
 
+// ------------------------------ Per4LaneBlkShufDupSet4xU32
+
+// Used by hwy/ops/generic_ops-inl.h to implement Per4LaneBlockShuffle
+namespace detail {
+
+#ifdef HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#undef HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#else
+#define HWY_NATIVE_PER4LANEBLKSHUF_DUP32
+#endif
+
+template <class D>
+HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
+                                                const uint32_t x2,
+                                                const uint32_t x1,
+                                                const uint32_t x0) {
+  const __vector unsigned int raw = {x0, x1, x2, x3};
+  return ResizeBitCast(d, Vec128<uint32_t>{raw});
+}
+
+}  // namespace detail
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)
@@ -2432,17 +2454,58 @@ HWY_API VFromD<D> OrderedTruncate2To(D d, V a, V b) {
 
 // ------------------------------ DupEven (InterleaveLower)
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
-  return Vec128<T, N>{vec_mergee(v.raw, v.raw)};
+template <typename T>
+HWY_API Vec128<T, 1> DupEven(Vec128<T, 1> v) {
+  return v;
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
-HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
+template <typename T>
+HWY_API Vec128<T, 2> DupEven(Vec128<T, 2> v) {
   return InterleaveLower(DFromV<decltype(v)>(), v, v);
 }
 
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  constexpr __vector unsigned char kShuffle = {0, 0, 2,  2,  4,  4,  6,  6,
+                                               8, 8, 10, 10, 12, 12, 14, 14};
+  return TableLookupBytes(v, BitCast(d, VFromD<decltype(du8)>{kShuffle}));
+}
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec128<T, N> DupEven(Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  constexpr __vector unsigned char kShuffle = {0, 1, 0, 1, 4,  5,  4,  5,
+                                               8, 9, 8, 9, 12, 13, 12, 13};
+  return TableLookupBytes(v, BitCast(d, VFromD<decltype(du8)>{kShuffle}));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 4)>
+HWY_API Vec128<T> DupEven(Vec128<T> v) {
+  return Vec128<T>{vec_mergee(v.raw, v.raw)};
+}
+
 // ------------------------------ DupOdd (InterleaveUpper)
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  constexpr __vector unsigned char kShuffle = {1, 1, 3,  3,  5,  5,  7,  7,
+                                               9, 9, 11, 11, 13, 13, 15, 15};
+  return TableLookupBytes(v, BitCast(d, VFromD<decltype(du8)>{kShuffle}));
+}
+
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  constexpr __vector unsigned char kShuffle = {2,  3,  2,  3,  6,  7,  6,  7,
+                                               10, 11, 10, 11, 14, 15, 14, 15};
+  return TableLookupBytes(v, BitCast(d, VFromD<decltype(du8)>{kShuffle}));
+}
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T, N> DupOdd(Vec128<T, N> v) {
