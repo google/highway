@@ -10,6 +10,7 @@ package(
 license(
     name = "license",
     package_name = "highway",
+    license_kinds = ["@rules_license//licenses/generic:notice"],
 )
 
 licenses(["notice"])
