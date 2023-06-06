@@ -293,3 +293,66 @@ system level. For example:
 
 Any of these solutions are sufficient to render AVX-512 startup overhead a
 non-issue.
+
+### Comparison with Intel's x86-simd-sort and vxsort
+
+Our May 2022 paper compared performance with `ips4o` and `std::sort`. We now add
+results for Intel's [x86-simd-sort](https://github.com/intel/x86-simd-sort),
+released as open source around October 2022, and
+[vxsort](https://github.com/damageboy/vxsort-cpp/tree/master). We find that
+VQSort is generally about 1.4 times as fast as either, and in a few cases equal
+or up to 2% slower.
+
+Note that vxsort was open-sourced around May 2020; we were unaware of it at the
+time of writing because it had been published in the form of a blog series. We
+imported both from Github on 2023-06-06 at about 10:15 UTC. Both are integrated
+into our bench_sort, running on the same Linux OS and Xeon 6154 CPU mentioned
+above. We use uniform random inputs, because vxsort and x86-simd-sort appear to
+have much less robust handling of skewed input distributions. They choose the
+pivot as the median of three keys, or of 64 bytes, respectively. By contrast,
+VQSort draws a 384 byte sample and analyzes their distribution, which improves
+load balance and prevents recursing into all-equal partitions. Lacking this, the
+other algorithms are more vulnerable to worst-cases. Choosing uniform random
+thus prevents disadvantaging the other algorithms.
+
+We sample performance across a range of input sizes and types:
+
+-   To isolate the performance of the sorting networks used by all three
+    algorithms, we start with powers of two up to 128. VQSort is generally the
+    fastest for 64-bit keys with the following exceptions: tie with vxsort at
+    N=2 (537 MB/s), slower than vxsort at N=16 (2114 vs. 2147), tie with
+    x86-simd-sort at N=32 (2643 MB/s). Note that VQSort is about 1.6 times as
+    fast as both others for N=128; possibly because its 2D structure enables
+    larger networks.
+
+-   The `kPow10` mode in bench_sort measures power of ten input sizes between
+    10 and 100K. Note that this covers non-power of two sizes, as well as the
+    crossover point between sorting networks and Quicksort recursion. The
+    speedups of VQSort relative to x86-simd-sort range from 1.33 to 1.81
+    (32-bit keys), and 1.25 to 1.68 (64-bit keys), with geomeans of 1.48 and
+    1.44. The speedups of VQSort relative to vxsort range from 1.08 to 2.10
+    (32-bit keys), and 1.00 to 1.47 (64-bit keys), with geomeans of 1.41 and
+    1.20. Note that vxsort matches VQSort at 10 64-bit elements; in all other
+    cases, VQSort is strictly faster.
+
+-   Finally, we study the effect of key type at a fixed input size of 10K
+    elements. x86-simd-sort requires AVX512-VBMI2 for int16, which our CPU does
+    not support. Also, both other algorithms do not support 128-bit keys, thus
+    we only consider 32/64-bit integer and float types. The results in MB/s are:
+
+    |Type|VQSort|x86-simd-sort|vxsort|
+    |---|---|---|---|
+    |f32|**1551**| 798| 823|
+    |f64|**1773**|1147| 745|
+    |i32|**1509**|1042| 968|
+    |i64|**1365**|1043|1145|
+
+    VQSort is the fastest for each type, in some cases even about twice as fast.
+    Interestingly, vxsort performs at its best on i64, whereas the others are at
+    their best for f64. A potential explanation is that this CPU can execute two
+    f64 min/max per cycle, but only one i64.
+
+In conclusion, VQSort is generally more efficient than vxsort and x86-simd-sort
+across a range of input sizes and types. Occasionally, it is up to 2% slower,
+but the geomean of its speedup (32-bit keys and power-of-ten sizes) vs. vxsort
+is **1.41**, and **1.48** vs. x86-simd-sort.
