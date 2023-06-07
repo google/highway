@@ -3127,27 +3127,6 @@ HWY_API V BroadcastLane(V v) {
 }
 
 // ------------------------------ InsertBlock
-namespace detail {
-
-template <class D>
-class BlockDFromD_t {};
-
-template <typename T, size_t N, int kPow2>
-class BlockDFromD_t<Simd<T, N, kPow2>> {
-  using D = Simd<T, N, kPow2>;
-  static constexpr int kNewPow2 = HWY_MIN(kPow2, 0);
-  static constexpr size_t kMaxLpb = HWY_MIN(16 / sizeof(T), HWY_MAX_LANES_D(D));
-  static constexpr size_t kNewN = D::template NewN<kNewPow2, kMaxLpb>();
-
- public:
-  using type = Simd<T, kNewN, kNewPow2>;
-};
-
-}  // namespace detail
-
-template <class D>
-using BlockDFromD = typename detail::BlockDFromD_t<RemoveConst<D>>::type;
-
 #ifdef HWY_NATIVE_BLK_INSERT_EXTRACT
 #undef HWY_NATIVE_BLK_INSERT_EXTRACT
 #else

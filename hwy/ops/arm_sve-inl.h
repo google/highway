@@ -234,8 +234,10 @@ template <typename T, size_t N, int kPow2>
 HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
   const size_t actual = detail::AllHardwareLanes<T>();
   constexpr size_t kMaxLanes = MaxLanes(d);
+  constexpr int kClampedPow2 = HWY_MIN(kPow2, 0);
   // Common case of full vectors: avoid any extra instructions.
-  return (detail::IsFull(d)) ? actual : HWY_MIN(actual, kMaxLanes);
+  if (detail::IsFull(d)) return actual;
+  return HWY_MIN(detail::ScaleByPower(actual, kClampedPow2), kMaxLanes);
 }
 
 #endif  // HWY_HAVE_SCALABLE
