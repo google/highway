@@ -3105,45 +3105,28 @@ HWY_API V Broadcast(const V v) {
 #define HWY_NATIVE_BROADCASTLANE
 #endif
 
-template <int kLane, class V,
-          hwy::EnableIf<(sizeof(TFromV<V>) != 1 || kLane <= 255)>* = nullptr>
+namespace detail {
+
+#define HWY_RVV_BROADCAST_LANE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,  \
+                               LMULH, SHIFT, MLEN, NAME, OP)              \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                      \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) v, size_t idx) {                    \
+    return __riscv_v##OP##_vx_##CHAR##SEW##LMUL(v, idx,                   \
+                                                HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+
+HWY_RVV_FOREACH(HWY_RVV_BROADCAST_LANE, BroadcastLane, rgather, _ALL)
+#undef HWY_RVV_BROADCAST_LANE
+
+}  // namespace detail
+
+template <int kLane, class V>
 HWY_API V BroadcastLane(V v) {
   static_assert(0 <= kLane && kLane < HWY_MAX_LANES_V(V), "Invalid lane");
-  const DFromV<V> d;
-  const RebindToUnsigned<decltype(d)> du;
-  using TU = TFromD<decltype(du)>;
-  return TableLookupLanes(v, Set(du, static_cast<TU>(kLane)));
-}
-
-template <int kLane, class V, HWY_IF_T_SIZE_V(V, 1),
-          hwy::EnableIf<(kLane > 255)>* = nullptr,
-          HWY_IF_POW2_LE_D(DFromV<V>, 2)>
-HWY_API V BroadcastLane(V v) {
-  static_assert(kLane < HWY_MAX_LANES_V(V), "Invalid lane");
-  const DFromV<V> d;
-  const Rebind<uint16_t, decltype(d)> du16;
-  return detail::TableLookupLanes16(v, Set(du16, static_cast<uint16_t>(kLane)));
-}
-
-template <int kLane, class V, HWY_IF_T_SIZE_V(V, 1),
-          hwy::EnableIf<(kLane > 255)>* = nullptr,
-          HWY_IF_POW2_GT_D(DFromV<V>, 2)>
-HWY_API V BroadcastLane(V v) {
-  static_assert(kLane < HWY_MAX_LANES_V(V), "Invalid lane");
-  const DFromV<V> d;
-  const RebindToUnsigned<decltype(d)> du;
-  return TableLookupLanes(detail::SlideDown(v, static_cast<size_t>(kLane)),
-                          Zero(du));
+  return detail::BroadcastLane(v, static_cast<size_t>(kLane));
 }
 
 // ------------------------------ InsertBlock
-
-#ifdef HWY_NATIVE_BLOCKDFROMD
-#undef HWY_NATIVE_BLOCKDFROMD
-#else
-#define HWY_NATIVE_BLOCKDFROMD
-#endif
-
 namespace detail {
 
 template <class D>
@@ -3189,9 +3172,10 @@ HWY_API V InsertBlock(V v, VFromD<BlockDFromD<DFromV<V>>> blk_to_insert) {
   const auto vu = BitCast(du, v);
   const auto vblk = ResizeBitCast(du, blk_to_insert);
   const auto vblk_shifted = detail::SlideUp(vblk, vblk, kBlkByteOffset);
-  const auto insert_mask = RebindMask(du, detail::LtS(
-      detail::SubS(detail::Iota0(d_idx), static_cast<TIdx>(kBlkByteOffset)),
-      static_cast<TIdx>(kMaxLanesPerBlock)));
+  const auto insert_mask = RebindMask(
+      du, detail::LtS(detail::SubS(detail::Iota0(d_idx),
+                                   static_cast<TIdx>(kBlkByteOffset)),
+                      static_cast<TIdx>(kMaxLanesPerBlock)));
 
   return BitCast(d, IfThenElse(insert_mask, vblk_shifted, vu));
 }

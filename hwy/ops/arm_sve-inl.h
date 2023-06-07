@@ -2679,16 +2679,6 @@ HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
 #undef HWY_SVE_REVERSE_BITS
 
 // ------------------------------ Block insert/extract/broadcast ops
-#ifdef HWY_NATIVE_BLOCKDFROMD
-#undef HWY_NATIVE_BLOCKDFROMD
-#else
-#define HWY_NATIVE_BLOCKDFROMD
-#endif
-
-template <class D>
-using BlockDFromD =
-    FixedTag<TFromD<D>, HWY_MIN(16 / sizeof(TFromD<D>), HWY_MAX_LANES_D(D))>;
-
 #if HWY_TARGET != HWY_SVE2_128
 
 #ifdef HWY_NATIVE_BLK_INSERT_EXTRACT

@@ -464,11 +464,11 @@ HWY_NOINLINE void TestAllDFromV() {
   ForAllTypes(ForPartialVectors<TestDFromV>());
 }
 
-struct TestNumOfBlocks {
+struct TestBlocks {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
-    const size_t num_of_blocks = NumOfBlocks(d);
+    const size_t num_of_blocks = Blocks(d);
     static constexpr size_t kNumOfLanesPer16ByteBlk = 16 / sizeof(T);
     HWY_ASSERT(num_of_blocks >= 1);
     HWY_ASSERT(num_of_blocks <= d.MaxBlocks());
@@ -478,7 +478,7 @@ struct TestNumOfBlocks {
   }
 };
 
-HWY_NOINLINE void TestAllNumOfBlocks() {
+HWY_NOINLINE void TestAllBlocks() {
   ForAllTypes(ForPartialVectors<TestDFromV>());
 }
 
@@ -536,7 +536,7 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllIsFinite);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllCopyAndAssign);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);
-HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllNumOfBlocks);
+HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllBlocks);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllBlockDFromD);
 }  // namespace hwy
 

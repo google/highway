@@ -424,8 +424,8 @@ time-critical code:
 
     `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
 
-*   <code>size_t **NumOfBlocks**(D d)</code>: Returns the number of 16-byte
-    blocks if `Lanes(d) * sizeof(TFromD<D>)` is greater than or equal to 16.
+*   <code>size_t **Blocks**(D d)</code>: Returns the number of 16-byte blocks
+    if `Lanes(d) * sizeof(TFromD<D>)` is greater than or equal to 16.
 
     Otherwise, returns 1 if `Lanes(d) * sizeof(TFromD<D>)` is less than 16.
 

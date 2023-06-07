@@ -3623,10 +3623,10 @@ HWY_API V Per4LaneBlockShuffle(V v) {
 }
 #endif
 
-// ------------------------------ NumOfBlocks
+// ------------------------------ Blocks
 
 template <class D>
-HWY_API size_t NumOfBlocks(D d) {
+HWY_API size_t Blocks(D d) {
   return (d.MaxBytes() <= 16) ? 1 : ((Lanes(d) * sizeof(TFromD<D>) + 15) / 16);
 }
 
@@ -3657,17 +3657,6 @@ HWY_API V BroadcastBlock(V v) {
 }
 
 #endif  // HWY_NATIVE_BLK_INSERT_EXTRACT
-
-#if (defined(HWY_NATIVE_BLOCKDFROMD) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_BLOCKDFROMD
-#undef HWY_NATIVE_BLOCKDFROMD
-#else
-#define HWY_NATIVE_BLOCKDFROMD
-#endif
-
-template<class D>
-using BlockDFromD = DFromV<decltype(ExtractBlock<0>(Zero(D())))>;
-#endif  // HWY_NATIVE_BLOCKDFROMD
 
 // ------------------------------ BroadcastLane
 #if (defined(HWY_NATIVE_BROADCASTLANE) == defined(HWY_TARGET_TOGGLE))

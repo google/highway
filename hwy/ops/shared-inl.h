@@ -399,6 +399,13 @@ using Half = typename D::Half;
 template <class D>
 using Twice = typename D::Twice;
 
+// Tag for a 16-byte block with the same lane type as D
+#if HWY_TARGET != HWY_RVV
+template <class D>
+using BlockDFromD =
+    Simd<TFromD<D>, HWY_MIN(16 / sizeof(TFromD<D>), HWY_MAX_LANES_D(D)), 0>;
+#endif
+
 // ------------------------------ Choosing overloads (SFINAE)
 
 // Same as base.h macros but with a Simd<T, N, kPow2> argument instead of T.
