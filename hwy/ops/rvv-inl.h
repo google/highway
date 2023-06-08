@@ -429,24 +429,28 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
   template <size_t N>                                                         \
   HWY_API size_t NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d) {                     \
     constexpr size_t kFull = HWY_LANES(HWY_RVV_T(BASE, SEW));                 \
-    constexpr size_t kCap = detail::ScaleByPower(N, SHIFT);                   \
+    constexpr size_t kCap = MaxLanes(d);                                      \
     /* If no cap, avoid generating a constant by using VLMAX. */              \
-    size_t actual = N == kFull ? __riscv_vsetvlmax_e##SEW##LMUL()             \
-                               : __riscv_vsetvl_e##SEW##LMUL(kCap);           \
-    /* Common case of full vectors: avoid any extra instructions. */          \
-    /* actual accounts for LMUL, so do not shift again. */                    \
-    if (d.Pow2() >= 0) return actual;                                         \
-    /* In case of virtual LMUL (intrinsics do not provide "uint16mf8_t") */   \
-    /* vsetvl may or may not be correct, so do it ourselves. */               \
-    if (detail::ScaleByPower(128 / SEW, SHIFT) == 1) {                        \
-      actual = detail::ScaleByPower(HWY_MIN(N, __riscv_vlenb() / (SEW / 8)),  \
-                                    SHIFT);                                   \
-    }                                                                         \
-    return actual;                                                            \
+    return N == kFull ? __riscv_vsetvlmax_e##SEW##LMUL()                      \
+                      : __riscv_vsetvl_e##SEW##LMUL(kCap);                    \
   }
 
-HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL_VIRT)
+#define HWY_RVV_LANES_VIRT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                           SHIFT, MLEN, NAME, OP)                           \
+  template <size_t N>                                                       \
+  HWY_API size_t NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d) {                   \
+    constexpr size_t kCap = MaxLanes(d);                                    \
+    /* In case of virtual LMUL (intrinsics do not provide "uint16mf8_t") */ \
+    /* vsetvl may or may not be correct, so do it ourselves. */             \
+    const size_t actual =                                                   \
+        detail::ScaleByPower(__riscv_vlenb() / (SEW / 8), SHIFT);           \
+    return HWY_MIN(actual, kCap);                                           \
+  }
+
+HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL)
+HWY_RVV_FOREACH(HWY_RVV_LANES_VIRT, Lanes, lenb, _VIRT)
 #undef HWY_RVV_LANES
+#undef HWY_RVV_LANES_VIRT
 
 template <size_t N, int kPow2>
 HWY_API size_t Lanes(Simd<bfloat16_t, N, kPow2> /* tag*/) {

@@ -81,7 +81,7 @@ static size_t* MaxLanesForSize(size_t sizeof_t) {
 
 struct TestMaxLanes {
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_NOINLINE void operator()(T /*unused*/, D d) const {
     const size_t N = Lanes(d);
     const size_t kMax = MaxLanes(d);  // for RVV, includes LMUL
     HWY_ASSERT(N <= kMax);
@@ -89,6 +89,58 @@ struct TestMaxLanes {
 
     NumLanesForSize(sizeof(T))->set(N);
     *MaxLanesForSize(sizeof(T)) = HWY_MAX(*MaxLanesForSize(sizeof(T)), N);
+  }
+};
+
+class TestFracNLanes {
+ private:
+  template <int kNewPow2, class D>
+  using DWithPow2 =
+      Simd<TFromD<D>, D::template NewN<kNewPow2, HWY_MAX_LANES_D(D)>(),
+           kNewPow2>;
+
+  template <typename T1, size_t N1, int kPow2, typename T2, size_t N2>
+  static HWY_INLINE void DoTestFracNLanes(Simd<T1, N1, 0> /*d1*/,
+                                          Simd<T2, N2, kPow2> d2) {
+    using D2 = Simd<T2, N2, kPow2>;
+    static_assert(IsSame<T1, T2>(), "T1 and T2 should be the same type");
+    static_assert(N2 > HWY_MAX_BYTES, "N2 > HWY_MAX_BYTES should be true");
+    static_assert(HWY_MAX_LANES_D(D2) == N1,
+                  "HWY_MAX_LANES_D(D2) should be equal to N1");
+    static_assert(N1 <= HWY_LANES(T2), "N1 <= HWY_LANES(T2) should be true");
+
+    TestMaxLanes()(T2(), d2);
+  }
+
+#if HWY_TARGET != HWY_SCALAR
+  template <class T, HWY_IF_LANES_LE(4, HWY_LANES(T))>
+  static HWY_INLINE void DoTest4LanesWithPow3(T /*unused*/) {
+    // If HWY_LANES(T) >= 4 is true, do DoTestFracNLanes for the
+    // MaxLanes(d) == 4, kPow2 == 3 case
+    const Simd<T, 4, 0> d;
+    DoTestFracNLanes(d, DWithPow2<3, decltype(d)>());
+  }
+  template <class T, HWY_IF_LANES_GT(4, HWY_LANES(T))>
+  static HWY_INLINE void DoTest4LanesWithPow3(T /*unused*/) {
+    // If HWY_LANES(T) < 4, do nothing
+  }
+#endif
+
+ public:
+  template <class T>
+  HWY_NOINLINE void operator()(T /*unused*/) const {
+    const Simd<T, 1, 0> d1;
+    DoTestFracNLanes(d1, DWithPow2<1, decltype(d1)>());
+    DoTestFracNLanes(d1, DWithPow2<2, decltype(d1)>());
+    DoTestFracNLanes(d1, DWithPow2<3, decltype(d1)>());
+
+#if HWY_TARGET != HWY_SCALAR
+    const Simd<T, 2, 0> d2;
+    DoTestFracNLanes(d2, DWithPow2<2, decltype(d2)>());
+    DoTestFracNLanes(d2, DWithPow2<3, decltype(d2)>());
+
+    DoTest4LanesWithPow3(T());
+#endif
   }
 };
 
@@ -108,6 +160,8 @@ HWY_NOINLINE void TestAllMaxLanes() {
       }
     }
   }
+
+  ForAllTypes(TestFracNLanes());
 }
 
 struct TestSet {
