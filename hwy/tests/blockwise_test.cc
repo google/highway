@@ -68,11 +68,7 @@ struct TestBroadcast {
 };
 
 HWY_NOINLINE void TestAllBroadcast() {
-  const ForPartialVectors<TestBroadcast> test;
-  // No u/i8.
-  test(uint16_t());
-  test(int16_t());
-  ForUIF3264(test);
+  ForAllTypes(ForPartialVectors<TestBroadcast>());
 }
 
 template <bool kFull>

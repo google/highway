@@ -3623,6 +3623,57 @@ HWY_API V Per4LaneBlockShuffle(V v) {
 }
 #endif
 
+// ------------------------------ Blocks
+
+template <class D>
+HWY_API size_t Blocks(D d) {
+  return (d.MaxBytes() <= 16) ? 1 : ((Lanes(d) * sizeof(TFromD<D>) + 15) / 16);
+}
+
+// ------------------------------ Block insert/extract/broadcast ops
+#if (defined(HWY_NATIVE_BLK_INSERT_EXTRACT) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_BLK_INSERT_EXTRACT
+#undef HWY_NATIVE_BLK_INSERT_EXTRACT
+#else
+#define HWY_NATIVE_BLK_INSERT_EXTRACT
+#endif
+
+template <int kBlockIdx, class V, HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V InsertBlock(V /*v*/, V blk_to_insert) {
+  static_assert(kBlockIdx == 0, "Invalid block index");
+  return blk_to_insert;
+}
+
+template <int kBlockIdx, class V, HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V ExtractBlock(V v) {
+  static_assert(kBlockIdx == 0, "Invalid block index");
+  return v;
+}
+
+template <int kBlockIdx, class V, HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V BroadcastBlock(V v) {
+  static_assert(kBlockIdx == 0, "Invalid block index");
+  return v;
+}
+
+#endif  // HWY_NATIVE_BLK_INSERT_EXTRACT
+
+// ------------------------------ BroadcastLane
+#if (defined(HWY_NATIVE_BROADCASTLANE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_BROADCASTLANE
+#undef HWY_NATIVE_BROADCASTLANE
+#else
+#define HWY_NATIVE_BROADCASTLANE
+#endif
+
+template<int kLane, class V, HWY_IF_V_SIZE_LE_V(V, 16)>
+HWY_API V BroadcastLane(V v) {
+  return Broadcast<kLane>(v);
+}
+
+#endif  // HWY_NATIVE_BROADCASTLANE
+
+
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined

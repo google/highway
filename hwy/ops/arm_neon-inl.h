@@ -4428,6 +4428,16 @@ HWY_API VFromD<DH> UpperHalf(DH dh, VFromD<Twice<DH>> v) {
 #if HWY_ARCH_ARM_A64
 // Unsigned
 template <int kLane>
+HWY_API Vec128<uint8_t> Broadcast(Vec128<uint8_t> v) {
+  static_assert(0 <= kLane && kLane < 16, "Invalid lane");
+  return Vec128<uint8_t>(vdupq_laneq_u8(v.raw, kLane));
+}
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(uint8_t, N, 8)>
+HWY_API Vec128<uint8_t, N> Broadcast(Vec128<uint8_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<uint8_t, N>(vdup_lane_u8(v.raw, kLane));
+}
+template <int kLane>
 HWY_API Vec128<uint16_t> Broadcast(Vec128<uint16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<uint16_t>(vdupq_laneq_u16(v.raw, kLane));
@@ -4455,6 +4465,16 @@ HWY_API Vec128<uint64_t> Broadcast(Vec128<uint64_t> v) {
 // Vec64<uint64_t> is defined below.
 
 // Signed
+template <int kLane>
+HWY_API Vec128<int8_t> Broadcast(Vec128<int8_t> v) {
+  static_assert(0 <= kLane && kLane < 16, "Invalid lane");
+  return Vec128<int8_t>(vdupq_laneq_s8(v.raw, kLane));
+}
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(int8_t, N, 8)>
+HWY_API Vec128<int8_t, N> Broadcast(Vec128<int8_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<int8_t, N>(vdup_lane_s8(v.raw, kLane));
+}
 template <int kLane>
 HWY_API Vec128<int16_t> Broadcast(Vec128<int16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
@@ -4509,6 +4529,16 @@ HWY_API Vec64<double> Broadcast(Vec64<double> v) {
 
 // Unsigned
 template <int kLane>
+HWY_API Vec128<uint8_t> Broadcast(Vec128<uint8_t> v) {
+  static_assert(0 <= kLane && kLane < 16, "Invalid lane");
+  return Vec128<uint8_t>(vdupq_n_u8(vgetq_lane_u8(v.raw, kLane)));
+}
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(uint8_t, N, 8)>
+HWY_API Vec128<uint8_t, N> Broadcast(Vec128<uint8_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<uint8_t, N>(vdup_lane_u8(v.raw, kLane));
+}
+template <int kLane>
 HWY_API Vec128<uint16_t> Broadcast(Vec128<uint16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<uint16_t>(vdupq_n_u16(vgetq_lane_u16(v.raw, kLane)));
@@ -4536,6 +4566,16 @@ HWY_API Vec128<uint64_t> Broadcast(Vec128<uint64_t> v) {
 // Vec64<uint64_t> is defined below.
 
 // Signed
+template <int kLane>
+HWY_API Vec128<int8_t> Broadcast(Vec128<int8_t> v) {
+  static_assert(0 <= kLane && kLane < 16, "Invalid lane");
+  return Vec128<int8_t>(vdupq_n_s8(vgetq_lane_s8(v.raw, kLane)));
+}
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(int8_t, N, 8)>
+HWY_API Vec128<int8_t, N> Broadcast(Vec128<int8_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<int8_t, N>(vdup_lane_s8(v.raw, kLane));
+}
 template <int kLane>
 HWY_API Vec128<int16_t> Broadcast(Vec128<int16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");

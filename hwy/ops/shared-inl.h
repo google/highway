@@ -168,6 +168,7 @@ struct Simd {
 
   constexpr size_t MaxLanes() const { return kPrivateLanes; }
   constexpr size_t MaxBytes() const { return kPrivateLanes * sizeof(Lane); }
+  constexpr size_t MaxBlocks() const { return (MaxBytes() + 15) / 16; }
   // For SFINAE on RVV.
   constexpr int Pow2() const { return kPow2; }
 
@@ -397,6 +398,34 @@ using Half = typename D::Half;
 // Tag for the same lane type as D, but twice the lanes.
 template <class D>
 using Twice = typename D::Twice;
+
+// Tag for a 16-byte block with the same lane type as D
+#if HWY_HAVE_SCALABLE
+namespace detail {
+
+template <class D>
+class BlockDFromD_t {};
+
+template <typename T, size_t N, int kPow2>
+class BlockDFromD_t<Simd<T, N, kPow2>> {
+  using D = Simd<T, N, kPow2>;
+  static constexpr int kNewPow2 = HWY_MIN(kPow2, 0);
+  static constexpr size_t kMaxLpb = HWY_MIN(16 / sizeof(T), HWY_MAX_LANES_D(D));
+  static constexpr size_t kNewN = D::template NewN<kNewPow2, kMaxLpb>();
+
+ public:
+  using type = Simd<T, kNewN, kNewPow2>;
+};
+
+}  // namespace detail
+
+template <class D>
+using BlockDFromD = typename detail::BlockDFromD_t<RemoveConst<D>>::type;
+#else
+template <class D>
+using BlockDFromD =
+    Simd<TFromD<D>, HWY_MIN(16 / sizeof(TFromD<D>), HWY_MAX_LANES_D(D)), 0>;
+#endif
 
 // ------------------------------ Choosing overloads (SFINAE)
 

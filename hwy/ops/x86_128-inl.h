@@ -4472,6 +4472,7 @@ HWY_API Vec128<uint16_t, N> Broadcast(const Vec128<uint16_t, N> v) {
     return Vec128<uint16_t, N>{_mm_unpackhi_epi64(hi, hi)};
   }
 }
+
 template <int kLane, size_t N>
 HWY_API Vec128<uint32_t, N> Broadcast(const Vec128<uint32_t, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
@@ -5065,6 +5066,26 @@ HWY_API VFromD<D> InterleaveUpper(D d, VFromD<D> a, VFromD<D> b) {
   const Half<decltype(d)> d2;
   return InterleaveLower(d, VFromD<D>{UpperHalf(d2, a).raw},
                          VFromD<D>{UpperHalf(d2, b).raw});
+}
+
+// -------------------------- I8/U8 Broadcast (InterleaveLower, InterleaveUpper)
+
+template <int kLane, class T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  const DFromV<decltype(v)> d;
+
+#if HWY_TARGET == HWY_SSE2
+  const Full128<T> d_full;
+  const Vec128<T> v_full{v.raw};
+  const auto v_interleaved = (kLane < 8)
+                                 ? InterleaveLower(d_full, v_full, v_full)
+                                 : InterleaveUpper(d_full, v_full, v_full);
+  return ResizeBitCast(
+      d, Broadcast<kLane & 7>(BitCast(Full128<uint16_t>(), v_interleaved)));
+#else
+  return TableLookupBytes(v, Set(d, static_cast<T>(kLane)));
+#endif
 }
 
 // ------------------------------ ZipLower/ZipUpper (InterleaveLower)
