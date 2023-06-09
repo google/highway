@@ -141,6 +141,22 @@ constexpr uint64_t ACosh32ULP() {
 #endif
 }
 
+template <class D, class V>
+HWY_INLINE V SinCosSin(const D d, V x)
+{
+  Vec<D> s, c;
+  SinCos(d, x, s, c);
+  return s;
+} 
+
+template <class D, class V>
+HWY_INLINE V SinCosCos(const D d, V x)
+{
+  Vec<D> s, c;
+  SinCos(d, x, s, c);
+  return c;
+} 
+
 // clang-format off
 DEFINE_MATH_TEST(Acos,
   std::acos,  CallAcos,  -1.0f,      +1.0f,       3,  // NEON is 3 instead of 2
@@ -190,6 +206,12 @@ DEFINE_MATH_TEST(Sinh,
 DEFINE_MATH_TEST(Tanh,
   std::tanh,  CallTanh,  -FLT_MAX,   +FLT_MAX,    4,
   std::tanh,  CallTanh,  -DBL_MAX,   +DBL_MAX,    4)
+DEFINE_MATH_TEST(SinCosSin,
+  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   3,
+  std::sin,   SinCosSin,   -39000.0,   +39000.0,    4)  // MSYS is 4 instead of 3
+DEFINE_MATH_TEST(SinCosCos,
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   3,
+  std::cos,   SinCosCos,   -39000.0,   +39000.0,    Cos64ULP())
 // clang-format on
 
 template <typename T, class D>
@@ -351,6 +373,9 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan2);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosSin);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosCos);
+
 }  // namespace hwy
 
 #endif

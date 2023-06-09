@@ -316,6 +316,23 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
   return Tanh(d, x);
 }
 
+/**
+ * Highway SIMD version sincos. 
+ * Compute the sine and cosine at the same time
+ * The performance should be around the same as calling Sin.
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 3
+ *      Valid Range: [-39000, +39000]
+ * @return sine of 'x'
+ */
+template <class D, class V>
+HWY_INLINE void SinCos(const D d, V x, V& s, V& c);
+template <class D, class V>
+HWY_NOINLINE V CallSinCos(const D d, VecArg<V> x, VecArg<V>& s, VecArg<V>& c) {
+  SinCos(d, x, s, c);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -1280,6 +1297,33 @@ HWY_INLINE V Tanh(const D d, V x) {
   const V y = Expm1(d, Mul(abs_x, kTwo));
   const V z = IfThenElse(Gt(abs_x, kLimit), kOne, Div(y, Add(y, kTwo)));
   return Xor(z, sign);  // Reapply the sign bit
+}
+
+template <class D, class V>
+HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
+  //using T = TFromD<D>;
+  //impl::CosSinImpl<T> impl;
+  for(size_t i = 0; i < Lanes(d); ++i) {
+    s = Set(d, std::sin(ExtractLane(x, i)));
+    c = Set(d, std::cos(ExtractLane(x, i)));
+  }
+
+  /*// Float Constants
+  const V kOneOverPi = Set(d, static_cast<T>(0.31830988618379067153));
+
+  // Integer Constants
+  const Rebind<int32_t, D> di32;
+  using VI32 = decltype(Zero(di32));
+  const VI32 kOne = Set(di32, 1);
+
+  const V y = Abs(x);  // cos(x) == cos(|x|)
+
+  // Compute the quadrant, q = int(|x| / pi) * 2 + 1
+  const VI32 q = Add(ShiftLeft<1>(impl.ToInt32(d, Mul(y, kOneOverPi))), kOne);
+
+  // Reduce range, apply sign, and approximate.
+  return impl.Poly(
+      d, Xor(impl.CosReduce(d, y, q), impl.CosSignFromQuadrant(d, q)));*/
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
