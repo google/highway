@@ -317,12 +317,12 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
 }
 
 /**
- * Highway SIMD version sincos. 
+ * Highway SIMD version of SinCos. 
  * Compute the sine and cosine at the same time
  * The performance should be around the same as calling Sin.
  *
  * Valid Lane Types: float32, float64
- *        Max Error: ULP = 3
+ *        Max Error: ULP = 1
  *      Valid Range: [-39000, +39000]
  * @return sine of 'x'
  */
@@ -1020,8 +1020,8 @@ HWY_INLINE void SinCos3(D d,
   using VI = decltype(Zero(di));
   using M = Mask<D>;
 
-  // equivalent to 0x80000000 for int32 and 0x8000000000000000L for int64
   static constexpr size_t bits = sizeof(TI) * 8;
+  // equivalent to 0x80000000 for int32 and 0x8000000000000000L for int64
   static constexpr TI mask = TI(1) << (bits - 1);
   const VI sign_mask = Set(di, mask);
   const VI inv_sign_mask = Set(di, ~mask);
@@ -1131,8 +1131,8 @@ HWY_INLINE void SinCos6(D d,
   using VI = decltype(Zero(di));
   using M = Mask<D>;
 
-  // equivalent to 0x80000000 for int32 and 0x8000000000000000L for int64
   static constexpr size_t bits = sizeof(TI) * 8;
+  // equivalent to 0x80000000 for int32 and 0x8000000000000000L for int64
   static constexpr TI mask = TI(1) << (bits - 1);
   const VI sign_mask = Set(di, mask);
   const VI inv_sign_mask = Set(di, ~mask);

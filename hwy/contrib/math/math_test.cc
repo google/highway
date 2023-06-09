@@ -157,6 +157,15 @@ HWY_INLINE V SinCosCos(const D d, V x)
   return c;
 } 
 
+// with target HWY_EMU128 the result is inaccurate
+constexpr uint64_t SinCosSin32ULP() {
+#if HWY_TARGET == HWY_EMU128
+  return 256;
+#else
+  return 1;
+#endif
+}
+
 // clang-format off
 DEFINE_MATH_TEST(Acos,
   std::acos,  CallAcos,  -1.0f,      +1.0f,       3,  // NEON is 3 instead of 2
@@ -207,10 +216,10 @@ DEFINE_MATH_TEST(Tanh,
   std::tanh,  CallTanh,  -FLT_MAX,   +FLT_MAX,    4,
   std::tanh,  CallTanh,  -DBL_MAX,   +DBL_MAX,    4)
 DEFINE_MATH_TEST(SinCosSin,
-  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   256,
+  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   SinCosSin32ULP(),
   std::sin,   SinCosSin,   -39000.0,   +39000.0,    1)  
 DEFINE_MATH_TEST(SinCosCos,
-  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   256,
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   3,
   std::cos,   SinCosCos,   -39000.0,   +39000.0,    1)
 // clang-format on
 
