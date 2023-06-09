@@ -157,9 +157,9 @@ HWY_INLINE V SinCosCos(const D d, V x)
   return c;
 } 
 
-// with target HWY_EMU128 the result is inaccurate
+// on some targets the result is less inaccurate
 constexpr uint64_t SinCosSin32ULP() {
-#if HWY_TARGET == HWY_EMU128
+#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
   return 256;
 #else
   return 1;
@@ -314,7 +314,7 @@ struct TestAtan2 {
     AlignedFreeUniquePtr<T[]> in_y, in_x, expected;
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
-    const Vec<D> tolerance = Set(d, 1E-5);
+    const Vec<D> tolerance = Set(d, T(1E-5));
 
     for (size_t i = 0; i < padded; ++i) {
       const T actual = atan2(in_y[i], in_x[i]);
