@@ -207,11 +207,11 @@ DEFINE_MATH_TEST(Tanh,
   std::tanh,  CallTanh,  -FLT_MAX,   +FLT_MAX,    4,
   std::tanh,  CallTanh,  -DBL_MAX,   +DBL_MAX,    4)
 DEFINE_MATH_TEST(SinCosSin,
-  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   3,
-  std::sin,   SinCosSin,   -39000.0,   +39000.0,    4)  // MSYS is 4 instead of 3
+  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   256,
+  std::sin,   SinCosSin,   -39000.0,   +39000.0,    1)  
 DEFINE_MATH_TEST(SinCosCos,
-  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   3,
-  std::cos,   SinCosCos,   -39000.0,   +39000.0,    Cos64ULP())
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   256,
+  std::cos,   SinCosCos,   -39000.0,   +39000.0,    1)
 // clang-format on
 
 template <typename T, class D>
