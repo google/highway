@@ -3671,6 +3671,7 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* const HWY_RESTRICT p) {
   const TU mask = static_cast<TU>(detail::LanesPerBlock(d) - 1);
   // Broadcast the first block.
   const VFromD<RebindToUnsigned<D>> idx = detail::AndS(detail::Iota0(du), mask);
+  // Safe even for 8-bit lanes because indices never exceed 15.
   return TableLookupLanes(loaded, idx);
 }
 

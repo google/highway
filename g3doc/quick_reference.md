@@ -1495,36 +1495,31 @@ instead because they are more general:
 *   <code>V **ReverseBlocks**(V v)</code>: returns a vector with blocks in
     reversed order.
 
-*   <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector
-    of `a[indices[i]]`, where `unspecified` is the return value of
-    `SetTableIndices(D, &indices[0])` or `IndicesFromVec`. The indices are
-    not limited to blocks, hence this is slower than `TableLookupBytes*` on
-    AVX2/AVX-512. Results are implementation-defined unless `0 <= indices[i]
-    < Lanes(D())`. `indices` are always integers, even if `V` is a
-    floating-point type.
-
-*   <code>V **TwoTablesLookupLanes**(D d, V a, V b, unspecified)</code>
-    returns a vector of `indices[i] < N ? a[indices[i]] : b[indices[i] - N]`,
-    where  `unspecified` is the return value of
-    `SetTableIndices(d, &indices[0])` or `IndicesFromVec` and `N` is equal to
-    `Lanes(d)`. The indices are not limited to blocks. Results are
-    implementation-defined unless `0 <= indices[i] < 2 * Lanes(d)`. `indices`
-    are always integers, even if `V` is a floating-point type.
-
-*   <code>V **TwoTablesLookupLanes**(V a, V b, unspecified)</code>
-    returns a vector of `indices[i] < N ? a[indices[i]] : b[indices[i] - N]`,
-    where  `unspecified` is the return value of
-    `SetTableIndices(D, &indices[0])` or `IndicesFromVec` and `N` is equal to
-    `Lanes(DFromV<V>())`.  The indices are not limited to blocks. Results are
-    implementation-defined unless `0 <= indices[i] < 2 * Lanes(DFromV<V>())`.
+*   <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector of
+    `a[indices[i]]`, where `unspecified` is the return value of
+    `SetTableIndices(D, &indices[0])` or `IndicesFromVec`. The indices are not
+    limited to blocks, hence this is slower than `TableLookupBytes*` on
+    AVX2/AVX-512. Results are implementation-defined unless `0 <= indices[i] <
+    Lanes(D())` and `indices[i] <= LimitsMax<TFromD<RebindToUnsigned<D>>>()`.
+    Note that the latter condition is only a (potential) limitation for 8-bit
+    lanes on the RVV target; otherwise, `Lanes(D()) <= LimitsMax<..>()`.
     `indices` are always integers, even if `V` is a floating-point type.
 
-    ```TwoTablesLookupLanes(a, b, indices)``` is equivalent to
-    ```TwoTablesLookupLanes(DFromV<V>(), a, b, indices)```.
+*   <code>V **TwoTablesLookupLanes**(D d, V a, V b, unspecified)</code> returns
+    a vector of `indices[i] < N ? a[indices[i]] : b[indices[i] - N]`, where
+    `unspecified` is the return value of `SetTableIndices(d, &indices[0])` or
+    `IndicesFromVec` and `N` is equal to `Lanes(d)`. The indices are not limited
+    to blocks. Results are implementation-defined unless `0 <= indices[i] < 2 *
+    Lanes(d)` and `indices[i] <= LimitsMax<TFromD<RebindToUnsigned<D>>>()`. Note
+    that the latter condition is only a (potential) limitation for 8-bit lanes
+    on the RVV target; otherwise, `Lanes(D()) <= LimitsMax<..>()`. `indices` are
+    always integers, even if `V` is a floating-point type.
 
-    The results of ```TwoTablesLookupLanes(d, a, b, indices)``` can differ
-    from ```TwoTablesLookupLanes(a, b, indices)``` on RVV/SVE if
-    ```Lanes(d)``` is less than ```Lanes(DFromV<V>())```.
+*   <code>V **TwoTablesLookupLanes**(V a, V b, unspecified)</code> returns
+    `TwoTablesLookupLanes(DFromV<V>(), a, b, indices)`, see above. Note that the
+    results of `TwoTablesLookupLanes(d, a, b, indices)` may differ from
+    `TwoTablesLookupLanes(a, b, indices)` on RVV/SVE if `Lanes(d) <
+    Lanes(DFromV<V>())`.
 
 *   <code>unspecified **IndicesFromVec**(D d, V idx)</code> prepares for
     `TableLookupLanes` with integer indices in `idx`, which must be the same bit
@@ -1560,17 +1555,17 @@ instead because they are more general:
     <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
     lane are reversed.
 
-*   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2,
-    size_t kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle
-    of `v` if `Lanes(DFromV<V>())` is greater than or equal to 4 or a shuffle of
-    the full vector if `Lanes(DFromV<V>())` is less than 4.
+*   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2, size_t
+    kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle of `v`
+    if `Lanes(DFromV<V>())` is greater than or equal to 4 or a shuffle of the
+    full vector if `Lanes(DFromV<V>())` is less than 4.
 
     `kIdx0`, `kIdx1`, `kIdx2`, and `kIdx3` must all be between 0 and 3.
 
     Per4LaneBlockShuffle is equivalent to doing a TableLookupLanes with the
     following indices (but Per4LaneBlockShuffle is more efficient than
-    TableLookupLanes on some platforms):
-    `{kIdx0, kIdx1, kIdx2, kIdx3, kIdx0+4, kIdx1+4, kIdx2+4, kIdx3+4, ...}`
+    TableLookupLanes on some platforms): `{kIdx0, kIdx1, kIdx2, kIdx3, kIdx0+4,
+    kIdx1+4, kIdx2+4, kIdx3+4, ...}`
 
     If `Lanes(DFromV<V>())` is less than 4 and `kIdx0 >= Lanes(DFromV<V>())` is
     true, Per4LaneBlockShuffle returns an unspecified value in the first lane of
