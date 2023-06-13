@@ -141,6 +141,39 @@ constexpr uint64_t ACosh32ULP() {
 #endif
 }
 
+template <class D, class V>
+HWY_INLINE V SinCosSin(const D d, V x)
+{
+  Vec<D> s, c;
+  SinCos(d, x, s, c);
+  return s;
+} 
+
+template <class D, class V>
+HWY_INLINE V SinCosCos(const D d, V x)
+{
+  Vec<D> s, c;
+  SinCos(d, x, s, c);
+  return c;
+} 
+
+// on some targets the result is less inaccurate
+constexpr uint64_t SinCosSin32ULP() {
+#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
+  return 256;
+#else
+  return 3;
+#endif
+}
+
+constexpr uint64_t SinCosCos32ULP() {
+#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
+  return 64;
+#else
+  return 3;
+#endif
+}
+
 // clang-format off
 DEFINE_MATH_TEST(Acos,
   std::acos,  CallAcos,  -1.0f,      +1.0f,       3,  // NEON is 3 instead of 2
@@ -190,6 +223,12 @@ DEFINE_MATH_TEST(Sinh,
 DEFINE_MATH_TEST(Tanh,
   std::tanh,  CallTanh,  -FLT_MAX,   +FLT_MAX,    4,
   std::tanh,  CallTanh,  -DBL_MAX,   +DBL_MAX,    4)
+DEFINE_MATH_TEST(SinCosSin,
+  std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   SinCosSin32ULP(),
+  std::sin,   SinCosSin,   -39000.0,   +39000.0,    1)  
+DEFINE_MATH_TEST(SinCosCos,
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   SinCosCos32ULP(),
+  std::cos,   SinCosCos,   -39000.0,   +39000.0,    1)
 // clang-format on
 
 template <typename T, class D>
@@ -283,7 +322,7 @@ struct TestAtan2 {
     AlignedFreeUniquePtr<T[]> in_y, in_x, expected;
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
-    const Vec<D> tolerance = Set(d, 1E-5);
+    const Vec<D> tolerance = Set(d, T(1E-5));
 
     for (size_t i = 0; i < padded; ++i) {
       const T actual = atan2(in_y[i], in_x[i]);
@@ -351,6 +390,8 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan2);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosSin);
+HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosCos);
 }  // namespace hwy
 
 #endif
