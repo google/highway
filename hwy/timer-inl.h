@@ -50,6 +50,8 @@
 #include <intrin.h>
 #endif
 
+#include <time.h>    // clock_gettime
+
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
