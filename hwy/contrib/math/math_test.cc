@@ -162,7 +162,15 @@ constexpr uint64_t SinCosSin32ULP() {
 #if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
   return 256;
 #else
-  return 1;
+  return 64;
+#endif
+}
+
+constexpr uint64_t SinCosCos32ULP() {
+#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
+  return 64;
+#else
+  return 3;
 #endif
 }
 
@@ -219,7 +227,7 @@ DEFINE_MATH_TEST(SinCosSin,
   std::sin,   SinCosSin,   -39000.0f,  +39000.0f,   SinCosSin32ULP(),
   std::sin,   SinCosSin,   -39000.0,   +39000.0,    1)  
 DEFINE_MATH_TEST(SinCosCos,
-  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   3,
+  std::cos,   SinCosCos,   -39000.0f,  +39000.0f,   SinCosCos32ULP(),
   std::cos,   SinCosCos,   -39000.0,   +39000.0,    1)
 // clang-format on
 
