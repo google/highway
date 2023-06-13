@@ -1065,7 +1065,6 @@ HWY_INLINE void SinCos3(D d,
   imm2 = Add(imm2, ci_1);
   imm2 = And(imm2, ci_inv_1);
 
-  // y = _mm512_cvtepi32_ps(imm2);
   y = ConvertTo(d, imm2); 
   imm4 = imm2;
 
@@ -1092,10 +1091,8 @@ HWY_INLINE void SinCos3(D d,
   imm4 = AndNot(imm4, ci_4);
   imm4 = ShiftLeft<bits-3>(imm4);
 
-  // v16sf sign_bit_cos = _mm512_castsi512_ps(imm4);
   V sign_bit_cos = BitCast(d, imm4);
 
-  // sign_bit_sin = _mm512_xor_ps(sign_bit_sin, swap_sign_bit_sin);
   sign_bit_sin = Xor(sign_bit_sin, swap_sign_bit_sin);
 
   /* Evaluate the first polynomial  (0 <= x <= Pi/4) */
