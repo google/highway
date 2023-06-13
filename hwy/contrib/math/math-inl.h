@@ -1008,6 +1008,10 @@ HWY_INLINE V Log(const D d, V x) {
       Sub(MulSub(z, Sub(ym1, impl.LogPoly(d, z)), Mul(exp, kLn2Lo)), ym1));
 }
 
+// SinCos 
+// Based on "sse_mathfun.h", by Julien Pommier
+// http://gruntthepeon.free.fr/ssemath/
+
 // Third degree poly
 template <class D, class V>
 HWY_INLINE void SinCos3(D d, 
@@ -1069,7 +1073,7 @@ HWY_INLINE void SinCos3(D d,
   imm0 = And(imm2, ci_4);
   imm0 = ShiftLeft<bits-3>(imm0);
 
-  /* get the polynom selection mask for the sine*/
+  /* get the polynomial selection mask for the sine*/
   imm2 = And(imm2, ci_2);
   imm2 = IfThenElseZero(Eq(imm2, ci_0), Set(di, -1));
 
@@ -1094,7 +1098,7 @@ HWY_INLINE void SinCos3(D d,
   // sign_bit_sin = _mm512_xor_ps(sign_bit_sin, swap_sign_bit_sin);
   sign_bit_sin = Xor(sign_bit_sin, swap_sign_bit_sin);
 
-  /* Evaluate the first polynom  (0 <= x <= Pi/4) */
+  /* Evaluate the first polynomial  (0 <= x <= Pi/4) */
   V z = Mul(x, x);
 
   y = MulAdd(cos_p0, z, cos_p1);
@@ -1104,13 +1108,13 @@ HWY_INLINE void SinCos3(D d,
   y = NegMulAdd(z, Set(d, 0.5f), y);
   y = Add(y, Set(d, 1));
 
-  /* Evaluate the second polynom  (Pi/4 <= x <= 0) */
+  /* Evaluate the second polynomial  (Pi/4 <= x <= 0) */
   V y2 = MulAdd(sin_p0, z, sin_p1);
   y2 = MulAdd(y2, z, sin_p2);
   y2 = Mul(y2, z);
   y2 = MulAdd(y2, x, x);
 
-  /* select the correct result from the two polynoms */
+  /* select the correct result from the two polynomials */
   xmm1 = IfThenElse(poly_mask, y2, y);
   xmm2 = IfThenElse(poly_mask, y, y2);
     
@@ -1188,7 +1192,7 @@ HWY_INLINE void SinCos6(D d,
 
   V swap_sign_bit_sin = BitCast(d, imm0);
 
-  /* get the polynom selection mask for the sine*/
+  /* get the polynomial selection mask for the sine*/
   imm2 = And(imm2, ci_2);
   imm2 = IfThenElseZero(Eq(imm2, ci_0), Set(di, -1));
       
@@ -1208,7 +1212,7 @@ HWY_INLINE void SinCos6(D d,
   V sign_bit_cos = BitCast(d, imm4);
   sign_bit_sin = Xor(sign_bit_sin, swap_sign_bit_sin);
 
-  /* Evaluate the first polynom  (0 <= x <= Pi/4) */
+  /* Evaluate the first polynomial  (0 <= x <= Pi/4) */
   V z = Mul(x, x);
 
   y = MulAdd(cos_p0, z, cos_p1);
@@ -1221,7 +1225,7 @@ HWY_INLINE void SinCos6(D d,
   y = NegMulAdd(z, Set(d, 0.5f), y);
   y = Add(y, Set(d, 1.0f));
 
-  /* Evaluate the second polynom  (Pi/4 <= x <= 0) */
+  /* Evaluate the second polynomial  (Pi/4 <= x <= 0) */
   V y2 = MulAdd(sin_p0, z, sin_p1);
   y2 = MulAdd(y2, z, sin_p2);
   y2 = MulAdd(y2, z, sin_p3);
@@ -1231,7 +1235,7 @@ HWY_INLINE void SinCos6(D d,
   y2 = MulAdd(y2, x, x);
 
 
-  /* select the correct result from the two polynoms */   
+  /* select the correct result from the two polynomials */   
   xmm1 = IfThenElse(poly_mask, y2, y);
   xmm2 = IfThenElse(poly_mask, y, y2);
 
