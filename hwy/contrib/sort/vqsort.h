@@ -89,8 +89,8 @@ HWY_CONTRIB_DLLEXPORT void VQSort(K32V32* HWY_RESTRICT keys, size_t n,
 // retain this class only for compatibility. It now just calls VQSort.
 class HWY_CONTRIB_DLLEXPORT Sorter {
  public:
-  Sorter() {}
-  ~Sorter() {}
+  Sorter();
+  ~Sorter() { Delete(); }
 
   // Move-only
   Sorter(const Sorter&) = delete;
@@ -98,109 +98,44 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
   Sorter(Sorter&& /*other*/) {}
   Sorter& operator=(Sorter&& /*other*/) { return *this; }
 
-  void operator()(uint16_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(uint16_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(uint32_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(uint32_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(uint64_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(uint64_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
+  void operator()(uint16_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(uint16_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
+  void operator()(uint32_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(uint32_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
+  void operator()(uint64_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(uint64_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  void operator()(int16_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(int16_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(int32_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(int32_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(int64_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(int64_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
+  void operator()(int16_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(int16_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
+  void operator()(int32_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(int32_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
+  void operator()(int64_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(int64_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  void operator()(float* HWY_RESTRICT keys, size_t n, SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(float* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(double* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(double* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
+  void operator()(float* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(float* HWY_RESTRICT keys, size_t n, SortDescending) const;
+  void operator()(double* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(double* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  void operator()(uint128_t* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(uint128_t* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
+  void operator()(uint128_t* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(uint128_t* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  void operator()(K64V64* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(K64V64* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
+  void operator()(K64V64* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(K64V64* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
-  void operator()(K32V32* HWY_RESTRICT keys, size_t n,
-                  SortAscending tag) const {
-    VQSort(keys, n, tag);
-  }
-  void operator()(K32V32* HWY_RESTRICT keys, size_t n,
-                  SortDescending tag) const {
-    VQSort(keys, n, tag);
-  }
+  void operator()(K32V32* HWY_RESTRICT keys, size_t n, SortAscending) const;
+  void operator()(K32V32* HWY_RESTRICT keys, size_t n, SortDescending) const;
 
   // Unused
-  static void Fill24Bytes(const void*, size_t, void*) {}
-  static bool HaveFloat64() { return false; }
+  static void Fill24Bytes(const void*, size_t, void*);
+  static bool HaveFloat64();
 
  private:
-  void Delete() {}
+  void Delete();
 
   template <typename T>
   T* Get() const {
-    return nullptr;
+    return unused_;
   }
 
 #if HWY_COMPILER_CLANG
