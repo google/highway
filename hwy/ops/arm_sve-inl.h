@@ -404,8 +404,10 @@ HWY_API VFromD<D> BitCast(D d, FromV v) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_CREATE, Create, create)
+#if defined(__ARM_FEATURE_SVE_BF16)
 // bfloat16 is not included in FOREACH.
 HWY_SVE_CREATE(bfloat, bf, 16, 8, Create, create)
+#endif
 #undef HWY_SVE_CREATE
 
 template <class D>
@@ -430,8 +432,10 @@ using Vec4 = decltype(Create4(D(), Zero(D()), Zero(D()), Zero(D()), Zero(D())));
   }
 
 HWY_SVE_FOREACH(HWY_SVE_GET, Get, get)
+#if defined(__ARM_FEATURE_SVE_BF16)
 // bfloat16 is not included in FOREACH.
 HWY_SVE_GET(bfloat, bf, 16, 8, Get, get)
+#endif
 #undef HWY_SVE_GET
 
 // ------------------------------ ResizeBitCast
@@ -2692,7 +2696,8 @@ HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
 template <int kBlockIdx, class V>
 HWY_API V InsertBlock(V v, V blk_to_insert) {
   const DFromV<decltype(v)> d;
-  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(), "Invalid block index");
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
 
 #if HWY_TARGET == HWY_SVE_256
   return (kBlockIdx == 0) ? ConcatUpperLower(d, v, blk_to_insert)
@@ -2713,7 +2718,8 @@ HWY_API V InsertBlock(V v, V blk_to_insert) {
 template <int kBlockIdx, class V>
 HWY_API V ExtractBlock(V v) {
   const DFromV<decltype(v)> d;
-  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(), "Invalid block index");
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
 
   if (kBlockIdx == 0) return v;
 
@@ -2735,7 +2741,8 @@ HWY_API V ExtractBlock(V v) {
 template <int kBlockIdx, class V>
 HWY_API V BroadcastBlock(V v) {
   const DFromV<decltype(v)> d;
-  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(), "Invalid block index");
+  static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
+                "Invalid block index");
 
 #if HWY_TARGET == HWY_SVE_256
   return (kBlockIdx == 0) ? ConcatLowerLower(d, v, v)
@@ -4381,10 +4388,16 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
 }
 
 // ------------------------------ WidenMulPairwiseAdd
+
 template <size_t N, int kPow2>
 HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32,
                                               svuint16_t a, svuint16_t b) {
-  // TODO(janwas): svbfmlalb_f32 if __ARM_FEATURE_SVE_BF16.
+#if defined(__ARM_FEATURE_SVE_BF16)
+  const svbfloat16_t a_bf16 = svreinterpret_bf16_u16(a);
+  const svbfloat16_t b_bf16 = svreinterpret_bf16_u16(b);
+  const svfloat32_t even = svbfmlalb_f32(Zero(df32), a_bf16, b_bf16);
+  return svbfmlalt_f32(even, a_bf16, b_bf16);
+#else
   const RebindToUnsigned<decltype(df32)> du32;
   // Using shift/and instead of Zip leads to the odd/even order that
   // RearrangeToOddPlusEven prefers.
@@ -4396,6 +4409,7 @@ HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32,
   const VU32 bo = And(BitCast(du32, b), odd);
   return MulAdd(BitCast(df32, ae), BitCast(df32, be),
             Mul(BitCast(df32, ao), BitCast(df32, bo)));
+#endif  // defined(__ARM_FEATURE_SVE_BF16)
 }
 
 template <size_t N, int kPow2>
@@ -4423,7 +4437,13 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
                                               svuint16_t a, svuint16_t b,
                                               const svfloat32_t sum0,
                                               svfloat32_t& sum1) {
-  // TODO(janwas): svbfmlalb_f32 if __ARM_FEATURE_SVE_BF16.
+#if defined(__ARM_FEATURE_SVE_BF16)
+  (void)df32;
+  const svbfloat16_t a_bf16 = svreinterpret_bf16_u16(a);
+  const svbfloat16_t b_bf16 = svreinterpret_bf16_u16(b);
+  sum1 = svbfmlalt_f32(sum1, a_bf16, b_bf16);
+  return svbfmlalb_f32(sum0, a_bf16, b_bf16);
+#else
   const RebindToUnsigned<decltype(df32)> du32;
   // Using shift/and instead of Zip leads to the odd/even order that
   // RearrangeToOddPlusEven prefers.
@@ -4435,6 +4455,7 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
   const VU32 bo = And(BitCast(du32, b), odd);
   sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
   return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
+#endif  // defined(__ARM_FEATURE_SVE_BF16)
 }
 
 template <size_t N, int kPow2>
