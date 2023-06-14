@@ -21,7 +21,7 @@
     during initial development. Analysis tools can warn about some potential
     inefficiencies, but likely not all. We instead provide [a carefully chosen
     set of vector types and operations that are efficient on all target
-    platforms](instruction_matrix.pdf) (PPC8, SSE4/AVX2+, Armv8).
+    platforms](instruction_matrix.pdf) (Armv8, PPC8, x86).
 
 *   Future SIMD hardware features are difficult to predict. For example, AVX2
     came with surprising semantics (almost no interaction between 128-bit
@@ -64,11 +64,11 @@
     same file or in `*-inl.h` headers. We generate all code paths from the same
     source to reduce implementation- and debugging cost.
 
-*   Not every CPU need be supported. For example, pre-SSSE3 CPUs are
-    increasingly rare and the AVX instruction set is limited to floating-point
-    operations. To reduce code size and compile time, we provide specializations
-    for S-SSE3, SSE4, AVX2 and AVX-512 instruction sets on x86, plus a scalar
-    fallback.
+*   Not every CPU need be supported. To reduce code size and compile time, we
+    group x86 targets into clusters. In particular, SSE3 instructions are only
+    used/available if S-SSE3 is also available, and AVX only if AVX2 is also
+    supported. Code generation for AVX3_DL also requires opting-in by defining
+    HWY_WANT_AVX3_DL.
 
 *   Access to platform-specific intrinsics is necessary for acceptance in
     performance-critical projects. We provide conversions to and from intrinsics
@@ -109,10 +109,10 @@ set to all one or all zero bits. We instead provide a Mask type that emulates
 a subset of this functionality on other platforms at zero cost.
 
 Masks are returned by comparisons and `TestBit`; they serve as the input to
-`IfThen*`. We provide conversions between masks and vector lanes. For clarity
-and safety, we use FF..FF as the definition of true. To also benefit from
-x86 instructions that only require the sign bit of floating-point inputs to be
-set, we provide a special `ZeroIfNegative` function.
+`IfThen*`. We provide conversions between masks and vector lanes. On targets
+without dedicated mask registers, we use FF..FF as the definition of true. To
+also benefit from x86 instructions that only require the sign bit of
+floating-point inputs to be set, we provide a special `ZeroIfNegative` function.
 
 ## Differences vs. [P0214R5](https://goo.gl/zKW4SA) / std::experimental::simd
 
@@ -120,8 +120,10 @@ set, we provide a special `ZeroIfNegative` function.
     functions. By contrast, P0214R5 requires a wrapper class, which does not
     work for sizeless vector types currently used by Arm SVE and Risc-V.
 
-1.  Adding widely used and portable operations such as `AndNot`, `AverageRound`,
-    bit-shift by immediates and `IfThenElse`.
+1.  Supporting many more operations such as 128-bit compare/minmax, AES/CLMUL,
+    `AndNot`, `AverageRound`, bit-shift by immediates, compress/expand,
+    fixed-point mul, `IfThenElse`, interleaved load/store, lzcnt, mask find/set,
+    masked load/store, popcount, reductions, saturated add/sub, scatter/gather.
 
 1.  Designing the API to avoid or minimize overhead on AVX2/AVX-512 caused by
     crossing 128-bit 'block' boundaries.
@@ -155,10 +157,6 @@ set, we provide a special `ZeroIfNegative` function.
 1.  Omitting `long double` types: these are not commonly available in hardware.
 
 1.  Ensuring signed integer overflow has well-defined semantics (wraparound).
-
-1.  Simple header-only implementation and a fraction of the size of the Vc
-    library from which P0214 was derived (39K, vs. 92K lines in
-    https://github.com/VcDevel/Vc according to the gloc Chrome extension).
 
 1.  Avoiding hidden performance costs. P0214R5 allows implicit conversions from
     integer to float, which costs 3-4 cycles on x86. We make these conversions
