@@ -446,13 +446,18 @@ HWY_NOINLINE void Sort16Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 // Reshapes into a matrix, sorts columns independently, and then merges
 // into a sorted 1D array without transposing.
 //
-// `st` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
-//   differences in sort order and single-lane vs 128-bit keys.
+// `TraitsKV` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
+//   differences in sort order and single-lane vs 128-bit keys. For key-value
+//   types, items with the same key are not equivalent. Our sorting network
+//   does not preserve order, thus we prevent mixing padding into the items by
+//   comparing all the item bits, including the value (see *ForSortingNetwork).
 //
 // See M. Blacher's thesis: https://github.com/mark-blacher/masterthesis
-template <class D, class Traits, typename T>
-HWY_NOINLINE void BaseCase(D d, Traits st, T* HWY_RESTRICT keys,
+template <class D, class TraitsKV, typename T>
+HWY_NOINLINE void BaseCase(D d, TraitsKV, T* HWY_RESTRICT keys,
                            size_t num_lanes, T* buf) {
+  using Traits = typename TraitsKV::SharedTraitsForSortingNetwork;
+  Traits st;
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_DASSERT(num_lanes <= Constants::BaseCaseNumLanes<kLPK>(Lanes(d)));
   const size_t num_keys = num_lanes / kLPK;
@@ -1630,6 +1635,10 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
   // Recurse will also check this, but doing so here first avoids setting up
   // the random generator state.
   if (HWY_UNLIKELY(num <= base_case_num)) {
+    if (VQSORT_PRINT >= 1) {
+      fprintf(stderr, "Special-casing small, %d lanes\n",
+              static_cast<int>(num));
+    }
     BaseCase(d, st, keys, num, buf);
     return true;
   }
@@ -1670,7 +1679,8 @@ template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
   if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "=============== Sort num %zu\n", num);
+    fprintf(stderr, "=============== Sort num %zu vec bytes %d\n", num,
+            static_cast<int>(sizeof(T) * Lanes(d)));
   }
 
 #if VQSORT_ENABLED || HWY_IDE

@@ -36,8 +36,9 @@ struct SortDescending {
   constexpr bool IsAscending() const { return false; }
 };
 
-// Vectorized Quicksort: sorts keys[0, n). Dispatches to the best available
-// instruction set and does not allocate memory.
+// Vectorized Quicksort: sorts keys[0, n). Does not preserve the ordering of
+// equivalent keys (defined as: neither greater nor less than another).
+// Dispatches to the best available instruction set. Does not allocate memory.
 // Uses about 1.2 KiB stack plus an internal 3-word TLS cache for random state.
 HWY_CONTRIB_DLLEXPORT void VQSort(uint16_t* HWY_RESTRICT keys, size_t n,
                                   SortAscending);

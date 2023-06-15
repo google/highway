@@ -176,6 +176,7 @@ struct Key128 : public KeyAny128 {
 // we are anyway going to specialize at a higher level.
 struct OrderAscending128 : public Key128 {
   using Order = SortAscending;
+  using OrderForSortingNetwork = OrderAscending128;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
@@ -226,6 +227,7 @@ struct OrderAscending128 : public Key128 {
 
 struct OrderDescending128 : public Key128 {
   using Order = SortDescending;
+  using OrderForSortingNetwork = OrderDescending128;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
@@ -321,6 +323,7 @@ struct KeyValue128 : public KeyAny128 {
 
 struct OrderAscendingKV128 : public KeyValue128 {
   using Order = SortAscending;
+  using OrderForSortingNetwork = OrderAscending128;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return a[1] < b[1];
@@ -367,6 +370,7 @@ struct OrderAscendingKV128 : public KeyValue128 {
 
 struct OrderDescendingKV128 : public KeyValue128 {
   using Order = SortDescending;
+  using OrderForSortingNetwork = OrderDescending128;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return b[1] < a[1];
@@ -448,6 +452,9 @@ HWY_INLINE V ReplicateTop4x(V v) {
 // Shared code that depends on Order.
 template <class Base>
 struct Traits128 : public Base {
+  using TraitsForSortingNetwork =
+      Traits128<typename Base::OrderForSortingNetwork>;
+
   template <class D>
   HWY_INLINE Vec<D> FirstOfLanes(D d, Vec<D> v,
                                  TFromD<D>* HWY_RESTRICT buf) const {
