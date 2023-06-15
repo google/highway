@@ -43,8 +43,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 // Compare expected vector to vector.
-// HWY_INLINE works around a Clang SVE compiler bug where all but the first
-// 128 bits (the NEON register) of actual are zero.
+// TODO(b/287462770): inline to work around incorrect SVE codegen.
 template <class D, typename T = TFromD<D>, class V = Vec<D>>
 HWY_INLINE void AssertVecEqual(D d, const T* expected, VecArg<V> actual,
                                const char* filename, const int line) {

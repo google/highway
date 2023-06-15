@@ -272,7 +272,7 @@ HWY_NOINLINE void TestAllSignBit() {
   ForFloatTypes(ForPartialVectors<TestSignBitFloat>());
 }
 
-// inline to work around incorrect SVE codegen (only first 128 bits used).
+// TODO(b/287462770): inline to work around incorrect SVE codegen
 template <class D, class V>
 HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
   using T = TFromD<D>;

@@ -294,7 +294,7 @@ struct TestAtan2 {
       const Vec<D> y = Load(d, &in_y[i]);
       const Vec<D> x = Load(d, &in_x[i]);
 #if HWY_ARCH_ARM_A64
-      // inline to work around incorrect SVE codegen (only first 128 bits used).
+      // TODO(b/287462770): inline to work around incorrect SVE codegen
       const Vec<D> actual = Atan2(d, y, x);
 #else
       const Vec<D> actual = CallAtan2(d, y, x);
