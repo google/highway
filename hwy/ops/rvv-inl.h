@@ -3524,7 +3524,8 @@ namespace detail {
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                  \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p, size_t stride) {      \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(p, stride, Lanes(d));     \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(                          \
+        p, static_cast<ptrdiff_t>(stride), Lanes(d));                         \
   }
 HWY_RVV_FOREACH(HWY_RVV_LOAD_STRIDED, LoadStrided, lse, _ALL_VIRT)
 #undef HWY_RVV_LOAD_STRIDED
@@ -3583,7 +3584,8 @@ namespace detail {
   HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                              \
                     HWY_RVV_D(BASE, SEW, N, SHIFT) d,                          \
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p, size_t stride) {    \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(p, stride, v, Lanes(d));   \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(                           \
+        p, static_cast<ptrdiff_t>(stride), v, Lanes(d));                       \
   }
 HWY_RVV_FOREACH(HWY_RVV_STORE_STRIDED, StoreStrided, sse, _ALL_VIRT)
 #undef HWY_RVV_STORE_STRIDED
