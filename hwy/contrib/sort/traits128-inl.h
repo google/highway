@@ -440,10 +440,9 @@ HWY_INLINE V ReplicateTop4x(V v) {
 #if HWY_TARGET == HWY_SVE_256
   return svdup_lane_u64(v, 3);
 #else
-    alignas(64) static constexpr uint64_t kIndices[8] = {3, 3, 3, 3,
-                                                         7, 7, 7, 7};
-    const ScalableTag<uint64_t> d;
-    return TableLookupLanes(v, SetTableIndices(d, kIndices));
+  HWY_ALIGN static constexpr uint64_t kIndices[8] = {3, 3, 3, 3, 7, 7, 7, 7};
+  const ScalableTag<uint64_t> d;
+  return TableLookupLanes(v, SetTableIndices(d, kIndices));
 #endif
 }
 
@@ -510,7 +509,7 @@ struct Traits128 : public Base {
     const Vec<D> cmpHx = base->template CompareTop<Base>(d, v, swapped);
     // Similar to ReplicateTop4x, we want to gang together 2 comparison results
     // (4 lanes). They are not contiguous, so use permute to replicate 4x.
-    alignas(64) uint64_t kIndices[8] = {7, 7, 5, 5, 5, 5, 7, 7};
+    HWY_ALIGN uint64_t kIndices[8] = {7, 7, 5, 5, 5, 5, 7, 7};
     const Vec<D> select = TableLookupLanes(cmpHx, SetTableIndices(d, kIndices));
     return IfVecThenElse(select, swapped, v);
   }
