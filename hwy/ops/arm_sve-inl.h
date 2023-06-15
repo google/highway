@@ -3469,6 +3469,7 @@ V AverageRound(const V a, const V b) {
 // `p` points to at least 8 readable bytes, not all of which need be valid.
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_INLINE svbool_t LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
+  // TODO(janwas): with SVE2.1, load to vector, then PMOV
   const RebindToUnsigned<D> du;
   const svuint8_t iota = Iota(du, 0);
 
@@ -3577,6 +3578,7 @@ HWY_INLINE svuint64_t BitsFromBool(svuint8_t x) {
 
 // `p` points to at least 8 writable bytes.
 // TODO(janwas): specialize for HWY_SVE_256
+// TODO(janwas): with SVE2.1, use PMOV to store to vector, then StoreU
 template <class D>
 HWY_API size_t StoreMaskBits(D d, svbool_t m, uint8_t* bits) {
   svuint64_t bits_in_u64 =
