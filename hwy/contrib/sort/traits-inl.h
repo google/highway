@@ -25,7 +25,6 @@
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/contrib/sort/vqsort.h"      // SortDescending
 #include "hwy/highway.h"
-#include "hwy/print.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
