@@ -42,7 +42,7 @@
 #include <OS.h>
 #endif
 
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
 #include <sys/platform/ppc.h>  // NOLINT __ppc_get_timebase_freq
 #endif
 
@@ -114,7 +114,7 @@ using Ticks = uint64_t;
 // divide by InvariantTicksPerSecond.
 inline Ticks Start() {
   Ticks t;
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
   asm volatile("mfspr %0, %1" : "=r"(t) : "i"(268));
 #elif HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC
   // pmccntr_el0 is privileged but cntvct_el0 is accessible in Linux and QEMU.
@@ -160,7 +160,7 @@ inline Ticks Start() {
 // WARNING: on x86, caller must check HasRDTSCP before using this!
 inline Ticks Stop() {
   uint64_t t;
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
   asm volatile("mfspr %0, %1" : "=r"(t) : "i"(268));
 #elif HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC
   // pmccntr_el0 is privileged but cntvct_el0 is accessible in Linux and QEMU.

@@ -131,7 +131,7 @@ HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
 }
 
 HWY_DLLEXPORT double InvariantTicksPerSecond() {
-#if HWY_ARCH_PPC && defined(__GLIBC__)
+#if HWY_ARCH_PPC && defined(__GLIBC__) && defined(__powerpc64__)
   return static_cast<double>(__ppc_get_timebase_freq());
 #elif HWY_ARCH_X86 || HWY_ARCH_RVV || (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC)
   // We assume the x86 TSC is invariant; it is on all recent Intel/AMD CPUs.
