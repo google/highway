@@ -284,15 +284,18 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 
 #pragma pack(push, 1)
 
-// ACLE (https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html):
-// always supported on Armv8, for Armv7 only if -mfp16-format is given.
-#if ((HWY_ARCH_ARM_A64 || (__ARM_FP & 2)) && HWY_COMPILER_GCC)
+// 1) ACLE's __fp16: always supported on Armv8, for Armv7 Clang gates this on
+//    __ARM_FP & 2, whereas GCC requires -mfp16-format=ieee, see
+//    https://skia-review.googlesource.com/c/skcms/+/698184.
+#if HWY_ARCH_ARM_A64 ||                                            \
+    (HWY_COMPILER_CLANG && defined(__ARM_FP) && (__ARM_FP & 2)) || \
+    HWY_COMPILER_GCC_ACTUAL && defined(__ARM_FP16_FORMAT_IEEE)
 using float16_t = __fp16;
-// C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
-// Required for Clang RVV if the float16 extension is used.
+// 2) C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
+//    Required for Clang RVV if the float16 extension is used.
 #elif HWY_ARCH_RVV && HWY_COMPILER_CLANG && defined(__riscv_zvfh)
 using float16_t = _Float16;
-// Otherwise emulate
+// 3) Otherwise emulate
 #else
 struct float16_t {
   uint16_t bits;
