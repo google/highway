@@ -129,7 +129,7 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
 
   // Unused
   static void Fill24Bytes(const void*, size_t, void*);
-  static bool HaveFloat64();
+  static bool HaveFloat64();  // Can also use hwy::HaveFloat64 directly.
 
  private:
   void Delete();

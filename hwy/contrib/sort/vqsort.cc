@@ -21,6 +21,7 @@
 
 #include "hwy/base.h"
 #include "hwy/contrib/sort/shared-inl.h"
+#include "hwy/per_target.h"
 
 // Check if we have sys/random.h. First skip some systems on which the check
 // itself (features.h) might be problematic.
@@ -217,7 +218,7 @@ void Sorter::operator()(K32V32* HWY_RESTRICT keys, size_t n,
 
 // Unused, only for ABI compatibility
 void Sorter::Fill24Bytes(const void*, size_t, void*) {}
-bool Sorter::HaveFloat64() { return false; }
+bool Sorter::HaveFloat64() { return hwy::HaveFloat64(); }
 Sorter::Sorter() {}
 void Sorter::Delete() {}
 

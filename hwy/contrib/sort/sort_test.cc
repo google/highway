@@ -23,19 +23,18 @@
 #include <unordered_map>
 #include <vector>
 
-// clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-#include "hwy/highway.h"
-#include "hwy/contrib/sort/vqsort.h"
 // After foreach_target
 #include "hwy/contrib/sort/algo-inl.h"
-#include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/result-inl.h"
+#include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"  // BaseCase
+#include "hwy/contrib/sort/vqsort.h"
+#include "hwy/highway.h"
+#include "hwy/per_target.h"
 #include "hwy/tests/test_util-inl.h"
-// clang-format on
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -383,6 +382,7 @@ HWY_NOINLINE void TestAllPartition() {
   TestPartition<TraitsLane<OrderAscending<int16_t> > >();
   TestPartition<TraitsLane<OrderAscending<int64_t> > >();
   TestPartition<TraitsLane<OtherOrder<float> > >();
+  // OK to check current target, not using dynamic dispatch here.
 #if HWY_HAVE_FLOAT64
   TestPartition<TraitsLane<OtherOrder<double> > >();
 #endif
@@ -608,8 +608,9 @@ void TestAllSort() {
     // zero, causing mismatches with scalar sorts. In this test, we avoid
     // generating denormal inputs.
     TestSort<TraitsLane<OrderAscending<float> > >(num_lanes);
-#if HWY_HAVE_FLOAT64  // protects algo-inl's GenerateRandom
-    if (HWY_HAVE_FLOAT64) {
+#if HWY_HAVE_FLOAT64  // #if protects algo-inl's GenerateRandom
+    // Must also check whether the dynamic-dispatch target supports float64!
+    if (hwy::HaveFloat64()) {
       TestSort<TraitsLane<OtherOrder<double> > >(num_lanes);
     }
 #endif
