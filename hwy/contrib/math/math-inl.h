@@ -1025,13 +1025,9 @@ HWY_INLINE void SinCos3(D d,
   using M = Mask<D>;
 
   static constexpr size_t bits = sizeof(TI) * 8;
-  // equivalent to 0x80000000 for int32 and 0x8000000000000000L for int64
-  static constexpr TI mask = TI(1) << (bits - 1);
-  const VI sign_mask = Set(di, mask);
-  const VI inv_sign_mask = Set(di, ~mask);
+  const VI sign_mask = SignBit(di);
   const VI ci_0 = Zero(di);
   const VI ci_1 = Set(di, 1);
-  const VI ci_inv_1 = Set(di, ~1);
   const VI ci_2 = Set(di, 2);
   const VI ci_4 = Set(di, 4);
   const V cos_p0 = Set(d, T(2.443315711809948E-005));
@@ -1049,8 +1045,7 @@ HWY_INLINE void SinCos3(D d,
   VI imm0, imm2, imm4;
 
   sign_bit_sin = x;
-  /* take the absolute value */
-  x = And(x, BitCast(d, inv_sign_mask));
+  x = Abs(x);
 
   /* extract the sign bit (upper one) */
   sign_bit_sin = And(sign_bit_sin, BitCast(d, sign_mask));
@@ -1063,7 +1058,7 @@ HWY_INLINE void SinCos3(D d,
 
   /* j=(j+1) & (~1) (see the cephes sources) */
   imm2 = Add(imm2, ci_1);
-  imm2 = And(imm2, ci_inv_1);
+  imm2 = AndNot(ci_1, imm2);
 
   y = ConvertTo(d, imm2); 
   imm4 = imm2;
@@ -1072,14 +1067,11 @@ HWY_INLINE void SinCos3(D d,
   imm0 = And(imm2, ci_4);
   imm0 = ShiftLeft<bits-3>(imm0);
 
-  /* get the polynomial selection mask for the sine*/
-  imm2 = And(imm2, ci_2);
-  imm2 = IfThenElseZero(Eq(imm2, ci_0), Set(di, -1));
-
   V swap_sign_bit_sin = BitCast(d, imm0);
 
-  // Cast integer 0000 FFFF (negative int) to mmask type. Is there a better way?
-  M poly_mask = RebindMask(d, Lt(imm2, Zero(di)));
+  /* get the polynomial selection mask for the sine*/
+  imm2 = And(imm2, ci_2);
+  M poly_mask = RebindMask(d, Eq(imm2, ci_0));
 
   /* The magic pass: "Extended precision modular arithmetic"
   x = ((x - y * DP1) - y * DP2) - y * DP3; */
@@ -1133,13 +1125,9 @@ HWY_INLINE void SinCos6(D d,
   using M = Mask<D>;
 
   static constexpr size_t bits = sizeof(TI) * 8;
-  // equivalent to 0x80000000 for int32 and 0x8000000000000000L for int64
-  static constexpr TI mask = TI(1) << (bits - 1);
-  const VI sign_mask = Set(di, mask);
-  const VI inv_sign_mask = Set(di, ~mask);
+  const VI sign_mask = SignBit(di);
   const VI ci_0 = Zero(di);
   const VI ci_1 = Set(di, 1);
-  const VI ci_inv_1 = Set(di, ~1);
   const VI ci_2 = Set(di, 2);
   const VI ci_4 = Set(di, 4);
   const V cos_p0 = Set(d, T(-1.13585365213876817300E-11));
@@ -1163,9 +1151,7 @@ HWY_INLINE void SinCos6(D d,
   VI imm0, imm2, imm4;
 
   sign_bit_sin = x;
-
-  /* take the absolute value */
-  x = And(x, BitCast(d, inv_sign_mask));
+  x = Abs(x);
 
   /* extract the sign bit (upper one) */
   sign_bit_sin = And(sign_bit_sin, BitCast(d, sign_mask));
@@ -1178,7 +1164,7 @@ HWY_INLINE void SinCos6(D d,
 
   /* j=(j+1) & (~1) (see the cephes sources) */
   imm2 = Add(imm2, ci_1);
-  imm2 = And(imm2, ci_inv_1);
+  imm2 = AndNot(ci_1, imm2);
 
   y = ConvertTo(d, imm2); 
   imm4 = imm2;
@@ -1191,11 +1177,8 @@ HWY_INLINE void SinCos6(D d,
 
   /* get the polynomial selection mask for the sine*/
   imm2 = And(imm2, ci_2);
-  imm2 = IfThenElseZero(Eq(imm2, ci_0), Set(di, -1));
-      
-  // Cast integer 0000 FFFF (negative int) to mmask type. Is there a better way?
-  M poly_mask = RebindMask(d, Lt(imm2, Zero(di)));
-
+  M poly_mask = RebindMask(d, Eq(imm2, ci_0));
+    
   /* The magic pass: "Extended precision modular arithmetic"
     x = ((x - y * DP1) - y * DP2) - y * DP3; */
   x = MulAdd(y, DP1, x);

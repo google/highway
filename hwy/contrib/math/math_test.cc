@@ -157,9 +157,9 @@ HWY_INLINE V SinCosCos(const D d, V x)
   return c;
 } 
 
-// on some targets the result is less inaccurate
+// on targets without FMA the result is less inaccurate
 constexpr uint64_t SinCosSin32ULP() {
-#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
+#if !(HWY_NATIVE_FMA)
   return 256;
 #else
   return 3;
@@ -167,7 +167,7 @@ constexpr uint64_t SinCosSin32ULP() {
 }
 
 constexpr uint64_t SinCosCos32ULP() {
-#if HWY_TARGET == HWY_EMU128 || HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
+#if !(HWY_NATIVE_FMA)
   return 64;
 #else
   return 3;
