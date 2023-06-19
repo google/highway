@@ -286,7 +286,7 @@ struct TestAtan2 {
     const Vec<D> tolerance = Set(d, 1E-5);
 
     for (size_t i = 0; i < padded; ++i) {
-      const T actual = atan2(in_y[i], in_x[i]);
+      const T actual = static_cast<T>(atan2(in_y[i], in_x[i]));
       // fprintf(stderr, "%zu: table %f atan2 %f\n", i, expected[i], actual);
       HWY_ASSERT_EQ(expected[i], actual);
     }
