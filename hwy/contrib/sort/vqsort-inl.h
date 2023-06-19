@@ -43,6 +43,7 @@
 #include "hwy/print-inl.h"
 #endif
 
+#include "hwy/contrib/algo/copy-inl.h"
 #include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/contrib/sort/sorting_networks-inl.h"
 // Placeholder for internal instrumentation. Do not remove.
@@ -1670,6 +1671,47 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 }
 
 #endif  // VQSORT_ENABLED
+
+template <class D, class Order, typename T, HWY_IF_FLOAT(T)>
+HWY_INLINE size_t CountAndReplaceNaN(D d, Order order, T* HWY_RESTRICT keys,
+                                     size_t num) {
+  const size_t N = Lanes(d);
+  // +/- infinity so that it will be sorted to the back of the array.
+  const Vec<D> sentinel =
+      order.IsAscending() ? Inf(d) : Xor(Inf(d), SignBit(d));
+  size_t num_nan = 0;
+  size_t i = 0;
+  for (; i + N <= num; i += N) {
+    const Mask<D> is_nan = IsNaN(LoadU(d, keys + i));
+    BlendedStore(sentinel, is_nan, d, keys + i);
+    num_nan += CountTrue(d, is_nan);
+  }
+
+#if HWY_MEM_OPS_MIGHT_FAULT
+  // Proceed one by one.
+  const CappedTag<T, 1> d1;
+  const Vec<decltype(d1)> sentinel1 = Set(d1, GetLane(sentinel));
+  for (; i < num; ++i) {
+    const Mask<decltype(d1)> is_nan = IsNaN(LoadU(d1, keys + i));
+    BlendedStore(sentinel1, is_nan, d1, keys + i);
+    num_nan += CountTrue(d1, is_nan);
+  }
+#else
+  const Mask<D> remaining = FirstN(d, num - i);
+  const Mask<D> is_nan = IsNaN(MaskedLoad(remaining, d, keys + i));
+  BlendedStore(sentinel, is_nan, d, keys + i);
+  num_nan += CountTrue(d, is_nan);
+#endif
+
+  return num_nan;
+}
+
+// IsNaN is not implemented for non-float, so skip it.
+template <class D, class Order, typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_INLINE size_t CountAndReplaceNaN(D, Order, T* HWY_RESTRICT, size_t) {
+  return 0;
+}
+
 }  // namespace detail
 
 // Old interface with user-specified buffer, retained for compatibility.
@@ -1683,9 +1725,6 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
             static_cast<int>(sizeof(T) * Lanes(d)));
   }
 
-#if VQSORT_ENABLED || HWY_IDE
-  if (detail::HandleSpecialCases(d, st, keys, num, buf)) return;
-
 #if HWY_MAX_BYTES > 64
   // sorting_networks-inl and traits assume no more than 512 bit vectors.
   if (HWY_UNLIKELY(Lanes(d) > 64 / sizeof(T))) {
@@ -1693,26 +1732,37 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   }
 #endif  // HWY_MAX_BYTES > 64
 
-  uint64_t* HWY_RESTRICT state = GetGeneratorState();
-  // Introspection: switch to worst-case N*logN heapsort after this many.
-  // Should never be reached, so computing log2 exactly does not help.
-  const size_t max_levels = 50;
-  detail::Recurse(d, st, keys, num, buf, state, max_levels);
+  const size_t num_nan =
+      detail::CountAndReplaceNaN(d, typename Traits::Order(), keys, num);
+
+#if VQSORT_ENABLED || HWY_IDE
+  if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {
+    uint64_t* HWY_RESTRICT state = GetGeneratorState();
+    // Introspection: switch to worst-case N*logN heapsort after this many.
+    // Should never be reached, so computing log2 exactly does not help.
+    const size_t max_levels = 50;
+    detail::Recurse(d, st, keys, num, buf, state, max_levels);
+  }
 #else   // !VQSORT_ENABLED
   (void)d;
   (void)buf;
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
   }
-  return detail::HeapSort(st, keys, num);
+  detail::HeapSort(st, keys, num);
 #endif  // VQSORT_ENABLED
+
+  if (num_nan != 0) {
+    Fill(d, GetLane(NaN(d)), num_nan, keys + num - num_nan);
+  }
 }
 
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.
 // In-place i.e. O(1) additional storage. Worst-case N*logN comparisons.
 // Non-stable (order of equal keys may change), except for the common case where
 // the upper bits of T are the key, and the lower bits are a sequential or at
-// least unique ID.
+// least unique ID. Any NaN will be moved to the back of the array and replaced
+// with the canonical NaN(d).
 // There is no upper limit on `num`, but note that pivots may be chosen by
 // sampling only from the first 256 GiB.
 //
