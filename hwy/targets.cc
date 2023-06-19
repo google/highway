@@ -15,10 +15,6 @@
 
 #include "hwy/targets.h"
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS  // before inttypes.h
-#endif
-#include <inttypes.h>  // IWYU pragma: keep (PRIx64)
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>  // abort / exit

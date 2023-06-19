@@ -15,22 +15,18 @@
 
 #include "hwy/nanobenchmark.h"
 
-#include "hwy/timer.h"
-
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS  // before inttypes.h
-#endif
-#include <inttypes.h>  // IWYU pragma: keep
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>  // clock_gettime
 
-#include <algorithm>  // std::sort
-#include <numeric>  // std::iota
+#include <algorithm>  // std::sort, std::find_if
+#include <numeric>    // std::iota
 #include <random>
 #include <vector>
 
 #include "hwy/robust_statistics.h"
 #include "hwy/timer-inl.h"
+#include "hwy/timer.h"
 
 namespace hwy {
 namespace {

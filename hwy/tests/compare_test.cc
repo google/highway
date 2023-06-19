@@ -76,7 +76,8 @@ void EnsureGreater(D d, TFromD<D> a, TFromD<D> b, const char* file, int line) {
 
 // a >= b should be true, verify that for Ge/Le and with swapped args.
 template <class D>
-void EnsureGreaterOrEqual(D d, TFromD<D> a, TFromD<D> b, const char* file, int line) {
+void EnsureGreaterOrEqual(D d, TFromD<D> a, TFromD<D> b, const char* file,
+                          int line) {
   const auto mask_true = MaskTrue(d);
 
   const auto va = Set(d, a);

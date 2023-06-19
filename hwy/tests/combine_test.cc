@@ -286,6 +286,7 @@ HWY_NOINLINE void TestAllConcatOddEven() {
 
 class TestTruncatingResizeBitCast {
 #if HWY_TARGET != HWY_SCALAR
+
  private:
   template <class DTo, class DFrom>
   static HWY_INLINE void DoTruncResizeBitCastTest(DTo d_to, DFrom d_from) {
@@ -299,6 +300,7 @@ class TestTruncatingResizeBitCast {
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
   }
 #endif  // HWY_TARGET != HWY_SCALAR
+
  public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -355,6 +357,7 @@ HWY_NOINLINE void TestAllTruncatingResizeBitCast() {
 
 class TestExtendingResizeBitCast {
 #if HWY_TARGET != HWY_SCALAR
+
  private:
   template <class DTo, class DFrom>
   static HWY_INLINE void DoExtResizeBitCastTest(DTo d_to, DFrom d_from) {
@@ -372,6 +375,7 @@ class TestExtendingResizeBitCast {
                       IfThenElseZero(active_elements_mask, actual_1));
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
   }
+
   template <class DFrom>
   static HWY_INLINE void DoExtResizeBitCastToTwiceDTest(DFrom d_from) {
     using DTo = Twice<DFrom>;
@@ -389,6 +393,7 @@ class TestExtendingResizeBitCast {
     HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
   }
 #endif  // HWY_TARGET != HWY_SCALAR
+
  public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {

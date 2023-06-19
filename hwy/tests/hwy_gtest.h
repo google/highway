@@ -18,7 +18,6 @@
 
 // Adapters for GUnit to run tests for all targets.
 
-#include <stddef.h>
 #include <stdint.h>
 
 #include <string>

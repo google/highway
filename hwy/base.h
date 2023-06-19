@@ -22,6 +22,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // before inttypes.h
+#endif
+#include <inttypes.h>  // IWYU pragma: keep
+
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 

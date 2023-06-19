@@ -15,7 +15,6 @@
 
 #include "hwy/aligned_allocator.h"
 
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>  // malloc

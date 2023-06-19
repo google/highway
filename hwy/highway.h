@@ -16,10 +16,6 @@
 // Main header required before using vector types.
 
 // IWYU pragma: begin_exports
-// Export does not seem to be recursive, so re-export these (also in base.h)
-#include <stddef.h>
-#include <stdint.h>
-
 #include "hwy/base.h"
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
