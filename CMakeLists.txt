@@ -331,6 +331,8 @@ target_include_directories(hwy_contrib PUBLIC
 target_compile_features(hwy_contrib PUBLIC cxx_std_11)
 set_target_properties(hwy_contrib PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version)
+# For GCC __atomic_store_8, see #887
+target_link_libraries(hwy_contrib PRIVATE ${ATOMICS_LIBRARIES})
 # not supported by MSVC/Clang, safe to skip (we use DLLEXPORT annotations)
 if(UNIX AND NOT APPLE)
   set_property(TARGET hwy_contrib APPEND_STRING PROPERTY

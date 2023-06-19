@@ -4355,8 +4355,8 @@ HWY_API Vec512<uint8_t> AESKeyGenAssist(Vec512<uint8_t> v) {
       0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
   const Repartition<uint32_t, decltype(d)> du32;
   const auto w13 = BitCast(d, DupOdd(BitCast(du32, v)));
-  const auto sub_word_result = AESLastRound(w13, Load(d, kRconXorMask));
-  return TableLookupBytes(sub_word_result, Load(d, kRotWordShuffle));
+  const auto sub_word_result = AESLastRound(w13, LoadDup128(d, kRconXorMask));
+  return TableLookupBytes(sub_word_result, LoadDup128(d, kRotWordShuffle));
 #else
   const Half<decltype(d)> d2;
   return Combine(d, AESKeyGenAssist<kRcon>(UpperHalf(d2, v)),

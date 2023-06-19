@@ -374,9 +374,13 @@ matters is the measured performance. Because throttling or SIMD usage can affect
 the entire system, it is important to measure end-to-end application performance
 rather than rely on microbenchmarks. In practice, we find the speedup from
 sustained SIMD usage (not just sporadic instructions amid mostly scalar code) is
-much larger than the impact of throttling. For JPEG XL image decompression and
-vectorized Quicksort, we observe a 1.4-1.6x end to end speedup from AVX-512 vs
-AVX2, even on multiple cores of a Xeon Gold. Note that throttling is
+much larger than the impact of throttling. For JPEG XL image decompression, we
+observe a 1.4-1.6x end to end speedup from AVX-512 vs. AVX2, even on multiple
+cores of a Xeon Gold. For
+[vectorized Quicksort](https://github.com/google/highway/blob/master/hwy/contrib/sort/README.md#study-of-avx-512-downclocking),
+we find that throttling is not detectable on a single Skylake core, and the
+AVX-512 startup overhead is worthwhile for inputs >= 80 KiB. Note that
+throttling is
 [no longer a concern on recent Intel](https://travisdowns.github.io/blog/2020/08/19/icl-avx512-freq.html#summary)
 implementations of AVX-512 (Icelake and Rocket Lake client), and AMD CPUs do not
 throttle AVX2 or AVX-512.

@@ -18,7 +18,8 @@
 
 #include <stddef.h>
 
-// Per-target functions.
+// Functions to query the capabilities of the target that will be called by
+// HWY_DYNAMIC_DISPATCH, which is not necessarily the current target.
 
 namespace hwy {
 
@@ -31,6 +32,9 @@ namespace hwy {
 // this involves an indirect call, so prefer not to call this frequently nor
 // unnecessarily.
 size_t VectorBytes();
+
+// Returns whether 64-bit floats are a supported lane type.
+bool HaveFloat64();
 
 }  // namespace hwy
 

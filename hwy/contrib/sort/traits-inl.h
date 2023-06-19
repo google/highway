@@ -25,7 +25,6 @@
 #include "hwy/contrib/sort/shared-inl.h"  // SortConstants
 #include "hwy/contrib/sort/vqsort.h"      // SortDescending
 #include "hwy/highway.h"
-#include "hwy/print.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -205,6 +204,7 @@ struct KeyLane : public KeyLaneBase<T> {
 template <typename T>
 struct OrderAscending : public KeyLane<T> {
   using Order = SortAscending;
+  using OrderForSortingNetwork = OrderAscending<T>;
 
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *a < *b; }
 
@@ -255,6 +255,7 @@ struct OrderAscending : public KeyLane<T> {
 template <typename T>
 struct OrderDescending : public KeyLane<T> {
   using Order = SortDescending;
+  using OrderForSortingNetwork = OrderDescending<T>;
 
   HWY_INLINE bool Compare1(const T* a, const T* b) { return *b < *a; }
 
@@ -333,6 +334,7 @@ struct KeyValue64 : public KeyLane<uint64_t> {
 
 struct OrderAscendingKV64 : public KeyValue64 {
   using Order = SortAscending;
+  using OrderForSortingNetwork = OrderAscending<LaneType>;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (*a >> 32) < (*b >> 32);
@@ -386,6 +388,7 @@ struct OrderAscendingKV64 : public KeyValue64 {
 
 struct OrderDescendingKV64 : public KeyValue64 {
   using Order = SortDescending;
+  using OrderForSortingNetwork = OrderDescending<LaneType>;
 
   HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
     return (*b >> 32) < (*a >> 32);
@@ -439,6 +442,9 @@ struct OrderDescendingKV64 : public KeyValue64 {
 // Shared code that depends on Order.
 template <class Base>
 struct TraitsLane : public Base {
+  using TraitsForSortingNetwork =
+      TraitsLane<typename Base::OrderForSortingNetwork>;
+
   // For each lane i: replaces a[i] with the first and b[i] with the second
   // according to Base.
   // Corresponds to a conditional swap, which is one "node" of a sorting

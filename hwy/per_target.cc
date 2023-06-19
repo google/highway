@@ -24,6 +24,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 size_t GetVectorBytes() { return Lanes(ScalableTag<uint8_t>()); }
+bool GetHaveFloat64() { return HWY_HAVE_FLOAT64 != 0; }
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 
@@ -33,10 +34,12 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
-HWY_EXPORT(GetVectorBytes);  // Local function.
+HWY_EXPORT(GetVectorBytes);
+HWY_EXPORT(GetHaveFloat64);
 }  // namespace
 
 size_t VectorBytes() { return HWY_DYNAMIC_DISPATCH(GetVectorBytes)(); }
+bool HaveFloat64() { return HWY_DYNAMIC_DISPATCH(GetHaveFloat64)(); }
 
 }  // namespace hwy
 #endif  // HWY_ONCE

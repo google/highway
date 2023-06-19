@@ -21,6 +21,7 @@
 
 #include "hwy/base.h"
 #include "hwy/contrib/sort/shared-inl.h"
+#include "hwy/per_target.h"
 
 // Check if we have sys/random.h. First skip some systems on which the check
 // itself (features.h) might be problematic.
@@ -120,5 +121,105 @@ uint64_t* GetGeneratorState() {
   }
   return state;
 }
+
+void Sorter::operator()(uint16_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(uint16_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(uint32_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(uint32_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(uint64_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(uint64_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
+void Sorter::operator()(int16_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(int16_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(int32_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(int32_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(int64_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(int64_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
+void Sorter::operator()(float* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(float* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(double* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(double* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
+void Sorter::operator()(uint128_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(uint128_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
+void Sorter::operator()(K64V64* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(K64V64* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
+void Sorter::operator()(K32V32* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(K32V32* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
+
+// Unused, only for ABI compatibility
+void Sorter::Fill24Bytes(const void*, size_t, void*) {}
+bool Sorter::HaveFloat64() { return hwy::HaveFloat64(); }
+Sorter::Sorter() {}
+void Sorter::Delete() {}
 
 }  // namespace hwy

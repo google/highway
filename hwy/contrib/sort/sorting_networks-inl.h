@@ -41,6 +41,9 @@ using Constants = hwy::SortConstants;
 // Compare/DupOdd.
 template <class Base>
 struct SharedTraits : public Base {
+  using SharedTraitsForSortingNetwork =
+      SharedTraits<typename Base::TraitsForSortingNetwork>;
+
   // Conditionally swaps lane 0 with 2, 1 with 3 etc.
   template <class D>
   HWY_INLINE Vec<D> SortPairsDistance2(D d, Vec<D> v) const {
