@@ -542,7 +542,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/image/image_test.cc
   # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
   # not reproducible locally. Still tested via bazel build.
-  # hwy/contrib/math/math_test.cc
+  hwy/contrib/math/math_test.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/bench_sort.cc
 )

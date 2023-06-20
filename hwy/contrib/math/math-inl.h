@@ -316,6 +316,23 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
   return Tanh(d, x);
 }
 
+/**
+ * Highway SIMD version of SinCos. 
+ * Compute the sine and cosine at the same time
+ * The performance should be around the same as calling Sin.
+ *
+ * Valid Lane Types: float32, float64
+ *        Max Error: ULP = 1
+ *      Valid Range: [-39000, +39000]
+ * @return sine and cosine of 'x'
+ */
+template <class D, class V>
+HWY_INLINE void SinCos(const D d, V x, V& s, V& c);
+template <class D, class V>
+HWY_NOINLINE V CallSinCos(const D d, VecArg<V> x, VecArg<V>& s, VecArg<V>& c) {
+  SinCos(d, x, s, c);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,6 +536,8 @@ template <class FloatOrDouble>
 struct ExpImpl {};
 template <class FloatOrDouble>
 struct LogImpl {};
+template <class FloatOrDouble>
+struct SinCosImpl {};
 
 template <>
 struct AsinImpl<float> {
@@ -989,6 +1008,240 @@ HWY_INLINE V Log(const D d, V x) {
       Sub(MulSub(z, Sub(ym1, impl.LogPoly(d, z)), Mul(exp, kLn2Lo)), ym1));
 }
 
+// SinCos 
+// Based on "sse_mathfun.h", by Julien Pommier
+// http://gruntthepeon.free.fr/ssemath/
+
+// Third degree poly
+template <class D, class V>
+HWY_INLINE void SinCos3(D d, 
+  TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, 
+  V x, V& s, V& c) {
+  using T = TFromD<D>;
+  using TI = MakeSigned<T>;
+  using DI = Rebind<TI, D>;
+  const DI di;
+  using VI = decltype(Zero(di));
+  using M = Mask<D>;
+
+  static constexpr size_t bits = sizeof(TI) * 8;
+  const VI sign_mask = SignBit(di);
+  const VI ci_0 = Zero(di);
+  const VI ci_1 = Set(di, 1);
+  const VI ci_2 = Set(di, 2);
+  const VI ci_4 = Set(di, 4);
+  const V cos_p0 = Set(d, T(2.443315711809948E-005));
+  const V cos_p1 = Set(d, T(-1.388731625493765E-003));
+  const V cos_p2 = Set(d, T(4.166664568298827E-002));
+  const V sin_p0 = Set(d, T(-1.9515295891E-4));
+  const V sin_p1 = Set(d, T(8.3321608736E-3));
+  const V sin_p2 = Set(d, T(-1.6666654611E-1));
+  const V FOPI = Set(d, T(1.27323954473516)); // 4 / M_PI
+  const V DP1 = Set(d, dp1);
+  const V DP2 = Set(d, dp2);
+  const V DP3 = Set(d, dp3);
+
+  V xmm1, xmm2, sign_bit_sin, y;
+  VI imm0, imm2, imm4;
+
+  sign_bit_sin = x;
+  x = Abs(x);
+
+  /* extract the sign bit (upper one) */
+  sign_bit_sin = And(sign_bit_sin, BitCast(d, sign_mask));
+
+  /* scale by 4/Pi */
+  y = Mul(x, FOPI);
+
+  /* store the integer part of y in imm2 */
+  imm2 = ConvertTo(di, y);
+
+  /* j=(j+1) & (~1) (see the cephes sources) */
+  imm2 = Add(imm2, ci_1);
+  imm2 = AndNot(ci_1, imm2);
+
+  y = ConvertTo(d, imm2); 
+  imm4 = imm2;
+
+  /* get the swap sign flag for the sine */
+  imm0 = And(imm2, ci_4);
+  imm0 = ShiftLeft<bits-3>(imm0);
+
+  V swap_sign_bit_sin = BitCast(d, imm0);
+
+  /* get the polynomial selection mask for the sine*/
+  imm2 = And(imm2, ci_2);
+  M poly_mask = RebindMask(d, Eq(imm2, ci_0));
+
+  /* The magic pass: "Extended precision modular arithmetic"
+  x = ((x - y * DP1) - y * DP2) - y * DP3; */
+  x = MulAdd(y, DP1, x);
+  x = MulAdd(y, DP2, x);
+  x = MulAdd(y, DP3, x);
+
+  imm4 = Sub(imm4, ci_2);
+  imm4 = AndNot(imm4, ci_4);
+  imm4 = ShiftLeft<bits-3>(imm4);
+
+  V sign_bit_cos = BitCast(d, imm4);
+
+  sign_bit_sin = Xor(sign_bit_sin, swap_sign_bit_sin);
+
+  /* Evaluate the first polynomial  (0 <= x <= Pi/4) */
+  V z = Mul(x, x);
+
+  y = MulAdd(cos_p0, z, cos_p1);
+  y = MulAdd(y, z, cos_p2);
+  y = Mul(y, z);
+  y = Mul(y, z);
+  y = NegMulAdd(z, Set(d, 0.5f), y);
+  y = Add(y, Set(d, 1));
+
+  /* Evaluate the second polynomial  (Pi/4 <= x <= 0) */
+  V y2 = MulAdd(sin_p0, z, sin_p1);
+  y2 = MulAdd(y2, z, sin_p2);
+  y2 = Mul(y2, z);
+  y2 = MulAdd(y2, x, x);
+
+  /* select the correct result from the two polynomials */
+  xmm1 = IfThenElse(poly_mask, y2, y);
+  xmm2 = IfThenElse(poly_mask, y, y2);
+    
+  /* update the sign */
+  s = Xor(xmm1, sign_bit_sin);
+  c = Xor(xmm2, sign_bit_cos);
+}
+
+// Sixth degree poly
+template <class D, class V>
+HWY_INLINE void SinCos6(D d, 
+  TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, 
+  V x, V& s, V& c) {
+  using T = TFromD<D>;
+  using TI = MakeSigned<T>;
+  using DI = Rebind<TI, D>;
+  const DI di;
+  using VI = decltype(Zero(di));
+  using M = Mask<D>;
+
+  static constexpr size_t bits = sizeof(TI) * 8;
+  const VI sign_mask = SignBit(di);
+  const VI ci_0 = Zero(di);
+  const VI ci_1 = Set(di, 1);
+  const VI ci_2 = Set(di, 2);
+  const VI ci_4 = Set(di, 4);
+  const V cos_p0 = Set(d, T(-1.13585365213876817300E-11));
+  const V cos_p1 = Set(d, T(2.08757008419747316778E-9));
+  const V cos_p2 = Set(d, T(-2.75573141792967388112E-7));
+  const V cos_p3 = Set(d, T(2.48015872888517045348E-5));
+  const V cos_p4 = Set(d, T(-1.38888888888730564116E-3));
+  const V cos_p5 = Set(d, T(4.16666666666665929218E-2));
+  const V sin_p0 = Set(d, T(1.58962301576546568060E-10));
+  const V sin_p1 = Set(d, T(-2.50507477628578072866E-8));
+  const V sin_p2 = Set(d, T(2.75573136213857245213E-6));
+  const V sin_p3 = Set(d, T(-1.98412698295895385996E-4));
+  const V sin_p4 = Set(d, T(8.33333333332211858878E-3));
+  const V sin_p5 = Set(d, T(-1.66666666666666307295E-1));
+  const V FOPI = Set(d, T(1.2732395447351626861510701069801148)); // 4 / M_PI
+  const V DP1 = Set(d, dp1);
+  const V DP2 = Set(d, dp2);
+  const V DP3 = Set(d, dp3);
+
+  V xmm1, xmm2, sign_bit_sin, y;
+  VI imm0, imm2, imm4;
+
+  sign_bit_sin = x;
+  x = Abs(x);
+
+  /* extract the sign bit (upper one) */
+  sign_bit_sin = And(sign_bit_sin, BitCast(d, sign_mask));
+
+  /* scale by 4/Pi */
+  y = Mul(x, FOPI);
+
+  /* store the integer part of y in imm2 */
+  imm2 = ConvertTo(di, y);
+
+  /* j=(j+1) & (~1) (see the cephes sources) */
+  imm2 = Add(imm2, ci_1);
+  imm2 = AndNot(ci_1, imm2);
+
+  y = ConvertTo(d, imm2); 
+  imm4 = imm2;
+
+  /* get the swap sign flag for the sine */
+  imm0 = And(imm2, ci_4);
+  imm0 = ShiftLeft<bits-3>(imm0);
+
+  V swap_sign_bit_sin = BitCast(d, imm0);
+
+  /* get the polynomial selection mask for the sine*/
+  imm2 = And(imm2, ci_2);
+  M poly_mask = RebindMask(d, Eq(imm2, ci_0));
+    
+  /* The magic pass: "Extended precision modular arithmetic"
+    x = ((x - y * DP1) - y * DP2) - y * DP3; */
+  x = MulAdd(y, DP1, x);
+  x = MulAdd(y, DP2, x);
+  x = MulAdd(y, DP3, x);
+
+  imm4 = Sub(imm4, ci_2);
+  imm4 = AndNot(imm4, ci_4);
+  imm4 = ShiftLeft<bits-3>(imm4);
+
+  V sign_bit_cos = BitCast(d, imm4);
+  sign_bit_sin = Xor(sign_bit_sin, swap_sign_bit_sin);
+
+  /* Evaluate the first polynomial  (0 <= x <= Pi/4) */
+  V z = Mul(x, x);
+
+  y = MulAdd(cos_p0, z, cos_p1);
+  y = MulAdd(y, z, cos_p2);
+  y = MulAdd(y, z, cos_p3);
+  y = MulAdd(y, z, cos_p4);
+  y = MulAdd(y, z, cos_p5);
+  y = Mul(y, z);
+  y = Mul(y, z);
+  y = NegMulAdd(z, Set(d, 0.5f), y);
+  y = Add(y, Set(d, 1.0f));
+
+  /* Evaluate the second polynomial  (Pi/4 <= x <= 0) */
+  V y2 = MulAdd(sin_p0, z, sin_p1);
+  y2 = MulAdd(y2, z, sin_p2);
+  y2 = MulAdd(y2, z, sin_p3);
+  y2 = MulAdd(y2, z, sin_p4);
+  y2 = MulAdd(y2, z, sin_p5);
+  y2 = Mul(y2, z);
+  y2 = MulAdd(y2, x, x);
+
+
+  /* select the correct result from the two polynomials */   
+  xmm1 = IfThenElse(poly_mask, y2, y);
+  xmm2 = IfThenElse(poly_mask, y, y2);
+
+  /* update the sign */
+  s = Xor(xmm1, sign_bit_sin);
+  c = Xor(xmm2, sign_bit_cos); 
+}
+
+template <>
+struct SinCosImpl<float> {
+  template <class D, class V>
+  HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
+    SinCos3(d, -0.78515625f, -2.4187564849853515625e-4f, -3.77489497744594108e-8f, x, s, c);
+  }
+};
+
+#if HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
+template <>
+struct SinCosImpl<double> {
+  template <class D, class V>
+  HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
+    SinCos6(d, -7.85398125648498535156E-1, -3.77489470793079817668E-8, -2.69515142907905952645E-15, x, s, c);
+  }
+};
+#endif
+
 }  // namespace impl
 
 template <class D, class V>
@@ -1280,6 +1533,13 @@ HWY_INLINE V Tanh(const D d, V x) {
   const V y = Expm1(d, Mul(abs_x, kTwo));
   const V z = IfThenElse(Gt(abs_x, kLimit), kOne, Div(y, Add(y, kTwo)));
   return Xor(z, sign);  // Reapply the sign bit
+}
+
+template <class D, class V>
+HWY_INLINE void SinCos(const D d, V x, V& s, V& c) {
+  using T = TFromD<D>;
+  impl::SinCosImpl<T> impl;
+  impl.SinCos(d, x, s, c);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
