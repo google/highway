@@ -38,8 +38,13 @@ HWY_EXPORT(GetVectorBytes);
 HWY_EXPORT(GetHaveFloat64);
 }  // namespace
 
-size_t VectorBytes() { return HWY_DYNAMIC_DISPATCH(GetVectorBytes)(); }
-bool HaveFloat64() { return HWY_DYNAMIC_DISPATCH(GetHaveFloat64)(); }
+HWY_DLLEXPORT size_t VectorBytes() {
+  return HWY_DYNAMIC_DISPATCH(GetVectorBytes)();
+}
+
+HWY_DLLEXPORT bool HaveFloat64() {
+  return HWY_DYNAMIC_DISPATCH(GetHaveFloat64)();
+}
 
 }  // namespace hwy
 #endif  // HWY_ONCE
