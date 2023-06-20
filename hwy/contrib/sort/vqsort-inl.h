@@ -1228,41 +1228,46 @@ HWY_INLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   HWY_DASSERT(((reinterpret_cast<uintptr_t>(keys + i) / sizeof(T)) & (N - 1)) ==
               0);
 
-  // Sticky bits registering any difference between `keys` and the first key.
-  // We use vector XOR because it may be cheaper than comparisons, especially
-  // for 128-bit. 2x unrolled for more ILP.
-  Vec<D> diff0 = zero;
-  Vec<D> diff1 = zero;
+  // Disable the OrXor optimization for floats because OrXor will not treat
+  // subnormals the same as actual comparisons, leading to logic errors for
+  // 2-value cases.
+  if (!hwy::IsFloat<T>()) {
+    // Sticky bits registering any difference between `keys` and the first key.
+    // We use vector XOR because it may be cheaper than comparisons, especially
+    // for 128-bit. 2x unrolled for more ILP.
+    Vec<D> diff0 = zero;
+    Vec<D> diff1 = zero;
 
-  // We want to stop once a difference has been found, but without slowing
-  // down the loop by comparing during each iteration. The compromise is to
-  // compare after a 'group', which consists of kLoops times two vectors.
-  constexpr size_t kLoops = 8;
-  const size_t lanes_per_group = kLoops * 2 * N;
+    // We want to stop once a difference has been found, but without slowing
+    // down the loop by comparing during each iteration. The compromise is to
+    // compare after a 'group', which consists of kLoops times two vectors.
+    constexpr size_t kLoops = 8;
+    const size_t lanes_per_group = kLoops * 2 * N;
 
-  for (; i + lanes_per_group <= num; i += lanes_per_group) {
-    HWY_DEFAULT_UNROLL
-    for (size_t loop = 0; loop < kLoops; ++loop) {
-      const Vec<D> v0 = Load(d, keys + i + loop * 2 * N);
-      const Vec<D> v1 = Load(d, keys + i + loop * 2 * N + N);
-      diff0 = OrXor(diff0, v0, pivot);
-      diff1 = OrXor(diff1, v1, pivot);
-    }
+    for (; i + lanes_per_group <= num; i += lanes_per_group) {
+      HWY_DEFAULT_UNROLL
+      for (size_t loop = 0; loop < kLoops; ++loop) {
+        const Vec<D> v0 = Load(d, keys + i + loop * 2 * N);
+        const Vec<D> v1 = Load(d, keys + i + loop * 2 * N + N);
+        diff0 = OrXor(diff0, v0, pivot);
+        diff1 = OrXor(diff1, v1, pivot);
+      }
 
-    // If there was a difference in the entire group:
-    if (HWY_UNLIKELY(!st.NoKeyDifference(d, Or(diff0, diff1)))) {
-      // .. then loop until the first one, with termination guarantee.
-      for (;; i += N) {
-        const Vec<D> v = Load(d, keys + i);
-        const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
-        if (HWY_UNLIKELY(!AllFalse(d, diff))) {
-          const size_t lane = FindKnownFirstTrue(d, diff);
-          *first_mismatch = i + lane;
-          return false;
+      // If there was a difference in the entire group:
+      if (HWY_UNLIKELY(!st.NoKeyDifference(d, Or(diff0, diff1)))) {
+        // .. then loop until the first one, with termination guarantee.
+        for (;; i += N) {
+          const Vec<D> v = Load(d, keys + i);
+          const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
+          if (HWY_UNLIKELY(!AllFalse(d, diff))) {
+            const size_t lane = FindKnownFirstTrue(d, diff);
+            *first_mismatch = i + lane;
+            return false;
+          }
         }
       }
     }
-  }
+  }  // !hwy::IsFloat<T>()
 
   // Whole vectors, no unrolling, compare directly
   for (; i + N <= num; i += N) {
