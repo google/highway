@@ -4820,11 +4820,11 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
-  constexpr size_t kN = MaxLanes(d);
+  constexpr int kN = static_cast<int>(MaxLanes(d));
   if (kN == 1) return v;
-#if HWY_TARGET <= HWY_SSE3
+#if HWY_TARGET <= HWY_SSSE3
   // NOTE: Lanes with negative shuffle control mask values are set to zero.
-  alignas(16) constexpr int8_t kReverse[16] = {
+  alignas(16) static constexpr int8_t kReverse[16] = {
       kN - 1, kN - 2,  kN - 3,  kN - 4,  kN - 5,  kN - 6,  kN - 7,  kN - 8,
       kN - 9, kN - 10, kN - 11, kN - 12, kN - 13, kN - 14, kN - 15, kN - 16};
   const RebindToSigned<decltype(d)> di;
