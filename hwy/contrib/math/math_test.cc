@@ -141,16 +141,16 @@ constexpr uint64_t ACosh32ULP() {
 #endif
 }
 
-template <class D, class V>
-HWY_INLINE V SinCosSin(const D d, V x)
+template <class D>
+static Vec<D> SinCosSin(const D d, VecArg<Vec<D>> x)
 {
   Vec<D> s, c;
   SinCos(d, x, s, c);
   return s;
 }
 
-template <class D, class V>
-HWY_INLINE V SinCosCos(const D d, V x)
+template <class D>
+static Vec<D> SinCosCos(const D d, VecArg<Vec<D>> x)
 {
   Vec<D> s, c;
   SinCos(d, x, s, c);
