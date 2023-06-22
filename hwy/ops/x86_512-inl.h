@@ -3851,34 +3851,24 @@ HWY_INLINE VFromD<D> TableLookupSlideUpLanes(D d, VFromD<D> v, size_t amt) {
 #endif
 }
 
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideUpBlocks(hwy::SizeTag<0> /* slide_up_amt_tag */, V v) {
-  return v;
-}
-
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideUpBlocks(hwy::SizeTag<1> /* slide_up_amt_tag */, V v) {
-  return SlideUpI64Lanes<2>(v);
-}
-
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideUpBlocks(hwy::SizeTag<2> /* slide_up_amt_tag */, V v) {
-  const DFromV<decltype(v)> d;
-  return ConcatLowerLower(d, v, Zero(d));
-}
-
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideUpBlocks(hwy::SizeTag<3> /* slide_up_amt_tag */, V v) {
-  return SlideUpI64Lanes<6>(v);
-}
-
 }  // namespace detail
 
 template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> SlideUpBlocks(D /*d*/, VFromD<D> v) {
+HWY_API VFromD<D> SlideUpBlocks(D d, VFromD<D> v) {
   static_assert(0 <= kBlocks && kBlocks <= 3,
                 "kBlocks must be between 0 and 3");
-  return detail::SlideUpBlocks(hwy::SizeTag<static_cast<size_t>(kBlocks)>(), v);
+  switch (kBlocks) {
+    case 0:
+      return v;
+    case 1:
+      return detail::SlideUpI64Lanes<2>(v);
+    case 2:
+      return ConcatLowerLower(d, v, Zero(d));
+    case 3:
+      return detail::SlideUpI64Lanes<6>(v);
+  }
+
+  return v;
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>
@@ -4092,36 +4082,25 @@ HWY_INLINE VFromD<D> TableLookupSlideDownLanes(D d, VFromD<D> v, size_t amt) {
 #endif
 }
 
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideDownBlocks(hwy::SizeTag<0> /* slide_up_amt_tag */, V v) {
-  return v;
-}
-
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideDownBlocks(hwy::SizeTag<1> /* slide_up_amt_tag */, V v) {
-  return SlideDownI64Lanes<2>(v);
-}
-
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideDownBlocks(hwy::SizeTag<2> /* slide_up_amt_tag */, V v) {
-  const DFromV<decltype(v)> d;
-  const Half<decltype(d)> dh;
-  return ZeroExtendVector(d, UpperHalf(dh, v));
-}
-
-template <class V, HWY_IF_V_SIZE_V(V, 64)>
-HWY_INLINE V SlideDownBlocks(hwy::SizeTag<3> /* slide_up_amt_tag */, V v) {
-  return SlideDownI64Lanes<6>(v);
-}
-
 }  // namespace detail
 
 template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> SlideDownBlocks(D /*d*/, VFromD<D> v) {
+HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
   static_assert(0 <= kBlocks && kBlocks <= 3,
                 "kBlocks must be between 0 and 3");
-  return detail::SlideDownBlocks(hwy::SizeTag<static_cast<size_t>(kBlocks)>(),
-                                 v);
+  const Half<decltype(d)> dh;
+  switch (kBlocks) {
+    case 0:
+      return v;
+    case 1:
+      return detail::SlideDownI64Lanes<2>(v);
+    case 2:
+      return ZeroExtendVector(d, UpperHalf(dh, v));
+    case 3:
+      return detail::SlideDownI64Lanes<6>(v);
+  }
+
+  return v;
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_T_SIZE_D(D, 4)>

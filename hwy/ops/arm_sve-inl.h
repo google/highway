@@ -2693,10 +2693,10 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
 
 // ------------------------------ Slide1Up
 
-#ifdef HWY_NATIVE_SLIDE1UP
-#undef HWY_NATIVE_SLIDE1UP
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
+#undef HWY_NATIVE_SLIDE1_UP_DOWN
 #else
-#define HWY_NATIVE_SLIDE1UP
+#define HWY_NATIVE_SLIDE1_UP_DOWN
 #endif
 
 template <class D>

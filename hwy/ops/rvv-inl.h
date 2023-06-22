@@ -2395,10 +2395,10 @@ HWY_RVV_FOREACH_F(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf, _ALL)
 }  // namespace detail
 
 // ------------------------------ Slide1Up and Slide1Down
-#ifdef HWY_NATIVE_SLIDE1UP
-#undef HWY_NATIVE_SLIDE1UP
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
+#undef HWY_NATIVE_SLIDE1_UP_DOWN
 #else
-#define HWY_NATIVE_SLIDE1UP
+#define HWY_NATIVE_SLIDE1_UP_DOWN
 #endif
 
 template <class D>

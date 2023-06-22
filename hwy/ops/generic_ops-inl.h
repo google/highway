@@ -3674,11 +3674,11 @@ HWY_API V BroadcastLane(V v) {
 #endif  // HWY_NATIVE_BROADCASTLANE
 
 // ------------------------------ Slide1Up and Slide1Down
-#if (defined(HWY_NATIVE_SLIDE1UP) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_SLIDE1UP
-#undef HWY_NATIVE_SLIDE1UP
+#if (defined(HWY_NATIVE_SLIDE1_UP_DOWN) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
+#undef HWY_NATIVE_SLIDE1_UP_DOWN
 #else
-#define HWY_NATIVE_SLIDE1UP
+#define HWY_NATIVE_SLIDE1_UP_DOWN
 #endif
 
 template <class D, HWY_IF_LANES_D(D, 1)>
@@ -3701,7 +3701,7 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
 }
 #endif  // HWY_TARGET != HWY_SCALAR
 
-#endif  // HWY_NATIVE_SLIDE1UP
+#endif  // HWY_NATIVE_SLIDE1_UP_DOWN
 
 // ------------------------------ SlideUpBlocks
 
