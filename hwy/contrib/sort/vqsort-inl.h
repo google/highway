@@ -46,6 +46,8 @@
 #include "hwy/contrib/algo/copy-inl.h"
 #include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/contrib/sort/sorting_networks-inl.h"
+#include "hwy/contrib/sort/traits-inl.h"
+#include "hwy/contrib/sort/traits128-inl.h"
 // Placeholder for internal instrumentation. Do not remove.
 #include "hwy/highway.h"
 
@@ -1798,6 +1800,23 @@ HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num) {
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
   return Sort(d, st, keys, num, buf);
+}
+
+// Simpler interface matching VQSort(), but without dynamic dispatch. This uses
+// the instructions available in the current target (HWY_NAMESPACE). Supports
+// integer and floating-point keys, but not uint128_t nor key-value types.
+template <typename T>
+void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortAscending) {
+  SortTag<T> d;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderAscending<T>>> st;
+  Sort(d, st, keys, num);
+}
+
+template <typename T>
+void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortDescending) {
+  SortTag<T> d;
+  detail::SharedTraits<detail::TraitsLane<detail::OrderDescending<T>>> st;
+  Sort(d, st, keys, num);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
