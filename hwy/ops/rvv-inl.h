@@ -2276,6 +2276,23 @@ HWY_RVV_FOREACH(HWY_RVV_SLIDE_DOWN, SlideDown, slidedown, _ALL)
 
 }  // namespace detail
 
+// ------------------------------ SlideUpLanes
+template <class D>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  return detail::SlideUp(Zero(d), v, amt);
+}
+
+// ------------------------------ SlideDownLanes
+template <class D>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  // Zero out upper lanes if v is a partial vector
+  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+    v = IfThenElseZero(FirstN(d, Lanes(d)), v);
+  }
+
+  return detail::SlideDown(v, amt);
+}
+
 // ------------------------------ ConcatUpperLower
 template <class D, class V>
 HWY_API V ConcatUpperLower(D d, const V hi, const V lo) {
@@ -2376,6 +2393,28 @@ HWY_RVV_FOREACH_UI(HWY_RVV_SLIDE1, Slide1Down, slide1down_vx, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_SLIDE1, Slide1Down, fslide1down_vf, _ALL)
 #undef HWY_RVV_SLIDE1
 }  // namespace detail
+
+// ------------------------------ Slide1Up and Slide1Down
+#ifdef HWY_NATIVE_SLIDE1UP
+#undef HWY_NATIVE_SLIDE1UP
+#else
+#define HWY_NATIVE_SLIDE1UP
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1Up(D /*d*/, VFromD<D> v) {
+  return detail::Slide1Up(v);
+}
+
+template <class D>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  // Zero out upper lanes if v is a partial vector
+  if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
+    v = IfThenElseZero(FirstN(d, Lanes(d)), v);
+  }
+
+  return detail::Slide1Down(v);
+}
 
 // ------------------------------ GetLane
 

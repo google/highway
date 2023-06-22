@@ -1607,6 +1607,20 @@ HWY_API V ReverseBits(V v) {
   return BitCast(d, ReverseBits(BitCast(du, v)));
 }
 
+// ------------------------------ SlideUpLanes
+
+template <typename D>
+HWY_API VFromD<D> SlideUpLanes(D /*d*/, VFromD<D> v, size_t /*amt*/) {
+  return v;
+}
+
+// ------------------------------ SlideDownLanes
+
+template <typename D>
+HWY_API VFromD<D> SlideDownLanes(D /*d*/, VFromD<D> v, size_t /*amt*/) {
+  return v;
+}
+
 // ================================================== BLOCKWISE
 // Shift*Bytes, CombineShiftRightBytes, Interleave*, Shuffle* are unsupported.
 

@@ -1577,6 +1577,73 @@ instead because they are more general:
     result. Otherwise, Per4LaneBlockShuffle returns `v[kIdx1]` in the first lane
     of the result.
 
+*   <code>V **SlideUpLanes**(D d, V v, size_t N)</code>: slides up `v` by `N`
+    lanes
+
+    If `N < Lanes(d)` is true, returns a vector with the first `Lanes(d) - N`
+    of `v` shifted up to the upper `Lanes(d) - N` lanes of the result vector
+    and the first `N` lanes of the result vector zeroed out.
+
+    In other words, `SlideUpLanes(d, v, N)` returns the following result if
+    `N < Lanes(d)` is true:
+    `{v[N], v[N + 1], ..., v[Lanes(d) - 2], v[Lanes(d) - 1], 0, ..., 0}`
+
+    The results of SlideUpLanes is implementation-defined if `N >= Lanes(d)`.
+
+*   <code>V **SlideDownLanes**(D d, V v, size_t N)</code>: slides down `v` by
+    `N` lanes
+
+    If `N < Lanes(d)` is true, returns a vector with the last `Lanes(d) - N`
+    of `v` shifted down to the lower `Lanes(d) - N` lanes of the result vector
+    and the last `N` lanes of the result vector zeroed out.
+
+    In other words, `SlideDownLanes(d, v, N)` returns the following result if
+    `N < Lanes(d)` is true, with the first `N` lanes of the result vector 
+    being zero:
+    `{0, 0, ..., 0, v[0], v[1], ..., v[Lanes(d) - N - 2], v[Lanes(d) - N - 1]}`
+
+    The results of SlideDownLanes is implementation-defined if `N >= Lanes(d)`.
+
+*   <code>V **Slide1Up**(D d, V v)</code>: slides up `v` by 1 lane
+
+    If `Lanes(d) == 1` is true, returns `Zero(d)`.
+
+    If `Lanes(d) > 1` is true, `Slide1Up(d, v)` is equivalent to
+    `SlideUpLanes(d, v, 1)`, but `Slide1Up(d, v)` is more efficient than
+    `SlideUpLanes(d, v, 1)` on some platforms.
+
+*   <code>V **Slide1Down**(D d, V v)</code>: slides down `v` by 1 lane
+
+    If `Lanes(d) == 1` is true, returns `Zero(d)`.
+
+    If `Lanes(d) > 1` is true, `Slide1Down(d, v)` is equivalent to
+    `SlideDownLanes(d, v, 1)`, but `Slide1Down(d, v)` is more efficient than
+    `SlideDownLanes(d, v, 1)` on some platforms.
+
+*   <code>V **SlideUpBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides up
+    `v` by `kBlocks` blocks.
+
+    `kBlocks` must be between 0 and `d.MaxBlocks() - 1`.
+
+    Equivalent to `SlideUpLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))`,
+    but `SlideUpBlocks<kBlocks>(d, v)` is more efficient than
+    `SlideUpLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))` on some platforms.
+
+    The results of `SlideUpBlocks<kBlocks>(d, v)` is implementation-defined
+    if `kBlocks >= Blocks(d)` is true.
+
+*   <code>V **SlideDownBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides down
+    `v` by `kBlocks` blocks.
+
+    `kBlocks` must be between 0 and `d.MaxBlocks() - 1`.
+
+    Equivalent to `SlideDownLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))`,
+    but `SlideDownBlocks<kBlocks>(d, v)` is more efficient than
+    `SlideDownLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))` on some platforms.
+
+    The results of `SlideDownBlocks<kBlocks>(d, v)` is implementation-defined
+    if `kBlocks >= Blocks(d)` is true.
+
 The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
 *   <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2

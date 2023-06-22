@@ -2222,6 +2222,28 @@ HWY_API VFromD<D> Reverse8(D d, VFromD<D> v) {
   return ret;
 }
 
+// ------------------------------ SlideUpLanes
+
+template <class D>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  VFromD<D> ret = Zero(d);
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  const size_t clamped_amt = HWY_MIN(amt, N);
+  memcpy(ret.raw + clamped_amt, v.raw, (N - clamped_amt) * sizeof(TFromD<D>));
+  return ret;
+}
+
+// ------------------------------ SlideDownLanes
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  VFromD<D> ret = Zero(d);
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  const size_t clamped_amt = HWY_MIN(amt, N);
+  memcpy(ret.raw, v.raw + clamped_amt, (N - clamped_amt) * sizeof(TFromD<D>));
+  return ret;
+}
+
 // ================================================== BLOCKWISE
 
 // ------------------------------ Shuffle*
