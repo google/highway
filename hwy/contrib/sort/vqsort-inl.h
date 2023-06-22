@@ -1094,14 +1094,27 @@ HWY_INLINE bool UnsortedSampleEqual(D d, Traits st,
   using V = Vec<D>;
 
   const V first = st.SetKey(d, samples);
-  // OR of XOR-difference may be faster than comparison.
-  V diff = Zero(d);
-  for (size_t i = 0; i < kSampleLanes; i += N) {
-    const V v = Load(d, samples + i);
-    diff = OrXor(diff, first, v);
-  }
 
-  return st.NoKeyDifference(d, diff);
+  if (!hwy::IsFloat<TFromD<D>>()) {
+    // OR of XOR-difference may be faster than comparison.
+    V diff = Zero(d);
+    for (size_t i = 0; i < kSampleLanes; i += N) {
+      const V v = Load(d, samples + i);
+      diff = OrXor(diff, first, v);
+    }
+    return st.NoKeyDifference(d, diff);
+  } else {
+    // Disable the OrXor optimization for floats because OrXor will not treat
+    // subnormals the same as actual comparisons, leading to logic errors for
+    // 2-value cases.
+    for (size_t i = 0; i < kSampleLanes; i += N) {
+      const V v = Load(d, samples + i);
+      if (!AllTrue(d, st.EqualKeys(d, v, first))) {
+        return false;
+      }
+    }
+    return true;
+  }
 }
 
 template <class D, class Traits, typename T>
@@ -1424,9 +1437,15 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
   // Early out for mostly-0 arrays, where pivot is often FirstValue.
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.FirstValue(d))))) {
     result = PivotResult::kIsFirst;
+    if (VQSORT_PRINT >= 2) {
+      fprintf(stderr, "Pivot equals first possible value\n");
+    }
     return pivot;
   }
   if (HWY_UNLIKELY(AllTrue(d, st.EqualKeys(d, pivot, st.LastValue(d))))) {
+    if (VQSORT_PRINT >= 2) {
+      fprintf(stderr, "Pivot equals last possible value\n");
+    }
     result = PivotResult::kWasLast;
     return st.PrevValue(d, pivot);
   }
@@ -1612,10 +1631,12 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
     fprintf(stderr, "bound %zu num %zu result %s\n", bound, num,
             PivotResultString(result));
   }
-  // The left partition is not empty because the pivot is one of the keys
-  // (unless kWasLast, in which case the pivot is PrevValue, but we still
-  // have at least one value <= pivot because AllEqual ruled out the case of
-  // only one unique value, and there is exactly one value after pivot).
+  // The left partition is not empty because the pivot is usually one of the
+  // keys. Exception: if kWasLast, we set pivot to PrevValue(pivot), but we
+  // still have at least one value <= pivot because AllEqual ruled out the case
+  // of only one unique value. Note that for floating-point, PrevValue can
+  // return the same value (for -inf inputs), but that would just mean the
+  // pivot is again one of the keys.
   HWY_DASSERT(bound != 0);
   // ChoosePivot* ensure pivot != last, so the right partition is never empty
   // except in the rare case of the pivot matching the last-in-sort-order value,
@@ -1677,13 +1698,12 @@ HWY_INLINE bool HandleSpecialCases(D d, Traits st, T* HWY_RESTRICT keys,
 
 #endif  // VQSORT_ENABLED
 
-template <class D, class Order, typename T, HWY_IF_FLOAT(T)>
-HWY_INLINE size_t CountAndReplaceNaN(D d, Order order, T* HWY_RESTRICT keys,
+template <class D, class Traits, typename T, HWY_IF_FLOAT(T)>
+HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
                                      size_t num) {
   const size_t N = Lanes(d);
-  // +/- infinity so that it will be sorted to the back of the array.
-  const Vec<D> sentinel =
-      order.IsAscending() ? Inf(d) : Xor(Inf(d), SignBit(d));
+  // Will be sorted to the back of the array.
+  const Vec<D> sentinel = st.LastValue(d);
   size_t num_nan = 0;
   size_t i = 0;
   for (; i + N <= num; i += N) {
@@ -1712,8 +1732,8 @@ HWY_INLINE size_t CountAndReplaceNaN(D d, Order order, T* HWY_RESTRICT keys,
 }
 
 // IsNaN is not implemented for non-float, so skip it.
-template <class D, class Order, typename T, HWY_IF_NOT_FLOAT(T)>
-HWY_INLINE size_t CountAndReplaceNaN(D, Order, T* HWY_RESTRICT, size_t) {
+template <class D, class Traits, typename T, HWY_IF_NOT_FLOAT(T)>
+HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
   return 0;
 }
 
@@ -1737,8 +1757,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   }
 #endif  // HWY_MAX_BYTES > 64
 
-  const size_t num_nan =
-      detail::CountAndReplaceNaN(d, typename Traits::Order(), keys, num);
+  const size_t num_nan = detail::CountAndReplaceNaN(d, st, keys, num);
 
 #if VQSORT_ENABLED || HWY_IDE
   if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {

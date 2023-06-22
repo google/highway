@@ -19,6 +19,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "hwy/base.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -40,6 +42,7 @@ namespace {
 using detail::OrderAscending;
 using detail::SharedTraits;
 using detail::TraitsLane;
+
 #if VQSORT_ENABLED || HWY_IDE
 #if !HAVE_INTEL
 using detail::OrderAscending128;
@@ -50,6 +53,79 @@ using detail::OrderDescendingKV128;
 using detail::OrderDescendingKV64;
 using detail::Traits128;
 #endif
+
+// Verify the corner cases of LargerSortValue/SmallerSortValue, used to
+// implement PrevValue/NextValue.
+struct TestFloatLargerSmaller {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    const Vec<D> p0 = Zero(d);
+    const Vec<D> p1 = Set(d, static_cast<T>(1));
+    const Vec<D> pinf = Inf(d);
+    const Vec<D> peps = Set(d, hwy::Epsilon<T>());
+    const Vec<D> pmax = Set(d, hwy::HighestValue<T>());
+
+    const Vec<D> n0 = Neg(p0);
+    const Vec<D> n1 = Neg(p1);
+    const Vec<D> ninf = Neg(pinf);
+    const Vec<D> neps = Neg(peps);
+    const Vec<D> nmax = Neg(pmax);
+
+    // Larger(0) is the smallest subnormal, typically eps * FLT_MIN.
+    const RebindToUnsigned<D> du;
+    const Vec<D> psub = BitCast(d, Set(du, 1));
+    const Vec<D> nsub = Neg(psub);
+    HWY_ASSERT(AllTrue(d, Lt(psub, peps)));
+    HWY_ASSERT(AllTrue(d, Gt(nsub, neps)));
+
+    // +/-0 moves to +/- smallest subnormal.
+    HWY_ASSERT_VEC_EQ(d, psub, detail::LargerSortValue(d, p0));
+    HWY_ASSERT_VEC_EQ(d, nsub, detail::SmallerSortValue(d, p0));
+    HWY_ASSERT_VEC_EQ(d, psub, detail::LargerSortValue(d, n0));
+    HWY_ASSERT_VEC_EQ(d, nsub, detail::SmallerSortValue(d, n0));
+
+    // At +/-1.0 the difference is epsilon (by definition).
+    HWY_ASSERT_VEC_EQ(d, Add(p1, peps), detail::LargerSortValue(d, p1));
+    HWY_ASSERT_VEC_EQ(d, Add(p1, neps), detail::SmallerSortValue(d, p1));
+    HWY_ASSERT_VEC_EQ(d, Add(n1, peps), detail::LargerSortValue(d, n1));
+    HWY_ASSERT_VEC_EQ(d, Add(n1, neps), detail::SmallerSortValue(d, n1));
+
+    // Even for large (finite) values, we can move toward/away from infinity.
+    HWY_ASSERT_VEC_EQ(d, pinf, detail::LargerSortValue(d, pmax));
+    HWY_ASSERT_VEC_EQ(d, ninf, detail::SmallerSortValue(d, nmax));
+    HWY_ASSERT(AllTrue(d, Gt(pmax, detail::SmallerSortValue(d, pmax))));
+    HWY_ASSERT(AllTrue(d, Lt(nmax, detail::LargerSortValue(d, nmax))));
+
+    // For infinities, results are unchanged or the extremal finite value.
+    HWY_ASSERT_VEC_EQ(d, pinf, detail::LargerSortValue(d, pinf));
+    HWY_ASSERT_VEC_EQ(d, pmax, detail::SmallerSortValue(d, pinf));
+    HWY_ASSERT_VEC_EQ(d, nmax, detail::LargerSortValue(d, ninf));
+    HWY_ASSERT_VEC_EQ(d, ninf, detail::SmallerSortValue(d, ninf));
+  }
+};
+HWY_NOINLINE void TestAllFloatLargerSmaller() {
+  ForFloatTypes(ForPartialVectors<TestFloatLargerSmaller>());
+}
+
+// Previously, LastValue was the largest normal float, so we injected that
+// value into arrays containing only infinities. Ensure that does not happen.
+struct TestFloatInf {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T, D d) {
+    const size_t N = Lanes(d);
+    const size_t num = N * 3;
+    auto in = hwy::AllocateAligned<T>(num);
+    Fill(d, GetLane(Inf(d)), num, in.get());
+    VQSort(in.get(), num, SortAscending());
+    for (size_t i = 0; i < num; i += N) {
+      HWY_ASSERT(AllTrue(d, IsInf(LoadU(d, in.get() + i))));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllFloatInf() {
+  ForFloatTypes(ForPartialVectors<TestFloatInf>());
+}
 
 template <class Traits>
 static HWY_NOINLINE void TestMedian3() {
@@ -439,6 +515,8 @@ HWY_NOINLINE void TestAllGenerator() {
 }
 
 #else
+static void TestAllFloatLargerSmaller() {}
+static void TestAllFloatInf() {}
 static void TestAllMedian() {}
 static void TestAllBaseCase() {}
 static void TestAllPartition() {}
@@ -636,6 +714,8 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_BEFORE_TEST(SortTest);
+HWY_EXPORT_AND_TEST_P(SortTest, TestAllFloatLargerSmaller);
+HWY_EXPORT_AND_TEST_P(SortTest, TestAllFloatInf);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllMedian);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllBaseCase);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartition);

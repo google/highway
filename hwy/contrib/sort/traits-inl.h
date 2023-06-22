@@ -55,6 +55,93 @@ struct KeyLaneBase {
   }
 };
 
+// Wrapper functions so we can specialize for floats - infinity trumps
+// HighestValue (the normal value with the largest magnitude). Must be outside
+// Order* classes to enable SFINAE. LargestSortValue is used even if
+// !VQSORT_ENABLED.
+
+template <class D, HWY_IF_FLOAT_D(D)>
+Vec<D> LargestSortValue(D d) {
+  return Inf(d);
+}
+template <class D, HWY_IF_NOT_FLOAT_D(D)>
+Vec<D> LargestSortValue(D d) {
+  return Set(d, hwy::HighestValue<TFromD<D>>());
+}
+
+template <class D, HWY_IF_FLOAT_D(D)>
+Vec<D> SmallestSortValue(D d) {
+  return Neg(Inf(d));
+}
+template <class D, HWY_IF_NOT_FLOAT_D(D)>
+Vec<D> SmallestSortValue(D d) {
+  return Set(d, hwy::LowestValue<TFromD<D>>());
+}
+
+// Returns the next distinct larger value unless already +inf.
+template <class D, HWY_IF_FLOAT_D(D)>
+Vec<D> LargerSortValue(D d, Vec<D> v) {
+  HWY_DASSERT(AllFalse(d, IsNaN(v)));  // we replaced all NaN with LastValue.
+  using T = TFromD<decltype(d)>;
+  const RebindToUnsigned<D> du;
+  using VU = Vec<decltype(du)>;
+  using TU = TFromD<decltype(du)>;
+
+  const VU vu = BitCast(du, Abs(v));
+
+  // The direction depends on the original sign. Integer comparison is cheaper
+  // than float comparison and treats -0 as 0 (so we return +epsilon).
+  const Mask<decltype(du)> was_pos = Le(BitCast(du, v), SignBit(du));
+  // If positive, add 1, else -1.
+  const VU add = IfThenElse(was_pos, Set(du, 1), Set(du, ~TU{0}));
+  // Prev/next integer is the prev/next value, even if mantissa under/overflows.
+  v = BitCast(d, Add(vu, add));
+  // But we may have overflowed into inf or NaN; replace with inf if positive,
+  // but the largest (later negated!) value if the input was -inf.
+  const Mask<D> was_pos_f = RebindMask(d, was_pos);
+  v = IfThenElse(IsFinite(v), v,
+                 IfThenElse(was_pos_f, Inf(d), Set(d, HighestValue<T>())));
+  // Restore the original sign - not via CopySignToAbs because we used a mask.
+  return IfThenElse(was_pos_f, v, Neg(v));
+}
+
+// Returns the next distinct smaller value unless already -inf.
+template <class D, HWY_IF_FLOAT_D(D)>
+Vec<D> SmallerSortValue(D d, Vec<D> v) {
+  HWY_DASSERT(AllFalse(d, IsNaN(v)));  // we replaced all NaN with LastValue.
+  using T = TFromD<decltype(d)>;
+  const RebindToUnsigned<D> du;
+  using VU = Vec<decltype(du)>;
+  using TU = TFromD<decltype(du)>;
+
+  const VU vu = BitCast(du, Abs(v));
+
+  // The direction depends on the original sign. Float comparison because we
+  // want to treat 0 as -0 so we return -epsilon.
+  const Mask<D> was_pos = Gt(v, Zero(d));
+  // If positive, add -1, else 1.
+  const VU add =
+      IfThenElse(RebindMask(du, was_pos), Set(du, ~TU{0}), Set(du, 1));
+  // Prev/next integer is the prev/next value, even if mantissa under/overflows.
+  v = BitCast(d, Add(vu, add));
+  // But we may have overflowed into inf or NaN; replace with +inf (which will
+  // later be negated) if negative, but the largest value if the input was +inf.
+  v = IfThenElse(IsFinite(v), v,
+                 IfThenElse(was_pos, Set(d, HighestValue<T>()), Inf(d)));
+  // Restore the original sign - not via CopySignToAbs because we used a mask.
+  return IfThenElse(was_pos, v, Neg(v));
+}
+
+template <class D, HWY_IF_NOT_FLOAT_D(D)>
+Vec<D> LargerSortValue(D d, Vec<D> v) {
+  return Add(v, Set(d, TFromD<D>{1}));
+}
+
+template <class D, HWY_IF_NOT_FLOAT_D(D)>
+Vec<D> SmallerSortValue(D d, Vec<D> v) {
+  return Sub(v, Set(d, TFromD<D>{1}));
+}
+
 #if VQSORT_ENABLED || HWY_IDE
 
 // Highway does not provide a lane type for 128-bit keys, so we use uint64_t
@@ -238,17 +325,17 @@ struct OrderAscending : public KeyLane<T> {
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, hwy::LowestValue<T>());
+    return SmallestSortValue(d);
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, hwy::HighestValue<T>());
+    return LargestSortValue(d);
   }
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Sub(v, Set(d, hwy::Epsilon<T>()));
+    return SmallerSortValue(d, v);
   }
 };
 
@@ -288,17 +375,17 @@ struct OrderDescending : public KeyLane<T> {
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, hwy::HighestValue<T>());
+    return LargestSortValue(d);
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, hwy::LowestValue<T>());
+    return SmallestSortValue(d);
   }
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Add(v, Set(d, hwy::Epsilon<T>()));
+    return LargerSortValue(d, v);
   }
 };
 
@@ -382,7 +469,7 @@ struct OrderAscendingKV64 : public KeyValue64 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Sub(v, Set(d, uint64_t{1}));
+    return Sub(v, Set(d, uint64_t{1} << 32));
   }
 };
 
@@ -435,7 +522,7 @@ struct OrderDescendingKV64 : public KeyValue64 {
 
   template <class D>
   HWY_INLINE Vec<D> PrevValue(D d, Vec<D> v) const {
-    return Add(v, Set(d, uint64_t{1}));
+    return Add(v, Set(d, uint64_t{1} << 32));
   }
 };
 
@@ -526,6 +613,11 @@ struct OrderAscending : public KeyLaneBase<T> {
   HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) {
     return Lt(a, b);
   }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastValue(D d) const {
+    return LargestSortValue(d);
+  }
 };
 
 template <typename T>
@@ -537,6 +629,11 @@ struct OrderDescending : public KeyLaneBase<T> {
   template <class D>
   HWY_INLINE Mask<D> Compare(D /* tag */, Vec<D> a, Vec<D> b) {
     return Lt(b, a);
+  }
+
+  template <class D>
+  HWY_INLINE Vec<D> LastValue(D d) const {
+    return SmallestSortValue(d);
   }
 };
 
