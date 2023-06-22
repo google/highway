@@ -5337,7 +5337,8 @@ HWY_API Vec128<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec128<int16_t> a,
   const Full64<int16_t> dh;
   sum1 = Vec128<int32_t>(vmull_s16(UpperHalf(dh, a).raw, UpperHalf(dh, b).raw));
 #endif
-  Vec128<int32_t> sum0 = Vec128<int32_t>(vmull_s16(LowerHalf(a).raw, LowerHalf(b).raw));
+  Vec128<int32_t> sum0 =
+      Vec128<int32_t>(vmull_s16(LowerHalf(a).raw, LowerHalf(b).raw));
   return RearrangeToOddPlusEven(sum0, sum1);
 }
 
