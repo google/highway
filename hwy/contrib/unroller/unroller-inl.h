@@ -18,12 +18,25 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
+// std::min isn't constexpr in c++11, so we use this
+template<typename T> 
+constexpr T constmin(const T a, const T b) {
+    return a < b ? a: b;
+}
+
 template <class DERIVED, typename IN_T, typename OUT_T> 
 struct UnrollerUnit
 {
     DERIVED* me() { return static_cast<DERIVED*>(this); }
-    using IT = hn::ScalableTag<IN_T>;
-    using OT = hn::ScalableTag<OUT_T>;
+    using ITT = hn::ScalableTag<IN_T>;
+    using OTT = hn::ScalableTag<OUT_T>;
+    
+    static constexpr inline size_t lanes() {
+        return constmin(HWY_MAX_LANES_D(ITT), HWY_MAX_LANES_D(OTT));
+    }
+
+    using IT = hn::CappedTag<IN_T, lanes()>;
+    using OT = hn::CappedTag<OUT_T, lanes()>;
     IT d_in;
     OT d_out;
 
@@ -33,12 +46,6 @@ struct UnrollerUnit
 
     inline hn::Vec<OT> func(int idx, hn::Vec<IT> x0, hn::Vec<IT> x1, hn::Vec<OT> y) {
         return me()->func(idx, x0, x1, y);
-    }
-
-    static inline size_t lanes() {
-        const IT d_in;
-        const OT d_out;
-        return std::min(hn::Lanes(d_in), hn::Lanes(d_out));
     }
 
     inline hn::Vec<IT> x0_init()
