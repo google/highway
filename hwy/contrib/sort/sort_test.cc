@@ -557,12 +557,10 @@ class CompareResults {
     for (size_t i = 0; i < copy_.size(); ++i) {
       if (copy_[i] != output[i]) {
         if (sizeof(KeyType) == 16) {
-          fprintf(stderr,
-                  "%s Asc %d mismatch at %d of %d: %" PRIu64 " %" PRIu64 "\n",
+          fprintf(stderr, "%s Asc %d mismatch at %d of %d: %g %g\n",
                   st.KeyString(), Order().IsAscending(), static_cast<int>(i),
-                  static_cast<int>(copy_.size()),
-                  static_cast<uint64_t>(copy_[i]),
-                  static_cast<uint64_t>(output[i]));
+                  static_cast<int>(copy_.size()), static_cast<double>(copy_[i]),
+                  static_cast<double>(output[i]));
         } else {
           fprintf(stderr,
                   "Type %s Asc %d mismatch at %d of %d: ", st.KeyString(),

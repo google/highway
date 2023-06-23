@@ -85,21 +85,18 @@ timer::Ticks SampleUntilStable(const double max_rel_mad, double* rel_mad,
 
     if (*rel_mad <= max_rel_mad || abs_mad <= max_abs_mad) {
       if (p.verbose) {
-        printf("%6" PRIu64 " samples => %5" PRIu64 " (abs_mad=%4" PRIu64
-               ", rel_mad=%4.2f%%)\n",
-               static_cast<uint64_t>(samples.size()),
-               static_cast<uint64_t>(est), static_cast<uint64_t>(abs_mad),
-               *rel_mad * 100.0);
+        printf("%6d samples => %5d (abs_mad=%4d, rel_mad=%4.2f%%)\n",
+               static_cast<int>(samples.size()), static_cast<int>(est),
+               static_cast<int>(abs_mad), *rel_mad * 100.0);
       }
       return est;
     }
   }
 
   if (p.verbose) {
-    printf("WARNING: rel_mad=%4.2f%% still exceeds %4.2f%% after %6" PRIu64
-           " samples.\n",
+    printf("WARNING: rel_mad=%4.2f%% still exceeds %4.2f%% after %6d samples\n",
            *rel_mad * 100.0, max_rel_mad * 100.0,
-           static_cast<uint64_t>(samples.size()));
+           static_cast<int>(samples.size()));
   }
   return est;
 }
@@ -136,11 +133,9 @@ size_t NumSkip(const Func func, const uint8_t* arg, const InputVec& unique,
           ? 0
           : static_cast<size_t>((max_skip + min_duration - 1) / min_duration);
   if (p.verbose) {
-    printf("res=%" PRIu64 " max_skip=%" PRIu64 " min_dur=%" PRIu64
-           " num_skip=%" PRIu64 "\n",
-           static_cast<uint64_t>(timer_resolution),
-           static_cast<uint64_t>(max_skip), static_cast<uint64_t>(min_duration),
-           static_cast<uint64_t>(num_skip));
+    printf("res=%d max_skip=%d min_dur=%d num_skip=%d\n",
+           static_cast<int>(timer_resolution), static_cast<int>(max_skip),
+           static_cast<int>(min_duration), static_cast<int>(num_skip));
   }
   return num_skip;
 }
@@ -267,19 +262,15 @@ HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
   const timer::Ticks overhead = Overhead(arg, &full, p);
   const timer::Ticks overhead_skip = Overhead(arg, &subset, p);
   if (overhead < overhead_skip) {
-    fprintf(stderr, "Measurement failed: overhead %" PRIu64 " < %" PRIu64 "\n",
-            static_cast<uint64_t>(overhead),
-            static_cast<uint64_t>(overhead_skip));
+    fprintf(stderr, "Measurement failed: overhead %d < %d\n",
+            static_cast<int>(overhead), static_cast<int>(overhead_skip));
     return 0;
   }
 
   if (p.verbose) {
-    printf("#inputs=%5" PRIu64 ",%5" PRIu64 " overhead=%5" PRIu64 ",%5" PRIu64
-           "\n",
-           static_cast<uint64_t>(full.size()),
-           static_cast<uint64_t>(subset.size()),
-           static_cast<uint64_t>(overhead),
-           static_cast<uint64_t>(overhead_skip));
+    printf("#inputs=%5d,%5d overhead=%5d,%5d\n", static_cast<int>(full.size()),
+           static_cast<int>(subset.size()), static_cast<int>(overhead),
+           static_cast<int>(overhead_skip));
   }
 
   double max_rel_mad = 0.0;
@@ -291,8 +282,8 @@ HWY_DLLEXPORT size_t Measure(const Func func, const uint8_t* arg,
         TotalDuration(func, arg, &subset, p, &max_rel_mad);
 
     if (total < total_skip) {
-      fprintf(stderr, "Measurement failed: total %" PRIu64 " < %" PRIu64 "\n",
-              static_cast<uint64_t>(total), static_cast<uint64_t>(total_skip));
+      fprintf(stderr, "Measurement failed: total %f < %f\n",
+              static_cast<double>(total), static_cast<double>(total_skip));
       return 0;
     }
 
