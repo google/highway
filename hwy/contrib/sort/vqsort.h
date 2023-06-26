@@ -13,13 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Interface to vectorized quicksort with dynamic dispatch.
+// Interface to vectorized quicksort with dynamic dispatch. For static dispatch
+// without any DLLEXPORT, avoid including this header and instead define
+// VQSORT_ONLY_STATIC, then call VQSortStatic* in vqsort-inl.h.
+//
 // Blog post: https://tinyurl.com/vqsort-blog
 // Paper with measurements: https://arxiv.org/abs/2205.05982
 //
 // To ensure the overhead of using wide vectors (e.g. AVX2 or AVX-512) is
 // worthwhile, we recommend using this code for sorting arrays whose size is at
-// least 512 KiB.
+// least 100 KiB. See the README for details.
 
 #ifndef HIGHWAY_HWY_CONTRIB_SORT_VQSORT_H_
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_H_
@@ -142,7 +145,10 @@ class HWY_CONTRIB_DLLEXPORT Sorter {
 #endif
 };
 
-// Internal use only
+// Used by vqsort-inl unless VQSORT_ONLY_STATIC.
+HWY_CONTRIB_DLLEXPORT bool Fill16BytesSecure(void* bytes);
+
+// Unused, only provided for binary compatibility.
 HWY_CONTRIB_DLLEXPORT uint64_t* GetGeneratorState();
 
 }  // namespace hwy

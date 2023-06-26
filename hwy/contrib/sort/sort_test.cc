@@ -594,7 +594,10 @@ std::vector<Algo> AlgoForTest() {
 #if HAVE_SORT512
         Algo::kSort512,
 #endif
-        Algo::kHeap, Algo::kVQSort,
+#if VQSORT_ENABLED
+        Algo::kVQSort,
+#endif
+        Algo::kHeap,
   };
 }
 
