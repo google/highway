@@ -3673,6 +3673,71 @@ HWY_API V BroadcastLane(V v) {
 
 #endif  // HWY_NATIVE_BROADCASTLANE
 
+// ------------------------------ Slide1Up and Slide1Down
+#if (defined(HWY_NATIVE_SLIDE1_UP_DOWN) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
+#undef HWY_NATIVE_SLIDE1_UP_DOWN
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN
+#endif
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> /*v*/) {
+  return Zero(d);
+}
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> /*v*/) {
+  return Zero(d);
+}
+
+#if HWY_TARGET != HWY_SCALAR
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+  return ShiftLeftLanes<1>(d, v);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  return ShiftRightLanes<1>(d, v);
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+#endif  // HWY_NATIVE_SLIDE1_UP_DOWN
+
+// ------------------------------ SlideUpBlocks
+
+template <int kBlocks, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> SlideUpBlocks(D /*d*/, VFromD<D> v) {
+  static_assert(kBlocks == 0, "kBlocks == 0 must be true");
+  return v;
+}
+
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256
+template <int kBlocks, class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> SlideUpBlocks(D d, VFromD<D> v) {
+  static_assert(0 <= kBlocks && static_cast<size_t>(kBlocks) < d.MaxBlocks(),
+                "kBlocks must be between 0 and d.MaxBlocks() - 1");
+  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromD<D>);
+  return SlideUpLanes(d, v, static_cast<size_t>(kBlocks) * kLanesPerBlock);
+}
+#endif
+
+// ------------------------------ SlideDownBlocks
+
+template <int kBlocks, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> SlideDownBlocks(D /*d*/, VFromD<D> v) {
+  static_assert(kBlocks == 0, "kBlocks == 0 must be true");
+  return v;
+}
+
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256
+template <int kBlocks, class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
+  static_assert(0 <= kBlocks && static_cast<size_t>(kBlocks) < d.MaxBlocks(),
+                "kBlocks must be between 0 and d.MaxBlocks() - 1");
+  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromD<D>);
+  return SlideDownLanes(d, v, static_cast<size_t>(kBlocks) * kLanesPerBlock);
+}
+#endif
 
 // ================================================== Operator wrapper
 

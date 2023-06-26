@@ -5198,6 +5198,336 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 
 }  // namespace detail
 
+// ------------------------------ SlideUpLanes
+
+namespace detail {
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+  const DFromV<decltype(v)> d;
+  const Full64<uint64_t> du64;
+  const auto vu64 = ResizeBitCast(du64, v);
+  return ResizeBitCast(
+      d, ShiftLeftSame(vu64, static_cast<int>(amt * sizeof(TFromV<V>) * 8)));
+}
+
+#if HWY_TARGET <= HWY_SSSE3
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+  const DFromV<decltype(v)> d;
+  const Repartition<uint8_t, decltype(d)> du8;
+  const auto idx =
+      Iota(du8, static_cast<uint8_t>(size_t{0} - amt * sizeof(TFromV<V>)));
+  return BitCast(d, TableLookupBytesOr0(BitCast(du8, v), idx));
+}
+#else
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE V SlideUpLanes(V v, size_t amt) {
+  const DFromV<decltype(v)> d;
+  const Repartition<int32_t, decltype(d)> di32;
+  const Repartition<uint64_t, decltype(d)> du64;
+  constexpr size_t kNumOfLanesPerU64 = 8 / sizeof(TFromV<V>);
+
+  const auto vu64 = BitCast(du64, v);
+  const auto v_hi = IfVecThenElse(
+      BitCast(du64, Set(di32, -static_cast<int32_t>(amt >= kNumOfLanesPerU64))),
+      BitCast(du64, ShiftLeftBytes<8>(du64, vu64)), vu64);
+  const auto v_lo = ShiftLeftBytes<8>(du64, v_hi);
+
+  const int shl_amt = static_cast<int>((amt * sizeof(TFromV<V>) * 8) & 63);
+  return BitCast(
+      d, Or(ShiftLeftSame(v_hi, shl_amt), ShiftRightSame(v_lo, 64 - shl_amt)));
+}
+#endif
+
+}  // namespace detail
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> SlideUpLanes(D /*d*/, VFromD<D> v, size_t /*amt*/) {
+  return v;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftLeftLanes<1>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideUpLanes(v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftLeftLanes<1>(d, v);
+      case 2:
+        return ShiftLeftLanes<2>(d, v);
+      case 3:
+        return ShiftLeftLanes<3>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideUpLanes(v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftLeftLanes<1>(d, v);
+      case 2:
+        return ShiftLeftLanes<2>(d, v);
+      case 3:
+        return ShiftLeftLanes<3>(d, v);
+      case 4:
+        return ShiftLeftLanes<4>(d, v);
+      case 5:
+        return ShiftLeftLanes<5>(d, v);
+      case 6:
+        return ShiftLeftLanes<6>(d, v);
+      case 7:
+        return ShiftLeftLanes<7>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideUpLanes(v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_D(D, 16)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftLeftLanes<1>(d, v);
+      case 2:
+        return ShiftLeftLanes<2>(d, v);
+      case 3:
+        return ShiftLeftLanes<3>(d, v);
+      case 4:
+        return ShiftLeftLanes<4>(d, v);
+      case 5:
+        return ShiftLeftLanes<5>(d, v);
+      case 6:
+        return ShiftLeftLanes<6>(d, v);
+      case 7:
+        return ShiftLeftLanes<7>(d, v);
+      case 8:
+        return ShiftLeftLanes<8>(d, v);
+      case 9:
+        return ShiftLeftLanes<9>(d, v);
+      case 10:
+        return ShiftLeftLanes<10>(d, v);
+      case 11:
+        return ShiftLeftLanes<11>(d, v);
+      case 12:
+        return ShiftLeftLanes<12>(d, v);
+      case 13:
+        return ShiftLeftLanes<13>(d, v);
+      case 14:
+        return ShiftLeftLanes<14>(d, v);
+      case 15:
+        return ShiftLeftLanes<15>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideUpLanes(v, amt);
+}
+
+// ------------------------------ SlideDownLanes
+
+namespace detail {
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+  const DFromV<decltype(v)> d;
+  const Repartition<UnsignedFromSize<d.MaxBytes()>, decltype(d)> dv;
+  return BitCast(d,
+                 ShiftRightSame(BitCast(dv, v),
+                                static_cast<int>(amt * sizeof(TFromV<V>) * 8)));
+}
+
+#if HWY_TARGET <= HWY_SSSE3
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+  const DFromV<decltype(v)> d;
+  const Repartition<int8_t, decltype(d)> di8;
+  auto idx = Iota(di8, static_cast<int8_t>(amt * sizeof(TFromV<V>)));
+  idx = Or(idx, VecFromMask(di8, idx > Set(di8, int8_t{15})));
+  return BitCast(d, TableLookupBytesOr0(BitCast(di8, v), idx));
+}
+#else
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE V SlideDownLanes(V v, size_t amt) {
+  const DFromV<decltype(v)> d;
+  const Repartition<int32_t, decltype(d)> di32;
+  const Repartition<uint64_t, decltype(d)> du64;
+  constexpr size_t kNumOfLanesPerU64 = 8 / sizeof(TFromV<V>);
+
+  const auto vu64 = BitCast(du64, v);
+  const auto v_lo = IfVecThenElse(
+      BitCast(du64, Set(di32, -static_cast<int32_t>(amt >= kNumOfLanesPerU64))),
+      BitCast(du64, ShiftRightBytes<8>(du64, vu64)), vu64);
+  const auto v_hi = ShiftRightBytes<8>(du64, v_lo);
+
+  const int shr_amt = static_cast<int>((amt * sizeof(TFromV<V>) * 8) & 63);
+  return BitCast(
+      d, Or(ShiftRightSame(v_lo, shr_amt), ShiftLeftSame(v_hi, 64 - shr_amt)));
+}
+#endif
+
+}  // namespace detail
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> SlideDownLanes(D /*d*/, VFromD<D> v, size_t /*amt*/) {
+  return v;
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftRightLanes<1>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideDownLanes(v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftRightLanes<1>(d, v);
+      case 2:
+        return ShiftRightLanes<2>(d, v);
+      case 3:
+        return ShiftRightLanes<3>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideDownLanes(v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftRightLanes<1>(d, v);
+      case 2:
+        return ShiftRightLanes<2>(d, v);
+      case 3:
+        return ShiftRightLanes<3>(d, v);
+      case 4:
+        return ShiftRightLanes<4>(d, v);
+      case 5:
+        return ShiftRightLanes<5>(d, v);
+      case 6:
+        return ShiftRightLanes<6>(d, v);
+      case 7:
+        return ShiftRightLanes<7>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideDownLanes(v, amt);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_LANES_D(D, 16)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  if (__builtin_constant_p(amt)) {
+    switch (amt) {
+      case 0:
+        return v;
+      case 1:
+        return ShiftRightLanes<1>(d, v);
+      case 2:
+        return ShiftRightLanes<2>(d, v);
+      case 3:
+        return ShiftRightLanes<3>(d, v);
+      case 4:
+        return ShiftRightLanes<4>(d, v);
+      case 5:
+        return ShiftRightLanes<5>(d, v);
+      case 6:
+        return ShiftRightLanes<6>(d, v);
+      case 7:
+        return ShiftRightLanes<7>(d, v);
+      case 8:
+        return ShiftRightLanes<8>(d, v);
+      case 9:
+        return ShiftRightLanes<9>(d, v);
+      case 10:
+        return ShiftRightLanes<10>(d, v);
+      case 11:
+        return ShiftRightLanes<11>(d, v);
+      case 12:
+        return ShiftRightLanes<12>(d, v);
+      case 13:
+        return ShiftRightLanes<13>(d, v);
+      case 14:
+        return ShiftRightLanes<14>(d, v);
+      case 15:
+        return ShiftRightLanes<15>(d, v);
+    }
+  }
+#else
+  (void)d;
+#endif
+
+  return detail::SlideDownLanes(v, amt);
+}
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)

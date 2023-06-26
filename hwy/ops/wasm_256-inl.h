@@ -1400,6 +1400,261 @@ HWY_INLINE V Per4LaneBlockShuffle(hwy::SizeTag<kIdx3210> /*idx_3210_tag*/,
 
 }  // namespace detail
 
+// ------------------------------ SlideUpBlocks
+template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> SlideUpBlocks(D d, VFromD<D> v) {
+  static_assert(0 <= kBlocks && kBlocks <= 1,
+                "kBlocks must be between 0 and 1");
+  return (kBlocks == 1) ? ConcatLowerLower(d, v, Zero(d)) : v;
+}
+
+// ------------------------------ SlideDownBlocks
+template <int kBlocks, class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
+  static_assert(0 <= kBlocks && kBlocks <= 1,
+                "kBlocks must be between 0 and 1");
+  const Half<decltype(d)> dh;
+  return (kBlocks == 1) ? ZeroExtendVector(d, UpperHalf(dh, v)) : v;
+}
+
+// ------------------------------ SlideUpLanes
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  const Half<decltype(d)> dh;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToUnsigned<decltype(dh)> dh_u;
+  const auto vu = BitCast(du, v);
+  VFromD<D> ret;
+
+#if !HWY_IS_DEBUG_BUILD
+  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromD<D>);
+  if (__builtin_constant_p(amt) && amt < kLanesPerBlock) {
+    switch (amt * sizeof(TFromD<D>)) {
+      case 0:
+        return v;
+      case 1:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<1>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<15>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 2:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<2>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<14>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 3:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<3>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<13>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 4:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<4>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<12>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 5:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<5>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<11>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 6:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<6>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<10>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 7:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<7>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<9>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 8:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<8>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<8>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 9:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<9>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<7>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 10:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<10>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<6>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 11:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<11>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<5>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 12:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<12>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<4>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 13:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<13>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<3>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 14:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<14>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<2>(dh_u, vu.v1, vu.v0));
+        return ret;
+      case 15:
+        ret.v0 = BitCast(dh, ShiftLeftBytes<15>(dh_u, vu.v0));
+        ret.v1 = BitCast(dh, CombineShiftRightBytes<1>(dh_u, vu.v1, vu.v0));
+        return ret;
+    }
+  }
+
+  if (__builtin_constant_p(amt >= kLanesPerBlock) && amt >= kLanesPerBlock) {
+    ret.v0 = Zero(dh);
+    ret.v1 = SlideUpLanes(dh, LowerHalf(dh, v), amt - kLanesPerBlock);
+    return ret;
+  }
+#endif
+
+  const Repartition<uint8_t, decltype(d)> du8;
+  const RebindToSigned<decltype(du8)> di8;
+  const Half<decltype(di8)> dh_i8;
+
+  const auto lo_byte_idx = BitCast(
+      di8,
+      Iota(du8, static_cast<uint8_t>(size_t{0} - amt * sizeof(TFromD<D>))));
+
+  const auto hi_byte_idx =
+      UpperHalf(dh_i8, lo_byte_idx) - Set(dh_i8, int8_t{16});
+  const auto hi_sel_mask =
+      UpperHalf(dh_i8, lo_byte_idx) > Set(dh_i8, int8_t{15});
+
+  ret = BitCast(d,
+                TableLookupBytesOr0(ConcatLowerLower(du, vu, vu), lo_byte_idx));
+  ret.v1 =
+      BitCast(dh, IfThenElse(hi_sel_mask,
+                             TableLookupBytes(UpperHalf(dh_u, vu), hi_byte_idx),
+                             BitCast(dh_i8, ret.v1)));
+  return ret;
+}
+
+// ------------------------------ Slide1Up
+template <typename D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+  VFromD<D> ret;
+  const Half<decltype(d)> dh;
+  constexpr int kShrByteAmt = static_cast<int>(16 - sizeof(TFromD<D>));
+  ret.v0 = ShiftLeftLanes<1>(dh, v.v0);
+  ret.v1 = CombineShiftRightBytes<kShrByteAmt>(dh, v.v1, v.v0);
+  return ret;
+}
+
+// ------------------------------ SlideDownLanes
+
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  const Half<decltype(d)> dh;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToUnsigned<decltype(dh)> dh_u;
+  VFromD<D> ret;
+
+  const auto vu = BitCast(du, v);
+
+#if !HWY_IS_DEBUG_BUILD
+  constexpr size_t kLanesPerBlock = 16 / sizeof(TFromD<D>);
+  if (__builtin_constant_p(amt) && amt < kLanesPerBlock) {
+    switch (amt * sizeof(TFromD<D>)) {
+      case 0:
+        return v;
+      case 1:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<1>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<1>(dh_u, vu.v1));
+        return ret;
+      case 2:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<2>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<2>(dh_u, vu.v1));
+        return ret;
+      case 3:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<3>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<3>(dh_u, vu.v1));
+        return ret;
+      case 4:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<4>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<4>(dh_u, vu.v1));
+        return ret;
+      case 5:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<5>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<5>(dh_u, vu.v1));
+        return ret;
+      case 6:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<6>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<6>(dh_u, vu.v1));
+        return ret;
+      case 7:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<7>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<7>(dh_u, vu.v1));
+        return ret;
+      case 8:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<8>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<8>(dh_u, vu.v1));
+        return ret;
+      case 9:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<9>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<9>(dh_u, vu.v1));
+        return ret;
+      case 10:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<10>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<10>(dh_u, vu.v1));
+        return ret;
+      case 11:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<11>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<11>(dh_u, vu.v1));
+        return ret;
+      case 12:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<12>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<12>(dh_u, vu.v1));
+        return ret;
+      case 13:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<13>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<13>(dh_u, vu.v1));
+        return ret;
+      case 14:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<14>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<14>(dh_u, vu.v1));
+        return ret;
+      case 15:
+        ret.v0 = BitCast(dh, CombineShiftRightBytes<15>(dh_u, vu.v1, vu.v0));
+        ret.v1 = BitCast(dh, ShiftRightBytes<15>(dh_u, vu.v1));
+        return ret;
+    }
+  }
+
+  if (__builtin_constant_p(amt >= kLanesPerBlock) && amt >= kLanesPerBlock) {
+    ret.v0 = SlideDownLanes(dh, UpperHalf(dh, v), amt - kLanesPerBlock);
+    ret.v1 = Zero(dh);
+    return ret;
+  }
+#endif
+
+  const Repartition<uint8_t, decltype(d)> du8;
+  const Half<decltype(du8)> dh_u8;
+
+  const auto lo_byte_idx =
+      Iota(du8, static_cast<uint8_t>(amt * sizeof(TFromD<D>)));
+  const auto u8_16 = Set(du8, uint8_t{16});
+  const auto hi_byte_idx = lo_byte_idx - u8_16;
+
+  const auto lo_sel_mask =
+      LowerHalf(dh_u8, lo_byte_idx) < LowerHalf(dh_u8, u8_16);
+  ret = BitCast(d, IfThenElseZero(hi_byte_idx < u8_16,
+                                  TableLookupBytes(ConcatUpperUpper(du, vu, vu),
+                                                   hi_byte_idx)));
+  ret.v0 =
+      BitCast(dh, IfThenElse(lo_sel_mask,
+                             TableLookupBytes(LowerHalf(dh_u, vu),
+                                              LowerHalf(dh_u8, lo_byte_idx)),
+                             BitCast(dh_u8, LowerHalf(dh, ret))));
+  return ret;
+}
+
+// ------------------------------ Slide1Down
+template <typename D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  VFromD<D> ret;
+  const Half<decltype(d)> dh;
+  constexpr int kShrByteAmt = static_cast<int>(sizeof(TFromD<D>));
+  ret.v0 = CombineShiftRightBytes<kShrByteAmt>(dh, v.v1, v.v0);
+  ret.v1 = ShiftRightBytes<kShrByteAmt>(dh, v.v1);
+  return ret;
+}
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)

@@ -2154,6 +2154,56 @@ HWY_INLINE VFromD<D> Per4LaneBlkShufDupSet4xU32(D d, const uint32_t x3,
 
 }  // namespace detail
 
+// ------------------------------ SlideUpLanes
+
+template <class D>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  using VU8 = VFromD<decltype(du8)>;
+  const auto v_shift_amt =
+      BitCast(Full128<uint8_t>(),
+              Set(Full128<uint32_t>(),
+                  static_cast<uint32_t>(amt * sizeof(TFromD<D>) * 8)));
+
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(d, VU8{vec_slo(BitCast(du8, v).raw, v_shift_amt.raw)});
+#else
+  return BitCast(d, VU8{vec_sro(BitCast(du8, v).raw, v_shift_amt.raw)});
+#endif
+}
+
+// ------------------------------ SlideDownLanes
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  using TU = UnsignedFromSize<d.MaxBytes()>;
+  const Repartition<TU, decltype(d)> du;
+  const auto v_shift_amt =
+      Set(du, static_cast<TU>(amt * sizeof(TFromD<D>) * 8));
+
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(d, BitCast(du, v) >> v_shift_amt);
+#else
+  return BitCast(d, BitCast(du, v) << v_shift_amt);
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  const Repartition<uint8_t, decltype(d)> du8;
+  using VU8 = VFromD<decltype(du8)>;
+  const auto v_shift_amt =
+      BitCast(Full128<uint8_t>(),
+              Set(Full128<uint32_t>(),
+                  static_cast<uint32_t>(amt * sizeof(TFromD<D>) * 8)));
+
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(d, VU8{vec_sro(BitCast(du8, v).raw, v_shift_amt.raw)});
+#else
+  return BitCast(d, VU8{vec_slo(BitCast(du8, v).raw, v_shift_amt.raw)});
+#endif
+}
+
 // ================================================== COMBINE
 
 // ------------------------------ Combine (InterleaveLower)
