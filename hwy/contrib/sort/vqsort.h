@@ -25,16 +25,9 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_H_
 
 #include "hwy/base.h"
+#include "hwy/contrib/sort/order.h"  // SortAscending
 
 namespace hwy {
-
-// Tag arguments that determine the sort order.
-struct SortAscending {
-  constexpr bool IsAscending() const { return true; }
-};
-struct SortDescending {
-  constexpr bool IsAscending() const { return false; }
-};
 
 // Vectorized Quicksort: sorts keys[0, n). Does not preserve the ordering of
 // equivalent keys (defined as: neither greater nor less than another).

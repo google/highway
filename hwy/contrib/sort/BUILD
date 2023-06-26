@@ -110,6 +110,7 @@ cc_library(
         "vqsort_u64d.cc",
     ],
     hdrs = [
+        "order.h",  # part of public interface, included by vqsort.h
         "vqsort.h",  # public interface
     ],
     compatible_with = [],
