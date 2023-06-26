@@ -3,7 +3,10 @@
 ## Introduction
 
 As of 2022-06-07 this sorts large arrays of built-in types about ten times as
-fast as `std::sort`. See also our
+fast as LLVM's `std::sort`. Note that other algorithms such as pdqsort can be
+about twice as fast as LLVM's std::sort as of 2023-06.
+
+See also our
 [blog post](https://opensource.googleblog.com/2022/06/Vectorized%20and%20performance%20portable%20Quicksort.html)
 and [paper](https://arxiv.org/abs/2205.05982).
 
