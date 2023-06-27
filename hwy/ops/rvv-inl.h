@@ -2386,12 +2386,12 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
 // ------------------------------ SlideDownLanes
 template <class D>
 HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  v = detail::SlideDown(v, amt);
   // Zero out upper lanes if v is a partial vector
   if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
-    v = IfThenElseZero(FirstN(d, Lanes(d)), v);
+    v = IfThenElseZero(FirstN(d, Lanes(d) - amt), v);
   }
-
-  return detail::SlideDown(v, amt);
+  return v;
 }
 
 // ------------------------------ ConcatUpperLower
@@ -2509,12 +2509,12 @@ HWY_API VFromD<D> Slide1Up(D /*d*/, VFromD<D> v) {
 
 template <class D>
 HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  v = detail::Slide1Down(v);
   // Zero out upper lanes if v is a partial vector
   if (MaxLanes(d) < MaxLanes(DFromV<decltype(v)>())) {
-    v = IfThenElseZero(FirstN(d, Lanes(d)), v);
+    v = IfThenElseZero(FirstN(d, Lanes(d) - 1), v);
   }
-
-  return detail::Slide1Down(v);
+  return v;
 }
 
 // ------------------------------ GetLane

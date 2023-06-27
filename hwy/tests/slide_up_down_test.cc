@@ -183,17 +183,17 @@ HWY_NOINLINE void TestAllSlideUpLanes() {
 
 class TestSlideDownLanes {
  private:
+  // HWY_NOINLINE is required here to work around RVV miscompilation.
   template <class D>
-  static HWY_INLINE void DoTestSlideDownLanes(D d,
-                                              TFromD<D>* HWY_RESTRICT expected,
-                                              const size_t N,
-                                              const size_t slide_amt) {
+  static HWY_NOINLINE void DoTestSlideDownLanes(
+      D d, TFromD<D>* HWY_RESTRICT expected, const size_t N,
+      const size_t slide_amt) {
     for (size_t i = 0; i < N; i++) {
       const size_t src_idx = slide_amt + i;
       expected[i] = static_cast<TFromD<D>>((src_idx < N) ? src_idx : 0);
     }
 
-    const auto v = Iota(d, TFromD<D>{0});
+    const Vec<D> v = Iota(d, TFromD<D>{0});
     HWY_ASSERT_VEC_EQ(d, expected, SlideDownLanes(d, v, slide_amt));
     if (slide_amt == 1) {
       HWY_ASSERT_VEC_EQ(d, expected, Slide1Down(d, v));

@@ -43,10 +43,10 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-// Compare expected vector to vector.
+// Compare expected array to vector.
 // TODO(b/287462770): inline to work around incorrect SVE codegen.
-template <class D, typename T = TFromD<D>, class V = Vec<D>>
-HWY_INLINE void AssertVecEqual(D d, const T* expected, VecArg<V> actual,
+template <class D, typename T = TFromD<D>>
+HWY_INLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
                                const char* filename, const int line) {
   const size_t N = Lanes(d);
   auto actual_lanes = AllocateAligned<T>(N);
@@ -58,15 +58,21 @@ HWY_INLINE void AssertVecEqual(D d, const T* expected, VecArg<V> actual,
                                 target_name, filename, line);
 }
 
-// Compare expected lanes to vector.
-// HWY_INLINE works around a Clang SVE compiler bug where all but the first
-// 128 bits (the NEON register) of actual are zero.
-template <class D, typename T = TFromD<D>, class V = Vec<D>>
-HWY_INLINE void AssertVecEqual(D d, VecArg<V> expected, VecArg<V> actual,
+// Compare expected vector to vector.
+// TODO(b/287462770): inline to work around incorrect SVE codegen.
+template <class D, typename T = TFromD<D>>
+HWY_INLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
                                const char* filename, int line) {
-  auto expected_lanes = AllocateAligned<T>(Lanes(d));
+  const size_t N = Lanes(d);
+  auto expected_lanes = AllocateAligned<T>(N);
+  auto actual_lanes = AllocateAligned<T>(N);
   Store(expected, d, expected_lanes.get());
-  AssertVecEqual(d, expected_lanes.get(), actual, filename, line);
+  Store(actual, d, actual_lanes.get());
+
+  const auto info = hwy::detail::MakeTypeInfo<T>();
+  const char* target_name = hwy::TargetName(HWY_TARGET);
+  hwy::detail::AssertArrayEqual(info, expected_lanes.get(), actual_lanes.get(),
+                                N, target_name, filename, line);
 }
 
 // Only checks the valid mask elements (those whose index < Lanes(d)).
