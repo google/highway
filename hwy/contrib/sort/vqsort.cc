@@ -15,8 +15,6 @@
 
 #include "hwy/contrib/sort/vqsort.h"
 
-#include <time.h>
-
 #include "hwy/base.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 #include "hwy/per_target.h"

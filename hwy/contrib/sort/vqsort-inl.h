@@ -19,6 +19,7 @@
 
 #include <stdio.h>  // unconditional #include so we can use if(VQSORT_PRINT).
 #include <string.h>  // memcpy
+#include <time.h>    // clock
 
 // IWYU pragma: begin_exports
 #include "hwy/base.h"
