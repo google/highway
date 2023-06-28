@@ -2320,7 +2320,7 @@ namespace detail {
 // For x86-compatible behaviour mandated by Highway API: TableLookupBytes
 // offsets are implicitly relative to the start of their 128-bit block.
 template <typename T, size_t N, int kPow2>
-size_t LanesPerBlock(Simd<T, N, kPow2> d) {
+HWY_INLINE size_t LanesPerBlock(Simd<T, N, kPow2> d) {
   // kMinVecBytes is the minimum size of VFromD<decltype(d)> in bytes
   constexpr size_t kMinVecBytes =
       ScaleByPower(16, HWY_MAX(HWY_MIN(kPow2, 3), -3));
