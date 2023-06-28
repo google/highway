@@ -126,10 +126,9 @@ class TestStoreMaskBits {
       // Requires at least 8 bytes, ensured above.
       const size_t bytes_written = StoreMaskBits(di, mask, actual.get());
       if (bytes_written != expected_num_bytes) {
-        fprintf(stderr, "%s expected %" PRIu64 " bytes, actual %" PRIu64 "\n",
-                TypeName(T(), N).c_str(),
-                static_cast<uint64_t>(expected_num_bytes),
-                static_cast<uint64_t>(bytes_written));
+        fprintf(stderr, "%s expected %d bytes, actual %d\n",
+                TypeName(T(), N).c_str(), static_cast<int>(expected_num_bytes),
+                static_cast<int>(bytes_written));
 
         HWY_ASSERT(false);
       }
@@ -149,8 +148,8 @@ class TestStoreMaskBits {
       for (; i < N; ++i) {
         const TI is_set = (actual[i / 8] & (1 << (i % 8))) ? 1 : 0;
         if (is_set != bool_lanes[i]) {
-          fprintf(stderr, "%s lane %" PRIu64 ": expected %d, actual %d\n",
-                  TypeName(T(), N).c_str(), static_cast<uint64_t>(i),
+          fprintf(stderr, "%s lane %d: expected %d, actual %d\n",
+                  TypeName(T(), N).c_str(), static_cast<int>(i),
                   static_cast<int>(bool_lanes[i]), static_cast<int>(is_set));
           Print(di, "bools", bools, 0, N);
           Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
@@ -165,8 +164,8 @@ class TestStoreMaskBits {
       for (; i < 8 * bytes_written; ++i) {
         const int bit = (actual[i / 8] & (1 << (i % 8)));
         if (bit != 0) {
-          fprintf(stderr, "%s: bit #%" PRIu64 " should be zero\n",
-                  TypeName(T(), N).c_str(), static_cast<uint64_t>(i));
+          fprintf(stderr, "%s: bit #%d should be zero\n",
+                  TypeName(T(), N).c_str(), static_cast<int>(i));
           Print(di, "bools", bools, 0, N);
           Print(d_bits, "expected bytes", Load(d_bits, expected.get()), 0,
                 expected_num_bytes);

@@ -22,8 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_TRAITS128_TOGGLE
 #endif
 
+#include "hwy/contrib/sort/order.h"  // SortDescending
 #include "hwy/contrib/sort/shared-inl.h"
-#include "hwy/contrib/sort/vqsort.h"  // SortDescending
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();

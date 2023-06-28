@@ -57,9 +57,11 @@ layouts, and aligned/padded allocations.
 
 Online demos using Compiler Explorer:
 
--   [multiple targets with dynamic dispatch](https://gcc.godbolt.org/z/zP7MYe9Yf)
-    (recommended)
+-   [multiple targets with dynamic dispatch](https://gcc.godbolt.org/z/KM3ben7ET)
+    (more complicated, but flexible and uses best available SIMD)
 -   [single target using -m flags](https://gcc.godbolt.org/z/rGnjMevKG)
+    (simpler, but requires/only uses the instruction set enabled by compiler
+    flags)
 
 We observe that Highway is referenced in the following open source projects,
 found via sourcegraph.com. Most are Github repositories. If you would like to

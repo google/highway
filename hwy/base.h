@@ -22,18 +22,25 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS  // before inttypes.h
-#endif
-#include <inttypes.h>  // IWYU pragma: keep
-
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
-// "IWYU pragma: keep" does not work for this include, so hide it from the IDE.
-#if ((HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)) || HWY_COMPILER_MSVC) && !HWY_IDE
+// "IWYU pragma: keep" does not work for these includes, so hide from the IDE.
+#if !HWY_IDE
+
+#if !defined(HWY_NO_LIBCXX)
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // before inttypes.h
+#endif
+#include <inttypes.h>
+#endif
+
+#if (HWY_ARCH_X86 && !defined(HWY_NO_LIBCXX)) || HWY_COMPILER_MSVC
 #include <atomic>
 #endif
+
+#endif  // !HWY_IDE
+
 // IWYU pragma: end_exports
 
 #if HWY_COMPILER_MSVC

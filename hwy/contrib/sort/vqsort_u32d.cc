@@ -13,14 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "hwy/contrib/sort/vqsort.h"
+#include "hwy/contrib/sort/vqsort.h"  // VQSort
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqsort_u32d.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // After foreach_target
-#include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -28,10 +27,7 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 void SortU32Desc(uint32_t* HWY_RESTRICT keys, size_t num) {
-  SortTag<uint32_t> d;
-  detail::SharedTraits<detail::TraitsLane<detail::OrderDescending<uint32_t>>>
-      st;
-  Sort(d, st, keys, num);
+  return VQSortStatic(keys, num, SortDescending());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

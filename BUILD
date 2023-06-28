@@ -374,6 +374,7 @@ HWY_TESTS = [
     ("hwy/tests/", "reduction_test"),
     ("hwy/tests/", "reverse_test"),
     ("hwy/tests/", "shift_test"),
+    ("hwy/tests/", "slide_up_down_test"),
     ("hwy/tests/", "swizzle_test"),
     ("hwy/tests/", "test_util_test"),
     ("hwy/tests/", "tuple_test"),

@@ -96,6 +96,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.cc
     hwy/contrib/image/image.h
     hwy/contrib/math/math-inl.h
+    hwy/contrib/sort/order.h
     hwy/contrib/sort/shared-inl.h
     hwy/contrib/sort/sorting_networks-inl.h
     hwy/contrib/sort/traits-inl.h
@@ -527,6 +528,7 @@ set(HWY_TEST_FILES
   hwy/tests/reduction_test.cc
   hwy/tests/reverse_test.cc
   hwy/tests/shift_test.cc
+  hwy/tests/slide_up_down_test.cc
   hwy/tests/swizzle_test.cc
   hwy/tests/test_util_test.cc
   hwy/tests/tuple_test.cc

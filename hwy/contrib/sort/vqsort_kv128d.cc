@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "hwy/contrib/sort/vqsort.h"
+#include "hwy/contrib/sort/vqsort.h"  // VQSort
 
 #undef HWY_TARGET_INCLUDE
 // clang-format off
@@ -23,23 +23,14 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // After foreach_target
-#include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-void SortKV128Desc(uint64_t* HWY_RESTRICT keys, size_t num) {
-#if VQSORT_ENABLED
-  SortTag<uint64_t> d;
-  detail::SharedTraits<detail::Traits128<detail::OrderDescendingKV128>> st;
-  Sort(d, st, keys, num);
-#else
-  (void)keys;
-  (void)num;
-  HWY_ASSERT(0);
-#endif
+void SortKV128Desc(K64V64* HWY_RESTRICT keys, size_t num) {
+  return VQSortStatic(keys, num, SortDescending());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -54,8 +45,7 @@ HWY_EXPORT(SortKV128Desc);
 }  // namespace
 
 void VQSort(K64V64* HWY_RESTRICT keys, size_t n, SortDescending) {
-  HWY_DYNAMIC_DISPATCH(SortKV128Desc)
-  (reinterpret_cast<uint64_t*>(keys), n * 2);
+  HWY_DYNAMIC_DISPATCH(SortKV128Desc)(keys, n);
 }
 
 }  // namespace hwy

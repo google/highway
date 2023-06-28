@@ -89,8 +89,8 @@ HWY_DLLEXPORT void PrintArray(const TypeInfo& info, const char* caption,
   const intptr_t lane = intptr_t(lane_u);
   const size_t begin = static_cast<size_t>(HWY_MAX(0, lane - 2));
   const size_t end = HWY_MIN(begin + max_lanes, N);
-  fprintf(stderr, "%s %s [%" PRIu64 "+ ->]:\n  ", type_name, caption,
-          static_cast<uint64_t>(begin));
+  fprintf(stderr, "%s %s [%d+ ->]:\n  ", type_name, caption,
+          static_cast<int>(begin));
   for (size_t i = begin; i < end; ++i) {
     const void* ptr = array_bytes + i * info.sizeof_t;
     char str[100];

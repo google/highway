@@ -2683,6 +2683,43 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
 HWY_SVE_FOREACH_UI(HWY_SVE_REVERSE_BITS, ReverseBits, rbit)
 #undef HWY_SVE_REVERSE_BITS
 
+// ------------------------------ SlideUpLanes
+
+template <class D>
+HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
+  return detail::Splice(v, Zero(d), FirstN(d, amt));
+}
+
+// ------------------------------ Slide1Up
+
+#ifdef HWY_NATIVE_SLIDE1_UP_DOWN
+#undef HWY_NATIVE_SLIDE1_UP_DOWN
+#else
+#define HWY_NATIVE_SLIDE1_UP_DOWN
+#endif
+
+template <class D>
+HWY_API VFromD<D> Slide1Up(D d, VFromD<D> v) {
+  return SlideUpLanes(d, v, 1);
+}
+
+// ------------------------------ SlideDownLanes (TableLookupLanes)
+
+template <class D>
+HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  const auto idx = Iota(du, static_cast<TU>(amt));
+  return IfThenElseZero(FirstN(d, Lanes(d) - amt), TableLookupLanes(v, idx));
+}
+
+// ------------------------------ Slide1Down
+
+template <class D>
+HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
+  return SlideDownLanes(d, v, 1);
+}
+
 // ------------------------------ Block insert/extract/broadcast ops
 #if HWY_TARGET != HWY_SVE2_128
 

@@ -19,13 +19,29 @@
 
 #include <stdio.h>  // unconditional #include so we can use if(VQSORT_PRINT).
 #include <string.h>  // memcpy
+#include <time.h>    // clock
 
+// IWYU pragma: begin_exports
 #include "hwy/base.h"
-#include "hwy/cache_control.h"        // Prefetch
-#include "hwy/contrib/sort/vqsort.h"  // Fill24Bytes
+#include "hwy/contrib/sort/order.h"  // SortAscending
+// IWYU pragma: end_exports
 
+#include "hwy/cache_control.h"  // Prefetch
+
+// If 1, VQSortStatic can be called without including vqsort.h, and we avoid
+// any DLLEXPORT. This simplifies integration into other build systems, but
+// decreases the security of random seeds.
+#ifndef VQSORT_ONLY_STATIC
+#define VQSORT_ONLY_STATIC 0
+#endif
+
+// Verbosity: 0 for none, 1 for brief per-sort, 2+ for more details.
 #ifndef VQSORT_PRINT
 #define VQSORT_PRINT 0
+#endif
+
+#if !VQSORT_ONLY_STATIC
+#include "hwy/contrib/sort/vqsort.h"  // Fill16BytesSecure
 #endif
 
 #endif  // HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
@@ -46,6 +62,8 @@
 #include "hwy/contrib/algo/copy-inl.h"
 #include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/contrib/sort/sorting_networks-inl.h"
+#include "hwy/contrib/sort/traits-inl.h"
+#include "hwy/contrib/sort/traits128-inl.h"
 // Placeholder for internal instrumentation. Do not remove.
 #include "hwy/highway.h"
 
@@ -1737,10 +1755,38 @@ HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
   return 0;
 }
 
+HWY_INLINE void Fill16BytesStatic(void* bytes) {
+#if !VQSORT_ONLY_STATIC
+  if (Fill16BytesSecure(bytes)) return;
+#endif
+
+  uint64_t* words = reinterpret_cast<uint64_t*>(bytes);
+
+  // Static-only, or Fill16BytesSecure failed. Get some entropy from the
+  // stack/code location, and the clock() timer.
+  uint64_t** seed_stack = &words;
+  void (*seed_code)(void*) = &Fill16BytesStatic;
+  const uintptr_t bits_stack = reinterpret_cast<uintptr_t>(seed_stack);
+  const uintptr_t bits_code = reinterpret_cast<uintptr_t>(seed_code);
+  const uint64_t bits_time = static_cast<uint64_t>(clock());
+  words[0] = bits_stack ^ bits_time ^ 0xFEDCBA98;  // "Nothing up my sleeve"
+  words[1] = bits_code ^ bits_time ^ 0x01234567;   // constants.
+}
+
+HWY_INLINE uint64_t* GetGeneratorStateStatic() {
+  thread_local uint64_t state[3] = {0};
+  // This is a counter; zero indicates not yet initialized.
+  if (HWY_UNLIKELY(state[2] == 0)) {
+    Fill16BytesStatic(state);
+    state[2] = 1;
+  }
+  return state;
+}
+
 }  // namespace detail
 
-// Old interface with user-specified buffer, retained for compatibility.
-// `buf` must be vector-aligned and hold at least
+// Old interface with user-specified buffer, retained for compatibility. Called
+// by the newer overload below. `buf` must be vector-aligned and hold at least
 // SortConstants::BufBytes(HWY_MAX_BYTES, st.LanesPerKey()).
 template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
@@ -1761,7 +1807,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
 #if VQSORT_ENABLED || HWY_IDE
   if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {
-    uint64_t* HWY_RESTRICT state = GetGeneratorState();
+    uint64_t* HWY_RESTRICT state = detail::GetGeneratorStateStatic();
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
@@ -1798,6 +1844,86 @@ HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num) {
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
   return Sort(d, st, keys, num, buf);
+}
+
+#if VQSORT_ENABLED
+// Adapter from VQSort[Static] to SortTag and Traits*/Order*.
+namespace detail {
+
+// Primary template for built-in key types
+template <typename T>
+struct KeyAdapter {
+  using Ascending = OrderAscending<T>;
+  using Descending = OrderDescending<T>;
+
+  template <class Order>
+  using Traits = TraitsLane<Order>;
+};
+
+template <>
+struct KeyAdapter<hwy::uint128_t> {
+  using Ascending = OrderAscending128;
+  using Descending = OrderDescending128;
+
+  template <class Order>
+  using Traits = Traits128<Order>;
+};
+
+template <>
+struct KeyAdapter<hwy::K64V64> {
+  using Ascending = OrderAscendingKV128;
+  using Descending = OrderDescendingKV128;
+
+  template <class Order>
+  using Traits = Traits128<Order>;
+};
+
+template <>
+struct KeyAdapter<hwy::K32V32> {
+  using Ascending = OrderAscendingKV64;
+  using Descending = OrderDescendingKV64;
+
+  template <class Order>
+  using Traits = TraitsLane<Order>;
+};
+
+}  // namespace detail
+#endif  // VQSORT_ENABLED
+
+// Simpler interface matching VQSort(), but without dynamic dispatch. Uses the
+// instructions available in the current target (HWY_NAMESPACE). Supported key
+// types: 16-64 bit unsigned/signed/floating-point (but float64 only #if
+// HWY_HAVE_FLOAT64), uint128_t, K64V64, K32V32.
+template <typename T>
+void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortAscending) {
+#if VQSORT_ENABLED
+  using Adapter = detail::KeyAdapter<T>;
+  using Order = typename Adapter::Ascending;
+  const detail::SharedTraits<typename Adapter::template Traits<Order>> st;
+  using LaneType = typename decltype(st)::LaneType;
+  const SortTag<LaneType> d;
+  Sort(d, st, reinterpret_cast<LaneType*>(keys), num * st.LanesPerKey());
+#else
+  (void)keys;
+  (void)num;
+  HWY_ASSERT(0);
+#endif  // VQSORT_ENABLED
+}
+
+template <typename T>
+void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortDescending) {
+#if VQSORT_ENABLED
+  using Adapter = detail::KeyAdapter<T>;
+  using Order = typename Adapter::Descending;
+  const detail::SharedTraits<typename Adapter::template Traits<Order>> st;
+  using LaneType = typename decltype(st)::LaneType;
+  const SortTag<LaneType> d;
+  Sort(d, st, reinterpret_cast<LaneType*>(keys), num * st.LanesPerKey());
+#else
+  (void)keys;
+  (void)num;
+  HWY_ASSERT(0);
+#endif  // VQSORT_ENABLED
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

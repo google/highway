@@ -15,12 +15,8 @@
 
 #include "hwy/contrib/sort/vqsort.h"
 
-#include <time.h>
-
-#include <cstdint>
-
 #include "hwy/base.h"
-#include "hwy/contrib/sort/shared-inl.h"
+#include "hwy/contrib/sort/vqsort-inl.h"
 #include "hwy/per_target.h"
 
 // Check if we have sys/random.h. First skip some systems on which the check
@@ -80,13 +76,14 @@
 #endif  // VQSORT_SECURE_SEED
 
 namespace hwy {
-namespace {
 
-void Fill16Bytes(void* bytes) {
+// Returns false or performs the equivalent of `memcpy(bytes, r, 16)`, where r
+// is high-quality (unpredictable, uniformly distributed) random bits.
+bool Fill16BytesSecure(void* bytes) {
 #if VQSORT_SECURE_SEED == 1
   // May block if urandom is not yet initialized.
   const ssize_t ret = getrandom(bytes, 16, /*flags=*/0);
-  if (ret == 16) return;
+  if (ret == 16) return true;
 #elif VQSORT_SECURE_SEED == 2
   HCRYPTPROV hProvider{};
   if (CryptAcquireContextA(&hProvider, nullptr, nullptr, PROV_RSA_FULL,
@@ -94,32 +91,11 @@ void Fill16Bytes(void* bytes) {
     const BOOL ok =
         CryptGenRandom(hProvider, 16, reinterpret_cast<BYTE*>(bytes));
     CryptReleaseContext(hProvider, 0);
-    if (ok) return;
+    if (ok) return true;
   }
 #endif
 
-  // VQSORT_SECURE_SEED == 0, or one of the above failed. Get some entropy from
-  // the address and the clock() timer.
-  uint64_t* words = reinterpret_cast<uint64_t*>(bytes);
-  uint64_t** seed_stack = &words;
-  void (*seed_code)(void*) = &Fill16Bytes;
-  const uintptr_t bits_stack = reinterpret_cast<uintptr_t>(seed_stack);
-  const uintptr_t bits_code = reinterpret_cast<uintptr_t>(seed_code);
-  const uint64_t bits_time = static_cast<uint64_t>(clock());
-  words[0] = bits_stack ^ bits_time ^ 0xFEDCBA98;  // "Nothing up my sleeve"
-  words[1] = bits_code ^ bits_time ^ 0x01234567;   // constants.
-}
-
-}  // namespace
-
-uint64_t* GetGeneratorState() {
-  thread_local uint64_t state[3] = {0};
-  // This is a counter; zero indicates not yet initialized.
-  if (HWY_UNLIKELY(state[2] == 0)) {
-    Fill16Bytes(state);
-    state[2] = 1;
-  }
-  return state;
+  return false;
 }
 
 void Sorter::operator()(uint16_t* HWY_RESTRICT keys, size_t n,
@@ -221,5 +197,8 @@ void Sorter::Fill24Bytes(const void*, size_t, void*) {}
 bool Sorter::HaveFloat64() { return hwy::HaveFloat64(); }
 Sorter::Sorter() {}
 void Sorter::Delete() {}
+uint64_t* GetGeneratorState() {
+  return HWY_STATIC_DISPATCH(detail::GetGeneratorStateStatic());
+}
 
 }  // namespace hwy
