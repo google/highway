@@ -2439,9 +2439,8 @@ HWY_API VFromD<RebindToUnsigned<D>> IndicesFromVec(D d, VI vec) {
   using TU = MakeUnsigned<TI>;
   const size_t twice_max_lanes = Lanes(d) * 2;
   HWY_DASSERT(AllTrue(
-      du,
-      detail::Eq(indices,
-                 detail::AndN(indices, static_cast<TU>(twice_max_lanes - 1)))));
+      du, Eq(indices,
+             detail::AndN(indices, static_cast<TU>(twice_max_lanes - 1)))));
 #else
   (void)d;
 #endif
