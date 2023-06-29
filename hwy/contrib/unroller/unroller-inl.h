@@ -86,11 +86,10 @@ struct UnrollerUnit {
                                   const ptrdiff_t places) {
     const hn::ScalableTag<ptrdiff_t> di;
     using TI = hn::TFromD<decltype(di)>;
-    auto mask = hn::RebindMask(
-        d_in, hn::detail::Iota0(d_in) < Set(d_in, static_cast<TI>(places)));
-    auto maskneg = hn::RebindMask(
-        d_in, hn::detail::Iota0(d_in) >=
-                  Set(d_in, static_cast<TI>(places + UnitLanes())));
+    auto mask = hn::FirstN(d_in, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        d_in,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
     if (places < 0) mask = maskneg;
 
     return hn::MaskedLoad(mask, d_in, from + idx);
@@ -122,11 +121,10 @@ struct UnrollerUnit {
                                  ptrdiff_t const& HWY_RESTRICT places) {
     const hn::ScalableTag<ptrdiff_t> di;
     using TI = hn::TFromD<decltype(di)>;
-    auto mask = hn::RebindMask(
-        d_out, hn::detail::Iota0(d_out) < Set(d_out, static_cast<TI>(places)));
-    auto maskneg = hn::RebindMask(
-        d_out, hn::detail::Iota0(d_out) >=
-                   Set(d_out, static_cast<TI>(places + UnitLanes())));
+    auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        d_out,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
     if (places < 0) mask = maskneg;
 
     hn::BlendedStore(x, mask, d_out, to + idx);
@@ -232,11 +230,10 @@ struct UnrollerUnit2 {
                                     ptrdiff_t const& HWY_RESTRICT places) {
     const hn::ScalableTag<ptrdiff_t> di;
     using TI = hn::TFromD<decltype(di)>;
-    auto mask = hn::RebindMask(
-        d_in0, hn::detail::Iota0(d_in0) < Set(d_in0, static_cast<TI>(places)));
-    auto maskneg = hn::RebindMask(
-        d_in0, hn::detail::Iota0(d_in0) >=
-                   Set(d_in0, static_cast<TI>(places + UnitLanes())));
+    auto mask = hn::FirstN(d_in0, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        d_in0,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
     if (places < 0) mask = maskneg;
 
     return hn::MaskedLoad(mask, d_in0, from + idx);
@@ -253,11 +250,10 @@ struct UnrollerUnit2 {
                                     ptrdiff_t const& HWY_RESTRICT places) {
     const hn::ScalableTag<ptrdiff_t> di;
     using TI = hn::TFromD<decltype(di)>;
-    auto mask = hn::RebindMask(
-        d_in1, hn::detail::Iota0(d_in1) < Set(d_in1, static_cast<TI>(places)));
-    auto maskneg = hn::RebindMask(
-        d_in1, hn::detail::Iota0(d_in1) >=
-                   Set(d_in1, static_cast<TI>(places + UnitLanes())));
+    auto mask = hn::FirstN(d_in1, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        d_in1,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
     if (places < 0) mask = maskneg;
 
     return hn::MaskedLoad(mask, d_in1, from + idx);
@@ -289,11 +285,10 @@ struct UnrollerUnit2 {
                                  ptrdiff_t const& HWY_RESTRICT places) {
     const hn::ScalableTag<ptrdiff_t> di;
     using TI = hn::TFromD<decltype(di)>;
-    auto mask = hn::RebindMask(
-        d_out, hn::detail::Iota0(d_out) < Set(d_out, static_cast<TI>(places)));
-    auto maskneg = hn::RebindMask(
-        d_out, hn::detail::Iota0(d_out) >=
-                   Set(d_out, static_cast<TI>(places + UnitLanes())));
+    auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        d_out,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
     if (places < 0) mask = maskneg;
 
     hn::BlendedStore(x, mask, d_out, to + idx);
@@ -326,7 +321,7 @@ struct UnrollerUnit2 {
 };
 
 template <class FUNC, typename IN_T, typename OUT_T>
-inline void unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
+inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
   const auto lane_sz = f.UnitLanes();
 
@@ -403,7 +398,7 @@ inline void unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
 }
 
 template <class FUNC, typename IN0_T, typename IN1_T, typename OUT_T>
-inline void unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
+inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
                      IN1_T* HWY_RESTRICT x1, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
   const size_t lane_sz = f.UnitLanes();
