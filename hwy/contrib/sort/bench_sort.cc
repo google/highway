@@ -297,7 +297,9 @@ std::vector<Algo> AlgoForBench() {
     // Algo::kStd,
 #endif
 
-        Algo::kVQSort,  // only ~4x slower, but not required for Table 1a
+#if VQSORT_ENABLED
+        Algo::kVQSort,
+#endif
 #endif                  // !HAVE_PARALLEL_IPS4O
   };
 }
