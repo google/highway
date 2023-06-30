@@ -657,25 +657,25 @@ template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<1> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
-  return Vec128<T, N>{_mm_mask_mov_epi8(no.raw, mask.raw, yes.raw)};
+  return Vec128<T, N>{_mm_mask_blend_epi8(mask.raw, no.raw, yes.raw)};
 }
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<2> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
-  return Vec128<T, N>{_mm_mask_mov_epi16(no.raw, mask.raw, yes.raw)};
+  return Vec128<T, N>{_mm_mask_blend_epi16(mask.raw, no.raw, yes.raw)};
 }
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<4> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
-  return Vec128<T, N>{_mm_mask_mov_epi32(no.raw, mask.raw, yes.raw)};
+  return Vec128<T, N>{_mm_mask_blend_epi32(mask.raw, no.raw, yes.raw)};
 }
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> IfThenElse(hwy::SizeTag<8> /* tag */,
                                    Mask128<T, N> mask, Vec128<T, N> yes,
                                    Vec128<T, N> no) {
-  return Vec128<T, N>{_mm_mask_mov_epi64(no.raw, mask.raw, yes.raw)};
+  return Vec128<T, N>{_mm_mask_blend_epi64(mask.raw, no.raw, yes.raw)};
 }
 
 }  // namespace detail
@@ -689,14 +689,14 @@ HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,
 template <size_t N>
 HWY_API Vec128<float, N> IfThenElse(Mask128<float, N> mask,
                                     Vec128<float, N> yes, Vec128<float, N> no) {
-  return Vec128<float, N>{_mm_mask_mov_ps(no.raw, mask.raw, yes.raw)};
+  return Vec128<float, N>{_mm_mask_blend_ps(mask.raw, no.raw, yes.raw)};
 }
 
 template <size_t N>
 HWY_API Vec128<double, N> IfThenElse(Mask128<double, N> mask,
                                      Vec128<double, N> yes,
                                      Vec128<double, N> no) {
-  return Vec128<double, N>{_mm_mask_mov_pd(no.raw, mask.raw, yes.raw)};
+  return Vec128<double, N>{_mm_mask_blend_pd(mask.raw, no.raw, yes.raw)};
 }
 
 namespace detail {
