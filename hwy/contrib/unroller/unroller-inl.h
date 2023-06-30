@@ -84,8 +84,6 @@ struct UnrollerUnit {
   inline hn::Vec<IT> MaskLoadImpl(ptrdiff_t const& HWY_RESTRICT idx,
                                   IN_T* HWY_RESTRICT from,
                                   const ptrdiff_t places) {
-    const hn::ScalableTag<ptrdiff_t> di;
-    using TI = hn::TFromD<decltype(di)>;
     auto mask = hn::FirstN(d_in, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in,
@@ -119,8 +117,6 @@ struct UnrollerUnit {
                                  OUT_T* HWY_RESTRICT to,
                                  hn::Vec<OT> const& HWY_RESTRICT x,
                                  ptrdiff_t const& HWY_RESTRICT places) {
-    const hn::ScalableTag<ptrdiff_t> di;
-    using TI = hn::TFromD<decltype(di)>;
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
@@ -158,7 +154,7 @@ struct UnrollerUnit {
 };
 
 template <class DERIVED, typename IN0_T, typename IN1_T, typename OUT_T>
-struct UnrollerUnit2 {
+struct UnrollerUnit2D {
   DERIVED* me() { return static_cast<DERIVED*>(this); }
 
   static constexpr inline size_t UnitLanes() {
@@ -228,8 +224,6 @@ struct UnrollerUnit2 {
   inline hn::Vec<I0T> MaskLoad0Impl(ptrdiff_t const& HWY_RESTRICT idx,
                                     IN0_T* HWY_RESTRICT from,
                                     ptrdiff_t const& HWY_RESTRICT places) {
-    const hn::ScalableTag<ptrdiff_t> di;
-    using TI = hn::TFromD<decltype(di)>;
     auto mask = hn::FirstN(d_in0, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in0,
@@ -248,8 +242,6 @@ struct UnrollerUnit2 {
   inline hn::Vec<I1T> MaskLoad1Impl(ptrdiff_t const& HWY_RESTRICT idx,
                                     IN1_T* HWY_RESTRICT from,
                                     ptrdiff_t const& HWY_RESTRICT places) {
-    const hn::ScalableTag<ptrdiff_t> di;
-    using TI = hn::TFromD<decltype(di)>;
     auto mask = hn::FirstN(d_in1, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in1,
@@ -283,8 +275,6 @@ struct UnrollerUnit2 {
                                  OUT_T* HWY_RESTRICT to,
                                  hn::Vec<OT> const& HWY_RESTRICT x,
                                  ptrdiff_t const& HWY_RESTRICT places) {
-    const hn::ScalableTag<ptrdiff_t> di;
-    using TI = hn::TFromD<decltype(di)>;
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
@@ -323,7 +313,7 @@ struct UnrollerUnit2 {
 template <class FUNC, typename IN_T, typename OUT_T>
 inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
-  const auto lane_sz = f.UnitLanes();
+  const auto lane_sz = static_cast<ptrdiff_t>(f.UnitLanes());
 
   auto xx = f.X0Init();
   auto yy = f.YInit();
@@ -332,15 +322,15 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
 #if HWY_MEM_OPS_MIGHT_FAULT
   if (n < lane_sz) {
     // stack is maybe too small for this in RVV?
-    IN_T xtmp[lane_sz];
-    OUT_T ytmp[lane_sz];
+    IN_T xtmp[static_cast<size_t>(lane_sz)];
+    OUT_T ytmp[static_cast<size_t>(lane_sz)];
 
-    memcpy(xtmp, x, n * sizeof(IN_T));
+    memcpy(xtmp, x, static_cast<size_t>(n) * sizeof(IN_T));
     xx = f.MaskLoad(0, xtmp, n);
     yy = f.Func(0, xx, yy);
     i += f.MaskStore(0, ytmp, yy, n);
     i += f.Reduce(yy, ytmp);
-    memcpy(y, ytmp, i * sizeof(OUT_T));
+    memcpy(y, ytmp, static_cast<size_t>(i) * sizeof(OUT_T));
     return;
   }
 #endif
@@ -401,7 +391,7 @@ template <class FUNC, typename IN0_T, typename IN1_T, typename OUT_T>
 inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
                      IN1_T* HWY_RESTRICT x1, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
-  const size_t lane_sz = f.UnitLanes();
+  const auto lane_sz = static_cast<ptrdiff_t>(f.UnitLanes());
 
   auto xx00 = f.X0Init();
   auto xx10 = f.X1Init();
@@ -412,18 +402,18 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
 #if HWY_MEM_OPS_MIGHT_FAULT
   if (n < lane_sz) {
     // stack is maybe too small for this in RVV?
-    IN0_T xtmp0[lane_sz];
-    IN1_T xtmp1[lane_sz];
-    OUT_T ytmp[lane_sz];
+    IN0_T xtmp0[static_cast<size_t>(lane_sz)];
+    IN1_T xtmp1[static_cast<size_t>(lane_sz)];
+    OUT_T ytmp[static_cast<size_t>(lane_sz)];
 
-    memcpy(xtmp0, x0, n * sizeof(IN0_T));
-    memcpy(xtmp1, x1, n * sizeof(IN1_T));
+    memcpy(xtmp0, x0, static_cast<size_t>(n) * sizeof(IN0_T));
+    memcpy(xtmp1, x1, static_cast<size_t>(n) * sizeof(IN1_T));
     xx00 = f.MaskLoad0(0, xtmp0, n);
     xx10 = f.MaskLoad1(0, xtmp1, n);
     yy = f.Func(0, xx00, xx10, yy);
     i += f.MaskStore(0, ytmp, yy, n);
     i += f.Reduce(yy, ytmp);
-    memcpy(y, ytmp, i * sizeof(OUT_T));
+    memcpy(y, ytmp, static_cast<size_t>(i) * sizeof(OUT_T));
     return;
   }
 #endif

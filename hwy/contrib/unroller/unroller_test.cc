@@ -14,8 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <limits>;
-#include <iostream>;
+#include <limits>
+#include <iostream>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -63,21 +63,21 @@ T SimpleMin(const T* pa, size_t num) {
 template <typename T>
 struct accv : UnrollerUnit<accv<T>, T, T> {
   using TT = hn::ScalableTag<T>;
-  inline hn::Vec<TT> Func(ptrdiff_t const& HWY_RESTRICT idx,
+  inline hn::Vec<TT> Func(ptrdiff_t const& HWY_RESTRICT ,
                           hn::Vec<TT> const& HWY_RESTRICT x,
                           hn::Vec<TT> const& HWY_RESTRICT y) const {
     return x + y;
   }
 
-  inline ptrdiff_t StoreImpl(ptrdiff_t const& HWY_RESTRICT idx,
-                             T* HWY_RESTRICT to, const hn::Vec<TT> x) const {
+  inline ptrdiff_t StoreImpl(ptrdiff_t const& HWY_RESTRICT ,
+                             T* HWY_RESTRICT , const hn::Vec<TT> ) const {
     // no stores in a reducer
     return 0;
   }
 
-  inline ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* HWY_RESTRICT to,
-                                 hn::Vec<TT> const& HWY_RESTRICT x,
-                                 ptrdiff_t const& HWY_RESTRICT places) const {
+  inline ptrdiff_t MaskStoreImpl(const ptrdiff_t , T* HWY_RESTRICT ,
+                                 hn::Vec<TT> const& HWY_RESTRICT ,
+                                 ptrdiff_t const& HWY_RESTRICT ) const {
     // no stores in a reducer
     return 0;
   }
@@ -102,7 +102,7 @@ struct minv : UnrollerUnit<minv<T>, T, T> {
   using TT = hn::ScalableTag<T>;
   TT d;
 
-  inline hn::Vec<TT> Func(ptrdiff_t const& HWY_RESTRICT idx,
+  inline hn::Vec<TT> Func(ptrdiff_t const& HWY_RESTRICT ,
                           hn::Vec<TT> const& HWY_RESTRICT x,
                           hn::Vec<TT> const& HWY_RESTRICT y) const {
     return hn::Min(y, x);
@@ -115,8 +115,6 @@ struct minv : UnrollerUnit<minv<T>, T, T> {
   inline hn::Vec<TT> MaskLoadImpl(ptrdiff_t const& HWY_RESTRICT idx,
                                   T* HWY_RESTRICT from,
                                   ptrdiff_t const& HWY_RESTRICT places) const {
-    const hn::ScalableTag<ptrdiff_t> di;
-    using TI = hn::TFromD<decltype(di)>;
     auto mask = hn::FirstN(d, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d, static_cast<size_t>(places +
@@ -128,17 +126,17 @@ struct minv : UnrollerUnit<minv<T>, T, T> {
     return hn::MaskedLoadOr(def, mask, d, from + idx);
   }
 
-  inline ptrdiff_t StoreImpl(ptrdiff_t const& HWY_RESTRICT idx,
-                             T* HWY_RESTRICT to,
-                             hn::Vec<TT> const& HWY_RESTRICT x) const {
+  inline ptrdiff_t StoreImpl(ptrdiff_t const& HWY_RESTRICT ,
+                             T* HWY_RESTRICT ,
+                             hn::Vec<TT> const& HWY_RESTRICT ) const {
     // no stores in a reducer
     return 0;
   }
 
-  inline ptrdiff_t MaskStoreImpl(ptrdiff_t const& HWY_RESTRICT idx,
-                                 T* HWY_RESTRICT to,
-                                 hn::Vec<TT> const& HWY_RESTRICT x,
-                                 ptrdiff_t const& HWY_RESTRICT places) const {
+  inline ptrdiff_t MaskStoreImpl(ptrdiff_t const& HWY_RESTRICT ,
+                                 T* HWY_RESTRICT ,
+                                 hn::Vec<TT> const& HWY_RESTRICT ,
+                                 ptrdiff_t const& HWY_RESTRICT ) const {
     // no stores in a reducer
     return 0;
   }
@@ -162,27 +160,27 @@ struct minv : UnrollerUnit<minv<T>, T, T> {
 };
 
 template <typename T>
-struct dotv : UnrollerUnit2<dotv<T>, T, T, T> {
+struct dotv : UnrollerUnit2D<dotv<T>, T, T, T> {
   using TT = hn::ScalableTag<T>;
 
-  inline hn::Vec<TT> Func(ptrdiff_t const& HWY_RESTRICT idx,
+  inline hn::Vec<TT> Func(ptrdiff_t const& HWY_RESTRICT ,
                           hn::Vec<TT> const& HWY_RESTRICT x0,
                           hn::Vec<TT> const& HWY_RESTRICT x1,
                           hn::Vec<TT> const& HWY_RESTRICT y) const {
     return hn::MulAdd(x0, x1, y);
   }
 
-  inline ptrdiff_t StoreImpl(ptrdiff_t const& HWY_RESTRICT idx,
-                             T* HWY_RESTRICT to,
-                             hn::Vec<TT> const& HWY_RESTRICT x) const {
+  inline ptrdiff_t StoreImpl(ptrdiff_t const& HWY_RESTRICT ,
+                             T* HWY_RESTRICT ,
+                             hn::Vec<TT> const& HWY_RESTRICT ) const {
     // no stores in a reducer
     return 0;
   }
 
-  inline ptrdiff_t MaskStoreImpl(ptrdiff_t const& HWY_RESTRICT idx,
-                                 T* HWY_RESTRICT to,
-                                 hn::Vec<TT> const& HWY_RESTRICT x,
-                                 ptrdiff_t const& HWY_RESTRICT places) const {
+  inline ptrdiff_t MaskStoreImpl(ptrdiff_t const& HWY_RESTRICT ,
+                                 T* HWY_RESTRICT ,
+                                 hn::Vec<TT> const& HWY_RESTRICT ,
+                                 ptrdiff_t const& HWY_RESTRICT ) const {
     // no stores in a reducer
     return 0;
   }
@@ -204,9 +202,6 @@ struct dotv : UnrollerUnit2<dotv<T>, T, T, T> {
 template <typename T>
 void SetValue(const float value, T* HWY_RESTRICT ptr) {
   *ptr = static_cast<T>(value);
-}
-void SetValue(const float value, bfloat16_t* HWY_RESTRICT ptr) {
-  *ptr = BF16FromF32(value);
 }
 
 class TestUnroller {
