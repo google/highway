@@ -14,7 +14,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <limits>
 #include <iostream>
 
 // clang-format off
@@ -25,8 +24,6 @@
 #include "hwy/contrib/unroller/unroller-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
-
-#define UNUSED(x) (void)(x)
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -103,7 +100,7 @@ struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
                          hn::Vec<TT> const& x1,
                          hn::Vec<TT> const& x2,
                          hn::Vec<TT>& y) {
-    y = y + x0 + x1 + x2;
+    y = hn::Add(hn::Add(y, x0), hn::Add(x1, x2));
   }
 };
 
@@ -120,7 +117,7 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   }
 
   inline hn::Vec<TT> YInitImpl() {
-    return hn::Set(d, std::numeric_limits<T>::max());
+    return hn::Set(d, HighestValue<T>());
   }
 
   inline hn::Vec<TT> MaskLoadImpl(const ptrdiff_t idx,
@@ -221,7 +218,7 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
                          hn::Vec<TT> const& x1,
                          hn::Vec<TT> const& x2,
                          hn::Vec<TT>& y) const {
-    y = y + x0 + x1 + x2;
+    y = hn::Add(hn::Add(y, x0), hn::Add(x1, x2));
   }
 };
 
@@ -278,7 +275,8 @@ class TestUnroller {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
     const size_t N = Lanes(d);
-    const size_t counts[] = {1,
+    const size_t counts[] = {
+                             1,
                              3,
                              7,
                              16,
@@ -290,7 +288,8 @@ class TestUnroller {
                              3 * N,
                              8 * N,
                              8 * N + 2,
-                             256 * N - 1};
+                             256 * N - 1, 
+                             256 * N };
     for(auto count : counts)
         Test(d, count, rng);
   }
