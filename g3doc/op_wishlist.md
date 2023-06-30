@@ -9,6 +9,15 @@ freshness: { owner: 'janwas' reviewed: '2023-04-21' }
 
 ## Wishlist
 
+### MaskedGather, MaskedScatter
+
+MaskedGather returns zero for mask=false. MaskedScatter does not access the
+mask-false lanes, but may instead write a safe location (i.e. different index).
+
+### SME/x86 AMX
+
+Wrapper for 2D outer product.
+
 ### Clear lowest mask bit
 
 ### Remaining math functions for hwy/contrib/math
@@ -32,6 +41,11 @@ nexttoward, pow, scalbn, tan, tgamma
 
 Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
 
+### Iguana (fast LZ + ANS)
+
+Port https://github.com/SnellerInc/sneller/tree/master/ion/zion/iguana
+(Go+assembly) to Highway.
+
 ### float64 support for WASM
 
 ### AfterN
@@ -41,10 +55,6 @@ Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
 ### 52x52=104-bit multiply
 
 For crypto. Native on Icelake+.
-
-### Slide1Up/Down
-
-Potentially useful for comparing neighbors e.g. for RLE.
 
 ### RVV codegen
 
@@ -166,3 +176,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Vec2, Create/Get functions~~
 *   ~~`PromoteTo` for all types (#915)~~ - by johnplatts in #1387
 *   ~~atan2~~
+*   ~~Slide1Up/Down~~ - by johnplatts in #1496
