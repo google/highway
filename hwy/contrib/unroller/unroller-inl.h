@@ -116,7 +116,7 @@ struct UnrollerUnit {
   ptrdiff_t MaskStoreImpl(const ptrdiff_t idx,
                                  OUT_T* HWY_RESTRICT to,
                                  hn::Vec<OT> const& x,
-                                 ptrdiff_t const places) {
+                                 const ptrdiff_t places) {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
@@ -470,10 +470,10 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
   }
 
   if (i != n) {
-    xx00 = f.MaskLoad0(i, x0, i - n);
-    xx10 = f.MaskLoad1(i, x1, i - n);
-    yy = f.Func(i, xx00, xx10, yy);
-    f.MaskStore(i, y, yy, i - n);
+    xx00 = f.MaskLoad0(n - lane_sz, x0, i - n);
+    xx10 = f.MaskLoad1(n - lane_sz, x1, i - n);
+    yy = f.Func(n - lane_sz, xx00, xx10, yy);
+    f.MaskStore(n - lane_sz, y, yy, i - n);
   }
 
   f.Reduce(yy, y);
