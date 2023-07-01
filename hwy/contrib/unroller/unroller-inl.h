@@ -46,9 +46,8 @@ struct UnrollerUnit {
   IT d_in;
   OT d_out;
 
-  hn::Vec<OT> Func(const ptrdiff_t idx,
-                          hn::Vec<IT> const& x,
-                          hn::Vec<OT> const& y) {
+  hn::Vec<OT> Func(const ptrdiff_t idx, const hn::Vec<IT> x,
+                   const hn::Vec<OT> y) {
     return me()->Func(idx, x, y);
   }
 
@@ -60,13 +59,11 @@ struct UnrollerUnit {
 
   hn::Vec<OT> YInitImpl() { return hn::Zero(d_out); }
 
-  hn::Vec<IT> Load(const ptrdiff_t idx,
-                          IN_T* HWY_RESTRICT from) {
+  hn::Vec<IT> Load(const ptrdiff_t idx, IN_T* from) {
     return me()->LoadImpl(idx, from);
   }
 
-  hn::Vec<IT> LoadImpl(const ptrdiff_t idx,
-                              IN_T* HWY_RESTRICT from) {
+  hn::Vec<IT> LoadImpl(const ptrdiff_t idx, IN_T* from) {
     return hn::LoadU(d_in, from + idx);
   }
 
@@ -76,14 +73,13 @@ struct UnrollerUnit {
   //      | o | o | o | x | x | x | x | x |
   // example places = -3
   //      | x | x | x | x | x | o | o | o |
-  hn::Vec<IT> MaskLoad(const ptrdiff_t idx,
-                              IN_T* HWY_RESTRICT from, const ptrdiff_t places) {
+  hn::Vec<IT> MaskLoad(const ptrdiff_t idx, IN_T* from,
+                       const ptrdiff_t places) {
     return me()->MaskLoadImpl(idx, from, places);
   }
 
-  hn::Vec<IT> MaskLoadImpl(const ptrdiff_t idx,
-                                  IN_T* HWY_RESTRICT from,
-                                  const ptrdiff_t places) {
+  hn::Vec<IT> MaskLoadImpl(const ptrdiff_t idx, IN_T* from,
+                           const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in,
@@ -93,30 +89,22 @@ struct UnrollerUnit {
     return hn::MaskedLoad(mask, d_in, from + idx);
   }
 
-  ptrdiff_t Store(const ptrdiff_t idx,
-                         OUT_T* HWY_RESTRICT to,
-                         hn::Vec<OT> const& x) {
+  ptrdiff_t Store(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
     return me()->StoreImpl(idx, to, x);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx,
-                             OUT_T* HWY_RESTRICT to,
-                             hn::Vec<OT> const& x) {
+  ptrdiff_t StoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
     hn::StoreU(x, d_out, to + idx);
     return UnitLanes();
   }
 
-  ptrdiff_t MaskStore(const ptrdiff_t idx,
-                             OUT_T* HWY_RESTRICT to,
-                             hn::Vec<OT> const& x,
-                             ptrdiff_t const places) {
+  ptrdiff_t MaskStore(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+                      ptrdiff_t const places) {
     return me()->MaskStoreImpl(idx, to, x, places);
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx,
-                                 OUT_T* HWY_RESTRICT to,
-                                 hn::Vec<OT> const& x,
-                                 const ptrdiff_t places) {
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+                          const ptrdiff_t places) {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
@@ -127,29 +115,29 @@ struct UnrollerUnit {
     return std::abs(places);
   }
 
-  ptrdiff_t Reduce(hn::Vec<OT> const& x,
-                          OUT_T* HWY_RESTRICT to) {
+  ptrdiff_t Reduce(const hn::Vec<OT> x, OUT_T* to) {
     return me()->ReduceImpl(x, to);
   }
 
-  ptrdiff_t ReduceImpl(hn::Vec<OT> const& x,
-                              OUT_T* HWY_RESTRICT to) {
+  ptrdiff_t ReduceImpl(const hn::Vec<OT> x, OUT_T* to) {
     // default does nothing
+    (void)x;
+    (void)to;
     return 0;
   }
 
-  void Reduce(hn::Vec<OT> const& x0,
-                     hn::Vec<OT> const& x1,
-                     hn::Vec<OT> const& x2,
-                     hn::Vec<OT>& y) {
+  void Reduce(const hn::Vec<OT> x0, const hn::Vec<OT> x1, const hn::Vec<OT> x2,
+              hn::Vec<OT>& y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
-  void ReduceImpl(hn::Vec<OT> const& x0,
-                         hn::Vec<OT> const& x1,
-                         hn::Vec<OT> const& x2,
-                         hn::Vec<OT>& y) {
+  void ReduceImpl(const hn::Vec<OT> x0, const hn::Vec<OT> x1,
+                  const hn::Vec<OT> x2, hn::Vec<OT>& y) {
     // default does nothing
+    (void)x0;
+    (void)x1;
+    (void)x2;
+    (void)y;
   }
 };
 
@@ -170,10 +158,8 @@ struct UnrollerUnit2D {
   I1T d_in1;
   OT d_out;
 
-  hn::Vec<OT> Func(const ptrdiff_t idx,
-                          hn::Vec<I0T> x0,
-                          hn::Vec<I1T> x1,
-                          hn::Vec<OT> y) {
+  hn::Vec<OT> Func(const ptrdiff_t idx, const hn::Vec<I0T> x0,
+                   const hn::Vec<I1T> x1, const hn::Vec<OT> y) {
     return me()->Func(idx, x0, x1, y);
   }
 
@@ -189,23 +175,19 @@ struct UnrollerUnit2D {
 
   hn::Vec<OT> YInitImpl() { return hn::Zero(d_out); }
 
-  hn::Vec<I0T> Load0(const ptrdiff_t idx,
-                            IN0_T* HWY_RESTRICT from) {
+  hn::Vec<I0T> Load0(const ptrdiff_t idx, IN0_T* from) {
     return me()->Load0Impl(idx, from);
   }
 
-  hn::Vec<I0T> Load0Impl(const ptrdiff_t idx,
-                                IN0_T* HWY_RESTRICT from) {
+  hn::Vec<I0T> Load0Impl(const ptrdiff_t idx, IN0_T* from) {
     return hn::LoadU(d_in0, from + idx);
   }
 
-  hn::Vec<I1T> Load1(const ptrdiff_t idx,
-                            IN1_T* HWY_RESTRICT from) {
+  hn::Vec<I1T> Load1(const ptrdiff_t idx, IN1_T* from) {
     return me()->Load1Impl(idx, from);
   }
 
-  hn::Vec<I1T> Load1Impl(const ptrdiff_t idx,
-                                IN1_T* HWY_RESTRICT from) {
+  hn::Vec<I1T> Load1Impl(const ptrdiff_t idx, IN1_T* from) {
     return hn::LoadU(d_in1, from + idx);
   }
 
@@ -215,15 +197,13 @@ struct UnrollerUnit2D {
   //      | o | o | o | x | x | x | x | x |
   // example places = -3
   //      | x | x | x | x | x | o | o | o |
-  hn::Vec<I0T> MaskLoad0(const ptrdiff_t idx,
-                                IN0_T* HWY_RESTRICT from,
-                                const ptrdiff_t places) {
+  hn::Vec<I0T> MaskLoad0(const ptrdiff_t idx, IN0_T* from,
+                         const ptrdiff_t places) {
     return me()->MaskLoad0Impl(idx, from, places);
   }
 
-  hn::Vec<I0T> MaskLoad0Impl(const ptrdiff_t idx,
-                                    IN0_T* HWY_RESTRICT from,
-                                    const ptrdiff_t places) {
+  hn::Vec<I0T> MaskLoad0Impl(const ptrdiff_t idx, IN0_T* from,
+                             const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in0, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in0,
@@ -233,15 +213,13 @@ struct UnrollerUnit2D {
     return hn::MaskedLoad(mask, d_in0, from + idx);
   }
 
-  hn::Vec<I1T> MaskLoad1(const ptrdiff_t idx,
-                                IN1_T* HWY_RESTRICT from,
-                                const ptrdiff_t places) {
+  hn::Vec<I1T> MaskLoad1(const ptrdiff_t idx, IN1_T* from,
+                         const ptrdiff_t places) {
     return me()->MaskLoad1Impl(idx, from, places);
   }
 
-  hn::Vec<I1T> MaskLoad1Impl(const ptrdiff_t idx,
-                                    IN1_T* HWY_RESTRICT from,
-                                    const ptrdiff_t places) {
+  hn::Vec<I1T> MaskLoad1Impl(const ptrdiff_t idx, IN1_T* from,
+                             const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in1, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in1,
@@ -251,30 +229,22 @@ struct UnrollerUnit2D {
     return hn::MaskedLoad(mask, d_in1, from + idx);
   }
 
-  ptrdiff_t Store(const ptrdiff_t idx,
-                         OUT_T* HWY_RESTRICT to,
-                         hn::Vec<OT> const& x) {
+  ptrdiff_t Store(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
     return me()->StoreImpl(idx, to, x);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx,
-                             OUT_T* HWY_RESTRICT to,
-                             hn::Vec<OT> const& x) {
+  ptrdiff_t StoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
     hn::StoreU(x, d_out, to + idx);
-    return d_out.MaxLanes();
+    return UnitLanes();
   }
 
-  ptrdiff_t MaskStore(const ptrdiff_t idx,
-                             OUT_T* HWY_RESTRICT to,
-                             hn::Vec<OT> const& x,
-                             const ptrdiff_t places) {
+  ptrdiff_t MaskStore(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+                      const ptrdiff_t places) {
     return me()->MaskStoreImpl(idx, to, x, places);
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx,
-                                 OUT_T* HWY_RESTRICT to,
-                                 hn::Vec<OT> const& x,
-                                 const ptrdiff_t places) {
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+                          const ptrdiff_t places) {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
@@ -285,28 +255,29 @@ struct UnrollerUnit2D {
     return std::abs(places);
   }
 
-  ptrdiff_t Reduce(hn::Vec<OT> x,
-                          OUT_T* HWY_RESTRICT to) {
+  ptrdiff_t Reduce(const hn::Vec<OT> x, OUT_T* to) {
     return me()->ReduceImpl(x, to);
   }
 
-  ptrdiff_t ReduceImpl(hn::Vec<OT> const& x, OUT_T* to) {
+  ptrdiff_t ReduceImpl(const hn::Vec<OT> x, OUT_T* to) {
     // default does nothing
+    (void)x;
+    (void)to;
     return 0;
   }
 
-  void Reduce(hn::Vec<OT> const& x0,
-                     hn::Vec<OT> const& x1,
-                     hn::Vec<OT> const& x2,
-                     hn::Vec<OT>& y) {
+  void Reduce(const hn::Vec<OT> x0, const hn::Vec<OT> x1, const hn::Vec<OT> x2,
+              hn::Vec<OT>& y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
-  void ReduceImpl(hn::Vec<OT> const& x0,
-                         hn::Vec<OT> const& x1,
-                         hn::Vec<OT> const& x2,
-                         hn::Vec<OT>& y) {
+  void ReduceImpl(const hn::Vec<OT> x0, const hn::Vec<OT> x1,
+                  const hn::Vec<OT> x2, hn::Vec<OT>& y) {
     // default does nothing
+    (void)x0;
+    (void)x1;
+    (void)x2;
+    (void)y;
   }
 };
 
@@ -321,7 +292,8 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
 
 #if HWY_MEM_OPS_MIGHT_FAULT
   if (n < lane_sz) {
-    // this may not fit on the stack for HWY_RVV, but we do not reach this code there
+    // this may not fit on the stack for HWY_RVV, but we do not reach this code
+    // there
     IN_T xtmp[static_cast<size_t>(lane_sz)];
     OUT_T ytmp[static_cast<size_t>(lane_sz)];
 
@@ -401,7 +373,8 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
 
 #if HWY_MEM_OPS_MIGHT_FAULT
   if (n < lane_sz) {
-    // this may not fit on the stack for HWY_RVV, but we do not reach this code there
+    // this may not fit on the stack for HWY_RVV, but we do not reach this code
+    // there
     IN0_T xtmp0[static_cast<size_t>(lane_sz)];
     IN1_T xtmp1[static_cast<size_t>(lane_sz)];
     OUT_T ytmp[static_cast<size_t>(lane_sz)];
