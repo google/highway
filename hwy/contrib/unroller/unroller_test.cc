@@ -101,8 +101,8 @@ struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
   }
 
   inline void ReduceImpl(const hn::Vec<TT> x0, const hn::Vec<TT> x1,
-                         const hn::Vec<TT> x2, hn::Vec<TT>& y) {
-    y = hn::Add(hn::Add(y, x0), hn::Add(x1, x2));
+                         const hn::Vec<TT> x2, hn::Vec<TT>* y) {
+    (*y) = hn::Add(hn::Add(*y, x0), hn::Add(x1, x2));
   }
 };
 
@@ -158,10 +158,10 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   }
 
   inline void ReduceImpl(const hn::Vec<TT> x0, const hn::Vec<TT> x1,
-                         const hn::Vec<TT> x2, hn::Vec<TT>& y) {
+                         const hn::Vec<TT> x2, hn::Vec<TT>* y) {
     auto a = hn::Min(x1, x0);
-    auto b = hn::Min(y, x2);
-    y = hn::Min(a, b);
+    auto b = hn::Min(*y, x2);
+    (*y) = hn::Min(a, b);
   }
 };
 
@@ -200,8 +200,8 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
   }
 
   inline void ReduceImpl(const hn::Vec<TT> x0, const hn::Vec<TT> x1,
-                         const hn::Vec<TT> x2, hn::Vec<TT>& y) {
-    y = hn::Add(hn::Add(y, x0), hn::Add(x1, x2));
+                         const hn::Vec<TT> x2, hn::Vec<TT>* y) {
+    (*y) = hn::Add(hn::Add(*y, x0), hn::Add(x1, x2));
   }
 };
 

@@ -127,12 +127,12 @@ struct UnrollerUnit {
   }
 
   void Reduce(const hn::Vec<OT> x0, const hn::Vec<OT> x1, const hn::Vec<OT> x2,
-              hn::Vec<OT>& y) {
+              hn::Vec<OT>* y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
   void ReduceImpl(const hn::Vec<OT> x0, const hn::Vec<OT> x1,
-                  const hn::Vec<OT> x2, hn::Vec<OT>& y) {
+                  const hn::Vec<OT> x2, hn::Vec<OT>* y) {
     // default does nothing
     (void)x0;
     (void)x1;
@@ -267,12 +267,12 @@ struct UnrollerUnit2D {
   }
 
   void Reduce(const hn::Vec<OT> x0, const hn::Vec<OT> x1, const hn::Vec<OT> x2,
-              hn::Vec<OT>& y) {
+              hn::Vec<OT>* y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
   void ReduceImpl(const hn::Vec<OT> x0, const hn::Vec<OT> x1,
-                  const hn::Vec<OT> x2, hn::Vec<OT>& y) {
+                  const hn::Vec<OT> x2, hn::Vec<OT>* y) {
     // default does nothing
     (void)x0;
     (void)x1;
@@ -340,7 +340,7 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
       i += lane_sz;
     }
 
-    f.Reduce(yy3, yy2, yy1, yy);
+    f.Reduce(yy3, yy2, yy1, &yy);
   }
 
   while (i + lane_sz - 1 < n) {
@@ -431,7 +431,7 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
       i += lane_sz;
     }
 
-    f.Reduce(yy3, yy2, yy1, yy);
+    f.Reduce(yy3, yy2, yy1, &yy);
   }
 
   while (i + lane_sz - 1 < n) {
