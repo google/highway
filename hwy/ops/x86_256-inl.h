@@ -514,22 +514,22 @@ namespace detail {
 template <typename T>
 HWY_INLINE Vec256<T> IfThenElse(hwy::SizeTag<1> /* tag */, Mask256<T> mask,
                                 Vec256<T> yes, Vec256<T> no) {
-  return Vec256<T>{_mm256_mask_mov_epi8(no.raw, mask.raw, yes.raw)};
+  return Vec256<T>{_mm256_mask_blend_epi8(mask.raw, no.raw, yes.raw)};
 }
 template <typename T>
 HWY_INLINE Vec256<T> IfThenElse(hwy::SizeTag<2> /* tag */, Mask256<T> mask,
                                 Vec256<T> yes, Vec256<T> no) {
-  return Vec256<T>{_mm256_mask_mov_epi16(no.raw, mask.raw, yes.raw)};
+  return Vec256<T>{_mm256_mask_blend_epi16(mask.raw, no.raw, yes.raw)};
 }
 template <typename T>
 HWY_INLINE Vec256<T> IfThenElse(hwy::SizeTag<4> /* tag */, Mask256<T> mask,
                                 Vec256<T> yes, Vec256<T> no) {
-  return Vec256<T>{_mm256_mask_mov_epi32(no.raw, mask.raw, yes.raw)};
+  return Vec256<T>{_mm256_mask_blend_epi32(mask.raw, no.raw, yes.raw)};
 }
 template <typename T>
 HWY_INLINE Vec256<T> IfThenElse(hwy::SizeTag<8> /* tag */, Mask256<T> mask,
                                 Vec256<T> yes, Vec256<T> no) {
-  return Vec256<T>{_mm256_mask_mov_epi64(no.raw, mask.raw, yes.raw)};
+  return Vec256<T>{_mm256_mask_blend_epi64(mask.raw, no.raw, yes.raw)};
 }
 
 }  // namespace detail
@@ -540,11 +540,11 @@ HWY_API Vec256<T> IfThenElse(Mask256<T> mask, Vec256<T> yes, Vec256<T> no) {
 }
 HWY_API Vec256<float> IfThenElse(Mask256<float> mask, Vec256<float> yes,
                                  Vec256<float> no) {
-  return Vec256<float>{_mm256_mask_mov_ps(no.raw, mask.raw, yes.raw)};
+  return Vec256<float>{_mm256_mask_blend_ps(mask.raw, no.raw, yes.raw)};
 }
 HWY_API Vec256<double> IfThenElse(Mask256<double> mask, Vec256<double> yes,
                                   Vec256<double> no) {
-  return Vec256<double>{_mm256_mask_mov_pd(no.raw, mask.raw, yes.raw)};
+  return Vec256<double>{_mm256_mask_blend_pd(mask.raw, no.raw, yes.raw)};
 }
 
 namespace detail {

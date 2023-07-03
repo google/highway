@@ -676,25 +676,27 @@ template <typename T>
 HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<1> /* tag */,
                                 const Mask512<T> mask, const Vec512<T> yes,
                                 const Vec512<T> no) {
-  return Vec512<T>{_mm512_mask_mov_epi8(no.raw, mask.raw, yes.raw)};
+  return Vec512<T>{_mm512_mask_blend_epi8(mask.raw, no.raw, yes.raw)};
 }
 template <typename T>
 HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<2> /* tag */,
                                 const Mask512<T> mask, const Vec512<T> yes,
                                 const Vec512<T> no) {
-  return Vec512<T>{_mm512_mask_mov_epi16(no.raw, mask.raw, yes.raw)};
+  return Vec512<T>{_mm512_mask_blend_epi16(mask.raw, no.raw, yes.raw)};
 }
 template <typename T>
 HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<4> /* tag */,
                                 const Mask512<T> mask, const Vec512<T> yes,
                                 const Vec512<T> no) {
-  return Vec512<T>{_mm512_mask_mov_epi32(no.raw, mask.raw, yes.raw)};
+  return Vec512<T>{_mm512_mask_blend_epi32(mask.raw, no.raw, yes.raw)};
+
 }
 template <typename T>
 HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<8> /* tag */,
                                 const Mask512<T> mask, const Vec512<T> yes,
                                 const Vec512<T> no) {
-  return Vec512<T>{_mm512_mask_mov_epi64(no.raw, mask.raw, yes.raw)};
+  return Vec512<T>{_mm512_mask_blend_epi64(mask.raw, no.raw, yes.raw)};
+
 }
 
 }  // namespace detail
@@ -707,12 +709,12 @@ HWY_API Vec512<T> IfThenElse(const Mask512<T> mask, const Vec512<T> yes,
 HWY_API Vec512<float> IfThenElse(const Mask512<float> mask,
                                  const Vec512<float> yes,
                                  const Vec512<float> no) {
-  return Vec512<float>{_mm512_mask_mov_ps(no.raw, mask.raw, yes.raw)};
+  return Vec512<float>{_mm512_mask_blend_ps(mask.raw, no.raw, yes.raw)};
 }
 HWY_API Vec512<double> IfThenElse(const Mask512<double> mask,
                                   const Vec512<double> yes,
                                   const Vec512<double> no) {
-  return Vec512<double>{_mm512_mask_mov_pd(no.raw, mask.raw, yes.raw)};
+  return Vec512<double>{_mm512_mask_blend_pd(mask.raw, no.raw, yes.raw)};
 }
 
 namespace detail {
