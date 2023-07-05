@@ -19,9 +19,11 @@
 #include "hwy/contrib/sort/vqsort-inl.h"
 #include "hwy/per_target.h"
 
-// Check if we have sys/random.h. First skip some systems on which the check
-// itself (features.h) might be problematic.
-#if defined(ANDROID) || defined(__ANDROID__) || HWY_ARCH_RVV
+// Check if we have getrandom from <sys/random.h>. Because <features.h> is
+// unavailable on Android and non-Linux RVV, we assume that those systems lack
+// getrandom. Note that the only supported sources of entropy are getrandom or
+// Windows, thus VQSORT_SECURE_SEED=0 when this is 0 and we are not on Windows.
+#if defined(ANDROID) || defined(__ANDROID__) || (HWY_ARCH_RVV && !HWY_OS_LINUX)
 #define VQSORT_GETRANDOM 0
 #endif
 
