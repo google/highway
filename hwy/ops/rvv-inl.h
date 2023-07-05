@@ -901,6 +901,10 @@ HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, SaturatedSub, ssubu, _ALL)
 HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub, _ALL)
 
 // ------------------------------ AverageRound
+// Assume that GCC-13 default to legacy vxrm arguments. Tested with GCC 13.1.0
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400
+#define HWY_RVV_AVOID_VXRM
+#endif
 
 // Adding __RISCV_VXRM_* was a backwards-incompatible change and it is not clear
 // how to detect whether it is supported or required. #ifdef __RISCV_VXRM_RDN
