@@ -95,6 +95,8 @@ bool Fill16BytesSecure(void* bytes) {
     CryptReleaseContext(hProvider, 0);
     if (ok) return true;
   }
+#else
+  (void)bytes;
 #endif
 
   return false;
