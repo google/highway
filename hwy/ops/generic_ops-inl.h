@@ -105,14 +105,11 @@ HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
     hwy::SizeTag<kFromVectSize> /* from_size_tag */,
     hwy::SizeTag<kToVectSize> /* to_size_tag */, DTo d_to, DFrom d_from,
     VFromD<DFrom> v) {
-  using TFrom = TFromD<DFrom>;
-  using TTo = TFromD<DTo>;
-  using TResize = UnsignedFromSize<HWY_MIN(sizeof(TFrom), sizeof(TTo))>;
-
-  const Repartition<TResize, decltype(d_from)> d_resize_from;
-  const Repartition<TResize, decltype(d_to)> d_resize_to;
-  return BitCast(d_to, IfThenElseZero(FirstN(d_resize_to, Lanes(d_resize_from)),
-                                      ResizeBitCast(d_resize_to, v)));
+  const Repartition<uint8_t, DTo> d_to_u8;
+  const auto resized = ResizeBitCast(d_to_u8, v);
+  // Zero the upper bytes which were not present/valid in d_from.
+  const size_t num_bytes = Lanes(Repartition<uint8_t, decltype(d_from)>());
+  return BitCast(d_to, IfThenElseZero(FirstN(d_to_u8, num_bytes), resized));
 }
 #else   // target that uses fixed-size vectors
 // Truncating or same-size resizing cast: same as ResizeBitCast

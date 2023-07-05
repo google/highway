@@ -290,6 +290,8 @@ class TestTruncatingResizeBitCast {
  private:
   template <class DTo, class DFrom>
   static HWY_INLINE void DoTruncResizeBitCastTest(DTo d_to, DFrom d_from) {
+    if (Lanes(d_to) == 0) return;
+
     const VFromD<DFrom> v = Iota(d_from, 1);
     const VFromD<DTo> expected = Iota(d_to, 1);
 
@@ -314,31 +316,9 @@ class TestTruncatingResizeBitCast {
     HWY_ASSERT_VEC_EQ(dh, expected_full_to_half,
                       ZeroExtendResizeBitCast(dh, d, v_full));
 
+    const Half<decltype(dh)> d_quarter;
+    const Half<decltype(d_quarter)> d_eighth;
     constexpr size_t kMaxLanes = MaxLanes(d);
-#if HWY_TARGET == HWY_RVV
-    constexpr int kFromVectPow2 = DFromV<VFromD<D>>().Pow2();
-    static_assert(kFromVectPow2 >= -3 && kFromVectPow2 <= 3,
-                  "kFromVectPow2 must be between -3 and 3");
-
-    constexpr size_t kScaledMaxLanes =
-        HWY_MAX((kMaxLanes << 3) >> (kFromVectPow2 + 3), 1);
-    constexpr int kMinPow2 = -3 + static_cast<int>(FloorLog2(sizeof(T)));
-    static_assert(kMinPow2 >= -3 && kMinPow2 <= 0,
-                  "kMinPow2 must be between -3 and 0");
-
-    constexpr size_t kQuarterScaledMaxLanes = kScaledMaxLanes;
-    constexpr size_t kEighthScaledMaxLanes = kScaledMaxLanes;
-    constexpr int kQuarterPow2 = HWY_MAX(kFromVectPow2 - 2, kMinPow2);
-    constexpr int kEighthPow2 = HWY_MAX(kFromVectPow2 - 3, kMinPow2);
-#else
-    constexpr size_t kQuarterScaledMaxLanes = HWY_MAX(kMaxLanes / 4, 1);
-    constexpr size_t kEighthScaledMaxLanes = HWY_MAX(kMaxLanes / 8, 1);
-    constexpr int kQuarterPow2 = 0;
-    constexpr int kEighthPow2 = 0;
-#endif
-
-    const CappedTag<T, kQuarterScaledMaxLanes, kQuarterPow2> d_quarter;
-    const CappedTag<T, kEighthScaledMaxLanes, kEighthPow2> d_eighth;
     if (MaxLanes(d_quarter) == kMaxLanes / 4) {
       DoTruncResizeBitCastTest(d_quarter, d);
       if (MaxLanes(d_eighth) == kMaxLanes / 8) {
