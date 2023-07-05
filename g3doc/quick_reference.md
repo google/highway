@@ -442,7 +442,7 @@ time-critical code:
 As a partial workaround to the "no vectors as class members" compiler limitation
 mentioned in "Using unspecified vector types", we provide special types able to
 carry 2, 3 or 4 vectors, denoted `Tuple{2-4}` below. Their type is unspecified,
-potentially built-in, so use the aliases `Vec{2-4}&lt;D&gt;`. These can (only)
+potentially built-in, so use the aliases `Vec{2-4}<D>`. These can (only)
 be passed as arguments or returned from functions, and created/accessed using
 the functions in this section.
 
