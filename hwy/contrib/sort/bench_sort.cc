@@ -91,7 +91,7 @@ HWY_NOINLINE void BenchAllColdSort() {
 
   using T = uint64_t;
   constexpr size_t kSize = 10 * 1000;
-  alignas(64) T items[kSize];
+  HWY_ALIGN T items[kSize];
 
   // Initialize array
 #if 0  // optional: deliberate AVX-512 to verify VQSort performance improves
