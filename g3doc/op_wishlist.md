@@ -9,10 +9,19 @@ freshness: { owner: 'janwas' reviewed: '2023-04-21' }
 
 ## Wishlist
 
+### AVX3_SPR target
+
 ### MaskedGather, MaskedScatter
 
 MaskedGather returns zero for mask=false. MaskedScatter does not access the
 mask-false lanes, but may instead write a safe location (i.e. different index).
+
+### numpy
+
+Loadn/LoadnPair: mostly Gather*, with some specializations for smaller strides.
+In particular for 2x64-bit, which use 128-bit loads plus Combine.
+
+Lookup128 for 32x 32-bit and 16x 64-bit. permutex2var on AVX-512, else Gather.
 
 ### SME/x86 AMX
 
@@ -21,6 +30,8 @@ Wrapper for 2D outer product.
 ### Clear lowest mask bit
 
 ### Remaining math functions for hwy/contrib/math
+
+High-precision! Consider copying from SLEEF.
 
 cbrt, cosh, erf, exp2, fmod, hypot, ilogb, lgamma, logb, modf, nextafter,
 nexttoward, pow, scalbn, tan, tgamma
