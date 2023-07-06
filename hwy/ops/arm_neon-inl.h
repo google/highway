@@ -178,7 +178,7 @@ namespace detail {  // for code folding and Raw128
   HWY_NEON_DEF_FUNCTION(float32, 1, name, prefix, infix, f32, args)
 
 // double
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 #define HWY_NEON_DEF_FUNCTION_FLOAT_64(name, prefix, infix, args)      \
   HWY_NEON_DEF_FUNCTION(float64, 2, name, prefix##q, infix, f64, args) \
   HWY_NEON_DEF_FUNCTION(float64, 1, name, prefix, infix, f64, args)
@@ -433,7 +433,7 @@ template <size_t N>
 struct Tuple2<float32_t, N> {
   float32x2x2_t raw;
 };
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <>
 struct Tuple2<float64_t, 2> {
   float64x2x2_t raw;
@@ -442,7 +442,7 @@ template <size_t N>
 struct Tuple2<float64_t, N> {
   float64x1x2_t raw;
 };
-#endif  // HWY_ARCH_ARM_A64
+#endif  // HWY_HAVE_FLOAT64
 
 template <>
 struct Tuple3<uint8_t, 16> {
@@ -550,7 +550,7 @@ template <size_t N>
 struct Tuple3<float32_t, N> {
   float32x2x3_t raw;
 };
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <>
 struct Tuple3<float64_t, 2> {
   float64x2x3_t raw;
@@ -559,7 +559,7 @@ template <size_t N>
 struct Tuple3<float64_t, N> {
   float64x1x3_t raw;
 };
-#endif  // HWY_ARCH_ARM_A64
+#endif  // HWY_HAVE_FLOAT64
 
 template <>
 struct Tuple4<uint8_t, 16> {
@@ -667,7 +667,7 @@ template <size_t N>
 struct Tuple4<float32_t, N> {
   float32x2x4_t raw;
 };
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <>
 struct Tuple4<float64_t, 2> {
   float64x2x4_t raw;
@@ -676,7 +676,7 @@ template <size_t N>
 struct Tuple4<float64_t, N> {
   float64x1x4_t raw;
 };
-#endif  // HWY_ARCH_ARM_A64
+#endif  // HWY_HAVE_FLOAT64
 
 template <typename T, size_t N>
 struct Raw128;
@@ -745,12 +745,12 @@ struct Raw128<float, 4> {
   using type = float32x4_t;
 };
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <>
 struct Raw128<double, 2> {
   using type = float64x2_t;
 };
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // 64
 template <>
@@ -816,12 +816,12 @@ struct Raw128<float, 2> {
   using type = float32x2_t;
 };
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <>
 struct Raw128<double, 1> {
   using type = float64x1_t;
 };
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // 32 (same as 64)
 template <>
@@ -1179,7 +1179,7 @@ HWY_INLINE VFromD<D> Iota0(D d) {
   return BitCast(d, vu64_iota0);
 }
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_INLINE VFromD<D> Iota0(D d) {
 #if HWY_COMPILER_GCC || HWY_COMPILER_CLANGCL
@@ -1191,7 +1191,7 @@ HWY_INLINE VFromD<D> Iota0(D d) {
   return Load(d, kF64Iota0);
 #endif
 }
-#endif  // HWY_ARCH_ARM_A64
+#endif  // HWY_HAVE_FLOAT64
 
 #if HWY_COMPILER_MSVC
 template <class V, HWY_IF_V_SIZE_LE_V(V, 4)>
@@ -1285,13 +1285,13 @@ template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec128<float> Combine(D /* tag */, Vec64<float> hi, Vec64<float> lo) {
   return Vec128<float>(vcombine_f32(lo.raw, hi.raw));
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec128<double> Combine(D /* tag */, Vec64<double> hi,
                                Vec64<double> lo) {
   return Vec128<double>(vcombine_f64(lo.raw, hi.raw));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ BitCast
 
@@ -1385,12 +1385,12 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I64_D(D)>
 HWY_INLINE Vec64<int64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
   return Vec64<int64_t>(vreinterpret_s64_u8(v.raw));
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F64_D(D)>
 HWY_INLINE Vec64<double> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
   return Vec64<double>(vreinterpret_f64_u8(v.raw));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // 128-bit full:
 
@@ -1427,12 +1427,12 @@ HWY_INLINE Vec128<int64_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
   return Vec128<int64_t>(vreinterpretq_s64_u8(v.raw));
 }
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_F64_D(D)>
 HWY_INLINE Vec128<double> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
   return Vec128<double>(vreinterpretq_f64_u8(v.raw));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // Special cases for [b]float16_t, which may have the same Raw as uint16_t.
 template <class D, HWY_IF_F16_D(D)>
@@ -2153,7 +2153,7 @@ HWY_INLINE float64x1_t vrecpe_f64(float64x1_t raw) {
 // Approximate reciprocal
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(ApproximateReciprocal, vrecpe, _, 1)
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 #ifdef HWY_NATIVE_F64_APPROX_RECIP
 #undef HWY_NATIVE_F64_APPROX_RECIP
 #else
@@ -2161,8 +2161,7 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(ApproximateReciprocal, vrecpe, _, 1)
 #endif
 
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator/, vdiv, _, 2)
-#else
-// Not defined on armv7: approximate
+#else   // !HWY_HAVE_FLOAT64
 namespace detail {
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(ReciprocalNewtonRaphsonStep, vrecps, _, 2)
 }  // namespace detail
@@ -2175,7 +2174,7 @@ HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
   x *= detail::ReciprocalNewtonRaphsonStep(x, b);
   return a * x;
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ Absolute value of difference.
 
@@ -2296,23 +2295,20 @@ HWY_INLINE float64x1_t vrsqrte_f64(float64x1_t raw) {
 // Approximate reciprocal square root
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(ApproximateReciprocalSqrt, vrsqrte, _, 1)
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 #ifdef HWY_NATIVE_F64_APPROX_RSQRT
 #undef HWY_NATIVE_F64_APPROX_RSQRT
 #else
 #define HWY_NATIVE_F64_APPROX_RSQRT
 #endif
-#endif  // HWY_ARCH_ARM_A64
 
 // Full precision square root
-#if HWY_ARCH_ARM_A64
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Sqrt, vsqrt, _, 1)
-#else
+#else   // !HWY_HAVE_FLOAT64
 namespace detail {
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(ReciprocalSqrtStep, vrsqrts, _, 2)
 }  // namespace detail
 
-// Not defined on armv7: approximate
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> Sqrt(const Vec128<T, N> v) {
   auto recip = ApproximateReciprocalSqrt(v);
@@ -2324,7 +2320,7 @@ HWY_API Vec128<T, N> Sqrt(const Vec128<T, N> v) {
   const auto root = v * recip;
   return IfThenZeroElse(v == Zero(Simd<T, N, 0>()), root);
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ================================================== LOGICAL
 
@@ -3098,13 +3094,13 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API Vec128<float> LoadU(D /* tag */, const float* HWY_RESTRICT unaligned) {
   return Vec128<float>(vld1q_f32(unaligned));
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API Vec128<double> LoadU(D /* tag */,
                              const double* HWY_RESTRICT unaligned) {
   return Vec128<double>(vld1q_f64(unaligned));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ Load 64
 
@@ -3144,12 +3140,13 @@ template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API Vec64<float> LoadU(D /* tag */, const float* HWY_RESTRICT p) {
   return Vec64<float>(vld1_f32(p));
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F64_D(D)>
 HWY_API Vec64<double> LoadU(D /* tag */, const double* HWY_RESTRICT p) {
   return Vec64<double>(vld1_f64(p));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
+
 // ------------------------------ Load 32
 
 // Actual 32-bit broadcast load - used to implement the other lane types
@@ -3289,13 +3286,13 @@ HWY_API void StoreU(Vec128<float> v, D /* tag */,
                     float* HWY_RESTRICT unaligned) {
   vst1q_f32(unaligned, v.raw);
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API void StoreU(Vec128<double> v, D /* tag */,
                     double* HWY_RESTRICT unaligned) {
   vst1q_f64(unaligned, v.raw);
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ Store 64
 
@@ -3335,12 +3332,12 @@ template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API void StoreU(Vec64<float> v, D /* tag */, float* HWY_RESTRICT p) {
   vst1_f32(p, v.raw);
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F64_D(D)>
 HWY_API void StoreU(Vec64<double> v, D /* tag */, double* HWY_RESTRICT p) {
   vst1_f64(p, v.raw);
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ Store 32
 
@@ -3511,7 +3508,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>(vcvt_s32_f32(v.raw));
 }
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<int64_t> v) {
@@ -3537,29 +3534,6 @@ HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<uint64_t> v) {
 }
 
 // Truncates (rounds toward zero).
-
-#if HWY_HAVE_FLOAT16
-
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> ConvertTo(D /* tag */, Vec128<float16_t> v) {
-  return Vec128<int16_t>(vcvtq_s16_f16(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
-  return VFromD<D>(vcvt_s16_f16(v.raw));
-}
-
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> ConvertTo(D /* tag */, Vec128<float16_t> v) {
-  return Vec128<uint16_t>(vcvtq_u16_f16(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
-  return VFromD<D>(vcvt_u16_f16(v.raw));
-}
-
-#endif  // HWY_HAVE_FLOAT16
-
 template <class D, HWY_IF_I64_D(D)>
 HWY_API Vec128<int64_t> ConvertTo(D /* tag */, Vec128<double> v) {
   return Vec128<int64_t>(vcvtq_s64_f64(v.raw));
@@ -3578,7 +3552,30 @@ HWY_API Vec64<int64_t> ConvertTo(D di, Vec64<double> v) {
 #endif
 }
 
-#endif  // HWY_ARCH_ARM_A64
+#endif  // HWY_HAVE_FLOAT64
+
+#if HWY_ARCH_ARM_A64 && HWY_HAVE_FLOAT16
+
+// Truncates (rounds toward zero).
+template <class D, HWY_IF_I16_D(D)>
+HWY_API Vec128<int16_t> ConvertTo(D /* tag */, Vec128<float16_t> v) {
+  return Vec128<int16_t>(vcvtq_s16_f16(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
+  return VFromD<D>(vcvt_s16_f16(v.raw));
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> ConvertTo(D /* tag */, Vec128<float16_t> v) {
+  return Vec128<uint16_t>(vcvtq_u16_f16(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
+  return VFromD<D>(vcvt_u16_f16(v.raw));
+}
+
+#endif  // HWY_ARCH_ARM_A64 && HWY_HAVE_FLOAT16
 
 // ------------------------------ PromoteTo (ConvertTo)
 
@@ -3731,7 +3728,7 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
 
 #endif  // HWY_NEON_HAVE_FLOAT16C
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec128<double> PromoteTo(D /* tag */, Vec64<float> v) {
@@ -3754,7 +3751,7 @@ HWY_API Vec64<double> PromoteTo(D d, Vec32<int32_t> v) {
   return ConvertTo(d, Vec64<int64_t>(vget_low_s64(vmovl_s32(v.raw))));
 }
 
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ DemoteTo (ConvertTo)
 
@@ -3927,7 +3924,7 @@ HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
   return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec64<float> DemoteTo(D /* tag */, Vec128<double> v) {
@@ -3952,7 +3949,7 @@ HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<double> v) {
   return Vec32<int32_t>(vqmovn_s64(ConvertTo(dit, Combine(ddt, v, v)).raw));
 }
 
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 HWY_API Vec32<uint8_t> U8FromU32(Vec128<uint32_t> v) {
   const uint8x16_t org_v = detail::BitCastToByte(v).raw;
@@ -4151,12 +4148,12 @@ HWY_API Vec64<float> LowerHalf(Vec128<float> v) {
 HWY_API Vec64<float16_t> LowerHalf(Vec128<float16_t> v) {
   return Vec64<float16_t>(vget_low_f16(v.raw));
 }
-#endif
-#if HWY_ARCH_ARM_A64
+#endif  // HWY_HAVE_FLOAT16
+#if HWY_HAVE_FLOAT64
 HWY_API Vec64<double> LowerHalf(Vec128<double> v) {
   return Vec64<double>(vget_low_f64(v.raw));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 template <class V, HWY_IF_SPECIAL_FLOAT_V(V), HWY_IF_V_SIZE_V(V, 16)>
 HWY_API VFromD<Half<DFromV<V>>> LowerHalf(V v) {
@@ -4362,12 +4359,12 @@ template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec64<float> UpperHalf(D /* tag */, Vec128<float> v) {
   return Vec64<float>(vget_high_f32(v.raw));
 }
-#if HWY_ARCH_ARM_A64
+#if HWY_HAVE_FLOAT64
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec64<double> UpperHalf(D /* tag */, Vec128<double> v) {
   return Vec64<double>(vget_high_f64(v.raw));
 }
-#endif
+#endif  // HWY_HAVE_FLOAT64
 
 template <class D, HWY_IF_SPECIAL_FLOAT_D(D), HWY_IF_V_SIZE_GT_D(D, 4)>
 HWY_API VFromD<D> UpperHalf(D dh, VFromD<Twice<D>> v) {
@@ -5693,7 +5690,13 @@ HWY_NEON_DEF_FUNCTION(int32, 4, InterleaveEvenOdd, vtrnq, _, s32, HWY_TRN)
 HWY_NEON_DEF_FUNCTION(int32, 2, InterleaveEvenOdd, vtrn, _, s32, HWY_TRN)
 HWY_NEON_DEF_FUNCTION(float32, 4, InterleaveEvenOdd, vtrnq, _, f32, HWY_TRN)
 HWY_NEON_DEF_FUNCTION(float32, 2, InterleaveEvenOdd, vtrn, _, f32, HWY_TRN)
-#endif
+
+#undef HWY_NEON_BUILD_TPL_HWY_TRN
+#undef HWY_NEON_BUILD_RET_HWY_TRN
+#undef HWY_NEON_BUILD_PARAM_HWY_TRN
+#undef HWY_NEON_BUILD_ARG_HWY_TRN
+
+#endif  // HWY_ARCH_ARM_A64
 }  // namespace detail
 
 // <= 32-bit input/output
@@ -8252,29 +8255,32 @@ namespace detail {  // for code folding
 #undef HWY_NEON_DEF_FUNCTION
 #undef HWY_NEON_DEF_FUNCTION_ALL_FLOATS
 #undef HWY_NEON_DEF_FUNCTION_ALL_TYPES
+#undef HWY_NEON_DEF_FUNCTION_BFLOAT_16
 #undef HWY_NEON_DEF_FUNCTION_FLOAT_16
 #undef HWY_NEON_DEF_FUNCTION_FLOAT_16_32
+#undef HWY_NEON_DEF_FUNCTION_FLOAT_32
 #undef HWY_NEON_DEF_FUNCTION_FLOAT_64
 #undef HWY_NEON_DEF_FUNCTION_FULL_UI
 #undef HWY_NEON_DEF_FUNCTION_FULL_UI_64
 #undef HWY_NEON_DEF_FUNCTION_FULL_UIF_64
 #undef HWY_NEON_DEF_FUNCTION_INT_16
 #undef HWY_NEON_DEF_FUNCTION_INT_32
+#undef HWY_NEON_DEF_FUNCTION_INT_64
 #undef HWY_NEON_DEF_FUNCTION_INT_8
 #undef HWY_NEON_DEF_FUNCTION_INT_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_INTS
 #undef HWY_NEON_DEF_FUNCTION_INTS_UINTS
-#undef HWY_NEON_DEF_FUNCTION_TPL
 #undef HWY_NEON_DEF_FUNCTION_UI_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_UIF_64
 #undef HWY_NEON_DEF_FUNCTION_UIF_8_16_32
-#undef HWY_NEON_DEF_FUNCTION_UIF_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_UINT_16
 #undef HWY_NEON_DEF_FUNCTION_UINT_32
+#undef HWY_NEON_DEF_FUNCTION_UINT_64
 #undef HWY_NEON_DEF_FUNCTION_UINT_8
 #undef HWY_NEON_DEF_FUNCTION_UINT_8_16_32
 #undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
+
 }  // namespace detail
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
