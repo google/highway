@@ -284,29 +284,25 @@ HWY_NOINLINE void TestAllConcatOddEven() {
   ForAllTypes(ForShrinkableVectors<TestConcatOddEven>());
 }
 
-class TestTruncatingResizeBitCast {
 #if HWY_TARGET != HWY_SCALAR
 
- private:
-  template <class DTo, class DFrom>
-  static HWY_INLINE void DoTruncResizeBitCastTest(DTo d_to, DFrom d_from) {
-    if (Lanes(d_to) == 0) return;
+template <class DTo, class DFrom>
+HWY_INLINE void DoTruncResizeBitCastTest(DTo d_to, DFrom d_from) {
+  if (Lanes(d_to) == 0) return;
 
-    const VFromD<DFrom> v = Iota(d_from, 1);
-    const VFromD<DTo> expected = Iota(d_to, 1);
+  const VFromD<DFrom> v = Iota(d_from, 1);
+  const VFromD<DTo> expected = Iota(d_to, 1);
 
-    const VFromD<DTo> actual_1 = ResizeBitCast(d_to, v);
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_1);
+  const VFromD<DTo> actual_1 = ResizeBitCast(d_to, v);
+  HWY_ASSERT_VEC_EQ(d_to, expected, actual_1);
 
-    const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, d_from, v);
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
-  }
-#endif  // HWY_TARGET != HWY_SCALAR
+  const VFromD<DTo> actual_2 = ZeroExtendResizeBitCast(d_to, d_from, v);
+  HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
+}
 
- public:
+struct TestTruncatingResizeBitCastHalf {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-#if HWY_TARGET != HWY_SCALAR
     const Half<D> dh;
     DoTruncResizeBitCastTest(dh, d);
 
@@ -315,24 +311,37 @@ class TestTruncatingResizeBitCast {
     HWY_ASSERT_VEC_EQ(dh, expected_full_to_half, ResizeBitCast(dh, v_full));
     HWY_ASSERT_VEC_EQ(dh, expected_full_to_half,
                       ZeroExtendResizeBitCast(dh, d, v_full));
-
-    const Half<decltype(dh)> d_quarter;
-    const Half<decltype(d_quarter)> d_eighth;
-    constexpr size_t kMaxLanes = MaxLanes(d);
-    if (MaxLanes(d_quarter) == kMaxLanes / 4) {
-      DoTruncResizeBitCastTest(d_quarter, d);
-      if (MaxLanes(d_eighth) == kMaxLanes / 8) {
-        DoTruncResizeBitCastTest(d_eighth, d);
-      }
-    }
-#else
-    (void)d;
-#endif  // HWY_TARGET != HWY_SCALAR
   }
 };
 
+struct TestTruncatingResizeBitCastQuarter {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Half<Half<decltype(d)>> d_quarter;
+    if (MaxLanes(d_quarter) == MaxLanes(d) / 4) {
+      DoTruncResizeBitCastTest(d_quarter, d);
+    }
+  }
+};
+
+struct TestTruncatingResizeBitCastEighth {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Half<Half<Half<decltype(d)>>> d_eighth;
+    if (MaxLanes(d_eighth) == MaxLanes(d) / 8) {
+      DoTruncResizeBitCastTest(d_eighth, d);
+    }
+  }
+};
+
+#endif  // HWY_TARGET != HWY_SCALAR
+
 HWY_NOINLINE void TestAllTruncatingResizeBitCast() {
-  ForAllTypes(ForShrinkableVectors<TestTruncatingResizeBitCast>());
+#if HWY_TARGET != HWY_SCALAR
+  ForAllTypes(ForShrinkableVectors<TestTruncatingResizeBitCastHalf, 1>());
+  ForAllTypes(ForShrinkableVectors<TestTruncatingResizeBitCastQuarter, 2>());
+  ForAllTypes(ForShrinkableVectors<TestTruncatingResizeBitCastEighth, 3>());
+#endif
 }
 
 class TestExtendingResizeBitCast {

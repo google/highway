@@ -372,12 +372,11 @@ class ForShrinkableVectors {
     (void)max_lanes;
 #if HWY_TARGET == HWY_SCALAR
     // not supported
+#elif HWY_HAVE_SCALABLE
+    detail::ForeachPow2Trim<T, kPow2, 0, Test>::Do(kMinLanes);
 #else
     detail::ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes, Test>::Do(
         kMinLanes, max_lanes);
-#if HWY_HAVE_SCALABLE
-    detail::ForeachPow2Trim<T, kPow2, 0, Test>::Do(kMinLanes);
-#endif
 #endif  // HWY_TARGET == HWY_SCALAR
   }
 };
