@@ -261,11 +261,11 @@ HWY_API Vec512<TFromD<D>> Zero(D /* tag */) {
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_BF16_D(D)>
 HWY_API Vec512<bfloat16_t> Zero(D /* tag */) {
-  return Vec512<bfloat16_t>{_mm512_setzero_ps()};
+  return Vec512<bfloat16_t>{_mm512_setzero_si512()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
 HWY_API Vec512<float16_t> Zero(D /* tag */) {
-  return Vec512<float16_t>{_mm512_setzero_ps()};
+  return Vec512<float16_t>{_mm512_setzero_si512()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API Vec512<float> Zero(D /* tag */) {
