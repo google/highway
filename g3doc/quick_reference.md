@@ -1886,12 +1886,21 @@ code size.
 
 ## Compiler support
 
-Clang and GCC require e.g. -mavx2 flags in order to use SIMD intrinsics.
-However, this enables AVX2 instructions in the entire translation unit, which
-may violate the one-definition rule and cause crashes. Instead, we use
-target-specific attributes introduced via #pragma. Function using SIMD must
-reside between `HWY_BEFORE_NAMESPACE` and `HWY_AFTER_NAMESPACE`. Alternatively,
-individual functions or lambdas may be prefixed with `HWY_ATTR`.
+Clang and GCC require opting into SIMD intrinsics, e.g. via `-mavx2` flags.
+However, the flag enables AVX2 instructions in the entire translation unit,
+which may violate the one-definition rule (that all versions of a function such
+as `std::abs` are equivalent, thus the linker may choose any). This can cause
+crashes if non-SIMD functions are defined outside of a target-specific
+namespace, and the linker happens to choose the AVX2 version, which means it may
+be called without verifying AVX2 is indeed supported.
+
+To prevent this problem, we use target-specific attributes introduced via
+`#pragma`. Function using SIMD must reside between `HWY_BEFORE_NAMESPACE` and
+`HWY_AFTER_NAMESPACE`. Conversely, non-SIMD functions and in particular,
+#include of normal or standard library headers must NOT reside between
+`HWY_BEFORE_NAMESPACE` and `HWY_AFTER_NAMESPACE`. Alternatively, individual
+functions may be prefixed with `HWY_ATTR`, which is more verbose, but ensures
+that `#include`-d functions are not covered by target-specific attributes.
 
 If you know the SVE vector width and are using static dispatch, you can specify
 `-march=armv9-a+sve2-aes -msve-vector-bits=128` and Highway will then use
