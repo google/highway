@@ -57,8 +57,8 @@ T SimpleMin(const T* pa, size_t num) {
 template <typename T>
 struct MultiplyUnit : UnrollerUnit2D<MultiplyUnit<T>, T, T, T> {
   using TT = hn::ScalableTag<T>;
-  hn::Vec<TT> Func(ptrdiff_t idx, const hn::Vec<TT> x0,
-                          const hn::Vec<TT> x1, const hn::Vec<TT> y) {
+  hn::Vec<TT> Func(ptrdiff_t idx, const hn::Vec<TT> x0, const hn::Vec<TT> x1,
+                   const hn::Vec<TT> y) {
     (void)idx;
     (void)y;
     return hn::Mul(x0, x1);
@@ -75,14 +75,14 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
   using TT_FROM = hn::CappedTag<FROM_T, UnitLanes()>;
   using TT_TO = hn::CappedTag<TO_T, UnitLanes()>;
   hn::Vec<TT_TO> Func(ptrdiff_t idx, const hn::Vec<TT_FROM> x,
-                          const hn::Vec<TT_TO> y) {
+                      const hn::Vec<TT_TO> y) {
     (void)idx;
     (void)y;
     TT_TO d;
     if constexpr (sizeof(FROM_T) > sizeof(TO_T))
       return hn::DemoteTo(d, x);
     else if constexpr (sizeof(FROM_T) == sizeof(TO_T))
-    return hn::ConvertTo(d, x);
+      return hn::ConvertTo(d, x);
     else
       return hn::PromoteTo(d, x);
   }
@@ -91,8 +91,7 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
 template <typename T>
 struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
   using TT = hn::ScalableTag<T>;
-  hn::Vec<TT> Func(ptrdiff_t idx, const hn::Vec<TT> x,
-                          const hn::Vec<TT> y) {
+  hn::Vec<TT> Func(ptrdiff_t idx, const hn::Vec<TT> x, const hn::Vec<TT> y) {
     (void)idx;
     return hn::Add(x, y);
   }
@@ -105,8 +104,8 @@ struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
     return 0;
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to,
-                                 const hn::Vec<TT> x, const ptrdiff_t places) {
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x,
+                          const ptrdiff_t places) {
     // no stores in a reducer
     (void)idx;
     (void)to;
@@ -122,7 +121,7 @@ struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
   }
 
   void ReduceImpl(const hn::Vec<TT> x0, const hn::Vec<TT> x1,
-                         const hn::Vec<TT> x2, hn::Vec<TT>* y) {
+                  const hn::Vec<TT> x2, hn::Vec<TT>* y) {
     (*y) = hn::Add(hn::Add(*y, x0), hn::Add(x1, x2));
   }
 };
@@ -133,7 +132,7 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   TT d;
 
   hn::Vec<TT> Func(const ptrdiff_t idx, const hn::Vec<TT> x,
-                          const hn::Vec<TT> y) {
+                   const hn::Vec<TT> y) {
     (void)idx;
     return hn::Min(y, x);
   }
@@ -141,7 +140,7 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   hn::Vec<TT> YInitImpl() { return hn::Set(d, HighestValue<T>()); }
 
   hn::Vec<TT> MaskLoadImpl(const ptrdiff_t idx, T* from,
-                                  const ptrdiff_t places) {
+                           const ptrdiff_t places) {
     auto mask = hn::FirstN(d, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d, static_cast<size_t>(
@@ -161,8 +160,8 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
     return 0;
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to,
-                                 const hn::Vec<TT> x, const ptrdiff_t places) {
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x,
+                          const ptrdiff_t places) {
     // no stores in a reducer
     (void)idx;
     (void)to;
@@ -179,7 +178,7 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
   }
 
   void ReduceImpl(const hn::Vec<TT> x0, const hn::Vec<TT> x1,
-                         const hn::Vec<TT> x2, hn::Vec<TT>* y) {
+                  const hn::Vec<TT> x2, hn::Vec<TT>* y) {
     auto a = hn::Min(x1, x0);
     auto b = hn::Min(*y, x2);
     (*y) = hn::Min(a, b);
@@ -191,7 +190,7 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
   using TT = hn::ScalableTag<T>;
 
   hn::Vec<TT> Func(const ptrdiff_t idx, const hn::Vec<TT> x0,
-                          const hn::Vec<TT> x1, const hn::Vec<TT> y) {
+                   const hn::Vec<TT> x1, const hn::Vec<TT> y) {
     (void)idx;
     return hn::MulAdd(x0, x1, y);
   }
@@ -204,8 +203,8 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
     return 0;
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to,
-                                 const hn::Vec<TT> x, const ptrdiff_t places) {
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x,
+                          const ptrdiff_t places) {
     // no stores in a reducer
     (void)idx;
     (void)to;
@@ -221,7 +220,7 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
   }
 
   void ReduceImpl(const hn::Vec<TT> x0, const hn::Vec<TT> x1,
-                         const hn::Vec<TT> x2, hn::Vec<TT>* y) {
+                  const hn::Vec<TT> x2, hn::Vec<TT>* y) {
     (*y) = hn::Add(hn::Add(*y, x0), hn::Add(x1, x2));
   }
 };
@@ -244,12 +243,12 @@ class TestUnroller {
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> pb = AllocateAligned<T>(num);
     AlignedFreeUniquePtr<T[]> py = AllocateAligned<T>(num);
-    
+
     HWY_ASSERT(pa && pb && py);
     T* a = pa.get();
     T* b = pb.get();
     T* y = py.get();
-    
+
     size_t i = 0;
     for (; i < num; ++i) {
       SetValue(random_t(), a + i);
@@ -279,26 +278,22 @@ class TestUnroller {
   }
 
   template <typename T>
-  void TestConvert(size_t num)
-  {
+  void TestConvert(size_t num) {
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
     AlignedFreeUniquePtr<int[]> pto = AllocateAligned<int>(num);
     HWY_ASSERT(pa && pto);
     T* a = pa.get();
     int* to = pto.get();
 
-    for(size_t i = 0 ; i < num; ++i) 
-      a[i] = (T)(((double)i) * 0.25);
+    for (size_t i = 0; i < num; ++i) a[i] = (T)(((double)i) * 0.25);
 
     ConvertUnit<T, int> cvtfn;
     Unroller(cvtfn, a, to, static_cast<ptrdiff_t>(num));
-    for(size_t i = 0; i < num; ++i)
-      HWY_ASSERT(to[i] == (int)a[i]);
+    for (size_t i = 0; i < num; ++i) HWY_ASSERT(to[i] == (int)a[i]);
 
     ConvertUnit<int, T> cvtbackfn;
     Unroller(cvtbackfn, to, a, static_cast<ptrdiff_t>(num));
-    for(size_t i = 0; i < num; ++i)
-      HWY_ASSERT(a[i] == (T)to[i]);
+    for (size_t i = 0; i < num; ++i) HWY_ASSERT(a[i] == (T)to[i]);
   }
 
  public:
@@ -321,11 +316,9 @@ class TestUnroller {
                              256 * N - 1,
                              256 * N};
     for (auto count : counts) {
-        Test(d, count, rng);
-        TestConvert<T>(count);
+      Test(d, count, rng);
+      TestConvert<T>(count);
     }
-
-      
   }
 };
 
