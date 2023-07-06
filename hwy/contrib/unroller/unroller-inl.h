@@ -21,9 +21,6 @@
 #define HIGHWAY_HWY_CONTRIB_UNROLLER_UNROLLER_INL_H_
 #endif
 
-#include <cstring>
-#include <limits>
-
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
