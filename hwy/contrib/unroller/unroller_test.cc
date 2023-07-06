@@ -49,7 +49,7 @@ T SimpleAcc(const T* pa, size_t num) {
 
 template <typename T>
 T SimpleMin(const T* pa, size_t num) {
-  T min = std::numeric_limits<T>::max();
+  T min = HighestValue<T>();
   for (size_t i = 0; i < num; ++i) {
     if (min > pa[i]) min = pa[i];
   }
