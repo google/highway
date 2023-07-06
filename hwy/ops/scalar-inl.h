@@ -101,7 +101,9 @@ HWY_API Vec1<TTo> BitCast(DTo /* tag */, Vec1<TFrom> v) {
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
 HWY_API Vec1<T> Zero(D /* tag */) {
-  return Vec1<T>(T(0));
+  Vec1<T> v;
+  ZeroBytes<sizeof(v.raw)>(&v.raw);
+  return v;
 }
 
 template <class D>
@@ -145,14 +147,14 @@ namespace detail {
 // ResizeBitCast on the HWY_SCALAR target has zero-extending semantics if
 // sizeof(TFromD<DTo>) is greater than sizeof(TFromV<FromV>)
 template <class FromSizeTag, class ToSizeTag, class DTo, class DFrom>
-HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(
-    FromSizeTag /* from_size_tag */, ToSizeTag /* to_size_tag */, DTo d_to, DFrom /*d_from*/,
-    VFromD<DFrom> v) {
+HWY_INLINE VFromD<DTo> ZeroExtendResizeBitCast(FromSizeTag /* from_size_tag */,
+                                               ToSizeTag /* to_size_tag */,
+                                               DTo d_to, DFrom /*d_from*/,
+                                               VFromD<DFrom> v) {
   return ResizeBitCast(d_to, v);
 }
 
-}  // namespace scalar
-
+}  // namespace detail
 
 // ================================================== LOGICAL
 
@@ -675,12 +677,12 @@ HWY_API Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
 
 // ------------------------------ Floating-point negate
 
-template <typename T, HWY_IF_FLOAT(T)>
+template <typename T, HWY_IF_FLOAT_OR_SPECIAL(T)>
 HWY_API Vec1<T> Neg(const Vec1<T> v) {
   return Xor(v, SignBit(Sisd<T>()));
 }
 
-template <typename T, HWY_IF_NOT_FLOAT(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec1<T> Neg(const Vec1<T> v) {
   return Zero(Sisd<T>()) - v;
 }
@@ -1245,28 +1247,17 @@ HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
   return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
+// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions;
+// use this scalar version to verify the vector implementation.
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
+#endif
+
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec1<float> PromoteTo(D /* tag */, const Vec1<float16_t> v) {
-  uint16_t bits16;
-  CopySameSize(&v.raw, &bits16);
-  const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
-  const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
-  const uint32_t mantissa = bits16 & 0x3FF;
-
-  // Subnormal or zero
-  if (biased_exp == 0) {
-    const float subnormal =
-        (1.0f / 16384) * (static_cast<float>(mantissa) * (1.0f / 1024));
-    return Vec1<float>(sign ? -subnormal : subnormal);
-  }
-
-  // Normalized: convert the representation directly (faster than ldexp/tables).
-  const uint32_t biased_exp32 = biased_exp + (127 - 15);
-  const uint32_t mantissa32 = mantissa << (23 - 10);
-  const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
-  float out;
-  CopySameSize(&bits32, &out);
-  return Vec1<float>(out);
+  return Vec1<float>(F32FromF16(v.raw));
 }
 
 template <class D, HWY_IF_F32_D(D)>
@@ -1276,44 +1267,7 @@ HWY_API Vec1<float> PromoteTo(D d, const Vec1<bfloat16_t> v) {
 
 template <class D, HWY_IF_F16_D(D)>
 HWY_API Vec1<float16_t> DemoteTo(D /* tag */, const Vec1<float> v) {
-  uint32_t bits32;
-  CopySameSize(&v.raw, &bits32);
-  const uint32_t sign = bits32 >> 31;
-  const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
-  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
-
-  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
-
-  // Tiny or zero => zero.
-  Vec1<float16_t> out;
-  if (exp < -24) {
-    const uint16_t zero = 0;
-    CopySameSize(&zero, &out.raw);
-    return out;
-  }
-
-  uint32_t biased_exp16, mantissa16;
-
-  // exp = [-24, -15] => subnormal
-  if (exp < -14) {
-    biased_exp16 = 0;
-    const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
-    HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
-    mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
-                                       (mantissa32 >> (13 + sub_exp)));
-  } else {
-    // exp = [-14, 15]
-    biased_exp16 = static_cast<uint32_t>(exp + 15);
-    HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
-    mantissa16 = mantissa32 >> 13;
-  }
-
-  HWY_DASSERT(mantissa16 < 1024);
-  const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
-  HWY_DASSERT(bits16 < 0x10000);
-  const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
-  CopySameSize(&narrowed, &out.raw);
-  return out;
+  return Vec1<float16_t>(F16FromF32(v.raw));
 }
 
 template <class D, HWY_IF_BF16_D(D)>
@@ -1817,8 +1771,7 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 template <class D32, HWY_IF_F32_D(D32)>
 HWY_API Vec1<float> WidenMulPairwiseAdd(D32 /* tag */, Vec1<bfloat16_t> a,
                                               Vec1<bfloat16_t> b) {
-  return Vec1<float>(F32FromBF16(a.raw)) * 
-                Vec1<float>(F32FromBF16(b.raw));
+  return Vec1<float>(F32FromBF16(a.raw)) * Vec1<float>(F32FromBF16(b.raw));
 }
 
 template <class D32, HWY_IF_I32_D(D32)>

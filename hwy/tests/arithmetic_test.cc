@@ -13,10 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "hwy/base.h"
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/arithmetic_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/nanobenchmark.h"
 #include "hwy/tests/test_util-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -205,15 +207,35 @@ HWY_NOINLINE void TestAllAbs() {
   ForFloatTypes(ForPartialVectors<TestFloatAbs>());
 }
 
-struct TestNeg {
+struct TestIntegerNeg {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v0 = Zero(d);
-    const auto vn = Set(d, T{-3});
-    const auto vp = Set(d, T{3});
+    const RebindToUnsigned<D> du;
+    using TU = TFromD<decltype(du)>;
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v1 = BitCast(d, Set(du, TU{1}));
+    const Vec<D> vp = BitCast(d, Set(du, TU{3}));
+    const Vec<D> vn = Add(Not(vp), v1);  // 2's complement
     HWY_ASSERT_VEC_EQ(d, v0, Neg(v0));
     HWY_ASSERT_VEC_EQ(d, vp, Neg(vn));
     HWY_ASSERT_VEC_EQ(d, vn, Neg(vp));
+  }
+};
+
+struct TestFloatNeg {
+  // Must be inlined on aarch64 for bf16, else clang crashes.
+  template <typename T, class D>
+  HWY_INLINE void operator()(T /*unused*/, D d) {
+    const RebindToUnsigned<D> du;
+    using TU = TFromD<decltype(du)>;
+    // 1.25 in binary16.
+    const Vec<D> vp =
+        BitCast(d, Set(du, static_cast<TU>(Unpredictable1() * 0x3D00)));
+    // Flip sign bit in MSB
+    const Vec<D> vn = BitCast(d, Xor(BitCast(du, vp), SignBit(du)));
+    // Do not check negative zero - we do not yet have proper bfloat16_t Eq().
+    HWY_ASSERT_VEC_EQ(du, BitCast(du, vp), BitCast(du, Neg(vn)));
+    HWY_ASSERT_VEC_EQ(du, BitCast(du, vn), BitCast(du, Neg(vp)));
   }
 };
 
@@ -228,8 +250,12 @@ struct TestNegOverflow {
 };
 
 HWY_NOINLINE void TestAllNeg() {
-  ForSignedTypes(ForPartialVectors<TestNeg>());
-  ForFloatTypes(ForPartialVectors<TestNeg>());
+  ForFloatTypes(ForPartialVectors<TestFloatNeg>());
+  // Always supported, even if !HWY_HAVE_FLOAT16.
+  ForPartialVectors<TestFloatNeg>()(float16_t());
+
+  ForSignedTypes(ForPartialVectors<TestIntegerNeg>());
+
   ForSignedTypes(ForPartialVectors<TestNegOverflow>());
 }
 

@@ -215,9 +215,17 @@ HWY_API Vec256<TFromD<D>> BitCast(D d, Vec256<FromT> v) {
 
 // ------------------------------ Zero
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec256<TFromD<D>> Zero(D /* tag */) {
   return Vec256<TFromD<D>>{_mm256_setzero_si256()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
+HWY_API Vec256<bfloat16_t> Zero(D /* tag */) {
+  return Vec256<bfloat16_t>{_mm256_setzero_si256()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
+HWY_API Vec256<float16_t> Zero(D /* tag */) {
+  return Vec256<float16_t>{_mm256_setzero_si256()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
 HWY_API Vec256<float> Zero(D /* tag */) {
@@ -260,11 +268,19 @@ HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 
 // Returns a vector with uninitialized elements.
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec256<TFromD<D>> Undefined(D /* tag */) {
   // Available on Clang 6.0, GCC 6.2, ICC 16.03, MSVC 19.14. All but ICC
   // generate an XOR instruction.
   return Vec256<TFromD<D>>{_mm256_undefined_si256()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
+HWY_API Vec256<bfloat16_t> Undefined(D /* tag */) {
+  return Vec256<bfloat16_t>{_mm256_undefined_si256()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
+HWY_API Vec256<float16_t> Undefined(D /* tag */) {
+  return Vec256<float16_t>{_mm256_undefined_si256()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
 HWY_API Vec256<float> Undefined(D /* tag */) {
@@ -2172,9 +2188,15 @@ HWY_INLINE Vec256<T> Neg(hwy::FloatTag /*tag*/, const Vec256<T> v) {
   return Xor(v, SignBit(d));
 }
 
+template <typename T>
+HWY_INLINE Vec256<T> Neg(hwy::SpecialTag /*tag*/, const Vec256<T> v) {
+  const DFromV<decltype(v)> d;
+  return Xor(v, SignBit(d));
+}
+
 // Not floating-point
 template <typename T>
-HWY_INLINE Vec256<T> Neg(hwy::NonFloatTag /*tag*/, const Vec256<T> v) {
+HWY_INLINE Vec256<T> Neg(hwy::SignedTag /*tag*/, const Vec256<T> v) {
   const DFromV<decltype(v)> d;
   return Zero(d) - v;
 }
@@ -2183,7 +2205,7 @@ HWY_INLINE Vec256<T> Neg(hwy::NonFloatTag /*tag*/, const Vec256<T> v) {
 
 template <typename T>
 HWY_API Vec256<T> Neg(const Vec256<T> v) {
-  return detail::Neg(hwy::IsFloatTag<T>(), v);
+  return detail::Neg(hwy::TypeTag<T>(), v);
 }
 
 // ------------------------------ Floating-point mul / div
@@ -5289,6 +5311,8 @@ HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
+#ifndef HWY_DISABLE_F16C
+
 // Avoid "value of intrinsic immediate argument '8' is out of range '0 - 7'".
 // 8 is the correct value of _MM_FROUND_NO_EXC, which is allowed here.
 HWY_DIAGNOSTICS(push)
@@ -5296,39 +5320,13 @@ HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wsign-conversion")
 
 template <class D, HWY_IF_F16_D(D)>
 HWY_API Vec128<float16_t> DemoteTo(D df16, Vec256<float> v) {
-#ifdef HWY_DISABLE_F16C
-  const RebindToUnsigned<decltype(df16)> du16;
-  const Rebind<uint32_t, decltype(df16)> du;
-  const RebindToSigned<decltype(du)> di;
-  const auto bits32 = BitCast(du, v);
-  const auto sign = ShiftRight<31>(bits32);
-  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
-  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
-
-  const auto k15 = Set(di, 15);
-  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
-  const auto is_tiny = exp < Set(di, -24);
-
-  const auto is_subnormal = exp < Set(di, -14);
-  const auto biased_exp16 =
-      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
-  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
-  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
-                     (mantissa32 >> (Set(du, 13) + sub_exp));
-  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
-                                     ShiftRight<13>(mantissa32));  // <1024
-
-  const auto sign16 = ShiftLeft<15>(sign);
-  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
-  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
-  return BitCast(df16, DemoteTo(du16, bits16));
-#else
   (void)df16;
   return Vec128<float16_t>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
-#endif
 }
 
 HWY_DIAGNOSTICS(pop)
+
+#endif  // HWY_DISABLE_F16C
 
 template <class D, HWY_IF_BF16_D(D)>
 HWY_API Vec128<bfloat16_t> DemoteTo(D dbf16, Vec256<float> v) {
@@ -5636,30 +5634,15 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
   return detail::FixConversionOverflow(di, v, _mm256_cvtps_epi32(v.raw));
 }
 
+#ifndef HWY_DISABLE_F16C
+
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec256<float> PromoteTo(D df32, Vec128<float16_t> v) {
-#ifdef HWY_DISABLE_F16C
-  const RebindToSigned<decltype(df32)> di32;
-  const RebindToUnsigned<decltype(df32)> du32;
-  // Expand to u32 so we can shift.
-  const auto bits16 = PromoteTo(du32, Vec128<uint16_t>{v.raw});
-  const auto sign = ShiftRight<15>(bits16);
-  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
-  const auto mantissa = bits16 & Set(du32, 0x3FF);
-  const auto subnormal =
-      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
-                        Set(df32, 1.0f / 16384 / 1024));
-
-  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
-  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
-  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
-  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
-  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
-#else
   (void)df32;
   return Vec256<float>{_mm256_cvtph_ps(v.raw)};
-#endif
 }
+
+#endif  // HWY_DISABLE_F16C
 
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec256<float> PromoteTo(D df32, Vec128<bfloat16_t> v) {

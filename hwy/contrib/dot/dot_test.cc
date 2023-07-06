@@ -18,6 +18,7 @@
 #include <stdlib.h>
 
 #include "hwy/aligned_allocator.h"
+#include "hwy/base.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -51,11 +52,20 @@ HWY_NOINLINE float SimpleDot(const bfloat16_t* pa, const bfloat16_t* pb,
 }
 
 template <typename T>
-void SetValue(const float value, T* HWY_RESTRICT ptr) {
+HWY_INLINE void SetValue(const float value, T* HWY_RESTRICT ptr) {
   *ptr = static_cast<T>(value);
 }
-void SetValue(const float value, bfloat16_t* HWY_RESTRICT ptr) {
+HWY_INLINE void SetValue(const float value, bfloat16_t* HWY_RESTRICT ptr) {
   *ptr = BF16FromF32(value);
+}
+
+template <typename T>
+HWY_INLINE double GetValue(T f) {
+  return static_cast<double>(f);
+}
+template <>
+HWY_INLINE double GetValue<bfloat16_t>(bfloat16_t f) {
+  return static_cast<double>(F32FromBF16(f));
 }
 
 class TestDot {
@@ -89,11 +99,15 @@ class TestDot {
       SetValue(GetLane(NaN(df1)), b + i);
     }
 
-    const auto expected = SimpleDot(a, b, num);
-    const auto actual = Dot::Compute<kAssumptions>(d, a, b, num);
-    const auto max = static_cast<decltype(actual)>(8 * 8 * num);
+    const double expected = SimpleDot(a, b, num);
+    const double magnitude = expected > 0.0 ? expected : -expected;
+    const double actual = GetValue(Dot::Compute<kAssumptions>(d, a, b, num));
+    const double max = static_cast<double>(8 * 8 * num);
     HWY_ASSERT(-max <= actual && actual <= max);
-    HWY_ASSERT(expected - 1E-4 <= actual && actual <= expected + 1E-4);
+    const double tolerance =
+        64.0 * GetValue(Epsilon<T>()) * HWY_MAX(magnitude, 1.0);
+    HWY_ASSERT(expected - tolerance <= actual &&
+               actual <= expected + tolerance);
   }
 
   // Runs tests with various alignments.
@@ -132,8 +146,9 @@ class TestDot {
   }
 
  public:
+  // Must be inlined on aarch64 for bf16, else clang crashes.
   template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+  HWY_INLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
 
     // All 8 combinations of the three length-related flags:

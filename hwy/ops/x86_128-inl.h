@@ -185,9 +185,17 @@ using TFromV = typename V::PrivateT;
 // ------------------------------ Zero
 
 // Use HWY_MAX_LANES_D here because VFromD is defined in terms of Zero.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
   return Vec128<TFromD<D>, HWY_MAX_LANES_D(D)>{_mm_setzero_si128()};
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_BF16_D(D)>
+HWY_API Vec128<bfloat16_t, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
+  return Vec128<bfloat16_t, HWY_MAX_LANES_D(D)>{_mm_setzero_si128()};
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API Vec128<float16_t, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
+  return Vec128<float16_t, HWY_MAX_LANES_D(D)>{_mm_setzero_si128()};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API Vec128<float, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
@@ -291,10 +299,18 @@ HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 
 // Returns a vector with uninitialized elements.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> Undefined(D /* tag */) {
   // Available on Clang 6.0, GCC 6.2, ICC 16.03, MSVC 19.14. All but ICC
   // generate an XOR instruction.
+  return VFromD<D>{_mm_undefined_si128()};
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> Undefined(D /* tag */) {
+  return VFromD<D>{_mm_undefined_si128()};
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> Undefined(D /* tag */) {
   return VFromD<D>{_mm_undefined_si128()};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
@@ -588,7 +604,12 @@ HWY_INLINE Vec128<T, N> Neg(hwy::FloatTag /*tag*/, const Vec128<T, N> v) {
 }
 
 template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Neg(hwy::NonFloatTag /*tag*/, const Vec128<T, N> v) {
+HWY_INLINE Vec128<T, N> Neg(hwy::SpecialTag /*tag*/, const Vec128<T, N> v) {
+  return Xor(v, SignBit(DFromV<decltype(v)>()));
+}
+
+template <typename T, size_t N>
+HWY_INLINE Vec128<T, N> Neg(hwy::SignedTag /*tag*/, const Vec128<T, N> v) {
   return Zero(DFromV<decltype(v)>()) - v;
 }
 
@@ -596,7 +617,7 @@ HWY_INLINE Vec128<T, N> Neg(hwy::NonFloatTag /*tag*/, const Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Neg(const Vec128<T, N> v) {
-  return detail::Neg(hwy::IsFloatTag<T>(), v);
+  return detail::Neg(hwy::TypeTag<T>(), v);
 }
 
 // ------------------------------ Floating-point Abs
@@ -3712,8 +3733,17 @@ HWY_API Vec128<double, N> Max(Vec128<double, N> a, Vec128<double, N> b) {
 
 // On clang6, we see incorrect code generated for _mm_stream_pi, so
 // round even partial vectors up to 16 bytes.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void Stream(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT aligned) {
+  _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API void Stream(VFromD<D> v, D /* tag */,
+                    bfloat16_t* HWY_RESTRICT aligned) {
+  _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API void Stream(VFromD<D> v, D /* tag */, float16_t* HWY_RESTRICT aligned) {
   _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
@@ -7060,6 +7090,15 @@ HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int16_t, D>> v) {
 #endif
 }
 
+#if HWY_TARGET < HWY_SSE4 && !defined(HWY_DISABLE_F16C)
+
+// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
+#endif
+
 // Workaround for origin tracking bug in Clang msan prior to 11.0
 // (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
 #if HWY_IS_MSAN && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
@@ -7068,29 +7107,11 @@ HWY_API VFromD<D> PromoteTo(D d, VFromD<Rebind<int16_t, D>> v) {
 #define HWY_INLINE_F16 HWY_INLINE
 #endif
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
-HWY_INLINE_F16 VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
-#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_F16C)
-  const RebindToSigned<decltype(df32)> di32;
-  const RebindToUnsigned<decltype(df32)> du32;
-  // Expand to u32 so we can shift.
-  const auto bits16 = PromoteTo(du32, VFromD<Rebind<uint16_t, D>>{v.raw});
-  const auto sign = ShiftRight<15>(bits16);
-  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
-  const auto mantissa = bits16 & Set(du32, 0x3FF);
-  const auto subnormal =
-      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
-                        Set(df32, 1.0f / 16384 / 1024));
-
-  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
-  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
-  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
-  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
-  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
-#else
-  (void)df32;
+HWY_INLINE_F16 VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
   return VFromD<D>{_mm_cvtph_ps(v.raw)};
-#endif
 }
+
+#endif  // HWY_NATIVE_F16C
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
@@ -7262,46 +7283,23 @@ HWY_API VFromD<D> DemoteTo(D du8, VFromD<Rebind<uint16_t, D>> v) {
   return DemoteTo(du8, clamped);
 }
 
+#if HWY_TARGET < HWY_SSE4 && !defined(HWY_DISABLE_F16C)
+
+// HWY_NATIVE_F16C was already toggled above.
+
 // Work around MSVC warning for _mm_cvtps_ph (8 is actually a valid immediate).
 // clang-cl requires a non-empty string, so we 'ignore' the irrelevant -Wmain.
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wmain")
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
-HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
-#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_F16C)
-  const RebindToUnsigned<decltype(df16)> du16;
-  const Rebind<uint32_t, decltype(df16)> du;
-  const RebindToSigned<decltype(du)> di;
-  const auto bits32 = BitCast(du, v);
-  const auto sign = ShiftRight<31>(bits32);
-  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
-  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
-
-  const auto k15 = Set(di, 15);
-  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
-  const auto is_tiny = exp < Set(di, -24);
-
-  const auto is_subnormal = exp < Set(di, -14);
-  const auto biased_exp16 =
-      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
-  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
-  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
-                     (mantissa32 >> (Set(du, 13) + sub_exp));
-  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
-                                     ShiftRight<13>(mantissa32));  // <1024
-
-  const auto sign16 = ShiftLeft<15>(sign);
-  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
-  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
-  return BitCast(df16, DemoteTo(du16, bits16));
-#else
-  (void)df16;
+HWY_API VFromD<D> DemoteTo(D /*tag*/, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{_mm_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
-#endif
 }
 
 HWY_DIAGNOSTICS(pop)
+
+#endif  // F16C
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {

@@ -46,10 +46,10 @@ struct Dot {
     kPaddedToVector = 4,
   };
 
-  // Returns sum{pa[i] * pb[i]} for float or double inputs. Aligning the
+  // Returns sum{pa[i] * pb[i]} for floating-point inputs, including float16_t
+  // and double if HWY_HAVE_FLOAT16/64. Aligning the
   // pointers to a multiple of N elements is helpful but not required.
-  template <int kAssumptions, class D, typename T = TFromD<D>,
-            HWY_IF_NOT_T_SIZE_D(D, 2)>
+  template <int kAssumptions, class D, typename T = TFromD<D>>
   static HWY_INLINE T Compute(const D d, const T* const HWY_RESTRICT pa,
                               const T* const HWY_RESTRICT pb,
                               const size_t num_elements) {

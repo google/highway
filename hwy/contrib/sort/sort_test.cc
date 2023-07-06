@@ -84,11 +84,13 @@ struct TestFloatLargerSmaller {
     HWY_ASSERT_VEC_EQ(d, psub, detail::LargerSortValue(d, n0));
     HWY_ASSERT_VEC_EQ(d, nsub, detail::SmallerSortValue(d, n0));
 
-    // At +/-1.0 the difference is epsilon (by definition).
+    // The next magnitude larger than 1 is (1 + eps) by definition.
     HWY_ASSERT_VEC_EQ(d, Add(p1, peps), detail::LargerSortValue(d, p1));
-    HWY_ASSERT_VEC_EQ(d, Add(p1, neps), detail::SmallerSortValue(d, p1));
-    HWY_ASSERT_VEC_EQ(d, Add(n1, peps), detail::LargerSortValue(d, n1));
     HWY_ASSERT_VEC_EQ(d, Add(n1, neps), detail::SmallerSortValue(d, n1));
+    // 1-eps and -1+eps are slightly different, but we can still ensure the
+    // next values are less than 1 / greater than -1.
+    HWY_ASSERT(AllTrue(d, Gt(p1, detail::SmallerSortValue(d, p1))));
+    HWY_ASSERT(AllTrue(d, Lt(n1, detail::LargerSortValue(d, n1))));
 
     // Even for large (finite) values, we can move toward/away from infinity.
     HWY_ASSERT_VEC_EQ(d, pinf, detail::LargerSortValue(d, pmax));
@@ -124,7 +126,8 @@ struct TestFloatInf {
 };
 
 HWY_NOINLINE void TestAllFloatInf() {
-  ForFloatTypes(ForPartialVectors<TestFloatInf>());
+  // TODO(janwas): [b]float16_t not yet supported.
+  ForFloat3264Types(ForPartialVectors<TestFloatInf>());
 }
 
 template <class Traits>

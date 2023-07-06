@@ -623,11 +623,19 @@ void ForIntegerTypes(const Func& func) {
 }
 
 template <class Func>
-void ForFloatTypes(const Func& func) {
+void ForFloat3264Types(const Func& func) {
   func(float());
 #if HWY_HAVE_FLOAT64
   func(double());
 #endif
+}
+
+template <class Func>
+void ForFloatTypes(const Func& func) {
+#if HWY_HAVE_FLOAT16
+  func(float16_t());
+#endif
+  ForFloat3264Types(func);
 }
 
 template <class Func>

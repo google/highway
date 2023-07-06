@@ -76,6 +76,13 @@ namespace detail {  // for code folding
 #define HWY_SVE_FOREACH_F64(X_MACRO, NAME, OP) \
   X_MACRO(float, f, 64, 32, NAME, OP)
 
+#if HWY_SVE_HAVE_BFLOAT16
+#define HWY_SVE_FOREACH_BF16(X_MACRO, NAME, OP) \
+  X_MACRO(bfloat, bf, 16, 16, NAME, OP)
+#else
+#define HWY_SVE_FOREACH_BF16(X_MACRO, NAME, OP)
+#endif
+
 // For all element sizes:
 #define HWY_SVE_FOREACH_U(X_MACRO, NAME, OP) \
   HWY_SVE_FOREACH_U08(X_MACRO, NAME, OP)     \
@@ -89,6 +96,8 @@ namespace detail {  // for code folding
   HWY_SVE_FOREACH_I32(X_MACRO, NAME, OP)     \
   HWY_SVE_FOREACH_I64(X_MACRO, NAME, OP)
 
+// HWY_SVE_FOREACH_F does not include HWY_SVE_FOREACH_BF16 because SVE lacks
+// bf16 overloads for some intrinsics (especially less-common arithmetic).
 #define HWY_SVE_FOREACH_F(X_MACRO, NAME, OP) \
   HWY_SVE_FOREACH_F16(X_MACRO, NAME, OP)     \
   HWY_SVE_FOREACH_F32(X_MACRO, NAME, OP)     \
@@ -146,6 +155,7 @@ namespace detail {  // for code folding
   };
 
 HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
+HWY_SVE_FOREACH_BF16(HWY_SPECIALIZE, _, _)
 #undef HWY_SPECIALIZE
 
 // Note: _x (don't-care value for inactive lanes) avoids additional MOVPRFX
@@ -254,6 +264,7 @@ HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
     return sv##OP##_b##BITS##_u32(uint32_t{0}, static_cast<uint32_t>(limit));  \
   }
 HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
+HWY_SVE_FOREACH_BF16(HWY_SVE_FIRSTN, FirstN, whilelt)
 #undef HWY_SVE_FIRSTN
 
 template <class D>
@@ -272,6 +283,7 @@ namespace detail {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)  // return all-true
+HWY_SVE_FOREACH_BF16(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)
 #undef HWY_SVE_WRAP_PTRUE
 
 HWY_API svbool_t PFalse() { return svpfalse_b(); }
@@ -299,16 +311,20 @@ svbool_t MakeMask(D d) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_SET, Set, dup_n)
-#undef HWY_SVE_SET
-
+HWY_SVE_FOREACH_BF16(HWY_SVE_SET, Set, dup_n)
+#if !HWY_SVE_HAVE_BFLOAT16
 // Required for Zero and VFromD
 template <size_t N, int kPow2>
 svuint16_t Set(Simd<bfloat16_t, N, kPow2> d, bfloat16_t arg) {
   return Set(RebindToUnsigned<decltype(d)>(), arg.bits);
 }
+#endif  // HWY_SVE_HAVE_BFLOAT16
+#undef HWY_SVE_SET
 
 template <class D>
 using VFromD = decltype(Set(D(), TFromD<D>()));
+
+using VBF16 = VFromD<ScalableTag<bfloat16_t>>;
 
 // ------------------------------ Zero
 
@@ -362,15 +378,18 @@ HWY_SVE_FOREACH_UI16(HWY_SVE_CAST, _, reinterpret)
 HWY_SVE_FOREACH_UI32(HWY_SVE_CAST, _, reinterpret)
 HWY_SVE_FOREACH_UI64(HWY_SVE_CAST, _, reinterpret)
 HWY_SVE_FOREACH_F(HWY_SVE_CAST, _, reinterpret)
+HWY_SVE_FOREACH_BF16(HWY_SVE_CAST, _, reinterpret)
 
 #undef HWY_SVE_CAST_NOP
 #undef HWY_SVE_CAST
 
+#if !HWY_SVE_HAVE_BFLOAT16
 template <size_t N, int kPow2>
-HWY_INLINE svuint16_t BitCastFromByte(Simd<bfloat16_t, N, kPow2> /* d */,
-                                      svuint8_t v) {
+HWY_INLINE VBF16 BitCastFromByte(Simd<bfloat16_t, N, kPow2> /* d */,
+                                 svuint8_t v) {
   return BitCastFromByte(Simd<uint16_t, N, kPow2>(), v);
 }
+#endif  // !HWY_SVE_HAVE_BFLOAT16
 
 }  // namespace detail
 
@@ -404,10 +423,7 @@ HWY_API VFromD<D> BitCast(D d, FromV v) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_CREATE, Create, create)
-#if defined(__ARM_FEATURE_SVE_BF16)
-// bfloat16 is not included in FOREACH.
-HWY_SVE_CREATE(bfloat, bf, 16, 8, Create, create)
-#endif
+HWY_SVE_FOREACH_BF16(HWY_SVE_CREATE, Create, create)
 #undef HWY_SVE_CREATE
 
 template <class D>
@@ -432,10 +448,7 @@ using Vec4 = decltype(Create4(D(), Zero(D()), Zero(D()), Zero(D()), Zero(D())));
   }
 
 HWY_SVE_FOREACH(HWY_SVE_GET, Get, get)
-#if defined(__ARM_FEATURE_SVE_BF16)
-// bfloat16 is not included in FOREACH.
-HWY_SVE_GET(bfloat, bf, 16, 8, Get, get)
-#endif
+HWY_SVE_FOREACH_BF16(HWY_SVE_GET, Get, get)
 #undef HWY_SVE_GET
 
 // ------------------------------ ResizeBitCast
@@ -575,6 +588,13 @@ HWY_SVE_FOREACH_UI(HWY_SVE_POPCNT, PopulationCount, cnt)
 
 // ------------------------------ Neg
 HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Neg, neg)
+
+HWY_API VBF16 Neg(VBF16 v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
+}
 
 // ------------------------------ Abs
 HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Abs, abs)
@@ -1179,6 +1199,12 @@ HWY_SVE_FOREACH(HWY_SVE_STORE, Store, st1)
 HWY_SVE_FOREACH(HWY_SVE_STORE, Stream, stnt1)
 HWY_SVE_FOREACH(HWY_SVE_BLENDED_STORE, BlendedStore, st1)
 
+HWY_SVE_FOREACH_BF16(HWY_SVE_LOAD, Load, ld1)
+HWY_SVE_FOREACH_BF16(HWY_SVE_MASKED_LOAD, MaskedLoad, ld1)
+HWY_SVE_FOREACH_BF16(HWY_SVE_STORE, Store, st1)
+HWY_SVE_FOREACH_BF16(HWY_SVE_STORE, Stream, stnt1)
+HWY_SVE_FOREACH_BF16(HWY_SVE_BLENDED_STORE, BlendedStore, st1)
+
 #if HWY_TARGET != HWY_SVE2_128
 namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDupFull128, ld1rq)
@@ -1191,13 +1217,16 @@ HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDupFull128, ld1rq)
 #undef HWY_SVE_STORE
 #undef HWY_SVE_BLENDED_STORE
 
-// BF16 is the same as svuint16_t because BF16 is optional before v8.6.
+#if !HWY_SVE_HAVE_BFLOAT16
+
 template <size_t N, int kPow2>
-HWY_API svuint16_t Load(Simd<bfloat16_t, N, kPow2> d,
-                        const bfloat16_t* HWY_RESTRICT p) {
+HWY_API VBF16 Load(Simd<bfloat16_t, N, kPow2> d,
+                   const bfloat16_t* HWY_RESTRICT p) {
   return Load(RebindToUnsigned<decltype(d)>(),
               reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
 }
+
+#endif  // !HWY_SVE_HAVE_BFLOAT16
 
 #if HWY_TARGET == HWY_SVE2_128
 // On the HWY_SVE2_128 target, LoadDup128 is the same as Load since vectors
@@ -1220,21 +1249,28 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
   return detail::LoadDupFull128(d, p);
 }
 
-// BF16 is the same as svuint16_t because BF16 is optional before v8.6.
+#if !HWY_SVE_HAVE_BFLOAT16
+
 template <class D, HWY_IF_V_SIZE_GT_D(D, 16), HWY_IF_BF16_D(D)>
-HWY_API svuint16_t LoadDup128(D d, const bfloat16_t* HWY_RESTRICT p) {
+HWY_API VBF16 LoadDup128(D d, const bfloat16_t* HWY_RESTRICT p) {
   return detail::LoadDupFull128(
       RebindToUnsigned<decltype(d)>(),
       reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
 }
+#endif  // !HWY_SVE_HAVE_BFLOAT16
+
 #endif  // HWY_TARGET != HWY_SVE2_128
 
+#if !HWY_SVE_HAVE_BFLOAT16
+
 template <size_t N, int kPow2>
-HWY_API void Store(svuint16_t v, Simd<bfloat16_t, N, kPow2> d,
+HWY_API void Store(VBF16 v, Simd<bfloat16_t, N, kPow2> d,
                    bfloat16_t* HWY_RESTRICT p) {
   Store(v, RebindToUnsigned<decltype(d)>(),
         reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
 }
+
+#endif
 
 // ------------------------------ Load/StoreU
 
@@ -1474,6 +1510,13 @@ HWY_API VFromD<D> PromoteTo(D di, V v) {
 }
 
 // ------------------------------ PromoteTo F
+
+// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
+#endif
 
 // Unlike Highway's ZipLower, this returns the same type.
 namespace detail {
@@ -1878,6 +1921,8 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 
 // ------------------------------ DemoteTo F
 
+// We already toggled HWY_NATIVE_F16C above.
+
 template <size_t N, int kPow2>
 HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat32_t v) {
   const svfloat16_t in_even = svcvt_f16_f32_x(detail::PTrue(d), v);
@@ -1886,9 +1931,9 @@ HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat32_t v) {
 }
 
 template <size_t N, int kPow2>
-HWY_API svuint16_t DemoteTo(Simd<bfloat16_t, N, kPow2> /* d */, svfloat32_t v) {
+HWY_API VBF16 DemoteTo(Simd<bfloat16_t, N, kPow2> dbf16, svfloat32_t v) {
   const svuint16_t in_even = BitCast(ScalableTag<uint16_t>(), v);
-  return detail::ConcatOddFull(in_even, in_even);  // lower half
+  return BitCast(dbf16, detail::ConcatOddFull(in_even, in_even));  // lower half
 }
 
 template <size_t N, int kPow2>
@@ -3294,16 +3339,16 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 
 // ------------------------------ PromoteTo bfloat16 (ZipLower)
 template <size_t N, int kPow2>
-HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> df32,
-                              const svuint16_t v) {
-  return BitCast(df32, detail::ZipLowerSame(svdup_n_u16(0), v));
+HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> df32, VBF16 v) {
+  const ScalableTag<uint16_t> du16;
+  return BitCast(df32, detail::ZipLowerSame(svdup_n_u16(0), BitCast(du16, v)));
 }
 
 // ------------------------------ ReorderDemote2To (OddEven)
 
 template <size_t N, int kPow2>
-HWY_API svuint16_t ReorderDemote2To(Simd<bfloat16_t, N, kPow2> dbf16,
-                                    svfloat32_t a, svfloat32_t b) {
+HWY_API VBF16 ReorderDemote2To(Simd<bfloat16_t, N, kPow2> dbf16, svfloat32_t a,
+                               svfloat32_t b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
   const Repartition<uint32_t, decltype(dbf16)> du32;
   const svuint32_t b_in_even = ShiftRight<16>(BitCast(du32, b));
@@ -3456,13 +3501,14 @@ HWY_API VFromD<D> OrderedDemote2To(D dn, V a, V b) {
 }
 
 template <class D, HWY_IF_BF16_D(D)>
-HWY_API svuint16_t OrderedDemote2To(D dn, svfloat32_t a, svfloat32_t b) {
+HWY_API VBF16 OrderedDemote2To(D dn, svfloat32_t a, svfloat32_t b) {
   const Half<decltype(dn)> dnh;
   const RebindToUnsigned<decltype(dn)> dn_u;
   const RebindToUnsigned<decltype(dnh)> dnh_u;
   const auto demoted_a = DemoteTo(dnh, a);
   const auto demoted_b = DemoteTo(dnh, b);
-  return Combine(dn_u, BitCast(dnh_u, demoted_b), BitCast(dnh_u, demoted_a));
+  return BitCast(
+      dn, Combine(dn_u, BitCast(dnh_u, demoted_b), BitCast(dnh_u, demoted_a)));
 }
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
@@ -4428,13 +4474,11 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
 // ------------------------------ WidenMulPairwiseAdd
 
 template <size_t N, int kPow2>
-HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32,
-                                              svuint16_t a, svuint16_t b) {
-#if defined(__ARM_FEATURE_SVE_BF16)
-  const svbfloat16_t a_bf16 = svreinterpret_bf16_u16(a);
-  const svbfloat16_t b_bf16 = svreinterpret_bf16_u16(b);
-  const svfloat32_t even = svbfmlalb_f32(Zero(df32), a_bf16, b_bf16);
-  return svbfmlalt_f32(even, a_bf16, b_bf16);
+HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32, VBF16 a,
+                                        VBF16 b) {
+#if HWY_SVE_HAVE_BFLOAT16
+  const svfloat32_t even = svbfmlalb_f32(Zero(df32), a, b);
+  return svbfmlalt_f32(even, a, b);
 #else
   const RebindToUnsigned<decltype(df32)> du32;
   // Using shift/and instead of Zip leads to the odd/even order that
@@ -4447,7 +4491,7 @@ HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32,
   const VU32 bo = And(BitCast(du32, b), odd);
   return MulAdd(BitCast(df32, ae), BitCast(df32, be),
             Mul(BitCast(df32, ao), BitCast(df32, bo)));
-#endif  // defined(__ARM_FEATURE_SVE_BF16)
+#endif  // HWY_SVE_HAVE_BFLOAT16
 }
 
 template <size_t N, int kPow2>
@@ -4472,15 +4516,13 @@ HWY_API svint32_t WidenMulPairwiseAdd(Simd<int32_t, N, kPow2> d32,
 
 template <size_t N, int kPow2>
 HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
-                                              svuint16_t a, svuint16_t b,
+                                              VBF16 a, VBF16 b,
                                               const svfloat32_t sum0,
                                               svfloat32_t& sum1) {
-#if defined(__ARM_FEATURE_SVE_BF16)
+#if HWY_SVE_HAVE_BFLOAT16
   (void)df32;
-  const svbfloat16_t a_bf16 = svreinterpret_bf16_u16(a);
-  const svbfloat16_t b_bf16 = svreinterpret_bf16_u16(b);
-  sum1 = svbfmlalt_f32(sum1, a_bf16, b_bf16);
-  return svbfmlalb_f32(sum0, a_bf16, b_bf16);
+  sum1 = svbfmlalt_f32(sum1, a, b);
+  return svbfmlalb_f32(sum0, a, b);
 #else
   const RebindToUnsigned<decltype(df32)> du32;
   // Using shift/and instead of Zip leads to the odd/even order that
@@ -4493,7 +4535,7 @@ HWY_API svfloat32_t ReorderWidenMulAccumulate(Simd<float, N, kPow2> df32,
   const VU32 bo = And(BitCast(du32, b), odd);
   sum1 = MulAdd(BitCast(df32, ao), BitCast(df32, bo), sum1);
   return MulAdd(BitCast(df32, ae), BitCast(df32, be), sum0);
-#endif  // defined(__ARM_FEATURE_SVE_BF16)
+#endif  // HWY_SVE_HAVE_BFLOAT16
 }
 
 template <size_t N, int kPow2>
@@ -4773,6 +4815,7 @@ namespace detail {  // for code folding
 #undef HWY_SVE_ALL_PTRUE
 #undef HWY_SVE_D
 #undef HWY_SVE_FOREACH
+#undef HWY_SVE_FOREACH_BF16
 #undef HWY_SVE_FOREACH_F
 #undef HWY_SVE_FOREACH_F16
 #undef HWY_SVE_FOREACH_F32

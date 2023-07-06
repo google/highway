@@ -826,7 +826,7 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
 
 // ------------------------------ Negate
 
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
+template <typename T, size_t N, HWY_IF_FLOAT_OR_SPECIAL(T)>
 HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
   return Xor(v, SignBit(DFromV<decltype(v)>()));
 }
@@ -3728,27 +3728,6 @@ HWY_API VFromD<D> PromoteTo(D d, V v) {
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
-  const RebindToSigned<decltype(df32)> di32;
-  const RebindToUnsigned<decltype(df32)> du32;
-  using VU32 = VFromD<decltype(du32)>;
-  // Expand to u32 so we can shift.
-  const VU32 bits16 = PromoteTo(du32, VFromD<Rebind<uint16_t, D>>{v.raw});
-  const VU32 sign = ShiftRight<15>(bits16);
-  const VU32 biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
-  const VU32 mantissa = bits16 & Set(du32, 0x3FF);
-  const VU32 subnormal =
-      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
-                        Set(df32, 1.0f / 16384 / 1024));
-
-  const VU32 biased_exp32 = biased_exp + Set(du32, 127 - 15);
-  const VU32 mantissa32 = ShiftLeft<23 - 10>(mantissa);
-  const VU32 normal = ShiftLeft<23>(biased_exp32) | mantissa32;
-  const VU32 bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
-  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
   const Rebind<uint16_t, decltype(df32)> du16;
   const RebindToSigned<decltype(df32)> di32;
@@ -3807,35 +3786,6 @@ HWY_API VFromD<D> DemoteTo(D du8, VFromD<Rebind<uint16_t, D>> v) {
   const DFromV<decltype(v)> du16;
   const RebindToSigned<decltype(du16)> di16;
   return DemoteTo(du8, BitCast(di16, Min(v, Set(du16, 0x7FFF))));
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
-HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
-  const RebindToUnsigned<decltype(df16)> du16;
-  const Rebind<uint32_t, decltype(du16)> du;
-  const RebindToSigned<decltype(du)> di;
-  const auto bits32 = BitCast(du, v);
-  const auto sign = ShiftRight<31>(bits32);
-  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
-  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
-
-  const auto k15 = Set(di, 15);
-  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
-  const auto is_tiny = exp < Set(di, -24);
-
-  const auto is_subnormal = exp < Set(di, -14);
-  const auto biased_exp16 =
-      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
-  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
-  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
-                     (mantissa32 >> (Set(du, 13) + sub_exp));
-  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
-                                     ShiftRight<13>(mantissa32));  // <1024
-
-  const auto sign16 = ShiftLeft<15>(sign);
-  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
-  const auto bits16 = IfThenZeroElse(is_tiny, BitCast(di, normal16));
-  return VFromD<D>{DemoteTo(du16, bits16).raw};
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
@@ -5211,7 +5161,8 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
   const VU32 ao = And(BitCast(du32, a), odd);
   const VU32 be = ShiftLeft<16>(BitCast(du32, b));
   const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) + Mul(BitCast(df32, ao), BitCast(df32, bo));
+  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
+         Mul(BitCast(df32, ao), BitCast(df32, bo));
 }
 
 template <class D32, HWY_IF_F32_D(D32),

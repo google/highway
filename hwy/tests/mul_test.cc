@@ -381,8 +381,9 @@ HWY_NOINLINE void TestAllMulAdd() {
 }
 
 struct TestWidenMulPairwiseAdd {
+  // Must be inlined on aarch64 for bf16, else clang crashes.
   template <typename TN, class DN>
-  HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
     using TW = MakeWide<TN>;
     const RepartitionToWide<DN> dw;
     using VW = Vec<decltype(dw)>;
@@ -412,7 +413,7 @@ struct TestWidenMulPairwiseAdd {
       const VW delta1 = Load(dw, delta_w.get() + NN / 2);
       const VN delta = OrderedDemote2To(dn, delta0, delta1);
 
-      VW ref = InsertLane(f0, p / 2, static_cast<TW>(p));
+      const VW ref = InsertLane(f0, p / 2, static_cast<TW>(p));
       {
         const VW res = WidenMulPairwiseAdd(dw, delta, bf1);
         HWY_ASSERT_VEC_EQ(dw, res, ref);
@@ -432,8 +433,9 @@ HWY_NOINLINE void TestAllWidenMulPairwiseAdd() {
 }
 
 struct TestReorderWidenMulAccumulate {
+  // Must be inlined on aarch64 for bf16, else clang crashes.
   template <typename TN, class DN>
-  HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
     using TW = MakeWide<TN>;
     const RepartitionToWide<DN> dw;
     const Half<DN> dnh;
@@ -506,30 +508,14 @@ HWY_NOINLINE void TestAllReorderWidenMulAccumulate() {
 }
 
 struct TestRearrangeToOddPlusEven {
+  // Must be inlined on aarch64 for bf16, else clang crashes.
   template <typename TN, class DN>
-  HWY_NOINLINE void operator()(TN /*unused*/, DN dn) {
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
     using TW = MakeWide<TN>;
-    const RebindToUnsigned<DN> du;
     const RepartitionToWide<DN> dw;
-    const Half<DN> dnh;
-    const RebindToUnsigned<decltype(dnh)> duh;
     using VW = Vec<decltype(dw)>;
     using VN = Vec<decltype(dn)>;
     const size_t NW = Lanes(dw);
-
-    const VW up0 = Iota(dw, TW{1});
-    const VW up1 = Iota(dw, static_cast<TW>(1 + NW));
-    // We will compute i * (N-i) to avoid per-lane overflow.
-    const VW down0 = Reverse(dw, up1);
-    const VW down1 = Reverse(dw, up0);
-
-    // Combine is not available for bf16, so cast to u16.
-    const auto a0 = BitCast(duh, DemoteTo(dnh, up0));
-    const auto a1 = BitCast(duh, DemoteTo(dnh, up1));
-    const VN a = BitCast(dn, Combine(du, a1, a0));
-    const auto b0 = BitCast(duh, DemoteTo(dnh, down0));
-    const auto b1 = BitCast(duh, DemoteTo(dnh, down1));
-    const VN b = BitCast(dn, Combine(du, b1, b0));
 
     const auto expected = AllocateAligned<TW>(NW);
     for (size_t iw = 0; iw < NW; ++iw) {
@@ -541,15 +527,30 @@ struct TestRearrangeToOddPlusEven {
       expected[iw] = static_cast<TW>(a0 * b0 + a1 * b1);
     }
 
+    const VW up0 = Iota(dw, TW{1});
+    const VW up1 = Iota(dw, static_cast<TW>(1 + NW));
+    // We will compute i * (N-i) to avoid per-lane overflow.
+    const VW down0 = Reverse(dw, up1);
+    const VW down1 = Reverse(dw, up0);
+
+    const VN a = OrderedDemote2To(dn, up0, up1);
+    const VN b = OrderedDemote2To(dn, down0, down1);
+
+    VW sum0 = Zero(dw);
     VW sum1 = Zero(dw);
-    const VW sum0 = ReorderWidenMulAccumulate(dw, a, b, Zero(dw), sum1);
+    sum0 = ReorderWidenMulAccumulate(dw, a, b, sum0, sum1);
     const VW sum_odd_even = RearrangeToOddPlusEven(sum0, sum1);
     HWY_ASSERT_VEC_EQ(dw, expected.get(), sum_odd_even);
   }
 };
 
 HWY_NOINLINE void TestAllRearrangeToOddPlusEven() {
+// For reasons unknown, <128 bit crashes aarch64 clang.
+#if HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG
+  ForGEVectors<128, TestRearrangeToOddPlusEven>()(bfloat16_t());
+#else
   ForShrinkableVectors<TestRearrangeToOddPlusEven>()(bfloat16_t());
+#endif
   ForShrinkableVectors<TestRearrangeToOddPlusEven>()(int16_t());
 }
 

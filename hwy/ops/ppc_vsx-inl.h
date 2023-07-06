@@ -481,6 +481,11 @@ HWY_INLINE Vec128<T, N> Neg(Vec128<T, N> v) {
   return Vec128<T, N>{vec_neg(v.raw)};
 }
 
+template <typename T, size_t N, HWY_IF_SPECIAL_FLOAT(T)>
+HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
+  return Xor(v, SignBit(DFromV<decltype(v)>()));
+}
+
 // ------------------------------ Abs
 
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
@@ -2830,37 +2835,21 @@ HWY_API VFromD<D> PromoteTo(D d64,
   return PromoteTo(d64, PromoteTo(dw, v));
 }
 
-// Workaround for origin tracking bug in Clang msan prior to 11.0
-// (spurious "uninitialized memory" for TestF16 with "ORIGIN: invalid")
-#if HWY_IS_MSAN && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1100)
-#define HWY_INLINE_F16 HWY_NOINLINE
-#else
-#define HWY_INLINE_F16 HWY_INLINE
-#endif
-template <class D, HWY_IF_F32_D(D)>
-HWY_INLINE_F16 VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
 #if HWY_PPC_HAVE_9
-  (void)df32;
-  return VFromD<D>{vec_extract_fp32_from_shorth(v.raw)};
-#else
-  const RebindToSigned<decltype(df32)> di32;
-  const RebindToUnsigned<decltype(df32)> du32;
-  // Expand to u32 so we can shift.
-  const auto bits16 = PromoteTo(du32, VFromD<Rebind<uint16_t, D>>{v.raw});
-  const auto sign = ShiftRight<15>(bits16);
-  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
-  const auto mantissa = bits16 & Set(du32, 0x3FF);
-  const auto subnormal =
-      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
-                        Set(df32, 1.0f / 16384 / 1024));
 
-  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
-  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
-  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
-  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
-  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
+// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
 #endif
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_INLINE_F16 VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
+  return VFromD<D>{vec_extract_fp32_from_shorth(v.raw)};
 }
+
+#endif  // HWY_PPC_HAVE_9
 
 template <class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
@@ -2942,62 +2931,42 @@ HWY_API VFromD<D> DemoteTo(D d,
   return DemoteTo(d, DemoteTo(d2, v));
 }
 
+#if HWY_PPC_HAVE_9 && \
+    (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp))
+
+// We already toggled HWY_NATIVE_F16C above.
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
-HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
-#if HWY_PPC_HAVE_9 && HWY_COMPILER_GCC_ACTUAL
-  // Do not use vec_pack_to_short_fp32 on clang as there is a bug in the clang
-  // version of vec_pack_to_short_fp32
-  (void)df16;
+HWY_API VFromD<D> DemoteTo(D /*tag*/, VFromD<Rebind<float, D>> v) {
+// Avoid vec_pack_to_short_fp32 on Clang because its implementation is buggy.
+#if HWY_COMPILER_GCC_ACTUAL
   return VFromD<D>{vec_pack_to_short_fp32(v.raw, v.raw)};
-#else
-  const Rebind<uint32_t, decltype(df16)> du;
-  const RebindToUnsigned<decltype(df16)> du16;
-#if HWY_PPC_HAVE_9 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
+#elif HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
   // Work around bug in the clang implementation of vec_pack_to_short_fp32
   // by using the __builtin_vsx_xvcvsphp builtin on PPC9/PPC10 targets
   // if the __builtin_vsx_xvcvsphp intrinsic is available
   const VFromD<decltype(du)> bits16{
       reinterpret_cast<__vector unsigned int>(__builtin_vsx_xvcvsphp(v.raw))};
-#else
-  const RebindToSigned<decltype(du)> di;
-  const auto bits32 = BitCast(du, v);
-  const auto sign = ShiftRight<31>(bits32);
-  const auto biased_exp32 = ShiftRight<23>(bits32) & Set(du, 0xFF);
-  const auto mantissa32 = bits32 & Set(du, 0x7FFFFF);
-
-  const auto k15 = Set(di, 15);
-  const auto exp = Min(BitCast(di, biased_exp32) - Set(di, 127), k15);
-  const auto is_tiny = exp < Set(di, -24);
-
-  const auto is_subnormal = exp < Set(di, -14);
-  const auto biased_exp16 =
-      BitCast(du, IfThenZeroElse(is_subnormal, exp + k15));
-  const auto sub_exp = BitCast(du, Set(di, -14) - exp);  // [1, 11)
-  const auto sub_m = (Set(du, 1) << (Set(du, 10) - sub_exp)) +
-                     (mantissa32 >> (Set(du, 13) + sub_exp));
-  const auto mantissa16 = IfThenElse(RebindMask(du, is_subnormal), sub_m,
-                                     ShiftRight<13>(mantissa32));  // <1024
-
-  const auto sign16 = ShiftLeft<15>(sign);
-  const auto normal16 = sign16 | ShiftLeft<10>(biased_exp16) | mantissa16;
-  const auto bits16 = IfThenZeroElse(RebindMask(du, is_tiny), normal16);
-#endif  // HWY_PPC_HAVE_9 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
   return BitCast(df16, TruncateTo(du16, bits16));
-#endif  // HWY_PPC_HAVE_9 && HWY_COMPILER_GCC_ACTUAL
+#else
+#error "Only define the function if we have a native implementation"
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
-HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
-  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
-  const Rebind<uint16_t, decltype(dbf16)> du16;
-  const auto bits_in_32 = ShiftRight<16>(BitCast(du32, v));
-  return BitCast(dbf16, TruncateTo(du16, bits_in_32));
-}
+#endif  // HWY_PPC_HAVE_9
 
-template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
-HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
-  const RebindToUnsigned<decltype(dbf16)> du16;
-  const Repartition<uint32_t, decltype(dbf16)> du32;
+  template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
+  HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
+    const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+    const Rebind<uint16_t, decltype(dbf16)> du16;
+    const auto bits_in_32 = ShiftRight<16>(BitCast(du32, v));
+    return BitCast(dbf16, TruncateTo(du16, bits_in_32));
+  }
+
+  template <class D, HWY_IF_BF16_D(D),
+            class V32 = VFromD<Repartition<float, D>>>
+  HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
+    const RebindToUnsigned<decltype(dbf16)> du16;
+    const Repartition<uint32_t, decltype(dbf16)> du32;
 #if HWY_IS_LITTLE_ENDIAN
   const auto a_in_odd = a;
   const auto b_in_even = ShiftRight<16>(BitCast(du32, b));
@@ -3007,7 +2976,7 @@ HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
 #endif
   return BitCast(dbf16,
                  OddEven(BitCast(du16, a_in_odd), BitCast(du16, b_in_even)));
-}
+  }
 
 // Specializations for partial vectors because vec_packs sets lanes above 2*N.
 template <class DN, typename V, HWY_IF_V_SIZE_LE_D(DN, 4), HWY_IF_SIGNED_D(DN),

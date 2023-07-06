@@ -754,6 +754,12 @@ HWY_API Vec128<T, N> Neg(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
   return Xor(v, SignBit(d));
 }
 
+template <typename T, size_t N>
+HWY_API Vec128<T, N> Neg(hwy::SpecialTag /*tag*/, Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  return Xor(v, SignBit(d));
+}
+
 }  // namespace detail
 
 template <typename T, size_t N>
@@ -1675,80 +1681,10 @@ HWY_INLINE uint16_t U16FromF16(const hwy::float16_t* HWY_RESTRICT from) {
 }  // namespace detail
 
 template <class D, HWY_IF_F32_D(D), size_t N>
-HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<float16_t, N> v) {
-  VFromD<D> ret;
-  for (size_t i = 0; i < N; ++i) {
-    const uint16_t bits16 = detail::U16FromF16(&v.raw[i]);
-    const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
-    const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
-    const uint32_t mantissa = bits16 & 0x3FF;
-
-    // Subnormal or zero
-    if (biased_exp == 0) {
-      const float subnormal =
-          (1.0f / 16384) * (static_cast<float>(mantissa) * (1.0f / 1024));
-      ret.raw[i] = sign ? -subnormal : subnormal;
-      continue;
-    }
-
-    // Normalized: convert the representation directly (faster than
-    // ldexp/tables).
-    const uint32_t biased_exp32 = biased_exp + (127 - 15);
-    const uint32_t mantissa32 = mantissa << (23 - 10);
-    const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
-    CopySameSize(&bits32, &ret.raw[i]);
-  }
-  return ret;
-}
-
-template <class D, HWY_IF_F32_D(D), size_t N>
 HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<bfloat16_t, N> v) {
   VFromD<D> ret;
   for (size_t i = 0; i < N; ++i) {
     ret.raw[i] = F32FromBF16(v.raw[i]);
-  }
-  return ret;
-}
-
-template <class D, HWY_IF_F16_D(D), size_t N>
-HWY_API VFromD<D> DemoteTo(D /* tag */, Vec128<float, N> v) {
-  VFromD<D> ret;
-  for (size_t i = 0; i < N; ++i) {
-    uint32_t bits32;
-    CopySameSize(&v.raw[i], &bits32);
-    const uint32_t sign = bits32 >> 31;
-    const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
-    const uint32_t mantissa32 = bits32 & 0x7FFFFF;
-
-    const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
-
-    // Tiny or zero => zero.
-    if (exp < -24) {
-      ZeroBytes<sizeof(uint16_t)>(&ret.raw[i]);
-      continue;
-    }
-
-    uint32_t biased_exp16, mantissa16;
-
-    // exp = [-24, -15] => subnormal
-    if (exp < -14) {
-      biased_exp16 = 0;
-      const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
-      HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
-      mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
-                                         (mantissa32 >> (13 + sub_exp)));
-    } else {
-      // exp = [-14, 15]
-      biased_exp16 = static_cast<uint32_t>(exp + 15);
-      HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
-      mantissa16 = mantissa32 >> 13;
-    }
-
-    HWY_DASSERT(mantissa16 < 1024);
-    const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
-    HWY_DASSERT(bits16 < 0x10000);
-    const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
-    detail::StoreU16ToF16(narrowed, &ret.raw[i]);
   }
   return ret;
 }

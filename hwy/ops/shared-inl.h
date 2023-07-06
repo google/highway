@@ -436,6 +436,9 @@ using BlockDFromD =
 #define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(TFromD<D>)
 #define HWY_IF_SPECIAL_FLOAT_D(D) HWY_IF_SPECIAL_FLOAT(TFromD<D>)
 #define HWY_IF_NOT_SPECIAL_FLOAT_D(D) HWY_IF_NOT_SPECIAL_FLOAT(TFromD<D>)
+#define HWY_IF_FLOAT_OR_SPECIAL_D(D) HWY_IF_FLOAT_OR_SPECIAL(TFromD<D>)
+#define HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D) \
+  HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>)
 
 #define HWY_IF_T_SIZE_D(D, bytes) HWY_IF_T_SIZE(TFromD<D>, bytes)
 #define HWY_IF_NOT_T_SIZE_D(D, bytes) HWY_IF_NOT_T_SIZE(TFromD<D>, bytes)
@@ -472,8 +475,9 @@ using BlockDFromD =
                 IsSame<TFromD<D>, int64_t>()>* = nullptr
 
 #define HWY_IF_BF16_D(D) \
-  hwy::EnableIf<IsSame<TFromD<D>, bfloat16_t>()>* = nullptr
-#define HWY_IF_F16_D(D) hwy::EnableIf<IsSame<TFromD<D>, float16_t>()>* = nullptr
+  hwy::EnableIf<IsSame<TFromD<D>, hwy::bfloat16_t>()>* = nullptr
+#define HWY_IF_F16_D(D) \
+  hwy::EnableIf<IsSame<TFromD<D>, hwy::float16_t>()>* = nullptr
 #define HWY_IF_F32_D(D) hwy::EnableIf<IsSame<TFromD<D>, float>()>* = nullptr
 #define HWY_IF_F64_D(D) hwy::EnableIf<IsSame<TFromD<D>, double>()>* = nullptr
 
@@ -489,6 +493,7 @@ using BlockDFromD =
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
 #define HWY_IF_NOT_FLOAT_V(V) HWY_IF_NOT_FLOAT(TFromV<V>)
+#define HWY_IF_SPECIAL_FLOAT_V(V) HWY_IF_SPECIAL_FLOAT(TFromV<V>)
 #define HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V) \
   HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromV<V>)
 

@@ -1195,8 +1195,8 @@ All functions except `Stream` are defined in cache_control.h.
     of `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
     resized vector reinterpreted as type `Vec<D>`.
 
-    If `Vec<D>` is a larger vector than `V`, then the contents of any bytes
-    past the first `Lanes(DFromV<V>()) * sizeof(TFromV<V>)` bytes of the result
+    If `Vec<D>` is a larger vector than `V`, then the contents of any bytes past
+    the first `Lanes(DFromV<V>()) * sizeof(TFromV<V>)` bytes of the result
     vector is unspecified.
 
 *   <code>Vec&lt;DTo&gt; **ZeroExtendResizeBitCast**(DTo, DFrom, V)</code>:
@@ -1204,23 +1204,22 @@ All functions except `Stream` are defined in cache_control.h.
     `Lanes(D()) * sizeof(TFromD<D>)` bytes, and then returns the bits of the
     resized vector reinterpreted as type `Vec<DTo>`.
 
-    If `Lanes(DTo()) * sizeof(TFromD<DTo>)` is greater than
-    `Lanes(DFrom()) * sizeof(TFromD<DFrom>)`, then any bytes past the first
-    `Lanes(DFrom()) * sizeof(TFromD<DFrom>)` bytes of the result vector are
-    zeroed out.
+    If `Lanes(DTo()) * sizeof(TFromD<DTo>)` is greater than `Lanes(DFrom()) *
+    sizeof(TFromD<DFrom>)`, then any bytes past the first `Lanes(DFrom()) *
+    sizeof(TFromD<DFrom>)` bytes of the result vector are zeroed out.
 
 *   `V`,`V8`: (`u32,u8`) \
     <code>V8 **U8FromU32**(V)</code>: special-case `u32` to `u8` conversion when
     all lanes of `V` are already clamped to `[0, 256)`.
 
-*   `V`,`D`: (`i32`,`f32`), (`i64`,`f64`) \
-    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts an integer value to
-    same-sized floating point.
+*   `D`: `{f}` \
+    <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: converts a signed/unsigned
+    integer value to same-sized floating point.
 
-*   `V`,`D`: (`f32`,`i32`), (`f64`,`i64`) \
+*   `V`: `{f}` \
     <code>Vec&lt;D&gt; **ConvertTo**(D, V)</code>: rounds floating point towards
-    zero and converts the value to same-sized integer. Returns the closest
-    representable value if the input exceeds the destination range.
+    zero and converts the value to same-sized signed/unsigned integer. Returns
+    the closest representable value if the input exceeds the destination range.
 
 *   `V`: `f32`; `Ret`: `i32` \
     <code>Ret **NearestInt**(V a)</code>: returns the integer nearest to `a[i]`;
@@ -1777,7 +1776,9 @@ instead of `HWY_HAVE_FLOAT64`, which describes the current target.
 *   `HWY_IDE` is 0 except when parsed by IDEs; adding it to conditions such as
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
 
-The following indicate support for certain lane types and expand to 1 or 0:
+The following indicate full support for certain lane types and expand to 1 or 0.
+Note that minimal support (Zero, BitCast, Load/Store, Neg, PromoteTo/DemoteTo)
+is always available for float16_t and bfloat16_t.
 
 *   `HWY_HAVE_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
 *   `HWY_HAVE_FLOAT16`: support for 16-bit floating-point lanes.

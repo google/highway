@@ -60,26 +60,26 @@ struct KeyLaneBase {
 // Order* classes to enable SFINAE. LargestSortValue is used even if
 // !VQSORT_ENABLED.
 
-template <class D, HWY_IF_FLOAT_D(D)>
+template <class D, HWY_IF_FLOAT_OR_SPECIAL_D(D)>
 Vec<D> LargestSortValue(D d) {
   return Inf(d);
 }
-template <class D, HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 Vec<D> LargestSortValue(D d) {
   return Set(d, hwy::HighestValue<TFromD<D>>());
 }
 
-template <class D, HWY_IF_FLOAT_D(D)>
+template <class D, HWY_IF_FLOAT_OR_SPECIAL_D(D)>
 Vec<D> SmallestSortValue(D d) {
   return Neg(Inf(d));
 }
-template <class D, HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 Vec<D> SmallestSortValue(D d) {
   return Set(d, hwy::LowestValue<TFromD<D>>());
 }
 
 // Returns the next distinct larger value unless already +inf.
-template <class D, HWY_IF_FLOAT_D(D)>
+template <class D, HWY_IF_FLOAT_OR_SPECIAL_D(D)>
 Vec<D> LargerSortValue(D d, Vec<D> v) {
   HWY_DASSERT(AllFalse(d, IsNaN(v)));  // we replaced all NaN with LastValue.
   using T = TFromD<decltype(d)>;
@@ -106,7 +106,7 @@ Vec<D> LargerSortValue(D d, Vec<D> v) {
 }
 
 // Returns the next distinct smaller value unless already -inf.
-template <class D, HWY_IF_FLOAT_D(D)>
+template <class D, HWY_IF_FLOAT_OR_SPECIAL_D(D)>
 Vec<D> SmallerSortValue(D d, Vec<D> v) {
   HWY_DASSERT(AllFalse(d, IsNaN(v)));  // we replaced all NaN with LastValue.
   using T = TFromD<decltype(d)>;
@@ -132,12 +132,12 @@ Vec<D> SmallerSortValue(D d, Vec<D> v) {
   return IfThenElse(was_pos, v, Neg(v));
 }
 
-template <class D, HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 Vec<D> LargerSortValue(D d, Vec<D> v) {
   return Add(v, Set(d, TFromD<D>{1}));
 }
 
-template <class D, HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 Vec<D> SmallerSortValue(D d, Vec<D> v) {
   return Sub(v, Set(d, TFromD<D>{1}));
 }

@@ -237,16 +237,35 @@ HWY_API Vec512<double> Set(D /* tag */, double t) {
 // GCC pre-9.1 lacked setzero, so use Set instead.
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
 
-template <class D, HWY_IF_V_SIZE_D(D, 64)>
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec512<TFromD<D>> Zero(D d) {
   return Set(d, TFromD<D>{0});
+}
+// BitCast is defined below, but the Raw type is the same, so use that.
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_BF16_D(D)>
+HWY_API Vec512<bfloat16_t> Zero(D /* tag */) {
+  const RebindToUnsigned<D> du;
+  return Vec512<bfloat16_t>{Set(du, 0).raw};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
+HWY_API Vec512<float16_t> Zero(D /* tag */) {
+  const RebindToUnsigned<D> du;
+  return Vec512<float16_t>{Set(du, 0).raw};
 }
 
 #else
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec512<TFromD<D>> Zero(D /* tag */) {
   return Vec512<TFromD<D>>{_mm512_setzero_si512()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_BF16_D(D)>
+HWY_API Vec512<bfloat16_t> Zero(D /* tag */) {
+  return Vec512<bfloat16_t>{_mm512_setzero_ps()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
+HWY_API Vec512<float16_t> Zero(D /* tag */) {
+  return Vec512<float16_t>{_mm512_setzero_ps()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API Vec512<float> Zero(D /* tag */) {
@@ -265,11 +284,19 @@ HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 
 // Returns a vector with uninitialized elements.
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec512<TFromD<D>> Undefined(D /* tag */) {
   // Available on Clang 6.0, GCC 6.2, ICC 16.03, MSVC 19.14. All but ICC
   // generate an XOR instruction.
   return Vec512<TFromD<D>>{_mm512_undefined_epi32()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_BF16_D(D)>
+HWY_API Vec512<bfloat16_t> Undefined(D /* tag */) {
+  return Vec512<bfloat16_t>{_mm512_undefined_epi32()};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
+HWY_API Vec512<float16_t> Undefined(D /* tag */) {
+  return Vec512<float16_t>{_mm512_undefined_epi32()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API Vec512<float> Undefined(D /* tag */) {
@@ -689,14 +716,12 @@ HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<4> /* tag */,
                                 const Mask512<T> mask, const Vec512<T> yes,
                                 const Vec512<T> no) {
   return Vec512<T>{_mm512_mask_blend_epi32(mask.raw, no.raw, yes.raw)};
-
 }
 template <typename T>
 HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<8> /* tag */,
                                 const Mask512<T> mask, const Vec512<T> yes,
                                 const Vec512<T> no) {
   return Vec512<T>{_mm512_mask_blend_epi64(mask.raw, no.raw, yes.raw)};
-
 }
 
 }  // namespace detail
@@ -1452,13 +1477,13 @@ HWY_API Vec512<uint64_t> MulEven(Vec512<uint32_t> a, Vec512<uint32_t> b) {
 
 // ------------------------------ Neg (Sub)
 
-template <typename T, HWY_IF_FLOAT(T)>
+template <typename T, HWY_IF_FLOAT_OR_SPECIAL(T)>
 HWY_API Vec512<T> Neg(const Vec512<T> v) {
   const DFromV<decltype(v)> d;
   return Xor(v, SignBit(d));
 }
 
-template <typename T, HWY_IF_NOT_FLOAT(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec512<T> Neg(const Vec512<T> v) {
   const DFromV<decltype(v)> d;
   return Zero(d) - v;
@@ -3958,7 +3983,7 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
           d, detail::TableLookupSlideUpLanes(du16, BitCast(du16, v), amt >> 1));
     }
 #if HWY_TARGET > HWY_AVX3_DL
-    else if (amt <= 63) {
+    else if (amt <= 63) {  // NOLINT(readability/braces)
       const Repartition<uint64_t, decltype(d)> du64;
       const size_t blk_u64_slideup_amt = (amt >> 4) << 1;
       const auto vu64 = BitCast(du64, v);
@@ -4190,7 +4215,7 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
                             du16, BitCast(du16, v), amt >> 1));
     }
 #if HWY_TARGET > HWY_AVX3_DL
-    else if (amt <= 63) {
+    else if (amt <= 63) {  // NOLINT(readability/braces)
       const Repartition<uint64_t, decltype(d)> du64;
       const size_t blk_u64_slidedown_amt = (amt >> 4) << 1;
       const auto vu64 = BitCast(du64, v);
@@ -4198,7 +4223,8 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
           BitCast(d, SlideDownLanes(du64, vu64, blk_u64_slidedown_amt));
       const auto v_hi =
           (blk_u64_slidedown_amt <= 4)
-              ? BitCast(d, SlideDownLanes(du64, vu64, blk_u64_slidedown_amt + 2))
+              ? BitCast(d,
+                        SlideDownLanes(du64, vu64, blk_u64_slidedown_amt + 2))
               : Zero(d);
       switch (amt & 15) {
         case 1:

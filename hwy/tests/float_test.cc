@@ -130,51 +130,38 @@ template <typename T, class D>
 AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
   const T eps = std::numeric_limits<T>::epsilon();
   const T test_cases[] = {
-    // +/- 1
-    T(1),
-    T(-1),
-    // +/- 0
-    T(0),
-    T(-0),
-    // near 0
-    T(0.4),
-    T(-0.4),
-    // +/- integer
-    T(4),
-    T(-32),
-    // positive near limit
-    MantissaEnd<T>() - T(1.5),
-    MantissaEnd<T>() + T(1.5),
-    // negative near limit
-    -MantissaEnd<T>() - T(1.5),
-    -MantissaEnd<T>() + T(1.5),
-    // positive tiebreak
-    T(1.5),
-    T(2.5),
-    // negative tiebreak
-    T(-1.5),
-    T(-2.5),
-    // positive +/- delta
-    T(2.0001),
-    T(3.9999),
-    // negative +/- delta
-    T(-999.9999),
-    T(-998.0001),
-    // positive +/- epsilon
-    T(1) + eps,
-    T(1) - eps,
-    // negative +/- epsilon
-    T(-1) + eps,
-    T(-1) - eps,
-    // +/- huge (but still fits in float)
-    T(1E34),
-    T(-1E35),
-    // +/- infinity
-    std::numeric_limits<T>::infinity(),
-    -std::numeric_limits<T>::infinity(),
-    // qNaN
-    GetLane(NaN(d))
-  };
+      // +/- 1
+      T(1), T(-1),
+      // +/- 0
+      T(0), T(-0),
+      // near 0
+      T(0.4), T(-0.4),
+      // +/- integer
+      T(4), T(-32),
+      // positive near limit
+      static_cast<T>(MantissaEnd<T>() - T(1.5)),
+      static_cast<T>(MantissaEnd<T>() + T(1.5)),
+      // negative near limit
+      static_cast<T>(-MantissaEnd<T>() - T(1.5)),
+      static_cast<T>(-MantissaEnd<T>() + T(1.5)),
+      // positive tiebreak
+      T(1.5), T(2.5),
+      // negative tiebreak
+      T(-1.5), T(-2.5),
+      // positive +/- delta
+      T(2.0001), T(3.9999),
+      // negative +/- delta
+      T(-999.9999), T(-998.0001),
+      // positive +/- epsilon
+      static_cast<T>(T(1) + eps), static_cast<T>(T(1) - eps),
+      // negative +/- epsilon
+      static_cast<T>(T(-1) + eps), static_cast<T>(T(-1) - eps),
+      // +/- huge (but still fits in float)
+      T(1E34), T(-1E35),
+      // +/- infinity
+      GetLane(Inf(d)), GetLane(Neg(Inf(d))),
+      // qNaN
+      GetLane(NaN(d))};
   const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors

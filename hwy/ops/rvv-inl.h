@@ -24,6 +24,13 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// Support for vfloat16m*_t and PromoteTo/DemoteTo.
+#ifdef __riscv_zvfhmin
+#define HWY_RVV_HAVE_F16C 1
+#else
+#define HWY_RVV_HAVE_F16C 0
+#endif
+
 template <class V>
 struct DFromV_t {};  // specialized in macros
 template <class V>
@@ -323,9 +330,15 @@ namespace detail {  // for code folding
   HWY_CONCAT(HWY_RVV_FOREACH_64, LMULS)(X_MACRO, int, i, NAME, OP)
 
 // SEW for float:
-#if HWY_HAVE_FLOAT16
-#define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS) \
+
+// Used for conversion instructions if HWY_RVV_HAVE_F16C.
+#define HWY_RVV_FOREACH_F16_UNCONDITIONAL(X_MACRO, NAME, OP, LMULS) \
   HWY_CONCAT(HWY_RVV_FOREACH_16, LMULS)(X_MACRO, float, f, NAME, OP)
+
+#if HWY_HAVE_FLOAT16
+// Full support for f16 in all ops
+#define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS) \
+  HWY_RVV_FOREACH_F16_UNCONDITIONAL(X_MACRO, NAME, OP, LMULS)
 #else
 #define HWY_RVV_FOREACH_F16(X_MACRO, NAME, OP, LMULS)
 #endif
@@ -449,12 +462,18 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
 
 HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL)
 HWY_RVV_FOREACH(HWY_RVV_LANES_VIRT, Lanes, lenb, _VIRT)
+// If not already defined via HWY_RVV_FOREACH, define the overloads because
+// they do not require any new instruction.
+#if !HWY_HAVE_FLOAT16
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL)
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_LANES_VIRT, Lanes, lenb, _VIRT)
+#endif
 #undef HWY_RVV_LANES
 #undef HWY_RVV_LANES_VIRT
 
 template <size_t N, int kPow2>
 HWY_API size_t Lanes(Simd<bfloat16_t, N, kPow2> /* tag*/) {
-  return Lanes(Simd<uint16_t, N, kPow2>());
+  return Lanes(Simd<int16_t, N, kPow2>());
 }
 
 // ------------------------------ Common x-macros
@@ -510,13 +529,25 @@ HWY_RVV_FOREACH_UI(HWY_RVV_SET, Set, mv_v_x, _ALL_VIRT)
 HWY_RVV_FOREACH_F(HWY_RVV_SET, Set, fmv_v_f, _ALL_VIRT)
 #undef HWY_RVV_SET
 
-// Treat bfloat16_t as uint16_t (using the previously defined Set overloads);
+// Treat bfloat16_t as int16_t (using the previously defined Set overloads);
 // required for Zero and VFromD.
 template <size_t N, int kPow2>
-decltype(Set(Simd<uint16_t, N, kPow2>(), 0)) Set(Simd<bfloat16_t, N, kPow2> d,
-                                                 bfloat16_t arg) {
-  return Set(RebindToUnsigned<decltype(d)>(), arg.bits);
+decltype(Set(Simd<int16_t, N, kPow2>(), 0)) Set(Simd<bfloat16_t, N, kPow2> d,
+                                                bfloat16_t arg) {
+  return Set(RebindToSigned<decltype(d)>(), arg.bits);
 }
+#if !HWY_HAVE_FLOAT16  // Otherwise already defined above.
+// WARNING: returns a different type than emulated bfloat16_t so that we can
+// implement PromoteTo overloads for both bfloat16_t and float16_t, and also
+// provide a Neg(float16_t) overload that coexists with Neg(int16_t).
+template <size_t N, int kPow2>
+decltype(Set(Simd<uint16_t, N, kPow2>(), 0)) Set(Simd<float16_t, N, kPow2> d,
+                                                 float16_t arg) {
+  uint16_t bits;
+  CopySameSize(&arg, &bits);
+  return Set(RebindToUnsigned<decltype(d)>(), bits);
+}
+#endif
 
 template <class D>
 using VFromD = decltype(Set(D(), TFromD<D>()));
@@ -693,10 +724,21 @@ HWY_RVV_FOREACH_U08(HWY_RVV_CAST_U8, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_I08(HWY_RVV_CAST_I8, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_U163264(HWY_RVV_CAST_U, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_I163264(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
-HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_U163264(HWY_RVV_CAST_VIRT_U, _, reinterpret, _VIRT)
 HWY_RVV_FOREACH_I163264(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
+HWY_RVV_FOREACH_F(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
+#if HWY_HAVE_FLOAT16     // HWY_RVV_FOREACH_F already covered float16_
+#elif HWY_RVV_HAVE_F16C  // zvfhmin provides reinterpret* intrinsics:
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_IF, _, reinterpret, _ALL)
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
+#else
+template <size_t N, int kPow2>
+HWY_INLINE VFromD<Simd<uint16_t, N, kPow2>> BitCastFromByte(
+    Simd<float16_t, N, kPow2> /* d */, VFromD<Simd<uint8_t, N, kPow2>> v) {
+  return BitCastFromByte(Simd<uint16_t, N, kPow2>(), v);
+}
+#endif
 
 #undef HWY_RVV_CAST_U8
 #undef HWY_RVV_CAST_I8
@@ -706,9 +748,9 @@ HWY_RVV_FOREACH_F(HWY_RVV_CAST_VIRT_IF, _, reinterpret, _VIRT)
 #undef HWY_RVV_CAST_VIRT_IF
 
 template <size_t N, int kPow2>
-HWY_INLINE VFromD<Simd<uint16_t, N, kPow2>> BitCastFromByte(
+HWY_INLINE VFromD<Simd<int16_t, N, kPow2>> BitCastFromByte(
     Simd<bfloat16_t, N, kPow2> /* d */, VFromD<Simd<uint8_t, N, kPow2>> v) {
-  return BitCastFromByte(Simd<uint16_t, N, kPow2>(), v);
+  return BitCastFromByte(Simd<int16_t, N, kPow2>(), v);
 }
 
 }  // namespace detail
@@ -1448,18 +1490,37 @@ HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le, _ALL_VIRT)
 
 // There is no native BF16, treat as uint16_t.
 template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint16_t, N, kPow2>> Load(
-    Simd<bfloat16_t, N, kPow2> d, const bfloat16_t* HWY_RESTRICT p) {
+HWY_API VFromD<Simd<int16_t, N, kPow2>> Load(Simd<bfloat16_t, N, kPow2> d,
+                                             const bfloat16_t* HWY_RESTRICT p) {
+  return Load(RebindToSigned<decltype(d)>(),
+              reinterpret_cast<const int16_t * HWY_RESTRICT>(p));
+}
+
+template <size_t N, int kPow2>
+HWY_API void Store(VFromD<Simd<int16_t, N, kPow2>> v,
+                   Simd<bfloat16_t, N, kPow2> d, bfloat16_t* HWY_RESTRICT p) {
+  Store(v, RebindToSigned<decltype(d)>(),
+        reinterpret_cast<int16_t * HWY_RESTRICT>(p));
+}
+
+#if !HWY_HAVE_FLOAT16  // Otherwise already defined above.
+
+// NOTE: different type for float16_t than bfloat16_t, see Set().
+template <size_t N, int kPow2>
+HWY_API VFromD<Simd<uint16_t, N, kPow2>> Load(Simd<float16_t, N, kPow2> d,
+                                              const float16_t* HWY_RESTRICT p) {
   return Load(RebindToUnsigned<decltype(d)>(),
               reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
 }
 
 template <size_t N, int kPow2>
 HWY_API void Store(VFromD<Simd<uint16_t, N, kPow2>> v,
-                   Simd<bfloat16_t, N, kPow2> d, bfloat16_t* HWY_RESTRICT p) {
+                   Simd<float16_t, N, kPow2> d, float16_t* HWY_RESTRICT p) {
   Store(v, RebindToUnsigned<decltype(d)>(),
         reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
 }
+
+#endif  // !HWY_HAVE_FLOAT16
 
 // ------------------------------ LoadU
 template <class D>
@@ -1608,7 +1669,7 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
 
 // ------------------------------ PromoteTo
 
-// SEW is for the input so we can use F16 (no-op if not supported).
+// SEW is for the input.
 #define HWY_RVV_PROMOTE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,     \
                         SHIFT, MLEN, NAME, OP)                               \
   template <size_t N>                                                        \
@@ -1623,8 +1684,21 @@ HWY_RVV_FOREACH_U32(HWY_RVV_PROMOTE, PromoteTo, zext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_I08(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_I16(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
 HWY_RVV_FOREACH_I32(HWY_RVV_PROMOTE, PromoteTo, sext_vf2_, _EXT_VIRT)
-HWY_RVV_FOREACH_F16(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_, _EXT_VIRT)
 HWY_RVV_FOREACH_F32(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_, _EXT_VIRT)
+
+#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
+
+HWY_RVV_FOREACH_F16_UNCONDITIONAL(HWY_RVV_PROMOTE, PromoteTo, fwcvt_f_f_v_,
+                                  _EXT_VIRT)
+
+// Per-target flag to prevent generic_ops-inl.h from defining f16 conversions.
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
+#endif
+#endif  // HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
+
 #undef HWY_RVV_PROMOTE
 
 // The above X-macro cannot handle 4x promotion nor type switching.
@@ -2239,7 +2313,7 @@ HWY_API VFromD<Simd<int16_t, N, kPow2>> DemoteTo(
     return __riscv_v##OP##SEWH##LMULH(v, Lanes(d));                          \
   }
 
-#if HWY_HAVE_FLOAT16
+#if HWY_HAVE_FLOAT16 || HWY_RVV_HAVE_F16C
 HWY_RVV_FOREACH_F32(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
 #endif
 HWY_RVV_FOREACH_F64(HWY_RVV_DEMOTE_F, DemoteTo, fncvt_rod_f_f_w_f, _DEMOTE_VIRT)
@@ -2283,11 +2357,11 @@ HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE_TO_SHR_16, DemoteToShr16, nclipu_wx_,
 #undef HWY_RVV_DEMOTE_TO_SHR_16
 
 template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint16_t, N, kPow2>> DemoteTo(
+HWY_API VFromD<Simd<bfloat16_t, N, kPow2>> DemoteTo(
     Simd<bfloat16_t, N, kPow2> d, VFromD<Simd<float, N, kPow2 + 1>> v) {
   const RebindToUnsigned<decltype(d)> du16;
   const Rebind<uint32_t, decltype(d)> du32;
-  return detail::DemoteToShr16(du16, BitCast(du32, v));
+  return BitCast(d, detail::DemoteToShr16(du16, BitCast(du32, v)));
 }
 
 // ------------------------------ ConvertTo F
@@ -3922,6 +3996,18 @@ HWY_API V Neg(const V v) {
 
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGV2, Neg, fsgnjn, _ALL)
 
+#if !HWY_HAVE_FLOAT16
+
+template <class V, HWY_IF_U16_D(DFromV<V>)>  // float16_t
+HWY_API V Neg(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+  return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
+}
+
+#endif  // !HWY_HAVE_FLOAT16
+
 // ------------------------------ Abs (Max, Neg)
 
 template <class V, HWY_IF_SIGNED_V(V)>
@@ -4080,7 +4166,7 @@ HWY_INLINE V MulOdd(const V a, const V b) {
 // ------------------------------ ReorderDemote2To (OddEven, Combine)
 
 template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint16_t, N, kPow2>> ReorderDemote2To(
+HWY_API VFromD<Simd<bfloat16_t, N, kPow2>> ReorderDemote2To(
     Simd<bfloat16_t, N, kPow2> dbf16,
     VFromD<RepartitionToWide<decltype(dbf16)>> a,
     VFromD<RepartitionToWide<decltype(dbf16)>> b) {
@@ -4204,12 +4290,11 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
 namespace detail {
 
 // Non-overloaded wrapper function so we can define DF32 in template args.
-template <
-    size_t N, int kPow2, class DF32 = Simd<float, N, kPow2>,
-    class VF32 = VFromD<DF32>,
-    class DU16 = RepartitionToNarrow<RebindToUnsigned<Simd<float, N, kPow2>>>>
+template <size_t N, int kPow2, class DF32 = Simd<float, N, kPow2>,
+          class VF32 = VFromD<DF32>,
+          class DBF16 = Repartition<bfloat16_t, Simd<float, N, kPow2>>>
 HWY_API VF32 ReorderWidenMulAccumulateBF16(Simd<float, N, kPow2> df32,
-                                           VFromD<DU16> a, VFromD<DU16> b,
+                                           VFromD<DBF16> a, VFromD<DBF16> b,
                                            const VF32 sum0, VF32& sum1) {
   const RebindToUnsigned<DF32> du32;
   using VU32 = VFromD<decltype(du32)>;

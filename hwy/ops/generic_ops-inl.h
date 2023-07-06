@@ -1252,6 +1252,74 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
 }
 #endif
 
+// ------------------------------ float16_t <-> float
+
+#if (defined(HWY_NATIVE_F16C) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_F16C
+#undef HWY_NATIVE_F16C
+#else
+#define HWY_NATIVE_F16C
+#endif
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
+  const RebindToSigned<decltype(df32)> di32;
+  const RebindToUnsigned<decltype(df32)> du32;
+  const Rebind<uint16_t, decltype(df32)> du16;
+  using VU32 = VFromD<decltype(du32)>;
+
+  const VU32 bits16 = PromoteTo(du32, BitCast(du16, v));
+  const VU32 sign = ShiftRight<15>(bits16);
+  const VU32 biased_exp = And(ShiftRight<10>(bits16), Set(du32, 0x1F));
+  const VU32 mantissa = And(bits16, Set(du32, 0x3FF));
+  const VU32 subnormal =
+      BitCast(du32, Mul(ConvertTo(df32, BitCast(di32, mantissa)),
+                        Set(df32, 1.0f / 16384 / 1024)));
+
+  const VU32 biased_exp32 = Add(biased_exp, Set(du32, 127 - 15));
+  const VU32 mantissa32 = ShiftLeft<23 - 10>(mantissa);
+  const VU32 normal = Or(ShiftLeft<23>(biased_exp32), mantissa32);
+  const VU32 bits32 = IfThenElse(Eq(biased_exp, Zero(du32)), subnormal, normal);
+  return BitCast(df32, Or(ShiftLeft<31>(sign), bits32));
+}
+
+template <class D, HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
+  const RebindToUnsigned<decltype(df16)> du16;
+  const Rebind<uint32_t, decltype(df16)> du32;
+  const RebindToSigned<decltype(du32)> di32;
+  using VU32 = VFromD<decltype(du32)>;
+  using VI32 = VFromD<decltype(di32)>;
+
+  const VU32 bits32 = BitCast(du32, v);
+  const VU32 sign = ShiftRight<31>(bits32);
+  const VU32 biased_exp32 = And(ShiftRight<23>(bits32), Set(du32, 0xFF));
+  const VU32 mantissa32 = And(bits32, Set(du32, 0x7FFFFF));
+
+  const VI32 k15 = Set(di32, 15);
+  const VI32 exp = Min(Sub(BitCast(di32, biased_exp32), Set(di32, 127)), k15);
+  const MFromD<decltype(di32)> is_tiny = Lt(exp, Set(di32, -24));
+
+  const MFromD<decltype(di32)> is_subnormal = Lt(exp, Set(di32, -14));
+  const VU32 biased_exp16 =
+      BitCast(du32, IfThenZeroElse(is_subnormal, Add(exp, k15)));
+  const VU32 sub_exp = BitCast(du32, Sub(Set(di32, -14), exp));  // [1, 11)
+  // Clamp shift counts to prevent warnings in emu_128 Shr.
+  const VU32 k31 = Set(du32, 31);
+  const VU32 shift_m = Min(Add(Set(du32, 13), sub_exp), k31);
+  const VU32 shift_1 = Min(Sub(Set(du32, 10), sub_exp), k31);
+  const VU32 sub_m = Add(Shl(Set(du32, 1), shift_1), Shr(mantissa32, shift_m));
+  const VU32 mantissa16 = IfThenElse(RebindMask(du32, is_subnormal), sub_m,
+                                     ShiftRight<13>(mantissa32));  // <1024
+
+  const VU32 sign16 = ShiftLeft<15>(sign);
+  const VU32 normal16 = Or3(sign16, ShiftLeft<10>(biased_exp16), mantissa16);
+  const VI32 bits16 = IfThenZeroElse(is_tiny, BitCast(di32, normal16));
+  return BitCast(df16, DemoteTo(du16, bits16));
+}
+
+#endif  // HWY_NATIVE_F16C
+
 // ------------------------------ OrderedTruncate2To
 
 #if HWY_IDE || \

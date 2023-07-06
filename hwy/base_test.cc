@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "hwy/base.h"
+
 #include <limits>
 
 #undef HWY_TARGET_INCLUDE
@@ -51,8 +53,12 @@ HWY_NOINLINE void TestAllLimits() {
 struct TestLowestHighest {
   template <class T>
   HWY_NOINLINE void operator()(T /*unused*/) const {
-    HWY_ASSERT_EQ(std::numeric_limits<T>::lowest(), LowestValue<T>());
-    HWY_ASSERT_EQ(std::numeric_limits<T>::max(), HighestValue<T>());
+    // numeric_limits<T>::lowest is only guaranteed to be what we expect (-max)
+    // for built-in floating-point types.
+    if (!IsSpecialFloat<T>()) {
+      HWY_ASSERT_EQ(std::numeric_limits<T>::lowest(), LowestValue<T>());
+      HWY_ASSERT_EQ(std::numeric_limits<T>::max(), HighestValue<T>());
+    }
   }
 };
 

@@ -17,6 +17,8 @@
 
 #include <cmath>  // std::isfinite
 
+#include "hwy/base.h"
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/convert_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -447,7 +449,8 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
   auto expected = AllocateAligned<float>(padded);
   size_t i = 0;
   for (; i < kNumTestCases; ++i) {
-    in[i] = test_cases[i];
+    // Ensure the value can be exactly represented as binary16.
+    in[i] = F32FromF16(F16FromF32(test_cases[i]));
   }
   for (; i < padded; ++i) {
     in[i] = 0.0f;
@@ -455,26 +458,38 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
   return in;
 }
 
+// This minimal interface is always supported, even if !HWY_HAVE_FLOAT16.
 struct TestF16 {
   template <typename TF32, class DF32>
-  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if HWY_HAVE_FLOAT16
+  HWY_NOINLINE void operator()(TF32 /*t*/, DF32 df32) {
     size_t padded;
-    const size_t N = Lanes(d32);  // same count for f16
+    const size_t N = Lanes(df32);  // same count for f16
     HWY_ASSERT(N != 0);
-    auto in = F16TestCases(d32, padded);
-    using TF16 = float16_t;
-    const Rebind<TF16, DF32> d16;
+    auto in = F16TestCases(df32, padded);
+
+    using TF16 = hwy::float16_t;
+    const Rebind<TF16, DF32> df16;
+    const RebindToUnsigned<decltype(df16)> du16;
+    // Extra Load/Store to ensure they are usable.
     auto temp16 = AllocateAligned<TF16>(N);
 
-    for (size_t i = 0; i < padded; i += N) {
-      const auto loaded = Load(d32, &in[i]);
-      Store(DemoteTo(d16, loaded), d16, temp16.get());
-      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, Load(d16, temp16.get())));
-    }
+    // Extra Zero/BitCast to ensure they are usable. Neg is tested in
+    // arithmetic_test.
+    const Vec<decltype(du16)> v0_u16 = BitCast(du16, Zero(df16));
+#if HWY_TARGET == HWY_SCALAR
+    const Vec<DF32> v0 = BitCast(df32, ZipLower(v0_u16, v0_u16));
 #else
-    (void)d32;
+    const Vec<DF32> v0 =
+        BitCast(df32, ZeroExtendVector(Twice<decltype(du16)>(), v0_u16));
 #endif
+
+    for (size_t i = 0; i < padded; i += N) {
+      const Vec<DF32> loaded = Or(Load(df32, &in[i]), v0);
+      const Vec<decltype(df16)> v16 = DemoteTo(df16, loaded);
+      Store(v16, df16, temp16.get());
+      HWY_ASSERT_VEC_EQ(df32, loaded,
+                        PromoteTo(df32, Load(df16, temp16.get())));
+    }
   }
 };
 
@@ -519,7 +534,6 @@ AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
 struct TestBF16 {
   template <typename TF32, class DF32>
   HWY_NOINLINE void operator()(TF32 /*t*/, DF32 d32) {
-#if !defined(HWY_EMULATE_SVE)
     size_t padded;
     auto in = BF16TestCases(d32, padded);
     using TBF16 = bfloat16_t;
@@ -541,9 +555,6 @@ struct TestBF16 {
       const auto v16_loaded = Load(dbf16_half, temp16.get());
       HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, v16_loaded));
     }
-#else
-    (void)d32;
-#endif
   }
 };
 
@@ -766,8 +777,9 @@ class TestIntFromFloat {
 };
 
 HWY_NOINLINE void TestAllIntFromFloat() {
-  ForFloatTypes(ForPartialVectors<TestIntFromFloatHuge>());
-  ForFloatTypes(ForPartialVectors<TestIntFromFloat>());
+  // std::isfinite does not support float16_t.
+  ForFloat3264Types(ForPartialVectors<TestIntFromFloatHuge>());
+  ForFloat3264Types(ForPartialVectors<TestIntFromFloat>());
 }
 
 struct TestFloatFromInt {
@@ -805,8 +817,8 @@ struct TestFloatFromUint {
 
     // Integer positive
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TU(4))));
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(65535.0)),
-                      ConvertTo(df, Iota(du, 65535)));  // 2^16-1
+    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(32767.0)),
+                      ConvertTo(df, Iota(du, 32767)));  // 2^16-1
     if (sizeof(TF) > 4) {
       HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)),
                         ConvertTo(df, Iota(du, 4294967295ULL)));  // 2^32-1

@@ -96,9 +96,9 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   HWY_ASSERT(max_ulp <= max_error_ulp);
 }
 
-#define DEFINE_MATH_TEST_FUNC(NAME)                 \
-  HWY_NOINLINE void TestAll##NAME() {               \
-    ForFloatTypes(ForPartialVectors<Test##NAME>()); \
+#define DEFINE_MATH_TEST_FUNC(NAME)                     \
+  HWY_NOINLINE void TestAll##NAME() {                   \
+    ForFloat3264Types(ForPartialVectors<Test##NAME>()); \
   }
 
 #undef DEFINE_MATH_TEST
@@ -359,7 +359,7 @@ struct TestAtan2 {
 };
 
 HWY_NOINLINE void TestAllAtan2() {
-  ForFloatTypes(ForPartialVectors<TestAtan2>());
+  ForFloat3264Types(ForPartialVectors<TestAtan2>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

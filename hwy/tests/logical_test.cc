@@ -202,15 +202,15 @@ HWY_NOINLINE void TestAllTestBit() {
 class TestBitwiseIfThenElse {
  private:
   template <class T>
-  static constexpr T ValueFromBitPattern(hwy::FloatTag /* type_tag */,
-                                         T /* unused */, uint64_t bits) {
+  static T ValueFromBitPattern(hwy::FloatTag /* type_tag */, T /* unused */,
+                               uint64_t bits) {
     using TI = MakeSigned<T>;
     return static_cast<T>(static_cast<TI>(bits & MantissaMask<T>())) +
            MantissaEnd<T>();
   }
   template <class T>
-  static constexpr MakeUnsigned<T> ValueFromBitPattern(
-      hwy::NonFloatTag /* type_tag */, T /* unused */, uint64_t bits) {
+  static MakeUnsigned<T> ValueFromBitPattern(hwy::NonFloatTag /* type_tag */,
+                                             T /* unused */, uint64_t bits) {
     return static_cast<MakeUnsigned<T>>(bits);
   }
 
@@ -225,18 +225,18 @@ class TestBitwiseIfThenElse {
     static_assert(IsFloat<T>() || IsSame<TVal, TU>(),
                   "TVal should be the same as TU if T is a integer type");
 
-    static constexpr TVal a0 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0x0FF00FF00FF00FF0u});
-    static constexpr TVal b0 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0x33CC33CC33CC33CCu});
-    static constexpr TVal c0 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0x55AA55AA55AA55AAu});
-    static constexpr TVal a1 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0xF00FF00FF00FF00Fu});
-    static constexpr TVal b1 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0xCC33CC33CC33CC33u});
-    static constexpr TVal c1 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0xAA55AA55AA55AA55u});
+    static TVal a0 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                         uint64_t{0x0FF00FF00FF00FF0u});
+    static TVal b0 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                         uint64_t{0x33CC33CC33CC33CCu});
+    static TVal c0 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                         uint64_t{0x55AA55AA55AA55AAu});
+    static TVal a1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                         uint64_t{0xF00FF00FF00FF00Fu});
+    static TVal b1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                         uint64_t{0xCC33CC33CC33CC33u});
+    static TVal c1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                         uint64_t{0xAA55AA55AA55AA55u});
 
     const RebindToUnsigned<decltype(d)> du;
     const Rebind<TVal, decltype(d)> d_val;
@@ -248,18 +248,18 @@ class TestBitwiseIfThenElse {
     const auto v_b1 = BitCast(d, Set(d_val, b1));
     const auto v_c1 = BitCast(d, Set(d_val, c1));
 
-    static constexpr TVal expected_1 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0x53CA53CA53CA53CAu});
+    static TVal expected_1 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                                 uint64_t{0x53CA53CA53CA53CAu});
     HWY_ASSERT_VEC_EQ(d, BitCast(d, Set(d_val, expected_1)),
                       BitwiseIfThenElse(v_a0, v_b0, v_c0));
 
-    static constexpr TVal expected_2 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0xCA53CA53CA53CA53u});
+    static TVal expected_2 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                                 uint64_t{0xCA53CA53CA53CA53u});
     HWY_ASSERT_VEC_EQ(d, BitCast(d, Set(d_val, expected_2)),
                       BitwiseIfThenElse(v_a1, v_b1, v_c1));
 
-    static constexpr TVal expected_3 = ValueFromBitPattern(
-        IsFloatTag<T>(), T(), uint64_t{0x1DB81DB81DB81DB8u});
+    static TVal expected_3 = ValueFromBitPattern(IsFloatTag<T>(), T(),
+                                                 uint64_t{0x1DB81DB81DB81DB8u});
     HWY_ASSERT_VEC_EQ(d, BitCast(d, Set(d_val, expected_3)),
                       BitwiseIfThenElse(v_b1, v_a0, v_c0));
 

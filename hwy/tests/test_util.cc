@@ -17,8 +17,6 @@
 
 #include <stdio.h>
 
-#include <cmath>
-
 #include "hwy/base.h"
 #include "hwy/print.h"
 
@@ -57,8 +55,13 @@ HWY_TEST_DLLEXPORT bool IsEqual(const TypeInfo& info, const void* expected_ptr,
   if (!info.is_float) {
     return BytesEqual(expected_ptr, actual_ptr, info.sizeof_t);
   }
-
-  if (info.sizeof_t == 4) {
+  if (info.sizeof_t == 2) {
+    const float expected = info.is_bf16 ? F32FromBF16Mem(expected_ptr)
+                                        : F32FromF16Mem(expected_ptr);
+    const float actual =
+        info.is_bf16 ? F32FromBF16Mem(actual_ptr) : F32FromF16Mem(actual_ptr);
+    return ComputeUlpDelta(expected, actual) <= 1;
+  } else if (info.sizeof_t == 4) {
     float expected, actual;
     CopyBytes<4>(expected_ptr, &expected);
     CopyBytes<4>(actual_ptr, &actual);
