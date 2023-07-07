@@ -113,6 +113,13 @@ Highway supports 19 targets, listed in alphabetical order of platform:
     -   `AVX3_ZEN4` (like AVX3_DL but optimized for AMD Zen4; requires opt-in by
         defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch)
 
+Our policy is that unless otherwise specified, targets will remain supported as
+long as they can be (cross-)compiled with currently supported Clang or GCC, and
+tested using QEMU. If the target can be compiled with LLVM trunk and tested
+using our version of QEMU without extra flags, then it is eligible for inclusion
+in our continuous testing infrastructure. Otherwise, the target will be manually
+tested before releases with selected versions/configurations of Clang and GCC.
+
 SVE was initially tested using farm_sve (see acknowledgments).
 
 ### Versioning
