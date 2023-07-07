@@ -927,25 +927,25 @@ HWY_API T LowestValue() {
   return LimitsMin<T>();
 }
 template <>
-bfloat16_t LowestValue<bfloat16_t>() {
+HWY_INLINE bfloat16_t LowestValue<bfloat16_t>() {
   const uint16_t kBits = 0xFF7F;  // -1.1111111 x 2^127
   bfloat16_t ret;
   CopySameSize(&kBits, &ret);
   return ret;
 }
 template <>
-float16_t LowestValue<float16_t>() {
+HWY_INLINE float16_t LowestValue<float16_t>() {
   const uint16_t kBits = 0xFBFF;  // -1.1111111111 x 2^15
   float16_t ret;
   CopySameSize(&kBits, &ret);
   return ret;
 }
 template <>
-float LowestValue<float>() {
+HWY_INLINE float LowestValue<float>() {
   return -3.402823466e+38F;
 }
 template <>
-double LowestValue<double>() {
+HWY_INLINE double LowestValue<double>() {
   return -1.7976931348623158e+308;
 }
 
@@ -954,25 +954,25 @@ HWY_API T HighestValue() {
   return LimitsMax<T>();
 }
 template <>
-bfloat16_t HighestValue<bfloat16_t>() {
+HWY_INLINE bfloat16_t HighestValue<bfloat16_t>() {
   const uint16_t kBits = 0x7F7F;  // 1.1111111 x 2^127
   bfloat16_t ret;
   CopySameSize(&kBits, &ret);
   return ret;
 }
 template <>
-float16_t HighestValue<float16_t>() {
+HWY_INLINE float16_t HighestValue<float16_t>() {
   const uint16_t kBits = 0x7BFF;  // 1.1111111111 x 2^15
   float16_t ret;
   CopySameSize(&kBits, &ret);
   return ret;
 }
 template <>
-float HighestValue<float>() {
+HWY_INLINE float HighestValue<float>() {
   return 3.402823466e+38F;
 }
 template <>
-double HighestValue<double>() {
+HWY_INLINE double HighestValue<double>() {
   return 1.7976931348623158e+308;
 }
 
@@ -983,25 +983,25 @@ HWY_API T Epsilon() {
   return 1;
 }
 template <>
-bfloat16_t Epsilon<bfloat16_t>() {
+HWY_INLINE bfloat16_t Epsilon<bfloat16_t>() {
   const uint16_t kBits = 0x3C00;  // 0.0078125
   bfloat16_t ret;
   CopySameSize(&kBits, &ret);
   return ret;
 }
 template <>
-float16_t Epsilon<float16_t>() {
+HWY_INLINE float16_t Epsilon<float16_t>() {
   const uint16_t kBits = 0x1400;  // 0.0009765625
   float16_t ret;
   CopySameSize(&kBits, &ret);
   return ret;
 }
 template <>
-float Epsilon<float>() {
+HWY_INLINE float Epsilon<float>() {
   return 1.192092896e-7f;
 }
 template <>
-double Epsilon<double>() {
+HWY_INLINE double Epsilon<double>() {
   return 2.2204460492503131e-16;
 }
 
