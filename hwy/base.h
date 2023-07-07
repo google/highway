@@ -387,7 +387,8 @@ HWY_API float F32FromF16(float16_t f16) {
 
   // Subnormal or zero
   if (biased_exp == 0) {
-    const float subnormal = (1.0f / 16384) * (mantissa * (1.0f / 1024));
+    const float subnormal =
+        (1.0f / 16384) * (static_cast<float>(mantissa) * (1.0f / 1024));
     return sign ? -subnormal : subnormal;
   }
 
@@ -417,7 +418,8 @@ HWY_API float16_t F16FromF32(float f32) {
   // Tiny or zero => zero.
   float16_t out;
   if (exp < -24) {
-    const uint16_t bits = sign << 15;  // restore original sign
+    // restore original sign
+    const uint16_t bits = static_cast<uint16_t>(sign << 15);
     CopySameSize(&bits, &out);
     return out;
   }
