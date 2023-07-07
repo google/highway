@@ -23,7 +23,7 @@ struct DoubleUnit : UnrollerUnit<DoubleUnit<int>, int, int> {
 Leaving all other methods in their default state, the following code will double all the values in array `a` and place them in `r`
 
 ```
-DoubleUnit<a> dblunit;
+DoubleUnit dblunit;
 int r[N];
 Unroller(dblunit, a, r, N);
 ```
