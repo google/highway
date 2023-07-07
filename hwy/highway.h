@@ -112,6 +112,8 @@ namespace hwy {
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_DL::FUNC_NAME
 #elif HWY_STATIC_TARGET == HWY_AVX3_ZEN4
 #define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_ZEN4::FUNC_NAME
+#elif HWY_STATIC_TARGET == HWY_AVX3_SPR
+#define HWY_STATIC_DISPATCH(FUNC_NAME) N_AVX3_SPR::FUNC_NAME
 #endif
 
 // HWY_CHOOSE_*(FUNC_NAME) expands to the function pointer for that target or
@@ -238,6 +240,12 @@ namespace hwy {
 #define HWY_CHOOSE_AVX3_ZEN4(FUNC_NAME) &N_AVX3_ZEN4::FUNC_NAME
 #else
 #define HWY_CHOOSE_AVX3_ZEN4(FUNC_NAME) nullptr
+#endif
+
+#if HWY_TARGETS & HWY_AVX3_SPR
+#define HWY_CHOOSE_AVX3_SPR(FUNC_NAME) &N_AVX3_SPR::FUNC_NAME
+#else
+#define HWY_CHOOSE_AVX3_SPR(FUNC_NAME) nullptr
 #endif
 
 // MSVC 2017 workaround: the non-type template parameter to ChooseAndCall
@@ -396,7 +404,7 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 #elif HWY_TARGET == HWY_AVX2
 #include "hwy/ops/x86_256-inl.h"
 #elif HWY_TARGET == HWY_AVX3 || HWY_TARGET == HWY_AVX3_DL || \
-    HWY_TARGET == HWY_AVX3_ZEN4
+    HWY_TARGET == HWY_AVX3_ZEN4 || HWY_TARGET == HWY_AVX3_SPR
 #include "hwy/ops/x86_512-inl.h"
 #elif HWY_TARGET == HWY_PPC8 || HWY_TARGET == HWY_PPC9 || \
     HWY_TARGET == HWY_PPC10

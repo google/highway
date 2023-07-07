@@ -185,8 +185,9 @@ void RunWithoutVerify(Traits st, const Dist dist, const size_t num_keys,
 
 void BenchParallel() {
   // Not interested in benchmark results for other targets on x86
-  if (HWY_ARCH_X86 && (HWY_TARGET != HWY_AVX2 && HWY_TARGET != HWY_AVX3 &&
-                       HWY_TARGET != HWY_AVX3_ZEN4)) {
+  if (HWY_ARCH_X86 &&
+      (HWY_TARGET != HWY_AVX2 && HWY_TARGET != HWY_AVX3 &&
+       HWY_TARGET != HWY_AVX3_ZEN4 && HWY_TARGET != HWY_AVX3_SPR)) {
     return;
   }
 

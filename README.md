@@ -91,7 +91,7 @@ Xilinx/Vitis_Libraries.
 
 ### Targets
 
-Highway supports 19 targets, listed in alphabetical order of platform:
+Highway supports 20 targets, listed in alphabetical order of platform:
 
 -   Any: `EMU128`, `SCALAR`;
 -   Arm: `NEON` (Armv7+), `SVE`, `SVE2`, `SVE_256`, `SVE2_128`;
@@ -112,6 +112,7 @@ Highway supports 19 targets, listed in alphabetical order of platform:
         unless compiling for static dispatch),
     -   `AVX3_ZEN4` (like AVX3_DL but optimized for AMD Zen4; requires opt-in by
         defining `HWY_WANT_AVX3_ZEN4` if compiling for static dispatch)
+    -   `AVX3_SPR` (~Sapphire Rapids, includes AVX-512FP16)
 
 Our policy is that unless otherwise specified, targets will remain supported as
 long as they can be (cross-)compiled with currently supported Clang or GCC, and

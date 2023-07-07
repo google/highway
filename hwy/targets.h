@@ -99,6 +99,8 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "AVX3_DL";
     case HWY_AVX3_ZEN4:
       return "AVX3_ZEN4";
+    case HWY_AVX3_SPR:
+      return "AVX3_SPR";
 #endif
 
 #if HWY_ARCH_ARM
@@ -195,7 +197,7 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       nullptr,                         /* reserved */         \
       nullptr,                         /* reserved */         \
       nullptr,                         /* reserved */         \
-      nullptr,                         /* reserved */         \
+      HWY_CHOOSE_AVX3_SPR(func_name),  /* AVX3_SPR */         \
       nullptr,                         /* reserved */         \
       HWY_CHOOSE_AVX3_ZEN4(func_name), /* AVX3_ZEN4 */        \
       HWY_CHOOSE_AVX3_DL(func_name),   /* AVX3_DL */          \

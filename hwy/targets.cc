@@ -135,6 +135,7 @@ enum class FeatureIndex : uint32_t {
   kAVX512CD,
   kAVX512DQ,
   kAVX512BW,
+  kAVX512FP16,
 
   kVNNI,
   kVPCLMULQDQ,
@@ -200,6 +201,8 @@ uint64_t FlagsFromCPUID() {
     flags |= IsBitSet(abcd[2], 11) ? Bit(FeatureIndex::kVNNI) : 0;
     flags |= IsBitSet(abcd[2], 12) ? Bit(FeatureIndex::kBITALG) : 0;
     flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
+
+    flags |= IsBitSet(abcd[3], 23) ? Bit(FeatureIndex::kAVX512FP16) : 0;
   }
 
   return flags;
@@ -249,6 +252,9 @@ constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
     Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) | kGroupAVX3;
 
+constexpr uint64_t kGroupAVX3_SPR =
+    Bit(FeatureIndex::kAVX512FP16) | kGroupAVX3_DL;
+
 int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
 #if HWY_ARCH_X86_64
@@ -257,6 +263,9 @@ int64_t DetectTargets() {
 
   const uint64_t flags = FlagsFromCPUID();
   // Set target bit(s) if all their group's flags are all set.
+  if ((flags & kGroupAVX3_SPR) == kGroupAVX3_SPR) {
+    bits |= HWY_AVX3_SPR;
+  }
   if ((flags & kGroupAVX3_DL) == kGroupAVX3_DL) {
     bits |= HWY_AVX3_DL;
   }
@@ -285,7 +294,7 @@ int64_t DetectTargets() {
   const bool has_osxsave = IsBitSet(abcd[2], 27);
   if (has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
-    const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL;
+    const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_SPR;
     const int64_t min_avx2 = HWY_AVX2 | min_avx3;
     // XMM
     if (!IsBitSet(xcr0, 1)) {
@@ -458,10 +467,14 @@ int64_t DetectTargets() {
 #endif  // HWY_ARCH_*
 
   if ((bits & HWY_ENABLED_BASELINE) != HWY_ENABLED_BASELINE) {
+    const uint64_t bits_u = static_cast<uint64_t>(bits);
+    const uint64_t enabled = static_cast<uint64_t>(HWY_ENABLED_BASELINE);
     fprintf(stderr,
-            "WARNING: CPU supports %" PRIx64 " but software requires %" PRIx64
-            "\n",
-            bits, static_cast<int64_t>(HWY_ENABLED_BASELINE));
+            "WARNING: CPU supports 0x%08x%08x, software requires 0x%08x%08x\n",
+            static_cast<uint32_t>(bits_u >> 32),
+            static_cast<uint32_t>(bits_u & 0xFFFFFFFF),
+            static_cast<uint32_t>(enabled >> 32),
+            static_cast<uint32_t>(enabled & 0xFFFFFFFF));
   }
 
   return bits;

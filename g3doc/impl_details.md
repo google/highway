@@ -223,7 +223,7 @@ When adding a new op, it is often necessary to consult the reference for each
 platform's intrinsics.
 
 For x86 targets `HWY_SSE2`, `HWY_SSSE3`, `HWY_SSE4`, `HWY_AVX2`, `HWY_AVX3`,
-`HWY_AVX3_DL`, `HWY_AVX3_ZEN4` Intel provides a
+`HWY_AVX3_DL`, `HWY_AVX3_ZEN4`, `HWY_AVX3_SPR` Intel provides a
 [searchable reference](https://www.intel.com/content/www/us/en/docs/intrinsics-guide).
 
 For Arm targets `HWY_NEON`, `HWY_NEON_WITHOUT_AES`, `HWY_SVE` (plus its

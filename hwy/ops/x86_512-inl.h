@@ -71,6 +71,11 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <vpclmulqdqintrin.h>
 #include <gfniintrin.h>
 #endif  // HWY_TARGET <= HWY_AVX3_DL
+
+#if HWY_TARGET <= HWY_AVX3_SPR
+#include <avx512fp16intrin.h>
+#endif  // HWY_TARGET <= HWY_AVX3_SPR
+
 // clang-format on
 #endif  // HWY_COMPILER_CLANGCL
 

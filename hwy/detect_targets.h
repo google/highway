@@ -59,7 +59,9 @@
 // left-shifting 2^62), but still do not use bit 63 because it is the sign bit.
 
 // --------------------------- x86: 15 targets (+ one fallback)
-// Bits 0..5 reserved (6 targets)
+// Bits 0..3 reserved (4 targets)
+#define HWY_AVX3_SPR (1LL << 4)
+// Bit 5 reserved
 // Currently HWY_AVX3_DL plus a special case for CompressStore (10x as fast).
 // We may later also use VPCONFLICT.
 #define HWY_AVX3_ZEN4 (1LL << 6)  // see HWY_WANT_AVX3_ZEN4 below
@@ -140,8 +142,7 @@
 // SSE4 codegen (possibly only for msan), so disable all those targets.
 #if HWY_ARCH_X86 && (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 700)
 
-#define HWY_BROKEN_CLANG6 \
-  (HWY_SSE4 | HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4)
+#define HWY_BROKEN_CLANG6 (HWY_SSE4 | (HWY_SSE4 - 1))
 // This entails a major speed reduction, so warn unless the user explicitly
 // opts in to scalar-only.
 #if !defined(HWY_COMPILE_ONLY_SCALAR)
@@ -154,14 +155,14 @@
 
 // 32-bit may fail to compile AVX2/3.
 #if HWY_ARCH_X86_32
-#define HWY_BROKEN_32BIT (HWY_AVX2 | HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4)
+#define HWY_BROKEN_32BIT (HWY_AVX2 | (HWY_AVX2 - 1))
 #else
 #define HWY_BROKEN_32BIT 0
 #endif
 
 // MSVC AVX3 support is buggy: https://github.com/Mysticial/Flops/issues/16
 #if HWY_COMPILER_MSVC != 0
-#define HWY_BROKEN_MSVC (HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_ZEN4)
+#define HWY_BROKEN_MSVC (HWY_AVX3 | (HWY_AVX3 - 1))
 #else
 #define HWY_BROKEN_MSVC 0
 #endif
@@ -171,6 +172,14 @@
 #define HWY_BROKEN_AVX3_DL_ZEN4 (HWY_AVX3_DL | HWY_AVX3_ZEN4)
 #else
 #define HWY_BROKEN_AVX3_DL_ZEN4 0
+#endif
+
+// AVX3_SPR requires clang >= 14 or gcc >= 12.
+#if (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1400) || \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200)
+#define HWY_BROKEN_AVX3_SPR (HWY_AVX3_SPR)
+#else
+#define HWY_BROKEN_AVX3_SPR 0
 #endif
 
 // armv7be has not been tested and is not yet supported.
@@ -230,10 +239,11 @@
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BROKEN_TARGETS
 
-#define HWY_BROKEN_TARGETS                                  \
-  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC | \
-   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_ARM7_BIG_ENDIAN |   \
-   HWY_BROKEN_ARM7_WITHOUT_VFP4 | HWY_BROKEN_SVE | HWY_BROKEN_PPC10)
+#define HWY_BROKEN_TARGETS                                     \
+  (HWY_BROKEN_CLANG6 | HWY_BROKEN_32BIT | HWY_BROKEN_MSVC |    \
+   HWY_BROKEN_AVX3_DL_ZEN4 | HWY_BROKEN_AVX3_SPR |             \
+   HWY_BROKEN_ARM7_BIG_ENDIAN | HWY_BROKEN_ARM7_WITHOUT_VFP4 | \
+   HWY_BROKEN_SVE | HWY_BROKEN_PPC10)
 
 #endif  // HWY_BROKEN_TARGETS
 
@@ -470,6 +480,12 @@
 #define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
+#if HWY_BASELINE_AVX3_DL != 0 && defined(__AVX512FP16__)
+#define HWY_BASELINE_AVX3_SPR HWY_AVX3_SPR
+#else
+#define HWY_BASELINE_AVX3_SPR 0
+#endif
+
 // RVV requires intrinsics 0.11 or later, see #1156.
 #if HWY_ARCH_RVV && defined(__riscv_v_intrinsic) && __riscv_v_intrinsic >= 11000
 #define HWY_BASELINE_RVV HWY_RVV
@@ -485,7 +501,7 @@
    HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE2 |          \
    HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 |        \
    HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | \
-   HWY_BASELINE_RVV)
+   HWY_BASELINE_AVX3_SPR | HWY_BASELINE_RVV)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -568,9 +584,10 @@
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
-#define HWY_ATTAINABLE_TARGETS                                        \
-  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | \
-              HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4)
+#define HWY_ATTAINABLE_TARGETS                                               \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 |        \
+              HWY_AVX2 | HWY_AVX3 | HWY_ATTAINABLE_AVX3_DL | HWY_AVX3_ZEN4 | \
+              HWY_AVX3_SPR)
 #elif HWY_ARCH_ARM
 #define HWY_ATTAINABLE_TARGETS                                                 \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_NEON | HWY_ATTAINABLE_SVE | \
