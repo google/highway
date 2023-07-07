@@ -365,7 +365,7 @@ struct float16_t {
   uint16_t bits;
 };
 #pragma pack(pop)
-#endif
+#endif  // float16_t
 
 #if HWY_SVE_HAVE_BFLOAT16
 using bfloat16_t = __bf16;
@@ -375,7 +375,110 @@ struct bfloat16_t {
   uint16_t bits;
 };
 #pragma pack(pop)
+#endif  // bfloat16_t
+
+HWY_API float F32FromF16(float16_t f16) {
+#ifdef HWY_EMULATE_FLOAT16
+  uint16_t bits16;
+  CopySameSize(&f16, &bits16);
+  const uint32_t sign = bits16 >> 15;
+  const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
+  const uint32_t mantissa = bits16 & 0x3FF;
+
+  // Subnormal or zero
+  if (biased_exp == 0) {
+    const float subnormal = (1.0f / 16384) * (mantissa * (1.0f / 1024));
+    return sign ? -subnormal : subnormal;
+  }
+
+  // Normalized: convert the representation directly (faster than ldexp/tables).
+  const uint32_t biased_exp32 = biased_exp + (127 - 15);
+  const uint32_t mantissa32 = mantissa << (23 - 10);
+  const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
+
+  float result;
+  CopySameSize(&bits32, &result);
+  return result;
+#else
+  return static_cast<float>(f16);
 #endif
+}
+
+HWY_API float16_t F16FromF32(float f32) {
+#ifdef HWY_EMULATE_FLOAT16
+  uint32_t bits32;
+  CopySameSize(&f32, &bits32);
+  const uint32_t sign = bits32 >> 31;
+  const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
+  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
+
+  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
+
+  // Tiny or zero => zero.
+  float16_t out;
+  if (exp < -24) {
+    const uint16_t bits = sign << 15;  // restore original sign
+    CopySameSize(&bits, &out);
+    return out;
+  }
+
+  uint32_t biased_exp16, mantissa16;
+
+  // exp = [-24, -15] => subnormal
+  if (exp < -14) {
+    biased_exp16 = 0;
+    const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
+    HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
+    mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
+                                       (mantissa32 >> (13 + sub_exp)));
+  } else {
+    // exp = [-14, 15]
+    biased_exp16 = static_cast<uint32_t>(exp + 15);
+    HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
+    mantissa16 = mantissa32 >> 13;
+  }
+
+  HWY_DASSERT(mantissa16 < 1024);
+  const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
+  HWY_DASSERT(bits16 < 0x10000);
+  const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
+  CopySameSize(&narrowed, &out);
+  return out;
+#else
+  return static_cast<float16_t>(f32);
+#endif
+}
+
+HWY_API float F32FromBF16(bfloat16_t bf) {
+  uint16_t bits16;
+  CopyBytes<2>(&bf, &bits16);
+  uint32_t bits = bits16;
+  bits <<= 16;
+  float f;
+  CopySameSize(&bits, &f);
+  return f;
+}
+
+HWY_API float F32FromF16Mem(const void* ptr) {
+  float16_t f16;
+  CopyBytes<2>(ptr, &f16);
+  return F32FromF16(f16);
+}
+
+HWY_API float F32FromBF16Mem(const void* ptr) {
+  bfloat16_t bf;
+  CopyBytes<2>(ptr, &bf);
+  return F32FromBF16(bf);
+}
+
+HWY_API bfloat16_t BF16FromF32(float f) {
+  uint32_t bits;
+  CopySameSize(&f, &bits);
+  const uint16_t bits16 = static_cast<uint16_t>(bits >> 16);
+  bfloat16_t bf;
+  CopySameSize(&bits16, &bf);
+  return bf;
+}
 
 using float32_t = float;
 using float64_t = double;
@@ -404,6 +507,24 @@ struct alignas(8) K32V32 {
 };
 
 #pragma pack(pop)
+
+#ifdef HWY_EMULATE_FLOAT16
+
+static inline HWY_MAYBE_UNUSED bool operator<(const float16_t& a,
+                                              const float16_t& b) {
+  return F32FromF16(a) < F32FromF16(b);
+}
+// Required for std::greater.
+static inline HWY_MAYBE_UNUSED bool operator>(const float16_t& a,
+                                              const float16_t& b) {
+  return F32FromF16(a) > F32FromF16(b);
+}
+static inline HWY_MAYBE_UNUSED bool operator==(const float16_t& a,
+                                               const float16_t& b) {
+  return F32FromF16(a) == F32FromF16(b);
+}
+
+#endif  // HWY_EMULATE_FLOAT16
 
 static inline HWY_MAYBE_UNUSED bool operator<(const uint128_t& a,
                                               const uint128_t& b) {
@@ -1135,109 +1256,6 @@ HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
   *upper = (hi_lo >> 32) + (t >> 32) + hi_hi;
   return (t << 32) | (lo_lo & kLo32);
 #endif
-}
-
-HWY_API float F32FromF16(float16_t f16) {
-#ifdef HWY_EMULATE_FLOAT16
-  uint16_t bits16;
-  CopySameSize(&f16, &bits16);
-  const uint32_t sign = bits16 >> 15;
-  const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
-  const uint32_t mantissa = bits16 & 0x3FF;
-
-  // Subnormal or zero
-  if (biased_exp == 0) {
-    const float subnormal = (1.0f / 16384) * (mantissa * (1.0f / 1024));
-    return sign ? -subnormal : subnormal;
-  }
-
-  // Normalized: convert the representation directly (faster than ldexp/tables).
-  const uint32_t biased_exp32 = biased_exp + (127 - 15);
-  const uint32_t mantissa32 = mantissa << (23 - 10);
-  const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
-
-  float result;
-  CopySameSize(&bits32, &result);
-  return result;
-#else
-  return static_cast<float>(f16);
-#endif
-}
-
-HWY_API float16_t F16FromF32(float f32) {
-#ifdef HWY_EMULATE_FLOAT16
-  uint32_t bits32;
-  CopySameSize(&f32, &bits32);
-  const uint32_t sign = bits32 >> 31;
-  const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
-  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
-
-  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
-
-  // Tiny or zero => zero.
-  float16_t out;
-  if (exp < -24) {
-    const uint16_t bits = sign << 15;  // restore original sign
-    CopySameSize(&bits, &out);
-    return out;
-  }
-
-  uint32_t biased_exp16, mantissa16;
-
-  // exp = [-24, -15] => subnormal
-  if (exp < -14) {
-    biased_exp16 = 0;
-    const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
-    HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
-    mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
-                                       (mantissa32 >> (13 + sub_exp)));
-  } else {
-    // exp = [-14, 15]
-    biased_exp16 = static_cast<uint32_t>(exp + 15);
-    HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
-    mantissa16 = mantissa32 >> 13;
-  }
-
-  HWY_DASSERT(mantissa16 < 1024);
-  const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
-  HWY_DASSERT(bits16 < 0x10000);
-  const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
-  CopySameSize(&narrowed, &out);
-  return out;
-#else
-  return static_cast<float16_t>(f32);
-#endif
-}
-
-HWY_API float F32FromBF16(bfloat16_t bf) {
-  uint16_t bits16;
-  CopyBytes<2>(&bf, &bits16);
-  uint32_t bits = bits16;
-  bits <<= 16;
-  float f;
-  CopySameSize(&bits, &f);
-  return f;
-}
-
-HWY_API float F32FromF16Mem(const void* ptr) {
-  float16_t f16;
-  CopyBytes<2>(ptr, &f16);
-  return F32FromF16(f16);
-}
-
-HWY_API float F32FromBF16Mem(const void* ptr) {
-  bfloat16_t bf;
-  CopyBytes<2>(ptr, &bf);
-  return F32FromBF16(bf);
-}
-
-HWY_API bfloat16_t BF16FromF32(float f) {
-  uint32_t bits;
-  CopySameSize(&f, &bits);
-  const uint16_t bits16 = static_cast<uint16_t>(bits >> 16);
-  bfloat16_t bf;
-  CopySameSize(&bits16, &bf);
-  return bf;
 }
 
 // Prevents the compiler from eliding the computations that led to "output".

@@ -88,6 +88,8 @@ cc_library(
         "vqsort.cc",
         "vqsort_128a.cc",
         "vqsort_128d.cc",
+        "vqsort_f16a.cc",
+        "vqsort_f16d.cc",
         "vqsort_f32a.cc",
         "vqsort_f32d.cc",
         "vqsort_f64a.cc",

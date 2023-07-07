@@ -43,7 +43,8 @@ struct KeyLaneBase {
   using KeyType = T;
 
   const char* KeyString() const {
-    return IsSame<T, float>()      ? "f32"
+    return IsSame<T, float16_t>()  ? "f16"
+           : IsSame<T, float>()    ? "f32"
            : IsSame<T, double>()   ? "f64"
            : IsSame<T, int16_t>()  ? "i16"
            : IsSame<T, int32_t>()  ? "i32"

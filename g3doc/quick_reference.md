@@ -1777,8 +1777,9 @@ instead of `HWY_HAVE_FLOAT64`, which describes the current target.
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
 
 The following indicate full support for certain lane types and expand to 1 or 0.
-Note that minimal support (Zero, BitCast, Load/Store, Neg, PromoteTo/DemoteTo)
-is always available for float16_t and bfloat16_t.
+Note that minimal support (`Zero`, `BitCast`, `Load`/`Store`,
+`PromoteTo`/`DemoteTo`) is always available for float16_t and bfloat16_t, plus
+`Neg` for float16_t.
 
 *   `HWY_HAVE_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
 *   `HWY_HAVE_FLOAT16`: support for 16-bit floating-point lanes.

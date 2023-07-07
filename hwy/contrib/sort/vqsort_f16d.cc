@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2021 Google LLC
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,43 +13,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "hwy/per_target.h"
+#include "hwy/contrib/sort/vqsort.h"  // VQSort
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/per_target.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/sort/vqsort_f16d.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
-#include "hwy/highway.h"
+
+// After foreach_target
+#include "hwy/contrib/sort/vqsort-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-size_t GetVectorBytes() { return Lanes(ScalableTag<uint8_t>()); }
-bool GetHaveFloat16() { return HWY_HAVE_FLOAT16 != 0; }
-bool GetHaveFloat64() { return HWY_HAVE_FLOAT64 != 0; }
+
+void SortF16Desc(float16_t* HWY_RESTRICT keys, size_t num) {
+#if HWY_HAVE_FLOAT16
+  return VQSortStatic(keys, num, SortDescending());
+#else
+  (void)keys;
+  (void)num;
+  HWY_ASSERT(0);
+#endif
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
-
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace hwy {
 namespace {
-HWY_EXPORT(GetVectorBytes);
-HWY_EXPORT(GetHaveFloat16);
-HWY_EXPORT(GetHaveFloat64);
+HWY_EXPORT(SortF16Desc);
 }  // namespace
 
-HWY_DLLEXPORT size_t VectorBytes() {
-  return HWY_DYNAMIC_DISPATCH(GetVectorBytes)();
-}
-
-HWY_DLLEXPORT bool HaveFloat16() {
-  return HWY_DYNAMIC_DISPATCH(GetHaveFloat16)();
-}
-
-HWY_DLLEXPORT bool HaveFloat64() {
-  return HWY_DYNAMIC_DISPATCH(GetHaveFloat64)();
+void VQSort(float16_t* HWY_RESTRICT keys, size_t n, SortDescending) {
+  HWY_DYNAMIC_DISPATCH(SortF16Desc)(keys, n);
 }
 
 }  // namespace hwy

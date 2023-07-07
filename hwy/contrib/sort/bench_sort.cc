@@ -33,6 +33,7 @@
 #include "hwy/tests/test_util-inl.h"
 #include "hwy/timer-inl.h"
 #include "hwy/timer.h"
+#include "hwy/per_target.h"
 // clang-format on
 
 #if HWY_OS_LINUX
@@ -422,9 +423,18 @@ HWY_NOINLINE void BenchAllSort() {
 
   for (size_t num_keys : SizesToBenchmark(BenchmarkModes::kSmallPow2)) {
 #if !HAVE_INTEL
-    BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
+#if HWY_HAVE_FLOAT16
+    if (hwy::HaveFloat16()) {
+      BenchSort<TraitsLane<OtherOrder<float16_t>>>(num_keys);
+    }
 #endif
-    // BenchSort<TraitsLane<OtherOrder<double>>>(num_keys);
+    BenchSort<TraitsLane<OrderAscending<float>>>(num_keys);
+#if HWY_HAVE_FLOAT64
+    if (hwy::HaveFloat64()) {
+      // BenchSort<TraitsLane<OtherOrder<double>>>(num_keys);
+    }
+#endif
+#endif  // !HAVE_INTEL
     // BenchSort<TraitsLane<OrderAscending<int16_t>>>(num_keys);
     BenchSort<TraitsLane<OtherOrder<int32_t>>>(num_keys);
     BenchSort<TraitsLane<OrderAscending<int64_t>>>(num_keys);

@@ -126,8 +126,8 @@ struct TestFloatInf {
 };
 
 HWY_NOINLINE void TestAllFloatInf() {
-  // TODO(janwas): [b]float16_t not yet supported.
-  ForFloat3264Types(ForPartialVectors<TestFloatInf>());
+  // TODO(janwas): bfloat16_t not yet supported.
+  ForFloatTypes(ForPartialVectors<TestFloatInf>());
 }
 
 template <class Traits>
@@ -685,6 +685,12 @@ void TestAllSort() {
     // WARNING: for float types, SIMD comparisons will flush denormals to
     // zero, causing mismatches with scalar sorts. In this test, we avoid
     // generating denormal inputs.
+#if HWY_HAVE_FLOAT16  // #if protects algo-inl's GenerateRandom
+    // Must also check whether the dynamic-dispatch target supports float16_t!
+    if (hwy::HaveFloat16()) {
+      TestSort<TraitsLane<OrderAscending<float16_t> > >(num_lanes);
+    }
+#endif
     TestSort<TraitsLane<OrderAscending<float> > >(num_lanes);
 #if HWY_HAVE_FLOAT64  // #if protects algo-inl's GenerateRandom
     // Must also check whether the dynamic-dispatch target supports float64!

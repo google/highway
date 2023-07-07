@@ -152,6 +152,14 @@ void Sorter::operator()(int64_t* HWY_RESTRICT keys, size_t n,
   VQSort(keys, n, tag);
 }
 
+void Sorter::operator()(float16_t* HWY_RESTRICT keys, size_t n,
+                        SortAscending tag) const {
+  VQSort(keys, n, tag);
+}
+void Sorter::operator()(float16_t* HWY_RESTRICT keys, size_t n,
+                        SortDescending tag) const {
+  VQSort(keys, n, tag);
+}
 void Sorter::operator()(float* HWY_RESTRICT keys, size_t n,
                         SortAscending tag) const {
   VQSort(keys, n, tag);
