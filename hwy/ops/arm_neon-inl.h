@@ -3719,11 +3719,11 @@ HWY_API VFromD<D> PromoteTo(D d, V v) {
 
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec128<float> PromoteTo(D /* tag */, Vec64<float16_t> v) {
-  return Vec128<float>(vcvt_f32_f16(vreinterpret_f16_u16(v.raw)));
+  return Vec128<float>(vcvt_f32_f16(v.raw));
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
-  return VFromD<D>(vget_low_f32(vcvt_f32_f16(vreinterpret_f16_u16(v.raw))));
+  return VFromD<D>(vget_low_f32(vcvt_f32_f16(v.raw)));
 }
 
 #endif  // HWY_NEON_HAVE_FLOAT16C
