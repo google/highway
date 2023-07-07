@@ -2845,7 +2845,7 @@ HWY_API VFromD<D> PromoteTo(D d64,
 #endif
 
 template <class D, HWY_IF_F32_D(D)>
-HWY_INLINE_F16 VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
+HWY_INLINE VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
   return VFromD<D>{vec_extract_fp32_from_shorth(v.raw)};
 }
 
@@ -2950,6 +2950,7 @@ HWY_API VFromD<D> DemoteTo(D /*tag*/, VFromD<Rebind<float, D>> v) {
   return BitCast(df16, TruncateTo(du16, bits16));
 #else
 #error "Only define the function if we have a native implementation"
+#endif
 }
 
 #endif  // HWY_PPC_HAVE_9
