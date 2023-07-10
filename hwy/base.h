@@ -381,7 +381,7 @@ HWY_API float F32FromF16(float16_t f16) {
 #ifdef HWY_EMULATE_FLOAT16
   uint16_t bits16;
   CopySameSize(&f16, &bits16);
-  const uint32_t sign = bits16 >> 15;
+  const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
   const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
   const uint32_t mantissa = bits16 & 0x3FF;
 
