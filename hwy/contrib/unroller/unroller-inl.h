@@ -42,25 +42,27 @@ struct UnrollerUnit {
   using OT = hn::CappedTag<OUT_T, UnitLanes()>;
   IT d_in;
   OT d_out;
+  using Y_VEC = hn::Vec<OT>;
+  using X_VEC = hn::Vec<IT>;
 
-  hn::Vec<OT> Func(const ptrdiff_t idx, const hn::Vec<IT> x,
-                   const hn::Vec<OT> y) {
+  Y_VEC Func(const ptrdiff_t idx, const X_VEC x,
+                   const Y_VEC y) {
     return me()->Func(idx, x, y);
   }
 
-  hn::Vec<IT> X0Init() { return me()->X0InitImpl(); }
+  X_VEC X0Init() { return me()->X0InitImpl(); }
 
-  hn::Vec<IT> X0InitImpl() { return hn::Zero(d_in); }
+  X_VEC X0InitImpl() { return hn::Zero(d_in); }
 
-  hn::Vec<OT> YInit() { return me()->YInitImpl(); }
+  Y_VEC YInit() { return me()->YInitImpl(); }
 
-  hn::Vec<OT> YInitImpl() { return hn::Zero(d_out); }
+  Y_VEC YInitImpl() { return hn::Zero(d_out); }
 
-  hn::Vec<IT> Load(const ptrdiff_t idx, IN_T* from) {
+  X_VEC Load(const ptrdiff_t idx, IN_T* from) {
     return me()->LoadImpl(idx, from);
   }
 
-  hn::Vec<IT> LoadImpl(const ptrdiff_t idx, IN_T* from) {
+  X_VEC LoadImpl(const ptrdiff_t idx, IN_T* from) {
     return hn::LoadU(d_in, from + idx);
   }
 
@@ -70,12 +72,12 @@ struct UnrollerUnit {
   //      | o | o | o | x | x | x | x | x |
   // example places = -3
   //      | x | x | x | x | x | o | o | o |
-  hn::Vec<IT> MaskLoad(const ptrdiff_t idx, IN_T* from,
+  X_VEC MaskLoad(const ptrdiff_t idx, IN_T* from,
                        const ptrdiff_t places) {
     return me()->MaskLoadImpl(idx, from, places);
   }
 
-  hn::Vec<IT> MaskLoadImpl(const ptrdiff_t idx, IN_T* from,
+  X_VEC MaskLoadImpl(const ptrdiff_t idx, IN_T* from,
                            const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -86,21 +88,21 @@ struct UnrollerUnit {
     return hn::MaskedLoad(mask, d_in, from + idx);
   }
 
-  ptrdiff_t Store(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
-    return me()->StoreImpl(idx, to, x);
+  bool StoreAndShortCircuit(const ptrdiff_t idx, OUT_T* to, const Y_VEC x) {
+    return me()->StoreAndShortCircuitImpl(idx, to, x);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, OUT_T* to, const Y_VEC x) {
     hn::StoreU(x, d_out, to + idx);
-    return UnitLanes();
+    return true;
   }
 
-  ptrdiff_t MaskStore(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+  ptrdiff_t MaskStore(const ptrdiff_t idx, OUT_T* to, const Y_VEC x,
                       ptrdiff_t const places) {
     return me()->MaskStoreImpl(idx, to, x, places);
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, OUT_T* to, const Y_VEC x,
                           const ptrdiff_t places) {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -112,24 +114,24 @@ struct UnrollerUnit {
     return std::abs(places);
   }
 
-  ptrdiff_t Reduce(const hn::Vec<OT> x, OUT_T* to) {
+  ptrdiff_t Reduce(const Y_VEC x, OUT_T* to) {
     return me()->ReduceImpl(x, to);
   }
 
-  ptrdiff_t ReduceImpl(const hn::Vec<OT> x, OUT_T* to) {
+  ptrdiff_t ReduceImpl(const Y_VEC x, OUT_T* to) {
     // default does nothing
     (void)x;
     (void)to;
     return 0;
   }
 
-  void Reduce(const hn::Vec<OT> x0, const hn::Vec<OT> x1, const hn::Vec<OT> x2,
-              hn::Vec<OT>* y) {
+  void Reduce(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2,
+              Y_VEC* y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
-  void ReduceImpl(const hn::Vec<OT> x0, const hn::Vec<OT> x1,
-                  const hn::Vec<OT> x2, hn::Vec<OT>* y) {
+  void ReduceImpl(const Y_VEC x0, const Y_VEC x1,
+                  const Y_VEC x2, Y_VEC* y) {
     // default does nothing
     (void)x0;
     (void)x1;
@@ -154,37 +156,40 @@ struct UnrollerUnit2D {
   I0T d_in0;
   I1T d_in1;
   OT d_out;
+  using Y_VEC = hn::Vec<OT>;
+  using X0_VEC = hn::Vec<I0T>;
+  using X1_VEC = hn::Vec<I1T>;
 
   hn::Vec<OT> Func(const ptrdiff_t idx, const hn::Vec<I0T> x0,
-                   const hn::Vec<I1T> x1, const hn::Vec<OT> y) {
+                   const hn::Vec<I1T> x1, const Y_VEC y) {
     return me()->Func(idx, x0, x1, y);
   }
 
-  hn::Vec<I0T> X0Init() { return me()->X0InitImpl(); }
+  X0_VEC X0Init() { return me()->X0InitImpl(); }
 
-  hn::Vec<I0T> X0InitImpl() { return hn::Zero(d_in0); }
+  X0_VEC X0InitImpl() { return hn::Zero(d_in0); }
 
-  hn::Vec<I1T> X1Init() { return me()->X1InitImpl(); }
+  X1_VEC X1Init() { return me()->X1InitImpl(); }
 
-  hn::Vec<I0T> X1InitImpl() { return hn::Zero(d_in1); }
+  X1_VEC X1InitImpl() { return hn::Zero(d_in1); }
 
-  hn::Vec<OT> YInit() { return me()->YInitImpl(); }
+  Y_VEC YInit() { return me()->YInitImpl(); }
 
-  hn::Vec<OT> YInitImpl() { return hn::Zero(d_out); }
+  Y_VEC YInitImpl() { return hn::Zero(d_out); }
 
-  hn::Vec<I0T> Load0(const ptrdiff_t idx, IN0_T* from) {
+  X0_VEC Load0(const ptrdiff_t idx, IN0_T* from) {
     return me()->Load0Impl(idx, from);
   }
 
-  hn::Vec<I0T> Load0Impl(const ptrdiff_t idx, IN0_T* from) {
+  X0_VEC Load0Impl(const ptrdiff_t idx, IN0_T* from) {
     return hn::LoadU(d_in0, from + idx);
   }
 
-  hn::Vec<I1T> Load1(const ptrdiff_t idx, IN1_T* from) {
+  X1_VEC Load1(const ptrdiff_t idx, IN1_T* from) {
     return me()->Load1Impl(idx, from);
   }
 
-  hn::Vec<I1T> Load1Impl(const ptrdiff_t idx, IN1_T* from) {
+  X1_VEC Load1Impl(const ptrdiff_t idx, IN1_T* from) {
     return hn::LoadU(d_in1, from + idx);
   }
 
@@ -194,12 +199,12 @@ struct UnrollerUnit2D {
   //      | o | o | o | x | x | x | x | x |
   // example places = -3
   //      | x | x | x | x | x | o | o | o |
-  hn::Vec<I0T> MaskLoad0(const ptrdiff_t idx, IN0_T* from,
+  X0_VEC MaskLoad0(const ptrdiff_t idx, IN0_T* from,
                          const ptrdiff_t places) {
     return me()->MaskLoad0Impl(idx, from, places);
   }
 
-  hn::Vec<I0T> MaskLoad0Impl(const ptrdiff_t idx, IN0_T* from,
+  X0_VEC MaskLoad0Impl(const ptrdiff_t idx, IN0_T* from,
                              const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in0, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -226,21 +231,22 @@ struct UnrollerUnit2D {
     return hn::MaskedLoad(mask, d_in1, from + idx);
   }
 
-  ptrdiff_t Store(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
-    return me()->StoreImpl(idx, to, x);
+  // store returns a bool that is `false` when 
+  bool StoreAndShortCircuit(const ptrdiff_t idx, OUT_T* to, const Y_VEC x) {
+    return me()->StoreAndShortCircuitImpl(idx, to, x);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, OUT_T* to, const Y_VEC x) {
     hn::StoreU(x, d_out, to + idx);
-    return UnitLanes();
+    return true;
   }
 
-  ptrdiff_t MaskStore(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+  ptrdiff_t MaskStore(const ptrdiff_t idx, OUT_T* to, const Y_VEC x,
                       const ptrdiff_t places) {
     return me()->MaskStoreImpl(idx, to, x, places);
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, OUT_T* to, const hn::Vec<OT> x,
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, OUT_T* to, const Y_VEC x,
                           const ptrdiff_t places) {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -252,24 +258,24 @@ struct UnrollerUnit2D {
     return std::abs(places);
   }
 
-  ptrdiff_t Reduce(const hn::Vec<OT> x, OUT_T* to) {
+  ptrdiff_t Reduce(const Y_VEC x, OUT_T* to) {
     return me()->ReduceImpl(x, to);
   }
 
-  ptrdiff_t ReduceImpl(const hn::Vec<OT> x, OUT_T* to) {
+  ptrdiff_t ReduceImpl(const Y_VEC x, OUT_T* to) {
     // default does nothing
     (void)x;
     (void)to;
     return 0;
   }
 
-  void Reduce(const hn::Vec<OT> x0, const hn::Vec<OT> x1, const hn::Vec<OT> x2,
-              hn::Vec<OT>* y) {
+  void Reduce(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2,
+              Y_VEC* y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
-  void ReduceImpl(const hn::Vec<OT> x0, const hn::Vec<OT> x1,
-                  const hn::Vec<OT> x2, hn::Vec<OT>* y) {
+  void ReduceImpl(const Y_VEC x0, const Y_VEC x1,
+                  const Y_VEC x2, Y_VEC* y) {
     // default does nothing
     (void)x0;
     (void)x1;
@@ -327,13 +333,13 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
       yy2 = f.Func(i + 2 * lane_sz, xx2, yy2);
       yy3 = f.Func(i + 3 * lane_sz, xx3, yy3);
 
-      f.Store(i, y, yy);
+      if(!f.StoreAndShortCircuit(i, y, yy)) return;
       i += lane_sz;
-      f.Store(i, y, yy1);
+      if(!f.StoreAndShortCircuit(i, y, yy1)) return;
       i += lane_sz;
-      f.Store(i, y, yy2);
+      if(!f.StoreAndShortCircuit(i, y, yy2)) return;
       i += lane_sz;
-      f.Store(i, y, yy3);
+      if(!f.StoreAndShortCircuit(i, y, yy3)) return;
       i += lane_sz;
     }
 
@@ -343,7 +349,7 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
   while (i + lane_sz - 1 < n) {
     xx = f.Load(i, x);
     yy = f.Func(i, xx, yy);
-    f.Store(i, y, yy);
+    if(!f.StoreAndShortCircuit(i, y, yy)) return;
     i += lane_sz;
   }
 
@@ -418,13 +424,13 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
       yy2 = f.Func(i + 2 * lane_sz, xx02, xx12, yy2);
       yy3 = f.Func(i + 3 * lane_sz, xx03, xx13, yy3);
 
-      f.Store(i, y, yy);
+      if(!f.StoreAndShortCircuit(i, y, yy)) return;
       i += lane_sz;
-      f.Store(i, y, yy1);
+      if(!f.StoreAndShortCircuit(i, y, yy1)) return;
       i += lane_sz;
-      f.Store(i, y, yy2);
+      if(!f.StoreAndShortCircuit(i, y, yy2)) return;
       i += lane_sz;
-      f.Store(i, y, yy3);
+      if(!f.StoreAndShortCircuit(i, y, yy3)) return;
       i += lane_sz;
     }
 
@@ -435,7 +441,7 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
     xx00 = f.Load0(i, x0);
     xx10 = f.Load1(i, x1);
     yy = f.Func(i, xx00, xx10, yy);
-    f.Store(i, y, yy);
+    if(!f.StoreAndShortCircuit(i, y, yy)) return;
     i += lane_sz;
   }
 

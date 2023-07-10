@@ -89,6 +89,77 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
 };
 
 template <typename T>
+struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
+  static constexpr size_t UnitLanes() {
+    return HWY_MIN(HWY_MAX_LANES_D(hn::ScalableTag<T>),
+                   HWY_MAX_LANES_D(hn::ScalableTag<ptrdiff_t>));
+  }
+
+  using TT = hn::CappedTag<T, UnitLanes()>;
+  using TTSZT = hn::CappedTag<ptrdiff_t, UnitLanes()>;
+  hn::Vec<TT> to_find;
+  TT d;
+  TTSZT szd;
+
+  FindUnit<T>(T find) {
+    to_find = Set(d, find);
+  }
+
+  hn::Vec<TTSZT> Func(ptrdiff_t idx, const hn::Vec<TT> x,
+                   const hn::Vec<TTSZT> y) {
+    auto msk = x == to_find;
+    auto first_idx = hn::FindFirstTrue(d, msk);
+
+    if(first_idx > -1)
+      return hn::Set(szd, idx + first_idx);
+    else
+      return y;
+  }
+
+  hn::Vec<TT> X0InitImpl() { return hn::Add(to_find, Set(d, 1)); }
+
+  hn::Vec<TTSZT> YInitImpl() { return hn::Set(szd, -1); }
+
+  hn::Vec<TT> MaskLoadImpl(const ptrdiff_t idx, T* from,
+                           const ptrdiff_t places) {
+    auto mask = hn::FirstN(d, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        d,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+    if (places < 0) mask = maskneg;
+
+    return hn::IfThenElse(mask, hn::MaskedLoad(mask, d, from + idx), X0InitImpl());
+  }
+
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, ptrdiff_t* to, const hn::Vec<TTSZT> x) {
+    (void)idx;
+
+    ptrdiff_t a = hn::ExtractLane(x, 0);
+    to[0] = a;
+    
+    if(a == -1)
+      return true;
+    
+    return false;
+  }
+
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, ptrdiff_t* to, const hn::Vec<TTSZT> x,
+                          const ptrdiff_t places) {
+    (void)idx;
+    auto mask = hn::FirstN(szd, static_cast<size_t>(places));
+    auto maskneg = hn::Not(hn::FirstN(
+        szd,
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+    if (places < 0) mask = maskneg;
+
+    ptrdiff_t a = hn::ExtractLane(x, 0);
+    to[0] = a;
+
+    return std::abs(places);
+  }
+};
+
+template <typename T>
 struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
   using TT = hn::ScalableTag<T>;
   hn::Vec<TT> Func(ptrdiff_t idx, const hn::Vec<TT> x, const hn::Vec<TT> y) {
@@ -96,12 +167,12 @@ struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
     return hn::Add(x, y);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
     // no stores in a reducer
     (void)idx;
     (void)to;
     (void)x;
-    return 0;
+    return true;
   }
 
   ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x,
@@ -152,12 +223,12 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
     return hn::MaskedLoadOr(def, mask, d, from + idx);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
     // no stores in a reducer
     (void)idx;
     (void)to;
     (void)x;
-    return 0;
+    return true;
   }
 
   ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x,
@@ -195,12 +266,12 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
     return hn::MulAdd(x0, x1, y);
   }
 
-  ptrdiff_t StoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
     // no stores in a reducer
     (void)idx;
     (void)to;
     (void)x;
-    return 0;
+    return true;
   }
 
   ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x,
@@ -278,7 +349,7 @@ class TestUnroller {
   }
 
   template <typename T>
-  void TestConvert(size_t num) {
+  void TestConvertToFromInt(size_t num) {
     AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
     AlignedFreeUniquePtr<int[]> pto = AllocateAligned<int>(num);
     HWY_ASSERT(pa && pto);
@@ -296,12 +367,35 @@ class TestUnroller {
     for (size_t i = 0; i < num; ++i) HWY_ASSERT(a[i] == (T)to[i]);
   }
 
+  template <typename T>
+  void TestFind(size_t num) {
+    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(num);
+    HWY_ASSERT(pa);
+    T* a = pa.get();
+
+    for (size_t i = 0; i < num; ++i) a[i] = (T)i;
+
+    FindUnit<T> cvtfn((T)(num - 1));
+    ptrdiff_t idx = 0;
+    Unroller(cvtfn, a, &idx, static_cast<ptrdiff_t>(num));
+    HWY_ASSERT(a[idx] == (T)(num - 1));
+
+    FindUnit<T> cvtfnzero((T)(0));
+    Unroller(cvtfnzero, a, &idx, static_cast<ptrdiff_t>(num));
+    HWY_ASSERT(a[idx] == (T)(0));
+
+    FindUnit<T> cvtfnnotin((T)(num));
+    Unroller(cvtfnnotin, a, &idx, static_cast<ptrdiff_t>(num));
+    HWY_ASSERT(idx == -1);
+  }
+
  public:
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
     const size_t N = Lanes(d);
-    const size_t counts[] = {1,
+    const size_t counts[] = {
+                             1,
                              3,
                              7,
                              16,
@@ -317,14 +411,14 @@ class TestUnroller {
                              256 * N};
     for (auto count : counts) {
       Test(d, count, rng);
-      TestConvert<T>(count);
+      TestConvertToFromInt<T>(count);
+      TestFind<T>(count);
     }
   }
 };
 
 void TestAllUnroller() { ForFloatTypes(ForPartialVectors<TestUnroller>()); }
 
-// NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 HWY_AFTER_NAMESPACE();
