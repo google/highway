@@ -377,6 +377,7 @@ HWY_TESTS = [
     ("hwy/tests/", "slide_up_down_test"),
     ("hwy/tests/", "swizzle_block_test"),
     ("hwy/tests/", "swizzle_test"),
+    ("hwy/tests/", "table_test"),
     ("hwy/tests/", "test_util_test"),
     ("hwy/tests/", "tuple_test"),
 ]

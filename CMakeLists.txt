@@ -531,6 +531,7 @@ set(HWY_TEST_FILES
   hwy/tests/slide_up_down_test.cc
   hwy/tests/swizzle_block_test.cc
   hwy/tests/swizzle_test.cc
+  hwy/tests/table_test.cc
   hwy/tests/test_util_test.cc
   hwy/tests/tuple_test.cc
 )
