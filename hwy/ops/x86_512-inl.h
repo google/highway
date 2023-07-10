@@ -4793,16 +4793,19 @@ HWY_API Vec512<double> ConvertTo(D /* tag*/, Vec512<uint64_t> v) {
 // Truncates (rounds toward zero).
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec512<int32_t> ConvertTo(D d, Vec512<float> v) {
-  return detail::FixConversionOverflow(d, v, _mm512_cvttps_epi32(v.raw));
+  return detail::FixConversionOverflow(
+      d, v, Vec512<int32_t>{_mm512_cvttps_epi32(v.raw)});
 }
 template <class D, HWY_IF_I64_D(D)>
 HWY_API Vec512<int64_t> ConvertTo(D di, Vec512<double> v) {
-  return detail::FixConversionOverflow(di, v, _mm512_cvttpd_epi64(v.raw));
+  return detail::FixConversionOverflow(
+      di, v, Vec512<int64_t>{_mm512_cvttpd_epi64(v.raw)});
 }
 
 HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
   const RebindToSigned<DFromV<decltype(v)>> di;
-  return detail::FixConversionOverflow(di, v, _mm512_cvtps_epi32(v.raw));
+  return detail::FixConversionOverflow(
+      di, v, Vec512<int32_t>{_mm512_cvtps_epi32(v.raw)});
 }
 
 // ================================================== CRYPTO

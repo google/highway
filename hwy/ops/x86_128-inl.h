@@ -7506,15 +7506,15 @@ HWY_INLINE VFromD<D> ClampF64ToI32Max(D d, VFromD<D> v) {
 // For ConvertTo float->int of same size, clamping before conversion would
 // change the result because the max integer value is not exactly representable.
 // Instead detect the overflow result after conversion and fix it.
-template <class DI, class DF = RebindToFloat<DI>>
-HWY_INLINE VFromD<DI> FixConversionOverflow(
-    DI di, VFromD<DF> original, decltype(Zero(DI()).raw) converted_raw) {
+template <class DI>
+HWY_INLINE VFromD<DI> FixConversionOverflow(DI di,
+                                            VFromD<RebindToFloat<DI>> original,
+                                            VFromD<DI> converted) {
   // Combinations of original and output sign:
   //   --: normal <0 or -huge_val to 80..00: OK
   //   -+: -0 to 0                         : OK
   //   +-: +huge_val to 80..00             : xor with FF..FF to get 7F..FF
   //   ++: normal >0                       : OK
-  const VFromD<DI> converted{converted_raw};
   const VFromD<DI> sign_wrong = AndNot(BitCast(di, original), converted);
 #if HWY_COMPILER_GCC_ACTUAL
   // Critical GCC 11 compiler bug (possibly also GCC 10): omits the Xor; also
@@ -7970,14 +7970,16 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<uint64_t, D>> v) {
 
 // Truncates (rounds toward zero).
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> ConvertTo(D di, VFromD<Rebind<float, D>> v) {
-  return detail::FixConversionOverflow(di, v, _mm_cvttps_epi32(v.raw));
+HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
+  return detail::FixConversionOverflow(
+      di, v, VFromD<RebindToSigned<D>>{_mm_cvttps_epi32(v.raw)});
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class DI, HWY_IF_V_SIZE_LE_D(DI, 16), HWY_IF_I64_D(DI)>
-HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
-  return detail::FixConversionOverflow(di, v, _mm_cvttpd_epi64(v.raw));
+HWY_API VFromD<DI> ConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
+  return detail::FixConversionOverflow(di, v,
+                                       VFromD<DI>{_mm_cvttpd_epi64(v.raw)});
 }
 
 #else  // AVX2 or below
@@ -7986,14 +7988,15 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
 template <class DI, HWY_IF_V_SIZE_D(DI, 8), HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, Vec64<double> v) {
   const Vec64<int64_t> i0{_mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw))};
-  return detail::FixConversionOverflow(di, v, i0.raw);
+  return detail::FixConversionOverflow(di, v, i0);
 }
 template <class DI, HWY_IF_V_SIZE_D(DI, 16), HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, Vec128<double> v) {
   const __m128i i0 = _mm_cvtsi64_si128(_mm_cvttsd_si64(v.raw));
   const Full64<double> dd2;
   const __m128i i1 = _mm_cvtsi64_si128(_mm_cvttsd_si64(UpperHalf(dd2, v).raw));
-  return detail::FixConversionOverflow(di, v, _mm_unpacklo_epi64(i0, i1));
+  return detail::FixConversionOverflow(
+      di, v, Vec128<int64_t>{_mm_unpacklo_epi64(i0, i1)});
 }
 #endif  // HWY_ARCH_X86_64
 
@@ -8066,7 +8069,8 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
 template <size_t N>
 HWY_API Vec128<int32_t, N> NearestInt(const Vec128<float, N> v) {
   const RebindToSigned<DFromV<decltype(v)>> di;
-  return detail::FixConversionOverflow(di, v, _mm_cvtps_epi32(v.raw));
+  return detail::FixConversionOverflow(
+      di, v, VFromD<decltype(di)>{_mm_cvtps_epi32(v.raw)});
 }
 
 // ------------------------------ Floating-point rounding (ConvertTo)

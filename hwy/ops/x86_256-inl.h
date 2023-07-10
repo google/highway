@@ -5619,19 +5619,22 @@ HWY_API Vec256<double> ConvertTo(D /*dd*/, Vec256<uint64_t> v) {
 // Truncates (rounds toward zero).
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec256<int32_t> ConvertTo(D d, Vec256<float> v) {
-  return detail::FixConversionOverflow(d, v, _mm256_cvttps_epi32(v.raw));
+  return detail::FixConversionOverflow(
+      d, v, Vec256<int32_t>{_mm256_cvttps_epi32(v.raw)});
 }
 
 #if HWY_TARGET <= HWY_AVX3
 template <class D, HWY_IF_I64_D(D)>
 HWY_API Vec256<int64_t> ConvertTo(D di, Vec256<double> v) {
-  return detail::FixConversionOverflow(di, v, _mm256_cvttpd_epi64(v.raw));
+  return detail::FixConversionOverflow(
+      di, v, Vec256<int64_t>{_mm256_cvttpd_epi64(v.raw)});
 }
 #endif
 
 HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
   const Full256<int32_t> di;
-  return detail::FixConversionOverflow(di, v, _mm256_cvtps_epi32(v.raw));
+  return detail::FixConversionOverflow(
+      di, v, Vec256<int32_t>{_mm256_cvtps_epi32(v.raw)});
 }
 
 #ifndef HWY_DISABLE_F16C
