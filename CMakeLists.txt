@@ -531,6 +531,7 @@ set(HWY_TEST_FILES
   hwy/tests/memory_test.cc
   hwy/tests/mul_test.cc
   hwy/tests/reduction_test.cc
+  hwy/tests/resize_test.cc
   hwy/tests/reverse_test.cc
   hwy/tests/shift_test.cc
   hwy/tests/slide_up_down_test.cc
