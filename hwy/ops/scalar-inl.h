@@ -966,15 +966,8 @@ HWY_API Vec1<double> Floor(const Vec1<double> v) {
 
 // ================================================== COMPARE
 
-#if HWY_COMPILER_GCC_ACTUAL && HWY_ARCH_X86_32
-// Without this, 1.0f == 1.0f is false, which breaks math_test.
-#define HWY_INLINE_EQ HWY_NOINLINE
-#else
-#define HWY_INLINE_EQ HWY_API
-#endif
-
 template <typename T>
-HWY_INLINE_EQ Mask1<T> operator==(const Vec1<T> a, const Vec1<T> b) {
+HWY_API Mask1<T> operator==(const Vec1<T> a, const Vec1<T> b) {
   return Mask1<T>::FromBool(a.raw == b.raw);
 }
 

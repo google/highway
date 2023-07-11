@@ -237,6 +237,11 @@ else()
     )
   endif()  # WIN32
 
+  # Workaround for excess precision, see #1488.
+  if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86|i[3-6]86")  # 32-bit
+    list(APPEND HWY_FLAGS -msse2 -mfpmath=sse)
+  endif()
+
   if (HWY_CMAKE_ARM7)
     list(APPEND HWY_FLAGS
       -march=armv7-a

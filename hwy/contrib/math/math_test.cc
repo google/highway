@@ -31,6 +31,20 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+#if HWY_ARCH_X86_32 && (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128)
+// We have had test failures caused by excess precision due to keeping
+// intermediate results in 80-bit x87 registers. One such failure mode is that
+// Log1p computes a 1.0 which is not exactly equal to 1.0f, causing is_pole to
+// incorrectly evaluate to false. -fexcess-precision=standard would solve this
+// (and ought to be standard?!), but unfortunately is not available in C++
+// until GCC 13.1, see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=323.
+// A suitable workaround is to compile with -msse2 -mfpmath=sse. See also:
+// https://stackoverflow.com/questions/20869904/c-handling-of-excess-precision
+#if FLT_EVAL_METHOD != 0
+#pragma message("Test may fail due to missing CFLAGS, see comment above")
+#endif
+#endif
+
 template <class Out, class In>
 inline Out BitCast(const In& in) {
   static_assert(sizeof(Out) == sizeof(In), "");
