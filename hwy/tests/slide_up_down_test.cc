@@ -183,7 +183,7 @@ HWY_NOINLINE void TestAllSlideUpLanes() {
 
 class TestSlideDownLanes {
  private:
-  // HWY_NOINLINE is required here to work around RVV miscompilation.
+  // TODO(janwas): HWY_NOINLINE is required here to work around RVV miscompilation.
   template <class D>
   static HWY_NOINLINE void DoTestSlideDownLanes(
       D d, TFromD<D>* HWY_RESTRICT expected, const size_t N,
