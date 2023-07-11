@@ -160,7 +160,7 @@ namespace detail {  // for code folding and Raw128
 #define HWY_NEON_DEF_FUNCTION_BFLOAT_16(name, prefix, infix, args)
 #endif
 
-// Used for conversion instructions if HWY_NEON_HAVE_F16C.
+// Used for conversion instructions if HWY_NEON_HAVE_FLOAT16C.
 #define HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(name, prefix, infix, \
                                                      args)                \
   HWY_NEON_DEF_FUNCTION(float16, 8, name, prefix##q, infix, f16, args)    \
@@ -1387,7 +1387,7 @@ HWY_INLINE Vec64<int64_t> BitCastFromByte(D /* tag */, Vec64<uint8_t> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
 HWY_INLINE VFromD<D> BitCastFromByte(D d, VFromD<Repartition<uint8_t, D>> v) {
-#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
+#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_FLOAT16C
   (void)d;
   return VFromD<D>(vreinterpret_f16_u8(v.raw));
 #else
@@ -1442,7 +1442,7 @@ HWY_INLINE Vec128<int64_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
 
 template <class D, HWY_IF_F16_D(D)>
 HWY_INLINE Vec128<float16_t> BitCastFromByte(D /* tag */, Vec128<uint8_t> v) {
-#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_F16C
+#if HWY_HAVE_FLOAT16 || HWY_NEON_HAVE_FLOAT16C
   return Vec128<float16_t>(vreinterpretq_f16_u8(v.raw));
 #else
   return Vec128<float16_t>(BitCastFromByte(RebindToUnsigned<D>(), v).raw);
