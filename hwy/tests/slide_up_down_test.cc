@@ -359,6 +359,8 @@ class TestSlideDownLanes {
   }
 };
 
+#undef HWY_SLIDE_DOWN_TEST_INLINE
+
 HWY_NOINLINE void TestAllSlideDownLanes() {
   ForAllTypes(ForPartialVectors<TestSlideDownLanes>());
 }
