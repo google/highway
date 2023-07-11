@@ -943,10 +943,23 @@ HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, SaturatedSub, ssubu, _ALL)
 HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, SaturatedSub, ssub, _ALL)
 
 // ------------------------------ AverageRound
-// Assume that GCC-13 default to legacy vxrm arguments. Tested with GCC 13.1.0
+
+// Define this to opt-out of the default behavior, which is AVOID on certain
+// compiler versions. You can define only this to use VXRM, or define both this
+// and HWY_RVV_AVOID_VXRM to always avoid VXRM.
+#ifndef HWY_RVV_CHOOSE_VXRM
+
+// Assume that GCC-13 defaults to 'avoid VXRM'. Tested with GCC 13.1.0.
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400
 #define HWY_RVV_AVOID_VXRM
+// Clang 16 with __riscv_v_intrinsic == 11000 may either require VXRM or avoid.
+// Assume earlier versions avoid.
+#elif HWY_COMPILER_CLANG && \
+    (HWY_COMPILER_CLANG < 1600 || __riscv_v_intrinsic < 11000)
+#define HWY_RVV_AVOID_VXRM
 #endif
+
+#endif  // HWY_RVV_CHOOSE_VXRM
 
 // Adding __RISCV_VXRM_* was a backwards-incompatible change and it is not clear
 // how to detect whether it is supported or required. #ifdef __RISCV_VXRM_RDN
