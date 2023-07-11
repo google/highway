@@ -79,6 +79,16 @@ check_cxx_source_compiles(
 
 check_cxx_source_compiles(
    "int main() {
+      #if !defined(__i386__) && !defined(_M_IX86)
+      static_assert(false, \"Not 32-bit x86\");
+      #endif
+      return 0;
+    }"
+  HWY_X86_32
+)
+
+check_cxx_source_compiles(
+   "int main() {
       #if !defined(__riscv)
       static_assert(false, \"__riscv is not defined\");
       #endif
@@ -238,7 +248,7 @@ else()
   endif()  # WIN32
 
   # Workaround for excess precision, see #1488.
-  if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86|i[3-6]86")  # 32-bit
+  if (HWY_X86_32)
     list(APPEND HWY_FLAGS -msse2 -mfpmath=sse)
   endif()
 
