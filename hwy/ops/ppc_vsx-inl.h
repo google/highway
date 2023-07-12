@@ -1699,20 +1699,27 @@ HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
   return LowerHalf(d, ShiftRightBytes<d.MaxBytes()>(Twice<D>(), v));
 }
 
-// ------------------------------ ExtractLane (UpperHalf)
-
+// ------------------------------ ExtractLane
 template <typename T, size_t N>
 HWY_API T ExtractLane(Vec128<T, N> v, size_t i) {
   return static_cast<T>(v.raw[i]);
 }
 
-// ------------------------------ InsertLane (UpperHalf)
-
+// ------------------------------ InsertLane
 template <typename T, size_t N>
 HWY_API Vec128<T, N> InsertLane(Vec128<T, N> v, size_t i, T t) {
+#if HWY_IS_LITTLE_ENDIAN
   typename detail::Raw128<T>::type raw_result = v.raw;
   raw_result[i] = t;
   return Vec128<T, N>{raw_result};
+#else
+  // On ppc64be without this, mul_test fails, but swizzle_test passes.
+  DFromV<decltype(v)> d;
+  alignas(16) T lanes[16 / sizeof(T)];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+#endif
 }
 
 // ------------------------------ CombineShiftRightBytes
@@ -2729,8 +2736,8 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
   const VU32 ao = And(BitCast(du32, a), odd);
   const VU32 be = ShiftLeft<16>(BitCast(du32, b));
   const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
-         Mul(BitCast(df32, ao), BitCast(df32, bo));
+  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
+                Mul(BitCast(df32, ao), BitCast(df32, bo)));
 }
 
 // Even if N=1, the input is always at least 2 lanes, hence vec_msum is safe.
