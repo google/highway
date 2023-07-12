@@ -34,19 +34,20 @@
 
 #include "hwy/ops/shared-inl.h"
 
-// clang's altivec.h gates some intrinsics behind #ifdef __POWER10_VECTOR__.
+// clang's altivec.h gates some intrinsics behind #ifdef __POWER10_VECTOR__, and
+// some GCC do the same for _ARCH_PWR10.
 // This means we can only use POWER10-specific intrinsics in static dispatch
 // mode (where the -mpower10-vector compiler flag is passed). Same for PPC9.
 // On other compilers, the usual target check is sufficient.
 #if HWY_TARGET <= HWY_PPC9 && \
-    (!HWY_COMPILER_CLANG || defined(__POWER9_VECTOR__))
+    (defined(_ARCH_PWR9) || defined(__POWER9_VECTOR__))
 #define HWY_PPC_HAVE_9 1
 #else
 #define HWY_PPC_HAVE_9 0
 #endif
 
 #if HWY_TARGET <= HWY_PPC10 && \
-    (!HWY_COMPILER_CLANG || defined(__POWER10_VECTOR__))
+    (defined(_ARCH_PWR10) || defined(__POWER10_VECTOR__))
 #define HWY_PPC_HAVE_10 1
 #else
 #define HWY_PPC_HAVE_10 0
@@ -1698,20 +1699,27 @@ HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
   return LowerHalf(d, ShiftRightBytes<d.MaxBytes()>(Twice<D>(), v));
 }
 
-// ------------------------------ ExtractLane (UpperHalf)
-
+// ------------------------------ ExtractLane
 template <typename T, size_t N>
 HWY_API T ExtractLane(Vec128<T, N> v, size_t i) {
   return static_cast<T>(v.raw[i]);
 }
 
-// ------------------------------ InsertLane (UpperHalf)
-
+// ------------------------------ InsertLane
 template <typename T, size_t N>
 HWY_API Vec128<T, N> InsertLane(Vec128<T, N> v, size_t i, T t) {
+#if HWY_IS_LITTLE_ENDIAN
   typename detail::Raw128<T>::type raw_result = v.raw;
   raw_result[i] = t;
   return Vec128<T, N>{raw_result};
+#else
+  // On ppc64be without this, mul_test fails, but swizzle_test passes.
+  DFromV<decltype(v)> d;
+  alignas(16) T lanes[16 / sizeof(T)];
+  Store(v, d, lanes);
+  lanes[i] = t;
+  return Load(d, lanes);
+#endif
 }
 
 // ------------------------------ CombineShiftRightBytes
@@ -2728,8 +2736,8 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 df32, V16 a, V16 b) {
   const VU32 ao = And(BitCast(du32, a), odd);
   const VU32 be = ShiftLeft<16>(BitCast(du32, b));
   const VU32 bo = And(BitCast(du32, b), odd);
-  return Mul(BitCast(df32, ae), BitCast(df32, be)) +
-         Mul(BitCast(df32, ao), BitCast(df32, bo));
+  return MulAdd(BitCast(df32, ae), BitCast(df32, be),
+                Mul(BitCast(df32, ao), BitCast(df32, bo)));
 }
 
 // Even if N=1, the input is always at least 2 lanes, hence vec_msum is safe.
@@ -2937,14 +2945,17 @@ HWY_API VFromD<D> DemoteTo(D d,
 // We already toggled HWY_NATIVE_F16C above.
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F16_D(D)>
-HWY_API VFromD<D> DemoteTo(D /*tag*/, VFromD<Rebind<float, D>> v) {
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 // Avoid vec_pack_to_short_fp32 on Clang because its implementation is buggy.
 #if HWY_COMPILER_GCC_ACTUAL
+  (void)df16;
   return VFromD<D>{vec_pack_to_short_fp32(v.raw, v.raw)};
 #elif HWY_HAS_BUILTIN(__builtin_vsx_xvcvsphp)
   // Work around bug in the clang implementation of vec_pack_to_short_fp32
   // by using the __builtin_vsx_xvcvsphp builtin on PPC9/PPC10 targets
   // if the __builtin_vsx_xvcvsphp intrinsic is available
+  const RebindToUnsigned<decltype(df16)> du16;
+  const Rebind<uint32_t, D> du;
   const VFromD<decltype(du)> bits16{
       reinterpret_cast<__vector unsigned int>(__builtin_vsx_xvcvsphp(v.raw))};
   return BitCast(df16, TruncateTo(du16, bits16));

@@ -22,6 +22,7 @@
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/detect_targets.h"
+#include "hwy/per_target.h"
 #include "hwy/targets.h"
 #include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util.h"
@@ -622,19 +623,65 @@ void ForIntegerTypes(const Func& func) {
 }
 
 template <class Func>
-void ForFloat3264Types(const Func& func) {
-  func(float());
-#if HWY_HAVE_FLOAT64
-  func(double());
+void ForFloat16Types(const Func& func) {
+#if HWY_HAVE_FLOAT16
+  func(float16_t());
+#else
+  (void)func;
 #endif
 }
 
 template <class Func>
-void ForFloatTypes(const Func& func) {
-#if HWY_HAVE_FLOAT16
-  func(float16_t());
+void ForFloat64Types(const Func& func) {
+#if HWY_HAVE_FLOAT64
+  func(double());
+#else
+  (void)func;
 #endif
+}
+
+// `#if HWY_HAVE_FLOAT*` is sufficient for tests using static dispatch. In
+// sort_test we also use dynamic dispatch, so there we call the For*Dynamic
+// functions which also check hwy::HaveFloat*.
+template <class Func>
+void ForFloat16TypesDynamic(const Func& func) {
+#if HWY_HAVE_FLOAT16
+  if (hwy::HaveFloat16()) {
+    func(float16_t());
+  }
+#else
+  (void)func;
+#endif
+}
+
+template <class Func>
+void ForFloat64TypesDynamic(const Func& func) {
+#if HWY_HAVE_FLOAT64
+  if (hwy::HaveFloat64()) {
+    func(double());
+  }
+#else
+  (void)func;
+#endif
+}
+
+template <class Func>
+void ForFloat3264Types(const Func& func) {
+  func(float());
+  ForFloat64Types(func);
+}
+
+template <class Func>
+void ForFloatTypes(const Func& func) {
+  ForFloat16Types(func);
   ForFloat3264Types(func);
+}
+
+template <class Func>
+void ForFloatTypesDynamic(const Func& func) {
+  ForFloat16TypesDynamic(func);
+  func(float());
+  ForFloat64TypesDynamic(func);
 }
 
 template <class Func>
@@ -658,9 +705,7 @@ void ForUI16(const Func& func) {
 template <class Func>
 void ForUIF16(const Func& func) {
   ForUI16(func);
-#if HWY_HAVE_FLOAT16
-  func(float16_t());
-#endif
+  ForFloat16Types(func);
 }
 
 template <class Func>
@@ -686,9 +731,7 @@ void ForUI64(const Func& func) {
 template <class Func>
 void ForUIF64(const Func& func) {
   ForUI64(func);
-#if HWY_HAVE_FLOAT64
-  func(double());
-#endif
+  ForFloat64Types(func);
 }
 
 template <class Func>

@@ -31,6 +31,43 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// We have had test failures caused by excess precision due to keeping
+// intermediate results in 80-bit x87 registers. One such failure mode is that
+// Log1p computes a 1.0 which is not exactly equal to 1.0f, causing is_pole to
+// incorrectly evaluate to false.
+#undef HWY_MATH_TEST_EXCESS_PRECISION
+#if HWY_ARCH_X86_32 && HWY_COMPILER_GCC_ACTUAL && \
+    (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128)
+
+// On 32-bit x86 with GCC 13+, build with `-fexcess-precision=standard` - see
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=323.
+#if HWY_COMPILER_GCC_ACTUAL >= 1300
+
+#if FLT_EVAL_METHOD == 0  // correct flag given, no problem
+#define HWY_MATH_TEST_EXCESS_PRECISION 0
+#else
+#define HWY_MATH_TEST_EXCESS_PRECISION 1
+#pragma message( \
+    "Skipping scalar math_test on 32-bit x86 GCC 13+ without -fexcess-precision=standard")
+#endif  // FLT_EVAL_METHOD
+
+#else                  // HWY_COMPILER_GCC_ACTUAL < 1300
+
+// On 32-bit x86 with GCC <13, set HWY_CMAKE_SSE2 - see
+// https://stackoverflow.com/questions/20869904/c-handling-of-excess-precision .
+#if defined(__SSE2__)  // correct flag given, no problem
+#define HWY_MATH_TEST_EXCESS_PRECISION 0
+#else
+#define HWY_MATH_TEST_EXCESS_PRECISION 1
+#pragma message( \
+    "Skipping scalar math_test on 32-bit x86 GCC <13 without HWY_CMAKE_SSE2")
+#endif  // defined(__SSE2__)
+
+#endif  // HWY_COMPILER_GCC_ACTUAL
+#else   // not (x86-32, GCC, scalar target): running math_test normally
+#define HWY_MATH_TEST_EXCESS_PRECISION 0
+#endif  // HWY_ARCH_X86_32 etc
+
 template <class Out, class In>
 inline Out BitCast(const In& in) {
   static_assert(sizeof(Out) == sizeof(In), "");
@@ -43,6 +80,15 @@ template <class T, class D>
 HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
                            Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
                            uint64_t max_error_ulp) {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) {
+    static bool once = true;
+    if (once) {
+      once = false;
+      fprintf(stderr,
+              "Skipping math_test due to GCC issue with excess precision.\n");
+    }
+  }
+
   using UintT = MakeUnsigned<T>;
 
   const UintT min_bits = BitCast<UintT>(min);
@@ -359,6 +405,8 @@ struct TestAtan2 {
 };
 
 HWY_NOINLINE void TestAllAtan2() {
+  if (HWY_MATH_TEST_EXCESS_PRECISION) return;
+
   ForFloat3264Types(ForPartialVectors<TestAtan2>());
 }
 

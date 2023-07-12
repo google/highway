@@ -106,7 +106,7 @@ struct TestFloatLargerSmaller {
   }
 };
 HWY_NOINLINE void TestAllFloatLargerSmaller() {
-  ForFloatTypes(ForPartialVectors<TestFloatLargerSmaller>());
+  ForFloatTypesDynamic(ForPartialVectors<TestFloatLargerSmaller>());
 }
 
 // Previously, LastValue was the largest normal float, so we injected that
@@ -127,7 +127,7 @@ struct TestFloatInf {
 
 HWY_NOINLINE void TestAllFloatInf() {
   // TODO(janwas): bfloat16_t not yet supported.
-  ForFloatTypes(ForPartialVectors<TestFloatInf>());
+  ForFloatTypesDynamic(ForPartialVectors<TestFloatInf>());
 }
 
 template <class Traits>
