@@ -45,8 +45,7 @@ struct UnrollerUnit {
   using Y_VEC = hn::Vec<OT>;
   using X_VEC = hn::Vec<IT>;
 
-  Y_VEC Func(const ptrdiff_t idx, const X_VEC x,
-                   const Y_VEC y) {
+  Y_VEC Func(const ptrdiff_t idx, const X_VEC x, const Y_VEC y) {
     return me()->Func(idx, x, y);
   }
 
@@ -72,13 +71,11 @@ struct UnrollerUnit {
   //      | o | o | o | x | x | x | x | x |
   // example places = -3
   //      | x | x | x | x | x | o | o | o |
-  X_VEC MaskLoad(const ptrdiff_t idx, IN_T* from,
-                       const ptrdiff_t places) {
+  X_VEC MaskLoad(const ptrdiff_t idx, IN_T* from, const ptrdiff_t places) {
     return me()->MaskLoadImpl(idx, from, places);
   }
 
-  X_VEC MaskLoadImpl(const ptrdiff_t idx, IN_T* from,
-                           const ptrdiff_t places) {
+  X_VEC MaskLoadImpl(const ptrdiff_t idx, IN_T* from, const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in,
@@ -114,9 +111,7 @@ struct UnrollerUnit {
     return std::abs(places);
   }
 
-  ptrdiff_t Reduce(const Y_VEC x, OUT_T* to) {
-    return me()->ReduceImpl(x, to);
-  }
+  ptrdiff_t Reduce(const Y_VEC x, OUT_T* to) { return me()->ReduceImpl(x, to); }
 
   ptrdiff_t ReduceImpl(const Y_VEC x, OUT_T* to) {
     // default does nothing
@@ -125,13 +120,11 @@ struct UnrollerUnit {
     return 0;
   }
 
-  void Reduce(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2,
-              Y_VEC* y) {
+  void Reduce(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2, Y_VEC* y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
-  void ReduceImpl(const Y_VEC x0, const Y_VEC x1,
-                  const Y_VEC x2, Y_VEC* y) {
+  void ReduceImpl(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2, Y_VEC* y) {
     // default does nothing
     (void)x0;
     (void)x1;
@@ -199,13 +192,12 @@ struct UnrollerUnit2D {
   //      | o | o | o | x | x | x | x | x |
   // example places = -3
   //      | x | x | x | x | x | o | o | o |
-  X0_VEC MaskLoad0(const ptrdiff_t idx, IN0_T* from,
-                         const ptrdiff_t places) {
+  X0_VEC MaskLoad0(const ptrdiff_t idx, IN0_T* from, const ptrdiff_t places) {
     return me()->MaskLoad0Impl(idx, from, places);
   }
 
   X0_VEC MaskLoad0Impl(const ptrdiff_t idx, IN0_T* from,
-                             const ptrdiff_t places) {
+                       const ptrdiff_t places) {
     auto mask = hn::FirstN(d_in0, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in0,
@@ -231,7 +223,7 @@ struct UnrollerUnit2D {
     return hn::MaskedLoad(mask, d_in1, from + idx);
   }
 
-  // store returns a bool that is `false` when 
+  // store returns a bool that is `false` when
   bool StoreAndShortCircuit(const ptrdiff_t idx, OUT_T* to, const Y_VEC x) {
     return me()->StoreAndShortCircuitImpl(idx, to, x);
   }
@@ -258,9 +250,7 @@ struct UnrollerUnit2D {
     return std::abs(places);
   }
 
-  ptrdiff_t Reduce(const Y_VEC x, OUT_T* to) {
-    return me()->ReduceImpl(x, to);
-  }
+  ptrdiff_t Reduce(const Y_VEC x, OUT_T* to) { return me()->ReduceImpl(x, to); }
 
   ptrdiff_t ReduceImpl(const Y_VEC x, OUT_T* to) {
     // default does nothing
@@ -269,13 +259,11 @@ struct UnrollerUnit2D {
     return 0;
   }
 
-  void Reduce(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2,
-              Y_VEC* y) {
+  void Reduce(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2, Y_VEC* y) {
     me()->ReduceImpl(x0, x1, x2, y);
   }
 
-  void ReduceImpl(const Y_VEC x0, const Y_VEC x1,
-                  const Y_VEC x2, Y_VEC* y) {
+  void ReduceImpl(const Y_VEC x0, const Y_VEC x1, const Y_VEC x2, Y_VEC* y) {
     // default does nothing
     (void)x0;
     (void)x1;
@@ -333,13 +321,13 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
       yy2 = f.Func(i + 2 * lane_sz, xx2, yy2);
       yy3 = f.Func(i + 3 * lane_sz, xx3, yy3);
 
-      if(!f.StoreAndShortCircuit(i, y, yy)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy)) return;
       i += lane_sz;
-      if(!f.StoreAndShortCircuit(i, y, yy1)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy1)) return;
       i += lane_sz;
-      if(!f.StoreAndShortCircuit(i, y, yy2)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy2)) return;
       i += lane_sz;
-      if(!f.StoreAndShortCircuit(i, y, yy3)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy3)) return;
       i += lane_sz;
     }
 
@@ -349,7 +337,7 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
   while (i + lane_sz - 1 < n) {
     xx = f.Load(i, x);
     yy = f.Func(i, xx, yy);
-    if(!f.StoreAndShortCircuit(i, y, yy)) return;
+    if (!f.StoreAndShortCircuit(i, y, yy)) return;
     i += lane_sz;
   }
 
@@ -424,13 +412,13 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
       yy2 = f.Func(i + 2 * lane_sz, xx02, xx12, yy2);
       yy3 = f.Func(i + 3 * lane_sz, xx03, xx13, yy3);
 
-      if(!f.StoreAndShortCircuit(i, y, yy)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy)) return;
       i += lane_sz;
-      if(!f.StoreAndShortCircuit(i, y, yy1)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy1)) return;
       i += lane_sz;
-      if(!f.StoreAndShortCircuit(i, y, yy2)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy2)) return;
       i += lane_sz;
-      if(!f.StoreAndShortCircuit(i, y, yy3)) return;
+      if (!f.StoreAndShortCircuit(i, y, yy3)) return;
       i += lane_sz;
     }
 
@@ -441,7 +429,7 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
     xx00 = f.Load0(i, x0);
     xx10 = f.Load1(i, x1);
     yy = f.Func(i, xx00, xx10, yy);
-    if(!f.StoreAndShortCircuit(i, y, yy)) return;
+    if (!f.StoreAndShortCircuit(i, y, yy)) return;
     i += lane_sz;
   }
 

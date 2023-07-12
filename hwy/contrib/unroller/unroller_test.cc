@@ -96,22 +96,20 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
   }
 
   using TT = hn::CappedTag<T, UnitLanes()>;
-  //using TTSZT = hn::CappedTag<ptrdiff_t, UnitLanes()>;
+  // using TTSZT = hn::CappedTag<ptrdiff_t, UnitLanes()>;
   using TTSZT = hn::CappedTag<SignedFromSize<sizeof(ptrdiff_t)>, UnitLanes()>;
   hn::Vec<TT> to_find;
   TT d;
   TTSZT szd;
 
-  FindUnit<T>(T find) {
-    to_find = Set(d, find);
-  }
+  FindUnit<T>(T find) { to_find = Set(d, find); }
 
   hn::Vec<TTSZT> Func(ptrdiff_t idx, const hn::Vec<TT> x,
-                   const hn::Vec<TTSZT> y) {
+                      const hn::Vec<TTSZT> y) {
     auto msk = x == to_find;
     auto first_idx = hn::FindFirstTrue(d, msk);
 
-    if(first_idx > -1)
+    if (first_idx > -1)
       return hn::Set(szd, idx + first_idx);
     else
       return y;
@@ -125,27 +123,27 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
                            const ptrdiff_t places) {
     auto mask = hn::FirstN(d, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
-        d,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+        d, static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
     if (places < 0) mask = maskneg;
 
-    return hn::IfThenElse(mask, hn::MaskedLoad(mask, d, from + idx), X0InitImpl());
+    return hn::IfThenElse(mask, hn::MaskedLoad(mask, d, from + idx),
+                          X0InitImpl());
   }
 
-  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, ptrdiff_t* to, const hn::Vec<TTSZT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, ptrdiff_t* to,
+                                const hn::Vec<TTSZT> x) {
     (void)idx;
 
     ptrdiff_t a = hn::ExtractLane(x, 0);
     to[0] = a;
-    
-    if(a == -1)
-      return true;
-    
+
+    if (a == -1) return true;
+
     return false;
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, ptrdiff_t* to, const hn::Vec<TTSZT> x,
-                          const ptrdiff_t places) {
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, ptrdiff_t* to,
+                          const hn::Vec<TTSZT> x, const ptrdiff_t places) {
     (void)idx;
     auto mask = hn::FirstN(szd, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
@@ -168,7 +166,8 @@ struct AccumulateUnit : UnrollerUnit<AccumulateUnit<T>, T, T> {
     return hn::Add(x, y);
   }
 
-  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to,
+                                const hn::Vec<TT> x) {
     // no stores in a reducer
     (void)idx;
     (void)to;
@@ -224,7 +223,8 @@ struct MinUnit : UnrollerUnit<MinUnit<T>, T, T> {
     return hn::MaskedLoadOr(def, mask, d, from + idx);
   }
 
-  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to,
+                                const hn::Vec<TT> x) {
     // no stores in a reducer
     (void)idx;
     (void)to;
@@ -267,7 +267,8 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
     return hn::MulAdd(x0, x1, y);
   }
 
-  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to, const hn::Vec<TT> x) {
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, T* to,
+                                const hn::Vec<TT> x) {
     // no stores in a reducer
     (void)idx;
     (void)to;
@@ -395,8 +396,7 @@ class TestUnroller {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
     const size_t N = Lanes(d);
-    const size_t counts[] = {
-                             1,
+    const size_t counts[] = {1,
                              3,
                              7,
                              16,
