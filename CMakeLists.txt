@@ -57,6 +57,10 @@ endif()
 # The following is only required with GCC < 6.1.0 or CLANG < 16.0
 set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for Armv7 with NEON (requires vfpv4)?")
 
+# This must be set on 32-bit x86 with GCC < 13.1, otherwise math_test will be
+# skipped. For GCC 13.1+, you can also build with -fexcess-precision=standard.
+set(HWY_CMAKE_SSE2 OFF CACHE BOOL "Set SSE2 as baseline for 32-bit x86?")
+
 # Unconditionally adding -Werror risks breaking the build when new warnings
 # arise due to compiler/platform changes. Enable this in CI/tests.
 set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
@@ -75,16 +79,6 @@ check_cxx_source_compiles(
       return 0;
     }"
   HWY_EMSCRIPTEN
-)
-
-check_cxx_source_compiles(
-   "int main() {
-      #if !defined(__i386__) && !defined(_M_IX86)
-      static_assert(false, \"Not 32-bit x86\");
-      #endif
-      return 0;
-    }"
-  HWY_X86_32
 )
 
 check_cxx_source_compiles(
@@ -248,7 +242,7 @@ else()
   endif()  # WIN32
 
   # Workaround for excess precision, see #1488.
-  if (HWY_X86_32)
+  if (HWY_CMAKE_SSE2)
     list(APPEND HWY_FLAGS -msse2 -mfpmath=sse)
   endif()
 
