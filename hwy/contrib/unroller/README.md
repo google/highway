@@ -1,5 +1,7 @@
 # Unroller
 
+All contents of the `unroller` folder are experimental and subject to changes.
+
 `Unroller` is a templated function that automatically implements common optimizations that are usually handled by compilers when writing scalar code. Modern CPUs operate much more efficiently when non-dependent calculations are packed into an instruction pipeline. For scalar code, this often means a compiler will take a one-line loop, and compile it down to hundreds of lines of machine code in order to fully capture these efficiencies. 
 
 As of today (2023-07-06), compilers are not nearly as good at implementing these optimizations for code written in SIMD intrinsics. `Unroller` is a templated function that takes in an `UnrollerUnit` of SIMD instructions, and then implements unrolling, reordering, hoisting and tail-handling (URHT optimizations) of arrays of data being processed with SIMD intrinsics. 
@@ -11,7 +13,7 @@ As of today (2023-07-06), compilers are not nearly as good at implementing these
 ### Doubling values of an array example
 
 ```
-struct DoubleUnit : UnrollerUnit<DoubleUnit<int>, int, int> {
+struct DoubleUnit : UnrollerUnit<DoubleUnit, int, int> {
   using TT = ScalableTag<int>;
   inline Vec<TT> Func(ptrdiff_t idx, Vec<TT> x, Vec<TT> y) {
     TT d;
