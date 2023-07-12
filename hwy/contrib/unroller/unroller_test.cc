@@ -96,7 +96,8 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
   }
 
   using TT = hn::CappedTag<T, UnitLanes()>;
-  using TTSZT = hn::CappedTag<ptrdiff_t, UnitLanes()>;
+  //using TTSZT = hn::CappedTag<ptrdiff_t, UnitLanes()>;
+  using TTSZT = hn::CappedTag<SignedFromSize<sizeof(ptrdiff_t)>, UnitLanes()>;
   hn::Vec<TT> to_find;
   TT d;
   TTSZT szd;
