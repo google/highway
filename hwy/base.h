@@ -685,6 +685,10 @@ template <class T>
 struct RemoveRefT<T&> {
   using type = T;
 };
+template <class T>
+struct RemoveRefT<T&&> {
+  using type = T;
+};
 
 template <class T>
 using RemoveRef = typename RemoveRefT<T>::type;

@@ -275,7 +275,7 @@ struct UnrollerUnit2D {
 template <class FUNC, typename IN_T, typename OUT_T>
 inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
-  const auto lane_sz = static_cast<ptrdiff_t>(f.UnitLanes());
+  constexpr auto lane_sz = static_cast<ptrdiff_t>(RemoveRef<FUNC>::UnitLanes());
 
   auto xx = f.X0Init();
   auto yy = f.YInit();
@@ -354,7 +354,7 @@ template <class FUNC, typename IN0_T, typename IN1_T, typename OUT_T>
 inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
                      IN1_T* HWY_RESTRICT x1, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
-  const auto lane_sz = static_cast<ptrdiff_t>(f.UnitLanes());
+  constexpr auto lane_sz = static_cast<ptrdiff_t>(RemoveRef<FUNC>::UnitLanes());
 
   auto xx00 = f.X0Init();
   auto xx10 = f.X1Init();

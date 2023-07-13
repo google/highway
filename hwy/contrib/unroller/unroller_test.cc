@@ -74,17 +74,32 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
 
   using TT_FROM = hn::CappedTag<FROM_T, UnitLanes()>;
   using TT_TO = hn::CappedTag<TO_T, UnitLanes()>;
+
+  template <
+      class ToD, class FromV,
+      hwy::EnableIf<(sizeof(TFromV<FromV>) > sizeof(TFromD<ToD>))>* = nullptr>
+  static HWY_INLINE hn::Vec<ToD> DoConvertVector(ToD d, FromV v) {
+    return hn::DemoteTo(d, v);
+  }
+  template <
+      class ToD, class FromV,
+      hwy::EnableIf<(sizeof(TFromV<FromV>) == sizeof(TFromD<ToD>))>* = nullptr>
+  static HWY_INLINE hn::Vec<ToD> DoConvertVector(ToD d, FromV v) {
+    return hn::ConvertTo(d, v);
+  }
+  template <
+      class ToD, class FromV,
+      hwy::EnableIf<(sizeof(TFromV<FromV>) < sizeof(TFromD<ToD>))>* = nullptr>
+  static HWY_INLINE hn::Vec<ToD> DoConvertVector(ToD d, FromV v) {
+    return hn::PromoteTo(d, v);
+  }
+
   hn::Vec<TT_TO> Func(ptrdiff_t idx, const hn::Vec<TT_FROM> x,
                       const hn::Vec<TT_TO> y) {
     (void)idx;
     (void)y;
     TT_TO d;
-    if constexpr (sizeof(FROM_T) > sizeof(TO_T))
-      return hn::DemoteTo(d, x);
-    else if constexpr (sizeof(FROM_T) == sizeof(TO_T))
-      return hn::ConvertTo(d, x);
-    else
-      return hn::PromoteTo(d, x);
+    return DoConvertVector(d, x);
   }
 };
 
