@@ -111,6 +111,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/algo/copy-inl.h
     hwy/contrib/algo/find-inl.h
     hwy/contrib/algo/transform-inl.h
+    hwy/contrib/unroller/unroller-inl.h
 )
 endif()  # HWY_ENABLE_CONTRIB
 
@@ -559,6 +560,7 @@ list(APPEND HWY_TEST_FILES
   hwy/contrib/math/math_test.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/bench_sort.cc
+  hwy/contrib/unroller/unroller_test.cc
 )
 endif()  # HWY_ENABLE_CONTRIB
 
