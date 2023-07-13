@@ -103,36 +103,43 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
   }
 };
 
+using PtrDiffLaneT = SignedFromSize<sizeof(ptrdiff_t)>;
+using PtrDiffULaneT = MakeUnsigned<PtrDiffLaneT>;
+
 template <typename T>
-struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
+struct FindUnit : UnrollerUnit<FindUnit<T>, T, PtrDiffLaneT> {
   static constexpr size_t UnitLanes() {
     return HWY_MIN(HWY_MAX_LANES_D(hn::ScalableTag<T>),
-                   HWY_MAX_LANES_D(hn::ScalableTag<ptrdiff_t>));
+                   HWY_MAX_LANES_D(hn::ScalableTag<PtrDiffLaneT>));
   }
 
   using TT = hn::CappedTag<T, UnitLanes()>;
   // using TTSZT = hn::CappedTag<ptrdiff_t, UnitLanes()>;
-  using TTSZT = hn::CappedTag<SignedFromSize<sizeof(ptrdiff_t)>, UnitLanes()>;
-  hn::Vec<TT> to_find;
+  using TTSZT = hn::CappedTag<PtrDiffLaneT, UnitLanes()>;
+  T to_find;
   TT d;
   TTSZT szd;
 
-  FindUnit<T>(T find) { to_find = Set(d, find); }
+  FindUnit<T>(T find) : to_find(find) {}
 
   hn::Vec<TTSZT> Func(ptrdiff_t idx, const hn::Vec<TT> x,
                       const hn::Vec<TTSZT> y) {
-    auto msk = x == to_find;
-    auto first_idx = hn::FindFirstTrue(d, msk);
+    auto msk = hn::Eq(x, hn::Set(d, to_find));
+    auto first_idx = static_cast<PtrDiffLaneT>(hn::FindFirstTrue(d, msk));
 
     if (first_idx > -1)
-      return hn::Set(szd, idx + first_idx);
+      return hn::Set(szd, static_cast<PtrDiffLaneT>(
+                              static_cast<PtrDiffULaneT>(idx) +
+                              static_cast<PtrDiffULaneT>(first_idx)));
     else
       return y;
   }
 
-  hn::Vec<TT> X0InitImpl() { return hn::Add(to_find, Set(d, 1)); }
+  hn::Vec<TT> X0InitImpl() {
+    return hn::Set(d, hwy::AddWithWraparound(hwy::IsFloatTag<T>(), to_find, 1));
+  }
 
-  hn::Vec<TTSZT> YInitImpl() { return hn::Set(szd, -1); }
+  hn::Vec<TTSZT> YInitImpl() { return hn::Set(szd, PtrDiffLaneT{-1}); }
 
   hn::Vec<TT> MaskLoadImpl(const ptrdiff_t idx, T* from,
                            const ptrdiff_t places) {
@@ -145,11 +152,11 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
                           X0InitImpl());
   }
 
-  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, ptrdiff_t* to,
+  bool StoreAndShortCircuitImpl(const ptrdiff_t idx, PtrDiffLaneT* to,
                                 const hn::Vec<TTSZT> x) {
     (void)idx;
 
-    ptrdiff_t a = hn::ExtractLane(x, 0);
+    ptrdiff_t a = hn::GetLane(x);
     to[0] = a;
 
     if (a == -1) return true;
@@ -157,19 +164,13 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, ptrdiff_t> {
     return false;
   }
 
-  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, ptrdiff_t* to,
+  ptrdiff_t MaskStoreImpl(const ptrdiff_t idx, PtrDiffLaneT* to,
                           const hn::Vec<TTSZT> x, const ptrdiff_t places) {
     (void)idx;
-    auto mask = hn::FirstN(szd, static_cast<size_t>(places));
-    auto maskneg = hn::Not(hn::FirstN(
-        szd,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
-    if (places < 0) mask = maskneg;
-
-    ptrdiff_t a = hn::ExtractLane(x, 0);
+    (void)places;
+    ptrdiff_t a = hn::GetLane(x);
     to[0] = a;
-
-    return std::abs(places);
+    return 1;
   }
 };
 
@@ -393,12 +394,14 @@ class TestUnroller {
     for (size_t i = 0; i < num; ++i) a[i] = (T)i;
 
     FindUnit<T> cvtfn((T)(num - 1));
-    ptrdiff_t idx = 0;
+    PtrDiffLaneT idx = 0;
     Unroller(cvtfn, a, &idx, static_cast<ptrdiff_t>(num));
+    HWY_ASSERT(static_cast<PtrDiffULaneT>(idx) < num);
     HWY_ASSERT(a[idx] == (T)(num - 1));
 
     FindUnit<T> cvtfnzero((T)(0));
     Unroller(cvtfnzero, a, &idx, static_cast<ptrdiff_t>(num));
+    HWY_ASSERT(static_cast<PtrDiffULaneT>(idx) < num);
     HWY_ASSERT(a[idx] == (T)(0));
 
     FindUnit<T> cvtfnnotin((T)(num));
