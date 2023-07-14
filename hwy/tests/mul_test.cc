@@ -305,6 +305,7 @@ struct TestMulAdd {
     // Unlike RebindToSigned, we want to leave floating-point unchanged.
     // This allows Neg for unsigned types.
     const Rebind<If<IsFloat<T>(), T, MakeSigned<T>>, D> di;
+    using TI = TFromD<decltype(di)>;
     const Vec<D> neg_v2 = BitCast(d, Neg(BitCast(di, v2)));
 
     const size_t N = Lanes(d);
@@ -331,7 +332,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(neg_v2, v2, v1));
 
     for (size_t i = 0; i < N; ++i) {
-      const T nm = static_cast<T>(-static_cast<MakeSigned<T>>(i + T{2}));
+      const T nm = static_cast<T>(-(static_cast<TI>(i) + TI{2}));
       const T f = static_cast<T>(i + 2);
       const T a = static_cast<T>(i + 1);
       expected[i] = static_cast<T>(nm * f + a);

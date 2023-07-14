@@ -51,9 +51,10 @@ available implementation at runtime. Highway supports three ways of doing this:
     build system supports compiling for multiple targets. For choosing the best
     available target, you can replace Highway's CPU detection and decision with
     your own. `HWY_DYNAMIC_DISPATCH` calls into a table of function pointers
-    with a zero-based index indicating the desired target, and you can instead
-    do so directly with your own choice of index, or even call
-    `N_AVX2::YourFunction` directly.
+    with a zero-based index indicating the desired target. Instead of calling it
+    immediately, you can also save the function pointer returned by
+    `HWY_DYNAMIC_POINTER`. You can also replace the table lookup with your own
+    choice of index, or even call e.g. `N_AVX2::YourFunction` directly.
 
 Examples of both static and dynamic dispatch are provided in examples/.
 

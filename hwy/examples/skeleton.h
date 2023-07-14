@@ -29,6 +29,10 @@ namespace skeleton {
 HWY_DLLEXPORT void CallFloorLog2(const uint8_t* HWY_RESTRICT in, size_t count,
                                  uint8_t* HWY_RESTRICT out);
 
+// Same, but uses HWY_DYNAMIC_POINTER to save a function pointer and call it.
+HWY_DLLEXPORT void SavedCallFloorLog2(const uint8_t* HWY_RESTRICT in,
+                                      size_t count, uint8_t* HWY_RESTRICT out);
+
 }  // namespace skeleton
 
 #endif  // HIGHWAY_HWY_EXAMPLES_SKELETON_H_
