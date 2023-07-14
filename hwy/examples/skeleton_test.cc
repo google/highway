@@ -25,6 +25,7 @@
 
 // Must come after foreach_target.h to avoid redefinition errors.
 #include "hwy/highway.h"
+#include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/test_util-inl.h"
 
 // Optional: factor out parts of the implementation into *-inl.h
@@ -58,6 +59,17 @@ struct TestFloorLog2 {
       HWY_ASSERT_EQ(expected[i], out[i]);
       sum += out[i];
     }
+
+    for (size_t i = 0; i < count; ++i) {
+      out[i] = hwy::Unpredictable1();
+    }
+
+    SavedCallFloorLog2(in.get(), count, out.get());
+    for (size_t i = 0; i < count; ++i) {
+      HWY_ASSERT_EQ(expected[i], out[i]);
+      sum += out[i];
+    }
+
     hwy::PreventElision(sum);
   }
 };
