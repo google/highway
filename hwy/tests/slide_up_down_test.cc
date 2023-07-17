@@ -181,11 +181,37 @@ HWY_NOINLINE void TestAllSlideUpLanes() {
   ForAllTypes(ForPartialVectors<TestSlideUpLanes>());
 }
 
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
+    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+// DoTestSlideDownLanes needs to be inlined on targets where
+// DoTestSlideDownLanesWithConstAmt_0_7, DoTestSlideDownLanesWithConstAmt_8_15,
+// DoTestSlideDownLanesWithConstAmt_16_31, and
+// DoTestSlideDownLanesWithConstAmt_32_63 are called since the implementation
+// of SlideDownLanes(d, v, N) for the SSE2/SSSE3/SSE4/AVX2/AVX3/NEON/WASM
+// targets has an optimized path for the case where __builtin_constant_p(N) is
+// true (or in other words, when N is known to be a constant) when compiled with
+// GCC or Clang and optimizations are enabled.
+
+// If DoTestSlideDownLanes is not inlined on the
+// SSE2/SSSE3/SSE4/AVX2/AVX3/NEON/WASM targets,
+// DoTestSlideDownLanesWithConstAmt_0_7, DoTestSlideDownLanesWithConstAmt_8_15,
+// DoTestSlideDownLanesWithConstAmt_16_31, and
+// DoTestSlideDownLanesWithConstAmt_32_63 will fail to throughly test the
+// implementations of SlideDownLanes(d, v, N) in optimized builds compiled with
+// GCC or Clang for the case where N is known to be a constant.
+#define HWY_SLIDE_DOWN_TEST_INLINE HWY_INLINE
+#else
+// DoTestSlideDownLanes should not be inlined on RVV targets to work around RVV
+// miscompilation.
+#define HWY_SLIDE_DOWN_TEST_INLINE HWY_NOINLINE
+#endif
+
 class TestSlideDownLanes {
  private:
-  // TODO(janwas): HWY_NOINLINE is required here to work around RVV miscompilation.
+  // HWY_SLIDE_DOWN_TEST_INLINE is required here to work around RVV
+  // miscompilation.
   template <class D>
-  static HWY_NOINLINE void DoTestSlideDownLanes(
+  static HWY_SLIDE_DOWN_TEST_INLINE void DoTestSlideDownLanes(
       D d, TFromD<D>* HWY_RESTRICT expected, const size_t N,
       const size_t slide_amt) {
     for (size_t i = 0; i < N; i++) {
@@ -332,6 +358,8 @@ class TestSlideDownLanes {
         // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
   }
 };
+
+#undef HWY_SLIDE_DOWN_TEST_INLINE
 
 HWY_NOINLINE void TestAllSlideDownLanes() {
   ForAllTypes(ForPartialVectors<TestSlideDownLanes>());
