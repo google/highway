@@ -21,6 +21,10 @@
 #define HIGHWAY_HWY_CONTRIB_UNROLLER_UNROLLER_INL_H_
 #endif
 
+#include <string.h>  // memcpy
+
+#include <cstdlib>  // std::abs
+
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
