@@ -22,7 +22,7 @@ make -j && ctest -j && cd .. && rm -rf build_dbg
 #######################################
 echo 32-bit GCC
 rm -rf build_32 && mkdir build_32 && cd build_32
-CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32 CXX=g++ CC=gcc cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON
+CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32 CXX=g++ CC=gcc cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DHWY_CMAKE_SSE2:BOOL=ON
 make -j && ctest -j && cd .. && rm -rf build_32
 
 #######################################
