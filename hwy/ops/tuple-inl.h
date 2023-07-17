@@ -84,3 +84,42 @@ HWY_API VFromD<D> Get4(Vec4<D> tuple) {
          : kIndex == 2 ? tuple.v2
                        : tuple.v3;
 }
+
+template <size_t kIndex, class D>
+HWY_API Vec2<D> Set2(Vec2<D> tuple, VFromD<D> val) {
+  static_assert(kIndex < 2, "Tuple index out of bounds");
+  if (kIndex == 0) {
+    tuple.v0 = val;
+  } else {
+    tuple.v1 = val;
+  }
+  return tuple;
+}
+
+template <size_t kIndex, class D>
+HWY_API Vec3<D> Set3(Vec3<D> tuple, VFromD<D> val) {
+  static_assert(kIndex < 3, "Tuple index out of bounds");
+  if (kIndex == 0) {
+    tuple.v0 = val;
+  } else if (kIndex == 1) {
+    tuple.v1 = val;
+  } else {
+    tuple.v2 = val;
+  }
+  return tuple;
+}
+
+template <size_t kIndex, class D>
+HWY_API Vec4<D> Set4(Vec4<D> tuple, VFromD<D> val) {
+  static_assert(kIndex < 4, "Tuple index out of bounds");
+  if (kIndex == 0) {
+    tuple.v0 = val;
+  } else if (kIndex == 1) {
+    tuple.v1 = val;
+  } else if (kIndex == 2) {
+    tuple.v2 = val;
+  } else {
+    tuple.v3 = val;
+  }
+  return tuple;
+}

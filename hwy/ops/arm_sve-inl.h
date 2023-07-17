@@ -451,6 +451,27 @@ HWY_SVE_FOREACH(HWY_SVE_GET, Get, get)
 HWY_SVE_FOREACH_BF16(HWY_SVE_GET, Get, get)
 #undef HWY_SVE_GET
 
+#define HWY_SVE_SET(BASE, CHAR, BITS, HALF, NAME, OP)                         \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_SVE_TUPLE(BASE, BITS, 2) NAME##2(                               \
+      HWY_SVE_TUPLE(BASE, BITS, 2) tuple, HWY_SVE_V(BASE, BITS) vec) {        \
+    return sv##OP##2_##CHAR##BITS(tuple, kIndex, vec);                        \
+  }                                                                           \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_SVE_TUPLE(BASE, BITS, 3) NAME##3(                               \
+      HWY_SVE_TUPLE(BASE, BITS, 3) tuple, HWY_SVE_V(BASE, BITS) vec) {        \
+    return sv##OP##3_##CHAR##BITS(tuple, kIndex, vec);                        \
+  }                                                                           \
+  template <size_t kIndex>                                                    \
+  HWY_API HWY_SVE_TUPLE(BASE, BITS, 4) NAME##4(                               \
+      HWY_SVE_TUPLE(BASE, BITS, 4) tuple, HWY_SVE_V(BASE, BITS) vec) {        \
+    return sv##OP##4_##CHAR##BITS(tuple, kIndex, vec);                         \
+  }
+
+HWY_SVE_FOREACH(HWY_SVE_SET, Set, set)
+HWY_SVE_FOREACH_BF16(HWY_SVE_SET, Set, set)
+#undef HWY_SVE_SET
+
 // ------------------------------ ResizeBitCast
 
 // Same as BitCast on SVE
