@@ -464,6 +464,12 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   <code>V **Get4&lt;size_t&gt;**(Tuple4)</code>: returns the i-th vector
     passed to `Create4`.
 
+*   <code>Tuple2 **Set2&lt;size_t&gt;**(Tuple2 tuple, Vec v)</code>: sets the i-th vector
+
+*   <code>Tuple3 **Set3&lt;size_t&gt;**(Tuple3 tuple, Vec v)</code>: sets the i-th vector
+
+*   <code>Tuple4 **Set4&lt;size_t&gt;**(Tuple4 tuple, Vec v)</code>: sets the i-th vector
+
 ### Arithmetic
 
 *   <code>V **operator+**(V a, V b)</code>: returns `a[i] + b[i]` (mod 2^bits).
