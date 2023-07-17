@@ -61,7 +61,7 @@ struct TestFloorLog2 {
     }
 
     for (size_t i = 0; i < count; ++i) {
-      out[i] = hwy::Unpredictable1();
+      out[i] = static_cast<uint8_t>(hwy::Unpredictable1());
     }
 
     SavedCallFloorLog2(in.get(), count, out.get());
