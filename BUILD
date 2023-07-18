@@ -267,6 +267,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "unroller",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/unroller/unroller-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
 # Everything required for tests that use Highway.
 cc_library(
     name = "hwy_test_util",
@@ -344,6 +356,7 @@ HWY_TESTS = [
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
+    ("hwy/contrib/unroller/", "unroller_test"),
     # contrib/sort has its own BUILD, we also add sort_test to GUITAR_TESTS.
     # To run bench_sort, specify --test=hwy/contrib/sort:bench_sort.
     ("hwy/examples/", "skeleton_test"),
@@ -403,6 +416,7 @@ HWY_TEST_DEPS = [
     ":math",
     ":nanobenchmark",
     ":skeleton",
+    ":unroller",
     "//hwy/contrib/sort:vqsort",
     "@com_google_googletest//:gtest_main",
 ]

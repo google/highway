@@ -35,15 +35,19 @@ namespace hn = hwy::HWY_NAMESPACE;
 
 template <class DERIVED, typename IN_T, typename OUT_T>
 struct UnrollerUnit {
+  static constexpr size_t kMaxTSize = HWY_MAX(sizeof(IN_T), sizeof(OUT_T));
+  using LargerT = SignedFromSize<kMaxTSize>;  // only the size matters.
+
   DERIVED* me() { return static_cast<DERIVED*>(this); }
 
-  static constexpr size_t UnitLanes() {
-    return HWY_MIN(HWY_MAX_LANES_D(hn::ScalableTag<IN_T>),
-                   HWY_MAX_LANES_D(hn::ScalableTag<OUT_T>));
+  static constexpr size_t MaxUnitLanes() {
+    return HWY_MAX_LANES_D(hn::ScalableTag<LargerT>);
   }
+  static size_t ActualLanes() { return Lanes(hn::ScalableTag<LargerT>()); }
 
-  using IT = hn::CappedTag<IN_T, UnitLanes()>;
-  using OT = hn::CappedTag<OUT_T, UnitLanes()>;
+  using LargerD = hn::CappedTag<LargerT, MaxUnitLanes()>;
+  using IT = hn::Rebind<IN_T, LargerD>;
+  using OT = hn::Rebind<OUT_T, LargerD>;
   IT d_in;
   OT d_out;
   using Y_VEC = hn::Vec<OT>;
@@ -83,7 +87,7 @@ struct UnrollerUnit {
     auto mask = hn::FirstN(d_in, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(ActualLanes()))));
     if (places < 0) mask = maskneg;
 
     return hn::MaskedLoad(mask, d_in, from + idx);
@@ -108,7 +112,7 @@ struct UnrollerUnit {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(ActualLanes()))));
     if (places < 0) mask = maskneg;
 
     hn::BlendedStore(x, mask, d_out, to + idx);
@@ -141,15 +145,20 @@ template <class DERIVED, typename IN0_T, typename IN1_T, typename OUT_T>
 struct UnrollerUnit2D {
   DERIVED* me() { return static_cast<DERIVED*>(this); }
 
-  static constexpr size_t UnitLanes() {
-    return HWY_MIN(HWY_MAX_LANES_D(hn::ScalableTag<IN1_T>),
-                   HWY_MIN(HWY_MAX_LANES_D(hn::ScalableTag<IN0_T>),
-                           HWY_MAX_LANES_D(hn::ScalableTag<OUT_T>)));
-  }
+  static constexpr size_t kMaxTSize =
+      HWY_MAX(sizeof(IN0_T), HWY_MAX(sizeof(IN1_T), sizeof(OUT_T)));
+  using LargerT = SignedFromSize<kMaxTSize>;  // only the size matters.
 
-  using I0T = hn::CappedTag<IN0_T, UnitLanes()>;
-  using I1T = hn::CappedTag<IN1_T, UnitLanes()>;
-  using OT = hn::CappedTag<OUT_T, UnitLanes()>;
+  static constexpr size_t MaxUnitLanes() {
+    return HWY_MAX_LANES_D(hn::ScalableTag<LargerT>);
+  }
+  static size_t ActualLanes() { return Lanes(hn::ScalableTag<LargerT>()); }
+
+  using LargerD = hn::CappedTag<LargerT, MaxUnitLanes()>;
+
+  using I0T = hn::Rebind<IN0_T, LargerD>;
+  using I1T = hn::Rebind<IN1_T, LargerD>;
+  using OT = hn::Rebind<OUT_T, LargerD>;
   I0T d_in0;
   I1T d_in1;
   OT d_out;
@@ -205,7 +214,7 @@ struct UnrollerUnit2D {
     auto mask = hn::FirstN(d_in0, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in0,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(ActualLanes()))));
     if (places < 0) mask = maskneg;
 
     return hn::MaskedLoad(mask, d_in0, from + idx);
@@ -221,7 +230,7 @@ struct UnrollerUnit2D {
     auto mask = hn::FirstN(d_in1, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_in1,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(ActualLanes()))));
     if (places < 0) mask = maskneg;
 
     return hn::MaskedLoad(mask, d_in1, from + idx);
@@ -247,7 +256,7 @@ struct UnrollerUnit2D {
     auto mask = hn::FirstN(d_out, static_cast<size_t>(places));
     auto maskneg = hn::Not(hn::FirstN(
         d_out,
-        static_cast<size_t>(places + static_cast<ptrdiff_t>(UnitLanes()))));
+        static_cast<size_t>(places + static_cast<ptrdiff_t>(ActualLanes()))));
     if (places < 0) mask = maskneg;
 
     hn::BlendedStore(x, mask, d_out, to + idx);
@@ -279,13 +288,13 @@ struct UnrollerUnit2D {
 template <class FUNC, typename IN_T, typename OUT_T>
 inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
-  constexpr auto lane_sz = static_cast<ptrdiff_t>(RemoveRef<FUNC>::UnitLanes());
-
   auto xx = f.X0Init();
   auto yy = f.YInit();
   ptrdiff_t i = 0;
 
 #if HWY_MEM_OPS_MIGHT_FAULT
+  constexpr auto lane_sz =
+      static_cast<ptrdiff_t>(RemoveRef<FUNC>::MaxUnitLanes());
   if (n < lane_sz) {
     // this may not fit on the stack for HWY_RVV, but we do not reach this code
     // there
@@ -302,7 +311,9 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
   }
 #endif
 
-  if (n > 4 * lane_sz) {
+  const ptrdiff_t actual_lanes =
+      static_cast<ptrdiff_t>(RemoveRef<FUNC>::ActualLanes());
+  if (n > 4 * actual_lanes) {
     auto xx1 = f.X0Init();
     auto yy1 = f.YInit();
     auto xx2 = f.X0Init();
@@ -310,45 +321,45 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
     auto xx3 = f.X0Init();
     auto yy3 = f.YInit();
 
-    while (i + 4 * lane_sz - 1 < n) {
+    while (i + 4 * actual_lanes - 1 < n) {
       xx = f.Load(i, x);
-      i += lane_sz;
+      i += actual_lanes;
       xx1 = f.Load(i, x);
-      i += lane_sz;
+      i += actual_lanes;
       xx2 = f.Load(i, x);
-      i += lane_sz;
+      i += actual_lanes;
       xx3 = f.Load(i, x);
-      i -= 3 * lane_sz;
+      i -= 3 * actual_lanes;
 
       yy = f.Func(i, xx, yy);
-      yy1 = f.Func(i + lane_sz, xx1, yy1);
-      yy2 = f.Func(i + 2 * lane_sz, xx2, yy2);
-      yy3 = f.Func(i + 3 * lane_sz, xx3, yy3);
+      yy1 = f.Func(i + actual_lanes, xx1, yy1);
+      yy2 = f.Func(i + 2 * actual_lanes, xx2, yy2);
+      yy3 = f.Func(i + 3 * actual_lanes, xx3, yy3);
 
       if (!f.StoreAndShortCircuit(i, y, yy)) return;
-      i += lane_sz;
+      i += actual_lanes;
       if (!f.StoreAndShortCircuit(i, y, yy1)) return;
-      i += lane_sz;
+      i += actual_lanes;
       if (!f.StoreAndShortCircuit(i, y, yy2)) return;
-      i += lane_sz;
+      i += actual_lanes;
       if (!f.StoreAndShortCircuit(i, y, yy3)) return;
-      i += lane_sz;
+      i += actual_lanes;
     }
 
     f.Reduce(yy3, yy2, yy1, &yy);
   }
 
-  while (i + lane_sz - 1 < n) {
+  while (i + actual_lanes - 1 < n) {
     xx = f.Load(i, x);
     yy = f.Func(i, xx, yy);
     if (!f.StoreAndShortCircuit(i, y, yy)) return;
-    i += lane_sz;
+    i += actual_lanes;
   }
 
   if (i != n) {
-    xx = f.MaskLoad(n - lane_sz, x, i - n);
-    yy = f.Func(n - lane_sz, xx, yy);
-    f.MaskStore(n - lane_sz, y, yy, i - n);
+    xx = f.MaskLoad(n - actual_lanes, x, i - n);
+    yy = f.Func(n - actual_lanes, xx, yy);
+    f.MaskStore(n - actual_lanes, y, yy, i - n);
   }
 
   f.Reduce(yy, y);
@@ -358,7 +369,8 @@ template <class FUNC, typename IN0_T, typename IN1_T, typename OUT_T>
 inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
                      IN1_T* HWY_RESTRICT x1, OUT_T* HWY_RESTRICT y,
                      const ptrdiff_t n) {
-  constexpr auto lane_sz = static_cast<ptrdiff_t>(RemoveRef<FUNC>::UnitLanes());
+  const ptrdiff_t lane_sz =
+      static_cast<ptrdiff_t>(RemoveRef<FUNC>::ActualLanes());
 
   auto xx00 = f.X0Init();
   auto xx10 = f.X1Init();
@@ -370,9 +382,11 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
   if (n < lane_sz) {
     // this may not fit on the stack for HWY_RVV, but we do not reach this code
     // there
-    IN0_T xtmp0[static_cast<size_t>(lane_sz)];
-    IN1_T xtmp1[static_cast<size_t>(lane_sz)];
-    OUT_T ytmp[static_cast<size_t>(lane_sz)];
+    constexpr auto max_lane_sz =
+        static_cast<ptrdiff_t>(RemoveRef<FUNC>::MaxUnitLanes());
+    IN0_T xtmp0[static_cast<size_t>(max_lane_sz)];
+    IN1_T xtmp1[static_cast<size_t>(max_lane_sz)];
+    OUT_T ytmp[static_cast<size_t>(max_lane_sz)];
 
     memcpy(xtmp0, x0, static_cast<size_t>(n) * sizeof(IN0_T));
     memcpy(xtmp1, x1, static_cast<size_t>(n) * sizeof(IN1_T));
