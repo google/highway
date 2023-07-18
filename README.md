@@ -78,6 +78,10 @@ us via the below email.
 
 Other
 
+*   [Evaluation of C++ SIMD Libraries](https://www.mnm-team.org/pub/Fopras/rock23/):
+    "Highway excelled with a strong performance across multiple SIMD extensions
+    [..]. Thus, Highway may currently be the most suitable SIMD library for many
+    software projects."
 *   [zimt](https://github.com/kfjahnke/zimt): C++11 template library to process n-dimensional arrays with multi-threaded SIMD code
 *   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort) ([paper](https://arxiv.org/abs/2205.05982))
 
