@@ -4060,9 +4060,8 @@ template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
-  alignas(16) T lanes[4];
-  Store(v, DFromV<decltype(v)>(), lanes);
-  return lanes[kLane];
+  return static_cast<T>(_mm_cvtsi128_si32(
+      (kLane == 0) ? v.raw : _mm_shuffle_epi32(v.raw, kLane)));
 #else
   return static_cast<T>(_mm_extract_epi32(v.raw, kLane));
 #endif
@@ -4087,9 +4086,8 @@ template <size_t kLane, size_t N>
 HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
 #if HWY_TARGET >= HWY_SSSE3
-  alignas(16) float lanes[4];
-  Store(v, DFromV<decltype(v)>(), lanes);
-  return lanes[kLane];
+  return _mm_cvtss_f32((kLane == 0) ? v.raw
+                                    : _mm_shuffle_ps(v.raw, v.raw, kLane));
 #else
   // Bug in the intrinsic, returns int but should be float.
   const int32_t bits = _mm_extract_ps(v.raw, kLane);

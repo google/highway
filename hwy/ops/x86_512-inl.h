@@ -2565,6 +2565,14 @@ template <typename T>
 HWY_API T ExtractLane(const Vec512<T> v, size_t i) {
   const DFromV<decltype(v)> d;
   HWY_DASSERT(i < Lanes(d));
+
+#if !HWY_IS_DEBUG_BUILD && HWY_COMPILER_GCC  // includes clang
+  constexpr size_t kLanesPerBlock = 16 / sizeof(T);
+  if (__builtin_constant_p(i < kLanesPerBlock) && (i < kLanesPerBlock)) {
+    return ExtractLane(ResizeBitCast(Full128<T>(), v), i);
+  }
+#endif
+
   alignas(64) T lanes[64 / sizeof(T)];
   Store(v, d, lanes);
   return lanes[i];
