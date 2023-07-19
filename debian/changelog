@@ -1,3 +1,33 @@
+highway (1.0.5-1) UNRELEASED; urgency=medium
+
+* Add Insert/ExtractBlock, BroadcastBlock/Lane, NumBlocks
+* Add integer Le/Ge and [Neg]MulAdd, extend DemoteTo/PromoteTo
+* Add Leading/TrailingZeroCount, HighestSetBitIndex, ReverseBits
+* Add MaskedLoadOr, tuple Get/Set/Create, ReduceSum, WidenMulPairwiseAdd
+* Add [ZeroExtend]ResizeBitCast, BitwiseIfThenElse, Find[Known]LastTrue
+* Add AESRoundInv, AESKeyGenAssist
+* Add contrib/math Atan2/SinCos, contrib/unroller
+* Add fp16/bf16 support (Armv8, SVE, RVV), HWY_DYNAMIC_POINTER
+* Add OrderedTruncate2To, Per4LaneBlockShuffle, TwoTablesLookupLanes
+* Add SlideUp/Down[Blocks/Lanes], Slide1Up/Down, ReverseLaneBytes
+* Add SetBeforeFirst, SetAtOrBefore/AfterFirst, SetOnlyFirst 
+* Add 8-bit Reverse2/4/8, Shl/Shr, RotateRight, Reverse, Mul
+* Add 8/16-bit DupEven/Odd, TableLookupLanes
+* Add F64 ApproximateReciprocal[Sqrt], 32/64-bit SaturatedAdd/Sub
+* Build: Support Bazel modules
+* Codegen improvements
+* Compiler: support Clang 15/16
+* Doc: add Github pages, support policy, evaluation
+* Doc: publish AVX-512 throttling/startup findings
+* Release: add signing
+* Test: add GCC to Github Actions
+* VQSort: small N speedups: fix seeding, func ptr, 8-wide network.
+* VQSort: add BenchAllColdSort, VQSortStatic
+* VQSort: fix subnormal/inf/NaN, support fp16, fix KV types
+* Workarounds: RVV VXRM, x87 excess precision, missing intrinsics
+
+-- Jan Wassenberg <janwas@google.com>  Wed, 19 Jul 2023 15:00:00 +0200
+
 highway (1.0.4-1) UNRELEASED; urgency=medium
 
 * Add PPC8..10, SSE2, AVX3_ZEN4, NEON_WITHOUT_AES targets
