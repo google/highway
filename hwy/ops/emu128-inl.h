@@ -410,9 +410,10 @@ HWY_API Mask128<T, N> ExclusiveNeither(Mask128<T, N> a, Mask128<T, N> b) {
 template <int kBits, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftLeft(Vec128<T, N> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
+  using TU = hwy::MakeUnsigned<T>;
   for (size_t i = 0; i < N; ++i) {
-    const auto shifted = static_cast<hwy::MakeUnsigned<T>>(v.raw[i]) << kBits;
-    v.raw[i] = static_cast<T>(shifted);
+    const TU raw_u = static_cast<TU>(v.raw[i]);
+    v.raw[i] = static_cast<T>(raw_u << kBits);
   }
   return v;
 }
