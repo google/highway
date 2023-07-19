@@ -137,7 +137,7 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, MakeSigned<T>> {
     return hn::Set(d, hwy::AddWithWraparound(hwy::IsFloatTag<T>(), to_find, 1));
   }
 
-  hn::Vec<DI> YInitImpl() { return hn::Set(di, T{-1}); }
+  hn::Vec<DI> YInitImpl() { return hn::Set(di, TI{-1}); }
 
   hn::Vec<D> MaskLoadImpl(const ptrdiff_t idx, T* from,
                           const ptrdiff_t places) {
