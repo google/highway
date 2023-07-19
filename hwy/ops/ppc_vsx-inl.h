@@ -361,7 +361,8 @@ HWY_INLINE V TernaryLogic(V a, V b, V c) {
   typename detail::Raw128<TFromV<VU>>::type raw_ternlog_result;
   __asm__("xxeval %x0,%x1,%x2,%x3,%4"
           : "=wa"(raw_ternlog_result)
-          : "wa"(a_raw), "wa"(b_raw), "wa"(c_raw), "n"(kTernLogOp)
+          : "wa"(a_raw), "wa"(b_raw), "wa"(c_raw),
+            "n"(static_cast<unsigned>(kTernLogOp))
           :);
 #else
   const auto raw_ternlog_result =
