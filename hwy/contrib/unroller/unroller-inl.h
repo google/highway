@@ -296,14 +296,16 @@ inline void Unroller(FUNC& f, IN_T* HWY_RESTRICT x, OUT_T* HWY_RESTRICT y,
   constexpr auto lane_sz =
       static_cast<ptrdiff_t>(RemoveRef<FUNC>::MaxUnitLanes());
   if (n < lane_sz) {
+    const DFromV<decltype(yy)> d;
     // this may not fit on the stack for HWY_RVV, but we do not reach this code
     // there
-    IN_T xtmp[static_cast<size_t>(lane_sz)];
-    OUT_T ytmp[static_cast<size_t>(lane_sz)];
+    HWY_ALIGN IN_T xtmp[static_cast<size_t>(lane_sz)];
+    HWY_ALIGN OUT_T ytmp[static_cast<size_t>(lane_sz)];
 
     memcpy(xtmp, x, static_cast<size_t>(n) * sizeof(IN_T));
     xx = f.MaskLoad(0, xtmp, n);
     yy = f.Func(0, xx, yy);
+    Store(Zero(d), d, ytmp);
     i += f.MaskStore(0, ytmp, yy, n);
     i += f.Reduce(yy, ytmp);
     memcpy(y, ytmp, static_cast<size_t>(i) * sizeof(OUT_T));
@@ -380,19 +382,21 @@ inline void Unroller(FUNC& HWY_RESTRICT f, IN0_T* HWY_RESTRICT x0,
 
 #if HWY_MEM_OPS_MIGHT_FAULT
   if (n < lane_sz) {
+    const DFromV<decltype(yy)> d;
     // this may not fit on the stack for HWY_RVV, but we do not reach this code
     // there
     constexpr auto max_lane_sz =
         static_cast<ptrdiff_t>(RemoveRef<FUNC>::MaxUnitLanes());
-    IN0_T xtmp0[static_cast<size_t>(max_lane_sz)];
-    IN1_T xtmp1[static_cast<size_t>(max_lane_sz)];
-    OUT_T ytmp[static_cast<size_t>(max_lane_sz)];
+    HWY_ALIGN IN0_T xtmp0[static_cast<size_t>(max_lane_sz)];
+    HWY_ALIGN IN1_T xtmp1[static_cast<size_t>(max_lane_sz)];
+    HWY_ALIGN OUT_T ytmp[static_cast<size_t>(max_lane_sz)];
 
     memcpy(xtmp0, x0, static_cast<size_t>(n) * sizeof(IN0_T));
     memcpy(xtmp1, x1, static_cast<size_t>(n) * sizeof(IN1_T));
     xx00 = f.MaskLoad0(0, xtmp0, n);
     xx10 = f.MaskLoad1(0, xtmp1, n);
     yy = f.Func(0, xx00, xx10, yy);
+    Store(Zero(d), d, ytmp);
     i += f.MaskStore(0, ytmp, yy, n);
     i += f.Reduce(yy, ytmp);
     memcpy(y, ytmp, static_cast<size_t>(i) * sizeof(OUT_T));
