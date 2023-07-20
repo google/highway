@@ -2166,7 +2166,8 @@ HWY_API VFromD<D> SlideUpLanes(D d, VFromD<D> v, size_t amt) {
   VFromD<D> ret = Zero(d);
   constexpr size_t N = HWY_MAX_LANES_D(D);
   const size_t clamped_amt = HWY_MIN(amt, N);
-  memcpy(ret.raw + clamped_amt, v.raw, (N - clamped_amt) * sizeof(TFromD<D>));
+  CopyBytes(v.raw, ret.raw + clamped_amt,
+            (N - clamped_amt) * sizeof(TFromD<D>));
   return ret;
 }
 
@@ -2177,7 +2178,8 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
   VFromD<D> ret = Zero(d);
   constexpr size_t N = HWY_MAX_LANES_D(D);
   const size_t clamped_amt = HWY_MIN(amt, N);
-  memcpy(ret.raw, v.raw + clamped_amt, (N - clamped_amt) * sizeof(TFromD<D>));
+  CopyBytes(v.raw + clamped_amt, ret.raw,
+            (N - clamped_amt) * sizeof(TFromD<D>));
   return ret;
 }
 

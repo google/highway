@@ -30,8 +30,6 @@
 #pragma pop_macro("pixel")
 #pragma pop_macro("bool")
 
-#include <string.h>  // memcpy
-
 #include "hwy/ops/shared-inl.h"
 
 // clang's altivec.h gates some intrinsics behind #ifdef __POWER10_VECTOR__, and

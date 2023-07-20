@@ -18,7 +18,6 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
 #include <stdio.h>  // unconditional #include so we can use if(VQSORT_PRINT).
-#include <string.h>  // memcpy
 #include <time.h>    // clock
 
 // IWYU pragma: begin_exports
@@ -556,8 +555,8 @@ HWY_INLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
   // mask from `keys + num`. Combining a loop with memcpy for the remainders is
   // slower than just memcpy, so we use that for simplicity.
   num -= bufR;
-  memcpy(posL, keys + num, bufR * sizeof(T));
-  memcpy(keys + num, buf, bufR * sizeof(T));
+  CopyBytes(keys + num, posL, bufR * sizeof(T));
+  CopyBytes(buf, keys + num, bufR * sizeof(T));
   return static_cast<size_t>(posL - keys);  // caller will shrink num by this.
 }
 
