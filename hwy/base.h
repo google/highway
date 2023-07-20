@@ -282,6 +282,15 @@ HWY_API void CopyBytes(const From* from, To* to) {
 #endif
 }
 
+HWY_API void CopyBytes(const void* HWY_RESTRICT from, void* HWY_RESTRICT to,
+                       size_t num_of_bytes_to_copy) {
+#if HWY_COMPILER_MSVC
+  memcpy(to, from, num_of_bytes_to_copy);
+#else
+  __builtin_memcpy(to, from, num_of_bytes_to_copy);
+#endif
+}
+
 // Same as CopyBytes, but for same-sized objects; avoids a size argument.
 template <typename From, typename To>
 HWY_API void CopySameSize(const From* HWY_RESTRICT from, To* HWY_RESTRICT to) {

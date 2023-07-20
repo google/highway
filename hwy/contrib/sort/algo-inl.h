@@ -18,7 +18,6 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_ALGO_INL_H_
 
 #include <stdint.h>
-#include <string.h>  // memcpy
 
 #include <algorithm>   // std::sort, std::min, std::max
 #include <functional>  // std::less, std::greater
@@ -385,7 +384,7 @@ InputStats<T> GenerateInput(const Dist dist, T* v, size_t num) {
   if (i < num) {
     const V values = RandomValues(d, s0, s1, mask);
     StoreU(values, d, buf.get());
-    memcpy(v + i, buf.get(), (num - i) * sizeof(T));
+    CopyBytes(buf.get(), v + i, (num - i) * sizeof(T));
   }
 
   InputStats<T> input_stats;

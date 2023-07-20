@@ -48,8 +48,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <smmintrin.h>
 #endif  // HWY_COMPILER_CLANGCL
 
-#include <string.h>  // memcpy
-
 // For half-width vectors. Already includes base.h.
 #include "hwy/ops/shared-inl.h"
 // Already included by shared-inl, but do it again to avoid IDE warnings.
@@ -6513,7 +6511,7 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, D d,
   // FirstN, so we can just copy.
   alignas(32) T buf[16];
   Store(compressed, d, buf);
-  memcpy(unaligned, buf, count * sizeof(T));
+  CopyBytes(buf, unaligned, count * sizeof(T));
 #else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
 #endif

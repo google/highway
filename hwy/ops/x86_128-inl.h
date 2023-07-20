@@ -39,7 +39,6 @@ HWY_DIAGNOSTICS_OFF(disable : 4701 4703 6001 26494,
 #include <wmmintrin.h>  // CLMUL
 #endif
 #endif
-#include <string.h>  // memcpy
 
 #include "hwy/ops/shared-inl.h"
 
@@ -8592,7 +8591,7 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
     // FirstN, so we can just copy.
     alignas(16) T buf[MaxLanes(d)];
     Store(compressed, d, buf);
-    memcpy(unaligned, buf, count * sizeof(T));
+    CopyBytes(buf, unaligned, count * sizeof(T));
 #else
     BlendedStore(compressed, FirstN(d, count), d, unaligned);
 #endif
