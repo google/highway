@@ -36,9 +36,68 @@ HWY_NOINLINE void TestAllGetLane() {
 }
 
 struct TestExtractLane {
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
+    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+  template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 1)>
+  static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
+  }
+
+  template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 2)>
+  static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(2), ExtractLane(v, 1));
+  }
+
+  template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 4)>
+  static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(2), ExtractLane(v, 1));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(3), ExtractLane(v, 2));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(4), ExtractLane(v, 3));
+  }
+
+  template <class D, HWY_IF_LANES_GT_D(BlockDFromD<D>, 4)>
+  static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(2), ExtractLane(v, 1));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(3), ExtractLane(v, 2));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(4), ExtractLane(v, 3));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(5), ExtractLane(v, 4));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(6), ExtractLane(v, 5));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(7), ExtractLane(v, 6));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(8), ExtractLane(v, 7));
+  }
+
+  template <class D, HWY_IF_LANES_LE_D(BlockDFromD<D>, 8)>
+  static HWY_INLINE void DoTestExtractLaneWithConstAmt_8_15(D /*d*/,
+                                                            Vec<D> /*v*/) {}
+
+  template <class D, HWY_IF_LANES_GT_D(BlockDFromD<D>, 8)>
+  static HWY_INLINE void DoTestExtractLaneWithConstAmt_8_15(D /*d*/, Vec<D> v) {
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(9), ExtractLane(v, 8));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(10), ExtractLane(v, 9));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(11), ExtractLane(v, 10));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(12), ExtractLane(v, 11));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(13), ExtractLane(v, 12));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(14), ExtractLane(v, 13));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(15), ExtractLane(v, 14));
+    HWY_ASSERT_EQ(static_cast<TFromD<D>>(16), ExtractLane(v, 15));
+  }
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
+        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v = Iota(d, T(1));
+
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
+    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+    DoTestExtractLaneWithConstAmt_0_7(d, v);
+    DoTestExtractLaneWithConstAmt_8_15(d, v);
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
+        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+
     for (size_t i = 0; i < Lanes(d); ++i) {
       const T actual = ExtractLane(v, i);
       HWY_ASSERT_EQ(static_cast<T>(i + 1), actual);
@@ -51,6 +110,141 @@ HWY_NOINLINE void TestAllExtractLane() {
 }
 
 struct TestInsertLane {
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
+    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+  template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 1)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt_0_7(
+      D d, TFromD<D>* HWY_RESTRICT lanes) {
+    using T = TFromD<D>;
+
+    lanes[0] = static_cast<T>(1);
+    Vec<D> v = InsertLane(Zero(d), 0, static_cast<T>(1));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+  }
+  template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 2)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt_0_7(
+      D d, TFromD<D>* HWY_RESTRICT lanes) {
+    using T = TFromD<D>;
+
+    lanes[0] = static_cast<T>(1);
+    Vec<D> v = InsertLane(Zero(d), 0, static_cast<T>(1));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[1] = static_cast<T>(2);
+    v = InsertLane(v, 1, static_cast<T>(2));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+  }
+  template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 4)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt_0_7(
+      D d, TFromD<D>* HWY_RESTRICT lanes) {
+    using T = TFromD<D>;
+
+    lanes[0] = static_cast<T>(1);
+    Vec<D> v = InsertLane(Zero(d), 0, static_cast<T>(1));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[1] = static_cast<T>(2);
+    v = InsertLane(v, 1, static_cast<T>(2));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[2] = static_cast<T>(3);
+    v = InsertLane(v, 2, static_cast<T>(3));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[3] = static_cast<T>(4);
+    v = InsertLane(v, 3, static_cast<T>(4));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+  }
+  template <class D, HWY_IF_LANES_GT_D(BlockDFromD<D>, 4)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt_0_7(
+      D d, TFromD<D>* HWY_RESTRICT lanes) {
+    using T = TFromD<D>;
+
+    lanes[0] = static_cast<T>(1);
+    Vec<D> v = InsertLane(Zero(d), 0, static_cast<T>(1));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[1] = static_cast<T>(2);
+    v = InsertLane(v, 1, static_cast<T>(2));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[2] = static_cast<T>(3);
+    v = InsertLane(v, 2, static_cast<T>(3));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[3] = static_cast<T>(4);
+    v = InsertLane(v, 3, static_cast<T>(4));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[4] = static_cast<T>(5);
+    v = InsertLane(v, 4, static_cast<T>(5));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[5] = static_cast<T>(6);
+    v = InsertLane(v, 5, static_cast<T>(6));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[6] = static_cast<T>(7);
+    v = InsertLane(v, 6, static_cast<T>(7));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[7] = static_cast<T>(8);
+    v = InsertLane(v, 7, static_cast<T>(8));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+  }
+  template <class D, HWY_IF_LANES_LE_D(BlockDFromD<D>, 8)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt_8_15(
+      D /*d*/, TFromD<D>* HWY_RESTRICT /*lanes*/) {}
+  template <class D, HWY_IF_LANES_GT_D(BlockDFromD<D>, 8)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt_8_15(
+      D d, TFromD<D>* HWY_RESTRICT lanes) {
+    using T = TFromD<D>;
+    Vec<D> v = Load(d, lanes);
+
+    lanes[8] = static_cast<T>(9);
+    v = InsertLane(v, 8, static_cast<T>(9));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[9] = static_cast<T>(10);
+    v = InsertLane(v, 9, static_cast<T>(10));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[10] = static_cast<T>(11);
+    v = InsertLane(v, 10, static_cast<T>(11));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[11] = static_cast<T>(12);
+    v = InsertLane(v, 11, static_cast<T>(12));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[12] = static_cast<T>(13);
+    v = InsertLane(v, 12, static_cast<T>(13));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[13] = static_cast<T>(14);
+    v = InsertLane(v, 13, static_cast<T>(14));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[14] = static_cast<T>(15);
+    v = InsertLane(v, 14, static_cast<T>(15));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+
+    lanes[15] = static_cast<T>(16);
+    v = InsertLane(v, 15, static_cast<T>(16));
+    HWY_ASSERT_VEC_EQ(d, lanes, v);
+  }
+  template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt(
+      D d, TFromD<D>* HWY_RESTRICT lanes) {
+    DoTestInsertLaneWithConstAmt_0_7(d, lanes);
+    DoTestInsertLaneWithConstAmt_8_15(d, lanes);
+    Store(Zero(d), d, lanes);
+  }
+  template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+  static HWY_INLINE void DoTestInsertLaneWithConstAmt(
+      D /*d*/, TFromD<D>* HWY_RESTRICT /*lanes*/) {}
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
+        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     using V = Vec<D>;
@@ -58,13 +252,28 @@ struct TestInsertLane {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
-    Store(v, d, lanes.get());
+    Store(Zero(d), d, lanes.get());
 
-    for (size_t i = 0; i < Lanes(d); ++i) {
+#if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
+    HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+    DoTestInsertLaneWithConstAmt(d, lanes.get());
+#endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
+        // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
+
+    V v2 = Zero(d);
+    for (size_t i = 0; i < N; ++i) {
+      lanes[i] = static_cast<T>(i + 1);
+      v2 = InsertLane(v2, i, static_cast<T>(i + 1));
+      HWY_ASSERT_VEC_EQ(d, lanes.get(), v2);
+    }
+    HWY_ASSERT_VEC_EQ(d, v, v2);
+
+    for (size_t i = 0; i < N; ++i) {
       lanes[i] = T{0};
-      const V actual = InsertLane(v, i, static_cast<T>(i + 1));
+      const V v3 = Load(d, lanes.get());
+      const V actual = InsertLane(v3, i, static_cast<T>(i + 1));
       HWY_ASSERT_VEC_EQ(d, v, actual);
-      Store(v, d, lanes.get());  // restore lane i
+      lanes[i] = static_cast<T>(i + 1);  // restore lane i
     }
   }
 };
