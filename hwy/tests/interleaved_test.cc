@@ -78,7 +78,8 @@ HWY_NOINLINE void TestAllLoadStoreInterleaved2() {
 }
 
 // Workaround for build timeout on GCC 12 aarch64, see #776.
-#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300 && HWY_ARCH_ARM_A64
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1300 && \
+    HWY_ARCH_ARM_A64
 #define HWY_BROKEN_LOAD34 1
 #else
 #define HWY_BROKEN_LOAD34 0

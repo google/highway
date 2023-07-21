@@ -2544,7 +2544,9 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
 // ------------------------------ Additional mask logical operations
 template <class T>
-HWY_API Mask128<T, 1> SetAtOrAfterFirst(Mask128<T, 1> mask) { return mask; }
+HWY_API Mask128<T, 1> SetAtOrAfterFirst(Mask128<T, 1> mask) {
+  return mask;
+}
 
 template <class T, size_t N, HWY_IF_LANES_GT(N, 1)>
 HWY_API Mask128<T, N> SetAtOrAfterFirst(Mask128<T, N> mask) {

@@ -2965,19 +2965,18 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 
 #endif  // HWY_PPC_HAVE_9
 
-  template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
-  HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
-    const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
-    const Rebind<uint16_t, decltype(dbf16)> du16;
-    const auto bits_in_32 = ShiftRight<16>(BitCast(du32, v));
-    return BitCast(dbf16, TruncateTo(du16, bits_in_32));
-  }
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
+  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
+  const Rebind<uint16_t, decltype(dbf16)> du16;
+  const auto bits_in_32 = ShiftRight<16>(BitCast(du32, v));
+  return BitCast(dbf16, TruncateTo(du16, bits_in_32));
+}
 
-  template <class D, HWY_IF_BF16_D(D),
-            class V32 = VFromD<Repartition<float, D>>>
-  HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
-    const RebindToUnsigned<decltype(dbf16)> du16;
-    const Repartition<uint32_t, decltype(dbf16)> du32;
+template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Repartition<uint32_t, decltype(dbf16)> du32;
 #if HWY_IS_LITTLE_ENDIAN
   const auto a_in_odd = a;
   const auto b_in_even = ShiftRight<16>(BitCast(du32, b));
@@ -2987,7 +2986,7 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 #endif
   return BitCast(dbf16,
                  OddEven(BitCast(du16, a_in_odd), BitCast(du16, b_in_even)));
-  }
+}
 
 // Specializations for partial vectors because vec_packs sets lanes above 2*N.
 template <class DN, typename V, HWY_IF_V_SIZE_LE_D(DN, 4), HWY_IF_SIGNED_D(DN),
@@ -4374,10 +4373,8 @@ template <class V>
 HWY_INLINE V I128Subtract(V a, V b) {
 #if defined(__SIZEOF_INT128__)
   using VU128 = __vector unsigned __int128;
-  const V diff_i128{
-      reinterpret_cast<typename detail::Raw128<TFromV<V>>::type>(
-          vec_sub(reinterpret_cast<VU128>(a.raw),
-                  reinterpret_cast<VU128>(b.raw)))};
+  const V diff_i128{reinterpret_cast<typename detail::Raw128<TFromV<V>>::type>(
+      vec_sub(reinterpret_cast<VU128>(a.raw), reinterpret_cast<VU128>(b.raw)))};
 #else
   const DFromV<decltype(a)> d;
   const Repartition<uint64_t, decltype(d)> du64;

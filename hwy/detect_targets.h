@@ -212,9 +212,9 @@
 // GCC 10 supports the -mcpu=power10 option but does not support the PPC10
 // vector intrinsics
 #define HWY_BROKEN_PPC10 (HWY_PPC10)
-#elif HWY_ARCH_PPC && HWY_IS_BIG_ENDIAN &&                                    \
-    ((HWY_COMPILER3_CLANG && HWY_COMPILER3_CLANG < 160001) ||                 \
-     (HWY_COMPILER_GCC_ACTUAL >= 1200 && HWY_COMPILER_GCC_ACTUAL <= 1203) ||  \
+#elif HWY_ARCH_PPC && HWY_IS_BIG_ENDIAN &&                                   \
+    ((HWY_COMPILER3_CLANG && HWY_COMPILER3_CLANG < 160001) ||                \
+     (HWY_COMPILER_GCC_ACTUAL >= 1200 && HWY_COMPILER_GCC_ACTUAL <= 1203) || \
      (HWY_COMPILER_GCC_ACTUAL >= 1300 && HWY_COMPILER_GCC_ACTUAL <= 1301))
 // GCC 12.0 through 12.3 and GCC 13.0 through 13.1 have a compiler bug where the
 // vsldoi instruction is sometimes incorrectly optimized out (and this causes

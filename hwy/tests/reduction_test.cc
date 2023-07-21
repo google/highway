@@ -271,10 +271,10 @@ struct TestSumsOf8AbsDiff {
         uint64_t sum = 0;
         for (size_t i = 0; i < 8; ++i) {
           const auto lane_diff =
-            static_cast<int16_t>(in_lanes_a[idx_sum * 8 + i]) -
-            static_cast<int16_t>(in_lanes_b[idx_sum * 8 + i]);
+              static_cast<int16_t>(in_lanes_a[idx_sum * 8 + i]) -
+              static_cast<int16_t>(in_lanes_b[idx_sum * 8 + i]);
           sum +=
-            static_cast<uint64_t>((lane_diff >= 0) ? lane_diff : -lane_diff);
+              static_cast<uint64_t>((lane_diff >= 0) ? lane_diff : -lane_diff);
         }
         sum_lanes[idx_sum] = sum;
       }

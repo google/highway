@@ -493,13 +493,13 @@ HWY_NOINLINE void TestAllMinMax128Upper() {
 }
 
 struct TestIntegerAbsDiff {
-  template<typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
+  template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
   static inline T ScalarAbsDiff(T a, T b) {
     using TW = MakeSigned<MakeWide<T>>;
     const TW diff = static_cast<TW>(a) - static_cast<TW>(b);
     return static_cast<T>((diff >= 0) ? diff : -diff);
   }
-  template<typename T, HWY_IF_T_SIZE(T, 8)>
+  template <typename T, HWY_IF_T_SIZE(T, 8)>
   static inline T ScalarAbsDiff(T a, T b) {
     if (a >= b) {
       return static_cast<T>(static_cast<uint64_t>(a) -
@@ -522,9 +522,8 @@ struct TestIntegerAbsDiff {
       // the number of bits in T if T is int8_t, uint8_t, int16_t, or uint16_t.
       const auto shift_amt = i & shift_amt_mask;
       in_lanes_a[i] =
-        static_cast<T>((static_cast<uint64_t>(i) ^ 1u) << shift_amt);
-      in_lanes_b[i] =
-        static_cast<T>(static_cast<uint64_t>(i) << shift_amt);
+          static_cast<T>((static_cast<uint64_t>(i) ^ 1u) << shift_amt);
+      in_lanes_b[i] = static_cast<T>(static_cast<uint64_t>(i) << shift_amt);
       out_lanes[i] = ScalarAbsDiff(in_lanes_a[i], in_lanes_b[i]);
     }
     const auto a = Load(d, in_lanes_a.get());

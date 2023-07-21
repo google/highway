@@ -188,16 +188,14 @@ constexpr uint64_t ACosh32ULP() {
 }
 
 template <class D>
-static Vec<D> SinCosSin(const D d, VecArg<Vec<D>> x)
-{
+static Vec<D> SinCosSin(const D d, VecArg<Vec<D>> x) {
   Vec<D> s, c;
   SinCos(d, x, s, c);
   return s;
 }
 
 template <class D>
-static Vec<D> SinCosCos(const D d, VecArg<Vec<D>> x)
-{
+static Vec<D> SinCosCos(const D d, VecArg<Vec<D>> x) {
   Vec<D> s, c;
   SinCos(d, x, s, c);
   return c;

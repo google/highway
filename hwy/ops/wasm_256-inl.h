@@ -1766,8 +1766,7 @@ HWY_API VFromD<D> PromoteTo(D d, Vec128<TN> v) {
 template <class DW, HWY_IF_V_SIZE_D(DW, 32),
           HWY_IF_T_SIZE_ONE_OF_D(DW, (1 << 4) | (1 << 8)),
           HWY_IF_NOT_FLOAT_D(DW), typename TN,
-          HWY_IF_T_SIZE_D(DW, sizeof(TN) * 4),
-          HWY_IF_NOT_FLOAT_NOR_SPECIAL(TN)>
+          HWY_IF_T_SIZE_D(DW, sizeof(TN) * 4), HWY_IF_NOT_FLOAT_NOR_SPECIAL(TN)>
 HWY_API Vec256<TFromD<DW>> PromoteTo(DW d, Vec64<TN> v) {
   const Half<decltype(d)> dh;
   // 16-bit lanes for UI8->UI32, 32-bit lanes for UI16->UI64

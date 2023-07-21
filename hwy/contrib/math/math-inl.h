@@ -14,8 +14,7 @@
 // limitations under the License.
 
 // Include guard (still compiled once per target)
-#if defined(HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #else
@@ -317,7 +316,7 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
 }
 
 /**
- * Highway SIMD version of SinCos. 
+ * Highway SIMD version of SinCos.
  * Compute the sine and cosine at the same time
  * The performance should be around the same as calling Sin.
  *
@@ -1008,15 +1007,14 @@ HWY_INLINE V Log(const D d, V x) {
       Sub(MulSub(z, Sub(ym1, impl.LogPoly(d, z)), Mul(exp, kLn2Lo)), ym1));
 }
 
-// SinCos 
+// SinCos
 // Based on "sse_mathfun.h", by Julien Pommier
 // http://gruntthepeon.free.fr/ssemath/
 
 // Third degree poly
 template <class D, class V>
-HWY_INLINE void SinCos3(D d, 
-  TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, 
-  V x, V& s, V& c) {
+HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
+                        V& s, V& c) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
   using DI = Rebind<TI, D>;
@@ -1036,7 +1034,7 @@ HWY_INLINE void SinCos3(D d,
   const V sin_p0 = Set(d, T(-1.9515295891E-4));
   const V sin_p1 = Set(d, T(8.3321608736E-3));
   const V sin_p2 = Set(d, T(-1.6666654611E-1));
-  const V FOPI = Set(d, T(1.27323954473516)); // 4 / M_PI
+  const V FOPI = Set(d, T(1.27323954473516));  // 4 / M_PI
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
   const V DP3 = Set(d, dp3);
@@ -1060,12 +1058,12 @@ HWY_INLINE void SinCos3(D d,
   imm2 = Add(imm2, ci_1);
   imm2 = AndNot(ci_1, imm2);
 
-  y = ConvertTo(d, imm2); 
+  y = ConvertTo(d, imm2);
   imm4 = imm2;
 
   /* get the swap sign flag for the sine */
   imm0 = And(imm2, ci_4);
-  imm0 = ShiftLeft<bits-3>(imm0);
+  imm0 = ShiftLeft<bits - 3>(imm0);
 
   V swap_sign_bit_sin = BitCast(d, imm0);
 
@@ -1081,7 +1079,7 @@ HWY_INLINE void SinCos3(D d,
 
   imm4 = Sub(imm4, ci_2);
   imm4 = AndNot(imm4, ci_4);
-  imm4 = ShiftLeft<bits-3>(imm4);
+  imm4 = ShiftLeft<bits - 3>(imm4);
 
   V sign_bit_cos = BitCast(d, imm4);
 
@@ -1106,7 +1104,7 @@ HWY_INLINE void SinCos3(D d,
   /* select the correct result from the two polynomials */
   xmm1 = IfThenElse(poly_mask, y2, y);
   xmm2 = IfThenElse(poly_mask, y, y2);
-    
+
   /* update the sign */
   s = Xor(xmm1, sign_bit_sin);
   c = Xor(xmm2, sign_bit_cos);
@@ -1114,9 +1112,8 @@ HWY_INLINE void SinCos3(D d,
 
 // Sixth degree poly
 template <class D, class V>
-HWY_INLINE void SinCos6(D d, 
-  TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, 
-  V x, V& s, V& c) {
+HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
+                        V& s, V& c) {
   using T = TFromD<D>;
   using TI = MakeSigned<T>;
   using DI = Rebind<TI, D>;
@@ -1142,7 +1139,7 @@ HWY_INLINE void SinCos6(D d,
   const V sin_p3 = Set(d, T(-1.98412698295895385996E-4));
   const V sin_p4 = Set(d, T(8.33333333332211858878E-3));
   const V sin_p5 = Set(d, T(-1.66666666666666307295E-1));
-  const V FOPI = Set(d, T(1.2732395447351626861510701069801148)); // 4 / M_PI
+  const V FOPI = Set(d, T(1.2732395447351626861510701069801148));  // 4 / M_PI
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
   const V DP3 = Set(d, dp3);
@@ -1166,19 +1163,19 @@ HWY_INLINE void SinCos6(D d,
   imm2 = Add(imm2, ci_1);
   imm2 = AndNot(ci_1, imm2);
 
-  y = ConvertTo(d, imm2); 
+  y = ConvertTo(d, imm2);
   imm4 = imm2;
 
   /* get the swap sign flag for the sine */
   imm0 = And(imm2, ci_4);
-  imm0 = ShiftLeft<bits-3>(imm0);
+  imm0 = ShiftLeft<bits - 3>(imm0);
 
   V swap_sign_bit_sin = BitCast(d, imm0);
 
   /* get the polynomial selection mask for the sine*/
   imm2 = And(imm2, ci_2);
   M poly_mask = RebindMask(d, Eq(imm2, ci_0));
-    
+
   /* The magic pass: "Extended precision modular arithmetic"
     x = ((x - y * DP1) - y * DP2) - y * DP3; */
   x = MulAdd(y, DP1, x);
@@ -1187,7 +1184,7 @@ HWY_INLINE void SinCos6(D d,
 
   imm4 = Sub(imm4, ci_2);
   imm4 = AndNot(imm4, ci_4);
-  imm4 = ShiftLeft<bits-3>(imm4);
+  imm4 = ShiftLeft<bits - 3>(imm4);
 
   V sign_bit_cos = BitCast(d, imm4);
   sign_bit_sin = Xor(sign_bit_sin, swap_sign_bit_sin);
@@ -1214,21 +1211,21 @@ HWY_INLINE void SinCos6(D d,
   y2 = Mul(y2, z);
   y2 = MulAdd(y2, x, x);
 
-
-  /* select the correct result from the two polynomials */   
+  /* select the correct result from the two polynomials */
   xmm1 = IfThenElse(poly_mask, y2, y);
   xmm2 = IfThenElse(poly_mask, y, y2);
 
   /* update the sign */
   s = Xor(xmm1, sign_bit_sin);
-  c = Xor(xmm2, sign_bit_cos); 
+  c = Xor(xmm2, sign_bit_cos);
 }
 
 template <>
 struct SinCosImpl<float> {
   template <class D, class V>
   HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
-    SinCos3(d, -0.78515625f, -2.4187564849853515625e-4f, -3.77489497744594108e-8f, x, s, c);
+    SinCos3(d, -0.78515625f, -2.4187564849853515625e-4f,
+            -3.77489497744594108e-8f, x, s, c);
   }
 };
 
@@ -1237,7 +1234,8 @@ template <>
 struct SinCosImpl<double> {
   template <class D, class V>
   HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
-    SinCos6(d, -7.85398125648498535156E-1, -3.77489470793079817668E-8, -2.69515142907905952645E-15, x, s, c);
+    SinCos6(d, -7.85398125648498535156E-1, -3.77489470793079817668E-8,
+            -2.69515142907905952645E-15, x, s, c);
   }
 };
 #endif

@@ -21,7 +21,7 @@
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "highway_test.cc"
-#include "hwy/foreach_target.h"    // IWYU pragma: keep
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/nanobenchmark.h"  // Unpredictable1
 #include "hwy/tests/test_util-inl.h"
@@ -508,7 +508,7 @@ struct TestDFromV {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Vec<D> v0 = Zero(d);
-    using D0 = DFromV<decltype(v0)>;         // not necessarily same as D
+    using D0 = DFromV<decltype(v0)>;              // not necessarily same as D
     const Vec<D> v0b = And(v0, Set(D0(), T{1}));  // vectors can interoperate
     HWY_ASSERT_VEC_EQ(d, v0, v0b);
   }

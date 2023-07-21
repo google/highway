@@ -6893,7 +6893,6 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
   return VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
 }
 
-
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ShiftLeft)
 
 // Generic for all vector lengths.
