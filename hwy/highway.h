@@ -401,8 +401,7 @@ FunctionCache<RetType, Args...> DeduceFunctionCache(RetType (*)(Args...)) {
 #endif
 
 // These define ops inside namespace hwy::HWY_NAMESPACE.
-#if HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || \
-    HWY_TARGET == HWY_SSE4
+#if HWY_TARGET == HWY_SSE2 || HWY_TARGET == HWY_SSSE3 || HWY_TARGET == HWY_SSE4
 #include "hwy/ops/x86_128-inl.h"
 #elif HWY_TARGET == HWY_AVX2
 #include "hwy/ops/x86_256-inl.h"

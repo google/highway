@@ -112,8 +112,7 @@ class TestPer4LaneBlockShuffle {
   template <class D>
   static HWY_NOINLINE void DoTestPer4LaneBlkShuffles(
       D d, const size_t N, const VecArg<VFromD<D>> v,
-      TFromD<D>* HWY_RESTRICT src_lanes,
-      TFromD<D>* HWY_RESTRICT expected) {
+      TFromD<D>* HWY_RESTRICT src_lanes, TFromD<D>* HWY_RESTRICT expected) {
     Store(v, d, src_lanes);
 #if HWY_TARGET != HWY_SCALAR
     TestTblLookupPer4LaneBlkShuf(d, N, src_lanes, expected);

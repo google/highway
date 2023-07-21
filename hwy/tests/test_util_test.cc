@@ -33,7 +33,7 @@ struct TestName {
   HWY_NOINLINE void operator()(T t, D d) {
     char num[10];
     std::string expected = IsFloat<T>() ? "f" : (IsSigned<T>() ? "i" : "u");
-    snprintf(num, sizeof(num), "%u" , static_cast<unsigned>(sizeof(T) * 8));
+    snprintf(num, sizeof(num), "%u", static_cast<unsigned>(sizeof(T) * 8));
     expected += num;
 
     const size_t N = Lanes(d);

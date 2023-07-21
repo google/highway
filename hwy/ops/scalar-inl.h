@@ -1770,13 +1770,13 @@ HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
 
 template <class D32, HWY_IF_F32_D(D32)>
 HWY_API Vec1<float> WidenMulPairwiseAdd(D32 /* tag */, Vec1<bfloat16_t> a,
-                                              Vec1<bfloat16_t> b) {
+                                        Vec1<bfloat16_t> b) {
   return Vec1<float>(F32FromBF16(a.raw)) * Vec1<float>(F32FromBF16(b.raw));
 }
 
 template <class D32, HWY_IF_I32_D(D32)>
 HWY_API Vec1<int32_t> WidenMulPairwiseAdd(D32 /* tag */, Vec1<int16_t> a,
-                                                Vec1<int16_t> b) {
+                                          Vec1<int16_t> b) {
   return Vec1<int32_t>(a.raw * b.raw);
 }
 

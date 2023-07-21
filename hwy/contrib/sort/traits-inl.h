@@ -242,7 +242,7 @@ struct KeyLane : public KeyLaneBase<T> {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
 #else
-    const RepartitionToWide<RebindToUnsigned<D> > dw;
+    const RepartitionToWide<RebindToUnsigned<D>> dw;
 #endif
     return BitCast(d, SwapAdjacentPairs(dw, BitCast(dw, v)));
   }
@@ -258,7 +258,7 @@ struct KeyLane : public KeyLaneBase<T> {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
 #else
-    const RepartitionToWide<RebindToUnsigned<D> > dw;
+    const RepartitionToWide<RebindToUnsigned<D>> dw;
 #endif
     return BitCast(d, OddEven(BitCast(dw, odd), BitCast(dw, even)));
   }
@@ -272,7 +272,7 @@ struct KeyLane : public KeyLaneBase<T> {
 #if HWY_HAVE_FLOAT64  // in case D is float32
     const RepartitionToWide<D> dw;
 #else
-    const RepartitionToWide<RebindToUnsigned<D> > dw;
+    const RepartitionToWide<RebindToUnsigned<D>> dw;
 #endif
     return BitCast(d, OddEvenPairs(dw, BitCast(dw, odd), BitCast(dw, even)));
   }
@@ -460,12 +460,12 @@ struct OrderAscendingKV64 : public KeyValue64 {
   // Same as for regular lanes.
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, hwy::LowestValue<TFromD<D> >());
+    return Set(d, hwy::LowestValue<TFromD<D>>());
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, hwy::HighestValue<TFromD<D> >());
+    return Set(d, hwy::HighestValue<TFromD<D>>());
   }
 
   template <class D>
@@ -513,12 +513,12 @@ struct OrderDescendingKV64 : public KeyValue64 {
 
   template <class D>
   HWY_INLINE Vec<D> FirstValue(D d) const {
-    return Set(d, hwy::HighestValue<TFromD<D> >());
+    return Set(d, hwy::HighestValue<TFromD<D>>());
   }
 
   template <class D>
   HWY_INLINE Vec<D> LastValue(D d) const {
-    return Set(d, hwy::LowestValue<TFromD<D> >());
+    return Set(d, hwy::LowestValue<TFromD<D>>());
   }
 
   template <class D>

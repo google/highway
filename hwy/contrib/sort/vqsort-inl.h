@@ -18,7 +18,7 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
 #include <stdio.h>  // unconditional #include so we can use if(VQSORT_PRINT).
-#include <time.h>    // clock
+#include <time.h>   // clock
 
 // IWYU pragma: begin_exports
 #include "hwy/base.h"

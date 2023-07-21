@@ -22,8 +22,7 @@
 // Per-target include guard. This is only required when using dynamic dispatch,
 // i.e. including foreach_target.h. For static dispatch, a normal include
 // guard would be fine because the header is only compiled once.
-#if defined(HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_
 #undef HIGHWAY_HWY_EXAMPLES_SKELETON_INL_H_
 #else

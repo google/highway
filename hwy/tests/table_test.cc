@@ -193,7 +193,6 @@ HWY_NOINLINE void TestAllTwoTablesLookupLanes() {
   ForAllTypes(ForPartialVectors<TestTwoTablesLookupLanes>());
 }
 
-
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy

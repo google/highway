@@ -86,10 +86,10 @@ void EnsureGreaterOrEqual(D d, TFromD<D> a, TFromD<D> b, const char* file,
   const auto mask_eq = Eq(va, vb);
 
   AssertMaskEqual(d, mask_true, Ge(va, vb), file, line);
-  AssertMaskEqual(d, mask_eq,   Le(va, vb), file, line);
+  AssertMaskEqual(d, mask_eq, Le(va, vb), file, line);
 
   // Swapped order
-  AssertMaskEqual(d, mask_eq,   Ge(vb, va), file, line);
+  AssertMaskEqual(d, mask_eq, Ge(vb, va), file, line);
   AssertMaskEqual(d, mask_true, Le(vb, va), file, line);
 
   // va >= va, vb >= vb, va <= va, and vb <= vb should all be true if

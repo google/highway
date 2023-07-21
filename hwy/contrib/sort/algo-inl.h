@@ -242,8 +242,7 @@ static inline const char* AlgoName(Algo algo) {
 #endif  // HIGHWAY_HWY_CONTRIB_SORT_ALGO_INL_H_
 
 // Per-target
-#if defined(HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #undef HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #else
@@ -406,8 +405,8 @@ struct SharedState {
 // non-128-bit keys they are the same:
 template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
 void CallHeapSort(KeyType* HWY_RESTRICT keys, const size_t num_keys) {
-  using detail::TraitsLane;
   using detail::SharedTraits;
+  using detail::TraitsLane;
   if (Order().IsAscending()) {
     const SharedTraits<TraitsLane<detail::OrderAscending<KeyType>>> st;
     return detail::HeapSort(st, keys, num_keys);

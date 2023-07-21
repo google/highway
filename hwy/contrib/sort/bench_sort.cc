@@ -59,10 +59,10 @@ extern int64_t first_cold_target;  // for BenchAllColdSort
 
 namespace HWY_NAMESPACE {
 namespace {
-using detail::TraitsLane;
 using detail::OrderAscending;
 using detail::OrderDescending;
 using detail::SharedTraits;
+using detail::TraitsLane;
 
 #if VQSORT_ENABLED
 using detail::OrderAscending128;
@@ -273,7 +273,7 @@ std::vector<Algo> AlgoForBench() {
 #if HAVE_PARALLEL_IPS4O
         Algo::kParallelIPS4O,
 #elif HAVE_IPS4O
-        Algo::kIPS4O,
+    Algo::kIPS4O,
 #endif
 #if HAVE_PDQSORT
         Algo::kPDQ,
@@ -301,7 +301,7 @@ std::vector<Algo> AlgoForBench() {
 #if VQSORT_ENABLED
         Algo::kVQSort,
 #endif
-#endif                  // !HAVE_PARALLEL_IPS4O
+#endif  // !HAVE_PARALLEL_IPS4O
   };
 }
 

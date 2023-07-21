@@ -20,8 +20,7 @@
 #include "hwy/print.h"
 
 // Per-target include guard
-#if defined(HIGHWAY_HWY_PRINT_INL_H_) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_PRINT_INL_H_) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_PRINT_INL_H_
 #undef HIGHWAY_HWY_PRINT_INL_H_
 #else

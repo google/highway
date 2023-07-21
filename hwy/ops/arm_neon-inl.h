@@ -5174,9 +5174,8 @@ HWY_INLINE V SlideUpLanes(V v, size_t amt) {
   const DFromV<decltype(v)> d;
   using TU = UnsignedFromSize<d.MaxBytes()>;
   const Repartition<TU, decltype(d)> du;
-  return BitCast(d,
-                 BitCast(du, v) << Set(
-                     du, static_cast<TU>(amt * sizeof(TFromV<V>) * 8)));
+  return BitCast(d, BitCast(du, v) << Set(
+                        du, static_cast<TU>(amt * sizeof(TFromV<V>) * 8)));
 }
 
 template <class V, HWY_IF_V_SIZE_V(V, 16)>
@@ -5622,13 +5621,13 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(
   const VU32 be = ShiftLeft<16>(BitCast(du32, b));
   const VU32 bo = And(BitCast(du32, b), odd);
   return MulAdd(BitCast(df32, ae), BitCast(df32, be),
-            Mul(BitCast(df32, ao), BitCast(df32, bo)));
+                Mul(BitCast(df32, ao), BitCast(df32, bo)));
 }
 #endif  // HWY_NEON_HAVE_BFLOAT16
 
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec128<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec128<int16_t> a,
-                                                  Vec128<int16_t> b) {
+                                            Vec128<int16_t> b) {
   Vec128<int32_t> sum1;
 #if HWY_ARCH_ARM_A64
   sum1 = Vec128<int32_t>(vmull_high_s16(a.raw, b.raw));
@@ -5643,7 +5642,7 @@ HWY_API Vec128<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec128<int16_t> a,
 
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec64<int32_t> WidenMulPairwiseAdd(D d32, Vec64<int16_t> a,
-                                                 Vec64<int16_t> b) {
+                                           Vec64<int16_t> b) {
   // vmlal writes into the upper half, which the caller cannot use, so
   // split into two halves.
   const Vec128<int32_t> mul_3210(vmull_s16(a.raw, b.raw));
@@ -5654,14 +5653,13 @@ HWY_API Vec64<int32_t> WidenMulPairwiseAdd(D d32, Vec64<int16_t> a,
 
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec32<int32_t> WidenMulPairwiseAdd(D d32, Vec32<int16_t> a,
-                                                 Vec32<int16_t> b) {
+                                           Vec32<int16_t> b) {
   const Vec128<int32_t> mul_xx10(vmull_s16(a.raw, b.raw));
   const Vec64<int32_t> mul_10(LowerHalf(mul_xx10));
   const Vec32<int32_t> mul0 = LowerHalf(d32, mul_10);
   const Vec32<int32_t> mul1 = UpperHalf(d32, mul_10);
   return RearrangeToOddPlusEven(mul0, mul1);
 }
-
 
 // ------------------------------ ZeroExtendVector (Combine)
 

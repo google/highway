@@ -38,8 +38,7 @@
 
 // We are covered by the highway.h include guard, but generic_ops-inl.h
 // includes this again #if HWY_IDE.
-#if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == \
-    defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == defined(HWY_TARGET_TOGGLE)
 #ifdef HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #undef HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #else

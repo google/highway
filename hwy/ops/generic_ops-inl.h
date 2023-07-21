@@ -3731,7 +3731,7 @@ HWY_API V BroadcastBlock(V v) {
 #define HWY_NATIVE_BROADCASTLANE
 #endif
 
-template<int kLane, class V, HWY_IF_V_SIZE_LE_V(V, 16)>
+template <int kLane, class V, HWY_IF_V_SIZE_LE_V(V, 16)>
 HWY_API V BroadcastLane(V v) {
   return Broadcast<kLane>(v);
 }
