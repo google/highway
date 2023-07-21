@@ -502,9 +502,11 @@ struct TestIntegerAbsDiff {
   template<typename T, HWY_IF_T_SIZE(T, 8)>
   static inline T ScalarAbsDiff(T a, T b) {
     if (a >= b) {
-      return a - b;
+      return static_cast<T>(static_cast<uint64_t>(a) -
+                            static_cast<uint64_t>(b));
     } else {
-      return b - a;
+      return static_cast<T>(static_cast<uint64_t>(b) -
+                            static_cast<uint64_t>(a));
     }
   }
 
