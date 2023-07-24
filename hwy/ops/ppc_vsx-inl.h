@@ -3763,24 +3763,68 @@ HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
-template <class D>
-HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownFirstTrue(D d, MFromD<D> mask) {
+// For PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    return static_cast<size_t>(vec_cntlz_lsbb(bytes.raw)) / sizeof(T);
+  }
+#endif  // HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  (void)d;
   return Num0BitsBelowLS1Bit_Nonzero64(detail::BitsFromMask(mask));
 }
 
-template <class D>
-HWY_API intptr_t FindFirstTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
+// For PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  constexpr size_t kN = 16 / sizeof(T);
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    const size_t idx =
+        static_cast<size_t>(vec_cntlz_lsbb(bytes.raw)) / sizeof(T);
+    return idx == kN ? -1 : static_cast<intptr_t>(idx);
+  }
+#endif  // HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  (void)d;
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask_bits)) : -1;
 }
 
-template <class D>
-HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownLastTrue(D d, MFromD<D> mask) {
+// For PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    const size_t idx =
+        static_cast<size_t>(vec_cnttz_lsbb(bytes.raw)) / sizeof(T);
+    return 16 / sizeof(T) - 1 - idx;
+  }
+#endif  // HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  (void)d;
   return 63 - Num0BitsAboveMS1Bit_Nonzero64(detail::BitsFromMask(mask));
 }
 
-template <class D>
-HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
+// For PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  constexpr size_t kN = 16 / sizeof(T);
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    const size_t idx =
+        static_cast<size_t>(vec_cnttz_lsbb(bytes.raw)) / sizeof(T);
+    return idx == kN ? -1 : static_cast<intptr_t>(kN - 1 - idx);
+  }
+#endif  // HWY_PPC_HAVE_9 && !HWY_PPC_HAVE_10
+  (void)d;
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   return mask_bits ? intptr_t(63 - Num0BitsAboveMS1Bit_Nonzero64(mask_bits))
                    : -1;
