@@ -2970,7 +2970,7 @@ HWY_DIAGNOSTICS(pop)
 
 // ------------------------------ LowerHalf
 
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_FLOAT(T)>
+template <class D, typename T = TFromD<D>>
 HWY_API Vec128<T> LowerHalf(D /* tag */, Vec256<T> v) {
   return Vec128<T>{_mm256_castsi256_si128(v.raw)};
 }

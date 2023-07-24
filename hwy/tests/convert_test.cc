@@ -410,6 +410,72 @@ HWY_NOINLINE void TestAllPromoteTo() {
 #endif
 }
 
+template <typename ToT>
+struct TestPromoteUpperLowerTo {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
+    const Repartition<ToT, D> to_d;
+
+    const size_t N = Lanes(from_d);
+    auto from = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<ToT>(N / 2);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
+      }
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        expected[i] = from[N / 2 + i];
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteUpperTo(to_d, Load(from_d, from.get())));
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        expected[i] = from[i];
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteLowerTo(to_d, Load(from_d, from.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllPromoteUpperLowerTo() {
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<uint16_t>, 1> to_u16div2;
+  to_u16div2(uint8_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<uint32_t>, 1> to_u32div2;
+  to_u32div2(uint16_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<int16_t>, 1> to_i16div2;
+  to_i16div2(uint8_t());
+  to_i16div2(int8_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<int32_t>, 1> to_i32div2;
+  to_i32div2(uint16_t());
+  to_i32div2(int16_t());
+
+  // Must test f16/bf16 separately because we can only load/store/convert them.
+
+#if HWY_HAVE_INTEGER64
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<uint64_t>, 1> to_u64div2;
+  to_u64div2(uint32_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<int64_t>, 1> to_i64div2;
+  to_i64div2(int32_t());
+  to_i64div2(uint32_t());
+#endif  // HWY_HAVE_INTEGER64
+
+#if HWY_HAVE_FLOAT64
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<double>, 1> to_f64div2;
+  to_f64div2(int32_t());
+  to_f64div2(float());
+#endif  // HWY_HAVE_FLOAT64
+}
+
 template <typename T, HWY_IF_FLOAT(T)>
 bool IsFinite(T t) {
   return std::isfinite(t);
@@ -469,6 +535,9 @@ struct TestF16 {
 
     using TF16 = hwy::float16_t;
     const Rebind<TF16, DF32> df16;
+#if HWY_TARGET != HWY_SCALAR
+    const Twice<decltype(df16)> df16t;
+#endif
     const RebindToUnsigned<decltype(df16)> du16;
     // Extra Load/Store to ensure they are usable.
     auto temp16 = AllocateAligned<TF16>(N);
@@ -489,6 +558,18 @@ struct TestF16 {
       Store(v16, df16, temp16.get());
       HWY_ASSERT_VEC_EQ(df32, loaded,
                         PromoteTo(df32, Load(df16, temp16.get())));
+
+#if HWY_TARGET == HWY_SCALAR
+      const Vec<decltype(df16)> v16L = v16;
+#else
+      const Vec<decltype(df16t)> v16L = Combine(df16t, Zero(df16), v16);
+#endif
+      HWY_ASSERT_VEC_EQ(df32, loaded, PromoteLowerTo(df32, v16L));
+
+#if HWY_TARGET != HWY_SCALAR
+      const Vec<decltype(df16t)> v16H = Combine(df16t, v16, Zero(df16));
+      HWY_ASSERT_VEC_EQ(df32, loaded, PromoteUpperTo(df32, v16H));
+#endif
     }
   }
 };
@@ -554,6 +635,18 @@ struct TestBF16 {
       Store(v16, dbf16_half, temp16.get());
       const auto v16_loaded = Load(dbf16_half, temp16.get());
       HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, v16_loaded));
+
+#if HWY_TARGET == HWY_SCALAR
+      const auto v16L = v16_loaded;
+#else
+      const auto v16L = Combine(dbf16, Zero(dbf16_half), v16_loaded);
+#endif
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteLowerTo(d32, v16L));
+
+#if HWY_TARGET != HWY_SCALAR
+      const auto v16H = Combine(dbf16, v16_loaded, Zero(dbf16_half));
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteUpperTo(d32, v16H));
+#endif
     }
   }
 };
@@ -892,6 +985,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllResizeBitCastToOneLaneVect);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllSameSizeResizeBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);

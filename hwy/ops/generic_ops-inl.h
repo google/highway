@@ -1252,6 +1252,41 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
 }
 #endif
 
+// ------------------------------ PromoteLowerTo
+
+// There is no codegen advantage for a native version of this. It is provided
+// only for convenience.
+template <class D, class V>
+HWY_API VFromD<D> PromoteLowerTo(D d, V v) {
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, LowerHalf(dh, v));
+}
+
+// ------------------------------ PromoteUpperTo
+
+#if (defined(HWY_NATIVE_PROMOTE_UPPER_TO) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// This requires UpperHalf.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+
+template <class D, class V>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
+}
+
+#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_NATIVE_PROMOTE_UPPER_TO
+
 // ------------------------------ float16_t <-> float
 
 #if (defined(HWY_NATIVE_F16C) == defined(HWY_TARGET_TOGGLE))

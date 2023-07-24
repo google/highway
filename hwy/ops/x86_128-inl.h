@@ -5573,26 +5573,11 @@ HWY_API VFromD<D> Combine(D d, VH hi_half, VH lo_half) {
 
 // ------------------------------ ZeroExtendVector (Combine, IfThenElseZero)
 
-// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
-namespace detail {
-
-template <class D, typename T = TFromD<D>>
-HWY_INLINE Vec128<T> ZeroExtendVector(hwy::NonFloatTag /*tag*/, D /* d */,
-                                      Vec64<T> lo) {
-  return Vec128<T>{_mm_move_epi64(lo.raw)};
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_INLINE Vec128<T> ZeroExtendVector(hwy::FloatTag /*tag*/, D d, Vec64<T> lo) {
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, ZeroExtendVector(du, BitCast(Half<decltype(du)>(), lo)));
-}
-
-}  // namespace detail
-
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> ZeroExtendVector(D d, Vec64<T> lo) {
-  return detail::ZeroExtendVector(hwy::IsFloatTag<T>(), d, lo);
+  const RebindToUnsigned<decltype(d)> du;
+  const Half<decltype(du)> duh;
+  return BitCast(d, VFromD<decltype(du)>{_mm_move_epi64(BitCast(duh, lo).raw)});
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>

@@ -3739,6 +3739,91 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
   return VFromD<D>{wasm_f64x2_convert_low_i32x4(v.raw)};
 }
 
+// ------------------------------ PromoteUpperTo
+
+// Per-target flag to prevent generic_ops-inl.h from defining PromoteUpperTo.
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// Unsigned: zero-extend.
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>{wasm_u16x8_extend_high_u8x16(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<uint16_t, D>> v) {
+  return VFromD<D>{wasm_u32x4_extend_high_u16x8(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<uint32_t, D>> v) {
+  return VFromD<D>{wasm_u64x2_extend_high_u32x4(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<uint8_t, D>> v) {
+  return VFromD<D>{wasm_u16x8_extend_high_u8x16(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<uint16_t, D>> v) {
+  return VFromD<D>{wasm_u32x4_extend_high_u16x8(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<uint32_t, D>> v) {
+  return VFromD<D>{wasm_u64x2_extend_high_u32x4(v.raw)};
+}
+
+// Signed: replicate sign bit.
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<int8_t, D>> v) {
+  return VFromD<D>{wasm_i16x8_extend_high_i8x16(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<int16_t, D>> v) {
+  return VFromD<D>{wasm_i32x4_extend_high_i16x8(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<int32_t, D>> v) {
+  return VFromD<D>{wasm_i64x2_extend_high_i32x4(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, VFromD<Repartition<float16_t, D>> v) {
+  const Rebind<float16_t, decltype(df32)> dh;
+  return PromoteTo(df32, UpperHalf(dh, v));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, VFromD<Repartition<bfloat16_t, D>> v) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToSigned<decltype(df32)> di32;
+  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /* tag */,
+                                 VFromD<Repartition<int32_t, D>> v) {
+  return VFromD<D>{wasm_f64x2_convert_high_i32x4(v.raw)};
+}
+
+// Generic version for <=64 bit input/output (_high is only for full vectors).
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), class V>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
+}
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
