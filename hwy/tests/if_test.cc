@@ -134,7 +134,8 @@ struct TestIfNegative {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vp = Iota(d, 1);
-    const auto vn = Or(vp, SignBit(d));
+    const auto vsignbit = SignBit(d);
+    const auto vn = Or(vp, vsignbit);
 
     // Zero and positive remain unchanged
     HWY_ASSERT_VEC_EQ(d, v0, IfNegativeThenElse(v0, vn, v0));
@@ -146,6 +147,25 @@ struct TestIfNegative {
     HWY_ASSERT_VEC_EQ(d, v0, IfNegativeThenElse(vn, v0, vp));
     HWY_ASSERT_VEC_EQ(d, vn, IfNegativeThenElse(vn, vn, v0));
     HWY_ASSERT_VEC_EQ(d, vp, IfNegativeThenElse(vn, vp, vn));
+
+    const RebindToSigned<decltype(d)> di;
+    const RebindToUnsigned<decltype(d)> du;
+    using TU = TFromD<decltype(du)>;
+
+    const auto s1 = BitCast(d, ShiftLeft<sizeof(TU) * 8 - 1>(Iota(du, 1)));
+
+    const auto m1 = Xor3(vp, s1, BitCast(d, Set(du, TU{0x71})));
+    const auto x1 = Xor(vp, BitCast(d, Set(du, TU{0x2B})));
+    const auto x2 = Xor(vp, BitCast(d, Set(du, TU{0xE2})));
+    const auto m2 = Xor(m1, vsignbit);
+
+    const auto m1_s = BitCast(d, BroadcastSignBit(BitCast(di, m1)));
+
+    const auto expected_1 = BitwiseIfThenElse(m1_s, x1, x2);
+    const auto expected_2 = BitwiseIfThenElse(m1_s, x2, x1);
+
+    HWY_ASSERT_VEC_EQ(d, expected_1, IfNegativeThenElse(m1, x1, x2));
+    HWY_ASSERT_VEC_EQ(d, expected_2, IfNegativeThenElse(m2, x1, x2));
   }
 };
 

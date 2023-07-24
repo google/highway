@@ -3566,7 +3566,7 @@ HWY_API V IfNegativeThenElse(V v, V yes, V no) {
   const DFromV<V> d;
   const RebindToSigned<decltype(d)> di;
 
-  const svbool_t m = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+  const svbool_t m = detail::LtN(BitCast(di, v), 0);
   return IfThenElse(m, yes, no);
 }
 

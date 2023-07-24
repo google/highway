@@ -1114,22 +1114,20 @@ template <class V, HWY_IF_I32_D(DFromV<V>)>
 HWY_API V SaturatedAdd(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto sum = Add(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(AndNot(Xor(a, b), Xor(a, sum))));
+  const auto overflow_mask = AndNot(Xor(a, b), Xor(a, sum));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int32_t>()));
-  return IfThenElse(overflow_mask, overflow_result, sum);
+  return IfNegativeThenElse(overflow_mask, overflow_result, sum);
 }
 
 template <class V, HWY_IF_I32_D(DFromV<V>)>
 HWY_API V SaturatedSub(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto diff = Sub(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(And(Xor(a, b), Xor(a, diff))));
+  const auto overflow_mask = And(Xor(a, b), Xor(a, diff));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int32_t>()));
-  return IfThenElse(overflow_mask, overflow_result, diff);
+  return IfNegativeThenElse(overflow_mask, overflow_result, diff);
 }
 
 #endif  // HWY_NATIVE_I32_SATURATED_ADDSUB
@@ -1145,22 +1143,20 @@ template <class V, HWY_IF_I64_D(DFromV<V>)>
 HWY_API V SaturatedAdd(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto sum = Add(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(AndNot(Xor(a, b), Xor(a, sum))));
+  const auto overflow_mask = AndNot(Xor(a, b), Xor(a, sum));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, sum);
+  return IfNegativeThenElse(overflow_mask, overflow_result, sum);
 }
 
 template <class V, HWY_IF_I64_D(DFromV<V>)>
 HWY_API V SaturatedSub(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto diff = Sub(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(And(Xor(a, b), Xor(a, diff))));
+  const auto overflow_mask = And(Xor(a, b), Xor(a, diff));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, diff);
+  return IfNegativeThenElse(overflow_mask, overflow_result, diff);
 }
 
 #endif  // HWY_NATIVE_I64_SATURATED_ADDSUB
