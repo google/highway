@@ -3206,6 +3206,7 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
 #if HWY_TARGET <= HWY_AVX3
   // No need to cast to float or broadcast sign bit on AVX3 as IfThenElse only
   // looks at the MSB on AVX3
+  (void)d;
   const auto mask = MaskFromVec(v);
 #else
   const RebindToSigned<decltype(d)> di;
