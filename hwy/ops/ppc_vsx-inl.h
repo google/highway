@@ -1264,10 +1264,10 @@ HWY_API V SaturatedAdd(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto sum = Add(a, b);
   const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(detail::TernaryLogic<0x42>(a, b, sum)));
+      BroadcastSignBit(detail::TernaryLogic<0x42>(a, b, sum));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, sum);
+  return IfNegativeThenElse(overflow_mask, overflow_result, sum);
 }
 
 #endif  // HWY_PPC_HAVE_10
@@ -1289,10 +1289,10 @@ HWY_API V SaturatedSub(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto diff = Sub(a, b);
   const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(detail::TernaryLogic<0x18>(a, b, diff)));
+      BroadcastSignBit(detail::TernaryLogic<0x18>(a, b, diff));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, diff);
+  return IfNegativeThenElse(overflow_mask, overflow_result, diff);
 }
 
 #endif  // HWY_PPC_HAVE_10
@@ -1379,15 +1379,23 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 }
 
 // ------------------------------ IfNegativeThenElse
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
                                         Vec128<T, N> no) {
   static_assert(IsSigned<T>(), "Only works for signed/float");
 
   const DFromV<decltype(v)> d;
+#if HWY_PPC_HAVE_10
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, VFromD<decltype(du)>{vec_blendv(BitCast(du, no).raw,
+                                                    BitCast(du, yes).raw,
+                                                    BitCast(du, v).raw)});
+#else
   const RebindToSigned<decltype(d)> di;
   return IfThenElse(MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v)))),
                     yes, no);
+#endif
 }
 
 // Absolute value of difference.

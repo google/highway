@@ -354,8 +354,12 @@ HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
                                         Vec128<T, N> no) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const auto vi = BitCast(di, v);
+
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = v.raw[i] < 0 ? yes.raw[i] : no.raw[i];
+    v.raw[i] = vi.raw[i] < 0 ? yes.raw[i] : no.raw[i];
   }
   return v;
 }

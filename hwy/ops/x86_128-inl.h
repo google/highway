@@ -3159,32 +3159,61 @@ template <size_t N>
 HWY_API Vec128<int8_t, N> IfNegativeThenElse(const Vec128<int8_t, N> v,
                                              const Vec128<int8_t, N> yes,
                                              const Vec128<int8_t, N> no) {
-  // int8: IfThenElse only looks at the MSB.
-  return IfThenElse(MaskFromVec(v), yes, no);
+// int8: IfThenElse only looks at the MSB on SSE4 or newer
+#if HWY_TARGET <= HWY_SSE4
+  const auto mask = MaskFromVec(v);
+#else
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const auto mask = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+#endif
+
+  return IfThenElse(mask, yes, no);
 }
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
                                         Vec128<T, N> no) {
   static_assert(IsSigned<T>(), "Only works for signed/float");
+
+// 16-bit: no native blendv on AVX2 or earlier, so copy sign to lower byte's
+// MSB.
+#if HWY_TARGET <= HWY_AVX3
+  const auto mask = MaskFromVec(v);
+#else
   const DFromV<decltype(v)> d;
   const RebindToSigned<decltype(d)> di;
+  const auto mask = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+#endif
 
-  // 16-bit: no native blendv, so copy sign to lower byte's MSB.
-  v = BitCast(d, BroadcastSignBit(BitCast(di, v)));
-  return IfThenElse(MaskFromVec(v), yes, no);
+  return IfThenElse(mask, yes, no);
 }
 
-template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 2)>
+template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 4) | (1 << 8))>
 HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
                                         Vec128<T, N> no) {
   static_assert(IsSigned<T>(), "Only works for signed/float");
   const DFromV<decltype(v)> d;
-  const RebindToFloat<decltype(d)> df;
 
-  // 32/64-bit: use float IfThenElse, which only looks at the MSB.
-  return BitCast(d, IfThenElse(MaskFromVec(BitCast(df, v)), BitCast(df, yes),
-                               BitCast(df, no)));
+#if HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE4
+  // 32/64-bit: use float IfThenElse on SSE4/AVX2, which only looks at the MSB
+  // on SSE4 or later.
+  const RebindToFloat<decltype(d)> df;
+  const auto mask = MaskFromVec(BitCast(df, v));
+  return BitCast(d, IfThenElse(mask, BitCast(df, yes), BitCast(df, no)));
+#else  // SSE2, SSSE3, or AVX3
+
+#if HWY_TARGET <= HWY_AVX3
+  // No need to cast to float or broadcast sign bit on AVX3 as IfThenElse only
+  // looks at the MSB on AVX3
+  const auto mask = MaskFromVec(v);
+#else
+  const RebindToSigned<decltype(d)> di;
+  const auto mask = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+#endif
+
+  return IfThenElse(mask, yes, no);
+#endif
 }
 
 // ------------------------------ ShiftLeftSame
