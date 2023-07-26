@@ -247,7 +247,7 @@ struct BitCastFromInteger128 {
 #if HWY_HAVE_FLOAT16
 template <>
 struct BitCastFromInteger128<float16_t> {
-  HWY_INLINE __m128 operator()(__m128i v) { return _mm_castsi128_ph(v); }
+  HWY_INLINE __m128h operator()(__m128i v) { return _mm_castsi128_ph(v); }
 };
 #endif  // HWY_HAVE_FLOAT16
 template <>
@@ -4230,7 +4230,7 @@ HWY_API VFromD<D> ShiftRightLanes(D d, const VFromD<D> v) {
 // ------------------------------ UpperHalf (ShiftRightBytes)
 
 // Full input: copy hi into lo (smaller instruction encoding than shifts).
-template <class D, HWY_IF_V_SIZE_D(D, 8)>
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_NOT_FLOAT3264_D(D)>
 HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
   const Twice<RebindToUnsigned<decltype(d)>> dut;
   using VUT = VFromD<decltype(dut)>;  // for float16_t
@@ -8445,19 +8445,23 @@ HWY_API Vec128<double, N> Floor(const Vec128<double, N> v) {
 
 template <size_t N>
 HWY_API Mask128<float16_t, N> IsNaN(const Vec128<float16_t, N> v) {
-  return Mask128<float16_t, N>{_mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  return Mask128<float16_t, N>{
+      _mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
 template <size_t N>
 HWY_API Mask128<float16_t, N> IsInf(const Vec128<float16_t, N> v) {
-  return Mask128<float16_t, N>{_mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
+  return Mask128<float16_t, N>{_mm_fpclass_ph_mask(
+      v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 
 template <size_t N>
 HWY_API Mask128<float16_t, N> IsFinite(const Vec128<float16_t, N> v) {
   // fpclass doesn't have a flag for positive, so we have to check for inf/NaN
   // and negate the mask.
-  return Not(Mask128<float16_t, N>{_mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  return Not(Mask128<float16_t, N>{_mm_fpclass_ph_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 
 #endif  // HWY_HAVE_FLOAT16
@@ -8465,7 +8469,8 @@ HWY_API Mask128<float16_t, N> IsFinite(const Vec128<float16_t, N> v) {
 template <size_t N>
 HWY_API Mask128<float, N> IsNaN(const Vec128<float, N> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  return Mask128<float, N>{
+      _mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 #else
   return Mask128<float, N>{_mm_cmpunord_ps(v.raw, v.raw)};
 #endif
@@ -8473,7 +8478,8 @@ HWY_API Mask128<float, N> IsNaN(const Vec128<float, N> v) {
 template <size_t N>
 HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  return Mask128<double, N>{
+      _mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 #else
   return Mask128<double, N>{_mm_cmpunord_pd(v.raw, v.raw)};
 #endif
@@ -8483,11 +8489,13 @@ HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
 
 template <size_t N>
 HWY_API Mask128<float, N> IsInf(const Vec128<float, N> v) {
-  return Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
+  return Mask128<float, N>{_mm_fpclass_ps_mask(
+      v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 template <size_t N>
 HWY_API Mask128<double, N> IsInf(const Vec128<double, N> v) {
-  return Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
+  return Mask128<double, N>{_mm_fpclass_pd_mask(
+      v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 
 // Returns whether normal/subnormal/zero.
@@ -8495,11 +8503,15 @@ template <size_t N>
 HWY_API Mask128<float, N> IsFinite(const Vec128<float, N> v) {
   // fpclass doesn't have a flag for positive, so we have to check for inf/NaN
   // and negate the mask.
-  return Not(Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  return Not(Mask128<float, N>{_mm_fpclass_ps_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 template <size_t N>
 HWY_API Mask128<double, N> IsFinite(const Vec128<double, N> v) {
-  return Not(Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  return Not(Mask128<double, N>{_mm_fpclass_pd_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 
 #else

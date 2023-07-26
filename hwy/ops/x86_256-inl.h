@@ -204,7 +204,7 @@ struct BitCastFromInteger256 {
 #if HWY_HAVE_FLOAT16
 template <>
 struct BitCastFromInteger256<float16_t> {
-  HWY_INLINE __m256 operator()(__m256i v) { return _mm256_castsi256_ph(v); }
+  HWY_INLINE __m256h operator()(__m256i v) { return _mm256_castsi256_ph(v); }
 };
 #endif  // HWY_HAVE_FLOAT16
 template <>
@@ -4459,44 +4459,44 @@ HWY_API Vec256<T> DupOdd(const Vec256<T> v) {
 
 // ------------------------------ OddEven
 
-namespace detail {
-
-template <typename T>
-HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<1> /* tag */, const Vec256<T> a,
-                             const Vec256<T> b) {
+template <typename T, HWY_IF_T_SIZE(T, 1)>
+HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
   const DFromV<decltype(a)> d;
   const Full256<uint8_t> d8;
   alignas(32) static constexpr uint8_t mask[16] = {
       0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0};
   return IfThenElse(MaskFromVec(BitCast(d, LoadDup128(d8, mask))), b, a);
 }
-template <typename T>
-HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<2> /* tag */, const Vec256<T> a,
-                             const Vec256<T> b) {
-  return Vec256<T>{_mm256_blend_epi16(a.raw, b.raw, 0x55)};
+
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  return BitCast(d, VFromD<decltype(du)>{_mm256_blend_epi16(
+                        BitCast(du, a).raw, BitCast(du, b).raw, 0x55)});
 }
-template <typename T>
-HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<4> /* tag */, const Vec256<T> a,
-                             const Vec256<T> b) {
+
+#if HWY_HAVE_FLOAT16
+HWY_INLINE Vec256<float16_t> OddEven(Vec256<float16_t> a, Vec256<float16_t> b) {
+  return Vec256<float16_t>{_mm256_mask_blend_ph(a.raw, b.raw, 0x55)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{_mm256_blend_epi32(a.raw, b.raw, 0x55)};
 }
-template <typename T>
-HWY_INLINE Vec256<T> OddEven(hwy::SizeTag<8> /* tag */, const Vec256<T> a,
-                             const Vec256<T> b) {
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
   return Vec256<T>{_mm256_blend_epi32(a.raw, b.raw, 0x33)};
 }
 
-}  // namespace detail
-
-template <typename T>
-HWY_API Vec256<T> OddEven(const Vec256<T> a, const Vec256<T> b) {
-  return detail::OddEven(hwy::SizeTag<sizeof(T)>(), a, b);
-}
-HWY_API Vec256<float> OddEven(const Vec256<float> a, const Vec256<float> b) {
+HWY_API Vec256<float> OddEven(Vec256<float> a, Vec256<float> b) {
   return Vec256<float>{_mm256_blend_ps(a.raw, b.raw, 0x55)};
 }
 
-HWY_API Vec256<double> OddEven(const Vec256<double> a, const Vec256<double> b) {
+HWY_API Vec256<double> OddEven(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_blend_pd(a.raw, b.raw, 5)};
 }
 
@@ -5884,7 +5884,12 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec256<float> PromoteTo(D df32, Vec128<float16_t> v) {
   (void)df32;
+#if HWY_HAVE_FLOAT16
+  const RebindToUnsigned<DFromV<decltype(v)>> du16;
+  return Vec256<float>{_mm256_cvtph_ps(BitCast(du16, v).raw)};
+#else
   return Vec256<float>{_mm256_cvtph_ps(v.raw)};
+#endif  // HWY_HAVE_FLOAT16
 }
 
 #endif  // HWY_DISABLE_F16C

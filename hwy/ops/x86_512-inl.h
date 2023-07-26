@@ -203,7 +203,7 @@ struct BitCastFromInteger512 {
 #if HWY_HAVE_FLOAT16
 template <>
 struct BitCastFromInteger512<float16_t> {
-  HWY_INLINE __m512 operator()(__m512i v) { return _mm512_castsi512_ph(v); }
+  HWY_INLINE __m512h operator()(__m512i v) { return _mm512_castsi512_ph(v); }
 };
 #endif  // HWY_HAVE_FLOAT16
 template <>
@@ -2337,7 +2337,8 @@ HWY_API Vec512<int64_t> BroadcastSignBit(const Vec512<int64_t> v) {
 #if HWY_HAVE_FLOAT16 || HWY_IDE
 
 HWY_API Mask512<float16_t> IsNaN(const Vec512<float16_t> v) {
-  return Mask512<float16_t>{_mm512_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  return Mask512<float16_t>{_mm512_fpclass_ph_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
 HWY_API Mask512<float16_t> IsInf(const Vec512<float16_t> v) {
@@ -2347,32 +2348,42 @@ HWY_API Mask512<float16_t> IsInf(const Vec512<float16_t> v) {
 // Returns whether normal/subnormal/zero. fpclass doesn't have a flag for
 // positive, so we have to check for inf/NaN and negate.
 HWY_API Mask512<float16_t> IsFinite(const Vec512<float16_t> v) {
-  return Not(Mask512<float16_t>{_mm512_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  return Not(Mask512<float16_t>{_mm512_fpclass_ph_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 
 #endif  // HWY_HAVE_FLOAT16
 
 HWY_API Mask512<float> IsNaN(const Vec512<float> v) {
-  return Mask512<float>{_mm512_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  return Mask512<float>{_mm512_fpclass_ps_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 HWY_API Mask512<double> IsNaN(const Vec512<double> v) {
-  return Mask512<double>{_mm512_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+  return Mask512<double>{_mm512_fpclass_pd_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
 HWY_API Mask512<float> IsInf(const Vec512<float> v) {
-  return Mask512<float>{_mm512_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
+  return Mask512<float>{_mm512_fpclass_ps_mask(
+      v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 HWY_API Mask512<double> IsInf(const Vec512<double> v) {
-  return Mask512<double>{_mm512_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
+  return Mask512<double>{_mm512_fpclass_pd_mask(
+      v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 
 // Returns whether normal/subnormal/zero. fpclass doesn't have a flag for
 // positive, so we have to check for inf/NaN and negate.
 HWY_API Mask512<float> IsFinite(const Vec512<float> v) {
-  return Not(Mask512<float>{_mm512_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  return Not(Mask512<float>{_mm512_fpclass_ps_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 HWY_API Mask512<double> IsFinite(const Vec512<double> v) {
-  return Not(Mask512<double>{_mm512_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+  return Not(Mask512<double>{_mm512_fpclass_pd_mask(
+      v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
+                 HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 
 // ================================================== MEMORY
@@ -4564,7 +4575,12 @@ HWY_API Vec512<int64_t> PromoteTo(D /* tag */, Vec64<int8_t> v) {
 // Float
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec512<float> PromoteTo(D /* tag */, Vec256<float16_t> v) {
+#if HWY_HAVE_FLOAT16
+  const RebindToUnsigned<DFromV<decltype(v)>> du16;
+  return Vec512<float>{_mm512_cvtph_ps(BitCast(du16, v).raw)};
+#else
   return Vec512<float>{_mm512_cvtph_ps(v.raw)};
+#endif  // HWY_HAVE_FLOAT16
 }
 
 template <class D, HWY_IF_F32_D(D)>
