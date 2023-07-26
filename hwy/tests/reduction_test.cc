@@ -79,7 +79,8 @@ struct TestSumOfLanes {
 };
 
 HWY_NOINLINE void TestAllSumOfLanes() {
-  ForUIF163264(ForPartialVectors<TestSumOfLanes>());
+  ForUIF3264(ForPartialVectors<TestSumOfLanes>());
+  ForUI16(ForPartialVectors<TestSumOfLanes>());
 
 // UI8 is only implemented for some targets.
 #if HWY_MAX_BYTES == 16 && (HWY_ARCH_ARM || HWY_ARCH_X86)
@@ -199,8 +200,10 @@ struct TestMaxOfLanes {
 HWY_NOINLINE void TestAllMinMaxOfLanes() {
   const ForPartialVectors<TestMinOfLanes> test_min;
   const ForPartialVectors<TestMaxOfLanes> test_max;
-  ForUIF163264(test_min);
-  ForUIF163264(test_max);
+  ForUIF3264(test_min);
+  ForUIF3264(test_max);
+  ForUI16(test_min);
+  ForUI16(test_max);
 
 // UI8 is only implemented for some targets.
 #if HWY_MAX_BYTES == 16 && (HWY_ARCH_ARM || HWY_ARCH_X86)
