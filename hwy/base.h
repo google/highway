@@ -340,7 +340,7 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 
 // float16_t load/store/conversion intrinsics are always supported on Armv8 and
 // VFPv4. On Armv7 Clang requires __ARM_FP & 2; GCC requires -mfp16-format=ieee.
-#if HWY_ARCH_ARM_A64 ||                                            \
+#if HWY_ARCH_ARM_A64 &&                                            \
     (HWY_COMPILER_CLANG && defined(__ARM_FP) && (__ARM_FP & 2)) || \
     HWY_COMPILER_GCC_ACTUAL && defined(__ARM_FP16_FORMAT_IEEE)
 #define HWY_NEON_HAVE_FLOAT16C 1
