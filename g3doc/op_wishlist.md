@@ -78,11 +78,12 @@ For crypto. Native on Icelake+.
 
 ### SVE codegen
 
-* SVE2: use XAR for `RotateRight`
-* `CombineShiftRightBytes` use `TableLookupLanes` instead?
-* `Shuffle*`: use `TableLookupLanes` instead?
-* Use SME once available: DUP predicate, REVD (rotate 128-bit elements by 64),
-  SCLAMP/UCLAMP, 128-bit TRN/UZP/ZIP (also in F64MM)
+*   SVE2.1: TBLQ for `TableLookupBytes`
+*   SVE2: use XAR for `RotateRight`
+*   `CombineShiftRightBytes` use `TableLookupLanes` instead?
+*   `Shuffle*`: use `TableLookupLanes` instead?
+*   Use SME once available: DUP predicate, REVD (rotate 128-bit elements by 64),
+    SCLAMP/UCLAMP, 128-bit TRN/UZP/ZIP (also in F64MM)
 
 ### emu128 codegen
 
