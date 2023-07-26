@@ -51,6 +51,12 @@ template <typename T>
 struct Raw128 {
   using type = __m128i;
 };
+#if HWY_HAVE_FLOAT16
+template <>
+struct Raw128<float16_t> {
+  using type = __m128h;
+};
+#endif  // HWY_HAVE_FLOAT16
 template <>
 struct Raw128<float> {
   using type = __m128;
@@ -194,7 +200,11 @@ HWY_API Vec128<bfloat16_t, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
 HWY_API Vec128<float16_t, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
+#if HWY_HAVE_FLOAT16
+  return Vec128<float16_t, HWY_MAX_LANES_D(D)>{_mm_setzero_ph()};
+#else
   return Vec128<float16_t, HWY_MAX_LANES_D(D)>{_mm_setzero_si128()};
+#endif
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API Vec128<float, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
@@ -218,6 +228,9 @@ using VFromD = decltype(Zero(D()));
 namespace detail {
 
 HWY_INLINE __m128i BitCastToInteger(__m128i v) { return v; }
+#if HWY_HAVE_FLOAT16
+HWY_INLINE __m128i BitCastToInteger(__m128h v) { return _mm_castph_si128(v); }
+#endif  // HWY_HAVE_FLOAT16
 HWY_INLINE __m128i BitCastToInteger(__m128 v) { return _mm_castps_si128(v); }
 HWY_INLINE __m128i BitCastToInteger(__m128d v) { return _mm_castpd_si128(v); }
 
@@ -231,6 +244,12 @@ template <typename T>
 struct BitCastFromInteger128 {
   HWY_INLINE __m128i operator()(__m128i v) { return v; }
 };
+#if HWY_HAVE_FLOAT16
+template <>
+struct BitCastFromInteger128<float16_t> {
+  HWY_INLINE __m128 operator()(__m128i v) { return _mm_castsi128_ph(v); }
+};
+#endif  // HWY_HAVE_FLOAT16
 template <>
 struct BitCastFromInteger128<float> {
   HWY_INLINE __m128 operator()(__m128i v) { return _mm_castsi128_ps(v); }
@@ -273,6 +292,12 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI64_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{_mm_set1_epi64x(static_cast<long long>(t))};  // NOLINT
 }
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> Set(D /* tag */, float16_t t) {
+  return VFromD<D>{_mm_set1_ph(t)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, float t) {
   return VFromD<D>{_mm_set1_ps(t)};
@@ -310,7 +335,11 @@ HWY_API VFromD<D> Undefined(D /* tag */) {
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
 HWY_API VFromD<D> Undefined(D /* tag */) {
+#if HWY_HAVE_FLOAT16
+  return VFromD<D>{_mm_undefined_ph()};
+#else
   return VFromD<D>{_mm_undefined_si128()};
+#endif
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> Undefined(D /* tag */) {
@@ -620,17 +649,12 @@ HWY_INLINE Vec128<T, N> Neg(const Vec128<T, N> v) {
 }
 
 // ------------------------------ Floating-point Abs
-
-// Returns absolute value
-template <size_t N>
-HWY_API Vec128<float, N> Abs(const Vec128<float, N> v) {
-  const Vec128<int32_t, N> mask{_mm_set1_epi32(0x7FFFFFFF)};
-  return v & BitCast(DFromV<decltype(v)>(), mask);
-}
-template <size_t N>
-HWY_API Vec128<double, N> Abs(const Vec128<double, N> v) {
-  const Vec128<int64_t, N> mask{_mm_set1_epi64x(0x7FFFFFFFFFFFFFFFLL)};
-  return v & BitCast(DFromV<decltype(v)>(), mask);
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> Abs(const Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  return v & BitCast(d, Set(di, static_cast<TI>(~SignMask<TI>())));
 }
 
 // ------------------------------ CopySign
@@ -705,6 +729,15 @@ HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,
                                 Vec128<T, N> no) {
   return detail::IfThenElse(hwy::SizeTag<sizeof(T)>(), mask, yes, no);
 }
+
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> IfThenElse(Mask128<float16_t, N> mask,
+                                        Vec128<float16_t, N> yes,
+                                        Vec128<float16_t, N> no) {
+  return Vec128<float16_t, N>{_mm_mask_blend_ph(mask.raw, no.raw, yes.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 
 template <size_t N>
 HWY_API Vec128<float, N> IfThenElse(Mask128<float, N> mask,
@@ -1256,6 +1289,13 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
   return Vec128<T>{_mm_load_si128(reinterpret_cast<const __m128i*>(aligned))};
 }
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API Vec128<float16_t> Load(D /* tag */,
+                               const float16_t* HWY_RESTRICT aligned) {
+  return Vec128<float16_t>{_mm_load_ph(aligned)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API Vec128<float> Load(D /* tag */, const float* HWY_RESTRICT aligned) {
   return Vec128<float>{_mm_load_ps(aligned)};
@@ -1269,6 +1309,12 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> LoadU(D /* tag */, const T* HWY_RESTRICT p) {
   return Vec128<T>{_mm_loadu_si128(reinterpret_cast<const __m128i*>(p))};
 }
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API Vec128<float16_t> LoadU(D /* tag */, const float16_t* HWY_RESTRICT p) {
+  return Vec128<float16_t>{_mm_loadu_ph(p)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API Vec128<float> LoadU(D /* tag */, const float* HWY_RESTRICT p) {
   return Vec128<float>{_mm_loadu_ps(p)};
@@ -1359,6 +1405,13 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API void Store(Vec128<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
   _mm_store_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
 }
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API void Store(Vec128<float16_t> v, D /* tag */,
+                   float16_t* HWY_RESTRICT aligned) {
+  _mm_store_ph(aligned, v.raw);
+}
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API void Store(Vec128<float> v, D /* tag */, float* HWY_RESTRICT aligned) {
   _mm_store_ps(aligned, v.raw);
@@ -1373,6 +1426,13 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API void StoreU(Vec128<T> v, D /* tag */, T* HWY_RESTRICT p) {
   _mm_storeu_si128(reinterpret_cast<__m128i*>(p), v.raw);
 }
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API void StoreU(Vec128<float16_t> v, D /* tag */,
+                    float16_t* HWY_RESTRICT p) {
+  _mm_storeu_ph(p, v.raw);
+}
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API void StoreU(Vec128<float> v, D /* tag */, float* HWY_RESTRICT p) {
   _mm_storeu_ps(p, v.raw);
@@ -1760,6 +1820,13 @@ HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
   return Vec128<T, N>{_mm_movm_epi64(v.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> VecFromMask(const Mask128<float16_t, N> v) {
+  return Vec128<float16_t, N>{_mm_castsi128_ph(_mm_movm_epi16(v.raw))};
+}
+#endif  // HWY_HAVE_FLOAT16
+
 template <size_t N>
 HWY_API Vec128<float, N> VecFromMask(const Mask128<float, N> v) {
   return Vec128<float, N>{_mm_castsi128_ps(_mm_movm_epi32(v.raw))};
@@ -1838,6 +1905,13 @@ HWY_API Mask128<T, N> operator==(const Vec128<T, N> a, const Vec128<T, N> b) {
   return Mask128<T, N>{_mm_cmpeq_epi64_mask(a.raw, b.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> operator==(Vec128<float16_t, N> a,
+                                         Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_EQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Mask128<float, N> operator==(Vec128<float, N> a, Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_EQ_OQ)};
@@ -1871,6 +1945,13 @@ HWY_API Mask128<T, N> operator!=(const Vec128<T, N> a, const Vec128<T, N> b) {
   return Mask128<T, N>{_mm_cmpneq_epi64_mask(a.raw, b.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> operator!=(Vec128<float16_t, N> a,
+                                         Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Mask128<float, N> operator!=(Vec128<float, N> a, Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_NEQ_OQ)};
@@ -1926,6 +2007,13 @@ HWY_API Mask128<uint64_t, N> operator>(Vec128<uint64_t, N> a,
   return Mask128<uint64_t, N>{_mm_cmpgt_epu64_mask(a.raw, b.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> operator>(Vec128<float16_t, N> a,
+                                        Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_GT_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Mask128<float, N> operator>(Vec128<float, N> a, Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_GT_OQ)};
@@ -1937,6 +2025,13 @@ HWY_API Mask128<double, N> operator>(Vec128<double, N> a, Vec128<double, N> b) {
 
 // ------------------------------ Weak inequality
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Mask128<float16_t, N> operator>=(Vec128<float16_t, N> a,
+                                         Vec128<float16_t, N> b) {
+  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_GE_OQ)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Mask128<float, N> operator>=(Vec128<float, N> a, Vec128<float, N> b) {
   return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_GE_OQ)};
@@ -2270,6 +2365,15 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
                                  int16_t{3}, int16_t{2}, int16_t{1},
                                  int16_t{0})};
 }
+
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_INLINE VFromD<D> Iota0(D /*d*/) {
+  return VFromD<D>{_mm_set_ph(float16_t{7}, float16_t{6}, float16_t{5},
+                              float16_t{4}, float16_t{3}, float16_t{2},
+                              float16_t{1}, float16_t{0})};
+}
+#endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI32_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
@@ -2673,6 +2777,13 @@ HWY_API Vec128<int64_t, N> operator+(const Vec128<int64_t, N> a,
 }
 
 // Float
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> operator+(const Vec128<float16_t, N> a,
+                                       const Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_add_ph(a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> operator+(const Vec128<float, N> a,
                                    const Vec128<float, N> b) {
@@ -2731,6 +2842,13 @@ HWY_API Vec128<int64_t, N> operator-(const Vec128<int64_t, N> a,
 }
 
 // Float
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> operator-(const Vec128<float16_t, N> a,
+                                       const Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_sub_ph(a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> operator-(const Vec128<float, N> a,
                                    const Vec128<float, N> b) {
@@ -3388,6 +3506,13 @@ HWY_API Vec128<int8_t, N> ShiftRightSame(Vec128<int8_t, N> v, const int bits) {
 
 // ------------------------------ Floating-point mul / div
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> operator*(Vec128<float16_t, N> a,
+                                       Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_mul_ph(a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> operator*(Vec128<float, N> a, Vec128<float, N> b) {
   return Vec128<float, N>{_mm_mul_ps(a.raw, b.raw)};
@@ -3405,6 +3530,13 @@ HWY_API Vec64<double> operator*(const Vec64<double> a, const Vec64<double> b) {
   return Vec64<double>{_mm_mul_sd(a.raw, b.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> operator/(const Vec128<float16_t, N> a,
+                                       const Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_div_ph(a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> operator/(const Vec128<float, N> a,
                                    const Vec128<float, N> b) {
@@ -3424,6 +3556,13 @@ HWY_API Vec64<double> operator/(const Vec64<double> a, const Vec64<double> b) {
 }
 
 // Approximate reciprocal
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> ApproximateReciprocal(
+    const Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{_mm_rcp_ph(v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocal(const Vec128<float, N> v) {
   return Vec128<float, N>{_mm_rcp_ps(v.raw)};
@@ -3447,15 +3586,44 @@ HWY_API Vec64<double> ApproximateReciprocal(Vec64<double> v) {
 }
 #endif
 
-// Absolute value of difference.
-template <size_t N>
-HWY_API Vec128<float, N> AbsDiff(Vec128<float, N> a, Vec128<float, N> b) {
+// Generic for all vector lengths.
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V AbsDiff(V a, V b) {
   return Abs(a - b);
 }
 
 // ------------------------------ Floating-point multiply-add variants
 
-// Returns mul * x + add
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> MulAdd(Vec128<float16_t, N> mul,
+                                    Vec128<float16_t, N> x,
+                                    Vec128<float16_t, N> add) {
+  return Vec128<float16_t, N>{_mm_fmadd_ph(mul.raw, x.raw, add.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<float16_t, N> NegMulAdd(Vec128<float16_t, N> mul,
+                                       Vec128<float16_t, N> x,
+                                       Vec128<float16_t, N> add) {
+  return Vec128<float16_t, N>{_mm_fnmadd_ph(mul.raw, x.raw, add.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<float16_t, N> MulSub(Vec128<float16_t, N> mul,
+                                    Vec128<float16_t, N> x,
+                                    Vec128<float16_t, N> sub) {
+  return Vec128<float16_t, N>{_mm_fmsub_ph(mul.raw, x.raw, sub.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<float16_t, N> NegMulSub(Vec128<float16_t, N> mul,
+                                       Vec128<float16_t, N> x,
+                                       Vec128<float16_t, N> sub) {
+  return Vec128<float16_t, N>{_mm_fnmsub_ph(mul.raw, x.raw, sub.raw)};
+}
+
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> MulAdd(Vec128<float, N> mul, Vec128<float, N> x,
                                 Vec128<float, N> add) {
@@ -3538,6 +3706,12 @@ HWY_API Vec128<double, N> NegMulSub(Vec128<double, N> mul, Vec128<double, N> x,
 // ------------------------------ Floating-point square root
 
 // Full precision square root
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Sqrt(Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{_mm_sqrt_ph(v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Sqrt(Vec128<float, N> v) {
   return Vec128<float, N>{_mm_sqrt_ps(v.raw)};
@@ -3554,6 +3728,12 @@ HWY_API Vec64<double> Sqrt(Vec64<double> v) {
 }
 
 // Approximate reciprocal square root
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> ApproximateReciprocalSqrt(Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{_mm_rsqrt_ph(v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
   return Vec128<float, N>{_mm_rsqrt_ps(v.raw)};
@@ -3661,6 +3841,13 @@ HWY_API Vec128<int64_t, N> Min(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 }
 
 // Float
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Min(Vec128<float16_t, N> a,
+                                 Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_min_ph(a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Min(Vec128<float, N> a, Vec128<float, N> b) {
   return Vec128<float, N>{_mm_min_ps(a.raw, b.raw)};
@@ -3747,6 +3934,13 @@ HWY_API Vec128<int64_t, N> Max(Vec128<int64_t, N> a, Vec128<int64_t, N> b) {
 }
 
 // Float
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Max(Vec128<float16_t, N> a,
+                                 Vec128<float16_t, N> b) {
+  return Vec128<float16_t, N>{_mm_max_ph(a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Max(Vec128<float, N> a, Vec128<float, N> b) {
   return Vec128<float, N>{_mm_max_ps(a.raw, b.raw)};
@@ -3762,18 +3956,10 @@ HWY_API Vec128<double, N> Max(Vec128<double, N> a, Vec128<double, N> b) {
 
 // On clang6, we see incorrect code generated for _mm_stream_pi, so
 // round even partial vectors up to 16 bytes.
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
-HWY_API void Stream(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT aligned) {
-  _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API void Stream(VFromD<D> v, D /* tag */,
-                    bfloat16_t* HWY_RESTRICT aligned) {
-  _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API void Stream(VFromD<D> v, D /* tag */, float16_t* HWY_RESTRICT aligned) {
-  _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_NOT_FLOAT3264_D(D)>
+HWY_API void Stream(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
+  const RebindToUnsigned<decltype(d)> du;  // for float16_t
+  _mm_stream_si128(reinterpret_cast<__m128i*>(aligned), BitCast(du, v).raw);
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API void Stream(VFromD<D> v, D /* tag */, float* HWY_RESTRICT aligned) {
@@ -4044,9 +4230,12 @@ HWY_API VFromD<D> ShiftRightLanes(D d, const VFromD<D> v) {
 // ------------------------------ UpperHalf (ShiftRightBytes)
 
 // Full input: copy hi into lo (smaller instruction encoding than shifts).
-template <class D, typename T = TFromD<D>>
-HWY_API Vec64<T> UpperHalf(D /* tag */, Vec128<T> v) {
-  return Vec64<T>{_mm_unpackhi_epi64(v.raw, v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 8)>
+HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
+  const Twice<RebindToUnsigned<decltype(d)>> dut;
+  using VUT = VFromD<decltype(dut)>;  // for float16_t
+  const VUT vut = BitCast(dut, v);
+  return BitCast(d, LowerHalf(VUT{_mm_unpackhi_epi64(vut.raw, vut.raw)}));
 }
 template <class D>
 HWY_API Vec64<float> UpperHalf(D /* tag */, Vec128<float> v) {
@@ -4082,7 +4271,13 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
   static_assert(kLane < N, "Lane index out of bounds");
-  return static_cast<T>(_mm_extract_epi16(v.raw, kLane) & 0xFFFF);
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const uint16_t lane = static_cast<uint16_t>(
+      _mm_extract_epi16(BitCast(du, v).raw, kLane) & 0xFFFF);
+  T ret;
+  CopySameSize(&lane, &ret);  // for float16_t
+  return ret;
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
@@ -4296,7 +4491,12 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
-  return Vec128<T, N>{_mm_insert_epi16(v.raw, t, kLane)};
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  uint16_t bits;
+  CopySameSize(&t, &bits);  // for float16_t
+  return BitCast(d, VFromD<decltype(du)>{
+                        _mm_insert_epi16(BitCast(du, v).raw, bits, kLane)});
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
@@ -4517,59 +4717,40 @@ HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
 
 // ------------------------------ Broadcast/splat any lane
 
-// Unsigned
-template <int kLane, size_t N>
-HWY_API Vec128<uint16_t, N> Broadcast(const Vec128<uint16_t, N> v) {
+template <int kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const VU vu = BitCast(du, v);  // for float16_t
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
   if (kLane < 4) {
-    const __m128i lo = _mm_shufflelo_epi16(v.raw, (0x55 * kLane) & 0xFF);
-    return Vec128<uint16_t, N>{_mm_unpacklo_epi64(lo, lo)};
+    const __m128i lo = _mm_shufflelo_epi16(vu.raw, (0x55 * kLane) & 0xFF);
+    return BitCast(d, VU{_mm_unpacklo_epi64(lo, lo)});
   } else {
-    const __m128i hi = _mm_shufflehi_epi16(v.raw, (0x55 * (kLane - 4)) & 0xFF);
-    return Vec128<uint16_t, N>{_mm_unpackhi_epi64(hi, hi)};
+    const __m128i hi = _mm_shufflehi_epi16(vu.raw, (0x55 * (kLane - 4)) & 0xFF);
+    return BitCast(d, VU{_mm_unpackhi_epi64(hi, hi)});
   }
 }
 
-template <int kLane, size_t N>
-HWY_API Vec128<uint32_t, N> Broadcast(const Vec128<uint32_t, N> v) {
+template <int kLane, typename T, size_t N, HWY_IF_UI32(T)>
+HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<uint32_t, N>{_mm_shuffle_epi32(v.raw, 0x55 * kLane)};
-}
-template <int kLane, size_t N>
-HWY_API Vec128<uint64_t, N> Broadcast(const Vec128<uint64_t, N> v) {
-  static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<uint64_t, N>{_mm_shuffle_epi32(v.raw, kLane ? 0xEE : 0x44)};
+  return Vec128<T, N>{_mm_shuffle_epi32(v.raw, 0x55 * kLane)};
 }
 
-// Signed
-template <int kLane, size_t N>
-HWY_API Vec128<int16_t, N> Broadcast(const Vec128<int16_t, N> v) {
+template <int kLane, typename T, size_t N, HWY_IF_UI64(T)>
+HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  if (kLane < 4) {
-    const __m128i lo = _mm_shufflelo_epi16(v.raw, (0x55 * kLane) & 0xFF);
-    return Vec128<int16_t, N>{_mm_unpacklo_epi64(lo, lo)};
-  } else {
-    const __m128i hi = _mm_shufflehi_epi16(v.raw, (0x55 * (kLane - 4)) & 0xFF);
-    return Vec128<int16_t, N>{_mm_unpackhi_epi64(hi, hi)};
-  }
-}
-template <int kLane, size_t N>
-HWY_API Vec128<int32_t, N> Broadcast(const Vec128<int32_t, N> v) {
-  static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<int32_t, N>{_mm_shuffle_epi32(v.raw, 0x55 * kLane)};
-}
-template <int kLane, size_t N>
-HWY_API Vec128<int64_t, N> Broadcast(const Vec128<int64_t, N> v) {
-  static_assert(0 <= kLane && kLane < N, "Invalid lane");
-  return Vec128<int64_t, N>{_mm_shuffle_epi32(v.raw, kLane ? 0xEE : 0x44)};
+  return Vec128<T, N>{_mm_shuffle_epi32(v.raw, kLane ? 0xEE : 0x44)};
 }
 
-// Float
 template <int kLane, size_t N>
 HWY_API Vec128<float, N> Broadcast(const Vec128<float, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
   return Vec128<float, N>{_mm_shuffle_ps(v.raw, v.raw, 0x55 * kLane)};
 }
+
 template <int kLane, size_t N>
 HWY_API Vec128<double, N> Broadcast(const Vec128<double, N> v) {
   static_assert(0 <= kLane && kLane < N, "Invalid lane");
@@ -4692,7 +4873,7 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
   return TableLookupBytes(v, Vec128<T, N>{idx.raw});
 }
 
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+template <typename T, size_t N, HWY_IF_UI16(T)>
 HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
 #if HWY_TARGET <= HWY_AVX3
   return {_mm_permutexvar_epi16(idx.raw, v.raw)};
@@ -4721,6 +4902,14 @@ HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
   return TableLookupBytes(v, Vec128<T, N>{idx.raw});
 #endif
 }
+
+#if HWY_HAVE_FLOAT16
+template <size_t N, HWY_IF_V_SIZE_GT(float16_t, N, 2)>
+HWY_API Vec128<float16_t, N> TableLookupLanes(Vec128<float16_t, N> v,
+                                              Indices128<float16_t, N> idx) {
+  return {_mm_permutexvar_ph(idx.raw, v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_API Vec128<T, N> TableLookupLanes(Vec128<T, N> v, Indices128<T, N> idx) {
@@ -4777,7 +4966,7 @@ HWY_API Vec128<T, 1> TableLookupLanes(Vec128<T, 1> v,
   return v;
 }
 
-template <typename T, HWY_IF_T_SIZE(T, 8)>
+template <typename T, HWY_IF_UI64(T)>
 HWY_API Vec128<T> TableLookupLanes(Vec128<T> v, Indices128<T> idx) {
   const DFromV<decltype(v)> d;
   Vec128<int64_t> vidx{idx.raw};
@@ -4853,20 +5042,23 @@ HWY_API Vec128<T> Reverse(D /* tag */, const Vec128<T> v) {
 // 16-bit
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const VU vu = BitCast(du, v);  // for float16_t
   constexpr size_t kN = MaxLanes(d);
   if (kN == 1) return v;
   if (kN == 2) {
-    return VFromD<D>{_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(0, 1, 0, 1))};
+    return BitCast(d, VU{_mm_shufflelo_epi16(vu.raw, _MM_SHUFFLE(0, 1, 0, 1))});
   }
   if (kN == 4) {
-    return VFromD<D>{_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+    return BitCast(d, VU{_mm_shufflelo_epi16(vu.raw, _MM_SHUFFLE(0, 1, 2, 3))});
   }
 
 #if HWY_TARGET == HWY_SSE2
-  const VFromD<D> rev4{
-      _mm_shufflehi_epi16(_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(0, 1, 2, 3)),
+  const VU rev4{
+      _mm_shufflehi_epi16(_mm_shufflelo_epi16(vu.raw, _MM_SHUFFLE(0, 1, 2, 3)),
                           _MM_SHUFFLE(0, 1, 2, 3))};
-  return VFromD<D>{_mm_shuffle_epi32(rev4.raw, _MM_SHUFFLE(1, 0, 3, 2))};
+  return BitCast(d, VU{_mm_shuffle_epi32(rev4.raw, _MM_SHUFFLE(1, 0, 3, 2))});
 #else
   const RebindToSigned<decltype(d)> di;
   alignas(16) static constexpr int16_t kShuffle[8] = {
@@ -4907,12 +5099,15 @@ HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
   const Repartition<uint32_t, decltype(d)> du32;
   return BitCast(d, RotateRight<16>(BitCast(du32, v)));
 #elif HWY_TARGET == HWY_SSE2
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const VU vu = BitCast(du, v);  // for float16_t
   constexpr size_t kN = MaxLanes(d);
-  __m128i shuf_result = _mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(2, 3, 0, 1));
+  __m128i shuf_result = _mm_shufflelo_epi16(vu.raw, _MM_SHUFFLE(2, 3, 0, 1));
   if (kN > 4) {
     shuf_result = _mm_shufflehi_epi16(shuf_result, _MM_SHUFFLE(2, 3, 0, 1));
   }
-  return VFromD<D>{shuf_result};
+  return BitCast(d, VU{shuf_result});
 #else
   const RebindToSigned<decltype(d)> di;
   alignas(16) static constexpr int16_t kShuffle[8] = {
@@ -4935,16 +5130,19 @@ HWY_API VFromD<D> Reverse2(D /* tag */, VFromD<D> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;
+  const VU vu = BitCast(du, v);  // for float16_t
   // 4x 16-bit: a single shufflelo suffices.
   constexpr size_t kN = MaxLanes(d);
   if (kN <= 4) {
-    return VFromD<D>{_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(0, 1, 2, 3))};
+    return BitCast(d, VU{_mm_shufflelo_epi16(vu.raw, _MM_SHUFFLE(0, 1, 2, 3))});
   }
 
 #if HWY_TARGET == HWY_SSE2
-  return VFromD<D>{
-      _mm_shufflehi_epi16(_mm_shufflelo_epi16(v.raw, _MM_SHUFFLE(0, 1, 2, 3)),
-                          _MM_SHUFFLE(0, 1, 2, 3))};
+  return BitCast(d, VU{_mm_shufflehi_epi16(
+                        _mm_shufflelo_epi16(vu.raw, _MM_SHUFFLE(0, 1, 2, 3)),
+                        _MM_SHUFFLE(0, 1, 2, 3))});
 #else
   const RebindToSigned<decltype(d)> di;
   alignas(16) static constexpr int16_t kShuffle[8] = {
@@ -5009,46 +5207,25 @@ HWY_API V ReverseBits(V v) {
 // the least-significant lane) and "b". To concatenate two half-width integers
 // into one, use ZipLower/Upper instead (also works with scalar).
 
-template <size_t N>
-HWY_API Vec128<uint8_t, N> InterleaveLower(Vec128<uint8_t, N> a,
-                                           Vec128<uint8_t, N> b) {
-  return Vec128<uint8_t, N>{_mm_unpacklo_epi8(a.raw, b.raw)};
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_unpacklo_epi8(a.raw, b.raw)};
 }
-template <size_t N>
-HWY_API Vec128<uint16_t, N> InterleaveLower(Vec128<uint16_t, N> a,
-                                            Vec128<uint16_t, N> b) {
-  return Vec128<uint16_t, N>{_mm_unpacklo_epi16(a.raw, b.raw)};
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
+HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;  // for float16_t
+  return BitCast(
+      d, VU{_mm_unpacklo_epi16(BitCast(du, a).raw, BitCast(du, b).raw)});
 }
-template <size_t N>
-HWY_API Vec128<uint32_t, N> InterleaveLower(Vec128<uint32_t, N> a,
-                                            Vec128<uint32_t, N> b) {
-  return Vec128<uint32_t, N>{_mm_unpacklo_epi32(a.raw, b.raw)};
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
+HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_unpacklo_epi32(a.raw, b.raw)};
 }
-template <size_t N>
-HWY_API Vec128<uint64_t, N> InterleaveLower(Vec128<uint64_t, N> a,
-                                            Vec128<uint64_t, N> b) {
-  return Vec128<uint64_t, N>{_mm_unpacklo_epi64(a.raw, b.raw)};
-}
-
-template <size_t N>
-HWY_API Vec128<int8_t, N> InterleaveLower(Vec128<int8_t, N> a,
-                                          Vec128<int8_t, N> b) {
-  return Vec128<int8_t, N>{_mm_unpacklo_epi8(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int16_t, N> InterleaveLower(Vec128<int16_t, N> a,
-                                           Vec128<int16_t, N> b) {
-  return Vec128<int16_t, N>{_mm_unpacklo_epi16(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int32_t, N> InterleaveLower(Vec128<int32_t, N> a,
-                                           Vec128<int32_t, N> b) {
-  return Vec128<int32_t, N>{_mm_unpacklo_epi32(a.raw, b.raw)};
-}
-template <size_t N>
-HWY_API Vec128<int64_t, N> InterleaveLower(Vec128<int64_t, N> a,
-                                           Vec128<int64_t, N> b) {
-  return Vec128<int64_t, N>{_mm_unpacklo_epi64(a.raw, b.raw)};
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_unpacklo_epi64(a.raw, b.raw)};
 }
 
 template <size_t N>
@@ -5070,51 +5247,34 @@ HWY_API VFromD<D> InterleaveLower(D /* tag */, VFromD<D> a, VFromD<D> b) {
 
 // ------------------------------ InterleaveUpper (UpperHalf)
 
-// All functions inside detail lack the required D parameter.
-namespace detail {
-
-HWY_API Vec128<uint8_t> InterleaveUpper(Vec128<uint8_t> a, Vec128<uint8_t> b) {
-  return Vec128<uint8_t>{_mm_unpackhi_epi8(a.raw, b.raw)};
-}
-HWY_API Vec128<uint16_t> InterleaveUpper(Vec128<uint16_t> a,
-                                         Vec128<uint16_t> b) {
-  return Vec128<uint16_t>{_mm_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec128<uint32_t> InterleaveUpper(Vec128<uint32_t> a,
-                                         Vec128<uint32_t> b) {
-  return Vec128<uint32_t>{_mm_unpackhi_epi32(a.raw, b.raw)};
-}
-HWY_API Vec128<uint64_t> InterleaveUpper(Vec128<uint64_t> a,
-                                         Vec128<uint64_t> b) {
-  return Vec128<uint64_t>{_mm_unpackhi_epi64(a.raw, b.raw)};
-}
-
-HWY_API Vec128<int8_t> InterleaveUpper(Vec128<int8_t> a, Vec128<int8_t> b) {
-  return Vec128<int8_t>{_mm_unpackhi_epi8(a.raw, b.raw)};
-}
-HWY_API Vec128<int16_t> InterleaveUpper(Vec128<int16_t> a, Vec128<int16_t> b) {
-  return Vec128<int16_t>{_mm_unpackhi_epi16(a.raw, b.raw)};
-}
-HWY_API Vec128<int32_t> InterleaveUpper(Vec128<int32_t> a, Vec128<int32_t> b) {
-  return Vec128<int32_t>{_mm_unpackhi_epi32(a.raw, b.raw)};
-}
-HWY_API Vec128<int64_t> InterleaveUpper(Vec128<int64_t> a, Vec128<int64_t> b) {
-  return Vec128<int64_t>{_mm_unpackhi_epi64(a.raw, b.raw)};
-}
-
-HWY_API Vec128<float> InterleaveUpper(Vec128<float> a, Vec128<float> b) {
-  return Vec128<float>{_mm_unpackhi_ps(a.raw, b.raw)};
-}
-HWY_API Vec128<double> InterleaveUpper(Vec128<double> a, Vec128<double> b) {
-  return Vec128<double>{_mm_unpackhi_pd(a.raw, b.raw)};
-}
-
-}  // namespace detail
-
 // Full
-template <class D, typename T = TFromD<D>>
-HWY_API Vec128<T> InterleaveUpper(D /* tag */, Vec128<T> a, Vec128<T> b) {
-  return detail::InterleaveUpper(a, b);
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_unpackhi_epi8(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using VU = VFromD<decltype(du)>;  // for float16_t
+  return BitCast(
+      d, VU{_mm_unpackhi_epi16(BitCast(du, a).raw, BitCast(du, b).raw)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_unpackhi_epi32(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI64_D(D)>
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_unpackhi_epi64(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_unpackhi_ps(a.raw, b.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_unpackhi_pd(a.raw, b.raw)};
 }
 
 // Partial
@@ -6149,6 +6309,13 @@ HWY_API Vec128<T> TwoTablesLookupLanes(Vec128<T> a, Vec128<T> b,
 #endif  // HWY_TARGET <= HWY_AVX3
 }
 
+#if HWY_HAVE_FLOAT16
+HWY_API Vec128<float16_t> TwoTablesLookupLanes(Vec128<float16_t> a,
+                                               Vec128<float16_t> b,
+                                               Indices128<float16_t> idx) {
+  return Vec128<float16_t>{_mm_permutex2var_ph(a.raw, idx.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 HWY_API Vec128<float> TwoTablesLookupLanes(Vec128<float> a, Vec128<float> b,
                                            Indices128<float> idx) {
 #if HWY_TARGET <= HWY_AVX3
@@ -7897,6 +8064,17 @@ HWY_API Vec128<uint32_t> ReorderDemote2To(D dn, Vec128<uint64_t> a,
 
 // ------------------------------ Integer <=> fp (ShiftRight, OddEven)
 
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
+  return VFromD<D>{_mm_cvtepu16_ph(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<int16_t, D>> v) {
+  return VFromD<D>{_mm_cvtepi16_ph(v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
   return VFromD<D>{_mm_cvtepi32_ps(v.raw)};
@@ -7980,6 +8158,15 @@ HWY_API VFromD<D> ConvertTo(D dd, VFromD<Rebind<uint64_t, D>> v) {
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // Truncates (rounds toward zero).
+
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
+  return detail::FixConversionOverflow(
+      di, v, VFromD<RebindToSigned<D>>{_mm_cvttph_epi16(v.raw)});
+}
+#endif  // HWY_HAVE_FLOAT16
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
   return detail::FixConversionOverflow(
@@ -8166,6 +8353,13 @@ HWY_API Vec128<T, N> Floor(const Vec128<T, N> v) {
 #else
 
 // Toward nearest integer, ties to even
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Round(const Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{
+      _mm_roundscale_ph(v.raw, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Round(const Vec128<float, N> v) {
   return Vec128<float, N>{
@@ -8178,6 +8372,13 @@ HWY_API Vec128<double, N> Round(const Vec128<double, N> v) {
 }
 
 // Toward zero, aka truncate
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Trunc(const Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{
+      _mm_roundscale_ph(v.raw, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Trunc(const Vec128<float, N> v) {
   return Vec128<float, N>{
@@ -8190,6 +8391,13 @@ HWY_API Vec128<double, N> Trunc(const Vec128<double, N> v) {
 }
 
 // Toward +infinity, aka ceiling
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Ceil(const Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{
+      _mm_roundscale_ph(v.raw, _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Ceil(const Vec128<float, N> v) {
   return Vec128<float, N>{
@@ -8202,6 +8410,13 @@ HWY_API Vec128<double, N> Ceil(const Vec128<double, N> v) {
 }
 
 // Toward -infinity, aka floor
+#if HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_API Vec128<float16_t, N> Floor(const Vec128<float16_t, N> v) {
+  return Vec128<float16_t, N>{
+      _mm_roundscale_ph(v.raw, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)};
+}
+#endif  // HWY_HAVE_FLOAT16
 template <size_t N>
 HWY_API Vec128<float, N> Floor(const Vec128<float, N> v) {
   return Vec128<float, N>{
@@ -8217,10 +8432,40 @@ HWY_API Vec128<double, N> Floor(const Vec128<double, N> v) {
 
 // ------------------------------ Floating-point classification
 
+#define HWY_X86_FPCLASS_QNAN 0x01
+#define HWY_X86_FPCLASS_POS0 0x02
+#define HWY_X86_FPCLASS_NEG0 0x04
+#define HWY_X86_FPCLASS_POS_INF 0x08
+#define HWY_X86_FPCLASS_NEG_INF 0x10
+#define HWY_X86_FPCLASS_SUBNORMAL 0x20
+#define HWY_X86_FPCLASS_NEG 0x40
+#define HWY_X86_FPCLASS_SNAN 0x80
+
+#if HWY_HAVE_FLOAT16 || HWY_IDE
+
+template <size_t N>
+HWY_API Mask128<float16_t, N> IsNaN(const Vec128<float16_t, N> v) {
+  return Mask128<float16_t, N>{_mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
+}
+
+template <size_t N>
+HWY_API Mask128<float16_t, N> IsInf(const Vec128<float16_t, N> v) {
+  return Mask128<float16_t, N>{_mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
+}
+
+template <size_t N>
+HWY_API Mask128<float16_t, N> IsFinite(const Vec128<float16_t, N> v) {
+  // fpclass doesn't have a flag for positive, so we have to check for inf/NaN
+  // and negate the mask.
+  return Not(Mask128<float16_t, N>{_mm_fpclass_ph_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
+}
+
+#endif  // HWY_HAVE_FLOAT16
+
 template <size_t N>
 HWY_API Mask128<float, N> IsNaN(const Vec128<float, N> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, 0x81)};
+  return Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 #else
   return Mask128<float, N>{_mm_cmpunord_ps(v.raw, v.raw)};
 #endif
@@ -8228,7 +8473,7 @@ HWY_API Mask128<float, N> IsNaN(const Vec128<float, N> v) {
 template <size_t N>
 HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
 #if HWY_TARGET <= HWY_AVX3
-  return Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, 0x81)};
+  return Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 #else
   return Mask128<double, N>{_mm_cmpunord_pd(v.raw, v.raw)};
 #endif
@@ -8238,11 +8483,11 @@ HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
 
 template <size_t N>
 HWY_API Mask128<float, N> IsInf(const Vec128<float, N> v) {
-  return Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, 0x18)};
+  return Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 template <size_t N>
 HWY_API Mask128<double, N> IsInf(const Vec128<double, N> v) {
-  return Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, 0x18)};
+  return Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
 }
 
 // Returns whether normal/subnormal/zero.
@@ -8250,11 +8495,11 @@ template <size_t N>
 HWY_API Mask128<float, N> IsFinite(const Vec128<float, N> v) {
   // fpclass doesn't have a flag for positive, so we have to check for inf/NaN
   // and negate the mask.
-  return Not(Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, 0x99)});
+  return Not(Mask128<float, N>{_mm_fpclass_ps_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 template <size_t N>
 HWY_API Mask128<double, N> IsFinite(const Vec128<double, N> v) {
-  return Not(Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, 0x99)});
+  return Not(Mask128<double, N>{_mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN | HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 
 #else
@@ -9566,14 +9811,10 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 
 namespace detail {
 
-// N=1 for any T: no-op
+// N=1: no-op
 template <typename T>
 HWY_INLINE Vec128<T, 1> SumOfLanes(Vec128<T, 1> v) {
   return v;
-}
-template <typename T>
-HWY_INLINE T ReduceSum(Vec128<T, 1> v) {
-  return GetLane(v);
 }
 template <typename T>
 HWY_INLINE Vec128<T, 1> MinOfLanes(Vec128<T, 1> v) {
@@ -9584,105 +9825,86 @@ HWY_INLINE Vec128<T, 1> MaxOfLanes(Vec128<T, 1> v) {
   return v;
 }
 
-// u32/i32/f32:
-
 // N=2
-template <typename T, HWY_IF_T_SIZE(T, 4)>
+template <typename T>
 HWY_INLINE Vec128<T, 2> SumOfLanes(Vec128<T, 2> v10) {
-  return v10 + Shuffle2301(v10);
+  const DFromV<decltype(v10)> d;
+  return Add(v10, Reverse2(d, v10));
 }
-template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE T ReduceSum(Vec128<T, 2> v10) {
-  return GetLane(SumOfLanes(v10));
-}
-template <typename T, HWY_IF_T_SIZE(T, 4)>
+template <typename T>
 HWY_INLINE Vec128<T, 2> MinOfLanes(Vec128<T, 2> v10) {
-  return Min(v10, Shuffle2301(v10));
+  const DFromV<decltype(v10)> d;
+  return Min(v10, Reverse2(d, v10));
 }
-template <typename T, HWY_IF_T_SIZE(T, 4)>
+template <typename T>
 HWY_INLINE Vec128<T, 2> MaxOfLanes(Vec128<T, 2> v10) {
-  return Max(v10, Shuffle2301(v10));
+  const DFromV<decltype(v10)> d;
+  return Max(v10, Reverse2(d, v10));
 }
 
-// N=4 (full)
-template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T> SumOfLanes(Vec128<T> v3210) {
-  const Vec128<T> v1032 = Shuffle1032(v3210);
-  const Vec128<T> v31_20_31_20 = v3210 + v1032;
-  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return v20_31_20_31 + v31_20_31_20;
+// N=4 (only 16/32-bit, else >128-bit)
+template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+HWY_INLINE Vec128<T, 4> SumOfLanes(Vec128<T, 4> v3210) {
+  using V = decltype(v3210);
+  const DFromV<V> d;
+  const V v0123 = Reverse4(d, v3210);
+  const V v03_12_12_03 = Add(v3210, v0123);
+  const V v12_03_03_12 = Reverse2(d, v03_12_12_03);
+  return Add(v03_12_12_03, v12_03_03_12);
 }
-template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE T ReduceSum(Vec128<T> v3210) {
-  return GetLane(SumOfLanes(v3210));
+template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+HWY_INLINE Vec128<T, 4> MinOfLanes(Vec128<T, 4> v3210) {
+  using V = decltype(v3210);
+  const DFromV<V> d;
+  const V v0123 = Reverse4(d, v3210);
+  const V v03_12_12_03 = Min(v3210, v0123);
+  const V v12_03_03_12 = Reverse2(d, v03_12_12_03);
+  return Min(v03_12_12_03, v12_03_03_12);
 }
-template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T> MinOfLanes(Vec128<T> v3210) {
-  const Vec128<T> v1032 = Shuffle1032(v3210);
-  const Vec128<T> v31_20_31_20 = Min(v3210, v1032);
-  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return Min(v20_31_20_31, v31_20_31_20);
-}
-template <typename T, HWY_IF_T_SIZE(T, 4)>
-HWY_INLINE Vec128<T> MaxOfLanes(Vec128<T> v3210) {
-  const Vec128<T> v1032 = Shuffle1032(v3210);
-  const Vec128<T> v31_20_31_20 = Max(v3210, v1032);
-  const Vec128<T> v20_31_20_31 = Shuffle0321(v31_20_31_20);
-  return Max(v20_31_20_31, v31_20_31_20);
-}
-
-// u64/i64/f64:
-
-// N=2 (full)
-template <typename T, HWY_IF_T_SIZE(T, 8)>
-HWY_INLINE Vec128<T> SumOfLanes(Vec128<T> v10) {
-  const Vec128<T> v01 = Shuffle01(v10);
-  return v10 + v01;
-}
-template <typename T, HWY_IF_T_SIZE(T, 8)>
-HWY_INLINE T ReduceSum(Vec128<T> v10) {
-  return GetLane(SumOfLanes(v10));
-}
-template <typename T, HWY_IF_T_SIZE(T, 8)>
-HWY_INLINE Vec128<T> MinOfLanes(Vec128<T> v10) {
-  const Vec128<T> v01 = Shuffle01(v10);
-  return Min(v10, v01);
-}
-template <typename T, HWY_IF_T_SIZE(T, 8)>
-HWY_INLINE Vec128<T> MaxOfLanes(Vec128<T> v10) {
-  const Vec128<T> v01 = Shuffle01(v10);
-  return Max(v10, v01);
+template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+HWY_INLINE Vec128<T, 4> MaxOfLanes(Vec128<T, 4> v3210) {
+  using V = decltype(v3210);
+  const DFromV<V> d;
+  const V v0123 = Reverse4(d, v3210);
+  const V v03_12_12_03 = Max(v3210, v0123);
+  const V v12_03_03_12 = Reverse2(d, v03_12_12_03);
+  return Max(v03_12_12_03, v12_03_03_12);
 }
 
-template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_INLINE uint16_t ReduceSum(Vec128<uint16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto sum = ReduceSum(even + odd);
-  return static_cast<uint16_t>(sum);
+// N=8 (only 16-bit, else >128-bit)
+template <typename T, HWY_IF_T_SIZE(T, 2)>
+HWY_INLINE Vec128<T, 8> SumOfLanes(Vec128<T, 8> v76543210) {
+  using V = decltype(v76543210);
+  const DFromV<V> d;
+  // The upper half is reversed from the lower half; omit for brevity.
+  const V v34_25_16_07 = Add(v76543210, Reverse8(d, v76543210));
+  const V v0347_1625_1625_0347 = Add(v34_25_16_07, Reverse4(d, v34_25_16_07));
+  return Add(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
 }
-template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_INLINE Vec128<uint16_t, N> SumOfLanes(Vec128<uint16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  return Set(d, ReduceSum(v));
+template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+HWY_INLINE Vec128<T, 8> MinOfLanes(Vec128<T, 8> v76543210) {
+  using V = decltype(v76543210);
+  const DFromV<V> d;
+  // The upper half is reversed from the lower half; omit for brevity.
+  const V v34_25_16_07 = Min(v76543210, Reverse8(d, v76543210));
+  const V v0347_1625_1625_0347 = Min(v34_25_16_07, Reverse4(d, v34_25_16_07));
+  return Min(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
 }
-template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_INLINE int16_t ReduceSum(Vec128<int16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto sum = ReduceSum(even + odd);
-  return static_cast<int16_t>(sum);
+template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+HWY_INLINE Vec128<T, 8> MaxOfLanes(Vec128<T, 8> v76543210) {
+  using V = decltype(v76543210);
+  const DFromV<V> d;
+  // The upper half is reversed from the lower half; omit for brevity.
+  const V v34_25_16_07 = Max(v76543210, Reverse8(d, v76543210));
+  const V v0347_1625_1625_0347 = Max(v34_25_16_07, Reverse4(d, v34_25_16_07));
+  return Max(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
 }
-template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_INLINE Vec128<int16_t, N> SumOfLanes(Vec128<int16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  return Set(d, ReduceSum(v));
+
+template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_INLINE T ReduceSum(Vec128<T, N> v) {
+  return GetLane(SumOfLanes(v));
 }
+
 // u8, N=8, N=16:
 HWY_INLINE uint8_t ReduceSum(Vec64<uint8_t> v) {
   return static_cast<uint8_t>(GetLane(SumsOf8(v)) & 0xFF);
@@ -9717,10 +9939,6 @@ HWY_INLINE Vec128<int8_t, N> SumOfLanes(const Vec128<int8_t, N> v) {
 }
 
 #if HWY_TARGET <= HWY_SSE4
-HWY_INLINE Vec128<uint16_t> MinOfLanes(Vec128<uint16_t> v) {
-  using V = decltype(v);
-  return Broadcast<0>(V{_mm_minpos_epu16(v.raw)});
-}
 HWY_INLINE Vec64<uint8_t> MinOfLanes(Vec64<uint8_t> v) {
   const DFromV<decltype(v)> d;
   const Rebind<uint16_t, decltype(d)> d16;
@@ -9733,10 +9951,6 @@ HWY_INLINE Vec128<uint8_t> MinOfLanes(Vec128<uint8_t> v) {
   return Combine(DFromV<decltype(v)>(), result, result);
 }
 
-HWY_INLINE Vec128<uint16_t> MaxOfLanes(Vec128<uint16_t> v) {
-  const Vec128<uint16_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint16_t>()));
-  return m - MinOfLanes(m - v);
-}
 HWY_INLINE Vec64<uint8_t> MaxOfLanes(Vec64<uint8_t> v) {
   const Vec64<uint8_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint8_t>()));
   return m - MinOfLanes(m - v);
@@ -9795,53 +10009,8 @@ HWY_INLINE Vec128<int8_t, N> MaxOfLanes(Vec128<int8_t, N> v) {
   return BitCast(d, Xor(MaxOfLanes(vu), mask));
 }
 
-template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_INLINE Vec128<uint16_t, N> MinOfLanes(Vec128<uint16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-template <size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
-HWY_INLINE Vec128<int16_t, N> MinOfLanes(Vec128<int16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-
-template <size_t N, HWY_IF_V_SIZE_GT(uint16_t, N, 2)>
-HWY_INLINE Vec128<uint16_t, N> MaxOfLanes(Vec128<uint16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-template <size_t N, HWY_IF_V_SIZE_GT(int16_t, N, 2)>
-HWY_INLINE Vec128<int16_t, N> MaxOfLanes(Vec128<int16_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-
 }  // namespace detail
 
-// Supported for u/i/f 32/64. Returns the same value in each lane.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> SumOfLanes(D /* tag */, VFromD<D> v) {
   return detail::SumOfLanes(v);
@@ -9858,6 +10027,20 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> MaxOfLanes(D /* tag */, VFromD<D> v) {
   return detail::MaxOfLanes(v);
 }
+
+#if HWY_TARGET <= HWY_SSE4
+template <class D>
+HWY_INLINE Vec128<uint16_t> MinOfLanes(D, Vec128<uint16_t> v) {
+  using V = decltype(v);
+  return Broadcast<0>(V{_mm_minpos_epu16(v.raw)});
+}
+
+template <class D>
+HWY_INLINE Vec128<uint16_t> MaxOfLanes(D d, Vec128<uint16_t> v) {
+  const Vec128<uint16_t> m(Set(d, LimitsMax<uint16_t>()));
+  return m - MinOfLanes(d, m - v);
+}
+#endif  // HWY_TARGET <= HWY_SSE4
 
 // ------------------------------ Lt128
 

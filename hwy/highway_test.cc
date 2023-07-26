@@ -289,8 +289,8 @@ HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
     Abort(file, line,
           "Expected %s NaN, got %E (bytes %02x %02x %02x %02x %02x %02x %02x "
           "%02x)",
-          type_name.c_str(), lane, bytes[0], bytes[1], bytes[2], bytes[3],
-          bytes[4], bytes[5], bytes[6], bytes[7]);
+          type_name.c_str(), static_cast<double>(lane), bytes[0], bytes[1],
+          bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]);
   }
 }
 

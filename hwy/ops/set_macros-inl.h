@@ -232,7 +232,7 @@
 
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
-#if (HWY_TARGET == HWY_AVX3_SPR) && 0  // TODO(janwas): enable when implemented
+#if (HWY_TARGET == HWY_AVX3_SPR) && 0  // TODO(janwas): enable after testing
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
