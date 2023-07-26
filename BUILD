@@ -145,6 +145,8 @@ COMPAT = [
 # newly enabled instruction set, or the failure is only caught by sanitizers
 # which do not run in CI.
 
+# NOTE: when adding a new dependency on the Highway library, please add your
+# test to the highway.users list in highway.blueprint.
 cc_library(
     name = "hwy",
     srcs = [
