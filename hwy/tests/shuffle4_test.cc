@@ -118,6 +118,7 @@ class TestPer4LaneBlockShuffle {
     TestTblLookupPer4LaneBlkShuf(d, N, src_lanes, expected);
 #endif
     DoTestPer4LaneBlkShuffle<0, 1, 2, 3>(d, N, v, src_lanes, expected);
+#if !HWY_COMPILER_MSVC  // speed up MSVC builds
     DoTestPer4LaneBlkShuffle<0, 1, 3, 2>(d, N, v, src_lanes, expected);
     DoTestPer4LaneBlkShuffle<0, 2, 3, 1>(d, N, v, src_lanes, expected);
     DoTestPer4LaneBlkShuffle<0, 3, 0, 2>(d, N, v, src_lanes, expected);
@@ -141,6 +142,7 @@ class TestPer4LaneBlockShuffle {
     DoTestPer4LaneBlkShuffle<3, 3, 0, 1>(d, N, v, src_lanes, expected);
     DoTestPer4LaneBlkShuffle<3, 3, 1, 1>(d, N, v, src_lanes, expected);
     DoTestPer4LaneBlkShuffle<3, 3, 2, 2>(d, N, v, src_lanes, expected);
+#endif
   }
 
   template <class D>
