@@ -373,20 +373,24 @@ struct TestDot {
       AccumulateUnit<T> accfn;
       T dot_via_mul_acc;
       Unroller(accfn, y, &dot_via_mul_acc, static_cast<ptrdiff_t>(num));
-      const T tolerance = T{32} * std::abs(expected_dot) * hwy::Epsilon<T>();
-      HWY_ASSERT(std::abs(expected_dot - dot_via_mul_acc) < tolerance);
+      // Cast because std::abs does not support _Float16.
+      const T tolerance = T{32} * std::abs(static_cast<double>(expected_dot)) *
+                          hwy::Epsilon<T>();
+      HWY_ASSERT(std::abs(static_cast<double>(expected_dot - dot_via_mul_acc)) <
+                 tolerance);
 
       DotUnit<T> dotfn;
       T dotr;
       Unroller(dotfn, a, b, &dotr, static_cast<ptrdiff_t>(num));
-      HWY_ASSERT(std::abs(expected_dot - dotr) < tolerance);
+      HWY_ASSERT(std::abs(static_cast<double>(expected_dot - dotr)) <
+                 tolerance);
 
       auto expected_min = SimpleMin(a, num);
       MinUnit<T> minfn;
       T minr;
       Unroller(minfn, a, &minr, static_cast<ptrdiff_t>(num));
 
-      HWY_ASSERT(std::abs(expected_min - minr) < 1e-7);
+      HWY_ASSERT(std::abs(static_cast<double>(expected_min - minr)) < 1e-7);
     }
 #endif
   }

@@ -499,7 +499,7 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
-*   `V`: `{u,i}{8,16,32,64},f32` \
+*   `V`: `{u,i},f32` \
     <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
 *   `V`: `u8` \
@@ -1575,7 +1575,7 @@ instead because they are more general:
     <code>V **ReverseLaneBytes**(V a)</code> returns a vector where the bytes of
     each lane are swapped.
 
-*   `V`: `{u,i}{8,16,32,64}` \
+*   `V`: `{u,i}` \
     <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
     lane are reversed.
 
@@ -1606,12 +1606,12 @@ instead because they are more general:
 
     If `N < Lanes(d)` is true, returns a vector with the first (lowest-index)
     `Lanes(d) - N` lanes of `v` shifted up to the upper (highest-index)
-    `Lanes(d) - N` lanes of the result vector and the first (lowest-index)
-    `N` lanes of the result vector zeroed out.
+    `Lanes(d) - N` lanes of the result vector and the first (lowest-index) `N`
+    lanes of the result vector zeroed out.
 
     In other words, `result[0..N-1]` would be zero, `result[N] = v[0]`,
-    `result[N+1] = v[1]`, and so on until
-    `result[Lanes(d)-1] = v[Lanes(d)-1-N]`.
+    `result[N+1] = v[1]`, and so on until `result[Lanes(d)-1] =
+    v[Lanes(d)-1-N]`.
 
     The result of SlideUpLanes is implementation-defined if `N >= Lanes(d)`.
 
@@ -1619,9 +1619,9 @@ instead because they are more general:
     `N` lanes
 
     If `N < Lanes(d)` is true, returns a vector with the last (highest-index)
-    `Lanes(d) - N` of `v` shifted down to the first (lowest-index)
-    `Lanes(d) - N` lanes of the result vector and the last (highest-index) `N`
-    lanes of the result vector zeroed out.
+    `Lanes(d) - N` of `v` shifted down to the first (lowest-index) `Lanes(d) -
+    N` lanes of the result vector and the last (highest-index) `N` lanes of the
+    result vector zeroed out.
 
     In other words, `result[0] = v[N]`, `result[1] = v[N + 1]`, and so on until
     `result[Lanes(d)-1-N] = v[Lanes(d)-1]`, and then `result[Lanes(d)-N..N-1]`
@@ -1645,17 +1645,17 @@ instead because they are more general:
     `SlideDownLanes(d, v, 1)`, but `Slide1Down(d, v)` is more efficient than
     `SlideDownLanes(d, v, 1)` on some platforms.
 
-*   <code>V **SlideUpBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides up
-    `v` by `kBlocks` blocks.
+*   <code>V **SlideUpBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides up `v`
+    by `kBlocks` blocks.
 
     `kBlocks` must be between 0 and `d.MaxBlocks() - 1`.
 
-    Equivalent to `SlideUpLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))`,
-    but `SlideUpBlocks<kBlocks>(d, v)` is more efficient than
-    `SlideUpLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))` on some platforms.
+    Equivalent to `SlideUpLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))`, but
+    `SlideUpBlocks<kBlocks>(d, v)` is more efficient than `SlideUpLanes(d, v,
+    kBlocks * (16 / sizeof(TFromD<D>)))` on some platforms.
 
-    The results of `SlideUpBlocks<kBlocks>(d, v)` is implementation-defined
-    if `kBlocks >= Blocks(d)` is true.
+    The results of `SlideUpBlocks<kBlocks>(d, v)` is implementation-defined if
+    `kBlocks >= Blocks(d)` is true.
 
 *   <code>V **SlideDownBlocks**&lt;int kBlocks&gt;(D d, V v)</code> slides down
     `v` by `kBlocks` blocks.
@@ -1664,10 +1664,11 @@ instead because they are more general:
 
     Equivalent to `SlideDownLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))`,
     but `SlideDownBlocks<kBlocks>(d, v)` is more efficient than
-    `SlideDownLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))` on some platforms.
+    `SlideDownLanes(d, v, kBlocks * (16 / sizeof(TFromD<D>)))` on some
+    platforms.
 
-    The results of `SlideDownBlocks<kBlocks>(d, v)` is implementation-defined
-    if `kBlocks >= Blocks(d)` is true.
+    The results of `SlideDownBlocks<kBlocks>(d, v)` is implementation-defined if
+    `kBlocks >= Blocks(d)` is true.
 
 The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
@@ -1700,18 +1701,18 @@ than normal SIMD operations and are typically used outside critical loops.
 
 There are additional `{u,i}{8}` implementations on SSE4.1+ and NEON.
 
-*   `V`: `{u,i,f}{32,64},{u,i}{16}` \
+*   `V`: `{u,i}{16,32,64},{f}` \
     <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
     lane.
 
-*   `T`: `{u,i,f}{32,64},{u,i}{16}` \
+*   `T`: `{u,i}{16,32,64},{f}` \
     <code>T **ReduceSum**(D, V v)</code>: returns the sum of all lanes.
 
-*   `V`: `{u,i,f}{32,64},{u,i}{16}` \
+*   `V`: `{u,i}{16,32,64},{f}` \
     <code>V **MinOfLanes**(D, V v)</code>: returns the minimum-valued lane in
     each lane.
 
-*   `V`: `{u,i,f}{32,64},{u,i}{16}` \
+*   `V`: `{u,i}{16,32,64},{f}` \
     <code>V **MaxOfLanes**(D, V v)</code>: returns the maximum-valued lane in
     each lane.
 
