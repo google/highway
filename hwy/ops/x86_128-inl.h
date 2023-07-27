@@ -9884,6 +9884,25 @@ HWY_INLINE Vec128<T, 4> MaxOfLanes(Vec128<T, 4> v3210) {
   return Max(v03_12_12_03, v12_03_03_12);
 }
 
+#undef HWY_X86_IF_NOT_MINPOS
+#if HWY_TARGET <= HWY_SSE4
+// Skip the T_SIZE = 2 overload in favor of the following two.
+#define HWY_X86_IF_NOT_MINPOS(T) \
+  hwy::EnableIf<!IsSame<T, uint16_t>()>* = nullptr
+
+HWY_INLINE Vec128<uint16_t> MinOfLanes(Vec128<uint16_t> v) {
+  return Broadcast<0>(Vec128<uint16_t>{_mm_minpos_epu16(v.raw)});
+}
+
+HWY_INLINE Vec128<uint16_t> MaxOfLanes(Vec128<uint16_t> v) {
+  const DFromV<decltype(v)> d;
+  const Vec128<uint16_t> max = Set(d, LimitsMax<uint16_t>());
+  return max - MinOfLanes(max - v);
+}
+#else
+#define HWY_X86_IF_NOT_MINPOS(T) hwy::EnableIf<true>* = nullptr
+#endif  // HWY_TARGET <= HWY_SSE4
+
 // N=8 (only 16-bit, else >128-bit)
 template <typename T, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE Vec128<T, 8> SumOfLanes(Vec128<T, 8> v76543210) {
@@ -9894,7 +9913,7 @@ HWY_INLINE Vec128<T, 8> SumOfLanes(Vec128<T, 8> v76543210) {
   const V v0347_1625_1625_0347 = Add(v34_25_16_07, Reverse4(d, v34_25_16_07));
   return Add(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
 }
-template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+template <typename T, HWY_IF_T_SIZE(T, 2), HWY_X86_IF_NOT_MINPOS(T)>
 HWY_INLINE Vec128<T, 8> MinOfLanes(Vec128<T, 8> v76543210) {
   using V = decltype(v76543210);
   const DFromV<V> d;
@@ -9903,7 +9922,7 @@ HWY_INLINE Vec128<T, 8> MinOfLanes(Vec128<T, 8> v76543210) {
   const V v0347_1625_1625_0347 = Min(v34_25_16_07, Reverse4(d, v34_25_16_07));
   return Min(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
 }
-template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
+template <typename T, HWY_IF_T_SIZE(T, 2), HWY_X86_IF_NOT_MINPOS(T)>
 HWY_INLINE Vec128<T, 8> MaxOfLanes(Vec128<T, 8> v76543210) {
   using V = decltype(v76543210);
   const DFromV<V> d;
@@ -10040,20 +10059,6 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> MaxOfLanes(D /* tag */, VFromD<D> v) {
   return detail::MaxOfLanes(v);
 }
-
-#if HWY_TARGET <= HWY_SSE4
-template <class D>
-HWY_INLINE Vec128<uint16_t> MinOfLanes(D, Vec128<uint16_t> v) {
-  using V = decltype(v);
-  return Broadcast<0>(V{_mm_minpos_epu16(v.raw)});
-}
-
-template <class D>
-HWY_INLINE Vec128<uint16_t> MaxOfLanes(D d, Vec128<uint16_t> v) {
-  const Vec128<uint16_t> m(Set(d, LimitsMax<uint16_t>()));
-  return m - MinOfLanes(d, m - v);
-}
-#endif  // HWY_TARGET <= HWY_SSE4
 
 // ------------------------------ Lt128
 

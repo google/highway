@@ -268,7 +268,7 @@ struct TestCeil {
 
     for (size_t i = 0; i < padded; ++i) {
       // Cast to double because ceil does not support _Float16.
-      expected[i] = std::ceil(static_cast<double>(in[i]));
+      expected[i] = static_cast<T>(std::ceil(static_cast<double>(in[i])));
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
       HWY_ASSERT_VEC_EQ(d, &expected[i], Ceil(Load(d, &in[i])));
@@ -290,7 +290,7 @@ struct TestFloor {
 
     for (size_t i = 0; i < padded; ++i) {
       // Cast to double because floor does not support _Float16.
-      expected[i] = std::floor(static_cast<double>(in[i]));
+      expected[i] = static_cast<T>(std::floor(static_cast<double>(in[i])));
     }
     for (size_t i = 0; i < padded; i += Lanes(d)) {
       HWY_ASSERT_VEC_EQ(d, &expected[i], Floor(Load(d, &in[i])));
@@ -314,8 +314,8 @@ struct TestAbsDiff {
       in_lanes_a[i] = static_cast<T>((i ^ 1u) << i);
       in_lanes_b[i] = static_cast<T>(i << i);
       // Cast to double because abs does not support _Float16.
-      out_lanes[i] =
-          std::abs(static_cast<double>(in_lanes_a[i] - in_lanes_b[i]));
+      out_lanes[i] = static_cast<T>(
+          std::abs(static_cast<double>(in_lanes_a[i] - in_lanes_b[i])));
     }
     const auto a = Load(d, in_lanes_a.get());
     const auto b = Load(d, in_lanes_b.get());
