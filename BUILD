@@ -13,6 +13,7 @@ license(
     license_kinds = ["@rules_license//licenses/generic:notice"],
 )
 
+# Dual-licensed Apache 2 and 3-clause BSD.
 licenses(["notice"])
 
 exports_files(["LICENSE"])
@@ -370,6 +371,7 @@ HWY_TESTS = [
     ("hwy/tests/", "arithmetic_test"),
     ("hwy/tests/", "blockwise_shift_test"),
     ("hwy/tests/", "blockwise_test"),
+    ("hwy/tests/", "cast_test"),
     ("hwy/tests/", "combine_test"),
     ("hwy/tests/", "compare_test"),
     ("hwy/tests/", "compress_test"),
