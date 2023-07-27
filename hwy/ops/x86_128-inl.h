@@ -8242,7 +8242,8 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
   const VU shift_int = BitCast(
       du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
   const VU mantissa = BitCast(du, v) & Set(du, (1ULL << 52) - 1);
-  // Include implicit 1-bit
+  // Include implicit 1-bit. NOTE: the shift count may exceed 63; we rely on x86
+  // returning zero in that case.
   const VU int53 = (mantissa | Set(du, 1ULL << 52)) >> shift_mnt;
 
   // For inputs larger than 2^53 - 1, insert zeros at the bottom.
