@@ -364,10 +364,13 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #if HWY_NEON_HAVE_FLOAT16C
 using float16_t = __fp16;
 // 2) C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
-//    Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR.
-//    Do not use on clang-cl (missing __extendhfsf2).
-#elif ((HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) || \
-       (HWY_ARCH_X86 && HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL))
+//    Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR (with
+//    sufficiently new compiler supporting avx512fp16). Do not use on clang-cl,
+//    which is missing __extendhfsf2.
+#elif (                                                                        \
+    (HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) ||           \
+    (HWY_ARCH_X86 && ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) || \
+                      HWY_COMPILER_GCC_ACTUAL >= 1200)))
 using float16_t = _Float16;
 // 3) Otherwise emulate
 #else
