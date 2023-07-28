@@ -383,8 +383,8 @@ struct TestDot {
       DotUnit<T> dotfn;
       T dotr;
       Unroller(dotfn, a, b, &dotr, static_cast<ptrdiff_t>(num));
-      HWY_ASSERT(static_cast<T>(
-          std::abs(static_cast<double>(expected_dot - dotr)) < tolerance));
+      HWY_ASSERT(static_cast<T>(std::abs(
+                     static_cast<double>(expected_dot - dotr))) < tolerance);
 
       auto expected_min = SimpleMin(a, num);
       MinUnit<T> minfn;
