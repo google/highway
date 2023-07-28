@@ -1657,108 +1657,16 @@ HWY_API VFromD<D> Slide1Down(D d, VFromD<D> v) {
 
 // ================================================== CONVERT
 
-// ------------------------------ Promotions (part w/ narrow lanes -> full)
-
-namespace detail {
-
-// Unsigned: zero-extend.
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> PromoteUpperTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<uint16_t>{wasm_u16x8_extend_high_u8x16(v.raw)};
-}
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> PromoteUpperTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<uint32_t>{
-      wasm_u32x4_extend_high_u16x8(wasm_u16x8_extend_high_u8x16(v.raw))};
-}
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> PromoteUpperTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<int16_t>{wasm_u16x8_extend_high_u8x16(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> PromoteUpperTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec128<int32_t>{
-      wasm_u32x4_extend_high_u16x8(wasm_u16x8_extend_high_u8x16(v.raw))};
-}
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> PromoteUpperTo(D /* tag */, Vec128<uint16_t> v) {
-  return Vec128<uint32_t>{wasm_u32x4_extend_high_u16x8(v.raw)};
-}
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec128<uint64_t> PromoteUpperTo(D /* tag */, Vec128<uint32_t> v) {
-  return Vec128<uint64_t>{wasm_u64x2_extend_high_u32x4(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> PromoteUpperTo(D /* tag */, Vec128<uint16_t> v) {
-  return Vec128<int32_t>{wasm_u32x4_extend_high_u16x8(v.raw)};
-}
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec128<int64_t> PromoteUpperTo(D /* tag */, Vec128<uint32_t> v) {
-  return Vec128<int64_t>{wasm_u64x2_extend_high_u32x4(v.raw)};
-}
-
-// Signed: replicate sign bit.
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> PromoteUpperTo(D /* tag */, Vec128<int8_t> v) {
-  return Vec128<int16_t>{wasm_i16x8_extend_high_i8x16(v.raw)};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> PromoteUpperTo(D /* tag */, Vec128<int8_t> v) {
-  return Vec128<int32_t>{
-      wasm_i32x4_extend_high_i16x8(wasm_i16x8_extend_high_i8x16(v.raw))};
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> PromoteUpperTo(D /* tag */, Vec128<int16_t> v) {
-  return Vec128<int32_t>{wasm_i32x4_extend_high_i16x8(v.raw)};
-}
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec128<int64_t> PromoteUpperTo(D /* tag */, Vec128<int32_t> v) {
-  return Vec128<int64_t>{wasm_i64x2_extend_high_i32x4(v.raw)};
-}
-
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec128<double> PromoteUpperTo(D dd, Vec128<int32_t> v) {
-  // There is no wasm_f64x2_convert_high_i32x4.
-  const Full64<int32_t> di32h;
-  return PromoteTo(dd, UpperHalf(di32h, v));
-}
-
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec128<float> PromoteUpperTo(D df32, Vec128<float16_t> v) {
-  const RebindToSigned<decltype(df32)> di32;
-  const RebindToUnsigned<decltype(df32)> du32;
-  // Expand to u32 so we can shift.
-  const auto bits16 = PromoteUpperTo(du32, Vec128<uint16_t>{v.raw});
-  const auto sign = ShiftRight<15>(bits16);
-  const auto biased_exp = ShiftRight<10>(bits16) & Set(du32, 0x1F);
-  const auto mantissa = bits16 & Set(du32, 0x3FF);
-  const auto subnormal =
-      BitCast(du32, ConvertTo(df32, BitCast(di32, mantissa)) *
-                        Set(df32, 1.0f / 16384 / 1024));
-
-  const auto biased_exp32 = biased_exp + Set(du32, 127 - 15);
-  const auto mantissa32 = ShiftLeft<23 - 10>(mantissa);
-  const auto normal = ShiftLeft<23>(biased_exp32) | mantissa32;
-  const auto bits32 = IfThenElse(biased_exp == Zero(du32), subnormal, normal);
-  return BitCast(df32, ShiftLeft<31>(sign) | bits32);
-}
-
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec128<float> PromoteUpperTo(D df32, Vec128<bfloat16_t> v) {
-  const Full128<uint16_t> du16;
-  const RebindToSigned<decltype(df32)> di32;
-  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
-}
-
-}  // namespace detail
+// ------------------------------ PromoteTo
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), typename TN,
           HWY_IF_T_SIZE_D(D, sizeof(TN) * 2)>
 HWY_API VFromD<D> PromoteTo(D d, Vec128<TN> v) {
   const Half<decltype(d)> dh;
   VFromD<D> ret;
+  // PromoteLowerTo is defined later in generic_ops-inl.h.
   ret.v0 = PromoteTo(dh, LowerHalf(v));
-  ret.v1 = detail::PromoteUpperTo(dh, v);
+  ret.v1 = PromoteUpperTo(dh, v);
   return ret;
 }
 
@@ -1773,8 +1681,9 @@ HWY_API Vec256<TFromD<DW>> PromoteTo(DW d, Vec64<TN> v) {
   const Rebind<MakeWide<TN>, decltype(d)> d2;
   const auto v_2x = PromoteTo(d2, v);
   Vec256<TFromD<DW>> ret;
+  // PromoteLowerTo is defined later in generic_ops-inl.h.
   ret.v0 = PromoteTo(dh, LowerHalf(v_2x));
-  ret.v1 = detail::PromoteUpperTo(dh, v_2x);
+  ret.v1 = PromoteUpperTo(dh, v_2x);
   return ret;
 }
 
@@ -1786,9 +1695,22 @@ HWY_API Vec256<TFromD<DW>> PromoteTo(DW d, Vec32<TN> v) {
   const Repartition<MakeWide<MakeWide<TN>>, decltype(dh)> d4;  // 32-bit lanes
   const auto v32 = PromoteTo(d4, v);
   Vec256<TFromD<DW>> ret;
+  // PromoteLowerTo is defined later in generic_ops-inl.h.
   ret.v0 = PromoteTo(dh, LowerHalf(v32));
-  ret.v1 = detail::PromoteUpperTo(dh, v32);
+  ret.v1 = PromoteUpperTo(dh, v32);
   return ret;
+}
+
+// ------------------------------ PromoteUpperTo
+
+// Not native, but still define this here because wasm_128 toggles
+// HWY_NATIVE_PROMOTE_UPPER_TO.
+template <class D, class T>
+HWY_API VFromD<D> PromoteUpperTo(D d, Vec256<T> v) {
+  // Lanes(d) may differ from Lanes(DFromV<decltype(v)>()). Use the lane type
+  // from v because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<T, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
 }
 
 // ------------------------------ DemoteTo

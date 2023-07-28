@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>
-
 #include <cmath>  // std::isfinite
 
 #include "hwy/base.h"
@@ -63,272 +61,6 @@ HWY_NOINLINE void TestAllRebind() {
 #if HWY_HAVE_INTEGER64
   ForExtendableVectors<TestRebind<uint64_t>, 3>()(uint8_t());
 #endif  // HWY_HAVE_INTEGER64
-}
-
-// Cast and ensure bytes are the same. Called directly from TestAllBitCast or
-// via TestBitCastFrom.
-template <typename ToT>
-struct TestBitCast {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Repartition<ToT, D> dto;
-    const size_t N = Lanes(d);
-    const size_t Nto = Lanes(dto);
-    if (N == 0 || Nto == 0) return;
-    HWY_ASSERT_EQ(N * sizeof(T), Nto * sizeof(ToT));
-    const auto vf = Iota(d, 1);
-    const auto vt = BitCast(dto, vf);
-    // Must return the same bits
-    auto from_lanes = AllocateAligned<T>(Lanes(d));
-    auto to_lanes = AllocateAligned<ToT>(Lanes(dto));
-    HWY_ASSERT(from_lanes && to_lanes);
-    Store(vf, d, from_lanes.get());
-    Store(vt, dto, to_lanes.get());
-    HWY_ASSERT(
-        BytesEqual(from_lanes.get(), to_lanes.get(), Lanes(d) * sizeof(T)));
-  }
-};
-
-// From D to all types.
-struct TestBitCastFrom {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-    TestBitCast<uint8_t>()(t, d);
-    TestBitCast<uint16_t>()(t, d);
-    TestBitCast<uint32_t>()(t, d);
-#if HWY_HAVE_INTEGER64
-    TestBitCast<uint64_t>()(t, d);
-#endif
-    TestBitCast<int8_t>()(t, d);
-    TestBitCast<int16_t>()(t, d);
-    TestBitCast<int32_t>()(t, d);
-#if HWY_HAVE_INTEGER64
-    TestBitCast<int64_t>()(t, d);
-#endif
-    TestBitCast<float>()(t, d);
-#if HWY_HAVE_FLOAT64
-    TestBitCast<double>()(t, d);
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllBitCast() {
-  // For HWY_SCALAR and partial vectors, we can only cast to same-sized types:
-  // the former can't partition its single lane, and the latter can be smaller
-  // than a destination type.
-  const ForPartialVectors<TestBitCast<uint8_t>> to_u8;
-  to_u8(uint8_t());
-  to_u8(int8_t());
-
-  const ForPartialVectors<TestBitCast<int8_t>> to_i8;
-  to_i8(uint8_t());
-  to_i8(int8_t());
-
-  const ForPartialVectors<TestBitCast<uint16_t>> to_u16;
-  to_u16(uint16_t());
-  to_u16(int16_t());
-
-  const ForPartialVectors<TestBitCast<int16_t>> to_i16;
-  to_i16(uint16_t());
-  to_i16(int16_t());
-
-  const ForPartialVectors<TestBitCast<uint32_t>> to_u32;
-  to_u32(uint32_t());
-  to_u32(int32_t());
-  to_u32(float());
-
-  const ForPartialVectors<TestBitCast<int32_t>> to_i32;
-  to_i32(uint32_t());
-  to_i32(int32_t());
-  to_i32(float());
-
-#if HWY_HAVE_INTEGER64
-  const ForPartialVectors<TestBitCast<uint64_t>> to_u64;
-  to_u64(uint64_t());
-  to_u64(int64_t());
-#if HWY_HAVE_FLOAT64
-  to_u64(double());
-#endif
-
-  const ForPartialVectors<TestBitCast<int64_t>> to_i64;
-  to_i64(uint64_t());
-  to_i64(int64_t());
-#if HWY_HAVE_FLOAT64
-  to_i64(double());
-#endif
-#endif  // HWY_HAVE_INTEGER64
-
-  const ForPartialVectors<TestBitCast<float>> to_float;
-  to_float(uint32_t());
-  to_float(int32_t());
-  to_float(float());
-
-#if HWY_HAVE_FLOAT64
-  const ForPartialVectors<TestBitCast<double>> to_double;
-  to_double(double());
-#if HWY_HAVE_INTEGER64
-  to_double(uint64_t());
-  to_double(int64_t());
-#endif  // HWY_HAVE_INTEGER64
-#endif  // HWY_HAVE_FLOAT64
-
-#if HWY_TARGET != HWY_SCALAR
-  // For non-scalar vectors, we can cast all types to all.
-  ForAllTypes(ForGEVectors<64, TestBitCastFrom>());
-#endif
-}
-
-template <class TTo>
-struct TestResizeBitCastToOneLaneVect {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const size_t N = Lanes(d);
-    if (N == 0) {
-      return;
-    }
-
-    auto from_lanes = AllocateAligned<T>(N);
-    HWY_ASSERT(from_lanes);
-    auto v = Iota(d, 1);
-    Store(v, d, from_lanes.get());
-
-    const size_t num_of_bytes_to_copy = HWY_MIN(N * sizeof(T), sizeof(TTo));
-
-    int8_t active_bits_mask_i8_arr[sizeof(TTo)] = {};
-    for (size_t i = 0; i < num_of_bytes_to_copy; i++) {
-      active_bits_mask_i8_arr[i] = int8_t{-1};
-    }
-
-    TTo active_bits_int_mask;
-    CopyBytes<sizeof(TTo)>(active_bits_mask_i8_arr, &active_bits_int_mask);
-
-    const FixedTag<TTo, 1> d_to;
-    TTo expected_bits = 0;
-    memcpy(&expected_bits, from_lanes.get(), num_of_bytes_to_copy);
-
-    const auto expected = Set(d_to, expected_bits);
-    const auto v_active_bits_mask = Set(d_to, active_bits_int_mask);
-
-    const auto actual_1 = And(v_active_bits_mask, ResizeBitCast(d_to, v));
-    const auto actual_2 = ZeroExtendResizeBitCast(d_to, d, v);
-
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_1);
-    HWY_ASSERT_VEC_EQ(d_to, expected, actual_2);
-  }
-};
-
-HWY_NOINLINE void TestAllResizeBitCastToOneLaneVect() {
-  ForAllTypes(ForPartialVectors<TestResizeBitCastToOneLaneVect<uint32_t>>());
-#if HWY_HAVE_INTEGER64
-  ForAllTypes(ForPartialVectors<TestResizeBitCastToOneLaneVect<uint64_t>>());
-#endif
-}
-
-// Cast and ensure bytes are the same. Called directly from
-// TestAllSameSizeResizeBitCast or via TestSameSizeResizeBitCastFrom.
-template <typename ToT>
-struct TestSameSizeResizeBitCast {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Repartition<ToT, D> dto;
-    const auto v = Iota(d, 1);
-    const auto expected = BitCast(dto, v);
-
-    const VFromD<decltype(dto)> actual_1 = ResizeBitCast(dto, v);
-    const VFromD<decltype(dto)> actual_2 = ZeroExtendResizeBitCast(dto, d, v);
-
-    HWY_ASSERT_VEC_EQ(dto, expected, actual_1);
-    HWY_ASSERT_VEC_EQ(dto, expected, actual_2);
-  }
-};
-
-// From D to all types.
-struct TestSameSizeResizeBitCastFrom {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T t, D d) {
-    TestSameSizeResizeBitCast<uint8_t>()(t, d);
-    TestSameSizeResizeBitCast<uint16_t>()(t, d);
-    TestSameSizeResizeBitCast<uint32_t>()(t, d);
-#if HWY_HAVE_INTEGER64
-    TestSameSizeResizeBitCast<uint64_t>()(t, d);
-#endif
-    TestSameSizeResizeBitCast<int8_t>()(t, d);
-    TestSameSizeResizeBitCast<int16_t>()(t, d);
-    TestSameSizeResizeBitCast<int32_t>()(t, d);
-#if HWY_HAVE_INTEGER64
-    TestSameSizeResizeBitCast<int64_t>()(t, d);
-#endif
-    TestSameSizeResizeBitCast<float>()(t, d);
-#if HWY_HAVE_FLOAT64
-    TestSameSizeResizeBitCast<double>()(t, d);
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllSameSizeResizeBitCast() {
-  // For HWY_SCALAR and partial vectors, we can only cast to same-sized types:
-  // the former can't partition its single lane, and the latter can be smaller
-  // than a destination type.
-  const ForPartialVectors<TestSameSizeResizeBitCast<uint8_t>> to_u8;
-  to_u8(uint8_t());
-  to_u8(int8_t());
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<int8_t>> to_i8;
-  to_i8(uint8_t());
-  to_i8(int8_t());
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<uint16_t>> to_u16;
-  to_u16(uint16_t());
-  to_u16(int16_t());
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<int16_t>> to_i16;
-  to_i16(uint16_t());
-  to_i16(int16_t());
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<uint32_t>> to_u32;
-  to_u32(uint32_t());
-  to_u32(int32_t());
-  to_u32(float());
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<int32_t>> to_i32;
-  to_i32(uint32_t());
-  to_i32(int32_t());
-  to_i32(float());
-
-#if HWY_HAVE_INTEGER64
-  const ForPartialVectors<TestSameSizeResizeBitCast<uint64_t>> to_u64;
-  to_u64(uint64_t());
-  to_u64(int64_t());
-#if HWY_HAVE_FLOAT64
-  to_u64(double());
-#endif
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<int64_t>> to_i64;
-  to_i64(uint64_t());
-  to_i64(int64_t());
-#if HWY_HAVE_FLOAT64
-  to_i64(double());
-#endif
-#endif  // HWY_HAVE_INTEGER64
-
-  const ForPartialVectors<TestSameSizeResizeBitCast<float>> to_float;
-  to_float(uint32_t());
-  to_float(int32_t());
-  to_float(float());
-
-#if HWY_HAVE_FLOAT64
-  const ForPartialVectors<TestSameSizeResizeBitCast<double>> to_double;
-  to_double(double());
-#if HWY_HAVE_INTEGER64
-  to_double(uint64_t());
-  to_double(int64_t());
-#endif  // HWY_HAVE_INTEGER64
-#endif  // HWY_HAVE_FLOAT64
-
-#if HWY_TARGET != HWY_SCALAR
-  // For non-scalar vectors, we can cast all types to all.
-  ForAllTypes(ForGEVectors<64, TestSameSizeResizeBitCastFrom>());
-#endif
 }
 
 template <typename ToT>
@@ -410,6 +142,72 @@ HWY_NOINLINE void TestAllPromoteTo() {
 #endif
 }
 
+template <typename ToT>
+struct TestPromoteUpperLowerTo {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
+    const Repartition<ToT, D> to_d;
+
+    const size_t N = Lanes(from_d);
+    auto from = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<ToT>(N / 2);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
+      }
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        expected[i] = from[N / 2 + i];
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteUpperTo(to_d, Load(from_d, from.get())));
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        expected[i] = from[i];
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteLowerTo(to_d, Load(from_d, from.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllPromoteUpperLowerTo() {
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<uint16_t>, 1> to_u16div2;
+  to_u16div2(uint8_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<uint32_t>, 1> to_u32div2;
+  to_u32div2(uint16_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<int16_t>, 1> to_i16div2;
+  to_i16div2(uint8_t());
+  to_i16div2(int8_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<int32_t>, 1> to_i32div2;
+  to_i32div2(uint16_t());
+  to_i32div2(int16_t());
+
+  // Must test f16/bf16 separately because we can only load/store/convert them.
+
+#if HWY_HAVE_INTEGER64
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<uint64_t>, 1> to_u64div2;
+  to_u64div2(uint32_t());
+
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<int64_t>, 1> to_i64div2;
+  to_i64div2(int32_t());
+  to_i64div2(uint32_t());
+#endif  // HWY_HAVE_INTEGER64
+
+#if HWY_HAVE_FLOAT64
+  const ForShrinkableVectors<TestPromoteUpperLowerTo<double>, 1> to_f64div2;
+  to_f64div2(int32_t());
+  to_f64div2(float());
+#endif  // HWY_HAVE_FLOAT64
+}
+
 template <typename T, HWY_IF_FLOAT(T)>
 bool IsFinite(T t) {
   return std::isfinite(t);
@@ -469,6 +267,9 @@ struct TestF16 {
 
     using TF16 = hwy::float16_t;
     const Rebind<TF16, DF32> df16;
+#if HWY_TARGET != HWY_SCALAR
+    const Twice<decltype(df16)> df16t;
+#endif
     const RebindToUnsigned<decltype(df16)> du16;
     // Extra Load/Store to ensure they are usable.
     auto temp16 = AllocateAligned<TF16>(N);
@@ -489,6 +290,18 @@ struct TestF16 {
       Store(v16, df16, temp16.get());
       HWY_ASSERT_VEC_EQ(df32, loaded,
                         PromoteTo(df32, Load(df16, temp16.get())));
+
+#if HWY_TARGET == HWY_SCALAR
+      const Vec<decltype(df16)> v16L = v16;
+#else
+      const Vec<decltype(df16t)> v16L = Combine(df16t, Zero(df16), v16);
+#endif
+      HWY_ASSERT_VEC_EQ(df32, loaded, PromoteLowerTo(df32, v16L));
+
+#if HWY_TARGET != HWY_SCALAR
+      const Vec<decltype(df16t)> v16H = Combine(df16t, v16, Zero(df16));
+      HWY_ASSERT_VEC_EQ(df32, loaded, PromoteUpperTo(df32, v16H));
+#endif
     }
   }
 };
@@ -554,6 +367,18 @@ struct TestBF16 {
       Store(v16, dbf16_half, temp16.get());
       const auto v16_loaded = Load(dbf16_half, temp16.get());
       HWY_ASSERT_VEC_EQ(d32, loaded, PromoteTo(d32, v16_loaded));
+
+#if HWY_TARGET == HWY_SCALAR
+      const auto v16L = v16_loaded;
+#else
+      const auto v16L = Combine(dbf16, Zero(dbf16_half), v16_loaded);
+#endif
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteLowerTo(d32, v16L));
+
+#if HWY_TARGET != HWY_SCALAR
+      const auto v16H = Combine(dbf16, v16_loaded, Zero(dbf16_half));
+      HWY_ASSERT_VEC_EQ(d32, loaded, PromoteUpperTo(d32, v16H));
+#endif
     }
   }
 };
@@ -888,10 +713,8 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllRebind);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBitCast);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllResizeBitCastToOneLaneVect);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllSameSizeResizeBitCast);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);

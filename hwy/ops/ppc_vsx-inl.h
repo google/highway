@@ -1264,10 +1264,10 @@ HWY_API V SaturatedAdd(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto sum = Add(a, b);
   const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(detail::TernaryLogic<0x42>(a, b, sum)));
+      BroadcastSignBit(detail::TernaryLogic<0x42>(a, b, sum));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, sum);
+  return IfNegativeThenElse(overflow_mask, overflow_result, sum);
 }
 
 #endif  // HWY_PPC_HAVE_10
@@ -1289,10 +1289,10 @@ HWY_API V SaturatedSub(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto diff = Sub(a, b);
   const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(detail::TernaryLogic<0x18>(a, b, diff)));
+      BroadcastSignBit(detail::TernaryLogic<0x18>(a, b, diff));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, diff);
+  return IfNegativeThenElse(overflow_mask, overflow_result, diff);
 }
 
 #endif  // HWY_PPC_HAVE_10
@@ -1379,15 +1379,23 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 }
 
 // ------------------------------ IfNegativeThenElse
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
                                         Vec128<T, N> no) {
   static_assert(IsSigned<T>(), "Only works for signed/float");
 
   const DFromV<decltype(v)> d;
+#if HWY_PPC_HAVE_10
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(
+      d, VFromD<decltype(du)>{vec_blendv(
+             BitCast(du, no).raw, BitCast(du, yes).raw, BitCast(du, v).raw)});
+#else
   const RebindToSigned<decltype(d)> di;
   return IfThenElse(MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v)))),
                     yes, no);
+#endif
 }
 
 // Absolute value of difference.
@@ -3763,24 +3771,99 @@ HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
-template <class D>
-HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
+#if HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+namespace detail {
+
+template <class V>
+static HWY_INLINE size_t VsxCntlzLsbb(V v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200 && \
+    HWY_IS_LITTLE_ENDIAN
+  // Use inline assembly to work around bug in GCC 11 and earlier on
+  // little-endian PPC9
+  int idx;
+  __asm__("vctzlsbb %0,%1" : "=r"(idx) : "v"(v.raw));
+  return static_cast<size_t>(idx);
+#else
+  return static_cast<size_t>(vec_cntlz_lsbb(v.raw));
+#endif
+}
+
+template <class V>
+static HWY_INLINE size_t VsxCnttzLsbb(V v) {
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200 && \
+    HWY_IS_LITTLE_ENDIAN
+  // Use inline assembly to work around bug in GCC 11 and earlier on
+  // little-endian PPC9
+  int idx;
+  __asm__("vclzlsbb %0,%1" : "=r"(idx) : "v"(v.raw));
+  return static_cast<size_t>(idx);
+#else
+  return static_cast<size_t>(vec_cnttz_lsbb(v.raw));
+#endif
+}
+
+}  // namespace detail
+#endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownFirstTrue(D d, MFromD<D> mask) {
+// For little-endian PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    return detail::VsxCntlzLsbb(bytes) / sizeof(T);
+  }
+#endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  (void)d;
   return Num0BitsBelowLS1Bit_Nonzero64(detail::BitsFromMask(mask));
 }
 
-template <class D>
-HWY_API intptr_t FindFirstTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
+// For little-endian PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  constexpr size_t kN = 16 / sizeof(T);
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    const size_t idx = detail::VsxCntlzLsbb(bytes) / sizeof(T);
+    return idx == kN ? -1 : static_cast<intptr_t>(idx);
+  }
+#endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  (void)d;
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero64(mask_bits)) : -1;
 }
 
-template <class D>
-HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API size_t FindKnownLastTrue(D d, MFromD<D> mask) {
+// For little-endian PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    const size_t idx = detail::VsxCnttzLsbb(bytes) / sizeof(T);
+    return 16 / sizeof(T) - 1 - idx;
+  }
+#endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  (void)d;
   return 63 - Num0BitsAboveMS1Bit_Nonzero64(detail::BitsFromMask(mask));
 }
 
-template <class D>
-HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
+template <class D, typename T = TFromD<D>>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
+// For little-endian PPC10, BitsFromMask is already efficient.
+#if HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  constexpr size_t kN = 16 / sizeof(T);
+  if (detail::IsFull(d)) {
+    const Repartition<uint8_t, D> d8;
+    const auto bytes = BitCast(d8, VecFromMask(d, mask));
+    const size_t idx = detail::VsxCnttzLsbb(bytes) / sizeof(T);
+    return idx == kN ? -1 : static_cast<intptr_t>(kN - 1 - idx);
+  }
+#endif  // HWY_PPC_HAVE_9 && (!HWY_PPC_HAVE_10 || HWY_IS_BIG_ENDIAN)
+  (void)d;
   const uint64_t mask_bits = detail::BitsFromMask(mask);
   return mask_bits ? intptr_t(63 - Num0BitsAboveMS1Bit_Nonzero64(mask_bits))
                    : -1;

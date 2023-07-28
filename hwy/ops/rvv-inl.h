@@ -624,6 +624,22 @@ HWY_RVV_FOREACH(HWY_RVV_EXT, Ext, lmul_ext, _EXT)
 HWY_RVV_FOREACH(HWY_RVV_EXT_VIRT, Ext, lmul_ext, _VIRT)
 #undef HWY_RVV_EXT_VIRT
 
+#if !HWY_HAVE_FLOAT16
+template <class D, HWY_IF_F16_D(D)>
+VFromD<D> Ext(D d, VFromD<Half<D>> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const Half<decltype(du)> duh;
+  return BitCast(d, Ext(du, BitCast(duh, v)));
+}
+#endif
+
+template <class D, HWY_IF_BF16_D(D)>
+VFromD<D> Ext(D d, VFromD<Half<D>> v) {
+  const RebindToUnsigned<decltype(d)> du;
+  const Half<decltype(du)> duh;
+  return BitCast(d, Ext(du, BitCast(duh, v)));
+}
+
 // For BitCastToByte, the D arg is only to prevent duplicate definitions caused
 // by _ALL_VIRT.
 
@@ -1434,8 +1450,7 @@ HWY_API V IfNegativeThenElse(V v, V yes, V no) {
   const DFromV<V> d;
   const RebindToSigned<decltype(d)> di;
 
-  MFromD<decltype(d)> m =
-      MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+  MFromD<decltype(d)> m = detail::LtS(BitCast(di, v), 0);
   return IfThenElse(m, yes, no);
 }
 

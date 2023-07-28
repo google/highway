@@ -78,11 +78,12 @@ For crypto. Native on Icelake+.
 
 ### SVE codegen
 
-* SVE2: use XAR for `RotateRight`
-* `CombineShiftRightBytes` use `TableLookupLanes` instead?
-* `Shuffle*`: use `TableLookupLanes` instead?
-* Use SME once available: DUP predicate, REVD (rotate 128-bit elements by 64),
-  SCLAMP/UCLAMP, 128-bit TRN/UZP/ZIP (also in F64MM)
+*   SVE2.1: TBLQ for `TableLookupBytes`
+*   SVE2: use XAR for `RotateRight`
+*   `CombineShiftRightBytes` use `TableLookupLanes` instead?
+*   `Shuffle*`: use `TableLookupLanes` instead?
+*   Use SME once available: DUP predicate, REVD (rotate 128-bit elements by 64),
+    SCLAMP/UCLAMP, 128-bit TRN/UZP/ZIP (also in F64MM)
 
 ### emu128 codegen
 
@@ -91,20 +92,15 @@ For crypto. Native on Icelake+.
 ### Add emu256 target
 Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
 
-### `MaxOfLanes, MinOfLanes` returning scalar
-Avoids extra broadcast.
-
 ### Reductions for 8-bit
 For orthogonality; already done for x86+NEON.
 
 ### Conflict detection
 For hash tables. Use VPCONFLICT on ZEN4.
 
-### `PromoteToEven`
-For `WidenMul`, `MinOfLanes`.
+### `PromoteEvenTo`
 
-### Add `DupEven` for 16-bit
-Use in `MinOfLanes` (helps NEON).
+For `WidenMul`, `MinOfLanes`.
 
 ### Masked add/sub
 For tolower (subtract if in range) or hash table probing.
@@ -188,3 +184,5 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~`PromoteTo` for all types (#915)~~ - by johnplatts in #1387
 *   ~~atan2~~
 *   ~~Slide1Up/Down~~ - by johnplatts in #1496
+*   ~~`MaxOfLanes, MinOfLanes` returning scalar~~
+*   ~~Add `DupEven` for 16-bit~~ - by johnplatts in #1431

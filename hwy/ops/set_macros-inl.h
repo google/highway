@@ -232,7 +232,7 @@
 
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
-#if (HWY_TARGET == HWY_AVX3_SPR) && 0  // TODO(janwas): enable when implemented
+#if (HWY_TARGET == HWY_AVX3_SPR) && 0  // TODO(janwas): enable after testing
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
@@ -360,11 +360,7 @@
 #if HWY_TARGET == HWY_NEON_WITHOUT_AES
 // Do not define HWY_TARGET_STR (no pragma).
 #else
-#if HWY_COMPILER_GCC_ACTUAL
-#define HWY_TARGET_STR "arch=armv8-a+crypto"
-#else  // clang
 #define HWY_TARGET_STR "+crypto"
-#endif  // HWY_COMPILER_*
 #endif  // HWY_TARGET == HWY_NEON_WITHOUT_AES
 
 #endif  // HWY_ARCH_ARM_V7
@@ -432,7 +428,7 @@
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
 #define HWY_HAVE_FLOAT16 0
-#define HWY_HAVE_FLOAT64 0
+#define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 1
 #define HWY_NATIVE_FMA 0
 #define HWY_CAP_GE256 0

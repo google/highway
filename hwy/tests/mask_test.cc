@@ -280,7 +280,6 @@ struct TestLogicalMask {
     HWY_ASSERT_MASK_EQ(d, m0, Not(m_all));
     HWY_ASSERT_MASK_EQ(d, m_all, Not(m0));
 
-    Print(d, ".", VecFromMask(d, ExclusiveNeither(m0, m0)));
     HWY_ASSERT_MASK_EQ(d, m_all, ExclusiveNeither(m0, m0));
     HWY_ASSERT_MASK_EQ(d, m0, ExclusiveNeither(m_all, m0));
     HWY_ASSERT_MASK_EQ(d, m0, ExclusiveNeither(m0, m_all));

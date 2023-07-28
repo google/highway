@@ -265,10 +265,25 @@ HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
   }
 HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
 HWY_SVE_FOREACH_BF16(HWY_SVE_FIRSTN, FirstN, whilelt)
+
 #undef HWY_SVE_FIRSTN
 
 template <class D>
 using MFromD = decltype(FirstN(D(), 0));
+
+#if !HWY_HAVE_FLOAT16
+template <class D, HWY_IF_F16_D(D)>
+MFromD<RebindToUnsigned<D>> FirstN(D /* tag */, size_t count) {
+  return FirstN(RebindToUnsigned<D>(), count);
+}
+#endif  // !HWY_HAVE_FLOAT16
+
+#if !HWY_SVE_HAVE_BFLOAT16
+template <class D, HWY_IF_BF16_D(D)>
+MFromD<RebindToUnsigned<D>> FirstN(D /* tag */, size_t count) {
+  return FirstN(RebindToUnsigned<D>(), count);
+}
+#endif  // !HWY_SVE_HAVE_BFLOAT16
 
 namespace detail {
 
@@ -3551,7 +3566,7 @@ HWY_API V IfNegativeThenElse(V v, V yes, V no) {
   const DFromV<V> d;
   const RebindToSigned<decltype(d)> di;
 
-  const svbool_t m = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
+  const svbool_t m = detail::LtN(BitCast(di, v), 0);
   return IfThenElse(m, yes, no);
 }
 

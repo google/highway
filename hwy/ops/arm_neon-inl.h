@@ -1272,13 +1272,32 @@ HWY_API Vec128<int64_t> Combine(D /* tag */, Vec64<int64_t> hi,
   return Vec128<int64_t>(vcombine_s64(lo.raw, hi.raw));
 }
 
-#if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_F16_D(D)>
-HWY_API Vec128<float16_t> Combine(D /* tag */, Vec64<float16_t> hi,
+HWY_API Vec128<float16_t> Combine(D d, Vec64<float16_t> hi,
                                   Vec64<float16_t> lo) {
+#if HWY_HAVE_FLOAT16
+  (void)d;
   return Vec128<float16_t>(vcombine_f16(lo.raw, hi.raw));
-}
+#else
+  const RebindToUnsigned<D> du;
+  const Half<decltype(du)> duh;
+  return BitCast(d, Combine(du, BitCast(duh, hi), BitCast(duh, lo)));
 #endif
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API Vec128<bfloat16_t> Combine(D d, Vec64<bfloat16_t> hi,
+                                   Vec64<bfloat16_t> lo) {
+#if HWY_NEON_HAVE_BFLOAT16
+  (void)d;
+  return Vec128<bfloat16_t>(vcombine_bf16(lo.raw, hi.raw));
+#else
+  const RebindToUnsigned<D> du;
+  const Half<decltype(du)> duh;
+  return BitCast(d, Combine(du, BitCast(duh, hi), BitCast(duh, lo)));
+#endif
+}
+
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec128<float> Combine(D /* tag */, Vec64<float> hi, Vec64<float> lo) {
   return Vec128<float>(vcombine_f32(lo.raw, hi.raw));
@@ -3774,6 +3793,97 @@ HWY_API Vec64<double> PromoteTo(D d, Vec32<int32_t> v) {
 }
 
 #endif  // HWY_HAVE_FLOAT64
+
+// ------------------------------ PromoteUpperTo
+
+#if HWY_ARCH_ARM_A64
+
+// Per-target flag to prevent generic_ops-inl.h from defining PromoteUpperTo.
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// Unsigned: zero-extend to full vector.
+template <class D, HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> PromoteUpperTo(D /* tag */, Vec128<uint8_t> v) {
+  return Vec128<uint16_t>(vmovl_high_u8(v.raw));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> PromoteUpperTo(D /* tag */, Vec128<uint16_t> v) {
+  return Vec128<uint32_t>(vmovl_high_u16(v.raw));
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec128<uint64_t> PromoteUpperTo(D /* tag */, Vec128<uint32_t> v) {
+  return Vec128<uint64_t>(vmovl_high_u32(v.raw));
+}
+template <class D, HWY_IF_I16_D(D)>
+HWY_API Vec128<int16_t> PromoteUpperTo(D d, Vec128<uint8_t> v) {
+  return BitCast(d, Vec128<uint16_t>(vmovl_high_u8(v.raw)));
+}
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec128<int32_t> PromoteUpperTo(D d, Vec128<uint16_t> v) {
+  return BitCast(d, Vec128<uint32_t>(vmovl_high_u16(v.raw)));
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec128<int64_t> PromoteUpperTo(D d, Vec128<uint32_t> v) {
+  return BitCast(d, Vec128<uint64_t>(vmovl_high_u32(v.raw)));
+}
+
+// Signed: replicate sign bit to full vector.
+template <class D, HWY_IF_I16_D(D)>
+HWY_API Vec128<int16_t> PromoteUpperTo(D /* tag */, Vec128<int8_t> v) {
+  return Vec128<int16_t>(vmovl_high_s8(v.raw));
+}
+template <class D, HWY_IF_I32_D(D)>
+HWY_API Vec128<int32_t> PromoteUpperTo(D /* tag */, Vec128<int16_t> v) {
+  return Vec128<int32_t>(vmovl_high_s16(v.raw));
+}
+template <class D, HWY_IF_I64_D(D)>
+HWY_API Vec128<int64_t> PromoteUpperTo(D /* tag */, Vec128<int32_t> v) {
+  return Vec128<int64_t>(vmovl_high_s32(v.raw));
+}
+
+#if HWY_NEON_HAVE_FLOAT16C
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> PromoteUpperTo(D /* tag */, Vec128<float16_t> v) {
+  return Vec128<float>(vcvt_high_f32_f16(v.raw));
+}
+
+#endif  // HWY_NEON_HAVE_FLOAT16C
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, VFromD<Repartition<bfloat16_t, D>> v) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToSigned<decltype(df32)> di32;
+  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
+}
+
+#if HWY_HAVE_FLOAT64
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> PromoteUpperTo(D /* tag */, Vec128<float> v) {
+  return Vec128<double>(vcvt_high_f64_f32(v.raw));
+}
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> PromoteUpperTo(D /* tag */, Vec128<int32_t> v) {
+  const int64x2_t i64 = vmovl_high_s32(v.raw);
+  return Vec128<double>(vcvtq_f64_s64(i64));
+}
+
+#endif  // HWY_HAVE_FLOAT64
+
+// Generic version for <=64 bit input/output (_high is only for full vectors).
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), class V>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
+}
+
+#endif  // HWY_ARCH_ARM_A64
 
 // ------------------------------ DemoteTo (ConvertTo)
 

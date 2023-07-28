@@ -14,7 +14,8 @@
 // limitations under the License.
 
 // Include guard (still compiled once per target)
-#if defined(HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_) == \
+    defined(HWY_TARGET_TOGGLE)  // NOLINT
 #ifdef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #else

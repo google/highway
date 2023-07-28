@@ -1114,22 +1114,20 @@ template <class V, HWY_IF_I32_D(DFromV<V>)>
 HWY_API V SaturatedAdd(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto sum = Add(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(AndNot(Xor(a, b), Xor(a, sum))));
+  const auto overflow_mask = AndNot(Xor(a, b), Xor(a, sum));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int32_t>()));
-  return IfThenElse(overflow_mask, overflow_result, sum);
+  return IfNegativeThenElse(overflow_mask, overflow_result, sum);
 }
 
 template <class V, HWY_IF_I32_D(DFromV<V>)>
 HWY_API V SaturatedSub(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto diff = Sub(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(And(Xor(a, b), Xor(a, diff))));
+  const auto overflow_mask = And(Xor(a, b), Xor(a, diff));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int32_t>()));
-  return IfThenElse(overflow_mask, overflow_result, diff);
+  return IfNegativeThenElse(overflow_mask, overflow_result, diff);
 }
 
 #endif  // HWY_NATIVE_I32_SATURATED_ADDSUB
@@ -1145,22 +1143,20 @@ template <class V, HWY_IF_I64_D(DFromV<V>)>
 HWY_API V SaturatedAdd(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto sum = Add(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(AndNot(Xor(a, b), Xor(a, sum))));
+  const auto overflow_mask = AndNot(Xor(a, b), Xor(a, sum));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, sum);
+  return IfNegativeThenElse(overflow_mask, overflow_result, sum);
 }
 
 template <class V, HWY_IF_I64_D(DFromV<V>)>
 HWY_API V SaturatedSub(V a, V b) {
   const DFromV<decltype(a)> d;
   const auto diff = Sub(a, b);
-  const auto overflow_mask =
-      MaskFromVec(BroadcastSignBit(And(Xor(a, b), Xor(a, diff))));
+  const auto overflow_mask = And(Xor(a, b), Xor(a, diff));
   const auto overflow_result =
       Xor(BroadcastSignBit(a), Set(d, LimitsMax<int64_t>()));
-  return IfThenElse(overflow_mask, overflow_result, diff);
+  return IfNegativeThenElse(overflow_mask, overflow_result, diff);
 }
 
 #endif  // HWY_NATIVE_I64_SATURATED_ADDSUB
@@ -1251,6 +1247,41 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
       dn, Min(BitCast(dn_u, i2i_demote_result), BitCast(dn_u, max_signed_val)));
 }
 #endif
+
+// ------------------------------ PromoteLowerTo
+
+// There is no codegen advantage for a native version of this. It is provided
+// only for convenience.
+template <class D, class V>
+HWY_API VFromD<D> PromoteLowerTo(D d, V v) {
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, LowerHalf(dh, v));
+}
+
+// ------------------------------ PromoteUpperTo
+
+#if (defined(HWY_NATIVE_PROMOTE_UPPER_TO) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// This requires UpperHalf.
+#if HWY_TARGET != HWY_SCALAR || HWY_IDE
+
+template <class D, class V>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
+}
+
+#endif  // HWY_TARGET != HWY_SCALAR
+#endif  // HWY_NATIVE_PROMOTE_UPPER_TO
 
 // ------------------------------ float16_t <-> float
 
