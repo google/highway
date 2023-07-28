@@ -2778,7 +2778,7 @@ HWY_API Vec256<T> LowerHalf(Vec512<T> v) {
 
 // ------------------------------ UpperHalf
 
-template <class D, HWY_IF_V_SIZE_D(D, 32)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT3264_D(D)>
 HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
   const RebindToUnsigned<decltype(d)> du;  // for float16_t
   const Twice<decltype(d)> dut;
