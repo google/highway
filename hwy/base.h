@@ -127,12 +127,16 @@ namespace hwy {
 // Clang and GCC require attributes on each function into which SIMD intrinsics
 // are inlined. Support both per-function annotation (HWY_ATTR) for lambdas and
 // automatic annotation via pragmas.
-#if HWY_COMPILER_CLANG
+#if HWY_COMPILER_ICC
+// As of ICC 2021.{1-9} the pragma is neither implemented nor required.
+#define HWY_PUSH_ATTRIBUTES(targets_str)
+#define HWY_POP_ATTRIBUTES
+#elif HWY_COMPILER_CLANG
 #define HWY_PUSH_ATTRIBUTES(targets_str)                                \
   HWY_PRAGMA(clang attribute push(__attribute__((target(targets_str))), \
                                   apply_to = function))
 #define HWY_POP_ATTRIBUTES HWY_PRAGMA(clang attribute pop)
-#elif HWY_COMPILER_GCC
+#elif HWY_COMPILER_GCC_ACTUAL
 #define HWY_PUSH_ATTRIBUTES(targets_str) \
   HWY_PRAGMA(GCC push_options) HWY_PRAGMA(GCC target targets_str)
 #define HWY_POP_ATTRIBUTES HWY_PRAGMA(GCC pop_options)

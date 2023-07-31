@@ -167,16 +167,19 @@
 #define HWY_BROKEN_MSVC 0
 #endif
 
-// AVX3_DL and AVX3_ZEN4 require clang >= 7 (ensured above) or gcc >= 8.1.
-#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 801)
+// AVX3_DL and AVX3_ZEN4 require clang >= 7 (ensured above), gcc >= 8.1 or ICC
+// 2021.
+#if (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 801) || \
+    (HWY_COMPILER_ICC && HWY_COMPILER_ICC < 2021)
 #define HWY_BROKEN_AVX3_DL_ZEN4 (HWY_AVX3_DL | HWY_AVX3_ZEN4)
 #else
 #define HWY_BROKEN_AVX3_DL_ZEN4 0
 #endif
 
-// AVX3_SPR requires clang >= 14 or gcc >= 12.
-#if (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1400) || \
-    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200)
+// AVX3_SPR requires clang >= 14, gcc >= 12, or ICC 2021.
+#if (HWY_COMPILER_CLANG != 0 && HWY_COMPILER_CLANG < 1400) ||      \
+    (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1200) || \
+    (HWY_COMPILER_ICC && HWY_COMPILER_ICC < 2021)
 #define HWY_BROKEN_AVX3_SPR (HWY_AVX3_SPR)
 #else
 #define HWY_BROKEN_AVX3_SPR 0
