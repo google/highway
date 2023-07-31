@@ -7679,7 +7679,7 @@ namespace detail {
 
 // For well-defined float->int demotion in all x86_*-inl.h.
 template <class D>
-HWY_INLINE VFromD<D> ClampF64ToI32Max(D d, VFromD<D> v) {
+HWY_INLINE VFromD<D> ClampF64ToI32Max(const D& d, const VFromD<D>& v) {
   // The max can be exactly represented in binary64, so clamping beforehand
   // prevents x86 conversion from raising an exception and returning 80..00.
   return Min(v, Set(d, 2147483647.0));
@@ -7689,9 +7689,9 @@ HWY_INLINE VFromD<D> ClampF64ToI32Max(D d, VFromD<D> v) {
 // change the result because the max integer value is not exactly representable.
 // Instead detect the overflow result after conversion and fix it.
 template <class DI>
-HWY_INLINE VFromD<DI> FixConversionOverflow(DI di,
-                                            VFromD<RebindToFloat<DI>> original,
-                                            VFromD<DI> converted) {
+HWY_INLINE VFromD<DI> FixConversionOverflow(
+    const DI& di, const VFromD<RebindToFloat<DI>>& original,
+    const VFromD<DI>& converted) {
   // Combinations of original and output sign:
   //   --: normal <0 or -huge_val to 80..00: OK
   //   -+: -0 to 0                         : OK
