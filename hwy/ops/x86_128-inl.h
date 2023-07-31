@@ -181,8 +181,11 @@ HWY_INLINE uint64_t BitsFromMask(const Mask128<T, N> mask) {
 }  // namespace detail
 #endif  // HWY_TARGET <= HWY_AVX3
 
+// RemoveRef is required in case V is actually Vec128&, which has been observed
+// (only) with GCC 8.3-8.5.
 template <class V>
-using DFromV = Simd<typename V::PrivateT, V::kPrivateN, 0>;
+using DFromV =
+    Simd<typename RemoveRef<V>::PrivateT, RemoveRef<V>::kPrivateN, 0>;
 
 template <class V>
 using TFromV = typename V::PrivateT;
@@ -216,9 +219,10 @@ HWY_API Vec128<double, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
 }
 
 // Using the existing Zero function instead of a dedicated function for
-// deduction avoids having to forward-declare Vec256 here.
+// deduction avoids having to forward-declare Vec256 here. RemoveRef is required
+// in case D is Simd<>&, which has been observed (only) with GCC 8.3-8.5.
 template <class D>
-using VFromD = decltype(Zero(D()));
+using VFromD = decltype(Zero(RemoveRef<D>()));
 
 // ------------------------------ Tuple (VFromD)
 #include "hwy/ops/tuple-inl.h"
