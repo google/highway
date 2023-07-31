@@ -1003,6 +1003,36 @@ HWY_API VFromD<D> LoadDup128(D d, const T* HWY_RESTRICT p) {
   return LoadU(d, p);
 }
 
+#if HWY_PPC_HAVE_9
+#ifdef HWY_NATIVE_LOAD_N
+#undef HWY_NATIVE_LOAD_N
+#else
+#define HWY_NATIVE_LOAD_N
+#endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+  if (__builtin_constant_p(max_lanes_to_load) && max_lanes_to_load == 0) {
+    return Zero(d);
+  }
+
+  if (__builtin_constant_p(max_lanes_to_load >= HWY_MAX_LANES_D(D)) &&
+      max_lanes_to_load >= HWY_MAX_LANES_D(D)) {
+    return LoadU(d, p);
+  }
+#endif
+
+  const size_t num_of_bytes_to_load =
+      HWY_MIN(max_lanes_to_load, HWY_MAX_LANES_D(D)) * sizeof(TFromD<D>);
+  const Repartition<uint8_t, decltype(d)> du8;
+  return BitCast(
+      d, VFromD<decltype(du8)>{vec_xl_len(
+             reinterpret_cast<const unsigned char*>(p), num_of_bytes_to_load)});
+}
+#endif
+
 // Returns a vector with lane i=[0, N) set to "first" + i.
 namespace detail {
 
@@ -1100,6 +1130,37 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 8), typename T = TFromD<D>>
 HWY_API void StoreU(VFromD<D> v, D d, T* HWY_RESTRICT p) {
   Store(v, d, p);
 }
+
+#if HWY_PPC_HAVE_9
+
+#ifdef HWY_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
+#else
+#define HWY_NATIVE_STORE_N
+#endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+  if (__builtin_constant_p(max_lanes_to_store) && max_lanes_to_store == 0) {
+    return;
+  }
+
+  if (__builtin_constant_p(max_lanes_to_store >= HWY_MAX_LANES_D(D)) &&
+      max_lanes_to_store >= HWY_MAX_LANES_D(D)) {
+    StoreU(v, d, p);
+    return;
+  }
+#endif
+
+  const size_t num_of_bytes_to_store =
+      HWY_MIN(max_lanes_to_store, HWY_MAX_LANES_D(D)) * sizeof(TFromD<D>);
+  const Repartition<uint8_t, decltype(d)> du8;
+  vec_xst_len(BitCast(du8, v).raw, reinterpret_cast<unsigned char*>(p),
+              num_of_bytes_to_store);
+}
+#endif
 
 // ------------------------------ BlendedStore
 

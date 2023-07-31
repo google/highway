@@ -1070,6 +1070,360 @@ HWY_API void StoreInterleaved4(VFromD<D> part0, VFromD<D> part1,
 
 #endif  // HWY_NATIVE_LOAD_STORE_INTERLEAVED
 
+// ------------------------------ LoadN
+#if (defined(HWY_NATIVE_LOAD_N) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_LOAD_N
+#undef HWY_NATIVE_LOAD_N
+#else
+#define HWY_NATIVE_LOAD_N
+#endif
+
+#if HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
+namespace detail {
+
+template <class DTo, class DFrom>
+HWY_INLINE VFromD<DTo> LoadNResizeBitCast(DTo d_to, DFrom d_from,
+                                          VFromD<DFrom> v) {
+#if HWY_TARGET <= HWY_SSE2
+  // On SSE2/SSSE3/SSE4, the LoadU operation will zero out any lanes of v.raw
+  // past the first (lowest-index) Lanes(d_from) lanes of v.raw if
+  // sizeof(decltype(v.raw)) > d_from.MaxBytes() is true
+  (void)d_from;
+  return ResizeBitCast(d_to, v);
+#else
+  // On other targets such as PPC/NEON, the contents of any lanes past the first
+  // (lowest-index) Lanes(d_from) lanes of v.raw might be non-zero if
+  // sizeof(decltype(v.raw)) > d_from.MaxBytes() is true.
+  return ZeroExtendResizeBitCast(d_to, d_from, v);
+#endif
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 1),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  return (max_lanes_to_load > 0) ? LoadU(d, p) : Zero(d);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  const FixedTag<TFromD<D>, 1> d1;
+
+  if (max_lanes_to_load >= 2) {
+    return LoadU(d, p);
+  } else {
+    return (max_lanes_to_load == 1)
+               ? detail::LoadNResizeBitCast(d, d1, LoadU(d1, p))
+               : Zero(d);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  const FixedTag<TFromD<D>, 2> d2;
+  const Half<decltype(d2)> d1;
+
+  if (max_lanes_to_load <= 1)
+    return (max_lanes_to_load == 1)
+               ? detail::LoadNResizeBitCast(d, d1, LoadU(d1, p))
+               : Zero(d);
+  else if (max_lanes_to_load > 3)
+    return LoadU(d, p);
+
+  const auto v_lo = LoadU(d2, p);
+  if (max_lanes_to_load == 3) {
+    return Combine(d, detail::LoadNResizeBitCast(d2, d1, LoadU(d1, p + 2)),
+                   v_lo);
+  } else {
+    return detail::LoadNResizeBitCast(d, d2, v_lo);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  const FixedTag<TFromD<D>, 4> d4;
+  const Half<decltype(d4)> d2;
+  const Half<decltype(d2)> d1;
+
+  if (max_lanes_to_load <= 1)
+    return (max_lanes_to_load == 1)
+               ? detail::LoadNResizeBitCast(d, d1, LoadU(d1, p))
+               : Zero(d);
+  else if (max_lanes_to_load >= 8)
+    return LoadU(d, p);
+
+  const size_t leading_len = max_lanes_to_load & 4;
+  VFromD<decltype(d4)> v_trailing = Zero(d4);
+
+  if ((max_lanes_to_load & 2) != 0) {
+    const auto v_trailing_lo2 = LoadU(d2, p + leading_len);
+    if ((max_lanes_to_load & 1) != 0) {
+      v_trailing = Combine(
+          d4,
+          detail::LoadNResizeBitCast(d2, d1, LoadU(d1, p + leading_len + 2)),
+          v_trailing_lo2);
+    } else {
+      v_trailing = detail::LoadNResizeBitCast(d4, d2, v_trailing_lo2);
+    }
+  } else if ((max_lanes_to_load & 1) != 0) {
+    v_trailing = detail::LoadNResizeBitCast(d4, d1, LoadU(d1, p + leading_len));
+  }
+
+  if (leading_len != 0) {
+    return Combine(d, v_trailing, LoadU(d4, p));
+  } else {
+    return detail::LoadNResizeBitCast(d, d4, v_trailing);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  const FixedTag<TFromD<D>, 8> d8;
+  const Half<decltype(d8)> d4;
+  const Half<decltype(d4)> d2;
+  const Half<decltype(d2)> d1;
+
+  if (max_lanes_to_load <= 1)
+    return (max_lanes_to_load == 1)
+               ? detail::LoadNResizeBitCast(d, d1, LoadU(d1, p))
+               : Zero(d);
+  else if (max_lanes_to_load >= 16)
+    return LoadU(d, p);
+
+  const size_t leading_len = max_lanes_to_load & 12;
+  VFromD<decltype(d4)> v_trailing = Zero(d4);
+
+  if ((max_lanes_to_load & 2) != 0) {
+    const auto v_trailing_lo2 = LoadU(d2, p + leading_len);
+    if ((max_lanes_to_load & 1) != 0) {
+      v_trailing = Combine(
+          d4,
+          detail::LoadNResizeBitCast(d2, d1, LoadU(d1, p + leading_len + 2)),
+          v_trailing_lo2);
+    } else {
+      v_trailing = detail::LoadNResizeBitCast(d4, d2, v_trailing_lo2);
+    }
+  } else if ((max_lanes_to_load & 1) != 0) {
+    v_trailing = detail::LoadNResizeBitCast(d4, d1, LoadU(d1, p + leading_len));
+  }
+
+  if (leading_len != 0) {
+    if (leading_len >= 8) {
+      const auto v_hi7 = ((leading_len & 4) != 0)
+                             ? Combine(d8, v_trailing, LoadU(d4, p + 8))
+                             : detail::LoadNResizeBitCast(d8, d4, v_trailing);
+      return Combine(d, v_hi7, LoadU(d8, p));
+    } else {
+      return detail::LoadNResizeBitCast(d, d8,
+                                        Combine(d8, v_trailing, LoadU(d4, p)));
+    }
+  } else {
+    return detail::LoadNResizeBitCast(d, d4, v_trailing);
+  }
+}
+
+#if HWY_MAX_BYTES >= 32
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16), typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  const size_t N = Lanes(d);
+  if (max_lanes_to_load >= N) {
+    return LoadU(d, p);
+  }
+
+  const Half<decltype(d)> dh;
+  const size_t half_N = Lanes(dh);
+  if (max_lanes_to_load <= half_N) {
+    return ZeroExtendVector(d, LoadN(dh, p, max_lanes_to_load));
+  } else {
+    const auto v_lo = LoadU(dh, p);
+    const auto v_hi = LoadN(dh, p + half_N, max_lanes_to_load - half_N);
+    return Combine(d, v_hi, v_lo);
+  }
+}
+#endif  // HWY_MAX_BYTES >= 32
+#else   // !HWY_MEM_OPS_MIGHT_FAULT || HWY_HAVE_SCALABLE
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+#if HWY_MEM_OPS_MIGHT_FAULT
+  if (max_lanes_to_load <= 0) return Zero(d);
+#endif
+
+  const size_t N = Lanes(d);
+  return MaskedLoad(FirstN(d, HWY_MIN(max_lanes_to_load, N)), d, p);
+}
+#endif  // HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
+
+#endif
+
+// ------------------------------ StoreN
+#if (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
+#else
+#define HWY_NATIVE_STORE_N
+#endif
+
+#if HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
+namespace detail {
+
+template <class DH, HWY_IF_V_SIZE_LE_D(DH, 4)>
+HWY_INLINE VFromD<DH> StoreNGetUpperHalf(DH dh, VFromD<Twice<DH>> v) {
+  constexpr size_t kMinShrVectBytes =
+      (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) ? 8 : 16;
+  const FixedTag<uint8_t, kMinShrVectBytes> d_shift;
+  return ResizeBitCast(
+      dh, ShiftRightBytes<dh.MaxBytes()>(d_shift, ResizeBitCast(d_shift, v)));
+}
+
+template <class DH, HWY_IF_V_SIZE_GT_D(DH, 4)>
+HWY_INLINE VFromD<DH> StoreNGetUpperHalf(DH dh, VFromD<Twice<DH>> v) {
+  return UpperHalf(dh, v);
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 1),
+          typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  if (max_lanes_to_store > 0) {
+    StoreU(v, d, p);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2),
+          typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  if (max_lanes_to_store > 1) {
+    StoreU(v, d, p);
+  } else if (max_lanes_to_store == 1) {
+    const FixedTag<TFromD<D>, 1> d1;
+    StoreU(LowerHalf(d1, v), d1, p);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4),
+          typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const FixedTag<TFromD<D>, 2> d2;
+  const Half<decltype(d2)> d1;
+
+  if (max_lanes_to_store > 1) {
+    if (max_lanes_to_store >= 4) {
+      StoreU(v, d, p);
+    } else {
+      StoreU(ResizeBitCast(d2, v), d2, p);
+      if (max_lanes_to_store == 3) {
+        StoreU(ResizeBitCast(d1, detail::StoreNGetUpperHalf(d2, v)), d1, p + 2);
+      }
+    }
+  } else if (max_lanes_to_store == 1) {
+    StoreU(ResizeBitCast(d1, v), d1, p);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8),
+          typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const FixedTag<TFromD<D>, 4> d4;
+  const Half<decltype(d4)> d2;
+  const Half<decltype(d2)> d1;
+
+  if (max_lanes_to_store <= 1) {
+    if (max_lanes_to_store == 1) {
+      StoreU(ResizeBitCast(d1, v), d1, p);
+    }
+  } else if (max_lanes_to_store >= 8) {
+    StoreU(v, d, p);
+  } else if (max_lanes_to_store >= 4) {
+    StoreU(LowerHalf(d4, v), d4, p);
+    StoreN(detail::StoreNGetUpperHalf(d4, v), d4, p + 4,
+           max_lanes_to_store - 4);
+  } else {
+    StoreN(LowerHalf(d4, v), d4, p, max_lanes_to_store);
+  }
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16),
+          typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const FixedTag<TFromD<D>, 8> d8;
+  const Half<decltype(d8)> d4;
+  const Half<decltype(d4)> d2;
+  const Half<decltype(d2)> d1;
+
+  if (max_lanes_to_store <= 1) {
+    if (max_lanes_to_store == 1) {
+      StoreU(ResizeBitCast(d1, v), d1, p);
+    }
+  } else if (max_lanes_to_store >= 16) {
+    StoreU(v, d, p);
+  } else if (max_lanes_to_store >= 8) {
+    StoreU(LowerHalf(d8, v), d8, p);
+    StoreN(detail::StoreNGetUpperHalf(d8, v), d8, p + 8,
+           max_lanes_to_store - 8);
+  } else {
+    StoreN(LowerHalf(d8, v), d8, p, max_lanes_to_store);
+  }
+}
+
+#if HWY_MAX_BYTES >= 32
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16), typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const size_t N = Lanes(d);
+  if (max_lanes_to_store >= N) {
+    StoreU(v, d, p);
+    return;
+  }
+
+  const Half<decltype(d)> dh;
+  const size_t half_N = Lanes(dh);
+  if (max_lanes_to_store <= half_N) {
+    StoreN(LowerHalf(dh, v), dh, p, max_lanes_to_store);
+  } else {
+    StoreU(LowerHalf(dh, v), dh, p);
+    StoreN(UpperHalf(dh, v), dh, p + half_N, max_lanes_to_store - half_N);
+  }
+}
+#endif  // HWY_MAX_BYTES >= 32
+
+#else  // !HWY_MEM_OPS_MIGHT_FAULT || HWY_HAVE_SCALABLE
+template <class D, typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const size_t N = Lanes(d);
+  const size_t clamped_max_lanes_to_store = HWY_MIN(max_lanes_to_store, N);
+#if HWY_MEM_OPS_MIGHT_FAULT
+  if (clamped_max_lanes_to_store == 0) return;
+#endif
+
+  BlendedStore(v, FirstN(d, clamped_max_lanes_to_store), d, p);
+
+#if HWY_MEM_OPS_MIGHT_FAULT
+  detail::MaybeUnpoison(p, clamped_max_lanes_to_store);
+#endif
+}
+#endif  // HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
+
+#endif
+
 // ------------------------------ Integer AbsDiff and SumsOf8AbsDiff
 
 #if (defined(HWY_NATIVE_INTEGER_ABS_DIFF) == defined(HWY_TARGET_TOGGLE))

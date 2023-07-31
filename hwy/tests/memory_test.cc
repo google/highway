@@ -324,6 +324,254 @@ HWY_NOINLINE void TestAllCache() {
   Pause();
 }
 
+class TestLoadN {
+ private:
+  template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
+    const T conv_val = static_cast<T>(val);
+    return (conv_val == 0) ? static_cast<T>(-17) : conv_val;
+  }
+  template <class T, HWY_IF_FLOAT3264(T)>
+  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
+    const T flt_val = static_cast<T>(val);
+    return (flt_val == T{0} ? static_cast<T>(0.5426808228865735) : flt_val);
+  }
+  template <class T, hwy::EnableIf<IsSame<T, hwy::bfloat16_t>()>* = nullptr>
+  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
+    return BF16FromF32(GenerateNonZeroValue<float>(val));
+  }
+  template <class T, hwy::EnableIf<IsSame<T, hwy::float16_t>()>* = nullptr>
+  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
+    return F16FromF32(GenerateNonZeroValue<float>(val));
+  }
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    constexpr size_t kMaxLanesPerBlock = 16 / sizeof(T);
+    const size_t lpb = HWY_MIN(N, kMaxLanesPerBlock);
+    HWY_ASSERT(lpb >= 1);
+    HWY_ASSERT(N <= (static_cast<size_t>(~size_t(0)) / 4));
+
+    const size_t load_buf_len = (3 * N) + 4;
+
+    auto load_buf = AllocateAligned<T>(load_buf_len);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(load_buf && expected);
+
+    for (size_t i = 0; i < load_buf_len; i++) {
+      load_buf[i] = GenerateNonZeroValue<T>(i + 1);
+    }
+
+    std::fill(expected.get(), expected.get() + N, T(0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), LoadN(d, load_buf.get(), 0));
+
+    for (size_t i = 0; i <= lpb; i++) {
+      CopyBytes(load_buf.get(), expected.get(), i * sizeof(T));
+      const auto actual_1 = LoadN(d, load_buf.get(), i);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_1);
+
+      CopyBytes(load_buf.get() + 3, expected.get(), i * sizeof(T));
+      const auto actual_2 = LoadN(d, load_buf.get() + 3, i);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_2);
+    }
+
+    const size_t lplb = HWY_MAX(N / 4, lpb);
+    for (size_t i = HWY_MAX(lpb * 2, lplb); i <= N * 2; i += lplb) {
+      const size_t max_num_of_lanes_to_load = i + (11 & (lpb - 1));
+      const size_t expected_num_of_lanes_loaded =
+          HWY_MIN(max_num_of_lanes_to_load, N);
+
+      CopyBytes(load_buf.get(), expected.get(),
+                expected_num_of_lanes_loaded * sizeof(T));
+      const auto actual_1 = LoadN(d, load_buf.get(), max_num_of_lanes_to_load);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_1);
+
+      CopyBytes(load_buf.get() + 3, expected.get(),
+                expected_num_of_lanes_loaded * sizeof(T));
+      const auto actual_2 =
+          LoadN(d, load_buf.get() + 3, max_num_of_lanes_to_load);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_2);
+    }
+
+    load_buf[0] = GenerateNonZeroValue<T>(0);
+    CopyBytes(load_buf.get(), expected.get(), N * sizeof(T));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), LoadN(d, load_buf.get(), N));
+  }
+};
+
+HWY_NOINLINE void TestAllLoadN() {
+  ForAllTypes(ForPartialVectors<TestLoadN>());
+}
+
+class TestStoreN {
+ private:
+  template <class T, HWY_IF_FLOAT_OR_SPECIAL(T)>
+  static HWY_INLINE T NegativeFillValue() {
+    return LowestValue<T>();
+  }
+
+  template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+  static HWY_INLINE T NegativeFillValue() {
+    return static_cast<T>(-1);
+  }
+
+  template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+  static HWY_INLINE Vec<D> PositiveIota(D d, size_t start) {
+    using T = TFromD<D>;
+    using TI = MakeSigned<T>;
+
+    constexpr T kSignedMax = static_cast<T>(LimitsMax<TI>());
+    constexpr T kZeroReplVal = static_cast<T>(kSignedMax - 16);
+
+    const auto v = Iota(d, static_cast<T>(start));
+    return Or(v, IfThenElseZero(Eq(v, Zero(d)), Set(d, kZeroReplVal)));
+  }
+
+  template <class D, HWY_IF_FLOAT3264_D(D)>
+  static HWY_INLINE Vec<D> PositiveIota(D d, size_t start) {
+    return Max(Abs(Iota(d, static_cast<TFromD<D>>(start))),
+               Set(d, static_cast<TFromD<D>>(0.5426808228865735)));
+  }
+
+  template <class DF32>
+  static HWY_INLINE Vec<DF32> MaskedF32PositiveIota(DF32 df32, size_t start,
+                                                    int32_t mask) {
+    const RebindToSigned<decltype(df32)> di32;
+    return ConvertTo(
+        df32, And(Iota(di32, static_cast<int32_t>(start)), Set(di32, mask)));
+  }
+
+  template <class D, HWY_IF_F16_D(D),
+            HWY_IF_V_SIZE_LE_D(DFromV<Vec<D>>, HWY_MAX_BYTES / 2)>
+  static HWY_INLINE Vec<D> PositiveIota(D d, size_t start) {
+    const Rebind<float, decltype(d)> df32;
+    const RebindToSigned<decltype(d)> di16;
+    const auto vf32_iota = MaskedF32PositiveIota(df32, start, int32_t{0x07FF});
+    return BitCast(d, Max(BitCast(di16, DemoteTo(d, vf32_iota)),
+                          Set(di16, int16_t{0x3857})));
+  }
+
+  template <class D, HWY_IF_BF16_D(D),
+            HWY_IF_V_SIZE_LE_D(DFromV<Vec<D>>, HWY_MAX_BYTES / 2)>
+  static HWY_INLINE Vec<D> PositiveIota(D d, size_t start) {
+    const Rebind<float, decltype(d)> df32;
+    const RebindToSigned<decltype(d)> di16;
+    const auto vf32_iota = MaskedF32PositiveIota(df32, start, int32_t{0x00FF});
+    return BitCast(d, Max(BitCast(di16, DemoteTo(d, vf32_iota)),
+                          Set(di16, int16_t{0x3F0B})));
+  }
+
+#if HWY_TARGET != HWY_SCALAR
+  template <class D, HWY_IF_F16_D(D),
+            HWY_IF_V_SIZE_GT_D(DFromV<Vec<D>>, HWY_MAX_BYTES / 2)>
+  static HWY_INLINE Vec<D> PositiveIota(D d, size_t start) {
+    const Repartition<float, decltype(d)> df32;
+    const RebindToSigned<decltype(d)> di16;
+    const Half<decltype(d)> dh;
+
+    const size_t N_f32 = Lanes(df32);
+    const auto lo_vf32_iota =
+        MaskedF32PositiveIota(df32, start, int32_t{0x07FF});
+    const auto hi_vf32_iota =
+        MaskedF32PositiveIota(df32, start + N_f32, int32_t{0x07FF});
+
+    const auto vf16_iota =
+        Combine(d, DemoteTo(dh, hi_vf32_iota), DemoteTo(dh, lo_vf32_iota));
+    return BitCast(d,
+                   Max(BitCast(di16, vf16_iota), Set(di16, int16_t{0x3857})));
+  }
+
+  template <class D, HWY_IF_BF16_D(D),
+            HWY_IF_V_SIZE_GT_D(DFromV<Vec<D>>, HWY_MAX_BYTES / 2)>
+  static HWY_INLINE Vec<D> PositiveIota(D d, size_t start) {
+    const Repartition<float, decltype(d)> df32;
+    const RebindToSigned<decltype(d)> di16;
+    const Half<decltype(d)> dh;
+
+    const size_t N_f32 = Lanes(df32);
+    const auto lo_vf32_iota =
+        MaskedF32PositiveIota(df32, start, int32_t{0x07FF});
+    const auto hi_vf32_iota =
+        MaskedF32PositiveIota(df32, start + N_f32, int32_t{0x07FF});
+
+    const auto vbf16_iota = OrderedDemote2To(d, lo_vf32_iota, hi_vf32_iota);
+    return BitCast(d,
+                   Max(BitCast(di16, vbf16_iota), Set(di16, int16_t{0x3F0B})));
+  }
+#endif
+
+ public:
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    constexpr size_t kMaxLanesPerBlock = 16 / sizeof(T);
+    const size_t lpb = HWY_MIN(N, kMaxLanesPerBlock);
+    HWY_ASSERT(lpb >= 1);
+
+    const size_t full_dvec_N = Lanes(DFromV<Vec<D>>());
+    HWY_ASSERT(N <= full_dvec_N);
+    HWY_ASSERT(full_dvec_N <= (static_cast<size_t>(~size_t(0)) / 8));
+
+    const size_t store_n_buf_offset = HWY_MAX(kMaxLanesPerBlock, full_dvec_N);
+    const size_t store_buf_N = store_n_buf_offset + 3 * full_dvec_N + 4;
+    auto expected = AllocateAligned<T>(store_buf_N);
+    auto actual = AllocateAligned<T>(store_buf_N);
+    HWY_ASSERT(expected && actual);
+
+    const T neg_fill_val = NegativeFillValue<T>();
+    std::fill(expected.get(), expected.get() + store_buf_N, neg_fill_val);
+    std::fill(actual.get(), actual.get() + store_buf_N, neg_fill_val);
+
+    const auto v_neg_fill_val = Set(d, neg_fill_val);
+
+    for (size_t i = 0; i <= lpb; i++) {
+      const auto v = PositiveIota(d, i + 1);
+      const auto v_expected = IfThenElse(FirstN(d, i), v, v_neg_fill_val);
+
+      Store(v_expected, d, expected.get() + store_n_buf_offset);
+      Store(v_neg_fill_val, d, actual.get() + store_n_buf_offset);
+      StoreN(v, d, actual.get() + store_n_buf_offset, i);
+
+      HWY_ASSERT_ARRAY_EQ(expected.get(), actual.get(), store_buf_N);
+
+      StoreU(v_expected, d, expected.get() + store_n_buf_offset + 3);
+      StoreU(v_neg_fill_val, d, actual.get() + store_n_buf_offset + 3);
+      StoreN(v, d, actual.get() + store_n_buf_offset + 3, i);
+      HWY_ASSERT_ARRAY_EQ(expected.get(), actual.get(), store_buf_N);
+    }
+
+    const size_t lplb = HWY_MAX(N / 4, lpb);
+    for (size_t i = HWY_MAX(lpb * 2, lplb); i <= N * 2; i += lplb) {
+      const size_t max_num_of_lanes_to_store = i + (11 & (lpb - 1));
+      const size_t expected_num_of_lanes_written =
+          HWY_MIN(max_num_of_lanes_to_store, N);
+
+      const auto v = PositiveIota(d, max_num_of_lanes_to_store + 1);
+      const auto v_expected = IfThenElse(
+          FirstN(d, expected_num_of_lanes_written), v, v_neg_fill_val);
+
+      Store(v_expected, d, expected.get() + store_n_buf_offset);
+      Store(v_neg_fill_val, d, actual.get() + store_n_buf_offset);
+      StoreN(v, d, actual.get() + store_n_buf_offset,
+             max_num_of_lanes_to_store);
+
+      HWY_ASSERT_ARRAY_EQ(expected.get(), actual.get(), store_buf_N);
+
+      StoreU(v_expected, d, expected.get() + store_n_buf_offset + 3);
+      StoreU(v_neg_fill_val, d, actual.get() + store_n_buf_offset + 3);
+      StoreN(v, d, actual.get() + store_n_buf_offset + 3,
+             max_num_of_lanes_to_store);
+      HWY_ASSERT_ARRAY_EQ(expected.get(), actual.get(), store_buf_N);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllStoreN() {
+  ForAllTypes(ForPartialVectors<TestStoreN>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -340,6 +588,8 @@ HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllGather);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadN);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreN);
 }  // namespace hwy
 
 #endif

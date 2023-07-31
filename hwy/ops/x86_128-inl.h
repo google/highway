@@ -2608,6 +2608,145 @@ HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
 
 #endif  // HWY_TARGET > HWY_AVX3
 
+// ------------------------------ LoadN
+
+#if HWY_TARGET <= HWY_AVX2
+#ifdef HWY_NATIVE_LOAD_N
+#undef HWY_NATIVE_LOAD_N
+#else
+#define HWY_NATIVE_LOAD_N
+#endif
+
+template <class D,
+          HWY_IF_T_SIZE_ONE_OF_D(
+              D, (HWY_TARGET <= HWY_AVX3 ? ((1 << 1) | (1 << 2)) : 0) |
+                     (1 << 4) | (1 << 8)),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  const size_t num_of_lanes_to_load =
+      HWY_MIN(max_lanes_to_load, HWY_MAX_LANES_D(D));
+  const FixedTag<TFromD<D>, HWY_MAX(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>))>
+      d_full;
+  return ResizeBitCast(
+      d, MaskedLoad(FirstN(d_full, num_of_lanes_to_load), d_full, p));
+}
+
+#if HWY_TARGET > HWY_AVX3
+namespace detail {
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 2), typename T = TFromD<D>>
+HWY_INLINE VFromD<D> AVX2UIF8Or16LoadLeadingN(VFromD<D> /*load_mask*/, D /*d*/,
+                                              const T* HWY_RESTRICT /*p*/,
+                                              VFromD<D> v_trailing) {
+  return v_trailing;
+}
+
+template <class D, HWY_IF_V_SIZE_GT_D(D, 2), typename T = TFromD<D>>
+HWY_INLINE VFromD<D> AVX2UIF8Or16LoadLeadingN(VFromD<D> load_mask, D d,
+                                              const T* HWY_RESTRICT p,
+                                              VFromD<D> v_trailing) {
+  using DI32 = Repartition<int32_t, D>;
+  const FixedTag<int32_t, HWY_MAX(HWY_MAX_LANES_D(DI32), 4)> di32_full;
+
+  // ResizeBitCast of load_mask to di32 is okay below if
+  // d.MaxBytes() < di32.MaxBytes() is true as any lanes of load_mask.raw past
+  // the first (lowest-index) lanes of load_mask.raw will have already been
+  // zeroed out
+  return ResizeBitCast(
+      d, IfNegativeThenElse(
+             ResizeBitCast(di32_full, load_mask),
+             MaskedLoad(MaskFromVec(ResizeBitCast(di32_full, load_mask)),
+                        di32_full, reinterpret_cast<const int32_t*>(p)),
+             ResizeBitCast(di32_full, v_trailing)));
+}
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_INLINE VFromD<D> AVX2UIF8Or16LoadTrailingN(VFromD<D> /*load_mask*/, D d,
+                                               const T* HWY_RESTRICT p,
+                                               size_t num_of_lanes_to_load) {
+  return (num_of_lanes_to_load > 0) ? LoadU(d, p) : Zero(d);
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_D(D, 2),
+          typename T = TFromD<D>>
+HWY_INLINE VFromD<D> AVX2UIF8Or16LoadTrailingN(VFromD<D> /*load_mask*/, D d,
+                                               const T* HWY_RESTRICT p,
+                                               size_t num_of_lanes_to_load) {
+  if (num_of_lanes_to_load > 1) {
+    return LoadU(d, p);
+  } else {
+    const FixedTag<TFromD<D>, 1> d1;
+    return (num_of_lanes_to_load == 1) ? ResizeBitCast(d, LoadU(d1, p))
+                                       : Zero(d);
+  }
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_GT_D(D, 2),
+          typename T = TFromD<D>>
+HWY_INLINE VFromD<D> AVX2UIF8Or16LoadTrailingN(VFromD<D> load_mask, D d,
+                                               const T* HWY_RESTRICT p,
+                                               size_t num_of_lanes_to_load) {
+  const size_t trailing_n = num_of_lanes_to_load & 3;
+  if (trailing_n != 0) {
+    VFromD<D> v_trailing = And(load_mask, Set(d, p[num_of_lanes_to_load - 1]));
+
+    if ((trailing_n & 2) != 0) {
+      const Repartition<int16_t, decltype(d)> di16;
+      int16_t i16_bits;
+      CopyBytes<sizeof(int16_t)>(p + num_of_lanes_to_load - trailing_n,
+                                 &i16_bits);
+      v_trailing = BitCast(
+          d, IfNegativeThenElse(BitCast(di16, load_mask), Set(di16, i16_bits),
+                                BitCast(di16, v_trailing)));
+    }
+
+    return v_trailing;
+  } else {
+    return Zero(d);
+  }
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_LANES_GT_D(D, 1),
+          typename T = TFromD<D>>
+HWY_INLINE VFromD<D> AVX2UIF8Or16LoadTrailingN(VFromD<D> load_mask, D d,
+                                               const T* HWY_RESTRICT p,
+                                               size_t num_of_lanes_to_load) {
+  if ((num_of_lanes_to_load & 1) != 0) {
+    return And(load_mask, Set(d, p[num_of_lanes_to_load - 1]));
+  } else {
+    return Zero(d);
+  }
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p, size_t N) {
+  const size_t num_of_lanes_to_load = HWY_MIN(N, HWY_MAX_LANES_D(D));
+  const FixedTag<TFromD<D>, HWY_MAX(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>))>
+      d_full;
+
+  const auto load_mask = ResizeBitCast(
+      d, VecFromMask(d_full, FirstN(d_full, num_of_lanes_to_load)));
+  const auto v_trailing =
+      detail::AVX2UIF8Or16LoadTrailingN(load_mask, d, p, num_of_lanes_to_load);
+
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+  if (__builtin_constant_p(num_of_lanes_to_load < (4 / sizeof(TFromD<D>))) &&
+      num_of_lanes_to_load < (4 / sizeof(TFromD<D>))) {
+    return v_trailing;
+  }
+#endif
+
+  return detail::AVX2UIF8Or16LoadLeadingN(load_mask, d, p, v_trailing);
+}
+
+#endif  // HWY_TARGET > HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX2
+
 // ------------------------------ BlendedStore
 
 namespace detail {
@@ -5748,6 +5887,113 @@ HWY_API VFromD<D> SlideDownLanes(D d, VFromD<D> v, size_t amt) {
 
   return detail::SlideDownLanes(v, amt);
 }
+
+// ================================================== MEMORY (4)
+
+// ------------------------------ StoreN (ExtractLane)
+
+#if HWY_TARGET <= HWY_AVX2
+
+#ifdef HWY_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
+#else
+#define HWY_NATIVE_STORE_N
+#endif
+
+template <class D,
+          HWY_IF_T_SIZE_ONE_OF_D(
+              D, (HWY_TARGET <= HWY_AVX3 ? ((1 << 1) | (1 << 2)) : 0) |
+                     (1 << 4) | (1 << 8)),
+          typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const size_t num_of_lanes_to_store =
+      HWY_MIN(max_lanes_to_store, HWY_MAX_LANES_D(D));
+  BlendedStore(v, FirstN(d, num_of_lanes_to_store), d, p);
+}
+
+#if HWY_TARGET > HWY_AVX3
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  if (max_lanes_to_store > 0) {
+    StoreU(v, d, p);
+  }
+}
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          HWY_IF_LANES_D(D, 2), typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D /*d*/, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  if (max_lanes_to_store >= 1) {
+    p[static_cast<size_t>(max_lanes_to_store > 1)] = detail::ExtractLane<1>(v);
+    p[0] = GetLane(v);
+  }
+}
+
+namespace detail {
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), typename T = TFromD<D>>
+HWY_API void AVX2UIF8Or16StoreTrailingN(VFromD<D> v_trailing, D /*d*/,
+                                        T* HWY_RESTRICT p,
+                                        size_t num_of_lanes_to_store) {
+  // AVX2UIF8Or16StoreTrailingN should only be called for an I8/U8 vector if
+  // (num_of_lanes_to_store & 3) != 0 is true
+  const auto v_full128 = ResizeBitCast(Full128<TFromD<D>>(), v_trailing);
+  if ((num_of_lanes_to_store & 2) != 0) {
+    const uint16_t u16_bits = GetLane(BitCast(Full128<uint16_t>(), v_full128));
+    p[num_of_lanes_to_store - 1] = detail::ExtractLane<2>(v_full128);
+    CopyBytes<sizeof(uint16_t)>(&u16_bits,
+                                p + (num_of_lanes_to_store & ~size_t{3}));
+  } else {
+    p[num_of_lanes_to_store - 1] = GetLane(v_full128);
+  }
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2), typename T = TFromD<D>>
+HWY_API void AVX2UIF8Or16StoreTrailingN(VFromD<D> v_trailing, D /*d*/,
+                                        T* HWY_RESTRICT p,
+                                        size_t num_of_lanes_to_store) {
+  // AVX2UIF8Or16StoreTrailingN should only be called for an I16/U16/F16/BF16
+  // vector if (num_of_lanes_to_store & 1) == 1 is true
+  p[num_of_lanes_to_store - 1] = GetLane(v_trailing);
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          HWY_IF_LANES_GT_D(D, 2), typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const size_t num_of_lanes_to_store =
+      HWY_MIN(max_lanes_to_store, HWY_MAX_LANES_D(D));
+
+  const FixedTag<TFromD<D>, HWY_MAX(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>))>
+      d_full;
+  const RebindToUnsigned<decltype(d_full)> du_full;
+  const Repartition<int32_t, decltype(d_full)> di32_full;
+
+  const auto i32_store_mask = BitCast(
+      di32_full, VecFromMask(du_full, FirstN(du_full, num_of_lanes_to_store)));
+  const auto vi32 = ResizeBitCast(di32_full, v);
+
+  BlendedStore(vi32, MaskFromVec(i32_store_mask), di32_full,
+               reinterpret_cast<int32_t*>(p));
+
+  constexpr size_t kNumOfLanesPerI32 = 4 / sizeof(TFromD<D>);
+  constexpr size_t kTrailingLenMask = kNumOfLanesPerI32 - 1;
+  const size_t trailing_n = (num_of_lanes_to_store & kTrailingLenMask);
+
+  if (trailing_n != 0) {
+    const auto v_trailing = ResizeBitCast(
+        d, SlideDownLanes(di32_full, vi32,
+                          num_of_lanes_to_store / kNumOfLanesPerI32));
+    detail::AVX2UIF8Or16StoreTrailingN(v_trailing, d, p, num_of_lanes_to_store);
+  }
+}
+#endif  // HWY_TARGET > HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX2
 
 // ================================================== COMBINE
 
