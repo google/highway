@@ -15,7 +15,6 @@
 
 // Print() function
 
-#include "hwy/aligned_allocator.h"
 #include "hwy/highway.h"
 #include "hwy/print.h"
 
@@ -25,6 +24,10 @@
 #undef HIGHWAY_HWY_PRINT_INL_H_
 #else
 #define HIGHWAY_HWY_PRINT_INL_H_
+#endif
+
+#if HWY_TARGET == HWY_RVV
+#include "hwy/aligned_allocator.h"
 #endif
 
 HWY_BEFORE_NAMESPACE();
@@ -37,11 +40,18 @@ HWY_API void Print(const D d, const char* caption, V v, size_t lane_u = 0,
                    size_t max_lanes = 7) {
   const size_t N = Lanes(d);
   using T = TFromD<D>;
-  auto lanes = AllocateAligned<T>(N);
-  Store(v, d, lanes.get());
+#if HWY_TARGET == HWY_RVV
+  auto storage = AllocateAligned<T>(N);
+  T* HWY_RESTRICT lanes = storage.get();
+#else
+  // This works around an SVE compile error on GCC 11 and 12. Calling
+  // AllocateAligned here would seem to require it be marked with HWY_ATTR.
+  HWY_ALIGN T lanes[MaxLanes(d)];
+#endif
+  Store(v, d, lanes);
 
   const auto info = hwy::detail::MakeTypeInfo<T>();
-  hwy::detail::PrintArray(info, caption, lanes.get(), N, lane_u, max_lanes);
+  hwy::detail::PrintArray(info, caption, lanes, N, lane_u, max_lanes);
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
