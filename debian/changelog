@@ -1,115 +1,115 @@
 highway (1.0.5-1) UNRELEASED; urgency=medium
 
-* Add Insert/ExtractBlock, BroadcastBlock/Lane, NumBlocks
-* Add integer Le/Ge and [Neg]MulAdd, extend DemoteTo/PromoteTo
-* Add Leading/TrailingZeroCount, HighestSetBitIndex, ReverseBits
-* Add MaskedLoadOr, tuple Get/Set/Create, ReduceSum, WidenMulPairwiseAdd
-* Add [ZeroExtend]ResizeBitCast, BitwiseIfThenElse, Find[Known]LastTrue
-* Add AESRoundInv, AESKeyGenAssist
-* Add contrib/math Atan2/SinCos, contrib/unroller
-* Add fp16/bf16 support (Armv8, SVE, RVV), HWY_DYNAMIC_POINTER
-* Add OrderedTruncate2To, Per4LaneBlockShuffle, TwoTablesLookupLanes
-* Add SlideUp/Down[Blocks/Lanes], Slide1Up/Down, ReverseLaneBytes
-* Add SetBeforeFirst, SetAtOrBefore/AfterFirst, SetOnlyFirst 
-* Add 8-bit Reverse2/4/8, Shl/Shr, RotateRight, Reverse, Mul
-* Add 8/16-bit DupEven/Odd, TableLookupLanes
-* Add F64 ApproximateReciprocal[Sqrt], 32/64-bit SaturatedAdd/Sub
-* Build: Support Bazel modules
-* Codegen improvements
-* Compiler: support Clang 15/16
-* Doc: add Github pages, support policy, evaluation
-* Doc: publish AVX-512 throttling/startup findings
-* Release: add signing
-* Test: add GCC to Github Actions
-* VQSort: small N speedups: fix seeding, func ptr, 8-wide network.
-* VQSort: add BenchAllColdSort, VQSortStatic
-* VQSort: fix subnormal/inf/NaN, support fp16, fix KV types
-* Workarounds: RVV VXRM, x87 excess precision, missing intrinsics
+  * Add Insert/ExtractBlock, BroadcastBlock/Lane, NumBlocks
+  * Add integer Le/Ge and [Neg]MulAdd, extend DemoteTo/PromoteTo
+  * Add Leading/TrailingZeroCount, HighestSetBitIndex, ReverseBits
+  * Add MaskedLoadOr, tuple Get/Set/Create, ReduceSum, WidenMulPairwiseAdd
+  * Add [ZeroExtend]ResizeBitCast, BitwiseIfThenElse, Find[Known]LastTrue
+  * Add AESRoundInv, AESKeyGenAssist
+  * Add contrib/math Atan2/SinCos, contrib/unroller
+  * Add fp16/bf16 support (Armv8, SVE, RVV), HWY_DYNAMIC_POINTER
+  * Add OrderedTruncate2To, Per4LaneBlockShuffle, TwoTablesLookupLanes
+  * Add SlideUp/Down[Blocks/Lanes], Slide1Up/Down, ReverseLaneBytes
+  * Add SetBeforeFirst, SetAtOrBefore/AfterFirst, SetOnlyFirst 
+  * Add 8-bit Reverse2/4/8, Shl/Shr, RotateRight, Reverse, Mul
+  * Add 8/16-bit DupEven/Odd, TableLookupLanes
+  * Add F64 ApproximateReciprocal[Sqrt], 32/64-bit SaturatedAdd/Sub
+  * Build: Support Bazel modules
+  * Codegen improvements
+  * Compiler: support Clang 15/16
+  * Doc: add Github pages, support policy, evaluation
+  * Doc: publish AVX-512 throttling/startup findings
+  * Release: add signing
+  * Test: add GCC to Github Actions
+  * VQSort: small N speedups: fix seeding, func ptr, 8-wide network.
+  * VQSort: add BenchAllColdSort, VQSortStatic
+  * VQSort: fix subnormal/inf/NaN, support fp16, fix KV types
+  * Workarounds: RVV VXRM, x87 excess precision, missing intrinsics
 
--- Jan Wassenberg <janwas@google.com>  Wed, 19 Jul 2023 15:00:00 +0200
+ -- Jan Wassenberg <janwas@google.com>  Wed, 19 Jul 2023 15:00:00 +0200
 
 highway (1.0.4-1) UNRELEASED; urgency=medium
 
-* Add PPC8..10, SSE2, AVX3_ZEN4, NEON_WITHOUT_AES targets
-* Add Expand, LoadExpand, integer AbsDiff, SumsOf8AbsDiff
-* Improved Half/Twice support, codegen for Shift*Same
-* Support Wasm in Godbolt
-* Faster KV128 sorting
-* Fix armv7 build config, CMake config mode
-* Update RVV intrinsics for 1.0-draft
+  * Add PPC8..10, SSE2, AVX3_ZEN4, NEON_WITHOUT_AES targets
+  * Add Expand, LoadExpand, integer AbsDiff, SumsOf8AbsDiff
+  * Improved Half/Twice support, codegen for Shift*Same
+  * Support Wasm in Godbolt
+  * Faster KV128 sorting
+  * Fix armv7 build config, CMake config mode
+  * Update RVV intrinsics for 1.0-draft
 
  -- Jan Wassenberg <janwas@google.com>  Fri, 17 Mar 2023 15:00:00 +0200
 
 highway (1.0.3-1) UNRELEASED; urgency=medium
 
-* Add RearrangeToOddPlusEven, Xor3, 8-bit CompressStore, HWY_ASSUME
-* Add contrib/bit_pack for 8/16-bit lanes
-* Add WASM_EMU256 target
-* Documentation improvements
-* Allow opting out of C++ stdlib usage for Compiler Explorer
-* Update for new RVV intrinsics; faster WASM min/max and extmul/q15mul
-* Fix UB, GCC atomic
+  * Add RearrangeToOddPlusEven, Xor3, 8-bit CompressStore, HWY_ASSUME
+  * Add contrib/bit_pack for 8/16-bit lanes
+  * Add WASM_EMU256 target
+  * Documentation improvements
+  * Allow opting out of C++ stdlib usage for Compiler Explorer
+  * Update for new RVV intrinsics; faster WASM min/max and extmul/q15mul
+  * Fix UB, GCC atomic
 
  -- Jan Wassenberg <janwas@google.com>  Thu, 19 Jan 2023 13:00:00 +0200
 
 highway (1.0.2-1) UNRELEASED; urgency=medium
 
-* Add ExclusiveNeither, FindKnownFirstTrue, Ne128
-* Add 16-bit SumOfLanes/ReorderWidenMulAccumulate/ReorderDemote2To
-* Faster sort for low-entropy input, improved pivot selection
-* Add GN build system, Highway FAQ, k32v32 type to vqsort
-* CMake: Support find_package(GTest), add rvv-inl.h, add HWY_ENABLE_TESTS
-* Fix MIPS and C++20 build, Apple LLVM 10.3 detection, EMU128 AllTrue on RVV
-* Fix missing exec_prefix, RVV build, warnings, libatomic linking
-* Work around GCC 10.4 issue, disabled RDCYCLE, arm7 with vfpv3
-* Documentation/example improvements
-* Support static dispatch to SVE2_128 and SVE_256
+  * Add ExclusiveNeither, FindKnownFirstTrue, Ne128
+  * Add 16-bit SumOfLanes/ReorderWidenMulAccumulate/ReorderDemote2To
+  * Faster sort for low-entropy input, improved pivot selection
+  * Add GN build system, Highway FAQ, k32v32 type to vqsort
+  * CMake: Support find_package(GTest), add rvv-inl.h, add HWY_ENABLE_TESTS
+  * Fix MIPS and C++20 build, Apple LLVM 10.3 detection, EMU128 AllTrue on RVV
+  * Fix missing exec_prefix, RVV build, warnings, libatomic linking
+  * Work around GCC 10.4 issue, disabled RDCYCLE, arm7 with vfpv3
+  * Documentation/example improvements
+  * Support static dispatch to SVE2_128 and SVE_256
 
  -- Jan Wassenberg <janwas@google.com>  Thu, 27 Oct 2022 17:00:00 +0200
 
 highway (1.0.1-1) UNRELEASED; urgency=medium
 
-* Add Eq128, i64 Mul, unsigned->float ConvertTo
-* Faster sort for few unique keys, more robust pivot selection
-* Fix: floating-point generator for sort tests, Min/MaxOfLanes for i16
-* Fix: avoid always_inline in debug, link atomic
-* GCC warnings: string.h, maybe-uninitialized, ignored-attributes
-* GCC warnings: preprocessor int overflow, spurious use-after-free/overflow
-* Doc: <=HWY_AVX3, Full32/64/128, how to use generic-inl
+  * Add Eq128, i64 Mul, unsigned->float ConvertTo
+  * Faster sort for few unique keys, more robust pivot selection
+  * Fix: floating-point generator for sort tests, Min/MaxOfLanes for i16
+  * Fix: avoid always_inline in debug, link atomic
+  * GCC warnings: string.h, maybe-uninitialized, ignored-attributes
+  * GCC warnings: preprocessor int overflow, spurious use-after-free/overflow
+  * Doc: <=HWY_AVX3, Full32/64/128, how to use generic-inl
 
  -- Jan Wassenberg <janwas@google.com>  Tue, 23 Aug 2022 10:00:00 +0200
 
 highway (1.0.0-1) UNRELEASED; urgency=medium
 
-* ABI change: 64-bit target values, more room for expansion
-* Add CompressBlocksNot, CompressNot, Lt128Upper, Min/Max128Upper, TruncateTo
-* Add HWY_SVE2_128 target
-* Sort speedups especially for 128-bit
-* Documentation clarifications
-* Faster NEON CountTrue/FindFirstTrue/AllFalse/AllTrue
-* Improved SVE codegen
-* Fix u16x8 ConcatEven/Odd, SSSE3 i64 Lt
-* MSVC 2017 workarounds
-* Support for runtime dispatch on Arm/GCC/Linux
+  * ABI change: 64-bit target values, more room for expansion
+  * Add CompressBlocksNot, CompressNot, Lt128Upper, Min/Max128Upper, TruncateTo
+  * Add HWY_SVE2_128 target
+  * Sort speedups especially for 128-bit
+  * Documentation clarifications
+  * Faster NEON CountTrue/FindFirstTrue/AllFalse/AllTrue
+  * Improved SVE codegen
+  * Fix u16x8 ConcatEven/Odd, SSSE3 i64 Lt
+  * MSVC 2017 workarounds
+  * Support for runtime dispatch on Arm/GCC/Linux
 
  -- Jan Wassenberg <janwas@google.com>  Wed, 27 Jul 2022 10:00:00 +0200
 
 highway (0.17.0-1) UNRELEASED; urgency=medium
 
-* Add ExtractLane, InsertLane, IsInf, IsFinite, IsNaN
-* Add StoreInterleaved2, LoadInterleaved2/3/4, BlendedStore, SafeFillN
-* Add MulFixedPoint15, Or3
-* Add Copy[If], Find[If], Generate, Replace[If] algos
-* Add HWY_EMU128 target (replaces HWY_SCALAR)
-* HWY_RVV is feature-complete
-* Add HWY_ENABLE_CONTRIB build flag, HWY_NATIVE_FMA, HWY_WANT_SSSE3/SSE4 macros
-* Extend ConcatOdd/Even and StoreInterleaved* to all types
-* Allow CappedTag<T, nonPowerOfTwo>
-* Sort speedups: 2x for AVX2, 1.09x for AVX3; avoid x86 malloc
-* Expand documentation
-* Fix RDTSCP crash in nanobenchmark
-* Fix XCR0 check (was ignoring AVX3 on ICL)
-* Support Arm/RISC-V timers
+  * Add ExtractLane, InsertLane, IsInf, IsFinite, IsNaN
+  * Add StoreInterleaved2, LoadInterleaved2/3/4, BlendedStore, SafeFillN
+  * Add MulFixedPoint15, Or3
+  * Add Copy[If], Find[If], Generate, Replace[If] algos
+  * Add HWY_EMU128 target (replaces HWY_SCALAR)
+  * HWY_RVV is feature-complete
+  * Add HWY_ENABLE_CONTRIB build flag, HWY_NATIVE_FMA, HWY_WANT_SSSE3/SSE4 macros
+  * Extend ConcatOdd/Even and StoreInterleaved* to all types
+  * Allow CappedTag<T, nonPowerOfTwo>
+  * Sort speedups: 2x for AVX2, 1.09x for AVX3; avoid x86 malloc
+  * Expand documentation
+  * Fix RDTSCP crash in nanobenchmark
+  * Fix XCR0 check (was ignoring AVX3 on ICL)
+  * Support Arm/RISC-V timers
 
  -- Jan Wassenberg <janwas@google.com>  Fri, 20 May 2022 10:00:00 +0200
 
