@@ -592,8 +592,13 @@ struct TestSatWidenMulPairwiseAdd {
             dw, InterleaveUpper(dn_u, vn_unsigned_max, BitCast(dn_u, vn_b)),
             InterleaveUpper(dn, vn_signed_min, vn_neg_b)));
 
+    constexpr size_t kMaxLanesPerNBlock = 16 / sizeof(TN);
+    constexpr size_t kMaxLanesPerWBlock = 16 / sizeof(TW);
+
     for (size_t i = 0; i < NW; i++) {
-      const TW b = static_cast<TW>(tmp_lanes[i]);
+      const size_t blk_idx = i / kMaxLanesPerWBlock;
+      const TW b = static_cast<TW>(tmp_lanes[blk_idx * kMaxLanesPerNBlock +
+                                             (i & (kMaxLanesPerWBlock - 1))]);
       expected[i] =
           static_cast<TW>(b * b + static_cast<TW>(LimitsMax<TN_U>()) *
                                       static_cast<TW>(LimitsMin<TN>()));
