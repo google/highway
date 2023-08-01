@@ -7079,6 +7079,29 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
   return VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
 }
 
+// ------------------------------ SatWidenMulPairwiseAdd
+
+#if HWY_TARGET <= HWY_SSSE3
+
+#ifdef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#undef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#else
+#define HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#endif
+
+// Even if N=1, the input is always at least 2 lanes, hence _mm_maddubs_epi16
+// is safe.
+template <class DI16, class VU8, class VI8, HWY_IF_I16_D(DI16),
+          HWY_IF_V_SIZE_LE_D(DI16, 16), HWY_IF_U8_D(DFromV<VU8>),
+          HWY_IF_I8_D(DFromV<VI8>),
+          HWY_IF_LANES_D(DFromV<VU8>, HWY_MAX_LANES_V(VI8)),
+          HWY_IF_LANES_D(DFromV<VU8>, 2 * HWY_MAX_LANES_D(DI16))>
+HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(DI16 /* tag */, VU8 a, VI8 b) {
+  return VFromD<DI16>{_mm_maddubs_epi16(a.raw, b.raw)};
+}
+
+#endif
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ShiftLeft)
 
 // Generic for all vector lengths.

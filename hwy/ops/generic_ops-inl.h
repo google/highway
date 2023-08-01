@@ -2160,6 +2160,36 @@ HWY_API V NegMulAdd(V mul, V x, V add) {
 
 #endif  // HWY_NATIVE_INT_FMA
 
+// ------------------------------ SatWidenMulPairwiseAdd
+
+#if (defined(HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#undef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#else
+#define HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#endif
+
+template <class DI16, class VU8, class VI8,
+          class VU8_2 = Vec<Repartition<uint8_t, DI16>>, HWY_IF_I16_D(DI16),
+          HWY_IF_U8_D(DFromV<VU8>), HWY_IF_I8_D(DFromV<VI8>),
+          HWY_IF_LANES_D(DFromV<VU8>, HWY_MAX_LANES_V(VI8)),
+          HWY_IF_LANES_D(DFromV<VU8>, HWY_MAX_LANES_V(VU8_2))>
+HWY_API Vec<DI16> SatWidenMulPairwiseAdd(DI16 di16, VU8 a, VI8 b) {
+  const RebindToUnsigned<decltype(di16)> du16;
+
+  const auto a0 = And(BitCast(di16, a), Set(di16, int16_t{0x00FF}));
+  const auto b0 = ShiftRight<8>(ShiftLeft<8>(BitCast(di16, b)));
+
+  const auto a1 = BitCast(di16, ShiftRight<8>(BitCast(du16, a)));
+  const auto b1 = ShiftRight<8>(BitCast(di16, b));
+
+  return SaturatedAdd(Mul(a0, b0), Mul(a1, b1));
+}
+
+#endif
+
 // ------------------------------ F64 ApproximateReciprocal
 
 #if (defined(HWY_NATIVE_F64_APPROX_RECIP) == defined(HWY_TARGET_TOGGLE))

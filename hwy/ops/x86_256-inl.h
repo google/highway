@@ -5307,6 +5307,16 @@ HWY_API Vec256<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec256<int16_t> a,
   return Vec256<int32_t>{_mm256_madd_epi16(a.raw, b.raw)};
 }
 
+// ------------------------------ SatWidenMulPairwiseAdd
+
+template <class DI16, class VU8, class VI8, HWY_IF_I16_D(DI16),
+          HWY_IF_V_SIZE_D(DI16, 32), HWY_IF_U8_D(DFromV<VU8>),
+          HWY_IF_I8_D(DFromV<VI8>), HWY_IF_LANES_D(DFromV<VU8>, 32),
+          HWY_IF_LANES_D(DFromV<VI8>, 32)>
+HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(DI16 /* tag */, VU8 a, VI8 b) {
+  return VFromD<DI16>{_mm256_maddubs_epi16(a.raw, b.raw)};
+}
+
 // ------------------------------ ReorderWidenMulAccumulate
 template <class D, HWY_IF_SIGNED_D(D)>
 HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(D d, Vec256<int16_t> a,

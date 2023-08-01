@@ -1784,6 +1784,21 @@ HWY_API Vec1<int32_t> WidenMulPairwiseAdd(D32 /* tag */, Vec1<int16_t> a,
   return Vec1<int32_t>(a.raw * b.raw);
 }
 
+// ------------------------------ SatWidenMulPairwiseAdd
+
+#ifdef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#undef HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#else
+#define HWY_NATIVE_U8_I8_SATWIDENMULPAIRWISEADD
+#endif
+
+template <class DI16, HWY_IF_I16_D(DI16)>
+HWY_API Vec1<int16_t> SatWidenMulPairwiseAdd(DI16 /* tag */, Vec1<uint8_t> a,
+                                             Vec1<int8_t> b) {
+  return Vec1<int16_t>(static_cast<int16_t>(a.raw) *
+                       static_cast<int16_t>(b.raw));
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <class D32, HWY_IF_F32_D(D32)>
