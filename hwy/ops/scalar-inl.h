@@ -1795,6 +1795,16 @@ HWY_API Vec1<int32_t> WidenMulPairwiseAdd(D32 /* tag */, Vec1<int16_t> a,
 template <class DI16, HWY_IF_I16_D(DI16)>
 HWY_API Vec1<int16_t> SatWidenMulPairwiseAdd(DI16 /* tag */, Vec1<uint8_t> a,
                                              Vec1<int8_t> b) {
+  // Saturation of a.raw * b.raw is not needed on the HWY_SCALAR target as the
+  // input vectors only have 1 lane on the HWY_SCALAR target and as
+  // a.raw * b.raw is between -32640 and 32385, which is already within the
+  // range of an int16_t.
+
+  // On other targets, a saturated addition of a[0]*b[0] + a[1]*b[1] is needed
+  // as it is possible for the addition of a[0]*b[0] + a[1]*b[1] to overflow if
+  // a[0], a[1], b[0], and b[1] are all non-zero and b[0] and b[1] both have the
+  // same sign.
+
   return Vec1<int16_t>(static_cast<int16_t>(a.raw) *
                        static_cast<int16_t>(b.raw));
 }
