@@ -1351,6 +1351,22 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT aligned) {
   return Load(d, aligned);
 }
 
+#ifdef HWY_NATIVE_LOAD_N
+#undef HWY_NATIVE_LOAD_N
+#else
+#define HWY_NATIVE_LOAD_N
+#endif
+
+template <class D>
+HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  VFromD<D> v = Zero(d);
+  const size_t N = Lanes(d);
+  const size_t num_of_lanes_to_load = HWY_MIN(max_lanes_to_load, N);
+  CopyBytes(p, v.raw, num_of_lanes_to_load * sizeof(TFromD<D>));
+  return v;
+}
+
 // ------------------------------ Store
 
 template <class D>
@@ -1369,6 +1385,20 @@ HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D d,
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     if (m.bits[i]) p[i] = v.raw[i];
   }
+}
+
+#ifdef HWY_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
+#else
+#define HWY_NATIVE_STORE_N
+#endif
+
+template <class D>
+HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  const size_t N = Lanes(d);
+  const size_t num_of_lanes_to_store = HWY_MIN(max_lanes_to_store, N);
+  CopyBytes(v.raw, p, num_of_lanes_to_store * sizeof(TFromD<D>));
 }
 
 // ------------------------------ LoadInterleaved2/3/4

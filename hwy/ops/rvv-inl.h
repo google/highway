@@ -1605,6 +1605,8 @@ HWY_RVV_FOREACH(HWY_RVV_STORE, Store, se, _ALL_VIRT)
 HWY_RVV_FOREACH(HWY_RVV_BLENDED_STORE, BlendedStore, se, _ALL_VIRT)
 #undef HWY_RVV_BLENDED_STORE
 
+// ------------------------------ StoreN
+
 namespace detail {
 
 #define HWY_RVV_STOREN(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
@@ -1619,6 +1621,44 @@ HWY_RVV_FOREACH(HWY_RVV_STOREN, StoreN, se, _ALL_VIRT)
 #undef HWY_RVV_STOREN
 
 }  // namespace detail
+
+#ifdef HWY_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
+#else
+#define HWY_NATIVE_STORE_N
+#endif
+
+template <class D, typename T = TFromD<D>,
+          hwy::EnableIf<hwy::IsSame<T, TFromV<VFromD<D>>>()>* = nullptr>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  // NOTE: Need to call Lanes(d) and clamp max_lanes_to_store to Lanes(d), even
+  // if MaxLanes(d) >= MaxLanes(DFromV<VFromD<D>>()) is true, as it is possible
+  // for detail::StoreN(max_lanes_to_store, v, d, p) to store fewer than
+  // Lanes(DFromV<VFromD<D>>()) lanes to p if
+  // max_lanes_to_store > Lanes(DFromV<VFromD<D>>()) and
+  // max_lanes_to_store < 2 * Lanes(DFromV<VFromD<D>>()) are both true.
+
+  // Also need to make sure that no more than Lanes(d) lanes are stored to p
+  // if Lanes(d) < Lanes(DFromV<VFromD<D>>()) is true, which is possible if
+  // MaxLanes(d) < MaxLanes(DFromV<VFromD<D>>()) or
+  // d.Pow2() < DFromV<VFromD<D>>().Pow2() is true.
+  const size_t N = Lanes(d);
+  detail::StoreN(HWY_MIN(max_lanes_to_store, N), v, d, p);
+}
+
+// StoreN for BF16/F16 vectors
+template <class D, typename T = TFromD<D>,
+          hwy::EnableIf<!hwy::IsSame<T, TFromV<VFromD<D>>>()>* = nullptr,
+          HWY_IF_SPECIAL_FLOAT(T)>
+HWY_API void StoreN(VFromD<D> v, D /*d*/, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  using TStore = TFromV<VFromD<D>>;
+  const Rebind<TStore, D> d_store;
+  const size_t N = Lanes(d_store);
+  detail::StoreN(HWY_MIN(max_lanes_to_store, N), v, d_store,
+                 reinterpret_cast<TStore * HWY_RESTRICT>(p));
+}
 
 // ------------------------------ StoreU
 template <class V, class D>
