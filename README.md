@@ -217,7 +217,7 @@ above plus `-isystem /usr/i686-linux-gnu/include/c++/12/i686-linux-gnu`. See
 highway is now available in [vcpkg](https://github.com/Microsoft/vcpkg)
 
 ```bash
-vpkg install highway
+vcpkg install highway
 ```
 
 The highway port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
