@@ -2536,8 +2536,14 @@ HWY_API Vec512<double> LoadDup128(D /* tag */, const double* HWY_RESTRICT p) {
 
 // ------------------------------ Store
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_API void Store(Vec512<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
+  _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void Store(Vec512<bfloat16_t> v, D /* tag */,
+                   bfloat16_t* HWY_RESTRICT aligned) {
   _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
 }
 #if HWY_HAVE_FLOAT16
@@ -2559,6 +2565,11 @@ HWY_API void Store(Vec512<double> v, D /* tag */,
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
 HWY_API void StoreU(Vec512<T> v, D /* tag */, T* HWY_RESTRICT p) {
+  _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void StoreU(Vec512<bfloat16_t> v, D /* tag */,
+                    bfloat16_t* HWY_RESTRICT p) {
   _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
 }
 #if HWY_HAVE_FLOAT16
