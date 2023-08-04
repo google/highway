@@ -604,6 +604,13 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     <code>Vec&lt;D&gt; **WidenMulPairwiseAdd**(D d, V a, V b,)</code>: widens `a`
     and `b` to `TFromD<D>` and computes `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`.
 
+*   `VI`: `i8`, `VU`: `Vec<RebindToUnsigned<DFromV<VI>>>`,
+    `DI`: `RepartitionToWide<DFromV<VI>>` \
+    <code>Vec&lt;D&gt; **SatWidenMulPairwiseAdd**(DI di, VU a_u, VI b_i)</code>:
+    widens `a_u` and `b_i` to `TFromD<DI>` and computes
+    `a_u[2*i+1]*b_i[2*i+1] + a_u[2*i+0]*b_i[2*i+0]`, saturated to the range of
+    `TFromD<D>`.
+
 *   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
     <code>VW **ReorderWidenMulAccumulate**(D d, V a, V b, VW sum0, VW&
     sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] * b[i]` to
