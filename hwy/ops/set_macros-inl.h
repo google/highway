@@ -45,8 +45,9 @@
 #undef HWY_CAP_GE512
 
 // Supported on all targets except RVV (requires GCC 14 or upcoming Clang)
-#if HWY_TARGET == HWY_RVV && \
-    (HWY_COMPILER_GCC_ACTUAL < 1400 || HWY_COMPILER_CLANG)
+#if HWY_TARGET == HWY_RVV &&                                        \
+    ((HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 1400) || \
+     (HWY_COMPILER_CLANG))
 #define HWY_HAVE_TUPLE 0
 #else
 #define HWY_HAVE_TUPLE 1

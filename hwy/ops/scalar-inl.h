@@ -1076,6 +1076,18 @@ HWY_API Vec1<T> LoadDup128(D d, const T* HWY_RESTRICT aligned) {
   return Load(d, aligned);
 }
 
+#ifdef HWY_NATIVE_LOAD_N
+#undef HWY_NATIVE_LOAD_N
+#else
+#define HWY_NATIVE_LOAD_N
+#endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
+                        size_t max_lanes_to_load) {
+  return (max_lanes_to_load > 0) ? Load(d, p) : Zero(d);
+}
+
 // ------------------------------ Store
 
 template <class D, typename T = TFromD<D>>
@@ -1092,6 +1104,20 @@ template <class D, typename T = TFromD<D>>
 HWY_API void BlendedStore(const Vec1<T> v, Mask1<T> m, D d, T* HWY_RESTRICT p) {
   if (!m.bits) return;
   StoreU(v, d, p);
+}
+
+#ifdef HWY_NATIVE_STORE_N
+#undef HWY_NATIVE_STORE_N
+#else
+#define HWY_NATIVE_STORE_N
+#endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
+                    size_t max_lanes_to_store) {
+  if (max_lanes_to_store > 0) {
+    Store(v, d, p);
+  }
 }
 
 // ------------------------------ LoadInterleaved2/3/4

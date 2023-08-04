@@ -61,7 +61,7 @@
 // --------------------------- x86: 15 targets (+ one fallback)
 // Bits 0..3 reserved (4 targets)
 #define HWY_AVX3_SPR (1LL << 4)
-// Bit 5 reserved
+// Bit 5 reserved (likely AVX10.2 with 256-bit vectors)
 // Currently HWY_AVX3_DL plus a special case for CompressStore (10x as fast).
 // We may later also use VPCONFLICT.
 #define HWY_AVX3_ZEN4 (1LL << 6)  // see HWY_WANT_AVX3_ZEN4 below

@@ -266,7 +266,7 @@ HWY_API Vec512<double> Set(D /* tag */, double t) {
 // GCC pre-9.1 lacked setzero, so use Set instead.
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_API Vec512<TFromD<D>> Zero(D d) {
   return Set(d, TFromD<D>{0});
 }
@@ -2536,8 +2536,14 @@ HWY_API Vec512<double> LoadDup128(D /* tag */, const double* HWY_RESTRICT p) {
 
 // ------------------------------ Store
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_API void Store(Vec512<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
+  _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void Store(Vec512<bfloat16_t> v, D /* tag */,
+                   bfloat16_t* HWY_RESTRICT aligned) {
   _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
 }
 #if HWY_HAVE_FLOAT16
@@ -2559,6 +2565,11 @@ HWY_API void Store(Vec512<double> v, D /* tag */,
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
 HWY_API void StoreU(Vec512<T> v, D /* tag */, T* HWY_RESTRICT p) {
+  _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void StoreU(Vec512<bfloat16_t> v, D /* tag */,
+                    bfloat16_t* HWY_RESTRICT p) {
   _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
 }
 #if HWY_HAVE_FLOAT16
@@ -4868,8 +4879,8 @@ HWY_API Vec256<float> DemoteTo(D /* tag */, Vec512<double> v) {
 
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec256<int32_t> DemoteTo(D /* tag */, Vec512<double> v) {
-  const DFromV<decltype(v)> d;
-  const Vec512<double> clamped = detail::ClampF64ToI32Max(d, v);
+  const Full512<double> d64;
+  const auto clamped = detail::ClampF64ToI32Max(d64, v);
   return Vec256<int32_t>{_mm512_cvttpd_epi32(clamped.raw)};
 }
 
@@ -5041,7 +5052,7 @@ HWY_API Vec512<int64_t> ConvertTo(D di, Vec512<double> v) {
 }
 
 HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {
-  const RebindToSigned<DFromV<decltype(v)>> di;
+  const Full512<int32_t> di;
   return detail::FixConversionOverflow(
       di, v, Vec512<int32_t>{_mm512_cvtps_epi32(v.raw)});
 }

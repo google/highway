@@ -2,14 +2,14 @@
 
 <!--*
 # Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'janwas' reviewed: '2023-04-21' }
+freshness: { owner: 'janwas' reviewed: '2023-08-04' }
 *-->
 
 [TOC]
 
 ## Wishlist
 
-### AVX3_SPR target
+### Matrix multiplication extensions
 
 ### MaskedGather, MaskedScatter
 
@@ -17,6 +17,10 @@ MaskedGather returns zero for mask=false. MaskedScatter does not access the
 mask-false lanes, but may instead write a safe location (i.e. different index).
 
 ### numpy
+
+LoadNOr
+
+NeUnordered
 
 Loadn/LoadnPair: mostly Gather*, with some specializations for smaller strides.
 In particular for 2x64-bit, which use 128-bit loads plus Combine.
@@ -186,3 +190,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Slide1Up/Down~~ - by johnplatts in #1496
 *   ~~`MaxOfLanes, MinOfLanes` returning scalar~~
 *   ~~Add `DupEven` for 16-bit~~ - by johnplatts in #1431
+*   ~~AVX3_SPR target~~

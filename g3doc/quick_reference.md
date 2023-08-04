@@ -1102,6 +1102,15 @@ aligned memory at indices which are not a multiple of the vector length):
     equivalent to `MaskedLoadOr(Zero(d), mask, d, p)`, but potentially slightly
     more efficient.
 
+*   <code>Vec&lt;D&gt; **LoadN**(D d, const T* p, size_t max_lanes_to_load)
+    </code>: Loads `HWY_MIN(Lanes(d), max_lanes_to_load)` lanes from `p`
+    to the first (lowest-index) lanes of the result vector and zeroes
+    out the remaining lanes.
+
+    LoadN does not fault if all of the elements in `[p, p + max_lanes_to_load)`
+    are accessible, even if `HWY_MEM_OPS_MIGHT_FAULT` is 1 or
+    `max_lanes_to_load < Lanes(d)` is true.
+
 #### Store
 
 *   <code>void **Store**(Vec&lt;D&gt; v, D, T* aligned)</code>: copies `v[i]`
@@ -1133,6 +1142,13 @@ aligned memory at indices which are not a multiple of the vector length):
     than one vector). Potentially more efficient than a scalar loop, but will
     not fault, unlike `BlendedStore`. No alignment requirement. Potentially
     non-atomic, like `BlendedStore`.
+
+*   <code>void **StoreN**(Vec&lt;D&gt; v, D d, T* HWY_RESTRICT p,
+    size_t max_lanes_to_store)</code>: Stores the first (lowest-index)
+    `HWY_MIN(Lanes(d), max_lanes_to_store)` lanes of `v` to p.
+
+    StoreN does not modify any memory past
+    `p + HWY_MIN(Lanes(d), max_lanes_to_store) - 1`.
 
 #### Interleaved
 

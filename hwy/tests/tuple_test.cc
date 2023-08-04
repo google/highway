@@ -78,7 +78,8 @@ struct TestCreateAndSet {
 };
 
 HWY_NOINLINE void TestAllCreate() {
-  ForAllTypes(ForPartialVectors<TestCreateAndSet>());
+  // RVV can only do tuples up to LMUL=2.
+  ForAllTypes(ForMaxPow2<TestCreateAndSet>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
