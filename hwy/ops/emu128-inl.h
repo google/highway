@@ -858,7 +858,7 @@ template <size_t N>
 HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
                                            Vec128<int16_t, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    a.raw[i] = static_cast<int16_t>((2 * a.raw[i] * b.raw[i] + 32768) >> 16);
+    a.raw[i] = static_cast<int16_t>((a.raw[i] * b.raw[i] + 16384) >> 15);
   }
   return a;
 }
