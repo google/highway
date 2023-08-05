@@ -2684,7 +2684,7 @@ HWY_API Vec256<float16_t> LoadU(D d, const float16_t* HWY_RESTRICT p) {
   return Vec256<float16_t>{_mm256_loadu_ph(p)};
 #else
   const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Load(du, reinterpret_cast<const uint16_t*>(p)));
+  return BitCast(d, LoadU(du, reinterpret_cast<const uint16_t*>(p)));
 #endif  // HWY_HAVE_FLOAT16
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>

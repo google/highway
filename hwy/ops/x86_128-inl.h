@@ -1290,8 +1290,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> Load(D /* tag */, const TFromD<D>* HWY_RESTRICT aligned) {
   return VFromD<D>{_mm_load_si128(reinterpret_cast<const __m128i*>(aligned))};
 }
-// Generic for all vector lengths.
-template <class D, HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> Load(D d, const bfloat16_t* HWY_RESTRICT aligned) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, Load(du, reinterpret_cast<const uint16_t*>(aligned)));
@@ -1318,8 +1318,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> LoadU(D /* tag */, const TFromD<D>* HWY_RESTRICT p) {
   return VFromD<D>{_mm_loadu_si128(reinterpret_cast<const __m128i*>(p))};
 }
-// Generic for all vector lengths.
-template <class D, HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> LoadU(D d, const bfloat16_t* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, LoadU(du, reinterpret_cast<const uint16_t*>(p)));
@@ -1398,7 +1398,7 @@ HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
   detail::MaybeUnpoison(p, Lanes(d));
 
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  __m128i v = Zero(Full128<TFromD<D>>()).raw;
+  __m128i v = Zero(Full128<TFromD<decltype(du)>>()).raw;
   CopyBytes<d.MaxBytes()>(p, &v);  // not same size as VFromD
 #else
   int32_t bits = 0;
@@ -1426,8 +1426,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void Store(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT aligned) {
   _mm_store_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
 }
-// Generic for all vector lengths.
-template <class D, HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API void Store(VFromD<D> v, D d, bfloat16_t* HWY_RESTRICT aligned) {
   const RebindToUnsigned<decltype(d)> du;
   Store(BitCast(du, v), du, reinterpret_cast<uint16_t*>(aligned));
@@ -1456,7 +1456,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void StoreU(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT p) {
   _mm_storeu_si128(reinterpret_cast<__m128i*>(p), v.raw);
 }
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API void StoreU(VFromD<D> v, D d, bfloat16_t* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
   StoreU(BitCast(du, v), du, reinterpret_cast<uint16_t*>(p));
