@@ -596,7 +596,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     (which are only supported if `HWY_TARGET != HWY_SCALAR`).
 
 *   `V`: `u64` \
-    <code>V **MulOdd**(V a, V b)</code>: returns double-wide result of `a[i] *
+    <code>V2 **MulOdd**(V a, V b)</code>: returns double-wide result of `a[i] *
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.
 
