@@ -254,23 +254,27 @@ HWY_API Vec256<T> MulFixedPoint15(Vec256<T> a, const Vec256<T> b) {
 
 // Cannot use MakeWide because that returns uint128_t for uint64_t, but we want
 // uint64_t.
-HWY_API Vec256<uint64_t> MulEven(Vec256<uint32_t> a, const Vec256<uint32_t> b) {
-  Vec256<uint64_t> ret;
+template <class T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<MakeWide<T>> MulEven(Vec256<T> a, const Vec256<T> b) {
+  Vec256<MakeWide<T>> ret;
   ret.v0 = MulEven(a.v0, b.v0);
   ret.v1 = MulEven(a.v1, b.v1);
   return ret;
 }
-HWY_API Vec256<int64_t> MulEven(Vec256<int32_t> a, const Vec256<int32_t> b) {
-  Vec256<int64_t> ret;
+HWY_API Vec256<uint64_t> MulEven(Vec256<uint64_t> a, const Vec256<uint64_t> b) {
+  Vec256<uint64_t> ret;
   ret.v0 = MulEven(a.v0, b.v0);
   ret.v1 = MulEven(a.v1, b.v1);
   return ret;
 }
 
-HWY_API Vec256<uint64_t> MulEven(Vec256<uint64_t> a, const Vec256<uint64_t> b) {
-  Vec256<uint64_t> ret;
-  ret.v0 = MulEven(a.v0, b.v0);
-  ret.v1 = MulEven(a.v1, b.v1);
+template <class T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<MakeWide<T>> MulOdd(Vec256<T> a, const Vec256<T> b) {
+  Vec256<MakeWide<T>> ret;
+  ret.v0 = MulOdd(a.v0, b.v0);
+  ret.v1 = MulOdd(a.v1, b.v1);
   return ret;
 }
 HWY_API Vec256<uint64_t> MulOdd(Vec256<uint64_t> a, const Vec256<uint64_t> b) {

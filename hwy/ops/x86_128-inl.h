@@ -3225,43 +3225,95 @@ HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
 
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into
 // even and the upper half into its odd neighbor lane.
+template <class V, HWY_IF_U8_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const auto lo8_mask = Set(dw, uint16_t{0x00FF});
+  return And(ResizeBitCast(dw, a), lo8_mask) *
+         And(ResizeBitCast(dw, b), lo8_mask);
+}
+
+template <class V, HWY_IF_I8_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return ShiftRight<8>(ShiftLeft<8>(ResizeBitCast(dw, a))) *
+         ShiftRight<8>(ShiftLeft<8>(ResizeBitCast(dw, b)));
+}
+
+template <class V, HWY_IF_UI16_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulEven(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const RepartitionToNarrow<decltype(dw)> dw_as_d16;
+
+  const auto lo = ResizeBitCast(dw, a * b);
+  const auto hi = ShiftLeft<16>(ResizeBitCast(dw, MulHigh(a, b)));
+  return BitCast(dw, OddEven(BitCast(dw_as_d16, hi), BitCast(dw_as_d16, lo)));
+}
+
 template <size_t N>
 HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
                                               const Vec128<uint32_t, N> b) {
   return Vec128<uint64_t, (N + 1) / 2>{_mm_mul_epu32(a.raw, b.raw)};
 }
 
-#if HWY_TARGET >= HWY_SSSE3
-
-template <size_t N, HWY_IF_V_SIZE_LE(int32_t, N, 8)>  // N=1 or 2
-HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
-                                             const Vec128<int32_t, N> b) {
-  const DFromV<decltype(a)> d;
-  const RepartitionToWide<decltype(d)> dw;
-  return Set(dw, static_cast<int64_t>(GetLane(a)) * GetLane(b));
-}
-HWY_API Vec128<int64_t> MulEven(Vec128<int32_t> a, Vec128<int32_t> b) {
-  alignas(16) int32_t a_lanes[4];
-  alignas(16) int32_t b_lanes[4];
-  const DFromV<decltype(a)> di32;
-  const RepartitionToWide<decltype(di32)> di64;
-  Store(a, di32, a_lanes);
-  Store(b, di32, b_lanes);
-  alignas(16) int64_t mul[2];
-  mul[0] = static_cast<int64_t>(a_lanes[0]) * b_lanes[0];
-  mul[1] = static_cast<int64_t>(a_lanes[2]) * b_lanes[2];
-  return Load(di64, mul);
-}
-
-#else  // HWY_TARGET < HWY_SSSE3
-
 template <size_t N>
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
                                              const Vec128<int32_t, N> b) {
+#if HWY_TARGET >= HWY_SSSE3
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const RebindToUnsigned<decltype(d)> du;
+
+  // p[i] = (((a[i] >> 31) * (a[i] >> 31)) << 64) +
+  //        (((a[i] >> 31) * b[i]) << 32) +
+  //        (((b[i] >> 31) * a[i]) << 32) +
+  //        ((a[i] & int64_t{0xFFFFFFFF}) * (b[i] & int64_t{0xFFFFFFFF}))
+
+  // ((a[i] >> 31) * (a[i] >> 31)) << 64 does not need to be computed as the
+  // lower 64 bits of ((a[i] >> 31) * (a[i] >> 31)) << 64 is zero.
+
+  // (((a[i] >> 31) * b[i]) << 32) + (((b[i] >> 31) * a[i]) << 32) ==
+  // -((((a[i] >> 31) & b[i]) + ((b[i] >> 31) & a[i])) << 32)
+
+  // ((a[i] & int64_t{0xFFFFFFFF}) * (b[i] & int64_t{0xFFFFFFFF})) can be
+  // computed using MulEven(BitCast(du, a), BitCast(du, b))
+
+  const auto neg_p_hi = ShiftLeft<32>(
+      ResizeBitCast(dw, And(ShiftRight<31>(a), b) + And(ShiftRight<31>(b), a)));
+  const auto p_lo = BitCast(dw, MulEven(BitCast(du, a), BitCast(du, b)));
+  return p_lo - neg_p_hi;
+#else
   return Vec128<int64_t, (N + 1) / 2>{_mm_mul_epi32(a.raw, b.raw)};
+#endif
 }
 
-#endif  // HWY_TARGET >= HWY_SSSE3
+template <class V, HWY_IF_T_SIZE_V(V, 1)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulOdd(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return ShiftRight<8>(ResizeBitCast(dw, a)) *
+         ShiftRight<8>(ResizeBitCast(dw, b));
+}
+
+template <class V, HWY_IF_UI16_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulOdd(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const RebindToUnsigned<decltype(dw)> dw_u;
+  const RepartitionToNarrow<decltype(dw)> dw_as_d16;
+
+  const auto lo = ShiftRight<16>(BitCast(dw_u, ResizeBitCast(dw, a * b)));
+  const auto hi = ResizeBitCast(dw, MulHigh(a, b));
+  return BitCast(dw, OddEven(BitCast(dw_as_d16, hi), BitCast(dw_as_d16, lo)));
+}
+
+template <class V, HWY_IF_UI32_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> MulOdd(V a, V b) {
+  return MulEven(DupOdd(a), DupOdd(b));
+}
 
 template <size_t N>
 HWY_API Vec128<uint32_t, N> operator*(const Vec128<uint32_t, N> a,
@@ -7390,6 +7442,19 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
   return VFromD<D32>{_mm_madd_epi16(a.raw, b.raw)};
 }
 
+// Generic for all vector lengths.
+template <class DU32, HWY_IF_U32_D(DU32),
+          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
+HWY_API VFromD<DU32> WidenMulPairwiseAdd(DU32 du32, VU16 a, VU16 b) {
+  const auto p_lo = a * b;
+  const auto p_hi = MulHigh(a, b);
+
+  const auto p_hi1_lo0 = BitCast(du32, OddEven(p_hi, p_lo));
+  const auto p_hi0_lo1 = Or(ShiftLeft<16>(BitCast(du32, p_hi)),
+                            ShiftRight<16>(BitCast(du32, p_lo)));
+  return Add(BitCast(du32, p_hi1_lo0), BitCast(du32, p_hi0_lo1));
+}
+
 // ------------------------------ SatWidenMulPairwiseAdd
 
 #if HWY_TARGET <= HWY_SSSE3
@@ -7448,6 +7513,15 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
 #endif
 }
 
+template <class DU32, HWY_IF_U32_D(DU32),
+          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
+HWY_API VFromD<DU32> ReorderWidenMulAccumulate(DU32 d, VU16 a, VU16 b,
+                                               const VFromD<DU32> sum0,
+                                               VFromD<DU32>& /*sum1*/) {
+  (void)d;
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
+}
+
 // ------------------------------ RearrangeToOddPlusEven
 template <size_t N>
 HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(const Vec128<int32_t, N> sum0,
@@ -7455,10 +7529,75 @@ HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(const Vec128<int32_t, N> sum0,
   return sum0;  // invariant already holds
 }
 
+template <size_t N>
+HWY_API Vec128<uint32_t, N> RearrangeToOddPlusEven(
+    const Vec128<uint32_t, N> sum0, Vec128<uint32_t, N> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
 template <class VW>
 HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
   return Add(sum0, sum1);
 }
+
+// ------------------------------ SumOfMulQuadAccumulate
+#if HWY_TARGET <= HWY_AVX3_DL
+
+#ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32), HWY_IF_V_SIZE_LE_D(DI32, 16)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
+    DI32 /*di32*/, VFromD<Repartition<uint8_t, DI32>> a_u,
+    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm_dpbusd_epi32(sum.raw, a_u.raw, b_i.raw)};
+}
+
+#ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#endif
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
+                                            VFromD<Repartition<int8_t, DI32>> a,
+                                            VFromD<Repartition<int8_t, DI32>> b,
+                                            VFromD<DI32> sum) {
+  const Repartition<uint8_t, decltype(di32)> du8;
+
+  const auto a_u = BitCast(du8, a);
+  const auto result_sum_0 = SumOfMulQuadAccumulate(di32, a_u, b, sum);
+  const auto result_sum_1 = ShiftLeft<8>(
+      SumOfMulQuadAccumulate(di32, ShiftRight<7>(a_u), b, Zero(di32)));
+  return result_sum_0 - result_sum_1;
+}
+
+#ifdef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#endif
+template <class DU32, HWY_IF_U32_D(DU32)>
+HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
+    DU32 du32, VFromD<Repartition<uint8_t, DU32>> a,
+    VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
+  const Repartition<uint8_t, decltype(du32)> du8;
+  const RebindToSigned<decltype(du8)> di8;
+  const RebindToSigned<decltype(du32)> di32;
+
+  const auto b_i = BitCast(di8, b);
+  const auto result_sum_0 =
+      SumOfMulQuadAccumulate(di32, a, b_i, BitCast(di32, sum));
+  const auto result_sum_1 = ShiftLeft<8>(
+      SumOfMulQuadAccumulate(di32, a, BroadcastSignBit(b_i), Zero(di32)));
+
+  return BitCast(du32, result_sum_0 - result_sum_1);
+}
+
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ================================================== CONVERT
 

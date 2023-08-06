@@ -863,45 +863,32 @@ HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
   return a;
 }
 
-// Multiplies even lanes (0, 2 ..) and returns the double-wide result.
-template <size_t N>
-HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(Vec128<int32_t, N> a,
-                                             Vec128<int32_t, N> b) {
-  Vec128<int64_t, (N + 1) / 2> mul;
+// Multiplies even lanes (0, 2, ..) and returns the double-wide result.
+template <class T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulEven(Vec128<T, N> a,
+                                                 Vec128<T, N> b) {
+  using TW = MakeWide<T>;
+  Vec128<TW, (N + 1) / 2> mul;
   for (size_t i = 0; i < N; i += 2) {
-    const int64_t a64 = a.raw[i];
-    mul.raw[i / 2] = a64 * b.raw[i];
-  }
-  return mul;
-}
-template <size_t N>
-HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(Vec128<uint32_t, N> a,
-                                              Vec128<uint32_t, N> b) {
-  Vec128<uint64_t, (N + 1) / 2> mul;
-  for (size_t i = 0; i < N; i += 2) {
-    const uint64_t a64 = a.raw[i];
-    mul.raw[i / 2] = a64 * b.raw[i];
+    const TW a_wide = a.raw[i];
+    mul.raw[i / 2] = static_cast<TW>(a_wide * b.raw[i]);
   }
   return mul;
 }
 
-template <size_t N>
-HWY_API Vec128<int64_t, (N + 1) / 2> MulOdd(Vec128<int32_t, N> a,
-                                            Vec128<int32_t, N> b) {
-  Vec128<int64_t, (N + 1) / 2> mul;
+// Multiplies odd lanes (1, 3, ..) and returns the double-wide result.
+template <class T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulOdd(Vec128<T, N> a,
+                                                Vec128<T, N> b) {
+  using TW = MakeWide<T>;
+  Vec128<TW, (N + 1) / 2> mul;
   for (size_t i = 0; i < N; i += 2) {
-    const int64_t a64 = a.raw[i + 1];
-    mul.raw[i / 2] = a64 * b.raw[i + 1];
-  }
-  return mul;
-}
-template <size_t N>
-HWY_API Vec128<uint64_t, (N + 1) / 2> MulOdd(Vec128<uint32_t, N> a,
-                                             Vec128<uint32_t, N> b) {
-  Vec128<uint64_t, (N + 1) / 2> mul;
-  for (size_t i = 0; i < N; i += 2) {
-    const uint64_t a64 = a.raw[i + 1];
-    mul.raw[i / 2] = a64 * b.raw[i + 1];
+    const TW a_wide = a.raw[i + 1];
+    mul.raw[i / 2] = static_cast<TW>(a_wide * b.raw[i + 1]);
   }
   return mul;
 }
@@ -2660,6 +2647,19 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
   return Add(Mul(ae, be), Mul(ao, bo));
 }
 
+template <class D, HWY_IF_U32_D(D), class VU16>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D du32, VU16 a, VU16 b) {
+  const auto lo16_mask = Set(du32, 0x0000FFFFu);
+
+  const auto a0 = And(BitCast(du32, a), lo16_mask);
+  const auto b0 = And(BitCast(du32, b), lo16_mask);
+
+  const auto a1 = ShiftRight<16>(BitCast(du32, a));
+  const auto b1 = ShiftRight<16>(BitCast(du32, b));
+
+  return Add(Mul(a0, b0), Mul(a1, b1));
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <class D, HWY_IF_F32_D(D), size_t N, class VBF16>
@@ -2688,6 +2688,20 @@ HWY_API VFromD<D> ReorderWidenMulAccumulate(D d32, VI16 a, VI16 b,
   const VI32 be = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, b)));
   const VI32 ao = ShiftRight<16>(BitCast(d32, a));
   const VI32 bo = ShiftRight<16>(BitCast(d32, b));
+  sum1 = Add(Mul(ao, bo), sum1);
+  return Add(Mul(ae, be), sum0);
+}
+
+template <class D, HWY_IF_U32_D(D), size_t N, class VU16>
+HWY_API VFromD<D> ReorderWidenMulAccumulate(D du32, VU16 a, VU16 b,
+                                            const Vec128<uint32_t, N> sum0,
+                                            Vec128<uint32_t, N>& sum1) {
+  using VU32 = VFromD<decltype(du32)>;
+  const VU32 lo16_mask = Set(du32, uint32_t{0x0000FFFFu});
+  const VU32 ae = And(BitCast(du32, a), lo16_mask);
+  const VU32 be = And(BitCast(du32, b), lo16_mask);
+  const VU32 ao = ShiftRight<16>(BitCast(du32, a));
+  const VU32 bo = ShiftRight<16>(BitCast(du32, b));
   sum1 = Add(Mul(ao, bo), sum1);
   return Add(Mul(ae, be), sum0);
 }

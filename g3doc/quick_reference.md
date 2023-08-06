@@ -589,29 +589,29 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     multiplication result and storing the upper half. Results are
     implementation-defined iff both inputs are -32768.
 
-*   `V`: `{u,i}{32},u64` \
+*   `V`: `{u,i}{8,16,32},u64` \
     <code>V2 **MulEven**(V a, V b)</code>: returns double-wide result of `a[i] *
     b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper). `V2` is
     a vector with double-width lanes, or the same as `V` for 64-bit inputs
     (which are only supported if `HWY_TARGET != HWY_SCALAR`).
 
-*   `V`: `u64` \
+*   `V`: `{u,i}{8,16,32},u64` \
     <code>V **MulOdd**(V a, V b)</code>: returns double-wide result of `a[i] *
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.
 
-*   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
-    <code>Vec&lt;D&gt; **WidenMulPairwiseAdd**(D d, V a, V b,)</code>: widens `a`
+*   `V`: `{bf,u,i}16`, `D`: `RepartitionToWide<DFromV<V>>` \
+    <code>Vec&lt;D&gt; **WidenMulPairwiseAdd**(D d, V a, V b)</code>: widens `a`
     and `b` to `TFromD<D>` and computes `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`.
 
 *   `VI`: `i8`, `VU`: `Vec<RebindToUnsigned<DFromV<VI>>>`,
     `DI`: `RepartitionToWide<DFromV<VI>>` \
-    <code>Vec&lt;D&gt; **SatWidenMulPairwiseAdd**(DI di, VU a_u, VI b_i)</code>:
-    widens `a_u` and `b_i` to `TFromD<DI>` and computes
+    <code>Vec&lt;DI&gt; **SatWidenMulPairwiseAdd**(DI di, VU a_u, VI b_i)
+    </code>: widens `a_u` and `b_i` to `TFromD<DI>` and computes
     `a_u[2*i+1]*b_i[2*i+1] + a_u[2*i+0]*b_i[2*i+0]`, saturated to the range of
     `TFromD<D>`.
 
-*   `V`: `{bf,i}16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
+*   `V`: `{bf,u,i}16`, `D`: `RepartitionToWide<DFromV<V>>`, `VW`: `Vec<D>` \
     <code>VW **ReorderWidenMulAccumulate**(D d, V a, V b, VW sum0, VW&
     sum1)</code>: widens `a` and `b` to `TFromD<D>`, then adds `a[i] * b[i]` to
     either `sum1[j]` or lane `j` of the return value, where `j = P(i)` and `P`
@@ -624,7 +624,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `GetLane(SumOfLanes(d, v))` and may be slightly more efficient than later
     adding `v` to `sum0`.
 
-*   `VW`: `{f,i}32` \
+*   `VW`: `{f,u,i}32` \
     <code>VW **RearrangeToOddPlusEven**(VW sum0, VW sum1)</code>: returns in
     each 32-bit lane with index `i` `a[2*i+1]*b[2*i+1] + a[2*i+0]*b[2*i+0]`.
     `sum0` must be the return value of a prior `ReorderWidenMulAccumulate`, and
@@ -635,6 +635,19 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     calls to `ReorderWidenMulAccumulate`, as opposed to after each one.
     Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`. Note that the
     initial value of `sum1` must be zero, see `ReorderWidenMulAccumulate`.
+
+*   `VN`: `{u,i}{8,16}`, `D`: `Repartition<MakeWide<MakeWide<TFromV<VN>>>>` \
+    <code>Vec&lt;D&gt; **SumOfMulQuadAccumulate**(D d, VN a, VN b,
+    Vec&lt;D&gt; sum)</code>: widens `a` and `b` to `TFromD<D>` and computes
+    `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +
+    a[4*i+0]*b[4*i+0]`
+
+*   `VN_I`: `i8`, `VN_U`: `Vec<RebindToUnsigned<DFromV<VN_I>>>`,
+    `DI`: `Repartition<int32_t, DFromV<VN_I>>` \
+    <code>Vec&lt;DI&gt; **SumOfMulQuadAccumulate**(DI di, VN_U a_u, VN_I b_i,
+    Vec&lt;DI&gt; sum)</code>: widens `a` and `b` to `TFromD<DI>` and computes
+    `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +
+    a[4*i+0]*b[4*i+0]`
 
 #### Fused multiply-add
 

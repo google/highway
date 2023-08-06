@@ -5648,6 +5648,49 @@ HWY_API Vec32<int32_t> ReorderWidenMulAccumulate(D d32, Vec32<int16_t> a,
   return sum0 + mul0;
 }
 
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> ReorderWidenMulAccumulate(D /*d32*/,
+                                                   Vec128<uint16_t> a,
+                                                   Vec128<uint16_t> b,
+                                                   const Vec128<uint32_t> sum0,
+                                                   Vec128<uint32_t>& sum1) {
+#if HWY_ARCH_ARM_A64
+  sum1 = Vec128<uint32_t>(vmlal_high_u16(sum1.raw, a.raw, b.raw));
+#else
+  const Full64<uint16_t> dh;
+  sum1 = Vec128<uint32_t>(
+      vmlal_u16(sum1.raw, UpperHalf(dh, a).raw, UpperHalf(dh, b).raw));
+#endif
+  return Vec128<uint32_t>(
+      vmlal_u16(sum0.raw, LowerHalf(a).raw, LowerHalf(b).raw));
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> ReorderWidenMulAccumulate(D d32, Vec64<uint16_t> a,
+                                                  Vec64<uint16_t> b,
+                                                  const Vec64<uint32_t> sum0,
+                                                  Vec64<uint32_t>& sum1) {
+  // vmlal writes into the upper half, which the caller cannot use, so
+  // split into two halves.
+  const Vec128<uint32_t> mul_3210(vmull_u16(a.raw, b.raw));
+  const Vec64<uint32_t> mul_32 = UpperHalf(d32, mul_3210);
+  sum1 += mul_32;
+  return sum0 + LowerHalf(mul_3210);
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> ReorderWidenMulAccumulate(D du32, Vec32<uint16_t> a,
+                                                  Vec32<uint16_t> b,
+                                                  const Vec32<uint32_t> sum0,
+                                                  Vec32<uint32_t>& sum1) {
+  const Vec128<uint32_t> mul_xx10(vmull_u16(a.raw, b.raw));
+  const Vec64<uint32_t> mul_10(LowerHalf(mul_xx10));
+  const Vec32<uint32_t> mul0 = LowerHalf(du32, mul_10);
+  const Vec32<uint32_t> mul1 = UpperHalf(du32, mul_10);
+  sum1 += mul1;
+  return sum0 + mul0;
+}
+
 // ------------------------------ Combine partial (InterleaveLower)
 // < 64bit input, <= 64 bit result
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
@@ -5697,6 +5740,34 @@ HWY_API Vec64<int32_t> RearrangeToOddPlusEven(Vec64<int32_t> sum0,
 
 HWY_API Vec32<int32_t> RearrangeToOddPlusEven(Vec32<int32_t> sum0,
                                               Vec32<int32_t> sum1) {
+  // Only one widened sum per register, so add them for sum of odd and even.
+  return sum0 + sum1;
+}
+
+HWY_API Vec128<uint32_t> RearrangeToOddPlusEven(Vec128<uint32_t> sum0,
+                                                Vec128<uint32_t> sum1) {
+// vmlal_s16 multiplied the lower half into sum0 and upper into sum1.
+#if HWY_ARCH_ARM_A64  // pairwise sum is available and what we want
+  return Vec128<uint32_t>(vpaddq_u32(sum0.raw, sum1.raw));
+#else
+  const Full128<uint32_t> d;
+  const Half<decltype(d)> d64;
+  const Vec64<uint32_t> hi(
+      vpadd_u32(LowerHalf(d64, sum1).raw, UpperHalf(d64, sum1).raw));
+  const Vec64<uint32_t> lo(
+      vpadd_u32(LowerHalf(d64, sum0).raw, UpperHalf(d64, sum0).raw));
+  return Combine(Full128<uint32_t>(), hi, lo);
+#endif
+}
+
+HWY_API Vec64<uint32_t> RearrangeToOddPlusEven(Vec64<uint32_t> sum0,
+                                               Vec64<uint32_t> sum1) {
+  // vmlal_u16 multiplied the lower half into sum0 and upper into sum1.
+  return Vec64<uint32_t>(vpadd_u32(sum0.raw, sum1.raw));
+}
+
+HWY_API Vec32<uint32_t> RearrangeToOddPlusEven(Vec32<uint32_t> sum0,
+                                               Vec32<uint32_t> sum1) {
   // Only one widened sum per register, so add them for sum of odd and even.
   return sum0 + sum1;
 }
@@ -5768,6 +5839,43 @@ HWY_API Vec32<int32_t> WidenMulPairwiseAdd(D d32, Vec32<int16_t> a,
   const Vec64<int32_t> mul_10(LowerHalf(mul_xx10));
   const Vec32<int32_t> mul0 = LowerHalf(d32, mul_10);
   const Vec32<int32_t> mul1 = UpperHalf(d32, mul_10);
+  return RearrangeToOddPlusEven(mul0, mul1);
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> WidenMulPairwiseAdd(D /*d32*/, Vec128<uint16_t> a,
+                                             Vec128<uint16_t> b) {
+  Vec128<uint32_t> sum1;
+#if HWY_ARCH_ARM_A64
+  sum1 = Vec128<uint32_t>(vmull_high_u16(a.raw, b.raw));
+#else
+  const Full64<uint16_t> dh;
+  sum1 =
+      Vec128<uint32_t>(vmull_u16(UpperHalf(dh, a).raw, UpperHalf(dh, b).raw));
+#endif
+  Vec128<uint32_t> sum0 =
+      Vec128<uint32_t>(vmull_u16(LowerHalf(a).raw, LowerHalf(b).raw));
+  return RearrangeToOddPlusEven(sum0, sum1);
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> WidenMulPairwiseAdd(D d32, Vec64<uint16_t> a,
+                                            Vec64<uint16_t> b) {
+  // vmlal writes into the upper half, which the caller cannot use, so
+  // split into two halves.
+  const Vec128<uint32_t> mul_3210(vmull_u16(a.raw, b.raw));
+  const Vec64<uint32_t> mul0 = LowerHalf(mul_3210);
+  const Vec64<uint32_t> mul1 = UpperHalf(d32, mul_3210);
+  return RearrangeToOddPlusEven(mul0, mul1);
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> WidenMulPairwiseAdd(D d32, Vec32<uint16_t> a,
+                                            Vec32<uint16_t> b) {
+  const Vec128<uint32_t> mul_xx10(vmull_u16(a.raw, b.raw));
+  const Vec64<uint32_t> mul_10(LowerHalf(mul_xx10));
+  const Vec32<uint32_t> mul0 = LowerHalf(d32, mul_10);
+  const Vec32<uint32_t> mul1 = UpperHalf(d32, mul_10);
   return RearrangeToOddPlusEven(mul0, mul1);
 }
 
@@ -6393,6 +6501,34 @@ HWY_API VFromD<D> TruncateTo(D /* tag */, VFromD<Rebind<uint16_t, D>> v) {
 
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into
 // even and the upper half into its odd neighbor lane.
+HWY_API Vec128<int16_t> MulEven(Vec128<int8_t> a, Vec128<int8_t> b) {
+  const DFromV<decltype(a)> d;
+  int8x16_t a_packed = ConcatEven(d, a, a).raw;
+  int8x16_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<int16_t>(
+      vmull_s8(vget_low_s8(a_packed), vget_low_s8(b_packed)));
+}
+HWY_API Vec128<uint16_t> MulEven(Vec128<uint8_t> a, Vec128<uint8_t> b) {
+  const DFromV<decltype(a)> d;
+  uint8x16_t a_packed = ConcatEven(d, a, a).raw;
+  uint8x16_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<uint16_t>(
+      vmull_u8(vget_low_u8(a_packed), vget_low_u8(b_packed)));
+}
+HWY_API Vec128<int32_t> MulEven(Vec128<int16_t> a, Vec128<int16_t> b) {
+  const DFromV<decltype(a)> d;
+  int16x8_t a_packed = ConcatEven(d, a, a).raw;
+  int16x8_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<int32_t>(
+      vmull_s16(vget_low_s16(a_packed), vget_low_s16(b_packed)));
+}
+HWY_API Vec128<uint32_t> MulEven(Vec128<uint16_t> a, Vec128<uint16_t> b) {
+  const DFromV<decltype(a)> d;
+  uint16x8_t a_packed = ConcatEven(d, a, a).raw;
+  uint16x8_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<uint32_t>(
+      vmull_u16(vget_low_u16(a_packed), vget_low_u16(b_packed)));
+}
 HWY_API Vec128<int64_t> MulEven(Vec128<int32_t> a, Vec128<int32_t> b) {
   const DFromV<decltype(a)> d;
   int32x4_t a_packed = ConcatEven(d, a, a).raw;
@@ -6408,6 +6544,42 @@ HWY_API Vec128<uint64_t> MulEven(Vec128<uint32_t> a, Vec128<uint32_t> b) {
       vmull_u32(vget_low_u32(a_packed), vget_low_u32(b_packed)));
 }
 
+template <size_t N>
+HWY_API Vec128<int16_t, (N + 1) / 2> MulEven(Vec128<int8_t, N> a,
+                                             Vec128<int8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  int8x8_t a_packed = ConcatEven(d, a, a).raw;
+  int8x8_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<int16_t, (N + 1) / 2>(
+      vget_low_s16(vmull_s8(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, (N + 1) / 2> MulEven(Vec128<uint8_t, N> a,
+                                              Vec128<uint8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  uint8x8_t a_packed = ConcatEven(d, a, a).raw;
+  uint8x8_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<uint16_t, (N + 1) / 2>(
+      vget_low_u16(vmull_u8(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<int32_t, (N + 1) / 2> MulEven(Vec128<int16_t, N> a,
+                                             Vec128<int16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  int16x4_t a_packed = ConcatEven(d, a, a).raw;
+  int16x4_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<int32_t, (N + 1) / 2>(
+      vget_low_s32(vmull_s16(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, (N + 1) / 2> MulEven(Vec128<uint16_t, N> a,
+                                              Vec128<uint16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  uint16x4_t a_packed = ConcatEven(d, a, a).raw;
+  uint16x4_t b_packed = ConcatEven(d, b, b).raw;
+  return Vec128<uint32_t, (N + 1) / 2>(
+      vget_low_u32(vmull_u16(a_packed, b_packed)));
+}
 template <size_t N>
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(Vec128<int32_t, N> a,
                                              Vec128<int32_t, N> b) {
@@ -6431,6 +6603,106 @@ HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a, Vec128<uint64_t> b) {
   uint64_t hi;
   uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 0), vgetq_lane_u64(b.raw, 0), &hi);
   return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
+}
+
+// Multiplies odd lanes (1, 3 ..) and places the double-wide result into
+// even and the upper half into its odd neighbor lane.
+HWY_API Vec128<int16_t> MulOdd(Vec128<int8_t> a, Vec128<int8_t> b) {
+  const DFromV<decltype(a)> d;
+  int8x16_t a_packed = ConcatOdd(d, a, a).raw;
+  int8x16_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<int16_t>(
+      vmull_s8(vget_low_s8(a_packed), vget_low_s8(b_packed)));
+}
+HWY_API Vec128<uint16_t> MulOdd(Vec128<uint8_t> a, Vec128<uint8_t> b) {
+  const DFromV<decltype(a)> d;
+  uint8x16_t a_packed = ConcatOdd(d, a, a).raw;
+  uint8x16_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<uint16_t>(
+      vmull_u8(vget_low_u8(a_packed), vget_low_u8(b_packed)));
+}
+HWY_API Vec128<int32_t> MulOdd(Vec128<int16_t> a, Vec128<int16_t> b) {
+  const DFromV<decltype(a)> d;
+  int16x8_t a_packed = ConcatOdd(d, a, a).raw;
+  int16x8_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<int32_t>(
+      vmull_s16(vget_low_s16(a_packed), vget_low_s16(b_packed)));
+}
+HWY_API Vec128<uint32_t> MulOdd(Vec128<uint16_t> a, Vec128<uint16_t> b) {
+  const DFromV<decltype(a)> d;
+  uint16x8_t a_packed = ConcatOdd(d, a, a).raw;
+  uint16x8_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<uint32_t>(
+      vmull_u16(vget_low_u16(a_packed), vget_low_u16(b_packed)));
+}
+HWY_API Vec128<int64_t> MulOdd(Vec128<int32_t> a, Vec128<int32_t> b) {
+  const DFromV<decltype(a)> d;
+  int32x4_t a_packed = ConcatOdd(d, a, a).raw;
+  int32x4_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<int64_t>(
+      vmull_s32(vget_low_s32(a_packed), vget_low_s32(b_packed)));
+}
+HWY_API Vec128<uint64_t> MulOdd(Vec128<uint32_t> a, Vec128<uint32_t> b) {
+  const DFromV<decltype(a)> d;
+  uint32x4_t a_packed = ConcatOdd(d, a, a).raw;
+  uint32x4_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<uint64_t>(
+      vmull_u32(vget_low_u32(a_packed), vget_low_u32(b_packed)));
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, (N + 1) / 2> MulOdd(Vec128<int8_t, N> a,
+                                            Vec128<int8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  int8x8_t a_packed = ConcatOdd(d, a, a).raw;
+  int8x8_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<int16_t, (N + 1) / 2>(
+      vget_low_s16(vmull_s8(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<uint16_t, (N + 1) / 2> MulOdd(Vec128<uint8_t, N> a,
+                                             Vec128<uint8_t, N> b) {
+  const DFromV<decltype(a)> d;
+  uint8x8_t a_packed = ConcatOdd(d, a, a).raw;
+  uint8x8_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<uint16_t, (N + 1) / 2>(
+      vget_low_u16(vmull_u8(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<int32_t, (N + 1) / 2> MulOdd(Vec128<int16_t, N> a,
+                                            Vec128<int16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  int16x4_t a_packed = ConcatOdd(d, a, a).raw;
+  int16x4_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<int32_t, (N + 1) / 2>(
+      vget_low_s32(vmull_s16(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, (N + 1) / 2> MulOdd(Vec128<uint16_t, N> a,
+                                             Vec128<uint16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  uint16x4_t a_packed = ConcatOdd(d, a, a).raw;
+  uint16x4_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<uint32_t, (N + 1) / 2>(
+      vget_low_u32(vmull_u16(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<int64_t, (N + 1) / 2> MulOdd(Vec128<int32_t, N> a,
+                                            Vec128<int32_t, N> b) {
+  const DFromV<decltype(a)> d;
+  int32x2_t a_packed = ConcatOdd(d, a, a).raw;
+  int32x2_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<int64_t, (N + 1) / 2>(
+      vget_low_s64(vmull_s32(a_packed, b_packed)));
+}
+template <size_t N>
+HWY_API Vec128<uint64_t, (N + 1) / 2> MulOdd(Vec128<uint32_t, N> a,
+                                             Vec128<uint32_t, N> b) {
+  const DFromV<decltype(a)> d;
+  uint32x2_t a_packed = ConcatOdd(d, a, a).raw;
+  uint32x2_t b_packed = ConcatOdd(d, b, b).raw;
+  return Vec128<uint64_t, (N + 1) / 2>(
+      vget_low_u64(vmull_u32(a_packed, b_packed)));
 }
 
 HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {

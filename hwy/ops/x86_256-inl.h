@@ -5358,6 +5358,24 @@ HWY_API Vec256<int32_t> RearrangeToOddPlusEven(const Vec256<int32_t> sum0,
   return sum0;  // invariant already holds
 }
 
+HWY_API Vec256<uint32_t> RearrangeToOddPlusEven(const Vec256<uint32_t> sum0,
+                                                Vec256<uint32_t> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+// ------------------------------ SumOfMulQuadAccumulate
+
+#if HWY_TARGET <= HWY_AVX3_DL
+
+template <class DI32, HWY_IF_V_SIZE_D(DI32, 32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
+    DI32 /*di32*/, VFromD<Repartition<uint8_t, DI32>> a_u,
+    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm256_dpbusd_epi32(sum.raw, a_u.raw, b_i.raw)};
+}
+
+#endif
+
 // ================================================== CONVERT
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
