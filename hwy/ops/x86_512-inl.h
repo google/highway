@@ -2390,17 +2390,21 @@ HWY_API Mask512<double> IsFinite(const Vec512<double> v) {
 
 // ------------------------------ Load
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec512<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
   return Vec512<T>{_mm512_load_si512(aligned)};
 }
-#if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API Vec512<float16_t> Load(D /* tag */,
-                               const float16_t* HWY_RESTRICT aligned) {
+HWY_API Vec512<float16_t> Load(D d, const float16_t* HWY_RESTRICT aligned) {
+#if HWY_HAVE_FLOAT16
+  (void)d;
   return Vec512<float16_t>{_mm512_load_ph(aligned)};
-}
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Load(du, reinterpret_cast<const uint16_t*>(aligned)));
 #endif  // HWY_HAVE_FLOAT16
+}
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API Vec512<float> Load(D /* tag */, const float* HWY_RESTRICT aligned) {
   return Vec512<float>{_mm512_load_ps(aligned)};
@@ -2410,16 +2414,22 @@ HWY_API Vec512<double> Load(D /* tag */, const double* HWY_RESTRICT aligned) {
   return Vec512<double>{_mm512_load_pd(aligned)};
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec512<T> LoadU(D /* tag */, const T* HWY_RESTRICT p) {
   return Vec512<T>{_mm512_loadu_si512(p)};
 }
-#if HWY_HAVE_FLOAT16
+
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API Vec512<float16_t> LoadU(D /* tag */, const float16_t* HWY_RESTRICT p) {
+HWY_API Vec512<float16_t> LoadU(D d, const float16_t* HWY_RESTRICT p) {
+#if HWY_HAVE_FLOAT16
+  (void)d;
   return Vec512<float16_t>{_mm512_loadu_ph(p)};
-}
+#else
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, LoadU(du, reinterpret_cast<const uint16_t*>(p)));
 #endif  // HWY_HAVE_FLOAT16
+}
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API Vec512<float> LoadU(D /* tag */, const float* HWY_RESTRICT p) {
   return Vec512<float>{_mm512_loadu_ps(p)};
@@ -2537,22 +2547,19 @@ HWY_API Vec512<double> LoadDup128(D /* tag */, const double* HWY_RESTRICT p) {
 // ------------------------------ Store
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
-          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void Store(Vec512<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
   _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API void Store(Vec512<bfloat16_t> v, D /* tag */,
-                   bfloat16_t* HWY_RESTRICT aligned) {
-  _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
-}
-#if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void Store(Vec512<float16_t> v, D /* tag */,
                    float16_t* HWY_RESTRICT aligned) {
+#if HWY_HAVE_FLOAT16
   _mm512_store_ph(aligned, v.raw);
+#else
+  _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
+#endif
 }
-#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void Store(Vec512<float> v, D /* tag */, float* HWY_RESTRICT aligned) {
   _mm512_store_ps(aligned, v.raw);
@@ -2563,22 +2570,21 @@ HWY_API void Store(Vec512<double> v, D /* tag */,
   _mm512_store_pd(aligned, v.raw);
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>>
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename T = TFromD<D>,
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void StoreU(Vec512<T> v, D /* tag */, T* HWY_RESTRICT p) {
   _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API void StoreU(Vec512<bfloat16_t> v, D /* tag */,
-                    bfloat16_t* HWY_RESTRICT p) {
-  _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
-}
-#if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void StoreU(Vec512<float16_t> v, D /* tag */,
                     float16_t* HWY_RESTRICT p) {
+#if HWY_HAVE_FLOAT16
   _mm512_storeu_ph(p, v.raw);
-}
+#else
+  _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
 #endif  // HWY_HAVE_FLOAT16
+}
+
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API void StoreU(Vec512<float> v, D /* tag */, float* HWY_RESTRICT p) {
   _mm512_storeu_ps(p, v.raw);
