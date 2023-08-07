@@ -1028,8 +1028,10 @@ HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
       HWY_MIN(max_lanes_to_load, HWY_MAX_LANES_D(D)) * sizeof(TFromD<D>);
   const Repartition<uint8_t, decltype(d)> du8;
   return BitCast(
-      d, VFromD<decltype(du8)>{vec_xl_len(
-             reinterpret_cast<const unsigned char*>(p), num_of_bytes_to_load)});
+      d,
+      VFromD<decltype(du8)>{vec_xl_len(
+          const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(p)),
+          num_of_bytes_to_load)});
 }
 #endif
 
