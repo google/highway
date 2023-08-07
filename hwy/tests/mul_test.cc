@@ -193,7 +193,10 @@ struct TestMulFixedPoint15 {
       for (size_t i = 0; i < N; ++i) {
         // There are three ways to compute the results. x86 and Arm are defined
         // using 32-bit multiplication results:
-        const int arm = (2 * in1[i] * in2[i] + 0x8000) >> 16;
+        const int arm =
+            static_cast<int32_t>(2u * static_cast<uint32_t>(in1[i] * in2[i]) +
+                                 0x8000u) >>
+            16;
         const int x86 = (((in1[i] * in2[i]) >> 14) + 1) >> 1;
         // On other platforms, split the result into upper and lower 16 bits.
         const auto v1 = Set(d, in1[i]);

@@ -1094,9 +1094,10 @@ HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
   return Vec128<T, N>{v.raw};
 }
 
+// Generic for all vector lengths.
 template <class D>
 HWY_API VFromD<D> VecFromMask(D /* tag */, MFromD<D> v) {
-  return VFromD<D>{v.raw};
+  return VecFromMask(v);
 }
 
 #if HWY_TARGET >= HWY_SSSE3
@@ -1290,8 +1291,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> Load(D /* tag */, const TFromD<D>* HWY_RESTRICT aligned) {
   return VFromD<D>{_mm_load_si128(reinterpret_cast<const __m128i*>(aligned))};
 }
-// Generic for all vector lengths.
-template <class D, HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> Load(D d, const bfloat16_t* HWY_RESTRICT aligned) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, Load(du, reinterpret_cast<const uint16_t*>(aligned)));
@@ -1318,8 +1319,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> LoadU(D /* tag */, const TFromD<D>* HWY_RESTRICT p) {
   return VFromD<D>{_mm_loadu_si128(reinterpret_cast<const __m128i*>(p))};
 }
-// Generic for all vector lengths.
-template <class D, HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> LoadU(D d, const bfloat16_t* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, LoadU(du, reinterpret_cast<const uint16_t*>(p)));
@@ -1398,7 +1399,7 @@ HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
   detail::MaybeUnpoison(p, Lanes(d));
 
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  __m128i v = Zero(Full128<TFromD<D>>()).raw;
+  __m128i v = Zero(Full128<TFromD<decltype(du)>>()).raw;
   CopyBytes<d.MaxBytes()>(p, &v);  // not same size as VFromD
 #else
   int32_t bits = 0;
@@ -1426,8 +1427,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void Store(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT aligned) {
   _mm_store_si128(reinterpret_cast<__m128i*>(aligned), v.raw);
 }
-// Generic for all vector lengths.
-template <class D, HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API void Store(VFromD<D> v, D d, bfloat16_t* HWY_RESTRICT aligned) {
   const RebindToUnsigned<decltype(d)> du;
   Store(BitCast(du, v), du, reinterpret_cast<uint16_t*>(aligned));
@@ -1456,7 +1457,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API void StoreU(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT p) {
   _mm_storeu_si128(reinterpret_cast<__m128i*>(p), v.raw);
 }
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
+// Generic for all vector lengths greater than or equal to 16 bytes.
+template <class D, HWY_IF_V_SIZE_GT_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API void StoreU(VFromD<D> v, D d, bfloat16_t* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
   StoreU(BitCast(du, v), du, reinterpret_cast<uint16_t*>(p));
@@ -4417,22 +4419,24 @@ HWY_API VFromD<D> ShiftLeftBytes(D d, VFromD<D> v) {
       d, VFromD<decltype(du)>{_mm_slli_si128(BitCast(du, v).raw, kBytes)});
 }
 
-template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
+// Generic for all vector lengths.
+template <int kBytes, class V>
+HWY_API V ShiftLeftBytes(const V v) {
   return ShiftLeftBytes<kBytes>(DFromV<decltype(v)>(), v);
 }
 
 // ------------------------------ ShiftLeftLanes
 
-template <int kLanes, class D, typename T = TFromD<D>,
-          HWY_IF_V_SIZE_LE_D(D, 16)>
+// Generic for all vector lengths.
+template <int kLanes, class D>
 HWY_API VFromD<D> ShiftLeftLanes(D d, const VFromD<D> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(TFromD<D>)>(BitCast(d8, v)));
 }
 
-template <int kLanes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
+// Generic for all vector lengths.
+template <int kLanes, class V>
+HWY_API V ShiftLeftLanes(const V v) {
   return ShiftLeftLanes<kLanes>(DFromV<decltype(v)>(), v);
 }
 
@@ -4452,7 +4456,8 @@ HWY_API VFromD<D> ShiftRightBytes(D d, VFromD<D> v) {
 }
 
 // ------------------------------ ShiftRightLanes
-template <int kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+// Generic for all vector lengths.
+template <int kLanes, class D>
 HWY_API VFromD<D> ShiftRightLanes(D d, const VFromD<D> v) {
   const Repartition<uint8_t, decltype(d)> d8;
   constexpr size_t kBytes = kLanes * sizeof(TFromD<D>);
@@ -5541,6 +5546,7 @@ HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
 
 // Same as Interleave*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
+// Generic for all vector lengths.
 template <class V, class DW = RepartitionToWide<DFromV<V>>>
 HWY_API VFromD<DW> ZipLower(V a, V b) {
   return BitCast(DW(), InterleaveLower(a, b));

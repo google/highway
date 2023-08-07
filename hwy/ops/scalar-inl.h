@@ -734,7 +734,7 @@ HWY_API Vec1<uint16_t> MulHigh(const Vec1<uint16_t> a, const Vec1<uint16_t> b) {
 }
 
 HWY_API Vec1<int16_t> MulFixedPoint15(Vec1<int16_t> a, Vec1<int16_t> b) {
-  return Vec1<int16_t>(static_cast<int16_t>((2 * a.raw * b.raw + 32768) >> 16));
+  return Vec1<int16_t>(static_cast<int16_t>((a.raw * b.raw + 16384) >> 15));
 }
 
 // Multiplies even lanes (0, 2 ..) and returns the double-wide result.
