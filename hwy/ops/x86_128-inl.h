@@ -1398,7 +1398,7 @@ HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
   detail::MaybeUnpoison(p, Lanes(d));
 
 #if HWY_SAFE_PARTIAL_LOAD_STORE
-  __m128i v = Zero(Full128<T>()).raw;
+  __m128i v = Zero(Full128<TFromD<D>>()).raw;
   CopyBytes<d.MaxBytes()>(p, &v);  // not same size as VFromD
 #else
   int32_t bits = 0;

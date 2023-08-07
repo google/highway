@@ -72,7 +72,7 @@ us via the below email.
 
 *   Browsers: Chromium (+Vivaldi), Firefox (+floorp / foxhound / librewolf / Waterfox)
 *   Cryptography: google/distributed_point_functions
-*   Image codecs: eustas/2im, [Grok JPEG 2000](https://github.com/GrokImageCompression/grok), [JPEG XL](https://github.com/libjxl/libjxl), OpenHTJ2K
+*   Image codecs: eustas/2im, [Grok JPEG 2000](https://github.com/GrokImageCompression/grok), [JPEG XL](https://github.com/libjxl/libjxl), OpenHTJ2K, [JPEGenc](https://github.com/osamu620/JPEGenc)
 *   Image processing: cloudinary/ssimulacra2, m-ab-s/media-autobuild_suite
 *   Image viewers: AlienCowEatCake/ImageViewer, mirillis/jpegxl-wic,
     [Lux panorama/image viewer](https://bitbucket.org/kfj/pv/)
