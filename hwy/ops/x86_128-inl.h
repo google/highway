@@ -1094,9 +1094,10 @@ HWY_API Vec128<T, N> VecFromMask(const Mask128<T, N> v) {
   return Vec128<T, N>{v.raw};
 }
 
+// Generic for all vector lengths.
 template <class D>
 HWY_API VFromD<D> VecFromMask(D /* tag */, MFromD<D> v) {
-  return VFromD<D>{v.raw};
+  return VecFromMask(v);
 }
 
 #if HWY_TARGET >= HWY_SSSE3
@@ -4366,22 +4367,24 @@ HWY_API VFromD<D> ShiftLeftBytes(D d, VFromD<D> v) {
       d, VFromD<decltype(du)>{_mm_slli_si128(BitCast(du, v).raw, kBytes)});
 }
 
-template <int kBytes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftBytes(const Vec128<T, N> v) {
+// Generic for all vector lengths.
+template <int kBytes, class V>
+HWY_API V ShiftLeftBytes(const V v) {
   return ShiftLeftBytes<kBytes>(DFromV<decltype(v)>(), v);
 }
 
 // ------------------------------ ShiftLeftLanes
 
-template <int kLanes, class D, typename T = TFromD<D>,
-          HWY_IF_V_SIZE_LE_D(D, 16)>
+// Generic for all vector lengths.
+template <int kLanes, class D>
 HWY_API VFromD<D> ShiftLeftLanes(D d, const VFromD<D> v) {
   const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
+  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(TFromD<D>)>(BitCast(d8, v)));
 }
 
-template <int kLanes, typename T, size_t N>
-HWY_API Vec128<T, N> ShiftLeftLanes(const Vec128<T, N> v) {
+// Generic for all vector lengths.
+template <int kLanes, class V>
+HWY_API V ShiftLeftLanes(const V v) {
   return ShiftLeftLanes<kLanes>(DFromV<decltype(v)>(), v);
 }
 
@@ -4401,7 +4404,8 @@ HWY_API VFromD<D> ShiftRightBytes(D d, VFromD<D> v) {
 }
 
 // ------------------------------ ShiftRightLanes
-template <int kLanes, class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+// Generic for all vector lengths.
+template <int kLanes, class D>
 HWY_API VFromD<D> ShiftRightLanes(D d, const VFromD<D> v) {
   const Repartition<uint8_t, decltype(d)> d8;
   constexpr size_t kBytes = kLanes * sizeof(TFromD<D>);
@@ -5490,6 +5494,7 @@ HWY_API Vec128<T, N> Broadcast(const Vec128<T, N> v) {
 
 // Same as Interleave*, except that the return lanes are double-width integers;
 // this is necessary because the single-lane scalar cannot return two values.
+// Generic for all vector lengths.
 template <class V, class DW = RepartitionToWide<DFromV<V>>>
 HWY_API VFromD<DW> ZipLower(V a, V b) {
   return BitCast(DW(), InterleaveLower(a, b));

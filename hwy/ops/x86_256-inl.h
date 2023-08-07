@@ -261,8 +261,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{_mm256_set1_epi8(static_cast<char>(t))};  // NOLINT
 }
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2),
-          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI16_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{_mm256_set1_epi16(static_cast<short>(t))};  // NOLINT
 }
@@ -274,6 +273,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI64_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{_mm256_set1_epi64x(static_cast<long long>(t))};  // NOLINT
 }
+// bfloat16_t is handled by x86_128-inl.h.
 #if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
 HWY_API Vec256<float16_t> Set(D /* tag */, float16_t t) {
@@ -924,11 +924,6 @@ HWY_API Mask256<T> MaskFromVec(const Vec256<T> v) {
 
 template <typename T>
 HWY_API Vec256<T> VecFromMask(const Mask256<T> v) {
-  return Vec256<T>{v.raw};
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> VecFromMask(D /* tag */, const Mask256<T> v) {
   return Vec256<T>{v.raw};
 }
 
@@ -2654,6 +2649,7 @@ HWY_API VFromD<D> Load(D /* tag */, const TFromD<D>* HWY_RESTRICT aligned) {
   return VFromD<D>{
       _mm256_load_si256(reinterpret_cast<const __m256i*>(aligned))};
 }
+// bfloat16_t is handled by x86_128-inl.h.
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
 HWY_API Vec256<float16_t> Load(D d, const float16_t* HWY_RESTRICT aligned) {
 #if HWY_HAVE_FLOAT16
@@ -2677,6 +2673,7 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> LoadU(D /* tag */, const TFromD<D>* HWY_RESTRICT p) {
   return VFromD<D>{_mm256_loadu_si256(reinterpret_cast<const __m256i*>(p))};
 }
+// bfloat16_t is handled by x86_128-inl.h.
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
 HWY_API Vec256<float16_t> LoadU(D d, const float16_t* HWY_RESTRICT p) {
 #if HWY_HAVE_FLOAT16
@@ -3394,32 +3391,11 @@ HWY_API Vec256<double> Combine(D d, Vec128<double> hi, Vec128<double> lo) {
 }
 
 // ------------------------------ ShiftLeftBytes
-
 template <int kBytes, class D, typename T = TFromD<D>>
 HWY_API Vec256<T> ShiftLeftBytes(D /* tag */, const Vec256<T> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   // This is the same operation as _mm256_bslli_epi128.
   return Vec256<T>{_mm256_slli_si256(v.raw, kBytes)};
-}
-
-template <int kBytes, typename T>
-HWY_API Vec256<T> ShiftLeftBytes(const Vec256<T> v) {
-  const DFromV<decltype(v)> d;
-  return ShiftLeftBytes<kBytes>(d, v);
-}
-
-// ------------------------------ ShiftLeftLanes
-
-template <int kLanes, class D, typename T = TFromD<D>>
-HWY_API Vec256<T> ShiftLeftLanes(D d, const Vec256<T> v) {
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftLeftBytes<kLanes * sizeof(T)>(BitCast(d8, v)));
-}
-
-template <int kLanes, typename T>
-HWY_API Vec256<T> ShiftLeftLanes(const Vec256<T> v) {
-  const DFromV<decltype(v)> d;
-  return ShiftLeftLanes<kLanes>(d, v);
 }
 
 // ------------------------------ ShiftRightBytes
@@ -3428,13 +3404,6 @@ HWY_API Vec256<T> ShiftRightBytes(D /* tag */, const Vec256<T> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   // This is the same operation as _mm256_bsrli_epi128.
   return Vec256<T>{_mm256_srli_si256(v.raw, kBytes)};
-}
-
-// ------------------------------ ShiftRightLanes
-template <int kLanes, class D, typename T = TFromD<D>>
-HWY_API Vec256<T> ShiftRightLanes(D d, const Vec256<T> v) {
-  const Repartition<uint8_t, decltype(d)> d8;
-  return BitCast(d, ShiftRightBytes<kLanes * sizeof(T)>(d8, BitCast(d8, v)));
 }
 
 // ------------------------------ CombineShiftRightBytes
@@ -4124,26 +4093,6 @@ HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> InterleaveUpper(D /* tag */, VFromD<D> a, VFromD<D> b) {
   return VFromD<D>{_mm256_unpackhi_pd(a.raw, b.raw)};
-}
-
-// ------------------------------ ZipLower/ZipUpper (InterleaveLower)
-
-// Same as Interleave*, except that the return lanes are double-width integers;
-// this is necessary because the single-lane scalar cannot return two values.
-template <typename T, typename TW = MakeWide<T>>
-HWY_API Vec256<TW> ZipLower(Vec256<T> a, Vec256<T> b) {
-  const Full256<TW> dw;
-  return BitCast(dw, InterleaveLower(a, b));
-}
-template <class DW, typename TN = MakeNarrow<TFromD<DW>>>
-HWY_API VFromD<DW> ZipLower(DW dw, Vec256<TN> a, Vec256<TN> b) {
-  return BitCast(dw, InterleaveLower(a, b));
-}
-
-template <class DW, typename TN = MakeNarrow<TFromD<DW>>>
-HWY_API VFromD<DW> ZipUpper(DW dw, Vec256<TN> a, Vec256<TN> b) {
-  const RepartitionToNarrow<decltype(dw)> dn;
-  return BitCast(dw, InterleaveUpper(dn, a, b));
 }
 
 // ------------------------------ Blocks (LowerHalf, ZeroExtendVector)
