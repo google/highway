@@ -1666,12 +1666,13 @@ HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
                                     const T* HWY_RESTRICT base, VI index) {
   using TI = TFromV<VI>;
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+  const Rebind<TI, decltype(d)> di;
 
-  alignas(16) TI index_lanes[MaxLanes(d)];
-  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
+  alignas(16) TI index_lanes[MaxLanes(di)];
+  Store(index, di, index_lanes);
 
-  alignas(16) T mask_lanes[MaxLanes(d)];
-  Store(VecFromMask(d, mask), d, mask_lanes);
+  alignas(16) TI mask_lanes[MaxLanes(di)];
+  Store(BitCast(di, VecFromMask(d, m)), di, mask_lanes);
 
   alignas(16) T lanes[MaxLanes(d)];
   for (size_t i = 0; i < MaxLanes(d); ++i) {
