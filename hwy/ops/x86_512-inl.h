@@ -266,6 +266,7 @@ HWY_API Vec512<double> Set(D /* tag */, double t) {
 // GCC pre-9.1 lacked setzero, so use Set instead.
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
 
+// Cannot use VFromD here because it is defined in terms of Zero.
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_API Vec512<TFromD<D>> Zero(D d) {
   return Set(d, TFromD<D>{0});
