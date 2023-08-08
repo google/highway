@@ -756,8 +756,9 @@ HWY_API Vec1<float> ApproximateReciprocal(const Vec1<float> v) {
   return Vec1<float>(1.0f / v.raw);
 }
 
-// Absolute value of difference.
-HWY_API Vec1<float> AbsDiff(const Vec1<float> a, const Vec1<float> b) {
+// generic_ops takes care of integer T.
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_API Vec1<T> AbsDiff(const Vec1<T> a, const Vec1<T> b) {
   return Abs(a - b);
 }
 
