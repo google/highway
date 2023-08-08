@@ -11,10 +11,10 @@ freshness: { owner: 'janwas' reviewed: '2023-08-04' }
 
 ### Matrix multiplication extensions
 
-### MaskedGather, MaskedScatter
+### MaskedScatter
 
-MaskedGather returns zero for mask=false. MaskedScatter does not access the
-mask-false lanes, but may instead write a safe location (i.e. different index).
+MaskedScatter does not access the mask-false lanes, but may instead write a safe
+location (i.e. different index).
 
 ### numpy
 
@@ -191,3 +191,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~`MaxOfLanes, MinOfLanes` returning scalar~~
 *   ~~Add `DupEven` for 16-bit~~ - by johnplatts in #1431
 *   ~~AVX3_SPR target~~
+*   ~~MaskedGather returns zero for mask=false.~~

@@ -1661,6 +1661,25 @@ HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base, VI index) {
   return Load(d, lanes);
 }
 
+template <class D, typename T = TFromD<D>, class VI>
+HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                    const T* HWY_RESTRICT base, VI index) {
+  using TI = TFromV<VI>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  alignas(16) TI index_lanes[MaxLanes(d)];
+  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
+
+  alignas(16) T mask_lanes[MaxLanes(d)];
+  Store(VecFromMask(d, mask), d, mask_lanes);
+
+  alignas(16) T lanes[MaxLanes(d)];
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : T{0};
+  }
+  return Load(d, lanes);
+}
+
 // ================================================== SWIZZLE (2)
 
 // ------------------------------ LowerHalf

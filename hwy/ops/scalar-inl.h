@@ -1221,6 +1221,13 @@ HWY_API Vec1<T> GatherIndex(D d, const T* HWY_RESTRICT base, Vec1<TI> index) {
   return Load(d, base + index.raw);
 }
 
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API Vec1<T> MaskedGatherIndex(Mask1<T> m, D d, const T* HWY_RESTRICT base,
+                                  Vec1<TI> index) {
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+  return MaskedLoad(m, d, base + index.raw);
+}
+
 // ================================================== CONVERT
 
 // ConvertTo and DemoteTo with floating-point input and integer output truncate

@@ -4295,6 +4295,25 @@ HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base, VI index) {
   return Load(d, lanes);
 }
 
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
+HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                    const T* HWY_RESTRICT base, VI index) {
+  using TI = TFromV<VI>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  alignas(16) TI index_lanes[MaxLanes(d)];
+  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
+
+  HWY_ALIGN T mask_lanes[MaxLanes(d)];
+  Store(VecFromMask(d, m), d, mask_lanes);
+
+  alignas(16) T lanes[MaxLanes(d)];
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : T{0};
+  }
+  return Load(d, lanes);
+}
+
 #else
 
 namespace detail {
@@ -4328,6 +4347,70 @@ HWY_INLINE VFromD<D> NativeGather128(D /* tag */,
   return VFromD<D>{_mm_i64gather_pd(base, index.raw, kScale)};
 }
 
+template <int kScale, class D, class VI, HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
+                                           const TFromD<D>* HWY_RESTRICT base,
+                                           VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{_mm_mmask_i32gather_epi32(
+      Zero(d).raw, m.raw, index.raw, reinterpret_cast<const int32_t*>(base),
+      kScale)};
+#else
+  return VFromD<D>{_mm_mask_i32gather_epi32(
+      Zero(d).raw, reinterpret_cast<const int32_t*>(base), index.raw, m.raw,
+      kScale)};
+#endif
+}
+
+template <int kScale, class D, class VI, HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
+                                           const TFromD<D>* HWY_RESTRICT base,
+                                           VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{_mm_mmask_i64gather_epi64(
+      Zero(d).raw, m.raw, index.raw,
+      reinterpret_cast<const GatherIndex64*>(base), kScale)};
+#else
+  return VFromD<D>{_mm_mask_i64gather_epi64(
+      Zero(d).raw, reinterpret_cast<const GatherIndex64*>(base), index.raw,
+      m.raw, kScale)};
+#endif
+}
+
+template <int kScale, class D, class VI, HWY_IF_F32_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
+                                           const float* HWY_RESTRICT base,
+                                           VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{
+      _mm_mmask_i32gather_ps(Zero(d).raw, m.raw, index.raw, base, kScale)};
+#else
+  return VFromD<D>{
+      _mm_mask_i32gather_ps(Zero(d).raw, base, index.raw, m.raw, kScale)};
+#endif
+}
+
+template <int kScale, class D, class VI, HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
+                                           const double* HWY_RESTRICT base,
+                                           VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{
+      _mm_mmask_i64gather_pd(Zero(d).raw, m.raw, index.raw, base, kScale)};
+#else
+  return VFromD<D>{
+      _mm_mask_i64gather_pd(Zero(d).raw, base, index.raw, m.raw, kScale)};
+#endif
+}
+
 }  // namespace detail
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
@@ -4339,6 +4422,12 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
 HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base, VI index) {
   static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
   return detail::NativeGather128<sizeof(T)>(d, base, index);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
+HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                    const T* HWY_RESTRICT base, VI index) {
+  static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
+  return detail::NativeMaskedGather128<sizeof(T)>(m, d, base, index);
 }
 
 #endif  // HWY_TARGET >= HWY_SSE4

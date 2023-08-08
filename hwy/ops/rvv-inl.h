@@ -1722,17 +1722,29 @@ HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lux, _ALL_VIRT)
 
 // ------------------------------ GatherIndex
 
-template <class D, HWY_IF_T_SIZE_D(D, 4)>
+template <class D>
 HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
                               const VFromD<RebindToSigned<D>> index) {
-  return GatherOffset(d, base, ShiftLeft<2>(index));
+  constexpr size_t kBits = CeilLog2(sizeof(TFromD<D>));
+  return GatherOffset(d, base, ShiftLeft<kBits>(index));
 }
 
-template <class D, HWY_IF_T_SIZE_D(D, 8)>
-HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
-                              const VFromD<RebindToSigned<D>> index) {
-  return GatherOffset(d, base, ShiftLeft<3>(index));
-}
+// ------------------------------ MaskedGatherIndex
+
+#define HWY_RVV_MASKED_GATHER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
+                              SHIFT, MLEN, NAME, OP)                           \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_M(MLEN) m, HWY_RVV_D(BASE, SEW, N, SHIFT) d,                \
+           const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,                     \
+           HWY_RVV_V(int, SEW, LMUL) indices) {                                \
+    const RebindToUnsigned<decltype(d)> du;                                    \
+    constexpr size_t kBits = CeilLog2(SEW / 8);                                \
+    return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL##_mu(                  \
+        m, Zero(d), base, ShiftLeft<kBits>(BitCast(du, indices)), Lanes(d));   \
+  }
+HWY_RVV_FOREACH(HWY_RVV_MASKED_GATHER, MaskedGatherIndex, lux, _ALL_VIRT)
+#undef HWY_RVV_MASKED_GATHER
 
 // ================================================== CONVERT
 

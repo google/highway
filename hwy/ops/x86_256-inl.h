@@ -3182,6 +3182,72 @@ HWY_API Vec256<double> GatherIndex(D /* tag */, const double* HWY_RESTRICT base,
   return Vec256<double>{_mm256_i64gather_pd(base, index.raw, 8)};
 }
 
+// ------------------------------ MaskedGatherIndex
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                       const TFromD<D>* HWY_RESTRICT base,
+                                       Vec256<int32_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{
+      _mm256_mmask_i32gather_epi32(Zero(d).raw, m.raw, index.raw,
+                                   reinterpret_cast<const int32_t*>(base), 4)};
+#else
+  return VFromD<D>{_mm256_mask_i32gather_epi32(
+      Zero(d).raw, reinterpret_cast<const int32_t*>(base), index.raw, m.raw,
+      4)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                       const TFromD<D>* HWY_RESTRICT base,
+                                       Vec256<int64_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{_mm256_mmask_i64gather_epi64(
+      Zero(d).raw, m.raw, index.raw,
+      reinterpret_cast<const GatherIndex64*>(base), 8)};
+#else
+#if HWY_COMPILER_CLANG || HWY_COMPILER_CLANGCL || HWY_COMPILER_MSVC
+  // For reasons unknown, _mm256_mask_i64gather_epi64 returns all-zeros.
+  const RebindToFloat<D> df;
+  return BitCast(d, Vec256<double>{_mm256_mask_i64gather_pd(
+                        Zero(df).raw, reinterpret_cast<const double*>(base),
+                        index.raw, RebindMask(df, m).raw, 8)});
+#else   // !HWY_COMPILER_CLANG
+  return VFromD<D>{_mm256_mask_i64gather_epi64(
+      Zero(d).raw, reinterpret_cast<const GatherIndex64*>(base), m.raw,
+      index.raw, 8)};
+#endif  // HWY_COMPILER_CLANG
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> MaskedGatherIndex(MFromD<D> m, D d,
+                                        const float* HWY_RESTRICT base,
+                                        Vec256<int32_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<float>{
+      _mm256_mmask_i32gather_ps(Zero(d).raw, m.raw, index.raw, base, 4)};
+#else
+  return Vec256<float>{
+      _mm256_mask_i32gather_ps(Zero(d).raw, base, index.raw, m.raw, 4)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> MaskedGatherIndex(MFromD<D> m, D d,
+                                         const double* HWY_RESTRICT base,
+                                         Vec256<int64_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<double>{
+      _mm256_mmask_i64gather_pd(Zero(d).raw, m.raw, index.raw, base, 8)};
+#else
+  return Vec256<double>{
+      _mm256_mask_i64gather_pd(Zero(d).raw, base, index.raw, m.raw, 8)};
+#endif
+}
+
 HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE

@@ -1548,6 +1548,18 @@ HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
   return v;
 }
 
+template <class D, typename T = TFromD<D>, typename Index>
+HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                    const T* HWY_RESTRICT base,
+                                    Vec128<Index, HWY_MAX_LANES_D(D)> index) {
+  static_assert(sizeof(T) == sizeof(Index), "Index/lane size must match");
+  VFromD<D> v;
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    v.raw[i] = m.bits[i] ? base[index.raw[i]] : T{0};
+  }
+  return v;
+}
+
 // ================================================== CONVERT
 
 // ConvertTo and DemoteTo with floating-point input and integer output truncate
