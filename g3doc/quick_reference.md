@@ -499,8 +499,7 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
-*   `V`: `{u,i},f32` \
-    <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
+*   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
 *   `V`: `u8` \
     <code>VU64 **SumsOf8**(V v)</code> returns the sums of 8 consecutive u8

@@ -917,8 +917,9 @@ HWY_API Vec128<float, N> ApproximateReciprocal(Vec128<float, N> v) {
   return v;
 }
 
-template <size_t N>
-HWY_API Vec128<float, N> AbsDiff(Vec128<float, N> a, Vec128<float, N> b) {
+// generic_ops takes care of integer T.
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> AbsDiff(Vec128<T, N> a, Vec128<T, N> b) {
   return Abs(a - b);
 }
 

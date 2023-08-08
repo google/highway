@@ -384,25 +384,19 @@ struct TestNaN {
 #endif
     HWY_ASSERT_NAN(d, Min(nan, nan));
     HWY_ASSERT_NAN(d, Max(nan, nan));
-  }
-};
 
-// For functions only available for float32
-struct TestF32NaN {
-  template <class T, class D>
-  HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Vec<D> v1 = Set(d, static_cast<T>(Unpredictable1()));
-    const Vec<D> nan = IfThenElse(Eq(v1, Set(d, T{1})), NaN(d), v1);
-    HWY_ASSERT_NAN(d, ApproximateReciprocal(nan));
-    HWY_ASSERT_NAN(d, ApproximateReciprocalSqrt(nan));
+    // AbsDiff
     HWY_ASSERT_NAN(d, AbsDiff(nan, v1));
     HWY_ASSERT_NAN(d, AbsDiff(v1, nan));
+
+    // Approximate*
+    HWY_ASSERT_NAN(d, ApproximateReciprocal(nan));
+    HWY_ASSERT_NAN(d, ApproximateReciprocalSqrt(nan));
   }
 };
 
 HWY_NOINLINE void TestAllNaN() {
   ForFloatTypes(ForPartialVectors<TestNaN>());
-  ForPartialVectors<TestF32NaN>()(float());
 }
 
 struct TestIsNaN {
