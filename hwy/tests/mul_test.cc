@@ -522,22 +522,30 @@ struct TestSatWidenMulPairwiseAdd {
                           dw, vn_unsigned_max,
                           InterleaveLower(dn, vn_signed_min, vn_signed_max)));
 
-    const auto vn_iota_zero_repl =
-        Set(dn, static_cast<TN>(LimitsMax<TN>() - 16));
+    constexpr TN kSignedMax = LimitsMax<TN>();
+    constexpr TN kZeroIotaRepl = static_cast<TN>(LimitsMax<TN>() - 16);
 
-    auto vn_a = And(Iota(dn, TN{1}), vn_signed_max);
-    vn_a = Or(vn_a, IfThenElseZero(Eq(vn_a, nf0), vn_iota_zero_repl));
+    auto in_a = AllocateAligned<TN>(NN);
+    auto in_b = AllocateAligned<TN>(NN);
+    auto in_neg_b = AllocateAligned<TN>(NN);
+    HWY_ASSERT(in_a && in_b && in_neg_b);
 
-    auto tmp_lanes = AllocateAligned<TN>(NN);
-    HWY_ASSERT(tmp_lanes);
+    for (size_t i = 0; i < NN; i++) {
+      const auto val = ((i + 1) & kSignedMax);
+      const auto a_val = static_cast<TN>((val != 0) ? val : kZeroIotaRepl);
+      const auto b_val = static_cast<TN>((a_val & 63) + 20);
+      in_a[i] = a_val;
+      in_b[i] = static_cast<TN>(b_val);
+      in_neg_b[i] = static_cast<TN>(-b_val);
+    }
 
-    Store(vn_a, dn, tmp_lanes.get());
     for (size_t i = 0; i < NW; i++) {
-      const TW a0 = static_cast<TW>(tmp_lanes[2 * i]);
-      const TW a1 = static_cast<TW>(tmp_lanes[2 * i + 1]);
+      const TW a0 = static_cast<TW>(in_a[2 * i]);
+      const TW a1 = static_cast<TW>(in_a[2 * i + 1]);
       expected[i] = static_cast<TW>(a0 * a0 + a1 * a1);
     }
 
+    auto vn_a = Load(dn, in_a.get());
     HWY_ASSERT_VEC_EQ(dw, expected.get(),
                       SatWidenMulPairwiseAdd(dw, BitCast(dn_u, vn_a), vn_a));
 
@@ -549,8 +557,7 @@ struct TestSatWidenMulPairwiseAdd {
         dw, expected.get(),
         SatWidenMulPairwiseAdd(dw, BitCast(dn_u, vn_a), Neg(vn_a)));
 
-    auto vn_b = Add(And(vn_a, Set(dn, TN{63})), Set(dn, TN{20}));
-    Store(vn_b, dn, tmp_lanes.get());
+    auto vn_b = Load(dn, in_b.get());
 
     HWY_ASSERT_VEC_EQ(
         dw, vw_signed_max,
@@ -573,7 +580,7 @@ struct TestSatWidenMulPairwiseAdd {
             dw, InterleaveUpper(dn_u, vn_unsigned_max, BitCast(dn_u, vn_b)),
             InterleaveUpper(dn, vn_signed_max, vn_b)));
 
-    const auto vn_neg_b = Neg(vn_b);
+    const auto vn_neg_b = Load(dn, in_neg_b.get());
     HWY_ASSERT_VEC_EQ(
         dw, vw_signed_min,
         SatWidenMulPairwiseAdd(
@@ -600,8 +607,8 @@ struct TestSatWidenMulPairwiseAdd {
 
     for (size_t i = 0; i < NW; i++) {
       const size_t blk_idx = i / kMaxLanesPerWBlock;
-      const TW b = static_cast<TW>(tmp_lanes[blk_idx * kMaxLanesPerNBlock +
-                                             (i & (kMaxLanesPerWBlock - 1))]);
+      const TW b = static_cast<TW>(
+          in_b[blk_idx * kMaxLanesPerNBlock + (i & (kMaxLanesPerWBlock - 1))]);
       expected[i] =
           static_cast<TW>(b * b + static_cast<TW>(LimitsMax<TN_U>()) *
                                       static_cast<TW>(LimitsMin<TN>()));
