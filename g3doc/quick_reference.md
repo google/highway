@@ -1204,10 +1204,9 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 *   `D`: `{u,i,f}{32,64}` \
     <code>Vec&lt;D&gt; **MaskedGatherIndex**(M mask, D d, const T* base, VI
     indices)</code>: returns vector of `base[indices[i]]` where `mask[i]` is
-    true, otherwise zero. May fault even where `mask` is false `#if
-    HWY_MEM_OPS_MIGHT_FAULT`. Assuming no faults, this is equivalent to, and
-    potentially more efficient than, `IfThenElseZero(mask, GatherIndex(d, base,
-    indices))`.
+    true, otherwise zero. Does not fault for lanes whose `mask` is false. This
+    is equivalent to, and potentially more efficient than, `IfThenElseZero(mask,
+    GatherIndex(d, base, indices))`.
 
 ### Cache control
 
@@ -1854,12 +1853,12 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
     and the RVV target when using Clang 16. We anticipate it will also become,
     and then remain, true starting with GCC 14.
 
-*   `HWY_MEM_OPS_MIGHT_FAULT` is 1 iff `MaskedLoad` or `MaskedGatherIndex` may
-    trigger a (page) fault when attempting to load lanes from unmapped memory,
-    even if the corresponding mask element is false. This is the case on
-    ASAN/MSAN builds, AMD x86 prior to AVX-512, and Arm NEON. If so, users can
-    prevent faults by ensuring memory addresses are aligned to the vector size
-    or at least padded (allocation size increased by at least `Lanes(d)`).
+*   `HWY_MEM_OPS_MIGHT_FAULT` is 1 iff `MaskedLoad` may trigger a (page) fault
+    when attempting to load lanes from unmapped memory, even if the
+    corresponding mask element is false. This is the case on ASAN/MSAN builds,
+    AMD x86 prior to AVX-512, and Arm NEON. If so, users can prevent faults by
+    ensuring memory addresses are aligned to the vector size or at least padded
+    (allocation size increased by at least `Lanes(d)`).
 
 *   `HWY_NATIVE_FMA` expands to 1 if the `MulAdd` etc. ops use native fused
     multiply-add for floating-point inputs. Otherwise, `MulAdd(f, m, a)` is

@@ -1207,6 +1207,12 @@ HWY_API void ScatterIndex(Vec1<T> v, D d, T* HWY_RESTRICT base,
 
 // ------------------------------ Gather
 
+#ifdef HWY_NATIVE_GATHER
+#undef HWY_NATIVE_GATHER
+#else
+#define HWY_NATIVE_GATHER
+#endif
+
 template <class D, typename T = TFromD<D>, typename TI>
 HWY_API Vec1<T> GatherOffset(D d, const T* base, Vec1<TI> offset) {
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");

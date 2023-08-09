@@ -4262,60 +4262,13 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base, VI index) {
 
 // ------------------------------ Gather (Load/Store)
 
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET <= HWY_AVX2
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API VFromD<D> GatherOffset(D d, const T* HWY_RESTRICT base, VI offset) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  alignas(16) TI offset_lanes[MaxLanes(d)];
-  Store(offset, Rebind<TI, decltype(d)>(), offset_lanes);
-
-  alignas(16) T lanes[MaxLanes(d)];
-  const uint8_t* base_bytes = reinterpret_cast<const uint8_t*>(base);
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    CopyBytes<sizeof(T)>(base_bytes + offset_lanes[i], &lanes[i]);
-  }
-  return Load(d, lanes);
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base, VI index) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  alignas(16) TI index_lanes[MaxLanes(d)];
-  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
-
-  alignas(16) T lanes[MaxLanes(d)];
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    lanes[i] = base[index_lanes[i]];
-  }
-  return Load(d, lanes);
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
-                                    const T* HWY_RESTRICT base, VI index) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-  const Rebind<TI, decltype(d)> di;
-
-  alignas(16) TI index_lanes[MaxLanes(di)];
-  Store(index, di, index_lanes);
-
-  alignas(16) TI mask_lanes[MaxLanes(di)];
-  Store(BitCast(di, VecFromMask(d, m)), di, mask_lanes);
-
-  alignas(16) T lanes[MaxLanes(d)];
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : T{0};
-  }
-  return Load(d, lanes);
-}
-
+#ifdef HWY_NATIVE_GATHER
+#undef HWY_NATIVE_GATHER
 #else
+#define HWY_NATIVE_GATHER
+#endif
 
 namespace detail {
 
@@ -4431,7 +4384,7 @@ HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
   return detail::NativeMaskedGather128<sizeof(T)>(m, d, base, index);
 }
 
-#endif  // HWY_TARGET >= HWY_SSE4
+#endif  // HWY_TARGET <= HWY_AVX2
 
 HWY_DIAGNOSTICS(pop)
 

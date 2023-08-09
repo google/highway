@@ -1358,6 +1358,12 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_INDEX, ScatterIndex, st1_scatter)
 
 // ------------------------------ GatherOffset/Index
 
+#ifdef HWY_NATIVE_GATHER
+#undef HWY_NATIVE_GATHER
+#else
+#define HWY_NATIVE_GATHER
+#endif
+
 #define HWY_SVE_GATHER_OFFSET(BASE, CHAR, BITS, HALF, NAME, OP)             \
   template <size_t N, int kPow2>                                            \
   HWY_API HWY_SVE_V(BASE, BITS)                                             \

@@ -1524,42 +1524,6 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base,
 
 // ------------------------------ Gather
 
-template <class D, typename T = TFromD<D>, typename Offset>
-HWY_API VFromD<D> GatherOffset(D d, const T* base,
-                               Vec128<Offset, HWY_MAX_LANES_D(D)> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "Index/lane size must match");
-  VFromD<D> v;
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    const uint8_t* base8 =
-        reinterpret_cast<const uint8_t*>(base) + offset.raw[i];
-    CopyBytes<sizeof(T)>(base8, &v.raw[i]);  // copy from bytes
-  }
-  return v;
-}
-
-template <class D, typename T = TFromD<D>, typename Index>
-HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
-                              Vec128<Index, HWY_MAX_LANES_D(D)> index) {
-  static_assert(sizeof(T) == sizeof(Index), "Index/lane size must match");
-  VFromD<D> v;
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] = base[index.raw[i]];
-  }
-  return v;
-}
-
-template <class D, typename T = TFromD<D>, typename Index>
-HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
-                                    const T* HWY_RESTRICT base,
-                                    Vec128<Index, HWY_MAX_LANES_D(D)> index) {
-  static_assert(sizeof(T) == sizeof(Index), "Index/lane size must match");
-  VFromD<D> v;
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] = m.bits[i] ? base[index.raw[i]] : T{0};
-  }
-  return v;
-}
-
 // ================================================== CONVERT
 
 // ConvertTo and DemoteTo with floating-point input and integer output truncate
