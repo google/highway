@@ -499,8 +499,7 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
 
-*   `V`: `{u,i},f32` \
-    <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
+*   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
 *   `V`: `u8` \
     <code>VU64 **SumsOf8**(V v)</code> returns the sums of 8 consecutive u8
@@ -1215,6 +1214,13 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>:
     returns vector of `base[indices[i]]`.
 
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **MaskedGatherIndex**(M mask, D d, const T* base, VI
+    indices)</code>: returns vector of `base[indices[i]]` where `mask[i]` is
+    true, otherwise zero. Does not fault for lanes whose `mask` is false. This
+    is equivalent to, and potentially more efficient than, `IfThenElseZero(mask,
+    GatherIndex(d, base, indices))`.
+
 ### Cache control
 
 All functions except `Stream` are defined in cache_control.h.
@@ -1865,7 +1871,7 @@ The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
     corresponding mask element is false. This is the case on ASAN/MSAN builds,
     AMD x86 prior to AVX-512, and Arm NEON. If so, users can prevent faults by
     ensuring memory addresses are aligned to the vector size or at least padded
-    (allocation size increased by at least `Lanes(d)`.
+    (allocation size increased by at least `Lanes(d)`).
 
 *   `HWY_NATIVE_FMA` expands to 1 if the `MulAdd` etc. ops use native fused
     multiply-add for floating-point inputs. Otherwise, `MulAdd(f, m, a)` is

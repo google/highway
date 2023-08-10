@@ -266,6 +266,7 @@ HWY_API Vec512<double> Set(D /* tag */, double t) {
 // GCC pre-9.1 lacked setzero, so use Set instead.
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 900
 
+// Cannot use VFromD here because it is defined in terms of Zero.
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 HWY_API Vec512<TFromD<D>> Zero(D d) {
   return Set(d, TFromD<D>{0});
@@ -2693,6 +2694,41 @@ HWY_INLINE Vec512<double> NativeGather(const double* HWY_RESTRICT base,
   return Vec512<double>{_mm512_i64gather_pd(index.raw, base, kScale)};
 }
 
+template <int kScale, typename T, HWY_IF_UI32(T)>
+HWY_INLINE Vec512<T> NativeMaskedGather(Mask512<T> m,
+                                        const T* HWY_RESTRICT base,
+                                        Vec512<int32_t> index) {
+  const Full512<T> d;
+  return Vec512<T>{
+      _mm512_mask_i32gather_epi32(Zero(d).raw, m.raw, index.raw, base, kScale)};
+}
+
+template <int kScale, typename T, HWY_IF_UI64(T)>
+HWY_INLINE Vec512<T> NativeMaskedGather(Mask512<T> m,
+                                        const T* HWY_RESTRICT base,
+                                        Vec512<int64_t> index) {
+  const Full512<T> d;
+  return Vec512<T>{
+      _mm512_mask_i64gather_epi64(Zero(d).raw, m.raw, index.raw, base, kScale)};
+}
+
+template <int kScale>
+HWY_INLINE Vec512<float> NativeMaskedGather(Mask512<float> m,
+                                            const float* HWY_RESTRICT base,
+                                            Vec512<int32_t> index) {
+  const Full512<float> d;
+  return Vec512<float>{
+      _mm512_mask_i32gather_ps(Zero(d).raw, m.raw, index.raw, base, kScale)};
+}
+
+template <int kScale>
+HWY_INLINE Vec512<double> NativeMaskedGather(Mask512<double> m,
+                                             const double* HWY_RESTRICT base,
+                                             Vec512<int64_t> index) {
+  const Full512<double> d;
+  return Vec512<double>{
+      _mm512_mask_i64gather_pd(Zero(d).raw, m.raw, index.raw, base, kScale)};
+}
 }  // namespace detail
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
@@ -2706,6 +2742,13 @@ HWY_API VFromD<D> GatherIndex(D /* tag */, const TFromD<D>* HWY_RESTRICT base,
                               Vec512<TI> index) {
   static_assert(sizeof(TFromD<D>) == sizeof(TI), "Must match for portability");
   return detail::NativeGather<sizeof(TFromD<D>)>(base, index);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
+HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D /* tag */,
+                                    const TFromD<D>* HWY_RESTRICT base,
+                                    Vec512<TI> index) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Must match for portability");
+  return detail::NativeMaskedGather<sizeof(TFromD<D>)>(m, base, index);
 }
 
 HWY_DIAGNOSTICS(pop)

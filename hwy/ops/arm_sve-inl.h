@@ -1359,6 +1359,12 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_INDEX, ScatterIndex, st1_scatter)
 
 // ------------------------------ GatherOffset/Index
 
+#ifdef HWY_NATIVE_GATHER
+#undef HWY_NATIVE_GATHER
+#else
+#define HWY_NATIVE_GATHER
+#endif
+
 #define HWY_SVE_GATHER_OFFSET(BASE, CHAR, BITS, HALF, NAME, OP)             \
   template <size_t N, int kPow2>                                            \
   HWY_API HWY_SVE_V(BASE, BITS)                                             \
@@ -1368,20 +1374,26 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_INDEX, ScatterIndex, st1_scatter)
     return sv##OP##_s##BITS##offset_##CHAR##BITS(detail::MakeMask(d), base, \
                                                  offset);                   \
   }
-#define HWY_SVE_GATHER_INDEX(BASE, CHAR, BITS, HALF, NAME, OP)             \
-  template <size_t N, int kPow2>                                           \
-  HWY_API HWY_SVE_V(BASE, BITS)                                            \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,                              \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,                \
-           HWY_SVE_V(int, BITS) index) {                                   \
-    return sv##OP##_s##BITS##index_##CHAR##BITS(detail::MakeMask(d), base, \
-                                                index);                    \
+#define HWY_SVE_MASKED_GATHER_INDEX(BASE, CHAR, BITS, HALF, NAME, OP) \
+  template <size_t N, int kPow2>                                      \
+  HWY_API HWY_SVE_V(BASE, BITS)                                       \
+      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/,         \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,           \
+           HWY_SVE_V(int, BITS) index) {                              \
+    return sv##OP##_s##BITS##index_##CHAR##BITS(m, base, index);      \
   }
 
 HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_OFFSET, GatherOffset, ld1_gather)
-HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_INDEX, GatherIndex, ld1_gather)
+HWY_SVE_FOREACH_UIF3264(HWY_SVE_MASKED_GATHER_INDEX, MaskedGatherIndex,
+                        ld1_gather)
 #undef HWY_SVE_GATHER_OFFSET
-#undef HWY_SVE_GATHER_INDEX
+#undef HWY_SVE_MASKED_GATHER_INDEX
+
+template <class D>
+HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT p,
+                              VFromD<RebindToSigned<D>> indices) {
+  return MaskedGatherIndex(detail::MakeMask(d), d, p, indices);
+}
 
 // ------------------------------ LoadInterleaved2
 

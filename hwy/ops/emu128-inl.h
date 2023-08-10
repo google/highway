@@ -904,8 +904,9 @@ HWY_API Vec128<float, N> ApproximateReciprocal(Vec128<float, N> v) {
   return v;
 }
 
-template <size_t N>
-HWY_API Vec128<float, N> AbsDiff(Vec128<float, N> a, Vec128<float, N> b) {
+// generic_ops takes care of integer T.
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
+HWY_API Vec128<T, N> AbsDiff(Vec128<T, N> a, Vec128<T, N> b) {
   return Abs(a - b);
 }
 
@@ -1509,30 +1510,6 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base,
 }
 
 // ------------------------------ Gather
-
-template <class D, typename T = TFromD<D>, typename Offset>
-HWY_API VFromD<D> GatherOffset(D d, const T* base,
-                               Vec128<Offset, HWY_MAX_LANES_D(D)> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "Index/lane size must match");
-  VFromD<D> v;
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    const uint8_t* base8 =
-        reinterpret_cast<const uint8_t*>(base) + offset.raw[i];
-    CopyBytes<sizeof(T)>(base8, &v.raw[i]);  // copy from bytes
-  }
-  return v;
-}
-
-template <class D, typename T = TFromD<D>, typename Index>
-HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
-                              Vec128<Index, HWY_MAX_LANES_D(D)> index) {
-  static_assert(sizeof(T) == sizeof(Index), "Index/lane size must match");
-  VFromD<D> v;
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] = base[index.raw[i]];
-  }
-  return v;
-}
 
 // ================================================== CONVERT
 

@@ -216,20 +216,21 @@ struct BitCastFromInteger256<double> {
   HWY_INLINE __m256d operator()(__m256i v) { return _mm256_castsi256_pd(v); }
 };
 
-template <class D, typename T = TFromD<D>>
-HWY_INLINE Vec256<T> BitCastFromByte(D /* tag */, Vec256<uint8_t> v) {
-  return Vec256<T>{BitCastFromInteger256<T>()(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_INLINE VFromD<D> BitCastFromByte(D /* tag */, Vec256<uint8_t> v) {
+  return VFromD<D>{BitCastFromInteger256<TFromD<D>>()(v.raw)};
 }
 
 }  // namespace detail
 
-template <class D, typename FromT>
-HWY_API Vec256<TFromD<D>> BitCast(D d, Vec256<FromT> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename FromT>
+HWY_API VFromD<D> BitCast(D d, Vec256<FromT> v) {
   return detail::BitCastFromByte(d, detail::BitCastToByte(v));
 }
 
 // ------------------------------ Zero
 
+// Cannot use VFromD here because it is defined in terms of Zero.
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API Vec256<TFromD<D>> Zero(D /* tag */) {
   return Vec256<TFromD<D>>{_mm256_setzero_si256()};
@@ -294,10 +295,10 @@ HWY_DIAGNOSTICS_OFF(disable : 4700, ignored "-Wuninitialized")
 
 // Returns a vector with uninitialized elements.
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
-HWY_API Vec256<TFromD<D>> Undefined(D /* tag */) {
+HWY_API VFromD<D> Undefined(D /* tag */) {
   // Available on Clang 6.0, GCC 6.2, ICC 16.03, MSVC 19.14. All but ICC
   // generate an XOR instruction.
-  return Vec256<TFromD<D>>{_mm256_undefined_si256()};
+  return VFromD<D>{_mm256_undefined_si256()};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
 HWY_API Vec256<bfloat16_t> Undefined(D /* tag */) {
@@ -1012,10 +1013,10 @@ HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
 
 // Comparisons set a mask bit to 1 if the condition is true, else 0.
 
-template <typename TFrom, class DTo, typename TTo = TFromD<DTo>>
-HWY_API Mask256<TTo> RebindMask(DTo /*tag*/, Mask256<TFrom> m) {
-  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
-  return Mask256<TTo>{m.raw};
+template <class DTo, HWY_IF_V_SIZE_D(DTo, 32), typename TFrom>
+HWY_API MFromD<DTo> RebindMask(DTo /*tag*/, Mask256<TFrom> m) {
+  static_assert(sizeof(TFrom) == sizeof(TFromD<DTo>), "Must have same size");
+  return MFromD<DTo>{m.raw};
 }
 
 namespace detail {
@@ -1268,18 +1269,13 @@ HWY_API Vec256<double> VecFromMask(const Mask256<double> v) {
   return Vec256<double>{_mm256_castsi256_pd(_mm256_movm_epi64(v.raw))};
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> VecFromMask(D /* tag */, const Mask256<T> v) {
-  return VecFromMask(v);
-}
-
 #else  // AVX2
 
 // Comparisons fill a lane with 1-bits if the condition is true, else 0.
 
-template <typename TFrom, class DTo, typename TTo = TFromD<DTo>>
-HWY_API Mask256<TTo> RebindMask(DTo d_to, Mask256<TFrom> m) {
-  static_assert(sizeof(TFrom) == sizeof(TTo), "Must have same size");
+template <class DTo, HWY_IF_V_SIZE_D(DTo, 32), typename TFrom>
+HWY_API MFromD<DTo> RebindMask(DTo d_to, Mask256<TFrom> m) {
+  static_assert(sizeof(TFrom) == sizeof(TFromD<DTo>), "Must have same size");
   const Full256<TFrom> dfrom;
   return MaskFromVec(BitCast(d_to, VecFromMask(dfrom, m)));
 }
@@ -1574,8 +1570,7 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
       static_cast<char>(1), static_cast<char>(0))};
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2),
-          HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI16_D(D)>
 HWY_INLINE VFromD<D> Iota0(D /*d*/) {
   return VFromD<D>{_mm256_set_epi16(
       int16_t{15}, int16_t{14}, int16_t{13}, int16_t{12}, int16_t{11},
@@ -1620,14 +1615,14 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
 
 }  // namespace detail
 
-template <class D, typename T2, HWY_IF_V_SIZE_D(D, 32)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename T2>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
   return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
 }
 
 // ------------------------------ FirstN (Iota, Lt)
 
-template <class D, class M = MFromD<D>, HWY_IF_V_SIZE_D(D, 32)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), class M = MFromD<D>>
 HWY_API M FirstN(const D d, size_t n) {
 #if HWY_TARGET <= HWY_AVX3
   (void)d;
@@ -3187,6 +3182,72 @@ HWY_API Vec256<double> GatherIndex(D /* tag */, const double* HWY_RESTRICT base,
   return Vec256<double>{_mm256_i64gather_pd(base, index.raw, 8)};
 }
 
+// ------------------------------ MaskedGatherIndex
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
+HWY_INLINE VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                       const TFromD<D>* HWY_RESTRICT base,
+                                       Vec256<int32_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{
+      _mm256_mmask_i32gather_epi32(Zero(d).raw, m.raw, index.raw,
+                                   reinterpret_cast<const int32_t*>(base), 4)};
+#else
+  return VFromD<D>{_mm256_mask_i32gather_epi32(
+      Zero(d).raw, reinterpret_cast<const int32_t*>(base), index.raw, m.raw,
+      4)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                       const TFromD<D>* HWY_RESTRICT base,
+                                       Vec256<int64_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return VFromD<D>{_mm256_mmask_i64gather_epi64(
+      Zero(d).raw, m.raw, index.raw,
+      reinterpret_cast<const GatherIndex64*>(base), 8)};
+#else
+#if HWY_COMPILER_CLANG || HWY_COMPILER_CLANGCL || HWY_COMPILER_MSVC
+  // For reasons unknown, _mm256_mask_i64gather_epi64 returns all-zeros.
+  const RebindToFloat<D> df;
+  return BitCast(d, Vec256<double>{_mm256_mask_i64gather_pd(
+                        Zero(df).raw, reinterpret_cast<const double*>(base),
+                        index.raw, RebindMask(df, m).raw, 8)});
+#else   // !HWY_COMPILER_CLANG
+  return VFromD<D>{_mm256_mask_i64gather_epi64(
+      Zero(d).raw, reinterpret_cast<const GatherIndex64*>(base), m.raw,
+      index.raw, 8)};
+#endif  // HWY_COMPILER_CLANG
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API Vec256<float> MaskedGatherIndex(MFromD<D> m, D d,
+                                        const float* HWY_RESTRICT base,
+                                        Vec256<int32_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<float>{
+      _mm256_mmask_i32gather_ps(Zero(d).raw, m.raw, index.raw, base, 4)};
+#else
+  return Vec256<float>{
+      _mm256_mask_i32gather_ps(Zero(d).raw, base, index.raw, m.raw, 4)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> MaskedGatherIndex(MFromD<D> m, D d,
+                                         const double* HWY_RESTRICT base,
+                                         Vec256<int64_t> index) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec256<double>{
+      _mm256_mmask_i64gather_pd(Zero(d).raw, m.raw, index.raw, base, 8)};
+#else
+  return Vec256<double>{
+      _mm256_mask_i64gather_pd(Zero(d).raw, base, index.raw, m.raw, 8)};
+#endif
+}
+
 HWY_DIAGNOSTICS(pop)
 
 // ================================================== SWIZZLE
@@ -3233,13 +3294,13 @@ HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
   return BitCast(d, VFromD<decltype(du)>{
                         _mm256_extracti128_si256(BitCast(dut, v).raw, 1)});
 }
-template <class D>
-HWY_API Vec128<float> UpperHalf(D /* tag */, Vec256<float> v) {
-  return Vec128<float>{_mm256_extractf128_ps(v.raw, 1)};
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> UpperHalf(D /* tag */, Vec256<float> v) {
+  return VFromD<D>{_mm256_extractf128_ps(v.raw, 1)};
 }
-template <class D>
-HWY_API Vec128<double> UpperHalf(D /* tag */, Vec256<double> v) {
-  return Vec128<double>{_mm256_extractf128_pd(v.raw, 1)};
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> UpperHalf(D /* tag */, Vec256<double> v) {
+  return VFromD<D>{_mm256_extractf128_pd(v.raw, 1)};
 }
 
 // ------------------------------ ExtractLane (Store)
@@ -3391,24 +3452,24 @@ HWY_API Vec256<double> Combine(D d, Vec128<double> hi, Vec128<double> lo) {
 }
 
 // ------------------------------ ShiftLeftBytes
-template <int kBytes, class D, typename T = TFromD<D>>
-HWY_API Vec256<T> ShiftLeftBytes(D /* tag */, const Vec256<T> v) {
+template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ShiftLeftBytes(D /* tag */, VFromD<D> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   // This is the same operation as _mm256_bslli_epi128.
-  return Vec256<T>{_mm256_slli_si256(v.raw, kBytes)};
+  return VFromD<D>{_mm256_slli_si256(v.raw, kBytes)};
 }
 
 // ------------------------------ ShiftRightBytes
-template <int kBytes, class D, typename T = TFromD<D>>
-HWY_API Vec256<T> ShiftRightBytes(D /* tag */, const Vec256<T> v) {
+template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ShiftRightBytes(D /* tag */, VFromD<D> v) {
   static_assert(0 <= kBytes && kBytes <= 16, "Invalid kBytes");
   // This is the same operation as _mm256_bsrli_epi128.
-  return Vec256<T>{_mm256_srli_si256(v.raw, kBytes)};
+  return VFromD<D>{_mm256_srli_si256(v.raw, kBytes)};
 }
 
 // ------------------------------ CombineShiftRightBytes
-template <int kBytes, class D, typename T = TFromD<D>>
-HWY_API Vec256<T> CombineShiftRightBytes(D d, Vec256<T> hi, Vec256<T> lo) {
+template <int kBytes, class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> CombineShiftRightBytes(D d, VFromD<D> hi, VFromD<D> lo) {
   const Repartition<uint8_t, decltype(d)> d8;
   return BitCast(d, Vec256<uint8_t>{_mm256_alignr_epi8(
                         BitCast(d8, hi).raw, BitCast(d8, lo).raw, kBytes)});
@@ -3657,30 +3718,30 @@ struct Indices256 {
 };
 
 // 8-bit lanes: indices remain unchanged
-template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 1)>
-HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
-  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 1), typename TI>
+HWY_API Indices256<TFromD<D>> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const Full256<TI> di;
   HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(2 * Lanes(di))))));
 #endif
-  return Indices256<T>{vec.raw};
+  return Indices256<TFromD<D>>{vec.raw};
 }
 
 // 16-bit lanes: convert indices to 32x8 unless AVX3 is available
-template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 2)>
-HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
-  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2), typename TI>
+HWY_API Indices256<TFromD<D>> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
   const Full256<TI> di;
 #if HWY_IS_DEBUG_BUILD
   HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(2 * Lanes(di))))));
 #endif
 
 #if HWY_TARGET <= HWY_AVX3
   (void)di;
-  return Indices256<T>{vec.raw};
+  return Indices256<TFromD<D>>{vec.raw};
 #else
   const Repartition<uint8_t, decltype(di)> d8;
   using V8 = VFromD<decltype(d8)>;
@@ -3698,36 +3759,36 @@ HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
   const Repartition<uint16_t, decltype(di)> d16;
   const V8 byte_indices = BitCast(d8, ShiftLeft<1>(BitCast(d16, lane_indices)));
 
-  return Indices256<T>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
+  return Indices256<TFromD<D>>{Add(byte_indices, Load(d8, kByteOffsets)).raw};
 #endif  // HWY_TARGET <= HWY_AVX3
 }
 
 // Native 8x32 instruction: indices remain unchanged
-template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 4)>
-HWY_API Indices256<T> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
-  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 4), typename TI>
+HWY_API Indices256<TFromD<D>> IndicesFromVec(D /* tag */, Vec256<TI> vec) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
 #if HWY_IS_DEBUG_BUILD
   const Full256<TI> di;
   HWY_DASSERT(AllFalse(di, Lt(vec, Zero(di))) &&
-              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(64 / sizeof(T))))));
+              AllTrue(di, Lt(vec, Set(di, static_cast<TI>(2 * Lanes(di))))));
 #endif
-  return Indices256<T>{vec.raw};
+  return Indices256<TFromD<D>>{vec.raw};
 }
 
 // 64-bit lanes: convert indices to 8x32 unless AVX3 is available
-template <class D, typename T = TFromD<D>, typename TI, HWY_IF_T_SIZE(T, 8)>
-HWY_API Indices256<T> IndicesFromVec(D d, Vec256<TI> idx64) {
-  static_assert(sizeof(T) == sizeof(TI), "Index size must match lane");
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 8), typename TI>
+HWY_API Indices256<TFromD<D>> IndicesFromVec(D d, Vec256<TI> idx64) {
+  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Index size must match lane");
   const Rebind<TI, decltype(d)> di;
   (void)di;  // potentially unused
 #if HWY_IS_DEBUG_BUILD
   HWY_DASSERT(AllFalse(di, Lt(idx64, Zero(di))) &&
-              AllTrue(di, Lt(idx64, Set(di, static_cast<TI>(64 / sizeof(T))))));
+              AllTrue(di, Lt(idx64, Set(di, static_cast<TI>(2 * Lanes(di))))));
 #endif
 
 #if HWY_TARGET <= HWY_AVX3
   (void)d;
-  return Indices256<T>{idx64.raw};
+  return Indices256<TFromD<D>>{idx64.raw};
 #else
   const Repartition<float, decltype(d)> df;  // 32-bit!
   // Replicate 64-bit index into upper 32 bits
@@ -3735,12 +3796,12 @@ HWY_API Indices256<T> IndicesFromVec(D d, Vec256<TI> idx64) {
       BitCast(di, Vec256<float>{_mm256_moveldup_ps(BitCast(df, idx64).raw)});
   // For each idx64 i, idx32 are 2*i and 2*i+1.
   const Vec256<TI> idx32 = dup + dup + Set(di, TI(1) << 32);
-  return Indices256<T>{idx32.raw};
+  return Indices256<TFromD<D>>{idx32.raw};
 #endif
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>, typename TI>
-HWY_API Indices256<T> SetTableIndices(D d, const TI* idx) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), typename TI>
+HWY_API Indices256<TFromD<D>> SetTableIndices(D d, const TI* idx) {
   const Rebind<TI, decltype(d)> di;
   return IndicesFromVec(d, LoadU(di, idx));
 }
@@ -3932,20 +3993,20 @@ HWY_API Vec256<float> SwapAdjacentBlocks(Vec256<float> v) {
 
 // ------------------------------ Reverse (RotateRight)
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
   alignas(32) static constexpr int32_t kReverse[8] = {7, 6, 5, 4, 3, 2, 1, 0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
-HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
   alignas(32) static constexpr int64_t kReverse[4] = {3, 2, 1, 0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
 #if HWY_TARGET <= HWY_AVX3
   const RebindToSigned<decltype(d)> di;
   alignas(32) static constexpr int16_t kReverse[16] = {
@@ -3958,21 +4019,21 @@ HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
   alignas(16) static constexpr int16_t kShuffle[8] = {
       0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
   const auto rev128 = TableLookupBytes(v, LoadDup128(di, kShuffle));
-  return Vec256<T>{
+  return VFromD<D>{
       _mm256_permute4x64_epi64(rev128.raw, _MM_SHUFFLE(1, 0, 3, 2))};
 #endif
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
 #if HWY_TARGET <= HWY_AVX3_DL
-  alignas(32) static constexpr T kReverse[32] = {
+  alignas(32) static constexpr TFromD<D> kReverse[32] = {
       31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
       15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0};
   return TableLookupLanes(v, SetTableIndices(d, kReverse));
 #else
   // First reverse bytes within blocks via PSHUFB, then swap blocks.
-  alignas(32) static constexpr T kReverse[32] = {
+  alignas(32) static constexpr TFromD<D> kReverse[32] = {
       15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
       15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
   return SwapAdjacentBlocks(TableLookupBytes(v, Load(d, kReverse)));
@@ -3983,8 +4044,8 @@ HWY_API Vec256<T> Reverse(D d, const Vec256<T> v) {
 
 // ------------------------------ Reverse4 (SwapAdjacentBlocks)
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec256<T> Reverse4(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToSigned<decltype(d)> di;
   alignas(16) static constexpr int16_t kShuffle[8] = {
       0x0706, 0x0504, 0x0302, 0x0100, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908};
@@ -3993,29 +4054,29 @@ HWY_API Vec256<T> Reverse4(D d, const Vec256<T> v) {
 
 // 32 bit Reverse4 defined in x86_128.
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
-HWY_API Vec256<T> Reverse4(D /* tag */, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Reverse4(D /* tag */, const VFromD<D> v) {
   // Could also use _mm256_permute4x64_epi64.
   return SwapAdjacentBlocks(Shuffle01(v));
 }
 
 // ------------------------------ Reverse8
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec256<T> Reverse8(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   const RebindToSigned<decltype(d)> di;
   alignas(16) static constexpr int16_t kShuffle[8] = {
       0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
   return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 4)>
-HWY_API Vec256<T> Reverse8(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   return Reverse(d, v);
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 8)>
-HWY_API Vec256<T> Reverse8(D /* tag */, const Vec256<T> /* v */) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Reverse8(D /* tag */, const VFromD<D> /* v */) {
   HWY_ASSERT(0);  // AVX2 does not have 8 64-bit lanes
 }
 
@@ -4181,8 +4242,8 @@ HWY_API Vec256<T> InsertBlock(Vec256<T> v, Vec128<T> blk_to_insert) {
 
 // ------------------------------ ConcatOdd
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 1)>
-HWY_API Vec256<T> ConcatOdd(D d, Vec256<T> hi, Vec256<T> lo) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const RebindToUnsigned<decltype(d)> du;
 #if HWY_TARGET <= HWY_AVX3_DL
   alignas(32) static constexpr uint8_t kIdx[32] = {
@@ -4197,12 +4258,12 @@ HWY_API Vec256<T> ConcatOdd(D d, Vec256<T> hi, Vec256<T> lo) {
   const Vec256<uint16_t> uH = ShiftRight<8>(BitCast(dw, hi));
   const Vec256<uint16_t> uL = ShiftRight<8>(BitCast(dw, lo));
   const __m256i u8 = _mm256_packus_epi16(uL.raw, uH.raw);
-  return Vec256<T>{_mm256_permute4x64_epi64(u8, _MM_SHUFFLE(3, 1, 2, 0))};
+  return VFromD<D>{_mm256_permute4x64_epi64(u8, _MM_SHUFFLE(3, 1, 2, 0))};
 #endif
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API Vec256<T> ConcatOdd(D d, Vec256<T> hi, Vec256<T> lo) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const RebindToUnsigned<decltype(d)> du;
 #if HWY_TARGET <= HWY_AVX3
   alignas(32) static constexpr uint16_t kIdx[16] = {
@@ -4216,7 +4277,7 @@ HWY_API Vec256<T> ConcatOdd(D d, Vec256<T> hi, Vec256<T> lo) {
   const Vec256<uint32_t> uH = ShiftRight<16>(BitCast(dw, hi));
   const Vec256<uint32_t> uL = ShiftRight<16>(BitCast(dw, lo));
   const __m256i u16 = _mm256_packus_epi32(uL.raw, uH.raw);
-  return Vec256<T>{_mm256_permute4x64_epi64(u16, _MM_SHUFFLE(3, 1, 2, 0))};
+  return VFromD<D>{_mm256_permute4x64_epi64(u16, _MM_SHUFFLE(3, 1, 2, 0))};
 #endif
 }
 
@@ -4238,14 +4299,13 @@ HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConcatOdd(D d, Vec256<float> hi, Vec256<float> lo) {
+HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const RebindToUnsigned<decltype(d)> du;
 #if HWY_TARGET <= HWY_AVX3
   alignas(32) static constexpr uint32_t kIdx[8] = {1, 3, 5, 7, 9, 11, 13, 15};
-  return Vec256<float>{
-      _mm256_permutex2var_ps(lo.raw, Load(du, kIdx).raw, hi.raw)};
+  return VFromD<D>{_mm256_permutex2var_ps(lo.raw, Load(du, kIdx).raw, hi.raw)};
 #else
-  const Vec256<float> v3131{
+  const VFromD<D> v3131{
       _mm256_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(3, 1, 3, 1))};
   return BitCast(d, Vec256<uint32_t>{_mm256_permute4x64_epi64(
                         BitCast(du, v3131).raw, _MM_SHUFFLE(3, 1, 2, 0))});
@@ -4346,14 +4406,13 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConcatEven(D d, Vec256<float> hi, Vec256<float> lo) {
+HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   const RebindToUnsigned<decltype(d)> du;
 #if HWY_TARGET <= HWY_AVX3
   alignas(64) static constexpr uint32_t kIdx[8] = {0, 2, 4, 6, 8, 10, 12, 14};
-  return Vec256<float>{
-      _mm256_permutex2var_ps(lo.raw, Load(du, kIdx).raw, hi.raw)};
+  return VFromD<D>{_mm256_permutex2var_ps(lo.raw, Load(du, kIdx).raw, hi.raw)};
 #else
-  const Vec256<float> v2020{
+  const VFromD<D> v2020{
       _mm256_shuffle_ps(lo.raw, hi.raw, _MM_SHUFFLE(2, 0, 2, 0))};
   return BitCast(d, Vec256<uint32_t>{_mm256_permute4x64_epi64(
                         BitCast(du, v2020).raw, _MM_SHUFFLE(3, 1, 2, 0))});
@@ -4488,8 +4547,8 @@ HWY_API Vec256<double> OddEvenBlocks(Vec256<double> odd, Vec256<double> even) {
 
 // ------------------------------ ReverseBlocks (SwapAdjacentBlocks)
 
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> ReverseBlocks(D /*d*/, Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> ReverseBlocks(D /*d*/, VFromD<D> v) {
   return SwapAdjacentBlocks(v);
 }
 
@@ -5272,15 +5331,15 @@ HWY_INLINE Vec256<uint64_t> MulOdd(const Vec256<uint64_t> a,
 }
 
 // ------------------------------ WidenMulPairwiseAdd
-template <class D, HWY_IF_SIGNED_D(D)>
-HWY_API Vec256<int32_t> WidenMulPairwiseAdd(D /*d32*/, Vec256<int16_t> a,
-                                            Vec256<int16_t> b) {
-  return Vec256<int32_t>{_mm256_madd_epi16(a.raw, b.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D /*d32*/, Vec256<int16_t> a,
+                                      Vec256<int16_t> b) {
+  return VFromD<D>{_mm256_madd_epi16(a.raw, b.raw)};
 }
 
 // ------------------------------ SatWidenMulPairwiseAdd
 
-template <class DI16, HWY_IF_I16_D(DI16), HWY_IF_V_SIZE_D(DI16, 32)>
+template <class DI16, HWY_IF_V_SIZE_D(DI16, 32), HWY_IF_I16_D(DI16)>
 HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
     DI16 /* tag */, VFromD<Repartition<uint8_t, DI16>> a,
     VFromD<Repartition<int8_t, DI16>> b) {
@@ -5288,14 +5347,14 @@ HWY_API VFromD<DI16> SatWidenMulPairwiseAdd(
 }
 
 // ------------------------------ ReorderWidenMulAccumulate
-template <class D, HWY_IF_SIGNED_D(D)>
-HWY_API Vec256<int32_t> ReorderWidenMulAccumulate(D d, Vec256<int16_t> a,
-                                                  Vec256<int16_t> b,
-                                                  const Vec256<int32_t> sum0,
-                                                  Vec256<int32_t>& /*sum1*/) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> ReorderWidenMulAccumulate(D d, Vec256<int16_t> a,
+                                            Vec256<int16_t> b,
+                                            const VFromD<D> sum0,
+                                            VFromD<D>& /*sum1*/) {
   (void)d;
 #if HWY_TARGET <= HWY_AVX3_DL
-  return Vec256<int32_t>{_mm256_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
+  return VFromD<D>{_mm256_dpwssd_epi32(sum0.raw, a.raw, b.raw)};
 #else
   return sum0 + WidenMulPairwiseAdd(d, a, b);
 #endif
@@ -5329,112 +5388,110 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
 
 // ------------------------------ Promotions (part w/ narrow lanes -> full)
 
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec256<double> PromoteTo(D /* tag */, Vec128<float> v) {
-  return Vec256<double>{_mm256_cvtps_pd(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<float> v) {
+  return VFromD<D>{_mm256_cvtps_pd(v.raw)};
 }
 
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec256<double> PromoteTo(D /* tag */, Vec128<int32_t> v) {
-  return Vec256<double>{_mm256_cvtepi32_pd(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int32_t> v) {
+  return VFromD<D>{_mm256_cvtepi32_pd(v.raw)};
 }
 
 // Unsigned: zero-extend.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then Zip* would be faster.
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec256<uint16_t> PromoteTo(D /* tag */, Vec128<uint8_t> v) {
-  return Vec256<uint16_t>{_mm256_cvtepu8_epi16(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<uint8_t> v) {
+  return VFromD<D>{_mm256_cvtepu8_epi16(v.raw)};
 }
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec256<uint32_t> PromoteTo(D /* tag */, Vec128<uint8_t, 8> v) {
-  return Vec256<uint32_t>{_mm256_cvtepu8_epi32(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<uint8_t, 8> v) {
+  return VFromD<D>{_mm256_cvtepu8_epi32(v.raw)};
 }
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec256<uint32_t> PromoteTo(D /* tag */, Vec128<uint16_t> v) {
-  return Vec256<uint32_t>{_mm256_cvtepu16_epi32(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<uint16_t> v) {
+  return VFromD<D>{_mm256_cvtepu16_epi32(v.raw)};
 }
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec128<uint32_t> v) {
-  return Vec256<uint64_t>{_mm256_cvtepu32_epi64(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<uint32_t> v) {
+  return VFromD<D>{_mm256_cvtepu32_epi64(v.raw)};
 }
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec64<uint16_t> v) {
-  return Vec256<uint64_t>{_mm256_cvtepu16_epi64(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec64<uint16_t> v) {
+  return VFromD<D>{_mm256_cvtepu16_epi64(v.raw)};
 }
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec256<uint64_t> PromoteTo(D /* tag */, Vec32<uint8_t> v) {
-  return Vec256<uint64_t>{_mm256_cvtepu8_epi64(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<uint8_t> v) {
+  return VFromD<D>{_mm256_cvtepu8_epi64(v.raw)};
 }
 
 // Signed: replicate sign bit.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then ZipUpper/lo followed by
 // signed shift would be faster.
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec256<int16_t> PromoteTo(D /* tag */, Vec128<int8_t> v) {
-  return Vec256<int16_t>{_mm256_cvtepi8_epi16(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int8_t> v) {
+  return VFromD<D>{_mm256_cvtepi8_epi16(v.raw)};
 }
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<int8_t, 8> v) {
-  return Vec256<int32_t>{_mm256_cvtepi8_epi32(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int8_t, 8> v) {
+  return VFromD<D>{_mm256_cvtepi8_epi32(v.raw)};
 }
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> PromoteTo(D /* tag */, Vec128<int16_t> v) {
-  return Vec256<int32_t>{_mm256_cvtepi16_epi32(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int16_t> v) {
+  return VFromD<D>{_mm256_cvtepi16_epi32(v.raw)};
 }
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec128<int32_t> v) {
-  return Vec256<int64_t>{_mm256_cvtepi32_epi64(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int32_t> v) {
+  return VFromD<D>{_mm256_cvtepi32_epi64(v.raw)};
 }
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec64<int16_t> v) {
-  return Vec256<int64_t>{_mm256_cvtepi16_epi64(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec64<int16_t> v) {
+  return VFromD<D>{_mm256_cvtepi16_epi64(v.raw)};
 }
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec256<int64_t> PromoteTo(D /* tag */, Vec32<int8_t> v) {
-  return Vec256<int64_t>{_mm256_cvtepi8_epi64(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<int8_t> v) {
+  return VFromD<D>{_mm256_cvtepi8_epi64(v.raw)};
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
   const __m256i u16 = _mm256_packus_epi32(v.raw, v.raw);
   // Concatenating lower halves of both 128-bit blocks afterward is more
   // efficient than an extra input with low block = high block of v.
-  return Vec128<uint16_t>{
-      _mm256_castsi256_si128(_mm256_permute4x64_epi64(u16, 0x88))};
+  return VFromD<D>{_mm256_castsi256_si128(_mm256_permute4x64_epi64(u16, 0x88))};
 }
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> DemoteTo(D dn, Vec256<uint32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint32_t> v) {
   const DFromV<decltype(v)> d;
   const RebindToSigned<decltype(d)> di;
   return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFFFFFu))));
 }
 
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
   const __m256i i16 = _mm256_packs_epi32(v.raw, v.raw);
-  return Vec128<int16_t>{
-      _mm256_castsi256_si128(_mm256_permute4x64_epi64(i16, 0x88))};
+  return VFromD<D>{_mm256_castsi256_si128(_mm256_permute4x64_epi64(i16, 0x88))};
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec64<uint8_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
   const __m256i i16_blocks = _mm256_packs_epi32(v.raw, v.raw);
   // Concatenate lower 64 bits of each 128-bit block
   const __m256i i16_concat = _mm256_permute4x64_epi64(i16_blocks, 0x88);
   const __m128i i16 = _mm256_castsi256_si128(i16_concat);
-  return Vec64<uint8_t>{_mm_packus_epi16(i16, i16)};
+  return VFromD<D>{_mm_packus_epi16(i16, i16)};
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec64<uint8_t> DemoteTo(D dn, Vec256<uint32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint32_t> v) {
 #if HWY_TARGET <= HWY_AVX3
   (void)dn;
-  return Vec64<uint8_t>{_mm256_cvtusepi32_epi8(v.raw)};
+  return VFromD<D>{_mm256_cvtusepi32_epi8(v.raw)};
 #else
   const DFromV<decltype(v)> d;
   const RebindToSigned<decltype(d)> di;
@@ -5442,92 +5499,90 @@ HWY_API Vec64<uint8_t> DemoteTo(D dn, Vec256<uint32_t> v) {
 #endif
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec128<uint8_t> DemoteTo(D /* tag */, Vec256<int16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int16_t> v) {
   const __m256i u8 = _mm256_packus_epi16(v.raw, v.raw);
-  return Vec128<uint8_t>{
-      _mm256_castsi256_si128(_mm256_permute4x64_epi64(u8, 0x88))};
+  return VFromD<D>{_mm256_castsi256_si128(_mm256_permute4x64_epi64(u8, 0x88))};
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec128<uint8_t> DemoteTo(D dn, Vec256<uint16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D dn, Vec256<uint16_t> v) {
   const DFromV<decltype(v)> d;
   const RebindToSigned<decltype(d)> di;
   return DemoteTo(dn, BitCast(di, Min(v, Set(d, 0x7FFFu))));
 }
 
-template <class D, HWY_IF_I8_D(D)>
-HWY_API Vec64<int8_t> DemoteTo(D /* tag */, Vec256<int32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int32_t> v) {
   const __m256i i16_blocks = _mm256_packs_epi32(v.raw, v.raw);
   // Concatenate lower 64 bits of each 128-bit block
   const __m256i i16_concat = _mm256_permute4x64_epi64(i16_blocks, 0x88);
   const __m128i i16 = _mm256_castsi256_si128(i16_concat);
-  return Vec128<int8_t, 8>{_mm_packs_epi16(i16, i16)};
+  return VFromD<D>{_mm_packs_epi16(i16, i16)};
 }
 
-template <class D, HWY_IF_I8_D(D)>
-HWY_API Vec128<int8_t> DemoteTo(D /* tag */, Vec256<int16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int16_t> v) {
   const __m256i i8 = _mm256_packs_epi16(v.raw, v.raw);
-  return Vec128<int8_t>{
-      _mm256_castsi256_si128(_mm256_permute4x64_epi64(i8, 0x88))};
+  return VFromD<D>{_mm256_castsi256_si128(_mm256_permute4x64_epi64(i8, 0x88))};
 }
 
 #if HWY_TARGET <= HWY_AVX3
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  return Vec128<int32_t>{_mm256_cvtsepi64_epi32(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  return VFromD<D>{_mm256_cvtsepi64_epi32(v.raw)};
 }
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec64<int16_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  return Vec64<int16_t>{_mm256_cvtsepi64_epi16(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  return VFromD<D>{_mm256_cvtsepi64_epi16(v.raw)};
 }
-template <class D, HWY_IF_I8_D(D)>
-HWY_API Vec32<int8_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  return Vec32<int8_t>{_mm256_cvtsepi64_epi8(v.raw)};
-}
-
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
-  return Vec128<uint32_t>{_mm256_maskz_cvtusepi64_epi32(non_neg_mask, v.raw)};
-}
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec64<uint16_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
-  return Vec64<uint16_t>{_mm256_maskz_cvtusepi64_epi16(non_neg_mask, v.raw)};
-}
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<int64_t> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
-  return Vec32<uint8_t>{_mm256_maskz_cvtusepi64_epi8(non_neg_mask, v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_I8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  return VFromD<D>{_mm256_cvtsepi64_epi8(v.raw)};
 }
 
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
-  return Vec128<uint32_t>{_mm256_cvtusepi64_epi32(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return VFromD<D>{_mm256_maskz_cvtusepi64_epi32(non_neg_mask, v.raw)};
 }
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec64<uint16_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
-  return Vec64<uint16_t>{_mm256_cvtusepi64_epi16(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return VFromD<D>{_mm256_maskz_cvtusepi64_epi16(non_neg_mask, v.raw)};
 }
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
-  return Vec32<uint8_t>{_mm256_cvtusepi64_epi8(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<int64_t> v) {
+  const auto neg_mask = MaskFromVec(v);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
+#else
+  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
+#endif
+  return VFromD<D>{_mm256_maskz_cvtusepi64_epi8(non_neg_mask, v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
+  return VFromD<D>{_mm256_cvtusepi64_epi32(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
+  return VFromD<D>{_mm256_cvtusepi64_epi16(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
+  return VFromD<D>{_mm256_cvtusepi64_epi8(v.raw)};
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
@@ -5538,18 +5593,18 @@ HWY_API Vec32<uint8_t> DemoteTo(D /* tag */, Vec256<uint64_t> v) {
 HWY_DIAGNOSTICS(push)
 HWY_DIAGNOSTICS_OFF(disable : 4556, ignored "-Wsign-conversion")
 
-template <class D, HWY_IF_F16_D(D)>
-HWY_API Vec128<float16_t> DemoteTo(D df16, Vec256<float> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D df16, Vec256<float> v) {
   (void)df16;
-  return Vec128<float16_t>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
+  return VFromD<D>{_mm256_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)};
 }
 
 HWY_DIAGNOSTICS(pop)
 
 #endif  // HWY_DISABLE_F16C
 
-template <class D, HWY_IF_BF16_D(D)>
-HWY_API Vec128<bfloat16_t> DemoteTo(D dbf16, Vec256<float> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> DemoteTo(D dbf16, Vec256<float> v) {
   // TODO(janwas): _mm256_cvtneps_pbh once we have avx512bf16.
   const Rebind<int32_t, decltype(dbf16)> di32;
   const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
@@ -5558,8 +5613,8 @@ HWY_API Vec128<bfloat16_t> DemoteTo(D dbf16, Vec256<float> v) {
   return BitCast(dbf16, DemoteTo(du16, bits_in_32));
 }
 
-HWY_API Vec256<bfloat16_t> ReorderDemote2To(Full256<bfloat16_t> dbf16,
-                                            Vec256<float> a, Vec256<float> b) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, Vec256<float> a, Vec256<float> b) {
   // TODO(janwas): _mm256_cvtne2ps_pbh once we have avx512bf16.
   const RebindToUnsigned<decltype(dbf16)> du16;
   const Repartition<uint32_t, decltype(dbf16)> du32;
@@ -5567,21 +5622,21 @@ HWY_API Vec256<bfloat16_t> ReorderDemote2To(Full256<bfloat16_t> dbf16,
   return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
 }
 
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec256<int16_t> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
-                                         Vec256<int32_t> b) {
-  return Vec256<int16_t>{_mm256_packs_epi32(a.raw, b.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
+                                   Vec256<int32_t> b) {
+  return VFromD<D>{_mm256_packs_epi32(a.raw, b.raw)};
 }
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec256<uint16_t> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
-                                          Vec256<int32_t> b) {
-  return Vec256<uint16_t>{_mm256_packus_epi32(a.raw, b.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,
+                                   Vec256<int32_t> b) {
+  return VFromD<D>{_mm256_packus_epi32(a.raw, b.raw)};
 }
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec256<uint16_t> ReorderDemote2To(D dn, Vec256<uint32_t> a,
-                                          Vec256<uint32_t> b) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, Vec256<uint32_t> a,
+                                   Vec256<uint32_t> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
   const auto max_i32 = Set(d, 0x7FFFFFFFu);
@@ -5589,21 +5644,21 @@ HWY_API Vec256<uint16_t> ReorderDemote2To(D dn, Vec256<uint32_t> a,
                           BitCast(di, Min(b, max_i32)));
 }
 
-template <class D, HWY_IF_I8_D(D)>
-HWY_API Vec256<int8_t> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
-                                        Vec256<int16_t> b) {
-  return Vec256<int8_t>{_mm256_packs_epi16(a.raw, b.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I8_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
+                                   Vec256<int16_t> b) {
+  return VFromD<D>{_mm256_packs_epi16(a.raw, b.raw)};
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec256<uint8_t> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
-                                         Vec256<int16_t> b) {
-  return Vec256<uint8_t>{_mm256_packus_epi16(a.raw, b.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int16_t> a,
+                                   Vec256<int16_t> b) {
+  return VFromD<D>{_mm256_packus_epi16(a.raw, b.raw)};
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec256<uint8_t> ReorderDemote2To(D dn, Vec256<uint16_t> a,
-                                         Vec256<uint16_t> b) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, Vec256<uint16_t> a,
+                                   Vec256<uint16_t> b) {
   const DFromV<decltype(a)> d;
   const RebindToSigned<decltype(d)> di;
   const auto max_i16 = Set(d, 0x7FFFu);
@@ -5684,16 +5739,16 @@ HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
                                             _MM_SHUFFLE(3, 1, 2, 0))};
 }
 
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec128<float> DemoteTo(D /* tag */, Vec256<double> v) {
-  return Vec128<float>{_mm256_cvtpd_ps(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
+  return VFromD<D>{_mm256_cvtpd_ps(v.raw)};
 }
 
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> DemoteTo(D /* tag */, Vec256<double> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
   const Full256<double> d64;
   const auto clamped = detail::ClampF64ToI32Max(d64, v);
-  return Vec128<int32_t>{_mm256_cvttpd_epi32(clamped.raw)};
+  return VFromD<D>{_mm256_cvttpd_epi32(clamped.raw)};
 }
 
 // For already range-limited input [0, 255].
@@ -5760,8 +5815,8 @@ HWY_INLINE Vec128<uint32_t, 2> LookupAndConcatQuarters(Vec256<T> v) {
 
 }  // namespace detail
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec32<uint8_t> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
   const Full256<uint32_t> d32;
 #if HWY_TARGET <= HWY_AVX3_DL
   alignas(32) static constexpr uint32_t kMap[8] = {0x18100800u, 0, 0, 0,
@@ -5779,14 +5834,14 @@ HWY_API Vec32<uint8_t> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
 #endif
 }
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec64<uint16_t> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
   const auto result = detail::LookupAndConcatQuarters<0x100, 0x908>(v);
-  return Vec64<uint16_t>{result.raw};
+  return VFromD<D>{result.raw};
 }
 
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
   const Full256<uint32_t> d32;
   alignas(32) static constexpr uint32_t kEven[8] = {0, 2, 4, 6, 0, 2, 4, 6};
   const auto v32 =
@@ -5794,82 +5849,82 @@ HWY_API Vec128<uint32_t> TruncateTo(D /* tag */, Vec256<uint64_t> v) {
   return LowerHalf(Vec256<uint32_t>{v32.raw});
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec64<uint8_t> TruncateTo(D /* tag */, Vec256<uint32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> TruncateTo(D /* tag */, Vec256<uint32_t> v) {
   const auto full = detail::LookupAndConcatQuarters<0x400, 0xC08>(v);
-  return Vec64<uint8_t>{full.raw};
+  return VFromD<D>{full.raw};
 }
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> TruncateTo(D /* tag */, Vec256<uint32_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API VFromD<D> TruncateTo(D /* tag */, Vec256<uint32_t> v) {
   const auto full = detail::LookupAndConcatHalves<0x05040100, 0x0D0C0908>(v);
-  return Vec128<uint16_t>{full.raw};
+  return VFromD<D>{full.raw};
 }
 
-template <class D, HWY_IF_U8_D(D)>
-HWY_API Vec128<uint8_t> TruncateTo(D /* tag */, Vec256<uint16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_API VFromD<D> TruncateTo(D /* tag */, Vec256<uint16_t> v) {
   const auto full = detail::LookupAndConcatHalves<0x06040200, 0x0E0C0A08>(v);
-  return Vec128<uint8_t>{full.raw};
+  return VFromD<D>{full.raw};
 }
 
 // ------------------------------ Integer <=> fp (ShiftRight, OddEven)
 
 #if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_F16_D(D)>
-HWY_API Vec256<float16_t> ConvertTo(D /* tag */, Vec256<uint16_t> v) {
-  return Vec256<float16_t>{_mm256_cvtepu16_ph(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, Vec256<uint16_t> v) {
+  return VFromD<D>{_mm256_cvtepu16_ph(v.raw)};
 }
-template <class D, HWY_IF_F16_D(D)>
-HWY_API Vec256<float16_t> ConvertTo(D /* tag */, Vec256<int16_t> v) {
-  return Vec256<float16_t>{_mm256_cvtepi16_ph(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, Vec256<int16_t> v) {
+  return VFromD<D>{_mm256_cvtepi16_ph(v.raw)};
 }
 #endif  // HWY_HAVE_FLOAT16
 
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConvertTo(D /* tag */, Vec256<int32_t> v) {
-  return Vec256<float>{_mm256_cvtepi32_ps(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, Vec256<int32_t> v) {
+  return VFromD<D>{_mm256_cvtepi32_ps(v.raw)};
 }
 
 #if HWY_TARGET <= HWY_AVX3
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec256<float> ConvertTo(D /*df*/, Vec256<uint32_t> v) {
-  return Vec256<float>{_mm256_cvtepu32_ps(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /*df*/, Vec256<uint32_t> v) {
+  return VFromD<D>{_mm256_cvtepu32_ps(v.raw)};
 }
 
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConvertTo(D /*dd*/, Vec256<int64_t> v) {
-  return Vec256<double>{_mm256_cvtepi64_pd(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> ConvertTo(D /*dd*/, Vec256<int64_t> v) {
+  return VFromD<D>{_mm256_cvtepi64_pd(v.raw)};
 }
 
-template <class D, HWY_IF_F64_D(D)>
-HWY_API Vec256<double> ConvertTo(D /*dd*/, Vec256<uint64_t> v) {
-  return Vec256<double>{_mm256_cvtepu64_pd(v.raw)};
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> ConvertTo(D /*dd*/, Vec256<uint64_t> v) {
+  return VFromD<D>{_mm256_cvtepu64_pd(v.raw)};
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // Truncates (rounds toward zero).
 
 #if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec256<int16_t> ConvertTo(D d, Vec256<float16_t> v) {
-  return detail::FixConversionOverflow(
-      d, v, Vec256<int16_t>{_mm256_cvttph_epi16(v.raw)});
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
+HWY_API VFromD<D> ConvertTo(D d, Vec256<float16_t> v) {
+  return detail::FixConversionOverflow(d, v,
+                                       VFromD<D>{_mm256_cvttph_epi16(v.raw)});
 }
 #endif  // HWY_HAVE_FLOAT16
 
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec256<int32_t> ConvertTo(D d, Vec256<float> v) {
-  return detail::FixConversionOverflow(
-      d, v, Vec256<int32_t>{_mm256_cvttps_epi32(v.raw)});
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> ConvertTo(D d, Vec256<float> v) {
+  return detail::FixConversionOverflow(d, v,
+                                       VFromD<D>{_mm256_cvttps_epi32(v.raw)});
 }
 
 #if HWY_TARGET <= HWY_AVX3
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec256<int64_t> ConvertTo(D di, Vec256<double> v) {
-  return detail::FixConversionOverflow(
-      di, v, Vec256<int64_t>{_mm256_cvttpd_epi64(v.raw)});
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> ConvertTo(D di, Vec256<double> v) {
+  return detail::FixConversionOverflow(di, v,
+                                       VFromD<D>{_mm256_cvttpd_epi64(v.raw)});
 }
-#endif
+#endif  // HWY_TARGET <= HWY_AVX3
 
 HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
   const Full256<int32_t> di;
@@ -5879,21 +5934,21 @@ HWY_API Vec256<int32_t> NearestInt(const Vec256<float> v) {
 
 #ifndef HWY_DISABLE_F16C
 
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec256<float> PromoteTo(D df32, Vec128<float16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteTo(D df32, Vec128<float16_t> v) {
   (void)df32;
 #if HWY_HAVE_FLOAT16
   const RebindToUnsigned<DFromV<decltype(v)>> du16;
-  return Vec256<float>{_mm256_cvtph_ps(BitCast(du16, v).raw)};
+  return VFromD<D>{_mm256_cvtph_ps(BitCast(du16, v).raw)};
 #else
-  return Vec256<float>{_mm256_cvtph_ps(v.raw)};
+  return VFromD<D>{_mm256_cvtph_ps(v.raw)};
 #endif  // HWY_HAVE_FLOAT16
 }
 
 #endif  // HWY_DISABLE_F16C
 
-template <class D, HWY_IF_F32_D(D)>
-HWY_API Vec256<float> PromoteTo(D df32, Vec128<bfloat16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteTo(D df32, Vec128<bfloat16_t> v) {
   const Rebind<uint16_t, decltype(df32)> du16;
   const RebindToSigned<decltype(df32)> di32;
   return BitCast(df32, ShiftLeft<16>(PromoteTo(di32, BitCast(du16, v))));
@@ -6023,8 +6078,8 @@ HWY_API Vec256<uint64_t> CLMulUpper(Vec256<uint64_t> a, Vec256<uint64_t> b) {
 // ------------------------------ LoadMaskBits
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
-template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>>
-HWY_API Mask256<T> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   constexpr size_t kN = MaxLanes(d);
   constexpr size_t kNumBytes = (kN + 7) / 8;
 
@@ -6035,14 +6090,14 @@ HWY_API Mask256<T> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
     mask_bits &= (1ull << kN) - 1;
   }
 
-  return Mask256<T>::FromBits(mask_bits);
+  return MFromD<D>::FromBits(mask_bits);
 }
 
 // ------------------------------ StoreMaskBits
 
 // `p` points to at least 8 writable bytes.
-template <class D, typename T = TFromD<D>>
-HWY_API size_t StoreMaskBits(D d, Mask256<T> mask, uint8_t* bits) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
   constexpr size_t kN = MaxLanes(d);
   constexpr size_t kNumBytes = (kN + 7) / 8;
 
@@ -6058,29 +6113,29 @@ HWY_API size_t StoreMaskBits(D d, Mask256<T> mask, uint8_t* bits) {
 
 // ------------------------------ Mask testing
 
-template <class D, typename T = TFromD<D>>
-HWY_API size_t CountTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
   return PopCount(static_cast<uint64_t>(mask.raw));
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API size_t FindKnownFirstTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
   return Num0BitsBelowLS1Bit_Nonzero32(mask.raw);
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API intptr_t FindFirstTrue(D d, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API intptr_t FindFirstTrue(D d, MFromD<D> mask) {
   return mask.raw ? static_cast<intptr_t>(FindKnownFirstTrue(d, mask))
                   : intptr_t{-1};
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API size_t FindKnownLastTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
   return 31 - Num0BitsAboveMS1Bit_Nonzero32(mask.raw);
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API intptr_t FindLastTrue(D d, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
   return mask.raw ? static_cast<intptr_t>(FindKnownLastTrue(d, mask))
                   : intptr_t{-1};
 }
@@ -6120,9 +6175,9 @@ HWY_INLINE bool AllFalse(hwy::SizeTag<8> /*tag*/, const Mask256<T> mask) {
 
 }  // namespace detail
 
-template <class D, typename T = TFromD<D>>
-HWY_API bool AllFalse(D /* tag */, Mask256<T> mask) {
-  return detail::AllFalse(hwy::SizeTag<sizeof(T)>(), mask);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API bool AllFalse(D /* tag */, MFromD<D> mask) {
+  return detail::AllFalse(hwy::SizeTag<sizeof(TFromD<D>)>(), mask);
 }
 
 namespace detail {
@@ -6159,9 +6214,9 @@ HWY_INLINE bool AllTrue(hwy::SizeTag<8> /*tag*/, const Mask256<T> mask) {
 
 }  // namespace detail
 
-template <class D, typename T = TFromD<D>>
-HWY_API bool AllTrue(D /* tag */, const Mask256<T> mask) {
-  return detail::AllTrue(hwy::SizeTag<sizeof(T)>(), mask);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API bool AllTrue(D /* tag */, const MFromD<D> mask) {
+  return detail::AllTrue(hwy::SizeTag<sizeof(TFromD<D>)>(), mask);
 }
 
 // ------------------------------ Compress
@@ -6280,8 +6335,8 @@ HWY_INLINE Mask256<T> LoadMaskBits256(uint64_t mask_bits) {
 }  // namespace detail
 
 // `p` points to at least 8 readable bytes, not all of which need be valid.
-template <class D, HWY_IF_V_SIZE_D(D, 32), typename T = TFromD<D>>
-HWY_API Mask256<T> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   constexpr size_t kN = MaxLanes(d);
   constexpr size_t kNumBytes = (kN + 7) / 8;
 
@@ -6292,7 +6347,7 @@ HWY_API Mask256<T> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
     mask_bits &= (1ull << kN) - 1;
   }
 
-  return detail::LoadMaskBits256<T>(mask_bits);
+  return detail::LoadMaskBits256<TFromD<D>>(mask_bits);
 }
 
 // ------------------------------ StoreMaskBits
@@ -6349,9 +6404,9 @@ HWY_INLINE uint64_t BitsFromMask(const Mask256<T> mask) {
 }  // namespace detail
 
 // `p` points to at least 8 writable bytes.
-template <class D, typename T = TFromD<D>>
-HWY_API size_t StoreMaskBits(D /* tag */, Mask256<T> mask, uint8_t* bits) {
-  constexpr size_t N = 32 / sizeof(T);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {
+  constexpr size_t N = Lanes(d);
   constexpr size_t kNumBytes = (N + 7) / 8;
 
   const uint64_t mask_bits = detail::BitsFromMask(mask);
@@ -6363,62 +6418,62 @@ HWY_API size_t StoreMaskBits(D /* tag */, Mask256<T> mask, uint8_t* bits) {
 
 // Specialize for 16-bit lanes to avoid unnecessary pext. This assumes each mask
 // lane is 0 or ~0.
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API bool AllFalse(D d, const Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API bool AllFalse(D d, MFromD<D> mask) {
   const Repartition<uint8_t, decltype(d)> d8;
   const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
   return detail::BitsFromMask(mask8) == 0;
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE(T, 2)>
-HWY_API bool AllFalse(D /* tag */, const Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 2)>
+HWY_API bool AllFalse(D /* tag */, MFromD<D> mask) {
   // Cheaper than PTEST, which is 2 uop / 3L.
   return detail::BitsFromMask(mask) == 0;
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API bool AllTrue(D d, const Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API bool AllTrue(D d, MFromD<D> mask) {
   const Repartition<uint8_t, decltype(d)> d8;
   const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
   return detail::BitsFromMask(mask8) == (1ull << 32) - 1;
 }
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE(T, 2)>
-HWY_API bool AllTrue(D /* tag */, const Mask256<T> mask) {
-  constexpr uint64_t kAllBits = (1ull << (32 / sizeof(T))) - 1;
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 2)>
+HWY_API bool AllTrue(D d, MFromD<D> mask) {
+  constexpr uint64_t kAllBits = (1ull << Lanes(d)) - 1;
   return detail::BitsFromMask(mask) == kAllBits;
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API size_t CountTrue(D d, const Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API size_t CountTrue(D d, MFromD<D> mask) {
   const Repartition<uint8_t, decltype(d)> d8;
   const Mask256<uint8_t> mask8 = MaskFromVec(BitCast(d8, VecFromMask(d, mask)));
   return PopCount(detail::BitsFromMask(mask8)) >> 1;
 }
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE(T, 2)>
-HWY_API size_t CountTrue(D /* tag */, const Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 2)>
+HWY_API size_t CountTrue(D /* tag */, MFromD<D> mask) {
   return PopCount(detail::BitsFromMask(mask));
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API size_t FindKnownFirstTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t FindKnownFirstTrue(D /* tag */, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
   return Num0BitsBelowLS1Bit_Nonzero32(mask_bits);
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API intptr_t FindFirstTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API intptr_t FindFirstTrue(D /* tag */, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
   return mask_bits ? intptr_t(Num0BitsBelowLS1Bit_Nonzero32(mask_bits)) : -1;
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API size_t FindKnownLastTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API size_t FindKnownLastTrue(D /* tag */, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
   return 31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits);
 }
 
-template <class D, typename T = TFromD<D>>
-HWY_API intptr_t FindLastTrue(D /* tag */, Mask256<T> mask) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API intptr_t FindLastTrue(D /* tag */, MFromD<D> mask) {
   const uint32_t mask_bits = static_cast<uint32_t>(detail::BitsFromMask(mask));
   return mask_bits ? intptr_t(31 - Num0BitsAboveMS1Bit_Nonzero32(mask_bits))
                    : -1;
@@ -6601,7 +6656,7 @@ HWY_INLINE Vec256<T> Compress(Vec256<T> v, const uint64_t mask_bits) {
   const DFromV<decltype(v)> d;
   const Repartition<uint32_t, decltype(d)> du32;
 
-  HWY_DASSERT(mask_bits < (1ull << (32 / sizeof(T))));
+  HWY_DASSERT(mask_bits < (1ull << Lanes(d)));
   // 32-bit indices because we only have _mm256_permutevar8x32_epi32 (there is
   // no instruction for 4x64).
   const Indices256<uint32_t> indices{IndicesFromBits256<T>(mask_bits).raw};
@@ -6653,7 +6708,7 @@ HWY_INLINE Vec256<T> CompressNot(Vec256<T> v, const uint64_t mask_bits) {
   const DFromV<decltype(v)> d;
   const Repartition<uint32_t, decltype(d)> du32;
 
-  HWY_DASSERT(mask_bits < (1ull << (32 / sizeof(T))));
+  HWY_DASSERT(mask_bits < (1ull << Lanes(d)));
   // 32-bit indices because we only have _mm256_permutevar8x32_epi32 (there is
   // no instruction for 4x64).
   const Indices256<uint32_t> indices{IndicesFromNotBits256<T>(mask_bits).raw};
@@ -6702,9 +6757,9 @@ HWY_API Vec256<T> CompressBits(Vec256<T> v, const uint8_t* HWY_RESTRICT bits) {
 
 // ------------------------------ CompressStore, CompressBitsStore
 
-template <class D, typename T = TFromD<D>, HWY_IF_NOT_T_SIZE(T, 1)>
-HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> m, D d,
-                             T* HWY_RESTRICT unaligned) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 1)>
+HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
+                             TFromD<D>* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
   StoreU(detail::Compress(v, mask_bits), d, unaligned);
@@ -6712,24 +6767,26 @@ HWY_API size_t CompressStore(Vec256<T> v, Mask256<T> m, D d,
   return count;
 }
 
-template <class D, typename T = TFromD<D>,
-          HWY_IF_T_SIZE_ONE_OF(T, (1 << 4) | (1 << 8))>
-HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, D d,
-                                    T* HWY_RESTRICT unaligned) {
+template <class D, HWY_IF_V_SIZE_D(D, 32),
+          HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))>
+HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
 
+  const RebindToUnsigned<decltype(d)> du;
   const Repartition<uint32_t, decltype(d)> du32;
-  HWY_DASSERT(mask_bits < (1ull << (32 / sizeof(T))));
+  HWY_DASSERT(mask_bits < (1ull << Lanes(d)));
   // 32-bit indices because we only have _mm256_permutevar8x32_epi32 (there is
   // no instruction for 4x64). Nibble MSB encodes FirstN.
-  const Vec256<uint32_t> idx_mask = detail::IndicesFromBits256<T>(mask_bits);
+  const Vec256<uint32_t> idx_mask =
+      detail::IndicesFromBits256<TFromD<D>>(mask_bits);
   // Shift nibble MSB into MSB
   const Mask256<uint32_t> mask32 = MaskFromVec(ShiftLeft<28>(idx_mask));
   // First cast to unsigned (RebindMask cannot change lane size)
-  const Mask256<MakeUnsigned<T>> mask_u{mask32.raw};
-  const Mask256<T> mask = RebindMask(d, mask_u);
-  const Vec256<T> compressed = BitCast(
+  const MFromD<decltype(du)> mask_u{mask32.raw};
+  const MFromD<D> mask = RebindMask(d, mask_u);
+  const VFromD<D> compressed = BitCast(
       d,
       TableLookupLanes(BitCast(du32, v), Indices256<uint32_t>{idx_mask.raw}));
 
@@ -6738,29 +6795,29 @@ HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, D d,
   return count;
 }
 
-template <class D, typename T = TFromD<D>, HWY_IF_T_SIZE(T, 2)>
-HWY_API size_t CompressBlendedStore(Vec256<T> v, Mask256<T> m, D d,
-                                    T* HWY_RESTRICT unaligned) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
   const uint64_t mask_bits = detail::BitsFromMask(m);
   const size_t count = PopCount(mask_bits);
-  const Vec256<T> compressed = detail::Compress(v, mask_bits);
+  const VFromD<D> compressed = detail::Compress(v, mask_bits);
 
 #if HWY_MEM_OPS_MIGHT_FAULT  // true if HWY_IS_MSAN
   // BlendedStore tests mask for each lane, but we know that the mask is
   // FirstN, so we can just copy.
-  alignas(32) T buf[16];
+  alignas(32) TFromD<D> buf[16];
   Store(compressed, d, buf);
-  CopyBytes(buf, unaligned, count * sizeof(T));
+  CopyBytes(buf, unaligned, count * sizeof(TFromD<D>));
 #else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
 #endif
   return count;
 }
 
-template <typename T, HWY_IF_NOT_T_SIZE(T, 1)>
-HWY_API size_t CompressBitsStore(Vec256<T> v, const uint8_t* HWY_RESTRICT bits,
-                                 Full256<T> d, T* HWY_RESTRICT unaligned) {
-  constexpr size_t N = 32 / sizeof(T);
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_T_SIZE_D(D, 1)>
+HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
+                                 D d, TFromD<D>* HWY_RESTRICT unaligned) {
+  constexpr size_t N = Lanes(d);
   constexpr size_t kNumBytes = (N + 7) / 8;
 
   uint64_t mask_bits = 0;
@@ -6797,15 +6854,15 @@ HWY_INLINE Vec256<uint16_t> NativeExpand(Vec256<uint16_t> v,
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U8_D(D)>
-HWY_INLINE Vec256<uint8_t> NativeLoadExpand(
-    Mask256<uint8_t> mask, D /* d */, const uint8_t* HWY_RESTRICT unaligned) {
-  return Vec256<uint8_t>{_mm256_maskz_expandloadu_epi8(mask.raw, unaligned)};
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint8_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_maskz_expandloadu_epi8(mask.raw, unaligned)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
-HWY_INLINE Vec256<uint16_t> NativeLoadExpand(
-    Mask256<uint16_t> mask, D /* d */, const uint16_t* HWY_RESTRICT unaligned) {
-  return Vec256<uint16_t>{_mm256_maskz_expandloadu_epi16(mask.raw, unaligned)};
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint16_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_maskz_expandloadu_epi16(mask.raw, unaligned)};
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3_DL
@@ -6822,15 +6879,15 @@ HWY_INLINE Vec256<uint64_t> NativeExpand(Vec256<uint64_t> v,
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
-HWY_INLINE Vec256<uint32_t> NativeLoadExpand(
-    Mask256<uint32_t> mask, D /* d */, const uint32_t* HWY_RESTRICT unaligned) {
-  return Vec256<uint32_t>{_mm256_maskz_expandloadu_epi32(mask.raw, unaligned)};
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint32_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_maskz_expandloadu_epi32(mask.raw, unaligned)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
-HWY_INLINE Vec256<uint64_t> NativeLoadExpand(
-    Mask256<uint64_t> mask, D /* d */, const uint64_t* HWY_RESTRICT unaligned) {
-  return Vec256<uint64_t>{_mm256_maskz_expandloadu_epi64(mask.raw, unaligned)};
+HWY_INLINE VFromD<D> NativeLoadExpand(MFromD<D> mask, D /* d */,
+                                      const uint64_t* HWY_RESTRICT unaligned) {
+  return VFromD<D>{_mm256_maskz_expandloadu_epi64(mask.raw, unaligned)};
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
@@ -7042,13 +7099,13 @@ namespace detail {
 // 3 0
 // 4 1
 // 5 2
-template <class D, typename T = TFromD<D>>
-HWY_API void LoadTransposedBlocks3(D d, const T* HWY_RESTRICT unaligned,
-                                   Vec256<T>& A, Vec256<T>& B, Vec256<T>& C) {
-  constexpr size_t N = 32 / sizeof(T);
-  const Vec256<T> v10 = LoadU(d, unaligned + 0 * N);  // 1 0
-  const Vec256<T> v32 = LoadU(d, unaligned + 1 * N);
-  const Vec256<T> v54 = LoadU(d, unaligned + 2 * N);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API void LoadTransposedBlocks3(D d, const TFromD<D>* HWY_RESTRICT unaligned,
+                                   VFromD<D>& A, VFromD<D>& B, VFromD<D>& C) {
+  constexpr size_t N = Lanes(d);
+  const VFromD<D> v10 = LoadU(d, unaligned + 0 * N);  // 1 0
+  const VFromD<D> v32 = LoadU(d, unaligned + 1 * N);
+  const VFromD<D> v54 = LoadU(d, unaligned + 2 * N);
 
   A = ConcatUpperLower(d, v32, v10);
   B = ConcatLowerUpper(d, v54, v10);
@@ -7065,15 +7122,15 @@ HWY_API void LoadTransposedBlocks3(D d, const T* HWY_RESTRICT unaligned,
 // 5 1
 // 6 2
 // 7 3
-template <class D, typename T = TFromD<D>>
-HWY_API void LoadTransposedBlocks4(D d, const T* HWY_RESTRICT unaligned,
-                                   Vec256<T>& vA, Vec256<T>& vB, Vec256<T>& vC,
-                                   Vec256<T>& vD) {
-  constexpr size_t N = 32 / sizeof(T);
-  const Vec256<T> v10 = LoadU(d, unaligned + 0 * N);
-  const Vec256<T> v32 = LoadU(d, unaligned + 1 * N);
-  const Vec256<T> v54 = LoadU(d, unaligned + 2 * N);
-  const Vec256<T> v76 = LoadU(d, unaligned + 3 * N);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API void LoadTransposedBlocks4(D d, const TFromD<D>* HWY_RESTRICT unaligned,
+                                   VFromD<D>& vA, VFromD<D>& vB, VFromD<D>& vC,
+                                   VFromD<D>& vD) {
+  constexpr size_t N = Lanes(d);
+  const VFromD<D> v10 = LoadU(d, unaligned + 0 * N);
+  const VFromD<D> v32 = LoadU(d, unaligned + 1 * N);
+  const VFromD<D> v54 = LoadU(d, unaligned + 2 * N);
+  const VFromD<D> v76 = LoadU(d, unaligned + 3 * N);
 
   vA = ConcatLowerLower(d, v54, v10);
   vB = ConcatUpperUpper(d, v54, v10);
@@ -7093,10 +7150,10 @@ namespace detail {
 // Output:
 // 1 0
 // 3 2
-template <class D, typename T = TFromD<D>>
-HWY_API void StoreTransposedBlocks2(Vec256<T> i, Vec256<T> j, D d,
-                                    T* HWY_RESTRICT unaligned) {
-  constexpr size_t N = 32 / sizeof(T);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API void StoreTransposedBlocks2(VFromD<D> i, VFromD<D> j, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  constexpr size_t N = Lanes(d);
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatUpperUpper(d, j, i);
   StoreU(out0, d, unaligned + 0 * N);
@@ -7111,10 +7168,10 @@ HWY_API void StoreTransposedBlocks2(Vec256<T> i, Vec256<T> j, D d,
 // 1 0
 // 3 2
 // 5 4
-template <class D, typename T = TFromD<D>>
-HWY_API void StoreTransposedBlocks3(Vec256<T> i, Vec256<T> j, Vec256<T> k, D d,
-                                    T* HWY_RESTRICT unaligned) {
-  constexpr size_t N = 32 / sizeof(T);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API void StoreTransposedBlocks3(VFromD<D> i, VFromD<D> j, VFromD<D> k, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  constexpr size_t N = Lanes(d);
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatUpperLower(d, i, k);
   const auto out2 = ConcatUpperUpper(d, k, j);
@@ -7133,11 +7190,11 @@ HWY_API void StoreTransposedBlocks3(Vec256<T> i, Vec256<T> j, Vec256<T> k, D d,
 // 3 2
 // 5 4
 // 7 6
-template <class D, typename T = TFromD<D>>
-HWY_API void StoreTransposedBlocks4(Vec256<T> i, Vec256<T> j, Vec256<T> k,
-                                    Vec256<T> l, D d,
-                                    T* HWY_RESTRICT unaligned) {
-  constexpr size_t N = 32 / sizeof(T);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API void StoreTransposedBlocks4(VFromD<D> i, VFromD<D> j, VFromD<D> k,
+                                    VFromD<D> l, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  constexpr size_t N = Lanes(d);
   // Write lower halves, then upper.
   const auto out0 = ConcatLowerLower(d, j, i);
   const auto out1 = ConcatLowerLower(d, l, k);
@@ -7155,7 +7212,7 @@ HWY_API void StoreTransposedBlocks4(Vec256<T> i, Vec256<T> j, Vec256<T> k,
 #if HWY_TARGET <= HWY_AVX3
 template <class T>
 HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
-  constexpr size_t N = 32 / sizeof(T);
+  constexpr size_t N = Lanes(Full256<T>());
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
@@ -7163,7 +7220,7 @@ HWY_API Mask256<T> SetAtOrAfterFirst(Mask256<T> mask) {
 }
 template <class T>
 HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
-  constexpr size_t N = 32 / sizeof(T);
+  constexpr size_t N = Lanes(Full256<T>());
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
@@ -7171,7 +7228,7 @@ HWY_API Mask256<T> SetBeforeFirst(Mask256<T> mask) {
 }
 template <class T>
 HWY_API Mask256<T> SetAtOrBeforeFirst(Mask256<T> mask) {
-  constexpr size_t N = 32 / sizeof(T);
+  constexpr size_t N = Lanes(Full256<T>());
   constexpr uint32_t kActiveElemMask =
       static_cast<uint32_t>((uint64_t{1} << N) - 1);
   return Mask256<T>{static_cast<typename Mask256<T>::Raw>(
@@ -7334,29 +7391,29 @@ HWY_INLINE Vec256<T> MaxOfLanes(Vec256<T> v76543210) {
 }  // namespace detail
 
 // Supported for >8-bit types. Returns the broadcasted result.
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> SumOfLanes(D /*d*/, const Vec256<T> vHL) {
-  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> SumOfLanes(D /*d*/, VFromD<D> vHL) {
+  const VFromD<D> vLH = SwapAdjacentBlocks(vHL);
   return detail::SumOfLanes(Add(vLH, vHL));
 }
-template <class D, typename T = TFromD<D>>
-HWY_API T ReduceSum(D d, const Vec256<T> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
   return GetLane(SumOfLanes(d, v));
 }
 #if HWY_HAVE_FLOAT16
-template <class D>
-HWY_API float16_t ReduceSum(D, Vec256<float16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API float16_t ReduceSum(D, VFromD<D> v) {
   return _mm256_reduce_add_ph(v.raw);
 }
 #endif  // HWY_HAVE_FLOAT16
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MinOfLanes(D /*d*/, const Vec256<T> vHL) {
-  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> MinOfLanes(D /*d*/, VFromD<D> vHL) {
+  const VFromD<D> vLH = SwapAdjacentBlocks(vHL);
   return detail::MinOfLanes(Min(vLH, vHL));
 }
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MaxOfLanes(D /*d*/, const Vec256<T> vHL) {
-  const Vec256<T> vLH = SwapAdjacentBlocks(vHL);
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> MaxOfLanes(D /*d*/, VFromD<D> vHL) {
+  const VFromD<D> vLH = SwapAdjacentBlocks(vHL);
   return detail::MaxOfLanes(Max(vLH, vHL));
 }
 

@@ -1422,7 +1422,74 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 }
 #endif  // HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
 
+#endif  // (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
+
+// ------------------------------ Gather
+
+#if (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_GATHER
+#undef HWY_NATIVE_GATHER
+#else
+#define HWY_NATIVE_GATHER
 #endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> GatherOffset(D d, const T* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> offset) {
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN TI offset_lanes[MaxLanes(d)];
+  Store(offset, di, offset_lanes);
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  const uint8_t* base_bytes = reinterpret_cast<const uint8_t*>(base);
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    CopyBytes<sizeof(T)>(base_bytes + offset_lanes[i], &lanes[i]);
+  }
+  return Load(d, lanes);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
+                              VFromD<RebindToSigned<D>> index) {
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN TI index_lanes[MaxLanes(d)];
+  Store(index, di, index_lanes);
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    lanes[i] = base[index_lanes[i]];
+  }
+  return Load(d, lanes);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
+                                    const T* HWY_RESTRICT base,
+                                    VFromD<RebindToSigned<D>> index) {
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN TI index_lanes[MaxLanes(di)];
+  Store(index, di, index_lanes);
+
+  HWY_ALIGN TI mask_lanes[MaxLanes(di)];
+  Store(BitCast(di, VecFromMask(d, m)), di, mask_lanes);
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : T{0};
+  }
+  return Load(d, lanes);
+}
+
+#endif  // (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
 
 // ------------------------------ Integer AbsDiff and SumsOf8AbsDiff
 

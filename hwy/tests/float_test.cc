@@ -326,7 +326,7 @@ struct TestAbsDiff {
 };
 
 HWY_NOINLINE void TestAllAbsDiff() {
-  ForPartialVectors<TestAbsDiff>()(float());
+  ForFloatTypes(ForPartialVectors<TestAbsDiff>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

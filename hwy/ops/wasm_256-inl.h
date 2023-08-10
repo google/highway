@@ -292,6 +292,13 @@ HWY_API Vec256<T> Neg(Vec256<T> v) {
   return v;
 }
 
+// ------------------------------ AbsDiff
+// generic_ops takes care of integer T.
+template <typename T, HWY_IF_FLOAT(T)>
+HWY_API Vec256<T> AbsDiff(const Vec256<T> a, const Vec256<T> b) {
+  return Abs(a - b);
+}
+
 // ------------------------------ Floating-point division
 template <typename T>
 HWY_API Vec256<T> operator/(Vec256<T> a, const Vec256<T> b) {
@@ -304,11 +311,6 @@ HWY_API Vec256<T> operator/(Vec256<T> a, const Vec256<T> b) {
 HWY_API Vec256<float> ApproximateReciprocal(const Vec256<float> v) {
   const Vec256<float> one = Set(Full256<float>(), 1.0f);
   return one / v;
-}
-
-// Absolute value of difference.
-HWY_API Vec256<float> AbsDiff(const Vec256<float> a, const Vec256<float> b) {
-  return Abs(a - b);
 }
 
 // ------------------------------ Floating-point multiply-add variants
