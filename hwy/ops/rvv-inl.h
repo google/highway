@@ -1144,9 +1144,8 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Mul, fmul, _ALL)
 // Only for internal use (Highway only promises MulHigh for 16-bit inputs).
 // Used by MulEven; vwmul does not work for m8.
 namespace detail {
-HWY_RVV_FOREACH_I32(HWY_RVV_RETV_ARGVV, MulHigh, mulh, _ALL)
-HWY_RVV_FOREACH_U32(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
-HWY_RVV_FOREACH_U64(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, MulHigh, mulh, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
 }  // namespace detail
 
 HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
@@ -4328,12 +4327,20 @@ HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
 
 // ------------------------------ MulEven/Odd (Mul, OddEven)
 
-template <class V, HWY_IF_T_SIZE_V(V, 4), class D = DFromV<V>,
-          class DW = RepartitionToWide<D>>
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4)),
+          class D = DFromV<V>, class DW = RepartitionToWide<D>>
 HWY_API VFromD<DW> MulEven(const V a, const V b) {
   const auto lo = Mul(a, b);
   const auto hi = detail::MulHigh(a, b);
   return BitCast(DW(), OddEven(detail::Slide1Up(hi), lo));
+}
+
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4)),
+          class D = DFromV<V>, class DW = RepartitionToWide<D>>
+HWY_API VFromD<DW> MulOdd(const V a, const V b) {
+  const auto lo = Mul(a, b);
+  const auto hi = detail::MulHigh(a, b);
+  return BitCast(DW(), OddEven(hi, detail::Slide1Down(lo)));
 }
 
 // There is no 64x64 vwmul.
@@ -4473,6 +4480,17 @@ HWY_API VFromD<D> WidenMulPairwiseAdd(D d32, VI16 a, VI16 b) {
   return Add(Mul(ae, be), Mul(ao, bo));
 }
 
+template <class D, HWY_IF_U32_D(D), class VI16>
+HWY_API VFromD<D> WidenMulPairwiseAdd(D du32, VI16 a, VI16 b) {
+  using VU32 = VFromD<decltype(du32)>;
+  // Manual sign extension requires two shifts for even lanes.
+  const VU32 ae = detail::AndS(BitCast(du32, a), uint32_t{0x0000FFFFu});
+  const VU32 be = detail::AndS(BitCast(du32, b), uint32_t{0x0000FFFFu});
+  const VU32 ao = ShiftRight<16>(BitCast(du32, a));
+  const VU32 bo = ShiftRight<16>(BitCast(du32, b));
+  return Add(Mul(ae, be), Mul(ao, bo));
+}
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 namespace detail {
@@ -4507,6 +4525,7 @@ HWY_API VF32 ReorderWidenMulAccumulateBF16(Simd<float, N, kPow2> df32,
   }
 
 HWY_RVV_FOREACH_I16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmacc_vv_, _EXT_VIRT)
+HWY_RVV_FOREACH_U16(HWY_RVV_WIDEN_MACC, WidenMulAcc, wmaccu_vv_, _EXT_VIRT)
 #undef HWY_RVV_WIDEN_MACC
 
 // If LMUL is not the max, we can WidenMul first (3 instructions).
@@ -4539,6 +4558,36 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulateI16(D32 d32, VFromD<D16> a,
   return detail::WidenMulAcc(d32, sum0, a0, b0);
 }
 
+// If LMUL is not the max, we can WidenMul first (3 instructions).
+template <class D32, HWY_IF_POW2_LE_D(D32, 2), class V32 = VFromD<D32>,
+          class D16 = RepartitionToNarrow<D32>>
+HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
+                                                 VFromD<D16> b, const V32 sum0,
+                                                 V32& sum1) {
+  const Twice<decltype(d32)> d32t;
+  using V32T = VFromD<decltype(d32t)>;
+  V32T sum = Combine(d32t, sum1, sum0);
+  sum = detail::WidenMulAcc(d32t, sum, a, b);
+  sum1 = UpperHalf(d32, sum);
+  return LowerHalf(d32, sum);
+}
+
+// Max LMUL: must LowerHalf first (4 instructions).
+template <class D32, HWY_IF_POW2_GT_D(D32, 2), class V32 = VFromD<D32>,
+          class D16 = RepartitionToNarrow<D32>>
+HWY_API VFromD<D32> ReorderWidenMulAccumulateU16(D32 d32, VFromD<D16> a,
+                                                 VFromD<D16> b, const V32 sum0,
+                                                 V32& sum1) {
+  const Half<D16> d16h;
+  using V16H = VFromD<decltype(d16h)>;
+  const V16H a0 = LowerHalf(d16h, a);
+  const V16H a1 = UpperHalf(d16h, a);
+  const V16H b0 = LowerHalf(d16h, b);
+  const V16H b1 = UpperHalf(d16h, b);
+  sum1 = detail::WidenMulAcc(d32, sum1, a1, b1);
+  return detail::WidenMulAcc(d32, sum0, a0, b0);
+}
+
 }  // namespace detail
 
 template <size_t N, int kPow2, class VN, class VW>
@@ -4551,6 +4600,12 @@ template <size_t N, int kPow2, class VN, class VW>
 HWY_API VW ReorderWidenMulAccumulate(Simd<int32_t, N, kPow2> d32, VN a, VN b,
                                      const VW sum0, VW& sum1) {
   return detail::ReorderWidenMulAccumulateI16(d32, a, b, sum0, sum1);
+}
+
+template <size_t N, int kPow2, class VN, class VW>
+HWY_API VW ReorderWidenMulAccumulate(Simd<uint32_t, N, kPow2> d32, VN a, VN b,
+                                     const VW sum0, VW& sum1) {
+  return detail::ReorderWidenMulAccumulateU16(d32, a, b, sum0, sum1);
 }
 
 // ------------------------------ RearrangeToOddPlusEven
@@ -4580,6 +4635,33 @@ HWY_API vint32m8_t RearrangeToOddPlusEven(vint32m8_t sum0, vint32m8_t sum1) {
   const vint32m4_t lo =
       RearrangeToOddPlusEven(LowerHalf(sum0), UpperHalf(dh, sum0));
   const vint32m4_t hi =
+      RearrangeToOddPlusEven(LowerHalf(sum1), UpperHalf(dh, sum1));
+  return Combine(d, hi, lo);
+}
+
+template <class VW, HWY_IF_UNSIGNED_V(VW)>  // vuint32_t*
+HWY_API VW RearrangeToOddPlusEven(const VW sum0, const VW sum1) {
+  // vwmacc doubles LMUL, so we require a pairwise sum here. This op is
+  // expected to be less frequent than ReorderWidenMulAccumulate, hence it's
+  // preferable to do the extra work here rather than do manual odd/even
+  // extraction there.
+  const DFromV<VW> du32;
+  const Twice<decltype(du32)> du32x2;
+  const RepartitionToWide<decltype(du32x2)> du64x2;
+  const auto combined = BitCast(du64x2, Combine(du32x2, sum1, sum0));
+  // Isolate odd/even int32 in int64 lanes.
+  const auto even = detail::AndS(combined, uint64_t{0xFFFFFFFFu});
+  const auto odd = ShiftRight<32>(combined);
+  return TruncateTo(du32, Add(even, odd));
+}
+
+// For max LMUL, we cannot Combine again and instead manually unroll.
+HWY_API vuint32m8_t RearrangeToOddPlusEven(vuint32m8_t sum0, vuint32m8_t sum1) {
+  const DFromV<vuint32m8_t> d;
+  const Half<decltype(d)> dh;
+  const vuint32m4_t lo =
+      RearrangeToOddPlusEven(LowerHalf(sum0), UpperHalf(dh, sum0));
+  const vuint32m4_t hi =
       RearrangeToOddPlusEven(LowerHalf(sum1), UpperHalf(dh, sum1));
   return Combine(d, hi, lo);
 }

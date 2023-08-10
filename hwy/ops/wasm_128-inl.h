@@ -850,12 +850,39 @@ HWY_API Vec128<int16_t, N> MulFixedPoint15(Vec128<int16_t, N> a,
 }
 
 // Multiplies even lanes (0, 2 ..) and returns the double-width result.
+template <class T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_SIGNED(T)>
+HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulEven(const Vec128<T, N> a,
+                                                 const Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  constexpr int kSrcBits = sizeof(T) * 8;
+
+  const auto ae =
+      ShiftRight<kSrcBits>(ShiftLeft<kSrcBits>(ResizeBitCast(dw, a)));
+  const auto be =
+      ShiftRight<kSrcBits>(ShiftLeft<kSrcBits>(ResizeBitCast(dw, b)));
+  return ae * be;
+}
+template <class T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_UNSIGNED(T)>
+HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulEven(const Vec128<T, N> a,
+                                                 const Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const auto kEvenMask = Set(dw, LimitsMax<T>());
+
+  const auto ae = And(ResizeBitCast(dw, a), kEvenMask);
+  const auto be = And(ResizeBitCast(dw, b), kEvenMask);
+  return ae * be;
+}
 template <size_t N>
 HWY_API Vec128<int64_t, (N + 1) / 2> MulEven(const Vec128<int32_t, N> a,
                                              const Vec128<int32_t, N> b) {
-  const auto kEvenMask = wasm_i32x4_make(-1, 0, -1, 0);
-  const auto ae = wasm_v128_and(a.raw, kEvenMask);
-  const auto be = wasm_v128_and(b.raw, kEvenMask);
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  const auto ae = ShiftRight<32>(ShiftLeft<32>(ResizeBitCast(dw, a))).raw;
+  const auto be = ShiftRight<32>(ShiftLeft<32>(ResizeBitCast(dw, b))).raw;
   return Vec128<int64_t, (N + 1) / 2>{wasm_i64x2_mul(ae, be)};
 }
 template <size_t N>
@@ -865,6 +892,30 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(const Vec128<uint32_t, N> a,
   const auto ae = wasm_v128_and(a.raw, kEvenMask);
   const auto be = wasm_v128_and(b.raw, kEvenMask);
   return Vec128<uint64_t, (N + 1) / 2>{wasm_i64x2_mul(ae, be)};
+}
+
+// Multiplies odd lanes (1, 3 ..) and returns the double-width result.
+template <class T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulOdd(const Vec128<T, N> a,
+                                                const Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  constexpr int kSrcBits = sizeof(T) * 8;
+
+  const auto ao = ShiftRight<kSrcBits>(BitCast(dw, a));
+  const auto bo = ShiftRight<kSrcBits>(BitCast(dw, b));
+  return ao * bo;
+}
+template <class T, size_t N, HWY_IF_UI32(T)>
+HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulOdd(const Vec128<T, N> a,
+                                                const Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+
+  const auto ao = ShiftRight<32>(BitCast(dw, a));
+  const auto bo = ShiftRight<32>(BitCast(dw, b));
+  return Vec128<MakeWide<T>, (N + 1) / 2>{wasm_i64x2_mul(ao.raw, bo.raw)};
 }
 
 // ------------------------------ Negate
@@ -3870,15 +3921,13 @@ HWY_API VFromD<D> PromoteUpperTo(D df32, VFromD<Repartition<bfloat16_t, D>> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> PromoteUpperTo(D dd,
-                                 VFromD<Repartition<int32_t, D>> v) {
+HWY_API VFromD<D> PromoteUpperTo(D dd, VFromD<Repartition<int32_t, D>> v) {
   // There is no wasm_f64x2_convert_high_i32x4.
   return PromoteTo(dd, UpperHalf(Rebind<int32_t, D>(), v));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> PromoteUpperTo(D dd,
-                                 VFromD<Repartition<float, D>> v) {
+HWY_API VFromD<D> PromoteUpperTo(D dd, VFromD<Repartition<float, D>> v) {
   // There is no wasm_f64x2_promote_high_f32x4.
   return PromoteTo(dd, UpperHalf(Rebind<float, D>(), v));
 }
@@ -5442,6 +5491,20 @@ HWY_API VFromD<D32> WidenMulPairwiseAdd(D32 /* tag */, V16 a, V16 b) {
   return VFromD<D32>{wasm_i32x4_dot_i16x8(a.raw, b.raw)};
 }
 
+template <class DU32, HWY_IF_U32_D(DU32), HWY_IF_V_SIZE_LE_D(DU32, 16),
+          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
+HWY_API VFromD<DU32> WidenMulPairwiseAdd(DU32 du32, VU16 a, VU16 b) {
+  const auto lo16_mask = Set(du32, 0x0000FFFFu);
+
+  const auto a0 = And(BitCast(du32, a), lo16_mask);
+  const auto b0 = And(BitCast(du32, b), lo16_mask);
+
+  const auto a1 = ShiftRight<16>(BitCast(du32, a));
+  const auto b1 = ShiftRight<16>(BitCast(du32, b));
+
+  return MulAdd(a1, b1, a0 * b0);
+}
+
 // Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
 // safe.
 template <class D32, HWY_IF_I32_D(D32), HWY_IF_V_SIZE_LE_D(D32, 16),
@@ -5452,10 +5515,26 @@ HWY_API VFromD<D32> ReorderWidenMulAccumulate(D32 d, V16 a, V16 b,
   return sum0 + WidenMulPairwiseAdd(d, a, b);
 }
 
+// Even if N=1, the input is always at least 2 lanes, hence i32x4_dot_i16x8 is
+// safe.
+template <class DU32, HWY_IF_U32_D(DU32), HWY_IF_V_SIZE_LE_D(DU32, 16),
+          class VU16 = VFromD<RepartitionToNarrow<DU32>>>
+HWY_API VFromD<DU32> ReorderWidenMulAccumulate(DU32 d, VU16 a, VU16 b,
+                                               const VFromD<DU32> sum0,
+                                               VFromD<DU32>& /*sum1*/) {
+  return sum0 + WidenMulPairwiseAdd(d, a, b);
+}
+
 // ------------------------------ RearrangeToOddPlusEven
 template <size_t N>
 HWY_API Vec128<int32_t, N> RearrangeToOddPlusEven(
     const Vec128<int32_t, N> sum0, const Vec128<int32_t, N> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> RearrangeToOddPlusEven(
+    const Vec128<uint32_t, N> sum0, const Vec128<uint32_t, N> /*sum1*/) {
   return sum0;  // invariant already holds
 }
 

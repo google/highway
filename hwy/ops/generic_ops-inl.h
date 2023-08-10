@@ -2611,6 +2611,173 @@ HWY_API Vec<DI16> SatWidenMulPairwiseAdd(DI16 di16, VU8 a, VI8 b) {
 
 #endif
 
+// ------------------------------ SumOfMulQuadAccumulate
+
+#if (defined(HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_I8_I8_SUMOFMULQUADACCUMULATE
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
+                                            VFromD<Repartition<int8_t, DI32>> a,
+                                            VFromD<Repartition<int8_t, DI32>> b,
+                                            VFromD<DI32> sum) {
+  const Repartition<int16_t, decltype(di32)> di16;
+
+  const auto a0 = ShiftRight<8>(ShiftLeft<8>(BitCast(di16, a)));
+  const auto b0 = ShiftRight<8>(ShiftLeft<8>(BitCast(di16, b)));
+
+  const auto a1 = ShiftRight<8>(BitCast(di16, a));
+  const auto b1 = ShiftRight<8>(BitCast(di16, b));
+
+  return Add(sum, Add(WidenMulPairwiseAdd(di32, a0, b0),
+                      WidenMulPairwiseAdd(di32, a1, b1)));
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U8_U8_SUMOFMULQUADACCUMULATE
+#endif
+
+template <class DU32, HWY_IF_U32_D(DU32)>
+HWY_API VFromD<DU32> SumOfMulQuadAccumulate(
+    DU32 du32, VFromD<Repartition<uint8_t, DU32>> a,
+    VFromD<Repartition<uint8_t, DU32>> b, VFromD<DU32> sum) {
+  const Repartition<uint16_t, decltype(du32)> du16;
+  const RebindToSigned<decltype(du16)> di16;
+  const RebindToSigned<decltype(du32)> di32;
+
+  const auto lo8_mask = Set(di16, int16_t{0x00FF});
+  const auto a0 = And(BitCast(di16, a), lo8_mask);
+  const auto b0 = And(BitCast(di16, b), lo8_mask);
+
+  const auto a1 = BitCast(di16, ShiftRight<8>(BitCast(du16, a)));
+  const auto b1 = BitCast(di16, ShiftRight<8>(BitCast(du16, b)));
+
+  return Add(sum, Add(BitCast(du32, WidenMulPairwiseAdd(di32, a0, b0)),
+                      BitCast(du32, WidenMulPairwiseAdd(di32, a1, b1))));
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U8_I8_SUMOFMULQUADACCUMULATE
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
+    DI32 di32, VFromD<Repartition<uint8_t, DI32>> a_u,
+    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
+  const Repartition<int16_t, decltype(di32)> di16;
+  const RebindToUnsigned<decltype(di16)> du16;
+
+  const auto a0 = And(BitCast(di16, a_u), Set(di16, int16_t{0x00FF}));
+  const auto b0 = ShiftRight<8>(ShiftLeft<8>(BitCast(di16, b_i)));
+
+  const auto a1 = BitCast(di16, ShiftRight<8>(BitCast(du16, a_u)));
+  const auto b1 = ShiftRight<8>(BitCast(di16, b_i));
+
+  // NOTE: SatWidenMulPairwiseAdd(di16, a_u, b_i) cannot be used in
+  // SumOfMulQuadAccumulate as it is possible for
+  // a_u[0]*b_i[0]+a_u[1]*b_i[1] to overflow an int16_t if a_u[0], b_i[0],
+  // a_u[1], and b_i[1] are all non-zero and b_i[0] and b_i[1] have the same
+  // sign.
+
+  return Add(sum, Add(WidenMulPairwiseAdd(di32, a0, b0),
+                      WidenMulPairwiseAdd(di32, a1, b1)));
+}
+
+#endif
+
+#if (defined(HWY_NATIVE_I16_I16_SUMOFMULQUADACCUMULATE) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_I16_I16_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_I16_I16_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_I16_I16_SUMOFMULQUADACCUMULATE
+#endif
+
+#if HWY_HAVE_INTEGER64
+template <class DI64, HWY_IF_I64_D(DI64)>
+HWY_API VFromD<DI64> SumOfMulQuadAccumulate(
+    DI64 di64, VFromD<Repartition<int16_t, DI64>> a,
+    VFromD<Repartition<int16_t, DI64>> b, VFromD<DI64> sum) {
+  const Repartition<int32_t, decltype(di64)> di32;
+
+  // WidenMulPairwiseAdd(di32, a, b) is okay here as
+  // a[0]*b[0]+a[1]*b[1] is between -2147418112 and 2147483648 and as
+  // a[0]*b[0]+a[1]*b[1] can only overflow an int32_t if
+  // a[0], b[0], a[1], and b[1] are all equal to -32768.
+
+  const auto i32_pairwise_sum = WidenMulPairwiseAdd(di32, a, b);
+  const auto i32_pairwise_sum_overflow =
+      VecFromMask(di32, Eq(i32_pairwise_sum, Set(di32, LimitsMin<int32_t>())));
+
+  // The upper 32 bits of sum0 and sum1 need to be zeroed out in the case of
+  // overflow.
+  const auto hi32_mask = Set(di64, static_cast<int64_t>(~int64_t{0xFFFFFFFF}));
+  const auto p0_zero_out_mask =
+      ShiftLeft<32>(BitCast(di64, i32_pairwise_sum_overflow));
+  const auto p1_zero_out_mask =
+      And(BitCast(di64, i32_pairwise_sum_overflow), hi32_mask);
+
+  const auto p0 =
+      AndNot(p0_zero_out_mask,
+             ShiftRight<32>(ShiftLeft<32>(BitCast(di64, i32_pairwise_sum))));
+  const auto p1 =
+      AndNot(p1_zero_out_mask, ShiftRight<32>(BitCast(di64, i32_pairwise_sum)));
+
+  return Add(sum, Add(p0, p1));
+}
+#endif  // HWY_HAVE_INTEGER64
+#endif  // HWY_NATIVE_I16_I16_SUMOFMULQUADACCUMULATE
+
+#if (defined(HWY_NATIVE_U16_U16_SUMOFMULQUADACCUMULATE) == \
+     defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_U16_U16_SUMOFMULQUADACCUMULATE
+#undef HWY_NATIVE_U16_U16_SUMOFMULQUADACCUMULATE
+#else
+#define HWY_NATIVE_U16_U16_SUMOFMULQUADACCUMULATE
+#endif
+
+#if HWY_HAVE_INTEGER64
+template <class DU64, HWY_IF_U64_D(DU64)>
+HWY_API VFromD<DU64> SumOfMulQuadAccumulate(
+    DU64 du64, VFromD<Repartition<uint16_t, DU64>> a,
+    VFromD<Repartition<uint16_t, DU64>> b, VFromD<DU64> sum) {
+  const auto u32_even_prod = MulEven(a, b);
+  const auto u32_odd_prod = MulOdd(a, b);
+
+  const auto lo32_mask = Set(du64, uint64_t{0xFFFFFFFFu});
+
+  const auto p0 = Add(And(BitCast(du64, u32_even_prod), lo32_mask),
+                      And(BitCast(du64, u32_odd_prod), lo32_mask));
+  const auto p1 = Add(ShiftRight<32>(BitCast(du64, u32_even_prod)),
+                      ShiftRight<32>(BitCast(du64, u32_odd_prod)));
+
+  return Add(sum, Add(p0, p1));
+}
+#endif  // HWY_HAVE_INTEGER64
+#endif  // HWY_NATIVE_U16_U16_SUMOFMULQUADACCUMULATE
+
 // ------------------------------ F64 ApproximateReciprocal
 
 #if (defined(HWY_NATIVE_F64_APPROX_RECIP) == defined(HWY_TARGET_TOGGLE))

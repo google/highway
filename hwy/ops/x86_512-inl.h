@@ -6410,6 +6410,24 @@ HWY_API Vec512<int32_t> RearrangeToOddPlusEven(const Vec512<int32_t> sum0,
   return sum0;  // invariant already holds
 }
 
+HWY_API Vec512<uint32_t> RearrangeToOddPlusEven(const Vec512<uint32_t> sum0,
+                                                Vec512<uint32_t> /*sum1*/) {
+  return sum0;  // invariant already holds
+}
+
+// ------------------------------ SumOfMulQuadAccumulate
+
+#if HWY_TARGET <= HWY_AVX3_DL
+
+template <class DI32, HWY_IF_V_SIZE_D(DI32, 64)>
+HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
+    DI32 /*di32*/, VFromD<Repartition<uint8_t, DI32>> a_u,
+    VFromD<Repartition<int8_t, DI32>> b_i, VFromD<DI32> sum) {
+  return VFromD<DI32>{_mm512_dpbusd_epi32(sum.raw, a_u.raw, b_i.raw)};
+}
+
+#endif
+
 // ------------------------------ Reductions
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
