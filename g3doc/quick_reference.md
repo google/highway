@@ -635,7 +635,8 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     Exception: if `HWY_TARGET == HWY_SCALAR`, returns `a[0]*b[0]`. Note that the
     initial value of `sum1` must be zero, see `ReorderWidenMulAccumulate`.
 
-*   `VN`: `{u,i}{8,16}`, `D`: `Repartition<MakeWide<MakeWide<TFromV<VN>>>>` \
+*   `VN`: `{u,i}{8,16}`,
+    `D`: `RepartitionToWide<RepartitionToWide<DFromV<VN>>>` \
     <code>Vec&lt;D&gt; **SumOfMulQuadAccumulate**(D d, VN a, VN b,
     Vec&lt;D&gt; sum)</code>: widens `a` and `b` to `TFromD<D>` and computes
     `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +

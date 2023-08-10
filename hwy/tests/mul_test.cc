@@ -894,8 +894,6 @@ struct TestSumOfMulQuadAccumulate {
 
     HWY_ASSERT_VEC_EQ(dw2, vw2_k4,
                       SumOfMulQuadAccumulate(dw2, vn1_k1, vn2_k1, vw2_k0));
-    HWY_ASSERT_VEC_EQ(dw2, vw2_k4,
-                      SumOfMulQuadAccumulate(dw2, vn1_k1, vn2_k1, vw2_k0));
     HWY_ASSERT_VEC_EQ(dw2, vw2_k5,
                       SumOfMulQuadAccumulate(dw2, vn1_k1, vn2_k1, vw2_k1));
     HWY_ASSERT_VEC_EQ(dw2, vw2_k21,
