@@ -72,7 +72,9 @@
 #include <sys/random.h>
 #elif VQSORT_SECURE_SEED == 2
 #include <windows.h>
+#if HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
 #pragma comment(lib, "advapi32.lib")
+#endif  // HWY_COMPILER_MSVC || HWY_COMPILER_CLANGCL
 // Must come after windows.h.
 #include <wincrypt.h>
 #endif  // VQSORT_SECURE_SEED
