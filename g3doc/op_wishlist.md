@@ -192,3 +192,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Add `DupEven` for 16-bit~~ - by johnplatts in #1431
 *   ~~AVX3_SPR target~~
 *   ~~MaskedGather returns zero for mask=false.~~
+*   ~~GatherIndexN/ScatterIndexN~~
