@@ -3201,17 +3201,11 @@ HWY_INLINE VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
       Zero(d).raw, m.raw, index.raw,
       reinterpret_cast<const GatherIndex64*>(base), 8)};
 #else
-#if HWY_COMPILER_CLANG || HWY_COMPILER_CLANGCL || HWY_COMPILER_MSVC
   // For reasons unknown, _mm256_mask_i64gather_epi64 returns all-zeros.
   const RebindToFloat<D> df;
   return BitCast(d, Vec256<double>{_mm256_mask_i64gather_pd(
                         Zero(df).raw, reinterpret_cast<const double*>(base),
                         index.raw, RebindMask(df, m).raw, 8)});
-#else   // !HWY_COMPILER_CLANG
-  return VFromD<D>{_mm256_mask_i64gather_epi64(
-      Zero(d).raw, reinterpret_cast<const GatherIndex64*>(base), m.raw,
-      index.raw, 8)};
-#endif  // HWY_COMPILER_CLANG
 #endif
 }
 
