@@ -351,7 +351,6 @@ if(UNIX AND NOT APPLE)
 endif()
 endif()  # HWY_ENABLE_CONTRIB
 
-if (HWY_ENABLE_TESTS)
 add_library(hwy_test ${HWY_LIBRARY_TYPE} ${HWY_TEST_SOURCES})
 target_link_libraries(hwy_test PUBLIC hwy)
 target_compile_options(hwy_test PRIVATE ${HWY_FLAGS})
@@ -368,7 +367,6 @@ if(UNIX AND NOT APPLE)
   set_property(TARGET hwy_test APPEND_STRING PROPERTY
     LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/hwy/hwy.version")
 endif()
-endif()  # HWY_ENABLE_TESTS
 
 # -------------------------------------------------------- hwy_list_targets
 # Generate a tool to print the compiled-in targets as defined by the current
