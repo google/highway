@@ -1,3 +1,21 @@
+highway (1.0.6-1) UNRELEASED; urgency=medium
+
+  * Add MaskedGatherIndex, MaskedScatterIndex, LoadN, StoreN
+  * Add SatWidenMulPairwiseAdd, SumOfMulQuadAccumulate, PromoteUpperLowerTo
+  * Add F64 for Wasm, F64 AbsDiff
+  * Add F16 support to AVX3_SPR, RVV tuple (both not yet enabled)
+  * Validate all D args in x86 function signatures
+  * License: now dual Apache2/BSD3
+  * Doc: new users, vcpkg install instructions, AVX10 plans
+  * Doc: advice on dynamic dispatch plus -march flags
+  * Build: avoid installing hwy_test if !HWY_ENABLE_TESTS
+  * Codegen: improved PPC9 Find*True, variable-length CopyBytes
+  * Fix: GCC 8.2, MSVC, ICC, PPC9, SVE, arm64 MSVC issues
+  * Fix: IfNegativeThenElse, MulFixedPoint15, Debian changelog format
+  * Tests: faster builds (split up), use release builds
+
+ -- Jan Wassenberg <janwas@google.com>  Fri, 11 Aug 2023 14:00:00 +0200
+
 highway (1.0.5-1) UNRELEASED; urgency=medium
 
   * Add Insert/ExtractBlock, BroadcastBlock/Lane, NumBlocks
