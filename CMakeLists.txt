@@ -422,6 +422,7 @@ foreach (source ${HWY_CONTRIB_SOURCES})
 endforeach()
 endif()  # HWY_ENABLE_CONTRIB
 
+if (HWY_ENABLE_TESTS)
 install(TARGETS hwy_test EXPORT hwy_targets
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -435,13 +436,17 @@ foreach (source ${HWY_TEST_SOURCES})
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${dirname}")
   endif()
 endforeach()
+endif()  # HWY_ENABLE_TESTS
 
 # Add a pkg-config file for libhwy and the contrib/test libraries.
 set(HWY_LIBRARY_VERSION "${CMAKE_PROJECT_VERSION}")
-set(HWY_PC_FILES libhwy.pc libhwy-test.pc)
+set(HWY_PC_FILES libhwy.pc)
 if (HWY_ENABLE_CONTRIB)
 list(APPEND HWY_PC_FILES libhwy-contrib.pc)
 endif()  # HWY_ENABLE_CONTRIB
+if (HWY_ENABLE_TESTS)
+list(APPEND HWY_PC_FILES libhwy-test.pc)
+endif()  # HWY_ENABLE_TESTS
 foreach (pc ${HWY_PC_FILES})
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${pc}.in" "${pc}" @ONLY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${pc}"
