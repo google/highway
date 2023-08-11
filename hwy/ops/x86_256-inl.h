@@ -3027,7 +3027,7 @@ HWY_API void Stream(Vec256<double> v, D /* tag */,
   _mm256_stream_pd(aligned, v.raw);
 }
 
-// ------------------------------ Scatter
+// ------------------------------ ScatterOffset
 
 // Work around warnings in the intrinsic definitions (passing -1 as a mask).
 HWY_DIAGNOSTICS(push)
