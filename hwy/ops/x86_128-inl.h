@@ -4216,6 +4216,13 @@ using GatherIndex64 = long long int;  // NOLINT(runtime/int)
 static_assert(sizeof(GatherIndex64) == 8, "Must be 64-bit type");
 
 #if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_SCATTER
+#undef HWY_NATIVE_SCATTER
+#else
+#define HWY_NATIVE_SCATTER
+#endif
+
 namespace detail {
 
 template <int kScale, class D, class VI, HWY_IF_UI32_D(D)>
@@ -4262,55 +4269,59 @@ HWY_INLINE void NativeScatter128(VFromD<D> v, D d, double* HWY_RESTRICT base,
   }
 }
 
+template <int kScale, class D, class VI, HWY_IF_UI32_D(D)>
+HWY_INLINE void NativeMaskedScatter128(VFromD<D> v, MFromD<D> m, D d,
+                                       TFromD<D>* HWY_RESTRICT base, VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+  _mm_mask_i32scatter_epi32(base, m.raw, index.raw, v.raw, kScale);
+}
+
+template <int kScale, class D, class VI, HWY_IF_UI64_D(D)>
+HWY_INLINE void NativeMaskedScatter128(VFromD<D> v, MFromD<D> m, D d,
+                                       TFromD<D>* HWY_RESTRICT base, VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+  _mm_mask_i64scatter_epi64(base, m.raw, index.raw, v.raw, kScale);
+}
+
+template <int kScale, class D, class VI, HWY_IF_F32_D(D)>
+HWY_INLINE void NativeMaskedScatter128(VFromD<D> v, MFromD<D> m, D d,
+                                       float* HWY_RESTRICT base, VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+  _mm_mask_i32scatter_ps(base, m.raw, index.raw, v.raw, kScale);
+}
+
+template <int kScale, class D, class VI, HWY_IF_F64_D(D)>
+HWY_INLINE void NativeMaskedScatter128(VFromD<D> v, MFromD<D> m, D d,
+                                       double* HWY_RESTRICT base, VI index) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+  _mm_mask_i64scatter_pd(base, m.raw, index.raw, v.raw, kScale);
+}
+
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API void ScatterOffset(VFromD<D> v, D d, T* HWY_RESTRICT base, VI offset) {
-  static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API void ScatterOffset(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
+                           VFromD<RebindToSigned<D>> offset) {
   return detail::NativeScatter128<1>(v, d, base, offset);
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base, VI index) {
-  static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
-  return detail::NativeScatter128<sizeof(T)>(v, d, base, index);
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
+                          VFromD<RebindToSigned<D>> index) {
+  return detail::NativeScatter128<sizeof(TFromD<D>)>(v, d, base, index);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D d,
+                                TFromD<D>* HWY_RESTRICT base,
+                                VFromD<RebindToSigned<D>> index) {
+  return detail::NativeMaskedScatter128<sizeof(TFromD<D>)>(v, m, d, base,
+                                                           index);
 }
 
-#else  // HWY_TARGET <= HWY_AVX3
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API void ScatterOffset(VFromD<D> v, D d, T* HWY_RESTRICT base, VI offset) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  alignas(16) T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-
-  alignas(16) TI offset_lanes[MaxLanes(d)];
-  Store(offset, Rebind<TI, decltype(d)>(), offset_lanes);
-
-  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
-  }
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base, VI index) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  alignas(16) T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-
-  alignas(16) TI index_lanes[MaxLanes(d)];
-  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
-
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    base[index_lanes[i]] = lanes[i];
-  }
-}
-
-#endif
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Gather (Load/Store)
 

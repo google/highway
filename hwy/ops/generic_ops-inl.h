@@ -1424,6 +1424,76 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 
 #endif  // (defined(HWY_NATIVE_STORE_N) == defined(HWY_TARGET_TOGGLE))
 
+// ------------------------------ Scatter
+
+#if (defined(HWY_NATIVE_SCATTER) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SCATTER
+#undef HWY_NATIVE_SCATTER
+#else
+#define HWY_NATIVE_SCATTER
+#endif
+
+template <class D, typename T = TFromD<D>>
+HWY_API void ScatterOffset(VFromD<D> v, D d, T* HWY_RESTRICT base,
+                           VFromD<RebindToSigned<D>> offset) {
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  Store(v, d, lanes);
+
+  HWY_ALIGN TI offset_lanes[MaxLanes(d)];
+  Store(offset, di, offset_lanes);
+
+  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
+  }
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base,
+                          VFromD<RebindToSigned<D>> index) {
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  Store(v, d, lanes);
+
+  HWY_ALIGN TI index_lanes[MaxLanes(d)];
+  Store(index, di, index_lanes);
+
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    base[index_lanes[i]] = lanes[i];
+  }
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D d,
+                                T* HWY_RESTRICT base,
+                                VFromD<RebindToSigned<D>> index) {
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  Store(v, d, lanes);
+
+  HWY_ALIGN TI index_lanes[MaxLanes(d)];
+  Store(index, di, index_lanes);
+
+  HWY_ALIGN TI mask_lanes[MaxLanes(di)];
+  Store(BitCast(di, VecFromMask(d, m)), di, mask_lanes);
+
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    if (mask_lanes[i]) base[index_lanes[i]] = lanes[i];
+  }
+}
+
+#endif  // (defined(HWY_NATIVE_SCATTER) == defined(HWY_TARGET_TOGGLE))
+
 // ------------------------------ Gather
 
 #if (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))

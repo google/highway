@@ -311,6 +311,14 @@ HWY_API void ZeroBytes(To* to) {
 #endif
 }
 
+HWY_API void ZeroBytes(void* to, size_t num_bytes) {
+#if HWY_COMPILER_MSVC
+  memset(to, 0, num_bytes);
+#else
+  __builtin_memset(to, 0, num_bytes);
+#endif
+}
+
 //------------------------------------------------------------------------------
 // kMaxVectorSize (undocumented, pending removal)
 

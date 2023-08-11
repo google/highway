@@ -66,6 +66,49 @@ HWY_NOINLINE void TestAllMaskedLoad() {
   ForAllTypes(ForPartialVectors<TestMaskedLoad>());
 }
 
+struct TestMaskedScatter {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    auto lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes && lanes && expected);
+
+    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    Store(v, d, lanes.get());
+
+    const VI indices =
+        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      ZeroBytes(expected.get(), N * sizeof(T));
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+        if (bool_lanes[i]) {
+          expected[N - 1 - i] = i;
+        }
+      }
+
+      const VI mask_i = Load(di, bool_lanes.get());
+      const auto mask = RebindMask(d, Gt(mask_i, Zero(di)));
+      ZeroBytes(lanes.get(), N * sizeof(T));
+      MaskedScatterIndex(v, mask, d, lanes.get(), indices);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), Load(d, lanes.get()));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllMaskedScatter() {
+  ForUIF3264(ForPartialVectors<TestMaskedScatter>());
+}
+
 struct TestMaskedGather {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -233,6 +276,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyMaskTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedLoad);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedScatter);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedGather);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllBlendedStore);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllStoreMaskBits);

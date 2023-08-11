@@ -1190,18 +1190,31 @@ HWY_API void Stream(const Vec1<T> v, D d, T* HWY_RESTRICT aligned) {
 
 // ------------------------------ Scatter
 
+#ifdef HWY_NATIVE_SCATTER
+#undef HWY_NATIVE_SCATTER
+#else
+#define HWY_NATIVE_SCATTER
+#endif
+
 template <class D, typename T = TFromD<D>, typename TI>
 HWY_API void ScatterOffset(Vec1<T> v, D d, T* base, Vec1<TI> offset) {
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
   uint8_t* const base8 = reinterpret_cast<uint8_t*>(base) + offset.raw;
-  return Store(v, d, reinterpret_cast<T*>(base8));
+  Store(v, d, reinterpret_cast<T*>(base8));
 }
 
 template <class D, typename T = TFromD<D>, typename TI>
 HWY_API void ScatterIndex(Vec1<T> v, D d, T* HWY_RESTRICT base,
                           Vec1<TI> index) {
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-  return Store(v, d, base + index.raw);
+  Store(v, d, base + index.raw);
+}
+
+template <class D, typename T = TFromD<D>, typename TI>
+HWY_API void MaskedScatterIndex(Vec1<T> v, Mask1<T> m, D d,
+                                T* HWY_RESTRICT base, Vec1<TI> index) {
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+  if (m.bits) Store(v, d, base + index.raw);
 }
 
 // ------------------------------ Gather

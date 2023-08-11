@@ -2630,19 +2630,42 @@ HWY_INLINE void ScatterIndex(hwy::SizeTag<8> /* tag */, Vec512<T> v,
   _mm512_i64scatter_epi64(base, index.raw, v.raw, 8);
 }
 
+template <typename T>
+HWY_INLINE void MaskedScatterIndex(hwy::SizeTag<4> /* tag */, Vec512<T> v,
+                                   Mask512<T> m, T* HWY_RESTRICT base,
+                                   Vec512<int32_t> index) {
+  _mm512_mask_i32scatter_epi32(base, m.raw, index.raw, v.raw, 4);
+}
+
+template <typename T>
+HWY_INLINE void MaskedScatterIndex(hwy::SizeTag<8> /* tag */, Vec512<T> v,
+                                   Mask512<T> m, T* HWY_RESTRICT base,
+                                   Vec512<int64_t> index) {
+  _mm512_mask_i64scatter_epi64(base, m.raw, index.raw, v.raw, 8);
+}
+
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI, typename T = TFromD<D>>
-HWY_API void ScatterOffset(VFromD<D> v, D /* tag */, T* HWY_RESTRICT base,
-                           Vec512<TI> offset) {
-  static_assert(sizeof(T) == sizeof(TI), "Must match for portability");
-  return detail::ScatterOffset(hwy::SizeTag<sizeof(T)>(), v, base, offset);
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void ScatterOffset(VFromD<D> v, D /* tag */,
+                           TFromD<D>* HWY_RESTRICT base,
+                           VFromD<RebindToSigned<D>> offset) {
+  return detail::ScatterOffset(hwy::SizeTag<sizeof(TFromD<D>)>(), v, base,
+                               offset);
 }
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI, typename T = TFromD<D>>
-HWY_API void ScatterIndex(VFromD<D> v, D /* tag */, T* HWY_RESTRICT base,
-                          Vec512<TI> index) {
-  static_assert(sizeof(T) == sizeof(TI), "Must match for portability");
-  return detail::ScatterIndex(hwy::SizeTag<sizeof(T)>(), v, base, index);
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void ScatterIndex(VFromD<D> v, D /* tag */,
+                          TFromD<D>* HWY_RESTRICT base,
+                          VFromD<RebindToSigned<D>> index) {
+  return detail::ScatterIndex(hwy::SizeTag<sizeof(TFromD<D>)>(), v, base,
+                              index);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D /* tag */,
+                                TFromD<D>* HWY_RESTRICT base,
+                                VFromD<RebindToSigned<D>> index) {
+  return detail::MaskedScatterIndex(hwy::SizeTag<sizeof(TFromD<D>)>(), v, m,
+                                    base, index);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
@@ -2655,6 +2678,13 @@ HWY_API void ScatterIndex(VFromD<D> v, D /* tag */, float* HWY_RESTRICT base,
                           Vec512<int32_t> index) {
   _mm512_i32scatter_ps(base, index.raw, v.raw, 4);
 }
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
+HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D /* tag */,
+                                float* HWY_RESTRICT base,
+                                Vec512<int32_t> index) {
+  _mm512_mask_i32scatter_ps(base, m.raw, index.raw, v.raw, 4);
+}
+
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
 HWY_API void ScatterOffset(VFromD<D> v, D /* tag */, double* HWY_RESTRICT base,
                            Vec512<int64_t> offset) {
@@ -2664,6 +2694,12 @@ template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
 HWY_API void ScatterIndex(VFromD<D> v, D /* tag */, double* HWY_RESTRICT base,
                           Vec512<int64_t> index) {
   _mm512_i64scatter_pd(base, index.raw, v.raw, 8);
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D /* tag */,
+                                double* HWY_RESTRICT base,
+                                Vec512<int64_t> index) {
+  _mm512_mask_i64scatter_pd(base, m.raw, index.raw, v.raw, 8);
 }
 
 // ------------------------------ Gather

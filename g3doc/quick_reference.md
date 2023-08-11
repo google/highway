@@ -1200,12 +1200,17 @@ vectors, which is much faster than `Scatter/Gather`. Otherwise, code of the form
 F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 
 *   `D`: `{u,i,f}{32,64}` \
-    <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, const T* base, VI
-    offsets)</code>: stores `v[i]` to the base address plus *byte* `offsets[i]`.
+    <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, T* base, VI offsets)</code>:
+    stores `v[i]` to the base address plus *byte* `offsets[i]`.
 
 *   `D`: `{u,i,f}{32,64}` \
-    <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, const T* base, VI
-    indices)</code>: stores `v[i]` to `base[indices[i]]`.
+    <code>void **ScatterIndex**(Vec&lt;D&gt; v, D, T* base, VI indices)</code>:
+    stores `v[i]` to `base[indices[i]]`.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>void **MaskedScatterIndex**(Vec&lt;D&gt; v, M m, D, T* base, VI
+    indices)</code>: stores `v[i]` to `base[indices[i]]` if `mask[i]` is true.
+    Does not fault for lanes whose `mask` is false.
 
 *   `D`: `{u,i,f}{32,64}` \
     <code>Vec&lt;D&gt; **GatherOffset**(D, const T* base, VI offsets)</code>:

@@ -1652,41 +1652,7 @@ HWY_API void Stream(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
   Store(v, d, aligned);
 }
 
-// ------------------------------ Scatter
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API void ScatterOffset(VFromD<D> v, D d, T* HWY_RESTRICT base, VI offset) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  alignas(16) T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-
-  alignas(16) TI offset_lanes[MaxLanes(d)];
-  Store(offset, Rebind<TI, decltype(d)>(), offset_lanes);
-
-  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
-  }
-}
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base, VI index) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  alignas(16) T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-
-  alignas(16) TI index_lanes[MaxLanes(d)];
-  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
-
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    base[index_lanes[i]] = lanes[i];
-  }
-}
-
+// ------------------------------ Scatter in generic_ops-inl.h
 // ------------------------------ Gather in generic_ops-inl.h
 
 // ================================================== SWIZZLE (2)

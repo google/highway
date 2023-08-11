@@ -6788,41 +6788,7 @@ HWY_API Vec128<uint8_t> AESKeyGenAssist(Vec128<uint8_t> v) {
 }
 #endif  // HWY_TARGET == HWY_NEON
 
-// ------------------------------ Scatter (Store)
-
-template <class D, typename T = TFromD<D>, class VI>
-HWY_API void ScatterOffset(VFromD<D> v, D d, T* HWY_RESTRICT base, VI offset) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  HWY_ALIGN T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-
-  HWY_ALIGN TI offset_lanes[MaxLanes(d)];
-  Store(offset, Rebind<TI, decltype(d)>(), offset_lanes);
-
-  uint8_t* base_bytes = reinterpret_cast<uint8_t*>(base);
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    CopyBytes<sizeof(T)>(&lanes[i], base_bytes + offset_lanes[i]);
-  }
-}
-
-template <class D, typename T = TFromD<D>, class VI>
-HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base, VI index) {
-  using TI = TFromV<VI>;
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-
-  HWY_ALIGN T lanes[MaxLanes(d)];
-  Store(v, d, lanes);
-
-  HWY_ALIGN TI index_lanes[MaxLanes(d)];
-  Store(index, Rebind<TI, decltype(d)>(), index_lanes);
-
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    base[index_lanes[i]] = lanes[i];
-  }
-}
-
+// ------------------------------ Scatter in generic_ops-inl.h
 // ------------------------------ Gather in generic_ops-inl.h
 
 // ------------------------------ Reductions

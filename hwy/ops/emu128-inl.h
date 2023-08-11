@@ -1488,28 +1488,8 @@ HWY_API void Stream(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
   Store(v, d, aligned);
 }
 
-// ------------------------------ Scatter
-
-template <class D, typename T = TFromD<D>, typename Offset>
-HWY_API void ScatterOffset(VFromD<D> v, D d, T* base,
-                           Vec128<Offset, HWY_MAX_LANES_D(D)> offset) {
-  static_assert(sizeof(T) == sizeof(Offset), "Index/lane size must match");
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    uint8_t* const base8 = reinterpret_cast<uint8_t*>(base) + offset.raw[i];
-    CopyBytes<sizeof(T)>(&v.raw[i], base8);  // copy to bytes
-  }
-}
-
-template <class D, typename T = TFromD<D>, typename Index>
-HWY_API void ScatterIndex(VFromD<D> v, D d, T* HWY_RESTRICT base,
-                          Vec128<Index, HWY_MAX_LANES_D(D)> index) {
-  static_assert(sizeof(T) == sizeof(Index), "Index/lane size must match");
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    base[index.raw[i]] = v.raw[i];
-  }
-}
-
-// ------------------------------ Gather
+// ------------------------------ Scatter in generic_ops-inl.h
+// ------------------------------ Gather in generic_ops-inl.h
 
 // ================================================== CONVERT
 

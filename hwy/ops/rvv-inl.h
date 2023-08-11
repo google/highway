@@ -1675,6 +1675,12 @@ HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
 
 // ------------------------------ ScatterOffset
 
+#ifdef HWY_NATIVE_SCATTER
+#undef HWY_NATIVE_SCATTER
+#else
+#define HWY_NATIVE_SCATTER
+#endif
+
 #define HWY_RVV_SCATTER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
                         SHIFT, MLEN, NAME, OP)                           \
   template <size_t N>                                                    \
@@ -1690,18 +1696,29 @@ HWY_RVV_FOREACH(HWY_RVV_SCATTER, ScatterOffset, sux, _ALL_VIRT)
 #undef HWY_RVV_SCATTER
 
 // ------------------------------ ScatterIndex
-
-template <class D, HWY_IF_T_SIZE_D(D, 4)>
+template <class D>
 HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
-                          const VFromD<RebindToSigned<D>> index) {
-  return ScatterOffset(v, d, base, ShiftLeft<2>(index));
+                          VFromD<RebindToSigned<D>> indices) {
+  constexpr size_t kBits = CeilLog2(sizeof(TFromD<D>));
+  return ScatterOffset(v, d, base, ShiftLeft<kBits>(indices));
 }
 
-template <class D, HWY_IF_T_SIZE_D(D, 8)>
-HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
-                          const VFromD<RebindToSigned<D>> index) {
-  return ScatterOffset(v, d, base, ShiftLeft<3>(index));
-}
+// ------------------------------ MaskedScatterIndex
+
+#define HWY_RVV_MASKED_SCATTER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, \
+                               LMULH, SHIFT, MLEN, NAME, OP)             \
+  template <size_t N>                                                    \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,     \
+                    HWY_RVV_D(BASE, SEW, N, SHIFT) d,                    \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,            \
+                    HWY_RVV_V(int, SEW, LMUL) indices) {                 \
+    const RebindToUnsigned<decltype(d)> du;                              \
+    constexpr size_t kBits = CeilLog2(sizeof(TFromD<decltype(d)>));      \
+    return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL##_m(             \
+        m, base, ShiftLeft<kBits>(BitCast(du, indices)), v, Lanes(d));   \
+  }
+HWY_RVV_FOREACH(HWY_RVV_MASKED_SCATTER, MaskedScatterIndex, sux, _ALL_VIRT)
+#undef HWY_RVV_MASKED_SCATTER
 
 // ------------------------------ GatherOffset
 
