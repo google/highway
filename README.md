@@ -90,8 +90,9 @@ Other
 If you'd like to get Highway, in addition to cloning from this Github repository
 or using it as a Git submodule, you can also find it in the following package
 managers or repositories: alpinelinux, conan-io, conda-forge, DragonFlyBSD,
-freebsd, ghostbsd, microsoft/vcpkg, MidnightBSD, NetBSD, openSUSE, opnsense,
-Xilinx/Vitis_Libraries.
+freebsd, ghostbsd, microsoft/vcpkg, MidnightBSD, MSYS2, NetBSD, openSUSE,
+opnsense, Xilinx/Vitis_Libraries. See also the list at
+https://repology.org/project/highway-simd-library/versions .
 
 ## Current status
 
