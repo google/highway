@@ -1760,6 +1760,27 @@ HWY_API Vec128<int32_t> DemoteTo(D di, Vec256<double> v) {
   return Combine(di, hi, lo);
 }
 
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> DemoteTo(D di, Vec256<double> v) {
+  const Vec64<uint32_t> lo{wasm_u32x4_trunc_sat_f64x2_zero(v.v0.raw)};
+  const Vec64<uint32_t> hi{wasm_u32x4_trunc_sat_f64x2_zero(v.v1.raw)};
+  return Combine(di, hi, lo);
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> DemoteTo(D df, Vec256<int64_t> v) {
+  const Vec64<float> lo = DemoteTo(Full64<float>(), v.v0);
+  const Vec64<float> hi = DemoteTo(Full64<float>(), v.v1);
+  return Combine(df, hi, lo);
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API Vec128<float> DemoteTo(D df, Vec256<uint64_t> v) {
+  const Vec64<float> lo = DemoteTo(Full64<float>(), v.v0);
+  const Vec64<float> hi = DemoteTo(Full64<float>(), v.v1);
+  return Combine(df, hi, lo);
+}
+
 template <class D, HWY_IF_F16_D(D)>
 HWY_API Vec128<float16_t> DemoteTo(D d16, Vec256<float> v) {
   const Half<decltype(d16)> d16h;

@@ -1317,10 +1317,14 @@ obtain the `D` that describes the return type.
     <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: returns `v[i]` after packing
     with signed/unsigned saturation to `MakeNarrow<T>`.
 
-*   `V`,`D`: `f64,i32` \
+*   `V`,`D`: `f64,{u,i}32` \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: rounds floating point
     towards zero and converts the value to 32-bit integers. Returns the closest
     representable value if the input exceeds the destination range.
+
+*   `V`,`D`: `{u,i}64,f32` \
+    <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: converts 64-bit integer to
+    `float`.
 
 *   `V`,`D`: (`f32,f16`), (`f32,bf16`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: narrows float to half (for
@@ -1335,7 +1339,16 @@ These functions promote a half vector to a full vector. To obtain halves, use
     `f32`, `bf16` to `f32`, `f32` to `f64` \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
     or sign-extended to the integer type `MakeWide<T>`, or widened to the
-    floating-point type `MakeWide<T>`.
+    floating-point type `MakeFloat<T>`.
+
+*   `{u,i}32` to `f64` \
+    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`
+    widened to `double`.
+
+*   `f32` to `i64` or `u64` \
+    <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: rounds `part[i]` towards
+    zero and converts the rounded value to a 64-bit signed or unsigned integer.
+    Returns the representable value if the input exceeds the destination range.
 
 The following may be more convenient or efficient than also calling `LowerHalf`
 / `UpperHalf`:
@@ -1346,11 +1359,35 @@ The following may be more convenient or efficient than also calling `LowerHalf`
     to `MakeWide<T>`, for i in `[0, Lanes(D()))`. Note that `V` has twice as
     many lanes as `D` and the return value.
 
+*   `{u,i}32` to `f64` \
+    <code>Vec&lt;D&gt; **PromoteLowerTo**(D, V v)</code>: returns `v[i]` widened
+    to `double`, for i in `[0, Lanes(D()))`. Note that `V` has twice as many
+    lanes as `D` and the return value.
+
+*   `f32` to `i64` or `u64` \
+    <code>Vec&lt;D&gt; **PromoteLowerTo**(D, V v)</code>: rounds `v[i]` towards
+    zero and converts the rounded value to a 64-bit signed or unsigned integer,
+    for i in `[0, Lanes(D()))`. Note that `V` has twice as many lanes as `D` and
+    the return value.
+
 *   Unsigned `V` to wider signed/unsigned `D`; signed to wider signed, `f16` to
     `f32`, `bf16` to `f32`, `f32` to `f64` \
     <code>Vec&lt;D&gt; **PromoteUpperTo**(D, V v)</code>: returns `v[i]` widened
     to `MakeWide<T>`, for i in `[Lanes(D()), 2 * Lanes(D()))`. Note that `V` has
     twice as many lanes as `D` and the return value. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
+
+*   `{u,i}32` to `f64` \
+    <code>Vec&lt;D&gt; **PromoteUpperTo**(D, V v)</code>: returns `v[i]` widened
+    to `double`, for i in `[Lanes(D()), 2 * Lanes(D()))`. Note that `V` has
+    twice as many lanes as `D` and the return value. Only available if
+    `HWY_TARGET != HWY_SCALAR`.
+
+*   `f32` to `i64` or `u64` \
+    <code>Vec&lt;D&gt; **PromoteUpperTo**(D, V v)</code>: rounds `v[i]` towards
+    zero and converts the rounded value to a 64-bit signed or unsigned integer,
+    for i in `[Lanes(D()), 2 * Lanes(D()))`. Note that `V` has twice as many
+    lanes as `D` and the return value. Only available if
     `HWY_TARGET != HWY_SCALAR`.
 
 #### Two-vector demotion

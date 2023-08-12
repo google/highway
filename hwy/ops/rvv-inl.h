@@ -1849,6 +1849,15 @@ HWY_RVV_PROMOTE_X4(sext_vf4_, int, i, 64, int, 16)
 // i32 to f64
 HWY_RVV_PROMOTE_X2(fwcvt_f_x_v_, float, f, 64, int, 32)
 
+// u32 to f64
+HWY_RVV_PROMOTE_X2(fwcvt_f_xu_v_, float, f, 64, uint, 32)
+
+// f32 to i64
+HWY_RVV_PROMOTE_X2(fwcvt_rtz_x_f_v_, int, i, 64, float, 32)
+
+// f32 to u64
+HWY_RVV_PROMOTE_X2(fwcvt_rtz_xu_f_v_, uint, u, 64, float, 32)
+
 #undef HWY_RVV_PROMOTE_X8
 #undef HWY_RVV_PROMOTE_X4_FROM_U8
 #undef HWY_RVV_PROMOTE_X4
@@ -2444,6 +2453,69 @@ HWY_API vint32m4_t DemoteTo(Simd<int32_t, N, 2> d, const vfloat64m8_t v) {
   return __riscv_vfncvt_rtz_x_f_w_i32m4(v, Lanes(d));
 }
 
+template <size_t N>
+HWY_API vuint32mf2_t DemoteTo(Simd<uint32_t, N, -2> d, const vfloat64m1_t v) {
+  return __riscv_vfncvt_rtz_xu_f_w_u32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vuint32mf2_t DemoteTo(Simd<uint32_t, N, -1> d, const vfloat64m1_t v) {
+  return __riscv_vfncvt_rtz_xu_f_w_u32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vuint32m1_t DemoteTo(Simd<uint32_t, N, 0> d, const vfloat64m2_t v) {
+  return __riscv_vfncvt_rtz_xu_f_w_u32m1(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vuint32m2_t DemoteTo(Simd<uint32_t, N, 1> d, const vfloat64m4_t v) {
+  return __riscv_vfncvt_rtz_xu_f_w_u32m2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vuint32m4_t DemoteTo(Simd<uint32_t, N, 2> d, const vfloat64m8_t v) {
+  return __riscv_vfncvt_rtz_xu_f_w_u32m4(v, Lanes(d));
+}
+
+template <size_t N>
+HWY_API vfloat32mf2_t DemoteTo(Simd<float, N, -2> d, const vint64m1_t v) {
+  return __riscv_vfncvt_f_x_w_f32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32mf2_t DemoteTo(Simd<float, N, -1> d, const vint64m1_t v) {
+  return __riscv_vfncvt_f_x_w_f32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32m1_t DemoteTo(Simd<float, N, 0> d, const vint64m2_t v) {
+  return __riscv_vfncvt_f_x_w_f32m1(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32m2_t DemoteTo(Simd<float, N, 1> d, const vint64m4_t v) {
+  return __riscv_vfncvt_f_x_w_f32m2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32m4_t DemoteTo(Simd<float, N, 2> d, const vint64m8_t v) {
+  return __riscv_vfncvt_f_x_w_f32m4(v, Lanes(d));
+}
+
+template <size_t N>
+HWY_API vfloat32mf2_t DemoteTo(Simd<float, N, -2> d, const vuint64m1_t v) {
+  return __riscv_vfncvt_f_xu_w_f32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32mf2_t DemoteTo(Simd<float, N, -1> d, const vuint64m1_t v) {
+  return __riscv_vfncvt_f_xu_w_f32mf2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32m1_t DemoteTo(Simd<float, N, 0> d, const vuint64m2_t v) {
+  return __riscv_vfncvt_f_xu_w_f32m1(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32m2_t DemoteTo(Simd<float, N, 1> d, const vuint64m4_t v) {
+  return __riscv_vfncvt_f_xu_w_f32m2(v, Lanes(d));
+}
+template <size_t N>
+HWY_API vfloat32m4_t DemoteTo(Simd<float, N, 2> d, const vuint64m8_t v) {
+  return __riscv_vfncvt_f_xu_w_f32m4(v, Lanes(d));
+}
+
 // SEW is for the source so we can use _DEMOTE_VIRT.
 #define HWY_RVV_DEMOTE_TO_SHR_16(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,   \
                                  LMULH, SHIFT, MLEN, NAME, OP)               \
@@ -2486,6 +2558,11 @@ HWY_API VFromD<Simd<bfloat16_t, N, kPow2>> DemoteTo(
   HWY_API HWY_RVV_V(int, SEW, LMUL) ConvertTo(HWY_RVV_D(int, SEW, N, SHIFT) d, \
                                               HWY_RVV_V(BASE, SEW, LMUL) v) {  \
     return __riscv_vfcvt_rtz_x_f_v_i##SEW##LMUL(v, Lanes(d));                  \
+  }                                                                            \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_V(uint, SEW, LMUL) ConvertTo(                                \
+      HWY_RVV_D(uint, SEW, N, SHIFT) d, HWY_RVV_V(BASE, SEW, LMUL) v) {        \
+    return __riscv_vfcvt_rtz_xu_f_v_u##SEW##LMUL(v, Lanes(d));                 \
   }                                                                            \
 // API only requires f32 but we provide f64 for internal use.
 HWY_RVV_FOREACH_F(HWY_RVV_CONVERT, _, _, _ALL_VIRT)
