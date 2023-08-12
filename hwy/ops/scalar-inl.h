@@ -1270,9 +1270,10 @@ HWY_INLINE ToT CastValueForF2IConv(hwy::UnsignedTag /* to_type_tag */,
           : static_cast<FromT>(
                 static_cast<FromT>(ToT{1} << (sizeof(ToT) * 8 - 1)) * FromT(2));
 
-  if (std::signbit(val)) {
+  if (detail::SignBit(val)) {
     return ToT{0};
-  } else if (std::isinf(val) || val >= kSmallestOutOfToTRangePosVal) {
+  } else if (IsInf(Vec1<FromT>(val)).bits ||
+             val >= kSmallestOutOfToTRangePosVal) {
     return LimitsMax<ToT>();
   } else {
     return static_cast<ToT>(val);
@@ -1295,8 +1296,9 @@ HWY_INLINE ToT CastValueForF2IConv(hwy::SignedTag /* to_type_tag */,
           ? static_cast<FromT>(LimitsMax<ToT>())
           : static_cast<FromT>(-static_cast<FromT>(LimitsMin<ToT>()));
 
-  if (std::isinf(val) || std::fabs(val) >= kSmallestOutOfToTRangePosVal) {
-    return std::signbit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
+  if (IsInf(Vec1<FromT>(val)).bits ||
+      detail::Abs(val) >= kSmallestOutOfToTRangePosVal) {
+    return detail::SignBit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
   } else {
     return static_cast<ToT>(val);
   }
