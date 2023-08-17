@@ -1208,6 +1208,10 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
     stores `v[i]` to `base[indices[i]]`.
 
 *   `D`: `{u,i,f}{32,64}` \
+    <code>void **ScatterIndexN**(Vec&lt;D&gt; v, D, T* base, VI indices, size_t max_lanes_to_store)</code>:
+    Stores `HWY_MIN(Lanes(d), max_lanes_to_store)` lanes `v[i]` to `base[indices[i]]`
+
+*   `D`: `{u,i,f}{32,64}` \
     <code>void **MaskedScatterIndex**(Vec&lt;D&gt; v, M m, D, T* base, VI
     indices)</code>: stores `v[i]` to `base[indices[i]]` if `mask[i]` is true.
     Does not fault for lanes whose `mask` is false.
@@ -1219,6 +1223,12 @@ F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
 *   `D`: `{u,i,f}{32,64}` \
     <code>Vec&lt;D&gt; **GatherIndex**(D, const T* base, VI indices)</code>:
     returns vector of `base[indices[i]]`.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **GatherIndexN**(D, const T* base, VI indices, size_t max_lanes_to_load)</code>:
+    Loads `HWY_MIN(Lanes(d), max_lanes_to_load)` lanes of `base[indices[i]]`
+    to the first (lowest-index) lanes of the result vector and zeroes
+    out the remaining lanes.
 
 *   `D`: `{u,i,f}{32,64}` \
     <code>Vec&lt;D&gt; **MaskedGatherIndex**(M mask, D d, const T* base, VI

@@ -1,5 +1,7 @@
 // Copyright 2021 Google LLC
+// Copyright 2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1560,6 +1562,22 @@ HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
 }
 
 #endif  // (defined(HWY_NATIVE_GATHER) == defined(HWY_TARGET_TOGGLE))
+
+// ------------------------------ ScatterN/GatherN
+
+template <class D, typename T = TFromD<D>>
+HWY_API void ScatterIndexN(VFromD<D> v, D d, T* HWY_RESTRICT base,
+                           VFromD<RebindToSigned<D>> index,
+                           const size_t max_lanes_to_store) {
+  MaskedScatterIndex(v, FirstN(d, max_lanes_to_store), d, base, index);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> GatherIndexN(D d, const T* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> index,
+                               const size_t max_lanes_to_load) {
+  return MaskedGatherIndex(FirstN(d, max_lanes_to_load), d, base, index);
+}
 
 // ------------------------------ Integer AbsDiff and SumsOf8AbsDiff
 

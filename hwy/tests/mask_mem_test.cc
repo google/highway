@@ -1,5 +1,7 @@
 // Copyright 2019 Google LLC
+// Copyright 2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BSD-3-Clause
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,6 +111,63 @@ HWY_NOINLINE void TestAllMaskedScatter() {
   ForUIF3264(ForPartialVectors<TestMaskedScatter>());
 }
 
+struct TestScatterIndexN {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes && expected);
+
+    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    Store(v, d, lanes.get());
+
+    const VI indices =
+        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      // Choose 1 to N lanes to store
+      const size_t max_lanes_to_store = (Random32(&rng) % N) + 1;
+
+      ZeroBytes(expected.get(), N * sizeof(T));
+      for (size_t i = 0; i < max_lanes_to_store; ++i) {
+        expected[N - 1 - i] = static_cast<T>(i);
+      }
+
+      ZeroBytes(lanes.get(), N * sizeof(T));
+      ScatterIndexN(v, d, lanes.get(), indices, max_lanes_to_store);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), Load(d, lanes.get()));
+    }
+
+    // Zero store is just zeroes
+    ZeroBytes(expected.get(), N * sizeof(T));
+    ZeroBytes(lanes.get(), N * sizeof(T));
+    ScatterIndexN(v, d, lanes.get(), indices, 0);
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Load(d, lanes.get()));
+
+    // Load is clamped at min(N, max_lanes_to_load)
+    auto larger_memory = AllocateAligned<T>(N * 2);
+    auto larger_expected = AllocateAligned<T>(N * 2);
+    HWY_ASSERT(larger_memory && larger_expected);
+    ZeroBytes(larger_expected.get(), N * sizeof(T) * 2);
+    for (size_t i = 0; i < N; ++i) {
+      larger_expected[N - 1 - i] = static_cast<T>(i);
+    }
+    ZeroBytes(larger_memory.get(), N * sizeof(T));
+    ScatterIndexN(v, d, larger_memory.get(), indices, N + 1);
+    HWY_ASSERT_VEC_EQ(d, larger_expected.get(), Load(d, larger_memory.get()));
+  }
+};
+
+HWY_NOINLINE void TestAllScatterIndexN() {
+  ForUIF3264(ForPartialVectors<TestScatterIndexN>());
+}
+
 struct TestMaskedGather {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -145,6 +204,55 @@ struct TestMaskedGather {
 
 HWY_NOINLINE void TestAllMaskedGather() {
   ForUIF3264(ForPartialVectors<TestMaskedGather>());
+}
+
+struct TestGatherIndexN {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+    auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(bool_lanes && lanes);
+
+    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    Store(v, d, lanes.get());
+
+    const VI indices =
+        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      // Choose 1 to N lanes to load
+      const size_t max_lanes_to_load = (Random32(&rng) % N) + 1;
+
+      // Convert lane count to mask to compare results
+      const auto mask = FirstN(d, max_lanes_to_load);
+
+      const Vec<D> expected = IfThenElseZero(mask, Reverse(d, v));
+      const Vec<D> actual =
+          GatherIndexN(d, lanes.get(), indices, max_lanes_to_load);
+      HWY_ASSERT_VEC_EQ(d, expected, actual);
+    }
+
+    // Zero load is just zeroes
+    const Vec<D> zeroes = Zero(d);
+    const Vec<D> actual_zero = GatherIndexN(d, lanes.get(), indices, 0);
+    HWY_ASSERT_VEC_EQ(d, zeroes, actual_zero);
+
+    // Load is clamped at min(N, max_lanes_to_load)
+    const auto clamped_mask = FirstN(d, N);
+    const Vec<D> expected_clamped = IfThenElseZero(clamped_mask, Reverse(d, v));
+    const Vec<D> actual_clamped = GatherIndexN(d, lanes.get(), indices, N + 1);
+    HWY_ASSERT_VEC_EQ(d, expected_clamped, actual_clamped);
+  }
+};
+
+HWY_NOINLINE void TestAllGatherIndexN() {
+  ForUIF3264(ForPartialVectors<TestGatherIndexN>());
 }
 
 struct TestBlendedStore {
@@ -277,7 +385,9 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyMaskTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedLoad);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedScatter);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllScatterIndexN);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedGather);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllGatherIndexN);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllBlendedStore);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllStoreMaskBits);
 }  // namespace hwy
