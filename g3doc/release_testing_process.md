@@ -16,6 +16,15 @@ Manual test of WASM and WASM_EMU256 targets.
 
 Check libjxl build actions at https://github.com/libjxl/libjxl/pull/2269.
 
+### Version updates
+
+Update the current version in:
+
+*   highway.h
+*   CMakeLists.txt
+*   MODULE.bazel
+*   g3doc/faq.md
+
 ### Signing the release
 
 *   Download release source code archive
