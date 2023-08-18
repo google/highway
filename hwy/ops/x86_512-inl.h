@@ -1091,7 +1091,17 @@ HWY_API Vec512<double> Abs(const Vec512<double> v) {
   return Vec512<double>{_mm512_abs_pd(v.raw)};
 #endif
 }
+
 // ------------------------------ ShiftLeft
+
+#if HWY_TARGET <= HWY_AVX3_DL
+namespace detail {
+template <typename T>
+HWY_API Vec512<T> GaloisAffine(Vec512<T> v, Vec512<uint64_t> matrix) {
+  return Vec512<T>{_mm512_gf2p8affine_epi64_epi8(v.raw, matrix.raw, 0)};
+}
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3_DL
 
 template <int kBits>
 HWY_API Vec512<uint16_t> ShiftLeft(const Vec512<uint16_t> v) {
@@ -1123,6 +1133,21 @@ HWY_API Vec512<int64_t> ShiftLeft(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_slli_epi64(v.raw, kBits)};
 }
 
+#if HWY_TARGET <= HWY_AVX3_DL
+
+// Generic for all vector lengths. Must be defined after all GaloisAffine.
+template <int kBits, class V, HWY_IF_T_SIZE_V(V, 1)>
+HWY_API V ShiftLeft(const V v) {
+  const Repartition<uint64_t, DFromV<V>> du64;
+  if (kBits == 0) return v;
+  if (kBits == 1) return v + v;
+  constexpr uint64_t kMatrix = (0x0102040810204080ULL >> kBits) &
+                               (0x0101010101010101ULL * (0xFF >> kBits));
+  return detail::GaloisAffine(v, Set(du64, kMatrix));
+}
+
+#else  // HWY_TARGET > HWY_AVX3_DL
+
 template <int kBits, typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec512<T> ShiftLeft(const Vec512<T> v) {
   const DFromV<decltype(v)> d8;
@@ -1132,6 +1157,8 @@ HWY_API Vec512<T> ShiftLeft(const Vec512<T> v) {
              ? (v + v)
              : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // ------------------------------ ShiftRight
 
@@ -1151,14 +1178,6 @@ HWY_API Vec512<uint64_t> ShiftRight(const Vec512<uint64_t> v) {
 }
 
 template <int kBits>
-HWY_API Vec512<uint8_t> ShiftRight(const Vec512<uint8_t> v) {
-  const DFromV<decltype(v)> d8;
-  // Use raw instead of BitCast to support N=1.
-  const Vec512<uint8_t> shifted{ShiftRight<kBits>(Vec512<uint16_t>{v.raw}).raw};
-  return shifted & Set(d8, 0xFF >> kBits);
-}
-
-template <int kBits>
 HWY_API Vec512<int16_t> ShiftRight(const Vec512<int16_t> v) {
   return Vec512<int16_t>{_mm512_srai_epi16(v.raw, kBits)};
 }
@@ -1173,6 +1192,42 @@ HWY_API Vec512<int64_t> ShiftRight(const Vec512<int64_t> v) {
   return Vec512<int64_t>{_mm512_srai_epi64(v.raw, kBits)};
 }
 
+#if HWY_TARGET <= HWY_AVX3_DL
+
+// Generic for all vector lengths. Must be defined after all GaloisAffine.
+template <int kBits, class V, HWY_IF_U8_D(DFromV<V>)>
+HWY_API V ShiftRight(const V v) {
+  const Repartition<uint64_t, DFromV<V>> du64;
+  if (kBits == 0) return v;
+  constexpr uint64_t kMatrix =
+      (0x0102040810204080ULL << kBits) &
+      (0x0101010101010101ULL * ((0xFF << kBits) & 0xFF));
+  return detail::GaloisAffine(v, Set(du64, kMatrix));
+}
+
+// Generic for all vector lengths. Must be defined after all GaloisAffine.
+template <int kBits, class V, HWY_IF_I8_D(DFromV<V>)>
+HWY_API V ShiftRight(const V v) {
+  const Repartition<uint64_t, DFromV<V>> du64;
+  if (kBits == 0) return v;
+  constexpr uint64_t kShift =
+      (0x0102040810204080ULL << kBits) &
+      (0x0101010101010101ULL * ((0xFF << kBits) & 0xFF));
+  constexpr uint64_t kSign =
+      kBits == 0 ? 0 : (0x8080808080808080ULL >> (64 - (8 * kBits)));
+  return detail::GaloisAffine(v, Set(du64, kShift | kSign));
+}
+
+#else  // HWY_TARGET > HWY_AVX3_DL
+
+template <int kBits>
+HWY_API Vec512<uint8_t> ShiftRight(const Vec512<uint8_t> v) {
+  const DFromV<decltype(v)> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec512<uint8_t> shifted{ShiftRight<kBits>(Vec512<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
+}
+
 template <int kBits>
 HWY_API Vec512<int8_t> ShiftRight(const Vec512<int8_t> v) {
   const DFromV<decltype(v)> di;
@@ -1181,6 +1236,8 @@ HWY_API Vec512<int8_t> ShiftRight(const Vec512<int8_t> v) {
   const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+#endif  //  HWY_TARGET > HWY_AVX3_DL
 
 // ------------------------------ RotateRight
 
@@ -3527,15 +3584,23 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   return Reverse(d, v);
 }
 
-// ------------------------------ ReverseBits
+// ------------------------------ ReverseBits (GaloisAffine)
 
 #if HWY_TARGET <= HWY_AVX3_DL
-template <class V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_D(DFromV<V>, 64)>
+
+#ifdef HWY_NATIVE_REVERSE_BITS_UI8
+#undef HWY_NATIVE_REVERSE_BITS_UI8
+#else
+#define HWY_NATIVE_REVERSE_BITS_UI8
+#endif
+
+// Generic for all vector lengths. Must be defined after all GaloisAffine.
+template <class V, HWY_IF_T_SIZE_V(V, 1)>
 HWY_API V ReverseBits(V v) {
-  const Full512<uint64_t> du64;
-  const auto affine_matrix = Set(du64, 0x8040201008040201u);
-  return V{_mm512_gf2p8affine_epi64_epi8(v.raw, affine_matrix.raw, 0)};
+  const Repartition<uint64_t, DFromV<V>> du64;
+  return detail::GaloisAffine(v, Set(du64, 0x8040201008040201u));
 }
+
 #endif  // HWY_TARGET <= HWY_AVX3_DL
 
 // ------------------------------ InterleaveLower
@@ -6612,12 +6677,12 @@ HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
 
 // -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
 
-template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 64)>
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm512_lzcnt_epi32(v.raw)};
 }
 
-template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 64)>
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_V(V, 64)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm512_lzcnt_epi64(v.raw)};
 }

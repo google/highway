@@ -1911,6 +1911,15 @@ HWY_API Vec256<uint64_t> MulEven(Vec256<uint32_t> a, Vec256<uint32_t> b) {
 
 // ------------------------------ ShiftLeft
 
+#if HWY_TARGET <= HWY_AVX3_DL
+namespace detail {
+template <typename T>
+HWY_API Vec256<T> GaloisAffine(Vec256<T> v, Vec256<uint64_t> matrix) {
+  return Vec256<T>{_mm256_gf2p8affine_epi64_epi8(v.raw, matrix.raw, 0)};
+}
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 template <int kBits>
 HWY_API Vec256<uint16_t> ShiftLeft(Vec256<uint16_t> v) {
   return Vec256<uint16_t>{_mm256_slli_epi16(v.raw, kBits)};
@@ -1941,6 +1950,8 @@ HWY_API Vec256<int64_t> ShiftLeft(Vec256<int64_t> v) {
   return Vec256<int64_t>{_mm256_slli_epi64(v.raw, kBits)};
 }
 
+#if HWY_TARGET > HWY_AVX3_DL
+
 template <int kBits, typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec256<T> ShiftLeft(const Vec256<T> v) {
   const Full256<T> d8;
@@ -1950,6 +1961,8 @@ HWY_API Vec256<T> ShiftLeft(const Vec256<T> v) {
              ? (v + v)
              : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // ------------------------------ ShiftRight
 
@@ -1969,14 +1982,6 @@ HWY_API Vec256<uint64_t> ShiftRight(Vec256<uint64_t> v) {
 }
 
 template <int kBits>
-HWY_API Vec256<uint8_t> ShiftRight(Vec256<uint8_t> v) {
-  const Full256<uint8_t> d8;
-  // Use raw instead of BitCast to support N=1.
-  const Vec256<uint8_t> shifted{ShiftRight<kBits>(Vec256<uint16_t>{v.raw}).raw};
-  return shifted & Set(d8, 0xFF >> kBits);
-}
-
-template <int kBits>
 HWY_API Vec256<int16_t> ShiftRight(Vec256<int16_t> v) {
   return Vec256<int16_t>{_mm256_srai_epi16(v.raw, kBits)};
 }
@@ -1984,6 +1989,16 @@ HWY_API Vec256<int16_t> ShiftRight(Vec256<int16_t> v) {
 template <int kBits>
 HWY_API Vec256<int32_t> ShiftRight(Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_srai_epi32(v.raw, kBits)};
+}
+
+#if HWY_TARGET > HWY_AVX3_DL
+
+template <int kBits>
+HWY_API Vec256<uint8_t> ShiftRight(Vec256<uint8_t> v) {
+  const Full256<uint8_t> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec256<uint8_t> shifted{ShiftRight<kBits>(Vec256<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
 }
 
 template <int kBits>
@@ -1994,6 +2009,8 @@ HWY_API Vec256<int8_t> ShiftRight(Vec256<int8_t> v) {
   const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // i64 is implemented after BroadcastSignBit.
 
@@ -4067,16 +4084,7 @@ HWY_API VFromD<D> Reverse8(D /* tag */, const VFromD<D> /* v */) {
   HWY_ASSERT(0);  // AVX2 does not have 8 64-bit lanes
 }
 
-// ------------------------------ ReverseBits
-
-#if HWY_TARGET <= HWY_AVX3_DL
-template <class V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
-HWY_API V ReverseBits(V v) {
-  const Full256<uint64_t> du64;
-  const auto affine_matrix = Set(du64, 0x8040201008040201u);
-  return V{_mm256_gf2p8affine_epi64_epi8(v.raw, affine_matrix.raw, 0)};
-}
-#endif  // HWY_TARGET <= HWY_AVX3_DL
+// ------------------------------ ReverseBits in x86_512
 
 // ------------------------------ InterleaveLower
 
@@ -7407,12 +7415,12 @@ HWY_API VFromD<D> MaxOfLanes(D /*d*/, VFromD<D> vHL) {
 // -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
 
 #if HWY_TARGET <= HWY_AVX3
-template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm256_lzcnt_epi32(v.raw)};
 }
 
-template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm256_lzcnt_epi64(v.raw)};
 }

@@ -1214,6 +1214,18 @@ HWY_API Vec128<int64_t, N> ShiftLeft(const Vec128<int64_t, N> v) {
   return Vec128<int64_t, N>{_mm_slli_epi64(v.raw, kBits)};
 }
 
+#if HWY_TARGET <= HWY_AVX3_DL
+
+namespace detail {
+template <typename T, size_t N>
+HWY_API Vec128<T, N> GaloisAffine(
+    Vec128<T, N> v, VFromD<Repartition<uint64_t, Simd<T, N, 0>>> matrix) {
+  return Vec128<T, N>{_mm_gf2p8affine_epi64_epi8(v.raw, matrix.raw, 0)};
+}
+}  // namespace detail
+
+#else  // HWY_TARGET > HWY_AVX3_DL
+
 template <int kBits, typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec128<T, N> ShiftLeft(const Vec128<T, N> v) {
   const DFromV<decltype(v)> d8;
@@ -1223,6 +1235,8 @@ HWY_API Vec128<T, N> ShiftLeft(const Vec128<T, N> v) {
              ? (v + v)
              : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // ------------------------------ ShiftRight
 
@@ -1240,21 +1254,23 @@ HWY_API Vec128<uint64_t, N> ShiftRight(const Vec128<uint64_t, N> v) {
 }
 
 template <int kBits, size_t N>
-HWY_API Vec128<uint8_t, N> ShiftRight(const Vec128<uint8_t, N> v) {
-  const DFromV<decltype(v)> d8;
-  // Use raw instead of BitCast to support N=1.
-  const Vec128<uint8_t, N> shifted{
-      ShiftRight<kBits>(Vec128<uint16_t>{v.raw}).raw};
-  return shifted & Set(d8, 0xFF >> kBits);
-}
-
-template <int kBits, size_t N>
 HWY_API Vec128<int16_t, N> ShiftRight(const Vec128<int16_t, N> v) {
   return Vec128<int16_t, N>{_mm_srai_epi16(v.raw, kBits)};
 }
 template <int kBits, size_t N>
 HWY_API Vec128<int32_t, N> ShiftRight(const Vec128<int32_t, N> v) {
   return Vec128<int32_t, N>{_mm_srai_epi32(v.raw, kBits)};
+}
+
+#if HWY_TARGET > HWY_AVX3_DL
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint8_t, N> ShiftRight(const Vec128<uint8_t, N> v) {
+  const DFromV<decltype(v)> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec128<uint8_t, N> shifted{
+      ShiftRight<kBits>(Vec128<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
 }
 
 template <int kBits, size_t N>
@@ -1265,6 +1281,8 @@ HWY_API Vec128<int8_t, N> ShiftRight(const Vec128<int8_t, N> v) {
   const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // i64 is implemented after BroadcastSignBit.
 
@@ -5480,23 +5498,7 @@ HWY_API VFromD<D> Reverse8(D /* tag */, VFromD<D> /* v */) {
   HWY_ASSERT(0);  // don't have 8 lanes if larger than 16-bit
 }
 
-// ------------------------------ ReverseBits
-
-#if HWY_TARGET <= HWY_AVX3_DL
-
-#ifdef HWY_NATIVE_REVERSE_BITS_UI8
-#undef HWY_NATIVE_REVERSE_BITS_UI8
-#else
-#define HWY_NATIVE_REVERSE_BITS_UI8
-#endif
-
-template <class V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_LE_D(DFromV<V>, 16)>
-HWY_API V ReverseBits(V v) {
-  const Full128<uint64_t> du64_full;
-  const auto affine_matrix = Set(du64_full, 0x8040201008040201u);
-  return V{_mm_gf2p8affine_epi64_epi8(v.raw, affine_matrix.raw, 0)};
-}
-#endif  // HWY_TARGET <= HWY_AVX3_DL
+// ------------------------------ ReverseBits in x86_512
 
 // ------------------------------ InterleaveLower
 
