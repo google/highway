@@ -1342,7 +1342,7 @@ HWY_API Vec1<float> DemoteTo(D /* tag */, Vec1<double> from) {
   return Vec1<float>(static_cast<float>(from.raw));
 }
 template <class D, HWY_IF_UI32_D(D)>
-HWY_API Vec1<TFromD<D>> DemoteTo(D /* tag */, Vec1<double> from) {
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting int32_t to narrower integer/int32_t
   return Vec1<TFromD<D>>(detail::CastValueForF2IConv<TFromD<D>>(
       hwy::TypeTag<TFromD<D>>(), from.raw));
