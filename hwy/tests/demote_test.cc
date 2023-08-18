@@ -206,7 +206,7 @@ struct TestDemoteUI64ToFloat {
     HWY_ASSERT_VEC_EQ(df32, Set(df32, 261162016.0f),
                       DemoteTo(df32, Set(from_d, T(261162016))));
     HWY_ASSERT_VEC_EQ(df32, Set(df32, 18665497952256.0f),
-                      DemoteTo(df32, Set(from_d, T(18665497952256))));
+                      DemoteTo(df32, Set(from_d, T(18665497952256LL))));
 
     if (IsSigned<T>()) {
       HWY_ASSERT_VEC_EQ(df32, Set(df32, -1.0f),
@@ -216,9 +216,9 @@ struct TestDemoteUI64ToFloat {
       HWY_ASSERT_VEC_EQ(df32, Set(df32, -17633.0f),
                         DemoteTo(df32, Set(from_d, T(-17633))));
       HWY_ASSERT_VEC_EQ(df32, Set(df32, -3888877568.0f),
-                        DemoteTo(df32, Set(from_d, T(-3888877568))));
+                        DemoteTo(df32, Set(from_d, T(-3888877568LL))));
       HWY_ASSERT_VEC_EQ(df32, Set(df32, -17851503083520.0f),
-                        DemoteTo(df32, Set(from_d, T(-17851503083520))));
+                        DemoteTo(df32, Set(from_d, T(-17851503083520LL))));
     }
 
     const size_t N = Lanes(from_d);
