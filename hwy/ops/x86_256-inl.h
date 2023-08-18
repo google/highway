@@ -5386,7 +5386,7 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int32_t> v) {
 }
 
 #if HWY_TARGET <= HWY_AVX3
-template <class D, HWY_IF_F64_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
 HWY_API Vec256<double> PromoteTo(D /* tag */, Vec128<uint32_t> v) {
   return Vec256<double>{_mm256_cvtepu32_pd(v.raw)};
 }

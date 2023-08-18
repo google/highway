@@ -1339,7 +1339,7 @@ These functions promote a half vector to a full vector. To obtain halves, use
     `f32`, `bf16` to `f32`, `f32` to `f64` \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
     or sign-extended to the integer type `MakeWide<T>`, or widened to the
-    floating-point type `MakeFloat<T>`.
+    floating-point type `MakeFloat<MakeWide<T>>`.
 
 *   `{u,i}32` to `f64` \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]`

@@ -7854,6 +7854,7 @@ HWY_API VFromD<D> PromoteTo(D /*df64*/, VFromD<Rebind<uint32_t, D>> v) {
   return VFromD<D>{_mm_cvtepu32_pd(v.raw)};
 }
 #else
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<uint32_t, D>> v) {
   const Rebind<int32_t, decltype(df64)> di32;
@@ -8302,6 +8303,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint64_t, D>> v) {
   return VFromD<D>{_mm_cvtepu64_ps(v.raw)};
 }
 #else
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<int64_t, D>> v) {
   const Rebind<double, decltype(df32)> df64;
@@ -8331,6 +8333,8 @@ HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<int64_t, D>> v) {
 
   return DemoteTo(df32, adj_f64_val);
 }
+
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<uint64_t, D>> v) {
   const Rebind<double, decltype(df32)> df64;
@@ -8396,6 +8400,8 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
       _mm_maskz_cvttps_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
 }
 #else   // AVX2 or below
+
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
   const Rebind<int32_t, decltype(di64)> di32;
@@ -8444,6 +8450,7 @@ HWY_INLINE VFromD<DU64> PromoteF32ToU64OverflowMaskToU64(
 
 }  // namespace detail
 
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class D, HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
   const Rebind<int32_t, decltype(du64)> di32;
@@ -9040,6 +9047,7 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
 }
 #endif  // !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
 
+// Generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
 template <class DU, HWY_IF_U64_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
   const RebindToSigned<decltype(du)> di;
