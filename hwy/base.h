@@ -379,10 +379,10 @@ using float16_t = __fp16;
 //    Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR (with
 //    sufficiently new compiler supporting avx512fp16). Do not use on clang-cl,
 //    which is missing __extendhfsf2.
-#elif (                                                                        \
-    (HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) ||           \
-    (HWY_ARCH_X86 && ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) || \
-                      HWY_COMPILER_GCC_ACTUAL >= 1200)))
+#elif ((HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) || \
+       (HWY_ARCH_X86 && defined(__SSE2__) &&                            \
+        ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) ||       \
+         HWY_COMPILER_GCC_ACTUAL >= 1200)))
 using float16_t = _Float16;
 // 3) Otherwise emulate
 #else
