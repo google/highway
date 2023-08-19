@@ -3548,6 +3548,14 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
   return VFromD<D>(vcvt_s32_f32(v.raw));
 }
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec128<uint32_t> ConvertTo(D /* tag */, Vec128<float> v) {
+  return Vec128<uint32_t>(vcvtq_u32_f32(ZeroIfNegative(v).raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
+  return VFromD<D>(vcvt_u32_f32(ZeroIfNegative(v).raw));
+}
 
 #if HWY_HAVE_FLOAT64
 
@@ -3567,11 +3575,17 @@ HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<int64_t> v) {
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<uint64_t> v) {
-  return Vec128<double>(vcvtq_f64_u64(v.raw));
+  return Vec128<double>(vcvtq_f64_u64(ZeroIfNegative(v).raw));
 }
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<uint64_t> v) {
-  return Vec64<double>(vcvt_f64_u64(v.raw));
+  // GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic.
+  const auto non_neg_v = ZeroIfNegative(v);
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  return Set(Full64<double>(), static_cast<double>(GetLane(non_neg_v)));
+#else
+  return Vec64<double>(vcvt_f64_u64(non_neg_v.raw));
+#endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
 }
 
 // Truncates (rounds toward zero).
@@ -3590,6 +3604,23 @@ HWY_API Vec64<int64_t> ConvertTo(D di, Vec64<double> v) {
 #else
   (void)di;
   return Vec64<int64_t>(vcvt_s64_f64(v.raw));
+#endif
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec128<uint64_t> ConvertTo(D /* tag */, Vec128<double> v) {
+  return Vec128<uint64_t>(vcvtq_u64_f64(v.raw));
+}
+template <class D, HWY_IF_U64_D(D)>
+HWY_API Vec64<uint64_t> ConvertTo(D du, Vec64<double> v) {
+  // GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic. Use the
+  // 128-bit version to avoid UB from casting double -> uint64_t.
+#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
+  const Full128<double> ddt;
+  const Twice<decltype(du)> du_t;
+  return LowerHalf(du, ConvertTo(du_t, Combine(ddt, v, v)));
+#else
+  (void)du;
+  return Vec64<uint64_t>(vcvt_u64_f64(v.raw));
 #endif
 }
 
@@ -3792,6 +3823,74 @@ HWY_API Vec64<double> PromoteTo(D d, Vec32<int32_t> v) {
   return ConvertTo(d, Vec64<int64_t>(vget_low_s64(vmovl_s32(v.raw))));
 }
 
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> PromoteTo(D /* tag */, Vec64<uint32_t> v) {
+  const uint64x2_t u64 = vmovl_u32(v.raw);
+  return Vec128<double>(vcvtq_f64_u64(u64));
+}
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec64<double> PromoteTo(D d, Vec32<uint32_t> v) {
+  return ConvertTo(d, Vec64<uint64_t>(vget_low_u64(vmovl_u32(v.raw))));
+}
+
+template <class D, HWY_IF_UI64_D(D)>
+HWY_API VFromD<D> PromoteTo(D d64, VFromD<Rebind<float, D>> v) {
+  const RebindToFloat<decltype(d64)> df64;
+  return ConvertTo(d64, PromoteTo(df64, v));
+}
+
+#else  // !HWY_HAVE_FLOAT64
+
+template <class D, HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+  const Rebind<int32_t, decltype(di64)> di32;
+  const RebindToFloat<decltype(di32)> df32;
+  const RebindToUnsigned<decltype(di32)> du32;
+  const Repartition<uint8_t, decltype(du32)> du32_as_du8;
+
+  const auto exponent_adj = BitCast(
+      du32,
+      Min(SaturatedSub(BitCast(du32_as_du8, ShiftRight<23>(BitCast(du32, v))),
+                       BitCast(du32_as_du8, Set(du32, uint32_t{157}))),
+          BitCast(du32_as_du8, Set(du32, uint32_t{32}))));
+  const auto adj_v =
+      BitCast(df32, BitCast(du32, v) - ShiftLeft<23>(exponent_adj));
+
+  const auto f32_to_i32_result = ConvertTo(di32, adj_v);
+  const auto lo64_or_mask = PromoteTo(
+      di64,
+      BitCast(du32, VecFromMask(di32, Eq(f32_to_i32_result,
+                                         Set(di32, LimitsMax<int32_t>())))));
+
+  return Or(PromoteTo(di64, BitCast(di32, f32_to_i32_result))
+                << PromoteTo(di64, exponent_adj),
+            lo64_or_mask);
+}
+
+template <class D, HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
+  const Rebind<uint32_t, decltype(du64)> du32;
+  const RebindToFloat<decltype(du32)> df32;
+  const Repartition<uint8_t, decltype(du32)> du32_as_du8;
+
+  const auto exponent_adj = BitCast(
+      du32,
+      Min(SaturatedSub(BitCast(du32_as_du8, ShiftRight<23>(BitCast(du32, v))),
+                       BitCast(du32_as_du8, Set(du32, uint32_t{158}))),
+          BitCast(du32_as_du8, Set(du32, uint32_t{32}))));
+
+  const auto adj_v =
+      BitCast(df32, BitCast(du32, v) - ShiftLeft<23>(exponent_adj));
+  const auto f32_to_u32_result = ConvertTo(du32, adj_v);
+  const auto lo32_or_mask = PromoteTo(
+      du64,
+      VecFromMask(du32, f32_to_u32_result == Set(du32, LimitsMax<uint32_t>())));
+
+  return Or(PromoteTo(du64, f32_to_u32_result) << PromoteTo(du64, exponent_adj),
+            lo32_or_mask);
+}
+
 #endif  // HWY_HAVE_FLOAT64
 
 // ------------------------------ PromoteUpperTo
@@ -3874,7 +3973,24 @@ HWY_API Vec128<double> PromoteUpperTo(D /* tag */, Vec128<int32_t> v) {
   return Vec128<double>(vcvtq_f64_s64(i64));
 }
 
+template <class D, HWY_IF_F64_D(D)>
+HWY_API Vec128<double> PromoteUpperTo(D /* tag */, Vec128<uint32_t> v) {
+  const uint64x2_t u64 = vmovl_high_u32(v.raw);
+  return Vec128<double>(vcvtq_f64_u64(u64));
+}
+
 #endif  // HWY_HAVE_FLOAT64
+
+template <class D, HWY_IF_UI64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D d64, Vec128<float> v) {
+#if HWY_HAVE_FLOAT64
+  const RebindToFloat<decltype(d64)> df64;
+  return ConvertTo(d64, PromoteUpperTo(df64, v));
+#else
+  const Rebind<float, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
+#endif
+}
 
 // Generic version for <=64 bit input/output (_high is only for full vectors).
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), class V>
@@ -4080,7 +4196,141 @@ HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<double> v) {
   return Vec32<int32_t>(vqmovn_s64(ConvertTo(dit, Combine(ddt, v, v)).raw));
 }
 
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<double> v) {
+  const uint64x2_t u64 = vcvtq_u64_f64(v.raw);
+  return Vec64<uint32_t>(vqmovn_u64(u64));
+}
+template <class D, HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<double> v) {
+  // There is no i64x1 -> i32x1 narrow, so Combine to 128-bit. Do so with the
+  // f64 input already to also avoid the missing vcvt_s64_f64 in GCC 6.4.
+  const Full128<double> ddt;
+  const Full128<uint64_t> du_t;
+  return Vec32<uint32_t>(vqmovn_u64(ConvertTo(du_t, Combine(ddt, v, v)).raw));
+}
+
 #endif  // HWY_HAVE_FLOAT64
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<int64_t, D>> v) {
+  const Rebind<int64_t, decltype(df32)> di64;
+  const RebindToUnsigned<decltype(di64)> du64;
+
+#if HWY_ARCH_ARM_A64
+  const RebindToFloat<decltype(du64)> df64;
+
+  const auto k2p64_63 = Set(df64, 27670116110564327424.0);
+  const auto f64_hi52 =
+      Xor(BitCast(df64, ShiftRight<12>(BitCast(du64, v))), k2p64_63) - k2p64_63;
+  const auto f64_lo12 =
+      ConvertTo(df64, And(BitCast(du64, v), Set(du64, uint64_t{0x00000FFF})));
+
+  const auto f64_sum = f64_hi52 + f64_lo12;
+  const auto f64_carry = (f64_hi52 - f64_sum) + f64_lo12;
+
+  const auto f64_sum_is_inexact =
+      ShiftRight<63>(BitCast(du64, VecFromMask(df64, f64_carry != Zero(df64))));
+  const auto f64_bits_decrement =
+      And(ShiftRight<63>(BitCast(du64, Xor(f64_sum, f64_carry))),
+          f64_sum_is_inexact);
+
+  const auto adj_f64_val = BitCast(
+      df64,
+      Or(BitCast(du64, f64_sum) - f64_bits_decrement, f64_sum_is_inexact));
+
+  return DemoteTo(df32, adj_f64_val);
+#else
+  const RebindToUnsigned<decltype(df32)> du32;
+  const auto hi23 = TruncateTo(du32, ShiftRight<41>(BitCast(du64, v)));
+  const auto mid23 = And(TruncateTo(du32, ShiftRight<18>(BitCast(du64, v))),
+                         Set(du32, uint32_t{0x007FFFFFu}));
+  const auto lo18 =
+      And(TruncateTo(du32, BitCast(du64, v)), Set(du32, uint32_t{0x0003FFFFu}));
+
+  const auto k2p41_f32 = Set(df32, 2199023255552.0f);
+  const auto k2p64_63_f32 = Set(df32, 27670116110564327424.0f);
+
+  const auto hi23_f32 =
+      BitCast(df32, Xor(hi23, BitCast(du32, k2p64_63_f32))) - k2p64_63_f32;
+  const auto mid23_f32 =
+      BitCast(df32, Or(mid23, BitCast(du32, k2p41_f32))) - k2p41_f32;
+  const auto lo18_f32 = ConvertTo(df32, lo18);
+
+  const auto s_hi46 = hi23_f32 + mid23_f32;
+  const auto c_hi46 = (hi23_f32 - s_hi46) + mid23_f32;
+
+  auto s_lo = c_hi46 + lo18_f32;
+  const auto c_lo = (c_hi46 - s_lo) + lo18_f32;
+
+  const auto s_lo_inexact_mask =
+      VecFromMask(du32, RebindMask(du32, c_lo != Zero(df32)));
+  const auto s_lo_mag_adj = ShiftRight<31>(
+      And(s_lo_inexact_mask, Xor(BitCast(du32, s_lo), BitCast(du32, c_lo))));
+
+  s_lo = BitCast(df32, BitCast(du32, s_lo) - s_lo_mag_adj);
+  s_lo =
+      BitCast(df32, Or(BitCast(du32, s_lo), ShiftRight<31>(s_lo_inexact_mask)));
+  return s_hi46 + s_lo;
+#endif
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<uint64_t, D>> v) {
+#if HWY_ARCH_ARM_A64
+  const Rebind<uint64_t, decltype(df32)> du64;
+  const RebindToFloat<decltype(du64)> df64;
+
+  const auto k2p64 = Set(df64, 18446744073709551616.0);
+  const auto f64_hi52 = Or(BitCast(df64, ShiftRight<12>(v)), k2p64) - k2p64;
+  const auto f64_lo12 =
+      ConvertTo(df64, And(v, Set(du64, uint64_t{0x00000FFF})));
+
+  const auto f64_sum = f64_hi52 + f64_lo12;
+  const auto f64_carry = (f64_hi52 - f64_sum) + f64_lo12;
+  const auto f64_sum_is_inexact =
+      ShiftRight<63>(BitCast(du64, VecFromMask(df64, f64_carry != Zero(df64))));
+
+  const auto adj_f64_val = BitCast(
+      df64,
+      Or(BitCast(du64, f64_sum) - ShiftRight<63>(BitCast(du64, f64_carry)),
+         f64_sum_is_inexact));
+
+  return DemoteTo(df32, adj_f64_val);
+#else
+  const RebindToUnsigned<decltype(df32)> du32;
+
+  const auto hi23 = TruncateTo(du32, ShiftRight<41>(v));
+  const auto mid23 = And(TruncateTo(du32, ShiftRight<18>(v)),
+                         Set(du32, uint32_t{0x007FFFFFu}));
+  const auto lo18 = And(TruncateTo(du32, v), Set(du32, uint32_t{0x0003FFFFu}));
+
+  const auto k2p41_f32 = Set(df32, 2199023255552.0f);
+  const auto k2p64_f32 = Set(df32, 18446744073709551616.0f);
+
+  const auto hi23_f32 =
+      BitCast(df32, Or(hi23, BitCast(du32, k2p64_f32))) - k2p64_f32;
+  const auto mid23_f32 =
+      BitCast(df32, Or(mid23, BitCast(du32, k2p41_f32))) - k2p41_f32;
+  const auto lo18_f32 = ConvertTo(df32, lo18);
+
+  const auto s_hi46 = hi23_f32 + mid23_f32;
+  const auto c_hi46 = (hi23_f32 - s_hi46) + mid23_f32;
+
+  auto s_lo = c_hi46 + lo18_f32;
+  const auto c_lo = (c_hi46 - s_lo) + lo18_f32;
+
+  const auto s_lo_inexact_mask =
+      VecFromMask(du32, RebindMask(du32, c_lo != Zero(df32)));
+  const auto s_lo_mag_adj = ShiftRight<31>(
+      And(s_lo_inexact_mask, Xor(BitCast(du32, s_lo), BitCast(du32, c_lo))));
+
+  s_lo = BitCast(df32, BitCast(du32, s_lo) - s_lo_mag_adj);
+  s_lo =
+      BitCast(df32, Or(BitCast(du32, s_lo), ShiftRight<31>(s_lo_inexact_mask)));
+  return s_hi46 + s_lo;
+#endif
+}
 
 HWY_API Vec32<uint8_t> U8FromU32(Vec128<uint32_t> v) {
   const uint8x16_t org_v = detail::BitCastToByte(v).raw;

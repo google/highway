@@ -1609,6 +1609,27 @@ HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
   return svcvt_f64_s32_x(detail::PTrue(Simd<int32_t, N, kPow2>()), vv);
 }
 
+template <size_t N, int kPow2>
+HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
+                              const svuint32_t v) {
+  const svuint32_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_f64_u32_x(detail::PTrue(Simd<uint32_t, N, kPow2>()), vv);
+}
+
+template <size_t N, int kPow2>
+HWY_API svint64_t PromoteTo(Simd<int64_t, N, kPow2> /* d */,
+                            const svfloat32_t v) {
+  const svfloat32_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_s64_f32_x(detail::PTrue(Simd<float, N, kPow2>()), vv);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint64_t PromoteTo(Simd<uint64_t, N, kPow2> /* d */,
+                             const svfloat32_t v) {
+  const svfloat32_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_u64_f32_x(detail::PTrue(Simd<float, N, kPow2>()), vv);
+}
+
 // For 16-bit Compress
 namespace detail {
 HWY_SVE_FOREACH_UI32(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
@@ -2013,6 +2034,27 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
                                 in_even);  // lower half
 }
 
+template <size_t N, int kPow2>
+HWY_API svuint32_t DemoteTo(Simd<uint32_t, N, kPow2> d, const svfloat64_t v) {
+  const svuint32_t in_even = svcvt_u32_f64_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
+template <size_t N, int kPow2>
+HWY_API svfloat32_t DemoteTo(Simd<float, N, kPow2> d, const svint64_t v) {
+  const svfloat32_t in_even = svcvt_f32_s64_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
+template <size_t N, int kPow2>
+HWY_API svfloat32_t DemoteTo(Simd<float, N, kPow2> d, const svuint64_t v) {
+  const svfloat32_t in_even = svcvt_f32_u64_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
 // ------------------------------ ConvertTo F
 
 #define HWY_SVE_CONVERT(BASE, CHAR, BITS, HALF, NAME, OP)                      \
@@ -2033,6 +2075,12 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
   HWY_API HWY_SVE_V(int, BITS)                                                 \
       NAME(HWY_SVE_D(int, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) {  \
     return sv##OP##_s##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
+  }                                                                            \
+  /* Truncates to unsigned (rounds toward zero). */                            \
+  template <size_t N, int kPow2>                                               \
+  HWY_API HWY_SVE_V(uint, BITS)                                                \
+      NAME(HWY_SVE_D(uint, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) { \
+    return sv##OP##_u##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }
 
 // API only requires f32 but we provide f64 for use by Iota.
