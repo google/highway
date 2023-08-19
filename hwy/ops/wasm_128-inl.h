@@ -3810,8 +3810,62 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+  return VFromD<D>{wasm_f64x2_convert_low_u32x4(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{wasm_f64x2_promote_low_f32x4(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+  const Rebind<int32_t, decltype(di64)> di32;
+  const RebindToFloat<decltype(di32)> df32;
+  const RebindToUnsigned<decltype(di32)> du32;
+  const Repartition<uint8_t, decltype(du32)> du32_as_du8;
+
+  const auto exponent_adj = BitCast(
+      du32,
+      Min(SaturatedSub(BitCast(du32_as_du8, ShiftRight<23>(BitCast(du32, v))),
+                       BitCast(du32_as_du8, Set(du32, uint32_t{157}))),
+          BitCast(du32_as_du8, Set(du32, uint32_t{32}))));
+  const auto adj_v =
+      BitCast(df32, BitCast(du32, v) - ShiftLeft<23>(exponent_adj));
+
+  const auto f32_to_i32_result = ConvertTo(di32, adj_v);
+  const auto lo64_or_mask = PromoteTo(
+      di64,
+      BitCast(du32, VecFromMask(di32, Eq(f32_to_i32_result,
+                                         Set(di32, LimitsMax<int32_t>())))));
+
+  return Or(PromoteTo(di64, BitCast(di32, f32_to_i32_result))
+                << PromoteTo(di64, exponent_adj),
+            lo64_or_mask);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
+  const Rebind<uint32_t, decltype(du64)> du32;
+  const RebindToFloat<decltype(du32)> df32;
+  const Repartition<uint8_t, decltype(du32)> du32_as_du8;
+
+  const auto exponent_adj = BitCast(
+      du32,
+      Min(SaturatedSub(BitCast(du32_as_du8, ShiftRight<23>(BitCast(du32, v))),
+                       BitCast(du32_as_du8, Set(du32, uint32_t{158}))),
+          BitCast(du32_as_du8, Set(du32, uint32_t{32}))));
+
+  const auto adj_v =
+      BitCast(df32, BitCast(du32, v) - ShiftLeft<23>(exponent_adj));
+  const auto f32_to_u32_result = ConvertTo(du32, adj_v);
+  const auto lo32_or_mask = PromoteTo(
+      du64,
+      VecFromMask(du32, f32_to_u32_result == Set(du32, LimitsMax<uint32_t>())));
+
+  return Or(PromoteTo(du64, f32_to_u32_result) << PromoteTo(du64, exponent_adj),
+            lo32_or_mask);
 }
 
 // ------------------------------ PromoteUpperTo
@@ -3893,9 +3947,20 @@ HWY_API VFromD<D> PromoteUpperTo(D dd, VFromD<Repartition<int32_t, D>> v) {
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D dd, VFromD<Repartition<uint32_t, D>> v) {
+  // There is no wasm_f64x2_convert_high_u32x4.
+  return PromoteTo(dd, UpperHalf(Rebind<uint32_t, D>(), v));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
 HWY_API VFromD<D> PromoteUpperTo(D dd, VFromD<Repartition<float, D>> v) {
   // There is no wasm_f64x2_promote_high_f32x4.
   return PromoteTo(dd, UpperHalf(Rebind<float, D>(), v));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D d64, VFromD<Repartition<float, D>> v) {
+  return PromoteTo(d64, UpperHalf(Rebind<float, D>(), v));
 }
 
 // Generic version for <=64 bit input/output (_high is only for full vectors).
@@ -3968,9 +4033,69 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{wasm_i32x4_trunc_sat_f64x2_zero(v.raw)};
 }
 
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
+  return VFromD<D>{wasm_u32x4_trunc_sat_f64x2_zero(v.raw)};
+}
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {
   return VFromD<D>{wasm_f32x4_demote_f64x2_zero(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<int64_t, D>> v) {
+  const Rebind<double, decltype(df32)> df64;
+  const RebindToUnsigned<decltype(df64)> du64;
+  const RebindToSigned<decltype(df32)> di32;
+  const RebindToUnsigned<decltype(df32)> du32;
+
+  const auto k2p64_63 = Set(df64, 27670116110564327424.0);
+  const auto f64_hi52 =
+      Xor(BitCast(df64, ShiftRight<12>(BitCast(du64, v))), k2p64_63) - k2p64_63;
+  const auto f64_lo12 =
+      PromoteTo(df64, BitCast(di32, And(TruncateTo(du32, BitCast(du64, v)),
+                                        Set(du32, uint32_t{0x00000FFF}))));
+
+  const auto f64_sum = f64_hi52 + f64_lo12;
+  const auto f64_carry = (f64_hi52 - f64_sum) + f64_lo12;
+
+  const auto f64_sum_is_inexact =
+      ShiftRight<63>(BitCast(du64, VecFromMask(df64, f64_carry != Zero(df64))));
+  const auto f64_bits_decrement =
+      And(ShiftRight<63>(BitCast(du64, Xor(f64_sum, f64_carry))),
+          f64_sum_is_inexact);
+
+  const auto adj_f64_val = BitCast(
+      df64,
+      Or(BitCast(du64, f64_sum) - f64_bits_decrement, f64_sum_is_inexact));
+
+  return DemoteTo(df32, adj_f64_val);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D df32, VFromD<Rebind<uint64_t, D>> v) {
+  const Rebind<double, decltype(df32)> df64;
+  const RebindToUnsigned<decltype(df64)> du64;
+  const RebindToSigned<decltype(df32)> di32;
+  const RebindToUnsigned<decltype(df32)> du32;
+
+  const auto k2p64 = Set(df64, 18446744073709551616.0);
+  const auto f64_hi52 = Or(BitCast(df64, ShiftRight<12>(v)), k2p64) - k2p64;
+  const auto f64_lo12 =
+      PromoteTo(df64, BitCast(di32, And(TruncateTo(du32, BitCast(du64, v)),
+                                        Set(du32, uint32_t{0x00000FFF}))));
+
+  const auto f64_sum = f64_hi52 + f64_lo12;
+  const auto f64_carry = (f64_hi52 - f64_sum) + f64_lo12;
+  const auto f64_sum_is_inexact =
+      ShiftRight<63>(BitCast(du64, VecFromMask(df64, f64_carry != Zero(df64))));
+
+  const auto adj_f64_val = BitCast(
+      df64,
+      Or(BitCast(du64, f64_sum) - ShiftRight<63>(BitCast(du64, f64_carry)),
+         f64_sum_is_inexact));
+
+  return DemoteTo(df32, adj_f64_val);
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_BF16_D(D),
@@ -4395,6 +4520,10 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{wasm_i32x4_trunc_sat_f32x4(v.raw)};
 }
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{wasm_u32x4_trunc_sat_f32x4(v.raw)};
+}
 
 template <class DI, HWY_IF_I64_D(DI)>
 HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
@@ -4442,6 +4571,60 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<Rebind<double, DI>> v) {
 
   // If the input was negative, negate the integer (two's complement).
   return (magnitude ^ sign_mask) - sign_mask;
+}
+
+template <class DU, HWY_IF_U64_D(DU)>
+HWY_API VFromD<DU> ConvertTo(DU du, VFromD<Rebind<double, DU>> v) {
+  const RebindToSigned<decltype(du)> di;
+  using MI = MFromD<decltype(di)>;
+  using VU = VFromD<decltype(du)>;
+  const Repartition<uint16_t, decltype(di)> du16;
+  const VU k1075 = Set(du, 1075); /* biased exponent of 2^52 */
+
+  const auto non_neg_v = ZeroIfNegative(v);
+
+  // Exponent indicates whether the number can be represented as int64_t.
+  const VU biased_exp = ShiftRight<52>(BitCast(du, non_neg_v));
+  const VU out_of_range =
+      BitCast(du, VecFromMask(di, BitCast(di, biased_exp) > Set(di, 1086)));
+
+  // If we were to cap the exponent at 51 and add 2^52, the number would be in
+  // [2^52, 2^53) and mantissa bits could be read out directly. We need to
+  // round-to-0 (truncate), but changing rounding mode in MXCSR hits a
+  // compiler reordering bug: https://gcc.godbolt.org/z/4hKj6c6qc . We instead
+  // manually shift the mantissa into place (we already have many of the
+  // inputs anyway).
+
+  // Use 16-bit saturated unsigned subtraction to compute shift_mnt and
+  // shift_int since biased_exp[i] is a non-negative integer that is less than
+  // or equal to 2047.
+
+  // 16-bit saturated unsigned subtraction is also more efficient than a
+  // 64-bit subtraction followed by a 64-bit signed Max operation on
+  // WASM.
+
+  // The upper 48 bits of both shift_mnt and shift_int are guaranteed to be
+  // zero as the upper 48 bits of both k1075 and biased_exp are zero.
+
+  const VU shift_mnt = BitCast(
+      du, SaturatedSub(BitCast(du16, k1075), BitCast(du16, biased_exp)));
+  const VU shift_int = BitCast(
+      du, SaturatedSub(BitCast(du16, biased_exp), BitCast(du16, k1075)));
+  const VU mantissa = BitCast(du, non_neg_v) & Set(du, (1ULL << 52) - 1);
+  // Include implicit 1-bit.
+  VU int53 = (mantissa | Set(du, 1ULL << 52)) >> shift_mnt;
+  // WASM clamps shift count; zero if greater.
+  const MI tiny = BitCast(di, shift_mnt) > Set(di, 63);
+  int53 = IfThenZeroElse(RebindMask(du, tiny), int53);
+
+  // For inputs larger than 2^53 - 1, insert zeros at the bottom.
+
+  // For inputs less than 2^64, the implicit 1-bit is guaranteed not to be
+  // shifted out of the left shift result below as shift_int[i] <= 11 is true
+  // for any inputs that are less than 2^64.
+
+  const VU shifted = int53 << shift_int;
+  return (shifted | out_of_range);
 }
 
 // ------------------------------ NearestInt (Round)

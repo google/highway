@@ -484,7 +484,7 @@ int64_t DetectTargets() {
 
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...) {
-  char buf[2000];
+  char buf[800];
   va_list args;
   va_start(args, format);
   vsnprintf(buf, sizeof(buf), format, args);

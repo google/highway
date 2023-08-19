@@ -3001,6 +3001,39 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
 #endif
 }
 
+template <class D, HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+  const __vector unsigned int raw_v = InterleaveLower(v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
+  const __vector float raw_v = InterleaveLower(v, v).raw;
+  return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
+#else
+  const RebindToFloat<decltype(di64)> df64;
+  return ConvertTo(di64, PromoteTo(df64, v));
+#endif
+}
+
+template <class D, HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
+  const __vector float raw_v = InterleaveLower(v, v).raw;
+  return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(raw_v))};
+#else
+  const RebindToFloat<decltype(du64)> df64;
+  return ConvertTo(du64, PromoteTo(df64, v));
+#endif
+}
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, typename FromT, HWY_IF_UNSIGNED_D(D),
@@ -3250,6 +3283,62 @@ HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
   return Vec64<int32_t>{vec_pack(vi64.raw, vi64.raw)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<double> v) {
+  return Vec32<uint32_t>{vec_unsignede(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<double> v) {
+#if HWY_IS_LITTLE_ENDIAN
+  const Vec128<uint32_t> f64_to_u32{vec_unsignede(v.raw)};
+#else
+  const Vec128<uint32_t> f64_to_u32{vec_unsignedo(v.raw)};
+#endif
+
+  const Rebind<uint64_t, D> du64;
+  const Vec128<uint64_t> vu64 = BitCast(du64, f64_to_u32);
+  return Vec64<uint32_t>{vec_pack(vu64.raw, vu64.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>
+HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<int64_t> v) {
+  return Vec32<float>{vec_floate(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API Vec64<float> DemoteTo(D d, Vec128<int64_t> v) {
+#if HWY_IS_LITTLE_ENDIAN
+  const Vec128<float> i64_to_f32{vec_floate(v.raw)};
+#else
+  const Vec128<float> i64_to_f32{vec_floato(v.raw)};
+#endif
+
+  const RebindToUnsigned<D> du;
+  const Rebind<uint64_t, D> du64;
+  return Vec64<float>{
+      BitCast(d, TruncateTo(du, BitCast(du64, i64_to_f32))).raw};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>
+HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<uint64_t> v) {
+  return Vec32<float>{vec_floate(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API Vec64<float> DemoteTo(D d, Vec128<uint64_t> v) {
+#if HWY_IS_LITTLE_ENDIAN
+  const Vec128<float> u64_to_f32{vec_floate(v.raw)};
+#else
+  const Vec128<float> u64_to_f32{vec_floato(v.raw)};
+#endif
+
+  const RebindToUnsigned<D> du;
+  const Rebind<uint64_t, D> du64;
+  return Vec64<float>{
+      BitCast(d, TruncateTo(du, BitCast(du64, u64_to_f32))).raw};
+}
+
 // For already range-limited input [0, 255].
 template <size_t N>
 HWY_API Vec128<uint8_t, N> U8FromU32(Vec128<uint32_t, N> v) {
@@ -3302,7 +3391,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
 #endif
-  return VFromD<D>{vec_ctu(v.raw, 0)};
+  return VFromD<D>{vec_ctu(ZeroIfNegative(v).raw, 0)};
   HWY_DIAGNOSTICS(pop)
 }
 

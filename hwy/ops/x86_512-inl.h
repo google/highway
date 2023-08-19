@@ -4645,6 +4645,27 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec256<int32_t> v) {
   return VFromD<D>{_mm512_cvtepi32_pd(v.raw)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, Vec256<uint32_t> v) {
+  return VFromD<D>{_mm512_cvtepu32_pd(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+  const Rebind<float, decltype(di64)> df32;
+  const RebindToFloat<decltype(di64)> df64;
+  const RebindToSigned<decltype(df32)> di32;
+
+  return detail::FixConversionOverflow(
+      di64, BitCast(df64, PromoteTo(di64, BitCast(di32, v))),
+      VFromD<D>{_mm512_cvttps_epi64(v.raw)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{
+      _mm512_maskz_cvttps_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+}
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U16_D(D)>
@@ -4916,6 +4937,22 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<double> v) {
   return VFromD<D>{_mm512_cvttpd_epi32(clamped.raw)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<double> v) {
+  return VFromD<D>{
+      _mm512_maskz_cvttpd_epu32(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int64_t, D>> v) {
+  return VFromD<D>{_mm512_cvtepi64_ps(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint64_t, D>> v) {
+  return VFromD<D>{_mm512_cvtepu64_ps(v.raw)};
+}
+
 // For already range-limited input [0, 255].
 HWY_API Vec128<uint8_t> U8FromU32(const Vec512<uint32_t> v) {
   const DFromV<decltype(v)> d32;
@@ -5081,6 +5118,16 @@ template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, Vec512<double> v) {
   return detail::FixConversionOverflow(di, v,
                                        VFromD<D>{_mm512_cvttpd_epi64(v.raw)});
+}
+template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U32_D(DU)>
+HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+  return VFromD<DU>{
+      _mm512_maskz_cvttps_epu32(_knot_mask16(MaskFromVec(v).raw), v.raw)};
+}
+template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U64_D(DU)>
+HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+  return VFromD<DU>{
+      _mm512_maskz_cvttpd_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
 }
 
 HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {

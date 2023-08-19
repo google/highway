@@ -138,6 +138,7 @@ HWY_NOINLINE void TestAllPromoteTo() {
 #if HWY_HAVE_FLOAT64
   const ForPromoteVectors<TestPromoteTo<double>, 1> to_f64div2;
   to_f64div2(int32_t());
+  to_f64div2(uint32_t());
   to_f64div2(float());
 #endif
 }
@@ -204,6 +205,7 @@ HWY_NOINLINE void TestAllPromoteUpperLowerTo() {
 #if HWY_HAVE_FLOAT64
   const ForShrinkableVectors<TestPromoteUpperLowerTo<double>, 1> to_f64div2;
   to_f64div2(int32_t());
+  to_f64div2(uint32_t());
   to_f64div2(float());
 #endif  // HWY_HAVE_FLOAT64
 }
@@ -607,6 +609,114 @@ HWY_NOINLINE void TestAllIntFromFloat() {
   ForFloat3264Types(ForPartialVectors<TestIntFromFloat>());
 }
 
+class TestUintFromFloat {
+  template <typename TF, class DF>
+  static HWY_NOINLINE void TestPowers(TF /*unused*/, const DF df) {
+    using TU = MakeUnsigned<TF>;
+    const Rebind<TU, DF> du;
+    constexpr size_t kBits = sizeof(TU) * 8;
+
+    // Powers of two, plus offsets to set some mantissa bits.
+    const uint64_t ofs_table[3] = {0ULL, 3ULL << (kBits / 2),
+                                   1ULL << (kBits - 15)};
+    for (int sign = 0; sign < 2; ++sign) {
+      for (size_t shift = 0; shift < kBits - 1; ++shift) {
+        for (uint64_t ofs : ofs_table) {
+          const uint64_t mag = (uint64_t{1} << shift) + ofs;
+          const TF flt_mag = static_cast<TF>(mag);
+          const TF flt_val = static_cast<TF>(sign ? -flt_mag : flt_mag);
+          const TU expected_result = sign ? TU{0} : static_cast<TU>(mag);
+
+          HWY_ASSERT_VEC_EQ(du, Set(du, expected_result),
+                            ConvertTo(du, Set(df, flt_val)));
+        }
+      }
+    }
+  }
+
+  template <typename TF, class DF>
+  static HWY_NOINLINE void TestRandom(TF /*unused*/, const DF df) {
+    using TU = MakeUnsigned<TF>;
+    const Rebind<TU, DF> du;
+    const size_t N = Lanes(df);
+
+    // If LimitsMax<TU>() can be exactly represented in TF,
+    // kSmallestOutOfTURangePosVal is equal to LimitsMax<TU>().
+
+    // Otherwise, if LimitsMax<TU>() cannot be exactly represented in TF,
+    // kSmallestOutOfTURangePosVal is equal to LimitsMax<TU>() + 1, which can
+    // be exactly represented in TF.
+    constexpr TF kSmallestOutOfTURangePosVal =
+        (sizeof(TU) * 8 <= static_cast<size_t>(MantissaBits<TF>()) + 1)
+            ? static_cast<TF>(LimitsMax<TU>())
+            : static_cast<TF>(static_cast<TF>(TU{1} << (sizeof(TU) * 8 - 1)) *
+                              TF(2));
+
+    constexpr uint64_t kRandBitsMask =
+        static_cast<uint64_t>(LimitsMax<MakeSigned<TU>>());
+
+    // Also check random values.
+    auto from_pos = AllocateAligned<TF>(N);
+    auto from_neg = AllocateAligned<TF>(N);
+    auto expected = AllocateAligned<TU>(N);
+    HWY_ASSERT(from_pos && from_neg && expected);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        do {
+          const TU bits = static_cast<TU>(rng() & kRandBitsMask);
+          CopyBytes<sizeof(TF)>(&bits, &from_pos[i]);
+        } while (!std::isfinite(from_pos[i]));
+        from_neg[i] = static_cast<TF>(-from_pos[i]);
+
+        expected[i] = (from_pos[i] < kSmallestOutOfTURangePosVal)
+                          ? static_cast<TU>(from_pos[i])
+                          : LimitsMax<TU>();
+      }
+
+      HWY_ASSERT_VEC_EQ(du, expected.get(),
+                        ConvertTo(du, Load(df, from_pos.get())));
+      HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Load(df, from_neg.get())));
+    }
+  }
+
+ public:
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF tf, const DF df) {
+    using TU = MakeUnsigned<TF>;
+    const Rebind<TU, DF> du;
+    const size_t N = Lanes(df);
+
+    // Integer positive
+    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(4)), ConvertTo(du, Iota(df, TF(4.0))));
+
+    // Integer negative
+    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N))));
+
+    // Above positive
+    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(2)), ConvertTo(du, Iota(df, TF(2.001))));
+
+    // Below positive
+    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(3)), ConvertTo(du, Iota(df, TF(3.9999))));
+
+    const TF eps = static_cast<TF>(0.0001);
+    // Above negative
+    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N + 1) + eps)));
+
+    // Below negative
+    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N + 1) - eps)));
+
+    TestPowers(tf, df);
+    TestRandom(tf, df);
+  }
+};
+
+HWY_NOINLINE void TestAllUintFromFloat() {
+  // std::isfinite does not support float16_t.
+  ForFloat3264Types(ForPartialVectors<TestUintFromFloat>());
+}
+
 struct TestFloatFromInt {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
@@ -703,6 +813,189 @@ HWY_NOINLINE void TestAllI32F64() {
 #endif
 }
 
+template <class ToT>
+struct TestF2IPromoteTo {
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    const Rebind<ToT, decltype(df)> d_to;
+
+    HWY_ASSERT_VEC_EQ(d_to, Set(d_to, ToT(1)), PromoteTo(d_to, Set(df, TF(1))));
+    HWY_ASSERT_VEC_EQ(d_to, Zero(d_to), PromoteTo(d_to, Zero(df)));
+    HWY_ASSERT_VEC_EQ(d_to, Set(d_to, IsSigned<ToT>() ? ToT(-1) : ToT(0)),
+                      PromoteTo(d_to, Set(df, TF(-1))));
+
+    constexpr size_t kNumOfNonSignBitsInToT =
+        sizeof(ToT) * 8 - static_cast<size_t>(IsSigned<ToT>());
+
+    // kSmallestInToTRangeVal is the smallest value of TF that is within the
+    // range of ToT.
+    constexpr TF kSmallestInToTRangeVal = static_cast<TF>(LimitsMin<ToT>());
+
+    // If LimitsMax<ToT>() can be exactly represented in TF,
+    // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>().
+
+    // Otherwise, if LimitsMax<ToT>() cannot be exactly represented in TF,
+    // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>() + 1, which can
+    // be exactly represented in TF.
+    constexpr TF kSmallestOutOfToTRangePosVal =
+        (kNumOfNonSignBitsInToT <= static_cast<size_t>(MantissaBits<TF>()) + 1)
+            ? static_cast<TF>(LimitsMax<ToT>())
+            : static_cast<TF>(
+                  static_cast<TF>(ToT{1} << (kNumOfNonSignBitsInToT - 1)) *
+                  TF(2));
+
+    HWY_ASSERT_VEC_EQ(d_to, Set(d_to, LimitsMax<ToT>()),
+                      PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal)));
+    HWY_ASSERT_VEC_EQ(
+        d_to, Set(d_to, LimitsMax<ToT>()),
+        PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal * TF(2))));
+    HWY_ASSERT_VEC_EQ(
+        d_to, Set(d_to, LimitsMin<ToT>()),
+        PromoteTo(d_to, Set(df, kSmallestOutOfToTRangePosVal * TF(-2))));
+
+    const size_t N = Lanes(df);
+    auto in_pos = AllocateAligned<TF>(N);
+    auto in_neg = AllocateAligned<TF>(N);
+    auto expected_pos_to_int = AllocateAligned<ToT>(N);
+    auto expected_neg_to_int = AllocateAligned<ToT>(N);
+    HWY_ASSERT(in_pos && in_neg && expected_pos_to_int && expected_neg_to_int);
+
+    using FromTU = MakeUnsigned<TF>;
+
+    constexpr uint64_t kRandBitsMask =
+        static_cast<uint64_t>(LimitsMax<MakeSigned<TF>>());
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        do {
+          const FromTU bits = static_cast<FromTU>(rng() & kRandBitsMask);
+          CopyBytes<sizeof(TF)>(&bits, &in_pos[i]);  // not same size
+        } while (!std::isfinite(in_pos[i]));
+        const TF pos_val = in_pos[i];
+        const TF neg_val = static_cast<TF>(-pos_val);
+        in_neg[i] = neg_val;
+
+        expected_pos_to_int[i] = (pos_val < kSmallestOutOfToTRangePosVal)
+                                     ? static_cast<ToT>(pos_val)
+                                     : LimitsMax<ToT>();
+        expected_neg_to_int[i] = (neg_val > kSmallestInToTRangeVal)
+                                     ? static_cast<ToT>(neg_val)
+                                     : LimitsMin<ToT>();
+      }
+
+      HWY_ASSERT_VEC_EQ(d_to, expected_pos_to_int.get(),
+                        PromoteTo(d_to, Load(df, in_pos.get())));
+      HWY_ASSERT_VEC_EQ(d_to, expected_neg_to_int.get(),
+                        PromoteTo(d_to, Load(df, in_neg.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF2IPromoteTo() {
+#if HWY_HAVE_INTEGER64
+  const ForPromoteVectors<TestF2IPromoteTo<int64_t>, 1> to_i64div2;
+  to_i64div2(float());
+
+  const ForPromoteVectors<TestF2IPromoteTo<uint64_t>, 1> to_u64div2;
+  to_u64div2(float());
+#endif
+}
+
+template <typename ToT>
+struct TestF2IPromoteUpperLowerTo {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
+    const Repartition<ToT, D> to_d;
+
+    const size_t N = Lanes(from_d);
+    auto from = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<ToT>(N / 2);
+
+    using TU = MakeUnsigned<T>;
+
+    constexpr int kNumOfMantBits = MantissaBits<T>();
+    constexpr TU kMaxBiasedExp = static_cast<TU>(MaxExponentField<T>());
+    constexpr TU kExponentBias = kMaxBiasedExp >> 1;
+
+    constexpr TU kMaxInToTRangeBiasedExpBits =
+        static_cast<TU>(HWY_MIN(kExponentBias + sizeof(ToT) * 8 -
+                                    static_cast<TU>(IsSigned<ToT>()) - 1u,
+                                kMaxBiasedExp - 1)
+                        << kNumOfMantBits);
+    constexpr TU kMinOutOfToTRangeBiasedExpBits = static_cast<TU>(
+        kMaxInToTRangeBiasedExpBits + (TU{1} << kNumOfMantBits));
+    constexpr TU kMaxFiniteBiasedExpBits =
+        static_cast<TU>((kMaxBiasedExp - 1) << kNumOfMantBits);
+
+    constexpr TU kExponentMask = ExponentMask<T>();
+    constexpr TU kSignMantMask = static_cast<TU>(~kExponentMask);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        const TU flt_bits = static_cast<TU>(
+            HWY_MIN(bits & kExponentMask, kMaxInToTRangeBiasedExpBits) |
+            (bits & kSignMantMask));
+        CopySameSize(&flt_bits, &from[i]);
+      }
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        const T val = from[N / 2 + i];
+        expected[i] =
+            (!IsSigned<ToT>() && val <= 0) ? ToT{0} : static_cast<ToT>(val);
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteUpperTo(to_d, Load(from_d, from.get())));
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        const T val = from[i];
+        expected[i] =
+            (!IsSigned<ToT>() && val <= 0) ? ToT{0} : static_cast<ToT>(val);
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteLowerTo(to_d, Load(from_d, from.get())));
+
+      for (size_t i = 0; i < N; ++i) {
+        const uint64_t bits = rng();
+        const TU flt_bits =
+            static_cast<TU>(HWY_MIN(HWY_MAX(bits & kExponentMask,
+                                            kMinOutOfToTRangeBiasedExpBits),
+                                    kMaxFiniteBiasedExpBits) |
+                            (bits & kSignMantMask));
+        CopySameSize(&flt_bits, &from[i]);
+      }
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        const T val = from[N / 2 + i];
+        expected[i] = (val < 0) ? LimitsMin<ToT>() : LimitsMax<ToT>();
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteUpperTo(to_d, Load(from_d, from.get())));
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        const T val = from[i];
+        expected[i] = (val < 0) ? LimitsMin<ToT>() : LimitsMax<ToT>();
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteLowerTo(to_d, Load(from_d, from.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllF2IPromoteUpperLowerTo() {
+#if HWY_HAVE_INTEGER64
+  const ForShrinkableVectors<TestF2IPromoteUpperLowerTo<int64_t>, 1> to_i64div2;
+  to_i64div2(float());
+
+  const ForShrinkableVectors<TestF2IPromoteUpperLowerTo<uint64_t>, 1>
+      to_u64div2;
+  to_u64div2(float());
+#endif
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -721,9 +1014,12 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllTruncate);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllOrderedTruncate2To);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllUintFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF2IPromoteTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF2IPromoteUpperLowerTo);
 }  // namespace hwy
 
 #endif
