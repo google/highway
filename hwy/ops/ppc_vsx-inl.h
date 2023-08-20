@@ -2910,7 +2910,7 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
 
 // Unsigned to signed/unsigned: zero-extend.
 template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
-          HWY_IF_NOT_FLOAT_D(D), HWY_IF_UNSIGNED(FromT)>
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_UNSIGNED(FromT)>
 HWY_API VFromD<D> PromoteTo(D /* d */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   // First pretend the input has twice the lanes - the upper half will be
@@ -2930,7 +2930,7 @@ HWY_API VFromD<D> PromoteTo(D /* d */,
 
 // Signed: replicate sign bit.
 template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
-          HWY_IF_NOT_FLOAT_D(D), HWY_IF_SIGNED(FromT)>
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_SIGNED(FromT)>
 HWY_API VFromD<D> PromoteTo(D /* d */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   using Raw = typename detail::Raw128<TFromD<D>>::type;
@@ -3032,6 +3032,120 @@ HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
   const RebindToFloat<decltype(du64)> df64;
   return ConvertTo(du64, PromoteTo(df64, v));
 #endif
+}
+
+// ------------------------------ PromoteUpperTo
+
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// Unsigned to signed/unsigned: zero-extend.
+template <class D, typename FromT, HWY_IF_V_SIZE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_UNSIGNED(FromT)>
+HWY_API VFromD<D> PromoteUpperTo(D d, Vec128<FromT> v) {
+  const RebindToUnsigned<D> du;
+  const RepartitionToNarrow<decltype(du)> dn;
+
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(d, ZipUpper(du, v, Zero(dn)));
+#else
+  return BitCast(d, ZipUpper(du, Zero(dn), v));
+#endif
+}
+
+// Signed: replicate sign bit.
+template <class D, typename FromT, HWY_IF_V_SIZE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_SIGNED(FromT)>
+HWY_API VFromD<D> PromoteUpperTo(D /* d */, Vec128<FromT> v) {
+  using Raw = typename detail::Raw128<TFromD<D>>::type;
+  return VFromD<D>{reinterpret_cast<Raw>(vec_unpackl(v.raw))};
+}
+
+// F16 to F32
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, Vec128<float16_t> v) {
+#if HWY_PPC_HAVE_9
+  (void)df32;
+  return VFromD<D>{vec_extract_fp32_from_shortl(v.raw)};
+#else
+  const Rebind<float16_t, decltype(df32)> dh;
+  return PromoteTo(df32, UpperHalf(dh, v));
+#endif
+}
+
+// BF16 to F32
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, Vec128<bfloat16_t> v) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToSigned<decltype(df32)> di32;
+  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<float> v) {
+  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<int32_t> v) {
+  const __vector signed int raw_v =
+      InterleaveUpper(Full128<int32_t>(), v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<uint32_t> v) {
+  const __vector unsigned int raw_v =
+      InterleaveUpper(Full128<uint32_t>(), v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D di64, Vec128<float> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
+  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
+#else
+  const RebindToFloat<decltype(di64)> df64;
+  return ConvertTo(di64, PromoteUpperTo(df64, v));
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D du64, Vec128<float> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
+  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(raw_v))};
+#else
+  const RebindToFloat<decltype(du64)> df64;
+  return ConvertTo(du64, PromoteUpperTo(df64, v));
+#endif
+}
+
+// Generic version for <=64 bit input/output
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), class V>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
