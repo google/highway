@@ -417,7 +417,8 @@ HWY_API Vec128<T, N> ShiftLeft(Vec128<T, N> v) {
   using TU = hwy::MakeUnsigned<T>;
   for (size_t i = 0; i < N; ++i) {
     const TU raw_u = static_cast<TU>(v.raw[i]);
-    v.raw[i] = static_cast<T>(raw_u << kBits);
+    const auto shifted = raw_u << kBits;  // separate line to avoid MSVC warning
+    v.raw[i] = static_cast<T>(shifted);
   }
   return v;
 }
