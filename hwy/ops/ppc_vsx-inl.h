@@ -4184,6 +4184,48 @@ HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
 
 namespace detail {
 
+#if HWY_PPC_HAVE_10
+template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
+  constexpr unsigned kGenPcvmMode =
+      (kIsCompress ? 1u : 0u) | (HWY_IS_LITTLE_ENDIAN ? 2u : 0u);
+
+  // Inline assembly is used instead of the vec_genpcvm intrinsic to work around
+  // compiler bugs on little-endian PPC10
+  typename detail::Raw128<TFromD<D>>::type idx;
+  __asm__("xxgenpcvbm %x0, %1, %2"
+          : "=wa"(idx)
+          : "v"(mask.raw), "i"(kGenPcvmMode));
+  return VFromD<D>{idx};
+}
+template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
+  constexpr unsigned kGenPcvmMode =
+      (kIsCompress ? 1u : 0u) | (HWY_IS_LITTLE_ENDIAN ? 2u : 0u);
+
+  // Inline assembly is used instead of the vec_genpcvm intrinsic to work around
+  // compiler bugs on little-endian PPC10
+  typename detail::Raw128<TFromD<D>>::type idx;
+  __asm__("xxgenpcvhm %x0, %1, %2"
+          : "=wa"(idx)
+          : "v"(mask.raw), "i"(kGenPcvmMode));
+  return VFromD<D>{idx};
+}
+template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
+  constexpr unsigned kGenPcvmMode =
+      (kIsCompress ? 1u : 0u) | (HWY_IS_LITTLE_ENDIAN ? 2u : 0u);
+
+  // Inline assembly is used instead of the vec_genpcvm intrinsic to work around
+  // compiler bugs on little-endian PPC10
+  typename detail::Raw128<TFromD<D>>::type idx;
+  __asm__("xxgenpcvwm %x0, %1, %2"
+          : "=wa"(idx)
+          : "v"(mask.raw), "i"(kGenPcvmMode));
+  return VFromD<D>{idx};
+}
+#endif
+
 // Also works for N < 8 because the first 16 4-tuples only reference bytes 0-6.
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
@@ -4610,6 +4652,22 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
+
+// General case, 1 byte
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  return TableLookupBytes(
+      v, detail::CompressOrExpandIndicesFromMask<true>(d, mask));
+}
+#endif
+
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
@@ -4636,6 +4694,16 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
+#if HWY_PPC_HAVE_10
+// General case, 1 byte
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  return TableLookupBytes(
+      v, detail::CompressOrExpandIndicesFromMask<true>(d, Not(mask)));
+}
+#endif
+
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
@@ -4653,6 +4721,15 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
   return v;
 }
 
+#if HWY_PPC_HAVE_10
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
+                                  const uint8_t* HWY_RESTRICT bits) {
+  const DFromV<decltype(v)> d;
+  return Compress(v, LoadMaskBits(d, bits));
+}
+#endif
+
 template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
                                   const uint8_t* HWY_RESTRICT bits) {
@@ -4667,6 +4744,18 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
 }
 
 // ------------------------------ CompressStore, CompressBitsStore
+
+#if HWY_PPC_HAVE_10
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
+                             TFromD<D>* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(d, m);
+  const auto indices = detail::CompressOrExpandIndicesFromMask<true>(d, m);
+  const auto compressed = TableLookupBytes(v, indices);
+  StoreU(compressed, d, unaligned);
+  return count;
+}
+#endif
 
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
@@ -4683,6 +4772,18 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
   return count;
 }
 
+#if HWY_PPC_HAVE_10
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(d, m);
+  const auto indices = detail::CompressOrExpandIndicesFromMask<true>(d, m);
+  const auto compressed = TableLookupBytes(v, indices);
+  StoreN(compressed, d, unaligned, count);
+  return count;
+}
+#endif
+
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
@@ -4694,9 +4795,21 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
 
   const auto indices = BitCast(du, detail::IndicesFromBits128(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
+#if HWY_PPC_HAVE_9
+  StoreN(compressed, d, unaligned, count);
+#else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
+#endif
   return count;
 }
+
+#if HWY_PPC_HAVE_10
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
+                                 D d, TFromD<D>* HWY_RESTRICT unaligned) {
+  return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
+}
+#endif
 
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
@@ -4718,6 +4831,41 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
   return count;
 }
+
+// ------------------------------ Expand
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_EXPAND
+#undef HWY_NATIVE_EXPAND
+#else
+#define HWY_NATIVE_EXPAND
+#endif
+
+template <typename T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  const auto idx = detail::CompressOrExpandIndicesFromMask<false>(d, mask);
+  return IfThenElseZero(mask, TableLookupBytes(v, idx));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec128<T> Expand(Vec128<T> v, Mask128<T> mask) {
+  // Same as Compress, just zero out the mask=false lanes.
+  return IfThenElseZero(mask, Compress(v, mask));
+}
+
+// For single-element vectors, this is at least as fast as native.
+template <typename T>
+HWY_API Vec128<T, 1> Expand(Vec128<T, 1> v, Mask128<T, 1> mask) {
+  return IfThenElseZero(mask, v);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+  return Expand(LoadU(d, unaligned), mask);
+}
+#endif  // HWY_PPC_HAVE_10
 
 // ------------------------------ StoreInterleaved2/3/4
 
