@@ -29,8 +29,8 @@ functions that map well to CPU instructions without extensive compiler
 transformations. The resulting code is more predictable and robust to code
 changes/compiler updates than autovectorization.
 
-**Works on widely-used platforms**: Highway supports four architectures; the
-same application code can target eight instruction sets, including those with
+**Works on widely-used platforms**: Highway supports five architectures; the
+same application code can target various instruction sets, including those with
 'scalable' vectors (size unknown at compile time). Highway only requires C++11
 and supports four families of compilers. If you would like to use Highway on
 other platforms, please raise an issue.
