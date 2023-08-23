@@ -11,11 +11,6 @@ freshness: { owner: 'janwas' reviewed: '2023-08-04' }
 
 ### Matrix multiplication extensions
 
-### MaskedScatter
-
-MaskedScatter does not access the mask-false lanes, but may instead write a safe
-location (i.e. different index).
-
 ### numpy
 
 LoadNOr
@@ -35,7 +30,7 @@ Wrapper for 2D outer product.
 
 ### Remaining math functions for hwy/contrib/math
 
-High-precision! Consider copying from SLEEF.
+High-precision! Consider copying from SLEEF. See #1650.
 
 cbrt, cosh, erf, exp2, fmod, hypot, ilogb, lgamma, logb, modf, nextafter,
 nexttoward, pow, scalbn, tan, tgamma
@@ -60,8 +55,6 @@ Port https://github.com/richgel999/sserangecoding to Highway (~50 instructions).
 
 Port https://github.com/SnellerInc/sneller/tree/master/ion/zion/iguana
 (Go+assembly) to Highway.
-
-### float64 support for WASM
 
 ### AfterN
 
@@ -111,7 +104,7 @@ For tolower (subtract if in range) or hash table probing.
 
 ### Div (integer division) and Mod
 
-Issue 633.
+Issue 633. Consider promoting to f64 and back.
 
 ### `AddSub`
 Interval arithmetic?
@@ -193,3 +186,5 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~AVX3_SPR target~~
 *   ~~MaskedGather returns zero for mask=false.~~
 *   ~~GatherIndexN/ScatterIndexN~~
+*   ~~MaskedScatter~~
+*   ~~float64 support for WASM~~
