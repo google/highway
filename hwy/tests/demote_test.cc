@@ -194,51 +194,37 @@ HWY_NOINLINE void TestAllDemoteToFloat() {
 }
 
 struct TestDemoteUI64ToFloat {
+  // This helper function avoids an internal compiler error on GCC 8 AVX3,
+  // see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=111117.
+  template <class D>
+  static HWY_NOINLINE void Verify(D from_d, TFromD<D> from, float expected) {
+    const Rebind<float, D> df32;
+    HWY_ASSERT_VEC_EQ(df32, Set(df32, expected),
+                      DemoteTo(df32, Set(from_d, from)));
+  }
+
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
     const Rebind<float, D> df32;
+
+    Verify(from_d, T{0}, 0.0f);
+    Verify(from_d, LimitsMax<T>(), static_cast<float>(LimitsMax<T>()));
+    Verify(from_d, T(11808), 11808.0f);
+    Verify(from_d, T(261162016), 261162016.0f);
+    Verify(from_d, T(18665497952256LL), 18665497952256.0f);
+
+    if (IsSigned<T>()) {
+      Verify(from_d, T(-1), -1.0f);
+      Verify(from_d, LimitsMin<T>(), static_cast<float>(LimitsMin<T>()));
+      Verify(from_d, T(-17633), -17633.0f);
+      Verify(from_d, T(-3888877568LL), -3888877568.0f);
+      Verify(from_d, T(-17851503083520LL), -17851503083520.0f);
+    }
 
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<float>(N);
     HWY_ASSERT(from && expected);
-
-    // For reasons unknown, GCC 8 AVX3 crashes here when we pass a vector
-    // directly to DemoteTo instead of loading from `from`.
-    // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=111117
-    Store(Zero(from_d), from_d, from.get());
-    HWY_ASSERT_VEC_EQ(df32, Zero(df32),
-                      DemoteTo(df32, Load(from_d, from.get())));
-    Store(Set(from_d, LimitsMax<T>()), from_d, from.get());
-    HWY_ASSERT_VEC_EQ(df32, Set(df32, static_cast<float>(LimitsMax<T>())),
-                      DemoteTo(df32, Load(from_d, from.get())));
-    Store(Set(from_d, T(11808)), from_d, from.get());
-    HWY_ASSERT_VEC_EQ(df32, Set(df32, 11808.0f),
-                      DemoteTo(df32, Load(from_d, from.get())));
-    Store(Set(from_d, T(261162016)), from_d, from.get());
-    HWY_ASSERT_VEC_EQ(df32, Set(df32, 261162016.0f),
-                      DemoteTo(df32, Load(from_d, from.get())));
-    Store(Set(from_d, T(18665497952256LL)), from_d, from.get());
-    HWY_ASSERT_VEC_EQ(df32, Set(df32, 18665497952256.0f),
-                      DemoteTo(df32, Load(from_d, from.get())));
-
-    if (IsSigned<T>()) {
-      Store(Set(from_d, T(-1)), from_d, from.get());
-      HWY_ASSERT_VEC_EQ(df32, Set(df32, -1.0f),
-                        DemoteTo(df32, Load(from_d, from.get())));
-      Store(Set(from_d, LimitsMin<T>()), from_d, from.get());
-      HWY_ASSERT_VEC_EQ(df32, Set(df32, static_cast<float>(LimitsMin<T>())),
-                        DemoteTo(df32, Load(from_d, from.get())));
-      Store(Set(from_d, T(-17633)), from_d, from.get());
-      HWY_ASSERT_VEC_EQ(df32, Set(df32, -17633.0f),
-                        DemoteTo(df32, Load(from_d, from.get())));
-      Store(Set(from_d, T(-3888877568LL)), from_d, from.get());
-      HWY_ASSERT_VEC_EQ(df32, Set(df32, -3888877568.0f),
-                        DemoteTo(df32, Load(from_d, from.get())));
-      Store(Set(from_d, T(-17851503083520LL)), from_d, from.get());
-      HWY_ASSERT_VEC_EQ(df32, Set(df32, -17851503083520.0f),
-                        DemoteTo(df32, Load(from_d, from.get())));
-    }
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
