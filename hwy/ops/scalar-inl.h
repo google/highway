@@ -1088,6 +1088,12 @@ HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
   return (max_lanes_to_load > 0) ? Load(d, p) : Zero(d);
 }
 
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const T* HWY_RESTRICT p,
+                          size_t max_lanes_to_load) {
+  return (max_lanes_to_load > 0) ? Load(d, p) : no;
+}
+
 // ------------------------------ Store
 
 template <class D, typename T = TFromD<D>>

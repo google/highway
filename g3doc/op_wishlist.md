@@ -13,8 +13,6 @@ freshness: { owner: 'janwas' reviewed: '2023-08-04' }
 
 ### numpy
 
-LoadNOr
-
 NeUnordered
 
 Loadn/LoadnPair: mostly Gather*, with some specializations for smaller strides.
@@ -188,3 +186,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~GatherIndexN/ScatterIndexN~~
 *   ~~MaskedScatter~~
 *   ~~float64 support for WASM~~
+*   ~~LoadNOr~~

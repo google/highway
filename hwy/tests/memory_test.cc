@@ -324,28 +324,30 @@ HWY_NOINLINE void TestAllCache() {
   Pause();
 }
 
-class TestLoadN {
- private:
-  template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
-  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
-    const T conv_val = static_cast<T>(val);
-    return (conv_val == 0) ? static_cast<T>(-17) : conv_val;
-  }
-  template <class T, HWY_IF_FLOAT3264(T)>
-  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
-    const T flt_val = static_cast<T>(val);
-    return (flt_val == T{0} ? static_cast<T>(0.5426808228865735) : flt_val);
-  }
-  template <class T, hwy::EnableIf<IsSame<T, hwy::bfloat16_t>()>* = nullptr>
-  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
-    return BF16FromF32(GenerateNonZeroValue<float>(val));
-  }
-  template <class T, hwy::EnableIf<IsSame<T, hwy::float16_t>()>* = nullptr>
-  static HWY_INLINE T GenerateNonZeroValue(size_t val) {
-    return F16FromF32(GenerateNonZeroValue<float>(val));
-  }
+namespace detail {
+template <int kNo, class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_INLINE T GenerateOtherValue(size_t val) {
+  const T conv_val = static_cast<T>(val);
+  return (conv_val == static_cast<T>(kNo)) ? static_cast<T>(-17) : conv_val;
+}
+template <int kNo, class T, HWY_IF_FLOAT3264(T)>
+HWY_INLINE T GenerateOtherValue(size_t val) {
+  const T flt_val = static_cast<T>(val);
+  return (flt_val == static_cast<T>(kNo) ? static_cast<T>(0.5426808228865735)
+                                         : flt_val);
+}
+template <int kNo, class T, HWY_IF_BF16(T)>
+HWY_INLINE T GenerateOtherValue(size_t val) {
+  return BF16FromF32(GenerateOtherValue<kNo, float>(val));
+}
+template <int kNo, class T, HWY_IF_F16(T)>
+HWY_INLINE T GenerateOtherValue(size_t val) {
+  return F16FromF32(GenerateOtherValue<kNo, float>(val));
+}
 
- public:
+}  // namespace detail
+
+struct TestLoadN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
@@ -361,10 +363,10 @@ class TestLoadN {
     HWY_ASSERT(load_buf && expected);
 
     for (size_t i = 0; i < load_buf_len; i++) {
-      load_buf[i] = GenerateNonZeroValue<T>(i + 1);
+      load_buf[i] = detail::GenerateOtherValue<0, T>(i + 1);
     }
 
-    std::fill(expected.get(), expected.get() + N, T(0));
+    std::fill(expected.get(), expected.get() + N, static_cast<T>(0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), LoadN(d, load_buf.get(), 0));
 
     for (size_t i = 0; i <= lpb; i++) {
@@ -395,7 +397,7 @@ class TestLoadN {
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual_2);
     }
 
-    load_buf[0] = GenerateNonZeroValue<T>(0);
+    load_buf[0] = detail::GenerateOtherValue<0, T>(0);
     CopyBytes(load_buf.get(), expected.get(), N * sizeof(T));
     HWY_ASSERT_VEC_EQ(d, expected.get(), LoadN(d, load_buf.get(), N));
   }
@@ -403,6 +405,69 @@ class TestLoadN {
 
 HWY_NOINLINE void TestAllLoadN() {
   ForAllTypes(ForPartialVectors<TestLoadN>());
+}
+
+struct TestLoadNOr {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    constexpr int kNo = 2;
+    const size_t N = Lanes(d);
+    constexpr size_t kMaxLanesPerBlock = 16 / sizeof(T);
+    const size_t lpb = HWY_MIN(N, kMaxLanesPerBlock);
+    HWY_ASSERT(lpb >= 1);
+    HWY_ASSERT(N <= (static_cast<size_t>(~size_t(0)) / 4));
+
+    const size_t load_buf_len = (3 * N) + 4;
+
+    auto load_buf = AllocateAligned<T>(load_buf_len);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(load_buf && expected);
+
+    for (size_t i = 0; i < load_buf_len; i++) {
+      load_buf[i] = detail::GenerateOtherValue<kNo, T>(i + 1);
+    }
+    const Vec<D> no = Set(d, static_cast<T>(kNo));
+
+    std::fill(expected.get(), expected.get() + N, static_cast<T>(kNo));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), LoadNOr(no, d, load_buf.get(), 0));
+
+    for (size_t i = 0; i <= lpb; i++) {
+      CopyBytes(load_buf.get(), expected.get(), i * sizeof(T));
+      const auto actual_1 = LoadNOr(no, d, load_buf.get(), i);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_1);
+
+      CopyBytes(load_buf.get() + 3, expected.get(), i * sizeof(T));
+      const auto actual_2 = LoadNOr(no, d, load_buf.get() + 3, i);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_2);
+    }
+
+    const size_t lplb = HWY_MAX(N / 4, lpb);
+    for (size_t i = HWY_MAX(lpb * 2, lplb); i <= N * 2; i += lplb) {
+      const size_t max_num_of_lanes_to_load = i + (11 & (lpb - 1));
+      const size_t expected_num_of_lanes_loaded =
+          HWY_MIN(max_num_of_lanes_to_load, N);
+
+      CopyBytes(load_buf.get(), expected.get(),
+                expected_num_of_lanes_loaded * sizeof(T));
+      const auto actual_1 =
+          LoadNOr(no, d, load_buf.get(), max_num_of_lanes_to_load);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_1);
+
+      CopyBytes(load_buf.get() + 3, expected.get(),
+                expected_num_of_lanes_loaded * sizeof(T));
+      const auto actual_2 =
+          LoadNOr(no, d, load_buf.get() + 3, max_num_of_lanes_to_load);
+      HWY_ASSERT_VEC_EQ(d, expected.get(), actual_2);
+    }
+
+    load_buf[0] = detail::GenerateOtherValue<kNo, T>(kNo);
+    CopyBytes(load_buf.get(), expected.get(), N * sizeof(T));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), LoadNOr(no, d, load_buf.get(), N));
+  }
+};
+
+HWY_NOINLINE void TestAllLoadNOr() {
+  ForAllTypes(ForPartialVectors<TestLoadNOr>());
 }
 
 class TestStoreN {
@@ -589,6 +654,7 @@ HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllGather);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadN);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadNOr);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreN);
 }  // namespace hwy
 

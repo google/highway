@@ -682,8 +682,9 @@ template <typename T, HWY_IF_NOT_T_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
   Mask512<T> m;
   const uint32_t all = ~uint32_t{0};
-  // BZHI only looks at the lower 8 bits of n!
-  m.raw = static_cast<decltype(m.raw)>((n > 255) ? all : _bzhi_u32(all, n));
+  // BZHI only looks at the lower 8 bits of n, but it has been clamped to
+  // MaxLanes, which is at most 32.
+  m.raw = static_cast<decltype(m.raw)>(_bzhi_u32(all, n));
   return m;
 }
 
@@ -699,13 +700,13 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
     if (__builtin_constant_p(n >= 64) && n >= 64) {
       hi_mask_len = 32u;
     } else {
-      hi_mask_len = ((n <= 287) ? static_cast<uint32_t>(n) : 287u) - 32u;
+      hi_mask_len = static_cast<uint32_t>(n) - 32u;
     }
     lo_mask = hi_mask = 0xFFFFFFFFu;
   } else  // NOLINT(readability/braces)
 #endif
   {
-    const uint32_t lo_mask_len = (n <= 255) ? static_cast<uint32_t>(n) : 255u;
+    const uint32_t lo_mask_len = static_cast<uint32_t>(n);
     lo_mask = _bzhi_u32(0xFFFFFFFFu, lo_mask_len);
 
 #if HWY_COMPILER_GCC
@@ -729,23 +730,26 @@ HWY_INLINE Mask512<T> FirstN(size_t n) {
                                       static_cast<__mmask64>(lo_mask))};
 #endif
 }
-#else
+#else   // HWY_COMPILER..
 template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_INLINE Mask512<T> FirstN(size_t n) {
   const uint64_t bits = n < 64 ? ((1ULL << n) - 1) : ~uint64_t{0};
   return Mask512<T>{static_cast<__mmask64>(bits)};
 }
-#endif
+#endif  // HWY_COMPILER..
 }  // namespace detail
 #endif  // HWY_ARCH_X86_32
 
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API MFromD<D> FirstN(D /* tag */, size_t n) {
+HWY_API MFromD<D> FirstN(D d, size_t n) {
+  // This ensures `num` <= 255 as required by bzhi, which only looks
+  // at the lower 8 bits.
+  n = HWY_MIN(n, MaxLanes(d));
+
 #if HWY_ARCH_X86_64
   MFromD<D> m;
   const uint64_t all = ~uint64_t{0};
-  // BZHI only looks at the lower 8 bits of n!
-  m.raw = static_cast<decltype(m.raw)>((n > 255) ? all : _bzhi_u64(all, n));
+  m.raw = static_cast<decltype(m.raw)>(_bzhi_u64(all, n));
   return m;
 #else
   return detail::FirstN<T>(n);

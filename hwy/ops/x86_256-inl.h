@@ -1624,18 +1624,18 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), class M = MFromD<D>>
 HWY_API M FirstN(const D d, size_t n) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)d;
   constexpr size_t kN = MaxLanes(d);
+  // For AVX3, this ensures `num` <= 255 as required by bzhi, which only looks
+  // at the lower 8 bits; for AVX2 and below, this ensures `num` fits in TI.
+  n = HWY_MIN(n, kN);
+
+#if HWY_TARGET <= HWY_AVX3
 #if HWY_ARCH_X86_64
   const uint64_t all = (1ull << kN) - 1;
-  // BZHI only looks at the lower 8 bits of n!
-  return M::FromBits((n > 255) ? all : _bzhi_u64(all, n));
+  return M::FromBits(_bzhi_u64(all, n));
 #else
   const uint32_t all = static_cast<uint32_t>((1ull << kN) - 1);
-  // BZHI only looks at the lower 8 bits of n!
-  return M::FromBits((n > 255) ? all
-                               : _bzhi_u32(all, static_cast<uint32_t>(n)));
+  return M::FromBits(_bzhi_u32(all, static_cast<uint32_t>(n)));
 #endif  // HWY_ARCH_X86_64
 #else
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.

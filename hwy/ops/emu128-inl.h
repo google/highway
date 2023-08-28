@@ -1356,6 +1356,16 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   return v;
 }
 
+template <class D>
+HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
+                          size_t max_lanes_to_load) {
+  VFromD<D> v = no;
+  const size_t N = Lanes(d);
+  const size_t num_of_lanes_to_load = HWY_MIN(max_lanes_to_load, N);
+  CopyBytes(p, v.raw, num_of_lanes_to_load * sizeof(TFromD<D>));
+  return v;
+}
+
 // ------------------------------ Store
 
 template <class D>

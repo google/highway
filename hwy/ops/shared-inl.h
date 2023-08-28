@@ -472,10 +472,8 @@ using BlockDFromD =
 #define HWY_IF_UI32_D(D) HWY_IF_UI32(TFromD<D>)
 #define HWY_IF_UI64_D(D) HWY_IF_UI64(TFromD<D>)
 
-#define HWY_IF_BF16_D(D) \
-  hwy::EnableIf<IsSame<TFromD<D>, hwy::bfloat16_t>()>* = nullptr
-#define HWY_IF_F16_D(D) \
-  hwy::EnableIf<IsSame<TFromD<D>, hwy::float16_t>()>* = nullptr
+#define HWY_IF_BF16_D(D) HWY_IF_BF16(TFromD<D>)
+#define HWY_IF_F16_D(D) HWY_IF_F16(TFromD<D>)
 #define HWY_IF_F32_D(D) hwy::EnableIf<IsSame<TFromD<D>, float>()>* = nullptr
 #define HWY_IF_F64_D(D) hwy::EnableIf<IsSame<TFromD<D>, double>()>* = nullptr
 

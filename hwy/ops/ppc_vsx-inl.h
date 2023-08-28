@@ -1033,7 +1033,33 @@ HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
           const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(p)),
           num_of_bytes_to_load)});
 }
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const T* HWY_RESTRICT p,
+                          size_t max_lanes_to_load) {
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+  if (__builtin_constant_p(max_lanes_to_load) && max_lanes_to_load == 0) {
+    return no;
+  }
+
+  if (__builtin_constant_p(max_lanes_to_load >= HWY_MAX_LANES_D(D)) &&
+      max_lanes_to_load >= HWY_MAX_LANES_D(D)) {
+    return LoadU(d, p);
+  }
 #endif
+
+  const size_t num_of_bytes_to_load =
+      HWY_MIN(max_lanes_to_load, HWY_MAX_LANES_D(D)) * sizeof(TFromD<D>);
+  const Repartition<uint8_t, decltype(d)> du8;
+  const VFromD<D> v = BitCast(
+      d,
+      VFromD<decltype(du8)>{vec_xl_len(
+          const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(p)),
+          num_of_bytes_to_load)});
+  return IfThenElse(FirstN(d, max_lanes_to_load), v, no);
+}
+
+#endif  // HWY_PPC_HAVE_9
 
 // Returns a vector with lane i=[0, N) set to "first" + i.
 namespace detail {
