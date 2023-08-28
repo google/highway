@@ -3354,14 +3354,16 @@ HWY_API Vec128<T> ExtractBlock(Vec256<T> v) {
 // compiler could decide to optimize out code that relies on this.
 //
 // The newer _mm256_zextsi128_si256 intrinsic fixes this by specifying the
-// zeroing, but it is not available on MSVC until 15.7 nor GCC until 10.1. For
-// older GCC, we can still obtain the desired code thanks to pattern
-// recognition; note that the expensive insert instruction is not actually
+// zeroing, but it is not available on MSVC until 1920 nor GCC until 10.1.
+// Unfortunately as of 2023-08 it still seems to cause internal compiler errors
+// on MSVC, so we consider it unavailable there.
+//
+// Without zext we can still possibly obtain the desired code thanks to pattern
+// recognition; note that the expensive insert instruction might not actually be
 // generated, see https://gcc.godbolt.org/z/1MKGaP.
 
 #if !defined(HWY_HAVE_ZEXT)
-#if (HWY_COMPILER_MSVC && HWY_COMPILER_MSVC >= 1915) ||  \
-    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 500) || \
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 500) || \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1000)
 #define HWY_HAVE_ZEXT 1
 #else
