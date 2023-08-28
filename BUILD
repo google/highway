@@ -399,6 +399,7 @@ HWY_TESTS = [
     ("hwy/tests/", "table_test"),
     ("hwy/tests/", "test_util_test"),
     ("hwy/tests/", "tuple_test"),
+    ("hwy/tests/", "widen_mul_test"),
 ]
 
 HWY_TEST_COPTS = select({

@@ -552,6 +552,7 @@ set(HWY_TEST_FILES
   hwy/tests/table_test.cc
   hwy/tests/test_util_test.cc
   hwy/tests/tuple_test.cc
+  hwy/tests/widen_mul_test.cc
 )
 
 set(HWY_TEST_LIBS hwy hwy_test)
