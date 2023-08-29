@@ -63,7 +63,7 @@ struct TestFirstN {
     for (size_t len = 0; len <= HWY_MIN(max_lanes, max_len); ++len) {
       // Loop instead of Iota+Lt to avoid wraparound for 8-bit T.
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = (i < len) ? T{1} : 0;
+        bool_lanes[i] = (i < len) ? T{1} : T{0};
       }
       const auto expected = Eq(Load(d, bool_lanes.get()), Set(d, T{1}));
       HWY_ASSERT_MASK_EQ(d, expected, FirstN(d, len));
@@ -72,7 +72,7 @@ struct TestFirstN {
     // Also ensure huge values yield all-true (unless the vector is actually
     // larger than max_len).
     for (size_t i = 0; i < N; ++i) {
-      bool_lanes[i] = (i < max_len) ? T{1} : 0;
+      bool_lanes[i] = (i < max_len) ? T{1} : T{0};
     }
     const auto expected = Eq(Load(d, bool_lanes.get()), Set(d, T{1}));
     HWY_ASSERT_MASK_EQ(d, expected, FirstN(d, max_len));

@@ -158,7 +158,7 @@ struct TestFindIf {
     T* in = storage.get() + misalign;
     for (size_t i = 0; i < count; ++i) {
       in[i] = Random<T>(rng);
-      HWY_ASSERT(in[i] <= 8);
+      HWY_ASSERT(static_cast<TI>(in[i]) <= 8);
       HWY_ASSERT(!hwy::IsSigned<T>() || static_cast<TI>(in[i]) >= -8);
     }
 
@@ -200,7 +200,7 @@ struct TestFindIf {
     HWY_ASSERT(not_found_any);
     // We'll find something unless the input is empty or {0} - because 0 > i
     // is false for all i=[0,9].
-    if (count != 0 && in[0] != 0) {
+    if (count != 0 && in[0] != T{0}) {
       HWY_ASSERT(found_any);
     }
   }

@@ -1528,7 +1528,9 @@ HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
       NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                 \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                    \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(p, Lanes(d));            \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                  \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(                         \
+        reinterpret_cast<const T*>(p), Lanes(d));                            \
   }
 HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le, _ALL_VIRT)
 #undef HWY_RVV_LOAD
@@ -1582,15 +1584,18 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
       NAME(HWY_RVV_M(MLEN) m, HWY_RVV_D(BASE, SEW, N, SHIFT) d,              \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                    \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(m, Zero(d), p,      \
-                                                         Lanes(d));          \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                  \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(                    \
+        m, Zero(d), reinterpret_cast<const T*>(p), Lanes(d));                \
   }                                                                          \
   template <size_t N>                                                        \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                         \
       NAME##Or(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,              \
                HWY_RVV_D(BASE, SEW, N, SHIFT) d,                             \
                const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(m, v, p, Lanes(d)); \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                  \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(                    \
+        m, v, reinterpret_cast<const T*>(p), Lanes(d));                      \
   }
 
 HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL_VIRT)
@@ -1611,22 +1616,24 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL_VIRT)
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                  \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p, size_t num_lanes) {   \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                   \
     /* Use a tail-undisturbed load in LoadN as the tail-undisturbed load */   \
     /* operation below will leave any lanes past the first */                 \
     /* (lowest-indexed) HWY_MIN(num_lanes, Lanes(d)) lanes unchanged */       \
     return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_tu(                     \
-        Zero(d), p, CappedLanes(d, num_lanes));                               \
+        Zero(d), reinterpret_cast<const T*>(p), CappedLanes(d, num_lanes));   \
   }                                                                           \
   template <size_t N>                                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME##Or(                                \
       HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_D(BASE, SEW, N, SHIFT) d,        \
       const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p, size_t num_lanes) {        \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                   \
     /* Use a tail-undisturbed load in LoadNOr as the tail-undisturbed load */ \
     /* operation below will set any lanes past the first */                   \
     /* (lowest-indexed) HWY_MIN(num_lanes, Lanes(d)) lanes to the */          \
     /* corresponding lanes in no */                                           \
     return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_tu(                     \
-        no, p, CappedLanes(d, num_lanes));                                    \
+        no, reinterpret_cast<const T*>(p), CappedLanes(d, num_lanes));        \
   }
 
 HWY_RVV_FOREACH(HWY_RVV_LOADN, LoadN, le, _ALL_VIRT)
@@ -1640,7 +1647,9 @@ HWY_RVV_FOREACH(HWY_RVV_LOADN, LoadN, le, _ALL_VIRT)
   HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v,                             \
                     HWY_RVV_D(BASE, SEW, N, SHIFT) d,                         \
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                  \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, Lanes(d));          \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                   \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(reinterpret_cast<T*>(p),  \
+                                                    v, Lanes(d));             \
   }
 HWY_RVV_FOREACH(HWY_RVV_STORE, Store, se, _ALL_VIRT)
 #undef HWY_RVV_STORE
@@ -1653,7 +1662,9 @@ HWY_RVV_FOREACH(HWY_RVV_STORE, Store, se, _ALL_VIRT)
   HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,           \
                     HWY_RVV_D(BASE, SEW, N, SHIFT) d,                          \
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                   \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(m, p, v, Lanes(d));    \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                    \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_m(                       \
+        m, reinterpret_cast<T*>(p), v, Lanes(d));                              \
   }
 HWY_RVV_FOREACH(HWY_RVV_BLENDED_STORE, BlendedStore, se, _ALL_VIRT)
 #undef HWY_RVV_BLENDED_STORE
@@ -1668,7 +1679,9 @@ namespace detail {
   HWY_API void NAME(size_t count, HWY_RVV_V(BASE, SEW, LMUL) v,                \
                     HWY_RVV_D(BASE, SEW, N, SHIFT) /* d */,                    \
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p) {                   \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(p, v, count);              \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                    \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL(reinterpret_cast<T*>(p),   \
+                                                    v, count);                 \
   }
 HWY_RVV_FOREACH(HWY_RVV_STOREN, StoreN, se, _ALL_VIRT)
 #undef HWY_RVV_STOREN
@@ -1742,8 +1755,9 @@ HWY_API void Stream(const V v, D d, T* HWY_RESTRICT aligned) {
                     HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,            \
                     HWY_RVV_V(int, SEW, LMUL) offset) {                  \
     const RebindToUnsigned<decltype(d)> du;                              \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;              \
     return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL(                 \
-        base, BitCast(du, offset), v, Lanes(d));                         \
+        reinterpret_cast<T*>(base), BitCast(du, offset), v, Lanes(d));   \
   }
 HWY_RVV_FOREACH(HWY_RVV_SCATTER, ScatterOffset, sux, _ALL_VIRT)
 #undef HWY_RVV_SCATTER
@@ -1758,17 +1772,19 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT base,
 
 // ------------------------------ MaskedScatterIndex
 
-#define HWY_RVV_MASKED_SCATTER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, \
-                               LMULH, SHIFT, MLEN, NAME, OP)             \
-  template <size_t N>                                                    \
-  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,     \
-                    HWY_RVV_D(BASE, SEW, N, SHIFT) d,                    \
-                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,            \
-                    HWY_RVV_V(int, SEW, LMUL) indices) {                 \
-    const RebindToUnsigned<decltype(d)> du;                              \
-    constexpr size_t kBits = CeilLog2(sizeof(TFromD<decltype(d)>));      \
-    return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL##_m(             \
-        m, base, ShiftLeft<kBits>(BitCast(du, indices)), v, Lanes(d));   \
+#define HWY_RVV_MASKED_SCATTER(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD,       \
+                               LMULH, SHIFT, MLEN, NAME, OP)                   \
+  template <size_t N>                                                          \
+  HWY_API void NAME(HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_M(MLEN) m,           \
+                    HWY_RVV_D(BASE, SEW, N, SHIFT) d,                          \
+                    HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,                  \
+                    HWY_RVV_V(int, SEW, LMUL) indices) {                       \
+    const RebindToUnsigned<decltype(d)> du;                                    \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                    \
+    constexpr size_t kBits = CeilLog2(sizeof(TFromD<decltype(d)>));            \
+    return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL##_m(                   \
+        m, reinterpret_cast<T*>(base), ShiftLeft<kBits>(BitCast(du, indices)), \
+        v, Lanes(d));                                                          \
   }
 HWY_RVV_FOREACH(HWY_RVV_MASKED_SCATTER, MaskedScatterIndex, sux, _ALL_VIRT)
 #undef HWY_RVV_MASKED_SCATTER
@@ -1789,8 +1805,9 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_SCATTER, MaskedScatterIndex, sux, _ALL_VIRT)
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,                     \
            HWY_RVV_V(int, SEW, LMUL) offset) {                                 \
     const RebindToUnsigned<decltype(d)> du;                                    \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                    \
     return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL(                       \
-        base, BitCast(du, offset), Lanes(d));                                  \
+        reinterpret_cast<const T*>(base), BitCast(du, offset), Lanes(d));      \
   }
 HWY_RVV_FOREACH(HWY_RVV_GATHER, GatherOffset, lux, _ALL_VIRT)
 #undef HWY_RVV_GATHER
@@ -1814,9 +1831,11 @@ HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT base,                     \
            HWY_RVV_V(int, SEW, LMUL) indices) {                                \
     const RebindToUnsigned<decltype(d)> du;                                    \
+    using T = detail::NativeLaneType<HWY_RVV_T(BASE, SEW)>;                    \
     constexpr size_t kBits = CeilLog2(SEW / 8);                                \
     return __riscv_v##OP##ei##SEW##_v_##CHAR##SEW##LMUL##_mu(                  \
-        m, Zero(d), base, ShiftLeft<kBits>(BitCast(du, indices)), Lanes(d));   \
+        m, Zero(d), reinterpret_cast<const T*>(base),                          \
+        ShiftLeft<kBits>(BitCast(du, indices)), Lanes(d));                     \
   }
 HWY_RVV_FOREACH(HWY_RVV_MASKED_GATHER, MaskedGatherIndex, lux, _ALL_VIRT)
 #undef HWY_RVV_MASKED_GATHER

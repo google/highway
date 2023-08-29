@@ -22,6 +22,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Wrapping this into a HWY_HAS_INCLUDE causes clang-format to fail.
+#if __cplusplus >= 202100L && defined(__has_include)
+#if __has_include(<stdfloat>)
+#include <stdfloat>  // std::float16_t
+#endif
+#endif
+
 #include "hwy/detect_compiler_arch.h"
 #include "hwy/highway_export.h"
 
@@ -350,6 +357,8 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 //------------------------------------------------------------------------------
 // Lane types
 
+#pragma pack(push, 1)
+
 // float16_t load/store/conversion intrinsics are always supported on Armv8 and
 // VFPv4 (except with MSVC). On Armv7 Clang requires __ARM_FP & 2; GCC requires
 // -mfp16-format=ieee.
@@ -361,6 +370,19 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #define HWY_NEON_HAVE_FLOAT16C 0
 #endif
 
+// C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
+// Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR (with
+// sufficiently new compiler supporting avx512fp16). Do not use on clang-cl,
+// which is missing __extendhfsf2.
+#if ((HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) || \
+     (HWY_ARCH_X86 && defined(__SSE2__) &&                            \
+      ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) ||       \
+       HWY_COMPILER_GCC_ACTUAL >= 1200)))
+#define HWY_HAVE_C11_FLOAT16 1
+#else
+#define HWY_HAVE_C11_FLOAT16 0
+#endif
+
 // If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
 // create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
 #if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_SVE_BF16)
@@ -370,39 +392,205 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 #endif
 
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
-// by concatenating base type and bits.
-
-// 1) ACLE's __fp16
-#if HWY_NEON_HAVE_FLOAT16C
-using float16_t = __fp16;
-// 2) C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
-//    Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR (with
-//    sufficiently new compiler supporting avx512fp16). Do not use on clang-cl,
-//    which is missing __extendhfsf2.
-#elif ((HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) || \
-       (HWY_ARCH_X86 && defined(__SSE2__) &&                            \
-        ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) ||       \
-         HWY_COMPILER_GCC_ACTUAL >= 1200)))
-using float16_t = _Float16;
-// 3) Otherwise emulate
+// by concatenating base type and bits. We use a wrapper class instead of a
+// typedef to the native type to ensure that the same symbols, e.g. for VQSort,
+// are generated regardless of F16 support; see #1684.
+struct float16_t {
+#if HWY_NEON_HAVE_FLOAT16C  // ACLE's __fp16
+  using Raw = __fp16;
+#elif HWY_HAVE_C11_FLOAT16                                    // C11 _Float16
+  using Raw = _Float16;
+#elif __cplusplus > 202002L && defined(__STDCPP_FLOAT16_T__)  // C++23
+  using Raw = std::float16_t;
 #else
 #define HWY_EMULATE_FLOAT16
-#pragma pack(push, 1)
-struct float16_t {
-  uint16_t bits;
-};
-#pragma pack(pop)
+  using Raw = uint16_t;
+  Raw bits;
 #endif  // float16_t
 
-#if HWY_SVE_HAVE_BFLOAT16
-using bfloat16_t = __bf16;
-#else
-#pragma pack(push, 1)
-struct bfloat16_t {
-  uint16_t bits;
+// When backed by a native type, ensure the wrapper behaves like the native
+// type by forwarding all operators. Unfortunately it seems difficult to reuse
+// this code in a base class, so we repeat it in bfloat16_t.
+#ifndef HWY_EMULATE_FLOAT16
+  Raw raw;
+
+  float16_t() noexcept = default;
+  constexpr float16_t(Raw arg) noexcept : raw(arg) {}
+  constexpr float16_t& operator=(Raw arg) noexcept {
+    raw = arg;
+    return *this;
+  }
+  constexpr float16_t(const float16_t&) noexcept = default;
+  constexpr float16_t& operator=(const float16_t&) noexcept = default;
+  constexpr operator Raw() const noexcept { return raw; }
+
+  template <typename T>
+  constexpr float16_t& operator+=(T rhs) noexcept {
+    raw += rhs;
+    return *this;
+  }
+
+  template <typename T>
+  constexpr float16_t& operator-=(T rhs) noexcept {
+    raw -= rhs;
+    return *this;
+  }
+
+  template <typename T>
+  constexpr float16_t& operator*=(T rhs) noexcept {
+    raw *= rhs;
+    return *this;
+  }
+
+  template <typename T>
+  constexpr float16_t& operator/=(T rhs) noexcept {
+    raw /= rhs;
+    return *this;
+  }
+
+  constexpr float16_t operator--() noexcept {
+    raw -= Raw{1};
+    return *this;
+  }
+
+  constexpr float16_t operator--(int) noexcept {
+    raw -= Raw{1};
+    return *this;
+  }
+
+  constexpr float16_t operator++() noexcept {
+    raw += Raw{1};
+    return *this;
+  }
+
+  constexpr float16_t operator++(int) noexcept {
+    raw += Raw{1};
+    return *this;
+  }
+
+  constexpr float16_t operator-() const noexcept { return float16_t(-raw); }
+  constexpr float16_t operator+() const noexcept { return *this; }
+#endif  // HWY_EMULATE_FLOAT16
 };
+
+#ifndef HWY_EMULATE_FLOAT16
+constexpr inline bool operator==(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw == rhs.raw;
+}
+constexpr inline bool operator!=(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw != rhs.raw;
+}
+constexpr inline bool operator<(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw < rhs.raw;
+}
+constexpr inline bool operator<=(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw <= rhs.raw;
+}
+constexpr inline bool operator>(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw > rhs.raw;
+}
+constexpr inline bool operator>=(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw >= rhs.raw;
+}
+#endif  // HWY_EMULATE_FLOAT16
+
+struct bfloat16_t {
+#if HWY_SVE_HAVE_BFLOAT16
+  using Raw = __bf16;
+#elif __cplusplus >= 202100L && defined(__STDCPP_BFLOAT16_T__)  // C++23
+  using Raw = std::bfloat16_t;
+#else
+#define HWY_EMULATE_BFLOAT16
+  using Raw = uint16_t;
+  Raw bits;
+#endif
+
+#ifndef HWY_EMULATE_BFLOAT16
+  Raw raw;
+
+  bfloat16_t() noexcept = default;
+  constexpr bfloat16_t(Raw arg) noexcept : raw(arg) {}
+  constexpr bfloat16_t& operator=(Raw arg) noexcept {
+    raw = arg;
+    return *this;
+  }
+  constexpr bfloat16_t(const bfloat16_t&) noexcept = default;
+  constexpr bfloat16_t& operator=(const bfloat16_t&) noexcept = default;
+  constexpr operator Raw() const noexcept { return raw; }
+
+  template <typename T>
+  constexpr NumericalWrapper& operator+=(T rhs) noexcept {
+    raw += rhs;
+    return *this;
+  }
+
+  template <typename T>
+  constexpr NumericalWrapper& operator-=(T rhs) noexcept {
+    raw -= rhs;
+    return *this;
+  }
+
+  template <typename T>
+  constexpr NumericalWrapper& operator*=(T rhs) noexcept {
+    raw *= rhs;
+    return *this;
+  }
+
+  template <typename T>
+  constexpr NumericalWrapper& operator/=(T rhs) noexcept {
+    raw /= rhs;
+    return *this;
+  }
+
+  constexpr NumericalWrapper operator--() noexcept {
+    raw -= Raw{1};
+    return *this;
+  }
+
+  constexpr NumericalWrapper operator--(int) noexcept {
+    raw -= Raw{1};
+    return *this;
+  }
+
+  constexpr NumericalWrapper operator++() noexcept {
+    raw += Raw{1};
+    return *this;
+  }
+
+  constexpr NumericalWrapper operator++(int) noexcept {
+    raw += Raw{1};
+    return *this;
+  }
+
+  constexpr NumericalWrapper operator-() const noexcept {
+    return NumericalWrapper(-raw);
+  }
+  constexpr NumericalWrapper operator+() const noexcept { return *this; }
+#endif  // HWY_EMULATE_BFLOAT16
+};
+
+#ifndef HWY_EMULATE_BFLOAT16
+constexpr inline bool operator==(bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return lhs.raw == rhs.raw;
+}
+constexpr inline bool operator!=(bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return lhs.raw != rhs.raw;
+}
+constexpr inline bool operator<(bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return lhs.raw < rhs.raw;
+}
+constexpr inline bool operator<=(bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return lhs.raw <= rhs.raw;
+}
+constexpr inline bool operator>(bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return lhs.raw > rhs.raw;
+}
+constexpr inline bool operator>=(bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return lhs.raw >= rhs.raw;
+}
+#endif  // HWY_EMULATE_BFLOAT16
+
 #pragma pack(pop)
-#endif  // bfloat16_t
 
 HWY_API float F32FromF16(float16_t f16) {
 #ifdef HWY_EMULATE_FLOAT16

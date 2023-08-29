@@ -52,7 +52,8 @@ T Random(RandomState& rng) {
   const int32_t bits = static_cast<int32_t>(Random32(&rng)) & 1023;
   const double val = (bits - 512) / 64.0;
   // Clamp negative to zero for unsigned types.
-  return static_cast<T>(HWY_MAX(hwy::LowestValue<T>(), val));
+  return static_cast<T>(
+      HWY_MAX(static_cast<double>(hwy::LowestValue<T>()), val));
 }
 
 // SCAL, AXPY names are from BLAS.
