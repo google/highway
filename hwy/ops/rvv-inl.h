@@ -2208,6 +2208,17 @@ HWY_API vuint8m1_t TruncateTo(Simd<uint8_t, N, 0> d,
 }
 
 template <size_t N>
+HWY_API vuint16mf4_t TruncateTo(Simd<uint16_t, N, -3> d,
+                                const VFromD<Simd<uint64_t, N, -1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m1_t v1 = __riscv_vand(v, 0xFFFF, avl);
+  const vuint32mf2_t v2 = __riscv_vnclipu_wx_u32mf2(
+      v1, 0, HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
+  return __riscv_vnclipu_wx_u16mf4(v2, 0,
+                                   HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
+}
+
+template <size_t N>
 HWY_API vuint16mf4_t TruncateTo(Simd<uint16_t, N, -2> d,
                                 const VFromD<Simd<uint64_t, N, 0>> v) {
   const size_t avl = Lanes(d);
@@ -2249,6 +2260,15 @@ HWY_API vuint16m2_t TruncateTo(Simd<uint16_t, N, 1> d,
       v1, 0, HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
   return __riscv_vnclipu_wx_u16m2(v2, 0,
                                   HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
+}
+
+template <size_t N>
+HWY_API vuint32mf2_t TruncateTo(Simd<uint32_t, N, -2> d,
+                                const VFromD<Simd<uint64_t, N, -1>> v) {
+  const size_t avl = Lanes(d);
+  const vuint64m1_t v1 = __riscv_vand(v, 0xFFFFFFFFu, avl);
+  return __riscv_vnclipu_wx_u32mf2(v1, 0,
+                                   HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
 }
 
 template <size_t N>
@@ -2340,6 +2360,15 @@ HWY_API vuint8m2_t TruncateTo(Simd<uint8_t, N, 1> d,
       v1, 0, HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
   return __riscv_vnclipu_wx_u8m2(v2, 0,
                                  HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
+}
+
+template <size_t N>
+HWY_API vuint16mf4_t TruncateTo(Simd<uint16_t, N, -3> d,
+                                const VFromD<Simd<uint32_t, N, -2>> v) {
+  const size_t avl = Lanes(d);
+  const vuint32mf2_t v1 = __riscv_vand(v, 0xFFFF, avl);
+  return __riscv_vnclipu_wx_u16mf4(v1, 0,
+                                   HWY_RVV_INSERT_VXRM(__RISCV_VXRM_RDN, avl));
 }
 
 template <size_t N>
