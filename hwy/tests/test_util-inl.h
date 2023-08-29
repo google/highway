@@ -463,7 +463,8 @@ class ForPromoteVectors {
 };
 
 // Calls Test for all N than can be demoted (not the same as Shrinkable because
-// HWY_SCALAR has one lane).
+// HWY_SCALAR has one lane and as a one-lane vector with a lane size of at least
+// 2 bytes can always be demoted to a vector with a smaller lane type).
 template <class Test, int kPow2 = 1>
 class ForDemoteVectors {
   mutable bool called_ = false;
@@ -478,25 +479,34 @@ class ForDemoteVectors {
   template <typename T>
   void operator()(T /*unused*/) const {
     called_ = true;
-    constexpr size_t kMinLanes = size_t{1} << kPow2;
-    constexpr size_t kMaxCapped = HWY_LANES(T);
-    // For shrinking, an upper limit is unnecessary.
-    constexpr size_t max_lanes = kMaxCapped;
 
-    (void)kMinLanes;
-    (void)max_lanes;
-    (void)max_lanes;
-#if HWY_TARGET == HWY_SCALAR
-    detail::ForeachCappedR<T, 1, 1, Test>::Do(1, 1);
-#else
-    detail::ForeachCappedR<T, (kMaxCapped >> kPow2), kMinLanes, Test>::Do(
-        kMinLanes, max_lanes);
-
-// TODO(janwas): call Extendable if kMinLanes check not required?
 #if HWY_HAVE_SCALABLE
-    detail::ForeachPow2Trim<T, kPow2, 0, Test>::Do(kMinLanes);
+    // kMinTVecPow2 is the smallest Pow2 for a vector with lane type T that is
+    // supported by detail::ForeachPow2Trim
+    constexpr int kMinTVecPow2 = detail::MinPow2<T>();
+
+    // detail::MinPow2<T>() + kMinPow2Adj is the smallest Pow2 for a vector with
+    // lane type T that can be demoted to a vector with a lane size of
+    // (sizeof(T) >> kPow2)
+    constexpr int kMinPow2Adj = HWY_MAX(-3 - kMinTVecPow2 + kPow2, 0);
+
+    detail::ForeachPow2Trim<T, kMinPow2Adj, 0, Test>::Do(1);
+
+    // On targets with scalable vectors, detail::ForeachCappedR below only
+    // needs to be executed for vectors that have less than
+    // Lanes(ScalableTag<T>()) as full vectors were already checked by the
+    // detail::ForeachPow2Trim above.
+    constexpr size_t kMaxCapped = HWY_LANES(T) >> 1;
+    const size_t max_lanes = Lanes(ScalableTag<T>()) >> 1;
+#else
+    // On targets where HWY_HAVE_SCALABLE is 0, any vector with HWY_LANES(T)
+    // or fewer lanes can always be demoted to a vector with a smaller lane
+    // type.
+    constexpr size_t kMaxCapped = HWY_LANES(T);
+    const size_t max_lanes = kMaxCapped;
 #endif
-#endif  // HWY_TARGET == HWY_SCALAR
+
+    detail::ForeachCappedR<T, kMaxCapped, 1, Test>::Do(1, max_lanes);
   }
 };
 

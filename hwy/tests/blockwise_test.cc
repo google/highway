@@ -271,15 +271,23 @@ struct TestZipLower {
   }
 };
 
+#if HWY_TARGET == HWY_SCALAR
+template <class Test>
+using ForZipToWideVectors = ForPartialVectors<Test>;
+#else
+template <class Test>
+using ForZipToWideVectors = ForShrinkableVectors<Test>;
+#endif
+
 HWY_NOINLINE void TestAllZipLower() {
-  const ForDemoteVectors<TestZipLower> lower_unsigned;
+  const ForZipToWideVectors<TestZipLower> lower_unsigned;
   lower_unsigned(uint8_t());
   lower_unsigned(uint16_t());
 #if HWY_HAVE_INTEGER64
   lower_unsigned(uint32_t());  // generates u64
 #endif
 
-  const ForDemoteVectors<TestZipLower> lower_signed;
+  const ForZipToWideVectors<TestZipLower> lower_signed;
   lower_signed(int8_t());
   lower_signed(int16_t());
 #if HWY_HAVE_INTEGER64
