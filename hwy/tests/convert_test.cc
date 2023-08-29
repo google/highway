@@ -819,6 +819,13 @@ struct TestF2IPromoteTo {
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
     const Rebind<ToT, decltype(df)> d_to;
 
+    // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
+    // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
+    // ctx->insn_start != NULL.
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+    return;
+#endif
+
     HWY_ASSERT_VEC_EQ(d_to, Set(d_to, ToT(1)), PromoteTo(d_to, Set(df, TF(1))));
     HWY_ASSERT_VEC_EQ(d_to, Zero(d_to), PromoteTo(d_to, Zero(df)));
     HWY_ASSERT_VEC_EQ(d_to, Set(d_to, IsSigned<ToT>() ? ToT(-1) : ToT(0)),
@@ -908,6 +915,13 @@ struct TestF2IPromoteUpperLowerTo {
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
     static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
     const Repartition<ToT, D> to_d;
+
+    // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
+    // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
+    // ctx->insn_start != NULL.
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+    return;
+#endif
 
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
