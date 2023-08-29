@@ -662,7 +662,7 @@ HWY_API float16_t F16FromF32(float f32) {
   CopySameSize(&narrowed, &out);
   return out;
 #else
-  return static_cast<float16_t>(f32);
+  return float16_t(static_cast<float16_t::Raw>(f32));
 #endif
 }
 
