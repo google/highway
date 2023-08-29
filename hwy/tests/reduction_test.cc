@@ -24,15 +24,27 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 struct TestSumOfLanes {
-  template <typename T, size_t N, int P,
-            hwy::EnableIf<!IsSigned<T>() || ((N & 1) != 0)>* = nullptr>
-  HWY_NOINLINE void SignedEvenLengthVectorTests(Simd<T, N, P>) {
+  template <typename D,
+            hwy::EnableIf<!IsSigned<TFromD<D>>() ||
+                          ((HWY_MAX_LANES_D(D) & 1) != 0)>* = nullptr>
+  HWY_NOINLINE void SignedEvenLengthVectorTests(D /*d*/) {
     // do nothing
   }
-  template <typename T, size_t N, int P,
-            hwy::EnableIf<IsSigned<T>() && ((N & 1) == 0)>* = nullptr>
-  HWY_NOINLINE void SignedEvenLengthVectorTests(Simd<T, N, P> d) {
-    const T pairs = static_cast<T>(Lanes(d) / 2);
+  template <typename D,
+            hwy::EnableIf<IsSigned<TFromD<D>>() &&
+                          ((HWY_MAX_LANES_D(D) & 1) == 0)>* = nullptr>
+  HWY_NOINLINE void SignedEvenLengthVectorTests(D d) {
+    using T = TFromD<D>;
+
+    const size_t lanes = Lanes(d);
+
+#if HWY_HAVE_SCALABLE
+    // On platforms that use scalable vectors, it is possible for Lanes(d) to be
+    // odd but for MaxLanes(d) to be even if Lanes(d) < 2 is true.
+    if (lanes < 2) return;
+#endif
+
+    const T pairs = static_cast<T>(lanes / 2);
 
     // Lanes are the repeated sequence -2, 1, [...]; each pair sums to -1,
     // so the eventual total is just -(N/2).
