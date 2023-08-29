@@ -426,49 +426,51 @@ struct float16_t {
 
   template <typename T>
   constexpr float16_t& operator+=(T rhs) noexcept {
-    raw += rhs;
+    raw = static_cast<Raw>(raw + rhs);
     return *this;
   }
 
   template <typename T>
   constexpr float16_t& operator-=(T rhs) noexcept {
-    raw -= rhs;
+    raw = static_cast<Raw>(raw - rhs);
     return *this;
   }
 
   template <typename T>
   constexpr float16_t& operator*=(T rhs) noexcept {
-    raw *= rhs;
+    raw = static_cast<Raw>(raw * rhs);
     return *this;
   }
 
   template <typename T>
   constexpr float16_t& operator/=(T rhs) noexcept {
-    raw /= rhs;
+    raw = static_cast<Raw>(raw / rhs);
     return *this;
   }
 
   constexpr float16_t operator--() noexcept {
-    raw -= Raw{1};
+    raw = static_cast<Raw>(raw - Raw{1});
     return *this;
   }
 
   constexpr float16_t operator--(int) noexcept {
-    raw -= Raw{1};
+    raw = static_cast<Raw>(raw - Raw{1});
     return *this;
   }
 
   constexpr float16_t operator++() noexcept {
-    raw += Raw{1};
+    raw = static_cast<Raw>(raw + Raw{1});
     return *this;
   }
 
   constexpr float16_t operator++(int) noexcept {
-    raw += Raw{1};
+    raw = static_cast<Raw>(raw + Raw{1});
     return *this;
   }
 
-  constexpr float16_t operator-() const noexcept { return float16_t(-raw); }
+  constexpr float16_t operator-() const noexcept {
+    return float16_t(static_cast<Raw>(-raw));
+  }
   constexpr float16_t operator+() const noexcept { return *this; }
 #endif  // HWY_EMULATE_FLOAT16
 };
@@ -519,53 +521,53 @@ struct bfloat16_t {
   constexpr operator Raw() const noexcept { return raw; }
 
   template <typename T>
-  constexpr NumericalWrapper& operator+=(T rhs) noexcept {
-    raw += rhs;
+  constexpr bfloat16_t& operator+=(T rhs) noexcept {
+    raw = static_cast<Raw>(raw + rhs);
     return *this;
   }
 
   template <typename T>
-  constexpr NumericalWrapper& operator-=(T rhs) noexcept {
-    raw -= rhs;
+  constexpr bfloat16_t& operator-=(T rhs) noexcept {
+    raw = static_cast<Raw>(raw - rhs);
     return *this;
   }
 
   template <typename T>
-  constexpr NumericalWrapper& operator*=(T rhs) noexcept {
-    raw *= rhs;
+  constexpr bfloat16_t& operator*=(T rhs) noexcept {
+    raw = static_cast<Raw>(raw * rhs);
     return *this;
   }
 
   template <typename T>
-  constexpr NumericalWrapper& operator/=(T rhs) noexcept {
-    raw /= rhs;
+  constexpr bfloat16_t& operator/=(T rhs) noexcept {
+    raw = static_cast<Raw>(raw / rhs);
     return *this;
   }
 
-  constexpr NumericalWrapper operator--() noexcept {
-    raw -= Raw{1};
+  constexpr bfloat16_t operator--() noexcept {
+    raw = static_cast<Raw>(raw - Raw{1});
     return *this;
   }
 
-  constexpr NumericalWrapper operator--(int) noexcept {
-    raw -= Raw{1};
+  constexpr bfloat16_t operator--(int) noexcept {
+    raw = static_cast<Raw>(raw - Raw{1});
     return *this;
   }
 
-  constexpr NumericalWrapper operator++() noexcept {
-    raw += Raw{1};
+  constexpr bfloat16_t operator++() noexcept {
+    raw = static_cast<Raw>(raw + Raw{1});
     return *this;
   }
 
-  constexpr NumericalWrapper operator++(int) noexcept {
-    raw += Raw{1};
+  constexpr bfloat16_t operator++(int) noexcept {
+    raw = static_cast<Raw>(raw + Raw{1});
     return *this;
   }
 
-  constexpr NumericalWrapper operator-() const noexcept {
-    return NumericalWrapper(-raw);
+  constexpr bfloat16_t operator-() const noexcept {
+    return bfloat16_t(static_cast<Raw>(-raw));
   }
-  constexpr NumericalWrapper operator+() const noexcept { return *this; }
+  constexpr bfloat16_t operator+() const noexcept { return *this; }
 #endif  // HWY_EMULATE_BFLOAT16
 };
 
