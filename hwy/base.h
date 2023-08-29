@@ -449,24 +449,30 @@ struct float16_t {
     return *this;
   }
 
-  float16_t operator--() noexcept {
+  // pre-decrement operator (--x)
+  float16_t& operator--() noexcept {
     raw = static_cast<Raw>(raw - Raw{1});
     return *this;
   }
 
+  // post-decrement operator (x--)
   float16_t operator--(int) noexcept {
+    float16_t result = *this;
     raw = static_cast<Raw>(raw - Raw{1});
-    return *this;
+    return result;
   }
 
-  float16_t operator++() noexcept {
+  // pre-increment operator (++x)
+  float16_t& operator++() noexcept {
     raw = static_cast<Raw>(raw + Raw{1});
     return *this;
   }
 
+  // post-increment operator (x++)
   float16_t operator++(int) noexcept {
+    float16_t result = *this;
     raw = static_cast<Raw>(raw + Raw{1});
-    return *this;
+    return result;
   }
 
   constexpr float16_t operator-() const noexcept {
@@ -546,24 +552,30 @@ struct bfloat16_t {
     return *this;
   }
 
-  bfloat16_t operator--() noexcept {
+  // pre-decrement operator (--x)
+  bfloat16_t& operator--() noexcept {
     raw = static_cast<Raw>(raw - Raw{1});
     return *this;
   }
 
+  // post-decrement operator (x--)
   bfloat16_t operator--(int) noexcept {
+    bfloat16_t result = *this;
     raw = static_cast<Raw>(raw - Raw{1});
-    return *this;
+    return result;
   }
 
-  bfloat16_t operator++() noexcept {
+  // pre-increment operator (++x)
+  bfloat16_t& operator++() noexcept {
     raw = static_cast<Raw>(raw + Raw{1});
     return *this;
   }
 
+  // post-increment operator (x++)
   bfloat16_t operator++(int) noexcept {
+    bfloat16_t result = *this;
     raw = static_cast<Raw>(raw + Raw{1});
-    return *this;
+    return result;
   }
 
   constexpr bfloat16_t operator-() const noexcept {
