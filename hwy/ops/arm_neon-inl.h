@@ -4099,7 +4099,7 @@ HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<uint64_t> v) {
 }
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
           HWY_IF_SIGNED_D(D)>
-HWY_API VFromD<D> DemoteTo(D d, Vec128<uint64_t> v) {
+HWY_API VFromD<D> DemoteTo(D d, Vec128<int64_t> v) {
   const Rebind<int32_t, D> di32;
   return DemoteTo(d, DemoteTo(di32, v));
 }
