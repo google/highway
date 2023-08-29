@@ -44,7 +44,7 @@ struct TestDiv {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = (T(i) - 2) / T(2);
+      expected[i] = static_cast<T>((static_cast<double>(i) - 2.0) / 2.0);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Div(v, Set(d, T(2))));
   }

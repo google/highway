@@ -40,10 +40,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-template <typename T>
-T Alpha() {
-  return static_cast<T>(1.5);  // arbitrary scalar
-}
+constexpr double kAlpha = 1.5;  // arbitrary scalar
 
 // Returns random floating-point number in [-8, 8) to ensure computations do
 // not exceed float32 precision.
@@ -60,14 +57,14 @@ T Random(RandomState& rng) {
 template <typename T>
 HWY_NOINLINE void SimpleSCAL(const T* x, T* out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    out[i] = Alpha<T>() * x[i];
+    out[i] = static_cast<T>(kAlpha * x[i]);
   }
 }
 
 template <typename T>
 HWY_NOINLINE void SimpleAXPY(const T* x, const T* y, T* out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    out[i] = Alpha<T>() * x[i] + y[i];
+    out[i] = static_cast<T>(kAlpha * x[i] + y[i]);
   }
 }
 
@@ -75,7 +72,7 @@ template <typename T>
 HWY_NOINLINE void SimpleFMA4(const T* x, const T* y, const T* z, T* out,
                              size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    out[i] = x[i] * y[i] + z[i];
+    out[i] = static_cast<T>(x[i] * y[i] + z[i]);
   }
 }
 
@@ -95,7 +92,7 @@ struct SCAL {
   template <class D, class V>
   Vec<D> operator()(D d, V v) const {
     using T = TFromD<D>;
-    return Mul(Set(d, Alpha<T>()), v);
+    return Mul(Set(d, static_cast<T>(kAlpha)), v);
   }
 };
 
@@ -103,7 +100,7 @@ struct AXPY {
   template <class D, class V>
   Vec<D> operator()(D d, V v, V v1) const {
     using T = TFromD<D>;
-    return MulAdd(Set(d, Alpha<T>()), v, v1);
+    return MulAdd(Set(d, static_cast<T>(kAlpha)), v, v1);
   }
 };
 
@@ -194,8 +191,9 @@ struct TestTransform {
     // TODO(janwas): can we update the apply_to in HWY_PUSH_ATTRIBUTES so that
     // the attribute also applies to lambdas? If so, remove HWY_ATTR.
 #if HWY_GENERIC_LAMBDA
-    const auto scal = [](const auto d, const auto v)
-                          HWY_ATTR { return Mul(Set(d, Alpha<T>()), v); };
+    const auto scal = [](const auto d, const auto v) HWY_ATTR {
+      return Mul(Set(d, static_cast<T>(kAlpha)), v);
+    };
 #else
     const SCAL scal;
 #endif
@@ -232,7 +230,7 @@ struct TestTransform1 {
 
 #if HWY_GENERIC_LAMBDA
     const auto axpy = [](const auto d, const auto v, const auto v1) HWY_ATTR {
-      return MulAdd(Set(d, Alpha<T>()), v, v1);
+      return MulAdd(Set(d, static_cast<T>(kAlpha)), v, v1);
     };
 #else
     const AXPY axpy;
