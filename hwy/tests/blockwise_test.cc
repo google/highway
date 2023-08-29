@@ -43,6 +43,7 @@ struct TestBroadcastR {
     for (size_t block = 0; block < N; block += blockN) {
       in_lanes[block + kLane] = static_cast<T>(block + 1);
     }
+    PreventElision(in_lanes[0]);  // workaround for f16x1 failure
     const auto in = Load(d, in_lanes.get());
     for (size_t block = 0; block < N; block += blockN) {
       for (size_t i = 0; i < blockN; ++i) {
