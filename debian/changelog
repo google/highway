@@ -1,3 +1,13 @@
+highway (1.0.7-1) UNRELEASED; urgency=medium
+
+  * Add LoadNOr, GatherIndexN, ScatterIndexN
+  * Add additional float<->int conversions
+  * Codegen improvements for 8-bit shift, PPC Compress/Expand
+  * Fixes for MSVC, PPC, RVV, WASM, GCC 13, GCC 8.2, i686, f16 type, QEMU 7.2
+  * Support CMake args in Debian packaging
+
+ -- Jan Wassenberg <janwas@google.com>  Tue, 29 Aug 2023 19:00:00 +0200
+
 highway (1.0.6-1) UNRELEASED; urgency=medium
 
   * Add MaskedGatherIndex, MaskedScatterIndex, LoadN, StoreN
