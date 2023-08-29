@@ -1605,43 +1605,28 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL_VIRT)
 #define HWY_NATIVE_LOAD_N
 #endif
 
-namespace detail {
-
-// Passing avl here would be ideal for FirstN, but it does not work because
-// mask ops are tail-agnostic, which (unpredictably) writes a 1 or the result of
-// the mask operation.
-#define HWY_RVV_SET_MASK(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, \
-                         SHIFT, MLEN, NAME, OP)                           \
-  template <size_t N>                                                     \
-  HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) /*d*/) {    \
-    return __riscv_vm##OP##_m_b##MLEN(__riscv_vsetvlmax_e##SEW##LMUL());  \
-  }
-HWY_RVV_FOREACH(HWY_RVV_SET_MASK, SetMask, set, _ALL_VIRT)
-#undef HWY_RVV_SET_MASK
-
-}  // namespace detail
-
 #define HWY_RVV_LOADN(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
                       MLEN, NAME, OP)                                         \
   template <size_t N>                                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                          \
       NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d,                                  \
            const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p, size_t num_lanes) {   \
-    /* WARNING: all mask bits are set because mask ops are tail-agnostic, */  \
-    /* i.e. they write 1 or the result of the operation which is 1. A mask */ \
-    /* is only required so we can use the _mu intrinsic. */                   \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(                     \
-        detail::SetMask(d), Zero(d), p, CappedLanes(d, num_lanes));           \
+    /* Use a tail-undisturbed load in LoadN as the tail-undisturbed load */   \
+    /* operation below will leave any lanes past the first */                 \
+    /* (lowest-indexed) HWY_MIN(num_lanes, Lanes(d)) lanes unchanged */       \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_tu(                     \
+        Zero(d), p, CappedLanes(d, num_lanes));                               \
   }                                                                           \
   template <size_t N>                                                         \
   HWY_API HWY_RVV_V(BASE, SEW, LMUL) NAME##Or(                                \
       HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_D(BASE, SEW, N, SHIFT) d,        \
       const HWY_RVV_T(BASE, SEW) * HWY_RESTRICT p, size_t num_lanes) {        \
-    /* WARNING: all mask bits are set because mask ops are tail-agnostic, */  \
-    /* i.e. they write 1 or the result of the operation which is 1. A mask */ \
-    /* is only required so we can use the _mu intrinsic. */                   \
-    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_mu(                     \
-        detail::SetMask(d), no, p, CappedLanes(d, num_lanes));                \
+    /* Use a tail-undisturbed load in LoadNOr as the tail-undisturbed load */ \
+    /* operation below will set any lanes past the first */                   \
+    /* (lowest-indexed) HWY_MIN(num_lanes, Lanes(d)) lanes to the */          \
+    /* corresponding lanes in no */                                           \
+    return __riscv_v##OP##SEW##_v_##CHAR##SEW##LMUL##_tu(                     \
+        no, p, CappedLanes(d, num_lanes));                                    \
   }
 
 HWY_RVV_FOREACH(HWY_RVV_LOADN, LoadN, le, _ALL_VIRT)
