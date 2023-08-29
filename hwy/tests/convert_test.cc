@@ -404,8 +404,8 @@ HWY_NOINLINE void TestAllConvertU8() {
 
 template <typename From, typename To, class D>
 constexpr bool IsSupportedTruncation() {
-  return (sizeof(To) < sizeof(From)) &&
-         (Rebind<To, D>().Pow2() + 3 >= static_cast<int>(CeilLog2(sizeof(To))));
+  return (sizeof(To) < sizeof(From) && Rebind<To, D>().Pow2() >= -3 &&
+          Rebind<To, D>().Pow2() + 4 >= static_cast<int>(CeilLog2(sizeof(To))));
 }
 
 struct TestTruncateTo {
@@ -435,7 +435,7 @@ struct TestTruncateTo {
 };
 
 HWY_NOINLINE void TestAllTruncate() {
-  ForUnsignedTypes(ForPartialVectors<TestTruncateTo>());
+  ForU163264(ForDemoteVectors<TestTruncateTo>());
 }
 
 struct TestOrderedTruncate2To {

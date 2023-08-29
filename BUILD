@@ -381,6 +381,7 @@ HWY_TESTS = [
     ("hwy/tests/", "demote_test"),
     ("hwy/tests/", "expand_test"),
     ("hwy/tests/", "float_test"),
+    ("hwy/tests/", "foreach_vec_test"),
     ("hwy/tests/", "if_test"),
     ("hwy/tests/", "interleaved_test"),
     ("hwy/tests/", "logical_test"),

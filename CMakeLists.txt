@@ -534,6 +534,7 @@ set(HWY_TEST_FILES
   hwy/tests/demote_test.cc
   hwy/tests/expand_test.cc
   hwy/tests/float_test.cc
+  hwy/tests/foreach_vec_test.cc
   hwy/tests/if_test.cc
   hwy/tests/interleaved_test.cc
   hwy/tests/logical_test.cc
