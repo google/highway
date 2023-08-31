@@ -3174,6 +3174,172 @@ HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
   return PromoteTo(d, UpperHalf(dh, v));
 }
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+
+namespace detail {
+
+// Signed to Signed PromoteEvenTo/PromoteOddTo for PPC9/PPC10
+#if HWY_PPC_HAVE_9 && \
+    (HWY_COMPILER_GCC_ACTUAL >= 1200 || HWY_COMPILER_CLANG >= 1200)
+
+#if HWY_IS_LITTLE_ENDIAN
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<4> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
+                                   V v) {
+  return VFromD<D>{vec_signexti(v.raw)};
+}
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
+                                   V v) {
+  return VFromD<D>{vec_signextll(v.raw)};
+}
+#else
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+                                  hwy::SizeTag<4> /*to_lane_size_tag*/,
+                                  hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
+                                  V v) {
+  return VFromD<D>{vec_signexti(v.raw)};
+}
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+                                  hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                  hwy::SignedTag /*from_type_tag*/, D /*d_to*/,
+                                  V v) {
+  return VFromD<D>{vec_signextll(v.raw)};
+}
+#endif
+
+#endif
+
+// I32/U32/F32->F64 PromoteEvenTo
+template <class D, class V, class FromTypeTag>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   FromTypeTag /*from_type_tag*/, D /*d_to*/,
+                                   V v) {
+  return VFromD<D>{vec_doublee(v.raw)};
+}
+
+// F32->I64 PromoteEvenTo
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::FloatTag /*from_type_tag*/, D d_to,
+                                   V v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
+  (void)d_to;
+#if HWY_IS_LITTLE_ENDIAN
+  // __builtin_vsx_xvcvspsxds expects the source values to be in the odd lanes
+  // on little-endian PPC, and the vec_sld operation below will shift the even
+  // lanes of v into the odd lanes.
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(vec_sld(v.raw, v.raw, 4))};
+#else
+  // __builtin_vsx_xvcvspsxds expects the source values to be in the even lanes
+  // on big-endian PPC.
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(v.raw)};
+#endif
+#else
+  const RebindToFloat<decltype(d_to)> df64;
+  return ConvertTo(d_to, PromoteEvenTo(hwy::FloatTag(), hwy::SizeTag<8>(),
+                                       hwy::FloatTag(), df64, v));
+#endif
+}
+
+// F32->U64 PromoteEvenTo
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::FloatTag /*from_type_tag*/, D d_to,
+                                   V v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
+  (void)d_to;
+#if HWY_IS_LITTLE_ENDIAN
+  // __builtin_vsx_xvcvspuxds expects the source values to be in the odd lanes
+  // on little-endian PPC, and the vec_sld operation below will shift the even
+  // lanes of v into the odd lanes.
+  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(vec_sld(v.raw, v.raw, 4)))};
+#else
+  // __builtin_vsx_xvcvspuxds expects the source values to be in the even lanes
+  // on big-endian PPC.
+  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(v.raw))};
+#endif
+#else
+  const RebindToFloat<decltype(d_to)> df64;
+  return ConvertTo(d_to, PromoteEvenTo(hwy::FloatTag(), hwy::SizeTag<8>(),
+                                       hwy::FloatTag(), df64, v));
+#endif
+}
+
+// I32/U32/F32->F64 PromoteOddTo
+template <class D, class V, class FromTypeTag>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag /*to_type_tag*/,
+                                  hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                  FromTypeTag /*from_type_tag*/, D /*d_to*/,
+                                  V v) {
+  return VFromD<D>{vec_doubleo(v.raw)};
+}
+
+// F32->I64 PromoteOddTo
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+                                  hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                  hwy::FloatTag /*from_type_tag*/, D d_to,
+                                  V v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
+  (void)d_to;
+#if HWY_IS_LITTLE_ENDIAN
+  // __builtin_vsx_xvcvspsxds expects the source values to be in the odd lanes
+  // on little-endian PPC
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(v.raw)};
+#else
+  // __builtin_vsx_xvcvspsxds expects the source values to be in the even lanes
+  // on big-endian PPC, and the vec_sld operation below will shift the odd lanes
+  // of v into the even lanes.
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(vec_sld(v.raw, v.raw, 4))};
+#endif
+#else
+  const RebindToFloat<decltype(d_to)> df64;
+  return ConvertTo(d_to, PromoteOddTo(hwy::FloatTag(), hwy::SizeTag<8>(),
+                                      hwy::FloatTag(), df64, v));
+#endif
+}
+
+// F32->U64 PromoteOddTo
+template <class D, class V>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::UnsignedTag /*to_type_tag*/,
+                                  hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                  hwy::FloatTag /*from_type_tag*/, D d_to,
+                                  V v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
+  (void)d_to;
+#if HWY_IS_LITTLE_ENDIAN
+  // __builtin_vsx_xvcvspuxds expects the source values to be in the odd lanes
+  // on little-endian PPC
+  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(v.raw))};
+#else
+  // __builtin_vsx_xvcvspuxds expects the source values to be in the even lanes
+  // on big-endian PPC, and the vec_sld operation below will shift the odd lanes
+  // of v into the even lanes.
+  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(vec_sld(v.raw, v.raw, 4)))};
+#endif
+#else
+  const RebindToFloat<decltype(d_to)> df64;
+  return ConvertTo(d_to, PromoteOddTo(hwy::FloatTag(), hwy::SizeTag<8>(),
+                                      hwy::FloatTag(), df64, v));
+#endif
+}
+
+}  // namespace detail
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, typename FromT, HWY_IF_UNSIGNED_D(D),

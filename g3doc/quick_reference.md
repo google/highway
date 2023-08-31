@@ -1405,6 +1405,38 @@ The following may be more convenient or efficient than also calling `LowerHalf`
     lanes as `D` and the return value. Only available if
     `HWY_TARGET != HWY_SCALAR`.
 
+The following may be more convenient or efficient than also calling `ConcatEven`
+or `ConcatOdd` followed by `PromoteLowerTo`:
+*   `D`:`{u,i}{16,32,64},f{16,32,64}`, `V`:`Vec<RepartitionToNarrow<D>>`
+    <code>Vec&lt;D&gt; **PromoteEvenTo**(D, V v)</code>: promotes the even lanes
+    of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
+    return value. `PromoteEvenTo(d, v)` is equivalent to
+    `PromoteLowerTo(d, ConcatEven(RepartitionToNarrow<D>(), v, v))`,
+    but `PromoteEvenTo(d, v)` is more efficient on some targets.
+
+*   `D`:`f32`, `V`:`Vec<Repartition<bfloat16_t, D>>`
+    <code>Vec&lt;D&gt; **PromoteEvenTo**(D, V v)</code>: promotes the even lanes
+    of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
+    return value. `PromoteEvenTo(d, v)` is equivalent to
+    `PromoteLowerTo(d, ConcatEven(Repartition<bfloat16_t, D>(), v, v))`,
+    but `PromoteEvenTo(d, v)` is more efficient on some targets.
+
+*   `D`:`{u,i}{16,32,64},f{16,32,64}`, `V`:`Vec<RepartitionToNarrow<D>>`
+    <code>Vec&lt;D&gt; **PromoteOddTo**(D, V v)</code>: promotes the odd lanes
+    of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
+    return value. `PromoteOddTo(d, v)` is equivalent to
+    `PromoteLowerTo(d, ConcatOdd(RepartitionToNarrow<D>(), v, v))`,
+    but `PromoteOddTo(d, v)` is more efficient on some targets. Only available
+    if `HWY_TARGET != HWY_SCALAR`.
+
+*   `D`:`f32`, `V`:`Vec<Repartition<bfloat16_t, D>>`
+    <code>Vec&lt;D&gt; **PromoteOddTo**(D, V v)</code>: promotes the odd lanes
+    of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
+    return value. `PromoteEvenTo(d, v)` is equivalent to
+    `PromoteLowerTo(d, ConcatOdd(Repartition<bfloat16_t, D>(), v, v))`,
+    but `PromoteOddTo(d, v)` is more efficient on some targets. Only available
+    if `HWY_TARGET != HWY_SCALAR`.
+
 #### Two-vector demotion
 
 *   `V`,`D`: (`i16,i8`), (`i32,i16`), (`i64,i32`), (`u16,i8`), (`u32,i16`),
