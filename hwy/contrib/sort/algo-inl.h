@@ -193,8 +193,10 @@ enum class Algo {
 #if HAVE_VXSORT
   kVXSort,
 #endif
-  kStd,
+  kStdSort,
+  kStdSelect,
   kVQSort,
+  kVQSelect,
   kHeap,
 };
 
@@ -228,9 +230,11 @@ static inline const char* AlgoName(Algo algo) {
     case Algo::kVXSort:
       return "vxsort";
 #endif
-    case Algo::kStd:
+    case Algo::kStdSort:
+    case Algo::kStdSelect:
       return "std";
     case Algo::kVQSort:
+    case Algo::kVQSelect:
       return "vq";
     case Algo::kHeap:
       return "heap";
@@ -450,7 +454,7 @@ void CallHeapSort(K64V64* HWY_RESTRICT keys, const size_t num_keys) {
 
 template <class Order, typename KeyType>
 void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
-         SharedState& shared, size_t /*thread*/) {
+         SharedState& shared, size_t /*thread*/, size_t k = 0) {
   const std::less<KeyType> less;
   const std::greater<KeyType> greater;
 
@@ -525,15 +529,25 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
     }
 #endif  // HAVE_VXSORT
 
-    case Algo::kStd:
+    case Algo::kStdSort:
       if (Order().IsAscending()) {
         return std::sort(inout, inout + num, less);
       } else {
         return std::sort(inout, inout + num, greater);
       }
 
+    case Algo::kStdSelect:
+      if (Order().IsAscending()) {
+        return std::nth_element(inout, inout + k, inout + num, less);
+      } else {
+        return std::nth_element(inout, inout + k, inout + num, greater);
+      }
+
     case Algo::kVQSort:
       return VQSort(inout, num, Order());
+
+    case Algo::kVQSelect:
+      return VQSelect(inout, num, k, Order());
 
     case Algo::kHeap:
       return CallHeapSort<Order>(inout, num);

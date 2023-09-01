@@ -122,7 +122,7 @@ HWY_NOINLINE void BenchAllColdSort() {
   VQSort(items, kSize, SortAscending());
 #else
   SharedState shared;
-  Run<SortAscending>(Algo::kStd, items, kSize, shared, /*thread=*/0);
+  Run<SortAscending>(Algo::kStdSort, items, kSize, shared, /*thread=*/0);
 #endif
   const timer::Ticks t1 = timer::Stop();
 
@@ -295,7 +295,7 @@ std::vector<Algo> AlgoForBench() {
 #if !SORT_100M
     // 10-20x slower, but that's OK for the default size when we are not
     // testing the parallel nor 100M modes.
-    // Algo::kStd,
+    // Algo::kStdSort,
 #endif
 
 #if VQSORT_ENABLED
