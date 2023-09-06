@@ -188,7 +188,7 @@ struct TestSatWidenMulPairwiseAdd {
                       SatWidenMulPairwiseAdd(dw, BitCast(dn_u, vn_a), vn_a));
 
     for (size_t i = 0; i < NW; i++) {
-      expected[i] = -expected[i];
+      expected[i] = static_cast<TW>(-expected[i]);
     }
 
     HWY_ASSERT_VEC_EQ(

@@ -93,21 +93,21 @@ struct TestVariableLeftShifts {
 
     // Same: 1
     for (size_t i = 0; i < N; ++i) {
-      const T value = kSigned ? T(i) - T(N) : T(i);
+      const T value = static_cast<T>(kSigned ? T(i) - T(N) : T(i));
       expected[i] = T(TU(value) << 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, v1));
 
     // Same: max
     for (size_t i = 0; i < N; ++i) {
-      const T value = kSigned ? T(i) - T(N) : T(i);
+      const T value = static_cast<T>(kSigned ? T(i) - T(N) : T(i));
       expected[i] = T(TU(value) << kMaxShift);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, max_shift));
 
     // Variable: small
     for (size_t i = 0; i < N; ++i) {
-      const T value = kSigned ? T(i) - T(N) : T(i);
+      const T value = static_cast<T>(kSigned ? T(i) - T(N) : T(i));
       expected[i] = T(TU(value) << (i & kMaxShift));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, small_shifts));
@@ -229,13 +229,13 @@ struct TestVariableUnsignedRightShifts {
 
     // Variable: small
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = T(i) >> (i & kMaxShift);
+      expected[i] = static_cast<T>(T(i) >> (i & kMaxShift));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(values, small_shifts));
 
     // Variable: Large
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = kMax >> (kMaxShift - (i & kMaxShift));
+      expected[i] = static_cast<T>(kMax >> (kMaxShift - (i & kMaxShift)));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(max, large_shifts));
   }
