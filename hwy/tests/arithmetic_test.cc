@@ -496,7 +496,7 @@ struct TestIntegerAbsDiff {
   template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
   static inline T ScalarAbsDiff(T a, T b) {
     using TW = MakeSigned<MakeWide<T>>;
-    const TW diff = static_cast<TW>(a) - static_cast<TW>(b);
+    const TW diff = static_cast<TW>(static_cast<TW>(a) - static_cast<TW>(b));
     return static_cast<T>((diff >= 0) ? diff : -diff);
   }
   template <typename T, HWY_IF_T_SIZE(T, 8)>
