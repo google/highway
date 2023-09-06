@@ -251,7 +251,7 @@ struct TestMulEven {
     auto in_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<Wide>(Lanes(d2));
     for (size_t i = 0; i < N; i += 2) {
-      in_lanes[i + 0] = LimitsMax<T>() >> (i & kShiftAmtMask);
+      in_lanes[i + 0] = static_cast<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
       if (N != 1) {
         in_lanes[i + 1] = 1;  // unused
       }
@@ -302,7 +302,7 @@ struct TestMulOdd {
     auto expected = AllocateAligned<Wide>(Lanes(d2));
     for (size_t i = 0; i < N; i += 2) {
       in_lanes[i + 0] = 1;  // unused
-      in_lanes[i + 1] = LimitsMax<T>() >> (i & kShiftAmtMask);
+      in_lanes[i + 1] = static_cast<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
       expected[i / 2] =
           static_cast<Wide>(Wide(in_lanes[i + 1]) * in_lanes[i + 1]);
     }

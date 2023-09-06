@@ -218,7 +218,7 @@ TEST(AlignedAllocatorTest, AllocMultipleInt) {
   for (size_t i = 0; i < kSize; i++) {
     // Performs a computation using ptr[] to prevent it being optimized away.
     ptr[i] = static_cast<uint32_t>(i);
-    if (i) ret += ptr[i] * ptr[i - 1];
+    if (i) ret += static_cast<size_t>(ptr[i]) * ptr[i - 1];
   }
   EXPECT_NE(0U, ret);
 }

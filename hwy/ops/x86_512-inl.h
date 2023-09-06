@@ -4666,8 +4666,7 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
 }
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
-  return VFromD<D>{
-      _mm512_maskz_cvttps_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+  return VFromD<D>{_mm512_maskz_cvttps_epu64(Not(MaskFromVec(v)).raw, v.raw)};
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
@@ -4779,32 +4778,17 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<int64_t> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<int64_t> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
+  const __mmask8 non_neg_mask = Not(MaskFromVec(v)).raw;
   return VFromD<D>{_mm512_maskz_cvtusepi64_epi32(non_neg_mask, v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<int64_t> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
+  const __mmask8 non_neg_mask = Not(MaskFromVec(v)).raw;
   return VFromD<D>{_mm512_maskz_cvtusepi64_epi16(non_neg_mask, v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<int64_t> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
+  const __mmask8 non_neg_mask = Not(MaskFromVec(v)).raw;
   return VFromD<D>{_mm512_maskz_cvtusepi64_epi8(non_neg_mask, v.raw)};
 }
 
@@ -4943,8 +4927,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<double> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<double> v) {
-  return VFromD<D>{
-      _mm512_maskz_cvttpd_epu32(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+  return VFromD<D>{_mm512_maskz_cvttpd_epu32(Not(MaskFromVec(v)).raw, v.raw)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
@@ -5125,13 +5108,11 @@ HWY_API VFromD<D> ConvertTo(D di, Vec512<double> v) {
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U32_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-  return VFromD<DU>{
-      _mm512_maskz_cvttps_epu32(_knot_mask16(MaskFromVec(v).raw), v.raw)};
+  return VFromD<DU>{_mm512_maskz_cvttps_epu32(Not(MaskFromVec(v)).raw, v.raw)};
 }
 template <class DU, HWY_IF_V_SIZE_D(DU, 64), HWY_IF_U64_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
-  return VFromD<DU>{
-      _mm512_maskz_cvttpd_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+  return VFromD<DU>{_mm512_maskz_cvttpd_epu64(Not(MaskFromVec(v)).raw, v.raw)};
 }
 
 HWY_API Vec512<int32_t> NearestInt(const Vec512<float> v) {

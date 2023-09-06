@@ -27,15 +27,45 @@ jobs:
             c_compiler: clang-6.0
             cxx_compiler: clang++-6.0
 
+          - name: Clang-7
+            extra_deps: clang-7
+            c_compiler: clang-7
+            cxx_compiler: clang++-7
+
+          - name: Clang-8
+            extra_deps: clang-8
+            c_compiler: clang-8
+            cxx_compiler: clang++-8
+
+          - name: Clang-9
+            extra_deps: clang-9
+            c_compiler: clang-9
+            cxx_compiler: clang++-9
+
           - name: Clang-10
             extra_deps: clang-10
             c_compiler: clang-10
             cxx_compiler: clang++-10
 
+          - name: Clang-11
+            extra_deps: clang-11
+            c_compiler: clang-11
+            cxx_compiler: clang++-11
+
           - name: Clang-12
             extra_deps: clang-12
             c_compiler: clang-12
             cxx_compiler: clang++-12
+
+          - name: GCC-8
+            extra_deps: g++-8
+            c_compiler: gcc-8
+            cxx_compiler: g++-8
+
+          - name: GCC-9
+            extra_deps: g++-9
+            c_compiler: gcc-9
+            cxx_compiler: g++-9
 
           - name: GCC-10
             extra_deps: g++-10
@@ -48,7 +78,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
 
       - name: Install deps
         run: sudo apt-get install ${{ matrix.extra_deps }}
@@ -69,7 +99,7 @@ jobs:
         with:
           egress-policy: audit  # cannot be block - runner does git checkout
 
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
       - uses: bazelbuild/setup-bazelisk@95c9bf48d0c570bb3e28e57108f3450cd67c1a44 # v2.0.0
       - uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
         with:
