@@ -87,6 +87,7 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
       fprintf(stderr,
               "Skipping math_test due to GCC issue with excess precision.\n");
     }
+    return;
   }
 
   using UintT = MakeUnsigned<T>;
