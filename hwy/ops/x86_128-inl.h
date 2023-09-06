@@ -1042,6 +1042,68 @@ HWY_INLINE Mask128<T, N> ExclusiveNeither(hwy::SizeTag<8> /*tag*/,
 #endif
 }
 
+// UnmaskedNot returns ~m.raw without zeroing out any invalid bits
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_INLINE Mask128<T, N> UnmaskedNot(const Mask128<T, N> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask128<T, N>{static_cast<__mmask16>(_knot_mask16(m.raw))};
+#else
+  return Mask128<T, N>{static_cast<__mmask16>(~m.raw)};
+#endif
+}
+
+template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
+HWY_INLINE Mask128<T, N> UnmaskedNot(const Mask128<T, N> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return Mask128<T, N>{static_cast<__mmask8>(_knot_mask8(m.raw))};
+#else
+  return Mask128<T, N>{static_cast<__mmask8>(~m.raw)};
+#endif
+}
+
+template <typename T>
+HWY_INLINE Mask128<T> Not(hwy::SizeTag<1> /*tag*/, const Mask128<T> m) {
+  // sizeof(T) == 1 and N == 16: simply return ~m as all 16 bits of m are valid
+  return UnmaskedNot(m);
+}
+template <typename T, size_t N, HWY_IF_LANES_LE(N, 8)>
+HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<1> /*tag*/, const Mask128<T, N> m) {
+  // sizeof(T) == 1 and N <= 8: need to zero out the upper bits of ~m as there
+  // are fewer than 16 valid bits in m
+
+  // Return (~m) & ((1ull << N) - 1)
+  return AndNot(hwy::SizeTag<1>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+}
+template <typename T>
+HWY_INLINE Mask128<T> Not(hwy::SizeTag<2> /*tag*/, const Mask128<T> m) {
+  // sizeof(T) == 2 and N == 8: simply return ~m as all 8 bits of m are valid
+  return UnmaskedNot(m);
+}
+template <typename T, size_t N, HWY_IF_LANES_LE(N, 4)>
+HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<2> /*tag*/, const Mask128<T, N> m) {
+  // sizeof(T) == 2 and N <= 4: need to zero out the upper bits of ~m as there
+  // are fewer than 8 valid bits in m
+
+  // Return (~m) & ((1ull << N) - 1)
+  return AndNot(hwy::SizeTag<2>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+}
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<4> /*tag*/, const Mask128<T, N> m) {
+  // sizeof(T) == 4: need to zero out the upper bits of ~m as there are at most
+  // 4 valid bits in m
+
+  // Return (~m) & ((1ull << N) - 1)
+  return AndNot(hwy::SizeTag<4>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+}
+template <typename T, size_t N>
+HWY_INLINE Mask128<T, N> Not(hwy::SizeTag<8> /*tag*/, const Mask128<T, N> m) {
+  // sizeof(T) == 8: need to zero out the upper bits of ~m as there are at most
+  // 2 valid bits in m
+
+  // Return (~m) & ((1ull << N) - 1)
+  return AndNot(hwy::SizeTag<8>(), m, Mask128<T, N>::FromBits((1ull << N) - 1));
+}
+
 }  // namespace detail
 
 template <typename T, size_t N>
@@ -1066,9 +1128,8 @@ HWY_API Mask128<T, N> Xor(const Mask128<T, N> a, Mask128<T, N> b) {
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Not(const Mask128<T, N> m) {
-  // Flip only the valid bits.
-  // TODO(janwas): use _knot intrinsics if N >= 8.
-  return Xor(m, Mask128<T, N>::FromBits((1ull << N) - 1));
+  // Flip only the valid bits
+  return detail::Not(hwy::SizeTag<sizeof(T)>(), m);
 }
 
 template <typename T, size_t N>
@@ -8389,7 +8450,7 @@ HWY_API VFromD<D> DemoteTo(D du32, VFromD<Rebind<double, D>> v) {
 #if HWY_TARGET <= HWY_AVX3
   (void)du32;
   return VFromD<D>{
-      _mm_maskz_cvttpd_epu32(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+      _mm_maskz_cvttpd_epu32(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
 #else  // AVX2 or earlier
   const Rebind<double, decltype(du32)> df64;
   const RebindToUnsigned<decltype(df64)> du64;
@@ -8512,7 +8573,7 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
   return VFromD<D>{
-      _mm_maskz_cvttps_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+      _mm_maskz_cvttps_epu64(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
 }
 #else   // AVX2 or below
 
@@ -8747,32 +8808,17 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int64_t, D>> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int64_t, D>> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
+  const __mmask8 non_neg_mask = detail::UnmaskedNot(MaskFromVec(v)).raw;
   return VFromD<D>{_mm_maskz_cvtusepi64_epi32(non_neg_mask, v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_U16_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int64_t, D>> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
+  const __mmask8 non_neg_mask = detail::UnmaskedNot(MaskFromVec(v)).raw;
   return VFromD<D>{_mm_maskz_cvtusepi64_epi16(non_neg_mask, v.raw)};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 2), HWY_IF_U8_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int64_t, D>> v) {
-  const auto neg_mask = MaskFromVec(v);
-#if HWY_COMPILER_HAS_MASK_INTRINSICS
-  const __mmask8 non_neg_mask = _knot_mask8(neg_mask.raw);
-#else
-  const __mmask8 non_neg_mask = static_cast<__mmask8>(~neg_mask.raw);
-#endif
+  const __mmask8 non_neg_mask = detail::UnmaskedNot(MaskFromVec(v)).raw;
   return VFromD<D>{_mm_maskz_cvtusepi64_epi8(non_neg_mask, v.raw)};
 }
 
@@ -9048,13 +9094,13 @@ HWY_API VFromD<DI> ConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U32_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{
-      _mm_maskz_cvttps_epu32(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+      _mm_maskz_cvttps_epu32(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
 }
 
 template <class DU, HWY_IF_V_SIZE_LE_D(DU, 16), HWY_IF_U64_D(DU)>
 HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
   return VFromD<DU>{
-      _mm_maskz_cvttpd_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+      _mm_maskz_cvttpd_epu64(detail::UnmaskedNot(MaskFromVec(v)).raw, v.raw)};
 }
 
 #else  // AVX2 or below
