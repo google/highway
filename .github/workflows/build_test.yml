@@ -27,15 +27,45 @@ jobs:
             c_compiler: clang-6.0
             cxx_compiler: clang++-6.0
 
+          - name: Clang-7
+            extra_deps: clang-7
+            c_compiler: clang-7
+            cxx_compiler: clang++-7
+
+          - name: Clang-8
+            extra_deps: clang-8
+            c_compiler: clang-8
+            cxx_compiler: clang++-8
+
+          - name: Clang-9
+            extra_deps: clang-9
+            c_compiler: clang-9
+            cxx_compiler: clang++-9
+
           - name: Clang-10
             extra_deps: clang-10
             c_compiler: clang-10
             cxx_compiler: clang++-10
 
+          - name: Clang-11
+            extra_deps: clang-11
+            c_compiler: clang-11
+            cxx_compiler: clang++-11
+
           - name: Clang-12
             extra_deps: clang-12
             c_compiler: clang-12
             cxx_compiler: clang++-12
+
+          - name: GCC-8
+            extra_deps: g++-8
+            c_compiler: gcc-8
+            cxx_compiler: g++-8
+
+          - name: GCC-9
+            extra_deps: g++-9
+            c_compiler: gcc-9
+            cxx_compiler: g++-9
 
           - name: GCC-10
             extra_deps: g++-10
