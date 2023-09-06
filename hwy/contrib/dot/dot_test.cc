@@ -37,7 +37,7 @@ template <typename T>
 HWY_NOINLINE T SimpleDot(const T* pa, const T* pb, size_t num) {
   double sum = 0.0;
   for (size_t i = 0; i < num; ++i) {
-    sum += pa[i] * pb[i];
+    sum += static_cast<double>(pa[i]) * pb[i];
   }
   return static_cast<T>(sum);
 }
