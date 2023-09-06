@@ -5528,6 +5528,31 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+#if HWY_TARGET > HWY_AVX3
+namespace detail {
+
+// I32->I64 PromoteEvenTo/PromoteOddTo
+
+template <class D, HWY_IF_LANES_D(D, 4)>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   Vec256<int32_t> v) {
+  return BitCast(d_to, OddEven(DupEven(BroadcastSignBit(v)), v));
+}
+
+template <class D, HWY_IF_LANES_D(D, 4)>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+                                  hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                  hwy::SignedTag /*from_type_tag*/, D d_to,
+                                  Vec256<int32_t> v) {
+  return BitCast(d_to, OddEven(BroadcastSignBit(v), DupOdd(v)));
+}
+
+}  // namespace detail
+#endif
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>

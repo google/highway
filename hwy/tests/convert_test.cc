@@ -210,6 +210,111 @@ HWY_NOINLINE void TestAllPromoteUpperLowerTo() {
 #endif  // HWY_HAVE_FLOAT64
 }
 
+template <typename ToT>
+struct TestPromoteOddEvenTo {
+  template <class T, HWY_IF_FLOAT_OR_SPECIAL(T)>
+  static HWY_INLINE T RandomBitsToVal(uint64_t rand_bits) {
+    using TU = MakeUnsigned<T>;
+    constexpr TU kExponentMask = ExponentMask<T>();
+    constexpr TU kSignMantMask = static_cast<TU>(~kExponentMask);
+    constexpr TU kMaxExpField = static_cast<TU>(MaxExponentField<T>());
+    constexpr int kNumOfMantBits = MantissaBits<T>();
+
+    const TU orig_exp_field_val =
+        static_cast<TU>((rand_bits >> kNumOfMantBits) & kMaxExpField);
+
+    const TU sign_mant_bits = static_cast<TU>(rand_bits & kSignMantMask);
+    const TU exp_bits = static_cast<TU>(
+        HWY_MIN(HWY_MAX(orig_exp_field_val, 1), kMaxExpField - 1)
+        << kNumOfMantBits);
+
+    T result;
+    const TU flt_bits = sign_mant_bits | exp_bits;
+    CopySameSize(&flt_bits, &result);
+    return result;
+  }
+  template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+  static HWY_INLINE T RandomBitsToVal(uint64_t rand_bits) {
+    return static_cast<T>(rand_bits & LimitsMax<MakeUnsigned<T>>());
+  }
+
+  template <class T, HWY_IF_NOT_SPECIAL_FLOAT(RemoveConst<RemoveRef<T>>)>
+  static HWY_INLINE ToT CastValueToWide(T val) {
+    return static_cast<ToT>(val);
+  }
+  static HWY_INLINE ToT CastValueToWide(const float16_t val) {
+    return static_cast<ToT>(F32FromF16(val));
+  }
+  static HWY_INLINE ToT CastValueToWide(const bfloat16_t val) {
+    return static_cast<ToT>(F32FromBF16(val));
+  }
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
+    static_assert(sizeof(T) < sizeof(ToT), "Input type must be narrower");
+    const Repartition<ToT, D> to_d;
+
+    const size_t N = Lanes(from_d);
+    auto from = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<ToT>(N / 2);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        from[i] = RandomBitsToVal<T>(rng());
+      }
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        expected[i] = CastValueToWide(from[i * 2 + 1]);
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteOddTo(to_d, Load(from_d, from.get())));
+
+      for (size_t i = 0; i < N / 2; ++i) {
+        expected[i] = CastValueToWide(from[i * 2]);
+      }
+      HWY_ASSERT_VEC_EQ(to_d, expected.get(),
+                        PromoteEvenTo(to_d, Load(from_d, from.get())));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllPromoteOddEvenTo() {
+  const ForShrinkableVectors<TestPromoteOddEvenTo<uint16_t>, 1> to_u16div2;
+  to_u16div2(uint8_t());
+
+  const ForShrinkableVectors<TestPromoteOddEvenTo<uint32_t>, 1> to_u32div2;
+  to_u32div2(uint16_t());
+
+  const ForShrinkableVectors<TestPromoteOddEvenTo<int16_t>, 1> to_i16div2;
+  to_i16div2(uint8_t());
+  to_i16div2(int8_t());
+
+  const ForShrinkableVectors<TestPromoteOddEvenTo<int32_t>, 1> to_i32div2;
+  to_i32div2(uint16_t());
+  to_i32div2(int16_t());
+
+  const ForShrinkableVectors<TestPromoteOddEvenTo<float>, 1> to_f32div2;
+  to_f32div2(float16_t());
+  to_f32div2(bfloat16_t());
+
+#if HWY_HAVE_INTEGER64
+  const ForShrinkableVectors<TestPromoteOddEvenTo<uint64_t>, 1> to_u64div2;
+  to_u64div2(uint32_t());
+
+  const ForShrinkableVectors<TestPromoteOddEvenTo<int64_t>, 1> to_i64div2;
+  to_i64div2(int32_t());
+  to_i64div2(uint32_t());
+#endif  // HWY_HAVE_INTEGER64
+
+#if HWY_HAVE_FLOAT64
+  const ForShrinkableVectors<TestPromoteOddEvenTo<double>, 1> to_f64div2;
+  to_f64div2(int32_t());
+  to_f64div2(uint32_t());
+  to_f64div2(float());
+#endif  // HWY_HAVE_FLOAT64
+}
+
 template <typename T, HWY_IF_FLOAT(T)>
 bool IsFinite(T t) {
   return std::isfinite(t);
@@ -1022,6 +1127,7 @@ HWY_BEFORE_TEST(HwyConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllRebind);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);

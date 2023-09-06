@@ -3462,6 +3462,126 @@ HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> df32, VBF16 v) {
   return BitCast(df32, detail::ZipLowerSame(svdup_n_u16(0), BitCast(du16, v)));
 }
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo (ConcatOddFull)
+
+namespace detail {
+
+// Signed to signed PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<2> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   svint8_t v) {
+  return svextb_s16_x(detail::PTrue(d_to), BitCast(d_to, v));
+}
+
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<4> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   svint16_t v) {
+  return svexth_s32_x(detail::PTrue(d_to), BitCast(d_to, v));
+}
+
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   svint32_t v) {
+  return svextw_s64_x(detail::PTrue(d_to), BitCast(d_to, v));
+}
+
+// F16->F32 PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+                                   hwy::SizeTag<4> /*to_lane_size_tag*/,
+                                   hwy::FloatTag /*from_type_tag*/, D d_to,
+                                   svfloat16_t v) {
+  const Repartition<float, decltype(d_to)> d_from;
+  return svcvt_f32_f16_x(detail::PTrue(d_from), v);
+}
+
+// F32->F64 PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::FloatTag /*from_type_tag*/, D d_to,
+                                   svfloat32_t v) {
+  const Repartition<float, decltype(d_to)> d_from;
+  return svcvt_f64_f32_x(detail::PTrue(d_from), v);
+}
+
+// I32->F64 PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   svint32_t v) {
+  const Repartition<float, decltype(d_to)> d_from;
+  return svcvt_f64_s32_x(detail::PTrue(d_from), v);
+}
+
+// U32->F64 PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::FloatTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::UnsignedTag /*from_type_tag*/, D d_to,
+                                   svuint32_t v) {
+  const Repartition<float, decltype(d_to)> d_from;
+  return svcvt_f64_u32_x(detail::PTrue(d_from), v);
+}
+
+// F32->I64 PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::FloatTag /*from_type_tag*/, D d_to,
+                                   svfloat32_t v) {
+  const Repartition<float, decltype(d_to)> d_from;
+  return svcvt_s64_f32_x(detail::PTrue(d_from), v);
+}
+
+// F32->U64 PromoteEvenTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::FloatTag /*from_type_tag*/, D d_to,
+                                   svfloat32_t v) {
+  const Repartition<float, decltype(d_to)> d_from;
+  return svcvt_s64_f32_x(detail::PTrue(d_from), v);
+}
+
+// F16->F32 PromoteOddTo
+template <class D>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag to_type_tag,
+                                  hwy::SizeTag<4> to_lane_size_tag,
+                                  hwy::FloatTag from_type_tag, D d_to,
+                                  svfloat16_t v) {
+  return PromoteEvenTo(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
+                       DupOdd(v));
+}
+
+// I32/U32/F32->F64 PromoteOddTo
+template <class FromTypeTag, class D, class V>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::FloatTag to_type_tag,
+                                  hwy::SizeTag<8> to_lane_size_tag,
+                                  FromTypeTag from_type_tag, D d_to, V v) {
+  return PromoteEvenTo(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
+                       DupOdd(v));
+}
+
+// F32->I64/U64 PromoteOddTo
+template <class ToTypeTag, class D, HWY_IF_UI64_D(D)>
+HWY_INLINE VFromD<D> PromoteOddTo(ToTypeTag to_type_tag,
+                                  hwy::SizeTag<8> to_lane_size_tag,
+                                  hwy::FloatTag from_type_tag, D d_to,
+                                  svfloat32_t v) {
+  return PromoteEvenTo(to_type_tag, to_lane_size_tag, from_type_tag, d_to,
+                       DupOdd(v));
+}
+
+}  // namespace detail
+
 // ------------------------------ ReorderDemote2To (OddEven)
 
 template <size_t N, int kPow2>

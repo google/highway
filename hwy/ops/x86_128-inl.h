@@ -8041,6 +8041,42 @@ HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<uint32_t, D>> v) {
 }
 #endif
 
+// ------------------------------ PromoteEvenTo/PromoteOddTo
+
+#if HWY_TARGET > HWY_AVX3
+namespace detail {
+
+// I32->I64 PromoteEvenTo/PromoteOddTo
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   Vec64<int32_t> v) {
+  return PromoteLowerTo(d_to, v);
+}
+
+template <class D, HWY_IF_LANES_D(D, 2)>
+HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
+                                   hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                   hwy::SignedTag /*from_type_tag*/, D d_to,
+                                   Vec128<int32_t> v) {
+  const Repartition<int32_t, D> d_from;
+  return PromoteLowerTo(d_to, ConcatEven(d_from, v, v));
+}
+
+template <class D, class V, HWY_IF_LANES_LE_D(D, 2)>
+HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
+                                  hwy::SizeTag<8> /*to_lane_size_tag*/,
+                                  hwy::SignedTag /*from_type_tag*/, D d_to,
+                                  V v) {
+  const Repartition<int32_t, D> d_from;
+  return PromoteLowerTo(d_to, ConcatOdd(d_from, v, v));
+}
+
+}
+#endif
+
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I16_D(D)>

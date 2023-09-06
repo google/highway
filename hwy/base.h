@@ -1290,7 +1290,8 @@ constexpr MakeUnsigned<T> SignMask() {
 // Returns bitmask of the exponent field in IEEE binary16/32/64.
 template <typename T>
 constexpr MakeUnsigned<T> ExponentMask() {
-  return (~(MakeUnsigned<T>{1} << MantissaBits<T>()) + 1) & ~SignMask<T>();
+  return (~(MakeUnsigned<T>{1} << MantissaBits<T>()) + 1) &
+         static_cast<MakeUnsigned<T>>(~SignMask<T>());
 }
 
 // Returns bitmask of the mantissa field in IEEE binary16/32/64.

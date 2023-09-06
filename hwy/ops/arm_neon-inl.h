@@ -5393,6 +5393,16 @@ HWY_API Vec128<T> InterleaveLower(Vec128<T> a, Vec128<T> b) {
 }
 #endif
 
+#if !HWY_HAVE_FLOAT16
+template <size_t N, HWY_IF_V_SIZE_GT(float16_t, N, 4)>
+HWY_API Vec128<float16_t, N> InterleaveLower(Vec128<float16_t, N> a,
+                                             Vec128<float16_t, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, InterleaveLower(BitCast(du, a), BitCast(du, b)));
+}
+#endif  // !HWY_HAVE_FLOAT16
+
 // < 64 bit parts
 template <typename T, size_t N, HWY_IF_V_SIZE_LE(T, N, 4)>
 HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
@@ -6266,6 +6276,23 @@ namespace detail {
 // There is no vuzpq_u64.
 HWY_NEON_DEF_FUNCTION_UIF_8_16_32(ConcatEven, vuzp1, _, 2)
 HWY_NEON_DEF_FUNCTION_UIF_8_16_32(ConcatOdd, vuzp2, _, 2)
+
+#if !HWY_HAVE_FLOAT16
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> ConcatEven(Vec128<float16_t, N> hi,
+                                           Vec128<float16_t, N> lo) {
+  const DFromV<decltype(hi)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, ConcatEven(BitCast(du, hi), BitCast(du, lo)));
+}
+template <size_t N>
+HWY_INLINE Vec128<float16_t, N> ConcatOdd(Vec128<float16_t, N> hi,
+                                          Vec128<float16_t, N> lo) {
+  const DFromV<decltype(hi)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, ConcatOdd(BitCast(du, hi), BitCast(du, lo)));
+}
+#endif  // !HWY_HAVE_FLOAT16
 }  // namespace detail
 
 // Full/half vector

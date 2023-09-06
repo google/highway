@@ -1401,6 +1401,11 @@ HWY_API Vec1<float> PromoteTo(D d, const Vec1<bfloat16_t> v) {
   return Set(d, F32FromBF16(v.raw));
 }
 
+template <class DTo, typename TFrom>
+HWY_API VFromD<DTo> PromoteEvenTo(DTo d_to, Vec1<TFrom> v) {
+  return PromoteTo(d_to, v);
+}
+
 template <class D, HWY_IF_F16_D(D)>
 HWY_API Vec1<float16_t> DemoteTo(D /* tag */, const Vec1<float> v) {
   return Vec1<float16_t>(F16FromF32(v.raw));
