@@ -3002,6 +3002,13 @@ HWY_API Vec128<double, N> InterleaveLower(Vec128<double, N> a,
   return Vec128<double, N>{wasm_i64x2_shuffle(a.raw, b.raw, 0, 2)};
 }
 
+template <class T, size_t N, HWY_IF_T_SIZE(T, 2), HWY_IF_SPECIAL_FLOAT(T)>
+HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, InterleaveLower(BitCast(du, a), BitCast(du, b)));
+}
+
 // Additional overload for the optional tag (all vector lengths).
 template <class D>
 HWY_API VFromD<D> InterleaveLower(D /* tag */, VFromD<D> a, VFromD<D> b) {
