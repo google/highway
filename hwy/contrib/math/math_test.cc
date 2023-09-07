@@ -39,21 +39,15 @@ namespace HWY_NAMESPACE {
 #if HWY_ARCH_X86_32 && HWY_COMPILER_GCC_ACTUAL && \
     (HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128)
 
-// On 32-bit x86 with GCC 13+, build with `-fexcess-precision=standard` - see
+// GCC 13+: because CMAKE_CXX_EXTENSIONS is OFF, we build with -std= and hence
+// also -fexcess-precision=standard, so there is no problem. See #1708 and
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=323.
 #if HWY_COMPILER_GCC_ACTUAL >= 1300
-
-#if FLT_EVAL_METHOD == 0  // correct flag given, no problem
 #define HWY_MATH_TEST_EXCESS_PRECISION 0
-#else
-#define HWY_MATH_TEST_EXCESS_PRECISION 1
-#pragma message( \
-    "Skipping scalar math_test on 32-bit x86 GCC 13+ without -fexcess-precision=standard")
-#endif  // FLT_EVAL_METHOD
 
-#else                  // HWY_COMPILER_GCC_ACTUAL < 1300
+#else  // HWY_COMPILER_GCC_ACTUAL < 1300
 
-// On 32-bit x86 with GCC <13, set HWY_CMAKE_SSE2 - see
+// The build system must enable SSE2, e.g. via HWY_CMAKE_SSE2 - see
 // https://stackoverflow.com/questions/20869904/c-handling-of-excess-precision .
 #if defined(__SSE2__)  // correct flag given, no problem
 #define HWY_MATH_TEST_EXCESS_PRECISION 0
