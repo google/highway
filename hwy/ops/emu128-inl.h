@@ -943,11 +943,9 @@ template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
   for (size_t i = 0; i < N; ++i) {
     const float half = v.raw[i] * 0.5f;
-    uint32_t bits;
-    CopySameSize(&v.raw[i], &bits);
     // Initial guess based on log2(f)
-    bits = 0x5F3759DF - (bits >> 1);
-    CopySameSize(&bits, &v.raw[i]);
+    v.raw[i] = BitCastScalar<float>(static_cast<uint32_t>(
+        0x5F3759DF - (BitCastScalar<uint32_t>(v.raw[i]) >> 1)));
     // One Newton-Raphson iteration
     v.raw[i] = v.raw[i] * (1.5f - (half * v.raw[i] * v.raw[i]));
   }
@@ -1056,8 +1054,7 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
   for (size_t i = 0; i < N; ++i) {
     const bool positive = v.raw[i] > Float(0.0);
 
-    Bits bits;
-    CopySameSize(&v.raw[i], &bits);
+    Bits bits = BitCastScalar<Bits>(v.raw[i]);
 
     const int exponent =
         static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
@@ -1077,7 +1074,7 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
     if (positive) bits += (kMantissaMask + 1) >> exponent;
     bits &= ~mantissa_mask;
 
-    CopySameSize(&bits, &v.raw[i]);
+    v.raw[i] = BitCastScalar<Float>(bits);
   }
   return v;
 }
@@ -1094,8 +1091,7 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
   for (size_t i = 0; i < N; ++i) {
     const bool negative = v.raw[i] < Float(0.0);
 
-    Bits bits;
-    CopySameSize(&v.raw[i], &bits);
+    Bits bits = BitCastScalar<Bits>(v.raw[i]);
 
     const int exponent =
         static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
@@ -1115,7 +1111,7 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
     if (negative) bits += (kMantissaMask + 1) >> exponent;
     bits &= ~mantissa_mask;
 
-    CopySameSize(&bits, &v.raw[i]);
+    v.raw[i] = BitCastScalar<Float>(bits);
   }
   return v;
 }
@@ -1127,8 +1123,7 @@ HWY_API Mask128<T, N> IsNaN(Vec128<T, N> v) {
   Mask128<T, N> ret;
   for (size_t i = 0; i < N; ++i) {
     // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
-    MakeUnsigned<T> bits;
-    CopySameSize(&v.raw[i], &bits);
+    MakeUnsigned<T> bits = BitCastScalar<MakeUnsigned<T>>(v.raw[i]);
     bits += bits;
     bits >>= 1;  // clear sign bit
     // NaN if all exponent bits are set and the mantissa is not zero.

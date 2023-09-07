@@ -4801,9 +4801,7 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
   const RebindToUnsigned<decltype(d)> du;
   const uint16_t lane = static_cast<uint16_t>(
       _mm_extract_epi16(BitCast(du, v).raw, kLane) & 0xFFFF);
-  T ret;
-  CopySameSize(&lane, &ret);  // for float16_t
-  return ret;
+  return BitCastScalar<T>(lane);
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_UI32(T)>
@@ -4841,9 +4839,7 @@ HWY_INLINE float ExtractLane(const Vec128<float, N> v) {
 #else
   // Bug in the intrinsic, returns int but should be float.
   const int32_t bits = _mm_extract_ps(v.raw, kLane);
-  float ret;
-  CopySameSize(&bits, &ret);
-  return ret;
+  return BitCastScalar<float>(bits);
 #endif
 }
 
@@ -5019,8 +5015,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
-  uint16_t bits;
-  CopySameSize(&t, &bits);  // for float16_t
+  const uint16_t bits = BitCastScalar<uint16_t>(t);
   return BitCast(d, VFromD<decltype(du)>{
                         _mm_insert_epi16(BitCast(du, v).raw, bits, kLane)});
 }
@@ -5031,8 +5026,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
 #if HWY_TARGET >= HWY_SSSE3
   return InsertLaneUsingBroadcastAndBlend(v, kLane, t);
 #else
-  MakeSigned<T> ti;
-  CopySameSize(&t, &ti);  // don't just cast because T might be float.
+  const MakeSigned<T> ti = BitCastScalar<MakeSigned<T>>(t);
   return Vec128<T, N>{_mm_insert_epi32(v.raw, ti, kLane)};
 #endif
 }
@@ -5051,8 +5045,7 @@ HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   return BitCast(
       d, Vec128<double, N>{_mm_shuffle_pd(BitCast(df, v).raw, vt.raw, 0)});
 #else
-  MakeSigned<T> ti;
-  CopySameSize(&t, &ti);  // don't just cast because T might be float.
+  const MakeSigned<T> ti = BitCastScalar<MakeSigned<T>>(t);
   return Vec128<T, N>{_mm_insert_epi64(v.raw, ti, kLane)};
 #endif
 }
@@ -8074,7 +8067,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
   return PromoteLowerTo(d_to, ConcatOdd(d_from, v, v));
 }
 
-}
+}  // namespace detail
 #endif
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)

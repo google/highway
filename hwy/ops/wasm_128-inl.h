@@ -1815,9 +1815,7 @@ template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2),
           HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
   const int16_t lane = wasm_i16x8_extract_lane(v.raw, kLane);
-  T ret;
-  CopySameSize(&lane, &ret);  // for float16_t
-  return ret;
+  return static_cast<T>(lane);
 }
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2),
           HWY_IF_SPECIAL_FLOAT(T)>
@@ -1826,10 +1824,7 @@ HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
   const RebindToUnsigned<decltype(d)> du;
 
   const uint16_t bits = ExtractLane<kLane>(BitCast(du, v));
-
-  T ret;
-  CopySameSize(&bits, &ret);
-  return ret;
+  return BitCastScalar<T>(bits);
 }
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>
 HWY_INLINE T ExtractLane(const Vec128<T, N> v) {
