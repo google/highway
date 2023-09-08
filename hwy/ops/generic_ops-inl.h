@@ -2446,8 +2446,7 @@ HWY_INLINE VFromD<D> UIntToF32BiasedExp(D d, VFromD<D> v) {
 #if HWY_TARGET == HWY_SCALAR
   const uint64_t u64_val = GetLane(v);
   const float f32_val = static_cast<float>(u64_val);
-  uint32_t f32_bits;
-  CopySameSize(&f32_val, &f32_bits);
+  const uint32_t f32_bits = BitCastScalar<uint32_t>(f32_val);
   return Set(d, static_cast<uint64_t>(f32_bits >> 23));
 #else
   const Repartition<uint32_t, decltype(d)> du32;

@@ -228,10 +228,7 @@ struct TestPromoteOddEvenTo {
         HWY_MIN(HWY_MAX(orig_exp_field_val, 1), kMaxExpField - 1)
         << kNumOfMantBits);
 
-    T result;
-    const TU flt_bits = sign_mant_bits | exp_bits;
-    CopySameSize(&flt_bits, &result);
-    return result;
+    return BitCastScalar<T>(static_cast<TU>(sign_mant_bits | exp_bits));
   }
   template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
   static HWY_INLINE T RandomBitsToVal(uint64_t rand_bits) {
