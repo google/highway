@@ -405,3 +405,37 @@ far slower than normal Load/Store (which can typically handle two or even three
 entire *vectors* per cycle), so avoid them where possible. However, some
 algorithms such as rANS entropy coding and hash tables require gathers, and it
 is still usually better to use them than to avoid vectorization entirely.
+
+## Troubleshooting
+
+Q7.1: When building with clang-16, I see errors such as `DWARF error: invalid or
+unhandled FORM value: 0x25` or `undefined reference to __extendhfsf2`.
+
+A: This can happen if clang has been updated but compiler-rt has not. Action:
+When installing Clang 16 from apt.llvm.org, ensure libclang-rt-16-dev is also
+installed. This was caused by LLVM 16 changing the ABI of `__extendhfsf2` to
+match the GCC ABI, which requires the entire toolchain to be updated. See #1709
+for more information.
+
+Q7.2: I see build errors mentioning `inlining failed in call to ‘always_inline’
+‘hwy::PreventElision<int&>(int&)void’: target specific option mismatch`.
+
+A: This is caused by a conflict between `-m` compiler flags and Highway's
+dynamic dispatch mode, and is typically triggered by defining `HWY_IS_TEST` (set
+by our CMake/Bazel builds for tests) or `HWY_COMPILE_ALL_ATTAINABLE`. See below
+for a workaround; first some background. The goal of dynamic dispatch is to
+compile multiple versions of the code, one per target. When `-m` compiler flags
+are used to force a certain baseline, it can be that non-SIMD, forceinline
+functions such as `PreventElision` are compiled for a newer CPU baseline than
+the minimum target that Highway sets via `#pragma`. The compiler enforces a
+safety check: inlining higher-baseline functions into a normal function raises
+an error. This would not occur in most applications because Highway only enables
+targets at or above the baseline set by `-m` flags. However, Highway's tests aim
+to cover all targets by defining `HWY_IS_TEST`. When that or
+`HWY_COMPILE_ALL_ATTAINABLE` are defined, then older targets are also compiled
+and the incompatibility arises. One possible solution is to disable these modes
+by defining `HWY_COMPILE_ONLY_STATIC`, which is checked first. Then, only the
+baseline target is used and dynamic dispatch is effectively disabled. A second
+solution is to avoid `-m` flags entirely, because they contradict the goals of
+test coverage and dynamic dispatch, or only set the ones that correspond to the
+oldest target Highway supports. See #1707 and #1570 for more information.
