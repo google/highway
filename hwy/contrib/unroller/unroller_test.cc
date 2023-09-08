@@ -106,6 +106,16 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
   }
 };
 
+// Returns a value that does not compare equal to `value`.
+template<class D, HWY_IF_FLOAT_D(D)>
+HWY_INLINE Vec<D> OtherValue(D d, TFromD<D> /*value*/) {
+  return NaN(d);
+}
+template<class D, HWY_IF_NOT_FLOAT_D(D)>
+HWY_INLINE Vec<D> OtherValue(D d, TFromD<D> value) {
+  return hn::Set(d, hwy::AddWithWraparound(hwy::NonFloatTag(), value, 1));
+}
+
 // Caveat: stores lane indices as MakeSigned<T>, which may overflow for 8-bit T
 // on HWY_RVV.
 template <typename T>
@@ -133,8 +143,7 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, MakeSigned<T>> {
   }
 
   hn::Vec<D> X0InitImpl() {
-    // TODO(janwas): use NaN for float
-    return hn::Set(d, hwy::AddWithWraparound(hwy::IsFloatTag<T>(), to_find, 1));
+    return OtherValue(D(), to_find);
   }
 
   hn::Vec<DI> YInitImpl() { return hn::Set(di, TI{-1}); }
