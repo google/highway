@@ -48,6 +48,47 @@ HWY_NOINLINE void TestAllLimits() {
   HWY_ASSERT_EQ(int16_t{0x7FFF}, LimitsMax<int16_t>());
   HWY_ASSERT_EQ(int32_t{0x7FFFFFFFu}, LimitsMax<int32_t>());
   HWY_ASSERT_EQ(int64_t{0x7FFFFFFFFFFFFFFFull}, LimitsMax<int64_t>());
+
+  HWY_ASSERT(LimitsMin<signed char>() == LimitsMin<int8_t>());
+  HWY_ASSERT(LimitsMin<short>() <= LimitsMin<int16_t>());
+  HWY_ASSERT(LimitsMin<int>() <= LimitsMin<int16_t>());
+  HWY_ASSERT(LimitsMin<long>() <= LimitsMin<int32_t>());
+  HWY_ASSERT(LimitsMin<long long>() <= LimitsMin<int64_t>());
+
+  HWY_ASSERT(LimitsMax<signed char>() == LimitsMax<int8_t>());
+  HWY_ASSERT(LimitsMax<short>() >= LimitsMax<int16_t>());
+  HWY_ASSERT(LimitsMax<int>() >= LimitsMax<int16_t>());
+  HWY_ASSERT(LimitsMax<long>() >= LimitsMax<int32_t>());
+  HWY_ASSERT(LimitsMax<long long>() >= LimitsMax<int64_t>());
+
+  HWY_ASSERT_EQ(static_cast<unsigned char>(0), LimitsMin<unsigned char>());
+  HWY_ASSERT_EQ(static_cast<unsigned short>(0), LimitsMin<unsigned short>());
+  HWY_ASSERT_EQ(0u, LimitsMin<unsigned>());
+  HWY_ASSERT_EQ(0ul, LimitsMin<unsigned long>());
+  HWY_ASSERT_EQ(0ull, LimitsMin<unsigned long long>());
+
+  HWY_ASSERT(LimitsMax<unsigned char>() == LimitsMax<uint8_t>());
+  HWY_ASSERT(LimitsMax<unsigned short>() >= LimitsMax<uint16_t>());
+  HWY_ASSERT(LimitsMax<unsigned>() >= LimitsMax<uint16_t>());
+  HWY_ASSERT(LimitsMax<unsigned long>() >= LimitsMax<uint32_t>());
+  HWY_ASSERT(LimitsMax<unsigned long long>() >= LimitsMax<uint64_t>());
+
+  HWY_ASSERT(LimitsMin<char>() == 0 ||
+             LimitsMin<char>() == LimitsMin<int8_t>());
+  HWY_ASSERT(LimitsMax<char>() == LimitsMax<int8_t>() ||
+             LimitsMax<char>() == LimitsMax<uint8_t>());
+
+  HWY_ASSERT_EQ(size_t{0}, LimitsMin<size_t>());
+  HWY_ASSERT(LimitsMin<ptrdiff_t>() < ptrdiff_t{0});
+  HWY_ASSERT(LimitsMin<intptr_t>() < intptr_t{0});
+  HWY_ASSERT_EQ(uintptr_t{0}, LimitsMin<uintptr_t>());
+  HWY_ASSERT(LimitsMin<wchar_t>() <= wchar_t{0});
+
+  HWY_ASSERT(LimitsMax<size_t>() > size_t{0});
+  HWY_ASSERT(LimitsMax<ptrdiff_t>() > ptrdiff_t{0});
+  HWY_ASSERT(LimitsMax<intptr_t>() > intptr_t{0});
+  HWY_ASSERT(LimitsMax<uintptr_t>() > uintptr_t{0});
+  HWY_ASSERT(LimitsMax<wchar_t>() > wchar_t{0});
 }
 
 struct TestLowestHighest {
@@ -68,6 +109,7 @@ struct TestIsUnsigned {
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(!IsFloat<T>(), "Expected !IsFloat");
     static_assert(!IsSigned<T>(), "Expected !IsSigned");
+    static_assert(IsInteger<T>(), "Expected IsInteger");
   }
 };
 
@@ -76,6 +118,7 @@ struct TestIsSigned {
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(!IsFloat<T>(), "Expected !IsFloat");
     static_assert(IsSigned<T>(), "Expected IsSigned");
+    static_assert(IsInteger<T>(), "Expected IsInteger");
   }
 };
 
@@ -83,14 +126,39 @@ struct TestIsFloat {
   template <class T>
   HWY_NOINLINE void operator()(T /*unused*/) const {
     static_assert(IsFloat<T>(), "Expected IsFloat");
+    static_assert(!IsInteger<T>(), "Expected !IsInteger");
     static_assert(IsSigned<T>(), "Floats are also considered signed");
   }
 };
 
 HWY_NOINLINE void TestAllType() {
-  ForUnsignedTypes(TestIsUnsigned());
-  ForSignedTypes(TestIsSigned());
+  const TestIsUnsigned is_unsigned_test;
+  const TestIsSigned is_signed_test;
+
+  ForUnsignedTypes(is_unsigned_test);
+  ForSignedTypes(is_signed_test);
   ForFloatTypes(TestIsFloat());
+
+  is_unsigned_test(static_cast<unsigned char>(0));
+  is_unsigned_test(static_cast<unsigned short>(0));
+  is_unsigned_test(0u);
+  is_unsigned_test(0ul);
+  is_unsigned_test(0ull);
+  is_unsigned_test(size_t{0});
+  is_unsigned_test(uintptr_t{0});
+
+  is_signed_test(static_cast<signed char>(0));
+  is_signed_test(static_cast<signed short>(0));
+  is_signed_test(0);
+  is_signed_test(0L);
+  is_signed_test(0LL);
+  is_signed_test(ptrdiff_t{0});
+  is_signed_test(intptr_t{0});
+
+  static_assert(!IsFloat<char>(), "Expected !IsFloat<char>()");
+  static_assert(!IsFloat<wchar_t>(), "Expected !IsFloat<wchar_t>()");
+  static_assert(IsInteger<char>(), "Expected IsInteger<char>()");
+  static_assert(IsInteger<wchar_t>(), "Expected IsInteger<wchar_t>()");
 
   static_assert(sizeof(MakeUnsigned<hwy::uint128_t>) == 16, "");
   static_assert(sizeof(MakeWide<uint64_t>) == 16, "Expected uint128_t");

@@ -894,6 +894,7 @@ using If = typename IfT<Condition, Then, Else>::type;
   hwy::EnableIf<hwy::IsFloat<T>() || hwy::IsSpecialFloat<T>()>* = nullptr
 #define HWY_IF_NOT_FLOAT_NOR_SPECIAL(T) \
   hwy::EnableIf<!hwy::IsFloat<T>() && !hwy::IsSpecialFloat<T>()>* = nullptr
+#define HWY_IF_INTEGER(T) hwy::EnableIf<hwy::IsInteger<T>()>* = nullptr
 
 #define HWY_IF_T_SIZE(T, bytes) hwy::EnableIf<sizeof(T) == (bytes)>* = nullptr
 #define HWY_IF_NOT_T_SIZE(T, bytes) \
@@ -935,6 +936,18 @@ template <class T>
 using RemoveConst = typename RemoveConstT<T>::type;
 
 template <class T>
+struct RemoveVolatileT {
+  using type = T;
+};
+template <class T>
+struct RemoveVolatileT<volatile T> {
+  using type = T;
+};
+
+template <class T>
+using RemoveVolatile = typename RemoveVolatileT<T>::type;
+
+template <class T>
 struct RemoveRefT {
   using type = T;
 };
@@ -949,6 +962,9 @@ struct RemoveRefT<T&&> {
 
 template <class T>
 using RemoveRef = typename RemoveRefT<T>::type;
+
+template <class T>
+using RemoveCvRef = RemoveConst<RemoveVolatile<RemoveRef<T>>>;
 
 //------------------------------------------------------------------------------
 // Type relations
@@ -1158,6 +1174,115 @@ HWY_API constexpr bool IsSpecialFloat() {
   return IsSame<T, float16_t>() || IsSame<T, bfloat16_t>();
 }
 
+template <class T>
+HWY_API constexpr bool IsIntegerLaneType() {
+  return false;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<int8_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<uint8_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<int16_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<uint16_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<int32_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<uint32_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<int64_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsIntegerLaneType<uint64_t>() {
+  return true;
+}
+
+template <class T>
+HWY_API constexpr bool IsInteger() {
+  // NOTE: Do not add a IsInteger<wchar_t>() specialization below as it is
+  // possible for IsSame<wchar_t, uint16_t>() to be true when compiled with MSVC
+  // with the /Zc:wchar_t- option.
+  return IsIntegerLaneType<T>() || IsSame<T, wchar_t>() ||
+         IsSame<T, size_t>() || IsSame<T, ptrdiff_t>() ||
+         IsSame<T, intptr_t>() || IsSame<T, uintptr_t>();
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<bool>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<char>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<signed char>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<unsigned char>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<short>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<unsigned short>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<int>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<unsigned>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<long>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<unsigned long>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<long long>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<unsigned long long>() {
+  return true;
+}
+#if defined(__cpp_char8_t) && __cpp_char8_t >= 201811L
+template <>
+HWY_INLINE constexpr bool IsInteger<char8_t>() {
+  return true;
+}
+#endif
+template <>
+HWY_INLINE constexpr bool IsInteger<char16_t>() {
+  return true;
+}
+template <>
+HWY_INLINE constexpr bool IsInteger<char32_t>() {
+  return true;
+}
+
 template <typename T>
 HWY_API constexpr bool IsSigned() {
   return T(0) > T(-1);
@@ -1174,14 +1299,14 @@ constexpr bool IsSigned<bfloat16_t>() {
 // Largest/smallest representable integer values.
 template <typename T>
 HWY_API constexpr T LimitsMax() {
-  static_assert(!IsFloat<T>(), "Only for integer types");
-  using TU = MakeUnsigned<T>;
-  return static_cast<T>(IsSigned<T>() ? (static_cast<TU>(~0ull) >> 1)
-                                      : static_cast<TU>(~0ull));
+  static_assert(IsInteger<T>(), "Only for integer types");
+  using TU = UnsignedFromSize<sizeof(T)>;
+  return static_cast<T>(IsSigned<T>() ? (static_cast<TU>(~TU(0)) >> 1)
+                                      : static_cast<TU>(~TU(0)));
 }
 template <typename T>
 HWY_API constexpr T LimitsMin() {
-  static_assert(!IsFloat<T>(), "Only for integer types");
+  static_assert(IsInteger<T>(), "Only for integer types");
   return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
 }
 
@@ -1425,26 +1550,48 @@ HWY_API size_t Num0BitsAboveMS1Bit_Nonzero64(const uint64_t x) {
 #endif  // HWY_COMPILER_MSVC
 }
 
-HWY_API size_t PopCount(uint64_t x) {
-#if HWY_COMPILER_GCC  // includes clang
-  return static_cast<size_t>(__builtin_popcountll(x));
-  // This instruction has a separate feature flag, but is often called from
-  // non-SIMD code, so we don't want to require dynamic dispatch. It was first
-  // supported by Intel in Nehalem (SSE4.2), but MSVC only predefines a macro
-  // for AVX, so check for that.
-#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64 && defined(__AVX__)
-  return _mm_popcnt_u64(x);
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>),
+          HWY_IF_T_SIZE_ONE_OF(RemoveCvRef<T>, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API size_t PopCount(T x) {
+  uint32_t u32_x = static_cast<uint32_t>(
+      static_cast<UnsignedFromSize<sizeof(RemoveCvRef<T>)>>(x));
+
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+  return static_cast<size_t>(__builtin_popcountl(u32_x));
 #elif HWY_COMPILER_MSVC && HWY_ARCH_X86_32 && defined(__AVX__)
-  return _mm_popcnt_u32(static_cast<uint32_t>(x & 0xFFFFFFFFu)) +
-         _mm_popcnt_u32(static_cast<uint32_t>(x >> 32));
+  return static_cast<size_t>(_mm_popcnt_u32(u32_x));
 #else
-  x -= ((x >> 1) & 0x5555555555555555ULL);
-  x = (((x >> 2) & 0x3333333333333333ULL) + (x & 0x3333333333333333ULL));
-  x = (((x >> 4) + x) & 0x0F0F0F0F0F0F0F0FULL);
-  x += (x >> 8);
-  x += (x >> 16);
-  x += (x >> 32);
-  return static_cast<size_t>(x & 0x7Fu);
+  u32_x -= ((u32_x >> 1) & 0x55555555u);
+  u32_x = (((u32_x >> 2) & 0x33333333u) + (u32_x & 0x33333333u));
+  u32_x = (((u32_x >> 4) + u32_x) & 0x0F0F0F0Fu);
+  u32_x += (u32_x >> 8);
+  u32_x += (u32_x >> 16);
+  return static_cast<size_t>(u32_x & 0x3Fu);
+#endif
+}
+
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>),
+          HWY_IF_T_SIZE(RemoveCvRef<T>, 8)>
+HWY_API size_t PopCount(T x) {
+  uint64_t u64_x = static_cast<uint64_t>(
+      static_cast<UnsignedFromSize<sizeof(RemoveCvRef<T>)>>(x));
+
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+  return static_cast<size_t>(__builtin_popcountll(u64_x));
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64 && defined(__AVX__)
+  return _mm_popcnt_u64(u64_x);
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_32 && defined(__AVX__)
+  return _mm_popcnt_u32(static_cast<uint32_t>(u64_x & 0xFFFFFFFFu)) +
+         _mm_popcnt_u32(static_cast<uint32_t>(u64_x >> 32));
+#else
+  u64_x -= ((u64_x >> 1) & 0x5555555555555555ULL);
+  u64_x = (((u64_x >> 2) & 0x3333333333333333ULL) +
+           (u64_x & 0x3333333333333333ULL));
+  u64_x = (((u64_x >> 4) + u64_x) & 0x0F0F0F0F0F0F0F0FULL);
+  u64_x += (u64_x >> 8);
+  u64_x += (u64_x >> 16);
+  u64_x += (u64_x >> 32);
+  return static_cast<size_t>(u64_x & 0x7Fu);
 #endif
 }
 
@@ -1511,7 +1658,7 @@ HWY_API void PreventElision(T&& output) {
   // RTL constraints). Self-assignment with #pragma optimize("off") might be
   // expected to prevent elision, but it does not with MSVC 2015. Type-punning
   // with volatile pointers generates inefficient code on MSVC 2017.
-  static std::atomic<RemoveRef<T>> dummy;
+  static std::atomic<RemoveCvRef<T>> dummy;
   dummy.store(output, std::memory_order_relaxed);
 #else
   // Works by indicating to the compiler that "output" is being read and
