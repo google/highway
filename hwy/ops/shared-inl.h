@@ -151,6 +151,13 @@ struct Simd {
 
  private:
   static_assert(sizeof(Lane) <= 8, "Lanes are up to 64-bit");
+  static_assert(IsSame<Lane, RemoveCvRef<Lane>>(),
+                "Lane must not be a reference type, const-qualified type, or "
+                "volatile-qualified type");
+  static_assert(IsIntegerLaneType<Lane>() || IsFloat<Lane>() ||
+                    IsSpecialFloat<Lane>(),
+                "IsIntegerLaneType<T>(), IsFloat<T>(), or IsSpecialFloat<T>() "
+                "must be true");
   // 20 bits are sufficient for any HWY_MAX_BYTES. This is the 'normal' value of
   // N when kFrac == 0, otherwise it is one (see FracN).
   static constexpr size_t kWhole = N & 0xFFFFF;
