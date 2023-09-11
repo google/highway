@@ -579,7 +579,17 @@
 
 #if HWY_ARCH_PPC && defined(__ALTIVEC__) && \
     (!HWY_COMPILER_CLANG || HWY_BASELINE_PPC8 != 0)
+
+#if HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10
+// On POWER with -m flags, we get compile errors (#1707) for targets older than
+// the baseline specified via -m, so only generate the static target and better.
+// Note that some Linux distros actually do set POWER9 as the baseline.
+// This works by skipping case 3 below, so case 4 is reached.
+#define HWY_SKIP_NON_BEST_BASELINE
+#endif
+
 #define HWY_ATTAINABLE_PPC (HWY_PPC8 | HWY_PPC9 | HWY_PPC10)
+
 #else
 #define HWY_ATTAINABLE_PPC 0
 #endif
@@ -621,7 +631,8 @@
 #define HWY_TARGETS HWY_STATIC_TARGET
 
 // 3) For tests: include all attainable targets (in particular: scalar)
-#elif defined(HWY_COMPILE_ALL_ATTAINABLE) || defined(HWY_IS_TEST)
+#elif (defined(HWY_COMPILE_ALL_ATTAINABLE) || defined(HWY_IS_TEST)) && \
+    !defined(HWY_SKIP_NON_BEST_BASELINE)
 #define HWY_TARGETS HWY_ATTAINABLE_TARGETS
 
 // 4) Default: attainable WITHOUT non-best baseline. This reduces code size by
