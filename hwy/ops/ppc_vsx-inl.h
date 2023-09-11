@@ -476,8 +476,16 @@ HWY_API Vec128<T, N> operator^(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Neg
 
-template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
-HWY_INLINE Vec128<T, N> Neg(Vec128<T, N> v) {
+template <typename T, size_t N, HWY_IF_SIGNED(T)>
+HWY_API Vec128<T, N> Neg(Vec128<T, N> v) {
+  // If T is an signed integer type, use Zero(d) - v instead of vec_neg to
+  // avoid undefined behavior in the case where v[i] == LimitsMin<T>()
+  const DFromV<decltype(v)> d;
+  return Zero(d) - v;
+}
+
+template <typename T, size_t N, HWY_IF_FLOAT3264(T)>
+HWY_API Vec128<T, N> Neg(Vec128<T, N> v) {
   return Vec128<T, N>{vec_neg(v.raw)};
 }
 
@@ -489,7 +497,14 @@ HWY_API Vec128<T, N> Neg(const Vec128<T, N> v) {
 // ------------------------------ Abs
 
 // Returns absolute value, except that LimitsMin() maps to LimitsMax() + 1.
-template <class T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
+template <class T, size_t N, HWY_IF_SIGNED(T)>
+HWY_API Vec128<T, N> Abs(Vec128<T, N> v) {
+  // If T is a signed integer type, use Max(v, Neg(v)) instead of vec_abs to
+  // avoid undefined behavior in the case where v[i] == LimitsMin<T>().
+  return Max(v, Neg(v));
+}
+
+template <class T, size_t N, HWY_IF_FLOAT3264(T)>
 HWY_API Vec128<T, N> Abs(Vec128<T, N> v) {
   return Vec128<T, N>{vec_abs(v.raw)};
 }
@@ -673,8 +688,14 @@ HWY_API Vec128<int64_t, N> BroadcastSignBit(Vec128<int64_t, N> v) {
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v, const int bits) {
-  using TU = typename detail::Raw128<MakeUnsigned<T>>::RawT;
-  return Vec128<T, N>{vec_sl(v.raw, vec_splats(static_cast<TU>(bits)))};
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  using TU = TFromD<decltype(du)>;
+
+  // Do an unsigned vec_sl operation to avoid undefined behavior
+  return BitCast(
+      d, VFromD<decltype(du)>{
+             vec_sl(BitCast(du, v).raw, Set(du, static_cast<TU>(bits)).raw)});
 }
 
 // ------------------------------ ShiftRightSame
@@ -1210,18 +1231,40 @@ HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D d,
 
 // ================================================== ARITHMETIC
 
+namespace detail {
+// If TFromD<D> is an integer type, detail::RebindToUnsignedIfNotFloat<D>
+// rebinds D to MakeUnsigned<TFromD<D>>.
+
+// Otherwise, if TFromD<D> is a floating-point type (including F16 and BF16),
+// detail::RebindToUnsignedIfNotFloat<D> is the same as D.
+template <class D>
+using RebindToUnsignedIfNotFloat =
+    hwy::If<(!hwy::IsFloat<TFromD<D>>() && !hwy::IsSpecialFloat<TFromD<D>>()),
+            RebindToUnsigned<D>, D>;
+}  // namespace detail
+
 // ------------------------------ Addition
 
 template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_API Vec128<T, N> operator+(Vec128<T, N> a, Vec128<T, N> b) {
-  return Vec128<T, N>{vec_add(a.raw, b.raw)};
+  const DFromV<decltype(a)> d;
+  const detail::RebindToUnsignedIfNotFloat<decltype(d)> d_arith;
+
+  // If T is an integer type, do an unsigned vec_add to avoid undefined behavior
+  return BitCast(d, VFromD<decltype(d_arith)>{vec_add(
+                        BitCast(d_arith, a).raw, BitCast(d_arith, b).raw)});
 }
 
 // ------------------------------ Subtraction
 
 template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_API Vec128<T, N> operator-(Vec128<T, N> a, Vec128<T, N> b) {
-  return Vec128<T, N>{vec_sub(a.raw, b.raw)};
+  const DFromV<decltype(a)> d;
+  const detail::RebindToUnsignedIfNotFloat<decltype(d)> d_arith;
+
+  // If T is an integer type, do an unsigned vec_sub to avoid undefined behavior
+  return BitCast(d, VFromD<decltype(d_arith)>{vec_sub(
+                        BitCast(d_arith, a).raw, BitCast(d_arith, b).raw)});
 }
 
 // ------------------------------ SumsOf8
@@ -1459,7 +1502,12 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
 
 template <typename T, size_t N, HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
-  return Vec128<T, N>{a.raw * b.raw};
+  const DFromV<decltype(a)> d;
+  const detail::RebindToUnsignedIfNotFloat<decltype(d)> d_arith;
+
+  // If T is an integer type, do an unsigned vec_mul to avoid undefined behavior
+  return BitCast(d, VFromD<decltype(d_arith)>{vec_mul(
+                        BitCast(d_arith, a).raw, BitCast(d_arith, b).raw)});
 }
 
 // Returns the upper 16 bits of a * b in each lane.
@@ -1510,10 +1558,15 @@ HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulOdd(Vec128<T, N> a,
 template <int kBits, typename T, size_t N>
 HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
   constexpr size_t kSizeInBits = sizeof(T) * 8;
   static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+
   if (kBits == 0) return v;
-  return Vec128<T, N>{vec_rl(v.raw, Set(d, kSizeInBits - kBits).raw)};
+
+  // Do an unsigned vec_rl operation to avoid undefined behavior
+  return BitCast(d, VFromD<decltype(du)>{vec_rl(
+                        BitCast(du, v).raw, Set(du, kSizeInBits - kBits).raw)});
 }
 
 // ------------------------------ ZeroIfNegative (BroadcastSignBit)
