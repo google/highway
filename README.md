@@ -276,7 +276,11 @@ they use static or dynamic dispatch.
     call the best function pointer for the current CPU's supported targets. A
     module is automatically compiled for each target in `HWY_TARGETS` (see
     [quick-reference](g3doc/quick_reference.md)) if `HWY_TARGET_INCLUDE` is
-    defined and `foreach_target.h` is included.
+    defined and `foreach_target.h` is included. Note that the first invocation
+    of `HWY_DYNAMIC_DISPATCH`, or each call to the pointer returned by the first
+    invocation of `HWY_DYNAMIC_POINTER`, involves some CPU detection overhead.
+    You can prevent this by calling the following before any invocation of
+    `HWY_DYNAMIC_*`: `hwy::GetChosenTarget().Update(hwy::SupportedTargets());`.
 
 When using dynamic dispatch, `foreach_target.h` is included from translation
 units (.cc files), not headers. Headers containing vector code shared between
