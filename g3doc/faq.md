@@ -71,7 +71,7 @@ which lists all of the Highway ops.
 
 Q1.2: Are there **examples of porting intrinsics to Highway**?
 
-A: See cl/448957386 and cl/450480902.
+A: See https://github.com/google/highway#examples.
 
 Q1.3: Where do I find documentation for each **platform's intrinsics**?
 
@@ -266,9 +266,9 @@ Q5.1: What is **boilerplate**?
 A: We use this to refer to reusable infrastructure which mostly serves to
 support runtime dispatch. We strongly recommend starting a SIMD project by
 copying from an existing one, because the ordering of code matters and the
-vector-specific boilerplate may be unfamiliar. For static dispatch, see
-cl/408632990. For dynamic dispatch, see hwy/examples/skeleton.cc or
-cl/376150733.
+vector-specific boilerplate may be unfamiliar. See hwy/examples/skeleton.cc
+and https://github.com/google/highway#examples.
+
 
 Q5.2: What's the difference between **`HWY_BEFORE_NAMESPACE` and `HWY_ATTR`**?
 
