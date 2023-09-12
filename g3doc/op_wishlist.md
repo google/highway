@@ -9,9 +9,9 @@ freshness: { owner: 'janwas' reviewed: '2023-08-04' }
 
 ## Wishlist
 
-### Matrix multiplication extensions SME/x86 AMX
+### NEON dot product
 
-Wrapper for 2D outer product?
+### QuickSelect algo
 
 ### numpy
 
@@ -101,10 +101,6 @@ For orthogonality; already done for x86+NEON.
 
 ### Conflict detection
 For hash tables. Use VPCONFLICT on ZEN4.
-
-### `PromoteEvenTo`
-
-For `WidenMul`, `MinOfLanes`.
 
 ### Masked add/sub/div
 For tolower (subtract if in range) or hash table probing. Third arg for default.
@@ -196,3 +192,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~MaskedScatter~~
 *   ~~float64 support for WASM~~
 *   ~~LoadNOr~~
+*   ~~PromoteEvenTo~~ - by johnplatts
