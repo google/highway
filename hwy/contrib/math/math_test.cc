@@ -161,8 +161,8 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   DEFINE_MATH_TEST_FUNC(NAME)
 
 // Floating point values closest to but less than 1.0
-const float kNearOneF = BitCast<float>(0x3F7FFFFF);
-const double kNearOneD = BitCast<double>(0x3FEFFFFFFFFFFFFFULL);
+float kNearOneF() { return BitCast<float>(0x3F7FFFFF); }
+double kNearOneD() { return BitCast<double>(0x3FEFFFFFFFFFFFFFULL); }
 
 // The discrepancy is unacceptably large for MSYS2 (less accurate libm?), so
 // only increase the error tolerance there.
@@ -230,8 +230,8 @@ DEFINE_MATH_TEST(Atan,
   std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
   std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
 DEFINE_MATH_TEST(Atanh,
-  std::atanh, CallAtanh, -kNearOneF, +kNearOneF,  4,  // NEON is 4 instead of 3
-  std::atanh, CallAtanh, -kNearOneD, +kNearOneD,  3)
+  std::atanh, CallAtanh, -kNearOneF(), +kNearOneF(),  4,  // NEON is 4 instead of 3
+  std::atanh, CallAtanh, -kNearOneD(), +kNearOneD(),  3)
 DEFINE_MATH_TEST(Cos,
   std::cos,   CallCos,   -39000.0f,  +39000.0f,   3,
   std::cos,   CallCos,   -39000.0,   +39000.0,    Cos64ULP())
