@@ -131,7 +131,8 @@
 #if HWY_COMPILER_CLANG
 #define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",power10-vector"
 #else
-#define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10"
+// See #1707 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=102059#c35
+#define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10,no-htm"
 #endif
 
 // Before include guard so we redefine HWY_TARGET_STR on each include,

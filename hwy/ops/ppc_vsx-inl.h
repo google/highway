@@ -4441,7 +4441,7 @@ HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
   __asm__("xxgenpcvbm %x0, %1, %2"
           : "=wa"(idx)
           : "v"(mask.raw), "i"(kGenPcvmMode));
-  return VFromD<D>{idx};
+  return VFromD<decltype(d)>{idx};
 }
 template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
@@ -4454,7 +4454,7 @@ HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
   __asm__("xxgenpcvhm %x0, %1, %2"
           : "=wa"(idx)
           : "v"(mask.raw), "i"(kGenPcvmMode));
-  return VFromD<D>{idx};
+  return VFromD<decltype(d)>{idx};
 }
 template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 4)>
 HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
@@ -4467,7 +4467,7 @@ HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
   __asm__("xxgenpcvwm %x0, %1, %2"
           : "=wa"(idx)
           : "v"(mask.raw), "i"(kGenPcvmMode));
-  return VFromD<D>{idx};
+  return VFromD<decltype(d)>{idx};
 }
 #endif
 
