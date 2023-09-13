@@ -61,6 +61,9 @@ set(HWY_CMAKE_ARM7 OFF CACHE BOOL "Set copts for Armv7 with NEON (requires vfpv4
 # skipped. For GCC 13.1+, you can also build with -fexcess-precision=standard.
 set(HWY_CMAKE_SSE2 OFF CACHE BOOL "Set SSE2 as baseline for 32-bit x86?")
 
+# Currently this will compile the entire codebase with `-march=rv64gcv1p0`:
+set(HWY_CMAKE_RVV ON CACHE BOOL "Set copts for RISCV with RVV?")
+
 # Unconditionally adding -Werror risks breaking the build when new warnings
 # arise due to compiler/platform changes. Enable this in CI/tests.
 set(HWY_WARNINGS_ARE_ERRORS OFF CACHE BOOL "Add -Werror flag?")
@@ -260,9 +263,11 @@ else()
     # gcc(13) and recent clang both support V, but not yet runtime dispatch, so
     # we add the gcv compiler flag, which then requires the CPU (now when using
     # either compiler) to support V.
-    list(APPEND HWY_FLAGS -march=rv64gcv1p0)
-    if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-      list(APPEND HWY_FLAGS -menable-experimental-extensions)
+    if(HWY_CMAKE_RVV)
+      list(APPEND HWY_FLAGS -march=rv64gcv1p0)
+      if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+        list(APPEND HWY_FLAGS -menable-experimental-extensions)
+      endif()
     endif()
   endif()
 
