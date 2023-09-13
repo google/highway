@@ -4937,8 +4937,10 @@ HWY_API VFromD<DU64> SumOfMulQuadAccumulate(DU64 /*du64*/, svuint16_t a,
 
 // ------------------------------ AESRound / CLMul
 
+// Static dispatch with -march=armv8-a+sve2+aes, or dynamic dispatch WITHOUT a
+// baseline, in which case we check for AES support at runtime.
 #if defined(__ARM_FEATURE_SVE2_AES) || \
-    (HWY_SVE_HAVE_2 && HWY_HAVE_RUNTIME_DISPATCH)
+    (HWY_SVE_HAVE_2 && HWY_HAVE_RUNTIME_DISPATCH && HWY_BASELINE_SVE2 == 0)
 
 // Per-target flag to prevent generic_ops-inl.h from defining AESRound.
 #ifdef HWY_NATIVE_AES
