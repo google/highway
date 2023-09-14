@@ -62,14 +62,6 @@ namespace HWY_NAMESPACE {
 #define HWY_MATH_TEST_EXCESS_PRECISION 0
 #endif  // HWY_ARCH_X86_32 etc
 
-template <class Out, class In>
-inline Out BitCast(const In& in) {
-  static_assert(sizeof(Out) == sizeof(In), "");
-  Out out;
-  CopyBytes<sizeof(out)>(&in, &out);
-  return out;
-}
-
 template <class T, class D>
 HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
                            Vec<D> (*fxN)(D, VecArg<Vec<D>>), D d, T min, T max,
@@ -86,17 +78,17 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
 
   using UintT = MakeUnsigned<T>;
 
-  const UintT min_bits = BitCast<UintT>(min);
-  const UintT max_bits = BitCast<UintT>(max);
+  const UintT min_bits = BitCastScalar<UintT>(min);
+  const UintT max_bits = BitCastScalar<UintT>(max);
 
   // If min is negative and max is positive, the range needs to be broken into
   // two pieces, [+0, max] and [-0, min], otherwise [min, max].
   int range_count = 1;
   UintT ranges[2][2] = {{min_bits, max_bits}, {0, 0}};
   if ((min < 0.0) && (max > 0.0)) {
-    ranges[0][0] = BitCast<UintT>(static_cast<T>(+0.0));
+    ranges[0][0] = BitCastScalar<UintT>(static_cast<T>(+0.0));
     ranges[0][1] = max_bits;
-    ranges[1][0] = BitCast<UintT>(static_cast<T>(-0.0));
+    ranges[1][0] = BitCastScalar<UintT>(static_cast<T>(-0.0));
     ranges[1][1] = min_bits;
     range_count = 2;
   }
@@ -111,7 +103,8 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
     for (UintT value_bits = start; value_bits <= stop; value_bits += step) {
       // For reasons unknown, the HWY_MAX is necessary on RVV, otherwise
       // value_bits can be less than start, and thus possibly NaN.
-      const T value = BitCast<T>(HWY_MIN(HWY_MAX(start, value_bits), stop));
+      const T value =
+          BitCastScalar<T>(HWY_MIN(HWY_MAX(start, value_bits), stop));
       const T actual = GetLane(fxN(d, Set(d, value)));
       const T expected = fx1(value);
 
@@ -160,9 +153,11 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   };                                                                      \
   DEFINE_MATH_TEST_FUNC(NAME)
 
-// Floating point values closest to but less than 1.0
-float kNearOneF() { return BitCast<float>(0x3F7FFFFF); }
-double kNearOneD() { return BitCast<double>(0x3FEFFFFFFFFFFFFFULL); }
+// Floating point values closest to but less than 1.0. Avoid variables with
+// static initializers inside HWY_BEFORE_NAMESPACE/HWY_AFTER_NAMESPACE to
+// ensure target-specific code does not leak into startup code.
+float kNearOneF() { return BitCastScalar<float>(0x3F7FFFFF); }
+double kNearOneD() { return BitCastScalar<double>(0x3FEFFFFFFFFFFFFFULL); }
 
 // The discrepancy is unacceptably large for MSYS2 (less accurate libm?), so
 // only increase the error tolerance there.
