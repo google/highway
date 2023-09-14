@@ -580,7 +580,8 @@
 #if HWY_ARCH_PPC && defined(__ALTIVEC__) && \
     (!HWY_COMPILER_CLANG || HWY_BASELINE_PPC8 != 0)
 
-#if HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10
+#if (HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10) && \
+    !defined(HWY_SKIP_NON_BEST_BASELINE)
 // On POWER with -m flags, we get compile errors (#1707) for targets older than
 // the baseline specified via -m, so only generate the static target and better.
 // Note that some Linux distros actually do set POWER9 as the baseline.

@@ -435,7 +435,9 @@ to cover all targets by defining `HWY_IS_TEST`. When that or
 `HWY_COMPILE_ALL_ATTAINABLE` are defined, then older targets are also compiled
 and the incompatibility arises. One possible solution is to disable these modes
 by defining `HWY_COMPILE_ONLY_STATIC`, which is checked first. Then, only the
-baseline target is used and dynamic dispatch is effectively disabled. A second
-solution is to avoid `-m` flags entirely, because they contradict the goals of
-test coverage and dynamic dispatch, or only set the ones that correspond to the
-oldest target Highway supports. See #1707 and #1570 for more information.
+baseline target is used and dynamic dispatch is effectively disabled. If you
+still want to dispatch, but just avoid targets superseded by the baseline,
+define `HWY_SKIP_NON_BEST_BASELINE`. A third option is to avoid `-m` flags
+entirely, because they contradict the goals of test coverage and dynamic
+dispatch, or only set the ones that correspond to the oldest target Highway
+supports. See #1460, #1570, and #1707 for more information.
