@@ -102,9 +102,6 @@ For orthogonality; already done for x86+NEON.
 ### Conflict detection
 For hash tables. Use VPCONFLICT on ZEN4.
 
-### Masked add/sub/div
-For tolower (subtract if in range) or hash table probing. Third arg for default.
-
 ### Div (integer division) and Mod
 
 Issue 633. Consider promoting to f64 and back. Or: op to compute inverse.
@@ -193,3 +190,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~float64 support for WASM~~
 *   ~~LoadNOr~~
 *   ~~PromoteEvenTo~~ - by johnplatts
+*   ~~Masked add/sub/div~~

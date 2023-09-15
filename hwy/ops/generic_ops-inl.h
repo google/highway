@@ -209,6 +209,36 @@ HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
 
 #endif  // HWY_NATIVE_BITWISE_IF_THEN_ELSE
 
+// ------------------------------ MaskedAddOr etc.
+#if (defined(HWY_NATIVE_MASKED_ARITH) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASKED_ARITH
+#undef HWY_NATIVE_MASKED_ARITH
+#else
+#define HWY_NATIVE_MASKED_ARITH
+#endif
+
+template <class V, class M>
+HWY_API V MaskedAddOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Add(a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedSubOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Sub(a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedMulOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Mul(a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedDivOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Div(a, b), no);
+}
+
+#endif  // HWY_NATIVE_MASKED_ARITH
+
 // "Include guard": skip if native instructions are available. The generic
 // implementation is currently shared between x86_* and wasm_*, and is too large
 // to duplicate.

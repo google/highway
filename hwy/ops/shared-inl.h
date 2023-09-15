@@ -484,26 +484,27 @@ using BlockDFromD =
 #define HWY_IF_POW2_LE_D(D, pow2) hwy::EnableIf<D().Pow2() <= pow2>* = nullptr
 #define HWY_IF_POW2_GT_D(D, pow2) hwy::EnableIf<(D().Pow2() > pow2)>* = nullptr
 
-#define HWY_IF_U8_D(D) hwy::EnableIf<IsSame<TFromD<D>, uint8_t>()>* = nullptr
-#define HWY_IF_U16_D(D) hwy::EnableIf<IsSame<TFromD<D>, uint16_t>()>* = nullptr
-#define HWY_IF_U32_D(D) hwy::EnableIf<IsSame<TFromD<D>, uint32_t>()>* = nullptr
-#define HWY_IF_U64_D(D) hwy::EnableIf<IsSame<TFromD<D>, uint64_t>()>* = nullptr
+#define HWY_IF_U8_D(D) HWY_IF_U8(TFromD<D>)
+#define HWY_IF_U16_D(D) HWY_IF_U16(TFromD<D>)
+#define HWY_IF_U32_D(D) HWY_IF_U32(TFromD<D>)
+#define HWY_IF_U64_D(D) HWY_IF_U64(TFromD<D>)
 
-#define HWY_IF_I8_D(D) hwy::EnableIf<IsSame<TFromD<D>, int8_t>()>* = nullptr
-#define HWY_IF_I16_D(D) hwy::EnableIf<IsSame<TFromD<D>, int16_t>()>* = nullptr
-#define HWY_IF_I32_D(D) hwy::EnableIf<IsSame<TFromD<D>, int32_t>()>* = nullptr
-#define HWY_IF_I64_D(D) hwy::EnableIf<IsSame<TFromD<D>, int64_t>()>* = nullptr
+#define HWY_IF_I8_D(D) HWY_IF_I8(TFromD<D>)
+#define HWY_IF_I16_D(D) HWY_IF_I16(TFromD<D>)
+#define HWY_IF_I32_D(D) HWY_IF_I32(TFromD<D>)
+#define HWY_IF_I64_D(D) HWY_IF_I64(TFromD<D>)
 
 // Use instead of HWY_IF_T_SIZE_D to avoid ambiguity with float16_t/float/double
 // overloads.
+#define HWY_IF_UI8_D(D) HWY_IF_UI8(TFromD<D>)
 #define HWY_IF_UI16_D(D) HWY_IF_UI16(TFromD<D>)
 #define HWY_IF_UI32_D(D) HWY_IF_UI32(TFromD<D>)
 #define HWY_IF_UI64_D(D) HWY_IF_UI64(TFromD<D>)
 
 #define HWY_IF_BF16_D(D) HWY_IF_BF16(TFromD<D>)
 #define HWY_IF_F16_D(D) HWY_IF_F16(TFromD<D>)
-#define HWY_IF_F32_D(D) hwy::EnableIf<IsSame<TFromD<D>, float>()>* = nullptr
-#define HWY_IF_F64_D(D) hwy::EnableIf<IsSame<TFromD<D>, double>()>* = nullptr
+#define HWY_IF_F32_D(D) HWY_IF_F32(TFromD<D>)
+#define HWY_IF_F64_D(D) HWY_IF_F64(TFromD<D>)
 
 #define HWY_IF_V_SIZE_D(D, bytes) \
   HWY_IF_V_SIZE(TFromD<D>, HWY_MAX_LANES_D(D), bytes)

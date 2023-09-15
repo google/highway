@@ -905,16 +905,31 @@ using If = typename IfT<Condition, Then, Else>::type;
 #define HWY_IF_T_SIZE_ONE_OF(T, bit_array) \
   hwy::EnableIf<((size_t{1} << sizeof(T)) & (bit_array)) != 0>* = nullptr
 
+#define HWY_IF_U8(T) hwy::EnableIf<IsSame<T, uint8_t>()>* = nullptr
+#define HWY_IF_U16(T) hwy::EnableIf<IsSame<T, uint16_t>()>* = nullptr
+#define HWY_IF_U32(T) hwy::EnableIf<IsSame<T, uint32_t>()>* = nullptr
+#define HWY_IF_U64(T) hwy::EnableIf<IsSame<T, uint64_t>()>* = nullptr
+
+#define HWY_IF_I8(T) hwy::EnableIf<IsSame<T, int8_t>()>* = nullptr
+#define HWY_IF_I16(T) hwy::EnableIf<IsSame<T, int16_t>()>* = nullptr
+#define HWY_IF_I32(T) hwy::EnableIf<IsSame<T, int32_t>()>* = nullptr
+#define HWY_IF_I64(T) hwy::EnableIf<IsSame<T, int64_t>()>* = nullptr
+
+#define HWY_IF_BF16(T) hwy::EnableIf<IsSame<T, hwy::bfloat16_t>()>* = nullptr
+#define HWY_IF_F16(T) hwy::EnableIf<IsSame<T, hwy::float16_t>()>* = nullptr
+#define HWY_IF_F32(T) hwy::EnableIf<IsSame<T, float>()>* = nullptr
+#define HWY_IF_F64(T) hwy::EnableIf<IsSame<T, double>()>* = nullptr
+
 // Use instead of HWY_IF_T_SIZE to avoid ambiguity with float16_t/float/double
 // overloads.
+#define HWY_IF_UI8(T) \
+  hwy::EnableIf<IsSame<T, uint8_t>() || IsSame<T, int8_t>()>* = nullptr
 #define HWY_IF_UI16(T) \
   hwy::EnableIf<IsSame<T, uint16_t>() || IsSame<T, int16_t>()>* = nullptr
 #define HWY_IF_UI32(T) \
   hwy::EnableIf<IsSame<T, uint32_t>() || IsSame<T, int32_t>()>* = nullptr
 #define HWY_IF_UI64(T) \
   hwy::EnableIf<IsSame<T, uint64_t>() || IsSame<T, int64_t>()>* = nullptr
-#define HWY_IF_BF16(T) hwy::EnableIf<IsSame<T, hwy::bfloat16_t>()>* = nullptr
-#define HWY_IF_F16(T) hwy::EnableIf<IsSame<T, hwy::float16_t>()>* = nullptr
 
 #define HWY_IF_LANES_PER_BLOCK(T, N, LANES) \
   hwy::EnableIf<HWY_MIN(sizeof(T) * N, 16) / sizeof(T) == (LANES)>* = nullptr

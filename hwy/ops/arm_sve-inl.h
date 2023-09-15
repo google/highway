@@ -184,15 +184,24 @@ HWY_SVE_FOREACH_BF16(HWY_SPECIALIZE, _, _)
   }
 
 // vector = f(vector, vector), e.g. Add
+#define HWY_SVE_RETV_ARGVV(BASE, CHAR, BITS, HALF, NAME, OP)   \
+  HWY_API HWY_SVE_V(BASE, BITS)                                \
+      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
+    return sv##OP##_##CHAR##BITS(a, b);                        \
+  }
+// All-true mask
 #define HWY_SVE_RETV_ARGPVV(BASE, CHAR, BITS, HALF, NAME, OP)    \
   HWY_API HWY_SVE_V(BASE, BITS)                                  \
       NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) {   \
     return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), a, b); \
   }
-#define HWY_SVE_RETV_ARGVV(BASE, CHAR, BITS, HALF, NAME, OP)   \
-  HWY_API HWY_SVE_V(BASE, BITS)                                \
-      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
-    return sv##OP##_##CHAR##BITS(a, b);                        \
+// User-specified mask. Mask=false value is undefined and must be set by caller
+// because SVE instructions take it from one of the two inputs, whereas
+// AVX-512, RVV and Highway allow a third argument.
+#define HWY_SVE_RETV_ARGMVV(BASE, CHAR, BITS, HALF, NAME, OP)              \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME(svbool_t m, HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
+    return sv##OP##_##CHAR##BITS##_x(m, a, b);                             \
   }
 
 #define HWY_SVE_RETV_ARGVVV(BASE, CHAR, BITS, HALF, NAME, OP) \
@@ -1014,6 +1023,41 @@ HWY_API svbool_t SetOnlyFirst(svbool_t m) { return svbrka_b_z(m, m); }
 
 HWY_API svbool_t SetAtOrAfterFirst(svbool_t m) {
   return Not(SetBeforeFirst(m));
+}
+
+// ------------------------------ MaskedAddOr etc. (IfThenElse)
+
+#ifdef HWY_NATIVE_MASKED_ARITH
+#undef HWY_NATIVE_MASKED_ARITH
+#else
+#define HWY_NATIVE_MASKED_ARITH
+#endif
+
+namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedAdd, add)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedSub, sub)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
+HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
+}  // namespace detail
+
+template <class V, class M>
+HWY_API V MaskedAddOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedAdd(m, a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedSubOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedSub(m, a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedMulOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedMul(m, a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedDivOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedDiv(m, a, b), no);
 }
 
 // ================================================== COMPARE
@@ -5209,6 +5253,7 @@ namespace detail {  // for code folding
 #undef HWY_SVE_FOREACH_UIF3264
 #undef HWY_SVE_HAVE_2
 #undef HWY_SVE_PTRUE
+#undef HWY_SVE_RETV_ARGMVV
 #undef HWY_SVE_RETV_ARGPV
 #undef HWY_SVE_RETV_ARGPVN
 #undef HWY_SVE_RETV_ARGPVV

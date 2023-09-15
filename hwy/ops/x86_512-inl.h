@@ -1643,6 +1643,138 @@ HWY_API Vec512<double> ApproximateReciprocal(Vec512<double> v) {
   return Vec512<double>{_mm512_rcp14_pd(v.raw)};
 }
 
+// ------------------------------ MaskedAddOr
+
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_ps(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_pd(no.raw, m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec512<T> MaskedAddOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_add_ph(no.raw, m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedSubOr
+
+template <typename T, HWY_IF_UI8(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI16(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI32(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_epi32(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_UI64(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_epi64(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_F32(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_ps(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_F64(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_pd(no.raw, m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+template <typename T, HWY_IF_F16(T)>
+HWY_API Vec512<T> MaskedSubOr(Vec512<T> no, Mask512<T> m, Vec512<T> a,
+                              Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_sub_ph(no.raw, m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedMulOr
+
+HWY_API Vec512<float> MaskedMulOr(Vec512<float> no, Mask512<float> m,
+                                  Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_mask_mul_ps(no.raw, m.raw, a.raw, b.raw)};
+}
+
+HWY_API Vec512<double> MaskedMulOr(Vec512<double> no, Mask512<double> m,
+                                   Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_mask_mul_pd(no.raw, m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MaskedMulOr(Vec512<float16_t> no,
+                                      Mask512<float16_t> m, Vec512<float16_t> a,
+                                      Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_mask_mul_ph(no.raw, m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+// ------------------------------ MaskedDivOr
+
+HWY_API Vec512<float> MaskedDivOr(Vec512<float> no, Mask512<float> m,
+                                  Vec512<float> a, Vec512<float> b) {
+  return Vec512<float>{_mm512_mask_div_ps(no.raw, m.raw, a.raw, b.raw)};
+}
+
+HWY_API Vec512<double> MaskedDivOr(Vec512<double> no, Mask512<double> m,
+                                   Vec512<double> a, Vec512<double> b) {
+  return Vec512<double>{_mm512_mask_div_pd(no.raw, m.raw, a.raw, b.raw)};
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MaskedDivOr(Vec512<float16_t> no,
+                                      Mask512<float16_t> m, Vec512<float16_t> a,
+                                      Vec512<float16_t> b) {
+  return Vec512<float16_t>{_mm512_mask_div_ph(no.raw, m.raw, a.raw, b.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
 // ------------------------------ Floating-point multiply-add variants
 
 #if HWY_HAVE_FLOAT16

@@ -674,6 +674,23 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
 *   `V`: `{f}` \
     <code>V **NegMulSub**(V a, V b, V c)</code>: returns `-a[i] * b[i] - c[i]`.
 
+#### Masked arithmetic
+
+All ops in this section return `no` for `mask=false` lanes, and suppress any
+exceptions for those lanes if that is supported by the ISA. When exceptions are
+not a concern, these are equivalent to, and potentially more efficient than,
+`IfThenElse(m, Add(a, b), no);` etc.
+
+*   <code>V **MaskedAddOr**(V no, M m, V a, V b)</code>: returns `a[i] + b[i]`
+    or `no[i]` if `m[i]` is false.
+*   <code>V **MaskedSubOr**(V no, M m, V a, V b)</code>: returns `a[i] - b[i]`
+    or `no[i]` if `m[i]` is false.
+*   <code>V **MaskedMulOr**(V no, M m, V a, V b)</code>: returns `a[i] * b[i]`
+    or `no[i]` if `m[i]` is false.
+*   `V`: `{f}` \
+    <code>V **MaskedDivOr**(V no, M m, V a, V b)</code>: returns `a[i] / b[i]`
+    or `no[i]` if `m[i]` is false.
+
 #### Shifts
 
 **Note**: Counts not in `[0, sizeof(T)*8)` yield implementation-defined results.

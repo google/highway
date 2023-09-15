@@ -525,6 +525,16 @@ HWY_API size_t Lanes(Simd<bfloat16_t, N, kPow2> /* tag*/) {
                                                 HWY_RVV_AVL(SEW, SHIFT));   \
   }
 
+// vector = f(vector, mask, vector, vector), e.g. MaskedAddOr
+#define HWY_RVV_RETV_ARGMVV(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
+                            SHIFT, MLEN, NAME, OP)                             \
+  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
+      NAME(HWY_RVV_V(BASE, SEW, LMUL) no, HWY_RVV_M(MLEN) m,                   \
+           HWY_RVV_V(BASE, SEW, LMUL) a, HWY_RVV_V(BASE, SEW, LMUL) b) {       \
+    return __riscv_v##OP##_vv_##CHAR##SEW##LMUL##_mu(m, no, a, b,              \
+                                                     HWY_RVV_AVL(SEW, SHIFT)); \
+  }
+
 // mask = f(mask)
 #define HWY_RVV_RETM_ARGM(SEW, SHIFT, MLEN, NAME, OP) \
   HWY_API HWY_RVV_M(MLEN) NAME(HWY_RVV_M(MLEN) m) {   \
@@ -1183,6 +1193,25 @@ HWY_RVV_FOREACH_I16(HWY_RVV_MUL15, MulFixedPoint15, smul, _ALL)
 
 // ------------------------------ Div
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Div, fdiv, _ALL)
+
+// ------------------------------ MaskedAddOr etc.
+
+#ifdef HWY_NATIVE_MASKED_ARITH
+#undef HWY_NATIVE_MASKED_ARITH
+#else
+#define HWY_NATIVE_MASKED_ARITH
+#endif
+
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGMVV, MaskedAddOr, add, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMVV, MaskedAddOr, fadd, _ALL)
+
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGMVV, MaskedSubOr, sub, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMVV, MaskedSubOr, fsub, _ALL)
+
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGMVV, MaskedMulOr, mul, _ALL)
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMVV, MaskedMulOr, fmul, _ALL)
+
+HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGMVV, MaskedDivOr, fdiv, _ALL)
 
 // ------------------------------ ApproximateReciprocal
 #ifdef HWY_NATIVE_F64_APPROX_RECIP
@@ -5056,6 +5085,7 @@ namespace detail {  // for code folding
 #undef HWY_RVV_INSERT_VXRM
 #undef HWY_RVV_M
 #undef HWY_RVV_RETM_ARGM
+#undef HWY_RVV_RETV_ARGMVV
 #undef HWY_RVV_RETV_ARGV
 #undef HWY_RVV_RETV_ARGVS
 #undef HWY_RVV_RETV_ARGVV
