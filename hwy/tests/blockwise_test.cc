@@ -98,9 +98,9 @@ struct TestTableLookupBytes {
     const size_t N8 = Lanes(d8);
 
     auto in_bytes = AllocateAligned<uint8_t>(NT8);
-    auto index_bytes = AllocateAligned<uint8_t>(N8);
+    auto indices = AllocateAligned<T>(N8);
     auto expected = AllocateAligned<T>(N);
-    HWY_ASSERT(in_bytes && index_bytes && expected);
+    HWY_ASSERT(in_bytes && indices && expected);
 
     // Random input bytes
     for (size_t i = 0; i < NT8; ++i) {
@@ -116,12 +116,13 @@ struct TestTableLookupBytes {
         11, 10, 3, 4, 5,  8,  7,  6,  14, 13, 12, 15, 2,  1,  2,  0,
         4,  3,  2, 2, 5,  6,  7,  7,  15, 15, 15, 15, 15, 15, 0,  1};
     const size_t max_index = HWY_MIN(NT8, 16) - 1;
+    uint8_t* index_bytes = reinterpret_cast<uint8_t*>(indices.get());
     for (size_t i = 0; i < N8; ++i) {
       index_bytes[i] = (i < 64) ? index_bytes_source[i] : 0;
       // Avoid asan error for partial vectors.
       index_bytes[i] = static_cast<uint8_t>(HWY_MIN(index_bytes[i], max_index));
     }
-    const auto indices = Load(d, reinterpret_cast<const T*>(index_bytes.get()));
+    const Vec<D> indices_v = Load(d, indices.get());
 
     uint8_t* expected_bytes = reinterpret_cast<uint8_t*>(expected.get());
 
@@ -138,7 +139,7 @@ struct TestTableLookupBytes {
             in_bytes[(block + index) % HWY_MIN(NT8, 256)];
       }
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytes(in, indices_v));
 
     // Individually test zeroing each byte position.
     for (size_t i = 0; i < N8; ++i) {
@@ -150,9 +151,8 @@ struct TestTableLookupBytes {
       HWY_ASSERT(0x80 <= idx && idx < 256);
       index_bytes[i] = static_cast<uint8_t>(idx);
 
-      const auto indices =
-          Load(d, reinterpret_cast<const T*>(index_bytes.get()));
-      HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytesOr0(in, indices));
+      const Vec<D> indices_v = Load(d, indices.get());
+      HWY_ASSERT_VEC_EQ(d, expected.get(), TableLookupBytesOr0(in, indices_v));
       expected_bytes[i] = prev_expected;
       index_bytes[i] = prev_index;
     }
