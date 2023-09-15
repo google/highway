@@ -131,8 +131,16 @@
 #if HWY_COMPILER_CLANG
 #define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",power10-vector"
 #else
-// See #1707 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=102059#c35
-#define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10,no-htm"
+// See #1707 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=102059#c35.
+// When the baseline is PPC 8 or 9, inlining functions such as PreventElision
+// into PPC10 code fails because PPC10 defaults to no-htm and is thus worse than
+// the baseline, which has htm. We cannot have pragma target on functions
+// outside HWY_NAMESPACE such as those in base.h. It would be possible for users
+// to set -mno-htm globally, but we can also work around this at the library
+// level by claiming that PPC10 still has HTM, thus avoiding the mismatch. This
+// seems to be safe because HTM uses builtins rather than modifying codegen, see
+// https://gcc.gnu.org/legacy-ml/gcc-patches/2013-07/msg00167.html.
+#define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10,htm"
 #endif
 
 // Before include guard so we redefine HWY_TARGET_STR on each include,
