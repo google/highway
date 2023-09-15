@@ -255,8 +255,13 @@ else()
       -march=armv7-a
       -mfpu=neon-vfpv4
       -mfloat-abi=hard  # must match the toolchain specified as CXX=
-      -mfp16-format=ieee  # required for vcvt_f32_f16
     )
+    if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+      # using GCC
+      list(APPEND HWY_FLAGS
+        -mfp16-format=ieee  # required for vcvt_f32_f16
+      )
+    endif()
   endif()  # HWY_CMAKE_ARM7
 
   if(HWY_RISCV)
