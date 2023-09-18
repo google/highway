@@ -1603,7 +1603,7 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `RepartitionToWide<DFromV<V>>`. Only available if `HWY_TARGET !=
     HWY_SCALAR`.
 
-#### Shift
+#### Shift within blocks
 
 Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
@@ -1635,7 +1635,18 @@ Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     `hi[i] || lo[i]` right by `int` lanes \[1, 16/sizeof(T)). `D` is
     `DFromV<V>`.
 
-#### Shuffle
+#### Other fixed-pattern permutations within blocks
+
+*   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
+    taken from `a` and the even lanes from `b`.
+
+*   <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
+    lanes to the next higher-indexed lane. For each even lane index `i`,
+    `r[i] == v[i]` and `r[i + 1] == v[i]`.
+
+*   <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
+    to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
+    v[i]` and `r[i - 1] == v[i]`. Only available if `HWY_TARGET != HWY_SCALAR`.
 
 Ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
 
@@ -1668,19 +1679,34 @@ instead because they are more general:
 
 ### Swizzle
 
-*   <code>V **OddEven**(V a, V b)</code>: returns a vector whose odd lanes are
-    taken from `a` and the even lanes from `b`.
+#### Reverse
 
-*   <code>V **OddEvenBlocks**(V a, V b)</code>: returns a vector whose odd
-    blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
-    vector has no more than one block (i.e. is 128 bits or scalar).
-
-*   <code>V **DupEven**(V v)</code>: returns `r`, the result of copying even
-    lanes to the next higher-indexed lane. For each even lane index `i`,
-    `r[i] == v[i]` and `r[i + 1] == v[i]`.
+*   <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
+    order (`out[i] == a[Lanes(D()) - 1 - i]`).
 
 *   <code>V **ReverseBlocks**(V v)</code>: returns a vector with blocks in
     reversed order.
+
+The following `ReverseN` must not be called if `Lanes(D()) < N`:
+
+*   <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
+    contiguous lanes in reversed order (`out[i] == a[i ^ 1]`).
+
+*   <code>V **Reverse4**(D, V a)</code> returns a vector with each group of 4
+    contiguous lanes in reversed order (`out[i] == a[i ^ 3]`).
+
+*   <code>V **Reverse8**(D, V a)</code> returns a vector with each group of 8
+    contiguous lanes in reversed order (`out[i] == a[i ^ 7]`).
+
+*   `V`: `{u,i}{16,32,64}` \
+    <code>V **ReverseLaneBytes**(V a)</code> returns a vector where the bytes of
+    each lane are swapped.
+
+*   `V`: `{u,i}` \
+    <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
+    lane are reversed.
+
+#### User-specified permutation across blocks
 
 *   <code>V **TableLookupLanes**(V a, unspecified)</code> returns a vector of
     `a[indices[i]]`, where `unspecified` is the return value of
@@ -1718,30 +1744,6 @@ instead because they are more general:
     must be in the range `[0, 2 * Lanes(d))` but need not be unique. The index
     type `TI` must be an integer of the same size as `TFromD<D>`.
 
-*   <code>V **BroadcastBlock**&lt;int kBlock&gt;(V v)</code>: broadcasts the
-    16-byte block of vector `v` at index `kBlock` to all of the blocks of the
-    result vector if `Lanes(DFromV<V>()) * sizeof(TFromV<V>) > 16` is true.
-    Otherwise, if `Lanes(DFromV<V>()) * sizeof(TFromV<V>) <= 16` is true,
-    returns `v`.
-
-    `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
-
-*   <code>V **BroadcastLane**&lt;int kLane&gt;(V v)</code>: returns a vector
-    with all of the lanes set to `v[kLane]`.
-
-    `kLane` must be in `[0, MaxLanes(DFromV<V>()))`.
-
-*   <code>V **Reverse**(D, V a)</code> returns a vector with lanes in reversed
-    order (`out[i] == a[Lanes(D()) - 1 - i]`).
-
-*   `V`: `{u,i}{16,32,64}` \
-    <code>V **ReverseLaneBytes**(V a)</code> returns a vector where the bytes of
-    each lane are swapped.
-
-*   `V`: `{u,i}` \
-    <code>V **ReverseBits**(V a)</code> returns a vector where the bits of each
-    lane are reversed.
-
 *   <code>V **Per4LaneBlockShuffle**&lt;size_t kIdx3, size_t kIdx2, size_t
     kIdx1, size_t kIdx0&gt;(V v)</code> does a per 4-lane block shuffle of `v`
     if `Lanes(DFromV<V>())` is greater than or equal to 4 or a shuffle of the
@@ -1763,6 +1765,8 @@ instead because they are more general:
     Per4LaneBlockShuffle returns an unspecified value in the second lane of the
     result. Otherwise, Per4LaneBlockShuffle returns `v[kIdx1]` in the first lane
     of the result.
+
+#### Slide across blocks
 
 *   <code>V **SlideUpLanes**(D d, V v, size_t N)</code>: slides up `v` by `N`
     lanes
@@ -1833,26 +1837,29 @@ instead because they are more general:
     The results of `SlideDownBlocks<kBlocks>(d, v)` is implementation-defined if
     `kBlocks >= Blocks(d)` is true.
 
-The following `ReverseN` must not be called if `Lanes(D()) < N`:
+#### Other fixed-pattern across blocks
 
-*   <code>V **Reverse2**(D, V a)</code> returns a vector with each group of 2
-    contiguous lanes in reversed order (`out[i] == a[i ^ 1]`).
+*   <code>V **BroadcastLane**&lt;int kLane&gt;(V v)</code>: returns a vector
+    with all of the lanes set to `v[kLane]`.
 
-*   <code>V **Reverse4**(D, V a)</code> returns a vector with each group of 4
-    contiguous lanes in reversed order (`out[i] == a[i ^ 3]`).
+    `kLane` must be in `[0, MaxLanes(DFromV<V>()))`.
 
-*   <code>V **Reverse8**(D, V a)</code> returns a vector with each group of 8
-    contiguous lanes in reversed order (`out[i] == a[i ^ 7]`).
+*   <code>V **BroadcastBlock**&lt;int kBlock&gt;(V v)</code>: broadcasts the
+    16-byte block of vector `v` at index `kBlock` to all of the blocks of the
+    result vector if `Lanes(DFromV<V>()) * sizeof(TFromV<V>) > 16` is true.
+    Otherwise, if `Lanes(DFromV<V>()) * sizeof(TFromV<V>) <= 16` is true,
+    returns `v`.
 
-All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
+    `kBlock` must be in `[0, DFromV<V>().MaxBlocks())`.
 
-*   <code>V **DupOdd**(V v)</code>: returns `r`, the result of copying odd lanes
-    to the previous lower-indexed lane. For each odd lane index `i`, `r[i] ==
-    v[i]` and `r[i - 1] == v[i]`.
+*   <code>V **OddEvenBlocks**(V a, V b)</code>: returns a vector whose odd
+    blocks are taken from `a` and the even blocks from `b`. Returns `b` if the
+    vector has no more than one block (i.e. is 128 bits or scalar).
 
 *   <code>V **SwapAdjacentBlocks**(V v)</code>: returns a vector where blocks of
     index `2*i` and `2*i+1` are swapped. Results are undefined for vectors with
-    less than two blocks; callers must first check that via `Lanes`.
+    less than two blocks; callers must first check that via `Lanes`. Only
+    available if `HWY_TARGET != HWY_SCALAR`.
 
 ### Reductions
 
