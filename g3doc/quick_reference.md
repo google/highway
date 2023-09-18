@@ -1222,12 +1222,18 @@ aligned memory at indices which are not a multiple of the vector length):
 #### Scatter/Gather
 
 **Note**: Offsets/indices are of type `VI = Vec<RebindToSigned<D>>` and need not
-be unique. The results are implementation-defined if any are negative.
+be unique. The results are implementation-defined for negative offsets, because
+behavior differs between x86 and RVV (signed vs. unsigned).
 
 **Note**: Where possible, applications should `Load/Store/TableLookup*` entire
 vectors, which is much faster than `Scatter/Gather`. Otherwise, code of the form
 `dst[tbl[i]] = F(src[i])` should when possible be transformed to `dst[i] =
-F(src[tbl[i]])` because `Scatter` is more expensive than `Gather`.
+F(src[tbl[i]])` because `Scatter` may be more expensive than `Gather`.
+
+**Note**: We provide `*Offset` functions for the convenience of users that have
+actual byte offsets. However, the preferred interface is `*Index`, which takes
+indices. To reduce the number of ops, we do not intend to add `Masked*` ops for
+offsets. If you have offsets, you can convert them to indices via `ShiftRight`.
 
 *   `D`: `{u,i,f}{32,64}` \
     <code>void **ScatterOffset**(Vec&lt;D&gt; v, D, T* base, VI offsets)</code>:
