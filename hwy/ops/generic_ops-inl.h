@@ -237,6 +237,15 @@ HWY_API V MaskedDivOr(V no, M m, V a, V b) {
   return IfThenElse(m, Div(a, b), no);
 }
 
+template <class V, class M>
+HWY_API V MaskedSatAddOr(V no, M m, V a, V b) {
+  return IfThenElse(m, SaturatedAdd(a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
+  return IfThenElse(m, SaturatedSub(a, b), no);
+}
 #endif  // HWY_NATIVE_MASKED_ARITH
 
 // "Include guard": skip if native instructions are available. The generic

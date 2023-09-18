@@ -690,6 +690,12 @@ not a concern, these are equivalent to, and potentially more efficient than,
 *   `V`: `{f}` \
     <code>V **MaskedDivOr**(V no, M m, V a, V b)</code>: returns `a[i] / b[i]`
     or `no[i]` if `m[i]` is false.
+*   `V`: `{u,i}{8,16}` \
+    <code>V **MaskedSatAddOr**(V no, M m, V a, V b)</code>: returns `a[i] + b[i]`
+    saturated to the minimum/maximum representable value, or `no[i]` if `m[i]` is false.
+*   `V`: `{u,i}{8,16}` \
+    <code>V **MaskedSatSubOr**(V no, M m, V a, V b)</code>: returns `a[i] + b[i]`
+    saturated to the minimum/maximum representable value, or `no[i]` if `m[i]` is false.
 
 #### Shifts
 

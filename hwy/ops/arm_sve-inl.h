@@ -1038,6 +1038,10 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedAdd, add)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedSub, sub)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
+#if HWY_SVE_HAVE_2
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAdd, qadd)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSub, qsub)
+#endif
 }  // namespace detail
 
 template <class V, class M>
@@ -1059,6 +1063,28 @@ template <class V, class M>
 HWY_API V MaskedDivOr(V no, M m, V a, V b) {
   return IfThenElse(m, detail::MaskedDiv(m, a, b), no);
 }
+
+#if HWY_SVE_HAVE_2
+template <class V, class M>
+HWY_API V MaskedSatAddOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedSatAdd(m, a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedSatSub(m, a, b), no);
+}
+#else
+template <class V, class M>
+HWY_API V MaskedSatAddOr(V no, M m, V a, V b) {
+  return IfThenElse(m, SaturatedAdd(a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
+  return IfThenElse(m, SaturatedSub(a, b), no);
+}
+#endif
 
 // ================================================== COMPARE
 
