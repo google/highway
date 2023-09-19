@@ -4217,6 +4217,58 @@ HWY_API Vec256<float16_t> MaskedDivOr(Vec256<float16_t> no,
 }
 #endif  // HWY_HAVE_FLOAT16
 
+// ------------------------------ MaskedSatAddOr
+
+template <typename T, size_t N, HWY_IF_I8(T)>
+HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_adds_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_U8(T)>
+HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_adds_epu8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_I16(T)>
+HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_adds_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_U16(T)>
+HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_adds_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedSatSubOr
+
+template <typename T, size_t N, HWY_IF_I8(T)>
+HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_subs_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_U8(T)>
+HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_subs_epu8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_I16(T)>
+HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_subs_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, size_t N, HWY_IF_U16(T)>
+HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
+                                 Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Floating-point multiply-add variants

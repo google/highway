@@ -2544,6 +2544,58 @@ HWY_API Vec256<float16_t> MaskedDivOr(Vec256<float16_t> no,
 }
 #endif  // HWY_HAVE_FLOAT16
 
+// ------------------------------ MaskedSatAddOr
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_adds_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_adds_epu8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_adds_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_adds_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedSatSubOr
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_subs_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_subs_epu8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_subs_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
+                                 Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Floating-point multiply-add variants

@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>  // std::clamp
+#include <cmath>      // std::numeric_limits
+
 #include "hwy/base.h"
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/masked_arithmetic_test.cc"
@@ -79,6 +82,114 @@ struct TestAddSubMul {
 
 HWY_NOINLINE void TestAllAddSubMul() {
   ForAllTypes(ForPartialVectors<TestAddSubMul>());
+}
+
+struct TestUnsignedSatAddSub {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+
+    HWY_ASSERT(bool_lanes);
+
+    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
+
+    const auto v0 = Zero(d);
+    const auto vi = Iota(d, T{1});
+    const auto vm = Set(d, LimitsMax<T>());
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      }
+      const VI mask_i = Load(di, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
+
+      const auto disabled_lane_val = Iota(d, T{2});
+
+      auto expected_value_add = IfThenElse(mask, Set(d, static_cast<T>(0)), disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, v0, v0));
+      expected_value_add = IfThenElse(mask, vi, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, v0, vi));
+      expected_value_add = IfThenElse(mask, Set(d, static_cast<T>(LimitsMax<T>())), disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, v0, vm));
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, vi, vm));
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, vm, vm));
+
+      auto expected_value_sub = IfThenElse(mask, Set(d, static_cast<T>(0)), disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, v0, v0));
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, v0, vi));
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, vi, vi));
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, vi, vm));
+      expected_value_sub = IfThenElse(mask, Sub(vm, vi), disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, vm, vi));
+    }
+  }
+};
+
+struct TestSignedSatAddSub {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    RandomState rng;
+
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    using VI = Vec<decltype(di)>;
+    const size_t N = Lanes(d);
+    auto bool_lanes = AllocateAligned<TI>(N);
+
+    HWY_ASSERT(bool_lanes);
+
+    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
+
+    const auto v0 = Zero(d);
+    const auto vpm = Set(d, LimitsMax<T>());
+    // Ensure all lanes are positive, even if Iota wraps around
+    const auto vi = Or(And(Iota(d, 0), vpm), Set(d, T{1}));
+    const auto vn = Sub(v0, vi);
+    const auto vnm = Set(d, LimitsMin<T>());
+
+    // Each lane should have a chance of having mask=true.
+    for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+      }
+      const VI mask_i = Load(di, bool_lanes.get());
+      const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
+
+      const auto disabled_lane_val = Iota(d, T{2});
+
+      auto expected_value_add = IfThenElse(mask, v0, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, v0, v0));
+      expected_value_add = IfThenElse(mask, vi, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, v0, vi));
+      expected_value_add = IfThenElse(mask, vpm, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, v0, vpm));
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, vi, vpm));
+      HWY_ASSERT_VEC_EQ(d, expected_value_add, MaskedSatAddOr(v2, mask, vpm, vpm));
+
+      auto expected_value_sub = IfThenElse(mask, v0, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, v0, v0));
+      expected_value_sub = IfThenElse(mask, Sub(v0, vi), disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, v0, vi));
+      expected_value_sub = IfThenElse(mask, vn, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, vn, v0));
+      expected_value_sub = IfThenElse(mask, vnm, disabled_lane_val);
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, vnm, vi));
+      HWY_ASSERT_VEC_EQ(d, expected_value_sub, MaskedSatSubOr(v2, mask, vnm, vpm));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllSatAddSub() {
+  ForU816(ForPartialVectors<TestUnsignedSatAddSub>());
+  ForI816(ForPartialVectors<TestSignedSatAddSub>());
 }
 
 struct TestDiv {
@@ -160,6 +271,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyMaskedArithmeticTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllAddSubMul);
+HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllSatAddSub);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllDiv);
 HWY_EXPORT_AND_TEST_P(HwyMaskedArithmeticTest, TestAllFloatExceptions);
 }  // namespace hwy

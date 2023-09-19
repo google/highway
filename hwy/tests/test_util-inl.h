@@ -756,6 +756,18 @@ void ForUIF3264(const Func& func) {
 }
 
 template <class Func>
+void ForU816(const Func& func) {
+  func(uint8_t());
+  func(uint16_t());
+}
+
+template <class Func>
+void ForI816(const Func& func) {
+  func(int8_t());
+  func(int16_t());
+}
+
+template <class Func>
 void ForU163264(const Func& func) {
   func(uint16_t());
   func(uint32_t());

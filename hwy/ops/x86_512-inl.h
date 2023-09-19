@@ -1775,6 +1775,58 @@ HWY_API Vec512<float16_t> MaskedDivOr(Vec512<float16_t> no,
 }
 #endif  // HWY_HAVE_FLOAT16
 
+// ------------------------------ MaskedSatAddOr
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec512<T> MaskedSatAddOr(Vec512<T> no, Mask512<T> m,
+                                 Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_adds_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec512<T> MaskedSatAddOr(Vec512<T> no, Mask512<T> m,
+                                 Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_adds_epu8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec512<T> MaskedSatAddOr(Vec512<T> no, Mask512<T> m,
+                                    Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_adds_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec512<T> MaskedSatAddOr(Vec512<T> no, Mask512<T> m,
+                                    Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_adds_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+// ------------------------------ MaskedSatSubOr
+
+template <typename T, HWY_IF_I8(T)>
+HWY_API Vec512<T> MaskedSatSubOr(Vec512<T> no, Mask512<T> m,
+                                 Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_subs_epi8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U8(T)>
+HWY_API Vec512<T> MaskedSatSubOr(Vec512<T> no, Mask512<T> m,
+                                 Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_subs_epu8(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_I16(T)>
+HWY_API Vec512<T> MaskedSatSubOr(Vec512<T> no, Mask512<T> m,
+                                 Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_subs_epi16(no.raw, m.raw, a.raw, b.raw)};
+}
+
+template <typename T, HWY_IF_U16(T)>
+HWY_API Vec512<T> MaskedSatSubOr(Vec512<T> no, Mask512<T> m,
+                                 Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
+}
+
 // ------------------------------ Floating-point multiply-add variants
 
 #if HWY_HAVE_FLOAT16
