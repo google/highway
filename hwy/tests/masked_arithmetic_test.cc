@@ -13,9 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>  // std::clamp
-#include <cmath>      // std::numeric_limits
-
 #include "hwy/base.h"
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/masked_arithmetic_test.cc"
