@@ -209,6 +209,49 @@ HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
 
 #endif  // HWY_NATIVE_BITWISE_IF_THEN_ELSE
 
+// ------------------------------ InterleaveWholeLower/InterleaveWholeUpper
+#if (defined(HWY_NATIVE_INTERLEAVE_WHOLE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INTERLEAVE_WHOLE
+#undef HWY_NATIVE_INTERLEAVE_WHOLE
+#else
+#define HWY_NATIVE_INTERLEAVE_WHOLE
+#endif
+
+#if HWY_TARGET != HWY_SCALAR
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
+  // InterleaveWholeLower(d, a, b) is equivalent to InterleaveLower(a, b) if
+  // D().MaxBytes() <= 16 is true
+  return InterleaveLower(d, a, b);
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  // InterleaveWholeUpper(d, a, b) is equivalent to InterleaveUpper(a, b) if
+  // D().MaxBytes() <= 16 is true
+  return InterleaveUpper(d, a, b);
+}
+
+// InterleaveWholeLower/InterleaveWholeUpper for 32-byte vectors on AVX2/AVX3
+// is implemented in x86_256-inl.h.
+
+// InterleaveWholeLower/InterleaveWholeUpper for 64-byte vectors on AVX3 is
+// implemented in x86_512-inl.h.
+
+// InterleaveWholeLower/InterleaveWholeUpper for 32-byte vectors on WASM_EMU256
+// is implemented in wasm_256-inl.h.
+#endif  // HWY_TARGET != HWY_SCALAR
+
+#endif  // HWY_NATIVE_INTERLEAVE_WHOLE
+
+#if HWY_TARGET != HWY_SCALAR
+// The InterleaveWholeLower without the optional D parameter is generic for all
+// vector lengths.
+template <class V>
+HWY_API V InterleaveWholeLower(V a, V b) {
+  return InterleaveWholeLower(DFromV<V>(), a, b);
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
 // ------------------------------ MaskedAddOr etc.
 #if (defined(HWY_NATIVE_MASKED_ARITH) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASKED_ARITH

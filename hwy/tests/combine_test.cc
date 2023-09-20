@@ -284,6 +284,67 @@ HWY_NOINLINE void TestAllConcatOddEven() {
   ForAllTypes(ForShrinkableVectors<TestConcatOddEven>());
 }
 
+struct TestInterleaveWholeHalves {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+#if HWY_TARGET != HWY_SCALAR
+    const size_t N = Lanes(d);
+    using TU = MakeUnsigned<T>;
+
+    constexpr TU kMsb = SignMask<T>();
+    const TU hi_bit = (!IsFloat<T>() && !IsSpecialFloat<T>() && N < kMsb)
+                          ? static_cast<TU>(N)
+                          : kMsb;
+    const TU lo_mask = static_cast<TU>(hi_bit - TU{1});
+
+    const RebindToUnsigned<decltype(d)> du;
+    const auto v0 = And(Iota(d, T{0}), BitCast(d, Set(du, lo_mask)));
+    const auto v1 = Or(v0, BitCast(d, Set(du, hi_bit)));
+
+    auto v0_lanes = AllocateAligned<T>(N);
+    auto v1_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(v0_lanes && v1_lanes && expected);
+
+    Store(v0, d, v0_lanes.get());
+    Store(v1, d, v1_lanes.get());
+
+    const size_t half_N = N / 2;
+    for (size_t i = 0; i < half_N; i++) {
+      expected[2 * i] = v0_lanes[i];
+      expected[2 * i + 1] = v1_lanes[i];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveWholeLower(d, v0, v1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveWholeLower(v0, v1));
+
+    for (size_t i = 0; i < half_N; i++) {
+      expected[2 * i] = v1_lanes[i];
+      expected[2 * i + 1] = v0_lanes[i];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveWholeLower(d, v1, v0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveWholeLower(v1, v0));
+
+    for (size_t i = 0; i < half_N; i++) {
+      expected[2 * i] = v0_lanes[i + half_N];
+      expected[2 * i + 1] = v1_lanes[i + half_N];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveWholeUpper(d, v0, v1));
+
+    for (size_t i = 0; i < half_N; i++) {
+      expected[2 * i] = v1_lanes[i + half_N];
+      expected[2 * i + 1] = v0_lanes[i + half_N];
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveWholeUpper(d, v1, v0));
+#else
+    (void)d;
+#endif  // HWY_TARGET != HWY_SCALAR
+  }
+};
+
+HWY_NOINLINE void TestAllInterleaveWholeHalves() {
+  ForAllTypes(ForShrinkableVectors<TestInterleaveWholeHalves>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -299,6 +360,7 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllZeroExtendVector);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcat);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcatOddEven);
+HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllInterleaveWholeHalves);
 }  // namespace hwy
 
 #endif  // HWY_ONCE

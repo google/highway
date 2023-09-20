@@ -2227,12 +2227,10 @@ HWY_API V InterleaveLower(const V a, const V b) {
 
 // Only use zip2 if vector are a powers of two, otherwise getting the actual
 // "upper half" requires MaskUpperHalf.
-#if HWY_TARGET == HWY_SVE2_128
 namespace detail {
 // Unlike Highway's ZipUpper, this returns the same type.
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGVV, ZipUpperSame, zip2)
 }  // namespace detail
-#endif
 
 // Full vector: guaranteed to have at least one block
 template <class D, class V = VFromD<D>,
@@ -2262,6 +2260,30 @@ HWY_API V InterleaveUpper(D d, const V a, const V b) {
     return InterleaveLower(d, UpperHalf(d2, a), UpperHalf(d2, b));
   }
   return InterleaveUpper(DFromV<V>(), a, b);
+}
+
+// ------------------------------ InterleaveWholeLower
+#ifdef HWY_NATIVE_INTERLEAVE_WHOLE
+#undef HWY_NATIVE_INTERLEAVE_WHOLE
+#else
+#define HWY_NATIVE_INTERLEAVE_WHOLE
+#endif
+
+template <class D>
+HWY_API VFromD<D> InterleaveWholeLower(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return detail::ZipLowerSame(a, b);
+}
+
+// ------------------------------ InterleaveWholeUpper
+
+template <class D>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  if (HWY_SVE_IS_POW2 && detail::IsFull(d)) {
+    return detail::ZipUpperSame(a, b);
+  }
+
+  const Half<decltype(d)> d2;
+  return InterleaveWholeLower(d, UpperHalf(d2, a), UpperHalf(d2, b));
 }
 
 // ------------------------------ Per4LaneBlockShuffle
