@@ -4779,116 +4779,129 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D d,
 
 namespace detail {
 
-template <int kScale, class D, class VI, HWY_IF_UI32_D(D)>
-HWY_INLINE VFromD<D> NativeGather128(D /* tag */,
-                                     const TFromD<D>* HWY_RESTRICT base,
-                                     VI index) {
-  return VFromD<D>{_mm_i32gather_epi32(reinterpret_cast<const int32_t*>(base),
-                                       index.raw, kScale)};
+template <int kScale, typename T, size_t N, HWY_IF_UI32(T)>
+HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
+                                        Vec128<int32_t, N> indices) {
+  return Vec128<T, N>{_mm_i32gather_epi32(
+      reinterpret_cast<const int32_t*>(base), indices.raw, kScale)};
 }
 
-template <int kScale, class D, class VI, HWY_IF_UI64_D(D)>
-HWY_INLINE VFromD<D> NativeGather128(D /* tag */,
-                                     const TFromD<D>* HWY_RESTRICT base,
-                                     VI index) {
-  return VFromD<D>{_mm_i64gather_epi64(
-      reinterpret_cast<const GatherIndex64*>(base), index.raw, kScale)};
+template <int kScale, typename T, size_t N, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T, N> NativeGather128(const T* HWY_RESTRICT base,
+                                        Vec128<int64_t, N> indices) {
+  return Vec128<T, N>{_mm_i64gather_epi64(
+      reinterpret_cast<const GatherIndex64*>(base), indices.raw, kScale)};
 }
 
-template <int kScale, class D, class VI, HWY_IF_F32_D(D)>
-HWY_INLINE VFromD<D> NativeGather128(D /* tag */,
-                                     const float* HWY_RESTRICT base, VI index) {
-  return VFromD<D>{_mm_i32gather_ps(base, index.raw, kScale)};
+template <int kScale, size_t N>
+HWY_INLINE Vec128<float, N> NativeGather128(const float* HWY_RESTRICT base,
+                                            Vec128<int32_t, N> indices) {
+  return Vec128<float, N>{_mm_i32gather_ps(base, indices.raw, kScale)};
 }
 
-template <int kScale, class D, class VI, HWY_IF_F64_D(D)>
-HWY_INLINE VFromD<D> NativeGather128(D /* tag */,
-                                     const double* HWY_RESTRICT base,
-                                     VI index) {
-  return VFromD<D>{_mm_i64gather_pd(base, index.raw, kScale)};
+template <int kScale, size_t N>
+HWY_INLINE Vec128<double, N> NativeGather128(const double* HWY_RESTRICT base,
+                                             Vec128<int64_t, N> indices) {
+  return Vec128<double, N>{_mm_i64gather_pd(base, indices.raw, kScale)};
 }
 
-template <int kScale, class D, class VI, HWY_IF_UI32_D(D)>
-HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
-                                           const TFromD<D>* HWY_RESTRICT base,
-                                           VI index) {
-  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
-  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+template <int kScale, typename T, size_t N, HWY_IF_UI32(T)>
+HWY_INLINE Vec128<T, N> NativeMaskedGatherOr128(Vec128<T, N> no,
+                                                Mask128<T, N> m,
+                                                const T* HWY_RESTRICT base,
+                                                Vec128<int32_t, N> indices) {
 #if HWY_TARGET <= HWY_AVX3
-  return VFromD<D>{_mm_mmask_i32gather_epi32(
-      Zero(d).raw, m.raw, index.raw, reinterpret_cast<const int32_t*>(base),
+  return Vec128<T, N>{_mm_mmask_i32gather_epi32(
+      no.raw, m.raw, indices.raw, reinterpret_cast<const int32_t*>(base),
       kScale)};
 #else
-  return VFromD<D>{_mm_mask_i32gather_epi32(
-      Zero(d).raw, reinterpret_cast<const int32_t*>(base), index.raw, m.raw,
+  return Vec128<T, N>{
+      _mm_mask_i32gather_epi32(no.raw, reinterpret_cast<const int32_t*>(base),
+                               indices.raw, m.raw, kScale)};
+#endif
+}
+
+template <int kScale, typename T, size_t N, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T, N> NativeMaskedGatherOr128(Vec128<T, N> no,
+                                                Mask128<T, N> m,
+                                                const T* HWY_RESTRICT base,
+                                                Vec128<int64_t, N> indices) {
+#if HWY_TARGET <= HWY_AVX3
+  return Vec128<T, N>{_mm_mmask_i64gather_epi64(
+      no.raw, m.raw, indices.raw, reinterpret_cast<const GatherIndex64*>(base),
+      kScale)};
+#else
+  return Vec128<T, N>{_mm_mask_i64gather_epi64(
+      no.raw, reinterpret_cast<const GatherIndex64*>(base), indices.raw, m.raw,
       kScale)};
 #endif
 }
 
-template <int kScale, class D, class VI, HWY_IF_UI64_D(D)>
-HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
-                                           const TFromD<D>* HWY_RESTRICT base,
-                                           VI index) {
-  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
-  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+template <int kScale, size_t N>
+HWY_INLINE Vec128<float, N> NativeMaskedGatherOr128(
+    Vec128<float, N> no, Mask128<float, N> m, const float* HWY_RESTRICT base,
+    Vec128<int32_t, N> indices) {
 #if HWY_TARGET <= HWY_AVX3
-  return VFromD<D>{_mm_mmask_i64gather_epi64(
-      Zero(d).raw, m.raw, index.raw,
-      reinterpret_cast<const GatherIndex64*>(base), kScale)};
+  return Vec128<float, N>{
+      _mm_mmask_i32gather_ps(no.raw, m.raw, indices.raw, base, kScale)};
 #else
-  return VFromD<D>{_mm_mask_i64gather_epi64(
-      Zero(d).raw, reinterpret_cast<const GatherIndex64*>(base), index.raw,
-      m.raw, kScale)};
+  return Vec128<float, N>{
+      _mm_mask_i32gather_ps(no.raw, base, indices.raw, m.raw, kScale)};
 #endif
 }
 
-template <int kScale, class D, class VI, HWY_IF_F32_D(D)>
-HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
-                                           const float* HWY_RESTRICT base,
-                                           VI index) {
-  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
-  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+template <int kScale, size_t N>
+HWY_INLINE Vec128<double, N> NativeMaskedGatherOr128(
+    Vec128<double, N> no, Mask128<double, N> m, const double* HWY_RESTRICT base,
+    Vec128<int64_t, N> indices) {
 #if HWY_TARGET <= HWY_AVX3
-  return VFromD<D>{
-      _mm_mmask_i32gather_ps(Zero(d).raw, m.raw, index.raw, base, kScale)};
+  return Vec128<double, N>{
+      _mm_mmask_i64gather_pd(no.raw, m.raw, indices.raw, base, kScale)};
 #else
-  return VFromD<D>{
-      _mm_mask_i32gather_ps(Zero(d).raw, base, index.raw, m.raw, kScale)};
-#endif
-}
-
-template <int kScale, class D, class VI, HWY_IF_F64_D(D)>
-HWY_INLINE VFromD<D> NativeMaskedGather128(MFromD<D> m, D d,
-                                           const double* HWY_RESTRICT base,
-                                           VI index) {
-  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
-  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
-#if HWY_TARGET <= HWY_AVX3
-  return VFromD<D>{
-      _mm_mmask_i64gather_pd(Zero(d).raw, m.raw, index.raw, base, kScale)};
-#else
-  return VFromD<D>{
-      _mm_mask_i64gather_pd(Zero(d).raw, base, index.raw, m.raw, kScale)};
+  return Vec128<double, N>{
+      _mm_mask_i64gather_pd(no.raw, base, indices.raw, m.raw, kScale)};
 #endif
 }
 
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API VFromD<D> GatherOffset(D d, const T* HWY_RESTRICT base, VI offset) {
-  static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
-  return detail::NativeGather128<1>(d, base, offset);
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> GatherOffset(D d, const TFromD<D>* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> offsets) {
+  const RebindToSigned<decltype(d)> di;
+  (void)di;  // for HWY_DASSERT
+  HWY_DASSERT(AllFalse(di, Lt(offsets, Zero(di))));
+  return detail::NativeGather128<1>(base, offsets);
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
-HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base, VI index) {
-  static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
-  return detail::NativeGather128<sizeof(T)>(d, base, index);
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>>
+HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
+                              VFromD<RebindToSigned<D>> indices) {
+  const RebindToSigned<decltype(d)> di;
+  (void)di;  // for HWY_DASSERT
+  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
+  return detail::NativeGather128<sizeof(T)>(base, indices);
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>, class VI>
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), typename T = TFromD<D>>
+HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
+                                      const T* HWY_RESTRICT base,
+                                      VFromD<RebindToSigned<D>> indices) {
+  // For partial vectors, ensure upper mask lanes are zero to prevent faults.
+  if (!detail::IsFull(d)) m = And(m, FirstN(d, Lanes(d)));
+
+  const RebindToSigned<decltype(d)> di;
+  (void)di;  // for HWY_DASSERT
+  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
+  return detail::NativeMaskedGatherOr128<sizeof(T)>(no, m, base, indices);
+}
+
+// Generic for all vector lengths.
+template <class D>
 HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
-                                    const T* HWY_RESTRICT base, VI index) {
-  static_assert(sizeof(T) == sizeof(TFromV<VI>), "Index/lane size must match");
-  return detail::NativeMaskedGather128<sizeof(T)>(m, d, base, index);
+                                    const TFromD<D>* HWY_RESTRICT base,
+                                    VFromD<RebindToSigned<D>> indices) {
+  return MaskedGatherIndexOr(Zero(d), m, d, base, indices);
 }
 
 #endif  // HWY_TARGET <= HWY_AVX2

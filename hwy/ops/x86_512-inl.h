@@ -2940,84 +2940,90 @@ HWY_API void MaskedScatterIndex(VFromD<D> v, MFromD<D> m, D /* tag */,
 namespace detail {
 
 template <int kScale, typename T, HWY_IF_UI32(T)>
-HWY_INLINE Vec512<T> NativeGather(const T* HWY_RESTRICT base,
-                                  Vec512<int32_t> index) {
-  return Vec512<T>{_mm512_i32gather_epi32(index.raw, base, kScale)};
+HWY_INLINE Vec512<T> NativeGather512(const T* HWY_RESTRICT base,
+                                     Vec512<int32_t> indices) {
+  return Vec512<T>{_mm512_i32gather_epi32(indices.raw, base, kScale)};
 }
 
 template <int kScale, typename T, HWY_IF_UI64(T)>
-HWY_INLINE Vec512<T> NativeGather(const T* HWY_RESTRICT base,
-                                  Vec512<int64_t> index) {
-  return Vec512<T>{_mm512_i64gather_epi64(index.raw, base, kScale)};
+HWY_INLINE Vec512<T> NativeGather512(const T* HWY_RESTRICT base,
+                                     Vec512<int64_t> indices) {
+  return Vec512<T>{_mm512_i64gather_epi64(indices.raw, base, kScale)};
 }
 
 template <int kScale>
-HWY_INLINE Vec512<float> NativeGather(const float* HWY_RESTRICT base,
-                                      Vec512<int32_t> index) {
-  return Vec512<float>{_mm512_i32gather_ps(index.raw, base, kScale)};
+HWY_INLINE Vec512<float> NativeGather512(const float* HWY_RESTRICT base,
+                                         Vec512<int32_t> indices) {
+  return Vec512<float>{_mm512_i32gather_ps(indices.raw, base, kScale)};
 }
 
 template <int kScale>
-HWY_INLINE Vec512<double> NativeGather(const double* HWY_RESTRICT base,
-                                       Vec512<int64_t> index) {
-  return Vec512<double>{_mm512_i64gather_pd(index.raw, base, kScale)};
+HWY_INLINE Vec512<double> NativeGather512(const double* HWY_RESTRICT base,
+                                          Vec512<int64_t> indices) {
+  return Vec512<double>{_mm512_i64gather_pd(indices.raw, base, kScale)};
 }
 
 template <int kScale, typename T, HWY_IF_UI32(T)>
-HWY_INLINE Vec512<T> NativeMaskedGather(Mask512<T> m,
-                                        const T* HWY_RESTRICT base,
-                                        Vec512<int32_t> index) {
-  const Full512<T> d;
+HWY_INLINE Vec512<T> NativeMaskedGatherOr512(Vec512<T> no, Mask512<T> m,
+                                             const T* HWY_RESTRICT base,
+                                             Vec512<int32_t> indices) {
   return Vec512<T>{
-      _mm512_mask_i32gather_epi32(Zero(d).raw, m.raw, index.raw, base, kScale)};
+      _mm512_mask_i32gather_epi32(no.raw, m.raw, indices.raw, base, kScale)};
 }
 
 template <int kScale, typename T, HWY_IF_UI64(T)>
-HWY_INLINE Vec512<T> NativeMaskedGather(Mask512<T> m,
-                                        const T* HWY_RESTRICT base,
-                                        Vec512<int64_t> index) {
-  const Full512<T> d;
+HWY_INLINE Vec512<T> NativeMaskedGatherOr512(Vec512<T> no, Mask512<T> m,
+                                             const T* HWY_RESTRICT base,
+                                             Vec512<int64_t> indices) {
   return Vec512<T>{
-      _mm512_mask_i64gather_epi64(Zero(d).raw, m.raw, index.raw, base, kScale)};
+      _mm512_mask_i64gather_epi64(no.raw, m.raw, indices.raw, base, kScale)};
 }
 
 template <int kScale>
-HWY_INLINE Vec512<float> NativeMaskedGather(Mask512<float> m,
-                                            const float* HWY_RESTRICT base,
-                                            Vec512<int32_t> index) {
-  const Full512<float> d;
+HWY_INLINE Vec512<float> NativeMaskedGatherOr512(Vec512<float> no,
+                                                 Mask512<float> m,
+                                                 const float* HWY_RESTRICT base,
+                                                 Vec512<int32_t> indices) {
   return Vec512<float>{
-      _mm512_mask_i32gather_ps(Zero(d).raw, m.raw, index.raw, base, kScale)};
+      _mm512_mask_i32gather_ps(no.raw, m.raw, indices.raw, base, kScale)};
 }
 
 template <int kScale>
-HWY_INLINE Vec512<double> NativeMaskedGather(Mask512<double> m,
-                                             const double* HWY_RESTRICT base,
-                                             Vec512<int64_t> index) {
-  const Full512<double> d;
+HWY_INLINE Vec512<double> NativeMaskedGatherOr512(
+    Vec512<double> no, Mask512<double> m, const double* HWY_RESTRICT base,
+    Vec512<int64_t> indices) {
   return Vec512<double>{
-      _mm512_mask_i64gather_pd(Zero(d).raw, m.raw, index.raw, base, kScale)};
+      _mm512_mask_i64gather_pd(no.raw, m.raw, indices.raw, base, kScale)};
 }
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
-HWY_API VFromD<D> GatherOffset(D /* tag */, const TFromD<D>* HWY_RESTRICT base,
-                               Vec512<TI> offset) {
-  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Must match for portability");
-  return detail::NativeGather<1>(base, offset);
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> GatherOffset(D d, const TFromD<D>* HWY_RESTRICT base,
+                               VFromD<RebindToSigned<D>> offsets) {
+  const RebindToSigned<decltype(d)> di;
+  (void)di;  // for HWY_DASSERT
+  HWY_DASSERT(AllFalse(di, Lt(offsets, Zero(di))));
+  return detail::NativeGather512<1>(base, offsets);
 }
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
-HWY_API VFromD<D> GatherIndex(D /* tag */, const TFromD<D>* HWY_RESTRICT base,
-                              Vec512<TI> index) {
-  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Must match for portability");
-  return detail::NativeGather<sizeof(TFromD<D>)>(base, index);
+
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT base,
+                              VFromD<RebindToSigned<D>> indices) {
+  const RebindToSigned<decltype(d)> di;
+  (void)di;  // for HWY_DASSERT
+  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
+  return detail::NativeGather512<sizeof(TFromD<D>)>(base, indices);
 }
-template <class D, HWY_IF_V_SIZE_D(D, 64), typename TI>
-HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D /* tag */,
-                                    const TFromD<D>* HWY_RESTRICT base,
-                                    Vec512<TI> index) {
-  static_assert(sizeof(TFromD<D>) == sizeof(TI), "Must match for portability");
-  return detail::NativeMaskedGather<sizeof(TFromD<D>)>(m, base, index);
+
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
+                                      const TFromD<D>* HWY_RESTRICT base,
+                                      VFromD<RebindToSigned<D>> indices) {
+  const RebindToSigned<decltype(d)> di;
+  (void)di;  // for HWY_DASSERT
+  HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));
+  return detail::NativeMaskedGatherOr512<sizeof(TFromD<D>)>(no, m, base,
+                                                            indices);
 }
 
 HWY_DIAGNOSTICS(pop)

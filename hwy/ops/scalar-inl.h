@@ -1231,25 +1231,34 @@ HWY_API void MaskedScatterIndex(Vec1<T> v, Mask1<T> m, D d,
 #define HWY_NATIVE_GATHER
 #endif
 
-template <class D, typename T = TFromD<D>, typename TI>
-HWY_API Vec1<T> GatherOffset(D d, const T* base, Vec1<TI> offset) {
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> GatherOffset(D d, const T* base, Vec1<MakeSigned<T>> offset) {
+  HWY_DASSERT(offset.raw >= 0);
   const intptr_t addr =
       reinterpret_cast<intptr_t>(base) + static_cast<intptr_t>(offset.raw);
   return Load(d, reinterpret_cast<const T*>(addr));
 }
 
-template <class D, typename T = TFromD<D>, typename TI>
-HWY_API Vec1<T> GatherIndex(D d, const T* HWY_RESTRICT base, Vec1<TI> index) {
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> GatherIndex(D d, const T* HWY_RESTRICT base,
+                            Vec1<MakeSigned<T>> index) {
+  HWY_DASSERT(index.raw >= 0);
   return Load(d, base + index.raw);
 }
 
-template <class D, typename T = TFromD<D>, typename TI>
+template <class D, typename T = TFromD<D>>
 HWY_API Vec1<T> MaskedGatherIndex(Mask1<T> m, D d, const T* HWY_RESTRICT base,
-                                  Vec1<TI> index) {
-  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+                                  Vec1<MakeSigned<T>> index) {
+  HWY_DASSERT(index.raw >= 0);
   return MaskedLoad(m, d, base + index.raw);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API Vec1<T> MaskedGatherIndexOr(Vec1<T> no, Mask1<T> m, D d,
+                                    const T* HWY_RESTRICT base,
+                                    Vec1<MakeSigned<T>> index) {
+  HWY_DASSERT(index.raw >= 0);
+  return MaskedLoadOr(no, m, d, base + index.raw);
 }
 
 // ================================================== CONVERT

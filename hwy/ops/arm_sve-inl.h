@@ -1468,9 +1468,12 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
 #define HWY_SVE_MASKED_GATHER_INDEX(BASE, CHAR, BITS, HALF, NAME, OP) \
   template <size_t N, int kPow2>                                      \
   HWY_API HWY_SVE_V(BASE, BITS)                                       \
-      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/,         \
+      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) d,             \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,           \
            HWY_SVE_V(int, BITS) index) {                              \
+    const RebindToSigned<decltype(d)> di;                             \
+    (void)di; /* for HWY_DASSERT */                                   \
+    HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));                 \
     return sv##OP##_s##BITS##index_##CHAR##BITS(m, base, index);      \
   }
 
@@ -1479,6 +1482,13 @@ HWY_SVE_FOREACH_UIF3264(HWY_SVE_MASKED_GATHER_INDEX, MaskedGatherIndex,
                         ld1_gather)
 #undef HWY_SVE_GATHER_OFFSET
 #undef HWY_SVE_MASKED_GATHER_INDEX
+
+template <class D>
+HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, svbool_t m, D d,
+                                      const TFromD<D>* HWY_RESTRICT p,
+                                      VFromD<RebindToSigned<D>> indices) {
+  return IfThenElse(m, MaskedGatherIndex(m, d, p, indices), no);
+}
 
 template <class D>
 HWY_API VFromD<D> GatherIndex(D d, const TFromD<D>* HWY_RESTRICT p,

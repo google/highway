@@ -184,6 +184,8 @@ struct TestMaskedGather {
     const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
     Store(v, d, lanes.get());
 
+    const Vec<D> no = Set(d, T{2});
+
     const VI indices =
         Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
 
@@ -195,9 +197,13 @@ struct TestMaskedGather {
 
       const VI mask_i = Load(di, bool_lanes.get());
       const auto mask = RebindMask(d, Gt(mask_i, Zero(di)));
-      const Vec<D> expected = IfThenElseZero(mask, Reverse(d, v));
-      const Vec<D> actual = MaskedGatherIndex(mask, d, lanes.get(), indices);
-      HWY_ASSERT_VEC_EQ(d, expected, actual);
+      const Vec<D> expected_z = IfThenElseZero(mask, Reverse(d, v));
+      const Vec<D> expected_or = IfThenElse(mask, Reverse(d, v), no);
+      const Vec<D> actual_z = MaskedGatherIndex(mask, d, lanes.get(), indices);
+      const Vec<D> actual_or =
+          MaskedGatherIndexOr(no, mask, d, lanes.get(), indices);
+      HWY_ASSERT_VEC_EQ(d, expected_z, actual_z);
+      HWY_ASSERT_VEC_EQ(d, expected_or, actual_or);
     }
   }
 };

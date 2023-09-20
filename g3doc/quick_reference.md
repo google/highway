@@ -1250,8 +1250,9 @@ offsets. If you have offsets, you can convert them to indices via `ShiftRight`.
     stores `v[i]` to `base[indices[i]]`.
 
 *   `D`: `{u,i,f}{32,64}` \
-    <code>void **ScatterIndexN**(Vec&lt;D&gt; v, D, T* base, VI indices, size_t max_lanes_to_store)</code>:
-    Stores `HWY_MIN(Lanes(d), max_lanes_to_store)` lanes `v[i]` to `base[indices[i]]`
+    <code>void **ScatterIndexN**(Vec&lt;D&gt; v, D, T* base, VI indices, size_t
+    max_lanes_to_store)</code>: Stores `HWY_MIN(Lanes(d), max_lanes_to_store)`
+    lanes `v[i]` to `base[indices[i]]`
 
 *   `D`: `{u,i,f}{32,64}` \
     <code>void **MaskedScatterIndex**(Vec&lt;D&gt; v, M m, D, T* base, VI
@@ -1267,17 +1268,23 @@ offsets. If you have offsets, you can convert them to indices via `ShiftRight`.
     returns vector of `base[indices[i]]`.
 
 *   `D`: `{u,i,f}{32,64}` \
-    <code>Vec&lt;D&gt; **GatherIndexN**(D, const T* base, VI indices, size_t max_lanes_to_load)</code>:
-    Loads `HWY_MIN(Lanes(d), max_lanes_to_load)` lanes of `base[indices[i]]`
-    to the first (lowest-index) lanes of the result vector and zeroes
-    out the remaining lanes.
+    <code>Vec&lt;D&gt; **GatherIndexN**(D, const T* base, VI indices, size_t
+    max_lanes_to_load)</code>: Loads `HWY_MIN(Lanes(d), max_lanes_to_load)`
+    lanes of `base[indices[i]]` to the first (lowest-index) lanes of the result
+    vector and zeroes out the remaining lanes.
+
+*   `D`: `{u,i,f}{32,64}` \
+    <code>Vec&lt;D&gt; **MaskedGatherIndexOr**(V no, M mask, D d, const T* base,
+    VI indices)</code>: returns vector of `base[indices[i]]` where `mask[i]` is
+    true, otherwise `no[i]`. Does not fault for lanes whose `mask` is false.
+    This is equivalent to, and potentially more efficient than,
+    `IfThenElseZero(mask, GatherIndex(d, base, indices))`.
 
 *   `D`: `{u,i,f}{32,64}` \
     <code>Vec&lt;D&gt; **MaskedGatherIndex**(M mask, D d, const T* base, VI
-    indices)</code>: returns vector of `base[indices[i]]` where `mask[i]` is
-    true, otherwise zero. Does not fault for lanes whose `mask` is false. This
-    is equivalent to, and potentially more efficient than, `IfThenElseZero(mask,
-    GatherIndex(d, base, indices))`.
+    indices)</code>: equivalent to `MaskedGatherIndexOr(Zero(d), mask, d, base,
+    indices)`. Use this when the desired default value is zero; it may be more
+    efficient on some targets, and on others require generating a zero constant.
 
 ### Cache control
 

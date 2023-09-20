@@ -1688,6 +1688,7 @@ HWY_API VFromD<D> GatherOffset(D d, const T* HWY_RESTRICT base,
   HWY_ALIGN T lanes[MaxLanes(d)];
   const uint8_t* base_bytes = reinterpret_cast<const uint8_t*>(base);
   for (size_t i = 0; i < MaxLanes(d); ++i) {
+    HWY_DASSERT(offset_lanes[i] >= 0);
     CopyBytes<sizeof(T)>(base_bytes + offset_lanes[i], &lanes[i]);
   }
   return Load(d, lanes);
@@ -1705,6 +1706,7 @@ HWY_API VFromD<D> GatherIndex(D d, const T* HWY_RESTRICT base,
 
   HWY_ALIGN T lanes[MaxLanes(d)];
   for (size_t i = 0; i < MaxLanes(d); ++i) {
+    HWY_DASSERT(index_lanes[i] >= 0);
     lanes[i] = base[index_lanes[i]];
   }
   return Load(d, lanes);
@@ -1726,7 +1728,33 @@ HWY_API VFromD<D> MaskedGatherIndex(MFromD<D> m, D d,
 
   HWY_ALIGN T lanes[MaxLanes(d)];
   for (size_t i = 0; i < MaxLanes(d); ++i) {
+    HWY_DASSERT(index_lanes[i] >= 0);
     lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : T{0};
+  }
+  return Load(d, lanes);
+}
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> MaskedGatherIndexOr(VFromD<D> no, MFromD<D> m, D d,
+                                      const T* HWY_RESTRICT base,
+                                      VFromD<RebindToSigned<D>> index) {
+  const RebindToSigned<D> di;
+  using TI = TFromD<decltype(di)>;
+  static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
+
+  HWY_ALIGN TI index_lanes[MaxLanes(di)];
+  Store(index, di, index_lanes);
+
+  HWY_ALIGN TI mask_lanes[MaxLanes(di)];
+  Store(BitCast(di, VecFromMask(d, m)), di, mask_lanes);
+
+  HWY_ALIGN T no_lanes[MaxLanes(d)];
+  Store(no, d, no_lanes);
+
+  HWY_ALIGN T lanes[MaxLanes(d)];
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    HWY_DASSERT(index_lanes[i] >= 0);
+    lanes[i] = mask_lanes[i] ? base[index_lanes[i]] : no_lanes[i];
   }
   return Load(d, lanes);
 }
