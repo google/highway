@@ -1177,6 +1177,26 @@ HWY_API Vec256<T> InterleaveUpper(D d, Vec256<T> a, Vec256<T> b) {
   return a;
 }
 
+// ------------------------------ InterleaveWholeLower
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = InterleaveLower(a.v0, b.v0);
+  ret.v1 = InterleaveUpper(dh, a.v0, b.v0);
+  return ret;
+}
+
+// ------------------------------ InterleaveWholeUpper
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = InterleaveLower(a.v1, b.v1);
+  ret.v1 = InterleaveUpper(dh, a.v1, b.v1);
+  return ret;
+}
+
 // ------------------------------ ZipLower/ZipUpper defined in wasm_128
 
 // ================================================== COMBINE

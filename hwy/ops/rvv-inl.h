@@ -3859,6 +3859,60 @@ HWY_API V InterleaveUpper(const D d, const V a, const V b) {
                     TableLookupLanes(b, idx));
 }
 
+// ------------------------------ InterleaveWholeLower
+#ifdef HWY_NATIVE_INTERLEAVE_WHOLE
+#undef HWY_NATIVE_INTERLEAVE_WHOLE
+#else
+#define HWY_NATIVE_INTERLEAVE_WHOLE
+#endif
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
+  const RebindToUnsigned<decltype(d)> du;
+  const detail::AdjustSimdTagToMinVecPow2<RepartitionToWide<decltype(du)>> dw;
+  const RepartitionToNarrow<decltype(dw)> du_src;
+
+  const auto aw =
+      ResizeBitCast(d, PromoteLowerTo(dw, ResizeBitCast(du_src, a)));
+  const auto bw =
+      ResizeBitCast(d, PromoteLowerTo(dw, ResizeBitCast(du_src, b)));
+
+  return Or(aw, detail::Slide1Up(bw));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
+  const RebindToUnsigned<decltype(d)> du;
+  const auto idx = ShiftRight<1>(detail::Iota0(du));
+  return OddEven(TableLookupLanes(b, idx), TableLookupLanes(a, idx));
+}
+
+// ------------------------------ InterleaveWholeUpper
+
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  // Use Lanes(d) / 2 instead of Lanes(Half<D>()) as Lanes(Half<D>()) can only
+  // be called if (d.Pow2() >= -2 && d.Pow2() == DFromV<VFromD<D>>().Pow2()) is
+  // true and and as the results of InterleaveWholeUpper are implementation-defined
+  // if Lanes(d) is less than 2.
+  const size_t half_N = Lanes(d) / 2;
+  return InterleaveWholeLower(d, detail::SlideDown(a, half_N),
+                              detail::SlideDown(b, half_N));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  // Use Lanes(d) / 2 instead of Lanes(Half<D>()) as Lanes(Half<D>()) can only
+  // be called if (d.Pow2() >= -2 && d.Pow2() == DFromV<VFromD<D>>().Pow2()) is
+  // true and as the results of InterleaveWholeUpper are implementation-defined
+  // if Lanes(d) is less than 2.
+  const size_t half_N = Lanes(d) / 2;
+  const RebindToUnsigned<decltype(d)> du;
+  const auto idx = detail::AddS(ShiftRight<1>(detail::Iota0(du)),
+                                static_cast<uint64_t>(half_N));
+  return OddEven(TableLookupLanes(b, idx), TableLookupLanes(a, idx));
+}
+
 // ------------------------------ ZipLower
 
 template <class V, class DW = RepartitionToWide<DFromV<V>>>

@@ -1559,6 +1559,15 @@ more expensive on AVX2/AVX-512 than per-block operations.
 *   <code>V **ConcatEven**(D, V hi, V lo)</code>: returns the concatenation of
     the even lanes of `hi` and the even lanes of `lo`.
 
+*   <code>V **InterleaveWholeLower**([D, ] V a, V b)</code>: returns
+    alternating lanes from the lower halves of `a` and `b` (`a[0]` in the
+    least-significant lane). The optional `D` (provided for consistency with
+    `InterleaveWholeUpper`) is `DFromV<V>`.
+
+*   <code>V **InterleaveWholeUpper**(D, V a, V b)</code>: returns
+    alternating lanes from the upper halves of `a` and `b` (`a[N/2]` in the
+    least-significant lane). `D` is `DFromV<V>`.
+
 ### Blockwise
 
 **Note**: if vectors are larger than 128 bits, the following operations split
