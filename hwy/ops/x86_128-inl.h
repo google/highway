@@ -11077,243 +11077,74 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 
 // ------------------------------ Reductions
 
-namespace detail {
+// Nothing fully native, generic_ops-inl defines SumOfLanes and ReduceSum.
 
-// N=1: no-op
-template <typename T>
-HWY_INLINE Vec128<T, 1> SumOfLanes(Vec128<T, 1> v) {
-  return v;
-}
-template <typename T>
-HWY_INLINE Vec128<T, 1> MinOfLanes(Vec128<T, 1> v) {
-  return v;
-}
-template <typename T>
-HWY_INLINE Vec128<T, 1> MaxOfLanes(Vec128<T, 1> v) {
-  return v;
-}
+// We provide specializations of u8x8 and u8x16, so exclude those.
+#undef HWY_IF_SUM_OF_LANES_D
+#define HWY_IF_SUM_OF_LANES_D(D)                                        \
+  HWY_IF_LANES_GT_D(D, 1),                                              \
+      hwy::EnableIf<!hwy::IsSame<TFromD<D>, uint8_t>() ||               \
+                    (HWY_V_SIZE_D(D) != 8 && HWY_V_SIZE_D(D) != 16)>* = \
+          nullptr
 
-// N=2
-template <typename T>
-HWY_INLINE Vec128<T, 2> SumOfLanes(Vec128<T, 2> v10) {
-  const DFromV<decltype(v10)> d;
-  return Add(v10, Reverse2(d, v10));
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 8)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  return Set(d, static_cast<uint8_t>(GetLane(SumsOf8(v)) & 0xFF));
 }
-template <typename T>
-HWY_INLINE Vec128<T, 2> MinOfLanes(Vec128<T, 2> v10) {
-  const DFromV<decltype(v10)> d;
-  return Min(v10, Reverse2(d, v10));
-}
-template <typename T>
-HWY_INLINE Vec128<T, 2> MaxOfLanes(Vec128<T, 2> v10) {
-  const DFromV<decltype(v10)> d;
-  return Max(v10, Reverse2(d, v10));
+template <class D, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 16)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  const Repartition<uint64_t, decltype(d)> d64;
+  VFromD<decltype(d64)> sums = SumsOf8(v);
+  sums = SumOfLanes(d64, sums);
+  return Broadcast<0>(BitCast(d, sums));
 }
 
-// N=4 (only 16/32-bit, else >128-bit)
-template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
-HWY_INLINE Vec128<T, 4> SumOfLanes(Vec128<T, 4> v3210) {
-  using V = decltype(v3210);
-  const DFromV<V> d;
-  const V v0123 = Reverse4(d, v3210);
-  const V v03_12_12_03 = Add(v3210, v0123);
-  const V v12_03_03_12 = Reverse2(d, v03_12_12_03);
-  return Add(v03_12_12_03, v12_03_03_12);
-}
-template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
-HWY_INLINE Vec128<T, 4> MinOfLanes(Vec128<T, 4> v3210) {
-  using V = decltype(v3210);
-  const DFromV<V> d;
-  const V v0123 = Reverse4(d, v3210);
-  const V v03_12_12_03 = Min(v3210, v0123);
-  const V v12_03_03_12 = Reverse2(d, v03_12_12_03);
-  return Min(v03_12_12_03, v12_03_03_12);
-}
-template <typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
-HWY_INLINE Vec128<T, 4> MaxOfLanes(Vec128<T, 4> v3210) {
-  using V = decltype(v3210);
-  const DFromV<V> d;
-  const V v0123 = Reverse4(d, v3210);
-  const V v03_12_12_03 = Max(v3210, v0123);
-  const V v12_03_03_12 = Reverse2(d, v03_12_12_03);
-  return Max(v03_12_12_03, v12_03_03_12);
-}
-
-#undef HWY_X86_IF_NOT_MINPOS
 #if HWY_TARGET <= HWY_SSE4
-// Skip the T_SIZE = 2 overload in favor of the following two.
-#define HWY_X86_IF_NOT_MINPOS(T) \
-  hwy::EnableIf<!IsSame<T, uint16_t>()>* = nullptr
+// We provide specializations of u8x8, u8x16, and u16x8, so exclude those.
+#undef HWY_IF_MINMAX_OF_LANES_D
+#define HWY_IF_MINMAX_OF_LANES_D(D)                                        \
+  HWY_IF_LANES_GT_D(D, 1),                                                 \
+      hwy::EnableIf<(!hwy::IsSame<TFromD<D>, uint8_t>() ||                 \
+                     ((HWY_V_SIZE_D(D) < 8) || (HWY_V_SIZE_D(D) > 16))) && \
+                    (!hwy::IsSame<TFromD<D>, uint16_t>() ||                \
+                     (HWY_V_SIZE_D(D) != 16))>* = nullptr
 
-HWY_INLINE Vec128<uint16_t> MinOfLanes(Vec128<uint16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> MinOfLanes(D /* tag */, Vec128<uint16_t> v) {
   return Broadcast<0>(Vec128<uint16_t>{_mm_minpos_epu16(v.raw)});
 }
 
-HWY_INLINE Vec128<uint16_t> MaxOfLanes(Vec128<uint16_t> v) {
-  const DFromV<decltype(v)> d;
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_API Vec128<uint16_t> MaxOfLanes(D d, Vec128<uint16_t> v) {
   const Vec128<uint16_t> max = Set(d, LimitsMax<uint16_t>());
-  return max - MinOfLanes(max - v);
-}
-#else
-#define HWY_X86_IF_NOT_MINPOS(T) hwy::EnableIf<true>* = nullptr
-#endif  // HWY_TARGET <= HWY_SSE4
-
-// N=8 (only 16-bit, else >128-bit)
-template <typename T, HWY_IF_T_SIZE(T, 2)>
-HWY_INLINE Vec128<T, 8> SumOfLanes(Vec128<T, 8> v76543210) {
-  using V = decltype(v76543210);
-  const DFromV<V> d;
-  // The upper half is reversed from the lower half; omit for brevity.
-  const V v34_25_16_07 = Add(v76543210, Reverse8(d, v76543210));
-  const V v0347_1625_1625_0347 = Add(v34_25_16_07, Reverse4(d, v34_25_16_07));
-  return Add(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
-}
-template <typename T, HWY_IF_T_SIZE(T, 2), HWY_X86_IF_NOT_MINPOS(T)>
-HWY_INLINE Vec128<T, 8> MinOfLanes(Vec128<T, 8> v76543210) {
-  using V = decltype(v76543210);
-  const DFromV<V> d;
-  // The upper half is reversed from the lower half; omit for brevity.
-  const V v34_25_16_07 = Min(v76543210, Reverse8(d, v76543210));
-  const V v0347_1625_1625_0347 = Min(v34_25_16_07, Reverse4(d, v34_25_16_07));
-  return Min(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
-}
-template <typename T, HWY_IF_T_SIZE(T, 2), HWY_X86_IF_NOT_MINPOS(T)>
-HWY_INLINE Vec128<T, 8> MaxOfLanes(Vec128<T, 8> v76543210) {
-  using V = decltype(v76543210);
-  const DFromV<V> d;
-  // The upper half is reversed from the lower half; omit for brevity.
-  const V v34_25_16_07 = Max(v76543210, Reverse8(d, v76543210));
-  const V v0347_1625_1625_0347 = Max(v34_25_16_07, Reverse4(d, v34_25_16_07));
-  return Max(v0347_1625_1625_0347, Reverse2(d, v0347_1625_1625_0347));
+  return max - MinOfLanes(d, max - v);
 }
 
-template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
-HWY_INLINE T ReduceSum(Vec128<T, N> v) {
-  return GetLane(SumOfLanes(v));
-}
-
-// u8, N=8, N=16:
-HWY_INLINE uint8_t ReduceSum(Vec64<uint8_t> v) {
-  return static_cast<uint8_t>(GetLane(SumsOf8(v)) & 0xFF);
-}
-HWY_INLINE Vec64<uint8_t> SumOfLanes(Vec64<uint8_t> v) {
-  const Full64<uint8_t> d;
-  return Set(d, ReduceSum(v));
-}
-HWY_INLINE uint8_t ReduceSum(Vec128<uint8_t> v) {
-  uint64_t sums = ReduceSum(SumsOf8(v));
-  return static_cast<uint8_t>(sums & 0xFF);
-}
-HWY_INLINE Vec128<uint8_t> SumOfLanes(Vec128<uint8_t> v) {
-  const DFromV<decltype(v)> d;
-  return Set(d, ReduceSum(v));
-}
-template <size_t N, HWY_IF_V_SIZE_GT(int8_t, N, 4)>
-HWY_INLINE int8_t ReduceSum(const Vec128<int8_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const auto is_neg = v < Zero(d);
-
-  // Sum positive and negative lanes separately, then combine to get the result.
-  const auto positive = SumsOf8(BitCast(du, IfThenZeroElse(is_neg, v)));
-  const auto negative = SumsOf8(BitCast(du, IfThenElseZero(is_neg, Abs(v))));
-  return static_cast<int8_t>(ReduceSum(positive - negative) & 0xFF);
-}
-template <size_t N, HWY_IF_V_SIZE_GT(int8_t, N, 4)>
-HWY_INLINE Vec128<int8_t, N> SumOfLanes(const Vec128<int8_t, N> v) {
-  const DFromV<decltype(v)> d;
-  return Set(d, ReduceSum(v));
-}
-
-#if HWY_TARGET <= HWY_SSE4
-HWY_INLINE Vec64<uint8_t> MinOfLanes(Vec64<uint8_t> v) {
-  const DFromV<decltype(v)> d;
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
+HWY_API Vec64<uint8_t> MinOfLanes(D d, Vec64<uint8_t> v) {
   const Rebind<uint16_t, decltype(d)> d16;
-  return TruncateTo(d, MinOfLanes(PromoteTo(d16, v)));
+  return TruncateTo(d, MinOfLanes(d16, PromoteTo(d16, v)));
 }
-HWY_INLINE Vec128<uint8_t> MinOfLanes(Vec128<uint8_t> v) {
-  const Half<DFromV<decltype(v)>> d;
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> MinOfLanes(D d, Vec128<uint8_t> v) {
+  const Half<decltype(d)> dh;
   Vec64<uint8_t> result =
-      Min(MinOfLanes(UpperHalf(d, v)), MinOfLanes(LowerHalf(d, v)));
-  return Combine(DFromV<decltype(v)>(), result, result);
+      Min(MinOfLanes(dh, UpperHalf(dh, v)), MinOfLanes(dh, LowerHalf(dh, v)));
+  return Combine(d, result, result);
 }
 
-HWY_INLINE Vec64<uint8_t> MaxOfLanes(Vec64<uint8_t> v) {
-  const Vec64<uint8_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint8_t>()));
-  return m - MinOfLanes(m - v);
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
+HWY_API Vec64<uint8_t> MaxOfLanes(D d, Vec64<uint8_t> v) {
+  const Vec64<uint8_t> m(Set(d, LimitsMax<uint8_t>()));
+  return m - MinOfLanes(d, m - v);
 }
-HWY_INLINE Vec128<uint8_t> MaxOfLanes(Vec128<uint8_t> v) {
-  const Vec128<uint8_t> m(Set(DFromV<decltype(v)>(), LimitsMax<uint8_t>()));
-  return m - MinOfLanes(m - v);
-}
-#elif HWY_TARGET >= HWY_SSSE3
-template <size_t N, HWY_IF_V_SIZE_GT(uint8_t, N, 4)>
-HWY_API Vec128<uint8_t, N> MaxOfLanes(Vec128<uint8_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d16;
-  const RepartitionToWide<decltype(d16)> d32;
-  Vec128<uint8_t, N> vm = Max(v, Reverse2(d, v));
-  vm = Max(vm, BitCast(d, Reverse2(d16, BitCast(d16, vm))));
-  vm = Max(vm, BitCast(d, Reverse2(d32, BitCast(d32, vm))));
-  if (N > 8) {
-    const RepartitionToWide<decltype(d32)> d64;
-    vm = Max(vm, BitCast(d, Reverse2(d64, BitCast(d64, vm))));
-  }
-  return vm;
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
+HWY_API Vec128<uint8_t> MaxOfLanes(D d, Vec128<uint8_t> v) {
+  const Vec128<uint8_t> m(Set(d, LimitsMax<uint8_t>()));
+  return m - MinOfLanes(d, m - v);
 }
 
-template <size_t N, HWY_IF_V_SIZE_GT(uint8_t, N, 4)>
-HWY_API Vec128<uint8_t, N> MinOfLanes(Vec128<uint8_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RepartitionToWide<decltype(d)> d16;
-  const RepartitionToWide<decltype(d16)> d32;
-  Vec128<uint8_t, N> vm = Min(v, Reverse2(d, v));
-  vm = Min(vm, BitCast(d, Reverse2(d16, BitCast(d16, vm))));
-  vm = Min(vm, BitCast(d, Reverse2(d32, BitCast(d32, vm))));
-  if (N > 8) {
-    const RepartitionToWide<decltype(d32)> d64;
-    vm = Min(vm, BitCast(d, Reverse2(d64, BitCast(d64, vm))));
-  }
-  return vm;
-}
-#endif
-
-// Implement min/max of i8 in terms of u8 by toggling the sign bit.
-template <size_t N, HWY_IF_V_SIZE_GT(int8_t, N, 4)>
-HWY_INLINE Vec128<int8_t, N> MinOfLanes(Vec128<int8_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const auto mask = SignBit(du);
-  const auto vu = Xor(BitCast(du, v), mask);
-  return BitCast(d, Xor(MinOfLanes(vu), mask));
-}
-template <size_t N, HWY_IF_V_SIZE_GT(int8_t, N, 4)>
-HWY_INLINE Vec128<int8_t, N> MaxOfLanes(Vec128<int8_t, N> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const auto mask = SignBit(du);
-  const auto vu = Xor(BitCast(du, v), mask);
-  return BitCast(d, Xor(MaxOfLanes(vu), mask));
-}
-
-}  // namespace detail
-
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API VFromD<D> SumOfLanes(D /* tag */, VFromD<D> v) {
-  return detail::SumOfLanes(v);
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API TFromD<D> ReduceSum(D /* tag */, VFromD<D> v) {
-  return detail::ReduceSum(v);
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API VFromD<D> MinOfLanes(D /* tag */, VFromD<D> v) {
-  return detail::MinOfLanes(v);
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
-HWY_API VFromD<D> MaxOfLanes(D /* tag */, VFromD<D> v) {
-  return detail::MaxOfLanes(v);
-}
+#endif  // HWY_TARGET <= HWY_SSE4
 
 // ------------------------------ Lt128
 

@@ -6865,161 +6865,16 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(
 
 // ------------------------------ Reductions
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return _mm512_reduce_add_epi32(v.raw);
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return _mm512_reduce_add_epi64(v.raw);
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U32_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return static_cast<uint32_t>(_mm512_reduce_add_epi32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return static_cast<uint64_t>(_mm512_reduce_add_epi64(v.raw));
-}
-#if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return _mm512_reduce_add_ph(v.raw);
-}
-#endif  // HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return _mm512_reduce_add_ps(v.raw);
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API TFromD<D> ReduceSum(D, VFromD<D> v) {
-  return _mm512_reduce_add_pd(v.raw);
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U16_D(D)>
-HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto sum = ReduceSum(d32, even + odd);
-  return static_cast<uint16_t>(sum);
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I16_D(D)>
-HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto sum = ReduceSum(d32, even + odd);
-  return static_cast<int16_t>(sum);
+namespace detail {
+
+// Used by generic_ops-inl
+template <class D, class Func, HWY_IF_V_SIZE_D(D, 64)>
+HWY_INLINE VFromD<D> ReduceAcrossBlocks(D d, Func f, VFromD<D> v) {
+  v = f(v, SwapAdjacentBlocks(v));
+  return f(v, ReverseBlocks(d, v));
 }
 
-// Returns the sum in each lane.
-template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
-  return Set(d, ReduceSum(d, v));
-}
-
-// Returns the minimum in each lane.
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_epi32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_epi64(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_epu32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_epu64(v.raw));
-}
-#if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_ph(v.raw));
-}
-#endif  // HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_ps(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_min_pd(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(d32, Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MinOfLanes(d32, Min(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-
-// Returns the maximum in each lane.
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_epi32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I64_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_epi64(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_epu32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U64_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_epu64(v.raw));
-}
-#if HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_ph(v.raw));
-}
-#endif  // HWY_HAVE_FLOAT16
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_ps(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  return Set(d, _mm512_reduce_max_pd(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  const RepartitionToWide<decltype(d)> d32;
-  const auto even = And(BitCast(d32, v), Set(d32, 0xFFFF));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(d32, Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
-  const RepartitionToWide<decltype(d)> d32;
-  // Sign-extend
-  const auto even = ShiftRight<16>(ShiftLeft<16>(BitCast(d32, v)));
-  const auto odd = ShiftRight<16>(BitCast(d32, v));
-  const auto min = MaxOfLanes(d32, Max(even, odd));
-  // Also broadcast into odd lanes.
-  return OddEven(BitCast(d, ShiftLeft<16>(min)), BitCast(d, min));
-}
+}  // namespace detail
 
 // -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
 

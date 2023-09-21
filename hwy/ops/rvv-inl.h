@@ -3937,66 +3937,79 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 
 // ================================================== REDUCE
 
-// vector = f(vector, zero_m1)
+// We have ReduceSum, generic_ops-inl.h defines SumOfLanes via Set.
+#ifdef HWY_NATIVE_REDUCE_SCALAR
+#undef HWY_NATIVE_REDUCE_SCALAR
+#else
+#define HWY_NATIVE_REDUCE_SCALAR
+#endif
+
+// scalar = f(vector, zero_m1)
 #define HWY_RVV_REDUCE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
                        MLEN, NAME, OP)                                         \
-  template <class D>                                                           \
-  HWY_API HWY_RVV_V(BASE, SEW, LMUL)                                           \
-      NAME(D d, HWY_RVV_V(BASE, SEW, LMUL) v, HWY_RVV_V(BASE, SEW, m1) v0) {   \
-    return Set(d,                                                              \
-               GetLane(__riscv_v##OP##_vs_##CHAR##SEW##LMUL##_##CHAR##SEW##m1( \
-                   v, v0, Lanes(d))));                                         \
+  template <size_t N>                                                          \
+  HWY_API HWY_RVV_T(BASE, SEW)                                                 \
+      NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, HWY_RVV_V(BASE, SEW, LMUL) v,     \
+           HWY_RVV_V(BASE, SEW, m1) v0) {                                      \
+    return GetLane(__riscv_v##OP##_vs_##CHAR##SEW##LMUL##_##CHAR##SEW##m1(     \
+        v, v0, Lanes(d)));                                                     \
   }
 
-// ------------------------------ SumOfLanes
+// ------------------------------ ReduceSum
 
 namespace detail {
-HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum, _ALL)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredusum, _ALL)
+HWY_RVV_FOREACH_UI(HWY_RVV_REDUCE, RedSum, redsum, _ALL_VIRT)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedSum, fredusum, _ALL_VIRT)
 }  // namespace detail
 
-template <class D>
-HWY_API VFromD<D> SumOfLanes(D d, const VFromD<D> v) {
+template <class D, HWY_IF_REDUCE_D(D)>
+HWY_API TFromD<D> ReduceSum(D d, const VFromD<D> v) {
   const auto v0 = Zero(ScalableTag<TFromD<D>>());  // always m1
   return detail::RedSum(d, v, v0);
 }
 
-template <class D>
-HWY_API TFromD<D> ReduceSum(D d, const VFromD<D> v) {
-  return GetLane(SumOfLanes(d, v));
-}
-
-// ------------------------------ MinOfLanes
+// ------------------------------ ReduceMin
 namespace detail {
-HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMin, redminu, _ALL)
-HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMin, redmin, _ALL)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMin, redminu, _ALL_VIRT)
+HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMin, redmin, _ALL_VIRT)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMin, fredmin, _ALL_VIRT)
 }  // namespace detail
 
-template <class D>
-HWY_API VFromD<D> MinOfLanes(D d, const VFromD<D> v) {
-  using T = TFromD<D>;
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
+HWY_API T ReduceMin(D d, const VFromD<D> v) {
   const ScalableTag<T> d1;  // always m1
-  const auto neutral = Set(d1, HighestValue<T>());
-  return detail::RedMin(d, v, neutral);
+  return detail::RedMin(d, v, Set(d1, HighestValue<T>()));
 }
 
-// ------------------------------ MaxOfLanes
+// ------------------------------ ReduceMax
 namespace detail {
-HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMax, redmaxu, _ALL)
-HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMax, redmax, _ALL)
-HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax, _ALL)
+HWY_RVV_FOREACH_U(HWY_RVV_REDUCE, RedMax, redmaxu, _ALL_VIRT)
+HWY_RVV_FOREACH_I(HWY_RVV_REDUCE, RedMax, redmax, _ALL_VIRT)
+HWY_RVV_FOREACH_F(HWY_RVV_REDUCE, RedMax, fredmax, _ALL_VIRT)
 }  // namespace detail
 
-template <class D>
-HWY_API VFromD<D> MaxOfLanes(D d, const VFromD<D> v) {
-  using T = TFromD<D>;
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
+HWY_API T ReduceMax(D d, const VFromD<D> v) {
   const ScalableTag<T> d1;  // always m1
-  const auto neutral = Set(d1, LowestValue<T>());
-  return detail::RedMax(d, v, neutral);
+  return detail::RedMax(d, v, Set(d1, LowestValue<T>()));
 }
 
 #undef HWY_RVV_REDUCE
+
+// ------------------------------ SumOfLanes
+
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceSum(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMin(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMax(d, v));
+}
 
 // ================================================== Ops with dependencies
 

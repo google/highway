@@ -478,8 +478,7 @@ using BlockDFromD =
 #define HWY_IF_LANES_LE_D(D, lanes) HWY_IF_LANES_LE(HWY_MAX_LANES_D(D), lanes)
 #define HWY_IF_LANES_GT_D(D, lanes) HWY_IF_LANES_GT(HWY_MAX_LANES_D(D), lanes)
 #define HWY_IF_LANES_PER_BLOCK_D(D, lanes) \
-  HWY_IF_LANES_PER_BLOCK(                  \
-      TFromD<D>, HWY_MIN(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>)), lanes)
+  HWY_IF_LANES_PER_BLOCK(TFromD<D>, HWY_MAX_LANES_D(D), lanes)
 
 #define HWY_IF_POW2_LE_D(D, pow2) hwy::EnableIf<D().Pow2() <= pow2>* = nullptr
 #define HWY_IF_POW2_GT_D(D, pow2) hwy::EnableIf<(D().Pow2() > pow2)>* = nullptr
@@ -506,6 +505,7 @@ using BlockDFromD =
 #define HWY_IF_F32_D(D) HWY_IF_F32(TFromD<D>)
 #define HWY_IF_F64_D(D) HWY_IF_F64(TFromD<D>)
 
+#define HWY_V_SIZE_D(D) (HWY_MAX_LANES_D(D) * sizeof(TFromD<D>))
 #define HWY_IF_V_SIZE_D(D, bytes) \
   HWY_IF_V_SIZE(TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 #define HWY_IF_V_SIZE_LE_D(D, bytes) \
@@ -534,6 +534,20 @@ using BlockDFromD =
   HWY_IF_V_SIZE_LE(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
 #define HWY_IF_V_SIZE_GT_V(V, bytes) \
   HWY_IF_V_SIZE_GT(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
+
+// Use in implementations of ReduceSum etc. to avoid conflicts with the N=1 and
+// N=4 8-bit specializations in generic_ops-inl.
+#undef HWY_IF_REDUCE_D
+#define HWY_IF_REDUCE_D(D)                                              \
+  hwy::EnableIf<HWY_MAX_LANES_D(D) != 1 &&                              \
+                (HWY_MAX_LANES_D(D) != 4 || sizeof(TFromD<D>) != 1)>* = \
+      nullptr
+
+#undef HWY_IF_SUM_OF_LANES_D
+#define HWY_IF_SUM_OF_LANES_D(D) HWY_IF_LANES_GT_D(D, 1)
+
+#undef HWY_IF_MINMAX_OF_LANES_D
+#define HWY_IF_MINMAX_OF_LANES_D(D) HWY_IF_LANES_GT_D(D, 1)
 
 // Old names (deprecated)
 #define HWY_IF_LANE_SIZE_D(D, bytes) HWY_IF_T_SIZE_D(D, bytes)

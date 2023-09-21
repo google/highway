@@ -2322,34 +2322,7 @@ HWY_API Vec256<TW> RearrangeToOddPlusEven(Vec256<TW> sum0, Vec256<TW> sum1) {
   return sum0;
 }
 
-// ------------------------------ Reductions
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> SumOfLanes(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  const Vec128<T> lo = SumOfLanes(dh, Add(v.v0, v.v1));
-  return Combine(d, lo, lo);
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API T ReduceSum(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  return ReduceSum(dh, Add(v.v0, v.v1));
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MinOfLanes(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  const Vec128<T> lo = MinOfLanes(dh, Min(v.v0, v.v1));
-  return Combine(d, lo, lo);
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MaxOfLanes(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  const Vec128<T> lo = MaxOfLanes(dh, Max(v.v0, v.v1));
-  return Combine(d, lo, lo);
-}
+// ------------------------------ Reductions in generic_ops
 
 // ------------------------------ Lt128
 

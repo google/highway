@@ -1985,23 +1985,7 @@ HWY_API Vec1<TW> RearrangeToOddPlusEven(Vec1<TW> sum0, Vec1<TW> /* sum1 */) {
 
 // ================================================== REDUCTIONS
 
-// Sum of all lanes, i.e. the only one.
-template <class D, typename T = TFromD<D>>
-HWY_API Vec1<T> SumOfLanes(D /* tag */, const Vec1<T> v) {
-  return v;
-}
-template <class D, typename T = TFromD<D>>
-HWY_API T ReduceSum(D /* tag */, const Vec1<T> v) {
-  return GetLane(v);
-}
-template <class D, typename T = TFromD<D>>
-HWY_API Vec1<T> MinOfLanes(D /* tag */, const Vec1<T> v) {
-  return v;
-}
-template <class D, typename T = TFromD<D>>
-HWY_API Vec1<T> MaxOfLanes(D /* tag */, const Vec1<T> v) {
-  return v;
-}
+// Nothing native, generic_ops-inl defines SumOfLanes and ReduceSum.
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE

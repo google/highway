@@ -25,8 +25,6 @@ Also StorePair
 
 Lookup128 for 32x 32-bit and 16x 64-bit. permutex2var on AVX-512, else Gather.
 
-ReduceMin/Max like ReduceSum, in addition to Min/MaxOfLanes
-
 ReduceMin/MaxOrNaN
 
 Document Reduce/Min NaN behavior
@@ -95,9 +93,6 @@ For crypto. Native on Icelake+.
 
 ### Add emu256 target
 Reuse same wasm256 file, `#if` for wasm-specific parts. Use reserved avx slot.
-
-### Reductions for 8-bit
-For orthogonality; already done for x86+NEON.
 
 ### Conflict detection
 For hash tables. Use VPCONFLICT on ZEN4.
@@ -191,3 +186,5 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~LoadNOr~~
 *   ~~PromoteEvenTo~~ - by johnplatts
 *   ~~Masked add/sub/div~~
+*   ~~ReduceMin/Max like ReduceSum, in addition to Min/MaxOfLanes~~
+*   ~~Reductions for 8-bit~~

@@ -358,7 +358,9 @@ struct TestNaN {
 // TODO(janwas): re-enable after QEMU/Spike are fixed
 #if HWY_TARGET != HWY_RVV
     HWY_ASSERT_NAN(d, MinOfLanes(d, nan));
+    HWY_ASSERT_NAN(d, Set(d, ReduceMin(d, nan)));
     HWY_ASSERT_NAN(d, MaxOfLanes(d, nan));
+    HWY_ASSERT_NAN(d, Set(d, ReduceMax(d, nan)));
 #endif
 
     // Min/Max

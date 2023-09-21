@@ -2749,15 +2749,13 @@ HWY_API VW RearrangeToOddPlusEven(VW sum0, VW sum1) {
 
 // ================================================== REDUCTIONS
 
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
-  T sum = T{0};
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    sum += v.raw[i];
-  }
-  return Set(d, sum);
-}
-template <class D, typename T = TFromD<D>>
+#ifdef HWY_NATIVE_REDUCE_SCALAR
+#undef HWY_NATIVE_REDUCE_SCALAR
+#else
+#define HWY_NATIVE_REDUCE_SCALAR
+#endif
+
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceSum(D d, VFromD<D> v) {
   T sum = T{0};
   for (size_t i = 0; i < MaxLanes(d); ++i) {
@@ -2765,21 +2763,36 @@ HWY_API T ReduceSum(D d, VFromD<D> v) {
   }
   return sum;
 }
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
+HWY_API T ReduceMin(D d, VFromD<D> v) {
   T min = HighestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     min = HWY_MIN(min, v.raw[i]);
   }
-  return Set(d, min);
+  return min;
 }
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
+HWY_API T ReduceMax(D d, VFromD<D> v) {
   T max = LowestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     max = HWY_MAX(max, v.raw[i]);
   }
-  return Set(d, max);
+  return max;
+}
+
+// ------------------------------ SumOfLanes
+
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceSum(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMin(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMax(d, v));
 }
 
 // ================================================== OPS WITH DEPENDENCIES

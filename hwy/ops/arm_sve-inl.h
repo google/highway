@@ -2534,7 +2534,13 @@ HWY_API V UpperHalf(const DH dh, const V v) {
 
 // ================================================== REDUCE
 
-// These return T, whereas the Highway op returns a broadcasted vector.
+#ifdef HWY_NATIVE_REDUCE_SCALAR
+#undef HWY_NATIVE_REDUCE_SCALAR
+#else
+#define HWY_NATIVE_REDUCE_SCALAR
+#endif
+
+// These return T, suitable for ReduceSum.
 namespace detail {
 #define HWY_SVE_REDUCE_ADD(BASE, CHAR, BITS, HALF, NAME, OP)                   \
   HWY_API HWY_SVE_T(BASE, BITS) NAME(svbool_t pg, HWY_SVE_V(BASE, BITS) v) {   \
@@ -2564,24 +2570,34 @@ HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanesM, maxnmv)
 #undef HWY_SVE_REDUCE_ADD
 }  // namespace detail
 
-template <class D, class V>
-V SumOfLanes(D d, V v) {
-  return Set(d, detail::SumOfLanesM(detail::MakeMask(d), v));
-}
-
-template <class D, class V>
-TFromV<V> ReduceSum(D d, V v) {
+template <class D, HWY_IF_REDUCE_D(D)>
+HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
   return detail::SumOfLanesM(detail::MakeMask(d), v);
 }
 
-template <class D, class V>
-V MinOfLanes(D d, V v) {
-  return Set(d, detail::MinOfLanesM(detail::MakeMask(d), v));
+template <class D, HWY_IF_REDUCE_D(D)>
+HWY_API TFromD<D> ReduceMin(D d, VFromD<D> v) {
+  return detail::MinOfLanesM(detail::MakeMask(d), v);
 }
 
-template <class D, class V>
-V MaxOfLanes(D d, V v) {
-  return Set(d, detail::MaxOfLanesM(detail::MakeMask(d), v));
+template <class D, HWY_IF_REDUCE_D(D)>
+HWY_API TFromD<D> ReduceMax(D d, VFromD<D> v) {
+  return detail::MaxOfLanesM(detail::MakeMask(d), v);
+}
+
+// ------------------------------ SumOfLanes
+
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceSum(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMin(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMax(d, v));
 }
 
 // ================================================== SWIZZLE

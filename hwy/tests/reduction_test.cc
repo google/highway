@@ -66,20 +66,20 @@ struct TestSumOfLanes {
     HWY_ASSERT(in_lanes);
 
     // Lane i = bit i, higher lanes 0
-    double sum = 0.0;
+    T sum = T{0};
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(0);
-      sum += static_cast<double>(in_lanes[i]);
+      sum = AddWithWraparound(hwy::IsFloatTag<T>(), sum, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
                       SumOfLanes(d, Load(d, in_lanes.get())));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Load(d, in_lanes.get())));
     // Lane i = i (iota) to include upper lanes
-    sum = 0.0;
+    sum = T{0};
     for (size_t i = 0; i < N; ++i) {
-      sum += static_cast<double>(i);
+      sum = AddWithWraparound(hwy::IsFloatTag<T>(), sum, static_cast<T>(i));
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Iota(d, 0)));
@@ -91,12 +91,7 @@ struct TestSumOfLanes {
 };
 
 HWY_NOINLINE void TestAllSumOfLanes() {
-  ForUIF163264(ForPartialVectors<TestSumOfLanes>());
-
-// UI8 is only implemented for some targets.
-#if HWY_MAX_BYTES == 16 && (HWY_ARCH_ARM || HWY_ARCH_X86)
-  ForUI8(ForGEVectors<64, TestSumOfLanes>());
-#endif
+  ForAllTypes(ForPartialVectors<TestSumOfLanes>());
 }
 
 struct TestMinOfLanes {
@@ -151,6 +146,7 @@ struct TestMinOfLanes {
       in_lanes[i] = min;
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
+    HWY_ASSERT_EQ(min, ReduceMin(d, Load(d, in_lanes.get())));
   }
 };
 
@@ -205,20 +201,13 @@ struct TestMaxOfLanes {
       in_lanes[i] = max;
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
+    HWY_ASSERT_EQ(max, ReduceMax(d, Load(d, in_lanes.get())));
   }
 };
 
 HWY_NOINLINE void TestAllMinMaxOfLanes() {
-  const ForPartialVectors<TestMinOfLanes> test_min;
-  const ForPartialVectors<TestMaxOfLanes> test_max;
-  ForUIF163264(test_min);
-  ForUIF163264(test_max);
-
-// UI8 is only implemented for some targets.
-#if HWY_MAX_BYTES == 16 && (HWY_ARCH_ARM || HWY_ARCH_X86)
-  ForUI8(ForGEVectors<64, TestMinOfLanes>());
-  ForUI8(ForGEVectors<64, TestMaxOfLanes>());
-#endif
+  ForAllTypes(ForPartialVectors<TestMinOfLanes>());
+  ForAllTypes(ForPartialVectors<TestMaxOfLanes>());
 }
 
 struct TestSumsOf8 {

@@ -1885,28 +1885,26 @@ The following `ReverseN` must not be called if `Lanes(D()) < N`:
 
 ### Reductions
 
-**Note**: these 'reduce' all lanes to a single result (e.g. sum), which is
-broadcasted to all lanes. To obtain a scalar, you can call `GetLane`.
+**Note**: Horizontal operations (across lanes of the same vector) such as
+reductions are slower than normal SIMD operations and are typically used outside
+critical loops.
 
-Being a horizontal operation (across lanes of the same vector), these are slower
-than normal SIMD operations and are typically used outside critical loops.
+The following broadcast the result to all lanes. To obtain a scalar, you can
+call `GetLane` on the result, or instead use `Reduce*` below.
 
-There are additional `{u,i}{8}` implementations on SSE4.1+ and NEON.
-
-*   `V`: `{u,i}{16,32,64},{f}` \
-    <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
+*   <code>V **SumOfLanes**(D, V v)</code>: returns the sum of all lanes in each
     lane.
-
-*   `T`: `{u,i}{16,32,64},{f}` \
-    <code>T **ReduceSum**(D, V v)</code>: returns the sum of all lanes.
-
-*   `V`: `{u,i}{16,32,64},{f}` \
-    <code>V **MinOfLanes**(D, V v)</code>: returns the minimum-valued lane in
+*   <code>V **MinOfLanes**(D, V v)</code>: returns the minimum-valued lane in
+    each lane.
+*   <code>V **MaxOfLanes**(D, V v)</code>: returns the maximum-valued lane in
     each lane.
 
-*   `V`: `{u,i}{16,32,64},{f}` \
-    <code>V **MaxOfLanes**(D, V v)</code>: returns the maximum-valued lane in
-    each lane.
+The following are equivalent to `GetLane(SumOfLanes(d, v))` etc. but potentially
+more efficient on some targets.
+
+*   <code>T **ReduceSum**(D, V v)</code>: returns the sum of all lanes.
+*   <code>T **ReduceMin**(D, V v)</code>: returns the minimum of all lanes.
+*   <code>T **ReduceMax**(D, V v)</code>: returns the maximum of all lanes.
 
 ### Crypto
 
