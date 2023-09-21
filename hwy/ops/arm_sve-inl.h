@@ -3650,7 +3650,7 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
                                    hwy::FloatTag /*from_type_tag*/, D d_to,
                                    svfloat32_t v) {
   const Repartition<float, decltype(d_to)> d_from;
-  return svcvt_s64_f32_x(detail::PTrue(d_from), v);
+  return svcvt_u64_f32_x(detail::PTrue(d_from), v);
 }
 
 // F16->F32 PromoteOddTo

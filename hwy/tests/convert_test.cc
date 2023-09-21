@@ -235,15 +235,60 @@ struct TestPromoteOddEvenTo {
     return static_cast<T>(rand_bits & LimitsMax<MakeUnsigned<T>>());
   }
 
-  template <class T, HWY_IF_NOT_SPECIAL_FLOAT(RemoveConst<RemoveRef<T>>)>
-  static HWY_INLINE ToT CastValueToWide(T val) {
-    return static_cast<ToT>(val);
-  }
-  static HWY_INLINE ToT CastValueToWide(const float16_t val) {
+  static HWY_INLINE ToT CastValueToWide(hwy::FloatTag /* to_type_tag */,
+                                        hwy::FloatTag /* from_type_tag */,
+                                        hwy::float16_t val) {
     return static_cast<ToT>(F32FromF16(val));
   }
-  static HWY_INLINE ToT CastValueToWide(const bfloat16_t val) {
+
+  static HWY_INLINE ToT CastValueToWide(hwy::FloatTag /* to_type_tag */,
+                                        hwy::SpecialTag /* from_type_tag */,
+                                        hwy::bfloat16_t val) {
     return static_cast<ToT>(F32FromBF16(val));
+  }
+
+  template <class T>
+  static HWY_INLINE ToT CastValueToWide(hwy::SignedTag /* to_type_tag */,
+                                        hwy::FloatTag /* from_type_tag */,
+                                        T val) {
+    constexpr T kMinInRangeVal = static_cast<T>(LimitsMin<ToT>());
+    constexpr T kMinOutOfRangePosVal = static_cast<T>(-kMinInRangeVal);
+    if (val < kMinInRangeVal) {
+      return LimitsMin<ToT>();
+    } else if (val >= kMinOutOfRangePosVal) {
+      return LimitsMax<ToT>();
+    } else {
+      return static_cast<ToT>(val);
+    }
+  }
+
+  template <class T>
+  static HWY_INLINE ToT CastValueToWide(hwy::UnsignedTag /* to_type_tag */,
+                                        hwy::FloatTag /* from_type_tag */,
+                                        T val) {
+    constexpr T kMinOutOfRangePosVal =
+        static_cast<T>(-static_cast<T>(LimitsMin<MakeSigned<ToT>>()) * T(2));
+    if (val < T{0}) {
+      return ToT{0};
+    } else if (val >= kMinOutOfRangePosVal) {
+      return LimitsMax<ToT>();
+    } else {
+      return static_cast<ToT>(val);
+    }
+  }
+
+  template <class ToTypeTag, class FromTypeTag, class T>
+  static HWY_INLINE ToT CastValueToWide(ToTypeTag /* to_type_tag */,
+                                        FromTypeTag /* from_type_tag */,
+                                        T val) {
+    return static_cast<ToT>(val);
+  }
+
+  template <class T>
+  static HWY_INLINE ToT CastValueToWide(T val) {
+    using FromT = RemoveCvRef<T>;
+    return CastValueToWide(hwy::TypeTag<ToT>(), hwy::TypeTag<FromT>(),
+                           static_cast<FromT>(val));
   }
 
   template <typename T, class D>
@@ -298,10 +343,12 @@ HWY_NOINLINE void TestAllPromoteOddEvenTo() {
 #if HWY_HAVE_INTEGER64
   const ForShrinkableVectors<TestPromoteOddEvenTo<uint64_t>, 1> to_u64div2;
   to_u64div2(uint32_t());
+  to_u64div2(float());
 
   const ForShrinkableVectors<TestPromoteOddEvenTo<int64_t>, 1> to_i64div2;
   to_i64div2(int32_t());
   to_i64div2(uint32_t());
+  to_i64div2(float());
 #endif  // HWY_HAVE_INTEGER64
 
 #if HWY_HAVE_FLOAT64
