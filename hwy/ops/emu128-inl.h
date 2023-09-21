@@ -64,7 +64,7 @@ struct Vec128 {
   // prevents using range for, especially in SumOfLanes, where it would be
   // incorrect. Moving padding to another field would require handling the case
   // where N = 16 / sizeof(T) (i.e. there is no padding), which is also awkward.
-  T raw[16 / sizeof(T)] = {};
+  T raw[16 / sizeof(T)];
 };
 
 // 0 or FF..FF, same size as Vec128.
@@ -76,7 +76,7 @@ struct Mask128 {
   }
 
   // Must match the size of Vec128.
-  Raw bits[16 / sizeof(T)] = {};
+  Raw bits[16 / sizeof(T)];
 };
 
 template <class V>
@@ -90,7 +90,7 @@ using TFromV = typename V::PrivateT;
 // Use HWY_MAX_LANES_D here because VFromD is defined in terms of Zero.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> Zero(D /* tag */) {
-  Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> v;  // zero-initialized
+  Vec128<TFromD<D>, HWY_MAX_LANES_D(D)> v{};  // zero-initialized
   return v;
 }
 
@@ -607,7 +607,7 @@ HWY_API Vec128<T, N> operator+(Vec128<T, N> a, Vec128<T, N> b) {
 
 template <size_t N>
 HWY_API Vec128<uint64_t, (N + 7) / 8> SumsOf8(Vec128<uint8_t, N> v) {
-  Vec128<uint64_t, (N + 7) / 8> sums;
+  Vec128<uint64_t, (N + 7) / 8> sums{}; // zero-initialized
   for (size_t i = 0; i < N; ++i) {
     sums.raw[i / 8] += v.raw[i];
   }
@@ -1912,7 +1912,7 @@ HWY_API VFromD<D> UpperHalf(D d, VFromD<Twice<D>> v) {
 template <class D>
 HWY_API VFromD<D> ZeroExtendVector(D d, VFromD<Half<D>> v) {
   const Half<decltype(d)> dh;
-  VFromD<D> ret;  // zero-initialized
+  VFromD<D> ret{};  // zero-initialized
   CopyBytes<dh.MaxBytes()>(v.raw, ret.raw);
   return ret;
 }

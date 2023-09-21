@@ -288,8 +288,7 @@ HWY_API void CopyBytes(const From* from, To* to) {
 #if HWY_COMPILER_MSVC
   memcpy(to, from, kBytes);
 #else
-  __builtin_memcpy(static_cast<void*>(to), static_cast<const void*>(from),
-                   kBytes);
+  __builtin_memcpy(to, from, kBytes);
 #endif
 }
 
