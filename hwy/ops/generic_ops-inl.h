@@ -375,9 +375,15 @@ HWY_INLINE VFromD<D> ReduceWithinBlocks(D d, Func f, VFromD<D> v) {
   const RepartitionToWide<decltype(d)> dw;
   using VW = VFromD<decltype(dw)>;
   const VW vw = BitCast(dw, v);
+  // f is commutative, so no need to adapt for HWY_IS_LITTLE_ENDIAN.
   const VW even = And(vw, Set(dw, 0xFF));
   const VW odd = ShiftRight<8>(vw);
-  return DupEven(BitCast(d, ReduceWithinBlocks(dw, f, f(even, odd))));
+  const VW reduced = ReduceWithinBlocks(dw, f, f(even, odd));
+#if HWY_IS_LITTLE_ENDIAN
+  return DupEven(BitCast(d, reduced));
+#else
+  return DupOdd(BitCast(d, reduced));
+#endif
 }
 
 template <class D, class Func, HWY_IF_LANES_PER_BLOCK_D(D, 16), HWY_IF_I8_D(D)>
@@ -386,9 +392,15 @@ HWY_INLINE VFromD<D> ReduceWithinBlocks(D d, Func f, VFromD<D> v) {
   using VW = VFromD<decltype(dw)>;
   const VW vw = BitCast(dw, v);
   // Sign-extend
+  // f is commutative, so no need to adapt for HWY_IS_LITTLE_ENDIAN.
   const VW even = ShiftRight<8>(ShiftLeft<8>(vw));
   const VW odd = ShiftRight<8>(vw);
-  return DupEven(BitCast(d, ReduceWithinBlocks(dw, f, f(even, odd))));
+  const VW reduced = ReduceWithinBlocks(dw, f, f(even, odd));
+#if HWY_IS_LITTLE_ENDIAN
+  return DupEven(BitCast(d, reduced));
+#else
+  return DupOdd(BitCast(d, reduced));
+#endif
 }
 
 }  // namespace detail
