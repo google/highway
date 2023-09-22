@@ -68,6 +68,33 @@ static HWY_INLINE uint32_t Random32(RandomState* rng) {
 
 static HWY_INLINE uint64_t Random64(RandomState* rng) { return (*rng)(); }
 
+template <class T, HWY_IF_FLOAT_OR_SPECIAL(T)>
+static HWY_INLINE T RandomFiniteValue(RandomState* rng) {
+  const uint64_t rand_bits = Random64(rng);
+
+  using TU = MakeUnsigned<T>;
+  constexpr TU kExponentMask = ExponentMask<T>();
+  constexpr TU kSignMantMask = static_cast<TU>(~kExponentMask);
+  constexpr TU kMaxExpField = static_cast<TU>(MaxExponentField<T>());
+  constexpr int kNumOfMantBits = MantissaBits<T>();
+
+  const TU orig_exp_field_val =
+      static_cast<TU>((rand_bits >> kNumOfMantBits) & kMaxExpField);
+
+  const TU sign_mant_bits = static_cast<TU>(rand_bits & kSignMantMask);
+  const TU exp_bits =
+      static_cast<TU>(HWY_MIN(HWY_MAX(orig_exp_field_val, 1), kMaxExpField - 1)
+                      << kNumOfMantBits);
+
+  return BitCastScalar<T>(static_cast<TU>(sign_mant_bits | exp_bits));
+}
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+static HWY_INLINE T RandomFiniteValue(RandomState* rng) {
+  using TU = MakeUnsigned<T>;
+  return static_cast<T>(Random64(rng) & LimitsMax<TU>());
+}
+
 HWY_TEST_DLLEXPORT bool BytesEqual(const void* p1, const void* p2, size_t size,
                                    size_t* pos = nullptr);
 

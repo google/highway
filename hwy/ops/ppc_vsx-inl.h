@@ -1408,6 +1408,21 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8(Vec128<uint8_t, N> v) {
       Zero(di32).raw);
 }
 
+template <size_t N>
+HWY_API Vec128<int64_t, N / 8> SumsOf8(Vec128<int8_t, N> v) {
+  const Repartition<int64_t, DFromV<decltype(v)>> di64;
+  const Repartition<int32_t, decltype(di64)> di32;
+
+  const auto sums_in_lo32 = detail::AltivecVsum2sws(
+      di32, detail::AltivecVsum4sbs(di32, v.raw, Zero(di32).raw).raw,
+      Zero(di32).raw);
+#if HWY_IS_LITTLE_ENDIAN
+  return PromoteEvenTo(di64, sums_in_lo32);
+#else
+  return PromoteOddTo(di64, sums_in_lo32);
+#endif
+}
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
@@ -5291,7 +5306,7 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 // We define SumOfLanes for 8/16-bit types; enable generic for the rest.
 #undef HWY_IF_SUM_OF_LANES_D
 #define HWY_IF_SUM_OF_LANES_D(D) \
-  HWY_IF_LANES_GT_D(D, 1), HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4)|(1 <<8 ))
+  HWY_IF_LANES_GT_D(D, 1), HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 4) | (1 << 8))
 
 namespace detail {
 
@@ -5399,8 +5414,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U16_D(D)>
 HWY_API Vec64<uint16_t> SumOfLanes(D du16, Vec64<uint16_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const auto zero = Zero(Full128<int32_t>());
-  return Broadcast<kSumLaneIdx>(
-      detail::AltivecVsum2sws(du16, detail::AltivecU16SumsOf2(v).raw, zero.raw));
+  return Broadcast<kSumLaneIdx>(detail::AltivecVsum2sws(
+      du16, detail::AltivecU16SumsOf2(v).raw, zero.raw));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
@@ -5452,7 +5467,8 @@ template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U8_D(D)>
 HWY_API Vec32<uint8_t> SumOfLanes(D du8, Vec32<uint8_t> v) {
   constexpr int kSumLaneIdx = HWY_IS_LITTLE_ENDIAN ? 0 : 3;
   const Full128<uint32_t> du32;
-  return Broadcast<kSumLaneIdx>(detail::AltivecVsum4ubs(du8, v.raw, Zero(du32).raw));
+  return Broadcast<kSumLaneIdx>(
+      detail::AltivecVsum4ubs(du8, v.raw, Zero(du32).raw));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U8_D(D)>
@@ -5468,8 +5484,9 @@ HWY_API Vec128<uint8_t> SumOfLanes(D du8, Vec128<uint8_t> v) {
   const Full128<uint32_t> du32;
   const RebindToSigned<decltype(du32)> di32;
   const Vec128<uint32_t> zero = Zero(du32);
-  return Broadcast<kSumLaneIdx>(
-      detail::AltivecVsumsws(du8, detail::AltivecVsum4ubs(di32, v.raw, zero.raw).raw, BitCast(di32, zero).raw));
+  return Broadcast<kSumLaneIdx>(detail::AltivecVsumsws(
+      du8, detail::AltivecVsum4ubs(di32, v.raw, zero.raw).raw,
+      BitCast(di32, zero).raw));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 2), HWY_IF_I8_D(D)>
@@ -5481,8 +5498,8 @@ HWY_API Vec16<int8_t> SumOfLanes(D d, Vec16<int8_t> v) {
   const Repartition<int8_t, decltype(du16)> di8;
   const Vec128<int8_t> zzvv = BitCast(
       di8, InterleaveLower(BitCast(du16, Vec128<int8_t>{v.raw}), Zero(du16)));
-  return ResizeBitCast(d,
-      Broadcast<kSumLaneIdx>(detail::AltivecVsum4sbs(di8, zzvv.raw, Zero(di32).raw)));
+  return ResizeBitCast(d, Broadcast<kSumLaneIdx>(detail::AltivecVsum4sbs(
+                              di8, zzvv.raw, Zero(di32).raw)));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_I8_D(D)>
@@ -5511,6 +5528,83 @@ HWY_API Vec128<int8_t> SumOfLanes(D di8, Vec128<int8_t> v) {
 }
 
 // generic_ops defines MinOfLanes and MaxOfLanes.
+
+// ------------------------------ SumsOf2 and SumsOf4
+namespace detail {
+
+// I16->I32 SumsOf2
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  const RepartitionToWide<DFromV<V>> dw;
+  return AltivecVsum4shs(dw, v.raw, Zero(dw).raw);
+}
+
+// U16->U32 SumsOf2
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  return BitCast(RepartitionToWide<DFromV<V>>(), AltivecU16SumsOf2(v));
+}
+
+// I8->I32 SumsOf4
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+    hwy::SignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  const RepartitionToWide<RepartitionToWide<DFromV<V>>> dw2;
+  return AltivecVsum4sbs(dw2, v.raw, Zero(dw2).raw);
+}
+
+// U8->U32 SumsOf4
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+    hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  const RepartitionToWide<RepartitionToWide<DFromV<V>>> dw2;
+  return AltivecVsum4ubs(dw2, v.raw, Zero(dw2).raw);
+}
+
+// I16->I64 SumsOf4
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+    hwy::SignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  const RepartitionToWide<DFromV<V>> dw;
+  const RepartitionToWide<decltype(dw)> dw2;
+
+  const auto sums_of_4_in_lo32 =
+      AltivecVsum2sws(dw, SumsOf2(v).raw, Zero(dw).raw);
+#if HWY_IS_LITTLE_ENDIAN
+  return PromoteEvenTo(dw2, sums_of_4_in_lo32);
+#else
+  return PromoteOddTo(dw2, sums_of_4_in_lo32);
+#endif
+}
+
+// U16->U64 SumsOf4
+template <class V>
+HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+    hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  const RepartitionToWide<DFromV<V>> dw;
+  const RebindToSigned<decltype(dw)> dw_i;
+  const RepartitionToWide<decltype(dw)> dw2;
+  return AltivecVsum2sws(dw2, BitCast(dw_i, SumsOf2(v)).raw, Zero(dw_i).raw);
+}
+
+}  // namespace detail
+
+// ------------------------------ ReduceSum for N=4 I8/U8
+
+// GetLane(SumsOf4(v)) is more efficient on PPC than the default N=4 I8/U8
+// ReduceSum implementation in generic_ops-inl.h
+#ifdef HWY_NATIVE_REDUCE_SUM_4_UI8
+#undef HWY_NATIVE_REDUCE_SUM_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_SUM_4_UI8
+#endif
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_UI8_D(D)>
+HWY_API TFromD<D> ReduceSum(D /*d*/, VFromD<D> v) {
+  return static_cast<TFromD<D>>(GetLane(SumsOf4(v)));
+}
 
 // ------------------------------ Lt128
 

@@ -685,12 +685,106 @@ HWY_API svuint64_t SumsOf8(const svuint8_t v) {
 
   const svuint32_t sums_of_4 = svdot_n_u32(Zero(du32), v, 1);
   // Compute pairwise sum of u32 and extend to u64.
-  // TODO(janwas): on SVE2, we can instead use svaddp.
+
+#if HWY_SVE_HAVE_2
+  return svadalp_u64_x(pg, Zero(du64), sums_of_4);
+#else
   const svuint64_t hi = svlsr_n_u64_x(pg, BitCast(du64, sums_of_4), 32);
   // Isolate the lower 32 bits (to be added to the upper 32 and zero-extended)
   const svuint64_t lo = svextw_u64_x(pg, BitCast(du64, sums_of_4));
   return Add(hi, lo);
+#endif
 }
+
+HWY_API svint64_t SumsOf8(const svint8_t v) {
+  const ScalableTag<int32_t> di32;
+  const ScalableTag<int64_t> di64;
+  const svbool_t pg = detail::PTrue(di64);
+
+  const svint32_t sums_of_4 = svdot_n_s32(Zero(di32), v, 1);
+#if HWY_SVE_HAVE_2
+  return svadalp_s64_x(pg, Zero(di64), sums_of_4);
+#else
+  const svint64_t hi = svasr_n_s64_x(pg, BitCast(di64, sums_of_4), 32);
+  // Isolate the lower 32 bits (to be added to the upper 32 and sign-extended)
+  const svint64_t lo = svextw_s64_x(pg, BitCast(di64, sums_of_4));
+  return Add(hi, lo);
+#endif
+}
+
+// ------------------------------ SumsOf2
+#if HWY_SVE_HAVE_2
+namespace detail {
+
+HWY_INLINE svint16_t SumsOf2(hwy::SignedTag /*type_tag*/,
+                             hwy::SizeTag<1> /*lane_size_tag*/, svint8_t v) {
+  const ScalableTag<int16_t> di16;
+  const svbool_t pg = detail::PTrue(di16);
+  return svadalp_s16_x(pg, Zero(di16), v);
+}
+
+HWY_INLINE svuint16_t SumsOf2(hwy::UnsignedTag /*type_tag*/,
+                              hwy::SizeTag<1> /*lane_size_tag*/, svuint8_t v) {
+  const ScalableTag<uint16_t> du16;
+  const svbool_t pg = detail::PTrue(du16);
+  return svadalp_u16_x(pg, Zero(du16), v);
+}
+
+HWY_INLINE svint32_t SumsOf2(hwy::SignedTag /*type_tag*/,
+                             hwy::SizeTag<2> /*lane_size_tag*/, svint16_t v) {
+  const ScalableTag<int32_t> di32;
+  const svbool_t pg = detail::PTrue(di32);
+  return svadalp_s32_x(pg, Zero(di32), v);
+}
+
+HWY_INLINE svuint32_t SumsOf2(hwy::UnsignedTag /*type_tag*/,
+                              hwy::SizeTag<2> /*lane_size_tag*/, svuint16_t v) {
+  const ScalableTag<uint32_t> du32;
+  const svbool_t pg = detail::PTrue(du32);
+  return svadalp_u32_x(pg, Zero(du32), v);
+}
+
+HWY_INLINE svint64_t SumsOf2(hwy::SignedTag /*type_tag*/,
+                             hwy::SizeTag<4> /*lane_size_tag*/, svint32_t v) {
+  const ScalableTag<int64_t> di64;
+  const svbool_t pg = detail::PTrue(di64);
+  return svadalp_s64_x(pg, Zero(di64), v);
+}
+
+HWY_INLINE svuint64_t SumsOf2(hwy::UnsignedTag /*type_tag*/,
+                              hwy::SizeTag<4> /*lane_size_tag*/, svuint32_t v) {
+  const ScalableTag<uint64_t> du64;
+  const svbool_t pg = detail::PTrue(du64);
+  return svadalp_u64_x(pg, Zero(du64), v);
+}
+
+}  // namespace detail
+#endif  // HWY_SVE_HAVE_2
+
+// ------------------------------ SumsOf4
+namespace detail {
+
+HWY_INLINE svint32_t SumsOf4(hwy::SignedTag /*type_tag*/,
+                             hwy::SizeTag<1> /*lane_size_tag*/, svint8_t v) {
+  return svdot_n_s32(Zero(ScalableTag<int32_t>()), v, 1);
+}
+
+HWY_INLINE svuint32_t SumsOf4(hwy::UnsignedTag /*type_tag*/,
+                              hwy::SizeTag<1> /*lane_size_tag*/, svuint8_t v) {
+  return svdot_n_u32(Zero(ScalableTag<uint32_t>()), v, 1);
+}
+
+HWY_INLINE svint64_t SumsOf4(hwy::SignedTag /*type_tag*/,
+                             hwy::SizeTag<2> /*lane_size_tag*/, svint16_t v) {
+  return svdot_n_s64(Zero(ScalableTag<int64_t>()), v, 1);
+}
+
+HWY_INLINE svuint64_t SumsOf4(hwy::UnsignedTag /*type_tag*/,
+                              hwy::SizeTag<2> /*lane_size_tag*/, svuint16_t v) {
+  return svdot_n_u64(Zero(ScalableTag<uint64_t>()), v, 1);
+}
+
+}  // namespace detail
 
 // ------------------------------ SaturatedAdd
 
@@ -2569,6 +2663,25 @@ HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanesM, maxnmv)
 #undef HWY_SVE_REDUCE
 #undef HWY_SVE_REDUCE_ADD
 }  // namespace detail
+
+// detail::SumOfLanesM, detail::MinOfLanesM, and detail::MaxOfLanesM is more
+// efficient for N=4 I8/U8 reductions on SVE than the default implementations
+// of the N=4 I8/U8 ReduceSum/ReduceMin/ReduceMax implementations in
+// generic_ops-inl.h
+#undef HWY_IF_REDUCE_D
+#define HWY_IF_REDUCE_D(D) hwy::EnableIf<HWY_MAX_LANES_D(D) != 1>* = nullptr
+
+#ifdef HWY_NATIVE_REDUCE_SUM_4_UI8
+#undef HWY_NATIVE_REDUCE_SUM_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_SUM_4_UI8
+#endif
+
+#ifdef HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#undef HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#endif
 
 template <class D, HWY_IF_REDUCE_D(D)>
 HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {

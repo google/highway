@@ -1056,7 +1056,7 @@ HWY_RVV_FOREACH_I(HWY_RVV_SHIFT, ShiftRight, sra, _ALL)
 #undef HWY_RVV_SHIFT
 
 // ------------------------------ SumsOf8 (ShiftRight, Add)
-template <class VU8>
+template <class VU8, HWY_IF_U8_D(DFromV<VU8>)>
 HWY_API VFromD<Repartition<uint64_t, DFromV<VU8>>> SumsOf8(const VU8 v) {
   const DFromV<VU8> du8;
   const RepartitionToWide<decltype(du8)> du16;
@@ -1077,6 +1077,31 @@ HWY_API VFromD<Repartition<uint64_t, DFromV<VU8>>> SumsOf8(const VU8 v) {
   const VU16 sxx_xx_xx_F8_xx_xx_xx_70 =
       Add(sxx_FC_xx_B8_xx_74_xx_30, szz_zz_xx_FC_zz_zz_xx_74);
   return detail::AndS(BitCast(du64, sxx_xx_xx_F8_xx_xx_xx_70), 0xFFFFull);
+}
+
+template <class VI8, HWY_IF_I8_D(DFromV<VI8>)>
+HWY_API VFromD<Repartition<int64_t, DFromV<VI8>>> SumsOf8(const VI8 v) {
+  const DFromV<VI8> di8;
+  const RepartitionToWide<decltype(di8)> di16;
+  const RepartitionToWide<decltype(di16)> di32;
+  const RepartitionToWide<decltype(di32)> di64;
+  const RebindToUnsigned<decltype(di32)> du32;
+  const RebindToUnsigned<decltype(di64)> du64;
+  using VI16 = VFromD<decltype(di16)>;
+
+  const VI16 vFDB97531 = ShiftRight<8>(BitCast(di16, v));
+  const VI16 vECA86420 = ShiftRight<8>(ShiftLeft<8>(BitCast(di16, v)));
+  const VI16 sFE_DC_BA_98_76_54_32_10 = Add(vFDB97531, vECA86420);
+
+  const VI16 sDC_zz_98_zz_54_zz_10_zz =
+      BitCast(di16, ShiftLeft<16>(BitCast(du32, sFE_DC_BA_98_76_54_32_10)));
+  const VI16 sFC_xx_B8_xx_74_xx_30_xx =
+      Add(sFE_DC_BA_98_76_54_32_10, sDC_zz_98_zz_54_zz_10_zz);
+  const VI16 sB8_xx_zz_zz_30_xx_zz_zz =
+      BitCast(di16, ShiftLeft<32>(BitCast(du64, sFC_xx_B8_xx_74_xx_30_xx)));
+  const VI16 sF8_xx_xx_xx_70_xx_xx_xx =
+      Add(sFC_xx_B8_xx_74_xx_30_xx, sB8_xx_zz_zz_30_xx_zz_zz);
+  return ShiftRight<48>(BitCast(di64, sF8_xx_xx_xx_70_xx_xx_xx));
 }
 
 // ------------------------------ RotateRight
@@ -3893,8 +3918,8 @@ template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4))>
 HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
   // Use Lanes(d) / 2 instead of Lanes(Half<D>()) as Lanes(Half<D>()) can only
   // be called if (d.Pow2() >= -2 && d.Pow2() == DFromV<VFromD<D>>().Pow2()) is
-  // true and and as the results of InterleaveWholeUpper are implementation-defined
-  // if Lanes(d) is less than 2.
+  // true and and as the results of InterleaveWholeUpper are
+  // implementation-defined if Lanes(d) is less than 2.
   const size_t half_N = Lanes(d) / 2;
   return InterleaveWholeLower(d, detail::SlideDown(a, half_N),
                               detail::SlideDown(b, half_N));
@@ -3954,6 +3979,24 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
     return GetLane(__riscv_v##OP##_vs_##CHAR##SEW##LMUL##_##CHAR##SEW##m1(     \
         v, v0, Lanes(d)));                                                     \
   }
+
+// detail::RedSum, detail::RedMin, and detail::RedMax is more efficient
+// for N=4 I8/U8 reductions on RVV than the default implementations of the
+// the N=4 I8/U8 ReduceSum/ReduceMin/ReduceMax operations in generic_ops-inl.h
+#undef HWY_IF_REDUCE_D
+#define HWY_IF_REDUCE_D(D) hwy::EnableIf<HWY_MAX_LANES_D(D) != 1>* = nullptr
+
+#ifdef HWY_NATIVE_REDUCE_SUM_4_UI8
+#undef HWY_NATIVE_REDUCE_SUM_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_SUM_4_UI8
+#endif
+
+#ifdef HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#undef HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#endif
 
 // ------------------------------ ReduceSum
 

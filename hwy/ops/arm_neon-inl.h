@@ -1842,6 +1842,89 @@ HWY_API Vec128<uint64_t> SumsOf8(const Vec128<uint8_t> v) {
 HWY_API Vec64<uint64_t> SumsOf8(const Vec64<uint8_t> v) {
   return Vec64<uint64_t>(vpaddl_u32(vpaddl_u16(vpaddl_u8(v.raw))));
 }
+HWY_API Vec128<int64_t> SumsOf8(const Vec128<int8_t> v) {
+  return Vec128<int64_t>(vpaddlq_s32(vpaddlq_s16(vpaddlq_s8(v.raw))));
+}
+HWY_API Vec64<int64_t> SumsOf8(const Vec64<int8_t> v) {
+  return Vec64<int64_t>(vpaddl_s32(vpaddl_s16(vpaddl_s8(v.raw))));
+}
+
+// ------------------------------ SumsOf2
+namespace detail {
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddl_s8(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddlq_s8(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddl_u8(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddlq_u8(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddl_s16(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddlq_s16(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddl_u16(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddlq_u16(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag, hwy::SizeTag<4> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddl_s32(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::SignedTag, hwy::SizeTag<4> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddlq_s32(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_LE_V(V, 8)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag, hwy::SizeTag<4> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddl_u32(v.raw));
+}
+
+template <class V, HWY_IF_V_SIZE_V(V, 16)>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    hwy::UnsignedTag, hwy::SizeTag<4> /*lane_size_tag*/, V v) {
+  return VFromD<RepartitionToWide<DFromV<V>>>(vpaddlq_u32(v.raw));
+}
+
+}  // namespace detail
 
 // ------------------------------ SaturatedAdd
 
@@ -7181,13 +7264,15 @@ HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
 
 // Armv7 lacks N=2 and 8-bit x4, so enable generic versions of those.
 #undef HWY_IF_SUM_OF_LANES_D
-#define HWY_IF_SUM_OF_LANES_D(D) \
-      hwy::EnableIf<(HWY_MAX_LANES_D(D) == 2) || \
-          (sizeof(TFromD<D>) == 1 && HWY_MAX_LANES_D(D) == 4)>* = nullptr
+#define HWY_IF_SUM_OF_LANES_D(D)                                        \
+  hwy::EnableIf<(HWY_MAX_LANES_D(D) == 2) ||                            \
+                (sizeof(TFromD<D>) == 1 && HWY_MAX_LANES_D(D) == 4)>* = \
+      nullptr
 #undef HWY_IF_MINMAX_OF_LANES_D
-#define HWY_IF_MINMAX_OF_LANES_D(D)\
-      hwy::EnableIf<(HWY_MAX_LANES_D(D) == 2) || \
-          (sizeof(TFromD<D>) == 1 && HWY_MAX_LANES_D(D) == 4)>* = nullptr
+#define HWY_IF_MINMAX_OF_LANES_D(D)                                     \
+  hwy::EnableIf<(HWY_MAX_LANES_D(D) == 2) ||                            \
+                (sizeof(TFromD<D>) == 1 && HWY_MAX_LANES_D(D) == 4)>* = \
+      nullptr
 
 // For arm7, we implement reductions using a series of pairwise operations. This
 // produces the full vector result, so we express Reduce* in terms of *OfLanes.
@@ -7242,6 +7327,19 @@ HWY_NEON_DEF_PAIRWISE_REDUCTIONS(Max, vpmax)
 #undef HWY_NEON_DEF_WIDE_PAIRWISE_REDUCTION
 #undef HWY_NEON_DEF_PAIRWISE_REDUCTION
 #undef HWY_NEON_BUILD_TYPE_T
+
+// GetLane(SumsOf4(v)) is more efficient on ArmV7 NEON than the default
+// N=4 I8/U8 ReduceSum implementation in generic_ops-inl.h
+#ifdef HWY_NATIVE_REDUCE_SUM_4_UI8
+#undef HWY_NATIVE_REDUCE_SUM_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_SUM_4_UI8
+#endif
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_UI8_D(D)>
+HWY_API TFromD<D> ReduceSum(D /*d*/, VFromD<D> v) {
+  return static_cast<TFromD<D>>(GetLane(SumsOf4(v)));
+}
 
 #endif  // HWY_ARCH_ARM_A64
 
