@@ -1029,12 +1029,12 @@ HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   const VI ci_1 = Set(di, 1);
   const VI ci_2 = Set(di, 2);
   const VI ci_4 = Set(di, 4);
-  const V cos_p0 = Set(d, T(2.443315711809948E-005));
-  const V cos_p1 = Set(d, T(-1.388731625493765E-003));
-  const V cos_p2 = Set(d, T(4.166664568298827E-002));
-  const V sin_p0 = Set(d, T(-1.9515295891E-4));
-  const V sin_p1 = Set(d, T(8.3321608736E-3));
-  const V sin_p2 = Set(d, T(-1.6666654611E-1));
+  const V cos_p0 = Set(d, T(2.443315711809948e-005));
+  const V cos_p1 = Set(d, T(-1.388731625493765e-003));
+  const V cos_p2 = Set(d, T(4.166664568298827e-002));
+  const V sin_p0 = Set(d, T(-1.9515295891e-4));
+  const V sin_p1 = Set(d, T(8.3321608736e-3));
+  const V sin_p2 = Set(d, T(-1.6666654611e-1));
   const V FOPI = Set(d, T(1.27323954473516));  // 4 / M_PI
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
@@ -1128,18 +1128,18 @@ HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   const VI ci_1 = Set(di, 1);
   const VI ci_2 = Set(di, 2);
   const VI ci_4 = Set(di, 4);
-  const V cos_p0 = Set(d, T(-1.13585365213876817300E-11));
-  const V cos_p1 = Set(d, T(2.08757008419747316778E-9));
-  const V cos_p2 = Set(d, T(-2.75573141792967388112E-7));
-  const V cos_p3 = Set(d, T(2.48015872888517045348E-5));
-  const V cos_p4 = Set(d, T(-1.38888888888730564116E-3));
-  const V cos_p5 = Set(d, T(4.16666666666665929218E-2));
-  const V sin_p0 = Set(d, T(1.58962301576546568060E-10));
-  const V sin_p1 = Set(d, T(-2.50507477628578072866E-8));
-  const V sin_p2 = Set(d, T(2.75573136213857245213E-6));
-  const V sin_p3 = Set(d, T(-1.98412698295895385996E-4));
-  const V sin_p4 = Set(d, T(8.33333333332211858878E-3));
-  const V sin_p5 = Set(d, T(-1.66666666666666307295E-1));
+  const V cos_p0 = Set(d, T(-1.13585365213876817300e-11));
+  const V cos_p1 = Set(d, T(2.08757008419747316778e-9));
+  const V cos_p2 = Set(d, T(-2.75573141792967388112e-7));
+  const V cos_p3 = Set(d, T(2.48015872888517045348e-5));
+  const V cos_p4 = Set(d, T(-1.38888888888730564116e-3));
+  const V cos_p5 = Set(d, T(4.16666666666665929218e-2));
+  const V sin_p0 = Set(d, T(1.58962301576546568060e-10));
+  const V sin_p1 = Set(d, T(-2.50507477628578072866e-8));
+  const V sin_p2 = Set(d, T(2.75573136213857245213e-6));
+  const V sin_p3 = Set(d, T(-1.98412698295895385996e-4));
+  const V sin_p4 = Set(d, T(8.33333333332211858878e-3));
+  const V sin_p5 = Set(d, T(-1.66666666666666307295e-1));
   const V FOPI = Set(d, T(1.2732395447351626861510701069801148));  // 4 / M_PI
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
@@ -1235,8 +1235,8 @@ template <>
 struct SinCosImpl<double> {
   template <class D, class V>
   HWY_INLINE void SinCos(D d, V x, V& s, V& c) {
-    SinCos6(d, -7.85398125648498535156E-1, -3.77489470793079817668E-8,
-            -2.69515142907905952645E-15, x, s, c);
+    SinCos6(d, -7.85398125648498535156e-1, -3.77489470793079817668e-8,
+            -2.69515142907905952645e-15, x, s, c);
   }
 };
 #endif
