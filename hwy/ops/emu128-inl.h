@@ -105,7 +105,7 @@ using VFromD = decltype(Zero(D()));
 template <class D, class VFrom>
 HWY_API VFromD<D> BitCast(D /* tag */, VFrom v) {
   VFromD<D> to;
-  CopySameSize(&v, &to);
+  CopySameSize(&v.raw, &to.raw);
   return to;
 }
 
@@ -122,7 +122,7 @@ HWY_API VFromD<D> ResizeBitCast(D d, VFrom v) {
   constexpr size_t kCopyByteLen = HWY_MIN(kFromByteLen, kToByteLen);
 
   VFromD<D> to = Zero(d);
-  CopyBytes<kCopyByteLen>(&v, &to);
+  CopyBytes<kCopyByteLen>(&v.raw, &to.raw);
   return to;
 }
 
@@ -297,7 +297,7 @@ HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Mask128<T, N> MaskFromVec(Vec128<T, N> v) {
   Mask128<T, N> mask;
-  CopySameSize(&v, &mask);
+  CopySameSize(&v.raw, &mask.bits);
   return mask;
 }
 
@@ -307,14 +307,14 @@ using MFromD = decltype(MaskFromVec(VFromD<D>()));
 template <class DTo, class MFrom>
 HWY_API MFromD<DTo> RebindMask(DTo /* tag */, MFrom mask) {
   MFromD<DTo> to;
-  CopySameSize(&mask, &to);
+  CopySameSize(&mask.bits, &to.bits);
   return to;
 }
 
 template <typename T, size_t N>
 Vec128<T, N> VecFromMask(Mask128<T, N> mask) {
   Vec128<T, N> v;
-  CopySameSize(&mask, &v);
+  CopySameSize(&mask.bits, &v.raw);
   return v;
 }
 
