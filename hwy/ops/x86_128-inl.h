@@ -3804,6 +3804,49 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
 #endif
 }
 
+// ------------------------------ CondNegateOrZero
+
+#if HWY_TARGET <= HWY_SSSE3
+
+#ifdef HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+#undef HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+#else
+#define HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+#endif
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> CondNegateOrZero(Vec128<int8_t, N> a,
+                                           Vec128<int8_t, N> b) {
+  return Vec128<int8_t, N>{_mm_sign_epi8(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> CondNegateOrZero(Vec128<int16_t, N> a,
+                                            Vec128<int16_t, N> b) {
+  return Vec128<int16_t, N>{_mm_sign_epi16(a.raw, b.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> CondNegateOrZero(Vec128<int32_t, N> a,
+                                            Vec128<int32_t, N> b) {
+  return Vec128<int32_t, N>{_mm_sign_epi32(a.raw, b.raw)};
+}
+
+// Generic for all vector lengths
+template <class V, HWY_IF_I64_D(DFromV<V>)>
+HWY_API V CondNegateOrZero(V a, V b) {
+  const DFromV<decltype(a)> d;
+
+#if HWY_TARGET <= HWY_AVX3
+  return IfThenZeroElse(Eq(b, Zero(d)),
+                        MaskedSubOr(a, MaskFromVec(b), Zero(d), a));
+#else
+  return IfNegativeThenElse(b, Neg(a), IfThenZeroElse(Eq(b, Zero(d)), a));
+#endif
+}
+
+#endif
+
 // ------------------------------ ShiftLeftSame
 
 template <size_t N>

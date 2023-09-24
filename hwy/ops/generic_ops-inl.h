@@ -294,6 +294,30 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif  // HWY_NATIVE_MASKED_ARITH
 
+// ------------------------------ CondNegateOrZero
+
+#if (defined(HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+#undef HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+#else
+#define HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V CondNegateOrZero(V a, V b) {
+  const DFromV<decltype(a)> d;
+  return IfNegativeThenElse(b, Neg(a), IfThenZeroElse(Eq(b, Zero(d)), a));
+}
+
+#endif  // HWY_NATIVE_INTEGER_COND_NEGATE_OR_ZERO
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V CondNegateOrZero(V a, V b) {
+  const DFromV<decltype(a)> d;
+  return IfThenZeroElse(Eq(b, Zero(d)), CopySign(a, Xor(a, b)));
+}
+
 // ------------------------------ Reductions
 
 // Targets follow one of two strategies. If HWY_NATIVE_REDUCE_SCALAR is toggled,

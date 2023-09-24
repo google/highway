@@ -2187,6 +2187,20 @@ HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
 #endif
 }
 
+// ------------------------------ CondNegateOrZero
+
+HWY_API Vec256<int8_t> CondNegateOrZero(Vec256<int8_t> a, Vec256<int8_t> b) {
+  return Vec256<int8_t>{_mm256_sign_epi8(a.raw, b.raw)};
+}
+
+HWY_API Vec256<int16_t> CondNegateOrZero(Vec256<int16_t> a, Vec256<int16_t> b) {
+  return Vec256<int16_t>{_mm256_sign_epi16(a.raw, b.raw)};
+}
+
+HWY_API Vec256<int32_t> CondNegateOrZero(Vec256<int32_t> a, Vec256<int32_t> b) {
+  return Vec256<int32_t>{_mm256_sign_epi32(a.raw, b.raw)};
+}
+
 // ------------------------------ ShiftLeftSame
 
 HWY_API Vec256<uint16_t> ShiftLeftSame(const Vec256<uint16_t> v,

@@ -896,6 +896,15 @@ HWY_API Vec512<T> IfNegativeThenElse(Vec512<T> v, Vec512<T> yes, Vec512<T> no) {
   return IfThenElse(MaskFromVec(v), yes, no);
 }
 
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API Vec512<T> CondNegateOrZero(Vec512<T> a, Vec512<T> b) {
+  const DFromV<decltype(a)> d;
+  // AVX3 MaskFromVec only looks at the MSB
+  return IfThenZeroElse(Eq(b, Zero(d)),
+                        MaskedSubOr(a, MaskFromVec(b), Zero(d), a));
+}
+
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec512<T> ZeroIfNegative(const Vec512<T> v) {
   // AVX3 MaskFromVec only looks at the MSB
