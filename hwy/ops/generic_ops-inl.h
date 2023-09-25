@@ -2583,7 +2583,7 @@ HWY_API VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(V v) {
 namespace detail {
 
 template <class TypeTag, size_t kLaneSize, class V>
-HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
     TypeTag /*type_tag*/, hwy::SizeTag<kLaneSize> /*lane_size_tag*/, V v) {
   using hwy::HWY_NAMESPACE::SumsOf2;
   return SumsOf2(SumsOf2(v));
@@ -2592,7 +2592,7 @@ HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
 }  // namespace detail
 
 template <class V>
-HWY_API VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(V v) {
+HWY_API VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(V v) {
   return detail::SumsOf4(hwy::TypeTag<TFromV<V>>(),
                          hwy::SizeTag<sizeof(TFromV<V>)>(), v);
 }

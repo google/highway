@@ -512,25 +512,22 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   `V`: `{i,u}{8,16,32},f32`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
     <code>VW **SumsOf2**(V v)</code>
     returns the sums of 2 consecutive lanes, promoting each sum into a lane of
-    `MakeWide<TFromV<V>>`.
+    `TFromV<VW>`.
 
 *   `V`: `{i,u}{8,16}`,
-    `VW`: `Vec<RepartitionToWide<RepartitionToWide<DFromV<V>>>>` \
+    `VW`: `Vec<RepartitionToWideX2<DFromV<V>>>` \
     <code>VW **SumsOf4**(V v)</code>
     returns the sums of 4 consecutive lanes, promoting each sum into a lane of
-    `MakeWide<MakeWide<TFromV<V>>>`.
+    `TFromV<VW>`.
 
-*   `V`: `{i,u}8`, `TW`: `MakeWide<MakeWide<MakeWide<TFromV<V>>>>`,
-    `VW`: `Vec<RepartitionToWide<TW, DFromV<V>>>` \
+*   `V`: `{i,u}8`, `VW`: `Vec<RepartitionToWideX3<DFromV<V>>>` \
     <code>VW **SumsOf8**(V v)</code> returns the sums of 8 consecutive
-    lanes, promoting each sum into a lane of
-    `MakeWide<MakeWide<MakeWide<TFromV<V>>>>`. This is slower on RVV/WASM.
+    lanes, promoting each sum into a lane of `TFromV<VW>`. This is slower on
+    RVV/WASM.
 
-*   `V`: `{i,u}8`, `TW`: `MakeWide<MakeWide<MakeWide<TFromV<V>>>>`,
-    `VW`: `Vec<RepartitionToWide<TW, DFromV<V>>>` \
+*   `V`: `{i,u}8`, `VW`: `Vec<RepartitionToWideX3<DFromV<V>>>` \
     <code>VW **SumsOf8AbsDiff**(V a, V b)</code> returns the same result as
-    `SumsOf8(AbsDiff(a, b))` but `SumsOf8AbsDiff(a, b)` is more efficient than
-    `SumsOf8(AbsDiff(a, b))` on SSE2/SSSE3/SSE4/AVX2/AVX3.
+    `SumsOf8(AbsDiff(a, b))`, but is more efficient on x86.
 
 *   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to
@@ -658,7 +655,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     initial value of `sum1` must be zero, see `ReorderWidenMulAccumulate`.
 
 *   `VN`: `{u,i}{8,16}`,
-    `D`: `RepartitionToWide<RepartitionToWide<DFromV<VN>>>` \
+    `D`: `RepartitionToWideX2<DFromV<VN>>` \
     <code>Vec&lt;D&gt; **SumOfMulQuadAccumulate**(D d, VN a, VN b,
     Vec&lt;D&gt; sum)</code>: widens `a` and `b` to `TFromD<D>` and computes
     `sum[i] + a[4*i+3]*b[4*i+3] + a[4*i+2]*b[4*i+2] + a[4*i+1]*b[4*i+1] +

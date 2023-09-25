@@ -418,6 +418,13 @@ using RepartitionToWide = Repartition<MakeWide<TFromD<D>>, D>;
 template <class D>
 using RepartitionToNarrow = Repartition<MakeNarrow<TFromD<D>>, D>;
 
+// Shorthand for applying RepartitionToWide twice (for 8/16-bit types).
+template <class D>
+using RepartitionToWideX2 = RepartitionToWide<RepartitionToWide<D>>;
+// Shorthand for applying RepartitionToWide three times (for 8-bit types).
+template <class D>
+using RepartitionToWideX3 = RepartitionToWide<RepartitionToWideX2<D>>;
+
 // Tag for the same lane type as D, but half the lanes.
 template <class D>
 using Half = typename D::Half;

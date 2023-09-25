@@ -3006,14 +3006,14 @@ HWY_API VFromD<D> Reverse2(D d, const VFromD<D> v) {  // 3210
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
-  const RepartitionToWide<RepartitionToWide<decltype(du)>> du32;
+  const RepartitionToWideX2<decltype(du)> du32;
   return BitCast(d, svrevb_u32_x(detail::PTrue(d), BitCast(du32, v)));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToUnsigned<decltype(d)> du;
-  const RepartitionToWide<RepartitionToWide<decltype(du)>> du64;
+  const RepartitionToWideX2<decltype(du)> du64;
   return BitCast(d, svrevh_u64_x(detail::PTrue(d), BitCast(du64, v)));
 }
 

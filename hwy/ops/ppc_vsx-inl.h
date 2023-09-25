@@ -5549,23 +5549,23 @@ HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
 
 // I8->I32 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
     hwy::SignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
-  const RepartitionToWide<RepartitionToWide<DFromV<V>>> dw2;
+  const RepartitionToWideX2<DFromV<V>> dw2;
   return AltivecVsum4sbs(dw2, v.raw, Zero(dw2).raw);
 }
 
 // U8->U32 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
-  const RepartitionToWide<RepartitionToWide<DFromV<V>>> dw2;
+  const RepartitionToWideX2<DFromV<V>> dw2;
   return AltivecVsum4ubs(dw2, v.raw, Zero(dw2).raw);
 }
 
 // I16->I64 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
     hwy::SignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
   const RepartitionToWide<DFromV<V>> dw;
   const RepartitionToWide<decltype(dw)> dw2;
@@ -5581,7 +5581,7 @@ HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
 
 // U16->U64 SumsOf4
 template <class V>
-HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
     hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<2> /*lane_size_tag*/, V v) {
   const RepartitionToWide<DFromV<V>> dw;
   const RebindToSigned<decltype(dw)> dw_i;

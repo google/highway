@@ -3285,7 +3285,7 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
 
 // Generic for all vector lengths
 template <class V, HWY_IF_I8_D(DFromV<V>)>
-HWY_API VFromD<Repartition<int64_t, DFromV<V>>> SumsOf8(V v) {
+HWY_API VFromD<RepartitionToWideX3<DFromV<V>>> SumsOf8(V v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
   const Repartition<int64_t, decltype(d)> di64;
@@ -3314,10 +3314,10 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8AbsDiff(const Vec128<uint8_t, N> a,
 
 // Generic for all vector lengths
 template <class V, HWY_IF_I8_D(DFromV<V>)>
-HWY_API VFromD<Repartition<int64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
-  const DFromV<decltype(a)> d;
+HWY_API VFromD<RepartitionToWideX3<DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
+  const DFromV<V> d;
   const RebindToUnsigned<decltype(d)> du;
-  const Repartition<int64_t, decltype(d)> di64;
+  const RepartitionToWideX3<decltype(d)> di64;
 
   // Adjust the values of a and b to be in the 0..255 range by adding 128 to
   // each lane of a and b (which is the same as an bitwise XOR of each i8 lane
