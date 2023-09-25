@@ -509,29 +509,28 @@ from left to right, of the arguments passed to `Create{2-4}`.
 
 *   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
-*   `V`: `{i,u}{8,16,32},f32`, `VW`: `RepartitionToWide<DFromV<V>>` \
+*   `V`: `{i,u}{8,16,32},f32`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
     <code>VW **SumsOf2**(V v)</code>
     returns the sums of 2 consecutive lanes, promoting each sum into a lane of
     `MakeWide<TFromV<V>>`.
 
 *   `V`: `{i,u}{8,16}`,
-    `VW`: `RepartitionToWide<RepartitionToWide<DFromV<V>>>` \
+    `VW`: `Vec<RepartitionToWide<RepartitionToWide<DFromV<V>>>>` \
     <code>VW **SumsOf4**(V v)</code>
     returns the sums of 4 consecutive lanes, promoting each sum into a lane of
     `MakeWide<MakeWide<TFromV<V>>>`.
 
-*   `V`: `u8` \
-    <code>VU64 **SumsOf8**(V v)</code> returns the sums of 8 consecutive u8
-    lanes, zero-extending each sum into a u64 lane. This is slower on RVV/WASM.
+*   `V`: `{i,u}8`, `TW`: `MakeWide<MakeWide<MakeWide<TFromV<V>>>>`,
+    `VW`: `Vec<RepartitionToWide<TW, DFromV<V>>>` \
+    <code>VW **SumsOf8**(V v)</code> returns the sums of 8 consecutive
+    lanes, promoting each sum into a lane of
+    `MakeWide<MakeWide<MakeWide<TFromV<V>>>>`. This is slower on RVV/WASM.
 
-*   `V`: `i8` \
-    <code>VI64 **SumsOf8**(V v)</code> returns the sums of 8 consecutive i8
-    lanes, sign-extending each sum into an i64 lane. This is slower on RVV/WASM.
-
-*   `V`: `u8` \
-    <code>VU64 **SumsOf8AbsDiff**(V a, V b)</code> returns the same result as
+*   `V`: `{i,u}8`, `TW`: `MakeWide<MakeWide<MakeWide<TFromV<V>>>>`,
+    `VW`: `Vec<RepartitionToWide<TW, DFromV<V>>>` \
+    <code>VW **SumsOf8AbsDiff**(V a, V b)</code> returns the same result as
     `SumsOf8(AbsDiff(a, b))` but `SumsOf8AbsDiff(a, b)` is more efficient than
-    `SumsOf8(AbsDiff(a, b))` on SSSE3/SSE4/AVX2/AVX3.
+    `SumsOf8(AbsDiff(a, b))` on SSE2/SSSE3/SSE4/AVX2/AVX3.
 
 *   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to

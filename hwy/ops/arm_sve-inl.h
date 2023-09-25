@@ -2666,7 +2666,7 @@ HWY_SVE_FOREACH_F(HWY_SVE_REDUCE, MaxOfLanesM, maxnmv)
 
 // detail::SumOfLanesM, detail::MinOfLanesM, and detail::MaxOfLanesM is more
 // efficient for N=4 I8/U8 reductions on SVE than the default implementations
-// of the N=4 I8/U8 ReduceSum/ReduceMin/ReduceMax implementations in
+// of the N=4 I8/U8 ReduceSum/ReduceMin/ReduceMax operations in
 // generic_ops-inl.h
 #undef HWY_IF_REDUCE_D
 #define HWY_IF_REDUCE_D(D) hwy::EnableIf<HWY_MAX_LANES_D(D) != 1>* = nullptr
