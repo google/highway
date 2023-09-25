@@ -528,8 +528,20 @@ HWY_API Vec1<double> operator-(const Vec1<double> a, const Vec1<double> b) {
 
 // ------------------------------ SumsOf8
 
+HWY_API Vec1<int64_t> SumsOf8(const Vec1<int8_t> v) {
+  return Vec1<int64_t>(v.raw);
+}
 HWY_API Vec1<uint64_t> SumsOf8(const Vec1<uint8_t> v) {
   return Vec1<uint64_t>(v.raw);
+}
+
+// ------------------------------ SumsOf2
+
+template <class T>
+HWY_API Vec1<MakeWide<T>> SumsOf2(const Vec1<T> v) {
+  const DFromV<decltype(v)> d;
+  const Rebind<MakeWide<T>, decltype(d)> dw;
+  return PromoteTo(dw, v);
 }
 
 // ------------------------------ SaturatedAdd

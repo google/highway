@@ -212,29 +212,6 @@ HWY_NOINLINE void TestAllPromoteUpperLowerTo() {
 
 template <typename ToT>
 struct TestPromoteOddEvenTo {
-  template <class T, HWY_IF_FLOAT_OR_SPECIAL(T)>
-  static HWY_INLINE T RandomBitsToVal(uint64_t rand_bits) {
-    using TU = MakeUnsigned<T>;
-    constexpr TU kExponentMask = ExponentMask<T>();
-    constexpr TU kSignMantMask = static_cast<TU>(~kExponentMask);
-    constexpr TU kMaxExpField = static_cast<TU>(MaxExponentField<T>());
-    constexpr int kNumOfMantBits = MantissaBits<T>();
-
-    const TU orig_exp_field_val =
-        static_cast<TU>((rand_bits >> kNumOfMantBits) & kMaxExpField);
-
-    const TU sign_mant_bits = static_cast<TU>(rand_bits & kSignMantMask);
-    const TU exp_bits = static_cast<TU>(
-        HWY_MIN(HWY_MAX(orig_exp_field_val, 1), kMaxExpField - 1)
-        << kNumOfMantBits);
-
-    return BitCastScalar<T>(static_cast<TU>(sign_mant_bits | exp_bits));
-  }
-  template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
-  static HWY_INLINE T RandomBitsToVal(uint64_t rand_bits) {
-    return static_cast<T>(rand_bits & LimitsMax<MakeUnsigned<T>>());
-  }
-
   static HWY_INLINE ToT CastValueToWide(hwy::FloatTag /* to_type_tag */,
                                         hwy::FloatTag /* from_type_tag */,
                                         hwy::float16_t val) {
@@ -303,7 +280,7 @@ struct TestPromoteOddEvenTo {
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        from[i] = RandomBitsToVal<T>(rng());
+        from[i] = RandomFiniteValue<T>(&rng);
       }
 
       for (size_t i = 0; i < N / 2; ++i) {

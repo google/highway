@@ -146,6 +146,13 @@ HWY_API Vec256<uint64_t> SumsOf8(const Vec256<uint8_t> v) {
   return ret;
 }
 
+HWY_API Vec256<int64_t> SumsOf8(const Vec256<int8_t> v) {
+  Vec256<int64_t> ret;
+  ret.v0 = SumsOf8(v.v0);
+  ret.v1 = SumsOf8(v.v1);
+  return ret;
+}
+
 template <typename T>
 HWY_API Vec256<T> SaturatedAdd(Vec256<T> a, const Vec256<T> b) {
   a.v0 = SaturatedAdd(a.v0, b.v0);

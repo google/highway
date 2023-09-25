@@ -614,6 +614,15 @@ HWY_API Vec128<uint64_t, (N + 7) / 8> SumsOf8(Vec128<uint8_t, N> v) {
   return sums;
 }
 
+template <size_t N>
+HWY_API Vec128<int64_t, (N + 7) / 8> SumsOf8(Vec128<int8_t, N> v) {
+  Vec128<int64_t, (N + 7) / 8> sums;
+  for (size_t i = 0; i < N; ++i) {
+    sums.raw[i / 8] += v.raw[i];
+  }
+  return sums;
+}
+
 // ------------------------------ SaturatedAdd
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
           HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>

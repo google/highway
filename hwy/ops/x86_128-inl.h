@@ -3283,6 +3283,23 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
   return Vec128<uint64_t, N / 8>{_mm_sad_epu8(v.raw, _mm_setzero_si128())};
 }
 
+// Generic for all vector lengths
+template <class V, HWY_IF_I8_D(DFromV<V>)>
+HWY_API VFromD<Repartition<int64_t, DFromV<V>>> SumsOf8(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const Repartition<int64_t, decltype(d)> di64;
+
+  // Adjust the values of v to be in the 0..255 range by adding 128 to each lane
+  // of v (which is the same as an bitwise XOR of each i8 lane by 128) and then
+  // bitcasting the Xor result to an u8 vector.
+  const auto v_adj = BitCast(du, Xor(v, SignBit(d)));
+
+  // Need to add -1024 to each i64 lane of the result of the SumsOf8(v_adj)
+  // operation to account for the adjustment made above.
+  return BitCast(di64, SumsOf8(v_adj)) + Set(di64, int64_t{-1024});
+}
+
 #ifdef HWY_NATIVE_SUMS_OF_8_ABS_DIFF
 #undef HWY_NATIVE_SUMS_OF_8_ABS_DIFF
 #else
@@ -3293,6 +3310,26 @@ template <size_t N>
 HWY_API Vec128<uint64_t, N / 8> SumsOf8AbsDiff(const Vec128<uint8_t, N> a,
                                                const Vec128<uint8_t, N> b) {
   return Vec128<uint64_t, N / 8>{_mm_sad_epu8(a.raw, b.raw)};
+}
+
+// Generic for all vector lengths
+template <class V, HWY_IF_I8_D(DFromV<V>)>
+HWY_API VFromD<Repartition<int64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const Repartition<int64_t, decltype(d)> di64;
+
+  // Adjust the values of a and b to be in the 0..255 range by adding 128 to
+  // each lane of a and b (which is the same as an bitwise XOR of each i8 lane
+  // by 128) and then bitcasting the results of the Xor operations to u8
+  // vectors.
+  const auto i8_msb = SignBit(d);
+  const auto a_adj = BitCast(du, Xor(a, i8_msb));
+  const auto b_adj = BitCast(du, Xor(b, i8_msb));
+
+  // The result of SumsOf8AbsDiff(a_adj, b_adj) can simply be bitcasted to an
+  // i64 vector as |(a[i] + 128) - (b[i] + 128)| == |a[i] - b[i]| is true
+  return BitCast(di64, SumsOf8AbsDiff(a_adj, b_adj));
 }
 
 // ------------------------------ SaturatedAdd

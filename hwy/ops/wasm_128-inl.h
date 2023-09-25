@@ -4677,6 +4677,31 @@ HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
   return And(BitCast(du64, sxx_xx_xx_F8_xx_xx_xx_70), Set(du64, 0xFFFF));
 }
 
+template <size_t N>
+HWY_API Vec128<int64_t, N / 8> SumsOf8(const Vec128<int8_t, N> v) {
+  const DFromV<decltype(v)> di8;
+  const RepartitionToWide<decltype(di8)> di16;
+  const RepartitionToWide<decltype(di16)> di32;
+  const RepartitionToWide<decltype(di32)> di64;
+  const RebindToUnsigned<decltype(di32)> du32;
+  const RebindToUnsigned<decltype(di64)> du64;
+  using VI16 = VFromD<decltype(di16)>;
+
+  const VI16 vFDB97531 = ShiftRight<8>(BitCast(di16, v));
+  const VI16 vECA86420 = ShiftRight<8>(ShiftLeft<8>(BitCast(di16, v)));
+  const VI16 sFE_DC_BA_98_76_54_32_10 = Add(vFDB97531, vECA86420);
+
+  const VI16 sDC_zz_98_zz_54_zz_10_zz =
+      BitCast(di16, ShiftLeft<16>(BitCast(du32, sFE_DC_BA_98_76_54_32_10)));
+  const VI16 sFC_xx_B8_xx_74_xx_30_xx =
+      Add(sFE_DC_BA_98_76_54_32_10, sDC_zz_98_zz_54_zz_10_zz);
+  const VI16 sB8_xx_zz_zz_30_xx_zz_zz =
+      BitCast(di16, ShiftLeft<32>(BitCast(du64, sFC_xx_B8_xx_74_xx_30_xx)));
+  const VI16 sF8_xx_xx_xx_70_xx_xx_xx =
+      Add(sFC_xx_B8_xx_74_xx_30_xx, sB8_xx_zz_zz_30_xx_zz_zz);
+  return ShiftRight<48>(BitCast(di64, sF8_xx_xx_xx_70_xx_xx_xx));
+}
+
 // ------------------------------ LoadMaskBits (TestBit)
 
 namespace detail {

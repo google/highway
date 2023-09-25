@@ -468,11 +468,30 @@ HWY_API VFromD<D> MaxOfLanes(D /* tag */, VFromD<D> v) {
 }
 
 // N=4 for 8-bit is still less than the minimum native size.
+
+// ARMv7 NEON/PPC/RVV/SVE have target-specific implementations of the N=4 I8/U8
+// ReduceSum operations
+#if (defined(HWY_NATIVE_REDUCE_SUM_4_UI8) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REDUCE_SUM_4_UI8
+#undef HWY_NATIVE_REDUCE_SUM_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_SUM_4_UI8
+#endif
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_UI8_D(D)>
 HWY_API TFromD<D> ReduceSum(D d, VFromD<D> v) {
   const Twice<RepartitionToWide<decltype(d)>> dw;
   return static_cast<TFromD<D>>(ReduceSum(dw, PromoteTo(dw, v)));
 }
+#endif  // HWY_NATIVE_REDUCE_SUM_4_UI8
+
+// RVV/SVE have target-specific implementations of the N=4 I8/U8
+// ReduceMin/ReduceMax operations
+#if (defined(HWY_NATIVE_REDUCE_MINMAX_4_UI8) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#undef HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#else
+#define HWY_NATIVE_REDUCE_MINMAX_4_UI8
+#endif
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_UI8_D(D)>
 HWY_API TFromD<D> ReduceMin(D d, VFromD<D> v) {
   const Twice<RepartitionToWide<decltype(d)>> dw;
@@ -483,6 +502,7 @@ HWY_API TFromD<D> ReduceMax(D d, VFromD<D> v) {
   const Twice<RepartitionToWide<decltype(d)>> dw;
   return static_cast<TFromD<D>>(ReduceMax(dw, PromoteTo(dw, v)));
 }
+#endif  // HWY_NATIVE_REDUCE_MINMAX_4_UI8
 
 // ------------------------------ LoadInterleaved2
 
@@ -2038,6 +2058,12 @@ HWY_API Vec<Repartition<uint64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
   return SumsOf8(AbsDiff(a, b));
 }
 
+template <class V, HWY_IF_I8_D(DFromV<V>),
+          HWY_IF_V_SIZE_GT_D(DFromV<V>, (HWY_TARGET == HWY_SCALAR ? 0 : 4))>
+HWY_API Vec<Repartition<int64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
+  return SumsOf8(AbsDiff(a, b));
+}
+
 #endif  // HWY_NATIVE_SUMS_OF_8_ABS_DIFF
 
 // ------------------------------ SaturatedAdd/SaturatedSub for UI32/UI64
@@ -2529,6 +2555,47 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 }
 
 #endif  // HWY_NATIVE_F16C
+
+// ------------------------------ SumsOf2
+
+#if HWY_TARGET != HWY_SCALAR
+namespace detail {
+
+template <class TypeTag, size_t kLaneSize, class V>
+HWY_INLINE VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(
+    TypeTag /*type_tag*/, hwy::SizeTag<kLaneSize> /*lane_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return Add(PromoteEvenTo(dw, v), PromoteOddTo(dw, v));
+}
+
+}  // namespace detail
+
+template <class V>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> SumsOf2(V v) {
+  return detail::SumsOf2(hwy::TypeTag<TFromV<V>>(),
+                         hwy::SizeTag<sizeof(TFromV<V>)>(), v);
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+// ------------------------------ SumsOf4
+
+namespace detail {
+
+template <class TypeTag, size_t kLaneSize, class V>
+HWY_INLINE VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(
+    TypeTag /*type_tag*/, hwy::SizeTag<kLaneSize> /*lane_size_tag*/, V v) {
+  using hwy::HWY_NAMESPACE::SumsOf2;
+  return SumsOf2(SumsOf2(v));
+}
+
+}  // namespace detail
+
+template <class V>
+HWY_API VFromD<RepartitionToWide<RepartitionToWide<DFromV<V>>>> SumsOf4(V v) {
+  return detail::SumsOf4(hwy::TypeTag<TFromV<V>>(),
+                         hwy::SizeTag<sizeof(TFromV<V>)>(), v);
+}
 
 // ------------------------------ OrderedTruncate2To
 
