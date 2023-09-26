@@ -1792,6 +1792,27 @@ HWY_API Vec256<uint64_t> SumsOf8AbsDiff(Vec256<uint8_t> a, Vec256<uint8_t> b) {
   return Vec256<uint64_t>{_mm256_sad_epu8(a.raw, b.raw)};
 }
 
+// ------------------------------ SumsOf4
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+HWY_INLINE Vec256<uint32_t> SumsOf4(hwy::UnsignedTag /*type_tag*/,
+                                    hwy::SizeTag<1> /*lane_size_tag*/,
+                                    Vec256<uint8_t> v) {
+  const DFromV<decltype(v)> d;
+
+  // _mm256_maskz_dbsad_epu8 is used below as the odd uint16_t lanes need to be
+  // zeroed out and the sums of the 4 consecutive lanes are already in the
+  // even uint16_t lanes of the _mm256_maskz_dbsad_epu8 result.
+  return Vec256<uint32_t>{_mm256_maskz_dbsad_epu8(
+      static_cast<__mmask16>(0x5555), v.raw, Zero(d).raw, 0)};
+}
+
+// detail::SumsOf4 for Vec256<int8_t> on AVX3 is implemented in x86_512-inl.h
+
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.

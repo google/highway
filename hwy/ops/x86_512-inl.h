@@ -1000,6 +1000,44 @@ HWY_API Vec512<uint64_t> SumsOf8AbsDiff(Vec512<uint8_t> a, Vec512<uint8_t> b) {
   return Vec512<uint64_t>{_mm512_sad_epu8(a.raw, b.raw)};
 }
 
+// ------------------------------ SumsOf4
+namespace detail {
+
+HWY_INLINE Vec512<uint32_t> SumsOf4(hwy::UnsignedTag /*type_tag*/,
+                                    hwy::SizeTag<1> /*lane_size_tag*/,
+                                    Vec512<uint8_t> v) {
+  const DFromV<decltype(v)> d;
+
+  // _mm512_maskz_dbsad_epu8 is used below as the odd uint16_t lanes need to be
+  // zeroed out and the sums of the 4 consecutive lanes are already in the
+  // even uint16_t lanes of the _mm512_maskz_dbsad_epu8 result.
+  return Vec512<uint32_t>{_mm512_maskz_dbsad_epu8(
+      static_cast<__mmask32>(0x55555555), v.raw, Zero(d).raw, 0)};
+}
+
+// I8->I32 SumsOf4
+// Generic for all vector lengths
+template <class V>
+HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
+    hwy::SignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/, V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWideX2<decltype(d)> di32;
+
+  // Adjust the values of v to be in the 0..255 range by adding 128 to each lane
+  // of v (which is the same as an bitwise XOR of each i8 lane by 128) and then
+  // bitcasting the Xor result to an u8 vector.
+  const auto v_adj = BitCast(du, Xor(v, SignBit(d)));
+
+  // Need to add -512 to each i32 lane of the result of the
+  // SumsOf4(hwy::UnsignedTag(), hwy::SizeTag<1>(), v_adj) operation to account
+  // for the adjustment made above.
+  return BitCast(di32, SumsOf4(hwy::UnsignedTag(), hwy::SizeTag<1>(), v_adj)) +
+         Set(di32, int32_t{-512});
+}
+
+}  // namespace detail
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.

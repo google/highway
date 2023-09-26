@@ -3332,6 +3332,28 @@ HWY_API VFromD<RepartitionToWideX3<DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
   return BitCast(di64, SumsOf8AbsDiff(a_adj, b_adj));
 }
 
+// ------------------------------ SumsOf4
+#if HWY_TARGET <= HWY_AVX3
+namespace detail {
+
+template <size_t N>
+HWY_INLINE Vec128<uint32_t, (N + 3) / 4> SumsOf4(
+    hwy::UnsignedTag /*type_tag*/, hwy::SizeTag<1> /*lane_size_tag*/,
+    Vec128<uint8_t, N> v) {
+  const DFromV<decltype(v)> d;
+
+  // _mm_maskz_dbsad_epu8 is used below as the odd uint16_t lanes need to be
+  // zeroed out and the sums of the 4 consecutive lanes are already in the
+  // even uint16_t lanes of the _mm_maskz_dbsad_epu8 result.
+  return Vec128<uint32_t, (N + 3) / 4>{
+      _mm_maskz_dbsad_epu8(static_cast<__mmask8>(0x55), v.raw, Zero(d).raw, 0)};
+}
+
+// detail::SumsOf4 for Vec128<int8_t, N> on AVX3 is implemented in x86_512-inl.h
+
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
