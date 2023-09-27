@@ -752,7 +752,7 @@ HWY_API MFromD<D> FirstN(D d, size_t n) {
   m.raw = static_cast<decltype(m.raw)>(_bzhi_u64(all, n));
   return m;
 #else
-  return detail::FirstN<T>(n);
+  return detail::FirstN<TFromD<D>>(n);
 #endif  // HWY_ARCH_X86_64
 }
 
