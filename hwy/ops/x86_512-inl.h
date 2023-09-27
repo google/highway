@@ -2553,8 +2553,13 @@ HWY_API Mask512<T> ExclusiveNeither(Mask512<T> a, Mask512<T> b) {
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
 
 HWY_API Vec512<int8_t> BroadcastSignBit(Vec512<int8_t> v) {
+#if HWY_TARGET <= HWY_AVX3_DL
+  const Repartition<uint64_t, DFromV<decltype(v)>> du64;
+  return detail::GaloisAffine(v, Set(du64, 0x8080808080808080ull));
+#else
   const DFromV<decltype(v)> d;
   return VecFromMask(v < Zero(d));
+#endif
 }
 
 HWY_API Vec512<int16_t> BroadcastSignBit(Vec512<int16_t> v) {
@@ -2566,7 +2571,7 @@ HWY_API Vec512<int32_t> BroadcastSignBit(Vec512<int32_t> v) {
 }
 
 HWY_API Vec512<int64_t> BroadcastSignBit(Vec512<int64_t> v) {
-  return Vec512<int64_t>{_mm512_srai_epi64(v.raw, 63)};
+  return ShiftRight<63>(v);
 }
 
 // ------------------------------ Floating-point classification (Not)
