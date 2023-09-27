@@ -26,18 +26,9 @@
 
 #include "hwy/base.h"
 #include "hwy/nanobenchmark.h"
+#include "hwy/timer.h"
 
 namespace hwy {
-
-struct Timestamp {
-  Timestamp() { t = platform::Now(); }
-  double t;
-};
-
-static inline double SecondsSince(const Timestamp& t0) {
-  const Timestamp t1;
-  return t1.t - t0.t;
-}
 
 // Returns trimmed mean (we don't want to run an out-of-L3-cache sort often
 // enough for the mode to be reliable).

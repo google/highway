@@ -50,6 +50,17 @@ HWY_DLLEXPORT double InvariantTicksPerSecond();
 HWY_DLLEXPORT uint64_t TimerResolution();
 
 }  // namespace platform
+
+struct Timestamp {
+  Timestamp() { t = platform::Now(); }
+  double t;
+};
+
+static inline double SecondsSince(const Timestamp& t0) {
+  const Timestamp t1;
+  return t1.t - t0.t;
+}
+
 }  // namespace hwy
 
 #endif  // HIGHWAY_HWY_TIMER_H_
