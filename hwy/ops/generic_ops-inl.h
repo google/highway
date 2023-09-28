@@ -2052,16 +2052,14 @@ HWY_API V AbsDiff(V a, V b) {
 #define HWY_NATIVE_SUMS_OF_8_ABS_DIFF
 #endif
 
-template <class V, HWY_IF_U8_D(DFromV<V>),
+template <class V, HWY_IF_UI8_D(DFromV<V>),
           HWY_IF_V_SIZE_GT_D(DFromV<V>, (HWY_TARGET == HWY_SCALAR ? 0 : 4))>
-HWY_API Vec<Repartition<uint64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
-  return SumsOf8(AbsDiff(a, b));
-}
+HWY_API Vec<RepartitionToWideX3<DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWideX3<decltype(d)> dw;
 
-template <class V, HWY_IF_I8_D(DFromV<V>),
-          HWY_IF_V_SIZE_GT_D(DFromV<V>, (HWY_TARGET == HWY_SCALAR ? 0 : 4))>
-HWY_API Vec<Repartition<int64_t, DFromV<V>>> SumsOf8AbsDiff(V a, V b) {
-  return SumsOf8(AbsDiff(a, b));
+  return BitCast(dw, SumsOf8(BitCast(du, AbsDiff(a, b))));
 }
 
 #endif  // HWY_NATIVE_SUMS_OF_8_ABS_DIFF
