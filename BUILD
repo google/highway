@@ -271,6 +271,20 @@ cc_library(
 )
 
 cc_library(
+    name = "thread_pool",
+    srcs = [
+        "hwy/contrib/thread_pool/thread_pool.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/thread_pool/thread_pool.h",
+    ],
+    compatible_with = [],
+    deps = [
+        ":hwy",  # HWY_ASSERT
+    ],
+)
+
+cc_library(
     name = "unroller",
     compatible_with = [],
     copts = COPTS,
@@ -359,6 +373,7 @@ HWY_TESTS = [
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
+    ("hwy/contrib/thread_pool/", "thread_pool_test"),
     ("hwy/contrib/unroller/", "unroller_test"),
     # contrib/sort has its own BUILD, we also add sort_test to GUITAR_TESTS.
     # To run bench_sort, specify --test=hwy/contrib/sort:bench_sort.
@@ -425,6 +440,7 @@ HWY_TEST_DEPS = [
     ":math",
     ":nanobenchmark",
     ":skeleton",
+    ":thread_pool",
     ":unroller",
     "//hwy/contrib/sort:vqsort",
     "@com_google_googletest//:gtest_main",
