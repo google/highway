@@ -378,6 +378,7 @@ struct TestSumsOf8AbsDiff {
 };
 
 HWY_NOINLINE void TestAllSumsOf8AbsDiff() {
+  ForGEVectors<64, TestSumsOf8AbsDiff>()(int8_t());
   ForGEVectors<64, TestSumsOf8AbsDiff>()(uint8_t());
 }
 
