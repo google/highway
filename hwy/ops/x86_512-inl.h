@@ -1038,6 +1038,21 @@ HWY_INLINE VFromD<RepartitionToWideX2<DFromV<V>>> SumsOf4(
 
 }  // namespace detail
 
+// ------------------------------ SumsOfShuffledQuadAbsDiff
+
+#if HWY_TARGET <= HWY_AVX3
+template <int kIdx3, int kIdx2, int kIdx1, int kIdx0>
+static Vec512<uint16_t> SumsOfShuffledQuadAbsDiff(Vec512<uint8_t> a,
+                                                  Vec512<uint8_t> b) {
+  static_assert(0 <= kIdx0 && kIdx0 <= 3, "kIdx0 must be between 0 and 3");
+  static_assert(0 <= kIdx1 && kIdx1 <= 3, "kIdx1 must be between 0 and 3");
+  static_assert(0 <= kIdx2 && kIdx2 <= 3, "kIdx2 must be between 0 and 3");
+  static_assert(0 <= kIdx3 && kIdx3 <= 3, "kIdx3 must be between 0 and 3");
+  return Vec512<uint16_t>{
+      _mm512_dbsad_epu8(b.raw, a.raw, _MM_SHUFFLE(kIdx3, kIdx2, kIdx1, kIdx0))};
+}
+#endif
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
@@ -5590,6 +5605,28 @@ HWY_API Vec512<uint64_t> CLMulUpper(Vec512<uint64_t> va, Vec512<uint64_t> vb) {
 #endif  // HWY_DISABLE_PCLMUL_AES
 
 // ================================================== MISC
+
+// ------------------------------ SumsOfAdjQuadAbsDiff (Broadcast,
+// SumsOfAdjShufQuadAbsDiff)
+
+template <int kAOffset, int kBOffset>
+static Vec512<uint16_t> SumsOfAdjQuadAbsDiff(Vec512<uint8_t> a,
+                                             Vec512<uint8_t> b) {
+  static_assert(0 <= kAOffset && kAOffset <= 1,
+                "kAOffset must be between 0 and 1");
+  static_assert(0 <= kBOffset && kBOffset <= 3,
+                "kBOffset must be between 0 and 3");
+
+  const DFromV<decltype(a)> d;
+  const RepartitionToWideX2<decltype(d)> du32;
+
+  // While AVX3 does not have a _mm512_mpsadbw_epu8 intrinsic, the
+  // SumsOfAdjQuadAbsDiff operation is implementable for 512-bit vectors on
+  // AVX3 using SumsOfShuffledQuadAbsDiff and U32 Broadcast.
+  return SumsOfShuffledQuadAbsDiff<kAOffset + 2, kAOffset + 1, kAOffset + 1,
+                                   kAOffset>(
+      a, BitCast(d, Broadcast<kBOffset>(BitCast(du32, b))));
+}
 
 // ------------------------------ I32/I64 SaturatedAdd (MaskFromVec)
 
