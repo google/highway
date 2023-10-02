@@ -61,9 +61,8 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::WorkersReadyBarrier() {
   std::unique_lock<std::mutex> lock(mutex_);
   // Typically only a single iteration.
-  while (workers_ready_ != num_worker_threads_) {
-    workers_ready_cv_.wait(lock);
-  }
+  workers_ready_cv_.wait(lock, [this](){ workers_ready_ == num_worker_threads_; });
+  
   workers_ready_ = 0;
 
   // Safely handle spurious worker wakeups.
@@ -72,10 +71,11 @@ void ThreadPool::WorkersReadyBarrier() {
 
 // Precondition: all workers are ready.
 void ThreadPool::StartWorkers(const WorkerCommand worker_command) {
-  mutex_.lock();
-  worker_start_command_ = worker_command;
-  // Workers will need this lock, so release it before they wake up.
-  mutex_.unlock();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);  
+    worker_start_command_ = worker_command;
+    // Workers will need this lock, so release it before they wake up.
+  }  
   worker_start_cv_.notify_all();
 }
 
@@ -123,9 +123,9 @@ void ThreadPool::RunRange(ThreadPool* self, const WorkerCommand command,
 
 // static
 void ThreadPool::ThreadFunc(ThreadPool* self, const size_t thread) {
+  std::unique_lock<std::mutex> lock(self->mutex_);
   // Until kWorkerExit command received:
-  for (;;) {
-    std::unique_lock<std::mutex> lock(self->mutex_);
+  for (;;) {    
     // Notify main thread that this thread is ready.
     if (++self->workers_ready_ == self->num_threads_) {
       self->workers_ready_cv_.notify_one();
@@ -142,6 +142,7 @@ void ThreadPool::ThreadFunc(ThreadPool* self, const size_t thread) {
       default:
         lock.unlock();
         RunRange(self, command, thread);
+        lock.lock();
         break;
     }
   }
