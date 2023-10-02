@@ -61,7 +61,7 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::WorkersReadyBarrier() {
   std::unique_lock<std::mutex> lock(mutex_);
   // Typically only a single iteration.
-  workers_ready_cv_.wait(lock, [this](){ workers_ready_ == num_worker_threads_; });
+  workers_ready_cv_.wait(lock, [this](){ return workers_ready_ == num_worker_threads_; });
   
   workers_ready_ = 0;
 
