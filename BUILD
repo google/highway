@@ -54,7 +54,9 @@ selects.config_setting_group(
 
 config_setting(
     name = "compiler_emscripten",
-    values = {"cpu": "wasm32"},
+    constraint_values = [
+        "@platforms//cpu:wasm32",
+    ],
 )
 
 # See https://github.com/bazelbuild/bazel/issues/12707
@@ -121,7 +123,7 @@ COPTS = select({
     # Default to clang because compiler detection only works in Bazel
     "//conditions:default": CLANG_ONLY_COPTS,
 }) + select({
-    "@platforms//cpu:riscv64": [
+    "//tools/target_cpu:rv64gcv": [
         "-march=rv64gcv1p0",
         "-menable-experimental-extensions",
     ],
@@ -199,7 +201,7 @@ cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "@platforms//cpu:riscv64": ["hwy/ops/rvv-inl.h"],
+        "//tools/target_cpu:rv64gcv": ["hwy/ops/rvv-inl.h"],
         "//conditions:default": [],
     }),
 )
@@ -457,7 +459,7 @@ HWY_TEST_DEPS = [
             ],
             copts = COPTS + HWY_TEST_COPTS,
             features = select({
-                "@platforms//cpu:riscv64": ["fully_static_link"],
+                "//tools/target_cpu:rv64gcv": ["fully_static_link"],
                 "//conditions:default": [],
             }),
             linkopts = select({
@@ -473,7 +475,7 @@ HWY_TEST_DEPS = [
                 "//conditions:default": [],
             }),
             linkstatic = select({
-                "@platforms//cpu:riscv64": True,
+                "//tools/target_cpu:rv64gcv": True,
                 "//conditions:default": False,
             }),
             local_defines = ["HWY_IS_TEST"],
