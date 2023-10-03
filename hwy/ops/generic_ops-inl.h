@@ -5266,6 +5266,200 @@ HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
 }
 #endif
 
+// ------------------------------ SumsOfAdjQuadAbsDiff
+
+#if (defined(HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+#undef HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+#else
+#define HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+#endif
+
+#if HWY_TARGET != HWY_SCALAR
+template <int kAOffset, int kBOffset, class V8, HWY_IF_UI8_D(DFromV<V8>)>
+HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
+  static_assert(0 <= kAOffset && kAOffset <= 1,
+                "kAOffset must be between 0 and 1");
+  static_assert(0 <= kBOffset && kBOffset <= 3,
+                "kBOffset must be between 0 and 3");
+  using D8 = DFromV<V8>;
+  const D8 d8;
+  const RebindToUnsigned<decltype(d8)> du8;
+  const RepartitionToWide<decltype(d8)> d16;
+
+  // Ensure that a is resized to a vector that has at least
+  // HWY_MAX(Lanes(d8), size_t{8} << kAOffset) lanes for the interleave and
+  // CombineShiftRightBytes operations below.
+#if HWY_TARGET == HWY_RVV
+  // On RVV targets, need to ensure that d8_interleave.Pow2() >= 0 is true
+  // to ensure that Lanes(d8_interleave) >= 16 is true.
+
+  // Lanes(d8_interleave) >= Lanes(d8) is guaranteed to be true on RVV
+  // targets as d8_interleave.Pow2() >= d8.Pow2() is true.
+  constexpr int kPow2 = d8.Pow2();
+  constexpr int kInterleavePow2 = HWY_MAX(kPow2, 0);
+  const ScalableTag<TFromD<D8>, kInterleavePow2> d8_interleave;
+#elif HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || \
+    HWY_TARGET == HWY_SVE2_128
+  // On SVE targets, Lanes(d8_interleave) >= 16 and
+  // Lanes(d8_interleave) >= Lanes(d8) are both already true as d8 is a SIMD
+  // tag for a full u8/i8 vector on SVE.
+  const D8 d8_interleave;
+#else
+  // On targets that use non-scalable vector types, Lanes(d8_interleave) is
+  // equal to HWY_MAX(Lanes(d8), size_t{8} << kAOffset).
+  constexpr size_t kInterleaveLanes =
+      HWY_MAX(HWY_MAX_LANES_D(D8), size_t{8} << kAOffset);
+  const FixedTag<TFromD<D8>, kInterleaveLanes> d8_interleave;
+#endif
+
+  // The ResizeBitCast operation below will resize a to a vector that has
+  // at least HWY_MAX(Lanes(d8), size_t{8} << kAOffset) lanes for the
+  // InterleaveLower, InterleaveUpper, and CombineShiftRightBytes operations
+  // below.
+  const auto a_to_interleave = ResizeBitCast(d8_interleave, a);
+
+  const auto a_interleaved_lo =
+      InterleaveLower(d8_interleave, a_to_interleave, a_to_interleave);
+  const auto a_interleaved_hi =
+      InterleaveUpper(d8_interleave, a_to_interleave, a_to_interleave);
+
+  /* a01: { a[kAOffset*4+0], a[kAOffset*4+1], a[kAOffset*4+1], a[kAOffset*4+2],
+            a[kAOffset*4+2], a[kAOffset*4+3], a[kAOffset*4+3], a[kAOffset*4+4],
+            a[kAOffset*4+4], a[kAOffset*4+5], a[kAOffset*4+5], a[kAOffset*4+6],
+            a[kAOffset*4+6], a[kAOffset*4+7], a[kAOffset*4+7], a[kAOffset*4+8] }
+   */
+  /* a23: { a[kAOffset*4+2], a[kAOffset*4+3], a[kAOffset*4+3], a[kAOffset*4+4],
+            a[kAOffset*4+4], a[kAOffset*4+5], a[kAOffset*4+5], a[kAOffset*4+6],
+            a[kAOffset*4+6], a[kAOffset*4+7], a[kAOffset*4+7], a[kAOffset*4+8],
+            a[kAOffset*4+8], a[kAOffset*4+9], a[kAOffset*4+9], a[kAOffset*4+10]
+     } */
+
+  // a01 and a23 are resized back to V8 as only the first Lanes(d8) lanes of
+  // the CombineShiftRightBytes are needed for the subsequent AbsDiff operations
+  // and as a01 and a23 need to be the same vector type as b01 and b23 for the
+  // AbsDiff operations below.
+  const auto a01 =
+      ResizeBitCast(d8, CombineShiftRightBytes<kAOffset * 8 + 1>(
+                            d8_interleave, a_interleaved_hi, a_interleaved_lo));
+  const auto a23 =
+      ResizeBitCast(d8, CombineShiftRightBytes<kAOffset * 8 + 5>(
+                            d8_interleave, a_interleaved_hi, a_interleaved_lo));
+
+  /* b01: { b[kBOffset*4+0], b[kBOffset*4+1], b[kBOffset*4+0], b[kBOffset*4+1],
+            b[kBOffset*4+0], b[kBOffset*4+1], b[kBOffset*4+0], b[kBOffset*4+1],
+            b[kBOffset*4+0], b[kBOffset*4+1], b[kBOffset*4+0], b[kBOffset*4+1],
+            b[kBOffset*4+0], b[kBOffset*4+1], b[kBOffset*4+0], b[kBOffset*4+1] }
+   */
+  /* b23: { b[kBOffset*4+2], b[kBOffset*4+3], b[kBOffset*4+2], b[kBOffset*4+3],
+            b[kBOffset*4+2], b[kBOffset*4+3], b[kBOffset*4+2], b[kBOffset*4+3],
+            b[kBOffset*4+2], b[kBOffset*4+3], b[kBOffset*4+2], b[kBOffset*4+3],
+            b[kBOffset*4+2], b[kBOffset*4+3], b[kBOffset*4+2], b[kBOffset*4+3] }
+   */
+  const auto b01 = BitCast(d8, Broadcast<kBOffset * 2>(BitCast(d16, b)));
+  const auto b23 = BitCast(d8, Broadcast<kBOffset * 2 + 1>(BitCast(d16, b)));
+
+  const auto absdiff_sum_01 = SumsOf2(BitCast(du8, AbsDiff(a01, b01)));
+  const auto absdiff_sum_23 = SumsOf2(BitCast(du8, AbsDiff(a23, b23)));
+  return BitCast(d16, Add(absdiff_sum_01, absdiff_sum_23));
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+#endif  // HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+
+// ------------------------------ SumsOfShuffledQuadAbsDiff
+
+#if (defined(HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+#undef HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+#else
+#define HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+#endif
+
+#if HWY_TARGET != HWY_SCALAR
+template <int kIdx3, int kIdx2, int kIdx1, int kIdx0, class V8,
+          HWY_IF_UI8_D(DFromV<V8>)>
+HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfShuffledQuadAbsDiff(V8 a,
+                                                                     V8 b) {
+  static_assert(0 <= kIdx0 && kIdx0 <= 3, "kIdx0 must be between 0 and 3");
+  static_assert(0 <= kIdx1 && kIdx1 <= 3, "kIdx1 must be between 0 and 3");
+  static_assert(0 <= kIdx2 && kIdx2 <= 3, "kIdx2 must be between 0 and 3");
+  static_assert(0 <= kIdx3 && kIdx3 <= 3, "kIdx3 must be between 0 and 3");
+
+#if HWY_TARGET == HWY_RVV
+  // On RVV, ensure that both vA and vB have a LMUL of at least 1/2 so that
+  // both vA and vB can be bitcasted to a u32 vector.
+  const detail::AdjustSimdTagToMinVecPow2<
+      RepartitionToWideX2<DFromV<decltype(a)>>>
+      d32;
+  const RepartitionToNarrow<decltype(d32)> d16;
+  const RepartitionToNarrow<decltype(d16)> d8;
+
+  const auto vA = ResizeBitCast(d8, a);
+  const auto vB = ResizeBitCast(d8, b);
+#else
+  const DFromV<decltype(a)> d8;
+  const RepartitionToWide<decltype(d8)> d16;
+  const RepartitionToWide<decltype(d16)> d32;
+
+  const auto vA = a;
+  const auto vB = b;
+#endif
+
+  const RebindToUnsigned<decltype(d8)> du8;
+
+  const auto a_shuf =
+      Per4LaneBlockShuffle<kIdx3, kIdx2, kIdx1, kIdx0>(BitCast(d32, vA));
+  /* a0123_2345: { a_shuf[0], a_shuf[1], a_shuf[2], a_shuf[3],
+                   a_shuf[2], a_shuf[3], a_shuf[4], a_shuf[5],
+                   a_shuf[8], a_shuf[9], a_shuf[10], a_shuf[11],
+                   a_shuf[10], a_shuf[11], a_shuf[12], a_shuf[13] } */
+  /* a1234_3456: { a_shuf[1], a_shuf[2], a_shuf[3], a_shuf[4],
+                   a_shuf[3], a_shuf[4], a_shuf[5], a_shuf[6],
+                   a_shuf[9], a_shuf[10], a_shuf[11], a_shuf[12],
+                   a_shuf[11], a_shuf[12], a_shuf[13], a_shuf[14] } */
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+  // On RVV/SVE targets, use Slide1Up/Slide1Down instead of
+  // ShiftLeftBytes/ShiftRightBytes to avoid unnecessary zeroing out of any
+  // lanes that are shifted into an adjacent 16-byte block as any lanes that are
+  // shifted into an adjacent 16-byte block by Slide1Up/Slide1Down will be
+  // replaced by the OddEven operation.
+  const auto a_0123_2345 = BitCast(
+      d8, OddEven(BitCast(d32, Slide1Up(d16, BitCast(d16, a_shuf))), a_shuf));
+  const auto a_1234_3456 =
+      BitCast(d8, OddEven(BitCast(d32, Slide1Up(d8, BitCast(d8, a_shuf))),
+                          BitCast(d32, Slide1Down(d8, BitCast(d8, a_shuf)))));
+#else
+  const auto a_0123_2345 =
+      BitCast(d8, OddEven(ShiftLeftBytes<2>(d32, a_shuf), a_shuf));
+  const auto a_1234_3456 = BitCast(
+      d8,
+      OddEven(ShiftLeftBytes<1>(d32, a_shuf), ShiftRightBytes<1>(d32, a_shuf)));
+#endif
+
+  auto even_sums = SumsOf4(BitCast(du8, AbsDiff(a_0123_2345, vB)));
+  auto odd_sums = SumsOf4(BitCast(du8, AbsDiff(a_1234_3456, vB)));
+
+#if HWY_IS_LITTLE_ENDIAN
+  odd_sums = ShiftLeft<16>(odd_sums);
+#else
+  even_sums = ShiftLeft<16>(even_sums);
+#endif
+
+  const auto sums = OddEven(BitCast(d16, odd_sums), BitCast(d16, even_sums));
+
+#if HWY_TARGET == HWY_RVV
+  return ResizeBitCast(RepartitionToWide<DFromV<V8>>(), sums);
+#else
+  return sums;
+#endif
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+#endif  // HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+
 // ================================================== Operator wrapper
 
 // SVE* and RVV currently cannot define operators and have already defined

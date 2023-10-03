@@ -529,6 +529,59 @@ from left to right, of the arguments passed to `Create{2-4}`.
     <code>VW **SumsOf8AbsDiff**(V a, V b)</code> returns the same result as
     `SumsOf8(AbsDiff(a, b))`, but is more efficient on x86.
 
+*   `V`: `{i,u}8`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
+    <code>VW **SumsOfAdjQuadAbsDiff**&lt;int kAOffset, int kBOffset&gt;(V a,
+    V b)</code> returns the sums of the absolute differences of 32-bit blocks
+    of 8-bit integers, widened to `MakeWide<TFromV<V>>`.
+
+    `kAOffset` must be between `0` and
+    `HWY_MIN(1, (HWY_MAX_LANES_D(DFromV<V>) - 1)/4)`.
+
+    `kBOffset` must be between `0` and
+    `HWY_MIN(3, (HWY_MAX_LANES_D(DFromV<V>) - 1)/4)`.
+
+    SumsOfAdjQuadAbsDiff computes `|a[a_idx] - b[b_idx]| +
+    |a[a_idx+1] - b[b_idx+1]| + |a[a_idx+2] - b[b_idx+2]| +
+    |a[a_idx+3] - b[b_idx+3]|` for each lane `i` of the result, where `a_idx`
+    is equal to `kAOffset*4+((i/8)*16)+(i&7)` and where `b_idx` is equal to
+    `kBOffset*4+((i/8)*16)`.
+
+    If `Lanes(DFromV<V>()) < (8 << kAOffset)` is true, then
+    SumsOfAdjQuadAbsDiff returns implementation-defined values in any lanes
+    past the first (lowest-indexed) lane of the result vector.
+
+    SumsOfAdjQuadAbsDiff is only available if `HWY_TARGET != HWY_SCALAR`.
+
+*   `V`: `{i,u}8`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
+    <code>VW **SumsOfShuffledQuadAbsDiff**&lt;int kIdx3, int kIdx2, int kIdx1,
+    int kIdx0&gt;(V a, V b)</code> first shuffles `a` as if by the
+    `Per4LaneBlockShuffle<kIdx3, kIdx2, kIdx1, kIdx0>(BitCast(
+    RepartitionToWideX2<DFromV<V>>(), a))` operation, and then computes the sum
+    of absolute differences of 32-bit blocks of 8-bit integers taken from the
+    shuffled `a` vector and the `b` vector.
+
+    `kIdx0`, `kIdx1`, `kIdx2`, and `kIdx3` must be between 0 and 3.
+
+    SumsOfShuffledQuadAbsDiff computes `|a_shuf[a_idx] - b[b_idx]| +
+    |a_shuf[a_idx+1] - b[b_idx+1]| + |a_shuf[a_idx+2] - b[b_idx+2]| +
+    |a_shuf[a_idx+3] - b[b_idx+3]|` for each lane `i` of the result, where
+    `a_shuf` is equal to `BitCast(DFromV<V>(), Per4LaneBlockShuffle<kIdx3,
+    kIdx2, kIdx1, kIdx0>(BitCast(RepartitionToWideX2<DFromV<V>>(), a))`,
+    `a_idx` is equal to `(i/4)*8+(i&3)`, and `b_idx` is equal to `(i/2)*4`.
+
+    If `Lanes(DFromV<V>()) < 16` is true, SumsOfShuffledQuadAbsDiff returns
+    implementation-defined results in any lanes where
+    `(i/4)*8+(i&3)+3 >= Lanes(d)`.
+
+    The results of SumsOfAdjQuadAbsDiff are implementation-defined if
+    `kIdx0 >= Lanes(DFromV<V>()) / 4`.
+
+    The results of any lanes past the first (lowest-indexed) lane of
+    SumsOfAdjQuadAbsDiff are implementation-defined if
+    `kIdx1 >= Lanes(DFromV<V>()) / 4`.
+
+    SumsOfShuffledQuadAbsDiff is only available if `HWY_TARGET != HWY_SCALAR`.
+
 *   `V`: `{u,i}{8,16}` \
     <code>V **SaturatedAdd**(V a, V b)</code> returns `a[i] + b[i]` saturated to
     the minimum/maximum representable value.

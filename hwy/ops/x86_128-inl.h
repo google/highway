@@ -3354,6 +3354,94 @@ HWY_INLINE Vec128<uint32_t, (N + 3) / 4> SumsOf4(
 }  // namespace detail
 #endif  // HWY_TARGET <= HWY_AVX3
 
+// ------------------------------ SumsOfAdjQuadAbsDiff
+
+#if HWY_TARGET <= HWY_SSE4
+#ifdef HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+#undef HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+#else
+#define HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF
+#endif
+
+template <int kAOffset, int kBOffset, size_t N>
+HWY_API Vec128<uint16_t, (N + 1) / 2> SumsOfAdjQuadAbsDiff(
+    Vec128<uint8_t, N> a, Vec128<uint8_t, N> b) {
+  static_assert(0 <= kAOffset && kAOffset <= 1,
+                "kAOffset must be between 0 and 1");
+  static_assert(0 <= kBOffset && kBOffset <= 3,
+                "kBOffset must be between 0 and 3");
+  return Vec128<uint16_t, (N + 1) / 2>{
+      _mm_mpsadbw_epu8(a.raw, b.raw, (kAOffset << 2) | kBOffset)};
+}
+
+// Generic for all vector lengths
+template <int kAOffset, int kBOffset, class V, HWY_IF_I8_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> SumsOfAdjQuadAbsDiff(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(d)> dw;
+
+  // Adjust the values of a and b to be in the 0..255 range by adding 128 to
+  // each lane of a and b (which is the same as an bitwise XOR of each i8 lane
+  // by 128) and then bitcasting the results of the Xor operations to u8
+  // vectors.
+  const auto i8_msb = SignBit(d);
+  const auto a_adj = BitCast(du, Xor(a, i8_msb));
+  const auto b_adj = BitCast(du, Xor(b, i8_msb));
+
+  // The result of SumsOfAdjQuadAbsDiff<kAOffset, kBOffset>(a_adj, b_adj) can
+  // simply be bitcasted to an i16 vector as
+  // |(a[i] + 128) - (b[i] + 128)| == |a[i] - b[i]| is true.
+  return BitCast(dw, SumsOfAdjQuadAbsDiff<kAOffset, kBOffset>(a_adj, b_adj));
+}
+#endif
+
+// ------------------------------ SumsOfShuffledQuadAbsDiff
+
+#if HWY_TARGET <= HWY_AVX3
+#ifdef HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+#undef HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+#else
+#define HWY_NATIVE_SUMS_OF_SHUFFLED_QUAD_ABS_DIFF
+#endif
+
+template <int kIdx3, int kIdx2, int kIdx1, int kIdx0, size_t N>
+HWY_API Vec128<uint16_t, (N + 1) / 2> SumsOfShuffledQuadAbsDiff(
+    Vec128<uint8_t, N> a, Vec128<uint8_t, N> b) {
+  static_assert(0 <= kIdx0 && kIdx0 <= 3, "kIdx0 must be between 0 and 3");
+  static_assert(0 <= kIdx1 && kIdx1 <= 3, "kIdx1 must be between 0 and 3");
+  static_assert(0 <= kIdx2 && kIdx2 <= 3, "kIdx2 must be between 0 and 3");
+  static_assert(0 <= kIdx3 && kIdx3 <= 3, "kIdx3 must be between 0 and 3");
+  return Vec128<uint16_t, (N + 1) / 2>{
+      _mm_dbsad_epu8(b.raw, a.raw, _MM_SHUFFLE(kIdx3, kIdx2, kIdx1, kIdx0))};
+}
+
+// Generic for all vector lengths
+template <int kIdx3, int kIdx2, int kIdx1, int kIdx0, class V,
+          HWY_IF_I8_D(DFromV<V>)>
+HWY_API VFromD<RepartitionToWide<DFromV<V>>> SumsOfShuffledQuadAbsDiff(V a,
+                                                                       V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RepartitionToWide<decltype(d)> dw;
+
+  // Adjust the values of a and b to be in the 0..255 range by adding 128 to
+  // each lane of a and b (which is the same as an bitwise XOR of each i8 lane
+  // by 128) and then bitcasting the results of the Xor operations to u8
+  // vectors.
+  const auto i8_msb = SignBit(d);
+  const auto a_adj = BitCast(du, Xor(a, i8_msb));
+  const auto b_adj = BitCast(du, Xor(b, i8_msb));
+
+  // The result of
+  // SumsOfShuffledQuadAbsDiff<kIdx3, kIdx2, kIdx1, kIdx0>(a_adj, b_adj) can
+  // simply be bitcasted to an i16 vector as
+  // |(a[i] + 128) - (b[i] + 128)| == |a[i] - b[i]| is true.
+  return BitCast(
+      dw, SumsOfShuffledQuadAbsDiff<kIdx3, kIdx2, kIdx1, kIdx0>(a_adj, b_adj));
+}
+#endif
+
 // ------------------------------ SaturatedAdd
 
 // Returns a + b clamped to the destination range.
