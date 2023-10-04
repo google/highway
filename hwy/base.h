@@ -22,15 +22,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hwy/detect_compiler_arch.h"
+#include "hwy/highway_export.h"
+
+#if HWY_COMPILER_MSVC && defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
+#define HWY_CXX_LANG _MSVC_LANG
+#else
+#define HWY_CXX_LANG __cplusplus
+#endif
+
 // Wrapping this into a HWY_HAS_INCLUDE causes clang-format to fail.
-#if __cplusplus >= 202100L && defined(__has_include)
+#if HWY_CXX_LANG >= 202100L && defined(__has_include)
 #if __has_include(<stdfloat>)
 #include <stdfloat>  // std::float16_t
 #endif
 #endif
-
-#include "hwy/detect_compiler_arch.h"
-#include "hwy/highway_export.h"
 
 // "IWYU pragma: keep" does not work for these includes, so hide from the IDE.
 #if !HWY_IDE
@@ -47,6 +53,15 @@
 #endif
 
 #endif  // !HWY_IDE
+
+#if !defined(HWY_NO_LIBCXX) && HWY_CXX_LANG > 201703L && \
+    __cpp_impl_three_way_comparison >= 201907L && defined(__has_include) && \
+    !defined(HWY_DISABLE_CXX20_THREE_WAY_COMPARE)
+#if __has_include(<compare>)
+#include <compare>
+#define HWY_HAVE_CXX20_THREE_WAY_COMPARE 1
+#endif
+#endif
 
 // IWYU pragma: end_exports
 
@@ -274,6 +289,16 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   } while (0)
 #endif
 
+#if __cpp_constexpr >= 201304L
+#define HWY_CXX14_CONSTEXPR constexpr
+#else
+#define HWY_CXX14_CONSTEXPR
+#endif
+
+#ifndef HWY_HAVE_CXX20_THREE_WAY_COMPARE
+#define HWY_HAVE_CXX20_THREE_WAY_COMPARE 0
+#endif
+
 //------------------------------------------------------------------------------
 // CopyBytes / ZeroBytes
 
@@ -334,6 +359,12 @@ HWY_API void ZeroBytes(void* to, size_t num_bytes) {
 #define HWY_BITCASTSCALAR_CONSTEXPR
 #endif
 
+#if __cpp_constexpr >= 201304L
+#define HWY_BITCASTSCALAR_CXX14_CONSTEXPR HWY_BITCASTSCALAR_CONSTEXPR
+#else
+#define HWY_BITCASTSCALAR_CXX14_CONSTEXPR
+#endif
+
 template <class To, class From>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #if HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926
@@ -376,362 +407,6 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 //------------------------------------------------------------------------------
 // Lane types
 
-#pragma pack(push, 1)
-
-// float16_t load/store/conversion intrinsics are always supported on Armv8 and
-// VFPv4 (except with MSVC). On Armv7 Clang requires __ARM_FP & 2; GCC requires
-// -mfp16-format=ieee.
-#if (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC) ||                    \
-    (HWY_COMPILER_CLANG && defined(__ARM_FP) && (__ARM_FP & 2)) || \
-    (HWY_COMPILER_GCC_ACTUAL && defined(__ARM_FP16_FORMAT_IEEE))
-#define HWY_NEON_HAVE_FLOAT16C 1
-#else
-#define HWY_NEON_HAVE_FLOAT16C 0
-#endif
-
-// C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
-// Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR (with
-// sufficiently new compiler supporting avx512fp16). Do not use on clang-cl,
-// which is missing __extendhfsf2.
-#if ((HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) || \
-     (HWY_ARCH_X86 && defined(__SSE2__) &&                            \
-      ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) ||       \
-       HWY_COMPILER_GCC_ACTUAL >= 1200)))
-#define HWY_HAVE_C11_FLOAT16 1
-#else
-#define HWY_HAVE_C11_FLOAT16 0
-#endif
-
-// If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
-// create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
-#if HWY_ARCH_ARM_A64 && defined(__ARM_FEATURE_SVE_BF16)
-#define HWY_SVE_HAVE_BFLOAT16 1
-#else
-#define HWY_SVE_HAVE_BFLOAT16 0
-#endif
-
-// Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
-// by concatenating base type and bits. We use a wrapper class instead of a
-// typedef to the native type to ensure that the same symbols, e.g. for VQSort,
-// are generated regardless of F16 support; see #1684.
-struct float16_t {
-#if HWY_NEON_HAVE_FLOAT16C  // ACLE's __fp16
-  using Raw = __fp16;
-#elif HWY_HAVE_C11_FLOAT16                                    // C11 _Float16
-  using Raw = _Float16;
-#elif __cplusplus > 202002L && defined(__STDCPP_FLOAT16_T__)  // C++23
-  using Raw = std::float16_t;
-#else
-#define HWY_EMULATE_FLOAT16
-  using Raw = uint16_t;
-  Raw bits;
-#endif  // float16_t
-
-// When backed by a native type, ensure the wrapper behaves like the native
-// type by forwarding all operators. Unfortunately it seems difficult to reuse
-// this code in a base class, so we repeat it in bfloat16_t.
-#ifndef HWY_EMULATE_FLOAT16
-  Raw raw;
-
-  float16_t() noexcept = default;
-  template <typename T>
-  constexpr float16_t(T arg) noexcept : raw(static_cast<Raw>(arg)) {}
-  float16_t& operator=(Raw arg) noexcept {
-    raw = arg;
-    return *this;
-  }
-  constexpr float16_t(const float16_t&) noexcept = default;
-  float16_t& operator=(const float16_t&) noexcept = default;
-  constexpr operator Raw() const noexcept { return raw; }
-
-  template <typename T>
-  float16_t& operator+=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw + rhs);
-    return *this;
-  }
-
-  template <typename T>
-  float16_t& operator-=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw - rhs);
-    return *this;
-  }
-
-  template <typename T>
-  float16_t& operator*=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw * rhs);
-    return *this;
-  }
-
-  template <typename T>
-  float16_t& operator/=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw / rhs);
-    return *this;
-  }
-
-  // pre-decrement operator (--x)
-  float16_t& operator--() noexcept {
-    raw = static_cast<Raw>(raw - Raw{1});
-    return *this;
-  }
-
-  // post-decrement operator (x--)
-  float16_t operator--(int) noexcept {
-    float16_t result = *this;
-    raw = static_cast<Raw>(raw - Raw{1});
-    return result;
-  }
-
-  // pre-increment operator (++x)
-  float16_t& operator++() noexcept {
-    raw = static_cast<Raw>(raw + Raw{1});
-    return *this;
-  }
-
-  // post-increment operator (x++)
-  float16_t operator++(int) noexcept {
-    float16_t result = *this;
-    raw = static_cast<Raw>(raw + Raw{1});
-    return result;
-  }
-
-  constexpr float16_t operator-() const noexcept {
-    return float16_t(static_cast<Raw>(-raw));
-  }
-  constexpr float16_t operator+() const noexcept { return *this; }
-#endif  // HWY_EMULATE_FLOAT16
-};
-
-#ifndef HWY_EMULATE_FLOAT16
-constexpr inline bool operator==(float16_t lhs, float16_t rhs) noexcept {
-  return lhs.raw == rhs.raw;
-}
-constexpr inline bool operator!=(float16_t lhs, float16_t rhs) noexcept {
-  return lhs.raw != rhs.raw;
-}
-constexpr inline bool operator<(float16_t lhs, float16_t rhs) noexcept {
-  return lhs.raw < rhs.raw;
-}
-constexpr inline bool operator<=(float16_t lhs, float16_t rhs) noexcept {
-  return lhs.raw <= rhs.raw;
-}
-constexpr inline bool operator>(float16_t lhs, float16_t rhs) noexcept {
-  return lhs.raw > rhs.raw;
-}
-constexpr inline bool operator>=(float16_t lhs, float16_t rhs) noexcept {
-  return lhs.raw >= rhs.raw;
-}
-#endif  // HWY_EMULATE_FLOAT16
-
-struct bfloat16_t {
-#if HWY_SVE_HAVE_BFLOAT16
-  using Raw = __bf16;
-#elif __cplusplus >= 202100L && defined(__STDCPP_BFLOAT16_T__)  // C++23
-  using Raw = std::bfloat16_t;
-#else
-#define HWY_EMULATE_BFLOAT16
-  using Raw = uint16_t;
-  Raw bits;
-#endif
-
-#ifndef HWY_EMULATE_BFLOAT16
-  Raw raw;
-
-  bfloat16_t() noexcept = default;
-  template <typename T>
-  constexpr bfloat16_t(T arg) noexcept : raw(static_cast<Raw>(arg)) {}
-  bfloat16_t& operator=(Raw arg) noexcept {
-    raw = arg;
-    return *this;
-  }
-  constexpr bfloat16_t(const bfloat16_t&) noexcept = default;
-  bfloat16_t& operator=(const bfloat16_t&) noexcept = default;
-  constexpr operator Raw() const noexcept { return raw; }
-
-  template <typename T>
-  bfloat16_t& operator+=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw + rhs);
-    return *this;
-  }
-
-  template <typename T>
-  bfloat16_t& operator-=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw - rhs);
-    return *this;
-  }
-
-  template <typename T>
-  bfloat16_t& operator*=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw * rhs);
-    return *this;
-  }
-
-  template <typename T>
-  bfloat16_t& operator/=(T rhs) noexcept {
-    raw = static_cast<Raw>(raw / rhs);
-    return *this;
-  }
-
-  // pre-decrement operator (--x)
-  bfloat16_t& operator--() noexcept {
-    raw = static_cast<Raw>(raw - Raw{1});
-    return *this;
-  }
-
-  // post-decrement operator (x--)
-  bfloat16_t operator--(int) noexcept {
-    bfloat16_t result = *this;
-    raw = static_cast<Raw>(raw - Raw{1});
-    return result;
-  }
-
-  // pre-increment operator (++x)
-  bfloat16_t& operator++() noexcept {
-    raw = static_cast<Raw>(raw + Raw{1});
-    return *this;
-  }
-
-  // post-increment operator (x++)
-  bfloat16_t operator++(int) noexcept {
-    bfloat16_t result = *this;
-    raw = static_cast<Raw>(raw + Raw{1});
-    return result;
-  }
-
-  constexpr bfloat16_t operator-() const noexcept {
-    return bfloat16_t(static_cast<Raw>(-raw));
-  }
-  constexpr bfloat16_t operator+() const noexcept { return *this; }
-#endif  // HWY_EMULATE_BFLOAT16
-};
-
-#ifndef HWY_EMULATE_BFLOAT16
-constexpr inline bool operator==(bfloat16_t lhs, bfloat16_t rhs) noexcept {
-  return lhs.raw == rhs.raw;
-}
-constexpr inline bool operator!=(bfloat16_t lhs, bfloat16_t rhs) noexcept {
-  return lhs.raw != rhs.raw;
-}
-constexpr inline bool operator<(bfloat16_t lhs, bfloat16_t rhs) noexcept {
-  return lhs.raw < rhs.raw;
-}
-constexpr inline bool operator<=(bfloat16_t lhs, bfloat16_t rhs) noexcept {
-  return lhs.raw <= rhs.raw;
-}
-constexpr inline bool operator>(bfloat16_t lhs, bfloat16_t rhs) noexcept {
-  return lhs.raw > rhs.raw;
-}
-constexpr inline bool operator>=(bfloat16_t lhs, bfloat16_t rhs) noexcept {
-  return lhs.raw >= rhs.raw;
-}
-#endif  // HWY_EMULATE_BFLOAT16
-
-#pragma pack(pop)
-
-HWY_API float F32FromF16(float16_t f16) {
-#ifdef HWY_EMULATE_FLOAT16
-  uint16_t bits16;
-  CopySameSize(&f16, &bits16);
-  const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
-  const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
-  const uint32_t mantissa = bits16 & 0x3FF;
-
-  // Subnormal or zero
-  if (biased_exp == 0) {
-    const float subnormal =
-        (1.0f / 16384) * (static_cast<float>(mantissa) * (1.0f / 1024));
-    return sign ? -subnormal : subnormal;
-  }
-
-  // Normalized: convert the representation directly (faster than ldexp/tables).
-  const uint32_t biased_exp32 = biased_exp + (127 - 15);
-  const uint32_t mantissa32 = mantissa << (23 - 10);
-  const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
-
-  float result;
-  CopySameSize(&bits32, &result);
-  return result;
-#else
-  return static_cast<float>(f16);
-#endif
-}
-
-HWY_API float16_t F16FromF32(float f32) {
-#ifdef HWY_EMULATE_FLOAT16
-  uint32_t bits32;
-  CopySameSize(&f32, &bits32);
-  const uint32_t sign = bits32 >> 31;
-  const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
-  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
-
-  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
-
-  // Tiny or zero => zero.
-  float16_t out;
-  if (exp < -24) {
-    // restore original sign
-    const uint16_t bits = static_cast<uint16_t>(sign << 15);
-    CopySameSize(&bits, &out);
-    return out;
-  }
-
-  uint32_t biased_exp16, mantissa16;
-
-  // exp = [-24, -15] => subnormal
-  if (exp < -14) {
-    biased_exp16 = 0;
-    const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
-    HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
-    mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
-                                       (mantissa32 >> (13 + sub_exp)));
-  } else {
-    // exp = [-14, 15]
-    biased_exp16 = static_cast<uint32_t>(exp + 15);
-    HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
-    mantissa16 = mantissa32 >> 13;
-  }
-
-  HWY_DASSERT(mantissa16 < 1024);
-  const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
-  HWY_DASSERT(bits16 < 0x10000);
-  const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
-  CopySameSize(&narrowed, &out);
-  return out;
-#else
-  return float16_t(static_cast<float16_t::Raw>(f32));
-#endif
-}
-
-HWY_API float F32FromBF16(bfloat16_t bf) {
-  uint16_t bits16;
-  CopyBytes<2>(&bf, &bits16);
-  uint32_t bits = bits16;
-  bits <<= 16;
-  float f;
-  CopySameSize(&bits, &f);
-  return f;
-}
-
-HWY_API float F32FromF16Mem(const void* ptr) {
-  float16_t f16;
-  CopyBytes<2>(ptr, &f16);
-  return F32FromF16(f16);
-}
-
-HWY_API float F32FromBF16Mem(const void* ptr) {
-  bfloat16_t bf;
-  CopyBytes<2>(ptr, &bf);
-  return F32FromBF16(bf);
-}
-
-HWY_API bfloat16_t BF16FromF32(float f) {
-  uint32_t bits;
-  CopySameSize(&f, &bits);
-  const uint16_t bits16 = static_cast<uint16_t>(bits >> 16);
-  bfloat16_t bf;
-  CopySameSize(&bits16, &bf);
-  return bf;
-}
-
 using float32_t = float;
 using float64_t = double;
 
@@ -759,24 +434,6 @@ struct alignas(8) K32V32 {
 };
 
 #pragma pack(pop)
-
-#ifdef HWY_EMULATE_FLOAT16
-
-static inline HWY_MAYBE_UNUSED bool operator<(const float16_t& a,
-                                              const float16_t& b) {
-  return F32FromF16(a) < F32FromF16(b);
-}
-// Required for std::greater.
-static inline HWY_MAYBE_UNUSED bool operator>(const float16_t& a,
-                                              const float16_t& b) {
-  return F32FromF16(a) > F32FromF16(b);
-}
-static inline HWY_MAYBE_UNUSED bool operator==(const float16_t& a,
-                                               const float16_t& b) {
-  return F32FromF16(a) == F32FromF16(b);
-}
-
-#endif  // HWY_EMULATE_FLOAT16
 
 static inline HWY_MAYBE_UNUSED bool operator<(const uint128_t& a,
                                               const uint128_t& b) {
@@ -979,6 +636,613 @@ using RemoveRef = typename RemoveRefT<T>::type;
 
 template <class T>
 using RemoveCvRef = RemoveConst<RemoveVolatile<RemoveRef<T>>>;
+
+template <class T>
+class DeclValT {
+ private:
+  template <class U, class URef = U&&>
+  static URef TryAddRValRef(int);
+  template <class U, class Arg>
+  static U TryAddRValRef(Arg);
+
+ public:
+  using type = decltype(TryAddRValRef<T>(0));
+  enum { kDisableDeclValEvaluation = 1 };
+};
+
+// hwy::DeclVal<T>() can only be used in unevaluated contexts such as within an
+// expression of a decltype specifier.
+
+// hwy::DeclVal<T>() does not require that T have a public default constructor
+template <class T>
+HWY_API typename DeclValT<T>::type DeclVal() noexcept {
+  static_assert(!DeclValT<T>::kDisableDeclValEvaluation,
+                "DeclVal() cannot be used in an evaluated context");
+}
+
+template <class T>
+struct IsArrayT {
+  enum { value = 0 };
+};
+
+template <class T>
+struct IsArrayT<T[]> {
+  enum { value = 1 };
+};
+
+template <class T, size_t N>
+struct IsArrayT<T[N]> {
+  enum { value = 1 };
+};
+
+template <class T>
+static constexpr bool IsArray() {
+  return IsArrayT<T>::value;
+}
+
+#if HWY_COMPILER_MSVC
+HWY_DIAGNOSTICS(push)
+HWY_DIAGNOSTICS_OFF(disable : 4180, ignored "-Wignored-qualifiers")
+#endif
+
+template <class From, class To>
+class IsConvertibleT {
+ private:
+  template <class T>
+  static hwy::SizeTag<1> TestFuncWithToArg(T);
+
+  template <class T, class U>
+  static decltype(IsConvertibleT<T, U>::template TestFuncWithToArg<U>(
+      DeclVal<T>()))
+  TryConvTest(int);
+
+  template <class T, class U, class Arg>
+  static hwy::SizeTag<0> TryConvTest(Arg);
+
+ public:
+  enum {
+    value = (IsSame<RemoveConst<RemoveVolatile<From>>, void>() &&
+             IsSame<RemoveConst<RemoveVolatile<To>>, void>()) ||
+            (!IsArray<To>() &&
+             (IsSame<To, decltype(DeclVal<To>())>() ||
+              !IsSame<const RemoveConst<To>, RemoveConst<To>>()) &&
+             IsSame<decltype(TryConvTest<From, To>(0)), hwy::SizeTag<1>>())
+  };
+};
+
+#if HWY_COMPILER_MSVC
+HWY_DIAGNOSTICS(pop)
+#endif
+
+template <class From, class To>
+HWY_API constexpr bool IsConvertible() {
+  return IsConvertibleT<From, To>::value;
+}
+
+template <class From, class To>
+class IsStaticCastableT {
+ private:
+  template <class T, class U, class = decltype(static_cast<U>(DeclVal<T>()))>
+  static hwy::SizeTag<1> TryStaticCastTest(int);
+
+  template <class T, class U, class Arg>
+  static hwy::SizeTag<0> TryStaticCastTest(Arg);
+
+ public:
+  enum {
+    value = IsSame<decltype(TryStaticCastTest<From, To>(0)), hwy::SizeTag<1>>()
+  };
+};
+
+template <class From, class To>
+static constexpr bool IsStaticCastable() {
+  return IsStaticCastableT<From, To>::value;
+}
+
+template <class T, class From>
+class IsAssignableT {
+ private:
+  template <class T1, class T2, class = decltype(DeclVal<T1>() = DeclVal<T2>())>
+  static hwy::SizeTag<1> TryAssignTest(int);
+
+  template <class T1, class T2, class Arg>
+  static hwy::SizeTag<0> TryAssignTest(Arg);
+
+ public:
+  enum {
+    value = IsSame<decltype(TryAssignTest<T, From>(0)), hwy::SizeTag<1>>()
+  };
+};
+
+template <class T, class From>
+static constexpr bool IsAssignable() {
+  return IsAssignableT<T, From>::value;
+}
+
+//------------------------------------------------------------------------------
+// F16/BF16 lane types
+
+#pragma pack(push, 1)
+
+// float16_t load/store/conversion intrinsics are always supported on Armv8 and
+// VFPv4 (except with MSVC). On Armv7 Clang requires __ARM_FP & 2; GCC requires
+// -mfp16-format=ieee.
+#if (HWY_ARCH_ARM_A64 && !HWY_COMPILER_MSVC) ||                    \
+    (HWY_COMPILER_CLANG && defined(__ARM_FP) && (__ARM_FP & 2)) || \
+    (HWY_COMPILER_GCC_ACTUAL && defined(__ARM_FP16_FORMAT_IEEE))
+#define HWY_NEON_HAVE_FLOAT16C 1
+#else
+#define HWY_NEON_HAVE_FLOAT16C 0
+#endif
+
+// C11 extension ISO/IEC TS 18661-3:2015 but not supported on all targets.
+// Required if HWY_HAVE_FLOAT16, i.e. RVV with zvfh or AVX3_SPR (with
+// sufficiently new compiler supporting avx512fp16). Do not use on clang-cl,
+// which is missing __extendhfsf2.
+#if ((HWY_ARCH_RVV && defined(__riscv_zvfh) && HWY_COMPILER_CLANG) || \
+     (HWY_ARCH_X86 && defined(__SSE2__) &&                            \
+      ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) ||       \
+       HWY_COMPILER_GCC_ACTUAL >= 1200)))
+#define HWY_HAVE_C11_FLOAT16 1
+#else
+#define HWY_HAVE_C11_FLOAT16 0
+#endif
+
+// If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
+// create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
+#if HWY_ARCH_ARM_A64 && !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1700) && \
+    (defined(__ARM_FEATURE_SVE_BF16) || HWY_COMPILER_GCC_ACTUAL >= 1100)
+#define HWY_ARM_HAVE_BFLOAT16 1
+#else
+#define HWY_ARM_HAVE_BFLOAT16 0
+#endif
+
+#if HWY_ARM_HAVE_BFLOAT16 && \
+    (defined(__ARM_FEATURE_SVE_BF16) || defined(__ARM_FEATURE_SVE))
+#define HWY_SVE_HAVE_BFLOAT16 1
+#else
+#define HWY_SVE_HAVE_BFLOAT16 0
+#endif
+
+#if HWY_ARCH_X86 && defined(__SSE2__) && HWY_COMPILER_GCC_ACTUAL >= 1300
+#define HWY_SSE2_HAVE_BFLOAT16 1
+#else
+#define HWY_SSE2_HAVE_BFLOAT16 0
+#endif
+
+#if HWY_ARM_HAVE_BFLOAT16 || HWY_SSE2_HAVE_BFLOAT16
+#define HWY_HAVE_GCC_OR_ARM_BFLOAT16 1
+#else
+#define HWY_HAVE_GCC_OR_ARM_BFLOAT16 0
+#endif
+
+// Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
+// by concatenating base type and bits. We use a wrapper class instead of a
+// typedef to the native type to ensure that the same symbols, e.g. for VQSort,
+// are generated regardless of F16 support; see #1684.
+struct float16_t {
+#if HWY_NEON_HAVE_FLOAT16C  // ACLE's __fp16
+  using Raw = __fp16;
+#elif HWY_HAVE_C11_FLOAT16                                     // C11 _Float16
+  using Raw = _Float16;
+#elif HWY_CXX_LANG > 202002L && defined(__STDCPP_FLOAT16_T__)  // C++23
+  using Raw = std::float16_t;
+#else
+#define HWY_EMULATE_FLOAT16
+  using Raw = uint16_t;
+  Raw bits;
+#endif  // float16_t
+
+// When backed by a native type, ensure the wrapper behaves like the native
+// type by forwarding all operators. Unfortunately it seems difficult to reuse
+// this code in a base class, so we repeat it in bfloat16_t.
+#ifndef HWY_EMULATE_FLOAT16
+  Raw raw;
+
+  float16_t() noexcept = default;
+  constexpr float16_t(const float16_t&) noexcept = default;
+  constexpr float16_t(float16_t&&) noexcept = default;
+
+  template <typename T, hwy::EnableIf<!IsSame<RemoveCvRef<T>, float16_t>() &&
+                                      IsConvertible<T, Raw>()>* = nullptr>
+  constexpr float16_t(T&& arg) noexcept(
+      noexcept(static_cast<Raw>(DeclVal<T>())))
+      : raw(static_cast<Raw>(static_cast<T&&>(arg))) {}
+
+  template <typename T, hwy::EnableIf<!IsSame<RemoveCvRef<T>, float16_t>() &&
+                                      !IsConvertible<T, Raw>() &&
+                                      IsStaticCastable<T, Raw>()>* = nullptr>
+  explicit constexpr float16_t(T&& arg) noexcept(
+      noexcept(static_cast<Raw>(DeclVal<T>())))
+      : raw(static_cast<Raw>(static_cast<T&&>(arg))) {}
+
+  float16_t& operator=(const float16_t&) noexcept = default;
+  float16_t& operator=(float16_t&&) noexcept = default;
+  HWY_CXX14_CONSTEXPR float16_t& operator=(Raw arg) noexcept {
+    raw = arg;
+    return *this;
+  }
+
+  constexpr operator Raw() const noexcept { return raw; }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<float16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() + DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR float16_t& operator+=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() + DeclVal<T>())) {
+    raw = static_cast<Raw>(raw + static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<float16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() - DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR float16_t& operator-=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() - DeclVal<T>())) {
+    raw = static_cast<Raw>(raw - static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<float16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() * DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR float16_t& operator*=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() * DeclVal<T>())) {
+    raw = static_cast<Raw>(raw * static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<float16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() / DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR float16_t& operator/=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() / DeclVal<T>())) {
+    raw = static_cast<Raw>(raw / static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  // pre-decrement operator (--x)
+  HWY_CXX14_CONSTEXPR float16_t& operator--() noexcept {
+    raw = static_cast<Raw>(raw - Raw{1});
+    return *this;
+  }
+
+  // post-decrement operator (x--)
+  HWY_CXX14_CONSTEXPR float16_t operator--(int) noexcept {
+    float16_t result = *this;
+    raw = static_cast<Raw>(raw - Raw{1});
+    return result;
+  }
+
+  // pre-increment operator (++x)
+  HWY_CXX14_CONSTEXPR float16_t& operator++() noexcept {
+    raw = static_cast<Raw>(raw + Raw{1});
+    return *this;
+  }
+
+  // post-increment operator (x++)
+  HWY_CXX14_CONSTEXPR float16_t operator++(int) noexcept {
+    float16_t result = *this;
+    raw = static_cast<Raw>(raw + Raw{1});
+    return result;
+  }
+
+  constexpr float16_t operator-() const noexcept {
+    return float16_t(static_cast<Raw>(-raw));
+  }
+  constexpr float16_t operator+() const noexcept { return *this; }
+#endif  // HWY_EMULATE_FLOAT16
+};
+
+#ifndef HWY_EMULATE_FLOAT16
+constexpr inline bool operator==(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw == rhs.raw;
+}
+constexpr inline bool operator!=(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw != rhs.raw;
+}
+constexpr inline bool operator<(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw < rhs.raw;
+}
+constexpr inline bool operator<=(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw <= rhs.raw;
+}
+constexpr inline bool operator>(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw > rhs.raw;
+}
+constexpr inline bool operator>=(float16_t lhs, float16_t rhs) noexcept {
+  return lhs.raw >= rhs.raw;
+}
+#if HWY_HAVE_CXX20_THREE_WAY_COMPARE
+constexpr inline std::partial_ordering operator<=>(float16_t lhs,
+                                                   float16_t rhs) noexcept {
+  return lhs.raw <=> rhs.raw;
+}
+#endif
+#endif  // HWY_EMULATE_FLOAT16
+
+#if (HWY_CXX_LANG >= 202100L && defined(__STDCPP_BFLOAT16_T__)) || \
+    (HWY_HAVE_GCC_OR_ARM_BFLOAT16 && HWY_COMPILER_GCC_ACTUAL >= 1300)
+#define HWY_HAVE_BF16_ARITHMETIC_OPS 1
+#else
+#define HWY_HAVE_BF16_ARITHMETIC_OPS 0
+#endif
+
+#if HWY_HAVE_BF16_ARITHMETIC_OPS
+#define HWY_BF16_CONSTEXPR constexpr
+#else
+#define HWY_BF16_CONSTEXPR HWY_BITCASTSCALAR_CONSTEXPR
+#endif
+
+struct bfloat16_t {
+#if HWY_HAVE_GCC_OR_ARM_BFLOAT16
+  using Raw = __bf16;
+#elif HWY_CXX_LANG >= 202100L && defined(__STDCPP_BFLOAT16_T__)  // C++23
+  using Raw = std::bfloat16_t;
+#else
+#define HWY_EMULATE_BFLOAT16
+  using Raw = uint16_t;
+  Raw bits;
+#endif
+
+#ifndef HWY_EMULATE_BFLOAT16
+  Raw raw;
+
+#if HWY_COMPILER_CLANG && HWY_ARM_HAVE_BFLOAT16 && \
+    HWY_HAS_BUILTIN(__builtin_bit_cast)
+  constexpr bfloat16_t() noexcept : raw(BitCastScalar<Raw>(uint16_t{0})) {}
+#else
+  bfloat16_t() noexcept = default;
+#endif
+
+  constexpr bfloat16_t(bfloat16_t&&) noexcept = default;
+  constexpr bfloat16_t(const bfloat16_t&) noexcept = default;
+
+  constexpr bfloat16_t(Raw arg) noexcept : raw(arg){};
+
+#if HWY_HAVE_BF16_ARITHMETIC_OPS
+  template <typename T, hwy::EnableIf<!IsSame<RemoveCvRef<T>, Raw>() &&
+                                      !IsSame<RemoveCvRef<T>, bfloat16_t>() &&
+                                      IsConvertible<T, Raw>()>* = nullptr>
+  constexpr bfloat16_t(T&& arg) noexcept(
+      noexcept(static_cast<Raw>(DeclVal<T>())))
+      : raw(static_cast<Raw>(static_cast<T&&>(arg))) {}
+
+  template <typename T, hwy::EnableIf<!IsSame<RemoveCvRef<T>, Raw>() &&
+                                      !IsSame<RemoveCvRef<T>, bfloat16_t>() &&
+                                      !IsConvertible<T, Raw>() &&
+                                      IsStaticCastable<T, Raw>()>* = nullptr>
+  explicit constexpr bfloat16_t(T&& arg) noexcept(
+      noexcept(static_cast<Raw>(DeclVal<T>())))
+      : raw(static_cast<Raw>(static_cast<T&&>(arg))) {}
+#endif
+
+  bfloat16_t& operator=(bfloat16_t&& arg) noexcept = default;
+  bfloat16_t& operator=(const bfloat16_t& arg) noexcept = default;
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator=(Raw arg) noexcept {
+    raw = arg;
+    return *this;
+  }
+
+  constexpr operator Raw() const noexcept { return raw; }
+
+#if HWY_HAVE_BF16_ARITHMETIC_OPS
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<bfloat16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() + DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator+=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() + DeclVal<T>())) {
+    raw = static_cast<Raw>(raw + static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<bfloat16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() - DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator-=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() - DeclVal<T>())) {
+    raw = static_cast<Raw>(raw - static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<bfloat16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() * DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator*=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() * DeclVal<T>())) {
+    raw = static_cast<Raw>(raw * static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  template <
+      typename T,
+      hwy::EnableIf<IsAssignable<bfloat16_t, T>() &&
+                    IsStaticCastable<decltype(DeclVal<Raw>() / DeclVal<T>()),
+                                     Raw>()>* = nullptr>
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator/=(T&& rhs) noexcept(
+      noexcept(DeclVal<Raw>() / DeclVal<T>())) {
+    raw = static_cast<Raw>(raw / static_cast<T&&>(rhs));
+    return *this;
+  }
+
+  // pre-decrement operator (--x)
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator--() noexcept {
+    raw = static_cast<Raw>(raw - Raw{1});
+    return *this;
+  }
+
+  // post-decrement operator (x--)
+  HWY_CXX14_CONSTEXPR bfloat16_t operator--(int) noexcept {
+    bfloat16_t result = *this;
+    raw = static_cast<Raw>(raw - Raw{1});
+    return result;
+  }
+
+  // pre-increment operator (++x)
+  HWY_CXX14_CONSTEXPR bfloat16_t& operator++() noexcept {
+    raw = static_cast<Raw>(raw + Raw{1});
+    return *this;
+  }
+
+  // post-increment operator (x++)
+  HWY_CXX14_CONSTEXPR bfloat16_t operator++(int) noexcept {
+    bfloat16_t result = *this;
+    raw = static_cast<Raw>(raw + Raw{1});
+    return result;
+  }
+
+  constexpr bfloat16_t operator-() const noexcept {
+    return bfloat16_t(static_cast<Raw>(-raw));
+  }
+  constexpr bfloat16_t operator+() const noexcept { return *this; }
+#endif  // HWY_HAVE_BF16_ARITHMETIC_OPS
+#endif  // HWY_EMULATE_BFLOAT16
+};
+
+#pragma pack(pop)
+
+HWY_API HWY_BF16_CONSTEXPR float F32FromBF16(bfloat16_t bf) {
+#if HWY_HAVE_BF16_ARITHMETIC_OPS
+  return static_cast<float>(bf);
+#else
+  return BitCastScalar<float>(static_cast<uint32_t>(
+      static_cast<uint32_t>(BitCastScalar<uint16_t>(bf)) << 16));
+#endif
+}
+
+HWY_BF16_CONSTEXPR inline bool operator==(bfloat16_t lhs,
+                                          bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) == F32FromBF16(rhs);
+}
+HWY_BF16_CONSTEXPR inline bool operator!=(bfloat16_t lhs,
+                                          bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) != F32FromBF16(rhs);
+}
+HWY_BF16_CONSTEXPR inline bool operator<(bfloat16_t lhs,
+                                         bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) < F32FromBF16(rhs);
+}
+HWY_BF16_CONSTEXPR inline bool operator<=(bfloat16_t lhs,
+                                          bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) <= F32FromBF16(rhs);
+}
+HWY_BF16_CONSTEXPR inline bool operator>(bfloat16_t lhs,
+                                         bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) > F32FromBF16(rhs);
+}
+HWY_BF16_CONSTEXPR inline bool operator>=(bfloat16_t lhs,
+                                          bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) >= F32FromBF16(rhs);
+}
+#if HWY_HAVE_CXX20_THREE_WAY_COMPARE
+HWY_BF16_CONSTEXPR inline std::partial_ordering operator<=>(
+    bfloat16_t lhs, bfloat16_t rhs) noexcept {
+  return F32FromBF16(lhs) <=> F32FromBF16(rhs);
+}
+#endif
+
+#ifdef HWY_EMULATE_FLOAT16
+#define HWY_F16_CONSTEXPR HWY_BITCASTSCALAR_CXX14_CONSTEXPR
+#else
+#define HWY_F16_CONSTEXPR constexpr
+#endif
+
+HWY_API HWY_F16_CONSTEXPR float F32FromF16(float16_t f16) {
+#ifdef HWY_EMULATE_FLOAT16
+  const uint16_t bits16 = BitCastScalar<uint16_t>(f16);
+  const uint32_t sign = static_cast<uint32_t>(bits16 >> 15);
+  const uint32_t biased_exp = (bits16 >> 10) & 0x1F;
+  const uint32_t mantissa = bits16 & 0x3FF;
+
+  // Subnormal or zero
+  if (biased_exp == 0) {
+    const float subnormal =
+        (1.0f / 16384) * (static_cast<float>(mantissa) * (1.0f / 1024));
+    return sign ? -subnormal : subnormal;
+  }
+
+  // Normalized: convert the representation directly (faster than ldexp/tables).
+  const uint32_t biased_exp32 = biased_exp + (127 - 15);
+  const uint32_t mantissa32 = mantissa << (23 - 10);
+  const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
+
+  return BitCastScalar<float>(bits32);
+#else
+  return static_cast<float>(f16);
+#endif
+}
+
+HWY_API float16_t F16FromF32(float f32) {
+#ifdef HWY_EMULATE_FLOAT16
+  const uint32_t bits32 = BitCastScalar<uint32_t>(f32);
+  const uint32_t sign = bits32 >> 31;
+  const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
+  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
+
+  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
+
+  // Tiny or zero => zero.
+  if (exp < -24) {
+    // restore original sign
+    return BitCastScalar<float16_t>(static_cast<uint16_t>(sign << 15));
+  }
+
+  uint32_t biased_exp16, mantissa16;
+
+  // exp = [-24, -15] => subnormal
+  if (exp < -14) {
+    biased_exp16 = 0;
+    const uint32_t sub_exp = static_cast<uint32_t>(-14 - exp);
+    HWY_DASSERT(1 <= sub_exp && sub_exp < 11);
+    mantissa16 = static_cast<uint32_t>((1u << (10 - sub_exp)) +
+                                       (mantissa32 >> (13 + sub_exp)));
+  } else {
+    // exp = [-14, 15]
+    biased_exp16 = static_cast<uint32_t>(exp + 15);
+    HWY_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
+    mantissa16 = mantissa32 >> 13;
+  }
+
+  HWY_DASSERT(mantissa16 < 1024);
+  const uint32_t bits16 = (sign << 15) | (biased_exp16 << 10) | mantissa16;
+  HWY_DASSERT(bits16 < 0x10000);
+  const uint16_t narrowed = static_cast<uint16_t>(bits16);  // big-endian safe
+  return BitCastScalar<float16_t>(narrowed);
+#else
+  return float16_t(static_cast<float16_t::Raw>(f32));
+#endif
+}
+
+HWY_API float F32FromF16Mem(const void* ptr) {
+  float16_t f16;
+  CopyBytes<2>(ptr, &f16);
+  return F32FromF16(f16);
+}
+
+HWY_API float F32FromBF16Mem(const void* ptr) {
+  bfloat16_t bf;
+  CopyBytes<2>(ptr, &bf);
+  return F32FromBF16(bf);
+}
+
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR bfloat16_t BF16FromF32(float f) {
+  return BitCastScalar<bfloat16_t>(
+      static_cast<uint16_t>(BitCastScalar<uint32_t>(f) >> 16));
+}
 
 //------------------------------------------------------------------------------
 // Type relations
