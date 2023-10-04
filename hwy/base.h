@@ -55,7 +55,8 @@
 #endif  // !HWY_IDE
 
 #if !defined(HWY_NO_LIBCXX) && HWY_CXX_LANG > 201703L && \
-    __cpp_impl_three_way_comparison >= 201907L && defined(__has_include)
+    __cpp_impl_three_way_comparison >= 201907L && defined(__has_include) && \
+    !defined(HWY_DISABLE_CXX20_THREE_WAY_COMPARE)
 #if __has_include(<compare>)
 #include <compare>
 #define HWY_HAVE_CXX20_THREE_WAY_COMPARE 1
