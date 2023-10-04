@@ -1576,6 +1576,38 @@ HWY_RVV_FOREACH_B(HWY_RVV_ALL_TRUE, _, _)
 HWY_RVV_FOREACH_B(HWY_RVV_COUNT_TRUE, _, _)
 #undef HWY_RVV_COUNT_TRUE
 
+// ------------------------------ PromoteMaskTo
+
+#ifdef HWY_NATIVE_PROMOTE_MASK_TO
+#undef HWY_NATIVE_PROMOTE_MASK_TO
+#else
+#define HWY_NATIVE_PROMOTE_MASK_TO
+#endif
+
+template <class DTo, class DFrom,
+          HWY_IF_T_SIZE_GT_D(DTo, sizeof(TFromD<DFrom>)),
+          hwy::EnableIf<IsSame<MFromD<DTo>, MFromD<DFrom>>()>* = nullptr>
+HWY_API MFromD<DTo> PromoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
+                                  MFromD<DFrom> m) {
+  return m;
+}
+
+// ------------------------------ DemoteMaskTo
+
+#ifdef HWY_NATIVE_DEMOTE_MASK_TO
+#undef HWY_NATIVE_DEMOTE_MASK_TO
+#else
+#define HWY_NATIVE_DEMOTE_MASK_TO
+#endif
+
+template <class DTo, class DFrom,
+          HWY_IF_T_SIZE_LE_D(DTo, sizeof(TFromD<DFrom>) - 1),
+          hwy::EnableIf<IsSame<MFromD<DTo>, MFromD<DFrom>>()>* = nullptr>
+HWY_API MFromD<DTo> DemoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
+                                 MFromD<DFrom> m) {
+  return m;
+}
+
 // ================================================== MEMORY
 
 // ------------------------------ Load
@@ -4517,6 +4549,264 @@ HWY_API MFromD<D> FirstN(const D d, const size_t n) {
   const auto zero = Zero(d);
   const auto one = Set(d, 1);
   return Eq(detail::SlideUp(one, zero, n), one);
+}
+
+// ------------------------------ LowerHalfOfMask/UpperHalfOfMask
+
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+
+// Target-specific implementations of LowerHalfOfMask, UpperHalfOfMask,
+// CombineMasks, OrderedDemote2MasksTo, and Dup128MaskFromMaskBits are possible
+// on RVV if the __riscv_vreinterpret_v_b*_u8m1 and
+// __riscv_vreinterpret_v_u8m1_b* intrinsics are available.
+
+// The __riscv_vreinterpret_v_b*_u8m1 and __riscv_vreinterpret_v_u8m1_b*
+// intrinsics available with Clang 17 and later and GCC 14 and later.
+
+namespace detail {
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool1_t m) {
+  return __riscv_vreinterpret_v_b1_u8m1(m);
+}
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool2_t m) {
+  return __riscv_vreinterpret_v_b2_u8m1(m);
+}
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool4_t m) {
+  return __riscv_vreinterpret_v_b4_u8m1(m);
+}
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool8_t m) {
+  return __riscv_vreinterpret_v_b8_u8m1(m);
+}
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool16_t m) {
+  return __riscv_vreinterpret_v_b16_u8m1(m);
+}
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool32_t m) {
+  return __riscv_vreinterpret_v_b32_u8m1(m);
+}
+
+HWY_INLINE vuint8m1_t MaskToU8MaskBitsVec(vbool64_t m) {
+  return __riscv_vreinterpret_v_b64_u8m1(m);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool1_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b1(v);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool2_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b2(v);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool4_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b4(v);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool8_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b8(v);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool16_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b16(v);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool32_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b32(v);
+}
+
+template <class D, hwy::EnableIf<IsSame<MFromD<D>, vbool64_t>()>* = nullptr>
+HWY_INLINE MFromD<D> U8MaskBitsVecToMask(D /*d*/, vuint8m1_t v) {
+  return __riscv_vreinterpret_v_u8m1_b64(v);
+}
+
+}  // namespace detail
+
+#ifdef HWY_NATIVE_LOWER_HALF_OF_MASK
+#undef HWY_NATIVE_LOWER_HALF_OF_MASK
+#else
+#define HWY_NATIVE_LOWER_HALF_OF_MASK
+#endif
+
+template <class D>
+HWY_API MFromD<D> LowerHalfOfMask(D d, MFromD<Twice<D>> m) {
+  return detail::U8MaskBitsVecToMask(d, detail::MaskToU8MaskBitsVec(m));
+}
+
+#ifdef HWY_NATIVE_UPPER_HALF_OF_MASK
+#undef HWY_NATIVE_UPPER_HALF_OF_MASK
+#else
+#define HWY_NATIVE_UPPER_HALF_OF_MASK
+#endif
+
+template <class D>
+HWY_API MFromD<D> UpperHalfOfMask(D d, MFromD<Twice<D>> m) {
+  const size_t N = Lanes(d);
+
+  vuint8m1_t mask_bits = detail::MaskToU8MaskBitsVec(m);
+  mask_bits = ShiftRightSame(mask_bits, static_cast<int>(N & 7));
+  if (HWY_MAX_LANES_D(D) >= 8) {
+    mask_bits = SlideDownLanes(ScalableTag<uint8_t>(), mask_bits, N / 8);
+  }
+
+  return detail::U8MaskBitsVecToMask(d, mask_bits);
+}
+
+// ------------------------------ CombineMasks
+
+#ifdef HWY_NATIVE_COMBINE_MASKS
+#undef HWY_NATIVE_COMBINE_MASKS
+#else
+#define HWY_NATIVE_COMBINE_MASKS
+#endif
+
+template <class D>
+HWY_API MFromD<D> CombineMasks(D d, MFromD<Half<D>> hi, MFromD<Half<D>> lo) {
+  const Half<decltype(d)> dh;
+  const size_t half_N = Lanes(dh);
+
+  const auto ext_lo_mask =
+      And(detail::U8MaskBitsVecToMask(d, detail::MaskToU8MaskBitsVec(lo)),
+          FirstN(d, half_N));
+  vuint8m1_t hi_mask_bits = detail::MaskToU8MaskBitsVec(hi);
+  hi_mask_bits = ShiftLeftSame(hi_mask_bits, static_cast<int>(half_N & 7));
+  if (HWY_MAX_LANES_D(D) >= 8) {
+    hi_mask_bits =
+        SlideUpLanes(ScalableTag<uint8_t>(), hi_mask_bits, half_N / 8);
+  }
+
+  return Or(ext_lo_mask, detail::U8MaskBitsVecToMask(d, hi_mask_bits));
+}
+
+// ------------------------------ OrderedDemote2MasksTo
+
+#ifdef HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
+#undef HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
+#else
+#define HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
+#endif
+
+template <class DTo, class DFrom,
+          HWY_IF_T_SIZE_D(DTo, sizeof(TFromD<DFrom>) / 2),
+          class DTo_2 = Repartition<TFromD<DTo>, DFrom>,
+          hwy::EnableIf<IsSame<MFromD<DTo>, MFromD<DTo_2>>()>* = nullptr>
+HWY_API MFromD<DTo> OrderedDemote2MasksTo(DTo d_to, DFrom /*d_from*/,
+                                          MFromD<DFrom> a, MFromD<DFrom> b) {
+  return CombineMasks(d_to, b, a);
+}
+
+#endif  // HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+
+// ------------------------------ Dup128MaskFromMaskBits
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_LE_D(D, 8)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN < 8) mask_bits &= (1u << kN) - 1;
+
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+  return detail::U8MaskBitsVecToMask(
+      d, Set(ScalableTag<uint8_t>(), static_cast<uint8_t>(mask_bits)));
+#else
+  const RebindToUnsigned<decltype(d)> du8;
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint64_t, decltype(du8)>>
+      du64;
+
+  const auto bytes = ResizeBitCast(
+      du8, detail::AndS(
+               ResizeBitCast(du64, Set(du8, static_cast<uint8_t>(mask_bits))),
+               uint64_t{0x8040201008040201u}));
+  return detail::NeS(bytes, uint8_t{0});
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_LANES_GT_D(D, 8)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+  return detail::U8MaskBitsVecToMask(
+      d,
+      BitCast(ScalableTag<uint8_t>(),
+              Set(ScalableTag<uint16_t>(), static_cast<uint16_t>(mask_bits))));
+#else
+  const RebindToUnsigned<decltype(d)> du8;
+  const Repartition<uint16_t, decltype(du8)> du16;
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint64_t, decltype(du8)>>
+      du64;
+
+  // Replicate the lower 16 bits of mask_bits to each u16 lane of a u16 vector,
+  // and then bitcast the replicated mask_bits to a u8 vector
+  const auto bytes = BitCast(du8, Set(du16, static_cast<uint16_t>(mask_bits)));
+  // Replicate bytes 8x such that each byte contains the bit that governs it.
+  const auto rep8 = TableLookupLanes(bytes, ShiftRight<3>(detail::Iota0(du8)));
+
+  const auto masked_out_rep8 = ResizeBitCast(
+      du8,
+      detail::AndS(ResizeBitCast(du64, rep8), uint64_t{0x8040201008040201u}));
+  return detail::NeS(masked_out_rep8, uint8_t{0});
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN < 8) mask_bits &= (1u << kN) - 1;
+
+#if HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400
+  return detail::U8MaskBitsVecToMask(
+      d, Set(ScalableTag<uint8_t>(), static_cast<uint8_t>(mask_bits)));
+#else
+  const Rebind<uint8_t, detail::AdjustSimdTagToMinVecPow2<decltype(d)>> du8;
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint64_t, decltype(du8)>>
+      du64;
+
+  const auto bytes = ResizeBitCast(
+      du8, detail::AndS(
+               ResizeBitCast(du64, Set(du8, static_cast<uint8_t>(mask_bits))),
+               uint64_t{0x8040201008040201u}));
+  return detail::NeS(bytes, uint8_t{0});
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN < 4) {
+    mask_bits &= (1u << kN) - 1;
+  }
+
+  const Rebind<uint8_t, detail::AdjustSimdTagToMinVecPow2<decltype(d)>> du8;
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint32_t, decltype(du8)>>
+      du32;
+
+  const auto bytes = ResizeBitCast(
+      du8, detail::AndS(
+               ResizeBitCast(du32, Set(du8, static_cast<uint8_t>(mask_bits))),
+               uint32_t{0x08040201u}));
+  return detail::NeS(bytes, uint8_t{0});
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  if (MaxLanes(d) < 2) {
+    mask_bits &= 1u;
+  }
+
+  const Rebind<uint8_t, detail::AdjustSimdTagToMinVecPow2<decltype(d)>> du8;
+  const Repartition<uint16_t, decltype(du8)> du16;
+
+  const auto bytes = BitCast(
+      du8,
+      detail::AndS(BitCast(du16, Set(du8, static_cast<uint8_t>(mask_bits))),
+                   uint16_t{0x0201u}));
+  return detail::NeS(bytes, uint8_t{0});
 }
 
 // ------------------------------ Neg (Sub)

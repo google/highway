@@ -464,6 +464,42 @@ HWY_NOINLINE void TestAllSetAtOrAfterFirst() {
   ForAllTypes(ForPartialVectors<TestSetAtOrAfterFirst>());
 }
 
+struct TestDup128MaskFromMaskBits {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TI = MakeSigned<T>;  // For mask > 0 comparison
+    const Rebind<TI, D> di;
+    const size_t N = Lanes(di);
+    constexpr size_t kLanesPer16ByteBlock = 16 / sizeof(T);
+
+    auto expected = AllocateAligned<TI>(N);
+    HWY_ASSERT(expected);
+
+    // For all combinations of zero/nonzero state of subset of lanes:
+    constexpr size_t kMaxLanesToCheckPerBlk =
+        HWY_MIN(HWY_MAX_LANES_D(D), HWY_MIN(kLanesPer16ByteBlock, 10));
+    const size_t max_lanes = HWY_MIN(N, kMaxLanesToCheckPerBlk);
+
+    for (size_t code = 0; code < (1ull << max_lanes); ++code) {
+      for (size_t i = 0; i < N; i++) {
+        expected[i] = static_cast<TI>(
+            -static_cast<TI>((code >> (i & (kLanesPer16ByteBlock - 1))) & 1));
+      }
+
+      const auto expected_mask =
+          MaskFromVec(BitCast(d, LoadDup128(di, expected.get())));
+
+      const auto m = Dup128MaskFromMaskBits(d, static_cast<unsigned>(code));
+      HWY_ASSERT_VEC_EQ(di, expected.get(), VecFromMask(di, RebindMask(di, m)));
+      HWY_ASSERT_MASK_EQ(d, expected_mask, m);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllDup128MaskFromMaskBits() {
+  ForAllTypes(ForPartialVectors<TestDup128MaskFromMaskBits>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -485,6 +521,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetBeforeFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetAtOrBeforeFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetOnlyFirst);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllSetAtOrAfterFirst);
+HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllDup128MaskFromMaskBits);
 }  // namespace hwy
 
 #endif

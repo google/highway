@@ -2420,6 +2420,15 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   return m;
 }
 
+template <class D>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  MFromD<D> m;
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    m.bits[i] = MFromD<D>::FromBool(((mask_bits >> i) & 1u) != 0);
+  }
+  return m;
+}
+
 // `p` points to at least 8 writable bytes.
 template <class D>
 HWY_API size_t StoreMaskBits(D d, MFromD<D> mask, uint8_t* bits) {

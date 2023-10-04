@@ -938,6 +938,10 @@ encoding depends on the platform).
     readable, but only `(Lanes(D()) + 7) / 8` need be initialized. Any unused
     bits (happens if `Lanes(D()) < 8`) are treated as if they were zero.
 
+*   <code>M **Dup128MaskFromMaskBits**(D d, unsigned mask_bits)</code>: returns
+    a mask with lane `i` set to
+    `((mask_bits >> (i & (16 / sizeof(T) - 1))) & 1) != 0`.
+
 #### Conversion
 
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
@@ -952,6 +956,80 @@ encoding depends on the platform).
     the bits of each byte from least to most significant, then proceeding to the
     next byte. Returns the number of bytes written: `(Lanes(D()) + 7) / 8`. At
     least 8 bytes of `p` must be writable.
+
+*   <code>Mask&lt;DTo&gt; **PromoteMaskTo**(DTo d_to, DFrom d_from,
+    Mask&lt;DFrom&gt; m)</code>: Promotes `m` to a mask with a lane type of
+    `TFromD<DTo>`, `DFrom` is `Rebind<TFrom, DTo>`.
+
+    `PromoteMaskTo(d_to, d_from, m)` is equivalent to
+    `MaskFromVec(BitCast(d_to, PromoteTo(di_to, BitCast(di_from,
+    VecFromMask(d_from, m)))))`, where `di_from` is `RebindToSigned<DFrom>()`
+    and `di_from` is `RebindToSigned<DFrom>()`, but
+    `PromoteMaskTo(d_to, d_from, m)` is more efficient on some targets.
+
+    PromoteMaskTo requires that `sizeof(TFromD<DFrom>) < sizeof(TFromD<DTo>)` be
+    true.
+
+*   <code>Mask&lt;DTo&gt; **DemoteMaskTo**(DTo d_to, DFrom d_from,
+    Mask&lt;DFrom&gt; m)</code>: Demotes `m` to a mask with a lane type of
+    `TFromD<DTo>`, `DFrom` is `Rebind<TFrom, DTo>`.
+
+    `DemoteMaskTo(d_to, d_from, m)` is equivalent to
+    `MaskFromVec(BitCast(d_to, DemoteTo(di_to, BitCast(di_from,
+    VecFromMask(d_from, m)))))`, where `di_from` is `RebindToSigned<DFrom>()`
+    and `di_from` is `RebindToSigned<DFrom>()`, but
+    `DemoteMaskTo(d_to, d_from, m)` is more efficient on some targets.
+
+    DemoteMaskTo requires that `sizeof(TFromD<DFrom>) > sizeof(TFromD<DTo>)` be
+    true.
+
+*   <code>M **OrderedDemote2MasksTo**(DTo, DFrom, M2, M2)</code>: returns a mask
+    whose `LowerHalf` is the first argument and whose `UpperHalf` is the second
+    argument; `M2` is `Mask<Half<DFrom>>`; `DTo` is `Repartition<TTo, DFrom>`.
+
+    OrderedDemote2MasksTo requires that
+    `sizeof(TFromD<DTo>) == sizeof(TFromD<DFrom>) * 2` be true.
+
+    `OrderedDemote2MasksTo(d_to, d_from, a, b)` is equivalent to
+    `MaskFromVec(BitCast(d_to, OrderedDemote2To(di_to, va, vb)))`, where `va` is
+    `BitCast(di_from, MaskFromVec(d_from, a))`, `vb` is
+    `BitCast(di_from, MaskFromVec(d_from, b))`, `di_to` is
+    `RebindToSigned<DTo>()`, and `di_from` is `RebindToSigned<DFrom>()`, but
+    `OrderedDemote2MasksTo(d_to, d_from, a, b)` is more efficient on some
+    targets.
+
+    OrderedDemote2MasksTo is only available if `HWY_TARGET != HWY_SCALAR` is
+    true.
+
+#### Combine
+
+*   <code>M2 **LowerHalfOfMask**(D d, M m)</code>:
+    returns the lower half of mask `m`, where `M` is `MFromD<Twice<D>>`
+    and `M2` is `MFromD<D>`.
+
+    `LowerHalfOfMask(d, m)` is equivalent to
+    `MaskFromVec(LowerHalf(d, VecFromMask(d, m)))`,
+    but `LowerHalfOfMask(d, m)` is more efficient on some targets.
+
+*   <code>M2 **UpperHalfOfMask**(D d, M m)</code>:
+    returns the upper half of mask `m`, where `M` is `MFromD<Twice<D>>`
+    and `M2` is `MFromD<D>`.
+
+    `UpperHalfOfMask(d, m)` is equivalent to
+    `MaskFromVec(UpperHalf(d, VecFromMask(d, m)))`,
+    but `UpperHalfOfMask(d, m)` is more efficient on some targets.
+
+    UpperHalfOfMask is only available if `HWY_TARGET != HWY_SCALAR` is true.
+
+*   <code>M **CombineMasks**(D, M2, M2)</code>: returns a mask whose `UpperHalf`
+    is the first argument and whose `LowerHalf` is the second argument; `M2` is
+    `Mask<Half<D>>`.
+
+    `CombineMasks(d, hi, lo)` is equivalent to `MaskFromVec(d, Combine(d,
+    VecFromMask(Half<D>(), hi), VecFromMask(Half<D>(), lo)))`, but
+    `CombineMasks(d, hi, lo)` is more efficient on some targets.
+
+    CombineMasks is only available if `HWY_TARGET != HWY_SCALAR` is true.
 
 #### Testing
 

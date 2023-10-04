@@ -1954,6 +1954,14 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   return ret;
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  const Half<decltype(d)> dh;
+  MFromD<D> ret;
+  ret.m0 = ret.m1 = Dup128MaskFromMaskBits(dh, mask_bits);
+  return ret;
+}
+
 // ------------------------------ Mask
 
 // `p` points to at least 8 writable bytes.

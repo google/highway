@@ -4152,6 +4152,15 @@ struct CompressIsPartition {
   enum { value = (sizeof(T) != 1) };
 };
 
+// ------------------------------ Dup128MaskFromMaskBits
+
+template <class D>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN < 8) mask_bits &= (1u << kN) - 1;
+  return detail::LoadMaskBits128(d, mask_bits);
+}
+
 // ------------------------------ StoreMaskBits
 
 namespace detail {

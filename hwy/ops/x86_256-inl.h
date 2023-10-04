@@ -964,6 +964,31 @@ HWY_API Mask256<T> ExclusiveNeither(const Mask256<T> a, Mask256<T> b) {
   return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
+template <class D, HWY_IF_LANES_D(D, 32)>
+HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
+                               MFromD<Half<D>> lo) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask32 combined_mask = _mm512_kunpackw(
+      static_cast<__mmask32>(hi.raw), static_cast<__mmask32>(lo.raw));
+#else
+  const auto combined_mask =
+      ((static_cast<uint32_t>(hi.raw) << 16) | (lo.raw & 0xFFFFu));
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(combined_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 16)>
+HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const auto shifted_mask = _kshiftri_mask32(static_cast<__mmask32>(m.raw), 16);
+#else
+  const auto shifted_mask = static_cast<uint32_t>(m.raw) >> 16;
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
+}
+
 #else  // AVX2
 
 // ------------------------------ Mask
@@ -7356,6 +7381,16 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3
+
+// ------------------------------ Dup128MaskFromMaskBits
+
+// Generic for all vector lengths >= 32 bytes
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  const Half<decltype(d)> dh;
+  const auto mh = Dup128MaskFromMaskBits(dh, mask_bits);
+  return CombineMasks(d, mh, mh);
+}
 
 // ------------------------------ Expand
 

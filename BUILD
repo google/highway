@@ -402,6 +402,8 @@ HWY_TESTS = [
     ("hwy/tests/", "if_test"),
     ("hwy/tests/", "interleaved_test"),
     ("hwy/tests/", "logical_test"),
+    ("hwy/tests/", "mask_combine_test"),
+    ("hwy/tests/", "mask_convert_test"),
     ("hwy/tests/", "mask_mem_test"),
     ("hwy/tests/", "mask_test"),
     ("hwy/tests/", "masked_arithmetic_test"),
