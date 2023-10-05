@@ -1229,13 +1229,13 @@ HWY_API float16_t F16FromF32(float f32) {
 
 HWY_API float F32FromF16Mem(const void* ptr) {
   float16_t f16;
-  CopyBytes<2>(ptr, &f16);
+  CopyBytes<2>(HWY_ASSUME_ALIGNED(ptr, 2), &f16);
   return F32FromF16(f16);
 }
 
 HWY_API float F32FromBF16Mem(const void* ptr) {
   bfloat16_t bf;
-  CopyBytes<2>(ptr, &bf);
+  CopyBytes<2>(HWY_ASSUME_ALIGNED(ptr, 2), &bf);
   return F32FromBF16(bf);
 }
 
