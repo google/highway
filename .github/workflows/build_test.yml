@@ -61,16 +61,19 @@ jobs:
             extra_deps: g++-8
             c_compiler: gcc-8
             cxx_compiler: g++-8
+            cxx_flags: -ftrapv
 
           - name: GCC-9
             extra_deps: g++-9
             c_compiler: gcc-9
             cxx_compiler: g++-9
+            cxx_flags: -ftrapv
 
           - name: GCC-10
             extra_deps: g++-10
             c_compiler: gcc-10
             cxx_compiler: g++-10
+            cxx_flags: -ftrapv
 
     steps:
       - name: Harden Runner
@@ -87,7 +90,7 @@ jobs:
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=2
           export CTEST_PARALLEL_LEVEL=2
-          CXXFLAGS=-Werror CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -B out .
+          CXXFLAGS=${{ matrix.cxx_flags }} CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -B out .
           cmake --build out
           ctest --test-dir out
 
