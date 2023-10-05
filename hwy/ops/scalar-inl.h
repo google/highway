@@ -1029,6 +1029,13 @@ HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
   return Mask1<T>::FromBool(bits > ExponentMask<T>());
 }
 
+// Per-target flag to prevent generic_ops-inl.h from defining IsInf / IsFinite.
+#ifdef HWY_NATIVE_ISINF
+#undef HWY_NATIVE_ISINF
+#else
+#define HWY_NATIVE_ISINF
+#endif
+
 HWY_API Mask1<float> IsInf(const Vec1<float> v) {
   const Sisd<float> d;
   const RebindToUnsigned<decltype(d)> du;

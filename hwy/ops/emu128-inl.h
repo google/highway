@@ -1141,34 +1141,6 @@ HWY_API Mask128<T, N> IsNaN(Vec128<T, N> v) {
   return ret;
 }
 
-template <typename T, size_t N>
-HWY_API Mask128<T, N> IsInf(Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
-  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
-}
-
-// Returns whether normal/subnormal/zero.
-template <typename T, size_t N>
-HWY_API Mask128<T, N> IsFinite(Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
-  using VI = VFromD<decltype(di)>;
-  using VU = VFromD<decltype(du)>;
-  const VU vu = BitCast(du, v);
-  // 'Shift left' to clear the sign bit, then right so we can compare with the
-  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
-  // negative and non-negative floats would be greater).
-  const VI exp =
-      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(Add(vu, vu)));
-  return RebindMask(d, Lt(exp, Set(di, hwy::MaxExponentField<T>())));
-}
-
 // ================================================== COMPARE
 
 template <typename T, size_t N>

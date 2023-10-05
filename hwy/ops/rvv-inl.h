@@ -4632,6 +4632,14 @@ HWY_API MFromD<DFromV<V>> IsNaN(const V v) {
   return Ne(v, v);
 }
 
+// Per-target flag to prevent generic_ops-inl.h from defining IsInf / IsFinite.
+// We use a fused Set/comparison for IsFinite.
+#ifdef HWY_NATIVE_ISINF
+#undef HWY_NATIVE_ISINF
+#else
+#define HWY_NATIVE_ISINF
+#endif
+
 template <class V, class D = DFromV<V>>
 HWY_API MFromD<D> IsInf(const V v) {
   const D d;

@@ -9890,6 +9890,13 @@ HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
 
 #if HWY_TARGET <= HWY_AVX3
 
+// Per-target flag to prevent generic_ops-inl.h from defining IsInf / IsFinite.
+#ifdef HWY_NATIVE_ISINF
+#undef HWY_NATIVE_ISINF
+#else
+#define HWY_NATIVE_ISINF
+#endif
+
 template <size_t N>
 HWY_API Mask128<float, N> IsInf(const Vec128<float, N> v) {
   return Mask128<float, N>{_mm_fpclass_ps_mask(
@@ -9915,35 +9922,6 @@ HWY_API Mask128<double, N> IsFinite(const Vec128<double, N> v) {
   return Not(Mask128<double, N>{_mm_fpclass_pd_mask(
       v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN |
                  HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
-}
-
-#else
-
-template <typename T, size_t N>
-HWY_API Mask128<T, N> IsInf(const Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
-  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
-}
-
-// Returns whether normal/subnormal/zero.
-template <typename T, size_t N>
-HWY_API Mask128<T, N> IsFinite(const Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
-  const VFromD<decltype(du)> vu = BitCast(du, v);
-  // Shift left to clear the sign bit, then right so we can compare with the
-  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
-  // negative and non-negative floats would be greater). MSVC seems to generate
-  // incorrect code if we instead add vu + vu.
-  const VFromD<decltype(di)> exp =
-      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(ShiftLeft<1>(vu)));
-  return RebindMask(d, Lt(exp, Set(di, hwy::MaxExponentField<T>())));
 }
 
 #endif  // HWY_TARGET <= HWY_AVX3

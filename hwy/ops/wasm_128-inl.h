@@ -1071,10 +1071,10 @@ HWY_API Mask128<T, N> IsNaN(const Vec128<T, N> v) {
 template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Mask128<T, N> IsInf(const Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> vu = BitCast(du, v);
   // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
+  return RebindMask(d, Eq(Add(vu, vu), Set(du, hwy::MaxExponentTimes2<T>())));
 }
 
 // Returns whether normal/subnormal/zero.

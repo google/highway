@@ -1340,14 +1340,22 @@ HWY_API svbool_t IsNaN(const V v) {
   return Ne(v, v);  // could also use cmpuo
 }
 
+// Per-target flag to prevent generic_ops-inl.h from defining IsInf / IsFinite.
+// We use a fused Set/comparison for IsFinite.
+#ifdef HWY_NATIVE_ISINF
+#undef HWY_NATIVE_ISINF
+#else
+#define HWY_NATIVE_ISINF
+#endif
+
 template <class V>
 HWY_API svbool_t IsInf(const V v) {
   using T = TFromV<V>;
   const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> vu = BitCast(du, v);
   // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, detail::EqN(Add(vi, vi), hwy::MaxExponentTimes2<T>()));
+  return RebindMask(d, Eq(Add(vu, vu), Set(du, hwy::MaxExponentTimes2<T>())));
 }
 
 // Returns whether normal/subnormal/zero.

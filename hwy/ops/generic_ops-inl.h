@@ -504,6 +504,52 @@ HWY_API TFromD<D> ReduceMax(D d, VFromD<D> v) {
 }
 #endif  // HWY_NATIVE_REDUCE_MINMAX_4_UI8
 
+// ------------------------------ IsInf, IsFinite
+
+// AVX3 has target-specific implementations of these.
+#if (defined(HWY_NATIVE_ISINF) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ISINF
+#undef HWY_NATIVE_ISINF
+#else
+#define HWY_NATIVE_ISINF
+#endif
+
+template <class V, class D = DFromV<V>>
+HWY_API MFromD<D> IsInf(const V v) {
+  using T = TFromD<D>;
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> vu = BitCast(du, v);
+  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
+  return RebindMask(d, Eq(Add(vu, vu), Set(du, hwy::MaxExponentTimes2<T>())));
+}
+
+// Returns whether normal/subnormal/zero.
+template <class V, class D = DFromV<V>>
+HWY_API MFromD<D> IsFinite(const V v) {
+  using T = TFromD<D>;
+  const D d;
+  const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
+  const VFromD<decltype(du)> vu = BitCast(du, v);
+// 'Shift left' to clear the sign bit. MSVC seems to generate incorrect code
+// for AVX2 if we instead add vu + vu.
+#if HWY_COMPILER_MSVC
+  const VFromD<decltype(du)> shl = ShiftLeft<1>(vu);
+#else
+  const VFromD<decltype(du)> shl = Add(vu, vu);
+#endif
+
+  // Then shift right so we can compare with the max exponent (cannot compare
+  // with MaxExponentTimes2 directly because it is negative and non-negative
+  // floats would be greater).
+  const VFromD<decltype(di)> exp =
+      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(shl));
+  return RebindMask(d, Lt(exp, Set(di, hwy::MaxExponentField<T>())));
+}
+
+#endif  // HWY_NATIVE_ISINF
+
 // ------------------------------ LoadInterleaved2
 
 #if HWY_IDE || \

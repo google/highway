@@ -2910,35 +2910,6 @@ HWY_API Mask256<double> IsFinite(Vec256<double> v) {
                  HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)});
 }
 
-#else
-
-template <typename T>
-HWY_API Mask256<T> IsInf(const Vec256<T> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
-  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
-}
-
-// Returns whether normal/subnormal/zero.
-template <typename T>
-HWY_API Mask256<T> IsFinite(const Vec256<T> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
-  const VFromD<decltype(du)> vu = BitCast(du, v);
-  // Shift left to clear the sign bit, then right so we can compare with the
-  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
-  // negative and non-negative floats would be greater). MSVC seems to generate
-  // incorrect code if we instead add vu + vu.
-  const VFromD<decltype(di)> exp =
-      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(ShiftLeft<1>(vu)));
-  return RebindMask(d, Lt(exp, Set(di, hwy::MaxExponentField<T>())));
-}
-
 #endif  // HWY_TARGET <= HWY_AVX3
 
 // ================================================== MEMORY
