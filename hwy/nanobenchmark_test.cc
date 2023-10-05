@@ -18,8 +18,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <random>
-
 #include "hwy/tests/test_util-inl.h"
 
 namespace hwy {
@@ -52,7 +50,7 @@ void MeasureDiv(const FuncInput (&inputs)[N]) {
   }
 }
 
-std::mt19937 rng;
+RandomState rng;
 
 // A function whose runtime depends on rng.
 FuncOutput Random(const void* /*arg*/, FuncInput in) {
