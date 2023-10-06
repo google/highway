@@ -521,7 +521,10 @@ HWY_API MFromD<D> IsInf(const V v) {
   const RebindToUnsigned<decltype(d)> du;
   const VFromD<decltype(du)> vu = BitCast(du, v);
   // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vu, vu), Set(du, hwy::MaxExponentTimes2<T>())));
+  return RebindMask(
+      d,
+      Eq(Add(vu, vu),
+         Set(du, static_cast<MakeUnsigned<T>>(hwy::MaxExponentTimes2<T>()))));
 }
 
 // Returns whether normal/subnormal/zero.
