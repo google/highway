@@ -213,25 +213,29 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{wasm_i8x16_splat(static_cast<int8_t>(t))};
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI16_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{wasm_i16x8_splat(static_cast<int16_t>(t))};
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 4)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI32_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{wasm_i32x4_splat(static_cast<int32_t>(t))};
 }
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 8)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_UI64_D(D)>
 HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{wasm_i64x2_splat(static_cast<int64_t>(t))};
 }
 
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_SPECIAL_FLOAT_D(D)>
+HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
+  return VFromD<D>{wasm_i16x8_splat(BitCastScalar<int16_t>(t))};
+}
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
-HWY_API VFromD<D> Set(D /* tag */, const float t) {
+HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{wasm_f32x4_splat(t)};
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
-HWY_API VFromD<D> Set(D /* tag */, const double t) {
+HWY_API VFromD<D> Set(D /* tag */, TFromD<D> t) {
   return VFromD<D>{wasm_f64x2_splat(t)};
 }
 
@@ -255,6 +259,94 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
         AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
   }
   return Load(d, lanes);
+}
+
+// ------------------------------ Dup128VecFromValues
+template <class D, HWY_IF_I8_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  return VFromD<D>{wasm_i8x16_make(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10,
+                                   t11, t12, t13, t14, t15)};
+}
+
+template <class D, HWY_IF_U8_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  return VFromD<D>{wasm_u8x16_make(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10,
+                                   t11, t12, t13, t14, t15)};
+}
+
+template <class D, HWY_IF_I16_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  return VFromD<D>{wasm_i16x8_make(t0, t1, t2, t3, t4, t5, t6, t7)};
+}
+
+template <class D, HWY_IF_U16_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  return VFromD<D>{wasm_u16x8_make(t0, t1, t2, t3, t4, t5, t6, t7)};
+}
+
+template <class D, HWY_IF_SPECIAL_FLOAT_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d,
+                 Dup128VecFromValues(
+                     di, BitCastScalar<int16_t>(t0), BitCastScalar<int16_t>(t1),
+                     BitCastScalar<int16_t>(t2), BitCastScalar<int16_t>(t3),
+                     BitCastScalar<int16_t>(t4), BitCastScalar<int16_t>(t5),
+                     BitCastScalar<int16_t>(t6), BitCastScalar<int16_t>(t7)));
+}
+
+template <class D, HWY_IF_I32_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  return VFromD<D>{wasm_i32x4_make(t0, t1, t2, t3)};
+}
+
+template <class D, HWY_IF_U32_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  return VFromD<D>{wasm_u32x4_make(t0, t1, t2, t3)};
+}
+
+template <class D, HWY_IF_F32_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  return VFromD<D>{wasm_f32x4_make(t0, t1, t2, t3)};
+}
+
+template <class D, HWY_IF_I64_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return VFromD<D>{wasm_i64x2_make(t0, t1)};
+}
+
+template <class D, HWY_IF_U64_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return VFromD<D>{wasm_u64x2_make(t0, t1)};
+}
+
+template <class D, HWY_IF_F64_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return VFromD<D>{wasm_f64x2_make(t0, t1)};
 }
 
 // ================================================== ARITHMETIC

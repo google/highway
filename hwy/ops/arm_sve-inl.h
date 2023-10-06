@@ -521,6 +521,102 @@ HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
   return BitCast(d, v);
 }
 
+// ------------------------------ Dup128VecFromValues
+
+template <class D, HWY_IF_I8_D(D)>
+HWY_API svint8_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                     TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                     TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                     TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                     TFromD<D> t11, TFromD<D> t12,
+                                     TFromD<D> t13, TFromD<D> t14,
+                                     TFromD<D> t15) {
+  return svdupq_n_s8(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13,
+                     t14, t15);
+}
+
+template <class D, HWY_IF_U8_D(D)>
+HWY_API svuint8_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  return svdupq_n_u8(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13,
+                     t14, t15);
+}
+
+template <class D, HWY_IF_I16_D(D)>
+HWY_API svint16_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  return svdupq_n_s16(t0, t1, t2, t3, t4, t5, t6, t7);
+}
+
+template <class D, HWY_IF_U16_D(D)>
+HWY_API svuint16_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                       TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                       TFromD<D> t5, TFromD<D> t6,
+                                       TFromD<D> t7) {
+  return svdupq_n_u16(t0, t1, t2, t3, t4, t5, t6, t7);
+}
+
+template <class D, HWY_IF_F16_D(D)>
+HWY_API svfloat16_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                        TFromD<D> t2, TFromD<D> t3,
+                                        TFromD<D> t4, TFromD<D> t5,
+                                        TFromD<D> t6, TFromD<D> t7) {
+  return svdupq_n_f16(t0, t1, t2, t3, t4, t5, t6, t7);
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VBF16 Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1, TFromD<D> t2,
+                                  TFromD<D> t3, TFromD<D> t4, TFromD<D> t5,
+                                  TFromD<D> t6, TFromD<D> t7) {
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(
+      d, Dup128VecFromValues(
+             du, BitCastScalar<uint16_t>(t0), BitCastScalar<uint16_t>(t1),
+             BitCastScalar<uint16_t>(t2), BitCastScalar<uint16_t>(t3),
+             BitCastScalar<uint16_t>(t4), BitCastScalar<uint16_t>(t5),
+             BitCastScalar<uint16_t>(t6), BitCastScalar<uint16_t>(t7)));
+}
+
+template <class D, HWY_IF_I32_D(D)>
+HWY_API svint32_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  return svdupq_n_s32(t0, t1, t2, t3);
+}
+
+template <class D, HWY_IF_U32_D(D)>
+HWY_API svuint32_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                       TFromD<D> t2, TFromD<D> t3) {
+  return svdupq_n_u32(t0, t1, t2, t3);
+}
+
+template <class D, HWY_IF_F32_D(D)>
+HWY_API svfloat32_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                        TFromD<D> t2, TFromD<D> t3) {
+  return svdupq_n_f32(t0, t1, t2, t3);
+}
+
+template <class D, HWY_IF_I64_D(D)>
+HWY_API svint64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return svdupq_n_s64(t0, t1, t2, t3);
+}
+
+template <class D, HWY_IF_U64_D(D)>
+HWY_API svuint64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return svdupq_n_u64(t0, t1, t2, t3);
+}
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API svfloat64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return svdupq_n_f64(t0, t1, t2, t3);
+}
+
 // ================================================== LOGICAL
 
 // detail::*N() functions accept a scalar argument to avoid extra Set().

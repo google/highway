@@ -156,6 +156,43 @@ HWY_API VFromD<D> Undefined(D d) {
   return Zero(d);
 }
 
+// ------------------------------ Dup128VecFromValues
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  const VFromD<D> result = {
+      {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15}};
+  return result;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  const VFromD<D> result = {{t0, t1, t2, t3, t4, t5, t6, t7}};
+  return result;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  const VFromD<D> result = {{t0, t1, t2, t3}};
+  return result;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  const VFromD<D> result = {{t0, t1}};
+  return result;
+}
+
 // ------------------------------ Iota
 
 template <class D, typename T = TFromD<D>, typename T2>

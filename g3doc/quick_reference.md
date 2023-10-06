@@ -412,6 +412,26 @@ example `Lt` instead of `operator<`.
     lane has index 0. This is useful in tests for detecting lane-crossing bugs.
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
+*   `D`: `{u,i}8` \
+    <code>V **Dup128VecFromValues**(D d, T t0, T t1, T t2, T t3, T t4, T t5,
+    T t6, T t7, T t8, T t9, T t10, T t11, T t12, T t13, T t14, T t15)</code>:
+    Creates a vector with the following values, broadcasted to each 16-byte
+    block if `Lanes(d) >= 16` is true:
+    `{t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15}`
+*   `D`: `{u,i,f,bf}16` \
+    <code>V **Dup128VecFromValues**(D d, T t0, T t1, T t2, T t3, T t4, T t5,
+    T t6, T t7)</code>:
+    Creates a vector with the following values, broadcasted to each 16-byte
+    block if `Lanes(d) >= 8` is true:
+    `{t0, t1, t2, t3, t4, t5, t6, t7}`
+*   `D`: `{u,i,f}32` \
+    <code>V **Dup128VecFromValues**(D d, T t0, T t1, T t2, T t3)</code>:
+    Creates a vector with the following values, broadcasted to each 16-byte
+    block if `Lanes(d) >= 4` is true: `{t0, t1, t2, t3}`
+*   `D`: `{u,i,f}64` \
+    <code>V **Dup128VecFromValues**(D d, T t0, T t1)</code>:
+    Creates a vector with the following values, broadcasted to each 16-byte
+    block if `Lanes(d) >= 2` is true: `{t0, t1}`
 
 ### Getting/setting lanes
 

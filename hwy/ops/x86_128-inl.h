@@ -394,6 +394,102 @@ HWY_API VFromD<D> ResizeBitCast(D d, FromV v) {
   return BitCast(d, VFromD<decltype(du8)>{detail::BitCastToInteger(v.raw)});
 }
 
+// ------------------------------ Dup128VecFromValues
+
+template <class D, HWY_IF_UI8_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  return VFromD<D>{_mm_set_epi8(
+      static_cast<char>(t15), static_cast<char>(t14), static_cast<char>(t13),
+      static_cast<char>(t12), static_cast<char>(t11), static_cast<char>(t10),
+      static_cast<char>(t9), static_cast<char>(t8), static_cast<char>(t7),
+      static_cast<char>(t6), static_cast<char>(t5), static_cast<char>(t4),
+      static_cast<char>(t3), static_cast<char>(t2), static_cast<char>(t1),
+      static_cast<char>(t0))};
+}
+
+template <class D, HWY_IF_UI16_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  return VFromD<D>{
+      _mm_set_epi16(static_cast<int16_t>(t7), static_cast<int16_t>(t6),
+                    static_cast<int16_t>(t5), static_cast<int16_t>(t4),
+                    static_cast<int16_t>(t3), static_cast<int16_t>(t2),
+                    static_cast<int16_t>(t1), static_cast<int16_t>(t0))};
+}
+
+// Generic for all vector lengths
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d,
+                 Dup128VecFromValues(
+                     di, BitCastScalar<int16_t>(t0), BitCastScalar<int16_t>(t1),
+                     BitCastScalar<int16_t>(t2), BitCastScalar<int16_t>(t3),
+                     BitCastScalar<int16_t>(t4), BitCastScalar<int16_t>(t5),
+                     BitCastScalar<int16_t>(t6), BitCastScalar<int16_t>(t7)));
+}
+
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_F16_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  return VFromD<D>{_mm_set_ph(t7, t6, t5, t4, t3, t2, t1, t0)};
+}
+#else
+// Generic for all vector lengths if HWY_HAVE_FLOAT16 is not true
+template <class D, HWY_IF_F16_D(D)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  const RebindToSigned<decltype(d)> di;
+  return BitCast(d,
+                 Dup128VecFromValues(
+                     di, BitCastScalar<int16_t>(t0), BitCastScalar<int16_t>(t1),
+                     BitCastScalar<int16_t>(t2), BitCastScalar<int16_t>(t3),
+                     BitCastScalar<int16_t>(t4), BitCastScalar<int16_t>(t5),
+                     BitCastScalar<int16_t>(t6), BitCastScalar<int16_t>(t7)));
+}
+#endif  // HWY_HAVE_FLOAT16
+
+template <class D, HWY_IF_UI32_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  return VFromD<D>{
+      _mm_set_epi32(static_cast<int32_t>(t3), static_cast<int32_t>(t2),
+                    static_cast<int32_t>(t1), static_cast<int32_t>(t0))};
+}
+
+template <class D, HWY_IF_F32_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  return VFromD<D>{_mm_set_ps(t3, t2, t1, t0)};
+}
+
+template <class D, HWY_IF_UI64_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return VFromD<D>{
+      _mm_set_epi64x(static_cast<int64_t>(t1), static_cast<int64_t>(t0))};
+}
+
+template <class D, HWY_IF_F64_D(D), HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  return VFromD<D>{_mm_set_pd(t1, t0)};
+}
+
 // ================================================== LOGICAL
 
 // ------------------------------ And
