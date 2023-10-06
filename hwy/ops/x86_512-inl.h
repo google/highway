@@ -390,6 +390,8 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                              t7, t8, t9, t10, t11, t12, t13, t14, t15)));
 #else
   (void)d;
+  // Need to use _mm512_set_epi8 as there is no _mm512_setr_epi8 intrinsic
+  // available
   return VFromD<D>{_mm512_set_epi8(
       static_cast<char>(t15), static_cast<char>(t14), static_cast<char>(t13),
       static_cast<char>(t12), static_cast<char>(t11), static_cast<char>(t10),
@@ -428,6 +430,8 @@ HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
                                            t4, t5, t6, t7)));
 #else
   (void)d;
+  // Need to use _mm512_set_epi16 as there is no _mm512_setr_epi16 intrinsic
+  // available
   return VFromD<D>{
       _mm512_set_epi16(static_cast<int16_t>(t7), static_cast<int16_t>(t6),
                        static_cast<int16_t>(t5), static_cast<int16_t>(t4),
@@ -454,9 +458,9 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
                                       TFromD<D> t5, TFromD<D> t6,
                                       TFromD<D> t7) {
-  return VFromD<D>{_mm512_set_ph(t7, t6, t5, t4, t3, t2, t1, t0, t7, t6, t5, t4,
-                                 t3, t2, t1, t0, t7, t6, t5, t4, t3, t2, t1, t0,
-                                 t7, t6, t5, t4, t3, t2, t1, t0)};
+  return VFromD<D>{_mm512_setr_ph(t0, t1, t2, t3, t4, t5, t6, t7, t0, t1, t2,
+                                  t3, t4, t5, t6, t7, t0, t1, t2, t3, t4, t5,
+                                  t6, t7, t0, t1, t2, t3, t4, t5, t6, t7)};
 }
 #endif
 
@@ -464,35 +468,35 @@ template <class D, HWY_IF_UI32_D(D), HWY_IF_V_SIZE_D(D, 64)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3) {
   return VFromD<D>{
-      _mm512_set_epi32(static_cast<int32_t>(t3), static_cast<int32_t>(t2),
-                       static_cast<int32_t>(t1), static_cast<int32_t>(t0),
-                       static_cast<int32_t>(t3), static_cast<int32_t>(t2),
-                       static_cast<int32_t>(t1), static_cast<int32_t>(t0),
-                       static_cast<int32_t>(t3), static_cast<int32_t>(t2),
-                       static_cast<int32_t>(t1), static_cast<int32_t>(t0),
-                       static_cast<int32_t>(t3), static_cast<int32_t>(t2),
-                       static_cast<int32_t>(t1), static_cast<int32_t>(t0))};
+      _mm512_setr_epi32(static_cast<int32_t>(t0), static_cast<int32_t>(t1),
+                        static_cast<int32_t>(t2), static_cast<int32_t>(t3),
+                        static_cast<int32_t>(t0), static_cast<int32_t>(t1),
+                        static_cast<int32_t>(t2), static_cast<int32_t>(t3),
+                        static_cast<int32_t>(t0), static_cast<int32_t>(t1),
+                        static_cast<int32_t>(t2), static_cast<int32_t>(t3),
+                        static_cast<int32_t>(t0), static_cast<int32_t>(t1),
+                        static_cast<int32_t>(t2), static_cast<int32_t>(t3))};
 }
 
 template <class D, HWY_IF_F32_D(D), HWY_IF_V_SIZE_D(D, 64)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3) {
-  return VFromD<D>{_mm512_set_ps(t3, t2, t1, t0, t3, t2, t1, t0, t3, t2, t1, t0,
-                                 t3, t2, t1, t0)};
+  return VFromD<D>{_mm512_setr_ps(t0, t1, t2, t3, t0, t1, t2, t3, t0, t1, t2,
+                                  t3, t0, t1, t2, t3)};
 }
 
 template <class D, HWY_IF_UI64_D(D), HWY_IF_V_SIZE_D(D, 64)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
   return VFromD<D>{
-      _mm512_set_epi64(static_cast<int64_t>(t1), static_cast<int64_t>(t0),
-                       static_cast<int64_t>(t1), static_cast<int64_t>(t0),
-                       static_cast<int64_t>(t1), static_cast<int64_t>(t0),
-                       static_cast<int64_t>(t1), static_cast<int64_t>(t0))};
+      _mm512_setr_epi64(static_cast<int64_t>(t0), static_cast<int64_t>(t1),
+                        static_cast<int64_t>(t0), static_cast<int64_t>(t1),
+                        static_cast<int64_t>(t0), static_cast<int64_t>(t1),
+                        static_cast<int64_t>(t0), static_cast<int64_t>(t1))};
 }
 
 template <class D, HWY_IF_F64_D(D), HWY_IF_V_SIZE_D(D, 64)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  return VFromD<D>{_mm512_set_pd(t1, t0, t1, t0, t1, t0, t1, t0)};
+  return VFromD<D>{_mm512_setr_pd(t0, t1, t0, t1, t0, t1, t0, t1)};
 }
 
 // ----------------------------- Iota
