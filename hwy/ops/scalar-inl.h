@@ -615,57 +615,12 @@ HWY_API Vec1<uint16_t> AverageRound(const Vec1<uint16_t> a,
 
 template <typename T>
 HWY_API Vec1<T> Abs(const Vec1<T> a) {
-  const T i = a.raw;
-  if (i >= 0 || i == hwy::LimitsMin<T>()) return a;
-  return Vec1<T>(static_cast<T>(-i & T{-1}));
-}
-HWY_API Vec1<float> Abs(Vec1<float> a) {
-  int32_t i;
-  CopyBytes<sizeof(i)>(&a.raw, &i);
-  i &= 0x7FFFFFFF;
-  CopyBytes<sizeof(i)>(&i, &a.raw);
-  return a;
-}
-HWY_API Vec1<double> Abs(Vec1<double> a) {
-  int64_t i;
-  CopyBytes<sizeof(i)>(&a.raw, &i);
-  i &= 0x7FFFFFFFFFFFFFFFL;
-  CopyBytes<sizeof(i)>(&i, &a.raw);
-  return a;
+  return Vec1<T>(ScalarAbs(a.raw));
 }
 
 // ------------------------------ Min/Max
 
 // <cmath> may be unavailable, so implement our own.
-namespace detail {
-
-static inline float Abs(float f) {
-  uint32_t i;
-  CopyBytes<4>(&f, &i);
-  i &= 0x7FFFFFFFu;
-  CopyBytes<4>(&i, &f);
-  return f;
-}
-static inline double Abs(double f) {
-  uint64_t i;
-  CopyBytes<8>(&f, &i);
-  i &= 0x7FFFFFFFFFFFFFFFull;
-  CopyBytes<8>(&i, &f);
-  return f;
-}
-
-static inline bool SignBit(float f) {
-  uint32_t i;
-  CopyBytes<4>(&f, &i);
-  return (i >> 31) != 0;
-}
-static inline bool SignBit(double f) {
-  uint64_t i;
-  CopyBytes<8>(&f, &i);
-  return (i >> 63) != 0;
-}
-
-}  // namespace detail
 
 template <typename T, HWY_IF_NOT_FLOAT(T)>
 HWY_API Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
@@ -858,7 +813,7 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
   const TI rounded = static_cast<TI>(v.raw + bias);
   if (rounded == 0) return CopySignToAbs(Vec1<T>(0), v);
   // Round to even
-  if ((rounded & 1) && detail::Abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
+  if ((rounded & 1) && ScalarAbs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
     return Vec1<T>(static_cast<T>(rounded - (v.raw < T(0) ? -1 : 1)));
   }
   return Vec1<T>(static_cast<T>(rounded));
@@ -870,7 +825,7 @@ HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
   using TI = int32_t;
 
   const T abs = Abs(v).raw;
-  const bool is_sign = detail::SignBit(v.raw);
+  const bool is_sign = ScalarSignBit(v.raw);
 
   if (!(abs < MantissaEnd<T>())) {  // Huge or NaN
     // Check if too large to cast or NaN
@@ -883,7 +838,7 @@ HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
   const TI rounded = static_cast<TI>(v.raw + bias);
   if (rounded == 0) return Vec1<int32_t>(0);
   // Round to even
-  if ((rounded & 1) && detail::Abs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
+  if ((rounded & 1) && ScalarAbs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
     return Vec1<TI>(rounded - (is_sign ? -1 : 1));
   }
   return Vec1<TI>(rounded);
@@ -1304,7 +1259,7 @@ HWY_INLINE ToT CastValueForF2IConv(hwy::UnsignedTag /* to_type_tag */,
           : static_cast<FromT>(
                 static_cast<FromT>(ToT{1} << (sizeof(ToT) * 8 - 1)) * FromT(2));
 
-  if (detail::SignBit(val)) {
+  if (ScalarSignBit(val)) {
     return ToT{0};
   } else if (IsInf(Vec1<FromT>(val)).bits ||
              val >= kSmallestOutOfToTRangePosVal) {
@@ -1331,8 +1286,8 @@ HWY_INLINE ToT CastValueForF2IConv(hwy::SignedTag /* to_type_tag */,
           : static_cast<FromT>(-static_cast<FromT>(LimitsMin<ToT>()));
 
   if (IsInf(Vec1<FromT>(val)).bits ||
-      detail::Abs(val) >= kSmallestOutOfToTRangePosVal) {
-    return detail::SignBit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
+      ScalarAbs(val) >= kSmallestOutOfToTRangePosVal) {
+    return ScalarSignBit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
   } else {
     return static_cast<ToT>(val);
   }
@@ -1370,8 +1325,8 @@ HWY_API Vec1<float> DemoteTo(D /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting float to narrower integer/float
   if (IsInf(from).bits ||
       Abs(from).raw > static_cast<double>(HighestValue<float>())) {
-    return Vec1<float>(detail::SignBit(from.raw) ? LowestValue<float>()
-                                                 : HighestValue<float>());
+    return Vec1<float>(ScalarSignBit(from.raw) ? LowestValue<float>()
+                                               : HighestValue<float>());
   }
   return Vec1<float>(static_cast<float>(from.raw));
 }

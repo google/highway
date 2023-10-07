@@ -16,7 +16,9 @@
 // Single-element vectors and operations.
 // External include guard in highway.h - see comment there.
 
-#include <cmath>  // std::abs, std::isnan
+#ifndef HWY_NO_LIBCXX
+#include <math.h>  // sqrtf
+#endif
 
 #include "hwy/ops/shared-inl.h"
 
@@ -661,32 +663,12 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Abs
 
-// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
-namespace detail {
-
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Abs(SignedTag /*tag*/, Vec128<T, N> a) {
-  for (size_t i = 0; i < N; ++i) {
-    const T s = a.raw[i];
-    const T min = hwy::LimitsMin<T>();
-    a.raw[i] = static_cast<T>((s >= 0 || s == min) ? a.raw[i] : -s);
-  }
-  return a;
-}
-
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Abs(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
-  for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = std::abs(v.raw[i]);
-  }
-  return v;
-}
-
-}  // namespace detail
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
-  return detail::Abs(hwy::TypeTag<T>(), a);
+  for (size_t i = 0; i < N; ++i) {
+    a.raw[i] = ScalarAbs(a.raw[i]);
+  }
+  return a;
 }
 
 // ------------------------------ Min/Max
@@ -715,9 +697,9 @@ template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Min(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    if (std::isnan(a.raw[i])) {
+    if (ScalarIsNaN(a.raw[i])) {
       a.raw[i] = b.raw[i];
-    } else if (std::isnan(b.raw[i])) {
+    } else if (ScalarIsNaN(b.raw[i])) {
       // no change
     } else {
       a.raw[i] = HWY_MIN(a.raw[i], b.raw[i]);
@@ -729,9 +711,9 @@ template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Max(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    if (std::isnan(a.raw[i])) {
+    if (ScalarIsNaN(a.raw[i])) {
       a.raw[i] = b.raw[i];
-    } else if (std::isnan(b.raw[i])) {
+    } else if (ScalarIsNaN(b.raw[i])) {
       // no change
     } else {
       a.raw[i] = HWY_MAX(a.raw[i], b.raw[i]);
@@ -909,7 +891,7 @@ HWY_API Vec128<float, N> ApproximateReciprocal(Vec128<float, N> v) {
     // Zero inputs are allowed, but callers are responsible for replacing the
     // return value with something else (typically using IfThenElse). This check
     // avoids a ubsan error. The result is arbitrary.
-    v.raw[i] = (std::abs(v.raw[i]) == 0.0f) ? 0.0f : 1.0f / v.raw[i];
+    v.raw[i] = (ScalarAbs(v.raw[i]) == 0.0f) ? 0.0f : 1.0f / v.raw[i];
   }
   return v;
 }
@@ -961,10 +943,43 @@ HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
   return v;
 }
 
+namespace detail {
+
+static HWY_INLINE float ScalarSqrt(float v) {
+#if defined(HWY_NO_LIBCXX)
+#if HWY_COMPILER_GCC_ACTUAL
+  return __builtin_sqrt(v);
+#else
+  uint32_t bits = BitCastScalar<uint32_t>(v);
+  // Coarse approximation, letting the exponent LSB leak into the mantissa
+  bits = (1 << 29) + (bits >> 1) - (1 << 22);
+  return BitCastScalar<float>(bits);
+#endif  // !HWY_COMPILER_GCC_ACTUAL
+#else
+  return sqrtf(v);
+#endif  // !HWY_NO_LIBCXX
+}
+static HWY_INLINE double ScalarSqrt(double v) {
+#if defined(HWY_NO_LIBCXX)
+#if HWY_COMPILER_GCC_ACTUAL
+  return __builtin_sqrt(v);
+#else
+  uint64_t bits = BitCastScalar<uint64_t>(v);
+  // Coarse approximation, letting the exponent LSB leak into the mantissa
+  bits = (1ULL << 61) + (bits >> 1) - (1ULL << 51);
+  return BitCastScalar<double>(bits);
+#endif  // !HWY_COMPILER_GCC_ACTUAL
+#else
+  return sqrt(v);
+#endif  // HWY_NO_LIBCXX
+}
+
+}  // namespace detail
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Sqrt(Vec128<T, N> v) {
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = std::sqrt(v.raw[i]);
+    v.raw[i] = detail::ScalarSqrt(v.raw[i]);
   }
   return v;
 }
@@ -987,7 +1002,7 @@ HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
     }
     const T rounded_f = static_cast<T>(rounded);
     // Round to even
-    if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
+    if ((rounded & 1) && ScalarAbs(rounded_f - v.raw[i]) == T(0.5)) {
       v.raw[i] = static_cast<T>(rounded - (v.raw[i] < T(0) ? -1 : 1));
       continue;
     }
@@ -1005,7 +1020,7 @@ HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
   const Vec128<float, N> abs = Abs(v);
   Vec128<int32_t, N> ret;
   for (size_t i = 0; i < N; ++i) {
-    const bool signbit = std::signbit(v.raw[i]);
+    const bool signbit = ScalarSignBit(v.raw[i]);
 
     if (!(abs.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
       // Check if too large to cast or NaN
@@ -1024,7 +1039,7 @@ HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
     }
     const T rounded_f = static_cast<T>(rounded);
     // Round to even
-    if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
+    if ((rounded & 1) && ScalarAbs(rounded_f - v.raw[i]) == T(0.5)) {
       ret.raw[i] = rounded - (signbit ? -1 : 1);
       continue;
     }
@@ -1132,11 +1147,7 @@ HWY_API Mask128<T, N> IsNaN(Vec128<T, N> v) {
   Mask128<T, N> ret;
   for (size_t i = 0; i < N; ++i) {
     // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
-    MakeUnsigned<T> bits = BitCastScalar<MakeUnsigned<T>>(v.raw[i]);
-    bits += bits;
-    bits >>= 1;  // clear sign bit
-    // NaN if all exponent bits are set and the mantissa is not zero.
-    ret.bits[i] = Mask128<T, N>::FromBool(bits > ExponentMask<T>());
+    ret.bits[i] = Mask128<T, N>::FromBool(ScalarIsNaN(v.raw[i]));
   }
   return ret;
 }
@@ -1502,9 +1513,9 @@ HWY_INLINE ToT CastValueForF2IConv(hwy::UnsignedTag /* to_type_tag */,
           : static_cast<FromT>(
                 static_cast<FromT>(ToT{1} << (sizeof(ToT) * 8 - 1)) * FromT(2));
 
-  if (std::signbit(val)) {
+  if (ScalarSignBit(val)) {
     return ToT{0};
-  } else if (std::isinf(val) || val >= kSmallestOutOfToTRangePosVal) {
+  } else if (ScalarIsInf(val) || val >= kSmallestOutOfToTRangePosVal) {
     return LimitsMax<ToT>();
   } else {
     return static_cast<ToT>(val);
@@ -1527,8 +1538,8 @@ HWY_INLINE ToT CastValueForF2IConv(hwy::SignedTag /* to_type_tag */,
           ? static_cast<FromT>(LimitsMax<ToT>())
           : static_cast<FromT>(-static_cast<FromT>(LimitsMin<ToT>()));
 
-  if (std::isinf(val) || std::fabs(val) >= kSmallestOutOfToTRangePosVal) {
-    return std::signbit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
+  if (ScalarIsInf(val) || ScalarAbs(val) >= kSmallestOutOfToTRangePosVal) {
+    return ScalarSignBit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
   } else {
     return static_cast<ToT>(val);
   }
@@ -1570,10 +1581,10 @@ HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<double, D>> from) {
   VFromD<D> ret;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     // Prevent ubsan errors when converting float to narrower integer/float
-    if (std::isinf(from.raw[i]) ||
-        std::fabs(from.raw[i]) > static_cast<double>(HighestValue<float>())) {
-      ret.raw[i] = std::signbit(from.raw[i]) ? LowestValue<float>()
-                                             : HighestValue<float>();
+    if (ScalarIsInf(from.raw[i]) ||
+        ScalarAbs(from.raw[i]) > static_cast<double>(HighestValue<float>())) {
+      ret.raw[i] = ScalarSignBit(from.raw[i]) ? LowestValue<float>()
+                                              : HighestValue<float>();
       continue;
     }
     ret.raw[i] = static_cast<float>(from.raw[i]);
