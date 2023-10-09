@@ -221,11 +221,15 @@ HWY_API V BitwiseIfThenElse(V mask, V yes, V no) {
 #define HWY_NATIVE_PROMOTE_MASK_TO
 #endif
 
-template <class DTo, class DFrom,
-          HWY_IF_T_SIZE_GT_D(DTo, sizeof(TFromD<DFrom>)),
-          class DFrom_2 = Rebind<TFromD<DFrom>, DTo>,
-          hwy::EnableIf<IsSame<Mask<DFrom>, Mask<DFrom_2>>()>* = nullptr>
+template <class DTo, class DFrom>
 HWY_API Mask<DTo> PromoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
+  static_assert(
+      sizeof(TFromD<DTo>) > sizeof(TFromD<DFrom>),
+      "sizeof(TFromD<DTo>) must be greater than sizeof(TFromD<DFrom>)");
+  static_assert(
+      IsSame<Mask<DFrom>, Mask<Rebind<TFromD<DFrom>, DTo>>>(),
+      "Mask<DFrom> must be the same type as Mask<Rebind<TFromD<DFrom>, DTo>>");
+
   const RebindToSigned<decltype(d_to)> di_to;
   const RebindToSigned<decltype(d_from)> di_from;
 
@@ -244,11 +248,14 @@ HWY_API Mask<DTo> PromoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
 #define HWY_NATIVE_DEMOTE_MASK_TO
 #endif
 
-template <class DTo, class DFrom,
-          HWY_IF_T_SIZE_LE_D(DTo, sizeof(TFromD<DFrom>) - 1),
-          class DFrom_2 = Rebind<TFromD<DFrom>, DTo>,
-          hwy::EnableIf<IsSame<Mask<DFrom>, Mask<DFrom_2>>()>* = nullptr>
+template <class DTo, class DFrom>
 HWY_API Mask<DTo> DemoteMaskTo(DTo d_to, DFrom d_from, Mask<DFrom> m) {
+  static_assert(sizeof(TFromD<DTo>) < sizeof(TFromD<DFrom>),
+                "sizeof(TFromD<DTo>) must be less than sizeof(TFromD<DFrom>)");
+  static_assert(
+      IsSame<Mask<DFrom>, Mask<Rebind<TFromD<DFrom>, DTo>>>(),
+      "Mask<DFrom> must be the same type as Mask<Rebind<TFromD<DFrom>, DTo>>");
+
   const RebindToSigned<decltype(d_to)> di_to;
   const RebindToSigned<decltype(d_from)> di_from;
 
@@ -324,12 +331,16 @@ HWY_API Mask<D> UpperHalfOfMask(D d, Mask<Twice<D>> m) {
 #endif
 
 #if HWY_TARGET != HWY_SCALAR
-template <class DTo, class DFrom,
-          HWY_IF_T_SIZE_D(DTo, sizeof(TFromD<DFrom>) / 2),
-          class DTo_2 = Repartition<TFromD<DTo>, DFrom>,
-          hwy::EnableIf<IsSame<Mask<DTo>, Mask<DTo_2>>()>* = nullptr>
+template <class DTo, class DFrom>
 HWY_API Mask<DTo> OrderedDemote2MasksTo(DTo d_to, DFrom d_from, Mask<DFrom> a,
                                         Mask<DFrom> b) {
+  static_assert(
+      sizeof(TFromD<DTo>) == sizeof(TFromD<DFrom>) / 2,
+      "sizeof(TFromD<DTo>) must be equal to sizeof(TFromD<DFrom>) / 2");
+  static_assert(IsSame<Mask<DTo>, Mask<Repartition<TFromD<DTo>, DFrom>>>(),
+                "Mask<DTo> must be the same type as "
+                "Mask<Repartition<TFromD<DTo>, DFrom>>>()");
+
   const RebindToSigned<decltype(d_from)> di_from;
   const RebindToSigned<decltype(d_to)> di_to;
 
