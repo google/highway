@@ -560,6 +560,10 @@ using If = typename IfT<Condition, Then, Else>::type;
 // bits explicitly (0x14) instead of attempting to 'negate' 0x102.
 #define HWY_IF_T_SIZE_ONE_OF(T, bit_array) \
   hwy::EnableIf<((size_t{1} << sizeof(T)) & (bit_array)) != 0>* = nullptr
+#define HWY_IF_T_SIZE_LE(T, bytes) \
+  hwy::EnableIf<(sizeof(T) <= (bytes))>* = nullptr
+#define HWY_IF_T_SIZE_GT(T, bytes) \
+  hwy::EnableIf<(sizeof(T) > (bytes))>* = nullptr
 
 #define HWY_IF_U8(T) hwy::EnableIf<IsSame<T, uint8_t>()>* = nullptr
 #define HWY_IF_U16(T) hwy::EnableIf<IsSame<T, uint16_t>()>* = nullptr

@@ -2544,6 +2544,31 @@ HWY_API Mask512<T> ExclusiveNeither(Mask512<T> a, Mask512<T> b) {
   return detail::ExclusiveNeither(hwy::SizeTag<sizeof(T)>(), a, b);
 }
 
+template <class D, HWY_IF_LANES_D(D, 64)>
+HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
+                               MFromD<Half<D>> lo) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask64 combined_mask = _mm512_kunpackd(
+      static_cast<__mmask64>(hi.raw), static_cast<__mmask64>(lo.raw));
+#else
+  const __mmask64 combined_mask = static_cast<__mmask64>(
+      ((static_cast<uint64_t>(hi.raw) << 32) | (lo.raw & 0xFFFFFFFFULL)));
+#endif
+
+  return MFromD<D>{combined_mask};
+}
+
+template <class D, HWY_IF_LANES_D(D, 32)>
+HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const auto shifted_mask = _kshiftri_mask64(static_cast<__mmask64>(m.raw), 32);
+#else
+  const auto shifted_mask = static_cast<uint64_t>(m.raw) >> 32;
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
+}
+
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
 
 HWY_API Vec512<int8_t> BroadcastSignBit(Vec512<int8_t> v) {

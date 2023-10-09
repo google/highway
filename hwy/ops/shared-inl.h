@@ -480,6 +480,8 @@ using BlockDFromD =
 #define HWY_IF_NOT_T_SIZE_D(D, bytes) HWY_IF_NOT_T_SIZE(TFromD<D>, bytes)
 #define HWY_IF_T_SIZE_ONE_OF_D(D, bit_array) \
   HWY_IF_T_SIZE_ONE_OF(TFromD<D>, bit_array)
+#define HWY_IF_T_SIZE_LE_D(D, bytes) HWY_IF_T_SIZE_LE(TFromD<D>, bytes)
+#define HWY_IF_T_SIZE_GT_D(D, bytes) HWY_IF_T_SIZE_GT(TFromD<D>, bytes)
 
 #define HWY_IF_LANES_D(D, lanes) HWY_IF_LANES(HWY_MAX_LANES_D(D), lanes)
 #define HWY_IF_LANES_LE_D(D, lanes) HWY_IF_LANES_LE(HWY_MAX_LANES_D(D), lanes)

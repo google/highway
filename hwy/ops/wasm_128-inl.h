@@ -4756,6 +4756,15 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   return detail::LoadMaskBits(d, mask_bits);
 }
 
+// ------------------------------ Dup128MaskFromMaskBits
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN < 8) mask_bits &= (1u << kN) - 1;
+  return detail::LoadMaskBits(d, mask_bits);
+}
+
 // ------------------------------ Mask
 
 namespace detail {

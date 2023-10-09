@@ -1920,6 +1920,208 @@ HWY_API Mask128<double, N> MaskFromVec(const Vec128<double, N> v) {
 template <class D>
 using MFromD = decltype(MaskFromVec(VFromD<D>()));
 
+// ------------------------------ PromoteMaskTo (MFromD)
+
+#ifdef HWY_NATIVE_PROMOTE_MASK_TO
+#undef HWY_NATIVE_PROMOTE_MASK_TO
+#else
+#define HWY_NATIVE_PROMOTE_MASK_TO
+#endif
+
+// AVX3 PromoteMaskTo is generic for all vector lengths
+template <class DTo, class DFrom,
+          HWY_IF_T_SIZE_GT_D(DTo, sizeof(TFromD<DFrom>)),
+          class DFrom_2 = Rebind<TFromD<DFrom>, DTo>,
+          hwy::EnableIf<IsSame<MFromD<DFrom>, MFromD<DFrom_2>>()>* = nullptr>
+HWY_API MFromD<DTo> PromoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
+                                  MFromD<DFrom> m) {
+  return MFromD<DTo>{static_cast<decltype(MFromD<DTo>().raw)>(m.raw)};
+}
+
+// ------------------------------ DemoteMaskTo (MFromD)
+
+#ifdef HWY_NATIVE_DEMOTE_MASK_TO
+#undef HWY_NATIVE_DEMOTE_MASK_TO
+#else
+#define HWY_NATIVE_DEMOTE_MASK_TO
+#endif
+
+// AVX3 DemoteMaskTo is generic for all vector lengths
+template <class DTo, class DFrom,
+          HWY_IF_T_SIZE_LE_D(DTo, sizeof(TFromD<DFrom>) - 1),
+          class DFrom_2 = Rebind<TFromD<DFrom>, DTo>,
+          hwy::EnableIf<IsSame<MFromD<DFrom>, MFromD<DFrom_2>>()>* = nullptr>
+HWY_API MFromD<DTo> DemoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
+                                 MFromD<DFrom> m) {
+  return MFromD<DTo>{static_cast<decltype(MFromD<DTo>().raw)>(m.raw)};
+}
+
+// ------------------------------ CombineMasks (MFromD)
+
+#ifdef HWY_NATIVE_COMBINE_MASKS
+#undef HWY_NATIVE_COMBINE_MASKS
+#else
+#define HWY_NATIVE_COMBINE_MASKS
+#endif
+
+template <class D, HWY_IF_LANES_D(D, 2)>
+HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
+                               MFromD<Half<D>> lo) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 combined_mask = _kor_mask8(
+      _kshiftli_mask8(static_cast<__mmask8>(hi.raw), 1),
+      _kand_mask8(static_cast<__mmask8>(lo.raw), static_cast<__mmask8>(1)));
+#else
+  const auto combined_mask =
+      (static_cast<unsigned>(hi.raw) << 1) | (lo.raw & 1);
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(combined_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 4)>
+HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
+                               MFromD<Half<D>> lo) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 combined_mask = _kor_mask8(
+      _kshiftli_mask8(static_cast<__mmask8>(hi.raw), 2),
+      _kand_mask8(static_cast<__mmask8>(lo.raw), static_cast<__mmask8>(3)));
+#else
+  const auto combined_mask =
+      (static_cast<unsigned>(hi.raw) << 2) | (lo.raw & 3);
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(combined_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 8)>
+HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
+                               MFromD<Half<D>> lo) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask8 combined_mask = _kor_mask8(
+      _kshiftli_mask8(static_cast<__mmask8>(hi.raw), 4),
+      _kand_mask8(static_cast<__mmask8>(lo.raw), static_cast<__mmask8>(15)));
+#else
+  const auto combined_mask =
+      (static_cast<unsigned>(hi.raw) << 4) | (lo.raw & 15u);
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(combined_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 16)>
+HWY_API MFromD<D> CombineMasks(D /*d*/, MFromD<Half<D>> hi,
+                               MFromD<Half<D>> lo) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const __mmask16 combined_mask = _mm512_kunpackb(
+      static_cast<__mmask16>(hi.raw), static_cast<__mmask16>(lo.raw));
+#else
+  const auto combined_mask =
+      ((static_cast<unsigned>(hi.raw) << 8) | (lo.raw & 0xFFu));
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(combined_mask)};
+}
+
+// ------------------------------ LowerHalfOfMask (MFromD)
+
+#ifdef HWY_NATIVE_LOWER_HALF_OF_MASK
+#undef HWY_NATIVE_LOWER_HALF_OF_MASK
+#else
+#define HWY_NATIVE_LOWER_HALF_OF_MASK
+#endif
+
+// Generic for all vector lengths
+template <class D>
+HWY_API MFromD<D> LowerHalfOfMask(D d, MFromD<Twice<D>> m) {
+  using RawM = decltype(MFromD<D>().raw);
+  constexpr size_t kN = MaxLanes(d);
+  constexpr size_t kNumOfBitsInRawMask = sizeof(RawM) * 8;
+
+  MFromD<D> result_mask{static_cast<RawM>(m.raw)};
+
+  if (kN < kNumOfBitsInRawMask) {
+    result_mask =
+        And(result_mask, MFromD<D>{static_cast<RawM>((1ULL << kN) - 1)});
+  }
+
+  return result_mask;
+}
+
+// ------------------------------ UpperHalfOfMask (MFromD)
+
+#ifdef HWY_NATIVE_UPPER_HALF_OF_MASK
+#undef HWY_NATIVE_UPPER_HALF_OF_MASK
+#else
+#define HWY_NATIVE_UPPER_HALF_OF_MASK
+#endif
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const auto shifted_mask = _kshiftri_mask8(static_cast<__mmask8>(m.raw), 1);
+#else
+  const auto shifted_mask = static_cast<unsigned>(m.raw) >> 1;
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 2)>
+HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const auto shifted_mask = _kshiftri_mask8(static_cast<__mmask8>(m.raw), 2);
+#else
+  const auto shifted_mask = static_cast<unsigned>(m.raw) >> 2;
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 4)>
+HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const auto shifted_mask = _kshiftri_mask8(static_cast<__mmask8>(m.raw), 4);
+#else
+  const auto shifted_mask = static_cast<unsigned>(m.raw) >> 4;
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
+}
+
+template <class D, HWY_IF_LANES_D(D, 8)>
+HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  const auto shifted_mask = _kshiftri_mask16(static_cast<__mmask16>(m.raw), 8);
+#else
+  const auto shifted_mask = static_cast<unsigned>(m.raw) >> 8;
+#endif
+
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
+}
+
+// ------------------------------ OrderedDemote2MasksTo (MFromD, CombineMasks)
+
+#ifdef HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
+#undef HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
+#else
+#define HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
+#endif
+
+// Generic for all vector lengths
+template <class DTo, class DFrom,
+          HWY_IF_T_SIZE_D(DTo, sizeof(TFromD<DFrom>) / 2),
+          class DTo_2 = Repartition<TFromD<DTo>, DFrom>,
+          hwy::EnableIf<IsSame<MFromD<DTo>, MFromD<DTo_2>>()>* = nullptr>
+HWY_API MFromD<DTo> OrderedDemote2MasksTo(DTo d_to, DFrom /*d_from*/,
+                                          MFromD<DFrom> a, MFromD<DFrom> b) {
+  using MH = MFromD<Half<DTo>>;
+  using RawMH = decltype(MH().raw);
+
+  return CombineMasks(d_to, MH{static_cast<RawMH>(b.raw)},
+                      MH{static_cast<RawMH>(a.raw)});
+}
+
 // ------------------------------ VecFromMask
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
@@ -10068,6 +10270,20 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
     mask_bits &= (1ull << kN) - 1;
   }
 
+  return detail::LoadMaskBits128(d, mask_bits);
+#endif
+}
+
+// ------------------------------ Dup128MaskFromMaskBits
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  constexpr size_t kN = MaxLanes(d);
+  if (kN < 8) mask_bits &= (1u << kN) - 1;
+
+#if HWY_TARGET <= HWY_AVX3
+  return MFromD<D>::FromBits(mask_bits);
+#else
   return detail::LoadMaskBits128(d, mask_bits);
 #endif
 }

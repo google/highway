@@ -407,6 +407,19 @@ HWY_API Mask1<T> SetAtOrBeforeFirst(Mask1<T> /*mask*/) {
   return Mask1<T>::FromBool(true);
 }
 
+// ------------------------------ LowerHalfOfMask
+
+#ifdef HWY_NATIVE_LOWER_HALF_OF_MASK
+#undef HWY_NATIVE_LOWER_HALF_OF_MASK
+#else
+#define HWY_NATIVE_LOWER_HALF_OF_MASK
+#endif
+
+template <class D>
+HWY_API MFromD<D> LowerHalfOfMask(D /*d*/, MFromD<D> m) {
+  return m;
+}
+
 // ================================================== SHIFTS
 
 // ------------------------------ ShiftLeft/ShiftRight (BroadcastSignBit)
@@ -1778,6 +1791,11 @@ HWY_API bool AllTrue(D /* tag */, const Mask1<T> mask) {
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
 HWY_API Mask1<T> LoadMaskBits(D /* tag */, const uint8_t* HWY_RESTRICT bits) {
   return Mask1<T>::FromBool((bits[0] & 1) != 0);
+}
+
+template <class D, HWY_IF_LANES_D(D, 1)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D /*d*/, unsigned mask_bits) {
+  return MFromD<D>::FromBool((mask_bits & 1) != 0);
 }
 
 // `p` points to at least 8 writable bytes.
