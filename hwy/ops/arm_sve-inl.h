@@ -604,17 +604,17 @@ HWY_API svfloat32_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
 
 template <class D, HWY_IF_I64_D(D)>
 HWY_API svint64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  return svdupq_n_s64(t0, t1, t2, t3);
+  return svdupq_n_s64(t0, t1);
 }
 
 template <class D, HWY_IF_U64_D(D)>
 HWY_API svuint64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  return svdupq_n_u64(t0, t1, t2, t3);
+  return svdupq_n_u64(t0, t1);
 }
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API svfloat64_t Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  return svdupq_n_f64(t0, t1, t2, t3);
+  return svdupq_n_f64(t0, t1);
 }
 
 // ================================================== LOGICAL
