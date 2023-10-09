@@ -123,7 +123,7 @@ COPTS = select({
     # Default to clang because compiler detection only works in Bazel
     "//conditions:default": CLANG_ONLY_COPTS,
 }) + select({
-    "//tools/target_cpu:rv64gcv": [
+    "@platforms//cpu:riscv64": [
         "-march=rv64gcv1p0",
         "-menable-experimental-extensions",
     ],
@@ -201,7 +201,7 @@ cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//tools/target_cpu:rv64gcv": ["hwy/ops/rvv-inl.h"],
+        "@platforms//cpu:riscv64": ["hwy/ops/rvv-inl.h"],
         "//conditions:default": [],
     }),
 )
@@ -459,7 +459,7 @@ HWY_TEST_DEPS = [
             ],
             copts = COPTS + HWY_TEST_COPTS,
             features = select({
-                "//tools/target_cpu:rv64gcv": ["fully_static_link"],
+                "@platforms//cpu:riscv64": ["fully_static_link"],
                 "//conditions:default": [],
             }),
             linkopts = select({
@@ -475,7 +475,7 @@ HWY_TEST_DEPS = [
                 "//conditions:default": [],
             }),
             linkstatic = select({
-                "//tools/target_cpu:rv64gcv": True,
+                "@platforms//cpu:riscv64": True,
                 "//conditions:default": False,
             }),
             local_defines = ["HWY_IS_TEST"],
