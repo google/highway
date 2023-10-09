@@ -1961,15 +1961,12 @@ HWY_API Vec256<int16_t> Abs(const Vec256<int16_t> v) {
 HWY_API Vec256<int32_t> Abs(const Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_abs_epi32(v.raw)};
 }
-// i64 is implemented after BroadcastSignBit.
 
-template <typename T, HWY_IF_FLOAT(T)>
-HWY_API Vec256<T> Abs(const Vec256<T> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  using TI = TFromD<decltype(di)>;
-  return v & BitCast(d, Set(di, static_cast<TI>(~SignMask<TI>())));
+#if HWY_TARGET <= HWY_AVX3
+HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
+  return Vec256<int64_t>{_mm256_abs_epi64(v.raw)};
 }
+#endif
 
 // ------------------------------ Integer multiplication
 
@@ -2184,16 +2181,6 @@ HWY_API Vec256<int64_t> ShiftRight(const Vec256<int64_t> v) {
   const auto right = BitCast(di, ShiftRight<kBits>(BitCast(du, v)));
   const auto sign = ShiftLeft<64 - kBits>(BroadcastSignBit(v));
   return right | sign;
-#endif
-}
-
-HWY_API Vec256<int64_t> Abs(const Vec256<int64_t> v) {
-#if HWY_TARGET <= HWY_AVX3
-  return Vec256<int64_t>{_mm256_abs_epi64(v.raw)};
-#else
-  const DFromV<decltype(v)> d;
-  const auto zero = Zero(d);
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
 #endif
 }
 

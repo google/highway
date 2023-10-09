@@ -651,8 +651,9 @@ HWY_INLINE Vec128<T, N> Neg(const Vec128<T, N> v) {
 }
 
 // ------------------------------ Floating-point Abs
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> Abs(const Vec128<T, N> v) {
+// Generic for all vector lengths
+template <class V, HWY_IF_FLOAT(TFromV<V>)>
+HWY_API V Abs(V v) {
   const DFromV<decltype(v)> d;
   const RebindToSigned<decltype(d)> di;
   using TI = TFromD<decltype(di)>;
@@ -3839,15 +3840,19 @@ HWY_API Vec128<int32_t, N> Abs(const Vec128<int32_t, N> v) {
 #endif
 }
 
+#if HWY_TARGET <= HWY_AVX3
 template <size_t N>
 HWY_API Vec128<int64_t, N> Abs(const Vec128<int64_t, N> v) {
-#if HWY_TARGET <= HWY_AVX3
   return Vec128<int64_t, N>{_mm_abs_epi64(v.raw)};
-#else
-  const auto zero = Zero(DFromV<decltype(v)>());
-  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
-#endif
 }
+#else
+// I64 Abs is generic for all vector lengths on SSE2/SSSE3/SSE4/AVX2
+template <class V, HWY_IF_I64(TFromV<V>)>
+HWY_API V Abs(V v) {
+  const auto zero = Zero(DFromV<decltype(v)>());
+  return IfNegativeThenElse(v, zero - v, v);
+}
+#endif
 
 // GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512VL
 // srli_epi64: the count should be unsigned int. Note that this is not the same
