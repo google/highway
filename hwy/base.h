@@ -1574,6 +1574,20 @@ constexpr bool IsSigned<bfloat16_t>() {
   return true;
 }
 
+template <typename T, bool = IsInteger<T>() && !IsIntegerLaneType<T>()>
+struct MakeLaneTypeIfIntegerT {
+  using type = T;
+};
+
+template <typename T>
+struct MakeLaneTypeIfIntegerT<T, true> {
+  using type = hwy::If<IsSigned<T>(), SignedFromSize<sizeof(T)>,
+                       UnsignedFromSize<sizeof(T)>>;
+};
+
+template <typename T>
+using MakeLaneTypeIfInteger = typename MakeLaneTypeIfIntegerT<T>::type;
+
 // Largest/smallest representable integer values.
 template <typename T>
 HWY_API constexpr T LimitsMax() {
@@ -1925,6 +1939,100 @@ HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
   *upper = (hi_lo >> 32) + (t >> 32) + hi_hi;
   return (t << 32) | (lo_lo & kLo32);
 #endif
+}
+
+namespace detail {
+
+template <typename T>
+static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR T ScalarAbs(hwy::FloatTag /*tag*/,
+                                                          T val) {
+  using TU = MakeUnsigned<T>;
+  return BitCastScalar<T>(
+      static_cast<TU>(BitCastScalar<TU>(val) & (~SignMask<T>())));
+}
+
+template <typename T>
+static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR T
+ScalarAbs(hwy::SpecialTag /*tag*/, T val) {
+  return ScalarAbs(hwy::FloatTag(), val);
+}
+
+template <typename T>
+static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR T
+ScalarAbs(hwy::SignedTag /*tag*/, T val) {
+  using TU = MakeUnsigned<T>;
+  return (val < T{0}) ? static_cast<T>(TU{0} - static_cast<TU>(val)) : val;
+}
+
+template <typename T>
+static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR T
+ScalarAbs(hwy::UnsignedTag /*tag*/, T val) {
+  return val;
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR RemoveCvRef<T> ScalarAbs(T val) {
+  using TVal = MakeLaneTypeIfInteger<RemoveCvRef<T>>;
+  return detail::ScalarAbs(hwy::TypeTag<TVal>(), static_cast<TVal>(val));
+}
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsNaN(T val) {
+  using TF = RemoveCvRef<T>;
+  using TU = MakeUnsigned<TF>;
+  return (BitCastScalar<TU>(ScalarAbs(val)) > ExponentMask<TF>());
+}
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsInf(T val) {
+  using TF = RemoveCvRef<T>;
+  using TU = MakeUnsigned<TF>;
+  return static_cast<TU>(BitCastScalar<TU>(static_cast<TF>(val)) << 1) ==
+         static_cast<TU>(MaxExponentTimes2<TF>());
+}
+
+namespace detail {
+
+template <typename T>
+static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(
+    hwy::FloatTag /*tag*/, T val) {
+  using TU = MakeUnsigned<T>;
+  return (BitCastScalar<TU>(ScalarAbs(val)) < ExponentMask<T>());
+}
+
+template <typename T>
+static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(
+    hwy::NonFloatTag /*tag*/, T /*val*/) {
+  // Integer values are always finite
+  return true;
+}
+
+}  // namespace detail
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(T val) {
+  using TVal = MakeLaneTypeIfInteger<RemoveCvRef<T>>;
+  return detail::ScalarIsFinite(hwy::IsFloatTag<TVal>(),
+                                static_cast<TVal>(val));
+}
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR RemoveCvRef<T> ScalarCopySign(T magn,
+                                                                  T sign) {
+  using TF = RemoveCvRef<T>;
+  using TU = MakeUnsigned<TF>;
+  return BitCastScalar<TF>(static_cast<TU>(
+      (BitCastScalar<TU>(static_cast<TF>(magn)) & (~SignMask<TF>())) |
+      (BitCastScalar<TU>(static_cast<TF>(sign)) & SignMask<TF>())));
+}
+
+template <typename T>
+HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarSignBit(T val) {
+  using TVal = MakeLaneTypeIfInteger<RemoveCvRef<T>>;
+  using TU = MakeUnsigned<TVal>;
+  return ((BitCastScalar<TU>(static_cast<TVal>(val)) & SignMask<TVal>()) != 0);
 }
 
 // Prevents the compiler from eliding the computations that led to "output".
