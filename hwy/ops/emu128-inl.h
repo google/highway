@@ -166,8 +166,23 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t11, TFromD<D> t12,
                                       TFromD<D> t13, TFromD<D> t14,
                                       TFromD<D> t15) {
-  const VFromD<D> result = {
-      {t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15}};
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  result.raw[2] = t2;
+  result.raw[3] = t3;
+  result.raw[4] = t4;
+  result.raw[5] = t5;
+  result.raw[6] = t6;
+  result.raw[7] = t7;
+  result.raw[8] = t8;
+  result.raw[9] = t9;
+  result.raw[10] = t10;
+  result.raw[11] = t11;
+  result.raw[12] = t12;
+  result.raw[13] = t13;
+  result.raw[14] = t14;
+  result.raw[15] = t15;
   return result;
 }
 
@@ -176,20 +191,34 @@ HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
                                       TFromD<D> t5, TFromD<D> t6,
                                       TFromD<D> t7) {
-  const VFromD<D> result = {{t0, t1, t2, t3, t4, t5, t6, t7}};
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  result.raw[2] = t2;
+  result.raw[3] = t3;
+  result.raw[4] = t4;
+  result.raw[5] = t5;
+  result.raw[6] = t6;
+  result.raw[7] = t7;
   return result;
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 4)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
                                       TFromD<D> t2, TFromD<D> t3) {
-  const VFromD<D> result = {{t0, t1, t2, t3}};
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  result.raw[2] = t2;
+  result.raw[3] = t3;
   return result;
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 8)>
 HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
-  const VFromD<D> result = {{t0, t1}};
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
   return result;
 }
 
