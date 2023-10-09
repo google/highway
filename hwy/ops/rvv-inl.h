@@ -4425,6 +4425,89 @@ HWY_API VFromD<D> ResizeBitCast(D /*d*/, FromV v) {
   return BitCast(d_to, detail::ChangeLMUL(du8_to, BitCast(du8_from, v)));
 }
 
+// ------------------------------ Dup128VecFromValues (ResizeBitCast)
+
+template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_V_SIZE_D(D, 8)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> /*t1*/) {
+  return Set(d, t0);
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_V_SIZE_GT_D(D, 8)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1) {
+  const auto even_lanes = Set(d, t0);
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+  if (__builtin_constant_p(BitCastScalar<uint64_t>(t0) ==
+                           BitCastScalar<uint64_t>(t1)) &&
+      (BitCastScalar<uint64_t>(t0) == BitCastScalar<uint64_t>(t1))) {
+    return even_lanes;
+  }
+#endif
+
+  const auto odd_lanes = Set(d, t1);
+  return OddEven(odd_lanes, even_lanes);
+}
+
+namespace detail {
+
+#pragma pack(push, 1)
+
+template <class T>
+struct alignas(8) Vec64ValsWrapper {
+  static_assert(sizeof(T) >= 1, "sizeof(T) >= 1 must be true");
+  static_assert(sizeof(T) <= 8, "sizeof(T) <= 8 must be true");
+  T vals[8 / sizeof(T)];
+};
+
+#pragma pack(pop)
+
+}  // namespace detail
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint64_t, D>> du64;
+  return ResizeBitCast(
+      d, Dup128VecFromValues(
+             du64,
+             BitCastScalar<uint64_t>(detail::Vec64ValsWrapper<TFromD<D>>{
+                 {t0, t1, t2, t3, t4, t5, t6, t7}}),
+             BitCastScalar<uint64_t>(detail::Vec64ValsWrapper<TFromD<D>>{
+                 {t8, t9, t10, t11, t12, t13, t14, t15}})));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint64_t, D>> du64;
+  return ResizeBitCast(
+      d, Dup128VecFromValues(
+             du64,
+             BitCastScalar<uint64_t>(
+                 detail::Vec64ValsWrapper<TFromD<D>>{{t0, t1, t2, t3}}),
+             BitCastScalar<uint64_t>(
+                 detail::Vec64ValsWrapper<TFromD<D>>{{t4, t5, t6, t7}})));
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  const detail::AdjustSimdTagToMinVecPow2<Repartition<uint64_t, D>> du64;
+  return ResizeBitCast(
+      d,
+      Dup128VecFromValues(du64,
+                          BitCastScalar<uint64_t>(
+                              detail::Vec64ValsWrapper<TFromD<D>>{{t0, t1}}),
+                          BitCastScalar<uint64_t>(
+                              detail::Vec64ValsWrapper<TFromD<D>>{{t2, t3}})));
+}
+
 // ------------------------------ PopulationCount (ShiftRight)
 
 // Handles LMUL < 2 or capped vectors, which generic_ops-inl cannot.

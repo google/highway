@@ -412,6 +412,15 @@ example `Lt` instead of `operator<`.
     lane has index 0. This is useful in tests for detecting lane-crossing bugs.
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
+*   <code>V **Dup128VecFromValues**(D d, T t0, .., T tK)</code>:
+    Creates a vector from `K` values, broadcasted to each 128-byte block if
+    `Lanes(d) >= 16` is true, where `K` is `16/sizeof(T) - 1`.
+
+    Dup128VecFromValues returns the following values in each 128-bit block of
+    the result, with `t0` in the least-significant (lowest-indexed) lane of each
+    128-bit block and `tK` in the most-signifiant (highest-indexed) lane of each
+    128-bit block:
+    `{t0, t1, ..., tK}`
 
 ### Getting/setting lanes
 
