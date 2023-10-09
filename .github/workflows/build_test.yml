@@ -94,6 +94,58 @@ jobs:
           cmake --build out
           ctest --test-dir out
 
+  cmake_ubuntu_2204:
+    name: Build and test ${{ matrix.name }}
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - name: Clang-13
+            extra_deps: clang-13
+            c_compiler: clang-13
+            cxx_compiler: clang++-13
+
+          - name: Clang-14
+            extra_deps: clang-14
+            c_compiler: clang-14
+            cxx_compiler: clang++-14
+
+          - name: Clang-15
+            extra_deps: clang-15
+            c_compiler: clang-15
+            cxx_compiler: clang++-15
+
+          - name: GCC-11
+            extra_deps: g++-11
+            c_compiler: gcc-11
+            cxx_compiler: g++-11
+            cxx_flags: -ftrapv
+
+          - name: GCC-12
+            extra_deps: g++-12
+            c_compiler: gcc-12
+            cxx_compiler: g++-12
+            cxx_flags: -ftrapv
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423 # v2.6.0
+        with:
+          egress-policy: audit  # cannot be block - runner does git checkout
+
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
+
+      - name: Install deps
+        run: sudo apt-get install ${{ matrix.extra_deps }}
+
+      - name: Build and test
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CTEST_PARALLEL_LEVEL=2
+          CXXFLAGS=${{ matrix.cxx_flags }} CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -B out .
+          cmake --build out
+          ctest --test-dir out
+
   bazel:
     runs-on: ubuntu-latest
     steps:
