@@ -1615,6 +1615,9 @@ HWY_SVE_FOREACH_BF16(HWY_SVE_BLENDED_STORE, BlendedStore, st1)
 #if HWY_TARGET != HWY_SVE2_128
 namespace detail {
 HWY_SVE_FOREACH(HWY_SVE_LOAD_DUP128, LoadDupFull128, ld1rq)
+#if HWY_SVE_HAVE_BFLOAT16
+HWY_SVE_FOREACH_BF16(HWY_SVE_LOAD_DUP128, LoadDupFull128, ld1rq)
+#endif
 }  // namespace detail
 #endif  // HWY_TARGET != HWY_SVE2_128
 
