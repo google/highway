@@ -210,18 +210,19 @@ struct TestScatter {
 
     RandomState rng;
 
-    auto bytes = AllocateAligned<uint8_t>(max_bytes);
+    auto values = AllocateAligned<T>(range);
     auto offsets = AllocateAligned<Offset>(N);  // or indices
     // Scatter into these regions, ensure vector results match scalar
     auto expected = AllocateAligned<T>(range);
     auto actual = AllocateAligned<T>(range);
-    HWY_ASSERT(bytes && offsets && expected && actual);
+    HWY_ASSERT(values && offsets && expected && actual);
 
     // Data to be scattered
+    uint8_t *bytes = reinterpret_cast<uint8_t*>(values.get());
     for (size_t i = 0; i < max_bytes; ++i) {
       bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
     }
-    const auto data = Load(d, reinterpret_cast<const T*>(bytes.get()));
+    const auto data = Load(d, values.get());
 
     for (size_t rep = 0; rep < 100; ++rep) {
       // Byte offsets
@@ -231,7 +232,7 @@ struct TestScatter {
         // Must be aligned
         offsets[i] = static_cast<Offset>((Random32(&rng) % range) * sizeof(T));
         CopyBytes<sizeof(T)>(
-            bytes.get() + i * sizeof(T),
+            values.get() + i,
             reinterpret_cast<uint8_t*>(expected.get()) + offsets[i]);
       }
       const auto voffsets = Load(d_offsets, offsets.get());
@@ -247,7 +248,7 @@ struct TestScatter {
       std::fill(actual.get(), actual.get() + range, T(0));
       for (size_t i = 0; i < N; ++i) {
         offsets[i] = static_cast<Offset>(Random32(&rng) % range);
-        CopyBytes<sizeof(T)>(bytes.get() + i * sizeof(T),
+        CopyBytes<sizeof(T)>(values.get() + i ,
                              &expected[size_t(offsets[i])]);
       }
       const auto vindices = Load(d_offsets, offsets.get());
@@ -275,13 +276,14 @@ struct TestGather {
     const size_t max_bytes = range * sizeof(T);  // upper bound on offset
 
     RandomState rng;
-    auto bytes = AllocateAligned<uint8_t>(max_bytes);
+    auto values = AllocateAligned<T>(range);
     auto expected = AllocateAligned<T>(N);
     auto offsets = AllocateAligned<Offset>(N);
     auto indices = AllocateAligned<Offset>(N);
-    HWY_ASSERT(bytes && expected && offsets && indices);
+    HWY_ASSERT(values && expected && offsets && indices);
 
     // Data to be gathered from
+    uint8_t *bytes = reinterpret_cast<uint8_t*>(values.get());
     for (size_t i = 0; i < max_bytes; ++i) {
       bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
     }
@@ -291,11 +293,11 @@ struct TestGather {
       for (size_t i = 0; i < N; ++i) {
         // Must be aligned
         offsets[i] = static_cast<Offset>((Random32(&rng) % range) * sizeof(T));
-        CopyBytes<sizeof(T)>(bytes.get() + offsets[i], &expected[i]);
+        CopyBytes<sizeof(T)>(bytes + offsets[i], &expected[i]);
       }
 
       const Rebind<Offset, D> d_offset;
-      const T* base = reinterpret_cast<const T*>(bytes.get());
+      const T* base = values.get();
       auto actual = GatherOffset(d, base, Load(d_offset, offsets.get()));
       HWY_ASSERT_VEC_EQ(d, expected.get(), actual);
 
