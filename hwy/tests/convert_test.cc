@@ -528,88 +528,6 @@ HWY_NOINLINE void TestAllConvertU8() {
   ForDemoteVectors<TestConvertU8, 2>()(uint32_t());
 }
 
-template <typename From, typename To, class D>
-constexpr bool IsSupportedTruncation() {
-  return (sizeof(To) < sizeof(From) && Rebind<To, D>().Pow2() >= -3 &&
-          Rebind<To, D>().Pow2() + 4 >= static_cast<int>(CeilLog2(sizeof(To))));
-}
-
-struct TestTruncateTo {
-  template <typename From, typename To, class D,
-            hwy::EnableIf<!IsSupportedTruncation<From, To, D>()>* = nullptr>
-  HWY_NOINLINE void testTo(From, To, const D) {
-    // do nothing
-  }
-
-  template <typename From, typename To, class D,
-            hwy::EnableIf<IsSupportedTruncation<From, To, D>()>* = nullptr>
-  HWY_NOINLINE void testTo(From, To, const D d) {
-    constexpr uint32_t base = 0xFA578D00;
-    const Rebind<To, D> dTo;
-    const auto src = Iota(d, static_cast<From>(base));
-    const auto expected = Iota(dTo, static_cast<To>(base));
-    const VFromD<decltype(dTo)> actual = TruncateTo(dTo, src);
-    HWY_ASSERT_VEC_EQ(dTo, expected, actual);
-  }
-
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T from, const D d) {
-    testTo<T, uint8_t, D>(from, uint8_t(), d);
-    testTo<T, uint16_t, D>(from, uint16_t(), d);
-    testTo<T, uint32_t, D>(from, uint32_t(), d);
-  }
-};
-
-HWY_NOINLINE void TestAllTruncate() {
-  ForU163264(ForDemoteVectors<TestTruncateTo>());
-}
-
-struct TestOrderedTruncate2To {
-  template <typename T, class D>
-  HWY_NOINLINE void operator()(T /*t*/, D d) {
-#if HWY_TARGET != HWY_SCALAR
-    const Repartition<MakeNarrow<T>, decltype(d)> dn;
-    using TN = TFromD<decltype(dn)>;
-
-    const size_t N = Lanes(d);
-    const size_t twiceN = N * 2;
-    auto from = AllocateAligned<T>(twiceN);
-    auto expected = AllocateAligned<TN>(twiceN);
-
-    const T max = LimitsMax<TN>();
-
-    constexpr uint32_t iota_base = 0xFA578D00;
-    const auto src_iota_a = Iota(d, static_cast<T>(iota_base));
-    const auto src_iota_b = Iota(d, static_cast<T>(iota_base + N));
-    const auto expected_iota_trunc_result =
-        Iota(dn, static_cast<TN>(iota_base));
-    const auto actual_iota_trunc_result =
-        OrderedTruncate2To(dn, src_iota_a, src_iota_b);
-    HWY_ASSERT_VEC_EQ(dn, expected_iota_trunc_result, actual_iota_trunc_result);
-
-    RandomState rng;
-    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
-      for (size_t i = 0; i < twiceN; ++i) {
-        const uint64_t bits = rng();
-        CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
-        expected[i] = static_cast<TN>(from[i] & max);
-      }
-
-      const auto in_1 = Load(d, from.get());
-      const auto in_2 = Load(d, from.get() + N);
-      const auto actual = OrderedTruncate2To(dn, in_1, in_2);
-      HWY_ASSERT_VEC_EQ(dn, expected.get(), actual);
-    }
-#else
-    (void)d;
-#endif
-  }
-};
-
-HWY_NOINLINE void TestAllOrderedTruncate2To() {
-  ForU163264(ForShrinkableVectors<TestOrderedTruncate2To>());
-}
-
 // Separate function to attempt to work around a compiler bug on Arm: when this
 // is merged with TestIntFromFloat, outputs match a previous Iota(-(N+1)) input.
 struct TestIntFromFloatHuge {
@@ -1152,8 +1070,6 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllTruncate);
-HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllOrderedTruncate2To);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllUintFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
