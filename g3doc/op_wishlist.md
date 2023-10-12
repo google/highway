@@ -24,6 +24,7 @@ LoadnPair: Gather with optimizations in particular for 2x64-bit, which use
 Also StorePair
 
 Lookup128 for 32x 32-bit and 16x 64-bit. permutex2var on AVX-512, else Gather.
+Also Lookup64 and Lookup32.
 
 ReduceMin/MaxOrNaN
 
