@@ -15,15 +15,16 @@
 
 #include "hwy/aligned_allocator.h"
 
+// clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE \
-  "third_party/highway/hwy/contrib/matvec/matvec_test.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/matvec/matvec_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // Must come after foreach_target.h
 #include "hwy/contrib/algo/transform-inl.h"
 #include "hwy/contrib/matvec/matvec-inl.h"
 #include "hwy/highway.h"
 #include "hwy/tests/test_util-inl.h"
+// clang-format on
 
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
@@ -171,8 +172,8 @@ class TestMatVec {
     // Threads might not be work on WASM; run only on main thread.
     CreatePoolAndTest(d, 0);
     #else
-    CreatePoolAndTest(d, 3);
     CreatePoolAndTest(d, 6);
+    CreatePoolAndTest(d, 13);
     CreatePoolAndTest(d, 16);
     #endif  // HWY_ARCH_WASM
   }
