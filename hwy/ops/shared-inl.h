@@ -510,6 +510,8 @@ using BlockDFromD =
 #define HWY_IF_UI64_D(D) HWY_IF_UI64(TFromD<D>)
 
 #define HWY_IF_BF16_D(D) HWY_IF_BF16(TFromD<D>)
+#define HWY_IF_NOT_BF16_D(D) HWY_IF_NOT_BF16(TFromD<D>)
+
 #define HWY_IF_F16_D(D) HWY_IF_F16(TFromD<D>)
 #define HWY_IF_F32_D(D) HWY_IF_F32(TFromD<D>)
 #define HWY_IF_F64_D(D) HWY_IF_F64(TFromD<D>)

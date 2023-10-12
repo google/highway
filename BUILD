@@ -245,6 +245,35 @@ cc_library(
 )
 
 cc_library(
+    name = "thread_pool",
+    srcs = [
+        "hwy/contrib/thread_pool/thread_pool.cc",
+    ],
+    hdrs = [
+        "hwy/contrib/thread_pool/thread_pool.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",  # HWY_ASSERT
+    ],
+)
+
+cc_library(
+    name = "matvec",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/matvec/matvec-inl.h",
+    ],
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        ":thread_pool",
+    ],
+)
+
+cc_library(
     name = "image",
     srcs = [
         "hwy/contrib/image/image.cc",
@@ -269,20 +298,6 @@ cc_library(
     ],
     deps = [
         ":hwy",
-    ],
-)
-
-cc_library(
-    name = "thread_pool",
-    srcs = [
-        "hwy/contrib/thread_pool/thread_pool.cc",
-    ],
-    hdrs = [
-        "hwy/contrib/thread_pool/thread_pool.h",
-    ],
-    compatible_with = [],
-    deps = [
-        ":hwy",  # HWY_ASSERT
     ],
 )
 
@@ -375,6 +390,7 @@ HWY_TESTS = [
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
+    ("hwy/contrib/matvec/", "matvec_test"),
     ("hwy/contrib/thread_pool/", "thread_pool_test"),
     ("hwy/contrib/unroller/", "unroller_test"),
     # contrib/sort has its own BUILD, we also add sort_test to GUITAR_TESTS.
@@ -443,6 +459,7 @@ HWY_TEST_DEPS = [
     ":hwy_test_util",
     ":image",
     ":math",
+    ":matvec",
     ":nanobenchmark",
     ":skeleton",
     ":thread_pool",

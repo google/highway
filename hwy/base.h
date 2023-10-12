@@ -576,6 +576,9 @@ using If = typename IfT<Condition, Then, Else>::type;
 #define HWY_IF_I64(T) hwy::EnableIf<IsSame<T, int64_t>()>* = nullptr
 
 #define HWY_IF_BF16(T) hwy::EnableIf<IsSame<T, hwy::bfloat16_t>()>* = nullptr
+#define HWY_IF_NOT_BF16(T) \
+  hwy::EnableIf<!IsSame<T, hwy::bfloat16_t>()>* = nullptr
+
 #define HWY_IF_F16(T) hwy::EnableIf<IsSame<T, hwy::float16_t>()>* = nullptr
 #define HWY_IF_F32(T) hwy::EnableIf<IsSame<T, float>()>* = nullptr
 #define HWY_IF_F64(T) hwy::EnableIf<IsSame<T, double>()>* = nullptr

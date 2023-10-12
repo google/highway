@@ -1584,19 +1584,22 @@ HWY_INLINE VFromD<DTo> LoadNResizeBitCast(DTo d_to, DFrom d_from,
 
 }  // namespace detail
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 1)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 1),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   return (num_lanes > 0) ? LoadU(d, p) : Zero(d);
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 1)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 1),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   return (num_lanes > 0) ? LoadU(d, p) : no;
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   const FixedTag<TFromD<D>, 1> d1;
@@ -1606,7 +1609,8 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   return detail::LoadNResizeBitCast(d, d1, LoadU(d1, p));
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 2),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   const FixedTag<TFromD<D>, 1> d1;
@@ -1616,7 +1620,8 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
   return InterleaveLower(ResizeBitCast(d, LoadU(d1, p)), no);
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   const FixedTag<TFromD<D>, 2> d2;
@@ -1631,7 +1636,8 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   return (num_lanes == 2) ? v_lo : InsertLane(v_lo, 2, p[2]);
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 4),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   const FixedTag<TFromD<D>, 2> d2;
@@ -1646,7 +1652,8 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
   return (num_lanes == 2) ? v_lo : InsertLane(v_lo, 2, p[2]);
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   const FixedTag<TFromD<D>, 4> d4;
@@ -1681,7 +1688,8 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   }
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 8),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   const FixedTag<TFromD<D>, 4> d4;
@@ -1718,7 +1726,8 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
   }
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   const FixedTag<TFromD<D>, 8> d8;
@@ -1763,7 +1772,8 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   }
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16)>
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_LANES_D(D, 16),
+          HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   const FixedTag<TFromD<D>, 8> d8;
@@ -1818,7 +1828,7 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
 
 #if HWY_MAX_BYTES >= 32
 
-template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16), HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   if (num_lanes >= Lanes(d)) return LoadU(d, p);
@@ -1834,7 +1844,7 @@ HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
   }
 }
 
-template <class D, HWY_IF_V_SIZE_GT_D(D, 16)>
+template <class D, HWY_IF_V_SIZE_GT_D(D, 16), HWY_IF_NOT_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   if (num_lanes >= Lanes(d)) return LoadU(d, p);
@@ -1854,6 +1864,22 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
 }
 
 #endif  // HWY_MAX_BYTES >= 32
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
+                        size_t num_lanes) {
+  const RebindToUnsigned<D> du;
+  return BitCast(d, LoadN(du, reinterpret_cast<const uint16_t*>(p), num_lanes));
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
+                          size_t num_lanes) {
+  const RebindToUnsigned<D> du;
+  return BitCast(d, LoadNOr(BitCast(du, no), du,
+                            reinterpret_cast<const uint16_t*>(p), num_lanes));
+}
+
 #else   // !HWY_MEM_OPS_MIGHT_FAULT || HWY_HAVE_SCALABLE
 
 // For SVE and non-sanitizer AVX-512; RVV has its own specialization.
