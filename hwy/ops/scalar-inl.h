@@ -1225,8 +1225,9 @@ HWY_API void Stream(const Vec1<T> v, D d, T* HWY_RESTRICT aligned) {
 template <class D, typename T = TFromD<D>, typename TI>
 HWY_API void ScatterOffset(Vec1<T> v, D d, T* base, Vec1<TI> offset) {
   static_assert(sizeof(T) == sizeof(TI), "Index/lane size must match");
-  uint8_t* const base8 = reinterpret_cast<uint8_t*>(base) + offset.raw;
-  Store(v, d, reinterpret_cast<T*>(base8));
+  const intptr_t addr =
+      reinterpret_cast<intptr_t>(base) + static_cast<intptr_t>(offset.raw);
+  Store(v, d, reinterpret_cast<T*>(addr));
 }
 
 template <class D, typename T = TFromD<D>, typename TI>
