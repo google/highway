@@ -1752,8 +1752,8 @@ HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
   HWY_API void NAME(HWY_SVE_V(BASE, BITS) v, svbool_t m,               \
                     HWY_SVE_D(BASE, BITS, N, kPow2) /*d*/,             \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,         \
-                    HWY_SVE_V(int, BITS) index) {                      \
-    sv##OP##_s##BITS##index_##CHAR##BITS(m, base, index, v);           \
+                    HWY_SVE_V(int, BITS) indices) {                    \
+    sv##OP##_s##BITS##index_##CHAR##BITS(m, base, indices, v);         \
   }
 
 HWY_SVE_FOREACH_UIF3264(HWY_SVE_SCATTER_OFFSET, ScatterOffset, st1_scatter)
@@ -1790,11 +1790,11 @@ HWY_API void ScatterIndex(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
   HWY_API HWY_SVE_V(BASE, BITS)                                       \
       NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) d,             \
            const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT base,           \
-           HWY_SVE_V(int, BITS) index) {                              \
+           HWY_SVE_V(int, BITS) indices) {                            \
     const RebindToSigned<decltype(d)> di;                             \
     (void)di; /* for HWY_DASSERT */                                   \
     HWY_DASSERT(AllFalse(di, Lt(indices, Zero(di))));                 \
-    return sv##OP##_s##BITS##index_##CHAR##BITS(m, base, index);      \
+    return sv##OP##_s##BITS##index_##CHAR##BITS(m, base, indices);    \
   }
 
 HWY_SVE_FOREACH_UIF3264(HWY_SVE_GATHER_OFFSET, GatherOffset, ld1_gather)
