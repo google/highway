@@ -25,6 +25,14 @@ if(POLICY CMP0111)
   cmake_policy(SET CMP0111 OLD)
 endif()
 
+# Starting with GCC-13, we want to make sure to remove gnu extension (ie.
+# explicit -std=c++17 instead of implicit `gnu++17`)
+# Without this cmake property, CMAKE_CXX_EXTENSIONS=OFF was not properly
+# considered
+if(POLICY CMP0128)
+  cmake_policy(SET CMP0128 NEW)
+endif()
+
 project(hwy VERSION 1.0.7)  # Keep in sync with highway.h version
 # `hwy` is lowercase to handle find_package() in Config mode:
 set(namespace "${PROJECT_NAME}::")
