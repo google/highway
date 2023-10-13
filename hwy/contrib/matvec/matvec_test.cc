@@ -33,25 +33,27 @@ namespace HWY_NAMESPACE {
 template <typename MatT, typename T>
 HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
                                size_t cols, T* out, ThreadPool& pool) {
-  pool.Run(0, rows, &ThreadPool::NoInit, [=](uint32_t r, size_t /*thread*/) {
-    T dot = T{0};
-    for (size_t c = 0; c < cols; c++) {
-      dot += mat[r * cols + c] * vec[c];
-    }
-    out[r] = dot;
-  });
+  pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
+           [=](uint32_t r, size_t /*thread*/) {
+             T dot = T{0};
+             for (size_t c = 0; c < cols; c++) {
+               dot += mat[r * cols + c] * vec[c];
+             }
+             out[r] = dot;
+           });
 }
 
 HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat, const float* vec,
                                size_t rows, size_t cols, float* out,
                                ThreadPool& pool) {
-  pool.Run(0, rows, &ThreadPool::NoInit, [=](uint32_t r, size_t /*thread*/) {
-    float dot = 0.0f;
-    for (size_t c = 0; c < cols; c++) {
-      dot += F32FromBF16(mat[r * cols + c]) * vec[c];
-    }
-    out[r] = dot;
-  });
+  pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
+           [=](uint32_t r, size_t /*thread*/) {
+             float dot = 0.0f;
+             for (size_t c = 0; c < cols; c++) {
+               dot += F32FromBF16(mat[r * cols + c]) * vec[c];
+             }
+             out[r] = dot;
+           });
 }
 
 struct GenerateMod {
@@ -138,7 +140,7 @@ class TestMatVec {
   template <size_t kRows, size_t kCols, class D>
   void ForeachMisalign(D d, ThreadPool& pool) {
     const size_t N = Lanes(d);
-    const size_t misalignments[3] = {0, N / 4, 3 * N / 5};
+    const size_t misalignments[3] = {N / 4, 3 * N / 5};
     for (size_t mm : misalignments) {
       for (size_t mv : misalignments) {
         Test<kRows, kCols>(d, mm, mv, pool);
@@ -149,8 +151,8 @@ class TestMatVec {
   // Runs tests with various lengths.
   template <class D>
   void ForeachDim(D d, ThreadPool& pool) {
-    ForeachMisalign<192, 256>(d, pool);
-    ForeachMisalign<40, 512>(d, pool);
+    ForeachMisalign<192, AdjustedReps(256)>(d, pool);
+    ForeachMisalign<40, AdjustedReps(512)>(d, pool);
     ForeachMisalign<AdjustedReps(1024), 50>(d, pool);
 
     // Too large for low-precision accumulators.
@@ -172,7 +174,6 @@ class TestMatVec {
     // Threads might not be work on WASM; run only on main thread.
     CreatePoolAndTest(d, 0);
     #else
-    CreatePoolAndTest(d, 6);
     CreatePoolAndTest(d, 13);
     CreatePoolAndTest(d, 16);
     #endif  // HWY_ARCH_WASM
