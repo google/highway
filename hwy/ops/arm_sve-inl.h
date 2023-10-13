@@ -1525,9 +1525,14 @@ HWY_API svbool_t IsInf(const V v) {
   using T = TFromV<V>;
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
+  const RebindToSigned<decltype(d)> di;
+
+  // 'Shift left' to clear the sign bit
   const VFromD<decltype(du)> vu = BitCast(du, v);
-  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vu, vu), Set(du, hwy::MaxExponentTimes2<T>())));
+  const VFromD<decltype(du)> v2 = Add(vu, vu);
+  // Check for exponent=max and mantissa=0.
+  const VFromD<decltype(di)> max2 = Set(di, hwy::MaxExponentTimes2<T>());
+  return RebindMask(d, Eq(v2, BitCast(du, max2)));
 }
 
 // Returns whether normal/subnormal/zero.
@@ -3408,20 +3413,23 @@ HWY_API V BroadcastBlock(V v) {
   static_assert(0 <= kBlockIdx && kBlockIdx < d.MaxBlocks(),
                 "Invalid block index");
 
+  const RebindToUnsigned<decltype(d)> du;  // for bfloat16_t
+  using VU = VFromD<decltype(du)>;
+  const VU vu = BitCast(du, v);
+
 #if HWY_TARGET == HWY_SVE_256
-  return (kBlockIdx == 0) ? ConcatLowerLower(d, v, v)
-                          : ConcatUpperUpper(d, v, v);
+  return BitCast(d, (kBlockIdx == 0) ? ConcatLowerLower(du, vu, vu)
+                                     : ConcatUpperUpper(du, vu, vu));
 #else
-  const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
   constexpr size_t kLanesPerBlock = detail::LanesPerBlock(d);
   constexpr size_t kBlockOffset =
       static_cast<size_t>(kBlockIdx) * kLanesPerBlock;
 
-  const auto idx = detail::AddN(
+  const VU idx = detail::AddN(
       detail::AndN(Iota(du, TU{0}), static_cast<TU>(kLanesPerBlock - 1)),
       static_cast<TU>(kBlockOffset));
-  return TableLookupLanes(v, idx);
+  return BitCast(d, TableLookupLanes(vu, idx));
 #endif
 }
 
