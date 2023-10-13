@@ -146,6 +146,10 @@ namespace hwy {
 #define HWY_ASSUME_ALIGNED(ptr, align) (ptr) /* not supported */
 #endif
 
+// Special case to increases required alignment
+#define HWY_RCAST_ALIGNED(type, ptr) \
+  reinterpret_cast<type>(HWY_ASSUME_ALIGNED((ptr), alignof(type)))
+
 // Clang and GCC require attributes on each function into which SIMD intrinsics
 // are inlined. Support both per-function annotation (HWY_ATTR) for lambdas and
 // automatic annotation via pragmas.

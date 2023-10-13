@@ -7918,7 +7918,7 @@ namespace detail {
 template <class D, HWY_IF_V_SIZE_D(D, 16)>
 HWY_INLINE Vec128<uint8_t> Load8Bytes(D /*tag*/, const uint8_t* bytes) {
   return Vec128<uint8_t>(vreinterpretq_u8_u64(
-      vld1q_dup_u64(reinterpret_cast<const uint64_t*>(bytes))));
+      vld1q_dup_u64(HWY_RCAST_ALIGNED(const uint64_t*, bytes))));
 }
 
 // Load 8 bytes and return half-reg with N <= 8 bytes.

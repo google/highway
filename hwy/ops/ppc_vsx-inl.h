@@ -616,7 +616,7 @@ HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API Vec128<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
   using LoadRaw = typename detail::Raw128<T>::AlignedRawVec;
-  const LoadRaw* HWY_RESTRICT p = reinterpret_cast<const LoadRaw*>(aligned);
+  const LoadRaw* HWY_RESTRICT p = HWY_RCAST_ALIGNED(const LoadRaw*, aligned);
   using ResultRaw = typename detail::Raw128<T>::type;
   return Vec128<T>{reinterpret_cast<ResultRaw>(*p)};
 }
@@ -1214,7 +1214,7 @@ HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
 HWY_API void Store(Vec128<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
   using StoreRaw = typename detail::Raw128<T>::AlignedRawVec;
-  *reinterpret_cast<StoreRaw*>(aligned) = reinterpret_cast<StoreRaw>(v.raw);
+  *HWY_RCAST_ALIGNED(StoreRaw*, aligned) = reinterpret_cast<StoreRaw>(v.raw);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
