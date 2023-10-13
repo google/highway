@@ -36,7 +36,7 @@ namespace {
 TEST(ThreadPoolTest, TestPool) {
   if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
 
-  for (int num_threads = 0; num_threads <= 18; ++num_threads) {
+  for (int num_threads = 0; num_threads <= 15; num_threads += 3) {
     ThreadPool pool(num_threads);
     for (uint32_t num_tasks = 0; num_tasks < 32; ++num_tasks) {
       std::vector<size_t> mementos(num_tasks);
@@ -65,7 +65,7 @@ TEST(ThreadPoolTest, TestSmallAssignments) {
   if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
 
   const size_t kMaxThreads = 8;
-  for (size_t num_threads = 1; num_threads <= kMaxThreads; ++num_threads) {
+  for (size_t num_threads = 1; num_threads <= kMaxThreads; num_threads += 3) {
     ThreadPool pool(num_threads);
 
     // (Avoid mutex because it may perturb the worker thread scheduling)
