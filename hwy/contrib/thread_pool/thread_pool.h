@@ -147,15 +147,15 @@ class ThreadPool {
 
   // Number of *worker* threads created, equal to threads_.size(). Used to see
   // if all are ready.
-  const uint32_t num_worker_threads_;
+  const size_t num_worker_threads_;
   // Maximum number of threads that will call run_func_, at least 1.
-  const uint32_t num_threads_;
+  const size_t num_threads_;
 
   std::atomic<int> depth_{0};  // detects if Run is re-entered (not supported).
 
   std::mutex mutex_;  // guards both cv and their variables.
   std::condition_variable workers_ready_cv_;
-  uint32_t workers_ready_ = 0;
+  size_t workers_ready_ = 0;
   std::condition_variable worker_start_cv_;
   WorkerCommand worker_start_command_;
 

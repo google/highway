@@ -28,7 +28,7 @@ namespace hwy {
 
 ThreadPool::ThreadPool(const size_t num_worker_threads)
     : num_worker_threads_(num_worker_threads),
-      num_threads_(HWY_MAX(num_worker_threads, 1)) {
+      num_threads_(HWY_MAX(num_worker_threads, size_t{1})) {
   threads_.reserve(num_worker_threads_);
 
   // Suppress "unused-private-field" warning.
@@ -38,8 +38,8 @@ ThreadPool::ThreadPool(const size_t num_worker_threads)
   // Safely handle spurious worker wakeups.
   worker_start_command_ = kWorkerWait;
 
-  for (uint32_t i = 0; i < num_worker_threads_; ++i) {
-    threads_.emplace_back(ThreadFunc, this, static_cast<size_t>(i));
+  for (size_t i = 0; i < num_worker_threads_; ++i) {
+    threads_.emplace_back(ThreadFunc, this, i);
   }
 
   if (num_worker_threads_ != 0) {
@@ -82,10 +82,11 @@ void ThreadPool::StartWorkers(const WorkerCommand worker_command) {
 // static
 void ThreadPool::RunRange(ThreadPool* self, const WorkerCommand command,
                           const size_t thread) {
-  const uint32_t begin = command >> 32;
-  const uint32_t end = command & 0xFFFFFFFF;
-  const uint32_t num_tasks = end - begin;
-  const uint32_t num_worker_threads = self->num_worker_threads_;
+  static_assert(sizeof(size_t) >= 4, "Requires 32 bits");
+  const size_t begin = static_cast<size_t>(command >> 32);
+  const size_t end = static_cast<size_t>(command & 0xFFFFFFFF);
+  const size_t num_tasks = end - begin;
+  const size_t num_worker_threads = self->num_worker_threads_;
 
   // OpenMP introduced several "schedule" strategies:
   // "single" (static assignment of exactly one chunk per thread): slower.
@@ -95,28 +96,28 @@ void ThreadPool::RunRange(ThreadPool* self, const WorkerCommand command,
   //   because it avoids user-specified parameters.
 
   for (;;) {
-    uint32_t my_size;  // set below
+    size_t my_size;  // set below
     if (false) {
       // dynamic
       my_size = HWY_MAX(num_tasks / (num_worker_threads * 4), 1);
     } else {
       // guided
-      const uint32_t num_reserved =
+      const size_t num_reserved =
           self->num_reserved_.load(std::memory_order_relaxed);
       // It is possible that more tasks are reserved than ready to run.
-      const uint32_t num_remaining =
-          num_tasks - HWY_MIN(num_reserved, num_tasks);
+      const size_t num_remaining = num_tasks - HWY_MIN(num_reserved, num_tasks);
       my_size = HWY_MAX(num_remaining / (num_worker_threads * 4), 1u);
     }
-    const uint32_t my_begin = begin + self->num_reserved_.fetch_add(
-                                          my_size, std::memory_order_relaxed);
-    const uint32_t my_end = HWY_MIN(my_begin + my_size, begin + num_tasks);
+    const size_t my_begin =
+        begin + self->num_reserved_.fetch_add(static_cast<uint32_t>(my_size),
+                                              std::memory_order_relaxed);
+    const size_t my_end = HWY_MIN(my_begin + my_size, begin + num_tasks);
     // Another thread already reserved the last task.
     if (my_begin >= my_end) {
       break;
     }
-    for (uint32_t task = my_begin; task < my_end; ++task) {
-      self->run_func_(self->opaque_, task, thread);
+    for (size_t task = my_begin; task < my_end; ++task) {
+      self->run_func_(self->opaque_, static_cast<uint32_t>(task), thread);
     }
   }
 }

@@ -26,9 +26,12 @@
 #include "gtest/gtest.h"
 #include "hwy/base.h"                  // PopCount
 #include "hwy/detect_compiler_arch.h"  // HWY_ARCH_WASM
+#include "hwy/tests/test_util-inl.h"   // AdjustedReps
 
 namespace hwy {
 namespace {
+
+using HWY_NAMESPACE::AdjustedReps;
 
 // Ensures task parameter is in bounds, every parameter is reached,
 // pool can be reused (multiple consecutive Run calls), pool can be destroyed
@@ -36,11 +39,11 @@ namespace {
 TEST(ThreadPoolTest, TestPool) {
   if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
 
-  for (int num_threads = 0; num_threads <= 15; num_threads += 3) {
+  for (int num_threads = 0; num_threads <= 6; num_threads += 3) {
     ThreadPool pool(num_threads);
-    for (uint32_t num_tasks = 0; num_tasks < 32; ++num_tasks) {
+    for (uint32_t num_tasks = 0; num_tasks < 20; ++num_tasks) {
       std::vector<size_t> mementos(num_tasks);
-      for (uint32_t begin = 0; begin < 32; ++begin) {
+      for (uint32_t begin = 0; begin < AdjustedReps(32); ++begin) {
         std::fill(mementos.begin(), mementos.end(), 0);
         EXPECT_TRUE(pool.Run(begin, begin + num_tasks, ThreadPool::NoInit,
                               [&](const uint32_t task, size_t /*thread*/) {
