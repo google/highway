@@ -18,7 +18,12 @@
 
 // Memory allocator with support for alignment and offsets.
 
+#include <array>
+#include <cassert>
+#include <cstring>
+#include <initializer_list>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "hwy/base.h"
@@ -206,6 +211,113 @@ template <typename T>
 AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items) {
   return AllocateAligned<T>(items, nullptr, nullptr, nullptr);
 }
+
+// A simple span containing data and size of data.
+template <typename T>
+class Span {
+ public:
+  Span(T* data, size_t size) : size_(size), data_(data) {}
+  template <typename U>
+  Span(U u) : Span(u.data(), u.size()) {}
+  Span(std::initializer_list<const T> v) : Span(v.begin(), v.size()) {}
+
+  // Returns the size of the contained data.
+  size_t size() const { return size_; }
+
+  // Returns a pointer to the contained data.
+  T* data() { return data_; }
+
+  // Returns the element at index.
+  T& operator[](size_t index) const { return data_[index]; }
+
+  // Returns an iterator pointing to the first element of this span.
+  constexpr T* begin() { return data(); }
+
+  // Returns a const iterator pointing to the first element of this span.
+  constexpr const T* cbegin() const { return begin(); }
+
+  // Returns an iterator pointing just beyond the last element at the
+  // end of this span.
+  constexpr T* end() { return data() + size(); }
+
+  // Returns a const iterator pointing just beyond the last element at the
+  // end of this span.
+  constexpr const T* cend() const { return end(); }
+
+ private:
+  size_t size_ = 0;
+  T* data_ = nullptr;
+};
+
+// A multi dimensional array containing an aligned buffer.
+template <typename T, size_t AXES>
+class AlignedNDArray {
+  static_assert(std::is_trivial<T>::value,
+                "AlignedNDArray can only contain trivial types");
+
+ public:
+  AlignedNDArray(AlignedNDArray&& other) = default;
+  AlignedNDArray& operator=(AlignedNDArray&& other) = default;
+
+  // Constructs an array of the provided shape and fill it with default
+  // constructed values of T.
+  explicit AlignedNDArray(std::array<size_t, AXES> shape) : shape_(shape) {
+    ComputeSizes();
+    buffer_ = hwy::AllocateAligned<T>(size());
+    hwy::ZeroBytes(buffer_.get(), size() * sizeof(T));
+  }
+
+  // Constructs an array using the provided aligned memory and shape.
+  explicit AlignedNDArray(std::array<size_t, AXES> shape,
+                          hwy::AlignedFreeUniquePtr<T> buffer)
+      : shape_(shape), buffer_(std::move(buffer)) {
+    ComputeSizes();
+  }
+
+  // Returns a span containing the sub-array at the provided indices.
+  Span<T> operator[](Span<const size_t> indices) {
+    return Span<T>(buffer_.get() + Offset(indices), sizes_[indices.size()]);
+  }
+
+  // Returns a const span containing the sub-array at the provided indices.
+  Span<const T> operator[](Span<const size_t> indices) const {
+    return Span<const T>(buffer_.get() + Offset(indices),
+                         sizes_[indices.size()]);
+  }
+
+  // Returns the shape of the array.
+  const std::array<size_t, AXES>& shape() const { return shape_; }
+
+  // Returns the size of the array.
+  size_t size() const { return sizes_[0]; }
+
+ protected:
+  std::array<size_t, AXES> shape_;
+  std::array<size_t, AXES + 1> sizes_;
+  hwy::AlignedFreeUniquePtr<T[]> buffer_;
+
+  // Computes offset in the buffer based on the provided indices.
+  size_t Offset(Span<const size_t> indices) const {
+    HWY_DASSERT(indices.size() < sizes_.size());
+    size_t offset = 0;
+    size_t shape_index = 0;
+    for (const size_t axis_index : indices) {
+      offset += sizes_[shape_index + 1] * axis_index;
+      shape_index++;
+    }
+    return offset;
+  }
+
+  // Computes the sizes of all sub arrays based on the sizes of each axis.
+  void ComputeSizes() {
+    size_t axis = shape_.size();
+    sizes_[axis] = 1;
+    while (axis > 0) {
+      --axis;
+      sizes_[axis] = sizes_[axis + 1] * shape_[axis];
+    }
+  }
+};
 
 }  // namespace hwy
 #endif  // HIGHWAY_HWY_ALIGNED_ALLOCATOR_H_
