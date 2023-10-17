@@ -1,0 +1,44 @@
+# https://github.com/marketplace/actions/run-on-architecture
+name: Foreign architectures
+
+on: [push, pull_request]
+
+jobs:
+  multiarch:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: aarch64
+            distro: ubuntu_latest
+            cxx_flags: -Wno-psabi
+          - arch: armv7
+            distro: ubuntu_latest
+            cxx_flags: -Wno-psabi
+            cmake_flags: -DHWY_CMAKE_ARM7:BOOL=ON
+          - arch: ppc64le
+            distro: ubuntu_latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Build and test
+      uses: uraimo/run-on-arch-action@v2.5.1
+      id: build
+      with:
+        arch: ${{ matrix.arch }}
+        distro: ${{ matrix.distro }}
+        # Not required, but speeds up builds
+        githubToken: ${{ github.token }}
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y --no-install-recommends \
+                build-essential \
+                cmake \
+                libgtest-dev \
+                ninja-build \
+                ;
+        run: |
+          CXXFLAGS=${{ matrix.cxx_flags }} cmake -GNinja ${{ matrix.cmake_flags }} -DHWY_SYSTEM_GTEST=ON -DHWY_WARNINGS_ARE_ERRORS=ON -B out .
+          cmake --build out
+          ctest --test-dir out
