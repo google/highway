@@ -22,6 +22,9 @@
 #define HIGHWAY_HWY_CONTRIB_ALGO_TRANSFORM_INL_H_
 #endif
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -68,8 +71,16 @@ void Generate(D d, T* HWY_RESTRICT out, size_t count, const Func& func) {
   // Proceed one by one.
   const CappedTag<T, 1> d1;
   const RebindToUnsigned<decltype(d1)> du1;
+  // Workaround for -Waggressive-loop-optimizations on GCC (huge iteration
+  // counts involve UB presumably from pointer wraparound). It did not help to
+  // change the loop counter to intptr_t, nor to add
+  // HWY_ASSUME(count < SIZE_MAX / sizeof(T)).
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(out);
+
   for (; idx < count; ++idx) {
-    StoreU(func(d1, Set(du1, static_cast<TU>(idx))), d1, out + idx);
+    T* HWY_RESTRICT out_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(addr + (idx * sizeof(T)));
+    StoreU(func(d1, Set(du1, static_cast<TU>(idx))), d1, out_idx);
   }
 #else
   const size_t remaining = count - idx;
@@ -97,10 +108,14 @@ void Transform(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
 #if HWY_MEM_OPS_MIGHT_FAULT
   // Proceed one by one.
   const CappedTag<T, 1> d1;
+  // Workaround for -Waggressive-loop-optimizations on GCC (see above).
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(inout);
   for (; idx < count; ++idx) {
     using V1 = Vec<decltype(d1)>;
-    const V1 v = LoadU(d1, inout + idx);
-    StoreU(func(d1, v), d1, inout + idx);
+    T* HWY_RESTRICT inout_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(addr + (idx * sizeof(T)));
+    const V1 v = LoadU(d1, inout_idx);
+    StoreU(func(d1, v), d1, inout_idx);
   }
 #else
   const size_t remaining = count - idx;
@@ -131,11 +146,19 @@ void Transform1(D d, T* HWY_RESTRICT inout, size_t count,
 #if HWY_MEM_OPS_MIGHT_FAULT
   // Proceed one by one.
   const CappedTag<T, 1> d1;
+  // Workaround for -Waggressive-loop-optimizations on GCC (see above).
+  const uintptr_t inout_addr = reinterpret_cast<uintptr_t>(inout);
+  const uintptr_t in1_addr = reinterpret_cast<uintptr_t>(in1);
   for (; idx < count; ++idx) {
     using V1 = Vec<decltype(d1)>;
-    const V1 v = LoadU(d1, inout + idx);
-    const V1 v1 = LoadU(d1, in1 + idx);
-    StoreU(func(d1, v, v1), d1, inout + idx);
+    T* HWY_RESTRICT inout_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(inout_addr + (idx * sizeof(T)));
+    T* HWY_RESTRICT in1_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(in1_addr + (idx * sizeof(T)));
+
+    const V1 v = LoadU(d1, inout_idx);
+    const V1 v1 = LoadU(d1, in1_idx);
+    StoreU(func(d1, v, v1), d1, inout_idx);
   }
 #else
   const size_t remaining = count - idx;
@@ -169,12 +192,22 @@ void Transform2(D d, T* HWY_RESTRICT inout, size_t count,
 #if HWY_MEM_OPS_MIGHT_FAULT
   // Proceed one by one.
   const CappedTag<T, 1> d1;
+  // Workaround for -Waggressive-loop-optimizations on GCC (see above).
+  const uintptr_t inout_addr = reinterpret_cast<uintptr_t>(inout);
+  const uintptr_t in1_addr = reinterpret_cast<uintptr_t>(in1);
+  const uintptr_t in2_addr = reinterpret_cast<uintptr_t>(in2);
   for (; idx < count; ++idx) {
     using V1 = Vec<decltype(d1)>;
-    const V1 v = LoadU(d1, inout + idx);
-    const V1 v1 = LoadU(d1, in1 + idx);
-    const V1 v2 = LoadU(d1, in2 + idx);
-    StoreU(func(d1, v, v1, v2), d1, inout + idx);
+    T* HWY_RESTRICT inout_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(inout_addr + (idx * sizeof(T)));
+    T* HWY_RESTRICT in1_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(in1_addr + (idx * sizeof(T)));
+    T* HWY_RESTRICT in2_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(in2_addr + (idx * sizeof(T)));
+    const V1 v = LoadU(d1, inout_idx);
+    const V1 v1 = LoadU(d1, in1_idx);
+    const V1 v2 = LoadU(d1, in2_idx);
+    StoreU(func(d1, v, v1, v2), d1, inout_idx);
   }
 #else
   const size_t remaining = count - idx;
@@ -207,10 +240,15 @@ void Replace(D d, T* HWY_RESTRICT inout, size_t count, T new_t, T old_t) {
   const CappedTag<T, 1> d1;
   const Vec<decltype(d1)> old_v1 = Set(d1, old_t);
   const Vec<decltype(d1)> new_v1 = Set(d1, new_t);
+  // Workaround for -Waggressive-loop-optimizations on GCC (see above).
+  const uintptr_t inout_addr = reinterpret_cast<uintptr_t>(inout);
+
   for (; idx < count; ++idx) {
     using V1 = Vec<decltype(d1)>;
-    const V1 v1 = LoadU(d1, inout + idx);
-    StoreU(IfThenElse(Eq(v1, old_v1), new_v1, v1), d1, inout + idx);
+    T* HWY_RESTRICT inout_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(inout_addr + (idx * sizeof(T)));
+    const V1 v1 = LoadU(d1, inout_idx);
+    StoreU(IfThenElse(Eq(v1, old_v1), new_v1, v1), d1, inout_idx);
   }
 #else
   const size_t remaining = count - idx;
@@ -240,10 +278,15 @@ void ReplaceIf(D d, T* HWY_RESTRICT inout, size_t count, T new_t,
   // Proceed one by one.
   const CappedTag<T, 1> d1;
   const Vec<decltype(d1)> new_v1 = Set(d1, new_t);
+  // Workaround for -Waggressive-loop-optimizations on GCC (see above).
+  const uintptr_t inout_addr = reinterpret_cast<uintptr_t>(inout);
+
   for (; idx < count; ++idx) {
     using V1 = Vec<decltype(d1)>;
-    const V1 v = LoadU(d1, inout + idx);
-    StoreU(IfThenElse(func(d1, v), new_v1, v), d1, inout + idx);
+    T* HWY_RESTRICT inout_idx =
+        reinterpret_cast<T * HWY_RESTRICT>(inout_addr + (idx * sizeof(T)));
+    const V1 v = LoadU(d1, inout_idx);
+    StoreU(IfThenElse(func(d1, v), new_v1, v), d1, inout_idx);
   }
 #else
   const size_t remaining = count - idx;

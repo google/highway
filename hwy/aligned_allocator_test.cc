@@ -343,16 +343,16 @@ void CheckEqual(const AlignedNDArray<T, 2>& a, const vector<vector<T>>& v) {
 TEST(AlignedAllocatorTest, AlignedNDArray) {
   AlignedNDArray<float, 1> a1({4});
   CheckEqual(a1, {0, 0, 0, 0});
-  *a1[{2}].data() = 3.4;
-  CheckEqual(a1, {0, 0, 3.4, 0});
+  *a1[{2}].data() = 3.4f;
+  CheckEqual(a1, {0, 0, 3.4f, 0});
 
   AlignedNDArray<float, 2> a2({2, 3});
   CheckEqual(a2, {{0, 0, 0}, {0, 0, 0}});
-  a2[{1, 1}][0] = 5.1;
-  CheckEqual(a2, {{0, 0, 0}, {0, 5.1, 0}});
-  float f[] = {1, 2, 3, 4, 5, 6};
+  a2[{1, 1}][0] = 5.1f;
+  CheckEqual(a2, {{0, 0, 0}, {0, 5.1f, 0}});
+  float f[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
   hwy::CopyBytes(f, a2[{}].data(), 6 * sizeof(float));
-  CheckEqual(a2, {{1, 2, 3}, {4, 5, 6}});
+  CheckEqual(a2, {{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}});
 }
 
 }  // namespace

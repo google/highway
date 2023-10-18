@@ -102,8 +102,8 @@ struct Counter {
     (void)padding;
   }
   void Assimilate(const Counter& victim) { counter += victim.counter; }
-  int counter = 0;
-  int padding[31];
+  uint32_t counter = 0;
+  uint32_t padding[31];
 };
 
 TEST(ThreadPoolTest, TestCounter) {

@@ -231,18 +231,18 @@ class Span {
   T& operator[](size_t index) const { return data_[index]; }
 
   // Returns an iterator pointing to the first element of this span.
-  constexpr T* begin() { return data(); }
+  T* begin() { return data_; }
 
   // Returns a const iterator pointing to the first element of this span.
-  constexpr const T* cbegin() const { return begin(); }
+  constexpr const T* cbegin() const { return data_; }
 
   // Returns an iterator pointing just beyond the last element at the
   // end of this span.
-  constexpr T* end() { return data() + size(); }
+  T* end() { return data_ + size_; }
 
   // Returns a const iterator pointing just beyond the last element at the
   // end of this span.
-  constexpr const T* cend() const { return end(); }
+  constexpr const T* cend() const { return data_ + size_; }
 
  private:
   size_t size_ = 0;
