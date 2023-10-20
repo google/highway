@@ -851,10 +851,14 @@ Special functions for signed types:
     yes[i] : no[i]`. This may be more efficient than `IfThenElse(Lt..)`.
 
 *   `V`: `{i,f}` \
-    <code>V **CondNegateOrZero**(V a, V b)</code>: returns `b[i] < 0 ? (-a[i]) :
-    ((b[i] == 0) ? 0 : a[i])`. `CondNegateOrZero(a, b)` is more efficient than
-    `IfNegativeThenElse(b, Neg(a), IfThenZeroElse(Eq(b, Zero(d)), a))` for
-    I8/I16/I32 vectors on SSSE3/SSE4/AVX2/AVX3.
+    <code>V **IfNegativeThenNegOrUndefIfZero**(V mask, V v)</code>: returns
+    `mask[i] < 0 ? (-v[i]) : ((mask[i] > 0) ? v[i] : impl_defined_val)`, where
+    `impl_defined_val` is an implementation-defined value that is equal to
+    either 0 or `v[i]`.
+
+    `IfNegativeThenNegOrUndefIfZero(mask, v)` is more efficient than
+    `IfNegativeThenElse(mask, Neg(v), v)` for I8/I16/I32 vectors that are
+    32 bytes or smaller on SSSE3/SSE4/AVX2/AVX3 targets.
 
 ### Masks
 
