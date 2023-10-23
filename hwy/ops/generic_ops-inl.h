@@ -434,6 +434,34 @@ HWY_API V MaskedSatSubOr(V no, M m, V a, V b) {
 }
 #endif  // HWY_NATIVE_MASKED_ARITH
 
+// ------------------------------ IfNegativeThenNegOrUndefIfZero
+
+#if (defined(HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#undef HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#else
+#define HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V IfNegativeThenNegOrUndefIfZero(V mask, V v) {
+#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
+  // MaskedSubOr is more efficient than IfNegativeThenElse on RVV/SVE
+  const auto zero = Zero(DFromV<V>());
+  return MaskedSubOr(v, Lt(mask, zero), zero, v);
+#else
+  return IfNegativeThenElse(mask, Neg(v), v);
+#endif
+}
+
+#endif  // HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API V IfNegativeThenNegOrUndefIfZero(V mask, V v) {
+  return CopySign(v, Xor(mask, v));
+}
+
 // ------------------------------ Reductions
 
 // Targets follow one of two strategies. If HWY_NATIVE_REDUCE_SCALAR is toggled,

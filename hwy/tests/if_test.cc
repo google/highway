@@ -174,6 +174,91 @@ HWY_NOINLINE void TestAllIfNegative() {
   ForSignedTypes(ForPartialVectors<TestIfNegative>());
 }
 
+struct TestIfNegativeThenNegOrUndefIfZero {
+  template <class D, HWY_IF_FLOAT_D(D)>
+  static HWY_INLINE Vec<D> PositiveIota(D d) {
+    return Iota(d, TFromD<D>{1});
+  }
+  template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+  static HWY_INLINE Vec<D> PositiveIota(D d) {
+    const auto vi = Iota(d, TFromD<D>{1});
+    return Max(And(vi, Set(d, LimitsMax<TFromD<D>>())), Set(d, TFromD<D>{1}));
+  }
+
+  template <class D, HWY_IF_LANES_LE_D(D, 1)>
+  static HWY_INLINE void TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(
+      D /*d*/, Vec<D> /*v1*/, Vec<D> /*v2*/) {}
+#if HWY_TARGET != HWY_SCALAR
+  template <class D, HWY_IF_LANES_GT_D(D, 1)>
+  static HWY_INLINE void TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(
+      D d, Vec<D> v1, Vec<D> v2) {
+#if HWY_HAVE_SCALABLE
+    if (Lanes(d) < 2) {
+      return;
+    }
+#endif
+
+    const auto v3 = InterleaveLower(d, v1, v1);
+    const auto v4 = InterleaveUpper(d, v1, v1);
+    const auto v5 = InterleaveLower(d, v1, v2);
+    const auto v6 = InterleaveUpper(d, v1, v2);
+    const auto v7 = InterleaveLower(d, v2, v1);
+    const auto v8 = InterleaveUpper(d, v2, v1);
+
+    HWY_ASSERT_VEC_EQ(d, v3, IfNegativeThenNegOrUndefIfZero(v3, v3));
+    HWY_ASSERT_VEC_EQ(d, v4, IfNegativeThenNegOrUndefIfZero(v4, v4));
+    HWY_ASSERT_VEC_EQ(d, v3, IfNegativeThenNegOrUndefIfZero(v5, v5));
+    HWY_ASSERT_VEC_EQ(d, v4, IfNegativeThenNegOrUndefIfZero(v6, v6));
+    HWY_ASSERT_VEC_EQ(d, v3, IfNegativeThenNegOrUndefIfZero(v7, v7));
+    HWY_ASSERT_VEC_EQ(d, v4, IfNegativeThenNegOrUndefIfZero(v8, v8));
+
+    HWY_ASSERT_VEC_EQ(d, v5, IfNegativeThenNegOrUndefIfZero(v3, v5));
+    HWY_ASSERT_VEC_EQ(d, v6, IfNegativeThenNegOrUndefIfZero(v4, v6));
+    HWY_ASSERT_VEC_EQ(d, v7, IfNegativeThenNegOrUndefIfZero(v3, v7));
+    HWY_ASSERT_VEC_EQ(d, v8, IfNegativeThenNegOrUndefIfZero(v4, v8));
+
+    const auto zero = Zero(d);
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v3, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v4, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v5, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v6, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v7, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v8, zero));
+  }
+#endif
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v1 = PositiveIota(d);
+    const auto v2 = Neg(v1);
+
+    HWY_ASSERT_VEC_EQ(d, v1, IfNegativeThenNegOrUndefIfZero(v1, v1));
+    HWY_ASSERT_VEC_EQ(d, v2, IfNegativeThenNegOrUndefIfZero(v1, v2));
+    HWY_ASSERT_VEC_EQ(d, v2, IfNegativeThenNegOrUndefIfZero(v2, v1));
+    HWY_ASSERT_VEC_EQ(d, v1, IfNegativeThenNegOrUndefIfZero(v2, v2));
+
+    const auto zero = Zero(d);
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(zero, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v1, zero));
+    HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v2, zero));
+
+    const auto vmin = Set(d, LowestValue<T>());
+    const auto vmax = Set(d, HighestValue<T>());
+
+    HWY_ASSERT_VEC_EQ(d, v2, IfNegativeThenNegOrUndefIfZero(vmin, v1));
+    HWY_ASSERT_VEC_EQ(d, v1, IfNegativeThenNegOrUndefIfZero(vmin, v2));
+    HWY_ASSERT_VEC_EQ(d, v1, IfNegativeThenNegOrUndefIfZero(vmax, v1));
+    HWY_ASSERT_VEC_EQ(d, v2, IfNegativeThenNegOrUndefIfZero(vmax, v2));
+
+    TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(d, v1, v2);
+  }
+};
+
+HWY_NOINLINE void TestAllIfNegativeThenNegOrUndefIfZero() {
+  ForSignedTypes(ForPartialVectors<TestIfNegativeThenNegOrUndefIfZero>());
+  ForFloatTypes(ForPartialVectors<TestIfNegativeThenNegOrUndefIfZero>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -187,6 +272,7 @@ HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfThenElse);
 HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfVecThenElse);
 HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfNegative);
+HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfNegativeThenNegOrUndefIfZero);
 }  // namespace hwy
 
 #endif

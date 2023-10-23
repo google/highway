@@ -4256,6 +4256,49 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
 #endif
 }
 
+// ------------------------------ IfNegativeThenNegOrUndefIfZero
+
+#if HWY_TARGET <= HWY_SSSE3
+
+#ifdef HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#undef HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#else
+#define HWY_NATIVE_INTEGER_IF_NEGATIVE_THEN_NEG
+#endif
+
+template <size_t N>
+HWY_API Vec128<int8_t, N> IfNegativeThenNegOrUndefIfZero(Vec128<int8_t, N> mask,
+                                                         Vec128<int8_t, N> v) {
+  return Vec128<int8_t, N>{_mm_sign_epi8(v.raw, mask.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int16_t, N> IfNegativeThenNegOrUndefIfZero(
+    Vec128<int16_t, N> mask, Vec128<int16_t, N> v) {
+  return Vec128<int16_t, N>{_mm_sign_epi16(v.raw, mask.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> IfNegativeThenNegOrUndefIfZero(
+    Vec128<int32_t, N> mask, Vec128<int32_t, N> v) {
+  return Vec128<int32_t, N>{_mm_sign_epi32(v.raw, mask.raw)};
+}
+
+// Generic for all vector lengths
+template <class V, HWY_IF_I64_D(DFromV<V>)>
+HWY_API V IfNegativeThenNegOrUndefIfZero(V mask, V v) {
+#if HWY_TARGET <= HWY_AVX3
+  // MaskedSubOr is more efficient than IfNegativeThenElse on AVX3
+  const DFromV<decltype(v)> d;
+  return MaskedSubOr(v, MaskFromVec(mask), Zero(d), v);
+#else
+  // IfNegativeThenElse is more efficient than MaskedSubOr on SSE4/AVX2
+  return IfNegativeThenElse(mask, Neg(v), v);
+#endif
+}
+
+#endif  // HWY_TARGET <= HWY_SSSE3
+
 // ------------------------------ ShiftLeftSame
 
 template <size_t N>
@@ -4673,25 +4716,25 @@ HWY_API Vec256<float16_t> MaskedDivOr(Vec256<float16_t> no,
 
 template <typename T, size_t N, HWY_IF_I8(T)>
 HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_adds_epi8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_U8(T)>
 HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_adds_epu8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_I16(T)>
 HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_adds_epi16(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_U16(T)>
 HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_adds_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 
@@ -4699,25 +4742,25 @@ HWY_API Vec128<T, N> MaskedSatAddOr(Vec128<T, N> no, Mask128<T, N> m,
 
 template <typename T, size_t N, HWY_IF_I8(T)>
 HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_subs_epi8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_U8(T)>
 HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_subs_epu8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_I16(T)>
 HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_subs_epi16(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, size_t N, HWY_IF_U16(T)>
 HWY_API Vec128<T, N> MaskedSatSubOr(Vec128<T, N> no, Mask128<T, N> m,
-                                 Vec128<T, N> a, Vec128<T, N> b) {
+                                    Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{_mm_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 

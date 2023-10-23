@@ -2328,6 +2328,23 @@ HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
 #endif
 }
 
+// ------------------------------ IfNegativeThenNegOrUndefIfZero
+
+HWY_API Vec256<int8_t> IfNegativeThenNegOrUndefIfZero(Vec256<int8_t> mask,
+                                                      Vec256<int8_t> v) {
+  return Vec256<int8_t>{_mm256_sign_epi8(v.raw, mask.raw)};
+}
+
+HWY_API Vec256<int16_t> IfNegativeThenNegOrUndefIfZero(Vec256<int16_t> mask,
+                                                       Vec256<int16_t> v) {
+  return Vec256<int16_t>{_mm256_sign_epi16(v.raw, mask.raw)};
+}
+
+HWY_API Vec256<int32_t> IfNegativeThenNegOrUndefIfZero(Vec256<int32_t> mask,
+                                                       Vec256<int32_t> v) {
+  return Vec256<int32_t>{_mm256_sign_epi32(v.raw, mask.raw)};
+}
+
 // ------------------------------ ShiftLeftSame
 
 HWY_API Vec256<uint16_t> ShiftLeftSame(const Vec256<uint16_t> v,
@@ -2688,52 +2705,52 @@ HWY_API Vec256<float16_t> MaskedDivOr(Vec256<float16_t> no,
 // ------------------------------ MaskedSatAddOr
 
 template <typename T, HWY_IF_I8(T)>
-HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_adds_epi8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, HWY_IF_U8(T)>
-HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_adds_epu8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, HWY_IF_I16(T)>
-HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_adds_epi16(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, HWY_IF_U16(T)>
-HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatAddOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_adds_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 
 // ------------------------------ MaskedSatSubOr
 
 template <typename T, HWY_IF_I8(T)>
-HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_subs_epi8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, HWY_IF_U8(T)>
-HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_subs_epu8(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, HWY_IF_I16(T)>
-HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_subs_epi16(no.raw, m.raw, a.raw, b.raw)};
 }
 
 template <typename T, HWY_IF_U16(T)>
-HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m,
-                                 Vec256<T> a, Vec256<T> b) {
+HWY_API Vec256<T> MaskedSatSubOr(Vec256<T> no, Mask256<T> m, Vec256<T> a,
+                                 Vec256<T> b) {
   return Vec256<T>{_mm256_mask_subs_epu16(no.raw, m.raw, a.raw, b.raw)};
 }
 
