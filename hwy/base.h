@@ -2054,8 +2054,8 @@ HWY_API void PreventElision(T&& output) {
   // RTL constraints). Self-assignment with #pragma optimize("off") might be
   // expected to prevent elision, but it does not with MSVC 2015. Type-punning
   // with volatile pointers generates inefficient code on MSVC 2017.
-  static std::atomic<RemoveCvRef<T>> dummy;
-  dummy.store(output, std::memory_order_relaxed);
+  static std::atomic<RemoveCvRef<T>> sink;
+  sink.store(output, std::memory_order_relaxed);
 #else
   // Works by indicating to the compiler that "output" is being read and
   // modified. The +r constraint avoids unnecessary writes to memory, but only

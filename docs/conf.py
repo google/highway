@@ -62,8 +62,8 @@ html_theme_options = {
     'logo_only': False,
     'display_version': True,
 }
-# The master toctree document.
-master_doc = 'index'
+# The top toctree document.
+top_doc = 'index'
 
  # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
@@ -134,7 +134,7 @@ for version in versions:
  
 # settings for creating PDF with rinoh
 rinoh_documents = [(
- master_doc,
+ top_doc,
  'target',
  project+ ' Documentation',
  '© ' +copyright,
