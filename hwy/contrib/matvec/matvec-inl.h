@@ -254,6 +254,104 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
   }  // r
 }
 
+// Both mat and vec are bf16.
+template <size_t kOuter, size_t kInner>
+HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
+                         const hwy::bfloat16_t* HWY_RESTRICT vec,
+                         float* HWY_RESTRICT out, hwy::ThreadPool& pool) {
+  // Process multiple rows at a time so that we write multiples of a cache line
+  // to avoid false sharing (>= 64). 128 is better than 256. 512 has too little
+  // parallelization potential.
+  constexpr size_t kChunkSize = 64 / sizeof(bfloat16_t);
+  const uint32_t num_chunks = kOuter / kChunkSize;
+
+  const ScalableTag<float> df;
+  const Repartition<hwy::bfloat16_t, decltype(df)> d16;
+  using VF = Vec<decltype(df)>;
+  using V16 = Vec<decltype(d16)>;
+  const size_t N = Lanes(d16);
+  // Required for Stream loop, otherwise we might have partial vectors.
+  HWY_DASSERT(kChunkSize >= N);
+  pool.Run(0, num_chunks, &hwy::ThreadPool::NoInit,
+           [&](const uint32_t chunk, size_t /*thread*/) HWY_ATTR {
+             // MSVC workaround: duplicate to ensure constexpr.
+             constexpr size_t kChunkSize = 64 / sizeof(bfloat16_t);
+             // Software write-combining to avoid cache pollution from out.
+             // Although `out` may be used later, keeping it out of the cache
+             // now and avoiding RFOs is a consistent 5% overall win.
+             HWY_ALIGN float buf[kChunkSize];
+
+             // Only handle entire chunks here because the Stream is not masked.
+             // Remaining rows are handled after the pool.Run.
+             const size_t begin = chunk * kChunkSize;
+             for (size_t idx_row = 0; idx_row < kChunkSize; ++idx_row) {
+               auto sum0 = Zero(df);
+               auto sum1 = Zero(df);
+               auto sum2 = Zero(df);
+               auto sum3 = Zero(df);
+
+               const hwy::bfloat16_t* HWY_RESTRICT row =
+                   &mat[(begin + idx_row) * kInner];
+               size_t i = 0;
+               // No clear win from prefetching from the next 1..3 rows.
+               // clflush &row[i] is slow, clflushopt less so but not helping.
+               HWY_UNROLL(1)
+               for (; i + 2 * N <= kInner; i += 2 * N) {
+                 const V16 b0 = LoadU(d16, row + i + 0 * N);
+                 const V16 b1 = LoadU(d16, row + i + 1 * N);
+                 const V16 v0 = LoadU(d16, vec + i + 0 * N);
+                 const V16 v1 = LoadU(d16, vec + i + 1 * N);
+                 sum0 = ReorderWidenMulAccumulate(df, b0, v0, sum0, sum1);
+                 sum2 = ReorderWidenMulAccumulate(df, b1, v1, sum2, sum3);
+               }
+               // Last entire vector
+               for (; i + N <= kInner; i += N) {
+                 const V16 b0 = LoadU(d16, row + i);
+                 const V16 v0 = LoadU(d16, vec + i);
+                 sum0 = ReorderWidenMulAccumulate(df, b0, v0, sum0, sum1);
+               }
+               const size_t remainder = kInner - i;
+               if (remainder != 0) {
+                 const V16 b0 = LoadN(d16, row + i, remainder);
+                 const V16 v0 = LoadN(d16, vec + i, remainder);
+                 sum2 = ReorderWidenMulAccumulate(df, b0, v0, sum2, sum3);
+               }
+               // Reduction tree: sum of all accumulators, then their lanes
+               sum0 = Add(sum0, sum1);
+               sum2 = Add(sum2, sum3);
+               sum0 = Add(sum0, sum2);
+               buf[idx_row] = ReduceSum(df, sum0);
+             }              // idx_row
+             HWY_UNROLL(4)  // 1..4 iterations
+             for (size_t i = 0; i != kChunkSize; i += N / 2) {
+               Stream(Load(df, buf + i), df, out + begin + i);
+             }
+           });
+  hwy::FlushStream();
+
+  // Handle remainder rows which are not a multiple of the chunk size.
+  for (size_t r = num_chunks * kChunkSize; r < kOuter; ++r) {
+    auto sum0 = Zero(df);
+    auto sum1 = Zero(df);
+
+    const hwy::bfloat16_t* HWY_RESTRICT row = &mat[r * kInner];
+    size_t i = 0;
+    HWY_UNROLL(1)
+    for (; i + N <= kInner; i += N) {
+      const V16 b0 = LoadU(d16, row + i);
+      const V16 v0 = LoadU(d16, vec + i);
+      sum0 = ReorderWidenMulAccumulate(df, b0, v0, sum0, sum1);
+    }
+    const size_t remainder = kInner - i;
+    if (remainder != 0) {
+      const V16 b0 = LoadN(d16, row + i, remainder);
+      const V16 v0 = LoadN(d16, vec + i, remainder);
+      sum0 = ReorderWidenMulAccumulate(df, b0, v0, sum0, sum1);
+    }
+    out[r] = ReduceSum(df, Add(sum0, sum1));
+  }  // r
+}
+
 #endif  // HWY_TARGET != HWY_SCALAR
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

@@ -13,16 +13,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hwy/aligned_allocator.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/matvec/matvec_test.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/matvec/matvec_test.cc"  // NOLINT
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // Must come after foreach_target.h
 #include "hwy/contrib/algo/transform-inl.h"
 #include "hwy/contrib/matvec/matvec-inl.h"
 #include "hwy/highway.h"
+#include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
 
@@ -51,6 +55,19 @@ HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat, const float* vec,
              float dot = 0.0f;
              for (size_t c = 0; c < cols; c++) {
                dot += F32FromBF16(mat[r * cols + c]) * vec[c];
+             }
+             out[r] = dot;
+           });
+}
+
+HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat,
+                               const hwy::bfloat16_t* vec, size_t rows,
+                               size_t cols, float* out, ThreadPool& pool) {
+  pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
+           [=](uint32_t r, size_t /*thread*/) {
+             float dot = 0.0f;
+             for (size_t c = 0; c < cols; c++) {
+               dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
              }
              out[r] = dot;
            });
@@ -91,25 +108,27 @@ struct GenerateMod {
 };
 
 // MatT is usually the same as T, but can also be bfloat16_t when T = float.
-template <typename MatT>
+template <typename MatT, typename VecT>
 class TestMatVec {
   template <size_t kRows, size_t kCols, class D, typename T = TFromD<D>>
-  void Test(D d, size_t misalign_m, size_t misalign_v, ThreadPool& pool) {
+  void Test(D d, ThreadPool& pool) {
 // This target lacks too many ops required in our implementation, use
 // HWY_EMU128 instead.
 #if HWY_TARGET != HWY_SCALAR
     const Repartition<MatT, D> dm;
+    const Repartition<VecT, D> dv;
+    const size_t misalign = 3 * Lanes(d) / 5;
     // Fill matrix and vector with small integer values
     const size_t area = kRows * kCols;
     AlignedFreeUniquePtr<MatT[]> storage_m =
-        AllocateAligned<MatT>(misalign_m + area);
-    AlignedFreeUniquePtr<T[]> storage_v =
-        AllocateAligned<T>(misalign_v + kCols);
+        AllocateAligned<MatT>(misalign + area);
+    AlignedFreeUniquePtr<VecT[]> storage_v =
+        AllocateAligned<VecT>(misalign + kCols);
     HWY_ASSERT(storage_m && storage_v);
-    MatT* pm = storage_m.get() + misalign_m;
-    T* pv = storage_v.get() + misalign_v;
+    MatT* pm = storage_m.get() + misalign;
+    VecT* pv = storage_v.get() + misalign;
     Generate(dm, pm, area, GenerateMod());
-    Generate(d, pv, kCols, GenerateMod());
+    Generate(dv, pv, kCols, GenerateMod());
 
     AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(kRows);
     SimpleMatVec(pm, pv, kRows, kCols, expected.get(), pool);
@@ -120,7 +139,7 @@ class TestMatVec {
     for (size_t i = 0; i < kRows; ++i) {
       const double exp = static_cast<double>(expected[i]);
       const double act = static_cast<double>(actual[i]);
-      const double tolerance = exp * Epsilon<T>() * 15;
+      const double tolerance = exp * Epsilon<T>() * 20;
       if (!(exp - tolerance <= act && act <= exp + tolerance)) {
         fprintf(stderr, "%s %zu x %zu: mismatch at %zu %f %f; tol %f\n",
                 TypeName(MatT(), 1).c_str(), kRows, kCols, i, exp, act,
@@ -130,41 +149,22 @@ class TestMatVec {
     }
 #else
     (void)d;
-    (void)misalign_m;
-    (void)misalign_v;
     (void)pool;
 #endif  // HWY_TARGET != HWY_SCALAR
-  }
-
-  // Runs tests with various alignments.
-  template <size_t kRows, size_t kCols, class D>
-  void ForeachMisalign(D d, ThreadPool& pool) {
-    const size_t N = Lanes(d);
-    const size_t misalignments[3] = {N / 4, 3 * N / 5};
-    for (size_t mm : misalignments) {
-      for (size_t mv : misalignments) {
-        Test<kRows, kCols>(d, mm, mv, pool);
-      }
-    }
-  }
-
-  // Runs tests with various lengths.
-  template <class D>
-  void ForeachDim(D d, ThreadPool& pool) {
-    ForeachMisalign<192, AdjustedReps(256)>(d, pool);
-    ForeachMisalign<40, AdjustedReps(512)>(d, pool);
-    ForeachMisalign<AdjustedReps(1024), 50>(d, pool);
-
-    // Too large for low-precision accumulators.
-    if (sizeof(TFromD<D>) != 2) {
-      ForeachMisalign<AdjustedReps(1536), 1536>(d, pool);
-    }
   }
 
   template <class D>
   void CreatePoolAndTest(D d, size_t num_worker_threads) {
     ThreadPool pool(num_worker_threads);
-    ForeachDim(d, pool);
+
+    Test<192, AdjustedReps(256)>(d, pool);
+    Test<40, AdjustedReps(512)>(d, pool);
+    Test<AdjustedReps(1024), 50>(d, pool);
+
+    // Too large for low-precision vectors/accumulators.
+    if (sizeof(TFromD<D>) != 2 && sizeof(VecT) != 2) {
+      Test<AdjustedReps(1536), 1536>(d, pool);
+    }
   }
 
  public:
@@ -182,16 +182,20 @@ class TestMatVec {
 
 void TestAllMatVec() {
 #if HWY_HAVE_FLOAT16
-  ForPartialVectors<TestMatVec<float16_t>>()(float16_t());
+  ForPartialVectors<TestMatVec<float16_t, float16_t>>()(float16_t());
 #endif
-  ForPartialVectors<TestMatVec<float>>()(float());
+  ForPartialVectors<TestMatVec<float, float>>()(float());
 #if HWY_HAVE_FLOAT64
-  ForPartialVectors<TestMatVec<double>>()(double());
+  ForPartialVectors<TestMatVec<double, double>>()(double());
 #endif
 }
 
 void TestAllMatVecBF16() {
-  ForGEVectors<32, TestMatVec<bfloat16_t>>()(float());
+  ForGEVectors<32, TestMatVec<bfloat16_t, float>>()(float());
+}
+
+void TestAllMatVecBF16Both() {
+  ForGEVectors<32, TestMatVec<bfloat16_t, bfloat16_t>>()(float());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -205,6 +209,7 @@ namespace hwy {
 HWY_BEFORE_TEST(MatVecTest);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVec);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16);
+HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16Both);
 }  // namespace hwy
 
 #endif

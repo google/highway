@@ -1625,7 +1625,7 @@ HWY_API MFromD<DTo> DemoteMaskTo(DTo /*d_to*/, DFrom /*d_from*/,
 HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le, _ALL_VIRT)
 #undef HWY_RVV_LOAD
 
-// There is no native BF16, treat as uint16_t.
+// There is no native BF16, treat as int16_t.
 template <size_t N, int kPow2>
 HWY_API VFromD<Simd<int16_t, N, kPow2>> Load(Simd<bfloat16_t, N, kPow2> d,
                                              const bfloat16_t* HWY_RESTRICT p) {
@@ -1691,6 +1691,21 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
 HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL_VIRT)
 #undef HWY_RVV_MASKED_LOAD
 
+// There is no native BF16, treat as int16_t.
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<RebindToSigned<D>> MaskedLoad(MFromD<D> m, D,
+                                             const TFromD<D>* HWY_RESTRICT p) {
+  return MaskedLoad(m, RebindToSigned<D>(),
+                    reinterpret_cast<const int16_t * HWY_RESTRICT>(p));
+}
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<RebindToSigned<D>> MaskedLoadOr(
+    VFromD<D> v, MFromD<D> m, D, const TFromD<D>* HWY_RESTRICT p) {
+  const RebindToSigned<D> di;
+  return MaskedLoadOr(BitCast(di, v), m, di,
+                      reinterpret_cast<const int16_t * HWY_RESTRICT>(p));
+}
+
 // ------------------------------ LoadN
 
 // Native with avl is faster than the generic_ops using FirstN.
@@ -1729,6 +1744,22 @@ HWY_RVV_FOREACH(HWY_RVV_MASKED_LOAD, MaskedLoad, le, _ALL_VIRT)
 HWY_RVV_FOREACH(HWY_RVV_LOADN, LoadN, le, _ALL_VIRT)
 #undef HWY_RVV_LOADN
 
+// There is no native BF16, treat as int16_t.
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<RebindToSigned<D>> LoadN(D, const TFromD<D>* HWY_RESTRICT p,
+                                        size_t num_lanes) {
+  return LoadN(RebindToSigned<D>(),
+               reinterpret_cast<const int16_t * HWY_RESTRICT>(p), num_lanes);
+}
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<RebindToSigned<D>> LoadNOr(VFromD<D> v, D,
+                                          const TFromD<D>* HWY_RESTRICT p,
+                                          size_t num_lanes) {
+  const RebindToSigned<D> di;
+  return LoadNOr(BitCast(di, v), di,
+                 reinterpret_cast<const int16_t * HWY_RESTRICT>(p), num_lanes);
+}
+
 // ------------------------------ Store
 
 #define HWY_RVV_STORE(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
@@ -1758,6 +1789,17 @@ HWY_RVV_FOREACH(HWY_RVV_STORE, Store, se, _ALL_VIRT)
   }
 HWY_RVV_FOREACH(HWY_RVV_BLENDED_STORE, BlendedStore, se, _ALL_VIRT)
 #undef HWY_RVV_BLENDED_STORE
+
+// BlendedStore for BF16/F16 vectors
+template <class D, typename T = TFromD<D>,
+          hwy::EnableIf<!hwy::IsSame<T, TFromV<VFromD<D>>>()>* = nullptr,
+          HWY_IF_SPECIAL_FLOAT(T)>
+HWY_API void BlendedStore(VFromD<D> v, MFromD<D> m, D /*d*/,
+                          T* HWY_RESTRICT p) {
+  using TStore = TFromV<VFromD<D>>;
+  const Rebind<TStore, D> d_store;
+  BlendedStore(v, m, d_store, reinterpret_cast<TStore * HWY_RESTRICT>(p));
+}
 
 // ------------------------------ StoreN
 
