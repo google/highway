@@ -207,6 +207,27 @@ HWY_NOINLINE void TestAllAbs() {
   ForFloatTypes(ForPartialVectors<TestFloatAbs>());
 }
 
+struct TestSaturatedAbs {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v0 = Zero(d);
+    const auto vp1 = Set(d, T{1});
+    const auto vn1 = Set(d, T{-1});
+    const auto vpm = Set(d, LimitsMax<T>());
+    const auto vnm = Set(d, LimitsMin<T>());
+
+    HWY_ASSERT_VEC_EQ(d, v0, SaturatedAbs(v0));
+    HWY_ASSERT_VEC_EQ(d, vp1, SaturatedAbs(vp1));
+    HWY_ASSERT_VEC_EQ(d, vp1, SaturatedAbs(vn1));
+    HWY_ASSERT_VEC_EQ(d, vpm, SaturatedAbs(vpm));
+    HWY_ASSERT_VEC_EQ(d, vpm, SaturatedAbs(vnm));
+  }
+};
+
+HWY_NOINLINE void TestAllSaturatedAbs() {
+  ForSignedTypes(ForPartialVectors<TestSaturatedAbs>());
+}
+
 struct TestIntegerNeg {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -257,6 +278,34 @@ HWY_NOINLINE void TestAllNeg() {
   ForSignedTypes(ForPartialVectors<TestIntegerNeg>());
 
   ForSignedTypes(ForPartialVectors<TestNegOverflow>());
+}
+
+struct TestSaturatedNeg {
+  template <class D>
+  static HWY_NOINLINE void VerifySatNegOverflow(D d) {
+    using T = TFromD<D>;
+    HWY_ASSERT_VEC_EQ(d, Set(d, LimitsMax<T>()),
+                      SaturatedNeg(Set(d, LimitsMin<T>())));
+  }
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    VerifySatNegOverflow(d);
+
+    const RebindToUnsigned<D> du;
+    using TU = TFromD<decltype(du)>;
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v1 = BitCast(d, Set(du, TU{1}));
+    const Vec<D> vp = BitCast(d, Set(du, TU{3}));
+    const Vec<D> vn = Add(Not(vp), v1);  // 2's complement
+    HWY_ASSERT_VEC_EQ(d, v0, SaturatedNeg(v0));
+    HWY_ASSERT_VEC_EQ(d, vp, SaturatedNeg(vn));
+    HWY_ASSERT_VEC_EQ(d, vn, SaturatedNeg(vp));
+  }
+};
+
+HWY_NOINLINE void TestAllSaturatedNeg() {
+  ForSignedTypes(ForPartialVectors<TestSaturatedNeg>());
 }
 
 struct TestIntegerAbsDiff {
@@ -327,7 +376,9 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatingArithmetic);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatedAbs);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatedNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerAbsDiff);
 }  // namespace hwy
 
