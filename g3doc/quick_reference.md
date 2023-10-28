@@ -418,7 +418,7 @@ example `Lt` instead of `operator<`.
 
     Dup128VecFromValues returns the following values in each 128-bit block of
     the result, with `t0` in the least-significant (lowest-indexed) lane of each
-    128-bit block and `tK` in the most-signifiant (highest-indexed) lane of each
+    128-bit block and `tK` in the most-significant (highest-indexed) lane of each
     128-bit block: `{t0, t1, ..., tK}`
 
 ### Getting/setting lanes
