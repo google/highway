@@ -267,7 +267,6 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
 
   const ScalableTag<float> df;
   const Repartition<hwy::bfloat16_t, decltype(df)> d16;
-  using VF = Vec<decltype(df)>;
   using V16 = Vec<decltype(d16)>;
   const size_t N = Lanes(d16);
   // Required for Stream loop, otherwise we might have partial vectors.
