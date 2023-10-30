@@ -35,9 +35,11 @@ size_t Find(D d, T value, const T* HWY_RESTRICT in, size_t count) {
   const Vec<D> broadcasted = Set(d, value);
 
   size_t i = 0;
-  for (; i + N <= count; i += N) {
-    const intptr_t pos = FindFirstTrue(d, Eq(broadcasted, LoadU(d, in + i)));
-    if (pos >= 0) return i + static_cast<size_t>(pos);
+  if (count >= N) {
+    for (; i <= count - N; i += N) {
+      const intptr_t pos = FindFirstTrue(d, Eq(broadcasted, LoadU(d, in + i)));
+      if (pos >= 0) return i + static_cast<size_t>(pos);
+    }
   }
 
   if (i != count) {
@@ -72,9 +74,11 @@ size_t FindIf(D d, const T* HWY_RESTRICT in, size_t count, const Func& func) {
   const size_t N = Lanes(d);
 
   size_t i = 0;
-  for (; i + N <= count; i += N) {
-    const intptr_t pos = FindFirstTrue(d, func(d, LoadU(d, in + i)));
-    if (pos >= 0) return i + static_cast<size_t>(pos);
+  if (count >= N) {
+    for (; i <= count - N; i += N) {
+      const intptr_t pos = FindFirstTrue(d, func(d, LoadU(d, in + i)));
+      if (pos >= 0) return i + static_cast<size_t>(pos);
+    }
   }
 
   if (i != count) {
