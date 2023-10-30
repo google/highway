@@ -475,17 +475,7 @@ template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
           HWY_IF_SIGNED_V(V)>
 HWY_API V SaturatedNeg(V v) {
   const DFromV<decltype(v)> d;
-
-#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
-  using T = TFromV<V>;
-  const RebindToUnsigned<decltype(d)> du;
-  const auto neg_v = Neg(v);
-  return Sub(
-      neg_v,
-      BitCast(d, ShiftRight<sizeof(T) * 8 - 1>(BitCast(du, And(v, neg_v)))));
-#else
   return SaturatedSub(Zero(d), v);
-#endif
 }
 
 template <class V, HWY_IF_I32(TFromV<V>)>
@@ -497,11 +487,11 @@ HWY_API V SaturatedNeg(V v) {
     (HWY_TARGET >= HWY_SVE2_128 && HWY_TARGET <= HWY_NEON_WITHOUT_AES)
   // RVV/NEON/SVE/PPC have native I32 SaturatedSub instructions
   return SaturatedSub(Zero(d), v);
-#elif HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
-  const RebindToUnsigned<decltype(d)> du;
-  const auto neg_v = Neg(v);
-  return Sub(neg_v, BitCast(d, ShiftRight<31>(BitCast(du, And(v, neg_v)))));
 #else
+  // ~v[i] - ((v[i] > LimitsMin<int32_t>()) ? -1 : 0) is equivalent to
+  // (v[i] > LimitsMin<int32_t>) ? (-v[i]) : LimitsMax<int32_t>() since
+  // -v[i] == ~v[i] + 1 == ~v[i] - (-1) and
+  // ~LimitsMin<int32_t>() == LimitsMax<int32_t>().
   return Sub(Not(v), VecFromMask(d, Gt(v, Set(d, LimitsMin<int32_t>()))));
 #endif
 }
@@ -516,16 +506,14 @@ HWY_API V SaturatedNeg(V v) {
 
 template <class V, HWY_IF_I64(TFromV<V>)>
 HWY_API V SaturatedNeg(V v) {
-  const DFromV<decltype(v)> d;
-
 #if HWY_TARGET == HWY_RVV || \
     (HWY_TARGET >= HWY_SVE2_128 && HWY_TARGET <= HWY_NEON_WITHOUT_AES)
   // RVV/NEON/SVE have native I64 SaturatedSub instructions
+  const DFromV<decltype(v)> d;
   return SaturatedSub(Zero(d), v);
 #else
-  const RebindToUnsigned<decltype(d)> du;
   const auto neg_v = Neg(v);
-  return Sub(neg_v, BitCast(d, ShiftRight<63>(BitCast(du, And(v, neg_v)))));
+  return Add(neg_v, BroadcastSignBit(And(v, neg_v)));
 #endif
 }
 #endif  // HWY_NATIVE_SATURATED_NEG_64

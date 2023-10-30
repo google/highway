@@ -4192,11 +4192,8 @@ HWY_API V SaturatedAbs(V v) {
 // Generic for all vector lengths
 template <class V, HWY_IF_I64(TFromV<V>)>
 HWY_API V SaturatedAbs(V v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-
   const auto abs_v = Abs(v);
-  return Sub(abs_v, BitCast(d, ShiftRight<63>(BitCast(du, abs_v))));
+  return Add(abs_v, BroadcastSignBit(abs_v));
 }
 
 // GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512VL
