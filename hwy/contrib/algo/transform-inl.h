@@ -59,9 +59,11 @@ void Generate(D d, T* HWY_RESTRICT out, size_t count, const Func& func) {
 
   size_t idx = 0;
   Vec<decltype(du)> vidx = Iota(du, 0);
-  for (; idx + N <= count; idx += N) {
-    StoreU(func(d, vidx), d, out + idx);
-    vidx = Add(vidx, Set(du, static_cast<TU>(N)));
+  if (count >= N) {
+    for (; idx <= count - N; idx += N) {
+      StoreU(func(d, vidx), d, out + idx);
+      vidx = Add(vidx, Set(du, static_cast<TU>(N)));
+    }
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -97,9 +99,11 @@ void Transform(D d, T* HWY_RESTRICT inout, size_t count, const Func& func) {
   const size_t N = Lanes(d);
 
   size_t idx = 0;
-  for (; idx + N <= count; idx += N) {
-    const Vec<D> v = LoadU(d, inout + idx);
-    StoreU(func(d, v), d, inout + idx);
+  if (count >= N) {
+    for (; idx <= count - N; idx += N) {
+      const Vec<D> v = LoadU(d, inout + idx);
+      StoreU(func(d, v), d, inout + idx);
+    }
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -134,10 +138,12 @@ void Transform1(D d, T* HWY_RESTRICT inout, size_t count,
   const size_t N = Lanes(d);
 
   size_t idx = 0;
-  for (; idx + N <= count; idx += N) {
-    const Vec<D> v = LoadU(d, inout + idx);
-    const Vec<D> v1 = LoadU(d, in1 + idx);
-    StoreU(func(d, v, v1), d, inout + idx);
+  if (count >= N) {
+    for (; idx <= count - N; idx += N) {
+      const Vec<D> v = LoadU(d, inout + idx);
+      const Vec<D> v1 = LoadU(d, in1 + idx);
+      StoreU(func(d, v, v1), d, inout + idx);
+    }
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -179,11 +185,13 @@ void Transform2(D d, T* HWY_RESTRICT inout, size_t count,
   const size_t N = Lanes(d);
 
   size_t idx = 0;
-  for (; idx + N <= count; idx += N) {
-    const Vec<D> v = LoadU(d, inout + idx);
-    const Vec<D> v1 = LoadU(d, in1 + idx);
-    const Vec<D> v2 = LoadU(d, in2 + idx);
-    StoreU(func(d, v, v1, v2), d, inout + idx);
+  if (count >= N) {
+    for (; idx <= count - N; idx += N) {
+      const Vec<D> v = LoadU(d, inout + idx);
+      const Vec<D> v1 = LoadU(d, in1 + idx);
+      const Vec<D> v2 = LoadU(d, in2 + idx);
+      StoreU(func(d, v, v1, v2), d, inout + idx);
+    }
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -227,9 +235,11 @@ void Replace(D d, T* HWY_RESTRICT inout, size_t count, T new_t, T old_t) {
   const Vec<D> new_v = Set(d, new_t);
 
   size_t idx = 0;
-  for (; idx + N <= count; idx += N) {
-    Vec<D> v = LoadU(d, inout + idx);
-    StoreU(IfThenElse(Eq(v, old_v), new_v, v), d, inout + idx);
+  if (count >= N) {
+    for (; idx <= count - N; idx += N) {
+      Vec<D> v = LoadU(d, inout + idx);
+      StoreU(IfThenElse(Eq(v, old_v), new_v, v), d, inout + idx);
+    }
   }
 
   // `count` was a multiple of the vector length `N`: already done.
@@ -266,9 +276,11 @@ void ReplaceIf(D d, T* HWY_RESTRICT inout, size_t count, T new_t,
   const Vec<D> new_v = Set(d, new_t);
 
   size_t idx = 0;
-  for (; idx + N <= count; idx += N) {
-    Vec<D> v = LoadU(d, inout + idx);
-    StoreU(IfThenElse(func(d, v), new_v, v), d, inout + idx);
+  if (count >= N) {
+    for (; idx <= count - N; idx += N) {
+      Vec<D> v = LoadU(d, inout + idx);
+      StoreU(IfThenElse(func(d, v), new_v, v), d, inout + idx);
+    }
   }
 
   // `count` was a multiple of the vector length `N`: already done.
