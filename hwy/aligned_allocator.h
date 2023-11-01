@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "hwy/base.h"
+#include "hwy/per_target.h"
 
 namespace hwy {
 
@@ -250,7 +251,10 @@ class Span {
 };
 
 // A multi dimensional array containing an aligned buffer.
-template <typename T, size_t AXES>
+//
+// To maintain alignment, the innermost dimension will be padded to ensure all
+// innermost arrays are aligned.
+template <typename T, size_t axes>
 class AlignedNDArray {
   static_assert(std::is_trivial<T>::value,
                 "AlignedNDArray can only contain trivial types");
@@ -259,63 +263,86 @@ class AlignedNDArray {
   AlignedNDArray(AlignedNDArray&& other) = default;
   AlignedNDArray& operator=(AlignedNDArray&& other) = default;
 
-  // Constructs an array of the provided shape and fill it with default
-  // constructed values of T.
-  explicit AlignedNDArray(std::array<size_t, AXES> shape) : shape_(shape) {
-    ComputeSizes();
-    buffer_ = hwy::AllocateAligned<T>(size());
-    hwy::ZeroBytes(buffer_.get(), size() * sizeof(T));
+  // Constructs an array of the provided shape and fills it with zeros.
+  explicit AlignedNDArray(std::array<size_t, axes> shape) : shape_(shape) {
+    sizes_ = ComputeSizes(shape_);
+    memory_shape_ = shape_;
+    // Round the innermost dimension up to the number of bytes available for
+    // SIMD operations on this architecture to make sure that each innermost
+    // array is aligned from the first element.
+    memory_shape_[axes - 1] = RoundUpTo(memory_shape_[axes - 1], VectorBytes());
+    memory_sizes_ = ComputeSizes(memory_shape_);
+    buffer_ = hwy::AllocateAligned<T>(data_size());
+    hwy::ZeroBytes(buffer_.get(), data_size() * sizeof(T));
   }
 
-  // Constructs an array using the provided aligned memory and shape.
-  explicit AlignedNDArray(std::array<size_t, AXES> shape,
-                          hwy::AlignedFreeUniquePtr<T> buffer)
-      : shape_(shape), buffer_(std::move(buffer)) {
-    ComputeSizes();
-  }
-
-  // Returns a span containing the sub-array at the provided indices.
-  Span<T> operator[](Span<const size_t> indices) {
+  // Returns a span containing the innermost array at the provided indices.
+  Span<T> operator[](std::array<const size_t, axes - 1> indices) {
     return Span<T>(buffer_.get() + Offset(indices), sizes_[indices.size()]);
   }
 
-  // Returns a const span containing the sub-array at the provided indices.
-  Span<const T> operator[](Span<const size_t> indices) const {
+  // Returns a const span containing the innermost array at the provided
+  // indices.
+  Span<const T> operator[](std::array<const size_t, axes - 1> indices) const {
     return Span<const T>(buffer_.get() + Offset(indices),
                          sizes_[indices.size()]);
   }
 
-  // Returns the shape of the array.
-  const std::array<size_t, AXES>& shape() const { return shape_; }
+  // Returns the shape of the array, which might be smaller than the allocated
+  // buffer after padding the last axis to alignment.
+  const std::array<size_t, axes>& shape() const { return shape_; }
 
-  // Returns the size of the array.
+  // Returns the shape of the allocated buffer, which might be larger than the
+  // used size of the array after padding to alignment.
+  const std::array<size_t, axes>& memory_shape() const { return memory_shape_; }
+
+  // Returns the size of the array, which might be smaller than the allocated
+  // buffer after padding the last axis to alignment.
   size_t size() const { return sizes_[0]; }
 
- protected:
-  std::array<size_t, AXES> shape_;
-  std::array<size_t, AXES + 1> sizes_;
+  // Returns the size of the allocated buffer, which might be larger than the
+  // used size of the array after padding to alignment.
+  size_t data_size() const { return memory_sizes_[0]; }
+
+  // Returns a pointer to the allocated buffer.
+  T* data() { return buffer_.get(); }
+
+  // Returns a const pointer to the buffer.
+  const T* data() const { return buffer_.get(); }
+
+ private:
+  std::array<size_t, axes> shape_;
+  std::array<size_t, axes> memory_shape_;
+  std::array<size_t, axes + 1> sizes_;
+  std::array<size_t, axes + 1> memory_sizes_;
   hwy::AlignedFreeUniquePtr<T[]> buffer_;
 
   // Computes offset in the buffer based on the provided indices.
-  size_t Offset(Span<const size_t> indices) const {
-    HWY_DASSERT(indices.size() < sizes_.size());
+  size_t Offset(std::array<const size_t, axes - 1> indices) const {
     size_t offset = 0;
     size_t shape_index = 0;
     for (const size_t axis_index : indices) {
-      offset += sizes_[shape_index + 1] * axis_index;
+      offset += memory_sizes_[shape_index + 1] * axis_index;
       shape_index++;
     }
     return offset;
   }
 
   // Computes the sizes of all sub arrays based on the sizes of each axis.
-  void ComputeSizes() {
-    size_t axis = shape_.size();
-    sizes_[axis] = 1;
+  //
+  // Does this by multiplying the size of each axis with the previous one in
+  // reverse order, starting with the conceptual axis of size 1 containing the
+  // actual elements in the array.
+  static std::array<size_t, axes + 1> ComputeSizes(
+      std::array<size_t, axes> shape) {
+    std::array<size_t, axes + 1> sizes;
+    size_t axis = shape.size();
+    sizes[axis] = 1;
     while (axis > 0) {
       --axis;
-      sizes_[axis] = sizes_[axis + 1] * shape_[axis];
+      sizes[axis] = sizes[axis + 1] * shape[axis];
     }
+    return sizes;
   }
 };
 
