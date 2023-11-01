@@ -2199,6 +2199,31 @@ HWY_API Vec128<int64_t> Neg(const Vec128<int64_t> v) {
 #endif
 }
 
+// ------------------------------ SaturatedNeg
+#ifdef HWY_NATIVE_SATURATED_NEG_8_16_32
+#undef HWY_NATIVE_SATURATED_NEG_8_16_32
+#else
+#define HWY_NATIVE_SATURATED_NEG_8_16_32
+#endif
+
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(SaturatedNeg, vqneg, _, 1)
+
+#if HWY_ARCH_ARM_A64
+#ifdef HWY_NATIVE_SATURATED_NEG_64
+#undef HWY_NATIVE_SATURATED_NEG_64
+#else
+#define HWY_NATIVE_SATURATED_NEG_64
+#endif
+
+HWY_API Vec64<int64_t> SaturatedNeg(const Vec64<int64_t> v) {
+  return Vec64<int64_t>(vqneg_s64(v.raw));
+}
+
+HWY_API Vec128<int64_t> SaturatedNeg(const Vec128<int64_t> v) {
+  return Vec128<int64_t>(vqnegq_s64(v.raw));
+}
+#endif
+
 // ------------------------------ ShiftLeft
 
 // Customize HWY_NEON_DEF_FUNCTION to special-case count=0 (not supported).
@@ -2889,6 +2914,15 @@ HWY_API Vec128<T, N> PopulationCount(Vec128<T, N> v) {
 HWY_NEON_DEF_FUNCTION_INT_8_16_32(Abs, vabs, _, 1)
 HWY_NEON_DEF_FUNCTION_ALL_FLOATS(Abs, vabs, _, 1)
 
+// ------------------------------ SaturatedAbs
+#ifdef HWY_NATIVE_SATURATED_ABS
+#undef HWY_NATIVE_SATURATED_ABS
+#else
+#define HWY_NATIVE_SATURATED_ABS
+#endif
+
+HWY_NEON_DEF_FUNCTION_INT_8_16_32(SaturatedAbs, vqabs, _, 1)
+
 // ------------------------------ CopySign
 template <typename T, size_t N>
 HWY_API Vec128<T, N> CopySign(Vec128<T, N> magn, Vec128<T, N> sign) {
@@ -3231,6 +3265,23 @@ HWY_API Vec64<int64_t> Abs(const Vec64<int64_t> v) {
 #else
   const auto zero = Zero(DFromV<decltype(v)>());
   return IfThenElse(MaskFromVec(BroadcastSignBit(v)), zero - v, v);
+#endif
+}
+
+HWY_API Vec128<int64_t> SaturatedAbs(const Vec128<int64_t> v) {
+#if HWY_ARCH_ARM_A64
+  return Vec128<int64_t>(vqabsq_s64(v.raw));
+#else
+  const auto zero = Zero(DFromV<decltype(v)>());
+  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), SaturatedSub(zero, v), v);
+#endif
+}
+HWY_API Vec64<int64_t> SaturatedAbs(const Vec64<int64_t> v) {
+#if HWY_ARCH_ARM_A64
+  return Vec64<int64_t>(vqabs_s64(v.raw));
+#else
+  const auto zero = Zero(DFromV<decltype(v)>());
+  return IfThenElse(MaskFromVec(BroadcastSignBit(v)), SaturatedSub(zero, v), v);
 #endif
 }
 
