@@ -4154,48 +4154,6 @@ HWY_API V Abs(V v) {
 }
 #endif
 
-#ifdef HWY_NATIVE_SATURATED_ABS
-#undef HWY_NATIVE_SATURATED_ABS
-#else
-#define HWY_NATIVE_SATURATED_ABS
-#endif
-
-// Generic for all vector lengths
-template <class V, HWY_IF_I8(TFromV<V>)>
-HWY_API V SaturatedAbs(V v) {
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Min(BitCast(du, v), BitCast(du, SaturatedSub(Zero(d), v))));
-}
-
-// Generic for all vector lengths
-template <class V, HWY_IF_I16(TFromV<V>)>
-HWY_API V SaturatedAbs(V v) {
-  return Max(v, SaturatedSub(Zero(DFromV<V>()), v));
-}
-
-// Generic for all vector lengths
-template <class V, HWY_IF_I32(TFromV<V>)>
-HWY_API V SaturatedAbs(V v) {
-  const auto abs_v = Abs(v);
-
-#if HWY_TARGET <= HWY_SSE4
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Min(BitCast(du, abs_v),
-                        Set(du, static_cast<uint32_t>(LimitsMax<int32_t>()))));
-#else
-  return Add(abs_v, BroadcastSignBit(abs_v));
-#endif
-}
-
-// Generic for all vector lengths
-template <class V, HWY_IF_I64(TFromV<V>)>
-HWY_API V SaturatedAbs(V v) {
-  const auto abs_v = Abs(v);
-  return Add(abs_v, BroadcastSignBit(abs_v));
-}
-
 // GCC <14 and Clang <11 do not follow the Intel documentation for AVX-512VL
 // srli_epi64: the count should be unsigned int. Note that this is not the same
 // as the Shift3264Count in x86_512-inl.h (GCC also requires int).

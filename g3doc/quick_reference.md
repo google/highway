@@ -511,23 +511,9 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   `V`: `{i,f}` \
     <code>V **Neg**(V a)</code>: returns `-a[i]`.
 
-*   `V`: `i` \
-    <code>V **SaturatedNeg**(V a)</code>: returns
-    `a[i] == LimitsMin<T>() ? LimitsMax<T>() : -a[i]`.
-
-    `SaturatedNeg(a)` is usually more efficient than
-    `IfThenElse(Eq(a, Set(d, LimitsMin<T>())), Set(d, LimitsMax<T>()), Neg(a))`.
-
 *   `V`: `{i,f}` \
     <code>V **Abs**(V a)</code> returns the absolute value of `a[i]`; for
     integers, `LimitsMin()` maps to `LimitsMax() + 1`.
-
-*   `V`: `i` \
-    <code>V **SaturatedAbs**(V a)</code> returns
-    `a[i] == LimitsMin<T>() ? LimitsMax<T>() : (a[i] < 0 ? (-a[i]) : a[i])`.
-
-    `SaturatedAbs(a)` is usually more efficient than
-    `IfThenElse(Eq(a, Set(d, LimitsMin<T>())), Set(d, LimitsMax<T>()), Abs(a))`.
 
 *   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
