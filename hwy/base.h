@@ -54,7 +54,7 @@
 
 #endif  // !HWY_IDE
 
-#if !defined(HWY_NO_LIBCXX) && HWY_CXX_LANG > 201703L && \
+#if !defined(HWY_NO_LIBCXX) && HWY_CXX_LANG > 201703L &&                    \
     __cpp_impl_three_way_comparison >= 201907L && defined(__has_include) && \
     !defined(HWY_DISABLE_CXX20_THREE_WAY_COMPARE)
 #if __has_include(<compare>)
@@ -292,6 +292,11 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   do {                         \
   } while (0)
 #endif
+
+#define HWY_DASSERT_ALIGNED(d, addr)                          \
+  HWY_DASSERT(reinterpret_cast<uintptr_t>(addr) %             \
+                  (Lanes(d) * sizeof(TFromD<decltype(d)>)) == \
+              0)
 
 #if __cpp_constexpr >= 201304L
 #define HWY_CXX14_CONSTEXPR constexpr

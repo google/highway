@@ -18,6 +18,7 @@
 
 #include <arm_sve.h>
 
+#include "hwy/base.h"
 #include "hwy/ops/shared-inl.h"
 
 // Arm C215 declares that SVE vector lengths will always be a power of two.
@@ -1635,10 +1636,10 @@ HWY_SVE_FOREACH_BF16(HWY_SVE_LOAD_DUP128, LoadDupFull128, ld1rq)
 #if !HWY_SVE_HAVE_BFLOAT16
 
 template <size_t N, int kPow2>
-HWY_API VBF16 Load(Simd<bfloat16_t, N, kPow2> d,
-                   const bfloat16_t* HWY_RESTRICT p) {
-  return BitCast(d, Load(RebindToUnsigned<decltype(d)>(),
-                         reinterpret_cast<const uint16_t * HWY_RESTRICT>(p)));
+HWY_API VBF16 LoadU(Simd<bfloat16_t, N, kPow2> d,
+                    const bfloat16_t* HWY_RESTRICT p) {
+  return BitCast(d, LoadU(RebindToUnsigned<decltype(d)>(),
+                          reinterpret_cast<const uint16_t * HWY_RESTRICT>(p)));
 }
 
 template <size_t N, int kPow2>
@@ -1688,10 +1689,10 @@ HWY_API VBF16 LoadDup128(D d, const bfloat16_t* HWY_RESTRICT p) {
 #if !HWY_SVE_HAVE_BFLOAT16
 
 template <size_t N, int kPow2>
-HWY_API void Store(VBF16 v, Simd<bfloat16_t, N, kPow2> d,
-                   bfloat16_t* HWY_RESTRICT p) {
+HWY_API void StoreU(VBF16 v, Simd<bfloat16_t, N, kPow2> d,
+                    bfloat16_t* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
-  Store(BitCast(du, v), du, reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
+  StoreU(BitCast(du, v), du, reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
 }
 
 template <size_t N, int kPow2>
@@ -1711,18 +1712,20 @@ HWY_API void BlendedStore(VBF16 v, svbool_t m, Simd<bfloat16_t, N, kPow2> d,
 
 #endif
 
-// ------------------------------ Load/StoreU
+// ------------------------------ Load/Store
 
 // SVE only requires lane alignment, not natural alignment of the entire
 // vector.
 template <class D>
-HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
-  return Load(d, p);
+HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  return LoadU(d, p);
 }
 
 template <class V, class D>
-HWY_API void StoreU(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
-  Store(v, d, p);
+HWY_API void Store(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  StoreU(v, d, p);
 }
 
 // ------------------------------ MaskedLoadOr

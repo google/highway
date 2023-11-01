@@ -1068,7 +1068,7 @@ HWY_API Mask1<double> IsFinite(const Vec1<double> v) {
 // ------------------------------ Load
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
-HWY_API Vec1<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
+HWY_API Vec1<T> LoadU(D d, const T* HWY_RESTRICT aligned) {
   T t;
   CopySameSize(aligned, &t);
   return Vec1<T>(t);
@@ -1086,8 +1086,9 @@ HWY_API Vec1<T> MaskedLoadOr(Vec1<T> v, Mask1<T> m, D d,
 }
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
-HWY_API Vec1<T> LoadU(D d, const T* HWY_RESTRICT p) {
-  return Load(d, p);
+HWY_API Vec1<T> Load(D d, const T* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  return LoadU(d, p);
 }
 
 // In some use cases, "load single lane" is sufficient; otherwise avoid this.
@@ -1117,13 +1118,17 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const T* HWY_RESTRICT p,
 // ------------------------------ Store
 
 template <class D, typename T = TFromD<D>>
-HWY_API void Store(const Vec1<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
+HWY_API void StoreU(const Vec1<T> v, D d, T* HWY_RESTRICT aligned) {
+  (void)d;
   CopySameSize(&v.raw, aligned);
 }
 
 template <class D, typename T = TFromD<D>>
-HWY_API void StoreU(const Vec1<T> v, D d, T* HWY_RESTRICT p) {
-  return Store(v, d, p);
+HWY_API void Store(const Vec1<T> v, D d, T* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  (void)d;
+  CopySameSize(&v.raw, p);
+  return StoreU(v, d, p);
 }
 
 template <class D, typename T = TFromD<D>>

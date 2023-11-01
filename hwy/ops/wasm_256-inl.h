@@ -755,7 +755,7 @@ HWY_API Vec256<int8_t> BroadcastSignBit(const Vec256<int8_t> v) {
 // ------------------------------ Load
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
-HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT aligned) {
+HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT aligned) {
   const Half<decltype(d)> dh;
   VFromD<D> ret;
   ret.v0 = Load(dh, aligned);
@@ -776,8 +776,9 @@ HWY_API Vec256<T> MaskedLoadOr(Vec256<T> v, Mask256<T> m, D d,
 
 // LoadU == Load.
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
-HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
-  return Load(d, p);
+HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  return LoadU(d, p);
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32)>
@@ -791,16 +792,18 @@ HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
 // ------------------------------ Store
 
 template <class D, typename T = TFromD<D>>
-HWY_API void Store(Vec256<T> v, D d, T* HWY_RESTRICT aligned) {
+HWY_API void StoreU(Vec256<T> v, D d, T* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
   const Half<decltype(d)> dh;
-  Store(v.v0, dh, aligned);
-  Store(v.v1, dh, aligned + Lanes(dh));
+  StoreU(v.v0, dh, aligned);
+  StoreU(v.v1, dh, aligned + Lanes(dh));
 }
 
 // StoreU == Store.
 template <class D, typename T = TFromD<D>>
-HWY_API void StoreU(Vec256<T> v, D d, T* HWY_RESTRICT p) {
-  Store(v, d, p);
+HWY_API void Store(Vec256<T> v, D d, T* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  StoreU(v, d, p);
 }
 
 template <class D, typename T = TFromD<D>>

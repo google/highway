@@ -1364,9 +1364,9 @@ HWY_API VFromD<D> Max128Upper(D d, VFromD<D> a, VFromD<D> b) {
 // ------------------------------ Load
 
 template <class D>
-HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT aligned) {
+HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   VFromD<D> v;
-  CopyBytes<d.MaxBytes()>(aligned, v.raw);  // copy from array
+  CopyBytes<d.MaxBytes()>(p, v.raw);  // copy from array
   return v;
 }
 
@@ -1383,8 +1383,9 @@ HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
 }
 
 template <class D>
-HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
-  return Load(d, p);
+HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
+  return LoadU(d, aligned);
 }
 
 // In some use cases, "load single lane" is sufficient; otherwise avoid this.
@@ -1422,13 +1423,14 @@ HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
 // ------------------------------ Store
 
 template <class D>
-HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
-  CopyBytes<d.MaxBytes()>(v.raw, aligned);  // copy to array
+HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
+  CopyBytes<d.MaxBytes()>(v.raw, p);  // copy to array
 }
 
 template <class D>
-HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
-  Store(v, d, p);
+HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
+  StoreU(v, d, aligned);
 }
 
 template <class D>

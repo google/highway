@@ -1627,15 +1627,16 @@ HWY_RVV_FOREACH(HWY_RVV_LOAD, Load, le, _ALL_VIRT)
 
 // There is no native BF16, treat as int16_t.
 template <size_t N, int kPow2>
-HWY_API VFromD<Simd<int16_t, N, kPow2>> Load(Simd<bfloat16_t, N, kPow2> d,
+HWY_API VFromD<Simd<int16_t, N, kPow2>> LoadU(Simd<bfloat16_t, N, kPow2> d,
                                              const bfloat16_t* HWY_RESTRICT p) {
-  return Load(RebindToSigned<decltype(d)>(),
+  return LoadU(RebindToSigned<decltype(d)>(),
               reinterpret_cast<const int16_t * HWY_RESTRICT>(p));
 }
 
 template <size_t N, int kPow2>
 HWY_API void Store(VFromD<Simd<int16_t, N, kPow2>> v,
                    Simd<bfloat16_t, N, kPow2> d, bfloat16_t* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
   Store(v, RebindToSigned<decltype(d)>(),
         reinterpret_cast<int16_t * HWY_RESTRICT>(p));
 }
@@ -1644,26 +1645,26 @@ HWY_API void Store(VFromD<Simd<int16_t, N, kPow2>> v,
 
 // NOTE: different type for float16_t than bfloat16_t, see Set().
 template <size_t N, int kPow2>
-HWY_API VFromD<Simd<uint16_t, N, kPow2>> Load(Simd<float16_t, N, kPow2> d,
+HWY_API VFromD<Simd<uint16_t, N, kPow2>> LoadU(Simd<float16_t, N, kPow2> d,
                                               const float16_t* HWY_RESTRICT p) {
   return Load(RebindToUnsigned<decltype(d)>(),
               reinterpret_cast<const uint16_t * HWY_RESTRICT>(p));
 }
 
 template <size_t N, int kPow2>
-HWY_API void Store(VFromD<Simd<uint16_t, N, kPow2>> v,
+HWY_API void StoreU(VFromD<Simd<uint16_t, N, kPow2>> v,
                    Simd<float16_t, N, kPow2> d, float16_t* HWY_RESTRICT p) {
-  Store(v, RebindToUnsigned<decltype(d)>(),
+  StoreU(v, RebindToUnsigned<decltype(d)>(),
         reinterpret_cast<uint16_t * HWY_RESTRICT>(p));
 }
 
 #endif  // !HWY_HAVE_FLOAT16
 
-// ------------------------------ LoadU
 template <class D>
-HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
+HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
   // RVV only requires element alignment, not vector alignment.
-  return Load(d, p);
+  return LoadU(d, p);
 }
 
 // ------------------------------ MaskedLoad
@@ -1858,11 +1859,12 @@ HWY_API void StoreN(VFromD<D> v, D /*d*/, T* HWY_RESTRICT p,
                  reinterpret_cast<TStore * HWY_RESTRICT>(p));
 }
 
-// ------------------------------ StoreU
+// ------------------------------ Store
 template <class V, class D>
-HWY_API void StoreU(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
+HWY_API void Store(const V v, D d, TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
   // RVV only requires element alignment, not vector alignment.
-  Store(v, d, p);
+  StoreU(v, d, p);
 }
 
 // ------------------------------ Stream

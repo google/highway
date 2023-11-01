@@ -1860,13 +1860,15 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, const Vec128<T, N> bits) {
 // ------------------------------ Load
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
-HWY_API Vec128<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
+HWY_API Vec128<T> Load(D d, const T* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
   return Vec128<T>{wasm_v128_load(aligned)};
 }
 
 // Partial
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
 HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
   VFromD<D> v;
   CopyBytes<d.MaxBytes()>(p, &v);
   return v;
@@ -1939,24 +1941,27 @@ HWY_INLINE double ExtractLane(const Vec128<double, N> v) {
 }  // namespace detail
 
 template <class D, HWY_IF_V_SIZE_D(D, 16)>
-HWY_API void Store(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT aligned) {
+HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
+  (void)d;
   wasm_v128_store(aligned, v.raw);
 }
 
 // Partial
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_LANES_GT_D(D, 1)>
-HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
+HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
   CopyBytes<d.MaxBytes()>(&v, p);
 }
 
 template <class D, HWY_IF_LANES_D(D, 1)>
-HWY_API void Store(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT p) {
+HWY_API void StoreU(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT p) {
   *p = detail::ExtractLane<0>(v);
 }
 
 // StoreU == Store.
 template <class D>
-HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
+HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
   Store(v, d, p);
 }
 
