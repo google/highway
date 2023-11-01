@@ -753,6 +753,10 @@ exceptions for those lanes if that is supported by the ISA. When exceptions are
 not a concern, these are equivalent to, and potentially more efficient than,
 `IfThenElse(m, Add(a, b), no);` etc.
 
+*   <code>V **MaskedMinOr**(V no, M m, V a, V b)</code>: returns `Min(a, b)[i]`
+    or `no[i]` if `m[i]` is false.
+*   <code>V **MaskedMaxOr**(V no, M m, V a, V b)</code>: returns `Max(a, b)[i]`
+    or `no[i]` if `m[i]` is false.
 *   <code>V **MaskedAddOr**(V no, M m, V a, V b)</code>: returns `a[i] + b[i]`
     or `no[i]` if `m[i]` is false.
 *   <code>V **MaskedSubOr**(V no, M m, V a, V b)</code>: returns `a[i] - b[i]`
@@ -763,11 +767,13 @@ not a concern, these are equivalent to, and potentially more efficient than,
     <code>V **MaskedDivOr**(V no, M m, V a, V b)</code>: returns `a[i] / b[i]`
     or `no[i]` if `m[i]` is false.
 *   `V`: `{u,i}{8,16}` \
-    <code>V **MaskedSatAddOr**(V no, M m, V a, V b)</code>: returns `a[i] + b[i]`
-    saturated to the minimum/maximum representable value, or `no[i]` if `m[i]` is false.
+    <code>V **MaskedSatAddOr**(V no, M m, V a, V b)</code>: returns `a[i] +
+    b[i]` saturated to the minimum/maximum representable value, or `no[i]` if
+    `m[i]` is false.
 *   `V`: `{u,i}{8,16}` \
-    <code>V **MaskedSatSubOr**(V no, M m, V a, V b)</code>: returns `a[i] + b[i]`
-    saturated to the minimum/maximum representable value, or `no[i]` if `m[i]` is false.
+    <code>V **MaskedSatSubOr**(V no, M m, V a, V b)</code>: returns `a[i] +
+    b[i]` saturated to the minimum/maximum representable value, or `no[i]` if
+    `m[i]` is false.
 
 #### Shifts
 

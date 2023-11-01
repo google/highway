@@ -1317,6 +1317,8 @@ HWY_API svbool_t LowerHalfOfMask(D /*d*/, svbool_t m) {
 #endif
 
 namespace detail {
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMin, min)
+HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMax, max)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedAdd, add)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedSub, sub)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
@@ -1326,6 +1328,16 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAdd, qadd)
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSub, qsub)
 #endif
 }  // namespace detail
+
+template <class V, class M>
+HWY_API V MaskedMinOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedMin(m, a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedMaxOr(V no, M m, V a, V b) {
+  return IfThenElse(m, detail::MaskedMax(m, a, b), no);
+}
 
 template <class V, class M>
 HWY_API V MaskedAddOr(V no, M m, V a, V b) {

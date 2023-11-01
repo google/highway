@@ -404,6 +404,16 @@ HWY_API V InterleaveWholeLower(V a, V b) {
 #endif
 
 template <class V, class M>
+HWY_API V MaskedMinOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Min(a, b), no);
+}
+
+template <class V, class M>
+HWY_API V MaskedMaxOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Max(a, b), no);
+}
+
+template <class V, class M>
 HWY_API V MaskedAddOr(V no, M m, V a, V b) {
   return IfThenElse(m, Add(a, b), no);
 }
