@@ -301,28 +301,20 @@ void CheckEqual(const AlignedNDArray<T, 1>& a, const vector<T>& v) {
   EXPECT_EQ(a_span.size(), v.size());
   for (size_t i = 0; i < a_span.size(); i++) {
     EXPECT_EQ(a_span[i], v[i]) << "i=" << i;
-    EXPECT_EQ(*a[{i}].data(), v[i]) << "i=" << i;
-    EXPECT_EQ(*(a[{}].data() + i), v[i]) << "i=" << i;
+    EXPECT_EQ(*(a_span.data() + i), v[i]) << "i=" << i;
   }
 }
 
 template <typename T>
 void CheckEqual(const AlignedNDArray<T, 2>& a, const vector<vector<T>>& v) {
   const array<size_t, 2> want_shape({v.size(), v[1].size()});
-  vector<T> flat_v;
   for (const vector<T>& row : v) {
     EXPECT_EQ(row.size(), want_shape[1]);
-    flat_v.insert(flat_v.end(), row.begin(), row.end());
   }
   const std::array<size_t, 2> got_shape = a.shape();
   CheckEqual(got_shape, want_shape);
 
-  Span<const T> a_span = a[{}];
-  EXPECT_EQ(a_span.size(), want_shape[0] * want_shape[1]);
-  for (size_t i = 0; i < a_span.size(); ++i) {
-    EXPECT_EQ(a_span[i], flat_v[i]) << "i=" << i;
-    EXPECT_EQ(*(a[{}].data() + i), flat_v[i]) << "i=" << i;
-  }
+  EXPECT_EQ(a.size(), want_shape[0] * want_shape[1]);
 
   for (size_t row_index = 0; row_index < v.size(); ++row_index) {
     vector<T> want_row = v[row_index];
@@ -331,8 +323,6 @@ void CheckEqual(const AlignedNDArray<T, 2>& a, const vector<vector<T>>& v) {
     for (size_t column_index = 0; column_index < got_row.size();
          column_index++) {
       EXPECT_EQ(got_row[column_index], want_row[column_index])
-          << "row_index=" << row_index << ", column_index=" << column_index;
-      EXPECT_EQ((*a[{row_index, column_index}].data()), want_row[column_index])
           << "row_index=" << row_index << ", column_index=" << column_index;
       EXPECT_EQ(*(a[{row_index}].data() + column_index), want_row[column_index])
           << "row_index=" << row_index << ", column_index=" << column_index;
@@ -343,16 +333,25 @@ void CheckEqual(const AlignedNDArray<T, 2>& a, const vector<vector<T>>& v) {
 TEST(AlignedAllocatorTest, AlignedNDArray) {
   AlignedNDArray<float, 1> a1({4});
   CheckEqual(a1, {0, 0, 0, 0});
-  *a1[{2}].data() = 3.4f;
+  a1[{}][2] = 3.4f;
   CheckEqual(a1, {0, 0, 3.4f, 0});
 
   AlignedNDArray<float, 2> a2({2, 3});
   CheckEqual(a2, {{0, 0, 0}, {0, 0, 0}});
-  a2[{1, 1}][0] = 5.1f;
+  a2[{1}][1] = 5.1f;
   CheckEqual(a2, {{0, 0, 0}, {0, 5.1f, 0}});
-  float f[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
-  hwy::CopyBytes(f, a2[{}].data(), 6 * sizeof(float));
+  float f0[] = {1.0f, 2.0f, 3.0f};
+  float f1[] = {4.0f, 5.0f, 6.0f};
+  hwy::CopyBytes(f0, a2[{0}].data(), 3 * sizeof(float));
+  hwy::CopyBytes(f1, a2[{1}].data(), 3 * sizeof(float));
   CheckEqual(a2, {{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}});
+}
+
+TEST(AlignedAllocatorTest, AlignedNDArrayAlignment) {
+  AlignedNDArray<float, 2> a({3, 3});
+  for (size_t row = 0; row < a.shape()[0]; row++) {
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(a[{row}].data()) % HWY_ALIGNMENT, 0);
+  }
 }
 
 }  // namespace
