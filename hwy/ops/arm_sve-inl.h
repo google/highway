@@ -754,8 +754,36 @@ HWY_API VBF16 Neg(VBF16 v) {
   return BitCast(d, Xor(BitCast(du, v), Set(du, SignMask<TU>())));
 }
 
+// ------------------------------ SaturatedNeg
+#if HWY_SVE_HAVE_2
+#ifdef HWY_NATIVE_SATURATED_NEG_8_16_32
+#undef HWY_NATIVE_SATURATED_NEG_8_16_32
+#else
+#define HWY_NATIVE_SATURATED_NEG_8_16_32
+#endif
+
+#ifdef HWY_NATIVE_SATURATED_NEG_64
+#undef HWY_NATIVE_SATURATED_NEG_64
+#else
+#define HWY_NATIVE_SATURATED_NEG_64
+#endif
+
+HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedNeg, qneg)
+#endif  // HWY_SVE_HAVE_2
+
 // ------------------------------ Abs
 HWY_SVE_FOREACH_IF(HWY_SVE_RETV_ARGPV, Abs, abs)
+
+// ------------------------------ SaturatedAbs
+#if HWY_SVE_HAVE_2
+#ifdef HWY_NATIVE_SATURATED_ABS
+#undef HWY_NATIVE_SATURATED_ABS
+#else
+#define HWY_NATIVE_SATURATED_ABS
+#endif
+
+HWY_SVE_FOREACH_I(HWY_SVE_RETV_ARGPV, SaturatedAbs, qabs)
+#endif  // HWY_SVE_HAVE_2
 
 // ================================================== ARITHMETIC
 
