@@ -18,6 +18,7 @@
 
 // Memory allocator with support for alignment and offsets.
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstring>
@@ -221,6 +222,13 @@ class Span {
   template <typename U>
   Span(U u) : Span(u.data(), u.size()) {}
   Span(std::initializer_list<const T> v) : Span(v.begin(), v.size()) {}
+
+  // Copies the contents of the initializer list to the span.
+  Span<T>& operator=(std::initializer_list<const T> v) {
+    HWY_DASSERT(size_ == v.size());
+    CopyBytes(v.begin(), data_, sizeof(T) * std::min(size_, v.size()));
+    return *this;
+  }
 
   // Returns the size of the contained data.
   size_t size() const { return size_; }
