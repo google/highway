@@ -368,6 +368,14 @@ TEST(AlignedAllocatorTest, AlignedNDArrayAlignment) {
   }
 }
 
+TEST(AlignedAllocatorTest, SpanCopyAssignment) {
+  AlignedNDArray<float, 2> a({2, 2});
+  CheckEqual(a, {{0.0f, 0.0f}, {0.0f, 0.0f}});
+  a[{0}] = {1.0f, 2.0f};
+  a[{1}] = {3.0f, 4.0f};
+  CheckEqual(a, {{1.0f, 2.0f}, {3.0f, 4.0f}});
+}
+
 }  // namespace
 
 }  // namespace hwy
