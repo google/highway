@@ -2082,19 +2082,43 @@ HWY_API svuint64_t PromoteTo(Simd<uint64_t, N, kPow2> /* d */,
   return svcvt_u64_f32_x(detail::PTrue(Simd<float, N, kPow2>()), vv);
 }
 
-// For 16-bit Compress
-namespace detail {
-HWY_SVE_FOREACH_UI32(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
-#undef HWY_SVE_PROMOTE_TO
+// ------------------------------ PromoteUpperTo
 
-template <size_t N, int kPow2>
-HWY_API svfloat32_t PromoteUpperTo(Simd<float, N, kPow2> df, svfloat16_t v) {
-  const RebindToUnsigned<decltype(df)> du;
-  const RepartitionToNarrow<decltype(du)> dn;
-  return BitCast(df, PromoteUpperTo(du, BitCast(dn, v)));
+namespace detail {
+HWY_SVE_FOREACH_UI16(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
+HWY_SVE_FOREACH_UI32(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
+HWY_SVE_FOREACH_UI64(HWY_SVE_PROMOTE_TO, PromoteUpperTo, unpkhi)
+#undef HWY_SVE_PROMOTE_TO
+}  // namespace detail
+
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// Unsigned->Unsigned or Signed->Signed
+template <class D, class V, typename TD = TFromD<D>, typename TV = TFromV<V>,
+          hwy::EnableIf<IsInteger<TD>() && IsInteger<TV>() &&
+                        (IsSigned<TD>() == IsSigned<TV>())>* = nullptr>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  if (detail::IsFull(d)) {
+    return detail::PromoteUpperTo(d, v);
+  }
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
 }
 
-}  // namespace detail
+// Differing signs or either is float
+template <class D, class V, typename TD = TFromD<D>, typename TV = TFromV<V>,
+          hwy::EnableIf<!IsInteger<TD>() || !IsInteger<TV>() ||
+                        (IsSigned<TD>() != IsSigned<TV>())>* = nullptr>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
+}
 
 // ------------------------------ DemoteTo U
 

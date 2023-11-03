@@ -9,6 +9,8 @@ freshness: { owner: 'janwas' reviewed: '2023-08-04' }
 
 ## Wishlist
 
+### F32RoundToNearestEven
+
 ### NEON dot product
 
 ### QuickSelect algo
