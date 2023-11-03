@@ -62,6 +62,10 @@ available implementation at runtime. Highway supports three ways of doing this:
     call e.g. `N_AVX2::YourFunction` directly.
 
 Examples of both static and dynamic dispatch are provided in examples/.
+Typically, the function that does the dispatch receives a pointer to one or more
+arrays. Due to differing ABIs, we recommend only passing vector arguments to
+functions that are inlined, and in particular not the top-level function that
+does the dispatch.
 
 Note that if your compiler is pre-configured to generate code only for a
 specific architecture, or your build flags include -m flags that specify a

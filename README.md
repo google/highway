@@ -261,7 +261,9 @@ be prefixed with `HWY_ATTR`, OR reside between `HWY_BEFORE_NAMESPACE()` and
 their opening brace.
 
 The entry points into code using Highway differ slightly depending on whether
-they use static or dynamic dispatch.
+they use static or dynamic dispatch. In both cases, we recommend that the
+top-level function receives one or more pointers to arrays, rather than
+target-specific vector types.
 
 *   For static dispatch, `HWY_TARGET` will be the best available target among
     `HWY_BASELINE_TARGETS`, i.e. those allowed for use by the compiler (see
