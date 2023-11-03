@@ -99,7 +99,24 @@ struct TestSumMulAdd {
     }
 
     MulAddLoop(d, mul.get(), add.get(), count, x.get());
+    double vector_sum = 0.0;
+    for (size_t i = 0; i < count; ++i) {
+      vector_sum += x[i];
+    }
+
+    if (hwy::IsSame<T, hwy::float16_t>()) {
+      // The expected value for float16 will vary based on the underlying
+      // implementation (compiler emulation, ARM ACLE __fp16 vs _Float16, etc).
+      // In some cases the scalar and vector paths will have different results;
+      // we check them against known values where possible, else we ignore them.
+#if HWY_COMPILER_CLANG && HWY_NEON_HAVE_FLOAT16C
+      HWY_ASSERT_EQ(4344240.0, expected_sum);  // Full-width float
+      HWY_ASSERT_EQ(4344235.0, vector_sum);    // __fp16
+#endif
+      return;
+    }
     HWY_ASSERT_EQ(4344240.0, expected_sum);
+    HWY_ASSERT_EQ(expected_sum, vector_sum);
   }
 };
 
