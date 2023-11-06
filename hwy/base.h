@@ -951,6 +951,27 @@ struct alignas(2) float16_t {
     return float16_t(static_cast<Raw>(-raw));
   }
   constexpr float16_t operator+() const noexcept { return *this; }
+
+#if !HWY_NEON_HAVE_FLOAT16C
+#define HWY_FLOAT16_BINARY_OP(op)                                             \
+  HWY_CXX14_CONSTEXPR float16_t operator op(const float16_t& rhs)             \
+      const noexcept {                                                        \
+    return static_cast<Raw>(raw op rhs.raw);                                  \
+  }                                                                           \
+  template <typename T,                                                       \
+            hwy::EnableIf<IsStaticCastable<                                   \
+                decltype(DeclVal<Raw>() op DeclVal<T>()), Raw>()>* = nullptr> \
+  HWY_CXX14_CONSTEXPR float16_t operator op(const T& rhs)                     \
+      const noexcept(noexcept(DeclVal<Raw>() op DeclVal<T>())) {              \
+    return static_cast<Raw>(raw op rhs);                                      \
+  }
+
+  HWY_FLOAT16_BINARY_OP(+)
+  HWY_FLOAT16_BINARY_OP(-)
+  HWY_FLOAT16_BINARY_OP(*)
+  HWY_FLOAT16_BINARY_OP(/)
+#undef HWY_FLOAT16_BINARY_OP
+#endif
 #endif  // HWY_EMULATE_FLOAT16
 };
 
