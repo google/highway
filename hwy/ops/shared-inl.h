@@ -464,95 +464,108 @@ using BlockDFromD =
 // ------------------------------ Choosing overloads (SFINAE)
 
 // Same as base.h macros but with a Simd<T, N, kPow2> argument instead of T.
-#define HWY_IF_UNSIGNED_D(D) HWY_IF_UNSIGNED(TFromD<D>)
-#define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(TFromD<D>)
-#define HWY_IF_FLOAT_D(D) HWY_IF_FLOAT(TFromD<D>)
-#define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(TFromD<D>)
-#define HWY_IF_FLOAT3264_D(D) HWY_IF_FLOAT3264(TFromD<D>)
-#define HWY_IF_NOT_FLOAT3264_D(D) HWY_IF_NOT_FLOAT3264(TFromD<D>)
-#define HWY_IF_SPECIAL_FLOAT_D(D) HWY_IF_SPECIAL_FLOAT(TFromD<D>)
-#define HWY_IF_NOT_SPECIAL_FLOAT_D(D) HWY_IF_NOT_SPECIAL_FLOAT(TFromD<D>)
-#define HWY_IF_FLOAT_OR_SPECIAL_D(D) HWY_IF_FLOAT_OR_SPECIAL(TFromD<D>)
+#define HWY_IF_UNSIGNED_D(D) HWY_IF_UNSIGNED(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_FLOAT_D(D) HWY_IF_FLOAT(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_FLOAT3264_D(D) HWY_IF_FLOAT3264(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_NOT_FLOAT3264_D(D) \
+  HWY_IF_NOT_FLOAT3264(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_SPECIAL_FLOAT_D(D) \
+  HWY_IF_SPECIAL_FLOAT(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_NOT_SPECIAL_FLOAT_D(D) \
+  HWY_IF_NOT_SPECIAL_FLOAT(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_FLOAT_OR_SPECIAL_D(D) \
+  HWY_IF_FLOAT_OR_SPECIAL(hwy::HWY_NAMESPACE::TFromD<D>)
 #define HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D) \
-  HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>)
+  HWY_IF_NOT_FLOAT_NOR_SPECIAL(hwy::HWY_NAMESPACE::TFromD<D>)
 
-#define HWY_IF_T_SIZE_D(D, bytes) HWY_IF_T_SIZE(TFromD<D>, bytes)
-#define HWY_IF_NOT_T_SIZE_D(D, bytes) HWY_IF_NOT_T_SIZE(TFromD<D>, bytes)
+#define HWY_IF_T_SIZE_D(D, bytes) \
+  HWY_IF_T_SIZE(hwy::HWY_NAMESPACE::TFromD<D>, bytes)
+#define HWY_IF_NOT_T_SIZE_D(D, bytes) \
+  HWY_IF_NOT_T_SIZE(hwy::HWY_NAMESPACE::TFromD<D>, bytes)
 #define HWY_IF_T_SIZE_ONE_OF_D(D, bit_array) \
-  HWY_IF_T_SIZE_ONE_OF(TFromD<D>, bit_array)
-#define HWY_IF_T_SIZE_LE_D(D, bytes) HWY_IF_T_SIZE_LE(TFromD<D>, bytes)
-#define HWY_IF_T_SIZE_GT_D(D, bytes) HWY_IF_T_SIZE_GT(TFromD<D>, bytes)
+  HWY_IF_T_SIZE_ONE_OF(hwy::HWY_NAMESPACE::TFromD<D>, bit_array)
+#define HWY_IF_T_SIZE_LE_D(D, bytes) \
+  HWY_IF_T_SIZE_LE(hwy::HWY_NAMESPACE::TFromD<D>, bytes)
+#define HWY_IF_T_SIZE_GT_D(D, bytes) \
+  HWY_IF_T_SIZE_GT(hwy::HWY_NAMESPACE::TFromD<D>, bytes)
 
 #define HWY_IF_LANES_D(D, lanes) HWY_IF_LANES(HWY_MAX_LANES_D(D), lanes)
 #define HWY_IF_LANES_LE_D(D, lanes) HWY_IF_LANES_LE(HWY_MAX_LANES_D(D), lanes)
 #define HWY_IF_LANES_GT_D(D, lanes) HWY_IF_LANES_GT(HWY_MAX_LANES_D(D), lanes)
-#define HWY_IF_LANES_PER_BLOCK_D(D, lanes) \
-  HWY_IF_LANES_PER_BLOCK(TFromD<D>, HWY_MAX_LANES_D(D), lanes)
+#define HWY_IF_LANES_PER_BLOCK_D(D, lanes)                                  \
+  HWY_IF_LANES_PER_BLOCK(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), \
+                         lanes)
 
 #define HWY_IF_POW2_LE_D(D, pow2) hwy::EnableIf<D().Pow2() <= pow2>* = nullptr
 #define HWY_IF_POW2_GT_D(D, pow2) hwy::EnableIf<(D().Pow2() > pow2)>* = nullptr
 
-#define HWY_IF_U8_D(D) HWY_IF_U8(TFromD<D>)
-#define HWY_IF_U16_D(D) HWY_IF_U16(TFromD<D>)
-#define HWY_IF_U32_D(D) HWY_IF_U32(TFromD<D>)
-#define HWY_IF_U64_D(D) HWY_IF_U64(TFromD<D>)
+#define HWY_IF_U8_D(D) HWY_IF_U8(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_U16_D(D) HWY_IF_U16(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_U32_D(D) HWY_IF_U32(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_U64_D(D) HWY_IF_U64(hwy::HWY_NAMESPACE::TFromD<D>)
 
-#define HWY_IF_I8_D(D) HWY_IF_I8(TFromD<D>)
-#define HWY_IF_I16_D(D) HWY_IF_I16(TFromD<D>)
-#define HWY_IF_I32_D(D) HWY_IF_I32(TFromD<D>)
-#define HWY_IF_I64_D(D) HWY_IF_I64(TFromD<D>)
+#define HWY_IF_I8_D(D) HWY_IF_I8(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_I16_D(D) HWY_IF_I16(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_I32_D(D) HWY_IF_I32(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_I64_D(D) HWY_IF_I64(hwy::HWY_NAMESPACE::TFromD<D>)
 
 // Use instead of HWY_IF_T_SIZE_D to avoid ambiguity with float16_t/float/double
 // overloads.
-#define HWY_IF_UI8_D(D) HWY_IF_UI8(TFromD<D>)
-#define HWY_IF_UI16_D(D) HWY_IF_UI16(TFromD<D>)
-#define HWY_IF_UI32_D(D) HWY_IF_UI32(TFromD<D>)
-#define HWY_IF_UI64_D(D) HWY_IF_UI64(TFromD<D>)
+#define HWY_IF_UI8_D(D) HWY_IF_UI8(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_UI16_D(D) HWY_IF_UI16(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_UI32_D(D) HWY_IF_UI32(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_UI64_D(D) HWY_IF_UI64(hwy::HWY_NAMESPACE::TFromD<D>)
 
-#define HWY_IF_BF16_D(D) HWY_IF_BF16(TFromD<D>)
-#define HWY_IF_NOT_BF16_D(D) HWY_IF_NOT_BF16(TFromD<D>)
+#define HWY_IF_BF16_D(D) HWY_IF_BF16(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_NOT_BF16_D(D) HWY_IF_NOT_BF16(hwy::HWY_NAMESPACE::TFromD<D>)
 
-#define HWY_IF_F16_D(D) HWY_IF_F16(TFromD<D>)
-#define HWY_IF_F32_D(D) HWY_IF_F32(TFromD<D>)
-#define HWY_IF_F64_D(D) HWY_IF_F64(TFromD<D>)
+#define HWY_IF_F16_D(D) HWY_IF_F16(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_F32_D(D) HWY_IF_F32(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_F64_D(D) HWY_IF_F64(hwy::HWY_NAMESPACE::TFromD<D>)
 
-#define HWY_V_SIZE_D(D) (HWY_MAX_LANES_D(D) * sizeof(TFromD<D>))
+#define HWY_V_SIZE_D(D) \
+  (HWY_MAX_LANES_D(D) * sizeof(hwy::HWY_NAMESPACE::TFromD<D>))
 #define HWY_IF_V_SIZE_D(D, bytes) \
-  HWY_IF_V_SIZE(TFromD<D>, HWY_MAX_LANES_D(D), bytes)
+  HWY_IF_V_SIZE(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 #define HWY_IF_V_SIZE_LE_D(D, bytes) \
-  HWY_IF_V_SIZE_LE(TFromD<D>, HWY_MAX_LANES_D(D), bytes)
+  HWY_IF_V_SIZE_LE(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 #define HWY_IF_V_SIZE_GT_D(D, bytes) \
-  HWY_IF_V_SIZE_GT(TFromD<D>, HWY_MAX_LANES_D(D), bytes)
+  HWY_IF_V_SIZE_GT(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), bytes)
 
 // Same, but with a vector argument. ops/*-inl.h define their own TFromV.
-#define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(TFromV<V>)
-#define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(TFromV<V>)
-#define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(TFromV<V>)
-#define HWY_IF_NOT_FLOAT_V(V) HWY_IF_NOT_FLOAT(TFromV<V>)
-#define HWY_IF_SPECIAL_FLOAT_V(V) HWY_IF_SPECIAL_FLOAT(TFromV<V>)
+#define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
+#define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
+#define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(hwy::HWY_NAMESPACE::TFromV<V>)
+#define HWY_IF_NOT_FLOAT_V(V) HWY_IF_NOT_FLOAT(hwy::HWY_NAMESPACE::TFromV<V>)
+#define HWY_IF_SPECIAL_FLOAT_V(V) \
+  HWY_IF_SPECIAL_FLOAT(hwy::HWY_NAMESPACE::TFromV<V>)
 #define HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V) \
-  HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromV<V>)
+  HWY_IF_NOT_FLOAT_NOR_SPECIAL(hwy::HWY_NAMESPACE::TFromV<V>)
 
-#define HWY_IF_T_SIZE_V(V, bytes) HWY_IF_T_SIZE(TFromV<V>, bytes)
-#define HWY_IF_NOT_T_SIZE_V(V, bytes) HWY_IF_NOT_T_SIZE(TFromV<V>, bytes)
+#define HWY_IF_T_SIZE_V(V, bytes) \
+  HWY_IF_T_SIZE(hwy::HWY_NAMESPACE::TFromV<V>, bytes)
+#define HWY_IF_NOT_T_SIZE_V(V, bytes) \
+  HWY_IF_NOT_T_SIZE(hwy::HWY_NAMESPACE::TFromV<V>, bytes)
 #define HWY_IF_T_SIZE_ONE_OF_V(V, bit_array) \
-  HWY_IF_T_SIZE_ONE_OF(TFromV<V>, bit_array)
+  HWY_IF_T_SIZE_ONE_OF(hwy::HWY_NAMESPACE::TFromV<V>, bit_array)
 
 #define HWY_MAX_LANES_V(V) HWY_MAX_LANES_D(DFromV<V>)
 #define HWY_IF_V_SIZE_V(V, bytes) \
-  HWY_IF_V_SIZE(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
+  HWY_IF_V_SIZE(hwy::HWY_NAMESPACE::TFromV<V>, HWY_MAX_LANES_V(V), bytes)
 #define HWY_IF_V_SIZE_LE_V(V, bytes) \
-  HWY_IF_V_SIZE_LE(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
+  HWY_IF_V_SIZE_LE(hwy::HWY_NAMESPACE::TFromV<V>, HWY_MAX_LANES_V(V), bytes)
 #define HWY_IF_V_SIZE_GT_V(V, bytes) \
-  HWY_IF_V_SIZE_GT(TFromV<V>, HWY_MAX_LANES_V(V), bytes)
+  HWY_IF_V_SIZE_GT(hwy::HWY_NAMESPACE::TFromV<V>, HWY_MAX_LANES_V(V), bytes)
 
 // Use in implementations of ReduceSum etc. to avoid conflicts with the N=1 and
 // N=4 8-bit specializations in generic_ops-inl.
 #undef HWY_IF_REDUCE_D
-#define HWY_IF_REDUCE_D(D)                                              \
-  hwy::EnableIf<HWY_MAX_LANES_D(D) != 1 &&                              \
-                (HWY_MAX_LANES_D(D) != 4 || sizeof(TFromD<D>) != 1)>* = \
-      nullptr
+#define HWY_IF_REDUCE_D(D)                  \
+  hwy::EnableIf<HWY_MAX_LANES_D(D) != 1 &&  \
+                (HWY_MAX_LANES_D(D) != 4 || \
+                 sizeof(hwy::HWY_NAMESPACE::TFromD<D>) != 1)>* = nullptr
 
 #undef HWY_IF_SUM_OF_LANES_D
 #define HWY_IF_SUM_OF_LANES_D(D) HWY_IF_LANES_GT_D(D, 1)
