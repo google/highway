@@ -1929,10 +1929,10 @@ HWY_INLINE constexpr T AddWithWraparound(hwy::NonFloatTag /*tag*/, T t, T2 n) {
   // warnings, so first promote to the largest unsigned type. Due to
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=87519, which affected GCC 8
   // until fixed in 9.3, we use built-in types rather than uint64_t.
-  const unsigned long long sum = static_cast<unsigned long long>(  // NOLINT
-      static_cast<unsigned long long>(t) +                         // NOLINT
-      static_cast<unsigned long long>(n));                         // NOLINT
-  return static_cast<T>(static_cast<TU>(sum & uint64_t{hwy::LimitsMax<TU>()}));
+  return static_cast<T>(static_cast<TU>(
+      static_cast<unsigned long long>(static_cast<unsigned long long>(t) +
+                                      static_cast<unsigned long long>(n)) &
+      uint64_t{hwy::LimitsMax<TU>()}));
 }
 
 #if HWY_COMPILER_MSVC && HWY_ARCH_X86_64
