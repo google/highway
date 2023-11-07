@@ -211,8 +211,6 @@ void Sorter::Fill24Bytes(const void*, size_t, void*) {}
 bool Sorter::HaveFloat64() { return hwy::HaveFloat64(); }
 Sorter::Sorter() {}
 void Sorter::Delete() {}
-uint64_t* GetGeneratorState() {
-  return HWY_STATIC_DISPATCH(detail::GetGeneratorStateStatic());
-}
+uint64_t* GetGeneratorState() { return hwy::detail::GetGeneratorStateStatic(); }
 
 }  // namespace hwy
