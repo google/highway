@@ -139,7 +139,9 @@ class TestMatVec {
     for (size_t i = 0; i < kRows; ++i) {
       const double exp = static_cast<double>(expected[i]);
       const double act = static_cast<double>(actual[i]);
-      const double tolerance = exp * Epsilon<T>() * 20;
+      const double tolerance =
+          exp * 20 * 1.0 /
+          (1ULL << HWY_MIN(MantissaBits<MatT>(), MantissaBits<VecT>()));
       if (!(exp - tolerance <= act && act <= exp + tolerance)) {
         fprintf(stderr, "%s %zu x %zu: mismatch at %zu %f %f; tol %f\n",
                 TypeName(MatT(), 1).c_str(), kRows, kCols, i, exp, act,
