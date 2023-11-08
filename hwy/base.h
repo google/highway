@@ -771,7 +771,7 @@ static constexpr bool IsAssignable() {
 }
 
 //------------------------------------------------------------------------------
-// F16/BF16 lane types
+// F16 lane type
 
 #pragma pack(push, 1)
 
@@ -797,35 +797,6 @@ static constexpr bool IsAssignable() {
 #define HWY_HAVE_C11_FLOAT16 1
 #else
 #define HWY_HAVE_C11_FLOAT16 0
-#endif
-
-// If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
-// create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
-#if HWY_ARCH_ARM_A64 && !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1700) && \
-    (defined(__ARM_FEATURE_SVE_BF16) || HWY_COMPILER_GCC_ACTUAL >= 1100)
-#define HWY_ARM_HAVE_BFLOAT16 1
-#else
-#define HWY_ARM_HAVE_BFLOAT16 0
-#endif
-
-#if HWY_ARM_HAVE_BFLOAT16 && \
-    (defined(__ARM_FEATURE_SVE_BF16) || defined(__ARM_FEATURE_SVE))
-#define HWY_SVE_HAVE_BFLOAT16 1
-#else
-#define HWY_SVE_HAVE_BFLOAT16 0
-#endif
-
-#if HWY_ARCH_X86 && defined(__SSE2__) && \
-    (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1300)
-#define HWY_SSE2_HAVE_BFLOAT16 1
-#else
-#define HWY_SSE2_HAVE_BFLOAT16 0
-#endif
-
-#if HWY_ARM_HAVE_BFLOAT16 || HWY_SSE2_HAVE_BFLOAT16
-#define HWY_HAVE_GCC_OR_ARM_BFLOAT16 1
-#else
-#define HWY_HAVE_GCC_OR_ARM_BFLOAT16 0
 #endif
 
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
@@ -1002,13 +973,49 @@ constexpr inline std::partial_ordering operator<=>(float16_t lhs,
 #endif
 #endif  // HWY_EMULATE_FLOAT16
 
+//------------------------------------------------------------------------------
+// BF16 lane type
+
+// If 1, both __bf16 and a limited set of *_bf16 SVE intrinsics are available:
+// create/get/set/dup, ld/st, sel, rev, trn, uzp, zip.
+#if HWY_ARCH_ARM_A64 && !(HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1700) && \
+    (defined(__ARM_FEATURE_SVE_BF16) || HWY_COMPILER_GCC_ACTUAL >= 1100)
+#define HWY_ARM_HAVE_BFLOAT16 1
+#else
+#define HWY_ARM_HAVE_BFLOAT16 0
+#endif
+
+#if HWY_ARM_HAVE_BFLOAT16 && \
+    (defined(__ARM_FEATURE_SVE_BF16) || defined(__ARM_FEATURE_SVE))
+#define HWY_SVE_HAVE_BFLOAT16 1
+#else
+#define HWY_SVE_HAVE_BFLOAT16 0
+#endif
+
+#ifndef HWY_SSE2_HAVE_BFLOAT16
+#if HWY_ARCH_X86 && defined(__SSE2__) && \
+    (HWY_COMPILER_CLANG >= 1800 || HWY_COMPILER_GCC_ACTUAL >= 1300)
+#define HWY_SSE2_HAVE_BFLOAT16 1
+#else
+#define HWY_SSE2_HAVE_BFLOAT16 0
+#endif
+#endif  // HWY_SSE2_HAVE_BFLOAT16
+
+#if HWY_ARM_HAVE_BFLOAT16 || HWY_SSE2_HAVE_BFLOAT16
+#define HWY_HAVE_ARM_OR_SSE2_BFLOAT16 1
+#else
+#define HWY_HAVE_ARM_OR_SSE2_BFLOAT16 0
+#endif
+
+#ifndef HWY_HAVE_BF16_ARITHMETIC_OPS
 #if (HWY_CXX_LANG >= 202100L && defined(__STDCPP_BFLOAT16_T__)) || \
-    (HWY_HAVE_GCC_OR_ARM_BFLOAT16 &&                               \
+    (HWY_HAVE_ARM_OR_SSE2_BFLOAT16 &&                              \
      (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1300))
 #define HWY_HAVE_BF16_ARITHMETIC_OPS 1
 #else
 #define HWY_HAVE_BF16_ARITHMETIC_OPS 0
 #endif
+#endif  // HWY_HAVE_BF16_ARITHMETIC_OPS
 
 #if HWY_HAVE_BF16_ARITHMETIC_OPS
 #define HWY_BF16_CONSTEXPR constexpr
@@ -1017,7 +1024,7 @@ constexpr inline std::partial_ordering operator<=>(float16_t lhs,
 #endif
 
 struct alignas(2) bfloat16_t {
-#if HWY_HAVE_GCC_OR_ARM_BFLOAT16
+#if HWY_HAVE_ARM_OR_SSE2_BFLOAT16
   using Raw = __bf16;
 #elif HWY_CXX_LANG >= 202100L && defined(__STDCPP_BFLOAT16_T__)  // C++23
   using Raw = std::bfloat16_t;
