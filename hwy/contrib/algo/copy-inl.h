@@ -14,12 +14,16 @@
 // limitations under the License.
 
 // Per-target include guard
-#if defined(HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_) == defined(HWY_TARGET_TOGGLE)
+#if defined(HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_) == \
+    defined(HWY_TARGET_TOGGLE)  // NOLINT
 #ifdef HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_
 #else
 #define HIGHWAY_HWY_CONTRIB_ALGO_COPY_INL_H_
 #endif
+
+#include <stddef.h>
+#include <stdint.h>
 
 #include "hwy/highway.h"
 
