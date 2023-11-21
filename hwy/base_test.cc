@@ -361,6 +361,24 @@ HWY_NOINLINE void TestAllEndian() {
                                                        0xFB, 0x36, 0x38, 0xC3));
 #endif  // HWY_IS_BIG_ENDIAN
 #endif  // HWY_HAVE_FLOAT64
+
+#if HWY_HAVE_BF16_ARITHMETIC_OPS
+#if HWY_IS_BIG_ENDIAN
+  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(1.0f),
+                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x3F, 0x80));
+  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(0.333984375f),
+                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x3E, 0xAB));
+  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(167121905303526337111381770240.0f),
+                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x70, 0x07));
+#else
+  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(1.0f),
+                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x80, 0x3F));
+  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(0.333984375f),
+                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0xAB, 0x3E));
+  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(167121905303526337111381770240.0f),
+                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x07, 0x70));
+#endif
+#endif  // HWY_HAVE_BF16_ARITHMETIC_OPS
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
