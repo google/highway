@@ -23,7 +23,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     - name: Build and test
-      uses: uraimo/run-on-arch-action@v2.5.1
+      uses: uraimo/run-on-arch-action@v2.6.0
       id: build
       with:
         arch: ${{ matrix.arch }}
