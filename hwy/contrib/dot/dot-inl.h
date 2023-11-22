@@ -13,10 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Include guard (still compiled once per target)
-#include <cmath>
-
-#if defined(HIGHWAY_HWY_CONTRIB_DOT_DOT_INL_H_) == defined(HWY_TARGET_TOGGLE)
+// clang-format off
+#if defined(HIGHWAY_HWY_CONTRIB_DOT_DOT_INL_H_) == defined(HWY_TARGET_TOGGLE)  // NOLINT
+// clang-format on
 #ifdef HIGHWAY_HWY_CONTRIB_DOT_DOT_INL_H_
 #undef HIGHWAY_HWY_CONTRIB_DOT_DOT_INL_H_
 #else
@@ -71,11 +70,12 @@ struct Dot {
       T sum0 = T(0);
       T sum1 = T(0);
       for (; i + 2 <= num_elements; i += 2) {
-        sum0 += pa[i + 0] * pb[i + 0];
-        sum1 += pa[i + 1] * pb[i + 1];
+        // For reasons unknown, fp16 += does not compile on clang (Arm).
+        sum0 = sum0 + pa[i + 0] * pb[i + 0];
+        sum1 = sum1 + pa[i + 1] * pb[i + 1];
       }
       if (i < num_elements) {
-        sum1 += pa[i] * pb[i];
+        sum1 = sum1 + pa[i] * pb[i];
       }
       return sum0 + sum1;
     }

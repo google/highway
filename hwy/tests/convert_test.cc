@@ -274,6 +274,7 @@ struct TestPromoteOddEvenTo {
     const Repartition<ToT, D> to_d;
 
     const size_t N = Lanes(from_d);
+    HWY_ASSERT(N >= 2);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N / 2);
 
@@ -283,11 +284,13 @@ struct TestPromoteOddEvenTo {
         from[i] = RandomFiniteValue<T>(&rng);
       }
 
+#if HWY_TARGET != HWY_SCALAR
       for (size_t i = 0; i < N / 2; ++i) {
         expected[i] = CastValueToWide(from[i * 2 + 1]);
       }
       HWY_ASSERT_VEC_EQ(to_d, expected.get(),
                         PromoteOddTo(to_d, Load(from_d, from.get())));
+#endif
 
       for (size_t i = 0; i < N / 2; ++i) {
         expected[i] = CastValueToWide(from[i * 2]);
@@ -334,6 +337,11 @@ HWY_NOINLINE void TestAllPromoteOddEvenTo() {
   to_f64div2(uint32_t());
   to_f64div2(float());
 #endif  // HWY_HAVE_FLOAT64
+
+  // The following are not supported by the underlying PromoteTo:
+  // to_u16div2(int8_t());
+  // to_u32div2(int16_t());
+  // to_u64div2(int32_t());
 }
 
 template <typename T, HWY_IF_FLOAT(T)>
@@ -440,21 +448,29 @@ template <class D>
 AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
   const float test_cases[] = {
       // +/- 1
-      1.0f, -1.0f,
+      1.0f,
+      -1.0f,
       // +/- 0
-      0.0f, -0.0f,
+      0.0f,
+      -0.0f,
       // near 0
-      0.25f, -0.25f,
+      0.25f,
+      -0.25f,
       // +/- integer
-      4.0f, -32.0f,
+      4.0f,
+      -32.0f,
       // positive near limit
-      3.389531389251535E38f, 1.99384199368e+38f,
+      3.389531389251535E38f,
+      1.99384199368e+38f,
       // negative near limit
-      -3.389531389251535E38f, -1.99384199368e+38f,
+      -3.389531389251535E38f,
+      -1.99384199368e+38f,
       // positive +/- delta
-      2.015625f, 3.984375f,
+      2.015625f,
+      3.984375f,
       // negative +/- delta
-      -2.015625f, -3.984375f,
+      -2.015625f,
+      -3.984375f,
   };
   constexpr size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
@@ -796,8 +812,8 @@ struct TestFloatFromUint {
 
     // Integer positive
     HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TU(4))));
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(32767.0)),
-                      ConvertTo(df, Iota(du, 32767)));  // 2^16-1
+    HWY_ASSERT_VEC_EQ(df, Set(df, TF(32767.0)),
+                      ConvertTo(df, Set(du, 32767)));  // 2^16-1
     if (sizeof(TF) > 4) {
       HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)),
                         ConvertTo(df, Iota(du, 4294967295ULL)));  // 2^32-1

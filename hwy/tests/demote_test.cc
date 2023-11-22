@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include <algorithm>  // std::fill
 #include <cmath>      // std::isfinite
 
@@ -533,17 +536,18 @@ HWY_NOINLINE void TestAllReorderDemote2To() {
 }
 
 struct TestFloatOrderedDemote2To {
-  template <typename TF, class DF>
-  HWY_NOINLINE void operator()(TF /*t*/, DF df) {
+  template <typename TN, class DN>
+  HWY_NOINLINE void operator()(TN /*t*/, DN dn) {
 #if HWY_TARGET != HWY_SCALAR
-    const Repartition<bfloat16_t, decltype(df)> dbf16;
-    const RebindToUnsigned<decltype(dbf16)> du16;
+    const RepartitionToWide<decltype(dn)> df;
+    using TF = TFromD<decltype(df)>;
+    const RebindToUnsigned<decltype(dn)> du16;
     const RebindToUnsigned<decltype(df)> du32;
     const Half<decltype(du16)> du16_half;
     const size_t N = Lanes(df);
     const size_t twiceN = N * 2;
     auto from = AllocateAligned<TF>(twiceN);
-    auto expected = AllocateAligned<bfloat16_t>(twiceN);
+    auto expected = AllocateAligned<TN>(twiceN);
     HWY_ASSERT(from && expected);
 
     const auto u16_zero_vect = Zero(du16);
@@ -563,16 +567,16 @@ struct TestFloatOrderedDemote2To {
         const uint16_t expected_bf16_bits =
             static_cast<uint16_t>(u32Bits >> 16);
 
-        CopyBytes<sizeof(bfloat16_t)>(&expected_bf16_bits, &expected[i]);
+        CopyBytes<sizeof(TN)>(&expected_bf16_bits, &expected[i]);
       }
 
       const auto in_1 = Load(df, from.get());
       const auto in_2 = Load(df, from.get() + N);
-      const auto actual = OrderedDemote2To(dbf16, in_1, in_2);
+      const auto actual = OrderedDemote2To(dn, in_1, in_2);
 
       // Adjust expected to account for any possible rounding that was
       // carried out by the OrderedDemote2To operation
-      auto expected_vect = BitCast(du16, Load(dbf16, expected.get()));
+      auto expected_vect = BitCast(du16, Load(dn, expected.get()));
 
       const auto low_f32_bits =
           Combine(du16, TruncateTo(du16_half, BitCast(du32, in_2)),
@@ -593,12 +597,11 @@ struct TestFloatOrderedDemote2To {
       expected_vect = Add(expected_vect, expected_adj);
 
       // Store the adjusted expected_vect back into expected
-      Store(BitCast(dbf16, expected_vect), dbf16, expected.get());
-
-      HWY_ASSERT_VEC_EQ(dbf16, expected.get(), actual);
+      Store(BitCast(dn, expected_vect), dn, expected.get());
+      HWY_ASSERT_VEC_EQ(dn, expected.get(), actual);
     }
 #else
-    (void)df;
+    (void)dn;
 #endif
   }
 };
@@ -672,7 +675,9 @@ class TestIntegerOrderedDemote2To {
 
 HWY_NOINLINE void TestAllOrderedDemote2To() {
   ForUI163264(ForShrinkableVectors<TestIntegerOrderedDemote2To>());
-  ForShrinkableVectors<TestFloatOrderedDemote2To>()(float());
+  ForShrinkableVectors<TestFloatOrderedDemote2To>()(bfloat16_t());
+  // TODO(janwas): replace previous line with this once supported
+  // ForSpecialTypes(ForShrinkableVectors<TestFloatOrderedDemote2To>());
 }
 
 struct TestI32F64 {
