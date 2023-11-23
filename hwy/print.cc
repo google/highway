@@ -40,9 +40,15 @@ HWY_DLLEXPORT void TypeName(const TypeInfo& info, size_t N, char* string100) {
 HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
                             char* string100) {
   if (info.sizeof_t == 1) {
-    uint8_t byte;
-    CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
-    snprintf(string100, 100, "0x%02X", byte);  // NOLINT
+    if (info.is_signed) {
+      int8_t byte;
+      CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
+      snprintf(string100, 100, "%d", byte);  // NOLINT
+    } else {
+      uint8_t byte;
+      CopyBytes<1>(ptr, &byte);  // endian-safe: we ensured sizeof(T)=1.
+      snprintf(string100, 100, "0x%02X", byte);  // NOLINT
+    }
   } else if (info.sizeof_t == 2) {
     if (info.is_bf16) {
       const double value = static_cast<double>(F32FromBF16Mem(ptr));
