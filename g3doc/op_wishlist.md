@@ -77,9 +77,6 @@ For crypto. Native on Icelake+.
 *   New tuple interface for segment load/store
 *   Use new mask<->vec cast instruction, possibly for OddEven, ExpandLoad
 *   `rgather_vx` for broadcasting redsum result?
-*   Fix remaining 8-bit table lookups for large vectors (`Broadcast`,
-    `Interleave`): use 64-bit for initial shuffle. For `TwoTablesLookupLanes`,
-    use 16-bit indices.
 
 ### SVE codegen
 
@@ -191,3 +188,4 @@ For SVE (svld1sb_u32)+WASM? Compiler can probably already fuse.
 *   ~~Masked add/sub/div~~
 *   ~~ReduceMin/Max like ReduceSum, in addition to Min/MaxOfLanes~~
 *   ~~Reductions for 8-bit~~
+*   ~~RVV: Fix remaining 8-bit table lookups for large vectors~~
