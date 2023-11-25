@@ -194,14 +194,15 @@ struct TestDup128VecFromValues {
                       CastValueToLaneType(d, -1)));
 
     RandomState rng;
-    alignas(16) T rand_vals[16];
+    auto rand_vals = AllocateAligned<T>(16);
+    HWY_ASSERT(rand_vals);
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
-      for (size_t i = 0; i < 16; i++) {
+      for (size_t i = 0; i < 16; ++i) {
         rand_vals[i] = RandomFiniteValue<T>(&rng);
       }
 
-      const auto expected = LoadDup128(d, rand_vals);
+      const auto expected = LoadDup128(d, rand_vals.get());
       const auto actual = VecFromValues(
           d, rand_vals[0], rand_vals[1], rand_vals[2], rand_vals[3],
           rand_vals[4], rand_vals[5], rand_vals[6], rand_vals[7], rand_vals[8],
