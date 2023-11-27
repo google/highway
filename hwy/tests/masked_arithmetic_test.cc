@@ -324,8 +324,7 @@ struct TestDiv {
     using VI = Vec<decltype(di)>;
 
     // Wrap after 7 so that even float16_t can represent 1 << iota1.
-    const VI iota1 =
-        And(Iota(di, static_cast<T>(hwy::Unpredictable1())), Set(di, 7));
+    const VI iota1 = And(Iota(di, hwy::Unpredictable1()), Set(di, 7));
     const Vec<D> pows = ConvertTo(d, Shl(Set(di, 1), iota1));
     const Vec<D> no = ConvertTo(d, iota1);
 
