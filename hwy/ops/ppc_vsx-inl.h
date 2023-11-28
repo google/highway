@@ -614,7 +614,9 @@ HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
 // ------------------------------ Load
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
-HWY_API Vec128<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
+HWY_API Vec128<T> Load(D d, const T* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
+  (void)d;
   using LoadRaw = typename detail::Raw128<T>::AlignedRawVec;
   const LoadRaw* HWY_RESTRICT p = HWY_RCAST_ALIGNED(const LoadRaw*, aligned);
   using ResultRaw = typename detail::Raw128<T>::type;
@@ -623,7 +625,7 @@ HWY_API Vec128<T> Load(D /* tag */, const T* HWY_RESTRICT aligned) {
 
 // Any <= 64 bit
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), typename T = TFromD<D>>
-HWY_API VFromD<D> Load(D d, const T* HWY_RESTRICT p) {
+HWY_API VFromD<D> LoadU(D d, const T* HWY_RESTRICT p) {
   using BitsT = UnsignedFromSize<d.MaxBytes()>;
 
   BitsT bits;
@@ -1072,8 +1074,9 @@ HWY_API Vec128<T> LoadU(D /* tag */, const T* HWY_RESTRICT p) {
 
 // For < 128 bit, LoadU == Load.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), typename T = TFromD<D>>
-HWY_API VFromD<D> LoadU(D d, const T* HWY_RESTRICT p) {
-  return Load(d, p);
+HWY_API VFromD<D> Load(D d, const T* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  return LoadU(d, p);
 }
 
 // 128-bit SIMD => nothing to duplicate, same as an unaligned load.
@@ -1212,7 +1215,9 @@ HWY_API VFromD<D> MaskedLoadOr(VFromD<D> v, MFromD<D> m, D d,
 // ------------------------------ Store
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), typename T = TFromD<D>>
-HWY_API void Store(Vec128<T> v, D /* tag */, T* HWY_RESTRICT aligned) {
+HWY_API void Store(Vec128<T> v, D d, T* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
+  (void)d;
   using StoreRaw = typename detail::Raw128<T>::AlignedRawVec;
   *HWY_RCAST_ALIGNED(StoreRaw*, aligned) = reinterpret_cast<StoreRaw>(v.raw);
 }
@@ -1224,7 +1229,7 @@ HWY_API void StoreU(Vec128<T> v, D /* tag */, T* HWY_RESTRICT p) {
 }
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), typename T = TFromD<D>>
-HWY_API void Store(VFromD<D> v, D d, T* HWY_RESTRICT p) {
+HWY_API void StoreU(VFromD<D> v, D d, T* HWY_RESTRICT p) {
   using BitsT = UnsignedFromSize<d.MaxBytes()>;
 
   const Repartition<BitsT, decltype(d)> d_bits;
@@ -1234,8 +1239,9 @@ HWY_API void Store(VFromD<D> v, D d, T* HWY_RESTRICT p) {
 
 // For < 128 bit, StoreU == Store.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), typename T = TFromD<D>>
-HWY_API void StoreU(VFromD<D> v, D d, T* HWY_RESTRICT p) {
-  Store(v, d, p);
+HWY_API void Store(VFromD<D> v, D d, T* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
+  StoreU(v, d, p);
 }
 
 #if HWY_PPC_HAVE_9

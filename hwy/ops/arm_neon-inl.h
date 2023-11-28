@@ -3589,6 +3589,7 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
 // On Arm, Load is the same as LoadU.
 template <class D>
 HWY_API VFromD<D> Load(D d, const TFromD<D>* HWY_RESTRICT p) {
+  HWY_DASSERT_ALIGNED(d, p);
   return LoadU(d, p);
 }
 
@@ -3793,6 +3794,7 @@ HWY_DIAGNOSTICS_OFF(disable : 4701, ignored "-Wmaybe-uninitialized")
 // On Arm, Store is the same as StoreU.
 template <class D>
 HWY_API void Store(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
+  HWY_DASSERT_ALIGNED(d, aligned);
   StoreU(v, d, aligned);
 }
 
