@@ -627,13 +627,14 @@ using RemoveCvRef = RemoveConst<RemoveVolatile<RemoveRef<T>>>;
   hwy::EnableIf<(sizeof(T) > (bytes))>* = nullptr
 
 #define HWY_IF_SAME(T, expected) \
-  hwy::EnableIf<hwy::IsSame<RemoveCvRef<T>, expected>()>* = nullptr
+  hwy::EnableIf<hwy::IsSame<hwy::RemoveCvRef<T>, expected>()>* = nullptr
 #define HWY_IF_NOT_SAME(T, expected) \
-  hwy::EnableIf<!hwy::IsSame<RemoveCvRef<T>, expected>()>* = nullptr
+  hwy::EnableIf<!hwy::IsSame<hwy::RemoveCvRef<T>, expected>()>* = nullptr
 
 // One of two expected types
-#define HWY_IF_SAME2(T, expected1, expected2)                                 \
-  hwy::EnableIf<hwy::IsSameEither<RemoveCvRef<T>, expected1, expected2>()>* = \
+#define HWY_IF_SAME2(T, expected1, expected2)                            \
+  hwy::EnableIf<                                                         \
+      hwy::IsSameEither<hwy::RemoveCvRef<T>, expected1, expected2>()>* = \
       nullptr
 
 #define HWY_IF_U8(T) HWY_IF_SAME(T, uint8_t)
