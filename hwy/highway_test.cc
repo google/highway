@@ -172,20 +172,20 @@ struct TestSet {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
-    std::fill(expected.get(), expected.get() + N, T{0});
+    ZeroBytes(expected.get(), N * sizeof(T));
     HWY_ASSERT_VEC_EQ(d, expected.get(), v0);
 
     // Set
-    const Vec<D> v2 = Set(d, T{2});
+    const Vec<D> v2 = Set(d, ConvertScalarTo<T>(2));
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = 2;
+      expected[i] = ConvertScalarTo<T>(2);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), v2);
 
     // Iota
-    const Vec<D> vi = Iota(d, T(5));
+    const Vec<D> vi = IotaForSpecial(d, 5);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = T(5 + i);
+      expected[i] = ConvertScalarTo<T>(5 + i);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), vi);
 
@@ -202,7 +202,9 @@ struct TestSet {
   }
 };
 
-HWY_NOINLINE void TestAllSet() { ForAllTypes(ForPartialVectors<TestSet>()); }
+HWY_NOINLINE void TestAllSet() {
+  ForAllTypesAndSpecial(ForPartialVectors<TestSet>());
+}
 
 // Ensures wraparound (mod 2^bits)
 struct TestOverflow {
@@ -397,9 +399,7 @@ struct TestNaN {
   }
 };
 
-HWY_NOINLINE void TestAllNaN() {
-  ForFloatTypes(ForPartialVectors<TestNaN>());
-}
+HWY_NOINLINE void TestAllNaN() { ForFloatTypes(ForPartialVectors<TestNaN>()); }
 
 struct TestIsNaN {
   template <class T, class D>

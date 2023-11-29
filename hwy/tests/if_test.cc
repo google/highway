@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/if_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -26,6 +28,11 @@ namespace HWY_NAMESPACE {
 struct TestIfThenElse {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    // TODO(janwas): file compiler bug report
+#if HWY_COMPILER_CLANG && (HWY_COMPILER_CLANG < 1800) && HWY_ARCH_ARM
+    if (IsSpecialFloat<T>()) return;
+#endif
+
     RandomState rng;
 
     using TI = MakeSigned<T>;  // For mask > 0 comparison
@@ -40,8 +47,8 @@ struct TestIfThenElse {
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        in1[i] = static_cast<T>(Random32(&rng));
-        in2[i] = static_cast<T>(Random32(&rng));
+        in1[i] = ConvertScalarTo<T>(Random32(&rng));
+        in2[i] = ConvertScalarTo<T>(Random32(&rng));
         bool_lanes[i] = (Random32(&rng) & 16) ? TI(1) : TI(0);
       }
 
@@ -55,12 +62,12 @@ struct TestIfThenElse {
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElse(mask, v1, v2));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = bool_lanes[i] ? in1[i] : T(0);
+        expected[i] = bool_lanes[i] ? in1[i] : ConvertScalarTo<T>(0);
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenElseZero(mask, v1));
 
       for (size_t i = 0; i < N; ++i) {
-        expected[i] = bool_lanes[i] ? T(0) : in2[i];
+        expected[i] = bool_lanes[i] ? ConvertScalarTo<T>(0) : in2[i];
       }
       HWY_ASSERT_VEC_EQ(d, expected.get(), IfThenZeroElse(mask, v2));
     }
@@ -68,7 +75,7 @@ struct TestIfThenElse {
 };
 
 HWY_NOINLINE void TestAllIfThenElse() {
-  ForAllTypes(ForPartialVectors<TestIfThenElse>());
+  ForAllTypesAndSpecial(ForPartialVectors<TestIfThenElse>());
 }
 
 struct TestIfVecThenElse {

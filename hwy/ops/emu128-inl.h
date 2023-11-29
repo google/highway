@@ -147,7 +147,7 @@ template <class D, typename T2>
 HWY_API VFromD<D> Set(D d, const T2 t) {
   VFromD<D> v;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] = static_cast<TFromD<D>>(t);
+    v.raw[i] = ConvertScalarTo<TFromD<D>>(t);
   }
   return v;
 }
@@ -230,8 +230,7 @@ template <class D, typename T = TFromD<D>, typename T2>
 HWY_API VFromD<D> Iota(D d, T2 first) {
   VFromD<D> v;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] =
-        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
+    v.raw[i] = AddWithWraparound(static_cast<T>(first), i);
   }
   return v;
 }
@@ -1768,23 +1767,20 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   return ReorderDemote2To(dn, a, b);
 }
 
-template <class DN, HWY_IF_BF16_D(DN), class V, HWY_IF_F32_D(DFromV<V>),
+template <class DN, HWY_IF_SPECIAL_FLOAT_D(DN), class V,
+          HWY_IF_F32_D(DFromV<V>),
           HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
-  const RebindToUnsigned<DFromV<decltype(a)>> du32;
-  const size_t NW = Lanes(du32);
-  VFromD<Repartition<uint16_t, DN>> ret;
-
-  const auto a_bits = BitCast(du32, a);
-  const auto b_bits = BitCast(du32, b);
-
+  const size_t NW = Lanes(dn) / 2;
+  using TN = TFromD<DN>;
+  VFromD<DN> ret;
   for (size_t i = 0; i < NW; ++i) {
-    ret.raw[i] = static_cast<uint16_t>(a_bits.raw[i] >> 16);
+    ret.raw[i] = ConvertScalarTo<TN>(a.raw[i]);
   }
   for (size_t i = 0; i < NW; ++i) {
-    ret.raw[NW + i] = static_cast<uint16_t>(b_bits.raw[i] >> 16);
+    ret.raw[NW + i] = ConvertScalarTo<TN>(b.raw[i]);
   }
-  return BitCast(dn, ret);
+  return ret;
 }
 
 namespace detail {
@@ -2033,8 +2029,16 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   return ret;
 }
 
+// 2023-11-23: workaround for incorrect codegen (reduction_test fails for
+// SumsOf2 because PromoteOddTo, which uses ConcatOdd, returns zero).
+#if HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128 && HWY_COMPILER_CLANG
+#define HWY_EMU128_CONCAT_INLINE HWY_NOINLINE
+#else
+#define HWY_EMU128_CONCAT_INLINE HWY_API
+#endif
+
 template <class D>
-HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
+HWY_EMU128_CONCAT_INLINE VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const Half<decltype(d)> dh;
   VFromD<D> ret;
   for (size_t i = 0; i < MaxLanes(dh); ++i) {

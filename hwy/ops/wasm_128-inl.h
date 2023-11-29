@@ -255,8 +255,7 @@ template <class D, typename T = TFromD<D>, typename T2>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
   HWY_ALIGN T lanes[MaxLanes(d)];
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    lanes[i] =
-        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
+    lanes[i] = AddWithWraparound(static_cast<T>(first), i);
   }
   return Load(d, lanes);
 }
@@ -2125,7 +2124,7 @@ template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 2)>
 HWY_INLINE Vec128<T, N> InsertLane(const Vec128<T, N> v, T t) {
   static_assert(kLane < N, "Lane index out of bounds");
   return Vec128<T, N>{
-      wasm_i16x8_replace_lane(v.raw, kLane, static_cast<int16_t>(t))};
+      wasm_i16x8_replace_lane(v.raw, kLane, BitCastScalar<int16_t>(t))};
 }
 
 template <size_t kLane, typename T, size_t N, HWY_IF_T_SIZE(T, 4)>

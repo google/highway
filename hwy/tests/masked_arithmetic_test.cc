@@ -50,18 +50,13 @@ struct TestUnsignedMinMax {
     HWY_ASSERT_VEC_EQ(d, vm, MaskedMaxOr(v2, MaskTrue(d), k0, vm));
     HWY_ASSERT_VEC_EQ(d, vm, MaskedMaxOr(v2, MaskTrue(d), vm, k0));
 
-    const hwy::NonFloatTag tag;
-
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
-        const T t2 =
-            static_cast<T>(AddWithWraparound(tag, static_cast<T>(i), 2));
-        const T t3 =
-            static_cast<T>(AddWithWraparound(tag, static_cast<T>(i), 3));
-        const T t4 =
-            static_cast<T>(AddWithWraparound(tag, static_cast<T>(i), 4));
+        const T t2 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 2));
+        const T t3 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 3));
+        const T t4 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 4));
         if (bool_lanes[i]) {
           expected_min[i] = HWY_MIN(t3, t4);
           expected_max[i] = HWY_MAX(t3, t4);
@@ -113,18 +108,13 @@ struct TestSignedMinMax {
     HWY_ASSERT_VEC_EQ(d, k0, MaskedMaxOr(v2, MaskTrue(d), k0, vm));
     HWY_ASSERT_VEC_EQ(d, k0, MaskedMaxOr(v2, MaskTrue(d), vm, k0));
 
-    const auto tag = IsFloatTag<T>();
-
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
-        const T t2 =
-            static_cast<T>(AddWithWraparound(tag, static_cast<T>(i), 2));
-        const T t3 =
-            static_cast<T>(AddWithWraparound(tag, static_cast<T>(i), 3));
-        const T t4 =
-            static_cast<T>(AddWithWraparound(tag, static_cast<T>(i), 4));
+        const T t2 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 2));
+        const T t3 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 3));
+        const T t4 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 4));
         if (bool_lanes[i]) {
           expected_min[i] = HWY_MIN(t3, t4);
           expected_max[i] = HWY_MAX(t3, t4);

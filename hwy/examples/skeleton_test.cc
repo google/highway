@@ -109,7 +109,7 @@ struct TestSumMulAdd {
       // implementation (compiler emulation, ARM ACLE __fp16 vs _Float16, etc).
       // In some cases the scalar and vector paths will have different results;
       // we check them against known values where possible, else we ignore them.
-#if HWY_COMPILER_CLANG && HWY_NEON_HAVE_FLOAT16C
+#if HWY_COMPILER_CLANG && HWY_NEON_HAVE_F16C
       HWY_ASSERT_EQ(4344240.0, expected_sum);  // Full-width float
       HWY_ASSERT_EQ(4344235.0, vector_sum);    // __fp16
 #endif

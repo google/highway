@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/reduction_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -67,11 +70,11 @@ struct TestSumOfLanes {
 
     // Lane i = bit i, higher lanes 0
     T sum = T{0};
-    // Avoid setting sign bit and cap at double precision
-    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
+    // Avoid setting sign bit and cap so that f16 precision is not exceeded.
+    constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 9);
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(0);
-      sum = AddWithWraparound(hwy::IsFloatTag<T>(), sum, in_lanes[i]);
+      sum = AddWithWraparound(sum, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
                       SumOfLanes(d, Load(d, in_lanes.get())));
@@ -79,7 +82,7 @@ struct TestSumOfLanes {
     // Lane i = i (iota) to include upper lanes
     sum = T{0};
     for (size_t i = 0; i < N; ++i) {
-      sum = AddWithWraparound(hwy::IsFloatTag<T>(), sum, static_cast<T>(i));
+      sum = AddWithWraparound(sum, static_cast<T>(i));
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Iota(d, 0)));
@@ -246,6 +249,9 @@ HWY_NOINLINE void TestAllSumsOf2() {
 
   ForGEVectors<32, TestSumsOf2>()(int16_t());
   ForGEVectors<32, TestSumsOf2>()(uint16_t());
+#if HWY_HAVE_FLOAT16
+  ForGEVectors<32, TestSumsOf2>()(float16_t());
+#endif
 
 #if HWY_HAVE_INTEGER64
   ForGEVectors<64, TestSumsOf2>()(int32_t());

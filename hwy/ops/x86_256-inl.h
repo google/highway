@@ -668,7 +668,7 @@ HWY_INLINE Vec256<T> IfThenElse(hwy::SizeTag<8> /* tag */, Mask256<T> mask,
 
 }  // namespace detail
 
-template <typename T>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> IfThenElse(Mask256<T> mask, Vec256<T> yes, Vec256<T> no) {
   return detail::IfThenElse(hwy::SizeTag<sizeof(T)>(), mask, yes, no);
 }
@@ -713,7 +713,7 @@ HWY_INLINE Vec256<T> IfThenElseZero(hwy::SizeTag<8> /* tag */, Mask256<T> mask,
 
 }  // namespace detail
 
-template <typename T, HWY_IF_NOT_FLOAT3264(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> IfThenElseZero(Mask256<T> mask, Vec256<T> yes) {
   return detail::IfThenElseZero(hwy::SizeTag<sizeof(T)>(), mask, yes);
 }
@@ -751,7 +751,7 @@ HWY_INLINE Vec256<T> IfThenZeroElse(hwy::SizeTag<8> /* tag */, Mask256<T> mask,
 
 }  // namespace detail
 
-template <typename T, HWY_IF_NOT_FLOAT3264(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec256<T> IfThenZeroElse(Mask256<T> mask, Vec256<T> no) {
   return detail::IfThenZeroElse(hwy::SizeTag<sizeof(T)>(), mask, no);
 }
@@ -3890,22 +3890,16 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> ZeroExtendVector(D /* tag */, VFromD<Half<D>> lo) {
 #if HWY_HAVE_ZEXT
   return VFromD<D>{_mm256_zextsi128_si256(lo.raw)};
+#elif HWY_COMPILER_MSVC
+  // Workaround: _mm256_inserti128_si256 does not actually zero the hi part.
+  return VFromD<D>{_mm256_set_m128i(_mm_setzero_si128(), lo.raw)};
 #else
   return VFromD<D>{_mm256_inserti128_si256(_mm256_setzero_si256(), lo.raw, 0)};
 #endif
 }
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
-HWY_API Vec256<bfloat16_t> ZeroExtendVector(D d, Vec128<bfloat16_t> lo) {
-  (void)d;
-#if HWY_HAVE_ZEXT
-  return VFromD<D>{_mm256_zextsi128_si256(lo.raw)};
-#else
-  return VFromD<D>{_mm256_inserti128_si256(_mm256_setzero_si256(), lo.raw, 0)};
-#endif  // HWY_HAVE_ZEXT
-}
+#if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F16_D(D)>
 HWY_API Vec256<float16_t> ZeroExtendVector(D d, Vec128<float16_t> lo) {
-#if HWY_HAVE_FLOAT16
 #if HWY_HAVE_ZEXT
   (void)d;
   return Vec256<float16_t>{_mm256_zextph128_ph256(lo.raw)};
@@ -3913,15 +3907,8 @@ HWY_API Vec256<float16_t> ZeroExtendVector(D d, Vec128<float16_t> lo) {
   const RebindToUnsigned<D> du;
   return BitCast(d, ZeroExtendVector(du, BitCast(du, lo)));
 #endif  // HWY_HAVE_ZEXT
-#else
-  (void)d;
-#if HWY_HAVE_ZEXT
-  return VFromD<D>{_mm256_zextsi128_si256(lo.raw)};
-#else
-  return VFromD<D>{_mm256_inserti128_si256(_mm256_setzero_si256(), lo.raw, 0)};
-#endif  // HWY_HAVE_ZEXT
-#endif  // HWY_HAVE_FLOAT16
 }
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
 HWY_API Vec256<float> ZeroExtendVector(D /* tag */, Vec128<float> lo) {
 #if HWY_HAVE_ZEXT

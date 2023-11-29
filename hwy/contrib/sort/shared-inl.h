@@ -113,8 +113,9 @@ static_assert(SortConstants::MaxBufBytes<2>(64) <= 1280, "Unexpectedly high");
 #endif  // HIGHWAY_HWY_CONTRIB_SORT_SHARED_INL_H_
 
 // Per-target
-#if defined(HIGHWAY_HWY_CONTRIB_SORT_SHARED_TOGGLE) == \
-    defined(HWY_TARGET_TOGGLE)
+// clang-format off
+#if defined(HIGHWAY_HWY_CONTRIB_SORT_SHARED_TOGGLE) == defined(HWY_TARGET_TOGGLE) // NOLINT
+// clang-format on
 #ifdef HIGHWAY_HWY_CONTRIB_SORT_SHARED_TOGGLE
 #undef HIGHWAY_HWY_CONTRIB_SORT_SHARED_TOGGLE
 #else

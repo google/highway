@@ -391,7 +391,7 @@
 #define HWY_LANES(T) ((HWY_MAX_BYTES) / sizeof(T))
 
 #define HWY_HAVE_INTEGER64 1
-#define HWY_HAVE_FLOAT16 0
+#define HWY_HAVE_FLOAT16 1
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
@@ -498,7 +498,7 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
-#if defined(__riscv_zvfh)
+#if HWY_RVV_HAVE_F16_VEC
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
@@ -554,6 +554,14 @@
 #else
 #pragma message("HWY_TARGET does not match any known target")
 #endif  // HWY_TARGET
+
+//-----------------------------------------------------------------------------
+
+// Sanity check: if we have f16 vector support, then base.h should also be
+// using a built-in type for f16 scalars.
+#if HWY_HAVE_FLOAT16 && !HWY_HAVE_SCALAR_F16_TYPE
+#error "Logic error: f16 vectors but no scalars"
+#endif
 
 // Override this to 1 in asan/msan builds, which will still fault.
 #if HWY_IS_ASAN || HWY_IS_MSAN

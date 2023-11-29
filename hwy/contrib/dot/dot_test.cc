@@ -51,23 +51,6 @@ HWY_NOINLINE float SimpleDot(const bfloat16_t* pa, const bfloat16_t* pb,
   return sum;
 }
 
-template <typename T>
-HWY_INLINE void SetValue(const float value, T* HWY_RESTRICT ptr) {
-  *ptr = static_cast<T>(value);
-}
-HWY_INLINE void SetValue(const float value, bfloat16_t* HWY_RESTRICT ptr) {
-  *ptr = BF16FromF32(value);
-}
-
-template <typename T>
-HWY_INLINE double GetValue(T f) {
-  return static_cast<double>(f);
-}
-template <>
-HWY_INLINE double GetValue<bfloat16_t>(bfloat16_t f) {
-  return static_cast<double>(F32FromBF16(f));
-}
-
 class TestDot {
   // Computes/verifies one dot product.
   template <int kAssumptions, class D>
@@ -89,23 +72,24 @@ class TestDot {
     T* b = pb.get() + misalign_b;
     size_t i = 0;
     for (; i < num; ++i) {
-      SetValue(random_t(), a + i);
-      SetValue(random_t(), b + i);
+      a[i] = ConvertScalarTo<T>(random_t());
+      b[i] = ConvertScalarTo<T>(random_t());
     }
     // Fill padding with NaN - the values are not used, but avoids MSAN errors.
     for (; i < padded; ++i) {
       ScalableTag<float> df1;
-      SetValue(GetLane(NaN(df1)), a + i);
-      SetValue(GetLane(NaN(df1)), b + i);
+      a[i] = ConvertScalarTo<T>(GetLane(NaN(df1)));
+      b[i] = ConvertScalarTo<T>(GetLane(NaN(df1)));
     }
 
     const double expected = SimpleDot(a, b, num);
     const double magnitude = expected > 0.0 ? expected : -expected;
-    const double actual = GetValue(Dot::Compute<kAssumptions>(d, a, b, num));
+    const double actual =
+        ConvertScalarTo<double>(Dot::Compute<kAssumptions>(d, a, b, num));
     const double max = static_cast<double>(8 * 8 * num);
     HWY_ASSERT(-max <= actual && actual <= max);
     const double tolerance =
-        64.0 * GetValue(Epsilon<T>()) * HWY_MAX(magnitude, 1.0);
+        64.0 * ConvertScalarTo<double>(Epsilon<T>()) * HWY_MAX(magnitude, 1.0);
     HWY_ASSERT(expected - tolerance <= actual &&
                actual <= expected + tolerance);
   }

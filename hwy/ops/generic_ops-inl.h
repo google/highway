@@ -1979,18 +1979,18 @@ template <class D, HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> LoadN(D d, const TFromD<D>* HWY_RESTRICT p,
                         size_t num_lanes) {
   const RebindToUnsigned<D> du;
-  return BitCast(d, LoadN(du, reinterpret_cast<const uint16_t*>(p), num_lanes));
+  return BitCast(d, LoadN(du, detail::U16LanePointer(p), num_lanes));
 }
 
 template <class D, HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const TFromD<D>* HWY_RESTRICT p,
                           size_t num_lanes) {
   const RebindToUnsigned<D> du;
-  return BitCast(d, LoadNOr(BitCast(du, no), du,
-                            reinterpret_cast<const uint16_t*>(p), num_lanes));
+  return BitCast(
+      d, LoadNOr(BitCast(du, no), du, detail::U16LanePointer(p), num_lanes));
 }
 
-#else   // !HWY_MEM_OPS_MIGHT_FAULT || HWY_HAVE_SCALABLE
+#else  // !HWY_MEM_OPS_MIGHT_FAULT || HWY_HAVE_SCALABLE
 
 // For SVE and non-sanitizer AVX-512; RVV has its own specialization.
 template <class D>
@@ -2779,7 +2779,8 @@ template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
 HWY_INLINE VFromD<D> PromoteEvenTo(
     ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     FromTypeTag /*from_type_tag*/, D d_to, V v) {
-  return PromoteLowerTo(d_to, ConcatEven(DFromV<decltype(v)>(), v, v));
+  const DFromV<decltype(v)> d;
+  return PromoteLowerTo(d_to, ConcatEven(d, v, v));
 }
 
 template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
@@ -2787,7 +2788,8 @@ template <class ToTypeTag, size_t kToLaneSize, class FromTypeTag, class D,
 HWY_INLINE VFromD<D> PromoteOddTo(
     ToTypeTag /*to_type_tag*/, hwy::SizeTag<kToLaneSize> /*to_lane_size_tag*/,
     FromTypeTag /*from_type_tag*/, D d_to, V v) {
-  return PromoteLowerTo(d_to, ConcatOdd(DFromV<decltype(v)>(), v, v));
+  const DFromV<decltype(v)> d;
+  return PromoteLowerTo(d_to, ConcatOdd(d, v, v));
 }
 
 }  // namespace detail
@@ -5612,6 +5614,7 @@ HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
   const D8 d8;
   const RebindToUnsigned<decltype(d8)> du8;
   const RepartitionToWide<decltype(d8)> d16;
+  const RepartitionToWide<decltype(du8)> du16;
 
   // Ensure that a is resized to a vector that has at least
   // HWY_MAX(Lanes(d8), size_t{8} << kAOffset) lanes for the interleave and
@@ -5622,8 +5625,7 @@ HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
 
   // Lanes(d8_interleave) >= Lanes(d8) is guaranteed to be true on RVV
   // targets as d8_interleave.Pow2() >= d8.Pow2() is true.
-  constexpr int kPow2 = d8.Pow2();
-  constexpr int kInterleavePow2 = HWY_MAX(kPow2, 0);
+  constexpr int kInterleavePow2 = HWY_MAX(d8.Pow2(), 0);
   const ScalableTag<TFromD<D8>, kInterleavePow2> d8_interleave;
 #elif HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || \
     HWY_TARGET == HWY_SVE2_128
@@ -5665,10 +5667,10 @@ HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
   // the CombineShiftRightBytes are needed for the subsequent AbsDiff operations
   // and as a01 and a23 need to be the same vector type as b01 and b23 for the
   // AbsDiff operations below.
-  const auto a01 =
+  const V8 a01 =
       ResizeBitCast(d8, CombineShiftRightBytes<kAOffset * 8 + 1>(
                             d8_interleave, a_interleaved_hi, a_interleaved_lo));
-  const auto a23 =
+  const V8 a23 =
       ResizeBitCast(d8, CombineShiftRightBytes<kAOffset * 8 + 5>(
                             d8_interleave, a_interleaved_hi, a_interleaved_lo));
 
@@ -5682,11 +5684,13 @@ HWY_API Vec<RepartitionToWide<DFromV<V8>>> SumsOfAdjQuadAbsDiff(V8 a, V8 b) {
             b[kBOffset*4+2], b[kBOffset*4+3], b[kBOffset*4+2], b[kBOffset*4+3],
             b[kBOffset*4+2], b[kBOffset*4+3], b[kBOffset*4+2], b[kBOffset*4+3] }
    */
-  const auto b01 = BitCast(d8, Broadcast<kBOffset * 2>(BitCast(d16, b)));
-  const auto b23 = BitCast(d8, Broadcast<kBOffset * 2 + 1>(BitCast(d16, b)));
+  const V8 b01 = BitCast(d8, Broadcast<kBOffset * 2>(BitCast(d16, b)));
+  const V8 b23 = BitCast(d8, Broadcast<kBOffset * 2 + 1>(BitCast(d16, b)));
 
-  const auto absdiff_sum_01 = SumsOf2(BitCast(du8, AbsDiff(a01, b01)));
-  const auto absdiff_sum_23 = SumsOf2(BitCast(du8, AbsDiff(a23, b23)));
+  const VFromD<decltype(du16)> absdiff_sum_01 =
+      SumsOf2(BitCast(du8, AbsDiff(a01, b01)));
+  const VFromD<decltype(du16)> absdiff_sum_23 =
+      SumsOf2(BitCast(du8, AbsDiff(a23, b23)));
   return BitCast(d16, Add(absdiff_sum_01, absdiff_sum_23));
 }
 #endif  // HWY_TARGET != HWY_SCALAR

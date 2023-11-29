@@ -42,8 +42,8 @@ struct TestMaskedLoad {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes);
 
-    const Vec<D> v = Iota(d, T{1});
-    const Vec<D> v2 = Iota(d, T{2});
+    const Vec<D> v = IotaForSpecial(d, 1);
+    const Vec<D> v2 = IotaForSpecial(d, 2);
     Store(v, d, lanes.get());
 
     // Each lane should have a chance of having mask=true.
@@ -65,7 +65,7 @@ struct TestMaskedLoad {
 };
 
 HWY_NOINLINE void TestAllMaskedLoad() {
-  ForAllTypes(ForPartialVectors<TestMaskedLoad>());
+  ForAllTypesAndSpecial(ForPartialVectors<TestMaskedLoad>());
 }
 
 struct TestMaskedScatter {
@@ -274,15 +274,15 @@ struct TestBlendedStore {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && actual && expected);
 
-    const Vec<D> v = Iota(d, T{1});
+    const Vec<D> v = IotaForSpecial(d, 1);
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         // Re-initialize to something distinct from v[i].
-        actual[i] = static_cast<T>(127 - (i & 127));
-        expected[i] = bool_lanes[i] ? static_cast<T>(i + 1) : actual[i];
+        actual[i] = ConvertScalarTo<T>(127 - (i & 127));
+        expected[i] = bool_lanes[i] ? ConvertScalarTo<T>(i + 1) : actual[i];
       }
 
       const auto mask = RebindMask(d, Gt(Load(di, bool_lanes.get()), Zero(di)));
@@ -293,7 +293,7 @@ struct TestBlendedStore {
 };
 
 HWY_NOINLINE void TestAllBlendedStore() {
-  ForAllTypes(ForPartialVectors<TestBlendedStore>());
+  ForAllTypesAndSpecial(ForPartialVectors<TestBlendedStore>());
 }
 
 class TestStoreMaskBits {

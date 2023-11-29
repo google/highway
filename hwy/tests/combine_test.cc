@@ -126,7 +126,7 @@ struct TestZeroExtendVector {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Twice<D> d2;
 
-    const auto v = Iota(d, 1);
+    const Vec<D> v = IotaForSpecial(d, 1);
     const size_t N = Lanes(d);
     const size_t N2 = Lanes(d2);
     // If equal, then N was already MaxLanes(d) and it's not clear what
@@ -149,7 +149,7 @@ struct TestZeroExtendVector {
 };
 
 HWY_NOINLINE void TestAllZeroExtendVector() {
-  ForAllTypes(ForExtendableVectors<TestZeroExtendVector>());
+  ForAllTypesAndSpecial(ForExtendableVectors<TestZeroExtendVector>());
 }
 
 struct TestCombine {

@@ -422,8 +422,8 @@ example `Lt` instead of `operator<`.
 
     Dup128VecFromValues returns the following values in each 128-bit block of
     the result, with `t0` in the least-significant (lowest-indexed) lane of each
-    128-bit block and `tK` in the most-signifiant (highest-indexed) lane of each
-    128-bit block: `{t0, t1, ..., tK}`
+    128-bit block and `tK` in the most-significant (highest-indexed) lane of
+    each 128-bit block: `{t0, t1, ..., tK}`
 
 ### Getting/setting lanes
 
@@ -535,7 +535,7 @@ from left to right, of the arguments passed to `Create{2-4}`.
 
 *   <code>V **AbsDiff**(V a, V b)</code>: returns `|a[i] - b[i]|` in each lane.
 
-*   `V`: `{i,u}{8,16,32},f32`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
+*   `V`: `{i,u}{8,16,32},f{16,32}`, `VW`: `Vec<RepartitionToWide<DFromV<V>>>` \
     <code>VW **SumsOf2**(V v)</code>
     returns the sums of 2 consecutive lanes, promoting each sum into a lane of
     `TFromV<VW>`.
@@ -961,7 +961,7 @@ Special functions for signed types:
 Let `M` denote a mask capable of storing a logical true/false for each lane (the
 encoding depends on the platform).
 
-#### Creation
+#### Create mask
 
 *   <code>M **FirstN**(D, size_t N)</code>: returns mask with the first `N`
     lanes (those with index `< N`) true. `N >= Lanes(D())` results in an
@@ -984,7 +984,7 @@ encoding depends on the platform).
     a mask with lane `i` set to
     `((mask_bits >> (i & (16 / sizeof(T) - 1))) & 1) != 0`.
 
-#### Conversion
+#### Convert mask
 
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
     reinterpreted as a mask for lanes of type `TFromD<D>`. `M1` and `M2` must
@@ -1043,7 +1043,7 @@ encoding depends on the platform).
     OrderedDemote2MasksTo is only available if `HWY_TARGET != HWY_SCALAR` is
     true.
 
-#### Combine
+#### Combine mask
 
 *   <code>M2 **LowerHalfOfMask**(D d, M m)</code>:
     returns the lower half of mask `m`, where `M` is `MFromD<Twice<D>>`
@@ -1073,7 +1073,7 @@ encoding depends on the platform).
 
     CombineMasks is only available if `HWY_TARGET != HWY_SCALAR` is true.
 
-#### Testing
+#### Test mask
 
 *   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.
 
@@ -1099,7 +1099,7 @@ encoding depends on the platform).
     otherwise results are undefined. This is typically more efficient than
     `FindLastTrue`.
 
-#### Ternary operator
+#### Ternary operator for masks
 
 For `IfThen*`, masks must adhere to the invariant established by `MaskFromVec`:
 false is zero, true has all bits set:
@@ -1117,7 +1117,7 @@ false is zero, true has all bits set:
     possibly faster than `IfVecThenElse(MaskFromVec(mask), yes, no)`. The result
     is *implementation-defined* if `mask[i]` is neither zero nor all bits set.
 
-#### Logical
+#### Logical mask
 
 *   <code>M **Not**(M m)</code>: returns mask of elements indicating whether the
     input mask element was false.
@@ -1635,35 +1635,20 @@ The following may be more convenient or efficient than also calling `LowerHalf`
 
 The following may be more convenient or efficient than also calling `ConcatEven`
 or `ConcatOdd` followed by `PromoteLowerTo`:
-*   `D`:`{u,i}{16,32,64},f{16,32,64}`, `V`:`Vec<RepartitionToNarrow<D>>` \
+
+*   `V`:`{u,i}{8,16,32},f{16,32},bf16`, `D`:`RepartitionToWide<DFromV<V>>` \
     <code>Vec&lt;D&gt; **PromoteEvenTo**(D, V v)</code>: promotes the even lanes
     of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
-    return value. `PromoteEvenTo(d, v)` is equivalent to
-    `PromoteLowerTo(d, ConcatEven(RepartitionToNarrow<D>(), v, v))`,
-    but `PromoteEvenTo(d, v)` is more efficient on some targets.
+    return value. `PromoteEvenTo(d, v)` is equivalent to, but potentially more
+    efficient than `PromoteLowerTo(d, ConcatEven(Repartition<TFromV<V>, D>(), v,
+    v))`.
 
-*   `D`:`f32`, `V`:`Vec<Repartition<bfloat16_t, D>>` \
-    <code>Vec&lt;D&gt; **PromoteEvenTo**(D, V v)</code>: promotes the even lanes
-    of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
-    return value. `PromoteEvenTo(d, v)` is equivalent to
-    `PromoteLowerTo(d, ConcatEven(Repartition<bfloat16_t, D>(), v, v))`,
-    but `PromoteEvenTo(d, v)` is more efficient on some targets.
-
-*   `D`:`{u,i}{16,32,64},f{16,32,64}`, `V`:`Vec<RepartitionToNarrow<D>>` \
+*   `V`:`{u,i}{8,16,32},f{16,32},bf16`, `D`:`RepartitionToWide<DFromV<V>>` \
     <code>Vec&lt;D&gt; **PromoteOddTo**(D, V v)</code>: promotes the odd lanes
     of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
-    return value. `PromoteOddTo(d, v)` is equivalent to
-    `PromoteLowerTo(d, ConcatOdd(RepartitionToNarrow<D>(), v, v))`,
-    but `PromoteOddTo(d, v)` is more efficient on some targets. Only available
-    if `HWY_TARGET != HWY_SCALAR`.
-
-*   `D`:`f32`, `V`:`Vec<Repartition<bfloat16_t, D>>` \
-    <code>Vec&lt;D&gt; **PromoteOddTo**(D, V v)</code>: promotes the odd lanes
-    of `v` to `TFromD<D>`. Note that `V` has twice as many lanes as `D` and the
-    return value. `PromoteEvenTo(d, v)` is equivalent to
-    `PromoteLowerTo(d, ConcatOdd(Repartition<bfloat16_t, D>(), v, v))`,
-    but `PromoteOddTo(d, v)` is more efficient on some targets. Only available
-    if `HWY_TARGET != HWY_SCALAR`.
+    return value. `PromoteOddTo(d, v)` is equivalent to, but potentially more
+    efficient than `PromoteLowerTo(d, ConcatOdd(Repartition<TFromV<V>, D>(), v,
+    v))`. Only available if `HWY_TARGET != HWY_SCALAR`.
 
 #### Two-vector demotion
 
@@ -2177,11 +2162,6 @@ instead of `HWY_HAVE_FLOAT64`, which describes the current target.
     `#if HWY_TARGET != HWY_SCALAR || HWY_IDE` avoids code appearing greyed out.
 
 The following indicate full support for certain lane types and expand to 1 or 0.
-Note that minimal support (`Zero`, `BitCast`, `Load`/`Store`,
-`PromoteTo`/`DemoteTo`, `PromoteUpper/LowerTo`, `Combine`) is still available
-for `float16_t` and `bfloat16_t`, plus `Neg` for float16_t and `*Demote2To` for
-bfloat16_t. Exception: `UpperHalf`, and thus also `PromoteUpperTo`, are not
-supported for the `HWY_SCALAR` target.
 
 *   `HWY_HAVE_INTEGER64`: support for 64-bit signed/unsigned integer lanes.
 *   `HWY_HAVE_FLOAT16`: support for 16-bit floating-point lanes.
@@ -2189,6 +2169,26 @@ supported for the `HWY_SCALAR` target.
 
 The above were previously known as `HWY_CAP_INTEGER64`, `HWY_CAP_FLOAT16`, and
 `HWY_CAP_FLOAT64`, respectively. Those `HWY_CAP_*` names are DEPRECATED.
+
+Even if `HWY_HAVE_FLOAT16` is 0, the following ops generally support `float16_t`
+and `bfloat16_t`:
+
+*   `Lanes`, `MaxLanes`
+*   `Zero`, `Set`, `Undefined`
+*   `BitCast`
+*   `Load`, `LoadU`, `LoadN`, `LoadNOr`, `MaskedLoad`, `MaskedLoadOr`
+*   `Store`, `StoreU`, `StoreN`, `BlendedStore`
+*   `PromoteTo`, `DemoteTo`
+*   `PromoteUpperTo`, `PromoteLowerTo`
+*   `PromoteEvenTo`, `PromoteOddTo`
+*   `Combine`, `InsertLane`, `ZeroExtendVector`
+*   `RebindMask`, `FirstN`
+*   `IfThenElse`, `IfThenElseZero`, `IfThenZeroElse`
+
+Exception: `UpperHalf`, `PromoteUpperTo`, `PromoteOddTo` and `Combine` are not
+supported for the `HWY_SCALAR` target.
+
+`Neg` also supports `float16_t` and `*Demote2To` also supports `bfloat16_t`.
 
 *   `HWY_HAVE_SCALABLE` indicates vector sizes are unknown at compile time, and
     determined by the CPU.

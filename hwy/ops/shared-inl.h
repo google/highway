@@ -38,7 +38,9 @@
 
 // We are covered by the highway.h include guard, but generic_ops-inl.h
 // includes this again #if HWY_IDE.
-#if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == defined(HWY_TARGET_TOGGLE)
+// clang-format off
+#if defined(HIGHWAY_HWY_OPS_SHARED_TOGGLE) == defined(HWY_TARGET_TOGGLE)  // NOLINT
+// clang-format on
 #ifdef HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #undef HIGHWAY_HWY_OPS_SHARED_TOGGLE
 #else
@@ -69,26 +71,74 @@ using VecArg = V;
 
 namespace detail {
 
-// Primary template: default is no change for all but f16.
 template <typename T>
 struct NativeLaneTypeT {
   using type = T;
 };
-
 template <>
 struct NativeLaneTypeT<hwy::float16_t> {
-  using type = hwy::float16_t::Raw;
+#if HWY_HAVE_SCALAR_F16_TYPE
+  using type = hwy::float16_t::Native;
+#else
+  using type = uint16_t;
+#endif
 };
-
 template <>
 struct NativeLaneTypeT<hwy::bfloat16_t> {
-  using type = hwy::bfloat16_t::Raw;
+#if HWY_HAVE_SCALAR_BF16_TYPE
+  using type = hwy::bfloat16_t::Native;
+#else
+  using type = uint16_t;
+#endif
 };
 
-// Evaluates to the type expected by intrinsics given the Highway lane type T.
-// This is usually the same, but differs for our wrapper types [b]float16_t.
+// The type expected by intrinsics for the given Highway lane type T. This
+// usually matches T, but differs for our wrapper types [b]float16_t. Use this
+// only when defining intrinsic wrappers, and NOT for casting, which is UB.
 template <typename T>
 using NativeLaneType = typename NativeLaneTypeT<T>::type;
+
+// Returns the same pointer after changing type to NativeLaneType. Use this only
+// for wrapper functions that call intrinsics (e.g. load/store) where some of
+// the overloads expect _Float16* or __bf16* arguments. For non-special floats,
+// this returns the same pointer and type.
+//
+// This makes use of the fact that a wrapper struct is pointer-interconvertible
+// with its first member (a union), thus also with the union members. Do NOT
+// call both this and U16LanePointer on the same object - they access different
+// union members, and this is not guaranteed to be safe.
+template <typename T, HWY_IF_NOT_SPECIAL_FLOAT(T)>
+HWY_INLINE T* NativeLanePointer(T* p) {
+  return p;
+}
+template <typename T, typename NT = NativeLaneType<RemoveConst<T>>,
+          HWY_IF_F16(T)>
+HWY_INLINE constexpr If<IsConst<T>(), const NT*, NT*> NativeLanePointer(T* p) {
+#if HWY_HAVE_SCALAR_F16_TYPE
+  return &p->native;
+#else
+  return &p->bits;
+#endif
+}
+template <typename T, typename NT = NativeLaneType<RemoveConst<T>>,
+          HWY_IF_BF16(T)>
+HWY_INLINE constexpr If<IsConst<T>(), const NT*, NT*> NativeLanePointer(T* p) {
+#if HWY_HAVE_SCALAR_BF16_TYPE
+  return &p->native;
+#else
+  return &p->bits;
+#endif
+}
+
+// Returns a pointer to the u16 member of our [b]float16_t wrapper structs.
+// Use this in Highway targets that lack __bf16 intrinsics; for storing to
+// memory, we BitCast vectors to u16 and write to the pointer returned here.
+// Do NOT call both this and U16LanePointer on the same object - they access
+// different union members, and this is not guaranteed to be safe.
+template <typename T, HWY_IF_SPECIAL_FLOAT(T)>
+HWY_INLINE If<IsConst<T>(), const uint16_t*, uint16_t*> U16LanePointer(T* p) {
+  return &p->bits;
+}
 
 // Returns N * 2^pow2. N is the number of lanes in a full vector and pow2 the
 // desired fraction or multiple of it, see Simd<>. `pow2` is most often in
@@ -192,11 +242,14 @@ struct Simd {
   // macro required by MSVC.
   static constexpr size_t kPrivateLanes =
       HWY_MAX(size_t{1}, detail::ScaleByPower(kWhole, kPow2 - kFrac));
+  // Do not use this directly - only 'public' so it is visible from the accessor
+  // macro required by MSVC.
+  static constexpr int kPrivatePow2 = kPow2;
 
   constexpr size_t MaxLanes() const { return kPrivateLanes; }
   constexpr size_t MaxBytes() const { return kPrivateLanes * sizeof(Lane); }
   constexpr size_t MaxBlocks() const { return (MaxBytes() + 15) / 16; }
-  // For SFINAE on RVV.
+  // For SFINAE (HWY_IF_POW2_GT_D).
   constexpr int Pow2() const { return kPow2; }
 
   // ------------------------------ Changing lane type or count
@@ -378,6 +431,10 @@ using TFromD = typename D::T;
 // MSVC workaround: use static constant directly instead of a function.
 #define HWY_MAX_LANES_D(D) D::kPrivateLanes
 
+// Same as D().Pow2(), but this is too complex for SFINAE with MSVC, so we use a
+// static constant directly.
+#define HWY_POW2_D(D) D::kPrivatePow2
+
 // Non-macro form of HWY_MAX_LANES_D in case that is preferable. WARNING: the
 // macro form may be required for MSVC, which has limitations on deducing
 // arguments.
@@ -498,8 +555,15 @@ using BlockDFromD =
   HWY_IF_LANES_PER_BLOCK(hwy::HWY_NAMESPACE::TFromD<D>, HWY_MAX_LANES_D(D), \
                          lanes)
 
+#if HWY_COMPILER_MSVC
+#define HWY_IF_POW2_LE_D(D, pow2) \
+  hwy::EnableIf<HWY_POW2_D(D) <= pow2>* = nullptr
+#define HWY_IF_POW2_GT_D(D, pow2) \
+  hwy::EnableIf<(HWY_POW2_D(D) > pow2)>* = nullptr
+#else
 #define HWY_IF_POW2_LE_D(D, pow2) hwy::EnableIf<D().Pow2() <= pow2>* = nullptr
 #define HWY_IF_POW2_GT_D(D, pow2) hwy::EnableIf<(D().Pow2() > pow2)>* = nullptr
+#endif  // HWY_COMPILER_MSVC
 
 #define HWY_IF_U8_D(D) HWY_IF_U8(hwy::HWY_NAMESPACE::TFromD<D>)
 #define HWY_IF_U16_D(D) HWY_IF_U16(hwy::HWY_NAMESPACE::TFromD<D>)
@@ -522,6 +586,8 @@ using BlockDFromD =
 #define HWY_IF_NOT_BF16_D(D) HWY_IF_NOT_BF16(hwy::HWY_NAMESPACE::TFromD<D>)
 
 #define HWY_IF_F16_D(D) HWY_IF_F16(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_NOT_F16_D(D) HWY_IF_NOT_F16(hwy::HWY_NAMESPACE::TFromD<D>)
+
 #define HWY_IF_F32_D(D) HWY_IF_F32(hwy::HWY_NAMESPACE::TFromD<D>)
 #define HWY_IF_F64_D(D) HWY_IF_F64(hwy::HWY_NAMESPACE::TFromD<D>)
 

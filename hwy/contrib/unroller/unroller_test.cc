@@ -35,7 +35,8 @@ template <typename T>
 T SimpleDot(const T* pa, const T* pb, size_t num) {
   T sum = 0;
   for (size_t i = 0; i < num; ++i) {
-    sum += pa[i] * pb[i];
+    // For reasons unknown, fp16 += does not compile on clang (Arm).
+    sum = sum + pa[i] * pb[i];
   }
   return sum;
 }
@@ -107,13 +108,13 @@ struct ConvertUnit : UnrollerUnit<ConvertUnit<FROM_T, TO_T>, FROM_T, TO_T> {
 };
 
 // Returns a value that does not compare equal to `value`.
-template<class D, HWY_IF_FLOAT_D(D)>
+template <class D, HWY_IF_FLOAT_D(D)>
 HWY_INLINE Vec<D> OtherValue(D d, TFromD<D> /*value*/) {
   return NaN(d);
 }
-template<class D, HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_NOT_FLOAT_D(D)>
 HWY_INLINE Vec<D> OtherValue(D d, TFromD<D> value) {
-  return hn::Set(d, hwy::AddWithWraparound(hwy::NonFloatTag(), value, 1));
+  return hn::Set(d, hwy::AddWithWraparound(value, 1));
 }
 
 // Caveat: stores lane indices as MakeSigned<T>, which may overflow for 8-bit T
@@ -142,9 +143,7 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, MakeSigned<T>> {
       return y;
   }
 
-  hn::Vec<D> X0InitImpl() {
-    return OtherValue(D(), to_find);
-  }
+  hn::Vec<D> X0InitImpl() { return OtherValue(D(), to_find); }
 
   hn::Vec<DI> YInitImpl() { return hn::Set(di, TI{-1}); }
 
@@ -323,11 +322,6 @@ struct DotUnit : UnrollerUnit2D<DotUnit<T>, T, T, T> {
   }
 };
 
-template <typename T>
-void SetValue(const float value, T* HWY_RESTRICT ptr) {
-  *ptr = static_cast<T>(value);
-}
-
 template <class D>
 std::vector<size_t> Counts(D d) {
   const size_t N = Lanes(d);
@@ -372,39 +366,40 @@ struct TestDot {
 
       size_t i = 0;
       for (; i < num; ++i) {
-        SetValue(random_t(), a + i);
-        SetValue(random_t(), b + i);
+        a[i] = ConvertScalarTo<T>(random_t());
+        b[i] = ConvertScalarTo<T>(random_t());
       }
 
-      auto expected_dot = SimpleDot(a, b, num);
+      const T expected_dot = SimpleDot(a, b, num);
       MultiplyUnit<T> multfn;
       Unroller(multfn, a, b, y, static_cast<ptrdiff_t>(num));
       AccumulateUnit<T> accfn;
       T dot_via_mul_acc;
       Unroller(accfn, y, &dot_via_mul_acc, static_cast<ptrdiff_t>(num));
-      // Cast because std::abs does not support _Float16.
-      const T tolerance =
-          T{32} * hwy::Epsilon<T>() *
-          static_cast<T>(std::abs(static_cast<double>(expected_dot)));
-      HWY_ASSERT(static_cast<T>(std::abs(static_cast<double>(
-                     expected_dot - dot_via_mul_acc))) < tolerance);
+      const double tolerance = 32.0 *
+                               ConvertScalarTo<double>(hwy::Epsilon<T>()) *
+                               ScalarAbs(expected_dot);
+      HWY_ASSERT(ScalarAbs(expected_dot - dot_via_mul_acc) < tolerance);
 
       DotUnit<T> dotfn;
       T dotr;
       Unroller(dotfn, a, b, &dotr, static_cast<ptrdiff_t>(num));
-      HWY_ASSERT(static_cast<T>(std::abs(
-                     static_cast<double>(expected_dot - dotr))) < tolerance);
+      HWY_ASSERT(ConvertScalarTo<double>(ScalarAbs((expected_dot - dotr))) <
+                 tolerance);
 
       auto expected_min = SimpleMin(a, num);
       MinUnit<T> minfn;
       T minr;
       Unroller(minfn, a, &minr, static_cast<ptrdiff_t>(num));
 
-      HWY_ASSERT(std::abs(static_cast<double>(expected_min - minr)) < 1e-7);
+      HWY_ASSERT(ConvertScalarTo<double>(ScalarAbs(expected_min - minr)) <
+                 1e-7);
     }
 #endif
   }
 };
+
+void TestAllDot() { ForFloatTypes(ForPartialVectors<TestDot>()); }
 
 struct TestConvert {
   template <typename T, class D>
@@ -427,8 +422,6 @@ struct TestConvert {
       ConvertUnit<T, int> cvtfn;
       Unroller(cvtfn, a, to, static_cast<ptrdiff_t>(num));
       for (size_t i = 0; i < num; ++i) {
-        fprintf(stderr, "%zu of %zu size %zu %f -> %d\n", i, num, sizeof(T),
-                a[i], to[i]);
         // TODO(janwas): RVV QEMU fcvt_rtz appears to 'truncate' 4.75 to 5.
         HWY_ASSERT(
             static_cast<int>(a[i]) == to[i] ||
@@ -438,14 +431,14 @@ struct TestConvert {
       ConvertUnit<int, T> cvtbackfn;
       Unroller(cvtbackfn, to, a, static_cast<ptrdiff_t>(num));
       for (size_t i = 0; i < num; ++i) {
-        fprintf(stderr, "%zu of %zu size %zu %d -> %f\n", i, num, sizeof(T),
-                to[i], a[i]);
         HWY_ASSERT_EQ(static_cast<T>(to[i]), a[i]);
       }
     }
 #endif
   }
 };
+
+void TestAllConvert() { ForFloat3264Types(ForPartialVectors<TestConvert>()); }
 
 struct TestFind {
   template <typename T, class D>
@@ -468,15 +461,15 @@ struct TestFind {
       HWY_ASSERT(static_cast<MakeUnsigned<T>>(idx) < num);
       HWY_ASSERT(a[idx] == (T)(0));
 
-      FindUnit<T> cvtfnnotin((T)(num));
+      // For f16, we cannot search for `num` because it may round to a value
+      // that is actually in the (large) array.
+      FindUnit<T> cvtfnnotin(HighestValue<T>());
       Unroller(cvtfnnotin, a, &idx, static_cast<ptrdiff_t>(num));
       HWY_ASSERT(idx == -1);
     }
   }
 };
 
-void TestAllDot() { ForFloatTypes(ForPartialVectors<TestDot>()); }
-void TestAllConvert() { ForFloat3264Types(ForPartialVectors<TestConvert>()); }
 void TestAllFind() { ForFloatTypes(ForPartialVectors<TestFind>()); }
 
 }  // namespace HWY_NAMESPACE

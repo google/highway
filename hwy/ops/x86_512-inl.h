@@ -916,7 +916,7 @@ HWY_INLINE Vec512<T> IfThenElse(hwy::SizeTag<8> /* tag */,
 
 }  // namespace detail
 
-template <typename T, HWY_IF_NOT_FLOAT(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec512<T> IfThenElse(const Mask512<T> mask, const Vec512<T> yes,
                              const Vec512<T> no) {
   return detail::IfThenElse(hwy::SizeTag<sizeof(T)>(), mask, yes, no);
@@ -966,7 +966,7 @@ HWY_INLINE Vec512<T> IfThenElseZero(hwy::SizeTag<8> /* tag */,
 
 }  // namespace detail
 
-template <typename T, HWY_IF_NOT_FLOAT3264(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec512<T> IfThenElseZero(const Mask512<T> mask, const Vec512<T> yes) {
   return detail::IfThenElseZero(hwy::SizeTag<sizeof(T)>(), mask, yes);
 }
@@ -1004,7 +1004,7 @@ HWY_INLINE Vec512<T> IfThenZeroElse(hwy::SizeTag<8> /* tag */,
 
 }  // namespace detail
 
-template <typename T, HWY_IF_NOT_FLOAT3264(T)>
+template <typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
 HWY_API Vec512<T> IfThenZeroElse(const Mask512<T> mask, const Vec512<T> no) {
   return detail::IfThenZeroElse(hwy::SizeTag<sizeof(T)>(), mask, no);
 }
@@ -3510,7 +3510,7 @@ HWY_API T GetLane(const Vec512<T> v) {
 
 // ------------------------------ ZeroExtendVector
 
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_D(D)>
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
 HWY_API VFromD<D> ZeroExtendVector(D d, VFromD<Half<D>> lo) {
 #if HWY_HAVE_ZEXT  // See definition/comment in x86_256-inl.h.
   (void)d;

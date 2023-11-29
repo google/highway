@@ -23,13 +23,13 @@
 #include <cmath>  // std::isnan
 #include <string>
 
-#include "hwy/highway.h"
+#include "hwy/base.h"
 #include "hwy/print.h"
 
 namespace hwy {
 
 // The maximum vector size used in tests when defining test data. DEPRECATED.
-constexpr size_t kTestMaxVectorSize = 64;
+HWY_MAYBE_UNUSED constexpr size_t kTestMaxVectorSize = 64;
 
 // 64-bit random generator (Xorshift128+). Much smaller state than std::mt19937,
 // which triggers a compiler bug.
@@ -150,18 +150,51 @@ std::string TypeName(T /*unused*/, size_t N) {
   return string100;
 }
 
-// Compare non-vector, non-string T.
-template <typename T>
-HWY_INLINE bool IsEqual(const T expected, const T actual) {
-  const auto info = detail::MakeTypeInfo<T>();
+// Type large enough to hold either value, to which we cast for comparison.
+template <typename T1, typename T2>
+using LargestType = If<IsFloat<T1>() || IsFloat<T2>(),
+                       FloatFromSize<HWY_MAX(sizeof(T1), sizeof(T2))>,
+                       If<IsSigned<T1>() || IsSigned<T2>(),
+                          SignedFromSize<HWY_MAX(sizeof(T1), sizeof(T2))>,
+                          UnsignedFromSize<HWY_MAX(sizeof(T1), sizeof(T2))>>>;
+
+// TTo is the lane type of the actual value and T is an often but not
+// necessarily larger type of the expected value. Especially for 8-bit lanes
+// initialized via Iota, the actual value often wraps around. To ensure it still
+// compares equal to the expected value, wrap integers.
+// 1) < 64-bit integer: mask
+template <typename TTo, typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TTo),
+          HWY_IF_T_SIZE_LE(TTo, 4)>
+T WrapTo(T value) {
+  return static_cast<T>(value & ((1ULL << (sizeof(TTo) * 8)) - 1));
+}
+// 2) 64-bit integer: no mask (shift would overflow)
+template <typename TTo, typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TTo),
+          HWY_IF_T_SIZE_GT(TTo, 4)>
+T WrapTo(T value) {
+  return value;
+}
+// 3) float or special: do nothing because their value range is sufficient for
+// Iota for any vector length.
+template <typename TTo, typename T, HWY_IF_FLOAT_OR_SPECIAL(TTo)>
+T WrapTo(T value) {
+  return value;
+}
+
+// Compare non-vector, non-string T, after promoting to the largest type.
+template <typename TExpected, typename TActual>
+HWY_INLINE bool IsEqual(const TExpected texpected, const TActual actual) {
+  const TActual expected = ConvertScalarTo<TActual>(WrapTo<TActual>(texpected));
+  const auto info = detail::MakeTypeInfo<TActual>();
   return detail::IsEqual(info, &expected, &actual);
 }
 
-template <typename T>
-HWY_INLINE void AssertEqual(const T expected, const T actual,
+template <typename TExpected, typename TActual>
+HWY_INLINE void AssertEqual(const TExpected texpected, const TActual actual,
                             const char* target_name, const char* filename,
                             int line, size_t lane = 0) {
-  const auto info = detail::MakeTypeInfo<T>();
+  const TActual expected = ConvertScalarTo<TActual>(WrapTo<TActual>(texpected));
+  const auto info = detail::MakeTypeInfo<TActual>();
   if (!detail::IsEqual(info, &expected, &actual)) {
     detail::PrintMismatchAndAbort(info, &expected, &actual, target_name,
                                   filename, line, lane);
