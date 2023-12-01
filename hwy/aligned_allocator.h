@@ -47,7 +47,8 @@ using FreePtr = void (*)(void* opaque, void* memory);
 // the vector size. Calls `alloc` with the passed `opaque` pointer to obtain
 // memory or malloc() if it is null.
 HWY_DLLEXPORT void* AllocateAlignedBytes(size_t payload_size,
-                                         AllocPtr alloc_ptr, void* opaque_ptr);
+                                         AllocPtr alloc_ptr = nullptr,
+                                         void* opaque_ptr = nullptr);
 
 // Frees all memory. No effect if `aligned_pointer` == nullptr, otherwise it
 // must have been returned from a previous call to `AllocateAlignedBytes`.
@@ -117,8 +118,7 @@ AlignedUniquePtr<T> MakeUniqueAlignedWithAlloc(AllocPtr alloc, FreePtr free,
 // functions.
 template <typename T, typename... Args>
 AlignedUniquePtr<T> MakeUniqueAligned(Args&&... args) {
-  T* ptr = static_cast<T*>(AllocateAlignedBytes(
-      sizeof(T), /*alloc_ptr=*/nullptr, /*opaque_ptr=*/nullptr));
+  T* ptr = static_cast<T*>(AllocateAlignedBytes(sizeof(T)));
   return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
                              AlignedDeleter());
 }
@@ -218,6 +218,7 @@ AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items) {
 template <typename T>
 class Span {
  public:
+  Span() = default;
   Span(T* data, size_t size) : size_(size), data_(data) {}
   template <typename U>
   Span(U u) : Span(u.data(), u.size()) {}
@@ -235,6 +236,7 @@ class Span {
 
   // Returns a pointer to the contained data.
   T* data() { return data_; }
+  T* data() const { return data_; }
 
   // Returns the element at index.
   T& operator[](size_t index) const { return data_[index]; }
