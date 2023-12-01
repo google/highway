@@ -92,9 +92,12 @@ namespace detail {  // for code folding
 #define HWY_SVE_FOREACH_F64(X_MACRO, NAME, OP) \
   X_MACRO(float, f, 64, 32, NAME, OP)
 
+#define HWY_SVE_FOREACH_BF16_UNCONDITIONAL(X_MACRO, NAME, OP) \
+  X_MACRO(bfloat, bf, 16, 16, NAME, OP)
+
 #if HWY_SVE_HAVE_BF16_FEATURE
 #define HWY_SVE_FOREACH_BF16(X_MACRO, NAME, OP) \
-  X_MACRO(bfloat, bf, 16, 16, NAME, OP)
+  HWY_SVE_FOREACH_BF16_UNCONDITIONAL(X_MACRO, NAME, OP)
 // We have both f16 and bf16, so nothing is emulated.
 #define HWY_SVE_IF_EMULATED_D(D) hwy::EnableIf<false>* = nullptr
 #else
@@ -177,7 +180,9 @@ namespace detail {  // for code folding
   };
 
 HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
-HWY_SVE_FOREACH_BF16(HWY_SPECIALIZE, _, _)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
+#endif
 #undef HWY_SPECIALIZE
 
 // Note: _x (don't-care value for inactive lanes) avoids additional MOVPRFX
@@ -5793,6 +5798,7 @@ HWY_API V HighestSetBitIndex(V v) {
 #undef HWY_SVE_D
 #undef HWY_SVE_FOREACH
 #undef HWY_SVE_FOREACH_BF16
+#undef HWY_SVE_FOREACH_BF16_UNCONDITIONAL
 #undef HWY_SVE_FOREACH_F
 #undef HWY_SVE_FOREACH_F16
 #undef HWY_SVE_FOREACH_F32
