@@ -302,7 +302,7 @@ HWY_NOINLINE void Sort8Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 #endif  // HWY_MEM_OPS_MIGHT_FAULT
 #if !HWY_MEM_OPS_MIGHT_FAULT || HWY_IDE
   (void)buf;
-  const V vnum_lanes = Set(d, static_cast<T>(num_lanes));
+  const V vnum_lanes = Set(d, ConvertScalarTo<T>(num_lanes));
   // First offset where not all vector are guaranteed valid.
   const V kIota = Iota(d, static_cast<T>(kMinLanes));
   const V k1 = Set(d, static_cast<T>(kLanesPerRow));
@@ -403,7 +403,7 @@ HWY_NOINLINE void Sort16Rows(Traits st, T* HWY_RESTRICT keys, size_t num_lanes,
 #endif  // HWY_MEM_OPS_MIGHT_FAULT
 #if !HWY_MEM_OPS_MIGHT_FAULT || HWY_IDE
   (void)buf;
-  const V vnum_lanes = Set(d, static_cast<T>(num_lanes));
+  const V vnum_lanes = Set(d, ConvertScalarTo<T>(num_lanes));
   // First offset where not all vector are guaranteed valid.
   const V kIota = Iota(d, static_cast<T>(kMinLanes));
   const V k1 = Set(d, static_cast<T>(kLanesPerRow));
