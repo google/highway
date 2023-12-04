@@ -94,7 +94,7 @@ Vec<D> LargerSortValue(D d, Vec<D> v) {
   // than float comparison and treats -0 as 0 (so we return +epsilon).
   const Mask<decltype(du)> was_pos = Le(BitCast(du, v), SignBit(du));
   // If positive, add 1, else -1.
-  const VU add = IfThenElse(was_pos, Set(du, 1), Set(du, ~TU{0}));
+  const VU add = IfThenElse(was_pos, Set(du, 1u), Set(du, LimitsMax<TU>()));
   // Prev/next integer is the prev/next value, even if mantissa under/overflows.
   v = BitCast(d, Add(vu, add));
   // But we may have overflowed into inf or NaN; replace with inf if positive,
