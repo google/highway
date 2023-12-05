@@ -282,8 +282,8 @@ class AlignedNDArray {
     // array is aligned from the first element.
     memory_shape_[axes - 1] = RoundUpTo(memory_shape_[axes - 1], VectorBytes());
     memory_sizes_ = ComputeSizes(memory_shape_);
-    buffer_ = hwy::AllocateAligned<T>(data_size());
-    hwy::ZeroBytes(buffer_.get(), data_size() * sizeof(T));
+    buffer_ = hwy::AllocateAligned<T>(memory_size());
+    hwy::ZeroBytes(buffer_.get(), memory_size() * sizeof(T));
   }
 
   // Returns a span containing the innermost array at the provided indices.
@@ -312,7 +312,7 @@ class AlignedNDArray {
 
   // Returns the size of the allocated buffer, which might be larger than the
   // used size of the array after padding to alignment.
-  size_t data_size() const { return memory_sizes_[0]; }
+  size_t memory_size() const { return memory_sizes_[0]; }
 
   // Returns a pointer to the allocated buffer.
   T* data() { return buffer_.get(); }
