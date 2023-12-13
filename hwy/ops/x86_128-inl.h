@@ -6481,9 +6481,9 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
   return BitCast(d, VU{_mm_shuffle_epi32(rev4.raw, _MM_SHUFFLE(1, 0, 3, 2))});
 #else
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
-  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100);
+  return BitCast(d, TableLookupBytes(v, shuffle));
 #endif
 }
 
@@ -6532,9 +6532,9 @@ HWY_API VFromD<D> Reverse2(D d, VFromD<D> v) {
   return BitCast(d, VU{shuf_result});
 #else
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0302, 0x0100, 0x0706, 0x0504, 0x0B0A, 0x0908, 0x0F0E, 0x0D0C};
-  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0302, 0x0100, 0x0706, 0x0504, 0x0B0A, 0x0908, 0x0F0E, 0x0D0C);
+  return BitCast(d, TableLookupBytes(v, shuffle));
 #endif
 }
 
@@ -6569,9 +6569,9 @@ HWY_API VFromD<D> Reverse4(D d, VFromD<D> v) {
                         _MM_SHUFFLE(0, 1, 2, 3))});
 #else
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0706, 0x0504, 0x0302, 0x0100, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908};
-  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0706, 0x0504, 0x0302, 0x0100, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908);
+  return BitCast(d, TableLookupBytes(v, shuffle));
 #endif
 }
 
@@ -6595,9 +6595,9 @@ HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   return Reverse2(d, BitCast(d, Shuffle0123(BitCast(dw, v))));
 #else
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
-  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100);
+  return BitCast(d, TableLookupBytes(v, shuffle));
 #endif
 }
 
@@ -7603,9 +7603,9 @@ HWY_API V DupEven(V v) {
 
 #if HWY_TARGET <= HWY_SSSE3
   const RebindToUnsigned<decltype(d)> du;
-  alignas(16) static constexpr uint8_t kShuffle[16] = {
-      0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14};
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+  const VFromD<decltype(du)> shuffle = Dup128VecFromValues(
+      du, 0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14);
+  return TableLookupBytes(v, BitCast(d, shuffle));
 #else
   const Repartition<uint16_t, decltype(d)> du16;
   return IfVecThenElse(BitCast(d, Set(du16, uint16_t{0xFF00})),
@@ -7627,9 +7627,9 @@ HWY_API V DupEven(const V v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;  // for float16_t
 #if HWY_TARGET <= HWY_SSSE3
-  alignas(16) static constexpr uint16_t kShuffle[8] = {
-      0x0100, 0x0100, 0x0504, 0x0504, 0x0908, 0x0908, 0x0d0c, 0x0d0c};
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+  const VFromD<decltype(du)> shuffle = Dup128VecFromValues(
+      du, 0x0100, 0x0100, 0x0504, 0x0504, 0x0908, 0x0908, 0x0d0c, 0x0d0c);
+  return TableLookupBytes(v, BitCast(d, shuffle));
 #else
   return BitCast(
       d, VFromD<decltype(du)>{_mm_shufflehi_epi16(
@@ -7660,9 +7660,9 @@ HWY_API V DupOdd(V v) {
 
 #if HWY_TARGET <= HWY_SSSE3
   const RebindToUnsigned<decltype(d)> du;
-  alignas(16) static constexpr uint8_t kShuffle[16] = {
-      1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13, 15, 15};
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+  const VFromD<decltype(du)> shuffle = Dup128VecFromValues(
+      du, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9, 11, 11, 13, 13, 15, 15);
+  return TableLookupBytes(v, BitCast(d, shuffle));
 #else
   const Repartition<uint16_t, decltype(d)> du16;
   return IfVecThenElse(BitCast(d, Set(du16, uint16_t{0x00FF})),
@@ -7684,9 +7684,9 @@ HWY_API V DupOdd(V v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;  // for float16_t
 #if HWY_TARGET <= HWY_SSSE3
-  alignas(16) static constexpr uint16_t kShuffle[8] = {
-      0x0302, 0x0302, 0x0706, 0x0706, 0x0b0a, 0x0b0a, 0x0f0e, 0x0f0e};
-  return TableLookupBytes(v, BitCast(d, LoadDup128(du, kShuffle)));
+  const VFromD<decltype(du)> shuffle = Dup128VecFromValues(
+      du, 0x0302, 0x0302, 0x0706, 0x0706, 0x0b0a, 0x0b0a, 0x0f0e, 0x0f0e);
+  return TableLookupBytes(v, BitCast(d, shuffle));
 #else
   return BitCast(
       d, VFromD<decltype(du)>{_mm_shufflehi_epi16(
@@ -10546,10 +10546,9 @@ HWY_INLINE MFromD<D> LoadMaskBits128(D d, uint64_t mask_bits) {
                                                     1, 1, 1, 1, 1, 1, 1, 1};
   const auto rep8 = TableLookupBytes(vbits, Load(du, kRep8));
 #endif
-
-  alignas(16) static constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
-                                                   1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
+  const VFromD<decltype(du)> bit = Dup128VecFromValues(
+      du, 1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128);
+  return RebindMask(d, TestBit(rep8, bit));
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>

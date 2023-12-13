@@ -4524,9 +4524,9 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
                         _mm256_permutexvar_epi16(idx.raw, BitCast(di, v).raw)});
 #else
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
-  const auto rev128 = TableLookupBytes(v, LoadDup128(di, kShuffle));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100);
+  const auto rev128 = TableLookupBytes(v, shuffle);
   return VFromD<D>{
       _mm256_permute4x64_epi64(rev128.raw, _MM_SHUFFLE(1, 0, 3, 2))};
 #endif
@@ -4555,9 +4555,9 @@ HWY_API VFromD<D> Reverse(D d, const VFromD<D> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse4(D d, const VFromD<D> v) {
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0706, 0x0504, 0x0302, 0x0100, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908};
-  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0706, 0x0504, 0x0302, 0x0100, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908);
+  return BitCast(d, TableLookupBytes(v, shuffle));
 }
 
 // 32 bit Reverse4 defined in x86_128.
@@ -4573,9 +4573,9 @@ HWY_API VFromD<D> Reverse4(D /* tag */, const VFromD<D> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 2)>
 HWY_API VFromD<D> Reverse8(D d, const VFromD<D> v) {
   const RebindToSigned<decltype(d)> di;
-  alignas(16) static constexpr int16_t kShuffle[8] = {
-      0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100};
-  return BitCast(d, TableLookupBytes(v, LoadDup128(di, kShuffle)));
+  const VFromD<decltype(di)> shuffle = Dup128VecFromValues(
+      di, 0x0F0E, 0x0D0C, 0x0B0A, 0x0908, 0x0706, 0x0504, 0x0302, 0x0100);
+  return BitCast(d, TableLookupBytes(v, shuffle));
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_T_SIZE_D(D, 4)>
@@ -5112,9 +5112,10 @@ template <typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_INLINE Vec256<T> OddEven(Vec256<T> a, Vec256<T> b) {
   const DFromV<decltype(a)> d;
   const Full256<uint8_t> d8;
-  alignas(32) static constexpr uint8_t mask[16] = {
-      0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0};
-  return IfThenElse(MaskFromVec(BitCast(d, LoadDup128(d8, mask))), b, a);
+  const VFromD<decltype(d8)> mask =
+      Dup128VecFromValues(d8, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF, 0, 0xFF,
+                          0, 0xFF, 0, 0xFF, 0);
+  return IfThenElse(MaskFromVec(BitCast(d, mask)), b, a);
 }
 
 template <typename T, HWY_IF_UI16(T)>
@@ -5736,14 +5737,15 @@ HWY_API Vec256<uint8_t> Shl(hwy::UnsignedTag tag, Vec256<uint8_t> v,
   const DFromV<decltype(v)> d;
 #if HWY_TARGET <= HWY_AVX3_DL
   (void)tag;
-  // kMask[i] = 0xFF >> i
-  alignas(16) static constexpr uint8_t kMasks[16] = {
-      0xFF, 0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00};
+  // masks[i] = 0xFF >> i
+  const VFromD<decltype(d)> masks =
+      Dup128VecFromValues(d, 0xFF, 0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0,
+                          0, 0, 0, 0, 0, 0, 0);
   // kShl[i] = 1 << i
-  alignas(16) static constexpr uint8_t kShl[16] = {1,    2,    4,    8,   0x10,
-                                                   0x20, 0x40, 0x80, 0x00};
-  v = And(v, TableLookupBytes(LoadDup128(d, kMasks), bits));
-  const VFromD<decltype(d)> mul = TableLookupBytes(LoadDup128(d, kShl), bits);
+  const VFromD<decltype(d)> shl = Dup128VecFromValues(
+      d, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 0, 0, 0, 0, 0, 0, 0, 0);
+  v = And(v, TableLookupBytes(masks, bits));
+  const VFromD<decltype(d)> mul = TableLookupBytes(shl, bits);
   return VFromD<decltype(d)>{_mm256_gf2p8mul_epi8(v.raw, mul.raw)};
 #else
   const Repartition<uint16_t, decltype(d)> dw;
@@ -6752,14 +6754,14 @@ template <uint8_t kRcon>
 HWY_API Vec256<uint8_t> AESKeyGenAssist(Vec256<uint8_t> v) {
   const Full256<uint8_t> d;
 #if HWY_TARGET <= HWY_AVX3_DL
-  alignas(16) static constexpr uint8_t kRconXorMask[16] = {
-      0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0};
-  alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
-      0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
+  const VFromD<decltype(d)> rconXorMask = Dup128VecFromValues(
+      d, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0);
+  const VFromD<decltype(d)> rotWordShuffle = Dup128VecFromValues(
+      d, 0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12);
   const Repartition<uint32_t, decltype(d)> du32;
   const auto w13 = BitCast(d, DupOdd(BitCast(du32, v)));
-  const auto sub_word_result = AESLastRound(w13, LoadDup128(d, kRconXorMask));
-  return TableLookupBytes(sub_word_result, LoadDup128(d, kRotWordShuffle));
+  const auto sub_word_result = AESLastRound(w13, rconXorMask);
+  return TableLookupBytes(sub_word_result, rotWordShuffle);
 #else
   const Half<decltype(d)> d2;
   return Combine(d, AESKeyGenAssist<kRcon>(UpperHalf(d2, v)),
@@ -7019,9 +7021,9 @@ HWY_INLINE Mask256<T> LoadMaskBits256(uint64_t mask_bits) {
       0x0303030303030303ull};
   const auto rep8 = TableLookupBytes(vbits, BitCast(du, Load(du64, kRep8)));
 
-  alignas(32) static constexpr uint8_t kBit[16] = {1, 2, 4, 8, 16, 32, 64, 128,
-                                                   1, 2, 4, 8, 16, 32, 64, 128};
-  return RebindMask(d, TestBit(rep8, LoadDup128(du, kBit)));
+  const VFromD<decltype(du)> bit = Dup128VecFromValues(
+      du, 1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128);
+  return RebindMask(d, TestBit(rep8, bit));
 }
 
 template <typename T, HWY_IF_T_SIZE(T, 2)>

@@ -5350,8 +5350,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<int32_t> v) {
   const Vec512<int16_t> i16{_mm512_packs_epi32(v.raw, v.raw)};
   const Vec512<uint8_t> u8{_mm512_packus_epi16(i16.raw, i16.raw)};
 
-  alignas(16) static constexpr uint32_t kLanes[4] = {0, 4, 8, 12};
-  const auto idx32 = LoadDup128(du32, kLanes);
+  const VFromD<decltype(du32)> idx32 = Dup128VecFromValues(du32, 0, 4, 8, 12);
   const Vec512<uint8_t> fixed{_mm512_permutexvar_epi32(idx32.raw, u8.raw)};
   return LowerHalf(LowerHalf(fixed));
 }
@@ -5386,9 +5385,7 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec512<int32_t> v) {
   const Vec512<int16_t> i16{_mm512_packs_epi32(v.raw, v.raw)};
   const Vec512<int8_t> i8{_mm512_packs_epi16(i16.raw, i16.raw)};
 
-  alignas(16) static constexpr uint32_t kLanes[16] = {0, 4, 8, 12, 0, 4, 8, 12,
-                                                      0, 4, 8, 12, 0, 4, 8, 12};
-  const auto idx32 = LoadDup128(du32, kLanes);
+  const VFromD<decltype(du32)> idx32 = Dup128VecFromValues(du32, 0, 4, 8, 12);
   const Vec512<int8_t> fixed{_mm512_permutexvar_epi32(idx32.raw, i8.raw)};
   return LowerHalf(LowerHalf(fixed));
 }
@@ -5587,13 +5584,12 @@ HWY_API Vec128<uint8_t> U8FromU32(const Vec512<uint32_t> v) {
   const DFromV<decltype(v)> d32;
   // In each 128 bit block, gather the lower byte of 4 uint32_t lanes into the
   // lowest 4 bytes.
-  alignas(16) static constexpr uint32_t k8From32[4] = {0x0C080400u, ~0u, ~0u,
-                                                       ~0u};
-  const auto quads = TableLookupBytes(v, LoadDup128(d32, k8From32));
+  const VFromD<decltype(d32)> v8From32 =
+      Dup128VecFromValues(d32, 0x0C080400u, ~0u, ~0u, ~0u);
+  const auto quads = TableLookupBytes(v, v8From32);
   // Gather the lowest 4 bytes of 4 128-bit blocks.
-  alignas(16) static constexpr uint32_t kIndex32[4] = {0, 4, 8, 12};
-  const Vec512<uint8_t> bytes{
-      _mm512_permutexvar_epi32(LoadDup128(d32, kIndex32).raw, quads.raw)};
+  const VFromD<decltype(d32)> index32 = Dup128VecFromValues(d32, 0, 4, 8, 12);
+  const Vec512<uint8_t> bytes{_mm512_permutexvar_epi32(index32.raw, quads.raw)};
   return LowerHalf(LowerHalf(bytes));
 }
 
@@ -5604,10 +5600,9 @@ HWY_API VFromD<D> TruncateTo(D d, const Vec512<uint64_t> v) {
 #if HWY_TARGET <= HWY_AVX3_DL
   (void)d;
   const Full512<uint8_t> d8;
-  alignas(16) static constexpr uint8_t k8From64[16] = {
-      0, 8, 16, 24, 32, 40, 48, 56, 0, 8, 16, 24, 32, 40, 48, 56};
-  const Vec512<uint8_t> bytes{
-      _mm512_permutexvar_epi8(LoadDup128(d8, k8From64).raw, v.raw)};
+  const VFromD<decltype(d8)> v8From64 = Dup128VecFromValues(
+      d8, 0, 8, 16, 24, 32, 40, 48, 56, 0, 8, 16, 24, 32, 40, 48, 56);
+  const Vec512<uint8_t> bytes{_mm512_permutexvar_epi8(v8From64.raw, v.raw)};
   return LowerHalf(LowerHalf(LowerHalf(bytes)));
 #else
   const Full512<uint32_t> d32;
@@ -5643,21 +5638,19 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U8_D(D)>
 HWY_API VFromD<D> TruncateTo(D /* tag */, const Vec512<uint32_t> v) {
 #if HWY_TARGET <= HWY_AVX3_DL
   const Full512<uint8_t> d8;
-  alignas(16) static constexpr uint8_t k8From32[16] = {
-      0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60};
-  const Vec512<uint8_t> bytes{
-      _mm512_permutexvar_epi8(LoadDup128(d8, k8From32).raw, v.raw)};
+  const VFromD<decltype(d8)> v8From32 = Dup128VecFromValues(
+      d8, 0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60);
+  const Vec512<uint8_t> bytes{_mm512_permutexvar_epi8(v8From32.raw, v.raw)};
 #else
   const Full512<uint32_t> d32;
   // In each 128 bit block, gather the lower byte of 4 uint32_t lanes into the
   // lowest 4 bytes.
-  alignas(16) static constexpr uint32_t k8From32[4] = {0x0C080400u, ~0u, ~0u,
-                                                       ~0u};
-  const auto quads = TableLookupBytes(v, LoadDup128(d32, k8From32));
+  const VFromD<decltype(d32)> v8From32 =
+      Dup128VecFromValues(d32, 0x0C080400u, ~0u, ~0u, ~0u);
+  const auto quads = TableLookupBytes(v, v8From32);
   // Gather the lowest 4 bytes of 4 128-bit blocks.
-  alignas(16) static constexpr uint32_t kIndex32[4] = {0, 4, 8, 12};
-  const Vec512<uint8_t> bytes{
-      _mm512_permutexvar_epi32(LoadDup128(d32, kIndex32).raw, quads.raw)};
+  const VFromD<decltype(d32)> index32 = Dup128VecFromValues(d32, 0, 4, 8, 12);
+  const Vec512<uint8_t> bytes{_mm512_permutexvar_epi32(index32.raw, quads.raw)};
 #endif
   return LowerHalf(LowerHalf(bytes));
 }
@@ -5686,9 +5679,9 @@ HWY_API VFromD<D> TruncateTo(D /* tag */, const Vec512<uint16_t> v) {
       _mm512_permutexvar_epi8(Load(d8, k8From16).raw, v.raw)};
 #else
   const Full512<uint32_t> d32;
-  alignas(16) static constexpr uint32_t k16From32[4] = {
-      0x06040200u, 0x0E0C0A08u, 0x06040200u, 0x0E0C0A08u};
-  const auto quads = TableLookupBytes(v, LoadDup128(d32, k16From32));
+  const VFromD<decltype(d32)> v16From32 = Dup128VecFromValues(
+      d32, 0x06040200u, 0x0E0C0A08u, 0x06040200u, 0x0E0C0A08u);
+  const auto quads = TableLookupBytes(v, v16From32);
   alignas(64) static constexpr uint32_t kIndex32[16] = {
       0, 1, 4, 5, 8, 9, 12, 13, 0, 1, 4, 5, 8, 9, 12, 13};
   const Vec512<uint8_t> bytes{
@@ -5821,14 +5814,14 @@ template <uint8_t kRcon>
 HWY_API Vec512<uint8_t> AESKeyGenAssist(Vec512<uint8_t> v) {
   const Full512<uint8_t> d;
 #if HWY_TARGET <= HWY_AVX3_DL
-  alignas(16) static constexpr uint8_t kRconXorMask[16] = {
-      0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0};
-  alignas(16) static constexpr uint8_t kRotWordShuffle[16] = {
-      0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12};
+  const VFromD<decltype(d)> rconXorMask = Dup128VecFromValues(
+      d, 0, kRcon, 0, 0, 0, 0, 0, 0, 0, kRcon, 0, 0, 0, 0, 0, 0);
+  const VFromD<decltype(d)> rotWordShuffle = Dup128VecFromValues(
+      d, 0, 13, 10, 7, 1, 14, 11, 4, 8, 5, 2, 15, 9, 6, 3, 12);
   const Repartition<uint32_t, decltype(d)> du32;
   const auto w13 = BitCast(d, DupOdd(BitCast(du32, v)));
-  const auto sub_word_result = AESLastRound(w13, LoadDup128(d, kRconXorMask));
-  return TableLookupBytes(sub_word_result, LoadDup128(d, kRotWordShuffle));
+  const auto sub_word_result = AESLastRound(w13, rconXorMask);
+  return TableLookupBytes(sub_word_result, rotWordShuffle);
 #else
   const Half<decltype(d)> d2;
   return Combine(d, AESKeyGenAssist<kRcon>(UpperHalf(d2, v)),
@@ -6990,7 +6983,7 @@ HWY_API Mask512<T> SetOnlyFirst(Mask512<T> mask) {
       static_cast<typename Mask512<T>::Raw>(detail::AVX3Blsi(mask.raw))};
 }
 
-// ------------------------------ Shl (LoadDup128)
+// ------------------------------ Shl (Dup128VecFromValues)
 
 HWY_API Vec512<uint16_t> operator<<(Vec512<uint16_t> v, Vec512<uint16_t> bits) {
   return Vec512<uint16_t>{_mm512_sllv_epi16(v.raw, bits.raw)};
@@ -7001,13 +6994,15 @@ HWY_API Vec512<uint8_t> operator<<(Vec512<uint8_t> v, Vec512<uint8_t> bits) {
   const DFromV<decltype(v)> d;
 #if HWY_TARGET <= HWY_AVX3_DL
   // kMask[i] = 0xFF >> i
-  alignas(16) static constexpr uint8_t kMasks[16] = {
-      0xFF, 0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00};
+  const VFromD<decltype(d)> masks =
+      Dup128VecFromValues(d, 0xFF, 0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0,
+                          0, 0, 0, 0, 0, 0, 0);
   // kShl[i] = 1 << i
-  alignas(16) static constexpr uint8_t kShl[16] = {0x01, 0x02, 0x04, 0x08,
-                                                   0x10, 0x20, 0x40, 0x80};
-  v = And(v, TableLookupBytes(LoadDup128(d, kMasks), bits));
-  const VFromD<decltype(d)> mul = TableLookupBytes(LoadDup128(d, kShl), bits);
+  const VFromD<decltype(d)> shl =
+      Dup128VecFromValues(d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0,
+                          0, 0, 0, 0, 0, 0, 0);
+  v = And(v, TableLookupBytes(masks, bits));
+  const VFromD<decltype(d)> mul = TableLookupBytes(shl, bits);
   return VFromD<decltype(d)>{_mm512_gf2p8mul_epi8(v.raw, mul.raw)};
 #else
   const Repartition<uint16_t, decltype(d)> dw;
