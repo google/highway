@@ -17,7 +17,9 @@
 #ifndef HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 #define HIGHWAY_HWY_CONTRIB_SORT_VQSORT_INL_H_
 
-#include <stdio.h>  // unconditional #include so we can use if(VQSORT_PRINT).
+// unconditional #include so we can use if(VQSORT_PRINT), which unlike #if does
+// not interfere with code-folding.
+#include <stdio.h>
 #include <time.h>   // clock
 
 // IWYU pragma: begin_exports
@@ -26,6 +28,7 @@
 // IWYU pragma: end_exports
 
 #include "hwy/cache_control.h"  // Prefetch
+#include "hwy/print.h"          // unconditional, see above.
 
 // If 1, VQSortStatic can be called without including vqsort.h, and we avoid
 // any DLLEXPORT. This simplifies integration into other build systems, but
@@ -543,60 +546,95 @@ HWY_NOINLINE void BaseCase(D d, TraitsKV, T* HWY_RESTRICT keys,
 
 // ------------------------------ Partition
 
-// Consumes from `keys` until a multiple of kUnroll*N remains.
-// Temporarily stores the right side into `buf`, then moves behind `num`.
-// Returns the number of keys consumed from the left side.
+// Partitions O(1) of the *rightmost* keys, at least `N`, until a multiple of
+// kUnroll*N remains, or all keys if there are too few for that.
+//
+// Returns how many remain to partition at the *start* of `keys`, sets `bufL` to
+// the number of keys for the left partition written to `buf`, and `writeR` to
+// the start of the finished right partition at the end of `keys`.
 template <class D, class Traits, class T>
-HWY_INLINE size_t PartitionToMultipleOfUnroll(D d, Traits st,
-                                              T* HWY_RESTRICT keys, size_t& num,
-                                              const Vec<D> pivot,
-                                              T* HWY_RESTRICT buf) {
-  constexpr size_t kUnroll = Constants::kPartitionUnroll;
+HWY_INLINE size_t PartitionRightmost(D d, Traits st, T* const keys,
+                                     const size_t num, const Vec<D> pivot,
+                                     size_t& bufL, size_t& writeR,
+                                     T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
-  size_t readL = 0;
-  T* HWY_RESTRICT posL = keys;
-  size_t bufR = 0;
-  // Partition requires both a multiple of kUnroll*N and at least
-  // 2*kUnroll*N for the initial loads. If less, consume all here.
-  const size_t num_rem =
-      (num < 2 * kUnroll * N) ? num : (num & (kUnroll * N - 1));
+  HWY_DASSERT(num > 2 * N);  // BaseCase handles smaller arrays
+
+  constexpr size_t kUnroll = Constants::kPartitionUnroll;
+  size_t num_here;  // how many to process here
+  size_t num_main;  // how many for main Partition loop (return value)
+  {
+    // The main Partition loop increments by kUnroll * N, so at least handle
+    // the remainders here.
+    const size_t remainder = num & (kUnroll * N - 1);
+    // Ensure we handle at least one vector to prevent overruns (see below), but
+    // still leave a multiple of kUnroll * N.
+    const size_t min = remainder + (remainder < N ? kUnroll * N : 0);
+    // Do not exceed the input size.
+    num_here = HWY_MIN(min, num);
+    num_main = num - num_here;
+    // Before the main Partition loop we load two blocks; if not enough left for
+    // that, handle everything here.
+    if (num_main < 2 * kUnroll * N) {
+      num_here = num;
+      num_main = 0;
+    }
+  }
+  HWY_DASSERT(num_here >= N);
+
+  // Postcondition: from here and above belongs to the right partition. Process
+  // vectors right to left to prevent overrunning `keys` in `StoreLeftRight`,
+  // which writes up to and including `writeR` via `CompressBlendedStore`,
+  // which loads and stores a whole vector. This will be safe because we now
+  // handle at least one vector at the end, which serves as padding.
+  T* pWriteR = keys + num;
+  const T* pReadR = pWriteR;  // <= pWriteR
+
+  bufL = 0;  // how much written to buf
+
   size_t i = 0;
-  for (; i + N <= num_rem; i += N) {
-    const Vec<D> vL = LoadU(d, keys + readL);
-    readL += N;
+  // For whole vectors, we can LoadU.
+  for (; i <= num_here - N; i += N) {
+    pReadR -= N;
+    HWY_DASSERT(pReadR >= keys);
+    const Vec<D> v = LoadU(d, pReadR);
 
-    const auto comp = st.Compare(d, pivot, vL);
-    posL += CompressBlendedStore(vL, Not(comp), d, posL);
-    bufR += CompressStore(vL, comp, d, buf + bufR);
-  }
-  // Last iteration: only use valid lanes.
-  if (HWY_LIKELY(i != num_rem)) {
-    const auto mask = FirstN(d, num_rem - i);
-    const Vec<D> vL = LoadU(d, keys + readL);
-
-    const auto comp = st.Compare(d, pivot, vL);
-    posL += CompressBlendedStore(vL, AndNot(comp, mask), d, posL);
-    bufR += CompressStore(vL, And(comp, mask), d, buf + bufR);
+    const Mask<D> comp = st.Compare(d, pivot, v);
+    const size_t numL = CompressStore(v, Not(comp), d, buf + bufL);
+    bufL += numL;
+    pWriteR -= (N - numL);
+    HWY_DASSERT(pWriteR >= pReadR);
+    (void)CompressBlendedStore(v, comp, d, pWriteR);
   }
 
-  // MSAN seems not to understand CompressStore. buf[0, bufR) are valid.
-  detail::MaybeUnpoison(buf, bufR);
+  // Last iteration: avoid reading past the end.
+  const size_t remaining = num_here - i;
+  if (HWY_LIKELY(remaining != 0)) {
+    const Mask<D> mask = FirstN(d, remaining);
+    pReadR -= remaining;
+    HWY_DASSERT(pReadR >= keys);
+    const Vec<D> v = LoadN(d, pReadR, remaining);
 
-  // Everything we loaded was put into buf, or behind the current `posL`, after
-  // which there is space for bufR items. First move items from `keys + num` to
-  // `posL` to free up space, then copy `buf` into the vacated `keys + num`.
-  // A loop with masked loads from `buf` is insufficient - we would also need to
-  // mask from `keys + num`. Combining a loop with memcpy for the remainders is
-  // slower than just memcpy, so we use that for simplicity.
-  num -= bufR;
-  CopyBytes(keys + num, posL, bufR * sizeof(T));
-  CopyBytes(buf, keys + num, bufR * sizeof(T));
-  return static_cast<size_t>(posL - keys);  // caller will shrink num by this.
-}
+    const Mask<D> comp = st.Compare(d, pivot, v);
+    const size_t numL = CompressStore(v, AndNot(comp, mask), d, buf + bufL);
+    bufL += numL;
+    pWriteR -= (remaining - numL);
+    HWY_DASSERT(pWriteR >= pReadR);
+    (void)CompressBlendedStore(v, And(comp, mask), d, pWriteR);
+  }
 
-template <class V>
-V OrXor(const V o, const V x1, const V x2) {
-  return Or(o, Xor(x1, x2));  // ternlog on AVX3
+  HWY_DASSERT(bufL <= num_here);  // wrote no more than read
+  // MSAN seems not to understand CompressStore. buf[0, bufL) are valid.
+  detail::MaybeUnpoison(buf, bufL);
+
+  writeR = static_cast<size_t>(pWriteR - keys);
+  const size_t numWrittenR = num - writeR;
+  (void)numWrittenR;                     // only for HWY_DASSERT
+  HWY_DASSERT(numWrittenR <= num_here);  // wrote no more than read
+  // Ensure we finished reading/writing all we wanted
+  HWY_DASSERT(pReadR == keys + num_main);
+  HWY_DASSERT(bufL + numWrittenR == num_here);
+  return num_main;
 }
 
 // Note: we could track the OrXor of v and pivot to see if the entire left
@@ -607,7 +645,10 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
                                size_t& writeL, size_t& remaining) {
   const size_t N = Lanes(d);
 
-  const auto comp = st.Compare(d, pivot, v);
+  const Mask<D> comp = st.Compare(d, pivot, v);
+
+  // Otherwise StoreU/CompressStore overwrites right keys.
+  HWY_DASSERT(remaining >= 2 * N);
 
   remaining -= N;
   if (hwy::HWY_NAMESPACE::CompressIsPartition<T>::value ||
@@ -618,7 +659,7 @@ HWY_INLINE void StoreLeftRight(D d, Traits st, const Vec<D> v,
     // between the updated writeL and writeR are ignored and will be overwritten
     // by subsequent calls. This works because writeL and writeR are at least
     // two vectors apart.
-    const auto lr = st.CompressKeys(v, comp);
+    const Vec<D> lr = st.CompressKeys(v, comp);
     const size_t num_left = N - CountTrue(d, comp);
     StoreU(lr, d, keys + writeL);
     // Now write the right-side elements (if any), such that the previous writeR
@@ -647,29 +688,44 @@ HWY_INLINE void StoreLeftRight4(D d, Traits st, const Vec<D> v0,
   StoreLeftRight(d, st, v3, pivot, keys, writeL, remaining);
 }
 
-// Moves "<= pivot" keys to the front, and others to the back. pivot is
-// broadcasted. Time-critical!
-//
-// Aligned loads do not seem to be worthwhile (not bottlenecked by load ports).
+// For the last two vectors, we cannot use StoreLeftRight because it might
+// overwrite prior right-side keys. Instead write R and append L into `buf`.
 template <class D, class Traits, typename T>
-HWY_INLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+HWY_INLINE void StoreRightAndBuf(D d, Traits st, const Vec<D> v,
+                                 const Vec<D> pivot, T* HWY_RESTRICT keys,
+                                 size_t& writeR, T* HWY_RESTRICT buf,
+                                 size_t& bufL) {
+  const size_t N = Lanes(d);
+  const Mask<D> comp = st.Compare(d, pivot, v);
+  const size_t numL = CompressStore(v, Not(comp), d, buf + bufL);
+  bufL += numL;
+  writeR -= (N - numL);
+  (void)CompressBlendedStore(v, comp, d, keys + writeR);
+}
+
+// Moves "<= pivot" keys to the front, and others to the back. pivot is
+// broadcasted. Returns the index of the first key in the right partition.
+//
+// Time-critical, but aligned loads do not seem to be worthwhile because we
+// are not bottlenecked by load ports.
+template <class D, class Traits, typename T>
+HWY_INLINE size_t Partition(D d, Traits st, T* const keys, const size_t num,
                             const Vec<D> pivot, T* HWY_RESTRICT buf) {
   using V = decltype(Zero(d));
   const size_t N = Lanes(d);
 
-  // StoreLeftRight will CompressBlendedStore ending at `writeR`. Unless all
-  // lanes happen to be in the right-side partition, this will overrun `keys`,
-  // which triggers asan errors. Avoid by special-casing the last vector.
-  HWY_DASSERT(num > 2 * N);  // ensured by HandleSpecialCases
-  num -= N;
-  size_t last = num;
-  const V vlast = LoadU(d, keys + last);
+  size_t bufL, writeR;
+  const size_t num_main =
+      PartitionRightmost(d, st, keys, num, pivot, bufL, writeR, buf);
+  HWY_DASSERT(num_main <= num && writeR <= num);
+  HWY_DASSERT(bufL <= Constants::PartitionBufNum(N));
+  HWY_DASSERT(num_main + bufL == writeR);
 
-  const size_t consumedL =
-      PartitionToMultipleOfUnroll(d, st, keys, num, pivot, buf);
-  keys += consumedL;
-  last -= consumedL;
-  num -= consumedL;
+  if (VQSORT_PRINT >= 3) {
+    fprintf(stderr, "  num_main %zu bufL %zu writeR %zu\n", num_main, bufL,
+            writeR);
+  }
+
   constexpr size_t kUnroll = Constants::kPartitionUnroll;
 
   // Partition splits the vector into 3 sections, left to right: Elements
@@ -685,33 +741,32 @@ HWY_INLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   //              writeL                                  writeR
   //               \/                                       \/
   //  |  <= pivot   | bufferL |   unpartitioned   | bufferR |   > pivot   |
-  //                          \/                  \/
-  //                         left                 right
+  //                          \/                  \/                      \/
+  //                         readL               readR                   num
   //
   // In the main loop body below we choose a side, load some elements out of the
-  // vector and move either `left` or `right`. Next we call into StoreLeftRight
+  // vector and move either `readL` or `readR`. Next we call into StoreLeftRight
   // to partition the data, and the partitioned elements will be written either
   // to writeR or writeL and the corresponding index will be moved accordingly.
   //
   // Note that writeR is not explicitly tracked as an optimization for platforms
   // with conditional operations. Instead we track writeL and the number of
-  // elements left to process (`remaining`). From the diagram above we can see
+  // not yet written elements (`remaining`). From the diagram above we can see
   // that:
   //    writeR - writeL = remaining => writeR = remaining + writeL
   //
   // Tracking `remaining` is advantageous because each iteration reduces the
   // number of unpartitioned elements by a fixed amount, so we can compute
   // `remaining` without data dependencies.
-  //
   size_t writeL = 0;
-  size_t remaining = num;
+  size_t remaining = writeR - writeL;
 
-  const T* HWY_RESTRICT readL = keys;
-  const T* HWY_RESTRICT readR = keys + num;
+  const T* readL = keys;
+  const T* readR = keys + num_main;
   // Cannot load if there were fewer than 2 * kUnroll * N.
-  if (HWY_LIKELY(num != 0)) {
-    HWY_DASSERT(num >= 2 * kUnroll * N);
-    HWY_DASSERT((num & (kUnroll * N - 1)) == 0);
+  if (HWY_LIKELY(num_main != 0)) {
+    HWY_DASSERT(num_main >= 2 * kUnroll * N);
+    HWY_DASSERT((num_main & (kUnroll * N - 1)) == 0);
 
     // Make space for writing in-place by reading from readL/readR.
     const V vL0 = LoadU(d, readL + 0 * N);
@@ -732,7 +787,7 @@ HWY_INLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
       // Data-dependent but branching is faster than forcing branch-free.
       const size_t capacityL =
           static_cast<size_t>((readL - keys) - static_cast<ptrdiff_t>(writeL));
-      HWY_DASSERT(capacityL <= num);  // >= 0
+      HWY_DASSERT(capacityL <= num_main);  // >= 0
       // Load data from the end of the vector with less data (front or back).
       // The next paragraphs explain how this works.
       //
@@ -749,14 +804,11 @@ HWY_INLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
       //    capacityR = 2 * block_size - capacityL
       //
       // This means that:
-      //    capacityL < capacityR <=>
-      //    capacityL < 2 * block_size - capacityL <=>
-      //    2 * capacityL < 2 * block_size <=>
-      //    capacityL < block_size
-      //
-      // Thus the check on the next line is equivalent to capacityL > capacityR.
-      //
-      if (kUnroll * N < capacityL) {
+      //    capacityL > capacityR <=>
+      //    capacityL > 2 * block_size - capacityL <=>
+      //    2 * capacityL > 2 * block_size <=>
+      //    capacityL > block_size
+      if (capacityL > kUnroll * N) {  // equivalent to capacityL > capacityR.
         readR -= kUnroll * N;
         v0 = LoadU(d, readR + 0 * N);
         v1 = LoadU(d, readR + 1 * N);
@@ -777,25 +829,28 @@ HWY_INLINE size_t Partition(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
     // Now finish writing the saved vectors to the middle.
     StoreLeftRight4(d, st, vL0, vL1, vL2, vL3, pivot, keys, writeL, remaining);
-    StoreLeftRight4(d, st, vR0, vR1, vR2, vR3, pivot, keys, writeL, remaining);
+
+    StoreLeftRight(d, st, vR0, pivot, keys, writeL, remaining);
+    StoreLeftRight(d, st, vR1, pivot, keys, writeL, remaining);
+
+    // Switch back to updating writeR for clarity. The middle is missing vR2/3
+    // and what is in the buffer.
+    HWY_DASSERT(remaining == bufL + 2 * N);
+    writeR = writeL + remaining;
+    // Switch to StoreRightAndBuf for the last two vectors because
+    // StoreLeftRight may overwrite prior keys.
+    StoreRightAndBuf(d, st, vR2, pivot, keys, writeR, buf, bufL);
+    StoreRightAndBuf(d, st, vR3, pivot, keys, writeR, buf, bufL);
+    HWY_DASSERT(writeR <= num);  // >= 0
+    HWY_DASSERT(bufL <= Constants::PartitionBufNum(N));
   }
 
-  // We have partitioned [left, right) such that writeL is the boundary.
-  HWY_DASSERT(remaining == 0);
-  // Make space for inserting vlast: move up to N of the first right-side keys
-  // into the unused space starting at last. If we have fewer, ensure they are
-  // the last items in that vector by subtracting from the *load* address,
-  // which is safe because we have at least two vectors (checked above).
-  const size_t totalR = last - writeL;
-  const size_t startR = totalR < N ? writeL + totalR - N : writeL;
-  StoreU(LoadU(d, keys + startR), d, keys + last);
+  // We have partitioned [0, num) into [0, writeL) and [writeR, num).
+  // Now insert left keys from `buf` to empty space starting at writeL.
+  HWY_DASSERT(writeL + bufL == writeR);
+  CopyBytes(buf, keys + writeL, bufL * sizeof(T));
 
-  // Partition vlast: write L, then R, into the single-vector gap at writeL.
-  const auto comp = st.Compare(d, pivot, vlast);
-  writeL += CompressBlendedStore(vlast, Not(comp), d, keys + writeL);
-  (void)CompressBlendedStore(vlast, comp, d, keys + writeL);
-
-  return consumedL + writeL;
+  return writeL + bufL;
 }
 
 // Returns true and partitions if [keys, keys + num) contains only {valueL,
@@ -808,43 +863,50 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
                                          const Vec<D> valueR, Vec<D>& third,
                                          T* HWY_RESTRICT buf) {
   const size_t N = Lanes(d);
+  // No guarantee that num >= N because this is called for subarrays!
 
   size_t i = 0;
   size_t writeL = 0;
 
   // As long as all lanes are equal to L or R, we can overwrite with valueL.
   // This is faster than first counting, then backtracking to fill L and R.
-  for (; i + N <= num; i += N) {
-    const Vec<D> v = LoadU(d, keys + i);
-    // It is not clear how to apply OrXor here - that can check if *both*
-    // comparisons are true, but here we want *either*. Comparing the unsigned
-    // min of differences to zero works, but is expensive for u64 prior to AVX3.
-    const Mask<D> eqL = st.EqualKeys(d, v, valueL);
-    const Mask<D> eqR = st.EqualKeys(d, v, valueR);
-    // At least one other value present; will require a regular partition.
-    // On AVX-512, Or + AllTrue are folded into a single kortest if we are
-    // careful with the FindKnownFirstTrue argument, see below.
-    if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
-      // If we repeat Or(eqL, eqR) here, the compiler will hoist it into the
-      // loop, which is a pessimization because this if-true branch is cold.
-      // We can defeat this via Not(Xor), which is equivalent because eqL and
-      // eqR cannot be true at the same time. Can we elide the additional Not?
-      // FindFirstFalse instructions are generally unavailable, but we can
-      // fuse Not and Xor/Or into one ExclusiveNeither.
-      const size_t lane = FindKnownFirstTrue(d, ExclusiveNeither(eqL, eqR));
-      third = st.SetKey(d, keys + i + lane);
-      if (VQSORT_PRINT >= 2) {
-        fprintf(stderr, "found 3rd value at vec %zu; writeL %zu\n", i, writeL);
+  if (num >= N) {
+    for (; i <= num - N; i += N) {
+      const Vec<D> v = LoadU(d, keys + i);
+      // It is not clear how to apply OrXor here - that can check if *both*
+      // comparisons are true, but here we want *either*. Comparing the unsigned
+      // min of differences to zero works, but is expensive for u64 prior to
+      // AVX3.
+      const Mask<D> eqL = st.EqualKeys(d, v, valueL);
+      const Mask<D> eqR = st.EqualKeys(d, v, valueR);
+      // At least one other value present; will require a regular partition.
+      // On AVX-512, Or + AllTrue are folded into a single kortest if we are
+      // careful with the FindKnownFirstTrue argument, see below.
+      if (HWY_UNLIKELY(!AllTrue(d, Or(eqL, eqR)))) {
+        // If we repeat Or(eqL, eqR) here, the compiler will hoist it into the
+        // loop, which is a pessimization because this if-true branch is cold.
+        // We can defeat this via Not(Xor), which is equivalent because eqL and
+        // eqR cannot be true at the same time. Can we elide the additional Not?
+        // FindFirstFalse instructions are generally unavailable, but we can
+        // fuse Not and Xor/Or into one ExclusiveNeither.
+        const size_t lane = FindKnownFirstTrue(d, ExclusiveNeither(eqL, eqR));
+        third = st.SetKey(d, keys + i + lane);
+        if (VQSORT_PRINT >= 2) {
+          fprintf(stderr, "found 3rd value at vec %zu; writeL %zu\n", i,
+                  writeL);
+        }
+        // 'Undo' what we did by filling the remainder of what we read with R.
+        if (i >= N) {
+          for (; writeL <= i - N; writeL += N) {
+            StoreU(valueR, d, keys + writeL);
+          }
+        }
+        BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
+        return false;
       }
-      // 'Undo' what we did by filling the remainder of what we read with R.
-      for (; writeL + N <= i; writeL += N) {
-        StoreU(valueR, d, keys + writeL);
-      }
-      BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
-      return false;
+      StoreU(valueL, d, keys + writeL);
+      writeL += CountTrue(d, eqL);
     }
-    StoreU(valueL, d, keys + writeL);
-    writeL += CountTrue(d, eqL);
   }
 
   // Final vector, masked comparison (no effect if i == num)
@@ -865,8 +927,10 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
               writeL);
     }
     // 'Undo' what we did by filling the remainder of what we read with R.
-    for (; writeL + N <= i; writeL += N) {
-      StoreU(valueR, d, keys + writeL);
+    if (i >= N) {
+      for (; writeL <= i - N; writeL += N) {
+        StoreU(valueR, d, keys + writeL);
+      }
     }
     BlendedStore(valueR, FirstN(d, i - writeL), d, keys + writeL);
     return false;
@@ -876,8 +940,10 @@ HWY_NOINLINE bool MaybePartitionTwoValue(D d, Traits st, T* HWY_RESTRICT keys,
 
   // Fill right side
   i = writeL;
-  for (; i + N <= num; i += N) {
-    StoreU(valueR, d, keys + i);
+  if (num >= N) {
+    for (; i <= num - N; i += N) {
+      StoreU(valueR, d, keys + i);
+    }
   }
   BlendedStore(valueR, FirstN(d, num - i), d, keys + i);
 
@@ -925,8 +991,10 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
       // been written. Rewrite [pos, num - countR) to L.
       HWY_DASSERT(countR <= num - pos);
       const size_t endL = num - countR;
-      for (; pos + N <= endL; pos += N) {
-        StoreU(valueL, d, keys + pos);
+      if (endL >= N) {
+        for (; pos <= endL - N; pos += N) {
+          StoreU(valueL, d, keys + pos);
+        }
       }
       BlendedStore(valueL, FirstN(d, endL - pos), d, keys + pos);
       return false;
@@ -958,8 +1026,10 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
     // been written. Rewrite [pos, num - countR) to L.
     HWY_DASSERT(countR <= num - pos);
     const size_t endL = num - countR;
-    for (; pos + N <= endL; pos += N) {
-      StoreU(valueL, d, keys + pos);
+    if (endL >= N) {
+      for (; pos <= endL - N; pos += N) {
+        StoreU(valueL, d, keys + pos);
+      }
     }
     BlendedStore(valueL, FirstN(d, endL - pos), d, keys + pos);
     return false;
@@ -973,8 +1043,10 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
   // Fill left side (ascending order for clarity)
   const size_t endL = num - countR;
   size_t i = 0;
-  for (; i + N <= endL; i += N) {
-    StoreU(valueL, d, keys + i);
+  if (endL >= N) {
+    for (; i <= endL - N; i += N) {
+      StoreU(valueL, d, keys + i);
+    }
   }
   Store(valueL, d, buf);
   SafeCopyN(endL - i, d, buf, keys + i);  // avoids asan overrun
@@ -1048,9 +1120,9 @@ HWY_INLINE V MedianOf3(Traits st, V v0, V v1, V v2) {
   if (st.Is128()) {
     // Median = XOR-sum 'minus' the first and last. Calling First twice is
     // slightly faster than Compare + 2 IfThenElse or even IfThenElse + XOR.
-    const auto sum = Xor(Xor(v0, v1), v2);
-    const auto first = st.First(d, st.First(d, v0, v1), v2);
-    const auto last = st.Last(d, st.Last(d, v0, v1), v2);
+    const V sum = Xor(Xor(v0, v1), v2);
+    const V first = st.First(d, st.First(d, v0, v1), v2);
+    const V last = st.Last(d, st.Last(d, v0, v1), v2);
     return Xor(Xor(sum, first), last);
   }
   st.Sort2(d, v0, v2);
@@ -1132,6 +1204,11 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     const V medians1 = MedianOf3(st, v3, v4, v5);
     Store(medians1, d, buf + i + kLanesPerChunk);
   }
+}
+
+template <class V>
+V OrXor(const V o, const V x1, const V x2) {
+  return Or(o, Xor(x1, x2));  // ternlog on AVX3
 }
 
 // For detecting inputs where (almost) all keys are equal.
@@ -1249,8 +1326,13 @@ HWY_INLINE Vec<D> ChoosePivotByRank(D d, Traits st,
   const size_t pivot_rank = PivotRank(st, samples);
   const Vec<D> pivot = st.SetKey(d, samples + pivot_rank);
   if (VQSORT_PRINT >= 2) {
-    fprintf(stderr, "  Pivot rank %zu = %f\n", pivot_rank,
-            static_cast<double>(GetLane(pivot)));
+    fprintf(stderr, "  Pivot rank %3zu\n", pivot_rank);
+    HWY_ALIGN T pivot_lanes[MaxLanes(d)];
+    Store(pivot, d, pivot_lanes);
+    using KeyType = typename Traits::KeyType;
+    KeyType key;
+    CopyBytes<sizeof(KeyType)>(pivot_lanes, &key);
+    PrintValue(key);
   }
   // Verify pivot is not equal to the last sample.
   constexpr size_t kSampleLanes = Constants::SampleLanes<T>();
@@ -1308,25 +1390,27 @@ HWY_INLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
     constexpr size_t kLoops = 8;
     const size_t lanes_per_group = kLoops * 2 * N;
 
-    for (; i + lanes_per_group <= num; i += lanes_per_group) {
-      HWY_DEFAULT_UNROLL
-      for (size_t loop = 0; loop < kLoops; ++loop) {
-        const Vec<D> v0 = Load(d, keys + i + loop * 2 * N);
-        const Vec<D> v1 = Load(d, keys + i + loop * 2 * N + N);
-        diff0 = OrXor(diff0, v0, pivot);
-        diff1 = OrXor(diff1, v1, pivot);
-      }
+    if (num >= lanes_per_group) {
+      for (; i <= num - lanes_per_group; i += lanes_per_group) {
+        HWY_DEFAULT_UNROLL
+        for (size_t loop = 0; loop < kLoops; ++loop) {
+          const Vec<D> v0 = Load(d, keys + i + loop * 2 * N);
+          const Vec<D> v1 = Load(d, keys + i + loop * 2 * N + N);
+          diff0 = OrXor(diff0, v0, pivot);
+          diff1 = OrXor(diff1, v1, pivot);
+        }
 
-      // If there was a difference in the entire group:
-      if (HWY_UNLIKELY(!st.NoKeyDifference(d, Or(diff0, diff1)))) {
-        // .. then loop until the first one, with termination guarantee.
-        for (;; i += N) {
-          const Vec<D> v = Load(d, keys + i);
-          const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
-          if (HWY_UNLIKELY(!AllFalse(d, diff))) {
-            const size_t lane = FindKnownFirstTrue(d, diff);
-            *first_mismatch = i + lane;
-            return false;
+        // If there was a difference in the entire group:
+        if (HWY_UNLIKELY(!st.NoKeyDifference(d, Or(diff0, diff1)))) {
+          // .. then loop until the first one, with termination guarantee.
+          for (;; i += N) {
+            const Vec<D> v = Load(d, keys + i);
+            const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
+            if (HWY_UNLIKELY(!AllFalse(d, diff))) {
+              const size_t lane = FindKnownFirstTrue(d, diff);
+              *first_mismatch = i + lane;
+              return false;
+            }
           }
         }
       }
@@ -1334,7 +1418,7 @@ HWY_INLINE bool AllEqual(D d, Traits st, const Vec<D> pivot,
   }  // !hwy::IsFloat<T>()
 
   // Whole vectors, no unrolling, compare directly
-  for (; i + N <= num; i += N) {
+  for (; i <= num - N; i += N) {
     const Vec<D> v = Load(d, keys + i);
     const Mask<D> diff = st.NotEqualKeys(d, v, pivot);
     if (HWY_UNLIKELY(!AllFalse(d, diff))) {
@@ -1378,23 +1462,25 @@ HWY_INLINE bool ExistsAnyBefore(D d, Traits st, const T* HWY_RESTRICT keys,
   Vec<D> first = pivot;
 
   // Whole group, unrolled
-  for (; i + lanes_per_group <= num; i += lanes_per_group) {
-    HWY_DEFAULT_UNROLL
-    for (size_t loop = 0; loop < kLoops; ++loop) {
-      const Vec<D> curr = LoadU(d, keys + i + loop * N);
-      first = st.First(d, first, curr);
-    }
-
-    if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, first, pivot)))) {
-      if (VQSORT_PRINT >= 2) {
-        fprintf(stderr, "Stopped scanning at end of group %zu\n",
-                i + lanes_per_group);
+  if (num >= lanes_per_group) {
+    for (; i <= num - lanes_per_group; i += lanes_per_group) {
+      HWY_DEFAULT_UNROLL
+      for (size_t loop = 0; loop < kLoops; ++loop) {
+        const Vec<D> curr = LoadU(d, keys + i + loop * N);
+        first = st.First(d, first, curr);
       }
-      return true;
+
+      if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, first, pivot)))) {
+        if (VQSORT_PRINT >= 2) {
+          fprintf(stderr, "Stopped scanning at end of group %zu\n",
+                  i + lanes_per_group);
+        }
+        return true;
+      }
     }
   }
   // Whole vectors, no unrolling
-  for (; i + N <= num; i += N) {
+  for (; i <= num - N; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
     if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, curr, pivot)))) {
       if (VQSORT_PRINT >= 2) {
@@ -1436,23 +1522,25 @@ HWY_INLINE bool ExistsAnyAfter(D d, Traits st, const T* HWY_RESTRICT keys,
   Vec<D> last = pivot;
 
   // Whole group, unrolled
-  for (; i + lanes_per_group <= num; i += lanes_per_group) {
-    HWY_DEFAULT_UNROLL
-    for (size_t loop = 0; loop < kLoops; ++loop) {
-      const Vec<D> curr = LoadU(d, keys + i + loop * N);
-      last = st.Last(d, last, curr);
-    }
-
-    if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, pivot, last)))) {
-      if (VQSORT_PRINT >= 2) {
-        fprintf(stderr, "Stopped scanning at end of group %zu\n",
-                i + lanes_per_group);
+  if (num >= lanes_per_group) {
+    for (; i + lanes_per_group <= num; i += lanes_per_group) {
+      HWY_DEFAULT_UNROLL
+      for (size_t loop = 0; loop < kLoops; ++loop) {
+        const Vec<D> curr = LoadU(d, keys + i + loop * N);
+        last = st.Last(d, last, curr);
       }
-      return true;
+
+      if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, pivot, last)))) {
+        if (VQSORT_PRINT >= 2) {
+          fprintf(stderr, "Stopped scanning at end of group %zu\n",
+                  i + lanes_per_group);
+        }
+        return true;
+      }
     }
   }
   // Whole vectors, no unrolling
-  for (; i + N <= num; i += N) {
+  for (; i <= num - N; i += N) {
     const Vec<D> curr = LoadU(d, keys + i);
     if (HWY_UNLIKELY(!AllFalse(d, st.Compare(d, pivot, curr)))) {
       if (VQSORT_PRINT >= 2) {
@@ -1582,7 +1670,7 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
     Vec<D> last = st.FirstValue(d);
 
     size_t i = 0;
-    for (; i + N <= num; i += N) {
+    for (; i <= num - N; i += N) {
       const Vec<D> v = LoadU(d, keys + i);
       first = st.First(d, v, first);
       last = st.Last(d, v, last);
@@ -1757,28 +1845,20 @@ HWY_INLINE size_t CountAndReplaceNaN(D d, Traits st, T* HWY_RESTRICT keys,
   const Vec<D> sentinel = st.LastValue(d);
   size_t num_nan = 0;
   size_t i = 0;
-  for (; i + N <= num; i += N) {
-    const Mask<D> is_nan = IsNaN(LoadU(d, keys + i));
-    BlendedStore(sentinel, is_nan, d, keys + i);
-    num_nan += CountTrue(d, is_nan);
+  if (num >= N) {
+    for (; i <= num - N; i += N) {
+      const Mask<D> is_nan = IsNaN(LoadU(d, keys + i));
+      BlendedStore(sentinel, is_nan, d, keys + i);
+      num_nan += CountTrue(d, is_nan);
+    }
   }
 
-#if HWY_MEM_OPS_MIGHT_FAULT
-  // Proceed one by one.
-  const CappedTag<T, 1> d1;
-  const Vec<decltype(d1)> sentinel1 = Set(d1, GetLane(sentinel));
-  for (; i < num; ++i) {
-    const Mask<decltype(d1)> is_nan = IsNaN(LoadU(d1, keys + i));
-    BlendedStore(sentinel1, is_nan, d1, keys + i);
-    num_nan += CountTrue(d1, is_nan);
-  }
-#else
-  const Mask<D> remaining = FirstN(d, num - i);
-  const Mask<D> is_nan = IsNaN(MaskedLoad(remaining, d, keys + i));
-  BlendedStore(sentinel, is_nan, d, keys + i);
+  const size_t remaining = num - i;
+  HWY_DASSERT(remaining < N);
+  const Vec<D> v = LoadN(d, keys + i, remaining);
+  const Mask<D> is_nan = IsNaN(v);
+  StoreN(IfThenElse(is_nan, sentinel, v), d, keys + i, remaining);
   num_nan += CountTrue(d, is_nan);
-#endif
-
   return num_nan;
 }
 
@@ -1797,8 +1877,9 @@ template <class D, class Traits, typename T>
 void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
           T* HWY_RESTRICT buf) {
   if (VQSORT_PRINT >= 1) {
-    fprintf(stderr, "=============== Sort num %zu vec bytes %d\n", num,
-            static_cast<int>(sizeof(T) * Lanes(d)));
+    fprintf(stderr,
+            "=============== Sort num %zu is128 %d isKV %d vec bytes %d\n", num,
+            st.Is128(), st.IsKV(), static_cast<int>(sizeof(T) * Lanes(d)));
   }
 
 #if HWY_MAX_BYTES > 64

@@ -1663,6 +1663,18 @@ template <>
 constexpr bool IsSigned<bfloat16_t>() {
   return true;
 }
+template <>
+constexpr bool IsSigned<hwy::uint128_t>() {
+  return false;
+}
+template <>
+constexpr bool IsSigned<hwy::K64V64>() {
+  return false;
+}
+template <>
+constexpr bool IsSigned<hwy::K32V32>() {
+  return false;
+}
 
 template <typename T, bool = IsInteger<T>() && !IsIntegerLaneType<T>()>
 struct MakeLaneTypeIfIntegerT {

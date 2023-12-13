@@ -74,9 +74,10 @@ struct SortConstants {
     // The main loop reads kPartitionUnroll vectors, and first loads from
     // both left and right beforehand, so it requires min = 2 *
     // kPartitionUnroll vectors. To handle smaller amounts (only guaranteed
-    // >= BaseCaseNumLanes), we partition the right side into a buffer. We need
-    // another vector at the end so CompressStore does not overwrite anything.
-    return (2 * kPartitionUnroll + 1) * N;
+    // >= BaseCaseNumLanes), we partition up to that much into a buffer. Add
+    // another N because we increase num_here if less than N, and two more
+    // for the final vectors handled via StoreRightAndBuf.
+    return (2 * kPartitionUnroll + 1 + 2) * N;
   }
 
   // Max across the three buffer usages.
