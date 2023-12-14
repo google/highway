@@ -1378,8 +1378,9 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 
 // x86 compiler supports __bf16, not necessarily with operators.
 #ifndef HWY_SSE2_HAVE_SCALAR_BF16_TYPE
-#if HWY_ARCH_X86 && defined(__SSE2__) && \
-    (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1300)
+#if HWY_ARCH_X86 && defined(__SSE2__) &&                      \
+    ((HWY_COMPILER_CLANG >= 1700 && !HWY_COMPILER_CLANGCL) || \
+     HWY_COMPILER_GCC_ACTUAL >= 1300)
 #define HWY_SSE2_HAVE_SCALAR_BF16_TYPE 1
 #else
 #define HWY_SSE2_HAVE_SCALAR_BF16_TYPE 0
