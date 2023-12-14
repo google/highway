@@ -101,9 +101,7 @@ HWY_API Vec1<TTo> BitCast(DTo /* tag */, Vec1<TFrom> v) {
 
 template <class D, HWY_IF_LANES_D(D, 1), typename T = TFromD<D>>
 HWY_API Vec1<T> Zero(D /* tag */) {
-  Vec1<T> v;
-  ZeroBytes<sizeof(v.raw)>(&v.raw);
-  return v;
+  return Vec1<T>(ConvertScalarTo<T>(0));
 }
 
 template <class D>
@@ -361,12 +359,12 @@ HWY_API Vec1<T> IfThenElse(const Mask1<T> mask, const Vec1<T> yes,
 
 template <typename T>
 HWY_API Vec1<T> IfThenElseZero(const Mask1<T> mask, const Vec1<T> yes) {
-  return mask.bits ? yes : Vec1<T>(0);
+  return mask.bits ? yes : Vec1<T>(ConvertScalarTo<T>(0));
 }
 
 template <typename T>
 HWY_API Vec1<T> IfThenZeroElse(const Mask1<T> mask, const Vec1<T> no) {
-  return mask.bits ? Vec1<T>(0) : no;
+  return mask.bits ? Vec1<T>(ConvertScalarTo<T>(0)) : no;
 }
 
 template <typename T>
@@ -380,7 +378,11 @@ HWY_API Vec1<T> IfNegativeThenElse(Vec1<T> v, Vec1<T> yes, Vec1<T> no) {
 
 template <typename T>
 HWY_API Vec1<T> ZeroIfNegative(const Vec1<T> v) {
-  return v.raw < 0 ? Vec1<T>(0) : v;
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  const auto vi = BitCast(di, v);
+
+  return vi.raw < 0 ? Vec1<T>(ConvertScalarTo<T>(0)) : v;
 }
 
 // ------------------------------ Mask logical
