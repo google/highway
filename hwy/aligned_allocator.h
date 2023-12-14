@@ -320,6 +320,21 @@ class AlignedNDArray {
   // Returns a const pointer to the buffer.
   const T* data() const { return buffer_.get(); }
 
+  // Truncates the array by updating its shape.
+  //
+  // The new shape must be equal to or less than the old shape in all axes.
+  //
+  // Doesn't modify underlying memory.
+  void truncate(const std::array<size_t, axes>& new_shape) {
+#if HWY_IS_DEBUG_BUILD
+    for (size_t axis_index = 0; axis_index < axes; ++axis_index) {
+      HWY_ASSERT(new_shape[axis_index] <= shape_[axis_index]);
+    }
+#endif
+    shape_ = new_shape;
+    sizes_ = ComputeSizes(shape_);
+  }
+
  private:
   std::array<size_t, axes> shape_;
   std::array<size_t, axes> memory_shape_;
