@@ -41,12 +41,12 @@
 #define HWY_SVE_HAVE_BF16_FEATURE 0
 #endif
 
-// HWY_SVE_HAVE_BFLOAT16_VEC is defined to 1 if the SVE svbfloat16_t vector type
+// HWY_SVE_HAVE_BF16_VEC is defined to 1 if the SVE svbfloat16_t vector type
 // is supported, even if HWY_SVE_HAVE_BF16_FEATURE (= intrinsics) is 0.
 #if HWY_SVE_HAVE_BF16_FEATURE || HWY_COMPILER_GCC_ACTUAL >= 1000
-#define HWY_SVE_HAVE_BFLOAT16_VEC 1
+#define HWY_SVE_HAVE_BF16_VEC 1
 #else
-#define HWY_SVE_HAVE_BFLOAT16_VEC 0
+#define HWY_SVE_HAVE_BF16_VEC 0
 #endif
 
 HWY_BEFORE_NAMESPACE();
@@ -92,9 +92,12 @@ namespace detail {  // for code folding
 #define HWY_SVE_FOREACH_F64(X_MACRO, NAME, OP) \
   X_MACRO(float, f, 64, 32, NAME, OP)
 
+#define HWY_SVE_FOREACH_BF16_UNCONDITIONAL(X_MACRO, NAME, OP) \
+  X_MACRO(bfloat, bf, 16, 16, NAME, OP)
+
 #if HWY_SVE_HAVE_BF16_FEATURE
 #define HWY_SVE_FOREACH_BF16(X_MACRO, NAME, OP) \
-  X_MACRO(bfloat, bf, 16, 16, NAME, OP)
+  HWY_SVE_FOREACH_BF16_UNCONDITIONAL(X_MACRO, NAME, OP)
 // We have both f16 and bf16, so nothing is emulated.
 #define HWY_SVE_IF_EMULATED_D(D) hwy::EnableIf<false>* = nullptr
 #else
@@ -177,7 +180,9 @@ namespace detail {  // for code folding
   };
 
 HWY_SVE_FOREACH(HWY_SPECIALIZE, _, _)
-HWY_SVE_FOREACH_BF16(HWY_SPECIALIZE, _, _)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SPECIALIZE, _, _)
+#endif
 #undef HWY_SPECIALIZE
 
 // Note: _x (don't-care value for inactive lanes) avoids additional MOVPRFX
@@ -350,7 +355,7 @@ svbool_t MakeMask(D d) {
 HWY_SVE_FOREACH(HWY_SVE_SET, Set, dup_n)
 #if HWY_SVE_HAVE_BF16_FEATURE  // for if-elif chain
 HWY_SVE_FOREACH_BF16(HWY_SVE_SET, Set, dup_n)
-#elif HWY_SVE_HAVE_BFLOAT16_VEC
+#elif HWY_SVE_HAVE_BF16_VEC
 // Required for Zero and VFromD
 template <class D, HWY_IF_BF16_D(D)>
 HWY_API svbfloat16_t Set(D d, bfloat16_t arg) {
@@ -414,14 +419,23 @@ HWY_SVE_FOREACH_UI16(HWY_SVE_CAST, _, reinterpret)
 HWY_SVE_FOREACH_UI32(HWY_SVE_CAST, _, reinterpret)
 HWY_SVE_FOREACH_UI64(HWY_SVE_CAST, _, reinterpret)
 HWY_SVE_FOREACH_F(HWY_SVE_CAST, _, reinterpret)
-HWY_SVE_FOREACH_BF16(HWY_SVE_CAST, _, reinterpret)
 
 #undef HWY_SVE_CAST_NOP
 #undef HWY_SVE_CAST
 
+template <class V, HWY_SVE_IF_EMULATED_D(DFromV<V>)>
+HWY_INLINE svuint8_t BitCastToByte(V v) {
+#if HWY_SVE_HAVE_BF16_VEC
+  return svreinterpret_u8_bf16(v);
+#else
+  const RebindToUnsigned<DFromV<V>> du;
+  return BitCastToByte(BitCast(du, v));
+#endif
+}
+
 template <class D, HWY_SVE_IF_EMULATED_D(D)>
 HWY_INLINE VFromD<D> BitCastFromByte(D d, svuint8_t v) {
-#if HWY_SVE_HAVE_BFLOAT16_VEC
+#if HWY_SVE_HAVE_BF16_VEC
   (void)d;
   return svreinterpret_bf16_u8(v);
 #else
@@ -5793,6 +5807,7 @@ HWY_API V HighestSetBitIndex(V v) {
 #undef HWY_SVE_D
 #undef HWY_SVE_FOREACH
 #undef HWY_SVE_FOREACH_BF16
+#undef HWY_SVE_FOREACH_BF16_UNCONDITIONAL
 #undef HWY_SVE_FOREACH_F
 #undef HWY_SVE_FOREACH_F16
 #undef HWY_SVE_FOREACH_F32

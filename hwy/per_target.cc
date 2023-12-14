@@ -13,7 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Enable all targets so that calling Have* does not call into a null pointer.
+#ifndef HWY_COMPILE_ALL_ATTAINABLE
+#define HWY_COMPILE_ALL_ATTAINABLE
+#endif
 #include "hwy/per_target.h"
+
+#include <stddef.h>
+#include <stdint.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/per_target.cc"

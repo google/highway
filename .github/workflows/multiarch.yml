@@ -3,6 +3,9 @@ name: Foreign architectures
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   multiarch:
     runs-on: ubuntu-22.04

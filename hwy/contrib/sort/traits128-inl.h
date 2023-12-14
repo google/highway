@@ -22,6 +22,9 @@
 #define HIGHWAY_HWY_CONTRIB_SORT_TRAITS128_TOGGLE
 #endif
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "hwy/contrib/sort/order.h"  // SortDescending
 #include "hwy/contrib/sort/shared-inl.h"
 #include "hwy/highway.h"
@@ -178,7 +181,7 @@ struct OrderAscending128 : public Key128 {
   using Order = SortAscending;
   using OrderForSortingNetwork = OrderAscending128;
 
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) const {
     return (a[1] == b[1]) ? a[0] < b[0] : a[1] < b[1];
   }
 
@@ -229,7 +232,7 @@ struct OrderDescending128 : public Key128 {
   using Order = SortDescending;
   using OrderForSortingNetwork = OrderDescending128;
 
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) const {
     return (a[1] == b[1]) ? b[0] < a[0] : b[1] < a[1];
   }
 
@@ -285,7 +288,7 @@ struct KeyValue128 : public KeyAny128 {
   // What type to pass to VQSort.
   using KeyType = K64V64;
 
-  const char* KeyString() const { return "KV128"; }
+  const char* KeyString() const { return "k+v=128"; }
 
   template <class D>
   HWY_INLINE Mask<D> EqualKeys(D d, Vec<D> a, Vec<D> b) const {
@@ -325,7 +328,7 @@ struct OrderAscendingKV128 : public KeyValue128 {
   using Order = SortAscending;
   using OrderForSortingNetwork = OrderAscending128;
 
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) const {
     return a[1] < b[1];
   }
 
@@ -372,7 +375,7 @@ struct OrderDescendingKV128 : public KeyValue128 {
   using Order = SortDescending;
   using OrderForSortingNetwork = OrderDescending128;
 
-  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) {
+  HWY_INLINE bool Compare1(const LaneType* a, const LaneType* b) const {
     return b[1] < a[1];
   }
 

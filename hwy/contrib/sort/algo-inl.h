@@ -446,6 +446,22 @@ void CallHeapSort(K64V64* HWY_RESTRICT keys, const size_t num_keys) {
     return detail::HeapSort(st, lanes, num_lanes);
   }
 }
+
+template <class Order>
+void CallHeapSort(K32V32* HWY_RESTRICT keys, const size_t num_keys) {
+  using detail::SharedTraits;
+  using detail::TraitsLane;
+  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
+  const size_t num_lanes = num_keys;
+  if (Order().IsAscending()) {
+    const SharedTraits<TraitsLane<detail::OrderAscendingKV64>> st;
+    return detail::HeapSort(st, lanes, num_lanes);
+  } else {
+    const SharedTraits<TraitsLane<detail::OrderDescendingKV64>> st;
+    return detail::HeapSort(st, lanes, num_lanes);
+  }
+}
+
 #endif  // VQSORT_ENABLED
 
 template <class Order, typename KeyType>

@@ -47,7 +47,8 @@ using FreePtr = void (*)(void* opaque, void* memory);
 // the vector size. Calls `alloc` with the passed `opaque` pointer to obtain
 // memory or malloc() if it is null.
 HWY_DLLEXPORT void* AllocateAlignedBytes(size_t payload_size,
-                                         AllocPtr alloc_ptr, void* opaque_ptr);
+                                         AllocPtr alloc_ptr = nullptr,
+                                         void* opaque_ptr = nullptr);
 
 // Frees all memory. No effect if `aligned_pointer` == nullptr, otherwise it
 // must have been returned from a previous call to `AllocateAlignedBytes`.
@@ -117,8 +118,7 @@ AlignedUniquePtr<T> MakeUniqueAlignedWithAlloc(AllocPtr alloc, FreePtr free,
 // functions.
 template <typename T, typename... Args>
 AlignedUniquePtr<T> MakeUniqueAligned(Args&&... args) {
-  T* ptr = static_cast<T*>(AllocateAlignedBytes(
-      sizeof(T), /*alloc_ptr=*/nullptr, /*opaque_ptr=*/nullptr));
+  T* ptr = static_cast<T*>(AllocateAlignedBytes(sizeof(T)));
   return AlignedUniquePtr<T>(new (ptr) T(std::forward<Args>(args)...),
                              AlignedDeleter());
 }
@@ -218,6 +218,7 @@ AlignedFreeUniquePtr<T[]> AllocateAligned(const size_t items) {
 template <typename T>
 class Span {
  public:
+  Span() = default;
   Span(T* data, size_t size) : size_(size), data_(data) {}
   template <typename U>
   Span(U u) : Span(u.data(), u.size()) {}
@@ -235,6 +236,7 @@ class Span {
 
   // Returns a pointer to the contained data.
   T* data() { return data_; }
+  T* data() const { return data_; }
 
   // Returns the element at index.
   T& operator[](size_t index) const { return data_[index]; }
@@ -280,8 +282,8 @@ class AlignedNDArray {
     // array is aligned from the first element.
     memory_shape_[axes - 1] = RoundUpTo(memory_shape_[axes - 1], VectorBytes());
     memory_sizes_ = ComputeSizes(memory_shape_);
-    buffer_ = hwy::AllocateAligned<T>(data_size());
-    hwy::ZeroBytes(buffer_.get(), data_size() * sizeof(T));
+    buffer_ = hwy::AllocateAligned<T>(memory_size());
+    hwy::ZeroBytes(buffer_.get(), memory_size() * sizeof(T));
   }
 
   // Returns a span containing the innermost array at the provided indices.
@@ -310,13 +312,28 @@ class AlignedNDArray {
 
   // Returns the size of the allocated buffer, which might be larger than the
   // used size of the array after padding to alignment.
-  size_t data_size() const { return memory_sizes_[0]; }
+  size_t memory_size() const { return memory_sizes_[0]; }
 
   // Returns a pointer to the allocated buffer.
   T* data() { return buffer_.get(); }
 
   // Returns a const pointer to the buffer.
   const T* data() const { return buffer_.get(); }
+
+  // Truncates the array by updating its shape.
+  //
+  // The new shape must be equal to or less than the old shape in all axes.
+  //
+  // Doesn't modify underlying memory.
+  void truncate(const std::array<size_t, axes>& new_shape) {
+#if HWY_IS_DEBUG_BUILD
+    for (size_t axis_index = 0; axis_index < axes; ++axis_index) {
+      HWY_ASSERT(new_shape[axis_index] <= shape_[axis_index]);
+    }
+#endif
+    shape_ = new_shape;
+    sizes_ = ComputeSizes(shape_);
+  }
 
  private:
   std::array<size_t, axes> shape_;

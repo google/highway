@@ -116,7 +116,11 @@ cc_library(
         "vqsort.h",  # public interface
     ],
     compatible_with = [],
-    local_defines = ["hwy_contrib_EXPORTS"],
+    local_defines = [
+        "hwy_contrib_EXPORTS",
+        # Build for all targets because sort_test will dynamic-dispatch to all.
+        "HWY_COMPILE_ALL_ATTAINABLE",
+    ],
     textual_hdrs = [
         "shared-inl.h",
         "sorting_networks-inl.h",

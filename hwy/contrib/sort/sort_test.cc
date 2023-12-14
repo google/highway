@@ -14,12 +14,12 @@
 // limitations under the License.
 
 #include <stdio.h>
-#include <string.h>  // memcpy
 
 #include <unordered_map>
 #include <vector>
 
 #include "hwy/base.h"
+#include "hwy/detect_compiler_arch.h"
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
@@ -301,6 +301,12 @@ HWY_NOINLINE void TestAllBaseCase() {
 #if defined(_MSC_VER)
   return;
 #endif
+// TODO(b/314758657): Compiler bug causes incorrect results
+#ifndef VQSORT_DO_NOT_SKIP
+  if (HWY_COMPILER_CLANG && HWY_ARCH_X86 && HWY_TARGET >= HWY_SSSE3) {
+    return;
+  }
+#endif
   TestBaseCase<TraitsLane<OrderAscending<int32_t> > >();
   TestBaseCase<TraitsLane<OtherOrder<int64_t> > >();
 #if !HAVE_INTEL
@@ -535,7 +541,7 @@ class CompareResults {
  public:
   CompareResults(const LaneType* in, size_t num_lanes) {
     copy_.resize(num_lanes);
-    memcpy(copy_.data(), in, num_lanes * sizeof(LaneType));
+    CopyBytes(in, copy_.data(), num_lanes * sizeof(LaneType));
   }
 
   bool Verify(const LaneType* output) {
@@ -547,32 +553,40 @@ class CompareResults {
     SharedState shared;
     using Order = typename Traits::Order;
     const Traits st;
-    const size_t num_keys = copy_.size() / st.LanesPerKey();
+    constexpr size_t kLPK = st.LanesPerKey();
+    const size_t num_keys = copy_.size() / kLPK;
     Run<Order>(reference, reinterpret_cast<KeyType*>(copy_.data()), num_keys,
                shared, /*thread=*/0);
 #if VQSORT_PRINT >= 3
     fprintf(stderr, "\nExpected:\n");
-    for (size_t i = 0; i < copy_.size(); ++i) {
-      PrintValue(copy_[i]);
+    for (size_t i = 0; i < HWY_MIN(40, copy_.size()); i += kLPK) {
+      fprintf(stderr, "\n%03zu: ", i);
+      KeyType key;
+      CopyBytes<sizeof(KeyType)>(&copy_[i], &key);
+      PrintValue(key);
     }
-    fprintf(stderr, "\n");
+
+    fprintf(stderr, "\n\nActual:\n");
+    for (size_t i = 0; i < HWY_MIN(40, copy_.size()); i += kLPK) {
+      fprintf(stderr, "\n%03zu: ", i);
+      KeyType key;
+      CopyBytes<sizeof(KeyType)>(&output[i], &key);
+      PrintValue(key);
+    }
 #endif
-    for (size_t i = 0; i < copy_.size(); ++i) {
-      if (copy_[i] != output[i]) {
-        if (sizeof(KeyType) == 16) {
-          fprintf(stderr, "%s Asc %d mismatch at %d of %d: %g %g\n",
-                  st.KeyString(), Order().IsAscending(), static_cast<int>(i),
-                  static_cast<int>(copy_.size()), static_cast<double>(copy_[i]),
-                  static_cast<double>(output[i]));
-        } else {
-          fprintf(stderr,
-                  "Type %s Asc %d mismatch at %d of %d: ", st.KeyString(),
-                  Order().IsAscending(), static_cast<int>(i),
-                  static_cast<int>(copy_.size()));
-          PrintValue(copy_[i]);
-          PrintValue(output[i]);
-          fprintf(stderr, "\n");
-        }
+    for (size_t i = 0; i < copy_.size(); i += kLPK) {
+      // Results should be equivalent, i.e. neither a < b nor b < a.
+      if (st.Compare1(&copy_[i], &output[i]) ||
+          st.Compare1(&output[i], &copy_[i])) {
+        KeyType expected, actual;
+        CopyBytes<sizeof(KeyType)>(&copy_[i], &expected);
+        CopyBytes<sizeof(KeyType)>(&output[i], &actual);
+        fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: ", st.KeyString(),
+                Order().IsAscending(), static_cast<int>(i),
+                static_cast<int>(copy_.size()));
+        PrintValue(expected);
+        PrintValue(actual);
+        fprintf(stderr, "\n");
         return false;
       }
     }
@@ -669,6 +683,13 @@ void TestSort(size_t num_lanes) {
 }
 
 void TestAllSort() {
+// TODO(b/314758657): Compiler bug causes incorrect results
+#ifndef VQSORT_DO_NOT_SKIP
+  if (HWY_COMPILER_CLANG && HWY_ARCH_X86 && HWY_TARGET >= HWY_SSSE3) {
+    return;
+  }
+#endif
+
   for (int num : {129, 504, 3 * 1000, 34567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
 #if !HAVE_INTEL

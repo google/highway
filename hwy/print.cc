@@ -78,8 +78,7 @@ HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
       CopyBytes<4>(ptr, &value);
       snprintf(string100, 100, "%u", value);  // NOLINT
     }
-  } else {
-    HWY_ASSERT(info.sizeof_t == 8);
+  } else if (info.sizeof_t == 8) {
     if (info.is_float) {
       double value;
       CopyBytes<8>(ptr, &value);
@@ -92,6 +91,17 @@ HWY_DLLEXPORT void ToString(const TypeInfo& info, const void* ptr,
       CopyBytes<4>(ptr8 + (HWY_IS_LITTLE_ENDIAN ? 4 : 0), &hi);
       snprintf(string100, 100, "0x%08x%08x", hi, lo);  // NOLINT
     }
+  } else if (info.sizeof_t == 16) {
+    HWY_ASSERT(!info.is_float && !info.is_signed && !info.is_bf16);
+    const uint8_t* ptr8 = reinterpret_cast<const uint8_t*>(ptr);
+    uint32_t words[4];
+    CopyBytes<4>(ptr8 + (HWY_IS_LITTLE_ENDIAN ? 0 : 12), &words[0]);
+    CopyBytes<4>(ptr8 + (HWY_IS_LITTLE_ENDIAN ? 4 : 8), &words[1]);
+    CopyBytes<4>(ptr8 + (HWY_IS_LITTLE_ENDIAN ? 8 : 4), &words[2]);
+    CopyBytes<4>(ptr8 + (HWY_IS_LITTLE_ENDIAN ? 12 : 0), &words[3]);
+    // NOLINTNEXTLINE
+    snprintf(string100, 100, "0x%08x%08x_%08x%08x", words[3], words[2],
+             words[1], words[0]);
   }
 }
 

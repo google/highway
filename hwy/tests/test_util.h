@@ -166,7 +166,8 @@ using LargestType = If<IsFloat<T1>() || IsFloat<T2>(),
 template <typename TTo, typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TTo),
           HWY_IF_T_SIZE_LE(TTo, 4)>
 T WrapTo(T value) {
-  return static_cast<T>(value & ((1ULL << (sizeof(TTo) * 8)) - 1));
+  return static_cast<T>(static_cast<uint64_t>(value) &
+                        ((1ULL << (sizeof(TTo) * 8)) - 1));
 }
 // 2) 64-bit integer: no mask (shift would overflow)
 template <typename TTo, typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TTo),

@@ -376,6 +376,57 @@ TEST(AlignedAllocatorTest, SpanCopyAssignment) {
   CheckEqual(a, {{1.0f, 2.0f}, {3.0f, 4.0f}});
 }
 
+TEST(AlignedAllocatorTest, AlignedNDArrayTruncate) {
+  AlignedNDArray<size_t, 4> a({8, 8, 8, 8});
+  const size_t last_axis_memory_shape = a.memory_shape()[3];
+  const auto compute_value = [&](const std::array<size_t, 4>& index) {
+    return index[0] * 8 * 8 * 8 + index[1] * 8 * 8 + index[2] * 8 * 8 +
+           index[3];
+  };
+  for (size_t axis0 = 0; axis0 < a.shape()[0]; ++axis0) {
+    for (size_t axis1 = 0; axis1 < a.shape()[1]; ++axis1) {
+      for (size_t axis2 = 0; axis2 < a.shape()[2]; ++axis2) {
+        for (size_t axis3 = 0; axis3 < a.shape()[3]; ++axis3) {
+          a[{axis0, axis1, axis2}][axis3] =
+              compute_value({axis0, axis1, axis2, axis3});
+        }
+      }
+    }
+  }
+  const auto verify_values = [&](const AlignedNDArray<size_t, 4>& array) {
+    for (size_t axis0 = 0; axis0 < array.shape()[0]; ++axis0) {
+      for (size_t axis1 = 0; axis1 < array.shape()[1]; ++axis1) {
+        for (size_t axis2 = 0; axis2 < array.shape()[2]; ++axis2) {
+          for (size_t axis3 = 0; axis3 < array.shape()[3]; ++axis3) {
+            EXPECT_EQ((array[{axis0, axis1, axis2}][axis3]),
+                      (compute_value({axis0, axis1, axis2, axis3})));
+          }
+        }
+      }
+    }
+  };
+  a.truncate({7, 7, 7, 7});
+  EXPECT_EQ(a.shape()[0], 7);
+  EXPECT_EQ(a.shape()[1], 7);
+  EXPECT_EQ(a.shape()[2], 7);
+  EXPECT_EQ(a.shape()[3], 7);
+  EXPECT_EQ(a.memory_shape()[0], 8);
+  EXPECT_EQ(a.memory_shape()[1], 8);
+  EXPECT_EQ(a.memory_shape()[2], 8);
+  EXPECT_EQ(a.memory_shape()[3], last_axis_memory_shape);
+  verify_values(a);
+  a.truncate({6, 5, 4, 3});
+  EXPECT_EQ(a.shape()[0], 6);
+  EXPECT_EQ(a.shape()[1], 5);
+  EXPECT_EQ(a.shape()[2], 4);
+  EXPECT_EQ(a.shape()[3], 3);
+  EXPECT_EQ(a.memory_shape()[0], 8);
+  EXPECT_EQ(a.memory_shape()[1], 8);
+  EXPECT_EQ(a.memory_shape()[2], 8);
+  EXPECT_EQ(a.memory_shape()[3], last_axis_memory_shape);
+  verify_values(a);
+}
+
 }  // namespace
 
 }  // namespace hwy
