@@ -81,54 +81,54 @@ cc_library(
     ],
 )
 
+VQSORT_SRCS = [
+    "vqsort.cc",
+    # Split into separate files to reduce MSVC build time.
+    "vqsort_128a.cc",
+    "vqsort_128d.cc",
+    "vqsort_f16a.cc",
+    "vqsort_f16d.cc",
+    "vqsort_f32a.cc",
+    "vqsort_f32d.cc",
+    "vqsort_f64a.cc",
+    "vqsort_f64d.cc",
+    "vqsort_i16a.cc",
+    "vqsort_i16d.cc",
+    "vqsort_i32a.cc",
+    "vqsort_i32d.cc",
+    "vqsort_i64a.cc",
+    "vqsort_i64d.cc",
+    "vqsort_kv64a.cc",
+    "vqsort_kv64d.cc",
+    "vqsort_kv128a.cc",
+    "vqsort_kv128d.cc",
+    "vqsort_u16a.cc",
+    "vqsort_u16d.cc",
+    "vqsort_u32a.cc",
+    "vqsort_u32d.cc",
+    "vqsort_u64a.cc",
+    "vqsort_u64d.cc",
+]
+
+VQSORT_TEXTUAL_HDRS = [
+    "shared-inl.h",
+    "sorting_networks-inl.h",
+    "traits-inl.h",
+    "traits128-inl.h",
+    "vqsort-inl.h",
+    # Placeholder for internal instrumentation. Do not remove.
+]
+
 cc_library(
     name = "vqsort",
-    srcs = [
-        # Split into separate files to reduce MSVC build time.
-        "vqsort.cc",
-        "vqsort_128a.cc",
-        "vqsort_128d.cc",
-        "vqsort_f16a.cc",
-        "vqsort_f16d.cc",
-        "vqsort_f32a.cc",
-        "vqsort_f32d.cc",
-        "vqsort_f64a.cc",
-        "vqsort_f64d.cc",
-        "vqsort_i16a.cc",
-        "vqsort_i16d.cc",
-        "vqsort_i32a.cc",
-        "vqsort_i32d.cc",
-        "vqsort_i64a.cc",
-        "vqsort_i64d.cc",
-        "vqsort_kv64a.cc",
-        "vqsort_kv64d.cc",
-        "vqsort_kv128a.cc",
-        "vqsort_kv128d.cc",
-        "vqsort_u16a.cc",
-        "vqsort_u16d.cc",
-        "vqsort_u32a.cc",
-        "vqsort_u32d.cc",
-        "vqsort_u64a.cc",
-        "vqsort_u64d.cc",
-    ],
+    srcs = VQSORT_SRCS,
     hdrs = [
         "order.h",  # part of public interface, included by vqsort.h
         "vqsort.h",  # public interface
     ],
     compatible_with = [],
-    local_defines = [
-        "hwy_contrib_EXPORTS",
-        # Build for all targets because sort_test will dynamic-dispatch to all.
-        "HWY_COMPILE_ALL_ATTAINABLE",
-    ],
-    textual_hdrs = [
-        "shared-inl.h",
-        "sorting_networks-inl.h",
-        "traits-inl.h",
-        "traits128-inl.h",
-        "vqsort-inl.h",
-        # Placeholder for internal instrumentation. Do not remove.
-    ],
+    local_defines = ["hwy_contrib_EXPORTS"],
+    textual_hdrs = VQSORT_TEXTUAL_HDRS,
     deps = [
         ":intel",  # required if HAVE_INTEL
         ":vxsort",  # required if HAVE_VXSORT
@@ -139,6 +139,29 @@ cc_library(
 
 # -----------------------------------------------------------------------------
 # Internal-only targets
+
+# Same as vqsort, but add HWY_COMPILE_ALL_ATTAINABLE to ensure we cover all
+# targets. Do not enable this in the main vqsort because it increases
+# compile times.
+cc_library(
+    name = "vqsort_for_test",
+    srcs = VQSORT_SRCS,
+    hdrs = [
+        "order.h",  # part of public interface, included by vqsort.h
+        "vqsort.h",  # public interface
+    ],
+    compatible_with = [],
+    local_defines = [
+        "hwy_contrib_EXPORTS",
+        # Build for all targets because sort_test will dynamic-dispatch to all.
+        "HWY_COMPILE_ALL_ATTAINABLE",
+    ],
+    textual_hdrs = VQSORT_TEXTUAL_HDRS,
+    deps = [
+        "//:algo",
+        "//:hwy",
+    ],
+)
 
 cc_library(
     name = "helpers",
@@ -178,7 +201,7 @@ cc_test(
     tags = ["hwy_ops_test"],
     deps = [
         ":helpers",
-        ":vqsort",
+        ":vqsort_for_test",
         "@com_google_googletest//:gtest_main",
         "//:hwy",
         "//:hwy_test_util",
