@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "hwy/aligned_allocator.h"
+#include "hwy/base.h"
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -165,6 +166,37 @@ struct TestGenerate {
     const char* target_name = hwy::TargetName(HWY_TARGET);
     hwy::detail::AssertArrayEqual(info, expected.get(), actual, count,
                                   target_name, __FILE__, __LINE__);
+  }
+};
+
+// Input-only, no stores
+struct TestForeach {
+  template <class D>
+  void operator()(D d, size_t count, size_t misalign_a, size_t /*misalign_b*/,
+                  RandomState& /*rng*/) {
+    using T = TFromD<D>;
+    AlignedFreeUniquePtr<T[]> pa = AllocateAligned<T>(misalign_a + count + 1);
+    HWY_ASSERT(pa);
+
+    T* actual = pa.get() + misalign_a;
+    T max = hwy::LowestValue<T>();
+    for (size_t i = 0; i < count; ++i) {
+      actual[i] = hwy::ConvertScalarTo<T>(i <= count / 2 ? 2 * i : i);
+      max = HWY_MAX(max, actual[i]);
+    }
+
+    const Vec<D> vmin = Set(d, hwy::LowestValue<T>());
+    // TODO(janwas): can we update the apply_to in HWY_PUSH_ATTRIBUTES so that
+    // the attribute also applies to lambdas? If so, remove HWY_ATTR.
+    Vec<D> vmax = vmin;
+    const auto func = [&vmax](const D, const Vec<D> v)
+                          HWY_ATTR { vmax = Max(vmax, v); };
+    actual[count] = T{0};  // sentinel
+    Foreach(d, actual, count, vmin, func);
+    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write
+
+    const char* target_name = hwy::TargetName(HWY_TARGET);
+    AssertEqual(max, ReduceMax(d, vmax), target_name, __FILE__, __LINE__);
   }
 };
 
@@ -345,6 +377,10 @@ void TestAllGenerate() {
   ForIntegerTypes(ForPartialVectors<ForeachCountAndMisalign<TestGenerate>>());
 }
 
+void TestAllForeach() {
+  ForAllTypes(ForPartialVectors<ForeachCountAndMisalign<TestForeach>>());
+}
+
 void TestAllTransform() {
   ForFloatTypes(ForPartialVectors<ForeachCountAndMisalign<TestTransform>>());
 }
@@ -371,6 +407,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(TransformTest);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllGenerate);
+HWY_EXPORT_AND_TEST_P(TransformTest, TestAllForeach);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform1);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform2);
