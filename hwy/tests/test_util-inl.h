@@ -63,7 +63,8 @@ VFromD<D> IotaForSpecial(D d, First first) {
   const Repartition<float, D> df;
   const size_t NW = Lanes(d) / 2;
   const Half<D> dh;
-  return Combine(d, DemoteTo(dh, Iota(df, first + NW)),
+  const float first2 = static_cast<float>(first) + static_cast<float>(NW);
+  return Combine(d, DemoteTo(dh, Iota(df, first2)),
                  DemoteTo(dh, Iota(df, first)));
   // TODO(janwas): enable when supported for f16
   // return OrderedDemote2To(d, Iota(df, first), Iota(df, first + NW));
@@ -81,7 +82,9 @@ template <class D, typename First, HWY_IF_BF16_D(D), HWY_IF_LANES_GT_D(D, 1),
           HWY_IF_POW2_GT_D(D, -1)>
 VFromD<D> IotaForSpecial(D d, First first) {
   const Repartition<float, D> df;
-  return OrderedDemote2To(d, Iota(df, first), Iota(df, first + Lanes(d) / 2));
+  const float first2 =
+      static_cast<float>(first) + static_cast<float>(Lanes(d) / 2);
+  return OrderedDemote2To(d, Iota(df, first), Iota(df, first2));
 }
 // For partial vectors, a single f32 vector is enough, and the prior overload
 // might not be able to Repartition.
