@@ -2248,7 +2248,7 @@ template <typename TI>
 
 template <typename T, typename T2, HWY_IF_FLOAT(T), HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_INLINE constexpr T AddWithWraparound(T t, T2 increment) {
-  return static_cast<T>(t + increment);
+  return t + static_cast<T>(increment);
 }
 
 template <typename T, typename T2, HWY_IF_SPECIAL_FLOAT(T)>
