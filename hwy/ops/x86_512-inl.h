@@ -2922,16 +2922,13 @@ HWY_API VFromD<D> Load(D /* tag */, const TFromD<D>* HWY_RESTRICT aligned) {
   return VFromD<D>{_mm512_load_si512(aligned)};
 }
 // bfloat16_t is handled by x86_128-inl.h.
-template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
-HWY_API Vec512<float16_t> Load(D d, const float16_t* HWY_RESTRICT aligned) {
 #if HWY_HAVE_FLOAT16
-  (void)d;
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
+HWY_API Vec512<float16_t> Load(D /* tag */,
+                               const float16_t* HWY_RESTRICT aligned) {
   return Vec512<float16_t>{_mm512_load_ph(aligned)};
-#else
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, Load(du, reinterpret_cast<const uint16_t*>(aligned)));
-#endif  // HWY_HAVE_FLOAT16
 }
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API Vec512<float> Load(D /* tag */, const float* HWY_RESTRICT aligned) {
   return Vec512<float>{_mm512_load_ps(aligned)};
@@ -2947,16 +2944,12 @@ HWY_API VFromD<D> LoadU(D /* tag */, const TFromD<D>* HWY_RESTRICT p) {
 }
 
 // bfloat16_t is handled by x86_128-inl.h.
-template <class D, HWY_IF_V_SIZE_D(D, 64)>
-HWY_API Vec512<float16_t> LoadU(D d, const float16_t* HWY_RESTRICT p) {
 #if HWY_HAVE_FLOAT16
-  (void)d;
+template <class D, HWY_IF_V_SIZE_D(D, 64)>
+HWY_API Vec512<float16_t> LoadU(D /* tag */, const float16_t* HWY_RESTRICT p) {
   return Vec512<float16_t>{_mm512_loadu_ph(p)};
-#else
-  const RebindToUnsigned<decltype(d)> du;
-  return BitCast(d, LoadU(du, reinterpret_cast<const uint16_t*>(p)));
-#endif  // HWY_HAVE_FLOAT16
 }
+#endif  // HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64)>
 HWY_API Vec512<float> LoadU(D /* tag */, const float* HWY_RESTRICT p) {
   return Vec512<float>{_mm512_loadu_ps(p)};
@@ -3075,15 +3068,13 @@ HWY_API void Store(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT aligned) {
   _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
 }
 // bfloat16_t is handled by x86_128-inl.h.
+#if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
 HWY_API void Store(Vec512<float16_t> v, D /* tag */,
                    float16_t* HWY_RESTRICT aligned) {
-#if HWY_HAVE_FLOAT16
   _mm512_store_ph(aligned, v.raw);
-#else
-  _mm512_store_si512(reinterpret_cast<__m512i*>(aligned), v.raw);
-#endif
 }
+#endif
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API void Store(Vec512<float> v, D /* tag */, float* HWY_RESTRICT aligned) {
   _mm512_store_ps(aligned, v.raw);
@@ -3098,15 +3089,13 @@ HWY_API void StoreU(VFromD<D> v, D /* tag */, TFromD<D>* HWY_RESTRICT p) {
   _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
 }
 // bfloat16_t is handled by x86_128-inl.h.
+#if HWY_HAVE_FLOAT16
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F16_D(D)>
 HWY_API void StoreU(Vec512<float16_t> v, D /* tag */,
                     float16_t* HWY_RESTRICT p) {
-#if HWY_HAVE_FLOAT16
   _mm512_storeu_ph(p, v.raw);
-#else
-  _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v.raw);
-#endif  // HWY_HAVE_FLOAT16
 }
+#endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API void StoreU(Vec512<float> v, D /* tag */, float* HWY_RESTRICT p) {
