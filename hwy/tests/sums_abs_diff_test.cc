@@ -142,10 +142,10 @@ struct TestSumsOfAdjQuadAbsDiff {
         const TW_I b3 =
             static_cast<TW_I>(in_lanes_b[blk_idx * 16 + kBOffset * 4 + 3]);
 
-        const TW_I diff0 = ScalarAbs(a0 - b0);
-        const TW_I diff1 = ScalarAbs(a1 - b1);
-        const TW_I diff2 = ScalarAbs(a2 - b2);
-        const TW_I diff3 = ScalarAbs(a3 - b3);
+        const TW_I diff0 = static_cast<TW_I>(ScalarAbs(a0 - b0));
+        const TW_I diff1 = static_cast<TW_I>(ScalarAbs(a1 - b1));
+        const TW_I diff2 = static_cast<TW_I>(ScalarAbs(a2 - b2));
+        const TW_I diff3 = static_cast<TW_I>(ScalarAbs(a3 - b3));
         sum_lanes[i] = static_cast<TW>(diff0 + diff1 + diff2 + diff3);
       }
 
