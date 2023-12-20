@@ -2417,6 +2417,22 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarSignBit(T val) {
 }
 
 // Prevents the compiler from eliding the computations that led to "output".
+#if HWY_ARCH_PPC && (HWY_COMPILER_GCC || HWY_COMPILER_CLANG) && \
+    !defined(_SOFT_FLOAT)
+// Workaround to avoid test failures on PPC if compiled with Clang
+template <class T, HWY_IF_F32(T)>
+HWY_API void PreventElision(T&& output) {
+  asm volatile("" : "+f"(output)::"memory");
+}
+template <class T, HWY_IF_F64(T)>
+HWY_API void PreventElision(T&& output) {
+  asm volatile("" : "+d"(output)::"memory");
+}
+template <class T, HWY_IF_NOT_FLOAT3264(T)>
+HWY_API void PreventElision(T&& output) {
+  asm volatile("" : "+r"(output)::"memory");
+}
+#else
 template <class T>
 HWY_API void PreventElision(T&& output) {
 #if HWY_COMPILER_MSVC
@@ -2433,6 +2449,7 @@ HWY_API void PreventElision(T&& output) {
   asm volatile("" : "+r"(output) : : "memory");
 #endif
 }
+#endif
 
 }  // namespace hwy
 
