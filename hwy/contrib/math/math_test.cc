@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include <cfloat>  // FLT_MAX
@@ -86,9 +87,9 @@ HWY_NOINLINE void TestMath(const char* name, T (*fx1)(T),
   int range_count = 1;
   UintT ranges[2][2] = {{min_bits, max_bits}, {0, 0}};
   if ((min < 0.0) && (max > 0.0)) {
-    ranges[0][0] = BitCastScalar<UintT>(static_cast<T>(+0.0));
+    ranges[0][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(+0.0));
     ranges[0][1] = max_bits;
-    ranges[1][0] = BitCastScalar<UintT>(static_cast<T>(-0.0));
+    ranges[1][0] = BitCastScalar<UintT>(ConvertScalarTo<T>(-0.0));
     ranges[1][1] = min_bits;
     range_count = 2;
   }
@@ -224,8 +225,9 @@ DEFINE_MATH_TEST(Asinh,
 DEFINE_MATH_TEST(Atan,
   std::atan,  CallAtan,  -FLT_MAX,   +FLT_MAX,    3,
   std::atan,  CallAtan,  -DBL_MAX,   +DBL_MAX,    3)
+// NEON has ULP 4 instead of 3
 DEFINE_MATH_TEST(Atanh,
-  std::atanh, CallAtanh, -kNearOneF(), +kNearOneF(),  4,  // NEON is 4 instead of 3
+  std::atanh, CallAtanh, -kNearOneF(), +kNearOneF(),  4,
   std::atanh, CallAtanh, -kNearOneD(), +kNearOneD(),  3)
 DEFINE_MATH_TEST(Cos,
   std::cos,   CallCos,   -39000.0f,  +39000.0f,   3,
@@ -275,14 +277,14 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
     T x;
     T expected;
   };
-  const T pos = static_cast<T>(1E5);
-  const T neg = static_cast<T>(-1E7);
+  const T pos = ConvertScalarTo<T>(1E5);
+  const T neg = ConvertScalarTo<T>(-1E7);
   // T{-0} is not enough to get an actual negative zero.
-  const T n0 = static_cast<T>(-0.0);
+  const T n0 = ConvertScalarTo<T>(-0.0);
   const T inf = GetLane(Inf(d));
   const T nan = GetLane(NaN(d));
 
-  const T pi = static_cast<T>(3.141592653589793238);
+  const T pi = ConvertScalarTo<T>(3.141592653589793238);
   const YX test_cases[] = {                                  // 45 degree steps:
                            {T{0.0}, T{1.0}, T{0}},           // E
                            {T{-1.0}, T{1.0}, -pi / 4},       // SE
@@ -357,7 +359,7 @@ struct TestAtan2 {
     const Vec<D> tolerance = Set(d, T(1E-5));
 
     for (size_t i = 0; i < padded; ++i) {
-      const T actual = static_cast<T>(atan2(in_y[i], in_x[i]));
+      const T actual = ConvertScalarTo<T>(atan2(in_y[i], in_x[i]));
       // fprintf(stderr, "%zu: table %f atan2 %f\n", i, expected[i], actual);
       HWY_ASSERT_EQ(expected[i], actual);
     }

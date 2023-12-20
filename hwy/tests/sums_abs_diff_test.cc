@@ -43,8 +43,8 @@ struct TestSumsOf8AbsDiff {
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         uint64_t rand64_val = Random64(&rng);
-        in_lanes_a[i] = static_cast<T>(rand64_val & 0xFF);
-        in_lanes_b[i] = static_cast<T>((rand64_val >> 8) & 0xFF);
+        in_lanes_a[i] = ConvertScalarTo<T>(rand64_val & 0xFF);
+        in_lanes_b[i] = ConvertScalarTo<T>((rand64_val >> 8) & 0xFF);
       }
 
       for (size_t idx_sum = 0; idx_sum < N / 8; ++idx_sum) {
@@ -116,8 +116,8 @@ struct TestSumsOfAdjQuadAbsDiff {
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         uint64_t rand64_val = Random64(&rng);
-        in_lanes_a[i] = static_cast<T>(rand64_val & 0xFF);
-        in_lanes_b[i] = static_cast<T>((rand64_val >> 8) & 0xFF);
+        in_lanes_a[i] = ConvertScalarTo<T>(rand64_val & 0xFF);
+        in_lanes_b[i] = ConvertScalarTo<T>((rand64_val >> 8) & 0xFF);
       }
 
       for (size_t i = 0; i < num_valid_sum_lanes; ++i) {
@@ -227,8 +227,8 @@ struct TestSumsOfShuffledQuadAbsDiff {
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         uint64_t rand64_val = Random64(&rng);
-        in_lanes_a[i] = static_cast<T>(rand64_val & 0xFF);
-        in_lanes_b[i] = static_cast<T>((rand64_val >> 8) & 0xFF);
+        in_lanes_a[i] = ConvertScalarTo<T>(rand64_val & 0xFF);
+        in_lanes_b[i] = ConvertScalarTo<T>((rand64_val >> 8) & 0xFF);
       }
 
       const auto a = Load(d, in_lanes_a.get());

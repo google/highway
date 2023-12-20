@@ -13,11 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include <algorithm>  // std::fill
 #include <bitset>
-#include <string>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "highway_test.cc"
@@ -261,8 +261,8 @@ struct TestSignBitFloat {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Vec<D> v0 = Zero(d);
     const Vec<D> vs = SignBit(d);
-    const Vec<D> vp = Set(d, static_cast<T>(2.25));
-    const Vec<D> vn = Set(d, static_cast<T>(-2.25));
+    const Vec<D> vp = Set(d, ConvertScalarTo<T>(2.25));
+    const Vec<D> vn = Set(d, ConvertScalarTo<T>(-2.25));
     HWY_ASSERT_VEC_EQ(d, Or(vp, vs), vn);
     HWY_ASSERT_VEC_EQ(d, AndNot(vs, vn), vp);
     HWY_ASSERT_VEC_EQ(d, v0, vs);
@@ -282,7 +282,6 @@ HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
   if (!AllTrue(d, IsNaN(v))) {
     Print(d, "not all NaN", v, 0, N);
     Print(d, "mask", VecFromMask(d, IsNaN(v)), 0, N);
-    const std::string type_name = TypeName(T(), N);
     // RVV lacks PRIu64 and MSYS still has problems with %zu, so print bytes to
     // avoid truncating doubles.
     uint8_t bytes[HWY_MAX(sizeof(T), 8)] = {0};
@@ -291,8 +290,8 @@ HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
     Abort(file, line,
           "Expected %s NaN, got %E (bytes %02x %02x %02x %02x %02x %02x %02x "
           "%02x)",
-          type_name.c_str(), static_cast<double>(lane), bytes[0], bytes[1],
-          bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]);
+          TypeName(T(), N).c_str(), ConvertScalarTo<double>(lane), bytes[0],
+          bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]);
   }
 }
 
@@ -301,7 +300,7 @@ HWY_INLINE void AssertNaN(D d, VecArg<V> v, const char* file, int line) {
 struct TestNaN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Vec<D> v1 = Set(d, static_cast<T>(Unpredictable1()));
+    const Vec<D> v1 = Set(d, ConvertScalarTo<T>(Unpredictable1()));
     const Vec<D> nan = IfThenElse(Eq(v1, Set(d, T{1})), NaN(d), v1);
     HWY_ASSERT_NAN(d, nan);
 
@@ -404,7 +403,7 @@ HWY_NOINLINE void TestAllNaN() { ForFloatTypes(ForPartialVectors<TestNaN>()); }
 struct TestIsNaN {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Vec<D> v1 = Set(d, static_cast<T>(Unpredictable1()));
+    const Vec<D> v1 = Set(d, ConvertScalarTo<T>(Unpredictable1()));
     const Vec<D> inf = IfThenElse(Eq(v1, Set(d, T{1})), Inf(d), v1);
     const Vec<D> nan = IfThenElse(Eq(v1, Set(d, T{1})), NaN(d), v1);
     const Vec<D> neg = Set(d, T{-1});
@@ -427,7 +426,7 @@ HWY_NOINLINE void TestAllIsNaN() {
 struct TestIsInf {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Vec<D> v1 = Set(d, static_cast<T>(Unpredictable1()));
+    const Vec<D> v1 = Set(d, ConvertScalarTo<T>(Unpredictable1()));
     const Vec<D> inf = IfThenElse(Eq(v1, Set(d, T{1})), Inf(d), v1);
     const Vec<D> nan = IfThenElse(Eq(v1, Set(d, T{1})), NaN(d), v1);
     const Vec<D> neg = Set(d, T{-1});
@@ -449,7 +448,7 @@ HWY_NOINLINE void TestAllIsInf() {
 struct TestIsFinite {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Vec<D> v1 = Set(d, static_cast<T>(Unpredictable1()));
+    const Vec<D> v1 = Set(d, ConvertScalarTo<T>(Unpredictable1()));
     const Vec<D> inf = IfThenElse(Eq(v1, Set(d, T{1})), Inf(d), v1);
     const Vec<D> nan = IfThenElse(Eq(v1, Set(d, T{1})), NaN(d), v1);
     const Vec<D> neg = Set(d, T{-1});

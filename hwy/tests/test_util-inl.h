@@ -54,7 +54,7 @@ VFromD<D> IotaForSpecial(D d, First first) {
 #if HWY_HAVE_FLOAT16
 template <class D, typename First, HWY_IF_F16_D(D), HWY_IF_LANES_GT_D(D, 1)>
 VFromD<D> IotaForSpecial(D d, First first) {
-  return Iota(d, first);
+  return Iota(d, ConvertScalarTo<TFromD<D>>(first));
 }
 #else   // !HWY_HAVE_FLOAT16
 template <class D, typename First, HWY_IF_F16_D(D), HWY_IF_LANES_GT_D(D, 1),
@@ -82,9 +82,9 @@ template <class D, typename First, HWY_IF_BF16_D(D), HWY_IF_LANES_GT_D(D, 1),
           HWY_IF_POW2_GT_D(D, -1)>
 VFromD<D> IotaForSpecial(D d, First first) {
   const Repartition<float, D> df;
-  const float first2 =
-      static_cast<float>(first) + static_cast<float>(Lanes(d) / 2);
-  return OrderedDemote2To(d, Iota(df, first), Iota(df, first2));
+  const float first1 = ConvertScalarTo<float>(first);
+  const float first2 = first1 + static_cast<float>(Lanes(d) / 2);
+  return OrderedDemote2To(d, Iota(df, first1), Iota(df, first2));
 }
 // For partial vectors, a single f32 vector is enough, and the prior overload
 // might not be able to Repartition.
@@ -92,7 +92,7 @@ template <class D, typename First, HWY_IF_BF16_D(D), HWY_IF_LANES_GT_D(D, 1),
           HWY_IF_POW2_LE_D(D, -1)>
 VFromD<D> IotaForSpecial(D d, First first) {
   const Rebind<float, D> df;
-  return DemoteTo(d, Iota(df, first));
+  return DemoteTo(d, Iota(df, ConvertScalarTo<float>(first)));
 }
 // OrderedDemote2To does not work for single lanes, so special-case that.
 template <class D, typename First, HWY_IF_SPECIAL_FLOAT_D(D),

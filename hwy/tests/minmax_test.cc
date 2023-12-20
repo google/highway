@@ -54,7 +54,7 @@ struct TestSignedMinMax {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     // Leave headroom such that v1 < v2 even after wraparound.
     const auto mod =
-        And(Iota(d, 0), Set(d, static_cast<T>(LimitsMax<T>() >> 1)));
+        And(Iota(d, 0), Set(d, ConvertScalarTo<T>(LimitsMax<T>() >> 1)));
     const auto v1 = Add(mod, Set(d, T{1}));
     const auto v2 = Add(mod, Set(d, T{2}));
     const auto v_neg = Sub(Zero(d), v1);
@@ -91,8 +91,8 @@ struct TestFloatMinMax {
     HWY_ASSERT_VEC_EQ(d, v1, Max(v1, v_neg));
 
     const auto v0 = Zero(d);
-    const auto vmin = Set(d, static_cast<T>(-1E30));
-    const auto vmax = Set(d, static_cast<T>(1E30));
+    const auto vmin = Set(d, ConvertScalarTo<T>(-1E30));
+    const auto vmax = Set(d, ConvertScalarTo<T>(1E30));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(v0, vmin));
     HWY_ASSERT_VEC_EQ(d, vmin, Min(vmin, v0));
     HWY_ASSERT_VEC_EQ(d, v0, Max(v0, vmin));

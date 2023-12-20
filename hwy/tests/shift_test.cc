@@ -39,7 +39,7 @@ struct TestLeftShifts {
     HWY_ASSERT(expected);
 
     // Values to shift
-    const auto values = Iota(d, static_cast<T>(kSigned ? -TI(N) : TI(0)));
+    const auto values = Iota(d, ConvertScalarTo<T>(kSigned ? -TI(N) : TI(0)));
     constexpr size_t kMaxShift = (sizeof(T) * 8) - 1;
 
     // 0
@@ -93,21 +93,21 @@ struct TestVariableLeftShifts {
 
     // Same: 1
     for (size_t i = 0; i < N; ++i) {
-      const T value = static_cast<T>(kSigned ? T(i) - T(N) : T(i));
+      const T value = ConvertScalarTo<T>(kSigned ? T(i) - T(N) : T(i));
       expected[i] = T(TU(value) << 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, v1));
 
     // Same: max
     for (size_t i = 0; i < N; ++i) {
-      const T value = static_cast<T>(kSigned ? T(i) - T(N) : T(i));
+      const T value = ConvertScalarTo<T>(kSigned ? T(i) - T(N) : T(i));
       expected[i] = T(TU(value) << kMaxShift);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, max_shift));
 
     // Variable: small
     for (size_t i = 0; i < N; ++i) {
-      const T value = static_cast<T>(kSigned ? T(i) - T(N) : T(i));
+      const T value = ConvertScalarTo<T>(kSigned ? T(i) - T(N) : T(i));
       expected[i] = T(TU(value) << (i & kMaxShift));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shl(values, small_shifts));
@@ -171,15 +171,15 @@ struct TestRotateRight {
     Store(values, d, expected.get());
     for (size_t i = 0; i < N; ++i) {
       expected[i] =
-          static_cast<T>((expected[i] >> 1) | (expected[i] << (kBits - 1)));
+          ConvertScalarTo<T>((expected[i] >> 1) | (expected[i] << (kBits - 1)));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), RotateRight<1>(values));
 
     // Rotate by half
     Store(values, d, expected.get());
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((expected[i] >> (kBits / 2)) |
-                                   (expected[i] << (kBits / 2)));
+      expected[i] = ConvertScalarTo<T>((expected[i] >> (kBits / 2)) |
+                                       (expected[i] << (kBits / 2)));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), RotateRight<kBits / 2>(values));
 
@@ -187,7 +187,7 @@ struct TestRotateRight {
     Store(values, d, expected.get());
     for (size_t i = 0; i < N; ++i) {
       expected[i] =
-          static_cast<T>((expected[i] >> (kBits - 1)) | (expected[i] << 1));
+          ConvertScalarTo<T>((expected[i] >> (kBits - 1)) | (expected[i] << 1));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), RotateRight<kBits - 1>(values));
   }
@@ -229,13 +229,13 @@ struct TestVariableUnsignedRightShifts {
 
     // Variable: small
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>(T(i) >> (i & kMaxShift));
+      expected[i] = ConvertScalarTo<T>(T(i) >> (i & kMaxShift));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(values, small_shifts));
 
     // Variable: Large
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>(kMax >> (kMaxShift - (i & kMaxShift)));
+      expected[i] = ConvertScalarTo<T>(kMax >> (kMaxShift - (i & kMaxShift)));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(max, large_shifts));
   }
@@ -296,7 +296,7 @@ class TestSignedRightShifts {
     Test<2>(kMin, d, __LINE__);
     Test<kMaxShift>(kMin, d, __LINE__);
 
-    const T odd = static_cast<T>(kMin + 1);
+    const T odd = ConvertScalarTo<T>(kMin + 1);
     Test<0>(odd, d, __LINE__);
     Test<1>(odd, d, __LINE__);
     Test<2>(odd, d, __LINE__);
@@ -354,9 +354,9 @@ struct TestVariableSignedRightShifts {
 
     // Test varying negative to shift
     for (size_t i = 0; i < N; ++i) {
-      const auto val = static_cast<T>(static_cast<TU>(kMin) + i);
+      const T val = ConvertScalarTo<T>(static_cast<TU>(kMin) + i);
       expected[i] =
-          (val < 0) ? RightShiftNegative<1>(val) : static_cast<T>(val >> 1);
+          (val < 0) ? RightShiftNegative<1>(val) : ConvertScalarTo<T>(val >> 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Shr(negative, Set(d, 1)));
 

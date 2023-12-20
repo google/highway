@@ -60,7 +60,7 @@ struct TestFloatLargerSmaller {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     const Vec<D> p0 = Zero(d);
-    const Vec<D> p1 = Set(d, static_cast<T>(1));
+    const Vec<D> p1 = Set(d, ConvertScalarTo<T>(1));
     const Vec<D> pinf = Inf(d);
     const Vec<D> peps = Set(d, hwy::Epsilon<T>());
     const Vec<D> pmax = Set(d, hwy::HighestValue<T>());

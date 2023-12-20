@@ -36,13 +36,13 @@ struct TestPlusMinus {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
     for (size_t i = 0; i < N; ++i) {
-      lanes[i] = static_cast<T>((2 + i) + (3 + i));
+      lanes[i] = ConvertScalarTo<T>((2 + i) + (3 + i));
     }
     HWY_ASSERT_VEC_EQ(d, lanes.get(), Add(v2, v3));
     HWY_ASSERT_VEC_EQ(d, Set(d, T{2}), Sub(v4, v2));
 
     for (size_t i = 0; i < N; ++i) {
-      lanes[i] = static_cast<T>((2 + i) + (4 + i));
+      lanes[i] = ConvertScalarTo<T>((2 + i) + (4 + i));
     }
     auto sum = v2;
     sum = Add(sum, v4);  // sum == 6,8..
@@ -191,8 +191,8 @@ struct TestFloatAbs {
     const auto v0 = Zero(d);
     const auto vp1 = Set(d, T{1});
     const auto vn1 = Set(d, T{-1});
-    const auto vp2 = Set(d, static_cast<T>(0.01));
-    const auto vn2 = Set(d, static_cast<T>(-0.01));
+    const auto vp2 = Set(d, ConvertScalarTo<T>(0.01));
+    const auto vn2 = Set(d, ConvertScalarTo<T>(-0.01));
 
     HWY_ASSERT_VEC_EQ(d, v0, Abs(v0));
     HWY_ASSERT_VEC_EQ(d, vp1, Abs(vp1));

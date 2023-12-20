@@ -56,7 +56,7 @@ struct TestDemoteTo {
     HWY_ASSERT(from && expected);
 
     // Narrower range in the wider type, for clamping before we cast
-    const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<ToT>() : ToT{0});
+    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<ToT>() : ToT{0});
     const T max = LimitsMax<ToT>();
 
     RandomState rng;
@@ -79,7 +79,7 @@ struct TestDemoteTo {
           expected[i] &= static_cast<ToT>(max);
         }
 
-        from[i] = static_cast<T>(expected[i]);
+        from[i] = ConvertScalarTo<T>(expected[i]);
       }
 
       const auto in = Load(from_d, from.get());
@@ -472,7 +472,7 @@ class TestIntegerReorderDemote2To {
     HWY_ASSERT(from && expected && actual);
 
     // Narrower range in the wider type, for clamping before we cast
-    const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
+    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
     const T max = LimitsMax<TN>();
 
     RandomState rng;
@@ -500,7 +500,7 @@ class TestIntegerReorderDemote2To {
           expected[i] &= static_cast<TN>(max);
         }
 
-        from[i] = static_cast<T>(expected[i]);
+        from[i] = ConvertScalarTo<T>(expected[i]);
       }
 
       const auto in_1 = Load(d, from.get());
@@ -621,7 +621,7 @@ class TestIntegerOrderedDemote2To {
     HWY_ASSERT(from && expected);
 
     // Narrower range in the wider type, for clamping before we cast
-    const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
+    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
     const T max = LimitsMax<TN>();
 
     RandomState rng;
@@ -646,7 +646,7 @@ class TestIntegerOrderedDemote2To {
           expected[i] &= static_cast<TN>(max);
         }
 
-        from[i] = static_cast<T>(expected[i]);
+        from[i] = ConvertScalarTo<T>(expected[i]);
       }
 
       const auto in_1 = Load(d, from.get());

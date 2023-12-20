@@ -228,8 +228,8 @@ struct TestPromoteOddEvenTo {
   static HWY_INLINE ToT CastValueToWide(hwy::SignedTag /* to_type_tag */,
                                         hwy::FloatTag /* from_type_tag */,
                                         T val) {
-    constexpr T kMinInRangeVal = static_cast<T>(LimitsMin<ToT>());
-    constexpr T kMinOutOfRangePosVal = static_cast<T>(-kMinInRangeVal);
+    const T kMinInRangeVal = ConvertScalarTo<T>(LimitsMin<ToT>());
+    const T kMinOutOfRangePosVal = ConvertScalarTo<T>(-kMinInRangeVal);
     if (val < kMinInRangeVal) {
       return LimitsMin<ToT>();
     } else if (val >= kMinOutOfRangePosVal) {
@@ -243,9 +243,9 @@ struct TestPromoteOddEvenTo {
   static HWY_INLINE ToT CastValueToWide(hwy::UnsignedTag /* to_type_tag */,
                                         hwy::FloatTag /* from_type_tag */,
                                         T val) {
-    constexpr T kMinOutOfRangePosVal =
-        static_cast<T>(-static_cast<T>(LimitsMin<MakeSigned<ToT>>()) * T(2));
-    if (val < T{0}) {
+    const T kMinOutOfRangePosVal = ConvertScalarTo<T>(
+        -ConvertScalarTo<T>(LimitsMin<MakeSigned<ToT>>()) * T(2));
+    if (val < ConvertScalarTo<T>(0)) {
       return ToT{0};
     } else if (val >= kMinOutOfRangePosVal) {
       return LimitsMax<ToT>();

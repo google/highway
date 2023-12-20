@@ -108,7 +108,7 @@ struct TestUpperHalf {
     HWY_ASSERT(expected);
     size_t i = 0;
     for (; i < N2; ++i) {
-      expected[i] = static_cast<T>(N2 + 1 + i);
+      expected[i] = ConvertScalarTo<T>(N2 + 1 + i);
     }
     HWY_ASSERT_VEC_EQ(d2, expected.get(), UpperHalf(d2, Iota(d, 1)));
 #else
@@ -162,7 +162,7 @@ struct TestCombine {
     HWY_ASSERT(lanes);
 
     const Vec<D> lo = Iota(d, 1);
-    const Vec<D> hi = Iota(d, static_cast<T>(N2 / 2 + 1));
+    const Vec<D> hi = Iota(d, ConvertScalarTo<T>(N2 / 2 + 1));
     const Vec<decltype(d2)> combined = Combine(d2, hi, lo);
     Store(combined, d2, lanes.get());
 
@@ -189,8 +189,8 @@ struct TestConcat {
     RandomState rng;
     for (size_t rep = 0; rep < 10; ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        hi[i] = static_cast<T>(Random64(&rng) & 0xFF);
-        lo[i] = static_cast<T>(Random64(&rng) & 0xFF);
+        hi[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFF);
+        lo[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFF);
       }
 
       {
@@ -237,7 +237,7 @@ struct TestConcatOddEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
-    const auto hi = Iota(d, static_cast<T>(N));
+    const auto hi = Iota(d, ConvertScalarTo<T>(N));
     const auto lo = Iota(d, 0);
     const auto even = Add(Iota(d, 0), Iota(d, 0));
     const auto odd = Add(even, Set(d, 1));

@@ -2471,7 +2471,16 @@ HWY_SVE_FOREACH_BF16(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks, uzp2q)
     return sv##OP##_##CHAR##BITS(mask, lo, hi);                            \
   }
 HWY_SVE_FOREACH(HWY_SVE_SPLICE, Splice, splice)
+#if HWY_SVE_HAVE_BF16_FEATURE
 HWY_SVE_FOREACH_BF16(HWY_SVE_SPLICE, Splice, splice)
+#else
+template <class V, HWY_IF_BF16_D(DFromV<V>)>
+HWY_INLINE V Splice(V hi, V lo, svbool_t mask) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Splice(BitCast(du, hi), BitCast(du, lo), mask));
+}
+#endif  // HWY_SVE_HAVE_BF16_FEATURE
 #undef HWY_SVE_SPLICE
 
 }  // namespace detail

@@ -82,7 +82,7 @@ struct TestMaskedScatter {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes && expected);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, ConvertScalarTo<T>(hwy::Unpredictable1() - 1));
     Store(v, d, lanes.get());
 
     const VI indices =
@@ -94,7 +94,7 @@ struct TestMaskedScatter {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          expected[N - 1 - i] = static_cast<T>(i);
+          expected[N - 1 - i] = ConvertScalarTo<T>(i);
         }
       }
 
@@ -124,7 +124,7 @@ struct TestScatterIndexN {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(lanes && expected);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, ConvertScalarTo<T>(hwy::Unpredictable1() - 1));
     Store(v, d, lanes.get());
 
     const VI indices =
@@ -136,7 +136,7 @@ struct TestScatterIndexN {
 
       ZeroBytes(expected.get(), N * sizeof(T));
       for (size_t i = 0; i < max_lanes_to_store; ++i) {
-        expected[N - 1 - i] = static_cast<T>(i);
+        expected[N - 1 - i] = ConvertScalarTo<T>(i);
       }
 
       ZeroBytes(lanes.get(), N * sizeof(T));
@@ -156,7 +156,7 @@ struct TestScatterIndexN {
     HWY_ASSERT(larger_memory && larger_expected);
     ZeroBytes(larger_expected.get(), N * sizeof(T) * 2);
     for (size_t i = 0; i < N; ++i) {
-      larger_expected[N - 1 - i] = static_cast<T>(i);
+      larger_expected[N - 1 - i] = ConvertScalarTo<T>(i);
     }
     ZeroBytes(larger_memory.get(), N * sizeof(T));
     ScatterIndexN(v, d, larger_memory.get(), indices, N + 1);
@@ -181,7 +181,7 @@ struct TestMaskedGather {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, ConvertScalarTo<T>(hwy::Unpredictable1() - 1));
     Store(v, d, lanes.get());
 
     const Vec<D> no = Set(d, T{2});
@@ -225,7 +225,7 @@ struct TestGatherIndexN {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, ConvertScalarTo<T>(hwy::Unpredictable1() - 1));
     Store(v, d, lanes.get());
 
     const VI indices =

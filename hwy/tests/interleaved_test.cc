@@ -40,7 +40,7 @@ struct TestLoadStoreInterleaved2 {
 
     // Data to be interleaved
     for (size_t i = 0; i < 2 * N; ++i) {
-      bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
+      bytes[i] = ConvertScalarTo<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);
@@ -102,7 +102,7 @@ struct TestLoadStoreInterleaved3 {
 
     // Data to be interleaved
     for (size_t i = 0; i < 3 * N; ++i) {
-      bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
+      bytes[i] = ConvertScalarTo<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);
@@ -160,7 +160,7 @@ struct TestLoadStoreInterleaved4 {
     HWY_ASSERT(bytes && expected && actual_aligned);
 
     for (size_t i = 0; i < 4 * N; ++i) {
-      bytes[i] = static_cast<T>(Random32(&rng) & 0xFF);
+      bytes[i] = ConvertScalarTo<T>(Random32(&rng) & 0xFF);
     }
     const auto in0 = Load(d, &bytes[0 * N]);
     const auto in1 = Load(d, &bytes[1 * N]);

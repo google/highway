@@ -33,8 +33,8 @@ class TestSlideUpLanes {
                                             const size_t N,
                                             const size_t slide_amt) {
     for (size_t i = 0; i < N; i++) {
-      expected[i] =
-          static_cast<TFromD<D>>((i >= slide_amt) ? (i - slide_amt + 1) : 0);
+      expected[i] = ConvertScalarTo<TFromD<D>>(
+          (i >= slide_amt) ? (i - slide_amt + 1) : 0);
     }
 
     const auto v = Iota(d, TFromD<D>{1});
@@ -216,7 +216,7 @@ class TestSlideDownLanes {
       const size_t slide_amt) {
     for (size_t i = 0; i < N; i++) {
       const size_t src_idx = slide_amt + i;
-      expected[i] = static_cast<TFromD<D>>((src_idx < N) ? src_idx : 0);
+      expected[i] = ConvertScalarTo<TFromD<D>>((src_idx < N) ? src_idx : 0);
     }
 
     const Vec<D> v = Iota(d, TFromD<D>{0});
@@ -393,7 +393,7 @@ class TestSlideBlocks {
         static_cast<size_t>(kBlocks) * kLanesPerBlock;
 
     const auto iota_0 = Iota(d, T{0});
-    const auto iota_k = Iota(d, static_cast<T>(kLanesToSlide));
+    const auto iota_k = Iota(d, ConvertScalarTo<T>(kLanesToSlide));
 
     const auto first_k_lanes_mask = FirstN(d, kLanesToSlide);
     const auto expected_slide_up_result =
@@ -405,7 +405,7 @@ class TestSlideBlocks {
     using TU = TFromD<decltype(du)>;
     const auto slide_down_result_mask = BitCast(
         d, Reverse(du, IfThenZeroElse(RebindMask(du, first_k_lanes_mask),
-                                      Set(du, static_cast<TU>(-1)))));
+                                      Set(du, hwy::LimitsMax<TU>()))));
 
     const auto expected_slide_down_result = And(slide_down_result_mask, iota_k);
     HWY_ASSERT_VEC_EQ(d, expected_slide_down_result,

@@ -205,7 +205,7 @@ class TestBitwiseIfThenElse {
   static T ValueFromBitPattern(hwy::FloatTag /* type_tag */, T /* unused */,
                                uint64_t bits) {
     using TI = MakeSigned<T>;
-    return static_cast<T>(static_cast<TI>(bits & MantissaMask<T>())) +
+    return ConvertScalarTo<T>(static_cast<TI>(bits & MantissaMask<T>())) +
            MantissaEnd<T>();
   }
   template <class T>

@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/mul_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -49,12 +52,12 @@ struct TestUnsignedMul {
     HWY_ASSERT_VEC_EQ(d, vi, Mul(vi, v1));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((1 + i) * (1 + i));
+      expected[i] = ConvertScalarTo<T>((1 + i) * (1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vi));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((1 + i) * (3 + i));
+      expected[i] = ConvertScalarTo<T>((1 + i) * (3 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vj));
 
@@ -85,12 +88,12 @@ struct TestSignedMul {
     HWY_ASSERT_VEC_EQ(d, vi, Mul(vi, v1));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((1 + i) * (1 + i));
+      expected[i] = ConvertScalarTo<T>((1 + i) * (1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vi));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((-T(N) + T(i)) * T(1u + i));
+      expected[i] = ConvertScalarTo<T>((-T(N) + T(i)) * T(1u + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vn, vi));
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vn));
@@ -133,7 +136,7 @@ struct TestMulHigh {
 
     const auto vi = Iota(d, 1);
     // no i8 supported, so no wraparound
-    const auto vni = Iota(d, T(static_cast<T>(~N + 1)));
+    const auto vni = Iota(d, ConvertScalarTo(~N + 1));
 
     const auto v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d, v0, MulHigh(v0, v0));
@@ -186,8 +189,8 @@ struct TestMulFixedPoint15 {
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(10000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        in1[i] = static_cast<T>(Random64(&rng) & 0xFFFF);
-        in2[i] = static_cast<T>(Random64(&rng) & 0xFFFF);
+        in1[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFFFF);
+        in2[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFFFF);
       }
 
       for (size_t i = 0; i < N; ++i) {
@@ -204,7 +207,7 @@ struct TestMulFixedPoint15 {
         const int hi = GetLane(MulHigh(v1, v2));
         const int lo = GetLane(Mul(v1, v2)) & 0xFFFF;
         const int split = 2 * hi + ((lo + 0x4000) >> 15);
-        expected[i] = static_cast<T>(arm);
+        expected[i] = ConvertScalarTo<T>(arm);
         if (in1[i] != -32768 || in2[i] != -32768) {
           HWY_ASSERT_EQ(arm, x86);
           HWY_ASSERT_EQ(arm, split);
@@ -251,7 +254,8 @@ struct TestMulEven {
     auto in_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<Wide>(Lanes(d2));
     for (size_t i = 0; i < N; i += 2) {
-      in_lanes[i + 0] = static_cast<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
+      in_lanes[i + 0] =
+          ConvertScalarTo<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
       if (N != 1) {
         in_lanes[i + 1] = 1;  // unused
       }
@@ -302,7 +306,8 @@ struct TestMulOdd {
     auto expected = AllocateAligned<Wide>(Lanes(d2));
     for (size_t i = 0; i < N; i += 2) {
       in_lanes[i + 0] = 1;  // unused
-      in_lanes[i + 1] = static_cast<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
+      in_lanes[i + 1] =
+          ConvertScalarTo<T>(LimitsMax<T>() >> (i & kShiftAmtMask));
       expected[i / 2] =
           static_cast<Wide>(Wide(in_lanes[i + 1]) * in_lanes[i + 1]);
     }
@@ -415,7 +420,7 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, v2, NegMulAdd(v1, k0, v2));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i + 1) * (i + 2));
+      expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v2, v1, k0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v1, v2, k0));
@@ -423,16 +428,16 @@ struct TestMulAdd {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v1, neg_v2, k0));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i + 2) * (i + 2) + (i + 1));
+      expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) + (i + 1));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulAdd(v2, v2, v1));
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(neg_v2, v2, v1));
 
     for (size_t i = 0; i < N; ++i) {
-      const T nm = static_cast<T>(-(static_cast<TI>(i) + TI{2}));
-      const T f = static_cast<T>(i + 2);
-      const T a = static_cast<T>(i + 1);
-      expected[i] = static_cast<T>(nm * f + a);
+      const T nm = ConvertScalarTo<T>(-(static_cast<TI>(i) + TI{2}));
+      const T f = ConvertScalarTo<T>(i + 2);
+      const T a = ConvertScalarTo<T>(i + 1);
+      expected[i] = ConvertScalarTo<T>(nm * f + a);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulAdd(v2, v2, v1));
   }
@@ -460,7 +465,7 @@ struct TestMulSub {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v1, Neg(k0), v2));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i + 1) * (i + 2));
+      expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v1, v2, k0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v2, v1, k0));
@@ -468,7 +473,7 @@ struct TestMulSub {
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v2, Neg(v1), k0));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i + 2) * (i + 2) - (1 + i));
+      expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) - (1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v2, v2, v1));
     HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(Neg(v2), v2, v1));

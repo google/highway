@@ -50,22 +50,23 @@ T Random(RandomState& rng) {
   const int32_t bits = static_cast<int32_t>(Random32(&rng)) & 1023;
   const double val = (bits - 512) / 64.0;
   // Clamp negative to zero for unsigned types.
-  return static_cast<T>(
-      HWY_MAX(static_cast<double>(hwy::LowestValue<T>()), val));
+  return ConvertScalarTo<T>(
+      HWY_MAX(ConvertScalarTo<double>(hwy::LowestValue<T>()), val));
 }
 
 // SCAL, AXPY names are from BLAS.
 template <typename T>
 HWY_NOINLINE void SimpleSCAL(const T* x, T* out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    out[i] = static_cast<T>(kAlpha * x[i]);
+    out[i] = ConvertScalarTo<T>(ConvertScalarTo<T>(kAlpha) * x[i]);
   }
 }
 
 template <typename T>
 HWY_NOINLINE void SimpleAXPY(const T* x, const T* y, T* out, size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    out[i] = static_cast<T>(kAlpha * x[i] + y[i]);
+    out[i] = ConvertScalarTo<T>(
+        ConvertScalarTo<T>(ConvertScalarTo<T>(kAlpha) * x[i]) + y[i]);
   }
 }
 
@@ -73,7 +74,7 @@ template <typename T>
 HWY_NOINLINE void SimpleFMA4(const T* x, const T* y, const T* z, T* out,
                              size_t count) {
   for (size_t i = 0; i < count; ++i) {
-    out[i] = static_cast<T>(x[i] * y[i] + z[i]);
+    out[i] = ConvertScalarTo<T>(x[i] * y[i] + z[i]);
   }
 }
 
@@ -93,7 +94,7 @@ struct SCAL {
   template <class D, class V>
   Vec<D> operator()(D d, V v) const {
     using T = TFromD<D>;
-    return Mul(Set(d, static_cast<T>(kAlpha)), v);
+    return Mul(Set(d, ConvertScalarTo<T>(kAlpha)), v);
   }
 };
 
@@ -101,7 +102,7 @@ struct AXPY {
   template <class D, class V>
   Vec<D> operator()(D d, V v, V v1) const {
     using T = TFromD<D>;
-    return MulAdd(Set(d, static_cast<T>(kAlpha)), v, v1);
+    return MulAdd(Set(d, ConvertScalarTo<T>(kAlpha)), v, v1);
   }
 };
 
@@ -147,7 +148,7 @@ struct TestGenerate {
     T* actual = pa.get() + misalign_a;
 
     for (size_t i = 0; i < count; ++i) {
-      expected[i] = static_cast<T>(2 * i);
+      expected[i] = ConvertScalarTo<T>(2 * i);
     }
 
     // TODO(janwas): can we update the apply_to in HWY_PUSH_ATTRIBUTES so that
@@ -224,7 +225,7 @@ struct TestTransform {
     // the attribute also applies to lambdas? If so, remove HWY_ATTR.
 #if HWY_GENERIC_LAMBDA
     const auto scal = [](const auto d, const auto v) HWY_ATTR {
-      return Mul(Set(d, static_cast<T>(kAlpha)), v);
+      return Mul(Set(d, ConvertScalarTo<T>(kAlpha)), v);
     };
 #else
     const SCAL scal;
@@ -262,17 +263,15 @@ struct TestTransform1 {
 
 #if HWY_GENERIC_LAMBDA
     const auto axpy = [](const auto d, const auto v, const auto v1) HWY_ATTR {
-      return MulAdd(Set(d, static_cast<T>(kAlpha)), v, v1);
+      return MulAdd(Set(d, ConvertScalarTo<T>(kAlpha)), v, v1);
     };
 #else
     const AXPY axpy;
 #endif
     Transform1(d, a, count, b, axpy);
 
-    const auto info = hwy::detail::MakeTypeInfo<T>();
-    const char* target_name = hwy::TargetName(HWY_TARGET);
-    hwy::detail::AssertArrayEqual(info, expected.get(), a, count, target_name,
-                                  __FILE__, __LINE__);
+    AssertArraySimilar(expected.get(), a, count, hwy::TargetName(HWY_TARGET),
+                       __FILE__, __LINE__);
   }
 };
 
@@ -310,10 +309,8 @@ struct TestTransform2 {
 #endif
     Transform2(d, a, count, b, c, fma4);
 
-    const auto info = hwy::detail::MakeTypeInfo<T>();
-    const char* target_name = hwy::TargetName(HWY_TARGET);
-    hwy::detail::AssertArrayEqual(info, expected.get(), a, count, target_name,
-                                  __FILE__, __LINE__);
+    AssertArraySimilar(expected.get(), a, count, hwy::TargetName(HWY_TARGET),
+                       __FILE__, __LINE__);
   }
 };
 

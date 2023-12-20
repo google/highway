@@ -50,7 +50,7 @@ struct TestTableLookupLanes {
               if (N >= 4) idx[3] = static_cast<TI>(i3);
 
               for (size_t i = 0; i < N; ++i) {
-                expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+                expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
               }
 
               const auto opaque1 = IndicesFromVec(d, Load(di, idx.get()));
@@ -76,7 +76,7 @@ struct TestTableLookupLanes {
         if (idx[i] >= static_cast<TI>(N)) {
           idx[i] = static_cast<TI>(N - 1);
         }
-        expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+        expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
       }
 
       const auto opaque1 = IndicesFromVec(d, Load(di, idx.get()));
@@ -115,7 +115,7 @@ struct TestTwoTablesLookupLanes {
     HWY_ASSERT(idx && expected);
     memset(idx.get(), 0, twiceN * sizeof(TU));
     const auto a = Iota(d, 1);
-    const auto b = Add(a, Set(d, static_cast<T>(N)));
+    const auto b = Add(a, Set(d, ConvertScalarTo<T>(N)));
 
     if (twiceN <= 8) {  // Test all permutations
       for (size_t i0 = 0; i0 < twiceN; ++i0) {
@@ -129,7 +129,7 @@ struct TestTwoTablesLookupLanes {
               if (twiceN >= 4) idx[3] = static_cast<TU>(i3);
 
               for (size_t i = 0; i < twiceN; ++i) {
-                expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+                expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
               }
 
               const auto opaque1_a = IndicesFromVec(d, Load(du, idx.get()));
@@ -168,7 +168,7 @@ struct TestTwoTablesLookupLanes {
           idx[j] = static_cast<TU>((i * kLanesPerBlock + idx_source[j & 15] +
                                     (j & static_cast<size_t>(-16))) &
                                    (twiceN - 1));
-          expected[j] = static_cast<T>(idx[j] + 1);  // == v[idx[j]]
+          expected[j] = ConvertScalarTo<T>(idx[j] + 1);  // == v[idx[j]]
         }
 
         const auto opaque1_a = IndicesFromVec(d, Load(du, idx.get()));

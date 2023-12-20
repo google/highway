@@ -104,7 +104,7 @@ struct TestSafeCopyN {
     // 1: only first changes
     to[1] = T();
     SafeCopyN(1, d, from.get(), to.get());
-    HWY_ASSERT_EQ(static_cast<T>(1), to[0]);
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(1), to[0]);
     HWY_ASSERT_EQ(T(), to[1]);
 
     // N-1: last does not change
@@ -112,7 +112,7 @@ struct TestSafeCopyN {
     SafeCopyN(N - 1, d, from.get(), to.get());
     HWY_ASSERT_EQ(T(), to[N - 1]);
     // Also check preceding lanes
-    to[N - 1] = static_cast<T>(N);
+    to[N - 1] = ConvertScalarTo<T>(N);
     HWY_ASSERT_VEC_EQ(d, to.get(), v);
 
     // N: all change
@@ -143,14 +143,14 @@ struct TestLoadDup128 {
     constexpr size_t N128 = 16 / sizeof(T);
     alignas(16) T lanes[N128];
     for (size_t i = 0; i < N128; ++i) {
-      lanes[i] = static_cast<T>(1 + i);
+      lanes[i] = ConvertScalarTo<T>(1 + i);
     }
 
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>(i % N128 + 1);
+      expected[i] = ConvertScalarTo<T>(i % N128 + 1);
     }
 
     HWY_ASSERT_VEC_EQ(d, expected.get(), LoadDup128(d, lanes));
