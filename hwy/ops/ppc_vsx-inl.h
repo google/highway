@@ -1926,7 +1926,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> InsertLane(Vec128<T, N> v, size_t i, T t) {
 #if HWY_IS_LITTLE_ENDIAN
   typename detail::Raw128<T>::type raw_result = v.raw;
-  raw_result[i] = t;
+  hwy::CopySameSize(&t, &raw_result[i]);  // for bfloat16_t
   return Vec128<T, N>{raw_result};
 #else
   // On ppc64be without this, mul_test fails, but swizzle_test passes.

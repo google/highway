@@ -351,7 +351,6 @@ class TestBroadcastLane {
             HWY_IF_LANES_GT_D(D, static_cast<size_t>(kLane))>
   static HWY_INLINE void DoTestBroadcastLane(D d, const size_t N) {
     using T = TFromD<D>;
-    using TU = MakeUnsigned<T>;
     // kLane < HWY_MAX_LANES_D(D) is true
     if (kLane >= N) return;
 

@@ -205,7 +205,7 @@ HWY_NOINLINE void TestAllReciprocalSquareRoot() {
 template <typename T, class D>
 AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
   const T eps = std::numeric_limits<T>::epsilon();
-  const T huge = sizeof(T) == 4 ? ConvertScalarTo(1E34) : ConvertScalarTo(3E4);
+  const T huge = ConvertScalarTo<T>(sizeof(T) >= 4 ? 1E34 : 3E4);
   const T test_cases[] = {
       // +/- 1
       ConvertScalarTo<T>(1), ConvertScalarTo<T>(-1),
