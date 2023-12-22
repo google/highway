@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cmath>  // std::isfinite
-
 #include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE
@@ -45,8 +43,9 @@ struct TestTruncateTo {
   HWY_NOINLINE void testTo(From, To, const D d) {
     constexpr uint32_t base = 0xFA578D00;
     const Rebind<To, D> dTo;
-    const auto src = Iota(d, static_cast<From>(base));
-    const auto expected = Iota(dTo, static_cast<To>(base));
+    const auto src = Iota(d, static_cast<From>(base & hwy::LimitsMax<From>()));
+    const auto expected =
+        Iota(dTo, static_cast<To>(base & hwy::LimitsMax<To>()));
     const VFromD<decltype(dTo)> actual = TruncateTo(dTo, src);
     HWY_ASSERT_VEC_EQ(dTo, expected, actual);
   }
