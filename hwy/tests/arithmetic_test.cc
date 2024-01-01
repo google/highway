@@ -363,6 +363,196 @@ HWY_NOINLINE void TestAllIntegerAbsDiff() {
 #endif
 }
 
+struct TestIntegerDiv {
+  template <class D>
+  static HWY_NOINLINE void DoTestIntegerDiv(D d, const VecArg<VFromD<D>> a,
+                                            const VecArg<VFromD<D>> b) {
+    using T = TFromD<D>;
+
+    const size_t N = Lanes(d);
+    auto a_lanes = AllocateAligned<T>(N);
+    auto b_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    auto expected_even = AllocateAligned<T>(N);
+    auto expected_odd = AllocateAligned<T>(N);
+    HWY_ASSERT(a_lanes && b_lanes && expected && expected_even && expected_odd);
+
+    Store(a, d, a_lanes.get());
+    Store(b, d, b_lanes.get());
+
+    for (size_t i = 0; i < N; i++) {
+      expected[i] = static_cast<T>(a_lanes[i] / b_lanes[i]);
+      if ((i & 1) == 0) {
+        expected_even[i] = expected[i];
+        expected_odd[i] = static_cast<T>(0);
+      } else {
+        expected_even[i] = static_cast<T>(0);
+        expected_odd[i] = expected[i];
+      }
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Div(a, b));
+
+    const auto vmin = Set(d, LimitsMin<T>());
+    const auto zero = Zero(d);
+    const auto all_ones = Set(d, static_cast<T>(-1));
+
+    HWY_ASSERT_VEC_EQ(d, expected_even.get(),
+                      OddEven(zero, Div(a, OddEven(zero, b))));
+    HWY_ASSERT_VEC_EQ(d, expected_odd.get(),
+                      OddEven(Div(a, OddEven(b, zero)), zero));
+
+    HWY_ASSERT_VEC_EQ(
+        d, expected_even.get(),
+        OddEven(zero, Div(OddEven(vmin, a), OddEven(all_ones, b))));
+    HWY_ASSERT_VEC_EQ(
+        d, expected_odd.get(),
+        OddEven(Div(OddEven(a, vmin), OddEven(b, all_ones)), zero));
+  }
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TU = MakeUnsigned<T>;
+    using TI = MakeSigned<T>;
+
+    const size_t N = Lanes(d);
+    auto in1 = AllocateAligned<T>(N);
+    auto in2 = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2);
+
+    const RebindToSigned<decltype(d)> di;
+
+    // Random inputs in each lane
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const T rnd_a0 = static_cast<T>(Random64(&rng) &
+                                        static_cast<uint64_t>(LimitsMax<TU>()));
+        const T rnd_b0 = static_cast<T>(Random64(&rng) &
+                                        static_cast<uint64_t>(LimitsMax<TI>()));
+
+        const T rnd_b = static_cast<T>(rnd_b0 | static_cast<T>(rnd_b0 == 0));
+        const T rnd_a = static_cast<T>(
+            rnd_a0 + static_cast<T>(IsSigned<T>() && rnd_a0 == LimitsMin<T>() &&
+                                    ScalarAbs(rnd_b) == static_cast<T>(1)));
+
+        in1[i] = rnd_a;
+        in2[i] = rnd_b;
+      }
+
+      const auto a = Load(d, in1.get());
+      const auto b = Load(d, in2.get());
+
+      const auto neg_a = BitCast(d, Neg(BitCast(di, a)));
+      const auto neg_b = BitCast(d, Neg(BitCast(di, b)));
+
+      DoTestIntegerDiv(d, a, b);
+      DoTestIntegerDiv(d, a, neg_b);
+      DoTestIntegerDiv(d, neg_a, b);
+      DoTestIntegerDiv(d, neg_a, neg_b);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllIntegerDiv() {
+  ForIntegerTypes(ForPartialVectors<TestIntegerDiv>());
+}
+
+struct TestIntegerMod {
+  template <class D>
+  static HWY_NOINLINE void DoTestIntegerMod(D d, const VecArg<VFromD<D>> a,
+                                            const VecArg<VFromD<D>> b) {
+    using T = TFromD<D>;
+
+    const size_t N = Lanes(d);
+    auto a_lanes = AllocateAligned<T>(N);
+    auto b_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    auto expected_even = AllocateAligned<T>(N);
+    auto expected_odd = AllocateAligned<T>(N);
+    HWY_ASSERT(a_lanes && b_lanes && expected && expected_even && expected_odd);
+
+    Store(a, d, a_lanes.get());
+    Store(b, d, b_lanes.get());
+
+    for (size_t i = 0; i < N; i++) {
+      expected[i] = static_cast<T>(a_lanes[i] % b_lanes[i]);
+      if ((i & 1) == 0) {
+        expected_even[i] = expected[i];
+        expected_odd[i] = static_cast<T>(0);
+      } else {
+        expected_even[i] = static_cast<T>(0);
+        expected_odd[i] = expected[i];
+      }
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Mod(a, b));
+
+    const auto vmin = Set(d, LimitsMin<T>());
+    const auto zero = Zero(d);
+    const auto all_ones = Set(d, static_cast<T>(-1));
+
+    HWY_ASSERT_VEC_EQ(d, expected_even.get(),
+                      OddEven(zero, Mod(a, OddEven(zero, b))));
+    HWY_ASSERT_VEC_EQ(d, expected_odd.get(),
+                      OddEven(Mod(a, OddEven(b, zero)), zero));
+
+    HWY_ASSERT_VEC_EQ(
+        d, expected_even.get(),
+        OddEven(zero, Mod(OddEven(vmin, a), OddEven(all_ones, b))));
+    HWY_ASSERT_VEC_EQ(
+        d, expected_odd.get(),
+        OddEven(Mod(OddEven(a, vmin), OddEven(b, all_ones)), zero));
+  }
+
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    using TU = MakeUnsigned<T>;
+    using TI = MakeSigned<T>;
+
+    const size_t N = Lanes(d);
+    auto in1 = AllocateAligned<T>(N);
+    auto in2 = AllocateAligned<T>(N);
+    HWY_ASSERT(in1 && in2);
+
+    const RebindToSigned<decltype(d)> di;
+
+    // Random inputs in each lane
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        const T rnd_a0 = static_cast<T>(Random64(&rng) &
+                                        static_cast<uint64_t>(LimitsMax<TU>()));
+        const T rnd_b0 = static_cast<T>(Random64(&rng) &
+                                        static_cast<uint64_t>(LimitsMax<TI>()));
+
+        const T rnd_b = static_cast<T>(rnd_b0 | static_cast<T>(rnd_b0 == 0));
+        const T rnd_a = static_cast<T>(
+            rnd_a0 + static_cast<T>(IsSigned<T>() && rnd_a0 == LimitsMin<T>() &&
+                                    ScalarAbs(rnd_b) == static_cast<T>(1)));
+
+        in1[i] = rnd_a;
+        in2[i] = rnd_b;
+      }
+
+      const auto a = Load(d, in1.get());
+      const auto b = Load(d, in2.get());
+
+      const auto neg_a = BitCast(d, Neg(BitCast(di, a)));
+      const auto neg_b = BitCast(d, Neg(BitCast(di, b)));
+
+      DoTestIntegerMod(d, a, b);
+      DoTestIntegerMod(d, a, neg_b);
+      DoTestIntegerMod(d, neg_a, b);
+      DoTestIntegerMod(d, neg_a, neg_b);
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllIntegerMod() {
+  ForIntegerTypes(ForPartialVectors<TestIntegerMod>());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -380,6 +570,8 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatedAbs);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatedNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerAbsDiff);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerDiv);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerMod);
 }  // namespace hwy
 
 #endif

@@ -152,6 +152,9 @@ class Vec512 {
   HWY_INLINE Vec512& operator-=(const Vec512 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec512& operator%=(const Vec512 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec512& operator&=(const Vec512 other) {
     return *this = (*this & other);
   }

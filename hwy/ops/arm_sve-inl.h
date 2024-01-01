@@ -1103,6 +1103,14 @@ HWY_API svint16_t MulFixedPoint15(svint16_t a, svint16_t b) {
 }
 
 // ------------------------------ Div
+#ifdef HWY_NATIVE_INT_DIV
+#undef HWY_NATIVE_INT_DIV
+#else
+#define HWY_NATIVE_INT_DIV
+#endif
+
+HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGPVV, Div, div)
+HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGPVV, Div, div)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Div, div)
 
 // ------------------------------ ApproximateReciprocal
@@ -4300,6 +4308,28 @@ template <class D, HWY_IF_SPECIAL_FLOAT_D(D)>
 HWY_API VFromD<D> OrderedDemote2To(D dn, svfloat32_t a, svfloat32_t b) {
   const Half<decltype(dn)> dnh;
   return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
+}
+
+// ------------------------------ I8/U8/I16/U16 Div
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API V Div(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Half<decltype(d)> dh;
+  const RepartitionToWide<decltype(d)> dw;
+
+  const auto q_lo =
+      Div(PromoteTo(dw, LowerHalf(dh, a)), PromoteTo(dw, LowerHalf(dh, b)));
+  const auto q_hi = Div(PromoteUpperTo(dw, a), PromoteUpperTo(dw, b));
+
+  return OrderedDemote2To(d, q_lo, q_hi);
+}
+
+// ------------------------------ Mod (Div, NegMulAdd)
+template <class V>
+HWY_API V Mod(V a, V b) {
+  return NegMulAdd(Div(a, b), b, a);
 }
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
