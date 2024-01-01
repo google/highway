@@ -1292,54 +1292,42 @@ HWY_API Vec1<T> MaskedGatherIndexOr(Vec1<T> no, Mask1<T> m, D d,
 namespace detail {
 
 template <class ToT, class FromT>
-HWY_INLINE ToT CastValueForF2IConv(hwy::UnsignedTag /* to_type_tag */,
-                                   FromT val) {
+HWY_INLINE ToT CastValueForF2IConv(FromT val) {
   // Prevent ubsan errors when converting float to narrower integer
 
-  // If LimitsMax<ToT>() can be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>().
+  using FromTU = MakeUnsigned<FromT>;
+  using ToTU = MakeUnsigned<ToT>;
 
-  // Otherwise, if LimitsMax<ToT>() cannot be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>() + 1, which can
-  // be exactly represented in FromT.
-  constexpr FromT kSmallestOutOfToTRangePosVal =
-      (sizeof(ToT) * 8 <= static_cast<size_t>(MantissaBits<FromT>()) + 1)
-          ? static_cast<FromT>(LimitsMax<ToT>())
-          : static_cast<FromT>(
-                static_cast<FromT>(ToT{1} << (sizeof(ToT) * 8 - 1)) * FromT(2));
+  constexpr unsigned kMaxExpField =
+      static_cast<unsigned>(MaxExponentField<FromT>());
+  constexpr unsigned kExpBias = kMaxExpField >> 1;
+  constexpr unsigned kMinOutOfRangeExpField = static_cast<unsigned>(HWY_MIN(
+      kExpBias + sizeof(ToT) * 8 - static_cast<unsigned>(IsSigned<ToT>()),
+      kMaxExpField));
 
-  if (ScalarSignBit(val)) {
-    return ToT{0};
-  } else if (IsInf(Vec1<FromT>(val)).bits ||
-             val >= kSmallestOutOfToTRangePosVal) {
-    return LimitsMax<ToT>();
-  } else {
-    return static_cast<ToT>(val);
-  }
-}
+  // If ToT is signed, compare only the exponent bits of val against
+  // kMinOutOfRangeExpField.
+  //
+  // Otherwise, if ToT is unsigned, compare the sign bit plus exponent bits of
+  // val against kMinOutOfRangeExpField as a negative value is outside of the
+  // range of an unsigned integer type.
+  const FromT val_to_compare =
+      static_cast<FromT>(IsSigned<ToT>() ? ScalarAbs(val) : val);
 
-template <class ToT, class FromT>
-HWY_INLINE ToT CastValueForF2IConv(hwy::SignedTag /* to_type_tag */,
-                                   FromT val) {
-  // Prevent ubsan errors when converting float to narrower integer
+  // val is within the range of ToT if
+  // (BitCastScalar<FromTU>(val_to_compare) >> MantissaBits<FromT>()) is less
+  // than kMinOutOfRangeExpField
+  //
+  // Otherwise, val is either outside of the range of ToT or equal to
+  // LimitsMin<ToT>() if
+  // (BitCastScalar<FromTU>(val_to_compare) >> MantissaBits<FromT>()) is greater
+  // than or equal to kMinOutOfRangeExpField.
 
-  // If LimitsMax<ToT>() can be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>().
-
-  // Otherwise, if LimitsMax<ToT>() cannot be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to -LimitsMin<ToT>(), which can
-  // be exactly represented in FromT.
-  constexpr FromT kSmallestOutOfToTRangePosVal =
-      (sizeof(ToT) * 8 <= static_cast<size_t>(MantissaBits<FromT>()) + 2)
-          ? static_cast<FromT>(LimitsMax<ToT>())
-          : static_cast<FromT>(-static_cast<FromT>(LimitsMin<ToT>()));
-
-  if (IsInf(Vec1<FromT>(val)).bits ||
-      ScalarAbs(val) >= kSmallestOutOfToTRangePosVal) {
-    return ScalarSignBit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
-  } else {
-    return static_cast<ToT>(val);
-  }
+  return (static_cast<unsigned>(BitCastScalar<FromTU>(val_to_compare) >>
+                                MantissaBits<FromT>()) < kMinOutOfRangeExpField)
+             ? static_cast<ToT>(val)
+             : static_cast<ToT>(static_cast<ToTU>(LimitsMax<ToT>()) +
+                                static_cast<ToTU>(ScalarSignBit(val)));
 }
 
 template <class ToT, class ToTypeTag, class FromT>
@@ -1348,13 +1336,15 @@ HWY_INLINE ToT CastValueForPromoteTo(ToTypeTag /* to_type_tag */, FromT val) {
 }
 
 template <class ToT>
-HWY_INLINE ToT CastValueForPromoteTo(hwy::SignedTag to_type_tag, float val) {
-  return CastValueForF2IConv<ToT>(to_type_tag, val);
+HWY_INLINE ToT CastValueForPromoteTo(hwy::SignedTag /*to_type_tag*/,
+                                     float val) {
+  return CastValueForF2IConv<ToT>(val);
 }
 
 template <class ToT>
-HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag to_type_tag, float val) {
-  return CastValueForF2IConv<ToT>(to_type_tag, val);
+HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag /*to_type_tag*/,
+                                     float val) {
+  return CastValueForF2IConv<ToT>(val);
 }
 
 }  // namespace detail
@@ -1382,8 +1372,7 @@ HWY_API Vec1<float> DemoteTo(D /* tag */, Vec1<double> from) {
 template <class D, HWY_IF_UI32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec1<double> from) {
   // Prevent ubsan errors when converting int32_t to narrower integer/int32_t
-  return Vec1<TFromD<D>>(detail::CastValueForF2IConv<TFromD<D>>(
-      hwy::TypeTag<TFromD<D>>(), from.raw));
+  return Vec1<TFromD<D>>(detail::CastValueForF2IConv<TFromD<D>>(from.raw));
 }
 
 template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
@@ -1453,8 +1442,7 @@ template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
 HWY_API Vec1<TTo> ConvertTo(DTo /* tag */, Vec1<TFrom> from) {
   static_assert(sizeof(TTo) == sizeof(TFrom), "Should have same size");
   // float## -> int##: return closest representable value.
-  return Vec1<TTo>(
-      detail::CastValueForF2IConv<TTo>(hwy::TypeTag<TTo>(), from.raw));
+  return Vec1<TTo>(detail::CastValueForF2IConv<TTo>(from.raw));
 }
 
 template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
