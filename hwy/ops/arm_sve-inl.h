@@ -2606,20 +2606,22 @@ HWY_API VFromD<DI> NearestInt(VF v) {
 
 // ------------------------------ Iota (Add, ConvertTo)
 
-#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)                        \
-  template <size_t N, int kPow2>                                              \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
-                                     HWY_SVE_T(BASE, BITS) first) {           \
-    return sv##OP##_##CHAR##BITS(first, 1);                                   \
+#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)                      \
+  template <size_t N, int kPow2, typename T2>                               \
+  HWY_API HWY_SVE_V(BASE, BITS)                                             \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, T2 first) {             \
+    return sv##OP##_##CHAR##BITS(static_cast<HWY_SVE_T(BASE, BITS)>(first), \
+                                 1);                                        \
   }
 
 HWY_SVE_FOREACH_UI(HWY_SVE_IOTA, Iota, index)
 #undef HWY_SVE_IOTA
 
-template <class D, HWY_IF_FLOAT_D(D)>
-HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
+template <class D, typename T2, HWY_IF_FLOAT_D(D)>
+HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToSigned<D> di;
-  return detail::AddN(ConvertTo(d, Iota(di, 0)), first);
+  return detail::AddN(ConvertTo(d, Iota(di, 0)),
+                      ConvertScalarTo<TFromD<D>>(first));
 }
 
 // ------------------------------ InterleaveLower

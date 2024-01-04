@@ -5098,22 +5098,24 @@ HWY_API MFromD<D> IsFinite(const V v) {
 
 // ------------------------------ Iota (ConvertTo)
 
-template <class D, HWY_IF_UNSIGNED_D(D)>
-HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
-  return detail::AddS(detail::Iota0(d), first);
+template <class D, typename T2, HWY_IF_UNSIGNED_D(D)>
+HWY_API VFromD<D> Iota(const D d, T2 first) {
+  return detail::AddS(detail::Iota0(d), static_cast<TFromD<D>>(first));
 }
 
-template <class D, HWY_IF_SIGNED_D(D)>
-HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
+template <class D, typename T2, HWY_IF_SIGNED_D(D)>
+HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToUnsigned<D> du;
-  return detail::AddS(BitCast(d, detail::Iota0(du)), first);
+  return detail::AddS(BitCast(d, detail::Iota0(du)),
+                      static_cast<TFromD<D>>(first));
 }
 
-template <class D, HWY_IF_FLOAT_D(D)>
-HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
+template <class D, typename T2, HWY_IF_FLOAT_D(D)>
+HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToUnsigned<D> du;
   const RebindToSigned<D> di;
-  return detail::AddS(ConvertTo(d, BitCast(di, detail::Iota0(du))), first);
+  return detail::AddS(ConvertTo(d, BitCast(di, detail::Iota0(du))),
+                      ConvertScalarTo<TFromD<D>>(first));
 }
 
 // ------------------------------ MulEven/Odd (Mul, OddEven)

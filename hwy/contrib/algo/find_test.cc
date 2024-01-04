@@ -200,7 +200,7 @@ struct TestFindIf {
     HWY_ASSERT(not_found_any);
     // We'll find something unless the input is empty or {0} - because 0 > i
     // is false for all i=[0,9].
-    if (count != 0 && in[0] != T{0}) {
+    if (count != 0 && in[0] != ConvertScalarTo<T>(0)) {
       HWY_ASSERT(found_any);
     }
   }

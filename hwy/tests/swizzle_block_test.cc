@@ -30,7 +30,7 @@ struct TestOddEvenBlocks {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
-    const auto odd = Iota(d, ConvertScalarTo<T>(1 + N));
+    const auto odd = Iota(d, 1 + N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
@@ -111,9 +111,9 @@ class TestInsertBlock {
       }
     }
 
-    const V v = And(Iota(d, T{0}), BitCast(d, Set(du, kPositiveMask)));
-    const VB blk_to_insert = Or(Iota(d_block, static_cast<TU>(kBlock)),
-                                BitCast(d_block, Set(du_block, kSignBit)));
+    const V v = And(Iota(d, 0), BitCast(d, Set(du, kPositiveMask)));
+    const VB blk_to_insert =
+        Or(Iota(d_block, kBlock), BitCast(d_block, Set(du_block, kSignBit)));
     const V actual = InsertBlock<kBlock>(v, blk_to_insert);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
@@ -164,7 +164,7 @@ class TestExtractBlock {
       expected[i] = ConvertScalarTo<T>(kBlkLaneOffset + i);
     }
 
-    const auto v = Iota(d, T{0});
+    const auto v = Iota(d, 0);
     const Vec<BlockDFromD<decltype(d_block)>> actual = ExtractBlock<kBlock>(v);
     HWY_ASSERT_VEC_EQ(d_block, expected, actual);
   }
@@ -214,7 +214,7 @@ class TestBroadcastBlock {
           ConvertScalarTo<T>(kBlkLaneOffset + kLanesPer16ByteBlk + idx_in_blk);
     }
 
-    const auto v = Iota(d, ConvertScalarTo<T>(kLanesPer16ByteBlk));
+    const auto v = Iota(d, kLanesPer16ByteBlk);
     const auto actual = BroadcastBlock<kBlock>(v);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
   }

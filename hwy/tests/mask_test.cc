@@ -13,9 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>  // memcmp
-
-#include <algorithm>  // std::fill
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/mask_test.cc"
@@ -59,22 +59,24 @@ struct TestFirstN {
     using TN = SignedFromSize<HWY_MIN(sizeof(size_t), sizeof(T))>;
     const size_t max_len = static_cast<size_t>(LimitsMax<TN>());
 
+    const Vec<D> k1 = Set(d, ConvertScalarTo<T>(1));
+
     const size_t max_lanes = HWY_MIN(2 * N, AdjustedReps(512));
     for (size_t len = 0; len <= HWY_MIN(max_lanes, max_len); ++len) {
       // Loop instead of Iota+Lt to avoid wraparound for 8-bit T.
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = (i < len) ? T{1} : T{0};
+        bool_lanes[i] = ConvertScalarTo<T>(i < len ? 1 : 0);
       }
-      const auto expected = Eq(Load(d, bool_lanes.get()), Set(d, T{1}));
+      const Mask<D> expected = Eq(Load(d, bool_lanes.get()), k1);
       HWY_ASSERT_MASK_EQ(d, expected, FirstN(d, len));
     }
 
     // Also ensure huge values yield all-true (unless the vector is actually
     // larger than max_len).
     for (size_t i = 0; i < N; ++i) {
-      bool_lanes[i] = (i < max_len) ? T{1} : T{0};
+      bool_lanes[i] = ConvertScalarTo<T>(i < max_len ? 1 : 0);
     }
-    const auto expected = Eq(Load(d, bool_lanes.get()), Set(d, T{1}));
+    const Mask<D> expected = Eq(Load(d, bool_lanes.get()), k1);
     HWY_ASSERT_MASK_EQ(d, expected, FirstN(d, max_len));
   }
 };
@@ -125,7 +127,7 @@ struct TestAllTrueFalse {
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
-    std::fill(lanes.get(), lanes.get() + N, T(0));
+    ZeroBytes(lanes.get(), N * sizeof(T));
 
     HWY_ASSERT(AllTrue(d, Eq(v, zero)));
     HWY_ASSERT(!AllFalse(d, Eq(v, zero)));
@@ -136,20 +138,20 @@ struct TestAllTrueFalse {
 
     // Set each lane to nonzero and back to zero
     for (size_t i = 0; i < N; ++i) {
-      lanes[i] = T(1);
+      lanes[i] = ConvertScalarTo<T>(1);
       v = Load(d, lanes.get());
 
       HWY_ASSERT(!AllTrue(d, Eq(v, zero)));
 
       HWY_ASSERT(expected_all_false ^ AllFalse(d, Eq(v, zero)));
 
-      lanes[i] = T(-1);
+      lanes[i] = ConvertScalarTo<T>(-1);
       v = Load(d, lanes.get());
       HWY_ASSERT(!AllTrue(d, Eq(v, zero)));
       HWY_ASSERT(expected_all_false ^ AllFalse(d, Eq(v, zero)));
 
       // Reset to all zero
-      lanes[i] = T(0);
+      lanes[i] = ConvertScalarTo<T>(0);
       v = Load(d, lanes.get());
       HWY_ASSERT(AllTrue(d, Eq(v, zero)));
       HWY_ASSERT(!AllFalse(d, Eq(v, zero)));

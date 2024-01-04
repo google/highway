@@ -94,9 +94,9 @@ struct TestFill {
     }
     T* actual = pb.get() + misalign_b;
 
-    actual[count] = T{0};  // sentinel
+    actual[count] = ConvertScalarTo<T>(0);  // sentinel
     Fill(d, value, count, actual);
-    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write past end
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(0), actual[count]);  // no write past end
 
     const auto info = hwy::detail::MakeTypeInfo<T>();
     const char* target_name = hwy::TargetName(HWY_TARGET);

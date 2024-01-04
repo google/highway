@@ -3327,10 +3327,25 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
 #endif
 }
 
+namespace detail {
+
+template <class V>
+static HWY_INLINE V VsxF2INormalizeSrcVals(V v) {
+#if !defined(HWY_DISABLE_PPC_VSX_QEMU_F2I_WORKAROUND)
+  // Workaround for QEMU 7/8 VSX float to int conversion bug
+  return IfThenElseZero(v == v, v);
+#else
+  return v;
+#endif
+}
+
+}  // namespace detail
+
 template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
-  const __vector float raw_v = InterleaveLower(v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveLower(v, v)).raw;
   return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
 #else
   const RebindToFloat<decltype(di64)> df64;
@@ -3341,7 +3356,8 @@ HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
 template <class D, HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
-  const __vector float raw_v = InterleaveLower(v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveLower(v, v)).raw;
   return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
       __builtin_vsx_xvcvspuxds(raw_v))};
 #else
@@ -3437,7 +3453,9 @@ HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<uint32_t> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteUpperTo(D di64, Vec128<float> v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
-  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveUpper(Full128<float>(), v, v))
+          .raw;
   return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
 #else
   const RebindToFloat<decltype(di64)> df64;
@@ -3448,7 +3466,9 @@ HWY_API VFromD<D> PromoteUpperTo(D di64, Vec128<float> v) {
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteUpperTo(D du64, Vec128<float> v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
-  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveUpper(Full128<float>(), v, v))
+          .raw;
   return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
       __builtin_vsx_xvcvspuxds(raw_v))};
 #else
@@ -3523,15 +3543,17 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
                                    V v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspsxds expects the source values to be in the odd lanes
   // on little-endian PPC, and the vec_sld operation below will shift the even
-  // lanes of v into the odd lanes.
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(vec_sld(v.raw, v.raw, 4))};
+  // lanes of normalized_v into the odd lanes.
+  return VFromD<D>{
+      __builtin_vsx_xvcvspsxds(vec_sld(normalized_v.raw, normalized_v.raw, 4))};
 #else
   // __builtin_vsx_xvcvspsxds expects the source values to be in the even lanes
   // on big-endian PPC.
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(v.raw)};
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(normalized_v.raw)};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3548,17 +3570,19 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
                                    V v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspuxds expects the source values to be in the odd lanes
   // on little-endian PPC, and the vec_sld operation below will shift the even
-  // lanes of v into the odd lanes.
-  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(vec_sld(v.raw, v.raw, 4)))};
+  // lanes of normalized_v into the odd lanes.
+  return VFromD<D>{
+      reinterpret_cast<__vector unsigned long long>(__builtin_vsx_xvcvspuxds(
+          vec_sld(normalized_v.raw, normalized_v.raw, 4)))};
 #else
   // __builtin_vsx_xvcvspuxds expects the source values to be in the even lanes
   // on big-endian PPC.
   return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(v.raw))};
+      __builtin_vsx_xvcvspuxds(normalized_v.raw))};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3584,15 +3608,17 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
                                   V v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspsxds expects the source values to be in the odd lanes
   // on little-endian PPC
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(v.raw)};
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(normalized_v.raw)};
 #else
   // __builtin_vsx_xvcvspsxds expects the source values to be in the even lanes
   // on big-endian PPC, and the vec_sld operation below will shift the odd lanes
-  // of v into the even lanes.
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(vec_sld(v.raw, v.raw, 4))};
+  // of normalized_v into the even lanes.
+  return VFromD<D>{
+      __builtin_vsx_xvcvspsxds(vec_sld(normalized_v.raw, normalized_v.raw, 4))};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3609,17 +3635,19 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::UnsignedTag /*to_type_tag*/,
                                   V v) {
 #if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspuxds expects the source values to be in the odd lanes
   // on little-endian PPC
   return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(v.raw))};
+      __builtin_vsx_xvcvspuxds(normalized_v.raw))};
 #else
   // __builtin_vsx_xvcvspuxds expects the source values to be in the even lanes
   // on big-endian PPC, and the vec_sld operation below will shift the odd lanes
-  // of v into the even lanes.
-  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(vec_sld(v.raw, v.raw, 4)))};
+  // of normalized_v into the even lanes.
+  return VFromD<D>{
+      reinterpret_cast<__vector unsigned long long>(__builtin_vsx_xvcvspuxds(
+          vec_sld(normalized_v.raw, normalized_v.raw, 4)))};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3863,15 +3891,17 @@ HWY_API Vec64<float> DemoteTo(D d, Vec128<double> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_I32_D(D)>
 HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<double> v) {
-  return Vec32<int32_t>{vec_signede(v.raw)};
+  return Vec32<int32_t>{vec_signede(detail::VsxF2INormalizeSrcVals(v).raw)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I32_D(D)>
 HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
 #if HWY_IS_LITTLE_ENDIAN
-  const Vec128<int32_t> f64_to_i32{vec_signede(v.raw)};
+  const Vec128<int32_t> f64_to_i32{
+      vec_signede(detail::VsxF2INormalizeSrcVals(v).raw)};
 #else
-  const Vec128<int32_t> f64_to_i32{vec_signedo(v.raw)};
+  const Vec128<int32_t> f64_to_i32{
+      vec_signedo(detail::VsxF2INormalizeSrcVals(v).raw)};
 #endif
 
   const Rebind<int64_t, D> di64;
@@ -3881,15 +3911,17 @@ HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U32_D(D)>
 HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<double> v) {
-  return Vec32<uint32_t>{vec_unsignede(v.raw)};
+  return Vec32<uint32_t>{vec_unsignede(detail::VsxF2INormalizeSrcVals(v).raw)};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U32_D(D)>
 HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<double> v) {
 #if HWY_IS_LITTLE_ENDIAN
-  const Vec128<uint32_t> f64_to_u32{vec_unsignede(v.raw)};
+  const Vec128<uint32_t> f64_to_u32{
+      vec_unsignede(detail::VsxF2INormalizeSrcVals(v).raw)};
 #else
-  const Vec128<uint32_t> f64_to_u32{vec_unsignedo(v.raw)};
+  const Vec128<uint32_t> f64_to_u32{
+      vec_unsignedo(detail::VsxF2INormalizeSrcVals(v).raw)};
 #endif
 
   const Rebind<uint64_t, D> du64;
@@ -3970,6 +4002,31 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 template <class D, HWY_IF_I32_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */,
                             Vec128<float, Rebind<float, D>().MaxLanes()> v) {
+#if defined(__OPTIMIZE__)
+  if (detail::IsConstantRawAltivecVect(v.raw)) {
+    constexpr int32_t kMinI32 = LimitsMin<int32_t>();
+    constexpr int32_t kMaxI32 = LimitsMax<int32_t>();
+    return Dup128VecFromValues(
+        D(),
+        (v.raw[0] >= -2147483648.0f)
+            ? ((v.raw[0] < 2147483648.0f) ? static_cast<int32_t>(v.raw[0])
+                                          : kMaxI32)
+            : ((v.raw[0] < 0) ? kMinI32 : 0),
+        (v.raw[1] >= -2147483648.0f)
+            ? ((v.raw[1] < 2147483648.0f) ? static_cast<int32_t>(v.raw[1])
+                                          : kMaxI32)
+            : ((v.raw[1] < 0) ? kMinI32 : 0),
+        (v.raw[2] >= -2147483648.0f)
+            ? ((v.raw[2] < 2147483648.0f) ? static_cast<int32_t>(v.raw[2])
+                                          : kMaxI32)
+            : ((v.raw[2] < 0) ? kMinI32 : 0),
+        (v.raw[3] >= -2147483648.0f)
+            ? ((v.raw[3] < 2147483648.0f) ? static_cast<int32_t>(v.raw[3])
+                                          : kMaxI32)
+            : ((v.raw[3] < 0) ? kMinI32 : 0));
+  }
+#endif
+
   HWY_DIAGNOSTICS(push)
 #if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
@@ -3981,50 +4038,31 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> ConvertTo(D /* tag */,
                             Vec128<double, Rebind<double, D>().MaxLanes()> v) {
-  HWY_DIAGNOSTICS(push)
-#if HWY_COMPILER_CLANG
-  HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
-#endif
-
 #if defined(__OPTIMIZE__)
   if (detail::IsConstantRawAltivecVect(v.raw)) {
     constexpr int64_t kMinI64 = LimitsMin<int64_t>();
     constexpr int64_t kMaxI64 = LimitsMax<int64_t>();
-    const __vector signed long long raw_result = {
-        (v.raw[0] >= -9223372036854775808.0)
-            ? ((v.raw[0] < 9223372036854775808.0)
-                   ? static_cast<int64_t>(v.raw[0])
-                   : kMaxI64)
-            : ((v.raw[0] < 0) ? kMinI64 : 0LL),
-        (v.raw[1] >= -9223372036854775808.0)
-            ? ((v.raw[1] < 9223372036854775808.0)
-                   ? static_cast<int64_t>(v.raw[1])
-                   : kMaxI64)
-            : ((v.raw[1] < 0) ? kMinI64 : 0LL)};
-    return VFromD<D>{raw_result};
+    return Dup128VecFromValues(D(),
+                               (v.raw[0] >= -9223372036854775808.0)
+                                   ? ((v.raw[0] < 9223372036854775808.0)
+                                          ? static_cast<int64_t>(v.raw[0])
+                                          : kMaxI64)
+                                   : ((v.raw[0] < 0) ? kMinI64 : 0LL),
+                               (v.raw[1] >= -9223372036854775808.0)
+                                   ? ((v.raw[1] < 9223372036854775808.0)
+                                          ? static_cast<int64_t>(v.raw[1])
+                                          : kMaxI64)
+                                   : ((v.raw[1] < 0) ? kMinI64 : 0LL));
   }
 #endif
 
-  // The inline assembly statement below prevents the compiler from incorrectly
-  // optimizing out the F64->I64 conversion if the values of any lanes of v are
-  // outside of the range of an int64_t.
-  __asm__("" : "+wa"(v.raw)::);
-#if HWY_COMPILER_CLANG && HWY_HAS_BUILTIN(__builtin_convertvector)
-  // Use the __builtin_convertvector intrinsic on Clang if the
-  // __builtin_convertvector intrinsic is available as vec_cts incorrectly
-  // converts values using xvcvdpsxws instead of xvcvdpsxds if
-  // __XL_COMPAT_ALTIVEC__ is defined
-  VFromD<D> result{__builtin_convertvector(v.raw, __vector signed long long)};
-#else
-  VFromD<D> result{vec_cts(v.raw, 0)};
-#endif
-  HWY_DIAGNOSTICS(pop)
-  // The inline assembly statement below prevents the compiler from incorrectly
-  // assuming that result[i] is always less than or equal to 9223372036854774784
-  // as the VSX xvcvdpsxds instruction can return 9223372036854775807 if
-  // v[i] >= 9223372036854775808 is true.
-  __asm__("" : "+wa"(result.raw)::);
-  return result;
+  // Use inline assembly to avoid undefined behavior if v[i] is not within the
+  // range of an int64_t
+  __vector signed long long raw_result;
+  __asm__("xvcvdpsxds %x0,%x1"
+          : "=wa"(raw_result)
+          : "wa"(detail::VsxF2INormalizeSrcVals(v).raw));
+  return VFromD<D>{raw_result};
 }
 
 template <class D, HWY_IF_U32_D(D)>
@@ -4033,7 +4071,8 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #if defined(__OPTIMIZE__)
   if (detail::IsConstantRawAltivecVect(v.raw)) {
     constexpr uint32_t kMaxU32 = LimitsMax<uint32_t>();
-    const __vector unsigned int raw_result = {
+    return Dup128VecFromValues(
+        D(),
         (v.raw[0] >= 0.0f)
             ? ((v.raw[0] < 4294967296.0f) ? static_cast<uint32_t>(v.raw[0])
                                           : kMaxU32)
@@ -4049,27 +4088,16 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
         (v.raw[3] >= 0.0f)
             ? ((v.raw[3] < 4294967296.0f) ? static_cast<uint32_t>(v.raw[3])
                                           : kMaxU32)
-            : 0,
-    };
-    return VFromD<D>{raw_result};
+            : 0);
   }
 #endif
 
-  // The inline assembly statement below prevents the compiler from incorrectly
-  // optimizing out the F32->U32 conversion if the values of any lanes of v are
-  // outside of the range of an uint32_t.
-  __asm__("" : "+v"(v.raw)::);
   HWY_DIAGNOSTICS(push)
 #if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
 #endif
   VFromD<D> result{vec_ctu(v.raw, 0)};
   HWY_DIAGNOSTICS(pop)
-  // The inline assembly statement below prevents the compiler from incorrectly
-  // assuming that result[i] is always less than or equal to 4294967040 as the
-  // Altivec vctuxs instruction or VSX xvcvspuxws instruction can return
-  // 4294967295 if v[i] >= 4294967296 is true.
-  __asm__("" : "+wa"(result.raw)::);
   return result;
 }
 
@@ -4084,7 +4112,8 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #if defined(__OPTIMIZE__)
   if (detail::IsConstantRawAltivecVect(v.raw)) {
     constexpr uint64_t kMaxU64 = LimitsMax<uint64_t>();
-    const __vector unsigned long long raw_result = {
+    return Dup128VecFromValues(
+        D(),
         (v.raw[0] >= 0.0) ? ((v.raw[0] < 18446744073709551616.0)
                                  ? static_cast<uint64_t>(v.raw[0])
                                  : kMaxU64)
@@ -4092,42 +4121,17 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
         (v.raw[1] >= 0.0) ? ((v.raw[1] < 18446744073709551616.0)
                                  ? static_cast<uint64_t>(v.raw[1])
                                  : kMaxU64)
-                          : 0,
-    };
-    return VFromD<D>{raw_result};
+                          : 0);
   }
 #endif
 
-  // The inline assembly statement below prevents the compiler from incorrectly
-  // optimizing out the F64->U64 conversion if the values of any lanes of v are
-  // outside of the range of an uint64_t.
-  __asm__("" : "+wa"(v.raw)::);
-#if HWY_COMPILER_CLANG && HWY_HAS_BUILTIN(__builtin_convertvector)
-  // Use the __builtin_convertvector intrinsic on Clang if the
-  // __builtin_convertvector intrinsic is available as vec_ctu incorrectly
-  // converts values using xvcvdpuxws instead of xvcvdpuxds if
-  // __XL_COMPAT_ALTIVEC__ is defined
-  VFromD<D> result{__builtin_convertvector(v.raw, __vector unsigned long long)};
-#else
-  VFromD<D> result{vec_ctu(v.raw, 0)};
-#endif
-  HWY_DIAGNOSTICS(pop)
-  // The inline assembly statement below prevents the compiler from incorrectly
-  // assuming that result[i] is always less than or equal to
-  // 18446744073709549568 as the VSX xvcvdpuxds instruction can return
-  // 18446744073709551615 if v[i] >= 18446744073709551616 is true.
-  __asm__("" : "+wa"(result.raw)::);
-  return result;
-}
-
-template <size_t N>
-HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
-  HWY_DIAGNOSTICS(push)
-#if HWY_COMPILER_CLANG
-  HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
-#endif
-  return Vec128<int32_t, N>{vec_cts(vec_round(v.raw), 0)};
-  HWY_DIAGNOSTICS(pop)
+  // Use inline assembly to avoid undefined behavior if v[i] is not within the
+  // range of an uint64_t
+  __vector unsigned long long raw_result;
+  __asm__("xvcvdpuxds %x0,%x1"
+          : "=wa"(raw_result)
+          : "wa"(detail::VsxF2INormalizeSrcVals(v).raw));
+  return VFromD<D>{raw_result};
 }
 
 // ------------------------------ Floating-point rounding (ConvertTo)
@@ -4141,6 +4145,13 @@ HWY_API Vec128<float, N> Round(Vec128<float, N> v) {
 template <size_t N>
 HWY_API Vec128<double, N> Round(Vec128<double, N> v) {
   return Vec128<double, N>{vec_rint(v.raw)};
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return ConvertTo(di, Round(v));
 }
 
 // Toward zero, aka truncate

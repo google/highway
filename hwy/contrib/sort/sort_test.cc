@@ -665,10 +665,8 @@ void TestSort(size_t num_lanes) {
         HWY_ASSERT(VerifySort(st, input_stats, lanes, num_lanes, "TestSort"));
 
         // Check red zones
-#if HWY_IS_MSAN
-        __msan_unpoison(aligned.get(), misalign * sizeof(LaneType));
-        __msan_unpoison(lanes + num_lanes, kMaxMisalign * sizeof(LaneType));
-#endif
+        detail::MaybeUnpoison(aligned.get(), misalign);
+        detail::MaybeUnpoison(lanes + num_lanes, kMaxMisalign);
         for (size_t i = 0; i < misalign; ++i) {
           if (aligned[i] != hwy::LowestValue<LaneType>())
             HWY_ABORT("Overrun left at %d\n", static_cast<int>(i));

@@ -411,9 +411,10 @@ example `Lt` instead of `operator<`.
     the given value of type `T`.
 *   <code>V **Undefined**(D)</code>: returns uninitialized N-lane vector, e.g.
     for use as an output parameter.
-*   <code>V **Iota**(D, T)</code>: returns N-lane vector where the lane with
-    index `i` has the given value of type `T` plus `i`. The least significant
-    lane has index 0. This is useful in tests for detecting lane-crossing bugs.
+*   <code>V **Iota**(D, T2)</code>: returns N-lane vector where the lane with
+    index `i` has the given value of type `T2` (the op converts it to T) + `i`.
+    The least significant lane has index 0. This is useful in tests for
+    detecting lane-crossing bugs.
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
 *   <code>V **Dup128VecFromValues**(D d, T t0, .., T tK)</code>: Creates a

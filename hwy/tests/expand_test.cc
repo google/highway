@@ -13,8 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <string.h>  // memset
 
 #include <array>  // IWYU pragma: keep
 
@@ -76,13 +77,11 @@ struct TestExpand {
       HWY_ASSERT(in_lanes && mask_lanes && expected && actual_a && bits);
 
       T* actual_u = actual_a.get() + misalign;
-      memset(bits.get(), 0, bits_size);  // Prevents MSAN error.
+      ZeroBytes(bits.get(), bits_size);  // Prevents MSAN error.
 
       // Random input vector, used in all iterations.
       for (size_t i = 0; i < N; ++i) {
-        const uint64_t r = Random32(&rng);
-        in_lanes[i] = T();  // Zero, but also works for float16_t.
-        CopyBytes<sizeof(T)>(&r, &in_lanes[i]);  // Note: not the same size.
+        in_lanes[i] = RandomFiniteValue<T>(&rng);
       }
 
       // Each lane should have a chance of having mask=true.
@@ -93,7 +92,7 @@ struct TestExpand {
           if (mask_lanes[i] > 0) {
             expected[i] = in_lanes[in_pos++];
           } else {
-            expected[i] = T();  // Zero, but also works for float16_t.
+            expected[i] = ConvertScalarTo<T>(0);
           }
         }
 
@@ -103,13 +102,13 @@ struct TestExpand {
         StoreMaskBits(d, mask, bits.get());
 
         // Expand
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         StoreU(Expand(in, mask), d, actual_u);
         CheckExpanded(d, di, "Expand", in_lanes, mask_lanes, expected, actual_u,
                       __LINE__);
 
         // LoadExpand
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         StoreU(LoadExpand(mask, d, in_lanes.get()), d, actual_u);
         CheckExpanded(d, di, "LoadExpand", in_lanes, mask_lanes, expected,
                       actual_u, __LINE__);

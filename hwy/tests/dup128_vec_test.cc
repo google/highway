@@ -79,13 +79,13 @@ struct TestDup128VecFromValues {
     return F16FromF32(static_cast<float>(val));
   }
 
-  template <class D, class T, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
-  static HWY_INLINE Vec<D> BlockwiseIota(D d, T start) {
+  template <class D, typename T2, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
+  static HWY_INLINE Vec<D> BlockwiseIota(D d, T2 start) {
     return BroadcastBlock<0>(Iota(d, static_cast<TFromD<D>>(start)));
   }
 
-  template <class D, class T, HWY_IF_BF16_D(D)>
-  static HWY_INLINE Vec<D> BlockwiseIota(D d, T start) {
+  template <class D, typename T2, HWY_IF_BF16_D(D)>
+  static HWY_INLINE Vec<D> BlockwiseIota(D d, T2 start) {
 #if HWY_TARGET == HWY_SCALAR
     return Set(d, BF16FromF32(static_cast<float>(start)));
 #else  // HWY_TARGET != HWY_SCALAR
@@ -100,25 +100,23 @@ struct TestDup128VecFromValues {
 #endif
     const Rebind<bfloat16_t, decltype(df32)> dbf16;
 
-    const auto vbf16_iota =
-        DemoteTo(dbf16, Iota(df32, static_cast<float>(start)));
+    const auto vbf16_iota = DemoteTo(dbf16, Iota(df32, start));
 #else
     const FixedTag<float, 4> df32;
     const Repartition<bfloat16_t, decltype(df32)> dbf16;
 
-    const auto vbf16_iota =
-        OrderedDemote2To(dbf16, Iota(df32, static_cast<float>(start)),
-                         Iota(df32, static_cast<float>(start) + 4.0f));
+    const auto vbf16_iota = OrderedDemote2To(
+        dbf16, Iota(df32, start), Iota(df32, static_cast<float>(start) + 4.0f));
 #endif
 
     return BroadcastBlock<0>(ResizeBitCast(d, vbf16_iota));
 #endif  // HWY_TARGET == HWY_SCALAR
   }
 
-  template <class D, class T, HWY_IF_F16_D(D)>
-  static HWY_INLINE Vec<D> BlockwiseIota(D d, T start) {
+  template <class D, typename T2, HWY_IF_F16_D(D)>
+  static HWY_INLINE Vec<D> BlockwiseIota(D d, T2 start) {
 #if HWY_HAVE_FLOAT16
-    return BroadcastBlock<0>(Iota(d, static_cast<TFromD<D>>(start)));
+    return BroadcastBlock<0>(Iota(d, start));
 #elif HWY_TARGET == HWY_SCALAR
     return Set(d, F16FromF32(static_cast<float>(start)));
 #else  // !HWY_HAVE_FLOAT16 && HWY_TARGET != HWY_SCALAR
@@ -133,8 +131,7 @@ struct TestDup128VecFromValues {
 #endif
     const Rebind<float16_t, decltype(df32)> df16;
 
-    const auto vf16_iota =
-        DemoteTo(df16, Iota(df32, static_cast<float>(start)));
+    const auto vf16_iota = DemoteTo(df16, Iota(df32, start));
 #else
     const FixedTag<float, 4> df32;
     const Repartition<float16_t, decltype(df32)> df16;
@@ -142,7 +139,7 @@ struct TestDup128VecFromValues {
 
     const auto vf16_iota = Combine(
         df16, DemoteTo(dh_f16, Iota(df32, static_cast<float>(start) + 4.0f)),
-        DemoteTo(dh_f16, Iota(df32, static_cast<float>(start))));
+        DemoteTo(dh_f16, Iota(df32, start)));
 #endif
 
     return BroadcastBlock<0>(ResizeBitCast(d, vf16_iota));
