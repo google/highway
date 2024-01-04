@@ -45,16 +45,28 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// Like Iota, but avoids wrapping around to negative integers.
+template <class D, HWY_IF_FLOAT_D(D)>
+HWY_INLINE Vec<D> PositiveIota(D d) {
+  return Iota(d, 1);
+}
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+HWY_INLINE Vec<D> PositiveIota(D d) {
+  const auto vi = Iota(d, 1);
+  return Max(And(vi, Set(d, LimitsMax<TFromD<D>>())),
+             Set(d, static_cast<TFromD<D>>(1)));
+}
+
 // Same as Iota, but supports bf16. This is possibly too expensive for general
 // use, but fine for tests.
 template <class D, typename First, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 VFromD<D> IotaForSpecial(D d, First first) {
-  return Iota(d, static_cast<TFromD<D>>(first));
+  return Iota(d, first);
 }
 #if HWY_HAVE_FLOAT16
 template <class D, typename First, HWY_IF_F16_D(D), HWY_IF_LANES_GT_D(D, 1)>
 VFromD<D> IotaForSpecial(D d, First first) {
-  return Iota(d, ConvertScalarTo<TFromD<D>>(first));
+  return Iota(d, first);
 }
 #else   // !HWY_HAVE_FLOAT16
 template <class D, typename First, HWY_IF_F16_D(D), HWY_IF_LANES_GT_D(D, 1),
@@ -92,7 +104,7 @@ template <class D, typename First, HWY_IF_BF16_D(D), HWY_IF_LANES_GT_D(D, 1),
           HWY_IF_POW2_LE_D(D, -1)>
 VFromD<D> IotaForSpecial(D d, First first) {
   const Rebind<float, D> df;
-  return DemoteTo(d, Iota(df, ConvertScalarTo<float>(first)));
+  return DemoteTo(d, Iota(df, first));
 }
 // OrderedDemote2To does not work for single lanes, so special-case that.
 template <class D, typename First, HWY_IF_SPECIAL_FLOAT_D(D),

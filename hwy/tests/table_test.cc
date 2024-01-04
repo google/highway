@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>  // memset
+#include <stddef.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/table_test.cc"
@@ -35,7 +35,7 @@ struct TestTableLookupLanes {
     auto idx = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(idx && expected);
-    memset(idx.get(), 0, N * sizeof(TI));
+    ZeroBytes(idx.get(), N * sizeof(TI));
     const auto v = Iota(d, 1);
 
     if (N <= 8) {  // Test all permutations
@@ -113,7 +113,7 @@ struct TestTwoTablesLookupLanes {
     auto idx = AllocateAligned<TU>(twiceN);
     auto expected = AllocateAligned<T>(twiceN);
     HWY_ASSERT(idx && expected);
-    memset(idx.get(), 0, twiceN * sizeof(TU));
+    ZeroBytes(idx.get(), twiceN * sizeof(TU));
     const auto a = Iota(d, 1);
     const auto b = Add(a, Set(d, ConvertScalarTo<T>(N)));
 

@@ -38,10 +38,10 @@ constexpr uint64_t FirstBits<64>() {
 struct TestUnsignedMul {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v0 = Zero(d);
-    const auto v1 = Set(d, T(1));
-    const auto vi = Iota(d, 1);
-    const auto vj = Iota(d, 3);
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v1 = Set(d, static_cast<T>(1));
+    const Vec<D> vi = Iota(d, 1);
+    const Vec<D> vj = Iota(d, 3);
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
@@ -78,10 +78,11 @@ struct TestSignedMul {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
 
-    const auto v0 = Zero(d);
-    const auto v1 = Set(d, T(1));
-    const auto vi = Iota(d, 1);
-    const auto vn = Iota(d, -T(N));  // no i8 supported, so no wraparound
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> v1 = Set(d, static_cast<T>(1));
+    const Vec<D> vi = Iota(d, 1);
+    // i8 is not supported, so T is large enough to avoid wraparound.
+    const Vec<D> vn = Iota(d, -static_cast<T>(N));
     HWY_ASSERT_VEC_EQ(d, v0, Mul(v0, v0));
     HWY_ASSERT_VEC_EQ(d, v1, Mul(v1, v1));
     HWY_ASSERT_VEC_EQ(d, vi, Mul(v1, vi));
@@ -93,7 +94,8 @@ struct TestSignedMul {
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vi));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = ConvertScalarTo<T>((-T(N) + T(i)) * T(1u + i));
+      expected[i] = static_cast<T>((-static_cast<T>(N) + static_cast<T>(i)) *
+                                   static_cast<T>(1 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vn, vi));
     HWY_ASSERT_VEC_EQ(d, expected.get(), Mul(vi, vn));
@@ -111,8 +113,8 @@ struct TestMulOverflow {
 struct TestDivOverflow {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto vZero = Set(d, T(0));
-    const auto v1 = Set(d, T(1));
+    const Vec<D> vZero = Set(d, ConvertScalarTo<T>(0));
+    const Vec<D> v1 = Set(d, ConvertScalarTo<T>(1));
     HWY_ASSERT_VEC_EQ(d, Div(v1, vZero), Div(v1, vZero));
   }
 };
@@ -134,33 +136,37 @@ struct TestMulHigh {
     auto in_lanes = AllocateAligned<T>(N);
     auto expected_lanes = AllocateAligned<T>(N);
 
-    const auto vi = Iota(d, 1);
+    const Vec<D> vi = Iota(d, 1);
     // no i8 supported, so no wraparound
-    const auto vni = Iota(d, ConvertScalarTo(~N + 1));
+    const Vec<D> vni = Iota(d, ConvertScalarTo(~N + 1));
 
-    const auto v0 = Zero(d);
+    const Vec<D> v0 = Zero(d);
     HWY_ASSERT_VEC_EQ(d, v0, MulHigh(v0, v0));
     HWY_ASSERT_VEC_EQ(d, v0, MulHigh(v0, vi));
     HWY_ASSERT_VEC_EQ(d, v0, MulHigh(vi, v0));
 
     // Large positive squared
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = T(LimitsMax<T>() >> i);
-      expected_lanes[i] = T((Wide(in_lanes[i]) * in_lanes[i]) >> 16);
+      in_lanes[i] = static_cast<T>(LimitsMax<T>() >> i);
+      expected_lanes[i] =
+          static_cast<T>((Wide(in_lanes[i]) * in_lanes[i]) >> 16);
     }
-    auto v = Load(d, in_lanes.get());
+    Vec<D> v = Load(d, in_lanes.get());
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, v));
 
     // Large positive * small positive
     for (size_t i = 0; i < N; ++i) {
-      expected_lanes[i] = T((Wide(in_lanes[i]) * T(1u + i)) >> 16);
+      expected_lanes[i] =
+          static_cast<T>((Wide(in_lanes[i]) * static_cast<T>(1 + i)) >> 16);
     }
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, vi));
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(vi, v));
 
     // Large positive * small negative
     for (size_t i = 0; i < N; ++i) {
-      expected_lanes[i] = T((Wide(in_lanes[i]) * T(i - N)) >> 16);
+      const T neg = static_cast<T>(static_cast<T>(i) - static_cast<T>(N));
+      expected_lanes[i] =
+          static_cast<T>((static_cast<Wide>(in_lanes[i]) * neg) >> 16);
     }
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(v, vni));
     HWY_ASSERT_VEC_EQ(d, expected_lanes.get(), MulHigh(vni, v));
@@ -447,7 +453,7 @@ struct TestMulSub {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const Vec<D> k0 = Zero(d);
-    const Vec<D> kNeg0 = Set(d, T(-0.0));
+    const Vec<D> kNeg0 = Set(d, ConvertScalarTo<T>(-0.0));
     const Vec<D> v1 = Iota(d, 1);
     const Vec<D> v2 = Iota(d, 2);
     const size_t N = Lanes(d);
@@ -457,7 +463,7 @@ struct TestMulSub {
     HWY_ASSERT_VEC_EQ(d, kNeg0, NegMulSub(k0, k0, k0));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = -T(i + 2);
+      expected[i] = -ConvertScalarTo<T>(i + 2);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(k0, v1, v2));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v1, k0, v2));

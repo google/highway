@@ -243,8 +243,9 @@ struct TestPromoteOddEvenTo {
   static HWY_INLINE ToT CastValueToWide(hwy::UnsignedTag /* to_type_tag */,
                                         hwy::FloatTag /* from_type_tag */,
                                         T val) {
-    const T kMinOutOfRangePosVal = ConvertScalarTo<T>(
-        -ConvertScalarTo<T>(LimitsMin<MakeSigned<ToT>>()) * T(2));
+    const T kMinOutOfRangePosVal =
+        ConvertScalarTo<T>(-ConvertScalarTo<T>(LimitsMin<MakeSigned<ToT>>()) *
+                           ConvertScalarTo<T>(2));
     if (val < ConvertScalarTo<T>(0)) {
       return ToT{0};
     } else if (val >= kMinOutOfRangePosVal) {
@@ -638,25 +639,28 @@ class TestIntFromFloat {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), ConvertTo(di, Iota(df, TF(4.0))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 4), ConvertTo(di, Iota(df, 4.0)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), ConvertTo(di, Iota(df, -TF(N))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -static_cast<TI>(N)),
+                      ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(2)), ConvertTo(di, Iota(df, TF(2.001))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 2), ConvertTo(di, Iota(df, 2.001)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(3)), ConvertTo(di, Iota(df, TF(3.9999))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 3), ConvertTo(di, Iota(df, 3.9999)));
 
     const TF eps = static_cast<TF>(0.0001);
     // Above negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)),
-                      ConvertTo(di, Iota(df, -TF(N + 1) + eps)));
+    HWY_ASSERT_VEC_EQ(
+        di, Iota(di, -static_cast<TI>(N)),
+        ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) + eps)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
-                      ConvertTo(di, Iota(df, -TF(N + 1) - eps)));
+    HWY_ASSERT_VEC_EQ(
+        di, Iota(di, -static_cast<TI>(N + 1)),
+        ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) - eps)));
 
     TestPowers(tf, df);
     TestRandom(tf, df);
@@ -749,23 +753,28 @@ class TestUintFromFloat {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(4)), ConvertTo(du, Iota(df, TF(4.0))));
+    HWY_ASSERT_VEC_EQ(du, Iota(du, 4), ConvertTo(du, Iota(df, 4.0)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N))));
+    HWY_ASSERT_VEC_EQ(du, Zero(du),
+                      ConvertTo(du, Iota(df, -ConvertScalarTo<TF>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(2)), ConvertTo(du, Iota(df, TF(2.001))));
+    HWY_ASSERT_VEC_EQ(du, Iota(du, 2), ConvertTo(du, Iota(df, 2.001)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(3)), ConvertTo(du, Iota(df, TF(3.9999))));
+    HWY_ASSERT_VEC_EQ(du, Iota(du, 3), ConvertTo(du, Iota(df, 3.9999)));
 
     const TF eps = static_cast<TF>(0.0001);
     // Above negative
-    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N + 1) + eps)));
+    HWY_ASSERT_VEC_EQ(
+        du, Zero(du),
+        ConvertTo(du, Iota(df, -ConvertScalarTo<TF>(N + 1) + eps)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N + 1) - eps)));
+    HWY_ASSERT_VEC_EQ(
+        du, Zero(du),
+        ConvertTo(du, Iota(df, -ConvertScalarTo<TF>(N + 1) - eps)));
 
     TestPowers(tf, df);
     TestRandom(tf, df);
@@ -785,10 +794,11 @@ struct TestFloatFromInt {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(di, TI(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), ConvertTo(df, Iota(di, 4)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, -TF(N)), ConvertTo(df, Iota(di, -TI(N))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, -ConvertScalarTo<TF>(N)),
+                      ConvertTo(df, Iota(di, -static_cast<TI>(N))));
 
     // Max positive
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
@@ -811,11 +821,11 @@ struct TestFloatFromUint {
     const RebindToUnsigned<DF> du;
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TU(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), ConvertTo(df, Iota(du, 4)));
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(32767.0)),
                       ConvertTo(df, Set(du, 32767)));  // 2^16-1
     if (sizeof(TF) > 4) {
-      HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)),
+      HWY_ASSERT_VEC_EQ(df, Iota(df, 4294967295.0),
                         ConvertTo(df, Iota(du, 4294967295ULL)));  // 2^32-1
     }
 
@@ -840,22 +850,24 @@ struct TestI32F64 {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, TI(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), PromoteTo(df, Iota(di, 4)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, -TF(N)), PromoteTo(df, Iota(di, -TI(N))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, -ConvertScalarTo<TF>(N)),
+                      PromoteTo(df, Iota(di, -static_cast<TI>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(2.0)), PromoteTo(df, Iota(di, TI(2))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 2.0), PromoteTo(df, Iota(di, 2)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, TI(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), PromoteTo(df, Iota(di, 4)));
 
     // Above negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-4.0)), PromoteTo(df, Iota(di, TI(-4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, ConvertScalarTo<TF>(-4.0)),
+                      PromoteTo(df, Iota(di, -4)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), PromoteTo(df, Iota(di, TI(-2))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, -2.0), PromoteTo(df, Iota(di, -2)));
 
     // Max positive int
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),

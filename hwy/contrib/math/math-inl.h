@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_MATH_MATH_INL_H_
 #endif
 
+#include <stddef.h>
+
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -37,7 +39,7 @@ namespace HWY_NAMESPACE {
  * @return arc cosine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Acos(const D d, V x);
+HWY_INLINE V Acos(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAcos(const D d, VecArg<V> x) {
   return Acos(d, x);
@@ -52,7 +54,7 @@ HWY_NOINLINE V CallAcos(const D d, VecArg<V> x) {
  * @return hyperbolic arc cosine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Acosh(const D d, V x);
+HWY_INLINE V Acosh(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAcosh(const D d, VecArg<V> x) {
   return Acosh(d, x);
@@ -67,7 +69,7 @@ HWY_NOINLINE V CallAcosh(const D d, VecArg<V> x) {
  * @return arc sine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Asin(const D d, V x);
+HWY_INLINE V Asin(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAsin(const D d, VecArg<V> x) {
   return Asin(d, x);
@@ -82,7 +84,7 @@ HWY_NOINLINE V CallAsin(const D d, VecArg<V> x) {
  * @return hyperbolic arc sine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Asinh(const D d, V x);
+HWY_INLINE V Asinh(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAsinh(const D d, VecArg<V> x) {
   return Asinh(d, x);
@@ -97,7 +99,7 @@ HWY_NOINLINE V CallAsinh(const D d, VecArg<V> x) {
  * @return arc tangent of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Atan(const D d, V x);
+HWY_INLINE V Atan(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAtan(const D d, VecArg<V> x) {
   return Atan(d, x);
@@ -112,7 +114,7 @@ HWY_NOINLINE V CallAtan(const D d, VecArg<V> x) {
  * @return hyperbolic arc tangent of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Atanh(const D d, V x);
+HWY_INLINE V Atanh(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallAtanh(const D d, VecArg<V> x) {
   return Atanh(d, x);
@@ -175,7 +177,7 @@ HWY_NOINLINE V CallAtan2(const D d, VecArg<V> y, VecArg<V> x) {
  * @return cosine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Cos(const D d, V x);
+HWY_INLINE V Cos(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
   return Cos(d, x);
@@ -190,7 +192,7 @@ HWY_NOINLINE V CallCos(const D d, VecArg<V> x) {
  * @return e^x
  */
 template <class D, class V>
-HWY_INLINE V Exp(const D d, V x);
+HWY_INLINE V Exp(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
   return Exp(d, x);
@@ -205,7 +207,7 @@ HWY_NOINLINE V CallExp(const D d, VecArg<V> x) {
  * @return e^x - 1
  */
 template <class D, class V>
-HWY_INLINE V Expm1(const D d, V x);
+HWY_INLINE V Expm1(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
   return Expm1(d, x);
@@ -220,7 +222,7 @@ HWY_NOINLINE V CallExpm1(const D d, VecArg<V> x) {
  * @return natural logarithm of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Log(const D d, V x);
+HWY_INLINE V Log(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
   return Log(d, x);
@@ -235,7 +237,7 @@ HWY_NOINLINE V CallLog(const D d, VecArg<V> x) {
  * @return base 10 logarithm of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Log10(const D d, V x);
+HWY_INLINE V Log10(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
   return Log10(d, x);
@@ -250,7 +252,7 @@ HWY_NOINLINE V CallLog10(const D d, VecArg<V> x) {
  * @return log(1 + x)
  */
 template <class D, class V>
-HWY_INLINE V Log1p(const D d, V x);
+HWY_INLINE V Log1p(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
   return Log1p(d, x);
@@ -265,7 +267,7 @@ HWY_NOINLINE V CallLog1p(const D d, VecArg<V> x) {
  * @return base 2 logarithm of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Log2(const D d, V x);
+HWY_INLINE V Log2(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
   return Log2(d, x);
@@ -280,7 +282,7 @@ HWY_NOINLINE V CallLog2(const D d, VecArg<V> x) {
  * @return sine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Sin(const D d, V x);
+HWY_INLINE V Sin(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
   return Sin(d, x);
@@ -295,7 +297,7 @@ HWY_NOINLINE V CallSin(const D d, VecArg<V> x) {
  * @return hyperbolic sine of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Sinh(const D d, V x);
+HWY_INLINE V Sinh(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
   return Sinh(d, x);
@@ -310,7 +312,7 @@ HWY_NOINLINE V CallSinh(const D d, VecArg<V> x) {
  * @return hyperbolic tangent of 'x'
  */
 template <class D, class V>
-HWY_INLINE V Tanh(const D d, V x);
+HWY_INLINE V Tanh(D d, V x);
 template <class D, class V>
 HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
   return Tanh(d, x);
@@ -327,7 +329,7 @@ HWY_NOINLINE V CallTanh(const D d, VecArg<V> x) {
  * @return sine and cosine of 'x'
  */
 template <class D, class V>
-HWY_INLINE void SinCos(const D d, V x, V& s, V& c);
+HWY_INLINE void SinCos(D d, V x, V& s, V& c);
 template <class D, class V>
 HWY_NOINLINE V CallSinCos(const D d, VecArg<V> x, VecArg<V>& s, VecArg<V>& c) {
   SinCos(d, x, s, c);
@@ -1029,13 +1031,13 @@ HWY_INLINE void SinCos3(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   const VI ci_1 = Set(di, 1);
   const VI ci_2 = Set(di, 2);
   const VI ci_4 = Set(di, 4);
-  const V cos_p0 = Set(d, T(2.443315711809948E-005));
-  const V cos_p1 = Set(d, T(-1.388731625493765E-003));
-  const V cos_p2 = Set(d, T(4.166664568298827E-002));
-  const V sin_p0 = Set(d, T(-1.9515295891E-4));
-  const V sin_p1 = Set(d, T(8.3321608736E-3));
-  const V sin_p2 = Set(d, T(-1.6666654611E-1));
-  const V FOPI = Set(d, T(1.27323954473516));  // 4 / M_PI
+  const V cos_p0 = Set(d, ConvertScalarTo<T>(2.443315711809948E-005));
+  const V cos_p1 = Set(d, ConvertScalarTo<T>(-1.388731625493765E-003));
+  const V cos_p2 = Set(d, ConvertScalarTo<T>(4.166664568298827E-002));
+  const V sin_p0 = Set(d, ConvertScalarTo<T>(-1.9515295891E-4));
+  const V sin_p1 = Set(d, ConvertScalarTo<T>(8.3321608736E-3));
+  const V sin_p2 = Set(d, ConvertScalarTo<T>(-1.6666654611E-1));
+  const V FOPI = Set(d, ConvertScalarTo<T>(1.27323954473516));  // 4 / M_PI
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
   const V DP3 = Set(d, dp3);
@@ -1128,19 +1130,20 @@ HWY_INLINE void SinCos6(D d, TFromD<D> dp1, TFromD<D> dp2, TFromD<D> dp3, V x,
   const VI ci_1 = Set(di, 1);
   const VI ci_2 = Set(di, 2);
   const VI ci_4 = Set(di, 4);
-  const V cos_p0 = Set(d, T(-1.13585365213876817300E-11));
-  const V cos_p1 = Set(d, T(2.08757008419747316778E-9));
-  const V cos_p2 = Set(d, T(-2.75573141792967388112E-7));
-  const V cos_p3 = Set(d, T(2.48015872888517045348E-5));
-  const V cos_p4 = Set(d, T(-1.38888888888730564116E-3));
-  const V cos_p5 = Set(d, T(4.16666666666665929218E-2));
-  const V sin_p0 = Set(d, T(1.58962301576546568060E-10));
-  const V sin_p1 = Set(d, T(-2.50507477628578072866E-8));
-  const V sin_p2 = Set(d, T(2.75573136213857245213E-6));
-  const V sin_p3 = Set(d, T(-1.98412698295895385996E-4));
-  const V sin_p4 = Set(d, T(8.33333333332211858878E-3));
-  const V sin_p5 = Set(d, T(-1.66666666666666307295E-1));
-  const V FOPI = Set(d, T(1.2732395447351626861510701069801148));  // 4 / M_PI
+  const V cos_p0 = Set(d, ConvertScalarTo<T>(-1.13585365213876817300E-11));
+  const V cos_p1 = Set(d, ConvertScalarTo<T>(2.08757008419747316778E-9));
+  const V cos_p2 = Set(d, ConvertScalarTo<T>(-2.75573141792967388112E-7));
+  const V cos_p3 = Set(d, ConvertScalarTo<T>(2.48015872888517045348E-5));
+  const V cos_p4 = Set(d, ConvertScalarTo<T>(-1.38888888888730564116E-3));
+  const V cos_p5 = Set(d, ConvertScalarTo<T>(4.16666666666665929218E-2));
+  const V sin_p0 = Set(d, ConvertScalarTo<T>(1.58962301576546568060E-10));
+  const V sin_p1 = Set(d, ConvertScalarTo<T>(-2.50507477628578072866E-8));
+  const V sin_p2 = Set(d, ConvertScalarTo<T>(2.75573136213857245213E-6));
+  const V sin_p3 = Set(d, ConvertScalarTo<T>(-1.98412698295895385996E-4));
+  const V sin_p4 = Set(d, ConvertScalarTo<T>(8.33333333332211858878E-3));
+  const V sin_p5 = Set(d, ConvertScalarTo<T>(-1.66666666666666307295E-1));
+  const V FOPI =  // 4 / M_PI
+      Set(d, ConvertScalarTo<T>(1.2732395447351626861510701069801148));
   const V DP1 = Set(d, dp1);
   const V DP2 = Set(d, dp2);
   const V DP3 = Set(d, dp3);

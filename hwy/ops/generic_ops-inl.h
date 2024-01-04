@@ -2174,9 +2174,7 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 
   BlendedStore(v, FirstN(d, clamped_max_lanes_to_store), d, p);
 
-#if HWY_MEM_OPS_MIGHT_FAULT
   detail::MaybeUnpoison(p, clamped_max_lanes_to_store);
-#endif
 }
 #endif  // HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
 

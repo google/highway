@@ -19,7 +19,6 @@
 
 #include "hwy/contrib/thread_pool/thread_pool.h"
 
-#include <algorithm>
 #include <atomic>
 #include <vector>
 
@@ -44,17 +43,17 @@ TEST(ThreadPoolTest, TestPool) {
     for (uint32_t num_tasks = 0; num_tasks < 20; ++num_tasks) {
       std::vector<size_t> mementos(num_tasks);
       for (uint32_t begin = 0; begin < AdjustedReps(32); ++begin) {
-        std::fill(mementos.begin(), mementos.end(), 0);
+        ZeroBytes(mementos.data(), mementos.size() * sizeof(size_t));
         EXPECT_TRUE(pool.Run(begin, begin + num_tasks, ThreadPool::NoInit,
-                              [&](const uint32_t task, size_t /*thread*/) {
-                                // Parameter is in the given range
-                                EXPECT_GE(task, begin);
-                                EXPECT_LT(task, begin + num_tasks);
+                             [&](const uint32_t task, size_t /*thread*/) {
+                               // Parameter is in the given range
+                               EXPECT_GE(task, begin);
+                               EXPECT_LT(task, begin + num_tasks);
 
-                                // Store mementos to be sure we visited each
-                                // task.
-                                mementos.at(task - begin) = 1000 + task;
-                              }));
+                               // Store mementos to be sure we visited each
+                               // task.
+                               mementos.at(task - begin) = 1000 + task;
+                             }));
         for (size_t task = begin; task < begin + num_tasks; ++task) {
           EXPECT_EQ(1000 + task, mementos.at(task - begin));
         }
@@ -115,9 +114,9 @@ TEST(ThreadPoolTest, TestCounter) {
 
   const uint32_t kNumTasks = kNumThreads * 19;
   EXPECT_TRUE(pool.Run(0, kNumTasks, ThreadPool::NoInit,
-                        [&counters](const uint32_t task, const size_t thread) {
-                          counters[thread].counter += task;
-                        }));
+                       [&counters](const uint32_t task, const size_t thread) {
+                         counters[thread].counter += task;
+                       }));
 
   uint32_t expected = 0;
   for (uint32_t i = 0; i < kNumTasks; ++i) {

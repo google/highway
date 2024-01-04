@@ -51,13 +51,14 @@ struct TestSumOfLanes {
 
     // Lanes are the repeated sequence -2, 1, [...]; each pair sums to -1,
     // so the eventual total is just -(N/2).
-    Vec<decltype(d)> v =
-        InterleaveLower(Set(d, ConvertScalarTo<T>(-2)), Set(d, T{1}));
+    Vec<decltype(d)> v = InterleaveLower(Set(d, ConvertScalarTo<T>(-2)),
+                                         Set(d, ConvertScalarTo<T>(1)));
     HWY_ASSERT_VEC_EQ(d, Set(d, ConvertScalarTo<T>(-pairs)), SumOfLanes(d, v));
     HWY_ASSERT_EQ(ConvertScalarTo<T>(-pairs), ReduceSum(d, v));
 
     // Similar test with a positive result.
-    v = InterleaveLower(Set(d, ConvertScalarTo<T>(-2)), Set(d, T{4}));
+    v = InterleaveLower(Set(d, ConvertScalarTo<T>(-2)),
+                        Set(d, ConvertScalarTo<T>(4)));
     HWY_ASSERT_VEC_EQ(d, Set(d, ConvertScalarTo<T>(pairs * 2)),
                       SumOfLanes(d, v));
     HWY_ASSERT_EQ(ConvertScalarTo<T>(pairs * 2), ReduceSum(d, v));
@@ -70,22 +71,21 @@ struct TestSumOfLanes {
     HWY_ASSERT(in_lanes);
 
     // Lane i = bit i, higher lanes 0
-    T sum = T{0};
+    T sum = ConvertScalarTo<T>(0);
     // Avoid setting sign bit and cap so that f16 precision is not exceeded.
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 9);
     for (size_t i = 0; i < N; ++i) {
       in_lanes[i] = ConvertScalarTo<T>(i < kBits ? 1ull << i : 0ull);
       sum = AddWithWraparound(sum, in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
-                      SumOfLanes(d, Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, sum), SumOfLanes(d, Load(d, in_lanes.get())));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Load(d, in_lanes.get())));
     // Lane i = i (iota) to include upper lanes
-    sum = T{0};
+    sum = ConvertScalarTo<T>(0);
     for (size_t i = 0; i < N; ++i) {
       sum = AddWithWraparound(sum, ConvertScalarTo<T>(i));
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
+    HWY_ASSERT_VEC_EQ(d, Set(d, sum), SumOfLanes(d, Iota(d, 0)));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Iota(d, 0)));
 
     // Run more tests only for signed types with even vector lengths. Some of

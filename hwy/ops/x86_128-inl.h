@@ -7127,7 +7127,7 @@ template <class D, HWY_IF_T_SIZE_ONE_OF_D(
                               (1 << 4) | (1 << 8))>
 HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
                     size_t max_lanes_to_store) {
-  const size_t num_of_lanes_to_store =
+  const size_t num_lanes_to_store =
       HWY_MIN(max_lanes_to_store, HWY_MAX_LANES_D(D));
 
 #if HWY_COMPILER_MSVC
@@ -7135,12 +7135,14 @@ HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
   HWY_FENCE;
 #endif
 
-  BlendedStore(v, FirstN(d, num_of_lanes_to_store), d, p);
+  BlendedStore(v, FirstN(d, num_lanes_to_store), d, p);
 
 #if HWY_COMPILER_MSVC
   // Work around MSVC compiler bug by using a HWY_FENCE after the BlendedStore
   HWY_FENCE;
 #endif
+
+  detail::MaybeUnpoison(p, num_lanes_to_store);
 }
 
 #if HWY_TARGET > HWY_AVX3
@@ -7168,27 +7170,27 @@ namespace detail {
 template <class D, HWY_IF_T_SIZE_D(D, 1)>
 HWY_API void AVX2UIF8Or16StoreTrailingN(VFromD<D> v_trailing, D /*d*/,
                                         TFromD<D>* HWY_RESTRICT p,
-                                        size_t num_of_lanes_to_store) {
+                                        size_t num_lanes_to_store) {
   // AVX2UIF8Or16StoreTrailingN should only be called for an I8/U8 vector if
-  // (num_of_lanes_to_store & 3) != 0 is true
+  // (num_lanes_to_store & 3) != 0 is true
   const auto v_full128 = ResizeBitCast(Full128<TFromD<D>>(), v_trailing);
-  if ((num_of_lanes_to_store & 2) != 0) {
+  if ((num_lanes_to_store & 2) != 0) {
     const uint16_t u16_bits = GetLane(BitCast(Full128<uint16_t>(), v_full128));
-    p[num_of_lanes_to_store - 1] = detail::ExtractLane<2>(v_full128);
+    p[num_lanes_to_store - 1] = detail::ExtractLane<2>(v_full128);
     CopyBytes<sizeof(uint16_t)>(&u16_bits,
-                                p + (num_of_lanes_to_store & ~size_t{3}));
+                                p + (num_lanes_to_store & ~size_t{3}));
   } else {
-    p[num_of_lanes_to_store - 1] = GetLane(v_full128);
+    p[num_lanes_to_store - 1] = GetLane(v_full128);
   }
 }
 
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_API void AVX2UIF8Or16StoreTrailingN(VFromD<D> v_trailing, D /*d*/,
                                         TFromD<D>* p,
-                                        size_t num_of_lanes_to_store) {
+                                        size_t num_lanes_to_store) {
   // AVX2UIF8Or16StoreTrailingN should only be called for an I16/U16/F16/BF16
-  // vector if (num_of_lanes_to_store & 1) == 1 is true
-  p[num_of_lanes_to_store - 1] = GetLane(v_trailing);
+  // vector if (num_lanes_to_store & 1) == 1 is true
+  p[num_lanes_to_store - 1] = GetLane(v_trailing);
 }
 
 }  // namespace detail
@@ -7196,7 +7198,7 @@ HWY_API void AVX2UIF8Or16StoreTrailingN(VFromD<D> v_trailing, D /*d*/,
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
           HWY_IF_LANES_GT_D(D, 2)>
 HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* p, size_t max_lanes_to_store) {
-  const size_t num_of_lanes_to_store =
+  const size_t num_lanes_to_store =
       HWY_MIN(max_lanes_to_store, HWY_MAX_LANES_D(D));
 
   const FixedTag<TFromD<D>, HWY_MAX(HWY_MAX_LANES_D(D), 16 / sizeof(TFromD<D>))>
@@ -7205,7 +7207,7 @@ HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* p, size_t max_lanes_to_store) {
   const Repartition<int32_t, decltype(d_full)> di32_full;
 
   const auto i32_store_mask = BitCast(
-      di32_full, VecFromMask(du_full, FirstN(du_full, num_of_lanes_to_store)));
+      di32_full, VecFromMask(du_full, FirstN(du_full, num_lanes_to_store)));
   const auto vi32 = ResizeBitCast(di32_full, v);
 
 #if HWY_COMPILER_MSVC
@@ -7218,19 +7220,21 @@ HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* p, size_t max_lanes_to_store) {
 
   constexpr size_t kNumOfLanesPerI32 = 4 / sizeof(TFromD<D>);
   constexpr size_t kTrailingLenMask = kNumOfLanesPerI32 - 1;
-  const size_t trailing_n = (num_of_lanes_to_store & kTrailingLenMask);
+  const size_t trailing_n = (num_lanes_to_store & kTrailingLenMask);
 
   if (trailing_n != 0) {
     const VFromD<D> v_trailing = ResizeBitCast(
         d, SlideDownLanes(di32_full, vi32,
-                          num_of_lanes_to_store / kNumOfLanesPerI32));
-    detail::AVX2UIF8Or16StoreTrailingN(v_trailing, d, p, num_of_lanes_to_store);
+                          num_lanes_to_store / kNumOfLanesPerI32));
+    detail::AVX2UIF8Or16StoreTrailingN(v_trailing, d, p, num_lanes_to_store);
   }
 
 #if HWY_COMPILER_MSVC
   // Work around MSVC compiler bug by using a HWY_FENCE after the BlendedStore
   HWY_FENCE;
 #endif
+
+  detail::MaybeUnpoison(p, num_lanes_to_store);
 }
 #endif  // HWY_TARGET > HWY_AVX3
 #endif  // HWY_TARGET <= HWY_AVX2

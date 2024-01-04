@@ -16,6 +16,7 @@
 // Single-element vectors and operations.
 // External include guard in highway.h - see comment there.
 
+#include <stdint.h>
 #ifndef HWY_NO_LIBCXX
 #include <math.h>  // sqrtf
 #endif
@@ -857,14 +858,17 @@ HWY_API Vec1<T> Round(const Vec1<T> v) {
   if (!(Abs(v).raw < MantissaEnd<T>())) {  // Huge or NaN
     return v;
   }
-  const T bias = v.raw < T(0.0) ? T(-0.5) : T(0.5);
-  const TI rounded = static_cast<TI>(v.raw + bias);
-  if (rounded == 0) return CopySignToAbs(Vec1<T>(0), v);
+  const T k0 = ConvertScalarTo<T>(0);
+  const T bias = ConvertScalarTo<T>(v.raw < k0 ? -0.5 : 0.5);
+  const TI rounded = ConvertScalarTo<TI>(v.raw + bias);
+  if (rounded == 0) return CopySignToAbs(Vec1<T>(k0), v);
+  TI offset = 0;
   // Round to even
-  if ((rounded & 1) && ScalarAbs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
-    return Vec1<T>(static_cast<T>(rounded - (v.raw < T(0) ? -1 : 1)));
+  if ((rounded & 1) && ScalarAbs(ConvertScalarTo<T>(rounded) - v.raw) ==
+                           ConvertScalarTo<T>(0.5)) {
+    offset = v.raw < k0 ? -1 : 1;
   }
-  return Vec1<T>(static_cast<T>(rounded));
+  return Vec1<T>(ConvertScalarTo<T>(rounded - offset));
 }
 
 // Round-to-nearest even.
@@ -877,19 +881,22 @@ HWY_API Vec1<int32_t> NearestInt(const Vec1<float> v) {
 
   if (!(abs < MantissaEnd<T>())) {  // Huge or NaN
     // Check if too large to cast or NaN
-    if (!(abs <= static_cast<T>(LimitsMax<TI>()))) {
+    if (!(abs <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
       return Vec1<TI>(is_sign ? LimitsMin<TI>() : LimitsMax<TI>());
     }
-    return Vec1<int32_t>(static_cast<TI>(v.raw));
+    return Vec1<int32_t>(ConvertScalarTo<TI>(v.raw));
   }
-  const T bias = v.raw < T(0.0) ? T(-0.5) : T(0.5);
-  const TI rounded = static_cast<TI>(v.raw + bias);
+  const T bias =
+      ConvertScalarTo<T>(v.raw < ConvertScalarTo<T>(0.0) ? -0.5 : 0.5);
+  const TI rounded = ConvertScalarTo<TI>(v.raw + bias);
   if (rounded == 0) return Vec1<int32_t>(0);
+  TI offset = 0;
   // Round to even
-  if ((rounded & 1) && ScalarAbs(static_cast<T>(rounded) - v.raw) == T(0.5)) {
-    return Vec1<TI>(rounded - (is_sign ? -1 : 1));
+  if ((rounded & 1) && ScalarAbs(ConvertScalarTo<T>(rounded) - v.raw) ==
+                           ConvertScalarTo<T>(0.5)) {
+    offset = is_sign ? -1 : 1;
   }
-  return Vec1<TI>(rounded);
+  return Vec1<TI>(rounded - offset);
 }
 
 template <typename T>
@@ -898,9 +905,9 @@ HWY_API Vec1<T> Trunc(const Vec1<T> v) {
   if (!(Abs(v).raw <= MantissaEnd<T>())) {  // Huge or NaN
     return v;
   }
-  const TI truncated = static_cast<TI>(v.raw);
+  const TI truncated = ConvertScalarTo<TI>(v.raw);
   if (truncated == 0) return CopySignToAbs(Vec1<T>(0), v);
-  return Vec1<T>(static_cast<T>(truncated));
+  return Vec1<T>(ConvertScalarTo<T>(truncated));
 }
 
 template <typename Float, typename Bits, int kMantissaBits, int kExponentBits,

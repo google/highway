@@ -159,9 +159,9 @@ struct TestGenerate {
 #else
     const Gen2 gen2;
 #endif
-    actual[count] = T{0};  // sentinel
+    actual[count] = ConvertScalarTo<T>(0);  // sentinel
     Generate(d, actual, count, gen2);
-    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write past end
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(0), actual[count]);  // no write past end
 
     const auto info = hwy::detail::MakeTypeInfo<T>();
     const char* target_name = hwy::TargetName(HWY_TARGET);
@@ -192,9 +192,9 @@ struct TestForeach {
     Vec<D> vmax = vmin;
     const auto func = [&vmax](const D, const Vec<D> v)
                           HWY_ATTR { vmax = Max(vmax, v); };
-    actual[count] = T{0};  // sentinel
+    actual[count] = ConvertScalarTo<T>(0);  // sentinel
     Foreach(d, actual, count, vmin, func);
-    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(0), actual[count]);  // no write past end
 
     const char* target_name = hwy::TargetName(HWY_TARGET);
     AssertEqual(max, ReduceMax(d, vmax), target_name, __FILE__, __LINE__);
