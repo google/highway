@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/blockwise_test.cc"
@@ -46,7 +46,7 @@ struct TestBroadcastR {
     const auto in = Load(d, in_lanes.get());
     for (size_t block = 0; block < N; block += blockN) {
       for (size_t i = 0; i < blockN; ++i) {
-        expected[block + i] = T(block + 1);
+        expected[block + i] = ConvertScalarTo<T>(block + 1);
       }
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), Broadcast<kLane>(in));
@@ -217,7 +217,8 @@ struct TestInterleaveUpper {
     const size_t blockN = HWY_MIN(16 / sizeof(T), N);
     for (size_t i = 0; i < Lanes(d); ++i) {
       const size_t block = i / blockN;
-      expected[i] = T((i % blockN) + block * 2 * blockN + blockN);
+      expected[i] =
+          ConvertScalarTo<T>((i % blockN) + block * 2 * blockN + blockN);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveUpper(d, even, odd));
   }

@@ -16,6 +16,7 @@
 // Single-element vectors and operations.
 // External include guard in highway.h - see comment there.
 
+#include "hwy/base.h"
 #ifndef HWY_NO_LIBCXX
 #include <math.h>  // sqrtf
 #endif
@@ -353,7 +354,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
   // This is used inside ShiftRight, so we cannot implement in terms of it.
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = v.raw[i] < 0 ? T(-1) : T(0);
+    v.raw[i] = static_cast<T>(v.raw[i] < 0 ? -1 : 0);
   }
   return v;
 }
@@ -1054,21 +1055,23 @@ HWY_API Vec128<T, N> Sqrt(Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
   using TI = MakeSigned<T>;
+  const T k0 = ConvertScalarTo<T>(0);
   const Vec128<T, N> a = Abs(v);
   for (size_t i = 0; i < N; ++i) {
     if (!(a.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
       continue;
     }
-    const T bias = v.raw[i] < T(0.0) ? T(-0.5) : T(0.5);
-    const TI rounded = static_cast<TI>(v.raw[i] + bias);
+    const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
+    const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
     if (rounded == 0) {
-      v.raw[i] = v.raw[i] < 0 ? T{-0} : T{0};
+      v.raw[i] = v.raw[i] < 0 ? ConvertScalarTo<T>(-0) : k0;
       continue;
     }
-    const T rounded_f = static_cast<T>(rounded);
+    const T rounded_f = ConvertScalarTo<T>(rounded);
     // Round to even
-    if ((rounded & 1) && ScalarAbs(rounded_f - v.raw[i]) == T(0.5)) {
-      v.raw[i] = static_cast<T>(rounded - (v.raw[i] < T(0) ? -1 : 1));
+    if ((rounded & 1) &&
+        ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
+      v.raw[i] = ConvertScalarTo<T>(rounded - (v.raw[i] < k0 ? -1 : 1));
       continue;
     }
     v.raw[i] = rounded_f;
@@ -1081,6 +1084,7 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
   using T = float;
   using TI = int32_t;
+  const T k0 = ConvertScalarTo<T>(0);
 
   const Vec128<float, N> abs = Abs(v);
   Vec128<int32_t, N> ret;
@@ -1089,22 +1093,23 @@ HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
 
     if (!(abs.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
       // Check if too large to cast or NaN
-      if (!(abs.raw[i] <= static_cast<T>(LimitsMax<TI>()))) {
+      if (!(abs.raw[i] <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
         ret.raw[i] = signbit ? LimitsMin<TI>() : LimitsMax<TI>();
         continue;
       }
       ret.raw[i] = static_cast<TI>(v.raw[i]);
       continue;
     }
-    const T bias = v.raw[i] < T(0.0) ? T(-0.5) : T(0.5);
-    const TI rounded = static_cast<TI>(v.raw[i] + bias);
+    const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
+    const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
     if (rounded == 0) {
       ret.raw[i] = 0;
       continue;
     }
-    const T rounded_f = static_cast<T>(rounded);
+    const T rounded_f = ConvertScalarTo<T>(rounded);
     // Round to even
-    if ((rounded & 1) && ScalarAbs(rounded_f - v.raw[i]) == T(0.5)) {
+    if ((rounded & 1) &&
+        ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
       ret.raw[i] = rounded - (signbit ? -1 : 1);
       continue;
     }
@@ -2574,7 +2579,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, const Mask128<T, N> mask) {
     if (mask.bits[i]) {
       ret.raw[i] = v.raw[in_pos++];
     } else {
-      ret.raw[i] = T();  // zero, also works for float16_t
+      ret.raw[i] = ConvertScalarTo<T>(0);
     }
   }
   return ret;

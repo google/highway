@@ -23,7 +23,6 @@
 #endif
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "hwy/highway.h"
 
@@ -38,13 +37,12 @@ namespace HWY_NAMESPACE {
 // would be more verbose than such a loop.
 //
 // Func is either a functor with a templated operator()(d, v[, v1[, v2]]), or a
-// generic lambda if using C++14. Due to apparent limitations of Clang on
-// Windows, it is currently necessary to add HWY_ATTR before the opening { of
-// the lambda to avoid errors about "always_inline function .. requires target".
+// generic lambda if using C++14. The d argument is the same as was passed to
+// the Generate etc. functions. Due to apparent limitations of Clang, it is
+// currently necessary to add HWY_ATTR before the opening { of the lambda to
+// avoid errors about "always_inline function .. requires target".
 //
-// If HWY_MEM_OPS_MIGHT_FAULT, we use scalar code instead of masking. Otherwise,
-// we used `MaskedLoad` and `BlendedStore` to read/write the final partial
-// vector.
+// We do not check HWY_MEM_OPS_MIGHT_FAULT because LoadN/StoreN do not fault.
 
 // Fills `out[0, count)` with the vectors returned by `func(d, index_vec)`,
 // where `index_vec` is `Vec<RebindToUnsigned<D>>`. On the first call to `func`,
@@ -69,27 +67,9 @@ void Generate(D d, T* HWY_RESTRICT out, size_t count, const Func& func) {
   // `count` was a multiple of the vector length `N`: already done.
   if (HWY_UNLIKELY(idx == count)) return;
 
-#if HWY_MEM_OPS_MIGHT_FAULT
-  // Proceed one by one.
-  const CappedTag<T, 1> d1;
-  const RebindToUnsigned<decltype(d1)> du1;
-  // Workaround for -Waggressive-loop-optimizations on GCC (huge iteration
-  // counts involve UB presumably from pointer wraparound). It did not help to
-  // change the loop counter to intptr_t, nor to add
-  // HWY_ASSUME(count < SIZE_MAX / sizeof(T)).
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(out);
-
-  for (; idx < count; ++idx) {
-    T* HWY_RESTRICT out_idx =
-        reinterpret_cast<T * HWY_RESTRICT>(addr + (idx * sizeof(T)));
-    StoreU(func(d1, Set(du1, static_cast<TU>(idx))), d1, out_idx);
-  }
-#else
   const size_t remaining = count - idx;
   HWY_DASSERT(0 != remaining && remaining < N);
-  const Mask<D> mask = FirstN(d, remaining);
-  BlendedStore(func(d, vidx), mask, d, out + idx);
-#endif
+  StoreN(func(d, vidx), d, out + idx, remaining);
 }
 
 // Calls `func(d, v)` for each input vector; out of bound lanes with index i >=

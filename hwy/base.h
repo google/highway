@@ -1086,7 +1086,7 @@ struct alignas(2) float16_t {
  private:
   struct F16FromU16BitsTag {};
   constexpr float16_t(F16FromU16BitsTag /*tag*/, uint16_t u16_bits)
-      : bits(u16_bits){}
+      : bits(u16_bits) {}
 
  public:
   static constexpr float16_t FromBits(uint16_t bits) {
@@ -1474,7 +1474,7 @@ struct alignas(2) bfloat16_t {
  private:
   struct BF16FromU16BitsTag {};
   constexpr bfloat16_t(BF16FromU16BitsTag /*tag*/, uint16_t u16_bits)
-      : bits(u16_bits){}
+      : bits(u16_bits) {}
 
  public:
   static constexpr bfloat16_t FromBits(uint16_t bits) {
@@ -1874,7 +1874,7 @@ HWY_API constexpr bool IsFloat() {
 
 template <typename T>
 HWY_API constexpr bool IsSigned() {
-  return T(0) > T(-1);
+  return static_cast<T>(0) > static_cast<T>(-1);
 }
 template <>
 constexpr bool IsSigned<float16_t>() {
@@ -1922,7 +1922,8 @@ HWY_API constexpr T LimitsMax() {
 template <typename T>
 HWY_API constexpr T LimitsMin() {
   static_assert(IsInteger<T>(), "Only for integer types");
-  return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
+  return IsSigned<T>() ? static_cast<T>(-1) - LimitsMax<T>()
+                       : static_cast<T>(0);
 }
 
 // Largest/smallest representable value (integer or float). This naming avoids
