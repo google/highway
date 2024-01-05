@@ -182,7 +182,7 @@ struct TestStream {
     HWY_ASSERT_VEC_EQ(d, v, actual);
     // Ensure Stream didn't modify more memory than expected
     for (size_t i = affected_lanes; i < 2 * affected_lanes; ++i) {
-      HWY_ASSERT_EQ(T(0), out[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), out[i]);
     }
   }
 };

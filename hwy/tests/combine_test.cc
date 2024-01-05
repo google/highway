@@ -41,13 +41,13 @@ struct TestLowerHalf {
     Store(LowerHalf(v), d2, lanes2.get());  // optionally without D
     size_t i = 0;
     for (; i < Lanes(d2); ++i) {
-      HWY_ASSERT_EQ(T(1 + i), lanes[i]);
-      HWY_ASSERT_EQ(T(1 + i), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(1 + i), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(1 + i), lanes2[i]);
     }
     // Other half remains unchanged
     for (; i < N; ++i) {
-      HWY_ASSERT_EQ(T(0), lanes[i]);
-      HWY_ASSERT_EQ(T(0), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes2[i]);
     }
   }
 };
@@ -71,13 +71,13 @@ struct TestLowerQuarter {
     Store(lo2, d4, lanes2.get());
     size_t i = 0;
     for (; i < Lanes(d4); ++i) {
-      HWY_ASSERT_EQ(T(i + 1), lanes[i]);
-      HWY_ASSERT_EQ(T(i + 1), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(i + 1), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(i + 1), lanes2[i]);
     }
     // Upper 3/4 remain unchanged
     for (; i < N; ++i) {
-      HWY_ASSERT_EQ(T(0), lanes[i]);
-      HWY_ASSERT_EQ(T(0), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes2[i]);
     }
   }
 };
