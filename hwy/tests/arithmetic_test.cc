@@ -417,6 +417,14 @@ struct TestIntegerDiv {
     using TI = MakeSigned<T>;
 
     const size_t N = Lanes(d);
+
+#if HWY_TARGET <= HWY_AVX3 && HWY_IS_MSAN
+    // Workaround for MSAN bug on AVX3
+    if (sizeof(T) <= 2 && N >= 16) {
+      return;
+    }
+#endif
+
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
     HWY_ASSERT(in1 && in2);
@@ -466,6 +474,14 @@ struct TestIntegerMod {
     using T = TFromD<D>;
 
     const size_t N = Lanes(d);
+
+#if HWY_TARGET <= HWY_AVX3 && HWY_IS_MSAN
+    // Workaround for MSAN bug on AVX3
+    if (sizeof(T) <= 2 && N >= 16) {
+      return;
+    }
+#endif
+
     auto a_lanes = AllocateAligned<T>(N);
     auto b_lanes = AllocateAligned<T>(N);
     auto expected = AllocateAligned<T>(N);
