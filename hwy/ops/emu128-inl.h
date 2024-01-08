@@ -52,6 +52,9 @@ struct Vec128 {
   HWY_INLINE Vec128& operator-=(const Vec128 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec128& operator%=(const Vec128 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec128& operator&=(const Vec128 other) {
     return *this = (*this & other);
   }
@@ -882,7 +885,7 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
   return detail::Mul(hwy::TypeTag<T>(), a, b);
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = (b.raw[i] == T{0}) ? 0 : a.raw[i] / b.raw[i];

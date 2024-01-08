@@ -92,6 +92,9 @@ class Vec128 {
   HWY_INLINE Vec128& operator-=(const Vec128 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec128& operator%=(const Vec128 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec128& operator&=(const Vec128 other) {
     return *this = (*this & other);
   }

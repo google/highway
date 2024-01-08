@@ -1200,7 +1200,18 @@ HWY_RVV_FOREACH_I16(HWY_RVV_MUL15, MulFixedPoint15, smul, _ALL)
 #undef HWY_RVV_MUL15
 
 // ------------------------------ Div
+#ifdef HWY_NATIVE_INT_DIV
+#undef HWY_NATIVE_INT_DIV
+#else
+#define HWY_NATIVE_INT_DIV
+#endif
+
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Div, divu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Div, div, _ALL)
 HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Div, fdiv, _ALL)
+
+HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, Mod, remu, _ALL)
+HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, Mod, rem, _ALL)
 
 // ------------------------------ MaskedAddOr etc.
 

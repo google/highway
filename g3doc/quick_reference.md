@@ -623,9 +623,24 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
     `[lo[i], hi[i]]`.
 
-*   `V`: `{f}` \
-    <code>V **operator/**(V a, V b)</code>: returns `a[i] / b[i]` in each lane.
+*   <code>V **operator/**(V a, V b)</code>: returns `a[i] / b[i]` in each lane.
     Currently unavailable on SVE/RVV; use the equivalent `Div` instead.
+
+    For integer vectors, `Div(a, b)` returns an implementation-defined value in
+    any lanes where `b[i] == 0`.
+
+    For signed integer vectors, `Div(a, b)` returns an implementation-defined
+    value in any lanes where `a[i] == LimitsMin<T>() && b[i] == -1`.
+
+*   `V`: `{u,i}` \
+    <code>V **operator%**(V a, V b)</code>: returns `a[i] % b[i]` in each lane.
+    Currently unavailable on SVE/RVV; use the equivalent `Mod` instead.
+
+    `Mod(a, b)` returns an implementation-defined value in any lanes where
+    `b[i] == 0`.
+
+    For signed integer vectors, `Mod(a, b)` returns an implementation-defined
+    value in any lanes where `a[i] == LimitsMin<T>() && b[i] == -1`.
 
 *   `V`: `{f}` \
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.

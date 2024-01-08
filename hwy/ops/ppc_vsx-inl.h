@@ -125,6 +125,9 @@ class Vec128 {
   HWY_INLINE Vec128& operator-=(const Vec128 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec128& operator%=(const Vec128 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec128& operator&=(const Vec128 other) {
     return *this = (*this & other);
   }
@@ -1793,6 +1796,167 @@ HWY_API V AbsDiff(const V a, const V b) {
 }
 
 #endif  // HWY_PPC_HAVE_9
+
+// ------------------------------ Integer Div for PPC10
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_INT_DIV
+#undef HWY_NATIVE_INT_DIV
+#else
+#define HWY_NATIVE_INT_DIV
+#endif
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator/(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  // Inline assembly is used instead of vec_div for I32 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int32_t>() && b[i] == -1)
+
+  // Clang will also optimize out I32 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed int raw_result;
+  __asm__("vdivsw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> operator/(Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  // Inline assembly is used instead of vec_div for U32 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U32 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned int raw_result;
+  __asm__("vdivuw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator/(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  // Inline assembly is used instead of vec_div for I64 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int64_t>() && b[i] == -1)
+
+  // Clang will also optimize out I64 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed long long raw_result;
+  __asm__("vdivsd %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int64_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator/(Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  // Inline assembly is used instead of vec_div for U64 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U64 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned long long raw_result;
+  __asm__("vdivud %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint64_t, N>{raw_result};
+}
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec128<T> operator/(Vec128<T> a, Vec128<T> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return OrderedDemote2To(d, PromoteLowerTo(dw, a) / PromoteLowerTo(dw, b),
+                          PromoteUpperTo(dw, a) / PromoteUpperTo(dw, b));
+}
+
+template <class T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<T>, decltype(d)> dw;
+  return DemoteTo(d, PromoteTo(dw, a) / PromoteTo(dw, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator%(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  // Inline assembly is used instead of vec_mod for I32 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int32_t>() && b[i] == -1)
+
+  // Clang will also optimize out I32 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed int raw_result;
+  __asm__("vmodsw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> operator%(Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  // Inline assembly is used instead of vec_mod for U32 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U32 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned int raw_result;
+  __asm__("vmoduw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator%(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  // Inline assembly is used instead of vec_mod for I64 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int64_t>() && b[i] == -1)
+
+  // Clang will also optimize out I64 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed long long raw_result;
+  __asm__("vmodsd %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int64_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator%(Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  // Inline assembly is used instead of vec_mod for U64 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U64 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned long long raw_result;
+  __asm__("vmodud %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint64_t, N>{raw_result};
+}
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec128<T> operator%(Vec128<T> a, Vec128<T> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return OrderedDemote2To(d, PromoteLowerTo(dw, a) % PromoteLowerTo(dw, b),
+                          PromoteUpperTo(dw, a) % PromoteUpperTo(dw, b));
+}
+
+template <class T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Vec128<T, N> operator%(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<T>, decltype(d)> dw;
+  return DemoteTo(d, PromoteTo(dw, a) % PromoteTo(dw, b));
+}
+#endif
 
 // ================================================== MEMORY (3)
 
