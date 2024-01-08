@@ -802,11 +802,11 @@ struct TestFloatFromInt {
                       ConvertTo(df, Iota(di, -static_cast<TI>(N))));
 
     // Max positive
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(LimitsMax<TI>())),
                       ConvertTo(df, Set(di, LimitsMax<TI>())));
 
     // Min negative
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(LimitsMin<TI>())),
                       ConvertTo(df, Set(di, LimitsMin<TI>())));
   }
 };
@@ -823,7 +823,7 @@ struct TestFloatFromUint {
 
     // Integer positive
     HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), ConvertTo(df, Iota(du, 4)));
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(32767.0)),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(32767)),
                       ConvertTo(df, Set(du, 32767)));  // 2^16-1
     if (sizeof(TF) > 4) {
       HWY_ASSERT_VEC_EQ(df, Iota(df, 4294967295.0),
@@ -831,7 +831,7 @@ struct TestFloatFromUint {
     }
 
     // Max positive
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TU>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(LimitsMax<TU>())),
                       ConvertTo(df, Set(du, LimitsMax<TU>())));
 
     // Zero
@@ -910,11 +910,10 @@ class TestNonFiniteF2IConvertTo {
     using TU = MakeUnsigned<TF>;
     using TTo_I = MakeSigned<TTo>;
 
-    constexpr TF kMinOutOfRangePosVal =
-        static_cast<TF>((-static_cast<TF>(LimitsMin<TTo_I>())) *
-                        static_cast<TF>(IsSigned<TTo>() ? 1 : 2));
-    static_assert(kMinOutOfRangePosVal > static_cast<TF>(0),
-                  "kMinOutOfRangePosVal > 0 must be true");
+    const TF kMinOutOfRangePosVal =
+        ConvertScalarTo<TF>((-ConvertScalarTo<TF>(LimitsMin<TTo_I>())) *
+                            ConvertScalarTo<TF>(IsSigned<TTo>() ? 1 : 2));
+    HWY_ASSERT(ConvertScalarTo<double>(kMinOutOfRangePosVal) > 0.0);
 
     const Rebind<TTo, DF> d_to;
     const RebindToSigned<decltype(d_to)> di_to;

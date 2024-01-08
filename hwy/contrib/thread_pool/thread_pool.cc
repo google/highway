@@ -22,6 +22,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <atomic>
+#include <mutex>   // NOLINT
+#include <thread>  // NOLINT
+
 #include "hwy/base.h"  // HWY_MAX
 
 namespace hwy {
