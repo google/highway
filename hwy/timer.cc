@@ -17,8 +17,10 @@
 
 #include <stdlib.h>
 
-#include <chrono>  //NOLINT
+#include <chrono>  // NOLINT
+#include <ratio>   // NOLINT
 
+#include "hwy/base.h"
 #include "hwy/robust_statistics.h"
 #include "hwy/timer-inl.h"
 

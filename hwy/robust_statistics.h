@@ -135,8 +135,8 @@ T MedianAbsoluteDeviation(const T* values, const size_t num_values,
   std::vector<T> abs_deviations;
   abs_deviations.reserve(num_values);
   for (size_t i = 0; i < num_values; ++i) {
-    const int64_t abs = std::abs(static_cast<int64_t>(values[i]) -
-                                 static_cast<int64_t>(median));
+    const int64_t abs = ScalarAbs(static_cast<int64_t>(values[i]) -
+                                  static_cast<int64_t>(median));
     abs_deviations.push_back(static_cast<T>(abs));
   }
   return Median(abs_deviations.data(), num_values);
