@@ -60,7 +60,7 @@ struct TestFloatLargerSmaller {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T, D d) {
     const Vec<D> p0 = Zero(d);
-    const Vec<D> p1 = Set(d, static_cast<T>(1));
+    const Vec<D> p1 = Set(d, ConvertScalarTo<T>(1));
     const Vec<D> pinf = Inf(d);
     const Vec<D> peps = Set(d, hwy::Epsilon<T>());
     const Vec<D> pmax = Set(d, hwy::HighestValue<T>());
@@ -665,10 +665,8 @@ void TestSort(size_t num_lanes) {
         HWY_ASSERT(VerifySort(st, input_stats, lanes, num_lanes, "TestSort"));
 
         // Check red zones
-#if HWY_IS_MSAN
-        __msan_unpoison(aligned.get(), misalign * sizeof(LaneType));
-        __msan_unpoison(lanes + num_lanes, kMaxMisalign * sizeof(LaneType));
-#endif
+        detail::MaybeUnpoison(aligned.get(), misalign);
+        detail::MaybeUnpoison(lanes + num_lanes, kMaxMisalign);
         for (size_t i = 0; i < misalign; ++i) {
           if (aligned[i] != hwy::LowestValue<LaneType>())
             HWY_ABORT("Overrun left at %d\n", static_cast<int>(i));

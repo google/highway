@@ -13,9 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cmath>  // std::isfinite
-
-#include "hwy/base.h"
+#include <stdint.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/truncate_test.cc"
@@ -45,8 +43,8 @@ struct TestTruncateTo {
   HWY_NOINLINE void testTo(From, To, const D d) {
     constexpr uint32_t base = 0xFA578D00;
     const Rebind<To, D> dTo;
-    const auto src = Iota(d, static_cast<From>(base));
-    const auto expected = Iota(dTo, static_cast<To>(base));
+    const Vec<D> src = Iota(d, base & hwy::LimitsMax<From>());
+    const Vec<decltype(dTo)> expected = Iota(dTo, base & hwy::LimitsMax<To>());
     const VFromD<decltype(dTo)> actual = TruncateTo(dTo, src);
     HWY_ASSERT_VEC_EQ(dTo, expected, actual);
   }
@@ -78,10 +76,9 @@ struct TestOrderedTruncate2To {
     const T max = LimitsMax<TN>();
 
     constexpr uint32_t iota_base = 0xFA578D00;
-    const auto src_iota_a = Iota(d, static_cast<T>(iota_base));
-    const auto src_iota_b = Iota(d, static_cast<T>(iota_base + N));
-    const auto expected_iota_trunc_result =
-        Iota(dn, static_cast<TN>(iota_base));
+    const auto src_iota_a = Iota(d, iota_base);
+    const auto src_iota_b = Iota(d, iota_base + N);
+    const auto expected_iota_trunc_result = Iota(dn, iota_base);
     const auto actual_iota_trunc_result =
         OrderedTruncate2To(dn, src_iota_a, src_iota_b);
     HWY_ASSERT_VEC_EQ(dn, expected_iota_trunc_result, actual_iota_trunc_result);

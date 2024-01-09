@@ -45,11 +45,23 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
+// Like Iota, but avoids wrapping around to negative integers.
+template <class D, HWY_IF_FLOAT_D(D)>
+HWY_INLINE Vec<D> PositiveIota(D d) {
+  return Iota(d, 1);
+}
+template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
+HWY_INLINE Vec<D> PositiveIota(D d) {
+  const auto vi = Iota(d, 1);
+  return Max(And(vi, Set(d, LimitsMax<TFromD<D>>())),
+             Set(d, static_cast<TFromD<D>>(1)));
+}
+
 // Same as Iota, but supports bf16. This is possibly too expensive for general
 // use, but fine for tests.
 template <class D, typename First, HWY_IF_NOT_SPECIAL_FLOAT_D(D)>
 VFromD<D> IotaForSpecial(D d, First first) {
-  return Iota(d, static_cast<TFromD<D>>(first));
+  return Iota(d, first);
 }
 #if HWY_HAVE_FLOAT16
 template <class D, typename First, HWY_IF_F16_D(D), HWY_IF_LANES_GT_D(D, 1)>
@@ -82,9 +94,9 @@ template <class D, typename First, HWY_IF_BF16_D(D), HWY_IF_LANES_GT_D(D, 1),
           HWY_IF_POW2_GT_D(D, -1)>
 VFromD<D> IotaForSpecial(D d, First first) {
   const Repartition<float, D> df;
-  const float first2 =
-      static_cast<float>(first) + static_cast<float>(Lanes(d) / 2);
-  return OrderedDemote2To(d, Iota(df, first), Iota(df, first2));
+  const float first1 = ConvertScalarTo<float>(first);
+  const float first2 = first1 + static_cast<float>(Lanes(d) / 2);
+  return OrderedDemote2To(d, Iota(df, first1), Iota(df, first2));
 }
 // For partial vectors, a single f32 vector is enough, and the prior overload
 // might not be able to Repartition.

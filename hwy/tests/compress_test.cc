@@ -13,8 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <string.h>  // memset
 
 #include <array>  // IWYU pragma: keep
 
@@ -86,15 +87,13 @@ struct TestCompress {
                  bits);
 
       T* actual_u = actual_a.get() + misalign;
-      memset(bits.get(), 0, bits_size);  // for MSAN
+      ZeroBytes(bits.get(), bits_size);  // for MSAN
 
       // Each lane should have a chance of having mask=true.
       for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
         size_t expected_pos = 0;
         for (size_t i = 0; i < N; ++i) {
-          const uint64_t r = Random32(&rng);
-          in_lanes[i] = T();  // cannot initialize float16_t directly.
-          CopyBytes<sizeof(T)>(&r, &in_lanes[i]);  // not same size
+          in_lanes[i] = RandomFiniteValue<T>(&rng);
           mask_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
           if (mask_lanes[i] > 0) {
             expected[expected_pos++] = in_lanes[i];
@@ -124,20 +123,20 @@ struct TestCompress {
         StoreMaskBits(d, mask, bits.get());
 
         // Compress
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         StoreU(Compress(in, mask), d, actual_u);
         CheckStored(d, di, "Compress", expected_pos, expected_pos, num_to_check,
                     in_lanes, mask_lanes, expected, actual_u, __LINE__);
 
         // CompressNot
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         StoreU(CompressNot(in, Not(mask)), d, actual_u);
         CheckStored(d, di, "CompressNot", expected_pos, expected_pos,
                     num_to_check, in_lanes, mask_lanes, expected, actual_u,
                     __LINE__);
 
         // CompressStore
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         const size_t size1 = CompressStore(in, mask, d, actual_u);
         // expected_pos instead of num_to_check because this op is not
         // affected by CompressIsPartition.
@@ -162,14 +161,14 @@ struct TestCompress {
         }
 
         // CompressBits
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         StoreU(CompressBits(in, bits.get()), d, actual_u);
         CheckStored(d, di, "CompressBits", expected_pos, expected_pos,
                     num_to_check, in_lanes, mask_lanes, expected, actual_u,
                     __LINE__);
 
         // CompressBitsStore
-        memset(actual_u, 0, N * sizeof(T));
+        ZeroBytes(actual_u, N * sizeof(T));
         const size_t size3 = CompressBitsStore(in, bits.get(), d, actual_u);
         // expected_pos instead of num_to_check because this op is not
         // affected by CompressIsPartition.
@@ -208,10 +207,8 @@ struct TestCompressBlocks {
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       size_t expected_pos = 0;
       for (size_t i = 0; i < N; i += 2) {
-        const uint64_t bits = Random32(&rng);
-        in_lanes[i + 1] = in_lanes[i] = T();  // cannot set float16_t directly.
-        CopyBytes<sizeof(T)>(&bits, &in_lanes[i]);      // not same size
-        CopyBytes<sizeof(T)>(&bits, &in_lanes[i + 1]);  // not same size
+        in_lanes[i] = RandomFiniteValue<T>(&rng);
+        in_lanes[i + 1] = RandomFiniteValue<T>(&rng);
         mask_lanes[i + 1] = mask_lanes[i] = TI{(Random32(&rng) & 8) ? 1 : 0};
         if (mask_lanes[i] > 0) {
           expected[expected_pos++] = in_lanes[i];
@@ -239,7 +236,7 @@ struct TestCompressBlocks {
       const auto mask = RebindMask(d, Gt(Load(di, mask_lanes.get()), Zero(di)));
 
       // CompressBlocksNot
-      memset(actual.get(), 0, N * sizeof(T));
+      ZeroBytes(actual.get(), N * sizeof(T));
       StoreU(CompressBlocksNot(in, Not(mask)), d, actual.get());
       CheckStored(d, di, "CompressBlocksNot", expected_pos, expected_pos,
                   num_to_check, in_lanes, mask_lanes, expected, actual.get(),

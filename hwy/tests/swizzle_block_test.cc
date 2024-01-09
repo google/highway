@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/swizzle_block_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -28,12 +30,12 @@ struct TestOddEvenBlocks {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
-    const auto odd = Iota(d, static_cast<T>(1 + N));
+    const auto odd = Iota(d, 1 + N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
       const size_t idx_block = i / (16 / sizeof(T));
-      expected[i] = static_cast<T>(1 + i + ((idx_block & 1) ? N : 0));
+      expected[i] = ConvertScalarTo<T>(1 + i + ((idx_block & 1) ? N : 0));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), OddEvenBlocks(odd, even));
   }
@@ -56,7 +58,7 @@ struct TestSwapAdjacentBlocks {
       const size_t idx_block = i / kLanesPerBlock;
       const size_t base = (idx_block ^ 1) * kLanesPerBlock;
       const size_t mod = i % kLanesPerBlock;
-      expected[i] = static_cast<T>(1 + base + mod);
+      expected[i] = ConvertScalarTo<T>(1 + base + mod);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), SwapAdjacentBlocks(vi));
   }
@@ -86,7 +88,7 @@ class TestInsertBlock {
     constexpr TU kSignBit = static_cast<TU>(~kPositiveMask);
 
     for (size_t i = 0; i < N; i++) {
-      const T val = static_cast<T>(i);
+      const T val = ConvertScalarTo<T>(i);
       TU val_bits;
       CopySameSize(&val, &val_bits);
       val_bits &= kPositiveMask;
@@ -101,7 +103,7 @@ class TestInsertBlock {
           HWY_MIN(N - kBlkLaneOffset, kLanesPer16ByteBlk);
       for (size_t i = 0; i < num_of_lanes_in_blk; i++) {
         const T val =
-            static_cast<T>(static_cast<TU>(i) + static_cast<TU>(kBlock));
+            ConvertScalarTo<T>(static_cast<TU>(i) + static_cast<TU>(kBlock));
         TU val_bits;
         CopySameSize(&val, &val_bits);
         val_bits |= kSignBit;
@@ -109,9 +111,9 @@ class TestInsertBlock {
       }
     }
 
-    const V v = And(Iota(d, T{0}), BitCast(d, Set(du, kPositiveMask)));
-    const VB blk_to_insert = Or(Iota(d_block, static_cast<TU>(kBlock)),
-                                BitCast(d_block, Set(du_block, kSignBit)));
+    const V v = And(Iota(d, 0), BitCast(d, Set(du, kPositiveMask)));
+    const VB blk_to_insert =
+        Or(Iota(d_block, kBlock), BitCast(d_block, Set(du_block, kSignBit)));
     const V actual = InsertBlock<kBlock>(v, blk_to_insert);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
   }
@@ -159,10 +161,10 @@ class TestExtractBlock {
                   "d_block.MaxLanes() <= kLanesPer16ByteBlk must be true");
 
     for (size_t i = 0; i < kLanesPer16ByteBlk; i++) {
-      expected[i] = static_cast<T>(kBlkLaneOffset + i);
+      expected[i] = ConvertScalarTo<T>(kBlkLaneOffset + i);
     }
 
-    const auto v = Iota(d, T{0});
+    const auto v = Iota(d, 0);
     const Vec<BlockDFromD<decltype(d_block)>> actual = ExtractBlock<kBlock>(v);
     HWY_ASSERT_VEC_EQ(d_block, expected, actual);
   }
@@ -209,10 +211,10 @@ class TestBroadcastBlock {
     for (size_t i = 0; i < N; i++) {
       const size_t idx_in_blk = i & (kLanesPer16ByteBlk - 1);
       expected[i] =
-          static_cast<T>(kBlkLaneOffset + kLanesPer16ByteBlk + idx_in_blk);
+          ConvertScalarTo<T>(kBlkLaneOffset + kLanesPer16ByteBlk + idx_in_blk);
     }
 
-    const auto v = Iota(d, static_cast<T>(kLanesPer16ByteBlk));
+    const auto v = Iota(d, kLanesPer16ByteBlk);
     const auto actual = BroadcastBlock<kBlock>(v);
     HWY_ASSERT_VEC_EQ(d, expected, actual);
   }

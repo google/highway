@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/reverse_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -144,14 +146,14 @@ struct TestReverseLaneBytes {
 
     const auto v_iota = Iota(d, 0);
     for (size_t i = 0; i < N; i++) {
-      expected[i] = ReverseBytesOfValue(static_cast<T>(i));
+      expected[i] = ReverseBytesOfValue(ConvertScalarTo<T>(i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseLaneBytes(v_iota));
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(10000); ++rep) {
       for (size_t i = 0; i < N; i++) {
-        in[i] = static_cast<T>(Random64(&rng));
+        in[i] = ConvertScalarTo<T>(Random64(&rng));
         expected[i] = ReverseBytesOfValue(in[i]);
       }
 
@@ -203,14 +205,14 @@ class TestReverseBits {
 
     const auto v_iota = Iota(d, 0);
     for (size_t i = 0; i < N; i++) {
-      expected[i] = ReverseBitsOfValue(static_cast<T>(i));
+      expected[i] = ReverseBitsOfValue(ConvertScalarTo<T>(i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ReverseBits(v_iota));
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(10000); ++rep) {
       for (size_t i = 0; i < N; i++) {
-        in[i] = static_cast<T>(Random64(&rng));
+        in[i] = ConvertScalarTo<T>(Random64(&rng));
         expected[i] = ReverseBitsOfValue(in[i]);
       }
 

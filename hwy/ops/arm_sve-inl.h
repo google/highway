@@ -1103,6 +1103,14 @@ HWY_API svint16_t MulFixedPoint15(svint16_t a, svint16_t b) {
 }
 
 // ------------------------------ Div
+#ifdef HWY_NATIVE_INT_DIV
+#undef HWY_NATIVE_INT_DIV
+#else
+#define HWY_NATIVE_INT_DIV
+#endif
+
+HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGPVV, Div, div)
+HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGPVV, Div, div)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGPVV, Div, div)
 
 // ------------------------------ ApproximateReciprocal
@@ -1520,7 +1528,8 @@ HWY_API svbool_t TestBit(const V a, const V bit) {
 // ------------------------------ MaskFromVec (Ne)
 template <class V>
 HWY_API svbool_t MaskFromVec(const V v) {
-  return detail::NeN(v, static_cast<TFromV<V>>(0));
+  using T = TFromV<V>;
+  return detail::NeN(v, ConvertScalarTo<T>(0));
 }
 
 // ------------------------------ VecFromMask
@@ -2471,7 +2480,16 @@ HWY_SVE_FOREACH_BF16(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks, uzp2q)
     return sv##OP##_##CHAR##BITS(mask, lo, hi);                            \
   }
 HWY_SVE_FOREACH(HWY_SVE_SPLICE, Splice, splice)
+#if HWY_SVE_HAVE_BF16_FEATURE
 HWY_SVE_FOREACH_BF16(HWY_SVE_SPLICE, Splice, splice)
+#else
+template <class V, HWY_IF_BF16_D(DFromV<V>)>
+HWY_INLINE V Splice(V hi, V lo, svbool_t mask) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Splice(BitCast(du, hi), BitCast(du, lo), mask));
+}
+#endif  // HWY_SVE_HAVE_BF16_FEATURE
 #undef HWY_SVE_SPLICE
 
 }  // namespace detail
@@ -2589,20 +2607,22 @@ HWY_API VFromD<DI> NearestInt(VF v) {
 
 // ------------------------------ Iota (Add, ConvertTo)
 
-#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)                        \
-  template <size_t N, int kPow2>                                              \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
-                                     HWY_SVE_T(BASE, BITS) first) {           \
-    return sv##OP##_##CHAR##BITS(first, 1);                                   \
+#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)          \
+  template <size_t N, int kPow2, typename T2>                   \
+  HWY_API HWY_SVE_V(BASE, BITS)                                 \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, T2 first) { \
+    return sv##OP##_##CHAR##BITS(                               \
+        ConvertScalarTo<HWY_SVE_T(BASE, BITS)>(first), 1);      \
   }
 
 HWY_SVE_FOREACH_UI(HWY_SVE_IOTA, Iota, index)
 #undef HWY_SVE_IOTA
 
-template <class D, HWY_IF_FLOAT_D(D)>
-HWY_API VFromD<D> Iota(const D d, TFromD<D> first) {
+template <class D, typename T2, HWY_IF_FLOAT_D(D)>
+HWY_API VFromD<D> Iota(const D d, T2 first) {
   const RebindToSigned<D> di;
-  return detail::AddN(ConvertTo(d, Iota(di, 0)), first);
+  return detail::AddN(ConvertTo(d, Iota(di, 0)),
+                      ConvertScalarTo<TFromD<D>>(first));
 }
 
 // ------------------------------ InterleaveLower
@@ -3056,7 +3076,9 @@ HWY_API TFromV<V> ExtractLane(V v, size_t i) {
 template <class V>
 HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
   const DFromV<V> d;
-  const auto is_i = detail::EqN(Iota(d, 0), static_cast<TFromV<V>>(i));
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  const svbool_t is_i = detail::EqN(Iota(di, 0), static_cast<TI>(i));
   return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
@@ -4293,6 +4315,28 @@ HWY_API VFromD<D> OrderedDemote2To(D dn, svfloat32_t a, svfloat32_t b) {
   return Combine(dn, DemoteTo(dnh, b), DemoteTo(dnh, a));
 }
 
+// ------------------------------ I8/U8/I16/U16 Div
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2))>
+HWY_API V Div(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Half<decltype(d)> dh;
+  const RepartitionToWide<decltype(d)> dw;
+
+  const auto q_lo =
+      Div(PromoteTo(dw, LowerHalf(dh, a)), PromoteTo(dw, LowerHalf(dh, b)));
+  const auto q_hi = Div(PromoteUpperTo(dw, a), PromoteUpperTo(dw, b));
+
+  return OrderedDemote2To(d, q_lo, q_hi);
+}
+
+// ------------------------------ Mod (Div, NegMulAdd)
+template <class V>
+HWY_API V Mod(V a, V b) {
+  return NegMulAdd(Div(a, b), b, a);
+}
+
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)
 template <class V>
 HWY_API V ZeroIfNegative(const V v) {
@@ -4842,12 +4886,13 @@ HWY_INLINE VFromD<DU> LaneIndicesFromByteIndices(D, svuint8_t idx) {
 template <class V>
 HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
   const DFromV<V> d;
+  using T = TFromV<V>;
   uint8_t mask_bytes[256 / 8];
   StoreMaskBits(d, mask, mask_bytes);
 
   // ShiftLeftLanes is expensive, so we're probably better off storing to memory
   // and loading the final result.
-  alignas(16) TFromV<V> out[2 * MaxLanes(d)];
+  alignas(16) T out[2 * MaxLanes(d)];
 
   svbool_t next = svpfalse_b();
   size_t input_consumed = 0;
@@ -4859,7 +4904,7 @@ HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
     // instruction for variable-shift-reg, but we can splice.
     const V vH = detail::Splice(v, v, next);
     input_consumed += PopCount(mask_bits);
-    next = detail::GeN(iota, static_cast<TFromV<V>>(input_consumed));
+    next = detail::GeN(iota, ConvertScalarTo<T>(input_consumed));
 
     const auto idx = detail::LaneIndicesFromByteIndices(
         d, detail::IndicesForExpandFromBits(mask_bits));

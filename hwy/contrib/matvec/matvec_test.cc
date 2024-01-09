@@ -39,10 +39,10 @@ HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
                                size_t cols, T* out, ThreadPool& pool) {
   pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
            [=](uint32_t r, size_t /*thread*/) {
-             T dot = T{0};
+             T dot = ConvertScalarTo<T>(0);
              for (size_t c = 0; c < cols; c++) {
                // For reasons unknown, fp16 += does not compile on clang (Arm).
-               dot = dot + static_cast<T>(mat[r * cols + c] * vec[c]);
+               dot = dot + ConvertScalarTo<T>(mat[r * cols + c] * vec[c]);
              }
              out[r] = dot;
            });
@@ -138,8 +138,8 @@ class TestMatVec {
     MatVec<kRows, kCols>(pm, pv, actual.get(), pool);
 
     for (size_t i = 0; i < kRows; ++i) {
-      const double exp = static_cast<double>(expected[i]);
-      const double act = static_cast<double>(actual[i]);
+      const double exp = ConvertScalarTo<double>(expected[i]);
+      const double act = ConvertScalarTo<double>(actual[i]);
       const double tolerance =
           exp * 20 * 1.0 /
           (1ULL << HWY_MIN(MantissaBits<MatT>(), MantissaBits<VecT>()));

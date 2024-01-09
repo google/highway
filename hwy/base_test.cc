@@ -50,27 +50,28 @@ HWY_NOINLINE void TestAllLimits() {
   HWY_ASSERT_EQ(int64_t{0x7FFFFFFFFFFFFFFFull}, LimitsMax<int64_t>());
 
   HWY_ASSERT(LimitsMin<signed char>() == LimitsMin<int8_t>());
-  HWY_ASSERT(LimitsMin<short>() <= LimitsMin<int16_t>());
+  HWY_ASSERT(LimitsMin<short>() <= LimitsMin<int16_t>());  // NOLINT
   HWY_ASSERT(LimitsMin<int>() <= LimitsMin<int16_t>());
-  HWY_ASSERT(LimitsMin<long>() <= LimitsMin<int32_t>());
-  HWY_ASSERT(LimitsMin<long long>() <= LimitsMin<int64_t>());
+  HWY_ASSERT(LimitsMin<long>() <= LimitsMin<int32_t>());       // NOLINT
+  HWY_ASSERT(LimitsMin<long long>() <= LimitsMin<int64_t>());  // NOLINT
 
   HWY_ASSERT(LimitsMax<signed char>() == LimitsMax<int8_t>());
-  HWY_ASSERT(LimitsMax<short>() >= LimitsMax<int16_t>());
+  HWY_ASSERT(LimitsMax<short>() >= LimitsMax<int16_t>());  // NOLINT
   HWY_ASSERT(LimitsMax<int>() >= LimitsMax<int16_t>());
-  HWY_ASSERT(LimitsMax<long>() >= LimitsMax<int32_t>());
-  HWY_ASSERT(LimitsMax<long long>() >= LimitsMax<int64_t>());
+  HWY_ASSERT(LimitsMax<long>() >= LimitsMax<int32_t>());       // NOLINT
+  HWY_ASSERT(LimitsMax<long long>() >= LimitsMax<int64_t>());  // NOLINT
 
   HWY_ASSERT_EQ(static_cast<unsigned char>(0), LimitsMin<unsigned char>());
   HWY_ASSERT_EQ(static_cast<unsigned short>(0), LimitsMin<unsigned short>());
   HWY_ASSERT_EQ(0u, LimitsMin<unsigned>());
-  HWY_ASSERT_EQ(0ul, LimitsMin<unsigned long>());
-  HWY_ASSERT_EQ(0ull, LimitsMin<unsigned long long>());
+  HWY_ASSERT_EQ(0ul, LimitsMin<unsigned long>());        // NOLINT
+  HWY_ASSERT_EQ(0ull, LimitsMin<unsigned long long>());  // NOLINT
 
   HWY_ASSERT(LimitsMax<unsigned char>() == LimitsMax<uint8_t>());
-  HWY_ASSERT(LimitsMax<unsigned short>() >= LimitsMax<uint16_t>());
+  HWY_ASSERT(LimitsMax<unsigned short>() >= LimitsMax<uint16_t>());  // NOLINT
   HWY_ASSERT(LimitsMax<unsigned>() >= LimitsMax<uint16_t>());
-  HWY_ASSERT(LimitsMax<unsigned long>() >= LimitsMax<uint32_t>());
+  HWY_ASSERT(LimitsMax<unsigned long>() >= LimitsMax<uint32_t>());  // NOLINT
+  // NOLINTNEXTLINE
   HWY_ASSERT(LimitsMax<unsigned long long>() >= LimitsMax<uint64_t>());
 
   HWY_ASSERT(LimitsMin<char>() == 0 ||

@@ -95,8 +95,8 @@ struct TestIfVecThenElse {
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        in1[i] = static_cast<T>(Random32(&rng));
-        in2[i] = static_cast<T>(Random32(&rng));
+        in1[i] = ConvertScalarTo<T>(Random32(&rng));
+        in2[i] = ConvertScalarTo<T>(Random32(&rng));
         vec_lanes[i] = (Random32(&rng) & 16) ? static_cast<TU>(~TU(0)) : TU(0);
       }
 
@@ -121,7 +121,7 @@ struct TestZeroIfNegative {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vp = Iota(d, 1);
-    const auto vn = Iota(d, T(-1E5));  // assumes N < 10^5
+    const auto vn = Iota(d, -1E4);  // assumes N < 10^4
 
     // Zero and positive remain unchanged
     HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(v0));
@@ -182,16 +182,6 @@ HWY_NOINLINE void TestAllIfNegative() {
 }
 
 struct TestIfNegativeThenNegOrUndefIfZero {
-  template <class D, HWY_IF_FLOAT_D(D)>
-  static HWY_INLINE Vec<D> PositiveIota(D d) {
-    return Iota(d, TFromD<D>{1});
-  }
-  template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D)>
-  static HWY_INLINE Vec<D> PositiveIota(D d) {
-    const auto vi = Iota(d, TFromD<D>{1});
-    return Max(And(vi, Set(d, LimitsMax<TFromD<D>>())), Set(d, TFromD<D>{1}));
-  }
-
   template <class D, HWY_IF_LANES_LE_D(D, 1)>
   static HWY_INLINE void TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(
       D /*d*/, Vec<D> /*v1*/, Vec<D> /*v2*/) {}

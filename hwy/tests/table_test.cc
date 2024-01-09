@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>  // memset
+#include <stddef.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/table_test.cc"
@@ -35,7 +35,7 @@ struct TestTableLookupLanes {
     auto idx = AllocateAligned<TI>(N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(idx && expected);
-    memset(idx.get(), 0, N * sizeof(TI));
+    ZeroBytes(idx.get(), N * sizeof(TI));
     const auto v = Iota(d, 1);
 
     if (N <= 8) {  // Test all permutations
@@ -50,7 +50,7 @@ struct TestTableLookupLanes {
               if (N >= 4) idx[3] = static_cast<TI>(i3);
 
               for (size_t i = 0; i < N; ++i) {
-                expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+                expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
               }
 
               const auto opaque1 = IndicesFromVec(d, Load(di, idx.get()));
@@ -76,7 +76,7 @@ struct TestTableLookupLanes {
         if (idx[i] >= static_cast<TI>(N)) {
           idx[i] = static_cast<TI>(N - 1);
         }
-        expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+        expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
       }
 
       const auto opaque1 = IndicesFromVec(d, Load(di, idx.get()));
@@ -113,9 +113,9 @@ struct TestTwoTablesLookupLanes {
     auto idx = AllocateAligned<TU>(twiceN);
     auto expected = AllocateAligned<T>(twiceN);
     HWY_ASSERT(idx && expected);
-    memset(idx.get(), 0, twiceN * sizeof(TU));
+    ZeroBytes(idx.get(), twiceN * sizeof(TU));
     const auto a = Iota(d, 1);
-    const auto b = Add(a, Set(d, static_cast<T>(N)));
+    const auto b = Add(a, Set(d, ConvertScalarTo<T>(N)));
 
     if (twiceN <= 8) {  // Test all permutations
       for (size_t i0 = 0; i0 < twiceN; ++i0) {
@@ -129,7 +129,7 @@ struct TestTwoTablesLookupLanes {
               if (twiceN >= 4) idx[3] = static_cast<TU>(i3);
 
               for (size_t i = 0; i < twiceN; ++i) {
-                expected[i] = static_cast<T>(idx[i] + 1);  // == v[idx[i]]
+                expected[i] = ConvertScalarTo<T>(idx[i] + 1);  // == v[idx[i]]
               }
 
               const auto opaque1_a = IndicesFromVec(d, Load(du, idx.get()));
@@ -168,7 +168,7 @@ struct TestTwoTablesLookupLanes {
           idx[j] = static_cast<TU>((i * kLanesPerBlock + idx_source[j & 15] +
                                     (j & static_cast<size_t>(-16))) &
                                    (twiceN - 1));
-          expected[j] = static_cast<T>(idx[j] + 1);  // == v[idx[j]]
+          expected[j] = ConvertScalarTo<T>(idx[j] + 1);  // == v[idx[j]]
         }
 
         const auto opaque1_a = IndicesFromVec(d, Load(du, idx.get()));

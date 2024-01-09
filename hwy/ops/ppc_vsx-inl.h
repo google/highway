@@ -141,6 +141,9 @@ class Vec128 {
   HWY_INLINE Vec128& operator-=(const Vec128 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec128& operator%=(const Vec128 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec128& operator&=(const Vec128 other) {
     return *this = (*this & other);
   }
@@ -1808,6 +1811,167 @@ HWY_API V AbsDiff(const V a, const V b) {
 
 #endif  // HWY_PPC_HAVE_9
 
+// ------------------------------ Integer Div for PPC10
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_INT_DIV
+#undef HWY_NATIVE_INT_DIV
+#else
+#define HWY_NATIVE_INT_DIV
+#endif
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator/(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  // Inline assembly is used instead of vec_div for I32 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int32_t>() && b[i] == -1)
+
+  // Clang will also optimize out I32 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed int raw_result;
+  __asm__("vdivsw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> operator/(Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  // Inline assembly is used instead of vec_div for U32 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U32 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned int raw_result;
+  __asm__("vdivuw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator/(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  // Inline assembly is used instead of vec_div for I64 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int64_t>() && b[i] == -1)
+
+  // Clang will also optimize out I64 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed long long raw_result;
+  __asm__("vdivsd %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int64_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator/(Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  // Inline assembly is used instead of vec_div for U64 Div on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U64 vec_div on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned long long raw_result;
+  __asm__("vdivud %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint64_t, N>{raw_result};
+}
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec128<T> operator/(Vec128<T> a, Vec128<T> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return OrderedDemote2To(d, PromoteLowerTo(dw, a) / PromoteLowerTo(dw, b),
+                          PromoteUpperTo(dw, a) / PromoteUpperTo(dw, b));
+}
+
+template <class T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<T>, decltype(d)> dw;
+  return DemoteTo(d, PromoteTo(dw, a) / PromoteTo(dw, b));
+}
+
+template <size_t N>
+HWY_API Vec128<int32_t, N> operator%(Vec128<int32_t, N> a,
+                                     Vec128<int32_t, N> b) {
+  // Inline assembly is used instead of vec_mod for I32 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int32_t>() && b[i] == -1)
+
+  // Clang will also optimize out I32 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed int raw_result;
+  __asm__("vmodsw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint32_t, N> operator%(Vec128<uint32_t, N> a,
+                                      Vec128<uint32_t, N> b) {
+  // Inline assembly is used instead of vec_mod for U32 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U32 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned int raw_result;
+  __asm__("vmoduw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint32_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<int64_t, N> operator%(Vec128<int64_t, N> a,
+                                     Vec128<int64_t, N> b) {
+  // Inline assembly is used instead of vec_mod for I64 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0 or
+  // (a[i] == LimitsMin<int64_t>() && b[i] == -1)
+
+  // Clang will also optimize out I64 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector signed long long raw_result;
+  __asm__("vmodsd %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<int64_t, N>{raw_result};
+}
+
+template <size_t N>
+HWY_API Vec128<uint64_t, N> operator%(Vec128<uint64_t, N> a,
+                                      Vec128<uint64_t, N> b) {
+  // Inline assembly is used instead of vec_mod for U64 Mod on PPC10 to avoid
+  // undefined behavior if b[i] == 0
+
+  // Clang will also optimize out U64 vec_mod on PPC10 if optimizations are
+  // enabled and any of the lanes of b are known to be zero (even in the unused
+  // lanes of a partial vector)
+  __vector unsigned long long raw_result;
+  __asm__("vmodud %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  return Vec128<uint64_t, N>{raw_result};
+}
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
+HWY_API Vec128<T> operator%(Vec128<T> a, Vec128<T> b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return OrderedDemote2To(d, PromoteLowerTo(dw, a) % PromoteLowerTo(dw, b),
+                          PromoteUpperTo(dw, a) % PromoteUpperTo(dw, b));
+}
+
+template <class T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T),
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
+          HWY_IF_V_SIZE_LE(T, N, 8)>
+HWY_API Vec128<T, N> operator%(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<T>, decltype(d)> dw;
+  return DemoteTo(d, PromoteTo(dw, a) % PromoteTo(dw, b));
+}
+#endif
+
 // ================================================== MEMORY (3)
 
 // ------------------------------ Non-temporal stores
@@ -1940,7 +2104,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> InsertLane(Vec128<T, N> v, size_t i, T t) {
 #if HWY_IS_LITTLE_ENDIAN
   typename detail::Raw128<T>::type raw_result = v.raw;
-  raw_result[i] = t;
+  hwy::CopySameSize(&t, &raw_result[i]);  // for bfloat16_t
   return Vec128<T, N>{raw_result};
 #else
   // On ppc64be without this, mul_test fails, but swizzle_test passes.
@@ -3271,11 +3435,28 @@ HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<uint32_t, D>> v) {
 #endif  // HWY_S390X_HAVE_Z14
 }
 
+#if !HWY_S390X_HAVE_Z14
+namespace detail {
+
+template <class V>
+static HWY_INLINE V VsxF2INormalizeSrcVals(V v) {
+#if !defined(HWY_DISABLE_PPC_VSX_QEMU_F2I_WORKAROUND)
+  // Workaround for QEMU 7/8 VSX float to int conversion bug
+  return IfThenElseZero(v == v, v);
+#else
+  return v;
+#endif
+}
+
+}  // namespace detail
+#endif  // !HWY_S390X_HAVE_Z14
+
 template <class D, HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds))
-  const __vector float raw_v = InterleaveLower(v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveLower(v, v)).raw;
   return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
 #else
   const RebindToFloat<decltype(di64)> df64;
@@ -3287,7 +3468,8 @@ template <class D, HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds))
-  const __vector float raw_v = InterleaveLower(v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveLower(v, v)).raw;
   return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
       __builtin_vsx_xvcvspuxds(raw_v))};
 #else
@@ -3396,7 +3578,9 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteUpperTo(D di64, Vec128<float> v) {
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds))
-  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveUpper(Full128<float>(), v, v))
+          .raw;
   return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
 #else
   const RebindToFloat<decltype(di64)> df64;
@@ -3408,7 +3592,9 @@ template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U64_D(D)>
 HWY_API VFromD<D> PromoteUpperTo(D du64, Vec128<float> v) {
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds))
-  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  const __vector float raw_v =
+      detail::VsxF2INormalizeSrcVals(InterleaveUpper(Full128<float>(), v, v))
+          .raw;
   return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
       __builtin_vsx_xvcvspuxds(raw_v))};
 #else
@@ -3501,15 +3687,17 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::SignedTag /*to_type_tag*/,
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds))
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspsxds expects the source values to be in the odd lanes
   // on little-endian PPC, and the vec_sld operation below will shift the even
-  // lanes of v into the odd lanes.
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(vec_sld(v.raw, v.raw, 4))};
+  // lanes of normalized_v into the odd lanes.
+  return VFromD<D>{
+      __builtin_vsx_xvcvspsxds(vec_sld(normalized_v.raw, normalized_v.raw, 4))};
 #else
   // __builtin_vsx_xvcvspsxds expects the source values to be in the even lanes
   // on big-endian PPC.
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(v.raw)};
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(normalized_v.raw)};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3527,17 +3715,19 @@ HWY_INLINE VFromD<D> PromoteEvenTo(hwy::UnsignedTag /*to_type_tag*/,
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds))
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspuxds expects the source values to be in the odd lanes
   // on little-endian PPC, and the vec_sld operation below will shift the even
-  // lanes of v into the odd lanes.
-  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(vec_sld(v.raw, v.raw, 4)))};
+  // lanes of normalized_v into the odd lanes.
+  return VFromD<D>{
+      reinterpret_cast<__vector unsigned long long>(__builtin_vsx_xvcvspuxds(
+          vec_sld(normalized_v.raw, normalized_v.raw, 4)))};
 #else
   // __builtin_vsx_xvcvspuxds expects the source values to be in the even lanes
   // on big-endian PPC.
   return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(v.raw))};
+      __builtin_vsx_xvcvspuxds(normalized_v.raw))};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3582,15 +3772,17 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::SignedTag /*to_type_tag*/,
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds))
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspsxds expects the source values to be in the odd lanes
   // on little-endian PPC
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(v.raw)};
+  return VFromD<D>{__builtin_vsx_xvcvspsxds(normalized_v.raw)};
 #else
   // __builtin_vsx_xvcvspsxds expects the source values to be in the even lanes
   // on big-endian PPC, and the vec_sld operation below will shift the odd lanes
-  // of v into the even lanes.
-  return VFromD<D>{__builtin_vsx_xvcvspsxds(vec_sld(v.raw, v.raw, 4))};
+  // of normalized_v into the even lanes.
+  return VFromD<D>{
+      __builtin_vsx_xvcvspsxds(vec_sld(normalized_v.raw, normalized_v.raw, 4))};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3608,17 +3800,19 @@ HWY_INLINE VFromD<D> PromoteOddTo(hwy::UnsignedTag /*to_type_tag*/,
 #if !HWY_S390X_HAVE_Z14 && \
     (HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds))
   (void)d_to;
+  const auto normalized_v = detail::VsxF2INormalizeSrcVals(v);
 #if HWY_IS_LITTLE_ENDIAN
   // __builtin_vsx_xvcvspuxds expects the source values to be in the odd lanes
   // on little-endian PPC
   return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(v.raw))};
+      __builtin_vsx_xvcvspuxds(normalized_v.raw))};
 #else
   // __builtin_vsx_xvcvspuxds expects the source values to be in the even lanes
   // on big-endian PPC, and the vec_sld operation below will shift the odd lanes
-  // of v into the even lanes.
-  return VFromD<D>{reinterpret_cast<__vector unsigned long long>(
-      __builtin_vsx_xvcvspuxds(vec_sld(v.raw, v.raw, 4)))};
+  // of normalized_v into the even lanes.
+  return VFromD<D>{
+      reinterpret_cast<__vector unsigned long long>(__builtin_vsx_xvcvspuxds(
+          vec_sld(normalized_v.raw, normalized_v.raw, 4)))};
 #endif
 #else
   const RebindToFloat<decltype(d_to)> df64;
@@ -3872,7 +4066,7 @@ HWY_API Vec32<int32_t> DemoteTo(D di32, Vec64<double> v) {
   return DemoteTo(di32, ConvertTo(di64, v));
 #else
   (void)di32;
-  return Vec32<int32_t>{vec_signede(v.raw)};
+  return Vec32<int32_t>{vec_signede(detail::VsxF2INormalizeSrcVals(v).raw)};
 #endif
 }
 
@@ -3885,9 +4079,11 @@ HWY_API Vec64<int32_t> DemoteTo(D di32, Vec128<double> v) {
   (void)di32;
 
 #if HWY_IS_LITTLE_ENDIAN
-  const Vec128<int32_t> f64_to_i32{vec_signede(v.raw)};
+  const Vec128<int32_t> f64_to_i32{
+      vec_signede(detail::VsxF2INormalizeSrcVals(v).raw)};
 #else
-  const Vec128<int32_t> f64_to_i32{vec_signedo(v.raw)};
+  const Vec128<int32_t> f64_to_i32{
+      vec_signedo(detail::VsxF2INormalizeSrcVals(v).raw)};
 #endif
 
   const Rebind<int64_t, D> di64;
@@ -3903,7 +4099,7 @@ HWY_API Vec32<uint32_t> DemoteTo(D du32, Vec64<double> v) {
   return DemoteTo(du32, ConvertTo(du64, v));
 #else
   (void)du32;
-  return Vec32<uint32_t>{vec_unsignede(v.raw)};
+  return Vec32<uint32_t>{vec_unsignede(detail::VsxF2INormalizeSrcVals(v).raw)};
 #endif
 }
 
@@ -3915,9 +4111,11 @@ HWY_API Vec64<uint32_t> DemoteTo(D du32, Vec128<double> v) {
 #else
   (void)du32;
 #if HWY_IS_LITTLE_ENDIAN
-  const Vec128<uint32_t> f64_to_u32{vec_unsignede(v.raw)};
+  const Vec128<uint32_t> f64_to_u32{
+      vec_unsignede(detail::VsxF2INormalizeSrcVals(v).raw)};
 #else
-  const Vec128<uint32_t> f64_to_u32{vec_unsignedo(v.raw)};
+  const Vec128<uint32_t> f64_to_u32{
+      vec_unsignedo(detail::VsxF2INormalizeSrcVals(v).raw)};
 #endif
 
   const Rebind<uint64_t, D> du64;
@@ -4114,7 +4312,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #endif
   return VFromD<D>{vec_cts(v.raw, 0)};
   HWY_DIAGNOSTICS(pop)
-#endif
+#endif  // HWY_S390X_HAVE_Z15
 }
 #endif  // HWY_S390X_HAVE_Z14 && !HWY_S390X_HAVE_Z15
 
@@ -4145,7 +4343,9 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #if HWY_S390X_HAVE_Z14
   __asm__("vcgdb %0,%1,0,5" : "=v"(raw_result) : "v"(v.raw));
 #else
-  __asm__("xvcvdpsxds %x0,%x1" : "=wa"(raw_result) : "wa"(v.raw));
+  __asm__("xvcvdpsxds %x0,%x1"
+          : "=wa"(raw_result)
+          : "wa"(detail::VsxF2INormalizeSrcVals(v).raw));
 #endif
   return VFromD<D>{raw_result};
 }
@@ -4206,7 +4406,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
   VFromD<D> result{vec_ctu(v.raw, 0)};
   HWY_DIAGNOSTICS(pop)
   return result;
-#endif
+#endif  // HWY_S390X_HAVE_Z15
 }
 #endif  // HWY_S390X_HAVE_Z14 && !HWY_S390X_HAVE_Z15
 
@@ -4240,7 +4440,9 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #if HWY_S390X_HAVE_Z14
   __asm__("vclgdb %0,%1,0,5" : "=v"(raw_result) : "v"(v.raw));
 #else  // VSX
-  __asm__("xvcvdpuxds %x0,%x1" : "=wa"(raw_result) : "wa"(v.raw));
+  __asm__("xvcvdpuxds %x0,%x1"
+          : "=wa"(raw_result)
+          : "wa"(detail::VsxF2INormalizeSrcVals(v).raw));
 #endif
   return VFromD<D>{raw_result};
 }

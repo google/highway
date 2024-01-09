@@ -15,9 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>  // memcmp
 
+#include "hwy/base.h"
 #include "hwy/nanobenchmark.h"
 
 #undef HWY_TARGET_INCLUDE
@@ -82,11 +84,10 @@ struct TestMaskedScatter {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes && expected);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, hwy::Unpredictable1() - 1);
     Store(v, d, lanes.get());
 
-    const VI indices =
-        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+    const VI indices = Reverse(di, Iota(di, hwy::Unpredictable1() - 1));
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -94,7 +95,7 @@ struct TestMaskedScatter {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          expected[N - 1 - i] = static_cast<T>(i);
+          expected[N - 1 - i] = ConvertScalarTo<T>(i);
         }
       }
 
@@ -124,11 +125,10 @@ struct TestScatterIndexN {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(lanes && expected);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, hwy::Unpredictable1() - 1);
     Store(v, d, lanes.get());
 
-    const VI indices =
-        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+    const VI indices = Reverse(di, Iota(di, hwy::Unpredictable1() - 1));
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       // Choose 1 to N lanes to store
@@ -136,7 +136,7 @@ struct TestScatterIndexN {
 
       ZeroBytes(expected.get(), N * sizeof(T));
       for (size_t i = 0; i < max_lanes_to_store; ++i) {
-        expected[N - 1 - i] = static_cast<T>(i);
+        expected[N - 1 - i] = ConvertScalarTo<T>(i);
       }
 
       ZeroBytes(lanes.get(), N * sizeof(T));
@@ -156,7 +156,7 @@ struct TestScatterIndexN {
     HWY_ASSERT(larger_memory && larger_expected);
     ZeroBytes(larger_expected.get(), N * sizeof(T) * 2);
     for (size_t i = 0; i < N; ++i) {
-      larger_expected[N - 1 - i] = static_cast<T>(i);
+      larger_expected[N - 1 - i] = ConvertScalarTo<T>(i);
     }
     ZeroBytes(larger_memory.get(), N * sizeof(T));
     ScatterIndexN(v, d, larger_memory.get(), indices, N + 1);
@@ -181,18 +181,17 @@ struct TestMaskedGather {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, hwy::Unpredictable1() - 1);
     Store(v, d, lanes.get());
 
-    const Vec<D> no = Set(d, T{2});
+    const Vec<D> no = Set(d, ConvertScalarTo<T>(2));
 
-    const VI indices =
-        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+    const VI indices = Reverse(di, Iota(di, hwy::Unpredictable1() - 1));
 
     // Each lane should have a chance of having mask=true.
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
+        bool_lanes[i] = static_cast<TI>((Random32(&rng) & 1024) ? 1 : 0);
       }
 
       const VI mask_i = Load(di, bool_lanes.get());
@@ -225,11 +224,10 @@ struct TestGatherIndexN {
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(bool_lanes && lanes);
 
-    const Vec<D> v = Iota(d, static_cast<T>(hwy::Unpredictable1() - 1));
+    const Vec<D> v = Iota(d, hwy::Unpredictable1() - 1);
     Store(v, d, lanes.get());
 
-    const VI indices =
-        Reverse(di, Iota(di, static_cast<TI>(hwy::Unpredictable1() - 1)));
+    const VI indices = Reverse(di, Iota(di, hwy::Unpredictable1() - 1));
 
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       // Choose 1 to N lanes to load

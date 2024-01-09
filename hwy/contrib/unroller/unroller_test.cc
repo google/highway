@@ -416,7 +416,7 @@ struct TestConvert {
       int* HWY_RESTRICT to = pto.get();
 
       for (size_t i = 0; i < num; ++i) {
-        a[i] = static_cast<T>(static_cast<double>(i) * 0.25);
+        a[i] = ConvertScalarTo<T>(static_cast<double>(i) * 0.25);
       }
 
       ConvertUnit<T, int> cvtfn;
@@ -431,7 +431,7 @@ struct TestConvert {
       ConvertUnit<int, T> cvtbackfn;
       Unroller(cvtbackfn, to, a, static_cast<ptrdiff_t>(num));
       for (size_t i = 0; i < num; ++i) {
-        HWY_ASSERT_EQ(static_cast<T>(to[i]), a[i]);
+        HWY_ASSERT_EQ(ConvertScalarTo<T>(to[i]), a[i]);
       }
     }
 #endif

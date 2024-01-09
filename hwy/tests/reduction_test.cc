@@ -47,19 +47,21 @@ struct TestSumOfLanes {
     if (lanes < 2) return;
 #endif
 
-    const T pairs = static_cast<T>(lanes / 2);
+    const T pairs = ConvertScalarTo<T>(lanes / 2);
 
     // Lanes are the repeated sequence -2, 1, [...]; each pair sums to -1,
     // so the eventual total is just -(N/2).
-    Vec<decltype(d)> v =
-        InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, T{1}));
-    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(-pairs)), SumOfLanes(d, v));
-    HWY_ASSERT_EQ(static_cast<T>(-pairs), ReduceSum(d, v));
+    Vec<decltype(d)> v = InterleaveLower(Set(d, ConvertScalarTo<T>(-2)),
+                                         Set(d, ConvertScalarTo<T>(1)));
+    HWY_ASSERT_VEC_EQ(d, Set(d, ConvertScalarTo<T>(-pairs)), SumOfLanes(d, v));
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(-pairs), ReduceSum(d, v));
 
     // Similar test with a positive result.
-    v = InterleaveLower(Set(d, static_cast<T>(-2)), Set(d, T{4}));
-    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(pairs * 2)), SumOfLanes(d, v));
-    HWY_ASSERT_EQ(static_cast<T>(pairs * 2), ReduceSum(d, v));
+    v = InterleaveLower(Set(d, ConvertScalarTo<T>(-2)),
+                        Set(d, ConvertScalarTo<T>(4)));
+    HWY_ASSERT_VEC_EQ(d, Set(d, ConvertScalarTo<T>(pairs * 2)),
+                      SumOfLanes(d, v));
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(pairs * 2), ReduceSum(d, v));
   }
 
   template <typename T, class D>
@@ -69,22 +71,21 @@ struct TestSumOfLanes {
     HWY_ASSERT(in_lanes);
 
     // Lane i = bit i, higher lanes 0
-    T sum = T{0};
+    T sum = ConvertScalarTo<T>(0);
     // Avoid setting sign bit and cap so that f16 precision is not exceeded.
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 9);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(0);
+      in_lanes[i] = ConvertScalarTo<T>(i < kBits ? 1ull << i : 0ull);
       sum = AddWithWraparound(sum, in_lanes[i]);
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)),
-                      SumOfLanes(d, Load(d, in_lanes.get())));
+    HWY_ASSERT_VEC_EQ(d, Set(d, sum), SumOfLanes(d, Load(d, in_lanes.get())));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Load(d, in_lanes.get())));
     // Lane i = i (iota) to include upper lanes
-    sum = T{0};
+    sum = ConvertScalarTo<T>(0);
     for (size_t i = 0; i < N; ++i) {
-      sum = AddWithWraparound(sum, static_cast<T>(i));
+      sum = AddWithWraparound(sum, ConvertScalarTo<T>(i));
     }
-    HWY_ASSERT_VEC_EQ(d, Set(d, T(sum)), SumOfLanes(d, Iota(d, 0)));
+    HWY_ASSERT_VEC_EQ(d, Set(d, sum), SumOfLanes(d, Iota(d, 0)));
     HWY_ASSERT_EQ(T(sum), ReduceSum(d, Iota(d, 0)));
 
     // Run more tests only for signed types with even vector lengths. Some of
@@ -108,7 +109,7 @@ struct TestMinOfLanes {
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(2);
+      in_lanes[i] = ConvertScalarTo<T>(i < kBits ? 1ull << i : 2ull);
       min = HWY_MIN(min, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
@@ -116,15 +117,15 @@ struct TestMinOfLanes {
     // Lane i = N - i to include upper lanes
     min = HighestValue<T>();
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(N - i);  // no 8-bit T so no wraparound
+      in_lanes[i] = ConvertScalarTo<T>(N - i);  // no 8-bit T so no wraparound
       min = HWY_MIN(min, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, min), MinOfLanes(d, Load(d, in_lanes.get())));
 
     // Bug #910: also check negative values
     min = HighestValue<T>();
-    const T input_copy[] = {static_cast<T>(-1),
-                            static_cast<T>(-2),
+    const T input_copy[] = {ConvertScalarTo<T>(-1),
+                            ConvertScalarTo<T>(-2),
                             1,
                             2,
                             3,
@@ -163,7 +164,7 @@ struct TestMaxOfLanes {
     // Avoid setting sign bit and cap at double precision
     constexpr size_t kBits = HWY_MIN(sizeof(T) * 8 - 1, 51);
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = i < kBits ? static_cast<T>(1ull << i) : static_cast<T>(0);
+      in_lanes[i] = ConvertScalarTo<T>(i < kBits ? 1ull << i : 0ull);
       max = HWY_MAX(max, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
@@ -171,15 +172,15 @@ struct TestMaxOfLanes {
     // Lane i = i to include upper lanes
     max = LowestValue<T>();
     for (size_t i = 0; i < N; ++i) {
-      in_lanes[i] = static_cast<T>(i);  // no 8-bit T so no wraparound
+      in_lanes[i] = ConvertScalarTo<T>(i);  // no 8-bit T so no wraparound
       max = HWY_MAX(max, in_lanes[i]);
     }
     HWY_ASSERT_VEC_EQ(d, Set(d, max), MaxOfLanes(d, Load(d, in_lanes.get())));
 
     // Bug #910: also check negative values
     max = LowestValue<T>();
-    const T input_copy[] = {static_cast<T>(-1),
-                            static_cast<T>(-2),
+    const T input_copy[] = {ConvertScalarTo<T>(-1),
+                            ConvertScalarTo<T>(-2),
                             1,
                             2,
                             3,
@@ -321,7 +322,7 @@ struct TestSumsOf8 {
 
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        in_lanes[i] = static_cast<T>(Random64(&rng) & 0xFF);
+        in_lanes[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFF);
       }
 
       for (size_t idx_sum = 0; idx_sum < N / 8; ++idx_sum) {

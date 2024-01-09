@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 #include "hwy/aligned_allocator.h"
 
 // clang-format off
@@ -39,7 +41,7 @@ namespace HWY_NAMESPACE {
 // Returns random integer in [0, 128), which fits in any lane type.
 template <typename T>
 T Random7Bit(RandomState& rng) {
-  return static_cast<T>(Random32(&rng) & 127);
+  return ConvertScalarTo<T>(Random32(&rng) & 127);
 }
 
 // In C++14, we can instead define these as generic lambdas next to where they
@@ -92,9 +94,9 @@ struct TestFill {
     }
     T* actual = pb.get() + misalign_b;
 
-    actual[count] = T{0};  // sentinel
+    actual[count] = ConvertScalarTo<T>(0);  // sentinel
     Fill(d, value, count, actual);
-    HWY_ASSERT_EQ(T{0}, actual[count]);  // did not write past end
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(0), actual[count]);  // no write past end
 
     const auto info = hwy::detail::MakeTypeInfo<T>();
     const char* target_name = hwy::TargetName(HWY_TARGET);

@@ -167,7 +167,7 @@ template <typename TTo, typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TTo),
           HWY_IF_T_SIZE_LE(TTo, 4)>
 T WrapTo(T value) {
   return static_cast<T>(static_cast<uint64_t>(value) &
-                        ((1ULL << (sizeof(TTo) * 8)) - 1));
+                        ((uint64_t{1} << (sizeof(TTo) * 8)) - 1));
 }
 // 2) 64-bit integer: no mask (shift would overflow)
 template <typename TTo, typename T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TTo),
@@ -209,6 +209,34 @@ HWY_INLINE void AssertArrayEqual(const T* expected, const T* actual,
   const auto info = hwy::detail::MakeTypeInfo<T>();
   detail::AssertArrayEqual(info, expected, actual, count, target_name, filename,
                            line);
+}
+
+// Compare with tolerance due to FMA and f16 precision.
+template <typename T>
+HWY_INLINE void AssertArraySimilar(const T* expected, const T* actual,
+                                   size_t count, const char* target_name,
+                                   const char* filename, int line) {
+  const double tolerance = 1.0 / (uint64_t{1} << MantissaBits<T>());
+  for (size_t i = 0; i < count; ++i) {
+    const double exp = ConvertScalarTo<double>(expected[i]);
+    const double act = ConvertScalarTo<double>(actual[i]);
+    const double l1 = ScalarAbs(act - exp);
+    // Cannot divide, so check absolute error.
+    if (exp == 0.0) {
+      if (l1 > tolerance) {
+        HWY_ABORT("%s %s:%d %s mismatch %zu of %zu: %E %E l1 %E tol %E\n",
+                  target_name, filename, line, TypeName(T(), 1).c_str(), i,
+                  count, exp, act, l1, tolerance);
+      }
+    } else {  // relative
+      const double rel = l1 / exp;
+      if (rel > tolerance) {
+        HWY_ABORT("%s %s:%d %s mismatch %zu of %zu: %E %E rel %E tol %E\n",
+                  target_name, filename, line, TypeName(T(), 1).c_str(), i,
+                  count, exp, act, rel, tolerance);
+      }
+    }
+  }
 }
 
 }  // namespace hwy

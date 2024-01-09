@@ -40,10 +40,10 @@ class ThreadPool {
  public:
   // Starts the given number of worker threads and blocks until they are ready.
   // If `num_worker_threads` is zero, all tasks will run on the main thread.
-  ThreadPool(size_t num_worker_threads =
+  HWY_CONTRIB_DLLEXPORT ThreadPool(size_t num_worker_threads =
                  static_cast<size_t>(std::thread::hardware_concurrency()));
   // Waits for all threads to exit.
-  ~ThreadPool();
+  HWY_CONTRIB_DLLEXPORT ~ThreadPool();
 
   // Returns maximum number of main or worker threads that may call RunFunc.
   // Useful for allocating per-thread storage.
@@ -133,8 +133,8 @@ class ThreadPool {
     (*reinterpret_cast<const Closure*>(opaque))(task, thread);
   }
 
-  void WorkersReadyBarrier();
-  void StartWorkers(WorkerCommand worker_command);
+  HWY_CONTRIB_DLLEXPORT void WorkersReadyBarrier();
+  HWY_CONTRIB_DLLEXPORT void StartWorkers(WorkerCommand worker_command);
 
   // Attempts to reserve and perform some work from the global range of tasks,
   // which is encoded within `command`. Returns after all tasks are reserved.

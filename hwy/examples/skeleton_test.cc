@@ -17,6 +17,7 @@
 
 #include "hwy/examples/skeleton.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 #undef HWY_TARGET_INCLUDE
@@ -89,9 +90,9 @@ struct TestSumMulAdd {
     auto x = hwy::AllocateAligned<T>(count);
     auto add = hwy::AllocateAligned<T>(count);
     for (size_t i = 0; i < count; ++i) {
-      mul[i] = static_cast<T>(Random32(&rng) & 0xF);
-      x[i] = static_cast<T>(Random32(&rng) & 0xFF);
-      add[i] = static_cast<T>(Random32(&rng) & 0xFF);
+      mul[i] = hwy::ConvertScalarTo<T>(Random32(&rng) & 0xF);
+      x[i] = hwy::ConvertScalarTo<T>(Random32(&rng) & 0xFF);
+      add[i] = hwy::ConvertScalarTo<T>(Random32(&rng) & 0xFF);
     }
     double expected_sum = 0.0;
     for (size_t i = 0; i < count; ++i) {

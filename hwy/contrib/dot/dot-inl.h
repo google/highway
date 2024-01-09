@@ -67,8 +67,8 @@ struct Dot {
     if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
         HWY_UNLIKELY(num_elements < N)) {
       // Only 2x unroll to avoid excessive code size.
-      T sum0 = T(0);
-      T sum1 = T(0);
+      T sum0 = ConvertScalarTo<T>(0);
+      T sum1 = ConvertScalarTo<T>(0);
       for (; i + 2 <= num_elements; i += 2) {
         // For reasons unknown, fp16 += does not compile on clang (Arm).
         sum0 = sum0 + pa[i + 0] * pb[i + 0];

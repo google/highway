@@ -46,7 +46,7 @@ struct TestAlignedT {
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);
           for (size_t x = 0; x < xsize; x += Lanes(d)) {
-            const auto values = Iota(d, static_cast<T>(dist(rng)));
+            const auto values = Iota(d, dist(rng));
             Store(values, d, row + x);
           }
         }
@@ -82,7 +82,7 @@ struct TestUnalignedT {
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);
           for (size_t x = 0; x < xsize; ++x) {
-            row[x] = static_cast<T>(1u << dist(rng));
+            row[x] = ConvertScalarTo<T>(1u << dist(rng));
           }
         }
 
@@ -108,7 +108,7 @@ struct TestUnalignedT {
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);
           for (size_t x = 0; x < xsize; ++x) {
-            row[x] = static_cast<T>(x);
+            row[x] = ConvertScalarTo<T>(x);
           }
         }
 
@@ -122,7 +122,7 @@ struct TestUnalignedT {
         for (size_t y = 0; y < ysize; ++y) {
           T* HWY_RESTRICT row = img.MutableRow(y);
           for (size_t x = 0; x < xsize - 1; ++x) {
-            HWY_ASSERT_EQ(static_cast<T>(x), row[x]);
+            HWY_ASSERT_EQ(ConvertScalarTo<T>(x), row[x]);
           }
         }
 #endif

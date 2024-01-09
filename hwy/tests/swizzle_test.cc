@@ -30,7 +30,7 @@ namespace HWY_NAMESPACE {
 struct TestGetLane {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(1));
+    const auto v = Iota(d, 1);
     HWY_ASSERT_EQ(T(1), GetLane(v));
   }
 };
@@ -44,33 +44,33 @@ struct TestExtractLane {
     HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
   template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 1)>
   static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(1), ExtractLane(v, 0));
   }
 
   template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 2)>
   static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(2), ExtractLane(v, 1));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(2), ExtractLane(v, 1));
   }
 
   template <class D, HWY_IF_LANES_D(BlockDFromD<D>, 4)>
   static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(2), ExtractLane(v, 1));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(3), ExtractLane(v, 2));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(4), ExtractLane(v, 3));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(2), ExtractLane(v, 1));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(3), ExtractLane(v, 2));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(4), ExtractLane(v, 3));
   }
 
   template <class D, HWY_IF_LANES_GT_D(BlockDFromD<D>, 4)>
   static HWY_INLINE void DoTestExtractLaneWithConstAmt_0_7(D /*d*/, Vec<D> v) {
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(1), ExtractLane(v, 0));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(2), ExtractLane(v, 1));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(3), ExtractLane(v, 2));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(4), ExtractLane(v, 3));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(5), ExtractLane(v, 4));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(6), ExtractLane(v, 5));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(7), ExtractLane(v, 6));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(8), ExtractLane(v, 7));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(1), ExtractLane(v, 0));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(2), ExtractLane(v, 1));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(3), ExtractLane(v, 2));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(4), ExtractLane(v, 3));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(5), ExtractLane(v, 4));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(6), ExtractLane(v, 5));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(7), ExtractLane(v, 6));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(8), ExtractLane(v, 7));
   }
 
   template <class D, HWY_IF_LANES_LE_D(BlockDFromD<D>, 8)>
@@ -79,21 +79,21 @@ struct TestExtractLane {
 
   template <class D, HWY_IF_LANES_GT_D(BlockDFromD<D>, 8)>
   static HWY_INLINE void DoTestExtractLaneWithConstAmt_8_15(D /*d*/, Vec<D> v) {
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(9), ExtractLane(v, 8));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(10), ExtractLane(v, 9));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(11), ExtractLane(v, 10));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(12), ExtractLane(v, 11));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(13), ExtractLane(v, 12));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(14), ExtractLane(v, 13));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(15), ExtractLane(v, 14));
-    HWY_ASSERT_EQ(static_cast<TFromD<D>>(16), ExtractLane(v, 15));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(9), ExtractLane(v, 8));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(10), ExtractLane(v, 9));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(11), ExtractLane(v, 10));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(12), ExtractLane(v, 11));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(13), ExtractLane(v, 12));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(14), ExtractLane(v, 13));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(15), ExtractLane(v, 14));
+    HWY_ASSERT_EQ(ConvertScalarTo<TFromD<D>>(16), ExtractLane(v, 15));
   }
 #endif  // !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 &&
         // HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
 
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(1));
+    const auto v = Iota(d, 1);
 
 #if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
     HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
@@ -104,7 +104,7 @@ struct TestExtractLane {
 
     for (size_t i = 0; i < Lanes(d); ++i) {
       const T actual = ExtractLane(v, i);
-      HWY_ASSERT_EQ(static_cast<T>(i + 1), actual);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(i + 1), actual);
     }
   }
 };
@@ -295,7 +295,7 @@ struct TestDupEven {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i & ~size_t{1}) + 1);
+      expected[i] = ConvertScalarTo<T>((i & ~size_t{1}) + 1);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), DupEven(Iota(d, 1)));
   }
@@ -313,7 +313,7 @@ struct TestDupOdd {
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>((i & ~size_t{1}) + 2);
+      expected[i] = ConvertScalarTo<T>((i & ~size_t{1}) + 2);
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), DupOdd(Iota(d, 1)));
 #else
@@ -331,11 +331,11 @@ struct TestOddEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
-    const auto odd = Iota(d, static_cast<T>(1 + N));
+    const auto odd = Iota(d, 1 + N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>(1 + i + ((i & 1) ? N : 0));
+      expected[i] = ConvertScalarTo<T>(1 + i + ((i & 1) ? N : 0));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), OddEven(odd, even));
   }
@@ -351,12 +351,10 @@ class TestBroadcastLane {
             HWY_IF_LANES_GT_D(D, static_cast<size_t>(kLane))>
   static HWY_INLINE void DoTestBroadcastLane(D d, const size_t N) {
     using T = TFromD<D>;
-    using TU = MakeUnsigned<T>;
     // kLane < HWY_MAX_LANES_D(D) is true
     if (kLane >= N) return;
 
-    constexpr T kExpectedVal = static_cast<T>(static_cast<TU>(kLane) + 1u);
-    const auto expected = Set(d, kExpectedVal);
+    const Vec<D> expected = Set(d, ConvertScalarTo<T>(kLane + 1));
 
     const BlockDFromD<decltype(d)> d_block;
     static_assert(d_block.MaxLanes() <= d.MaxLanes(),
@@ -366,7 +364,7 @@ class TestBroadcastLane {
     constexpr int kLaneInBlkIdx =
         kLane & static_cast<int>(kLanesPer16ByteBlk - 1);
 
-    const Vec<D> v = Iota(d, T{1});
+    const Vec<D> v = Iota(d, 1);
     const Vec<D> actual = BroadcastLane<kLane>(v);
     const Vec<decltype(d_block)> actual_block =
         ExtractBlock<kBlockIdx>(Broadcast<kLaneInBlkIdx>(v));

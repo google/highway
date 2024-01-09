@@ -13,9 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>  // memcpy
-
-#include <algorithm>  // std::fill
+#include <stddef.h>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/combine_test.cc"
@@ -36,20 +34,20 @@ struct TestLowerHalf {
     auto lanes = AllocateAligned<T>(N);
     auto lanes2 = AllocateAligned<T>(N);
     HWY_ASSERT(lanes && lanes2);
-    std::fill(lanes.get(), lanes.get() + N, T(0));
-    std::fill(lanes2.get(), lanes2.get() + N, T(0));
+    ZeroBytes(lanes.get(), N * sizeof(T));
+    ZeroBytes(lanes2.get(), N * sizeof(T));
     const auto v = Iota(d, 1);
     Store(LowerHalf(d2, v), d2, lanes.get());
     Store(LowerHalf(v), d2, lanes2.get());  // optionally without D
     size_t i = 0;
     for (; i < Lanes(d2); ++i) {
-      HWY_ASSERT_EQ(T(1 + i), lanes[i]);
-      HWY_ASSERT_EQ(T(1 + i), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(1 + i), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(1 + i), lanes2[i]);
     }
     // Other half remains unchanged
     for (; i < N; ++i) {
-      HWY_ASSERT_EQ(T(0), lanes[i]);
-      HWY_ASSERT_EQ(T(0), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes2[i]);
     }
   }
 };
@@ -64,8 +62,8 @@ struct TestLowerQuarter {
     auto lanes = AllocateAligned<T>(N);
     auto lanes2 = AllocateAligned<T>(N);
     HWY_ASSERT(lanes && lanes2);
-    std::fill(lanes.get(), lanes.get() + N, T(0));
-    std::fill(lanes2.get(), lanes2.get() + N, T(0));
+    ZeroBytes(lanes.get(), N * sizeof(T));
+    ZeroBytes(lanes2.get(), N * sizeof(T));
     const auto v = Iota(d, 1);
     const auto lo = LowerHalf(d4, LowerHalf(d2, v));
     const auto lo2 = LowerHalf(LowerHalf(v));  // optionally without D
@@ -73,13 +71,13 @@ struct TestLowerQuarter {
     Store(lo2, d4, lanes2.get());
     size_t i = 0;
     for (; i < Lanes(d4); ++i) {
-      HWY_ASSERT_EQ(T(i + 1), lanes[i]);
-      HWY_ASSERT_EQ(T(i + 1), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(i + 1), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(i + 1), lanes2[i]);
     }
     // Upper 3/4 remain unchanged
     for (; i < N; ++i) {
-      HWY_ASSERT_EQ(T(0), lanes[i]);
-      HWY_ASSERT_EQ(T(0), lanes2[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), lanes2[i]);
     }
   }
 };
@@ -108,7 +106,7 @@ struct TestUpperHalf {
     HWY_ASSERT(expected);
     size_t i = 0;
     for (; i < N2; ++i) {
-      expected[i] = static_cast<T>(N2 + 1 + i);
+      expected[i] = ConvertScalarTo<T>(N2 + 1 + i);
     }
     HWY_ASSERT_VEC_EQ(d2, expected.get(), UpperHalf(d2, Iota(d, 1)));
 #else
@@ -162,7 +160,7 @@ struct TestCombine {
     HWY_ASSERT(lanes);
 
     const Vec<D> lo = Iota(d, 1);
-    const Vec<D> hi = Iota(d, static_cast<T>(N2 / 2 + 1));
+    const Vec<D> hi = Iota(d, N2 / 2 + 1);
     const Vec<decltype(d2)> combined = Combine(d2, hi, lo);
     Store(combined, d2, lanes.get());
 
@@ -189,39 +187,39 @@ struct TestConcat {
     RandomState rng;
     for (size_t rep = 0; rep < 10; ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        hi[i] = static_cast<T>(Random64(&rng) & 0xFF);
-        lo[i] = static_cast<T>(Random64(&rng) & 0xFF);
+        hi[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFF);
+        lo[i] = ConvertScalarTo<T>(Random64(&rng) & 0xFF);
       }
 
       {
-        memcpy(&expected[N / 2], &hi[N / 2], half_bytes);
-        memcpy(&expected[0], &lo[0], half_bytes);
-        const auto vhi = Load(d, hi.get());
-        const auto vlo = Load(d, lo.get());
+        CopyBytes(&hi[N / 2], &expected[N / 2], half_bytes);
+        CopyBytes(&lo[0], &expected[0], half_bytes);
+        const Vec<D> vhi = Load(d, hi.get());
+        const Vec<D> vlo = Load(d, lo.get());
         HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperLower(d, vhi, vlo));
       }
 
       {
-        memcpy(&expected[N / 2], &hi[N / 2], half_bytes);
-        memcpy(&expected[0], &lo[N / 2], half_bytes);
-        const auto vhi = Load(d, hi.get());
-        const auto vlo = Load(d, lo.get());
+        CopyBytes(&hi[N / 2], &expected[N / 2], half_bytes);
+        CopyBytes(&lo[N / 2], &expected[0], half_bytes);
+        const Vec<D> vhi = Load(d, hi.get());
+        const Vec<D> vlo = Load(d, lo.get());
         HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatUpperUpper(d, vhi, vlo));
       }
 
       {
-        memcpy(&expected[N / 2], &hi[0], half_bytes);
-        memcpy(&expected[0], &lo[N / 2], half_bytes);
-        const auto vhi = Load(d, hi.get());
-        const auto vlo = Load(d, lo.get());
+        CopyBytes(&hi[0], &expected[N / 2], half_bytes);
+        CopyBytes(&lo[N / 2], &expected[0], half_bytes);
+        const Vec<D> vhi = Load(d, hi.get());
+        const Vec<D> vlo = Load(d, lo.get());
         HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerUpper(d, vhi, vlo));
       }
 
       {
-        memcpy(&expected[N / 2], &hi[0], half_bytes);
-        memcpy(&expected[0], &lo[0], half_bytes);
-        const auto vhi = Load(d, hi.get());
-        const auto vlo = Load(d, lo.get());
+        CopyBytes(&hi[0], &expected[N / 2], half_bytes);
+        CopyBytes(&lo[0], &expected[0], half_bytes);
+        const Vec<D> vhi = Load(d, hi.get());
+        const Vec<D> vlo = Load(d, lo.get());
         HWY_ASSERT_VEC_EQ(d, expected.get(), ConcatLowerLower(d, vhi, vlo));
       }
     }
@@ -237,28 +235,28 @@ struct TestConcatOddEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_TARGET != HWY_SCALAR
     const size_t N = Lanes(d);
-    const auto hi = Iota(d, static_cast<T>(N));
-    const auto lo = Iota(d, 0);
-    const auto even = Add(Iota(d, 0), Iota(d, 0));
-    const auto odd = Add(even, Set(d, 1));
+    const Vec<D> hi = Iota(d, N);
+    const Vec<D> lo = Iota(d, 0);
+    const Vec<D> even = Add(Iota(d, 0), Iota(d, 0));
+    const Vec<D> odd = Add(even, Set(d, 1));
     HWY_ASSERT_VEC_EQ(d, odd, ConcatOdd(d, hi, lo));
     HWY_ASSERT_VEC_EQ(d, even, ConcatEven(d, hi, lo));
 
-    const auto v_1 = Set(d, T{1});
-    const auto v_2 = Set(d, T{2});
-    const auto v_3 = Set(d, T{3});
-    const auto v_4 = Set(d, T{4});
+    const Vec<D> v_1 = Set(d, ConvertScalarTo<T>(1));
+    const Vec<D> v_2 = Set(d, ConvertScalarTo<T>(2));
+    const Vec<D> v_3 = Set(d, ConvertScalarTo<T>(3));
+    const Vec<D> v_4 = Set(d, ConvertScalarTo<T>(4));
 
     const Half<decltype(d)> dh;
-    const auto v_12 = InterleaveLower(v_1, v_2); /* {1, 2, 1, 2, ...} */
-    const auto v_34 = InterleaveLower(v_3, v_4); /* {3, 4, 3, 4, ...} */
-    const auto v_13 =
+    const Vec<D> v_12 = InterleaveLower(v_1, v_2); /* {1, 2, 1, 2, ...} */
+    const Vec<D> v_34 = InterleaveLower(v_3, v_4); /* {3, 4, 3, 4, ...} */
+    const Vec<D> v_13 =
         ConcatLowerLower(d, v_3, v_1); /* {1, 1, ..., 3, 3, ...} */
-    const auto v_24 =
+    const Vec<D> v_24 =
         ConcatLowerLower(d, v_4, v_2); /* {2, 2, ..., 4, 4, ...} */
 
-    const auto concat_even_1234_result = ConcatEven(d, v_34, v_12);
-    const auto concat_odd_1234_result = ConcatOdd(d, v_34, v_12);
+    const Vec<D> concat_even_1234_result = ConcatEven(d, v_34, v_12);
+    const Vec<D> concat_odd_1234_result = ConcatOdd(d, v_34, v_12);
 
     HWY_ASSERT_VEC_EQ(d, v_13, concat_even_1234_result);
     HWY_ASSERT_VEC_EQ(d, v_24, concat_odd_1234_result);
@@ -268,8 +266,8 @@ struct TestConcatOddEven {
                       UpperHalf(dh, concat_odd_1234_result));
 
     // This test catches inadvertent saturation.
-    const auto min = Set(d, LowestValue<T>());
-    const auto max = Set(d, HighestValue<T>());
+    const Vec<D> min = Set(d, LowestValue<T>());
+    const Vec<D> max = Set(d, HighestValue<T>());
     HWY_ASSERT_VEC_EQ(d, max, ConcatOdd(d, max, max));
     HWY_ASSERT_VEC_EQ(d, max, ConcatEven(d, max, max));
     HWY_ASSERT_VEC_EQ(d, min, ConcatOdd(d, min, min));
@@ -295,10 +293,10 @@ struct TestInterleaveWholeHalves {
     const TU hi_bit = (!IsFloat<T>() && !IsSpecialFloat<T>() && N < kMsb)
                           ? static_cast<TU>(N)
                           : kMsb;
-    const TU lo_mask = static_cast<TU>(hi_bit - TU{1});
+    const TU lo_mask = static_cast<TU>(hi_bit - 1u);
 
     const RebindToUnsigned<decltype(d)> du;
-    const auto v0 = And(Iota(d, T{0}), BitCast(d, Set(du, lo_mask)));
+    const auto v0 = And(Iota(d, 0), BitCast(d, Set(du, lo_mask)));
     const auto v1 = Or(v0, BitCast(d, Set(du, hi_bit)));
 
     auto v0_lanes = AllocateAligned<T>(N);

@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 // Ensure incompatibilities with Windows macros (e.g. #define StoreFence) are
 // detected. Must come before Highway headers.
 #include "hwy/base.h"
@@ -20,8 +22,6 @@
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #endif
-
-#include <algorithm>  // std::fill
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/memory_test.cc"
@@ -97,32 +97,32 @@ struct TestSafeCopyN {
     Store(v, d, from.get());
 
     // 0: nothing changes
-    to[0] = T();
+    to[0] = ConvertScalarTo<T>(0);
     SafeCopyN(0, d, from.get(), to.get());
     HWY_ASSERT_EQ(T(), to[0]);
 
     // 1: only first changes
-    to[1] = T();
+    to[1] = ConvertScalarTo<T>(0);
     SafeCopyN(1, d, from.get(), to.get());
-    HWY_ASSERT_EQ(static_cast<T>(1), to[0]);
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(1), to[0]);
     HWY_ASSERT_EQ(T(), to[1]);
 
     // N-1: last does not change
-    to[N - 1] = T();
+    to[N - 1] = ConvertScalarTo<T>(0);
     SafeCopyN(N - 1, d, from.get(), to.get());
     HWY_ASSERT_EQ(T(), to[N - 1]);
     // Also check preceding lanes
-    to[N - 1] = static_cast<T>(N);
+    to[N - 1] = ConvertScalarTo<T>(N);
     HWY_ASSERT_VEC_EQ(d, to.get(), v);
 
     // N: all change
-    to[N] = T();
+    to[N] = ConvertScalarTo<T>(0);
     SafeCopyN(N, d, from.get(), to.get());
     HWY_ASSERT_VEC_EQ(d, to.get(), v);
     HWY_ASSERT_EQ(T(), to[N]);
 
     // N+1: subsequent lane does not change if using masked store
-    to[N + 1] = T();
+    to[N + 1] = ConvertScalarTo<T>(0);
     SafeCopyN(N + 1, d, from.get(), to.get());
     HWY_ASSERT_VEC_EQ(d, to.get(), v);
 #if !HWY_MEM_OPS_MIGHT_FAULT
@@ -143,14 +143,14 @@ struct TestLoadDup128 {
     constexpr size_t N128 = 16 / sizeof(T);
     alignas(16) T lanes[N128];
     for (size_t i = 0; i < N128; ++i) {
-      lanes[i] = static_cast<T>(1 + i);
+      lanes[i] = ConvertScalarTo<T>(1 + i);
     }
 
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = static_cast<T>(i % N128 + 1);
+      expected[i] = ConvertScalarTo<T>(i % N128 + 1);
     }
 
     HWY_ASSERT_VEC_EQ(d, expected.get(), LoadDup128(d, lanes));
@@ -167,22 +167,22 @@ HWY_NOINLINE void TestAllLoadDup128() {
 struct TestStream {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(1));
+    const Vec<D> v = Iota(d, 1);
     const size_t affected_bytes =
         (Lanes(d) * sizeof(T) + HWY_STREAM_MULTIPLE - 1) &
         ~size_t(HWY_STREAM_MULTIPLE - 1);
     const size_t affected_lanes = affected_bytes / sizeof(T);
     auto out = AllocateAligned<T>(2 * affected_lanes);
     HWY_ASSERT(out);
-    std::fill(out.get(), out.get() + 2 * affected_lanes, T(0));
+    ZeroBytes(out.get(), 2 * affected_lanes * sizeof(T));
 
     Stream(v, d, out.get());
     FlushStream();
-    const auto actual = Load(d, out.get());
+    const Vec<D> actual = Load(d, out.get());
     HWY_ASSERT_VEC_EQ(d, v, actual);
     // Ensure Stream didn't modify more memory than expected
     for (size_t i = affected_lanes; i < 2 * affected_lanes; ++i) {
-      HWY_ASSERT_EQ(T(0), out[i]);
+      HWY_ASSERT_EQ(ConvertScalarTo<T>(0), out[i]);
     }
   }
 };
@@ -223,12 +223,12 @@ struct TestScatter {
     for (size_t i = 0; i < max_bytes; ++i) {
       bytes[i] = static_cast<uint8_t>(Random32(&rng) & 0xFF);
     }
-    const auto data = Load(d, values.get());
+    const Vec<D> data = Load(d, values.get());
 
     for (size_t rep = 0; rep < 100; ++rep) {
       // Byte offsets
-      std::fill(expected.get(), expected.get() + range, T(0));
-      std::fill(actual.get(), actual.get() + range, T(0));
+      ZeroBytes(expected.get(), range * sizeof(T));
+      ZeroBytes(actual.get(), range * sizeof(T));
       for (size_t i = 0; i < N; ++i) {
         // Must be aligned
         offsets[i] = static_cast<Offset>((Random32(&rng) % range) * sizeof(T));
@@ -245,8 +245,8 @@ struct TestScatter {
       }
 
       // Indices
-      std::fill(expected.get(), expected.get() + range, T(0));
-      std::fill(actual.get(), actual.get() + range, T(0));
+      ZeroBytes(expected.get(), range * sizeof(T));
+      ZeroBytes(actual.get(), range * sizeof(T));
       for (size_t i = 0; i < N; ++i) {
         offsets[i] = static_cast<Offset>(Random32(&rng) % range);
         CopyBytes<sizeof(T)>(values.get() + i, &expected[size_t(offsets[i])]);
@@ -510,14 +510,16 @@ class TestStoreN {
     HWY_ASSERT(expected && actual);
 
     const T neg_fill_val = NegativeFillValue<T>();
-    std::fill(expected.get(), expected.get() + buf_size, neg_fill_val);
-    std::fill(actual.get(), actual.get() + buf_size, neg_fill_val);
+    for (size_t i = 0; i < buf_size; i++) {
+      expected[i] = neg_fill_val;
+      actual[i] = neg_fill_val;
+    }
 
-    const auto v_neg_fill_val = Set(d, neg_fill_val);
+    const Vec<D> v_neg_fill_val = Set(d, neg_fill_val);
 
     for (size_t i = 0; i <= lpb; i++) {
-      const auto v = IotaForSpecial(d, i + 1);
-      const auto v_expected = IfThenElse(FirstN(d, i), v, v_neg_fill_val);
+      const Vec<D> v = IotaForSpecial(d, i + 1);
+      const Vec<D> v_expected = IfThenElse(FirstN(d, i), v, v_neg_fill_val);
 
       Store(v_expected, d, expected.get() + buf_offset);
       Store(v_neg_fill_val, d, actual.get() + buf_offset);
@@ -537,8 +539,8 @@ class TestStoreN {
       const size_t expected_num_of_lanes_written =
           HWY_MIN(max_num_of_lanes_to_store, N);
 
-      const auto v = IotaForSpecial(d, max_num_of_lanes_to_store + 1);
-      const auto v_expected = IfThenElse(
+      const Vec<D> v = IotaForSpecial(d, max_num_of_lanes_to_store + 1);
+      const Vec<D> v_expected = IfThenElse(
           FirstN(d, expected_num_of_lanes_written), v, v_neg_fill_val);
 
       Store(v_expected, d, expected.get() + buf_offset);

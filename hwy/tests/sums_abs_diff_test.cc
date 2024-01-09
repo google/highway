@@ -43,8 +43,8 @@ struct TestSumsOf8AbsDiff {
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         uint64_t rand64_val = Random64(&rng);
-        in_lanes_a[i] = static_cast<T>(rand64_val & 0xFF);
-        in_lanes_b[i] = static_cast<T>((rand64_val >> 8) & 0xFF);
+        in_lanes_a[i] = ConvertScalarTo<T>(rand64_val & 0xFF);
+        in_lanes_b[i] = ConvertScalarTo<T>((rand64_val >> 8) & 0xFF);
       }
 
       for (size_t idx_sum = 0; idx_sum < N / 8; ++idx_sum) {
@@ -116,8 +116,8 @@ struct TestSumsOfAdjQuadAbsDiff {
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         uint64_t rand64_val = Random64(&rng);
-        in_lanes_a[i] = static_cast<T>(rand64_val & 0xFF);
-        in_lanes_b[i] = static_cast<T>((rand64_val >> 8) & 0xFF);
+        in_lanes_a[i] = ConvertScalarTo<T>(rand64_val & 0xFF);
+        in_lanes_b[i] = ConvertScalarTo<T>((rand64_val >> 8) & 0xFF);
       }
 
       for (size_t i = 0; i < num_valid_sum_lanes; ++i) {
@@ -142,10 +142,10 @@ struct TestSumsOfAdjQuadAbsDiff {
         const TW_I b3 =
             static_cast<TW_I>(in_lanes_b[blk_idx * 16 + kBOffset * 4 + 3]);
 
-        const TW_I diff0 = ScalarAbs(a0 - b0);
-        const TW_I diff1 = ScalarAbs(a1 - b1);
-        const TW_I diff2 = ScalarAbs(a2 - b2);
-        const TW_I diff3 = ScalarAbs(a3 - b3);
+        const TW_I diff0 = static_cast<TW_I>(ScalarAbs(a0 - b0));
+        const TW_I diff1 = static_cast<TW_I>(ScalarAbs(a1 - b1));
+        const TW_I diff2 = static_cast<TW_I>(ScalarAbs(a2 - b2));
+        const TW_I diff3 = static_cast<TW_I>(ScalarAbs(a3 - b3));
         sum_lanes[i] = static_cast<TW>(diff0 + diff1 + diff2 + diff3);
       }
 
@@ -227,8 +227,8 @@ struct TestSumsOfShuffledQuadAbsDiff {
     for (size_t rep = 0; rep < 100; ++rep) {
       for (size_t i = 0; i < N; ++i) {
         uint64_t rand64_val = Random64(&rng);
-        in_lanes_a[i] = static_cast<T>(rand64_val & 0xFF);
-        in_lanes_b[i] = static_cast<T>((rand64_val >> 8) & 0xFF);
+        in_lanes_a[i] = ConvertScalarTo<T>(rand64_val & 0xFF);
+        in_lanes_b[i] = ConvertScalarTo<T>((rand64_val >> 8) & 0xFF);
       }
 
       const auto a = Load(d, in_lanes_a.get());

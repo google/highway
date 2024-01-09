@@ -1082,10 +1082,11 @@ struct alignas(2) float16_t {
     return float16_t(BitCastScalar<Native>(bits));
   }
 #else
+
  private:
   struct F16FromU16BitsTag {};
   constexpr float16_t(F16FromU16BitsTag /*tag*/, uint16_t u16_bits)
-      : bits(u16_bits){}
+      : bits(u16_bits) {}
 
  public:
   static constexpr float16_t FromBits(uint16_t bits) {
@@ -1210,8 +1211,10 @@ HWY_API HWY_F16_CONSTEXPR float F32FromF16(float16_t f16) {
     return sign ? -subnormal : subnormal;
   }
 
-  // Normalized: convert the representation directly (faster than ldexp/tables).
-  const uint32_t biased_exp32 = biased_exp + (127 - 15);
+  // Normalized, infinity or NaN: convert the representation directly
+  // (faster than ldexp/tables).
+  const uint32_t biased_exp32 =
+      biased_exp == 31 ? 0xFF : biased_exp + (127 - 15);
   const uint32_t mantissa32 = mantissa << (23 - 10);
   const uint32_t bits32 = (sign << 31) | (biased_exp32 << 23) | mantissa32;
 
@@ -1269,9 +1272,26 @@ HWY_API HWY_F16_CONSTEXPR float16_t F16FromF32(float f32) {
   const uint32_t bits32 = BitCastScalar<uint32_t>(f32);
   const uint32_t sign = bits32 >> 31;
   const uint32_t biased_exp32 = (bits32 >> 23) & 0xFF;
-  const uint32_t mantissa32 = bits32 & 0x7FFFFF;
+  constexpr uint32_t kMantissaMask = 0x7FFFFF;
+  const uint32_t mantissa32 = bits32 & kMantissaMask;
 
-  const int32_t exp = HWY_MIN(static_cast<int32_t>(biased_exp32) - 127, 15);
+  // Before shifting (truncation), round to nearest even to reduce bias. If
+  // the lowest remaining mantissa bit is odd, increase the offset. Example
+  // with the lowest remaining bit (left) and next lower two bits; the
+  // latter, plus two more, will be truncated.
+  // 0[00] +  1 =  0[01]
+  // 0[01] +  1 =  0[10]
+  // 0[10] +  1 =  0[11]  (round down toward even)
+  // 0[11] +  1 =  1[00]  (round up)
+  // 1[00] + 10 =  1[10]
+  // 1[01] + 10 =  1[11]
+  // 1[10] + 10 = C0[00]  (round up toward even with C=1 carry out)
+  // 1[11] + 10 = C0[01]  (round up toward even with C=1 carry out)
+  const uint32_t odd_bit = (mantissa32 >> 13) & 1;
+  const uint32_t rounded = mantissa32 + odd_bit + 0xFFF;
+  const bool carry = rounded >= (1u << 23);
+
+  const int32_t exp = static_cast<int32_t>(biased_exp32) - 127 + carry;
 
   // Tiny or zero => zero.
   if (exp < -24) {
@@ -1279,20 +1299,27 @@ HWY_API HWY_F16_CONSTEXPR float16_t F16FromF32(float f32) {
     return float16_t::FromBits(static_cast<uint16_t>(sign << 15));
   }
 
-  const uint32_t biased_exp16 = static_cast<uint32_t>(HWY_MAX(exp + 15, 0));
+  // If biased_exp16 would be >= 31, first check whether the input was NaN so we
+  // can set the mantissa to nonzero.
+  const bool is_nan = (biased_exp32 == 255) && mantissa32 != 0;
+  const bool overflowed = exp >= 16;
+  const uint32_t biased_exp16 =
+      static_cast<uint32_t>(HWY_MIN(HWY_MAX(0, exp + 15), 31));
+  // exp = [-24, -15] => subnormal, shift the mantissa.
   const uint32_t sub_exp = static_cast<uint32_t>(HWY_MAX(-14 - exp, 0));
   HWY_F16_FROM_F32_DASSERT(sub_exp < 11);
-  const uint32_t mantissa16 =
-      static_cast<uint32_t>(((sub_exp > 0) ? (1u << (10u - sub_exp)) : 0u) +
-                            (mantissa32 >> (13 + sub_exp)));
+  const uint32_t shifted_mantissa =
+      (rounded & kMantissaMask) >> (23 - 10 + sub_exp);
+  const uint32_t leading = sub_exp == 0u ? 0u : (1024u >> sub_exp);
+  const uint32_t mantissa16 = is_nan       ? 0x3FF
+                              : overflowed ? 0u
+                                           : (leading + shifted_mantissa);
 
-  // exp = [-24, -15] => subnormal
 #if HWY_IS_DEBUG_BUILD
   if (exp < -14) {
     HWY_F16_FROM_F32_DASSERT(biased_exp16 == 0);
     HWY_F16_FROM_F32_DASSERT(sub_exp >= 1);
-  } else {
-    // exp = [-14, 15]
+  } else if (exp <= 15) {
     HWY_F16_FROM_F32_DASSERT(1 <= biased_exp16 && biased_exp16 < 31);
     HWY_F16_FROM_F32_DASSERT(sub_exp == 0);
   }
@@ -1443,10 +1470,11 @@ struct alignas(2) bfloat16_t {
     return bfloat16_t(BitCastScalar<Native>(bits));
   }
 #else
+
  private:
   struct BF16FromU16BitsTag {};
   constexpr bfloat16_t(BF16FromU16BitsTag /*tag*/, uint16_t u16_bits)
-      : bits(u16_bits){}
+      : bits(u16_bits) {}
 
  public:
   static constexpr bfloat16_t FromBits(uint16_t bits) {
@@ -1846,7 +1874,7 @@ HWY_API constexpr bool IsFloat() {
 
 template <typename T>
 HWY_API constexpr bool IsSigned() {
-  return T(0) > T(-1);
+  return static_cast<T>(0) > static_cast<T>(-1);
 }
 template <>
 constexpr bool IsSigned<float16_t>() {
@@ -1894,7 +1922,8 @@ HWY_API constexpr T LimitsMax() {
 template <typename T>
 HWY_API constexpr T LimitsMin() {
   static_assert(IsInteger<T>(), "Only for integer types");
-  return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
+  return IsSigned<T>() ? static_cast<T>(-1) - LimitsMax<T>()
+                       : static_cast<T>(0);
 }
 
 // Largest/smallest representable value (integer or float). This naming avoids
@@ -2248,7 +2277,7 @@ template <typename TI>
 
 template <typename T, typename T2, HWY_IF_FLOAT(T), HWY_IF_NOT_SPECIAL_FLOAT(T)>
 HWY_INLINE constexpr T AddWithWraparound(T t, T2 increment) {
-  return static_cast<T>(t + increment);
+  return t + static_cast<T>(increment);
 }
 
 template <typename T, typename T2, HWY_IF_SPECIAL_FLOAT(T)>

@@ -21,6 +21,7 @@
 #define HWY_TARGET_INCLUDE "tests/convert_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
+#include "hwy/nanobenchmark.h"
 #include "hwy/tests/test_util-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -228,8 +229,8 @@ struct TestPromoteOddEvenTo {
   static HWY_INLINE ToT CastValueToWide(hwy::SignedTag /* to_type_tag */,
                                         hwy::FloatTag /* from_type_tag */,
                                         T val) {
-    constexpr T kMinInRangeVal = static_cast<T>(LimitsMin<ToT>());
-    constexpr T kMinOutOfRangePosVal = static_cast<T>(-kMinInRangeVal);
+    const T kMinInRangeVal = ConvertScalarTo<T>(LimitsMin<ToT>());
+    const T kMinOutOfRangePosVal = ConvertScalarTo<T>(-kMinInRangeVal);
     if (val < kMinInRangeVal) {
       return LimitsMin<ToT>();
     } else if (val >= kMinOutOfRangePosVal) {
@@ -243,9 +244,10 @@ struct TestPromoteOddEvenTo {
   static HWY_INLINE ToT CastValueToWide(hwy::UnsignedTag /* to_type_tag */,
                                         hwy::FloatTag /* from_type_tag */,
                                         T val) {
-    constexpr T kMinOutOfRangePosVal =
-        static_cast<T>(-static_cast<T>(LimitsMin<MakeSigned<ToT>>()) * T(2));
-    if (val < T{0}) {
+    const T kMinOutOfRangePosVal =
+        ConvertScalarTo<T>(-ConvertScalarTo<T>(LimitsMin<MakeSigned<ToT>>()) *
+                           ConvertScalarTo<T>(2));
+    if (val < ConvertScalarTo<T>(0)) {
       return ToT{0};
     } else if (val >= kMinOutOfRangePosVal) {
       return LimitsMax<ToT>();
@@ -638,25 +640,28 @@ class TestIntFromFloat {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), ConvertTo(di, Iota(df, TF(4.0))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 4), ConvertTo(di, Iota(df, 4.0)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), ConvertTo(di, Iota(df, -TF(N))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -static_cast<TI>(N)),
+                      ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(2)), ConvertTo(di, Iota(df, TF(2.001))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 2), ConvertTo(di, Iota(df, 2.001)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(3)), ConvertTo(di, Iota(df, TF(3.9999))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 3), ConvertTo(di, Iota(df, 3.9999)));
 
     const TF eps = static_cast<TF>(0.0001);
     // Above negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)),
-                      ConvertTo(di, Iota(df, -TF(N + 1) + eps)));
+    HWY_ASSERT_VEC_EQ(
+        di, Iota(di, -static_cast<TI>(N)),
+        ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) + eps)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
-                      ConvertTo(di, Iota(df, -TF(N + 1) - eps)));
+    HWY_ASSERT_VEC_EQ(
+        di, Iota(di, -static_cast<TI>(N + 1)),
+        ConvertTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) - eps)));
 
     TestPowers(tf, df);
     TestRandom(tf, df);
@@ -749,23 +754,28 @@ class TestUintFromFloat {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(4)), ConvertTo(du, Iota(df, TF(4.0))));
+    HWY_ASSERT_VEC_EQ(du, Iota(du, 4), ConvertTo(du, Iota(df, 4.0)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N))));
+    HWY_ASSERT_VEC_EQ(du, Zero(du),
+                      ConvertTo(du, Iota(df, -ConvertScalarTo<TF>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(2)), ConvertTo(du, Iota(df, TF(2.001))));
+    HWY_ASSERT_VEC_EQ(du, Iota(du, 2), ConvertTo(du, Iota(df, 2.001)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(du, Iota(du, TU(3)), ConvertTo(du, Iota(df, TF(3.9999))));
+    HWY_ASSERT_VEC_EQ(du, Iota(du, 3), ConvertTo(du, Iota(df, 3.9999)));
 
     const TF eps = static_cast<TF>(0.0001);
     // Above negative
-    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N + 1) + eps)));
+    HWY_ASSERT_VEC_EQ(
+        du, Zero(du),
+        ConvertTo(du, Iota(df, -ConvertScalarTo<TF>(N + 1) + eps)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(du, Zero(du), ConvertTo(du, Iota(df, -TF(N + 1) - eps)));
+    HWY_ASSERT_VEC_EQ(
+        du, Zero(du),
+        ConvertTo(du, Iota(df, -ConvertScalarTo<TF>(N + 1) - eps)));
 
     TestPowers(tf, df);
     TestRandom(tf, df);
@@ -785,17 +795,18 @@ struct TestFloatFromInt {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(di, TI(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), ConvertTo(df, Iota(di, 4)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, -TF(N)), ConvertTo(df, Iota(di, -TI(N))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, -ConvertScalarTo<TF>(N)),
+                      ConvertTo(df, Iota(di, -static_cast<TI>(N))));
 
     // Max positive
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(LimitsMax<TI>())),
                       ConvertTo(df, Set(di, LimitsMax<TI>())));
 
     // Min negative
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMin<TI>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(LimitsMin<TI>())),
                       ConvertTo(df, Set(di, LimitsMin<TI>())));
   }
 };
@@ -811,16 +822,16 @@ struct TestFloatFromUint {
     const RebindToUnsigned<DF> du;
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), ConvertTo(df, Iota(du, TU(4))));
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(32767.0)),
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), ConvertTo(df, Iota(du, 4)));
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(32767)),
                       ConvertTo(df, Set(du, 32767)));  // 2^16-1
     if (sizeof(TF) > 4) {
-      HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4294967295.0)),
+      HWY_ASSERT_VEC_EQ(df, Iota(df, 4294967295.0),
                         ConvertTo(df, Iota(du, 4294967295ULL)));  // 2^32-1
     }
 
     // Max positive
-    HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TU>())),
+    HWY_ASSERT_VEC_EQ(df, Set(df, ConvertScalarTo<TF>(LimitsMax<TU>())),
                       ConvertTo(df, Set(du, LimitsMax<TU>())));
 
     // Zero
@@ -832,6 +843,214 @@ HWY_NOINLINE void TestAllFloatFromUint() {
   ForFloatTypes(ForPartialVectors<TestFloatFromUint>());
 }
 
+template <class TTo>
+class TestNonFiniteF2IConvertTo {
+ private:
+  static_assert(IsIntegerLaneType<TTo>() && IsSame<TTo, RemoveCvRef<TTo>>(),
+                "TTo must be an integer type");
+
+  template <class DF, HWY_IF_T_SIZE_LE_D(DF, sizeof(TTo) - 1)>
+  static HWY_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF /*df*/,
+                                                         VFromD<DF> v) {
+    return PromoteTo(Rebind<TTo, DF>(), v);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_D(DF, sizeof(TTo))>
+  static HWY_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF /*df*/,
+                                                         VFromD<DF> v) {
+    return ConvertTo(Rebind<TTo, DF>(), v);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_GT_D(DF, sizeof(TTo))>
+  static HWY_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF /*df*/,
+                                                         VFromD<DF> v) {
+    return DemoteTo(Rebind<TTo, DF>(), v);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_LE_D(DF, sizeof(TTo) - 1)>
+  static HWY_INLINE Mask<Rebind<TTo, DF>> DoF2IConvMask(DF df, Mask<DF> m) {
+    return PromoteMaskTo(Rebind<TTo, DF>(), df, m);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_D(DF, sizeof(TTo))>
+  static HWY_INLINE Mask<Rebind<TTo, DF>> DoF2IConvMask(DF /*df*/, Mask<DF> m) {
+    return RebindMask(Rebind<TTo, DF>(), m);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_GT_D(DF, sizeof(TTo))>
+  static HWY_INLINE Mask<Rebind<TTo, DF>> DoF2IConvMask(DF df, Mask<DF> m) {
+    return DemoteMaskTo(Rebind<TTo, DF>(), df, m);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_LE_D(DF, sizeof(TTo) - 1)>
+  static HWY_INLINE Vec<Rebind<MakeSigned<TTo>, DF>> DoF2IConvMsbMaskVec(
+      DF /*df*/, Vec<DF> v) {
+    return PromoteTo(Rebind<MakeSigned<TTo>, DF>(),
+                     BitCast(RebindToSigned<DF>(), v));
+  }
+
+  template <class DF, HWY_IF_T_SIZE_D(DF, sizeof(TTo))>
+  static HWY_INLINE Vec<Rebind<MakeSigned<TTo>, DF>> DoF2IConvMsbMaskVec(
+      DF /*df*/, Vec<DF> v) {
+    return BitCast(Rebind<MakeSigned<TTo>, DF>(), v);
+  }
+
+  template <class DF, HWY_IF_T_SIZE_GT_D(DF, sizeof(TTo))>
+  static HWY_INLINE Vec<Rebind<MakeSigned<TTo>, DF>> DoF2IConvMsbMaskVec(
+      DF /*df*/, Vec<DF> v) {
+    return DemoteTo(Rebind<MakeSigned<TTo>, DF>(),
+                    BitCast(RebindToSigned<DF>(), v));
+  }
+
+  template <class DF>
+  static HWY_NOINLINE void VerifyNonFiniteF2I(DF df, const VecArg<VFromD<DF>> v,
+                                              const char* filename,
+                                              const int line) {
+    using TF = TFromD<DF>;
+    using TU = MakeUnsigned<TF>;
+    using TTo_I = MakeSigned<TTo>;
+
+    const TF kMinOutOfRangePosVal =
+        ConvertScalarTo<TF>((-ConvertScalarTo<TF>(LimitsMin<TTo_I>())) *
+                            ConvertScalarTo<TF>(IsSigned<TTo>() ? 1 : 2));
+    HWY_ASSERT(ConvertScalarTo<double>(kMinOutOfRangePosVal) > 0.0);
+
+    const Rebind<TTo, DF> d_to;
+    const RebindToSigned<decltype(d_to)> di_to;
+    const RebindToUnsigned<DF> du;
+
+    const auto non_elided_zero =
+        BitCast(df, Set(du, static_cast<TU>(Unpredictable1() - 1)));
+
+    const auto v2 = Or(non_elided_zero, v);
+    const auto is_nan_mask = IsNaN(v2);
+    const auto is_in_range_mask =
+        AndNot(is_nan_mask, Lt(Abs(IfThenZeroElse(is_nan_mask, v2)),
+                               Set(df, kMinOutOfRangePosVal)));
+
+    const auto is_nan_vmask = VecFromMask(d_to, DoF2IConvMask(df, is_nan_mask));
+
+    const auto expected_in_range =
+        DoF2IConvVec(df, IfThenElseZero(is_in_range_mask, v2));
+    const auto expected_out_of_range =
+        Or(is_nan_vmask,
+           BitCast(d_to, IfNegativeThenElse(
+                             DoF2IConvMsbMaskVec(df, v2),
+                             BitCast(di_to, Set(d_to, LimitsMin<TTo>())),
+                             BitCast(di_to, Set(d_to, LimitsMax<TTo>())))));
+
+    const auto expected = IfThenElse(DoF2IConvMask(df, is_in_range_mask),
+                                     expected_in_range, expected_out_of_range);
+
+    AssertVecEqual(d_to, expected, Or(DoF2IConvVec(df, v), is_nan_vmask),
+                   filename, line);
+    AssertVecEqual(d_to, expected, Or(DoF2IConvVec(df, v2), is_nan_vmask),
+                   filename, line);
+  }
+
+ public:
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeSigned<TF>;
+    using TU = MakeUnsigned<TF>;
+    const RebindToSigned<DF> di;
+
+    // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
+    // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
+    // ctx->insn_start != NULL.
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+    if (sizeof(TTo) > sizeof(TF)) {
+      return;
+    }
+#endif
+
+    const auto pos_nan = BitCast(df, Set(di, LimitsMax<TI>()));
+    const auto neg_nan = BitCast(df, Set(di, static_cast<TI>(-1)));
+    const auto pos_inf =
+        BitCast(df, Set(di, static_cast<TI>(ExponentMask<TF>())));
+    const auto neg_inf = Neg(pos_inf);
+
+    VerifyNonFiniteF2I(df, pos_nan, __FILE__, __LINE__);
+    VerifyNonFiniteF2I(df, neg_nan, __FILE__, __LINE__);
+    VerifyNonFiniteF2I(df, pos_inf, __FILE__, __LINE__);
+    VerifyNonFiniteF2I(df, neg_inf, __FILE__, __LINE__);
+
+    const TI non_elided_one = static_cast<TI>(Unpredictable1());
+
+    const auto iota1 = Iota(df, ConvertScalarTo<TF>(non_elided_one));
+    VerifyNonFiniteF2I(df, iota1, __FILE__, __LINE__);
+
+    const size_t N = Lanes(df);
+
+#if HWY_TARGET != HWY_SCALAR
+    if (N > 1) {
+      VerifyNonFiniteF2I(df, OddEven(pos_nan, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, pos_nan), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(neg_nan, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, neg_nan), __FILE__, __LINE__);
+
+      VerifyNonFiniteF2I(df, OddEven(pos_inf, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, pos_inf), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(neg_inf, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, neg_inf), __FILE__, __LINE__);
+    }
+#endif
+
+    auto in_lanes = AllocateAligned<TF>(N);
+    HWY_ASSERT(in_lanes);
+
+    RandomState rng;
+    for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
+      for (size_t i = 0; i < N; ++i) {
+        in_lanes[i] = BitCastScalar<TF>(static_cast<TU>(rng()));
+      }
+
+      const auto v = Load(df, in_lanes.get());
+      VerifyNonFiniteF2I(df, v, __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, Or(v, pos_inf), __FILE__, __LINE__);
+
+#if HWY_TARGET != HWY_SCALAR
+      if (N > 1) {
+        VerifyNonFiniteF2I(df, OddEven(pos_nan, v), __FILE__, __LINE__);
+        VerifyNonFiniteF2I(df, OddEven(v, pos_nan), __FILE__, __LINE__);
+        VerifyNonFiniteF2I(df, OddEven(neg_nan, v), __FILE__, __LINE__);
+        VerifyNonFiniteF2I(df, OddEven(v, neg_nan), __FILE__, __LINE__);
+
+        VerifyNonFiniteF2I(df, OddEven(pos_inf, v), __FILE__, __LINE__);
+        VerifyNonFiniteF2I(df, OddEven(v, pos_inf), __FILE__, __LINE__);
+        VerifyNonFiniteF2I(df, OddEven(neg_inf, v), __FILE__, __LINE__);
+        VerifyNonFiniteF2I(df, OddEven(v, neg_inf), __FILE__, __LINE__);
+      }
+#endif
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllNonFiniteF2IConvertTo() {
+#if HWY_HAVE_FLOAT16
+  ForPartialVectors<TestNonFiniteF2IConvertTo<int16_t>>()(hwy::float16_t());
+  ForPartialVectors<TestNonFiniteF2IConvertTo<uint16_t>>()(hwy::float16_t());
+#endif
+
+  ForPartialVectors<TestNonFiniteF2IConvertTo<int32_t>>()(float());
+  ForPartialVectors<TestNonFiniteF2IConvertTo<uint32_t>>()(float());
+
+#if HWY_HAVE_FLOAT64
+  ForPartialVectors<TestNonFiniteF2IConvertTo<int64_t>>()(double());
+  ForPartialVectors<TestNonFiniteF2IConvertTo<uint64_t>>()(double());
+#endif
+
+#if HWY_HAVE_INTEGER64
+  ForPromoteVectors<TestNonFiniteF2IConvertTo<int64_t>>()(float());
+  ForPromoteVectors<TestNonFiniteF2IConvertTo<uint64_t>>()(float());
+#endif
+
+#if HWY_HAVE_FLOAT64
+  ForDemoteVectors<TestNonFiniteF2IConvertTo<int32_t>>()(double());
+  ForDemoteVectors<TestNonFiniteF2IConvertTo<uint32_t>>()(double());
+#endif
+}
+
 struct TestI32F64 {
   template <typename TF, class DF>
   HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
@@ -840,22 +1059,24 @@ struct TestI32F64 {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, TI(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), PromoteTo(df, Iota(di, 4)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, -TF(N)), PromoteTo(df, Iota(di, -TI(N))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, -ConvertScalarTo<TF>(N)),
+                      PromoteTo(df, Iota(di, -static_cast<TI>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(2.0)), PromoteTo(df, Iota(di, TI(2))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 2.0), PromoteTo(df, Iota(di, 2)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(4.0)), PromoteTo(df, Iota(di, TI(4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, 4.0), PromoteTo(df, Iota(di, 4)));
 
     // Above negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-4.0)), PromoteTo(df, Iota(di, TI(-4))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, ConvertScalarTo<TF>(-4.0)),
+                      PromoteTo(df, Iota(di, -4)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(df, Iota(df, TF(-2.0)), PromoteTo(df, Iota(di, TI(-2))));
+    HWY_ASSERT_VEC_EQ(df, Iota(df, -2.0), PromoteTo(df, Iota(di, -2)));
 
     // Max positive int
     HWY_ASSERT_VEC_EQ(df, Set(df, TF(LimitsMax<TI>())),
@@ -1070,6 +1291,101 @@ HWY_NOINLINE void TestAllF2IPromoteUpperLowerTo() {
 #endif
 }
 
+template <bool kConvToUnsigned>
+class TestNonFiniteF2IPromoteUpperLowerTo {
+  template <class DF>
+  static HWY_NOINLINE void VerifyNonFiniteF2I(DF df, const VecArg<VFromD<DF>> v,
+                                              const char* filename,
+                                              const int line) {
+    using TF = TFromD<DF>;
+    using TI = MakeSigned<TF>;
+    using TU = MakeUnsigned<TF>;
+    using TW_I = MakeWide<TI>;
+    using TW_U = MakeWide<TU>;
+    using TW = If<kConvToUnsigned, TW_U, TW_I>;
+
+    constexpr TF kMinOutOfRangePosVal =
+        static_cast<TF>((-static_cast<TF>(LimitsMin<TW_I>())) *
+                        static_cast<TF>(kConvToUnsigned ? 2 : 1));
+    static_assert(kMinOutOfRangePosVal > static_cast<TF>(0),
+                  "kMinOutOfRangePosVal > 0 must be true");
+
+    const TU scalar_non_elided_zero = static_cast<TU>(Unpredictable1() - 1);
+
+    const Half<DF> dh;
+    const RebindToUnsigned<DF> du;
+    const Repartition<TW, decltype(df)> dw;
+
+    const auto non_elided_zero = BitCast(df, Set(du, scalar_non_elided_zero));
+    const auto v2 = Or(non_elided_zero, v);
+
+    const auto promoted_lo = PromoteTo(dw, LowerHalf(dh, v2));
+    const auto promoted_hi = PromoteTo(dw, UpperHalf(dh, v2));
+    const auto promoted_even = PromoteTo(dw, LowerHalf(ConcatEven(df, v2, v2)));
+    const auto promoted_odd = PromoteTo(dw, LowerHalf(ConcatOdd(df, v2, v2)));
+
+    AssertVecEqual(dw, promoted_lo, PromoteLowerTo(dw, v), filename, line);
+    AssertVecEqual(dw, promoted_hi, PromoteUpperTo(dw, v), filename, line);
+    AssertVecEqual(dw, promoted_even, PromoteEvenTo(dw, v), filename, line);
+    AssertVecEqual(dw, promoted_odd, PromoteOddTo(dw, v), filename, line);
+
+    AssertVecEqual(dw, promoted_lo, PromoteLowerTo(dw, v2), filename, line);
+    AssertVecEqual(dw, promoted_hi, PromoteUpperTo(dw, v2), filename, line);
+    AssertVecEqual(dw, promoted_even, PromoteEvenTo(dw, v2), filename, line);
+    AssertVecEqual(dw, promoted_odd, PromoteOddTo(dw, v2), filename, line);
+  }
+
+ public:
+  template <typename TF, class DF>
+  HWY_NOINLINE void operator()(TF /*unused*/, const DF df) {
+    using TI = MakeSigned<TF>;
+    const RebindToSigned<DF> di;
+
+    // TODO(janwas): workaround for QEMU 7.2 crash on vfwcvt_rtz_x_f_v:
+    // target/riscv/translate.c:213 in void decode_save_opc(DisasContext *):
+    // ctx->insn_start != NULL.
+#if HWY_TARGET == HWY_RVV || (HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128)
+    return;
+#endif
+
+    const auto pos_nan = BitCast(df, Set(di, LimitsMax<TI>()));
+    const auto neg_nan = BitCast(df, Set(di, static_cast<TI>(-1)));
+    const auto pos_inf =
+        BitCast(df, Set(di, static_cast<TI>(ExponentMask<TF>())));
+    const auto neg_inf = Neg(pos_inf);
+
+    VerifyNonFiniteF2I(df, pos_nan, __FILE__, __LINE__);
+    VerifyNonFiniteF2I(df, neg_nan, __FILE__, __LINE__);
+    VerifyNonFiniteF2I(df, pos_inf, __FILE__, __LINE__);
+    VerifyNonFiniteF2I(df, neg_inf, __FILE__, __LINE__);
+
+    const TI non_elided_one = static_cast<TI>(Unpredictable1());
+    const auto iota1 = Iota(df, ConvertScalarTo<TF>(non_elided_one));
+    VerifyNonFiniteF2I(df, iota1, __FILE__, __LINE__);
+
+#if HWY_TARGET != HWY_SCALAR
+    if (Lanes(df) > 1) {
+      VerifyNonFiniteF2I(df, OddEven(pos_nan, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, pos_nan), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(neg_nan, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, neg_nan), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(pos_inf, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, pos_inf), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(neg_inf, iota1), __FILE__, __LINE__);
+      VerifyNonFiniteF2I(df, OddEven(iota1, neg_inf), __FILE__, __LINE__);
+    }
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllNonFiniteF2IPromoteUpperLowerTo() {
+#if HWY_HAVE_INTEGER64
+  ForShrinkableVectors<TestNonFiniteF2IPromoteUpperLowerTo<false>, 1>()(
+      float());
+  ForShrinkableVectors<TestNonFiniteF2IPromoteUpperLowerTo<true>, 1>()(float());
+#endif
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -1090,9 +1406,11 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllUintFromFloat);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromInt);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllFloatFromUint);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNonFiniteF2IConvertTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF2IPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF2IPromoteUpperLowerTo);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNonFiniteF2IPromoteUpperLowerTo);
 }  // namespace hwy
 
 #endif

@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/shuffle4_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -149,7 +151,8 @@ class TestPer4LaneBlockShuffle {
   static HWY_INLINE Vec<D> GenerateTestVect(hwy::NonFloatTag /*tag*/, D d) {
     const RebindToUnsigned<decltype(d)> du;
     using TU = TFromD<decltype(du)>;
-    constexpr TU kIotaStart = static_cast<TU>(0x0706050403020101u);
+    constexpr TU kIotaStart =
+        static_cast<TU>(0x0706050403020101u & LimitsMax<TU>());
     return BitCast(d, Iota(du, kIotaStart));
   }
 
@@ -183,14 +186,15 @@ class TestPer4LaneBlockShuffle {
     auto src_lanes = AllocateAligned<T>(alloc_len);
     HWY_ASSERT(expected && src_lanes);
 
-    expected[alloc_len - 4] = T{0};
-    expected[alloc_len - 3] = T{0};
-    expected[alloc_len - 2] = T{0};
-    expected[alloc_len - 1] = T{0};
-    src_lanes[alloc_len - 4] = T{0};
-    src_lanes[alloc_len - 3] = T{0};
-    src_lanes[alloc_len - 2] = T{0};
-    src_lanes[alloc_len - 1] = T{0};
+    const T k0 = ConvertScalarTo<T>(0);
+    expected[alloc_len - 4] = k0;
+    expected[alloc_len - 3] = k0;
+    expected[alloc_len - 2] = k0;
+    expected[alloc_len - 1] = k0;
+    src_lanes[alloc_len - 4] = k0;
+    src_lanes[alloc_len - 3] = k0;
+    src_lanes[alloc_len - 2] = k0;
+    src_lanes[alloc_len - 1] = k0;
 
     const auto v = GenerateTestVect(hwy::IsFloatTag<T>(), d);
     DoTestPer4LaneBlkShuffles(d, N, v, src_lanes.get(), expected.get());

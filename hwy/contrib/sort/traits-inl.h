@@ -126,7 +126,7 @@ Vec<D> SmallerSortValue(D d, Vec<D> v) {
   const Mask<D> was_pos = Gt(v, Zero(d));
   // If positive, add -1, else 1.
   const VU add =
-      IfThenElse(RebindMask(du, was_pos), Set(du, ~TU{0}), Set(du, 1));
+      IfThenElse(RebindMask(du, was_pos), Set(du, LimitsMax<TU>()), Set(du, 1));
   // Prev/next integer is the prev/next value, even if mantissa under/overflows.
   v = BitCast(d, Add(vu, add));
   // But we may have overflowed into inf or NaN; replace with +inf (which will

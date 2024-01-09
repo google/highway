@@ -16,8 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>  // std::fill
-#include <cmath>      // std::isfinite
+#include <cmath>  // std::isfinite
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/demote_test.cc"
@@ -31,16 +30,6 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
-
-template <typename T, HWY_IF_FLOAT(T)>
-bool IsFiniteT(T t) {
-  return std::isfinite(t);
-}
-// Wrapper avoids calling std::isfinite for integer types (ambiguous).
-template <typename T, HWY_IF_NOT_FLOAT(T)>
-bool IsFiniteT(T /*unused*/) {
-  return true;
-}
 
 template <typename ToT>
 struct TestDemoteTo {
@@ -56,7 +45,8 @@ struct TestDemoteTo {
     HWY_ASSERT(from && expected);
 
     // Narrower range in the wider type, for clamping before we cast
-    const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<ToT>() : ToT{0});
+    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<ToT>()
+                                                   : static_cast<ToT>(0));
     const T max = LimitsMax<ToT>();
 
     RandomState rng;
@@ -79,7 +69,7 @@ struct TestDemoteTo {
           expected[i] &= static_cast<ToT>(max);
         }
 
-        from[i] = static_cast<T>(expected[i]);
+        from[i] = ConvertScalarTo<T>(expected[i]);
       }
 
       const auto in = Load(from_d, from.get());
@@ -169,10 +159,7 @@ struct TestDemoteToFloat {
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        do {
-          const uint64_t bits = rng();
-          CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
-        } while (!IsFiniteT(from[i]));
+        from[i] = RandomFiniteValue<T>(&rng);
         const T magn = std::abs(from[i]);
         const T max_abs = HighestValue<ToT>();
         // NOTE: std:: version from C++11 cmath is not defined in RVV GCC, see
@@ -210,18 +197,18 @@ struct TestDemoteUI64ToFloat {
   HWY_NOINLINE void operator()(T /*unused*/, D from_d) {
     const Rebind<float, D> df32;
 
-    Verify(from_d, T{0}, 0.0f);
+    Verify(from_d, static_cast<T>(0), 0.0f);
     Verify(from_d, LimitsMax<T>(), static_cast<float>(LimitsMax<T>()));
-    Verify(from_d, T(11808), 11808.0f);
-    Verify(from_d, T(261162016), 261162016.0f);
-    Verify(from_d, T(18665497952256LL), 18665497952256.0f);
+    Verify(from_d, static_cast<T>(11808), 11808.0f);
+    Verify(from_d, static_cast<T>(261162016), 261162016.0f);
+    Verify(from_d, static_cast<T>(18665497952256LL), 18665497952256.0f);
 
     if (IsSigned<T>()) {
-      Verify(from_d, T(-1), -1.0f);
+      Verify(from_d, static_cast<T>(-1), -1.0f);
       Verify(from_d, LimitsMin<T>(), static_cast<float>(LimitsMin<T>()));
-      Verify(from_d, T(-17633), -17633.0f);
-      Verify(from_d, T(-3888877568LL), -3888877568.0f);
-      Verify(from_d, T(-17851503083520LL), -17851503083520.0f);
+      Verify(from_d, static_cast<T>(-17633), -17633.0f);
+      Verify(from_d, static_cast<T>(-3888877568LL), -3888877568.0f);
+      Verify(from_d, static_cast<T>(-17851503083520LL), -17851503083520.0f);
     }
 
     const size_t N = Lanes(from_d);
@@ -272,10 +259,7 @@ struct TestDemoteToBF16 {
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
-        do {
-          const uint64_t bits = rng();
-          CopyBytes<sizeof(T)>(&bits, &from[i]);  // not same size
-        } while (!IsFiniteT(from[i]));
+        from[i] = RandomFiniteValue<T>(&rng);
 
         uint32_t fromBits;
         CopyBytes<sizeof(uint32_t)>(&from[i], &fromBits);
@@ -366,8 +350,8 @@ AlignedFreeUniquePtr<float[]> ReorderBF16TestCases(D d, size_t& padded) {
   auto in = AllocateAligned<float>(padded);
   auto expected = AllocateAligned<float>(padded);
   HWY_ASSERT(in && expected);
-  std::copy(test_cases, test_cases + kNumTestCases, in.get());
-  std::fill(in.get() + kNumTestCases, in.get() + padded, 0.0f);
+  CopyBytes(test_cases, in.get(), kNumTestCases * sizeof(float));
+  ZeroBytes(in.get() + kNumTestCases, (padded - kNumTestCases) * sizeof(float));
   return in;
 }
 
@@ -472,7 +456,7 @@ class TestIntegerReorderDemote2To {
     HWY_ASSERT(from && expected && actual);
 
     // Narrower range in the wider type, for clamping before we cast
-    const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
+    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
     const T max = LimitsMax<TN>();
 
     RandomState rng;
@@ -500,7 +484,7 @@ class TestIntegerReorderDemote2To {
           expected[i] &= static_cast<TN>(max);
         }
 
-        from[i] = static_cast<T>(expected[i]);
+        from[i] = ConvertScalarTo<T>(expected[i]);
       }
 
       const auto in_1 = Load(d, from.get());
@@ -556,10 +540,7 @@ struct TestFloatOrderedDemote2To {
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < twiceN; ++i) {
-        do {
-          const uint64_t bits = rng();
-          CopyBytes<sizeof(TF)>(&bits, &from[i]);  // not same size
-        } while (!IsFiniteT(from[i]));
+        from[i] = RandomFiniteValue<TF>(&rng);
 
         uint32_t u32Bits;
         CopyBytes<sizeof(uint32_t)>(&from[i], &u32Bits);
@@ -621,7 +602,7 @@ class TestIntegerOrderedDemote2To {
     HWY_ASSERT(from && expected);
 
     // Narrower range in the wider type, for clamping before we cast
-    const T min = static_cast<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
+    const T min = ConvertScalarTo<T>(IsSigned<T>() ? LimitsMin<TN>() : TN{0});
     const T max = LimitsMax<TN>();
 
     RandomState rng;
@@ -646,7 +627,7 @@ class TestIntegerOrderedDemote2To {
           expected[i] &= static_cast<TN>(max);
         }
 
-        from[i] = static_cast<T>(expected[i]);
+        from[i] = ConvertScalarTo<T>(expected[i]);
       }
 
       const auto in_1 = Load(d, from.get());
@@ -688,25 +669,28 @@ struct TestI32F64 {
     const size_t N = Lanes(df);
 
     // Integer positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(4)), DemoteTo(di, Iota(df, TF(4.0))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 4), DemoteTo(di, Iota(df, 4.0)));
 
     // Integer negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)), DemoteTo(di, Iota(df, -TF(N))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, -static_cast<TI>(N)),
+                      DemoteTo(di, Iota(df, -ConvertScalarTo<TF>(N))));
 
     // Above positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(2)), DemoteTo(di, Iota(df, TF(2.001))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 2), DemoteTo(di, Iota(df, 2.001)));
 
     // Below positive
-    HWY_ASSERT_VEC_EQ(di, Iota(di, TI(3)), DemoteTo(di, Iota(df, TF(3.9999))));
+    HWY_ASSERT_VEC_EQ(di, Iota(di, 3), DemoteTo(di, Iota(df, 3.9999)));
 
     const TF eps = static_cast<TF>(0.0001);
     // Above negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N)),
-                      DemoteTo(di, Iota(df, -TF(N + 1) + eps)));
+    HWY_ASSERT_VEC_EQ(
+        di, Iota(di, -static_cast<TI>(N)),
+        DemoteTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) + eps)));
 
     // Below negative
-    HWY_ASSERT_VEC_EQ(di, Iota(di, -TI(N + 1)),
-                      DemoteTo(di, Iota(df, -TF(N + 1) - eps)));
+    HWY_ASSERT_VEC_EQ(
+        di, Iota(di, -static_cast<TI>(N + 1)),
+        DemoteTo(di, Iota(df, -ConvertScalarTo<TF>(N + 1) - eps)));
 
     // Huge positive float
     HWY_ASSERT_VEC_EQ(di, Set(di, LimitsMax<TI>()),

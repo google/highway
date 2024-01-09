@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/logical_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -26,10 +29,10 @@ namespace HWY_NAMESPACE {
 struct TestNot {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v0 = Zero(d);
-    const auto ones = VecFromMask(d, Eq(v0, v0));
-    const auto v1 = Set(d, 1);
-    const auto vnot1 = Set(d, T(~T(1)));
+    const Vec<D> v0 = Zero(d);
+    const Vec<D> ones = VecFromMask(d, Eq(v0, v0));
+    const Vec<D> v1 = Set(d, 1);
+    const Vec<D> vnot1 = Set(d, static_cast<T>(~static_cast<T>(1)));
 
     HWY_ASSERT_VEC_EQ(d, v0, Not(ones));
     HWY_ASSERT_VEC_EQ(d, ones, Not(v0));
@@ -118,7 +121,7 @@ struct TestCopySign {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
     const auto vp = Iota(d, 1);
-    const auto vn = Iota(d, T(-1E5));  // assumes N < 10^5
+    const auto vn = Iota(d, -1E5);  // assumes N < 10^5
 
     // Zero remains zero regardless of sign
     HWY_ASSERT_VEC_EQ(d, v0, CopySign(v0, v0));
@@ -174,11 +177,11 @@ struct TestTestBit {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t kNumBits = sizeof(T) * 8;
     for (size_t i = 0; i < kNumBits; ++i) {
-      const auto bit1 = Set(d, T(1ull << i));
-      const auto bit2 = Set(d, T(1ull << ((i + 1) % kNumBits)));
-      const auto bit3 = Set(d, T(1ull << ((i + 2) % kNumBits)));
-      const auto bits12 = Or(bit1, bit2);
-      const auto bits23 = Or(bit2, bit3);
+      const Vec<D> bit1 = Set(d, static_cast<T>(1ull << i));
+      const Vec<D> bit2 = Set(d, static_cast<T>(1ull << ((i + 1) % kNumBits)));
+      const Vec<D> bit3 = Set(d, static_cast<T>(1ull << ((i + 2) % kNumBits)));
+      const Vec<D> bits12 = Or(bit1, bit2);
+      const Vec<D> bits23 = Or(bit2, bit3);
       HWY_ASSERT(AllTrue(d, TestBit(bit1, bit1)));
       HWY_ASSERT(AllTrue(d, TestBit(bits12, bit1)));
       HWY_ASSERT(AllTrue(d, TestBit(bits12, bit2)));
@@ -205,7 +208,7 @@ class TestBitwiseIfThenElse {
   static T ValueFromBitPattern(hwy::FloatTag /* type_tag */, T /* unused */,
                                uint64_t bits) {
     using TI = MakeSigned<T>;
-    return static_cast<T>(static_cast<TI>(bits & MantissaMask<T>())) +
+    return ConvertScalarTo<T>(static_cast<TI>(bits & MantissaMask<T>())) +
            MantissaEnd<T>();
   }
   template <class T>
