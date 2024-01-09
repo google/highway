@@ -1408,6 +1408,8 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedAdd, add)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedSub, sub)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGMVV, MaskedMul, mul)
 HWY_SVE_FOREACH_F(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
+HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
+HWY_SVE_FOREACH_UI64(HWY_SVE_RETV_ARGMVV, MaskedDiv, div)
 #if HWY_SVE_HAVE_2
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatAdd, qadd)
 HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGMVV, MaskedSatSub, qsub)
@@ -1439,10 +1441,15 @@ HWY_API V MaskedMulOr(V no, M m, V a, V b) {
   return IfThenElse(m, detail::MaskedMul(m, a, b), no);
 }
 
-template <class V, class M>
+template <class V, class M,
+          HWY_IF_T_SIZE_ONE_OF_V(
+              V, (hwy::IsSame<TFromV<V>, hwy::float16_t>() ? (1 << 2) : 0) |
+                     (1 << 4) | (1 << 8))>
 HWY_API V MaskedDivOr(V no, M m, V a, V b) {
   return IfThenElse(m, detail::MaskedDiv(m, a, b), no);
 }
+
+// I8/U8/I16/U16 MaskedDivOr is implemented after I8/U8/I16/U16 Div
 
 #if HWY_SVE_HAVE_2
 template <class V, class M>
@@ -4331,10 +4338,23 @@ HWY_API V Div(V a, V b) {
   return OrderedDemote2To(d, q_lo, q_hi);
 }
 
+// ------------------------------ I8/U8/I16/U16 MaskedDivOr
+template <class V, class M, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MaskedDivOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Div(a, b), no);
+}
+
 // ------------------------------ Mod (Div, NegMulAdd)
 template <class V>
 HWY_API V Mod(V a, V b) {
   return NegMulAdd(Div(a, b), b, a);
+}
+
+// ------------------------------ MaskedModOr (Mod)
+template <class V, class M>
+HWY_API V MaskedModOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Mod(a, b), no);
 }
 
 // ------------------------------ ZeroIfNegative (Lt, IfThenElse)

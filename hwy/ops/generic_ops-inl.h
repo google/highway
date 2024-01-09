@@ -434,6 +434,11 @@ HWY_API V MaskedDivOr(V no, M m, V a, V b) {
 }
 
 template <class V, class M>
+HWY_API V MaskedModOr(V no, M m, V a, V b) {
+  return IfThenElse(m, Mod(a, b), no);
+}
+
+template <class V, class M>
 HWY_API V MaskedSatAddOr(V no, M m, V a, V b) {
   return IfThenElse(m, SaturatedAdd(a, b), no);
 }
@@ -3857,9 +3862,11 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
   // q1[i] is now equal to (r1[i] < 0 || r1[i] >= abs_b[i]) ? -1 : 0
 
   // Need to negate q1[i] if r0[i] and b[i] do not have the same sign
+  auto q1_negate_mask = r0;
   if (IsSigned<TFromV<V>>()) {
-    q1 = IfNegativeThenElse(Xor(r0, BitCast(di, b)), Neg(q1), q1);
+    q1_negate_mask = Xor(q1_negate_mask, BitCast(di, b));
   }
+  q1 = IfNegativeThenElse(q1_negate_mask, Neg(q1), q1);
 
   // q1[i] is now equal to (r1[i] < 0 || r1[i] >= abs_b[i]) ?
   //                       (((r0[i] ^ b[i]) < 0) ? 1 : -1)
@@ -3971,9 +3978,11 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
   // q4[i] is now equal to (r4[i] < 0 || r4[i] >= abs_b[i]) ? -1 : 0
 
   // Need to negate q4[i] if r3[i] and b[i] do not have the same sign
+  auto q4_negate_mask = r3;
   if (IsSigned<TFromV<V>>()) {
-    q4 = IfNegativeThenElse(Xor(r3, BitCast(di, b)), Neg(q4), q4);
+    q4_negate_mask = Xor(q4_negate_mask, BitCast(di, b));
   }
+  q4 = IfNegativeThenElse(q4_negate_mask, Neg(q4), q4);
 
   // q4[i] is now equal to (r4[i] < 0 || r4[i] >= abs_b[i]) ?
   //                       (((r3[i] ^ b[i]) < 0) ? 1 : -1)
