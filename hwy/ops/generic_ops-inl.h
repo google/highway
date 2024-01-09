@@ -5252,7 +5252,9 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
       BitCast(du, InterleaveLower(du8x2, indices8, indices8));
   // TableLookupBytesOr0 operates on bytes. To convert u16 lane indices to byte
   // indices, add 0 to even and 1 to odd byte lanes.
-  const Vec128<uint16_t, N> byte_indices = Add(indices16, Set(du, 0x0100));
+  const Vec128<uint16_t, N> byte_indices = Add(
+      indices16,
+      Set(du, static_cast<uint16_t>(HWY_IS_LITTLE_ENDIAN ? 0x0100 : 0x0001)));
   return BitCast(d, TableLookupBytesOr0(v, byte_indices));
 }
 
