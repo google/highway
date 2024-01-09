@@ -1528,7 +1528,8 @@ HWY_API svbool_t TestBit(const V a, const V bit) {
 // ------------------------------ MaskFromVec (Ne)
 template <class V>
 HWY_API svbool_t MaskFromVec(const V v) {
-  return detail::NeN(v, static_cast<TFromV<V>>(0));
+  using T = TFromV<V>;
+  return detail::NeN(v, ConvertScalarTo<T>(0));
 }
 
 // ------------------------------ VecFromMask
@@ -2606,12 +2607,12 @@ HWY_API VFromD<DI> NearestInt(VF v) {
 
 // ------------------------------ Iota (Add, ConvertTo)
 
-#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)                      \
-  template <size_t N, int kPow2, typename T2>                               \
-  HWY_API HWY_SVE_V(BASE, BITS)                                             \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, T2 first) {             \
-    return sv##OP##_##CHAR##BITS(static_cast<HWY_SVE_T(BASE, BITS)>(first), \
-                                 1);                                        \
+#define HWY_SVE_IOTA(BASE, CHAR, BITS, HALF, NAME, OP)          \
+  template <size_t N, int kPow2, typename T2>                   \
+  HWY_API HWY_SVE_V(BASE, BITS)                                 \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, T2 first) { \
+    return sv##OP##_##CHAR##BITS(                               \
+        ConvertScalarTo<HWY_SVE_T(BASE, BITS)>(first), 1);      \
   }
 
 HWY_SVE_FOREACH_UI(HWY_SVE_IOTA, Iota, index)
@@ -3075,7 +3076,9 @@ HWY_API TFromV<V> ExtractLane(V v, size_t i) {
 template <class V>
 HWY_API V InsertLane(const V v, size_t i, TFromV<V> t) {
   const DFromV<V> d;
-  const auto is_i = detail::EqN(Iota(d, 0), static_cast<TFromV<V>>(i));
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+  const svbool_t is_i = detail::EqN(Iota(di, 0), static_cast<TI>(i));
   return IfThenElse(RebindMask(d, is_i), Set(d, t), v);
 }
 
@@ -4883,12 +4886,13 @@ HWY_INLINE VFromD<DU> LaneIndicesFromByteIndices(D, svuint8_t idx) {
 template <class V>
 HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
   const DFromV<V> d;
+  using T = TFromV<V>;
   uint8_t mask_bytes[256 / 8];
   StoreMaskBits(d, mask, mask_bytes);
 
   // ShiftLeftLanes is expensive, so we're probably better off storing to memory
   // and loading the final result.
-  alignas(16) TFromV<V> out[2 * MaxLanes(d)];
+  alignas(16) T out[2 * MaxLanes(d)];
 
   svbool_t next = svpfalse_b();
   size_t input_consumed = 0;
@@ -4900,7 +4904,7 @@ HWY_INLINE V ExpandLoop(V v, svbool_t mask) {
     // instruction for variable-shift-reg, but we can splice.
     const V vH = detail::Splice(v, v, next);
     input_consumed += PopCount(mask_bits);
-    next = detail::GeN(iota, static_cast<TFromV<V>>(input_consumed));
+    next = detail::GeN(iota, ConvertScalarTo<T>(input_consumed));
 
     const auto idx = detail::LaneIndicesFromByteIndices(
         d, detail::IndicesForExpandFromBits(mask_bits));
