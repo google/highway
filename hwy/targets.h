@@ -127,6 +127,13 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       return "PPC10";
 #endif
 
+#if HWY_ARCH_S390X
+    case HWY_Z14:
+      return "Z14";
+    case HWY_Z15:
+      return "Z15";
+#endif
+
 #if HWY_ARCH_WASM
     case HWY_WASM:
       return "WASM";
@@ -245,20 +252,20 @@ static inline HWY_MAYBE_UNUSED const char* TargetName(int64_t target) {
       HWY_CHOOSE_RVV(func_name), /* RVV */      \
       nullptr                    /* reserved */
 
-#elif HWY_ARCH_PPC
+#elif HWY_ARCH_PPC || HWY_ARCH_S390X
 // See HWY_ARCH_X86 above for details.
 #define HWY_MAX_DYNAMIC_TARGETS 9
 #define HWY_HIGHEST_TARGET_BIT HWY_HIGHEST_TARGET_BIT_PPC
-#define HWY_CHOOSE_TARGET_LIST(func_name)                          \
-  nullptr,                         /* reserved */                  \
-      nullptr,                     /* reserved */                  \
-      nullptr,                     /* reserved */                  \
-      nullptr,                     /* reserved */                  \
-      HWY_CHOOSE_PPC10(func_name), /* PPC10 */                     \
-      HWY_CHOOSE_PPC9(func_name),  /* PPC9 */                      \
-      HWY_CHOOSE_PPC8(func_name),  /* PPC8 */                      \
-      nullptr,                     /* reserved (VSX or AltiVec) */ \
-      nullptr                      /* reserved (VSX or AltiVec) */
+#define HWY_CHOOSE_TARGET_LIST(func_name)         \
+  nullptr,                         /* reserved */ \
+      nullptr,                     /* reserved */ \
+      nullptr,                     /* reserved */ \
+      nullptr,                     /* reserved */ \
+      HWY_CHOOSE_PPC10(func_name), /* PPC10 */    \
+      HWY_CHOOSE_PPC9(func_name),  /* PPC9 */     \
+      HWY_CHOOSE_PPC8(func_name),  /* PPC8 */     \
+      HWY_CHOOSE_Z15(func_name),   /* Z15 */      \
+      HWY_CHOOSE_Z14(func_name)    /* Z14 */
 
 #elif HWY_ARCH_WASM
 // See HWY_ARCH_X86 above for details.
