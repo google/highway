@@ -6837,6 +6837,7 @@ HWY_API V TrailingZeroCount(V v) {
 #undef HWY_PPC_HAVE_9
 #undef HWY_PPC_HAVE_10
 #undef HWY_S390X_HAVE_Z14
+#undef HWY_S390X_HAVE_Z15
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
