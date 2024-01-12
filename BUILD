@@ -55,7 +55,7 @@ selects.config_setting_group(
 config_setting(
     name = "compiler_emscripten",
     constraint_values = [
-        "@platforms//cpu:wasm32",
+        "@platforms//os:emscripten",
     ],
 )
 
