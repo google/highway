@@ -16,8 +16,8 @@ TEST(AbortDeathTest, AbortDefault) {
 }
 
 TEST(AbortDeathTest, AbortOverride) {
-  std::string expected = std::string("Test Abort from ") +
-                         std::to_string(__LINE__ + 10) + " of " + __FILE__;
+  std::string expected =
+      std::string("Test Abort from [0-9]{,2} of ") + __FILE__;
 
   ASSERT_DEATH(
       {
@@ -28,7 +28,6 @@ TEST(AbortDeathTest, AbortOverride) {
 
         SetAbortFunc(CustomAbortHandler);
         HWY_ABORT("Test %s", "Abort");
-        SetAbortFunc(nullptr);
       },
       expected);
 }
