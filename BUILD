@@ -164,6 +164,7 @@ cc_library(
     ],
     # Normal headers with include guards
     hdrs = [
+        "hwy/abort.h",
         "hwy/aligned_allocator.h",
         "hwy/base.h",
         "hwy/cache_control.h",
@@ -453,6 +454,7 @@ HWY_TESTS = [
     # To run bench_sort, specify --test=hwy/contrib/sort:bench_sort.
     ("hwy/examples/", "skeleton_test"),
     ("hwy/", "nanobenchmark_test"),
+    ("hwy/", "abort_test"),
     ("hwy/", "aligned_allocator_test"),
     ("hwy/", "base_test"),
     ("hwy/", "highway_test"),

@@ -1,14 +1,28 @@
 // Copyright 2019 Google LLC
+// Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "hwy/abort.h"
+
 #include <stdarg.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "hwy/base.h"
 
 namespace hwy {
+
+AbortFunc& GetAbortFunc() {
+  static AbortFunc func;
+  return func;
+}
+
+AbortFunc SetAbortFunc(AbortFunc func) {
+  const AbortFunc prev = GetAbortFunc();
+  GetAbortFunc() = func;
+  return prev;
+}
 
 HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
     Abort(const char* file, int line, const char* format, ...) {
@@ -18,7 +32,12 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   vsnprintf(buf, sizeof(buf), format, args);
   va_end(args);
 
-  fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
+  AbortFunc handler = GetAbortFunc();
+  if (handler != nullptr) {
+    handler(file, line, buf);
+  } else {
+    fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
+  }
 
 // If compiled with any sanitizer, they can also print a stack trace.
 #if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
@@ -37,4 +56,5 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   abort();  // Compile error without this due to HWY_NORETURN.
 #endif
 }
-}
+
+}  // namespace hwy

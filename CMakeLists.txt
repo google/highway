@@ -136,6 +136,7 @@ endif()  # HWY_ENABLE_CONTRIB
 
 set(HWY_SOURCES
     hwy/abort.cc
+    hwy/abort.h
     hwy/aligned_allocator.cc
     hwy/aligned_allocator.h
     hwy/base.h
@@ -611,6 +612,7 @@ set(HWY_TEST_FILES
   hwy/contrib/algo/copy_test.cc
   hwy/contrib/algo/find_test.cc
   hwy/contrib/algo/transform_test.cc
+  hwy/abort_test.cc
   hwy/aligned_allocator_test.cc
   hwy/base_test.cc
   hwy/highway_test.cc
