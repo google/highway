@@ -2405,8 +2405,8 @@ HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
 }
 
 // Additional overload for the optional tag.
-template <class V>
-HWY_API V InterleaveLower(DFromV<V> /* tag */, V a, V b) {
+template <class D>
+HWY_API VFromD<D> InterleaveLower(D /* tag */, VFromD<D> a, VFromD<D> b) {
   return InterleaveLower(a, b);
 }
 
