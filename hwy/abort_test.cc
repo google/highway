@@ -9,13 +9,13 @@
 
 namespace hwy {
 
-TEST(AbortTest, AbortDefault) {
+TEST(AbortDeathTest, AbortDefault) {
   std::string expected = std::string("Abort at ") + __FILE__ + ":" +
                          std::to_string(__LINE__ + 1) + ": Test Abort";
   ASSERT_DEATH(HWY_ABORT("Test %s", "Abort"), expected);
 }
 
-TEST(AbortTest, AbortOverride) {
+TEST(AbortDeathTest, AbortOverride) {
   std::string expected = std::string("Test Abort from ") +
                          std::to_string(__LINE__ + 10) + " of " + __FILE__;
 
@@ -33,7 +33,7 @@ TEST(AbortTest, AbortOverride) {
       expected);
 }
 
-TEST(AbortTest, AbortOverrideChain) {
+TEST(AbortDeathTest, AbortOverrideChain) {
   AbortFunc FirstHandler = [](const char* file, int line,
                               const char* formatted_err) -> void {
     fprintf(stderr, "%s from %d of %s", formatted_err, line, file);
