@@ -1422,9 +1422,9 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 #endif
 
 #ifndef HWY_HAVE_SCALAR_BF16_OPERATORS
-// Recent enough compiler also has operators.
-#if HWY_HAVE_SCALAR_BF16_TYPE && \
-    (HWY_COMPILER_CLANG >= 1800 || HWY_COMPILER_GCC_ACTUAL >= 1300)
+// Recent enough compiler also has operators. aarch64 clang 18 hits internal
+// compiler errors on bf16 ToString, hence only enable on GCC for now.
+#if HWY_HAVE_SCALAR_BF16_TYPE && (HWY_COMPILER_GCC_ACTUAL >= 1300)
 #define HWY_HAVE_SCALAR_BF16_OPERATORS 1
 #else
 #define HWY_HAVE_SCALAR_BF16_OPERATORS 0

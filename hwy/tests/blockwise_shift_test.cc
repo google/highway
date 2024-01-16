@@ -132,7 +132,7 @@ struct TestShiftRightLanes {
     for (size_t i = 0; i < N; ++i) {
       const size_t mod = i % kLanesPerBlock;
       expected[i] = ConvertScalarTo<T>(
-          mod == (kLanesPerBlock - 1) || i >= N - 1 ? 0 : 2 + i);
+          ((mod == kLanesPerBlock - 1) || (i >= N - 1)) ? 0 : (2 + i));
     }
     HWY_ASSERT_VEC_EQ(d, expected.get(), ShiftRightLanes<1>(d, v));
 #else
