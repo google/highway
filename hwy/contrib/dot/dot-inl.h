@@ -158,10 +158,10 @@ struct Dot {
     const Rebind<hwy::bfloat16_t, DF> dbf;
 #else
     const Repartition<hwy::bfloat16_t, DF> dbf;
+    using VBF = decltype(Zero(dbf));
 #endif
     const Half<decltype(dbf)> dbfh;
     using VF = decltype(Zero(df));
-    using VBF = decltype(Zero(dbf));
 
     const size_t NF = Lanes(df);
 
