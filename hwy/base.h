@@ -2381,7 +2381,7 @@ template <typename T>
 static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(
     hwy::FloatTag /*tag*/, T val) {
   using TU = MakeUnsigned<T>;
-  return (BitCastScalar<TU>(ScalarAbs(val)) < ExponentMask<T>());
+  return (BitCastScalar<TU>(hwy::ScalarAbs(val)) < ExponentMask<T>());
 }
 
 template <typename T>
