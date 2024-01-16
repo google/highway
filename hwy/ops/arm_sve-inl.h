@@ -100,9 +100,11 @@ namespace detail {  // for code folding
   HWY_SVE_FOREACH_BF16_UNCONDITIONAL(X_MACRO, NAME, OP)
 // We have both f16 and bf16, so nothing is emulated.
 #define HWY_SVE_IF_EMULATED_D(D) hwy::EnableIf<false>* = nullptr
+#define HWY_SVE_IF_NOT_EMULATED_D(D) hwy::EnableIf<true>* = nullptr
 #else
 #define HWY_SVE_FOREACH_BF16(X_MACRO, NAME, OP)
 #define HWY_SVE_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
+#define HWY_SVE_IF_NOT_EMULATED_D(D) HWY_IF_NOT_BF16_D(D)
 #endif  // HWY_SVE_HAVE_BF16_FEATURE
 
 // For all element sizes:
@@ -1273,9 +1275,9 @@ HWY_API V IfThenElse(const svbool_t mask, V yes, V no) {
 
 // ------------------------------ IfThenElseZero
 
-template <class V>
+template <class V, class D = DFromV<V>, HWY_SVE_IF_NOT_EMULATED_D(D)>
 HWY_API V IfThenElseZero(const svbool_t mask, const V yes) {
-  return IfThenElse(mask, yes, Zero(DFromV<V>()));
+  return IfThenElse(mask, yes, Zero(D()));
 }
 
 template <class V, class D = DFromV<V>, HWY_SVE_IF_EMULATED_D(D)>
@@ -1285,9 +1287,10 @@ HWY_API V IfThenElseZero(const svbool_t mask, V yes) {
 }
 
 // ------------------------------ IfThenZeroElse
-template <class V>
+
+template <class V, class D = DFromV<V>, HWY_SVE_IF_NOT_EMULATED_D(D)>
 HWY_API V IfThenZeroElse(const svbool_t mask, const V no) {
-  return IfThenElse(mask, Zero(DFromV<V>()), no);
+  return IfThenElse(mask, Zero(D()), no);
 }
 
 template <class V, class D = DFromV<V>, HWY_SVE_IF_EMULATED_D(D)>
@@ -5877,6 +5880,7 @@ HWY_API V HighestSetBitIndex(V v) {
 #undef HWY_SVE_FOREACH_UIF3264
 #undef HWY_SVE_HAVE_2
 #undef HWY_SVE_IF_EMULATED_D
+#undef HWY_SVE_IF_NOT_EMULATED_D
 #undef HWY_SVE_PTRUE
 #undef HWY_SVE_RETV_ARGMVV
 #undef HWY_SVE_RETV_ARGPV

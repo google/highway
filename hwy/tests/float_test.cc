@@ -186,7 +186,7 @@ struct TestReciprocalSquareRoot {
     HWY_ASSERT(lanes);
     Store(ApproximateReciprocalSqrt(v), d, lanes.get());
     for (size_t i = 0; i < N; ++i) {
-      T err = lanes[i] - 0.090166f;
+      T err = ConvertScalarTo<T>(ConvertScalarTo<float>(lanes[i]) - 0.090166f);
       if (err < ConvertScalarTo<T>(0)) err = -err;
       if (static_cast<double>(err) >= 4E-4) {
         HWY_ABORT("Lane %d (%d): actual %f err %f\n", static_cast<int>(i),
@@ -215,11 +215,11 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       // +/- integer
       ConvertScalarTo<T>(4), ConvertScalarTo<T>(-32),
       // positive near limit
-      MantissaEnd<T>() - ConvertScalarTo<T>(1.5),
-      MantissaEnd<T>() + ConvertScalarTo<T>(1.5),
+      ConvertScalarTo<T>(MantissaEnd<T>() - ConvertScalarTo<T>(1.5)),
+      ConvertScalarTo<T>(MantissaEnd<T>() + ConvertScalarTo<T>(1.5)),
       // negative near limit
-      -MantissaEnd<T>() - ConvertScalarTo<T>(1.5),
-      -MantissaEnd<T>() + ConvertScalarTo<T>(1.5),
+      ConvertScalarTo<T>(-MantissaEnd<T>() - ConvertScalarTo<T>(1.5)),
+      ConvertScalarTo<T>(-MantissaEnd<T>() + ConvertScalarTo<T>(1.5)),
       // positive tiebreak
       ConvertScalarTo<T>(1.5), ConvertScalarTo<T>(2.5),
       // negative tiebreak
@@ -229,9 +229,11 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       // negative +/- delta
       ConvertScalarTo<T>(-999.9999), ConvertScalarTo<T>(-998.0001),
       // positive +/- epsilon
-      ConvertScalarTo<T>(1) + eps, ConvertScalarTo<T>(1) - eps,
+      ConvertScalarTo<T>(ConvertScalarTo<T>(1) + eps),
+      ConvertScalarTo<T>(ConvertScalarTo<T>(1) - eps),
       // negative +/- epsilon
-      ConvertScalarTo<T>(-1) + eps, ConvertScalarTo<T>(-1) - eps,
+      ConvertScalarTo<T>(ConvertScalarTo<T>(-1) + eps),
+      ConvertScalarTo<T>(ConvertScalarTo<T>(-1) - eps),
       // +/- huge (but still fits in float)
       huge, -huge,
       // +/- infinity
@@ -396,7 +398,8 @@ struct TestAbsDiff {
     for (size_t i = 0; i < N; ++i) {
       in_lanes_a[i] = ConvertScalarTo<T>((i ^ 1u) << i);
       in_lanes_b[i] = ConvertScalarTo<T>(i << i);
-      out_lanes[i] = ScalarAbs(in_lanes_a[i] - in_lanes_b[i]);
+      out_lanes[i] =
+          ConvertScalarTo<T>(ScalarAbs(in_lanes_a[i] - in_lanes_b[i]));
     }
     const auto a = Load(d, in_lanes_a.get());
     const auto b = Load(d, in_lanes_b.get());
