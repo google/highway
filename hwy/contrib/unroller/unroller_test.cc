@@ -36,7 +36,7 @@ T SimpleDot(const T* pa, const T* pb, size_t num) {
   T sum = 0;
   for (size_t i = 0; i < num; ++i) {
     // For reasons unknown, fp16 += does not compile on clang (Arm).
-    sum = sum + pa[i] * pb[i];
+    sum = ConvertScalarTo<T>(sum + pa[i] * pb[i]);
   }
   return sum;
 }
@@ -448,13 +448,13 @@ struct TestFind {
       HWY_ASSERT(pa);
       T* a = pa.get();
 
-      for (size_t i = 0; i < num; ++i) a[i] = (T)i;
+      for (size_t i = 0; i < num; ++i) a[i] = ConvertScalarTo<T>(i);
 
-      FindUnit<T> cvtfn((T)(num - 1));
+      FindUnit<T> cvtfn(ConvertScalarTo<T>(num - 1));
       MakeSigned<T> idx = 0;
       Unroller(cvtfn, a, &idx, static_cast<ptrdiff_t>(num));
       HWY_ASSERT(static_cast<MakeUnsigned<T>>(idx) < num);
-      HWY_ASSERT(a[idx] == (T)(num - 1));
+      HWY_ASSERT(a[idx] == ConvertScalarTo<T>(num - 1));
 
       FindUnit<T> cvtfnzero((T)(0));
       Unroller(cvtfnzero, a, &idx, static_cast<ptrdiff_t>(num));

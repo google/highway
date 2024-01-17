@@ -73,13 +73,13 @@ struct Dot {
       T sum1 = ConvertScalarTo<T>(0);
       for (; i + 2 <= num_elements; i += 2) {
         // For reasons unknown, fp16 += does not compile on clang (Arm).
-        sum0 = sum0 + pa[i + 0] * pb[i + 0];
-        sum1 = sum1 + pa[i + 1] * pb[i + 1];
+        sum0 = ConvertScalarTo<T>(sum0 + pa[i + 0] * pb[i + 0]);
+        sum1 = ConvertScalarTo<T>(sum1 + pa[i + 1] * pb[i + 1]);
       }
       if (i < num_elements) {
-        sum1 = sum1 + pa[i] * pb[i];
+        sum1 = ConvertScalarTo<T>(sum1 + pa[i] * pb[i]);
       }
-      return sum0 + sum1;
+      return ConvertScalarTo<T>(sum0 + sum1);
     }
 
     // Compiler doesn't make independent sum* accumulators, so unroll manually.

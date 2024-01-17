@@ -112,9 +112,9 @@ struct TestSignedMinMax {
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
-        const T t2 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 2));
-        const T t3 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 3));
-        const T t4 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 4));
+        const T t2 = AddWithWraparound(ConvertScalarTo<T>(i), 2);
+        const T t3 = AddWithWraparound(ConvertScalarTo<T>(i), 3);
+        const T t4 = AddWithWraparound(ConvertScalarTo<T>(i), 4);
         if (bool_lanes[i]) {
           expected_min[i] = HWY_MIN(t3, t4);
           expected_max[i] = HWY_MAX(t3, t4);
@@ -170,14 +170,15 @@ struct TestAddSubMul {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          expected_add[i] = static_cast<T>(2 * i + 7);
-          expected_sub[i] = static_cast<T>(i + 5);
+          expected_add[i] = ConvertScalarTo<T>(2 * i + 7);
+          expected_sub[i] = ConvertScalarTo<T>(i + 5);
           const size_t mod_i = i & ((16 / sizeof(T)) - 1);
-          expected_mul[i] = static_cast<T>(mod_lanes[mod_i] * mod_lanes[mod_i]);
+          expected_mul[i] =
+              ConvertScalarTo<T>(mod_lanes[mod_i] * mod_lanes[mod_i]);
         } else {
-          expected_add[i] = static_cast<T>(i + 2);
-          expected_sub[i] = static_cast<T>(i + 2);
-          expected_mul[i] = static_cast<T>(i + 2);
+          expected_add[i] = ConvertScalarTo<T>(i + 2);
+          expected_sub[i] = ConvertScalarTo<T>(i + 2);
+          expected_mul[i] = ConvertScalarTo<T>(i + 2);
         }
       }
 
@@ -329,9 +330,10 @@ struct TestDiv {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         const size_t iota1 = (i + 1) & 7;
-        expected[i] = static_cast<T>(iota1);
+        expected[i] = ConvertScalarTo<T>(iota1);
         if (bool_lanes[i]) {
-          expected[i] = static_cast<T>(static_cast<double>(1 << iota1) / 2.0);
+          expected[i] =
+              ConvertScalarTo<T>(static_cast<double>(1 << iota1) / 2.0);
         }
       }
 

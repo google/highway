@@ -42,7 +42,7 @@ HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
              T dot = ConvertScalarTo<T>(0);
              for (size_t c = 0; c < cols; c++) {
                // For reasons unknown, fp16 += does not compile on clang (Arm).
-               dot = dot + ConvertScalarTo<T>(mat[r * cols + c] * vec[c]);
+               dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
              }
              out[r] = dot;
            });
