@@ -2853,37 +2853,143 @@ HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
 
 template <class D, HWY_IF_F16_D(D)>
 HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
-  const RebindToUnsigned<decltype(df16)> du16;
-  const Rebind<uint32_t, decltype(df16)> du32;
-  const RebindToSigned<decltype(du32)> di32;
-  using VU32 = VFromD<decltype(du32)>;
-  using VI32 = VFromD<decltype(di32)>;
+  const RebindToSigned<decltype(df16)> di16;
+  const Rebind<int32_t, decltype(df16)> di32;
+  const RebindToFloat<decltype(di32)> df32;
+  const RebindToUnsigned<decltype(df32)> du32;
 
-  const VU32 bits32 = BitCast(du32, v);
-  const VU32 sign = ShiftRight<31>(bits32);
-  const VU32 biased_exp32 = And(ShiftRight<23>(bits32), Set(du32, 0xFF));
-  const VU32 mantissa32 = And(bits32, Set(du32, 0x7FFFFF));
+  // There are 23 fractional bits (plus the implied 1 bit) in the mantissa of
+  // a F32, and there are 10 fractional bits (plus the implied 1 bit) in the
+  // mantissa of a F16
 
-  const VI32 k15 = Set(di32, 15);
-  const VI32 exp = Min(Sub(BitCast(di32, biased_exp32), Set(di32, 127)), k15);
-  const MFromD<decltype(di32)> is_tiny = Lt(exp, Set(di32, -24));
+  // We want the unbiased exponent of round_incr[i] to be at least (-14) + 13 as
+  // 2^(-14) is the smallest positive normal F16 value and as we want 13
+  // mantissa bits (including the implicit 1 bit) to the left of the
+  // F32 mantissa bits in rounded_val[i] since 23 - 10 is equal to 13
 
-  const MFromD<decltype(di32)> is_subnormal = Lt(exp, Set(di32, -14));
-  const VU32 biased_exp16 =
-      BitCast(du32, IfThenZeroElse(is_subnormal, Add(exp, k15)));
-  const VU32 sub_exp = BitCast(du32, Sub(Set(di32, -14), exp));  // [1, 11)
-  // Clamp shift counts to prevent warnings in emu_128 Shr.
-  const VU32 k31 = Set(du32, 31);
-  const VU32 shift_m = Min(Add(Set(du32, 13), sub_exp), k31);
-  const VU32 shift_1 = Min(Sub(Set(du32, 10), sub_exp), k31);
-  const VU32 sub_m = Add(Shl(Set(du32, 1), shift_1), Shr(mantissa32, shift_m));
-  const VU32 mantissa16 = IfThenElse(RebindMask(du32, is_subnormal), sub_m,
-                                     ShiftRight<13>(mantissa32));  // <1024
+  // The biased exponent of round_incr[i] needs to be at least 126 as
+  // (-14) + 13 + 127 is equal to 126
 
-  const VU32 sign16 = ShiftLeft<15>(sign);
-  const VU32 normal16 = Or3(sign16, ShiftLeft<10>(biased_exp16), mantissa16);
-  const VI32 bits16 = IfThenZeroElse(is_tiny, BitCast(di32, normal16));
-  return BitCast(df16, DemoteTo(du16, bits16));
+  // We also want to biased exponent of round_incr[i] to be less than or equal
+  // to 255 (which is equal to MaxExponentField<float>())
+
+  // The biased F64 exponent of round_incr is equal to
+  // HWY_MAX(HWY_MIN(((exp_bits[i] >> 23) & 255) + 13, 255), 126)
+
+  // hi9_bits[i] is equal to the upper 9 bits of v[i]
+  const auto hi9_bits = ShiftRight<23>(BitCast(du32, v));
+
+  const auto k13 = Set(du32, uint32_t{13u});
+
+  // Minimum biased F32 exponent of round_incr
+  const auto k126 = Set(du32, uint32_t{126u});
+
+  // round_incr_hi9_bits[i] is equivalent to
+  // (hi9_bits[i] & 0x100) |
+  // HWY_MAX(HWY_MIN((hi9_bits[i] & 0xFF) + 13, 255), 126)
+
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+  const auto k255 = Set(du32, uint32_t{255u});
+  const auto round_incr_hi9_bits = BitwiseIfThenElse(
+      k255, Max(Min(Add(And(hi9_bits, k255), k13), k255), k126), hi9_bits);
+#else
+  // On targets other than SCALAR and EMU128, the exponent bits of hi9_bits can
+  // be incremented by 13 and clamped to the [13, 255] range without overflowing
+  // into the sign bit of hi9_bits by using U8 SaturatedAdd as there are 8
+  // exponent bits in an F32
+
+  // U8 Max can be used on targets other than SCALAR and EMU128 to clamp
+  // ((hi9_bits & 0xFF) + 13) to the [126, 255] range without affecting the sign
+  // bit
+
+  const Repartition<uint8_t, decltype(du32)> du32_as_u8;
+  const auto round_incr_hi9_bits = BitCast(
+      du32,
+      Max(SaturatedAdd(BitCast(du32_as_u8, hi9_bits), BitCast(du32_as_u8, k13)),
+          BitCast(du32_as_u8, k126)));
+#endif
+
+  // (round_incr_hi9_bits >> 8) is equal to (hi9_bits >> 8), and
+  // (round_incr_hi9_bits & 0xFF) is equal to
+  // HWY_MAX(HWY_MIN((round_incr_hi9_bits & 0xFF) + 13, 255), 126)
+
+  const auto round_incr = BitCast(df32, ShiftLeft<23>(round_incr_hi9_bits));
+
+  // Add round_incr[i] to v[i] to round the mantissa to the nearest F16 mantissa
+  // and to move the fractional bits of the resulting non-NaN mantissa down to
+  // the lower 10 bits of rounded_val if (v[i] + round_incr[i]) is a non-NaN
+  // value
+  const auto rounded_val = Add(v, round_incr);
+
+  // rounded_val_bits is the bits of rounded_val as a U32
+  const auto rounded_val_bits = BitCast(du32, rounded_val);
+
+  // rounded_val[i] is known to have the same biased exponent as round_incr[i]
+  // as |round_incr[i]| > 2^12*|v[i]| is true if round_incr[i] is a finite
+  // value, round_incr[i] and v[i] both have the same sign, and |round_incr[i]|
+  // is either a power of 2 that is greater than or equal to 2^-1 or infinity.
+
+  // If rounded_val[i] is a finite F32 value, then
+  // (rounded_val_bits[i] & 0x00000FFF) is the bit representation of the
+  // rounded mantissa of rounded_val[i] as a UQ2.10 fixed point number that is
+  // in the range [0, 2].
+
+  // In other words, (rounded_val_bits[i] & 0x00000FFF) is between 0 and 0x0800,
+  // with (rounded_val_bits[i] & 0x000003FF) being the fractional bits of the
+  // resulting F16 mantissa, if rounded_v[i] is a finite F32 value.
+
+  // (rounded_val_bits[i] & 0x007FF000) == 0 is guaranteed to be true if
+  // rounded_val[i] is a non-NaN value
+
+  // The biased exponent of rounded_val[i] is guaranteed to be at least 126 as
+  // the biased exponent of round_incr[i] is at least 126 and as both v[i] and
+  // round_incr[i] have the same sign bit
+
+  // The ULP of a F32 value with a biased exponent of 126 is equal to
+  // 2^(126 - 127 - 23), which is equal to 2^(-24) (which is also the ULP of a
+  // F16 value with a biased exponent of 0 or 1 as (1 - 15 - 10) is equal to
+  // -24)
+
+  // The biased exponent (before subtracting by 126) needs to be clamped to the
+  // [126, 157] range as 126 + 31 is equal to 157 and as 31 is the largest
+  // biased exponent of a F16.
+
+  // The biased exponent of the resulting F16 value is equal to
+  // HWY_MIN((round_incr_hi9_bits[i] & 0xFF) +
+  //         ((rounded_val_bits[i] >> 10) & 0xFF), 157) - 126
+
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+  auto f16_exp_bits =
+      Min(Add(ShiftLeft<10>(And(round_incr_hi9_bits, k255)),
+              And(rounded_val_bits,
+                  Set(du32, static_cast<uint32_t>(uint32_t{0xFFu} << 10)))),
+          Set(du32, static_cast<uint32_t>(uint32_t{157u} << 10)));
+#else
+  auto f16_exp_bits = ShiftLeft<10>(BitCast(
+      du32,
+      Min(SaturatedAdd(BitCast(du32_as_u8, round_incr_hi9_bits),
+                       BitCast(du32_as_u8, ShiftRight<10>(rounded_val_bits))),
+          BitCast(du32_as_u8, Set(du32, uint32_t{157})))));
+#endif
+
+  f16_exp_bits =
+      Sub(f16_exp_bits, Set(du32, static_cast<uint32_t>(uint32_t{126u} << 10)));
+
+  const auto f16_unmasked_mant_bits =
+      BitCast(di32, Or(rounded_val, VecFromMask(df32, IsNaN(rounded_val))));
+
+  const auto f16_exp_mant_bits =
+      OrAnd(BitCast(di32, f16_exp_bits), f16_unmasked_mant_bits,
+            Set(di32, int32_t{0x03FF}));
+
+  // f16_bits_as_i32 is the F16 bits sign-extended to an I32 (with the upper 17
+  // bits of f16_bits_as_i32[i] set to the sign bit of rounded_val[i]) to allow
+  // efficient truncation of the F16 bits to an I16 using an I32->I16 DemoteTo
+  // operation
+  const auto f16_bits_as_i32 =
+      OrAnd(f16_exp_mant_bits, ShiftRight<16>(BitCast(di32, rounded_val_bits)),
+            Set(di32, static_cast<int32_t>(0xFFFF8000u)));
+  return BitCast(df16, DemoteTo(di16, f16_bits_as_i32));
 }
 
 #endif  // HWY_NATIVE_F16C
