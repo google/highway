@@ -22,6 +22,8 @@
 #define HIGHWAY_HWY_CONTRIB_DOT_DOT_INL_H_
 #endif
 
+#include <stddef.h>
+
 #include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -71,13 +73,13 @@ struct Dot {
       T sum1 = ConvertScalarTo<T>(0);
       for (; i + 2 <= num_elements; i += 2) {
         // For reasons unknown, fp16 += does not compile on clang (Arm).
-        sum0 = sum0 + pa[i + 0] * pb[i + 0];
-        sum1 = sum1 + pa[i + 1] * pb[i + 1];
+        sum0 = ConvertScalarTo<T>(sum0 + pa[i + 0] * pb[i + 0]);
+        sum1 = ConvertScalarTo<T>(sum1 + pa[i + 1] * pb[i + 1]);
       }
       if (i < num_elements) {
-        sum1 = sum1 + pa[i] * pb[i];
+        sum1 = ConvertScalarTo<T>(sum1 + pa[i] * pb[i]);
       }
-      return sum0 + sum1;
+      return ConvertScalarTo<T>(sum0 + sum1);
     }
 
     // Compiler doesn't make independent sum* accumulators, so unroll manually.
@@ -146,9 +148,117 @@ struct Dot {
     return ReduceSum(d, sum0);
   }
 
+  // f32 * bf16
+  template <int kAssumptions, class DF, HWY_IF_F32_D(DF)>
+  static HWY_INLINE float Compute(const DF df,
+                                  const float* const HWY_RESTRICT pa,
+                                  const hwy::bfloat16_t* const HWY_RESTRICT pb,
+                                  const size_t num_elements) {
+#if HWY_TARGET == HWY_SCALAR
+    const Rebind<hwy::bfloat16_t, DF> dbf;
+#else
+    const Repartition<hwy::bfloat16_t, DF> dbf;
+    using VBF = decltype(Zero(dbf));
+#endif
+    const Half<decltype(dbf)> dbfh;
+    using VF = decltype(Zero(df));
+
+    const size_t NF = Lanes(df);
+
+    constexpr bool kIsAtLeastOneVector =
+        (kAssumptions & kAtLeastOneVector) != 0;
+    constexpr bool kIsMultipleOfVector =
+        (kAssumptions & kMultipleOfVector) != 0;
+    constexpr bool kIsPaddedToVector = (kAssumptions & kPaddedToVector) != 0;
+
+    // Won't be able to do a full vector load without padding => scalar loop.
+    if (!kIsAtLeastOneVector && !kIsMultipleOfVector && !kIsPaddedToVector &&
+        HWY_UNLIKELY(num_elements < NF)) {
+      // Only 2x unroll to avoid excessive code size.
+      float sum0 = 0.0f;
+      float sum1 = 0.0f;
+      size_t i = 0;
+      for (; i + 2 <= num_elements; i += 2) {
+        sum0 += pa[i + 0] * ConvertScalarTo<float>(pb[i + 0]);
+        sum1 += pa[i + 1] * ConvertScalarTo<float>(pb[i + 1]);
+      }
+      for (; i < num_elements; ++i) {
+        sum1 += pa[i] * ConvertScalarTo<float>(pb[i]);
+      }
+      return sum0 + sum1;
+    }
+
+    // Compiler doesn't make independent sum* accumulators, so unroll manually.
+    // 2 FMA ports * 4 cycle latency = up to 8 in-flight, but that is excessive
+    // for unaligned inputs (each unaligned pointer halves the throughput
+    // because it occupies both L1 load ports for a cycle). We cannot have
+    // arrays of vectors on RVV/SVE, so always unroll 4x.
+    VF sum0 = Zero(df);
+    VF sum1 = Zero(df);
+    VF sum2 = Zero(df);
+    VF sum3 = Zero(df);
+
+    size_t i = 0;
+
+#if HWY_TARGET != HWY_SCALAR  // PromoteUpperTo supported
+    // Main loop: unrolled
+    for (; i + 4 * NF <= num_elements; /* i += 4 * N */) {  // incr in loop
+      const VF a0 = LoadU(df, pa + i);
+      const VBF b0 = LoadU(dbf, pb + i);
+      i += NF;
+      sum0 = MulAdd(a0, PromoteLowerTo(df, b0), sum0);
+      const VF a1 = LoadU(df, pa + i);
+      i += NF;
+      sum1 = MulAdd(a1, PromoteUpperTo(df, b0), sum1);
+      const VF a2 = LoadU(df, pa + i);
+      const VBF b2 = LoadU(dbf, pb + i);
+      i += NF;
+      sum2 = MulAdd(a2, PromoteLowerTo(df, b2), sum2);
+      const VF a3 = LoadU(df, pa + i);
+      i += NF;
+      sum3 = MulAdd(a3, PromoteUpperTo(df, b2), sum3);
+    }
+#endif  // HWY_TARGET == HWY_SCALAR
+
+    // Up to 3 iterations of whole vectors
+    for (; i + NF <= num_elements; i += NF) {
+      const VF a = LoadU(df, pa + i);
+      const VF b = PromoteTo(df, LoadU(dbfh, pb + i));
+      sum0 = MulAdd(a, b, sum0);
+    }
+
+    if (!kIsMultipleOfVector) {
+      const size_t remaining = num_elements - i;
+      if (remaining != 0) {
+        if (kIsPaddedToVector) {
+          const auto mask = FirstN(df, remaining);
+          const VF a = LoadU(df, pa + i);
+          const VF b = PromoteTo(df, LoadU(dbfh, pb + i));
+          sum1 = MulAdd(IfThenElseZero(mask, a), IfThenElseZero(mask, b), sum1);
+        } else {
+          // Unaligned load such that the last element is in the highest lane -
+          // ensures we do not touch any elements outside the valid range.
+          // If we get here, then num_elements >= N.
+          HWY_DASSERT(i >= NF);
+          i += remaining - NF;
+          const auto skip = FirstN(df, NF - remaining);
+          const VF a = LoadU(df, pa + i);  // always unaligned
+          const VF b = PromoteTo(df, LoadU(dbfh, pb + i));
+          sum1 = MulAdd(IfThenZeroElse(skip, a), IfThenZeroElse(skip, b), sum1);
+        }
+      }
+    }  // kMultipleOfVector
+
+    // Reduction tree: sum of all accumulators by pairs, then across lanes.
+    sum0 = Add(sum0, sum1);
+    sum2 = Add(sum2, sum3);
+    sum0 = Add(sum0, sum2);
+    return ReduceSum(df, sum0);
+  }
+
   // Returns sum{pa[i] * pb[i]} for bfloat16 inputs. Aligning the pointers to a
   // multiple of N elements is helpful but not required.
-  template <int kAssumptions, class D>
+  template <int kAssumptions, class D, HWY_IF_BF16_D(D)>
   static HWY_INLINE float Compute(const D d,
                                   const bfloat16_t* const HWY_RESTRICT pa,
                                   const bfloat16_t* const HWY_RESTRICT pb,

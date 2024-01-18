@@ -143,6 +143,9 @@
 #define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10,htm"
 #endif
 
+#define HWY_TARGET_STR_Z14 "arch=z14"
+#define HWY_TARGET_STR_Z15 "arch=z15"
+
 // Before include guard so we redefine HWY_TARGET_STR on each include,
 // governed by the current HWY_TARGET.
 
@@ -314,6 +317,37 @@
 #else
 #error "Logic error"
 #endif  // HWY_TARGET == HWY_PPC10
+
+//-----------------------------------------------------------------------------
+// Z14, Z15
+#elif HWY_TARGET == HWY_Z14 || HWY_TARGET == HWY_Z15
+
+#define HWY_ALIGN alignas(16)
+#define HWY_MAX_BYTES 16
+#define HWY_LANES(T) (16 / sizeof(T))
+
+#define HWY_HAVE_SCALABLE 0
+#define HWY_HAVE_INTEGER64 1
+#define HWY_HAVE_FLOAT16 0
+#define HWY_HAVE_FLOAT64 1
+#define HWY_MEM_OPS_MIGHT_FAULT 1
+#define HWY_NATIVE_FMA 1
+#define HWY_CAP_GE256 0
+#define HWY_CAP_GE512 0
+
+#if HWY_TARGET == HWY_Z14
+
+#define HWY_NAMESPACE N_Z14
+#define HWY_TARGET_STR HWY_TARGET_STR_Z14
+
+#elif HWY_TARGET == HWY_Z15
+
+#define HWY_NAMESPACE N_Z15
+#define HWY_TARGET_STR HWY_TARGET_STR_Z15
+
+#else
+#error "Logic error"
+#endif  // HWY_TARGET == HWY_Z15
 
 //-----------------------------------------------------------------------------
 // NEON

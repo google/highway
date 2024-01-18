@@ -189,6 +189,12 @@
 #define HWY_ARCH_PPC 0
 #endif
 
+#if defined(__powerpc64__) || (HWY_ARCH_PPC && defined(__64BIT__))
+#define HWY_ARCH_PPC_64 1
+#else
+#define HWY_ARCH_PPC_64 0
+#endif
+
 // aarch32 is currently not supported; please raise an issue if you want it.
 #if defined(__ARM_ARCH_ISA_A64) || defined(__aarch64__) || defined(_M_ARM64)
 #define HWY_ARCH_ARM_A64 1
@@ -232,10 +238,16 @@
 #define HWY_ARCH_RVV 0
 #endif
 
+#if defined(__s390x__)
+#define HWY_ARCH_S390X 1
+#else
+#define HWY_ARCH_S390X 0
+#endif
+
 // It is an error to detect multiple architectures at the same time, but OK to
 // detect none of the above.
 #if (HWY_ARCH_X86 + HWY_ARCH_PPC + HWY_ARCH_ARM + HWY_ARCH_ARM_OLD + \
-     HWY_ARCH_WASM + HWY_ARCH_RVV) > 1
+     HWY_ARCH_WASM + HWY_ARCH_RVV + HWY_ARCH_S390X) > 1
 #error "Must not detect more than one architecture"
 #endif
 
