@@ -1086,7 +1086,7 @@ struct alignas(2) float16_t {
  private:
   struct F16FromU16BitsTag {};
   constexpr float16_t(F16FromU16BitsTag /*tag*/, uint16_t u16_bits)
-      : bits(u16_bits){}
+      : bits(u16_bits) {}
 
  public:
   static constexpr float16_t FromBits(uint16_t bits) {
@@ -1422,9 +1422,9 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 #endif
 
 #ifndef HWY_HAVE_SCALAR_BF16_OPERATORS
-// Recent enough compiler also has operators.
-#if HWY_HAVE_SCALAR_BF16_TYPE && \
-    (HWY_COMPILER_CLANG >= 1800 || HWY_COMPILER_GCC_ACTUAL >= 1300)
+// Recent enough compiler also has operators. aarch64 clang 18 hits internal
+// compiler errors on bf16 ToString, hence only enable on GCC for now.
+#if HWY_HAVE_SCALAR_BF16_TYPE && (HWY_COMPILER_GCC_ACTUAL >= 1300)
 #define HWY_HAVE_SCALAR_BF16_OPERATORS 1
 #else
 #define HWY_HAVE_SCALAR_BF16_OPERATORS 0
@@ -1474,7 +1474,7 @@ struct alignas(2) bfloat16_t {
  private:
   struct BF16FromU16BitsTag {};
   constexpr bfloat16_t(BF16FromU16BitsTag /*tag*/, uint16_t u16_bits)
-      : bits(u16_bits){}
+      : bits(u16_bits) {}
 
  public:
   static constexpr bfloat16_t FromBits(uint16_t bits) {
@@ -1874,7 +1874,7 @@ HWY_API constexpr bool IsFloat() {
 
 template <typename T>
 HWY_API constexpr bool IsSigned() {
-  return T(0) > T(-1);
+  return static_cast<T>(0) > static_cast<T>(-1);
 }
 template <>
 constexpr bool IsSigned<float16_t>() {
@@ -1922,7 +1922,8 @@ HWY_API constexpr T LimitsMax() {
 template <typename T>
 HWY_API constexpr T LimitsMin() {
   static_assert(IsInteger<T>(), "Only for integer types");
-  return IsSigned<T>() ? T(-1) - LimitsMax<T>() : T(0);
+  return IsSigned<T>() ? static_cast<T>(-1) - LimitsMax<T>()
+                       : static_cast<T>(0);
 }
 
 // Largest/smallest representable value (integer or float). This naming avoids
@@ -2380,7 +2381,7 @@ template <typename T>
 static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(
     hwy::FloatTag /*tag*/, T val) {
   using TU = MakeUnsigned<T>;
-  return (BitCastScalar<TU>(ScalarAbs(val)) < ExponentMask<T>());
+  return (BitCastScalar<TU>(hwy::ScalarAbs(val)) < ExponentMask<T>());
 }
 
 template <typename T>

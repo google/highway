@@ -46,7 +46,7 @@ namespace HWY_NAMESPACE {
 #if HWY_COMPILER_GCC_ACTUAL >= 1300
 #define HWY_MATH_TEST_EXCESS_PRECISION 0
 
-#else  // HWY_COMPILER_GCC_ACTUAL < 1300
+#else                  // HWY_COMPILER_GCC_ACTUAL < 1300
 
 // The build system must enable SSE2, e.g. via HWY_CMAKE_SSE2 - see
 // https://stackoverflow.com/questions/20869904/c-handling-of-excess-precision .
@@ -279,31 +279,36 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
   };
   const T pos = ConvertScalarTo<T>(1E5);
   const T neg = ConvertScalarTo<T>(-1E7);
-  // T{-0} is not enough to get an actual negative zero.
+  const T p0 = ConvertScalarTo<T>(0);
+  // -0 is not enough to get an actual negative zero.
   const T n0 = ConvertScalarTo<T>(-0.0);
+  const T p1 = ConvertScalarTo<T>(1);
+  const T n1 = ConvertScalarTo<T>(-1);
+  const T p2 = ConvertScalarTo<T>(2);
+  const T n2 = ConvertScalarTo<T>(-2);
   const T inf = GetLane(Inf(d));
   const T nan = GetLane(NaN(d));
 
   const T pi = ConvertScalarTo<T>(3.141592653589793238);
-  const YX test_cases[] = {                                  // 45 degree steps:
-                           {T{0.0}, T{1.0}, T{0}},           // E
-                           {T{-1.0}, T{1.0}, -pi / 4},       // SE
-                           {T{-1.0}, T{0.0}, -pi / 2},       // S
-                           {T{-1.0}, T{-1.0}, -3 * pi / 4},  // SW
-                           {T{0.0}, T{-1.0}, pi},            // W
-                           {T{1.0}, T{-1.0}, 3 * pi / 4},    // NW
-                           {T{1.0}, T{0.0}, pi / 2},         // N
-                           {T{1.0}, T{1.0}, pi / 4},         // NE
+  const YX test_cases[] = {                        // 45 degree steps:
+                           {p0, p1, p0},           // E
+                           {n1, p1, -pi / 4},      // SE
+                           {n1, p0, -pi / 2},      // S
+                           {n1, n1, -3 * pi / 4},  // SW
+                           {p0, n1, pi},           // W
+                           {p1, n1, 3 * pi / 4},   // NW
+                           {p1, p0, pi / 2},       // N
+                           {p1, p1, pi / 4},       // NE
 
                            // y = ±0, x < 0 or -0
-                           {T{0}, T{-1}, pi},
-                           {n0, T{-2}, -pi},
+                           {p0, n1, pi},
+                           {n0, n2, -pi},
                            // y = ±0, x > 0 or +0
-                           {T{0}, T{2}, T{0}},
-                           {n0, T{2}, n0},
+                           {p0, p2, p0},
+                           {n0, p2, n0},
                            // y = ±∞, x finite
-                           {inf, T{3}, pi / 2},
-                           {-inf, T{3}, -pi / 2},
+                           {inf, p2, pi / 2},
+                           {-inf, p2, -pi / 2},
                            // y = ±∞, x = -∞
                            {inf, -inf, 3 * pi / 4},
                            {-inf, -inf, -3 * pi / 4},
@@ -311,21 +316,21 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
                            {inf, inf, pi / 4},
                            {-inf, inf, -pi / 4},
                            // y < 0, x = ±0
-                           {T{-2}, T{0}, -pi / 2},
-                           {T{-1}, n0, -pi / 2},
+                           {n2, p0, -pi / 2},
+                           {n1, n0, -pi / 2},
                            // y > 0, x = ±0
-                           {pos, T{0}, pi / 2},
-                           {T{4}, n0, pi / 2},
+                           {pos, p0, pi / 2},
+                           {p2, n0, pi / 2},
                            // finite y > 0, x = -∞
                            {pos, -inf, pi},
                            // finite y < 0, x = -∞
                            {neg, -inf, -pi},
                            // finite y > 0, x = +∞
-                           {pos, inf, T{0}},
+                           {pos, inf, p0},
                            // finite y < 0, x = +∞
                            {neg, inf, n0},
                            // y NaN xor x NaN
-                           {nan, T{0}, nan},
+                           {nan, p0, nan},
                            {pos, nan, nan}};
   const size_t kNumTestCases = sizeof(test_cases) / sizeof(test_cases[0]);
   const size_t N = Lanes(d);
@@ -341,9 +346,9 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
     out_expected[i] = test_cases[i].expected;
   }
   for (; i < padded; ++i) {
-    out_y[i] = T{0};
-    out_x[i] = T{0};
-    out_expected[i] = T{0};
+    out_y[i] = p0;
+    out_x[i] = p0;
+    out_expected[i] = p0;
   }
 }
 
@@ -356,7 +361,7 @@ struct TestAtan2 {
     AlignedFreeUniquePtr<T[]> in_y, in_x, expected;
     Atan2TestCases(t, d, padded, in_y, in_x, expected);
 
-    const Vec<D> tolerance = Set(d, T(1E-5));
+    const Vec<D> tolerance = Set(d, ConvertScalarTo<T>(1E-5));
 
     for (size_t i = 0; i < padded; ++i) {
       const T actual = ConvertScalarTo<T>(atan2(in_y[i], in_x[i]));

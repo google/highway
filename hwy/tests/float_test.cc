@@ -17,9 +17,7 @@
 
 #include <stdio.h>
 
-#include <algorithm>  // std::copy, std::fill
-#include <cmath>      // std::abs, std::isnan, std::isinf, std::ceil, std::floor
-#include <limits>
+#include <cmath>  // std::ceil, std::floor
 
 #include "hwy/base.h"
 
@@ -109,8 +107,8 @@ HWY_NOINLINE void TestAllF32FromF16() {
 struct TestDiv {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(-2));
-    const auto v1 = Set(d, T(1));
+    const auto v = Iota(d, -2);
+    const auto v1 = Set(d, ConvertScalarTo<T>(1));
 
     // Unchanged after division by 1.
     HWY_ASSERT_VEC_EQ(d, v, Div(v, v1));
@@ -121,7 +119,7 @@ struct TestDiv {
     for (size_t i = 0; i < N; ++i) {
       expected[i] = ConvertScalarTo<T>((static_cast<double>(i) - 2.0) / 2.0);
     }
-    HWY_ASSERT_VEC_EQ(d, expected.get(), Div(v, Set(d, T(2))));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), Div(v, Set(d, ConvertScalarTo<T>(2))));
   }
 };
 
@@ -130,8 +128,9 @@ HWY_NOINLINE void TestAllDiv() { ForFloatTypes(ForPartialVectors<TestDiv>()); }
 struct TestApproximateReciprocal {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(-2));
-    const auto nonzero = IfThenElse(Eq(v, Zero(d)), Set(d, T(1)), v);
+    const auto v = Iota(d, -2);
+    const auto nonzero =
+        IfThenElse(Eq(v, Zero(d)), Set(d, ConvertScalarTo<T>(1)), v);
     const size_t N = Lanes(d);
     auto input = AllocateAligned<T>(N);
     auto actual = AllocateAligned<T>(N);
@@ -145,14 +144,14 @@ struct TestApproximateReciprocal {
     double worst_actual = 0.0;
     for (size_t i = 0; i < N; ++i) {
       const double expected = 1.0 / input[i];
-      const double l1 = std::abs(expected - actual[i]);
+      const double l1 = ScalarAbs(expected - actual[i]);
       if (l1 > max_l1) {
         max_l1 = l1;
         worst_expected = expected;
         worst_actual = actual[i];
       }
     }
-    const double abs_worst_expected = std::abs(worst_expected);
+    const double abs_worst_expected = ScalarAbs(worst_expected);
     if (abs_worst_expected > 1E-5) {
       const double max_rel = max_l1 / abs_worst_expected;
       fprintf(stderr, "max l1 %f rel %f (%f vs %f)\n", max_l1, max_rel,
@@ -181,14 +180,14 @@ HWY_NOINLINE void TestAllSquareRoot() {
 struct TestReciprocalSquareRoot {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Set(d, T(123.0f));
+    const Vec<D> v = Set(d, ConvertScalarTo<T>(123.0f));
     const size_t N = Lanes(d);
     auto lanes = AllocateAligned<T>(N);
     HWY_ASSERT(lanes);
     Store(ApproximateReciprocalSqrt(v), d, lanes.get());
     for (size_t i = 0; i < N; ++i) {
-      T err = lanes[i] - 0.090166f;
-      if (err < T{0}) err = -err;
+      T err = ConvertScalarTo<T>(ConvertScalarTo<float>(lanes[i]) - 0.090166f);
+      if (err < ConvertScalarTo<T>(0)) err = -err;
       if (static_cast<double>(err) >= 4E-4) {
         HWY_ABORT("Lane %d (%d): actual %f err %f\n", static_cast<int>(i),
                   static_cast<int>(N), static_cast<double>(lanes[i]),
@@ -204,8 +203,8 @@ HWY_NOINLINE void TestAllReciprocalSquareRoot() {
 
 template <typename T, class D>
 AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
-  const T eps = std::numeric_limits<T>::epsilon();
-  const T huge = sizeof(T) == 4 ? ConvertScalarTo(1E34) : ConvertScalarTo(3E4);
+  const T eps = Epsilon<T>();
+  const T huge = ConvertScalarTo<T>(sizeof(T) >= 4 ? 1E34 : 3E4);
   const T test_cases[] = {
       // +/- 1
       ConvertScalarTo<T>(1), ConvertScalarTo<T>(-1),
@@ -216,11 +215,11 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       // +/- integer
       ConvertScalarTo<T>(4), ConvertScalarTo<T>(-32),
       // positive near limit
-      MantissaEnd<T>() - ConvertScalarTo<T>(1.5),
-      MantissaEnd<T>() + ConvertScalarTo<T>(1.5),
+      ConvertScalarTo<T>(MantissaEnd<T>() - ConvertScalarTo<T>(1.5)),
+      ConvertScalarTo<T>(MantissaEnd<T>() + ConvertScalarTo<T>(1.5)),
       // negative near limit
-      -MantissaEnd<T>() - ConvertScalarTo<T>(1.5),
-      -MantissaEnd<T>() + ConvertScalarTo<T>(1.5),
+      ConvertScalarTo<T>(-MantissaEnd<T>() - ConvertScalarTo<T>(1.5)),
+      ConvertScalarTo<T>(-MantissaEnd<T>() + ConvertScalarTo<T>(1.5)),
       // positive tiebreak
       ConvertScalarTo<T>(1.5), ConvertScalarTo<T>(2.5),
       // negative tiebreak
@@ -230,9 +229,11 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
       // negative +/- delta
       ConvertScalarTo<T>(-999.9999), ConvertScalarTo<T>(-998.0001),
       // positive +/- epsilon
-      ConvertScalarTo<T>(1) + eps, ConvertScalarTo<T>(1) - eps,
+      ConvertScalarTo<T>(ConvertScalarTo<T>(1) + eps),
+      ConvertScalarTo<T>(ConvertScalarTo<T>(1) - eps),
       // negative +/- epsilon
-      ConvertScalarTo<T>(-1) + eps, ConvertScalarTo<T>(-1) - eps,
+      ConvertScalarTo<T>(ConvertScalarTo<T>(-1) + eps),
+      ConvertScalarTo<T>(ConvertScalarTo<T>(-1) - eps),
       // +/- huge (but still fits in float)
       huge, -huge,
       // +/- infinity
@@ -245,8 +246,8 @@ AlignedFreeUniquePtr<T[]> RoundTestCases(T /*unused*/, D d, size_t& padded) {
   auto in = AllocateAligned<T>(padded);
   auto expected = AllocateAligned<T>(padded);
   HWY_ASSERT(in && expected);
-  std::copy(test_cases, test_cases + kNumTestCases, in.get());
-  std::fill(in.get() + kNumTestCases, in.get() + padded, T(0));
+  CopyBytes(test_cases, in.get(), kNumTestCases * sizeof(T));
+  ZeroBytes(in.get() + kNumTestCases, (padded - kNumTestCases) * sizeof(T));
   return in;
 }
 
@@ -293,10 +294,11 @@ struct TestNearestInt {
 
     constexpr double kMax = static_cast<double>(LimitsMax<TI>());
     for (size_t i = 0; i < padded; ++i) {
-      if (std::isnan(in[i])) {
+      if (ScalarIsNaN(in[i])) {
         // We replace NaN with 0 below (no_nan)
         expected[i] = 0;
-      } else if (std::isinf(in[i]) || double{std::abs(in[i])} >= kMax) {
+      } else if (ScalarIsInf(in[i]) ||
+                 static_cast<double>(ScalarAbs(in[i])) >= kMax) {
         // Avoid undefined result for lrintf
         expected[i] = std::signbit(in[i]) ? LimitsMin<TI>() : LimitsMax<TI>();
       } else {
@@ -396,7 +398,8 @@ struct TestAbsDiff {
     for (size_t i = 0; i < N; ++i) {
       in_lanes_a[i] = ConvertScalarTo<T>((i ^ 1u) << i);
       in_lanes_b[i] = ConvertScalarTo<T>(i << i);
-      out_lanes[i] = ScalarAbs(in_lanes_a[i] - in_lanes_b[i]);
+      out_lanes[i] =
+          ConvertScalarTo<T>(ScalarAbs(in_lanes_a[i] - in_lanes_b[i]));
     }
     const auto a = Load(d, in_lanes_a.get());
     const auto b = Load(d, in_lanes_b.get());

@@ -29,9 +29,9 @@ struct TestUnsignedMinMax {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
-    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
-    const Vec<D> v3 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 2));
-    const Vec<D> v4 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 3));
+    const Vec<D> v2 = Iota(d, hwy::Unpredictable1() + 1);
+    const Vec<D> v3 = Iota(d, hwy::Unpredictable1() + 2);
+    const Vec<D> v4 = Iota(d, hwy::Unpredictable1() + 3);
     const Vec<D> k0 = Zero(d);
     const Vec<D> vm = Set(d, LimitsMax<T>());
 
@@ -87,9 +87,9 @@ struct TestSignedMinMax {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
-    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
-    const Vec<D> v3 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 2));
-    const Vec<D> v4 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 3));
+    const Vec<D> v2 = Iota(d, hwy::Unpredictable1() + 1);
+    const Vec<D> v3 = Iota(d, hwy::Unpredictable1() + 2);
+    const Vec<D> v4 = Iota(d, hwy::Unpredictable1() + 3);
     const Vec<D> k0 = Zero(d);
     const Vec<D> vm = Set(d, LowestValue<T>());
 
@@ -112,9 +112,9 @@ struct TestSignedMinMax {
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
-        const T t2 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 2));
-        const T t3 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 3));
-        const T t4 = static_cast<T>(AddWithWraparound(static_cast<T>(i), 4));
+        const T t2 = AddWithWraparound(ConvertScalarTo<T>(i), 2);
+        const T t3 = AddWithWraparound(ConvertScalarTo<T>(i), 3);
+        const T t4 = AddWithWraparound(ConvertScalarTo<T>(i), 4);
         if (bool_lanes[i]) {
           expected_min[i] = HWY_MIN(t3, t4);
           expected_max[i] = HWY_MAX(t3, t4);
@@ -143,15 +143,16 @@ struct TestAddSubMul {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     RandomState rng;
-    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
-    const Vec<D> v3 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 2));
-    const Vec<D> v4 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 3));
+    const Vec<D> v2 = Iota(d, hwy::Unpredictable1() + 1);
+    const Vec<D> v3 = Iota(d, hwy::Unpredictable1() + 2);
+    const Vec<D> v4 = Iota(d, hwy::Unpredictable1() + 3);
     // So that we can subtract two iotas without resulting in a constant.
     const Vec<D> tv4 = Add(v4, v4);
     // For range-limited (so mul does not overflow), non-constant inputs.
     // We cannot just And() because T might be floating-point.
     alignas(16) static const T mod_lanes[16] = {
-        T{0}, T{1}, T{2}, static_cast<T>(hwy::Unpredictable1() + 2)};
+        ConvertScalarTo<T>(0), ConvertScalarTo<T>(1), ConvertScalarTo<T>(2),
+        ConvertScalarTo<T>(hwy::Unpredictable1() + 2)};
     const Vec<D> in_mul = LoadDup128(d, mod_lanes);
 
     using TI = MakeSigned<T>;  // For mask > 0 comparison
@@ -169,14 +170,15 @@ struct TestAddSubMul {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         if (bool_lanes[i]) {
-          expected_add[i] = static_cast<T>(2 * i + 7);
-          expected_sub[i] = static_cast<T>(i + 5);
+          expected_add[i] = ConvertScalarTo<T>(2 * i + 7);
+          expected_sub[i] = ConvertScalarTo<T>(i + 5);
           const size_t mod_i = i & ((16 / sizeof(T)) - 1);
-          expected_mul[i] = static_cast<T>(mod_lanes[mod_i] * mod_lanes[mod_i]);
+          expected_mul[i] =
+              ConvertScalarTo<T>(mod_lanes[mod_i] * mod_lanes[mod_i]);
         } else {
-          expected_add[i] = static_cast<T>(i + 2);
-          expected_sub[i] = static_cast<T>(i + 2);
-          expected_mul[i] = static_cast<T>(i + 2);
+          expected_add[i] = ConvertScalarTo<T>(i + 2);
+          expected_sub[i] = ConvertScalarTo<T>(i + 2);
+          expected_mul[i] = ConvertScalarTo<T>(i + 2);
         }
       }
 
@@ -207,10 +209,10 @@ struct TestUnsignedSatAddSub {
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
-    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
+    const Vec<D> v2 = Iota(d, hwy::Unpredictable1() + 1);
 
     const Vec<D> v0 = Zero(d);
-    const Vec<D> vi = Iota(d, T{1});
+    const Vec<D> vi = Iota(d, 1);
     const Vec<D> vm = Set(d, LimitsMax<T>());
 
     // Each lane should have a chance of having mask=true.
@@ -221,7 +223,7 @@ struct TestUnsignedSatAddSub {
       const VI mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
-      const Vec<D> disabled_lane_val = Iota(d, T{2});
+      const Vec<D> disabled_lane_val = Iota(d, 2);
 
       Vec<D> expected_add =
           IfThenElse(mask, Set(d, static_cast<T>(0)), disabled_lane_val);
@@ -258,12 +260,11 @@ struct TestSignedSatAddSub {
     auto bool_lanes = AllocateAligned<TI>(N);
     HWY_ASSERT(bool_lanes);
 
-    const Vec<D> v2 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 1));
+    const Vec<D> v2 = Iota(d, hwy::Unpredictable1() + 1);
 
     const Vec<D> v0 = Zero(d);
     const Vec<D> vpm = Set(d, LimitsMax<T>());
-    // Ensure all lanes are positive, even if Iota wraps around
-    const Vec<D> vi = Or(And(Iota(d, 0), vpm), Set(d, T{1}));
+    const Vec<D> vi = PositiveIota(d);
     const Vec<D> vn = Sub(v0, vi);
     const Vec<D> vnm = Set(d, LimitsMin<T>());
 
@@ -275,7 +276,7 @@ struct TestSignedSatAddSub {
       const VI mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
-      const Vec<D> disabled_lane_val = Iota(d, T{2});
+      const Vec<D> disabled_lane_val = Iota(d, 2);
 
       Vec<D> expected_add = IfThenElse(mask, v0, disabled_lane_val);
       HWY_ASSERT_VEC_EQ(d, expected_add, MaskedSatAddOr(v2, mask, v0, v0));
@@ -329,16 +330,17 @@ struct TestDiv {
       for (size_t i = 0; i < N; ++i) {
         bool_lanes[i] = (Random32(&rng) & 1024) ? TI(1) : TI(0);
         const size_t iota1 = (i + 1) & 7;
-        expected[i] = static_cast<T>(iota1);
+        expected[i] = ConvertScalarTo<T>(iota1);
         if (bool_lanes[i]) {
-          expected[i] = static_cast<T>(static_cast<double>(1 << iota1) / 2.0);
+          expected[i] =
+              ConvertScalarTo<T>(static_cast<double>(1 << iota1) / 2.0);
         }
       }
 
       const VI mask_i = Load(di, bool_lanes.get());
       const Mask<D> mask = RebindMask(d, Gt(mask_i, Zero(di)));
 
-      const Vec<D> div = Set(d, T{2});
+      const Vec<D> div = Set(d, ConvertScalarTo<T>(2));
       HWY_ASSERT_VEC_EQ(d, expected.get(), MaskedDivOr(no, mask, pows, div));
     }
   }
@@ -349,7 +351,7 @@ HWY_NOINLINE void TestAllDiv() { ForFloatTypes(ForPartialVectors<TestDiv>()); }
 struct TestFloatExceptions {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const Vec<D> v4 = Iota(d, static_cast<T>(hwy::Unpredictable1() + 3));
+    const Vec<D> v4 = Iota(d, hwy::Unpredictable1() + 3);
     const Mask<D> m0 = MaskFalse(d);
 
     // No overflow
@@ -363,7 +365,7 @@ struct TestFloatExceptions {
     HWY_ASSERT_VEC_EQ(d, v4, MaskedMulOr(v4, m0, eps, half));
 
     // Division by zero
-    const Vec<D> v0 = Set(d, T(0));
+    const Vec<D> v0 = Set(d, ConvertScalarTo<T>(0));
     HWY_ASSERT_VEC_EQ(d, v4, MaskedDivOr(v4, m0, v4, v0));
   }
 };

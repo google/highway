@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
+#include <stdint.h>
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/widen_mul_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
@@ -34,7 +37,7 @@ struct TestWidenMulPairwiseAdd {
     const size_t NN = Lanes(dn);
 
     const VW f0 = Zero(dw);
-    const VW f1 = Set(dw, TW{1});
+    const VW f1 = Set(dw, ConvertScalarTo<TW>(1));
     const VN bf0 = Zero(dn);
     // Cannot Set() bfloat16_t directly.
     const VN bf1 = ReorderDemote2To(dn, f1, f1);
@@ -364,8 +367,8 @@ struct TestRearrangeToOddPlusEven {
       expected[iw] = static_cast<TW>(a0 * b0 + a1 * b1);
     }
 
-    const VW up0 = Iota(dw, TW{1});
-    const VW up1 = Iota(dw, static_cast<TW>(1 + NW));
+    const VW up0 = Iota(dw, 1);
+    const VW up1 = Iota(dw, 1 + NW);
     // We will compute i * (N-i) to avoid per-lane overflow.
     const VW down0 = Reverse(dw, up1);
     const VW down1 = Reverse(dw, up0);
@@ -401,7 +404,7 @@ struct TestSumOfMulQuadAccumulate {
     const Repartition<TN1, DW2> dn1;
     const Repartition<TN2, DW2> dn2;
 
-    const auto vn_iota0_mod4 = And(Iota(dn1, TN1{0}), Set(dn1, TN1{3}));
+    const auto vn_iota0_mod4 = And(Iota(dn1, 0), Set(dn1, TN1{3}));
 
     const auto va = Add(vn_iota0_mod4, Set(dn1, a0));
     const auto vb = Add(BitCast(dn2, vn_iota0_mod4), Set(dn2, b0));

@@ -30,6 +30,7 @@
 HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
+int64_t GetTarget() { return HWY_TARGET; }
 size_t GetVectorBytes() { return Lanes(ScalableTag<uint8_t>()); }
 bool GetHaveFloat16() { return HWY_HAVE_FLOAT16 != 0; }
 bool GetHaveFloat64() { return HWY_HAVE_FLOAT64 != 0; }
@@ -42,10 +43,15 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace hwy {
 namespace {
+HWY_EXPORT(GetTarget);
 HWY_EXPORT(GetVectorBytes);
 HWY_EXPORT(GetHaveFloat16);
 HWY_EXPORT(GetHaveFloat64);
 }  // namespace
+
+HWY_DLLEXPORT int64_t DispatchedTarget() {
+  return HWY_DYNAMIC_DISPATCH(GetTarget)();
+}
 
 HWY_DLLEXPORT size_t VectorBytes() {
   return HWY_DYNAMIC_DISPATCH(GetVectorBytes)();

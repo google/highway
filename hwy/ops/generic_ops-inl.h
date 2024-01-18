@@ -2174,9 +2174,7 @@ HWY_API void StoreN(VFromD<D> v, D d, T* HWY_RESTRICT p,
 
   BlendedStore(v, FirstN(d, clamped_max_lanes_to_store), d, p);
 
-#if HWY_MEM_OPS_MIGHT_FAULT
   detail::MaybeUnpoison(p, clamped_max_lanes_to_store);
-#endif
 }
 #endif  // HWY_MEM_OPS_MIGHT_FAULT && !HWY_HAVE_SCALABLE
 
@@ -2855,37 +2853,143 @@ HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<float16_t, D>> v) {
 
 template <class D, HWY_IF_F16_D(D)>
 HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
-  const RebindToUnsigned<decltype(df16)> du16;
-  const Rebind<uint32_t, decltype(df16)> du32;
-  const RebindToSigned<decltype(du32)> di32;
-  using VU32 = VFromD<decltype(du32)>;
-  using VI32 = VFromD<decltype(di32)>;
+  const RebindToSigned<decltype(df16)> di16;
+  const Rebind<int32_t, decltype(df16)> di32;
+  const RebindToFloat<decltype(di32)> df32;
+  const RebindToUnsigned<decltype(df32)> du32;
 
-  const VU32 bits32 = BitCast(du32, v);
-  const VU32 sign = ShiftRight<31>(bits32);
-  const VU32 biased_exp32 = And(ShiftRight<23>(bits32), Set(du32, 0xFF));
-  const VU32 mantissa32 = And(bits32, Set(du32, 0x7FFFFF));
+  // There are 23 fractional bits (plus the implied 1 bit) in the mantissa of
+  // a F32, and there are 10 fractional bits (plus the implied 1 bit) in the
+  // mantissa of a F16
 
-  const VI32 k15 = Set(di32, 15);
-  const VI32 exp = Min(Sub(BitCast(di32, biased_exp32), Set(di32, 127)), k15);
-  const MFromD<decltype(di32)> is_tiny = Lt(exp, Set(di32, -24));
+  // We want the unbiased exponent of round_incr[i] to be at least (-14) + 13 as
+  // 2^(-14) is the smallest positive normal F16 value and as we want 13
+  // mantissa bits (including the implicit 1 bit) to the left of the
+  // F32 mantissa bits in rounded_val[i] since 23 - 10 is equal to 13
 
-  const MFromD<decltype(di32)> is_subnormal = Lt(exp, Set(di32, -14));
-  const VU32 biased_exp16 =
-      BitCast(du32, IfThenZeroElse(is_subnormal, Add(exp, k15)));
-  const VU32 sub_exp = BitCast(du32, Sub(Set(di32, -14), exp));  // [1, 11)
-  // Clamp shift counts to prevent warnings in emu_128 Shr.
-  const VU32 k31 = Set(du32, 31);
-  const VU32 shift_m = Min(Add(Set(du32, 13), sub_exp), k31);
-  const VU32 shift_1 = Min(Sub(Set(du32, 10), sub_exp), k31);
-  const VU32 sub_m = Add(Shl(Set(du32, 1), shift_1), Shr(mantissa32, shift_m));
-  const VU32 mantissa16 = IfThenElse(RebindMask(du32, is_subnormal), sub_m,
-                                     ShiftRight<13>(mantissa32));  // <1024
+  // The biased exponent of round_incr[i] needs to be at least 126 as
+  // (-14) + 13 + 127 is equal to 126
 
-  const VU32 sign16 = ShiftLeft<15>(sign);
-  const VU32 normal16 = Or3(sign16, ShiftLeft<10>(biased_exp16), mantissa16);
-  const VI32 bits16 = IfThenZeroElse(is_tiny, BitCast(di32, normal16));
-  return BitCast(df16, DemoteTo(du16, bits16));
+  // We also want to biased exponent of round_incr[i] to be less than or equal
+  // to 255 (which is equal to MaxExponentField<float>())
+
+  // The biased F64 exponent of round_incr is equal to
+  // HWY_MAX(HWY_MIN(((exp_bits[i] >> 23) & 255) + 13, 255), 126)
+
+  // hi9_bits[i] is equal to the upper 9 bits of v[i]
+  const auto hi9_bits = ShiftRight<23>(BitCast(du32, v));
+
+  const auto k13 = Set(du32, uint32_t{13u});
+
+  // Minimum biased F32 exponent of round_incr
+  const auto k126 = Set(du32, uint32_t{126u});
+
+  // round_incr_hi9_bits[i] is equivalent to
+  // (hi9_bits[i] & 0x100) |
+  // HWY_MAX(HWY_MIN((hi9_bits[i] & 0xFF) + 13, 255), 126)
+
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+  const auto k255 = Set(du32, uint32_t{255u});
+  const auto round_incr_hi9_bits = BitwiseIfThenElse(
+      k255, Max(Min(Add(And(hi9_bits, k255), k13), k255), k126), hi9_bits);
+#else
+  // On targets other than SCALAR and EMU128, the exponent bits of hi9_bits can
+  // be incremented by 13 and clamped to the [13, 255] range without overflowing
+  // into the sign bit of hi9_bits by using U8 SaturatedAdd as there are 8
+  // exponent bits in an F32
+
+  // U8 Max can be used on targets other than SCALAR and EMU128 to clamp
+  // ((hi9_bits & 0xFF) + 13) to the [126, 255] range without affecting the sign
+  // bit
+
+  const Repartition<uint8_t, decltype(du32)> du32_as_u8;
+  const auto round_incr_hi9_bits = BitCast(
+      du32,
+      Max(SaturatedAdd(BitCast(du32_as_u8, hi9_bits), BitCast(du32_as_u8, k13)),
+          BitCast(du32_as_u8, k126)));
+#endif
+
+  // (round_incr_hi9_bits >> 8) is equal to (hi9_bits >> 8), and
+  // (round_incr_hi9_bits & 0xFF) is equal to
+  // HWY_MAX(HWY_MIN((round_incr_hi9_bits & 0xFF) + 13, 255), 126)
+
+  const auto round_incr = BitCast(df32, ShiftLeft<23>(round_incr_hi9_bits));
+
+  // Add round_incr[i] to v[i] to round the mantissa to the nearest F16 mantissa
+  // and to move the fractional bits of the resulting non-NaN mantissa down to
+  // the lower 10 bits of rounded_val if (v[i] + round_incr[i]) is a non-NaN
+  // value
+  const auto rounded_val = Add(v, round_incr);
+
+  // rounded_val_bits is the bits of rounded_val as a U32
+  const auto rounded_val_bits = BitCast(du32, rounded_val);
+
+  // rounded_val[i] is known to have the same biased exponent as round_incr[i]
+  // as |round_incr[i]| > 2^12*|v[i]| is true if round_incr[i] is a finite
+  // value, round_incr[i] and v[i] both have the same sign, and |round_incr[i]|
+  // is either a power of 2 that is greater than or equal to 2^-1 or infinity.
+
+  // If rounded_val[i] is a finite F32 value, then
+  // (rounded_val_bits[i] & 0x00000FFF) is the bit representation of the
+  // rounded mantissa of rounded_val[i] as a UQ2.10 fixed point number that is
+  // in the range [0, 2].
+
+  // In other words, (rounded_val_bits[i] & 0x00000FFF) is between 0 and 0x0800,
+  // with (rounded_val_bits[i] & 0x000003FF) being the fractional bits of the
+  // resulting F16 mantissa, if rounded_v[i] is a finite F32 value.
+
+  // (rounded_val_bits[i] & 0x007FF000) == 0 is guaranteed to be true if
+  // rounded_val[i] is a non-NaN value
+
+  // The biased exponent of rounded_val[i] is guaranteed to be at least 126 as
+  // the biased exponent of round_incr[i] is at least 126 and as both v[i] and
+  // round_incr[i] have the same sign bit
+
+  // The ULP of a F32 value with a biased exponent of 126 is equal to
+  // 2^(126 - 127 - 23), which is equal to 2^(-24) (which is also the ULP of a
+  // F16 value with a biased exponent of 0 or 1 as (1 - 15 - 10) is equal to
+  // -24)
+
+  // The biased exponent (before subtracting by 126) needs to be clamped to the
+  // [126, 157] range as 126 + 31 is equal to 157 and as 31 is the largest
+  // biased exponent of a F16.
+
+  // The biased exponent of the resulting F16 value is equal to
+  // HWY_MIN((round_incr_hi9_bits[i] & 0xFF) +
+  //         ((rounded_val_bits[i] >> 10) & 0xFF), 157) - 126
+
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+  auto f16_exp_bits =
+      Min(Add(ShiftLeft<10>(And(round_incr_hi9_bits, k255)),
+              And(rounded_val_bits,
+                  Set(du32, static_cast<uint32_t>(uint32_t{0xFFu} << 10)))),
+          Set(du32, static_cast<uint32_t>(uint32_t{157u} << 10)));
+#else
+  auto f16_exp_bits = ShiftLeft<10>(BitCast(
+      du32,
+      Min(SaturatedAdd(BitCast(du32_as_u8, round_incr_hi9_bits),
+                       BitCast(du32_as_u8, ShiftRight<10>(rounded_val_bits))),
+          BitCast(du32_as_u8, Set(du32, uint32_t{157})))));
+#endif
+
+  f16_exp_bits =
+      Sub(f16_exp_bits, Set(du32, static_cast<uint32_t>(uint32_t{126u} << 10)));
+
+  const auto f16_unmasked_mant_bits =
+      BitCast(di32, Or(rounded_val, VecFromMask(df32, IsNaN(rounded_val))));
+
+  const auto f16_exp_mant_bits =
+      OrAnd(BitCast(di32, f16_exp_bits), f16_unmasked_mant_bits,
+            Set(di32, int32_t{0x03FF}));
+
+  // f16_bits_as_i32 is the F16 bits sign-extended to an I32 (with the upper 17
+  // bits of f16_bits_as_i32[i] set to the sign bit of rounded_val[i]) to allow
+  // efficient truncation of the F16 bits to an I16 using an I32->I16 DemoteTo
+  // operation
+  const auto f16_bits_as_i32 =
+      OrAnd(f16_exp_mant_bits, ShiftRight<16>(BitCast(di32, rounded_val_bits)),
+            Set(di32, static_cast<int32_t>(0xFFFF8000u)));
+  return BitCast(df16, DemoteTo(di16, f16_bits_as_i32));
 }
 
 #endif  // HWY_NATIVE_F16C
@@ -3720,6 +3824,490 @@ HWY_API V NegMulAdd(V mul, V x, V add) {
 }
 
 #endif  // HWY_NATIVE_INT_FMA
+
+// ------------------------------ Integer division
+#if (defined(HWY_NATIVE_INT_DIV) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INT_DIV
+#undef HWY_NATIVE_INT_DIV
+#else
+#define HWY_NATIVE_INT_DIV
+#endif
+
+namespace detail {
+
+template <class D, class V, HWY_IF_T_SIZE_D(D, sizeof(TFromV<V>))>
+HWY_INLINE Vec<D> IntDivConvFloatToInt(D di, V vf) {
+  return ConvertTo(di, vf);
+}
+
+template <class D, class V, HWY_IF_T_SIZE_D(D, sizeof(TFromV<V>))>
+HWY_INLINE Vec<D> IntDivConvIntToFloat(D df, V vi) {
+  return ConvertTo(df, vi);
+}
+
+#if !HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
+template <class D, class V, HWY_IF_UI64_D(D), HWY_IF_F32(TFromV<V>)>
+HWY_INLINE Vec<D> IntDivConvFloatToInt(D df, V vi) {
+  return PromoteTo(df, vi);
+}
+
+// If !HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64 is true, then UI64->F32
+// IntDivConvIntToFloat(df, vi) returns an approximation of
+// static_cast<float>(v[i]) that is within 4 ULP of static_cast<float>(v[i])
+template <class D, class V, HWY_IF_F32_D(D), HWY_IF_I64(TFromV<V>)>
+HWY_INLINE Vec<D> IntDivConvIntToFloat(D df32, V vi) {
+  const Twice<decltype(df32)> dt_f32;
+
+  auto vf32 =
+      ConvertTo(dt_f32, BitCast(RebindToSigned<decltype(dt_f32)>(), vi));
+
+#if HWY_IS_LITTLE_ENDIAN
+  const auto lo_f32 = LowerHalf(df32, ConcatEven(dt_f32, vf32, vf32));
+  auto hi_f32 = LowerHalf(df32, ConcatOdd(dt_f32, vf32, vf32));
+#else
+  const auto lo_f32 = LowerHalf(df32, ConcatOdd(dt_f32, vf32, vf32));
+  auto hi_f32 = LowerHalf(df32, ConcatEven(dt_f32, vf32, vf32));
+#endif
+
+  const RebindToSigned<decltype(df32)> di32;
+
+  hi_f32 =
+      Add(hi_f32, And(BitCast(df32, BroadcastSignBit(BitCast(di32, lo_f32))),
+                      Set(df32, 1.0f)));
+  return hwy::HWY_NAMESPACE::MulAdd(hi_f32, Set(df32, 4294967296.0f), lo_f32);
+}
+
+template <class D, class V, HWY_IF_F32_D(D), HWY_IF_U64(TFromV<V>)>
+HWY_INLINE Vec<D> IntDivConvIntToFloat(D df32, V vu) {
+  const Twice<decltype(df32)> dt_f32;
+
+  auto vf32 =
+      ConvertTo(dt_f32, BitCast(RebindToUnsigned<decltype(dt_f32)>(), vu));
+
+#if HWY_IS_LITTLE_ENDIAN
+  const auto lo_f32 = LowerHalf(df32, ConcatEven(dt_f32, vf32, vf32));
+  const auto hi_f32 = LowerHalf(df32, ConcatOdd(dt_f32, vf32, vf32));
+#else
+  const auto lo_f32 = LowerHalf(df32, ConcatOdd(dt_f32, vf32, vf32));
+  const auto hi_f32 = LowerHalf(df32, ConcatEven(dt_f32, vf32, vf32));
+#endif
+
+  return hwy::HWY_NAMESPACE::MulAdd(hi_f32, Set(df32, 4294967296.0f), lo_f32);
+}
+#endif  // !HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
+
+template <size_t kOrigLaneSize, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_GT(TFromV<V>, kOrigLaneSize)>
+HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToFloat<decltype(d)> df;
+
+  // If kOrigLaneSize < sizeof(T) is true, then a[i] and b[i] are both in the
+  // [LimitsMin<SignedFromSize<kOrigLaneSize>>(),
+  // LimitsMax<UnsignedFromSize<kOrigLaneSize>>()] range.
+
+  // floor(|a[i] / b[i]|) <= |flt_q| < floor(|a[i] / b[i]|) + 1 is also
+  // guaranteed to be true if MakeFloat<T> has at least kOrigLaneSize*8 + 1
+  // mantissa bits (including the implied one bit), where flt_q is equal to
+  // static_cast<MakeFloat<T>>(a[i]) / static_cast<MakeFloat<T>>(b[i]),
+  // even in the case where the magnitude of an inexact floating point division
+  // result is rounded up.
+
+  // In other words, floor(flt_q) < flt_q < ceil(flt_q) is guaranteed to be true
+  // if (a[i] % b[i]) != 0 is true and MakeFloat<T> has at least
+  // kOrigLaneSize*8 + 1 mantissa bits (including the implied one bit), even in
+  // the case where the magnitude of an inexact floating point division result
+  // is rounded up.
+
+#if (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
+    !HWY_HAVE_FLOAT64
+  // On Armv7, do division by multiplying by the ApproximateReciprocal
+  // to avoid unnecessary overhead as F32 Div refines the approximate
+  // reciprocal using 4 Newton-Raphson iterations
+
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto flt_b = ConvertTo(df, b);
+  auto flt_recip_b = ApproximateReciprocal(flt_b);
+  if (kOrigLaneSize > 1) {
+    flt_recip_b =
+        Mul(flt_recip_b, ReciprocalNewtonRaphsonStep(flt_recip_b, flt_b));
+  }
+
+  auto q0 = ConvertTo(d, Mul(ConvertTo(df, a), flt_recip_b));
+  const auto r0 = BitCast(di, hwy::HWY_NAMESPACE::NegMulAdd(q0, b, a));
+
+  auto r1 = r0;
+
+  // Need to negate r1[i] if a[i] < 0 is true
+  if (IsSigned<TFromV<V>>()) {
+    r1 = IfNegativeThenNegOrUndefIfZero(BitCast(di, a), r1);
+  }
+
+  // r1[i] is now equal to (a[i] < 0) ? (-r0[i]) : r0[i]
+
+  auto abs_b = BitCast(du, b);
+  if (IsSigned<TFromV<V>>()) {
+    abs_b = BitCast(du, Abs(BitCast(di, abs_b)));
+  }
+
+  // If (r1[i] < 0 || r1[i] >= abs_b[i]) is true, then set q1[i] to -1.
+  // Otherwise, set q1[i] to 0.
+
+  // (r1[i] < 0 || r1[i] >= abs_b[i]) can be carried out using a single unsigned
+  // comparison as static_cast<TU>(r1[i]) >= TU(LimitsMax<TI>() + 1) >= abs_b[i]
+  // will be true if r1[i] < 0 is true.
+  auto q1 = BitCast(di, VecFromMask(du, Ge(BitCast(du, r1), abs_b)));
+
+  // q1[i] is now equal to (r1[i] < 0 || r1[i] >= abs_b[i]) ? -1 : 0
+
+  // Need to negate q1[i] if r0[i] and b[i] do not have the same sign
+  if (IsSigned<TFromV<V>>()) {
+    q1 = IfNegativeThenElse(Xor(r0, BitCast(di, b)), Neg(q1), q1);
+  }
+
+  // q1[i] is now equal to (r1[i] < 0 || r1[i] >= abs_b[i]) ?
+  //                       (((r0[i] ^ b[i]) < 0) ? 1 : -1)
+
+  // Need to subtract q1[i] from q0[i] to get the final result
+  return Sub(q0, BitCast(d, q1));
+#else
+  // On targets other than Armv7 NEON, use F16 or F32 division as most targets
+  // other than Armv7 NEON have native F32 divide instructions
+  return ConvertTo(d, Div(ConvertTo(df, a), ConvertTo(df, b)));
+#endif
+}
+
+template <size_t kOrigLaneSize, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE(TFromV<V>, kOrigLaneSize),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 4) | (1 << 8))>
+HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
+  // If kOrigLaneSize == sizeof(T) is true, at least two reciprocal
+  // multiplication steps are needed as the mantissa of MakeFloat<T> has fewer
+  // than kOrigLaneSize*8 + 1 bits
+
+  using T = TFromV<V>;
+
+#if HWY_HAVE_FLOAT64
+  using TF = MakeFloat<T>;
+#else
+  using TF = float;
+#endif
+
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+  const Rebind<TF, decltype(d)> df;
+
+  if (!IsSigned<T>()) {
+    // If T is unsigned, set a[i] to (a[i] >= b[i] ? 1 : 0) and set b[i] to 1 if
+    // b[i] > LimitsMax<MakeSigned<T>>() is true
+
+    const auto one = Set(di, MakeSigned<T>{1});
+    a = BitCast(
+        d, IfNegativeThenElse(BitCast(di, b),
+                              IfThenElseZero(RebindMask(di, Ge(a, b)), one),
+                              BitCast(di, a)));
+    b = BitCast(d, IfNegativeThenElse(BitCast(di, b), one, BitCast(di, b)));
+  }
+
+  // LimitsMin<T>() <= b[i] <= LimitsMax<MakeSigned<T>>() is now true
+
+  const auto flt_b = IntDivConvIntToFloat(df, b);
+
+#if (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
+    !HWY_HAVE_FLOAT64
+  auto flt_recip_b = ApproximateReciprocal(flt_b);
+  flt_recip_b =
+      Mul(flt_recip_b, ReciprocalNewtonRaphsonStep(flt_recip_b, flt_b));
+#else
+  const auto flt_recip_b = Div(Set(df, TF(1.0)), flt_b);
+#endif
+
+  auto q0 =
+      IntDivConvFloatToInt(d, Mul(IntDivConvIntToFloat(df, a), flt_recip_b));
+  const auto r0 = BitCast(di, hwy::HWY_NAMESPACE::NegMulAdd(q0, b, a));
+
+  auto q1 =
+      IntDivConvFloatToInt(di, Mul(IntDivConvIntToFloat(df, r0), flt_recip_b));
+  const auto r1 = hwy::HWY_NAMESPACE::NegMulAdd(q1, BitCast(di, b), r0);
+
+  auto r3 = r1;
+
+#if !HWY_HAVE_FLOAT64
+  // Need two additional reciprocal multiplication steps for I64/U64 vectors if
+  // HWY_HAVE_FLOAT64 is 0
+  if (sizeof(T) == 8) {
+    const auto q2 = IntDivConvFloatToInt(
+        di, Mul(IntDivConvIntToFloat(df, r1), flt_recip_b));
+    const auto r2 = hwy::HWY_NAMESPACE::NegMulAdd(q2, BitCast(di, b), r1);
+
+    const auto q3 = IntDivConvFloatToInt(
+        di, Mul(IntDivConvIntToFloat(df, r2), flt_recip_b));
+    r3 = hwy::HWY_NAMESPACE::NegMulAdd(q3, BitCast(di, b), r2);
+
+    q0 = Add(q0, BitCast(d, q2));
+    q1 = Add(q1, q3);
+  }
+#endif  // !HWY_HAVE_FLOAT64
+
+  auto r4 = r3;
+
+  // Need to negate r4[i] if a[i] < 0 is true
+  if (IsSigned<TFromV<V>>()) {
+    r4 = IfNegativeThenNegOrUndefIfZero(BitCast(di, a), r4);
+  }
+
+  // r4[i] is now equal to (a[i] < 0) ? (-r3[i]) : r3[i]
+
+  auto abs_b = BitCast(du, b);
+  if (IsSigned<TFromV<V>>()) {
+    abs_b = BitCast(du, Abs(BitCast(di, abs_b)));
+  }
+
+  // If (r4[i] < 0 || r4[i] >= abs_b[i]) is true, then set q4[i] to -1.
+  // Otherwise, set r4[i] to 0.
+
+  // (r4[i] < 0 || r4[i] >= abs_b[i]) can be carried out using a single unsigned
+  // comparison as static_cast<TU>(r4[i]) >= TU(LimitsMax<TI>() + 1) >= abs_b[i]
+  // will be true if r4[i] < 0 is true.
+  auto q4 = BitCast(di, VecFromMask(du, Ge(BitCast(du, r4), abs_b)));
+
+  // q4[i] is now equal to (r4[i] < 0 || r4[i] >= abs_b[i]) ? -1 : 0
+
+  // Need to negate q4[i] if r3[i] and b[i] do not have the same sign
+  if (IsSigned<TFromV<V>>()) {
+    q4 = IfNegativeThenElse(Xor(r3, BitCast(di, b)), Neg(q4), q4);
+  }
+
+  // q4[i] is now equal to (r4[i] < 0 || r4[i] >= abs_b[i]) ?
+  //                       (((r3[i] ^ b[i]) < 0) ? 1 : -1)
+
+  // The final result is equal to q0[i] + q1[i] - q4[i]
+  return Sub(Add(q0, BitCast(d, q1)), BitCast(d, q4));
+}
+
+template <size_t kOrigLaneSize, class V,
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2)),
+          HWY_IF_V_SIZE_LE_V(
+              V, HWY_MAX_BYTES /
+                     ((!HWY_HAVE_FLOAT16 && sizeof(TFromV<V>) == 1) ? 4 : 2))>
+HWY_INLINE V IntDiv(V a, V b) {
+  using T = TFromV<V>;
+
+  // If HWY_HAVE_FLOAT16 is 0, need to promote I8 to I32 and U8 to U32
+  using TW = MakeWide<
+      If<(!HWY_HAVE_FLOAT16 && sizeof(TFromV<V>) == 1), MakeWide<T>, T>>;
+
+  const DFromV<decltype(a)> d;
+  const Rebind<TW, decltype(d)> dw;
+
+#if HWY_TARGET <= HWY_SSE2
+  // On SSE2/SSSE3/SSE4/AVX2/AVX3, promote to and from MakeSigned<TW> to avoid
+  // unnecessary overhead
+  const RebindToSigned<decltype(dw)> dw_i;
+
+  // On SSE2/SSSE3/SSE4/AVX2/AVX3, demote to MakeSigned<T> if
+  // kOrigLaneSize < sizeof(T) to avoid unnecessary overhead
+  const If<(kOrigLaneSize < sizeof(T)), RebindToSigned<decltype(d)>,
+           decltype(d)>
+      d_demote_to;
+#else
+  // On other targets, promote to TW and demote to T
+  const decltype(dw) dw_i;
+  const decltype(d) d_demote_to;
+#endif
+
+  return BitCast(
+      d, DemoteTo(d_demote_to, IntDivUsingFloatDiv<kOrigLaneSize>(
+                                   PromoteTo(dw_i, a), PromoteTo(dw_i, b))));
+}
+
+template <size_t kOrigLaneSize, class V,
+          HWY_IF_T_SIZE_ONE_OF_V(V,
+                                 (HWY_HAVE_FLOAT16 ? (1 << 1) : 0) | (1 << 2)),
+          HWY_IF_V_SIZE_GT_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntDiv(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+
+#if HWY_TARGET <= HWY_SSE2
+  // On SSE2/SSSE3/SSE4/AVX2/AVX3, promote to and from MakeSigned<TW> to avoid
+  // unnecessary overhead
+  const RebindToSigned<decltype(dw)> dw_i;
+
+  // On SSE2/SSSE3/SSE4/AVX2/AVX3, demote to MakeSigned<TFromV<V>> if
+  // kOrigLaneSize < sizeof(TFromV<V>) to avoid unnecessary overhead
+  const If<(kOrigLaneSize < sizeof(TFromV<V>)), RebindToSigned<decltype(d)>,
+           decltype(d)>
+      d_demote_to;
+#else
+  // On other targets, promote to MakeWide<TFromV<V>> and demote to TFromV<V>
+  const decltype(dw) dw_i;
+  const decltype(d) d_demote_to;
+#endif
+
+  return BitCast(d, OrderedDemote2To(
+                        d_demote_to,
+                        IntDivUsingFloatDiv<kOrigLaneSize>(
+                            PromoteLowerTo(dw_i, a), PromoteLowerTo(dw_i, b)),
+                        IntDivUsingFloatDiv<kOrigLaneSize>(
+                            PromoteUpperTo(dw_i, a), PromoteUpperTo(dw_i, b))));
+}
+
+#if !HWY_HAVE_FLOAT16
+template <size_t kOrigLaneSize, class V, HWY_IF_UI8(TFromV<V>),
+          HWY_IF_V_SIZE_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntDiv(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<TFromV<V>>, decltype(d)> dw;
+
+#if HWY_TARGET <= HWY_SSE2
+  // On SSE2/SSSE3, demote from int16_t to TFromV<V> to avoid unnecessary
+  // overhead
+  const RebindToSigned<decltype(dw)> dw_i;
+#else
+  // On other targets, demote from MakeWide<TFromV<V>> to TFromV<V>
+  const decltype(dw) dw_i;
+#endif
+
+  return DemoteTo(d,
+                  BitCast(dw_i, IntDiv<1>(PromoteTo(dw, a), PromoteTo(dw, b))));
+}
+template <size_t kOrigLaneSize, class V, HWY_IF_UI8(TFromV<V>),
+          HWY_IF_V_SIZE_GT_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntDiv(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+
+#if HWY_TARGET <= HWY_SSE2
+  // On SSE2/SSSE3, demote from int16_t to TFromV<V> to avoid unnecessary
+  // overhead
+  const RebindToSigned<decltype(dw)> dw_i;
+#else
+  // On other targets, demote from MakeWide<TFromV<V>> to TFromV<V>
+  const decltype(dw) dw_i;
+#endif
+
+  return OrderedDemote2To(
+      d, BitCast(dw_i, IntDiv<1>(PromoteLowerTo(dw, a), PromoteLowerTo(dw, b))),
+      BitCast(dw_i, IntDiv<1>(PromoteUpperTo(dw, a), PromoteUpperTo(dw, b))));
+}
+#endif  // !HWY_HAVE_FLOAT16
+
+template <size_t kOrigLaneSize, class V,
+          HWY_IF_T_SIZE_ONE_OF_V(V,
+                                 (HWY_HAVE_FLOAT64 ? 0 : (1 << 4)) | (1 << 8))>
+HWY_INLINE V IntDiv(V a, V b) {
+  return IntDivUsingFloatDiv<kOrigLaneSize>(a, b);
+}
+
+#if HWY_HAVE_FLOAT64
+template <size_t kOrigLaneSize, class V, HWY_IF_UI32(TFromV<V>),
+          HWY_IF_V_SIZE_LE_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntDiv(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<double, decltype(d)> df64;
+
+  return DemoteTo(d, Div(PromoteTo(df64, a), PromoteTo(df64, b)));
+}
+template <size_t kOrigLaneSize, class V, HWY_IF_UI32(TFromV<V>),
+          HWY_IF_V_SIZE_GT_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntDiv(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Half<decltype(d)> dh;
+  const Repartition<double, decltype(d)> df64;
+
+  return Combine(
+      d, DemoteTo(dh, Div(PromoteUpperTo(df64, a), PromoteUpperTo(df64, b))),
+      DemoteTo(dh, Div(PromoteLowerTo(df64, a), PromoteLowerTo(df64, b))));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+template <size_t kOrigLaneSize, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, ((HWY_TARGET <= HWY_SSE2 ||
+                                      HWY_TARGET == HWY_WASM ||
+                                      HWY_TARGET == HWY_WASM_EMU256)
+                                         ? 0
+                                         : (1 << 1)) |
+                                        (1 << 2) | (1 << 4) | (1 << 8))>
+HWY_INLINE V IntMod(V a, V b) {
+  return hwy::HWY_NAMESPACE::NegMulAdd(IntDiv<kOrigLaneSize>(a, b), b, a);
+}
+
+#if HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_WASM || \
+    HWY_TARGET == HWY_WASM_EMU256
+template <size_t kOrigLaneSize, class V, HWY_IF_UI8(TFromV<V>),
+          HWY_IF_V_SIZE_LE_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntMod(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Rebind<MakeWide<TFromV<V>>, decltype(d)> dw;
+  return DemoteTo(d, IntMod<kOrigLaneSize>(PromoteTo(dw, a), PromoteTo(dw, b)));
+}
+
+template <size_t kOrigLaneSize, class V, HWY_IF_UI8(TFromV<V>),
+          HWY_IF_V_SIZE_GT_V(V, HWY_MAX_BYTES / 2)>
+HWY_INLINE V IntMod(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RepartitionToWide<decltype(d)> dw;
+  return OrderedDemote2To(
+      d, IntMod<kOrigLaneSize>(PromoteLowerTo(dw, a), PromoteLowerTo(dw, b)),
+      IntMod<kOrigLaneSize>(PromoteUpperTo(dw, a), PromoteUpperTo(dw, b)));
+}
+#endif  // HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_WASM || HWY_TARGET ==
+        // HWY_WASM_EMU256
+
+}  // namespace detail
+
+#if HWY_TARGET == HWY_SCALAR
+
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec1<T> operator/(Vec1<T> a, Vec1<T> b) {
+  return detail::IntDiv<sizeof(T)>(a, b);
+}
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec1<T> operator%(Vec1<T> a, Vec1<T> b) {
+  return detail::IntMod<sizeof(T)>(a, b);
+}
+
+#else  // HWY_TARGET != HWY_SCALAR
+
+template <class T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
+  return detail::IntDiv<sizeof(T)>(a, b);
+}
+
+template <class T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<T, N> operator%(Vec128<T, N> a, Vec128<T, N> b) {
+  return detail::IntMod<sizeof(T)>(a, b);
+}
+
+#if HWY_CAP_GE256
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> operator/(Vec256<T> a, Vec256<T> b) {
+  return detail::IntDiv<sizeof(T)>(a, b);
+}
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec256<T> operator%(Vec256<T> a, Vec256<T> b) {
+  return detail::IntMod<sizeof(T)>(a, b);
+}
+#endif
+
+#if HWY_CAP_GE512
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec512<T> operator/(Vec512<T> a, Vec512<T> b) {
+  return detail::IntDiv<sizeof(T)>(a, b);
+}
+template <class T, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec512<T> operator%(Vec512<T> a, Vec512<T> b) {
+  return detail::IntMod<sizeof(T)>(a, b);
+}
+#endif
+
+#endif  // HWY_TARGET == HWY_SCALAR
+
+#endif  // HWY_NATIVE_INT_DIV
 
 // ------------------------------ SatWidenMulPairwiseAdd
 
@@ -4770,7 +5358,9 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
       BitCast(du, InterleaveLower(du8x2, indices8, indices8));
   // TableLookupBytesOr0 operates on bytes. To convert u16 lane indices to byte
   // indices, add 0 to even and 1 to odd byte lanes.
-  const Vec128<uint16_t, N> byte_indices = Add(indices16, Set(du, 0x0100));
+  const Vec128<uint16_t, N> byte_indices = Add(
+      indices16,
+      Set(du, static_cast<uint16_t>(HWY_IS_LITTLE_ENDIAN ? 0x0100 : 0x0001)));
   return BitCast(d, TableLookupBytesOr0(v, byte_indices));
 }
 
@@ -5806,6 +6396,10 @@ HWY_API V Mul(V a, V b) {
 template <class V>
 HWY_API V Div(V a, V b) {
   return a / b;
+}
+template <class V>
+HWY_API V Mod(V a, V b) {
+  return a % b;
 }
 
 template <class V>

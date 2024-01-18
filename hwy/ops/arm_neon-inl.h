@@ -823,6 +823,9 @@ class Vec128 {
   HWY_INLINE Vec128& operator-=(const Vec128 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec128& operator%=(const Vec128 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec128& operator&=(const Vec128 other) {
     return *this = (*this & other);
   }
@@ -3873,24 +3876,6 @@ HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToUnsigned<D>> v) {
   return VFromD<D>(vcvt_f32_u32(v.raw));
 }
 
-// Truncates (rounds toward zero).
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec128<int32_t> ConvertTo(D /* tag */, Vec128<float> v) {
-  return Vec128<int32_t>(vcvtq_s32_f32(v.raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
-  return VFromD<D>(vcvt_s32_f32(v.raw));
-}
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> ConvertTo(D /* tag */, Vec128<float> v) {
-  return Vec128<uint32_t>(vcvtq_u32_f32(ZeroIfNegative(v).raw));
-}
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<RebindToFloat<D>> v) {
-  return VFromD<D>(vcvt_u32_f32(ZeroIfNegative(v).raw));
-}
-
 #if HWY_HAVE_FLOAT64
 
 template <class D, HWY_IF_F64_D(D)>
@@ -3922,38 +3907,156 @@ HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<uint64_t> v) {
 #endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
 }
 
+#endif  // HWY_HAVE_FLOAT64
+
+namespace detail {
 // Truncates (rounds toward zero).
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec128<int64_t> ConvertTo(D /* tag */, Vec128<double> v) {
-  return Vec128<int64_t>(vcvtq_s64_f64(v.raw));
-}
-template <class D, HWY_IF_I64_D(D)>
-HWY_API Vec64<int64_t> ConvertTo(D di, Vec64<double> v) {
-  // GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic. Use the
-  // 128-bit version to avoid UB from casting double -> int64_t.
-#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
-  const Full128<double> ddt;
-  const Twice<decltype(di)> dit;
-  return LowerHalf(di, ConvertTo(dit, Combine(ddt, v, v)));
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
+HWY_INLINE Vec128<int32_t> ConvertFToI(D /* tag */, Vec128<float> v) {
+#if HWY_COMPILER_CLANG && \
+    ((HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG < 1200) || HWY_ARCH_ARM_V7)
+  // If compiling for AArch64 NEON with Clang 11 or earlier or if compiling for
+  // Armv7 NEON, use inline assembly to avoid undefined behavior if v[i] is
+  // outside of the range of an int32_t.
+
+  int32x4_t raw_result;
+  __asm__(
+#if HWY_ARCH_ARM_A64
+      "fcvtzs %0.4s, %1.4s"
 #else
-  (void)di;
+      "vcvt.s32.f32 %0, %1"
+#endif
+      : "=w"(raw_result)
+      : "w"(v.raw));
+  return Vec128<int32_t>(raw_result);
+#else
+  return Vec128<int32_t>(vcvtq_s32_f32(v.raw));
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I32_D(D)>
+HWY_INLINE VFromD<D> ConvertFToI(D /* tag */, VFromD<RebindToFloat<D>> v) {
+#if HWY_COMPILER_CLANG && \
+    ((HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG < 1200) || HWY_ARCH_ARM_V7)
+  // If compiling for AArch64 NEON with Clang 11 or earlier or if compiling for
+  // Armv7 NEON, use inline assembly to avoid undefined behavior if v[i] is
+  // outside of the range of an int32_t.
+
+  int32x2_t raw_result;
+  __asm__(
+#if HWY_ARCH_ARM_A64
+      "fcvtzs %0.2s, %1.2s"
+#else
+      "vcvt.s32.f32 %0, %1"
+#endif
+      : "=w"(raw_result)
+      : "w"(v.raw));
+  return VFromD<D>(raw_result);
+#else
+  return VFromD<D>(vcvt_s32_f32(v.raw));
+#endif
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_INLINE Vec128<uint32_t> ConvertFToU(D /* tag */, Vec128<float> v) {
+#if HWY_COMPILER_CLANG && \
+    ((HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG < 1200) || HWY_ARCH_ARM_V7)
+  // If compiling for AArch64 NEON with Clang 11 or earlier or if compiling for
+  // Armv7 NEON, use inline assembly to avoid undefined behavior if v[i] is
+  // outside of the range of an uint32_t.
+
+  uint32x4_t raw_result;
+  __asm__(
+#if HWY_ARCH_ARM_A64
+      "fcvtzu %0.4s, %1.4s"
+#else
+      "vcvt.u32.f32 %0, %1"
+#endif
+      : "=w"(raw_result)
+      : "w"(v.raw));
+  return Vec128<uint32_t>(raw_result);
+#else
+  return Vec128<uint32_t>(vcvtq_u32_f32(v.raw));
+#endif
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_INLINE VFromD<D> ConvertFToU(D /* tag */, VFromD<RebindToFloat<D>> v) {
+#if HWY_COMPILER_CLANG && \
+    ((HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG < 1200) || HWY_ARCH_ARM_V7)
+  // If compiling for AArch64 NEON with Clang 11 or earlier or if compiling for
+  // Armv7 NEON, use inline assembly to avoid undefined behavior if v[i] is
+  // outside of the range of an uint32_t.
+
+  uint32x2_t raw_result;
+  __asm__(
+#if HWY_ARCH_ARM_A64
+      "fcvtzu %0.2s, %1.2s"
+#else
+      "vcvt.u32.f32 %0, %1"
+#endif
+      : "=w"(raw_result)
+      : "w"(v.raw));
+  return VFromD<D>(raw_result);
+#else
+  return VFromD<D>(vcvt_u32_f32(v.raw));
+#endif
+}
+
+#if HWY_HAVE_FLOAT64
+
+// Truncates (rounds toward zero).
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_INLINE Vec128<int64_t> ConvertFToI(D /* tag */, Vec128<double> v) {
+#if HWY_COMPILER_CLANG && HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG < 1200
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an int64_t.
+  int64x2_t raw_result;
+  __asm__("fcvtzs %0.2d, %1.2d" : "=w"(raw_result) : "w"(v.raw));
+  return Vec128<int64_t>(raw_result);
+#else
+  return Vec128<int64_t>(vcvtq_s64_f64(v.raw));
+#endif
+}
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_I64_D(D)>
+HWY_INLINE Vec64<int64_t> ConvertFToI(D /* tag */, Vec64<double> v) {
+#if HWY_ARCH_ARM_A64 &&                                            \
+    ((HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700) || \
+     (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200))
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an int64_t.
+  // If compiling for AArch64 NEON with GCC 6 or earlier, use inline assembly to
+  // work around the missing vcvt_s64_f64 intrinsic.
+  int64x1_t raw_result;
+  __asm__("fcvtzs %d0, %d1" : "=w"(raw_result) : "w"(v.raw));
+  return Vec64<int64_t>(raw_result);
+#else
   return Vec64<int64_t>(vcvt_s64_f64(v.raw));
 #endif
 }
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec128<uint64_t> ConvertTo(D /* tag */, Vec128<double> v) {
-  return Vec128<uint64_t>(vcvtq_u64_f64(v.raw));
-}
-template <class D, HWY_IF_U64_D(D)>
-HWY_API Vec64<uint64_t> ConvertTo(D du, Vec64<double> v) {
-  // GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic. Use the
-  // 128-bit version to avoid UB from casting double -> uint64_t.
-#if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
-  const Full128<double> ddt;
-  const Twice<decltype(du)> du_t;
-  return LowerHalf(du, ConvertTo(du_t, Combine(ddt, v, v)));
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_INLINE Vec128<uint64_t> ConvertFToU(D /* tag */, Vec128<double> v) {
+#if HWY_COMPILER_CLANG && HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG < 1200
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an uint64_t.
+  uint64x2_t raw_result;
+  __asm__("fcvtzu %0.2d, %1.2d" : "=w"(raw_result) : "w"(v.raw));
+  return Vec128<uint64_t>(raw_result);
 #else
-  (void)du;
+  return Vec128<uint64_t>(vcvtq_u64_f64(v.raw));
+#endif
+}
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U64_D(D)>
+HWY_INLINE Vec64<uint64_t> ConvertFToU(D /* tag */, Vec64<double> v) {
+#if HWY_ARCH_ARM_A64 &&                                            \
+    ((HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700) || \
+     (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200))
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an uint64_t.
+
+  // Inline assembly is also used if compiling for AArch64 NEON with GCC 6 or
+  // earlier to work around the issue of the missing vcvt_u64_f64 intrinsic.
+  uint64x1_t raw_result;
+  __asm__("fcvtzu %d0, %d1" : "=w"(raw_result) : "w"(v.raw));
+  return Vec64<uint64_t>(raw_result);
+#else
   return Vec64<uint64_t>(vcvt_u64_f64(v.raw));
 #endif
 }
@@ -3963,25 +4066,76 @@ HWY_API Vec64<uint64_t> ConvertTo(D du, Vec64<double> v) {
 #if HWY_ARCH_ARM_A64 && HWY_HAVE_FLOAT16
 
 // Truncates (rounds toward zero).
-template <class D, HWY_IF_I16_D(D)>
-HWY_API Vec128<int16_t> ConvertTo(D /* tag */, Vec128<float16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I16_D(D)>
+HWY_INLINE Vec128<int16_t> ConvertFToI(D /* tag */, Vec128<float16_t> v) {
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an int16_t.
+  int16x8_t raw_result;
+  __asm__("fcvtzs %0.8h, %1.8h" : "=w"(raw_result) : "w"(v.raw));
+  return Vec128<int16_t>(raw_result);
+#else
   return Vec128<int16_t>(vcvtq_s16_f16(v.raw));
+#endif
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_I16_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
+HWY_INLINE VFromD<D> ConvertFToI(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an int16_t.
+  int16x4_t raw_result;
+  __asm__("fcvtzs %0.4h, %1.4h" : "=w"(raw_result) : "w"(v.raw));
+  return VFromD<D>(raw_result);
+#else
   return VFromD<D>(vcvt_s16_f16(v.raw));
+#endif
 }
 
-template <class D, HWY_IF_U16_D(D)>
-HWY_API Vec128<uint16_t> ConvertTo(D /* tag */, Vec128<float16_t> v) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U16_D(D)>
+HWY_INLINE Vec128<uint16_t> ConvertFToU(D /* tag */, Vec128<float16_t> v) {
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an uint16_t.
+  uint16x8_t raw_result;
+  __asm__("fcvtzu %0.8h, %1.8h" : "=w"(raw_result) : "w"(v.raw));
+  return Vec128<uint16_t>(raw_result);
+#else
   return Vec128<uint16_t>(vcvtq_u16_f16(v.raw));
+#endif
 }
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_U16_D(D)>
-HWY_API VFromD<D> ConvertTo(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
+HWY_INLINE VFromD<D> ConvertFToU(D /* tag */, VFromD<Rebind<float16_t, D>> v) {
+#if HWY_COMPILER_CLANG && HWY_COMPILER_CLANG < 1200
+  // If compiling for AArch64 NEON with Clang 11 or earlier, use inline assembly
+  // to avoid undefined behavior if v[i] is outside of the range of an uint16_t.
+  uint16x4_t raw_result;
+  __asm__("fcvtzu %0.4h, %1.4h" : "=w"(raw_result) : "w"(v.raw));
+  return VFromD<D>(raw_result);
+#else
   return VFromD<D>(vcvt_u16_f16(v.raw));
+#endif
 }
 
 #endif  // HWY_ARCH_ARM_A64 && HWY_HAVE_FLOAT16
+}  // namespace detail
+
+template <class D, HWY_IF_SIGNED_D(D),
+          HWY_IF_T_SIZE_ONE_OF_D(
+              D, (1 << 4) |
+                     ((HWY_ARCH_ARM_A64 && HWY_HAVE_FLOAT16) ? (1 << 2) : 0) |
+                     (HWY_HAVE_FLOAT64 ? (1 << 8) : 0))>
+HWY_API VFromD<D> ConvertTo(D di, VFromD<RebindToFloat<D>> v) {
+  return detail::ConvertFToI(di, v);
+}
+
+template <class D, HWY_IF_UNSIGNED_D(D),
+          HWY_IF_T_SIZE_ONE_OF_D(
+              D, (1 << 4) |
+                     ((HWY_ARCH_ARM_A64 && HWY_HAVE_FLOAT16) ? (1 << 2) : 0) |
+                     (HWY_HAVE_FLOAT64 ? (1 << 8) : 0))>
+HWY_API VFromD<D> ConvertTo(D du, VFromD<RebindToFloat<D>> v) {
+  return detail::ConvertFToU(du, v);
+}
 
 // ------------------------------ PromoteTo (ConvertTo)
 
@@ -4516,32 +4670,10 @@ HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<double> v) {
   return Vec32<float>(vcvt_f32_f64(vcombine_f64(v.raw, v.raw)));
 }
 
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
-  const int64x2_t i64 = vcvtq_s64_f64(v.raw);
-  return Vec64<int32_t>(vqmovn_s64(i64));
-}
-template <class D, HWY_IF_I32_D(D)>
-HWY_API Vec32<int32_t> DemoteTo(D /* tag */, Vec64<double> v) {
-  // There is no i64x1 -> i32x1 narrow, so Combine to 128-bit. Do so with the
-  // f64 input already to also avoid the missing vcvt_s64_f64 in GCC 6.4.
-  const Full128<double> ddt;
-  const Full128<int64_t> dit;
-  return Vec32<int32_t>(vqmovn_s64(ConvertTo(dit, Combine(ddt, v, v)).raw));
-}
-
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<double> v) {
-  const uint64x2_t u64 = vcvtq_u64_f64(v.raw);
-  return Vec64<uint32_t>(vqmovn_u64(u64));
-}
-template <class D, HWY_IF_U32_D(D)>
-HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<double> v) {
-  // There is no i64x1 -> i32x1 narrow, so Combine to 128-bit. Do so with the
-  // f64 input already to also avoid the missing vcvt_s64_f64 in GCC 6.4.
-  const Full128<double> ddt;
-  const Full128<uint64_t> du_t;
-  return Vec32<uint32_t>(vqmovn_u64(ConvertTo(du_t, Combine(ddt, v, v)).raw));
+template <class D, HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> DemoteTo(D d32, VFromD<Rebind<double, D>> v) {
+  const Rebind<MakeWide<TFromD<D>>, D> d64;
+  return DemoteTo(d32, ConvertTo(d64, v));
 }
 
 #endif  // HWY_HAVE_FLOAT64

@@ -30,7 +30,7 @@ namespace HWY_NAMESPACE {
 struct TestGetLane {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(1));
+    const auto v = Iota(d, 1);
     HWY_ASSERT_EQ(T(1), GetLane(v));
   }
 };
@@ -93,7 +93,7 @@ struct TestExtractLane {
 
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
-    const auto v = Iota(d, T(1));
+    const auto v = Iota(d, 1);
 
 #if !HWY_HAVE_SCALABLE && HWY_TARGET < HWY_EMU128 && \
     HWY_TARGET != HWY_SVE2_128 && HWY_TARGET != HWY_SVE_256
@@ -331,7 +331,7 @@ struct TestOddEven {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const size_t N = Lanes(d);
     const auto even = Iota(d, 1);
-    const auto odd = Iota(d, ConvertScalarTo<T>(1 + N));
+    const auto odd = Iota(d, 1 + N);
     auto expected = AllocateAligned<T>(N);
     HWY_ASSERT(expected);
     for (size_t i = 0; i < N; ++i) {
@@ -351,7 +351,6 @@ class TestBroadcastLane {
             HWY_IF_LANES_GT_D(D, static_cast<size_t>(kLane))>
   static HWY_INLINE void DoTestBroadcastLane(D d, const size_t N) {
     using T = TFromD<D>;
-    using TU = MakeUnsigned<T>;
     // kLane < HWY_MAX_LANES_D(D) is true
     if (kLane >= N) return;
 
@@ -365,7 +364,7 @@ class TestBroadcastLane {
     constexpr int kLaneInBlkIdx =
         kLane & static_cast<int>(kLanesPer16ByteBlk - 1);
 
-    const Vec<D> v = Iota(d, T{1});
+    const Vec<D> v = Iota(d, 1);
     const Vec<D> actual = BroadcastLane<kLane>(v);
     const Vec<decltype(d_block)> actual_block =
         ExtractBlock<kBlockIdx>(Broadcast<kLaneInBlkIdx>(v));

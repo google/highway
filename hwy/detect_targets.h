@@ -102,12 +102,13 @@
 // --------------------------- Future expansion: 4 targets
 // Bits 39..42 reserved
 
-// --------------------------- IBM Power: 9 targets (+ one fallback)
+// --------------------------- IBM Power/ZSeries: 9 targets (+ one fallback)
 // Bits 43..46 reserved (4 targets)
 #define HWY_PPC10 (1LL << 47)  // v3.1
 #define HWY_PPC9 (1LL << 48)   // v3.0
 #define HWY_PPC8 (1LL << 49)   // v2.07
-// Bits 50..51 reserved for prior VSX/AltiVec (2 targets)
+#define HWY_Z15 (1LL << 50)    // Z15
+#define HWY_Z14 (1LL << 51)    // Z14
 #define HWY_HIGHEST_TARGET_BIT_PPC 51
 
 // --------------------------- WebAssembly: 9 targets (+ one fallback)
@@ -316,6 +317,18 @@
 #define HWY_BASELINE_PPC10 0
 #endif
 
+#if HWY_ARCH_S390X && defined(__VEC__) && defined(__ARCH__) && __ARCH__ >= 12
+#define HWY_BASELINE_Z14 HWY_Z14
+#else
+#define HWY_BASELINE_Z14 0
+#endif
+
+#if HWY_BASELINE_Z14 && __ARCH__ >= 13
+#define HWY_BASELINE_Z15 HWY_Z15
+#else
+#define HWY_BASELINE_Z15 0
+#endif
+
 #define HWY_BASELINE_SVE2 0
 #define HWY_BASELINE_SVE 0
 #define HWY_BASELINE_NEON 0
@@ -498,13 +511,14 @@
 
 // Allow the user to override this without any guarantee of success.
 #ifndef HWY_BASELINE_TARGETS
-#define HWY_BASELINE_TARGETS                                           \
-  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |       \
-   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_SVE2 |        \
-   HWY_BASELINE_SVE | HWY_BASELINE_NEON | HWY_BASELINE_SSE2 |          \
-   HWY_BASELINE_SSSE3 | HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 |        \
-   HWY_BASELINE_AVX3 | HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | \
-   HWY_BASELINE_AVX3_SPR | HWY_BASELINE_RVV)
+#define HWY_BASELINE_TARGETS                                               \
+  (HWY_BASELINE_SCALAR | HWY_BASELINE_WASM | HWY_BASELINE_PPC8 |           \
+   HWY_BASELINE_PPC9 | HWY_BASELINE_PPC10 | HWY_BASELINE_Z14 |             \
+   HWY_BASELINE_Z15 | HWY_BASELINE_SVE2 | HWY_BASELINE_SVE |               \
+   HWY_BASELINE_NEON | HWY_BASELINE_SSE2 | HWY_BASELINE_SSSE3 |            \
+   HWY_BASELINE_SSE4 | HWY_BASELINE_AVX2 | HWY_BASELINE_AVX3 |             \
+   HWY_BASELINE_AVX3_DL | HWY_BASELINE_AVX3_ZEN4 | HWY_BASELINE_AVX3_SPR | \
+   HWY_BASELINE_RVV)
 #endif  // HWY_BASELINE_TARGETS
 
 //------------------------------------------------------------------------------
@@ -539,7 +553,7 @@
 #define HWY_HAVE_RUNTIME_DISPATCH 1
 // On Arm/PPC, GCC and Clang 16+ do, and we require Linux to detect CPU
 // capabilities. Currently require opt-in for Clang because it is experimental.
-#elif (HWY_ARCH_ARM || HWY_ARCH_PPC) &&                                      \
+#elif (HWY_ARCH_ARM || HWY_ARCH_PPC || HWY_ARCH_S390X) &&                    \
     (HWY_COMPILER_GCC_ACTUAL || (HWY_COMPILER_CLANG >= 1600 &&               \
                                  defined(HWY_ENABLE_CLANG_ARM_DISPATCH))) && \
     HWY_OS_LINUX && !defined(TOOLCHAIN_MISS_SYS_AUXV_H)
@@ -597,6 +611,12 @@
 #define HWY_ATTAINABLE_PPC 0
 #endif
 
+#if HWY_ARCH_S390X && HWY_BASELINE_Z14 != 0
+#define HWY_ATTAINABLE_S390X (HWY_Z14 | HWY_Z15)
+#else
+#define HWY_ATTAINABLE_S390X 0
+#endif
+
 // Attainable means enabled and the compiler allows intrinsics (even when not
 // allowed to autovectorize). Used in 3 and 4.
 #if HWY_ARCH_X86
@@ -617,6 +637,9 @@
 #elif HWY_ARCH_PPC
 #define HWY_ATTAINABLE_TARGETS \
   HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_PPC)
+#elif HWY_ARCH_S390X
+#define HWY_ATTAINABLE_TARGETS \
+  HWY_ENABLED(HWY_BASELINE_SCALAR | HWY_ATTAINABLE_S390X)
 #else
 #define HWY_ATTAINABLE_TARGETS (HWY_ENABLED_BASELINE)
 #endif  // HWY_ARCH_*

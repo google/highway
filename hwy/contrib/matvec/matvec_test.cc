@@ -39,10 +39,10 @@ HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
                                size_t cols, T* out, ThreadPool& pool) {
   pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
            [=](uint32_t r, size_t /*thread*/) {
-             T dot = T{0};
+             T dot = ConvertScalarTo<T>(0);
              for (size_t c = 0; c < cols; c++) {
                // For reasons unknown, fp16 += does not compile on clang (Arm).
-               dot = dot + ConvertScalarTo<T>(mat[r * cols + c] * vec[c]);
+               dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
              }
              out[r] = dot;
            });

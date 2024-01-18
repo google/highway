@@ -411,9 +411,10 @@ example `Lt` instead of `operator<`.
     the given value of type `T`.
 *   <code>V **Undefined**(D)</code>: returns uninitialized N-lane vector, e.g.
     for use as an output parameter.
-*   <code>V **Iota**(D, T)</code>: returns N-lane vector where the lane with
-    index `i` has the given value of type `T` plus `i`. The least significant
-    lane has index 0. This is useful in tests for detecting lane-crossing bugs.
+*   <code>V **Iota**(D, T2)</code>: returns N-lane vector where the lane with
+    index `i` has the given value of type `T2` (the op converts it to T) + `i`.
+    The least significant lane has index 0. This is useful in tests for
+    detecting lane-crossing bugs.
 *   <code>V **SignBit**(D, T)</code>: returns N-lane vector with all lanes set
     to a value whose representation has only the most-significant bit set.
 *   <code>V **Dup128VecFromValues**(D d, T t0, .., T tK)</code>: Creates a
@@ -622,9 +623,24 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   <code>V **Clamp**(V a, V lo, V hi)</code>: returns `a[i]` clamped to
     `[lo[i], hi[i]]`.
 
-*   `V`: `{f}` \
-    <code>V **operator/**(V a, V b)</code>: returns `a[i] / b[i]` in each lane.
+*   <code>V **operator/**(V a, V b)</code>: returns `a[i] / b[i]` in each lane.
     Currently unavailable on SVE/RVV; use the equivalent `Div` instead.
+
+    For integer vectors, `Div(a, b)` returns an implementation-defined value in
+    any lanes where `b[i] == 0`.
+
+    For signed integer vectors, `Div(a, b)` returns an implementation-defined
+    value in any lanes where `a[i] == LimitsMin<T>() && b[i] == -1`.
+
+*   `V`: `{u,i}` \
+    <code>V **operator%**(V a, V b)</code>: returns `a[i] % b[i]` in each lane.
+    Currently unavailable on SVE/RVV; use the equivalent `Mod` instead.
+
+    `Mod(a, b)` returns an implementation-defined value in any lanes where
+    `b[i] == 0`.
+
+    For signed integer vectors, `Mod(a, b)` returns an implementation-defined
+    value in any lanes where `a[i] == LimitsMin<T>() && b[i] == -1`.
 
 *   `V`: `{f}` \
     <code>V **Sqrt**(V a)</code>: returns `sqrt(a[i])`.

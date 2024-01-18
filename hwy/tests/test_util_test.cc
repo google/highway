@@ -14,9 +14,11 @@
 // limitations under the License.
 
 #include <stddef.h>
-#include <stdint.h>
+#include <stdio.h>
 
 #include <string>
+
+#include "hwy/base.h"
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "tests/test_util_test.cc"
@@ -55,15 +57,15 @@ HWY_NOINLINE void TestAllName() { ForAllTypes(ForPartialVectors<TestName>()); }
 struct TestEqualInteger {
   template <class T>
   HWY_NOINLINE void operator()(T /*t*/) const {
-    HWY_ASSERT_EQ(T(0), T(0));
-    HWY_ASSERT_EQ(T(1), T(1));
-    HWY_ASSERT_EQ(T(-1), T(-1));
+    HWY_ASSERT_EQ(0, 0);
+    HWY_ASSERT_EQ(1, 1);
+    HWY_ASSERT_EQ(-1, -1);
     HWY_ASSERT_EQ(LimitsMin<T>(), LimitsMin<T>());
 
-    HWY_ASSERT(!IsEqual(T(0), T(1)));
-    HWY_ASSERT(!IsEqual(T(1), T(0)));
-    HWY_ASSERT(!IsEqual(T(1), T(-1)));
-    HWY_ASSERT(!IsEqual(T(-1), T(1)));
+    HWY_ASSERT(!IsEqual(0, 1));
+    HWY_ASSERT(!IsEqual(1, 0));
+    HWY_ASSERT(!IsEqual(1, -1));
+    HWY_ASSERT(!IsEqual(-1, 1));
     HWY_ASSERT(!IsEqual(LimitsMin<T>(), LimitsMax<T>()));
     HWY_ASSERT(!IsEqual(LimitsMax<T>(), LimitsMin<T>()));
   }
@@ -72,15 +74,18 @@ struct TestEqualInteger {
 struct TestEqualFloat {
   template <class T>
   HWY_NOINLINE void operator()(T /*t*/) const {
-    HWY_ASSERT(IsEqual(T(0), T(0)));
-    HWY_ASSERT(IsEqual(T(1), T(1)));
-    HWY_ASSERT(IsEqual(T(-1), T(-1)));
+    const T k0 = ConvertScalarTo<T>(0);
+    const T p1 = ConvertScalarTo<T>(1);
+    const T n1 = ConvertScalarTo<T>(-1);
+    HWY_ASSERT(IsEqual(k0, k0));
+    HWY_ASSERT(IsEqual(p1, p1));
+    HWY_ASSERT(IsEqual(n1, n1));
     HWY_ASSERT(IsEqual(MantissaEnd<T>(), MantissaEnd<T>()));
 
-    HWY_ASSERT(!IsEqual(T(0), T(1)));
-    HWY_ASSERT(!IsEqual(T(1), T(0)));
-    HWY_ASSERT(!IsEqual(T(1), T(-1)));
-    HWY_ASSERT(!IsEqual(T(-1), T(1)));
+    HWY_ASSERT(!IsEqual(k0, p1));
+    HWY_ASSERT(!IsEqual(p1, k0));
+    HWY_ASSERT(!IsEqual(p1, n1));
+    HWY_ASSERT(!IsEqual(n1, p1));
     HWY_ASSERT(!IsEqual(LowestValue<T>(), HighestValue<T>()));
     HWY_ASSERT(!IsEqual(HighestValue<T>(), LowestValue<T>()));
   }
