@@ -797,8 +797,10 @@ not a concern, these are equivalent to, and potentially more efficient than,
     or `no[i]` if `m[i]` is false.
 *   <code>V **MaskedMulOr**(V no, M m, V a, V b)</code>: returns `a[i] * b[i]`
     or `no[i]` if `m[i]` is false.
-*   `V`: `{f}` \
-    <code>V **MaskedDivOr**(V no, M m, V a, V b)</code>: returns `a[i] / b[i]`
+*   <code>V **MaskedDivOr**(V no, M m, V a, V b)</code>: returns `a[i] / b[i]`
+    or `no[i]` if `m[i]` is false.
+*   `V`: `{u,i}` \
+    <code>V **MaskedModOr**(V no, M m, V a, V b)</code>: returns `a[i] % b[i]`
     or `no[i]` if `m[i]` is false.
 *   `V`: `{u,i}{8,16}` \
     <code>V **MaskedSatAddOr**(V no, M m, V a, V b)</code>: returns `a[i] +

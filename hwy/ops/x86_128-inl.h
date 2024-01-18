@@ -4897,6 +4897,19 @@ HWY_API Vec256<float16_t> MaskedDivOr(Vec256<float16_t> no,
 }
 #endif  // HWY_HAVE_FLOAT16
 
+// Generic for all vector lengths
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MaskedDivOr(V no, MFromD<DFromV<V>> m, V a, V b) {
+  return IfThenElse(m, Div(a, b), no);
+}
+
+// ------------------------------ MaskedModOr
+// Generic for all vector lengths
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MaskedModOr(V no, MFromD<DFromV<V>> m, V a, V b) {
+  return IfThenElse(m, Mod(a, b), no);
+}
+
 // ------------------------------ MaskedSatAddOr
 
 template <typename T, size_t N, HWY_IF_I8(T)>
