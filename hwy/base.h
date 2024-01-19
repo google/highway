@@ -1038,6 +1038,19 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #endif
 #endif  // HWY_HAVE_SCALAR_F16_OPERATORS
 
+namespace detail {
+
+template <class T, class TVal = RemoveCvRef<T>>
+struct NativeSpecialFloatToWrapperT {
+  using type = T;
+};
+
+template <class T>
+using NativeSpecialFloatToWrapper =
+    typename NativeSpecialFloatToWrapperT<T>::type;
+
+}  // namespace detail
+
 // Match [u]int##_t naming scheme so rvv-inl.h macros can obtain the type name
 // by concatenating base type and bits. We use a wrapper class instead of a
 // typedef to the native type to ensure that the same symbols, e.g. for VQSort,
@@ -1166,6 +1179,17 @@ struct alignas(2) float16_t {
 #endif  // HWY_HAVE_SCALAR_F16_OPERATORS
 };
 static_assert(sizeof(hwy::float16_t) == 2, "Wrong size of float16_t");
+
+#if HWY_HAVE_SCALAR_F16_TYPE
+namespace detail {
+
+template <class T>
+struct NativeSpecialFloatToWrapperT<T, hwy::float16_t::Native> {
+  using type = hwy::float16_t;
+};
+
+}  // namespace detail
+#endif  // HWY_HAVE_SCALAR_F16_TYPE
 
 #if HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926
 namespace detail {
@@ -1567,6 +1591,17 @@ struct alignas(2) bfloat16_t {
 static_assert(sizeof(hwy::bfloat16_t) == 2, "Wrong size of bfloat16_t");
 
 #pragma pack(pop)
+
+#if HWY_HAVE_SCALAR_BF16_TYPE
+namespace detail {
+
+template <class T>
+struct NativeSpecialFloatToWrapperT<T, hwy::bfloat16_t::Native> {
+  using type = hwy::bfloat16_t;
+};
+
+}  // namespace detail
+#endif  // HWY_HAVE_SCALAR_BF16_TYPE
 
 #if HWY_HAS_BUILTIN(__builtin_bit_cast) || HWY_COMPILER_MSVC >= 1926
 namespace detail {
@@ -2356,20 +2391,21 @@ ScalarAbs(hwy::UnsignedTag /*tag*/, T val) {
 
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR RemoveCvRef<T> ScalarAbs(T val) {
-  using TVal = MakeLaneTypeIfInteger<RemoveCvRef<T>>;
+  using TVal = MakeLaneTypeIfInteger<
+      detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>>;
   return detail::ScalarAbs(hwy::TypeTag<TVal>(), static_cast<TVal>(val));
 }
 
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsNaN(T val) {
-  using TF = RemoveCvRef<T>;
+  using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
   using TU = MakeUnsigned<TF>;
   return (BitCastScalar<TU>(ScalarAbs(val)) > ExponentMask<TF>());
 }
 
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsInf(T val) {
-  using TF = RemoveCvRef<T>;
+  using TF = detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>;
   using TU = MakeUnsigned<TF>;
   return static_cast<TU>(BitCastScalar<TU>(static_cast<TF>(val)) << 1) ==
          static_cast<TU>(MaxExponentTimes2<TF>());
@@ -2395,7 +2431,8 @@ static HWY_INLINE HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(
 
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(T val) {
-  using TVal = MakeLaneTypeIfInteger<RemoveCvRef<T>>;
+  using TVal = MakeLaneTypeIfInteger<
+      detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>>;
   return detail::ScalarIsFinite(hwy::IsFloatTag<TVal>(),
                                 static_cast<TVal>(val));
 }
@@ -2403,7 +2440,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarIsFinite(T val) {
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR RemoveCvRef<T> ScalarCopySign(T magn,
                                                                   T sign) {
-  using TF = RemoveCvRef<T>;
+  using TF = RemoveCvRef<detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>>;
   using TU = MakeUnsigned<TF>;
   return BitCastScalar<TF>(static_cast<TU>(
       (BitCastScalar<TU>(static_cast<TF>(magn)) & (~SignMask<TF>())) |
@@ -2412,7 +2449,8 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR RemoveCvRef<T> ScalarCopySign(T magn,
 
 template <typename T>
 HWY_API HWY_BITCASTSCALAR_CONSTEXPR bool ScalarSignBit(T val) {
-  using TVal = MakeLaneTypeIfInteger<RemoveCvRef<T>>;
+  using TVal = MakeLaneTypeIfInteger<
+      detail::NativeSpecialFloatToWrapper<RemoveCvRef<T>>>;
   using TU = MakeUnsigned<TVal>;
   return ((BitCastScalar<TU>(static_cast<TVal>(val)) & SignMask<TVal>()) != 0);
 }
