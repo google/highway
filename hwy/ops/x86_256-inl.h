@@ -1794,7 +1794,7 @@ HWY_INLINE VFromD<D> Iota0(D /*d*/) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), typename T2>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
-  return detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+  return detail::Iota0(d) + Set(d, ConvertScalarTo<TFromD<D>>(first));
 }
 
 // ------------------------------ FirstN (Iota, Lt)

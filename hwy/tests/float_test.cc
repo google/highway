@@ -398,8 +398,8 @@ struct TestAbsDiff {
     for (size_t i = 0; i < N; ++i) {
       in_lanes_a[i] = ConvertScalarTo<T>((i ^ 1u) << i);
       in_lanes_b[i] = ConvertScalarTo<T>(i << i);
-      out_lanes[i] =
-          ConvertScalarTo<T>(ScalarAbs(in_lanes_a[i] - in_lanes_b[i]));
+      out_lanes[i] = ConvertScalarTo<T>(
+          ScalarAbs(ConvertScalarTo<T>(in_lanes_a[i] - in_lanes_b[i])));
     }
     const auto a = Load(d, in_lanes_a.get());
     const auto b = Load(d, in_lanes_b.get());

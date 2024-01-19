@@ -2919,7 +2919,7 @@ static HWY_INLINE V MaskOutVec128Iota(V v) {
 template <class D, typename T2, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> Iota(D d, const T2 first) {
   const auto result_iota =
-      detail::Iota0(d) + Set(d, static_cast<TFromD<D>>(first));
+      detail::Iota0(d) + Set(d, ConvertScalarTo<TFromD<D>>(first));
 #if HWY_COMPILER_MSVC
   return detail::MaskOutVec128Iota(result_iota);
 #else
