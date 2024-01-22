@@ -518,6 +518,13 @@ using BlockDFromD =
     Simd<TFromD<D>, HWY_MIN(16 / sizeof(TFromD<D>), HWY_MAX_LANES_D(D)), 0>;
 #endif
 
+// Returns whether `ptr` is a multiple of `Lanes(d)` elements.
+template <class D, typename T>
+HWY_API bool IsAligned(D d, T* ptr) {
+  const size_t N = Lanes(d);
+  return reinterpret_cast<uintptr_t>(ptr) % (N * sizeof(T)) == 0;
+}
+
 // ------------------------------ Choosing overloads (SFINAE)
 
 // Same as base.h macros but with a Simd<T, N, kPow2> argument instead of T.
