@@ -59,9 +59,11 @@ struct TestSumOfLanes {
     // Similar test with a positive result.
     v = InterleaveLower(Set(d, ConvertScalarTo<T>(-2)),
                         Set(d, ConvertScalarTo<T>(4)));
-    HWY_ASSERT_VEC_EQ(d, Set(d, ConvertScalarTo<T>(pairs * 2)),
+    HWY_ASSERT_VEC_EQ(d,
+                      Set(d, ConvertScalarTo<T>(pairs * ConvertScalarTo<T>(2))),
                       SumOfLanes(d, v));
-    HWY_ASSERT_EQ(ConvertScalarTo<T>(pairs * 2), ReduceSum(d, v));
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(pairs * ConvertScalarTo<T>(2)),
+                  ReduceSum(d, v));
   }
 
   template <typename T, class D>

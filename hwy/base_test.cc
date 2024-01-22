@@ -363,23 +363,269 @@ HWY_NOINLINE void TestAllEndian() {
 #endif  // HWY_IS_BIG_ENDIAN
 #endif  // HWY_HAVE_FLOAT64
 
-#if HWY_HAVE_BF16_ARITHMETIC_OPS
 #if HWY_IS_BIG_ENDIAN
-  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(1.0f),
-                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x3F, 0x80));
-  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(0.333984375f),
-                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x3E, 0xAB));
-  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(167121905303526337111381770240.0f),
-                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x70, 0x07));
+  HWY_ASSERT_EQ(ConvertScalarTo<bfloat16_t>(1.0f),
+                BitCastScalar<bfloat16_t>(
+                    TestEndianCreateValueFromBytes<uint16_t>(0x3F, 0x80)));
+  HWY_ASSERT_EQ(ConvertScalarTo<bfloat16_t>(0.333984375f),
+                BitCastScalar<bfloat16_t>(
+                    TestEndianCreateValueFromBytes<uint16_t>(0x3E, 0xAB)));
+  HWY_ASSERT_EQ(ConvertScalarTo<bfloat16_t>(167121905303526337111381770240.0f),
+                BitCastScalar<bfloat16_t>(
+                    TestEndianCreateValueFromBytes<uint16_t>(0x70, 0x07)));
 #else
-  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(1.0f),
-                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x80, 0x3F));
-  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(0.333984375f),
-                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0xAB, 0x3E));
-  HWY_ASSERT_EQ(static_cast<bfloat16_t::Raw>(167121905303526337111381770240.0f),
-                TestEndianCreateValueFromBytes<bfloat16_t::Raw>(0x07, 0x70));
+  HWY_ASSERT_EQ(ConvertScalarTo<bfloat16_t>(1.0f),
+                BitCastScalar<bfloat16_t>(
+                    TestEndianCreateValueFromBytes<uint16_t>(0x80, 0x3F)));
+  HWY_ASSERT_EQ(ConvertScalarTo<bfloat16_t>(0.333984375f),
+                BitCastScalar<bfloat16_t>(
+                    TestEndianCreateValueFromBytes<uint16_t>(0xAB, 0x3E)));
+  HWY_ASSERT_EQ(ConvertScalarTo<bfloat16_t>(167121905303526337111381770240.0f),
+                BitCastScalar<bfloat16_t>(
+                    TestEndianCreateValueFromBytes<uint16_t>(0x07, 0x70)));
 #endif
-#endif  // HWY_HAVE_BF16_ARITHMETIC_OPS
+}
+
+struct TestSpecialFloat {
+  template <class T>
+  static constexpr bool EnableSpecialFloatArithOpTest() {
+    return (hwy::IsSame<T, float16_t>() && HWY_HAVE_SCALAR_F16_OPERATORS) ||
+           (hwy::IsSame<T, bfloat16_t>() && HWY_HAVE_SCALAR_BF16_OPERATORS);
+  }
+
+  template <class T>
+  static constexpr HWY_INLINE T EnsureNotNativeSpecialFloat(T&& val) {
+#if HWY_HAVE_SCALAR_F16_TYPE
+    static_assert(!hwy::IsSame<RemoveCvRef<T>, float16_t::Native>(),
+                  "The operator must not return a float16_t::Native");
+#endif
+#if HWY_HAVE_SCALAR_BF16_TYPE
+    static_assert(!hwy::IsSame<RemoveCvRef<T>, bfloat16_t::Native>(),
+                  "The operator must not return a bfloat16_t::Native");
+#endif
+    return static_cast<T&&>(val);
+  }
+
+  template <class T>
+  static HWY_INLINE void AssertSpecialFloatOpResultInRange(float min_expected,
+                                                           float max_expected,
+                                                           T actual,
+                                                           const char* filename,
+                                                           const int line) {
+    if (!(actual >= min_expected && actual <= max_expected)) {
+      hwy::Abort(
+          filename, line,
+          "mismatch: value was expected to be between %g and %g, got %g\n",
+          static_cast<double>(min_expected), static_cast<double>(max_expected),
+          ConvertScalarTo<double>(actual));
+    }
+  }
+
+  template <class T,
+            hwy::EnableIf<EnableSpecialFloatArithOpTest<T>()>* = nullptr>
+  static HWY_NOINLINE void TestSpecialFloatArithOperators(T /*unused*/) {
+#if HWY_HAVE_SCALAR_F16_OPERATORS || HWY_HAVE_SCALAR_BF16_OPERATORS
+    AssertSpecialFloatOpResultInRange(
+        -0.008422852f, -0.008361816f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(-0.008911133f) +
+                                    static_cast<T>(5.264282E-4f)),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        0.44335937f, 0.4453125f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(-0.0014266968f) +
+                                    0.4453125f),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        39.25f, 39.5f,
+        EnsureNotNativeSpecialFloat(34.25f + static_cast<T>(5.0625f)), __FILE__,
+        __LINE__);
+
+    AssertSpecialFloatOpResultInRange(
+        7456.0f, 7488.0f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(0.29101562f) -
+                                    static_cast<T>(-7456.0f)),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        -2.21875f, -2.203125f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(1.66893E-4f) - 2.21875f),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        0.32421875f, 0.32617188f,
+        EnsureNotNativeSpecialFloat(0.35351562f - static_cast<T>(0.028198242f)),
+        __FILE__, __LINE__);
+
+    AssertSpecialFloatOpResultInRange(
+        -0.01135254f, -0.011291503f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(2.109375f) *
+                                    static_cast<T>(-0.0053710938f)),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        2.359375f, 2.375f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(0.0019454956f) * 1216.0f),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        -1.1014938E-4f, 3.453125f,
+        EnsureNotNativeSpecialFloat(-0.00038146973f *
+                                    static_cast<T>(-0.00037956237f)),
+        __FILE__, __LINE__);
+
+    AssertSpecialFloatOpResultInRange(
+        -27.875f, -27.75f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(-56.5f) /
+                                    static_cast<T>(2.03125f)),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        0.033203125f, 0.033447266f,
+        EnsureNotNativeSpecialFloat(static_cast<T>(470.0f) / 14080.0f),
+        __FILE__, __LINE__);
+    AssertSpecialFloatOpResultInRange(
+        0.51953125f, 0.5234375f,
+        EnsureNotNativeSpecialFloat(0.26367188f / static_cast<T>(0.50390625f)),
+        __FILE__, __LINE__);
+
+    T incr_assign_result_1 = static_cast<T>(1.373291E-4f);
+    EnsureNotNativeSpecialFloat(incr_assign_result_1 +=
+                                static_cast<T>(-20.375f));
+    AssertSpecialFloatOpResultInRange(-20.375f, -20.25f, incr_assign_result_1,
+                                      __FILE__, __LINE__);
+
+    T incr_assign_result_2 = static_cast<T>(2.1457672E-4f);
+    EnsureNotNativeSpecialFloat(incr_assign_result_2 += static_cast<int8_t>(7));
+    AssertSpecialFloatOpResultInRange(7.0f, 7.03125f, incr_assign_result_2,
+                                      __FILE__, __LINE__);
+
+    T decr_assign_result_1 = static_cast<T>(4.4059753E-4f);
+    EnsureNotNativeSpecialFloat(decr_assign_result_1 -=
+                                static_cast<T>(6880.0f));
+    AssertSpecialFloatOpResultInRange(-6880, -6848, decr_assign_result_1,
+                                      __FILE__, __LINE__);
+
+    T decr_assign_result_2 = static_cast<T>(85.5f);
+    EnsureNotNativeSpecialFloat(decr_assign_result_2 -= static_cast<int8_t>(5));
+    AssertSpecialFloatOpResultInRange(80.5f, 80.5f, decr_assign_result_2,
+                                      __FILE__, __LINE__);
+
+    T mul_assign_result_1 = static_cast<T>(15680.0f);
+    EnsureNotNativeSpecialFloat(mul_assign_result_1 *=
+                                static_cast<T>(0.001373291f));
+    AssertSpecialFloatOpResultInRange(21.5f, 21.625f, mul_assign_result_1,
+                                      __FILE__, __LINE__);
+
+    T mul_assign_result_2 = static_cast<T>(2.609375f);
+    EnsureNotNativeSpecialFloat(mul_assign_result_2 *= static_cast<int8_t>(7));
+    AssertSpecialFloatOpResultInRange(18.25, 18.375, mul_assign_result_2,
+                                      __FILE__, __LINE__);
+
+    T div_assign_result_1 = static_cast<T>(11584.0f);
+    EnsureNotNativeSpecialFloat(div_assign_result_1 /= static_cast<T>(9.5625f));
+    AssertSpecialFloatOpResultInRange(1208.0f, 1216.0f, div_assign_result_1,
+                                      __FILE__, __LINE__);
+
+    T div_assign_result_2 = static_cast<T>(0.12109375f);
+    EnsureNotNativeSpecialFloat(div_assign_result_2 /= static_cast<int8_t>(3));
+    AssertSpecialFloatOpResultInRange(0.040283203f, 0.040527344f,
+                                      div_assign_result_2, __FILE__, __LINE__);
+
+    HWY_ASSERT_EQ(static_cast<T>(-1.0f),
+                  EnsureNotNativeSpecialFloat(-static_cast<T>(1.0f)));
+    HWY_ASSERT_EQ(static_cast<T>(1.0f),
+                  EnsureNotNativeSpecialFloat(+static_cast<T>(1.0f)));
+
+    T pre_incr_result_1 = static_cast<T>(1.0f);
+    T pre_incr_result_2 = EnsureNotNativeSpecialFloat(++pre_incr_result_1);
+    HWY_ASSERT_EQ(static_cast<T>(2.0f), pre_incr_result_1);
+    HWY_ASSERT_EQ(static_cast<T>(2.0f), pre_incr_result_2);
+
+    T post_incr_result_1 = static_cast<T>(5.0f);
+    T post_incr_result_2 = EnsureNotNativeSpecialFloat(post_incr_result_1++);
+    HWY_ASSERT_EQ(static_cast<T>(6.0f), post_incr_result_1);
+    HWY_ASSERT_EQ(static_cast<T>(5.0f), post_incr_result_2);
+
+    T pre_decr_result_1 = static_cast<T>(-2.0f);
+    T pre_decr_result_2 = EnsureNotNativeSpecialFloat(--pre_decr_result_1);
+    HWY_ASSERT_EQ(static_cast<T>(-3.0f), pre_decr_result_1);
+    HWY_ASSERT_EQ(static_cast<T>(-3.0f), pre_decr_result_2);
+
+    T post_decr_result_1 = static_cast<T>(-7.0f);
+    T post_decr_result_2 = EnsureNotNativeSpecialFloat(post_decr_result_1--);
+    HWY_ASSERT_EQ(static_cast<T>(-8.0f), post_decr_result_1);
+    HWY_ASSERT_EQ(static_cast<T>(-7.0f), post_decr_result_2);
+
+    HWY_ASSERT(static_cast<T>(1.0f) == 1.0f);
+    HWY_ASSERT(static_cast<T>(-2.40625f) != 0.0033416748f);
+    HWY_ASSERT(static_cast<T>(-3248.0f) < 0.0018997193f);
+    HWY_ASSERT(static_cast<T>(-27904.0f) <= -3.859375f);
+    HWY_ASSERT(static_cast<T>(1.078125f) > 0.010009765f);
+    HWY_ASSERT(static_cast<T>(45312.0f) >= 0.00024318695f);
+
+    HWY_ASSERT(2.0f == static_cast<T>(2.0f));
+    HWY_ASSERT(-5.78125f != static_cast<T>(-15168.0f));
+    HWY_ASSERT(-0.056884766f < static_cast<T>(0.000088214875f));
+    HWY_ASSERT(0.00008392333f <= static_cast<T>(1384.0f));
+    HWY_ASSERT(21888.0f > static_cast<T>(-2.578125f));
+    HWY_ASSERT(0.087402344 >= static_cast<T>(-0.65625f));
+#endif  // HWY_HAVE_SCALAR_F16_OPERATORS || HWY_HAVE_SCALAR_BF16_OPERATORS
+  }
+
+  template <class T,
+            hwy::EnableIf<!EnableSpecialFloatArithOpTest<T>()>* = nullptr>
+  static HWY_INLINE void TestSpecialFloatArithOperators(T /*unused*/) {}
+
+  template <class T>
+  HWY_NOINLINE void operator()(T /*unused*/) const {
+    static_assert(IsSpecialFloat<T>(), "IsSpecialFloat<T>() must be true");
+
+    HWY_ASSERT_EQ(static_cast<uint32_t>(0x436B0000u),
+                  BitCastScalar<uint32_t>(ConvertScalarTo<float>(
+                      BitCastScalar<T>(static_cast<uint16_t>(
+                          IsSame<T, hwy::float16_t>() ? 0x5B58u : 0x436Bu)))));
+    HWY_ASSERT_EQ(static_cast<uint32_t>(0xBB790000u),
+                  BitCastScalar<uint32_t>(ConvertScalarTo<float>(
+                      BitCastScalar<T>(static_cast<uint16_t>(
+                          IsSame<T, hwy::float16_t>() ? 0x9BC8u : 0xBB79u)))));
+
+    HWY_ASSERT_EQ(static_cast<uint32_t>(
+                      IsSame<T, hwy::float16_t>() ? 0xC0B86000u : 0xC5C30000u),
+                  BitCastScalar<uint32_t>(ConvertScalarTo<float>(
+                      BitCastScalar<T>(static_cast<uint16_t>(0xC5C3u)))));
+    HWY_ASSERT_EQ(static_cast<uint32_t>(
+                      IsSame<T, hwy::float16_t>() ? 0x41D20000u : 0x4E900000u),
+                  BitCastScalar<uint32_t>(ConvertScalarTo<float>(
+                      BitCastScalar<T>(static_cast<uint16_t>(0x4E90u)))));
+
+    HWY_ASSERT_EQ(1696.0, ConvertScalarTo<double>(ConvertScalarTo<T>(1696.0f)));
+    HWY_ASSERT_EQ(
+        -0.00177001953125f,
+        ConvertScalarTo<float>(ConvertScalarTo<T>(-0.00177001953125f)));
+
+    HWY_ASSERT_EQ(0.49609375f,
+                  ConvertScalarTo<float>(ConvertScalarTo<T>(0.49609375)));
+    HWY_ASSERT_EQ(
+        0.000553131103515625,
+        ConvertScalarTo<double>(ConvertScalarTo<T>(0.000553131103515625)));
+
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(3.0f), ConvertScalarTo<T>(3));
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(-5.5f), ConvertScalarTo<T>(-5.5));
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(0.82421875f),
+                  ConvertScalarTo<T>(BF16FromF32(0.82421875f)));
+    HWY_ASSERT_EQ(ConvertScalarTo<T>(-6.375f),
+                  ConvertScalarTo<T>(F16FromF32(-6.375f)));
+
+    HWY_ASSERT(ConvertScalarTo<T>(-3.671875f) <
+               ConvertScalarTo<T>(0.0218505859375f));
+    HWY_ASSERT(ConvertScalarTo<T>(-0.033447265625f) <=
+               ConvertScalarTo<T>(8.249282836914062E-5f));
+    HWY_ASSERT(ConvertScalarTo<T>(23296.0f) > ConvertScalarTo<T>(192.0f));
+    HWY_ASSERT(ConvertScalarTo<T>(41984.0f) >= ConvertScalarTo<T>(370.0f));
+
+    TestSpecialFloatArithOperators(T());
+  }
+};
+
+HWY_NOINLINE void TestAllSpecialFloat() {
+  TestSpecialFloat test;
+  test(float16_t());
+  test(bfloat16_t());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -398,6 +644,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 }  // namespace hwy
 
 #endif
