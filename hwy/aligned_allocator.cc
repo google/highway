@@ -58,9 +58,9 @@ size_t NextAlignedOffset() {
   static_assert(kAlias % kAlignment == 0, "kAlias must be a multiple");
   constexpr uint64_t kGroups = kAlias / kAlignment;
   const uint64_t group = next.fetch_add(1, std::memory_order_relaxed) % kGroups;
-  const size_t offset = kAlignment * group;
+  const uint64_t offset = kAlignment * group;
   HWY_DASSERT((offset % kAlignment == 0) && offset <= kAlias);
-  return offset;
+  return static_cast<size_t>(offset);
 }
 
 }  // namespace

@@ -38,7 +38,7 @@ template <typename MatT, typename T>
 HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
                                size_t cols, T* out, ThreadPool& pool) {
   pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
-           [=](uint32_t r, size_t /*thread*/) {
+           [=](uint64_t r, size_t /*thread*/) {
              T dot = ConvertScalarTo<T>(0);
              for (size_t c = 0; c < cols; c++) {
                // For reasons unknown, fp16 += does not compile on clang (Arm).
@@ -52,7 +52,7 @@ HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat, const float* vec,
                                size_t rows, size_t cols, float* out,
                                ThreadPool& pool) {
   pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
-           [=](uint32_t r, size_t /*thread*/) {
+           [=](uint64_t r, size_t /*thread*/) {
              float dot = 0.0f;
              for (size_t c = 0; c < cols; c++) {
                dot += F32FromBF16(mat[r * cols + c]) * vec[c];
@@ -65,7 +65,7 @@ HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat,
                                const hwy::bfloat16_t* vec, size_t rows,
                                size_t cols, float* out, ThreadPool& pool) {
   pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
-           [=](uint32_t r, size_t /*thread*/) {
+           [=](uint64_t r, size_t /*thread*/) {
              float dot = 0.0f;
              for (size_t c = 0; c < cols; c++) {
                dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);

@@ -53,7 +53,7 @@ class TaskRanges {
   }
 
   void Assign(uint64_t begin, uint64_t end, size_t num_worker_threads) {
-    const size_t num_tasks = end - begin;
+    const size_t num_tasks = static_cast<size_t>(end - begin);
     // Only called if we have tasks and workers.
     HWY_DASSERT(num_tasks != 0 && num_worker_threads != 0);
 
