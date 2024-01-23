@@ -1074,6 +1074,28 @@ HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
   return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
 }
 
+template <class D, HWY_IF_LANES_D(D, 32)>
+HWY_API MFromD<D> SlideMask1Up(D /*d*/, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftli_mask32(static_cast<__mmask32>(m.raw), 1))};
+#else
+  return MFromD<D>{static_cast<RawM>(static_cast<uint32_t>(m.raw) << 1)};
+#endif
+}
+
+template <class D, HWY_IF_LANES_D(D, 32)>
+HWY_API MFromD<D> SlideMask1Down(D /*d*/, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftri_mask32(static_cast<__mmask32>(m.raw), 1))};
+#else
+  return MFromD<D>{static_cast<RawM>(static_cast<uint32_t>(m.raw) >> 1)};
+#endif
+}
+
 #else  // AVX2
 
 // ------------------------------ Mask
