@@ -112,6 +112,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
+    hwy/contrib/random/random.h
     hwy/contrib/sort/order.h
     hwy/contrib/sort/shared-inl.h
     hwy/contrib/sort/sorting_networks-inl.h
@@ -596,6 +597,7 @@ list(APPEND HWY_TEST_FILES
   # Disabled due to SIGILL in clang7 debug build during gtest discovery phase,
   # not reproducible locally. Still tested via bazel build.
   hwy/contrib/math/math_test.cc
+  hwy/contrib/random/random_test.cc
   hwy/contrib/sort/sort_test.cc
   hwy/contrib/sort/bench_sort.cc
   hwy/contrib/thread_pool/thread_pool_test.cc
