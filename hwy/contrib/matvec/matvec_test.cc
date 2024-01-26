@@ -13,6 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Reduce targets to avoid timeout under emulation.
+#ifndef HWY_DISABLED_TARGETS
+#define HWY_DISABLED_TARGETS \
+  (HWY_SVE2_128 | HWY_SVE2 | HWY_SVE_256 | HWY_NEON_WITHOUT_AES)
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,41 +43,38 @@ namespace HWY_NAMESPACE {
 template <typename MatT, typename T>
 HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
                                size_t cols, T* out, ThreadPool& pool) {
-  pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
-           [=](uint64_t r, size_t /*thread*/) {
-             T dot = ConvertScalarTo<T>(0);
-             for (size_t c = 0; c < cols; c++) {
-               // For reasons unknown, fp16 += does not compile on clang (Arm).
-               dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
-             }
-             out[r] = dot;
-           });
+  pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+    T dot = ConvertScalarTo<T>(0);
+    for (size_t c = 0; c < cols; c++) {
+      // For reasons unknown, fp16 += does not compile on clang (Arm).
+      dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
+    }
+    out[r] = dot;
+  });
 }
 
 HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat, const float* vec,
                                size_t rows, size_t cols, float* out,
                                ThreadPool& pool) {
-  pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
-           [=](uint64_t r, size_t /*thread*/) {
-             float dot = 0.0f;
-             for (size_t c = 0; c < cols; c++) {
-               dot += F32FromBF16(mat[r * cols + c]) * vec[c];
-             }
-             out[r] = dot;
-           });
+  pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+    float dot = 0.0f;
+    for (size_t c = 0; c < cols; c++) {
+      dot += F32FromBF16(mat[r * cols + c]) * vec[c];
+    }
+    out[r] = dot;
+  });
 }
 
 HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat,
                                const hwy::bfloat16_t* vec, size_t rows,
                                size_t cols, float* out, ThreadPool& pool) {
-  pool.Run(0, static_cast<uint32_t>(rows), &ThreadPool::NoInit,
-           [=](uint64_t r, size_t /*thread*/) {
-             float dot = 0.0f;
-             for (size_t c = 0; c < cols; c++) {
-               dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
-             }
-             out[r] = dot;
-           });
+  pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
+    float dot = 0.0f;
+    for (size_t c = 0; c < cols; c++) {
+      dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
+    }
+    out[r] = dot;
+  });
 }
 
 struct GenerateMod {
@@ -157,29 +160,29 @@ class TestMatVec {
   }
 
   template <class D>
-  void CreatePoolAndTest(D d, size_t num_worker_threads) {
-    ThreadPool pool(num_worker_threads);
+  void CreatePoolAndTest(D d, size_t num_threads) {
+#if HWY_ARCH_WASM
+    // Threads might not work on WASM; run only on main thread.
+    num_threads = 0;
+#endif
 
-    Test<192, AdjustedReps(256)>(d, pool);
+    ThreadPool pool(HWY_MIN(num_threads, ThreadPool::MaxThreads()));
+
+    Test<AdjustedReps(192), AdjustedReps(256)>(d, pool);
     Test<40, AdjustedReps(512)>(d, pool);
     Test<AdjustedReps(1024), 50>(d, pool);
 
     // Too large for low-precision vectors/accumulators.
     if (sizeof(TFromD<D>) != 2 && sizeof(VecT) != 2) {
-      Test<AdjustedReps(1536), 1536>(d, pool);
+      Test<AdjustedReps(1536), AdjustedReps(1536)>(d, pool);
     }
   }
 
  public:
   template <class T, class D>
   HWY_INLINE void operator()(T /*unused*/, D d) {
-#if HWY_ARCH_WASM
-    // Threads might not be work on WASM; run only on main thread.
-    CreatePoolAndTest(d, 0);
-#else
     CreatePoolAndTest(d, 13);
     CreatePoolAndTest(d, 16);
-#endif  // HWY_ARCH_WASM
   }
 };
 

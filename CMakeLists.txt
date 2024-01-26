@@ -120,7 +120,6 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort-inl.h
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
-    hwy/contrib/thread_pool/thread_pool.cc
     hwy/contrib/thread_pool/thread_pool.h
     hwy/contrib/algo/copy-inl.h
     hwy/contrib/algo/find-inl.h

@@ -1,7 +1,11 @@
-load("@rules_license//rules:license.bzl", "license")
+load("//testing/integration/guitar/build_defs:guitar_workflow.bzl", "guitar_workflow_test")
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@rules_license//rules:license.bzl", "license")
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//tools/build_defs/testing:bzl_library.bzl", "bzl_library")
+load(":guitar.bzl", "highway_all_test_targets", "highway_guitar_on_borg_test_suite", "highway_guitar_test_suite")
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//visibility:public"],
@@ -246,9 +250,6 @@ cc_library(
 
 cc_library(
     name = "thread_pool",
-    srcs = [
-        "hwy/contrib/thread_pool/thread_pool.cc",
-    ],
     hdrs = [
         "hwy/contrib/thread_pool/thread_pool.h",
     ],
