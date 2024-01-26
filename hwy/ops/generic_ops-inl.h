@@ -197,6 +197,21 @@ HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
 #endif
 }
 
+// ------------------------------ MaskFalse
+#if (defined(HWY_NATIVE_MASK_FALSE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_MASK_FALSE
+#undef HWY_NATIVE_MASK_FALSE
+#else
+#define HWY_NATIVE_MASK_FALSE
+#endif
+
+template <class D>
+HWY_API Mask<D> MaskFalse(D d) {
+  return MaskFromVec(Zero(d));
+}
+
+#endif  // HWY_NATIVE_MASK_FALSE
+
 // ------------------------------ BitwiseIfThenElse
 #if (defined(HWY_NATIVE_BITWISE_IF_THEN_ELSE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_BITWISE_IF_THEN_ELSE

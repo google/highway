@@ -1002,6 +1002,15 @@ encoding depends on the platform).
     a mask with lane `i` set to
     `((mask_bits >> (i & (16 / sizeof(T) - 1))) & 1) != 0`.
 
+*   <code>M **MaskFalse(D)**</code>: returns an all-false mask.
+    `MaskFalse(D())` is equivalent to `MaskFromVec(Zero(D()))`, but
+    `MaskFalse(D())` is more efficient than `MaskFromVec(Zero(D()))` on AVX3,
+    RVV, and SVE.
+
+    `MaskFalse(D())` is also equivalent to `FirstN(D(), 0)` or
+    `Dup128MaskFromMaskBits(D(), 0)`, but `MaskFalse(D())` is usually more
+    efficient.
+
 #### Convert mask
 
 *   <code>M1 **RebindMask**(D, M2 m)</code>: returns same mask bits as `m`, but
