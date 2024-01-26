@@ -35,7 +35,7 @@ namespace hwy {
 ThreadPool::ThreadPool(const size_t num_worker_threads)
     : num_worker_threads_(num_worker_threads),
       num_threads_(HWY_MAX(num_worker_threads, size_t{1})),
-      prime_(FindCoprime(num_worker_threads)),
+      prime_(static_cast<size_t>(FindCoprime(num_worker_threads))),
       ranges_(num_worker_threads) {
   threads_.reserve(num_worker_threads_);
 
@@ -86,7 +86,7 @@ void ThreadPool::StartWorkers(const WorkerCommand worker_command) {
 
 void ThreadPool::DoWork(size_t thread) {
   // Special case for <= 1 task per worker - avoid any shared state.
-  const size_t num_tasks = end_ - begin_;
+  const size_t num_tasks = static_cast<size_t>(end_ - begin_);
   const size_t num_workers = num_worker_threads_;
   if (num_tasks <= num_workers) {
     if (thread < num_tasks) {
@@ -134,7 +134,7 @@ void ThreadPool::DoWork(size_t thread) {
       run_func_(opaque_, task, thread);
     }
 
-    thread = PermutationNext(thread, num_workers, prime);
+    thread = static_cast<size_t>(PermutationNext(thread, num_workers, prime));
   }
 }
 

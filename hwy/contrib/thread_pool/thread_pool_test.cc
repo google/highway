@@ -120,7 +120,7 @@ TEST(ThreadPoolTest, TestRandomPermutation) {
 TEST(ThreadPoolTest, TestDeprecated) {
   ThreadPool pool(0);
   pool.Run(1, 10, &ThreadPool::NoInit,
-           [&](const uint32_t /*task*/, size_t /*thread*/) {});
+           [&](const uint64_t /*task*/, size_t /*thread*/) {});
 }
 
 // Ensures task parameter is in bounds, every parameter is reached,
@@ -132,7 +132,7 @@ TEST(ThreadPoolTest, TestPool) {
   for (size_t num_threads = 0; num_threads <= 6; num_threads += 3) {
     ThreadPool pool(num_threads);
     for (uint64_t num_tasks = 0; num_tasks < 20; ++num_tasks) {
-      std::vector<size_t> mementos(num_tasks);
+      std::vector<size_t> mementos(static_cast<size_t>(num_tasks));
       for (uint64_t begin = 0; begin < AdjustedReps(32); ++begin) {
         ZeroBytes(mementos.data(), mementos.size() * sizeof(size_t));
         pool.Run(begin, begin + num_tasks,
@@ -143,10 +143,13 @@ TEST(ThreadPoolTest, TestPool) {
 
                    // Store mementos to be sure we visited each
                    // task.
-                   mementos.at(task - begin) = 1000 + task;
+                   mementos.at(static_cast<size_t>(task - begin)) =
+                       static_cast<size_t>(1000 + task);
                  });
-        for (size_t task = begin; task < begin + num_tasks; ++task) {
-          EXPECT_EQ(1000 + task, mementos.at(task - begin));
+        for (size_t task = static_cast<size_t>(begin); task < begin + num_tasks;
+             ++task) {
+          EXPECT_EQ(1000 + task,
+                    mementos.at(static_cast<size_t>(task - begin)));
         }
       }
     }
@@ -157,7 +160,8 @@ TEST(ThreadPoolTest, TestPool) {
 TEST(ThreadPoolTest, TestSmallAssignments) {
   if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
 
-  for (size_t num_threads : {1, 2, 3, 5, 8}) {
+  for (size_t num_threads :
+       {size_t{1}, size_t{2}, size_t{3}, size_t{5}, size_t{8}}) {
     ThreadPool pool(num_threads);
 
     // (Avoid mutex because it may perturb the worker thread scheduling)
