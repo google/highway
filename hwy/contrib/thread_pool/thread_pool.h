@@ -47,7 +47,8 @@ class Divisor {  // 16 bytes
   explicit Divisor(uint32_t divisor) : divisor_(divisor) {
     if (divisor <= 1) return;
 
-    const uint32_t len = 31 - Num0BitsAboveMS1Bit_Nonzero32(divisor - 1);
+    const uint32_t len =
+        static_cast<uint32_t>(31 - Num0BitsAboveMS1Bit_Nonzero32(divisor - 1));
     const uint64_t u_hi = (2ULL << len) - divisor;
     const uint32_t q = Truncate((u_hi << 32) / divisor);
 
@@ -122,7 +123,7 @@ class ShuffledIota {  // 4 bytes
 
   // Returns another coprime >= `start`, or 1 for small `size`.
   // Used to seed independent ShuffledIota instances.
-  static uint32_t FindAnotherCoprime(size_t size, uint32_t start) {
+  static uint32_t FindAnotherCoprime(uint32_t size, uint32_t start) {
     if (size <= 2) {
       return 1;
     }
@@ -131,7 +132,7 @@ class ShuffledIota {  // 4 bytes
     const uint32_t inc = (size & 1) ? 1 : 2;
 
     for (uint32_t x = start | 1; x < start + size * 16; x += inc) {
-      if (CoprimeNonzero(x, size)) {
+      if (CoprimeNonzero(x, static_cast<uint32_t>(size))) {
         return x;
       }
     }
@@ -155,7 +156,8 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
 
     // Increase gap between coprimes to reduce collisions.
     const uint32_t coprime = ShuffledIota::FindAnotherCoprime(
-        num_workers, static_cast<uint32_t>((thread + 1) * 257 + thread * 13));
+        static_cast<uint32_t>(num_workers),
+        static_cast<uint32_t>((thread + 1) * 257 + thread * 13));
     shuffled_iota_ = ShuffledIota(coprime);
 
     (void)align_;  // suppress unused-field warning
@@ -326,7 +328,7 @@ struct alignas(HWY_ALIGNMENT) PoolMem {
   static_assert(sizeof(barrier) % HWY_ALIGNMENT == 0, "");
 
   PoolWorker workers[1];  // variable-length (num_workers)
-  static_assert(sizeof(PoolWorker) == HWY_ALIGNMENT);
+  static_assert(sizeof(PoolWorker) == HWY_ALIGNMENT, "");
 };
 
 // Aligned allocation and initialization of variable-length PoolMem.

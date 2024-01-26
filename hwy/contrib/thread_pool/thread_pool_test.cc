@@ -77,7 +77,7 @@ TEST(ThreadPoolTest, TestDivisor) {
 
 TEST(ThreadPoolTest, TestCoprime) {
   // 1 is coprime with anything
-  for (size_t i = 1; i < 500; ++i) {
+  for (uint32_t i = 1; i < 500; ++i) {
     HWY_ASSERT(ShuffledIota::CoprimeNonzero(1, i));
     HWY_ASSERT(ShuffledIota::CoprimeNonzero(i, 1));
   }
@@ -85,13 +85,13 @@ TEST(ThreadPoolTest, TestCoprime) {
   // Powers of two >= 2 are not coprime
   for (size_t i = 1; i < 20; ++i) {
     for (size_t j = 1; j < 20; ++j) {
-      HWY_ASSERT(!ShuffledIota::CoprimeNonzero(1ULL << i, 1ULL << j));
+      HWY_ASSERT(!ShuffledIota::CoprimeNonzero(1u << i, 1u << j));
     }
   }
 
   // 2^x and 2^x +/- 1 are coprime
   for (size_t i = 1; i < 30; ++i) {
-    const uint32_t pow2 = 1U << i;
+    const uint32_t pow2 = 1u << i;
     HWY_ASSERT(ShuffledIota::CoprimeNonzero(pow2, pow2 + 1));
     HWY_ASSERT(ShuffledIota::CoprimeNonzero(pow2, pow2 - 1));
     HWY_ASSERT(ShuffledIota::CoprimeNonzero(pow2 + 1, pow2));
@@ -147,13 +147,13 @@ TEST(ThreadPoolTest, TestRandomPermutation) {
   uint32_t visited[kMaxSize];
 
   // Exhaustive enumeration of size and starting point.
-  for (size_t size = 1; size < kMaxSize; ++size) {
+  for (uint32_t size = 1; size < kMaxSize; ++size) {
     const Divisor divisor(size);
 
     const uint32_t coprime = ShuffledIota::FindAnotherCoprime(size, 1);
     const ShuffledIota shuffled(coprime);
 
-    for (size_t start = 0; start < size; ++start) {
+    for (uint32_t start = 0; start < size; ++start) {
       VerifyPermutation(size, divisor, shuffled, start, visited);
     }
   }
@@ -166,7 +166,7 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
   // One per ShuffledIota; initially the starting value, then its Next().
   uint32_t current[kMaxSize];
 
-  for (size_t size = 1; size < kMaxSize; ++size) {
+  for (uint32_t size = 1; size < kMaxSize; ++size) {
     const Divisor divisor(size);
 
     // Create `size` ShuffledIota instances with unique coprimes.
@@ -178,7 +178,7 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
     }
 
     // ShuffledIota[i] starts at i to match the worker thread use case.
-    for (size_t i = 0; i < size; ++i) {
+    for (uint32_t i = 0; i < size; ++i) {
       current[i] = i;
     }
 
@@ -203,11 +203,12 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
       }
 
       // Count/print if excessive collisions.
-      const int expected = static_cast<int>(sqrtf(size) * 2.0f);
+      const size_t expected =
+          static_cast<size_t>(sqrtf(static_cast<float>(size)) * 2.0f);
       if ((num_contended > expected) && (max_contention > 3)) {
         ++num_bad;
         if (true) {
-          fprintf(stderr, "size %zu step %zu contended %zu max contention %u\n",
+          fprintf(stderr, "size %u step %zu contended %zu max contention %u\n",
                   size, step, num_contended, max_contention);
           for (size_t i = 0; i < size; ++i) {
             fprintf(stderr, "  %u\n", current[i]);
@@ -231,7 +232,7 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
     }
 
     if (num_bad != 0) {
-      fprintf(stderr, "size %zu total bad: %zu\n", size, num_bad);
+      fprintf(stderr, "size %u total bad: %zu\n", size, num_bad);
     }
     HWY_ASSERT(num_bad < kMaxSize / 10);
   }  // size
@@ -269,7 +270,7 @@ TEST(ThreadPoolTest, TestTasks) {
         }
 
         // Ensure all tasks were run.
-        for (size_t task = begin; task < end; ++task) {
+        for (uint64_t task = begin; task < end; ++task) {
           HWY_ASSERT_EQ(1000 + task, mementos[task - begin]);
         }
       }
