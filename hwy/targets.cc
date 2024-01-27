@@ -136,6 +136,7 @@ enum class FeatureIndex : uint32_t {
   kAVX512DQ,
   kAVX512BW,
   kAVX512FP16,
+  kAVX512BF16,
 
   kVNNI,
   kVPCLMULQDQ,
@@ -203,6 +204,9 @@ uint64_t FlagsFromCPUID() {
     flags |= IsBitSet(abcd[2], 14) ? Bit(FeatureIndex::kPOPCNTDQ) : 0;
 
     flags |= IsBitSet(abcd[3], 23) ? Bit(FeatureIndex::kAVX512FP16) : 0;
+
+    Cpuid(7, 1, abcd);
+    flags |= IsBitSet(abcd[0], 5) ? Bit(FeatureIndex::kAVX512BF16) : 0;
   }
 
   return flags;
@@ -252,8 +256,11 @@ constexpr uint64_t kGroupAVX3_DL =
     Bit(FeatureIndex::kVAES) | Bit(FeatureIndex::kPOPCNTDQ) |
     Bit(FeatureIndex::kBITALG) | Bit(FeatureIndex::kGFNI) | kGroupAVX3;
 
+constexpr uint64_t kGroupAVX3_ZEN4 =
+    Bit(FeatureIndex::kAVX512BF16) | kGroupAVX3_DL;
+
 constexpr uint64_t kGroupAVX3_SPR =
-    Bit(FeatureIndex::kAVX512FP16) | kGroupAVX3_DL;
+    Bit(FeatureIndex::kAVX512FP16) | kGroupAVX3_ZEN4;
 
 int64_t DetectTargets() {
   int64_t bits = 0;  // return value of supported targets.
@@ -322,7 +329,8 @@ int64_t DetectTargets() {
 
   // This is mainly to work around the slow Zen4 CompressStore. It's unclear
   // whether subsequent AMD models will be affected; assume yes.
-  if ((bits & HWY_AVX3_DL) && IsAMD()) {
+  if ((bits & HWY_AVX3_DL) && (flags & kGroupAVX3_ZEN4) == kGroupAVX3_ZEN4 &&
+      IsAMD()) {
     bits |= HWY_AVX3_ZEN4;
   }
 

@@ -1806,6 +1806,12 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<bfloat16_t, N> v) {
   return ret;
 }
 
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
 template <class D, HWY_IF_BF16_D(D), size_t N>
 HWY_API VFromD<D> DemoteTo(D /* tag */, Vec128<float, N> v) {
   VFromD<D> ret;

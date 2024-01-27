@@ -194,6 +194,25 @@ HWY_INLINE __m256i BitCastToInteger(__m256d v) {
   return _mm256_castpd_si256(v);
 }
 
+#if HWY_AVX3_HAVE_F32_TO_BF16C
+HWY_INLINE __m256i BitCastToInteger(__m256bh v) {
+  // Need to use reinterpret_cast on GCC/Clang or BitCastScalar on MSVC to
+  // bit cast a __m256bh to a __m256i as there is currently no intrinsic
+  // available (as of GCC 13 and Clang 17) that can bit cast a __m256bh vector
+  // to a __m256i vector
+
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+  // On GCC or Clang, use reinterpret_cast to bit cast a __m256bh to a __m256i
+  return reinterpret_cast<__m256i>(v);
+#else
+  // On MSVC, use BitCastScalar to bit cast a __m256bh to a __m256i as MSVC does
+  // not allow reinterpret_cast, static_cast, or a C-style cast to be used to
+  // bit cast from one AVX vector type to a different AVX vector type
+  return BitCastScalar<__m256i>(v);
+#endif  // HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+}
+#endif  // HWY_AVX3_HAVE_F32_TO_BF16C
+
 template <typename T>
 HWY_INLINE Vec256<uint8_t> BitCastToByte(Vec256<T> v) {
   return Vec256<uint8_t>{BitCastToInteger(v.raw)};
@@ -6300,24 +6319,22 @@ HWY_DIAGNOSTICS(pop)
 
 #endif  // HWY_DISABLE_F16C
 
+#if HWY_AVX3_HAVE_F32_TO_BF16C
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
-HWY_API VFromD<D> DemoteTo(D dbf16, Vec256<float> v) {
-  // TODO(janwas): _mm256_cvtneps_pbh once we have avx512bf16.
-  const Rebind<int32_t, decltype(dbf16)> di32;
-  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
-  const Rebind<uint16_t, decltype(dbf16)> du16;
-  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
-  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
+HWY_API VFromD<D> DemoteTo(D /*dbf16*/, Vec256<float> v) {
+  // The _mm256_cvtneps_pbh intrinsic returns a __m128bh vector that needs to be
+  // bit casted to a __m128i vector
+  return VFromD<D>{detail::BitCastToInteger(_mm256_cvtneps_pbh(v.raw))};
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
-HWY_API VFromD<D> ReorderDemote2To(D dbf16, Vec256<float> a, Vec256<float> b) {
-  // TODO(janwas): _mm256_cvtne2ps_pbh once we have avx512bf16.
-  const RebindToUnsigned<decltype(dbf16)> du16;
-  const Repartition<uint32_t, decltype(dbf16)> du32;
-  const Vec256<uint32_t> b_in_even = ShiftRight<16>(BitCast(du32, b));
-  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+HWY_API VFromD<D> ReorderDemote2To(D /*dbf16*/, Vec256<float> a,
+                                   Vec256<float> b) {
+  // The _mm256_cvtne2ps_pbh intrinsic returns a __m256bh vector that needs to
+  // be bit casted to a __m256i vector
+  return VFromD<D>{detail::BitCastToInteger(_mm256_cvtne2ps_pbh(b.raw, a.raw))};
 }
+#endif  // HWY_AVX3_HAVE_F32_TO_BF16C
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I16_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D /*d16*/, Vec256<int32_t> a,

@@ -62,7 +62,8 @@
 // Bits 0..3 reserved (4 targets)
 #define HWY_AVX3_SPR (1LL << 4)
 // Bit 5 reserved (likely AVX10.2 with 256-bit vectors)
-// Currently HWY_AVX3_DL plus a special case for CompressStore (10x as fast).
+// Currently HWY_AVX3_DL plus AVX512BF16 and a special case for CompressStore
+// (10x as fast).
 // We may later also use VPCONFLICT.
 #define HWY_AVX3_ZEN4 (1LL << 6)  // see HWY_WANT_AVX3_ZEN4 below
 
@@ -496,7 +497,8 @@
 #define HWY_BASELINE_AVX3_ZEN4 0
 #endif
 
-#if HWY_BASELINE_AVX3_DL != 0 && defined(__AVX512FP16__)
+#if HWY_BASELINE_AVX3_DL != 0 && defined(__AVX512BF16__) && \
+    defined(__AVX512FP16__)
 #define HWY_BASELINE_AVX3_SPR HWY_AVX3_SPR
 #else
 #define HWY_BASELINE_AVX3_SPR 0

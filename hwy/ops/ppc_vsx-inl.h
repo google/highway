@@ -3903,28 +3903,42 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 
 #endif  // HWY_PPC_HAVE_9
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
-HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
-  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
-  const Rebind<uint16_t, decltype(dbf16)> du16;
-  const auto bits_in_32 = ShiftRight<16>(BitCast(du32, v));
-  return BitCast(dbf16, TruncateTo(du16, bits_in_32));
+#if HWY_PPC_HAVE_10 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvspbf16)
+
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
+namespace detail {
+
+// VsxXvcvspbf16 converts a F32 vector to a BF16 vector, bitcasted to an U32
+// vector with the resulting BF16 bits in the lower 16 bits of each U32 lane
+template <class D, HWY_IF_BF16_D(D)>
+static HWY_INLINE VFromD<Rebind<uint32_t, D>> VsxXvcvspbf16(
+    D dbf16, VFromD<Rebind<float, D>> v) {
+  const Rebind<uint32_t, decltype(dbf16)> du32;
+  const Repartition<uint8_t, decltype(du32)> du32_as_du8;
+
+  using VU32 = __vector unsigned int;
+
+  // Even though the __builtin_vsx_xvcvspbf16 builtin performs a F32 to BF16
+  // conversion, the __builtin_vsx_xvcvspbf16 intrinsic expects a
+  // __vector unsigned char argument (at least as of GCC 13 and Clang 17)
+  return VFromD<Rebind<uint32_t, D>>{reinterpret_cast<VU32>(
+      __builtin_vsx_xvcvspbf16(BitCast(du32_as_du8, v).raw))};
 }
 
-template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
-HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
+}  // namespace detail
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
   const RebindToUnsigned<decltype(dbf16)> du16;
-  const Repartition<uint32_t, decltype(dbf16)> du32;
-#if HWY_IS_LITTLE_ENDIAN
-  const auto a_in_odd = a;
-  const auto b_in_even = ShiftRight<16>(BitCast(du32, b));
-#else
-  const auto a_in_odd = ShiftRight<16>(BitCast(du32, a));
-  const auto b_in_even = b;
-#endif
-  return BitCast(dbf16,
-                 OddEven(BitCast(du16, a_in_odd), BitCast(du16, b_in_even)));
+  return BitCast(dbf16, TruncateTo(du16, detail::VsxXvcvspbf16(dbf16, v)));
 }
+
+#endif  // HWY_PPC_HAVE_10 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvspbf16)
 
 // Specializations for partial vectors because vec_packs sets lanes above 2*N.
 template <class DN, typename V, HWY_IF_V_SIZE_LE_D(DN, 4), HWY_IF_SIGNED_D(DN),
@@ -4017,6 +4031,18 @@ HWY_API VFromD<DN> ReorderDemote2To(DN /*dn*/, V a, V b) {
   return VFromD<DN>{vec_packs(a.raw, b.raw)};
 }
 
+#if HWY_PPC_HAVE_10 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvspbf16)
+template <class D, class V, HWY_IF_BF16_D(D), HWY_IF_F32(TFromV<V>),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_V(V) * 2)>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, V a, V b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Half<decltype(dbf16)> dh_bf16;
+  return BitCast(dbf16,
+                 OrderedTruncate2To(du16, detail::VsxXvcvspbf16(dh_bf16, a),
+                                    detail::VsxXvcvspbf16(dh_bf16, b)));
+}
+#endif
+
 template <class D, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>), class V,
           HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<D>) * 2),
@@ -4025,15 +4051,13 @@ HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
   return ReorderDemote2To(d, a, b);
 }
 
-template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
-HWY_API VFromD<D> OrderedDemote2To(D dbf16, V32 a, V32 b) {
-  const RebindToUnsigned<decltype(dbf16)> du16;
-#if HWY_IS_LITTLE_ENDIAN
-  return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
-#else
-  return BitCast(dbf16, ConcatEven(du16, BitCast(du16, b), BitCast(du16, a)));
-#endif
+#if HWY_PPC_HAVE_10 && HWY_HAS_BUILTIN(__builtin_vsx_xvcvspbf16)
+template <class D, HWY_IF_BF16_D(D), class V, HWY_IF_F32(TFromV<V>),
+          HWY_IF_LANES_D(D, HWY_MAX_LANES_D(DFromV<V>) * 2)>
+HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
+  return ReorderDemote2To(d, a, b);
 }
+#endif
 
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>
 HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<double> v) {
