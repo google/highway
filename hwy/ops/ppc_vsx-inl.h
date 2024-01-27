@@ -1830,7 +1830,7 @@ HWY_API Vec128<int32_t, N> operator/(Vec128<int32_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector signed int raw_result;
-  __asm__("vdivsw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vdivsw %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<int32_t, N>{raw_result};
 }
 
@@ -1844,7 +1844,7 @@ HWY_API Vec128<uint32_t, N> operator/(Vec128<uint32_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector unsigned int raw_result;
-  __asm__("vdivuw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vdivuw %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<uint32_t, N>{raw_result};
 }
 
@@ -1859,7 +1859,7 @@ HWY_API Vec128<int64_t, N> operator/(Vec128<int64_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector signed long long raw_result;
-  __asm__("vdivsd %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vdivsd %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<int64_t, N>{raw_result};
 }
 
@@ -1873,7 +1873,7 @@ HWY_API Vec128<uint64_t, N> operator/(Vec128<uint64_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector unsigned long long raw_result;
-  __asm__("vdivud %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vdivud %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<uint64_t, N>{raw_result};
 }
 
@@ -1906,7 +1906,7 @@ HWY_API Vec128<int32_t, N> operator%(Vec128<int32_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector signed int raw_result;
-  __asm__("vmodsw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vmodsw %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<int32_t, N>{raw_result};
 }
 
@@ -1920,7 +1920,7 @@ HWY_API Vec128<uint32_t, N> operator%(Vec128<uint32_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector unsigned int raw_result;
-  __asm__("vmoduw %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vmoduw %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<uint32_t, N>{raw_result};
 }
 
@@ -1935,7 +1935,7 @@ HWY_API Vec128<int64_t, N> operator%(Vec128<int64_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector signed long long raw_result;
-  __asm__("vmodsd %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vmodsd %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<int64_t, N>{raw_result};
 }
 
@@ -1949,7 +1949,7 @@ HWY_API Vec128<uint64_t, N> operator%(Vec128<uint64_t, N> a,
   // enabled and any of the lanes of b are known to be zero (even in the unused
   // lanes of a partial vector)
   __vector unsigned long long raw_result;
-  __asm__("vmodud %0,%1,%2" : "=v"(raw_result) : "v"(a), "v"(b));
+  __asm__("vmodud %0,%1,%2" : "=v"(raw_result) : "v"(a.raw), "v"(b.raw));
   return Vec128<uint64_t, N>{raw_result};
 }
 
