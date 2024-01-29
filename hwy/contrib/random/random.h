@@ -19,33 +19,41 @@ HWY_BEFORE_NAMESPACE();  // required if not using HWY_ATTR
 namespace hwy {
 
 namespace HWY_NAMESPACE {  // required: unique per target
-
 namespace internal {
+
+// C++ < 17 does not support hexfloat
+#if __cpp_hex_float > 201603L
+constexpr double MUL_CONST = 0x1.0p-53;
+#else
+constexpr double MUL_CONST =
+    0.00000000000000011102230246251565404236316680908203125;
+#endif
+
 class SplitMix64 {
  public:
-  constexpr SplitMix64(const std::uint64_t state) noexcept : m_state(state) {}
+  constexpr SplitMix64(const std::uint64_t state) noexcept : state_(state) {}
 
-  constexpr std::uint64_t operator()() {
-    std::uint64_t z = (m_state += 0x9e3779b97f4a7c15);
+  HWY_CXX14_CONSTEXPR std::uint64_t operator()() {
+    std::uint64_t z = (state_ += 0x9e3779b97f4a7c15);
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
     z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
     return z ^ (z >> 31);
   }
 
  private:
-  std::uint64_t m_state;
+  std::uint64_t state_;
 };
 
 class Xoshiro {
  public:
-  constexpr explicit Xoshiro(const std::uint64_t seed) noexcept : m_state{} {
+  HWY_CXX14_CONSTEXPR explicit Xoshiro(const std::uint64_t seed) noexcept : state_{} {
     SplitMix64 splitMix64{seed};
-    for (auto& element : m_state) {
+    for (auto& element : state_) {
       element = splitMix64();
     }
   }
 
-  constexpr explicit Xoshiro(const std::uint64_t seed,
+  HWY_CXX14_CONSTEXPR explicit Xoshiro(const std::uint64_t seed,
                              const std::uint64_t thread_id) noexcept
       : Xoshiro(seed) {
     for (auto i = UINT64_C(0); i < thread_id; ++i) {
@@ -53,54 +61,54 @@ class Xoshiro {
     }
   }
 
-  constexpr std::uint64_t operator()() noexcept { return Next(); }
+  HWY_CXX14_CONSTEXPR std::uint64_t operator()() noexcept { return Next(); }
 
-  constexpr double Uniform() noexcept {
-    return static_cast<double>(Next() >> 11) * 0x1.0p-53;
+  HWY_CXX14_CONSTEXPR double Uniform() noexcept {
+    return static_cast<double>(Next() >> 11) * MUL_CONST;
   }
 
   constexpr std::array<std::uint64_t, 4> GetState() const {
-    return {m_state[0], m_state[1], m_state[2], m_state[3]};
+    return {state_[0], state_[1], state_[2], state_[3]};
   }
 
-  constexpr void SetState(std::array<std::uint64_t, 4> state) noexcept {
-    m_state[0] = state[0];
-    m_state[1] = state[1];
-    m_state[2] = state[2];
-    m_state[3] = state[3];
+  HWY_CXX17_CONSTEXPR void SetState(
+      std::array<std::uint64_t, 4> state) noexcept {
+    state_[0] = state[0];
+    state_[1] = state[1];
+    state_[2] = state[2];
+    state_[3] = state[3];
   }
 
   static constexpr std::uint64_t StateSize() noexcept { return 4; }
 
  private:
-  std::uint64_t m_state[4];
+  std::uint64_t state_[4];
 
   static constexpr std::uint64_t Rotl(const std::uint64_t x, int k) noexcept {
     return (x << k) | (x >> (64 - k));
   }
 
-  constexpr std::uint64_t Next() noexcept {
-    const std::uint64_t result = Rotl(m_state[0] + m_state[3], 23) + m_state[0];
-    const std::uint64_t t = m_state[1] << 17;
+  HWY_CXX14_CONSTEXPR std::uint64_t Next() noexcept {
+    const std::uint64_t result = Rotl(state_[0] + state_[3], 23) + state_[0];
+    const std::uint64_t t = state_[1] << 17;
 
-    m_state[2] ^= m_state[0];
-    m_state[3] ^= m_state[1];
-    m_state[1] ^= m_state[2];
-    m_state[0] ^= m_state[3];
+    state_[2] ^= state_[0];
+    state_[3] ^= state_[1];
+    state_[1] ^= state_[2];
+    state_[0] ^= state_[3];
 
-    m_state[2] ^= t;
+    state_[2] ^= t;
 
-    m_state[3] = Rotl(m_state[3], 45);
+    state_[3] = Rotl(state_[3], 45);
 
     return result;
   }
 
  public:
-
   /* This is the jump function for the generator. It is equivalent
  to 2^128 calls to next(); it can be used to generate 2^128
  non-overlapping subsequences for parallel computations. */
-  constexpr void Jump() noexcept {
+  HWY_CXX14_CONSTEXPR void Jump() noexcept {
     constexpr std::uint64_t JUMP[] = {0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
                                       0xa9582618e03fc9aa, 0x39abdc4529b1661c};
     std::uint64_t s0 = 0;
@@ -110,103 +118,93 @@ class Xoshiro {
     for (auto i : JUMP)
       for (auto b = 0; b < 64; b++) {
         if (i & std::uint64_t{1} << b) {
-          s0 ^= m_state[0];
-          s1 ^= m_state[1];
-          s2 ^= m_state[2];
-          s3 ^= m_state[3];
+          s0 ^= state_[0];
+          s1 ^= state_[1];
+          s2 ^= state_[2];
+          s3 ^= state_[3];
         }
         Next();
       }
 
-    m_state[0] = s0;
-    m_state[1] = s1;
-    m_state[2] = s2;
-    m_state[3] = s3;
+    state_[0] = s0;
+    state_[1] = s1;
+    state_[2] = s2;
+    state_[3] = s3;
   }
-
 };
-}  // namespace internal
-template <typename T>
-class HWY_CONTRIB_DLLEXPORT VectorXoshiro {
- public:
-  explicit VectorXoshiro(const std::uint64_t seed) {
-    namespace hn = hwy::HWY_NAMESPACE;
-    internal::Xoshiro xoshiro{seed};
-    const auto lanes = hn::Lanes(hn::DFromV<T>());
-    auto stateArray = hwy::MakeUniqueAlignedArray<std::uint64_t>(StateSize());
 
-    for (auto i = 0UL; i < lanes; ++i) {
+}  // namespace internal
+
+class VectorXoshiro {
+ private:
+  using StateType = Vec<decltype(CappedTag<std::uint64_t, 8>{})>;
+ public:
+  explicit VectorXoshiro(const std::uint64_t seed)
+      : state_{}, intTag_({}), floatTag_({}), lanes_(Lanes(intTag_)) {
+    internal::Xoshiro xoshiro{seed};
+    auto stateArray = MakeUniqueAlignedArray<std::uint64_t>(StateSize());
+    for (auto i = 0UL; i < lanes_; ++i) {
       const auto state = xoshiro.GetState();
       for (auto j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
-        const auto index = lanes * j + i;
+        const auto index = lanes_ * j + i;
         stateArray[index] = state[j];
       }
       xoshiro.Jump();
     }
 
     for (auto i = 0UL; i < internal::Xoshiro::StateSize(); ++i) {
-      m_state[i] = hn::Load(hn::DFromV<T>(), &stateArray[i * lanes]);
+      state_[i] = Load(intTag_, &stateArray[i * lanes_]);
     }
   }
 
-  constexpr auto operator()() { return Next(); }
+  StateType operator()() { return Next(); }
 
-  static constexpr std::uint64_t StateSize() noexcept {
-    namespace hn = hwy::HWY_NAMESPACE;
-    return hn::Lanes(hn::DFromV<T>()) * internal::Xoshiro::StateSize();
+  std::uint64_t StateSize() const noexcept {
+    return lanes_ * internal::Xoshiro::StateSize();
   }
 
-  std::array<std::uint64_t, StateSize()> GetState() const {
-    namespace hn = hwy::HWY_NAMESPACE;
-    const auto lanes = hn::Lanes(hn::DFromV<T>());
-    auto stateArray = hwy::MakeUniqueAlignedArray<std::uint64_t>(StateSize());
+  std::vector<std::uint64_t> GetState() const {
+    auto stateArray = MakeUniqueAlignedArray<std::uint64_t>(StateSize());
     for (auto i = 0UL; i < internal::Xoshiro::StateSize(); ++i) {
-      hn::Store(m_state[i], hn::DFromV<T>(), stateArray.get() + i * lanes);
+      Store(state_[i], intTag_, stateArray.get() + i * lanes_);
     }
-    std::array<std::uint64_t, StateSize()> state;
-
+    std::vector<std::uint64_t> state{StateSize()};
     auto index = 0UL;
-    for (auto i = 0UL; i < lanes; ++i) {
+    for (auto i = 0UL; i < lanes_; ++i) {
       for (auto j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
-        state[index++] = stateArray[lanes * j + i];
+        state[index++] = stateArray[lanes_ * j + i];
       }
     }
     return state;
   }
 
-  constexpr auto Uniform() noexcept {
-    namespace hn = hwy::HWY_NAMESPACE;
-    const auto bits = hn::ShiftRight<11>(Next());
-    const auto real = hn::ConvertTo(fl, bits);
-    return real * MUL_VALUE;
+  Vec<decltype(CappedTag<double, 8>{})> Uniform() noexcept {
+    const auto bits = ShiftRight<11>(Next());
+    const auto real = ConvertTo(floatTag_, bits);
+    return Mul(real, MUL_VALUE);
   }
 
  private:
-  T m_state[4];
 
-  static constexpr hwy::HWY_NAMESPACE::ScalableTag<double> fl{};
+  static constexpr CappedTag<double, 8> fl{};
 
-  const decltype(hwy::HWY_NAMESPACE::Undefined(fl)) MUL_VALUE =
-      hwy::HWY_NAMESPACE::Set(fl, 0x1.0p-53);
+  StateType state_[4];
+  const ScalableTag<std::uint64_t> intTag_;
+  const ScalableTag<double> floatTag_;
 
-  template <int k>
-  static constexpr T Rotl(const T x) noexcept {
-    namespace hn = hwy::HWY_NAMESPACE;
-    return hn::Or(hn::ShiftLeft<k>(x), hn::ShiftRight<64 - k>(x));
-  }
+  const std::size_t lanes_;
+  const Vec<decltype(fl)> MUL_VALUE = Set(fl, internal::MUL_CONST);
 
-  constexpr T Next() noexcept {
-    namespace hn = hwy::HWY_NAMESPACE;
-    const T result =
-        hn::Add(Rotl<23>(hn::Add(m_state[0], m_state[3])), m_state[0]);
-    const T t = hn::ShiftLeft<17>(m_state[1]);
-    //
-    m_state[2] = hn::Xor(m_state[2], m_state[0]);
-    m_state[3] = hn::Xor(m_state[3], m_state[1]);
-    m_state[1] = hn::Xor(m_state[1], m_state[2]);
-    m_state[0] = hn::Xor(m_state[0], m_state[3]);
-    m_state[2] = hn::Xor(m_state[2], t);
-    m_state[3] = Rotl<45>(m_state[3]);
+  StateType Next() noexcept {
+    const auto result =
+        Add(RotateRight<41>(Add(state_[0], state_[3])), state_[0]);
+    const auto t = ShiftLeft<17>(state_[1]);
+    state_[2] = Xor(state_[2], state_[0]);
+    state_[3] = Xor(state_[3], state_[1]);
+    state_[1] = Xor(state_[1], state_[2]);
+    state_[0] = Xor(state_[0], state_[3]);
+    state_[2] = Xor(state_[2], t);
+    state_[3] = RotateRight<19>(state_[3]);
     return result;
   }
 };

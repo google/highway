@@ -1,59 +1,55 @@
-#include <cstdint>
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <cstdio>
 #include <ctime>
 
+// clang-format off
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "hwy/contrib/random/random_test.cc"
-
-#include "hwy/foreach_target.h"
+#include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/random/random.h"
 #include "hwy/tests/test_util-inl.h"
+// clang-format on
 
 HWY_BEFORE_NAMESPACE();
-
 namespace hwy {
-
-
 namespace HWY_NAMESPACE {  // required: unique per target
-
-namespace hn = hwy::HWY_NAMESPACE;
 
 constexpr auto tests = 1UL << 15;
 
-std::uint64_t GetSeed() {
-  return static_cast<uint64_t>(std::time(nullptr));
-}
+std::uint64_t GetSeed() { return static_cast<uint64_t>(std::time(nullptr)); }
 
 void RngLoop(const std::uint64_t seed, std::uint64_t* HWY_RESTRICT result,
              const size_t size) {
-  const hn::ScalableTag<std::uint64_t> d;
-  using ARRAY_T = decltype(Undefined(hn::ScalableTag<std::uint64_t>()));
-  VectorXoshiro<ARRAY_T> generator{seed};
+  const ScalableTag<std::uint64_t> d;
+  VectorXoshiro generator{seed};
   for (size_t i = 0; i < size; i += Lanes(d)) {
     auto x = generator();
-    hn::Store(x, d, result + i);
+    Store(x, d, result + i);
   }
 }
 
 void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
                  const size_t size) {
-  const hn::ScalableTag<double> d;
-  using ARRAY_T = decltype(Undefined(hn::ScalableTag<std::uint64_t>()));
-  VectorXoshiro<ARRAY_T> gernerator{seed};
+  const ScalableTag<double> d;
+  VectorXoshiro generator{seed};
   for (size_t i = 0; i < size; i += Lanes(d)) {
-    auto x = gernerator.Uniform();
-    hn::Store(x, d, result + i);
+    auto x = generator.Uniform();
+    Store(x, d, result + i);
   }
 }
 
 void TestSeeding() {
   const std::uint64_t seed = GetSeed();
-  const hn::ScalableTag<std::uint64_t> d;
-  using ARRAY_T = decltype(Undefined(d));
+  const ScalableTag<std::uint64_t> d;
 
-  VectorXoshiro<ARRAY_T> gernerator{seed};
-  const auto state = gernerator.GetState();
+  VectorXoshiro generator{seed};
+  const auto state = generator.GetState();
   internal::Xoshiro reference{seed};
   const auto lanes = Lanes(d);
   auto index = 0UL;
@@ -75,7 +71,7 @@ void TestRandomUint64() {
   const auto result_array = hwy::MakeUniqueAlignedArray<std::uint64_t>(tests);
   RngLoop(seed, result_array.get(), tests);
   internal::Xoshiro reference{seed};
-  const hn::ScalableTag<std::uint64_t> d;
+  const ScalableTag<std::uint64_t> d;
   const auto lanes = Lanes(d);
 
   for (auto i = 0UL; i < tests; i += lanes) {
@@ -90,12 +86,12 @@ void TestRandomUint64() {
   }
 }
 
-void TestUniform() {
+void TestUniformDist() {
   const std::uint64_t seed = GetSeed();
   const auto result_array = hwy::MakeUniqueAlignedArray<double>(tests);
   UniformLoop(seed, result_array.get(), tests);
   internal::Xoshiro reference{seed};
-  const hn::ScalableTag<double> d;
+  const ScalableTag<double> d;
   const auto lanes = Lanes(d);
   for (auto i = 0UL; i < tests; i += lanes) {
     const auto result = reference.Uniform();
@@ -119,8 +115,8 @@ HWY_AFTER_NAMESPACE();  // required if not using HWY_ATTR
 namespace hwy {
 HWY_BEFORE_TEST(HwyRandomTest);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestSeeding);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestRandomUint64);
-HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniform);
 }  // namespace hwy
 
 #endif

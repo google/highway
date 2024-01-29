@@ -285,7 +285,11 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   do {                         \
   } while (0)
 #endif
-
+#if __cpp_constexpr >= 201603L
+#define HWY_CXX17_CONSTEXPR constexpr
+#else
+#define HWY_CXX17_CONSTEXPR
+#endif
 #if __cpp_constexpr >= 201304L
 #define HWY_CXX14_CONSTEXPR constexpr
 #else
