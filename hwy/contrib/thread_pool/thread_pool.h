@@ -99,8 +99,7 @@ class ShuffledIota {
   explicit ShuffledIota(uint32_t coprime) : coprime_(coprime) {}
 
   // Returns the next after `current`, using an LCG-like generator.
-  HWY_POOL_INLINE uint32_t Next(uint32_t current,
-                                const Divisor& divisor) const {
+  uint32_t Next(uint32_t current, const Divisor& divisor) const {
     HWY_DASSERT(current < divisor.GetDivisor());
     // (coprime * i + current) % size, see https://lemire.me/blog/2017/09/18/.
     return divisor.Remainder(current + coprime_);
@@ -283,7 +282,7 @@ class PoolCommands {  // 16 bytes
   static uint32_t WorkerInitialSeqCmd() { return kInitial; }
 
   // Sends `cmd` to all workers.
-  HWY_POOL_INLINE void Broadcast(uint32_t cmd) {
+  void Broadcast(uint32_t cmd) {
     HWY_DASSERT(cmd <= kMask);
     const uint32_t epoch = ++epoch_;
     const uint32_t seq_cmd = (epoch << kShift) | cmd;
@@ -297,11 +296,11 @@ class PoolCommands {  // 16 bytes
   }
 
   // Returns the command, i.e., one of the public constants, e.g., kTerminate.
-  HWY_POOL_INLINE uint32_t WorkerWaitForNewCommand(PoolWaitMode wait_mode,
-                                                   uint32_t& prev_seq_cmd) {
+  uint32_t WorkerWaitForNewCommand(PoolWaitMode wait_mode,
+                                   uint32_t& prev_seq_cmd) {
     uint32_t seq_cmd;
     if (HWY_LIKELY(wait_mode == PoolWaitMode::kSpin)) {
-      seq_cmd = SpinUntilDifferent(prev_seq_cmd);
+      seq_cmd = SpinUntilDifferent(prev_seq_cmd, seq_cmd_);
     } else {
       seq_cmd = BlockUntilDifferent(prev_seq_cmd, seq_cmd_);
     }
@@ -310,16 +309,19 @@ class PoolCommands {  // 16 bytes
   }
 
  private:
-  HWY_INLINE uint32_t SpinUntilDifferent(const uint32_t prev_seq_cmd) {
+  static HWY_INLINE uint32_t SpinUntilDifferent(
+      const uint32_t prev_seq_cmd, std::atomic<uint32_t>& current) {
+    HWY_UNROLL(1)
     for (;;) {
       hwy::Pause();
-      const uint32_t seq_cmd = seq_cmd_.load(std::memory_order_acquire);
+      const uint32_t seq_cmd = current.load(std::memory_order_acquire);
       if (seq_cmd != prev_seq_cmd) return seq_cmd;
     }
   }
 
   // Counter for ABA-proofing WorkerWaitForNewCommand. Stored next to seq_cmd_
-  // because both are written at the same time by the main thread.
+  // because both are written at the same time by the main thread. Sharding this
+  // 4x (one per cache line) is not helpful.
   uint32_t epoch_{0};
   std::atomic<uint32_t> seq_cmd_{kInitial};
 };
