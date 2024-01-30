@@ -31,7 +31,8 @@ constexpr double MUL_CONST =
 
 class SplitMix64 {
  public:
-  constexpr SplitMix64(const std::uint64_t state) noexcept : state_(state) {}
+  constexpr explicit SplitMix64(const std::uint64_t state) noexcept
+      : state_(state) {}
 
   HWY_CXX14_CONSTEXPR std::uint64_t operator()() {
     std::uint64_t z = (state_ += 0x9e3779b97f4a7c15);
@@ -46,7 +47,8 @@ class SplitMix64 {
 
 class Xoshiro {
  public:
-  HWY_CXX14_CONSTEXPR explicit Xoshiro(const std::uint64_t seed) noexcept : state_{} {
+  HWY_CXX14_CONSTEXPR explicit Xoshiro(const std::uint64_t seed) noexcept
+      : state_{} {
     SplitMix64 splitMix64{seed};
     for (auto& element : state_) {
       element = splitMix64();
@@ -54,7 +56,7 @@ class Xoshiro {
   }
 
   HWY_CXX14_CONSTEXPR explicit Xoshiro(const std::uint64_t seed,
-                             const std::uint64_t thread_id) noexcept
+                                       const std::uint64_t thread_id) noexcept
       : Xoshiro(seed) {
     for (auto i = UINT64_C(0); i < thread_id; ++i) {
       Jump();
@@ -104,20 +106,23 @@ class Xoshiro {
     return result;
   }
 
+  static constexpr std::uint64_t JUMP[] = {
+      0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa,
+      0x39abdc4529b1661c};
+
  public:
   /* This is the jump function for the generator. It is equivalent
  to 2^128 calls to next(); it can be used to generate 2^128
  non-overlapping subsequences for parallel computations. */
   HWY_CXX14_CONSTEXPR void Jump() noexcept {
-    constexpr std::uint64_t JUMP[] = {0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
-                                      0xa9582618e03fc9aa, 0x39abdc4529b1661c};
     std::uint64_t s0 = 0;
     std::uint64_t s1 = 0;
     std::uint64_t s2 = 0;
     std::uint64_t s3 = 0;
+
     for (auto i : JUMP)
       for (auto b = 0; b < 64; b++) {
-        if (i & std::uint64_t{1} << b) {
+        if (i & std::uint64_t{1UL} << b) {
           s0 ^= state_[0];
           s1 ^= state_[1];
           s2 ^= state_[2];
@@ -134,77 +139,60 @@ class Xoshiro {
 };
 
 }  // namespace internal
-
 class VectorXoshiro {
  private:
-  using StateType = Vec<decltype(CappedTag<std::uint64_t, 8>{})>;
+  using T = Vec<decltype(ScalableTag<std::uint64_t>{})>;
+  using V = Vec<decltype(ScalableTag<double>{})>;
+  static constexpr std::size_t streams_ = 8;
+  using StateType = std::array<std::array<std::uint64_t, streams_>,
+                               internal::Xoshiro::StateSize()>;
  public:
-  explicit VectorXoshiro(const std::uint64_t seed)
-      : state_{}, intTag_({}), floatTag_({}), lanes_(Lanes(intTag_)) {
+  explicit VectorXoshiro(const std::uint64_t seed) : state_{} {
     internal::Xoshiro xoshiro{seed};
-    auto stateArray = MakeUniqueAlignedArray<std::uint64_t>(StateSize());
-    for (auto i = 0UL; i < lanes_; ++i) {
+    for (auto i = 0UL; i < streams_; ++i) {
       const auto state = xoshiro.GetState();
-      for (auto j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
-        const auto index = lanes_ * j + i;
-        stateArray[index] = state[j];
+      for (std::uint64_t j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
+        state_[j][i] = state[j];
       }
       xoshiro.Jump();
     }
-
-    for (auto i = 0UL; i < internal::Xoshiro::StateSize(); ++i) {
-      state_[i] = Load(intTag_, &stateArray[i * lanes_]);
-    }
   }
-
-  StateType operator()() { return Next(); }
+  T operator()() noexcept { return Next(); }
 
   std::uint64_t StateSize() const noexcept {
-    return lanes_ * internal::Xoshiro::StateSize();
+    return streams_ * internal::Xoshiro::StateSize();
   }
 
-  std::vector<std::uint64_t> GetState() const {
-    auto stateArray = MakeUniqueAlignedArray<std::uint64_t>(StateSize());
-    for (auto i = 0UL; i < internal::Xoshiro::StateSize(); ++i) {
-      Store(state_[i], intTag_, stateArray.get() + i * lanes_);
-    }
-    std::vector<std::uint64_t> state{StateSize()};
-    auto index = 0UL;
-    for (auto i = 0UL; i < lanes_; ++i) {
-      for (auto j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
-        state[index++] = stateArray[lanes_ * j + i];
-      }
-    }
-    return state;
-  }
+  const StateType& GetState() const { return state_; }
 
-  Vec<decltype(CappedTag<double, 8>{})> Uniform() noexcept {
+  V Uniform() noexcept {
+    const auto MUL_VALUE = Set(DFromV<V>(), internal::MUL_CONST);
     const auto bits = ShiftRight<11>(Next());
-    const auto real = ConvertTo(floatTag_, bits);
+    const auto real = ConvertTo(DFromV<V>(), bits);
     return Mul(real, MUL_VALUE);
-  }
+  };
 
  private:
+  StateType state_;
 
-  static constexpr CappedTag<double, 8> fl{};
-
-  StateType state_[4];
-  const ScalableTag<std::uint64_t> intTag_;
-  const ScalableTag<double> floatTag_;
-
-  const std::size_t lanes_;
-  const Vec<decltype(fl)> MUL_VALUE = Set(fl, internal::MUL_CONST);
-
-  StateType Next() noexcept {
-    const auto result =
-        Add(RotateRight<41>(Add(state_[0], state_[3])), state_[0]);
-    const auto t = ShiftLeft<17>(state_[1]);
-    state_[2] = Xor(state_[2], state_[0]);
-    state_[3] = Xor(state_[3], state_[1]);
-    state_[1] = Xor(state_[1], state_[2]);
-    state_[0] = Xor(state_[0], state_[3]);
-    state_[2] = Xor(state_[2], t);
-    state_[3] = RotateRight<19>(state_[3]);
+  T Next() noexcept {
+    ScalableTag<std::uint64_t> tag;
+    auto s0 = LoadU(tag, state_[0].data());
+    auto s1 = LoadU(tag, state_[1].data());
+    auto s2 = LoadU(tag, state_[2].data());
+    auto s3 = LoadU(tag, state_[3].data());
+    const auto result = Add(RotateRight<41>(Add(s0, s3)), s0);
+    const auto t = ShiftLeft<17>(s1);
+    s2 = Xor(s2, s0);
+    s3 = Xor(s3, s1);
+    s1 = Xor(s1, s2);
+    s0 = Xor(s0, s3);
+    s2 = Xor(s2, t);
+    s3 = RotateRight<19>(s3);
+    StoreU(s0, tag, state_[0].data());
+    StoreU(s1, tag, state_[1].data());
+    StoreU(s2, tag, state_[2].data());
+    StoreU(s3, tag, state_[3].data());
     return result;
   }
 };

@@ -46,19 +46,18 @@ void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
 
 void TestSeeding() {
   const std::uint64_t seed = GetSeed();
-  const ScalableTag<std::uint64_t> d;
-
   VectorXoshiro generator{seed};
-  const auto state = generator.GetState();
   internal::Xoshiro reference{seed};
-  const auto lanes = Lanes(d);
-  auto index = 0UL;
+  const auto& state = generator.GetState();
+  const auto lanes = state.size();
   for (auto i = 0UL; i < lanes; ++i) {
-    for (auto elem : reference.GetState()) {
-      if (state[index++] != elem) {
+    const auto& reference_state = reference.GetState();
+    for (auto j = 0UL; j < reference_state.size(); ++j) {
+      if (state[j][i] != reference_state[j]) {
         fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(stderr, "TEST SEEDING ERROR: state[%lu] -> %lu != %lu\n", index,
-                state[index], elem);
+        fprintf(stderr, "TEST SEEDING ERROR: ");
+        fprintf(stderr, "state[%lu][%lu] -> %lu != %lu\n", j, i, state[j][i],
+                reference_state[j]);
         HWY_ASSERT(0);
       }
     }
@@ -70,18 +69,27 @@ void TestRandomUint64() {
   const std::uint64_t seed = GetSeed();
   const auto result_array = hwy::MakeUniqueAlignedArray<std::uint64_t>(tests);
   RngLoop(seed, result_array.get(), tests);
-  internal::Xoshiro reference{seed};
+  std::vector<internal::Xoshiro> reference;
+  reference.emplace_back(seed);
   const ScalableTag<std::uint64_t> d;
   const auto lanes = Lanes(d);
+  for (auto i = 1UL; i < lanes; ++i) {
+    auto rng = reference.back();
+    rng.Jump();
+    reference.emplace_back(rng);
+  }
 
   for (auto i = 0UL; i < tests; i += lanes) {
-    const auto result = reference();
-    if (result_array[i] != result) {
-      fprintf(stderr, "SEED: %lu\n", seed);
-      fprintf(stderr,
-              "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
-              i, result_array[i], result);
-      HWY_ASSERT(0);
+    for (auto lane = 0UL; lane < lanes; ++lane) {
+      const auto result = reference[lane]();
+      if (result_array[i + lane] != result) {
+        fprintf(stderr, "SEED: %lu\n", seed);
+        fprintf(
+            stderr,
+            "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
+            i + lane, result_array[i + lane], result);
+        HWY_ASSERT(0);
+      }
     }
   }
 }
@@ -104,6 +112,7 @@ void TestUniformDist() {
     }
   }
 }
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 
@@ -115,8 +124,8 @@ HWY_AFTER_NAMESPACE();  // required if not using HWY_ATTR
 namespace hwy {
 HWY_BEFORE_TEST(HwyRandomTest);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestSeeding);
-HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestRandomUint64);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 }  // namespace hwy
 
 #endif
