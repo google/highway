@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stdio.h>  // snprintf
 
-#include <cstddef>
+#include <array>
 #include <thread>  //NOLINT
 // IWYU pragma: end_exports
 
@@ -51,12 +51,9 @@
 
 namespace hwy {
 
-// We want predictable struct/class sizes so we can reason about cache lines.
-#pragma pack(push, 1)
-
 // Precomputation for fast n / divisor and n % divisor, where n is a variable
 // and divisor is unchanging but unknown at compile-time.
-class Divisor {  // 16 bytes
+class Divisor {
  public:
   Divisor() = default;  // for PoolWorker
   explicit Divisor(uint32_t divisor) : divisor_(divisor) {
@@ -96,7 +93,7 @@ class Divisor {  // 16 bytes
 };
 
 // Generates a random permutation of [0, size). O(1) storage.
-class ShuffledIota {  // 4 bytes
+class ShuffledIota {
  public:
   ShuffledIota() : coprime_(1) {}  // for PoolWorker
   explicit ShuffledIota(uint32_t coprime) : coprime_(coprime) {}
@@ -159,34 +156,49 @@ class ShuffledIota {  // 4 bytes
   uint32_t coprime_;
 };
 
+// We want predictable struct/class sizes so we can reason about cache lines.
+#pragma pack(push, 1)
+
 enum class PoolWaitMode : uint32_t { kBlock, kSpin };
 
 // Worker's private working set.
 class PoolWorker {  // HWY_ALIGNMENT bytes
+  static constexpr size_t kMaxVictims = 4;
+
  public:
   PoolWorker(size_t thread, size_t num_workers) {
-    div_workers_ = Divisor(static_cast<uint32_t>(num_workers));
+    wait_mode_ = PoolWaitMode::kBlock;
+    num_victims_ = HWY_MIN(kMaxVictims, num_workers);
+
+    const Divisor div_workers(static_cast<uint32_t>(num_workers));
 
     // Increase gap between coprimes to reduce collisions.
     const uint32_t coprime = ShuffledIota::FindAnotherCoprime(
         static_cast<uint32_t>(num_workers),
         static_cast<uint32_t>((thread + 1) * 257 + thread * 13));
-    shuffled_iota_ = ShuffledIota(coprime);
+    const ShuffledIota shuffled_iota(coprime);
 
-    wait_mode_ = PoolWaitMode::kBlock;
+    // To simplify WorkerRun, our own thread is the first to 'steal' from.
+    victims_[0] = thread;
+    for (uint32_t i = 1; i < num_victims_; ++i) {
+      victims_[i] = shuffled_iota.Next(victims_[i - 1], div_workers);
+      HWY_DASSERT(victims_[i] != thread);
+    }
 
     (void)padding_;
   }
   ~PoolWorker() = default;
-
-  const Divisor& WorkerDivWorkers() const { return div_workers_; }
-  const ShuffledIota& WorkerShuffledIota() const { return shuffled_iota_; }
 
   void SetWaitMode(PoolWaitMode wait_mode) {
     wait_mode_.store(wait_mode, std::memory_order_release);
   }
   PoolWaitMode WorkerGetWaitMode() const {
     return wait_mode_.load(std::memory_order_acquire);
+  }
+
+  hwy::Span<const uint32_t> Victims() const {
+    return hwy::Span<const uint32_t>(victims_.data(),
+                                     static_cast<size_t>(num_victims_));
   }
 
   // Called from main thread in Plan().
@@ -205,14 +217,14 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
   }
 
  private:
-  Divisor div_workers_;
-  ShuffledIota shuffled_iota_;
-  std::atomic<PoolWaitMode> wait_mode_;
-
   std::atomic<uint64_t> begin_;
   std::atomic<uint64_t> end_;  // only changes during SetRange
 
-  uint8_t padding_[HWY_ALIGNMENT - sizeof(div_workers_) - 8 - 16];
+  std::atomic<PoolWaitMode> wait_mode_;  // (32-bit)
+  uint32_t num_victims_;                 // <= kPoolMaxVictims
+  std::array<uint32_t, kMaxVictims> victims_;
+
+  uint8_t padding_[HWY_ALIGNMENT - 16 - 8 - sizeof(victims_)];
 };
 static_assert(sizeof(PoolWorker) == HWY_ALIGNMENT, "");
 
@@ -471,33 +483,27 @@ class ParallelFor {  // 0 bytes
     HWY_DASSERT(thread < num_workers);
 
     const PoolTasks& tasks = mem.tasks;
-    const Divisor& div_workers = mem.Worker(thread).WorkerDivWorkers();
-    const ShuffledIota& shuffled_iota = mem.Worker(thread).WorkerShuffledIota();
 
     uint64_t begin, end;
     const void* opaque;
     const auto func = tasks.WorkerGet(begin, end, opaque);
 
     // Special case for <= 1 task per worker - avoid any shared state.
-    if (end <= begin + num_workers) {
+    if (HWY_UNLIKELY(end <= begin + num_workers)) {
       const uint64_t task = begin + thread;
-      if (task < end) {
+      if (HWY_LIKELY(task < end)) {
         func(opaque, task, thread);
       }
       return;
     }
 
-    // `thread` remains the one we are actually running on, important for
-    // passing to user so they can index into their TLS. This is the one whose
-    // tasks we are executing.
-    uint32_t other_idx = static_cast<uint32_t>(thread);
-    PoolWorker* other_worker = &mem.Worker(other_idx);
-
     // For each worker in random order, attempt to do all their work.
-    for (size_t i = 0; i < num_workers; ++i) {
-      const uint64_t end = other_worker->WorkerGetEnd();
+    for (uint32_t victim : mem.Worker(thread).Victims()) {
+      PoolWorker* other_worker = &mem.Worker(victim);
 
       // Until all of other_worker's work is done:
+      const uint64_t end = other_worker->WorkerGetEnd();
+      HWY_UNROLL(1)
       for (;;) {
         // On x86 this generates a LOCK prefix, but that is only expensive if
         // there is actually contention, which is unlikely because we shard the
@@ -510,16 +516,14 @@ class ParallelFor {  // 0 bytes
         // per other worker.
         HWY_DASSERT(task < end + num_workers);
 
-        if (HWY_LIKELY(task >= end)) {
+        if (HWY_UNLIKELY(task >= end)) {
           hwy::Pause();  // Reduce coherency traffic while stealing.
           break;
         }
+        // `thread` is the one we are actually running on; this is important
+        // because it is the TLS index for user code.
         func(opaque, task, thread);
       }
-
-      other_idx = shuffled_iota.Next(other_idx, div_workers);
-      HWY_DASSERT(other_idx < num_workers);
-      other_worker = &mem.Worker(other_idx);
     }
   }
 };
@@ -574,17 +578,16 @@ class ThreadPool {
       const PoolWaitMode wait_mode = worker.WorkerGetWaitMode();
       const uint32_t command =
           commands.WorkerWaitForNewCommand(wait_mode, prev_seq_cmd);
-      if (command == PoolCommands::kTerminate) {
+      if (HWY_UNLIKELY(command == PoolCommands::kTerminate)) {
         return;  // exits thread
-      } else if (command == PoolCommands::kWork) {
+      } else if (HWY_LIKELY(command == PoolCommands::kWork)) {
         ParallelFor::WorkerRun(thread, num_workers, *mem);
+        mem->barrier.WorkerArrive(thread);
       } else if (command == PoolCommands::kNop) {
         // do nothing - used to change wait mode
       } else {
         HWY_DASSERT(false);  // unknown command
       }
-
-      mem->barrier.WorkerArrive(thread);
     }
   }
 
@@ -667,7 +670,7 @@ class ThreadPool {
 
     HWY_DASSERT(busy_.fetch_add(1) == 0);
 
-    if (ParallelFor::Plan(begin, end, num_workers, closure, mem)) {
+    if (HWY_LIKELY(ParallelFor::Plan(begin, end, num_workers, closure, mem))) {
       mem.barrier.Reset();
       mem.commands.Broadcast(PoolCommands::kWork);
 
