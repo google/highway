@@ -240,12 +240,10 @@ TEST(ThreadPoolTest, TestMultiplePermutations) {
 
 // Ensures all tasks are run. Similar to TestPool below but without threads.
 TEST(ThreadPoolTest, TestTasks) {
-  for (size_t num_workers = 0; num_workers <= 8; ++num_workers) {
-    PoolMemOwner owner(num_workers);
-    PoolMem& mem = *owner.get();
-    for (size_t thread = 0; thread < num_workers; ++thread) {
-      mem.workers[thread].WorkerInit(thread, num_workers);
-    }
+  for (size_t num_threads = 0; num_threads <= 8; ++num_threads) {
+    PoolMemOwner owner(num_threads);
+    PoolMem& mem = *owner.Mem();
+    const size_t num_workers = owner.NumWorkers();
 
     constexpr uint64_t kMaxTasks = 20;
     uint64_t mementos[kMaxTasks];
@@ -383,27 +381,44 @@ struct Counter {
   uint64_t padding[15];
 };
 
+// Can switch between any wait mode, and multiple times.
+TEST(ThreadPoolTest, TestWaitMode) {
+  if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
+
+  const size_t kNumThreads = 9;
+  ThreadPool pool(kNumThreads);
+  RandomState rng;
+  for (size_t i = 0; i < 10; ++i) {
+    pool.SetWaitMode(Random32(&rng) ? PoolWaitMode::kSpin
+                                    : PoolWaitMode::kBlock);
+  }
+}
+
 TEST(ThreadPoolTest, TestCounter) {
   if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
 
   const size_t kNumThreads = 12;
   ThreadPool pool(kNumThreads);
-  alignas(128) Counter counters[kNumThreads];
+  for (PoolWaitMode mode : {PoolWaitMode::kSpin, PoolWaitMode::kBlock}) {
+    pool.SetWaitMode(mode);
+    alignas(128) Counter counters[kNumThreads];
 
-  const uint64_t kNumTasks = kNumThreads * 19;
-  pool.Run(0, kNumTasks, [&counters](const uint64_t task, const size_t thread) {
-    counters[thread].counter.fetch_add(task);
-  });
+    const uint64_t kNumTasks = kNumThreads * 19;
+    pool.Run(0, kNumTasks,
+             [&counters](const uint64_t task, const size_t thread) {
+               counters[thread].counter.fetch_add(task);
+             });
 
-  uint64_t expected = 0;
-  for (uint64_t i = 0; i < kNumTasks; ++i) {
-    expected += i;
+    uint64_t expected = 0;
+    for (uint64_t i = 0; i < kNumTasks; ++i) {
+      expected += i;
+    }
+
+    for (size_t i = 1; i < kNumThreads; ++i) {
+      counters[0].Assimilate(counters[i]);
+    }
+    HWY_ASSERT_EQ(expected, counters[0].counter.load());
   }
-
-  for (size_t i = 1; i < kNumThreads; ++i) {
-    counters[0].Assimilate(counters[i]);
-  }
-  HWY_ASSERT_EQ(expected, counters[0].counter.load());
 }
 
 }  // namespace

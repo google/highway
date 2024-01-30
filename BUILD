@@ -250,6 +250,7 @@ cc_library(
 cc_library(
     name = "thread_pool",
     hdrs = [
+        "hwy/contrib/thread_pool/futex.h",
         "hwy/contrib/thread_pool/thread_pool.h",
     ],
     compatible_with = [],
