@@ -106,7 +106,7 @@ class Xoshiro {
     return result;
   }
 
-  static constexpr std::uint64_t JUMP[] = {
+  static constexpr std::uint64_t kJump[] = {
       0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa,
       0x39abdc4529b1661c};
 
@@ -120,7 +120,7 @@ class Xoshiro {
     std::uint64_t s2 = 0;
     std::uint64_t s3 = 0;
 
-    for (auto i : JUMP)
+    for (auto i : kJump)
       for (auto b = 0; b < 64; b++) {
         if (i & std::uint64_t{1UL} << b) {
           s0 ^= state_[0];
