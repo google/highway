@@ -167,7 +167,7 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
  public:
   PoolWorker(size_t thread, size_t num_workers) {
     wait_mode_ = PoolWaitMode::kBlock;
-    num_victims_ = HWY_MIN(kMaxVictims, num_workers);
+    num_victims_ = static_cast<uint32_t>(HWY_MIN(kMaxVictims, num_workers));
 
     const Divisor div_workers(static_cast<uint32_t>(num_workers));
 
@@ -178,7 +178,7 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
     const ShuffledIota shuffled_iota(coprime);
 
     // To simplify WorkerRun, our own thread is the first to 'steal' from.
-    victims_[0] = thread;
+    victims_[0] = static_cast<uint32_t>(thread);
     for (uint32_t i = 1; i < num_victims_; ++i) {
       victims_[i] = shuffled_iota.Next(victims_[i - 1], div_workers);
       HWY_DASSERT(victims_[i] != thread);
@@ -539,7 +539,8 @@ static inline void SetThreadName(const char* format, int thread) {
 #if HWY_OS_LINUX
   char buf[16] = {};  // Linux limit, including \0
   const int chars_written = snprintf(buf, sizeof(buf), format, thread);
-  HWY_ASSERT(0 < chars_written && chars_written <= sizeof(buf) - 1);
+  HWY_ASSERT(0 < chars_written &&
+             chars_written <= static_cast<int>(sizeof(buf) - 1));
   HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
 #else
   (void)format;

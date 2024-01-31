@@ -81,7 +81,6 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
                                            std::atomic<uint32_t>& current) {
   const auto acq = std::memory_order_acquire;
 
-  // These implementations return directly:
 #if HWY_ARCH_WASM
   // It is always safe to cast to void.
   volatile void* address = static_cast<volatile void*>(&current);
@@ -93,7 +92,6 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
     HWY_DASSERT(ret >= 0);
     (void)ret;
   }
-  HWY_DASSERT(false);  // unreachable
 
 #elif HWY_OS_LINUX
   // Safe to cast because std::atomic is a standard layout type.
@@ -111,7 +109,29 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
       HWY_DASSERT(errno == EAGAIN);  // otherwise an actual error
     }
   }
-  HWY_DASSERT(false);  // unreachable
+
+#elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
+  // It is always safe to cast to void.
+  volatile void* address = static_cast<volatile void*>(&current);
+  // API is not const-correct, but only loads from the pointer.
+  PVOID pprev = const_cast<void*>(static_cast<const void*>(&prev));
+  const DWORD max_ms = INFINITE;
+  for (;;) {
+    const uint32_t next = current.load(acq);
+    if (next != prev) return next;
+    const BOOL ok = WaitOnAddress(address, pprev, sizeof(prev), max_ms);
+    HWY_DASSERT(ok);
+    (void)ok;
+  }
+
+#elif HWY_OS_APPLE && !defined(HWY_DISABLE_FUTEX)
+  // It is always safe to cast to void.
+  void* address = static_cast<void*>(&current);
+  for (;;) {
+    const uint32_t next = current.load(acq);
+    if (next != prev) return next;
+    __ulock_wait(UL_COMPARE_AND_WAIT, address, prev, 0);
+  }
 
 #elif defined(HWY_FUTEX_SLEEP)
   for (;;) {
@@ -120,34 +140,15 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
     std::this_thread::sleep_for(std::chrono::microseconds(2));
   }
 
-#else  // We will load() at the end.
-
-#if HWY_CXX_LANG >= 202002L
+#elif HWY_CXX_LANG >= 202002L
   current.wait(prev, acq);  // No spurious wakeup.
-
-#elif HWY_OS_APPLE && !defined(HWY_DISABLE_FUTEX)
-  // It is always safe to cast to void.
-  void* address = static_cast<void*>(&current);
-  __ulock_wait(UL_COMPARE_AND_WAIT, address, prev, 0);
-
-#elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
-  // It is always safe to cast to void.
-  volatile void* address = static_cast<volatile void*>(&current);
-  // API is not const-correct, but only loads from the pointer.
-  PVOID pprev = const_cast<void*>(static_cast<const void*>(&prev));
-  const DWORD max_ms = INFINITE;
-  const BOOL ok = WaitOnAddress(address, pprev, sizeof(prev), max_ms);
-  HWY_DASSERT(ok);
-  (void)ok;
-#else
-#error "Logic error, should have reached HWY_FUTEX_SLEEP"
-
-#endif  // HWY_OS_*
-#endif  // not WASM/LINUX/HWY_FUTEX_SLEEP
-
   const uint32_t next = current.load(acq);
   HWY_DASSERT(next != prev);
   return next;
+
+#else
+#error "Logic error, should have reached HWY_FUTEX_SLEEP"
+#endif  // HWY_OS_*
 }  // BlockUntilDifferent
 
 // Wakes all threads, if any, that are waiting because they called
@@ -170,21 +171,22 @@ static inline void WakeAll(std::atomic<uint32_t>& current) {
   HWY_DASSERT(ret >= 0);  // number woken
   (void)ret;
 
-#elif defined(HWY_FUTEX_SLEEP)
-  // Sleep loop does not require wakeup.
-
-#elif HWY_CXX_LANG >= 202002L
-  current.notify_all();
+#elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
+  // It is always safe to cast to void.
+  void* address = static_cast<void*>(&current);
+  WakeByAddressAll(address);
 
 #elif HWY_OS_APPLE && !defined(HWY_DISABLE_FUTEX)
   // It is always safe to cast to void.
   void* address = static_cast<void*>(&current);
   __ulock_wake(UL_COMPARE_AND_WAIT | ULF_WAKE_ALL, address, 0);
 
-#elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
-  // It is always safe to cast to void.
-  void* address = static_cast<void*>(&current);
-  WakeByAddressAll(address);
+#elif defined(HWY_FUTEX_SLEEP)
+  // Sleep loop does not require wakeup.
+
+#elif HWY_CXX_LANG >= 202002L
+  current.notify_all();
+
 #else
 #error "Logic error, should have reached HWY_FUTEX_SLEEP"
 #endif
