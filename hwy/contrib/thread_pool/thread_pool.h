@@ -448,10 +448,6 @@ class ParallelFor {  // 0 bytes
     const size_t num_tasks = static_cast<size_t>(end - begin);
     if (HWY_UNLIKELY(num_tasks == 0)) return false;
 
-    // Store for later retrieval by all workers in WorkerRun. Must happen before
-    // the loop below because tests load this.
-    mem.tasks.Store(closure, begin, end);
-
     // If there are no workers, run all tasks already on the main thread without
     // the overhead of planning.
     if (HWY_UNLIKELY(num_workers <= 1)) {
@@ -460,6 +456,10 @@ class ParallelFor {  // 0 bytes
       }
       return false;
     }
+
+    // Store for later retrieval by all workers in WorkerRun. Must happen after
+    // the loop above because it may be re-entered by concurrent threads.
+    mem.tasks.Store(closure, begin, end);
 
     // Assigning all remainders to the last thread causes imbalance. We instead
     // give one more to each thread whose index is less.
@@ -665,15 +665,16 @@ class ThreadPool {
   // worker processes a few tasks. Thus each `task` is usually a loop.
   //
   // Not thread-safe - concurrent calls to `Run` in the same ThreadPool are
-  // forbidden. We check for that in debug builds.
+  // forbidden unless NumWorkers() == 0. We check for that in debug builds.
   template <class Closure>
   void Run(uint64_t begin, uint64_t end, const Closure& closure) {
     const size_t num_workers = NumWorkers();
     PoolMem& mem = *owner_.Mem();
 
-    HWY_DASSERT(busy_.fetch_add(1) == 0);
-
     if (HWY_LIKELY(ParallelFor::Plan(begin, end, num_workers, closure, mem))) {
+      // Only check if we are going to fork/join.
+      HWY_DASSERT(busy_.fetch_add(1) == 0);
+
       mem.barrier.Reset();
       mem.commands.Broadcast(PoolCommands::kWork);
 
@@ -683,9 +684,9 @@ class ThreadPool {
       mem.barrier.WorkerArrive(thread);
 
       mem.barrier.WaitAll(num_workers);
-    }
 
-    HWY_DASSERT(busy_.fetch_add(-1) == 1);
+      HWY_DASSERT(busy_.fetch_add(-1) == 1);
+    }
   }
 
   // Can pass this as init_closure when no initialization is needed.

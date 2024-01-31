@@ -289,28 +289,40 @@ TEST(ThreadPoolTest, TestDeprecated) {
 TEST(ThreadPoolTest, TestPool) {
   if (HWY_ARCH_WASM) return;  // WASM threading is unreliable
 
+  ThreadPool inner(0);
+
   for (size_t num_threads = 0; num_threads <= 6; num_threads += 3) {
     ThreadPool pool(HWY_MIN(ThreadPool::MaxThreads(), num_threads));
-    PoolMem* mem = &pool.InternalMem();
 
     constexpr uint64_t kMaxTasks = 20;
     std::atomic<uint64_t> mementos[kMaxTasks];
     for (uint64_t num_tasks = 0; num_tasks < kMaxTasks; ++num_tasks) {
       for (uint64_t begin = 0; begin < AdjustedReps(32); ++begin) {
         const uint64_t end = begin + num_tasks;
+        std::atomic<uint64_t> a_begin;
+        std::atomic<uint64_t> a_end;
+        a_begin.store(begin, std::memory_order_release);
+        a_end.store(end, std::memory_order_release);
 
         for (size_t i = 0; i < kMaxTasks; ++i) {
           mementos[i].store(0);
         }
         pool.Run(begin, end,
-                 [mem, &mementos](uint64_t task, size_t /*thread*/) {
-                   uint64_t begin, end;
-                   const void* opaque;
-                   (void)mem->tasks.WorkerGet(begin, end, opaque);
+                 [&a_begin, &a_end, &mementos, &inner](uint64_t task,
+                                                       size_t /*thread*/) {
+                   const uint64_t begin =
+                       a_begin.load(std::memory_order_acquire);
+                   const uint64_t end = a_end.load(std::memory_order_acquire);
                    HWY_ASSERT(begin <= task && task < end);
 
                    // Store mementos ensure we visited each task.
                    mementos[task - begin].store(1000 + task);
+
+                   // Re-entering Run is fine on a 0-worker pool.
+                   inner.Run(begin, end,
+                             [begin, end](uint64_t task, size_t /*thread*/) {
+                               HWY_ASSERT(begin <= task && task < end);
+                             });
                  });
 
         for (uint64_t task = begin; task < end; ++task) {
