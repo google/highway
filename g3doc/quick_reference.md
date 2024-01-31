@@ -513,6 +513,14 @@ from left to right, of the arguments passed to `Create{2-4}`.
 *   <code>V **operator-**(V a, V b)</code>: returns `a[i] - b[i]` (mod 2^bits).
     Currently unavailable on SVE/RVV; use the equivalent `Sub` instead.
 
+*   <code>V **AddSub**(V a, V b)</code>: returns `a[i] - b[i]` in the even lanes
+    and `a[i] + b[i]` in the odd lanes.
+
+    `AddSub(a, b)` is equivalent to `OddEven(Add(a, b), Sub(a, b))` or
+    `Add(a, OddEven(b, Neg(b)))`, but `AddSub(a, b)` is more efficient
+    than `OddEven(Add(a, b), Sub(a, b))` or `Add(a, OddEven(b, Neg(b)))` on some
+    targets.
+
 *   `V`: `{i,f}` \
     <code>V **Neg**(V a)</code>: returns `-a[i]`.
 
@@ -774,11 +782,17 @@ variants are somewhat slower on Arm, and unavailable for integer inputs; if the
 
 *   <code>V **NegMulAdd**(V a, V b, V c)</code>: returns `-a[i] * b[i] + c[i]`.
 
-*   `V`: `{f}` \
-    <code>V **MulSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`.
+*   <code>V **MulSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`.
 
-*   `V`: `{f}` \
-    <code>V **NegMulSub**(V a, V b, V c)</code>: returns `-a[i] * b[i] - c[i]`.
+*   <code>V **NegMulSub**(V a, V b, V c)</code>: returns `-a[i] * b[i] - c[i]`.
+
+*   <code>V **MulAddSub**(V a, V b, V c)</code>: returns `a[i] * b[i] - c[i]`
+    in the even lanes and `a[i] * b[i] + c[i]` in the odd lanes.
+
+    `MulAddSub(a, b, c)` is equivalent to
+    `OddEven(MulAdd(a, b, c), MulSub(a, b, c))` or
+    `MulAddSub(a, b, OddEven(c, Neg(c))`, but `MulSub(a, b, c)` is more
+    efficient on some targets (including AVX2/AVX3).
 
 #### Masked arithmetic
 

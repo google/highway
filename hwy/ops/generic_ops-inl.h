@@ -410,6 +410,37 @@ HWY_API V InterleaveWholeLower(V a, V b) {
 }
 #endif  // HWY_TARGET != HWY_SCALAR
 
+// ------------------------------ AddSub
+
+template <class V, HWY_IF_LANES_D(DFromV<V>, 1)>
+HWY_API V AddSub(V a, V b) {
+  // AddSub(a, b) for a one-lane vector is equivalent to Sub(a, b)
+  return Sub(a, b);
+}
+
+// AddSub for F32x2, F32x4, and F64x2 vectors is implemented in x86_128-inl.h on
+// SSSE3/SSE4/AVX2/AVX3
+
+// AddSub for F32x8 and F64x4 vectors is implemented in x86_256-inl.h on
+// AVX2/AVX3
+template <class V, HWY_IF_V_SIZE_GT_V(V, ((HWY_TARGET <= HWY_SSSE3 &&
+                                           hwy::IsFloat3264<TFromV<V>>())
+                                              ? 32
+                                              : sizeof(TFromV<V>)))>
+HWY_API V AddSub(V a, V b) {
+  using D = DFromV<decltype(a)>;
+  using T = TFromD<D>;
+  using TNegate = If<!hwy::IsSigned<T>(), MakeSigned<T>, T>;
+
+  const D d;
+  const Rebind<TNegate, D> d_negate;
+
+  // Negate the even lanes of b
+  const auto negated_even_b = OddEven(b, BitCast(d, Neg(BitCast(d_negate, b))));
+
+  return Add(a, negated_even_b);
+}
+
 // ------------------------------ MaskedAddOr etc.
 #if (defined(HWY_NATIVE_MASKED_ARITH) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASKED_ARITH
@@ -3833,17 +3864,83 @@ HWY_API V operator*(V x, V y) {
 #define HWY_NATIVE_INT_FMA
 #endif
 
-template <class V, HWY_IF_NOT_FLOAT_V(V)>
+#ifdef HWY_NATIVE_INT_FMSUB
+#undef HWY_NATIVE_INT_FMSUB
+#else
+#define HWY_NATIVE_INT_FMSUB
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
 HWY_API V MulAdd(V mul, V x, V add) {
   return Add(Mul(mul, x), add);
 }
 
-template <class V, HWY_IF_NOT_FLOAT_V(V)>
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
 HWY_API V NegMulAdd(V mul, V x, V add) {
   return Sub(add, Mul(mul, x));
 }
 
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MulSub(V mul, V x, V sub) {
+  return Sub(Mul(mul, x), sub);
+}
 #endif  // HWY_NATIVE_INT_FMA
+
+// ------------------------------ Integer MulSub / NegMulSub
+#if (defined(HWY_NATIVE_INT_FMSUB) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_INT_FMSUB
+#undef HWY_NATIVE_INT_FMSUB
+#else
+#define HWY_NATIVE_INT_FMSUB
+#endif
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MulSub(V mul, V x, V sub) {
+  const DFromV<decltype(mul)> d;
+  const RebindToSigned<decltype(d)> di;
+  return MulAdd(mul, x, BitCast(d, Neg(BitCast(di, sub))));
+}
+
+#endif  // HWY_NATIVE_INT_FMSUB
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V NegMulSub(V mul, V x, V sub) {
+  const DFromV<decltype(mul)> d;
+  const RebindToSigned<decltype(d)> di;
+
+  return BitCast(d, Neg(BitCast(di, MulAdd(mul, x, sub))));
+}
+
+// ------------------------------ MulAddSub
+
+// MulAddSub(mul, x, sub_or_add) for a 1-lane vector is equivalent to
+// MulSub(mul, x, sub_or_add)
+template <class V, HWY_IF_LANES_D(DFromV<V>, 1)>
+HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
+  return MulSub(mul, x, sub_or_add);
+}
+
+// MulAddSub for F16/F32/F64 vectors with 2 or more lanes on
+// SSSE3/SSE4/AVX2/AVX3 is implemented in x86_128-inl.h, x86_256-inl.h, and
+// x86_512-inl.h
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 1),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | ((HWY_TARGET <= HWY_SSSE3 &&
+                                                 hwy::IsFloat<TFromV<V>>())
+                                                    ? 0
+                                                    : ((1 << 2) | (1 << 4) |
+                                                       (1 << 8))))>
+HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
+  using D = DFromV<V>;
+  using T = TFromD<D>;
+  using TNegate = If<!IsSigned<T>(), MakeSigned<T>, T>;
+
+  const D d;
+  const Rebind<TNegate, D> d_negate;
+
+  const auto add =
+      OddEven(sub_or_add, BitCast(d, Neg(BitCast(d_negate, sub_or_add))));
+  return MulAdd(mul, x, add);
+}
 
 // ------------------------------ Integer division
 #if (defined(HWY_NATIVE_INT_DIV) == defined(HWY_TARGET_TOGGLE))

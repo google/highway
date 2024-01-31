@@ -76,6 +76,33 @@ HWY_NOINLINE void TestAllPlusMinus() {
   ForIntegerTypes(ForPartialVectors<TestPlusMinusOverflow>());
 }
 
+struct TestAddSub {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const auto v2 = Iota(d, 2);
+    const auto v4 = Iota(d, 4);
+
+    const size_t N = Lanes(d);
+    auto lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(lanes);
+    for (size_t i = 0; i < N; ++i) {
+      lanes[i] = ConvertScalarTo<T>(((i & 1) == 0) ? 2 : ((4 + i) + (2 + i)));
+    }
+    HWY_ASSERT_VEC_EQ(d, lanes.get(), AddSub(v4, v2));
+
+    for (size_t i = 0; i < N; ++i) {
+      if ((i & 1) == 0) {
+        lanes[i] = ConvertScalarTo<T>(-2);
+      }
+    }
+    HWY_ASSERT_VEC_EQ(d, lanes.get(), AddSub(v2, v4));
+  }
+};
+
+HWY_NOINLINE void TestAllAddSub() {
+  ForAllTypes(ForPartialVectors<TestAddSub>());
+}
+
 struct TestUnsignedSaturatingArithmetic {
   template <typename T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
@@ -590,6 +617,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyArithmeticTest);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllPlusMinus);
+HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAddSub);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatingArithmetic);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAverage);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllAbs);
