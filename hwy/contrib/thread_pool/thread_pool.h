@@ -311,7 +311,6 @@ class PoolCommands {  // 16 bytes
  private:
   static HWY_INLINE uint32_t SpinUntilDifferent(
       const uint32_t prev_seq_cmd, std::atomic<uint32_t>& current) {
-    HWY_UNROLL(1)
     for (;;) {
       hwy::Pause();
       const uint32_t seq_cmd = current.load(std::memory_order_acquire);
@@ -505,7 +504,6 @@ class ParallelFor {  // 0 bytes
 
       // Until all of other_worker's work is done:
       const uint64_t end = other_worker->WorkerGetEnd();
-      HWY_UNROLL(1)
       for (;;) {
         // On x86 this generates a LOCK prefix, but that is only expensive if
         // there is actually contention, which is unlikely because we shard the

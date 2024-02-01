@@ -210,6 +210,51 @@ cc_library(
 )
 
 cc_library(
+    name = "nanobenchmark",
+    srcs = [
+        "hwy/nanobenchmark.cc",
+        "hwy/timer.cc",
+    ],
+    hdrs = [
+        "hwy/nanobenchmark.h",
+        "hwy/robust_statistics.h",
+        "hwy/timer.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    local_defines = ["hwy_EXPORTS"],
+    textual_hdrs = [
+        "hwy/timer-inl.h",
+    ],
+    deps = [":hwy"],
+)
+
+cc_library(
+    name = "profiler",
+    hdrs = [
+        "hwy/profiler.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        # "//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_binary(
+    name = "profiler_example",
+    srcs = ["hwy/examples/profiler_example.cc"],
+    copts = COPTS,
+    deps = [
+        ":hwy",
+        ":nanobenchmark",
+        ":profiler",
+    ],
+)
+
+cc_library(
     name = "algo",
     compatible_with = [],
     copts = COPTS,
@@ -331,26 +376,6 @@ cc_library(
     deps = [
         ":hwy",
     ],
-)
-
-cc_library(
-    name = "nanobenchmark",
-    srcs = [
-        "hwy/nanobenchmark.cc",
-        "hwy/timer.cc",
-    ],
-    hdrs = [
-        "hwy/nanobenchmark.h",
-        "hwy/robust_statistics.h",
-        "hwy/timer.h",
-    ],
-    compatible_with = [],
-    copts = COPTS,
-    local_defines = ["hwy_EXPORTS"],
-    textual_hdrs = [
-        "hwy/timer-inl.h",
-    ],
-    deps = [":hwy"],
 )
 
 cc_binary(
