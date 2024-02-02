@@ -167,7 +167,7 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
  public:
   PoolWorker(size_t thread, size_t num_workers) {
     wait_mode_ = PoolWaitMode::kBlock;
-    num_victims_ = HWY_MIN(kMaxVictims, num_workers);
+    num_victims_ = static_cast<uint32_t>(HWY_MIN(kMaxVictims, num_workers));
 
     const Divisor div_workers(static_cast<uint32_t>(num_workers));
 
@@ -178,7 +178,7 @@ class PoolWorker {  // HWY_ALIGNMENT bytes
     const ShuffledIota shuffled_iota(coprime);
 
     // To simplify WorkerRun, our own thread is the first to 'steal' from.
-    victims_[0] = thread;
+    victims_[0] = static_cast<uint32_t>(thread);
     for (uint32_t i = 1; i < num_victims_; ++i) {
       victims_[i] = shuffled_iota.Next(victims_[i - 1], div_workers);
       HWY_DASSERT(victims_[i] != thread);
@@ -311,7 +311,6 @@ class PoolCommands {  // 16 bytes
  private:
   static HWY_INLINE uint32_t SpinUntilDifferent(
       const uint32_t prev_seq_cmd, std::atomic<uint32_t>& current) {
-    HWY_UNROLL(1)
     for (;;) {
       hwy::Pause();
       const uint32_t seq_cmd = current.load(std::memory_order_acquire);
@@ -448,10 +447,6 @@ class ParallelFor {  // 0 bytes
     const size_t num_tasks = static_cast<size_t>(end - begin);
     if (HWY_UNLIKELY(num_tasks == 0)) return false;
 
-    // Store for later retrieval by all workers in WorkerRun. Must happen before
-    // the loop below because tests load this.
-    mem.tasks.Store(closure, begin, end);
-
     // If there are no workers, run all tasks already on the main thread without
     // the overhead of planning.
     if (HWY_UNLIKELY(num_workers <= 1)) {
@@ -460,6 +455,10 @@ class ParallelFor {  // 0 bytes
       }
       return false;
     }
+
+    // Store for later retrieval by all workers in WorkerRun. Must happen after
+    // the loop above because it may be re-entered by concurrent threads.
+    mem.tasks.Store(closure, begin, end);
 
     // Assigning all remainders to the last thread causes imbalance. We instead
     // give one more to each thread whose index is less.
@@ -505,7 +504,6 @@ class ParallelFor {  // 0 bytes
 
       // Until all of other_worker's work is done:
       const uint64_t end = other_worker->WorkerGetEnd();
-      HWY_UNROLL(1)
       for (;;) {
         // On x86 this generates a LOCK prefix, but that is only expensive if
         // there is actually contention, which is unlikely because we shard the
@@ -539,7 +537,8 @@ static inline void SetThreadName(const char* format, int thread) {
 #if HWY_OS_LINUX
   char buf[16] = {};  // Linux limit, including \0
   const int chars_written = snprintf(buf, sizeof(buf), format, thread);
-  HWY_ASSERT(0 < chars_written && chars_written <= sizeof(buf) - 1);
+  HWY_ASSERT(0 < chars_written &&
+             chars_written <= static_cast<int>(sizeof(buf) - 1));
   HWY_ASSERT(0 == pthread_setname_np(pthread_self(), buf));
 #else
   (void)format;
@@ -664,15 +663,16 @@ class ThreadPool {
   // worker processes a few tasks. Thus each `task` is usually a loop.
   //
   // Not thread-safe - concurrent calls to `Run` in the same ThreadPool are
-  // forbidden. We check for that in debug builds.
+  // forbidden unless NumWorkers() == 0. We check for that in debug builds.
   template <class Closure>
   void Run(uint64_t begin, uint64_t end, const Closure& closure) {
     const size_t num_workers = NumWorkers();
     PoolMem& mem = *owner_.Mem();
 
-    HWY_DASSERT(busy_.fetch_add(1) == 0);
-
     if (HWY_LIKELY(ParallelFor::Plan(begin, end, num_workers, closure, mem))) {
+      // Only check if we are going to fork/join.
+      HWY_DASSERT(busy_.fetch_add(1) == 0);
+
       mem.barrier.Reset();
       mem.commands.Broadcast(PoolCommands::kWork);
 
@@ -682,9 +682,9 @@ class ThreadPool {
       mem.barrier.WorkerArrive(thread);
 
       mem.barrier.WaitAll(num_workers);
-    }
 
-    HWY_DASSERT(busy_.fetch_add(-1) == 1);
+      HWY_DASSERT(busy_.fetch_add(-1) == 1);
+    }
   }
 
   // Can pass this as init_closure when no initialization is needed.
