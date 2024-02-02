@@ -101,7 +101,7 @@ void GetBrandString(char* cpu100) {
   // Check if brand string is supported (it is on all reasonable Intel/AMD)
   Cpuid(0x80000000U, 0, abcd);
   if (abcd[0] < 0x80000004U) {
-    cpu100[0] = 0;
+    cpu100[0] = '\0';
     return;
   }
 
@@ -109,7 +109,7 @@ void GetBrandString(char* cpu100) {
     Cpuid(static_cast<uint32_t>(0x80000002U + i), 0, abcd);
     CopyBytes<sizeof(abcd)>(&abcd[0], cpu100 + i * 16);  // not same size
   }
-  cpu100[48] = 0;
+  cpu100[48] = '\0';
 }
 
 #endif  // HWY_ARCH_X86
@@ -128,7 +128,8 @@ HWY_DLLEXPORT bool HaveTimerStop(char* cpu100) {
     return false;
   }
 #endif
-  (void)cpu100;
+  cpu100[0] = '?';
+  cpu100[1] = '\0';
   return true;
 }
 
