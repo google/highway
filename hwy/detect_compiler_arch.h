@@ -263,6 +263,13 @@
 #define HWY_OS_LINUX 0
 #endif
 
+// iOS or Mac
+#if defined(__APPLE__)
+#define HWY_OS_APPLE 1
+#else
+#define HWY_OS_APPLE 0
+#endif
+
 //------------------------------------------------------------------------------
 // Endianness
 

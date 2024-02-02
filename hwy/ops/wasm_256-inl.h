@@ -354,7 +354,8 @@ HWY_API Vec256<T> AbsDiff(const Vec256<T> a, const Vec256<T> b) {
 }
 
 // ------------------------------ Floating-point division
-template <typename T>
+// generic_ops takes care of integer T.
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec256<T> operator/(Vec256<T> a, const Vec256<T> b) {
   a.v0 /= b.v0;
   a.v1 /= b.v1;

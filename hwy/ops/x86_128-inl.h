@@ -884,6 +884,20 @@ HWY_API Mask128<double, N> MaskFromVec(const Vec128<double, N> v) {
 template <class D>
 using MFromD = decltype(MaskFromVec(VFromD<D>()));
 
+// ------------------------------ MaskFalse (MFromD)
+
+#ifdef HWY_NATIVE_MASK_FALSE
+#undef HWY_NATIVE_MASK_FALSE
+#else
+#define HWY_NATIVE_MASK_FALSE
+#endif
+
+// Generic for all vector lengths
+template <class D>
+HWY_API MFromD<D> MaskFalse(D /*d*/) {
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(0)};
+}
+
 // ------------------------------ PromoteMaskTo (MFromD)
 
 #ifdef HWY_NATIVE_PROMOTE_MASK_TO

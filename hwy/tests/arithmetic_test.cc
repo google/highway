@@ -430,10 +430,14 @@ struct TestIntegerDiv {
     const auto v2 = Set(d, static_cast<T>(Unpredictable1() + 1));
     const auto v3 = Set(d, static_cast<T>(Unpredictable1() + 2));
 
-    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMin<T>() / 2)), Div(vmin, v2));
-    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMin<T>() / 3)), Div(vmin, v3));
-    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMax<T>() / 2)), Div(vmax, v2));
-    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMax<T>() / 3)), Div(vmax, v3));
+    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMin<T>() / 2)),
+                      Div(vmin, v2));
+    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMin<T>() / 3)),
+                      Div(vmin, v3));
+    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMax<T>() / 2)),
+                      Div(vmax, v2));
+    HWY_ASSERT_VEC_EQ(d, Set(d, static_cast<T>(LimitsMax<T>() / 3)),
+                      Div(vmax, v3));
 
     auto in1 = AllocateAligned<T>(N);
     auto in2 = AllocateAligned<T>(N);
