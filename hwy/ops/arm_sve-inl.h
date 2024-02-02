@@ -343,6 +343,17 @@ svbool_t MakeMask(D d) {
 
 }  // namespace detail
 
+#ifdef HWY_NATIVE_MASK_FALSE
+#undef HWY_NATIVE_MASK_FALSE
+#else
+#define HWY_NATIVE_MASK_FALSE
+#endif
+
+template <class D>
+HWY_API svbool_t MaskFalse(const D /*d*/) {
+  return detail::PFalse();
+}
+
 // ================================================== INIT
 
 // ------------------------------ Set

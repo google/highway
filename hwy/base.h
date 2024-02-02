@@ -2414,6 +2414,7 @@ constexpr inline size_t RoundUpTo(size_t what, size_t align) {
 
 // Undefined results for x == 0.
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
+  HWY_DASSERT(x != 0);
 #if HWY_COMPILER_MSVC
   unsigned long index;  // NOLINT
   _BitScanForward(&index, x);
@@ -2424,6 +2425,7 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
 }
 
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero64(const uint64_t x) {
+  HWY_DASSERT(x != 0);
 #if HWY_COMPILER_MSVC
 #if HWY_ARCH_X86_64
   unsigned long index;  // NOLINT
@@ -2449,6 +2451,7 @@ HWY_API size_t Num0BitsBelowLS1Bit_Nonzero64(const uint64_t x) {
 
 // Undefined results for x == 0.
 HWY_API size_t Num0BitsAboveMS1Bit_Nonzero32(const uint32_t x) {
+  HWY_DASSERT(x != 0);
 #if HWY_COMPILER_MSVC
   unsigned long index;  // NOLINT
   _BitScanReverse(&index, x);
@@ -2459,6 +2462,7 @@ HWY_API size_t Num0BitsAboveMS1Bit_Nonzero32(const uint32_t x) {
 }
 
 HWY_API size_t Num0BitsAboveMS1Bit_Nonzero64(const uint64_t x) {
+  HWY_DASSERT(x != 0);
 #if HWY_COMPILER_MSVC
 #if HWY_ARCH_X86_64
   unsigned long index;  // NOLINT

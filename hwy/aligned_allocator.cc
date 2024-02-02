@@ -36,9 +36,11 @@ constexpr size_t kAlignment = HWY_ALIGNMENT;
 #endif
 
 #if HWY_ARCH_X86
-// On x86, aliasing can only occur at multiples of 2K, but that's too wasteful
-// if this is used for single-vector allocations. 256 is more reasonable.
-constexpr size_t kAlias = kAlignment * 4;
+// On x86, aliasing can only occur at multiples of 2K. To reduce the chance of
+// allocations being equal mod 2K, we round up to kAlias and add a cyclic
+// offset which is a multiple of kAlignment. Rounding up to only 1K decreases
+// the number of alias-free allocations, but also wastes less memory.
+constexpr size_t kAlias = HWY_MAX(kAlignment, 1024);
 #else
 constexpr size_t kAlias = kAlignment;
 #endif
@@ -52,9 +54,10 @@ struct AllocationHeader {
 
 // Returns a 'random' (cyclical) offset for AllocateAlignedBytes.
 size_t NextAlignedOffset() {
-  static std::atomic<uint32_t> next{0};
-  constexpr uint32_t kGroups = kAlias / kAlignment;
-  const uint32_t group = next.fetch_add(1, std::memory_order_relaxed) % kGroups;
+  static std::atomic<size_t> next{0};
+  static_assert(kAlias % kAlignment == 0, "kAlias must be a multiple");
+  constexpr size_t kGroups = kAlias / kAlignment;
+  const size_t group = next.fetch_add(1, std::memory_order_relaxed) % kGroups;
   const size_t offset = kAlignment * group;
   HWY_DASSERT((offset % kAlignment == 0) && offset <= kAlias);
   return offset;
@@ -79,8 +82,7 @@ HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
   // To avoid wasting space, the header resides at the end of `unused`,
   // which therefore cannot be empty (offset == 0).
   if (offset == 0) {
-    offset = kAlignment;  // = RoundUpTo(sizeof(AllocationHeader), kAlignment)
-    static_assert(sizeof(AllocationHeader) <= kAlignment, "Else: round up");
+    offset = RoundUpTo(sizeof(AllocationHeader), kAlignment);
   }
 
   const size_t allocated_size = kAlias + offset + payload_size;
@@ -99,10 +101,12 @@ HWY_DLLEXPORT void* AllocateAlignedBytes(const size_t payload_size,
   aligned &= ~(kAlias - 1);
 
   const uintptr_t payload = aligned + offset;  // still aligned
+  HWY_DASSERT(payload % kAlignment == 0);
 
   // Stash `allocated` and payload_size inside header for FreeAlignedBytes().
   // The allocated_size can be reconstructed from the payload_size.
   AllocationHeader* header = reinterpret_cast<AllocationHeader*>(payload) - 1;
+  HWY_DASSERT(reinterpret_cast<uintptr_t>(header) >= aligned);
   header->allocated = allocated;
   header->payload_size = payload_size;
 

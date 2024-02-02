@@ -37,14 +37,14 @@ HWY_NOINLINE void MatVec(const T* HWY_RESTRICT mat, const T* HWY_RESTRICT vec,
   // to avoid false sharing (>= 64). 128 is better than 256. 512 has too little
   // parallelization potential.
   constexpr size_t kChunkSize = 64 / sizeof(T);
-  const uint32_t num_chunks = kOuter / kChunkSize;
+  const uint64_t num_chunks = static_cast<uint64_t>(kOuter / kChunkSize);
 
   const ScalableTag<T> d;
   const size_t N = Lanes(d);
   // Required for Stream loop, otherwise we might have partial vectors.
   HWY_DASSERT(kChunkSize >= N);
-  pool.Run(0, num_chunks, &hwy::ThreadPool::NoInit,
-           [&](const uint32_t chunk, size_t /*thread*/) HWY_ATTR {
+  pool.Run(0, num_chunks,
+           [&](const uint64_t chunk, size_t /*thread*/) HWY_ATTR {
              // MSVC workaround: duplicate to ensure constexpr.
              constexpr size_t kChunkSize = 64 / sizeof(T);
              // Software write-combining to avoid cache pollution from out.
@@ -54,7 +54,7 @@ HWY_NOINLINE void MatVec(const T* HWY_RESTRICT mat, const T* HWY_RESTRICT vec,
 
              // Only handle entire chunks here because the Stream is not masked.
              // Remaining rows are handled after the pool.Run.
-             const size_t begin = chunk * kChunkSize;
+             const size_t begin = static_cast<size_t>(chunk * kChunkSize);
              for (size_t idx_row = 0; idx_row < kChunkSize; ++idx_row) {
                auto sum0 = Zero(d);
                auto sum1 = Zero(d);
@@ -144,7 +144,7 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
   // to avoid false sharing (>= 64). 128 is better than 256. 512 has too little
   // parallelization potential.
   constexpr size_t kChunkSize = 64 / sizeof(float);
-  const uint32_t num_chunks = kOuter / kChunkSize;
+  const uint64_t num_chunks = static_cast<uint64_t>(kOuter / kChunkSize);
 
   const ScalableTag<float> d;
   const Repartition<hwy::bfloat16_t, decltype(d)> d16;
@@ -157,8 +157,8 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
   const size_t N = Lanes(d);
   // Required for Stream loop, otherwise we might have partial vectors.
   HWY_DASSERT(kChunkSize >= N);
-  pool.Run(0, num_chunks, &hwy::ThreadPool::NoInit,
-           [&](const uint32_t chunk, size_t /*thread*/) HWY_ATTR {
+  pool.Run(0, num_chunks,
+           [&](const uint64_t chunk, size_t /*thread*/) HWY_ATTR {
              // MSVC workaround: duplicate to ensure constexpr.
              constexpr size_t kChunkSize = 64 / sizeof(float);
              // Software write-combining to avoid cache pollution from out.
@@ -168,7 +168,7 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
 
              // Only handle entire chunks here because the Stream is not masked.
              // Remaining rows are handled after the pool.Run.
-             const size_t begin = chunk * kChunkSize;
+             const size_t begin = static_cast<size_t>(chunk * kChunkSize);
              for (size_t idx_row = 0; idx_row < kChunkSize; ++idx_row) {
                auto sum0 = Zero(d);
                auto sum1 = Zero(d);
@@ -222,8 +222,8 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
                sum0 = Add(sum0, sum1);
                sum0 = Add(sum0, sum2);
                buf[idx_row] = ReduceSum(d, sum0);
-             }                   // idx_row
-             HWY_UNROLL(4)       // 1..4 iterations
+             }  // idx_row
+             HWY_UNROLL(4)  // 1..4 iterations
              for (size_t i = 0; i != kChunkSize; i += N) {
                Stream(Load(d, buf + i), d, out + begin + i);
              }
@@ -263,7 +263,7 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
   // to avoid false sharing (>= 64). 128 is better than 256. 512 has too little
   // parallelization potential.
   constexpr size_t kChunkSize = 64 / sizeof(bfloat16_t);
-  const uint32_t num_chunks = kOuter / kChunkSize;
+  const uint64_t num_chunks = static_cast<uint64_t>(kOuter / kChunkSize);
 
   const ScalableTag<float> df;
   const Repartition<hwy::bfloat16_t, decltype(df)> d16;
@@ -271,8 +271,8 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
   const size_t N = Lanes(d16);
   // Required for Stream loop, otherwise we might have partial vectors.
   HWY_DASSERT(kChunkSize >= N);
-  pool.Run(0, num_chunks, &hwy::ThreadPool::NoInit,
-           [&](const uint32_t chunk, size_t /*thread*/) HWY_ATTR {
+  pool.Run(0, num_chunks,
+           [&](const uint64_t chunk, size_t /*thread*/) HWY_ATTR {
              // MSVC workaround: duplicate to ensure constexpr.
              constexpr size_t kChunkSize = 64 / sizeof(bfloat16_t);
              // Software write-combining to avoid cache pollution from out.
@@ -282,7 +282,7 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
 
              // Only handle entire chunks here because the Stream is not masked.
              // Remaining rows are handled after the pool.Run.
-             const size_t begin = chunk * kChunkSize;
+             const size_t begin = static_cast<size_t>(chunk * kChunkSize);
              for (size_t idx_row = 0; idx_row < kChunkSize; ++idx_row) {
                auto sum0 = Zero(df);
                auto sum1 = Zero(df);
@@ -320,7 +320,7 @@ HWY_NOINLINE void MatVec(const hwy::bfloat16_t* HWY_RESTRICT mat,
                sum2 = Add(sum2, sum3);
                sum0 = Add(sum0, sum2);
                buf[idx_row] = ReduceSum(df, sum0);
-             }              // idx_row
+             }  // idx_row
              HWY_UNROLL(4)  // 1..4 iterations
              for (size_t i = 0; i != kChunkSize; i += N / 2) {
                Stream(Load(df, buf + i), df, out + begin + i);
