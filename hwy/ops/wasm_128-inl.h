@@ -1071,25 +1071,25 @@ HWY_API Vec128<T, N> AbsDiff(const Vec128<T, N> a, const Vec128<T, N> b) {
 
 // ------------------------------ Floating-point multiply-add variants
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> MulAdd(Vec128<T, N> mul, Vec128<T, N> x,
                             Vec128<T, N> add) {
   return mul * x + add;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
                                Vec128<T, N> add) {
   return add - mul * x;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> MulSub(Vec128<T, N> mul, Vec128<T, N> x,
                             Vec128<T, N> sub) {
   return mul * x - sub;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> NegMulSub(Vec128<T, N> mul, Vec128<T, N> x,
                                Vec128<T, N> sub) {
   return Neg(mul) * x - sub;

@@ -458,36 +458,76 @@ struct TestMulSub {
     const size_t N = Lanes(d);
     auto expected = AllocateAligned<T>(N);
 
+    // Unlike RebindToSigned, we want to leave floating-point unchanged.
+    // This allows Neg for unsigned types.
+    const Rebind<If<IsFloat<T>(), T, MakeSigned<T>>, D> dif;
+
     HWY_ASSERT_VEC_EQ(d, k0, MulSub(k0, k0, k0));
     HWY_ASSERT_VEC_EQ(d, kNeg0, NegMulSub(k0, k0, k0));
 
     for (size_t i = 0; i < N; ++i) {
-      expected[i] = -ConvertScalarTo<T>(i + 2);
+      expected[i] = ConvertScalarTo<T>(-static_cast<int>(i + 2));
     }
+    const auto neg_k0 = BitCast(d, Neg(BitCast(dif, k0)));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(k0, v1, v2));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v1, k0, v2));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(Neg(k0), v1, v2));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v1, Neg(k0), v2));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(neg_k0, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v1, neg_k0, v2));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] = ConvertScalarTo<T>((i + 1) * (i + 2));
     }
+    const auto neg_v1 = BitCast(d, Neg(BitCast(dif, v1)));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v1, v2, k0));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v2, v1, k0));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(Neg(v1), v2, k0));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v2, Neg(v1), k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(neg_v1, v2, k0));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v2, neg_v1, k0));
 
     for (size_t i = 0; i < N; ++i) {
       expected[i] = ConvertScalarTo<T>((i + 2) * (i + 2) - (1 + i));
     }
+    const auto neg_v2 = BitCast(d, Neg(BitCast(dif, v2)));
     HWY_ASSERT_VEC_EQ(d, expected.get(), MulSub(v2, v2, v1));
-    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(Neg(v2), v2, v1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(neg_v2, v2, v1));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), NegMulSub(v2, neg_v2, v1));
+  }
+};
+
+struct TestMulAddSub {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const Vec<D> k0 = Zero(d);
+    const Vec<D> v1 = Iota(d, 1);
+    const Vec<D> v2 = Iota(d, 2);
+
+    // Unlike RebindToSigned, we want to leave floating-point unchanged.
+    // This allows Neg for unsigned types.
+    const Rebind<If<IsFloat<T>(), T, MakeSigned<T>>, D> dif;
+    const Vec<D> neg_v2 = BitCast(d, Neg(BitCast(dif, v2)));
+
+    const size_t N = Lanes(d);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(expected);
+
+    HWY_ASSERT_VEC_EQ(d, k0, MulAddSub(k0, k0, k0));
+
+    const auto v2_negated_if_even = OddEven(v2, neg_v2);
+    HWY_ASSERT_VEC_EQ(d, v2_negated_if_even, MulAddSub(k0, v1, v2));
+    HWY_ASSERT_VEC_EQ(d, v2_negated_if_even, MulAddSub(v1, k0, v2));
+
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] =
+          ConvertScalarTo<T>(((i & 1) == 0) ? ((i + 2) * (i + 2) - (i + 1))
+                                            : ((i + 2) * (i + 2) + (i + 1)));
+    }
+    HWY_ASSERT_VEC_EQ(d, expected.get(), MulAddSub(v2, v2, v1));
   }
 };
 
 HWY_NOINLINE void TestAllMulAdd() {
   ForAllTypes(ForPartialVectors<TestMulAdd>());
-  ForFloatTypes(ForPartialVectors<TestMulSub>());
+  ForAllTypes(ForPartialVectors<TestMulSub>());
+  ForAllTypes(ForPartialVectors<TestMulAddSub>());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

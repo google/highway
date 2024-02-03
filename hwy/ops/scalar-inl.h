@@ -782,23 +782,23 @@ HWY_API Vec1<T> AbsDiff(const Vec1<T> a, const Vec1<T> b) {
 
 // ------------------------------ Floating-point multiply-add variants
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> MulAdd(const Vec1<T> mul, const Vec1<T> x, const Vec1<T> add) {
   return mul * x + add;
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> NegMulAdd(const Vec1<T> mul, const Vec1<T> x,
                           const Vec1<T> add) {
   return add - mul * x;
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> MulSub(const Vec1<T> mul, const Vec1<T> x, const Vec1<T> sub) {
   return mul * x - sub;
 }
 
-template <typename T>
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> NegMulSub(const Vec1<T> mul, const Vec1<T> x,
                           const Vec1<T> sub) {
   return Neg(mul) * x - sub;

@@ -1012,7 +1012,7 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 // x86 compiler supports _Float16, not necessarily with operators.
 // Avoid clang-cl because it lacks __extendhfsf2.
 #if HWY_ARCH_X86 && defined(__SSE2__) &&                      \
-    ((HWY_COMPILER_CLANG >= 1600 && !HWY_COMPILER_CLANGCL) || \
+    ((HWY_COMPILER_CLANG >= 1500 && !HWY_COMPILER_CLANGCL) || \
      HWY_COMPILER_GCC_ACTUAL >= 1200)
 #define HWY_SSE2_HAVE_F16_TYPE 1
 #else
@@ -1030,8 +1030,12 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 
 #ifndef HWY_HAVE_SCALAR_F16_OPERATORS
 // Recent enough compiler also has operators.
-#if HWY_HAVE_SCALAR_F16_TYPE && \
-    (HWY_COMPILER_CLANG >= 1800 || HWY_COMPILER_GCC_ACTUAL >= 1300)
+#if HWY_HAVE_SCALAR_F16_TYPE &&                                       \
+    (HWY_COMPILER_CLANG >= 1800 || HWY_COMPILER_GCC_ACTUAL >= 1200 || \
+     (HWY_COMPILER_CLANG >= 1500 && !HWY_COMPILER_CLANGCL &&          \
+      !defined(_WIN32)) ||                                            \
+     (HWY_ARCH_ARM &&                                                 \
+      (HWY_COMPILER_CLANG >= 900 || HWY_COMPILER_GCC_ACTUAL >= 800)))
 #define HWY_HAVE_SCALAR_F16_OPERATORS 1
 #else
 #define HWY_HAVE_SCALAR_F16_OPERATORS 0
@@ -1039,6 +1043,18 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 #endif  // HWY_HAVE_SCALAR_F16_OPERATORS
 
 namespace detail {
+
+template <class T, class TVal = RemoveCvRef<T>, bool = IsSpecialFloat<TVal>()>
+struct SpecialFloatUnwrapArithOpOperandT {};
+
+template <class T, class TVal>
+struct SpecialFloatUnwrapArithOpOperandT<T, TVal, false> {
+  using type = T;
+};
+
+template <class T>
+using SpecialFloatUnwrapArithOpOperand =
+    typename SpecialFloatUnwrapArithOpOperandT<T>::type;
 
 template <class T, class TVal = RemoveCvRef<T>>
 struct NativeSpecialFloatToWrapperT {
@@ -1155,21 +1171,38 @@ struct alignas(2) float16_t {
 
   // Reduce clutter by generating `operator+` and `operator+=` etc. Note that
   // we cannot token-paste `operator` and `+`, so pass it in as `op_func`.
-#define HWY_FLOAT16_BINARY_OP(op, op_func, assign_func)                  \
-  HWY_CXX14_CONSTEXPR float16_t op_func(const float16_t& rhs)            \
-      const noexcept(noexcept(DeclVal<Native>() op DeclVal<Native>())) { \
-    return float16_t(static_cast<Native>(native op rhs.native));         \
-  }                                                                      \
-  template <typename T, HWY_IF_OP_CASTABLE(op, T, Native)>               \
-  HWY_CXX14_CONSTEXPR float16_t op_func(const T& rhs)                    \
-      const noexcept(noexcept(DeclVal<Native>() op DeclVal<T>())) {      \
-    return float16_t(static_cast<Native>(native op rhs));                \
-  }                                                                      \
-  hwy::float16_t& assign_func(const hwy::float16_t& rhs) noexcept(       \
-      noexcept(native op static_cast<Native>(rhs))) {                    \
-    native = static_cast<Native>(native op static_cast<Native>(rhs));    \
-    return *this;                                                        \
+#define HWY_FLOAT16_BINARY_OP(op, op_func, assign_func)                      \
+  constexpr float16_t op_func(const float16_t& rhs) const noexcept {         \
+    return float16_t(static_cast<Native>(native op rhs.native));             \
+  }                                                                          \
+  template <typename T, HWY_IF_NOT_F16(T),                                   \
+            typename UnwrappedT =                                            \
+                detail::SpecialFloatUnwrapArithOpOperand<const T&>,          \
+            typename RawResultT =                                            \
+                decltype(DeclVal<Native>() op DeclVal<UnwrappedT>()),        \
+            typename ResultT =                                               \
+                detail::NativeSpecialFloatToWrapper<RawResultT>,             \
+            HWY_IF_CASTABLE(RawResultT, ResultT)>                            \
+  constexpr ResultT op_func(const T& rhs) const noexcept(noexcept(           \
+      static_cast<ResultT>(DeclVal<Native>() op DeclVal<UnwrappedT>()))) {   \
+    return static_cast<ResultT>(native op static_cast<UnwrappedT>(rhs));     \
+  }                                                                          \
+  HWY_CXX14_CONSTEXPR hwy::float16_t& assign_func(                           \
+      const hwy::float16_t& rhs) noexcept {                                  \
+    native = static_cast<Native>(native op rhs.native);                      \
+    return *this;                                                            \
+  }                                                                          \
+  template <typename T, HWY_IF_NOT_F16(T),                                   \
+            HWY_IF_OP_CASTABLE(op, const T&, Native),                        \
+            HWY_IF_ASSIGNABLE(                                               \
+                Native, decltype(DeclVal<Native>() op DeclVal<const T&>()))> \
+  HWY_CXX14_CONSTEXPR hwy::float16_t& assign_func(const T& rhs) noexcept(    \
+      noexcept(                                                              \
+          static_cast<Native>(DeclVal<Native>() op DeclVal<const T&>()))) {  \
+    native = static_cast<Native>(native op rhs);                             \
+    return *this;                                                            \
   }
+
   HWY_FLOAT16_BINARY_OP(+, operator+, operator+=)
   HWY_FLOAT16_BINARY_OP(-, operator-, operator-=)
   HWY_FLOAT16_BINARY_OP(*, operator*, operator*=)
@@ -1182,6 +1215,13 @@ static_assert(sizeof(hwy::float16_t) == 2, "Wrong size of float16_t");
 
 #if HWY_HAVE_SCALAR_F16_TYPE
 namespace detail {
+
+#if HWY_HAVE_SCALAR_F16_OPERATORS
+template <class T>
+struct SpecialFloatUnwrapArithOpOperandT<T, hwy::float16_t, true> {
+  using type = hwy::float16_t::Native;
+};
+#endif
 
 template <class T>
 struct NativeSpecialFloatToWrapperT<T, hwy::float16_t::Native> {
@@ -1357,6 +1397,47 @@ HWY_API HWY_F16_CONSTEXPR float16_t F16FromF32(float f32) {
 #endif  // !HWY_HAVE_SCALAR_F16_OPERATORS
 }
 
+HWY_API HWY_F16_CONSTEXPR float16_t F16FromF64(double f64) {
+#if HWY_HAVE_SCALAR_F16_OPERATORS
+  return float16_t(static_cast<float16_t::Native>(f64));
+#else
+  // The mantissa bits of f64 are first rounded using round-to-odd rounding
+  // to the nearest f64 value that has the lower 29 bits zeroed out to
+  // ensure that the result is correctly rounded to a F16.
+
+  // The F64 round-to-odd operation below will round a normal F64 value
+  // (using round-to-odd rounding) to a F64 value that has 24 bits of precision.
+
+  // It is okay if the magnitude of a denormal F64 value is rounded up in the
+  // F64 round-to-odd step below as the magnitude of a denormal F64 value is
+  // much smaller than 2^(-24) (the smallest positive denormal F16 value).
+
+  // It is also okay if bit 29 of a NaN F64 value is changed by the F64
+  // round-to-odd step below as the lower 13 bits of a F32 NaN value are usually
+  // discarded or ignored by the conversion of a F32 NaN value to a F16.
+
+  // If f64 is a NaN value, the result of the F64 round-to-odd step will be a
+  // NaN value as the result of the F64 round-to-odd step will have at least one
+  // mantissa bit if f64 is a NaN value.
+
+  // The F64 round-to-odd step will ensure that the F64 to F32 conversion is
+  // exact if the magnitude of the rounded F64 value (using round-to-odd
+  // rounding) is between 2^(-126) (the smallest normal F32 value) and
+  // HighestValue<float>() (the largest finite F32 value)
+
+  // It is okay if the F64 to F32 conversion is inexact for F64 values that have
+  // a magnitude that is less than 2^(-126) as the magnitude of a denormal F32
+  // value is much smaller than 2^(-24) (the smallest positive denormal F16
+  // value).
+
+  return F16FromF32(
+      static_cast<float>(BitCastScalar<double>(static_cast<uint64_t>(
+          (BitCastScalar<uint64_t>(f64) & 0xFFFFFFFFE0000000ULL) |
+          ((BitCastScalar<uint64_t>(f64) + 0x000000001FFFFFFFULL) &
+           0x0000000020000000ULL)))));
+#endif
+}
+
 // More convenient to define outside float16_t because these may use
 // F32FromF16, which is defined after the struct.
 HWY_F16_CONSTEXPR inline bool operator==(float16_t lhs,
@@ -1420,8 +1501,14 @@ HWY_F16_CONSTEXPR inline std::partial_ordering operator<=>(
 // BF16 lane type
 
 // Compiler supports ACLE __bf16, not necessarily with operators.
+
+// Disable the __bf16 type on AArch64 with GCC 13 or earlier as there is a bug
+// in GCC 13 and earlier that sometimes causes BF16 constant values to be
+// incorrectly loaded on AArch64, and this GCC bug on AArch64 is
+// described at https://gcc.gnu.org/bugzilla/show_bug.cgi?id=111867.
+
 #if HWY_ARCH_ARM_A64 && \
-    (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1100)
+    (HWY_COMPILER_CLANG >= 1700 || HWY_COMPILER_GCC_ACTUAL >= 1400)
 #define HWY_ARM_HAVE_SCALAR_BF16_TYPE 1
 #else
 #define HWY_ARM_HAVE_SCALAR_BF16_TYPE 0
@@ -1563,22 +1650,36 @@ struct alignas(2) bfloat16_t {
 
   // Reduce clutter by generating `operator+` and `operator+=` etc. Note that
   // we cannot token-paste `operator` and `+`, so pass it in as `op_func`.
-#define HWY_BFLOAT16_BINARY_OP(op, op_func, assign_func)                 \
-  HWY_CXX14_CONSTEXPR bfloat16_t op_func(const bfloat16_t& rhs)          \
-      const noexcept(noexcept(DeclVal<Native>() op DeclVal<Native>())) { \
-    return bfloat16_t(static_cast<Native>(native op rhs.native));        \
-  }                                                                      \
-  template <typename T, HWY_IF_OP_CASTABLE(op, T, Native)>               \
-  HWY_CXX14_CONSTEXPR bfloat16_t op_func(const T& rhs)                   \
-      const noexcept(noexcept(DeclVal<Native>() op DeclVal<T>())) {      \
-    return bfloat16_t(static_cast<Native>(native op rhs));               \
-  }                                                                      \
-  template <typename T, HWY_IF_ASSIGNABLE(bfloat16_t, T),                \
-            HWY_IF_OP_CASTABLE(op, T, Native)>                           \
-  HWY_CXX14_CONSTEXPR bfloat16_t& assign_func(T&& rhs) noexcept(         \
-      noexcept(DeclVal<Native>() op DeclVal<T>())) {                     \
-    native = static_cast<Native>(native op static_cast<T&&>(rhs));       \
-    return *this;                                                        \
+#define HWY_BFLOAT16_BINARY_OP(op, op_func, assign_func)                     \
+  constexpr bfloat16_t op_func(const bfloat16_t& rhs) const noexcept {       \
+    return bfloat16_t(static_cast<Native>(native op rhs.native));            \
+  }                                                                          \
+  template <typename T, HWY_IF_NOT_BF16(T),                                  \
+            typename UnwrappedT =                                            \
+                detail::SpecialFloatUnwrapArithOpOperand<const T&>,          \
+            typename RawResultT =                                            \
+                decltype(DeclVal<Native>() op DeclVal<UnwrappedT>()),        \
+            typename ResultT =                                               \
+                detail::NativeSpecialFloatToWrapper<RawResultT>,             \
+            HWY_IF_CASTABLE(RawResultT, ResultT)>                            \
+  constexpr ResultT op_func(const T& rhs) const noexcept(noexcept(           \
+      static_cast<ResultT>(DeclVal<Native>() op DeclVal<UnwrappedT>()))) {   \
+    return static_cast<ResultT>(native op static_cast<UnwrappedT>(rhs));     \
+  }                                                                          \
+  HWY_CXX14_CONSTEXPR hwy::bfloat16_t& assign_func(                          \
+      const hwy::bfloat16_t& rhs) noexcept {                                 \
+    native = static_cast<Native>(native op rhs.native);                      \
+    return *this;                                                            \
+  }                                                                          \
+  template <typename T, HWY_IF_NOT_BF16(T),                                  \
+            HWY_IF_OP_CASTABLE(op, const T&, Native),                        \
+            HWY_IF_ASSIGNABLE(                                               \
+                Native, decltype(DeclVal<Native>() op DeclVal<const T&>()))> \
+  HWY_CXX14_CONSTEXPR hwy::bfloat16_t& assign_func(const T& rhs) noexcept(   \
+      noexcept(                                                              \
+          static_cast<Native>(DeclVal<Native>() op DeclVal<const T&>()))) {  \
+    native = static_cast<Native>(native op rhs);                             \
+    return *this;                                                            \
   }
   HWY_BFLOAT16_BINARY_OP(+, operator+, operator+=)
   HWY_BFLOAT16_BINARY_OP(-, operator-, operator-=)
@@ -1594,6 +1695,13 @@ static_assert(sizeof(hwy::bfloat16_t) == 2, "Wrong size of bfloat16_t");
 
 #if HWY_HAVE_SCALAR_BF16_TYPE
 namespace detail {
+
+#if HWY_HAVE_SCALAR_BF16_OPERATORS
+template <class T>
+struct SpecialFloatUnwrapArithOpOperandT<T, hwy::bfloat16_t, true> {
+  using type = hwy::bfloat16_t::Native;
+};
+#endif
 
 template <class T>
 struct NativeSpecialFloatToWrapperT<T, hwy::bfloat16_t::Native> {
@@ -1663,12 +1771,54 @@ static HWY_INLINE HWY_MAYBE_UNUSED constexpr uint16_t F32BitsToBF16Bits(
 
 }  // namespace detail
 
-HWY_API HWY_BITCASTSCALAR_CONSTEXPR bfloat16_t BF16FromF32(float f) {
+HWY_API HWY_BF16_CONSTEXPR bfloat16_t BF16FromF32(float f) {
 #if HWY_HAVE_SCALAR_BF16_OPERATORS
   return static_cast<bfloat16_t>(f);
 #else
   return bfloat16_t::FromBits(
       detail::F32BitsToBF16Bits(BitCastScalar<uint32_t>(f)));
+#endif
+}
+
+HWY_API HWY_BF16_CONSTEXPR bfloat16_t BF16FromF64(double f64) {
+#if HWY_HAVE_SCALAR_BF16_OPERATORS
+  return static_cast<bfloat16_t>(f64);
+#else
+  // The mantissa bits of f64 are first rounded using round-to-odd rounding
+  // to the nearest f64 value that has the lower 38 bits zeroed out to
+  // ensure that the result is correctly rounded to a BF16.
+
+  // The F64 round-to-odd operation below will round a normal F64 value
+  // (using round-to-odd rounding) to a F64 value that has 15 bits of precision.
+
+  // It is okay if the magnitude of a denormal F64 value is rounded up in the
+  // F64 round-to-odd step below as the magnitude of a denormal F64 value is
+  // much smaller than 2^(-133) (the smallest positive denormal BF16 value).
+
+  // It is also okay if bit 38 of a NaN F64 value is changed by the F64
+  // round-to-odd step below as the lower 16 bits of a F32 NaN value are usually
+  // discarded or ignored by the conversion of a F32 NaN value to a BF16.
+
+  // If f64 is a NaN value, the result of the F64 round-to-odd step will be a
+  // NaN value as the result of the F64 round-to-odd step will have at least one
+  // mantissa bit if f64 is a NaN value.
+
+  // The F64 round-to-odd step below will ensure that the F64 to F32 conversion
+  // is exact if the magnitude of the rounded F64 value (using round-to-odd
+  // rounding) is between 2^(-135) (one-fourth of the smallest positive denormal
+  // BF16 value) and HighestValue<float>() (the largest finite F32 value).
+
+  // If |f64| is less than 2^(-135), the magnitude of the result of the F64 to
+  // F32 conversion is guaranteed to be less than or equal to 2^(-135), which
+  // ensures that the F32 to BF16 conversion is correctly rounded, even if the
+  // conversion of a rounded F64 value whose magnitude is less than 2^(-135)
+  // to a F32 is inexact.
+
+  return BF16FromF32(
+      static_cast<float>(BitCastScalar<double>(static_cast<uint64_t>(
+          (BitCastScalar<uint64_t>(f64) & 0xFFFFFFC000000000ULL) |
+          ((BitCastScalar<uint64_t>(f64) + 0x0000003FFFFFFFFFULL) &
+           0x0000004000000000ULL)))));
 #endif
 }
 
@@ -2149,6 +2299,73 @@ constexpr MakeSigned<T> MaxExponentField() {
 }
 
 //------------------------------------------------------------------------------
+// Additional F16/BF16 operators
+
+#if HWY_HAVE_SCALAR_F16_OPERATORS || HWY_HAVE_SCALAR_BF16_OPERATORS
+
+#define HWY_RHS_SPECIAL_FLOAT_ARITH_OP(op, op_func, T2)                       \
+  template <                                                                  \
+      typename T1,                                                            \
+      hwy::EnableIf<hwy::IsInteger<RemoveCvRef<T1>>() ||                      \
+                    hwy::IsFloat3264<RemoveCvRef<T1>>()>* = nullptr,          \
+      typename RawResultT = decltype(DeclVal<T1>() op DeclVal<T2::Native>()), \
+      typename ResultT = detail::NativeSpecialFloatToWrapper<RawResultT>,     \
+      HWY_IF_CASTABLE(RawResultT, ResultT)>                                   \
+  static HWY_INLINE constexpr ResultT op_func(T1 a, T2 b) noexcept {          \
+    return static_cast<ResultT>(a op b.native);                               \
+  }
+
+#define HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(op, op_func, T1)         \
+  HWY_RHS_SPECIAL_FLOAT_ARITH_OP(op, op_func, T1)                             \
+  template <                                                                  \
+      typename T2,                                                            \
+      hwy::EnableIf<hwy::IsInteger<RemoveCvRef<T2>>() ||                      \
+                    hwy::IsFloat3264<RemoveCvRef<T2>>()>* = nullptr,          \
+      typename RawResultT = decltype(DeclVal<T1::Native>() op DeclVal<T2>()), \
+      typename ResultT = detail::NativeSpecialFloatToWrapper<RawResultT>,     \
+      HWY_IF_CASTABLE(RawResultT, ResultT)>                                   \
+  static HWY_INLINE constexpr ResultT op_func(T1 a, T2 b) noexcept {          \
+    return static_cast<ResultT>(a.native op b);                               \
+  }
+
+#if HWY_HAVE_SCALAR_F16_OPERATORS
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(+, operator+, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(-, operator-, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(*, operator*, float16_t)
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(/, operator/, float16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(==, operator==, float16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(!=, operator!=, float16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<, operator<, float16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<=, operator<=, float16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(>, operator>, float16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(>=, operator>=, float16_t)
+#if HWY_HAVE_CXX20_THREE_WAY_COMPARE
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<=>, operator<=>, float16_t)
+#endif
+#endif  // HWY_HAVE_SCALAR_F16_OPERATORS
+
+#if HWY_HAVE_SCALAR_BF16_OPERATORS
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(+, operator+, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(-, operator-, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(*, operator*, bfloat16_t)
+HWY_RHS_SPECIAL_FLOAT_ARITH_OP(/, operator/, bfloat16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(==, operator==, bfloat16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(!=, operator!=, bfloat16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<, operator<, bfloat16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<=, operator<=, bfloat16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(>, operator>, bfloat16_t)
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(>=, operator>=, bfloat16_t)
+#if HWY_HAVE_CXX20_THREE_WAY_COMPARE
+HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP(<=>, operator<=>, bfloat16_t)
+#endif
+#endif  // HWY_HAVE_SCALAR_BF16_OPERATORS
+
+#undef HWY_RHS_SPECIAL_FLOAT_ARITH_OP
+#undef HWY_SPECIAL_FLOAT_CMP_AGAINST_NON_SPECIAL_OP
+
+#endif  // HWY_HAVE_SCALAR_F16_OPERATORS || HWY_HAVE_SCALAR_BF16_OPERATORS
+
+//------------------------------------------------------------------------------
 // Type conversions (after IsSpecialFloat)
 
 HWY_API float F32FromF16Mem(const void* ptr) {
@@ -2163,35 +2380,58 @@ HWY_API float F32FromBF16Mem(const void* ptr) {
   return F32FromBF16(bf);
 }
 
-// For casting from TFrom to TTo; zero or one of them may be a special float.
+#if HWY_HAVE_SCALAR_F16_OPERATORS
+#define HWY_BF16_TO_F16_CONSTEXPR HWY_BF16_CONSTEXPR
+#else
+#define HWY_BF16_TO_F16_CONSTEXPR HWY_F16_CONSTEXPR
+#endif
+
+// For casting from TFrom to TTo
 template <typename TTo, typename TFrom, HWY_IF_NOT_SPECIAL_FLOAT(TTo),
           HWY_IF_NOT_SPECIAL_FLOAT(TFrom), HWY_IF_NOT_SAME(TTo, TFrom)>
-TTo ConvertScalarTo(const TFrom in) {
+HWY_API constexpr TTo ConvertScalarTo(const TFrom in) {
   return static_cast<TTo>(in);
 }
 template <typename TTo, typename TFrom, HWY_IF_F16(TTo),
-          HWY_IF_NOT_SAME(TTo, TFrom)>
-HWY_INLINE TTo ConvertScalarTo(const TFrom in) {
+          HWY_IF_NOT_SPECIAL_FLOAT(TFrom), HWY_IF_NOT_SAME(TFrom, double)>
+HWY_API constexpr TTo ConvertScalarTo(const TFrom in) {
   return F16FromF32(static_cast<float>(in));
 }
+template <typename TTo, HWY_IF_F16(TTo)>
+HWY_API HWY_BF16_TO_F16_CONSTEXPR TTo
+ConvertScalarTo(const hwy::bfloat16_t in) {
+  return F16FromF32(F32FromBF16(in));
+}
+template <typename TTo, HWY_IF_F16(TTo)>
+HWY_API HWY_F16_CONSTEXPR TTo ConvertScalarTo(const double in) {
+  return F16FromF64(in);
+}
 template <typename TTo, typename TFrom, HWY_IF_BF16(TTo),
-          HWY_IF_NOT_SAME(TTo, TFrom)>
-HWY_INLINE TTo ConvertScalarTo(const TFrom in) {
+          HWY_IF_NOT_SPECIAL_FLOAT(TFrom), HWY_IF_NOT_SAME(TFrom, double)>
+HWY_API HWY_BF16_CONSTEXPR TTo ConvertScalarTo(const TFrom in) {
   return BF16FromF32(static_cast<float>(in));
 }
+template <typename TTo, HWY_IF_BF16(TTo)>
+HWY_API HWY_BF16_TO_F16_CONSTEXPR TTo ConvertScalarTo(const hwy::float16_t in) {
+  return BF16FromF32(F32FromF16(in));
+}
+template <typename TTo, HWY_IF_BF16(TTo)>
+HWY_API HWY_BF16_CONSTEXPR TTo ConvertScalarTo(const double in) {
+  return BF16FromF64(in);
+}
 template <typename TTo, typename TFrom, HWY_IF_F16(TFrom),
-          HWY_IF_NOT_SAME(TTo, TFrom)>
-HWY_INLINE TTo ConvertScalarTo(const TFrom in) {
+          HWY_IF_NOT_SPECIAL_FLOAT(TTo)>
+HWY_API HWY_F16_CONSTEXPR TTo ConvertScalarTo(const TFrom in) {
   return static_cast<TTo>(F32FromF16(in));
 }
 template <typename TTo, typename TFrom, HWY_IF_BF16(TFrom),
-          HWY_IF_NOT_SAME(TTo, TFrom)>
-HWY_INLINE TTo ConvertScalarTo(TFrom in) {
+          HWY_IF_NOT_SPECIAL_FLOAT(TTo)>
+HWY_API HWY_BF16_CONSTEXPR TTo ConvertScalarTo(TFrom in) {
   return static_cast<TTo>(F32FromBF16(in));
 }
 // Same: return unchanged
 template <typename TTo>
-HWY_INLINE TTo ConvertScalarTo(TTo in) {
+HWY_API constexpr TTo ConvertScalarTo(TTo in) {
   return in;
 }
 

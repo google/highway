@@ -1928,6 +1928,15 @@ HWY_API Vec256<double> operator-(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_sub_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ AddSub
+
+HWY_API Vec256<float> AddSub(Vec256<float> a, Vec256<float> b) {
+  return Vec256<float>{_mm256_addsub_ps(a.raw, b.raw)};
+}
+HWY_API Vec256<double> AddSub(Vec256<double> a, Vec256<double> b) {
+  return Vec256<double>{_mm256_addsub_pd(a.raw, b.raw)};
+}
+
 // ------------------------------ SumsOf8
 HWY_API Vec256<uint64_t> SumsOf8(Vec256<uint8_t> v) {
   return Vec256<uint64_t>{_mm256_sad_epu8(v.raw, _mm256_setzero_si256())};
@@ -3020,6 +3029,31 @@ HWY_API Vec256<double> NegMulSub(Vec256<double> mul, Vec256<double> x,
   return Neg(mul * x) - sub;
 #else
   return Vec256<double>{_mm256_fnmsub_pd(mul.raw, x.raw, sub.raw)};
+#endif
+}
+
+#if HWY_HAVE_FLOAT16
+HWY_API Vec256<float16_t> MulAddSub(Vec256<float16_t> mul, Vec256<float16_t> x,
+                                    Vec256<float16_t> sub_or_add) {
+  return Vec256<float16_t>{_mm256_fmaddsub_ph(mul.raw, x.raw, sub_or_add.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Vec256<float> MulAddSub(Vec256<float> mul, Vec256<float> x,
+                                Vec256<float> sub_or_add) {
+#ifdef HWY_DISABLE_BMI2_FMA
+  return AddSub(mul * x, sub_or_add);
+#else
+  return Vec256<float>{_mm256_fmaddsub_ps(mul.raw, x.raw, sub_or_add.raw)};
+#endif
+}
+
+HWY_API Vec256<double> MulAddSub(Vec256<double> mul, Vec256<double> x,
+                                 Vec256<double> sub_or_add) {
+#ifdef HWY_DISABLE_BMI2_FMA
+  return AddSub(mul * x, sub_or_add);
+#else
+  return Vec256<double>{_mm256_fmaddsub_pd(mul.raw, x.raw, sub_or_add.raw)};
 #endif
 }
 
