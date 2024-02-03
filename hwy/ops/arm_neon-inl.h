@@ -144,7 +144,7 @@ namespace detail {  // for code folding and Raw128
   HWY_NEON_DEF_FUNCTION(int64, 1, name, prefix, infix, s64, args)
 
 #if defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && \
-    (HWY_COMPILER_GCC_ACTUAL >= 1300 || HWY_COMPILER_CLANG >= 1100)
+    (HWY_COMPILER_GCC_ACTUAL >= 1300 || HWY_COMPILER_CLANG >= 1700)
 #define HWY_NEON_HAVE_BFLOAT16 1
 #else
 #define HWY_NEON_HAVE_BFLOAT16 0
