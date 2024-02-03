@@ -25,11 +25,15 @@
 #define HWY_DISABLE_CACHE_CONTROL
 #endif
 
+#ifndef HWY_DISABLE_CACHE_CONTROL
 // intrin.h is sufficient on MSVC and already included by base.h.
-#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL) && !HWY_COMPILER_MSVC
+#if HWY_ARCH_X86 && !HWY_COMPILER_MSVC
 #include <emmintrin.h>  // SSE2
 #include <xmmintrin.h>  // _mm_prefetch
+#elif HWY_ARCH_ARM_A64
+#include <arm_acle.h>
 #endif
+#endif  // HWY_DISABLE_CACHE_CONTROL
 
 namespace hwy {
 
@@ -76,15 +80,16 @@ HWY_INLINE HWY_ATTR_CACHE void FlushStream() {
 // subsequent actual loads.
 template <typename T>
 HWY_INLINE HWY_ATTR_CACHE void Prefetch(const T* p) {
-#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
+  (void)p;
+#ifndef HWY_DISABLE_CACHE_CONTROL
+#if HWY_ARCH_X86
   _mm_prefetch(reinterpret_cast<const char*>(p), _MM_HINT_T0);
 #elif HWY_COMPILER_GCC  // includes clang
   // Hint=0 (NTA) behavior differs, but skipping outer caches is probably not
   // desirable, so use the default 3 (keep in caches).
   __builtin_prefetch(p, /*write=*/0, /*hint=*/3);
-#else
-  (void)p;
 #endif
+#endif  //  HWY_DISABLE_CACHE_CONTROL
 }
 
 // Invalidates and flushes the cache line containing "p", if possible.
@@ -96,11 +101,24 @@ HWY_INLINE HWY_ATTR_CACHE void FlushCacheline(const void* p) {
 #endif
 }
 
-// When called inside a spin-loop, may reduce power consumption.
+// Hints that we are inside a spin loop and potentially reduces power
+// consumption and coherency traffic. For example, x86 avoids multiple
+// outstanding load requests, which reduces the memory order violation penalty
+// when exiting the loop.
 HWY_INLINE HWY_ATTR_CACHE void Pause() {
-#if HWY_ARCH_X86 && !defined(HWY_DISABLE_CACHE_CONTROL)
+#ifndef HWY_DISABLE_CACHE_CONTROL
+#if HWY_ARCH_X86
   _mm_pause();
+#elif HWY_ARCH_ARM_A64 && HWY_COMPILER_CLANG
+  // This is documented in ACLE and the YIELD instruction is also available in
+  // Armv7, but the intrinsic is broken for Armv7 clang, hence A64 only.
+  __yield();
+#elif HWY_ARCH_ARM && HWY_COMPILER_GCC  // includes clang
+  __asm__ volatile("yield" ::: "memory");
+#elif HWY_ARCH_PPC && HWY_COMPILER_GCC  // includes clang
+  __asm__ volatile("or 27,27,27" ::: "memory");
 #endif
+#endif  // HWY_DISABLE_CACHE_CONTROL
 }
 
 }  // namespace hwy

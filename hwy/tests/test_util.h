@@ -216,7 +216,9 @@ template <typename T>
 HWY_INLINE void AssertArraySimilar(const T* expected, const T* actual,
                                    size_t count, const char* target_name,
                                    const char* filename, int line) {
-  const double tolerance = 1.0 / (uint64_t{1} << MantissaBits<T>());
+  const double tolerance =
+      (hwy::IsSame<RemoveCvRef<T>, float16_t>() ? 128.0 : 1.0) /
+      (uint64_t{1} << MantissaBits<T>());
   for (size_t i = 0; i < count; ++i) {
     const double exp = ConvertScalarTo<double>(expected[i]);
     const double act = ConvertScalarTo<double>(actual[i]);

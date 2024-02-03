@@ -2197,6 +2197,23 @@ HWY_API Vec512<double> NegMulSub(Vec512<double> mul, Vec512<double> x,
   return Vec512<double>{_mm512_fnmsub_pd(mul.raw, x.raw, sub.raw)};
 }
 
+#if HWY_HAVE_FLOAT16
+HWY_API Vec512<float16_t> MulAddSub(Vec512<float16_t> mul, Vec512<float16_t> x,
+                                    Vec512<float16_t> sub_or_add) {
+  return Vec512<float16_t>{_mm512_fmaddsub_ph(mul.raw, x.raw, sub_or_add.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+HWY_API Vec512<float> MulAddSub(Vec512<float> mul, Vec512<float> x,
+                                Vec512<float> sub_or_add) {
+  return Vec512<float>{_mm512_fmaddsub_ps(mul.raw, x.raw, sub_or_add.raw)};
+}
+
+HWY_API Vec512<double> MulAddSub(Vec512<double> mul, Vec512<double> x,
+                                 Vec512<double> sub_or_add) {
+  return Vec512<double>{_mm512_fmaddsub_pd(mul.raw, x.raw, sub_or_add.raw)};
+}
+
 // ------------------------------ Floating-point square root
 
 // Full precision square root

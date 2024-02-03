@@ -210,18 +210,8 @@ HWY_INLINE Mask<D> MaskTrue(const D d) {
   return FirstN(d, Lanes(d));
 }
 
-// Defined in rvv-inl.h for slightly better codegen.
-#if HWY_TARGET != HWY_RVV
-
-template <class D>
-HWY_INLINE Mask<D> MaskFalse(const D d) {
-  // Signed comparisons are cheaper on x86.
-  const RebindToSigned<D> di;
-  const Vec<decltype(di)> zero = Zero(di);
-  return RebindMask(d, Lt(zero, zero));
-}
-
-#endif  // HWY_TARGET != HWY_RVV
+// MaskFalse is now implemented in x86_128-inl.h on AVX3, arm_sve-inl.h on SVE,
+// rvv-inl.h on RVV, and generic_ops-inl.h on all other targets
 
 #ifndef HWY_ASSERT_EQ
 

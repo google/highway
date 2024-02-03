@@ -22,8 +22,9 @@
 
 void PrintTargets(const char* msg, int64_t targets) {
   fprintf(stderr, "%s", msg);
-  // For each bit:
-  for (int64_t x = targets; x != 0; x = x & (x - 1)) {
+  // For each bit other than the sign bit:
+  for (int64_t x = targets & hwy::LimitsMax<int64_t>(); x != 0;
+       x = x & (x - 1)) {
     // Extract value of least-significant bit.
     fprintf(stderr, " %s", hwy::TargetName(x & (~x + 1)));
   }

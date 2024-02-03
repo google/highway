@@ -1316,8 +1316,14 @@ HWY_RVV_FOREACH_F(HWY_RVV_FMA, NegMulSub, fnmacc, _ALL)
 #define HWY_RVV_IF_MLEN_D(D, MLEN) \
   hwy::EnableIf<MLenFromD(D()) == MLEN>* = nullptr
 
-// Specialized for RVV instead of the generic test_util-inl.h implementation
+// Specialized for RVV instead of the generic generic_ops-inl.h implementation
 // because more efficient, and helps implement MFromD.
+
+#ifdef HWY_NATIVE_MASK_FALSE
+#undef HWY_NATIVE_MASK_FALSE
+#else
+#define HWY_NATIVE_MASK_FALSE
+#endif
 
 #define HWY_RVV_MASK_FALSE(SEW, SHIFT, MLEN, NAME, OP) \
   template <class D, HWY_RVV_IF_MLEN_D(D, MLEN)>       \
