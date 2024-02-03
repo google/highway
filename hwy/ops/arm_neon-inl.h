@@ -185,9 +185,28 @@ namespace detail {  // for code folding and Raw128
 #elif HWY_HAVE_FLOAT16 && !HWY_NEON_HAVE_BFLOAT16
 #define HWY_NEON_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
 #elif HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_BFLOAT16
-#define HWY_NEON_IF_EMULATED_D(D) hwy::EnableIf<false>* = nullptr
+// NOTE: hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr is used instead of
+// hwy::EnableIf<false>* = nullptr to avoid compiler errors since
+// !hwy::IsSame<D, D>() is always false and as !hwy::IsSame<D, D>() will cause
+// SFINAE to occur instead of a hard error due to a dependency on the D template
+// argument
+#define HWY_NEON_IF_EMULATED_D(D) hwy::EnableIf<!hwy::IsSame<D, D>()>* = nullptr
 #else
 #error "Logic error, handled all four cases"
+#endif
+
+#if HWY_NEON_HAVE_BFLOAT16 && !HWY_HAVE_SCALAR_BF16_TYPE
+// If HWY_NEON_HAVE_BFLOAT16 && !HWY_HAVE_SCALAR_BF16_TYPE is true, BF16
+// Load/Store/Set/GetLane/InsertLane/ExtractLane ops are emulated
+#if HWY_HAVE_FLOAT16
+#define HWY_NEON_IF_LOAD_STORE_EMULATED_D(D) HWY_IF_BF16_D(D)
+#else
+#define HWY_NEON_IF_LOAD_STORE_EMULATED_D(D) HWY_IF_SPECIAL_FLOAT_D(D)
+#endif
+#else  // !HWY_NEON_HAVE_BFLOAT16 || HWY_HAVE_SCALAR_BF16_TYPE
+// Otherwise, if !HWY_NEON_HAVE_BFLOAT16 or the __bf16 type is available,
+// HWY_NEON_IF_LOAD_STORE_EMULATED_D(D) is the same as HWY_NEON_IF_EMULATED_D(D)
+#define HWY_NEON_IF_LOAD_STORE_EMULATED_D(D) HWY_NEON_IF_EMULATED_D(D)
 #endif
 
 // float
@@ -897,7 +916,24 @@ HWY_NEON_DEF_FUNCTION_ALL_TYPES(NativeSet, vdup, _n_, HWY_SET)
 #if !HWY_HAVE_FLOAT16 && HWY_NEON_HAVE_F16C
 HWY_NEON_DEF_FUNCTION_FLOAT_16_UNCONDITIONAL(NativeSet, vdup, _n_, HWY_SET)
 #endif
+
+#if HWY_NEON_HAVE_BFLOAT16 && !HWY_HAVE_SCALAR_BF16_TYPE
+template <class D, HWY_IF_BF16_D(D), HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API Vec128<TFromD<D>, MaxLanes(D())> NativeSet(D d, TFromD<D> t) {
+  const uint16_t tu = BitCastScalar<uint16_t>(t);
+  return Vec128<TFromD<D>, d.MaxLanes()>(
+      vreinterpret_bf16_u16(Set(RebindToUnsigned<D>(), tu).raw));
+}
+
+template <class D, HWY_IF_BF16_D(D), HWY_IF_V_SIZE_D(D, 16)>
+HWY_API Vec128<TFromD<D>, MaxLanes(D())> NativeSet(D d, TFromD<D> t) {
+  const uint16_t tu = BitCastScalar<uint16_t>(t);
+  return Vec128<TFromD<D>, d.MaxLanes()>(
+      vreinterpretq_bf16_u16(Set(RebindToUnsigned<D>(), tu).raw));
+}
+#else
 HWY_NEON_DEF_FUNCTION_BFLOAT_16(NativeSet, vdup, _n_, HWY_SET)
+#endif
 
 template <class D, HWY_NEON_IF_EMULATED_D(D)>
 HWY_API Vec128<TFromD<D>, MaxLanes(D())> NativeSet(D d, TFromD<D> t) {
@@ -1616,6 +1652,16 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_GET v.raw, kLane
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(GetLane, vget, _lane_, HWY_GET)
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
+HWY_NEON_DEF_FUNCTION_BFLOAT_16(GetLane, vget, _lane_, HWY_GET)
+#endif
+
+template <size_t kLane, class V, HWY_NEON_IF_LOAD_STORE_EMULATED_D(DFromV<V>)>
+static HWY_INLINE HWY_MAYBE_UNUSED TFromV<V> GetLane(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCastScalar<TFromV<V>>(GetLane<kLane>(BitCast(du, v)));
+}
 
 #undef HWY_NEON_BUILD_TPL_HWY_GET
 #undef HWY_NEON_BUILD_RET_HWY_GET
@@ -1762,16 +1808,19 @@ namespace detail {
 #define HWY_NEON_BUILD_ARG_HWY_INSERT t, v.raw, kLane
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(InsertLane, vset, _lane_, HWY_INSERT)
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
+HWY_NEON_DEF_FUNCTION_BFLOAT_16(InsertLane, vset, _lane_, HWY_INSERT)
+#endif
 
 #undef HWY_NEON_BUILD_TPL_HWY_INSERT
 #undef HWY_NEON_BUILD_RET_HWY_INSERT
 #undef HWY_NEON_BUILD_PARAM_HWY_INSERT
 #undef HWY_NEON_BUILD_ARG_HWY_INSERT
 
-template <size_t kLane, class V, class D = DFromV<V>, HWY_NEON_IF_EMULATED_D(D)>
-HWY_API V InsertLane(const V v, TFromD<D> t) {
-  const D d;
-  const RebindToUnsigned<D> du;
+template <size_t kLane, class V, HWY_NEON_IF_LOAD_STORE_EMULATED_D(DFromV<V>)>
+HWY_API V InsertLane(const V v, TFromV<V> t) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
   const uint16_t tu = BitCastScalar<uint16_t>(t);
   return BitCast(d, InsertLane<kLane>(BitCast(du, v), tu));
 }
@@ -2874,14 +2923,21 @@ HWY_API MFromD<DTo> RebindMask(DTo /* tag */, Mask128<TFrom, NFrom> m) {
 
 HWY_NEON_DEF_FUNCTION_ALL_TYPES(IfThenElse, vbsl, _, HWY_IF)
 
-template <class V, class D = DFromV<V>, HWY_NEON_IF_EMULATED_D(D)>
-HWY_API V IfThenElse(MFromD<D> mask, V yes, V no) {
+#if HWY_HAVE_FLOAT16
+#define HWY_NEON_IF_EMULATED_IF_THEN_ELSE(V) HWY_IF_BF16(TFromV<V>)
+#else
+#define HWY_NEON_IF_EMULATED_IF_THEN_ELSE(V) HWY_IF_SPECIAL_FLOAT_V(V)
+#endif
+
+template <class V, HWY_NEON_IF_EMULATED_IF_THEN_ELSE(V)>
+HWY_API V IfThenElse(MFromD<DFromV<V>> mask, V yes, V no) {
   const DFromV<decltype(yes)> d;
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(
       d, IfThenElse(RebindMask(du, mask), BitCast(du, yes), BitCast(du, no)));
 }
 
+#undef HWY_NEON_IF_EMULATED_IF_THEN_ELSE
 #undef HWY_NEON_BUILD_TPL_HWY_IF
 #undef HWY_NEON_BUILD_RET_HWY_IF
 #undef HWY_NEON_BUILD_PARAM_HWY_IF
@@ -3376,7 +3432,7 @@ HWY_API Vec128<float16_t> LoadU(D /* tag */,
   return Vec128<float16_t>(vld1q_f16(detail::NativeLanePointer(unaligned)));
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
 HWY_API Vec128<bfloat16_t> LoadU(D /* tag */,
                                  const bfloat16_t* HWY_RESTRICT unaligned) {
@@ -3435,7 +3491,7 @@ HWY_API Vec64<float16_t> LoadU(D /* tag */, const float16_t* HWY_RESTRICT p) {
   return Vec64<float16_t>(vld1_f16(detail::NativeLanePointer(p)));
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API Vec64<bfloat16_t> LoadU(D /* tag */, const bfloat16_t* HWY_RESTRICT p) {
   return Vec64<bfloat16_t>(vld1_bf16(detail::NativeLanePointer(p)));
@@ -3488,7 +3544,7 @@ HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   return BitCast(d, LoadU(d32, &buf));
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   const Repartition<uint32_t, decltype(d)> d32;
@@ -3516,7 +3572,7 @@ HWY_API VFromD<D> LoadU(D /* tag */, const float16_t* HWY_RESTRICT p) {
   return VFromD<D>(vld1_dup_f16(detail::NativeLanePointer(p)));
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_LANES_D(D, 1), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> LoadU(D /* tag */, const bfloat16_t* HWY_RESTRICT p) {
   return VFromD<D>(vld1_dup_bf16(detail::NativeLanePointer(p)));
@@ -3544,7 +3600,7 @@ HWY_API VFromD<D> LoadU(D /* tag */, const int8_t* HWY_RESTRICT p) {
 
 // ------------------------------ Load misc
 
-template <class D, HWY_NEON_IF_EMULATED_D(D)>
+template <class D, HWY_NEON_IF_LOAD_STORE_EMULATED_D(D)>
 HWY_API VFromD<D> LoadU(D d, const TFromD<D>* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
   return BitCast(d, LoadU(du, detail::U16LanePointer(p)));
@@ -3623,7 +3679,7 @@ HWY_API void StoreU(Vec128<float16_t> v, D /* tag */,
   vst1q_f16(detail::NativeLanePointer(unaligned), v.raw);
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
 HWY_API void StoreU(Vec128<bfloat16_t> v, D /* tag */,
                     bfloat16_t* HWY_RESTRICT unaligned) {
@@ -3684,7 +3740,7 @@ HWY_API void StoreU(Vec64<float16_t> v, D /* tag */,
   vst1_f16(detail::NativeLanePointer(p), v.raw);
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API void StoreU(Vec64<bfloat16_t> v, D /* tag */,
                     bfloat16_t* HWY_RESTRICT p) {
@@ -3734,7 +3790,7 @@ HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
   CopyBytes<4>(&buf, p);
 }
 #endif
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_BF16_D(D)>
 HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
   Repartition<uint32_t, decltype(d)> d32;
@@ -3759,7 +3815,7 @@ HWY_API void StoreU(Vec16<float16_t> v, D, float16_t* HWY_RESTRICT p) {
   vst1_lane_f16(detail::NativeLanePointer(p), v.raw, 0);
 }
 #endif  // HWY_HAVE_FLOAT16
-#if HWY_NEON_HAVE_BFLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <class D, HWY_IF_V_SIZE_D(D, 2), HWY_IF_BF16_D(D)>
 HWY_API void StoreU(Vec16<bfloat16_t> v, D, bfloat16_t* HWY_RESTRICT p) {
   vst1_lane_bf16(detail::NativeLanePointer(p), v.raw, 0);
@@ -3786,7 +3842,7 @@ HWY_API void StoreU(Vec128<int8_t, 1> v, D, int8_t* HWY_RESTRICT p) {
 
 // ------------------------------ Store misc
 
-template <class D, HWY_NEON_IF_EMULATED_D(D)>
+template <class D, HWY_NEON_IF_LOAD_STORE_EMULATED_D(D)>
 HWY_API void StoreU(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
   const RebindToUnsigned<decltype(d)> du;
   return StoreU(BitCast(du, v), du, detail::U16LanePointer(p));
@@ -4650,6 +4706,23 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
 
 #endif  // HWY_NEON_HAVE_F16C
 
+#if HWY_NEON_HAVE_BFLOAT16
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /*dbf16*/, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>(vcvt_bf16_f32(v.raw));
+}
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /*dbf16*/, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>(vcvt_bf16_f32(vcombine_f32(v.raw, v.raw)));
+}
+#endif  // HWY_NEON_HAVE_BFLOAT16
+
 #if HWY_HAVE_FLOAT64
 
 template <class D, HWY_IF_F32_D(D)>
@@ -4963,13 +5036,18 @@ HWY_API Vec64<float16_t> LowerHalf(Vec128<float16_t> v) {
   return Vec64<float16_t>(vget_low_f16(v.raw));
 }
 #endif  // HWY_HAVE_FLOAT16
+#if HWY_NEON_HAVE_BFLOAT16
+HWY_API Vec64<bfloat16_t> LowerHalf(Vec128<bfloat16_t> v) {
+  return Vec64<bfloat16_t>(vget_low_bf16(v.raw));
+}
+#endif  // HWY_HAVE_FLOAT16
 #if HWY_HAVE_FLOAT64
 HWY_API Vec64<double> LowerHalf(Vec128<double> v) {
   return Vec64<double>(vget_low_f64(v.raw));
 }
 #endif  // HWY_HAVE_FLOAT64
 
-template <class V, HWY_IF_SPECIAL_FLOAT_V(V), HWY_IF_V_SIZE_V(V, 16)>
+template <class V, HWY_NEON_IF_EMULATED_D(DFromV<V>), HWY_IF_V_SIZE_V(V, 16)>
 HWY_API VFromD<Half<DFromV<V>>> LowerHalf(V v) {
   const Full128<uint16_t> du;
   const Half<DFromV<V>> dh;
@@ -5169,6 +5247,12 @@ HWY_API Vec64<float16_t> UpperHalf(D /* tag */, Vec128<float16_t> v) {
   return Vec64<float16_t>(vget_high_f16(v.raw));
 }
 #endif
+#if HWY_NEON_HAVE_BFLOAT16
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API Vec64<bfloat16_t> UpperHalf(D /* tag */, Vec128<bfloat16_t> v) {
+  return Vec64<bfloat16_t>(vget_high_bf16(v.raw));
+}
+#endif
 template <class D, HWY_IF_F32_D(D)>
 HWY_API Vec64<float> UpperHalf(D /* tag */, Vec128<float> v) {
   return Vec64<float>(vget_high_f32(v.raw));
@@ -5300,6 +5384,20 @@ HWY_API Vec128<float16_t, N> Broadcast(Vec128<float16_t, N> v) {
 }
 #endif  // HWY_HAVE_FLOAT16
 
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
+template <int kLane>
+HWY_API Vec128<bfloat16_t> Broadcast(Vec128<bfloat16_t> v) {
+  static_assert(0 <= kLane && kLane < 8, "Invalid lane");
+  return Vec128<bfloat16_t>(vdupq_laneq_bf16(v.raw, kLane));
+}
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(bfloat16_t, N, 8),
+          HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<bfloat16_t, N> Broadcast(Vec128<bfloat16_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<bfloat16_t, N>(vdup_lane_bf16(v.raw, kLane));
+}
+#endif  // HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
+
 template <int kLane>
 HWY_API Vec128<float> Broadcast(Vec128<float> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
@@ -5407,7 +5505,26 @@ HWY_API Vec128<float16_t> Broadcast(Vec128<float16_t> v) {
   static_assert(0 <= kLane && kLane < 8, "Invalid lane");
   return Vec128<float16_t>(vdupq_n_f16(vgetq_lane_f16(v.raw, kLane)));
 }
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(float16_t, N, 8),
+          HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<float16_t, N> Broadcast(Vec128<float16_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<float16_t, N>(vdup_lane_f16(v.raw, kLane));
+}
 #endif  // HWY_HAVE_FLOAT16
+#if HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
+template <int kLane>
+HWY_API Vec128<bfloat16_t> Broadcast(Vec128<bfloat16_t> v) {
+  static_assert(0 <= kLane && kLane < 8, "Invalid lane");
+  return Vec128<bfloat16_t>(vdupq_n_bf16(vgetq_lane_bf16(v.raw, kLane)));
+}
+template <int kLane, size_t N, HWY_IF_V_SIZE_LE(bfloat16_t, N, 8),
+          HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<bfloat16_t, N> Broadcast(Vec128<bfloat16_t, N> v) {
+  static_assert(0 <= kLane && kLane < N, "Invalid lane");
+  return Vec128<bfloat16_t, N>(vdup_lane_bf16(v.raw, kLane));
+}
+#endif  // HWY_NEON_HAVE_BFLOAT16 && HWY_HAVE_SCALAR_BF16_TYPE
 template <int kLane>
 HWY_API Vec128<float> Broadcast(Vec128<float> v) {
   static_assert(0 <= kLane && kLane < 4, "Invalid lane");
@@ -5421,6 +5538,14 @@ HWY_API Vec128<float, N> Broadcast(Vec128<float, N> v) {
 }
 
 #endif  // HWY_ARCH_ARM_A64
+
+template <int kLane, typename V, HWY_NEON_IF_LOAD_STORE_EMULATED_D(DFromV<V>),
+          HWY_IF_LANES_GT_D(DFromV<V>, 1)>
+HWY_API V Broadcast(V v) {
+  const DFromV<V> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, Broadcast<kLane>(BitCast(du, v)));
+}
 
 // ------------------------------ TableLookupLanes
 
@@ -6853,6 +6978,15 @@ HWY_API VFromD<D> ReverseBlocks(D /* tag */, VFromD<D> v) {
 
 // ------------------------------ ReorderDemote2To (OddEven)
 
+#if HWY_NEON_HAVE_BFLOAT16
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
+                                   VFromD<Repartition<float, D>> b) {
+  const Half<decltype(dbf16)> dh_bf16;
+  return Combine(dbf16, DemoteTo(dh_bf16, b), DemoteTo(dh_bf16, a));
+}
+#endif  // HWY_NEON_HAVE_BFLOAT16
+
 template <class D, HWY_IF_I32_D(D)>
 HWY_API Vec128<int32_t> ReorderDemote2To(D d32, Vec128<int64_t> a,
                                          Vec128<int64_t> b) {
@@ -7066,6 +7200,14 @@ template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
 HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
   return ReorderDemote2To(d, a, b);
 }
+
+#if HWY_NEON_HAVE_BFLOAT16
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> OrderedDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
+                                   VFromD<Repartition<float, D>> b) {
+  return ReorderDemote2To(dbf16, a, b);
+}
+#endif  // HWY_NEON_HAVE_BFLOAT16
 
 // ================================================== CRYPTO
 
@@ -9290,6 +9432,7 @@ namespace detail {  // for code folding
 #undef HWY_NEON_DEF_FUNCTION_UINTS
 #undef HWY_NEON_EVAL
 #undef HWY_NEON_IF_EMULATED_D
+#undef HWY_NEON_IF_LOAD_STORE_EMULATED_D
 }  // namespace detail
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

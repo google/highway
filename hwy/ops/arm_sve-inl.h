@@ -43,10 +43,21 @@
 
 // HWY_SVE_HAVE_BF16_VEC is defined to 1 if the SVE svbfloat16_t vector type
 // is supported, even if HWY_SVE_HAVE_BF16_FEATURE (= intrinsics) is 0.
-#if HWY_SVE_HAVE_BF16_FEATURE || HWY_COMPILER_GCC_ACTUAL >= 1000
+#if HWY_SVE_HAVE_BF16_FEATURE ||                                       \
+    (HWY_COMPILER_CLANG >= 1200 && defined(__ARM_FEATURE_SVE_BF16)) || \
+    HWY_COMPILER_GCC_ACTUAL >= 1000
 #define HWY_SVE_HAVE_BF16_VEC 1
 #else
 #define HWY_SVE_HAVE_BF16_VEC 0
+#endif
+
+// HWY_SVE_HAVE_F32_TO_BF16C is defined to 1 if the SVE svcvt_bf16_f32_x
+// and svcvtnt_bf16_f32_x intrinsics are available, even if the __bf16 type
+// is disabled
+#if HWY_SVE_HAVE_BF16_VEC && defined(__ARM_FEATURE_SVE_BF16)
+#define HWY_SVE_HAVE_F32_TO_BF16C 1
+#else
+#define HWY_SVE_HAVE_F32_TO_BF16C 0
 #endif
 
 HWY_BEFORE_NAMESPACE();
@@ -2564,7 +2575,7 @@ HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat32_t v) {
 #define HWY_NATIVE_DEMOTE_F32_TO_BF16
 #endif
 
-#if !HWY_SVE_HAVE_BF16_FEATURE
+#if !HWY_SVE_HAVE_F32_TO_BF16C
 namespace detail {
 
 // Round a F32 value to the nearest BF16 value, with the result returned as the
@@ -2586,11 +2597,11 @@ HWY_INLINE svuint32_t RoundF32ForDemoteToBF16(svfloat32_t v) {
 }
 
 }  // namespace detail
-#endif  // !HWY_SVE_HAVE_BF16_FEATURE
+#endif  // !HWY_SVE_HAVE_F32_TO_BF16C
 
 template <size_t N, int kPow2>
 HWY_API VBF16 DemoteTo(Simd<bfloat16_t, N, kPow2> dbf16, svfloat32_t v) {
-#if HWY_SVE_HAVE_BF16_FEATURE
+#if HWY_SVE_HAVE_F32_TO_BF16C
   const VBF16 in_even = svcvt_bf16_f32_x(detail::PTrue(dbf16), v);
   return detail::ConcatEvenFull(in_even, in_even);
 #else
@@ -4227,7 +4238,7 @@ HWY_INLINE VFromD<D> PromoteOddTo(ToTypeTag to_type_tag,
 template <size_t N, int kPow2>
 HWY_API VBF16 ReorderDemote2To(Simd<bfloat16_t, N, kPow2> dbf16, svfloat32_t a,
                                svfloat32_t b) {
-#if HWY_SVE_HAVE_BF16_FEATURE
+#if HWY_SVE_HAVE_F32_TO_BF16C
   const VBF16 b_in_even = svcvt_bf16_f32_x(detail::PTrue(dbf16), b);
   return svcvtnt_bf16_f32_x(b_in_even, detail::PTrue(dbf16), a);
 #else
@@ -4388,7 +4399,7 @@ HWY_API VFromD<D> OrderedDemote2To(D dn, V a, V b) {
 template <size_t N, int kPow2>
 HWY_API VBF16 OrderedDemote2To(Simd<bfloat16_t, N, kPow2> dbf16, svfloat32_t a,
                                svfloat32_t b) {
-#if HWY_SVE_HAVE_BF16_FEATURE
+#if HWY_SVE_HAVE_F32_TO_BF16C
   (void)dbf16;
   const VBF16 a_in_even = svcvt_bf16_f32_x(detail::PTrue(dbf16), a);
   const VBF16 b_in_even = svcvt_bf16_f32_x(detail::PTrue(dbf16), b);
@@ -5497,7 +5508,7 @@ HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {
 template <size_t N, int kPow2>
 HWY_API svfloat32_t WidenMulPairwiseAdd(Simd<float, N, kPow2> df32, VBF16 a,
                                         VBF16 b) {
-#if HWY_SVE_HAVE_BF16_FEATURE
+#if HWY_SVE_HAVE_F32_TO_BF16C
   const svfloat32_t even = svbfmlalb_f32(Zero(df32), a, b);
   return svbfmlalt_f32(even, a, b);
 #else
