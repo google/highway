@@ -319,7 +319,9 @@ HWY_API size_t Lanes(Simd<T, N, kPow2> d) {
     return sv##OP##_b##BITS##_u32(uint32_t{0}, static_cast<uint32_t>(limit));  \
   }
 HWY_SVE_FOREACH(HWY_SVE_FIRSTN, FirstN, whilelt)
-HWY_SVE_FOREACH_BF16(HWY_SVE_FIRSTN, FirstN, whilelt)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_FIRSTN, FirstN, whilelt)
+#endif
 
 template <class D, HWY_SVE_IF_EMULATED_D(D)>
 svbool_t FirstN(D /* tag */, size_t count) {
@@ -344,7 +346,7 @@ namespace detail {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)  // return all-true
-HWY_SVE_FOREACH_BF16(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_WRAP_PTRUE, PTrue, ptrue)
 #undef HWY_SVE_WRAP_PTRUE
 
 HWY_API svbool_t PFalse() { return svpfalse_b(); }
@@ -486,7 +488,9 @@ HWY_API VFromD<D> BitCast(D d, FromV v) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_UNDEFINED, Undefined, undef)
-HWY_SVE_FOREACH_BF16(HWY_SVE_UNDEFINED, Undefined, undef)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_UNDEFINED, Undefined, undef)
+#endif
 
 template <class D, HWY_SVE_IF_EMULATED_D(D)>
 VFromD<D> Undefined(D d) {
@@ -519,7 +523,9 @@ VFromD<D> Undefined(D d) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_CREATE, Create, create)
-HWY_SVE_FOREACH_BF16(HWY_SVE_CREATE, Create, create)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CREATE, Create, create)
+#endif
 #undef HWY_SVE_CREATE
 
 template <class D>
@@ -544,7 +550,9 @@ using Vec4 = decltype(Create4(D(), Zero(D()), Zero(D()), Zero(D()), Zero(D())));
   }
 
 HWY_SVE_FOREACH(HWY_SVE_GET, Get, get)
-HWY_SVE_FOREACH_BF16(HWY_SVE_GET, Get, get)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_GET, Get, get)
+#endif
 #undef HWY_SVE_GET
 
 #define HWY_SVE_SET(BASE, CHAR, BITS, HALF, NAME, OP)                          \
@@ -565,7 +573,9 @@ HWY_SVE_FOREACH_BF16(HWY_SVE_GET, Get, get)
   }
 
 HWY_SVE_FOREACH(HWY_SVE_SET, Set, set)
-HWY_SVE_FOREACH_BF16(HWY_SVE_SET, Set, set)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_SET, Set, set)
+#endif
 #undef HWY_SVE_SET
 
 // ------------------------------ ResizeBitCast
@@ -2506,14 +2516,22 @@ namespace detail {
   }
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenFull, uzp1)
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddFull, uzp2)
-HWY_SVE_FOREACH_BF16(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenFull, uzp1)
-HWY_SVE_FOREACH_BF16(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddFull, uzp2)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenFull,
+                                   uzp1)
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddFull,
+                                   uzp2)
+#endif  // HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
 #if defined(__ARM_FEATURE_SVE_MATMUL_FP64)
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenBlocks, uzp1q)
 HWY_SVE_FOREACH(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks, uzp2q)
-HWY_SVE_FOREACH_BF16(HWY_SVE_CONCAT_EVERY_SECOND, ConcatEvenBlocks, uzp1q)
-HWY_SVE_FOREACH_BF16(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks, uzp2q)
-#endif
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND,
+                                   ConcatEvenBlocks, uzp1q)
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_CONCAT_EVERY_SECOND, ConcatOddBlocks,
+                                   uzp2q)
+#endif  // HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+#endif  // defined(__ARM_FEATURE_SVE_MATMUL_FP64)
 #undef HWY_SVE_CONCAT_EVERY_SECOND
 
 // Used to slide up / shift whole register left; mask indicates which range
@@ -3268,7 +3286,9 @@ HWY_API VFromD<RebindToUnsigned<D>> SetTableIndices(D d, const TI* idx) {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_TABLE, TableLookupLanes, tbl)
-HWY_SVE_FOREACH_BF16(HWY_SVE_TABLE, TableLookupLanes, tbl)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_TABLE, TableLookupLanes, tbl)
+#endif
 #undef HWY_SVE_TABLE
 
 #if HWY_SVE_HAVE_2
@@ -3280,7 +3300,10 @@ namespace detail {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_TABLE2, NativeTwoTableLookupLanes, tbl2)
-HWY_SVE_FOREACH_BF16(HWY_SVE_TABLE2, NativeTwoTableLookupLanes, tbl2)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_TABLE2, NativeTwoTableLookupLanes,
+                                   tbl2)
+#endif
 #undef HWY_SVE_TABLE
 }  // namespace detail
 #endif  // HWY_SVE_HAVE_2
@@ -3352,7 +3375,9 @@ namespace detail {
   }
 
 HWY_SVE_FOREACH(HWY_SVE_REVERSE, ReverseFull, rev)
-HWY_SVE_FOREACH_BF16(HWY_SVE_REVERSE, ReverseFull, rev)
+#if HWY_SVE_HAVE_BF16_FEATURE || HWY_SVE_HAVE_BF16_VEC
+HWY_SVE_FOREACH_BF16_UNCONDITIONAL(HWY_SVE_REVERSE, ReverseFull, rev)
+#endif
 #undef HWY_SVE_REVERSE
 
 }  // namespace detail
