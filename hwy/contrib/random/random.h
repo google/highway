@@ -198,7 +198,7 @@ class VectorXoshiro {
     Store(s3, tag, state_[{3}].data());
     return result;
   }
-  
+
   template <std::uint64_t N>
   std::array<std::uint64_t, N> operator()() noexcept {
     alignas(HWY_ALIGNMENT) std::array<std::uint64_t, N> result;

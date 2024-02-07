@@ -81,8 +81,6 @@ set(HWY_ENABLE_EXAMPLES ON CACHE BOOL "Build examples")
 set(HWY_ENABLE_INSTALL ON CACHE BOOL "Install library")
 set(HWY_ENABLE_TESTS ON CACHE BOOL "Enable HWY tests")
 
-add_compile_options(-g)
-
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
    "int main() {
