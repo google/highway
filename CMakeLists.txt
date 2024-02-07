@@ -123,7 +123,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/sort/vqsort-inl.h
     hwy/contrib/sort/vqsort.cc
     hwy/contrib/sort/vqsort.h
-    hwy/contrib/thread_pool/thread_pool.cc
+    hwy/contrib/thread_pool/futex.h
     hwy/contrib/thread_pool/thread_pool.h
     hwy/contrib/algo/copy-inl.h
     hwy/contrib/algo/find-inl.h
@@ -144,6 +144,7 @@ set(HWY_SOURCES
     hwy/highway_export.h
     hwy/nanobenchmark.cc
     hwy/nanobenchmark.h
+    hwy/profiler.h
     hwy/ops/arm_neon-inl.h
     hwy/ops/arm_sve-inl.h
     hwy/ops/emu128-inl.h
@@ -494,6 +495,16 @@ target_compile_options(hwy_benchmark PRIVATE ${HWY_FLAGS})
 target_link_libraries(hwy_benchmark PRIVATE hwy)
 target_link_libraries(hwy_benchmark PRIVATE ${ATOMICS_LIBRARIES})
 set_target_properties(hwy_benchmark
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
+
+# Profiler demo
+add_executable(hwy_profiler_example hwy/examples/profiler_example.cc)
+target_sources(hwy_profiler_example PRIVATE
+    hwy/profiler.h)
+target_compile_options(hwy_profiler_example PRIVATE ${HWY_FLAGS})
+target_link_libraries(hwy_profiler_example PRIVATE hwy)
+target_link_libraries(hwy_profiler_example PRIVATE ${ATOMICS_LIBRARIES})
+set_target_properties(hwy_profiler_example
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "examples/")
 
 endif()  # HWY_ENABLE_EXAMPLES

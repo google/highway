@@ -856,6 +856,20 @@ HWY_API Mask128<double, N> MaskFromVec(const Vec128<double, N> v) {
 template <class D>
 using MFromD = decltype(MaskFromVec(VFromD<D>()));
 
+// ------------------------------ MaskFalse (MFromD)
+
+#ifdef HWY_NATIVE_MASK_FALSE
+#undef HWY_NATIVE_MASK_FALSE
+#else
+#define HWY_NATIVE_MASK_FALSE
+#endif
+
+// Generic for all vector lengths
+template <class D>
+HWY_API MFromD<D> MaskFalse(D /*d*/) {
+  return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(0)};
+}
+
 // ------------------------------ PromoteMaskTo (MFromD)
 
 #ifdef HWY_NATIVE_PROMOTE_MASK_TO
@@ -3643,6 +3657,18 @@ HWY_API Vec128<double, N> operator-(const Vec128<double, N> a,
   return Vec128<double, N>{_mm_sub_pd(a.raw, b.raw)};
 }
 
+// ------------------------------ AddSub
+
+#if HWY_TARGET <= HWY_SSSE3
+template <size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<float, N> AddSub(Vec128<float, N> a, Vec128<float, N> b) {
+  return Vec128<float, N>{_mm_addsub_ps(a.raw, b.raw)};
+}
+HWY_API Vec128<double> AddSub(Vec128<double> a, Vec128<double> b) {
+  return Vec128<double>{_mm_addsub_pd(a.raw, b.raw)};
+}
+#endif  // HWY_TARGET <= HWY_SSSE3
+
 // ------------------------------ SumsOf8
 template <size_t N>
 HWY_API Vec128<uint64_t, N / 8> SumsOf8(const Vec128<uint8_t, N> v) {
@@ -5053,7 +5079,7 @@ HWY_API Vec128<float16_t, N> NegMulSub(Vec128<float16_t, N> mul,
 template <size_t N>
 HWY_API Vec128<float, N> MulAdd(Vec128<float, N> mul, Vec128<float, N> x,
                                 Vec128<float, N> add) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return mul * x + add;
 #else
   return Vec128<float, N>{_mm_fmadd_ps(mul.raw, x.raw, add.raw)};
@@ -5062,7 +5088,7 @@ HWY_API Vec128<float, N> MulAdd(Vec128<float, N> mul, Vec128<float, N> x,
 template <size_t N>
 HWY_API Vec128<double, N> MulAdd(Vec128<double, N> mul, Vec128<double, N> x,
                                  Vec128<double, N> add) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return mul * x + add;
 #else
   return Vec128<double, N>{_mm_fmadd_pd(mul.raw, x.raw, add.raw)};
@@ -5073,7 +5099,7 @@ HWY_API Vec128<double, N> MulAdd(Vec128<double, N> mul, Vec128<double, N> x,
 template <size_t N>
 HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> mul, Vec128<float, N> x,
                                    Vec128<float, N> add) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return add - mul * x;
 #else
   return Vec128<float, N>{_mm_fnmadd_ps(mul.raw, x.raw, add.raw)};
@@ -5082,7 +5108,7 @@ HWY_API Vec128<float, N> NegMulAdd(Vec128<float, N> mul, Vec128<float, N> x,
 template <size_t N>
 HWY_API Vec128<double, N> NegMulAdd(Vec128<double, N> mul, Vec128<double, N> x,
                                     Vec128<double, N> add) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return add - mul * x;
 #else
   return Vec128<double, N>{_mm_fnmadd_pd(mul.raw, x.raw, add.raw)};
@@ -5093,7 +5119,7 @@ HWY_API Vec128<double, N> NegMulAdd(Vec128<double, N> mul, Vec128<double, N> x,
 template <size_t N>
 HWY_API Vec128<float, N> MulSub(Vec128<float, N> mul, Vec128<float, N> x,
                                 Vec128<float, N> sub) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return mul * x - sub;
 #else
   return Vec128<float, N>{_mm_fmsub_ps(mul.raw, x.raw, sub.raw)};
@@ -5102,7 +5128,7 @@ HWY_API Vec128<float, N> MulSub(Vec128<float, N> mul, Vec128<float, N> x,
 template <size_t N>
 HWY_API Vec128<double, N> MulSub(Vec128<double, N> mul, Vec128<double, N> x,
                                  Vec128<double, N> sub) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return mul * x - sub;
 #else
   return Vec128<double, N>{_mm_fmsub_pd(mul.raw, x.raw, sub.raw)};
@@ -5113,7 +5139,7 @@ HWY_API Vec128<double, N> MulSub(Vec128<double, N> mul, Vec128<double, N> x,
 template <size_t N>
 HWY_API Vec128<float, N> NegMulSub(Vec128<float, N> mul, Vec128<float, N> x,
                                    Vec128<float, N> sub) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return Neg(mul) * x - sub;
 #else
   return Vec128<float, N>{_mm_fnmsub_ps(mul.raw, x.raw, sub.raw)};
@@ -5122,12 +5148,44 @@ HWY_API Vec128<float, N> NegMulSub(Vec128<float, N> mul, Vec128<float, N> x,
 template <size_t N>
 HWY_API Vec128<double, N> NegMulSub(Vec128<double, N> mul, Vec128<double, N> x,
                                     Vec128<double, N> sub) {
-#if HWY_TARGET >= HWY_SSE4
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
   return Neg(mul) * x - sub;
 #else
   return Vec128<double, N>{_mm_fnmsub_pd(mul.raw, x.raw, sub.raw)};
 #endif
 }
+
+#if HWY_TARGET <= HWY_SSSE3
+
+#if HWY_HAVE_FLOAT16
+template <size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<float16_t, N> MulAddSub(Vec128<float16_t, N> mul,
+                                       Vec128<float16_t, N> x,
+                                       Vec128<float16_t, N> sub_or_add) {
+  return Vec128<float16_t, N>{_mm_fmaddsub_ph(mul.raw, x.raw, sub_or_add.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
+template <size_t N, HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<float, N> MulAddSub(Vec128<float, N> mul, Vec128<float, N> x,
+                                   Vec128<float, N> sub_or_add) {
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
+  return AddSub(mul * x, sub_or_add);
+#else
+  return Vec128<float, N>{_mm_fmaddsub_ps(mul.raw, x.raw, sub_or_add.raw)};
+#endif
+}
+
+HWY_API Vec128<double> MulAddSub(Vec128<double> mul, Vec128<double> x,
+                                 Vec128<double> sub_or_add) {
+#if HWY_TARGET >= HWY_SSE4 || defined(HWY_DISABLE_BMI2_FMA)
+  return AddSub(mul * x, sub_or_add);
+#else
+  return Vec128<double>{_mm_fmaddsub_pd(mul.raw, x.raw, sub_or_add.raw)};
+#endif
+}
+
+#endif  // HWY_TARGET <= HWY_SSSE3
 
 // ------------------------------ Floating-point square root
 

@@ -96,7 +96,9 @@ struct TestSumMulAdd {
     }
     double expected_sum = 0.0;
     for (size_t i = 0; i < count; ++i) {
-      expected_sum += mul[i] * x[i] + add[i];
+      expected_sum += hwy::ConvertScalarTo<double>(mul[i]) *
+                          hwy::ConvertScalarTo<double>(x[i]) +
+                      hwy::ConvertScalarTo<double>(add[i]);
     }
 
     MulAddLoop(d, mul.get(), add.get(), count, x.get());

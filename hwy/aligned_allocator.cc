@@ -54,11 +54,11 @@ struct AllocationHeader {
 
 // Returns a 'random' (cyclical) offset for AllocateAlignedBytes.
 size_t NextAlignedOffset() {
-  static std::atomic<uint64_t> next{0};
+  static std::atomic<size_t> next{0};
   static_assert(kAlias % kAlignment == 0, "kAlias must be a multiple");
-  constexpr uint64_t kGroups = kAlias / kAlignment;
-  const uint64_t group = next.fetch_add(1, std::memory_order_relaxed) % kGroups;
-  const size_t offset = static_cast<size_t>(kAlignment * group);
+  constexpr size_t kGroups = kAlias / kAlignment;
+  const size_t group = next.fetch_add(1, std::memory_order_relaxed) % kGroups;
+  const size_t offset = kAlignment * group;
   HWY_DASSERT((offset % kAlignment == 0) && offset <= kAlias);
   return offset;
 }
