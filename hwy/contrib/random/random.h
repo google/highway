@@ -181,7 +181,7 @@ class VectorXoshiro {
 
   T operator()() noexcept { return Next(); }
 
-  AlignedVector<std::size_t> operator()(const std::uint64_t n) noexcept {
+  AlignedVector<std::size_t> operator()(const std::uint64_t n) {
     AlignedVector<std::size_t> result(n);
     const ScalableTag<std::size_t> tag{};
     auto s0 = Load(tag, state_[{0}].data());
@@ -212,7 +212,7 @@ class VectorXoshiro {
     return Mul(real, MUL_VALUE);
   };
 
-  AlignedVector<double> Uniform(const std::uint64_t n) noexcept {
+  AlignedVector<double> Uniform(const std::uint64_t n) {
     AlignedVector<double> result(n);
 
     const ScalableTag<std::size_t> tag{};
