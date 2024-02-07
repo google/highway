@@ -124,6 +124,20 @@ AlignedUniquePtr<T> MakeUniqueAligned(Args&&... args) {
                              AlignedDeleter());
 }
 
+template <class T>
+struct AlignedAllocator {
+  using value_type = T;
+  T* allocate(std::size_t n) {
+    return static_cast<T*>(AllocateAlignedBytes(n * sizeof(T)));
+  }
+  void deallocate(T* p, std::size_t n) {
+        return FreeAlignedBytes(p, nullptr, nullptr);
+  }
+};
+
+template <class T>
+using AlignedVector = std::vector<T, AlignedAllocator<T>>;
+
 // Helpers for array allocators (avoids overflow)
 namespace detail {
 

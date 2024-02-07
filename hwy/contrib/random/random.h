@@ -50,7 +50,7 @@ class Xoshiro {
   HWY_CXX14_CONSTEXPR explicit Xoshiro(const std::uint64_t seed) noexcept
       : state_{} {
     SplitMix64 splitMix64{seed};
-    for (auto& element : state_) {
+    for (auto &element : state_) {
       element = splitMix64();
     }
   }
@@ -83,6 +83,17 @@ class Xoshiro {
 
   static constexpr std::uint64_t StateSize() noexcept { return 4; }
 
+  /* This is the jump function for the generator. It is equivalent to 2^128
+   * calls to next(); it can be used to generate 2^128 non-overlapping
+   * subsequences for parallel computations. */
+  HWY_CXX14_CONSTEXPR void Jump() noexcept { Jump(kJump); }
+
+  /* This is the long-jump function for the generator. It is equivalent to 2^192
+   * calls to next(); it can be used to generate 2^64 starting points, from each
+   * of which jump() will generate 2^64 non-overlapping subsequences for
+   * parallel distributed computations. */
+  HWY_CXX14_CONSTEXPR void LongJump() noexcept { Jump(kLongJump); }
+
  private:
   std::uint64_t state_[4];
 
@@ -110,17 +121,18 @@ class Xoshiro {
       0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa,
       0x39abdc4529b1661c};
 
- public:
-  /* This is the jump function for the generator. It is equivalent
- to 2^128 calls to next(); it can be used to generate 2^128
- non-overlapping subsequences for parallel computations. */
-  HWY_CXX14_CONSTEXPR void Jump() noexcept {
+  static constexpr std::uint64_t kLongJump[] = {
+      0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241,
+      0x39109bb02acbe635};
+
+  template <class T>
+  HWY_CXX14_CONSTEXPR void Jump(const T &jumpArray) noexcept {
     std::uint64_t s0 = 0;
     std::uint64_t s1 = 0;
     std::uint64_t s2 = 0;
     std::uint64_t s3 = 0;
 
-    for (auto i : kJump)
+    for (auto i : jumpArray)
       for (auto b = 0; b < 64; b++) {
         if (i & std::uint64_t{1UL} << b) {
           s0 ^= state_[0];
@@ -139,31 +151,59 @@ class Xoshiro {
 };
 
 }  // namespace internal
+
 class VectorXoshiro {
  private:
   using T = Vec<decltype(ScalableTag<std::uint64_t>{})>;
   using V = Vec<decltype(ScalableTag<double>{})>;
-  static constexpr std::size_t streams_ = 8;
-  using StateType = std::array<std::array<std::uint64_t, streams_>,
-                               internal::Xoshiro::StateSize()>;
+  using StateType = AlignedNDArray<std::uint64_t, 2>;
+
  public:
-  explicit VectorXoshiro(const std::uint64_t seed) : state_{} {
+  explicit VectorXoshiro(const std::uint64_t seed,
+                         const std::uint64_t threadNumber = 0)
+      : state_{{internal::Xoshiro::StateSize(),
+                Lanes(ScalableTag<std::uint64_t>{})}},
+        streams{state_.shape().back()} {
     internal::Xoshiro xoshiro{seed};
-    for (auto i = 0UL; i < streams_; ++i) {
+
+    for (std::uint64_t i = 0; i < threadNumber; ++i) {
+      xoshiro.LongJump();
+    }
+
+    for (size_t i = 0UL; i < streams; ++i) {
       const auto state = xoshiro.GetState();
-      for (std::uint64_t j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
-        state_[j][i] = state[j];
+      for (size_t j = 0UL; j < internal::Xoshiro::StateSize(); ++j) {
+        state_[{j}][i] = state[j];
       }
       xoshiro.Jump();
     }
   }
+
   T operator()() noexcept { return Next(); }
 
-  std::uint64_t StateSize() const noexcept {
-    return streams_ * internal::Xoshiro::StateSize();
+  AlignedVector<std::size_t> operator()(const std::uint64_t n) noexcept {
+    AlignedVector<std::size_t> result(n);
+    const ScalableTag<std::size_t> tag{};
+    auto s0 = Load(tag, state_[{0}].data());
+    auto s1 = Load(tag, state_[{1}].data());
+    auto s2 = Load(tag, state_[{2}].data());
+    auto s3 = Load(tag, state_[{3}].data());
+    for (std::uint64_t i = 0; i < n; i += Lanes(tag)) {
+      const auto next = Update(s0, s1, s2, s3);
+      Store(next, tag, std::addressof(result[i]));
+    }
+    Store(s0, tag, state_[{0}].data());
+    Store(s1, tag, state_[{1}].data());
+    Store(s2, tag, state_[{2}].data());
+    Store(s3, tag, state_[{3}].data());
+    return result;
   }
 
-  const StateType& GetState() const { return state_; }
+  std::uint64_t StateSize() const noexcept {
+    return streams * internal::Xoshiro::StateSize();
+  }
+
+  const StateType &GetState() const { return state_; }
 
   V Uniform() noexcept {
     const auto MUL_VALUE = Set(DFromV<V>(), internal::MUL_CONST);
@@ -172,15 +212,38 @@ class VectorXoshiro {
     return Mul(real, MUL_VALUE);
   };
 
+  AlignedVector<double> Uniform(const std::uint64_t n) noexcept {
+    AlignedVector<double> result(n);
+
+    const ScalableTag<std::size_t> tag{};
+    const ScalableTag<double> real_tag{};
+    const auto MUL_VALUE = Set(real_tag, internal::MUL_CONST);
+
+    auto s0 = Load(tag, state_[{0}].data());
+    auto s1 = Load(tag, state_[{1}].data());
+    auto s2 = Load(tag, state_[{2}].data());
+    auto s3 = Load(tag, state_[{3}].data());
+
+    for (std::uint64_t i = 0; i < n; i += Lanes(real_tag)) {
+      const auto next = Update(s0, s1, s2, s3);
+      const auto bits = ShiftRight<11>(next);
+      const auto real = ConvertTo(real_tag, bits);
+      const auto uniform = Mul(real, MUL_VALUE);
+      Store(uniform, real_tag, std::addressof(result[i]));
+    }
+
+    Store(s0, tag, state_[{0}].data());
+    Store(s1, tag, state_[{1}].data());
+    Store(s2, tag, state_[{2}].data());
+    Store(s3, tag, state_[{3}].data());
+    return result;
+  }
+
  private:
   StateType state_;
+  const std::size_t streams;
 
-  T Next() noexcept {
-    ScalableTag<std::uint64_t> tag;
-    auto s0 = LoadU(tag, state_[0].data());
-    auto s1 = LoadU(tag, state_[1].data());
-    auto s2 = LoadU(tag, state_[2].data());
-    auto s3 = LoadU(tag, state_[3].data());
+  static T Update(T &s0, T &s1, T &s2, T &s3) noexcept {
     const auto result = Add(RotateRight<41>(Add(s0, s3)), s0);
     const auto t = ShiftLeft<17>(s1);
     s2 = Xor(s2, s0);
@@ -189,10 +252,20 @@ class VectorXoshiro {
     s0 = Xor(s0, s3);
     s2 = Xor(s2, t);
     s3 = RotateRight<19>(s3);
-    StoreU(s0, tag, state_[0].data());
-    StoreU(s1, tag, state_[1].data());
-    StoreU(s2, tag, state_[2].data());
-    StoreU(s3, tag, state_[3].data());
+    return result;
+  }
+
+  T Next() noexcept {
+    ScalableTag<std::uint64_t> tag;
+    auto s0 = Load(tag, state_[{0}].data());
+    auto s1 = Load(tag, state_[{1}].data());
+    auto s2 = Load(tag, state_[{2}].data());
+    auto s3 = Load(tag, state_[{3}].data());
+    auto result = Update(s0, s1, s2, s3);
+    Store(s0, tag, state_[{0}].data());
+    Store(s1, tag, state_[{1}].data());
+    Store(s2, tag, state_[{2}].data());
+    Store(s3, tag, state_[{3}].data());
     return result;
   }
 };

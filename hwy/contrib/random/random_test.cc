@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include <ctime>
+#include <random>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
@@ -49,14 +50,43 @@ void TestSeeding() {
   VectorXoshiro generator{seed};
   internal::Xoshiro reference{seed};
   const auto& state = generator.GetState();
-  const auto lanes = state.size();
+  const ScalableTag<std::uint64_t> d;
+  const auto lanes = Lanes(d);
   for (auto i = 0UL; i < lanes; ++i) {
     const auto& reference_state = reference.GetState();
     for (auto j = 0UL; j < reference_state.size(); ++j) {
-      if (state[j][i] != reference_state[j]) {
+      if (state[{j}][i] != reference_state[j]) {
         fprintf(stderr, "SEED: %lu\n", seed);
         fprintf(stderr, "TEST SEEDING ERROR: ");
-        fprintf(stderr, "state[%lu][%lu] -> %lu != %lu\n", j, i, state[j][i],
+        fprintf(stderr, "state[%lu][%lu] -> %lu != %lu\n", j, i, state[{j}][i],
+                reference_state[j]);
+        HWY_ASSERT(0);
+      }
+    }
+    reference.Jump();
+  }
+}
+
+void TestMultiThreadSeeding() {
+  const std::uint64_t seed = GetSeed();
+  const std::uint64_t threadId = std::random_device()() % 1000;
+  VectorXoshiro generator{seed, threadId};
+  internal::Xoshiro reference{seed};
+
+  for (auto i = 0UL; i < threadId; ++i) {
+    reference.LongJump();
+  }
+
+  const auto& state = generator.GetState();
+  const ScalableTag<std::uint64_t> d;
+  const auto lanes = Lanes(d);
+  for (auto i = 0UL; i < lanes; ++i) {
+    const auto& reference_state = reference.GetState();
+    for (auto j = 0UL; j < reference_state.size(); ++j) {
+      if (state[{j}][i] != reference_state[j]) {
+        fprintf(stderr, "SEED: %lu\n", seed);
+        fprintf(stderr, "TEST SEEDING ERROR: ");
+        fprintf(stderr, "state[%lu][%lu] -> %lu != %lu\n", j, i, state[{j}][i],
                 reference_state[j]);
         HWY_ASSERT(0);
       }
@@ -113,6 +143,54 @@ void TestUniformDist() {
   }
 }
 
+void TestNextNRandomUint64() {
+  const std::uint64_t seed = GetSeed();
+  VectorXoshiro generator{seed};
+  const auto result_array = generator.operator()(tests);
+  std::vector<internal::Xoshiro> reference;
+  reference.emplace_back(seed);
+  const ScalableTag<std::uint64_t> d;
+  const auto lanes = Lanes(d);
+  for (auto i = 1UL; i < lanes; ++i) {
+    auto rng = reference.back();
+    rng.Jump();
+    reference.emplace_back(rng);
+  }
+
+  for (auto i = 0UL; i < tests; i += lanes) {
+    for (auto lane = 0UL; lane < lanes; ++lane) {
+      const auto result = reference[lane]();
+      if (result_array[i + lane] != result) {
+        fprintf(stderr, "SEED: %lu\n", seed);
+        fprintf(
+            stderr,
+            "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
+            i + lane, result_array[i + lane], result);
+        HWY_ASSERT(0);
+      }
+    }
+  }
+}
+
+
+void TestNextNUniformDist() {
+  const std::uint64_t seed = GetSeed();
+  VectorXoshiro generator{seed};
+  const auto result_array = generator.Uniform(tests);
+  internal::Xoshiro reference{seed};
+  const ScalableTag<double> d;
+  const auto lanes = Lanes(d);
+  for (auto i = 0UL; i < tests; i += lanes) {
+    const auto result = reference.Uniform();
+    if (result_array[i] != result) {
+      fprintf(stderr, "SEED: %lu\n", seed);
+      fprintf(stderr,
+              "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %f != %f\n", i,
+              result_array[i], result);
+      HWY_ASSERT(0);
+    }
+  }
+}
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 
@@ -124,8 +202,11 @@ HWY_AFTER_NAMESPACE();  // required if not using HWY_ATTR
 namespace hwy {
 HWY_BEFORE_TEST(HwyRandomTest);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestSeeding);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestMultiThreadSeeding);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestRandomUint64);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNUniformDist);
 }  // namespace hwy
 
 #endif
