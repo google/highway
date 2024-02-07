@@ -1011,8 +1011,8 @@ HWY_API HWY_BITCASTSCALAR_CONSTEXPR To BitCastScalar(const From& val) {
 
 // x86 compiler supports _Float16, not necessarily with operators.
 // Avoid clang-cl because it lacks __extendhfsf2.
-#if HWY_ARCH_X86 && defined(__SSE2__) &&                      \
-    ((HWY_COMPILER_CLANG >= 1500 && !HWY_COMPILER_CLANGCL) || \
+#if HWY_ARCH_X86 && defined(__SSE2__) && defined(__FLT16_MAX__) && \
+    ((HWY_COMPILER_CLANG >= 1500 && !HWY_COMPILER_CLANGCL) ||      \
      HWY_COMPILER_GCC_ACTUAL >= 1200)
 #define HWY_SSE2_HAVE_F16_TYPE 1
 #else
