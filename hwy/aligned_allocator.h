@@ -130,7 +130,7 @@ struct AlignedAllocator {
   T* allocate(std::size_t n) {
     return static_cast<T*>(AllocateAlignedBytes(n * sizeof(T)));
   }
-  void deallocate(T* p, std::size_t n) {
+  void deallocate(T* p, HWY_MAYBE_UNUSED std::size_t n) {
         return FreeAlignedBytes(p, nullptr, nullptr);
   }
 };

@@ -172,6 +172,34 @@ void TestNextNRandomUint64() {
   }
 }
 
+void TestNextFixedNRandomUint64() {
+  const std::uint64_t seed = GetSeed();
+  VectorXoshiro generator{seed};
+  const auto result_array = generator.operator()<tests>();
+  std::vector<internal::Xoshiro> reference;
+  reference.emplace_back(seed);
+  const ScalableTag<std::uint64_t> d;
+  const auto lanes = Lanes(d);
+  for (auto i = 1UL; i < lanes; ++i) {
+    auto rng = reference.back();
+    rng.Jump();
+    reference.emplace_back(rng);
+  }
+
+  for (auto i = 0UL; i < tests; i += lanes) {
+    for (auto lane = 0UL; lane < lanes; ++lane) {
+      const auto result = reference[lane]();
+      if (result_array[i + lane] != result) {
+        fprintf(stderr, "SEED: %lu\n", seed);
+        fprintf(
+            stderr,
+            "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
+            i + lane, result_array[i + lane], result);
+        HWY_ASSERT(0);
+      }
+    }
+  }
+}
 
 void TestNextNUniformDist() {
   const std::uint64_t seed = GetSeed();
@@ -191,6 +219,73 @@ void TestNextNUniformDist() {
     }
   }
 }
+
+void TestNextFixedNUniformDist() {
+  const std::uint64_t seed = GetSeed();
+  VectorXoshiro generator{seed};
+  const auto result_array = generator.Uniform<tests>();
+  internal::Xoshiro reference{seed};
+  const ScalableTag<double> d;
+  const auto lanes = Lanes(d);
+  for (auto i = 0UL; i < tests; i += lanes) {
+    const auto result = reference.Uniform();
+    if (result_array[i] != result) {
+      fprintf(stderr, "SEED: %lu\n", seed);
+      fprintf(stderr,
+              "TEST UNIFORM GENERATOR ERROR: result_array[%lu] -> %f != %f\n", i,
+              result_array[i], result);
+      HWY_ASSERT(0);
+    }
+  }
+}
+
+void TestCachedXorshiro() {
+  const std::uint64_t seed = GetSeed();
+
+  CachedXoshiro generator{seed};
+  std::vector<internal::Xoshiro> reference;
+  reference.emplace_back(seed);
+  const ScalableTag<std::uint64_t> d;
+  const auto lanes = Lanes(d);
+  for (auto i = 1UL; i < lanes; ++i) {
+    auto rng = reference.back();
+    rng.Jump();
+    reference.emplace_back(rng);
+  }
+
+  for (auto i = 0UL; i < tests; i += lanes) {
+    for (auto lane = 0UL; lane < lanes; ++lane) {
+      const auto result = reference[lane]();
+      const auto got = generator();
+      if (got != result) {
+        fprintf(stderr, "SEED: %lu\n", seed);
+        fprintf(
+            stderr,
+            "TEST CachedXoshiro GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
+            i + lane, got, result);
+        HWY_ASSERT(0);
+      }
+    }
+  }
+}
+void TestUniformCachedXorshiro() {
+  const std::uint64_t seed = GetSeed();
+
+  CachedXoshiro generator{seed};
+  std::uniform_real_distribution distribution{0., 1.};
+  for (auto i = 0UL; i < tests; ++i) {
+    const auto result = distribution(generator);
+
+    if (result < 0. || result >= 1.) {
+      fprintf(stderr, "SEED: %lu\n", seed);
+      fprintf(stderr,
+              "TEST CachedXoshiro GENERATOR ERROR: result_array[%lu] -> %f not in "
+              "interval [0, 1)\n",
+              i, result);
+      HWY_ASSERT(0);
+    }
+  }
+}
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 
@@ -205,8 +300,12 @@ HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestSeeding);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestMultiThreadSeeding);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNRandomUint64);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNUniformDist);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNUniformDist);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestCachedXorshiro);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformCachedXorshiro);
 }  // namespace hwy
 
 #endif

@@ -179,7 +179,7 @@ class VectorXoshiro {
     }
   }
 
-  T operator()() noexcept { return Next(); }
+  HWY_INLINE T operator()() noexcept { return Next(); }
 
   AlignedVector<std::size_t> operator()(const std::uint64_t n) {
     AlignedVector<std::size_t> result(n);
@@ -198,6 +198,25 @@ class VectorXoshiro {
     Store(s3, tag, state_[{3}].data());
     return result;
   }
+  
+  template <std::uint64_t N>
+  std::array<std::uint64_t, N> operator()() noexcept {
+    alignas(HWY_ALIGNMENT) std::array<std::uint64_t, N> result;
+    const ScalableTag<std::size_t> tag{};
+    auto s0 = Load(tag, state_[{0}].data());
+    auto s1 = Load(tag, state_[{1}].data());
+    auto s2 = Load(tag, state_[{2}].data());
+    auto s3 = Load(tag, state_[{3}].data());
+    for (std::uint64_t i = 0; i < N; i += Lanes(tag)) {
+      const auto next = Update(s0, s1, s2, s3);
+      Store(next, tag, std::addressof(result[i]));
+    }
+    Store(s0, tag, state_[{0}].data());
+    Store(s1, tag, state_[{1}].data());
+    Store(s2, tag, state_[{2}].data());
+    Store(s3, tag, state_[{3}].data());
+    return result;
+  }
 
   std::uint64_t StateSize() const noexcept {
     return streams * internal::Xoshiro::StateSize();
@@ -205,7 +224,7 @@ class VectorXoshiro {
 
   const StateType &GetState() const { return state_; }
 
-  V Uniform() noexcept {
+  HWY_INLINE V Uniform() noexcept {
     const auto MUL_VALUE = Set(DFromV<V>(), internal::MUL_CONST);
     const auto bits = ShiftRight<11>(Next());
     const auto real = ConvertTo(DFromV<V>(), bits);
@@ -214,7 +233,6 @@ class VectorXoshiro {
 
   AlignedVector<double> Uniform(const std::uint64_t n) {
     AlignedVector<double> result(n);
-
     const ScalableTag<std::size_t> tag{};
     const ScalableTag<double> real_tag{};
     const auto MUL_VALUE = Set(real_tag, internal::MUL_CONST);
@@ -239,11 +257,38 @@ class VectorXoshiro {
     return result;
   }
 
+  template <std::uint64_t N>
+  std::array<double, N> Uniform() noexcept {
+    alignas(HWY_ALIGNMENT) std::array<double, N> result;
+    const ScalableTag<std::size_t> tag{};
+    const ScalableTag<double> real_tag{};
+    const auto MUL_VALUE = Set(real_tag, internal::MUL_CONST);
+
+    auto s0 = Load(tag, state_[{0}].data());
+    auto s1 = Load(tag, state_[{1}].data());
+    auto s2 = Load(tag, state_[{2}].data());
+    auto s3 = Load(tag, state_[{3}].data());
+
+    for (std::uint64_t i = 0; i < N; i += Lanes(real_tag)) {
+      const auto next = Update(s0, s1, s2, s3);
+      const auto bits = ShiftRight<11>(next);
+      const auto real = ConvertTo(real_tag, bits);
+      const auto uniform = Mul(real, MUL_VALUE);
+      Store(uniform, real_tag, std::addressof(result[i]));
+    }
+
+    Store(s0, tag, state_[{0}].data());
+    Store(s1, tag, state_[{1}].data());
+    Store(s2, tag, state_[{2}].data());
+    Store(s3, tag, state_[{3}].data());
+    return result;
+  }
+
  private:
   StateType state_;
   const std::size_t streams;
 
-  static T Update(T &s0, T &s1, T &s2, T &s3) noexcept {
+  HWY_INLINE static T Update(T &s0, T &s1, T &s2, T &s3) noexcept {
     const auto result = Add(RotateRight<41>(Add(s0, s3)), s0);
     const auto t = ShiftLeft<17>(s1);
     s2 = Xor(s2, s0);
@@ -255,7 +300,7 @@ class VectorXoshiro {
     return result;
   }
 
-  T Next() noexcept {
+  HWY_INLINE T Next() noexcept {
     ScalableTag<std::uint64_t> tag;
     auto s0 = Load(tag, state_[{0}].data());
     auto s1 = Load(tag, state_[{1}].data());
@@ -268,6 +313,39 @@ class VectorXoshiro {
     Store(s3, tag, state_[{3}].data());
     return result;
   }
+};
+
+template <std::uint64_t size = 1024>
+class CachedXoshiro {
+ public:
+  explicit CachedXoshiro(const std::uint64_t seed,
+                         const std::uint64_t threadNumber = 0)
+      : generator_{seed, threadNumber},
+        cache_{generator_.operator()<size>()},
+        index_{0} {}
+
+  std::uint64_t operator()() noexcept {
+    if (HWY_UNLIKELY(index_ == size)) {
+      cache_ = std::move(generator_.operator()<size>());
+      index_ = 0;
+    }
+    return cache_[index_++];
+  }
+
+  static constexpr std::uint64_t min() noexcept {
+    return std::numeric_limits<std::uint64_t>::lowest();
+  }
+
+  static constexpr std::uint64_t max() noexcept {
+    return std::numeric_limits<std::uint64_t>::max();
+  }
+
+ private:
+  VectorXoshiro generator_;
+  alignas(HWY_ALIGNMENT) std::array<std::uint64_t, size> cache_;
+  std::size_t index_;
+  static_assert((size & (size - 1)) == 0 && size != 0,
+                "only power of 2 are supported");
 };
 
 }  // namespace HWY_NAMESPACE
