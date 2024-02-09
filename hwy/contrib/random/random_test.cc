@@ -242,7 +242,7 @@ void TestNextFixedNUniformDist() {
 void TestCachedXorshiro() {
   const std::uint64_t seed = GetSeed();
 
-  CachedXoshiro generator{seed};
+  CachedXoshiro<> generator{seed};
   std::vector<internal::Xoshiro> reference;
   reference.emplace_back(seed);
   const ScalableTag<std::uint64_t> d;
@@ -271,8 +271,8 @@ void TestCachedXorshiro() {
 void TestUniformCachedXorshiro() {
   const std::uint64_t seed = GetSeed();
 
-  CachedXoshiro generator{seed};
-  std::uniform_real_distribution distribution{0., 1.};
+  CachedXoshiro<> generator{seed};
+  std::uniform_real_distribution<double> distribution{0., 1.};
   for (auto i = 0UL; i < tests; ++i) {
     const auto result = distribution(generator);
 

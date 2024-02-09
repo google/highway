@@ -21,13 +21,22 @@ namespace hwy {
 namespace HWY_NAMESPACE {  // required: unique per target
 namespace internal {
 
+namespace {
 // C++ < 17 does not support hexfloat
 #if __cpp_hex_float > 201603L
-constexpr double MUL_CONST = 0x1.0p-53;
+constexpr double kMulConst = 0x1.0p-53;
 #else
-constexpr double MUL_CONST =
+constexpr double kMulConst =
     0.00000000000000011102230246251565404236316680908203125;
 #endif
+
+constexpr std::uint64_t kJump[] = {0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
+                                   0xa9582618e03fc9aa, 0x39abdc4529b1661c};
+
+constexpr std::uint64_t kLongJump[] = {0x76e15d3efefdcbbf, 0xc5004e441c522fb3,
+                                       0x77710069854ee241, 0x39109bb02acbe635};
+
+}  // namespace
 
 class SplitMix64 {
  public:
@@ -66,10 +75,10 @@ class Xoshiro {
   HWY_CXX14_CONSTEXPR std::uint64_t operator()() noexcept { return Next(); }
 
   HWY_CXX14_CONSTEXPR double Uniform() noexcept {
-    return static_cast<double>(Next() >> 11) * MUL_CONST;
+    return static_cast<double>(Next() >> 11) * kMulConst;
   }
 
-  constexpr std::array<std::uint64_t, 4> GetState() const {
+  HWY_CXX14_CONSTEXPR std::array<std::uint64_t, 4> GetState() const {
     return {state_[0], state_[1], state_[2], state_[3]};
   }
 
@@ -117,16 +126,7 @@ class Xoshiro {
     return result;
   }
 
-  static constexpr std::uint64_t kJump[] = {
-      0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa,
-      0x39abdc4529b1661c};
-
-  static constexpr std::uint64_t kLongJump[] = {
-      0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241,
-      0x39109bb02acbe635};
-
-  template <class T>
-  HWY_CXX14_CONSTEXPR void Jump(const T &jumpArray) noexcept {
+  HWY_CXX14_CONSTEXPR void Jump(const std::uint64_t (&jumpArray)[4]) noexcept {
     std::uint64_t s0 = 0;
     std::uint64_t s1 = 0;
     std::uint64_t s2 = 0;
@@ -154,10 +154,9 @@ class Xoshiro {
 
 class VectorXoshiro {
  private:
-  using T = Vec<decltype(ScalableTag<std::uint64_t>{})>;
-  using V = Vec<decltype(ScalableTag<double>{})>;
+  using VU64 = Vec<ScalableTag<std::uint64_t>>;
+  using VF64 = Vec<ScalableTag<double>>;
   using StateType = AlignedNDArray<std::uint64_t, 2>;
-
  public:
   explicit VectorXoshiro(const std::uint64_t seed,
                          const std::uint64_t threadNumber = 0)
@@ -179,7 +178,7 @@ class VectorXoshiro {
     }
   }
 
-  HWY_INLINE T operator()() noexcept { return Next(); }
+  HWY_INLINE VU64 operator()() noexcept { return Next(); }
 
   AlignedVector<std::size_t> operator()(const std::uint64_t n) {
     AlignedVector<std::size_t> result(n);
@@ -190,7 +189,7 @@ class VectorXoshiro {
     auto s3 = Load(tag, state_[{3}].data());
     for (std::uint64_t i = 0; i < n; i += Lanes(tag)) {
       const auto next = Update(s0, s1, s2, s3);
-      Store(next, tag, std::addressof(result[i]));
+      Store(next, tag, result.data() + i);
     }
     Store(s0, tag, state_[{0}].data());
     Store(s1, tag, state_[{1}].data());
@@ -209,7 +208,7 @@ class VectorXoshiro {
     auto s3 = Load(tag, state_[{3}].data());
     for (std::uint64_t i = 0; i < N; i += Lanes(tag)) {
       const auto next = Update(s0, s1, s2, s3);
-      Store(next, tag, std::addressof(result[i]));
+      Store(next, tag, result.data() + i);
     }
     Store(s0, tag, state_[{0}].data());
     Store(s1, tag, state_[{1}].data());
@@ -224,10 +223,10 @@ class VectorXoshiro {
 
   const StateType &GetState() const { return state_; }
 
-  HWY_INLINE V Uniform() noexcept {
-    const auto MUL_VALUE = Set(DFromV<V>(), internal::MUL_CONST);
+  HWY_INLINE VF64 Uniform() noexcept {
+    const auto MUL_VALUE = Set(DFromV<VF64>(), internal::kMulConst);
     const auto bits = ShiftRight<11>(Next());
-    const auto real = ConvertTo(DFromV<V>(), bits);
+    const auto real = ConvertTo(DFromV<VF64>(), bits);
     return Mul(real, MUL_VALUE);
   };
 
@@ -235,7 +234,7 @@ class VectorXoshiro {
     AlignedVector<double> result(n);
     const ScalableTag<std::size_t> tag{};
     const ScalableTag<double> real_tag{};
-    const auto MUL_VALUE = Set(real_tag, internal::MUL_CONST);
+    const auto MUL_VALUE = Set(real_tag, internal::kMulConst);
 
     auto s0 = Load(tag, state_[{0}].data());
     auto s1 = Load(tag, state_[{1}].data());
@@ -247,7 +246,7 @@ class VectorXoshiro {
       const auto bits = ShiftRight<11>(next);
       const auto real = ConvertTo(real_tag, bits);
       const auto uniform = Mul(real, MUL_VALUE);
-      Store(uniform, real_tag, std::addressof(result[i]));
+      Store(uniform, real_tag, result.data() + i);
     }
 
     Store(s0, tag, state_[{0}].data());
@@ -262,7 +261,7 @@ class VectorXoshiro {
     alignas(HWY_ALIGNMENT) std::array<double, N> result;
     const ScalableTag<std::size_t> tag{};
     const ScalableTag<double> real_tag{};
-    const auto MUL_VALUE = Set(real_tag, internal::MUL_CONST);
+    const auto MUL_VALUE = Set(real_tag, internal::kMulConst);
 
     auto s0 = Load(tag, state_[{0}].data());
     auto s1 = Load(tag, state_[{1}].data());
@@ -274,7 +273,7 @@ class VectorXoshiro {
       const auto bits = ShiftRight<11>(next);
       const auto real = ConvertTo(real_tag, bits);
       const auto uniform = Mul(real, MUL_VALUE);
-      Store(uniform, real_tag, std::addressof(result[i]));
+      Store(uniform, real_tag, result.data() + i);
     }
 
     Store(s0, tag, state_[{0}].data());
@@ -288,7 +287,8 @@ class VectorXoshiro {
   StateType state_;
   const std::size_t streams;
 
-  HWY_INLINE static T Update(T &s0, T &s1, T &s2, T &s3) noexcept {
+  HWY_INLINE static VU64 Update(VU64 &s0, VU64 &s1, VU64 &s2,
+                                VU64 &s3) noexcept {
     const auto result = Add(RotateRight<41>(Add(s0, s3)), s0);
     const auto t = ShiftLeft<17>(s1);
     s2 = Xor(s2, s0);
@@ -300,7 +300,7 @@ class VectorXoshiro {
     return result;
   }
 
-  HWY_INLINE T Next() noexcept {
+  HWY_INLINE VU64 Next() noexcept {
     ScalableTag<std::uint64_t> tag;
     auto s0 = Load(tag, state_[{0}].data());
     auto s1 = Load(tag, state_[{1}].data());

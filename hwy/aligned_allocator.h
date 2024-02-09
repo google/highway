@@ -26,6 +26,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "hwy/base.h"
 #include "hwy/per_target.h"
@@ -131,7 +132,7 @@ struct AlignedAllocator {
     return static_cast<T*>(AllocateAlignedBytes(n * sizeof(T)));
   }
   void deallocate(T* p, HWY_MAYBE_UNUSED std::size_t n) {
-        return FreeAlignedBytes(p, nullptr, nullptr);
+    return FreeAlignedBytes(p, nullptr, nullptr);
   }
 };
 
