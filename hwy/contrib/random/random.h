@@ -132,8 +132,8 @@ class Xoshiro {
     std::uint64_t s2 = 0;
     std::uint64_t s3 = 0;
 
-    for (auto i : jumpArray)
-      for (auto b = 0; b < 64; b++) {
+    for (const std::uint64_t i : jumpArray)
+      for (std::uint_fast8_t b = 0; b < 64; b++) {
         if (i & std::uint64_t{1UL} << b) {
           s0 ^= state_[0];
           s1 ^= state_[1];
