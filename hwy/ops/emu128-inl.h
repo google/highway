@@ -1610,7 +1610,7 @@ HWY_INLINE ToT CastValueForF2IConv(FromT val) {
 
 template <class ToT, class ToTypeTag, class FromT>
 HWY_INLINE ToT CastValueForPromoteTo(ToTypeTag /* to_type_tag */, FromT val) {
-  return static_cast<ToT>(val);
+  return ConvertScalarTo<ToT>(val);
 }
 
 template <class ToT>

@@ -446,6 +446,46 @@ struct TestF16 {
 
 HWY_NOINLINE void TestAllF16() { ForDemoteVectors<TestF16>()(float()); }
 
+// This minimal interface is always supported, even if !HWY_HAVE_FLOAT16.
+struct TestF16FromF64 {
+  template <typename TF64, class DF64>
+  HWY_NOINLINE void operator()(TF64 /*t*/, DF64 df64) {
+#if HWY_HAVE_FLOAT64
+    size_t padded;
+    const size_t N = Lanes(df64);  // same count for f16 and f32
+    HWY_ASSERT(N != 0);
+
+    using TF16 = hwy::float16_t;
+    const Rebind<TF16, DF64> df16;
+    const Rebind<float, DF64> df32;
+    const RebindToUnsigned<decltype(df64)> du64;
+
+    auto f32_in = F16TestCases(df32, padded);
+    const auto u64_zero =
+        Set(du64, static_cast<uint64_t>(Unpredictable1() - 1));
+    const auto f64_zero = BitCast(df64, u64_zero);
+    const auto f16_zero = ResizeBitCast(df16, u64_zero);
+
+    for (size_t i = 0; i < padded; i += N) {
+      const auto vf32 = Load(df32, f32_in.get() + i);
+      const auto vf16 = Or(DemoteTo(df16, vf32), f16_zero);
+      const auto vf64 = Or(PromoteTo(df64, vf32), f64_zero);
+
+      HWY_ASSERT_VEC_EQ(df16, vf16, DemoteTo(df16, vf64));
+      HWY_ASSERT_VEC_EQ(df64, vf64, PromoteTo(df64, vf16));
+    }
+#else
+    (void)df64;
+#endif
+  }
+};
+
+HWY_NOINLINE void TestAllF16FromF64() {
+#if HWY_HAVE_FLOAT64
+  ForDemoteVectors<TestF16FromF64, 2>()(double());
+#endif
+}
+
 template <class D>
 AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
   const float test_cases[] = {
@@ -1400,6 +1440,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllPromoteOddEvenTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16);
+HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF16FromF64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllBF16);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllConvertU8);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllIntFromFloat);
