@@ -2089,6 +2089,22 @@ HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> /* d */,
   return svcvt_f32_f16_x(detail::PTrue(Simd<float16_t, N, kPow2>()), vv);
 }
 
+#ifdef HWY_NATIVE_PROMOTE_F16_TO_F64
+#undef HWY_NATIVE_PROMOTE_F16_TO_F64
+#else
+#define HWY_NATIVE_PROMOTE_F16_TO_F64
+#endif
+
+template <size_t N, int kPow2>
+HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
+                              const svfloat16_t v) {
+  // svcvt* expects inputs in even lanes, whereas Highway wants lower lanes, so
+  // first replicate each lane once.
+  const svfloat16_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_f64_f16_x(detail::PTrue(Simd<float16_t, N, kPow2>()),
+                         detail::ZipLowerSame(vv, vv));
+}
+
 template <size_t N, int kPow2>
 HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
                               const svfloat32_t v) {
@@ -2542,6 +2558,20 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
 template <size_t N, int kPow2>
 HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat32_t v) {
   const svfloat16_t in_even = svcvt_f16_f32_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+template <size_t N, int kPow2>
+HWY_API svfloat16_t DemoteTo(Simd<float16_t, N, kPow2> d, const svfloat64_t v) {
+  const svfloat16_t in_lo16 = svcvt_f16_f64_x(detail::PTrue(d), v);
+  const svfloat16_t in_even = detail::ConcatEvenFull(in_lo16, in_lo16);
   return detail::ConcatEvenFull(in_even,
                                 in_even);  // lower half
 }
