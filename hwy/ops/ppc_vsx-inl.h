@@ -1658,8 +1658,7 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
              BitCast(du, no).raw, BitCast(du, yes).raw, BitCast(du, v).raw)});
 #else
   const RebindToSigned<decltype(d)> di;
-  return IfThenElse(MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v)))),
-                    yes, no);
+  return IfVecThenElse(BitCast(d, BroadcastSignBit(BitCast(di, v))), yes, no);
 #endif
 }
 
