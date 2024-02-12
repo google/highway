@@ -132,7 +132,7 @@ struct FindUnit : UnrollerUnit<FindUnit<T>, T, MakeSigned<T>> {
   using DI = RebindToSigned<D>;
   DI di;
 
-  FindUnit<T>(T find) : to_find(find) {}
+  FindUnit(T find) : to_find(find) {}
 
   hn::Vec<DI> Func(ptrdiff_t idx, const hn::Vec<D> x, const hn::Vec<DI> y) {
     const Mask<D> msk = hn::Eq(x, hn::Set(d, to_find));
