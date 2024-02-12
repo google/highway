@@ -8,7 +8,7 @@ Q0.0: How do I **get the Highway library**?
 
 A: Highway is available in numerous package managers, e.g. under the name
 libhwy-dev. After installing, you can add it to your CMake-based build via
-`find_package(HWY 1.0.7)` and `target_link_libraries(your_project PRIVATE hwy)`.
+`find_package(HWY 1.1.0)` and `target_link_libraries(your_project PRIVATE hwy)`.
 
 Alternatively, if using Git for version control, you can use Highway as a
 'submodule' by adding the following to .gitmodules:
