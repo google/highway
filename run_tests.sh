@@ -75,5 +75,19 @@ rm -rf build_ppc10 && mkdir build_ppc10 && cd build_ppc10
 CC=powerpc64le-linux-gnu-gcc-12 CXX=powerpc64le-linux-gnu-g++-12 cmake .. -DCMAKE_BUILD_TYPE=Release -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_C_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="powerpc64le-linux-gnu" -DCMAKE_CROSSCOMPILING=true -DCMAKE_CXX_FLAGS='-mcpu=power10'
 clear && make -j && ctest -j && cd .. && rm -rf build_ppc10
 
+#######################################
+echo Z14
+export QEMU_LD_PREFIX=/usr/s390x-linux-gnu
+rm -rf build_z14 && mkdir build_z14 && cd build_z14
+CC=s390x-linux-gnu-gcc-11 CXX=s390x-linux-gnu-g++-11 cmake .. -DCMAKE_C_COMPILER_TARGET="s390x-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="s390x-linux-gnu" -DCMAKE_C_FLAGS='-march=z14 -mzvector' -DCMAKE_CXX_FLAGS='-march=z14 -mzvector -DHWY_DISABLED_TARGETS="(HWY_SCALAR|HWY_EMU128|HWY_Z15)" -DHWY_COMPILE_ONLY_STATIC=1' -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="/usr/bin/qemu-s390x;-L;/usr/s390x-linux-gnu"
+clear && make -j && ctest -j && cd .. && rm -rf build_z14
+
+#######################################
+echo Z15
+export QEMU_LD_PREFIX=/usr/s390x-linux-gnu
+rm -rf build_z15 && mkdir build_z15 && cd build_z15
+CC=s390x-linux-gnu-gcc-11 CXX=s390x-linux-gnu-g++-11 cmake .. -DCMAKE_C_COMPILER_TARGET="s390x-linux-gnu" -DCMAKE_CXX_COMPILER_TARGET="s390x-linux-gnu" -DCMAKE_C_FLAGS='-march=z15 -mzvector' -DCMAKE_CXX_FLAGS='-march=z15 -mzvector -DHWY_DISABLED_TARGETS="(HWY_SCALAR|HWY_EMU128|HWY_Z14)" -DHWY_COMPILE_ONLY_STATIC=1' -DCMAKE_CROSSCOMPILING=true -DCMAKE_CROSSCOMPILING_EMULATOR="/usr/bin/qemu-s390x;-cpu;max,vxeh2=on;-L;/usr/s390x-linux-gnu"
+clear && make -j && ctest -j && cd .. && rm -rf build_z15
+
 
 echo Success

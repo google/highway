@@ -186,8 +186,9 @@ struct TestIfNegativeThenNegOrUndefIfZero {
   static HWY_INLINE void TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(
       D /*d*/, Vec<D> /*v1*/, Vec<D> /*v2*/) {}
 #if HWY_TARGET != HWY_SCALAR
+  // NOINLINE works around a clang compiler bug for PPC9 partial vectors.
   template <class D, HWY_IF_LANES_GT_D(D, 1)>
-  static HWY_INLINE void TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(
+  static HWY_NOINLINE void TestMoreThan1LaneIfNegativeThenNegOrUndefIfZero(
       D d, Vec<D> v1, Vec<D> v2) {
 #if HWY_HAVE_SCALABLE
     if (Lanes(d) < 2) {
@@ -195,12 +196,12 @@ struct TestIfNegativeThenNegOrUndefIfZero {
     }
 #endif
 
-    const auto v3 = InterleaveLower(d, v1, v1);
-    const auto v4 = InterleaveUpper(d, v1, v1);
-    const auto v5 = InterleaveLower(d, v1, v2);
-    const auto v6 = InterleaveUpper(d, v1, v2);
-    const auto v7 = InterleaveLower(d, v2, v1);
-    const auto v8 = InterleaveUpper(d, v2, v1);
+    const Vec<D> v3 = InterleaveLower(d, v1, v1);
+    const Vec<D> v4 = InterleaveUpper(d, v1, v1);
+    const Vec<D> v5 = InterleaveLower(d, v1, v2);
+    const Vec<D> v6 = InterleaveUpper(d, v1, v2);
+    const Vec<D> v7 = InterleaveLower(d, v2, v1);
+    const Vec<D> v8 = InterleaveUpper(d, v2, v1);
 
     HWY_ASSERT_VEC_EQ(d, v3, IfNegativeThenNegOrUndefIfZero(v3, v3));
     HWY_ASSERT_VEC_EQ(d, v4, IfNegativeThenNegOrUndefIfZero(v4, v4));
@@ -214,7 +215,7 @@ struct TestIfNegativeThenNegOrUndefIfZero {
     HWY_ASSERT_VEC_EQ(d, v7, IfNegativeThenNegOrUndefIfZero(v3, v7));
     HWY_ASSERT_VEC_EQ(d, v8, IfNegativeThenNegOrUndefIfZero(v4, v8));
 
-    const auto zero = Zero(d);
+    const Vec<D> zero = Zero(d);
     HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v3, zero));
     HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v4, zero));
     HWY_ASSERT_VEC_EQ(d, zero, IfNegativeThenNegOrUndefIfZero(v5, zero));
