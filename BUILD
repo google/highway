@@ -348,11 +348,11 @@ cc_library(
 )
 
 cc_library(
-    name = "unroller",
+    name = "random",
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
-        "hwy/contrib/unroller/unroller-inl.h",
+        "hwy/contrib/random/random.h",
     ],
     deps = [
         ":hwy",
@@ -416,6 +416,7 @@ HWY_TESTS = [
     ("hwy/contrib/dot/", "dot_test"),
     ("hwy/contrib/image/", "image_test"),
     ("hwy/contrib/math/", "math_test"),
+    ("hwy/contrib/random/", "random_test"),
     ("hwy/contrib/matvec/", "matvec_test"),
     ("hwy/contrib/thread_pool/", "thread_pool_test"),
     ("hwy/contrib/unroller/", "unroller_test"),
@@ -487,6 +488,7 @@ HWY_TEST_DEPS = [
     ":hwy_test_util",
     ":image",
     ":math",
+    ":random",
     ":matvec",
     ":nanobenchmark",
     ":skeleton",
