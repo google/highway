@@ -195,6 +195,7 @@ else()
     # Warnings
     -Wall
     -Wextra
+    -Wno-psabi
     # These are not included in Wall nor Wextra:
     -Wconversion
     -Wsign-conversion

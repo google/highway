@@ -14,9 +14,9 @@ cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Release
 make -j && ctest -j && cd .. && rm -rf build
 
 #######################################
-echo DEBUG Clang 9
+echo DEBUG Clang 13
 rm -rf build_dbg && mkdir build_dbg && cd build_dbg
-CXX=clang++-9 CC=clang-9 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug
+CXX=clang++-13 CC=clang-13 cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug
 make -j && ctest -j && cd .. && rm -rf build_dbg
 
 #######################################
@@ -26,7 +26,7 @@ CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32 CXX=g++ CC=gcc cmake .. -DHWY_WARNINGS_AR
 make -j && ctest -j && cd .. && rm -rf build_32
 
 #######################################
-for VER in 10 11 12; do
+for VER in 11 12 13; do
   echo GCC $VER
   rm -rf build_g$VER && mkdir build_g$VER && cd build_g$VER
   CC=gcc-$VER CXX=g++-$VER cmake .. -DHWY_WARNINGS_ARE_ERRORS:BOOL=ON -DCMAKE_BUILD_TYPE=Release
