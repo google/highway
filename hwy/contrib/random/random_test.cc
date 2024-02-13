@@ -54,10 +54,10 @@ void TestSeeding() {
     const auto& reference_state = reference.GetState();
     for (std::size_t j = 0UL; j < reference_state.size(); ++j) {
       if (state[{j}][i] != reference_state[j]) {
-        fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(stderr, "TEST SEEDING ERROR: ");
-        fprintf(stderr, "state[%lu][%lu] -> %lu != %lu\n", j, i, state[{j}][i],
-                reference_state[j]);
+        std::cerr << "SEED: " << seed << "\n";
+        std::cerr << "TEST SEEDING ERROR: ";
+        std::cerr << "state[" << j << "][" << i << "] -> " << state[{j}][i]
+                  << " != " << reference_state[j] << "\n";
         HWY_ASSERT(0);
       }
     }
@@ -82,10 +82,10 @@ void TestMultiThreadSeeding() {
     const auto& reference_state = reference.GetState();
     for (std::size_t j = 0UL; j < reference_state.size(); ++j) {
       if (state[{j}][i] != reference_state[j]) {
-        fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(stderr, "TEST SEEDING ERROR: ");
-        fprintf(stderr, "state[%lu][%lu] -> %lu != %lu\n", j, i, state[{j}][i],
-                reference_state[j]);
+        std::cerr << "SEED: " << seed << std::endl;
+        std::cerr << "TEST SEEDING ERROR: ";
+        std::cerr << "state[" << j << "][" << i << "] -> " << state[{j}][i]
+                  << " != " << reference_state[j] << "\n";
         HWY_ASSERT(0);
       }
     }
@@ -111,11 +111,10 @@ void TestRandomUint64() {
     for (std::size_t lane = 0UL; lane < lanes; ++lane) {
       const std::uint64_t result = reference[lane]();
       if (result_array[i + lane] != result) {
-        fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(
-            stderr,
-            "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
-            i + lane, result_array[i + lane], result);
+        std::cerr << "SEED: " << seed << std::endl;
+        std::cerr << "TEST UINT64 GENERATOR ERROR: result_array[" << i + lane
+                  << "] -> " << result_array[i + lane] << " != " << result
+                  << std::endl;
         HWY_ASSERT(0);
       }
     }
@@ -132,10 +131,9 @@ void TestUniformDist() {
   for (std::size_t i = 0UL; i < tests; i += lanes) {
     const double result = reference.Uniform();
     if (result_array[i] != result) {
-      fprintf(stderr, "SEED: %lu\n", seed);
-      fprintf(stderr,
-              "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %f != %f\n", i,
-              result_array[i], result);
+      std::cerr << "SEED: " << seed << std::endl;
+      std::cerr << "TEST UNIFORM GENERATOR ERROR: result_array[" << i << "] -> "
+                << result_array[i] << " != " << result << std::endl;
       HWY_ASSERT(0);
     }
   }
@@ -159,11 +157,10 @@ void TestNextNRandomUint64() {
     for (std::size_t lane = 0UL; lane < lanes; ++lane) {
       const std::uint64_t result = reference[lane]();
       if (result_array[i + lane] != result) {
-        fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(
-            stderr,
-            "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
-            i + lane, result_array[i + lane], result);
+        std::cerr << "SEED: " << seed << std::endl;
+        std::cerr << "TEST UINT64 GENERATOR ERROR: result_array[" << i + lane
+                  << "] -> " << result_array[i + lane] << " != " << result
+                  << std::endl;
         HWY_ASSERT(0);
       }
     }
@@ -188,11 +185,11 @@ void TestNextFixedNRandomUint64() {
     for (std::size_t lane = 0UL; lane < lanes; ++lane) {
       const std::uint64_t result = reference[lane]();
       if (result_array[i + lane] != result) {
-        fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(
-            stderr,
-            "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %lu != %lu\n",
-            i + lane, result_array[i + lane], result);
+        std::cerr << "SEED: " << seed << std::endl;
+        std::cerr << "TEST UINT64 GENERATOR ERROR: result_array[" << i + lane
+                  << "] -> " << result_array[i + lane] << " != " << result
+                  << std::endl;
+
         HWY_ASSERT(0);
       }
     }
@@ -209,10 +206,10 @@ void TestNextNUniformDist() {
   for (std::size_t i = 0UL; i < tests; i += lanes) {
     const double result = reference.Uniform();
     if (result_array[i] != result) {
-      fprintf(stderr, "SEED: %lu\n", seed);
-      fprintf(stderr,
-              "TEST UINT64 GENERATOR ERROR: result_array[%lu] -> %f != %f\n", i,
-              result_array[i], result);
+      std::cerr << "SEED: " << seed << std::endl;
+      std::cerr << "TEST UNIFORM GENERATOR ERROR: result_array[" << i << "] -> "
+                << result_array[i] << " != " << result << std::endl;
+
       HWY_ASSERT(0);
     }
   }
@@ -228,10 +225,9 @@ void TestNextFixedNUniformDist() {
   for (std::size_t i = 0UL; i < tests; i += lanes) {
     const double result = reference.Uniform();
     if (result_array[i] != result) {
-      fprintf(stderr, "SEED: %lu\n", seed);
-      fprintf(stderr,
-              "TEST UNIFORM GENERATOR ERROR: result_array[%lu] -> %f != %f\n",
-              i, result_array[i], result);
+      std::cerr << "SEED: " << seed << std::endl;
+      std::cerr << "TEST UNIFORM GENERATOR ERROR: result_array[" << i << "] -> "
+                << result_array[i] << " != " << result << std::endl;
       HWY_ASSERT(0);
     }
   }
@@ -256,11 +252,11 @@ void TestCachedXorshiro() {
       const std::uint64_t result = reference[lane]();
       const std::uint64_t got = generator();
       if (got != result) {
-        fprintf(stderr, "SEED: %lu\n", seed);
-        fprintf(stderr,
-                "TEST CachedXoshiro GENERATOR ERROR: result_array[%lu] -> %lu "
-                "!= %lu\n",
-                i + lane, got, result);
+        std::cerr << "SEED: " << seed << std::endl;
+        std::cerr << "TEST CachedXoshiro GENERATOR ERROR: result_array["
+                  << i + lane << "] -> " << got << " != " << result
+                  << std::endl;
+
         HWY_ASSERT(0);
       }
     }
@@ -275,12 +271,9 @@ void TestUniformCachedXorshiro() {
     const double result = distribution(generator);
 
     if (result < 0. || result >= 1.) {
-      fprintf(stderr, "SEED: %lu\n", seed);
-      fprintf(
-          stderr,
-          "TEST CachedXoshiro GENERATOR ERROR: result_array[%lu] -> %f not in "
-          "interval [0, 1)\n",
-          i, result);
+      std::cerr << "SEED: " << seed << std::endl;
+      std::cerr << "TEST CachedXoshiro GENERATOR ERROR: result_array[" << i
+                << "] -> " << result << " not in interval [0, 1)" << std::endl;
       HWY_ASSERT(0);
     }
   }

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <initializer_list>
 #include <memory>
@@ -128,10 +129,19 @@ AlignedUniquePtr<T> MakeUniqueAligned(Args&&... args) {
 template <class T>
 struct AlignedAllocator {
   using value_type = T;
-  T* allocate(std::size_t n) {
-    return static_cast<T*>(AllocateAlignedBytes(n * sizeof(T)));
+
+  template <class V>
+  value_type* allocate(V n) {
+    static_assert(std::is_integral<V>::value,
+                  "AlignedAllocator only supports integer types");
+    static_assert(sizeof(V) <= sizeof(std::size_t),
+                  "V must be smaller or equal size_t to avoid overflow");
+    return static_cast<value_type*>(
+        AllocateAlignedBytes(static_cast<std::size_t>(n) * sizeof(value_type)));
   }
-  void deallocate(T* p, HWY_MAYBE_UNUSED std::size_t n) {
+
+  template <class V>
+  void deallocate(value_type* p, HWY_MAYBE_UNUSED V n) {
     return FreeAlignedBytes(p, nullptr, nullptr);
   }
 };
