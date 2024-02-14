@@ -195,7 +195,6 @@ else()
     # Warnings
     -Wall
     -Wextra
-    -Wno-psabi
     # These are not included in Wall nor Wextra:
     -Wconversion
     -Wsign-conversion
@@ -261,6 +260,18 @@ else()
   # Workaround for excess precision, see #1488.
   if (HWY_CMAKE_SSE2)
     list(APPEND HWY_FLAGS -msse2 -mfpmath=sse)
+  endif()
+
+  # Suppress STL iterator warnings. Supported by GCC 4.4.7 and newer, which
+  # predates the C++11 we require.
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+    list(APPEND HWY_FLAGS -Wno-psabi)
+  endif()
+  # Clang supports this flag from 11.0.
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
+      list(APPEND HWY_FLAGS -Wno-psabi)
+    endif()
   endif()
 
   if (HWY_CMAKE_ARM7)
