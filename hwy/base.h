@@ -381,8 +381,8 @@ static constexpr HWY_MAYBE_UNUSED size_t kMaxVectorSize = 16;
 // hwy::float16_t and hwy::bfloat16_t are forward declared here to allow
 // BitCastScalar to be implemented before the implementations of the
 // hwy::float16_t and hwy::bfloat16_t types
-struct alignas(2) float16_t;
-struct alignas(2) bfloat16_t;
+struct float16_t;
+struct bfloat16_t;
 
 using float32_t = float;
 using float64_t = double;
@@ -1259,7 +1259,7 @@ struct BitCastScalarSrcCastHelper<hwy::float16_t> {
 #endif  // HWY_HAVE_SCALAR_F16_OPERATORS
 
 HWY_API HWY_F16_CONSTEXPR float F32FromF16(float16_t f16) {
-#if HWY_HAVE_SCALAR_F16_OPERATORS
+#if HWY_HAVE_SCALAR_F16_OPERATORS && !HWY_IDE
   return static_cast<float>(f16);
 #endif
 #if !HWY_HAVE_SCALAR_F16_OPERATORS || HWY_IDE
@@ -1329,7 +1329,7 @@ HWY_API HWY_F16_CONSTEXPR float F32FromF16(float16_t f16) {
         // HWY_COMPILER_MSVC >= 1926)
 
 HWY_API HWY_F16_CONSTEXPR float16_t F16FromF32(float f32) {
-#if HWY_HAVE_SCALAR_F16_OPERATORS
+#if HWY_HAVE_SCALAR_F16_OPERATORS && !HWY_IDE
   return float16_t(static_cast<float16_t::Native>(f32));
 #endif
 #if !HWY_HAVE_SCALAR_F16_OPERATORS || HWY_IDE
