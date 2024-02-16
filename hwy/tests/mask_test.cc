@@ -33,67 +33,42 @@ struct TestMaskFalse {
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
 #if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || \
     HWY_TARGET == HWY_SVE2_128 || HWY_TARGET == HWY_SCALAR
+    // For RVV, SVE and SCALAR, use the underlying native vector.
     const DFromV<Vec<D>> d2;
 #else
+    // Other targets are strongly-typed, but we can safely ResizeBitCast to the
+    // native vector. All targets have at least 128-bit vectors, but NEON also
+    // supports 64-bit vectors.
     constexpr size_t kMinD2Lanes =
         ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) ? 8
                                                                         : 16) /
         sizeof(T);
     const FixedTag<T, HWY_MAX(HWY_MAX_LANES_D(D), kMinD2Lanes)> d2;
 #endif
-
     static_assert(d2.MaxBytes() >= d.MaxBytes(),
                   "d2.MaxBytes() >= d.MaxBytes() should be true");
+    using V2 = Vec<decltype(d2)>;
 
-    const size_t N = Lanes(d);
-    const size_t N2 = Lanes(d2);
-    HWY_ASSERT(N2 >= N);
-
-    auto expected1 = AllocateAligned<T>(N);
-    auto expected2 = AllocateAligned<T>(N2);
-    auto actual1 = AllocateAligned<T>(N);
-    auto actual2 = AllocateAligned<T>(N2);
-    HWY_ASSERT(expected1 && expected2 && actual1 && actual2);
-
-    ZeroBytes(expected1.get(), sizeof(T) * N);
-    ZeroBytes(expected2.get(), sizeof(T) * N2);
-
-    memset(actual1.get(), 0xFF, sizeof(T) * N);
-    memset(actual2.get(), 0xFF, sizeof(T) * N2);
-
-    // If possible, use a compiler memory barrier to prevent the compiler from
-    // reordering the above ZeroBytes and memset operations with the Store
-    // operations below
-
-#if HWY_COMPILER_MSVC && !defined(HWY_NO_LIBCXX)
-    std::atomic_signal_fence(std::memory_order_seq_cst);
-#elif HWY_COMPILER_GCC || HWY_COMPILER_CLANG
-    asm volatile("" ::: "memory");
-#endif
-
-    Store(VecFromMask(d, MaskFalse(d)), d, actual1.get());
-    HWY_ASSERT_ARRAY_EQ(expected1.get(), actual1.get(), N);
-
-    // All of the bits of MaskFalse(d) should be zero, including any bits past
-    // the first N lanes of MaskFalse(d)
-    Store(ResizeBitCast(d2, VecFromMask(d, MaskFalse(d))), d2, actual2.get());
-    HWY_ASSERT_ARRAY_EQ(expected2.get(), actual2.get(), N2);
-
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
-    HWY_ASSERT_VEC_EQ(d2, expected2.get(), VecFromMask(d2, MaskFalse(d)));
-#endif
-
+    // Various ways of checking that false masks are false.
     HWY_ASSERT(AllFalse(d, MaskFalse(d)));
+    HWY_ASSERT_EQ(0, CountTrue(d, MaskFalse(d)));
+    HWY_ASSERT_VEC_EQ(d, Zero(d), VecFromMask(d, MaskFalse(d)));
+
 #if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
-    // Check that AllFalse(d2, MaskFalse(d)) is true on RVV/SVE targets
+    // For these targets, we can treat the result as if it were a vector of type
+    // `V2`. On SVE, vectors are always full (not fractional) and caps are only
+    // enforced by Highway ops. On RVV, LMUL must match but caps can also be
+    // ignored. For safety, MaskFalse also sets lanes >= `Lanes(d)` to false,
+    // and we verify that here.
     HWY_ASSERT(AllFalse(d2, MaskFalse(d)));
+    HWY_ASSERT_EQ(0, CountTrue(d2, MaskFalse(d)));
+    HWY_ASSERT_VEC_EQ(d2, Zero(d2), VecFromMask(d2, MaskFalse(d)));
 #endif
 
-    HWY_ASSERT_EQ(0, CountTrue(d, MaskFalse(d)));
-#if HWY_HAVE_SCALABLE || HWY_TARGET == HWY_SVE_256 || HWY_TARGET == HWY_SVE2_128
-    // Check that CountTrue(d2, MaskFalse(d)) returns true on RVV/SVE targets
-    HWY_ASSERT_EQ(0, CountTrue(d2, MaskFalse(d)));
-#endif
+    // All targets support, and strongly-typed (non-scalable) targets require,
+    // ResizeBitCast before we compare to the 'native' underlying vector size.
+    const V2 actual2 = ResizeBitCast(d2, VecFromMask(d, MaskFalse(d)));
+    HWY_ASSERT_VEC_EQ(d2, Zero(d2), actual2);
   }
 };
 

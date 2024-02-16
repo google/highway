@@ -319,8 +319,8 @@ HWY_NOINLINE void TestAllPromoteOddEvenTo() {
   to_i32div2(int16_t());
 
   const ForShrinkableVectors<TestPromoteOddEvenTo<float>, 1> to_f32div2;
-  to_f32div2(float16_t());
-  to_f32div2(bfloat16_t());
+  to_f32div2(hwy::float16_t());
+  to_f32div2(hwy::bfloat16_t());
 
 #if HWY_HAVE_INTEGER64
   const ForShrinkableVectors<TestPromoteOddEvenTo<uint64_t>, 1> to_u64div2;
@@ -455,21 +455,24 @@ struct TestF16FromF64 {
     const size_t N = Lanes(df64);  // same count for f16 and f32
     HWY_ASSERT(N != 0);
 
-    using TF16 = hwy::float16_t;
-    const Rebind<TF16, DF64> df16;
+    const Rebind<hwy::float16_t, DF64> df16;
     const Rebind<float, DF64> df32;
     const RebindToUnsigned<decltype(df64)> du64;
+    using VF16 = Vec<decltype(df16)>;
+    using VF32 = Vec<decltype(df32)>;
+    using VF64 = Vec<decltype(df64)>;
+    using VU64 = Vec<decltype(du64)>;
 
     auto f32_in = F16TestCases(df32, padded);
-    const auto u64_zero =
+    const VU64 u64_zero =
         Set(du64, static_cast<uint64_t>(Unpredictable1() - 1));
-    const auto f64_zero = BitCast(df64, u64_zero);
-    const auto f16_zero = ResizeBitCast(df16, u64_zero);
+    const VF64 f64_zero = BitCast(df64, u64_zero);
+    const VF16 f16_zero = ResizeBitCast(df16, u64_zero);
 
     for (size_t i = 0; i < padded; i += N) {
-      const auto vf32 = Load(df32, f32_in.get() + i);
-      const auto vf16 = Or(DemoteTo(df16, vf32), f16_zero);
-      const auto vf64 = Or(PromoteTo(df64, vf32), f64_zero);
+      const VF32 vf32 = Load(df32, f32_in.get() + i);
+      const VF16 vf16 = Or(DemoteTo(df16, vf32), f16_zero);
+      const VF64 vf64 = Or(PromoteTo(df64, vf32), f64_zero);
 
       HWY_ASSERT_VEC_EQ(df16, vf16, DemoteTo(df16, vf64));
       HWY_ASSERT_VEC_EQ(df64, vf64, PromoteTo(df64, vf16));
@@ -883,6 +886,14 @@ HWY_NOINLINE void TestAllFloatFromUint() {
   ForFloatTypes(ForPartialVectors<TestFloatFromUint>());
 }
 
+#undef HWY_F2I_INLINE
+#if HWY_TARGET == HWY_RVV
+// Workaround for incorrect rounding mode.
+#define HWY_F2I_INLINE HWY_NOINLINE
+#else
+#define HWY_F2I_INLINE HWY_INLINE
+#endif
+
 template <class TTo>
 class TestNonFiniteF2IConvertTo {
  private:
@@ -890,21 +901,21 @@ class TestNonFiniteF2IConvertTo {
                 "TTo must be an integer type");
 
   template <class DF, HWY_IF_T_SIZE_LE_D(DF, sizeof(TTo) - 1)>
-  static HWY_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF /*df*/,
-                                                         VFromD<DF> v) {
-    return PromoteTo(Rebind<TTo, DF>(), v);
+  static HWY_F2I_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF df,
+                                                             VFromD<DF> v) {
+    return PromoteTo(Rebind<TTo, decltype(df)>(), v);
   }
 
   template <class DF, HWY_IF_T_SIZE_D(DF, sizeof(TTo))>
-  static HWY_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF /*df*/,
-                                                         VFromD<DF> v) {
-    return ConvertTo(Rebind<TTo, DF>(), v);
+  static HWY_F2I_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF df,
+                                                             VFromD<DF> v) {
+    return ConvertTo(Rebind<TTo, decltype(df)>(), v);
   }
 
   template <class DF, HWY_IF_T_SIZE_GT_D(DF, sizeof(TTo))>
-  static HWY_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF /*df*/,
-                                                         VFromD<DF> v) {
-    return DemoteTo(Rebind<TTo, DF>(), v);
+  static HWY_F2I_INLINE VFromD<Rebind<TTo, DF>> DoF2IConvVec(DF df,
+                                                             VFromD<DF> v) {
+    return DemoteTo(Rebind<TTo, decltype(df)>(), v);
   }
 
   template <class DF, HWY_IF_T_SIZE_LE_D(DF, sizeof(TTo) - 1)>
@@ -913,8 +924,8 @@ class TestNonFiniteF2IConvertTo {
   }
 
   template <class DF, HWY_IF_T_SIZE_D(DF, sizeof(TTo))>
-  static HWY_INLINE Mask<Rebind<TTo, DF>> DoF2IConvMask(DF /*df*/, Mask<DF> m) {
-    return RebindMask(Rebind<TTo, DF>(), m);
+  static HWY_INLINE Mask<Rebind<TTo, DF>> DoF2IConvMask(DF df, Mask<DF> m) {
+    return RebindMask(Rebind<TTo, decltype(df)>(), m);
   }
 
   template <class DF, HWY_IF_T_SIZE_GT_D(DF, sizeof(TTo))>
