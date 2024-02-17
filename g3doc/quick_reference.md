@@ -1610,7 +1610,7 @@ obtain the `D` that describes the return type.
     <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: converts 64-bit integer to
     `float`.
 
-*   `V`,`D`: (`f32,f16`), (`f32,bf16`) \
+*   `V`,`D`: (`f32,f16`), (`f64,f16`), (`f32,bf16`) \
     <code>Vec&lt;D&gt; **DemoteTo**(D, V v)</code>: narrows float to half (for
     bf16, it is unspecified whether this truncates or rounds).
 
@@ -1620,7 +1620,7 @@ These functions promote a half vector to a full vector. To obtain halves, use
 `LowerHalf` or `UpperHalf`, or load them using a half-sized `D`.
 
 *   Unsigned `V` to wider signed/unsigned `D`; signed to wider signed, `f16` to
-    `f32`, `bf16` to `f32`, `f32` to `f64` \
+    `f32`, `f16` to `f64`, `bf16` to `f32`, `f32` to `f64` \
     <code>Vec&lt;D&gt; **PromoteTo**(D, V part)</code>: returns `part[i]` zero-
     or sign-extended to the integer type `MakeWide<T>`, or widened to the
     floating-point type `MakeFloat<MakeWide<T>>`.

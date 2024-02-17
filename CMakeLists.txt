@@ -33,7 +33,7 @@ if(POLICY CMP0128)
   cmake_policy(SET CMP0128 NEW)
 endif()
 
-project(hwy VERSION 1.0.7)  # Keep in sync with highway.h version
+project(hwy VERSION 1.1.0)  # Keep in sync with highway.h version
 # `hwy` is lowercase to handle find_package() in Config mode:
 set(namespace "${PROJECT_NAME}::")
 
@@ -260,6 +260,18 @@ else()
   # Workaround for excess precision, see #1488.
   if (HWY_CMAKE_SSE2)
     list(APPEND HWY_FLAGS -msse2 -mfpmath=sse)
+  endif()
+
+  # Suppress STL iterator warnings. Supported by GCC 4.4.7 and newer, which
+  # predates the C++11 we require.
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+    list(APPEND HWY_FLAGS -Wno-psabi)
+  endif()
+  # Clang supports this flag from 11.0.
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
+      list(APPEND HWY_FLAGS -Wno-psabi)
+    endif()
   endif()
 
   if (HWY_CMAKE_ARM7)

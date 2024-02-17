@@ -70,12 +70,12 @@ struct TestDup128VecFromValues {
   }
 
   template <class D, class T, HWY_IF_BF16_D(D)>
-  static HWY_INLINE bfloat16_t CastValueToLaneType(D /*d*/, T val) {
+  static HWY_INLINE hwy::bfloat16_t CastValueToLaneType(D /*d*/, T val) {
     return BF16FromF32(static_cast<float>(val));
   }
 
   template <class D, class T, HWY_IF_F16_D(D)>
-  static HWY_INLINE float16_t CastValueToLaneType(D /*d*/, T val) {
+  static HWY_INLINE hwy::float16_t CastValueToLaneType(D /*d*/, T val) {
     return F16FromF32(static_cast<float>(val));
   }
 
@@ -98,12 +98,12 @@ struct TestDup128VecFromValues {
 #else
     const FixedTag<float, 8> df32;
 #endif
-    const Rebind<bfloat16_t, decltype(df32)> dbf16;
+    const Rebind<hwy::bfloat16_t, decltype(df32)> dbf16;
 
     const auto vbf16_iota = DemoteTo(dbf16, Iota(df32, start));
 #else
     const FixedTag<float, 4> df32;
-    const Repartition<bfloat16_t, decltype(df32)> dbf16;
+    const Repartition<hwy::bfloat16_t, decltype(df32)> dbf16;
 
     const auto vbf16_iota = OrderedDemote2To(
         dbf16, Iota(df32, start), Iota(df32, static_cast<float>(start) + 4.0f));
@@ -129,12 +129,12 @@ struct TestDup128VecFromValues {
 #else
     const FixedTag<float, 8> df32;
 #endif
-    const Rebind<float16_t, decltype(df32)> df16;
+    const Rebind<hwy::float16_t, decltype(df32)> df16;
 
     const auto vf16_iota = DemoteTo(df16, Iota(df32, start));
 #else
     const FixedTag<float, 4> df32;
-    const Repartition<float16_t, decltype(df32)> df16;
+    const Repartition<hwy::float16_t, decltype(df32)> df16;
     const Half<decltype(df16)> dh_f16;
 
     const auto vf16_iota = Combine(
@@ -213,8 +213,8 @@ struct TestDup128VecFromValues {
 HWY_NOINLINE void TestAllDup128VecFromValues() {
   const ForPartialVectors<TestDup128VecFromValues> func;
   ForIntegerTypes(func);
-  func(float16_t());
-  func(bfloat16_t());
+  func(hwy::float16_t());
+  func(hwy::bfloat16_t());
   ForFloat3264Types(func);
 }
 

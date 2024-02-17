@@ -382,16 +382,11 @@ HWY_API MFromD<DTo> RebindMask(DTo /* tag */, MFrom mask) {
   return to;
 }
 
-template <typename T, size_t N>
-Vec128<T, N> VecFromMask(Mask128<T, N> mask) {
-  Vec128<T, N> v;
-  CopySameSize(&mask.bits, &v.raw);
-  return v;
-}
-
 template <class D>
 VFromD<D> VecFromMask(D /* tag */, MFromD<D> mask) {
-  return VecFromMask(mask);
+  VFromD<D> v;
+  CopySameSize(&mask.bits, &v.raw);
+  return v;
 }
 
 template <class D>
@@ -407,19 +402,20 @@ HWY_API MFromD<D> FirstN(D d, size_t n) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenElse(Mask128<T, N> mask, Vec128<T, N> yes,
                                 Vec128<T, N> no) {
-  return IfVecThenElse(VecFromMask(mask), yes, no);
+  const DFromV<decltype(yes)> d;
+  return IfVecThenElse(VecFromMask(d, mask), yes, no);
 }
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenElseZero(Mask128<T, N> mask, Vec128<T, N> yes) {
   const DFromV<decltype(yes)> d;
-  return IfVecThenElse(VecFromMask(mask), yes, Zero(d));
+  return IfVecThenElse(VecFromMask(d, mask), yes, Zero(d));
 }
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> IfThenZeroElse(Mask128<T, N> mask, Vec128<T, N> no) {
   const DFromV<decltype(no)> d;
-  return IfVecThenElse(VecFromMask(mask), Zero(d), no);
+  return IfVecThenElse(VecFromMask(d, mask), Zero(d), no);
 }
 
 template <typename T, size_t N>
@@ -445,7 +441,8 @@ HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
 
 template <typename T, size_t N>
 HWY_API Mask128<T, N> Not(Mask128<T, N> m) {
-  return MaskFromVec(Not(VecFromMask(Simd<T, N, 0>(), m)));
+  const Simd<T, N, 0> d;
+  return MaskFromVec(Not(VecFromMask(d, m)));
 }
 
 template <typename T, size_t N>
@@ -1610,7 +1607,7 @@ HWY_INLINE ToT CastValueForF2IConv(FromT val) {
 
 template <class ToT, class ToTypeTag, class FromT>
 HWY_INLINE ToT CastValueForPromoteTo(ToTypeTag /* to_type_tag */, FromT val) {
-  return static_cast<ToT>(val);
+  return ConvertScalarTo<ToT>(val);
 }
 
 template <class ToT>

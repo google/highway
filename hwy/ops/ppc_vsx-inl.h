@@ -1658,8 +1658,7 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
              BitCast(du, no).raw, BitCast(du, yes).raw, BitCast(du, v).raw)});
 #else
   const RebindToSigned<decltype(d)> di;
-  return IfThenElse(MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v)))),
-                    yes, no);
+  return IfVecThenElse(BitCast(d, BroadcastSignBit(BitCast(di, v))), yes, no);
 #endif
 }
 
@@ -3899,6 +3898,101 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 #else
 #error "Only define the function if we have a native implementation"
 #endif
+}
+
+#endif  // HWY_PPC_HAVE_9
+
+#if HWY_PPC_HAVE_9
+
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+namespace detail {
+
+// On big-endian PPC9, VsxXscvdphp converts vf64[0] to a F16, returned as an U64
+// vector with the resulting F16 bits in the lower 16 bits of U64 lane 0
+
+// On little-endian PPC9, VsxXscvdphp converts vf64[1] to a F16, returned as
+// an U64 vector with the resulting F16 bits in the lower 16 bits of U64 lane 1
+static HWY_INLINE Vec128<uint64_t> VsxXscvdphp(Vec128<double> vf64) {
+  // Inline assembly is needed for the PPC9 xscvdphp instruction as there is
+  // currently no intrinsic available for the PPC9 xscvdphp instruction
+  __vector unsigned long long raw_result;
+  __asm__("xscvdphp %x0, %x1" : "=wa"(raw_result) : "wa"(vf64.raw));
+  return Vec128<uint64_t>{raw_result};
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_F16_D(D), HWY_IF_LANES_D(D, 1)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<double, D>> v) {
+  const RebindToUnsigned<decltype(df16)> du16;
+  const Rebind<uint64_t, decltype(df16)> du64;
+
+  const Full128<double> df64_full;
+#if HWY_IS_LITTLE_ENDIAN
+  const auto bits16_as_u64 =
+      UpperHalf(du64, detail::VsxXscvdphp(Combine(df64_full, v, v)));
+#else
+  const auto bits16_as_u64 =
+      LowerHalf(du64, detail::VsxXscvdphp(ResizeBitCast(df64_full, v)));
+#endif
+
+  return BitCast(df16, TruncateTo(du16, bits16_as_u64));
+}
+
+template <class D, HWY_IF_F16_D(D), HWY_IF_LANES_D(D, 2)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<double, D>> v) {
+  const RebindToUnsigned<decltype(df16)> du16;
+  const Rebind<uint64_t, decltype(df16)> du64;
+  const Rebind<double, decltype(df16)> df64;
+
+#if HWY_IS_LITTLE_ENDIAN
+  const auto bits64_as_u64_0 = detail::VsxXscvdphp(InterleaveLower(df64, v, v));
+  const auto bits64_as_u64_1 = detail::VsxXscvdphp(v);
+  const auto bits64_as_u64 =
+      InterleaveUpper(du64, bits64_as_u64_0, bits64_as_u64_1);
+#else
+  const auto bits64_as_u64_0 = detail::VsxXscvdphp(v);
+  const auto bits64_as_u64_1 = detail::VsxXscvdphp(InterleaveUpper(df64, v, v));
+  const auto bits64_as_u64 =
+      InterleaveLower(du64, bits64_as_u64_0, bits64_as_u64_1);
+#endif
+
+  return BitCast(df16, TruncateTo(du16, bits64_as_u64));
+}
+
+#elif HWY_S390X_HAVE_Z14
+
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+namespace detail {
+
+template <class DF32, HWY_IF_F32_D(DF32)>
+static HWY_INLINE VFromD<DF32> DemoteToF32WithRoundToOdd(
+    DF32 df32, VFromD<Rebind<double, DF32>> v) {
+  const Twice<DF32> dt_f32;
+
+  __vector float raw_f32_in_even;
+  __asm__("vledb %0,%1,0,3" : "=v"(raw_f32_in_even) : "v"(v.raw));
+
+  const VFromD<decltype(dt_f32)> f32_in_even{raw_f32_in_even};
+  return LowerHalf(df32, ConcatEven(dt_f32, f32_in_even, f32_in_even));
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<double, D>> v) {
+  const Rebind<float, decltype(df16)> df32;
+  return DemoteTo(df16, detail::DemoteToF32WithRoundToOdd(df32, v));
 }
 
 #endif  // HWY_PPC_HAVE_9

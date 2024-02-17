@@ -139,7 +139,7 @@ HWY_API VFromD<D> ResizeBitCast(D /* tag */, FromV v) {
   using TFrom = TFromV<FromV>;
   using TTo = TFromD<D>;
   constexpr size_t kCopyLen = HWY_MIN(sizeof(TFrom), sizeof(TTo));
-  TTo to = TTo{0};
+  TTo to{};
   CopyBytes<kCopyLen>(&v.raw, &to);
   return VFromD<D>(to);
 }
@@ -1342,7 +1342,7 @@ HWY_INLINE ToT CastValueForF2IConv(FromT val) {
 
 template <class ToT, class ToTypeTag, class FromT>
 HWY_INLINE ToT CastValueForPromoteTo(ToTypeTag /* to_type_tag */, FromT val) {
-  return static_cast<ToT>(val);
+  return ConvertScalarTo<ToT>(val);
 }
 
 template <class ToT>
@@ -1358,6 +1358,12 @@ HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag /*to_type_tag*/,
 }
 
 }  // namespace detail
+
+#ifdef HWY_NATIVE_PROMOTE_F16_TO_F64
+#undef HWY_NATIVE_PROMOTE_F16_TO_F64
+#else
+#define HWY_NATIVE_PROMOTE_F16_TO_F64
+#endif
 
 template <class DTo, typename TTo = TFromD<DTo>, typename TFrom>
 HWY_API Vec1<TTo> PromoteTo(DTo /* tag */, Vec1<TFrom> from) {

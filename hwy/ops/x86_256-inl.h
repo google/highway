@@ -6353,6 +6353,13 @@ HWY_DIAGNOSTICS(pop)
 
 #endif  // HWY_DISABLE_F16C
 
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /*df16*/, Vec256<double> v) {
+  return VFromD<D>{_mm256_cvtpd_ph(v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
+
 #if HWY_AVX3_HAVE_F32_TO_BF16C
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> DemoteTo(D /*dbf16*/, Vec256<float> v) {
@@ -6765,6 +6772,15 @@ HWY_API VFromD<D> PromoteTo(D df32, Vec128<float16_t> v) {
 }
 
 #endif  // HWY_DISABLE_F16C
+
+#if HWY_HAVE_FLOAT16
+
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> PromoteTo(D /*tag*/, Vec64<float16_t> v) {
+  return VFromD<D>{_mm256_cvtph_pd(v.raw)};
+}
+
+#endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df32, Vec128<bfloat16_t> v) {
