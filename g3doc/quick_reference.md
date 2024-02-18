@@ -1114,6 +1114,34 @@ encoding depends on the platform).
 
     CombineMasks is only available if `HWY_TARGET != HWY_SCALAR` is true.
 
+#### Slide mask across blocks
+
+*   <code>M **SlideMaskUpLanes**(D d, M m, size_t N)</code>:
+    Slides `m` up `N` lanes. `SlideMaskUpLanes(d, m, N)` is equivalent to
+    `MaskFromVec(SlideUpLanes(d, VecFromMask(d, m), N))`, but
+    `SlideMaskUpLanes(d, m, N)` is more efficient on some targets.
+
+    The results of SlideMaskUpLanes is implementation-defined if
+    `N >= Lanes(d)`.
+
+*   <code>M **SlideMaskDownLanes**(D d, M m, size_t N)</code>:
+    Slides `m` down `N` lanes. `SlideMaskDownLanes(d, m, N)` is equivalent to
+    `MaskFromVec(SlideDownLanes(d, VecFromMask(d, m), N))`, but
+    `SlideMaskDownLanes(d, m, N)` is more efficient on some targets.
+
+    The results of SlideMaskDownLanes is implementation-defined if
+    `N >= Lanes(d)`.
+
+*   <code>M **SlideMask1Up**(D d, M m)</code>:
+    Slides `m` up 1 lane. `SlideMask1Up(d, m)` is equivalent to
+    `MaskFromVec(Slide1Up(d, VecFromMask(d, m)))`, but `SlideMask1Up(d, m)` is
+     more efficient on some targets.
+
+*   <code>M **SlideMask1Down**(D d, M m)</code>:
+    Slides `m` down 1 lane. `SlideMask1Down(d, m)` is equivalent to
+    `MaskFromVec(Slide1Down(d, VecFromMask(d, m)))`, but `SlideMask1Down(d, m)` is
+    more efficient on some targets.
+
 #### Test mask
 
 *   <code>bool **AllTrue**(D, M m)</code>: returns whether all `m[i]` are true.

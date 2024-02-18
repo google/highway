@@ -6343,6 +6343,37 @@ HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
 }
 #endif
 
+// ------------------------------ Slide mask up/down
+#if (defined(HWY_NATIVE_SLIDE_MASK) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_SLIDE_MASK
+#undef HWY_NATIVE_SLIDE_MASK
+#else
+#define HWY_NATIVE_SLIDE_MASK
+#endif
+
+template <class D>
+HWY_API Mask<D> SlideMask1Up(D d, Mask<D> m) {
+  return MaskFromVec(Slide1Up(d, VecFromMask(d, m)));
+}
+
+template <class D>
+HWY_API Mask<D> SlideMask1Down(D d, Mask<D> m) {
+  return MaskFromVec(Slide1Down(d, VecFromMask(d, m)));
+}
+
+template <class D>
+HWY_API Mask<D> SlideMaskUpLanes(D d, Mask<D> m, size_t amt) {
+  return MaskFromVec(SlideUpLanes(d, VecFromMask(d, m), amt));
+}
+
+template <class D>
+HWY_API Mask<D> SlideMaskDownLanes(D d, Mask<D> m, size_t amt) {
+  return MaskFromVec(SlideDownLanes(d, VecFromMask(d, m), amt));
+}
+
+#endif  // HWY_NATIVE_SLIDE_MASK
+
 // ------------------------------ SumsOfAdjQuadAbsDiff
 
 #if (defined(HWY_NATIVE_SUMS_OF_ADJ_QUAD_ABS_DIFF) == \
