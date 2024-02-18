@@ -18,7 +18,7 @@ Check libjxl build actions at https://github.com/libjxl/libjxl/pull/2269.
 
 ### Version updates
 
-Update the current version in:
+Prepend to debian/changelog and update mentions of the current version in:
 
 *   highway.h
 *   CMakeLists.txt
