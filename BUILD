@@ -219,9 +219,7 @@ cc_library(
     ],
     compatible_with = [],
     copts = COPTS,
-    deps = [
-        "//third_party/highway:hwy",
-    ],
+    deps = [":hwy"],
 )
 
 cc_library(
