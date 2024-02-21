@@ -17,7 +17,7 @@ TEST(AbortDeathTest, AbortDefault) {
 
 TEST(AbortDeathTest, AbortOverride) {
   std::string expected =
-      std::string("Test Abort from [0-9]{,2} of ") + __FILE__;
+      std::string("Test Abort from [0-9]+ of ") + __FILE__;
 
   ASSERT_DEATH(
       {
