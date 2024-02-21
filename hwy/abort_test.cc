@@ -9,6 +9,7 @@
 
 namespace hwy {
 
+#ifdef GTEST_HAS_DEATH_TEST
 TEST(AbortDeathTest, AbortDefault) {
   std::string expected = std::string("Abort at ") + __FILE__ + ":" +
                          std::to_string(__LINE__ + 1) + ": Test Abort";
@@ -31,8 +32,9 @@ TEST(AbortDeathTest, AbortOverride) {
       },
       expected);
 }
+#endif
 
-TEST(AbortDeathTest, AbortOverrideChain) {
+TEST(AbortTest, AbortOverrideChain) {
   AbortFunc FirstHandler = [](const char* file, int line,
                               const char* formatted_err) -> void {
     fprintf(stderr, "%s from %d of %s", formatted_err, line, file);
