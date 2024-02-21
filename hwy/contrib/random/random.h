@@ -201,7 +201,7 @@ class VectorXoshiro {
   template <std::uint64_t N>
   std::array<std::uint64_t, N> operator()() noexcept {
     alignas(HWY_ALIGNMENT) std::array<std::uint64_t, N> result;
-    const ScalableTag<std::size_t> tag{};
+    const ScalableTag<std::uint64_t> tag{};
     auto s0 = Load(tag, state_[{0}].data());
     auto s1 = Load(tag, state_[{1}].data());
     auto s2 = Load(tag, state_[{2}].data());
@@ -224,15 +224,16 @@ class VectorXoshiro {
   const StateType &GetState() const { return state_; }
 
   HWY_INLINE VF64 Uniform() noexcept {
-    const auto MUL_VALUE = Set(DFromV<VF64>(), internal::kMulConst);
+    const ScalableTag<double> real_tag{};
+    const auto MUL_VALUE = Set(real_tag, internal::kMulConst);
     const auto bits = ShiftRight<11>(Next());
-    const auto real = ConvertTo(DFromV<VF64>(), bits);
+    const auto real = ConvertTo(real_tag, bits);
     return Mul(real, MUL_VALUE);
   };
 
   AlignedVector<double> Uniform(const std::size_t n) {
     AlignedVector<double> result(n);
-    const ScalableTag<std::size_t> tag{};
+    const ScalableTag<std::uint64_t> tag{};
     const ScalableTag<double> real_tag{};
     const auto MUL_VALUE = Set(real_tag, internal::kMulConst);
 
@@ -259,7 +260,7 @@ class VectorXoshiro {
   template <std::uint64_t N>
   std::array<double, N> Uniform() noexcept {
     alignas(HWY_ALIGNMENT) std::array<double, N> result;
-    const ScalableTag<std::size_t> tag{};
+    const ScalableTag<std::uint64_t> tag{};
     const ScalableTag<double> real_tag{};
     const auto MUL_VALUE = Set(real_tag, internal::kMulConst);
 
@@ -301,7 +302,7 @@ class VectorXoshiro {
   }
 
   HWY_INLINE VU64 Next() noexcept {
-    ScalableTag<std::uint64_t> tag;
+    const ScalableTag<std::uint64_t> tag{};
     auto s0 = Load(tag, state_[{0}].data());
     auto s1 = Load(tag, state_[{1}].data());
     auto s2 = Load(tag, state_[{2}].data());
