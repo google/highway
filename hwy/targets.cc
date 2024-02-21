@@ -22,10 +22,6 @@
 #include "hwy/highway.h"
 #include "hwy/per_target.h"  // VectorBytes
 
-#if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
-#include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
-#endif
-
 #if HWY_ARCH_X86
 #include <xmmintrin.h>
 #if HWY_COMPILER_MSVC

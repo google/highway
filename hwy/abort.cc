@@ -11,6 +11,10 @@
 
 #include "hwy/base.h"
 
+#if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
+#include "sanitizer/common_interface_defs.h"  // __sanitizer_print_stack_trace
+#endif
+
 namespace hwy {
 
 AbortFunc& GetAbortFunc() {
