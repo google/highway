@@ -36,45 +36,6 @@ namespace hwy {
 namespace {
 using HWY_NAMESPACE::AdjustedReps;
 
-// Exhaustive test for small/large dividends and divisors
-TEST(ThreadPoolTest, TestDivisor) {
-  // Small d, small n
-  for (uint32_t d = 1; d < 256; ++d) {
-    const Divisor divisor(d);
-    for (uint32_t n = 0; n < 256; ++n) {
-      HWY_ASSERT(divisor.Divide(n) == n / d);
-      HWY_ASSERT(divisor.Remainder(n) == n % d);
-    }
-  }
-
-  // Large d, small n
-  for (uint32_t d = 0xFFFFFF00u; d != 0; ++d) {
-    const Divisor divisor(d);
-    for (uint32_t n = 0; n < 256; ++n) {
-      HWY_ASSERT(divisor.Divide(n) == n / d);
-      HWY_ASSERT(divisor.Remainder(n) == n % d);
-    }
-  }
-
-  // Small d, large n
-  for (uint32_t d = 1; d < 256; ++d) {
-    const Divisor divisor(d);
-    for (uint32_t n = 0xFFFFFF00u; n != 0; ++n) {
-      HWY_ASSERT(divisor.Divide(n) == n / d);
-      HWY_ASSERT(divisor.Remainder(n) == n % d);
-    }
-  }
-
-  // Large d, large n
-  for (uint32_t d = 0xFFFFFF00u; d != 0; ++d) {
-    const Divisor divisor(d);
-    for (uint32_t n = 0xFFFFFF00u; n != 0; ++n) {
-      HWY_ASSERT(divisor.Divide(n) == n / d);
-      HWY_ASSERT(divisor.Remainder(n) == n % d);
-    }
-  }
-}
-
 TEST(ThreadPoolTest, TestCoprime) {
   // 1 is coprime with anything
   for (uint32_t i = 1; i < 500; ++i) {

@@ -210,6 +210,21 @@ cc_library(
 )
 
 cc_library(
+    name = "stats",
+    srcs = [
+        "hwy/stats.cc",
+    ],
+    hdrs = [
+        "hwy/stats.h",
+    ],
+    compatible_with = [],
+    copts = COPTS,
+    deps = [
+        "//third_party/highway:hwy",
+    ],
+)
+
+cc_library(
     name = "nanobenchmark",
     srcs = [
         "hwy/nanobenchmark.cc",
@@ -302,6 +317,9 @@ cc_library(
     copts = COPTS,
     deps = [
         ":hwy",  # HWY_ASSERT
+        ":nanobenchmark",
+        ":profiler",
+        ":stats",
     ],
 )
 

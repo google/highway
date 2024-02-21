@@ -228,6 +228,45 @@ HWY_NOINLINE void TestAllPopCount() {
   HWY_ASSERT_EQ(size_t{64}, PopCount(0xFFFFFFFFFFFFFFFFull));
 }
 
+// Exhaustive test for small/large dividends and divisors
+HWY_NOINLINE void TestAllDivisor() {
+  // Small d, small n
+  for (uint32_t d = 1; d < 256; ++d) {
+    const Divisor divisor(d);
+    for (uint32_t n = 0; n < 256; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+
+  // Large d, small n
+  for (uint32_t d = 0xFFFFFF00u; d != 0; ++d) {
+    const Divisor divisor(d);
+    for (uint32_t n = 0; n < 256; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+
+  // Small d, large n
+  for (uint32_t d = 1; d < 256; ++d) {
+    const Divisor divisor(d);
+    for (uint32_t n = 0xFFFFFF00u; n != 0; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+
+  // Large d, large n
+  for (uint32_t d = 0xFFFFFF00u; d != 0; ++d) {
+    const Divisor divisor(d);
+    for (uint32_t n = 0xFFFFFF00u; n != 0; ++n) {
+      HWY_ASSERT(divisor.Divide(n) == n / d);
+      HWY_ASSERT(divisor.Remainder(n) == n % d);
+    }
+  }
+}
+
 template <class T>
 static HWY_INLINE T TestEndianGetIntegerVal(T val) {
   static_assert(!IsFloat<T>() && !IsSpecialFloat<T>(),
@@ -643,6 +682,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllType);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 }  // namespace hwy

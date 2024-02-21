@@ -258,6 +258,13 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 #define HWY_IS_TSAN 0
 #endif
 
+#if HWY_HAS_FEATURE(undefined_behavior_sanitizer) || \
+    defined(UNDEFINED_BEHAVIOR_SANITIZER)
+#define HWY_IS_UBSAN 1
+#else
+#define HWY_IS_UBSAN 0
+#endif
+
 // MSAN may cause lengthy build times or false positives e.g. in AVX3 DemoteTo.
 // You can disable MSAN by adding this attribute to the function that fails.
 #if HWY_IS_MSAN
@@ -271,7 +278,7 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
 // Clang does not define NDEBUG, but it and GCC define __OPTIMIZE__, and recent
 // MSVC defines NDEBUG (if not, could instead check _DEBUG).
 #if (!defined(__OPTIMIZE__) && !defined(NDEBUG)) || HWY_IS_ASAN || \
-    HWY_IS_MSAN || HWY_IS_TSAN || defined(__clang_analyzer__)
+    HWY_IS_MSAN || HWY_IS_TSAN || HWY_IS_UBSAN || defined(__clang_analyzer__)
 #define HWY_IS_DEBUG_BUILD 1
 #else
 #define HWY_IS_DEBUG_BUILD 0
@@ -2418,6 +2425,11 @@ constexpr inline size_t RoundUpTo(size_t what, size_t align) {
   return DivCeil(what, align) * align;
 }
 
+// Works for any `align`; if a power of two, compiler emits AND.
+constexpr inline size_t RoundDownTo(size_t what, size_t align) {
+  return what - (what % align);
+}
+
 // Undefined results for x == 0.
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
   HWY_DASSERT(x != 0);
@@ -2601,6 +2613,46 @@ HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
   return (t << 32) | (lo_lo & kLo32);
 #endif
 }
+
+// Precomputation for fast n / divisor and n % divisor, where n is a variable
+// and divisor is unchanging but unknown at compile-time.
+class Divisor {
+ public:
+  explicit Divisor(uint32_t divisor) : divisor_(divisor) {
+    if (divisor <= 1) return;
+
+    const uint32_t len =
+        static_cast<uint32_t>(31 - Num0BitsAboveMS1Bit_Nonzero32(divisor - 1));
+    const uint64_t u_hi = (2ULL << len) - divisor;
+    const uint32_t q = Truncate((u_hi << 32) / divisor);
+
+    mul_ = q + 1;
+    shift1_ = 1;
+    shift2_ = len;
+  }
+
+  uint32_t GetDivisor() const { return divisor_; }
+
+  // Returns n / divisor_.
+  uint32_t Divide(uint32_t n) const {
+    const uint64_t mul = mul_;
+    const uint32_t t = Truncate((mul * n) >> 32);
+    return (t + ((n - t) >> shift1_)) >> shift2_;
+  }
+
+  // Returns n % divisor_.
+  uint32_t Remainder(uint32_t n) const { return n - (Divide(n) * divisor_); }
+
+ private:
+  static uint32_t Truncate(uint64_t x) {
+    return static_cast<uint32_t>(x & 0xFFFFFFFFu);
+  }
+
+  uint32_t divisor_;
+  uint32_t mul_ = 1;
+  uint32_t shift1_ = 0;
+  uint32_t shift2_ = 0;
+};
 
 namespace detail {
 
