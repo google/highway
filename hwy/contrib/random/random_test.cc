@@ -34,6 +34,7 @@ void RngLoop(const std::uint64_t seed, std::uint64_t* HWY_RESTRICT result,
   }
 }
 
+#if HWY_HAVE_FLOAT64
 void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
                  const size_t size) {
   const ScalableTag<double> d;
@@ -42,6 +43,7 @@ void UniformLoop(const std::uint64_t seed, double* HWY_RESTRICT result,
     Store(generator.Uniform(), d, result + i);
   }
 }
+#endif
 
 void TestSeeding() {
   const std::uint64_t seed = GetSeed();
@@ -120,7 +122,7 @@ void TestRandomUint64() {
     }
   }
 }
-
+#if HWY_HAVE_FLOAT64
 void TestUniformDist() {
   const std::uint64_t seed = GetSeed();
   const auto result_array = hwy::MakeUniqueAlignedArray<double>(tests);
@@ -138,6 +140,7 @@ void TestUniformDist() {
     }
   }
 }
+#endif
 
 void TestNextNRandomUint64() {
   const std::uint64_t seed = GetSeed();
@@ -195,7 +198,7 @@ void TestNextFixedNRandomUint64() {
     }
   }
 }
-
+#if HWY_HAVE_FLOAT64
 void TestNextNUniformDist() {
   const std::uint64_t seed = GetSeed();
   VectorXoshiro generator{seed};
@@ -232,6 +235,7 @@ void TestNextFixedNUniformDist() {
     }
   }
 }
+#endif
 
 void TestCachedXorshiro() {
   const std::uint64_t seed = GetSeed();
@@ -262,6 +266,7 @@ void TestCachedXorshiro() {
     }
   }
 }
+#if HWY_HAVE_FLOAT64
 void TestUniformCachedXorshiro() {
   const std::uint64_t seed = GetSeed();
 
@@ -278,6 +283,8 @@ void TestUniformCachedXorshiro() {
     }
   }
 }
+#endif
+
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
 
@@ -293,11 +300,13 @@ HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestMultiThreadSeeding);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNRandomUint64);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNRandomUint64);
+HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestCachedXorshiro);
+#if HWY_HAVE_FLOAT64
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNUniformDist);
-HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestCachedXorshiro);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformCachedXorshiro);
+#endif
 }  // namespace hwy
 
 #endif

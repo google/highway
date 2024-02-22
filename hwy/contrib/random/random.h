@@ -22,20 +22,22 @@ namespace HWY_NAMESPACE {  // required: unique per target
 namespace internal {
 
 namespace {
+#if HWY_HAVE_FLOAT64
 // C++ < 17 does not support hexfloat
 #if __cpp_hex_float > 201603L
 constexpr double kMulConst = 0x1.0p-53;
 #else
 constexpr double kMulConst =
     0.00000000000000011102230246251565404236316680908203125;
-#endif
+#endif // __cpp_hex_float
+
+#endif // HWY_HAVE_FLOAT64
 
 constexpr std::uint64_t kJump[] = {0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
                                    0xa9582618e03fc9aa, 0x39abdc4529b1661c};
 
 constexpr std::uint64_t kLongJump[] = {0x76e15d3efefdcbbf, 0xc5004e441c522fb3,
                                        0x77710069854ee241, 0x39109bb02acbe635};
-
 }  // namespace
 
 class SplitMix64 {
@@ -74,9 +76,11 @@ class Xoshiro {
 
   HWY_CXX14_CONSTEXPR std::uint64_t operator()() noexcept { return Next(); }
 
+#if HWY_HAVE_FLOAT64
   HWY_CXX14_CONSTEXPR double Uniform() noexcept {
     return static_cast<double>(Next() >> 11) * kMulConst;
   }
+#endif
 
   HWY_CXX14_CONSTEXPR std::array<std::uint64_t, 4> GetState() const {
     return {state_[0], state_[1], state_[2], state_[3]};
@@ -155,8 +159,10 @@ class Xoshiro {
 class VectorXoshiro {
  private:
   using VU64 = Vec<ScalableTag<std::uint64_t>>;
-  using VF64 = Vec<ScalableTag<double>>;
   using StateType = AlignedNDArray<std::uint64_t, 2>;
+#if HWY_HAVE_FLOAT64
+  using VF64 = Vec<ScalableTag<double>>;
+#endif
  public:
   explicit VectorXoshiro(const std::uint64_t seed,
                          const std::uint64_t threadNumber = 0)
@@ -223,6 +229,8 @@ class VectorXoshiro {
 
   const StateType &GetState() const { return state_; }
 
+#if HWY_HAVE_FLOAT64
+
   HWY_INLINE VF64 Uniform() noexcept {
     const ScalableTag<double> real_tag{};
     const auto MUL_VALUE = Set(real_tag, internal::kMulConst);
@@ -283,6 +291,8 @@ class VectorXoshiro {
     Store(s3, tag, state_[{3}].data());
     return result;
   }
+
+#endif
 
  private:
   StateType state_;
