@@ -25,6 +25,8 @@
 
 #include "hwy/base.h"  // HWY_ASSERT
 
+namespace hwy {
+
 // Thread-compatible.
 template <size_t N>
 class Bins {
@@ -186,5 +188,7 @@ class Stats {
   double m3_;
   double m4_;
 };
+
+}  // namespace hwy
 
 #endif  // HIGHWAY_HWY_STATS_H_
