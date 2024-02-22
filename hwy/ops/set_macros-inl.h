@@ -116,8 +116,8 @@
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
   "avx512vpopcntdq,gfni"
 
-#if !HWY_COMPILER_CLANGCL &&                                          \
-    (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
+#if !HWY_COMPILER_CLANGCL &&                                           \
+    (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 1600) && \
     !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL ",avx512bf16"
 #else
