@@ -10,21 +10,29 @@
 namespace hwy {
 
 #ifdef GTEST_HAS_DEATH_TEST
+namespace {
+std::string GetBaseName(std::string const& file_name) {
+  auto last_slash = file_name.find_last_of("/\\");
+  return file_name.substr(last_slash + 1);
+}
+}  // namespace
+
 TEST(AbortDeathTest, AbortDefault) {
-  std::string expected = std::string("Abort at ") + __FILE__ + ":" +
-                         std::to_string(__LINE__ + 1) + ": Test Abort";
+  std::string expected = std::string("Abort at ") + GetBaseName(__FILE__) +
+                         ":" + std::to_string(__LINE__ + 1) + ": Test Abort";
   ASSERT_DEATH(HWY_ABORT("Test %s", "Abort"), expected);
 }
 
 TEST(AbortDeathTest, AbortOverride) {
   std::string expected =
-      std::string("Test Abort from [0-9]+ of ") + __FILE__;
+      std::string("Test Abort from [0-9]+ of ") + GetBaseName(__FILE__);
 
   ASSERT_DEATH(
       {
         AbortFunc CustomAbortHandler = [](const char* file, int line,
                                           const char* formatted_err) -> void {
-          fprintf(stderr, "%s from %d of %s", formatted_err, line, file);
+          fprintf(stderr, "%s from %d of %s", formatted_err, line,
+                  GetBaseName(file).data());
         };
 
         SetAbortFunc(CustomAbortHandler);

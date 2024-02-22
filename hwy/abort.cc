@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <string>
+
 #include "hwy/base.h"
 
 #if HWY_IS_ASAN || HWY_IS_MSAN || HWY_IS_TSAN
@@ -16,6 +18,13 @@
 #endif
 
 namespace hwy {
+
+namespace {
+std::string GetBaseName(std::string const& file_name) {
+  auto last_slash = file_name.find_last_of("/\\");
+  return file_name.substr(last_slash + 1);
+}
+}  // namespace
 
 AbortFunc& GetAbortFunc() {
   static AbortFunc func;
@@ -40,7 +49,8 @@ HWY_DLLEXPORT HWY_NORETURN void HWY_FORMAT(3, 4)
   if (handler != nullptr) {
     handler(file, line, buf);
   } else {
-    fprintf(stderr, "Abort at %s:%d: %s\n", file, line, buf);
+    fprintf(stderr, "Abort at %s:%d: %s\n", GetBaseName(file).data(), line,
+            buf);
   }
 
 // If compiled with any sanitizer, they can also print a stack trace.
