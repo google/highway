@@ -24,7 +24,6 @@
 #endif
 
 #include "hwy/highway.h"
-#include "hwy/timer.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #ifndef NOMINMAX
@@ -50,6 +49,7 @@
 #include <intrin.h>
 #endif
 
+#include <stdint.h>
 #include <time.h>  // clock_gettime
 
 HWY_BEFORE_NAMESPACE();
@@ -140,7 +140,7 @@ inline Ticks Start() {
       // "cc" = flags modified by SHL.
       : "rdx", "memory", "cc");
 #elif HWY_ARCH_RVV
-  asm volatile("rdtime %0" : "=r"(t));
+  asm volatile("fence; rdtime %0" : "=r"(t));
 #elif defined(_WIN32) || defined(_WIN64)
   LARGE_INTEGER counter;
   (void)QueryPerformanceCounter(&counter);
