@@ -66,7 +66,7 @@ Online demos using Compiler Explorer:
     flags)
 
 We observe that Highway is referenced in the following open source projects,
-found via sourcegraph.com. Most are Github repositories. If you would like to
+found via sourcegraph.com. Most are GitHub repositories. If you would like to
 add your project or link to it directly, feel free to raise an issue or contact
 us via the below email.
 
@@ -90,7 +90,7 @@ Other
 *   [zimt](https://github.com/kfjahnke/zimt): C++11 template library to process n-dimensional arrays with multi-threaded SIMD code
 *   [vectorized Quicksort](https://github.com/google/highway/tree/master/hwy/contrib/sort) ([paper](https://arxiv.org/abs/2205.05982))
 
-If you'd like to get Highway, in addition to cloning from this Github repository
+If you'd like to get Highway, in addition to cloning from this GitHub repository
 or using it as a Git submodule, you can also find it in the following package
 managers or repositories: alpinelinux, conan-io, conda-forge, DragonFlyBSD,
 freebsd, ghostbsd, microsoft/vcpkg, MidnightBSD, MSYS2, NetBSD, openSUSE,
