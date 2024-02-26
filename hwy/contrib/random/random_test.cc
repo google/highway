@@ -13,7 +13,7 @@
 #define HWY_TARGET_INCLUDE "hwy/contrib/random/random_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
-#include "hwy/contrib/random/random.h"
+#include "hwy/contrib/random/random-inl.h"
 #include "hwy/tests/test_util-inl.h"
 // clang-format on
 

@@ -1,3 +1,17 @@
+/*
+ * Original implementation written in 2019
+ * by David Blackman and Sebastiano Vigna (vigna@acm.org)
+ * Available at https://prng.di.unimi.it/ with creative commons license:
+ * To the extent possible under law, the author has dedicated all copyright
+ * and related and neighboring rights to this software to the public domain
+ * worldwide. This software is distributed without any warranty.
+ * See <http://creativecommons.org/publicdomain/zero/1.0/>.
+ *
+ * This implementation is a Vector port of the original implementation
+ * written by Marco Barbone (m.barbone19@imperial.ac.uk).
+ * I take no credit for the original implementation.
+ * The code is provided as is and the original license applies.
+ */
 
 #if defined(HIGHWAY_HWY_CONTRIB_RANDOM_RANDOM_H_) == \
     defined(HWY_TARGET_TOGGLE)  // NOLINT
@@ -29,9 +43,9 @@ constexpr double kMulConst = 0x1.0p-53;
 #else
 constexpr double kMulConst =
     0.00000000000000011102230246251565404236316680908203125;
-#endif // __cpp_hex_float
+#endif  // __cpp_hex_float
 
-#endif // HWY_HAVE_FLOAT64
+#endif  // HWY_HAVE_FLOAT64
 
 constexpr std::uint64_t kJump[] = {0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
                                    0xa9582618e03fc9aa, 0x39abdc4529b1661c};

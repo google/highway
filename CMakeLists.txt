@@ -112,7 +112,7 @@ list(APPEND HWY_CONTRIB_SOURCES
     hwy/contrib/image/image.h
     hwy/contrib/math/math-inl.h
     hwy/contrib/matvec/matvec-inl.h
-    hwy/contrib/random/random.h
+        hwy/contrib/random/random-inl.h
     hwy/contrib/sort/order.h
     hwy/contrib/sort/shared-inl.h
     hwy/contrib/sort/sorting_networks-inl.h

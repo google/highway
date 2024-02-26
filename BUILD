@@ -352,7 +352,19 @@ cc_library(
     compatible_with = [],
     copts = COPTS,
     textual_hdrs = [
-        "hwy/contrib/random/random.h",
+        "hwy/contrib/random/random-inl.h",
+    ],
+    deps = [
+        ":hwy",
+    ],
+)
+
+cc_library(
+    name = "unroller",
+    compatible_with = [],
+    copts = COPTS,
+    textual_hdrs = [
+        "hwy/contrib/unroller/unroller-inl.h",
     ],
     deps = [
         ":hwy",
