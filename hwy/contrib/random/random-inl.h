@@ -21,12 +21,12 @@
 #define HIGHWAY_HWY_CONTRIB_RANDOM_RANDOM_H_
 #endif
 
-#include <hwy/aligned_allocator.h>
-#include <hwy/highway.h>
-
 #include <array>
 #include <cstdint>
 #include <limits>
+
+#include "hwy/aligned_allocator.h"
+#include "hwy/highway.h"
 
 HWY_BEFORE_NAMESPACE();  // required if not using HWY_ATTR
 
@@ -251,7 +251,7 @@ class VectorXoshiro {
     const auto bits = ShiftRight<11>(Next());
     const auto real = ConvertTo(real_tag, bits);
     return Mul(real, MUL_VALUE);
-  };
+  }
 
   AlignedVector<double> Uniform(const std::size_t n) {
     AlignedVector<double> result(n);
