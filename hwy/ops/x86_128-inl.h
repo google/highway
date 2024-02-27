@@ -54,12 +54,14 @@ namespace detail {
 #define HWY_X86_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
 #endif
 
-// NOTE: Disable AVX512BF16 on pre-release versions of Clang 18/19 due to
-// codegen bugs in pre-release versions of Clang 18/19
+// NOTE: Disable AVX512BF16 on pre-release versions of Clang 16/17/18/19 due to
+// codegen bugs in pre-release versions of Clang 16/17/18/19
 #undef HWY_AVX3_HAVE_F32_TO_BF16C
 #if HWY_TARGET <= HWY_AVX3_ZEN4 && !HWY_COMPILER_CLANGCL &&           \
     (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
-    HWY_COMPILER_CLANG != 1800 && HWY_COMPILER_CLANG != 1900 &&       \
+    !(HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000 &&      \
+      !defined(__apple_build_version__) &&                            \
+      (HWY_COMPILER3_CLANG % 10000) == 0) &&                          \
     !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_AVX3_HAVE_F32_TO_BF16C 1
 #else

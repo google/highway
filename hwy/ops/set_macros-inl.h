@@ -116,11 +116,13 @@
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
   "avx512vpopcntdq,gfni"
 
-// NOTE: Disable AVX512BF16 on pre-release versions of Clang 18/19 due to
-// codegen bugs in pre-release versions of Clang 18/19
+// NOTE: Disable AVX512BF16 on pre-release versions of Clang 16/17/18/19 due to
+// codegen bugs in pre-release versions of Clang 16/17/18/19
 #if !HWY_COMPILER_CLANGCL &&                                          \
     (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
-    HWY_COMPILER_CLANG != 1800 && HWY_COMPILER_CLANG != 1900 &&       \
+    !(HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000 &&      \
+      !defined(__apple_build_version__) &&                            \
+      (HWY_COMPILER3_CLANG % 10000) == 0) &&                          \
     !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL ",avx512bf16"
 #else
