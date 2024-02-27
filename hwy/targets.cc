@@ -16,9 +16,11 @@
 #include "hwy/targets.h"
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>  // abort / exit
 
+#include "hwy/detect_targets.h"
 #include "hwy/highway.h"
 #include "hwy/per_target.h"  // VectorBytes
 
@@ -287,12 +289,13 @@ int64_t DetectTargets() {
   }
 #endif
 
-  // Clear bits if the OS does not support XSAVE - otherwise, registers
+  // Clear bits if the CPU or OS does not support XSAVE - otherwise, registers
   // are not preserved across context switches.
   uint32_t abcd[4];
   Cpuid(1, 0, abcd);
+  const bool has_xsave = IsBitSet(abcd[2], 26);
   const bool has_osxsave = IsBitSet(abcd[2], 27);
-  if (has_osxsave) {
+  if (has_xsave && has_osxsave) {
     const uint32_t xcr0 = ReadXCR0();
     const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_SPR;
     const int64_t min_avx2 = HWY_AVX2 | min_avx3;
@@ -318,7 +321,9 @@ int64_t DetectTargets() {
     if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
       bits &= ~min_avx3;
     }
-  }  // has_osxsave
+  } else {  // !has_xsave || !has_osxsave
+    bits &= ~(HWY_SSE2 | (HWY_SSE2 - 1));
+  }
 
   // This is mainly to work around the slow Zen4 CompressStore. It's unclear
   // whether subsequent AMD models will be affected; assume yes.
