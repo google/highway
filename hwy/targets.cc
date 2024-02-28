@@ -16,9 +16,11 @@
 #include "hwy/targets.h"
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>  // abort / exit
 
+#include "hwy/detect_targets.h"
 #include "hwy/highway.h"
 #include "hwy/per_target.h"  // VectorBytes
 
@@ -294,38 +296,46 @@ int64_t DetectTargets() {
   }
 #endif
 
-  // Clear bits if the OS does not support XSAVE - otherwise, registers
-  // are not preserved across context switches.
+  // Clear AVX2/AVX3 bits if the CPU or OS does not support XSAVE - otherwise,
+  // YMM/ZMM registers are not preserved across context switches.
+
+  // The lower 128 bits of XMM0-XMM15 are guaranteed to be preserved across
+  // context switches on x86_64
+
+  // The following OS's are known to preserve the lower 128 bits of XMM
+  // registers across context switches on x86 CPU's that support SSE (even in
+  // 32-bit mode):
+  // - Windows 2000 or later
+  // - Linux 2.4.0 or later
+  // - Mac OS X 10.4 or later
+  // - FreeBSD 4.4 or later
+  // - NetBSD 1.6 or later
+  // - OpenBSD 3.5 or later
+  // - UnixWare 7 Release 7.1.1 or later
+  // - Solaris 9 4/04 or later
+
   uint32_t abcd[4];
   Cpuid(1, 0, abcd);
+  const bool has_xsave = IsBitSet(abcd[2], 26);
   const bool has_osxsave = IsBitSet(abcd[2], 27);
-  if (has_osxsave) {
-    const uint32_t xcr0 = ReadXCR0();
-    const int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_SPR;
-    const int64_t min_avx2 = HWY_AVX2 | min_avx3;
-    // XMM
-    if (!IsBitSet(xcr0, 1)) {
-#if HWY_ARCH_X86_64
-      // The HWY_SSE2, HWY_SSSE3, and HWY_SSE4 bits do not need to be
-      // cleared on x86_64, even if bit 1 of XCR0 is not set, as
-      // the lower 128 bits of XMM0-XMM15 are guaranteed to be
-      // preserved across context switches on x86_64
+  constexpr int64_t min_avx2 = HWY_AVX2 | (HWY_AVX2 - 1);
 
-      // Only clear the AVX2/AVX3 bits on x86_64 if bit 1 of XCR0 is not set
-      bits &= ~min_avx2;
-#else
-      bits &= ~(HWY_SSE2 | HWY_SSSE3 | HWY_SSE4 | min_avx2);
-#endif
-    }
-    // YMM
-    if (!IsBitSet(xcr0, 2)) {
+  if (has_xsave && has_osxsave) {
+    const uint32_t xcr0 = ReadXCR0();
+    constexpr int64_t min_avx3 = HWY_AVX3 | HWY_AVX3_DL | HWY_AVX3_SPR;
+    // XMM/YMM
+    if (!IsBitSet(xcr0, 1) || !IsBitSet(xcr0, 2)) {
+      // Clear the AVX2/AVX3 bits if XMM/YMM XSAVE is not enabled
       bits &= ~min_avx2;
     }
     // opmask, ZMM lo/hi
     if (!IsBitSet(xcr0, 5) || !IsBitSet(xcr0, 6) || !IsBitSet(xcr0, 7)) {
       bits &= ~min_avx3;
     }
-  }  // has_osxsave
+  } else {  // !has_xsave || !has_osxsave
+    // Clear the AVX2/AVX3 bits if the CPU or OS does not support XSAVE
+    bits &= ~min_avx2;
+  }
 
   // This is mainly to work around the slow Zen4 CompressStore. It's unclear
   // whether subsequent AMD models will be affected; assume yes.

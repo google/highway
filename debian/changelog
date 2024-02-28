@@ -1,3 +1,26 @@
+
+highway (1.1.0-1) UNRELEASED; urgency=medium
+
+  * Add BitCastScalar, DispatchedTarget, Foreach
+  * Add Div/Mod and MaskedDiv/ModOr, SaturatedAbs, SaturatedNeg
+  * Add InterleaveWholeLower/Upper, Dup128VecFromValues
+  * Add IsInteger, IsIntegerLaneType, RemoveVolatile, RemoveCvRef
+  * Add MaskedAdd/Sub/Mul/Div/Gather/Min/Max/SatAdd/SatSubOr
+  * Add MaskFalse, IfNegativeThenNegOrUndefIfZero, PromoteEven/OddTo
+  * Add ReduceMin/Max, 8-bit reductions, f16 <-> f64 conversions
+  * Add Span, AlignedArray, matrix-vector mul
+  * Add SumsOf2/4, I8 SumsOf8, SumsOfAdjQuadAbsDiff, SumsOfShuffledQuadAbsDiff
+  * Add ThreadPool, hierarchical profiler
+  * Build: use bazel_platforms
+  * Enable clang16 Arm/PPC runtime dispatch, F16 for GCC AVX3_SPR
+  * Extend Dot to f32*bf16, FMA to integer
+  * Fix: RVV 8-bit overflow, UB in vqsort, big-endian bugs, PPC HTM
+  * Improved codegen in various ops, fp16/bf16 tests and conversions
+  * New targets: HWY_Z14, HWY_Z15
+  * Test: add foreign_arch builders, CodeQL
+
+ -- Jan Wassenberg <janwas@google.com>  Sat, 17 Feb 2024 12:00:00 +0100
+
 highway (1.0.7-1) UNRELEASED; urgency=medium
 
   * Add LoadNOr, GatherIndexN, ScatterIndexN

@@ -586,6 +586,7 @@ set(HWY_TEST_FILES
   hwy/tests/mask_combine_test.cc
   hwy/tests/mask_convert_test.cc
   hwy/tests/mask_mem_test.cc
+  hwy/tests/mask_slide_test.cc
   hwy/tests/mask_test.cc
   hwy/tests/masked_arithmetic_test.cc
   hwy/tests/memory_test.cc
