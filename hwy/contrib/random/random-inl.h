@@ -343,13 +343,23 @@ class VectorXoshiro {
 template <std::uint64_t size = 1024>
 class CachedXoshiro {
  public:
-  explicit CachedXoshiro(const std::uint64_t seed,
-                         const std::uint64_t threadNumber = 0)
+  using result_type = std::uint64_t;
+
+  static constexpr result_type(min)() {
+    return (std::numeric_limits<result_type>::min)();
+  }
+
+  static constexpr result_type(max)() {
+    return (std::numeric_limits<result_type>::max)();
+  }
+
+  explicit CachedXoshiro(const result_type seed,
+                         const result_type threadNumber = 0)
       : generator_{seed, threadNumber},
         cache_{generator_.operator()<size>()},
         index_{0} {}
 
-  std::uint64_t operator()() noexcept {
+  result_type operator()() noexcept {
     if (HWY_UNLIKELY(index_ == size)) {
       cache_ = std::move(generator_.operator()<size>());
       index_ = 0;
@@ -357,18 +367,11 @@ class CachedXoshiro {
     return cache_[index_++];
   }
 
-  static constexpr std::uint64_t min() noexcept {
-    return std::numeric_limits<std::uint64_t>::lowest();
-  }
-
-  static constexpr std::uint64_t max() noexcept {
-    return std::numeric_limits<std::uint64_t>::max();
-  }
-
  private:
   VectorXoshiro generator_;
-  alignas(HWY_ALIGNMENT) std::array<std::uint64_t, size> cache_;
+  alignas(HWY_ALIGNMENT) std::array<result_type, size> cache_;
   std::size_t index_;
+
   static_assert((size & (size - 1)) == 0 && size != 0,
                 "only power of 2 are supported");
 };
