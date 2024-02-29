@@ -123,6 +123,7 @@
     !(HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000 &&      \
       !defined(__apple_build_version__) &&                            \
       (HWY_COMPILER3_CLANG % 10000) == 0) &&                          \
+    !(HWY_COMPILER_CLANG >= 1800 && HWY_COMPILER_CLANG < 1900) &&     \
     !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL ",avx512bf16"
 #else

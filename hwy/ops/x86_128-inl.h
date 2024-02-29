@@ -62,6 +62,7 @@ namespace detail {
     !(HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000 &&      \
       !defined(__apple_build_version__) &&                            \
       (HWY_COMPILER3_CLANG % 10000) == 0) &&                          \
+    !(HWY_COMPILER_CLANG >= 1800 && HWY_COMPILER_CLANG < 1900) &&     \
     !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_AVX3_HAVE_F32_TO_BF16C 1
 #else
