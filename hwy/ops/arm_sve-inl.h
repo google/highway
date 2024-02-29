@@ -1012,14 +1012,15 @@ HWY_SVE_FOREACH(HWY_SVE_RETV_ARGPVV, AbsDiff, abd)
 
 // ------------------------------ ShiftLeft[Same]
 
-#define HWY_SVE_SHIFT_N(BASE, CHAR, BITS, HALF, NAME, OP)               \
-  template <int kBits>                                                  \
-  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {         \
-    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v, kBits);    \
-  }                                                                     \
-  HWY_API HWY_SVE_V(BASE, BITS)                                         \
-      NAME##Same(HWY_SVE_V(BASE, BITS) v, HWY_SVE_T(uint, BITS) bits) { \
-    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v, bits);     \
+#define HWY_SVE_SHIFT_N(BASE, CHAR, BITS, HALF, NAME, OP)                  \
+  template <int kBits>                                                     \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {            \
+    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v, kBits);       \
+  }                                                                        \
+  HWY_API HWY_SVE_V(BASE, BITS)                                            \
+      NAME##Same(HWY_SVE_V(BASE, BITS) v, int bits) {                      \
+    return sv##OP##_##CHAR##BITS##_x(                                      \
+        HWY_SVE_PTRUE(BITS), v, static_cast<HWY_SVE_T(uint, BITS)>(bits)); \
   }
 
 HWY_SVE_FOREACH_UI(HWY_SVE_SHIFT_N, ShiftLeft, lsl_n)
@@ -1033,15 +1034,35 @@ HWY_SVE_FOREACH_I(HWY_SVE_SHIFT_N, ShiftRight, asr_n)
 
 // ------------------------------ RotateRight
 
-// TODO(janwas): svxar on SVE2
-template <int kBits, class V>
+#if HWY_SVE_HAVE_2
+
+#define HWY_SVE_ROTATE_RIGHT_N(BASE, CHAR, BITS, HALF, NAME, OP) \
+  template <int kBits>                                           \
+  HWY_API HWY_SVE_V(BASE, BITS) NAME(HWY_SVE_V(BASE, BITS) v) {  \
+    if (kBits == 0) return v;                                    \
+    return sv##OP##_##CHAR##BITS(v, Zero(DFromV<decltype(v)>()), \
+                                 HWY_MAX(kBits, 1));             \
+  }
+
+HWY_SVE_FOREACH_U(HWY_SVE_ROTATE_RIGHT_N, RotateRight, xar_n)
+HWY_SVE_FOREACH_I(HWY_SVE_ROTATE_RIGHT_N, RotateRight, xar_n)
+
+#undef HWY_SVE_ROTATE_RIGHT_N
+
+#else  // !HWY_SVE_HAVE_2
+template <int kBits, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
 HWY_API V RotateRight(const V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
   constexpr size_t kSizeInBits = sizeof(TFromV<V>) * 8;
   static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
   if (kBits == 0) return v;
-  return Or(ShiftRight<kBits>(v),
+
+  return Or(BitCast(d, ShiftRight<kBits>(BitCast(du, v))),
             ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
 }
+#endif
 
 // ------------------------------ Shl/r
 

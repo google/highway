@@ -2271,14 +2271,25 @@ HWY_API Vec256<int8_t> ShiftRight(Vec256<int8_t> v) {
 
 // ------------------------------ RotateRight
 
-template <int kBits, typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
-HWY_API Vec256<T> RotateRight(const Vec256<T> v) {
-  constexpr size_t kSizeInBits = sizeof(T) * 8;
-  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+// U8 RotateRight implementation on AVX3_DL is now in x86_512-inl.h as U8
+// RotateRight uses detail::GaloisAffine on AVX3_DL
+
+#if HWY_TARGET > HWY_AVX3_DL
+template <int kBits>
+HWY_API Vec256<uint8_t> RotateRight(const Vec256<uint8_t> v) {
+  static_assert(0 <= kBits && kBits < 8, "Invalid shift count");
   if (kBits == 0) return v;
-  // AVX3 does not support 8/16-bit.
-  return Or(ShiftRight<kBits>(v),
-            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
+  // AVX3 does not support 8-bit.
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(7, 8 - kBits)>(v));
+}
+#endif
+
+template <int kBits>
+HWY_API Vec256<uint16_t> RotateRight(const Vec256<uint16_t> v) {
+  static_assert(0 <= kBits && kBits < 16, "Invalid shift count");
+  if (kBits == 0) return v;
+  // AVX3 does not support 16-bit.
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(15, 16 - kBits)>(v));
 }
 
 template <int kBits>
@@ -2302,6 +2313,31 @@ HWY_API Vec256<uint64_t> RotateRight(const Vec256<uint64_t> v) {
   return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(63, 64 - kBits)>(v));
 #endif
 }
+
+// ------------------------------ Rol/Ror
+#if HWY_TARGET <= HWY_AVX3
+
+template <class T, HWY_IF_UI32(T)>
+HWY_API Vec256<T> Rol(Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_rolv_epi32(a.raw, b.raw)};
+}
+
+template <class T, HWY_IF_UI32(T)>
+HWY_API Vec256<T> Ror(Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_rorv_epi32(a.raw, b.raw)};
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> Rol(Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_rolv_epi64(a.raw, b.raw)};
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> Ror(Vec256<T> a, Vec256<T> b) {
+  return Vec256<T>{_mm256_rorv_epi64(a.raw, b.raw)};
+}
+
+#endif
 
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
 

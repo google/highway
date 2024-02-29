@@ -4221,15 +4221,25 @@ HWY_API Vec128<int32_t, N> operator*(const Vec128<int32_t, N> a,
 
 // ------------------------------ RotateRight (ShiftRight, Or)
 
-template <int kBits, typename T, size_t N,
-          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
-HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
-  constexpr size_t kSizeInBits = sizeof(T) * 8;
-  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+// U8 RotateRight implementation on AVX3_DL is now in x86_512-inl.h as U8
+// RotateRight uses detail::GaloisAffine on AVX3_DL
+
+#if HWY_TARGET > HWY_AVX3_DL
+template <int kBits, size_t N>
+HWY_API Vec128<uint8_t, N> RotateRight(const Vec128<uint8_t, N> v) {
+  static_assert(0 <= kBits && kBits < 8, "Invalid shift count");
   if (kBits == 0) return v;
-  // AVX3 does not support 8/16-bit.
-  return Or(ShiftRight<kBits>(v),
-            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
+  // AVX3 does not support 8-bit.
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(7, 8 - kBits)>(v));
+}
+#endif
+
+template <int kBits, size_t N>
+HWY_API Vec128<uint16_t, N> RotateRight(const Vec128<uint16_t, N> v) {
+  static_assert(0 <= kBits && kBits < 16, "Invalid shift count");
+  if (kBits == 0) return v;
+  // AVX3 does not support 8-bit.
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(15, 16 - kBits)>(v));
 }
 
 template <int kBits, size_t N>
@@ -4253,6 +4263,83 @@ HWY_API Vec128<uint64_t, N> RotateRight(const Vec128<uint64_t, N> v) {
   return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(63, 64 - kBits)>(v));
 #endif
 }
+
+// I8/I16/I32/I64 RotateRight is generic for all vector lengths
+template <int kBits, class V, HWY_IF_SIGNED_V(V)>
+HWY_API V RotateRight(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+  return BitCast(d, RotateRight<kBits>(BitCast(du, v)));
+}
+
+// ------------------------------ Rol/Ror
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_ROL_ROR_32
+#undef HWY_NATIVE_ROL_ROR_32
+#else
+#define HWY_NATIVE_ROL_ROR_32
+#endif
+
+#ifdef HWY_NATIVE_ROL_ROR_64
+#undef HWY_NATIVE_ROL_ROR_64
+#else
+#define HWY_NATIVE_ROL_ROR_64
+#endif
+
+template <class T, size_t N, HWY_IF_UI32(T)>
+HWY_API Vec128<T, N> Rol(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_rolv_epi32(a.raw, b.raw)};
+}
+
+template <class T, size_t N, HWY_IF_UI32(T)>
+HWY_API Vec128<T, N> Ror(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_rorv_epi32(a.raw, b.raw)};
+}
+
+template <class T, size_t N, HWY_IF_UI64(T)>
+HWY_API Vec128<T, N> Rol(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_rolv_epi64(a.raw, b.raw)};
+}
+
+template <class T, size_t N, HWY_IF_UI64(T)>
+HWY_API Vec128<T, N> Ror(Vec128<T, N> a, Vec128<T, N> b) {
+  return Vec128<T, N>{_mm_rorv_epi64(a.raw, b.raw)};
+}
+
+#endif
+
+// ------------------------------ RotateLeftSame/RotateRightSame
+
+#if HWY_TARGET <= HWY_AVX3
+
+#ifdef HWY_NATIVE_ROL_ROR_SAME_32
+#undef HWY_NATIVE_ROL_ROR_SAME_32
+#else
+#define HWY_NATIVE_ROL_ROR_SAME_32
+#endif
+
+#ifdef HWY_NATIVE_ROL_ROR_SAME_64
+#undef HWY_NATIVE_ROL_ROR_SAME_64
+#else
+#define HWY_NATIVE_ROL_ROR_SAME_64
+#endif
+
+// Generic for all vector lengths
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 4) | (1 << 8))>
+HWY_API V RotateLeftSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  return Rol(v, Set(d, static_cast<TFromV<V>>(static_cast<unsigned>(bits))));
+}
+
+template <class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 4) | (1 << 8))>
+HWY_API V RotateRightSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  return Ror(v, Set(d, static_cast<TFromV<V>>(static_cast<unsigned>(bits))));
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
 

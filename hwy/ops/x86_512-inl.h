@@ -1417,14 +1417,41 @@ HWY_API Vec512<int8_t> ShiftRight(const Vec512<int8_t> v) {
 
 // ------------------------------ RotateRight
 
-template <int kBits, typename T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))>
-HWY_API Vec512<T> RotateRight(const Vec512<T> v) {
-  constexpr size_t kSizeInBits = sizeof(T) * 8;
-  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+#if HWY_TARGET <= HWY_AVX3_DL
+// U8 RotateRight is generic for all vector lengths on AVX3_DL
+template <int kBits, class V, HWY_IF_U8(TFromV<V>)>
+HWY_API V RotateRight(V v) {
+  static_assert(0 <= kBits && kBits < 8, "Invalid shift count");
+
+  const Repartition<uint64_t, DFromV<V>> du64;
   if (kBits == 0) return v;
-  // AVX3 does not support 8/16-bit.
-  return Or(ShiftRight<kBits>(v),
-            ShiftLeft<HWY_MIN(kSizeInBits - 1, kSizeInBits - kBits)>(v));
+
+  constexpr uint64_t kShrMatrix =
+      (0x0102040810204080ULL << kBits) &
+      (0x0101010101010101ULL * ((0xFF << kBits) & 0xFF));
+  constexpr int kShlBits = (-kBits) & 7;
+  constexpr uint64_t kShlMatrix = (0x0102040810204080ULL >> kShlBits) &
+                                  (0x0101010101010101ULL * (0xFF >> kShlBits));
+  constexpr uint64_t kMatrix = kShrMatrix | kShlMatrix;
+
+  return detail::GaloisAffine(v, Set(du64, kMatrix));
+}
+#else   // HWY_TARGET > HWY_AVX3_DL
+template <int kBits>
+HWY_API Vec512<uint8_t> RotateRight(const Vec512<uint8_t> v) {
+  static_assert(0 <= kBits && kBits < 8, "Invalid shift count");
+  if (kBits == 0) return v;
+  // AVX3 does not support 8-bit.
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(7, 8 - kBits)>(v));
+}
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
+template <int kBits>
+HWY_API Vec512<uint16_t> RotateRight(const Vec512<uint16_t> v) {
+  static_assert(0 <= kBits && kBits < 16, "Invalid shift count");
+  if (kBits == 0) return v;
+  // AVX3 does not support 16-bit.
+  return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(15, 16 - kBits)>(v));
 }
 
 template <int kBits>
@@ -1440,6 +1467,32 @@ HWY_API Vec512<uint64_t> RotateRight(const Vec512<uint64_t> v) {
   if (kBits == 0) return v;
   return Vec512<uint64_t>{_mm512_ror_epi64(v.raw, kBits)};
 }
+
+// ------------------------------ Rol/Ror
+
+#if HWY_TARGET <= HWY_AVX3
+
+template <class T, HWY_IF_UI32(T)>
+HWY_API Vec512<T> Rol(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_rolv_epi32(a.raw, b.raw)};
+}
+
+template <class T, HWY_IF_UI32(T)>
+HWY_API Vec512<T> Ror(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_rorv_epi32(a.raw, b.raw)};
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec512<T> Rol(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_rolv_epi64(a.raw, b.raw)};
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec512<T> Ror(Vec512<T> a, Vec512<T> b) {
+  return Vec512<T>{_mm512_rorv_epi64(a.raw, b.raw)};
+}
+
+#endif
 
 // ------------------------------ ShiftLeftSame
 
