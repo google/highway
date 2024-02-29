@@ -5590,17 +5590,33 @@ HWY_API VFromD<D> DemoteTo(D /*df16*/, Vec512<double> v) {
 #if HWY_AVX3_HAVE_F32_TO_BF16C
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> DemoteTo(D /*dbf16*/, Vec512<float> v) {
+#if HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000
+  // Inline assembly workaround for LLVM codegen bug
+  __m256i raw_result;
+  __asm__("vcvtneps2bf16 %1, %0" : "=v"(raw_result) : "v"(v.raw));
+  return VFromD<D>{raw_result};
+#else
   // The _mm512_cvtneps_pbh intrinsic returns a __m256bh vector that needs to be
   // bit casted to a __m256i vector
   return VFromD<D>{detail::BitCastToInteger(_mm512_cvtneps_pbh(v.raw))};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D /*dbf16*/, Vec512<float> a,
                                    Vec512<float> b) {
+#if HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000
+  // Inline assembly workaround for LLVM codegen bug
+  __m512i raw_result;
+  __asm__("vcvtne2ps2bf16 %2, %1, %0"
+          : "=v"(raw_result)
+          : "v"(b.raw), "v"(a.raw));
+  return VFromD<D>{raw_result};
+#else
   // The _mm512_cvtne2ps_pbh intrinsic returns a __m512bh vector that needs to
   // be bit casted to a __m512i vector
   return VFromD<D>{detail::BitCastToInteger(_mm512_cvtne2ps_pbh(b.raw, a.raw))};
+#endif
 }
 #endif  // HWY_AVX3_HAVE_F32_TO_BF16C
 

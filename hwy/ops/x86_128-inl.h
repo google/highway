@@ -54,15 +54,9 @@ namespace detail {
 #define HWY_X86_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
 #endif
 
-// NOTE: Disable AVX512BF16 on pre-release versions of Clang 16/17/18/19 due to
-// codegen bugs in pre-release versions of Clang 16/17/18/19
 #undef HWY_AVX3_HAVE_F32_TO_BF16C
 #if HWY_TARGET <= HWY_AVX3_ZEN4 && !HWY_COMPILER_CLANGCL &&           \
     (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
-    !(HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000 &&      \
-      !defined(__apple_build_version__) &&                            \
-      (HWY_COMPILER3_CLANG % 10000) == 0) &&                          \
-    !(HWY_COMPILER_CLANG >= 1800 && HWY_COMPILER_CLANG < 1900) &&     \
     !defined(HWY_AVX3_DISABLE_AVX512BF16)
 #define HWY_AVX3_HAVE_F32_TO_BF16C 1
 #else
@@ -9485,17 +9479,33 @@ HWY_API VFromD<D> DemoteTo(D /*df16*/, VFromD<Rebind<double, D>> v) {
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> DemoteTo(D /*dbf16*/, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000
+  // Inline assembly workaround for LLVM codegen bug
+  __m128i raw_result;
+  __asm__("vcvtneps2bf16 %1, %0" : "=v"(raw_result) : "v"(v.raw));
+  return VFromD<D>{raw_result};
+#else
   // The _mm_cvtneps_pbh intrinsic returns a __m128bh vector that needs to be
   // bit casted to a __m128i vector
   return VFromD<D>{detail::BitCastToInteger(_mm_cvtneps_pbh(v.raw))};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> ReorderDemote2To(D /*dbf16*/, Vec128<float> a,
                                    Vec128<float> b) {
+#if HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000
+  // Inline assembly workaround for LLVM codegen bug
+  __m128i raw_result;
+  __asm__("vcvtne2ps2bf16 %2, %1, %0"
+          : "=v"(raw_result)
+          : "v"(b.raw), "v"(a.raw));
+  return VFromD<D>{raw_result};
+#else
   // The _mm_cvtne2ps_pbh intrinsic returns a __m128bh vector that needs to be
   // bit casted to a __m128i vector
   return VFromD<D>{detail::BitCastToInteger(_mm_cvtne2ps_pbh(b.raw, a.raw))};
+#endif
 }
 
 template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_BF16_D(D)>
