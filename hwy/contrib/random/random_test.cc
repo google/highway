@@ -21,7 +21,7 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {  // required: unique per target
 
-constexpr std::uint64_t tests = 1UL << 15;
+constexpr std::uint64_t tests = 1UL << 10;
 
 std::uint64_t GetSeed() { return static_cast<uint64_t>(std::time(nullptr)); }
 

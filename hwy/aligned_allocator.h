@@ -130,12 +130,17 @@ template <class T>
 struct AlignedAllocator {
   using value_type = T;
 
+  AlignedAllocator() = default;
+
+  template <class V>
+  explicit AlignedAllocator(const AlignedAllocator<V>&) noexcept {};
+
   template <class V>
   value_type* allocate(V n) {
     static_assert(std::is_integral<V>::value,
                   "AlignedAllocator only supports integer types");
     static_assert(sizeof(V) <= sizeof(std::size_t),
-                  "V must be smaller or equal size_t to avoid overflow");
+                  "V n must be smaller or equal size_t to avoid overflow");
     return static_cast<value_type*>(
         AllocateAlignedBytes(static_cast<std::size_t>(n) * sizeof(value_type)));
   }
@@ -145,6 +150,18 @@ struct AlignedAllocator {
     return FreeAlignedBytes(p, nullptr, nullptr);
   }
 };
+
+template <class T, class V>
+constexpr bool operator==(const AlignedAllocator<T>&,
+                          const AlignedAllocator<V>&) noexcept {
+  return true;
+}
+
+template <class T, class V>
+constexpr bool operator!=(const AlignedAllocator<T>&,
+                          const AlignedAllocator<V>&) noexcept {
+  return false;
+}
 
 template <class T>
 using AlignedVector = std::vector<T, AlignedAllocator<T>>;
