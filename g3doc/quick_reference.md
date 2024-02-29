@@ -2282,7 +2282,7 @@ supported for the `HWY_SCALAR` target.
 *   `HWY_IS_LITTLE_ENDIAN` expands to 1 on little-endian targets and to 0 on
     big-endian targets.
 
-*   `HWY_IS_BIG_ENDIAN` expands to 0 on big-endian targets and to 1 on
+*   `HWY_IS_BIG_ENDIAN` expands to 1 on big-endian targets and to 0 on
     little-endian targets.
 
 The following were used to signal the maximum number of lanes for certain
