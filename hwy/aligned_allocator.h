@@ -38,6 +38,11 @@ namespace hwy {
 // access pairs of lines, and POWER8 also has 128.
 #define HWY_ALIGNMENT 128
 
+template <typename T>
+HWY_API constexpr bool IsAligned(T* ptr, size_t align = HWY_ALIGNMENT) {
+  return reinterpret_cast<uintptr_t>(ptr) % align == 0;
+}
+
 // Pointers to functions equivalent to malloc/free with an opaque void* passed
 // to them.
 using AllocPtr = void* (*)(void* opaque, size_t bytes);

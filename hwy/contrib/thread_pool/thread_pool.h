@@ -51,47 +51,6 @@
 
 namespace hwy {
 
-// Precomputation for fast n / divisor and n % divisor, where n is a variable
-// and divisor is unchanging but unknown at compile-time.
-class Divisor {
- public:
-  Divisor() = default;  // for PoolWorker
-  explicit Divisor(uint32_t divisor) : divisor_(divisor) {
-    if (divisor <= 1) return;
-
-    const uint32_t len =
-        static_cast<uint32_t>(31 - Num0BitsAboveMS1Bit_Nonzero32(divisor - 1));
-    const uint64_t u_hi = (2ULL << len) - divisor;
-    const uint32_t q = Truncate((u_hi << 32) / divisor);
-
-    mul_ = q + 1;
-    shift1_ = 1;
-    shift2_ = len;
-  }
-
-  uint32_t GetDivisor() const { return divisor_; }
-
-  // Returns n / divisor_.
-  uint32_t Divide(uint32_t n) const {
-    const uint64_t mul = mul_;
-    const uint32_t t = Truncate((mul * n) >> 32);
-    return (t + ((n - t) >> shift1_)) >> shift2_;
-  }
-
-  // Returns n % divisor_.
-  uint32_t Remainder(uint32_t n) const { return n - (Divide(n) * divisor_); }
-
- private:
-  static uint32_t Truncate(uint64_t x) {
-    return static_cast<uint32_t>(x & 0xFFFFFFFFu);
-  }
-
-  uint32_t divisor_;
-  uint32_t mul_ = 1;
-  uint32_t shift1_ = 0;
-  uint32_t shift2_ = 0;
-};
-
 // Generates a random permutation of [0, size). O(1) storage.
 class ShuffledIota {
  public:

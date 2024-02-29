@@ -77,13 +77,14 @@ namespace hwy {
 
 // Waits until `current != prev` and returns the new value. May return
 // immediately if `current` already changed, or after blocking and waking.
-static inline uint32_t BlockUntilDifferent(const uint32_t prev,
-                                           std::atomic<uint32_t>& current) {
+static inline uint32_t BlockUntilDifferent(
+    const uint32_t prev, const std::atomic<uint32_t>& current) {
   const auto acq = std::memory_order_acquire;
 
 #if HWY_ARCH_WASM
   // It is always safe to cast to void.
-  volatile void* address = static_cast<volatile void*>(&current);
+  volatile void* address =
+      const_cast<volatile void*>(static_cast<const volatile void*>(&current));
   const double max_ms = INFINITY;
   for (;;) {
     const uint32_t next = current.load(acq);
@@ -95,7 +96,7 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
 
 #elif HWY_OS_LINUX
   // Safe to cast because std::atomic is a standard layout type.
-  uint32_t* address = reinterpret_cast<uint32_t*>(&current);
+  const uint32_t* address = reinterpret_cast<const uint32_t*>(&current);
   // _PRIVATE requires this only be used in the same process, and avoids
   // virtual->physical lookups and atomic reference counting.
   const int op = FUTEX_WAIT_PRIVATE;
@@ -112,7 +113,8 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
 
 #elif HWY_OS_WIN && !defined(HWY_DISABLE_FUTEX)
   // It is always safe to cast to void.
-  volatile void* address = static_cast<volatile void*>(&current);
+  volatile void* address =
+      const_cast<volatile void*>(static_cast<const volatile void*>(&current));
   // API is not const-correct, but only loads from the pointer.
   PVOID pprev = const_cast<void*>(static_cast<const void*>(&prev));
   const DWORD max_ms = INFINITE;
@@ -126,7 +128,7 @@ static inline uint32_t BlockUntilDifferent(const uint32_t prev,
 
 #elif HWY_OS_APPLE && !defined(HWY_DISABLE_FUTEX)
   // It is always safe to cast to void.
-  void* address = static_cast<void*>(&current);
+  void* address = const_cast<void*>(static_cast<const void*>(&current));
   for (;;) {
     const uint32_t next = current.load(acq);
     if (next != prev) return next;
