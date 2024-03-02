@@ -8217,6 +8217,94 @@ HWY_API Vec128<float, N> OddEven(Vec128<float, N> a, Vec128<float, N> b) {
 #endif
 }
 
+// -------------------------- InterleaveEven
+
+template <class D, HWY_IF_LANES_LE_D(D, 2)>
+HWY_API VFromD<D> InterleaveEven(D d, VFromD<D> a, VFromD<D> b) {
+  return ConcatEven(d, b, a);
+}
+
+// I8/U8 InterleaveEven is generic for all vector lengths that are >= 4 bytes
+template <class D, HWY_IF_LANES_GT_D(D, 2), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> InterleaveEven(D d, VFromD<D> a, VFromD<D> b) {
+  const Repartition<uint16_t, decltype(d)> du16;
+  return OddEven(BitCast(d, ShiftLeft<8>(BitCast(du16, b))), a);
+}
+
+// I16/U16 InterleaveEven is generic for all vector lengths that are >= 8 bytes
+template <class D, HWY_IF_LANES_GT_D(D, 2), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> InterleaveEven(D d, VFromD<D> a, VFromD<D> b) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  return OddEven(BitCast(d, ShiftLeft<16>(BitCast(du32, b))), a);
+}
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_LANES_D(D, 4), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_mask_shuffle_epi32(
+      a.raw, static_cast<__mmask8>(0x0A), b.raw,
+      static_cast<_MM_PERM_ENUM>(_MM_SHUFFLE(2, 2, 0, 0)))};
+}
+template <class D, HWY_IF_LANES_D(D, 4), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_mask_shuffle_ps(a.raw, static_cast<__mmask8>(0x0A),
+                                       b.raw, b.raw, _MM_SHUFFLE(2, 2, 0, 0))};
+}
+#else
+template <class D, HWY_IF_LANES_D(D, 4), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> InterleaveEven(D d, VFromD<D> a, VFromD<D> b) {
+  const RebindToFloat<decltype(d)> df;
+  const auto b2_b0_a2_a0 = ConcatEven(df, BitCast(df, b), BitCast(df, a));
+  return BitCast(
+      d, VFromD<decltype(df)>{_mm_shuffle_ps(b2_b0_a2_a0.raw, b2_b0_a2_a0.raw,
+                                             _MM_SHUFFLE(3, 1, 2, 0))});
+}
+#endif
+
+// -------------------------- InterleaveOdd
+
+template <class D, HWY_IF_LANES_LE_D(D, 2)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  return ConcatOdd(d, b, a);
+}
+
+// I8/U8 InterleaveOdd is generic for all vector lengths that are >= 4 bytes
+template <class D, HWY_IF_LANES_GT_D(D, 2), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  const Repartition<uint16_t, decltype(d)> du16;
+  return OddEven(b, BitCast(d, ShiftRight<8>(BitCast(du16, a))));
+}
+
+// I16/U16 InterleaveOdd is generic for all vector lengths that are >= 8 bytes
+template <class D, HWY_IF_LANES_GT_D(D, 2), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  const Repartition<uint32_t, decltype(d)> du32;
+  return OddEven(b, BitCast(d, ShiftRight<16>(BitCast(du32, a))));
+}
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_LANES_D(D, 4), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_mask_shuffle_epi32(
+      b.raw, static_cast<__mmask8>(0x05), a.raw,
+      static_cast<_MM_PERM_ENUM>(_MM_SHUFFLE(3, 3, 1, 1)))};
+}
+template <class D, HWY_IF_LANES_D(D, 4), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm_mask_shuffle_ps(b.raw, static_cast<__mmask8>(0x05),
+                                       a.raw, a.raw, _MM_SHUFFLE(3, 3, 1, 1))};
+}
+#else
+template <class D, HWY_IF_LANES_D(D, 4), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  const RebindToFloat<decltype(d)> df;
+  const auto b3_b1_a3_a1 = ConcatOdd(df, BitCast(df, b), BitCast(df, a));
+  return BitCast(
+      d, VFromD<decltype(df)>{_mm_shuffle_ps(b3_b1_a3_a1.raw, b3_b1_a3_a1.raw,
+                                             _MM_SHUFFLE(3, 1, 2, 0))});
+}
+#endif
+
 // ------------------------------ OddEvenBlocks
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {

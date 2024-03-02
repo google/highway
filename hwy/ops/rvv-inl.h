@@ -3099,6 +3099,18 @@ HWY_API V DupOdd(const V v) {
   return OddEven(v, down);
 }
 
+// ------------------------------ InterleaveEven (OddEven)
+template <class D>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return OddEven(detail::Slide1Up(b), a);
+}
+
+// ------------------------------ InterleaveOdd (OddEven)
+template <class D>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return OddEven(b, detail::Slide1Down(a));
+}
+
 // ------------------------------ OddEvenBlocks
 template <class V>
 HWY_API V OddEvenBlocks(const V a, const V b) {

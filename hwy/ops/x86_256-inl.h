@@ -5240,6 +5240,72 @@ HWY_API Vec256<double> OddEven(Vec256<double> a, Vec256<double> b) {
   return Vec256<double>{_mm256_blend_pd(a.raw, b.raw, 5)};
 }
 
+// -------------------------- InterleaveEven
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_LANES_D(D, 8), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_mask_shuffle_epi32(
+      a.raw, static_cast<__mmask8>(0xAA), b.raw,
+      static_cast<_MM_PERM_ENUM>(_MM_SHUFFLE(2, 2, 0, 0)))};
+}
+template <class D, HWY_IF_LANES_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_mask_shuffle_ps(a.raw, static_cast<__mmask8>(0xAA),
+                                          b.raw, b.raw,
+                                          _MM_SHUFFLE(2, 2, 0, 0))};
+}
+#else
+template <class D, HWY_IF_LANES_D(D, 8), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> InterleaveEven(D d, VFromD<D> a, VFromD<D> b) {
+  const RebindToFloat<decltype(d)> df;
+  const VFromD<decltype(df)> b2_b0_a2_a0{_mm256_shuffle_ps(
+      BitCast(df, a).raw, BitCast(df, b).raw, _MM_SHUFFLE(2, 0, 2, 0))};
+  return BitCast(
+      d, VFromD<decltype(df)>{_mm256_shuffle_ps(
+             b2_b0_a2_a0.raw, b2_b0_a2_a0.raw, _MM_SHUFFLE(3, 1, 2, 0))});
+}
+#endif
+
+// I64/U64/F64 InterleaveEven is generic for vector lengths >= 32 bytes
+template <class D, HWY_IF_LANES_GT_D(D, 2), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return InterleaveLower(a, b);
+}
+
+// -------------------------- InterleaveOdd
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_LANES_D(D, 8), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_mask_shuffle_epi32(
+      b.raw, static_cast<__mmask8>(0x55), a.raw,
+      static_cast<_MM_PERM_ENUM>(_MM_SHUFFLE(3, 3, 1, 1)))};
+}
+template <class D, HWY_IF_LANES_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm256_mask_shuffle_ps(b.raw, static_cast<__mmask8>(0x55),
+                                          a.raw, a.raw,
+                                          _MM_SHUFFLE(3, 3, 1, 1))};
+}
+#else
+template <class D, HWY_IF_LANES_D(D, 8), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  const RebindToFloat<decltype(d)> df;
+  const VFromD<decltype(df)> b3_b1_a3_a3{_mm256_shuffle_ps(
+      BitCast(df, a).raw, BitCast(df, b).raw, _MM_SHUFFLE(3, 1, 3, 1))};
+  return BitCast(
+      d, VFromD<decltype(df)>{_mm256_shuffle_ps(
+             b3_b1_a3_a3.raw, b3_b1_a3_a3.raw, _MM_SHUFFLE(3, 1, 2, 0))});
+}
+#endif
+
+// I64/U64/F64 InterleaveOdd is generic for vector lengths >= 32 bytes
+template <class D, HWY_IF_LANES_GT_D(D, 2), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  return InterleaveUpper(d, a, b);
+}
+
 // ------------------------------ OddEvenBlocks
 
 template <typename T, HWY_IF_NOT_FLOAT3264(T)>

@@ -4647,6 +4647,35 @@ HWY_API Vec512<T> OddEven(const Vec512<T> a, const Vec512<T> b) {
   return IfThenElse(Mask512<T>{0x5555555555555555ull >> shift}, b, a);
 }
 
+// -------------------------- InterleaveEven
+
+template <class D, HWY_IF_LANES_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm512_mask_shuffle_epi32(
+      a.raw, static_cast<__mmask16>(0xAAAA), b.raw,
+      static_cast<_MM_PERM_ENUM>(_MM_SHUFFLE(2, 2, 0, 0)))};
+}
+template <class D, HWY_IF_LANES_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm512_mask_shuffle_ps(a.raw, static_cast<__mmask16>(0xAAAA),
+                                          b.raw, b.raw,
+                                          _MM_SHUFFLE(2, 2, 0, 0))};
+}
+// -------------------------- InterleaveOdd
+
+template <class D, HWY_IF_LANES_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm512_mask_shuffle_epi32(
+      b.raw, static_cast<__mmask16>(0x5555), a.raw,
+      static_cast<_MM_PERM_ENUM>(_MM_SHUFFLE(3, 3, 1, 1)))};
+}
+template <class D, HWY_IF_LANES_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{_mm512_mask_shuffle_ps(b.raw, static_cast<__mmask16>(0x5555),
+                                          a.raw, a.raw,
+                                          _MM_SHUFFLE(3, 3, 1, 1))};
+}
+
 // ------------------------------ OddEvenBlocks
 
 template <typename T>
