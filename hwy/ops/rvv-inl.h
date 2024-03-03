@@ -2811,7 +2811,7 @@ HWY_INLINE size_t LanesPerBlock(Simd<T, N, kPow2> d) {
 
 template <class D, class V>
 HWY_INLINE V OffsetsOf128BitBlocks(const D d, const V iota0) {
-  using T = MakeUnsigned<TFromD<D>>;
+  using T = MakeUnsigned<TFromV<V>>;
   return AndS(iota0, static_cast<T>(~(LanesPerBlock(d) - 1)));
 }
 
@@ -3727,8 +3727,9 @@ HWY_API V TwoTablesLookupLanes(V a, V b,
 template <int kLane, class V, class D = DFromV<V>, HWY_IF_T_SIZE_D(D, 1),
           HWY_IF_POW2_LE_D(D, 2)>
 HWY_API V Broadcast(const V v) {
-  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
   const D d;
+  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
+
   const Rebind<uint16_t, decltype(d)> du16;
   VFromD<decltype(du16)> idx =
       detail::OffsetsOf128BitBlocks(d, detail::Iota0(du16));
@@ -3742,8 +3743,9 @@ HWY_API V Broadcast(const V v) {
 template <int kLane, class V, class D = DFromV<V>, HWY_IF_T_SIZE_D(D, 1),
           HWY_IF_POW2_GT_D(D, 2)>
 HWY_API V Broadcast(const V v) {
-  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
   const D d;
+  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
+
   const Half<decltype(d)> dh;
   using VH = VFromD<decltype(dh)>;
   const Rebind<uint16_t, decltype(dh)> du16;
@@ -3754,14 +3756,15 @@ HWY_API V Broadcast(const V v) {
   }
   const VH lo = detail::TableLookupLanes16(LowerHalf(dh, v), idx);
   const VH hi = detail::TableLookupLanes16(UpperHalf(dh, v), idx);
-  return Combine(d, lo, hi);
+  return Combine(d, hi, lo);
 }
 
 template <int kLane, class V, class D = DFromV<V>,
           HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 2) | (1 << 4) | (1 << 8))>
 HWY_API V Broadcast(const V v) {
-  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
   const D d;
+  HWY_DASSERT(0 <= kLane && kLane < detail::LanesPerBlock(d));
+
   const RebindToUnsigned<decltype(d)> du;
   auto idx = detail::OffsetsOf128BitBlocks(d, detail::Iota0(du));
   if (kLane != 0) {
