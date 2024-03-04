@@ -133,7 +133,7 @@ struct AlignedAllocator {
   AlignedAllocator() = default;
 
   template <class V>
-  explicit AlignedAllocator(const AlignedAllocator<V>&) noexcept {};
+  explicit AlignedAllocator(const AlignedAllocator<V>&) noexcept {}
 
   template <class V>
   value_type* allocate(V n) {
