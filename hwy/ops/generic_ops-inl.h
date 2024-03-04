@@ -410,6 +410,17 @@ HWY_API V InterleaveWholeLower(V a, V b) {
 }
 #endif  // HWY_TARGET != HWY_SCALAR
 
+// ------------------------------ InterleaveEven
+
+#if HWY_TARGET != HWY_SCALAR
+// InterleaveEven without the optional D parameter is generic for all vector
+// lengths
+template <class V>
+HWY_API V InterleaveEven(V a, V b) {
+  return InterleaveEven(DFromV<V>(), a, b);
+}
+#endif
+
 // ------------------------------ AddSub
 
 template <class V, HWY_IF_LANES_D(DFromV<V>, 1)>

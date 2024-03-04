@@ -3806,6 +3806,50 @@ HWY_API Vec128<float, N> OddEven(const Vec128<float, N> a,
   return Vec128<float, N>{wasm_i32x4_shuffle(a.raw, b.raw, 4, 1, 6, 3)};
 }
 
+// ------------------------------ InterleaveEven
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{wasm_i8x16_shuffle(a.raw, b.raw, 0, 16, 2, 18, 4, 20, 6, 22,
+                                      8, 24, 10, 26, 12, 28, 14, 30)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{wasm_i16x8_shuffle(a.raw, b.raw, 0, 8, 2, 10, 4, 12, 6, 14)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{wasm_i32x4_shuffle(a.raw, b.raw, 0, 4, 2, 6)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return InterleaveLower(a, b);
+}
+
+// ------------------------------ InterleaveOdd
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{wasm_i8x16_shuffle(a.raw, b.raw, 1, 17, 3, 19, 5, 21, 7, 23,
+                                      9, 25, 11, 27, 13, 29, 15, 31)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{wasm_i16x8_shuffle(a.raw, b.raw, 1, 9, 3, 11, 5, 13, 7, 15)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return VFromD<D>{wasm_i32x4_shuffle(a.raw, b.raw, 1, 5, 3, 7)};
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  return InterleaveUpper(d, a, b);
+}
+
 // ------------------------------ OddEvenBlocks
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {

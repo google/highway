@@ -3185,6 +3185,18 @@ HWY_API V OddEven(const V odd, const V even) {
 
 #endif  // HWY_TARGET
 
+// ------------------------------ InterleaveEven
+template <class D>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return detail::InterleaveEven(a, b);
+}
+
+// ------------------------------ InterleaveOdd
+template <class D>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return detail::InterleaveOdd(a, b);
+}
+
 // ------------------------------ OddEvenBlocks
 template <class V>
 HWY_API V OddEvenBlocks(const V odd, const V even) {

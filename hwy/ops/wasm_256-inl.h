@@ -1368,6 +1368,24 @@ HWY_API Vec256<T> OddEven(Vec256<T> a, const Vec256<T> b) {
   return a;
 }
 
+// ------------------------------ InterleaveEven
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> InterleaveEven(D d, VFromD<D> a, VFromD<D> b) {
+  const Half<decltype(d)> dh;
+  a.v0 = InterleaveEven(dh, a.v0, b.v0);
+  a.v1 = InterleaveEven(dh, a.v1, b.v1);
+  return a;
+}
+
+// ------------------------------ InterleaveOdd
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  const Half<decltype(d)> dh;
+  a.v0 = InterleaveOdd(dh, a.v0, b.v0);
+  a.v1 = InterleaveOdd(dh, a.v1, b.v1);
+  return a;
+}
+
 // ------------------------------ OddEvenBlocks
 template <typename T>
 HWY_API Vec256<T> OddEvenBlocks(Vec256<T> odd, Vec256<T> even) {

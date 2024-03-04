@@ -2154,6 +2154,24 @@ HWY_API Vec128<T, N> OddEven(Vec128<T, N> odd, Vec128<T, N> even) {
   return odd;
 }
 
+template <class D>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  for (size_t i = 1; i < N; i += 2) {
+    a.raw[i] = b.raw[i - 1];
+  }
+  return a;
+}
+
+template <class D>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  constexpr size_t N = HWY_MAX_LANES_D(D);
+  for (size_t i = 1; i < N; i += 2) {
+    b.raw[i - 1] = a.raw[i];
+  }
+  return b;
+}
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {
   return even;

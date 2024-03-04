@@ -6841,6 +6841,36 @@ HWY_API Vec128<T, N> OddEven(const Vec128<T, N> a, const Vec128<T, N> b) {
   return IfThenElse(MaskFromVec(vec), b, a);
 }
 
+// ------------------------------ InterleaveEven
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+#if HWY_ARCH_ARM_A64
+  return detail::InterleaveEven(a, b);
+#else
+  return VFromD<D>(detail::InterleaveEvenOdd(a.raw, b.raw).val[0]);
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveEven(D /*d*/, VFromD<D> a, VFromD<D> b) {
+  return InterleaveLower(a, b);
+}
+
+// ------------------------------ InterleaveOdd
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API VFromD<D> InterleaveOdd(D /*d*/, VFromD<D> a, VFromD<D> b) {
+#if HWY_ARCH_ARM_A64
+  return detail::InterleaveOdd(a, b);
+#else
+  return VFromD<D>(detail::InterleaveEvenOdd(a.raw, b.raw).val[1]);
+#endif
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> InterleaveOdd(D d, VFromD<D> a, VFromD<D> b) {
+  return InterleaveUpper(d, a, b);
+}
+
 // ------------------------------ OddEvenBlocks
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OddEvenBlocks(Vec128<T, N> /* odd */, Vec128<T, N> even) {

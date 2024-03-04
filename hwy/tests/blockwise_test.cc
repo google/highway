@@ -224,10 +224,59 @@ struct TestInterleaveUpper {
   }
 };
 
+struct TestInterleaveEven {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto even_lanes = AllocateAligned<T>(N);
+    auto odd_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && expected);
+    for (size_t i = 0; i < N; ++i) {
+      even_lanes[i] = ConvertScalarTo<T>(2 * i + 0);
+      odd_lanes[i] = ConvertScalarTo<T>(2 * i + 1);
+    }
+    const auto even = Load(d, even_lanes.get());
+    const auto odd = Load(d, odd_lanes.get());
+
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = ConvertScalarTo<T>(2 * i - (i & 1));
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveEven(even, odd));
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveEven(d, even, odd));
+  }
+};
+
+struct TestInterleaveOdd {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+    auto even_lanes = AllocateAligned<T>(N);
+    auto odd_lanes = AllocateAligned<T>(N);
+    auto expected = AllocateAligned<T>(N);
+    HWY_ASSERT(even_lanes && odd_lanes && expected);
+    for (size_t i = 0; i < N; ++i) {
+      even_lanes[i] = ConvertScalarTo<T>(2 * i + 0);
+      odd_lanes[i] = ConvertScalarTo<T>(2 * i + 1);
+    }
+    const auto even = Load(d, even_lanes.get());
+    const auto odd = Load(d, odd_lanes.get());
+
+    for (size_t i = 0; i < N; ++i) {
+      expected[i] = ConvertScalarTo<T>((2 * i) - (i & 1) + 2);
+    }
+
+    HWY_ASSERT_VEC_EQ(d, expected.get(), InterleaveOdd(d, even, odd));
+  }
+};
+
 HWY_NOINLINE void TestAllInterleave() {
   // Not DemoteVectors because this cannot be supported by HWY_SCALAR.
   ForAllTypes(ForShrinkableVectors<TestInterleaveLower>());
   ForAllTypes(ForShrinkableVectors<TestInterleaveUpper>());
+  ForAllTypes(ForShrinkableVectors<TestInterleaveEven>());
+  ForAllTypes(ForShrinkableVectors<TestInterleaveOdd>());
 }
 
 struct TestZipLower {
