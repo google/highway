@@ -367,6 +367,299 @@ HWY_API Mask<DTo> OrderedDemote2MasksTo(DTo d_to, DFrom d_from, Mask<DFrom> a,
 
 #endif  // HWY_NATIVE_ORDERED_DEMOTE_2_MASKS_TO
 
+// ------------------------------ RotateLeft
+template <int kBits, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V RotateLeft(V v) {
+  constexpr size_t kSizeInBits = sizeof(TFromV<V>) * 8;
+  static_assert(0 <= kBits && kBits < kSizeInBits, "Invalid shift count");
+
+  constexpr int kRotateRightAmt =
+      (kBits == 0) ? 0 : static_cast<int>(kSizeInBits) - kBits;
+  return RotateRight<kRotateRightAmt>(v);
+}
+
+// ------------------------------ Rol/Ror
+#if (defined(HWY_NATIVE_ROL_ROR_8) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_8
+#undef HWY_NATIVE_ROL_ROR_8
+#else
+#define HWY_NATIVE_ROL_ROR_8
+#endif
+
+template <class V, HWY_IF_UI8(TFromV<V>)>
+HWY_API V Rol(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint8_t{7});
+  const auto shl_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shr_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI8(TFromV<V>)>
+HWY_API V Ror(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint8_t{7});
+  const auto shr_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shl_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+#endif  // HWY_NATIVE_ROL_ROR_8
+
+#if (defined(HWY_NATIVE_ROL_ROR_16) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_16
+#undef HWY_NATIVE_ROL_ROR_16
+#else
+#define HWY_NATIVE_ROL_ROR_16
+#endif
+
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V Rol(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint16_t{15});
+  const auto shl_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shr_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V Ror(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint16_t{15});
+  const auto shr_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shl_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+#endif  // HWY_NATIVE_ROL_ROR_16
+
+#if (defined(HWY_NATIVE_ROL_ROR_32_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_32_64
+#undef HWY_NATIVE_ROL_ROR_32_64
+#else
+#define HWY_NATIVE_ROL_ROR_32_64
+#endif
+
+template <class V, HWY_IF_UI32(TFromV<V>)>
+HWY_API V Rol(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint32_t{31});
+  const auto shl_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shr_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI32(TFromV<V>)>
+HWY_API V Ror(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint32_t{31});
+  const auto shr_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shl_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+#if HWY_HAVE_INTEGER64
+template <class V, HWY_IF_UI64(TFromV<V>)>
+HWY_API V Rol(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint64_t{63});
+  const auto shl_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shr_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI64(TFromV<V>)>
+HWY_API V Ror(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const RebindToSigned<decltype(d)> di;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const auto shift_amt_mask = Set(du, uint64_t{63});
+  const auto shr_amt = And(BitCast(du, b), shift_amt_mask);
+  const auto shl_amt = And(BitCast(du, Neg(BitCast(di, b))), shift_amt_mask);
+
+  const auto vu = BitCast(du, a);
+  return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
+}
+#endif  // HWY_HAVE_INTEGER64
+
+#endif  // HWY_NATIVE_ROL_ROR_32_64
+
+// ------------------------------ RotateLeftSame/RotateRightSame
+
+#if (defined(HWY_NATIVE_ROL_ROR_SAME_8) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_SAME_8
+#undef HWY_NATIVE_ROL_ROR_SAME_8
+#else
+#define HWY_NATIVE_ROL_ROR_SAME_8
+#endif
+
+template <class V, HWY_IF_UI8(TFromV<V>)>
+HWY_API V RotateLeftSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shl_amt = bits & 7;
+  const int shr_amt = static_cast<int>((0u - static_cast<unsigned>(bits)) & 7u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI8(TFromV<V>)>
+HWY_API V RotateRightSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shr_amt = bits & 7;
+  const int shl_amt = static_cast<int>((0u - static_cast<unsigned>(bits)) & 7u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+
+#endif  // HWY_NATIVE_ROL_ROR_SAME_8
+
+#if (defined(HWY_NATIVE_ROL_ROR_SAME_16) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_SAME_16
+#undef HWY_NATIVE_ROL_ROR_SAME_16
+#else
+#define HWY_NATIVE_ROL_ROR_SAME_16
+#endif
+
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V RotateLeftSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shl_amt = bits & 15;
+  const int shr_amt =
+      static_cast<int>((0u - static_cast<unsigned>(bits)) & 15u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI16(TFromV<V>)>
+HWY_API V RotateRightSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shr_amt = bits & 15;
+  const int shl_amt =
+      static_cast<int>((0u - static_cast<unsigned>(bits)) & 15u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+#endif  // HWY_NATIVE_ROL_ROR_SAME_16
+
+#if (defined(HWY_NATIVE_ROL_ROR_SAME_32_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_SAME_32_64
+#undef HWY_NATIVE_ROL_ROR_SAME_32_64
+#else
+#define HWY_NATIVE_ROL_ROR_SAME_32_64
+#endif
+
+template <class V, HWY_IF_UI32(TFromV<V>)>
+HWY_API V RotateLeftSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shl_amt = bits & 31;
+  const int shr_amt =
+      static_cast<int>((0u - static_cast<unsigned>(bits)) & 31u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI32(TFromV<V>)>
+HWY_API V RotateRightSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shr_amt = bits & 31;
+  const int shl_amt =
+      static_cast<int>((0u - static_cast<unsigned>(bits)) & 31u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+
+#if HWY_HAVE_INTEGER64
+template <class V, HWY_IF_UI64(TFromV<V>)>
+HWY_API V RotateLeftSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shl_amt = bits & 63;
+  const int shr_amt =
+      static_cast<int>((0u - static_cast<unsigned>(bits)) & 63u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+
+template <class V, HWY_IF_UI64(TFromV<V>)>
+HWY_API V RotateRightSame(V v, int bits) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du;
+
+  const int shr_amt = bits & 63;
+  const int shl_amt =
+      static_cast<int>((0u - static_cast<unsigned>(bits)) & 63u);
+
+  const auto vu = BitCast(du, v);
+  return BitCast(d,
+                 Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
+}
+#endif  // HWY_HAVE_INTEGER64
+
+#endif  // HWY_NATIVE_ROL_ROR_SAME_32_64
+
 // ------------------------------ InterleaveWholeLower/InterleaveWholeUpper
 #if (defined(HWY_NATIVE_INTERLEAVE_WHOLE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_INTERLEAVE_WHOLE

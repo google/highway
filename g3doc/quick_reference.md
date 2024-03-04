@@ -842,9 +842,13 @@ lane sizes, and `RotateRight` is often emulated with shifts:
 *   `V`: `{u,i}` \
     <code>V **ShiftRight**&lt;int&gt;(V a)</code> returns `a[i] >> int`.
 
-*   `V`: `{u}` \
-    <code>V **RotateRight**&lt;int&gt;(V a)</code> returns `(a[i] >> int) |
-    (a[i] << (sizeof(T)*8 - int))`.
+*   `V`: `{u,i}` \
+    <code>V **RotateLeft**&lt;int&gt;(V a)</code> returns `(a[i] << int) |
+    (static_cast<TU>(a[i]) >> (sizeof(T)*8 - int))`.
+
+*   `V`: `{u,i}` \
+    <code>V **RotateRight**&lt;int&gt;(V a)</code> returns
+    `(static_cast<TU>(a[i]) >> int) | (a[i] << (sizeof(T)*8 - int))`.
 
 Shift all lanes by the same (not necessarily compile-time constant) amount:
 
@@ -853,6 +857,18 @@ Shift all lanes by the same (not necessarily compile-time constant) amount:
 
 *   `V`: `{u,i}` \
     <code>V **ShiftRightSame**(V a, int bits)</code> returns `a[i] >> bits`.
+
+*   `V`: `{u,i}` \
+    <code>V **RotateLeftSame**(V a, int bits)</code> returns
+    `(a[i] << shl_bits) | (static_cast<TU>(a[i]) >>
+    (sizeof(T)*8 - shl_bits))`, where `shl_bits` is equal to
+    `bits & (sizeof(T)*8 - 1)`.
+
+*   `V`: `{u,i}` \
+    <code>V **RotateRightSame**(V a, int bits)</code> returns
+    `(static_cast<TU>(a[i]) >> shr_bits) | (a[i] >>
+    (sizeof(T)*8 - shr_bits))`, where `shr_bits` is equal to
+    `bits & (sizeof(T)*8 - 1)`.
 
 Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 
@@ -863,6 +879,18 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
 *   `V`: `{u,i}` \
     <code>V **operator>>**(V a, V b)</code> returns `a[i] >> b[i]`. Currently
     unavailable on SVE/RVV; use the equivalent `Shr` instead.
+
+*   `V`: `{u,i}` \
+    <code>V **Rol**(V a, V b)</code> returns
+    `(a[i] << (b[i] & shift_amt_mask)) |
+    (static_cast<TU>(a[i]) >> ((sizeof(T)*8 - b[i]) & shift_amt_mask))`,
+    where `shift_amt_mask` is equal to `sizeof(T)*8 - 1`.
+
+*   `V`: `{u,i}` \
+    <code>V **Ror**(V a, V b)</code> returns
+    `(static_cast<TU>(a[i]) >> (b[i] & shift_amt_mask)) |
+    (a[i] << ((sizeof(T)*8 - b[i]) & shift_amt_mask))`, where `shift_amt_mask` is
+    equal to `sizeof(T)*8 - 1`.
 
 #### Floating-point rounding
 
