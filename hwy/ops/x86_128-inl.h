@@ -4238,7 +4238,7 @@ template <int kBits, size_t N>
 HWY_API Vec128<uint16_t, N> RotateRight(const Vec128<uint16_t, N> v) {
   static_assert(0 <= kBits && kBits < 16, "Invalid shift count");
   if (kBits == 0) return v;
-  // AVX3 does not support 8-bit.
+  // AVX3 does not support 16-bit.
   return Or(ShiftRight<kBits>(v), ShiftLeft<HWY_MIN(15, 16 - kBits)>(v));
 }
 
@@ -4275,16 +4275,10 @@ HWY_API V RotateRight(V v) {
 // ------------------------------ Rol/Ror
 #if HWY_TARGET <= HWY_AVX3
 
-#ifdef HWY_NATIVE_ROL_ROR_32
-#undef HWY_NATIVE_ROL_ROR_32
+#ifdef HWY_NATIVE_ROL_ROR_32_64
+#undef HWY_NATIVE_ROL_ROR_32_64
 #else
-#define HWY_NATIVE_ROL_ROR_32
-#endif
-
-#ifdef HWY_NATIVE_ROL_ROR_64
-#undef HWY_NATIVE_ROL_ROR_64
-#else
-#define HWY_NATIVE_ROL_ROR_64
+#define HWY_NATIVE_ROL_ROR_32_64
 #endif
 
 template <class T, size_t N, HWY_IF_UI32(T)>
@@ -4313,16 +4307,10 @@ HWY_API Vec128<T, N> Ror(Vec128<T, N> a, Vec128<T, N> b) {
 
 #if HWY_TARGET <= HWY_AVX3
 
-#ifdef HWY_NATIVE_ROL_ROR_SAME_32
-#undef HWY_NATIVE_ROL_ROR_SAME_32
+#ifdef HWY_NATIVE_ROL_ROR_SAME_32_64
+#undef HWY_NATIVE_ROL_ROR_SAME_32_64
 #else
-#define HWY_NATIVE_ROL_ROR_SAME_32
-#endif
-
-#ifdef HWY_NATIVE_ROL_ROR_SAME_64
-#undef HWY_NATIVE_ROL_ROR_SAME_64
-#else
-#define HWY_NATIVE_ROL_ROR_SAME_64
+#define HWY_NATIVE_ROL_ROR_SAME_32_64
 #endif
 
 // Generic for all vector lengths

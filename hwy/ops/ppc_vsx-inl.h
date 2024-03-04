@@ -1632,16 +1632,10 @@ HWY_API Vec128<MakeWide<T>, (N + 1) / 2> MulOdd(Vec128<T, N> a,
 #define HWY_NATIVE_ROL_ROR_16
 #endif
 
-#ifdef HWY_NATIVE_ROL_ROR_32
-#undef HWY_NATIVE_ROL_ROR_32
+#ifdef HWY_NATIVE_ROL_ROR_32_64
+#undef HWY_NATIVE_ROL_ROR_32_64
 #else
-#define HWY_NATIVE_ROL_ROR_32
-#endif
-
-#ifdef HWY_NATIVE_ROL_ROR_64
-#undef HWY_NATIVE_ROL_ROR_64
-#else
-#define HWY_NATIVE_ROL_ROR_64
+#define HWY_NATIVE_ROL_ROR_32_64
 #endif
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
@@ -1685,16 +1679,10 @@ HWY_API Vec128<T, N> RotateRight(const Vec128<T, N> v) {
 #define HWY_NATIVE_ROL_ROR_SAME_16
 #endif
 
-#ifdef HWY_NATIVE_ROL_ROR_SAME_32
-#undef HWY_NATIVE_ROL_ROR_SAME_32
+#ifdef HWY_NATIVE_ROL_ROR_SAME_32_64
+#undef HWY_NATIVE_ROL_ROR_SAME_32_64
 #else
-#define HWY_NATIVE_ROL_ROR_SAME_32
-#endif
-
-#ifdef HWY_NATIVE_ROL_ROR_SAME_64
-#undef HWY_NATIVE_ROL_ROR_SAME_64
-#else
-#define HWY_NATIVE_ROL_ROR_SAME_64
+#define HWY_NATIVE_ROL_ROR_SAME_32_64
 #endif
 
 template <typename T, size_t N, HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>

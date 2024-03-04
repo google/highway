@@ -453,11 +453,11 @@ HWY_API V Ror(V a, V b) {
 
 #endif  // HWY_NATIVE_ROL_ROR_16
 
-#if (defined(HWY_NATIVE_ROL_ROR_32) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_ROL_ROR_32
-#undef HWY_NATIVE_ROL_ROR_32
+#if (defined(HWY_NATIVE_ROL_ROR_32_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_32_64
+#undef HWY_NATIVE_ROL_ROR_32_64
 #else
-#define HWY_NATIVE_ROL_ROR_32
+#define HWY_NATIVE_ROL_ROR_32_64
 #endif
 
 template <class V, HWY_IF_UI32(TFromV<V>)>
@@ -487,15 +487,6 @@ HWY_API V Ror(V a, V b) {
   const auto vu = BitCast(du, a);
   return BitCast(d, Or(Shl(vu, shl_amt), Shr(vu, shr_amt)));
 }
-
-#endif  // HWY_NATIVE_ROL_ROR_32
-
-#if (defined(HWY_NATIVE_ROL_ROR_64) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_ROL_ROR_64
-#undef HWY_NATIVE_ROL_ROR_64
-#else
-#define HWY_NATIVE_ROL_ROR_64
-#endif
 
 #if HWY_HAVE_INTEGER64
 template <class V, HWY_IF_UI64(TFromV<V>)>
@@ -527,7 +518,7 @@ HWY_API V Ror(V a, V b) {
 }
 #endif  // HWY_HAVE_INTEGER64
 
-#endif  // HWY_NATIVE_ROL_ROR_64
+#endif  // HWY_NATIVE_ROL_ROR_32_64
 
 // ------------------------------ RotateLeftSame/RotateRightSame
 
@@ -563,6 +554,7 @@ HWY_API V RotateRightSame(V v, int bits) {
   return BitCast(d,
                  Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
 }
+
 #endif  // HWY_NATIVE_ROL_ROR_SAME_8
 
 #if (defined(HWY_NATIVE_ROL_ROR_SAME_16) == defined(HWY_TARGET_TOGGLE))
@@ -601,11 +593,11 @@ HWY_API V RotateRightSame(V v, int bits) {
 }
 #endif  // HWY_NATIVE_ROL_ROR_SAME_16
 
-#if (defined(HWY_NATIVE_ROL_ROR_SAME_32) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_ROL_ROR_SAME_32
-#undef HWY_NATIVE_ROL_ROR_SAME_32
+#if (defined(HWY_NATIVE_ROL_ROR_SAME_32_64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_ROL_ROR_SAME_32_64
+#undef HWY_NATIVE_ROL_ROR_SAME_32_64
 #else
-#define HWY_NATIVE_ROL_ROR_SAME_32
+#define HWY_NATIVE_ROL_ROR_SAME_32_64
 #endif
 
 template <class V, HWY_IF_UI32(TFromV<V>)>
@@ -635,14 +627,6 @@ HWY_API V RotateRightSame(V v, int bits) {
   return BitCast(d,
                  Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
 }
-#endif  // HWY_NATIVE_ROL_ROR_SAME_32
-
-#if (defined(HWY_NATIVE_ROL_ROR_SAME_64) == defined(HWY_TARGET_TOGGLE))
-#ifdef HWY_NATIVE_ROL_ROR_SAME_64
-#undef HWY_NATIVE_ROL_ROR_SAME_64
-#else
-#define HWY_NATIVE_ROL_ROR_SAME_64
-#endif
 
 #if HWY_HAVE_INTEGER64
 template <class V, HWY_IF_UI64(TFromV<V>)>
@@ -672,9 +656,9 @@ HWY_API V RotateRightSame(V v, int bits) {
   return BitCast(d,
                  Or(ShiftLeftSame(vu, shl_amt), ShiftRightSame(vu, shr_amt)));
 }
-#endif
+#endif  // HWY_HAVE_INTEGER64
 
-#endif  // HWY_NATIVE_ROL_ROR_SAME_64
+#endif  // HWY_NATIVE_ROL_ROR_SAME_32_64
 
 // ------------------------------ InterleaveWholeLower/InterleaveWholeUpper
 #if (defined(HWY_NATIVE_INTERLEAVE_WHOLE) == defined(HWY_TARGET_TOGGLE))
