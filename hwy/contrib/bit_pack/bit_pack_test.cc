@@ -136,7 +136,7 @@ struct TestPack {
       // Print throughput for pack+unpack round trip
       for (size_t i = 0; i < num_results; ++i) {
         const size_t bytes_per_element = (kBits + 7) / 8;
-        const double bytes = results[i].input * bytes_per_element;
+        const double bytes = static_cast<double>(results[i].input * bytes_per_element);
         const double seconds =
             results[i].ticks / platform::InvariantTicksPerSecond();
         printf("Bits:%2d elements:%3d GB/s:%4.1f (+/-%3.1f%%)\n",
