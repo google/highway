@@ -427,6 +427,40 @@ TEST(AlignedAllocatorTest, AlignedNDArrayTruncate) {
   verify_values(a);
 }
 
+TEST(AlignedAllocatorTest, AlignedVectorTest) {
+  std::vector<int> vec{0, 1, 2, 3, 4};
+  EXPECT_EQ(5, vec.size());
+  EXPECT_EQ(0, vec[0]);
+  EXPECT_EQ(2, vec.at(2));
+  EXPECT_EQ(0, vec.front());
+  EXPECT_EQ(4, vec.back());
+
+  vec.pop_back();
+  EXPECT_EQ(3, vec.back());
+  EXPECT_EQ(4, vec.size());
+
+  vec.push_back(4);
+  vec.push_back(5);
+  EXPECT_EQ(5, vec.back());
+  EXPECT_EQ(6, vec.size());
+
+  const size_t initialCapacity = vec.capacity();
+
+  // Add elements to exceed initial capacity
+  for (auto i = vec.size(); i < initialCapacity + 10; ++i) {
+    vec.push_back(static_cast<int>(i));
+  }
+
+  // Check if the capacity increased and elements are intact
+  EXPECT_GT(vec.capacity(), initialCapacity);
+  for (std::size_t i = 0; i < vec.size(); ++i) {
+    EXPECT_EQ(i, vec[i]);
+  }
+
+  vec.clear();
+  EXPECT_TRUE(vec.empty());
+}
+
 }  // namespace
 
 }  // namespace hwy
