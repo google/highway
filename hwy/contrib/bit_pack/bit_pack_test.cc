@@ -121,7 +121,7 @@ struct TestPack {
                  i += num_per_loop, pi += num_packed_per_loop) {
               func.Pack(d, raw.get() + i, packed.get() + pi);
             }
-            packed.get()[Random32(&rng) % num_packed] += Unpredictable1() - 1;
+            packed.get()[Random32(&rng) % num_packed] += static_cast<T>(Unpredictable1() - 1);
             for (size_t i = 0, pi = 0; i < num;
                  i += num_per_loop, pi += num_packed_per_loop) {
               func.Unpack(d, packed.get() + pi, raw2.get() + i);
@@ -148,7 +148,7 @@ struct TestPack {
            i += num_per_loop, pi += num_packed_per_loop) {
         func.Pack(d, raw.get() + i, packed.get() + pi);
       }
-      packed.get()[Random32(&rng) % num_packed] += Unpredictable1() - 1;
+      packed.get()[Random32(&rng) % num_packed] += static_cast<T>(Unpredictable1() - 1);
       for (size_t i = 0, pi = 0; i < num;
            i += num_per_loop, pi += num_packed_per_loop) {
         func.Unpack(d, packed.get() + pi, raw2.get() + i);
