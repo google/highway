@@ -700,7 +700,7 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     truncating it to the lower half for integer inputs. Currently unavailable on
     SVE/RVV; use the equivalent `Mul` instead.
 
-*   `V`: `i16` \
+*   `V`: `{u,i}` \
     <code>V **MulHigh**(V a, V b)</code>: returns the upper half of `a[i] *
     b[i]` in each lane.
 
@@ -710,13 +710,13 @@ All other ops in this section are only available if `HWY_TARGET != HWY_SCALAR`:
     multiplication result and storing the upper half. Results are
     implementation-defined iff both inputs are -32768.
 
-*   `V`: `{u,i}{8,16,32},u64` \
+*   `V`: `{u,i}` \
     <code>V2 **MulEven**(V a, V b)</code>: returns double-wide result of `a[i] *
     b[i]` for every even `i`, in lanes `i` (lower) and `i + 1` (upper). `V2` is
     a vector with double-width lanes, or the same as `V` for 64-bit inputs
     (which are only supported if `HWY_TARGET != HWY_SCALAR`).
 
-*   `V`: `{u,i}{8,16,32},u64` \
+*   `V`: `{u,i}` \
     <code>V **MulOdd**(V a, V b)</code>: returns double-wide result of `a[i] *
     b[i]` for every odd `i`, in lanes `i - 1` (lower) and `i` (upper). Only
     supported if `HWY_TARGET != HWY_SCALAR`.

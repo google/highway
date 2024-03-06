@@ -1577,26 +1577,83 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
 #endif
 }
 
-// Returns the upper 16 bits of a * b in each lane.
-template <typename T, size_t N, HWY_IF_T_SIZE(T, 2), HWY_IF_NOT_FLOAT(T)>
-HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a, Vec128<T, N> b) {
+// Returns the upper sizeof(T)*8 bits of a * b in each lane.
+
 #if HWY_S390X_HAVE_Z14
+#define HWY_PPC_IF_MULHIGH_USING_VEC_MULH(T) \
+  HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))
+#define HWY_PPC_IF_MULHIGH_8_16_32_NOT_USING_VEC_MULH(T) \
+  hwy::EnableIf<!hwy::IsSame<T, T>()>* = nullptr
+#elif HWY_PPC_HAVE_10
+#define HWY_PPC_IF_MULHIGH_USING_VEC_MULH(T) \
+  HWY_IF_T_SIZE_ONE_OF(T, (1 << 4) | (1 << 8))
+#define HWY_PPC_IF_MULHIGH_8_16_32_NOT_USING_VEC_MULH(T) \
+  HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2))
+#else
+#define HWY_PPC_IF_MULHIGH_USING_VEC_MULH(T) \
+  hwy::EnableIf<!hwy::IsSame<T, T>()>* = nullptr
+#define HWY_PPC_IF_MULHIGH_8_16_32_NOT_USING_VEC_MULH(T) \
+  HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))
+#endif
+
+#if HWY_S390X_HAVE_Z14 || HWY_PPC_HAVE_10
+template <typename T, size_t N, HWY_PPC_IF_MULHIGH_USING_VEC_MULH(T),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a, Vec128<T, N> b) {
   return Vec128<T, N>{vec_mulh(a.raw, b.raw)};
+}
+#endif
+
+template <typename T, HWY_PPC_IF_MULHIGH_8_16_32_NOT_USING_VEC_MULH(T),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec128<T, 1> MulHigh(Vec128<T, 1> a, Vec128<T, 1> b) {
+  const auto p_even = MulEven(a, b);
+
+#if HWY_IS_LITTLE_ENDIAN
+  const auto p_even_full = ResizeBitCast(Full128<T>(), p_even);
+  return Vec128<T, 1>{
+      vec_sld(p_even_full.raw, p_even_full.raw, 16 - sizeof(T))};
 #else
   const DFromV<decltype(a)> d;
-  const RepartitionToWide<decltype(d)> dw;
-  const VFromD<decltype(dw)> p1{vec_mule(a.raw, b.raw)};
-  const VFromD<decltype(dw)> p2{vec_mulo(a.raw, b.raw)};
-#if HWY_IS_LITTLE_ENDIAN
-  const __vector unsigned char kShuffle = {2,  3,  18, 19, 6,  7,  22, 23,
-                                           10, 11, 26, 27, 14, 15, 30, 31};
-#else
-  const __vector unsigned char kShuffle = {0, 1, 16, 17, 4,  5,  20, 21,
-                                           8, 9, 24, 25, 12, 13, 28, 29};
-#endif
-  return BitCast(d, VFromD<decltype(dw)>{vec_perm(p1.raw, p2.raw, kShuffle)});
+  return ResizeBitCast(d, p_even);
 #endif
 }
+
+template <typename T, size_t N,
+          HWY_PPC_IF_MULHIGH_8_16_32_NOT_USING_VEC_MULH(T),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T), HWY_IF_LANES_GT(N, 1)>
+HWY_API Vec128<T, N> MulHigh(Vec128<T, N> a, Vec128<T, N> b) {
+  const DFromV<decltype(a)> d;
+
+  const auto p_even = BitCast(d, MulEven(a, b));
+  const auto p_odd = BitCast(d, MulOdd(a, b));
+
+#if HWY_IS_LITTLE_ENDIAN
+  return InterleaveOdd(d, p_even, p_odd);
+#else
+  return InterleaveEven(d, p_even, p_odd);
+#endif
+}
+
+#if !HWY_PPC_HAVE_10
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec64<T> MulHigh(Vec64<T> a, Vec64<T> b) {
+  T p_hi;
+  Mul128(GetLane(a), GetLane(b), &p_hi);
+  return Set(Full64<T>(), p_hi);
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulHigh(Vec128<T> a, Vec128<T> b) {
+  const DFromV<decltype(a)> d;
+  const Half<decltype(d)> dh;
+  return Combine(d, MulHigh(UpperHalf(dh, a), UpperHalf(dh, b)),
+                 MulHigh(LowerHalf(dh, a), LowerHalf(dh, b)));
+}
+#endif  // !HWY_PPC_HAVE_10
+
+#undef HWY_PPC_IF_MULHIGH_USING_VEC_MULH
+#undef HWY_PPC_IF_MULHIGH_8_16_32_NOT_USING_VEC_MULH
 
 // Multiplies even lanes (0, 2, ..) and places the double-wide result into
 // even and the upper half into its odd neighbor lane.
@@ -3298,43 +3355,45 @@ HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, Vec128<T, N> bits) {
 
 // ------------------------------ MulEven/Odd 64x64 (UpperHalf)
 
-HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+template <class T, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T> MulEven(Vec128<T> a, Vec128<T> b) {
 #if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
-  using VU64 = __vector unsigned long long;
-  const VU64 mul128_result = reinterpret_cast<VU64>(vec_mule(a.raw, b.raw));
+  using V64 = typename detail::Raw128<T>::type;
+  const V64 mul128_result = reinterpret_cast<V64>(vec_mule(a.raw, b.raw));
 #if HWY_IS_LITTLE_ENDIAN
-  return Vec128<uint64_t>{mul128_result};
+  return Vec128<T>{mul128_result};
 #else
   // Need to swap the two halves of mul128_result on big-endian targets as
   // the upper 64 bits of the product are in lane 0 of mul128_result and
   // the lower 64 bits of the product are in lane 1 of mul128_result
-  return Vec128<uint64_t>{vec_sld(mul128_result, mul128_result, 8)};
+  return Vec128<T>{vec_sld(mul128_result, mul128_result, 8)};
 #endif
 #else
-  alignas(16) uint64_t mul[2];
+  alignas(16) T mul[2];
   mul[0] = Mul128(GetLane(a), GetLane(b), &mul[1]);
-  return Load(Full128<uint64_t>(), mul);
+  return Load(Full128<T>(), mul);
 #endif
 }
 
-HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+template <class T, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T> MulOdd(Vec128<T> a, Vec128<T> b) {
 #if HWY_PPC_HAVE_10 && defined(__SIZEOF_INT128__)
-  using VU64 = __vector unsigned long long;
-  const VU64 mul128_result = reinterpret_cast<VU64>(vec_mulo(a.raw, b.raw));
+  using V64 = typename detail::Raw128<T>::type;
+  const V64 mul128_result = reinterpret_cast<V64>(vec_mulo(a.raw, b.raw));
 #if HWY_IS_LITTLE_ENDIAN
-  return Vec128<uint64_t>{mul128_result};
+  return Vec128<T>{mul128_result};
 #else
   // Need to swap the two halves of mul128_result on big-endian targets as
   // the upper 64 bits of the product are in lane 0 of mul128_result and
   // the lower 64 bits of the product are in lane 1 of mul128_result
-  return Vec128<uint64_t>{vec_sld(mul128_result, mul128_result, 8)};
+  return Vec128<T>{vec_sld(mul128_result, mul128_result, 8)};
 #endif
 #else
-  alignas(16) uint64_t mul[2];
-  const Full64<uint64_t> d2;
+  alignas(16) T mul[2];
+  const Full64<T> d2;
   mul[0] =
       Mul128(GetLane(UpperHalf(d2, a)), GetLane(UpperHalf(d2, b)), &mul[1]);
-  return Load(Full128<uint64_t>(), mul);
+  return Load(Full128<T>(), mul);
 #endif
 }
 

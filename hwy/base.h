@@ -2635,6 +2635,7 @@ HWY_INLINE constexpr T AddWithWraparound(T t, T2 n) {
 }
 
 #if HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+#pragma intrinsic(_mul128)
 #pragma intrinsic(_umul128)
 #endif
 
@@ -2655,6 +2656,25 @@ HWY_API uint64_t Mul128(uint64_t a, uint64_t b, uint64_t* HWY_RESTRICT upper) {
   const uint64_t t = (lo_lo >> 32) + (hi_lo & kLo32) + lo_hi;
   *upper = (hi_lo >> 32) + (t >> 32) + hi_hi;
   return (t << 32) | (lo_lo & kLo32);
+#endif
+}
+
+HWY_API int64_t Mul128(int64_t a, int64_t b, int64_t* HWY_RESTRICT upper) {
+#if defined(__SIZEOF_INT128__)
+  __int128_t product = (__int128_t)a * (__int128_t)b;
+  *upper = (int64_t)(product >> 64);
+  return (int64_t)(product & 0xFFFFFFFFFFFFFFFFULL);
+#elif HWY_COMPILER_MSVC && HWY_ARCH_X86_64
+  return _mul128(a, b, upper);
+#else
+  uint64_t unsigned_upper;
+  const int64_t lower = static_cast<int64_t>(Mul128(
+      static_cast<uint64_t>(a), static_cast<uint64_t>(b), &unsigned_upper));
+  *upper = static_cast<int64_t>(
+      unsigned_upper -
+      (static_cast<uint64_t>(ScalarShr(a, 63)) & static_cast<uint64_t>(b)) -
+      (static_cast<uint64_t>(ScalarShr(b, 63)) & static_cast<uint64_t>(a)));
+  return lower;
 #endif
 }
 

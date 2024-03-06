@@ -705,16 +705,19 @@ HWY_API Vec1<T> operator/(const Vec1<T> a, const Vec1<T> b) {
   return Vec1<T>(a.raw / b.raw);
 }
 
-// Returns the upper 16 bits of a * b in each lane.
-HWY_API Vec1<int16_t> MulHigh(const Vec1<int16_t> a, const Vec1<int16_t> b) {
-  return Vec1<int16_t>(static_cast<int16_t>((a.raw * b.raw) >> 16));
+// Returns the upper sizeof(T)*8 bits of a * b in each lane.
+template <class T, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
+HWY_API Vec1<T> MulHigh(const Vec1<T> a, const Vec1<T> b) {
+  using TW = MakeWide<T>;
+  return Vec1<T>(static_cast<T>(
+      (static_cast<TW>(a.raw) * static_cast<TW>(b.raw)) >> (sizeof(T) * 8)));
 }
-HWY_API Vec1<uint16_t> MulHigh(const Vec1<uint16_t> a, const Vec1<uint16_t> b) {
-  // Cast to uint32_t first to prevent overflow. Otherwise the result of
-  // uint16_t * uint16_t is in "int" which may overflow. In practice the result
-  // is the same but this way it is also defined.
-  return Vec1<uint16_t>(static_cast<uint16_t>(
-      (static_cast<uint32_t>(a.raw) * static_cast<uint32_t>(b.raw)) >> 16));
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec1<T> MulHigh(const Vec1<T> a, const Vec1<T> b) {
+  T hi;
+  Mul128(a.raw, b.raw, &hi);
+  return Vec1<T>(hi);
 }
 
 HWY_API Vec1<int16_t> MulFixedPoint15(Vec1<int16_t> a, Vec1<int16_t> b) {

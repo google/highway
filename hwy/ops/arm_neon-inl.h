@@ -2332,7 +2332,39 @@ HWY_NEON_DEF_FUNCTION_ALL_FLOATS(operator*, vmul, _, 2)
 
 // ------------------------------ Integer multiplication
 
-// Returns the upper 16 bits of a * b in each lane.
+// Returns the upper sizeof(T)*8 bits of a * b in each lane.
+HWY_API Vec128<int8_t> MulHigh(Vec128<int8_t> a, Vec128<int8_t> b) {
+  int16x8_t rlo = vmull_s8(vget_low_s8(a.raw), vget_low_s8(b.raw));
+#if HWY_ARCH_ARM_A64
+  int16x8_t rhi = vmull_high_s8(a.raw, b.raw);
+#else
+  int16x8_t rhi = vmull_s8(vget_high_s8(a.raw), vget_high_s8(b.raw));
+#endif
+  return Vec128<int8_t>(
+      vuzp2q_s8(vreinterpretq_s8_s16(rlo), vreinterpretq_s8_s16(rhi)));
+}
+HWY_API Vec128<uint8_t> MulHigh(Vec128<uint8_t> a, Vec128<uint8_t> b) {
+  uint16x8_t rlo = vmull_u8(vget_low_u8(a.raw), vget_low_u8(b.raw));
+#if HWY_ARCH_ARM_A64
+  uint16x8_t rhi = vmull_high_u8(a.raw, b.raw);
+#else
+  uint16x8_t rhi = vmull_u8(vget_high_u8(a.raw), vget_high_u8(b.raw));
+#endif
+  return Vec128<uint8_t>(
+      vuzp2q_u8(vreinterpretq_u8_u16(rlo), vreinterpretq_u8_u16(rhi)));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(int8_t, N, 8)>
+HWY_API Vec128<int8_t, N> MulHigh(Vec128<int8_t, N> a, Vec128<int8_t, N> b) {
+  int8x16_t hi_lo = vreinterpretq_s8_s16(vmull_s8(a.raw, b.raw));
+  return Vec128<int8_t, N>(vget_low_s8(vuzp2q_s8(hi_lo, hi_lo)));
+}
+template <size_t N, HWY_IF_V_SIZE_LE(uint8_t, N, 8)>
+HWY_API Vec128<uint8_t, N> MulHigh(Vec128<uint8_t, N> a, Vec128<uint8_t, N> b) {
+  uint8x16_t hi_lo = vreinterpretq_u8_u16(vmull_u8(a.raw, b.raw));
+  return Vec128<uint8_t, N>(vget_low_u8(vuzp2q_u8(hi_lo, hi_lo)));
+}
+
 HWY_API Vec128<int16_t> MulHigh(Vec128<int16_t> a, Vec128<int16_t> b) {
   int32x4_t rlo = vmull_s16(vget_low_s16(a.raw), vget_low_s16(b.raw));
 #if HWY_ARCH_ARM_A64
@@ -2364,6 +2396,57 @@ HWY_API Vec128<uint16_t, N> MulHigh(Vec128<uint16_t, N> a,
                                     Vec128<uint16_t, N> b) {
   uint16x8_t hi_lo = vreinterpretq_u16_u32(vmull_u16(a.raw, b.raw));
   return Vec128<uint16_t, N>(vget_low_u16(vuzp2q_u16(hi_lo, hi_lo)));
+}
+
+HWY_API Vec128<int32_t> MulHigh(Vec128<int32_t> a, Vec128<int32_t> b) {
+  int64x2_t rlo = vmull_s32(vget_low_s32(a.raw), vget_low_s32(b.raw));
+#if HWY_ARCH_ARM_A64
+  int64x2_t rhi = vmull_high_s32(a.raw, b.raw);
+#else
+  int64x2_t rhi = vmull_s32(vget_high_s32(a.raw), vget_high_s32(b.raw));
+#endif
+  return Vec128<int32_t>(
+      vuzp2q_s32(vreinterpretq_s32_s64(rlo), vreinterpretq_s32_s64(rhi)));
+}
+HWY_API Vec128<uint32_t> MulHigh(Vec128<uint32_t> a, Vec128<uint32_t> b) {
+  uint64x2_t rlo = vmull_u32(vget_low_u32(a.raw), vget_low_u32(b.raw));
+#if HWY_ARCH_ARM_A64
+  uint64x2_t rhi = vmull_high_u32(a.raw, b.raw);
+#else
+  uint64x2_t rhi = vmull_u32(vget_high_u32(a.raw), vget_high_u32(b.raw));
+#endif
+  return Vec128<uint32_t>(
+      vuzp2q_u32(vreinterpretq_u32_u64(rlo), vreinterpretq_u32_u64(rhi)));
+}
+
+template <size_t N, HWY_IF_V_SIZE_LE(int32_t, N, 8)>
+HWY_API Vec128<int32_t, N> MulHigh(Vec128<int32_t, N> a, Vec128<int32_t, N> b) {
+  int32x4_t hi_lo = vreinterpretq_s32_s64(vmull_s32(a.raw, b.raw));
+  return Vec128<int32_t, N>(vget_low_s32(vuzp2q_s32(hi_lo, hi_lo)));
+}
+template <size_t N, HWY_IF_V_SIZE_LE(uint32_t, N, 8)>
+HWY_API Vec128<uint32_t, N> MulHigh(Vec128<uint32_t, N> a,
+                                    Vec128<uint32_t, N> b) {
+  uint32x4_t hi_lo = vreinterpretq_u32_u64(vmull_u32(a.raw, b.raw));
+  return Vec128<uint32_t, N>(vget_low_u32(vuzp2q_u32(hi_lo, hi_lo)));
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulHigh(Vec128<T> a, Vec128<T> b) {
+  T hi_0;
+  T hi_1;
+
+  Mul128(GetLane(a), GetLane(b), &hi_0);
+  Mul128(detail::GetLane<1>(a), detail::GetLane<1>(b), &hi_1);
+
+  return Dup128VecFromValues(Full128<T>(), hi_0, hi_1);
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec64<T> MulHigh(Vec64<T> a, Vec64<T> b) {
+  T hi;
+  Mul128(GetLane(a), GetLane(b), &hi);
+  return Set(Full64<T>(), hi);
 }
 
 HWY_API Vec128<int16_t> MulFixedPoint15(Vec128<int16_t> a, Vec128<int16_t> b) {
@@ -7352,10 +7435,11 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulEven(Vec128<uint32_t, N> a,
       vget_low_u64(vmull_u32(a_packed, b_packed)));
 }
 
-HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  uint64_t hi;
-  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 0), vgetq_lane_u64(b.raw, 0), &hi);
-  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
+template <class T, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T> MulEven(Vec128<T> a, Vec128<T> b) {
+  T hi;
+  T lo = Mul128(GetLane(a), GetLane(b), &hi);
+  return Dup128VecFromValues(Full128<T>(), lo, hi);
 }
 
 // Multiplies odd lanes (1, 3 ..) and places the double-wide result into
@@ -7458,10 +7542,11 @@ HWY_API Vec128<uint64_t, (N + 1) / 2> MulOdd(Vec128<uint32_t, N> a,
       vget_low_u64(vmull_u32(a_packed, b_packed)));
 }
 
-HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
-  uint64_t hi;
-  uint64_t lo = Mul128(vgetq_lane_u64(a.raw, 1), vgetq_lane_u64(b.raw, 1), &hi);
-  return Vec128<uint64_t>(vsetq_lane_u64(hi, vdupq_n_u64(lo), 1));
+template <class T, HWY_IF_UI64(T)>
+HWY_INLINE Vec128<T> MulOdd(Vec128<T> a, Vec128<T> b) {
+  T hi;
+  T lo = Mul128(detail::GetLane<1>(a), detail::GetLane<1>(b), &hi);
+  return Dup128VecFromValues(Full128<T>(), lo, hi);
 }
 
 // ------------------------------ TableLookupBytes (Combine, LowerHalf)
