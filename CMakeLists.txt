@@ -194,6 +194,11 @@ if (MSVC)
     /wd4702
     /wd4723
 
+    # CMake automatically adds exception handling flags.  Remove them.
+    /GR-
+    /EHs-c-
+    # Disable exceptions in STL code.
+    -D_HAS_EXCEPTIONS=0
   )
 
 
