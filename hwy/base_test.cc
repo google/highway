@@ -267,6 +267,38 @@ HWY_NOINLINE void TestAllDivisor() {
   }
 }
 
+struct TestScalarShr {
+  template <class T>
+  HWY_NOINLINE void operator()(T /*unused*/) const {
+    using TU = MakeUnsigned<T>;
+    constexpr T kMsb = static_cast<T>(1ULL << (sizeof(T) * 8 - 1));
+    constexpr int kSizeInBits = static_cast<int>(sizeof(T) * 8);
+
+    constexpr T kVal1 = static_cast<T>(0x776B0405296C183BULL & LimitsMax<TU>());
+    constexpr T kVal2 = static_cast<T>(kVal1 | kMsb);
+
+    for (int i = 0; i < kSizeInBits; i++) {
+      T expected1;
+      T expected2;
+
+      const TU expected1_bits = static_cast<TU>(static_cast<TU>(kVal1) >> i);
+      const TU expected2_bits = static_cast<TU>(
+          (static_cast<TU>(kVal2) >> i) |
+          ((IsSigned<T>() && i > 0)
+               ? (~((static_cast<TU>(1) << (kSizeInBits - i)) - 1))
+               : 0));
+
+      CopySameSize(&expected1_bits, &expected1);
+      CopySameSize(&expected2_bits, &expected2);
+
+      HWY_ASSERT_EQ(expected1, ScalarShr(kVal1, i));
+      HWY_ASSERT_EQ(expected2, ScalarShr(kVal2, i));
+    }
+  }
+};
+
+HWY_NOINLINE void TestAllScalarShr() { ForIntegerTypes(TestScalarShr()); }
+
 template <class T>
 static HWY_INLINE T TestEndianGetIntegerVal(T val) {
   static_assert(!IsFloat<T>() && !IsSpecialFloat<T>(),
@@ -683,6 +715,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllIsSame);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 }  // namespace hwy

@@ -335,8 +335,7 @@ HWY_API Vec1<T> CopySignToAbs(const Vec1<T> abs, const Vec1<T> sign) {
 // ------------------------------ BroadcastSignBit
 template <typename T>
 HWY_API Vec1<T> BroadcastSignBit(const Vec1<T> v) {
-  // This is used inside ShiftRight, so we cannot implement in terms of it.
-  return v.raw < 0 ? Vec1<T>(T(-1)) : Vec1<T>(0);
+  return Vec1<T>(ScalarShr(v.raw, sizeof(T) * 8 - 1));
 }
 
 // ------------------------------ PopulationCount
@@ -473,26 +472,7 @@ HWY_API Vec1<T> ShiftLeft(const Vec1<T> v) {
 template <int kBits, typename T>
 HWY_API Vec1<T> ShiftRight(const Vec1<T> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-#if __cplusplus >= 202002L
-  // Signed right shift is now guaranteed to be arithmetic (rounding toward
-  // negative infinity, i.e. shifting in the sign bit).
-  return Vec1<T>(static_cast<T>(v.raw >> kBits));
-#else
-  if (IsSigned<T>()) {
-    // Emulate arithmetic shift using only logical (unsigned) shifts, because
-    // signed shifts are still implementation-defined.
-    using TU = hwy::MakeUnsigned<T>;
-    const Sisd<TU> du;
-    const TU shifted = static_cast<TU>(BitCast(du, v).raw >> kBits);
-    const TU sign = BitCast(du, BroadcastSignBit(v)).raw;
-    const size_t sign_shift =
-        static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - kBits);
-    const TU upper = static_cast<TU>(sign << sign_shift);
-    return BitCast(Sisd<T>(), Vec1<TU>(shifted | upper));
-  } else {  // T is unsigned
-    return Vec1<T>(static_cast<T>(v.raw >> kBits));
-  }
-#endif
+  return Vec1<T>(ScalarShr(v.raw, kBits));
 }
 
 // ------------------------------ RotateRight (ShiftRight)
@@ -519,26 +499,7 @@ HWY_API Vec1<T> ShiftLeftSame(const Vec1<T> v, int bits) {
 
 template <typename T>
 HWY_API Vec1<T> ShiftRightSame(const Vec1<T> v, int bits) {
-#if __cplusplus >= 202002L
-  // Signed right shift is now guaranteed to be arithmetic (rounding toward
-  // negative infinity, i.e. shifting in the sign bit).
-  return Vec1<T>(static_cast<T>(v.raw >> bits));
-#else
-  if (IsSigned<T>()) {
-    // Emulate arithmetic shift using only logical (unsigned) shifts, because
-    // signed shifts are still implementation-defined.
-    using TU = hwy::MakeUnsigned<T>;
-    const Sisd<TU> du;
-    const TU shifted = static_cast<TU>(BitCast(du, v).raw >> bits);
-    const TU sign = BitCast(du, BroadcastSignBit(v)).raw;
-    const size_t sign_shift =
-        static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - bits);
-    const TU upper = static_cast<TU>(sign << sign_shift);
-    return BitCast(Sisd<T>(), Vec1<TU>(shifted | upper));
-  } else {  // T is unsigned
-    return Vec1<T>(static_cast<T>(v.raw >> bits));
-  }
-#endif
+  return Vec1<T>(ScalarShr(v.raw, bits));
 }
 
 // ------------------------------ Shl

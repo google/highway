@@ -355,9 +355,8 @@ HWY_API Vec128<T, N> CopySignToAbs(Vec128<T, N> abs, Vec128<T, N> sign) {
 // ------------------------------ BroadcastSignBit
 template <typename T, size_t N>
 HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
-  // This is used inside ShiftRight, so we cannot implement in terms of it.
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = static_cast<T>(v.raw[i] < 0 ? -1 : 0);
+    v.raw[i] = ScalarShr(v.raw[i], sizeof(T) * 8 - 1);
   }
   return v;
 }
@@ -494,31 +493,12 @@ HWY_API Vec128<T, N> ShiftLeft(Vec128<T, N> v) {
 template <int kBits, typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRight(Vec128<T, N> v) {
   static_assert(0 <= kBits && kBits < sizeof(T) * 8, "Invalid shift");
-#if __cplusplus >= 202002L
   // Signed right shift is now guaranteed to be arithmetic (rounding toward
   // negative infinity, i.e. shifting in the sign bit).
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = static_cast<T>(v.raw[i] >> kBits);
+    v.raw[i] = ScalarShr(v.raw[i], kBits);
   }
-#else
-  if (IsSigned<T>()) {
-    // Emulate arithmetic shift using only logical (unsigned) shifts, because
-    // signed shifts are still implementation-defined.
-    using TU = hwy::MakeUnsigned<T>;
-    for (size_t i = 0; i < N; ++i) {
-      const TU shifted = static_cast<TU>(static_cast<TU>(v.raw[i]) >> kBits);
-      const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const size_t sign_shift =
-          static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - kBits);
-      const TU upper = static_cast<TU>(sign << sign_shift);
-      v.raw[i] = static_cast<T>(shifted | upper);
-    }
-  } else {  // T is unsigned
-    for (size_t i = 0; i < N; ++i) {
-      v.raw[i] = static_cast<T>(v.raw[i] >> kBits);
-    }
-  }
-#endif
+
   return v;
 }
 
@@ -549,31 +529,10 @@ HWY_API Vec128<T, N> ShiftLeftSame(Vec128<T, N> v, int bits) {
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> ShiftRightSame(Vec128<T, N> v, int bits) {
-#if __cplusplus >= 202002L
-  // Signed right shift is now guaranteed to be arithmetic (rounding toward
-  // negative infinity, i.e. shifting in the sign bit).
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = static_cast<T>(v.raw[i] >> bits);
+    v.raw[i] = ScalarShr(v.raw[i], bits);
   }
-#else
-  if (IsSigned<T>()) {
-    // Emulate arithmetic shift using only logical (unsigned) shifts, because
-    // signed shifts are still implementation-defined.
-    using TU = hwy::MakeUnsigned<T>;
-    for (size_t i = 0; i < N; ++i) {
-      const TU shifted = static_cast<TU>(static_cast<TU>(v.raw[i]) >> bits);
-      const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const size_t sign_shift =
-          static_cast<size_t>(static_cast<int>(sizeof(TU)) * 8 - 1 - bits);
-      const TU upper = static_cast<TU>(sign << sign_shift);
-      v.raw[i] = static_cast<T>(shifted | upper);
-    }
-  } else {
-    for (size_t i = 0; i < N; ++i) {
-      v.raw[i] = static_cast<T>(v.raw[i] >> bits);  // unsigned, logical shift
-    }
-  }
-#endif
+
   return v;
 }
 
@@ -591,32 +550,10 @@ HWY_API Vec128<T, N> operator<<(Vec128<T, N> v, Vec128<T, N> bits) {
 
 template <typename T, size_t N>
 HWY_API Vec128<T, N> operator>>(Vec128<T, N> v, Vec128<T, N> bits) {
-#if __cplusplus >= 202002L
-  // Signed right shift is now guaranteed to be arithmetic (rounding toward
-  // negative infinity, i.e. shifting in the sign bit).
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = static_cast<T>(v.raw[i] >> bits.raw[i]);
+    v.raw[i] = ScalarShr(v.raw[i], static_cast<int>(bits.raw[i]));
   }
-#else
-  if (IsSigned<T>()) {
-    // Emulate arithmetic shift using only logical (unsigned) shifts, because
-    // signed shifts are still implementation-defined.
-    using TU = hwy::MakeUnsigned<T>;
-    for (size_t i = 0; i < N; ++i) {
-      const TU shifted =
-          static_cast<TU>(static_cast<TU>(v.raw[i]) >> bits.raw[i]);
-      const TU sign = v.raw[i] < 0 ? static_cast<TU>(~TU{0}) : 0;
-      const size_t sign_shift = static_cast<size_t>(
-          static_cast<int>(sizeof(TU)) * 8 - 1 - bits.raw[i]);
-      const TU upper = static_cast<TU>(sign << sign_shift);
-      v.raw[i] = static_cast<T>(shifted | upper);
-    }
-  } else {  // T is unsigned
-    for (size_t i = 0; i < N; ++i) {
-      v.raw[i] = static_cast<T>(v.raw[i] >> bits.raw[i]);
-    }
-  }
-#endif
+
   return v;
 }
 

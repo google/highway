@@ -2434,6 +2434,46 @@ constexpr inline size_t RoundDownTo(size_t what, size_t align) {
   return what - (what % align);
 }
 
+namespace detail {
+
+// T is unsigned or T is signed and (val >> shift_amt) is an arithmetic right
+// shift
+template <class T>
+static HWY_INLINE constexpr T ScalarShr(hwy::UnsignedTag /*type_tag*/, T val,
+                                        int shift_amt) {
+  return static_cast<T>(val >> shift_amt);
+}
+
+// T is signed and (val >> shift_amt) is a non-arithmetic right shift
+template <class T>
+static HWY_INLINE constexpr T ScalarShr(hwy::SignedTag /*type_tag*/, T val,
+                                        int shift_amt) {
+  using TU = MakeUnsigned<MakeLaneTypeIfInteger<T>>;
+  return static_cast<T>(
+      (val < 0) ? static_cast<TU>(
+                      ~(static_cast<TU>(~static_cast<TU>(val)) >> shift_amt))
+                : static_cast<TU>(static_cast<TU>(val) >> shift_amt));
+}
+
+}  // namespace detail
+
+// If T is an signed integer type, ScalarShr is guaranteed to perform an
+// arithmetic right shift
+
+// Otherwise, if T is an unsigned integer type, ScalarShr is guaranteed to
+// perform a logical right shift
+template <class T, HWY_IF_INTEGER(RemoveCvRef<T>)>
+HWY_API constexpr RemoveCvRef<T> ScalarShr(T val, int shift_amt) {
+  using NonCvRefT = RemoveCvRef<T>;
+  return detail::ScalarShr(
+      hwy::SizeTag<((IsSigned<NonCvRefT>() &&
+                     (LimitsMin<NonCvRefT>() >> (sizeof(T) * 8 - 1)) !=
+                         static_cast<NonCvRefT>(-1))
+                        ? 0x100
+                        : 0)>(),
+      static_cast<NonCvRefT>(val), shift_amt);
+}
+
 // Undefined results for x == 0.
 HWY_API size_t Num0BitsBelowLS1Bit_Nonzero32(const uint32_t x) {
   HWY_DASSERT(x != 0);
