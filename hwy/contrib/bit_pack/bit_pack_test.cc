@@ -121,7 +121,8 @@ struct TestPack {
                  i += num_per_loop, pi += num_packed_per_loop) {
               func.Pack(d, raw.get() + i, packed.get() + pi);
             }
-            packed.get()[Random32(&rng) % num_packed] += Unpredictable1() - 1;
+            T& val = packed.get()[Random32(&rng) % num_packed];
+            val = static_cast<T>(val + Unpredictable1() - 1);
             for (size_t i = 0, pi = 0; i < num;
                  i += num_per_loop, pi += num_packed_per_loop) {
               func.Unpack(d, packed.get() + pi, raw2.get() + i);
@@ -136,7 +137,7 @@ struct TestPack {
       // Print throughput for pack+unpack round trip
       for (size_t i = 0; i < num_results; ++i) {
         const size_t bytes_per_element = (kBits + 7) / 8;
-        const double bytes = results[i].input * bytes_per_element;
+        const double bytes = static_cast<double>(results[i].input * bytes_per_element);
         const double seconds =
             results[i].ticks / platform::InvariantTicksPerSecond();
         printf("Bits:%2d elements:%3d GB/s:%4.1f (+/-%3.1f%%)\n",
@@ -148,7 +149,8 @@ struct TestPack {
            i += num_per_loop, pi += num_packed_per_loop) {
         func.Pack(d, raw.get() + i, packed.get() + pi);
       }
-      packed.get()[Random32(&rng) % num_packed] += Unpredictable1() - 1;
+      T& val = packed.get()[Random32(&rng) % num_packed];
+      val = static_cast<T>(val + Unpredictable1() - 1);
       for (size_t i = 0, pi = 0; i < num;
            i += num_per_loop, pi += num_packed_per_loop) {
         func.Unpack(d, packed.get() + pi, raw2.get() + i);
