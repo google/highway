@@ -182,7 +182,24 @@ if (MSVC)
   set(HWY_FLAGS
     # fix build error C1128 in blockwise*_test & arithmetic_test
     /bigobj
+
+    # Warnings
+    /W4
+    # Disable some W4 warnings.  Enable them individually after they are cleaned up.
+    /wd4100
+    /wd4127
+    /wd4324
+    /wd4456
+    /wd4701
+    /wd4702
+    /wd4723
+
   )
+
+
+  if (HWY_WARNINGS_ARE_ERRORS)
+    list(APPEND HWY_FLAGS /WX)
+  endif()
 else()
   set(HWY_FLAGS
     # Avoid changing binaries based on the current time and date.
