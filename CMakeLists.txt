@@ -201,6 +201,29 @@ if (MSVC)
     -D_HAS_EXCEPTIONS=0
   )
 
+  # This adds extra warnings for the clang-cl compiler on Windows.
+  # This is the same as the sections in the else part.
+  # These could be refactored.
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    list(APPEND HWY_FLAGS
+      # These are not included in Wall nor Wextra:
+      -Wconversion
+      -Wsign-conversion
+      -Wvla
+      -Wnon-virtual-dtor
+
+      -Wfloat-overflow-conversion
+      -Wfloat-zero-conversion
+      -Wfor-loop-analysis
+      -Wgnu-redeclared-enum
+      -Winfinite-recursion
+      -Wself-assign
+      -Wstring-conversion
+      -Wtautological-overlap-compare
+      -Wthread-safety-analysis
+      -Wundefined-func-template
+    )
+  endif()
 
   if (HWY_WARNINGS_ARE_ERRORS)
     list(APPEND HWY_FLAGS /WX)
