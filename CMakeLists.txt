@@ -182,7 +182,52 @@ if (MSVC)
   set(HWY_FLAGS
     # fix build error C1128 in blockwise*_test & arithmetic_test
     /bigobj
+
+    # Warnings
+    /W4
+    # Disable some W4 warnings.  Enable them individually after they are cleaned up.
+    /wd4100
+    /wd4127
+    /wd4324
+    /wd4456
+    /wd4701
+    /wd4702
+    /wd4723
+
+    # CMake automatically adds exception handling flags.  Remove them.
+    /GR-
+    /EHs-c-
+    # Disable exceptions in STL code.
+    -D_HAS_EXCEPTIONS=0
   )
+
+  # This adds extra warnings for the clang-cl compiler on Windows.
+  # This is the same as the sections in the else part.
+  # These could be refactored.
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    list(APPEND HWY_FLAGS
+      # These are not included in Wall nor Wextra:
+      -Wconversion
+      -Wsign-conversion
+      -Wvla
+      -Wnon-virtual-dtor
+
+      -Wfloat-overflow-conversion
+      -Wfloat-zero-conversion
+      -Wfor-loop-analysis
+      -Wgnu-redeclared-enum
+      -Winfinite-recursion
+      -Wself-assign
+      -Wstring-conversion
+      -Wtautological-overlap-compare
+      -Wthread-safety-analysis
+      -Wundefined-func-template
+    )
+  endif()
+
+  if (HWY_WARNINGS_ARE_ERRORS)
+    list(APPEND HWY_FLAGS /WX)
+  endif()
 else()
   set(HWY_FLAGS
     # Avoid changing binaries based on the current time and date.
