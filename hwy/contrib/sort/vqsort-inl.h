@@ -20,7 +20,9 @@
 // unconditional #include so we can use if(VQSORT_PRINT), which unlike #if does
 // not interfere with code-folding.
 #include <stdio.h>
-#include <time.h>   // clock
+#include <time.h>  // clock
+
+#include <cmath>
 
 // IWYU pragma: begin_exports
 #include "hwy/base.h"
@@ -1690,6 +1692,41 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
 }
 
 template <class D, class Traits, typename T>
+HWY_NOINLINE void RecurseSelect(D d, Traits st, T* HWY_RESTRICT keys,
+                                const size_t num, const size_t k,
+                                T* HWY_RESTRICT buf,
+                                uint64_t* HWY_RESTRICT state,
+                                const size_t remaining_levels) {
+  HWY_DASSERT(num != 0);
+
+  if (HWY_UNLIKELY(remaining_levels == 0)) {
+    if (VQSORT_PRINT >= 1) {
+      fprintf(stderr, "HeapSort reached, size=%zu\n", num);
+    }
+    HeapSort(st, keys, num);  // Slow but N*logN.
+    return;
+  }
+
+  const size_t N = Lanes(d);
+  constexpr size_t kLPK = st.LanesPerKey();
+  if (HWY_UNLIKELY(num <= Constants::BaseCaseNumLanes<kLPK>(N))) {
+    BaseCase(d, st, keys, num, buf);
+    return;
+  }
+
+  DrawSamples(d, st, keys, num, buf, state);
+  SortSamples(d, st, buf);
+  Vec<D> pivot = ChoosePivotByRank(d, st, buf);
+  const size_t bound = Partition(d, st, keys, num, pivot, buf);
+
+  if (k < bound)
+    RecurseSelect(d, st, keys, bound, k, buf, state, remaining_levels - 1);
+  else if (k >= bound)
+    RecurseSelect(d, st, keys + bound, num - bound, k, buf, state,
+                  remaining_levels - 1);
+}
+
+template <class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           const size_t num, T* HWY_RESTRICT buf,
                           uint64_t* HWY_RESTRICT state,
@@ -1870,6 +1907,18 @@ HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
 
 }  // namespace detail
 
+template <class D, class Traits, typename T>
+void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
+            T* HWY_RESTRICT buf) {
+  const size_t num_nan = detail::CountAndReplaceNaN(d, st, keys, num);
+  uint64_t* HWY_RESTRICT state = hwy::detail::GetGeneratorStateStatic();
+#if VQSORT_ENABLED || HWY_IDE
+  if (num >= k)
+    detail::RecurseSelect(d, st, keys, num - num_nan, k, buf, state,
+                          2 * (size_t)std::log2(num - num_nan));
+#endif
+}
+
 // Old interface with user-specified buffer, retained for compatibility. Called
 // by the newer overload below. `buf` must be vector-aligned and hold at least
 // SortConstants::BufBytes(HWY_MAX_BYTES, st.LanesPerKey()).
@@ -1911,6 +1960,15 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
   if (num_nan != 0) {
     Fill(d, GetLane(NaN(d)), num_nan, keys + num - num_nan);
   }
+}
+
+template <class D, class Traits, typename T>
+HWY_API void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+                         size_t k) {
+  constexpr size_t kLPK = st.LanesPerKey();
+  HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
+  Select(d, st, keys, num, k - 1, buf);
+  Sort(d, st, keys, k - 1, buf);
 }
 
 // Sorts `keys[0..num-1]` according to the order defined by `st.Compare`.

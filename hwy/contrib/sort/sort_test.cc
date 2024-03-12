@@ -149,7 +149,7 @@ static HWY_NOINLINE void TestMedian3() {
 }
 
 HWY_NOINLINE void TestAllMedian() {
-  TestMedian3<TraitsLane<OrderAscending<uint64_t> > >();
+  TestMedian3<TraitsLane<OrderAscending<uint64_t>>>();
 }
 
 template <class Traits>
@@ -307,11 +307,11 @@ HWY_NOINLINE void TestAllBaseCase() {
     return;
   }
 #endif
-  TestBaseCase<TraitsLane<OrderAscending<int32_t> > >();
-  TestBaseCase<TraitsLane<OtherOrder<int64_t> > >();
+  TestBaseCase<TraitsLane<OrderAscending<int32_t>>>();
+  TestBaseCase<TraitsLane<OtherOrder<int64_t>>>();
 #if !HAVE_INTEL
-  TestBaseCase<Traits128<OrderAscending128> >();
-  TestBaseCase<Traits128<OrderDescending128> >();
+  TestBaseCase<Traits128<OrderAscending128>>();
+  TestBaseCase<Traits128<OrderDescending128>>();
 #endif
 }
 
@@ -454,21 +454,21 @@ static HWY_NOINLINE void TestPartition() {
 }
 
 HWY_NOINLINE void TestAllPartition() {
-  TestPartition<TraitsLane<OtherOrder<int32_t> > >();
+  TestPartition<TraitsLane<OtherOrder<int32_t>>>();
 #if !HAVE_INTEL
-  TestPartition<Traits128<OrderAscending128> >();
+  TestPartition<Traits128<OrderAscending128>>();
 #endif
 
 #if !HWY_IS_DEBUG_BUILD
-  TestPartition<TraitsLane<OrderAscending<int16_t> > >();
-  TestPartition<TraitsLane<OrderAscending<int64_t> > >();
-  TestPartition<TraitsLane<OtherOrder<float> > >();
+  TestPartition<TraitsLane<OrderAscending<int16_t>>>();
+  TestPartition<TraitsLane<OrderAscending<int64_t>>>();
+  TestPartition<TraitsLane<OtherOrder<float>>>();
   // OK to check current target, not using dynamic dispatch here.
 #if HWY_HAVE_FLOAT64
-  TestPartition<TraitsLane<OtherOrder<double> > >();
+  TestPartition<TraitsLane<OtherOrder<double>>>();
 #endif
 #if !HAVE_INTEL
-  TestPartition<Traits128<OrderDescending128> >();
+  TestPartition<Traits128<OrderDescending128>>();
 #endif
 #endif
 }
@@ -619,6 +619,40 @@ std::vector<Algo> AlgoForTest() {
 }
 
 template <class Traits>
+void TestPartialSort() {
+  constexpr size_t RANGE = 182;
+  using LaneType = typename Traits::LaneType;
+  using KeyType = typename Traits::KeyType;
+  const SortTag<LaneType> d;
+  detail::SharedTraits<Traits> st;
+  const Dist dist = Dist::kUniform16;
+
+  constexpr size_t kLPK = st.LanesPerKey();
+  // HWY_ALIGN LaneType
+  //     buf[SortConstants::BufBytes<LaneType, kLPK>(HWY_MAX_BYTES) /
+  //         sizeof(LaneType)];
+
+  const size_t log2 = 12;  // AdjustedLog2Reps(20);
+  const size_t num_lanes = 1ull << log2;
+  const size_t num_keys = num_lanes / kLPK;
+
+  auto aligned = hwy::AllocateAligned<LaneType>(num_lanes);
+  (void)GenerateInput(dist, aligned.get(), num_lanes);
+
+  std::vector<KeyType> s(aligned.get(), aligned.get() + num_lanes);
+
+  std::partial_sort(s.begin(), s.begin() + RANGE, s.end(),
+                    std::greater<KeyType>{});
+  PartialSort(d, st, aligned.get(), num_keys, RANGE);
+
+  // Select(d, st, aligned.get(), num_keys, buf, RANGE);
+  // std::sort(aligned.get(), aligned.get() + RANGE, std::greater<KeyType>{});
+
+  for (size_t i = 0; i < RANGE; ++i)
+    HWY_ASSERT(std::fabs(aligned.get()[i] - s[i]) < 0.01);
+}
+
+template <class Traits>
 void TestSort(size_t num_lanes) {
 // Workaround for stack overflow on clang-cl (/F 8388608 does not help).
 #if defined(_MSC_VER)
@@ -688,18 +722,23 @@ void TestAllSort() {
   }
 #endif
 
+#if VQSORT_ENABLED
+  namespace hn = hwy::HWY_NAMESPACE;
+  TestPartialSort<hn::detail::TraitsLane<hn::detail::OrderDescending<float>>>();
+#endif
+
   for (int num : {129, 504, 3 * 1000, 34567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
 #if !HAVE_INTEL
-    TestSort<TraitsLane<OrderAscending<int16_t> > >(num_lanes);
-    TestSort<TraitsLane<OtherOrder<uint16_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderAscending<int16_t>>>(num_lanes);
+    TestSort<TraitsLane<OtherOrder<uint16_t>>>(num_lanes);
 #endif
 
-    TestSort<TraitsLane<OtherOrder<int32_t> > >(num_lanes);
-    TestSort<TraitsLane<OtherOrder<uint32_t> > >(num_lanes);
+    TestSort<TraitsLane<OtherOrder<int32_t>>>(num_lanes);
+    TestSort<TraitsLane<OtherOrder<uint32_t>>>(num_lanes);
 
-    TestSort<TraitsLane<OrderAscending<int64_t> > >(num_lanes);
-    TestSort<TraitsLane<OrderAscending<uint64_t> > >(num_lanes);
+    TestSort<TraitsLane<OrderAscending<int64_t>>>(num_lanes);
+    TestSort<TraitsLane<OrderAscending<uint64_t>>>(num_lanes);
 
     // WARNING: for float types, SIMD comparisons will flush denormals to
     // zero, causing mismatches with scalar sorts. In this test, we avoid
@@ -707,27 +746,27 @@ void TestAllSort() {
 #if HWY_HAVE_FLOAT16  // #if protects algo-inl's GenerateRandom
     // Must also check whether the dynamic-dispatch target supports float16_t!
     if (hwy::HaveFloat16()) {
-      TestSort<TraitsLane<OrderAscending<float16_t> > >(num_lanes);
+      TestSort<TraitsLane<OrderAscending<float16_t>>>(num_lanes);
     }
 #endif
-    TestSort<TraitsLane<OrderAscending<float> > >(num_lanes);
+    TestSort<TraitsLane<OrderAscending<float>>>(num_lanes);
 #if HWY_HAVE_FLOAT64  // #if protects algo-inl's GenerateRandom
     // Must also check whether the dynamic-dispatch target supports float64!
     if (hwy::HaveFloat64()) {
-      TestSort<TraitsLane<OtherOrder<double> > >(num_lanes);
+      TestSort<TraitsLane<OtherOrder<double>>>(num_lanes);
     }
 #endif
 
 // Other algorithms do not support 128-bit keys.
 #if !HAVE_VXSORT && !HAVE_INTEL && VQSORT_ENABLED
-    TestSort<Traits128<OrderAscending128> >(num_lanes);
-    TestSort<Traits128<OrderDescending128> >(num_lanes);
+    TestSort<Traits128<OrderAscending128>>(num_lanes);
+    TestSort<Traits128<OrderDescending128>>(num_lanes);
 
-    TestSort<TraitsLane<OrderAscendingKV64> >(num_lanes);
-    TestSort<TraitsLane<OrderDescendingKV64> >(num_lanes);
+    TestSort<TraitsLane<OrderAscendingKV64>>(num_lanes);
+    TestSort<TraitsLane<OrderDescendingKV64>>(num_lanes);
 
-    TestSort<Traits128<OrderAscendingKV128> >(num_lanes);
-    TestSort<Traits128<OrderDescendingKV128> >(num_lanes);
+    TestSort<Traits128<OrderAscendingKV128>>(num_lanes);
+    TestSort<Traits128<OrderDescendingKV128>>(num_lanes);
 #endif
   }
 }
