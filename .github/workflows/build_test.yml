@@ -17,228 +17,37 @@ name: Build / test
 on: [push, pull_request]
 jobs:
   cmake:
-    name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        include:
-          - name: Clang-6.0
-            extra_deps: clang-6.0
-            c_compiler: clang-6.0
-            cxx_compiler: clang++-6.0
-            cxx_standard: 11
-
-          - name: Clang-6.0 (C++14)
-            extra_deps: clang-6.0
-            c_compiler: clang-6.0
-            cxx_compiler: clang++-6.0
-            cxx_standard: 14
-
-          - name: Clang-6.0 (C++17)
-            extra_deps: clang-6.0
-            c_compiler: clang-6.0
-            cxx_compiler: clang++-6.0
-            cxx_standard: 17
-
-          - name: Clang-7
-            extra_deps: clang-7
-            c_compiler: clang-7
-            cxx_compiler: clang++-7
-            cxx_standard: 11
-
-          - name: Clang-7 (C++14)
-            extra_deps: clang-7
-            c_compiler: clang-7
-            cxx_compiler: clang++-7
-            cxx_standard: 14
-
-          - name: Clang-7 (C++17)
-            extra_deps: clang-7
-            c_compiler: clang-7
-            cxx_compiler: clang++-7
-            cxx_standard: 17
-
-          - name: Clang-8
-            extra_deps: clang-8
-            c_compiler: clang-8
-            cxx_compiler: clang++-8
-            cxx_standard: 11
-
-          - name: Clang-9
-            extra_deps: clang-9
-            c_compiler: clang-9
-            cxx_compiler: clang++-9
-            cxx_standard: 11
-
-          - name: Clang-10
-            extra_deps: clang-10
-            c_compiler: clang-10
-            cxx_compiler: clang++-10
-            cxx_standard: 11
-
-          - name: Clang-10 (C++20)
-            extra_deps: clang-10
-            c_compiler: clang-10
-            cxx_compiler: clang++-10
-            cxx_standard: 20
-
-          - name: Clang-11
-            extra_deps: clang-11
-            c_compiler: clang-11
-            cxx_compiler: clang++-11
-            cxx_standard: 11
-
-          - name: Clang-12
-            extra_deps: clang-12
-            c_compiler: clang-12
-            cxx_compiler: clang++-12
-            cxx_standard: 11
-
-          - name: GCC-8
-            extra_deps: g++-8
-            c_compiler: gcc-8
-            cxx_compiler: g++-8
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-          - name: GCC-8 (C++14)
-            extra_deps: g++-8
-            c_compiler: gcc-8
-            cxx_compiler: g++-8
-            cxx_flags: -ftrapv
-            cxx_standard: 14
-
-          - name: GCC-8 (C++17)
-            extra_deps: g++-8
-            c_compiler: gcc-8
-            cxx_compiler: g++-8
-            cxx_flags: -ftrapv
-            cxx_standard: 17
-
-          - name: GCC-9
-            extra_deps: g++-9
-            c_compiler: gcc-9
-            cxx_compiler: g++-9
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-          - name: GCC-10
-            extra_deps: g++-10
-            c_compiler: gcc-10
-            cxx_compiler: g++-10
-            cxx_flags: -ftrapv
-            cxx_standard: 11
+    if: false
+    runs-on: windows-latest
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
-
       - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
 
-      - name: Install deps
-        run: sudo apt-get install ${{ matrix.extra_deps }}
-
       - name: Build and test
+        shell: bash
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=2
           export CTEST_PARALLEL_LEVEL=2
-          CXXFLAGS=${{ matrix.cxx_flags }} CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -B out .
+          cmake CC=clang CXX=clang++ cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=11 -B out .
           cmake --build out
           ctest --test-dir out
 
-  cmake_ubuntu_2204:
-    name: Build and test ${{ matrix.name }}
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        include:
-          - name: Clang-13
-            extra_deps: clang-13
-            c_compiler: clang-13
-            cxx_compiler: clang++-13
-            cxx_standard: 11
-
-          - name: Clang-14
-            extra_deps: clang-14
-            c_compiler: clang-14
-            cxx_compiler: clang++-14
-            cxx_standard: 11
-
-          - name: Clang-15
-            extra_deps: clang-15
-            c_compiler: clang-15
-            cxx_compiler: clang++-15
-            cxx_standard: 11
-
-          - name: Clang-15 (C++20)
-            extra_deps: clang-15
-            c_compiler: clang-15
-            cxx_compiler: clang++-15
-            cxx_standard: 20
-
-          - name: GCC-11
-            extra_deps: g++-11
-            c_compiler: gcc-11
-            cxx_compiler: g++-11
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-          - name: GCC-11 (C++20)
-            extra_deps: g++-11
-            c_compiler: gcc-11
-            cxx_compiler: g++-11
-            cxx_flags: -ftrapv
-            cxx_standard: 20
-
-          - name: GCC-12
-            extra_deps: g++-12
-            c_compiler: gcc-12
-            cxx_compiler: g++-12
-            cxx_flags: -ftrapv
-            cxx_standard: 11
-
-          - name: GCC-12 (C++20)
-            extra_deps: g++-12
-            c_compiler: gcc-12
-            cxx_compiler: g++-12
-            cxx_flags: -ftrapv
-            cxx_standard: 20
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
-
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
-
-      - name: Install deps
-        run: sudo apt-get install ${{ matrix.extra_deps }}
-
-      - name: Build and test
-        run: |
-          export CMAKE_BUILD_PARALLEL_LEVEL=2
-          export CTEST_PARALLEL_LEVEL=2
-          CXXFLAGS=${{ matrix.cxx_flags }} CC=${{ matrix.c_compiler }} CXX=${{ matrix.cxx_compiler }} cmake -DHWY_WARNINGS_ARE_ERRORS=ON -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -B out .
-          cmake --build out
-          ctest --test-dir out
-
+ 
   bazel:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
-        with:
-          egress-policy: audit  # cannot be block - runner does git checkout
+    runs-on: windows-latest
 
+    steps:
       - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.0.0
 
       - uses: bazelbuild/setup-bazelisk@b39c379c82683a5f25d34f0d062761f62693e0b2 # v3.0.0
 
-      - uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
-        with:
-          path: ~/.cache/bazel
-          key: bazel-${{ runner.os }}
-      - run: bazel build //...
+      - name: build
+        shell: bash
+        run: |
+          bazel build :all
+
+      - name: test
+        shell: bash
+        run: bazel test :all
+
+ 

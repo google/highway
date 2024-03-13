@@ -189,6 +189,10 @@ cc_binary(
         ":vqsort",
         "//:hwy",
     ],
+    linkstatic = select({
+        "@platforms//cpu:riscv64": True,
+        "//conditions:default": False,
+    }),
 )
 
 cc_test(
@@ -206,6 +210,10 @@ cc_test(
         "//:hwy",
         "//:hwy_test_util",
     ],
+    linkstatic = select({
+        "@platforms//cpu:riscv64": True,
+        "//conditions:default": False,
+    }),
 )
 
 cc_test(
@@ -224,6 +232,10 @@ cc_test(
         "//:hwy_test_util",
         "//:nanobenchmark",
     ],
+    linkstatic = select({
+        "@platforms//cpu:riscv64": True,
+        "//conditions:default": False,
+    }),
 )
 
 cc_binary(
@@ -239,4 +251,8 @@ cc_binary(
         "//:hwy",
         "//:hwy_test_util",
     ],
+    linkstatic = select({
+        "@platforms//cpu:riscv64": True,
+        "//conditions:default": False,
+    }),
 )

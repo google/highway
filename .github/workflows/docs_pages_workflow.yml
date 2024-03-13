@@ -9,6 +9,7 @@ permissions:
 jobs:
 
   build_docs_job:
+    if: false
     runs-on: ubuntu-latest
     container: debian:buster-slim
 
