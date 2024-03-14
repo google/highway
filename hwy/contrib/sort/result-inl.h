@@ -126,8 +126,8 @@ bool VerifySort(Traits st, const InputStats<LaneType>& input_stats,
 
 template <class Traits, typename LaneType>
 bool VerifySelect(Traits st, const InputStats<LaneType>& input_stats,
-                const LaneType* out, size_t num_lanes, size_t k,
-                const char* caller) {
+                  const LaneType* out, size_t num_lanes, size_t k,
+                  const char* caller) {
   constexpr size_t N1 = st.LanesPerKey();
   HWY_ASSERT(num_lanes >= N1);
 

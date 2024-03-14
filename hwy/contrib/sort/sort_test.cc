@@ -15,9 +15,9 @@
 
 #include <stdio.h>
 
+#include <random>
 #include <unordered_map>
 #include <vector>
-#include <random>
 
 #include "hwy/base.h"
 #include "hwy/detect_compiler_arch.h"
@@ -759,7 +759,8 @@ void TestSelect(size_t num_lanes) {
   const size_t num_keys = num_lanes / st.LanesPerKey();
 
   std::mt19937 rng(42);
-  std::uniform_int_distribution<size_t> k_dist(2 * st.LanesPerKey(), num_keys - 1);
+  std::uniform_int_distribution<size_t> k_dist(2 * st.LanesPerKey(),
+                                               num_keys - 1);
 
   constexpr size_t kMaxMisalign = 16;
   auto aligned =
@@ -790,10 +791,10 @@ void TestSelect(size_t num_lanes) {
 
           CompareResults<Traits> compare(lanes, num_lanes);
           Run<Order>(algo, reinterpret_cast<KeyType*>(lanes), num_keys, shared,
-                    /*thread=*/0, k);
+                     /*thread=*/0, k);
           // HWY_ASSERT(compare.Verify(lanes)); // TODO
-          HWY_ASSERT(VerifySelect(st, input_stats, lanes, num_lanes, k,
-                                  "TestSelect"));
+          HWY_ASSERT(
+              VerifySelect(st, input_stats, lanes, num_lanes, k, "TestSelect"));
 
           // Check red zones
 #if HWY_IS_MSAN

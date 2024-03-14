@@ -256,10 +256,10 @@ static inline const char* AlgoName(Algo algo) {
 #define HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #endif
 
+#include "hwy/aligned_allocator.h"
 #include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"  // HeapSort
-#include "hwy/aligned_allocator.h"
 
 HWY_BEFORE_NAMESPACE();
 
@@ -411,7 +411,8 @@ struct SharedState {
 // Bridge from keys (passed to Run) to lanes as expected by HeapSelect. For
 // non-128-bit keys they are the same:
 template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
-void CallHeapSelect(KeyType* HWY_RESTRICT keys, const size_t num_keys, const size_t k) {
+void CallHeapSelect(KeyType* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
   using detail::SharedTraits;
   using detail::TraitsLane;
   if (Order().IsAscending()) {
@@ -425,7 +426,8 @@ void CallHeapSelect(KeyType* HWY_RESTRICT keys, const size_t num_keys, const siz
 
 #if VQSORT_ENABLED
 template <class Order>
-void CallHeapSelect(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys, const size_t k) {
+void CallHeapSelect(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
   using detail::SharedTraits;
   using detail::Traits128;
   uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
@@ -440,7 +442,8 @@ void CallHeapSelect(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys, co
 }
 
 template <class Order>
-void CallHeapSelect(K64V64* HWY_RESTRICT keys, const size_t num_keys, const size_t k) {
+void CallHeapSelect(K64V64* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
   using detail::SharedTraits;
   using detail::Traits128;
   uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
@@ -455,7 +458,8 @@ void CallHeapSelect(K64V64* HWY_RESTRICT keys, const size_t num_keys, const size
 }
 
 template <class Order>
-void CallHeapSelect(K32V32* HWY_RESTRICT keys, const size_t num_keys, const size_t k) {
+void CallHeapSelect(K32V32* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
   using detail::SharedTraits;
   using detail::TraitsLane;
   uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);

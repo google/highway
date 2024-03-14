@@ -20,7 +20,7 @@
 // unconditional #include so we can use if(VQSORT_PRINT), which unlike #if does
 // not interfere with code-folding.
 #include <stdio.h>
-#include <time.h>   // clock
+#include <time.h>  // clock
 
 // IWYU pragma: begin_exports
 #include "hwy/base.h"
@@ -182,7 +182,8 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
 }
 
 template <class Traits, typename T>
-void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes, const size_t select) {
+void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
+                const size_t select) {
   constexpr size_t N1 = st.LanesPerKey();
   const size_t k = select + 1;
 
@@ -196,12 +197,13 @@ void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes, const 
   }
 
   for (size_t i = k; i <= num_lanes - N1; i += N1) {
-    if (AllTrue(d, st.Compare(d, st.SetKey(d, lanes + i), st.SetKey(d, lanes + 0)))) {
-        // Swap root with last
-        st.Swap(lanes + 0, lanes + i);
+    if (AllTrue(d, st.Compare(d, st.SetKey(d, lanes + i),
+                              st.SetKey(d, lanes + 0)))) {
+      // Swap root with last
+      st.Swap(lanes + 0, lanes + i);
 
-        // Sift down the new root.
-        SiftDown(st, lanes, k, 0);
+      // Sift down the new root.
+      SiftDown(st, lanes, k, 0);
     }
   }
 
@@ -1693,12 +1695,15 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
 // ------------------------------ Quicksort recursion
 
 enum class RecurseMode {
-  kSort,     // Sort mode.
-  kSelect,   // Select mode.
-             // The element pointed at by nth is changed to whatever element would occur in that position if [first, last) were sorted.
-             // All of the elements before this new nth element are less than or equal to the elements after the new nth element.
+  kSort,    // Sort mode.
+  kSelect,  // Select mode.
+            // The element pointed at by nth is changed to whatever element
+            // would occur in that position if [first, last) were sorted. All of
+            // the elements before this new nth element are less than or equal
+            // to the elements after the new nth element.
   kPartition,  // Partition mode.
-               // All of the elements before this new nth element are less than or equal to the elements after the new nth element.
+               // All of the elements before this new nth element are less than
+               // or equal to the elements after the new nth element.
 };
 
 template <class D, class Traits, typename T>
@@ -1826,18 +1831,21 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
 
   HWY_IF_CONSTEXPR(mode == RecurseMode::kSelect) {
     if (HWY_LIKELY(result != PivotResult::kIsFirst) && k < bound) {
-      Recurse<RecurseMode::kSelect>(d, st, keys, bound, buf, state, remaining_levels - 1, k);
+      Recurse<RecurseMode::kSelect>(d, st, keys, bound, buf, state,
+                                    remaining_levels - 1, k);
     } else if (HWY_LIKELY(result != PivotResult::kWasLast) && k >= bound) {
-      Recurse<RecurseMode::kSelect>(d, st, keys + bound, num - bound, buf, state,
-                    remaining_levels - 1, k - bound);
+      Recurse<RecurseMode::kSelect>(d, st, keys + bound, num - bound, buf,
+                                    state, remaining_levels - 1, k - bound);
     }
-  } else HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
+  }
+  else HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
     if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
-      Recurse<RecurseMode::kSort>(d, st, keys, bound, buf, state, remaining_levels - 1);
+      Recurse<RecurseMode::kSort>(d, st, keys, bound, buf, state,
+                                  remaining_levels - 1);
     }
     if (HWY_LIKELY(result != PivotResult::kWasLast)) {
       Recurse<RecurseMode::kSort>(d, st, keys + bound, num - bound, buf, state,
-              remaining_levels - 1);
+                                  remaining_levels - 1);
     }
   }
 }
@@ -1949,7 +1957,8 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, num, buf, state, max_levels);
+    detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, num, buf, state,
+                                                max_levels);
   }
 #else   // !VQSORT_ENABLED
   (void)d;
@@ -1967,7 +1976,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
 template <class D, class Traits, typename T>
 void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
-          T* HWY_RESTRICT buf) {
+            T* HWY_RESTRICT buf) {
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "=============== Select num=%zu, vec bytes=%d\n", num,
             static_cast<int>(sizeof(T) * Lanes(d)));
@@ -1983,12 +1992,13 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   const size_t num_nan = detail::CountAndReplaceNaN(d, st, keys, num);
 
 #if VQSORT_ENABLED || HWY_IDE
-  if (!detail::HandleSpecialCases(d, st, keys, num, buf)) { // TODO
+  if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {  // TODO
     uint64_t* HWY_RESTRICT state = hwy::detail::GetGeneratorStateStatic();
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf, state, max_levels, k);
+    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf, state,
+                                                  max_levels, k);
   }
 #else   // !VQSORT_ENABLED
   (void)d;
