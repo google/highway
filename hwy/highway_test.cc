@@ -355,6 +355,11 @@ struct TestNaN {
     HWY_ASSERT(AllFalse(d, Ge(nan, v1)));
     HWY_ASSERT(AllFalse(d, Le(nan, v1)));
 
+    HWY_ASSERT(AllTrue(d, IsEitherNaN(nan, nan)));
+    HWY_ASSERT(AllTrue(d, IsEitherNaN(nan, v1)));
+    HWY_ASSERT(AllTrue(d, IsEitherNaN(v1, nan)));
+    HWY_ASSERT(AllFalse(d, IsEitherNaN(v1, v1)));
+
     // Reduction
     HWY_ASSERT_NAN(d, SumOfLanes(d, nan));
     HWY_ASSERT_NAN(d, Set(d, ReduceSum(d, nan)));
