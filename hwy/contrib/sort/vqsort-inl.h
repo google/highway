@@ -42,6 +42,12 @@
 #define VQSORT_PRINT 0
 #endif
 
+#if HWY_CXX_LANG >= 201703L
+#define HWY_IF_CONSTEXPR if constexpr
+#else
+#define HWY_IF_CONSTEXPR if
+#endif
+
 #if !VQSORT_ONLY_STATIC
 #include "hwy/contrib/sort/vqsort.h"  // Fill16BytesSecure
 #endif
@@ -1659,6 +1665,15 @@ HWY_INLINE Vec<D> ChoosePivotForEqualSamples(D d, Traits st,
 
 // ------------------------------ Quicksort recursion
 
+enum class RecurseMode {
+  kSort,     // Sort mode.
+  kSelect,   // Select mode.
+             // The element pointed at by nth is changed to whatever element would occur in that position if [first, last) were sorted.
+             // All of the elements before this new nth element are less than or equal to the elements after the new nth element.
+  kPartition,  // Partition mode.
+               // All of the elements before this new nth element are less than or equal to the elements after the new nth element.
+};
+
 template <class D, class Traits, typename T>
 HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
                               size_t num, T* HWY_RESTRICT buf) {
@@ -1689,7 +1704,7 @@ HWY_NOINLINE void PrintMinMax(D d, Traits st, const T* HWY_RESTRICT keys,
   }
 }
 
-template <bool kIsSelect = false, class D, class Traits, typename T>
+template <RecurseMode mode, class D, class Traits, typename T>
 HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                           const size_t num, T* HWY_RESTRICT buf,
                           uint64_t* HWY_RESTRICT state,
@@ -1782,19 +1797,19 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
   // which implies we anyway skip the right partition due to kWasLast.
   HWY_DASSERT(bound != num || result == PivotResult::kWasLast);
 
-  if (kIsSelect) {
+  HWY_IF_CONSTEXPR(mode == RecurseMode::kSelect) {
     if (HWY_LIKELY(result != PivotResult::kIsFirst) && k < bound) {
-      Recurse<true>(d, st, keys, bound, buf, state, remaining_levels - 1, k);
+      Recurse<RecurseMode::kSelect>(d, st, keys, bound, buf, state, remaining_levels - 1, k);
     } else if (HWY_LIKELY(result != PivotResult::kWasLast) && k >= bound) {
-      Recurse<true>(d, st, keys + bound, num - bound, buf, state,
+      Recurse<RecurseMode::kSelect>(d, st, keys + bound, num - bound, buf, state,
                     remaining_levels - 1, k - bound);
     }
-  } else {
+  } else HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
     if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
-      Recurse(d, st, keys, bound, buf, state, remaining_levels - 1);
+      Recurse<RecurseMode::kSort>(d, st, keys, bound, buf, state, remaining_levels - 1);
     }
     if (HWY_LIKELY(result != PivotResult::kWasLast)) {
-      Recurse(d, st, keys + bound, num - bound, buf, state,
+      Recurse<RecurseMode::kSort>(d, st, keys + bound, num - bound, buf, state,
               remaining_levels - 1);
     }
   }
@@ -1907,7 +1922,7 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    detail::Recurse(d, st, keys, num, buf, state, max_levels);
+    detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, num, buf, state, max_levels);
   }
 #else   // !VQSORT_ENABLED
   (void)d;
@@ -1942,11 +1957,11 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
 
 #if VQSORT_ENABLED || HWY_IDE
   if (!detail::HandleSpecialCases(d, st, keys, num, buf)) { // TODO
-    uint64_t* HWY_RESTRICT state = detail::GetGeneratorStateStatic();
+    uint64_t* HWY_RESTRICT state = hwy::detail::GetGeneratorStateStatic();
     // Introspection: switch to worst-case N*logN heapsort after this many.
     // Should never be reached, so computing log2 exactly does not help.
     const size_t max_levels = 50;
-    detail::Recurse<true>(d, st, keys, num, buf, state, max_levels, k);
+    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf, state, max_levels, k);
   }
 #else   // !VQSORT_ENABLED
   (void)d;
