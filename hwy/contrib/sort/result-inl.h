@@ -139,14 +139,12 @@ bool VerifySelect(Traits st, const InputStats<LaneType>& input_stats,
     if (N1 == 2) output_stats.Notify(out[i + 1]);
     // Reverse order instead of checking !Compare1 so we accept equal keys.
     if (i < k ? st.Compare1(out + k, out + i) : st.Compare1(out + i, out + k)) {
-      fprintf(stderr, "%s: i=%d of %d lanes: N1=%d k=%d", caller,
+      fprintf(stderr, "%s: i=%d of %d lanes: N1=%d k=%d\t", caller,
               static_cast<int>(i), static_cast<int>(num_lanes),
               static_cast<int>(N1), static_cast<int>(k));
-      // TODO %5.0f prints unhelpful integers for the float/double tests.
       fprintf(stderr, "%5.0f %5.0f vs. %5.0f %5.0f\n\n",
-              static_cast<double>(out[i + 1]), static_cast<double>(out[i + 0]),
-              static_cast<double>(out[i + N1 + 1]),
-              static_cast<double>(out[i + N1]));
+              static_cast<double>(out[i]), static_cast<double>(out[i + 1]),
+              static_cast<double>(out[k]), static_cast<double>(out[k + 1]));
       HWY_ABORT("%d-bit select is incorrect\n",
                 static_cast<int>(sizeof(LaneType) * 8 * N1));
     }

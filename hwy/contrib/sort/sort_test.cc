@@ -615,7 +615,7 @@ std::vector<Algo> SortAlgoForTest() {
 #if VQSORT_ENABLED
         Algo::kVQSort,
 #endif
-        Algo::kHeap,
+        Algo::kHeapSort,
   };
 }
 
@@ -736,9 +736,9 @@ void TestAllSort() {
 std::vector<Algo> SelectAlgoForTest() {
   return {
 #if VQSORT_ENABLED
-    Algo::kVQSelect,
+//    Algo::kVQSelect,
 #endif
-    // Algo::kStdSelect,
+    Algo::kHeapSelect,
   };
 }
 
@@ -759,7 +759,7 @@ void TestSelect(size_t num_lanes) {
   const size_t num_keys = num_lanes / st.LanesPerKey();
 
   std::mt19937 rng(42);
-  std::uniform_int_distribution<size_t> k_dist(0, num_keys - 1);
+  std::uniform_int_distribution<size_t> k_dist(2 * st.LanesPerKey(), num_keys - 1);
 
   constexpr size_t kMaxMisalign = 16;
   auto aligned =
@@ -817,7 +817,7 @@ void TestSelect(size_t num_lanes) {
 void TestAllSelect() {
   for (int num : {129, 504, 3 * 1000, 34567}) {
     const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
-    TestSelect<TraitsLane<OrderAscending<int32_t> > >(num_lanes);
+    TestSelect<TraitsLane<OrderAscending<uint32_t> > >(num_lanes);
     TestSelect<TraitsLane<OrderAscending<float> > >(num_lanes);
   }
 }

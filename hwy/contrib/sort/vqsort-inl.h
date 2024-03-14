@@ -165,7 +165,7 @@ template <class Traits, typename T>
 void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
   constexpr size_t N1 = st.LanesPerKey();
 
-  if (num_lanes < 2 * N1) return;
+  HWY_ASSERT(num_lanes >= 2 * N1);
 
   // Build heap.
   for (size_t i = ((num_lanes - N1) / N1 / 2) * N1; i != (~N1 + 1); i -= N1) {
@@ -179,6 +179,33 @@ void HeapSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes) {
     // Sift down the new root.
     SiftDown(st, lanes, i, 0);
   }
+}
+
+template <class Traits, typename T>
+void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes, const size_t select) {
+  constexpr size_t N1 = st.LanesPerKey();
+  const size_t k = select + 1;
+
+  HWY_ASSERT(k >= 2 * N1 && num_lanes >= 2 * N1);
+
+  const FixedTag<T, N1> d;
+
+  // Build heap.
+  for (size_t i = ((k - N1) / N1 / 2) * N1; i != (~N1 + 1); i -= N1) {
+    SiftDown(st, lanes, k, i);
+  }
+
+  for (size_t i = k; i <= num_lanes - N1; i += N1) {
+    if (AllTrue(d, st.Compare(d, st.SetKey(d, lanes + i), st.SetKey(d, lanes + 0)))) {
+        // Swap root with last
+        st.Swap(lanes + 0, lanes + i);
+
+        // Sift down the new root.
+        SiftDown(st, lanes, k, 0);
+    }
+  }
+
+  st.Swap(lanes + 0, lanes + k - 1);
 }
 
 #if VQSORT_ENABLED || HWY_IDE
@@ -1969,7 +1996,7 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
   }
-  detail::HeapSort(st, keys, num); // TODO
+  detail::HeapSelect(st, keys, num);
 #endif  // VQSORT_ENABLED
 
   if (num_nan != 0) {
