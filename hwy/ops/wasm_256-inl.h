@@ -690,11 +690,6 @@ HWY_API Vec256<T> IfNegativeThenElse(Vec256<T> v, Vec256<T> yes, Vec256<T> no) {
   return v;
 }
 
-template <typename T, HWY_IF_FLOAT(T)>
-HWY_API Vec256<T> ZeroIfNegative(Vec256<T> v) {
-  return IfThenZeroElse(v < Zero(DFromV<decltype(v)>()), v);
-}
-
 // ------------------------------ Mask logical
 
 template <typename T>

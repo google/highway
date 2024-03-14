@@ -587,6 +587,7 @@ using RemoveCvRef = RemoveConst<RemoveVolatile<RemoveRef<T>>>;
 #define HWY_IF_LANES_GT(kN, lanes) hwy::EnableIf<(kN > lanes)>* = nullptr
 
 #define HWY_IF_UNSIGNED(T) hwy::EnableIf<!hwy::IsSigned<T>()>* = nullptr
+#define HWY_IF_NOT_UNSIGNED(T) hwy::EnableIf<hwy::IsSigned<T>()>* = nullptr
 #define HWY_IF_SIGNED(T)                                    \
   hwy::EnableIf<hwy::IsSigned<T>() && !hwy::IsFloat<T>() && \
                 !hwy::IsSpecialFloat<T>()>* = nullptr

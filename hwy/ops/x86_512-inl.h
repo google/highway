@@ -1036,12 +1036,6 @@ HWY_API Vec512<T> IfNegativeThenNegOrUndefIfZero(Vec512<T> mask, Vec512<T> v) {
   return MaskedSubOr(v, MaskFromVec(mask), Zero(d), v);
 }
 
-template <typename T, HWY_IF_FLOAT(T)>
-HWY_API Vec512<T> ZeroIfNegative(const Vec512<T> v) {
-  // AVX3 MaskFromVec only looks at the MSB
-  return IfThenZeroElse(MaskFromVec(v), v);
-}
-
 // ================================================== ARITHMETIC
 
 // ------------------------------ Addition

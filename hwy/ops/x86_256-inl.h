@@ -768,13 +768,6 @@ HWY_API Vec256<double> IfThenZeroElse(Mask256<double> mask, Vec256<double> no) {
   return Vec256<double>{_mm256_mask_xor_pd(no.raw, mask.raw, no.raw, no.raw)};
 }
 
-template <typename T>
-HWY_API Vec256<T> ZeroIfNegative(const Vec256<T> v) {
-  static_assert(IsSigned<T>(), "Only for float");
-  // AVX3 MaskFromVec only looks at the MSB
-  return IfThenZeroElse(MaskFromVec(v), v);
-}
-
 // ------------------------------ Mask logical
 
 namespace detail {

@@ -374,6 +374,50 @@ HWY_NOINLINE void TestAllWeakFloat() {
   ForFloatTypes(ForPartialVectors<TestWeakFloat>());
 }
 
+struct TestIsNegative {
+  template <typename T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const RebindToSigned<decltype(d)> di;
+    const RebindToUnsigned<decltype(d)> du;
+    using TU = TFromD<decltype(du)>;
+
+    const auto mask_false = MaskFalse(d);
+    const auto mask_true = MaskTrue(d);
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, IsNegative(Zero(d)));
+    HWY_ASSERT_MASK_EQ(d, mask_true,
+                       IsNegative(Set(d, ConvertScalarTo<T>(-1))));
+
+    const auto vsignbit = SignBit(d);
+    const auto vp = AndNot(vsignbit, Iota(d, 1));
+    const auto vn = Or(vp, vsignbit);
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, IsNegative(vp));
+    HWY_ASSERT_MASK_EQ(d, mask_true, IsNegative(vn));
+
+    const auto s1 = BitCast(d, ShiftLeft<sizeof(TU) * 8 - 1>(Iota(du, 1)));
+
+    const auto x1 = Xor3(vp, s1, BitCast(d, Set(du, TU{0x71})));
+    const auto x2 = Xor(x1, vsignbit);
+
+    HWY_ASSERT_MASK_EQ(d, mask_false, And(IsNegative(x1), IsNegative(x2)));
+    HWY_ASSERT_MASK_EQ(d, mask_true, Or(IsNegative(x1), IsNegative(x2)));
+
+    const auto expected_1 =
+        RebindMask(d, MaskFromVec(BroadcastSignBit(BitCast(di, x1))));
+    const auto expected_2 =
+        RebindMask(d, MaskFromVec(BroadcastSignBit(BitCast(di, x2))));
+
+    HWY_ASSERT_MASK_EQ(d, expected_1, IsNegative(x1));
+    HWY_ASSERT_MASK_EQ(d, expected_2, IsNegative(x2));
+  }
+};
+
+HWY_NOINLINE void TestAllIsNegative() {
+  ForFloatTypes(ForPartialVectors<TestIsNegative>());
+  ForSignedTypes(ForPartialVectors<TestIsNegative>());
+}
+
 template <class D>
 static HWY_NOINLINE Vec<D> Make128(D d, uint64_t hi, uint64_t lo) {
   alignas(16) uint64_t in[2];
@@ -644,6 +688,7 @@ HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllStrictFloat);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakUnsigned);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakInt);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllWeakFloat);
+HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllIsNegative);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128Upper);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128);

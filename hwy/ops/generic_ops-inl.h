@@ -197,6 +197,23 @@ HWY_API void SafeCopyN(const size_t num, D d, const T* HWY_RESTRICT from,
 #endif
 }
 
+// ------------------------------ IsNegative
+#if (defined(HWY_NATIVE_IS_NEGATIVE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_IS_NEGATIVE
+#undef HWY_NATIVE_IS_NEGATIVE
+#else
+#define HWY_NATIVE_IS_NEGATIVE
+#endif
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API Mask<DFromV<V>> IsNegative(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  return RebindMask(d, MaskFromVec(BroadcastSignBit(BitCast(di, v))));
+}
+
+#endif  // HWY_NATIVE_IS_NEGATIVE
+
 // ------------------------------ MaskFalse
 #if (defined(HWY_NATIVE_MASK_FALSE) == defined(HWY_TARGET_TOGGLE))
 #ifdef HWY_NATIVE_MASK_FALSE
@@ -211,6 +228,44 @@ HWY_API Mask<D> MaskFalse(D d) {
 }
 
 #endif  // HWY_NATIVE_MASK_FALSE
+
+// ------------------------------ IfNegativeThenElseZero
+#if (defined(HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#undef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#else
+#define HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#endif
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API V IfNegativeThenElseZero(V v, V yes) {
+  return IfThenElseZero(IsNegative(v), yes);
+}
+
+#endif  // HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+
+// ------------------------------ IfNegativeThenZeroElse
+#if (defined(HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#undef HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#else
+#define HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#endif
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API V IfNegativeThenZeroElse(V v, V no) {
+  return IfThenZeroElse(IsNegative(v), no);
+}
+
+#endif  // HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+
+// ------------------------------ ZeroIfNegative (IfNegativeThenZeroElse)
+
+// ZeroIfNegative is generic for all vector lengths
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API V ZeroIfNegative(V v) {
+  return IfNegativeThenZeroElse(v, v);
+}
 
 // ------------------------------ BitwiseIfThenElse
 #if (defined(HWY_NATIVE_BITWISE_IF_THEN_ELSE) == defined(HWY_TARGET_TOGGLE))

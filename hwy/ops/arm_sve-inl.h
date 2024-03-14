@@ -1583,6 +1583,22 @@ HWY_API VFromD<D> VecFromMask(const D d, svbool_t mask) {
   return BitCast(d, IfThenElseZero(mask, Set(di, -1)));
 }
 
+// ------------------------------ IsNegative (Lt)
+#ifdef HWY_NATIVE_IS_NEGATIVE
+#undef HWY_NATIVE_IS_NEGATIVE
+#else
+#define HWY_NATIVE_IS_NEGATIVE
+#endif
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API svbool_t IsNegative(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+
+  return detail::LtN(BitCast(di, v), static_cast<TI>(0));
+}
+
 // ------------------------------ IfVecThenElse (MaskFromVec, IfThenElse)
 
 #if HWY_SVE_HAVE_2
@@ -4434,12 +4450,6 @@ HWY_API V MaskedModOr(V no, M m, V a, V b) {
   return IfThenElse(m, Mod(a, b), no);
 }
 
-// ------------------------------ ZeroIfNegative (Lt, IfThenElse)
-template <class V>
-HWY_API V ZeroIfNegative(const V v) {
-  return IfThenZeroElse(detail::LtN(v, 0), v);
-}
-
 // ------------------------------ BroadcastSignBit (ShiftRight)
 template <class V>
 HWY_API V BroadcastSignBit(const V v) {
@@ -4450,11 +4460,7 @@ HWY_API V BroadcastSignBit(const V v) {
 template <class V>
 HWY_API V IfNegativeThenElse(V v, V yes, V no) {
   static_assert(IsSigned<TFromV<V>>(), "Only works for signed/float");
-  const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-
-  const svbool_t m = detail::LtN(BitCast(di, v), 0);
-  return IfThenElse(m, yes, no);
+  return IfThenElse(IsNegative(v), yes, no);
 }
 
 // ------------------------------ AverageRound (ShiftRight)

@@ -2926,12 +2926,6 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
   return IfThenElse(m, yes, no);
 }
 
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
-  const auto zero = Zero(DFromV<decltype(v)>());
-  return Max(zero, v);
-}
-
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>
@@ -3898,16 +3892,15 @@ HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<int64_t> v) {
 
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec128<double> ConvertTo(D /* tag */, Vec128<uint64_t> v) {
-  return Vec128<double>(vcvtq_f64_u64(ZeroIfNegative(v).raw));
+  return Vec128<double>(vcvtq_f64_u64(v.raw));
 }
 template <class D, HWY_IF_F64_D(D)>
 HWY_API Vec64<double> ConvertTo(D /* tag */, Vec64<uint64_t> v) {
   // GCC 6.5 and earlier are missing the 64-bit (non-q) intrinsic.
-  const auto non_neg_v = ZeroIfNegative(v);
 #if HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
-  return Set(Full64<double>(), static_cast<double>(GetLane(non_neg_v)));
+  return Set(Full64<double>(), static_cast<double>(GetLane(v)));
 #else
-  return Vec64<double>(vcvt_f64_u64(non_neg_v.raw));
+  return Vec64<double>(vcvt_f64_u64(v.raw));
 #endif  // HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL < 700
 }
 

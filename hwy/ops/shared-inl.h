@@ -529,6 +529,8 @@ HWY_API bool IsAligned(D d, T* ptr) {
 
 // Same as base.h macros but with a Simd<T, N, kPow2> argument instead of T.
 #define HWY_IF_UNSIGNED_D(D) HWY_IF_UNSIGNED(hwy::HWY_NAMESPACE::TFromD<D>)
+#define HWY_IF_NOT_UNSIGNED_D(D) \
+  HWY_IF_NOT_UNSIGNED(hwy::HWY_NAMESPACE::TFromD<D>)
 #define HWY_IF_SIGNED_D(D) HWY_IF_SIGNED(hwy::HWY_NAMESPACE::TFromD<D>)
 #define HWY_IF_FLOAT_D(D) HWY_IF_FLOAT(hwy::HWY_NAMESPACE::TFromD<D>)
 #define HWY_IF_NOT_FLOAT_D(D) HWY_IF_NOT_FLOAT(hwy::HWY_NAMESPACE::TFromD<D>)
@@ -609,6 +611,8 @@ HWY_API bool IsAligned(D d, T* ptr) {
 
 // Same, but with a vector argument. ops/*-inl.h define their own TFromV.
 #define HWY_IF_UNSIGNED_V(V) HWY_IF_UNSIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
+#define HWY_IF_NOT_UNSIGNED_V(V) \
+  HWY_IF_NOT_UNSIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
 #define HWY_IF_SIGNED_V(V) HWY_IF_SIGNED(hwy::HWY_NAMESPACE::TFromV<V>)
 #define HWY_IF_FLOAT_V(V) HWY_IF_FLOAT(hwy::HWY_NAMESPACE::TFromV<V>)
 #define HWY_IF_NOT_FLOAT_V(V) HWY_IF_NOT_FLOAT(hwy::HWY_NAMESPACE::TFromV<V>)

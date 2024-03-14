@@ -379,15 +379,6 @@ HWY_API Vec1<T> IfNegativeThenElse(Vec1<T> v, Vec1<T> yes, Vec1<T> no) {
   return vi.raw < 0 ? yes : no;
 }
 
-template <typename T>
-HWY_API Vec1<T> ZeroIfNegative(const Vec1<T> v) {
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const auto vi = BitCast(di, v);
-
-  return vi.raw < 0 ? Vec1<T>(ConvertScalarTo<T>(0)) : v;
-}
-
 // ------------------------------ Mask logical
 
 template <typename T>
