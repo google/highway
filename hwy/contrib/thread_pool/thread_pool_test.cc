@@ -27,10 +27,10 @@
 #include <atomic>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "hwy/base.h"                  // PopCount
 #include "hwy/detect_compiler_arch.h"  // HWY_ARCH_WASM
-#include "hwy/tests/test_util-inl.h"   // AdjustedReps
+#include "hwy/tests/hwy_gtest.h"
+#include "hwy/tests/test_util-inl.h"  // AdjustedReps
 
 namespace hwy {
 namespace {
@@ -396,3 +396,5 @@ TEST(ThreadPoolTest, TestCounter) {
 
 }  // namespace
 }  // namespace hwy
+
+HWY_TEST_MAIN();

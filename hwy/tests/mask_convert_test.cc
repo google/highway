@@ -342,6 +342,7 @@ HWY_BEFORE_TEST(HwyMaskConvertTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskConvertTest, TestAllPromoteMaskTo);
 HWY_EXPORT_AND_TEST_P(HwyMaskConvertTest, TestAllDemoteMaskTo);
 HWY_EXPORT_AND_TEST_P(HwyMaskConvertTest, TestAllOrderedDemote2MasksTo);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

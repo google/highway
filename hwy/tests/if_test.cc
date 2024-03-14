@@ -271,6 +271,7 @@ HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfVecThenElse);
 HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllZeroIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfNegative);
 HWY_EXPORT_AND_TEST_P(HwyIfTest, TestAllIfNegativeThenNegOrUndefIfZero);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

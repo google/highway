@@ -201,6 +201,7 @@ HWY_BEFORE_TEST(CopyTest);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllFill);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopy);
 HWY_EXPORT_AND_TEST_P(CopyTest, TestAllCopyIf);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

@@ -233,6 +233,7 @@ namespace hwy {
 namespace {
 HWY_BEFORE_TEST(BenchParallel);
 HWY_EXPORT_AND_TEST_P(BenchParallel, BenchParallel);
+HWY_AFTER_TEST();
 }  // namespace
 }  // namespace hwy
 

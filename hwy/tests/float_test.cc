@@ -434,6 +434,7 @@ HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllTrunc);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllCeil);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllFloor);
 HWY_EXPORT_AND_TEST_P(HwyFloatTest, TestAllAbsDiff);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

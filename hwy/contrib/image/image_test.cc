@@ -144,6 +144,7 @@ namespace hwy {
 HWY_BEFORE_TEST(ImageTest);
 HWY_EXPORT_AND_TEST_P(ImageTest, TestAligned);
 HWY_EXPORT_AND_TEST_P(ImageTest, TestUnaligned);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

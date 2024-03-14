@@ -281,6 +281,7 @@ HWY_BEFORE_TEST(DotTest);
 HWY_EXPORT_AND_TEST_P(DotTest, TestAllDot);
 HWY_EXPORT_AND_TEST_P(DotTest, TestAllDotF32BF16);
 HWY_EXPORT_AND_TEST_P(DotTest, TestAllDotBF16);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

@@ -150,6 +150,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyMaskSlideTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskSlideTest, TestAllSlideMaskDownLanes);
 HWY_EXPORT_AND_TEST_P(HwyMaskSlideTest, TestAllSlideMaskUpLanes);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

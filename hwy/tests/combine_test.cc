@@ -359,6 +359,7 @@ HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllCombine);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcat);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllConcatOddEven);
 HWY_EXPORT_AND_TEST_P(HwyCombineTest, TestAllInterleaveWholeHalves);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif  // HWY_ONCE

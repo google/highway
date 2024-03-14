@@ -648,6 +648,7 @@ HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllLt128Upper);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128);
 HWY_EXPORT_AND_TEST_P(HwyCompareTest, TestAllEq128Upper);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

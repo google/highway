@@ -596,6 +596,7 @@ HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllGetLane);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllDFromV);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllBlocks);
 HWY_EXPORT_AND_TEST_P(HighwayTest, TestAllBlockDFromD);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

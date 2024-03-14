@@ -718,6 +718,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

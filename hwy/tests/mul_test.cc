@@ -545,7 +545,7 @@ HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulFixedPoint15);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulEven);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulOdd);
 HWY_EXPORT_AND_TEST_P(HwyMulTest, TestAllMulAdd);
-
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

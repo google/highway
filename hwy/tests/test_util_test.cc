@@ -107,6 +107,7 @@ namespace hwy {
 HWY_BEFORE_TEST(TestUtilTest);
 HWY_EXPORT_AND_TEST_P(TestUtilTest, TestAllName);
 HWY_EXPORT_AND_TEST_P(TestUtilTest, TestAllEqual);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif
