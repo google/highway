@@ -10,9 +10,11 @@
 #define HWY_DLLEXPORT_H
 
 #if !defined(HWY_SHARED_DEFINE)
+
 #define HWY_DLLEXPORT
 #define HWY_CONTRIB_DLLEXPORT
 #define HWY_TEST_DLLEXPORT
+
 #else  // !HWY_SHARED_DEFINE
 
 #ifndef HWY_DLLEXPORT

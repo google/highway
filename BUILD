@@ -414,6 +414,7 @@ cc_binary(
         ":hwy",
         ":nanobenchmark",
     ],
+    linkstatic = False,
 )
 
 cc_library(
@@ -433,6 +434,10 @@ cc_test(
     size = "small",
     srcs = ["hwy/tests/list_targets.cc"],
     deps = [":hwy"],
+    linkstatic = select({
+        "@platforms//cpu:riscv64": True,
+        "//conditions:default": False,
+    }),
 )
 
 # path, name
