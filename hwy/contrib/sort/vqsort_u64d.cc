@@ -30,6 +30,10 @@ void SortU64Desc(uint64_t* HWY_RESTRICT keys, size_t num) {
   return VQSortStatic(keys, num, SortDescending());
 }
 
+void SelectU64Desc(uint64_t* HWY_RESTRICT keys, size_t num, size_t k) {
+  return VQSelectStatic(keys, num, k, SortDescending());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -39,10 +43,15 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_EXPORT(SortU64Desc);
+HWY_EXPORT(SelectU64Desc);
 }  // namespace
 
 void VQSort(uint64_t* HWY_RESTRICT keys, size_t n, SortDescending) {
   HWY_DYNAMIC_DISPATCH(SortU64Desc)(keys, n);
+}
+
+void VQSelect(uint64_t* HWY_RESTRICT keys, size_t n, size_t k, SortDescending) {
+  HWY_DYNAMIC_DISPATCH(SelectU64Desc)(keys, n, k);
 }
 
 }  // namespace hwy

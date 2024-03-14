@@ -17,6 +17,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <random>
 
 #include "hwy/base.h"
 #include "hwy/detect_compiler_arch.h"
@@ -548,7 +549,7 @@ class CompareResults {
 #if HAVE_PDQSORT
     const Algo reference = Algo::kPDQ;
 #else
-    const Algo reference = Algo::kStd;
+    const Algo reference = Algo::kStdSort;
 #endif
     SharedState shared;
     using Order = typename Traits::Order;
@@ -597,7 +598,7 @@ class CompareResults {
   std::vector<LaneType> copy_;
 };
 
-std::vector<Algo> AlgoForTest() {
+std::vector<Algo> SortAlgoForTest() {
   return {
 #if HAVE_AVX2SORT
     Algo::kSEA,
@@ -638,7 +639,7 @@ void TestSort(size_t num_lanes) {
   auto aligned =
       hwy::AllocateAligned<LaneType>(kMaxMisalign + num_lanes + kMaxMisalign);
   HWY_ASSERT(aligned);
-  for (Algo algo : AlgoForTest()) {
+  for (Algo algo : SortAlgoForTest()) {
     for (Dist dist : AllDist()) {
       for (size_t misalign : {size_t{0}, size_t{st.LanesPerKey()},
                               size_t{3 * st.LanesPerKey()}, kMaxMisalign / 2}) {
@@ -732,6 +733,95 @@ void TestAllSort() {
   }
 }
 
+std::vector<Algo> SelectAlgoForTest() {
+  return {
+#if VQSORT_ENABLED
+    Algo::kVQSelect,
+#endif
+    // Algo::kStdSelect,
+  };
+}
+
+template <class Traits>
+void TestSelect(size_t num_lanes) {
+// Workaround for stack overflow on clang-cl (/F 8388608 does not help).
+#if defined(_MSC_VER)
+  return;
+#endif
+  using Order = typename Traits::Order;
+  using LaneType = typename Traits::LaneType;
+  using KeyType = typename Traits::KeyType;
+  SharedState shared;
+  SharedTraits<Traits> st;
+
+  // Round up to a whole number of keys.
+  num_lanes += (st.Is128() && (num_lanes & 1));
+  const size_t num_keys = num_lanes / st.LanesPerKey();
+
+  std::mt19937 rng(42);
+  std::uniform_int_distribution<size_t> k_dist(0, num_keys - 1);
+
+  constexpr size_t kMaxMisalign = 16;
+  auto aligned =
+      hwy::AllocateAligned<LaneType>(kMaxMisalign + num_lanes + kMaxMisalign);
+  HWY_ASSERT(aligned);
+  for (Algo algo : SelectAlgoForTest()) {
+    for (Dist dist : AllDist()) {
+      for (size_t misalign : {size_t{0}, size_t{st.LanesPerKey()},
+                              size_t{3 * st.LanesPerKey()}, kMaxMisalign / 2}) {
+        for (size_t ki = 0; ki < 10; ++ki) {
+          LaneType* lanes = aligned.get() + misalign;
+
+          // Set up red zones before/after the keys to sort
+          for (size_t i = 0; i < misalign; ++i) {
+            aligned[i] = hwy::LowestValue<LaneType>();
+          }
+          for (size_t i = 0; i < kMaxMisalign; ++i) {
+            lanes[num_lanes + i] = hwy::HighestValue<LaneType>();
+          }
+#if HWY_IS_MSAN
+          __msan_poison(aligned.get(), misalign * sizeof(LaneType));
+          __msan_poison(lanes + num_lanes, kMaxMisalign * sizeof(LaneType));
+#endif
+          InputStats<LaneType> input_stats =
+              GenerateInput(dist, lanes, num_lanes);
+
+          size_t k = k_dist(rng);
+
+          CompareResults<Traits> compare(lanes, num_lanes);
+          Run<Order>(algo, reinterpret_cast<KeyType*>(lanes), num_keys, shared,
+                    /*thread=*/0, k);
+          // HWY_ASSERT(compare.Verify(lanes)); // TODO
+          HWY_ASSERT(VerifySelect(st, input_stats, lanes, num_lanes, k,
+                                  "TestSelect"));
+
+          // Check red zones
+#if HWY_IS_MSAN
+          __msan_unpoison(aligned.get(), misalign * sizeof(LaneType));
+          __msan_unpoison(lanes + num_lanes, kMaxMisalign * sizeof(LaneType));
+#endif
+          for (size_t i = 0; i < misalign; ++i) {
+            if (aligned[i] != hwy::LowestValue<LaneType>())
+              HWY_ABORT("Overrun left at %d\n", static_cast<int>(i));
+          }
+          for (size_t i = num_lanes; i < num_lanes + kMaxMisalign; ++i) {
+            if (lanes[i] != hwy::HighestValue<LaneType>())
+              HWY_ABORT("Overrun right at %d\n", static_cast<int>(i));
+          }
+        }  // ki
+      }    // misalign
+    }      // dist
+  }        // algo
+}
+
+void TestAllSelect() {
+  for (int num : {129, 504, 3 * 1000, 34567}) {
+    const size_t num_lanes = AdjustedReps(static_cast<size_t>(num));
+    TestSelect<TraitsLane<OrderAscending<int32_t> > >(num_lanes);
+    TestSelect<TraitsLane<OrderAscending<float> > >(num_lanes);
+  }
+}
+
 }  // namespace
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
@@ -750,6 +840,7 @@ HWY_EXPORT_AND_TEST_P(SortTest, TestAllBaseCase);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllPartition);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllGenerator);
 HWY_EXPORT_AND_TEST_P(SortTest, TestAllSort);
+HWY_EXPORT_AND_TEST_P(SortTest, TestAllSelect);
 }  // namespace
 }  // namespace hwy
 
