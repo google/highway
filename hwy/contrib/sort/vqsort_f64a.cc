@@ -36,6 +36,17 @@ void SortF64Asc(double* HWY_RESTRICT keys, size_t num) {
 #endif
 }
 
+void SelectF64Asc(double* HWY_RESTRICT keys, size_t num, size_t k) {
+#if HWY_HAVE_FLOAT64
+  return VQSelectStatic(keys, num, k, SortAscending());
+#else
+  (void)keys;
+  (void)num;
+  (void)k;
+  HWY_ASSERT(0);
+#endif
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -45,10 +56,15 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_EXPORT(SortF64Asc);
+HWY_EXPORT(SelectF64Asc);
 }  // namespace
 
 void VQSort(double* HWY_RESTRICT keys, size_t n, SortAscending) {
   HWY_DYNAMIC_DISPATCH(SortF64Asc)(keys, n);
+}
+
+void VQSelect(double* HWY_RESTRICT keys, size_t n, size_t k, SortAscending) {
+  HWY_DYNAMIC_DISPATCH(SelectF64Asc)(keys, n, k);
 }
 
 }  // namespace hwy

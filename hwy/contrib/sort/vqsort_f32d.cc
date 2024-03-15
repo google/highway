@@ -20,7 +20,6 @@
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 
 // After foreach_target
-#include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"
 
 HWY_BEFORE_NAMESPACE();
@@ -29,6 +28,10 @@ namespace HWY_NAMESPACE {
 
 void SortF32Desc(float* HWY_RESTRICT keys, size_t num) {
   return VQSortStatic(keys, num, SortDescending());
+}
+
+void SelectF32Desc(float* HWY_RESTRICT keys, size_t num, size_t k) {
+  return VQSelectStatic(keys, num, k, SortDescending());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
@@ -40,10 +43,15 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_EXPORT(SortF32Desc);
+HWY_EXPORT(SelectF32Desc);
 }  // namespace
 
 void VQSort(float* HWY_RESTRICT keys, size_t n, SortDescending) {
   HWY_DYNAMIC_DISPATCH(SortF32Desc)(keys, n);
+}
+
+void VQSelect(float* HWY_RESTRICT keys, size_t n, size_t k, SortDescending) {
+  HWY_DYNAMIC_DISPATCH(SelectF32Desc)(keys, n, k);
 }
 
 }  // namespace hwy

@@ -93,6 +93,62 @@ HWY_CONTRIB_DLLEXPORT void VQSort(K32V32* HWY_RESTRICT keys, size_t n,
 HWY_CONTRIB_DLLEXPORT void VQSort(K32V32* HWY_RESTRICT keys, size_t n,
                                   SortDescending);
 
+// Vectorized Quickselect
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint16_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint16_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint32_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint32_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint64_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint64_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(int16_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(int16_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(int32_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(int32_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(int64_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(int64_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+
+// These two must only be called if hwy::HaveFloat16() is true.
+HWY_CONTRIB_DLLEXPORT void VQSelect(float16_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(float16_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+
+HWY_CONTRIB_DLLEXPORT void VQSelect(float* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(float* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+
+// These two must only be called if hwy::HaveFloat64() is true.
+HWY_CONTRIB_DLLEXPORT void VQSelect(double* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(double* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint128_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(uint128_t* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(K64V64* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(K64V64* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(K32V32* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortAscending);
+HWY_CONTRIB_DLLEXPORT void VQSelect(K32V32* HWY_RESTRICT keys, size_t n,
+                                    size_t k, SortDescending);
+
 // User-level caching is no longer required, so this class is no longer
 // beneficial. We recommend using the simpler VQSort() interface instead, and
 // retain this class only for compatibility. It now just calls VQSort.

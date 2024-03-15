@@ -193,9 +193,12 @@ enum class Algo {
 #if HAVE_VXSORT
   kVXSort,
 #endif
-  kStd,
+  kStdSort,
+  kStdSelect,
   kVQSort,
-  kHeap,
+  kVQSelect,
+  kHeapSort,
+  kHeapSelect,
 };
 
 static inline const char* AlgoName(Algo algo) {
@@ -228,12 +231,16 @@ static inline const char* AlgoName(Algo algo) {
     case Algo::kVXSort:
       return "vxsort";
 #endif
-    case Algo::kStd:
+    case Algo::kStdSort:
+    case Algo::kStdSelect:
       return "std";
     case Algo::kVQSort:
+    case Algo::kVQSelect:
       return "vq";
-    case Algo::kHeap:
-      return "heap";
+    case Algo::kHeapSort:
+      return "heapsort";
+    case Algo::kHeapSelect:
+      return "heapselect";
   }
   return "unreachable";
 }
@@ -249,10 +256,10 @@ static inline const char* AlgoName(Algo algo) {
 #define HIGHWAY_HWY_CONTRIB_SORT_ALGO_TOGGLE
 #endif
 
+#include "hwy/aligned_allocator.h"
 #include "hwy/contrib/sort/traits-inl.h"
 #include "hwy/contrib/sort/traits128-inl.h"
 #include "hwy/contrib/sort/vqsort-inl.h"  // HeapSort
-#include "hwy/aligned_allocator.h"
 
 HWY_BEFORE_NAMESPACE();
 
@@ -401,6 +408,73 @@ struct SharedState {
 #endif
 };
 
+// Bridge from keys (passed to Run) to lanes as expected by HeapSelect. For
+// non-128-bit keys they are the same:
+template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
+void CallHeapSelect(KeyType* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
+  using detail::SharedTraits;
+  using detail::TraitsLane;
+  if (Order().IsAscending()) {
+    const SharedTraits<TraitsLane<detail::OrderAscending<KeyType>>> st;
+    return detail::HeapSelect(st, keys, num_keys, k);
+  } else {
+    const SharedTraits<TraitsLane<detail::OrderDescending<KeyType>>> st;
+    return detail::HeapSelect(st, keys, num_keys, k);
+  }
+}
+
+#if VQSORT_ENABLED
+template <class Order>
+void CallHeapSelect(hwy::uint128_t* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
+  using detail::SharedTraits;
+  using detail::Traits128;
+  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
+  const size_t num_lanes = num_keys * 2;
+  if (Order().IsAscending()) {
+    const SharedTraits<Traits128<detail::OrderAscending128>> st;
+    return detail::HeapSelect(st, lanes, num_lanes, k);
+  } else {
+    const SharedTraits<Traits128<detail::OrderDescending128>> st;
+    return detail::HeapSelect(st, lanes, num_lanes, k);
+  }
+}
+
+template <class Order>
+void CallHeapSelect(K64V64* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
+  using detail::SharedTraits;
+  using detail::Traits128;
+  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
+  const size_t num_lanes = num_keys * 2;
+  if (Order().IsAscending()) {
+    const SharedTraits<Traits128<detail::OrderAscendingKV128>> st;
+    return detail::HeapSelect(st, lanes, num_lanes, k);
+  } else {
+    const SharedTraits<Traits128<detail::OrderDescendingKV128>> st;
+    return detail::HeapSelect(st, lanes, num_lanes, k);
+  }
+}
+
+template <class Order>
+void CallHeapSelect(K32V32* HWY_RESTRICT keys, const size_t num_keys,
+                    const size_t k) {
+  using detail::SharedTraits;
+  using detail::TraitsLane;
+  uint64_t* lanes = reinterpret_cast<uint64_t*>(keys);
+  const size_t num_lanes = num_keys;
+  if (Order().IsAscending()) {
+    const SharedTraits<TraitsLane<detail::OrderAscendingKV64>> st;
+    return detail::HeapSelect(st, lanes, num_lanes, k);
+  } else {
+    const SharedTraits<TraitsLane<detail::OrderDescendingKV64>> st;
+    return detail::HeapSelect(st, lanes, num_lanes, k);
+  }
+}
+
+#endif  // VQSORT_ENABLED
+
 // Bridge from keys (passed to Run) to lanes as expected by HeapSort. For
 // non-128-bit keys they are the same:
 template <class Order, typename KeyType, HWY_IF_NOT_T_SIZE(KeyType, 16)>
@@ -466,7 +540,7 @@ void CallHeapSort(K32V32* HWY_RESTRICT keys, const size_t num_keys) {
 
 template <class Order, typename KeyType>
 void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
-         SharedState& shared, size_t /*thread*/) {
+         SharedState& shared, size_t /*thread*/, size_t k = 0) {
   const std::less<KeyType> less;
   const std::greater<KeyType> greater;
 
@@ -541,18 +615,31 @@ void Run(Algo algo, KeyType* HWY_RESTRICT inout, size_t num,
     }
 #endif  // HAVE_VXSORT
 
-    case Algo::kStd:
+    case Algo::kStdSort:
       if (Order().IsAscending()) {
         return std::sort(inout, inout + num, less);
       } else {
         return std::sort(inout, inout + num, greater);
       }
 
+    case Algo::kStdSelect:
+      if (Order().IsAscending()) {
+        return std::nth_element(inout, inout + k, inout + num, less);
+      } else {
+        return std::nth_element(inout, inout + k, inout + num, greater);
+      }
+
     case Algo::kVQSort:
       return VQSort(inout, num, Order());
 
-    case Algo::kHeap:
+    case Algo::kVQSelect:
+      return VQSelect(inout, num, k, Order());
+
+    case Algo::kHeapSort:
       return CallHeapSort<Order>(inout, num);
+
+    case Algo::kHeapSelect:
+      return CallHeapSelect<Order>(inout, num, k);
 
     default:
       HWY_ABORT("Not implemented");
