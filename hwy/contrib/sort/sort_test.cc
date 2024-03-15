@@ -736,9 +736,9 @@ void TestAllSort() {
 std::vector<Algo> SelectAlgoForTest() {
   return {
 #if VQSORT_ENABLED
-//    Algo::kVQSelect,
+    Algo::kVQSelect,
 #endif
-    Algo::kHeapSelect,
+        Algo::kHeapSelect,
   };
 }
 

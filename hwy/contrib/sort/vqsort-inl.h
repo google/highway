@@ -42,12 +42,6 @@
 #define VQSORT_PRINT 0
 #endif
 
-#if HWY_CXX_LANG >= 201703L
-#define HWY_IF_CONSTEXPR if constexpr
-#else
-#define HWY_IF_CONSTEXPR if
-#endif
-
 #if !VQSORT_ONLY_STATIC
 #include "hwy/contrib/sort/vqsort.h"  // Fill16BytesSecure
 #endif
@@ -1701,9 +1695,9 @@ enum class RecurseMode {
             // would occur in that position if [first, last) were sorted. All of
             // the elements before this new nth element are less than or equal
             // to the elements after the new nth element.
-  kPartition,  // Partition mode.
-               // All of the elements before this new nth element are less than
-               // or equal to the elements after the new nth element.
+  kLooseSelect,  // Loose select mode.
+                 // The first n elements will contain the n smallest elements in
+                 // unspecified order
 };
 
 template <class D, class Traits, typename T>
