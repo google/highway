@@ -204,6 +204,7 @@ namespace hwy {
 HWY_BEFORE_TEST(BitPackTest);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack8);
 HWY_EXPORT_AND_TEST_P(BitPackTest, TestAllPack16);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

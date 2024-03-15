@@ -339,6 +339,7 @@ HWY_BEFORE_TEST(HwyCastTest);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllBitCast);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllResizeBitCastToOneLaneVect);
 HWY_EXPORT_AND_TEST_P(HwyCastTest, TestAllSameSizeResizeBitCast);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

@@ -1463,6 +1463,7 @@ HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllI32F64);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF2IPromoteTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllF2IPromoteUpperLowerTo);
 HWY_EXPORT_AND_TEST_P(HwyConvertTest, TestAllNonFiniteF2IPromoteUpperLowerTo);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

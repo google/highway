@@ -631,6 +631,7 @@ HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableShifts);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRotateLeft);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllRotateRight);
 HWY_EXPORT_AND_TEST_P(HwyShiftTest, TestAllVariableRotations);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

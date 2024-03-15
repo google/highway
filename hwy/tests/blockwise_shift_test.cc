@@ -269,6 +269,7 @@ HWY_EXPORT_AND_TEST_P(HwyBlockwiseShiftTest, TestAllShiftBytes);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseShiftTest, TestAllShiftLeftLanes);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseShiftTest, TestAllShiftRightLanes);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseShiftTest, TestAllCombineShiftRight);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

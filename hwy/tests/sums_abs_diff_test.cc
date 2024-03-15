@@ -343,6 +343,7 @@ HWY_BEFORE_TEST(HwySumsAbsDiffTest);
 HWY_EXPORT_AND_TEST_P(HwySumsAbsDiffTest, TestAllSumsOf8AbsDiff);
 HWY_EXPORT_AND_TEST_P(HwySumsAbsDiffTest, TestAllSumsOfAdjQuadAbsDiff);
 HWY_EXPORT_AND_TEST_P(HwySumsAbsDiffTest, TestAllSumsOfShuffledQuadAbsDiff);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

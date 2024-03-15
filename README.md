@@ -182,12 +182,15 @@ sudo apt install cmake
 
 Highway's unit tests use [googletest](https://github.com/google/googletest).
 By default, Highway's CMake downloads this dependency at configuration time.
-You can disable this by setting the `HWY_SYSTEM_GTEST` CMake variable to ON and
+You can avoid this by setting the `HWY_SYSTEM_GTEST` CMake variable to ON and
 installing gtest separately:
 
 ```bash
 sudo apt install libgtest-dev
 ```
+
+Alternatively, you can define `HWY_TEST_STANDALONE=1` and remove all occurrences
+of `gtest_main` in each BUILD file, then tests avoid the dependency on GUnit.
 
 Running cross-compiled tests requires support from the OS, which on Debian is
 provided by the `qemu-user-binfmt` package.

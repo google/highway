@@ -257,6 +257,7 @@ HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllSwapAdjacentBlocks);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllInsertBlock);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllExtractBlock);
 HWY_EXPORT_AND_TEST_P(HwySwizzleBlockTest, TestAllBroadcastBlock);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

@@ -300,6 +300,7 @@ HWY_EXPORT_AND_TEST_P(HwyCountTest, TestAllPopulationCount);
 HWY_EXPORT_AND_TEST_P(HwyCountTest, TestAllLeadingZeroCount);
 HWY_EXPORT_AND_TEST_P(HwyCountTest, TestAllTrailingZeroCount);
 HWY_EXPORT_AND_TEST_P(HwyCountTest, TestAllHighestSetBitIndex);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

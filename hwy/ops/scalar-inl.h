@@ -646,8 +646,8 @@ HWY_API Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> Min(const Vec1<T> a, const Vec1<T> b) {
-  if (isnan(a.raw)) return b;
-  if (isnan(b.raw)) return a;
+  if (ScalarIsNaN(a.raw)) return b;
+  if (ScalarIsNaN(b.raw)) return a;
   return Vec1<T>(HWY_MIN(a.raw, b.raw));
 }
 
@@ -658,8 +658,8 @@ HWY_API Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
 
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec1<T> Max(const Vec1<T> a, const Vec1<T> b) {
-  if (isnan(a.raw)) return b;
-  if (isnan(b.raw)) return a;
+  if (ScalarIsNaN(a.raw)) return b;
+  if (ScalarIsNaN(b.raw)) return a;
   return Vec1<T>(HWY_MAX(a.raw, b.raw));
 }
 
@@ -999,12 +999,7 @@ HWY_API Mask1<T> operator>=(const Vec1<T> a, const Vec1<T> b) {
 template <typename T>
 HWY_API Mask1<T> IsNaN(const Vec1<T> v) {
   // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
-  MakeUnsigned<T> bits;
-  CopySameSize(&v, &bits);
-  bits += bits;
-  bits >>= 1;  // clear sign bit
-  // NaN if all exponent bits are set and the mantissa is not zero.
-  return Mask1<T>::FromBool(bits > ExponentMask<T>());
+  return Mask1<T>::FromBool(ScalarIsNaN(v.raw));
 }
 
 // Per-target flag to prevent generic_ops-inl.h from defining IsInf / IsFinite.

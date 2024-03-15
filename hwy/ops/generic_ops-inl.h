@@ -1109,6 +1109,21 @@ HWY_API TFromD<D> ReduceMax(D d, VFromD<D> v) {
 }
 #endif  // HWY_NATIVE_REDUCE_MINMAX_4_UI8
 
+// ------------------------------ IsEitherNaN
+#if (defined(HWY_NATIVE_IS_EITHER_NAN) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_IS_EITHER_NAN
+#undef HWY_NATIVE_IS_EITHER_NAN
+#else
+#define HWY_NATIVE_IS_EITHER_NAN
+#endif
+
+template <class V, HWY_IF_FLOAT_V(V)>
+HWY_API MFromD<DFromV<V>> IsEitherNaN(V a, V b) {
+  return Or(IsNaN(a), IsNaN(b));
+}
+
+#endif  // HWY_NATIVE_IS_EITHER_NAN
+
 // ------------------------------ IsInf, IsFinite
 
 // AVX3 has target-specific implementations of these.

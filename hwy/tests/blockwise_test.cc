@@ -512,6 +512,7 @@ HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZipLower);
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllZipUpper);
 #endif
 HWY_EXPORT_AND_TEST_P(HwyBlockwiseTest, TestAllSpecialShuffles);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

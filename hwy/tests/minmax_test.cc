@@ -268,6 +268,7 @@ HWY_BEFORE_TEST(HwyMinMaxTest);
 HWY_EXPORT_AND_TEST_P(HwyMinMaxTest, TestAllMinMax);
 HWY_EXPORT_AND_TEST_P(HwyMinMaxTest, TestAllMinMax128);
 HWY_EXPORT_AND_TEST_P(HwyMinMaxTest, TestAllMinMax128Upper);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

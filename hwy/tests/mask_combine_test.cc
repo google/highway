@@ -182,6 +182,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyMaskCombineTest);
 HWY_EXPORT_AND_TEST_P(HwyMaskCombineTest, TestAllLowerAndUpperHalvesOfMask);
 HWY_EXPORT_AND_TEST_P(HwyMaskCombineTest, TestAllCombineMasks);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

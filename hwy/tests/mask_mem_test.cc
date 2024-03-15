@@ -394,6 +394,7 @@ HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllMaskedGather);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllGatherIndexN);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllBlendedStore);
 HWY_EXPORT_AND_TEST_P(HwyMaskTest, TestAllStoreMaskBits);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

@@ -3208,6 +3208,15 @@ HWY_API Mask256<float16_t> IsNaN(Vec256<float16_t> v) {
       v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 }
 
+HWY_API Mask256<float16_t> IsEitherNaN(Vec256<float16_t> a,
+                                       Vec256<float16_t> b) {
+  // Work around warnings in the intrinsic definitions (passing -1 as a mask).
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+  return Mask256<float16_t>{_mm256_cmp_ph_mask(a.raw, b.raw, _CMP_UNORD_Q)};
+  HWY_DIAGNOSTICS(pop)
+}
+
 HWY_API Mask256<float16_t> IsInf(Vec256<float16_t> v) {
   return Mask256<float16_t>{_mm256_fpclass_ph_mask(
       v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
@@ -3237,6 +3246,22 @@ HWY_API Mask256<double> IsNaN(Vec256<double> v) {
       v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 #else
   return Mask256<double>{_mm256_cmp_pd(v.raw, v.raw, _CMP_UNORD_Q)};
+#endif
+}
+
+HWY_API Mask256<float> IsEitherNaN(Vec256<float> a, Vec256<float> b) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask256<float>{_mm256_cmp_ps_mask(a.raw, b.raw, _CMP_UNORD_Q)};
+#else
+  return Mask256<float>{_mm256_cmp_ps(a.raw, b.raw, _CMP_UNORD_Q)};
+#endif
+}
+
+HWY_API Mask256<double> IsEitherNaN(Vec256<double> a, Vec256<double> b) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask256<double>{_mm256_cmp_pd_mask(a.raw, b.raw, _CMP_UNORD_Q)};
+#else
+  return Mask256<double>{_mm256_cmp_pd(a.raw, b.raw, _CMP_UNORD_Q)};
 #endif
 }
 

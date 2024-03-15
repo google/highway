@@ -409,6 +409,7 @@ HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform1);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllTransform2);
 HWY_EXPORT_AND_TEST_P(TransformTest, TestAllReplace);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

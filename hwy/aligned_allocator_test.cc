@@ -24,9 +24,10 @@
 #include <set>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "hwy/base.h"
 #include "hwy/per_target.h"
+#include "hwy/tests/hwy_gtest.h"
+#include "hwy/tests/test_util-inl.h"  // HWY_ASSERT_EQ
 
 namespace {
 
@@ -72,7 +73,7 @@ class FakeAllocator {
   }
   void Free(void* memory) {
     if (!memory) return;
-    EXPECT_NE(allocs_.end(), allocs_.find(memory));
+    HWY_ASSERT(allocs_.end() != allocs_.find(memory));
     allocs_.erase(memory);
     free(memory);
   }
@@ -84,47 +85,49 @@ class FakeAllocator {
 
 namespace hwy {
 
+#if !HWY_TEST_STANDALONE
 class AlignedAllocatorTest : public testing::Test {};
+#endif
 
-TEST(AlignedAllocatorTest, FreeNullptr) {
+TEST(AlignedAllocatorTest, TestFreeNullptr) {
   // Calling free with a nullptr is always ok.
   FreeAlignedBytes(/*aligned_pointer=*/nullptr, /*free_ptr=*/nullptr,
                    /*opaque_ptr=*/nullptr);
 }
 
-TEST(AlignedAllocatorTest, Log2) {
-  EXPECT_EQ(0u, detail::ShiftCount(1));
-  EXPECT_EQ(1u, detail::ShiftCount(2));
-  EXPECT_EQ(3u, detail::ShiftCount(8));
+TEST(AlignedAllocatorTest, TestLog2) {
+  HWY_ASSERT_EQ(0u, detail::ShiftCount(1));
+  HWY_ASSERT_EQ(1u, detail::ShiftCount(2));
+  HWY_ASSERT_EQ(3u, detail::ShiftCount(8));
 }
 
 // Allocator returns null when it detects overflow of items * sizeof(T).
-TEST(AlignedAllocatorTest, Overflow) {
+TEST(AlignedAllocatorTest, TestOverflow) {
   constexpr size_t max = ~size_t(0);
   constexpr size_t msb = (max >> 1) + 1;
   using Size5 = std::array<uint8_t, 5>;
   using Size10 = std::array<uint8_t, 10>;
-  EXPECT_EQ(nullptr,
-            detail::AllocateAlignedItems<uint32_t>(max / 2, nullptr, nullptr));
-  EXPECT_EQ(nullptr,
-            detail::AllocateAlignedItems<uint32_t>(max / 3, nullptr, nullptr));
-  EXPECT_EQ(nullptr,
-            detail::AllocateAlignedItems<Size5>(max / 4, nullptr, nullptr));
-  EXPECT_EQ(nullptr,
-            detail::AllocateAlignedItems<uint16_t>(msb, nullptr, nullptr));
-  EXPECT_EQ(nullptr,
-            detail::AllocateAlignedItems<double>(msb + 1, nullptr, nullptr));
-  EXPECT_EQ(nullptr,
-            detail::AllocateAlignedItems<Size10>(msb / 4, nullptr, nullptr));
+  HWY_ASSERT(nullptr ==
+             detail::AllocateAlignedItems<uint32_t>(max / 2, nullptr, nullptr));
+  HWY_ASSERT(nullptr ==
+             detail::AllocateAlignedItems<uint32_t>(max / 3, nullptr, nullptr));
+  HWY_ASSERT(nullptr ==
+             detail::AllocateAlignedItems<Size5>(max / 4, nullptr, nullptr));
+  HWY_ASSERT(nullptr ==
+             detail::AllocateAlignedItems<uint16_t>(msb, nullptr, nullptr));
+  HWY_ASSERT(nullptr ==
+             detail::AllocateAlignedItems<double>(msb + 1, nullptr, nullptr));
+  HWY_ASSERT(nullptr ==
+             detail::AllocateAlignedItems<Size10>(msb / 4, nullptr, nullptr));
 }
 
-TEST(AlignedAllocatorTest, AllocDefaultPointers) {
+TEST(AlignedAllocatorTest, TestAllocDefaultPointers) {
   const size_t kSize = 7777;
   void* ptr = AllocateAlignedBytes(kSize, /*alloc_ptr=*/nullptr,
                                    /*opaque_ptr=*/nullptr);
-  ASSERT_NE(nullptr, ptr);
+  HWY_ASSERT(ptr != nullptr);
   // Make sure the pointer is actually aligned.
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
+  HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
   char* p = static_cast<char*>(ptr);
   size_t ret = 0;
   for (size_t i = 0; i < kSize; i++) {
@@ -132,89 +135,89 @@ TEST(AlignedAllocatorTest, AllocDefaultPointers) {
     p[i] = static_cast<char>(i & 0x7F);
     if (i) ret += static_cast<size_t>(p[i] * p[i - 1]);
   }
-  EXPECT_NE(0U, ret);
+  HWY_ASSERT(ret != size_t{0});
   FreeAlignedBytes(ptr, /*free_ptr=*/nullptr, /*opaque_ptr=*/nullptr);
 }
 
-TEST(AlignedAllocatorTest, EmptyAlignedUniquePtr) {
+TEST(AlignedAllocatorTest, TestEmptyAlignedUniquePtr) {
   AlignedUniquePtr<SampleObject<32>> ptr(nullptr, AlignedDeleter());
   AlignedUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedDeleter());
 }
 
-TEST(AlignedAllocatorTest, EmptyAlignedFreeUniquePtr) {
+TEST(AlignedAllocatorTest, TestEmptyAlignedFreeUniquePtr) {
   AlignedFreeUniquePtr<SampleObject<32>> ptr(nullptr, AlignedFreer());
   AlignedFreeUniquePtr<SampleObject<32>[]> arr(nullptr, AlignedFreer());
 }
 
-TEST(AlignedAllocatorTest, CustomAlloc) {
+TEST(AlignedAllocatorTest, TestCustomAlloc) {
   FakeAllocator fake_alloc;
 
   const size_t kSize = 7777;
   void* ptr =
       AllocateAlignedBytes(kSize, &FakeAllocator::StaticAlloc, &fake_alloc);
-  ASSERT_NE(nullptr, ptr);
+  HWY_ASSERT(ptr != nullptr);
   // We should have only requested one alloc from the allocator.
-  EXPECT_EQ(1U, fake_alloc.PendingAllocs());
+  HWY_ASSERT_EQ(1U, fake_alloc.PendingAllocs());
   // Make sure the pointer is actually aligned.
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
+  HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr) % HWY_ALIGNMENT);
   FreeAlignedBytes(ptr, &FakeAllocator::StaticFree, &fake_alloc);
-  EXPECT_EQ(0U, fake_alloc.PendingAllocs());
+  HWY_ASSERT_EQ(0U, fake_alloc.PendingAllocs());
 }
 
-TEST(AlignedAllocatorTest, MakeUniqueAlignedDefaultConstructor) {
+TEST(AlignedAllocatorTest, TestMakeUniqueAlignedDefaultConstructor) {
   {
     auto ptr = MakeUniqueAligned<SampleObject<24>>();
     // Default constructor sets the data_[0] to 'a'.
-    EXPECT_EQ('a', ptr->data_[0]);
-    EXPECT_EQ(nullptr, ptr->counter_);
+    HWY_ASSERT_EQ('a', ptr->data_[0]);
+    HWY_ASSERT(nullptr == ptr->counter_);
   }
 }
 
-TEST(AlignedAllocatorTest, MakeUniqueAligned) {
+TEST(AlignedAllocatorTest, TestMakeUniqueAligned) {
   int counter = 0;
   {
     // Creates the object, initializes it with the explicit constructor and
     // returns an unique_ptr to it.
     auto ptr = MakeUniqueAligned<SampleObject<24>>(&counter);
-    EXPECT_EQ(1, counter);
+    HWY_ASSERT_EQ(1, counter);
     // Custom constructor sets the data_[0] to 'b'.
-    EXPECT_EQ('b', ptr->data_[0]);
+    HWY_ASSERT_EQ('b', ptr->data_[0]);
   }
-  EXPECT_EQ(0, counter);
+  HWY_ASSERT_EQ(0, counter);
 }
 
-TEST(AlignedAllocatorTest, MakeUniqueAlignedArray) {
+TEST(AlignedAllocatorTest, TestMakeUniqueAlignedArray) {
   int counter = 0;
   {
     // Creates the array of objects and initializes them with the explicit
     // constructor.
     auto arr = MakeUniqueAlignedArray<SampleObject<24>>(7, &counter);
-    EXPECT_EQ(7, counter);
+    HWY_ASSERT_EQ(7, counter);
     for (size_t i = 0; i < 7; i++) {
       // Custom constructor sets the data_[0] to 'b'.
-      EXPECT_EQ('b', arr[i].data_[0]) << "Where i = " << i;
+      HWY_ASSERT_EQ('b', arr[i].data_[0]);
     }
   }
-  EXPECT_EQ(0, counter);
+  HWY_ASSERT_EQ(0, counter);
 }
 
-TEST(AlignedAllocatorTest, AllocSingleInt) {
+TEST(AlignedAllocatorTest, TestAllocSingleInt) {
   auto ptr = AllocateAligned<uint32_t>(1);
-  ASSERT_NE(nullptr, ptr.get());
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
+  HWY_ASSERT(ptr.get() != nullptr);
+  HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
   // Force delete of the unique_ptr now to check that it doesn't crash.
   ptr.reset(nullptr);
-  EXPECT_EQ(nullptr, ptr.get());
+  HWY_ASSERT(nullptr == ptr.get());
 }
 
-TEST(AlignedAllocatorTest, AllocMultipleInt) {
+TEST(AlignedAllocatorTest, TestAllocMultipleInt) {
   const size_t kSize = 7777;
   auto ptr = AllocateAligned<uint32_t>(kSize);
-  ASSERT_NE(nullptr, ptr.get());
-  EXPECT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
+  HWY_ASSERT(ptr.get() != nullptr);
+  HWY_ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(ptr.get()) % HWY_ALIGNMENT);
   // ptr[i] is actually (*ptr.get())[i] which will use the operator[] of the
   // underlying type chosen by AllocateAligned() for the std::unique_ptr.
-  EXPECT_EQ(&(ptr[0]) + 1, &(ptr[1]));
+  HWY_ASSERT(&(ptr[0]) + 1 == &(ptr[1]));
 
   size_t ret = 0;
   for (size_t i = 0; i < kSize; i++) {
@@ -222,10 +225,10 @@ TEST(AlignedAllocatorTest, AllocMultipleInt) {
     ptr[i] = static_cast<uint32_t>(i);
     if (i) ret += static_cast<size_t>(ptr[i]) * ptr[i - 1];
   }
-  EXPECT_NE(0U, ret);
+  HWY_ASSERT(ret != size_t{0});
 }
 
-TEST(AlignedAllocatorTest, AllocateAlignedObjectWithoutDestructor) {
+TEST(AlignedAllocatorTest, TestAllocateAlignedObjectWithoutDestructor) {
   int counter = 0;
   {
     // This doesn't call the constructor.
@@ -234,10 +237,10 @@ TEST(AlignedAllocatorTest, AllocateAlignedObjectWithoutDestructor) {
   }
   // Destroying the unique_ptr shouldn't have called the destructor of the
   // SampleObject<24>.
-  EXPECT_EQ(0, counter);
+  HWY_ASSERT_EQ(0, counter);
 }
 
-TEST(AlignedAllocatorTest, MakeUniqueAlignedArrayWithCustomAlloc) {
+TEST(AlignedAllocatorTest, TestMakeUniqueAlignedArrayWithCustomAlloc) {
   FakeAllocator fake_alloc;
   int counter = 0;
   {
@@ -246,20 +249,20 @@ TEST(AlignedAllocatorTest, MakeUniqueAlignedArrayWithCustomAlloc) {
     auto arr = MakeUniqueAlignedArrayWithAlloc<SampleObject<24>>(
         7, FakeAllocator::StaticAlloc, FakeAllocator::StaticFree, &fake_alloc,
         &counter);
-    ASSERT_NE(nullptr, arr.get());
+    HWY_ASSERT(arr.get() != nullptr);
     // An array should still only call a single allocation.
-    EXPECT_EQ(1u, fake_alloc.PendingAllocs());
-    EXPECT_EQ(7, counter);
+    HWY_ASSERT_EQ(1u, fake_alloc.PendingAllocs());
+    HWY_ASSERT_EQ(7, counter);
     for (size_t i = 0; i < 7; i++) {
       // Custom constructor sets the data_[0] to 'b'.
-      EXPECT_EQ('b', arr[i].data_[0]) << "Where i = " << i;
+      HWY_ASSERT_EQ('b', arr[i].data_[0]);
     }
   }
-  EXPECT_EQ(0, counter);
-  EXPECT_EQ(0u, fake_alloc.PendingAllocs());
+  HWY_ASSERT_EQ(0, counter);
+  HWY_ASSERT_EQ(0u, fake_alloc.PendingAllocs());
 }
 
-TEST(AlignedAllocatorTest, DefaultInit) {
+TEST(AlignedAllocatorTest, TestDefaultInit) {
   // The test is whether this compiles. Default-init is useful for output params
   // and per-thread storage.
   std::vector<AlignedUniquePtr<int[]>> ptrs;
@@ -275,8 +278,8 @@ TEST(AlignedAllocatorTest, DefaultInit) {
   const auto addr1 = reinterpret_cast<uintptr_t>(ptrs[dist(rng)].get());
   const auto addr2 = reinterpret_cast<uintptr_t>(free_ptrs[dist(rng)].get());
   constexpr size_t kBits = sizeof(uintptr_t) * 8;
-  EXPECT_EQ((addr1 >> (kBits - 1)) >> (kBits - 1),
-            (addr2 >> (kBits - 1)) >> (kBits - 1));
+  HWY_ASSERT_EQ((addr1 >> (kBits - 1)) >> (kBits - 1),
+                (addr2 >> (kBits - 1)) >> (kBits - 1));
 }
 
 namespace {
@@ -286,9 +289,9 @@ using std::vector;
 
 template <typename T>
 void CheckEqual(const T& t1, const T& t2) {
-  EXPECT_EQ(t1.size(), t2.size());
+  HWY_ASSERT_EQ(t1.size(), t2.size());
   for (size_t i = 0; i < t1.size(); i++) {
-    EXPECT_EQ(t1[i], t2[i]) << "i=" << i;
+    HWY_ASSERT_EQ(t1[i], t2[i]);
   }
 }
 
@@ -299,10 +302,10 @@ void CheckEqual(const AlignedNDArray<T, 1>& a, const vector<T>& v) {
   CheckEqual(got_shape, want_shape);
 
   Span<const T> a_span = a[{}];
-  EXPECT_EQ(a_span.size(), v.size());
+  HWY_ASSERT_EQ(a_span.size(), v.size());
   for (size_t i = 0; i < a_span.size(); i++) {
-    EXPECT_EQ(a_span[i], v[i]) << "i=" << i;
-    EXPECT_EQ(*(a_span.data() + i), v[i]) << "i=" << i;
+    HWY_ASSERT_EQ(a_span[i], v[i]);
+    HWY_ASSERT_EQ(*(a_span.data() + i), v[i]);
   }
 }
 
@@ -310,30 +313,28 @@ template <typename T>
 void CheckEqual(const AlignedNDArray<T, 2>& a, const vector<vector<T>>& v) {
   const array<size_t, 2> want_shape({v.size(), v[1].size()});
   for (const vector<T>& row : v) {
-    EXPECT_EQ(row.size(), want_shape[1]);
+    HWY_ASSERT_EQ(row.size(), want_shape[1]);
   }
   const std::array<size_t, 2> got_shape = a.shape();
   CheckEqual(got_shape, want_shape);
 
-  EXPECT_EQ(a.size(), want_shape[0] * want_shape[1]);
+  HWY_ASSERT_EQ(a.size(), want_shape[0] * want_shape[1]);
 
   for (size_t row_index = 0; row_index < v.size(); ++row_index) {
     vector<T> want_row = v[row_index];
     Span<const T> got_row = a[{row_index}];
-    EXPECT_EQ(got_row.size(), want_row.size()) << "row_index=" << row_index;
+    HWY_ASSERT_EQ(got_row.size(), want_row.size());
     for (size_t column_index = 0; column_index < got_row.size();
          column_index++) {
-      EXPECT_EQ(a[{row_index}][column_index], want_row[column_index])
-          << "row_index=" << row_index << ", column_index=" << column_index;
-      EXPECT_EQ(got_row[column_index], want_row[column_index])
-          << "row_index=" << row_index << ", column_index=" << column_index;
-      EXPECT_EQ(*(a[{row_index}].data() + column_index), want_row[column_index])
-          << "row_index=" << row_index << ", column_index=" << column_index;
+      HWY_ASSERT_EQ(a[{row_index}][column_index], want_row[column_index]);
+      HWY_ASSERT_EQ(got_row[column_index], want_row[column_index]);
+      HWY_ASSERT_EQ(*(a[{row_index}].data() + column_index),
+                    want_row[column_index]);
     }
   }
 }
 
-TEST(AlignedAllocatorTest, AlignedNDArray) {
+TEST(AlignedAllocatorTest, TestAlignedNDArray) {
   AlignedNDArray<float, 1> a1({4});
   CheckEqual(a1, {0, 0, 0, 0});
   a1[{}][2] = 3.4f;
@@ -352,7 +353,7 @@ TEST(AlignedAllocatorTest, AlignedNDArray) {
 
 // Tests that each innermost row in an AlignedNDArray is aligned to the max
 // bytes available for SIMD operations on this architecture.
-TEST(AlignedAllocatorTest, AlignedNDArrayAlignment) {
+TEST(AlignedAllocatorTest, TestAlignedNDArrayAlignment) {
   AlignedNDArray<float, 4> a({3, 3, 3, 3});
   for (size_t d0 = 0; d0 < a.shape()[0]; d0++) {
     for (size_t d1 = 0; d1 < a.shape()[1]; d1++) {
@@ -360,7 +361,7 @@ TEST(AlignedAllocatorTest, AlignedNDArrayAlignment) {
         // Check that the address this innermost array starts at is an even
         // number of VectorBytes(), which is the max bytes available for SIMD
         // operations.
-        EXPECT_EQ(
+        HWY_ASSERT_EQ(
             reinterpret_cast<uintptr_t>(a[{d0, d1, d2}].data()) % VectorBytes(),
             0);
       }
@@ -368,7 +369,7 @@ TEST(AlignedAllocatorTest, AlignedNDArrayAlignment) {
   }
 }
 
-TEST(AlignedAllocatorTest, SpanCopyAssignment) {
+TEST(AlignedAllocatorTest, TestSpanCopyAssignment) {
   AlignedNDArray<float, 2> a({2, 2});
   CheckEqual(a, {{0.0f, 0.0f}, {0.0f, 0.0f}});
   a[{0}] = {1.0f, 2.0f};
@@ -376,7 +377,7 @@ TEST(AlignedAllocatorTest, SpanCopyAssignment) {
   CheckEqual(a, {{1.0f, 2.0f}, {3.0f, 4.0f}});
 }
 
-TEST(AlignedAllocatorTest, AlignedNDArrayTruncate) {
+TEST(AlignedAllocatorTest, TestAlignedNDArrayTruncate) {
   AlignedNDArray<size_t, 4> a({8, 8, 8, 8});
   const size_t last_axis_memory_shape = a.memory_shape()[3];
   const auto compute_value = [&](const std::array<size_t, 4>& index) {
@@ -398,51 +399,51 @@ TEST(AlignedAllocatorTest, AlignedNDArrayTruncate) {
       for (size_t axis1 = 0; axis1 < array.shape()[1]; ++axis1) {
         for (size_t axis2 = 0; axis2 < array.shape()[2]; ++axis2) {
           for (size_t axis3 = 0; axis3 < array.shape()[3]; ++axis3) {
-            EXPECT_EQ((array[{axis0, axis1, axis2}][axis3]),
-                      (compute_value({axis0, axis1, axis2, axis3})));
+            HWY_ASSERT_EQ((array[{axis0, axis1, axis2}][axis3]),
+                          (compute_value({axis0, axis1, axis2, axis3})));
           }
         }
       }
     }
   };
   a.truncate({7, 7, 7, 7});
-  EXPECT_EQ(a.shape()[0], 7);
-  EXPECT_EQ(a.shape()[1], 7);
-  EXPECT_EQ(a.shape()[2], 7);
-  EXPECT_EQ(a.shape()[3], 7);
-  EXPECT_EQ(a.memory_shape()[0], 8);
-  EXPECT_EQ(a.memory_shape()[1], 8);
-  EXPECT_EQ(a.memory_shape()[2], 8);
-  EXPECT_EQ(a.memory_shape()[3], last_axis_memory_shape);
+  HWY_ASSERT_EQ(a.shape()[0], 7);
+  HWY_ASSERT_EQ(a.shape()[1], 7);
+  HWY_ASSERT_EQ(a.shape()[2], 7);
+  HWY_ASSERT_EQ(a.shape()[3], 7);
+  HWY_ASSERT_EQ(a.memory_shape()[0], 8);
+  HWY_ASSERT_EQ(a.memory_shape()[1], 8);
+  HWY_ASSERT_EQ(a.memory_shape()[2], 8);
+  HWY_ASSERT_EQ(a.memory_shape()[3], last_axis_memory_shape);
   verify_values(a);
   a.truncate({6, 5, 4, 3});
-  EXPECT_EQ(a.shape()[0], 6);
-  EXPECT_EQ(a.shape()[1], 5);
-  EXPECT_EQ(a.shape()[2], 4);
-  EXPECT_EQ(a.shape()[3], 3);
-  EXPECT_EQ(a.memory_shape()[0], 8);
-  EXPECT_EQ(a.memory_shape()[1], 8);
-  EXPECT_EQ(a.memory_shape()[2], 8);
-  EXPECT_EQ(a.memory_shape()[3], last_axis_memory_shape);
+  HWY_ASSERT_EQ(a.shape()[0], 6);
+  HWY_ASSERT_EQ(a.shape()[1], 5);
+  HWY_ASSERT_EQ(a.shape()[2], 4);
+  HWY_ASSERT_EQ(a.shape()[3], 3);
+  HWY_ASSERT_EQ(a.memory_shape()[0], 8);
+  HWY_ASSERT_EQ(a.memory_shape()[1], 8);
+  HWY_ASSERT_EQ(a.memory_shape()[2], 8);
+  HWY_ASSERT_EQ(a.memory_shape()[3], last_axis_memory_shape);
   verify_values(a);
 }
 
-TEST(AlignedAllocatorTest, AlignedVectorTest) {
+TEST(AlignedAllocatorTest, TestAlignedVector) {
   std::vector<int> vec{0, 1, 2, 3, 4};
-  EXPECT_EQ(5, vec.size());
-  EXPECT_EQ(0, vec[0]);
-  EXPECT_EQ(2, vec.at(2));
-  EXPECT_EQ(0, vec.front());
-  EXPECT_EQ(4, vec.back());
+  HWY_ASSERT_EQ(5, vec.size());
+  HWY_ASSERT_EQ(0, vec[0]);
+  HWY_ASSERT_EQ(2, vec.at(2));
+  HWY_ASSERT_EQ(0, vec.front());
+  HWY_ASSERT_EQ(4, vec.back());
 
   vec.pop_back();
-  EXPECT_EQ(3, vec.back());
-  EXPECT_EQ(4, vec.size());
+  HWY_ASSERT_EQ(3, vec.back());
+  HWY_ASSERT_EQ(4, vec.size());
 
   vec.push_back(4);
   vec.push_back(5);
-  EXPECT_EQ(5, vec.back());
-  EXPECT_EQ(6, vec.size());
+  HWY_ASSERT_EQ(5, vec.back());
+  HWY_ASSERT_EQ(6, vec.size());
 
   const size_t initialCapacity = vec.capacity();
 
@@ -452,15 +453,16 @@ TEST(AlignedAllocatorTest, AlignedVectorTest) {
   }
 
   // Check if the capacity increased and elements are intact
-  EXPECT_GT(vec.capacity(), initialCapacity);
-  for (std::size_t i = 0; i < vec.size(); ++i) {
-    EXPECT_EQ(i, vec[i]);
+  HWY_ASSERT(vec.capacity() > initialCapacity);
+  for (size_t i = 0; i < vec.size(); ++i) {
+    HWY_ASSERT_EQ(i, vec[i]);
   }
 
   vec.clear();
-  EXPECT_TRUE(vec.empty());
+  HWY_ASSERT(vec.empty());
 }
 
 }  // namespace
-
 }  // namespace hwy
+
+HWY_TEST_MAIN();

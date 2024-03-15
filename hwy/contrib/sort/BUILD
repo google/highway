@@ -191,6 +191,11 @@ cc_binary(
     ],
 )
 
+TEST_MAIN = select({
+    "//:compiler_msvc": [],
+    "//conditions:default": ["@com_google_googletest//:gtest_main"],
+})
+
 cc_test(
     name = "sort_test",
     size = "medium",
@@ -202,10 +207,9 @@ cc_test(
     deps = [
         ":helpers",
         ":vqsort_for_test",
-        "@com_google_googletest//:gtest_main",
         "//:hwy",
         "//:hwy_test_util",
-    ],
+    ] + TEST_MAIN,
 )
 
 cc_test(
@@ -219,11 +223,10 @@ cc_test(
     deps = [
         ":helpers",
         ":vqsort",
-        "@com_google_googletest//:gtest_main",
         "//:hwy",
         "//:hwy_test_util",
         "//:nanobenchmark",
-    ],
+    ] + TEST_MAIN,
 )
 
 cc_binary(
@@ -235,8 +238,7 @@ cc_binary(
     deps = [
         ":helpers",
         ":vqsort",
-        "@com_google_googletest//:gtest_main",
         "//:hwy",
         "//:hwy_test_util",
-    ],
+    ] + TEST_MAIN,
 )

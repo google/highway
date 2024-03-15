@@ -228,6 +228,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyDup128VecTest);
 HWY_EXPORT_AND_TEST_P(HwyDup128VecTest, TestAllDup128VecFromValues);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif  // HWY_ONCE

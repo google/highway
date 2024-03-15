@@ -92,6 +92,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(TupleTest);
 HWY_EXPORT_AND_TEST_P(TupleTest, TestAllCreate);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif  // HWY_ONCE
