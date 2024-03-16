@@ -300,6 +300,7 @@ HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverse8);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverseLaneBytes);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverseBits);
 HWY_EXPORT_AND_TEST_P(HwyReverseTest, TestAllReverseBlocks);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

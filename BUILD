@@ -524,8 +524,10 @@ HWY_TEST_DEPS = [
     ":thread_pool",
     ":unroller",
     "//hwy/contrib/sort:vqsort",
-    "@com_google_googletest//:gtest_main",
-]
+] + select({
+    ":compiler_msvc": [],
+    "//conditions:default": ["@com_google_googletest//:gtest_main"],
+})
 
 [
     [

@@ -483,6 +483,7 @@ HWY_BEFORE_TEST(UnrollerTest);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllDot);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllConvert);
 HWY_EXPORT_AND_TEST_P(UnrollerTest, TestAllFind);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

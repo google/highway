@@ -10843,6 +10843,16 @@ HWY_API Mask128<float16_t, N> IsNaN(const Vec128<float16_t, N> v) {
 }
 
 template <size_t N>
+HWY_API Mask128<float16_t, N> IsEitherNaN(Vec128<float16_t, N> a,
+                                          Vec128<float16_t, N> b) {
+  // Work around warnings in the intrinsic definitions (passing -1 as a mask).
+  HWY_DIAGNOSTICS(push)
+  HWY_DIAGNOSTICS_OFF(disable : 4245 4365, ignored "-Wsign-conversion")
+  return Mask128<float16_t, N>{_mm_cmp_ph_mask(a.raw, b.raw, _CMP_UNORD_Q)};
+  HWY_DIAGNOSTICS(pop)
+}
+
+template <size_t N>
 HWY_API Mask128<float16_t, N> IsInf(const Vec128<float16_t, N> v) {
   return Mask128<float16_t, N>{_mm_fpclass_ph_mask(
       v.raw, HWY_X86_FPCLASS_NEG_INF | HWY_X86_FPCLASS_POS_INF)};
@@ -10875,6 +10885,31 @@ HWY_API Mask128<double, N> IsNaN(const Vec128<double, N> v) {
       _mm_fpclass_pd_mask(v.raw, HWY_X86_FPCLASS_SNAN | HWY_X86_FPCLASS_QNAN)};
 #else
   return Mask128<double, N>{_mm_cmpunord_pd(v.raw, v.raw)};
+#endif
+}
+
+#ifdef HWY_NATIVE_IS_EITHER_NAN
+#undef HWY_NATIVE_IS_EITHER_NAN
+#else
+#define HWY_NATIVE_IS_EITHER_NAN
+#endif
+
+template <size_t N>
+HWY_API Mask128<float, N> IsEitherNaN(Vec128<float, N> a, Vec128<float, N> b) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask128<float, N>{_mm_cmp_ps_mask(a.raw, b.raw, _CMP_UNORD_Q)};
+#else
+  return Mask128<float, N>{_mm_cmpunord_ps(a.raw, b.raw)};
+#endif
+}
+
+template <size_t N>
+HWY_API Mask128<double, N> IsEitherNaN(Vec128<double, N> a,
+                                       Vec128<double, N> b) {
+#if HWY_TARGET <= HWY_AVX3
+  return Mask128<double, N>{_mm_cmp_pd_mask(a.raw, b.raw, _CMP_UNORD_Q)};
+#else
+  return Mask128<double, N>{_mm_cmpunord_pd(a.raw, b.raw)};
 #endif
 }
 

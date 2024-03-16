@@ -286,6 +286,7 @@ HWY_EXPORT_AND_TEST_P(HwyExpandTest, PrintTables);
 #else
 HWY_EXPORT_AND_TEST_P(HwyExpandTest, TestAllExpand);
 #endif
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

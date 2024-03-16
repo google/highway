@@ -646,7 +646,7 @@ HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForDemoteVectors);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForHalfVectors);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForPartialVectors);
 HWY_EXPORT_AND_TEST_P(HwyForeachVecTest, TestAllForPartialFixedOrFullVectors);
-
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

@@ -223,6 +223,7 @@ HWY_EXPORT_AND_TEST_P(HwyInterleavedTest, TestAllLoadStoreInterleaved2);
 HWY_EXPORT_AND_TEST_P(HwyInterleavedTest, TestAllLoadStoreInterleaved3);
 HWY_EXPORT_AND_TEST_P(HwyInterleavedTest, TestAllLoadStoreInterleaved4);
 #endif
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

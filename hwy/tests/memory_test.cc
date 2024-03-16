@@ -580,6 +580,7 @@ HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadN);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadNOr);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStoreN);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

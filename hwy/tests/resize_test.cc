@@ -179,6 +179,7 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyResizeTest);
 HWY_EXPORT_AND_TEST_P(HwyResizeTest, TestAllTruncatingResizeBitCast);
 HWY_EXPORT_AND_TEST_P(HwyResizeTest, TestAllExtendingResizeBitCast);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif  // HWY_ONCE

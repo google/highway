@@ -433,6 +433,7 @@ HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllTanh);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllAtan2);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosSin);
 HWY_EXPORT_AND_TEST_P(HwyMathTest, TestAllSinCosCos);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

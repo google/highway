@@ -221,6 +221,7 @@ namespace hwy {
 HWY_BEFORE_TEST(FindTest);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFind);
 HWY_EXPORT_AND_TEST_P(FindTest, TestAllFindIf);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

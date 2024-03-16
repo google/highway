@@ -825,6 +825,7 @@ HWY_EXPORT_AND_TEST_P(HwyCompressTest, PrintTables);
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompress);
 HWY_EXPORT_AND_TEST_P(HwyCompressTest, TestAllCompressBlocks);
 #endif
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

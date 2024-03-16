@@ -15,7 +15,10 @@
 
 #include "hwy/targets.h"
 
+#include <stdint.h>
+
 #include "hwy/detect_targets.h"
+#include "hwy/tests/hwy_gtest.h"
 #include "hwy/tests/test_util-inl.h"
 
 namespace fake {
@@ -59,7 +62,7 @@ DECLARE_FUNCTION(EMU128)
 
 HWY_EXPORT(FakeFunction);
 
-void CallFunctionForTarget(int64_t target, int line) {
+void CallFunctionForTarget(int64_t target, int /*line*/) {
   if ((HWY_TARGETS & target) == 0) return;
   hwy::SetSupportedTargetsForTest(target);
 
@@ -67,20 +70,21 @@ void CallFunctionForTarget(int64_t target, int line) {
   // the pointer to the already cached function.
   hwy::GetChosenTarget().Update(hwy::SupportedTargets());
 
-  EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+  HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 
   // Calling DeInit() will test that the initializer function
   // also calls the right function.
   hwy::GetChosenTarget().DeInit();
 
 #if HWY_DISPATCH_WORKAROUND
-  EXPECT_EQ(HWY_STATIC_TARGET, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+  const int64_t expected = HWY_STATIC_TARGET;
 #else
-  EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+  const int64_t expected = target;
 #endif
+  HWY_ASSERT_EQ(expected, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 
   // Second call uses the cached value from the previous call.
-  EXPECT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42)) << line;
+  HWY_ASSERT_EQ(target, HWY_DYNAMIC_DISPATCH(FakeFunction)(42));
 }
 
 void CheckFakeFunction() {
@@ -122,20 +126,17 @@ void CheckFakeFunction() {
 
 namespace hwy {
 
-class HwyTargetsTest : public testing::Test {
- protected:
-  void TearDown() override {
-    SetSupportedTargetsForTest(0);
-    DisableTargets(0);  // Reset the mask.
-  }
-};
+#if !HWY_TEST_STANDALONE
+class HwyTargetsTest : public testing::Test {};
+#endif
 
 // Test that the order in the HWY_EXPORT static array matches the expected
 // value of the target bits. This is only checked for the targets that are
 // enabled in the current compilation.
-TEST_F(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
+TEST(HwyTargetsTest, ChosenTargetOrderTest) { fake::CheckFakeFunction(); }
 
-TEST_F(HwyTargetsTest, DisabledTargetsTest) {
+TEST(HwyTargetsTest, DisabledTargetsTest) {
+  SetSupportedTargetsForTest(0);
   DisableTargets(~0LL);
   // Check that disabling everything at least leaves the static target.
   HWY_ASSERT(HWY_STATIC_TARGET == SupportedTargets());
@@ -160,3 +161,5 @@ TEST_F(HwyTargetsTest, DisabledTargetsTest) {
 }
 
 }  // namespace hwy
+
+HWY_TEST_MAIN();

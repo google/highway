@@ -728,6 +728,7 @@ HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllDemoteToBF16);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllReorderDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllOrderedDemote2To);
 HWY_EXPORT_AND_TEST_P(HwyDemoteTest, TestAllI32F64);
+HWY_AFTER_TEST();
 #endif  //  !HWY_IS_MSAN
 }  // namespace hwy
 

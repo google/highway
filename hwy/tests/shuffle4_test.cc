@@ -223,6 +223,7 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 HWY_BEFORE_TEST(HwyShuffle4Test);
 HWY_EXPORT_AND_TEST_P(HwyShuffle4Test, TestAllPer4LaneBlockShuffle);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

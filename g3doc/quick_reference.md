@@ -917,6 +917,11 @@ Per-lane variable shifts (slow if SSSE3/SSE4, or 16-bit, or Shr i64 on AVX2):
     "not a number" (unordered).
 
 *   `V`: `{f}` \
+    <code>M **IsEitherNaN**(V a, V b)</code>: equivalent to
+    `Or(IsNaN(a), IsNaN(b))`, but `IsEitherNaN(a, b)` is more efficient than
+    `Or(IsNaN(a), IsNaN(b))` on x86.
+
+*   `V`: `{f}` \
     <code>M **IsInf**(V v)</code>: returns mask indicating whether `v[i]` is
     positive or negative infinity.
 

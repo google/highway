@@ -4,13 +4,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
+#include <iostream>  // cerr
 #include <random>
 
 // clang-format off
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "hwy/contrib/random/random_test.cc"
+#define HWY_TARGET_INCLUDE "hwy/contrib/random/random_test.cc"  // NOLINT
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 #include "hwy/highway.h"
 #include "hwy/contrib/random/random-inl.h"
@@ -307,6 +309,7 @@ HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestNextFixedNUniformDist);
 HWY_EXPORT_AND_TEST_P(HwyRandomTest, TestUniformCachedXorshiro);
 #endif
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

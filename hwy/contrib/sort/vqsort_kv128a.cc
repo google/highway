@@ -33,6 +33,10 @@ void SortKV128Asc(K64V64* HWY_RESTRICT keys, size_t num) {
   return VQSortStatic(keys, num, SortAscending());
 }
 
+void SelectKV128Asc(K64V64* HWY_RESTRICT keys, size_t num, size_t k) {
+  return VQSelectStatic(keys, num, k, SortAscending());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -42,10 +46,15 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_EXPORT(SortKV128Asc);
+HWY_EXPORT(SelectKV128Asc);
 }  // namespace
 
 void VQSort(K64V64* HWY_RESTRICT keys, size_t n, SortAscending) {
   HWY_DYNAMIC_DISPATCH(SortKV128Asc)(keys, n);
+}
+
+void VQSelect(K64V64* HWY_RESTRICT keys, size_t n, size_t k, SortAscending) {
+  HWY_DYNAMIC_DISPATCH(SelectKV128Asc)(keys, n, k);
 }
 
 }  // namespace hwy

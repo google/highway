@@ -30,6 +30,10 @@ void SortI32Desc(int32_t* HWY_RESTRICT keys, size_t num) {
   return VQSortStatic(keys, num, SortDescending());
 }
 
+void SelectI32Desc(int32_t* HWY_RESTRICT keys, size_t num, size_t k) {
+  return VQSelectStatic(keys, num, k, SortDescending());
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace hwy
@@ -39,10 +43,15 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_EXPORT(SortI32Desc);
+HWY_EXPORT(SelectI32Desc);
 }  // namespace
 
 void VQSort(int32_t* HWY_RESTRICT keys, size_t n, SortDescending) {
   HWY_DYNAMIC_DISPATCH(SortI32Desc)(keys, n);
+}
+
+void VQSelect(int32_t* HWY_RESTRICT keys, size_t n, size_t k, SortDescending) {
+  HWY_DYNAMIC_DISPATCH(SelectI32Desc)(keys, n, k);
 }
 
 }  // namespace hwy

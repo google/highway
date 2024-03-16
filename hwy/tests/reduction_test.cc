@@ -360,6 +360,7 @@ HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllMinMaxOfLanes);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf2);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf4);
 HWY_EXPORT_AND_TEST_P(HwyReductionTest, TestAllSumsOf8);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

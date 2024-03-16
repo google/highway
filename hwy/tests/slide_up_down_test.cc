@@ -466,6 +466,7 @@ HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideUpLanes);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideDownLanes);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlide1);
 HWY_EXPORT_AND_TEST_P(HwySlideUpDownTest, TestAllSlideBlocks);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

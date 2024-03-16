@@ -711,6 +711,7 @@ HWY_BEFORE_TEST(HwyCryptoTest);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAES);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllAESInverse);
 HWY_EXPORT_AND_TEST_P(HwyCryptoTest, TestAllCLMul);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif

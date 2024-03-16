@@ -631,6 +631,7 @@ HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllSaturatedNeg);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerAbsDiff);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerDiv);
 HWY_EXPORT_AND_TEST_P(HwyArithmeticTest, TestAllIntegerMod);
+HWY_AFTER_TEST();
 }  // namespace hwy
 
 #endif
