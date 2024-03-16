@@ -204,6 +204,13 @@ void HeapSelect(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
   st.Swap(lanes + 0, lanes + k - 1);
 }
 
+template <class Traits, typename T>
+void HeapPartialSort(Traits st, T* HWY_RESTRICT lanes, const size_t num_lanes,
+                     const size_t select) {
+  HeapSelect(st, lanes, num_lanes, select);
+  HeapSort(st, lanes, select);
+}
+
 #if VQSORT_ENABLED || HWY_IDE
 
 // ------------------------------ BaseCase
@@ -1928,7 +1935,7 @@ HWY_INLINE size_t CountAndReplaceNaN(D, Traits, T* HWY_RESTRICT, size_t) {
 // by the newer overload below. `buf` must be vector-aligned and hold at least
 // SortConstants::BufBytes(HWY_MAX_BYTES, st.LanesPerKey()).
 template <class D, class Traits, typename T>
-void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
+void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
           T* HWY_RESTRICT buf) {
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr,
@@ -1969,8 +1976,8 @@ void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 }
 
 template <class D, class Traits, typename T>
-void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
-            T* HWY_RESTRICT buf) {
+void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
+            const size_t k, T* HWY_RESTRICT buf) {
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "=============== Select num=%zu, vec bytes=%d\n", num,
             static_cast<int>(sizeof(T) * Lanes(d)));
@@ -2000,7 +2007,49 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
   if (VQSORT_PRINT >= 1) {
     fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
   }
-  detail::HeapSelect(st, keys, num);
+  detail::HeapSelect(st, keys, num, k);
+#endif  // VQSORT_ENABLED
+
+  if (num_nan != 0) {
+    Fill(d, GetLane(NaN(d)), num_nan, keys + num - num_nan);
+  }
+}
+
+template <class D, class Traits, typename T>
+void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
+                 T* HWY_RESTRICT buf) {
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "=============== PartialSort num=%zu, vec bytes=%d\n", num,
+            static_cast<int>(sizeof(T) * Lanes(d)));
+  }
+
+#if HWY_MAX_BYTES > 64
+  // sorting_networks-inl and traits assume no more than 512 bit vectors.
+  if (HWY_UNLIKELY(Lanes(d) > 64 / sizeof(T))) {
+    return PartialSort(CappedTag<T, 64 / sizeof(T)>(), st, keys, num, k, buf);
+  }
+#endif  // HWY_MAX_BYTES > 64
+
+  const size_t num_nan = detail::CountAndReplaceNaN(d, st, keys, num);
+
+#if VQSORT_ENABLED || HWY_IDE
+  if (!detail::HandleSpecialCases(d, st, keys, num, buf)) {  // TODO
+    uint64_t* HWY_RESTRICT state = hwy::detail::GetGeneratorStateStatic();
+    // Introspection: switch to worst-case N*logN heapsort after this many.
+    // Should never be reached, so computing log2 exactly does not help.
+    const size_t max_levels = 50;
+    detail::Recurse<detail::RecurseMode::kSelect>(d, st, keys, num, buf, state,
+                                                  max_levels, k);
+    detail::Recurse<detail::RecurseMode::kSort>(d, st, keys, k, buf, state,
+                                                max_levels);
+  }
+#else   // !VQSORT_ENABLED
+  (void)d;
+  (void)buf;
+  if (VQSORT_PRINT >= 1) {
+    fprintf(stderr, "WARNING: using slow HeapSort because vqsort disabled\n");
+  }
+  detail::HeapPartialSort(st, keys, num, k);
 #endif  // VQSORT_ENABLED
 
   if (num_nan != 0) {
@@ -2021,23 +2070,33 @@ void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num, size_t k,
 // `st` is SharedTraits<Traits*<Order*>>. This abstraction layer bridges
 //   differences in sort order and single-lane vs 128-bit keys.
 template <class D, class Traits, typename T>
-HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, size_t num) {
+HWY_API void Sort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num) {
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
   return Sort(d, st, keys, num, buf);
+}
+
+// Rearranges elements such that the range [0, k) contains the sorted k − first
+// smallest elements in the range [0, n) ordered by `st.Compare`.
+template <class D, class Traits, typename T>
+HWY_API void PartialSort(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
+                         const size_t k) {
+  HWY_ASSERT(k < num);
+  constexpr size_t kLPK = st.LanesPerKey();
+  HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
+  PartialSort(d, st, keys, num, k, buf);
 }
 
 // Reorders `keys[0..num-1]` such that `keys[k]` is the k-th element if keys was
 // sorted by `st.Compare`, and all of the elements before it are ordered
 // by `st.Compare` relative to `keys[k]`. Rest as above, for Sort.
 template <class D, class Traits, typename T>
-HWY_API void Select(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
-                    size_t k) {
+HWY_API void Select(D d, Traits st, T* HWY_RESTRICT keys, const size_t num,
+                    const size_t k) {
+  HWY_ASSERT(k < num);
   constexpr size_t kLPK = st.LanesPerKey();
   HWY_ALIGN T buf[SortConstants::BufBytes<T, kLPK>(HWY_MAX_BYTES) / sizeof(T)];
-  if (k < num) {
-    Select(d, st, keys, num, k, buf);
-  }
+  Select(d, st, keys, num, k, buf);
 }
 
 #if VQSORT_ENABLED
@@ -2089,7 +2148,7 @@ struct KeyAdapter<hwy::K32V32> {
 // types: 16-64 bit unsigned/signed/floating-point (but float64 only #if
 // HWY_HAVE_FLOAT64), uint128_t, K64V64, K32V32.
 template <typename T>
-void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortAscending) {
+void VQSortStatic(T* HWY_RESTRICT keys, const size_t num, SortAscending) {
 #if VQSORT_ENABLED
   using Adapter = detail::KeyAdapter<T>;
   using Order = typename Adapter::Ascending;
@@ -2105,7 +2164,7 @@ void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortAscending) {
 }
 
 template <typename T>
-void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortDescending) {
+void VQSortStatic(T* HWY_RESTRICT keys, const size_t num, SortDescending) {
 #if VQSORT_ENABLED
   using Adapter = detail::KeyAdapter<T>;
   using Order = typename Adapter::Descending;
@@ -2121,7 +2180,44 @@ void VQSortStatic(T* HWY_RESTRICT keys, size_t num, SortDescending) {
 }
 
 template <typename T>
-void VQSelectStatic(T* HWY_RESTRICT keys, size_t num, size_t k, SortAscending) {
+void VQPartialSortStatic(T* HWY_RESTRICT keys, const size_t num, const size_t k,
+                         SortAscending) {
+#if VQSORT_ENABLED
+  using Adapter = detail::KeyAdapter<T>;
+  using Order = typename Adapter::Ascending;
+  const detail::SharedTraits<typename Adapter::template Traits<Order>> st;
+  using LaneType = typename decltype(st)::LaneType;
+  const SortTag<LaneType> d;
+  PartialSort(d, st, reinterpret_cast<LaneType*>(keys), num * st.LanesPerKey(),
+              k);
+#else
+  (void)keys;
+  (void)num;
+  HWY_ASSERT(0);
+#endif  // VQSORT_ENABLED
+}
+
+template <typename T>
+void VQPartialSortStatic(T* HWY_RESTRICT keys, const size_t num, const size_t k,
+                         SortDescending) {
+#if VQSORT_ENABLED
+  using Adapter = detail::KeyAdapter<T>;
+  using Order = typename Adapter::Descending;
+  const detail::SharedTraits<typename Adapter::template Traits<Order>> st;
+  using LaneType = typename decltype(st)::LaneType;
+  const SortTag<LaneType> d;
+  PartialSort(d, st, reinterpret_cast<LaneType*>(keys), num * st.LanesPerKey(),
+              k);
+#else
+  (void)keys;
+  (void)num;
+  HWY_ASSERT(0);
+#endif  // VQSORT_ENABLED
+}
+
+template <typename T>
+void VQSelectStatic(T* HWY_RESTRICT keys, const size_t num, const size_t k,
+                    SortAscending) {
 #if VQSORT_ENABLED
   using Adapter = detail::KeyAdapter<T>;
   using Order = typename Adapter::Ascending;
@@ -2137,7 +2233,7 @@ void VQSelectStatic(T* HWY_RESTRICT keys, size_t num, size_t k, SortAscending) {
 }
 
 template <typename T>
-void VQSelectStatic(T* HWY_RESTRICT keys, size_t num, size_t k,
+void VQSelectStatic(T* HWY_RESTRICT keys, const size_t num, const size_t k,
                     SortDescending) {
 #if VQSORT_ENABLED
   using Adapter = detail::KeyAdapter<T>;

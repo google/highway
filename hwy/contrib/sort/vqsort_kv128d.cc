@@ -29,11 +29,17 @@ HWY_BEFORE_NAMESPACE();
 namespace hwy {
 namespace HWY_NAMESPACE {
 
-void SortKV128Desc(K64V64* HWY_RESTRICT keys, size_t num) {
+void SortKV128Desc(K64V64* HWY_RESTRICT keys, const size_t num) {
   return VQSortStatic(keys, num, SortDescending());
 }
 
-void SelectKV128Desc(K64V64* HWY_RESTRICT keys, size_t num, size_t k) {
+void PartialSortKV128Desc(K64V64* HWY_RESTRICT keys, const size_t num,
+                          const size_t k) {
+  return VQPartialSortStatic(keys, num, k, SortDescending());
+}
+
+void SelectKV128Desc(K64V64* HWY_RESTRICT keys, const size_t num,
+                     const size_t k) {
   return VQSelectStatic(keys, num, k, SortDescending());
 }
 
@@ -46,14 +52,21 @@ HWY_AFTER_NAMESPACE();
 namespace hwy {
 namespace {
 HWY_EXPORT(SortKV128Desc);
+HWY_EXPORT(PartialSortKV128Desc);
 HWY_EXPORT(SelectKV128Desc);
 }  // namespace
 
-void VQSort(K64V64* HWY_RESTRICT keys, size_t n, SortDescending) {
+void VQSort(K64V64* HWY_RESTRICT keys, const size_t n, SortDescending) {
   HWY_DYNAMIC_DISPATCH(SortKV128Desc)(keys, n);
 }
 
-void VQSelect(K64V64* HWY_RESTRICT keys, size_t n, size_t k, SortDescending) {
+void VQPartialSort(K64V64* HWY_RESTRICT keys, const size_t n, const size_t k,
+                   SortDescending) {
+  HWY_DYNAMIC_DISPATCH(PartialSortKV128Desc)(keys, n, k);
+}
+
+void VQSelect(K64V64* HWY_RESTRICT keys, const size_t n, const size_t k,
+              SortDescending) {
   HWY_DYNAMIC_DISPATCH(SelectKV128Desc)(keys, n, k);
 }
 
