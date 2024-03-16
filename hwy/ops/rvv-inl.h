@@ -436,22 +436,134 @@ HWY_RVV_FOREACH(HWY_SPECIALIZE, _, _, _ALL)
 // ------------------------------ Lanes
 
 // WARNING: we want to query VLMAX/sizeof(T), but this may actually change VL!
-#define HWY_RVV_LANES(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT, \
-                      MLEN, NAME, OP)                                         \
-  template <size_t N>                                                         \
-  HWY_API size_t NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d) {                     \
-    constexpr size_t kFull = HWY_LANES(HWY_RVV_T(BASE, SEW));                 \
-    constexpr size_t kCap = MaxLanes(d);                                      \
-    /* If no cap, avoid generating a constant by using VLMAX. */              \
-    return N == kFull ? __riscv_vsetvlmax_e##SEW##LMUL()                      \
-                      : __riscv_vsetvl_e##SEW##LMUL(kCap);                    \
-  }                                                                           \
-  template <size_t N>                                                         \
-  HWY_API size_t Capped##NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, size_t cap) { \
-    /* If no cap, avoid the HWY_MIN. */                                       \
-    return detail::IsFull(d)                                                  \
-               ? __riscv_vsetvl_e##SEW##LMUL(cap)                             \
-               : __riscv_vsetvl_e##SEW##LMUL(HWY_MIN(cap, MaxLanes(d)));      \
+
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+// HWY_RVV_CAPPED_LANES_SPECIAL_CASES provides some additional optimizations
+// to CappedLanes in non-debug builds
+#define HWY_RVV_CAPPED_LANES_SPECIAL_CASES(BASE, SEW, LMUL)                    \
+  if (__builtin_constant_p(cap >= kMaxLanes) && (cap >= kMaxLanes)) {          \
+    /* If cap is known to be greater than or equal to MaxLanes(d), */          \
+    /* HWY_MIN(cap, Lanes(d)) will be equal to Lanes(d) */                     \
+    return Lanes(d);                                                           \
+  }                                                                            \
+                                                                               \
+  if ((__builtin_constant_p((cap & (cap - 1)) == 0) &&                         \
+       ((cap & (cap - 1)) == 0)) ||                                            \
+      (__builtin_constant_p(cap <= HWY_MAX(kMinLanesPerFullVec, 4)) &&         \
+       (cap <= HWY_MAX(kMinLanesPerFullVec, 4)))) {                            \
+    /* If cap is known to be a power of 2, then */                             \
+    /* vsetvl(HWY_MIN(cap, kMaxLanes)) is guaranteed to return the same */     \
+    /* result as HWY_MIN(cap, Lanes(d)) as kMaxLanes is a power of 2 and */    \
+    /* as (cap > VLMAX && cap < 2 * VLMAX) can only be true if cap is not a */ \
+    /* power of 2 since VLMAX is always a power of 2 */                        \
+                                                                               \
+    /* If cap is known to be less than or equal to 4, then */                  \
+    /* vsetvl(HWY_MIN(cap, kMaxLanes)) is guaranteed to return the same */     \
+    /* result as HWY_MIN(cap, Lanes(d)) as HWY_MIN(cap, kMaxLanes) <= 4 is */  \
+    /* true if cap <= 4 and as vsetvl(HWY_MIN(cap, kMaxLanes)) is */           \
+    /* guaranteed to return the same result as HWY_MIN(cap, Lanes(d)) */       \
+    /* if HWY_MIN(cap, kMaxLanes) <= 4 is true */                              \
+                                                                               \
+    /* If cap is known to be less than or equal to kMinLanesPerFullVec, */     \
+    /* then vsetvl(HWY_MIN(cap, kMaxLanes)) is guaranteed to return the */     \
+    /* same result as HWY_MIN(cap, Lanes(d)) as */                             \
+    /* HWY_MIN(cap, kMaxLanes) <= kMinLanesPerFullVec is true if */            \
+    /* cap <= kMinLanesPerFullVec is true */                                   \
+                                                                               \
+    /* If cap <= HWY_MAX(kMinLanesPerFullVec, 4) is true, then either */       \
+    /* cap <= 4 or cap <= kMinLanesPerFullVec must be true */                  \
+                                                                               \
+    /* If cap <= HWY_MAX(kMinLanesPerFullVec, 4) is known to be true, */       \
+    /* then vsetvl(HWY_MIN(cap, kMaxLanes)) is guaranteed to return the */     \
+    /* same result as HWY_MIN(cap, Lanes(d)) */                                \
+                                                                               \
+    /* If no cap, avoid the HWY_MIN. */                                        \
+    return detail::IsFull(d)                                                   \
+               ? __riscv_vsetvl_e##SEW##LMUL(cap)                              \
+               : __riscv_vsetvl_e##SEW##LMUL(HWY_MIN(cap, kMaxLanes));         \
+  }
+#else
+#define HWY_RVV_CAPPED_LANES_SPECIAL_CASES(BASE, SEW, LMUL)
+#endif
+
+#define HWY_RVV_LANES(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH, SHIFT,  \
+                      MLEN, NAME, OP)                                          \
+  template <size_t N>                                                          \
+  HWY_API size_t NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d) {                      \
+    constexpr size_t kFull = HWY_LANES(HWY_RVV_T(BASE, SEW));                  \
+    constexpr size_t kCap = MaxLanes(d);                                       \
+    /* If no cap, avoid generating a constant by using VLMAX. */               \
+    return N == kFull ? __riscv_vsetvlmax_e##SEW##LMUL()                       \
+                      : __riscv_vsetvl_e##SEW##LMUL(kCap);                     \
+  }                                                                            \
+  template <size_t N>                                                          \
+  HWY_API size_t Capped##NAME(HWY_RVV_D(BASE, SEW, N, SHIFT) d, size_t cap) {  \
+    /* NOTE: Section 6.3 of the RVV specification, which can be found at */    \
+    /* https://github.com/riscv/riscv-v-spec/blob/master/v-spec.adoc, */       \
+    /* allows vsetvl to return a result less than Lanes(d) but greater than */ \
+    /* or equal to ((cap + 1) / 2) if */                                       \
+    /* (Lanes(d) > 2 && cap > HWY_MAX(Lanes(d), 4) && cap < (2 * Lanes(d))) */ \
+    /* is true */                                                              \
+                                                                               \
+    /* VLMAX is the number of lanes in a vector of type */                     \
+    /* VFromD<decltype(d)>, which is returned by */                            \
+    /* Lanes(DFromV<VFromD<decltype(d)>>()) */                                 \
+                                                                               \
+    /* VLMAX is guaranteed to be a power of 2 under Section 2 of the RVV */    \
+    /* specification */                                                        \
+                                                                               \
+    /* The VLMAX of a vector of type VFromD<decltype(d)> is at least 2 as */   \
+    /* the HWY_RVV target requires support for the RVV Zvl128b extension, */   \
+    /* which guarantees that vectors with LMUL=1 are at least 16 bytes */      \
+                                                                               \
+    /* If VLMAX == 2 is true, then vsetvl(cap) is equal to HWY_MIN(cap, 2) */  \
+    /* as cap == 3 is the only value such that */                              \
+    /* (cap > VLMAX && cap < 2 * VLMAX) if VLMAX == 2 and as */                \
+    /* ((3 + 1) / 2) is equal to 2 */                                          \
+                                                                               \
+    /* If cap <= 4 is true, then vsetvl(cap) must be equal to */               \
+    /* HWY_MIN(cap, VLMAX) as cap <= VLMAX is true if VLMAX >= 4 is true */    \
+    /* and as vsetvl(cap) is guaranteed to be equal to HWY_MIN(cap, VLMAX) */  \
+    /* if VLMAX == 2 */                                                        \
+                                                                               \
+    /* We want CappedLanes(d, cap) to return Lanes(d) if cap > Lanes(d) as */  \
+    /* LoadN(d, p, cap) expects to load exactly HWY_MIN(cap, Lanes(d)) */      \
+    /* lanes and StoreN(v, d, p, cap) expects to store exactly */              \
+    /* HWY_MIN(cap, Lanes(d)) lanes, even in the case where vsetvl returns */  \
+    /* a result that is less than HWY_MIN(cap, Lanes(d)) */                    \
+                                                                               \
+    /* kMinLanesPerFullVec is the minimum value of VLMAX for a vector of */    \
+    /* type VFromD<decltype(d)> */                                             \
+    constexpr size_t kMinLanesPerFullVec =                                     \
+        detail::ScaleByPower(16 / (SEW / 8), SHIFT);                           \
+    /* kMaxLanes is the maximum number of lanes returned by Lanes(d) */        \
+    constexpr size_t kMaxLanes = MaxLanes(d);                                  \
+                                                                               \
+    HWY_RVV_CAPPED_LANES_SPECIAL_CASES(BASE, SEW, LMUL)                        \
+                                                                               \
+    if (kMaxLanes <= HWY_MAX(kMinLanesPerFullVec, 4)) {                        \
+      /* If kMaxLanes <= kMinLanesPerFullVec is true, then */                  \
+      /* vsetvl(HWY_MIN(cap, kMaxLanes)) is guaranteed to return */            \
+      /* HWY_MIN(cap, Lanes(d)) as */                                          \
+      /* HWY_MIN(cap, kMaxLanes) <= kMaxLanes <= VLMAX is true if */           \
+      /* kMaxLanes <= kMinLanesPerFullVec is true */                           \
+                                                                               \
+      /* If kMaxLanes <= 4 is true, then vsetvl(HWY_MIN(cap, kMaxLanes)) is */ \
+      /* guaranteed to return the same result as HWY_MIN(cap, Lanes(d)) as */  \
+      /* HWY_MIN(cap, kMaxLanes) <= 4 is true if kMaxLanes <= 4 is true */     \
+                                                                               \
+      /* If kMaxLanes <= HWY_MAX(kMinLanesPerFullVec, 4) is true, then */      \
+      /* either kMaxLanes <= 4 or kMaxLanes <= kMinLanesPerFullVec must be */  \
+      /* true */                                                               \
+                                                                               \
+      return __riscv_vsetvl_e##SEW##LMUL(HWY_MIN(cap, kMaxLanes));             \
+    } else {                                                                   \
+      /* If kMaxLanes > HWY_MAX(kMinLanesPerFullVec, 4) is true, need to */    \
+      /* obtain the actual number of lanes using Lanes(d) and clamp cap to */  \
+      /* the result of Lanes(d) */                                             \
+      const size_t actual = Lanes(d);                                          \
+      return HWY_MIN(actual, cap);                                             \
+    }                                                                          \
   }
 
 #define HWY_RVV_LANES_VIRT(BASE, CHAR, SEW, SEWD, SEWH, LMUL, LMULD, LMULH,   \
@@ -480,10 +592,16 @@ HWY_RVV_FOREACH(HWY_RVV_LANES, Lanes, setvlmax_e, _ALL)
 HWY_RVV_FOREACH(HWY_RVV_LANES_VIRT, Lanes, lenb, _VIRT)
 #undef HWY_RVV_LANES
 #undef HWY_RVV_LANES_VIRT
+#undef HWY_RVV_CAPPED_LANES_SPECIAL_CASES
 
 template <class D, HWY_RVV_IF_EMULATED_D(D)>
 HWY_API size_t Lanes(D /* tag*/) {
   return Lanes(RebindToUnsigned<D>());
+}
+
+template <class D, HWY_RVV_IF_EMULATED_D(D)>
+HWY_API size_t CappedLanes(D /* tag*/, size_t cap) {
+  return CappedLanes(RebindToUnsigned<D>(), cap);
 }
 
 // ------------------------------ Common x-macros
@@ -1816,9 +1934,9 @@ HWY_API void StoreN(size_t count, VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p) {
 template <class D>
 HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
                     size_t max_lanes_to_store) {
-  // NOTE: Need to call Lanes(d) and clamp max_lanes_to_store to Lanes(d), even
-  // if MaxLanes(d) >= MaxLanes(DFromV<VFromD<D>>()) is true, as it is possible
-  // for detail::StoreN(max_lanes_to_store, v, d, p) to store fewer than
+  // NOTE: Need to clamp max_lanes_to_store to Lanes(d), even if
+  // MaxLanes(d) >= MaxLanes(DFromV<VFromD<D>>()) is true, as it is possible for
+  // detail::StoreN(max_lanes_to_store, v, d, p) to store fewer than
   // Lanes(DFromV<VFromD<D>>()) lanes to p if
   // max_lanes_to_store > Lanes(DFromV<VFromD<D>>()) and
   // max_lanes_to_store < 2 * Lanes(DFromV<VFromD<D>>()) are both true.
@@ -1827,8 +1945,7 @@ HWY_API void StoreN(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT p,
   // if Lanes(d) < Lanes(DFromV<VFromD<D>>()) is true, which is possible if
   // MaxLanes(d) < MaxLanes(DFromV<VFromD<D>>()) or
   // d.Pow2() < DFromV<VFromD<D>>().Pow2() is true.
-  const size_t N = Lanes(d);
-  detail::StoreN(HWY_MIN(max_lanes_to_store, N), v, d, p);
+  detail::StoreN(CappedLanes(d, max_lanes_to_store), v, d, p);
 }
 
 // ------------------------------ StoreU
