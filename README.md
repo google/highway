@@ -322,7 +322,7 @@ For MSVC, we recommend compiling with `/Gv` to allow non-inlined functions to
 pass vector arguments in registers. If intending to use the AVX2 target together
 with half-width vectors (e.g. for `PromoteTo`), it is also important to compile
 with `/arch:AVX2`. This seems to be the only way to reliably generate VEX-encoded
-SSE instructions on MSVC. Sometimes MSVC generates VEX-encided SSE instructions,
+SSE instructions on MSVC. Sometimes MSVC generates VEX-encoded SSE instructions,
 if they are mixed with AVX, but not always, see 
 [DevCom-10618264](https://developercommunity.visualstudio.com/t/10618264)
 Otherwise, mixing VEX-encoded AVX2 instructions and non-VEX SSE may cause severe 
