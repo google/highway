@@ -120,8 +120,14 @@ struct TestZeroIfNegative {
   template <class T, class D>
   HWY_NOINLINE void operator()(T /*unused*/, D d) {
     const auto v0 = Zero(d);
-    const auto vp = Iota(d, 1);
-    const auto vn = Iota(d, -1E4);  // assumes N < 10^4
+    auto vp = Iota(d, 1);
+    auto vn = Iota(d, ConvertScalarTo<T>((sizeof(T) >= 2) ? -10000 : -100));
+
+    if (MaxLanes(d) > (sizeof(T) >= 2 ? 10000 : 100)) {
+      const auto vsignbit = SignBit(d);
+      vp = AndNot(vsignbit, vp);
+      vn = Or(vn, vsignbit);
+    }
 
     // Zero and positive remain unchanged
     HWY_ASSERT_VEC_EQ(d, v0, ZeroIfNegative(v0));
@@ -134,6 +140,7 @@ struct TestZeroIfNegative {
 
 HWY_NOINLINE void TestAllZeroIfNegative() {
   ForFloatTypes(ForPartialVectors<TestZeroIfNegative>());
+  ForSignedTypes(ForPartialVectors<TestZeroIfNegative>());
 }
 
 struct TestIfNegative {
@@ -173,6 +180,15 @@ struct TestIfNegative {
 
     HWY_ASSERT_VEC_EQ(d, expected_1, IfNegativeThenElse(m1, x1, x2));
     HWY_ASSERT_VEC_EQ(d, expected_2, IfNegativeThenElse(m2, x1, x2));
+
+    const auto expected_3 = And(m1_s, x1);
+    const auto expected_4 = AndNot(m1_s, x2);
+
+    HWY_ASSERT_VEC_EQ(d, expected_3, IfNegativeThenElseZero(m1, x1));
+    HWY_ASSERT_VEC_EQ(d, expected_3, IfNegativeThenZeroElse(m2, x1));
+
+    HWY_ASSERT_VEC_EQ(d, expected_4, IfNegativeThenZeroElse(m1, x2));
+    HWY_ASSERT_VEC_EQ(d, expected_4, IfNegativeThenElseZero(m2, x2));
   }
 };
 

@@ -870,6 +870,19 @@ HWY_API MFromD<D> MaskFalse(D /*d*/) {
   return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(0)};
 }
 
+// ------------------------------ IsNegative (MFromD)
+#ifdef HWY_NATIVE_IS_NEGATIVE
+#undef HWY_NATIVE_IS_NEGATIVE
+#else
+#define HWY_NATIVE_IS_NEGATIVE
+#endif
+
+// Generic for all vector lengths
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API MFromD<DFromV<V>> IsNegative(V v) {
+  return MaskFromVec(v);
+}
+
 // ------------------------------ PromoteMaskTo (MFromD)
 
 #ifdef HWY_NATIVE_PROMOTE_MASK_TO
@@ -4482,20 +4495,6 @@ HWY_API Vec128<int64_t, N> ShiftRight(const Vec128<int64_t, N> v) {
 #endif
 }
 
-// ------------------------------ ZeroIfNegative (BroadcastSignBit)
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only works for float");
-  const DFromV<decltype(v)> d;
-#if HWY_TARGET >= HWY_SSSE3
-  const RebindToSigned<decltype(d)> di;
-  const auto mask = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
-#else
-  const auto mask = MaskFromVec(v);  // MSB is sufficient for BLENDVPS
-#endif
-  return IfThenElse(mask, Zero(d), v);
-}
-
 // ------------------------------ IfNegativeThenElse
 template <size_t N>
 HWY_API Vec128<int8_t, N> IfNegativeThenElse(const Vec128<int8_t, N> v,
@@ -4558,6 +4557,48 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
   return IfThenElse(mask, yes, no);
 #endif
 }
+
+#if HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE4
+
+#ifdef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#undef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#else
+#define HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#endif
+
+#ifdef HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#undef HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#else
+#define HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#endif
+
+// SSE4/AVX2 IfNegativeThenElseZero/IfNegativeThenZeroElse is generic for all
+// vector lengths
+template <class V, HWY_IF_NOT_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 4) | (1 << 8))>
+HWY_API V IfNegativeThenElseZero(V v, V yes) {
+  const DFromV<decltype(v)> d;
+  return IfNegativeThenElse(v, yes, Zero(d));
+}
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V), HWY_IF_T_SIZE_V(V, 2)>
+HWY_API V IfNegativeThenElseZero(V v, V yes) {
+  return IfThenElseZero(IsNegative(v), yes);
+}
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 4) | (1 << 8))>
+HWY_API V IfNegativeThenZeroElse(V v, V no) {
+  const DFromV<decltype(v)> d;
+  return IfNegativeThenElse(v, Zero(d), no);
+}
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V), HWY_IF_T_SIZE_V(V, 2)>
+HWY_API V IfNegativeThenZeroElse(V v, V no) {
+  return IfThenZeroElse(IsNegative(v), no);
+}
+
+#endif  // HWY_TARGET > HWY_AVX3 && HWY_TARGET <= HWY_SSE4
 
 // ------------------------------ IfNegativeThenNegOrUndefIfZero
 

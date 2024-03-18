@@ -1001,15 +1001,27 @@ Special functions for signed types:
     <code>V **CopySignToAbs**(V a, V b)</code>: as above, but potentially
     slightly more efficient; requires the first argument to be non-negative.
 
-*   `V`: `i32/64` \
+*   `V`: `{i}` \
     <code>V **BroadcastSignBit**(V a)</code> returns `a[i] < 0 ? -1 : 0`.
 
-*   `V`: `{f}` \
+*   `V`: `{i,f}` \
     <code>V **ZeroIfNegative**(V v)</code>: returns `v[i] < 0 ? 0 : v[i]`.
 
 *   `V`: `{i,f}` \
     <code>V **IfNegativeThenElse**(V v, V yes, V no)</code>: returns `v[i] < 0 ?
     yes[i] : no[i]`. This may be more efficient than `IfThenElse(Lt..)`.
+
+*   `V`: `{i,f}` \
+    <code>V **IfNegativeThenElseZero**(V v, V yes)</code>: returns
+    `v[i] < 0 ? yes[i] : 0`. `IfNegativeThenElseZero(v, yes)` is equivalent to
+    but more efficient than `IfThenElseZero(IsNegative(v), yes)` or
+    `IfNegativeThenElse(v, yes, Zero(d))` on some targets.
+
+*   `V`: `{i,f}` \
+    <code>V **IfNegativeThenZeroElse**(V v, V no)</code>: returns
+    `v[i] < 0 ? 0 : no`. `IfNegativeThenZeroElse(v, no)` is equivalent to
+    but more efficient than `IfThenZeroElse(IsNegative(v), no)` or
+    `IfNegativeThenElse(v, Zero(d), no)` on some targets.
 
 *   `V`: `{i,f}` \
     <code>V **IfNegativeThenNegOrUndefIfZero**(V mask, V v)</code>: returns
@@ -1338,6 +1350,12 @@ These return a mask (see above) indicating whether the condition is true.
 
 *   <code>M **operator&gt;=**(V a, V b)</code>: returns `a[i] >= b[i]`.
     Currently unavailable on SVE/RVV; use the equivalent `Ge` instead.
+
+*   `V`: `{i,f}` \
+    <code>M **IsNegative**(V v)</code>: returns `v[i] < 0`.
+
+    `IsNegative(v)` is equivalent to `MaskFromVec(BroadcastSignBit(v))` or
+    `Lt(v, Zero(d))`, but `IsNegative(v)` is more efficient on some targets.
 
 *   `V`: `{u,i}` \
     <code>M **TestBit**(V v, V bit)</code>: returns `(v[i] & bit[i]) == bit[i]`.

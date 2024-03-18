@@ -1697,16 +1697,6 @@ HWY_API Vec128<T, N> RotateRightSame(Vec128<T, N> v, int bits) {
   return Rol(v, Set(d, static_cast<T>(0u - static_cast<unsigned>(bits))));
 }
 
-// ------------------------------ ZeroIfNegative (BroadcastSignBit)
-template <typename T, size_t N>
-HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only works for float");
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const auto mask = MaskFromVec(BitCast(d, BroadcastSignBit(BitCast(di, v))));
-  return IfThenElse(mask, Zero(d), v);
-}
-
 // ------------------------------ IfNegativeThenElse
 
 template <typename T, size_t N>
@@ -1725,6 +1715,32 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
   return IfVecThenElse(BitCast(d, BroadcastSignBit(BitCast(di, v))), yes, no);
 #endif
 }
+
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#undef HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#else
+#define HWY_NATIVE_IF_NEG_THEN_ELSE_ZERO
+#endif
+
+#ifdef HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#undef HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#else
+#define HWY_NATIVE_IF_NEG_THEN_ZERO_ELSE
+#endif
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API V IfNegativeThenElseZero(V v, V yes) {
+  const DFromV<decltype(v)> d;
+  return IfNegativeThenElse(v, yes, Zero(d));
+}
+
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API V IfNegativeThenZeroElse(V v, V no) {
+  const DFromV<decltype(v)> d;
+  return IfNegativeThenElse(v, Zero(d), no);
+}
+#endif
 
 // generic_ops takes care of integer T.
 template <typename T, size_t N, HWY_IF_FLOAT(T)>

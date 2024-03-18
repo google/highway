@@ -1626,13 +1626,6 @@ HWY_API Vec128<T, N> IfNegativeThenElse(Vec128<T, N> v, Vec128<T, N> yes,
   return IfThenElse(MaskFromVec(v), yes, no);
 }
 
-template <typename T, size_t N, HWY_IF_FLOAT(T)>
-HWY_API Vec128<T, N> ZeroIfNegative(Vec128<T, N> v) {
-  const DFromV<decltype(v)> d;
-  const auto zero = Zero(d);
-  return IfThenElse(Mask128<T, N>{(v > zero).raw}, v, zero);
-}
-
 // ------------------------------ Mask logical
 
 template <typename T, size_t N>

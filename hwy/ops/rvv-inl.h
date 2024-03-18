@@ -1582,6 +1582,23 @@ HWY_API MFromD<DFromV<V>> MaskFromVec(const V v) {
   return detail::NeS(v, 0);
 }
 
+// ------------------------------ IsNegative (MFromD)
+#ifdef HWY_NATIVE_IS_NEGATIVE
+#undef HWY_NATIVE_IS_NEGATIVE
+#else
+#define HWY_NATIVE_IS_NEGATIVE
+#endif
+
+// Generic for all vector lengths
+template <class V, HWY_IF_NOT_UNSIGNED_V(V)>
+HWY_API MFromD<DFromV<V>> IsNegative(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToSigned<decltype(d)> di;
+  using TI = TFromD<decltype(di)>;
+
+  return detail::LtS(BitCast(di, v), static_cast<TI>(0));
+}
+
 // ------------------------------ MaskFalse
 
 // For mask ops including vmclr, elements past VL are tail-agnostic and cannot
@@ -1639,12 +1656,6 @@ HWY_API V IfVecThenElse(const V mask, const V yes, const V no) {
   return IfThenElse(MaskFromVec(mask), yes, no);
 }
 
-// ------------------------------ ZeroIfNegative
-template <class V>
-HWY_API V ZeroIfNegative(const V v) {
-  return IfThenZeroElse(detail::LtS(v, 0), v);
-}
-
 // ------------------------------ BroadcastSignBit
 template <class V>
 HWY_API V BroadcastSignBit(const V v) {
@@ -1655,11 +1666,7 @@ HWY_API V BroadcastSignBit(const V v) {
 template <class V>
 HWY_API V IfNegativeThenElse(V v, V yes, V no) {
   static_assert(IsSigned<TFromV<V>>(), "Only works for signed/float");
-  const DFromV<V> d;
-  const RebindToSigned<decltype(d)> di;
-
-  MFromD<decltype(d)> m = detail::LtS(BitCast(di, v), 0);
-  return IfThenElse(m, yes, no);
+  return IfThenElse(IsNegative(v), yes, no);
 }
 
 // ------------------------------ FindFirstTrue
