@@ -94,6 +94,40 @@ struct Result {
 };
 
 template <class Traits, typename LaneType>
+bool VerifyPartialSort(Traits st, const InputStats<LaneType>& input_stats,
+                       const LaneType* out, const size_t num_lanes,
+                       const size_t k, const char* caller) {
+  constexpr size_t N1 = st.LanesPerKey();
+  HWY_ASSERT(num_lanes >= N1);
+  HWY_ASSERT(k >= N1 && k < num_lanes);
+
+  InputStats<LaneType> output_stats;
+  // Ensure it matches the sort order
+  for (size_t i = 0; i < num_lanes - N1; i += N1) {
+    output_stats.Notify(out[i]);
+    if (N1 == 2) output_stats.Notify(out[i + 1]);
+
+    // Reverse order instead of checking !Compare1 so we accept equal keys.
+    if (i < k - N1 && st.Compare1(out + i + N1, out + i)) {
+      fprintf(stderr, "%s: i=%d of %d lanes: N1=%d", caller,
+              static_cast<int>(i), static_cast<int>(num_lanes),
+              static_cast<int>(N1));
+      // TODO %5.0f prints unhelpful integers for the float/double tests.
+      fprintf(stderr, "%5.0f %5.0f vs. %5.0f %5.0f\n\n",
+              static_cast<double>(out[i + 1]), static_cast<double>(out[i + 0]),
+              static_cast<double>(out[i + N1 + 1]),
+              static_cast<double>(out[i + N1]));
+      HWY_ABORT("%d-bit sort is incorrect\n",
+                static_cast<int>(sizeof(LaneType) * 8 * N1));
+    }
+  }
+  output_stats.Notify(out[num_lanes - N1]);
+  if (N1 == 2) output_stats.Notify(out[num_lanes - N1 + 1]);
+
+  return input_stats == output_stats;
+}
+
+template <class Traits, typename LaneType>
 bool VerifySort(Traits st, const InputStats<LaneType>& input_stats,
                 const LaneType* out, size_t num_lanes, const char* caller) {
   constexpr size_t N1 = st.LanesPerKey();
@@ -126,7 +160,7 @@ bool VerifySort(Traits st, const InputStats<LaneType>& input_stats,
 
 template <class Traits, typename LaneType>
 bool VerifySelect(Traits st, const InputStats<LaneType>& input_stats,
-                  const LaneType* out, size_t num_lanes, size_t k,
+                  const LaneType* out, const size_t num_lanes, const size_t k,
                   const char* caller) {
   constexpr size_t N1 = st.LanesPerKey();
   HWY_ASSERT(num_lanes >= N1);

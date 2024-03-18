@@ -14,6 +14,9 @@ on:
     branches: [ "master" ]
   schedule:
     - cron: '18 5 * * 5'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions: {}
 
