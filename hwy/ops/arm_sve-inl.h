@@ -1110,11 +1110,7 @@ HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVN, MaxN, max_n)
 HWY_SVE_FOREACH(HWY_SVE_RETV_ARGPVV, Mul, mul)
 
 // ------------------------------ MulHigh
-HWY_SVE_FOREACH_UI16(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
-// Not part of API, used internally:
-HWY_SVE_FOREACH_UI08(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
-HWY_SVE_FOREACH_UI32(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
-HWY_SVE_FOREACH_U64(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
+HWY_SVE_FOREACH_UI(HWY_SVE_RETV_ARGPVV, MulHigh, mulh)
 
 // ------------------------------ MulFixedPoint15
 HWY_API svint16_t MulFixedPoint15(svint16_t a, svint16_t b) {
@@ -5484,10 +5480,22 @@ HWY_API VFromD<DW> MulOdd(const V a, const V b) {
 #endif
 }
 
+HWY_API svint64_t MulEven(const svint64_t a, const svint64_t b) {
+  const auto lo = Mul(a, b);
+  const auto hi = MulHigh(a, b);
+  return detail::InterleaveEven(lo, hi);
+}
+
 HWY_API svuint64_t MulEven(const svuint64_t a, const svuint64_t b) {
   const auto lo = Mul(a, b);
   const auto hi = MulHigh(a, b);
   return detail::InterleaveEven(lo, hi);
+}
+
+HWY_API svint64_t MulOdd(const svint64_t a, const svint64_t b) {
+  const auto lo = Mul(a, b);
+  const auto hi = MulHigh(a, b);
+  return detail::InterleaveOdd(lo, hi);
 }
 
 HWY_API svuint64_t MulOdd(const svuint64_t a, const svuint64_t b) {

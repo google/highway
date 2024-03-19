@@ -7312,64 +7312,6 @@ HWY_API Vec512<int64_t> operator>>(const Vec512<int64_t> v,
   return Vec512<int64_t>{_mm512_srav_epi64(v.raw, bits.raw)};
 }
 
-// ------------------------------ MulEven/Odd (Shuffle2301, InterleaveLower)
-
-HWY_INLINE Vec512<uint64_t> MulEven(const Vec512<uint64_t> a,
-                                    const Vec512<uint64_t> b) {
-  const DFromV<decltype(a)> du64;
-  const RepartitionToNarrow<decltype(du64)> du32;
-  const auto maskL = Set(du64, 0xFFFFFFFFULL);
-  const auto a32 = BitCast(du32, a);
-  const auto b32 = BitCast(du32, b);
-  // Inputs for MulEven: we only need the lower 32 bits
-  const auto aH = Shuffle2301(a32);
-  const auto bH = Shuffle2301(b32);
-
-  // Knuth double-word multiplication. We use 32x32 = 64 MulEven and only need
-  // the even (lower 64 bits of every 128-bit block) results. See
-  // https://github.com/hcs0/Hackers-Delight/blob/master/muldwu.c.tat
-  const auto aLbL = MulEven(a32, b32);
-  const auto w3 = aLbL & maskL;
-
-  const auto t2 = MulEven(aH, b32) + ShiftRight<32>(aLbL);
-  const auto w2 = t2 & maskL;
-  const auto w1 = ShiftRight<32>(t2);
-
-  const auto t = MulEven(a32, bH) + w2;
-  const auto k = ShiftRight<32>(t);
-
-  const auto mulH = MulEven(aH, bH) + w1 + k;
-  const auto mulL = ShiftLeft<32>(t) + w3;
-  return InterleaveLower(mulL, mulH);
-}
-
-HWY_INLINE Vec512<uint64_t> MulOdd(const Vec512<uint64_t> a,
-                                   const Vec512<uint64_t> b) {
-  const DFromV<decltype(a)> du64;
-  const RepartitionToNarrow<decltype(du64)> du32;
-  const auto maskL = Set(du64, 0xFFFFFFFFULL);
-  const auto a32 = BitCast(du32, a);
-  const auto b32 = BitCast(du32, b);
-  // Inputs for MulEven: we only need bits [95:64] (= upper half of input)
-  const auto aH = Shuffle2301(a32);
-  const auto bH = Shuffle2301(b32);
-
-  // Same as above, but we're using the odd results (upper 64 bits per block).
-  const auto aLbL = MulEven(a32, b32);
-  const auto w3 = aLbL & maskL;
-
-  const auto t2 = MulEven(aH, b32) + ShiftRight<32>(aLbL);
-  const auto w2 = t2 & maskL;
-  const auto w1 = ShiftRight<32>(t2);
-
-  const auto t = MulEven(a32, bH) + w2;
-  const auto k = ShiftRight<32>(t);
-
-  const auto mulH = MulEven(aH, bH) + w1 + k;
-  const auto mulL = ShiftLeft<32>(t) + w3;
-  return InterleaveUpper(du64, mulL, mulH);
-}
-
 // ------------------------------ WidenMulPairwiseAdd
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_I32_D(D)>
 HWY_API VFromD<D> WidenMulPairwiseAdd(D /*d32*/, Vec512<int16_t> a,

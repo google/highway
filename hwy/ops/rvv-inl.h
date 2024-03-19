@@ -1297,15 +1297,8 @@ HWY_RVV_FOREACH_F(HWY_RVV_RETV_ARGVV, Mul, fmul, _ALL)
 
 // ------------------------------ MulHigh
 
-// Only for internal use (Highway only promises MulHigh for 16-bit inputs).
-// Used by MulEven; vwmul does not work for m8.
-namespace detail {
 HWY_RVV_FOREACH_I(HWY_RVV_RETV_ARGVV, MulHigh, mulh, _ALL)
 HWY_RVV_FOREACH_U(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
-}  // namespace detail
-
-HWY_RVV_FOREACH_U16(HWY_RVV_RETV_ARGVV, MulHigh, mulhu, _ALL)
-HWY_RVV_FOREACH_I16(HWY_RVV_RETV_ARGVV, MulHigh, mulh, _ALL)
 
 // ------------------------------ MulFixedPoint15
 
@@ -5403,7 +5396,7 @@ template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4)),
           class D = DFromV<V>, class DW = RepartitionToWide<D>>
 HWY_API VFromD<DW> MulEven(const V a, const V b) {
   const auto lo = Mul(a, b);
-  const auto hi = detail::MulHigh(a, b);
+  const auto hi = MulHigh(a, b);
   return BitCast(DW(), OddEven(detail::Slide1Up(hi), lo));
 }
 
@@ -5411,7 +5404,7 @@ template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 2) | (1 << 4)),
           class D = DFromV<V>, class DW = RepartitionToWide<D>>
 HWY_API VFromD<DW> MulOdd(const V a, const V b) {
   const auto lo = Mul(a, b);
-  const auto hi = detail::MulHigh(a, b);
+  const auto hi = MulHigh(a, b);
   return BitCast(DW(), OddEven(hi, detail::Slide1Down(lo)));
 }
 
@@ -5419,14 +5412,14 @@ HWY_API VFromD<DW> MulOdd(const V a, const V b) {
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_INLINE V MulEven(const V a, const V b) {
   const auto lo = Mul(a, b);
-  const auto hi = detail::MulHigh(a, b);
+  const auto hi = MulHigh(a, b);
   return OddEven(detail::Slide1Up(hi), lo);
 }
 
 template <class V, HWY_IF_T_SIZE_V(V, 8)>
 HWY_INLINE V MulOdd(const V a, const V b) {
   const auto lo = Mul(a, b);
-  const auto hi = detail::MulHigh(a, b);
+  const auto hi = MulHigh(a, b);
   return OddEven(hi, detail::Slide1Down(lo));
 }
 

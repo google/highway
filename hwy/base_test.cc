@@ -300,6 +300,104 @@ struct TestScalarShr {
 HWY_NOINLINE void TestAllScalarShr() { ForIntegerTypes(TestScalarShr()); }
 
 template <class T>
+static HWY_INLINE void AssertMul128Result(T expected_hi, T expected_lo, T a,
+                                          T b, const char* file,
+                                          const int line) {
+  RemoveCvRef<T> actual_hi;
+  const RemoveCvRef<T> actual_lo = Mul128(a, b, &actual_hi);
+  hwy::AssertEqual(expected_lo, actual_lo, hwy::TargetName(HWY_TARGET), file,
+                   line);
+  hwy::AssertEqual(expected_hi, actual_hi, hwy::TargetName(HWY_TARGET), file,
+                   line);
+}
+
+HWY_NOINLINE void TestAllMul128() {
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(0),
+                     static_cast<int64_t>(0), static_cast<int64_t>(0), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(0),
+                     static_cast<int64_t>(0), static_cast<int64_t>(1), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(0),
+                     static_cast<int64_t>(0), static_cast<int64_t>(-1),
+                     __FILE__, __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(0),
+                     static_cast<int64_t>(1), static_cast<int64_t>(0), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(0),
+                     static_cast<int64_t>(-1), static_cast<int64_t>(0),
+                     __FILE__, __LINE__);
+
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(1),
+                     static_cast<int64_t>(1), static_cast<int64_t>(1), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(-1), static_cast<int64_t>(-1),
+                     static_cast<int64_t>(-1), static_cast<int64_t>(1),
+                     __FILE__, __LINE__);
+  AssertMul128Result(static_cast<int64_t>(-1), static_cast<int64_t>(-1),
+                     static_cast<int64_t>(1), static_cast<int64_t>(-1),
+                     __FILE__, __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0), static_cast<int64_t>(1),
+                     static_cast<int64_t>(-1), static_cast<int64_t>(-1),
+                     __FILE__, __LINE__);
+
+  AssertMul128Result(static_cast<uint64_t>(0), static_cast<uint64_t>(0),
+                     static_cast<uint64_t>(0), static_cast<uint64_t>(0),
+                     __FILE__, __LINE__);
+  AssertMul128Result(static_cast<uint64_t>(0), static_cast<uint64_t>(0),
+                     static_cast<uint64_t>(0), static_cast<uint64_t>(1),
+                     __FILE__, __LINE__);
+  AssertMul128Result(static_cast<uint64_t>(0), static_cast<uint64_t>(0),
+                     static_cast<uint64_t>(1), static_cast<uint64_t>(0),
+                     __FILE__, __LINE__);
+  AssertMul128Result(static_cast<uint64_t>(0), static_cast<uint64_t>(1),
+                     static_cast<uint64_t>(1), static_cast<uint64_t>(1),
+                     __FILE__, __LINE__);
+
+  AssertMul128Result(static_cast<int64_t>(0x24E331A77C96011DULL),
+                     static_cast<int64_t>(0x3C5385F8E294E438ULL),
+                     static_cast<int64_t>(0x4F87AE233A08DD18ULL),
+                     static_cast<int64_t>(0x76BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0xFD1F5A95DF919291ULL),
+                     static_cast<int64_t>(0x3C5385F8E294E438ULL),
+                     static_cast<int64_t>(0x4F87AE233A08DD18ULL),
+                     static_cast<int64_t>(0xF6BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0xE984CB0E30E8DC36ULL),
+                     static_cast<int64_t>(0xBC5385F8E294E438ULL),
+                     static_cast<int64_t>(0xCF87AE233A08DD18ULL),
+                     static_cast<int64_t>(0x76BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<int64_t>(0x01C0F3FC93E46DAAULL),
+                     static_cast<int64_t>(0xBC5385F8E294E438ULL),
+                     static_cast<int64_t>(0xCF87AE233A08DD18ULL),
+                     static_cast<int64_t>(0xF6BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+
+  AssertMul128Result(static_cast<uint64_t>(0x24E331A77C96011DULL),
+                     static_cast<uint64_t>(0x3C5385F8E294E438ULL),
+                     static_cast<uint64_t>(0x4F87AE233A08DD18ULL),
+                     static_cast<uint64_t>(0x76BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<uint64_t>(0x4CA708B9199A6FA9ULL),
+                     static_cast<uint64_t>(0x3C5385F8E294E438ULL),
+                     static_cast<uint64_t>(0x4F87AE233A08DD18ULL),
+                     static_cast<uint64_t>(0xF6BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<uint64_t>(0x60419840C8432603ULL),
+                     static_cast<uint64_t>(0xBC5385F8E294E438ULL),
+                     static_cast<uint64_t>(0xCF87AE233A08DD18ULL),
+                     static_cast<uint64_t>(0x76BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+  AssertMul128Result(static_cast<uint64_t>(0xC8056F526547948FULL),
+                     static_cast<uint64_t>(0xBC5385F8E294E438ULL),
+                     static_cast<uint64_t>(0xCF87AE233A08DD18ULL),
+                     static_cast<uint64_t>(0xF6BCCD32975A49CDULL), __FILE__,
+                     __LINE__);
+}
+
+template <class T>
 static HWY_INLINE T TestEndianGetIntegerVal(T val) {
   static_assert(!IsFloat<T>() && !IsSpecialFloat<T>(),
                 "T must not be a floating-point type");
@@ -716,6 +814,7 @@ HWY_EXPORT_AND_TEST_P(BaseTest, TestAllBitScan);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllPopCount);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllDivisor);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllScalarShr);
+HWY_EXPORT_AND_TEST_P(BaseTest, TestAllMul128);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllEndian);
 HWY_EXPORT_AND_TEST_P(BaseTest, TestAllSpecialFloat);
 HWY_AFTER_TEST();

@@ -4095,7 +4095,7 @@ HWY_API Vec128<int16_t, N> operator*(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{_mm_mullo_epi16(a.raw, b.raw)};
 }
 
-// Returns the upper 16 bits of a * b in each lane.
+// Returns the upper sizeof(T)*8 bits of a * b in each lane.
 template <size_t N>
 HWY_API Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
                                     const Vec128<uint16_t, N> b) {
@@ -4105,6 +4105,26 @@ template <size_t N>
 HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
                                    const Vec128<int16_t, N> b) {
   return Vec128<int16_t, N>{_mm_mulhi_epi16(a.raw, b.raw)};
+}
+
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 4)),
+          HWY_IF_LANES_D(DFromV<V>, 1)>
+HWY_API V MulHigh(V a, V b) {
+  const DFromV<decltype(a)> d;
+  const Full128<TFromD<decltype(d)>> d_full;
+  return ResizeBitCast(
+      d, Slide1Down(d_full, ResizeBitCast(d_full, MulEven(a, b))));
+}
+
+// I8/U8/I32/U32 MulHigh is generic for all vector lengths >= 2 lanes
+template <class V, HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | (1 << 4)),
+          HWY_IF_LANES_GT_D(DFromV<V>, 1)>
+HWY_API V MulHigh(V a, V b) {
+  const DFromV<decltype(a)> d;
+
+  const auto p_even = BitCast(d, MulEven(a, b));
+  const auto p_odd = BitCast(d, MulOdd(a, b));
+  return InterleaveOdd(d, p_even, p_odd);
 }
 
 // Multiplies even lanes (0, 2 ..) and places the double-wide result into
@@ -8988,22 +9008,110 @@ HWY_API Vec128<int64_t, N> operator>>(Vec128<int64_t, N> v,
 
 // ------------------------------ MulEven/Odd 64x64 (UpperHalf)
 
-HWY_INLINE Vec128<uint64_t> MulEven(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+namespace detail {
+
+template <class V, HWY_IF_U64(TFromV<V>)>
+static HWY_INLINE V SSE2Mul128(V a, V b, V& mulH) {
+  const DFromV<decltype(a)> du64;
+  const RepartitionToNarrow<decltype(du64)> du32;
+  const auto maskL = Set(du64, 0xFFFFFFFFULL);
+  const auto a32 = BitCast(du32, a);
+  const auto b32 = BitCast(du32, b);
+  // Inputs for MulEven: we only need the lower 32 bits
+  const auto aH = Shuffle2301(a32);
+  const auto bH = Shuffle2301(b32);
+
+  // Knuth double-word multiplication. We use 32x32 = 64 MulEven and only need
+  // the even (lower 64 bits of every 128-bit block) results. See
+  // https://github.com/hcs0/Hackers-Delight/blob/master/muldwu.c.txt
+  const auto aLbL = MulEven(a32, b32);
+  const auto w3 = aLbL & maskL;
+
+  const auto t2 = MulEven(aH, b32) + ShiftRight<32>(aLbL);
+  const auto w2 = t2 & maskL;
+  const auto w1 = ShiftRight<32>(t2);
+
+  const auto t = MulEven(a32, bH) + w2;
+  const auto k = ShiftRight<32>(t);
+
+  mulH = MulEven(aH, bH) + w1 + k;
+  return ShiftLeft<32>(t) + w3;
+}
+
+template <class V, HWY_IF_I64(TFromV<V>)>
+static HWY_INLINE V SSE2Mul128(V a, V b, V& mulH) {
+  const DFromV<decltype(a)> di64;
+  const RebindToUnsigned<decltype(di64)> du64;
+  using VU64 = VFromD<decltype(du64)>;
+
+  VU64 unsigned_mulH;
+  const auto mulL = BitCast(
+      di64, SSE2Mul128(BitCast(du64, a), BitCast(du64, b), unsigned_mulH));
+  mulH = BitCast(di64, unsigned_mulH) - And(BroadcastSignBit(a), b) -
+         And(a, BroadcastSignBit(b));
+  return mulL;
+}
+
+}  // namespace detail
+
+#if !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
+
+template <class V, HWY_IF_UI64(TFromV<V>),
+          HWY_IF_V_SIZE_GT_V(V, (HWY_ARCH_X86_64 ? 16 : 8))>
+HWY_API V MulEven(V a, V b) {
+  V mulH;
+  const V mulL = detail::SSE2Mul128(a, b, mulH);
+  return InterleaveLower(mulL, mulH);
+}
+
+template <class V, HWY_IF_UI64(TFromV<V>),
+          HWY_IF_V_SIZE_GT_V(V, (HWY_ARCH_X86_64 ? 16 : 8))>
+HWY_API V MulOdd(V a, V b) {
+  const DFromV<decltype(a)> du64;
+  V mulH;
+  const V mulL = detail::SSE2Mul128(a, b, mulH);
+  return InterleaveUpper(du64, mulL, mulH);
+}
+
+#endif  // !HWY_ARCH_X86_64 || HWY_TARGET <= HWY_AVX2
+
+template <class V, HWY_IF_UI64(TFromV<V>),
+          HWY_IF_V_SIZE_GT_V(V, (HWY_ARCH_X86_64 ? 8 : 0))>
+HWY_API V MulHigh(V a, V b) {
+  V mulH;
+  detail::SSE2Mul128(a, b, mulH);
+  return mulH;
+}
+
+#if HWY_ARCH_X86_64
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulEven(Vec128<T> a, Vec128<T> b) {
   const DFromV<decltype(a)> d;
-  alignas(16) uint64_t mul[2];
+  alignas(16) T mul[2];
   mul[0] = Mul128(GetLane(a), GetLane(b), &mul[1]);
   return Load(d, mul);
 }
 
-HWY_INLINE Vec128<uint64_t> MulOdd(Vec128<uint64_t> a, Vec128<uint64_t> b) {
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulOdd(Vec128<T> a, Vec128<T> b) {
   const DFromV<decltype(a)> d;
   const Half<decltype(d)> d2;
-  alignas(16) uint64_t mul[2];
-  const uint64_t a1 = GetLane(UpperHalf(d2, a));
-  const uint64_t b1 = GetLane(UpperHalf(d2, b));
+  alignas(16) T mul[2];
+  const T a1 = GetLane(UpperHalf(d2, a));
+  const T b1 = GetLane(UpperHalf(d2, b));
   mul[0] = Mul128(a1, b1, &mul[1]);
   return Load(d, mul);
 }
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec64<T> MulHigh(Vec64<T> a, Vec64<T> b) {
+  T hi;
+  Mul128(GetLane(a), GetLane(b), &hi);
+  return Vec64<T>{_mm_cvtsi64_si128(static_cast<int64_t>(hi))};
+}
+
+#endif  // HWY_ARCH_X86_64
 
 // ------------------------------ WidenMulPairwiseAdd
 

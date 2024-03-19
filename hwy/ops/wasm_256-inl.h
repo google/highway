@@ -321,8 +321,9 @@ HWY_API Vec256<MakeWide<T>> MulEven(Vec256<T> a, const Vec256<T> b) {
   ret.v1 = MulEven(a.v1, b.v1);
   return ret;
 }
-HWY_API Vec256<uint64_t> MulEven(Vec256<uint64_t> a, const Vec256<uint64_t> b) {
-  Vec256<uint64_t> ret;
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> MulEven(Vec256<T> a, const Vec256<T> b) {
+  Vec256<T> ret;
   ret.v0 = MulEven(a.v0, b.v0);
   ret.v1 = MulEven(a.v1, b.v1);
   return ret;
@@ -336,8 +337,9 @@ HWY_API Vec256<MakeWide<T>> MulOdd(Vec256<T> a, const Vec256<T> b) {
   ret.v1 = MulOdd(a.v1, b.v1);
   return ret;
 }
-HWY_API Vec256<uint64_t> MulOdd(Vec256<uint64_t> a, const Vec256<uint64_t> b) {
-  Vec256<uint64_t> ret;
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec256<T> MulOdd(Vec256<T> a, const Vec256<T> b) {
+  Vec256<T> ret;
   ret.v0 = MulOdd(a.v0, b.v0);
   ret.v1 = MulOdd(a.v1, b.v1);
   return ret;

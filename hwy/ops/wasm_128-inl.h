@@ -921,7 +921,25 @@ HWY_API Vec128<int32_t, N> operator*(const Vec128<int32_t, N> a,
   return Vec128<int32_t, N>{wasm_i32x4_mul(a.raw, b.raw)};
 }
 
-// Returns the upper 16 bits of a * b in each lane.
+// Returns the upper sizeof(T)*8 bits of a * b in each lane.
+template <size_t N>
+HWY_API Vec128<uint8_t, N> MulHigh(const Vec128<uint8_t, N> a,
+                                   const Vec128<uint8_t, N> b) {
+  const auto l = wasm_u16x8_extmul_low_u8x16(a.raw, b.raw);
+  const auto h = wasm_u16x8_extmul_high_u8x16(a.raw, b.raw);
+  // TODO(eustas): shift-right + narrow?
+  return Vec128<uint8_t, N>{wasm_i8x16_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15,
+                                               17, 19, 21, 23, 25, 27, 29, 31)};
+}
+template <size_t N>
+HWY_API Vec128<int8_t, N> MulHigh(const Vec128<int8_t, N> a,
+                                  const Vec128<int8_t, N> b) {
+  const auto l = wasm_i16x8_extmul_low_i8x16(a.raw, b.raw);
+  const auto h = wasm_i16x8_extmul_high_i8x16(a.raw, b.raw);
+  // TODO(eustas): shift-right + narrow?
+  return Vec128<int8_t, N>{wasm_i8x16_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15,
+                                              17, 19, 21, 23, 25, 27, 29, 31)};
+}
 template <size_t N>
 HWY_API Vec128<uint16_t, N> MulHigh(const Vec128<uint16_t, N> a,
                                     const Vec128<uint16_t, N> b) {
@@ -939,6 +957,22 @@ HWY_API Vec128<int16_t, N> MulHigh(const Vec128<int16_t, N> a,
   // TODO(eustas): shift-right + narrow?
   return Vec128<int16_t, N>{
       wasm_i16x8_shuffle(l, h, 1, 3, 5, 7, 9, 11, 13, 15)};
+}
+template <size_t N>
+HWY_API Vec128<uint32_t, N> MulHigh(const Vec128<uint32_t, N> a,
+                                    const Vec128<uint32_t, N> b) {
+  const auto l = wasm_u64x2_extmul_low_u32x4(a.raw, b.raw);
+  const auto h = wasm_u64x2_extmul_high_u32x4(a.raw, b.raw);
+  // TODO(eustas): shift-right + narrow?
+  return Vec128<uint32_t, N>{wasm_i32x4_shuffle(l, h, 1, 3, 5, 7)};
+}
+template <size_t N>
+HWY_API Vec128<int32_t, N> MulHigh(const Vec128<int32_t, N> a,
+                                   const Vec128<int32_t, N> b) {
+  const auto l = wasm_i64x2_extmul_low_i32x4(a.raw, b.raw);
+  const auto h = wasm_i64x2_extmul_high_i32x4(a.raw, b.raw);
+  // TODO(eustas): shift-right + narrow?
+  return Vec128<int32_t, N>{wasm_i32x4_shuffle(l, h, 1, 3, 5, 7)};
 }
 
 template <size_t N>
@@ -5764,22 +5798,37 @@ HWY_API Mask128<T, N> SetAtOrBeforeFirst(Mask128<T, N> mask) {
 
 // ------------------------------ MulEven/Odd (Load)
 
-HWY_INLINE Vec128<uint64_t> MulEven(const Vec128<uint64_t> a,
-                                    const Vec128<uint64_t> b) {
-  alignas(16) uint64_t mul[2];
-  mul[0] =
-      Mul128(static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 0)),
-             static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 0)), &mul[1]);
-  return Load(Full128<uint64_t>(), mul);
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulEven(Vec128<T> a, Vec128<T> b) {
+  alignas(16) T mul[2];
+  mul[0] = Mul128(static_cast<T>(wasm_i64x2_extract_lane(a.raw, 0)),
+                  static_cast<T>(wasm_i64x2_extract_lane(b.raw, 0)), &mul[1]);
+  return Load(Full128<T>(), mul);
 }
 
-HWY_INLINE Vec128<uint64_t> MulOdd(const Vec128<uint64_t> a,
-                                   const Vec128<uint64_t> b) {
-  alignas(16) uint64_t mul[2];
-  mul[0] =
-      Mul128(static_cast<uint64_t>(wasm_i64x2_extract_lane(a.raw, 1)),
-             static_cast<uint64_t>(wasm_i64x2_extract_lane(b.raw, 1)), &mul[1]);
-  return Load(Full128<uint64_t>(), mul);
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulOdd(Vec128<T> a, Vec128<T> b) {
+  alignas(16) T mul[2];
+  mul[0] = Mul128(static_cast<T>(wasm_i64x2_extract_lane(a.raw, 1)),
+                  static_cast<T>(wasm_i64x2_extract_lane(b.raw, 1)), &mul[1]);
+  return Load(Full128<T>(), mul);
+}
+
+// ------------------------------ I64/U64 MulHigh (GetLane)
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec64<T> MulHigh(Vec64<T> a, Vec64<T> b) {
+  T hi;
+  Mul128(GetLane(a), GetLane(b), &hi);
+  return Set(Full64<T>(), hi);
+}
+
+template <class T, HWY_IF_UI64(T)>
+HWY_API Vec128<T> MulHigh(Vec128<T> a, Vec128<T> b) {
+  T hi_0;
+  T hi_1;
+  Mul128(GetLane(a), GetLane(b), &hi_0);
+  Mul128(detail::ExtractLane<1>(a), detail::ExtractLane<1>(b), &hi_1);
+  return Dup128VecFromValues(Full128<T>(), hi_0, hi_1);
 }
 
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
