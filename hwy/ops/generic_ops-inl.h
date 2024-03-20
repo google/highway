@@ -3468,6 +3468,90 @@ HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<float16_t, D>> v) {
 
 #endif  // HWY_NATIVE_PROMOTE_F16_TO_F64
 
+// ------------------------------ F32 to BF16 DemoteTo
+#if (defined(HWY_NATIVE_DEMOTE_F32_TO_BF16) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
+namespace detail {
+
+// Round a F32 value to the nearest BF16 value, with the result returned as the
+// rounded F32 value bitcasted to an U32
+
+// RoundF32ForDemoteToBF16 also converts NaN values to QNaN values to prevent
+// NaN F32 values from being converted to an infinity
+template <class V, HWY_IF_F32(TFromV<V>)>
+HWY_INLINE VFromD<RebindToUnsigned<DFromV<V>>> RoundF32ForDemoteToBF16(V v) {
+  const DFromV<decltype(v)> d;
+  const RebindToUnsigned<decltype(d)> du32;
+
+  const auto is_non_nan = Not(IsNaN(v));
+  const auto bits32 = BitCast(du32, v);
+
+  const auto round_incr =
+      Add(And(ShiftRight<16>(bits32), Set(du32, uint32_t{1})),
+          Set(du32, uint32_t{0x7FFFu}));
+  return MaskedAddOr(Or(bits32, Set(du32, uint32_t{0x00400000u})),
+                     RebindMask(du32, is_non_nan), bits32, round_incr);
+}
+
+}  // namespace detail
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+  const Twice<decltype(du16)> dt_u16;
+
+  const auto rounded_bits = BitCast(dt_u16, detail::RoundF32ForDemoteToBF16(v));
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(
+      dbf16, LowerHalf(du16, ConcatOdd(dt_u16, rounded_bits, rounded_bits)));
+#else
+  return BitCast(
+      dbf16, LowerHalf(du16, ConcatEven(dt_u16, rounded_bits, rounded_bits)));
+#endif
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> OrderedDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
+                                   VFromD<Repartition<float, D>> b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+
+  const auto rounded_a_bits32 =
+      BitCast(du16, detail::RoundF32ForDemoteToBF16(a));
+  const auto rounded_b_bits32 =
+      BitCast(du16, detail::RoundF32ForDemoteToBF16(b));
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, rounded_b_bits32),
+                                  BitCast(du16, rounded_a_bits32)));
+#else
+  return BitCast(dbf16, ConcatEven(du16, BitCast(du16, rounded_b_bits32),
+                                   BitCast(du16, rounded_a_bits32)));
+#endif
+}
+
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
+                                   VFromD<Repartition<float, D>> b) {
+  const RebindToUnsigned<decltype(dbf16)> du16;
+
+#if HWY_IS_LITTLE_ENDIAN
+  const auto a_in_odd = detail::RoundF32ForDemoteToBF16(a);
+  const auto b_in_even = ShiftRight<16>(detail::RoundF32ForDemoteToBF16(b));
+#else
+  const auto a_in_odd = ShiftRight<16>(detail::RoundF32ForDemoteToBF16(a));
+  const auto b_in_even = detail::RoundF32ForDemoteToBF16(b);
+#endif
+
+  return BitCast(dbf16,
+                 OddEven(BitCast(du16, a_in_odd), BitCast(du16, b_in_even)));
+}
+
+#endif  // HWY_NATIVE_DEMOTE_F32_TO_BF16
+
 // ------------------------------ SumsOf2
 
 #if HWY_TARGET != HWY_SCALAR

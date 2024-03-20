@@ -54,6 +54,15 @@ namespace detail {
 #define HWY_X86_IF_EMULATED_D(D) HWY_IF_BF16_D(D)
 #endif
 
+#undef HWY_AVX3_HAVE_F32_TO_BF16C
+#if HWY_TARGET <= HWY_AVX3_ZEN4 && !HWY_COMPILER_CLANGCL &&           \
+    (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
+    !defined(HWY_AVX3_DISABLE_AVX512BF16)
+#define HWY_AVX3_HAVE_F32_TO_BF16C 1
+#else
+#define HWY_AVX3_HAVE_F32_TO_BF16C 0
+#endif
+
 template <typename T>
 struct Raw128 {
   using type = __m128i;
@@ -241,6 +250,25 @@ HWY_INLINE __m128i BitCastToInteger(__m128h v) { return _mm_castph_si128(v); }
 #endif  // HWY_HAVE_FLOAT16
 HWY_INLINE __m128i BitCastToInteger(__m128 v) { return _mm_castps_si128(v); }
 HWY_INLINE __m128i BitCastToInteger(__m128d v) { return _mm_castpd_si128(v); }
+
+#if HWY_AVX3_HAVE_F32_TO_BF16C
+HWY_INLINE __m128i BitCastToInteger(__m128bh v) {
+  // Need to use reinterpret_cast on GCC/Clang or BitCastScalar on MSVC to
+  // bit cast a __m128bh to a __m128i as there is currently no intrinsic
+  // available (as of GCC 13 and Clang 17) that can bit cast a __m128bh vector
+  // to a __m128i vector
+
+#if HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+  // On GCC or Clang, use reinterpret_cast to bit cast a __m128bh to a __m128i
+  return reinterpret_cast<__m128i>(v);
+#else
+  // On MSVC, use BitCastScalar to bit cast a __m128bh to a __m128i as MSVC does
+  // not allow reinterpret_cast, static_cast, or a C-style cast to be used to
+  // bit cast from one SSE/AVX vector type to a different SSE/AVX vector type
+  return BitCastScalar<__m128i>(v);
+#endif  // HWY_COMPILER_GCC || HWY_COMPILER_CLANG
+}
+#endif  // HWY_AVX3_HAVE_F32_TO_BF16C
 
 template <typename T, size_t N>
 HWY_INLINE Vec128<uint8_t, N * sizeof(T)> BitCastToByte(Vec128<T, N> v) {
@@ -9745,25 +9773,68 @@ HWY_API VFromD<D> DemoteTo(D /*df16*/, VFromD<Rebind<double, D>> v) {
 
 #endif  // HWY_HAVE_FLOAT16
 
+// The _mm*_cvtneps_pbh and _mm*_cvtne2ps_pbh intrinsics require GCC 9 or later
+// or Clang 10 or later
+
+// Also need GCC or Clang to bit cast the __m128bh, __m256bh, or __m512bh vector
+// returned by the _mm*_cvtneps_pbh and _mm*_cvtne2ps_pbh intrinsics to a
+// __m128i, __m256i, or __m512i as there are currently no intrinsics available
+// (as of GCC 13 and Clang 17) to bit cast a __m128bh, __m256bh, or __m512bh
+// vector to a __m128i, __m256i, or __m512i vector
+
+#if HWY_AVX3_HAVE_F32_TO_BF16C
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
-HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {
-  // TODO(janwas): _mm_cvtneps_pbh once we have avx512bf16.
-  const Rebind<int32_t, decltype(dbf16)> di32;
-  const Rebind<uint32_t, decltype(dbf16)> du32;  // for logical shift right
-  const Rebind<uint16_t, decltype(dbf16)> du16;
-  const auto bits_in_32 = BitCast(di32, ShiftRight<16>(BitCast(du32, v)));
-  return BitCast(dbf16, DemoteTo(du16, bits_in_32));
+HWY_API VFromD<D> DemoteTo(D /*dbf16*/, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000
+  // Inline assembly workaround for LLVM codegen bug
+  __m128i raw_result;
+  __asm__("vcvtneps2bf16 %1, %0" : "=v"(raw_result) : "v"(v.raw));
+  return VFromD<D>{raw_result};
+#else
+  // The _mm_cvtneps_pbh intrinsic returns a __m128bh vector that needs to be
+  // bit casted to a __m128i vector
+  return VFromD<D>{detail::BitCastToInteger(_mm_cvtneps_pbh(v.raw))};
+#endif
 }
 
-template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_BF16_D(D),
-          class V32 = VFromD<Repartition<float, D>>>
-HWY_API VFromD<D> ReorderDemote2To(D dbf16, V32 a, V32 b) {
-  // TODO(janwas): _mm_cvtne2ps_pbh once we have avx512bf16.
-  const RebindToUnsigned<decltype(dbf16)> du16;
-  const Repartition<uint32_t, decltype(dbf16)> du32;
-  const VFromD<decltype(du32)> b_in_even = ShiftRight<16>(BitCast(du32, b));
-  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /*dbf16*/, Vec128<float> a,
+                                   Vec128<float> b) {
+#if HWY_COMPILER_CLANG >= 1600 && HWY_COMPILER_CLANG < 2000
+  // Inline assembly workaround for LLVM codegen bug
+  __m128i raw_result;
+  __asm__("vcvtne2ps2bf16 %2, %1, %0"
+          : "=v"(raw_result)
+          : "v"(b.raw), "v"(a.raw));
+  return VFromD<D>{raw_result};
+#else
+  // The _mm_cvtne2ps_pbh intrinsic returns a __m128bh vector that needs to be
+  // bit casted to a __m128i vector
+  return VFromD<D>{detail::BitCastToInteger(_mm_cvtne2ps_pbh(b.raw, a.raw))};
+#endif
 }
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D /* tag */, Vec64<float> a,
+                                   Vec64<float> b) {
+  return VFromD<D>{_mm_shuffle_epi32(
+      detail::BitCastToInteger(_mm_cvtne2ps_pbh(b.raw, a.raw)),
+      _MM_SHUFFLE(2, 0, 2, 0))};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dbf16, Vec32<float> a, Vec32<float> b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return DemoteTo(dbf16, Combine(dt, b, a));
+}
+#endif  // HWY_AVX3_HAVE_F32_TO_BF16C
 
 // Specializations for partial vectors because packs_epi32 sets lanes above 2*N.
 template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_I16_D(D)>
@@ -9922,11 +9993,15 @@ HWY_API VFromD<D> OrderedDemote2To(D d, V a, V b) {
   return ReorderDemote2To(d, a, b);
 }
 
-template <class D, HWY_IF_BF16_D(D), class V32 = VFromD<Repartition<float, D>>>
-HWY_API VFromD<D> OrderedDemote2To(D dbf16, V32 a, V32 b) {
-  const RebindToUnsigned<decltype(dbf16)> du16;
-  return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
+#if HWY_AVX3_HAVE_F32_TO_BF16C
+// F32 to BF16 OrderedDemote2To is generic for all vector lengths on targets
+// that support AVX512BF16
+template <class D, HWY_IF_BF16_D(D)>
+HWY_API VFromD<D> OrderedDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
+                                   VFromD<Repartition<float, D>> b) {
+  return ReorderDemote2To(dbf16, a, b);
 }
+#endif  // HWY_AVX3_HAVE_F32_TO_BF16C
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<double, D>> v) {

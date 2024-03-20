@@ -964,6 +964,11 @@ HWY_API V And(const V a, const V b) {
 
 // ------------------------------ Or
 
+// Non-vector version (ideally immediate) for use with RoundF32ForDemoteToBF16
+namespace detail {
+HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVS, OrS, or_vx, _ALL)
+}  // namespace detail
+
 HWY_RVV_FOREACH_UI(HWY_RVV_RETV_ARGVV, Or, or, _ALL)
 
 template <class V, HWY_IF_FLOAT_V(V)>
@@ -2860,12 +2865,39 @@ HWY_RVV_FOREACH_U32(HWY_RVV_DEMOTE_TO_SHR_16, DemoteToShr16, nclipu_wx_,
 }
 #undef HWY_RVV_DEMOTE_TO_SHR_16
 
+namespace detail {
+
+// Round a F32 value to the nearest BF16 value, with the result returned as the
+// rounded F32 value bitcasted to an U32
+
+// RoundF32ForDemoteToBF16 also converts NaN values to QNaN values to prevent
+// NaN F32 values from being converted to an infinity
+template <class V, HWY_IF_F32(TFromV<V>)>
+HWY_INLINE VFromD<RebindToUnsigned<DFromV<V>>> RoundF32ForDemoteToBF16(V v) {
+  const RebindToUnsigned<DFromV<V>> du32;
+  const auto is_non_nan = Eq(v, v);
+  const auto bits32 = BitCast(du32, v);
+
+  const auto round_incr =
+      detail::AddS(detail::AndS(ShiftRight<16>(bits32), 1u), 0x7FFFu);
+  return MaskedAddOr(detail::OrS(bits32, 0x00400000u), is_non_nan, bits32,
+                     round_incr);
+}
+
+}  // namespace detail
+
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
 template <size_t N, int kPow2>
 HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> DemoteTo(
     Simd<hwy::bfloat16_t, N, kPow2> d, VFromD<Simd<float, N, kPow2 + 1>> v) {
   const RebindToUnsigned<decltype(d)> du16;
-  const Rebind<uint32_t, decltype(d)> du32;
-  return BitCast(d, detail::DemoteToShr16(du16, BitCast(du32, v)));
+  return BitCast(
+      d, detail::DemoteToShr16(du16, detail::RoundF32ForDemoteToBF16(v)));
 }
 
 // ------------------------------ ConvertTo F
@@ -5432,8 +5464,11 @@ HWY_API VFromD<Simd<hwy::bfloat16_t, N, kPow2>> ReorderDemote2To(
     VFromD<RepartitionToWide<decltype(dbf16)>> b) {
   const RebindToUnsigned<decltype(dbf16)> du16;
   const RebindToUnsigned<DFromV<decltype(a)>> du32;
-  const VFromD<decltype(du32)> b_in_even = ShiftRight<16>(BitCast(du32, b));
-  return BitCast(dbf16, OddEven(BitCast(du16, a), BitCast(du16, b_in_even)));
+  const VFromD<decltype(du32)> b_in_even =
+      ShiftRight<16>(detail::RoundF32ForDemoteToBF16(b));
+  return BitCast(dbf16,
+                 OddEven(BitCast(du16, detail::RoundF32ForDemoteToBF16(a)),
+                         BitCast(du16, b_in_even)));
 }
 
 // If LMUL is not the max, Combine first to avoid another DemoteTo.

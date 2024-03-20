@@ -1402,6 +1402,12 @@ HWY_API Vec1<float16_t> DemoteTo(D /* tag */, const Vec1<float> v) {
   return Vec1<float16_t>(F16FromF32(v.raw));
 }
 
+#ifdef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#undef HWY_NATIVE_DEMOTE_F32_TO_BF16
+#else
+#define HWY_NATIVE_DEMOTE_F32_TO_BF16
+#endif
+
 template <class D, HWY_IF_BF16_D(D)>
 HWY_API Vec1<bfloat16_t> DemoteTo(D d, const Vec1<float> v) {
   return Set(d, BF16FromF32(v.raw));

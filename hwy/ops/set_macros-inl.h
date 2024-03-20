@@ -116,7 +116,15 @@
   ",vpclmulqdq,avx512vbmi,avx512vbmi2,vaes,avx512vnni,avx512bitalg," \
   "avx512vpopcntdq,gfni"
 
-#define HWY_TARGET_STR_AVX3_SPR HWY_TARGET_STR_AVX3_DL ",avx512fp16"
+#if !HWY_COMPILER_CLANGCL &&                                          \
+    (HWY_COMPILER_GCC_ACTUAL >= 1000 || HWY_COMPILER_CLANG >= 900) && \
+    !defined(HWY_AVX3_DISABLE_AVX512BF16)
+#define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL ",avx512bf16"
+#else
+#define HWY_TARGET_STR_AVX3_ZEN4 HWY_TARGET_STR_AVX3_DL
+#endif
+
+#define HWY_TARGET_STR_AVX3_SPR HWY_TARGET_STR_AVX3_ZEN4 ",avx512fp16"
 
 #if defined(HWY_DISABLE_PPC8_CRYPTO)
 #define HWY_TARGET_STR_PPC8_CRYPTO ""
@@ -272,8 +280,7 @@
 #elif HWY_TARGET == HWY_AVX3_ZEN4
 
 #define HWY_NAMESPACE N_AVX3_ZEN4
-// Currently the same as HWY_AVX3_DL: both support Icelake.
-#define HWY_TARGET_STR HWY_TARGET_STR_AVX3_DL
+#define HWY_TARGET_STR HWY_TARGET_STR_AVX3_ZEN4
 
 #elif HWY_TARGET == HWY_AVX3_SPR
 

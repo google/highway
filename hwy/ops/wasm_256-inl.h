@@ -1884,14 +1884,6 @@ HWY_API Vec128<float16_t> DemoteTo(D d16, Vec256<float> v) {
   return Combine(d16, hi, lo);
 }
 
-template <class D, HWY_IF_BF16_D(D)>
-HWY_API Vec128<bfloat16_t> DemoteTo(D dbf16, Vec256<float> v) {
-  const Half<decltype(dbf16)> dbf16h;
-  const Vec64<bfloat16_t> lo = DemoteTo(dbf16h, v.v0);
-  const Vec64<bfloat16_t> hi = DemoteTo(dbf16h, v.v1);
-  return Combine(dbf16, hi, lo);
-}
-
 // For already range-limited input [0, 255].
 HWY_API Vec64<uint8_t> U8FromU32(Vec256<uint32_t> v) {
   const Full64<uint8_t> du8;
@@ -1944,13 +1936,6 @@ HWY_API Vec128<uint8_t> TruncateTo(D /* tag */, Vec256<uint16_t> v) {
 }
 
 // ------------------------------ ReorderDemote2To
-template <class DBF16, HWY_IF_BF16_D(DBF16)>
-HWY_API Vec256<bfloat16_t> ReorderDemote2To(DBF16 dbf16, Vec256<float> a,
-                                            Vec256<float> b) {
-  const RebindToUnsigned<decltype(dbf16)> du16;
-  return BitCast(dbf16, ConcatOdd(du16, BitCast(du16, b), BitCast(du16, a)));
-}
-
 template <class DN, typename V, HWY_IF_V_SIZE_D(DN, 32),
           HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<DN>), HWY_IF_SIGNED_V(V),
           HWY_IF_T_SIZE_ONE_OF_D(DN, (1 << 1) | (1 << 2) | (1 << 4)),
