@@ -539,6 +539,11 @@ HWY_TEST_DEPS = [
                 subdir + test + ".cc",
             ],
             copts = COPTS + HWY_TEST_COPTS,
+            # Fixes OOM for matvec_test on RVV.
+            exec_properties = select({
+                "@platforms//cpu:riscv64": {"mem": "16g"},
+                "//conditions:default": None,
+            }),
             features = select({
                 "@platforms//cpu:riscv64": ["fully_static_link"],
                 "//conditions:default": [],

@@ -169,6 +169,8 @@ class TestMatVec {
     ThreadPool pool(HWY_MIN(num_threads, ThreadPool::MaxThreads()));
 
     Test<AdjustedReps(192), AdjustedReps(256)>(d, pool);
+// Fewer tests due to compiler OOM
+#if HWY_TARGET != HWY_RVV
     Test<40, AdjustedReps(512)>(d, pool);
     Test<AdjustedReps(1024), 50>(d, pool);
 
@@ -176,6 +178,7 @@ class TestMatVec {
     if (sizeof(TFromD<D>) != 2 && sizeof(VecT) != 2) {
       Test<AdjustedReps(1536), AdjustedReps(1536)>(d, pool);
     }
+#endif  // HWY_TARGET != HWY_RVV
   }
 
  public:
@@ -186,22 +189,35 @@ class TestMatVec {
   }
 };
 
+// Fewer partial vectors on RVV to avoid OOM.
+#if HWY_TARGET == HWY_RVV
+template <class Test>
+using ForVectors = ForPartialFixedOrFullScalableVectors<Test>;
+template <class Test>
+using ForGE32Vectors = ForPartialFixedOrFullScalableVectors<Test>;
+#else
+template <class Test>
+using ForVectors = ForPartialVectors<Test>;
+template <class Test>
+using ForGE32Vectors = ForGEVectors<32, Test>;
+#endif  // HWY_TARGET == HWY_RVV
+
 void TestAllMatVec() {
 #if HWY_HAVE_FLOAT16
-  ForPartialVectors<TestMatVec<float16_t, float16_t>>()(float16_t());
+  ForVectors<TestMatVec<float16_t, float16_t>>()(float16_t());
 #endif
-  ForPartialVectors<TestMatVec<float, float>>()(float());
+  ForVectors<TestMatVec<float, float>>()(float());
 #if HWY_HAVE_FLOAT64
-  ForPartialVectors<TestMatVec<double, double>>()(double());
+  ForVectors<TestMatVec<double, double>>()(double());
 #endif
 }
 
 void TestAllMatVecBF16() {
-  ForGEVectors<32, TestMatVec<bfloat16_t, float>>()(float());
+  ForGE32Vectors<TestMatVec<bfloat16_t, float>>()(float());
 }
 
 void TestAllMatVecBF16Both() {
-  ForGEVectors<32, TestMatVec<bfloat16_t, bfloat16_t>>()(float());
+  ForGE32Vectors<TestMatVec<bfloat16_t, bfloat16_t>>()(float());
 }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
