@@ -13,6 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
+
+#include "hwy/base.h"
+
 // Reduce targets to avoid timeout under emulation.
 #ifndef HWY_DISABLED_TARGETS
 #define HWY_DISABLED_TARGETS \
@@ -41,8 +45,9 @@ namespace hwy {
 namespace HWY_NAMESPACE {
 
 template <typename MatT, typename T>
-HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
-                               size_t cols, T* out, ThreadPool& pool) {
+HWY_NOINLINE void SimpleMatVecAdd(const MatT* mat, const T* vec, const T* add,
+                                  size_t rows, size_t cols, T* out,
+                                  ThreadPool& pool) {
   pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
     T dot = ConvertScalarTo<T>(0);
     for (size_t c = 0; c < cols; c++) {
@@ -50,30 +55,40 @@ HWY_NOINLINE void SimpleMatVec(const MatT* mat, const T* vec, size_t rows,
       dot = ConvertScalarTo<T>(dot + mat[r * cols + c] * vec[c]);
     }
     out[r] = dot;
+    if (add) {
+      out[r] = out[r] + add[r];
+    }
   });
 }
 
-HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat, const float* vec,
-                               size_t rows, size_t cols, float* out,
-                               ThreadPool& pool) {
+HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* mat, const float* vec,
+                                  const float* add, size_t rows, size_t cols,
+                                  float* out, ThreadPool& pool) {
   pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
     float dot = 0.0f;
     for (size_t c = 0; c < cols; c++) {
       dot += F32FromBF16(mat[r * cols + c]) * vec[c];
     }
     out[r] = dot;
+    if (add) {
+      out[r] = out[r] + add[r];
+    }
   });
 }
 
-HWY_NOINLINE void SimpleMatVec(const hwy::bfloat16_t* mat,
-                               const hwy::bfloat16_t* vec, size_t rows,
-                               size_t cols, float* out, ThreadPool& pool) {
+HWY_NOINLINE void SimpleMatVecAdd(const hwy::bfloat16_t* mat,
+                                  const hwy::bfloat16_t* vec,
+                                  const hwy::bfloat16_t* add, size_t rows,
+                                  size_t cols, float* out, ThreadPool& pool) {
   pool.Run(0, rows, [=](uint64_t r, size_t /*thread*/) {
     float dot = 0.0f;
     for (size_t c = 0; c < cols; c++) {
       dot += F32FromBF16(mat[r * cols + c]) * F32FromBF16(vec[c]);
     }
     out[r] = dot;
+    if (add) {
+      out[r] = out[r] + F32FromBF16(add[r]);
+    }
   });
 }
 
@@ -128,31 +143,53 @@ class TestMatVec {
         AllocateAligned<MatT>(misalign + area);
     AlignedFreeUniquePtr<VecT[]> storage_v =
         AllocateAligned<VecT>(misalign + kCols);
-    HWY_ASSERT(storage_m && storage_v);
+    AlignedFreeUniquePtr<VecT[]> storage_a =
+        AllocateAligned<VecT>(misalign + kRows);
+    HWY_ASSERT(storage_m && storage_v && storage_a);
     MatT* pm = storage_m.get() + misalign;
     VecT* pv = storage_v.get() + misalign;
+    VecT* av = storage_a.get() + misalign;
     Generate(dm, pm, area, GenerateMod());
     Generate(dv, pv, kCols, GenerateMod());
+    Generate(dv, av, kRows, GenerateMod());
 
-    AlignedFreeUniquePtr<T[]> expected = AllocateAligned<T>(kRows);
-    SimpleMatVec(pm, pv, kRows, kCols, expected.get(), pool);
+    AlignedFreeUniquePtr<T[]> expected_without_add = AllocateAligned<T>(kRows);
+    SimpleMatVecAdd(pm, pv, static_cast<VecT*>(nullptr), kRows, kCols,
+                    expected_without_add.get(), pool);
 
-    AlignedFreeUniquePtr<T[]> actual = AllocateAligned<T>(kRows);
-    MatVec<kRows, kCols>(pm, pv, actual.get(), pool);
+    AlignedFreeUniquePtr<T[]> actual_without_add = AllocateAligned<T>(kRows);
+    MatVec<kRows, kCols>(pm, pv, actual_without_add.get(), pool);
 
-    for (size_t i = 0; i < kRows; ++i) {
-      const double exp = ConvertScalarTo<double>(expected[i]);
-      const double act = ConvertScalarTo<double>(actual[i]);
-      const double tolerance =
-          exp * 20 * 1.0 /
-          (1ULL << HWY_MIN(MantissaBits<MatT>(), MantissaBits<VecT>()));
-      if (!(exp - tolerance <= act && act <= exp + tolerance)) {
-        fprintf(stderr, "%s %zu x %zu: mismatch at %zu %f %f; tol %f\n",
-                TypeName(MatT(), 1).c_str(), kRows, kCols, i, exp, act,
-                tolerance);
-        HWY_ASSERT(0);
+    const auto assert_close = [&](const AlignedFreeUniquePtr<T[]>& expected,
+                                  const AlignedFreeUniquePtr<T[]>& actual,
+                                  bool with_add) {
+      for (size_t i = 0; i < kRows; ++i) {
+        const double exp = ConvertScalarTo<double>(expected[i]);
+        const double act = ConvertScalarTo<double>(actual[i]);
+        const double tolerance =
+            exp * 20 * 1.0 /
+            (1ULL << HWY_MIN(MantissaBits<MatT>(), MantissaBits<VecT>()));
+        if (!(exp - tolerance <= act && act <= exp + tolerance)) {
+          fprintf(stderr,
+                  "%s/%s %zu x %zu, %s: mismatch at %zu %f %f; tol %f\n",
+                  TypeName(MatT(), 1).c_str(), TypeName(VecT(), 1).c_str(),
+                  kRows, kCols, (with_add ? "with add" : "without add"), i, exp,
+                  act, tolerance);
+          HWY_ASSERT(0);
+        }
       }
-    }
+    };
+
+    assert_close(expected_without_add, actual_without_add, /*with_add=*/false);
+
+    AlignedFreeUniquePtr<T[]> expected_with_add = AllocateAligned<T>(kRows);
+    SimpleMatVecAdd(pm, pv, av, kRows, kCols, expected_with_add.get(), pool);
+
+    AlignedFreeUniquePtr<T[]> actual_with_add = AllocateAligned<T>(kRows);
+    MatVecAdd<kRows, kCols>(pm, pv, av, actual_with_add.get(), pool);
+
+    assert_close(expected_with_add, actual_with_add, /*with_add=*/true);
+
 #else
     (void)d;
     (void)pool;
@@ -186,6 +223,22 @@ class TestMatVec {
   }
 };
 
+void TestMatVecAdd() {
+  ThreadPool pool(1);
+  auto mat = AllocateAligned<float>(8);
+  CopyBytes(std::vector<float>{1, 2, 3, 4, 5, 6, 7, 8}.data(), mat.get(),
+            8 * sizeof(float));
+  auto vec = AllocateAligned<float>(4);
+  CopyBytes(std::vector<float>{1, 2, 3, 4}.data(), vec.get(),
+            4 * sizeof(float));
+  auto add = AllocateAligned<float>(2);
+  CopyBytes(std::vector<float>{1, 2}.data(), add.get(), 2 * sizeof(float));
+  auto out = AllocateAligned<float>(2);
+  MatVecAdd<2, 4>(mat.get(), vec.get(), add.get(), out.get(), pool);
+  HWY_ASSERT_EQ(out[0], 1 * 1 + 2 * 2 + 3 * 3 + 4 * 4 + 1);
+  HWY_ASSERT_EQ(out[1], 5 * 1 + 6 * 2 + 7 * 3 + 8 * 4 + 2);
+}
+
 void TestAllMatVec() {
 #if HWY_HAVE_FLOAT16
   ForPartialVectors<TestMatVec<float16_t, float16_t>>()(float16_t());
@@ -216,6 +269,7 @@ HWY_BEFORE_TEST(MatVecTest);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVec);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16);
 HWY_EXPORT_AND_TEST_P(MatVecTest, TestAllMatVecBF16Both);
+HWY_EXPORT_AND_TEST_P(MatVecTest, TestMatVecAdd);
 HWY_AFTER_TEST();
 }  // namespace hwy
 
