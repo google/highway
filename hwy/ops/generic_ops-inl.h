@@ -2922,6 +2922,7 @@ HWY_API V SaturatedSub(V a, V b) {
 // ------------------------------ Unsigned to signed demotions
 
 template <class DN, HWY_IF_SIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V),
           class V2 = VFromD<Rebind<TFromV<V>, DN>>,
           hwy::EnableIf<(sizeof(TFromD<DN>) < sizeof(TFromV<V>))>* = nullptr,
           HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_D(DFromV<V2>))>
@@ -2945,6 +2946,7 @@ HWY_API VFromD<DN> DemoteTo(DN dn, V v) {
 
 #if HWY_TARGET != HWY_SCALAR || HWY_IDE
 template <class DN, HWY_IF_SIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
+          HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V),
           class V2 = VFromD<Repartition<TFromV<V>, DN>>,
           HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
           HWY_IF_LANES_D(DFromV<V>, HWY_MAX_LANES_D(DFromV<V2>))>

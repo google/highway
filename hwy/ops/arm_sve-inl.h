@@ -2552,6 +2552,29 @@ HWY_API svuint8_t DemoteTo(Simd<uint8_t, N, kPow2> dn, const svuint64_t v) {
   return TruncateTo(dn, vn);
 }
 
+// ------------------------------ Unsigned to signed demotions
+
+// Disable the default unsigned to signed DemoteTo/ReorderDemote2To
+// implementations in generic_ops-inl.h on SVE/SVE2 as the SVE/SVE2 targets have
+// target-specific implementations of the unsigned to signed DemoteTo and
+// ReorderDemote2To ops
+
+// NOTE: hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr is used instead of
+// hwy::EnableIf<false>* = nullptr to avoid compiler errors since
+// !hwy::IsSame<V, V>() is always false and as !hwy::IsSame<V, V>() will cause
+// SFINAE to occur instead of a hard error due to a dependency on the V template
+// argument
+#undef HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V
+#define HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V) \
+  hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr
+
+template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_LE_D(D, sizeof(TFromV<V>) - 1)>
+HWY_API VFromD<D> DemoteTo(D dn, V v) {
+  const RebindToUnsigned<D> dn_u;
+  return BitCast(dn, TruncateTo(dn_u, detail::SaturateU<TFromD<D>>(v)));
+}
+
 // ------------------------------ ConcatEven/ConcatOdd
 
 // WARNING: the upper half of these needs fixing up (uzp1/uzp2 use the
@@ -4484,6 +4507,14 @@ HWY_API svuint32_t ReorderDemote2To(Simd<uint32_t, N, kPow2> d32, svuint64_t a,
   const svuint32_t b32 = BitCast(d32, detail::SaturateU<uint32_t>(b));
   return detail::InterleaveEven(a32, b32);
 #endif
+}
+
+template <class D, class V, HWY_IF_SIGNED_D(D), HWY_IF_UNSIGNED_V(V),
+          HWY_IF_T_SIZE_D(D, sizeof(TFromV<V>) / 2)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, V a, V b) {
+  const auto clamped_a = BitCast(dn, detail::SaturateU<TFromD<D>>(a));
+  const auto clamped_b = BitCast(dn, detail::SaturateU<TFromD<D>>(b));
+  return detail::InterleaveEven(clamped_a, clamped_b);
 }
 
 template <class D, class V, HWY_IF_NOT_FLOAT_NOR_SPECIAL(TFromD<D>),

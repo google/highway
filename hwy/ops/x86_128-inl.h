@@ -10442,7 +10442,20 @@ template <class D, HWY_IF_V_SIZE_LE_D(D, 2), HWY_IF_U8_D(D)>
 HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint64_t, D>> v) {
   return VFromD<D>{_mm_cvtusepi64_epi8(v.raw)};
 }
-#else   // AVX2 or below
+#else  // AVX2 or below
+
+// Disable the default unsigned to signed DemoteTo/ReorderDemote2To
+// implementations in generic_ops-inl.h for U64->I8/I16/I32 demotions on
+// SSE2/SSSE3/SSE4/AVX2 as U64->I8/I16/I32 DemoteTo/ReorderDemote2To for
+// SSE2/SSSE3/SSE4/AVX2 is implemented in x86_128-inl.h
+
+// The default unsigned to signed DemoteTo/ReorderDemote2To
+// implementations in generic_ops-inl.h are still used for U32->I8/I16 and
+// U16->I8 demotions on SSE2/SSSE3/SSE4/AVX2
+
+#undef HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V
+#define HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V) HWY_IF_NOT_T_SIZE_V(V, 8)
+
 namespace detail {
 template <class D, HWY_IF_UNSIGNED_D(D)>
 HWY_INLINE VFromD<Rebind<uint64_t, D>> DemoteFromU64MaskOutResult(
@@ -10505,6 +10518,25 @@ HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<int64_t, D>> v) {
   return TruncateTo(dn, detail::DemoteFromU64Saturate(dn, non_neg_vals));
 }
 
+template <class D,
+          HWY_IF_T_SIZE_ONE_OF_D(
+              D, ((HWY_TARGET != HWY_SSE2) ? ((1 << 1) | (1 << 2)) : 0) |
+                     (1 << 4)),
+          HWY_IF_SIGNED_D(D)>
+HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<uint64_t, D>> v) {
+  const RebindToUnsigned<decltype(dn)> dn_u;
+  return BitCast(dn, TruncateTo(dn_u, detail::DemoteFromU64Saturate(dn, v)));
+}
+
+#if HWY_TARGET == HWY_SSE2
+template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2)),
+          HWY_IF_SIGNED_D(D)>
+HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<uint64_t, D>> v) {
+  const Rebind<int32_t, decltype(dn)> di32;
+  return DemoteTo(dn, DemoteTo(di32, v));
+}
+#endif  // HWY_TARGET == HWY_SSE2
+
 template <class D, HWY_IF_T_SIZE_ONE_OF_D(D, (1 << 1) | (1 << 2) | (1 << 4)),
           HWY_IF_UNSIGNED_D(D)>
 HWY_API VFromD<D> DemoteTo(D dn, VFromD<Rebind<uint64_t, D>> v) {
@@ -10528,6 +10560,16 @@ HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<uint64_t, D>> a,
   const Twice<decltype(d)> dt;
   return DemoteTo(dn, Combine(dt, b, a));
 }
+
+#if HWY_TARGET > HWY_AVX3
+template <class D, HWY_IF_V_SIZE_LE_D(D, HWY_MAX_BYTES / 2), HWY_IF_I32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, VFromD<Repartition<uint64_t, D>> a,
+                                   VFromD<Repartition<uint64_t, D>> b) {
+  const DFromV<decltype(a)> d;
+  const Twice<decltype(d)> dt;
+  return DemoteTo(dn, Combine(dt, b, a));
+}
+#endif
 
 #if HWY_TARGET > HWY_AVX2
 template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I32_D(D)>
@@ -10566,9 +10608,9 @@ HWY_API Vec128<uint32_t> ReorderDemote2To(D dn, Vec128<int64_t> a,
   return ConcatEven(dn, BitCast(dn, saturated_b), BitCast(dn, saturated_a));
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
-HWY_API Vec128<uint32_t> ReorderDemote2To(D dn, Vec128<uint64_t> a,
-                                          Vec128<uint64_t> b) {
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, Vec128<uint64_t> a,
+                                   Vec128<uint64_t> b) {
   const Half<decltype(dn)> dnh;
 
   const auto saturated_a = detail::DemoteFromU64Saturate(dnh, a);

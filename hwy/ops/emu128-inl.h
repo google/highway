@@ -1624,17 +1624,32 @@ HWY_API VFromD<DTo> DemoteTo(DTo /* tag */, Vec128<TFrom, N> from) {
   return ret;
 }
 
+// Disable the default unsigned to signed DemoteTo/ReorderDemote2To
+// implementations in generic_ops-inl.h on EMU128 as the EMU128 target has
+// target-specific implementations of the unsigned to signed DemoteTo and
+// ReorderDemote2To ops
+
+// NOTE: hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr is used instead of
+// hwy::EnableIf<false>* = nullptr to avoid compiler errors since
+// !hwy::IsSame<V, V>() is always false and as !hwy::IsSame<V, V>() will cause
+// SFINAE to occur instead of a hard error due to a dependency on the V template
+// argument
+#undef HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V
+#define HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V) \
+  hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr
+
 template <class DTo, typename TFrom, size_t N, HWY_IF_UNSIGNED(TFrom),
-          HWY_IF_UNSIGNED_D(DTo)>
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DTo)>
 HWY_API VFromD<DTo> DemoteTo(DTo /* tag */, Vec128<TFrom, N> from) {
   using TTo = TFromD<DTo>;
   static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
 
+  const auto max = static_cast<MakeUnsigned<TTo>>(LimitsMax<TTo>());
+
   VFromD<DTo> ret;
   for (size_t i = 0; i < N; ++i) {
     // Int to int: choose closest value in ToT to `from` (avoids UB)
-    from.raw[i] = HWY_MIN(from.raw[i], LimitsMax<TTo>());
-    ret.raw[i] = static_cast<TTo>(from.raw[i]);
+    ret.raw[i] = static_cast<TTo>(HWY_MIN(from.raw[i], max));
   }
   return ret;
 }
@@ -1682,14 +1697,15 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
   return ret;
 }
 
-template <class DN, HWY_IF_UNSIGNED_D(DN), class V, HWY_IF_UNSIGNED_V(V),
-          HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
+template <class DN, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DN), class V,
+          HWY_IF_UNSIGNED_V(V), HWY_IF_T_SIZE_V(V, sizeof(TFromD<DN>) * 2),
           HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
   const RepartitionToWide<decltype(dn)> dw;
   const size_t NW = Lanes(dw);
   using TN = TFromD<DN>;
-  const TN max = LimitsMax<TN>();
+  using TN_U = MakeUnsigned<TN>;
+  const TN_U max = static_cast<TN_U>(LimitsMax<TN>());
   VFromD<DN> ret;
   for (size_t i = 0; i < NW; ++i) {
     ret.raw[i] = static_cast<TN>(HWY_MIN(a.raw[i], max));
