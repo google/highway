@@ -41,6 +41,8 @@ HWY_NOINLINE void MatVecAddImpl(const T* HWY_RESTRICT mat,
                                 const T* HWY_RESTRICT vec,
                                 const T* HWY_RESTRICT add, T* HWY_RESTRICT out,
                                 hwy::ThreadPool& pool) {
+  (void)add;
+
   // Process multiple rows at a time so that we write multiples of a cache line
   // to avoid false sharing (>= 64). 128 is better than 256. 512 has too little
   // parallelization potential.
