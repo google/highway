@@ -26,6 +26,7 @@
 #define HWY_TARGET_INCLUDE "hwy/contrib/sort/sort_test.cc"
 #include "hwy/foreach_target.h"  // IWYU pragma: keep
 // After foreach_target
+#include "hwy/aligned_allocator.h"  // IsAligned
 #include "hwy/contrib/sort/algo-inl.h"
 #include "hwy/contrib/sort/result-inl.h"
 #include "hwy/contrib/sort/traits128-inl.h"
@@ -541,8 +542,9 @@ class CompareResults {
 
  public:
   CompareResults(const LaneType* in, size_t num_lanes) {
-    copy_.resize(num_lanes);
-    CopyBytes(in, copy_.data(), num_lanes * sizeof(LaneType));
+    copy_lanes_ = num_lanes;
+    copy_ = hwy::AllocateAligned<LaneType>(num_lanes);
+    CopyBytes(in, copy_.get(), num_lanes * sizeof(LaneType));
   }
 
   bool VerifyPartialSort(const LaneType* output, const size_t k) {
@@ -551,12 +553,12 @@ class CompareResults {
     using Order = typename Traits::Order;
     const Traits st;
     constexpr size_t kLPK = st.LanesPerKey();
-    const size_t num_keys = copy_.size() / kLPK;
-    Run<Order>(reference, reinterpret_cast<KeyType*>(copy_.data()), num_keys,
+    const size_t num_keys = copy_lanes_ / kLPK;
+    Run<Order>(reference, reinterpret_cast<KeyType*>(copy_.get()), num_keys,
                shared, /*thread=*/0, k);
 #if VQSORT_PRINT >= 3
     fprintf(stderr, "\nExpected:\n");
-    for (size_t i = 0; i < HWY_MIN(40, copy_.size()); i += kLPK) {
+    for (size_t i = 0; i < HWY_MIN(40, copy_lanes_); i += kLPK) {
       fprintf(stderr, "\n%03zu: ", i);
       KeyType key;
       CopyBytes<sizeof(KeyType)>(&copy_[i], &key);
@@ -564,7 +566,7 @@ class CompareResults {
     }
 
     fprintf(stderr, "\n\nActual:\n");
-    for (size_t i = 0; i < HWY_MIN(40, copy_.size()); i += kLPK) {
+    for (size_t i = 0; i < HWY_MIN(40, copy_lanes_); i += kLPK) {
       fprintf(stderr, "\n%03zu: ", i);
       KeyType key;
       CopyBytes<sizeof(KeyType)>(&output[i], &key);
@@ -580,7 +582,7 @@ class CompareResults {
         CopyBytes<sizeof(KeyType)>(&output[i], &actual);
         fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: ", st.KeyString(),
                 Order().IsAscending(), static_cast<int>(i),
-                static_cast<int>(copy_.size()));
+                static_cast<int>(copy_lanes_));
         PrintValue(expected);
         PrintValue(actual);
         fprintf(stderr, "\n");
@@ -600,12 +602,13 @@ class CompareResults {
     using Order = typename Traits::Order;
     const Traits st;
     constexpr size_t kLPK = st.LanesPerKey();
-    const size_t num_keys = copy_.size() / kLPK;
-    Run<Order>(reference, reinterpret_cast<KeyType*>(copy_.data()), num_keys,
+    const size_t num_keys = copy_lanes_ / kLPK;
+    HWY_ASSERT(hwy::IsAligned(copy_.get(), sizeof(KeyType)));
+    Run<Order>(reference, HWY_RCAST_ALIGNED(KeyType*, copy_.get()), num_keys,
                shared, /*thread=*/0);
 #if VQSORT_PRINT >= 3
     fprintf(stderr, "\nExpected:\n");
-    for (size_t i = 0; i < HWY_MIN(40, copy_.size()); i += kLPK) {
+    for (size_t i = 0; i < HWY_MIN(40, copy_lanes_); i += kLPK) {
       fprintf(stderr, "\n%03zu: ", i);
       KeyType key;
       CopyBytes<sizeof(KeyType)>(&copy_[i], &key);
@@ -613,14 +616,14 @@ class CompareResults {
     }
 
     fprintf(stderr, "\n\nActual:\n");
-    for (size_t i = 0; i < HWY_MIN(40, copy_.size()); i += kLPK) {
+    for (size_t i = 0; i < HWY_MIN(40, copy_lanes_); i += kLPK) {
       fprintf(stderr, "\n%03zu: ", i);
       KeyType key;
       CopyBytes<sizeof(KeyType)>(&output[i], &key);
       PrintValue(key);
     }
 #endif
-    for (size_t i = 0; i < copy_.size(); i += kLPK) {
+    for (size_t i = 0; i < copy_lanes_; i += kLPK) {
       // Results should be equivalent, i.e. neither a < b nor b < a.
       if (st.Compare1(&copy_[i], &output[i]) ||
           st.Compare1(&output[i], &copy_[i])) {
@@ -629,7 +632,7 @@ class CompareResults {
         CopyBytes<sizeof(KeyType)>(&output[i], &actual);
         fprintf(stderr, "Type %s Asc %d mismatch at %d of %d: ", st.KeyString(),
                 Order().IsAscending(), static_cast<int>(i),
-                static_cast<int>(copy_.size()));
+                static_cast<int>(copy_lanes_));
         PrintValue(expected);
         PrintValue(actual);
         fprintf(stderr, "\n");
@@ -640,7 +643,8 @@ class CompareResults {
   }
 
  private:
-  std::vector<LaneType> copy_;
+  hwy::AlignedFreeUniquePtr<LaneType[]> copy_;
+  size_t copy_lanes_;
 };
 
 std::vector<Algo> SortAlgoForTest() {
@@ -705,7 +709,8 @@ void TestSort(size_t num_lanes) {
             GenerateInput(dist, lanes, num_lanes);
 
         CompareResults<Traits> compare(lanes, num_lanes);
-        Run<Order>(algo, reinterpret_cast<KeyType*>(lanes), num_keys, shared,
+        HWY_ASSERT(hwy::IsAligned(lanes, sizeof(KeyType)));
+        Run<Order>(algo, HWY_RCAST_ALIGNED(KeyType*, lanes), num_keys, shared,
                    /*thread=*/0);
         HWY_ASSERT(compare.Verify(lanes));
         HWY_ASSERT(VerifySort(st, input_stats, lanes, num_lanes, "TestSort"));

@@ -335,7 +335,7 @@ HWY_NOINLINE void BenchSort(size_t num_keys) {
             GenerateInput(dist, aligned.get(), num_lanes);
 
         const Timestamp t0;
-        Run<Order>(algo, reinterpret_cast<KeyType*>(aligned.get()), num_keys,
+        Run<Order>(algo, HWY_RCAST_ALIGNED(KeyType*, aligned.get()), num_keys,
                    shared, /*thread=*/0);
         seconds.push_back(SecondsSince(t0));
         // printf("%f\n", seconds.back());

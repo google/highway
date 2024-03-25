@@ -139,9 +139,9 @@ namespace hwy {
 #define HWY_ASSUME_ALIGNED(ptr, align) (ptr) /* not supported */
 #endif
 
-// Special case to increases required alignment
+// Special case to increase required alignment. type is T*.
 #define HWY_RCAST_ALIGNED(type, ptr) \
-  reinterpret_cast<type>(HWY_ASSUME_ALIGNED((ptr), alignof(type)))
+  reinterpret_cast<type>(HWY_ASSUME_ALIGNED((ptr), alignof(RemovePtr<type>)))
 
 // Clang and GCC require attributes on each function into which SIMD intrinsics
 // are inlined. Support both per-function annotation (HWY_ATTR) for lambdas and
@@ -575,6 +575,30 @@ using RemoveRef = typename RemoveRefT<T>::type;
 
 template <class T>
 using RemoveCvRef = RemoveConst<RemoveVolatile<RemoveRef<T>>>;
+
+template <class T>
+struct RemovePtrT {
+  using type = T;
+};
+template <class T>
+struct RemovePtrT<T*> {
+  using type = T;
+};
+template <class T>
+struct RemovePtrT<const T*> {
+  using type = T;
+};
+template <class T>
+struct RemovePtrT<volatile T*> {
+  using type = T;
+};
+template <class T>
+struct RemovePtrT<const volatile T*> {
+  using type = T;
+};
+
+template <class T>
+using RemovePtr = typename RemovePtrT<T>::type;
 
 // Insert into template/function arguments to enable this overload only for
 // vectors of exactly, at most (LE), or more than (GT) this many bytes.

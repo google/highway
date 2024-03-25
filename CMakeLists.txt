@@ -247,6 +247,7 @@ else()
     -Wsign-conversion
     -Wvla
     -Wnon-virtual-dtor
+    -Wcast-align # see -Wcast-align=strict on x86
   )
 
   if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
