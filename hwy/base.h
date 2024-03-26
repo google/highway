@@ -139,7 +139,8 @@ namespace hwy {
 #define HWY_ASSUME_ALIGNED(ptr, align) (ptr) /* not supported */
 #endif
 
-// Special case to increase required alignment. type is T*.
+// Returns a pointer whose type is `type` (T*), while allowing the compiler to
+// assume that the untyped pointer `ptr` is aligned to a multiple of sizeof(T).
 #define HWY_RCAST_ALIGNED(type, ptr) \
   reinterpret_cast<type>(HWY_ASSUME_ALIGNED((ptr), alignof(RemovePtr<type>)))
 
