@@ -203,7 +203,7 @@ cc_test(
     # Do not enable fully_static_link (pthread crash on bazel)
     local_defines = ["HWY_IS_TEST"],
     # for test_suite.
-    tags = ["hwy_ops_tests"],
+    tags = ["hwy_ops_test"],
     deps = [
         ":helpers",
         ":vqsort_for_test",
@@ -219,7 +219,7 @@ cc_test(
     # Do not enable fully_static_link (pthread crash on bazel)
     local_defines = ["HWY_IS_TEST"],
     # for test_suite.
-    tags = ["hwy_ops_tests"],
+    tags = ["hwy_ops_test"],
     deps = [
         ":helpers",
         ":vqsort",
