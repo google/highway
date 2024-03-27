@@ -1566,6 +1566,47 @@ HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag /*to_type_tag*/,
                                      float val) {
   return CastValueForF2IConv<ToT>(val);
 }
+// If val is within the range of ToT, CastValueForFastF2IConv<ToT>(val) returns
+// static_cast<ToT>(val)
+//
+// Otherwise, CastValueForFastF2IConv<ToT>(val) returns an
+// implementation-defined result if val is not within the range of ToT.
+template <class ToT, class FromT>
+HWY_INLINE ToT CastValueForFastF2IConv(FromT val) {
+  // Prevent ubsan errors when converting float to narrower integer
+
+  using FromTU = MakeUnsigned<FromT>;
+
+  constexpr unsigned kMaxExpField =
+      static_cast<unsigned>(MaxExponentField<FromT>());
+  constexpr unsigned kExpBias = kMaxExpField >> 1;
+  constexpr unsigned kMinOutOfRangeExpField = static_cast<unsigned>(HWY_MIN(
+      kExpBias + sizeof(ToT) * 8 - static_cast<unsigned>(IsSigned<ToT>()),
+      kMaxExpField));
+
+  // If ToT is signed, compare only the exponent bits of val against
+  // kMinOutOfRangeExpField.
+  //
+  // Otherwise, if ToT is unsigned, compare the sign bit plus exponent bits of
+  // val against kMinOutOfRangeExpField as a negative value is outside of the
+  // range of an unsigned integer type.
+  const FromT val_to_compare =
+      static_cast<FromT>(IsSigned<ToT>() ? ScalarAbs(val) : val);
+
+  // val is within the range of ToT if
+  // (BitCastScalar<FromTU>(val_to_compare) >> MantissaBits<FromT>()) is less
+  // than kMinOutOfRangeExpField
+  //
+  // Otherwise, val is either outside of the range of ToT or equal to
+  // LimitsMin<ToT>() if
+  // (BitCastScalar<FromTU>(val_to_compare) >> MantissaBits<FromT>()) is greater
+  // than or equal to kMinOutOfRangeExpField.
+
+  return (static_cast<unsigned>(BitCastScalar<FromTU>(val_to_compare) >>
+                                MantissaBits<FromT>()) < kMinOutOfRangeExpField)
+             ? static_cast<ToT>(val)
+             : static_cast<ToT>(LimitsMin<ToT>());
+}
 
 }  // namespace detail
 
@@ -1577,6 +1618,21 @@ HWY_API VFromD<DTo> PromoteTo(DTo d, Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
     // For bits Y > X, floatX->floatY and intX->intY are always representable.
     ret.raw[i] = detail::CastValueForPromoteTo<TFromD<DTo>>(
         hwy::TypeTag<TFromD<DTo>>(), from.raw[i]);
+  }
+  return ret;
+}
+
+#ifdef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#undef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#else
+#define HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#endif
+
+template <class D64, HWY_IF_UI64_D(D64)>
+HWY_API VFromD<D64> FastPromoteTo(D64 d64, VFromD<Rebind<float, D64>> v) {
+  VFromD<D64> ret;
+  for (size_t i = 0; i < MaxLanes(d64); ++i) {
+    ret.raw[i] = detail::CastValueForFastF2IConv<TFromD<D64>>(v.raw[i]);
   }
   return ret;
 }
@@ -1779,6 +1835,21 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec128<float, N> v) {
   return ret;
 }
 
+#ifdef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#undef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#else
+#define HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#endif
+
+template <class D32, HWY_IF_UI32_D(D32)>
+HWY_API VFromD<D32> FastDemoteTo(D32 d32, VFromD<Rebind<double, D32>> v) {
+  VFromD<D32> ret;
+  for (size_t i = 0; i < MaxLanes(d32); ++i) {
+    ret.raw[i] = detail::CastValueForFastF2IConv<TFromD<D32>>(v.raw[i]);
+  }
+  return ret;
+}
+
 // Tag dispatch instead of SFINAE for MSVC 2017 compatibility
 namespace detail {
 
@@ -1816,6 +1887,22 @@ HWY_API VFromD<DTo> ConvertTo(hwy::NonFloatTag /*tag*/, DTo /* tag */,
 template <class DTo, typename TFrom>
 HWY_API VFromD<DTo> ConvertTo(DTo d, Vec128<TFrom, HWY_MAX_LANES_D(DTo)> from) {
   return detail::ConvertTo(hwy::IsFloatTag<TFrom>(), d, from);
+}
+
+#ifdef HWY_NATIVE_F2I_FAST_CONVERT_TO
+#undef HWY_NATIVE_F2I_FAST_CONVERT_TO
+#else
+#define HWY_NATIVE_F2I_FAST_CONVERT_TO
+#endif
+
+template <class DI, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DI),
+          HWY_IF_T_SIZE_ONE_OF_D(DI, (1 << 4) | (1 << 8))>
+HWY_API VFromD<DI> FastConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
+  VFromD<DI> ret;
+  for (size_t i = 0; i < MaxLanes(di); i++) {
+    ret.raw[i] = detail::CastValueForFastF2IConv<TFromD<DI>>(v.raw[i]);
+  }
+  return ret;
 }
 
 template <size_t N>

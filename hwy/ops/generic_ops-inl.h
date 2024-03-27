@@ -3554,6 +3554,140 @@ HWY_API VFromD<D> ReorderDemote2To(D dbf16, VFromD<Repartition<float, D>> a,
 
 #endif  // HWY_NATIVE_DEMOTE_F32_TO_BF16
 
+// ------------------------------ FastPromoteTo
+#if (defined(HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#undef HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#else
+#define HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+#endif
+
+#if HWY_HAVE_INTEGER64
+template <class D64, HWY_IF_UI64_D(D64)>
+HWY_API VFromD<D64> FastPromoteTo(D64 d64, VFromD<Rebind<float, D64>> v) {
+  return PromoteTo(d64, v);
+}
+#endif
+
+#endif  // HWY_NATIVE_F32_TO_UI64_FAST_PROMOTE_TO
+
+// ------------------------------ FastConvertTo
+#if (defined(HWY_NATIVE_F2I_FAST_CONVERT_TO) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_F2I_FAST_CONVERT_TO
+#undef HWY_NATIVE_F2I_FAST_CONVERT_TO
+#else
+#define HWY_NATIVE_F2I_FAST_CONVERT_TO
+#endif
+
+template <class DI, HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DI),
+          HWY_IF_T_SIZE_ONE_OF_D(DI, (HWY_HAVE_FLOAT16 ? (1 << 2) : 0) |
+                                         (1 << 4) |
+                                         (HWY_HAVE_FLOAT64 ? (1 << 8) : 0))>
+HWY_API VFromD<DI> FastConvertTo(DI di, VFromD<RebindToFloat<DI>> v) {
+  return ConvertTo(di, v);
+}
+
+#endif  // HWY_NATIVE_F2I_FAST_CONVERT_TO
+
+// ------------------------------ FastDemoteTo
+#if (defined(HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO) == \
+     defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#undef HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#else
+#define HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+#endif
+
+#if HWY_HAVE_FLOAT64
+template <class D32, HWY_IF_UI32_D(D32)>
+HWY_API VFromD<D32> FastDemoteTo(D32 d32, VFromD<Rebind<double, D32>> v) {
+  return DemoteTo(d32, v);
+}
+#endif
+
+#endif  // HWY_NATIVE_F64_TO_UI32_FAST_DEMOTE_TO
+
+// ------------------------------ FastPromoteLowerTo/FastPromoteUpperTo
+
+template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
+HWY_API VFromD<D> FastPromoteLowerTo(D d, V v) {
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return FastPromoteTo(d, LowerHalf(dh, v));
+}
+
+#if HWY_TARGET != HWY_SCALAR
+template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
+HWY_API VFromD<D> FastPromoteUpperTo(D d, V v) {
+#if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
+     ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
+      !HWY_HAVE_FLOAT64))
+  // On targets that provide target-specific implementations of F32->UI64
+  // FastPromoteTo, promote the upper half of v using FastPromoteTo
+
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return FastPromoteTo(d, UpperHalf(dh, v));
+#else
+  // Otherwise, on targets where F32->UI64 FastPromoteTo is simply a wrapper
+  // around F32->UI64 PromoteTo, promote the upper half of v to TFromD<D> using
+  // PromoteUpperTo
+  return PromoteUpperTo(d, v);
+#endif
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
+// ------------------------------ FastPromoteEvenTo/FastPromoteOddTo
+
+template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
+HWY_API VFromD<D> FastPromoteEvenTo(D d, V v) {
+#if HWY_TARGET == HWY_SCALAR
+  return FastPromoteTo(d, v);
+#elif (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
+       ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
+        !HWY_HAVE_FLOAT64))
+  // On targets that provide target-specific implementations of F32->UI64
+  // FastPromoteTo, promote the even lanes of v using FastPromoteTo
+
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const DFromV<decltype(v)> d_from;
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return FastPromoteTo(d, LowerHalf(dh, ConcatEven(d_from, v, v)));
+#else
+  // Otherwise, on targets where F32->UI64 FastPromoteTo is simply a wrapper
+  // around F32->UI64 PromoteTo, promote the even lanes of v to TFromD<D> using
+  // PromoteEvenTo
+  return PromoteEvenTo(d, v);
+#endif  // HWY_TARGET == HWY_SCALAR
+}
+
+#if HWY_TARGET != HWY_SCALAR
+template <class D, HWY_IF_UI64_D(D), class V, HWY_IF_F32(TFromV<V>)>
+HWY_API VFromD<D> FastPromoteOddTo(D d, V v) {
+#if (HWY_TARGET <= HWY_SSE2 || HWY_TARGET == HWY_EMU128 ||              \
+     ((HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
+      !HWY_HAVE_FLOAT64))
+  // On targets that provide target-specific implementations of F32->UI64
+  // FastPromoteTo, promote the odd lanes of v using FastPromoteTo
+
+  // Lanes(d) may differ from Lanes(DFromV<V>()). Use the lane type from V
+  // because it cannot be deduced from D (could be either bf16 or f16).
+  const DFromV<decltype(v)> d_from;
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return FastPromoteTo(d, LowerHalf(dh, ConcatOdd(d_from, v, v)));
+#else
+  // Otherwise, on targets where F32->UI64 FastPromoteTo is simply a wrapper
+  // around F32->UI64 PromoteTo, promote the odd lanes of v to TFromD<D> using
+  // PromoteOddTo
+  return PromoteOddTo(d, v);
+#endif
+}
+#endif  // HWY_TARGET != HWY_SCALAR
+
 // ------------------------------ SumsOf2
 
 #if HWY_TARGET != HWY_SCALAR
@@ -4461,9 +4595,17 @@ HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
 
 namespace detail {
 
+// FastDemoteTo, FastPromoteTo, and FastConvertTo are okay to use in the
+// implementation of detail::IntDiv in generic_ops-inl.h as the current
+// implementations of FastDemoteTo, FastPromoteTo, and FastConvertTo
+// will convert values that are outside of the range of TFromD<DI> by either
+// saturation, truncation, or converting values that are outside of the
+// destination range to LimitsMin<TFromD<DI>>() (which is equal to
+// static_cast<TFromD<DI>>(LimitsMax<TFromD<DI>>() + 1))
+
 template <class D, class V, HWY_IF_T_SIZE_D(D, sizeof(TFromV<V>))>
 HWY_INLINE Vec<D> IntDivConvFloatToInt(D di, V vf) {
-  return ConvertTo(di, vf);
+  return FastConvertTo(di, vf);
 }
 
 template <class D, class V, HWY_IF_T_SIZE_D(D, sizeof(TFromV<V>))>
@@ -4474,7 +4616,7 @@ HWY_INLINE Vec<D> IntDivConvIntToFloat(D df, V vi) {
 #if !HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64
 template <class D, class V, HWY_IF_UI64_D(D), HWY_IF_F32(TFromV<V>)>
 HWY_INLINE Vec<D> IntDivConvFloatToInt(D df, V vi) {
-  return PromoteTo(df, vi);
+  return FastPromoteTo(df, vi);
 }
 
 // If !HWY_HAVE_FLOAT64 && HWY_HAVE_INTEGER64 is true, then UI64->F32
@@ -4545,6 +4687,12 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
   // the case where the magnitude of an inexact floating point division result
   // is rounded up.
 
+  // It is okay to do conversions from MakeFloat<TFromV<V>> to TFromV<V> using
+  // FastConvertTo if sizeof(TFromV<V>) > kOrigLaneSize as the result of the
+  // floating point division is always greater than LimitsMin<TFromV<V>>() and
+  // less than LimitsMax<TFromV<V>>() if sizeof(TFromV<V>) > kOrigLaneSize and
+  // b[i] != 0.
+
 #if (HWY_TARGET == HWY_NEON || HWY_TARGET == HWY_NEON_WITHOUT_AES) && \
     !HWY_HAVE_FLOAT64
   // On Armv7, do division by multiplying by the ApproximateReciprocal
@@ -4561,7 +4709,7 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
         Mul(flt_recip_b, ReciprocalNewtonRaphsonStep(flt_recip_b, flt_b));
   }
 
-  auto q0 = ConvertTo(d, Mul(ConvertTo(df, a), flt_recip_b));
+  auto q0 = FastConvertTo(d, Mul(ConvertTo(df, a), flt_recip_b));
   const auto r0 = BitCast(di, hwy::HWY_NAMESPACE::NegMulAdd(q0, b, a));
 
   auto r1 = r0;
@@ -4603,7 +4751,7 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
 #else
   // On targets other than Armv7 NEON, use F16 or F32 division as most targets
   // other than Armv7 NEON have native F32 divide instructions
-  return ConvertTo(d, Div(ConvertTo(df, a), ConvertTo(df, b)));
+  return FastConvertTo(d, Div(ConvertTo(df, a), ConvertTo(df, b)));
 #endif
 }
 
@@ -4653,9 +4801,39 @@ HWY_INLINE V IntDivUsingFloatDiv(V a, V b) {
   const auto flt_recip_b = Div(Set(df, TF(1.0)), flt_b);
 #endif
 
+  // It is okay if the conversion of a[i] * flt_recip_b[i] to T using
+  // IntDivConvFloatToInt returns incorrect results in any lanes where b[i] == 0
+  // as the result of IntDivUsingFloatDiv(a, b) is implementation-defined in any
+  // lanes where b[i] == 0.
+
+  // If ScalarAbs(b[i]) == 1 is true, then it is possible for
+  // a[i] * flt_recip_b[i] to be rounded up to a value that is outside of the
+  // range of T. If a[i] * flt_recip_b[i] is outside of the range of T,
+  // IntDivConvFloatToInt will convert any values that are out of the range of T
+  // by either saturation, truncation, or wrapping around to LimitsMin<T>().
+
+  // It is okay if the conversion of a[i] * flt_recip_b[i] to T using
+  // IntDivConvFloatToInt wraps around if ScalarAbs(b[i]) == 1 as r0 will have
+  // the correct sign if ScalarAbs(b[i]) == 1, even in the cases where the
+  // conversion of a[i] * flt_recip_b[i] to T using IntDivConvFloatToInt is
+  // truncated or wraps around.
+
+  // If ScalarAbs(b[i]) >= 2 is true, a[i] * flt_recip_b[i] will be within the
+  // range of T, even in the cases where the conversion of a[i] to TF is
+  // rounded up or the result of multiplying a[i] by flt_recip_b[i] is rounded
+  // up.
+
+  // ScalarAbs(r0[i]) will also always be less than (LimitsMax<T>() / 2) if
+  // b[i] != 0, even in the cases where the conversion of a[i] * flt_recip_b[i]
+  // to T using IntDivConvFloatToInt is truncated or is wrapped around.
+
   auto q0 =
       IntDivConvFloatToInt(d, Mul(IntDivConvIntToFloat(df, a), flt_recip_b));
   const auto r0 = BitCast(di, hwy::HWY_NAMESPACE::NegMulAdd(q0, b, a));
+
+  // If b[i] != 0 is true, r0[i] * flt_recip_b[i] is always within the range of
+  // T, even in the cases where the conversion of r0[i] to TF is rounded up or
+  // the multiplication of r0[i] by flt_recip_b[i] is rounded up.
 
   auto q1 =
       IntDivConvFloatToInt(di, Mul(IntDivConvIntToFloat(df, r0), flt_recip_b));
@@ -4840,7 +5018,12 @@ HWY_INLINE V IntDiv(V a, V b) {
   const DFromV<decltype(a)> d;
   const Rebind<double, decltype(d)> df64;
 
-  return DemoteTo(d, Div(PromoteTo(df64, a), PromoteTo(df64, b)));
+  // It is okay to demote the F64 Div result to int32_t or uint32_t using
+  // FastDemoteTo as static_cast<double>(a[i]) / static_cast<double>(b[i]) will
+  // always be within the range of TFromV<V> if b[i] != 0 and
+  // sizeof(TFromV<V>) <= 4.
+
+  return FastDemoteTo(d, Div(PromoteTo(df64, a), PromoteTo(df64, b)));
 }
 template <size_t kOrigLaneSize, class V, HWY_IF_UI32(TFromV<V>),
           HWY_IF_V_SIZE_GT_V(V, HWY_MAX_BYTES / 2)>
@@ -4849,9 +5032,15 @@ HWY_INLINE V IntDiv(V a, V b) {
   const Half<decltype(d)> dh;
   const Repartition<double, decltype(d)> df64;
 
+  // It is okay to demote the F64 Div result to int32_t or uint32_t using
+  // FastDemoteTo as static_cast<double>(a[i]) / static_cast<double>(b[i]) will
+  // always be within the range of TFromV<V> if b[i] != 0 and
+  // sizeof(TFromV<V>) <= 4.
+
   return Combine(
-      d, DemoteTo(dh, Div(PromoteUpperTo(df64, a), PromoteUpperTo(df64, b))),
-      DemoteTo(dh, Div(PromoteLowerTo(df64, a), PromoteLowerTo(df64, b))));
+      d,
+      FastDemoteTo(dh, Div(PromoteUpperTo(df64, a), PromoteUpperTo(df64, b))),
+      FastDemoteTo(dh, Div(PromoteLowerTo(df64, a), PromoteLowerTo(df64, b))));
 }
 #endif  // HWY_HAVE_FLOAT64
 
