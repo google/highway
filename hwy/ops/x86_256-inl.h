@@ -6568,9 +6568,9 @@ HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<int64_t> a,
                                                  _MM_SHUFFLE(2, 0, 2, 0))});
 }
 
-template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U32_D(D)>
-HWY_API Vec256<uint32_t> ReorderDemote2To(D dn, Vec256<uint64_t> a,
-                                          Vec256<uint64_t> b) {
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_UI32_D(D)>
+HWY_API VFromD<D> ReorderDemote2To(D dn, Vec256<uint64_t> a,
+                                   Vec256<uint64_t> b) {
   const Half<decltype(dn)> dnh;
   const Repartition<float, decltype(dn)> dn_f;
 

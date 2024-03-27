@@ -1356,15 +1356,30 @@ HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
   return Vec1<TTo>(static_cast<TTo>(from.raw));
 }
 
+// Disable the default unsigned to signed DemoteTo implementation in
+// generic_ops-inl.h on SCALAR as the SCALAR target has a target-specific
+// implementation of the unsigned to signed DemoteTo op and as ReorderDemote2To
+// is not supported on the SCALAR target
+
+// NOTE: hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr is used instead of
+// hwy::EnableIf<false>* = nullptr to avoid compiler errors since
+// !hwy::IsSame<V, V>() is always false and as !hwy::IsSame<V, V>() will cause
+// SFINAE to occur instead of a hard error due to a dependency on the V template
+// argument
+#undef HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V
+#define HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V(V) \
+  hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr
+
 template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
-          HWY_IF_UNSIGNED(TFrom), HWY_IF_UNSIGNED_D(DTo)>
+          HWY_IF_UNSIGNED(TFrom), HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(DTo)>
 HWY_API Vec1<TTo> DemoteTo(DTo /* tag */, Vec1<TFrom> from) {
   static_assert(!IsFloat<TFrom>(), "TFrom=double are handled above");
   static_assert(sizeof(TTo) < sizeof(TFrom), "Not demoting");
 
+  const auto max = static_cast<MakeUnsigned<TTo>>(LimitsMax<TTo>());
+
   // Int to int: choose closest value in TTo to `from` (avoids UB)
-  from.raw = HWY_MIN(from.raw, LimitsMax<TTo>());
-  return Vec1<TTo>(static_cast<TTo>(from.raw));
+  return Vec1<TTo>(static_cast<TTo>(HWY_MIN(from.raw, max)));
 }
 
 template <class DTo, typename TTo = TFromD<DTo>, typename TFrom,
