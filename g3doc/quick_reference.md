@@ -1592,7 +1592,7 @@ offsets. If you have offsets, you can convert them to indices via `ShiftRight`.
 
 ### Cache control
 
-All functions except `Stream` are defined in cache_control.h.
+All functions except `Stream` and `StreamLoad` are defined in cache_control.h.
 
 *   <code>void **Stream**(Vec&lt;D&gt; a, D d, const T* aligned)</code>: copies
     `a[i]` into `aligned[i]` with non-temporal hint if available (useful for
@@ -1603,6 +1603,10 @@ All functions except `Stream` are defined in cache_control.h.
     size). Each call may write a multiple of `HWY_STREAM_MULTIPLE` bytes, which
     can exceed `Lanes(d) * sizeof(T)`. The new contents of `aligned` may not be
     visible until `FlushStream` is called.
+
+*   <code>Vec&lt;D&gt; **StreamLoad**(D, const T* aligned)</code>: returns
+    `aligned[i]` with non-temporal hint if available. May fault if the pointer
+    is not aligned to the vector size (using aligned_allocator.h is safe).
 
 *   <code>void **FlushStream**()</code>: ensures values written by previous
     `Stream` calls are visible on the current core. This is NOT sufficient for

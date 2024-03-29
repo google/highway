@@ -2132,6 +2132,30 @@ HWY_API Vec128<T, N> operator%(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ================================================== MEMORY (3)
 
+// ------------------------------ Non-temporal loads
+
+#if !HWY_S390X_HAVE_Z14
+
+#ifdef HWY_NATIVE_STREAM_LOAD
+#undef HWY_NATIVE_STREAM_LOAD
+#else
+#define HWY_NATIVE_STREAM_LOAD
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8)>
+HWY_API VFromD<D> StreamLoad(D d, const TFromD<D>* HWY_RESTRICT aligned) {
+  return Load(d, aligned);
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16)>
+HWY_API VFromD<D> StreamLoad(D d, const TFromD<D>* HWY_RESTRICT aligned) {
+  unsigned char* HWY_RESTRICT p = const_cast<unsigned char*>(
+      reinterpret_cast<const unsigned char*>(HWY_ASSUME_ALIGNED(aligned, 16)));
+  return BitCast(d, Vec128<uint8_t>{vec_ldl(0, p)});
+}
+
+#endif  // !HWY_S390X_HAVE_Z14
+
 // ------------------------------ Non-temporal stores
 
 template <class D>

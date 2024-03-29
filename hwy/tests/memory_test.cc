@@ -198,6 +198,37 @@ HWY_NOINLINE void TestAllStream() {
   ForFloatTypes(test);
 }
 
+struct TestStreamLoad {
+  template <class T, class D>
+  HWY_NOINLINE void operator()(T /*unused*/, D d) {
+    const size_t N = Lanes(d);
+
+    const size_t affected_bytes = (N * sizeof(T) + HWY_STREAM_MULTIPLE - 1) &
+                                  ~size_t(HWY_STREAM_MULTIPLE - 1);
+    const size_t affected_lanes = affected_bytes / sizeof(T);
+
+    auto in_lanes = AllocateAligned<T>(2 * affected_lanes);
+    HWY_ASSERT(in_lanes);
+
+    ZeroBytes(in_lanes.get(), 2 * affected_lanes * sizeof(T));
+    Stream(PositiveIota(d), d, in_lanes.get());
+    FlushStream();
+    const Vec<D> actual = StreamLoad(d, in_lanes.get());
+    HWY_ASSERT_VEC_EQ(d, in_lanes.get(), actual);
+  }
+};
+
+HWY_NOINLINE void TestAllStreamLoad() {
+  const ForPartialVectors<TestStreamLoad> test;
+  // No u8,u16.
+  test(uint32_t());
+  test(uint64_t());
+  // No i8,i16.
+  test(int32_t());
+  test(int64_t());
+  ForFloatTypes(test);
+}
+
 // Assumes little-endian byte order!
 struct TestScatter {
   template <class T, class D>
@@ -574,6 +605,7 @@ HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadStore);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllSafeCopyN);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllLoadDup128);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStream);
+HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllStreamLoad);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllScatter);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllGather);
 HWY_EXPORT_AND_TEST_P(HwyMemoryTest, TestAllCache);
