@@ -338,7 +338,7 @@ void Atan2TestCases(T /*unused*/, D d, size_t& padded,
   out_y = AllocateAligned<T>(padded);
   out_x = AllocateAligned<T>(padded);
   out_expected = AllocateAligned<T>(padded);
-  HWY_ASSERT(out_y && out_x);
+  HWY_ASSERT(out_y && out_x && out_expected);
   size_t i = 0;
   for (; i < kNumTestCases; ++i) {
     out_y[i] = test_cases[i].y;

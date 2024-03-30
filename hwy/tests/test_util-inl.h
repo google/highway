@@ -121,6 +121,7 @@ HWY_INLINE void AssertVecEqual(D d, const T* expected, Vec<D> actual,
                                const char* filename, const int line) {
   const size_t N = Lanes(d);
   auto actual_lanes = AllocateAligned<T>(N);
+  HWY_ASSERT(actual_lanes);
   Store(actual, d, actual_lanes.get());
 
   const auto info = hwy::detail::MakeTypeInfo<T>();
@@ -137,6 +138,7 @@ HWY_INLINE void AssertVecEqual(D d, Vec<D> expected, Vec<D> actual,
   const size_t N = Lanes(d);
   auto expected_lanes = AllocateAligned<T>(N);
   auto actual_lanes = AllocateAligned<T>(N);
+  HWY_ASSERT(expected_lanes && actual_lanes);
   Store(expected, d, expected_lanes.get());
   Store(actual, d, actual_lanes.get());
 
@@ -169,6 +171,7 @@ HWY_NOINLINE void AssertMaskEqual(D d, VecArg<Mask<D>> a, VecArg<Mask<D>> b,
   const size_t N8 = Lanes(d8);
   auto bits_a = AllocateAligned<uint8_t>(HWY_MAX(size_t{8}, N8));
   auto bits_b = AllocateAligned<uint8_t>(size_t{HWY_MAX(8, N8)});
+  HWY_ASSERT(bits_a && bits_b);
   memset(bits_a.get(), 0, N8);
   memset(bits_b.get(), 0, N8);
   const size_t num_bytes_a = StoreMaskBits(d, a, bits_a.get());

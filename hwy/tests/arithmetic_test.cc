@@ -360,6 +360,7 @@ struct TestIntegerAbsDiff {
     auto in_lanes_a = AllocateAligned<T>(N);
     auto in_lanes_b = AllocateAligned<T>(N);
     auto out_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(in_lanes_a && in_lanes_b && out_lanes);
     constexpr size_t shift_amt_mask = sizeof(T) * 8 - 1;
     for (size_t i = 0; i < N; ++i) {
       // Need to mask out shift_amt as i can be greater than or equal to

@@ -74,6 +74,7 @@ struct TestPromoteTo {
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N);
+    HWY_ASSERT(from && expected);
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -154,6 +155,7 @@ struct TestPromoteUpperLowerTo {
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N / 2);
+    HWY_ASSERT(from && expected);
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -279,6 +281,7 @@ struct TestPromoteOddEvenTo {
     HWY_ASSERT(N >= 2);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N / 2);
+    HWY_ASSERT(from && expected);
 
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(200); ++rep) {
@@ -383,6 +386,7 @@ AlignedFreeUniquePtr<float[]> F16TestCases(D d, size_t& padded) {
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
   auto in = AllocateAligned<float>(padded);
   auto expected = AllocateAligned<float>(padded);
+  HWY_ASSERT(in && expected);
   size_t i = 0;
   for (; i < kNumTestCases; ++i) {
     // Ensure the value can be exactly represented as binary16.
@@ -411,6 +415,7 @@ struct TestF16 {
     const RebindToUnsigned<decltype(df16)> du16;
     // Extra Load/Store to ensure they are usable.
     auto temp16 = AllocateAligned<TF16>(N);
+    HWY_ASSERT(temp16);
 
     // Extra Zero/BitCast to ensure they are usable. Neg is tested in
     // arithmetic_test.
@@ -523,6 +528,7 @@ AlignedFreeUniquePtr<float[]> BF16TestCases(D d, size_t& padded) {
   padded = RoundUpTo(kNumTestCases, N);  // allow loading whole vectors
   auto in = AllocateAligned<float>(padded);
   auto expected = AllocateAligned<float>(padded);
+  HWY_ASSERT(in && expected);
   size_t i = 0;
   for (; i < kNumTestCases; ++i) {
     in[i] = test_cases[i];
@@ -549,6 +555,7 @@ struct TestBF16 {
 
     HWY_ASSERT(Lanes(dbf16_half) == N);
     auto temp16 = AllocateAligned<TBF16>(N);
+    HWY_ASSERT(temp16);
 
     for (size_t i = 0; i < padded; i += N) {
       const auto loaded = Load(d32, &in[i]);
@@ -608,6 +615,7 @@ struct TestIntFromFloatHuge {
     // the expected lvalue also seems to prevent the issue.
     const size_t N = Lanes(df);
     auto expected = AllocateAligned<TI>(N);
+    HWY_ASSERT(expected);
 
     // Huge positive
     Store(Set(di, LimitsMax<TI>()), di, expected.get());
@@ -654,6 +662,7 @@ class TestIntFromFloat {
     // Also check random values.
     auto from = AllocateAligned<TF>(N);
     auto expected = AllocateAligned<TI>(N);
+    HWY_ASSERT(from && expected);
     RandomState rng;
     for (size_t rep = 0; rep < AdjustedReps(1000); ++rep) {
       for (size_t i = 0; i < N; ++i) {
@@ -1258,6 +1267,7 @@ struct TestF2IPromoteUpperLowerTo {
     const size_t N = Lanes(from_d);
     auto from = AllocateAligned<T>(N);
     auto expected = AllocateAligned<ToT>(N / 2);
+    HWY_ASSERT(from && expected);
 
     using TU = MakeUnsigned<T>;
 

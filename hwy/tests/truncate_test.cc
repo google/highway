@@ -72,6 +72,7 @@ struct TestOrderedTruncate2To {
     const size_t twiceN = N * 2;
     auto from = AllocateAligned<T>(twiceN);
     auto expected = AllocateAligned<TN>(twiceN);
+    HWY_ASSERT(from && expected);
 
     const T max = LimitsMax<TN>();
 

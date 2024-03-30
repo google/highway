@@ -49,6 +49,7 @@ struct TestWidenMulPairwiseAdd {
 
     // delta[p] := p all others zero.
     auto delta_w = AllocateAligned<TW>(NN);
+    HWY_ASSERT(delta_w);
     for (size_t p = 0; p < NN; ++p) {
       // Workaround for incorrect Clang wasm codegen: re-initialize the entire
       // array rather than zero-initialize once and then set lane p to p.
@@ -302,6 +303,7 @@ struct TestReorderWidenMulAccumulate {
 
     // delta[p] := 1, all others zero. For each p: Dot(delta, all-ones) == 1.
     auto delta_w = AllocateAligned<TW>(NN);
+    HWY_ASSERT(delta_w);
     for (size_t p = 0; p < NN; ++p) {
       // Workaround for incorrect Clang wasm codegen: re-initialize the entire
       // array rather than zero-initialize once and then toggle lane p.
@@ -358,6 +360,7 @@ struct TestRearrangeToOddPlusEven {
     const size_t NW = Lanes(dw);
 
     const auto expected = AllocateAligned<TW>(NW);
+    HWY_ASSERT(expected);
     for (size_t iw = 0; iw < NW; ++iw) {
       const size_t in = iw * 2;  // even, odd is +1
       const size_t a0 = 1 + in;

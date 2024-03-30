@@ -154,10 +154,12 @@ class TestMatVec {
     Generate(dv, av, kRows, GenerateMod());
 
     AlignedFreeUniquePtr<T[]> expected_without_add = AllocateAligned<T>(kRows);
+    HWY_ASSERT(expected_without_add);
     SimpleMatVecAdd(pm, pv, static_cast<VecT*>(nullptr), kRows, kCols,
                     expected_without_add.get(), pool);
 
     AlignedFreeUniquePtr<T[]> actual_without_add = AllocateAligned<T>(kRows);
+    HWY_ASSERT(actual_without_add);
     MatVec<kRows, kCols>(pm, pv, actual_without_add.get(), pool);
 
     const auto assert_close = [&](const AlignedFreeUniquePtr<T[]>& expected,
@@ -226,14 +228,18 @@ class TestMatVec {
 void TestMatVecAdd() {
   ThreadPool pool(1);
   auto mat = AllocateAligned<float>(8);
+  HWY_ASSERT(mat);
   CopyBytes(std::vector<float>{1, 2, 3, 4, 5, 6, 7, 8}.data(), mat.get(),
             8 * sizeof(float));
   auto vec = AllocateAligned<float>(4);
+  HWY_ASSERT(vec);
   CopyBytes(std::vector<float>{1, 2, 3, 4}.data(), vec.get(),
             4 * sizeof(float));
   auto add = AllocateAligned<float>(2);
+  HWY_ASSERT(add);
   CopyBytes(std::vector<float>{1, 2}.data(), add.get(), 2 * sizeof(float));
   auto out = AllocateAligned<float>(2);
+  HWY_ASSERT(out);
   MatVecAdd<2, 4>(mat.get(), vec.get(), add.get(), out.get(), pool);
   HWY_ASSERT_EQ(out[0], 1 * 1 + 2 * 2 + 3 * 3 + 4 * 4 + 1);
   HWY_ASSERT_EQ(out[1], 5 * 1 + 6 * 2 + 7 * 3 + 8 * 4 + 2);

@@ -127,6 +127,7 @@ struct TestMinMax128 {
     auto b_lanes = AllocateAligned<T>(N);
     auto min_lanes = AllocateAligned<T>(N);
     auto max_lanes = AllocateAligned<T>(N);
+    HWY_ASSERT(a_lanes && b_lanes && min_lanes && max_lanes);
     RandomState rng;
 
     const V v00 = Zero(d);
