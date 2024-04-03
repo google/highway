@@ -650,6 +650,12 @@ HWY_API bool IsAligned(D d, T* ptr) {
 #undef HWY_IF_MINMAX_OF_LANES_D
 #define HWY_IF_MINMAX_OF_LANES_D(D) HWY_IF_LANES_GT_D(D, 1)
 
+#undef HWY_IF_ADDSUB_V
+#define HWY_IF_ADDSUB_V(V) HWY_IF_LANES_GT_D(DFromV<V>, 1)
+
+#undef HWY_IF_MULADDSUB_V
+#define HWY_IF_MULADDSUB_V(V) HWY_IF_LANES_GT_D(DFromV<V>, 1)
+
 // HWY_IF_U2I_DEMOTE_FROM_LANE_SIZE_V is used to disable the default
 // implementation of unsigned to signed DemoteTo/ReorderDemote2To in
 // generic_ops-inl.h for at least some of the unsigned to signed demotions on
