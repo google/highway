@@ -615,7 +615,7 @@ HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
   const DFromV<decltype(v)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const __m128i vu = BitCast(du, v).raw;
   return BitCast(d, VU{_mm_ternarylogic_epi32(vu, vu, vu, 0x55)});
 #else
@@ -626,7 +626,7 @@ HWY_API Vec128<T, N> Not(const Vec128<T, N> v) {
 // ------------------------------ Xor3
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(x1)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -641,7 +641,7 @@ HWY_API Vec128<T, N> Xor3(Vec128<T, N> x1, Vec128<T, N> x2, Vec128<T, N> x3) {
 // ------------------------------ Or3
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(o1)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -656,7 +656,7 @@ HWY_API Vec128<T, N> Or3(Vec128<T, N> o1, Vec128<T, N> o2, Vec128<T, N> o3) {
 // ------------------------------ OrAnd
 template <typename T, size_t N>
 HWY_API Vec128<T, N> OrAnd(Vec128<T, N> o, Vec128<T, N> a1, Vec128<T, N> a2) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(o)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -3998,7 +3998,7 @@ HWY_API Vec128<int16_t, N> SaturatedAdd(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{_mm_adds_epi16(a.raw, b.raw)};
 }
 
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 #ifdef HWY_NATIVE_I32_SATURATED_ADDSUB
 #undef HWY_NATIVE_I32_SATURATED_ADDSUB
 #else
@@ -4036,7 +4036,7 @@ HWY_API Vec128<int64_t, N> SaturatedAdd(Vec128<int64_t, N> a,
       i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
   return IfThenElse(overflow_mask, overflow_result, sum);
 }
-#endif  // HWY_TARGET <= HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 
 // ------------------------------ SaturatedSub
 
@@ -4066,7 +4066,7 @@ HWY_API Vec128<int16_t, N> SaturatedSub(const Vec128<int16_t, N> a,
   return Vec128<int16_t, N>{_mm_subs_epi16(a.raw, b.raw)};
 }
 
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 template <size_t N>
 HWY_API Vec128<int32_t, N> SaturatedSub(Vec128<int32_t, N> a,
                                         Vec128<int32_t, N> b) {
@@ -4092,7 +4092,7 @@ HWY_API Vec128<int64_t, N> SaturatedSub(Vec128<int64_t, N> a,
       i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
   return IfThenElse(overflow_mask, overflow_result, diff);
 }
-#endif  // HWY_TARGET <= HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 
 // ------------------------------ AverageRound
 
