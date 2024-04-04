@@ -637,6 +637,7 @@ set(HWY_TEST_FILES
   hwy/tests/mask_slide_test.cc
   hwy/tests/mask_test.cc
   hwy/tests/masked_arithmetic_test.cc
+  hwy/tests/masked_minmax_test.cc
   hwy/tests/memory_test.cc
   hwy/tests/minmax_test.cc
   hwy/tests/mul_test.cc
