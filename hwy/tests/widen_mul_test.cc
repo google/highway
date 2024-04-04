@@ -271,6 +271,152 @@ HWY_NOINLINE void TestAllSatWidenMulPairwiseAdd() {
   ForShrinkableVectors<TestSatWidenMulPairwiseAdd>()(int8_t());
 }
 
+struct TestSatWidenMulPairwiseAccumulate {
+  template <class TN, class DN>
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
+    static_assert(IsSigned<TN>() && !IsFloat<TN>() && !IsSpecialFloat<TN>(),
+                  "TN must be a signed integer type");
+
+    using TW = MakeWide<TN>;
+    const RepartitionToWide<DN> dw;
+    using VW = Vec<decltype(dw)>;
+    using VN = Vec<decltype(dn)>;
+    const size_t NN = Lanes(dn);
+    const size_t NW = Lanes(dw);
+    HWY_ASSERT(NN == NW * 2);
+
+    const VN vn_min = Set(dn, LimitsMin<TN>());
+    const VN vn_kneg1 = Set(dn, static_cast<TN>(-1));
+    const VN vn_k1 = Set(dn, static_cast<TN>(1));
+    const VN vn_max = Set(dn, LimitsMax<TN>());
+
+    const VW vw_min = Set(dw, LimitsMin<TW>());
+    const VW vw_kneg7 = Set(dw, static_cast<TW>(-7));
+    const VW vw_kneg1 = Set(dw, static_cast<TW>(-1));
+    const VW vw_k0 = Zero(dw);
+    const VW vw_k1 = Set(dw, static_cast<TW>(1));
+    const VW vw_k5 = Set(dw, static_cast<TW>(5));
+    const VW vw_max = Set(dw, LimitsMax<TW>());
+
+    HWY_ASSERT_VEC_EQ(
+        dw, vw_min, SatWidenMulPairwiseAccumulate(dw, vn_max, vn_min, vw_min));
+    HWY_ASSERT_VEC_EQ(
+        dw, vw_max, SatWidenMulPairwiseAccumulate(dw, vn_max, vn_max, vw_max));
+    HWY_ASSERT_VEC_EQ(
+        dw, vw_max,
+        SatWidenMulPairwiseAccumulate(dw, vn_min, vn_min, vw_kneg1));
+
+    const VN vn_p = PositiveIota(dn);
+    const VN vn_n = Neg(vn_p);
+
+    const VW vw_sum2_p = SumsOf2(vn_p);
+    const VW vw_sum2_n = SumsOf2(vn_n);
+
+    const VW vw_p2 = Add(MulEven(vn_p, vn_p), MulOdd(vn_p, vn_p));
+    const VW vw_n2 = Add(MulEven(vn_p, vn_n), MulOdd(vn_p, vn_n));
+
+    HWY_ASSERT_VEC_EQ(dw, vw_p2,
+                      SatWidenMulPairwiseAccumulate(dw, vn_p, vn_p, vw_k0));
+    HWY_ASSERT_VEC_EQ(dw, vw_n2,
+                      SatWidenMulPairwiseAccumulate(dw, vn_p, vn_n, vw_k0));
+    HWY_ASSERT_VEC_EQ(dw, Add(vw_p2, vw_k1),
+                      SatWidenMulPairwiseAccumulate(dw, vn_p, vn_p, vw_k1));
+    HWY_ASSERT_VEC_EQ(dw, Add(vw_n2, vw_k1),
+                      SatWidenMulPairwiseAccumulate(dw, vn_n, vn_p, vw_k1));
+    HWY_ASSERT_VEC_EQ(dw, Add(vw_sum2_p, vw_k5),
+                      SatWidenMulPairwiseAccumulate(dw, vn_p, vn_k1, vw_k5));
+    HWY_ASSERT_VEC_EQ(dw, Add(vw_sum2_n, vw_kneg7),
+                      SatWidenMulPairwiseAccumulate(dw, vn_n, vn_k1, vw_kneg7));
+    HWY_ASSERT_VEC_EQ(
+        dw, Add(vw_sum2_p, vw_kneg7),
+        SatWidenMulPairwiseAccumulate(dw, vn_kneg1, vn_n, vw_kneg7));
+    HWY_ASSERT_VEC_EQ(dw, Add(vw_sum2_n, vw_kneg7),
+                      SatWidenMulPairwiseAccumulate(dw, vn_k1, vn_n, vw_kneg7));
+  }
+};
+
+HWY_NOINLINE void TestAllSatWidenMulPairwiseAccumulate() {
+  ForShrinkableVectors<TestSatWidenMulPairwiseAccumulate>()(int16_t());
+}
+
+struct TestSatWidenMulAccumFixedPoint {
+  template <class TN, class DN>
+  HWY_INLINE void operator()(TN /*unused*/, DN dn) {
+    static_assert(IsSigned<TN>() && !IsFloat<TN>() && !IsSpecialFloat<TN>(),
+                  "TN must be a signed integer type");
+
+    using TW = MakeWide<TN>;
+    const Rebind<TW, DN> dw;
+    using VW = Vec<decltype(dw)>;
+    using VN = Vec<decltype(dn)>;
+
+    const VN vn_min = Set(dn, LimitsMin<TN>());
+
+    const VW vw_min = Set(dw, LimitsMin<TW>());
+    const VW vw_kneg7 = Set(dw, static_cast<TW>(-7));
+    const VW vw_k0 = Zero(dw);
+    const VW vw_k1 = Set(dw, static_cast<TW>(1));
+    const VW vw_k19 = Set(dw, static_cast<TW>(19));
+    const VW vw_max = Set(dw, LimitsMax<TW>());
+
+    const VN vn_p = Add(
+        And(Iota(dn, TN{0}), Set(dn, static_cast<TN>(LimitsMax<TN>() >> 3))),
+        Set(dn, TN{1}));
+    const VW vw_p = PromoteTo(dw, vn_p);
+    HWY_ASSERT(AllTrue(dw, Gt(vw_p, vw_k0)));
+
+    const auto vw_n_minus7 = Add(Neg(vw_p), vw_kneg7);
+
+    // As it is implementation-defined if vn_min[i] * vn_min[i] * 2 is first
+    // saturated to TW before adding to vw_n_minus7[i], check that
+    // actual_minsqr_sum[i] is equal to either LimitsMax<TW>() + vn_n_minus7[i]
+    // or LimitsMax<TW>() + vn_n_minus7[i] + 1
+    const VW actual_minsqr_sum =
+        SatWidenMulAccumFixedPoint(dw, vn_min, vn_min, vw_n_minus7);
+    const VW min_expected_minsqr_sum = Add(vw_max, vw_n_minus7);
+    const VW max_expected_minsqr_sum = Add(min_expected_minsqr_sum, vw_k1);
+    HWY_ASSERT(
+        AllTrue(dw, And(Ge(actual_minsqr_sum, min_expected_minsqr_sum),
+                        Le(actual_minsqr_sum, max_expected_minsqr_sum))));
+
+    const VN vn_p_plus2 = Add(vn_p, Set(dn, TN{2}));
+    const VN vn_p_plus3 = Add(vn_p, Set(dn, TN{3}));
+
+    const VW vw_pp2_pp3 =
+        Mul(PromoteTo(dw, vn_p_plus2), PromoteTo(dw, vn_p_plus3));
+    const VW vw_pp2_pp3_2 = Add(vw_pp2_pp3, vw_pp2_pp3);
+
+    const VW expected_p_sum = Add(vw_pp2_pp3_2, vw_kneg7);
+    const VW actual_p_sum =
+        SatWidenMulAccumFixedPoint(dw, vn_p_plus2, vn_p_plus3, vw_kneg7);
+    HWY_ASSERT_VEC_EQ(dw, expected_p_sum, actual_p_sum);
+
+    const VW expected_p_sum2 = Add(vw_pp2_pp3_2, vw_k19);
+    const VW actual_p_sum2 =
+        SatWidenMulAccumFixedPoint(dw, vn_p_plus2, vn_p_plus3, vw_k19);
+    HWY_ASSERT_VEC_EQ(dw, expected_p_sum2, actual_p_sum2);
+
+    HWY_ASSERT_VEC_EQ(
+        dw, vw_max,
+        SatWidenMulAccumFixedPoint(dw, vn_p_plus2, vn_p_plus3, vw_max));
+
+    const VN vn_n_minus3 = Neg(vn_p_plus3);
+
+    const VW expected_n_sum = Sub(vw_kneg7, vw_pp2_pp3_2);
+    const VW actual_n_sum =
+        SatWidenMulAccumFixedPoint(dw, vn_p_plus2, vn_n_minus3, vw_kneg7);
+    HWY_ASSERT_VEC_EQ(dw, expected_n_sum, actual_n_sum);
+
+    HWY_ASSERT_VEC_EQ(
+        dw, vw_min,
+        SatWidenMulAccumFixedPoint(dw, vn_p_plus2, vn_n_minus3, vw_min));
+  }
+};
+
+HWY_NOINLINE void TestAllSatWidenMulAccumFixedPoint() {
+  ForPromoteVectors<TestSatWidenMulAccumFixedPoint>()(int16_t());
+}
+
 struct TestReorderWidenMulAccumulate {
   // Must be inlined on aarch64 for bf16, else clang crashes.
   template <typename TN, class DN>
@@ -494,9 +640,12 @@ namespace hwy {
 HWY_BEFORE_TEST(HwyWidenMulTest);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllWidenMulPairwiseAdd);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulPairwiseAdd);
+HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulPairwiseAccumulate);
+HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSatWidenMulAccumFixedPoint);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllReorderWidenMulAccumulate);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllRearrangeToOddPlusEven);
 HWY_EXPORT_AND_TEST_P(HwyWidenMulTest, TestAllSumOfMulQuadAccumulate);
+
 HWY_AFTER_TEST();
 }  // namespace hwy
 

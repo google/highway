@@ -5695,6 +5695,27 @@ HWY_API svuint32_t WidenMulPairwiseAdd(Simd<uint32_t, N, kPow2> d32,
 #endif
 }
 
+// ------------------------------ SatWidenMulAccumFixedPoint
+
+#if HWY_SVE_HAVE_2
+
+#ifdef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#undef HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#else
+#define HWY_NATIVE_I16_SATWIDENMULACCUMFIXEDPOINT
+#endif
+
+template <class DI32, HWY_IF_I32_D(DI32)>
+HWY_API VFromD<DI32> SatWidenMulAccumFixedPoint(DI32 /*di32*/,
+                                                VFromD<Rebind<int16_t, DI32>> a,
+                                                VFromD<Rebind<int16_t, DI32>> b,
+                                                VFromD<DI32> sum) {
+  return svqdmlalb_s32(sum, detail::ZipLowerSame(a, a),
+                       detail::ZipLowerSame(b, b));
+}
+
+#endif  // HWY_SVE_HAVE_2
+
 // ------------------------------ ReorderWidenMulAccumulate (MulAdd, ZipLower)
 
 template <size_t N, int kPow2>
