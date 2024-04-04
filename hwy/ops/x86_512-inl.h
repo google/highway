@@ -762,12 +762,16 @@ HWY_API Vec512<T> OrAnd(Vec512<T> o, Vec512<T> a1, Vec512<T> a2) {
 // ------------------------------ IfVecThenElse
 template <typename T>
 HWY_API Vec512<T> IfVecThenElse(Vec512<T> mask, Vec512<T> yes, Vec512<T> no) {
+#if !HWY_IS_MSAN
   const DFromV<decltype(yes)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
   return BitCast(d, VU{_mm512_ternarylogic_epi64(BitCast(du, mask).raw,
                                                  BitCast(du, yes).raw,
                                                  BitCast(du, no).raw, 0xCA)});
+#else
+  return IfThenElse(MaskFromVec(mask), yes, no);
+#endif
 }
 
 // ------------------------------ Operator overloads (internal-only if float)
