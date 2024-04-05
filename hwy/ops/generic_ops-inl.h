@@ -782,10 +782,11 @@ HWY_API V AddSub(V a, V b) {
 
 // AddSub for F32x8 and F64x4 vectors is implemented in x86_256-inl.h on
 // AVX2/AVX3
-template <class V, HWY_IF_V_SIZE_GT_V(V, ((HWY_TARGET <= HWY_SSSE3 &&
-                                           hwy::IsFloat3264<TFromV<V>>())
-                                              ? 32
-                                              : sizeof(TFromV<V>)))>
+
+// AddSub for F16/F32/F64 vectors on SVE is implemented in arm_sve-inl.h
+
+// AddSub for integer vectors on SVE2 is implemented in arm_sve-inl.h
+template <class V, HWY_IF_ADDSUB_V(V)>
 HWY_API V AddSub(V a, V b) {
   using D = DFromV<decltype(a)>;
   using T = TFromD<D>;
@@ -4437,12 +4438,11 @@ HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
 // MulAddSub for F16/F32/F64 vectors with 2 or more lanes on
 // SSSE3/SSE4/AVX2/AVX3 is implemented in x86_128-inl.h, x86_256-inl.h, and
 // x86_512-inl.h
-template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 1),
-          HWY_IF_T_SIZE_ONE_OF_V(V, (1 << 1) | ((HWY_TARGET <= HWY_SSSE3 &&
-                                                 hwy::IsFloat<TFromV<V>>())
-                                                    ? 0
-                                                    : ((1 << 2) | (1 << 4) |
-                                                       (1 << 8))))>
+
+// MulAddSub for F16/F32/F64 vectors on SVE is implemented in arm_sve-inl.h
+
+// MulAddSub for integer vectors on SVE2 is implemented in arm_sve-inl.h
+template <class V, HWY_IF_MULADDSUB_V(V)>
 HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
   using D = DFromV<V>;
   using T = TFromD<D>;

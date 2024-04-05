@@ -3796,6 +3796,12 @@ HWY_API Vec128<double, N> operator-(const Vec128<double, N> a,
 // ------------------------------ AddSub
 
 #if HWY_TARGET <= HWY_SSSE3
+
+#undef HWY_IF_ADDSUB_V
+#define HWY_IF_ADDSUB_V(V) \
+  HWY_IF_V_SIZE_GT_V(      \
+      V, ((hwy::IsFloat3264<TFromV<V>>()) ? 32 : sizeof(TFromV<V>)))
+
 template <size_t N, HWY_IF_LANES_GT(N, 1)>
 HWY_API Vec128<float, N> AddSub(Vec128<float, N> a, Vec128<float, N> b) {
   return Vec128<float, N>{_mm_addsub_ps(a.raw, b.raw)};
@@ -5415,6 +5421,14 @@ HWY_API Vec128<double, N> NegMulSub(Vec128<double, N> mul, Vec128<double, N> x,
 }
 
 #if HWY_TARGET <= HWY_SSSE3
+
+#undef HWY_IF_MULADDSUB_V
+#define HWY_IF_MULADDSUB_V(V)                        \
+  HWY_IF_LANES_GT_D(DFromV<V>, 1),                   \
+      HWY_IF_T_SIZE_ONE_OF_V(                        \
+          V, (1 << 1) | ((hwy::IsFloat<TFromV<V>>()) \
+                             ? 0                     \
+                             : ((1 << 2) | (1 << 4) | (1 << 8))))
 
 #if HWY_HAVE_FLOAT16
 template <size_t N, HWY_IF_LANES_GT(N, 1)>
