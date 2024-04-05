@@ -1664,8 +1664,9 @@ HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
                                TFromD<D>* HWY_RESTRICT unaligned) {
   const RebindToUnsigned<decltype(d)> du;
   using TU = TFromD<decltype(du)>;
-  const auto k5 = Set(du, TU{5});
-  const auto k6 = Set(du, TU{6});
+  using VU = VFromD<decltype(du)>;
+  const VU k5 = Set(du, TU{5});
+  const VU k6 = Set(du, TU{6});
 
   // Interleave (v0,v1,v2) to (MSB on left, lane 0 on right):
   // v0[5], v2[4],v1[4],v0[4] .. v2[0],v1[0],v0[0]. We're expanding v0 lanes
@@ -1681,29 +1682,29 @@ HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
   // The interleaved vectors will be named A, B, C; temporaries with suffix
   // 0..2 indicate which input vector's lanes they hold.
   // cannot reuse shuf_A0 (has 5)
-  const auto shuf_A2 = CombineShiftRightBytes<15>(du, shuf_A1, shuf_A1);
-  const auto A0 = TableLookupBytesOr0(v0, shuf_A0);  // 5..4..3..2..1..0
-  const auto A1 = TableLookupBytesOr0(v1, shuf_A1);  // ..4..3..2..1..0.
-  const auto A2 = TableLookupBytesOr0(v2, shuf_A2);  // .4..3..2..1..0..
-  const VFromD<D> A = BitCast(d, A0 | A1 | A2);
+  const VU shuf_A2 = CombineShiftRightBytes<15>(du, shuf_A1, shuf_A1);
+  const VU vA0 = TableLookupBytesOr0(v0, shuf_A0);  // 5..4..3..2..1..0
+  const VU vA1 = TableLookupBytesOr0(v1, shuf_A1);  // ..4..3..2..1..0.
+  const VU vA2 = TableLookupBytesOr0(v2, shuf_A2);  // .4..3..2..1..0..
+  const VFromD<D> A = BitCast(d, vA0 | vA1 | vA2);
 
   // B: v1[10],v0[10], v2[9],v1[9],v0[9] .. , v2[6],v1[6],v0[6], v2[5],v1[5]
-  const auto shuf_B0 = shuf_A2 + k6;  // .A..9..8..7..6..
-  const auto shuf_B1 = shuf_A0 + k5;  // A..9..8..7..6..5
-  const auto shuf_B2 = shuf_A1 + k5;  // ..9..8..7..6..5.
-  const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
-  const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
-  const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
-  const VFromD<D> B = BitCast(d, B0 | B1 | B2);
+  const VU shuf_B0 = shuf_A2 + k6;  // .A..9..8..7..6..
+  const VU shuf_B1 = shuf_A0 + k5;  // A..9..8..7..6..5
+  const VU shuf_B2 = shuf_A1 + k5;  // ..9..8..7..6..5.
+  const VU vB0 = TableLookupBytesOr0(v0, shuf_B0);
+  const VU vB1 = TableLookupBytesOr0(v1, shuf_B1);
+  const VU vB2 = TableLookupBytesOr0(v2, shuf_B2);
+  const VFromD<D> B = BitCast(d, vB0 | vB1 | vB2);
 
   // C: v2[15],v1[15],v0[15], v2[11],v1[11],v0[11], v2[10]
-  const auto shuf_C0 = shuf_B2 + k6;  // ..F..E..D..C..B.
-  const auto shuf_C1 = shuf_B0 + k5;  // .F..E..D..C..B..
-  const auto shuf_C2 = shuf_B1 + k5;  // F..E..D..C..B..A
-  const auto C0 = TableLookupBytesOr0(v0, shuf_C0);
-  const auto C1 = TableLookupBytesOr0(v1, shuf_C1);
-  const auto C2 = TableLookupBytesOr0(v2, shuf_C2);
-  const VFromD<D> C = BitCast(d, C0 | C1 | C2);
+  const VU shuf_C0 = shuf_B2 + k6;  // ..F..E..D..C..B.
+  const VU shuf_C1 = shuf_B0 + k5;  // .F..E..D..C..B..
+  const VU shuf_C2 = shuf_B1 + k5;  // F..E..D..C..B..A
+  const VU vC0 = TableLookupBytesOr0(v0, shuf_C0);
+  const VU vC1 = TableLookupBytesOr0(v1, shuf_C1);
+  const VU vC2 = TableLookupBytesOr0(v2, shuf_C2);
+  const VFromD<D> C = BitCast(d, vC0 | vC1 | vC2);
 
   detail::StoreTransposedBlocks3(A, B, C, d, unaligned);
 }
@@ -1713,8 +1714,9 @@ template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_V_SIZE_GT_D(D, 8)>
 HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
                                TFromD<D>* HWY_RESTRICT unaligned) {
   const Repartition<uint8_t, decltype(d)> du8;
-  const auto k2 = Set(du8, uint8_t{2 * sizeof(TFromD<D>)});
-  const auto k3 = Set(du8, uint8_t{3 * sizeof(TFromD<D>)});
+  using VU8 = VFromD<decltype(du8)>;
+  const VU8 k2 = Set(du8, uint8_t{2 * sizeof(TFromD<D>)});
+  const VU8 k3 = Set(du8, uint8_t{3 * sizeof(TFromD<D>)});
 
   // Interleave (v0,v1,v2) to (MSB on left, lane 0 on right):
   // v1[2],v0[2], v2[1],v1[1],v0[1], v2[0],v1[0],v0[0]. 0x80 so lanes to be
@@ -1729,30 +1731,30 @@ HWY_API void StoreInterleaved3(VFromD<D> v0, VFromD<D> v1, VFromD<D> v2, D d,
 
   // The interleaved vectors will be named A, B, C; temporaries with suffix
   // 0..2 indicate which input vector's lanes they hold.
-  const auto shuf_A0 = CombineShiftRightBytes<2>(du8, shuf_A1, shuf_A1);
+  const VU8 shuf_A0 = CombineShiftRightBytes<2>(du8, shuf_A1, shuf_A1);
 
-  const auto A0 = TableLookupBytesOr0(v0, shuf_A0);
-  const auto A1 = TableLookupBytesOr0(v1, shuf_A1);
-  const auto A2 = TableLookupBytesOr0(v2, shuf_A2);
+  const VU8 A0 = TableLookupBytesOr0(v0, shuf_A0);
+  const VU8 A1 = TableLookupBytesOr0(v1, shuf_A1);
+  const VU8 A2 = TableLookupBytesOr0(v2, shuf_A2);
   const VFromD<D> A = BitCast(d, A0 | A1 | A2);
 
   // B: v0[5] v2[4],v1[4],v0[4], v2[3],v1[3],v0[3], v2[2]
-  const auto shuf_B0 = shuf_A1 + k3;  // 5..4..3.
-  const auto shuf_B1 = shuf_A2 + k3;  // ..4..3..
-  const auto shuf_B2 = shuf_A0 + k2;  // .4..3..2
-  const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
-  const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
-  const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
-  const VFromD<D> B = BitCast(d, B0 | B1 | B2);
+  const VU8 shuf_B0 = shuf_A1 + k3;  // 5..4..3.
+  const VU8 shuf_B1 = shuf_A2 + k3;  // ..4..3..
+  const VU8 shuf_B2 = shuf_A0 + k2;  // .4..3..2
+  const VU8 vB0 = TableLookupBytesOr0(v0, shuf_B0);
+  const VU8 vB1 = TableLookupBytesOr0(v1, shuf_B1);
+  const VU8 vB2 = TableLookupBytesOr0(v2, shuf_B2);
+  const VFromD<D> B = BitCast(d, vB0 | vB1 | vB2);
 
   // C: v2[7],v1[7],v0[7], v2[6],v1[6],v0[6], v2[5],v1[5]
-  const auto shuf_C0 = shuf_B1 + k3;  // ..7..6..
-  const auto shuf_C1 = shuf_B2 + k3;  // .7..6..5
-  const auto shuf_C2 = shuf_B0 + k2;  // 7..6..5.
-  const auto C0 = TableLookupBytesOr0(v0, shuf_C0);
-  const auto C1 = TableLookupBytesOr0(v1, shuf_C1);
-  const auto C2 = TableLookupBytesOr0(v2, shuf_C2);
-  const VFromD<D> C = BitCast(d, C0 | C1 | C2);
+  const VU8 shuf_C0 = shuf_B1 + k3;  // ..7..6..
+  const VU8 shuf_C1 = shuf_B2 + k3;  // .7..6..5
+  const VU8 shuf_C2 = shuf_B0 + k2;  // 7..6..5.
+  const VU8 vC0 = TableLookupBytesOr0(v0, shuf_C0);
+  const VU8 vC1 = TableLookupBytesOr0(v1, shuf_C1);
+  const VU8 vC2 = TableLookupBytesOr0(v2, shuf_C2);
+  const VFromD<D> C = BitCast(d, vC0 | vC1 | vC2);
 
   detail::StoreTransposedBlocks3(A, B, C, d, unaligned);
 }
@@ -1805,9 +1807,10 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
   // Use full vectors for the shuffles and first result.
   constexpr size_t kFullN = 16 / sizeof(TFromD<D>);
   const Full128<uint8_t> du;
+  using VU = VFromD<decltype(du)>;
   const Full128<TFromD<D>> d_full;
-  const auto k5 = Set(du, uint8_t{5});
-  const auto k6 = Set(du, uint8_t{6});
+  const VU k5 = Set(du, uint8_t{5});
+  const VU k6 = Set(du, uint8_t{6});
 
   const VFromD<decltype(d_full)> v0{part0.raw};
   const VFromD<decltype(d_full)> v1{part1.raw};
@@ -1824,23 +1827,23 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
       0x80, 2, 0x80, 0x80, 3, 0x80, 0x80, 4, 0x80, 0x80};
   // The interleaved vectors will be named A, B, C; temporaries with suffix
   // 0..2 indicate which input vector's lanes they hold.
-  const auto shuf_A0 = Load(du, tbl_v0);
-  const auto shuf_A1 = Load(du, tbl_v1);  // cannot reuse shuf_A0 (5 in MSB)
-  const auto shuf_A2 = CombineShiftRightBytes<15>(du, shuf_A1, shuf_A1);
-  const auto A0 = TableLookupBytesOr0(v0, shuf_A0);  // 5..4..3..2..1..0
-  const auto A1 = TableLookupBytesOr0(v1, shuf_A1);  // ..4..3..2..1..0.
-  const auto A2 = TableLookupBytesOr0(v2, shuf_A2);  // .4..3..2..1..0..
+  const VU shuf_A0 = Load(du, tbl_v0);
+  const VU shuf_A1 = Load(du, tbl_v1);  // cannot reuse shuf_A0 (5 in MSB)
+  const VU shuf_A2 = CombineShiftRightBytes<15>(du, shuf_A1, shuf_A1);
+  const VU A0 = TableLookupBytesOr0(v0, shuf_A0);  // 5..4..3..2..1..0
+  const VU A1 = TableLookupBytesOr0(v1, shuf_A1);  // ..4..3..2..1..0.
+  const VU A2 = TableLookupBytesOr0(v2, shuf_A2);  // .4..3..2..1..0..
   const auto A = BitCast(d_full, A0 | A1 | A2);
   StoreU(A, d_full, unaligned + 0 * kFullN);
 
   // Second (HALF) vector: v2[7],v1[7],v0[7], v2[6],v1[6],v0[6], v2[5],v1[5]
-  const auto shuf_B0 = shuf_A2 + k6;  // ..7..6..
-  const auto shuf_B1 = shuf_A0 + k5;  // .7..6..5
-  const auto shuf_B2 = shuf_A1 + k5;  // 7..6..5.
-  const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
-  const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
-  const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
-  const VFromD<D> B{BitCast(d_full, B0 | B1 | B2).raw};
+  const VU shuf_B0 = shuf_A2 + k6;  // ..7..6..
+  const VU shuf_B1 = shuf_A0 + k5;  // .7..6..5
+  const VU shuf_B2 = shuf_A1 + k5;  // 7..6..5.
+  const VU vB0 = TableLookupBytesOr0(v0, shuf_B0);
+  const VU vB1 = TableLookupBytesOr0(v1, shuf_B1);
+  const VU vB2 = TableLookupBytesOr0(v2, shuf_B2);
+  const VFromD<D> B{BitCast(d_full, vB0 | vB1 | vB2).raw};
   StoreU(B, d, unaligned + 1 * kFullN);
 }
 
@@ -1851,8 +1854,9 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
                                TFromD<D>* HWY_RESTRICT unaligned) {
   const Twice<D> d_full;
   const Full128<uint8_t> du8;
-  const auto k2 = Set(du8, uint8_t{2 * sizeof(TFromD<D>)});
-  const auto k3 = Set(du8, uint8_t{3 * sizeof(TFromD<D>)});
+  using VU8 = VFromD<decltype(du8)>;
+  const VU8 k2 = Set(du8, uint8_t{2 * sizeof(TFromD<D>)});
+  const VU8 k3 = Set(du8, uint8_t{3 * sizeof(TFromD<D>)});
 
   const VFromD<decltype(d_full)> v0{part0.raw};
   const VFromD<decltype(d_full)> v1{part1.raw};
@@ -1871,25 +1875,25 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
 
   // The interleaved vectors will be named A, B; temporaries with suffix
   // 0..2 indicate which input vector's lanes they hold.
-  const auto shuf_A1 = Load(du8, tbl_v1);  // 2..1..0.
-                                           // .2..1..0
-  const auto shuf_A0 = CombineShiftRightBytes<2>(du8, shuf_A1, shuf_A1);
-  const auto shuf_A2 = Load(du8, tbl_v2);  // ..1..0..
+  const VU8 shuf_A1 = Load(du8, tbl_v1);  // 2..1..0.
+                                          // .2..1..0
+  const VU8 shuf_A0 = CombineShiftRightBytes<2>(du8, shuf_A1, shuf_A1);
+  const VU8 shuf_A2 = Load(du8, tbl_v2);  // ..1..0..
 
-  const auto A0 = TableLookupBytesOr0(v0, shuf_A0);
-  const auto A1 = TableLookupBytesOr0(v1, shuf_A1);
-  const auto A2 = TableLookupBytesOr0(v2, shuf_A2);
+  const VU8 A0 = TableLookupBytesOr0(v0, shuf_A0);
+  const VU8 A1 = TableLookupBytesOr0(v1, shuf_A1);
+  const VU8 A2 = TableLookupBytesOr0(v2, shuf_A2);
   const VFromD<decltype(d_full)> A = BitCast(d_full, A0 | A1 | A2);
   StoreU(A, d_full, unaligned);
 
   // Second (HALF) vector: v2[3],v1[3],v0[3], v2[2]
-  const auto shuf_B0 = shuf_A1 + k3;  // ..3.
-  const auto shuf_B1 = shuf_A2 + k3;  // .3..
-  const auto shuf_B2 = shuf_A0 + k2;  // 3..2
-  const auto B0 = TableLookupBytesOr0(v0, shuf_B0);
-  const auto B1 = TableLookupBytesOr0(v1, shuf_B1);
-  const auto B2 = TableLookupBytesOr0(v2, shuf_B2);
-  const VFromD<decltype(d_full)> B = BitCast(d_full, B0 | B1 | B2);
+  const VU8 shuf_B0 = shuf_A1 + k3;  // ..3.
+  const VU8 shuf_B1 = shuf_A2 + k3;  // .3..
+  const VU8 shuf_B2 = shuf_A0 + k2;  // 3..2
+  const VU8 vB0 = TableLookupBytesOr0(v0, shuf_B0);
+  const VU8 vB1 = TableLookupBytesOr0(v1, shuf_B1);
+  const VU8 vB2 = TableLookupBytesOr0(v2, shuf_B2);
+  const VFromD<decltype(d_full)> B = BitCast(d_full, vB0 | vB1 | vB2);
   StoreU(VFromD<D>{B.raw}, dh, unaligned + MaxLanes(d_full));
 }
 
@@ -1917,6 +1921,7 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
                                TFromD<D>* HWY_RESTRICT unaligned) {
   // Use full vectors for the shuffles and result.
   const Full128<uint8_t> du;
+  using VU = VFromD<decltype(du)>;
   const Full128<TFromD<D>> d_full;
 
   const VFromD<decltype(d_full)> v0{part0.raw};
@@ -1931,12 +1936,12 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
       0x80, 3,    0x80, 0x80, 0x80, 0x80, 0x80, 0x80};
   // The interleaved vector will be named A; temporaries with suffix
   // 0..2 indicate which input vector's lanes they hold.
-  const auto shuf_A0 = Load(du, tbl_v0);
-  const auto shuf_A1 = CombineShiftRightBytes<15>(du, shuf_A0, shuf_A0);
-  const auto shuf_A2 = CombineShiftRightBytes<14>(du, shuf_A0, shuf_A0);
-  const auto A0 = TableLookupBytesOr0(v0, shuf_A0);  // ......3..2..1..0
-  const auto A1 = TableLookupBytesOr0(v1, shuf_A1);  // .....3..2..1..0.
-  const auto A2 = TableLookupBytesOr0(v2, shuf_A2);  // ....3..2..1..0..
+  const VU shuf_A0 = Load(du, tbl_v0);
+  const VU shuf_A1 = CombineShiftRightBytes<15>(du, shuf_A0, shuf_A0);
+  const VU shuf_A2 = CombineShiftRightBytes<14>(du, shuf_A0, shuf_A0);
+  const VU A0 = TableLookupBytesOr0(v0, shuf_A0);  // ......3..2..1..0
+  const VU A1 = TableLookupBytesOr0(v1, shuf_A1);  // .....3..2..1..0.
+  const VU A2 = TableLookupBytesOr0(v2, shuf_A2);  // ....3..2..1..0..
   const VFromD<decltype(d_full)> A = BitCast(d_full, A0 | A1 | A2);
   alignas(16) TFromD<D> buf[MaxLanes(d_full)];
   StoreU(A, d_full, buf);
@@ -1950,6 +1955,7 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
                                TFromD<D>* HWY_RESTRICT unaligned) {
   // Use full vectors for the shuffles and result.
   const Full128<uint8_t> du8;
+  using VU8 = VFromD<decltype(du8)>;
   const Full128<TFromD<D>> d_full;
 
   const VFromD<decltype(d_full)> v0{part0.raw};
@@ -1964,15 +1970,14 @@ HWY_API void StoreInterleaved3(VFromD<D> part0, VFromD<D> part1,
       0x80, 0x80, 2,    3,    0x80, 0x80, 0x80, 0x80};
   // The interleaved vector will be named A; temporaries with suffix
   // 0..2 indicate which input vector's lanes they hold.
-  const auto shuf_A2 =  // ..1..0..
-      Load(du8, tbl_v2);
-  const auto shuf_A1 =  // ...1..0.
-      CombineShiftRightBytes<2>(du8, shuf_A2, shuf_A2);
-  const auto shuf_A0 =  // ....1..0
-      CombineShiftRightBytes<4>(du8, shuf_A2, shuf_A2);
-  const auto A0 = TableLookupBytesOr0(v0, shuf_A0);  // ..1..0
-  const auto A1 = TableLookupBytesOr0(v1, shuf_A1);  // .1..0.
-  const auto A2 = TableLookupBytesOr0(v2, shuf_A2);  // 1..0..
+  const VU8 shuf_A2 = Load(du8, tbl_v2);  // ..1..0..
+  const VU8 shuf_A1 =
+      CombineShiftRightBytes<2>(du8, shuf_A2, shuf_A2);  // ...1..0.
+  const VU8 shuf_A0 =
+      CombineShiftRightBytes<4>(du8, shuf_A2, shuf_A2);  // ....1..0
+  const VU8 A0 = TableLookupBytesOr0(v0, shuf_A0);       // ..1..0
+  const VU8 A1 = TableLookupBytesOr0(v1, shuf_A1);       // .1..0.
+  const VU8 A2 = TableLookupBytesOr0(v2, shuf_A2);       // 1..0..
   const auto A = BitCast(d_full, A0 | A1 | A2);
   alignas(16) TFromD<D> buf[MaxLanes(d_full)];
   StoreU(A, d_full, buf);
