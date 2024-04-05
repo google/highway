@@ -616,17 +616,24 @@ HWY_INLINE size_t PartitionRightmost(D d, Traits st, T* const keys,
       num_main = 0;
     }
   }
+
+  // Note that `StoreLeftRight` uses `CompressBlendedStore`, which may load and
+  // store a whole vector starting at `writeR`, and thus overrun `keys`. To
+  // prevent this, we partition at least `N` of the rightmost `keys` so that
+  // `StoreLeftRight` will be able to safely blend into them.
   HWY_DASSERT(num_here >= N);
 
-  // Postcondition: from here and above belongs to the right partition. Process
-  // vectors right to left to prevent overrunning `keys` in `StoreLeftRight`,
-  // which writes up to and including `writeR` via `CompressBlendedStore`,
-  // which loads and stores a whole vector. This will be safe because we now
-  // handle at least one vector at the end, which serves as padding.
-  T* pWriteR = keys + num;
-  const T* pReadR = pWriteR;  // <= pWriteR
+  // We cannot use `CompressBlendedStore` for the same reason, so we instead
+  // write the right-of-partition keys into a buffer in ascending order.
+  // `min` may be up to (kUnroll + 1) * N, hence `num_here` could be as much as
+  // (3 * kUnroll + 1) * N, and they might all fall on one side of the pivot.
+  const size_t max_buf = (3 * kUnroll + 1) * N;
+  HWY_DASSERT(num_here <= max_buf);
 
-  bufL = 0;  // how much written to buf
+  const T* pReadR = keys + num;  // pre-decremented by N
+
+  bufL = 0;
+  size_t bufR = max_buf;  // starting position, not the actual count.
 
   size_t i = 0;
   // For whole vectors, we can LoadU.
@@ -638,9 +645,8 @@ HWY_INLINE size_t PartitionRightmost(D d, Traits st, T* const keys,
     const Mask<D> comp = st.Compare(d, pivot, v);
     const size_t numL = CompressStore(v, Not(comp), d, buf + bufL);
     bufL += numL;
-    pWriteR -= (N - numL);
-    HWY_DASSERT(pWriteR >= pReadR);
-    (void)CompressBlendedStore(v, comp, d, pWriteR);
+    (void)CompressStore(v, comp, d, buf + bufR);
+    bufR += (N - numL);
   }
 
   // Last iteration: avoid reading past the end.
@@ -654,19 +660,18 @@ HWY_INLINE size_t PartitionRightmost(D d, Traits st, T* const keys,
     const Mask<D> comp = st.Compare(d, pivot, v);
     const size_t numL = CompressStore(v, AndNot(comp, mask), d, buf + bufL);
     bufL += numL;
-    pWriteR -= (remaining - numL);
-    HWY_DASSERT(pWriteR >= pReadR);
-    (void)CompressBlendedStore(v, And(comp, mask), d, pWriteR);
+    (void)CompressStore(v, comp, d, buf + bufR);
+    bufR += (remaining - numL);
   }
 
-  HWY_DASSERT(bufL <= num_here);  // wrote no more than read
-  // MSAN seems not to understand CompressStore. buf[0, bufL) are valid.
+  const size_t numWrittenR = bufR - max_buf;
+  // MSan seems not to understand CompressStore.
   detail::MaybeUnpoison(buf, bufL);
+  detail::MaybeUnpoison(buf + max_buf, numWrittenR);
 
-  writeR = static_cast<size_t>(pWriteR - keys);
-  const size_t numWrittenR = num - writeR;
-  (void)numWrittenR;                     // only for HWY_DASSERT
-  HWY_DASSERT(numWrittenR <= num_here);  // wrote no more than read
+  // Overwrite already-read end of keys with bufR.
+  writeR = num - numWrittenR;
+  hwy::CopyBytes(buf + max_buf, keys + writeR, numWrittenR * sizeof(T));
   // Ensure we finished reading/writing all we wanted
   HWY_DASSERT(pReadR == keys + num_main);
   HWY_DASSERT(bufL + numWrittenR == num_here);
@@ -1085,7 +1090,7 @@ HWY_INLINE bool MaybePartitionTwoValueR(D d, Traits st, T* HWY_RESTRICT keys,
     }
   }
   Store(valueL, d, buf);
-  SafeCopyN(endL - i, d, buf, keys + i);  // avoids asan overrun
+  SafeCopyN(endL - i, d, buf, keys + i);  // avoids ASan overrun
 
   if (VQSORT_PRINT >= 2) {
     fprintf(stderr,
@@ -1244,7 +1249,7 @@ HWY_INLINE void DrawSamples(D d, Traits st, T* HWY_RESTRICT keys, size_t num,
 
 template <class V>
 V OrXor(const V o, const V x1, const V x2) {
-  return Or(o, Xor(x1, x2));  // ternlog on AVX3
+  return Or(o, Xor(x1, x2));  // TERNLOG on AVX3
 }
 
 // For detecting inputs where (almost) all keys are equal.
@@ -1839,7 +1844,7 @@ HWY_NOINLINE void Recurse(D d, Traits st, T* HWY_RESTRICT keys,
                                     state, remaining_levels - 1, k - bound);
     }
   }
-  else HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
+  HWY_IF_CONSTEXPR(mode == RecurseMode::kSort) {
     if (HWY_LIKELY(result != PivotResult::kIsFirst)) {
       Recurse<RecurseMode::kSort>(d, st, keys, bound, buf, state,
                                   remaining_levels - 1);

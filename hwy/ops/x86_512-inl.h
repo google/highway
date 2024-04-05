@@ -717,45 +717,61 @@ HWY_API Vec512<double> Xor(const Vec512<double> a, const Vec512<double> b) {
 // ------------------------------ Xor3
 template <typename T>
 HWY_API Vec512<T> Xor3(Vec512<T> x1, Vec512<T> x2, Vec512<T> x3) {
+#if !HWY_IS_MSAN
   const DFromV<decltype(x1)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
   const __m512i ret = _mm512_ternarylogic_epi64(
       BitCast(du, x1).raw, BitCast(du, x2).raw, BitCast(du, x3).raw, 0x96);
   return BitCast(d, VU{ret});
+#else
+  return Xor(x1, Xor(x2, x3));
+#endif
 }
 
 // ------------------------------ Or3
 template <typename T>
 HWY_API Vec512<T> Or3(Vec512<T> o1, Vec512<T> o2, Vec512<T> o3) {
+#if !HWY_IS_MSAN
   const DFromV<decltype(o1)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
   const __m512i ret = _mm512_ternarylogic_epi64(
       BitCast(du, o1).raw, BitCast(du, o2).raw, BitCast(du, o3).raw, 0xFE);
   return BitCast(d, VU{ret});
+#else
+  return Or(o1, Or(o2, o3));
+#endif
 }
 
 // ------------------------------ OrAnd
 template <typename T>
 HWY_API Vec512<T> OrAnd(Vec512<T> o, Vec512<T> a1, Vec512<T> a2) {
+#if !HWY_IS_MSAN
   const DFromV<decltype(o)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
   const __m512i ret = _mm512_ternarylogic_epi64(
       BitCast(du, o).raw, BitCast(du, a1).raw, BitCast(du, a2).raw, 0xF8);
   return BitCast(d, VU{ret});
+#else
+  return Or(o, And(a1, a2));
+#endif
 }
 
 // ------------------------------ IfVecThenElse
 template <typename T>
 HWY_API Vec512<T> IfVecThenElse(Vec512<T> mask, Vec512<T> yes, Vec512<T> no) {
+#if !HWY_IS_MSAN
   const DFromV<decltype(yes)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
   return BitCast(d, VU{_mm512_ternarylogic_epi64(BitCast(du, mask).raw,
                                                  BitCast(du, yes).raw,
                                                  BitCast(du, no).raw, 0xCA)});
+#else
+  return IfThenElse(MaskFromVec(mask), yes, no);
+#endif
 }
 
 // ------------------------------ Operator overloads (internal-only if float)
@@ -6146,6 +6162,7 @@ static Vec512<uint16_t> SumsOfAdjQuadAbsDiff(Vec512<uint8_t> a,
       a, BitCast(d, Broadcast<kBOffset>(BitCast(du32, b))));
 }
 
+#if !HWY_IS_MSAN
 // ------------------------------ I32/I64 SaturatedAdd (MaskFromVec)
 
 HWY_API Vec512<int32_t> SaturatedAdd(Vec512<int32_t> a, Vec512<int32_t> b) {
@@ -6193,6 +6210,7 @@ HWY_API Vec512<int64_t> SaturatedSub(Vec512<int64_t> a, Vec512<int64_t> b) {
       i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
   return IfThenElse(overflow_mask, overflow_result, diff);
 }
+#endif  // !HWY_IS_MSAN
 
 // ------------------------------ Mask testing
 

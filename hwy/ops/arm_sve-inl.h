@@ -4229,6 +4229,95 @@ HWY_API VFromD<DW> ZipUpper(DW dw, V a, V b) {
 
 // ================================================== Ops with dependencies
 
+// ------------------------------ AddSub (Reverse2)
+
+// NOTE: svcadd_f*_x(HWY_SVE_PTRUE(BITS), a, b, 90) computes a[i] - b[i + 1] in
+// the even lanes and a[i] + b[i - 1] in the odd lanes.
+
+#define HWY_SVE_ADDSUB_F(BASE, CHAR, BITS, HALF, NAME, OP)                   \
+  HWY_API HWY_SVE_V(BASE, BITS)                                              \
+      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) {               \
+    const DFromV<decltype(b)> d;                                             \
+    return sv##OP##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), a, Reverse2(d, b), \
+                                     90);                                    \
+  }
+
+HWY_SVE_FOREACH_F(HWY_SVE_ADDSUB_F, AddSub, cadd)
+
+#undef HWY_SVE_ADDSUB_F
+
+// NOTE: svcadd_s*(a, b, 90) and svcadd_u*(a, b, 90) compute a[i] - b[i + 1] in
+// the even lanes and a[i] + b[i - 1] in the odd lanes.
+
+#if HWY_SVE_HAVE_2
+#define HWY_SVE_ADDSUB_UI(BASE, CHAR, BITS, HALF, NAME, OP)    \
+  HWY_API HWY_SVE_V(BASE, BITS)                                \
+      NAME(HWY_SVE_V(BASE, BITS) a, HWY_SVE_V(BASE, BITS) b) { \
+    const DFromV<decltype(b)> d;                               \
+    return sv##OP##_##CHAR##BITS(a, Reverse2(d, b), 90);       \
+  }
+
+HWY_SVE_FOREACH_UI(HWY_SVE_ADDSUB_UI, AddSub, cadd)
+
+#undef HWY_SVE_ADDSUB_UI
+
+// Disable the default implementation of AddSub in generic_ops-inl.h on SVE2
+#undef HWY_IF_ADDSUB_V
+#define HWY_IF_ADDSUB_V(V)         \
+  HWY_IF_LANES_GT_D(DFromV<V>, 1), \
+      hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr
+
+#else  // !HWY_SVE_HAVE_2
+
+// Disable the default implementation of AddSub in generic_ops-inl.h for
+// floating-point vectors on SVE, but enable the default implementation of
+// AddSub in generic_ops-inl.h for integer vectors on SVE that do not support
+// SVE2
+#undef HWY_IF_ADDSUB_V
+#define HWY_IF_ADDSUB_V(V) \
+  HWY_IF_LANES_GT_D(DFromV<V>, 1), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)
+
+#endif  // HWY_SVE_HAVE_2
+
+// ------------------------------ MulAddSub (AddSub)
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 1), HWY_IF_FLOAT_V(V)>
+HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
+  using T = TFromV<V>;
+
+  const DFromV<V> d;
+  const T neg_zero = ConvertScalarTo<T>(-0.0f);
+
+  return MulAdd(mul, x, AddSub(Set(d, neg_zero), sub_or_add));
+}
+
+#if HWY_SVE_HAVE_2
+
+// Disable the default implementation of MulAddSub in generic_ops-inl.h on SVE2
+#undef HWY_IF_MULADDSUB_V
+#define HWY_IF_MULADDSUB_V(V)      \
+  HWY_IF_LANES_GT_D(DFromV<V>, 1), \
+      hwy::EnableIf<!hwy::IsSame<V, V>()>* = nullptr
+
+template <class V, HWY_IF_LANES_GT_D(DFromV<V>, 1),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)>
+HWY_API V MulAddSub(V mul, V x, V sub_or_add) {
+  const DFromV<V> d;
+  return MulAdd(mul, x, AddSub(Zero(d), sub_or_add));
+}
+
+#else  // !HWY_SVE_HAVE_2
+
+// Disable the default implementation of MulAddSub in generic_ops-inl.h for
+// floating-point vectors on SVE, but enable the default implementation of
+// AddSub in generic_ops-inl.h for integer vectors on SVE targets that do not
+// support SVE2
+#undef HWY_IF_MULADDSUB_V
+#define HWY_IF_MULADDSUB_V(V) \
+  HWY_IF_LANES_GT_D(DFromV<V>, 1), HWY_IF_NOT_FLOAT_NOR_SPECIAL_V(V)
+
+#endif  // HWY_SVE_HAVE_2
+
 // ------------------------------ PromoteTo bfloat16 (ZipLower)
 template <size_t N, int kPow2>
 HWY_API svfloat32_t PromoteTo(Simd<float32_t, N, kPow2> df32, VBF16 v) {

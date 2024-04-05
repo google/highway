@@ -535,7 +535,7 @@ template <typename T>
 HWY_API Vec256<T> Not(const Vec256<T> v) {
   const DFromV<decltype(v)> d;
   using TU = MakeUnsigned<T>;
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const __m256i vu = BitCast(RebindToUnsigned<decltype(d)>(), v).raw;
   return BitCast(d, Vec256<TU>{_mm256_ternarylogic_epi32(vu, vu, vu, 0x55)});
 #else
@@ -546,7 +546,7 @@ HWY_API Vec256<T> Not(const Vec256<T> v) {
 // ------------------------------ Xor3
 template <typename T>
 HWY_API Vec256<T> Xor3(Vec256<T> x1, Vec256<T> x2, Vec256<T> x3) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(x1)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -561,7 +561,7 @@ HWY_API Vec256<T> Xor3(Vec256<T> x1, Vec256<T> x2, Vec256<T> x3) {
 // ------------------------------ Or3
 template <typename T>
 HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(o1)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -576,7 +576,7 @@ HWY_API Vec256<T> Or3(Vec256<T> o1, Vec256<T> o2, Vec256<T> o3) {
 // ------------------------------ OrAnd
 template <typename T>
 HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(o)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -591,7 +591,7 @@ HWY_API Vec256<T> OrAnd(Vec256<T> o, Vec256<T> a1, Vec256<T> a2) {
 // ------------------------------ IfVecThenElse
 template <typename T>
 HWY_API Vec256<T> IfVecThenElse(Vec256<T> mask, Vec256<T> yes, Vec256<T> no) {
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
   const DFromV<decltype(yes)> d;
   const RebindToUnsigned<decltype(d)> du;
   using VU = VFromD<decltype(du)>;
@@ -2031,7 +2031,7 @@ HWY_API Vec256<int16_t> SaturatedAdd(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{_mm256_adds_epi16(a.raw, b.raw)};
 }
 
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 HWY_API Vec256<int32_t> SaturatedAdd(Vec256<int32_t> a, Vec256<int32_t> b) {
   const DFromV<decltype(a)> d;
   const auto sum = a + b;
@@ -2053,7 +2053,7 @@ HWY_API Vec256<int64_t> SaturatedAdd(Vec256<int64_t> a, Vec256<int64_t> b) {
       i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
   return IfThenElse(overflow_mask, overflow_result, sum);
 }
-#endif  // HWY_TARGET <= HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 
 // ------------------------------ SaturatedSub
 
@@ -2075,7 +2075,7 @@ HWY_API Vec256<int16_t> SaturatedSub(Vec256<int16_t> a, Vec256<int16_t> b) {
   return Vec256<int16_t>{_mm256_subs_epi16(a.raw, b.raw)};
 }
 
-#if HWY_TARGET <= HWY_AVX3
+#if HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 HWY_API Vec256<int32_t> SaturatedSub(Vec256<int32_t> a, Vec256<int32_t> b) {
   const DFromV<decltype(a)> d;
   const auto diff = a - b;
@@ -2097,7 +2097,7 @@ HWY_API Vec256<int64_t> SaturatedSub(Vec256<int64_t> a, Vec256<int64_t> b) {
       i64_max.raw, MaskFromVec(a).raw, i64_max.raw, i64_max.raw, 0x55)};
   return IfThenElse(overflow_mask, overflow_result, diff);
 }
-#endif  // HWY_TARGET <= HWY_AVX3
+#endif  // HWY_TARGET <= HWY_AVX3 && !HWY_IS_MSAN
 
 // ------------------------------ Average
 

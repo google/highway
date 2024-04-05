@@ -55,6 +55,13 @@ the biggest gains are unlocked by designing algorithms and data structures for
 scalable vectors. Helpful techniques include batching, structure-of-array
 layouts, and aligned/padded allocations.
 
+We recommend these resources for getting started:
+
+-   [SIMD for C++ Developers](http://const.me/articles/simd/simd.pdf)
+-   [Algorithms for Modern Hardware](https://en.algorithmica.org/hpc/)
+-   [Optimizing software in C++](https://agner.org/optimize/optimizing_cpp.pdf)
+-   [Improving performance with SIMD intrinsics in three use cases](https://stackoverflow.blog/2020/07/08/improving-performance-with-simd-intrinsics-in-three-use-cases/)
+
 ## Examples
 
 Online demos using Compiler Explorer:
